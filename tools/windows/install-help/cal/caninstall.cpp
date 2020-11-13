@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "TargetMachine.h"
 
 /**
  *  canInstall determines if the install can proceed based on the current
@@ -16,9 +17,10 @@
  * @param bResetPassword on return, set to true if the password needs to be reset based on configuration,
  *                       otherwise false.
  */
-bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomActionData &data, bool &bResetPassword)
+bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomActionData &data,  bool &bResetPassword)
 {
     bResetPassword = false;
+    bool bRet = true;
     ///////////////////////////////////////////////////////////////////////////
     //
     // If domain controller:
@@ -50,10 +52,15 @@ bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomAc
     //       (8) install service, create user
     //       use password if provided, otherwise generate
     if (isDC) {
+        if (!ddUserExists && data.GetTargetMachine().IsReadOnlyDomainController())
+        {
+            WcaLog(LOGMSG_STANDARD, "(Configuration Error) Can't create user on RODC; install on a writable domain controller first");
+            bRet = false;
+        }
         if (!ddUserExists && ddServiceExists) {
             // case (3) above
-            WcaLog(LOGMSG_STANDARD, "Invalid configuration; no DD user, but service exists");
-            return false;
+            WcaLog(LOGMSG_STANDARD, "(Configuration Error) Invalid configuration; no DD user, but service exists");
+            bRet = false;
         }
         if (!ddUserExists || !ddServiceExists) {
             // case (4) and case (2)
@@ -61,25 +68,25 @@ bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomAc
                 // error case of case 2 & 4.  Must have the password to create the user in the domain,
                 // because it must be reused by other domain controllers in domain.
                 // must have the password to install the service for an existing user
-                WcaLog(LOGMSG_STANDARD, "Must supply password for dd-agent-user to create user and/or install service in a domain");
-                return false;
+                WcaLog(LOGMSG_STANDARD, "(Configuration Error)  Must supply password for dd-agent-user to create user and/or install service in a domain");
+                bRet = false;
             }
         }
         if(!ddUserExists &&
-            (_wcsicmp(data.Domain().c_str(), domainname.c_str())))
+            (_wcsicmp(data.Domain().c_str(), data.GetTargetMachine().GetDomain().c_str())))
         {
             // on a domain controller, we can only create a user in this controller's domain.
             // check and reject an attempt to create a user not in this domain
-            WcaLog(LOGMSG_STANDARD, "Can't create a user that's not in this domain: %S (asked for %S)",
-                domainname.c_str(), data.Domain().c_str());
-                return false;
+            WcaLog(LOGMSG_STANDARD, "(Configuration Error)  Can't create a user that's not in this domain: %S (asked for %S)",
+                data.GetTargetMachine().GetDomain().c_str(), data.Domain().c_str());
+                bRet = false;
         }
     }
     else {
         if(!ddUserExists && data.isUserDomainUser()) {
-            WcaLog(LOGMSG_STANDARD, "Can't create a domain user when not on a domain controller");
-            WcaLog(LOGMSG_STANDARD, "Install Datadog Agent on the domain controller for the %S domain", data.Domain().c_str());
-            return false;
+            WcaLog(LOGMSG_STANDARD, "(Configuration Error) Can't create a domain user when not on a domain controller");
+            WcaLog(LOGMSG_STANDARD, "(Configuration Error) Install Datadog Agent on the domain controller for the %S domain", data.Domain().c_str());
+            bRet = false;
         }
         if (ddUserExists)
         {
@@ -90,8 +97,8 @@ bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomAc
                     // really an error case of (2). Even though we're not in a domain, if
                     // they supplied a domain user, we have to use it, which means we need
                     // the password
-                    WcaLog(LOGMSG_STANDARD, "Must supply the password to allow service registration");
-                    return false;
+                    WcaLog(LOGMSG_STANDARD, "(Configuration Error) Must supply the password to allow service registration");
+                    bRet = false;
                 }
             }
             else {
@@ -104,11 +111,11 @@ bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomAc
         }
         if (!ddUserExists && ddServiceExists) {
             // error case of (7)
-            WcaLog(LOGMSG_STANDARD, "Invalid configuration; no DD user, but service exists");
-            return false;
+            WcaLog(LOGMSG_STANDARD, "(Configuration Error) Invalid configuration; no DD user, but service exists");
+            bRet = false;
         }
     }
     // case (1), case (2) if password provided, case (4) if password provided
     // case (5), case (6) but reset password, case (8) are all success.
-    return true;
+    return bRet;
 }

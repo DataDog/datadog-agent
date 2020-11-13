@@ -6,6 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-enhancements:
+upgrade:
   - |
     Windows Docker image is now based on Windows Server Nano instead of Windows Server Core.

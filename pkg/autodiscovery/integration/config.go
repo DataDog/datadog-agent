@@ -289,7 +289,7 @@ func (c *Config) Digest() string {
 			// identical configs with the same tags but with different order
 			tagsInterface, ok := val.([]interface{})
 			if !ok {
-				log.Debug("Error while calculating config digest for %s, skipping: cannot read tags from config", c.Name)
+				log.Debugf("Error while calculating config digest for %s, skipping: cannot read tags from config", c.Name)
 				continue
 			}
 			tags := make([]string, len(tagsInterface))

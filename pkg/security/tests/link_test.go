@@ -12,16 +12,16 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/policy"
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
 func TestLink(t *testing.T) {
-	rule := &policy.RuleDefinition{
+	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `link.source.filename == "{{.Root}}/test-link" && link.target.filename == "{{.Root}}/test2-link"`,
 	}
 
-	test, err := newTestModule(nil, []*policy.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,5 +76,12 @@ func TestLink(t *testing.T) {
 		if event.GetType() != "link" {
 			t.Errorf("expected rename event, got %s", event.GetType())
 		}
+
+		if inode := getInode(t, testNewFile); inode != event.Link.Source.Inode {
+			t.Errorf("expected inode %d, got %d", event.Link.Source.Inode, inode)
+		}
+
+		testContainerPath(t, event, "link.source.container_path")
+		testContainerPath(t, event, "link.target.container_path")
 	}
 }

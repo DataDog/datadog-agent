@@ -25,6 +25,62 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
+type EventType int32
+
+const (
+	EventType_ADDED    EventType = 0
+	EventType_MODIFIED EventType = 1
+	EventType_DELETED  EventType = 2
+)
+
+var EventType_name = map[int32]string{
+	0: "ADDED",
+	1: "MODIFIED",
+	2: "DELETED",
+}
+
+var EventType_value = map[string]int32{
+	"ADDED":    0,
+	"MODIFIED": 1,
+	"DELETED":  2,
+}
+
+func (x EventType) String() string {
+	return proto.EnumName(EventType_name, int32(x))
+}
+
+func (EventType) EnumDescriptor() ([]byte, []int) {
+	return fileDescriptor_00212fb1f9d3bf1c, []int{0}
+}
+
+type TagCardinality int32
+
+const (
+	TagCardinality_LOW          TagCardinality = 0
+	TagCardinality_ORCHESTRATOR TagCardinality = 1
+	TagCardinality_HIGH         TagCardinality = 2
+)
+
+var TagCardinality_name = map[int32]string{
+	0: "LOW",
+	1: "ORCHESTRATOR",
+	2: "HIGH",
+}
+
+var TagCardinality_value = map[string]int32{
+	"LOW":          0,
+	"ORCHESTRATOR": 1,
+	"HIGH":         2,
+}
+
+func (x TagCardinality) String() string {
+	return proto.EnumName(TagCardinality_name, int32(x))
+}
+
+func (TagCardinality) EnumDescriptor() ([]byte, []int) {
+	return fileDescriptor_00212fb1f9d3bf1c, []int{1}
+}
+
 type HostnameRequest struct {
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -56,7 +112,7 @@ func (m *HostnameRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_HostnameRequest proto.InternalMessageInfo
 
-// The response message containing the greetings
+// The response message containing the requested hostname
 type HostnameReply struct {
 	Hostname             string   `protobuf:"bytes,1,opt,name=hostname,proto3" json:"hostname,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -96,26 +152,453 @@ func (m *HostnameReply) GetHostname() string {
 	return ""
 }
 
+type StreamTagsRequest struct {
+	Cardinality          TagCardinality `protobuf:"varint,1,opt,name=cardinality,proto3,enum=pb.TagCardinality" json:"cardinality,omitempty"`
+	IncludeFilter        *Filter        `protobuf:"bytes,2,opt,name=includeFilter,proto3" json:"includeFilter,omitempty"`
+	ExcludeFilter        *Filter        `protobuf:"bytes,3,opt,name=excludeFilter,proto3" json:"excludeFilter,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}       `json:"-"`
+	XXX_unrecognized     []byte         `json:"-"`
+	XXX_sizecache        int32          `json:"-"`
+}
+
+func (m *StreamTagsRequest) Reset()         { *m = StreamTagsRequest{} }
+func (m *StreamTagsRequest) String() string { return proto.CompactTextString(m) }
+func (*StreamTagsRequest) ProtoMessage()    {}
+func (*StreamTagsRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_00212fb1f9d3bf1c, []int{2}
+}
+
+func (m *StreamTagsRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_StreamTagsRequest.Unmarshal(m, b)
+}
+func (m *StreamTagsRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_StreamTagsRequest.Marshal(b, m, deterministic)
+}
+func (m *StreamTagsRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_StreamTagsRequest.Merge(m, src)
+}
+func (m *StreamTagsRequest) XXX_Size() int {
+	return xxx_messageInfo_StreamTagsRequest.Size(m)
+}
+func (m *StreamTagsRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_StreamTagsRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_StreamTagsRequest proto.InternalMessageInfo
+
+func (m *StreamTagsRequest) GetCardinality() TagCardinality {
+	if m != nil {
+		return m.Cardinality
+	}
+	return TagCardinality_LOW
+}
+
+func (m *StreamTagsRequest) GetIncludeFilter() *Filter {
+	if m != nil {
+		return m.IncludeFilter
+	}
+	return nil
+}
+
+func (m *StreamTagsRequest) GetExcludeFilter() *Filter {
+	if m != nil {
+		return m.ExcludeFilter
+	}
+	return nil
+}
+
+type StreamTagsResponse struct {
+	Type                 EventType `protobuf:"varint,1,opt,name=type,proto3,enum=pb.EventType" json:"type,omitempty"`
+	Entity               *Entity   `protobuf:"bytes,2,opt,name=entity,proto3" json:"entity,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
+	XXX_unrecognized     []byte    `json:"-"`
+	XXX_sizecache        int32     `json:"-"`
+}
+
+func (m *StreamTagsResponse) Reset()         { *m = StreamTagsResponse{} }
+func (m *StreamTagsResponse) String() string { return proto.CompactTextString(m) }
+func (*StreamTagsResponse) ProtoMessage()    {}
+func (*StreamTagsResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_00212fb1f9d3bf1c, []int{3}
+}
+
+func (m *StreamTagsResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_StreamTagsResponse.Unmarshal(m, b)
+}
+func (m *StreamTagsResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_StreamTagsResponse.Marshal(b, m, deterministic)
+}
+func (m *StreamTagsResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_StreamTagsResponse.Merge(m, src)
+}
+func (m *StreamTagsResponse) XXX_Size() int {
+	return xxx_messageInfo_StreamTagsResponse.Size(m)
+}
+func (m *StreamTagsResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_StreamTagsResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_StreamTagsResponse proto.InternalMessageInfo
+
+func (m *StreamTagsResponse) GetType() EventType {
+	if m != nil {
+		return m.Type
+	}
+	return EventType_ADDED
+}
+
+func (m *StreamTagsResponse) GetEntity() *Entity {
+	if m != nil {
+		return m.Entity
+	}
+	return nil
+}
+
+type Filter struct {
+	KubeNamespace        string   `protobuf:"bytes,1,opt,name=kubeNamespace,proto3" json:"kubeNamespace,omitempty"`
+	Image                string   `protobuf:"bytes,2,opt,name=image,proto3" json:"image,omitempty"`
+	ContainerName        string   `protobuf:"bytes,3,opt,name=containerName,proto3" json:"containerName,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *Filter) Reset()         { *m = Filter{} }
+func (m *Filter) String() string { return proto.CompactTextString(m) }
+func (*Filter) ProtoMessage()    {}
+func (*Filter) Descriptor() ([]byte, []int) {
+	return fileDescriptor_00212fb1f9d3bf1c, []int{4}
+}
+
+func (m *Filter) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_Filter.Unmarshal(m, b)
+}
+func (m *Filter) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_Filter.Marshal(b, m, deterministic)
+}
+func (m *Filter) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Filter.Merge(m, src)
+}
+func (m *Filter) XXX_Size() int {
+	return xxx_messageInfo_Filter.Size(m)
+}
+func (m *Filter) XXX_DiscardUnknown() {
+	xxx_messageInfo_Filter.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_Filter proto.InternalMessageInfo
+
+func (m *Filter) GetKubeNamespace() string {
+	if m != nil {
+		return m.KubeNamespace
+	}
+	return ""
+}
+
+func (m *Filter) GetImage() string {
+	if m != nil {
+		return m.Image
+	}
+	return ""
+}
+
+func (m *Filter) GetContainerName() string {
+	if m != nil {
+		return m.ContainerName
+	}
+	return ""
+}
+
+type Entity struct {
+	Id                          *EntityId `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Hash                        string    `protobuf:"bytes,2,opt,name=hash,proto3" json:"hash,omitempty"`
+	HighCardinalityTags         []string  `protobuf:"bytes,3,rep,name=highCardinalityTags,proto3" json:"highCardinalityTags,omitempty"`
+	OrchestratorCardinalityTags []string  `protobuf:"bytes,4,rep,name=orchestratorCardinalityTags,proto3" json:"orchestratorCardinalityTags,omitempty"`
+	LowCardinalityTags          []string  `protobuf:"bytes,5,rep,name=lowCardinalityTags,proto3" json:"lowCardinalityTags,omitempty"`
+	StandardTags                []string  `protobuf:"bytes,6,rep,name=standardTags,proto3" json:"standardTags,omitempty"`
+	XXX_NoUnkeyedLiteral        struct{}  `json:"-"`
+	XXX_unrecognized            []byte    `json:"-"`
+	XXX_sizecache               int32     `json:"-"`
+}
+
+func (m *Entity) Reset()         { *m = Entity{} }
+func (m *Entity) String() string { return proto.CompactTextString(m) }
+func (*Entity) ProtoMessage()    {}
+func (*Entity) Descriptor() ([]byte, []int) {
+	return fileDescriptor_00212fb1f9d3bf1c, []int{5}
+}
+
+func (m *Entity) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_Entity.Unmarshal(m, b)
+}
+func (m *Entity) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_Entity.Marshal(b, m, deterministic)
+}
+func (m *Entity) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Entity.Merge(m, src)
+}
+func (m *Entity) XXX_Size() int {
+	return xxx_messageInfo_Entity.Size(m)
+}
+func (m *Entity) XXX_DiscardUnknown() {
+	xxx_messageInfo_Entity.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_Entity proto.InternalMessageInfo
+
+func (m *Entity) GetId() *EntityId {
+	if m != nil {
+		return m.Id
+	}
+	return nil
+}
+
+func (m *Entity) GetHash() string {
+	if m != nil {
+		return m.Hash
+	}
+	return ""
+}
+
+func (m *Entity) GetHighCardinalityTags() []string {
+	if m != nil {
+		return m.HighCardinalityTags
+	}
+	return nil
+}
+
+func (m *Entity) GetOrchestratorCardinalityTags() []string {
+	if m != nil {
+		return m.OrchestratorCardinalityTags
+	}
+	return nil
+}
+
+func (m *Entity) GetLowCardinalityTags() []string {
+	if m != nil {
+		return m.LowCardinalityTags
+	}
+	return nil
+}
+
+func (m *Entity) GetStandardTags() []string {
+	if m != nil {
+		return m.StandardTags
+	}
+	return nil
+}
+
+type FetchEntityRequest struct {
+	Id                   *EntityId      `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Cardinality          TagCardinality `protobuf:"varint,2,opt,name=cardinality,proto3,enum=pb.TagCardinality" json:"cardinality,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}       `json:"-"`
+	XXX_unrecognized     []byte         `json:"-"`
+	XXX_sizecache        int32          `json:"-"`
+}
+
+func (m *FetchEntityRequest) Reset()         { *m = FetchEntityRequest{} }
+func (m *FetchEntityRequest) String() string { return proto.CompactTextString(m) }
+func (*FetchEntityRequest) ProtoMessage()    {}
+func (*FetchEntityRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_00212fb1f9d3bf1c, []int{6}
+}
+
+func (m *FetchEntityRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_FetchEntityRequest.Unmarshal(m, b)
+}
+func (m *FetchEntityRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_FetchEntityRequest.Marshal(b, m, deterministic)
+}
+func (m *FetchEntityRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_FetchEntityRequest.Merge(m, src)
+}
+func (m *FetchEntityRequest) XXX_Size() int {
+	return xxx_messageInfo_FetchEntityRequest.Size(m)
+}
+func (m *FetchEntityRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_FetchEntityRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_FetchEntityRequest proto.InternalMessageInfo
+
+func (m *FetchEntityRequest) GetId() *EntityId {
+	if m != nil {
+		return m.Id
+	}
+	return nil
+}
+
+func (m *FetchEntityRequest) GetCardinality() TagCardinality {
+	if m != nil {
+		return m.Cardinality
+	}
+	return TagCardinality_LOW
+}
+
+type FetchEntityResponse struct {
+	Id                   *EntityId      `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Cardinality          TagCardinality `protobuf:"varint,2,opt,name=cardinality,proto3,enum=pb.TagCardinality" json:"cardinality,omitempty"`
+	Tags                 []string       `protobuf:"bytes,3,rep,name=tags,proto3" json:"tags,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}       `json:"-"`
+	XXX_unrecognized     []byte         `json:"-"`
+	XXX_sizecache        int32          `json:"-"`
+}
+
+func (m *FetchEntityResponse) Reset()         { *m = FetchEntityResponse{} }
+func (m *FetchEntityResponse) String() string { return proto.CompactTextString(m) }
+func (*FetchEntityResponse) ProtoMessage()    {}
+func (*FetchEntityResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_00212fb1f9d3bf1c, []int{7}
+}
+
+func (m *FetchEntityResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_FetchEntityResponse.Unmarshal(m, b)
+}
+func (m *FetchEntityResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_FetchEntityResponse.Marshal(b, m, deterministic)
+}
+func (m *FetchEntityResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_FetchEntityResponse.Merge(m, src)
+}
+func (m *FetchEntityResponse) XXX_Size() int {
+	return xxx_messageInfo_FetchEntityResponse.Size(m)
+}
+func (m *FetchEntityResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_FetchEntityResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_FetchEntityResponse proto.InternalMessageInfo
+
+func (m *FetchEntityResponse) GetId() *EntityId {
+	if m != nil {
+		return m.Id
+	}
+	return nil
+}
+
+func (m *FetchEntityResponse) GetCardinality() TagCardinality {
+	if m != nil {
+		return m.Cardinality
+	}
+	return TagCardinality_LOW
+}
+
+func (m *FetchEntityResponse) GetTags() []string {
+	if m != nil {
+		return m.Tags
+	}
+	return nil
+}
+
+type EntityId struct {
+	Prefix               string   `protobuf:"bytes,1,opt,name=prefix,proto3" json:"prefix,omitempty"`
+	Uid                  string   `protobuf:"bytes,2,opt,name=uid,proto3" json:"uid,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *EntityId) Reset()         { *m = EntityId{} }
+func (m *EntityId) String() string { return proto.CompactTextString(m) }
+func (*EntityId) ProtoMessage()    {}
+func (*EntityId) Descriptor() ([]byte, []int) {
+	return fileDescriptor_00212fb1f9d3bf1c, []int{8}
+}
+
+func (m *EntityId) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_EntityId.Unmarshal(m, b)
+}
+func (m *EntityId) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_EntityId.Marshal(b, m, deterministic)
+}
+func (m *EntityId) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_EntityId.Merge(m, src)
+}
+func (m *EntityId) XXX_Size() int {
+	return xxx_messageInfo_EntityId.Size(m)
+}
+func (m *EntityId) XXX_DiscardUnknown() {
+	xxx_messageInfo_EntityId.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_EntityId proto.InternalMessageInfo
+
+func (m *EntityId) GetPrefix() string {
+	if m != nil {
+		return m.Prefix
+	}
+	return ""
+}
+
+func (m *EntityId) GetUid() string {
+	if m != nil {
+		return m.Uid
+	}
+	return ""
+}
+
 func init() {
+	proto.RegisterEnum("pb.EventType", EventType_name, EventType_value)
+	proto.RegisterEnum("pb.TagCardinality", TagCardinality_name, TagCardinality_value)
 	proto.RegisterType((*HostnameRequest)(nil), "pb.HostnameRequest")
 	proto.RegisterType((*HostnameReply)(nil), "pb.HostnameReply")
+	proto.RegisterType((*StreamTagsRequest)(nil), "pb.StreamTagsRequest")
+	proto.RegisterType((*StreamTagsResponse)(nil), "pb.StreamTagsResponse")
+	proto.RegisterType((*Filter)(nil), "pb.Filter")
+	proto.RegisterType((*Entity)(nil), "pb.Entity")
+	proto.RegisterType((*FetchEntityRequest)(nil), "pb.FetchEntityRequest")
+	proto.RegisterType((*FetchEntityResponse)(nil), "pb.FetchEntityResponse")
+	proto.RegisterType((*EntityId)(nil), "pb.EntityId")
 }
 
 func init() { proto.RegisterFile("api.proto", fileDescriptor_00212fb1f9d3bf1c) }
 
 var fileDescriptor_00212fb1f9d3bf1c = []byte{
-	// 169 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0xe2, 0x4c, 0x2c, 0xc8, 0xd4,
-	0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x17, 0x62, 0x2a, 0x48, 0x92, 0x92, 0x49, 0xcf, 0xcf, 0x4f, 0xcf,
-	0x49, 0xd5, 0x4f, 0x2c, 0xc8, 0xd4, 0x4f, 0xcc, 0xcb, 0xcb, 0x2f, 0x49, 0x2c, 0xc9, 0xcc, 0xcf,
-	0x2b, 0x86, 0xa8, 0x50, 0x12, 0xe4, 0xe2, 0xf7, 0xc8, 0x2f, 0x2e, 0xc9, 0x4b, 0xcc, 0x4d, 0x0d,
-	0x4a, 0x2d, 0x2c, 0x4d, 0x2d, 0x2e, 0x51, 0xd2, 0xe6, 0xe2, 0x45, 0x08, 0x15, 0xe4, 0x54, 0x0a,
-	0x49, 0x71, 0x71, 0x64, 0x40, 0x05, 0x24, 0x18, 0x15, 0x18, 0x35, 0x38, 0x83, 0xe0, 0x7c, 0xa3,
-	0x50, 0x2e, 0x56, 0xc7, 0xf4, 0xd4, 0xbc, 0x12, 0x21, 0x1f, 0x2e, 0x6e, 0xf7, 0xd4, 0x12, 0x98,
-	0x46, 0x21, 0x61, 0xbd, 0x82, 0x24, 0x3d, 0x34, 0x93, 0xa5, 0x04, 0x51, 0x05, 0x0b, 0x72, 0x2a,
-	0x95, 0x44, 0x9b, 0x2e, 0x3f, 0x99, 0xcc, 0xc4, 0x2f, 0xc4, 0xab, 0x5f, 0x66, 0xa8, 0x9f, 0x5e,
-	0x54, 0x90, 0xac, 0x0f, 0x32, 0x3a, 0x89, 0x0d, 0xec, 0x3a, 0x63, 0x40, 0x00, 0x00, 0x00, 0xff,
-	0xff, 0xbd, 0x9d, 0x72, 0x5f, 0xcc, 0x00, 0x00, 0x00,
+	// 699 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x54, 0xcd, 0x4e, 0xdb, 0x4a,
+	0x14, 0xc6, 0xce, 0x0f, 0xc9, 0x49, 0x02, 0xce, 0xe1, 0xe7, 0xa2, 0x5c, 0xa4, 0x0b, 0x23, 0xa4,
+	0x8b, 0x72, 0xa5, 0x04, 0x72, 0xe9, 0x86, 0x55, 0x11, 0x31, 0x24, 0x12, 0x6d, 0x24, 0x93, 0xaa,
+	0x8b, 0x2e, 0xaa, 0x89, 0x3d, 0xd8, 0xd3, 0x3a, 0xb6, 0x6b, 0x4f, 0x28, 0x59, 0x74, 0xc3, 0x2b,
+	0xf4, 0x39, 0xfa, 0x34, 0x7d, 0x85, 0xbe, 0x40, 0xdf, 0xa0, 0xf2, 0xd8, 0x90, 0x38, 0x41, 0xa8,
+	0x9b, 0xee, 0x3c, 0xdf, 0xf9, 0xbe, 0xf3, 0x9d, 0x99, 0x73, 0x7c, 0xa0, 0x4c, 0x03, 0xde, 0x0a,
+	0x42, 0x5f, 0xf8, 0xa8, 0x06, 0xa3, 0xc6, 0xae, 0xed, 0xfb, 0xb6, 0xcb, 0xda, 0x34, 0xe0, 0x6d,
+	0xea, 0x79, 0xbe, 0xa0, 0x82, 0xfb, 0x5e, 0x94, 0x30, 0x48, 0x1d, 0xd6, 0x7b, 0x7e, 0x24, 0x3c,
+	0x3a, 0x66, 0x06, 0xfb, 0x34, 0x61, 0x91, 0x20, 0xff, 0x41, 0x6d, 0x06, 0x05, 0xee, 0x14, 0x1b,
+	0x50, 0x72, 0x52, 0x60, 0x47, 0xd9, 0x53, 0x0e, 0xcb, 0xc6, 0xe3, 0x99, 0x7c, 0x53, 0xa0, 0x7e,
+	0x2d, 0x42, 0x46, 0xc7, 0x43, 0x6a, 0x47, 0x69, 0x0a, 0x3c, 0x81, 0x8a, 0x49, 0x43, 0x8b, 0x7b,
+	0xd4, 0xe5, 0x62, 0x2a, 0x45, 0x6b, 0x1d, 0x6c, 0x05, 0xa3, 0xd6, 0x90, 0xda, 0xe7, 0xb3, 0x88,
+	0x31, 0x4f, 0xc3, 0x23, 0xa8, 0x71, 0xcf, 0x74, 0x27, 0x16, 0xbb, 0xe0, 0xae, 0x60, 0xe1, 0x8e,
+	0xba, 0xa7, 0x1c, 0x56, 0x3a, 0x10, 0xeb, 0x12, 0xc4, 0xc8, 0x12, 0x62, 0x05, 0xbb, 0x9b, 0x57,
+	0xe4, 0x96, 0x15, 0x19, 0x02, 0x79, 0x07, 0x38, 0x5f, 0x6e, 0x14, 0xf8, 0x5e, 0xc4, 0x70, 0x1f,
+	0xf2, 0x62, 0x1a, 0xb0, 0xb4, 0xd0, 0x5a, 0x2c, 0xd7, 0x6f, 0x99, 0x27, 0x86, 0xd3, 0x80, 0x19,
+	0x32, 0x84, 0x04, 0x8a, 0xcc, 0x13, 0xf1, 0x6d, 0xe6, 0xaa, 0xd2, 0x25, 0x62, 0xa4, 0x11, 0xf2,
+	0x01, 0x8a, 0x69, 0x61, 0x07, 0x50, 0xfb, 0x38, 0x19, 0xb1, 0xd7, 0x74, 0xcc, 0xa2, 0x80, 0x9a,
+	0x0f, 0xef, 0x96, 0x05, 0x71, 0x13, 0x0a, 0x7c, 0x4c, 0x6d, 0x26, 0x53, 0x96, 0x8d, 0xe4, 0x10,
+	0x6b, 0x4d, 0xdf, 0x13, 0x94, 0x7b, 0x2c, 0x8c, 0xb9, 0xf2, 0x52, 0x65, 0x23, 0x0b, 0x92, 0x7b,
+	0x15, 0x8a, 0x89, 0x3d, 0xee, 0x82, 0xca, 0x2d, 0xe9, 0x50, 0xe9, 0x54, 0x67, 0x65, 0xf5, 0x2d,
+	0x43, 0xe5, 0x16, 0x22, 0xe4, 0x1d, 0x1a, 0x39, 0xa9, 0x87, 0xfc, 0xc6, 0x23, 0xd8, 0x70, 0xb8,
+	0xed, 0xcc, 0x75, 0x22, 0x7e, 0x8e, 0x9d, 0xdc, 0x5e, 0xee, 0xb0, 0x6c, 0x3c, 0x15, 0xc2, 0x97,
+	0xf0, 0xb7, 0x1f, 0x9a, 0x0e, 0x8b, 0x44, 0x48, 0x85, 0x1f, 0x2e, 0x2a, 0xf3, 0x52, 0xf9, 0x1c,
+	0x05, 0x5b, 0x80, 0xae, 0xff, 0x79, 0x51, 0x58, 0x90, 0xc2, 0x27, 0x22, 0x48, 0xa0, 0x1a, 0x09,
+	0xea, 0x59, 0x34, 0xb4, 0x24, 0xb3, 0x28, 0x99, 0x19, 0x8c, 0x38, 0x80, 0x17, 0x4c, 0x98, 0x4e,
+	0xda, 0x87, 0x74, 0xfa, 0x9e, 0x7f, 0x8f, 0x85, 0xd9, 0x54, 0x7f, 0x6b, 0x36, 0xc9, 0x17, 0xd8,
+	0xc8, 0x38, 0xa5, 0x83, 0xf3, 0x07, 0xac, 0xe2, 0x86, 0x89, 0x59, 0x37, 0xe4, 0x37, 0x39, 0x81,
+	0xd2, 0x43, 0x66, 0xdc, 0x86, 0x62, 0x10, 0xb2, 0x1b, 0x7e, 0x97, 0x0e, 0x55, 0x7a, 0x42, 0x0d,
+	0x72, 0x13, 0x6e, 0xa5, 0x7d, 0x8e, 0x3f, 0x9b, 0xc7, 0x50, 0x7e, 0x1c, 0x63, 0x2c, 0x43, 0xe1,
+	0xac, 0xdb, 0xd5, 0xbb, 0xda, 0x0a, 0x56, 0xa1, 0xf4, 0x6a, 0xd0, 0xed, 0x5f, 0xf4, 0xf5, 0xae,
+	0xa6, 0x60, 0x05, 0x56, 0xbb, 0xfa, 0x95, 0x3e, 0xd4, 0xbb, 0x9a, 0xda, 0x7c, 0x01, 0x6b, 0xd9,
+	0xda, 0x70, 0x15, 0x72, 0x57, 0x83, 0xb7, 0xda, 0x0a, 0x6a, 0x50, 0x1d, 0x18, 0xe7, 0x3d, 0xfd,
+	0x7a, 0x68, 0x9c, 0x0d, 0x07, 0x86, 0xa6, 0x60, 0x09, 0xf2, 0xbd, 0xfe, 0x65, 0x4f, 0x53, 0x3b,
+	0x6f, 0xa0, 0x70, 0x66, 0x33, 0x4f, 0xe0, 0x15, 0x54, 0x2e, 0x99, 0x78, 0xd8, 0x1f, 0xb8, 0x11,
+	0x5f, 0x76, 0x61, 0xc1, 0x34, 0xea, 0x59, 0x30, 0x70, 0xa7, 0x64, 0xeb, 0xfe, 0xfb, 0x8f, 0xaf,
+	0xea, 0x3a, 0xd6, 0xda, 0xb7, 0xc7, 0x6d, 0x3b, 0x0c, 0xcc, 0x76, 0xbc, 0x61, 0x3a, 0x3f, 0x15,
+	0xa8, 0xc8, 0xbc, 0xd7, 0xcc, 0x9c, 0x84, 0x0c, 0x23, 0xd8, 0x1c, 0x52, 0xdb, 0x66, 0x61, 0xf2,
+	0x0f, 0xcb, 0x27, 0xe1, 0x2c, 0xc2, 0xad, 0x38, 0xe3, 0xd2, 0x1a, 0x6a, 0x6c, 0x2f, 0xc2, 0x49,
+	0xd7, 0x48, 0x53, 0xba, 0x1d, 0x90, 0x7f, 0x1e, 0xdd, 0x84, 0xcc, 0xda, 0x8e, 0x24, 0xf7, 0x3d,
+	0x4b, 0xf3, 0x9e, 0x2a, 0xcd, 0x23, 0x05, 0xc7, 0x50, 0x4f, 0x4c, 0xe7, 0x06, 0x00, 0x65, 0xea,
+	0xe5, 0xd9, 0x6b, 0xfc, 0xb5, 0x84, 0xa7, 0x9e, 0xff, 0x4a, 0xcf, 0x7d, 0xb2, 0xbb, 0xe8, 0x79,
+	0x13, 0x93, 0x13, 0xcb, 0xe9, 0xa9, 0xd2, 0x1c, 0x15, 0xe5, 0x62, 0xfe, 0xff, 0x57, 0x00, 0x00,
+	0x00, 0xff, 0xff, 0xb4, 0x39, 0x18, 0xbb, 0xc7, 0x05, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -197,5 +680,141 @@ var _Agent_serviceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
+	Metadata: "api.proto",
+}
+
+// AgentSecureClient is the client API for AgentSecure service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
+type AgentSecureClient interface {
+	TaggerStreamEntities(ctx context.Context, in *StreamTagsRequest, opts ...grpc.CallOption) (AgentSecure_TaggerStreamEntitiesClient, error)
+	TaggerFetchEntity(ctx context.Context, in *FetchEntityRequest, opts ...grpc.CallOption) (*FetchEntityResponse, error)
+}
+
+type agentSecureClient struct {
+	cc *grpc.ClientConn
+}
+
+func NewAgentSecureClient(cc *grpc.ClientConn) AgentSecureClient {
+	return &agentSecureClient{cc}
+}
+
+func (c *agentSecureClient) TaggerStreamEntities(ctx context.Context, in *StreamTagsRequest, opts ...grpc.CallOption) (AgentSecure_TaggerStreamEntitiesClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_AgentSecure_serviceDesc.Streams[0], "/pb.AgentSecure/TaggerStreamEntities", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &agentSecureTaggerStreamEntitiesClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type AgentSecure_TaggerStreamEntitiesClient interface {
+	Recv() (*StreamTagsResponse, error)
+	grpc.ClientStream
+}
+
+type agentSecureTaggerStreamEntitiesClient struct {
+	grpc.ClientStream
+}
+
+func (x *agentSecureTaggerStreamEntitiesClient) Recv() (*StreamTagsResponse, error) {
+	m := new(StreamTagsResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *agentSecureClient) TaggerFetchEntity(ctx context.Context, in *FetchEntityRequest, opts ...grpc.CallOption) (*FetchEntityResponse, error) {
+	out := new(FetchEntityResponse)
+	err := c.cc.Invoke(ctx, "/pb.AgentSecure/TaggerFetchEntity", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// AgentSecureServer is the server API for AgentSecure service.
+type AgentSecureServer interface {
+	TaggerStreamEntities(*StreamTagsRequest, AgentSecure_TaggerStreamEntitiesServer) error
+	TaggerFetchEntity(context.Context, *FetchEntityRequest) (*FetchEntityResponse, error)
+}
+
+// UnimplementedAgentSecureServer can be embedded to have forward compatible implementations.
+type UnimplementedAgentSecureServer struct {
+}
+
+func (*UnimplementedAgentSecureServer) TaggerStreamEntities(req *StreamTagsRequest, srv AgentSecure_TaggerStreamEntitiesServer) error {
+	return status.Errorf(codes.Unimplemented, "method TaggerStreamEntities not implemented")
+}
+func (*UnimplementedAgentSecureServer) TaggerFetchEntity(ctx context.Context, req *FetchEntityRequest) (*FetchEntityResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method TaggerFetchEntity not implemented")
+}
+
+func RegisterAgentSecureServer(s *grpc.Server, srv AgentSecureServer) {
+	s.RegisterService(&_AgentSecure_serviceDesc, srv)
+}
+
+func _AgentSecure_TaggerStreamEntities_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(StreamTagsRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(AgentSecureServer).TaggerStreamEntities(m, &agentSecureTaggerStreamEntitiesServer{stream})
+}
+
+type AgentSecure_TaggerStreamEntitiesServer interface {
+	Send(*StreamTagsResponse) error
+	grpc.ServerStream
+}
+
+type agentSecureTaggerStreamEntitiesServer struct {
+	grpc.ServerStream
+}
+
+func (x *agentSecureTaggerStreamEntitiesServer) Send(m *StreamTagsResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _AgentSecure_TaggerFetchEntity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FetchEntityRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentSecureServer).TaggerFetchEntity(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/pb.AgentSecure/TaggerFetchEntity",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentSecureServer).TaggerFetchEntity(ctx, req.(*FetchEntityRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+var _AgentSecure_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "pb.AgentSecure",
+	HandlerType: (*AgentSecureServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "TaggerFetchEntity",
+			Handler:    _AgentSecure_TaggerFetchEntity_Handler,
+		},
+	},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "TaggerStreamEntities",
+			Handler:       _AgentSecure_TaggerStreamEntities_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "api.proto",
 }

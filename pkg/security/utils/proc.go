@@ -3,13 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build linux_bpf
+// +build linux
 
 package utils
 
 import (
 	"fmt"
+	"os"
+	"path"
 	"path/filepath"
+	"strings"
+
+	"github.com/moby/sys/mountinfo"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -32,4 +37,39 @@ func CgroupTaskPath(tgid, pid uint32) string {
 // ProcExePath returns the path to the exe file of a pid in /proc
 func ProcExePath(pid uint32) string {
 	return filepath.Join(util.HostProc(), fmt.Sprintf("%d/exe", pid))
+}
+
+// PidTTY returns the TTY of the given pid
+func PidTTY(pid uint32) string {
+	fdPath := filepath.Join(util.HostProc(), fmt.Sprintf("%d/fd/0", pid))
+
+	ttyPath, err := os.Readlink(fdPath)
+	if err != nil {
+		return ""
+	}
+
+	if ttyPath == "/dev/null" {
+		return ""
+	}
+
+	if strings.HasPrefix(ttyPath, "/dev/pts") {
+		return "pts" + path.Base(ttyPath)
+	}
+
+	if strings.HasPrefix(ttyPath, "/dev") {
+		return path.Base(ttyPath)
+	}
+
+	return ""
+}
+
+// ParseMountInfoFile collects the mounts for a specific process ID.
+func ParseMountInfoFile(pid uint32) ([]*mountinfo.Info, error) {
+	f, err := os.Open(MountInfoPidPath(pid))
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	return mountinfo.GetMountsFromReader(f, nil)
 }

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -207,17 +208,17 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	if config.Datadog.IsSet("apm_config.max_traces_per_second") {
 		c.MaxTPS = config.Datadog.GetFloat64("apm_config.max_traces_per_second")
 	}
-	if config.Datadog.IsSet("apm_config.ignore_resources") {
-		c.Ignore["resource"] = config.Datadog.GetStringSlice("apm_config.ignore_resources")
+	if k := "apm_config.ignore_resources"; config.Datadog.IsSet(k) {
+		c.Ignore["resource"] = config.Datadog.GetStringSlice(k)
 	}
 	if k := "apm_config.max_payload_size"; config.Datadog.IsSet(k) {
 		c.MaxRequestBytes = config.Datadog.GetInt64(k)
 	}
-
-	if config.Datadog.IsSet("apm_config.replace_tags") {
+	if k := "apm_config.replace_tags"; config.Datadog.IsSet(k) {
 		rt := make([]*ReplaceRule, 0)
-		err := config.Datadog.UnmarshalKey("apm_config.replace_tags", &rt)
-		if err == nil {
+		if err := config.Datadog.UnmarshalKey(k, &rt); err != nil {
+			log.Errorf("Bad format for %q it should be of the form '[{\"name\": \"tag_name\",\"pattern\":\"pattern\",\"repl\":\"replace_str\"}]', error: %v", "apm_config.replace_tags", err)
+		} else {
 			err := compileReplaceRules(rt)
 			if err != nil {
 				osutil.Exitf("replace_tags: %s", err)
@@ -281,22 +282,21 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		}
 	}
 	// undocumeted
-	if config.Datadog.IsSet("apm_config.analyzed_spans") {
-		rateBySpan := make(map[string]float64)
-		if err := config.Datadog.UnmarshalKey("apm_config.analyzed_spans", &rateBySpan); err != nil {
-			return err
-		}
-		for key, rate := range rateBySpan {
+	if k := "apm_config.analyzed_spans"; config.Datadog.IsSet(k) {
+		for key, rate := range config.Datadog.GetStringMap("apm_config.analyzed_spans") {
 			serviceName, operationName, err := parseServiceAndOp(key)
 			if err != nil {
 				log.Errorf("Error parsing names: %v", err)
 				continue
 			}
-
-			if _, ok := c.AnalyzedSpansByService[serviceName]; !ok {
-				c.AnalyzedSpansByService[serviceName] = make(map[string]float64)
+			if floatrate, err := toFloat64(rate); err != nil {
+				log.Errorf("Invalid value for apm_config.analyzed_spans: %v", err)
+			} else {
+				if _, ok := c.AnalyzedSpansByService[serviceName]; !ok {
+					c.AnalyzedSpansByService[serviceName] = make(map[string]float64)
+				}
+				c.AnalyzedSpansByService[serviceName][operationName] = floatrate
 			}
-			c.AnalyzedSpansByService[serviceName][operationName] = rate
 		}
 	}
 
@@ -407,4 +407,33 @@ func splitString(s string, sep rune) ([]string, error) {
 	r.Comma = sep
 
 	return r.Read()
+}
+
+func toFloat64(val interface{}) (float64, error) {
+	switch v := val.(type) {
+	case float64:
+		return v, nil
+	case float32:
+		return float64(v), nil
+	case int:
+		return float64(v), nil
+	case int32:
+		return float64(v), nil
+	case int64:
+		return float64(v), nil
+	case uint:
+		return float64(v), nil
+	case uint32:
+		return float64(v), nil
+	case uint64:
+		return float64(v), nil
+	case string:
+		f, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			return 0, err
+		}
+		return f, nil
+	default:
+		return 0, fmt.Errorf("%v can not be converted to float64", val)
+	}
 }

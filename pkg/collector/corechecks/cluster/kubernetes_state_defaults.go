@@ -107,6 +107,7 @@ var (
 		"kube_verticalpodautoscaler_spec_updatepolicy_updatemode":                                  "vpa.update_mode",
 		"kube_verticalpodautoscaler_spec_resourcepolicy_container_policies_minallowed":             "vpa.spec_container_minallowed",
 		"kube_verticalpodautoscaler_spec_resourcepolicy_container_policies_maxallowed":             "vpa.spec_container_maxallowed",
+		"kube_cronjob_spec_suspend":                                                                "cronjob.spec_suspend",
 	}
 
 	// metadata metrics are useful for label joins
@@ -117,26 +118,33 @@ var (
 	deniedMetrics = options.MetricSet{
 		".*_created":                                       {},
 		".*_owner":                                         {},
-		".*_time":                                          {},
 		".*_generation":                                    {},
 		".*_metadata_resource_version":                     {},
 		"kube_pod_status_reason":                           {},
 		"kube_pod_restart_policy":                          {},
+		"kube_pod_.*_time":                                 {},
 		"kube_cronjob_status_active":                       {},
 		"kube_namespace_status_phase":                      {},
 		"kube_node_status_phase":                           {},
-		"kube_cronjob_spec_suspend":                        {},
 		"kube_cronjob_spec_starting_deadline_seconds":      {},
 		"kube_job_spec_active_dealine_seconds":             {},
 		"kube_job_spec_completions":                        {},
 		"kube_job_spec_parallelism":                        {},
 		"kube_job_status_active":                           {},
+		"kube_job_status_.*_time":                          {},
 		"kube_service_spec_external_ip":                    {},
 		"kube_service_status_load_balancer_ingress":        {},
 		"kube_ingress_path":                                {},
 		"kube_statefulset_status_current_revision":         {},
 		"kube_statefulset_status_update_revision":          {},
 		"kube_pod_container_status_last_terminated_reason": {},
+		"kube_lease_renew_time":                            {},
+	}
+
+	defaultStandardLabels = []string{
+		"label_tags_datadoghq_com_env",
+		"label_tags_datadoghq_com_service",
+		"label_tags_datadoghq_com_version",
 	}
 
 	// defaultLabelJoins contains the default label joins configuration
@@ -159,27 +167,31 @@ var (
 		},
 		"kube_pod_labels": {
 			LabelsToMatch: []string{"pod", "namespace"},
-			GetAllLabels:  true,
+			LabelsToGet:   defaultStandardLabels,
 		},
 		"kube_deployment_labels": {
 			LabelsToMatch: []string{"deployment", "namespace"},
-			GetAllLabels:  true,
+			LabelsToGet:   defaultStandardLabels,
 		},
 		"kube_replicaset_labels": {
 			LabelsToMatch: []string{"replicaset", "namespace"},
-			GetAllLabels:  true,
+			LabelsToGet:   defaultStandardLabels,
 		},
 		"kube_daemonset_labels": {
 			LabelsToMatch: []string{"daemonset", "namespace"},
-			GetAllLabels:  true,
+			LabelsToGet:   defaultStandardLabels,
 		},
 		"kube_statefulset_labels": {
 			LabelsToMatch: []string{"statefulset", "namespace"},
-			GetAllLabels:  true,
+			LabelsToGet:   defaultStandardLabels,
 		},
 		"kube_job_labels": {
 			LabelsToMatch: []string{"job_name", "namespace"},
-			GetAllLabels:  true,
+			LabelsToGet:   defaultStandardLabels,
+		},
+		"kube_cronjob_labels": {
+			LabelsToMatch: []string{"cronjob", "namespace"},
+			LabelsToGet:   defaultStandardLabels,
 		},
 	}
 )

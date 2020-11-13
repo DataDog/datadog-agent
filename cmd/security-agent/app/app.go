@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path"
 	"syscall"
 	"time"
 
@@ -19,8 +20,9 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	commonagent "github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -33,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	ddgostatsd "github.com/DataDog/datadog-go/statsd"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -81,18 +84,24 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 		},
 	}
 
-	pidfilePath string
-	confPath    string
-	flagNoColor bool
-	stopCh      chan struct{}
+	pidfilePath   string
+	confPathArray []string
+	flagNoColor   bool
+	stopCh        chan struct{}
 )
 
 func init() {
-	SecurityAgentCmd.PersistentFlags().StringVarP(&confPath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
+	var defaultConfPathArray = []string{path.Join(commonagent.DefaultConfPath, "datadog.yaml"),
+		path.Join(commonagent.DefaultConfPath, "security-agent.yaml")}
+	SecurityAgentCmd.PersistentFlags().StringArrayVarP(&confPathArray, "cfgpath", "c", defaultConfPathArray, "path to a yaml configuration file")
 	SecurityAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
 
 	SecurityAgentCmd.AddCommand(versionCmd)
 	SecurityAgentCmd.AddCommand(complianceCmd)
+
+	if runtimeCmd != nil {
+		SecurityAgentCmd.AddCommand(runtimeCmd)
+	}
 
 	startCmd.Flags().StringVarP(&pidfilePath, "pidfile", "p", "", "path to the pidfile")
 	SecurityAgentCmd.AddCommand(startCmd)
@@ -118,25 +127,20 @@ func newLogContext() (*config.Endpoints, *client.DestinationsContext, error) {
 func start(cmd *cobra.Command, args []string) error {
 	defer log.Flush()
 
-	// we'll search for a config file named `datadog.yaml`
-	coreconfig.Datadog.SetConfigName("datadog")
-	err := common.SetupConfig(confPath)
-	if err != nil {
-		return fmt.Errorf("unable to set up global agent configuration: %v", err)
+	// Read configuration files received from the command line arguments '-c'
+	if err := common.MergeConfigurationFiles("datadog", confPathArray); err != nil {
+		return err
 	}
 
 	// Setup logger
 	syslogURI := coreconfig.GetSyslogURI()
-	logFile := coreconfig.Datadog.GetString("log_file")
-	if logFile == "" {
-		logFile = common.DefaultLogFile
-	}
+	logFile := coreconfig.Datadog.GetString("security_agent.log_file")
 	if coreconfig.Datadog.GetBool("disable_file_logging") {
 		// this will prevent any logging on file
 		logFile = ""
 	}
 
-	err = coreconfig.SetupLogger(
+	err := coreconfig.SetupLogger(
 		loggerName,
 		coreconfig.Datadog.GetString("log_level"),
 		logFile,
@@ -212,12 +216,23 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 	stopper.Add(dstContext)
 
-	if err = startCompliance(hostname, endpoints, dstContext, stopper); err != nil {
+	// Retrieve statsd host and port from the datadog agent configuration file
+	statsdHost := coreconfig.Datadog.GetString("bind_host")
+	statsdPort := coreconfig.Datadog.GetInt("dogstatsd_port")
+
+	// Create a statsd Client
+	statsdAddr := fmt.Sprintf("%s:%d", statsdHost, statsdPort)
+	statsdClient, err := ddgostatsd.New(statsdAddr)
+	if err != nil {
+		return log.Criticalf("Error creating statsd Client: %s", err)
+	}
+
+	if err = startCompliance(hostname, endpoints, dstContext, stopper, statsdClient); err != nil {
 		return err
 	}
 
 	// start runtime security agent
-	runtimeAgent, err := startRuntimeSecurity(hostname, endpoints, dstContext, stopper)
+	runtimeAgent, err := startRuntimeSecurity(hostname, endpoints, dstContext, stopper, statsdClient)
 	if err != nil {
 		return err
 	}

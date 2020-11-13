@@ -1,0 +1,79 @@
+{{/*
+*/}}=====================
+Orchestrator Explorer
+=====================
+
+{{- if .Error }}
+  Error: {{ .Error }}
+{{- end }}
+{{- if .Disabled }}
+  Disabled: {{ .Disabled }}
+{{- end }}
+{{- if .ClusterIDError }}
+  ClusterIDError: {{.ClusterIDError}}
+{{- end }}
+
+{{- if .ClusterID }}
+  ClusterID: {{.ClusterID}}
+{{- end }}
+{{- if .ClusterNameError }}
+  ClusterIDError: {{.ClusterNameError}}
+{{- end }}
+
+{{- if .ClusterName }}
+  ClusterName: {{.ClusterName}}
+{{- end }}
+{{- if .ContainerScrubbing }}
+  {{.ContainerScrubbing}}
+{{- end}}
+{{- if and (not .Error) (not .Disabled) }}
+  ======================
+  Orchestrator Endpoints
+  ======================
+{{- if .OrchestratorEndpoint }}
+    OrchestratorEndpoint: {{.OrchestratorEndpoint}}
+{{- end }}
+{{- if .OrchestratorAdditionalEndpoints }}
+    {{ range $key, $value := .OrchestratorAdditionalEndpoints }}OrchestratorAdditionalEndpoint: {{$key}}
+    {{/* this line intentionally left blank */}}
+    {{- end }}
+
+{{- end }}
+
+  ===============
+  Forwarder Stats
+  ===============
+{{- with .Transactions -}}
+    {{/* this line intentionally left blank */}}
+    Pods: {{.Pods}}
+    Deployments: {{.Deployments}}
+    ReplicaSets: {{.ReplicaSets}}
+    Services: {{.Services}}
+    Nodes: {{.Nodes}}
+{{- end -}}
+{{/* this line intentionally left blank */}}
+{{/* this line intentionally left blank */}}
+{{- if .LeaderError }}
+    LeaderError: {{.ClusterIDError}}
+{{else}}
+{{- if .Leader }}
+  ===========
+  Cache Stats
+  ===========
+    Elements in the cache: {{.CacheNumber}}
+    Pods:
+      Last Run: (Hits: {{.PodsStats.CacheHits}} Miss: {{.PodsStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Pods}} Miss: {{.CacheMiss.Pods}})
+    Deployments:
+      Last Run: (Hits: {{.DeploymentsStats.CacheHits}} Miss: {{.DeploymentsStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Deployments}} Miss: {{.CacheMiss.Deployments}})
+    ReplicaSets:
+      Last Run: (Hits: {{.ReplicaSetsStats.CacheHits}} Miss: {{.ReplicaSetsStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.ReplicaSets}} Miss: {{.CacheMiss.ReplicaSets}})
+    Services:
+      Last Run: (Hits: {{.ServicesStats.CacheHits}} Miss: {{.ServicesStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Services}} Miss: {{.CacheMiss.Services}})
+    Nodes:
+      Last Run: (Hits: {{.NodesStats.CacheHits}} Miss: {{.NodesStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Nodes}} Miss: {{.CacheMiss.Nodes}})
+{{else}}
+  Status: Follower, redirecting to leader at: {{ .LeaderIP }}
+{{- end}}
+{{- end}}
+{{- end}}
+{{/* this line intentionally left blank */}}

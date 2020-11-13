@@ -102,7 +102,7 @@ func (gu *GardenUtil) ListContainers() ([]*containers.Container, error) {
 		return nil, fmt.Errorf("error listing garden containers: %v", err)
 	}
 
-	var cList = make([]*containers.Container, len(gardenContainers))
+	var cList = make([]*containers.Container, 0, len(gardenContainers))
 	handles := make([]string, len(gardenContainers))
 	for i, gardenContainer := range gardenContainers {
 		handles[i] = gardenContainer.Handle()
@@ -116,7 +116,7 @@ func (gu *GardenUtil) ListContainers() ([]*containers.Container, error) {
 		return nil, fmt.Errorf("error getting metrics for garden containers: %v", err)
 	}
 
-	for i, handle := range handles {
+	for _, handle := range handles {
 		infoEntry := gardenContainerInfo[handle]
 		if err := infoEntry.Err; err != nil {
 			log.Debugf("could not get info for container %s: %v", handle, err)
@@ -136,7 +136,7 @@ func (gu *GardenUtil) ListContainers() ([]*containers.Container, error) {
 			Created:     time.Now().Add(-metricsEntry.Metrics.Age).Unix(),
 			AddressList: parseContainerPorts(infoEntry.Info),
 		}
-		cList[i] = &container
+		cList = append(cList, &container)
 	}
 
 	for _, container := range cList {

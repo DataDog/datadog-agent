@@ -47,6 +47,9 @@ type WindowsConfig struct {
 
 	// EnableMonotonicCount determines if we will calculate send/recv bytes of connections with headers and retransmits
 	EnableMonotonicCount bool
+
+	// DriverBufferSize (bytes) determines the size of the buffer we pass to the driver when reading flows
+	DriverBufferSize int
 }
 
 // AgentConfig is the global config for the process-agent. This information
@@ -93,6 +96,7 @@ type AgentConfig struct {
 	EnableConntrack                bool
 	ConntrackMaxStateSize          int
 	ConntrackRateLimit             int
+	EnableConntrackAllNamespaces   bool
 	SystemProbeDebugPort           int
 	ClosedChannelSize              int
 	MaxClosedConnectionsBuffered   int
@@ -205,21 +209,23 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		StatsdPort: 8125,
 
 		// System probe collection configuration
-		EnableSystemProbe:     false,
-		DisableTCPTracing:     false,
-		DisableUDPTracing:     false,
-		DisableIPv6Tracing:    false,
-		DisableDNSInspection:  false,
-		SystemProbeAddress:    defaultSystemProbeAddress,
-		SystemProbeLogFile:    defaultSystemProbeLogFilePath,
-		SystemProbeBPFDir:     defaultSystemProbeBPFDir,
-		MaxTrackedConnections: defaultMaxTrackedConnections,
-		EnableConntrack:       true,
-		ClosedChannelSize:     500,
-		ConntrackMaxStateSize: defaultMaxTrackedConnections * 2,
-		ConntrackRateLimit:    500,
-		OffsetGuessThreshold:  400,
-		EnableTracepoints:     false,
+		EnableSystemProbe:            false,
+		DisableTCPTracing:            false,
+		DisableUDPTracing:            false,
+		DisableIPv6Tracing:           false,
+		DisableDNSInspection:         false,
+		SystemProbeAddress:           defaultSystemProbeAddress,
+		SystemProbeLogFile:           defaultSystemProbeLogFilePath,
+		SystemProbeBPFDir:            defaultSystemProbeBPFDir,
+		MaxTrackedConnections:        defaultMaxTrackedConnections,
+		EnableConntrack:              true,
+		ClosedChannelSize:            500,
+		ConntrackMaxStateSize:        defaultMaxTrackedConnections * 2,
+		ConntrackRateLimit:           500,
+		EnableConntrackAllNamespaces: true,
+		OffsetGuessThreshold:         400,
+		EnableTracepoints:            false,
+		CollectDNSStats:              true,
 
 		// Check config
 		EnabledChecks: enabledChecks,
@@ -241,6 +247,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 			ArgsRefreshInterval:  15, // with default 20s check interval we refresh every 5m
 			AddNewArgs:           true,
 			EnableMonotonicCount: false,
+			DriverBufferSize:     1024,
 		},
 	}
 
@@ -418,7 +425,7 @@ func loadEnvVariables() {
 		{"DD_SCRUB_ARGS", "process_config.scrub_args"},
 		{"DD_STRIP_PROCESS_ARGS", "process_config.strip_proc_arguments"},
 		{"DD_PROCESS_AGENT_URL", "process_config.process_dd_url"},
-		{"DD_ORCHESTRATOR_URL", "process_config.orchestrator_dd_url"},
+		{"DD_ORCHESTRATOR_URL", "orchestrator_explorer.orchestrator_dd_url"},
 		{"DD_HOSTNAME", "hostname"},
 		{"DD_DOGSTATSD_PORT", "dogstatsd_port"},
 		{"DD_BIND_HOST", "bind_host"},
@@ -468,7 +475,7 @@ func loadEnvVariables() {
 		if err := json.Unmarshal([]byte(v), &endpoints); err != nil {
 			log.Errorf(`Could not parse DD_ORCHESTRATOR_ADDITIONAL_ENDPOINTS: %v. It must be of the form '{"https://process.agent.datadoghq.com": ["apikey1", ...], ...}'.`, err)
 		} else {
-			config.Datadog.Set("process_config.orchestrator_additional_endpoints", endpoints)
+			config.Datadog.Set("orchestrator_explorer.orchestrator_additional_endpoints", endpoints)
 		}
 	}
 }
@@ -476,8 +483,10 @@ func loadEnvVariables() {
 func loadSysProbeEnvVariables() {
 	for _, variable := range []struct{ env, cfg string }{
 		{"DD_SYSTEM_PROBE_ENABLED", "system_probe_config.enabled"},
+		{"DD_SYSTEM_PROBE_NETWORK_ENABLED", "network_config.enabled"},
 		{"DD_SYSPROBE_SOCKET", "system_probe_config.sysprobe_socket"},
 		{"DD_SYSTEM_PROBE_CONNTRACK_IGNORE_ENOBUFS", "system_probe_config.conntrack_ignore_enobufs"},
+		{"DD_SYSTEM_PROBE_ENABLE_CONNTRACK_ALL_NAMESPACES", "system_probe_config.enable_conntrack_all_namespaces"},
 		{"DD_DISABLE_TCP_TRACING", "system_probe_config.disable_tcp"},
 		{"DD_DISABLE_UDP_TRACING", "system_probe_config.disable_udp"},
 		{"DD_DISABLE_IPV6_TRACING", "system_probe_config.disable_ipv6"},

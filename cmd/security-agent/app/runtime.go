@@ -8,7 +8,11 @@
 package app
 
 import (
+	"encoding/json"
+	"fmt"
+
 	"github.com/pkg/errors"
+	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -18,9 +22,67 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
+	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/policy"
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddgostatsd "github.com/DataDog/datadog-go/statsd"
 )
+
+var (
+	runtimeCmd = &cobra.Command{
+		Use:   "runtime",
+		Short: "Runtime Agent utility commands",
+	}
+
+	checkPoliciesCmd = &cobra.Command{
+		Use:   "check-policies",
+		Short: "Check policies and return a report",
+		RunE:  checkPolicies,
+	}
+
+	checkPoliciesArgs = struct {
+		dir string
+	}{}
+)
+
+func init() {
+	runtimeCmd.AddCommand(checkPoliciesCmd)
+	checkPoliciesCmd.Flags().StringVar(&checkPoliciesArgs.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+}
+
+func checkPolicies(cmd *cobra.Command, args []string) error {
+	cfg := &secconfig.Config{
+		PoliciesDir:         checkPoliciesArgs.dir,
+		EnableKernelFilters: true,
+		EnableApprovers:     true,
+		EnableDiscarders:    true,
+	}
+
+	probe, err := sprobe.NewProbe(cfg)
+	if err != nil {
+		return err
+	}
+
+	ruleSet := probe.NewRuleSet(rules.NewOptsWithParams(sprobe.SECLConstants, sprobe.SupportedDiscarders))
+	if err := policy.LoadPolicies(cfg, ruleSet); err != nil {
+		return err
+	}
+
+	rsa := sprobe.NewRuleSetApplier(cfg)
+
+	report, err := rsa.Apply(ruleSet, nil)
+	if err != nil {
+		return err
+	}
+
+	content, _ := json.MarshalIndent(report, "", "\t")
+	fmt.Printf("%s\n", string(content))
+
+	return nil
+}
 
 func newRuntimeReporter(stopper restart.Stopper, sourceName, sourceType string, endpoints *config.Endpoints, context *client.DestinationsContext) (event.Reporter, error) {
 	health := health.RegisterLiveness("runtime-security")
@@ -46,7 +108,7 @@ func newRuntimeReporter(stopper restart.Stopper, sourceName, sourceType string, 
 	return event.NewReporter(logSource, pipelineProvider.NextPipelineChan()), nil
 }
 
-func startRuntimeSecurity(hostname string, endpoints *config.Endpoints, context *client.DestinationsContext, stopper restart.Stopper) (*secagent.RuntimeSecurityAgent, error) {
+func startRuntimeSecurity(hostname string, endpoints *config.Endpoints, context *client.DestinationsContext, stopper restart.Stopper, statsdClient *ddgostatsd.Client) (*secagent.RuntimeSecurityAgent, error) {
 	enabled := coreconfig.Datadog.GetBool("runtime_security_config.enabled")
 	if !enabled {
 		log.Info("Datadog runtime security agent disabled by config")
@@ -67,6 +129,10 @@ func startRuntimeSecurity(hostname string, endpoints *config.Endpoints, context 
 	stopper.Add(agent)
 
 	log.Info("Datadog runtime security agent is now running")
+
+	// Send the runtime 'running' metrics periodically
+	ticker := sendRunningMetrics(statsdClient, "runtime")
+	stopper.Add(ticker)
 
 	return agent, nil
 }

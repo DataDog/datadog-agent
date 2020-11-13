@@ -116,6 +116,15 @@
         {{- if and (not .timestamp) (not .checks)}}
           No JMX status available
         {{- else }}
+          <span class="stat_subtitle">Information</span>
+          <span class="stat_subdata">
+            {{- range $k,$v := .info }}
+              {{ $k }} : {{ $v }}<br>
+            {{- end }}
+            {{- if .errors }}
+              Socket errors: {{ .errors }}
+            {{- end }}
+          </span>
           <span class="stat_subtitle">Initialized Checks</span>
           <span class="stat_subdata">
             {{- if (not .checks.initialized_checks)}}
@@ -156,18 +165,35 @@
     <span class="stat_data">
       {{- with .forwarderStats -}}
         {{- range $key, $value := .Transactions }}
-            {{- if and (ne $key "Errors") (ne $key "ErrorsByType") (ne $key "HTTPErrors") (ne $key "HTTPErrorsByCode") (ne $key "ConnectionEvents")}}
+            {{- if and (ne $key "InputBytesByEndpoint") (ne $key "InputCountByEndpoint") (ne $key "DroppedByEndpoint") (ne $key "RequeuedByEndpoint") (ne $key "RetriedByEndpoint") (ne $key "Success") (ne $key "SuccessByEndpoint") (ne $key "SuccessBytesByEndpoint") (ne $key "Errors") (ne $key "ErrorsByType") (ne $key "HTTPErrors") (ne $key "HTTPErrorsByCode") (ne $key "ConnectionEvents")}}
           {{formatTitle $key}}: {{humanize $value}}<br>
             {{- end}}
         {{- end}}
-        {{- if .Transactions.Errors }}
-          <span class="stat_subtitle">Transactions Errors</span>
+        {{- if .Transactions.Success }}
+          <span class="stat_subtitle">Transaction Successes</span>
             <span class="stat_subdata">
-              Errors: {{.Transactions.Errors}}<br>
+              Total number: {{.Transactions.Success}}<br>
+              Successes By Endpoint:<br>
+              <span class="stat_subdata">
+                {{- range $type, $count := .Transactions.SuccessByEndpoint }}
+                  {{- if $count}}
+                    {{$type}}: {{humanize $count}}<br>
+                  {{- end}}
+                {{- end}}
+              </span>
+            </span>
+          </span>
+        {{- end}}
+        {{- if .Transactions.Errors }}
+          <span class="stat_subtitle">Transaction Errors</span>
+            <span class="stat_subdata">
+              Total number: {{.Transactions.Errors}}<br>
               Errors By Type:<br>
               <span class="stat_subdata">
                 {{- range $type, $count := .Transactions.ErrorsByType }}
+                  {{- if $count}}
                     {{$type}}: {{humanize $count}}<br>
+                  {{- end}}
                 {{- end}}
               </span>
             </span>
@@ -176,11 +202,13 @@
         {{- if .Transactions.HTTPErrors }}
           <span class="stat_subtitle">HTTP Errors</span>
             <span class="stat_subdata">
-              Errors: {{.Transactions.HTTPErrors}}<br>
+              Total number: {{.Transactions.HTTPErrors}}<br>
               HTTP Errors By Code:<br>
               <span class="stat_subdata">
                 {{- range $code, $count := .Transactions.HTTPErrorsByCode }}
+                  {{- if $count}}
                     {{$code}}: {{humanize $count}}<br>
+                  {{- end}}
                 {{- end}}
               </span>
             </span>
@@ -276,6 +304,7 @@
             {{- if .inputs }}
             Inputs: {{ range $input := .inputs }}{{$input}} {{ end }}</br>
             {{- end }}
+            BytesRead: {{ .bytes_read }}</br>
           {{- end }}
         </span>
       {{- end }}

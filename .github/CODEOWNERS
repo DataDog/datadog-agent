@@ -18,7 +18,7 @@
 /*.md                                   @DataDog/agent-platform @DataDog/documentation
 /NOTICE                                 @DataDog/agent-platform @DataDog/documentation
 
-/LICENSE*                               @DataDog/agent-platform
+/LICENSE*                               @DataDog/do-not-notify
 
 # Todo: is this file still needed?
 /Makefile.trace                         @DataDog/agent-platform
@@ -35,8 +35,9 @@
 
 /cmd/                                   @DataDog/agent-core
 /cmd/trace-agent/                       @DataDog/agent-apm
-/cmd/agent/app/integrations*.go         @DataDog/prodsec @DataDog/agent-integrations @DataDog/agent-core
+/cmd/agent/app/integrations*.go         @trishankatdatadog @DataDog/agent-integrations @DataDog/agent-core
 /cmd/agent/clcrunnerapi/                @DataDog/container-integrations @DataDog/agent-core
+/cmd/agent/dist/conf.d/jetson.d         @DataDog/agent-platform
 /cmd/agent/*.manifest                   @DataDog/agent-platform
 /cmd/agent/*.mc                         @DataDog/agent-platform
 /cmd/agent/*.rc                         @DataDog/agent-platform
@@ -76,6 +77,7 @@
 /omnibus/                               @DataDog/agent-platform
 /omnibus/config/software/datadog-agent*.rb                @Datadog/agent-core @DataDog/agent-platform
 /omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
+/omnibus/config/software/datadog-security-agent*.rb       @Datadog/container-integrations @DataDog/agent-platform
 
 /pkg/                                   @DataDog/agent-core
 /pkg/aggregator/                        @DataDog/agent-core
@@ -97,6 +99,7 @@
 /pkg/clusteragent/orchestrator/         @DataDog/container-app
 /pkg/collector/corechecks/cluster/      @DataDog/container-integrations
 /pkg/collector/corechecks/containers/   @DataDog/container-integrations
+/pkg/collector/corechecks/ebpf/         @DataDog/container-integrations
 /pkg/collector/corechecks/embed/        @Datadog/agent-platform
 /pkg/collector/corechecks/embed/jmx/    @Datadog/agent-core
 /pkg/collector/corechecks/embed/apm*.go            @Datadog/agent-platform @DataDog/agent-apm
@@ -121,7 +124,7 @@
 /pkg/metadata/kubernetes/               @DataDog/networks
 /pkg/process/                           @DataDog/processes
 /pkg/process/checks/pod*.go             @DataDog/container-app
-/pkg/process/util/orchestrator/         @DataDog/container-app
+/pkg/orchestrator/                      @DataDog/container-app
 /pkg/network/                           @DataDog/networks
 /pkg/ebpf/                              @DataDog/networks
 /pkg/quantile/                          @DataDog/metrics-aggregation
@@ -149,6 +152,9 @@
 /test/e2e/                              @DataDog/container-integrations
 /test/integration/                      @DataDog/container-integrations
 /test/kitchen/                          @DataDog/agent-platform
+/test/kitchen/kitchen-azure-security-agent-test.yml @DataDog/agent-security
+/test/kitchen/kitchen-vagrant-security-agent.yml @DataDog/agent-security
+/test/kitchen/site-cookbooks/dd-security-agent-check/ @DataDog/agent-security
 /test/system/                           @DataDog/agent-core
 
 /tools/                                 @DataDog/agent-platform

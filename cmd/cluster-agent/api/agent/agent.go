@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -39,6 +40,7 @@ func SetupHandlers(r *mux.Router, sc clusteragent.ServerContext) {
 	r.HandleFunc("/flare", makeFlare).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", getStatus).Methods("GET")
+	r.HandleFunc("/status/health", getHealth).Methods("GET")
 	r.HandleFunc("/config-check", getConfigCheck).Methods("GET")
 	r.HandleFunc("/config", getRuntimeConfig).Methods("GET")
 
@@ -62,6 +64,24 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Write(jsonStats)
+}
+
+func getHealth(w http.ResponseWriter, r *http.Request) {
+	h := health.GetReady()
+
+	if len(h.Unhealthy) > 0 {
+		log.Debugf("Healthcheck failed on: %v", h.Unhealthy)
+	}
+
+	jsonHealth, err := json.Marshal(h)
+	if err != nil {
+		log.Errorf("Error marshalling status. Error: %v, Status: %v", err, h)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+
+	w.Write(jsonHealth)
 }
 
 func stopAgent(w http.ResponseWriter, r *http.Request) {
@@ -162,5 +182,14 @@ func getRuntimeConfig(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, string(body), 500)
 		return
 	}
-	w.Write(runtimeConfig)
+
+	scrubbed, err := log.CredentialsCleanerBytes(runtimeConfig)
+	if err != nil {
+		log.Errorf("Unable to scrub sensitive data from runtime config: %s", err)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+
+	w.Write(scrubbed)
 }

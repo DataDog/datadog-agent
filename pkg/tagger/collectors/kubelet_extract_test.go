@@ -26,6 +26,13 @@ func TestParsePods(t *testing.T) {
 				Name:  "dd-agent",
 			},
 		},
+		AllContainers: []kubelet.ContainerStatus{
+			{
+				ID:    dockerEntityID,
+				Image: "datadog/docker-dd-agent:latest5",
+				Name:  "dd-agent",
+			},
+		},
 		Phase: "Running",
 	}
 	dockerContainerSpec := kubelet.Spec{
@@ -58,10 +65,64 @@ func TestParsePods(t *testing.T) {
 			},
 		},
 	}
+	dockerContainerSpecWithInterpolatedEnv := kubelet.Spec{
+		Containers: []kubelet.ContainerSpec{
+			{
+				Name:  "dd-agent",
+				Image: "datadog/docker-dd-agent:latest5",
+				Env: []kubelet.EnvVar{
+					{
+						Name:  "PROD_ENV",
+						Value: "production",
+					},
+					{
+						Name:  "MY_ENV",
+						Value: "$(PROD_ENV)2",
+					},
+					{
+						Name:  "DD_ENV",
+						Value: "$(MY_ENV)",
+					},
+					{
+						Name:  "DD_SERVICE",
+						Value: "dd-agent",
+					},
+					{
+						Name:  "DD_VERSION_MAJOR",
+						Value: "1",
+					},
+					{
+						Name:  "DD_VERSION_MINOR",
+						Value: "2",
+					},
+					{
+						Name:  "DD_VERSION_PATCH",
+						Value: "3",
+					},
+					{
+						Name:  "DD_VERSION",
+						Value: "$(DD_VERSION_MAJOR).$(DD_VERSION_MINOR).$(DD_VERSION_PATCH)",
+					},
+				},
+			},
+		},
+	}
 
 	dockerEntityID2 := "container_id://ff242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f"
 	dockerTwoContainersStatus := kubelet.Status{
 		Containers: []kubelet.ContainerStatus{
+			{
+				ID:    dockerEntityID,
+				Image: "datadog/docker-dd-agent:latest5",
+				Name:  "dd-agent",
+			},
+			{
+				ID:    dockerEntityID2,
+				Image: "datadog/docker-filter:latest",
+				Name:  "filter",
+			},
+		},
+		AllContainers: []kubelet.ContainerStatus{
 			{
 				ID:    dockerEntityID,
 				Image: "datadog/docker-dd-agent:latest5",
@@ -91,6 +152,13 @@ func TestParsePods(t *testing.T) {
 	dockerEntityIDCassandra := "container_id://6eaa4782de428f5ea639e33a837ed47aa9fa9e6969f8cb23e39ff788a751ce7d"
 	dockerContainerStatusCassandra := kubelet.Status{
 		Containers: []kubelet.ContainerStatus{
+			{
+				ID:    dockerEntityIDCassandra,
+				Image: "gcr.io/google-samples/cassandra:v13",
+				Name:  "cassandra",
+			},
+		},
+		AllContainers: []kubelet.ContainerStatus{
 			{
 				ID:    dockerEntityIDCassandra,
 				Image: "gcr.io/google-samples/cassandra:v13",
@@ -142,6 +210,13 @@ func TestParsePods(t *testing.T) {
 	criEntityID := "container_id://acbe44ff07525934cab9bf7c38c6627d64fd0952d8e6b87535d57092bfa6e9d1"
 	criContainerStatus := kubelet.Status{
 		Containers: []kubelet.ContainerStatus{
+			{
+				ID:    criEntityID,
+				Image: "sha256:0f006d265944c984e05200fab1c14ac54163cbcd4e8ae0ba3b35eb46fc559823",
+				Name:  "redis-master",
+			},
+		},
+		AllContainers: []kubelet.ContainerStatus{
 			{
 				ID:    criEntityID,
 				Image: "sha256:0f006d265944c984e05200fab1c14ac54163cbcd4e8ae0ba3b35eb46fc559823",
@@ -772,6 +847,61 @@ func TestParsePods(t *testing.T) {
 			}},
 		},
 		{
+			desc: "standard container env vars with interpolation",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Labels: map[string]string{
+						"component":         "kube-proxy",
+						"tier":              "node",
+						"k8s-app":           "kubernetes-dashboard",
+						"pod-template-hash": "490794276",
+					},
+					Annotations: map[string]string{
+						"noTag":     "don't collect",
+						"GitCommit": "ea38b55f07e40b68177111a2bff1e918132fd5fb",
+						"OwnerTeam": "Kenafeh",
+					},
+				},
+				Status: dockerContainerStatus,
+				Spec:   dockerContainerSpecWithInterpolatedEnv,
+			},
+			labelsAsTags: map[string]string{
+				"component": "component",
+				"tier":      "tier",
+			},
+			annotationsAsTags: map[string]string{
+				"ownerteam": "team",
+				"gitcommit": "+GitCommit",
+			},
+			expectedInfo: []*TagInfo{{
+				Source: "kubelet",
+				Entity: dockerEntityID,
+				LowCardTags: []string{
+					"kube_container_name:dd-agent",
+					"team:Kenafeh",
+					"component:kube-proxy",
+					"tier:node",
+					"image_tag:latest5",
+					"image_name:datadog/docker-dd-agent",
+					"short_image:docker-dd-agent",
+					"env:production2",
+					"service:dd-agent",
+					"version:1.2.3",
+					"pod_phase:running",
+				},
+				OrchestratorCardTags: []string{},
+				HighCardTags: []string{
+					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
+					"GitCommit:ea38b55f07e40b68177111a2bff1e918132fd5fb",
+				},
+				StandardTags: []string{
+					"env:production2",
+					"service:dd-agent",
+					"version:1.2.3",
+				},
+			}},
+		},
+		{
 			desc: "openshift deploymentconfig",
 			pod: &kubelet.Pod{
 				Metadata: kubelet.PodMetadata{
@@ -1027,6 +1157,47 @@ func TestParsePods(t *testing.T) {
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
 				},
 				StandardTags: []string{},
+			}},
+		},
+		{
+			desc: "pod annotations as tags with wildcards",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Annotations: map[string]string{
+						"component":                    "kube-proxy",
+						"tier":                         "node",
+						"k8s-app":                      "kubernetes-dashboard",
+						"pod-template-hash":            "490794276",
+						"app.kubernetes.io/managed-by": "spinnaker",
+					},
+				},
+				Status: dockerContainerStatus,
+				Spec:   dockerContainerSpec,
+			},
+			annotationsAsTags: map[string]string{
+				"*":         "foo_%%annotation%%",
+				"component": "component",
+			},
+			labelsAsTags: map[string]string{},
+			expectedInfo: []*TagInfo{{
+				Source: "kubelet",
+				Entity: dockerEntityID,
+				LowCardTags: []string{
+					"foo_component:kube-proxy",
+					"component:kube-proxy",
+					"foo_tier:node",
+					"foo_k8s-app:kubernetes-dashboard",
+					"foo_pod-template-hash:490794276",
+					"foo_app.kubernetes.io/managed-by:spinnaker",
+					"image_name:datadog/docker-dd-agent",
+					"image_tag:latest5",
+					"kube_container_name:dd-agent",
+					"short_image:docker-dd-agent",
+					"pod_phase:running",
+				},
+				OrchestratorCardTags: []string{},
+				HighCardTags:         []string{"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f"},
+				StandardTags:         []string{},
 			}},
 		},
 	} {

@@ -12,16 +12,16 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/policy"
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
 func TestUnlink(t *testing.T) {
-	rule := &policy.RuleDefinition{
+	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `unlink.filename == "{{.Root}}/test-unlink" || unlink.filename == "{{.Root}}/testat-unlink" || unlink.filename == "{{.Root}}/testat-rmdir"`,
+		Expression: `unlink.filename == "{{.Root}}/test-unlink" || unlink.filename == "{{.Root}}/test-unlinkat"`,
 	}
 
-	test, err := newTestModule(nil, []*policy.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,20 +39,30 @@ func TestUnlink(t *testing.T) {
 	f.Close()
 	defer os.Remove(testFile)
 
-	if _, _, err := syscall.Syscall(syscall.SYS_UNLINK, uintptr(testFilePtr), 0, 0); err != 0 {
-		t.Fatal(err)
-	}
+	inode := getInode(t, testFile)
 
-	event, _, err := test.GetEvent()
-	if err != nil {
-		t.Error(err)
-	} else {
-		if event.GetType() != "unlink" {
-			t.Errorf("expected unlink event, got %s", event.GetType())
+	t.Run("unlink", func(t *testing.T) {
+		if _, _, err := syscall.Syscall(syscall.SYS_UNLINK, uintptr(testFilePtr), 0, 0); err != 0 {
+			t.Fatal(err)
 		}
-	}
 
-	testatFile, testatFilePtr, err := test.Path("testat-unlink")
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if event.GetType() != "unlink" {
+				t.Errorf("expected unlink event, got %s", event.GetType())
+			}
+
+			if inode != event.Unlink.Inode {
+				t.Errorf("expected inode %d, got %d", event.Unlink.Inode, inode)
+			}
+
+			testContainerPath(t, event, "unlink.container_path")
+		}
+	})
+
+	testatFile, testatFilePtr, err := test.Path("test-unlinkat")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,38 +74,26 @@ func TestUnlink(t *testing.T) {
 	f.Close()
 	defer os.Remove(testatFile)
 
-	if _, _, err := syscall.Syscall(syscall.SYS_UNLINKAT, 0, uintptr(testatFilePtr), 0); err != 0 {
-		t.Fatal(err)
-	}
+	inode = getInode(t, testatFile)
 
-	event, _, err = test.GetEvent()
-	if err != nil {
-		t.Error(err)
-	} else {
-		if event.GetType() != "unlink" {
-			t.Errorf("expected unlink event, got %s", event.GetType())
+	t.Run("unlinkat", func(t *testing.T) {
+		if _, _, err := syscall.Syscall(syscall.SYS_UNLINKAT, 0, uintptr(testatFilePtr), 0); err != 0 {
+			t.Fatal(err)
 		}
-	}
 
-	testDir, testDirPtr, err := test.Path("testat-rmdir")
-	if err != nil {
-		t.Fatal(err)
-	}
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if event.GetType() != "unlink" {
+				t.Errorf("expected unlink event, got %s", event.GetType())
+			}
 
-	if err := syscall.Mkdir(testDir, 0777); err != nil {
-		t.Fatal(err)
-	}
+			if inode != event.Unlink.Inode {
+				t.Errorf("expected inode %d, got %d", event.Unlink.Inode, inode)
+			}
 
-	if _, _, err := syscall.Syscall(syscall.SYS_UNLINKAT, 0, uintptr(testDirPtr), 512); err != 0 {
-		t.Fatal(err)
-	}
-
-	event, _, err = test.GetEvent()
-	if err != nil {
-		t.Error(err)
-	} else {
-		if event.GetType() != "unlink" {
-			t.Errorf("expected unlink event, got %s", event.GetType())
+			testContainerPath(t, event, "unlink.container_path")
 		}
-	}
+	})
 }

@@ -46,6 +46,8 @@ var (
 	DefaultLogFile = "c:\\programdata\\datadog\\logs\\agent.log"
 	// DefaultDCALogFile points to the log file that will be used if not configured
 	DefaultDCALogFile = "c:\\programdata\\datadog\\logs\\cluster-agent.log"
+	//DefaultJmxLogFile points to the jmx fetch log file that will be used if not configured
+	DefaultJmxLogFile = "c:\\programdata\\datadog\\logs\\jmxfetch.log"
 )
 
 func init() {
@@ -164,8 +166,8 @@ func ImportRegistryConfig() error {
 	datadogYamlPath := config.Datadog.ConfigFileUsed()
 
 	if config.Datadog.GetString("api_key") != "" {
-		return fmt.Errorf("%s seems to contain a valid configuration, not overwriting config",
-			datadogYamlPath)
+		log.Infof("%s seems to contain a valid configuration, not overwriting config", datadogYamlPath)
+		return nil
 	}
 
 	overrides := make(map[string]interface{})

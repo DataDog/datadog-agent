@@ -188,17 +188,18 @@ static PyObject *submit_metric(PyObject *self, PyObject *args)
     char *check_id = NULL;
     char **tags = NULL;
     int mt;
-    float value;
+    double value;
+    bool flush_first_value = false;
 
-    // Python call: aggregator.submit_metric(self, check_id, aggregator.metric_type.GAUGE, name, value, tags, hostname)
-    if (!PyArg_ParseTuple(args, "OsisfOs", &check, &check_id, &mt, &name, &value, &py_tags, &hostname)) {
+    // Python call: aggregator.submit_metric(self, check_id, aggregator.metric_type.GAUGE, name, value, tags, hostname, flush_first_value)
+    if (!PyArg_ParseTuple(args, "OsisdOs|i", &check, &check_id, &mt, &name, &value, &py_tags, &hostname, &flush_first_value)) {
         goto error;
     }
 
     if ((tags = py_tag_to_c(py_tags)) == NULL)
         goto error;
 
-    cb_submit_metric(check_id, mt, name, value, tags, hostname);
+    cb_submit_metric(check_id, mt, name, value, tags, hostname, flush_first_value);
 
     free_tags(tags);
 

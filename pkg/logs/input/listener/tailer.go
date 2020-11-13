@@ -62,7 +62,9 @@ func (t *Tailer) forwardMessages() {
 		t.done <- struct{}{}
 	}()
 	for output := range t.decoder.OutputChan {
-		t.outputChan <- message.NewMessageWithSource(output.Content, message.StatusInfo, t.source)
+		if len(output.Content) > 0 {
+			t.outputChan <- message.NewMessageWithSource(output.Content, message.StatusInfo, t.source)
+		}
 	}
 }
 
@@ -88,6 +90,7 @@ func (t *Tailer) readForever() {
 				log.Warnf("Couldn't read message from connection: %v", err)
 				return
 			}
+			t.source.BytesRead.Add(int64(len(data)))
 			t.decoder.InputChan <- decoder.NewInput(data)
 		}
 	}

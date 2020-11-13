@@ -10,11 +10,11 @@ package listeners
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func getMockedPods() []*kubelet.Pod {
@@ -110,6 +110,18 @@ func getMockedPods() []*kubelet.Pod {
 				},
 			},
 		},
+		{
+			Name:  "bad-status",
+			Image: "datadoghq.com/foo:latest",
+			Ports: []kubelet.ContainerPortSpec{
+				{
+					ContainerPort: 1122,
+					HostPort:      1133,
+					Name:          "barport",
+					Protocol:      "TCP",
+				},
+			},
+		},
 	}
 	kubeletSpec := kubelet.Spec{
 		HostNetwork: false,
@@ -152,12 +164,18 @@ func getMockedPods() []*kubelet.Pod {
 			Image: "logs/excluded:latest",
 			ID:    "docker://logs-excluded",
 		},
+		{
+			Name:  "bad-status",
+			Image: "datadoghq.com/bar:latest",
+			ID:    "docker://bad-status-random-hash",
+		},
 	}
 	kubeletStatus := kubelet.Status{
-		Phase:      "Running",
-		PodIP:      "127.0.0.1",
-		HostIP:     "127.0.0.2",
-		Containers: containerStatuses,
+		Phase:         "Running",
+		PodIP:         "127.0.0.1",
+		HostIP:        "127.0.0.2",
+		Containers:    containerStatuses,
+		AllContainers: containerStatuses,
 	}
 	return []*kubelet.Pod{
 		{
@@ -190,7 +208,7 @@ func TestProcessNewPod(t *testing.T) {
 		config.Datadog.SetDefault("exclude_pause_container", true)
 	}()
 
-	services := make(chan Service, 7)
+	services := make(chan Service, 8)
 	listener := KubeletListener{
 		newService: services,
 		services:   make(map[string]Service),
@@ -332,6 +350,29 @@ func TestProcessNewPod(t *testing.T) {
 		assert.FailNow(t, "sixth service not in channel")
 	}
 
+	// eighth container has a different image name in spec and status
+	select {
+	case service := <-services:
+		assert.Equal(t, "docker://bad-status-random-hash", service.GetEntity())
+		assert.Equal(t, "container_id://bad-status-random-hash", service.GetTaggerEntity())
+		adIdentifiers, err := service.GetADIdentifiers()
+		assert.Nil(t, err)
+		assert.Equal(t, []string{"docker://bad-status-random-hash", "datadoghq.com/foo:latest", "foo"}, adIdentifiers)
+		hosts, err := service.GetHosts()
+		assert.Nil(t, err)
+		assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)
+		ports, err := service.GetPorts()
+		assert.Nil(t, err)
+		assert.Equal(t, []ContainerPort{{1122, "barport"}}, ports)
+		_, err = service.GetPid()
+		assert.Equal(t, ErrNotSupported, err)
+		assert.Len(t, service.GetCheckNames(), 0)
+		assert.False(t, service.HasFilter(containers.MetricsFilter))
+		assert.False(t, service.HasFilter(containers.LogsFilter))
+	default:
+		assert.FailNow(t, "eighth service not in channel")
+	}
+
 	// Pod service
 	select {
 	case service := <-services:
@@ -345,7 +386,7 @@ func TestProcessNewPod(t *testing.T) {
 		assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)
 		ports, err := service.GetPorts()
 		assert.Nil(t, err)
-		assert.Equal(t, []ContainerPort{{1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1337, "footcpport"}, {1339, "fooudpport"}}, ports)
+		assert.Equal(t, []ContainerPort{{1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1337, "footcpport"}, {1339, "fooudpport"}}, ports)
 		_, err = service.GetPid()
 		assert.Equal(t, ErrNotSupported, err)
 		assert.Len(t, service.GetCheckNames(), 0)
@@ -357,8 +398,59 @@ func TestProcessNewPod(t *testing.T) {
 
 	select {
 	case <-services:
-		assert.FailNow(t, "8 services in channel, filtering is broken")
+		assert.FailNow(t, "9 services in channel, filtering is broken")
 	default:
 		// all good
+	}
+}
+
+func TestKubeletSvcEqual(t *testing.T) {
+	tests := []struct {
+		name   string
+		first  Service
+		second Service
+		want   bool
+	}{
+		{
+			name:   "equal",
+			first:  &KubeContainerService{hosts: map[string]string{"pod": "10.0.1.1"}, adIdentifiers: []string{"foo"}, ports: []ContainerPort{{Port: 80, Name: "http"}}, checkNames: []string{"foo_check"}, ready: true},
+			second: &KubeContainerService{hosts: map[string]string{"pod": "10.0.1.1"}, adIdentifiers: []string{"foo"}, ports: []ContainerPort{{Port: 80, Name: "http"}}, checkNames: []string{"foo_check"}, ready: true},
+			want:   true,
+		},
+		{
+			name:   "host change",
+			first:  &KubeContainerService{hosts: map[string]string{"pod": "10.0.1.1"}, adIdentifiers: []string{"foo"}, ports: []ContainerPort{{Port: 80, Name: "http"}}, checkNames: []string{"foo_check"}, ready: true},
+			second: &KubeContainerService{hosts: map[string]string{"pod": "10.0.1.2"}, adIdentifiers: []string{"foo"}, ports: []ContainerPort{{Port: 80, Name: "http"}}, checkNames: []string{"foo_check"}, ready: true},
+			want:   false,
+		},
+		{
+			name:   "ad change",
+			first:  &KubeContainerService{hosts: map[string]string{"pod": "10.0.1.1"}, adIdentifiers: []string{"foo"}, ports: []ContainerPort{{Port: 80, Name: "http"}}, checkNames: []string{"foo_check"}, ready: true},
+			second: &KubeContainerService{hosts: map[string]string{"pod": "10.0.1.1"}, adIdentifiers: []string{"bar"}, ports: []ContainerPort{{Port: 80, Name: "http"}}, checkNames: []string{"foo_check"}, ready: true},
+			want:   false,
+		},
+		{
+			name:   "port change",
+			first:  &KubeContainerService{hosts: map[string]string{"pod": "10.0.1.1"}, adIdentifiers: []string{"foo"}, ports: []ContainerPort{{Port: 80, Name: "http"}}, checkNames: []string{"foo_check"}, ready: true},
+			second: &KubeContainerService{hosts: map[string]string{"pod": "10.0.1.1"}, adIdentifiers: []string{"foo"}, ports: []ContainerPort{{Port: 8080, Name: "http"}}, checkNames: []string{"foo_check"}, ready: true},
+			want:   false,
+		},
+		{
+			name:   "checkname change",
+			first:  &KubeContainerService{hosts: map[string]string{"pod": "10.0.1.1"}, adIdentifiers: []string{"foo"}, ports: []ContainerPort{{Port: 80, Name: "http"}}, checkNames: []string{"foo_check"}, ready: true},
+			second: &KubeContainerService{hosts: map[string]string{"pod": "10.0.1.1"}, adIdentifiers: []string{"foo"}, ports: []ContainerPort{{Port: 80, Name: "http"}}, checkNames: []string{"bar_check"}, ready: true},
+			want:   false,
+		},
+		{
+			name:   "rediness change",
+			first:  &KubeContainerService{hosts: map[string]string{"pod": "10.0.1.1"}, adIdentifiers: []string{"foo"}, ports: []ContainerPort{{Port: 80, Name: "http"}}, checkNames: []string{"foo_check"}, ready: true},
+			second: &KubeContainerService{hosts: map[string]string{"pod": "10.0.1.1"}, adIdentifiers: []string{"foo"}, ports: []ContainerPort{{Port: 80, Name: "http"}}, checkNames: []string{"foo_check"}, ready: false},
+			want:   false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, kubeletSvcEqual(tt.first, tt.second))
+		})
 	}
 }

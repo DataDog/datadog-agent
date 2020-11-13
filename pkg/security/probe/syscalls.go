@@ -3,11 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-//go:generate stringer -type=Syscall
+// +build linux
+
+//go:generate stringer -type Syscall -output syscalls_string_linux.go
 
 package probe
 
-import "strings"
+import (
+	"strings"
+)
 
 // Syscall represents a syscall identifier
 type Syscall int

@@ -20,6 +20,7 @@ import (
 
 	"path/filepath"
 
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
@@ -90,6 +91,18 @@ func (suite *TailerTestSuite) TestStopAfterFileRotationWhenStuck() {
 	case <-time.After(closeTimeout + 10*time.Second):
 		suite.Fail("timeout")
 	}
+}
+
+func (suite *TailerTestSuite) TestTialerTimeDurationConfig() {
+	// To satisfy the suite level tailer
+	suite.tailer.StartFromBeginning()
+
+	coreConfig.Datadog.Set("logs_config.close_timeout", 42)
+	tailer := NewTailer(suite.outputChan, suite.source, suite.testPath, 10*time.Millisecond, false)
+	tailer.StartFromBeginning()
+
+	suite.Equal(tailer.closeTimeout, time.Duration(42)*time.Second)
+	tailer.Stop()
 }
 
 func (suite *TailerTestSuite) TestTailFromBeginning() {
@@ -183,6 +196,34 @@ func (suite *TailerTestSuite) TestRecoverTailing() {
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), toInt(msg.Origin.Offset))
 
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tailer.decodedOffset))
+}
+
+func (suite *TailerTestSuite) TestWithBlanklines() {
+	lines := "\t\t\t     \t\t\n    \n\n   \n\n\r\n\r\n\r\n"
+	lines += "message 1\n"
+	lines += "\n\n\n\n\n\n\n\n\n\t\n"
+	lines += "message 2\n"
+	lines += "\n\t\r\n"
+	lines += "message 3\n"
+
+	var msg *message.Message
+	var err error
+
+	_, err = suite.testFile.WriteString(lines)
+	suite.Nil(err)
+
+	suite.tailer.Start(0, io.SeekStart)
+
+	msg = <-suite.outputChan
+	suite.Equal("message 1", string(msg.Content))
+
+	msg = <-suite.outputChan
+	suite.Equal("message 2", string(msg.Content))
+
+	msg = <-suite.outputChan
+	suite.Equal("message 3", string(msg.Content))
+
+	suite.Equal(len(lines), int(suite.tailer.decodedOffset))
 }
 
 func (suite *TailerTestSuite) TestTailerIdentifier() {

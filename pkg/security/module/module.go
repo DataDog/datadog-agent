@@ -11,14 +11,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
-	"path/filepath"
+	"runtime"
 	"time"
 
-	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 
@@ -27,7 +25,6 @@ import (
 	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/policy"
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
@@ -73,17 +70,37 @@ func (m *Module) Register(httpMux *http.ServeMux) error {
 
 	go m.statsMonitor(context.Background())
 
+	// initialize the default values of the probe
+	if err := m.probe.Init(); err != nil {
+		return err
+	}
+
+	rsa := sprobe.NewRuleSetApplier(m.config)
+
+	// based on the ruleset and the requested rules, select the probes that need to be activated
+	if err := rsa.SelectProbes(m.ruleSet, m.probe); err != nil {
+		return err
+	}
+
+	// initialize the eBPF manager and load the programs and maps in the kernel. At this stage, the probes are not
+	// running yet.
+	if err := m.probe.InitManager(m.ruleSet); err != nil {
+		return err
+	}
+
+	// analyze the ruleset, push default policies in the kernel and generate the policy report
+	report, err := rsa.Apply(m.ruleSet, m.probe)
+	if err != nil {
+		return err
+	}
+
+	// start the manager and its probes / perf maps
 	if err := m.probe.Start(); err != nil {
 		return err
 	}
 
-	report, err := m.ApplyRuleSet(false)
-	if err != nil {
-		log.Warn(err)
-	}
-
-	// now that the probes have started, run the snapshot functions for the probes that require
-	// to fetch the current state of the system (example: mount points probes, process probes, ...)
+	// fetch the current state of the system (example: mount points, running processes, ...) so that our user space
+	// context is ready when we start the probes
 	if err := m.probe.Snapshot(); err != nil {
 		return err
 	}
@@ -94,13 +111,6 @@ func (m *Module) Register(httpMux *http.ServeMux) error {
 	return nil
 }
 
-// ApplyRuleSet applies the loaded set of rules and returns a report
-// of the applied approvers for it. If dryRun is set to true,
-// the rules won't be applied but the report will still be returned.
-func (m *Module) ApplyRuleSet(dryRun bool) (*probe.Report, error) {
-	return m.probe.ApplyRuleSet(m.ruleSet, dryRun)
-}
-
 // Close the module
 func (m *Module) Close() {
 	if m.grpcServer != nil {
@@ -109,9 +119,10 @@ func (m *Module) Close() {
 
 	if m.listener != nil {
 		m.listener.Close()
+		os.Remove(m.config.SocketPath)
 	}
 
-	m.probe.Stop()
+	m.probe.Close()
 }
 
 // RuleMatch is called by the ruleset when a rule matches
@@ -119,70 +130,20 @@ func (m *Module) RuleMatch(rule *eval.Rule, event eval.Event) {
 	if m.rateLimiter.Allow(rule.ID) {
 		m.eventServer.SendEvent(rule, event)
 	} else {
-		log.Debugf("Event on rule %s was dropped due to rate limiting", rule.ID)
+		log.Tracef("Event on rule %s was dropped due to rate limiting", rule.ID)
 	}
 }
 
 // EventDiscarderFound is called by the ruleset when a new discarder discovered
-func (m *Module) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field string) {
-	if err := m.probe.OnNewDiscarder(rs, event.(*sprobe.Event), field); err != nil {
-		log.Debug(err)
+func (m *Module) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
+	if err := m.probe.OnNewDiscarder(rs, event.(*sprobe.Event), field, eventType); err != nil {
+		log.Trace(err)
 	}
 }
 
 // HandleEvent is called by the probe when an event arrives from the kernel
 func (m *Module) HandleEvent(event *sprobe.Event) {
 	m.ruleSet.Evaluate(event)
-}
-
-// LoadPolicies loads the policies listed in the configuration of
-// returns the set of the loaded rules
-func LoadPolicies(config *config.Config, probe *sprobe.Probe) (*rules.RuleSet, error) {
-	var result *multierror.Error
-
-	ruleSet := probe.NewRuleSet(rules.NewOptsWithParams(config.Debug, sprobe.SECLConstants, sprobe.InvalidDiscarders))
-
-	policyFiles, err := ioutil.ReadDir(config.PoliciesDir)
-	if err != nil {
-		return nil, err
-	}
-
-	// Load and parse policies
-	for _, policyPath := range policyFiles {
-		filename := policyPath.Name()
-
-		// policy path extension check
-		if filepath.Ext(filename) != ".policy" {
-			log.Debugf("ignoring file `%s` wrong extension `%s`", policyPath.Name(), filepath.Ext(filename))
-			continue
-		}
-
-		// Open policy path
-		f, err := os.Open(filepath.Join(config.PoliciesDir, filename))
-		if err != nil {
-			result = multierror.Append(result, errors.Wrapf(err, "failed to load policy `%s`", policyPath))
-			continue
-		}
-
-		// Parse policy file
-		policy, err := policy.LoadPolicy(f)
-		if err != nil {
-			result = multierror.Append(result, errors.Wrapf(err, "failed to load policy `%s`", policyPath))
-			continue
-		}
-
-		// Add the macros to the ruleset and generate macros evaluators
-		if err := ruleSet.AddMacros(policy.Macros); err != nil {
-			result = multierror.Append(result, err)
-		}
-
-		// Add rules to the ruleset and generate rules evaluators
-		if err := ruleSet.AddRules(policy.Rules); err != nil {
-			result = multierror.Append(result, err)
-		}
-	}
-
-	return ruleSet, result.ErrorOrNil()
 }
 
 func (m *Module) statsMonitor(ctx context.Context) {
@@ -199,6 +160,9 @@ func (m *Module) statsMonitor(ctx context.Context) {
 				log.Debug(err)
 			}
 			if err := m.rateLimiter.SendStats(m.statsdClient); err != nil {
+				log.Debug(err)
+			}
+			if err := m.eventServer.SendStats(m.statsdClient); err != nil {
 				log.Debug(err)
 			}
 		case <-ctx.Done():
@@ -238,7 +202,9 @@ func NewModule(cfg *aconfig.AgentConfig) (api.Module, error) {
 	}
 
 	var statsdClient *statsd.Client
-	if cfg != nil {
+	// statsd segfaults on 386 because of atomic primitive usage with wrong alignment
+	// https://github.com/golang/go/issues/37262
+	if runtime.GOARCH != "386" && cfg != nil {
 		statsdAddr := os.Getenv("STATSD_URL")
 		if statsdAddr == "" {
 			statsdAddr = fmt.Sprintf("%s:%d", cfg.StatsdHost, cfg.StatsdPort)
@@ -246,15 +212,17 @@ func NewModule(cfg *aconfig.AgentConfig) (api.Module, error) {
 		if statsdClient, err = statsd.New(statsdAddr); err != nil {
 			return nil, err
 		}
+	} else {
+		log.Warn("Logs won't be send to DataDog")
 	}
 
-	probe, err := sprobe.NewProbe(config)
+	probe, err := sprobe.NewProbe(config, statsdClient)
 	if err != nil {
 		return nil, err
 	}
 
-	ruleSet, err := LoadPolicies(config, probe)
-	if err != nil {
+	ruleSet := probe.NewRuleSet(rules.NewOptsWithParams(sprobe.SECLConstants, sprobe.SupportedDiscarders))
+	if err := policy.LoadPolicies(config, ruleSet); err != nil {
 		return nil, err
 	}
 
@@ -262,7 +230,7 @@ func NewModule(cfg *aconfig.AgentConfig) (api.Module, error) {
 		config:       config,
 		probe:        probe,
 		ruleSet:      ruleSet,
-		eventServer:  NewEventServer(),
+		eventServer:  NewEventServer(ruleSet.ListRuleIDs(), config),
 		grpcServer:   grpc.NewServer(),
 		statsdClient: statsdClient,
 		rateLimiter:  NewRateLimiter(ruleSet.ListRuleIDs()),

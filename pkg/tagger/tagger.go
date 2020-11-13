@@ -109,9 +109,7 @@ func (t *Tagger) run() error {
 			return nil
 		case <-t.health.C:
 		case msg := <-t.infoIn:
-			for _, info := range msg {
-				t.tagStore.processTagInfo(info) //nolint:errcheck
-			}
+			t.tagStore.processTagInfo(msg)
 		case <-t.retryTicker.C:
 			go t.startCollectors()
 		case <-t.pullTicker.C:
@@ -228,6 +226,8 @@ func (t *Tagger) GetEntityHash(entity string) string {
 
 // Tag returns tags for a given entity
 func (t *Tagger) Tag(entity string, cardinality collectors.TagCardinality) ([]string, error) {
+	queries.Inc(tagCardinalityToString(cardinality))
+
 	if entity == "" {
 		return nil, fmt.Errorf("empty entity ID")
 	}
@@ -268,13 +268,15 @@ IterCollectors:
 			tagArrays = append(tagArrays, high)
 		}
 		// Submit to cache for next lookup
-		t.tagStore.processTagInfo(&collectors.TagInfo{ //nolint:errcheck
-			Entity:               entity,
-			Source:               name,
-			LowCardTags:          low,
-			OrchestratorCardTags: orch,
-			HighCardTags:         high,
-			CacheMiss:            cacheMiss,
+		t.tagStore.processTagInfo([]*collectors.TagInfo{
+			{
+				Entity:               entity,
+				Source:               name,
+				LowCardTags:          low,
+				OrchestratorCardTags: orch,
+				HighCardTags:         high,
+				CacheMiss:            cacheMiss,
+			},
 		})
 	}
 	t.RUnlock()
@@ -305,8 +307,8 @@ func (t *Tagger) List(cardinality collectors.TagCardinality) response.TaggerList
 		Entities: make(map[string]response.TaggerListEntity),
 	}
 
-	t.tagStore.storeMutex.RLock()
-	defer t.tagStore.storeMutex.RUnlock()
+	t.tagStore.RLock()
+	defer t.tagStore.RUnlock()
 	for entityID, et := range t.tagStore.store {
 		entity := response.TaggerListEntity{}
 		tags, sources, _ := et.get(cardinality)
@@ -316,6 +318,18 @@ func (t *Tagger) List(cardinality collectors.TagCardinality) response.TaggerList
 	}
 
 	return r
+}
+
+// Subscribe returns a list of existing entities in the store, alongside a
+// channel that receives events whenever an entity is added, modified or
+// deleted.
+func (t *Tagger) Subscribe(cardinality collectors.TagCardinality) chan []EntityEvent {
+	return t.tagStore.subscribe(cardinality)
+}
+
+// Unsubscribe ends a subscription to entity events and closes its channel.
+func (t *Tagger) Unsubscribe(ch chan []EntityEvent) {
+	t.tagStore.unsubscribe(ch)
 }
 
 // copyArray makes sure the tagger does not return internal slices

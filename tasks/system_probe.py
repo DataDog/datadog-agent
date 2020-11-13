@@ -1,6 +1,5 @@
 import contextlib
 import datetime
-import getpass
 import glob
 import os
 import shutil
@@ -138,7 +137,9 @@ def build(
 
 
 @task
-def build_in_docker(ctx, rebuild_ebpf_builder=False, race=False, incremental_build=False, major_version='7'):
+def build_in_docker(
+    ctx, rebuild_ebpf_builder=False, race=False, incremental_build=False, major_version='7', bundle_ebpf=False
+):
     """
     Build the system_probe using a container
     This can be used when the current OS don't have up to date linux headers
@@ -162,6 +163,8 @@ def build_in_docker(ctx, rebuild_ebpf_builder=False, race=False, incremental_bui
         cmd += " --race"
     if incremental_build:
         cmd += " --incremental-build"
+    if bundle_ebpf:
+        cmd += " --bundle-ebpf"
 
     ctx.run(docker_cmd.format(cwd=os.getcwd(), builder=EBPF_BUILDER_IMAGE, cmd=cmd))
 
@@ -194,9 +197,6 @@ def test(ctx, skip_object_files=False, only_check_bpf_bytes=False, bundle_ebpf=T
         # bpf_tag += ",ebpf_bindata"
         cmd += " -run=TestEbpfBytesCorrect"
     else:
-        if getpass.getuser() != "root":
-            print("system-probe tests must be run as root")
-            raise Exit(code=1)
         if os.getenv("GOPATH") is None:
             print(
                 "GOPATH is not set, if you are running tests with sudo, you may need to use the -E option to preserve your environment"
@@ -298,6 +298,7 @@ def build_object_files(ctx, bundle_ebpf=False):
         '-D__KERNEL__',
         '-DCONFIG_64BIT',
         '-D__BPF_TRACING__',
+        '-DKBUILD_MODNAME="\\"foo\\""',
         '-Wno-unused-value',
         '-Wno-pointer-sign',
         '-Wno-compare-distinct-pointer-types',
@@ -307,6 +308,8 @@ def build_object_files(ctx, bundle_ebpf=False):
         "-include {}".format(os.path.join(c_dir, "asm_goto_workaround.h")),
         '-O2',
         '-emit-llvm',
+        # Some linux distributions enable stack protector by default which is not available on eBPF
+        '-fno-stack-protector',
     ]
 
     # Mapping used by the kernel, from https://elixir.bootlin.com/linux/latest/source/scripts/subarch.include
@@ -402,8 +405,8 @@ def build_object_files(ctx, bundle_ebpf=False):
 
     if bundle_ebpf:
         assets_cmd = (
-            os.environ["GOPATH"]
-            + "/bin/go-bindata -pkg bytecode -tags ebpf_bindata -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{bindata_files}'"
+            "go run github.com/shuLhan/go-bindata/cmd/go-bindata"
+            + " -pkg bytecode -tags ebpf_bindata -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{bindata_files}'"
         )
         go_file = os.path.join(bpf_dir, "bytecode", "tracer-ebpf.go")
         commands.append(assets_cmd.format(c_dir=c_dir, go_file=go_file, bindata_files="' '".join(bindata_files)))

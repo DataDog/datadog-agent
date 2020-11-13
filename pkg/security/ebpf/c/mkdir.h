@@ -13,59 +13,55 @@ struct mkdir_event_t {
     u32 padding;
 };
 
-int __attribute__((always_inline)) trace__sys_mkdir(struct pt_regs *ctx, umode_t mode) {
+long __attribute__((always_inline)) trace__sys_mkdir(umode_t mode) {
     struct syscall_cache_t syscall = {
-        .type = EVENT_MKDIR,
+        .type = SYSCALL_MKDIR,
         .mkdir = {
             .mode = mode
         }
     };
 
-    cache_syscall(&syscall);
+    cache_syscall(&syscall, EVENT_MKDIR);
+
+    if (discarded_by_process(syscall.policy.mode, EVENT_MKDIR)) {
+        pop_syscall(SYSCALL_MKDIR);
+    }
 
     return 0;
 }
 
-SYSCALL_KPROBE(mkdir) {
-    umode_t mode;
-#if USE_SYSCALL_WRAPPER
-    ctx = (struct pt_regs *) PT_REGS_PARM1(ctx);
-    bpf_probe_read(&mode, sizeof(mode), &PT_REGS_PARM2(ctx));
-#else
-    mode = (umode_t) PT_REGS_PARM2(ctx);
-#endif
-    return trace__sys_mkdir(ctx, mode);
+SYSCALL_KPROBE2(mkdir, const char*, filename, umode_t, mode)
+{
+    return trace__sys_mkdir(mode);
 }
 
-SYSCALL_KPROBE(mkdirat) {
-    umode_t mode;
-#if USE_SYSCALL_WRAPPER
-    ctx = (struct pt_regs *) PT_REGS_PARM1(ctx);
-    bpf_probe_read(&mode, sizeof(mode), &PT_REGS_PARM3(ctx));
-#else
-    mode = (umode_t) PT_REGS_PARM3(ctx);
-#endif
-
-    return trace__sys_mkdir(ctx, mode);
+SYSCALL_KPROBE3(mkdirat, int, dirfd, const char*, filename, umode_t, mode)
+{
+    return trace__sys_mkdir(mode);
 }
 
 SEC("kprobe/vfs_mkdir")
-int kprobe__security_path_mkdir(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall();
+int kprobe__vfs_mkdir(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_MKDIR);
     if (!syscall)
         return 0;
-    // In a container, vfs_mkdir can be called multiple times to handle the different layers of the overlay filesystem.
-    // The first call is the only one we really care about, the subsequent calls contain paths to the overlay work layer.
-    if (syscall->mkdir.dentry)
-        return 0;
 
-    syscall->mkdir.dentry = (struct dentry *)PT_REGS_PARM2(ctx);
-    syscall->mkdir.path_key = get_key(syscall->mkdir.dentry, syscall->mkdir.dir);
+    struct dentry *dentry = (struct dentry *)PT_REGS_PARM2(ctx);
+
+    // if second pass, ex: overlayfs, just cache the inode that will be used in ret
+    if (syscall->mkdir.dentry) {
+        syscall->mkdir.real_dentry = dentry;
+        return 0;
+    }
+
+    syscall->mkdir.dentry = dentry;
+    syscall->mkdir.path_key = get_dentry_key_path(syscall->mkdir.dentry, syscall->mkdir.path);
+
     return 0;
 }
 
 int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = pop_syscall();
+    struct syscall_cache_t *syscall = pop_syscall(SYSCALL_MKDIR);
     if (!syscall)
         return 0;
 
@@ -75,16 +71,29 @@ int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
 
     // the inode of the dentry was not properly set when kprobe/security_path_mkdir was called, make sur we grab it now
     syscall->mkdir.path_key.ino = get_dentry_ino(syscall->mkdir.dentry);
+
+    syscall->mkdir.path_key.path_id = get_path_id(0);
+    int ret = resolve_dentry(syscall->mkdir.dentry, syscall->mkdir.path_key, syscall->policy.mode != NO_FILTER ? EVENT_MKDIR : 0);
+    if (ret == DENTRY_DISCARDED) {
+        return 0;
+    }
+
+    // add an real entry to reach the first dentry with the proper inode
+    u64 inode = syscall->mkdir.path_key.ino;
+    if (syscall->mkdir.real_dentry) {
+        inode = get_dentry_ino(syscall->mkdir.real_dentry);
+        link_dentry_inode(syscall->mkdir.path_key, inode);
+    }
+
     struct mkdir_event_t event = {
         .event.type = EVENT_MKDIR,
-        .syscall = {
-            .retval = retval,
-            .timestamp = bpf_ktime_get_ns(),
-        },
+        .event.timestamp = bpf_ktime_get_ns(),
+        .syscall.retval = retval,
         .file = {
-            .inode = syscall->mkdir.path_key.ino,
+            .inode = inode,
             .mount_id = syscall->mkdir.path_key.mount_id,
             .overlay_numlower = get_overlay_numlower(syscall->mkdir.dentry),
+            .path_id = syscall->mkdir.path_key.path_id,
         },
         .mode = syscall->mkdir.mode,
     };
@@ -92,14 +101,13 @@ int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
     struct proc_cache_t *entry = fill_process_data(&event.process);
     fill_container_data(entry, &event.container);
 
-    resolve_dentry(syscall->mkdir.dentry, syscall->mkdir.path_key, NULL);
-
     send_event(ctx, event);
 
     return 0;
 }
 
-SYSCALL_KRETPROBE(mkdir) {
+SYSCALL_KRETPROBE(mkdir)
+{
     return trace__sys_mkdir_ret(ctx);
 }
 

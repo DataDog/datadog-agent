@@ -26,6 +26,8 @@ type Obfuscator struct {
 	// to be generic.
 	// Not safe for concurrent use.
 	sqlLiteralEscapes int32
+	// queryCache keeps a cache of already obfuscated queries.
+	queryCache *measuredCache
 }
 
 // SetSQLLiteralEscapes sets whether or not escape characters should be treated literally by the SQL obfuscator.
@@ -47,7 +49,10 @@ func NewObfuscator(cfg *config.ObfuscationConfig) *Obfuscator {
 	if cfg == nil {
 		cfg = new(config.ObfuscationConfig)
 	}
-	o := Obfuscator{opts: cfg}
+	o := Obfuscator{
+		opts:       cfg,
+		queryCache: newMeasuredCache(),
+	}
 	if cfg.ES.Enabled {
 		o.es = newJSONObfuscator(&cfg.ES)
 	}
@@ -56,6 +61,9 @@ func NewObfuscator(cfg *config.ObfuscationConfig) *Obfuscator {
 	}
 	return &o
 }
+
+// Stop cleans up after a finished Obfuscator.
+func (o *Obfuscator) Stop() { o.queryCache.Close() }
 
 // Obfuscate may obfuscate span's properties based on its type and on the Obfuscator's
 // configuration.

@@ -17,6 +17,11 @@ var (
 const (
 	// DEBUGCLIENT is the ClientID for debugging
 	DEBUGCLIENT = "-1"
+
+	// DNSResponseCodeNoError is the value that indicates that the DNS reply contains no errors.
+	// We could have used layers.DNSResponseCodeNoErr here. But importing the gopacket library only for this
+	// constant is not worth the increased memory cost.
+	DNSResponseCodeNoError = 0
 )
 
 // State takes care of handling the logic for:
@@ -154,7 +159,10 @@ func (ns *networkState) Connections(
 			ns.storeDNSStats(dnsStats)
 			ns.addDNSStats(id, latestConns)
 		}
-		return latestConns
+		// copy to ensure return value doesn't get clobbered
+		conns := make([]ConnectionStats, len(latestConns))
+		copy(conns, latestConns)
+		return conns
 	}
 
 	// Update all connections with relevant up-to-date stats for client
@@ -201,11 +209,17 @@ func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
 		}
 
 		if dnsStats, ok := ns.clients[id].dnsStats[key]; ok {
-			conn.DNSSuccessfulResponses = dnsStats.successfulResponses
-			conn.DNSFailedResponses = dnsStats.failedResponses
 			conn.DNSTimeouts = dnsStats.timeouts
+			conn.DNSSuccessfulResponses = dnsStats.countByRcode[DNSResponseCodeNoError]
 			conn.DNSSuccessLatencySum = dnsStats.successLatencySum
 			conn.DNSFailureLatencySum = dnsStats.failureLatencySum
+			conn.DNSCountByRcode = make(map[uint32]uint32)
+			var total uint32
+			for rcode, count := range dnsStats.countByRcode {
+				conn.DNSCountByRcode[uint32(rcode)] = count
+				total += count
+			}
+			conn.DNSFailedResponses = total - conn.DNSSuccessfulResponses
 		}
 		seen[key] = struct{}{}
 	}
@@ -270,13 +284,14 @@ func (ns *networkState) StoreClosedConnection(conn ConnectionStats) {
 func (ns *networkState) storeDNSStats(stats map[dnsKey]dnsStats) {
 	for key, dns := range stats {
 		for _, client := range ns.clients {
-			// If we've seen DNS stats for this key already, lets combine the two
+			// If we've seen DNS stats for this key already, let's combine the two
 			if prev, ok := client.dnsStats[key]; ok {
-				prev.successfulResponses += dns.successfulResponses
-				prev.failedResponses += dns.failedResponses
 				prev.timeouts += dns.timeouts
 				prev.successLatencySum += dns.successLatencySum
 				prev.failureLatencySum += dns.failureLatencySum
+				for rcode, count := range dns.countByRcode {
+					prev.countByRcode[rcode] += count
+				}
 				client.dnsStats[key] = prev
 			} else if len(client.dnsStats) >= ns.maxDNSStats {
 				ns.telemetry.dnsStatsDropped++

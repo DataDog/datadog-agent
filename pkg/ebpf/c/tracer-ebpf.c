@@ -85,13 +85,14 @@ struct bpf_map_def SEC("maps/udp_recv_sock") udp_recv_sock = {
 };
 
 /* This maps tracks listening TCP ports. Entries are added to the map via tracing the inet_csk_accept syscall.  The
- * key in the map is the port and the value is a flag that indicates if the port is listening or not.
- * When the socket is destroyed (via tcp_v4_destroy_sock), we set the value to be "port closed" to indicate that the
- * port is no longer being listened on.  We leave the data in place for the userspace side to read and clean up
+ * key in the map is the network namespace inode together with the port and the value is a flag that
+ * indicates if the port is listening or not. When the socket is destroyed (via tcp_v4_destroy_sock), we set the
+ * value to be "port closed" to indicate that the port is no longer being listened on.  We leave the data in place
+ * for the userspace side to read and clean up
  */
 struct bpf_map_def SEC("maps/port_bindings") port_bindings = {
     .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(__u16),
+    .key_size = sizeof(port_binding_t),
     .value_size = sizeof(__u8),
     .max_entries = 0, // This will get overridden at runtime using max_tracked_connections
     .pinning = 0,
@@ -104,7 +105,7 @@ struct bpf_map_def SEC("maps/port_bindings") port_bindings = {
  */
 struct bpf_map_def SEC("maps/udp_port_bindings") udp_port_bindings = {
     .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(__u16),
+    .key_size = sizeof(port_binding_t),
     .value_size = sizeof(__u8),
     .max_entries = 0, // This will get overridden at runtime using max_tracked_connections
     .pinning = 0,
@@ -265,7 +266,45 @@ static __always_inline __u64 offset_rtt_var() {
 static __always_inline bool is_ipv6_enabled() {
     __u64 val = 0;
     LOAD_CONSTANT("ipv6_enabled", val);
-    return val == TRACER_IPV6_ENABLED;
+    return val == ENABLED;
+}
+
+static __always_inline bool are_fl4_offsets_known() {
+    __u64 val = 0;
+    LOAD_CONSTANT("fl4_offsets", val);
+    return val == ENABLED;
+}
+
+static __always_inline __u64 offset_saddr_fl4() {
+    __u64 val = 0;
+    LOAD_CONSTANT("offset_saddr_fl4", val);
+    return val;
+}
+
+static __always_inline __u64 offset_daddr_fl4() {
+     __u64 val = 0;
+     LOAD_CONSTANT("offset_daddr_fl4", val);
+     return val;
+}
+
+static __always_inline __u64 offset_sport_fl4() {
+    __u64 val = 0;
+    LOAD_CONSTANT("offset_sport_fl4", val);
+    return val;
+}
+
+static __always_inline __u64 offset_dport_fl4() {
+     __u64 val = 0;
+     LOAD_CONSTANT("offset_dport_fl4", val);
+     return val;
+}
+
+static __always_inline __u32 get_netns_from_sock(struct sock* sk) {
+    possible_net_t* skc_net = NULL;
+    __u32 net_ns_inum = 0;
+    bpf_probe_read(&skc_net, sizeof(possible_net_t*), ((char*)sk) + offset_netns());
+    bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), ((char*)skc_net) + offset_ino());
+    return net_ns_inum;
 }
 
 static __always_inline bool check_family(struct sock* sk, u16 expected_family) {
@@ -283,6 +322,10 @@ static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u6
     t->dport = 0;
     t->pid = pid_tgid >> 32;
     t->metadata = type;
+
+    // Retrieve network namespace id first since addresses and ports may not be available for unconnected UDP
+    // sends
+    t->netns = get_netns_from_sock(skp);
 
     // Retrieve addresses
     if (check_family(skp, AF_INET)) {
@@ -338,11 +381,6 @@ static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u6
     // Making ports human-readable
     t->sport = ntohs(t->sport);
     t->dport = ntohs(t->dport);
-
-    // Retrieve network namespace id
-    possible_net_t* skc_net = NULL;
-    bpf_probe_read(&skc_net, sizeof(void*), ((char*)skp) + offset_netns());
-    bpf_probe_read(&t->netns, sizeof(t->netns), ((char*)skc_net) + offset_ino());
 
     return 1;
 }
@@ -596,12 +634,7 @@ int kprobe__tcp_close(struct pt_regs* ctx) {
     u32 net_ns_inum;
 
     // Get network namespace id
-    possible_net_t* skc_net;
-
-    skc_net = NULL;
-    net_ns_inum = 0;
-    bpf_probe_read(&skc_net, sizeof(possible_net_t*), ((char*)sk) + offset_netns());
-    bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), ((char*)skc_net) + offset_ino());
+    net_ns_inum = get_netns_from_sock(sk);
 
     log_debug("kprobe/tcp_close: pid_tgid: %d, ns: %d\n", pid_tgid, net_ns_inum);
 
@@ -634,38 +667,69 @@ int kretprobe__tcp_close(struct pt_regs* ctx) {
     return 0;
 }
 
-SEC("kprobe/udp_sendmsg")
-int kprobe__udp_sendmsg(struct pt_regs* ctx) {
+SEC("kprobe/ip6_make_skb")
+int kprobe__ip6_make_skb(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
-    size_t size = (size_t)PT_REGS_PARM3(ctx);
+    size_t size = (size_t)PT_REGS_PARM4(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
+
+    size = size - sizeof(struct udphdr);
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
+
         increment_telemetry_count(udp_send_missed);
         return 0;
     }
 
-    log_debug("kprobe/udp_sendmsg: pid_tgid: %d, size: %d\n", pid_tgid, size);
+    log_debug("kprobe/ip6_make_skb: pid_tgid: %d, size: %d\n", pid_tgid, size);
     handle_message(&t, size, 0);
     increment_telemetry_count(udp_send_processed);
 
     return 0;
 }
 
-SEC("kprobe/udp_sendmsg/pre_4_1_0")
-int kprobe__udp_sendmsg__pre_4_1_0(struct pt_regs* ctx) {
-    struct sock* sk = (struct sock*)PT_REGS_PARM2(ctx);
-    size_t size = (size_t)PT_REGS_PARM4(ctx);
+// Note: This is used only in tne UDP send path.
+SEC("kprobe/ip_make_skb")
+int kprobe__ip_make_skb(struct pt_regs* ctx) {
+    struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
+    size_t size = (size_t)PT_REGS_PARM5(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
+
+    size = size - sizeof(struct udphdr);
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
-        increment_telemetry_count(udp_send_missed);
-        return 0;
+        if (!are_fl4_offsets_known()) {
+            log_debug("ERR: src/dst addr not set src:%d,dst:%d. fl4 offsets are not known\n", t.saddr_l, t.daddr_l);
+            increment_telemetry_count(udp_send_missed);
+            return 0;
+        }
+
+        struct flowi4* fl4 = (struct flowi4*)PT_REGS_PARM2(ctx);
+        bpf_probe_read(&t.saddr_l, sizeof(u32), ((char*)fl4) + offset_saddr_fl4());
+        bpf_probe_read(&t.daddr_l, sizeof(u32), ((char*)fl4) + offset_daddr_fl4());
+
+        if (!t.saddr_l || !t.daddr_l) {
+            log_debug("ERR(fl4): src/dst addr not set src:%d,dst:%d\n", t.saddr_l, t.daddr_l);
+            increment_telemetry_count(udp_send_missed);
+            return 0;
+        }
+
+        bpf_probe_read(&t.sport, sizeof(t.sport), ((char*)fl4) + offset_sport_fl4());
+        bpf_probe_read(&t.dport, sizeof(t.dport), ((char*)fl4) + offset_dport_fl4());
+
+        if (t.sport == 0 || t.dport == 0) {
+            log_debug("ERR(fl4): src/dst port not set: src:%d, dst:%d\n", t.sport, t.dport);
+            increment_telemetry_count(udp_send_missed);
+            return 0;
+        }
+
+        t.sport = ntohs(t.sport);
+        t.dport = ntohs(t.dport);
     }
 
-    log_debug("kprobe/udp_sendmsg/pre_4_1_0: pid_tgid: %d, size: %d\n", pid_tgid, size);
+    log_debug("kprobe/ip_send_skb: pid_tgid: %d, size: %d\n", pid_tgid, size);
     handle_message(&t, size, 0);
     increment_telemetry_count(udp_send_processed);
 
@@ -779,14 +843,18 @@ int kretprobe__inet_csk_accept(struct pt_regs* ctx) {
         return 0;
     }
 
-    __u8* val = bpf_map_lookup_elem(&port_bindings, &lport);
+    port_binding_t t = {};
+    t.net_ns = get_netns_from_sock(newsk);
+    t.port = lport;
+
+    __u8* val = bpf_map_lookup_elem(&port_bindings, &t);
 
     if (val == NULL) {
         __u8 state = PORT_LISTENING;
-
-        bpf_map_update_elem(&port_bindings, &lport, &state, BPF_ANY);
+        bpf_map_update_elem(&port_bindings, &t, &state, BPF_ANY);
     }
 
+    log_debug("kretprobe/inet_csk_accept: net ns: %d, lport: %d\n", t.net_ns, t.port);
     return 0;
 }
 
@@ -808,14 +876,16 @@ int kprobe__tcp_v4_destroy_sock(struct pt_regs* ctx) {
         return 0;
     }
 
-    __u8* val = bpf_map_lookup_elem(&port_bindings, &lport);
-
+    port_binding_t t = {};
+    t.net_ns = get_netns_from_sock(sk);
+    t.port = lport;
+    __u8* val = bpf_map_lookup_elem(&port_bindings, &t);
     if (val != NULL) {
         __u8 state = PORT_CLOSED;
-        bpf_map_update_elem(&port_bindings, &lport, &state, BPF_ANY);
+        bpf_map_update_elem(&port_bindings, &t, &state, BPF_ANY);
     }
 
-    log_debug("kprobe/tcp_v4_destroy_sock: lport: %d\n", lport);
+    log_debug("kprobe/tcp_v4_destroy_sock: net ns: %u, lport: %u\n", t.net_ns, t.port);
     return 0;
 }
 
@@ -839,7 +909,13 @@ int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
     }
 
     // decide if the port is bound, if not, do nothing
-    __u8* state = bpf_map_lookup_elem(&udp_port_bindings, &lport);
+    port_binding_t t = {};
+    // although we have net ns info, we don't use it in the key
+    // since we don't have it everywhere for udp port bindings
+    // (see sys_enter_bind/sys_exit_bind below)
+    t.net_ns = 0;
+    t.port = lport;
+    __u8* state = bpf_map_lookup_elem(&udp_port_bindings, &t);
 
     if (state == NULL) {
         log_debug("kprobe/udp_destroy_sock: sock was not listening, will drop event\n");
@@ -848,7 +924,7 @@ int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
 
     // set the state to closed
     __u8 new_state = PORT_CLOSED;
-    bpf_map_update_elem(&udp_port_bindings, &lport, &new_state, BPF_ANY);
+    bpf_map_update_elem(&udp_port_bindings, &t, &new_state, BPF_ANY);
 
     log_debug("kprobe/udp_destroy_sock: port %d marked as closed\n", lport);
 
@@ -874,10 +950,20 @@ static __always_inline int sys_enter_bind(__u64 fd, struct sockaddr* addr) {
         return 0;
     }
 
-    // sockaddr is part of the syscall ABI, so we can hardcode the offset of 2 to find the port.
     u16 sin_port = 0;
-    bpf_probe_read(&sin_port, sizeof(u16), (char*)addr + 2);
+    sa_family_t family = 0;
+    bpf_probe_read(&family, sizeof(sa_family_t), &addr->sa_family);
+    if (family == AF_INET) {
+        bpf_probe_read(&sin_port, sizeof(u16), &(((struct sockaddr_in*)addr)->sin_port));
+    } else if (family == AF_INET6) {
+        bpf_probe_read(&sin_port, sizeof(u16), &(((struct sockaddr_in6*)addr)->sin6_port));
+    }
+
     sin_port = ntohs(sin_port);
+    if (sin_port == 0) {
+        log_debug("ERR(sys_enter_bind): sin_port is 0\n");
+        return 0;
+    }
 
     // write to pending_binds so the retprobe knows we can mark this as binding.
     bind_syscall_args_t args = {};
@@ -940,7 +1026,10 @@ static __always_inline int sys_exit_bind(__s64 ret) {
 
     __u16 sin_port = args->port;
     __u8 port_state = PORT_LISTENING;
-    bpf_map_update_elem(&udp_port_bindings, &sin_port, &port_state, BPF_ANY);
+    port_binding_t t = {};
+    t.net_ns = 0; // don't have net ns info in this context
+    t.port = sin_port;
+    bpf_map_update_elem(&udp_port_bindings, &t, &port_state, BPF_ANY);
     log_debug("sys_exit_bind: bound UDP port %u\n", sin_port);
 
     return 0;

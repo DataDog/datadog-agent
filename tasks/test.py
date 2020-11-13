@@ -41,6 +41,13 @@ DEFAULT_TEST_TARGETS = [
 ]
 
 
+def ensure_bytes(s):
+    if not isinstance(s, bytes):
+        return s.encode('utf-8')
+
+    return s
+
+
 @task()
 def test(
     ctx,
@@ -154,6 +161,11 @@ def test(
         else:
             race_opt = "-race"
 
+        # Needed to fix an issue when using -race + gcc 10.x on Windows
+        # https://github.com/bazelbuild/rules_go/issues/2614
+        if sys.platform == 'win32':
+            ldflags += " -linkmode=external"
+
     if coverage:
         if race:
             # atomic is quite expensive but it's the only way to run
@@ -173,7 +185,7 @@ def test(
     nocache = '-count=1' if not cache else ''
 
     build_tags.append("test")
-    cmd = 'go test {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
+    cmd = 'gotestsum --format pkgname -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
     cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache} {pkg_folder}'
     args = {
         "go_mod": go_mod,
@@ -358,7 +370,7 @@ def lint_filenames(ctx):
     # Maximum length supported by the win32 API
     max_length = 255
     for file in files:
-        if prefix_length + len(file) > max_length:
+        if not file.startswith('test/kitchen/') and prefix_length + len(file) > max_length:
             print(
                 "Error: path {} is too long ({} characters too many)".format(
                     file, prefix_length + len(file) - max_length
@@ -382,7 +394,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
 
 
 @task
-def e2e_tests(ctx, target="gitlab", image=""):
+def e2e_tests(ctx, target="gitlab", agent_image="", dca_image=""):
     """
     Run e2e tests in several environments.
     """
@@ -391,10 +403,15 @@ def e2e_tests(ctx, target="gitlab", image=""):
         print('target %s not in %s' % (target, choices))
         raise Exit(1)
     if not os.getenv("DATADOG_AGENT_IMAGE"):
-        if not image:
+        if not agent_image:
             print("define DATADOG_AGENT_IMAGE envvar or image flag")
             raise Exit(1)
-        os.environ["DATADOG_AGENT_IMAGE"] = image
+        os.environ["DATADOG_AGENT_IMAGE"] = agent_image
+    if not os.getenv("DATADOG_CLUSTER_AGENT_IMAGE"):
+        if not dca_image:
+            print("define DATADOG_CLUSTER_AGENT_IMAGE envvar or image flag")
+            raise Exit(1)
+        os.environ["DATADOG_CLUSTER_AGENT_IMAGE"] = dca_image
 
     ctx.run("./test/e2e/scripts/setup-instance/00-entrypoint-%s.sh" % target)
 
@@ -405,7 +422,8 @@ class TestProfiler:
 
     def write(self, txt):
         # Output to stdout
-        sys.stdout.write(txt)
+        # NOTE: write to underlying stream on Python 3 to avoid unicode issues when default encoding is not UTF-8
+        getattr(sys.stdout, 'buffer', sys.stdout).write(ensure_bytes(txt))
         # Extract the run time
         for result in self.parser.finditer(txt):
             self.times.append((result.group(1), float(result.group(2))))

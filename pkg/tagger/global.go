@@ -6,13 +6,13 @@
 package tagger
 
 import (
-	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -63,6 +63,18 @@ func StandardTags(entity string) ([]string, error) {
 	return defaultTagger.Standard(entity)
 }
 
+// AgentTags returns the agent tags
+// It relies on the container provider utils to get the Agent container ID
+func AgentTags(cardinality collectors.TagCardinality) ([]string, error) {
+	ctrID, err := providers.ContainerImpl().GetAgentCID()
+	if err != nil {
+		return nil, err
+	}
+
+	entityID := containers.BuildTaggerEntityName(ctrID)
+	return Tag(entityID, cardinality)
+}
+
 // OrchestratorScopeTag queries tags for orchestrator scope (e.g. task_arn in ECS Fargate)
 func OrchestratorScopeTag() ([]string, error) {
 	return defaultTagger.Tag(collectors.OrchestratorScopeEntityID, collectors.OrchestratorCardinality)
@@ -83,19 +95,9 @@ func GetEntityHash(entity string) string {
 	return defaultTagger.GetEntityHash(entity)
 }
 
-// stringToTagCardinality extracts a TagCardinality from a string.
-// In case of failure to parse, returns an error and defaults to Low.
-func stringToTagCardinality(c string) (collectors.TagCardinality, error) {
-	switch strings.ToLower(c) {
-	case "high":
-		return collectors.HighCardinality, nil
-	case "orchestrator":
-		return collectors.OrchestratorCardinality, nil
-	case "low":
-		return collectors.LowCardinality, nil
-	default:
-		return collectors.LowCardinality, fmt.Errorf("unsupported value %s received for tag cardinality", c)
-	}
+// GetDefaultTagger returns the global Tagger instance
+func GetDefaultTagger() *Tagger {
+	return defaultTagger
 }
 
 func init() {

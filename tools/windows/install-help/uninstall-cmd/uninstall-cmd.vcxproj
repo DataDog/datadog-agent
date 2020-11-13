@@ -180,6 +180,7 @@
     <ClCompile Include="..\cal\doUninstall.cpp" />
     <ClCompile Include="..\cal\stopservices.cpp" />
     <ClCompile Include="..\cal\strings.cpp" />
+    <ClCompile Include="..\cal\TargetMachine.cpp" />
     <ClCompile Include="..\cal\usercreate.cpp" />
     <ClCompile Include="..\cal\userrights.cpp" />
     <ClCompile Include="..\cal\winacl.cpp" />

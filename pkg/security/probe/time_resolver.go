@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
+// +build linux
+
 package probe
 
 import (
@@ -31,4 +33,9 @@ func NewTimeResolver() (*TimeResolver, error) {
 // ResolveMonotonicTimestamp converts a kernel monotonic timestamp to an absolute time
 func (tr *TimeResolver) ResolveMonotonicTimestamp(timestamp uint64) time.Time {
 	return tr.bootTime.Add(time.Duration(timestamp) * time.Nanosecond)
+}
+
+// ComputeMonotonicTimestamp converts an absolute time to a kernel monotonic timestamp
+func (tr *TimeResolver) ComputeMonotonicTimestamp(timestamp time.Time) int64 {
+	return timestamp.Sub(tr.bootTime).Nanoseconds()
 }

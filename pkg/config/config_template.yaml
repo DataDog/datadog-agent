@@ -73,7 +73,7 @@ api_key:
 #
 # env: <environment name>
 
-## @param tag_value_split_separator - list of key:value elements - optional
+## @param tag_value_split_separator - map - optional
 ## Split tag values according to a given separator. Only applies to host tags,
 ## and tags coming from container integrations. It does not apply to tags on dogstatsd metrics,
 ## and tags collected by other integrations.
@@ -88,7 +88,7 @@ api_key:
 ##  results in the raw tag being transformed into "foo:1", "foo:2", "foo:3" tags
 #
 # tag_value_split_separator:
-#   - <TAG_KEY>: <SEPARATOR>
+#   <TAG_KEY>: <SEPARATOR>
 
 ## @param checks_tag_cardinality - string - optional - default: low
 ## Configure the level of granularity of tags to send for checks metrics and events. Choices are:
@@ -142,7 +142,7 @@ api_key:
 ## @param aggregator_stop_timeout - integer - optional - default: 2
 ## When stopping the agent, the Aggregator will try to flush out data ready for
 ## aggregation (metrics, events, ...). Data are flushed to the Forwarder in order
-## to be sent to DataDog, therefore the Agent might take at most
+## to be sent to Datadog, therefore the Agent might take at most
 ## 'aggregator_stop_timeout'+'forwarder_stop_timeout' seconds to exit.
 ##
 ## You can set the maximum amount of time, in seconds, allocated to the
@@ -163,12 +163,20 @@ api_key:
 #
 # forwarder_timeout: 20
 
-## @param forwarder_retry_queue_max_size - integer - optional - default: 30
+## @param forwarder_retry_queue_max_size - integer - optional - default: 0
 ## The forwarder retries failed requests. Use this setting to change the
 ## maximum length of the forwarder's retry queue (each request in the queue
 ## takes no more than 2MB in memory)
 #
 # forwarder_retry_queue_max_size: 30
+
+## @param forwarder_retry_queue_payloads_max_size - integer - optional - default: 15728640 (15MB)
+## It defines the maximum size in bytes of all the payloads in the forwarder's retry queue.
+## The actual memory used is greater than the payloads size as there are extra fields like HTTP headers,
+## but no more than 2.5 times the payload size.
+## If "forwarder_retry_queue_max_size" is greater than 0, this parameter is ignored.
+#
+# forwarder_retry_queue_payloads_max_size: 15728640
 
 ## @param forwarder_num_workers - integer - optional - default: 1
 ## The number of workers used by the forwarder.
@@ -212,6 +220,9 @@ api_key:
 
 ## @param collect_ec2_tags - boolean - optional - default: false
 ## Collect AWS EC2 custom tags as host tags.
+## Requires the EC2 instance to have an IAM role with the `EC2:DescribeTags`
+## permission. See docs for further details:
+## https://docs.datadoghq.com/integrations/faq/how-do-i-pull-my-ec2-tags-without-using-the-aws-integration/
 #
 # collect_ec2_tags: false
 
@@ -219,6 +230,16 @@ api_key:
 ## Timeout in milliseconds on calls to the AWS EC2 metadata endpoints.
 #
 # ec2_metadata_timeout: 300
+
+## @param ec2_prefer_imdsv2 - boolean - optional - default: false
+## If this flag is true then the agent will request EC2 metadata using IMDS v2,
+## which offers additional security for accessing metadata. However, in some
+## situations (such as a containerized agent on a plain EC2 instance) it may
+## require additional configuration on the AWS side. See the AWS guidelines
+## for further details:
+## https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/configuring-instance-metadata-service.html#instance-metadata-transition-to-version-2
+#
+# ec2_prefer_imdsv2: false
 
 ## @param collect_gce_tags - boolean - optional - default: true
 ## Collect Google Cloud Engine metadata as host tags
@@ -244,6 +265,12 @@ api_key:
 #   - "ssl-cert"
 #   - "google-container-manifest"
 #   - "bosh_settings"
+
+## @param gce_send_project_id_tag - bool - optional - default: false
+## Send the project ID host tag with the `project_id:` tag key in addition to
+## the `project:` tag key.
+#
+# gce_send_project_id_tag: false
 
 ## @param gce_metadata_timeout - integer - optional - default: 1000
 ## Timeout in milliseconds on calls to the GCE metadata endpoints.
@@ -377,17 +404,17 @@ api_key:
 #
 # tracemalloc_debug: false
 
-## @param tracemalloc_whitelist - string - optional
+## @param tracemalloc_include - string - optional
 ## Comma-separated list of Python checks to enable tracemalloc for when `tracemalloc_debug` is true.
 ## By default, all Python checks are enabled.
 #
-# tracemalloc_whitelist: <TRACEMALLOC_WHITELIST>
+# tracemalloc_include: <TRACEMALLOC_EXCLUDE>
 
-## @param tracemalloc_blacklist - string - optional
+## @param tracemalloc_exclude - string - optional
 ## Comma-separated list of Python checks to disable tracemalloc for when `tracemalloc_debug` is true.
-## By default, all Python checks are enabled. This setting takes precedence over `tracemalloc_whitelist`.
+## By default, all Python checks are enabled. This setting takes precedence over `tracemalloc_include`.
 #
-# tracemalloc_blacklist: <TRACEMALLOC_BLACKLIST>
+# tracemalloc_exclude: <TRACEMALLOC_INCLUDE>
 
 ## @param windows_use_pythonpath - boolean - optional
 ## Whether to honour the value of the PYTHONPATH env var when set on Windows.
@@ -879,17 +906,10 @@ api_key:
 ##################################
 
 ## @param system_probe_config - custom object - optional
-## Beta Agent
 ## Enter specific configurations for your System Probe data collection.
 ## Uncomment this parameter and the one below to enable them.
 #
 # system_probe_config:
-
-  ## @param enabled - boolean - optional - default: false
-  ## Set to true to enable the System Probe.
-  #
-  # enabled: false
-
   ## @param sysprobe_socket - string - optional - default: /opt/datadog-agent/run/sysprobe.sock
   ## The full path to the location of the unix socket where system probes are accessed.
   #
@@ -900,12 +920,26 @@ api_key:
   #
   # log_file: /var/log/datadog/system-probe.log
 
+{{- if .NetworkModule }}
+
+########################################
+## System Probe Network Configuration ##
+########################################
+
+# network_config:
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable the Network Module of the System Probe
+  #
+  # enabled: false
+
+{{ end -}}
+
 {{- if .SecurityModule }}
 
 ##########################################
 ## Security Agent Runtime Configuration ##
 ##                                      ##
-## Settings to sent logs to DataDog are ##
+## Settings to sent logs to Datadog are ##
 ## fetched from section `logs_config`   ##
 ##########################################
 
@@ -914,11 +948,6 @@ api_key:
   ## Set to true to enable the Security Runtime Module.
   #
   # enabled: false
-
-  ## @param debug - boolean - optional - default: false
-  ## Enable debug mode.
-  #
-  # debug: false
 
   ## @param socket - string - optional - default: /opt/datadog-agent/run/runtime-security.sock
   ## The full path to the location of the unix socket where security runtime module is accessed.
@@ -1187,10 +1216,10 @@ api_key:
 #
 # jmx_reconnection_thread_pool_size: 3
 
-## @param jmx_reconnection_timeout - integer - optional - default: 10
+## @param jmx_reconnection_timeout - integer - optional - default: 60
 ## Determines the maximum waiting period in seconds before timing up on instance reconnection.
 #
-# jmx_reconnection_timeout: 10
+# jmx_reconnection_timeout: 60
 
 {{ end -}}
 {{- if .Logging }}

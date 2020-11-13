@@ -1,4 +1,4 @@
-// +build linux_bpf
+// +build linux
 
 // Code generated - DO NOT EDIT.
 
@@ -469,14 +469,6 @@ func (m *Model) GetEvaluator(field eval.Field) (eval.Evaluator, error) {
 			Field: field,
 		}, nil
 
-	case "process.pidns":
-
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Process.Pidns) },
-
-			Field: field,
-		}, nil
-
 	case "process.tid":
 
 		return &eval.IntEvaluator{
@@ -509,6 +501,80 @@ func (m *Model) GetEvaluator(field eval.Field) (eval.Evaluator, error) {
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Process.ResolveUser((*Event)(ctx.Object).resolvers)
 			},
+
+			Field: field,
+		}, nil
+
+	case "removexattr.basename":
+
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).RemoveXAttr.ResolveBasename((*Event)(ctx.Object).resolvers)
+			},
+
+			Field: field,
+		}, nil
+
+	case "removexattr.container_path":
+
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).RemoveXAttr.ResolveContainerPath((*Event)(ctx.Object).resolvers)
+			},
+
+			Field: field,
+		}, nil
+
+	case "removexattr.filename":
+
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).RemoveXAttr.ResolveInode((*Event)(ctx.Object).resolvers)
+			},
+
+			Field: field,
+		}, nil
+
+	case "removexattr.inode":
+
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).RemoveXAttr.Inode) },
+
+			Field: field,
+		}, nil
+
+	case "removexattr.name":
+
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).RemoveXAttr.GetName((*Event)(ctx.Object).resolvers)
+			},
+
+			Field: field,
+		}, nil
+
+	case "removexattr.namespace":
+
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).RemoveXAttr.GetNamespace((*Event)(ctx.Object).resolvers)
+			},
+
+			Field: field,
+		}, nil
+
+	case "removexattr.overlay_numlower":
+
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).RemoveXAttr.OverlayNumLower) },
+
+			Field: field,
+		}, nil
+
+	case "removexattr.retval":
+
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).RemoveXAttr.Retval) },
 
 			Field: field,
 		}, nil
@@ -663,6 +729,80 @@ func (m *Model) GetEvaluator(field eval.Field) (eval.Evaluator, error) {
 
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Rmdir.Retval) },
+
+			Field: field,
+		}, nil
+
+	case "setxattr.basename":
+
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).SetXAttr.ResolveBasename((*Event)(ctx.Object).resolvers)
+			},
+
+			Field: field,
+		}, nil
+
+	case "setxattr.container_path":
+
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).SetXAttr.ResolveContainerPath((*Event)(ctx.Object).resolvers)
+			},
+
+			Field: field,
+		}, nil
+
+	case "setxattr.filename":
+
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).SetXAttr.ResolveInode((*Event)(ctx.Object).resolvers)
+			},
+
+			Field: field,
+		}, nil
+
+	case "setxattr.inode":
+
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).SetXAttr.Inode) },
+
+			Field: field,
+		}, nil
+
+	case "setxattr.name":
+
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).SetXAttr.GetName((*Event)(ctx.Object).resolvers)
+			},
+
+			Field: field,
+		}, nil
+
+	case "setxattr.namespace":
+
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).SetXAttr.GetNamespace((*Event)(ctx.Object).resolvers)
+			},
+
+			Field: field,
+		}, nil
+
+	case "setxattr.overlay_numlower":
+
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).SetXAttr.OverlayNumLower) },
+
+			Field: field,
+		}, nil
+
+	case "setxattr.retval":
+
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).SetXAttr.Retval) },
 
 			Field: field,
 		}, nil
@@ -995,10 +1135,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.Process.Pid), nil
 
-	case "process.pidns":
-
-		return int(e.Process.Pidns), nil
-
 	case "process.tid":
 
 		return int(e.Process.Tid), nil
@@ -1014,6 +1150,38 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "process.user":
 
 		return e.Process.ResolveUser(e.resolvers), nil
+
+	case "removexattr.basename":
+
+		return e.RemoveXAttr.ResolveBasename(e.resolvers), nil
+
+	case "removexattr.container_path":
+
+		return e.RemoveXAttr.ResolveContainerPath(e.resolvers), nil
+
+	case "removexattr.filename":
+
+		return e.RemoveXAttr.ResolveInode(e.resolvers), nil
+
+	case "removexattr.inode":
+
+		return int(e.RemoveXAttr.Inode), nil
+
+	case "removexattr.name":
+
+		return e.RemoveXAttr.GetName(e.resolvers), nil
+
+	case "removexattr.namespace":
+
+		return e.RemoveXAttr.GetNamespace(e.resolvers), nil
+
+	case "removexattr.overlay_numlower":
+
+		return int(e.RemoveXAttr.OverlayNumLower), nil
+
+	case "removexattr.retval":
+
+		return int(e.RemoveXAttr.Retval), nil
 
 	case "rename.new.basename":
 
@@ -1082,6 +1250,38 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "rmdir.retval":
 
 		return int(e.Rmdir.Retval), nil
+
+	case "setxattr.basename":
+
+		return e.SetXAttr.ResolveBasename(e.resolvers), nil
+
+	case "setxattr.container_path":
+
+		return e.SetXAttr.ResolveContainerPath(e.resolvers), nil
+
+	case "setxattr.filename":
+
+		return e.SetXAttr.ResolveInode(e.resolvers), nil
+
+	case "setxattr.inode":
+
+		return int(e.SetXAttr.Inode), nil
+
+	case "setxattr.name":
+
+		return e.SetXAttr.GetName(e.resolvers), nil
+
+	case "setxattr.namespace":
+
+		return e.SetXAttr.GetNamespace(e.resolvers), nil
+
+	case "setxattr.overlay_numlower":
+
+		return int(e.SetXAttr.OverlayNumLower), nil
+
+	case "setxattr.retval":
+
+		return int(e.SetXAttr.Retval), nil
 
 	case "unlink.basename":
 
@@ -1296,9 +1496,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.pid":
 		return "*", nil
 
-	case "process.pidns":
-		return "*", nil
-
 	case "process.tid":
 		return "*", nil
 
@@ -1310,6 +1507,30 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 
 	case "process.user":
 		return "*", nil
+
+	case "removexattr.basename":
+		return "removexattr", nil
+
+	case "removexattr.container_path":
+		return "removexattr", nil
+
+	case "removexattr.filename":
+		return "removexattr", nil
+
+	case "removexattr.inode":
+		return "removexattr", nil
+
+	case "removexattr.name":
+		return "removexattr", nil
+
+	case "removexattr.namespace":
+		return "removexattr", nil
+
+	case "removexattr.overlay_numlower":
+		return "removexattr", nil
+
+	case "removexattr.retval":
+		return "removexattr", nil
 
 	case "rename.new.basename":
 		return "rename", nil
@@ -1361,6 +1582,30 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 
 	case "rmdir.retval":
 		return "rmdir", nil
+
+	case "setxattr.basename":
+		return "setxattr", nil
+
+	case "setxattr.container_path":
+		return "setxattr", nil
+
+	case "setxattr.filename":
+		return "setxattr", nil
+
+	case "setxattr.inode":
+		return "setxattr", nil
+
+	case "setxattr.name":
+		return "setxattr", nil
+
+	case "setxattr.namespace":
+		return "setxattr", nil
+
+	case "setxattr.overlay_numlower":
+		return "setxattr", nil
+
+	case "setxattr.retval":
+		return "setxattr", nil
 
 	case "unlink.basename":
 		return "unlink", nil
@@ -1613,10 +1858,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
-	case "process.pidns":
-
-		return reflect.Int, nil
-
 	case "process.tid":
 
 		return reflect.Int, nil
@@ -1632,6 +1873,38 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "process.user":
 
 		return reflect.String, nil
+
+	case "removexattr.basename":
+
+		return reflect.String, nil
+
+	case "removexattr.container_path":
+
+		return reflect.String, nil
+
+	case "removexattr.filename":
+
+		return reflect.String, nil
+
+	case "removexattr.inode":
+
+		return reflect.Int, nil
+
+	case "removexattr.name":
+
+		return reflect.String, nil
+
+	case "removexattr.namespace":
+
+		return reflect.String, nil
+
+	case "removexattr.overlay_numlower":
+
+		return reflect.Int, nil
+
+	case "removexattr.retval":
+
+		return reflect.Int, nil
 
 	case "rename.new.basename":
 
@@ -1698,6 +1971,38 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 
 	case "rmdir.retval":
+
+		return reflect.Int, nil
+
+	case "setxattr.basename":
+
+		return reflect.String, nil
+
+	case "setxattr.container_path":
+
+		return reflect.String, nil
+
+	case "setxattr.filename":
+
+		return reflect.String, nil
+
+	case "setxattr.inode":
+
+		return reflect.Int, nil
+
+	case "setxattr.name":
+
+		return reflect.String, nil
+
+	case "setxattr.namespace":
+
+		return reflect.String, nil
+
+	case "setxattr.overlay_numlower":
+
+		return reflect.Int, nil
+
+	case "setxattr.retval":
 
 		return reflect.Int, nil
 
@@ -2173,15 +2478,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Process.Pid = uint32(v)
 		return nil
 
-	case "process.pidns":
-
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Process.Pidns"}
-		}
-		e.Process.Pidns = uint64(v)
-		return nil
-
 	case "process.tid":
 
 		v, ok := value.(int)
@@ -2212,6 +2508,68 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Process.User, ok = value.(string); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Process.User"}
 		}
+		return nil
+
+	case "removexattr.basename":
+
+		if e.RemoveXAttr.BasenameStr, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.BasenameStr"}
+		}
+		return nil
+
+	case "removexattr.container_path":
+
+		if e.RemoveXAttr.ContainerPath, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.ContainerPath"}
+		}
+		return nil
+
+	case "removexattr.filename":
+
+		if e.RemoveXAttr.PathnameStr, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.PathnameStr"}
+		}
+		return nil
+
+	case "removexattr.inode":
+
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.Inode"}
+		}
+		e.RemoveXAttr.Inode = uint64(v)
+		return nil
+
+	case "removexattr.name":
+
+		if e.RemoveXAttr.Name, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.Name"}
+		}
+		return nil
+
+	case "removexattr.namespace":
+
+		if e.RemoveXAttr.Namespace, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.Namespace"}
+		}
+		return nil
+
+	case "removexattr.overlay_numlower":
+
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.OverlayNumLower"}
+		}
+		e.RemoveXAttr.OverlayNumLower = int32(v)
+		return nil
+
+	case "removexattr.retval":
+
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.Retval"}
+		}
+		e.RemoveXAttr.Retval = int64(v)
 		return nil
 
 	case "rename.new.basename":
@@ -2347,6 +2705,68 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.Retval"}
 		}
 		e.Rmdir.Retval = int64(v)
+		return nil
+
+	case "setxattr.basename":
+
+		if e.SetXAttr.BasenameStr, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.BasenameStr"}
+		}
+		return nil
+
+	case "setxattr.container_path":
+
+		if e.SetXAttr.ContainerPath, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.ContainerPath"}
+		}
+		return nil
+
+	case "setxattr.filename":
+
+		if e.SetXAttr.PathnameStr, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.PathnameStr"}
+		}
+		return nil
+
+	case "setxattr.inode":
+
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.Inode"}
+		}
+		e.SetXAttr.Inode = uint64(v)
+		return nil
+
+	case "setxattr.name":
+
+		if e.SetXAttr.Name, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.Name"}
+		}
+		return nil
+
+	case "setxattr.namespace":
+
+		if e.SetXAttr.Namespace, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.Namespace"}
+		}
+		return nil
+
+	case "setxattr.overlay_numlower":
+
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.OverlayNumLower"}
+		}
+		e.SetXAttr.OverlayNumLower = int32(v)
+		return nil
+
+	case "setxattr.retval":
+
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.Retval"}
+		}
+		e.SetXAttr.Retval = int64(v)
 		return nil
 
 	case "unlink.basename":

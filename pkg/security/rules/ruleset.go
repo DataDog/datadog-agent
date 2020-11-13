@@ -11,52 +11,61 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 
-	"github.com/DataDog/datadog-agent/pkg/security/policy"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// MacroID represents the ID of a macro
+type MacroID = string
+
+// MacroDefinition holds the definition of a macro
+type MacroDefinition struct {
+	ID         MacroID `yaml:"id"`
+	Expression string  `yaml:"expression"`
+}
+
+// RuleID represents the ID of a rule
+type RuleID = string
+
+// RuleDefinition holds the definition of a rule
+type RuleDefinition struct {
+	ID         RuleID            `yaml:"id"`
+	Expression string            `yaml:"expression"`
+	Tags       map[string]string `yaml:"tags"`
+}
+
+// GetTags returns the tags associated to a rule
+func (rd *RuleDefinition) GetTags() []string {
+	tags := []string{}
+	for k, v := range rd.Tags {
+		tags = append(
+			tags,
+			fmt.Sprintf("%s:%s", k, v))
+	}
+	return tags
+}
 
 // RuleSetListener describes the methods implemented by an object used to be
 // notified of events on a rule set.
 type RuleSetListener interface {
 	RuleMatch(rule *eval.Rule, event eval.Event)
-	EventDiscarderFound(rs *RuleSet, event eval.Event, field eval.Field)
+	EventDiscarderFound(rs *RuleSet, event eval.Event, field eval.Field, eventType eval.EventType)
 }
 
 // Opts defines rules set options
 type Opts struct {
 	eval.Opts
-	InvalidDiscarders map[eval.Field][]interface{}
-}
-
-func (o *Opts) getInvalidDiscarders() map[eval.Field]map[interface{}]bool {
-	invalidDiscarders := make(map[eval.Field]map[interface{}]bool)
-
-	if o.InvalidDiscarders != nil {
-		for field, values := range o.InvalidDiscarders {
-			ivalues := invalidDiscarders[field]
-			if ivalues == nil {
-				ivalues = make(map[interface{}]bool)
-				invalidDiscarders[field] = ivalues
-			}
-			for _, value := range values {
-				ivalues[value] = true
-			}
-		}
-	}
-
-	return invalidDiscarders
+	SupportedDiscarders map[eval.Field]bool
 }
 
 // NewOptsWithParams initializes a new Opts instance with Debug and Constants parameters
-func NewOptsWithParams(debug bool, constants map[string]interface{}, invalidDiscarders map[eval.Field][]interface{}) *Opts {
+func NewOptsWithParams(constants map[string]interface{}, supportedDiscarders map[eval.Field]bool) *Opts {
 	return &Opts{
 		Opts: eval.Opts{
-			Debug:     debug,
 			Constants: constants,
 			Macros:    make(map[eval.MacroID]*eval.Macro),
 		},
-		InvalidDiscarders: invalidDiscarders,
+		SupportedDiscarders: supportedDiscarders,
 	}
 }
 
@@ -65,13 +74,12 @@ func NewOptsWithParams(debug bool, constants map[string]interface{}, invalidDisc
 type RuleSet struct {
 	opts             *Opts
 	eventRuleBuckets map[eval.EventType]*RuleBucket
-	rules            map[policy.RuleID]*eval.Rule
+	rules            map[eval.RuleID]*eval.Rule
 	model            eval.Model
 	eventCtor        func() eval.Event
 	listeners        []RuleSetListener
 	// fields holds the list of event field queries (like "process.uid") used by the entire set of rules
-	fields            []string
-	invalidDiscarders map[eval.Field]map[interface{}]bool
+	fields []string
 }
 
 // ListRuleIDs returns the list of RuleIDs from the ruleset
@@ -84,7 +92,7 @@ func (rs *RuleSet) ListRuleIDs() []string {
 }
 
 // AddMacros parses the macros AST and adds them to the list of macros of the ruleset
-func (rs *RuleSet) AddMacros(macros []*policy.MacroDefinition) error {
+func (rs *RuleSet) AddMacros(macros []*MacroDefinition) error {
 	var result *multierror.Error
 
 	// Build the list of macros for the ruleset
@@ -98,7 +106,7 @@ func (rs *RuleSet) AddMacros(macros []*policy.MacroDefinition) error {
 }
 
 // AddMacro parses the macro AST and adds it to the list of macros of the ruleset
-func (rs *RuleSet) AddMacro(macroDef *policy.MacroDefinition) (*eval.Macro, error) {
+func (rs *RuleSet) AddMacro(macroDef *MacroDefinition) (*eval.Macro, error) {
 	if _, exists := rs.opts.Macros[macroDef.ID]; exists {
 		return nil, fmt.Errorf("found multiple definition of the macro '%s'", macroDef.ID)
 	}
@@ -122,7 +130,7 @@ func (rs *RuleSet) AddMacro(macroDef *policy.MacroDefinition) (*eval.Macro, erro
 }
 
 // AddRules adds rules to the ruleset and generate their partials
-func (rs *RuleSet) AddRules(rules []*policy.RuleDefinition) error {
+func (rs *RuleSet) AddRules(rules []*RuleDefinition) error {
 	var result *multierror.Error
 
 	for _, ruleDef := range rules {
@@ -139,14 +147,20 @@ func (rs *RuleSet) AddRules(rules []*policy.RuleDefinition) error {
 }
 
 // AddRule creates the rule evaluator and adds it to the bucket of its events
-func (rs *RuleSet) AddRule(ruleDef *policy.RuleDefinition) (*eval.Rule, error) {
+func (rs *RuleSet) AddRule(ruleDef *RuleDefinition) (*eval.Rule, error) {
 	if _, exists := rs.rules[ruleDef.ID]; exists {
 		return nil, fmt.Errorf("found multiple definition of the rule '%s'", ruleDef.ID)
+	}
+
+	var tags []string
+	for k, v := range ruleDef.Tags {
+		tags = append(tags, k+":"+v)
 	}
 
 	rule := &eval.Rule{
 		ID:         ruleDef.ID,
 		Expression: ruleDef.Expression,
+		Tags:       tags,
 	}
 
 	if err := rule.Parse(); err != nil {
@@ -196,9 +210,9 @@ func (rs *RuleSet) NotifyRuleMatch(rule *eval.Rule, event eval.Event) {
 }
 
 // NotifyDiscarderFound notifies all the ruleset listeners that a discarder was found for an event
-func (rs *RuleSet) NotifyDiscarderFound(event eval.Event, field eval.Field) {
+func (rs *RuleSet) NotifyDiscarderFound(event eval.Event, field eval.Field, eventType eval.EventType) {
 	for _, listener := range rs.listeners {
-		listener.EventDiscarderFound(rs, event, field)
+		listener.EventDiscarderFound(rs, event, field, eventType)
 	}
 }
 
@@ -214,6 +228,14 @@ func (rs *RuleSet) HasRulesForEventType(eventType eval.EventType) bool {
 		return false
 	}
 	return len(bucket.rules) > 0
+}
+
+// GetBucket returns rule bucket for the given event type
+func (rs *RuleSet) GetBucket(eventType eval.EventType) *RuleBucket {
+	if bucket, exists := rs.eventRuleBuckets[eventType]; exists {
+		return bucket
+	}
+	return nil
 }
 
 // GetApprovers returns Approvers for the given event type and the fields
@@ -241,15 +263,7 @@ func (rs *RuleSet) GetFieldValues(field eval.Field) []eval.FieldValue {
 }
 
 // IsDiscarder partially evaluates an Event against a field
-func (rs *RuleSet) IsDiscarder(field eval.Field, value interface{}) (bool, error) {
-	event := rs.eventCtor()
-	if err := event.SetFieldValue(field, value); err != nil {
-		return false, err
-	}
-
-	ctx := &eval.Context{}
-	ctx.SetObject(event.GetPointer())
-
+func (rs *RuleSet) IsDiscarder(event eval.Event, field eval.Field) (bool, error) {
 	eventType, err := event.GetFieldEventType(field)
 	if err != nil {
 		return false, err
@@ -260,6 +274,9 @@ func (rs *RuleSet) IsDiscarder(field eval.Field, value interface{}) (bool, error
 		return false, &ErrNoEventTypeBucket{EventType: eventType}
 	}
 
+	ctx := &eval.Context{}
+	ctx.SetObject(event.GetPointer())
+
 	for _, rule := range bucket.rules {
 		isTrue, err := rule.PartialEval(ctx, field)
 		if err != nil || isTrue {
@@ -267,15 +284,6 @@ func (rs *RuleSet) IsDiscarder(field eval.Field, value interface{}) (bool, error
 		}
 	}
 	return true, nil
-}
-
-func (rs *RuleSet) isInvalidDiscarder(field eval.Field, value interface{}) bool {
-	values, exists := rs.invalidDiscarders[field]
-	if !exists {
-		return false
-	}
-
-	return values[value]
 }
 
 // Evaluate the specified event against the set of rules
@@ -294,7 +302,7 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 
 	for _, rule := range bucket.rules {
 		if rule.GetEvaluator().Eval(ctx) {
-			log.Infof("Rule `%s` matches with event `%s`\n", rule.ID, event)
+			log.Tracef("Rule `%s` matches with event `%s`\n", rule.ID, event)
 
 			rs.NotifyRuleMatch(rule, event)
 			result = true
@@ -305,30 +313,22 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 		log.Tracef("Looking for discarders for event of type `%s`", eventType)
 
 		for _, field := range bucket.fields {
-			evaluator, err := rs.model.GetEvaluator(field)
-			if err != nil {
-				continue
-			}
-			value := evaluator.Eval(ctx)
-
-			if rs.isInvalidDiscarder(field, value) {
-				continue
+			if rs.opts.SupportedDiscarders != nil {
+				if _, exists := rs.opts.SupportedDiscarders[field]; !exists {
+					continue
+				}
 			}
 
 			isDiscarder := true
 			for _, rule := range bucket.rules {
 				isTrue, err := rule.PartialEval(ctx, field)
-
-				log.Tracef("Partial eval of rule %s(`%s`) with field `%s` with value `%v` => %t\n", rule.ID, rule.Expression, field, value, isTrue)
-
 				if err != nil || isTrue {
 					isDiscarder = false
 					break
 				}
 			}
 			if isDiscarder {
-				log.Tracef("Found a discarder for field `%s` with value `%s`\n", field, value)
-				rs.NotifyDiscarderFound(event, field)
+				rs.NotifyDiscarderFound(event, field, eventType)
 			}
 		}
 	}
@@ -376,11 +376,10 @@ func (rs *RuleSet) generatePartials() error {
 // NewRuleSet returns a new ruleset for the specified data model
 func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts) *RuleSet {
 	return &RuleSet{
-		model:             model,
-		eventCtor:         eventCtor,
-		opts:              opts,
-		eventRuleBuckets:  make(map[eval.EventType]*RuleBucket),
-		rules:             make(map[policy.RuleID]*eval.Rule),
-		invalidDiscarders: opts.getInvalidDiscarders(),
+		model:            model,
+		eventCtor:        eventCtor,
+		opts:             opts,
+		eventRuleBuckets: make(map[eval.EventType]*RuleBucket),
+		rules:            make(map[eval.RuleID]*eval.Rule),
 	}
 }

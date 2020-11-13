@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: datadog/datadog-agent-runner-circle:go11311
+      - image: datadog/datadog-agent-runner-circle:go1147
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -271,40 +271,12 @@ jobs:
             inv -e deps
             inv -e test --python-runtimes 3 --coverage --race --profile --fail-on-fmt --cpus 3
 
-  macos_build:
-    macos:
-      xcode: 10.1.0
-    environment:
-      BUILDIMAGES_VERSION: "f43e0e081e9a54fea3241ef0efde28374981f7a0" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
-      RELEASE_VERSION: "nightly-a7"
-      AGENT_MAJOR_VERSION: "7"
-      PYTHON_RUNTIMES: "3"
-    working_directory: ~/go/src/github.com/DataDog/datadog-agent
-    steps:
-      - checkout
-      - run:
-          name: Setup builder
-          command: |
-            bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/$BUILDIMAGES_VERSION/macos/builder_setup.sh)"
-      - run:
-          name: Run omnibus build
-          no_output_timeout: 30m
-          command: |
-            export VERSION=$CIRCLE_SHA1
-            bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/$BUILDIMAGES_VERSION/macos/build_script.sh)"
-      - run: mkdir -p ~/artifacts && cp omnibus/pkg/*.dmg ~/artifacts
-      - store_artifacts:
-          path: ~/artifacts
-
 workflows:
   version: 2
   test_and_build:
     jobs:
       - checkout_code
       - macos_tests
-      - macos_build:
-          requires:
-            - macos_tests
       - dependencies:
           requires:
             - checkout_code

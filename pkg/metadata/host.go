@@ -22,7 +22,7 @@ func (hp *HostCollector) Send(s *serializer.Serializer) error {
 	hostnameData, _ := util.GetHostnameData()
 
 	payload := v5.GetPayload(hostnameData)
-	if err := s.SendMetadata(payload); err != nil {
+	if err := s.SendHostMetadata(payload); err != nil {
 		return fmt.Errorf("unable to submit host metadata payload, %s", err)
 	}
 	return nil

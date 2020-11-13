@@ -35,6 +35,12 @@ func TestParseKubeletPodlist(t *testing.T) {
 							ID:   "testID",
 						},
 					},
+					AllContainers: []kubelet.ContainerStatus{
+						{
+							Name: "testName",
+							ID:   "testID",
+						},
+					},
 				},
 			},
 			expectedCfg: nil,
@@ -54,6 +60,12 @@ func TestParseKubeletPodlist(t *testing.T) {
 				},
 				Status: kubelet.Status{
 					Containers: []kubelet.ContainerStatus{
+						{
+							Name: "apache",
+							ID:   "container_id://3b8efe0c50e8",
+						},
+					},
+					AllContainers: []kubelet.ContainerStatus{
 						{
 							Name: "apache",
 							ID:   "container_id://3b8efe0c50e8",
@@ -95,6 +107,16 @@ func TestParseKubeletPodlist(t *testing.T) {
 							ID:   "container_id://4ac8352d70bf1",
 						},
 					},
+					AllContainers: []kubelet.ContainerStatus{
+						{
+							Name: "apache",
+							ID:   "container_id://3b8efe0c50e8",
+						},
+						{
+							Name: "nginx",
+							ID:   "container_id://4ac8352d70bf1",
+						},
+					},
 				},
 			},
 			expectedCfg: []integration.Config{
@@ -126,6 +148,12 @@ func TestParseKubeletPodlist(t *testing.T) {
 				},
 				Status: kubelet.Status{
 					Containers: []kubelet.ContainerStatus{
+						{
+							Name: "apache",
+							ID:   "container_id://3b8efe0c50e8",
+						},
+					},
+					AllContainers: []kubelet.ContainerStatus{
 						{
 							Name: "apache",
 							ID:   "container_id://3b8efe0c50e8",

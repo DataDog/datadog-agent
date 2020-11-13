@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
 )
 
 var (
@@ -50,7 +51,7 @@ func NewPacketPool(bufferSize int) *PacketPool {
 			},
 		},
 		// telemetry
-		tlmEnabled: telemetry.IsEnabled(),
+		tlmEnabled: telemetry_utils.IsEnabled(),
 	}
 }
 

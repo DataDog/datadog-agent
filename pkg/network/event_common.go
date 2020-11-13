@@ -40,6 +40,13 @@ const (
 // ConnectionFamily will be either v4 or v6
 type ConnectionFamily uint8
 
+func (c ConnectionFamily) String() string {
+	if c == AFINET {
+		return "v4"
+	}
+	return "v6"
+}
+
 // ConnectionDirection indicates if the connection is incoming to the host or outbound
 type ConnectionDirection uint8
 
@@ -88,6 +95,7 @@ type ConnectionsTelemetry struct {
 	ConnsBpfMapSize                    int64
 	MonotonicUDPSendsProcessed         int64
 	MonotonicUDPSendsMissed            int64
+	ConntrackSamplingPercent           int64
 }
 
 // ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned
@@ -137,6 +145,7 @@ type ConnectionStats struct {
 	DNSTimeouts            uint32
 	DNSSuccessLatencySum   uint64
 	DNSFailureLatencySum   uint64
+	DNSCountByRcode        map[uint32]uint32
 }
 
 // IPTranslation can be associated with a connection to show the connection is NAT'd

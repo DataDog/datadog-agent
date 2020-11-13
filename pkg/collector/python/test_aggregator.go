@@ -26,50 +26,65 @@ func testSubmitMetric(t *testing.T) {
 	SubmitMetric(C.CString("testID"),
 		C.DATADOG_AGENT_RTLOADER_GAUGE,
 		C.CString("test_gauge"),
-		C.float(21),
+		C.double(21),
 		&cTags[0],
-		C.CString("my_hostname"))
+		C.CString("my_hostname"),
+		C.bool(false))
 	SubmitMetric(C.CString("testID"),
 		C.DATADOG_AGENT_RTLOADER_RATE,
 		C.CString("test_rate"),
-		C.float(21),
+		C.double(21),
 		&cTags[0],
-		C.CString("my_hostname"))
+		C.CString("my_hostname"),
+		C.bool(false))
 	SubmitMetric(C.CString("testID"),
 		C.DATADOG_AGENT_RTLOADER_COUNT,
 		C.CString("test_count"),
-		C.float(21),
+		C.double(21),
 		&cTags[0],
-		C.CString("my_hostname"))
+		C.CString("my_hostname"),
+		C.bool(false))
 	SubmitMetric(C.CString("testID"),
 		C.DATADOG_AGENT_RTLOADER_MONOTONIC_COUNT,
 		C.CString("test_monotonic_count"),
-		C.float(21),
+		C.double(21),
 		&cTags[0],
-		C.CString("my_hostname"))
+		C.CString("my_hostname"),
+		C.bool(false))
+	SubmitMetric(C.CString("testID"),
+		C.DATADOG_AGENT_RTLOADER_MONOTONIC_COUNT,
+		C.CString("test_monotonic_count_flush_first_value"),
+		C.double(21),
+		&cTags[0],
+		C.CString("my_hostname"),
+		C.bool(true))
 	SubmitMetric(C.CString("testID"),
 		C.DATADOG_AGENT_RTLOADER_COUNTER,
 		C.CString("test_counter"),
-		C.float(21),
+		C.double(21),
 		&cTags[0],
-		C.CString("my_hostname"))
+		C.CString("my_hostname"),
+		C.bool(false))
 	SubmitMetric(C.CString("testID"),
 		C.DATADOG_AGENT_RTLOADER_HISTOGRAM,
 		C.CString("test_histogram"),
-		C.float(21),
+		C.double(21),
 		&cTags[0],
-		C.CString("my_hostname"))
+		C.CString("my_hostname"),
+		C.bool(false))
 	SubmitMetric(C.CString("testID"),
 		C.DATADOG_AGENT_RTLOADER_HISTORATE,
 		C.CString("test_historate"),
-		C.float(21),
+		C.double(21),
 		&cTags[0],
-		C.CString("my_hostname"))
+		C.CString("my_hostname"),
+		C.bool(false))
 
 	sender.AssertMetric(t, "Gauge", "test_gauge", 21, "my_hostname", []string{"tag1", "tag2"})
 	sender.AssertMetric(t, "Rate", "test_rate", 21, "my_hostname", []string{"tag1", "tag2"})
 	sender.AssertMetric(t, "Count", "test_count", 21, "my_hostname", []string{"tag1", "tag2"})
-	sender.AssertMetric(t, "MonotonicCount", "test_monotonic_count", 21, "my_hostname", []string{"tag1", "tag2"})
+	sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test_monotonic_count", 21, "my_hostname", []string{"tag1", "tag2"}, false)
+	sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test_monotonic_count_flush_first_value", 21, "my_hostname", []string{"tag1", "tag2"}, true)
 	sender.AssertMetric(t, "Counter", "test_counter", 21, "my_hostname", []string{"tag1", "tag2"})
 	sender.AssertMetric(t, "Histogram", "test_histogram", 21, "my_hostname", []string{"tag1", "tag2"})
 	sender.AssertMetric(t, "Historate", "test_historate", 21, "my_hostname", []string{"tag1", "tag2"})
@@ -83,9 +98,10 @@ func testSubmitMetricEmptyTags(t *testing.T) {
 	SubmitMetric(C.CString("testID"),
 		C.DATADOG_AGENT_RTLOADER_GAUGE,
 		C.CString("test_gauge"),
-		C.float(21),
+		C.double(21),
 		&cTags[0],
-		C.CString("my_hostname"))
+		C.CString("my_hostname"),
+		C.bool(false))
 
 	sender.AssertMetric(t, "Gauge", "test_gauge", 21, "my_hostname", nil)
 }
@@ -98,9 +114,10 @@ func testSubmitMetricEmptyHostname(t *testing.T) {
 	SubmitMetric(C.CString("testID"),
 		C.DATADOG_AGENT_RTLOADER_GAUGE,
 		C.CString("test_gauge"),
-		C.float(21),
+		C.double(21),
 		&cTags[0],
-		nil)
+		nil,
+		C.bool(false))
 
 	sender.AssertMetric(t, "Gauge", "test_gauge", 21, "", nil)
 }

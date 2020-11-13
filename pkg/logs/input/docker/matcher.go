@@ -7,7 +7,6 @@
 package docker
 
 import (
-	"bytes"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
 )
@@ -18,17 +17,16 @@ func InitializeDecoder(source *config.LogSource, containerID string) *decoder.De
 }
 
 const (
-	headerLength       = 8
 	headerPrefixLength = 4
-)
-
-var (
-	headerStdoutPrefix = []byte{1, 0, 0, 0}
-	headerStderrPrefix = []byte{2, 0, 0, 0}
 )
 
 type headerMatcher struct {
 	decoder.EndLineMatcher
+}
+
+// SeparatorLen returns the number of byte to skip at the end of each line
+func (s *headerMatcher) SeparatorLen() int {
+	return 1
 }
 
 // Match does an extra checking on matching docker header. The header should be
@@ -47,10 +45,36 @@ func (s *headerMatcher) Match(exists []byte, appender []byte, start int, end int
 // case [1|2 0 0 0 size1 size2 size3 10]
 func (s *headerMatcher) matchHeader(exists []byte, bs []byte) bool {
 	l := len(exists) + len(bs)
-	if l >= headerLength || l < headerPrefixLength {
+	if l < headerPrefixLength {
 		return false
 	}
-	h := append(exists, bs...)
-	return bytes.HasPrefix(h, headerStdoutPrefix) ||
-		bytes.HasPrefix(h, headerStderrPrefix)
+
+	for i := 0; i < 4; i++ {
+		// possible start of header offset
+		idx := l - (headerPrefixLength + i)
+		if idx < 0 {
+			// less than 4 + i bytes
+			continue
+		}
+		// We test for {1, 0, 0, 0} (stdout log) and {2, 0, 0, 0} (stderr)
+		if s.checkByte(exists, bs, idx, 1) || s.checkByte(exists, bs, idx, 2) {
+			if s.checkByte(exists, bs, idx+1, 0) &&
+				s.checkByte(exists, bs, idx+2, 0) &&
+				s.checkByte(exists, bs, idx+3, 0) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (s *headerMatcher) checkByte(exists []byte, bs []byte, i int, val byte) bool {
+	l := len(exists) + len(bs)
+	if i < l {
+		if i < len(exists) {
+			return exists[i] == val
+		}
+		return bs[i-len(exists)] == val
+	}
+	return false
 }

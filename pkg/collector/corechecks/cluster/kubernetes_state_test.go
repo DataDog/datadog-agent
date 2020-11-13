@@ -16,6 +16,8 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 	"github.com/stretchr/testify/assert"
+	"k8s.io/kube-state-metrics/pkg/allowdenylist"
+	"k8s.io/kube-state-metrics/pkg/options"
 )
 
 type metricsExpected struct {
@@ -164,6 +166,39 @@ func TestProcessMetrics(t *testing.T) {
 			},
 		},
 		{
+			name:   "only consider datadog standard tags in label join",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper, LabelJoins: defaultLabelJoins},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_deployment_status_replicas": {
+					{
+						Type: "*v1.Deployment",
+						Name: "kube_deployment_status_replicas",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"namespace": "default", "deployment": "redis"},
+								Val:    1,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet: []ksmstore.DDMetricsFam{
+				{
+					Name:        "kube_deployment_labels",
+					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"namespace": "default", "deployment": "redis", "label_tags_datadoghq_com_env": "dev", "ignore": "this_label"}}},
+				},
+			},
+			metricTransformers: metricTransformers,
+			expected: []metricsExpected{
+				{
+					name:     "kubernetes_state.deployment.replicas",
+					val:      1,
+					tags:     []string{"kube_namespace:default", "kube_deployment:redis", "env:dev"},
+					hostname: "",
+				},
+			},
+		},
+		{
 			name:   "honour metric transformers",
 			config: &KSMConfig{LabelsMapper: defaultLabelsMapper},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
@@ -195,6 +230,37 @@ func TestProcessMetrics(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:   "unknown metric",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_pod_unknown_metric": {
+					{
+						Type: "*v1.Pod",
+						Name: "kube_pod_unknown_metric",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"container": "kube-state-metrics", "namespace": "default", "pod": "kube-state-metrics-b7fbc487d-4phhj", "uid": "bec19172-8abf-11ea-8546-42010a80022c"},
+								Val:    1,
+							},
+						},
+					},
+					{
+						Type: "*v1.Pod",
+						Name: "kube_pod_unknown_metric",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"container": "hello", "namespace": "default", "pod": "hello-1509998340-k4f8q", "uid": "05e99c5f-8a64-11ea-8546-42010a80022c"},
+								Val:    0,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet:       []ksmstore.DDMetricsFam{},
+			metricTransformers: metricTransformers,
+			expected:           []metricsExpected{},
+		},
 	}
 	for _, test := range tests {
 		kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), test.config)
@@ -212,6 +278,261 @@ func TestProcessMetrics(t *testing.T) {
 			} else {
 				mocked.AssertNumberOfCalls(t, "Gauge", lenMetrics(test.metricsToProcess))
 			}
+		})
+	}
+}
+
+func TestProcessTelemetry(t *testing.T) {
+	tests := []struct {
+		name     string
+		config   *KSMConfig
+		metrics  map[string][]ksmstore.DDMetricsFam
+		expected telemetryCache
+	}{
+		{
+			name:   "pod metrics",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper, Telemetry: true},
+			metrics: map[string][]ksmstore.DDMetricsFam{
+				"kube_pod_container_status_running": {
+					{
+						Type: "*v1.Pod",
+						Name: "kube_pod_container_status_running",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"container": "kube-state-metrics", "namespace": "default", "pod": "kube-state-metrics-b7fbc487d-4phhj", "uid": "bec19172-8abf-11ea-8546-42010a80022c"},
+								Val:    1,
+							},
+						},
+					},
+					{
+						Type: "*v1.Pod",
+						Name: "kube_pod_container_status_running",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"container": "hello", "namespace": "default", "pod": "hello-1509998340-k4f8q"},
+								Val:    0,
+							},
+							{
+								Labels: map[string]string{"container": "hello", "namespace": "default", "pod": "hello-1509998340-csfgb"},
+								Val:    0,
+							},
+						},
+					},
+				},
+			},
+			expected: telemetryCache{
+				totalCount:             3,
+				unknownMetricsCount:    0,
+				metricsCountByResource: map[string]int{"pod": 3},
+			},
+		},
+		{
+			name:   "deployment metric",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper, Telemetry: true},
+			metrics: map[string][]ksmstore.DDMetricsFam{
+				"kube_deployment_status_replicas": {
+					{
+						Type: "*v1.Deployment",
+						Name: "kube_deployment_status_replicas",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"namespace": "default", "deployment": "redis"},
+								Val:    1,
+							},
+						},
+					},
+				},
+			},
+			expected: telemetryCache{
+				totalCount:             1,
+				unknownMetricsCount:    0,
+				metricsCountByResource: map[string]int{"deployment": 1},
+			},
+		},
+		{
+			name:   "telemetry disabled",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper},
+			metrics: map[string][]ksmstore.DDMetricsFam{
+				"kube_deployment_status_replicas": {
+					{
+						Type: "*v1.Deployment",
+						Name: "kube_deployment_status_replicas",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"namespace": "default", "deployment": "redis"},
+								Val:    1,
+							},
+						},
+					},
+				},
+			},
+			expected: telemetryCache{
+				totalCount:             0,
+				unknownMetricsCount:    0,
+				metricsCountByResource: map[string]int{},
+			},
+		},
+		{
+			name:   "unknown metric",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper, Telemetry: true},
+			metrics: map[string][]ksmstore.DDMetricsFam{
+				"kube_unknown_metric": {
+					{
+						Type: "*v1.Deployment",
+						Name: "kube_unknown_metric",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"foo": "bar"},
+								Val:    1,
+							},
+						},
+					},
+				},
+			},
+			expected: telemetryCache{
+				totalCount:             0,
+				unknownMetricsCount:    1,
+				metricsCountByResource: map[string]int{},
+			},
+		},
+		{
+			name:   "pod, deployment and unknown metrics",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper, Telemetry: true},
+			metrics: map[string][]ksmstore.DDMetricsFam{
+				"kube_pod_container_status_running": {
+					{
+						Type: "*v1.Pod",
+						Name: "kube_pod_container_status_running",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"container": "kube-state-metrics", "namespace": "default", "pod": "kube-state-metrics-b7fbc487d-4phhj", "uid": "bec19172-8abf-11ea-8546-42010a80022c"},
+								Val:    1,
+							},
+						},
+					},
+					{
+						Type: "*v1.Pod",
+						Name: "kube_pod_container_status_running",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"container": "hello", "namespace": "default", "pod": "hello-1509998340-k4f8q", "uid": "05e99c5f-8a64-11ea-8546-42010a80022c"},
+								Val:    0,
+							},
+						},
+					},
+				},
+				"kube_deployment_status_replicas": {
+					{
+						Type: "*v1.Deployment",
+						Name: "kube_deployment_status_replicas",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"namespace": "default", "deployment": "redis"},
+								Val:    1,
+							},
+						},
+					},
+				},
+				"kube_unknown_metric": {
+					{
+						Type: "*v1.Deployment",
+						Name: "kube_unknown_metric",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"foo": "bar"},
+								Val:    1,
+							},
+						},
+					},
+				},
+			},
+			expected: telemetryCache{
+				totalCount:             3,
+				unknownMetricsCount:    1,
+				metricsCountByResource: map[string]int{"pod": 2, "deployment": 1},
+			},
+		},
+	}
+	for _, test := range tests {
+		kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), test.config)
+		kubeStateMetricsSCheck.processTelemetry(test.metrics)
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.expected.getTotal(), kubeStateMetricsSCheck.telemetry.getTotal())
+			assert.Equal(t, test.expected.getUnknown(), kubeStateMetricsSCheck.telemetry.getUnknown())
+			assert.True(t, reflect.DeepEqual(test.expected.getResourcesCount(), kubeStateMetricsSCheck.telemetry.getResourcesCount()))
+		})
+	}
+}
+
+func TestSendTelemetry(t *testing.T) {
+	tests := []struct {
+		name     string
+		config   *KSMConfig
+		cache    *telemetryCache
+		expected []metricsExpected
+	}{
+		{
+			name:     "telemetry disabled",
+			config:   &KSMConfig{},
+			cache:    newTelemetryCache(),
+			expected: []metricsExpected{},
+		},
+		{
+			name:   "populated cache",
+			config: &KSMConfig{Tags: []string{"kube_cluster_name:foo"}, Telemetry: true},
+			cache: &telemetryCache{
+				totalCount:             5,
+				unknownMetricsCount:    1,
+				metricsCountByResource: map[string]int{"baz": 2, "bar": 3},
+			},
+			expected: []metricsExpected{
+				{
+					name:     "kubernetes_state.telemetry.metrics.count.total",
+					val:      5,
+					tags:     []string{"kube_cluster_name:foo"},
+					hostname: "",
+				},
+				{
+					name:     "kubernetes_state.telemetry.metrics.count",
+					val:      2,
+					tags:     []string{"kube_cluster_name:foo", "resource_name:baz"},
+					hostname: "",
+				},
+				{
+					name:     "kubernetes_state.telemetry.metrics.count",
+					val:      3,
+					tags:     []string{"kube_cluster_name:foo", "resource_name:bar"},
+					hostname: "",
+				},
+				{
+					name:     "kubernetes_state.telemetry.unknown_metrics.count",
+					val:      1,
+					tags:     []string{"kube_cluster_name:foo"},
+					hostname: "",
+				},
+			},
+		},
+	}
+	for _, test := range tests {
+		kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), test.config)
+		mocked := mocksender.NewMockSender(kubeStateMetricsSCheck.ID())
+		mocked.SetupAcceptAll()
+
+		kubeStateMetricsSCheck.telemetry = test.cache
+		kubeStateMetricsSCheck.sendTelemetry(mocked)
+		t.Run(test.name, func(t *testing.T) {
+			for _, expectMetric := range test.expected {
+				mocked.AssertMetric(t, "Gauge", expectMetric.name, expectMetric.val, expectMetric.hostname, expectMetric.tags)
+			}
+
+			if len(test.expected) == 0 {
+				mocked.AssertNotCalled(t, "Gauge")
+			}
+
+			// assert the cache has been reset
+			assert.Equal(t, 0, kubeStateMetricsSCheck.telemetry.totalCount)
+			assert.Equal(t, 0, kubeStateMetricsSCheck.telemetry.unknownMetricsCount)
+			assert.Len(t, kubeStateMetricsSCheck.telemetry.metricsCountByResource, 0)
 		})
 	}
 }
@@ -501,26 +822,78 @@ func TestKSMCheck_mergeLabelsMapper(t *testing.T) {
 	}
 }
 
+var metadataMetrics = []string{
+	"kube_cronjob_info",
+	"kube_job_info",
+	"kube_pod_container_info",
+	"kube_pod_info",
+	"kube_service_info",
+	"kube_persistentvolume_info",
+	"kube_persistentvolumeclaim_info",
+	"kube_deployment_labels",
+	"kube_namespace_labels",
+	"kube_node_labels",
+	"kube_daemonset_labels",
+	"kube_pod_labels",
+	"kube_service_labels",
+	"kube_statefulset_labels",
+	"kube_verticalpodautoscaler_labels",
+}
+
 func TestMetadataMetricsRegex(t *testing.T) {
-	metadataMetrics := []string{
-		"kube_cronjob_info",
-		"kube_job_info",
-		"kube_pod_container_info",
-		"kube_pod_info",
-		"kube_service_info",
-		"kube_persistentvolume_info",
-		"kube_persistentvolumeclaim_info",
-		"kube_deployment_labels",
-		"kube_namespace_labels",
-		"kube_node_labels",
-		"kube_daemonset_labels",
-		"kube_pod_labels",
-		"kube_service_labels",
-		"kube_statefulset_labels",
-		"kube_verticalpodautoscaler_labels",
-	}
 	for _, m := range metadataMetrics {
 		assert.True(t, metadataMetricsRegex.MatchString(m))
+	}
+}
+
+func TestResourceNameFromMetric(t *testing.T) {
+	testCases := map[string]string{
+		"kube_cronjob_info":               "cronjob",
+		"kube_job_info":                   "job",
+		"kube_pod_container_info":         "pod",
+		"kube_service_info":               "service",
+		"kube_persistentvolume_info":      "persistentvolume",
+		"kube_persistentvolumeclaim_info": "persistentvolumeclaim",
+		"kube_deployment_labels":          "deployment",
+		"foo_":                            "",
+		"foo":                             "",
+		"":                                "",
+	}
+	for k, v := range testCases {
+		assert.Equal(t, v, resourceNameFromMetric(k))
+	}
+}
+
+func TestAllowDeny(t *testing.T) {
+	allowDenyList, err := allowdenylist.New(options.MetricSet{}, deniedMetrics)
+	assert.NoError(t, err)
+
+	err = allowDenyList.Parse()
+	assert.NoError(t, err)
+
+	// Make sure denied metrics have been parsed and excluded
+	assert.NotEqual(t, "", allowDenyList.Status())
+	for metric := range deniedMetrics {
+		assert.False(t, allowDenyList.IsIncluded(metric))
+		assert.True(t, allowDenyList.IsExcluded(metric))
+	}
+
+	// Make sure we don't exclude metrics by mistake
+	for metric := range metricNamesMapper {
+		assert.True(t, allowDenyList.IsIncluded(metric))
+		assert.False(t, allowDenyList.IsExcluded(metric))
+	}
+
+	// Make sure we don't exclude metric transformers
+	for metric := range metricTransformers {
+		assert.True(t, allowDenyList.IsIncluded(metric))
+		assert.False(t, allowDenyList.IsExcluded(metric))
+	}
+
+	// Make sure we don't exclude metadata metrics
+	for _, metric := range metadataMetrics {
+		assert.True(t, allowDenyList.IsIncluded(metric))
+		assert.False(t, allowDenyList.IsExcluded(metric))
 	}
 }
 

@@ -19,7 +19,7 @@ record_dir = path.join(path.dirname(path.dirname(path.abspath(__file__))), "reco
 
 
 def get_collection(name: str):
-    c = pymongo.MongoClient("192.168.254.241", 27017, connectTimeoutMS=5000)
+    c = pymongo.MongoClient("127.0.0.1", 27017, connectTimeoutMS=5000)
     db = c.get_database("datadog")
     return db.get_collection(name)
 
@@ -69,6 +69,29 @@ def record_and_loads(filename: str, content_type: str, content_encoding: str, co
     return json.loads(content)
 
 
+def patch_data(data, patch_key, patch_leaf):
+    if isinstance(data, dict):
+        return {patch_key(k): patch_data(v, patch_key, patch_leaf) for k, v in iter(data.items())}
+    elif isinstance(data, list):
+        return [patch_data(i, patch_key, patch_leaf) for i in data]
+    else:
+        return patch_leaf(data)
+
+
+def fix_data(data):
+    return patch_data(
+        data,
+        # Whereas dot (.) and dollar ($) are valid characters inside a JSON dict key,
+        # they are not allowed as keys in a MongoDB BSON object.
+        # The official MongoDB documentation suggests to replace them with their
+        # unicode full width equivalent:
+        # https://docs.mongodb.com/v2.6/faq/developers/#dollar-sign-operator-escaping
+        patch_key=lambda x: x.translate(str.maketrans('.$', '\uff0e\uff04')),
+        # Values that cannot fit in a 64 bits integer must be represented as a float.
+        patch_leaf=lambda x: float(x) if isinstance(x, int) and x > 2 ** 63 - 1 else x,
+    )
+
+
 def insert_series(data: dict):
     coll = get_collection("series")
     coll.insert_many(data["series"])
@@ -76,7 +99,7 @@ def insert_series(data: dict):
 
 def insert_intake(data: dict):
     coll = get_collection("intake")
-    coll.insert(data)
+    coll.insert_one(data)
 
 
 def insert_check_run(data: list):
@@ -126,6 +149,7 @@ def get_series_from_query(q: dict):
     points_list = []
     for elt in cur:
         for p in elt["points"]:
+            p[0] *= 1000
             points_list.append(p)
 
     result = {
@@ -182,6 +206,7 @@ def series():
         content_encoding=request.content_encoding,
         content=request.data,
     )
+    data = fix_data(data)
     insert_series(data)
     return Response(status=200)
 
@@ -194,6 +219,7 @@ def check_run():
         content_encoding=request.content_encoding,
         content=request.data,
     )
+    data = fix_data(data)
     insert_check_run(data)
     return Response(status=200)
 
@@ -206,6 +232,7 @@ def intake():
         content_encoding=request.content_encoding,
         content=request.data,
     )
+    data = fix_data(data)
     insert_intake(data)
     return Response(status=200)
 
@@ -218,6 +245,7 @@ def logs():
         content_encoding=request.content_encoding,
         content=request.data,
     )
+    data = fix_data(data)
     insert_logs(data)
     return Response(status=200)
 

@@ -13,10 +13,6 @@
 package ebpf
 
 import (
-	"sort"
-	"strconv"
-	"strings"
-
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -39,7 +35,6 @@ const (
 // TCPQueueLengthConfig is the config of the TCP Queue Length check
 type TCPQueueLengthConfig struct {
 	CollectTCPQueueLength bool `yaml:"collect_tcp_queue_length"`
-	OnlyCountNbContexts   bool `yaml:"only_count_nb_contexts"` // For impact analysis only. To be removed after
 }
 
 // TCPQueueLengthCheck grabs TCP queue length metrics
@@ -64,7 +59,6 @@ func TCPQueueLengthFactory() check.Check {
 func (t *TCPQueueLengthConfig) Parse(data []byte) error {
 	// default values
 	t.CollectTCPQueueLength = true
-	t.OnlyCountNbContexts = true
 
 	if err := yaml.Unmarshal(data, t); err != nil {
 		return err
@@ -84,8 +78,6 @@ func (t *TCPQueueLengthCheck) Configure(config, initConfig integration.Data, sou
 
 	return t.instance.Parse(config)
 }
-
-var tagsSet = make(map[string]struct{})
 
 // Run executes the check
 func (t *TCPQueueLengthCheck) Run() error {
@@ -108,40 +100,23 @@ func (t *TCPQueueLengthCheck) Run() error {
 		return err
 	}
 
-	for _, lineRaw := range data {
-		line, ok := lineRaw.(tcpqueuelength.Stats)
-		if !ok {
-			log.Error("Raw data has incorrect type")
-			continue
-		}
-		entityID := containers.BuildTaggerEntityName(line.ContainerID)
-		tags, err := tagger.Tag(entityID, collectors.OrchestratorCardinality)
-		if err != nil {
-			log.Errorf("Could not collect tags for container %s: %s", line.ContainerID, err)
-		}
-
-		tags = append(tags,
-			"saddr:"+line.Conn.Saddr.String(),
-			"daddr:"+line.Conn.Daddr.String(),
-			"sport:"+strconv.Itoa(int(line.Conn.Sport)),
-			"dport:"+strconv.Itoa(int(line.Conn.Dport)),
-			"pid:"+strconv.Itoa(int(line.Pid)))
-
-		if t.instance.OnlyCountNbContexts {
-			sort.Strings(tags)
-			tagsSet[strings.Join(tags, ",")] = struct{}{}
-		} else {
-			sender.Gauge("tcp_queue.rqueue.size", float64(line.Rqueue.Size), "", tags)
-			sender.Gauge("tcp_queue.rqueue.min", float64(line.Rqueue.Min), "", tags)
-			sender.Gauge("tcp_queue.rqueue.max", float64(line.Rqueue.Max), "", tags)
-			sender.Gauge("tcp_queue.wqueue.size", float64(line.Wqueue.Size), "", tags)
-			sender.Gauge("tcp_queue.wqueue.min", float64(line.Wqueue.Min), "", tags)
-			sender.Gauge("tcp_queue.wqueue.max", float64(line.Wqueue.Max), "", tags)
-		}
+	stats, ok := data.(tcpqueuelength.Stats)
+	if !ok {
+		return log.Errorf("Raw data has incorrect type")
 	}
 
-	if t.instance.OnlyCountNbContexts {
-		sender.Gauge("tcp_queue.nb_contexts", float64(len(tagsSet)), "", []string{})
+	for k, v := range stats {
+		entityID := containers.BuildTaggerEntityName(k)
+		var tags []string
+		if entityID != "" {
+			tags, err = tagger.Tag(entityID, collectors.HighCardinality)
+			if err != nil {
+				log.Errorf("Error collecting tags for container %s: %s", k, err)
+			}
+		}
+
+		sender.Gauge("tcp_queue.read_buffer_max_usage_pct", float64(v.ReadBufferMaxUsage)/1000.0, "", tags)
+		sender.Gauge("tcp_queue.write_buffer_max_usage_pct", float64(v.WriteBufferMaxUsage)/1000.0, "", tags)
 	}
 
 	sender.Commit()

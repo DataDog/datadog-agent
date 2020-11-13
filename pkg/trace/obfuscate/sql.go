@@ -14,7 +14,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -166,6 +165,18 @@ func (f *groupingFilter) Reset() {
 // some elements such as comments and aliases and obfuscation attempts to hide sensitive information
 // in strings and numbers by redacting them.
 func (o *Obfuscator) ObfuscateSQLString(in string) (*ObfuscatedQuery, error) {
+	if v, ok := o.queryCache.Get(in); ok {
+		return v.(*ObfuscatedQuery), nil
+	}
+	oq, err := o.obfuscateSQLString(in)
+	if err != nil {
+		return oq, err
+	}
+	o.queryCache.Set(in, oq, oq.Cost())
+	return oq, nil
+}
+
+func (o *Obfuscator) obfuscateSQLString(in string) (*ObfuscatedQuery, error) {
 	lesc := o.SQLLiteralEscapes()
 	tok := NewSQLTokenizer(in, lesc)
 	out, err := attemptObfuscation(tok)
@@ -245,36 +256,48 @@ type ObfuscatedQuery struct {
 	TablesCSV string // comma-separated list of tables that the query addresses
 }
 
+// Cost returns the number of bytes needed to store all the fields
+// of this ObfuscatedQuery.
+func (oq *ObfuscatedQuery) Cost() int64 {
+	return int64(len(oq.Query) + len(oq.TablesCSV))
+}
+
 // attemptObfuscation attempts to obfuscate the SQL query loaded into the tokenizer, using the
 // given set of filters.
 func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
-	filters := []tokenFilter{
-		&discardFilter{},
-		&replaceFilter{},
-		&groupingFilter{},
-	}
-	tableFinder := &tableFinderFilter{}
-	if config.HasFeature("table_names") {
-		filters = append(filters, tableFinder)
-	}
 	var (
-		out       bytes.Buffer
-		err       error
-		lastToken TokenKind
+		tableFinder    = &tableFinderFilter{}
+		useTableFinder = config.HasFeature("table_names")
+		out            = *bytes.NewBuffer(make([]byte, 0, len(tokenizer.buf)))
+		err            error
+		lastToken      TokenKind
+		discard        discardFilter
+		replace        replaceFilter
+		grouping       groupingFilter
 	)
 	// call Scan() function until tokens are available or if a LEX_ERROR is raised. After
 	// retrieving a token, send it to the tokenFilter chains so that the token is discarded
 	// or replaced.
 	for {
 		token, buff := tokenizer.Scan()
-		if token == EOFChar {
+		if token == EndChar {
 			break
 		}
 		if token == LexError {
 			return nil, fmt.Errorf("%v", tokenizer.Err())
 		}
-		for _, f := range filters {
-			if token, buff, err = f.Filter(token, lastToken, buff); err != nil {
+
+		if token, buff, err = discard.Filter(token, lastToken, buff); err != nil {
+			return nil, err
+		}
+		if token, buff, err = replace.Filter(token, lastToken, buff); err != nil {
+			return nil, err
+		}
+		if token, buff, err = grouping.Filter(token, lastToken, buff); err != nil {
+			return nil, err
+		}
+		if useTableFinder {
+			if token, buff, err = tableFinder.Filter(token, lastToken, buff); err != nil {
 				return nil, err
 			}
 		}
@@ -307,12 +330,7 @@ func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 }
 
 func (o *Obfuscator) obfuscateSQL(span *pb.Span) {
-	tags := []string{"type:sql"}
-	defer func() {
-		metrics.Count("datadog.trace_agent.obfuscations", 1, tags, 1)
-	}()
 	if span.Resource == "" {
-		tags = append(tags, "outcome:empty-resource")
 		return
 	}
 	oq, err := o.ObfuscateSQLString(span.Resource)
@@ -326,11 +344,9 @@ func (o *Obfuscator) obfuscateSQL(span *pb.Span) {
 			span.Meta[sqlQueryTag] = span.Resource
 		}
 		span.Resource = nonParsableResource
-		tags = append(tags, "outcome:error")
 		return
 	}
 
-	tags = append(tags, "outcome:success")
 	span.Resource = oq.Query
 
 	if len(oq.TablesCSV) > 0 {

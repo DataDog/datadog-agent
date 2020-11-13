@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"time"
 
 	model "github.com/DataDog/agent-payload/process"
@@ -136,6 +137,7 @@ func (c *ConnectionsCheck) diffTelemetry(tel *model.ConnectionsTelemetry) *model
 		ConnsBpfMapSize:           tel.ConnsBpfMapSize,
 		UdpSendsProcessed:         tel.MonotonicUdpSendsProcessed - c.lastTelemetry.UdpSendsProcessed,
 		UdpSendsMissed:            tel.MonotonicUdpSendsMissed - c.lastTelemetry.UdpSendsMissed,
+		ConntrackSamplingPercent:  tel.ConntrackSamplingPercent,
 	}
 	c.saveTelemetry(tel)
 	return cct
@@ -170,19 +172,31 @@ func batchConnections(
 
 	dnsEncoder := model.NewV1DNSEncoder()
 
+	if len(cxs) > cfg.MaxConnsPerMessage {
+		// Sort connections by remote IP/PID for more efficient resolution
+		sort.Slice(cxs, func(i, j int) bool {
+			if cxs[i].Raddr.Ip != cxs[j].Raddr.Ip {
+				return cxs[i].Raddr.Ip < cxs[j].Raddr.Ip
+			}
+			return cxs[i].Pid < cxs[j].Pid
+		})
+	}
+
 	for len(cxs) > 0 {
 		batchSize := min(cfg.MaxConnsPerMessage, len(cxs))
 		batchConns := cxs[:batchSize] // Connections for this particular batch
 
+		ctrIDForPID := make(map[int32]string)
 		batchDNS := make(map[string]*model.DNSEntry)
 		for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
 			if entries, ok := dns[c.Raddr.Ip]; ok {
 				batchDNS[c.Raddr.Ip] = entries
 			}
-		}
 
-		// Get the container and process relationship from either the process or container checks
-		ctrIDForPID := getCtrIDsByPIDs(connectionPIDs(batchConns))
+			if c.Laddr.ContainerId != "" {
+				ctrIDForPID[c.Pid] = c.Laddr.ContainerId
+			}
+		}
 
 		cc := &model.CollectorConnections{
 			HostName:          cfg.HostName,
@@ -231,13 +245,4 @@ func connectionPIDs(conns []*model.Connection) []int32 {
 		pids = append(pids, pid)
 	}
 	return pids
-}
-
-// getCtrIDsByPIDs will fetch container id and pid relationship from either process check or container check, depend on which one is enabled and ran
-func getCtrIDsByPIDs(pids []int32) map[int32]string {
-	// process check is never run, use container check instead
-	if Process.lastRun.IsZero() {
-		return Container.filterCtrIDsByPIDs(pids)
-	}
-	return Process.filterCtrIDsByPIDs(pids)
 }

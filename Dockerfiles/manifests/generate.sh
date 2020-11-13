@@ -18,12 +18,16 @@ trap 'rm -r $TMPDIR' EXIT
 
 cat > "$TMPDIR/values-agent-only.yaml" <<EOF
 datadog:
+  collectEvents: true
+  leaderElection: true
   processAgent:
     enabled: false
 EOF
 
 cat > "$TMPDIR/values-all-containers.yaml" <<EOF
 datadog:
+  collectEvents: true
+  leaderElection: true
   logs:
     enabled: true
   apm:
@@ -36,6 +40,7 @@ EOF
 
 cat > "$TMPDIR/values-cluster-agent.yaml" <<EOF
 datadog:
+  collectEvents: true
   processAgent:
     enabled: false
 clusterAgent:
@@ -44,8 +49,21 @@ clusterAgent:
     enabled: true
 EOF
 
+cat > "$TMPDIR/values-cluster-agent-datadogmetrics.yaml" <<EOF
+datadog:
+  collectEvents: true
+  processAgent:
+    enabled: false
+clusterAgent:
+  enabled: true
+  metricsProvider:
+    enabled: true
+    useDatadogMetrics: true
+EOF
+
 cat > "$TMPDIR/values-cluster-checks-runners.yaml" <<EOF
 datadog:
+  collectEvents: true
   processAgent:
     enabled: false
   clusterChecks:
