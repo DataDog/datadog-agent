@@ -16,6 +16,8 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 	"github.com/stretchr/testify/assert"
+	"k8s.io/kube-state-metrics/pkg/allowdenylist"
+	"k8s.io/kube-state-metrics/pkg/options"
 )
 
 type metricsExpected struct {
@@ -820,24 +822,25 @@ func TestKSMCheck_mergeLabelsMapper(t *testing.T) {
 	}
 }
 
+var metadataMetrics = []string{
+	"kube_cronjob_info",
+	"kube_job_info",
+	"kube_pod_container_info",
+	"kube_pod_info",
+	"kube_service_info",
+	"kube_persistentvolume_info",
+	"kube_persistentvolumeclaim_info",
+	"kube_deployment_labels",
+	"kube_namespace_labels",
+	"kube_node_labels",
+	"kube_daemonset_labels",
+	"kube_pod_labels",
+	"kube_service_labels",
+	"kube_statefulset_labels",
+	"kube_verticalpodautoscaler_labels",
+}
+
 func TestMetadataMetricsRegex(t *testing.T) {
-	metadataMetrics := []string{
-		"kube_cronjob_info",
-		"kube_job_info",
-		"kube_pod_container_info",
-		"kube_pod_info",
-		"kube_service_info",
-		"kube_persistentvolume_info",
-		"kube_persistentvolumeclaim_info",
-		"kube_deployment_labels",
-		"kube_namespace_labels",
-		"kube_node_labels",
-		"kube_daemonset_labels",
-		"kube_pod_labels",
-		"kube_service_labels",
-		"kube_statefulset_labels",
-		"kube_verticalpodautoscaler_labels",
-	}
 	for _, m := range metadataMetrics {
 		assert.True(t, metadataMetricsRegex.MatchString(m))
 	}
@@ -858,6 +861,39 @@ func TestResourceNameFromMetric(t *testing.T) {
 	}
 	for k, v := range testCases {
 		assert.Equal(t, v, resourceNameFromMetric(k))
+	}
+}
+
+func TestAllowDeny(t *testing.T) {
+	allowDenyList, err := allowdenylist.New(options.MetricSet{}, deniedMetrics)
+	assert.NoError(t, err)
+
+	err = allowDenyList.Parse()
+	assert.NoError(t, err)
+
+	// Make sure denied metrics have been parsed and excluded
+	assert.NotEqual(t, "", allowDenyList.Status())
+	for metric := range deniedMetrics {
+		assert.False(t, allowDenyList.IsIncluded(metric))
+		assert.True(t, allowDenyList.IsExcluded(metric))
+	}
+
+	// Make sure we don't exclude metrics by mistake
+	for metric := range metricNamesMapper {
+		assert.True(t, allowDenyList.IsIncluded(metric))
+		assert.False(t, allowDenyList.IsExcluded(metric))
+	}
+
+	// Make sure we don't exclude metric transformers
+	for metric := range metricTransformers {
+		assert.True(t, allowDenyList.IsIncluded(metric))
+		assert.False(t, allowDenyList.IsExcluded(metric))
+	}
+
+	// Make sure we don't exclude metadata metrics
+	for _, metric := range metadataMetrics {
+		assert.True(t, allowDenyList.IsIncluded(metric))
+		assert.False(t, allowDenyList.IsExcluded(metric))
 	}
 }
 

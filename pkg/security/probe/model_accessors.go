@@ -469,14 +469,6 @@ func (m *Model) GetEvaluator(field eval.Field) (eval.Evaluator, error) {
 			Field: field,
 		}, nil
 
-	case "process.pidns":
-
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Process.Pidns) },
-
-			Field: field,
-		}, nil
-
 	case "process.tid":
 
 		return &eval.IntEvaluator{
@@ -1143,10 +1135,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.Process.Pid), nil
 
-	case "process.pidns":
-
-		return int(e.Process.Pidns), nil
-
 	case "process.tid":
 
 		return int(e.Process.Tid), nil
@@ -1508,9 +1496,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.pid":
 		return "*", nil
 
-	case "process.pidns":
-		return "*", nil
-
 	case "process.tid":
 		return "*", nil
 
@@ -1870,10 +1855,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 
 	case "process.pid":
-
-		return reflect.Int, nil
-
-	case "process.pidns":
 
 		return reflect.Int, nil
 
@@ -2495,15 +2476,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Process.Pid"}
 		}
 		e.Process.Pid = uint32(v)
-		return nil
-
-	case "process.pidns":
-
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Process.Pidns"}
-		}
-		e.Process.Pidns = uint64(v)
 		return nil
 
 	case "process.tid":

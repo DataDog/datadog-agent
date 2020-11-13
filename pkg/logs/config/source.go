@@ -25,6 +25,10 @@ const (
 // successful operations on it. Both name and configuration are static for now and determined at creation time.
 // Changing the status is designed to be thread safe.
 type LogSource struct {
+	// Put expvar Int first because it's modified with sync/atomic, so it needs to
+	// be 64-bit aligned on 32-bit systems. See https://golang.org/pkg/sync/atomic/#pkg-note-BUG
+	BytesRead expvar.Int
+
 	Name     string
 	Config   *LogsConfig
 	Status   *LogStatus
@@ -35,7 +39,6 @@ type LogSource struct {
 	// that reads log lines for this source. E.g, a sourceType == containerd and Config.Type == file means that
 	// the agent is tailing a file to read logs of a containerd container
 	sourceType SourceType
-	BytesRead  expvar.Int
 }
 
 // NewLogSource creates a new log source.

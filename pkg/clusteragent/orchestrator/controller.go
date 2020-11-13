@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	processcfg "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -63,9 +64,11 @@ type Controller struct {
 	clusterName             string
 	clusterID               string
 	forwarder               forwarder.Forwarder
-	processConfig           *processcfg.AgentConfig
+	orchestratorConfig      *orchcfg.OrchestratorConfig
+	simpleDataScrubber      *orchestrator.DataScrubber
 	isLeaderFunc            func() bool
 	isScrubbingEnabled      bool
+	extraTags               []string
 }
 
 // StartController starts the orchestrator controller
@@ -115,13 +118,21 @@ func newController(ctx ControllerContext) (*Controller, error) {
 	serviceInformer := ctx.InformerFactory.Core().V1().Services()
 	nodesInformer := ctx.InformerFactory.Core().V1().Nodes()
 
-	cfg := processcfg.NewDefaultAgentConfig(true)
-	if err := cfg.LoadProcessYamlConfig(ctx.ConfigPath); err != nil {
+	// Deprecated, we want to move away from processcfg
+	processCfg := processcfg.NewDefaultAgentConfig(true)
+	if err := processCfg.LoadProcessYamlConfig(ctx.ConfigPath); err != nil {
 		log.Errorf("Error loading the process config: %s", err)
 	}
 
+	// We slowly want to migrate from processcfg to orchestratorCfg
+	orchestratorCfg := orchcfg.NewDefaultOrchestratorConfig()
+	if err := orchestratorCfg.LoadYamlConfig(ctx.ConfigPath); err != nil {
+		log.Errorf("Error loading the orchestrator config: %s", err)
+	}
+	orchestratorCfg.MaxPerMessage = processCfg.MaxPerMessage
+
 	keysPerDomain := make(map[string][]string)
-	for _, ep := range cfg.OrchestratorEndpoints {
+	for _, ep := range processCfg.OrchestratorEndpoints {
 		keysPerDomain[ep.Endpoint.String()] = []string{ep.APIKey}
 	}
 
@@ -143,13 +154,14 @@ func newController(ctx ControllerContext) (*Controller, error) {
 		hostName:                ctx.Hostname,
 		clusterName:             ctx.ClusterName,
 		clusterID:               clusterID,
-		processConfig:           cfg,
+		orchestratorConfig:      orchestratorCfg,
+		simpleDataScrubber:      orchestrator.NewDefaultDataScrubber(),
 		forwarder:               forwarder.NewDefaultForwarder(podForwarderOpts),
 		isLeaderFunc:            ctx.IsLeaderFunc,
 		isScrubbingEnabled:      config.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled"),
+		extraTags:               config.Datadog.GetStringSlice("orchestrator_explorer.extra_tags"),
 	}
 
-	oc.processConfig = cfg
 	return oc, nil
 }
 
@@ -198,7 +210,7 @@ func (o *Controller) processDeploys() {
 		return
 	}
 
-	msg, err := processDeploymentList(deployList, atomic.AddInt32(&o.groupID, 1), o.processConfig, o.clusterName, o.clusterID, o.isScrubbingEnabled)
+	msg, err := processDeploymentList(deployList, atomic.AddInt32(&o.groupID, 1), o.orchestratorConfig, o.clusterName, o.clusterID, o.isScrubbingEnabled, o.extraTags)
 	if err != nil {
 		log.Errorf("Unable to process deployment list: %v", err)
 		return
@@ -226,7 +238,7 @@ func (o *Controller) processReplicaSets() {
 		return
 	}
 
-	msg, err := processReplicaSetList(rsList, atomic.AddInt32(&o.groupID, 1), o.processConfig, o.clusterName, o.clusterID, o.isScrubbingEnabled)
+	msg, err := processReplicaSetList(rsList, atomic.AddInt32(&o.groupID, 1), o.orchestratorConfig, o.clusterName, o.clusterID, o.isScrubbingEnabled, o.extraTags)
 	if err != nil {
 		log.Errorf("Unable to process replica set list: %v", err)
 		return
@@ -255,7 +267,7 @@ func (o *Controller) processPods() {
 	}
 
 	// we send an empty hostname for unassigned pods
-	msg, err := orchestrator.ProcessPodlist(podList, atomic.AddInt32(&o.groupID, 1), o.processConfig, "", o.clusterName, o.clusterID, o.isScrubbingEnabled)
+	msg, err := orchestrator.ProcessPodList(podList, atomic.AddInt32(&o.groupID, 1), "", o.clusterName, o.clusterID, o.isScrubbingEnabled, o.orchestratorConfig.MaxPerMessage, o.simpleDataScrubber, o.extraTags)
 	if err != nil {
 		log.Errorf("Unable to process pod list: %v", err)
 		return
@@ -283,7 +295,7 @@ func (o *Controller) processServices() {
 	}
 	groupID := atomic.AddInt32(&o.groupID, 1)
 
-	messages, err := processServiceList(serviceList, groupID, o.processConfig, o.clusterName, o.clusterID)
+	messages, err := processServiceList(serviceList, groupID, o.orchestratorConfig, o.clusterName, o.clusterID, o.extraTags)
 	if err != nil {
 		log.Errorf("Unable to process service list: %s", err)
 		return
@@ -311,7 +323,7 @@ func (o *Controller) processNodes() {
 	}
 	groupID := atomic.AddInt32(&o.groupID, 1)
 
-	messages, err := processNodesList(nodesList, groupID, o.processConfig, o.clusterName, o.clusterID)
+	messages, err := processNodesList(nodesList, groupID, o.orchestratorConfig, o.clusterName, o.clusterID, o.extraTags)
 	if err != nil {
 		log.Errorf("Unable to process node list: %s", err)
 		return

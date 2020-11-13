@@ -23,11 +23,18 @@ const (
 	pauseContainerOpenshift  = "image:openshift/origin-pod"
 	pauseContainerOpenshift3 = "image:.*rhel7/pod-infrastructure"
 
+	// - asia.gcr.io/google-containers/pause-amd64
+	// - gcr.io/google-containers/pause
+	// - *.gcr.io/google_containers/pause
+	// - *.jfrog.io/google_containers/pause
+	pauseContainerGoogle = "image:google(_|-)containers/pause.*"
+
 	// - k8s.gcr.io/pause-amd64:3.1
 	// - asia.gcr.io/google_containers/pause-amd64:3.0
 	// - gcr.io/google_containers/pause-amd64:3.0
 	// - gcr.io/gke-release/pause-win:1.1.0
 	// - eu.gcr.io/k8s-artifacts-prod/pause:3.3
+	// - k8s.gcr.io/pause
 	pauseContainerGCR = `image:.*gcr\.io(.*)/pause.*`
 
 	// - k8s-gcrio.azureedge.net/pause-amd64
@@ -47,6 +54,8 @@ const (
 	pauseContainerWin = `image:kubeletwin/pause.*`
 	// - ecr.us-east-1.amazonaws.com/pause
 	pauseContainerECR = `image:ecr(.*)amazonaws\.com/pause.*`
+	// - *.ecr.us-east-1.amazonaws.com/upstream/pause
+	pauseContainerUpstream = `image:upstream/pause.*`
 )
 
 // Filter holds the state for the container filtering logic
@@ -161,6 +170,7 @@ func newMetricFilterFromConfig() (*Filter, error) {
 			pauseContainerOpenshift,
 			pauseContainerOpenshift3,
 			pauseContainerKubernetes,
+			pauseContainerGoogle,
 			pauseContainerAzure,
 			pauseContainerECS,
 			pauseContainerEKS,
@@ -169,6 +179,7 @@ func newMetricFilterFromConfig() (*Filter, error) {
 			pauseContainerWin,
 			pauseContainerAKS,
 			pauseContainerECR,
+			pauseContainerUpstream,
 		)
 	}
 	return NewFilter(includeList, excludeList)

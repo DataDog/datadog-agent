@@ -21,7 +21,12 @@ long __attribute__((always_inline)) trace__sys_mkdir(umode_t mode) {
         }
     };
 
-    cache_syscall(&syscall);
+    cache_syscall(&syscall, EVENT_MKDIR);
+
+    if (discarded_by_process(syscall.policy.mode, EVENT_MKDIR)) {
+        pop_syscall(SYSCALL_MKDIR);
+    }
+
     return 0;
 }
 
@@ -36,7 +41,7 @@ SYSCALL_KPROBE3(mkdirat, int, dirfd, const char*, filename, umode_t, mode)
 }
 
 SEC("kprobe/vfs_mkdir")
-int kprobe__security_path_mkdir(struct pt_regs *ctx) {
+int kprobe__vfs_mkdir(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(SYSCALL_MKDIR);
     if (!syscall)
         return 0;
@@ -50,7 +55,7 @@ int kprobe__security_path_mkdir(struct pt_regs *ctx) {
     }
 
     syscall->mkdir.dentry = dentry;
-    syscall->mkdir.path_key = get_key(syscall->mkdir.dentry, syscall->mkdir.path);
+    syscall->mkdir.path_key = get_dentry_key_path(syscall->mkdir.dentry, syscall->mkdir.path);
 
     return 0;
 }
@@ -67,7 +72,11 @@ int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
     // the inode of the dentry was not properly set when kprobe/security_path_mkdir was called, make sur we grab it now
     syscall->mkdir.path_key.ino = get_dentry_ino(syscall->mkdir.dentry);
 
-    resolve_dentry(syscall->mkdir.dentry, syscall->mkdir.path_key, NULL);
+    syscall->mkdir.path_key.path_id = get_path_id(0);
+    int ret = resolve_dentry(syscall->mkdir.dentry, syscall->mkdir.path_key, syscall->policy.mode != NO_FILTER ? EVENT_MKDIR : 0);
+    if (ret == DENTRY_DISCARDED) {
+        return 0;
+    }
 
     // add an real entry to reach the first dentry with the proper inode
     u64 inode = syscall->mkdir.path_key.ino;
@@ -78,14 +87,13 @@ int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
 
     struct mkdir_event_t event = {
         .event.type = EVENT_MKDIR,
-        .syscall = {
-            .retval = retval,
-            .timestamp = bpf_ktime_get_ns(),
-        },
+        .event.timestamp = bpf_ktime_get_ns(),
+        .syscall.retval = retval,
         .file = {
             .inode = inode,
             .mount_id = syscall->mkdir.path_key.mount_id,
             .overlay_numlower = get_overlay_numlower(syscall->mkdir.dentry),
+            .path_id = syscall->mkdir.path_key.path_id,
         },
         .mode = syscall->mkdir.mode,
     };

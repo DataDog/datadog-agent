@@ -1112,4 +1112,9 @@ core,"sigs.k8s.io/structured-merge-diff/schema",Apache-2.0
 core,"sigs.k8s.io/structured-merge-diff/typed",Apache-2.0
 core,"sigs.k8s.io/structured-merge-diff/value",Apache-2.0
 core,"sigs.k8s.io/yaml",MIT
+core,"go.uber.org/automaxprocs",MIT
+core,"go.uber.org/automaxprocs/maxprocs",MIT
+core,"go.uber.org/automaxprocs/internal/cgroups",MIT
+core,"go.uber.org/automaxprocs/internal/runtime",MIT
+core,"go.uber.org/automaxprocs/maxprocs",MIT
 core,go.opencensus.io,Apache-2.0

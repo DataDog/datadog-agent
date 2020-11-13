@@ -52,6 +52,50 @@ func TestSubmitMetric(t *testing.T) {
 	if tags[0] != "foo" || tags[1] != "bar" {
 		t.Fatalf("Unexpected tags: %v", tags)
 	}
+	if flushFirstValue != false {
+		t.Fatalf("Unexpected flushFirstValue: %v", flushFirstValue)
+	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}
+
+func TestSubmitMetric_FlushFirstValue(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	out, err := run(`aggregator.submit_metric(None, 'id', aggregator.GAUGE, 'name', -99.0, ['foo', 21, 'bar', ["hey"]], 'myhost', True)`)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "" {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+	if checkID != "id" {
+		t.Fatalf("Unexpected id value: %s", checkID)
+	}
+	if metricType != 0 {
+		t.Fatalf("Unexpected metricType value: %d", metricType)
+	}
+	if name != "name" {
+		t.Fatalf("Unexpected name value: %s", name)
+	}
+	if value != -99.0 {
+		t.Fatalf("Unexpected value: %f", value)
+	}
+	if hostname != "myhost" {
+		t.Fatalf("Unexpected hostname value: %s", hostname)
+	}
+	if len(tags) != 2 {
+		t.Fatalf("Unexpected tags length: %d", len(tags))
+	}
+	if tags[0] != "foo" || tags[1] != "bar" {
+		t.Fatalf("Unexpected tags: %v", tags)
+	}
+	if flushFirstValue != true {
+		t.Fatalf("Unexpected flushFirstValue: %v", flushFirstValue)
+	}
 
 	// Check for leaks
 	helpers.AssertMemoryUsage(t)

@@ -37,6 +37,14 @@ var execProbes = []*manager.Probe{
 		UID:     SecurityAgentUID,
 		Section: "kprobe/cgroup1_tasks_write",
 	},
+	{
+		UID:     SecurityAgentUID,
+		Section: "kprobe/exit_itimers",
+	},
+	{
+		UID:     SecurityAgentUID,
+		Section: "kprobe/do_close_on_exec",
+	},
 }
 
 func getExecProbes() []*manager.Probe {

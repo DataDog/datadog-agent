@@ -12,45 +12,61 @@ struct setxattr_event_t {
     char name[MAX_XATTR_NAME_LEN];
 };
 
-int __attribute__((always_inline)) trace__sys_setxattr(const char *xattr_name, u64 type) {
+int __attribute__((always_inline)) trace__sys_setxattr(const char *xattr_name) {
     struct syscall_cache_t syscall = {
-        .type = type,
+        .type = SYSCALL_SETXATTR,
         .setxattr = {
             .name = xattr_name,
         }
     };
 
-    cache_syscall(&syscall);
+    cache_syscall(&syscall, EVENT_SETXATTR);
+
+    if (discarded_by_process(syscall.policy.mode, EVENT_SETXATTR)) {
+        pop_syscall(SYSCALL_SETXATTR);
+    }
 
     return 0;
 }
 
 SYSCALL_KPROBE2(setxattr, const char *, filename, const char *, name) {
-    return trace__sys_setxattr(name, SYSCALL_SETXATTR);
+    return trace__sys_setxattr(name);
 }
 
 SYSCALL_KPROBE2(lsetxattr, const char *, filename, const char *, name) {
-    return trace__sys_setxattr(name, SYSCALL_SETXATTR);
+    return trace__sys_setxattr(name);
 }
 
 SYSCALL_KPROBE2(fsetxattr, int, fd, const char *, name) {
-    return trace__sys_setxattr(name, SYSCALL_SETXATTR);
+    return trace__sys_setxattr(name);
+}
+
+int __attribute__((always_inline)) trace__sys_removexattr(const char *xattr_name) {
+    struct syscall_cache_t syscall = {
+        .type = SYSCALL_REMOVEXATTR,
+        .setxattr = {
+            .name = xattr_name,
+        }
+    };
+
+    cache_syscall(&syscall, EVENT_REMOVEXATTR);
+    return 0;
 }
 
 SYSCALL_KPROBE2(removexattr, const char *, filename, const char *, name) {
-    return trace__sys_setxattr(name, SYSCALL_REMOVEXATTR);
+    return trace__sys_removexattr(name);
 }
 
 SYSCALL_KPROBE2(lremovexattr, const char *, filename, const char *, name) {
-    return trace__sys_setxattr(name, SYSCALL_REMOVEXATTR);
+    return trace__sys_removexattr(name);
 }
 
 SYSCALL_KPROBE2(fremovexattr, int, fd, const char *, name) {
-    return trace__sys_setxattr(name, SYSCALL_REMOVEXATTR);
+    return trace__sys_removexattr(name);
 }
 
-int __attribute__((always_inline)) trace__vfs_setxattr(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_SETXATTR | SYSCALL_REMOVEXATTR);
+int __attribute__((always_inline)) trace__vfs_setxattr(struct pt_regs *ctx, u16 type, u64 event_type) {
+    struct syscall_cache_t *syscall = peek_syscall(type);
     if (!syscall)
         return 0;
 
@@ -62,22 +78,29 @@ int __attribute__((always_inline)) trace__vfs_setxattr(struct pt_regs *ctx) {
         return 0;
     }
 
+    u32 path_id = get_path_id(0);
+
     syscall->setxattr.dentry = dentry;
     syscall->setxattr.path_key.ino = get_dentry_ino(syscall->setxattr.dentry);
+    syscall->setxattr.path_key.path_id = path_id;
+
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
-    resolve_dentry(syscall->setxattr.dentry, syscall->setxattr.path_key, NULL);
+    int ret = resolve_dentry(syscall->setxattr.dentry, syscall->setxattr.path_key, syscall->policy.mode != NO_FILTER ? event_type : 0);
+    if (ret == DENTRY_DISCARDED) {
+        pop_syscall(type);
+    }
 
     return 0;
 }
 
 SEC("kprobe/vfs_setxattr")
 int kprobe__vfs_setxattr(struct pt_regs *ctx) {
-    return trace__vfs_setxattr(ctx);
+    return trace__vfs_setxattr(ctx, SYSCALL_SETXATTR, EVENT_SETXATTR);
 }
 
 SEC("kprobe/vfs_removexattr")
 int kprobe__vfs_removexattr(struct pt_regs *ctx) {
-    return trace__vfs_setxattr(ctx);
+    return trace__vfs_setxattr(ctx, SYSCALL_REMOVEXATTR, EVENT_REMOVEXATTR);
 }
 
 int __attribute__((always_inline)) trace__sys_setxattr_ret(struct pt_regs *ctx, u64 type) {
@@ -98,14 +121,13 @@ int __attribute__((always_inline)) trace__sys_setxattr_ret(struct pt_regs *ctx, 
 
     struct setxattr_event_t event = {
         .event.type = type,
-        .syscall = {
-            .retval = retval,
-            .timestamp = bpf_ktime_get_ns(),
-        },
+        .event.timestamp = bpf_ktime_get_ns(),
+        .syscall.retval = retval,
         .file = {
             .inode = inode,
             .mount_id = syscall->setxattr.path_key.mount_id,
             .overlay_numlower = get_overlay_numlower(syscall->setxattr.dentry),
+            .path_id = syscall->setxattr.path_key.path_id,
         },
     };
 
@@ -116,6 +138,7 @@ int __attribute__((always_inline)) trace__sys_setxattr_ret(struct pt_regs *ctx, 
     fill_container_data(entry, &event.container);
 
     send_event(ctx, event);
+
     return 0;
 }
 
