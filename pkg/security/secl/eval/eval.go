@@ -426,12 +426,13 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, in
 				return nil, nil, obj.Pos, err
 			}
 
-			fnc, err := state.model.GetRegisterMaxValueFnc(field)
-			if err != nil {
-				return nil, nil, obj.Pos, err
+			if registerID != "" {
+				iterator, err := state.model.GetIterator(field)
+				if err != nil {
+					return nil, nil, obj.Pos, err
+				}
+				state.registerIterators[registerID] = iterator
 			}
-
-			state.regMaxValueFncs[registerID] = fnc
 
 			accessor, err := state.model.GetEvaluator(field, registerID)
 			if err != nil {

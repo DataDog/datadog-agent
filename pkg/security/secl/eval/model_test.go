@@ -10,6 +10,8 @@ import (
 	"syscall"
 	"unsafe"
 
+	"container/list"
+
 	"github.com/pkg/errors"
 )
 
@@ -23,7 +25,35 @@ type testProcess struct {
 	uid    int
 	gid    int
 	isRoot bool
-	list   []testItem
+	list   *list.List
+}
+
+type testItemIterator struct {
+}
+
+func (t *testItemIterator) Front(ctx *Context) unsafe.Pointer {
+	if front := (*testEvent)(ctx.Object).process.list.Front(); front != nil {
+		return unsafe.Pointer(front)
+	}
+	return nil
+}
+
+func (t *testItemIterator) Next(ctx *Context, prev unsafe.Pointer) unsafe.Pointer {
+	if next := (*list.Element)(prev).Next(); next != nil {
+		return unsafe.Pointer(next)
+	}
+	return nil
+}
+
+func (m *testModel) GetIterator(field Field) (Iterator, error) {
+	switch field {
+	case "process.list.key":
+		return &testItemIterator{}, nil
+	case "process.list.value":
+		return &testItemIterator{}, nil
+	}
+
+	return nil, &ErrFieldNotFound{Field: field}
 }
 
 type testOpen struct {
@@ -116,7 +146,12 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 		return &IntEvaluator{
 			EvalFnc: func(ctx *Context) int {
 				reg := ctx.registers[regID]
-				return (*testEvent)(ctx.Object).process.list[reg.Value].key
+				element := (*list.Element)(reg.Value)
+				if element != nil {
+					return element.Value.(*testItem).key
+				}
+
+				return 0
 			},
 			Field: field,
 		}, nil
@@ -126,7 +161,12 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 		return &IntEvaluator{
 			EvalFnc: func(ctx *Context) int {
 				reg := ctx.registers[regID]
-				return (*testEvent)(ctx.Object).process.list[reg.Value].value
+				element := (*list.Element)(reg.Value)
+				if element != nil {
+					return element.Value.(*testItem).value
+				}
+
+				return 0
 			},
 			Field: field,
 		}, nil
@@ -164,24 +204,6 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 		return &IntEvaluator{
 			EvalFnc: func(ctx *Context) int { return (*testEvent)(ctx.Object).mkdir.mode },
 			Field:   field,
-		}, nil
-	}
-
-	return nil, &ErrFieldNotFound{Field: field}
-}
-
-func (m *testModel) GetRegisterMaxValueFnc(field Field) (func(ctx *Context) int, error) {
-	switch field {
-	case "process.list.key":
-
-		return func(ctx *Context) int {
-			return len((*testEvent)(ctx.Object).process.list)
-		}, nil
-
-	case "process.list.value":
-
-		return func(ctx *Context) int {
-			return len((*testEvent)(ctx.Object).process.list)
 		}, nil
 	}
 

@@ -5,15 +5,17 @@
 
 package eval
 
-import "sort"
+import (
+	"sort"
+)
 
 type state struct {
-	model           Model
-	field           Field
-	events          map[EventType]bool
-	fieldValues     map[Field][]FieldValue
-	macros          map[MacroID]*MacroEvaluator
-	regMaxValueFncs map[RegisterID]func(ctx *Context) int
+	model             Model
+	field             Field
+	events            map[EventType]bool
+	fieldValues       map[Field][]FieldValue
+	macros            map[MacroID]*MacroEvaluator
+	registerIterators map[RegisterID]Iterator
 }
 
 //
@@ -49,11 +51,11 @@ func newState(model Model, field Field, macros map[MacroID]*MacroEvaluator) *sta
 		macros = make(map[MacroID]*MacroEvaluator)
 	}
 	return &state{
-		field:           field,
-		macros:          macros,
-		model:           model,
-		events:          make(map[EventType]bool),
-		fieldValues:     make(map[Field][]FieldValue),
-		regMaxValueFncs: make(map[RegisterID]func(ctx *Context) int),
+		field:             field,
+		macros:            macros,
+		model:             model,
+		events:            make(map[EventType]bool),
+		fieldValues:       make(map[Field][]FieldValue),
+		registerIterators: make(map[RegisterID]Iterator),
 	}
 }

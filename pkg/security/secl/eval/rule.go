@@ -33,8 +33,8 @@ type RuleEvaluator struct {
 	EventTypes  []EventType
 	FieldValues map[Field][]FieldValue
 
-	partialEvals    map[Field]func(ctx *Context) bool
-	regMaxValueFncs map[RegisterID]func(ctx *Context) int
+	partialEvals      map[Field]func(ctx *Context) bool
+	registerIterators map[RegisterID]Iterator
 }
 
 // PartialEval partially evaluation of the Rule with the given Field.
@@ -65,6 +65,7 @@ func (r *RuleEvaluator) GetFields() []Field {
 	return fields
 }
 
+/*
 func combineRegisters(combinations []Registers, reg *Register, max int) []Registers {
 	var combined []Registers
 
@@ -93,39 +94,29 @@ func combineRegisters(combinations []Registers, reg *Register, max int) []Regist
 	}
 
 	return combined
-}
+}*/
 
 // Eval - Evaluates
 func (r *Rule) Eval(ctx *Context) bool {
-	useRegisters := len(r.evaluator.regMaxValueFncs) > 0
-
-	if useRegisters {
-		ctx.registers = make(Registers)
-
-		for id := range r.evaluator.regMaxValueFncs {
-			ctx.registers[id] = &Register{
-				ID: id,
-			}
-		}
+	if len(r.evaluator.registerIterators) == 0 {
+		return r.evaluator.Eval(ctx)
 	}
 
-	res := r.evaluator.Eval(ctx)
-	if !useRegisters {
-		return res
+	ctx.registers = make(Registers)
+
+	// TODO all registers
+	ctx.registers["_"] = &Register{
+		ID:    "_",
+		Value: r.evaluator.registerIterators["_"].Front(ctx),
 	}
 
-	// generate all possible register values
-	var combinations []Registers
-	for id, maxFnc := range r.evaluator.regMaxValueFncs {
-		combinations = combineRegisters(combinations, ctx.registers[id], maxFnc(ctx))
-	}
-
-	// try each combination
-	for _, registers := range combinations {
-		ctx.registers = registers
+	// eval each iterations
+	for ctx.registers["_"].Value != nil {
 		if r.evaluator.Eval(ctx) {
 			return true
 		}
+
+		ctx.registers["_"].Value = r.evaluator.registerIterators["_"].Next(ctx, ctx.registers["_"].Value)
 	}
 
 	return false
@@ -217,17 +208,17 @@ func ruleToEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, e
 			Eval: func(ctx *Context) bool {
 				return evalBool.Value
 			},
-			EventTypes:      events,
-			FieldValues:     state.fieldValues,
-			regMaxValueFncs: state.regMaxValueFncs,
+			EventTypes:        events,
+			FieldValues:       state.fieldValues,
+			registerIterators: state.registerIterators,
 		}, nil
 	}
 
 	return &RuleEvaluator{
-		Eval:            evalBool.EvalFnc,
-		EventTypes:      events,
-		FieldValues:     state.fieldValues,
-		regMaxValueFncs: state.regMaxValueFncs,
+		Eval:              evalBool.EvalFnc,
+		EventTypes:        events,
+		FieldValues:       state.fieldValues,
+		registerIterators: state.registerIterators,
 	}, nil
 }
 

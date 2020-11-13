@@ -11,8 +11,8 @@ type Model interface {
 	GetEvaluator(field Field, regID RegisterID) (Evaluator, error)
 	// ValidateField returns whether the value use against the field is valid, ex: for constant
 	ValidateField(field Field, value FieldValue) error
-	// GetRegisterMaxValueFnc returns the maximun value that a register can have for the given field
-	GetRegisterMaxValueFnc(field Field) (func(ctx *Context) int, error)
+	// GetIterator return an iterator
+	GetIterator(field Field) (Iterator, error)
 	// NewEvent returns a new event instance
 	NewEvent() Event
 }
