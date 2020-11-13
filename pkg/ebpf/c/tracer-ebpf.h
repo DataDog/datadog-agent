@@ -58,7 +58,7 @@ typedef struct {
 
 #define HTTP_BUFFER_SIZE 25
 // TODO: Figure out why the eBPF is silently failing when I set this to 15
-#define HTTP_BATCH_SIZE 14
+#define HTTP_BATCH_SIZE 13
 // The greater this number is the less likely are colisions/data-races between the flushes
 #define HTTP_BATCH_PAGES 10
 

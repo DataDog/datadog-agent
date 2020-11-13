@@ -675,14 +675,17 @@ static __always_inline void http_notify_batch(struct pt_regs* ctx) {
 
 SEC("kretprobe/tcp_sendmsg")
 int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
+#if DEBUG == 1
     int ret = PT_REGS_RC(ctx);
 
     log_debug("kretprobe/tcp_sendmsg: return: %d\n", ret);
+
     // If ret < 0 it means an error occurred but we still counted the bytes as being sent
     // let's increment our miscount count
     if (ret < 0) {
         increment_telemetry_count(tcp_sent_miscounts);
     }
+#endif
     http_notify_batch(ctx);
 
     return 0;
