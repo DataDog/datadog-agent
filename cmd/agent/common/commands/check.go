@@ -463,7 +463,11 @@ func printMetrics(agg *aggregator.BufferedAggregator) {
 
 func writeCheckToFile(c check.Check, checkStatus []byte) {
 	_ = os.Mkdir(common.DefaultCheckFlareDirectory, os.ModeDir)
-	flarePath := common.DefaultCheckFlareDirectory + "check_" + string(c.ID()) + "_" + time.Now().Format(time.RFC3339) + ".log"
+
+	// Windows cannot accept ":" in file names
+	filenameSafeTimeStamp := strings.ReplaceAll(time.Now().Format(time.RFC3339), ":", "_")
+	flarePath := filepath.Join(common.DefaultCheckFlareDirectory, "check_"+string(c.ID())+"_"+filenameSafeTimeStamp+".log")
+
 	if err := ioutil.WriteFile(flarePath, checkStatus, 0644); err != nil {
 		fmt.Println("Error while writing the check file (is the location writable by the dd-agent user?):", err)
 	} else {
