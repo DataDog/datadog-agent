@@ -187,7 +187,7 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Meta")
 				return
 			}
-			if z.Meta == nil {
+			if z.Meta == nil && zb0002 > 0 {
 				z.Meta = make(map[string]string, zb0002)
 			} else if len(z.Meta) > 0 {
 				for key := range z.Meta {
@@ -222,7 +222,7 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Metrics")
 				return
 			}
-			if z.Metrics == nil {
+			if z.Metrics == nil && zb0003 > 0{
 				z.Metrics = make(map[string]float64, zb0003)
 			} else if len(z.Metrics) > 0 {
 				for key := range z.Metrics {
