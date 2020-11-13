@@ -107,9 +107,13 @@ func getSysfsHeaderDirs(v Version) ([]string, error) {
 	if err == nil && fi.IsDir() {
 		hv, err := getHeaderVersion(tmpPath)
 		if err != nil {
+			// remove tmp dir if it errors
+			_ = os.RemoveAll(tmpPath)
 			return nil, fmt.Errorf("unable to verify headers version: %w", err)
 		}
 		if hv != v {
+			// remove tmp dir if it fails to validate
+			_ = os.RemoveAll(tmpPath)
 			return nil, fmt.Errorf("header version %s does not match expected host version %s", v, hv)
 		}
 		return []string{tmpPath}, nil
