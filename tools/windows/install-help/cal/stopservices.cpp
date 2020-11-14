@@ -937,6 +937,7 @@ int verifyServices(CustomActionData& data)
             break;
         }
     }
+#ifdef __REGISTER_ALL_SERVICES
     if(!data.installSysprobe()) {
         retval = services[SYSPROBE_INDEX].destroy(hScManager);
         if(0 == retval) {
@@ -947,6 +948,7 @@ int verifyServices(CustomActionData& data)
             WcaLog(LOGMSG_STANDARD, "Error removing system probe service %d", retval);
         }
     }
+#endif
     WcaLog(LOGMSG_STANDARD, "done updating services");
    
     CloseServiceHandle(hScManager);
