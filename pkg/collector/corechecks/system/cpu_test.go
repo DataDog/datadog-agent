@@ -7,6 +7,7 @@
 package system
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -85,21 +86,23 @@ func TestCPUCheckLinux(t *testing.T) {
 	cpuCheck.Run()
 
 	mock.AssertExpectations(t)
-	mock.AssertNumberOfCalls(t, "Gauge", 1)
+	mock.AssertNumberOfCalls(t, metrics.GaugeType.String(), 1)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
 
 	sample = secondSample
-	mock.On("Gauge", "system.cpu.user", 0.1913803067769472, "", []string(nil)).Return().Times(1)
-	mock.On("Gauge", "system.cpu.system", 5.026101621048045, "", []string(nil)).Return().Times(1)
-	mock.On("Gauge", "system.cpu.iowait", 0.03789709045088063, "", []string(nil)).Return().Times(1)
-	mock.On("Gauge", "system.cpu.idle", 94.74272612720159, "", []string(nil)).Return().Times(1)
-	mock.On("Gauge", "system.cpu.stolen", 0.0018948545225440318, "", []string(nil)).Return().Times(1)
-	mock.On("Gauge", "system.cpu.guest", 0.0, "", []string(nil)).Return().Times(1)
-	mock.On("Gauge", "system.cpu.num_cores", 1.0, "", []string(nil)).Return().Times(1)
+	mock.On(metrics.GaugeType.String(), "system.cpu.user", 0.1913803067769472, "", []string(nil)).Return().Times(1)
+	mock.On(metrics.GaugeType.String(), "system.cpu.system", 5.026101621048045, "", []string(nil)).Return().Times(1)
+	mock.On(metrics.GaugeType.String(), "system.cpu.iowait", 0.03789709045088063, "", []string(nil)).Return().Times(1)
+	mock.On(metrics.GaugeType.String(), "system.cpu.idle", 94.74272612720159, "", []string(nil)).Return().Times(1)
+	mock.On(metrics.GaugeType.String(), "system.cpu.stolen", 0.0018948545225440318, "", []string(nil)).Return().Times(1)
+	mock.On(metrics.GaugeType.String(), "system.cpu.guest", 0.0, "", []string(nil)).Return().Times(1)
+	mock.On(metrics.GaugeType.String(), "system.cpu.num_cores", 1.0, "", []string(nil)).Return().Times(1)
+	mock.On(metrics.MonotonicCountType.String(), "system.cpu.ctx_switches", 32768, "", []string(nil)).Return().Times(1)
 	mock.On("Commit").Return().Times(1)
 	cpuCheck.Run()
 
 	mock.AssertExpectations(t)
-	mock.AssertNumberOfCalls(t, "Gauge", 8)
+	mock.AssertNumberOfCalls(t, metrics.GaugeType.String(), 8)
+	mock.AssertNumberOfCalls(t, metrics.MonotonicCountType.String(), 1)
 	mock.AssertNumberOfCalls(t, "Commit", 2)
 }
