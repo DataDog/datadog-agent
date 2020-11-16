@@ -313,6 +313,7 @@ func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRu
 // - ports
 // - ad identifiers
 // - check names
+// - readiness
 func kubeletSvcEqual(first, second Service) bool {
 	hosts1, _ := first.GetHosts()
 	hosts2, _ := second.GetHosts()
@@ -336,7 +337,7 @@ func kubeletSvcEqual(first, second Service) bool {
 		return false
 	}
 
-	return true
+	return first.IsReady() == second.IsReady()
 }
 
 // podHasADTemplate looks in pod annotations and looks for annotations containing an

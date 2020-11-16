@@ -105,10 +105,13 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 		return err
 	}
 	loggerInterface, err := GenerateLoggerInterface(seelogConfig)
+	if err != nil {
+		return err
+	}
 	_ = seelog.ReplaceLogger(loggerInterface)
 	log.SetupLogger(loggerInterface, seelogLogLevel)
 	log.AddStrippedKeys(Datadog.GetStringSlice("flare_stripped_keys"))
-	return err
+	return nil
 }
 
 // SetupJMXLogger sets up a logger with JMX logger name and log level
@@ -125,8 +128,11 @@ func SetupJMXLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, 
 		return err
 	}
 	jmxLoggerInterface, err := GenerateLoggerInterface(jmxSeelogConfig)
+	if err != nil {
+		return err
+	}
 	log.SetupJMXLogger(jmxLoggerInterface, seelogLogLevel)
-	return err
+	return nil
 }
 
 func buildLoggerConfig(loggerName LoggerName, seelogLogLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool) (*seelogCfg.Config, error) {
@@ -169,7 +175,7 @@ func GenerateLoggerInterface(logConfig *seelogCfg.Config) (seelog.LoggerInterfac
 		return nil, err
 	}
 
-	return loggerInterface, err
+	return loggerInterface, nil
 }
 
 // ErrorLogWriter is a Writer that logs all written messages with the global seelog logger

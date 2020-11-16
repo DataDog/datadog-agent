@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    Added UDS support for JMXFetch
-    JMXFetch upgraded to `0.40.2 <https://github.com/DataDog/jmxfetch/releases/0.40.2>`
+    When enabled, JMXFetch now logs to its own log file. Defaults to ``jmxfetch.log``
+    in the default agent log directory, and can be configured with ``jmx_log_file``.

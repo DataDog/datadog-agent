@@ -41,6 +41,8 @@ type LogSource struct {
 	// that reads log lines for this source. E.g, a sourceType == containerd and Config.Type == file means that
 	// the agent is tailing a file to read logs of a containerd container
 	sourceType SourceType
+	// In the case that the source is overridden, keep a reference to the parent for bubbling up information about the child
+	ParentSource *LogSource
 }
 
 // NewLogSource creates a new log source.
