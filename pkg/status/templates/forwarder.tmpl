@@ -8,7 +8,7 @@ Forwarder
   Transactions
   ============
   {{- range $key, $value := .Transactions }}
-    {{- if and (ne $key "Errors") (ne $key "ErrorsByType") (ne $key "HTTPErrors") (ne $key "HTTPErrorsByCode") (ne $key "ConnectionEvents")}}
+    {{- if and (ne $key "InputBytesByEndpoint") (ne $key "InputCountByEndpoint") (ne $key "DroppedByEndpoint") (ne $key "RequeuedByEndpoint") (ne $key "RetriedByEndpoint") (ne $key "Success") (ne $key "SuccessByEndpoint") (ne $key "SuccessBytesByEndpoint") (ne $key "Errors") (ne $key "ErrorsByType") (ne $key "HTTPErrors") (ne $key "HTTPErrorsByCode") (ne $key "ConnectionEvents")}}
     {{$key}}: {{humanize $value}}
     {{- end}}
   {{- end}}
@@ -16,6 +16,18 @@ Forwarder
 
     Warning: the forwarder dropped transactions, there is probably an issue with your network
     More info at https://github.com/DataDog/datadog-agent/tree/master/docs/agent/status.md
+  {{- end}}
+  {{- if .Transactions.Success}}
+
+  Transaction Successes
+  =====================
+    Total number: {{.Transactions.Success}}
+    Successes By Endpoint:
+          {{- range $type, $count := .Transactions.SuccessByEndpoint }}
+            {{- if $count }}
+      {{$type}}: {{humanize $count}}
+            {{- end}}
+          {{- end}}
   {{- end}}
   {{- if .Transactions.Errors }}
 
@@ -36,7 +48,9 @@ Forwarder
     Total number: {{.Transactions.HTTPErrors}}
     HTTP Errors By Code:
       {{- range $code, $count := .Transactions.HTTPErrorsByCode }}
+        {{- if $count}}
       {{$code}}: {{humanize $count}}
+        {{- end}}
       {{- end}}
   {{- end}}
 {{- end}}

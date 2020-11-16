@@ -14,11 +14,13 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -86,6 +88,8 @@ func eventMatcher(m eventMatch) interface{} {
 
 func TestRun(t *testing.T) {
 	assert := assert.New(t)
+
+	aggregator.InitAggregator(nil, "foo")
 
 	e := enterTempEnv(t)
 	defer e.leave()
@@ -177,6 +181,8 @@ func TestRun(t *testing.T) {
 
 func TestRunChecks(t *testing.T) {
 	assert := assert.New(t)
+
+	aggregator.InitAggregator(nil, "foo")
 
 	e := enterTempEnv(t)
 	defer e.leave()

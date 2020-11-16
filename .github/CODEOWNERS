@@ -18,7 +18,7 @@
 /*.md                                   @DataDog/agent-platform @DataDog/documentation
 /NOTICE                                 @DataDog/agent-platform @DataDog/documentation
 
-/LICENSE*                               @DataDog/agent-platform
+/LICENSE*                               @DataDog/do-not-notify
 
 # Todo: is this file still needed?
 /Makefile.trace                         @DataDog/agent-platform
@@ -37,6 +37,7 @@
 /cmd/trace-agent/                       @DataDog/agent-apm
 /cmd/agent/app/integrations*.go         @trishankatdatadog @DataDog/agent-integrations @DataDog/agent-core
 /cmd/agent/clcrunnerapi/                @DataDog/container-integrations @DataDog/agent-core
+/cmd/agent/dist/conf.d/jetson.d         @DataDog/agent-platform
 /cmd/agent/*.manifest                   @DataDog/agent-platform
 /cmd/agent/*.mc                         @DataDog/agent-platform
 /cmd/agent/*.rc                         @DataDog/agent-platform
@@ -126,6 +127,7 @@
 /pkg/orchestrator/                      @DataDog/container-app
 /pkg/network/                           @DataDog/networks
 /pkg/ebpf/                              @DataDog/networks
+/pkg/ebpf/bytecode/bindata/bindataPkgSecurity*      @DataDog/agent-security
 /pkg/quantile/                          @DataDog/metrics-aggregation
 /pkg/compliance/                        @DataDog/container-integrations
 /pkg/kubestatemetrics                   @DataDog/container-integrations

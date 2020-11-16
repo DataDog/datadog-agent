@@ -116,6 +116,7 @@ func (rsa *RuntimeSecurityAgent) SendSecurityEvent(evt *api.SecurityEventMessage
 		AgentRuleID:  evt.RuleID,
 		ResourceID:   rsa.hostname,
 		ResourceType: "host",
+		Tags:         evt.Tags,
 		Data:         json.RawMessage(evt.GetData()),
 	}
 

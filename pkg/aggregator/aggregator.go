@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -210,6 +212,9 @@ type BufferedAggregator struct {
 	stopChan           chan struct{}
 	health             *health.Handle
 	agentName          string // Name of the agent for telemetry metrics
+
+	tlmContainerTagsEnabled bool                                              // Whether we should call the tagger to tag agent telemetry metrics
+	agentTags               func(collectors.TagCardinality) ([]string, error) // This function gets the agent tags from the tagger (defined as a struct field to ease testing)
 }
 
 // NewBufferedAggregator instantiates a BufferedAggregator
@@ -240,16 +245,18 @@ func NewBufferedAggregator(s serializer.MetricSerializer, hostname string, flush
 
 		MetricSamplePool: metrics.NewMetricSamplePool(MetricSamplePoolBatchSize),
 
-		statsdSampler:      *NewTimeSampler(bucketSize),
-		checkSamplers:      make(map[check.ID]*CheckSampler),
-		flushInterval:      flushInterval,
-		serializer:         s,
-		hostname:           hostname,
-		hostnameUpdate:     make(chan string),
-		hostnameUpdateDone: make(chan struct{}),
-		stopChan:           make(chan struct{}),
-		health:             health.RegisterLiveness("aggregator"),
-		agentName:          agentName,
+		statsdSampler:           *NewTimeSampler(bucketSize),
+		checkSamplers:           make(map[check.ID]*CheckSampler),
+		flushInterval:           flushInterval,
+		serializer:              s,
+		hostname:                hostname,
+		hostnameUpdate:          make(chan string),
+		hostnameUpdateDone:      make(chan struct{}),
+		stopChan:                make(chan struct{}),
+		health:                  health.RegisterLiveness("aggregator"),
+		agentName:               agentName,
+		tlmContainerTagsEnabled: config.Datadog.GetBool("basic_telemetry_add_container_tags"),
+		agentTags:               tagger.AgentTags,
 	}
 
 	return aggregator
@@ -294,7 +301,7 @@ func (agg *BufferedAggregator) AddAgentStartupTelemetry(agentVersion string) {
 	metric := &metrics.MetricSample{
 		Name:       fmt.Sprintf("datadog.%s.started", agg.agentName),
 		Value:      1,
-		Tags:       []string{fmt.Sprintf("version:%s", version.AgentVersion)},
+		Tags:       agg.tags(true),
 		Host:       agg.hostname,
 		Mtype:      metrics.CountType,
 		SampleRate: 1,
@@ -436,9 +443,10 @@ func (agg *BufferedAggregator) sendSeries(start time.Time, series metrics.Series
 			extra.SourceTypeName = "System"
 		}
 
+		tags := append(extra.Tags, agg.tags(false)...)
 		newSerie := &metrics.Serie{
 			Name:           extra.Name,
-			Tags:           extra.Tags,
+			Tags:           tags,
 			Host:           extra.Host,
 			MType:          extra.MType,
 			SourceTypeName: extra.SourceTypeName,
@@ -463,7 +471,7 @@ func (agg *BufferedAggregator) sendSeries(start time.Time, series metrics.Series
 	series = append(series, &metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.running", agg.agentName),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
-		Tags:           []string{fmt.Sprintf("version:%s", version.AgentVersion)},
+		Tags:           agg.tags(true),
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
@@ -473,6 +481,7 @@ func (agg *BufferedAggregator) sendSeries(start time.Time, series metrics.Series
 	series = append(series, &metrics.Serie{
 		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", agg.agentName),
 		Points:         []metrics.Point{{Value: float64(split.GetPayloadDrops()), Ts: float64(start.Unix())}},
+		Tags:           agg.tags(false),
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
@@ -542,6 +551,7 @@ func (agg *BufferedAggregator) flushServiceChecks(start time.Time, waitForSerial
 	agg.addServiceCheck(metrics.ServiceCheck{
 		CheckName: "datadog.agent.up",
 		Status:    metrics.ServiceCheckOK,
+		Tags:      agg.tags(false),
 		Host:      agg.hostname,
 	})
 
@@ -709,4 +719,21 @@ func (agg *BufferedAggregator) run() {
 			agg.hostnameUpdateDone <- struct{}{}
 		}
 	}
+}
+
+// tags returns the list of tags that should be added to the agent telemetry metrics
+// Container agent tags may be missing in the first seconds after agent startup
+func (agg *BufferedAggregator) tags(withVersion bool) []string {
+	tags := []string{}
+	if agg.tlmContainerTagsEnabled {
+		var err error
+		tags, err = agg.agentTags(tagger.ChecksCardinality)
+		if err != nil {
+			log.Debugf("Couldn't get Agent tags: %v", err)
+		}
+	}
+	if withVersion {
+		return append(tags, "version:"+version.AgentVersion)
+	}
+	return tags
 }

@@ -22,6 +22,7 @@ import (
 /*
 #include <datadog_agent_rtloader.h>
 #include <stdlib.h>
+#include <string.h>
 
 int gil_locked_calls = 0;
 rtloader_gilstate_t ensure_gil(rtloader_t *s) {
