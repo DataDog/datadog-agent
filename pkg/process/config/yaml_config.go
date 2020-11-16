@@ -57,6 +57,10 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.DNSTimeout = config.Datadog.GetDuration(key(spNS, "dns_timeout_in_s")) * time.Second
 	}
 
+	if config.Datadog.IsSet(key(spNS, "disable_http_inspection")) {
+		a.DisableHTTPInspection = config.Datadog.GetBool(key(spNS, "disable_http_inspection"))
+	}
+
 	if config.Datadog.GetBool(key(spNS, "enabled")) {
 		a.EnabledChecks = append(a.EnabledChecks, "connections")
 		if !a.Enabled {

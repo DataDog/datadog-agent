@@ -85,6 +85,7 @@ type AgentConfig struct {
 	DisableIPv6Tracing             bool
 	DisableDNSInspection           bool
 	CollectLocalDNS                bool
+	DisableHTTPInspection          bool
 	SystemProbeAddress             string
 	SystemProbeLogFile             string
 	SystemProbeBPFDir              string
@@ -214,6 +215,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		DisableUDPTracing:            false,
 		DisableIPv6Tracing:           false,
 		DisableDNSInspection:         false,
+		DisableHTTPInspection:        false,
 		SystemProbeAddress:           defaultSystemProbeAddress,
 		SystemProbeLogFile:           defaultSystemProbeLogFilePath,
 		SystemProbeBPFDir:            defaultSystemProbeBPFDir,
@@ -493,6 +495,7 @@ func loadSysProbeEnvVariables() {
 		{"DD_DISABLE_DNS_INSPECTION", "system_probe_config.disable_dns_inspection"},
 		{"DD_COLLECT_LOCAL_DNS", "system_probe_config.collect_local_dns"},
 		{"DD_COLLECT_DNS_STATS", "system_probe_config.collect_dns_stats"},
+		{"DD_DISABLE_HTTP_INSPECTION", "system_probe_config.disable_http_inspection"},
 	} {
 		if v, ok := os.LookupEnv(variable.env); ok {
 			config.Datadog.Set(variable.cfg, v)

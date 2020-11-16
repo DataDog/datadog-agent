@@ -90,6 +90,11 @@ type httpMonitor struct {
 }
 
 func newHTTPMonitor(config *Config, m *manager.Manager, h *bytecode.PerfHandler) (*httpMonitor, error) {
+	if !config.HTTPInspection {
+		log.Infof("http monitoring disabled")
+		return nil, nil
+	}
+
 	filter, _ := m.GetProbe(manager.ProbeIdentificationPair{Section: string(bytecode.SocketHTTPFilter)})
 	if filter == nil {
 		return nil, fmt.Errorf("error retrieving socket filter")
@@ -128,6 +133,7 @@ func newHTTPMonitor(config *Config, m *manager.Manager, h *bytecode.PerfHandler)
 		return nil, fmt.Errorf("unable to find perf map %s", bytecode.HttpNotificationsMap)
 	}
 
+	log.Infof("http monitoring enabled")
 	return &httpMonitor{
 		batchMap:      batchMap,
 		perfMap:       pm,

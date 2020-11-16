@@ -31,7 +31,9 @@ func (c *Config) EnabledProbes(pre410Kernel bool) (map[bytecode.ProbeName]struct
 		enabled[bytecode.InetCskAcceptReturn] = struct{}{}
 		enabled[bytecode.TCPv4DestroySock] = struct{}{}
 		enabled[bytecode.TCPSetState] = struct{}{}
-		enabled[bytecode.TCPSendMsgReturn] = struct{}{}
+		if c.BPFDebug || (c.HTTPInspection && !pre410Kernel) {
+			enabled[bytecode.TCPSendMsgReturn] = struct{}{}
+		}
 	}
 
 	if c.CollectUDPConns {

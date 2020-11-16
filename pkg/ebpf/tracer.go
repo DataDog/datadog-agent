@@ -166,8 +166,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 		}
 	}
 
-	enableHTTPInspection := !pre410Kernel
-	if enableHTTPInspection {
+	if config.HTTPInspection && !pre410Kernel {
 		enabledProbes[bytecode.SocketHTTPFilter] = struct{}{}
 	}
 
@@ -239,7 +238,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 
 	httpMonitor, err := newHTTPMonitor(config, m, perfHandlerHTTP)
 	if err != nil {
-		log.Errorf("failed to instantiate http monitor: %s", err)
+		log.Errorf("failed to enable http monitoring: %s", err)
 	}
 
 	tr := &Tracer{

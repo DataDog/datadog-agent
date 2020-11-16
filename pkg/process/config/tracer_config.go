@@ -37,6 +37,11 @@ func SysProbeConfigFromConfig(cfg *AgentConfig) *ebpf.Config {
 		log.Info("system probe DNS inspection disabled by configuration")
 	}
 
+	if cfg.DisableHTTPInspection {
+		tracerConfig.HTTPInspection = false
+		log.Info("system probe HTTP inspection disabled by configuration")
+	}
+
 	if len(cfg.ExcludedSourceConnections) > 0 {
 		tracerConfig.ExcludedSourceConnections = cfg.ExcludedSourceConnections
 	}

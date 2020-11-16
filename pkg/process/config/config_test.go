@@ -187,6 +187,31 @@ func TestDisablingDNSInspection(t *testing.T) {
 	})
 }
 
+func TestDisablingHTTPInspection(t *testing.T) {
+	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	defer restoreGlobalConfig()
+
+	t.Run("via YAML", func(t *testing.T) {
+		cfg, err := NewAgentConfig(
+			"test",
+			"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DisableHTTP.yaml",
+			"",
+		)
+
+		assert.Nil(t, err)
+		assert.True(t, cfg.DisableHTTPInspection)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		os.Setenv("DD_DISABLE_HTTP_INSPECTION", "true")
+		defer os.Unsetenv("DD_DISABLE_HTTP_INSPECTION")
+		cfg, err := NewAgentConfig("test", "", "")
+
+		assert.Nil(t, err)
+		assert.True(t, cfg.DisableHTTPInspection)
+	})
+}
+
 func TestGetHostname(t *testing.T) {
 	cfg := NewDefaultAgentConfig(false)
 	h, err := getHostname(cfg.DDAgentBin)
