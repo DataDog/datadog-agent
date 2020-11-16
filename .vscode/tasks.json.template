@@ -3,7 +3,7 @@
     "tasks": [
         {
             "label": "build agent",
-            "command": "invoke agent.build",
+            "command": "invoke -e agent.build",
             "args": [],
             "type": "shell",
             "group": {
@@ -14,21 +14,21 @@
         },
         {
             "label": "clean",
-            "command": "invoke agent.clean",
+            "command": "invoke -e agent.clean",
             "args": [],
             "type": "shell",
             "problemMatcher": []
         },
         {
             "label": "install dependencies",
-            "command": "invoke deps",
+            "command": "invoke -e deps",
             "args": [],
             "type": "shell",
             "problemMatcher": []
         },
         {
             "label": "all tests",
-            "command": "invoke test",
+            "command": "invoke -e test",
             "args": [],
             "type": "shell",
             "problemMatcher": []
