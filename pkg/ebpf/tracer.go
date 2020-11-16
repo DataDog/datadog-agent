@@ -206,7 +206,11 @@ func NewTracer(config *Config) (*Tracer, error) {
 	portMapping := network.NewPortMapping(config.ProcRoot, config.CollectTCPConns, config.CollectIPv6Conns)
 	udpPortMapping := network.NewPortMapping(config.ProcRoot, config.CollectTCPConns, config.CollectIPv6Conns)
 	if err := portMapping.ReadInitialState(); err != nil {
-		return nil, fmt.Errorf("failed to read initial pid->port mapping: %s", err)
+		return nil, fmt.Errorf("failed to read initial TCP pid->port mapping: %s", err)
+	}
+
+	if err := udpPortMapping.ReadInitialUDPState(); err != nil {
+		return nil, fmt.Errorf("failed to read initial UDP pid->port mapping: %s", err)
 	}
 
 	conntracker := netlink.NewNoOpConntracker()

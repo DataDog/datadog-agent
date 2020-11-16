@@ -6,3 +6,5 @@ ip netns add test
 
 ip netns exec test nc -l 0.0.0.0 34567 &
 ip netns exec test nc -l ::0 34568 &
+ip netns exec test nc -u -l 0.0.0.0 34567 &
+ip netns exec test nc -u -l ::0 34568 &
