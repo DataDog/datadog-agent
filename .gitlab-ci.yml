@@ -4492,7 +4492,7 @@ periodic_kitchen_cleanup_s3:
   tags: [ "runner:main", "size:large" ]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   rules:
-    - <<: *if_deploy_on_nightly
+    - if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_6 == "nightly" && $RELEASE_VERSION_7 == "nightly-a7" && $TESTING_CLEANUP == "true"
   script:
     - aws s3 rm --recursive s3://$DEB_TESTING_S3_BUCKET/pool
     - aws s3 rm --recursive s3://$DEB_TESTING_S3_BUCKET/dists
@@ -4507,7 +4507,7 @@ periodic_kitchen_cleanup_azure:
   tags: [ "runner:main", "size:large" ]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   rules:
-    - <<: *if_deploy_on_nightly
+    - if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_6 == "nightly" && $RELEASE_VERSION_7 == "nightly-a7" && $TESTING_CLEANUP == "true"
   script:
     - export ARM_SUBSCRIPTION_ID=`aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_subscription_id --with-decryption --query "Parameter.Value" --out text`
     - export ARM_CLIENT_ID=`aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_client_id --with-decryption --query "Parameter.Value" --out text`
