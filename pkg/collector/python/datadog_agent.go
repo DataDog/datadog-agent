@@ -195,7 +195,7 @@ var obfuscator = obfuscate.NewObfuscator(nil)
 //export ObfuscateSQL
 func ObfuscateSQL(rawQuery *C.char, errResult **C.char) *C.char {
 	s := C.GoString(rawQuery)
-	obfuscatedQuery, err := obfuscator.ObfuscateSQLString(s)
+	obfuscatedQuery, err := obfuscator.ObfuscateSQLString(s, "")
 	if err != nil {
 		// memory will be freed by caller
 		*errResult = TrackedCString(err.Error())

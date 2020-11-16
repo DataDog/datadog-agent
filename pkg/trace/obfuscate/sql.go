@@ -164,11 +164,11 @@ func (f *groupingFilter) Reset() {
 // ObfuscateSQLString quantizes and obfuscates the given input SQL query string. Quantization removes
 // some elements such as comments and aliases and obfuscation attempts to hide sensitive information
 // in strings and numbers by redacting them.
-func (o *Obfuscator) ObfuscateSQLString(in string) (*ObfuscatedQuery, error) {
+func (o *Obfuscator) ObfuscateSQLString(in, dbtype string) (*ObfuscatedQuery, error) {
 	if v, ok := o.queryCache.Get(in); ok {
 		return v.(*ObfuscatedQuery), nil
 	}
-	oq, err := o.obfuscateSQLString(in)
+	oq, err := o.obfuscateSQLString(in, dbtype)
 	if err != nil {
 		return oq, err
 	}
@@ -176,14 +176,14 @@ func (o *Obfuscator) ObfuscateSQLString(in string) (*ObfuscatedQuery, error) {
 	return oq, nil
 }
 
-func (o *Obfuscator) obfuscateSQLString(in string) (*ObfuscatedQuery, error) {
+func (o *Obfuscator) obfuscateSQLString(in, dbtype string) (*ObfuscatedQuery, error) {
 	lesc := o.SQLLiteralEscapes()
-	tok := NewSQLTokenizer(in, lesc)
+	tok := NewSQLTokenizer(in, dbtype, lesc)
 	out, err := attemptObfuscation(tok)
 	if err != nil && tok.SeenEscape() {
 		// If the tokenizer failed, but saw an escape character in the process,
 		// try again treating escapes differently
-		tok = NewSQLTokenizer(in, !lesc)
+		tok = NewSQLTokenizer(in, dbtype, !lesc)
 		if out, err2 := attemptObfuscation(tok); err2 == nil {
 			// If the second attempt succeeded, change the default behavior so that
 			// on the next run we get it right in the first run.
@@ -333,7 +333,7 @@ func (o *Obfuscator) obfuscateSQL(span *pb.Span) {
 	if span.Resource == "" {
 		return
 	}
-	oq, err := o.ObfuscateSQLString(span.Resource)
+	oq, err := o.ObfuscateSQLString(span.Resource, span.Meta["db.type"])
 	if err != nil {
 		// we have an error, discard the SQL to avoid polluting user resources.
 		log.Debugf("Error parsing SQL query: %v. Resource: %q", err, span.Resource)
