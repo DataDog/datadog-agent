@@ -35,6 +35,7 @@ const registryAPIVersion = 2
 type Registry interface {
 	GetOffset(identifier string) string
 	GetTailingMode(identifier string) string
+	SetConfigID(identifier, configID string)
 }
 
 // A RegistryEntry represents an entry in the registry where we keep track
@@ -131,10 +132,13 @@ func (a *Auditor) Channel() chan *message.Message {
 	return a.inputChan
 }
 
-// IdentifierChannel returns the channel to use to communicate with the auditor or nil
-// if the auditor is currently stopped.
-func (a *Auditor) IdentifierChannel() chan *Identifiers {
-	return a.identifiersChan
+// SetConfigID set the valid source configuration ID (typically a container ID) for registry
+// update subsequent attempt with a different ID will be ignore for this identifier. It aims
+// to allow only one tailer for the same file to be able to update the registry.
+func (a *Auditor) SetConfigID(identifier, configID string) {
+	if a.identifiersChan != nil {
+		a.identifiersChan <- &Identifiers{identifier, configID}
+	}
 }
 
 // GetOffset returns the last committed offset for a given identifier,

@@ -35,3 +35,8 @@ func (r *Registry) GetTailingMode(identifier string) string {
 func (r *Registry) SetTailingMode(tailingMode string) {
 	r.tailingMode = tailingMode
 }
+
+// SetConfigID allow only one identifier to update an offset
+func (r *Registry) SetConfigID(identifier, configID string) {
+	// noop so far TBD later
+}
