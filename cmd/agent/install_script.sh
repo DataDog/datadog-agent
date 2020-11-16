@@ -6,7 +6,7 @@
 # using the package manager and Datadog repositories.
 
 set -e
-install_script_version=1.0.3
+install_script_version=1.1.0
 logfile="ddagent-install.log"
 
 LEGACY_ETCDIR="/etc/dd-agent"
