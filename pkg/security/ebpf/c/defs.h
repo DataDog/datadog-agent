@@ -194,6 +194,7 @@ enum event_type
     EVENT_UMOUNT,
     EVENT_SETXATTR,
     EVENT_REMOVEXATTR,
+    EVENT_FORK,
     EVENT_EXEC,
     EVENT_EXIT,
     EVENT_INVALIDATE_DENTRY,
@@ -236,7 +237,6 @@ struct syscall_t {
 };
 
 struct process_context_t {
-    char comm[TASK_COMM_LEN];
     u32 pid;
     u32 tid;
     u32 uid;
@@ -245,15 +245,6 @@ struct process_context_t {
 
 struct container_context_t {
     char container_id[CONTAINER_ID_LEN];
-};
-
-struct proc_cache_t {
-    struct file_t executable;
-    struct container_context_t container;
-    u64 timestamp;
-    u32 cookie;
-    u32 ppid;
-    char tty_name[TTY_NAME_LEN];
 };
 
 struct path_key_t {

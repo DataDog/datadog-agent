@@ -55,6 +55,8 @@ const (
 	FileSetXAttrEventType
 	// FileRemoveXAttrEventType - Removexattr event
 	FileRemoveXAttrEventType
+	// ForkEventType - Fork event
+	ForkEventType
 	// ExecEventType - Exec event
 	ExecEventType
 	// ExitEventType - Exit event
@@ -93,6 +95,8 @@ func (t EventType) String() string {
 		return "setxattr"
 	case FileRemoveXAttrEventType:
 		return "removexattr"
+	case ForkEventType:
+		return "fork"
 	case ExecEventType:
 		return "exec"
 	case ExitEventType:

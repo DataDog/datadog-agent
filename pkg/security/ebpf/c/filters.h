@@ -124,7 +124,7 @@ int __attribute__((always_inline)) discarded_by_process(const char mode, u64 eve
         if (discarded_by_pid(event_type, tgid))
             return 1;
 
-        struct proc_cache_t *entry = get_pid_cache(tgid);
+        struct proc_cache_t *entry = get_proc_cache(tgid);
         if (entry && discarded_by_inode(event_type, entry->executable.mount_id, entry->executable.inode)) {
             return 1;
         }
