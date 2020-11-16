@@ -8,7 +8,7 @@ package system
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"golang.org/x/tools/go/ssa/interp/testdata/src/runtime"
+	"runtime"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
