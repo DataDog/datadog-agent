@@ -68,6 +68,10 @@ bool RegKey::deleteSubKey(const wchar_t * keyname) {
     return RegDeleteKeyEx(this->hKeyRoot, keyname, 0, 0) == ERROR_SUCCESS ? true : false;
 }
 
+
+bool RegKey::deleteValue(const wchar_t  *valname){
+    return RegDeleteValue(this->hKeyRoot, valname) == ERROR_SUCCESS ? true : false;
+}
 bool RegKey::createSubKey(const wchar_t *keyname, RegKey& subkey, DWORD options)
 {
     WcaLog(LOGMSG_STANDARD, "Creating/opening subkey %S", keyname);

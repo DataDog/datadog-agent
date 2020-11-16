@@ -947,6 +947,9 @@ int verifyServices(CustomActionData& data)
             WcaLog(LOGMSG_STANDARD, "Error removing system probe service %d", retval);
         }
     }
+    // reset to zero so that the install will still succeed.
+    retval = 0;
+
     WcaLog(LOGMSG_STANDARD, "done updating services");
    
     CloseServiceHandle(hScManager);

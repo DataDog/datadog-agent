@@ -35,7 +35,9 @@ class CustomActionData
         bool installSysprobe() const {
             return doInstallSysprobe;
         }
-
+        bool UserParamMismatch() const {
+            return userParamMismatch;
+        }
         const TargetMachine& GetTargetMachine() const {
             return machine;
         }
@@ -43,6 +45,7 @@ class CustomActionData
         MSIHANDLE hInstall;
         TargetMachine machine;
         bool domainUser;
+        bool userParamMismatch;
         std::map< std::wstring, std::wstring> values;
         std::wstring username; // qualified
         std::wstring uqusername;// unqualified

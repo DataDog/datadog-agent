@@ -2,7 +2,8 @@
 
 CustomActionData::CustomActionData() :
     domainUser(false),
-    doInstallSysprobe(false)
+    doInstallSysprobe(false),
+    userParamMismatch(false)
 {
 
 }
@@ -114,11 +115,29 @@ bool CustomActionData::parseSysprobeData()
 bool CustomActionData::parseUsernameData()
 {
     std::wstring tmpName = ddAgentUserName;
-    
+    ddRegKey regkeybase;
+    bool userSupplied = false;
+    bool previousInstall = false;
+    std::wstring pvsUser;
+    std::wstring pvsDomain;
+
     if (this->value(propertyDDAgentUserName, tmpName)) {
         if (tmpName.length() == 0) {
             tmpName = ddAgentUserName;
+        } else {
+            userSupplied = true;
         }
+    }
+    if(!regkeybase.getStringValue(keyInstalledUser.c_str(), pvsUser) ||
+       !regkeybase.getStringValue(keyInstalledDomain.c_str(), pvsDomain) ||
+       pvsUser.length() == 0 ||
+       pvsDomain.length() == 0)
+    {
+        WcaLog(LOGMSG_STANDARD, "previous user registration not found in registry");
+        previousInstall = false;
+    } else {
+        WcaLog(LOGMSG_STANDARD, "found previous user registration in registry");
+        previousInstall = true;
     }
     if (std::wstring::npos == tmpName.find(L'\\')) {
         WcaLog(LOGMSG_STANDARD, "loaded username doesn't have domain specifier, assuming local");
@@ -126,35 +145,73 @@ bool CustomActionData::parseUsernameData()
     }
     // now create the splits between the domain and user for all to use, too
     std::wstring computed_domain, computed_user;
-    std::wistringstream asStream(tmpName);
-    // username is going to be of the form <domain>\<username>
-    // if the <domain> is ".", then just do local machine
-    getline(asStream, computed_domain, L'\\');
-    getline(asStream, computed_user, L'\\');
 
-    if (computed_domain == L".")
+    // if this is an upgrade (we found a previously recorded username in the registry)
+    // and nothing was supplied on the command line, don't bother computing that.  Just use
+    // the existing
+    if(previousInstall && !userSupplied)
     {
-        WcaLog(LOGMSG_STANDARD, "Supplied qualified domain '.', using hostname");
-        computed_domain = machine.GetMachineName();
-        this->domainUser = false;
-    }
-    else
-    {
-        if(0 == _wcsicmp(computed_domain.c_str(), machine.GetMachineName().c_str()))
+        computed_domain = pvsDomain;
+        computed_user = pvsUser;
+        WcaLog(LOGMSG_STANDARD, "Using username from previous install");
+    } else {
+        std::wistringstream asStream(tmpName);
+        // username is going to be of the form <domain>\<username>
+        // if the <domain> is ".", then just do local machine
+        getline(asStream, computed_domain, L'\\');
+        getline(asStream, computed_user, L'\\');
+
+        if (computed_domain == L".")
         {
-            WcaLog(LOGMSG_STANDARD, "Supplied hostname as authority");
+            WcaLog(LOGMSG_STANDARD, "Supplied qualified domain '.', using hostname");
+            computed_domain = machine.GetMachineName();
             this->domainUser = false;
-        }
-        else if(0 == _wcsicmp(computed_domain.c_str(), machine.GetDomain().c_str()))
-        {
-            WcaLog(LOGMSG_STANDARD, "Supplied domain name %S %S", computed_domain.c_str(), machine.GetDomain().c_str());
-            this->domainUser = true;
         }
         else
         {
-            WcaLog(LOGMSG_STANDARD, "Warning: Supplied user in different domain (%S != %S)", computed_domain.c_str(), machine.GetDomain().c_str());
-            computed_domain = machine.GetDomain();
-            this->domainUser = true;
+            if(0 == _wcsicmp(computed_domain.c_str(), machine.GetMachineName().c_str()))
+            {
+                WcaLog(LOGMSG_STANDARD, "Supplied hostname as authority");
+                this->domainUser = false;
+            }
+            else if(0 == _wcsicmp(computed_domain.c_str(), machine.GetDomain().c_str()))
+            {
+                WcaLog(LOGMSG_STANDARD, "Supplied domain name %S %S", computed_domain.c_str(), machine.GetDomain().c_str());
+                this->domainUser = true;
+            }
+            else
+            {
+                WcaLog(LOGMSG_STANDARD, "Warning: Supplied user in different domain (%S != %S)", computed_domain.c_str(), machine.GetDomain().c_str());
+                computed_domain = machine.GetDomain();
+                this->domainUser = true;
+            }
+        }
+        if(!previousInstall)
+        {
+            WcaLog(LOGMSG_STANDARD, "using supplied username");
+        }
+        if(previousInstall && userSupplied)
+        {
+            WcaLog(LOGMSG_STANDARD, "user info supplied on command line and by previous install, checking");
+            if(_wcsicmp(pvsDomain.c_str(), computed_domain.c_str()) != 0)
+            {
+                WcaLog(LOGMSG_STANDARD, "supplied domain and computed domain don't match");
+                this->userParamMismatch = true;
+            }
+            if(_wcsicmp(pvsUser.c_str(), computed_user.c_str()) != 0)
+            {
+                WcaLog(LOGMSG_STANDARD, "supplied user and computed user don't match");
+                this->userParamMismatch = true;
+            }
+        }
+        if(previousInstall)
+        {
+            // this is a bit obtuse, but there's no way of passing the failure up
+            // from here, so even if we set `userParamMismatch` above, we'll hit this
+            // code.  That's ok, the install will be failed in `canInstall()`.
+            computed_domain = pvsDomain;
+            computed_user = pvsUser;
+            WcaLog(LOGMSG_STANDARD, "Using previously installed user");
         }
     }
     this->domain = computed_domain;

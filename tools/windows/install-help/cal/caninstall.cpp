@@ -51,6 +51,11 @@ bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomAc
     //     if the service is not present
     //       (8) install service, create user
     //       use password if provided, otherwise generate
+    if (data.UserParamMismatch())
+    {
+        WcaLog(LOGMSG_STANDARD, "Supplied domain/username doesn't match previously used domain/username. ");
+        bRet = false;
+    }
     if (isDC) {
         if (!ddUserExists && data.GetTargetMachine().IsReadOnlyDomainController())
         {

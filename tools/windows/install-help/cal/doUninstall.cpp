@@ -136,6 +136,25 @@ UINT doUninstallAs(UNINSTALL_TYPE t)
     }
     std::wstring embedded = installdir + L"\\embedded";
     RemoveDirectory(embedded.c_str());
+    if (t == UNINSTALL_UNINSTALL) {
+        if(regkey.deleteSubKey(strUninstallKeyName.c_str()))
+        {
+            WcaLog(LOGMSG_STANDARD, "Deleted registry keys");
+        } else {
+            WcaLog(LOGMSG_STANDARD, "Failed to delete registry keys %d", GetLastError());
+        }
+        if(!regkey.deleteValue(keyInstalledUser.c_str())){
+            WcaLog(LOGMSG_STANDARD, "deleted installed user key");
+        } else {
+            WcaLog(LOGMSG_STANDARD, "failed to delete installed user key");
+        }
+        if(!regkey.deleteValue(keyInstalledDomain.c_str())){
+            WcaLog(LOGMSG_STANDARD, "deleted installed domain key");
+        } else {
+            WcaLog(LOGMSG_STANDARD, "failed to delete installed domain key");
+        }
+    }
+
 
     if (sid) {
         delete[](BYTE *) sid;
