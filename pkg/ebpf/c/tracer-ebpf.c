@@ -1226,7 +1226,6 @@ int kretprobe__sys_socket(struct pt_regs* ctx) {
 static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff* skb, skb_info_t* info) {
     __builtin_memset(info, 0, sizeof(skb_info_t));
     info->data_off = ETH_HLEN;
-    info->data_end = skb->len-1;
 
     __u16 l3_proto = load_half(skb, offsetof(struct ethhdr, h_proto));
     __u8 l4_proto;
@@ -1418,7 +1417,6 @@ static __always_inline int http_begin_response(http_transaction_t *http, char *b
 
     http->state = HTTP_RESPONDING;
     http->status_code = status_code;
-    http->response_last_seen = bpf_ktime_get_ns();
     log_debug("http response started: code: %d\n", http->status_code);
     return 1;
 }
@@ -1426,7 +1424,7 @@ static __always_inline int http_begin_response(http_transaction_t *http, char *b
 static __always_inline http_state_t http_read_data(struct __sk_buff* skb, skb_info_t* skb_info, char* p) {
 #pragma unroll
     for (int i = 0; i < HTTP_BUFFER_SIZE; i++) {
-        if (skb_info->data_off + i <= skb_info->data_end) {
+        if (skb_info->data_off + i <= skb->len-1) {
             p[i] = load_byte(skb, skb_info->data_off + i);
         } else {
             // TODO: follow-up on why the verifier rejects the program without this else branch
@@ -1481,7 +1479,7 @@ static __always_inline int http_handle_packet(struct __sk_buff* skb, skb_info_t*
     }
 
     if (http->state == HTTP_RESPONDING) {
-        if (skb_info->data_end > skb_info->data_off) {
+        if (skb->len-1 > skb_info->data_off) {
             // Only if we have a (L7/application-layer) payload we want to update the response_last_seen
             // This is to prevent things such as a keep-alive adding up to the transaction latency
             http->response_last_seen = bpf_ktime_get_ns();
