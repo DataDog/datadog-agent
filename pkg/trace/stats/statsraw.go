@@ -151,7 +151,7 @@ func (sb *RawBucket) Export() Bucket {
 	return ret
 }
 
-func assembleGrain(b *bytes.Buffer, env, resource, service string, m []Tag) (string, TagSet) {
+func assembleGrain(b *bytes.Buffer, env, resource, service string, otherTags []Tag) (string, TagSet) {
 	b.Reset()
 
 	b.WriteString("env:")
@@ -161,16 +161,16 @@ func assembleGrain(b *bytes.Buffer, env, resource, service string, m []Tag) (str
 	b.WriteString(",service:")
 	b.WriteString(service)
 
-	tagset := make(TagSet, 3, 3+len(m))
+	tagset := make(TagSet, 3, 3+len(otherTags))
 	tagset[0] = Tag{"env", env}
 	tagset[1] = Tag{"resource", resource}
 	tagset[2] = Tag{"service", service}
 
-	if m == nil || len(m) == 0 {
+	if otherTags == nil || len(otherTags) == 0 {
 		return b.String(), tagset
 	}
 
-	for _, tag := range m {
+	for _, tag := range otherTags {
 		b.WriteRune(',')
 		b.WriteString(tag.Name)
 		b.WriteRune(':')
@@ -187,20 +187,20 @@ func (sb *RawBucket) HandleSpan(s *WeightedSpan, env string, aggregators []strin
 		panic("env should never be empty")
 	}
 
-	m := []Tag{}
+	var otherTags []Tag
 
 	for _, agg := range aggregators {
 		if agg != "env" && agg != "resource" && agg != "service" {
 			if v, ok := s.Meta[agg]; ok {
-				if len(m) == 0 {
-					m = make([]Tag, 0, len(aggregators))
+				if len(otherTags) == 0 {
+					otherTags = make([]Tag, 0, len(aggregators))
 				}
-				m = append(m, Tag{agg, v})
+				otherTags = append(otherTags, Tag{agg, v})
 			}
 		}
 	}
 
-	grain, tags := assembleGrain(&sb.keyBuf, env, s.Resource, s.Service, m)
+	grain, tags := assembleGrain(&sb.keyBuf, env, s.Resource, s.Service, otherTags)
 	sb.add(s, grain, tags)
 
 	for _, sub := range sublayers {
