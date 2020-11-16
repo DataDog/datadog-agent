@@ -13,12 +13,15 @@ type DriverBuffer struct {
 	off int
 }
 
+// NewDriverBuffer creates a DriverBuffer with initial size `size`.
 func NewDriverBuffer(size int) *DriverBuffer {
 	return &DriverBuffer{
 		buf: make([]ConnectionStats, int(math.Max(float64(size), minBufferSize))),
 	}
 }
 
+// Next returns the next `ConnectionStats` object available for writing.
+// It will resize the internal buffer if necessary.
 func (d *DriverBuffer) Next() *ConnectionStats {
 	// double size of buffer if necessary
 	if d.off >= len(d.buf) {
@@ -29,14 +32,18 @@ func (d *DriverBuffer) Next() *ConnectionStats {
 	return c
 }
 
+// Connections returns a slice of all the `ConnectionStats` objects returned via `Next`
+// since the last `Reset`.
 func (d *DriverBuffer) Connections() []ConnectionStats {
 	return d.buf[:d.off]
 }
 
+// Len returns the count of the number of written `ConnectionStats` objects since last `Reset`.
 func (d *DriverBuffer) Len() int {
 	return d.off
 }
 
+// Reset returns the written object count back to zero. It may resize the internal buffer based on past usage.
 func (d *DriverBuffer) Reset() {
 	// shrink buffer if less than half used
 	half := len(d.buf) / 2
