@@ -199,7 +199,8 @@ func (http *httpMonitor) Start() error {
 				misses++
 			case now := <-report.C:
 				delta := float64(now.Sub(then).Seconds())
-				log.Infof("http report: 200(%d reqs, %.2f/s) 300(%d reqs, %.2f/s), 400(%d reqs, %.2f/s) 500(%d reqs, %.2f/s), misses(%d reqs, %.2f/s)",
+				log.Infof("http report: 100(%d reqs, %.2f/s) 200(%d reqs, %.2f/s) 300(%d reqs, %.2f/s), 400(%d reqs, %.2f/s) 500(%d reqs, %.2f/s), misses(%d reqs, %.2f/s)",
+					hits[100], float64(hits[100])/delta,
 					hits[200], float64(hits[200])/delta,
 					hits[300], float64(hits[300])/delta,
 					hits[400], float64(hits[400])/delta,
