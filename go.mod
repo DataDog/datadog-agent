@@ -10,7 +10,7 @@ replace (
 	github.com/gordonklaus/ineffassign => github.com/gordonklaus/ineffassign v0.0.0-20200309095847-7953dde2c7bf // indirect
 	// next line until pr https://github.com/ianlancetaylor/cgosymbolizer/pull/8 is merged
 	github.com/ianlancetaylor/cgosymbolizer => github.com/ianlancetaylor/cgosymbolizer v0.0.0-20170921033129-f5072df9c550
-	github.com/shuLhan/go-bindata => github.com/shuLhan/go-bindata v3.4.0+incompatible // indirect
+	github.com/shuLhan/go-bindata => github.com/shuLhan/go-bindata v3.6.1+incompatible // indirect
 )
 
 // Internal deps fix version
@@ -135,7 +135,7 @@ require (
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
 	github.com/shirou/gopsutil v2.20.3+incompatible
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
-	github.com/shuLhan/go-bindata v3.4.0+incompatible
+	github.com/shuLhan/go-bindata v3.6.1+incompatible
 	github.com/soniah/gosnmp v1.26.0
 	github.com/spf13/afero v1.2.2
 	github.com/spf13/cobra v1.0.0
