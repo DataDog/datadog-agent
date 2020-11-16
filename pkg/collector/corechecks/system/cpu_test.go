@@ -81,7 +81,7 @@ func TestCPUCheckLinux(t *testing.T) {
 
 	mock := mocksender.NewMockSender(cpuCheck.ID())
 	mock.On(metrics.GaugeType.String(), "system.cpu.num_cores", 1.0, "", []string(nil)).Return().Times(1)
-	if (runtime.GOOS == "linux") {
+	if runtime.GOOS == "linux" {
 		mock.On(metrics.MonotonicCountType.String(), "system.cpu.context_switches", 3, "", []string(nil)).Return().Times(1)
 	}
 
@@ -92,7 +92,7 @@ func TestCPUCheckLinux(t *testing.T) {
 
 	mock.AssertExpectations(t)
 	mock.AssertNumberOfCalls(t, metrics.GaugeType.String(), 1)
-	if (runtime.GOOS == "linux") {
+	if runtime.GOOS == "linux" {
 		mock.AssertNumberOfCalls(t, metrics.MonotonicCountType.String(), 1)
 	}
 	mock.AssertNumberOfCalls(t, "Commit", 1)
@@ -105,7 +105,7 @@ func TestCPUCheckLinux(t *testing.T) {
 	mock.On(metrics.GaugeType.String(), "system.cpu.stolen", 0.0018948545225440318, "", []string(nil)).Return().Times(1)
 	mock.On(metrics.GaugeType.String(), "system.cpu.guest", 0.0, "", []string(nil)).Return().Times(1)
 	mock.On(metrics.GaugeType.String(), "system.cpu.num_cores", 1.0, "", []string(nil)).Return().Times(1)
-	if (runtime.GOOS == "linux") {
+	if runtime.GOOS == "linux" {
 		mock.On(metrics.MonotonicCountType.String(), "system.cpu.context_switches", 32768, "", []string(nil)).Return().Times(1)
 	}
 	mock.On("Commit").Return().Times(1)
@@ -113,7 +113,7 @@ func TestCPUCheckLinux(t *testing.T) {
 
 	mock.AssertExpectations(t)
 	mock.AssertNumberOfCalls(t, metrics.GaugeType.String(), 8)
-	if (runtime.GOOS == "linux") {
+	if runtime.GOOS == "linux" {
 		mock.AssertNumberOfCalls(t, metrics.MonotonicCountType.String(), 1)
 	}
 	mock.AssertNumberOfCalls(t, "Commit", 2)
