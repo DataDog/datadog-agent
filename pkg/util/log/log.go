@@ -44,6 +44,15 @@ type DatadogLogger struct {
 // SetupLogger setup agent wide logger
 func SetupLogger(i seelog.LoggerInterface, level string) {
 	logger = setupCommonLogger(i, level)
+
+	// Flush the log entries logged before initialization now that the logger is initialized
+	bufferMutex.Lock()
+	bufferLogsBeforeInit = false
+	defer bufferMutex.Unlock()
+	for _, logLine := range logsBuffer {
+		logLine()
+	}
+	logsBuffer = []func(){}
 }
 
 // SetupJMXLogger setup JMXfetch specific logger
@@ -73,14 +82,6 @@ func setupCommonLogger(i seelog.LoggerInterface, level string) *DatadogLogger {
 	// below cannot be performed.
 	l.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
 
-	// Flushing logs since the logger is now initialized
-	bufferMutex.Lock()
-	bufferLogsBeforeInit = false
-	defer bufferMutex.Unlock()
-	for _, logLine := range logsBuffer {
-		logLine()
-	}
-	logsBuffer = []func(){}
 	return l
 }
 

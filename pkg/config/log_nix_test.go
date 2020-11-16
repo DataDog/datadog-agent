@@ -26,3 +26,12 @@ func TestGetSyslogURI(t *testing.T) {
 	mockConfig.Set("syslog_uri", "")
 	assert.Equal(GetSyslogURI(), "")
 }
+
+func TestSetupLoggingNowhere(t *testing.T) {
+	// setup logger so that it logs nowhere: i.e.  not to file, not to syslog, not to console
+	seelogConfig, _ = buildLoggerConfig("agent", "info", "", "", false, false, false)
+	loggerInterface, err := GenerateLoggerInterface(seelogConfig)
+
+	assert.Nil(t, loggerInterface)
+	assert.NotNil(t, err)
+}
