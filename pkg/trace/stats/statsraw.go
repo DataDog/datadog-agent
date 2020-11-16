@@ -158,6 +158,7 @@ func AssembleGrain(b *strings.Builder, env, resource, service string, m map[stri
 	b.Reset()
 	size := len("env:") + len(env) + len(",resource:") + len(resource) + len(",service:") + len(service)
 	for k, v := range m {
+		// Adds 2 additional chars for each tag to account for the "," and ":" separators in the resulting string
 		size += len(k) + len(v) + 2
 	}
 	b.Grow(size)
