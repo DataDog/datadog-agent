@@ -66,14 +66,12 @@ func NewSocketFilterSnooper(
 	)
 
 	// Create the RAW_SOCKET inside the root network namespace
-	nsErr := util.WithRootNS(rootPath, func() {
+	err := util.WithRootNS(rootPath, func() error {
 		packetSrc, srcErr = newPacketSource(filter)
+		return srcErr
 	})
-	if nsErr != nil {
-		return nil, nsErr
-	}
-	if srcErr != nil {
-		return nil, srcErr
+	if err != nil {
+		return nil, err
 	}
 
 	cache := newReverseDNSCache(dnsCacheSize, dnsCacheTTL, dnsCacheExpirationPeriod)

@@ -270,14 +270,13 @@ func (c *Consumer) dumpTable(family uint8, output chan Event, ns netns.NsHandle)
 		_ = ns.Close()
 	}()
 
-	return util.WithNS(c.procRoot, ns, func() {
+	return util.WithNS(c.procRoot, ns, func() error {
 
 		log.Tracef("dumping table for ns %s", ns)
 
 		sock, err := NewSocket()
 		if err != nil {
-			log.Errorf("could not open netlink socket for net ns %d", int(ns))
-			return
+			return fmt.Errorf("could not open netlink socket for net ns %d", int(ns))
 		}
 
 		conn := netlink.NewConn(sock, sock.pid)
@@ -296,16 +295,15 @@ func (c *Consumer) dumpTable(family uint8, output chan Event, ns netns.NsHandle)
 
 		verify, err := conn.Send(req)
 		if err != nil {
-			log.Errorf("netlink dump error: %s", err)
-			return
+			return fmt.Errorf("netlink dump error: %w", err)
 		}
 
 		if err := netlink.Validate(req, []netlink.Message{verify}); err != nil {
-			log.Errorf("netlink dump message validation error: %s", err)
-			return
+			return fmt.Errorf("netlink dump message validation error: %w", err)
 		}
 
 		c.receive(output, sock)
+		return nil
 	})
 }
 
@@ -329,11 +327,11 @@ func (c *Consumer) Stop() {
 // This go-routine is responsible for all socket system calls.
 func (c *Consumer) initWorker(procRoot string) {
 	go func() {
-		_ = util.WithRootNS(procRoot, func() {
+		_ = util.WithRootNS(procRoot, func() error {
 			for {
 				fn, ok := <-c.workQueue
 				if !ok {
-					return
+					return nil
 				}
 				fn()
 			}

@@ -15,7 +15,7 @@ import (
 // WithRootNS executes a function within root network namespace and then switch back
 // to the previous namespace. If the thread is already in the root network namespace,
 // the function is executed without calling SYS_SETNS.
-func WithRootNS(procRoot string, fn func()) error {
+func WithRootNS(procRoot string, fn func() error) error {
 	rootNS, err := netns.GetFromPath(fmt.Sprintf("%s/1/ns/net", procRoot))
 	if err != nil {
 		return err
@@ -26,7 +26,7 @@ func WithRootNS(procRoot string, fn func()) error {
 
 // WithNS executes the given function in the given network namespace, and then
 // switches back to the previous namespace.
-func WithNS(procRoot string, ns netns.NsHandle, fn func()) error {
+func WithNS(procRoot string, ns netns.NsHandle, fn func() error) error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
@@ -36,16 +36,19 @@ func WithNS(procRoot string, ns netns.NsHandle, fn func()) error {
 	}
 
 	if ns.Equal(prevNS) {
-		fn()
-		return nil
+		return fn()
 	}
 
 	if err := netns.Set(ns); err != nil {
 		return err
 	}
 
-	fn()
-	return netns.Set(prevNS)
+	fnErr := fn()
+	nsErr := netns.Set(prevNS)
+	if fnErr != nil {
+		return fnErr
+	}
+	return nsErr
 }
 
 // GetNetNamespaces returns a list of network namespaces on the machine. The caller

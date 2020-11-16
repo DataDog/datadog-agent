@@ -17,14 +17,12 @@ func HeadlessSocketFilter(rootPath string, filter *manager.Probe) (closeFn func(
 		srcErr    error
 	)
 
-	nsErr := util.WithRootNS(rootPath, func() {
+	err = util.WithRootNS(rootPath, func() error {
 		packetSrc, srcErr = newPacketSource(filter)
+		return srcErr
 	})
-	if nsErr != nil {
-		return nil, nsErr
-	}
-	if srcErr != nil {
-		return nil, srcErr
+	if err != nil {
+		return nil, err
 	}
 
 	return func() { packetSrc.Close() }, nil
