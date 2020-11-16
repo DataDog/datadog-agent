@@ -79,7 +79,8 @@ func TestCPUCheckLinux(t *testing.T) {
 	cpuCheck.Configure(nil, nil, "test")
 
 	mock := mocksender.NewMockSender(cpuCheck.ID())
-	mock.On("Gauge", "system.cpu.num_cores", 1.0, "", []string(nil)).Return().Times(1)
+	mock.On(metrics.GaugeType.String(), "system.cpu.num_cores", 1.0, "", []string(nil)).Return().Times(1)
+	mock.On(metrics.MonotonicCountType.String(), "system.cpu.ctx_switches", 3, "", []string(nil)).Return().Times(1)
 	mock.On("Commit").Return().Times(1)
 
 	sample = firstSample
@@ -87,6 +88,7 @@ func TestCPUCheckLinux(t *testing.T) {
 
 	mock.AssertExpectations(t)
 	mock.AssertNumberOfCalls(t, metrics.GaugeType.String(), 1)
+	mock.AssertNumberOfCalls(t, metrics.MonotonicCountType.String(), 1)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
 
 	sample = secondSample
