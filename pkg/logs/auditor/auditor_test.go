@@ -62,11 +62,11 @@ func (suite *AuditorTestSuite) TestAuditorStartStop() {
 func (suite *AuditorTestSuite) TestAuditorUpdatesRegistry() {
 	suite.a.registry = make(map[string]*RegistryEntry)
 	suite.Equal(0, len(suite.a.registry))
-	suite.a.updateRegistry(suite.source.Config.Path, "42", "end")
+	suite.a.updateRegistry(suite.source.Config.Path, "42", "end", "")
 	suite.Equal(1, len(suite.a.registry))
 	suite.Equal("42", suite.a.registry[suite.source.Config.Path].Offset)
 	suite.Equal("end", suite.a.registry[suite.source.Config.Path].TailingMode)
-	suite.a.updateRegistry(suite.source.Config.Path, "43", "beginning")
+	suite.a.updateRegistry(suite.source.Config.Path, "43", "beginning", "")
 	suite.Equal(1, len(suite.a.registry))
 	suite.Equal("43", suite.a.registry[suite.source.Config.Path].Offset)
 	suite.Equal("beginning", suite.a.registry[suite.source.Config.Path].TailingMode)
