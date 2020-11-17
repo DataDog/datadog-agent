@@ -18,8 +18,9 @@ import (
 )
 
 const (
-	PrioProcess               = 0   // linux/resource.h
-	ClockTicks                = 100 // C.sysconf(C._SC_CLK_TCK)
+	PrioProcess = 0   // linux/resource.h
+	ClockTicks  = 100 // C.sysconf(C._SC_CLK_TCK)
+	// WorldReadable represents file permission that's world readable
 	WorldReadable os.FileMode = 4
 )
 
