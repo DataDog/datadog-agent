@@ -257,18 +257,10 @@ SYSCALL_COMPAT_KRETPROBE(truncate) {
 }
 
 SYSCALL_COMPAT_KRETPROBE(open) {
-    int retval = PT_REGS_RC(ctx);
-    if (retval >= 0 && retval <= 2)
-        return 0;
-
     return trace__sys_open_ret(ctx);
 }
 
 SYSCALL_COMPAT_KRETPROBE(openat) {
-    int retval = PT_REGS_RC(ctx);
-    if (retval >= 0 && retval <= 2)
-        return 0;
-
     return trace__sys_open_ret(ctx);
 }
 
