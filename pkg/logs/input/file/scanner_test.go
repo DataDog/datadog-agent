@@ -217,7 +217,8 @@ func TestScannerScanStartNewTailer(t *testing.T) {
 		path = fmt.Sprintf("%s/*.log", testDir)
 		openFilesLimit := 2
 		sleepDuration := 20 * time.Millisecond
-		scanner := NewScanner(config.NewLogSources(), openFilesLimit, mock.NewMockProvider(), auditor.NewRegistry(), sleepDuration)
+		registry := auditor.NewRegistry()
+		scanner := NewScanner(config.NewLogSources(), openFilesLimit, mock.NewMockProvider(), registry, sleepDuration)
 		source := config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Identifier: configID, Path: path})
 		scanner.activeSources = append(scanner.activeSources, source)
 		status.Clear()
@@ -243,7 +244,66 @@ func TestScannerScanStartNewTailer(t *testing.T) {
 		assert.Equal(t, "hello", string(msg.Content))
 		msg = <-tailer.outputChan
 		assert.Equal(t, "world", string(msg.Content))
+
+		// Ensure registry has the correct ID
+		assert.Equal(t, configID, registry.GetConfigID())
 	}
+}
+
+func TestScannerWithConcurrentContainerTailer(t *testing.T) {
+	testDir, err := ioutil.TempDir("", "log-scanner-test-")
+	assert.Nil(t, err)
+	path := fmt.Sprintf("%s/container.log", testDir)
+
+	// create scanner
+	openFilesLimit := 3
+	sleepDuration := 20 * time.Millisecond
+	registry := auditor.NewRegistry()
+	scanner := NewScanner(config.NewLogSources(), openFilesLimit, mock.NewMockProvider(), registry, sleepDuration)
+	firstSource := config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/*.log", testDir), TailingMode: "beginning", Identifier: "123456789"})
+	secondSource := config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/*.log", testDir), TailingMode: "beginning", Identifier: "987654321"})
+
+	// create/truncate file
+	file, err := os.Create(path)
+	assert.Nil(t, err)
+
+	// add content before starting the tailer
+	_, err = file.WriteString("Once\n")
+	assert.Nil(t, err)
+	_, err = file.WriteString("Upon\n")
+	assert.Nil(t, err)
+
+	// test scan from the beginning, it shall read previously written strings
+	scanner.addSource(firstSource)
+	assert.Equal(t, 1, len(scanner.tailers))
+
+	// add content after starting the tailer
+	_, err = file.WriteString("A\n")
+	assert.Nil(t, err)
+	_, err = file.WriteString("Time\n")
+	assert.Nil(t, err)
+
+	tailer := scanner.tailers[getScanKey(path, firstSource)]
+	msg := <-tailer.outputChan
+	assert.Equal(t, "Once", string(msg.Content))
+	msg = <-tailer.outputChan
+	assert.Equal(t, "Upon", string(msg.Content))
+	msg = <-tailer.outputChan
+	assert.Equal(t, "A", string(msg.Content))
+	msg = <-tailer.outputChan
+	assert.Equal(t, "Time", string(msg.Content))
+
+	// Ensure registry has the correct ID
+	assert.Equal(t, firstSource.Config.Identifier, registry.GetConfigID())
+	assert.Equal(t, "file:"+path, registry.GetIdentifier())
+
+	// Add a second source, same file, different container ID, tailing twice the same file is supported in that case
+	scanner.addSource(secondSource)
+	assert.Equal(t, 2, len(scanner.tailers))
+
+	// Ensure registry has been updated
+	assert.Equal(t, secondSource.Config.Identifier, registry.GetConfigID())
+	assert.Equal(t, "file:"+path, registry.GetIdentifier())
 }
 
 func TestScannerTailFromTheBeginning(t *testing.T) {
@@ -253,7 +313,8 @@ func TestScannerTailFromTheBeginning(t *testing.T) {
 	// create scanner
 	openFilesLimit := 3
 	sleepDuration := 20 * time.Millisecond
-	scanner := NewScanner(config.NewLogSources(), openFilesLimit, mock.NewMockProvider(), auditor.NewRegistry(), sleepDuration)
+	registry := auditor.NewRegistry()
+	scanner := NewScanner(config.NewLogSources(), openFilesLimit, mock.NewMockProvider(), registry, sleepDuration)
 	sources := []*config.LogSource{
 		config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/test.log", testDir), TailingMode: "beginning"}),
 		config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/container.log", testDir), TailingMode: "beginning", Identifier: "123456789"}),
@@ -291,6 +352,9 @@ func TestScannerTailFromTheBeginning(t *testing.T) {
 		assert.Equal(t, "A", string(msg.Content))
 		msg = <-tailer.outputChan
 		assert.Equal(t, "Time", string(msg.Content))
+
+		// Ensure registry has the correct ID
+		assert.Equal(t, source.Config.Identifier, registry.GetConfigID())
 	}
 }
 
