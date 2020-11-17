@@ -12,21 +12,19 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/blabber/go-freebsd-sysctl/sysctl"
-
-	"bou.ke/monkey"
 )
 
+func GetInt64(name string) (value int64, err error) {
+	value = 65534
+	err = nil
+	return
+}
+
 func TestFhCheckFreeBSD(t *testing.T) {
+	getInt64 = GetInt64
 
 	fileHandleCheck := new(fhCheck)
 	fileHandleCheck.Configure(nil, nil, "test")
-
-	monkey.PatchInstanceMethod(reflect.TypeOf(sysctl), "GetInt64", func(name string) (value int64, err error) {
-		value = 65534
-		err = nil
-		return
-	})
 
 	mock := mocksender.NewMockSender(fileHandleCheck.ID())
 
