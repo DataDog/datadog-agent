@@ -100,6 +100,8 @@ require (
 	github.com/godbus/dbus v4.1.0+incompatible
 	github.com/gogo/googleapis v1.3.2 // indirect
 	github.com/gogo/protobuf v1.3.1
+	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e
+	github.com/golang/mock v1.3.1
 	github.com/golang/protobuf v1.3.4
 	github.com/google/gopacket v1.1.17
 	github.com/google/uuid v1.1.1
