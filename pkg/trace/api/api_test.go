@@ -511,29 +511,26 @@ func TestDecodeV05(t *testing.T) {
 }
 
 func TestHandleStats(t *testing.T) {
-	bucket := func(start, duration int64) pb.ClientStatsBucket {
+	bucket := func(start, duration uint64) pb.ClientStatsBucket {
 		return pb.ClientStatsBucket{
 			Start:    start,
 			Duration: duration,
 			Stats: []pb.ClientGroupedStats{
 				{
-					Name:      "name",
-					Env:       "env",
-					Service:   "service",
-					Resource:  "/asd/r",
-					Version:   "1.2",
-					OtherTags: []string{"a:b", "c:d"},
-					Hits:      1.2,
-					Errors:    440,
-					Duration:  123,
-					TopLevel:  999,
+					Name:     "name",
+					Service:  "service",
+					Resource: "/asd/r",
+					Hits:     2,
+					Errors:   440,
+					Duration: 123,
 				},
 			},
 		}
 	}
 	p := pb.ClientStatsPayload{
 		Hostname: "h",
-		Env:      "e",
+		Env:      "env",
+		Version:  "1.2",
 		Stats: []pb.ClientStatsBucket{
 			bucket(1, 10),
 			bucket(500, 100342),

@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
+	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
@@ -401,6 +402,17 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 	metrics.Count("datadog.trace_agent.receiver.stats_buckets", int64(len(in.Stats)), nil, 1)
+
+	if in.Env == "" {
+		in.Env = r.conf.DefaultEnv
+	}
+	in.Env = traceutil.NormalizeTag(in.Env)
+	for _, rule := range r.conf.ReplaceTags {
+		switch rule.Name {
+		case "env", "*":
+			in.Env = rule.Re.ReplaceAllString(in.Env, rule.Repl)
+		}
+	}
 	out := stats.Payload{
 		HostName: in.Hostname,
 		Env:      in.Env,
@@ -410,35 +422,25 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 		for _, b := range group.Stats {
 			// Normalizer
 			b.Name, _ = traceutil.NormalizeName(b.Name)
-			if b.Env == "" {
-				b.Env = r.conf.DefaultEnv
-			}
-			b.Env = traceutil.NormalizeTag(b.Env)
 			b.Service, _ = traceutil.NormalizeService(b.Service, req.Header.Get(headerLang))
 			if b.Resource == "" {
 				b.Resource = b.Name
 			}
-			// TODO(x): obfuscate b.Resource
 			b.Resource, _ = traceutil.TruncateResource(b.Resource)
-			// TODO(x): validate b.HTTPStatusCode if added
-
-			tags := map[string]string{
-				"version": b.Version,
+			if b.Type == "sql" || b.DBType != "" {
+				// TODO(gbbr): perhaps we should store only one instance instead of
+				// a new one on each request?
+				oq, err := obfuscate.NewObfuscator(nil).ObfuscateSQLString(b.Resource)
+				if err != nil {
+					log.Errorf("Error obfuscating resource %q: %v", b.Resource, err)
+				} else {
+					b.Resource = oq.Query
+				}
 			}
-			for _, t := range b.OtherTags {
-				parts := strings.SplitN(t, ":", 2)
-				if len(parts) > 0 {
-					if v := parts[0]; len(v) > traceutil.MaxMetaKeyLen {
-						parts[0] = traceutil.TruncateUTF8(v, traceutil.MaxMetaKeyLen) + "..."
-					}
-					tags[parts[0]] = ""
-				}
-				if len(parts) > 1 {
-					if v := parts[1]; len(v) > traceutil.MaxMetaValLen {
-						parts[1] = traceutil.TruncateUTF8(v, traceutil.MaxMetaValLen) + "..."
-					}
-					tags[parts[0]] = parts[1]
-				}
+
+			tags := map[string]string{"version": in.Version}
+			if b.HTTPStatusCode != 0 {
+				tags["http.status_code"] = strconv.Itoa(int(b.HTTPStatusCode))
 			}
 
 			// Replacer
@@ -447,14 +449,8 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 				switch key {
 				case "resource.name":
 					b.Resource = re.ReplaceAllString(b.Resource, str)
-				case "version":
-					b.Version = re.ReplaceAllString(b.Version, str)
-				case "env":
-					b.Env = re.ReplaceAllString(b.Env, str)
 				case "*":
 					b.Resource = re.ReplaceAllString(b.Resource, str)
-					b.Version = re.ReplaceAllString(b.Version, str)
-					b.Env = re.ReplaceAllString(b.Env, str)
 					for k, v := range tags {
 						tags[k] = re.ReplaceAllString(v, str)
 					}
@@ -467,37 +463,34 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 			}
 
 			newb := stats.Bucket{
-				Start:    group.Start,
-				Duration: group.Duration,
+				Start:    int64(group.Start),
+				Duration: int64(group.Duration),
 				Counts:   make(map[string]stats.Count),
 			}
-			grain, tagset := stats.AssembleGrain(&buf, b.Env, b.Resource, b.Service, tags)
+			grain, tagset := stats.AssembleGrain(&buf, out.Env, b.Resource, b.Service, tags)
 			key := stats.GrainKey(b.Name, stats.HITS, grain)
 			newb.Counts[key] = stats.Count{
-				Key:      key,
-				Name:     b.Name,
-				Measure:  stats.HITS,
-				TagSet:   tagset,
-				TopLevel: b.TopLevel,
-				Value:    b.Hits,
+				Key:     key,
+				Name:    b.Name,
+				Measure: stats.HITS,
+				TagSet:  tagset,
+				Value:   float64(b.Hits),
 			}
 			key = stats.GrainKey(b.Name, stats.ERRORS, grain)
 			newb.Counts[key] = stats.Count{
-				Key:      key,
-				Name:     b.Name,
-				Measure:  stats.ERRORS,
-				TagSet:   tagset,
-				TopLevel: b.TopLevel,
-				Value:    b.Errors,
+				Key:     key,
+				Name:    b.Name,
+				Measure: stats.ERRORS,
+				TagSet:  tagset,
+				Value:   float64(b.Errors),
 			}
 			key = stats.GrainKey(b.Name, stats.DURATION, grain)
 			newb.Counts[key] = stats.Count{
-				Key:      key,
-				Name:     b.Name,
-				Measure:  stats.DURATION,
-				TagSet:   tagset,
-				TopLevel: b.TopLevel,
-				Value:    b.Duration,
+				Key:     key,
+				Name:    b.Name,
+				Measure: stats.DURATION,
+				TagSet:  tagset,
+				Value:   float64(b.Duration),
 			}
 			out.Stats = append(out.Stats, newb)
 		}
