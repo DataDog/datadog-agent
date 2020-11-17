@@ -28,6 +28,8 @@ func resolveRuntimeArch() {
 	switch string(uname.Machine[:bytes.IndexByte(uname.Machine[:], 0)]) {
 	case "x86_64":
 		RuntimeArch = "x64"
+	case "aarch64":
+		RuntimeArch = "arm64"
 	default:
 		RuntimeArch = "ia32"
 	}
