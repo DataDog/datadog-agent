@@ -27,9 +27,10 @@ const (
 type LogSource struct {
 	// Put expvar Int first because it's modified with sync/atomic, so it needs to
 	// be 64-bit aligned on 32-bit systems. See https://golang.org/pkg/sync/atomic/#pkg-note-BUG
-	BytesRead    expvar.Int
-	messageCount int64
-	avgLatency   int64
+	BytesRead          expvar.Int
+	messageCount       int64
+	allTimeAvgLatency  int64
+	allTimePeakLatency int64
 
 	Name     string
 	Config   *LogsConfig
@@ -101,13 +102,13 @@ func (s *LogSource) GetSourceType() SourceType {
 func (s *LogSource) UpdateLatency(delta int64) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
-	s.avgLatency = (s.messageCount*s.avgLatency + delta) / (s.messageCount + 1)
+	s.allTimeAvgLatency = (s.messageCount*s.allTimeAvgLatency + delta) / (s.messageCount + 1)
 	s.messageCount++
 }
 
-// GetAvgLatency returns the average log processing latency
-func (s *LogSource) GetAvgLatency() int64 {
+// GetAllTimeAvgLatency returns the average log processing latency
+func (s *LogSource) GetAllTimeAvgLatency() int64 {
 	s.lock.Lock()
 	defer s.lock.Unlock()
-	return s.avgLatency
+	return s.allTimeAvgLatency
 }
