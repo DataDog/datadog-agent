@@ -3,7 +3,6 @@
 package ebpf
 
 import (
-	"bytes"
 	"expvar"
 	"fmt"
 	"math"
@@ -12,6 +11,8 @@ import (
 	"time"
 	"unsafe"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
@@ -19,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
-	"golang.org/x/sys/unix"
 )
 
 var (
@@ -77,11 +77,13 @@ type Tracer struct {
 	bufferLock sync.Mutex
 
 	// Internal buffer used to compute bytekeys
-	buf *bytes.Buffer
+	buf [network.ConnectionByteKeyMaxLen]byte
 
 	// Connections for the tracer to blacklist
 	sourceExcludes []*network.ConnectionFilter
 	destExcludes   []*network.ConnectionFilter
+
+	conntrack *cachedConntrack
 }
 
 const (
@@ -237,13 +239,13 @@ func NewTracer(config *Config) (*Tracer, error) {
 		udpPortMapping: udpPortMapping,
 		reverseDNS:     reverseDNS,
 		buffer:         make([]network.ConnectionStats, 0, 512),
-		buf:            &bytes.Buffer{},
 		conntracker:    conntracker,
 		sourceExcludes: network.ParseConnectionFilters(config.ExcludedSourceConnections),
 		destExcludes:   network.ParseConnectionFilters(config.ExcludedDestinationConnections),
 		perfHandler:    perfHandler,
 		flushIdle:      make(chan chan struct{}),
 		stop:           make(chan struct{}),
+		conntrack:      newCachedConntrack(config.ProcRoot, netlink.NewConntrack, 128),
 	}
 
 	tr.perfMap, tr.batchManager, err = tr.initPerfPolling(perfHandler)
@@ -423,7 +425,7 @@ func (t *Tracer) storeClosedConn(cs network.ConnectionStats) {
 
 	atomic.AddInt64(&t.closedConns, 1)
 	cs.IPTranslation = t.conntracker.GetTranslationForConn(cs)
-	t.state.StoreClosedConnection(cs)
+	t.state.StoreClosedConnection(&cs)
 	if cs.IPTranslation != nil {
 		t.conntracker.DeleteTranslation(cs)
 	}
@@ -437,6 +439,7 @@ func (t *Tracer) Stop() {
 	t.perfHandler.Stop()
 	close(t.flushIdle)
 	t.conntracker.Close()
+	t.conntrack.Close()
 }
 
 func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, error) {
@@ -551,7 +554,7 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 	var expired []*ConnTuple
 	entries := mp.IterateFrom(unsafe.Pointer(&ConnTuple{}))
 	for entries.Next(unsafe.Pointer(key), unsafe.Pointer(stats)) {
-		if stats.isExpired(latestTime, t.timeoutForConn(key)) {
+		if stats.isExpired(latestTime, t.timeoutForConn(key)) && !t.conntrackExists(key) {
 			expired = append(expired, key.copy())
 			if key.isTCP() {
 				atomic.AddInt64(&t.expiredTCPConns, 1)
@@ -831,4 +834,13 @@ func (t *Tracer) getProbeProgramIDs() (map[string]uint32, error) {
 		fds[p.Section] = uint32(id)
 	}
 	return fds, nil
+}
+
+func (t *Tracer) conntrackExists(conn *ConnTuple) bool {
+	ok, err := t.conntrack.Exists(conn)
+	if err != nil {
+		log.Errorf("error checking conntrack for connection %+v", *conn)
+	}
+
+	return ok
 }

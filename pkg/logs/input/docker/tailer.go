@@ -183,6 +183,8 @@ func (t *Tailer) readForever() {
 			inBuf := make([]byte, 4096)
 			n, err := t.read(inBuf, t.readTimeout)
 
+			// Since `container_collect_all` reports all docker logs as a single source (even though the source is overridden internally),
+			// we need to report the byte count to the parent source used to populate the status page.
 			if t.source.ParentSource != nil {
 				t.source.ParentSource.BytesRead.Add(int64(n))
 			} else {

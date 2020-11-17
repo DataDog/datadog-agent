@@ -46,7 +46,7 @@ func main() {
 			fmt.Println(err)
 		}
 		for _, c := range cs.Conns {
-			fmt.Println(network.ConnectionSummary(c, cs.DNS))
+			fmt.Println(network.ConnectionSummary(&c, cs.DNS))
 		}
 	}
 
