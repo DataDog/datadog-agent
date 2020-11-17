@@ -18,8 +18,7 @@ import (
 )
 
 const (
-	PrioProcess = 0   // linux/resource.h
-	ClockTicks  = 100 // C.sysconf(C._SC_CLK_TCK)
+	ClockTicks = 100 // C.sysconf(C._SC_CLK_TCK)
 	// WorldReadable represents file permission that's world readable
 	WorldReadable os.FileMode = 4
 )
@@ -374,6 +373,7 @@ func (p *Probe) parseStat(pidPath string, now time.Time) *statInfo {
 	return sInfo
 }
 
+// parseStatContent takes the content of "stat" file and parses the values we care about
 func (p *Probe) parseStatContent(content []byte, sInfo *statInfo, now time.Time) *statInfo {
 	spaces := 0
 	var ppidStr, utimeStr, stimeStr, niceStr, startTimeStr string

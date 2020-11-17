@@ -395,7 +395,9 @@ func TestParseStat(t *testing.T) {
 		expCreate, err := expProc.CreateTime()
 		assert.NoError(t, err)
 		expPpid, err := expProc.Ppid()
+		assert.NoError(t, err)
 		exptimes, err := expProc.Times()
+		assert.NoError(t, err)
 
 		assert.Equal(t, expCreate, actual.createTime)
 		assert.Equal(t, expPpid, actual.ppid)
