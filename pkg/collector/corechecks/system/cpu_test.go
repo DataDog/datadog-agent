@@ -115,7 +115,7 @@ func TestCPUCheckLinux(t *testing.T) {
 	m.AssertExpectations(t)
 	m.AssertNumberOfCalls(t, metrics.GaugeType.String(), 8)
 	if runtime.GOOS == "linux" {
-		m.AssertNumberOfCalls(t, metrics.MonotonicCountType.String(), 1)
+		m.AssertNumberOfCalls(t, metrics.MonotonicCountType.String(), 2)
 	}
 	m.AssertNumberOfCalls(t, "Commit", 2)
 }
