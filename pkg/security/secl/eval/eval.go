@@ -117,7 +117,7 @@ type IntArray struct {
 	Values []int
 }
 
-func extractField(field string) (Field, RegisterID, error) {
+func extractField(field string) (Field, Field, RegisterID, error) {
 	var id RegisterID
 
 	re := regexp.MustCompile(`\[([^\]]*)\]`)
@@ -125,15 +125,15 @@ func extractField(field string) (Field, RegisterID, error) {
 
 	switch len(ids) {
 	case 0:
-		return field, "", nil
+		return field, "", "", nil
 	case 2:
 		id = ids[1]
 	default:
-		return "", "", errors.New("wrong register format")
+		return "", "", "", errors.New("wrong register format")
 	}
 
 	re = regexp.MustCompile(`(.*)\[[^\]]*\](.*)`)
-	return re.ReplaceAllString(field, `$1$2`), id, nil
+	return re.ReplaceAllString(field, `$1$2`), re.ReplaceAllString(field, `$1`), id, nil
 }
 
 func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, interface{}, lexer.Position, error) {
@@ -421,16 +421,17 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, in
 				}
 			}
 
-			field, registerID, err := extractField(*obj.Ident)
+			field, listField, registerID, err := extractField(*obj.Ident)
 			if err != nil {
 				return nil, nil, obj.Pos, err
 			}
 
 			if registerID != "" {
-				iterator, err := state.model.GetIterator(field)
+				iterator, err := state.model.GetIterator(listField)
 				if err != nil {
 					return nil, nil, obj.Pos, err
 				}
+				// TODO safchain generate random id if not proveded
 				state.registerIterators[registerID] = iterator
 			}
 

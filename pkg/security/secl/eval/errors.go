@@ -79,6 +79,15 @@ func (e ErrFieldNotFound) Error() string {
 	return fmt.Sprintf("field `%s` not found", e.Field)
 }
 
+// ErrIteratorNoSupported error when a field doesn't support iteration
+type ErrIteratorNoSupported struct {
+	Field string
+}
+
+func (e ErrIteratorNoSupported) Error() string {
+	return fmt.Sprintf("field `%s` doesn't support iteration", e.Field)
+}
+
 // ErrValueTypeMismatch error when the given value is not having the correct type
 type ErrValueTypeMismatch struct {
 	Field string

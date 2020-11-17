@@ -47,9 +47,7 @@ func (t *testItemIterator) Next(ctx *Context, prev unsafe.Pointer) unsafe.Pointe
 
 func (m *testModel) GetIterator(field Field) (Iterator, error) {
 	switch field {
-	case "process.list.key":
-		return &testItemIterator{}, nil
-	case "process.list.value":
+	case "process.list":
 		return &testItemIterator{}, nil
 	}
 
@@ -145,7 +143,7 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 
 		return &IntEvaluator{
 			EvalFnc: func(ctx *Context) int {
-				reg := ctx.registers[regID]
+				reg := ctx.Registers[regID]
 				element := (*list.Element)(reg.Value)
 				if element != nil {
 					return element.Value.(*testItem).key
@@ -160,7 +158,7 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 
 		return &IntEvaluator{
 			EvalFnc: func(ctx *Context) int {
-				reg := ctx.registers[regID]
+				reg := ctx.Registers[regID]
 				element := (*list.Element)(reg.Value)
 				if element != nil {
 					return element.Value.(*testItem).value

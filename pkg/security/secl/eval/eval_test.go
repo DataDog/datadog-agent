@@ -661,7 +661,8 @@ func TestRegister(t *testing.T) {
 		{Expr: `process.list[_].key == 9999 && process.list[_].value == 11`, Expected: false},
 		{Expr: `process.list[_].key == 100 && process.list[_].value == 101`, Expected: true},
 		{Expr: `process.list[_].key == 200 && process.list[_].value == 201`, Expected: true},
-		/*{Expr: `process.list[A].key == 200 && process.list[A].value == 201`, Expected: true},
+		/*{Expr: `process.list.key == 200 && process.list.value == 11`, Expected: true},
+		{Expr: `process.list[A].key == 200 && process.list[A].value == 201`, Expected: true},
 		{Expr: `process.list[A].key == 200 && process.list[B].value == 101`, Expected: true},
 		{Expr: `process.list[A].key == process.list && process.list[B].value == 444`, Expected: false},
 		{Expr: `process.list[A].key == 200 || process.list[B].value == 11`, Expected: true},*/

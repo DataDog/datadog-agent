@@ -33,8 +33,7 @@ type RuleEvaluator struct {
 	EventTypes  []EventType
 	FieldValues map[Field][]FieldValue
 
-	partialEvals      map[Field]func(ctx *Context) bool
-	registerIterators map[RegisterID]Iterator
+	partialEvals map[Field]func(ctx *Context) bool
 }
 
 // PartialEval partially evaluation of the Rule with the given Field.
@@ -98,28 +97,7 @@ func combineRegisters(combinations []Registers, reg *Register, max int) []Regist
 
 // Eval - Evaluates
 func (r *Rule) Eval(ctx *Context) bool {
-	if len(r.evaluator.registerIterators) == 0 {
-		return r.evaluator.Eval(ctx)
-	}
-
-	ctx.registers = make(Registers)
-
-	// TODO all registers
-	ctx.registers["_"] = &Register{
-		ID:    "_",
-		Value: r.evaluator.registerIterators["_"].Front(ctx),
-	}
-
-	// eval each iterations
-	for ctx.registers["_"].Value != nil {
-		if r.evaluator.Eval(ctx) {
-			return true
-		}
-
-		ctx.registers["_"].Value = r.evaluator.registerIterators["_"].Next(ctx, ctx.registers["_"].Value)
-	}
-
-	return false
+	return r.evaluator.Eval(ctx)
 }
 
 // GetFieldValues returns the values of the given field
@@ -180,6 +158,29 @@ func (r *Rule) Parse() error {
 	return nil
 }
 
+func handleRegisters(evalFnc func(ctx *Context) bool, registerIterators map[RegisterID]Iterator) func(ctx *Context) bool {
+	return func(ctx *Context) bool {
+		ctx.Registers = make(Registers)
+
+		// TODO safchain all registers
+		ctx.Registers["_"] = &Register{
+			ID:    "_",
+			Value: registerIterators["_"].Front(ctx),
+		}
+
+		// eval each iterations
+		for ctx.Registers["_"].Value != nil {
+			if evalFnc(ctx) {
+				return true
+			}
+
+			ctx.Registers["_"].Value = registerIterators["_"].Next(ctx, ctx.Registers["_"].Value)
+		}
+
+		return false
+	}
+}
+
 func ruleToEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, error) {
 	macros := make(map[MacroID]*MacroEvaluator)
 	for id, macro := range opts.Macros {
@@ -202,23 +203,21 @@ func ruleToEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, e
 		return nil, err
 	}
 
-	// case where the rule is just a value and not a expression
+	// direct value, no bool evaluator, wrap value
 	if evalBool.EvalFnc == nil {
-		return &RuleEvaluator{
-			Eval: func(ctx *Context) bool {
-				return evalBool.Value
-			},
-			EventTypes:        events,
-			FieldValues:       state.fieldValues,
-			registerIterators: state.registerIterators,
-		}, nil
+		evalBool.EvalFnc = func(ctx *Context) bool {
+			return evalBool.Value
+		}
+	}
+
+	if len(state.registerIterators) > 0 {
+		evalBool.EvalFnc = handleRegisters(evalBool.EvalFnc, state.registerIterators)
 	}
 
 	return &RuleEvaluator{
-		Eval:              evalBool.EvalFnc,
-		EventTypes:        events,
-		FieldValues:       state.fieldValues,
-		registerIterators: state.registerIterators,
+		Eval:        evalBool.EvalFnc,
+		EventTypes:  events,
+		FieldValues: state.fieldValues,
 	}, nil
 }
 

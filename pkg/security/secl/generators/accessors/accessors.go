@@ -47,6 +47,7 @@ type Module struct {
 	PkgPrefix string
 	BuildTags []string
 	Fields    map[string]*structField
+	Iterators map[string]*structField
 }
 
 var module *Module
@@ -60,6 +61,7 @@ type structField struct {
 	Event      string
 	Handler    string
 	OrigType   string
+	Iterator   *structField
 }
 
 func resolveSymbol(pkg, symbol string) (types.Object, error) {
@@ -78,12 +80,12 @@ func origTypeToBasicType(kind string) string {
 	return kind
 }
 
-func handleBasic(name, alias, kind, event string) {
+func handleBasic(name, alias, kind, event string, iterator *structField) {
 	fmt.Printf("handleBasic %s %s\n", name, kind)
 
 	switch kind {
 	case "int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64":
-		module.Fields[alias] = &structField{Name: name, ReturnType: "int", Public: true, Event: event, OrigType: kind, BasicType: origTypeToBasicType(kind)}
+		module.Fields[alias] = &structField{Name: name, ReturnType: "int", Public: true, Event: event, OrigType: kind, BasicType: origTypeToBasicType(kind), Iterator: iterator}
 	default:
 		public := false
 		firstChar := strings.TrimPrefix(kind, "[]")
@@ -101,11 +103,12 @@ func handleBasic(name, alias, kind, event string) {
 			Public:     public,
 			Event:      event,
 			OrigType:   kind,
+			Iterator:   iterator,
 		}
 	}
 }
 
-func handleField(astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName string, fieldType *ast.Ident, event string) error {
+func handleField(astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName string, fieldType *ast.Ident, event string, iterator *structField, dejavu map[string]bool) error {
 	fmt.Printf("handleField fieldName %s, alias %s, prefix %s, aliasPrefix %s, pkgName %s, fieldType, %s\n", name, alias, prefix, aliasPrefix, pkgName, fieldType)
 
 	switch fieldType.Name {
@@ -114,7 +117,7 @@ func handleField(astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName st
 			name = prefix + "." + name
 			alias = aliasPrefix + "." + alias
 		}
-		handleBasic(name, alias, fieldType.Name, event)
+		handleBasic(name, alias, fieldType.Name, event, iterator)
 	default:
 		symbol, err := resolveSymbol(pkgName, fieldType.Name)
 		if err != nil {
@@ -133,14 +136,14 @@ func handleField(astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName st
 		}
 
 		spec := astFile.Scope.Lookup(fieldType.Name)
-		handleSpec(astFile, spec.Decl, prefix, aliasPrefix, event)
+		handleSpec(astFile, spec.Decl, prefix, aliasPrefix, event, iterator, dejavu)
 	}
 
 	return nil
 }
 
-func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event string) {
-	fmt.Printf("handleSpec spec: %+v, prefix: %s, aliasPrefix %s, event %s\n", spec, prefix, aliasPrefix, event)
+func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event string, iterator *structField, dejavu map[string]bool) {
+	fmt.Printf("handleSpec spec: %+v, prefix: %s, aliasPrefix %s, event %s, iterator %+v\n", spec, prefix, aliasPrefix, event, iterator)
 
 	if typeSpec, ok := spec.(*ast.TypeSpec); ok {
 		if structType, ok := typeSpec.Type.(*ast.StructType); ok {
@@ -159,11 +162,42 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 					fieldName := field.Names[0].Name
 					fieldAlias := fieldName
 
+					if dejavu[fieldName] {
+						fmt.Printf(">>>>>>>>>>>>>>: %s\n", fieldName)
+						continue
+					}
+
 					if fieldTag, found := tag.Lookup("field"); found {
 						split := strings.Split(fieldTag, ",")
 
 						if fieldAlias = split[0]; fieldAlias == "-" {
 							continue FIELD
+						}
+
+						if it, found := tag.Lookup("iterator"); found {
+							alias := fieldAlias
+							if aliasPrefix != "" {
+								alias = aliasPrefix + "." + fieldAlias
+							}
+
+							var fieldType *ast.Ident
+							if ft, ok := field.Type.(*ast.Ident); ok {
+								fieldType = ft
+							} else if ft, ok := field.Type.(*ast.StarExpr); ok {
+								if ident, ok := ft.X.(*ast.Ident); ok {
+									fieldType = ident
+								}
+							}
+
+							module.Iterators[alias] = &structField{
+								Name:       fmt.Sprintf("%s.%s", prefix, fieldName),
+								ReturnType: it,
+								Public:     true,
+								Event:      event,
+								OrigType:   fieldType.Name,
+							}
+
+							iterator = module.Iterators[alias]
 						}
 
 						if handler, found := tag.Lookup("handler"); found {
@@ -179,7 +213,6 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 
 							fieldType, ok := field.Type.(*ast.Ident)
 							if ok {
-
 								module.Fields[fieldAlias] = &structField{
 									Name:       fmt.Sprintf("%s.%s", prefix, fieldName),
 									BasicType:  origTypeToBasicType(fieldType.Name),
@@ -188,25 +221,36 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 									Public:     true,
 									Event:      event,
 									OrigType:   fieldType.Name,
+									Iterator:   iterator,
 								}
 							}
+							delete(dejavu, fieldName)
+
 							continue
 						}
 					}
 
+					dejavu[fieldName] = true
+
 					if fieldType, ok := field.Type.(*ast.Ident); ok {
-						if err := handleField(astFile, fieldName, fieldAlias, prefix, aliasPrefix, filepath.Base(pkgname), fieldType, event); err != nil {
+						if err := handleField(astFile, fieldName, fieldAlias, prefix, aliasPrefix, filepath.Base(pkgname), fieldType, event, iterator, dejavu); err != nil {
 							log.Print(err)
 						}
+						delete(dejavu, fieldName)
+
 						continue
 					} else if fieldType, ok := field.Type.(*ast.StarExpr); ok {
 						if itemIdent, ok := fieldType.X.(*ast.Ident); ok {
-							if err := handleField(astFile, fieldName, fieldAlias, prefix, aliasPrefix, filepath.Base(pkgname), itemIdent, event); err != nil {
+							if err := handleField(astFile, fieldName, fieldAlias, prefix, aliasPrefix, filepath.Base(pkgname), itemIdent, event, iterator, dejavu); err != nil {
 								log.Print(err)
 							}
+							delete(dejavu, fieldName)
+
 							continue
 						}
 					}
+
+					delete(dejavu, fieldName)
 
 					if strict {
 						log.Panicf("Don't know what to do with %s: %s", fieldName, spew.Sdump(field.Type))
@@ -224,7 +268,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 					if ident != nil {
 						embedded := astFile.Scope.Lookup(ident.Name)
 						if embedded != nil {
-							handleSpec(astFile, embedded.Decl, prefix, aliasPrefix, event)
+							handleSpec(astFile, embedded.Decl, prefix, aliasPrefix, event, iterator, dejavu)
 						}
 					}
 				}
@@ -281,6 +325,7 @@ func parseFile(filename string, pkgName string) (*Module, error) {
 		PkgPrefix: pkgPrefix,
 		BuildTags: buildTags,
 		Fields:    make(map[string]*structField),
+		Iterators: make(map[string]*structField),
 	}
 
 	for _, decl := range astFile.Decls {
@@ -299,7 +344,7 @@ func parseFile(filename string, pkgName string) (*Module, error) {
 
 			for _, spec := range decl.Specs {
 				if typeSpec, ok := spec.(*ast.TypeSpec); ok {
-					handleSpec(astFile, typeSpec, "", "", "")
+					handleSpec(astFile, typeSpec, "", "", "", nil, make(map[string]bool))
 				}
 			}
 		}
@@ -308,9 +353,13 @@ func parseFile(filename string, pkgName string) (*Module, error) {
 	return module, nil
 }
 
+var FuncMap = map[string]interface{}{
+	"TrimPrefix": strings.TrimPrefix,
+}
+
 func main() {
 	var err error
-	tmpl := template.Must(template.New("header").Parse(`{{- range .BuildTags }}// {{.}}{{end}}
+	tmpl := template.Must(template.New("header").Funcs(FuncMap).Parse(`{{- range .BuildTags }}// {{.}}{{end}}
 
 // Code generated - DO NOT EDIT.
 
@@ -322,25 +371,65 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
-func (m *Model) GetEvaluator(field eval.Field) (eval.Evaluator, error) {
+func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
+	switch field {
+	{{range $Name, $Field := .Iterators}}
+	case "{{$Name}}":
+		return &{{$Field.ReturnType}}{}, nil
+	{{end}}
+	}
+
+	return nil, &eval.ErrIteratorNoSupported{Field: field}
+}
+
+func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
 	switch field {
 	{{range $Name, $Field := .Fields}}
-	{{$Return := $Field.Name | printf "(*Event)(ctx.Object).%s"}}
-	{{if ne $Field.Handler ""}}
-		{{$Return = $Field.Handler | printf "(*Event)(ctx.Object).%s((*Event)(ctx.Object))"}}
+	{{$EvaluatorType := "eval.StringEvaluator"}}
+	{{if eq $Field.ReturnType "int"}}
+	{{$EvaluatorType = "eval.IntEvaluator"}}
+	{{else if eq $Field.ReturnType "bool"}}
+	{{$EvaluatorType = "eval.BoolEvaluator"}}
 	{{end}}
 
 	case "{{$Name}}":
-	{{if eq $Field.ReturnType "string"}}
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string { return {{$Return}} },
-	{{else if eq $Field.ReturnType "int"}}
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int({{$Return}}) },
-	{{else if eq $Field.ReturnType "bool"}}
-		return &eval.BoolEvaluator{
-			EvalFnc: func(ctx *eval.Context) bool { return {{$Return}} },
-	{{end}}
+		return &{{$EvaluatorType}}{
+			EvalFnc: func(ctx *eval.Context) {{$Field.ReturnType}} {
+				{{if $Field.Iterator}}
+					var result {{$Field.ReturnType}}
+
+					reg := ctx.Registers[regID]
+					element := (*{{$Field.Iterator.OrigType}})(reg.Value)
+					if element != nil {
+						{{$SubName := $Field.Iterator.Name | TrimPrefix $Field.Name}}
+
+						{{$Return := $SubName | printf "element%s"}}
+						{{if ne $Field.Handler ""}}
+							{{$Handler := $Field.Iterator.Name | TrimPrefix $Field.Handler}}
+							{{$Return = $Handler | printf "element%s((*Event)(ctx.Object))"}}
+						{{end}}
+
+						{{if eq $Field.ReturnType "int"}}
+							result = int({{$Return}})
+						{{else}}
+							result = {{$Return}}
+						{{end}}
+					}
+
+					return result
+				{{else}}
+					{{$Return := $Field.Name | printf "(*Event)(ctx.Object).%s"}}
+					{{if ne $Field.Handler ""}}
+						{{$Return = $Field.Handler | printf "(*Event)(ctx.Object).%s((*Event)(ctx.Object))"}}
+					{{end}}
+
+					{{if eq $Field.ReturnType "int"}}
+						return int({{$Return}})
+					{{else}}
+						return {{$Return}}
+					{{end}}
+				{{end}}
+			},
 			Field: field,
 		}, nil
 	{{end}}
@@ -404,6 +493,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	var ok bool
 	switch field {
 		{{range $Name, $Field := .Fields}}
+		{{if not $Field.Iterator}}
 		{{$FieldName := $Field.Name | printf "e.%s"}}
 		case "{{$Name}}":
 		{{if eq $Field.OrigType "string"}}
@@ -423,6 +513,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 				return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
 			}
 			return nil
+		{{end}}
 		{{end}}
 		{{end}}
 		}

@@ -36,7 +36,7 @@ func (r Registers) Clone() Registers {
 type Context struct {
 	Object unsafe.Pointer
 
-	registers Registers
+	Registers Registers
 }
 
 // SetObject set the given object to the context
