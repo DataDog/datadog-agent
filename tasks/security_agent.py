@@ -136,6 +136,7 @@ def functional_tests(
     output='',
     build_tags='',
     bundle_ebpf=True,
+    fail_fast=False,
 ):
     ldflags, gcflags, env = get_build_flags(ctx, arch=arch, major_version=major_version)
 
@@ -149,7 +150,7 @@ def functional_tests(
     if bundle_ebpf:
         build_tags = "ebpf_bindata," + build_tags
 
-    cmd = 'go test -tags functionaltests,linux_bpf,{build_tags} {output_opt} {verbose_opt} {run_opt} {repo_path}/pkg/security/tests'
+    cmd = 'go test -tags functionaltests,linux_bpf,{build_tags} {race_opt} {output_opt} {verbose_opt} {failfast_opt} {run_opt} {repo_path}/pkg/security/tests'
     if os.getuid() != 0 and not output:
         cmd = 'sudo -E PATH={path} ' + cmd
 
@@ -158,6 +159,7 @@ def functional_tests(
         "race_opt": "-race" if race else "",
         "output_opt": "-c -o " + output if output else "",
         "run_opt": "-run " + pattern if pattern else "",
+        "failfast_opt": "-failfast" if fail_fast else "",
         "build_tags": build_tags,
         "path": os.environ['PATH'],
         "repo_path": REPO_PATH,
