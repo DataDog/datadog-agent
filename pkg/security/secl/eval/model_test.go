@@ -26,32 +26,52 @@ type testProcess struct {
 	gid    int
 	isRoot bool
 	list   *list.List
+	array  []*testItem
 }
 
-type testItemIterator struct {
+type testItemListIterator struct {
+	prev *list.Element
 }
 
-func (t *testItemIterator) Front(ctx *Context) unsafe.Pointer {
+func (t *testItemListIterator) Front(ctx *Context) unsafe.Pointer {
 	if front := (*testEvent)(ctx.Object).process.list.Front(); front != nil {
+		t.prev = front
 		return unsafe.Pointer(front)
 	}
 	return nil
 }
 
-func (t *testItemIterator) Next(ctx *Context, prev unsafe.Pointer) unsafe.Pointer {
-	if next := (*list.Element)(prev).Next(); next != nil {
+func (t *testItemListIterator) Next(ctx *Context) unsafe.Pointer {
+	if next := (*list.Element)(t.prev).Next(); next != nil {
+		t.prev = next
 		return unsafe.Pointer(next)
 	}
 	return nil
 }
 
-func (m *testModel) GetIterator(field Field) (Iterator, error) {
-	switch field {
-	case "process.list":
-		return &testItemIterator{}, nil
+type testItemArrayIterator struct {
+	index int
+}
+
+func (t *testItemArrayIterator) Front(ctx *Context) unsafe.Pointer {
+	array := (*testEvent)(ctx.Object).process.array
+	if t.index < len(array) {
+		t.index++
+		return unsafe.Pointer(array[0])
+	}
+	return nil
+}
+
+func (t *testItemArrayIterator) Next(ctx *Context) unsafe.Pointer {
+	array := (*testEvent)(ctx.Object).process.array
+	if t.index < len(array) {
+		value := array[t.index]
+		t.index++
+
+		return unsafe.Pointer(value)
 	}
 
-	return nil, &ErrFieldNotFound{Field: field}
+	return nil
 }
 
 type testOpen struct {
@@ -108,6 +128,17 @@ func (m *testModel) ValidateField(key string, value FieldValue) error {
 	return nil
 }
 
+func (m *testModel) GetIterator(field Field) (Iterator, error) {
+	switch field {
+	case "process.list":
+		return &testItemListIterator{}, nil
+	case "process.array":
+		return &testItemArrayIterator{}, nil
+	}
+
+	return nil, &ErrIteratorNotSupported{Field: field}
+}
+
 func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, error) {
 	switch field {
 
@@ -144,8 +175,7 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 		return &IntEvaluator{
 			EvalFnc: func(ctx *Context) int {
 				reg := ctx.Registers[regID]
-				element := (*list.Element)(reg.Value)
-				if element != nil {
+				if element := (*list.Element)(reg.Value); element != nil {
 					return element.Value.(*testItem).key
 				}
 
@@ -159,9 +189,36 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 		return &IntEvaluator{
 			EvalFnc: func(ctx *Context) int {
 				reg := ctx.Registers[regID]
-				element := (*list.Element)(reg.Value)
-				if element != nil {
+				if element := (*list.Element)(reg.Value); element != nil {
 					return element.Value.(*testItem).value
+				}
+
+				return 0
+			},
+			Field: field,
+		}, nil
+
+	case "process.array.key":
+
+		return &IntEvaluator{
+			EvalFnc: func(ctx *Context) int {
+				reg := ctx.Registers[regID]
+				if item := (*testItem)(reg.Value); item != nil {
+					return item.key
+				}
+
+				return 0
+			},
+			Field: field,
+		}, nil
+
+	case "process.array.value":
+
+		return &IntEvaluator{
+			EvalFnc: func(ctx *Context) int {
+				reg := ctx.Registers[regID]
+				if item := (*testItem)(reg.Value); item != nil {
+					return item.value
 				}
 
 				return 0
@@ -279,6 +336,14 @@ func (e *testEvent) GetFieldEventType(field Field) (string, error) {
 
 		return "*", nil
 
+	case "process.array.key":
+
+		return "*", nil
+
+	case "process.array.value":
+
+		return "*", nil
+
 	case "open.filename":
 
 		return "open", nil
@@ -380,6 +445,12 @@ func (e *testEvent) GetFieldType(field Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 
 	case "process.list.value":
+		return reflect.Int, nil
+
+	case "process.array.key":
+		return reflect.Int, nil
+
+	case "process.array.value":
 		return reflect.Int, nil
 
 	case "open.filename":

@@ -643,6 +643,31 @@ func TestFieldValidator(t *testing.T) {
 	}
 }
 
+func TestRegisterSyntaxError(t *testing.T) {
+	model := &testModel{}
+	opts := NewOptsWithParams(testConstants)
+
+	tests := []struct {
+		Expr     string
+		Expected bool
+	}{
+		{Expr: `process.list[_].key == 10 && process.list[_].value == 11`, Expected: true},
+		{Expr: `process.list[].key == 10 && process.list.value == 11`, Expected: false},
+		{Expr: `process.list[_].key == 10 && process.list.value == 11`, Expected: true},
+		{Expr: `process.list.key[] == 10 && process.list.value == 11`, Expected: false},
+		{Expr: `process[].list.key == 10 && process.list.value == 11`, Expected: false},
+		{Expr: `[]process.list.key == 10 && process.list.value == 11`, Expected: false},
+		{Expr: `process.list[_].key == 10 && process.list[_].value == 11 && process.array[_].key == 10 && process.array[_].value == 11`, Expected: false},
+	}
+
+	for _, test := range tests {
+		_, err := parseRule(test.Expr, model, opts)
+		if err == nil != test.Expected {
+			t.Errorf("expected result `%t` not found, got `%t`\n%s", test.Expected, err == nil, test.Expr)
+		}
+	}
+}
+
 func TestRegister(t *testing.T) {
 	event := &testEvent{
 		process: testProcess{},
@@ -653,6 +678,11 @@ func TestRegister(t *testing.T) {
 	event.process.list.PushBack(&testItem{key: 100, value: 101})
 	event.process.list.PushBack(&testItem{key: 200, value: 201})
 
+	event.process.array = []*testItem{
+		&testItem{key: 1000, value: 1001},
+		&testItem{key: 1002, value: 1003},
+	}
+
 	tests := []struct {
 		Expr     string
 		Expected bool
@@ -661,11 +691,15 @@ func TestRegister(t *testing.T) {
 		{Expr: `process.list[_].key == 9999 && process.list[_].value == 11`, Expected: false},
 		{Expr: `process.list[_].key == 100 && process.list[_].value == 101`, Expected: true},
 		{Expr: `process.list[_].key == 200 && process.list[_].value == 201`, Expected: true},
-		/*{Expr: `process.list.key == 200 && process.list.value == 11`, Expected: true},
 		{Expr: `process.list[A].key == 200 && process.list[A].value == 201`, Expected: true},
 		{Expr: `process.list[A].key == 200 && process.list[B].value == 101`, Expected: true},
-		{Expr: `process.list[A].key == process.list && process.list[B].value == 444`, Expected: false},
-		{Expr: `process.list[A].key == 200 || process.list[B].value == 11`, Expected: true},*/
+		{Expr: `process.list[A].key == 200 || process.list[B].value == 11`, Expected: true},
+		{Expr: `process.list.key == 200 && process.list.value == 11`, Expected: true},
+		{Expr: `process.list[_].key == 10 && process.list.value == 11`, Expected: true},
+		{Expr: `process.array[_].key == 1000 && process.array[_].value == 1001`, Expected: true},
+		{Expr: `process.array[_].key == 1002 && process.array[_].value == 1001`, Expected: false},
+		{Expr: `process.array[A].key == 1002 && process.array[B].value == 1003`, Expected: true},
+		{Expr: `process.list[_].key == 10 && process.list[_].value == 11 && process.array[A].key == 1002 && process.array[A].value == 1003`, Expected: true},
 	}
 
 	for _, test := range tests {

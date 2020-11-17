@@ -7,6 +7,7 @@ package eval
 
 import (
 	"reflect"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
 	"github.com/pkg/errors"
@@ -29,11 +30,11 @@ type Rule struct {
 
 // RuleEvaluator - Evaluation part of a Rule
 type RuleEvaluator struct {
-	Eval        func(ctx *Context) bool
+	Eval        BoolEvalFnc
 	EventTypes  []EventType
 	FieldValues map[Field][]FieldValue
 
-	partialEvals map[Field]func(ctx *Context) bool
+	partialEvals map[Field]BoolEvalFnc
 }
 
 // PartialEval partially evaluation of the Rule with the given Field.
@@ -46,9 +47,9 @@ func (r *RuleEvaluator) PartialEval(ctx *Context, field Field) (bool, error) {
 	return eval(ctx), nil
 }
 
-func (r *RuleEvaluator) setPartial(field string, partialEval func(ctx *Context) bool) {
+func (r *RuleEvaluator) setPartial(field string, partialEval BoolEvalFnc) {
 	if r.partialEvals == nil {
-		r.partialEvals = make(map[string]func(ctx *Context) bool)
+		r.partialEvals = make(map[string]BoolEvalFnc)
 	}
 	r.partialEvals[field] = partialEval
 }
@@ -63,37 +64,6 @@ func (r *RuleEvaluator) GetFields() []Field {
 	}
 	return fields
 }
-
-/*
-func combineRegisters(combinations []Registers, reg *Register, max int) []Registers {
-	var combined []Registers
-
-	if len(combinations) == 0 {
-		for value := 0; value != max; value++ {
-			registers := make(Registers)
-			registers[reg.ID] = &Register{
-				ID:    reg.ID,
-				Value: value,
-			}
-			combined = append(combined, registers)
-		}
-
-		return combined
-	}
-
-	for _, combination := range combinations {
-		for value := 0; value != max; value++ {
-			regs := combination.Clone()
-			regs[reg.ID] = &Register{
-				ID:    reg.ID,
-				Value: value,
-			}
-			combined = append(combined, regs)
-		}
-	}
-
-	return combined
-}*/
 
 // Eval - Evaluates
 func (r *Rule) Eval(ctx *Context) bool {
@@ -112,7 +82,7 @@ func (r *Rule) PartialEval(ctx *Context, field Field) (bool, error) {
 }
 
 // GetPartialEval - Returns the Partial RuleEvaluator for the given Field
-func (r *Rule) GetPartialEval(field Field) func(ctx *Context) bool {
+func (r *Rule) GetPartialEval(field Field) BoolEvalFnc {
 	return r.evaluator.partialEvals[field]
 }
 
@@ -158,23 +128,83 @@ func (r *Rule) Parse() error {
 	return nil
 }
 
-func handleRegisters(evalFnc func(ctx *Context) bool, registerIterators map[RegisterID]Iterator) func(ctx *Context) bool {
+func combineRegisters(combinations []Registers, regID RegisterID, values []unsafe.Pointer) []Registers {
+	var combined []Registers
+
+	if len(combinations) == 0 {
+		for _, value := range values {
+			registers := make(Registers)
+			registers[regID] = &Register{
+				Value: value,
+			}
+			combined = append(combined, registers)
+		}
+
+		return combined
+	}
+
+	for _, combination := range combinations {
+		for _, value := range values {
+			regs := combination.Clone()
+			regs[regID] = &Register{
+				Value: value,
+			}
+			combined = append(combined, regs)
+		}
+	}
+
+	return combined
+}
+
+func handleRegisters(evalFnc BoolEvalFnc, registerIterators map[RegisterID]Iterator) BoolEvalFnc {
 	return func(ctx *Context) bool {
 		ctx.Registers = make(Registers)
 
-		// TODO safchain all registers
-		ctx.Registers["_"] = &Register{
-			ID:    "_",
-			Value: registerIterators["_"].Front(ctx),
+		// start with the head of all register
+		for id, iterator := range registerIterators {
+			ctx.Registers[id] = &Register{
+				Value:    iterator.Front(ctx),
+				iterator: iterator,
+			}
 		}
 
-		// eval each iterations
-		for ctx.Registers["_"].Value != nil {
+		// capture all the values for each register
+		registerValues := make(map[RegisterID][]unsafe.Pointer)
+
+		for id, reg := range ctx.Registers {
+			values := []unsafe.Pointer{}
+			for reg.Value != nil {
+				// short cut if we find a solution while constructing the combinations
+				if evalFnc(ctx) {
+					return true
+				}
+				values = append(values, reg.Value)
+
+				reg.Value = reg.iterator.Next(ctx)
+			}
+			registerValues[id] = values
+
+			// restore the head value
+			reg.Value = reg.iterator.Front(ctx)
+		}
+
+		// no need to combine there is only one registers used
+		if len(registerIterators) == 1 {
+			return false
+		}
+
+		// generate all the combinations
+		var combined []Registers
+		for id, values := range registerValues {
+			combined = combineRegisters(combined, id, values)
+		}
+
+		// eval the combinations
+		for _, registers := range combined {
+			ctx.Registers = registers
 			if evalFnc(ctx) {
 				return true
 			}
-
-			ctx.Registers["_"].Value = registerIterators["_"].Next(ctx, ctx.Registers["_"].Value)
 		}
 
 		return false

@@ -379,7 +379,7 @@ func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 	{{end}}
 	}
 
-	return nil, &eval.ErrIteratorNoSupported{Field: field}
+	return nil, &eval.ErrIteratorNotSupported{Field: field}
 }
 
 func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {

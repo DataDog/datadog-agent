@@ -12,11 +12,13 @@ import (
 	"reflect"
 	"regexp"
 	"sort"
+	"strings"
 
 	"github.com/alecthomas/participle/lexer"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // Field name
@@ -65,9 +67,12 @@ type EvaluatorStringer struct {
 	Evaluator Evaluator
 }
 
+// BoolEvalFnc describe a eval function return a boolean
+type BoolEvalFnc = func(ctx *Context) bool
+
 // BoolEvaluator returns a bool as result of the evaluation
 type BoolEvaluator struct {
-	EvalFnc func(ctx *Context) bool
+	EvalFnc BoolEvalFnc
 	Field   Field
 	Value   bool
 
@@ -118,7 +123,7 @@ type IntArray struct {
 }
 
 func extractField(field string) (Field, Field, RegisterID, error) {
-	var id RegisterID
+	var regID RegisterID
 
 	re := regexp.MustCompile(`\[([^\]]*)\]`)
 	ids := re.FindStringSubmatch(field)
@@ -127,13 +132,19 @@ func extractField(field string) (Field, Field, RegisterID, error) {
 	case 0:
 		return field, "", "", nil
 	case 2:
-		id = ids[1]
+		regID = ids[1]
 	default:
 		return "", "", "", errors.New("wrong register format")
 	}
 
-	re = regexp.MustCompile(`(.*)\[[^\]]*\](.*)`)
-	return re.ReplaceAllString(field, `$1$2`), re.ReplaceAllString(field, `$1`), id, nil
+	re = regexp.MustCompile(`(.+)\[[^\]]+\](.+)`)
+
+	field, itField := re.ReplaceAllString(field, `$1$2`), re.ReplaceAllString(field, `$1`)
+	if field == itField {
+		return "", "", "", errors.New("wrong register format")
+	}
+
+	return field, itField, regID, nil
 }
 
 func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, interface{}, lexer.Position, error) {
@@ -421,21 +432,49 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, in
 				}
 			}
 
-			field, listField, registerID, err := extractField(*obj.Ident)
+			field, itField, regID, err := extractField(*obj.Ident)
 			if err != nil {
 				return nil, nil, obj.Pos, err
 			}
 
-			if registerID != "" {
-				iterator, err := state.model.GetIterator(listField)
-				if err != nil {
+			// extract iterator
+			var iterator Iterator
+			if itField != "" {
+				if iterator, err = state.model.GetIterator(itField); err != nil {
 					return nil, nil, obj.Pos, err
 				}
-				// TODO safchain generate random id if not proveded
-				state.registerIterators[registerID] = iterator
+			} else {
+				// detect whether a iterator is along the path
+				var candidate string
+				for _, node := range strings.Split(field, ".") {
+					if candidate == "" {
+						candidate = node
+					} else {
+						candidate = candidate + "." + node
+					}
+
+					iterator, err = state.model.GetIterator(candidate)
+					if err == nil {
+						break
+					}
+				}
 			}
 
-			accessor, err := state.model.GetEvaluator(field, registerID)
+			if iterator != nil {
+				// regID not specified generate one
+				if regID == "" {
+					regID = utils.RandString(8)
+				}
+
+				if rf, exists := state.registerFields[regID]; exists && rf != itField {
+					return nil, nil, obj.Pos, NewRegisterMultipleFields(obj.Pos, regID, errors.New("used by multiple fields"))
+				}
+				state.registerFields[regID] = itField
+
+				state.registerIterators[regID] = iterator
+			}
+
+			accessor, err := state.model.GetEvaluator(field, regID)
 			if err != nil {
 				return nil, nil, obj.Pos, err
 			}

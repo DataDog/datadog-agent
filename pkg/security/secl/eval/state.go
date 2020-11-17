@@ -16,6 +16,7 @@ type state struct {
 	fieldValues       map[Field][]FieldValue
 	macros            map[MacroID]*MacroEvaluator
 	registerIterators map[RegisterID]Iterator
+	registerFields    map[RegisterID]Field
 }
 
 //
@@ -57,5 +58,6 @@ func newState(model Model, field Field, macros map[MacroID]*MacroEvaluator) *sta
 		events:            make(map[EventType]bool),
 		fieldValues:       make(map[Field][]FieldValue),
 		registerIterators: make(map[RegisterID]Iterator),
+		registerFields:    make(map[RegisterID]Field),
 	}
 }
