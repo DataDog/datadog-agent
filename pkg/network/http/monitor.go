@@ -1,11 +1,13 @@
 // +build linux_bpf
 
-package ebpf
+package http
 
 import (
 	"fmt"
 	"time"
 	"unsafe"
+
+	"C"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -14,93 +16,26 @@ import (
 	"github.com/DataDog/ebpf/manager"
 )
 
-/*
-#include "c/tracer-ebpf.h"
-*/
-import "C"
-
-const (
-	HTTPBatchSize  = int(C.HTTP_BATCH_SIZE)
-	HTTPBatchPages = int(C.HTTP_BATCH_PAGES)
-)
-
-type httpTX C.http_transaction_t
-type httpNotification C.http_batch_notification_t
-type httpBatch C.http_batch_t
-type httpBatchKey C.http_batch_key_t
-type httpBatchState C.http_batch_state_t
-
-func toHTTPNotification(data []byte) httpNotification {
-	return *(*httpNotification)(unsafe.Pointer(&data[0]))
-}
-
-// Prepare the httpBatchKey for a map lookup
-func (k *httpBatchKey) Prepare(n httpNotification) {
-	k.cpu = n.cpu
-	k.page_num = C.uint(int(n.batch_idx) % HTTPBatchPages)
-}
-
-// Path returns the URL from the request fragment captured in eBPF
-// Usually the request fragment will look like
-// GET /foo HTTP/1.1
-func (tx *httpTX) Path() string {
-	b := C.GoBytes(unsafe.Pointer(&tx.request_fragment), C.int(C.HTTP_BUFFER_SIZE))
-
-	var i, j int
-	for i = 0; i < len(b) && b[i] != ' '; i++ {
-	}
-
-	i++
-
-	for j = i; j < len(b) && b[j] != ' '; j++ {
-	}
-
-	if i < j && j <= len(b) {
-		return string(b[i:j])
-	}
-
-	return ""
-}
-
-// StatusClass returns an integer representing the status code class
-// Example: a 404 would return 400
-func (tx *httpTX) StatusClass() int {
-	return (int(tx.status_code) / 100) * 100
-}
-
-// IsDirty detects whether the batch page we're supposed to read from is still
-// valid.  A "dirty" page here means that between the time the
-// http_notification_t message was sent to userspace and the time we performed
-// the batch lookup the page was overriden.
-func (batch *httpBatch) IsDirty(notification httpNotification) bool {
-	return batch.idx != notification.batch_idx
-}
-
-// GetTransactions extracts the HTTP transactions from the batch acording to the
-// httpNotification received from the Kernel.
-func (batch *httpBatch) GetTransactions(notif httpNotification) *[HTTPBatchSize]httpTX {
-	return (*[HTTPBatchSize]httpTX)(unsafe.Pointer(&batch.txs))
-}
-
-type httpMonitor struct {
+// Monitor is responsible for:
+// * Creating a raw socket and attaching an eBPF filter to it;
+// * Polling a perf buffer that contains notifications about HTTP transaction batches ready to be read;
+// * Querying these batches by doing a map lookup;
+// * Aggregating and emitting metrics based on the received HTTP transactions;
+type Monitor struct {
 	batchMap      *ebpf.Map
 	perfMap       *manager.PerfMap
 	perfHandler   *bytecode.PerfHandler
 	closeFilterFn func()
 }
 
-func newHTTPMonitor(config *Config, m *manager.Manager, h *bytecode.PerfHandler) (*httpMonitor, error) {
-	if !config.HTTPInspection {
-		log.Infof("http monitoring disabled")
-		return nil, nil
-	}
-
+// NewMonitor returns a new Monitor instance
+func NewMonitor(procRoot string, m *manager.Manager, h *bytecode.PerfHandler) (*Monitor, error) {
 	filter, _ := m.GetProbe(manager.ProbeIdentificationPair{Section: string(bytecode.SocketHTTPFilter)})
 	if filter == nil {
 		return nil, fmt.Errorf("error retrieving socket filter")
 	}
 
-	closeFilterFn, err := network.HeadlessSocketFilter(config.ProcRoot, filter)
+	closeFilterFn, err := network.HeadlessSocketFilter(procRoot, filter)
 	if err != nil {
 		return nil, fmt.Errorf("error enabling HTTP traffic inspection: %s", err)
 	}
@@ -133,8 +68,7 @@ func newHTTPMonitor(config *Config, m *manager.Manager, h *bytecode.PerfHandler)
 		return nil, fmt.Errorf("unable to find perf map %s", bytecode.HttpNotificationsMap)
 	}
 
-	log.Infof("http monitoring enabled")
-	return &httpMonitor{
+	return &Monitor{
 		batchMap:      batchMap,
 		perfMap:       pm,
 		perfHandler:   h,
@@ -145,7 +79,7 @@ func newHTTPMonitor(config *Config, m *manager.Manager, h *bytecode.PerfHandler)
 // Start consuming HTTP events
 // Please note the code below is merely an *example* of how to consume the HTTP
 // transaction information sent from the eBPF program
-func (http *httpMonitor) Start() error {
+func (http *Monitor) Start() error {
 	if http == nil {
 		return nil
 	}
@@ -218,7 +152,8 @@ func (http *httpMonitor) Start() error {
 	return nil
 }
 
-func (http *httpMonitor) Stop() {
+// Stop HTTP monitoring
+func (http *Monitor) Stop() {
 	if http == nil {
 		return
 	}

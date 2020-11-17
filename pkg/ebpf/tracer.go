@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -47,7 +48,7 @@ type Tracer struct {
 
 	reverseDNS network.ReverseDNS
 
-	httpMonitor *httpMonitor
+	httpMonitor *http.Monitor
 
 	perfMap      *manager.PerfMap
 	perfHandler  *bytecode.PerfHandler
@@ -236,11 +237,6 @@ func NewTracer(config *Config) (*Tracer, error) {
 		config.MaxDNSStatsBufferred,
 	)
 
-	httpMonitor, err := newHTTPMonitor(config, m, perfHandlerHTTP)
-	if err != nil {
-		log.Errorf("failed to enable http monitoring: %s", err)
-	}
-
 	tr := &Tracer{
 		m:              m,
 		config:         config,
@@ -248,7 +244,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 		portMapping:    portMapping,
 		udpPortMapping: udpPortMapping,
 		reverseDNS:     reverseDNS,
-		httpMonitor:    httpMonitor,
+		httpMonitor:    newHTTPMonitor(!pre410Kernel, config, m, perfHandlerHTTP),
 		buffer:         make([]network.ConnectionStats, 0, 512),
 		buf:            &bytes.Buffer{},
 		conntracker:    conntracker,
@@ -263,7 +259,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 		return nil, fmt.Errorf("could not start polling bpf events: %s", err)
 	}
 
-	if err := httpMonitor.Start(); err != nil {
+	if err := tr.httpMonitor.Start(); err != nil {
 		log.Errorf("failed to initialize http monitor: %s", err)
 	}
 
@@ -837,4 +833,25 @@ func (t *Tracer) getProbeProgramIDs() (map[string]uint32, error) {
 		fds[p.Section] = uint32(id)
 	}
 	return fds, nil
+}
+
+func newHTTPMonitor(supported bool, c *Config, m *manager.Manager, h *bytecode.PerfHandler) *http.Monitor {
+	if !c.HTTPInspection {
+		log.Infof("http monitoring disabled")
+		return nil
+	}
+
+	if !supported {
+		log.Warnf("http monitoring is not supported by this kernel version. please refer to system-probe's documentation")
+		return nil
+	}
+
+	monitor, err := http.NewMonitor(c.ProcRoot, m, h)
+	if err != nil {
+		log.Errorf("could not enable http monitoring: %s", err)
+		return nil
+	}
+
+	log.Info("http monitoring enabled")
+	return monitor
 }
