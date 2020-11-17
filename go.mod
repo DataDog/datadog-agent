@@ -38,6 +38,7 @@ replace (
 )
 
 require (
+	bou.ke/monkey v1.0.1
 	code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db
 	code.cloudfoundry.org/cfhttp/v2 v2.0.0 // indirect
 	code.cloudfoundry.org/clock v1.0.0 // indirect
@@ -70,6 +71,7 @@ require (
 	github.com/beevik/ntp v0.3.0
 	github.com/benesch/cgosymbolizer v0.0.0
 	github.com/bhmj/jsonslice v0.0.0-20200323023432-92c3edaad8e2
+	github.com/blabber/go-freebsd-sysctl v0.0.0-20151024120420-30a4aca6b547
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/clbanning/mxj v1.8.4
