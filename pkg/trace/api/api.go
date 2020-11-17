@@ -431,7 +431,7 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 			if b.Type == "sql" || b.DBType != "" {
 				// TODO(gbbr): perhaps we should store only one instance instead of
 				// a new one on each request?
-				oq, err := obfuscate.NewObfuscator(nil).ObfuscateSQLString(b.Resource)
+				oq, err := obfuscate.NewObfuscator(r.conf.Obfuscation).ObfuscateSQLString(b.Resource)
 				if err != nil {
 					log.Errorf("Error obfuscating resource %q: %v", b.Resource, err)
 				} else {
