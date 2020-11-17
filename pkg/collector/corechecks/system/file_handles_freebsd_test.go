@@ -8,9 +8,11 @@ package system
 
 import (
 	"testing"
+	"reflect"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/blabber/go-freebsd-sysctl/sysctl"
 
 	"bou.ke/monkey"
 )
@@ -20,7 +22,7 @@ func TestFhCheckFreeBSD(t *testing.T) {
 	fileHandleCheck := new(fhCheck)
 	fileHandleCheck.Configure(nil, nil, "test")
 
-	monkey.PatchInstanceMethod(sysctl.GetInt64, (name string, err error)) {
+	monkey.PatchInstanceMethod(reflect.TypeOf(sysctl), "GetInt64", func(name string) (value int64, err error) {
 		return (65534, nil)
 	})
 
