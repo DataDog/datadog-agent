@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/shirou/gopsutil/cpu"
+	"github.com/stretchr/testify/mock"
 )
 
 var (
@@ -79,42 +80,42 @@ func TestCPUCheckLinux(t *testing.T) {
 	cpuCheck := new(CPUCheck)
 	cpuCheck.Configure(nil, nil, "test")
 
-	mock := mocksender.NewMockSender(cpuCheck.ID())
-	mock.On(metrics.GaugeType.String(), "system.cpu.num_cores", 1.0, "", []string(nil)).Return().Times(1)
+	m := mocksender.NewMockSender(cpuCheck.ID())
+	m.On(metrics.GaugeType.String(), "system.cpu.num_cores", 1.0, "", []string(nil)).Return().Times(1)
 	if runtime.GOOS == "linux" {
-		mock.On(metrics.MonotonicCountType.String(), "system.cpu.context_switches", 3, "", []string(nil)).Return().Times(1)
+		m.On(metrics.MonotonicCountType.String(), "system.cpu.context_switches", mock.AnythingOfType("float64"), "", []string(nil)).Return().Times(1)
 	}
 
-	mock.On("Commit").Return().Times(1)
+	m.On("Commit").Return().Times(1)
 
 	sample = firstSample
 	cpuCheck.Run()
 
-	mock.AssertExpectations(t)
-	mock.AssertNumberOfCalls(t, metrics.GaugeType.String(), 1)
+	m.AssertExpectations(t)
+	m.AssertNumberOfCalls(t, metrics.GaugeType.String(), 1)
 	if runtime.GOOS == "linux" {
-		mock.AssertNumberOfCalls(t, metrics.MonotonicCountType.String(), 1)
+		m.AssertNumberOfCalls(t, metrics.MonotonicCountType.String(), 1)
 	}
-	mock.AssertNumberOfCalls(t, "Commit", 1)
+	m.AssertNumberOfCalls(t, "Commit", 1)
 
 	sample = secondSample
-	mock.On(metrics.GaugeType.String(), "system.cpu.user", 0.1913803067769472, "", []string(nil)).Return().Times(1)
-	mock.On(metrics.GaugeType.String(), "system.cpu.system", 5.026101621048045, "", []string(nil)).Return().Times(1)
-	mock.On(metrics.GaugeType.String(), "system.cpu.iowait", 0.03789709045088063, "", []string(nil)).Return().Times(1)
-	mock.On(metrics.GaugeType.String(), "system.cpu.idle", 94.74272612720159, "", []string(nil)).Return().Times(1)
-	mock.On(metrics.GaugeType.String(), "system.cpu.stolen", 0.0018948545225440318, "", []string(nil)).Return().Times(1)
-	mock.On(metrics.GaugeType.String(), "system.cpu.guest", 0.0, "", []string(nil)).Return().Times(1)
-	mock.On(metrics.GaugeType.String(), "system.cpu.num_cores", 1.0, "", []string(nil)).Return().Times(1)
+	m.On(metrics.GaugeType.String(), "system.cpu.user", 0.1913803067769472, "", []string(nil)).Return().Times(1)
+	m.On(metrics.GaugeType.String(), "system.cpu.system", 5.026101621048045, "", []string(nil)).Return().Times(1)
+	m.On(metrics.GaugeType.String(), "system.cpu.iowait", 0.03789709045088063, "", []string(nil)).Return().Times(1)
+	m.On(metrics.GaugeType.String(), "system.cpu.idle", 94.74272612720159, "", []string(nil)).Return().Times(1)
+	m.On(metrics.GaugeType.String(), "system.cpu.stolen", 0.0018948545225440318, "", []string(nil)).Return().Times(1)
+	m.On(metrics.GaugeType.String(), "system.cpu.guest", 0.0, "", []string(nil)).Return().Times(1)
+	m.On(metrics.GaugeType.String(), "system.cpu.num_cores", 1.0, "", []string(nil)).Return().Times(1)
 	if runtime.GOOS == "linux" {
-		mock.On(metrics.MonotonicCountType.String(), "system.cpu.context_switches", 32768, "", []string(nil)).Return().Times(1)
+		m.On(metrics.MonotonicCountType.String(), "system.cpu.context_switches", mock.AnythingOfType("float64"), "", []string(nil)).Return().Times(1)
 	}
-	mock.On("Commit").Return().Times(1)
+	m.On("Commit").Return().Times(1)
 	cpuCheck.Run()
 
-	mock.AssertExpectations(t)
-	mock.AssertNumberOfCalls(t, metrics.GaugeType.String(), 8)
+	m.AssertExpectations(t)
+	m.AssertNumberOfCalls(t, metrics.GaugeType.String(), 8)
 	if runtime.GOOS == "linux" {
-		mock.AssertNumberOfCalls(t, metrics.MonotonicCountType.String(), 1)
+		m.AssertNumberOfCalls(t, metrics.MonotonicCountType.String(), 1)
 	}
-	mock.AssertNumberOfCalls(t, "Commit", 2)
+	m.AssertNumberOfCalls(t, "Commit", 2)
 }
