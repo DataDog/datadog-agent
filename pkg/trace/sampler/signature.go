@@ -90,14 +90,13 @@ func computeSpanHash(span *pb.Span, env string, withResource bool) spanHash {
 	return spanHash(h.Sum32())
 }
 
-
-// The implementation of sum32a is lifted from golang fnv package but simplified
+// sum32a is lifted from golang fnv package but simplified
 // for our use case to remove interfaces which caused unnecessary allocations.
-type	sum32a  uint32
+type sum32a uint32
 
 const (
-	offset32        = 2166136261
-	prime32         = 16777619
+	offset32 = 2166136261
+	prime32  = 16777619
 )
 
 func new32a() sum32a {
