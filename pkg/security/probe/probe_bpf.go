@@ -193,12 +193,12 @@ func (p *Probe) DispatchEvent(event *Event) {
 func (p *Probe) SendStats(statsdClient *statsd.Client) error {
 	if p.syscallMonitor != nil {
 		if err := p.syscallMonitor.SendStats(statsdClient); err != nil {
-			return err
+			return errors.Wrap(err, "failed to send syscall monitor stats")
 		}
 	}
 
 	if err := statsdClient.Count(MetricPrefix+".events.lost", p.eventsStats.GetAndResetLost(), nil, 1.0); err != nil {
-		return err
+		return errors.Wrap(err, "failed to send events.lost metric")
 	}
 
 	receivedEvents := MetricPrefix + ".events.received"
@@ -211,7 +211,7 @@ func (p *Probe) SendStats(statsdClient *statsd.Client) error {
 		tags := []string{fmt.Sprintf("event_type:%s", eventType.String())}
 		if value := p.eventsStats.GetAndResetEventCount(eventType); value > 0 {
 			if err := statsdClient.Count(receivedEvents, value, tags, 1.0); err != nil {
-				return err
+				return errors.Wrap(err, "failed to send events.received metric")
 			}
 		}
 	}
@@ -459,8 +459,13 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 			return
 		}
 
+		// allow cache resolution for ExecEventType only
+		if eventType == ExecEventType {
+			event.Exec.AllowCacheResolution = true
+		}
+
 		// update the process resolver cache
-		p.resolvers.ProcessResolver.AddEntry(event.Process.Pid, event.processCacheEntry)
+		event.updateProcessCachePointer(p.resolvers.ProcessResolver.AddEntry(event.Process.Pid, event.processCacheEntry))
 	case ExitEventType:
 		// as far as we keep only one perf ring buffer for all the events we can delete the entry right away, there won't be
 		// any race

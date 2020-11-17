@@ -21,6 +21,17 @@ type ProcessCacheEntry struct {
 	Children []*ProcessCacheEntry
 }
 
+// Copy returns a copy of the current ProcessCacheEntry
+func (pc *ProcessCacheEntry) Copy() *ProcessCacheEntry {
+	dup := *pc
+
+	// reset pointers
+	dup.Parent = nil
+	dup.ProcessContext.Parent = nil
+	dup.Children = []*ProcessCacheEntry{}
+	return &dup
+}
+
 func (pc *ProcessCacheEntry) String() string {
 	s := fmt.Sprintf("filename: %s pid:%d ppid:%d\n", pc.FileEvent.PathnameStr, pc.Pid, pc.PPid)
 	parent := pc.Parent
@@ -62,26 +73,30 @@ func (pc *ProcessCacheEntry) UnmarshalBinary(data []byte, resolvers *Resolvers, 
 	return read + offset, nil
 }
 
-func (pc *ProcessCacheEntry) marshalJSON(resolvers *Resolvers) ([]byte, error) {
+func (pc *ProcessCacheEntry) marshalJSON(resolvers *Resolvers, topLevelProcess bool) ([]byte, error) {
 	var buf bytes.Buffer
 
-	d, err := pc.ContainerContext.marshalJSON(nil)
-	if err != nil {
-		return nil, err
-	}
-	if d != nil && len(d) > 0 {
-		fmt.Fprint(&buf, `"container":`)
-		buf.Write(d)
-		buf.WriteRune(',')
-	}
+	if !topLevelProcess {
+		d, err := pc.ContainerContext.marshalJSON(nil)
+		if err != nil {
+			return nil, err
+		}
+		if d != nil && len(d) > 0 {
+			fmt.Fprint(&buf, `"container":`)
+			buf.Write(d)
+			buf.WriteRune(',')
+		}
 
+		fmt.Fprintf(&buf, `"user":"%s",`, pc.ProcessContext.ResolveUser(nil))
+		fmt.Fprintf(&buf, `"group":"%s",`, pc.ProcessContext.ResolveGroup(nil))
+		fmt.Fprintf(&buf, `"uid":%d,`, pc.UID)
+		fmt.Fprintf(&buf, `"gid":%d,`, pc.GID)
+		fmt.Fprintf(&buf, `"pid":%d,`, pc.Pid)
+		fmt.Fprintf(&buf, `"tid":%d,`, pc.Tid)
+	}
 	fmt.Fprintf(&buf, `"name":"%s",`, pc.Comm)
 	fmt.Fprintf(&buf, `"filename":"%s",`, pc.PathnameStr)
 	fmt.Fprintf(&buf, `"container_path":"%s",`, pc.ContainerPath)
-	fmt.Fprintf(&buf, `"user":"%s",`, pc.ProcessContext.ResolveUser(nil))
-	fmt.Fprintf(&buf, `"uid":%d,`, pc.UID)
-	fmt.Fprintf(&buf, `"group":"%s",`, pc.ProcessContext.ResolveGroup(nil))
-	fmt.Fprintf(&buf, `"gid":%d,`, pc.GID)
 	fmt.Fprintf(&buf, `"ppid":%d,`, pc.PPid)
 	fmt.Fprintf(&buf, `"cookie":%d,`, pc.Cookie)
 	fmt.Fprintf(&buf, `"tty":"%s",`, pc.TTYName)

@@ -790,6 +790,10 @@ func (e *ContainerContext) ResolveContainerID(event *Event) string {
 
 // ExecEvent represents a exec event
 type ExecEvent struct {
+	// AllowCacheResolution is used to prevent an ExecEvent instance to resolve a field to its cached value. This is
+	// used to differentiate Event.Process and Event.Exec at evaluation.
+	AllowCacheResolution bool
+
 	// proc_cache_t
 	// (container context is parsed in Event.Container)
 	FileEvent
@@ -803,7 +807,9 @@ type ExecEvent struct {
 	Cookie        uint32    `field:"cookie" handler:"ResolveCookie,int"`
 	PPid          uint32    `field:"ppid" handler:"ResolvePPID,int"`
 
-	// User and Group are parsed in Event.Process and should only be used here for evaluation
+	// The following fields should only be used here for evaluation
+	UID uint32 `field:"uid" handler:"ResolveUID,int"`
+	GID uint32 `field:"uid" handler:"ResolveGID,int"`
 	User  string `field:"user" handler:"ResolveUser,string"`
 	Group string `field:"group" handler:"ResolveGroup,string"`
 }
@@ -870,7 +876,7 @@ func (e *ExecEvent) UnmarshalEvent(data []byte, event *Event) (int, error) {
 
 // ResolvePPID resolves the parent process ID
 func (e *ExecEvent) ResolvePPID(event *Event) int {
-	if e.PPid == 0 {
+	if e.PPid == 0 && e.AllowCacheResolution {
 		if entry := event.ResolveProcessCacheEntry(); entry != nil {
 			e.PPid = entry.PPid
 		}
@@ -880,7 +886,7 @@ func (e *ExecEvent) ResolvePPID(event *Event) int {
 
 // ResolveInode resolves the inode to a full path
 func (e *ExecEvent) ResolveInode(event *Event) string {
-	if len(e.PathnameStr) == 0 {
+	if len(e.PathnameStr) == 0 && e.AllowCacheResolution {
 		if entry := event.ResolveProcessCacheEntry(); entry != nil {
 			e.PathnameStr = entry.PathnameStr
 		}
@@ -890,7 +896,7 @@ func (e *ExecEvent) ResolveInode(event *Event) string {
 
 // ResolveContainerPath resolves the inode to a path relative to the container
 func (e *ExecEvent) ResolveContainerPath(event *Event) string {
-	if len(e.ContainerPath) == 0 {
+	if len(e.ContainerPath) == 0 && e.AllowCacheResolution {
 		if entry := event.ResolveProcessCacheEntry(); entry != nil {
 			e.ContainerPath = entry.ContainerPath
 		}
@@ -900,7 +906,7 @@ func (e *ExecEvent) ResolveContainerPath(event *Event) string {
 
 // ResolveBasename resolves the inode to a filename
 func (e *ExecEvent) ResolveBasename(event *Event) string {
-	if len(e.BasenameStr) == 0 {
+	if len(e.BasenameStr) == 0 && e.AllowCacheResolution {
 		if e.PathnameStr == "" {
 			e.PathnameStr = e.ResolveInode(event)
 		}
@@ -912,7 +918,7 @@ func (e *ExecEvent) ResolveBasename(event *Event) string {
 
 // ResolveCookie resolves the cookie of the process
 func (e *ExecEvent) ResolveCookie(event *Event) int {
-	if e.Cookie == 0 {
+	if e.Cookie == 0 && e.AllowCacheResolution {
 		if entry := event.ResolveProcessCacheEntry(); entry != nil {
 			e.Cookie = entry.Cookie
 		}
@@ -922,7 +928,7 @@ func (e *ExecEvent) ResolveCookie(event *Event) int {
 
 // ResolveTTY resolves the name of the process tty
 func (e *ExecEvent) ResolveTTY(event *Event) string {
-	if e.TTYName == "" {
+	if e.TTYName == "" && e.AllowCacheResolution {
 		if entry := event.ResolveProcessCacheEntry(); entry != nil {
 			e.TTYName = entry.TTYName
 		}
@@ -932,7 +938,7 @@ func (e *ExecEvent) ResolveTTY(event *Event) string {
 
 // ResolveComm resolves the comm of the process
 func (e *ExecEvent) ResolveComm(event *Event) string {
-	if len(e.Comm) == 0 {
+	if len(e.Comm) == 0 && e.AllowCacheResolution {
 		if entry := event.ResolveProcessCacheEntry(); entry != nil {
 			e.Comm = entry.Comm
 		}
@@ -940,9 +946,29 @@ func (e *ExecEvent) ResolveComm(event *Event) string {
 	return e.Comm
 }
 
+// ResolveUID resolves the user id of the process
+func (e *ExecEvent) ResolveUID(event *Event) int {
+	if e.UID == 0 && e.AllowCacheResolution {
+		if entry := event.ResolveProcessCacheEntry(); entry != nil {
+			e.UID = entry.UID
+		}
+	}
+	return int(e.UID)
+}
+
+// ResolveGID resolves the group id of the process
+func (e *ExecEvent) ResolveGID(event *Event) int {
+	if e.GID == 0 && e.AllowCacheResolution {
+		if entry := event.ResolveProcessCacheEntry(); entry != nil {
+			e.GID = entry.GID
+		}
+	}
+	return int(e.GID)
+}
+
 // ResolveUser resolves the user id of the process to a username
 func (e *ExecEvent) ResolveUser(event *Event) string {
-	if len(e.User) == 0 {
+	if len(e.User) == 0 && e.AllowCacheResolution {
 		u, err := user.LookupId(strconv.Itoa(int(event.Process.UID)))
 		if err == nil {
 			e.User = u.Username
@@ -953,7 +979,7 @@ func (e *ExecEvent) ResolveUser(event *Event) string {
 
 // ResolveGroup resolves the group id of the process to a group name
 func (e *ExecEvent) ResolveGroup(event *Event) string {
-	if len(e.Group) == 0 {
+	if len(e.Group) == 0 && e.AllowCacheResolution {
 		g, err := user.LookupGroupId(strconv.Itoa(int(event.Process.GID)))
 		if err == nil {
 			e.Group = g.Name
@@ -964,36 +990,30 @@ func (e *ExecEvent) ResolveGroup(event *Event) string {
 
 // ResolveForkTimestamp returns the fork timestamp of the process
 func (e *ExecEvent) ResolveForkTimestamp(event *Event) time.Time {
-	if !e.ForkTimestamp.IsZero() || event == nil {
-		return e.ForkTimestamp
-	}
-
-	if entry := event.ResolveProcessCacheEntry(); entry != nil {
-		e.ForkTimestamp = entry.ForkTimestamp
+	if e.ForkTimestamp.IsZero() && event != nil && e.AllowCacheResolution {
+		if entry := event.ResolveProcessCacheEntry(); entry != nil {
+			e.ForkTimestamp = entry.ForkTimestamp
+		}
 	}
 	return e.ForkTimestamp
 }
 
 // ResolveExecTimestamp returns the execve timestamp of the process
 func (e *ExecEvent) ResolveExecTimestamp(event *Event) time.Time {
-	if !e.ExecTimestamp.IsZero() || event == nil {
-		return e.ExecTimestamp
-	}
-
-	if entry := event.ResolveProcessCacheEntry(); entry != nil {
-		e.ExecTimestamp = entry.ExecTimestamp
+	if e.ExecTimestamp.IsZero() && event != nil && e.AllowCacheResolution {
+		if entry := event.ResolveProcessCacheEntry(); entry != nil {
+			e.ExecTimestamp = entry.ExecTimestamp
+		}
 	}
 	return e.ExecTimestamp
 }
 
 // ResolveExitTimestamp returns the exit timestamp of the process
 func (e *ExecEvent) ResolveExitTimestamp(event *Event) time.Time {
-	if !e.ExitTimestamp.IsZero() || event == nil {
-		return e.ExitTimestamp
-	}
-
-	if entry := event.ResolveProcessCacheEntry(); entry != nil {
-		e.ExitTimestamp = entry.ExitTimestamp
+	if e.ExitTimestamp.IsZero() && event != nil && e.AllowCacheResolution {
+		if entry := event.ResolveProcessCacheEntry(); entry != nil {
+			e.ExitTimestamp = entry.ExitTimestamp
+		}
 	}
 	return e.ExitTimestamp
 }
@@ -1037,11 +1057,13 @@ func (p *ProcessContext) marshalJSON(event *Event) ([]byte, error) {
 	fmt.Fprintf(&buf, `"tid":%d,`, p.Tid)
 	fmt.Fprintf(&buf, `"uid":%d,`, p.UID)
 	fmt.Fprintf(&buf, `"gid":%d,`, p.GID)
+	fmt.Fprintf(&buf, `"user":"%s",`, p.ResolveUser(event))
+	fmt.Fprintf(&buf, `"group":"%s",`, p.ResolveGroup(event))
 
 	entry := event.ResolveProcessCacheEntry()
 	if entry != nil {
 		// add top level cache entry
-		d, err := entry.marshalJSON(event.resolvers)
+		d, err := entry.marshalJSON(event.resolvers, true)
 		if err != nil {
 			return nil, err
 		}
@@ -1050,8 +1072,8 @@ func (p *ProcessContext) marshalJSON(event *Event) ([]byte, error) {
 		// add ancestors data
 		fmt.Fprint(&buf, `,"ancestors":[`)
 		ancestorTmp := entry.Parent
-		for ancestorTmp != nil {
-			d, err := ancestorTmp.marshalJSON(event.resolvers)
+		for ancestorTmp != nil && len(ancestorTmp.PathnameStr) > 0 {
+			d, err := ancestorTmp.marshalJSON(event.resolvers, false)
 			if err != nil {
 				return nil, err
 			}
@@ -1059,7 +1081,7 @@ func (p *ProcessContext) marshalJSON(event *Event) ([]byte, error) {
 			buf.Write(d)
 			buf.WriteRune('}')
 			ancestorTmp = ancestorTmp.Parent
-			if ancestorTmp != nil {
+			if ancestorTmp != nil && len(ancestorTmp.PathnameStr) > 0 {
 				buf.WriteRune(',')
 			}
 		}
@@ -1080,6 +1102,9 @@ func (p *ProcessContext) UnmarshalBinary(data []byte) (int, error) {
 	p.Tid = ebpf.ByteOrder.Uint32(data[4:8])
 	p.UID = ebpf.ByteOrder.Uint32(data[8:12])
 	p.GID = ebpf.ByteOrder.Uint32(data[12:16])
+
+	// allow resolution for the rest of ProcessContext
+	p.AllowCacheResolution = true
 
 	return 16, nil
 }
@@ -1476,8 +1501,14 @@ func (e *Event) ResolveProcessCacheEntry() *ProcessCacheEntry {
 			e.processCacheEntry = &ProcessCacheEntry{}
 		}
 	}
-	e.Process.Parent = e.processCacheEntry
+	e.updateProcessCachePointer(e.processCacheEntry)
 	return e.processCacheEntry
+}
+
+// updateProcessCachePointer updates the internal pointers of the event structure to the ProcessCacheEntry of the event
+func (e *Event) updateProcessCachePointer(event *ProcessCacheEntry) {
+	e.processCacheEntry = event
+	e.Process.Parent = event.Parent
 }
 
 // Clone returns a copy on the event
