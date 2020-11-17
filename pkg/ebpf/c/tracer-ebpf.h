@@ -56,12 +56,6 @@ typedef struct {
     tcp_stats_t tcp_stats;
 } tcp_conn_t;
 
-#define HTTP_BUFFER_SIZE 25
-// TODO: Figure out why the eBPF is silently failing when I set this to 15
-#define HTTP_BATCH_SIZE 15
-// The greater this number is the less likely are colisions/data-races between the flushes
-#define HTTP_BATCH_PAGES 10
-
 // From include/net/tcp.h
 // tcp_flag_byte(th) (((u_int8_t *)th)[13])
 #define TCP_FLAGS_OFFSET 13
@@ -69,12 +63,21 @@ typedef struct {
 
 // skb_info_t embeds a conn_tuple_t extracted from the skb object as well as
 // some ancillary data such as the data offset (the byte offset pointing to
-// where the TCP payload begins) and the TCP flags
+// where the application payload begins) and the TCP flags if applicable.
+// This struct is populated by calling `read_conn_tuple_skb` from a program type
+// that manipulates a `__sk_buff` object.
 typedef struct {
     conn_tuple_t tup;
     __u32 data_off;
     __u8 tcp_flags;
 } skb_info_t;
+
+// This determines the size of the payload fragment that is captured for each HTTP request
+#define HTTP_BUFFER_SIZE 25
+// This controls the number of HTTP transactions read from userspace at a time
+#define HTTP_BATCH_SIZE 15
+// The greater this number is the less likely are colisions/data-races between the flushes
+#define HTTP_BATCH_PAGES 10
 
 typedef enum {
     HTTP_UNKNOWN           = 0,
