@@ -427,6 +427,7 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 				b.Resource = b.Name
 			}
 			b.Resource, _ = traceutil.TruncateResource(b.Resource)
+			// TODO: obfuscate other types
 			if b.Type == "sql" || b.DBType != "" {
 				// TODO(gbbr): perhaps we should store only one instance instead of
 				// a new one on each request?
@@ -470,27 +471,30 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 			grain, tagset := stats.AssembleGrain(&buf, out.Env, b.Resource, b.Service, tags)
 			key := stats.GrainKey(b.Name, stats.HITS, grain)
 			newb.Counts[key] = stats.Count{
-				Key:     key,
-				Name:    b.Name,
-				Measure: stats.HITS,
-				TagSet:  tagset,
-				Value:   float64(b.Hits),
+				Key:      key,
+				Name:     b.Name,
+				Measure:  stats.HITS,
+				TagSet:   tagset,
+				TopLevel: float64(b.Hits),
+				Value:    float64(b.Hits),
 			}
 			key = stats.GrainKey(b.Name, stats.ERRORS, grain)
 			newb.Counts[key] = stats.Count{
-				Key:     key,
-				Name:    b.Name,
-				Measure: stats.ERRORS,
-				TagSet:  tagset,
-				Value:   float64(b.Errors),
+				Key:      key,
+				Name:     b.Name,
+				Measure:  stats.ERRORS,
+				TagSet:   tagset,
+				TopLevel: float64(b.Hits),
+				Value:    float64(b.Errors),
 			}
 			key = stats.GrainKey(b.Name, stats.DURATION, grain)
 			newb.Counts[key] = stats.Count{
-				Key:     key,
-				Name:    b.Name,
-				Measure: stats.DURATION,
-				TagSet:  tagset,
-				Value:   float64(b.Duration),
+				Key:      key,
+				Name:     b.Name,
+				Measure:  stats.DURATION,
+				TagSet:   tagset,
+				TopLevel: float64(b.Hits),
+				Value:    float64(b.Duration),
 			}
 			out.Stats = append(out.Stats, newb)
 		}
