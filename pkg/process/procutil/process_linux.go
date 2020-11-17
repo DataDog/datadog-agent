@@ -16,6 +16,7 @@ import (
 )
 
 const (
+	// WorldReadable represents file permission that's world readable
 	WorldReadable os.FileMode = 4
 )
 
