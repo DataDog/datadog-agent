@@ -94,8 +94,8 @@ github.com/DataDog/datadog-go v3.5.0+incompatible h1:AShr9cqkF+taHjyQgcBcQUt/ZNK
 github.com/DataDog/datadog-go v3.5.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
 github.com/DataDog/datadog-operator v0.2.1-0.20200709152311-9c71245c6822 h1:E5WNl43j4mpE3V35QySkRnP/m9pjXOnEZD6eyTK7Qvk=
 github.com/DataDog/datadog-operator v0.2.1-0.20200709152311-9c71245c6822/go.mod h1:a5NqgPglcSct+NwO9gPvVhoL5V6G1+gHbRaRnU8U54M=
-github.com/DataDog/ebpf v0.0.0-20201116165404-c4cbb9e2e108 h1:AKqxL/BBv6exUCY1Ihuhxt/9AcO7w0mC+NkZ0EajBIU=
-github.com/DataDog/ebpf v0.0.0-20201116165404-c4cbb9e2e108/go.mod h1:rIVS3jqxhqtYJtznvFI8qtCbYG1M7WQZS4Z15/nCmOI=
+github.com/DataDog/ebpf v0.0.0-20201117114248-e7f8186804a5 h1:TMW3FdQW8zjGlpAqOWk7OZqjxYUd7gKCXUBXX/tBUZ8=
+github.com/DataDog/ebpf v0.0.0-20201117114248-e7f8186804a5/go.mod h1:rIVS3jqxhqtYJtznvFI8qtCbYG1M7WQZS4Z15/nCmOI=
 github.com/DataDog/gobpf v0.0.0-20200907093925-5f8313cb4d71 h1:0TOAH3X9tEvMBVQ1HYrQfrnAUcSS1mfMrhqeN+spV1s=
 github.com/DataDog/gobpf v0.0.0-20200907093925-5f8313cb4d71/go.mod h1:rNvi5cSHdpxN6495MOYAWN3yukac8lORoluL+9Osrsw=
 github.com/DataDog/gohai v0.0.0-20200605003749-e17d616e422a h1:BkU6uq4Ib7Kp1zP7MT33IdHZQazC+kxbuTyEmgePyyA=
@@ -1572,8 +1572,8 @@ golang.org/x/sys v0.0.0-20200413165638-669c56c373c4 h1:opSr2sbRXk5X5/givKrrKj9HX
 golang.org/x/sys v0.0.0-20200413165638-669c56c373c4/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20200828194041-157a740278f4 h1:kCCpuwSAoYJPkNc6x0xT9yTtV4oKtARo4RGBQWOfg9E=
 golang.org/x/sys v0.0.0-20200828194041-157a740278f4/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
-golang.org/x/sys v0.0.0-20200831180312-196b9ba8737a h1:i47hUS795cOydZI4AwJQCKXOr4BvxzvikwDoDtHhP2Y=
-golang.org/x/sys v0.0.0-20200831180312-196b9ba8737a/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
+golang.org/x/sys v0.0.0-20201117170446-d9b008d0a637 h1:O5hKNaGxIT4A8OTMnuh6UpmBdI3SAPxlZ3g0olDrJVM=
+golang.org/x/sys v0.0.0-20201117170446-d9b008d0a637/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/text v0.0.0-20160726164857-2910a502d2bf/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
 golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
 golang.org/x/text v0.3.1-0.20180805044716-cb6730876b98/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
