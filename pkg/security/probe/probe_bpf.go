@@ -458,19 +458,14 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 			log.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-
 		// allow cache resolution for ExecEventType only
 		if eventType == ExecEventType {
 			event.Exec.AllowCacheResolution = true
 		}
-
 		// update the process resolver cache
 		event.updateProcessCachePointer(p.resolvers.ProcessResolver.AddEntry(event.Process.Pid, event.processCacheEntry))
 	case ExitEventType:
-		// as far as we keep only one perf ring buffer for all the events we can delete the entry right away, there won't be
-		// any race
-		// p.resolvers.ProcessResolver.DelEntry(event.Process.Pid)
-
+		p.resolvers.ProcessResolver.DeleteEntry(event.Process.Pid, event.ResolveMonotonicTimestamp())
 		// no need to dispatch
 		return
 	default:

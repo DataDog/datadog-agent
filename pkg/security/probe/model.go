@@ -1489,6 +1489,9 @@ func (e *Event) UnmarshalBinary(data []byte) (int, error) {
 func (e *Event) ResolveMonotonicTimestamp() time.Time {
 	if e.Timestamp.IsZero() {
 		e.Timestamp = e.resolvers.TimeResolver.ResolveMonotonicTimestamp(e.TimestampRaw)
+		if e.Timestamp.IsZero() {
+			e.Timestamp = time.Now()
+		}
 	}
 	return e.Timestamp
 }

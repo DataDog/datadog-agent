@@ -218,10 +218,51 @@ func (p *ProcessResolver) insertEntry(pid uint32, entry *ProcessCacheEntry) *Pro
 	return entry
 }
 
-func (p *ProcessResolver) DelEntry(pid uint32) {
+func (p *ProcessResolver) DeleteEntry(pid uint32, exitTime time.Time) {
 	p.Lock()
 	defer p.Unlock()
-	delete(p.entryCache, pid)
+
+	// Start by updating the exit timestamp of the pid cache entry
+	entry, ok := p.entryCache[pid]
+	if !ok {
+		return
+	}
+	entry.ExitTimestamp = exitTime
+
+	// delete the entry and clean up its parents if necessary
+	p.recursiveDelete(entry)
+}
+
+// recursiveDelete deletes an entry and its parent recursively, if the process can be deleted
+func (p *ProcessResolver) recursiveDelete(entry *ProcessCacheEntry) {
+	// We cannot delete the entry if the process is still alive
+	if entry.ExitTimestamp.IsZero() {
+		return
+	}
+
+	// We cannot delete the entry if it still has children
+	if len(entry.Children) > 0 {
+		return
+	}
+
+	// Delete the entry
+	delete(p.entryCache, entry.Pid)
+
+	// There is nothing left to do if the entry does not have a parent
+	if entry.Parent == nil {
+		return
+	}
+
+	// Delete the reference to the entry from its parent
+	for i, child := range entry.Parent.Children {
+		if child.Pid == entry.Pid {
+			entry.Parent.Children = append(entry.Parent.Children[:i], entry.Parent.Children[i+1:]...)
+			break
+		}
+	}
+
+	// Check recursively if the parent entry can be deleted
+	p.recursiveDelete(entry.Parent)
 }
 
 // Resolve returns the cache entry for the given pid
@@ -337,6 +378,16 @@ func (p *ProcessResolver) SyncCache(proc *process.FilledProcess) bool {
 	entry = p.insertEntry(pid, entry)
 
 	log.Tracef("New process cache entry added: %s %s %d/%d", proc.Name, entry.PathnameStr, pid, entry.Inode)
+
+	// loop through the children of the newly inserted process to propagate the container ID if necessary
+	if len(entry.ID) > 0 {
+		for _, child := range entry.Children {
+			if len(child.ID) == 0 {
+				child.ID = entry.ID
+			}
+		}
+	}
+
 	return true
 }
 
