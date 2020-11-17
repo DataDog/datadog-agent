@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,7 +29,7 @@ func mockAggregator() *aggregator.BufferedAggregator {
 	return agg
 }
 
-func buildPacketConent(numberOfMetrics int) []byte {
+func buildPacketContent(numberOfMetrics int) []byte {
 	rawPacket := "daemon:666|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2"
 	packets := rawPacket
 	for i := 1; i < numberOfMetrics; i++ {
@@ -40,6 +41,7 @@ func buildPacketConent(numberOfMetrics int) []byte {
 func BenchmarkParsePackets(b *testing.B) {
 	// our logger will log dogstatsd packet by default if nothing is setup
 	config.SetupLogger("", "off", "", "", false, true, false)
+	rawPacket := buildPacketContent(20 * 32)
 
 	agg := mockAggregator()
 	s, _ := NewServer(agg)
@@ -62,7 +64,6 @@ func BenchmarkParsePackets(b *testing.B) {
 		batcher := newBatcher(agg)
 		parser := newParser()
 		// 32 packets of 20 samples
-		rawPacket := buildPacketConent(20 * 32)
 		packet := listeners.Packet{
 			Contents: rawPacket,
 			Origin:   listeners.NoOrigin,
@@ -72,6 +73,40 @@ func BenchmarkParsePackets(b *testing.B) {
 		for pb.Next() {
 			packet.Contents = rawPacket
 			s.parsePackets(batcher, parser, packets)
+		}
+	})
+}
+
+var m metrics.MetricSample
+
+func BenchmarkParseMetricMessage(b *testing.B) {
+	// our logger will log dogstatsd packet by default if nothing is setup
+	config.SetupLogger("", "off", "", "", false, true, false)
+
+	agg := mockAggregator()
+	s, _ := NewServer(agg)
+	defer s.Stop()
+
+	done := make(chan struct{})
+	go func() {
+		s, _, _ := agg.GetBufferedChannels()
+		for {
+			select {
+			case <-s:
+			case <-done:
+				return
+			}
+		}
+	}()
+	defer close(done)
+
+	parser := newParser()
+	originTagger := originTags{}
+	message := []byte("daemon:666|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2")
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			m, _ = s.parseMetricMessage(parser, message, originTagger.getTags)
 		}
 	})
 }

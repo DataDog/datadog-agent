@@ -17,16 +17,27 @@ func buildRawSample(tagCount int) []byte {
 }
 
 // used to store the result and avoid optimizations
-var sample metrics.MetricSample
+var (
+	benchSamples metrics.MetricSample
+)
 
 func BenchmarkParseMetric(b *testing.B) {
+	parser := newParser()
+	namespaceBlacklist := []string{}
+
 	for i := 1; i < 1000; i *= 4 {
 		b.Run(fmt.Sprintf("%d-tags", i), func(sb *testing.B) {
 			rawSample := buildRawSample(i)
 			sb.ResetTimer()
 
 			for n := 0; n < sb.N; n++ {
-				sample, _ = parseAndEnrichMetricMessage(rawSample, "", []string{}, "default-hostname")
+
+				parsed, err := parser.parseMetricSample(rawSample)
+				if err != nil {
+					continue
+				}
+
+				benchSamples = enrichMetricSample(parsed, "", namespaceBlacklist, "default-hostname", returnEmptyTags, true)
 			}
 		})
 	}
