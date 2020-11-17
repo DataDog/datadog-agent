@@ -7,8 +7,8 @@
 package system
 
 import (
-	"testing"
 	"reflect"
+	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -23,7 +23,9 @@ func TestFhCheckFreeBSD(t *testing.T) {
 	fileHandleCheck.Configure(nil, nil, "test")
 
 	monkey.PatchInstanceMethod(reflect.TypeOf(sysctl), "GetInt64", func(name string) (value int64, err error) {
-		return (65534, nil)
+		value = 65534
+		err = nil
+		return
 	})
 
 	mock := mocksender.NewMockSender(fileHandleCheck.ID())
