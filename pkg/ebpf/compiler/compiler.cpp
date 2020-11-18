@@ -119,14 +119,7 @@ std::unique_ptr<clang::CompilerInvocation> ClangCompiler::buildCompilation(
     std::unique_ptr<clang::CompilerInvocation> invocation(new clang::CompilerInvocation);
     const llvm::opt::ArgStringList &ccargs = cmd.getArguments();
 
-#if LLVM_MAJOR_VERSION >= 10
     clang::CompilerInvocation::CreateFromArgs(*invocation, ccargs, *diagnosticsEngine);
-#else
-    clang::CompilerInvocation::CreateFromArgs(
-        *invocation, const_cast<const char **>(ccargs.data()),
-        const_cast<const char **>(ccargs.data()) + ccargs.size(), *diagnosticsEngine);
-#endif
-
     return invocation;
 }
 
