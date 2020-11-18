@@ -48,9 +48,9 @@ except pkg_resources.DistributionNotFound:
 var (
 	datadogPkgNameRe      = regexp.MustCompile("datadog-.*")
 	yamlFileNameRe        = regexp.MustCompile("[\\w_]+\\.yaml.*")
-	wheelPackageNameRe    = regexp.MustCompile("Name: (\\S+)")                                                                                // e.g. Name: datadog-postgres
-	versionSpecifiersRe   = regexp.MustCompile("([><=!]{1,2})([0-9.]*)")                                                                      // Matches version specifiers defined in https://packaging.python.org/specifications/core-metadata/#requires-dist-multiple-use
-	pep440VersionStringRe = regexp.MustCompile("^(?P<release>\\d+\\.\\d+\\.\\d+)(?:(?P<preReleaseType>a|b|rc)(?P<preReleaseNumber>\\d+)?)?$") // e.g. 1.3.4b1, simplified form of: https://www.python.org/dev/peps/pep-0440
+	wheelPackageNameRe    = regexp.MustCompile("Name: (\\S+)")                                                                                   // e.g. Name: datadog-postgres
+	versionSpecifiersRe   = regexp.MustCompile("([><=!]{1,2})([0-9.]*)")                                                                         // Matches version specifiers defined in https://packaging.python.org/specifications/core-metadata/#requires-dist-multiple-use
+	pep440VersionStringRe = regexp.MustCompile("^(?P<release>\\d+\\.\\d+\\.\\d+)(?:(?P<preReleaseType>[a-zA-Z]+)(?P<preReleaseNumber>\\d+)?)?$") // e.g. 1.3.4b1, simplified form of: https://www.python.org/dev/peps/pep-0440
 
 	allowRoot           bool
 	verbose             int
@@ -228,16 +228,16 @@ func PEP440ToSemver(pep440 string) (*semver.Version, error) {
 	preReleaseType := matches[2]
 	preReleaseNumber := matches[3]
 	if preReleaseType != "" {
+		if preReleaseNumber == "" {
+			preReleaseNumber = "0"
+		}
 		switch preReleaseType {
 		case "a":
-			versionString = fmt.Sprintf("%s-alpha", versionString)
+			versionString = fmt.Sprintf("%s-alpha.%s", versionString, preReleaseNumber)
 		case "b":
-			versionString = fmt.Sprintf("%s-beta", versionString)
+			versionString = fmt.Sprintf("%s-beta.%s", versionString, preReleaseNumber)
 		default:
-			versionString = fmt.Sprintf("%s-%s", versionString, preReleaseType)
-		}
-		if preReleaseNumber != "" {
-			versionString = fmt.Sprintf("%s.%s", versionString, preReleaseNumber)
+			versionString = fmt.Sprintf("%s-%s.%s", versionString, preReleaseType, preReleaseNumber)
 		}
 	}
 	return semver.NewVersion(versionString)

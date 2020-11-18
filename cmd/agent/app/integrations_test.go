@@ -169,8 +169,14 @@ func TestPEP440ToSemver(t *testing.T) {
 	version, _ = PEP440ToSemver("1.3.4b12")
 	assert.Equal(t, version.String(), "1.3.4-beta.12")
 
+	// PEP440 allows this: https://www.python.org/dev/peps/pep-0440/#implicit-pre-release-number
+	// We don't ship versions like this, but we support this in case we do in the future.
 	version, _ = PEP440ToSemver("1.3.4b")
-	assert.Equal(t, version.String(), "1.3.4-beta")
+	assert.Equal(t, version.String(), "1.3.4-beta.0")
+
+	// Other identifiers are passed-through, for resiliency.
+	version, _ = PEP440ToSemver("1.3.4dev1")
+	assert.Equal(t, version.String(), "1.3.4-dev.1")
 }
 
 func TestGetIntegrationName(t *testing.T) {
