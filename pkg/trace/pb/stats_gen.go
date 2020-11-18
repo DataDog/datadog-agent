@@ -5,7 +5,6 @@ package pb
 // DO NOT EDIT
 
 import (
-	_ "github.com/gogo/protobuf/gogoproto"
 	"github.com/tinylib/msgp/msgp"
 )
 
