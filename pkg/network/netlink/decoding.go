@@ -5,6 +5,7 @@ package netlink
 
 import (
 	"encoding/binary"
+	"fmt"
 	"net"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -40,6 +41,10 @@ const (
 type Con struct {
 	ct.Con
 	NetNS int32
+}
+
+func (c Con) String() string {
+	return fmt.Sprintf("netns=%d src=%s dst=%s sport=%d dport=%d src=%s dst=%s sport=%d dport=%d proto=%d", c.NetNS, c.Origin.Src, c.Origin.Dst, *c.Origin.Proto.SrcPort, *c.Origin.Proto.DstPort, c.Reply.Src, c.Reply.Dst, *c.Reply.Proto.SrcPort, *c.Reply.Proto.DstPort, *c.Con.Origin.Proto.Number)
 }
 
 var scanner = NewAttributeScanner()

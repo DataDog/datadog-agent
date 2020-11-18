@@ -92,7 +92,7 @@ variables:
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
   DATADOG_AGENT_BUILDIMAGES: v2894686-d80c3ce
-  DATADOG_AGENT_BUILDERS: v2894668-736db00
+  DATADOG_AGENT_BUILDERS: v3299433-d824e87
   DATADOG_AGENT_WINBUILDIMAGES: v3283120-ecb88be
   DATADOG_AGENT_ARMBUILDIMAGES: v2894686-d80c3ce
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v2894686-d80c3ce
@@ -1797,7 +1797,7 @@ deploy_windows_testing-a7:
 .kitchen_os_suse: &kitchen_os_suse
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
-    - export TEST_PLATFORMS="sles-12,urn,SUSE:SLES-BYOS:12-SP4:2020.06.10"
+    - export TEST_PLATFORMS="sles-12,urn,SUSE:sles-12-sp5-byos:gen1:2020.09.21"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|sles-15,urn,SUSE:sles-15-sp2-byos:gen1:2020.09.21"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
@@ -4484,6 +4484,36 @@ revert_latest_7_google_container_registry:
       --image gcr.io/datadoghq/agent-arm64:${NEW_LATEST_RELEASE_7}-jmx,linux/arm64
     - inv -e docker.publish gcr.io/datadoghq/dogstatsd:${NEW_LATEST_RELEASE_7} gcr.io/datadoghq/dogstatsd:latest
     - inv -e docker.publish gcr.io/datadoghq/dogstatsd:${NEW_LATEST_RELEASE_7} gcr.io/datadoghq/dogstatsd:7
+
+# Once a day, before the nightly build, cleans up the artifacts used during kitchen tests which might have been left over
+# This can happen when a kitchen test fails and is never retried, since that pipeline's cleanup job won't run
+periodic_kitchen_cleanup_s3:
+  stage: maintenance_jobs
+  tags: [ "runner:main", "size:large" ]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  rules:
+    - if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_6 == "nightly" && $RELEASE_VERSION_7 == "nightly-a7" && $TESTING_CLEANUP == "true"
+  script:
+    - aws s3 rm --recursive s3://$DEB_TESTING_S3_BUCKET/pool
+    - aws s3 rm --recursive s3://$DEB_TESTING_S3_BUCKET/dists
+    - aws s3 rm --recursive s3://$RPM_TESTING_S3_BUCKET/testing/
+    - aws s3 rm --recursive s3://$RPM_TESTING_S3_BUCKET/suse/testing/
+    - aws s3 rm --recursive s3://$WIN_S3_BUCKET/pipelines/A6/
+    - aws s3 rm --recursive s3://$WIN_S3_BUCKET/pipelines/A7/
+
+# Once a day, before the nightly build, kills any VMs that might have been left over by kitchen
+periodic_kitchen_cleanup_azure:
+  stage: maintenance_jobs
+  tags: [ "runner:main", "size:large" ]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  rules:
+    - if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_6 == "nightly" && $RELEASE_VERSION_7 == "nightly-a7" && $TESTING_CLEANUP == "true"
+  script:
+    - export ARM_SUBSCRIPTION_ID=`aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_subscription_id --with-decryption --query "Parameter.Value" --out text`
+    - export ARM_CLIENT_ID=`aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_client_id --with-decryption --query "Parameter.Value" --out text`
+    - export ARM_CLIENT_SECRET=`aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_client_secret --with-decryption --query "Parameter.Value" --out text`
+    - export ARM_TENANT_ID=`aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_tenant_id --with-decryption --query "Parameter.Value" --out text`
+    - python3 ~/deploy_scripts/cleanup_azure.py
 
 #
 # Use this step to delete a tag of a given image

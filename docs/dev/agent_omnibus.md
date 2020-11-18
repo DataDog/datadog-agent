@@ -10,7 +10,7 @@ installer on Windows, or a `.pkg` package bundled in a DMG archive on Mac.
 For Linux, we provide Docker images (one to build DEB packages and one for RPM),
 with the build dependencies installed, so you don't have to install them on your system.
 
-## Building inside Docker (Linux only, recommended)
+## Linux Docker image (Linux host only, recommended)
 
 Use the provided Docker images to build a DEB or RPM
 package for Linux. You need to have Docker already running on your machine.
@@ -80,66 +80,31 @@ outside the Agent repo. By default Omnibus stores packages in the project folder
 itself: running the task multiple times would recursively add those artifacts to
 the source files for the `datadog-agent` software definition.
 
-## Building on Windows
+## Windows Docker image (Windows host only, recommended)
 
 ### Prerequisites
-- Visual Studio >= 2017
-    - Minimal config for VS 2019
-    ```{
-       "version": "1.0",
-       "components": [
-         "Microsoft.VisualStudio.Component.CoreEditor",
-         "Microsoft.VisualStudio.Workload.CoreEditor",
-         "Microsoft.VisualStudio.Component.NuGet",
-         "Microsoft.VisualStudio.Component.Roslyn.Compiler",
-         "Microsoft.VisualStudio.ComponentGroup.WebToolsExtensions",
-         "Microsoft.Component.MSBuild",
-         "Microsoft.VisualStudio.Component.TextTemplating",
-         "Microsoft.VisualStudio.Component.IntelliCode",
-         "Component.Microsoft.VisualStudio.LiveShare",
-         "Microsoft.VisualStudio.Component.VC.CoreIde",
-         "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
-         "Microsoft.VisualStudio.Component.Graphics.Tools",
-         "Microsoft.VisualStudio.Component.VC.DiagnosticTools",
-         "Microsoft.VisualStudio.Component.Windows10SDK.18362",
-         "Microsoft.VisualStudio.Component.Debugger.JustInTime",
-         "Microsoft.VisualStudio.Component.VC.Redist.14.Latest",
-         "Microsoft.VisualStudio.ComponentGroup.NativeDesktop.Core",
-         "Microsoft.VisualStudio.Component.VC.CMake.Project",
-         "Microsoft.VisualStudio.Component.VC.ATL",
-         "Microsoft.VisualStudio.Component.VC.TestAdapterForBoostTest",
-         "Microsoft.VisualStudio.Component.VC.TestAdapterForGoogleTest",
-         "Microsoft.VisualStudio.Component.VC.v141.x86.x64",
-         "Microsoft.Component.VC.Runtime.UCRTSDK",
-         "Microsoft.VisualStudio.Component.VC.140",
-         "Microsoft.VisualStudio.Workload.NativeDesktop"
-       ]
-     }
-- Windows 8.1 SDK
-- Wix SDK (Also requires the Windows feature '.Net Framework 3.5')
-- 7zip
-- Ruby >= 2.4 and MSYS/MINGW
-- Bundler
-- Python >= 2.7
-    
-*Note:* Windows 8.1 SDK is not longer shipped with Visual Studio, starting with version 2019.
-It can be [downloaded separately](https://developer.microsoft.com/en-us/windows/downloads/sdk-archive).
+To build on Windows, [Docker Desktop](https://docs.docker.com/docker-for-windows/install/) must be installed and configured to use Windows containers.
 
-### Installation
-- Launch a "Developer Command Prompt for VS 201X"
-- Enable ridk
+Start a command prompt with administrators permission and navigate to your local clone of the `datadog-agent` repo. Start Docker image by running:
+```
+docker run -v %CD%:c:\dev\go\src\github.com\DataDog\datadog-agent -it datadog/agent-buildimages-windows_1809_x64 cmd
+```
 
-        ridk enable
+It takes a while on the first run since it has to download the ~12GB Docker image.
 
-- Check that the necessary tools are in the %PATH%:
+Start the build by running:
+```
+set PY_RUNTIMES="3"
+set NEW_BUILDER=true
+set MAJOR_VERSION=7
+set RELEASE_VERSION=nightly
+set TARGET_ARCH=x64
+set PYTHONIOENCODING=UTF-8
+REM The line below will force gem refresh
+del \dev\go\src\github.com\datadog\datadog-agent\omnibus\Gemfile.lock
+md c:\mnt
+cd \dev\go\src\github.com\datadog\datadog-agent\tasks\winbuildscripts\
+buildwin.bat
+```
 
-        > which 7z
-        /c/Program Files/7-Zip/7z
-        > which heat
-        /c/Program Files (x86)/WiX Toolset v3.11/bin/heat
-        > which bundler
-        /c/Ruby24-x64/bin/bundler
-
-- Launch the build for the packages
-
-        inv agent.omnibus-build --base-dir=C:\.omnibus-ruby
+If the build succeeds, the build artifacts can be found under `omnibus\pkg` in the repo.

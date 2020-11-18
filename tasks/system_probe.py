@@ -403,17 +403,21 @@ def build_object_files(ctx, bundle_ebpf=False):
     )
     bindata_files.extend([security_agent_obj_file, security_agent_syscall_wrapper_obj_file])
 
-    if bundle_ebpf:
-        assets_cmd = (
-            "go run github.com/shuLhan/go-bindata/cmd/go-bindata"
-            + " -pkg bytecode -tags ebpf_bindata -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{bindata_files}'"
-        )
-        go_file = os.path.join(bpf_dir, "bytecode", "tracer-ebpf.go")
-        commands.append(assets_cmd.format(c_dir=c_dir, go_file=go_file, bindata_files="' '".join(bindata_files)))
-        commands.append("gofmt -w -s {go_file}".format(go_file=go_file))
-
     for cmd in commands:
         ctx.run(cmd)
+
+    if bundle_ebpf:
+        go_dir = os.path.join(bpf_dir, "bytecode", "bindata")
+        bundle_files(ctx, bindata_files, c_dir, go_dir)
+
+
+def bundle_files(ctx, bindata_files, dir_prefix, go_dir):
+    assets_cmd = (
+        "go run github.com/shuLhan/go-bindata/cmd/go-bindata -tags ebpf_bindata -split"
+        + " -pkg bindata -prefix '{dir_prefix}' -modtime 1 -o '{go_dir}' '{bindata_files}'"
+    )
+    ctx.run(assets_cmd.format(dir_prefix=dir_prefix, go_dir=go_dir, bindata_files="' '".join(bindata_files)))
+    ctx.run("gofmt -w -s {go_dir}".format(go_dir=go_dir))
 
 
 def build_ebpf_builder(ctx):

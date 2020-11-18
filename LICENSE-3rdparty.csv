@@ -294,6 +294,7 @@ core,"github.com/gogo/protobuf/sortkeys",NewBSD
 core,"github.com/gogo/protobuf/types",NewBSD
 core,"github.com/golang/glog",Apache-2.0
 core,"github.com/golang/groupcache/lru",Apache-2.0
+core,"github.com/golang/mock/gomock",Apache-2.0
 core,"github.com/golang/protobuf/descriptor",NewBSD
 core,"github.com/golang/protobuf/jsonpb",NewBSD
 core,"github.com/golang/protobuf/proto",NewBSD

@@ -58,7 +58,6 @@ func TestTracerExpvar(t *testing.T) {
 	expected := map[string][]string{
 		"conntrack": {
 			"StateSize",
-			"Expires",
 			"Enobufs",
 			"Throttles",
 			"SamplingPct",
@@ -396,6 +395,7 @@ func TestTCPRemoveEntries(t *testing.T) {
 	require.NoError(t, err)
 	defer c2.Close()
 
+	c.Close()
 	// Retrieve the list of connections
 	connections := getConnections(t, tr)
 
@@ -1405,8 +1405,12 @@ type TCPServer struct {
 }
 
 func NewTCPServer(onMessage func(c net.Conn)) *TCPServer {
+	return NewTCPServerOnAddress("127.0.0.1:0", onMessage)
+}
+
+func NewTCPServerOnAddress(addr string, onMessage func(c net.Conn)) *TCPServer {
 	return &TCPServer{
-		address:   "127.0.0.1:0",
+		address:   addr,
 		onMessage: onMessage,
 	}
 }
@@ -1632,15 +1636,16 @@ func TestConntrackExpiration(t *testing.T) {
 	// times can fail if binding to the same port since Conntrack might not emit NEW events for the same tuple
 	rand.Seed(time.Now().UnixNano())
 	port := 5430 + rand.Intn(100)
-	server := NewUDPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", port), func([]byte, int) []byte {
-		return nil
+	server := NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", port), func(c net.Conn) {
+		io.Copy(ioutil.Discard, c)
+		c.Close()
 	})
 	doneChan := make(chan struct{})
-	err = server.Run(doneChan, clientMessageSize)
+	err = server.Run(doneChan)
 	require.NoError(t, err)
 	defer close(doneChan)
 
-	c, err := net.Dial("udp", fmt.Sprintf("2.2.2.2:%d", port))
+	c, err := net.Dial("tcp", fmt.Sprintf("2.2.2.2:%d", port))
 	require.NoError(t, err)
 	defer c.Close()
 	_, err = c.Write([]byte("ping"))
@@ -1654,8 +1659,18 @@ func TestConntrackExpiration(t *testing.T) {
 	require.True(t, ok)
 	require.NotNil(t, tr.conntracker.GetTranslationForConn(*conn), "missing translation for connection")
 
-	// This will force the connection to be expired next time we call getConnections
-	tr.config.UDPConnTimeout = time.Duration(-1)
+	// This will force the connection to be expired next time we call getConnections, but
+	// conntrack should still have the connection information since the connection is still
+	// alive
+	tr.config.TCPConnTimeout = time.Duration(-1)
+	_ = getConnections(t, tr)
+
+	assert.NotNil(t, tr.conntracker.GetTranslationForConn(*conn), "translation should not have been deleted")
+
+	// delete the connection from system conntrack
+	cmd := exec.Command("conntrack", "-D", "-s", c.LocalAddr().(*net.TCPAddr).IP.String(), "-d", c.RemoteAddr().(*net.TCPAddr).IP.String(), "-p", "tcp")
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, "conntrack delete failed, output: %s", out)
 	_ = getConnections(t, tr)
 
 	assert.Nil(t, tr.conntracker.GetTranslationForConn(*conn), "translation should have been deleted")

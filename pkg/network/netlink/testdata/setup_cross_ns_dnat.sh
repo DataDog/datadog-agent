@@ -11,3 +11,4 @@ ip link set veth1 up
 ip -n test link set veth2 up
 
 ip netns exec test iptables -A PREROUTING -t nat -p tcp --dport 80 -j REDIRECT --to-port 8080
+ip netns exec test iptables -A PREROUTING -t nat -p udp --dport 80 -j REDIRECT --to-port 8080
