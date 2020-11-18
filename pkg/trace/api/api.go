@@ -36,12 +36,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
-	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-	"github.com/DataDog/datadog-agent/pkg/trace/stats"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -56,11 +53,11 @@ type HTTPReceiver struct {
 	Stats       *info.ReceiverStats
 	RateLimiter *rateLimiter
 
-	out      chan *Payload
-	outStats chan *stats.Payload
-	conf     *config.AgentConfig
-	dynConf  *sampler.DynamicConfig
-	server   *http.Server
+	out            chan *Payload
+	conf           *config.AgentConfig
+	dynConf        *sampler.DynamicConfig
+	server         *http.Server
+	statsProcessor StatsProcessor
 
 	debug               bool
 	rateLimiterResponse int // HTTP status code when refusing
@@ -70,7 +67,7 @@ type HTTPReceiver struct {
 }
 
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver
-func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, out chan *Payload, outStats chan *stats.Payload) *HTTPReceiver {
+func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, out chan *Payload, statsProcessor StatsProcessor) *HTTPReceiver {
 	rateLimiterResponse := http.StatusOK
 	if config.HasFeature("429") {
 		rateLimiterResponse = http.StatusTooManyRequests
@@ -78,11 +75,11 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 	return &HTTPReceiver{
 		Stats:       info.NewReceiverStats(),
 		RateLimiter: newRateLimiter(),
-		out:         out,
-		outStats:    outStats,
 
-		conf:    conf,
-		dynConf: dynConf,
+		out:            out,
+		statsProcessor: statsProcessor,
+		conf:           conf,
+		dynConf:        dynConf,
 
 		debug:               strings.ToLower(conf.LogLevel) == "debug",
 		rateLimiterResponse: rateLimiterResponse,
@@ -367,6 +364,13 @@ func (r *HTTPReceiver) rateLimited(n int64) bool {
 	return !r.RateLimiter.Permits(n)
 }
 
+// StatsProcessor implementations are able to proces incoming client stats.
+type StatsProcessor interface {
+	// ProcessStats takes a stats payload and consumes it. It is considered to be originating
+	// from the given lang.
+	ProcessStats(p pb.ClientStatsPayload, lang string)
+}
+
 // handleStats handles incoming stats payloads.
 func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	defer timing.Since("datadog.trace_agent.receiver.stats_process_ms", time.Now())
@@ -403,100 +407,7 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	}
 	metrics.Count("datadog.trace_agent.receiver.stats_buckets", int64(len(in.Stats)), nil, 1)
 
-	if in.Env == "" {
-		in.Env = r.conf.DefaultEnv
-	}
-	in.Env = traceutil.NormalizeTag(in.Env)
-	out := stats.Payload{
-		HostName: in.Hostname,
-		Env:      in.Env,
-	}
-	var buf strings.Builder
-	for _, group := range in.Stats {
-		for _, b := range group.Stats {
-			// Normalizer
-			b.Name, _ = traceutil.NormalizeName(b.Name)
-			b.Service, _ = traceutil.NormalizeService(b.Service, req.Header.Get(headerLang))
-			if b.Resource == "" {
-				b.Resource = b.Name
-			}
-			b.Resource, _ = traceutil.TruncateResource(b.Resource)
-			if b.Type == "sql" || b.DBType != "" {
-				// TODO(gbbr): perhaps we should store only one instance instead of
-				// a new one on each request?
-				oq, err := obfuscate.NewObfuscator(r.conf.Obfuscation).ObfuscateSQLString(b.Resource)
-				if err != nil {
-					log.Errorf("Error obfuscating resource %q: %v", b.Resource, err)
-				} else {
-					b.Resource = oq.Query
-				}
-			}
-			if b.Type == "redis" {
-				b.Resource = obfuscate.NewObfuscator(r.conf.Obfuscation).QuantizeRedisString(b.Resource)
-			}
-
-			tags := map[string]string{"version": in.Version}
-			if b.HTTPStatusCode != 0 {
-				tags["http.status_code"] = strconv.Itoa(int(b.HTTPStatusCode))
-			}
-
-			// Replacer
-			for _, rule := range r.conf.ReplaceTags {
-				key, str, re := rule.Name, rule.Repl, rule.Re
-				switch key {
-				case "resource.name":
-					b.Resource = re.ReplaceAllString(b.Resource, str)
-				case "*":
-					b.Resource = re.ReplaceAllString(b.Resource, str)
-					for k, v := range tags {
-						tags[k] = re.ReplaceAllString(v, str)
-					}
-				default:
-					if _, ok := tags[key]; !ok {
-						continue
-					}
-					tags[key] = re.ReplaceAllString(tags[key], str)
-				}
-			}
-
-			newb := stats.Bucket{
-				Start:    int64(group.Start),
-				Duration: int64(group.Duration),
-				Counts:   make(map[string]stats.Count),
-			}
-			grain, tagset := stats.AssembleGrain(&buf, out.Env, b.Resource, b.Service, tags)
-			key := stats.GrainKey(b.Name, stats.HITS, grain)
-			newb.Counts[key] = stats.Count{
-				Key:      key,
-				Name:     b.Name,
-				Measure:  stats.HITS,
-				TagSet:   tagset,
-				TopLevel: float64(b.Hits),
-				Value:    float64(b.Hits),
-			}
-			key = stats.GrainKey(b.Name, stats.ERRORS, grain)
-			newb.Counts[key] = stats.Count{
-				Key:      key,
-				Name:     b.Name,
-				Measure:  stats.ERRORS,
-				TagSet:   tagset,
-				TopLevel: float64(b.Hits),
-				Value:    float64(b.Errors),
-			}
-			key = stats.GrainKey(b.Name, stats.DURATION, grain)
-			newb.Counts[key] = stats.Count{
-				Key:      key,
-				Name:     b.Name,
-				Measure:  stats.DURATION,
-				TagSet:   tagset,
-				TopLevel: float64(b.Hits),
-				Value:    float64(b.Duration),
-			}
-			out.Stats = append(out.Stats, newb)
-		}
-	}
-
-	r.outStats <- &out
+	r.statsProcessor.ProcessStats(in, req.Header.Get(headerLang))
 }
 
 // handleTraces knows how to handle a bunch of traces
