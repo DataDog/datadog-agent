@@ -458,14 +458,21 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 			log.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+
 		// allow cache resolution for ExecEventType only
 		if eventType == ExecEventType {
 			event.Exec.AllowCacheResolution = true
 		}
+
 		// update the process resolver cache
 		event.updateProcessCachePointer(p.resolvers.ProcessResolver.AddEntry(event.Process.Pid, event.processCacheEntry))
+
+		// do not dispatch fork event
+		if eventType == ForkEventType {
+			return
+		}
 	case ExitEventType:
-		p.resolvers.ProcessResolver.DeleteEntry(event.Process.Pid, event.ResolveMonotonicTimestamp())
+		p.resolvers.ProcessResolver.DeleteEntry(event.Process.Pid, event.ResolveEventTimestamp())
 		// no need to dispatch
 		return
 	default:

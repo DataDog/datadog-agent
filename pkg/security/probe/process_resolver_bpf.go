@@ -179,7 +179,7 @@ func (p *ProcessResolver) insertEntry(pid uint32, entry *ProcessCacheEntry) *Pro
 		// we've lost kernel space context (LRU or snapshot). Copy all the data we can from the parent.
 		if entry.ExecTimestamp.IsZero() {
 			newEntry := parent.Copy()
-			// pid, tid, uid, gid, ppid and fork timestamp are the only attributes that we can salvage from entry
+			// pid, tid, uid, gid, ppid and fork timestamp are the only attributes that we can salvage for sure from entry
 			newEntry.Pid = entry.Pid
 			newEntry.Tid = entry.Tid
 			newEntry.UID = entry.UID
@@ -190,15 +190,18 @@ func (p *ProcessResolver) insertEntry(pid uint32, entry *ProcessCacheEntry) *Pro
 			newEntry.PPid = entry.PPid
 			entry = newEntry
 		}
+
 		// inherit the container ID from the parent if necessary. If a container is already running when system-probe
 		// starts, the in-kernel process cache will have out of sync container ID values for the processes of that
 		// container (the snapshot doesn't update the in-kernel cache with the container IDs). This can also happen if
 		// the proc_cache LRU ejects an entry.
-		// WARNING: this is why the user space cache should be used to detect container breakouts. Dedicated in-kernel
-		// probes will need to be added.
+		// WARNING: this is why the user space cache should not be used to detect container breakouts. Dedicated
+		// in-kernel probes will need to be added.
 		if len(parent.ID) > 0 && len(entry.ID) == 0 {
 			entry.ID = parent.ID
 		}
+
+		// add entry to the children of its parent
 		parent.Children = append(parent.Children, entry)
 	} else {
 		if entry.PPid >= 1 {
@@ -218,6 +221,7 @@ func (p *ProcessResolver) insertEntry(pid uint32, entry *ProcessCacheEntry) *Pro
 	return entry
 }
 
+// DeleteEntry tries to delete an entry in the process cache
 func (p *ProcessResolver) DeleteEntry(pid uint32, exitTime time.Time) {
 	p.Lock()
 	defer p.Unlock()
@@ -274,11 +278,16 @@ func (p *ProcessResolver) Resolve(pid uint32) *ProcessCacheEntry {
 		return entry
 	}
 
-	// fallback request the map directly, the perf event may be delayed
-	return p.resolve(pid)
+	// fallback to the kernel maps directly, the perf event may be delayed / may have been lost
+	if entry = p.resolveWithKernelMaps(pid); entry != nil {
+		return entry
+	}
+
+	// fallback to /proc, the in-kernel LRU may have deleted the entry
+	return p.resolveWithProcfs(pid)
 }
 
-func (p *ProcessResolver) resolve(pid uint32) *ProcessCacheEntry {
+func (p *ProcessResolver) resolveWithKernelMaps(pid uint32) *ProcessCacheEntry {
 	pidb := make([]byte, 4)
 	ebpf.ByteOrder.PutUint32(pidb, pid)
 
@@ -310,6 +319,20 @@ func (p *ProcessResolver) resolve(pid uint32) *ProcessCacheEntry {
 	entry.Tid = pid
 
 	return p.insertEntry(pid, &entry)
+}
+
+func (p *ProcessResolver) resolveWithProcfs(pid uint32) *ProcessCacheEntry {
+	// check if the process is still alive
+	proc, err := process.NewProcess(int32(pid))
+	if err != nil {
+		return nil
+	}
+
+	if filledProc := utils.GetFilledProcess(proc); filledProc != nil {
+		entry, _ := p.syncCache(filledProc)
+		return entry
+	}
+	return nil
 }
 
 func (p *ProcessResolver) Get(pid uint32) *ProcessCacheEntry {
@@ -351,20 +374,25 @@ func (p *ProcessResolver) Start() error {
 
 // SyncCache snapshots /proc for the provided pid. This method returns true if it updated the process cache.
 func (p *ProcessResolver) SyncCache(proc *process.FilledProcess) bool {
-	pid := uint32(proc.Pid)
-	if pid == 0 {
-		return false
-	}
-
 	// Only a R lock is necessary to check if the entry exists, but if it exists, we'll update it, so a RW lock is
 	// required.
 	p.Lock()
 	defer p.Unlock()
+	_, ret := p.syncCache(proc)
+	return ret
+}
+
+// syncCache snapshots /proc for the provided pid. This method returns true if it updated the process cache.
+func (p *ProcessResolver) syncCache(proc *process.FilledProcess) (*ProcessCacheEntry, bool) {
+	pid := uint32(proc.Pid)
+	if pid == 0 {
+		return nil, false
+	}
 
 	// Check if an entry is already in cache for the given pid.
 	entry, inCache := p.entryCache[pid]
 	if inCache && !entry.ExecTimestamp.IsZero() {
-		return false
+		return nil, false
 	}
 	if !inCache {
 		entry = &ProcessCacheEntry{}
@@ -372,7 +400,7 @@ func (p *ProcessResolver) SyncCache(proc *process.FilledProcess) bool {
 
 	// update the cache entry
 	if err := p.enrichEventFromProc(entry, proc); err != nil {
-		return false
+		return nil, false
 	}
 
 	entry = p.insertEntry(pid, entry)
@@ -388,7 +416,7 @@ func (p *ProcessResolver) SyncCache(proc *process.FilledProcess) bool {
 		}
 	}
 
-	return true
+	return entry, true
 }
 
 // NewProcessResolver returns a new process resolver

@@ -1183,7 +1183,7 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	buf.WriteRune('{')
 	fmt.Fprintf(&buf, `"id":"%s",`, eventID)
-	fmt.Fprintf(&buf, `"timestamp":"%s"`, e.ResolveMonotonicTimestamp())
+	fmt.Fprintf(&buf, `"timestamp":"%s"`, e.ResolveEventTimestamp())
 
 	var entries []eventMarshaler
 
@@ -1485,8 +1485,8 @@ func (e *Event) UnmarshalBinary(data []byte) (int, error) {
 	return 16, nil
 }
 
-// ResolveMonotonicTimestamp resolves the monolitic kernel timestamp to an absolute time
-func (e *Event) ResolveMonotonicTimestamp() time.Time {
+// ResolveEventTimestamp resolves the monolitic kernel event timestamp to an absolute time
+func (e *Event) ResolveEventTimestamp() time.Time {
 	if e.Timestamp.IsZero() {
 		e.Timestamp = e.resolvers.TimeResolver.ResolveMonotonicTimestamp(e.TimestampRaw)
 		if e.Timestamp.IsZero() {
