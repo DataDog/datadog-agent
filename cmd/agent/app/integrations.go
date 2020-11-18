@@ -46,10 +46,11 @@ except pkg_resources.DistributionNotFound:
 )
 
 var (
-	datadogPkgNameRe    = regexp.MustCompile("datadog-.*")
-	yamlFileNameRe      = regexp.MustCompile("[\\w_]+\\.yaml.*")
-	wheelPackageNameRe  = regexp.MustCompile("Name: (\\S+)")           // e.g. Name: datadog-postgres
-	versionSpecifiersRe = regexp.MustCompile("([><=!]{1,2})([0-9.]*)") // Matches version specifiers defined in https://packaging.python.org/specifications/core-metadata/#requires-dist-multiple-use
+	datadogPkgNameRe      = regexp.MustCompile("datadog-.*")
+	yamlFileNameRe        = regexp.MustCompile("[\\w_]+\\.yaml.*")
+	wheelPackageNameRe    = regexp.MustCompile("Name: (\\S+)")                                                                                // e.g. Name: datadog-postgres
+	versionSpecifiersRe   = regexp.MustCompile("([><=!]{1,2})([0-9.]*)")                                                                      // Matches version specifiers defined in https://packaging.python.org/specifications/core-metadata/#requires-dist-multiple-use
+	pep440VersionStringRe = regexp.MustCompile("^(?P<release>\\d+\\.\\d+\\.\\d+)(?:(?P<preReleaseType>a|b|rc)(?P<preReleaseNumber>\\d+)?)?$") // e.g. 1.3.4b1, simplified form of: https://www.python.org/dev/peps/pep-0440
 
 	allowRoot           bool
 	verbose             int
@@ -215,6 +216,31 @@ func semverToPEP440(version *semver.Version) string {
 		pep440 = fmt.Sprintf("%src%s", pep440, preReleaseNumber)
 	}
 	return pep440
+}
+
+func PEP440ToSemver(pep440 string) (*semver.Version, error) {
+	// Note: this is a simplified version that more closely fits how integrations are versioned.
+	matches := pep440VersionStringRe.FindStringSubmatch(pep440)
+	if matches == nil {
+		return nil, fmt.Errorf("invalid format: %s", pep440)
+	}
+	versionString := matches[1]
+	preReleaseType := matches[2]
+	preReleaseNumber := matches[3]
+	if preReleaseType != "" {
+		switch preReleaseType {
+		case "a":
+			versionString = fmt.Sprintf("%s-alpha", versionString)
+		case "b":
+			versionString = fmt.Sprintf("%s-beta", versionString)
+		default:
+			versionString = fmt.Sprintf("%s-%s", versionString, preReleaseType)
+		}
+		if preReleaseNumber != "" {
+			versionString = fmt.Sprintf("%s.%s", versionString, preReleaseNumber)
+		}
+	}
+	return semver.NewVersion(versionString)
 }
 
 func getCommandPython() (string, error) {
@@ -701,10 +727,7 @@ func installedVersion(integration string) (*semver.Version, bool, error) {
 		return nil, false, nil
 	}
 
-	replacer := strings.NewReplacer("alpha", "-alpha", "beta", "-beta", "rc", "-rc")
-	normalizedVersion := replacer.Replace(outputStr)
-
-	version, err := semver.NewVersion(normalizedVersion)
+	version, err := PEP440ToSemver(outputStr)
 	if err != nil {
 		return nil, true, fmt.Errorf("error parsing version %s: %s", version, err)
 	}
