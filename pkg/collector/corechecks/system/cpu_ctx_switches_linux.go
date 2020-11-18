@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -44,7 +45,7 @@ func (c *CPUCheck) collectCtxSwitches(sender aggregator.Sender) error {
 	if config.Datadog.IsSet("procfs_path") {
 		procfsPath = config.Datadog.GetString("procfs_path")
 	}
-	ctxSwitches, err := readCtxSwitches(procfsPath + "/stat")
+	ctxSwitches, err := readCtxSwitches(filepath.Join(procfsPath, "/stat"))
 	if err != nil {
 		return err
 	}
