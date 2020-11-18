@@ -159,6 +159,15 @@ func normalizeTrace(ts *info.TagStats, t pb.Trace) error {
 	return nil
 }
 
+func normalizeStatsGroup(b *pb.ClientGroupedStats, lang string) {
+	b.Name, _ = traceutil.NormalizeName(b.Name)
+	b.Service, _ = traceutil.NormalizeService(b.Service, lang)
+	if b.Resource == "" {
+		b.Resource = b.Name
+	}
+	b.Resource, _ = traceutil.TruncateResource(b.Resource)
+}
+
 func isValidStatusCode(sc string) bool {
 	if code, err := strconv.ParseUint(sc, 10, 64); err == nil {
 		return 100 <= code && code < 600
