@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 
@@ -49,7 +50,7 @@ var taggerListCommand = &cobra.Command{
 		c := util.GetClient(false) // FIX: get certificates right then make this true
 
 		// Set session token
-		err = util.SetAuthToken()
+		err = security.SetAuthToken()
 		if err != nil {
 			return err
 		}

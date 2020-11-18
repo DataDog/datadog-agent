@@ -56,7 +56,7 @@ func launchGui(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	urlstr := fmt.Sprintf("https://%v:%v/agent/gui/csrf-token", ipcAddress, config.Datadog.GetInt("cmd_port"))
-	err = util.SetAuthToken()
+	err = security.SetAuthToken()
 	if err != nil {
 		return err
 	}

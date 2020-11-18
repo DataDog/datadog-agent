@@ -21,7 +21,6 @@ import (
 
 	v1 "github.com/DataDog/datadog-agent/cmd/agent/clcrunnerapi/v1"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/gorilla/mux"
 )
@@ -50,7 +49,7 @@ func StartCLCRunnerServer() error {
 
 	// CLC Runner token
 	// Use the Cluster Agent token
-	err = util.InitDCAAuthToken()
+	err = security.InitDCAAuthToken()
 	if err != nil {
 		return err
 	}
@@ -106,7 +105,7 @@ func ServerCLCRunnerAddress() *net.TCPAddr {
 
 func validateCLCRunnerToken(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if err := util.ValidateDCARequest(w, r); err != nil {
+		if err := security.ValidateDCARequest(w, r); err != nil {
 			return
 		}
 		next.ServeHTTP(w, r)

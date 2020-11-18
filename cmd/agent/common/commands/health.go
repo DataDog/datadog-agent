@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -64,7 +65,7 @@ func requestHealth() error {
 	}
 
 	// Set session token
-	err = util.SetAuthToken()
+	err = security.SetAuthToken()
 	if err != nil {
 		return err
 	}

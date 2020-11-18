@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
@@ -45,7 +46,7 @@ var secretInfoCommand = &cobra.Command{
 			return err
 		}
 
-		if err := util.SetAuthToken(); err != nil {
+		if err := security.SetAuthToken(); err != nil {
 			fmt.Println(err)
 			return nil
 		}

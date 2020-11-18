@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/api/agent"
 	"github.com/DataDog/datadog-agent/cmd/agent/api/check"
 	pb "github.com/DataDog/datadog-agent/cmd/agent/api/pb"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	gorilla "github.com/gorilla/mux"
 )
@@ -53,11 +53,16 @@ func grpcHandlerFunc(grpcServer *grpc.Server, otherHandler http.Handler) http.Ha
 
 // StartServer creates the router and starts the HTTP server
 func StartServer() error {
+	var err error
 
-	initializeTLS()
+	hosts := []string{"127.0.0.1", "localhost", "::1"}
+	tlsAddr, err := getIPCAddressPort()
+	if err == nil {
+		hosts = append(hosts, tlsAddr)
+	}
+	tlsKeyPair, tlsCertPool := security.InitializeTLS(hosts)
 
 	// get the transport we're going to use under HTTP
-	var err error
 	listener, err = getListener()
 	if err != nil {
 		// we use the listener to handle commands for the Agent, there's
@@ -65,7 +70,7 @@ func StartServer() error {
 		return fmt.Errorf("Unable to create the api server: %v", err)
 	}
 
-	err = util.CreateAndSetAuthToken()
+	err = security.CreateAndSetAuthToken()
 	if err != nil {
 		return err
 	}
@@ -74,8 +79,8 @@ func StartServer() error {
 	mux := http.NewServeMux()
 	opts := []grpc.ServerOption{
 		grpc.Creds(credentials.NewClientTLSFromCert(tlsCertPool, tlsAddr)),
-		grpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(grpcAuth)),
-		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(grpcAuth)),
+		grpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(security.GrpcAuth)),
+		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(security.GrpcAuth)),
 	}
 
 	s := grpc.NewServer(opts...)

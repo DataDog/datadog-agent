@@ -13,6 +13,7 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
@@ -70,7 +71,7 @@ func requestDogstatsdStats() error {
 	urlstr := fmt.Sprintf("https://%v:%v/agent/dogstatsd-stats", ipcAddress, config.Datadog.GetInt("cmd_port"))
 
 	// Set session token
-	e = util.SetAuthToken()
+	e = security.SetAuthToken()
 	if e != nil {
 		return e
 	}

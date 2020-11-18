@@ -7,6 +7,7 @@ package api
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"expvar"
 	"fmt"
@@ -27,8 +28,14 @@ import (
 	"sync/atomic"
 	"time"
 
+	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
+	grpc_runtime "github.com/grpc-ecosystem/grpc-gateway/runtime"
+	"github.com/soheilhy/cmux"
 	"github.com/tinylib/msgp/msgp"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	mainconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -37,7 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	pb "github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -49,10 +56,11 @@ type HTTPReceiver struct {
 	Stats       *info.ReceiverStats
 	RateLimiter *rateLimiter
 
-	out     chan *Payload
-	conf    *config.AgentConfig
-	dynConf *sampler.DynamicConfig
-	server  *http.Server
+	out       chan *Payload
+	conf      *config.AgentConfig
+	dynConf   *sampler.DynamicConfig
+	server    *http.Server
+	tlsServer *http.Server
 
 	debug               bool
 	rateLimiterResponse int // HTTP status code when refusing
@@ -84,46 +92,32 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 
 // Start starts doing the HTTP server and is ready to receive traces
 func (r *HTTPReceiver) Start() {
-	mux := http.NewServeMux()
-
-	r.attachDebugHandlers(mux)
-
-	mux.HandleFunc("/spans", r.handleWithVersion(v01, r.handleTraces))
-	mux.HandleFunc("/services", r.handleWithVersion(v01, r.handleServices))
-	mux.HandleFunc("/v0.1/spans", r.handleWithVersion(v01, r.handleTraces))
-	mux.HandleFunc("/v0.1/services", r.handleWithVersion(v01, r.handleServices))
-	mux.HandleFunc("/v0.2/traces", r.handleWithVersion(v02, r.handleTraces))
-	mux.HandleFunc("/v0.2/services", r.handleWithVersion(v02, r.handleServices))
-	mux.HandleFunc("/v0.3/traces", r.handleWithVersion(v03, r.handleTraces))
-	mux.HandleFunc("/v0.3/services", r.handleWithVersion(v03, r.handleServices))
-	mux.HandleFunc("/v0.4/traces", r.handleWithVersion(v04, r.handleTraces))
-	mux.HandleFunc("/v0.4/services", r.handleWithVersion(v04, r.handleServices))
-	mux.HandleFunc("/v0.5/traces", r.handleWithVersion(v05, r.handleTraces))
-	mux.Handle("/profiling/v1/input", r.profileProxyHandler())
-
-	timeout := 5 * time.Second
-	if r.conf.ReceiverTimeout > 0 {
-		timeout = time.Duration(r.conf.ReceiverTimeout) * time.Second
-	}
-	httpLogger := logutil.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
-	r.server = &http.Server{
-		ReadTimeout:  timeout,
-		WriteTimeout: timeout,
-		ErrorLog:     stdlog.New(httpLogger, "http.Server: ", 0),
-		Handler:      mux,
-	}
 
 	addr := fmt.Sprintf("%s:%d", r.conf.ReceiverHost, r.conf.ReceiverPort)
+
 	ln, err := r.listenTCP(addr)
 	if err != nil {
 		killProcess("Error creating tcp listener: %v", err)
 	}
+
+	mux := cmux.New(ln)
+
+	// We first match on HTTP 1.1 methods.
+	httpl := mux.Match(cmux.HTTP1Fast())
+	// Else, we assume TLS
+	tlsl := mux.Match(cmux.Any())
+
 	go func() {
 		defer watchdog.LogOnPanic()
-		r.server.Serve(ln)
+		r.ServeHTTP(httpl)
+	}()
+	go func() {
+		// do we need a watchdog?
+		r.tlsServer.Serve(tlsl)
 	}()
 	log.Infof("Listening for traces at http://%s", addr)
 
+	// UDS
 	if path := r.conf.ReceiverSocket; path != "" {
 		ln, err := r.listenUnix(path)
 		if err != nil {
@@ -131,7 +125,7 @@ func (r *HTTPReceiver) Start() {
 		}
 		go func() {
 			defer watchdog.LogOnPanic()
-			r.server.Serve(ln)
+			r.ServeHTTP(ln)
 		}()
 		log.Infof("Listening for traces at unix://%s", path)
 	}
@@ -144,14 +138,31 @@ func (r *HTTPReceiver) Start() {
 	}()
 }
 
-func (r *HTTPReceiver) attachDebugHandlers(mux *http.ServeMux) {
-	mux.HandleFunc("/debug/pprof/", pprof.Index)
-	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+func (r *HTTPReceiver) attachHandlers(m *http.ServeMux) *http.ServeMux {
+	m.HandleFunc("/spans", r.handleWithVersion(v01, r.handleTraces))
+	m.HandleFunc("/services", r.handleWithVersion(v01, r.handleServices))
+	m.HandleFunc("/v0.1/spans", r.handleWithVersion(v01, r.handleTraces))
+	m.HandleFunc("/v0.1/services", r.handleWithVersion(v01, r.handleServices))
+	m.HandleFunc("/v0.2/traces", r.handleWithVersion(v02, r.handleTraces))
+	m.HandleFunc("/v0.2/services", r.handleWithVersion(v02, r.handleServices))
+	m.HandleFunc("/v0.3/traces", r.handleWithVersion(v03, r.handleTraces))
+	m.HandleFunc("/v0.3/services", r.handleWithVersion(v03, r.handleServices))
+	m.HandleFunc("/v0.4/traces", r.handleWithVersion(v04, r.handleTraces))
+	m.HandleFunc("/v0.4/services", r.handleWithVersion(v04, r.handleServices))
+	m.HandleFunc("/v0.5/traces", r.handleWithVersion(v05, r.handleTraces))
+	m.Handle("/profiling/v1/input", r.profileProxyHandler())
 
-	mux.HandleFunc("/debug/blockrate", func(w http.ResponseWriter, r *http.Request) {
+	return m
+}
+
+func (r *HTTPReceiver) attachDebugHandlers(m *http.ServeMux) *http.ServeMux {
+	m.HandleFunc("/debug/pprof/", pprof.Index)
+	m.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	m.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	m.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	m.HandleFunc("/debug/pprof/trace", pprof.Trace)
+
+	m.HandleFunc("/debug/blockrate", func(w http.ResponseWriter, r *http.Request) {
 		// this endpoint calls runtime.SetBlockProfileRate(v), where v is an optional
 		// query string parameter defaulting to 10000 (1 sample per 10μs blocked).
 		rate := 10000
@@ -168,17 +179,98 @@ func (r *HTTPReceiver) attachDebugHandlers(mux *http.ServeMux) {
 		w.Write([]byte(fmt.Sprintf("Block profile rate set to %d. It will automatically be disabled again after calling /debug/pprof/block\n", rate)))
 	})
 
-	mux.HandleFunc("/debug/pprof/block", func(w http.ResponseWriter, r *http.Request) {
+	m.HandleFunc("/debug/pprof/block", func(w http.ResponseWriter, r *http.Request) {
 		// serve the block profile and reset the rate to 0.
 		pprof.Handler("block").ServeHTTP(w, r)
 		runtime.SetBlockProfileRate(0)
 	})
 
-	mux.Handle("/debug/vars", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+	m.Handle("/debug/vars", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		// allow the GUI to call this endpoint so that the status can be reported
 		w.Header().Set("Access-Control-Allow-Origin", "http://127.0.0.1:"+mainconfig.Datadog.GetString("GUI_port"))
 		expvar.Handler().ServeHTTP(w, req)
 	}))
+
+	return m
+}
+
+func (r *HTTPReceiver) ServeHTTP(l net.Listener) {
+	// Setup multiplexer
+	mux := http.NewServeMux()
+
+	r.attachDebugHandlers(mux)
+	r.attachHandlers(mux)
+	mux.Handle("/profiling/v1/input", r.profileProxyHandler())
+
+	timeout := 5 * time.Second
+	if r.conf.ReceiverTimeout > 0 {
+		timeout = time.Duration(r.conf.ReceiverTimeout) * time.Second
+	}
+	httpLogger := logutil.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
+	r.server = &http.Server{
+		ReadTimeout:  timeout,
+		WriteTimeout: timeout,
+		ErrorLog:     stdlog.New(httpLogger, "http.Server: ", 0),
+		Handler:      mux,
+	}
+
+	r.server.Serve(l)
+
+}
+
+func (r *HTTPReceiver) ServeGRPC(l net.Listener) {
+
+	addr := l.Addr().String()
+	hosts := []string{"127.0.0.1", "localhost", "::1", addr}
+	tlsKeyPair, tlsCertPool := security.InitializeTLS(hosts)
+
+	// grpc stuff
+	opts := []grpc.ServerOption{
+		grpc.Creds(credentials.NewClientTLSFromCert(tlsCertPool, addr)),
+		grpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(security.GrpcAuth)),
+		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(security.GrpcAuth)),
+	}
+
+	s := grpc.NewServer(opts...)
+	pb.RegisterFlareServer(s, &grpcServer{})
+
+	dcreds := credentials.NewTLS(&tls.Config{
+		ServerName: addr,
+		RootCAs:    tlsCertPool,
+	})
+	dopts := []grpc.DialOption{grpc.WithTransportCredentials(dcreds)}
+
+	// starting grpc gateway
+	ctx := context.Background()
+	gwmux := grpc_runtime.NewServeMux()
+	err := pb.RegisterFlareHandlerFromEndpoint(
+		ctx, gwmux, addr, dopts)
+	if err != nil {
+		panic(err)
+	}
+
+	tlsMux := http.NewServeMux()
+	tlsMux.Handle("/", gwmux) // grpc-gateway for all other requests
+
+	timeout := 5 * time.Second
+	if r.conf.ReceiverTimeout > 0 {
+		timeout = time.Duration(r.conf.ReceiverTimeout) * time.Second
+	}
+	httpLogger := logutil.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
+
+	r.tlsServer = &http.Server{
+		ReadTimeout:  timeout,
+		WriteTimeout: timeout,
+		ErrorLog:     stdlog.New(httpLogger, "https.Server: ", 0),
+		// Handler:      grpcHandlerFunc(s, gwmux),
+		Handler: gwmux,
+		TLSConfig: &tls.Config{
+			Certificates: []tls.Certificate{*tlsKeyPair},
+			NextProtos:   []string{"h2"},
+		},
+	}
+
+	r.tlsServer.Serve(l)
 }
 
 // listenUnix returns a net.Listener listening on the given "unix" socket path.
@@ -201,6 +293,20 @@ func (r *HTTPReceiver) listenUnix(path string) (net.Listener, error) {
 		return nil, fmt.Errorf("error setting socket permissions: %v", err)
 	}
 	return ln, err
+}
+
+// grpcHandlerFunc returns an http.Handler that delegates to grpcServer on incoming gRPC
+// connections or otherHandler otherwise. Copied from cockroachdb.
+func grpcHandlerFunc(grpcServer *grpc.Server, otherHandler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		// This is a partial recreation of gRPC's internal checks https://github.com/grpc/grpc-go/pull/514/files#diff-95e9a25b738459a2d3030e1e6fa2a718R61
+		if r.ProtoMajor == 2 && strings.Contains(r.Header.Get("Content-Type"), "application/grpc") {
+			grpcServer.ServeHTTP(w, r)
+		} else {
+			otherHandler.ServeHTTP(w, r)
+		}
+	})
 }
 
 // listenTCP creates a new net.Listener on the provided TCP address.

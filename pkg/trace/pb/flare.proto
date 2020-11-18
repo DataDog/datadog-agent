@@ -4,50 +4,35 @@ package pb;
 
 import "google/api/annotations.proto";
 
-// The greeting service definition.
-service Agent {
-    // get the hostname
-    rpc GetHostname (HostnameRequest) returns (HostnameReply) {
+// The flare service definition.
+service Flare {
+
+    // get tracer heartbeat
+    rpc ServiceHeartbeat (FlareHeartbeatRequest) returns (FlareHeartbeatResponse) {
         option (google.api.http) = {
-            get: "/v1/grpc/host"
+            post: "/v1/grpc/flare/service_heartbeat"
+            body: "*"
         };
     }
-}
 
-service AgentSecure {
-    rpc GetTags (TagRequest) returns (TagReply) {
+    // make flare service request
+    rpc ServiceQuery (FlareQueryRequest) returns (FlareQueryResponse) {
         option (google.api.http) = {
-            post: "/v1/grpc/tags"
+            post: "/v1/grpc/flare/service_query"
+            body: "*"
+        };
+    }
+
+    // log events
+    rpc LogEvent (FlareLogRequest) returns (FlareLogResponse) {
+        option (google.api.http) = {
+            post: "/v1/grpc/flare/log/{flare_identifier}/{tracer_identifier}"
             body: "*"
         };
     }
 }
 
-
-// Hostname
-message HostnameRequest {}
-
-// The response message containing the requested hostname
-message HostnameReply {
-    string hostname = 1;
-}
-
-
-// Tagger
-
-// The request message containing the tag list for an entity.
-message TagRequest {
-    string entity = 1;
-}
-
-// The response message containing the tagger reply
-message TagReply {
-    repeated string tags = 1;
-}
-
-
 // Flare
-
 enum FlareLogLevel {
     TRACE = 0;
     DEBUG = 1;

@@ -7,8 +7,8 @@ package app
 
 import (
 	"bytes"
-	"context"
-	"crypto/tls"
+	// "context"
+	// "crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -16,8 +16,9 @@ import (
 	"strings"
 	"time"
 
-	pb "github.com/DataDog/datadog-agent/cmd/agent/api/pb"
+	// pb "github.com/DataDog/datadog-agent/cmd/agent/api/pb"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
@@ -25,8 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/input"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
+	// "google.golang.org/grpc"
+	// "google.golang.org/grpc/credentials"
 )
 
 var (
@@ -275,7 +276,7 @@ func requestArchive(logFile string, pdata flare.ProfileData) (string, error) {
 	urlstr := fmt.Sprintf("https://%v:%v/agent/flare/core/gen", ipcAddress, config.Datadog.GetInt("cmd_port"))
 
 	// Set session token
-	e = util.SetAuthToken()
+	e = security.SetAuthToken()
 	if e != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error: %s", e)))
 		return createArchive(logFile, pdata)
@@ -314,7 +315,7 @@ func requestTraceArchive(logFile string) (string, error) {
 	urlStatusStr := fmt.Sprintf("https://%v:%v/agent/flare/trace/status", ipcAddress, config.Datadog.GetInt("cmd_port"))
 
 	// Set session token
-	e = util.SetAuthToken()
+	e = security.SetAuthToken()
 	if e != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error: %s", e)))
 		return createArchive(logFile, nil)
@@ -415,45 +416,46 @@ func createArchive(logFile string, pdata flare.ProfileData) (string, error) {
 
 func makeTraceQuery(service, env string) error {
 
-	ipcAddress, err := config.GetIPCAddress()
-	if err != nil {
-		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error getting IPC address for the agent: %s", err)))
-		return err
-	}
+	// TODO: move to trace agent
+	// ipcAddress, err := config.GetIPCAddress()
+	// if err != nil {
+	// 	fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error getting IPC address for the agent: %s", err)))
+	// 	return err
+	// }
 
-	server := fmt.Sprintf("%v:%v", ipcAddress, config.Datadog.GetInt("cmd_port"))
+	// server := fmt.Sprintf("%v:%v", ipcAddress, config.Datadog.GetInt("cmd_port"))
 
-	var tlsConf tls.Config
-	tlsConf.InsecureSkipVerify = true
-	opts := []grpc.DialOption{grpc.WithTransportCredentials(credentials.NewTLS(&tlsConf))}
+	// var tlsConf tls.Config
+	// tlsConf.InsecureSkipVerify = true
+	// opts := []grpc.DialOption{grpc.WithTransportCredentials(credentials.NewTLS(&tlsConf))}
 
-	conn, err := grpc.Dial(server, opts...)
-	if err != nil {
-		fmt.Printf("Failed trying to Dial: %v", err)
-		return err
-	}
-	defer conn.Close()
+	// conn, err := grpc.Dial(server, opts...)
+	// if err != nil {
+	// 	fmt.Printf("Failed trying to Dial: %v", err)
+	// 	return err
+	// }
+	// defer conn.Close()
 
-	c := pb.NewAgentClient(conn)
+	// c := pb.NewAgentClient(conn)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
+	// ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	// defer cancel()
 
-	r, err := c.FlareServiceQuery(ctx, &pb.FlareQueryRequest{
-		Query: &pb.FlareHeartbeatRequest{
-			TracerService:     service,
-			TracerEnvironment: env,
-		},
-	})
+	// r, err := c.FlareServiceQuery(ctx, &pb.FlareQueryRequest{
+	// 	Query: &pb.FlareHeartbeatRequest{
+	// 		TracerService:     service,
+	// 		TracerEnvironment: env,
+	// 	},
+	// })
 
-	if err != nil {
-		fmt.Printf("Failed after querying: %v", err)
-		return err
-	}
+	// if err != nil {
+	// 	fmt.Printf("Failed after querying: %v", err)
+	// 	return err
+	// }
 
-	for _, answer := range r.GetAnswer() {
-		fmt.Printf("%v\t%v\t%v\n", answer.TracerIdentifier, answer.TracerService, answer.TracerEnvironment)
-	}
+	// for _, answer := range r.GetAnswer() {
+	// 	fmt.Printf("%v\t%v\t%v\n", answer.TracerIdentifier, answer.TracerService, answer.TracerEnvironment)
+	// }
 
 	return nil
 
