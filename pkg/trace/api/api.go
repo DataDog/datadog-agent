@@ -364,7 +364,7 @@ func (r *HTTPReceiver) rateLimited(n int64) bool {
 	return !r.RateLimiter.Permits(n)
 }
 
-// StatsProcessor implementations are able to proces incoming client stats.
+// StatsProcessor implementations are able to process incoming client stats.
 type StatsProcessor interface {
 	// ProcessStats takes a stats payload and consumes it. It is considered to be originating
 	// from the given lang.
