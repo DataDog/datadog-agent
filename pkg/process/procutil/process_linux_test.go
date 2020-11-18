@@ -191,7 +191,7 @@ func TestProcfsChange(t *testing.T) {
 	assert.Contains(t, procByPID, int32(29613))
 }
 
-func BenchmarkGetCmdGopsutil(b *testing.B) {
+func BenchmarkTestFSGetCmdGopsutil(b *testing.B) {
 	hostProc := "resources/test_procfs/proc"
 	os.Setenv("HOST_PROC", hostProc)
 	defer os.Unsetenv("HOST_PROC")
@@ -209,7 +209,7 @@ func BenchmarkGetCmdGopsutil(b *testing.B) {
 	}
 }
 
-func BenchmarkGetCmdProcutil(b *testing.B) {
+func BenchmarkTestFSGetCmdProcutil(b *testing.B) {
 	hostProc := "resources/test_procfs/proc"
 	os.Setenv("HOST_PROC", hostProc)
 	defer os.Unsetenv("HOST_PROC")
@@ -227,7 +227,7 @@ func BenchmarkGetCmdProcutil(b *testing.B) {
 	}
 }
 
-func BenchmarkLocalGetCmdGopsutil(b *testing.B) {
+func BenchmarkLocalFSGetCmdGopsutil(b *testing.B) {
 	pids, err := process.Pids()
 	assert.NoError(b, err)
 
@@ -241,7 +241,7 @@ func BenchmarkLocalGetCmdGopsutil(b *testing.B) {
 	}
 }
 
-func BenchmarkLocalGetCmdProcutil(b *testing.B) {
+func BenchmarkLocalFSGetCmdProcutil(b *testing.B) {
 	probe := NewProcessProbe()
 	defer probe.Close()
 
