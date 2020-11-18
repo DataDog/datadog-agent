@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -63,7 +64,7 @@ type Probe struct {
 	onDiscardersFncs  map[eval.EventType][]onDiscarderFnc
 	syscallMonitor    *SyscallMonitor
 	loadController    *LoadController
-	kernelVersion     uint32
+	kernelVersion     kernel.Version
 	_                 uint32 // padding for goarch=386
 	eventsStats       EventsStats
 	startTime         time.Time
@@ -85,7 +86,7 @@ func (p *Probe) Map(name string) *lib.Map {
 }
 
 func (p *Probe) detectKernelVersion() {
-	if kernelVersion, err := lib.CurrentKernelVersion(); err != nil {
+	if kernelVersion, err := kernel.HostVersion(); err != nil {
 		log.Warn("unable to detect the kernel version")
 	} else {
 		p.kernelVersion = kernelVersion

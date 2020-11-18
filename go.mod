@@ -55,7 +55,7 @@ require (
 	github.com/DataDog/agent-payload v4.47.0+incompatible
 	github.com/DataDog/datadog-go v3.5.0+incompatible
 	github.com/DataDog/datadog-operator v0.2.1-0.20200709152311-9c71245c6822
-	github.com/DataDog/ebpf v0.0.0-20201116165404-c4cbb9e2e108
+	github.com/DataDog/ebpf v0.0.0-20201117114248-e7f8186804a5
 	github.com/DataDog/gohai v0.0.0-20200605003749-e17d616e422a
 	github.com/DataDog/gopsutil v0.0.0-20200624212600-1b53412ef321
 	github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981 // indirect
@@ -122,10 +122,10 @@ require (
 	github.com/lxn/win v0.0.0-20191128105842-2da648fda5b4
 	github.com/mdlayher/netlink v1.1.0
 	github.com/mholt/archiver v3.1.1+incompatible
+	github.com/mholt/archiver/v3 v3.5.0
 	github.com/miekg/dns v1.1.31
 	github.com/moby/sys/mountinfo v0.1.3
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
-	github.com/nwaples/rardecode v1.1.0 // indirect
 	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852 // indirect
 	github.com/opencontainers/runtime-spec v1.0.2
 	github.com/openshift/api v3.9.1-0.20190924102528-32369d4db2ad+incompatible
@@ -135,7 +135,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.5.1
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
-	github.com/shirou/gopsutil v2.20.3+incompatible
+	github.com/shirou/gopsutil v3.20.10+incompatible
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
 	github.com/shuLhan/go-bindata v3.6.1+incompatible
 	github.com/soniah/gosnmp v1.26.0
@@ -148,7 +148,6 @@ require (
 	github.com/tedsuo/ifrit v0.0.0-20191009134036-9a97d0632f00 // indirect
 	github.com/tinylib/msgp v1.1.2
 	github.com/twmb/murmur3 v1.1.3
-	github.com/ulikunitz/xz v0.5.7 // indirect
 	github.com/urfave/negroni v1.0.0
 	github.com/vishvananda/netns v0.0.0-20191106174202-0a2b9b5464df
 	github.com/vito/go-sse v1.0.0 // indirect
@@ -161,7 +160,7 @@ require (
 	golang.org/x/mobile v0.0.0-20190719004257-d2bd2a29d028
 	golang.org/x/net v0.0.0-20200822124328-c89045814202
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
-	golang.org/x/sys v0.0.0-20200831180312-196b9ba8737a
+	golang.org/x/sys v0.0.0-20201117170446-d9b008d0a637
 	golang.org/x/text v0.3.2
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 	golang.org/x/tools v0.0.0-20200327195553-82bb89366a1e
