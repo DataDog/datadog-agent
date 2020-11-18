@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 
 	"github.com/cihub/seelog"
@@ -44,12 +43,15 @@ var headerFields = map[string]string{
 	"tracer_version": "Datadog-Meta-Tracer-Version",
 }
 
+type noopStatsProcessor struct{}
+
+func (noopStatsProcessor) ProcessStats(_ pb.ClientStatsPayload, _ string) {}
+
 func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 	dynConf := sampler.NewDynamicConfig("none")
 
 	rawTraceChan := make(chan *Payload, 5000)
-	rawStatsChan := make(chan *stats.Payload, 100)
-	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, rawStatsChan)
+	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, noopStatsProcessor{})
 
 	return receiver
 }
