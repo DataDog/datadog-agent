@@ -10,11 +10,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// start various subservices (apm, logs, process) based on the config file settings
+// start various subservices (apm, logs, process, system-probe) based on the config file settings
 
 // IsEnabled checks to see if a given service should be started
 func (s *Servicedef) IsEnabled() bool {
-	return config.Datadog.GetBool(s.configKey)
+	for _, configKey := range s.configKeys {
+		if config.Datadog.GetBool(configKey) {
+			return true
+		}
+	}
+	return false
 }
 
 func startDependentServices() {
