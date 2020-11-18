@@ -8,8 +8,9 @@
 package probe
 
 import (
+	"github.com/DataDog/ebpf/manager"
+
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
@@ -26,22 +27,17 @@ func (p *Probe) Init() error {
 }
 
 // ApplyFilterPolicy is called when a passing policy for an event type is applied
-func (p *Probe) ApplyFilterPolicy(eventType eval.EventType, tableName string, mode PolicyMode, flags PolicyFlag) error {
+func (p *Probe) ApplyFilterPolicy(eventType eval.EventType, mode PolicyMode, flags PolicyFlag) error {
 	return nil
 }
 
 // ApplyApprovers applies approvers
-func (p *Probe) ApplyApprovers(eventType eval.EventType, hookPoint *HookPoint, approvers rules.Approvers) error {
+func (p *Probe) ApplyApprovers(eventType eval.EventType, approvers rules.Approvers) error {
 	return nil
 }
 
-// RegisterKProbe register the given kprobe
-func (p *Probe) RegisterKProbe(kprobe *ebpf.KProbe) error {
-	return nil
-}
-
-// RegisterTracepoint registers the given tracepoint
-func (p *Probe) RegisterTracepoint(tracepoint string) error {
+// RegisterProbesSelectors register the given probes selectors
+func (p *Probe) RegisterProbesSelectors(selectors []manager.ProbesSelector) error {
 	return nil
 }
 

@@ -59,7 +59,7 @@ func TestThrottled(t *testing.T) {
 		if err := seelog.ReplaceLogger(logger); err != nil {
 			t.Fatal(err)
 		}
-		log.SetupDatadogLogger(logger, "INFO")
+		log.SetupLogger(logger, "INFO")
 		l := NewThrottled(2, 10*time.Millisecond)
 		l.Write([]byte("1\n"))
 		time.Sleep(20 * time.Millisecond) // reset

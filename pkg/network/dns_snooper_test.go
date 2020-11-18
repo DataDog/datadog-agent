@@ -3,6 +3,7 @@
 package network
 
 import (
+	"fmt"
 	"math/rand"
 	"net"
 	"strings"
@@ -21,6 +22,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// isPre410Kernel compares current kernel version to the minimum kernel version(4.1.0) and see if it's older
+func isPre410Kernel(currentKernelCode uint32) bool {
+	return currentKernelCode < stringToKernelCode("4.1.0")
+}
+
+func stringToKernelCode(str string) uint32 {
+	var a, b, c uint32
+	fmt.Sscanf(str, "%d.%d.%d", &a, &b, &c)
+	return linuxKernelVersionCode(a, b, c)
+}
+
+// KERNEL_VERSION(a,b,c) = (a << 16) + (b << 8) + (c)
+// Per https://github.com/torvalds/linux/blob/master/Makefile#L1187
+func linuxKernelVersionCode(major, minor, patch uint32) uint32 {
+	return (major << 16) + (minor << 8) + patch
+}
+
 func getSnooper(
 	t *testing.T,
 	buf bytecode.AssetReader,
@@ -28,6 +46,14 @@ func getSnooper(
 	collectLocalDNS bool,
 	dnsTimeout time.Duration,
 ) (*manager.Manager, *SocketFilterSnooper) {
+	currKernelVersion, err := ebpf.CurrentKernelVersion()
+	require.NoError(t, err)
+	pre410Kernel := isPre410Kernel(currKernelVersion)
+	if pre410Kernel {
+		t.Skip("DNS feature not available on pre 4.1.0 kernels")
+		return nil, nil
+	}
+
 	mgr := &manager.Manager{
 		Probes: []*manager.Probe{
 			{Section: string(bytecode.SocketDnsFilter)},
@@ -54,7 +80,7 @@ func getSnooper(
 			Value: uint64(1),
 		})
 	}
-	err := mgr.InitWithOptions(buf, mgrOptions)
+	err = mgr.InitWithOptions(buf, mgrOptions)
 	require.NoError(t, err)
 
 	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{Section: string(bytecode.SocketDnsFilter)})

@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Adds misconfig check for hidepid=2 option on proc mount.

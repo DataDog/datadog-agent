@@ -38,6 +38,8 @@ func TestRmdir(t *testing.T) {
 		}
 		defer os.Remove(testFile)
 
+		inode := getInode(t, testFile)
+
 		if _, _, err := syscall.Syscall(syscall.SYS_RMDIR, uintptr(testFilePtr), 0, 0); err != 0 {
 			t.Fatal(error(err))
 		}
@@ -49,6 +51,12 @@ func TestRmdir(t *testing.T) {
 			if event.GetType() != "rmdir" {
 				t.Errorf("expected rmdir event, got %s", event.GetType())
 			}
+
+			if inode != event.Rmdir.Inode {
+				t.Errorf("expected inode %d, got %d", event.Mkdir.Inode, inode)
+			}
+
+			testContainerPath(t, event, "rmdir.container_path")
 		}
 	})
 
@@ -63,6 +71,8 @@ func TestRmdir(t *testing.T) {
 		}
 		defer os.Remove(testDir)
 
+		inode := getInode(t, testDir)
+
 		if _, _, err := syscall.Syscall(syscall.SYS_UNLINKAT, 0, uintptr(testDirPtr), 512); err != 0 {
 			t.Fatal(err)
 		}
@@ -74,6 +84,12 @@ func TestRmdir(t *testing.T) {
 			if event.GetType() != "rmdir" {
 				t.Errorf("expected rmdir event, got %s", event.GetType())
 			}
+
+			if inode != event.Rmdir.Inode {
+				t.Errorf("expected inode %d, got %d", event.Mkdir.Inode, inode)
+			}
+
+			testContainerPath(t, event, "rmdir.container_path")
 		}
 	})
 }

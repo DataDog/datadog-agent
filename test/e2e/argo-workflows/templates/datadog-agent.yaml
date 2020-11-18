@@ -1,0 +1,294 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: datadog-agent
+spec:
+  templates:
+    - name: create
+      inputs:
+        parameters:
+          - name: namespace
+          - name: agent-image-repository
+          - name: agent-image-tag
+          - name: cluster-agent-image-repository
+          - name: cluster-agent-image-tag
+      script:
+        image: alpine/helm
+        command: [sh]
+        source: |
+          set -euo pipefail
+
+          helm repo add datadog https://helm.datadoghq.com
+          helm repo update
+          helm --namespace {{inputs.parameters.namespace}} install \
+            --set datadog.dd_url=http://fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local \
+            --set datadog.apiKey=123er \
+            --set datadog.appKey=123er1 \
+            --set datadog.env[0].name=DD_HOSTNAME \
+            --set datadog.env[0].value=e2e-test \
+            --set datadog.leaderElection=true \
+            --set datadog.logs.enabled=true \
+            --set datadog.logs.containerCollectAll=true \
+            --set agents.image.repository={{inputs.parameters.agent-image-repository}} \
+            --set agents.image.tag={{inputs.parameters.agent-image-tag}} \
+            --set agents.image.doNotCheckTag=true \
+            --set clusterAgent.enabled=true \
+            --set clusterAgent.image.repository={{inputs.parameters.cluster-agent-image-repository}} \
+            --set clusterAgent.image.tag={{inputs.parameters.cluster-agent-image-tag}} \
+            --set clusterAgent.token=c9e21a248434a400b1de021dbdd554d790983a1212a5eac0ba36e79346ec52fd \
+            --set clusterAgent.metricsProvider.enabled=true \
+            --set clusterAgent.env[0].name=DATADOG_HOST \
+            --set clusterAgent.env[0].value=http://fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local \
+            --set datadog.confd.memory\\.yaml='instances:
+            - empty_default_hostname: true
+          ' \
+            --set datadog.confd.network\\.yaml='init_config:
+          instances:
+            - collect_connection_state: false
+              excluded_interfaces:
+                - lo
+                - lo0
+            - collect_connection_state: false
+              empty_default_hostname: true
+              excluded_interfaces:
+                - lo
+                - lo0
+          ' \
+            --set datadog.confd.kubernetes_state\\.yaml='ad_identifiers:
+            - kube-state-metrics
+
+          init_config:
+
+          # Ignore tags coming from autodiscovery
+          ignore_autodiscovery_tags: true
+
+          instances:
+            - kube_state_url: http://%%host%%:8080/metrics
+              hostname_override: false
+          ' \
+            --set datadog.dogstatsd.useSocketVolume=true \
+            --set datadog.dogstatsd.socketPath=/var/run/dogstatsd/dsd.socket \
+            --set datadog.dogstatsd.hostSocketPath=/var/run/dogstatsd \
+            datadog-agent datadog/datadog
+
+    - name: delete
+      inputs:
+        parameters:
+          - name: namespace
+      container:
+        image: alpine/helm
+        args: ["--namespace", "{{inputs.parameters.namespace}}", "uninstall", "datadog-agent"]
+
+    - name: health
+      inputs:
+        parameters:
+          - name: namespace
+      activeDeadlineSeconds: 200
+      script:
+        image: argoproj/argoexec:latest
+        command: [bash]
+        source: |
+          set -euo pipefail
+          set -x
+
+          until kubectl --namespace {{inputs.parameters.namespace}} get pods -l app=datadog-agent; do
+            sleep 1
+          done
+
+          while true; do
+            for po in $(kubectl --namespace {{inputs.parameters.namespace}} get pods -l app=datadog-agent -o custom-columns=name:metadata.name --no-headers); do
+              kubectl exec $po -c agent -- agent health || {
+                sleep 4
+                continue 2
+              }
+            done
+            exit 0
+          done
+
+    - name: leader
+      inputs:
+        parameters:
+          - name: namespace
+      activeDeadlineSeconds: 200
+      script:
+        image: argoproj/argoexec:latest
+        command: [bash]
+        source: |
+          set -euo pipefail
+          set -x
+
+          until kubectl --namespace {{inputs.parameters.namespace}} get cm datadog-leader-election -o jsonpath={.metadata.annotations."control-plane\.alpha\.kubernetes\.io/leader"}; do
+            sleep 1
+          done
+
+    - name: wait
+      inputs:
+        parameters:
+          - name: namespace
+      steps:
+        - - name: health
+            template: health
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+          - name: leader
+            template: leader
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+
+    - name: find-kube-state-metrics
+      inputs:
+        parameters:
+          - name: namespace
+      activeDeadlineSeconds: 200
+      script:
+        image: mongo:4.4.1
+        command: [mongo, "fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local/datadog"]
+        source: |
+          // This step is intended to test end-to-end scraping of prometheus metrics
+          // by asserting the value of a few simple metrics collected from the
+          // kubernetes_state integration.
+
+          while (1) {
+            var nb = db.series.find({
+            metric: "kubernetes_state.daemonset.ready",
+            tags: { $all: ["namespace:{{inputs.parameters.namespace}}", "daemonset:datadog-agent"] },
+            "points.0.1": { $eq: 1 } }).count();
+            print("find: " + nb)
+            if (nb != 0) {
+              break;
+            }
+            sleep(2000);
+          }
+
+    - name: find-metrics-kubernetes
+      inputs:
+        parameters:
+          - name: namespace
+      activeDeadlineSeconds: 200
+      script:
+        image: mongo:4.4.1
+        command: [mongo, "fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local/datadog"]
+        source: |
+          while (1) {
+            var nb = db.series.find({
+              metric: {$regex: "kubernetes*"},
+              tags: {$all: ["kube_namespace:kube-system", "pod_name:kube-controller-manager"]}
+            }).count();
+
+            print("find: " + nb)
+            if (nb != 0) {
+              break;
+            }
+            sleep(2000);
+          }
+
+    - name: find-container-meta
+      inputs:
+        parameters:
+          - name: namespace
+      activeDeadlineSeconds: 200
+      script:
+        image: mongo:4.4.1
+        command: [mongo, "fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local/datadog"]
+        source: |
+          while (1) {
+            var nb = db.intake.find({
+              $and : [
+              {"apiKey":"123er"},
+              {"gohai":{$exists: 1}},
+              {"container-meta.kubelet_version":{$regex: "^v1."}},
+              {"container-meta.docker_swarm":"inactive"},
+              {"container-meta.docker_version":{$exists: 1}} ]
+            }).count();
+            print("find: " + nb)
+            if (nb != 0) {
+              break;
+            }
+            sleep(2000);
+          }
+
+    - name: find-checks-hostname
+      inputs:
+        parameters:
+          - name: namespace
+      activeDeadlineSeconds: 200
+      script:
+        image: mongo:4.4.1
+        command: [mongo, "fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local/datadog"]
+        source: |
+          while (1) {
+            sleep(2000);
+
+            // Go memory check
+            var nb = db.series.find({
+              metric: "system.cpu.idle",
+              host: "e2e-test"
+            }).count();
+            if (nb == 0) {
+              print("no system.cpu.idle metric with nominal hostname");
+              continue;
+            }
+            var nb = db.series.find({
+              metric: "system.mem.free",
+              host: ""
+            }).count();
+            if (nb == 0) {
+              print("no system.mem.free metric with empty hostname");
+              continue;
+            }
+
+            // Python network check
+            var nb = db.series.find({
+              metric: "system.net.bytes_sent",
+              host: "e2e-test"
+            }).count();
+            if (nb == 0) {
+              print("no system.net.bytes_sent metric with nominal hostname");
+              continue;
+            }
+            var nb = db.series.find({
+              metric: "system.net.bytes_sent",
+              host: ""
+            }).count();
+            if (nb == 0) {
+              print("no system.net.bytes_sent metric with empty hostname");
+              continue;
+            }
+
+            print("All good");
+            break;
+          }
+
+    - name: test
+      inputs:
+        parameters:
+          - name: namespace
+      steps:
+        - - name: find-kube-state-metrics
+            template: find-kube-state-metrics
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+          - name: find-metrics-kubernetes
+            template: find-metrics-kubernetes
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+          - name: find-container-meta
+            template: find-metrics-kubernetes
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+          - name: find-checks-hostname
+            template: find-checks-hostname
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"

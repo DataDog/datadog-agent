@@ -1,37 +1,59 @@
 package encoding
 
 import (
+	"sync"
+
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
+var connsPool = sync.Pool{
+	New: func() interface{} {
+		return new(model.Connections)
+	},
+}
+
+var connPool = sync.Pool{
+	New: func() interface{} {
+		return new(model.Connection)
+	},
+}
+
 // FormatConnection converts a ConnectionStats into an model.Connection
 func FormatConnection(conn network.ConnectionStats) *model.Connection {
-	return &model.Connection{
-		Pid:                    int32(conn.Pid),
-		Laddr:                  formatAddr(conn.Source, conn.SPort),
-		Raddr:                  formatAddr(conn.Dest, conn.DPort),
-		Family:                 formatFamily(conn.Family),
-		Type:                   formatType(conn.Type),
-		LastBytesSent:          conn.LastSentBytes,
-		LastBytesReceived:      conn.LastRecvBytes,
-		LastRetransmits:        conn.LastRetransmits,
-		LastTcpEstablished:     conn.LastTCPEstablished,
-		LastTcpClosed:          conn.LastTCPClosed,
-		Rtt:                    conn.RTT,
-		RttVar:                 conn.RTTVar,
-		Direction:              formatDirection(conn.Direction),
-		NetNS:                  conn.NetNS,
-		IpTranslation:          formatIPTranslation(conn.IPTranslation),
-		IntraHost:              conn.IntraHost,
-		DnsSuccessfulResponses: conn.DNSSuccessfulResponses,
-		DnsFailedResponses:     conn.DNSFailedResponses,
-		DnsTimeouts:            conn.DNSTimeouts,
-		DnsSuccessLatencySum:   conn.DNSSuccessLatencySum,
-		DnsFailureLatencySum:   conn.DNSFailureLatencySum,
-		DnsCountByRcode:        conn.DNSCountByRcode,
-	}
+	c := connPool.Get().(*model.Connection)
+	c.Pid = int32(conn.Pid)
+	c.Laddr = formatAddr(conn.Source, conn.SPort)
+	c.Raddr = formatAddr(conn.Dest, conn.DPort)
+	c.Family = formatFamily(conn.Family)
+	c.Type = formatType(conn.Type)
+	c.PidCreateTime = 0
+	c.LastBytesSent = conn.LastSentBytes
+	c.LastBytesReceived = conn.LastRecvBytes
+	c.LastRetransmits = conn.LastRetransmits
+	c.Direction = formatDirection(conn.Direction)
+	c.NetNS = conn.NetNS
+	c.RemoteNetworkId = ""
+	c.IpTranslation = formatIPTranslation(conn.IPTranslation)
+	c.Rtt = conn.RTT
+	c.RttVar = conn.RTTVar
+	c.IntraHost = conn.IntraHost
+	c.DnsSuccessfulResponses = conn.DNSSuccessfulResponses
+	c.DnsFailedResponses = conn.DNSFailedResponses
+	c.DnsTimeouts = conn.DNSTimeouts
+	c.DnsSuccessLatencySum = conn.DNSSuccessLatencySum
+	c.DnsFailureLatencySum = conn.DNSFailureLatencySum
+	c.DnsCountByRcode = conn.DNSCountByRcode
+	c.LastTcpEstablished = conn.LastTCPEstablished
+	c.LastTcpClosed = conn.LastTCPClosed
+	return c
+}
+
+var dnsPool = sync.Pool{
+	New: func() interface{} {
+		return new(model.DNSEntry)
+	},
 }
 
 // FormatDNS converts a map[util.Address][]string to a map using IPs string representation
@@ -42,10 +64,18 @@ func FormatDNS(dns map[util.Address][]string) map[string]*model.DNSEntry {
 
 	ipToNames := make(map[string]*model.DNSEntry, len(dns))
 	for addr, names := range dns {
-		ipToNames[addr.String()] = &model.DNSEntry{Names: names}
+		entry := dnsPool.Get().(*model.DNSEntry)
+		entry.Names = names
+		ipToNames[addr.String()] = entry
 	}
 
 	return ipToNames
+}
+
+var telemetryPool = sync.Pool{
+	New: func() interface{} {
+		return new(model.ConnectionsTelemetry)
+	},
 }
 
 // FormatTelemetry converts telemetry from its internal representation to a protobuf message
@@ -54,18 +84,33 @@ func FormatTelemetry(tel *network.ConnectionsTelemetry) *model.ConnectionsTeleme
 		return nil
 	}
 
-	return &model.ConnectionsTelemetry{
-		MonotonicKprobesTriggered:          tel.MonotonicKprobesTriggered,
-		MonotonicKprobesMissed:             tel.MonotonicKprobesMissed,
-		MonotonicConntrackRegisters:        tel.MonotonicConntrackRegisters,
-		MonotonicConntrackRegistersDropped: tel.MonotonicConntrackRegistersDropped,
-		MonotonicDnsPacketsProcessed:       tel.MonotonicDNSPacketsProcessed,
-		MonotonicConnsClosed:               tel.MonotonicConnsClosed,
-		ConnsBpfMapSize:                    tel.ConnsBpfMapSize,
-		MonotonicUdpSendsProcessed:         tel.MonotonicUDPSendsProcessed,
-		MonotonicUdpSendsMissed:            tel.MonotonicUDPSendsMissed,
-		ConntrackSamplingPercent:           tel.ConntrackSamplingPercent,
+	t := telemetryPool.Get().(*model.ConnectionsTelemetry)
+	t.MonotonicKprobesTriggered = tel.MonotonicKprobesTriggered
+	t.MonotonicKprobesMissed = tel.MonotonicKprobesMissed
+	t.MonotonicConntrackRegisters = tel.MonotonicConntrackRegisters
+	t.MonotonicConntrackRegistersDropped = tel.MonotonicConntrackRegistersDropped
+	t.MonotonicDnsPacketsProcessed = tel.MonotonicDNSPacketsProcessed
+	t.MonotonicConnsClosed = tel.MonotonicConnsClosed
+	t.ConnsBpfMapSize = tel.ConnsBpfMapSize
+	t.MonotonicUdpSendsProcessed = tel.MonotonicUDPSendsProcessed
+	t.MonotonicUdpSendsMissed = tel.MonotonicUDPSendsMissed
+	t.ConntrackSamplingPercent = tel.ConntrackSamplingPercent
+	return t
+}
+
+func returnToPool(c *model.Connections) {
+	if c.Conns != nil {
+		for _, c := range c.Conns {
+			connPool.Put(c)
+		}
 	}
+	if c.Dns != nil {
+		for _, e := range c.Dns {
+			dnsPool.Put(e)
+		}
+	}
+	telemetryPool.Put(c.Telemetry)
+	connsPool.Put(c)
 }
 
 func formatAddr(addr util.Address, port uint16) *model.Addr {

@@ -8,13 +8,13 @@
 package tests
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"os"
-	"strings"
+	"path"
 	"syscall"
 	"testing"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"unsafe"
 )
 
 func TestMount(t *testing.T) {
@@ -23,20 +23,26 @@ func TestMount(t *testing.T) {
 		Expression: `utimes.filename == "{{.Root}}/test-mount"`,
 	}
 
-	test, err := newTestProbe(nil, []*rules.RuleDefinition{rule}, testOpts{})
+	testDrive, err := newTestDrive("ext4", []string{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	test, err := newTestProbe(nil, []*rules.RuleDefinition{rule}, testOpts{testDir: testDrive.Root()})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer test.Close()
 
-	mntPath, _, err := test.Path("test-mount")
+	mntPath, _, err := testDrive.Path("test-mount")
 	if err != nil {
 		t.Fatal(err)
 	}
 	os.MkdirAll(mntPath, 0755)
 	defer os.RemoveAll(mntPath)
 
-	dstMntPath, _, err := test.Path("test-dest-mount")
+	dstMntBasename := "test-dest-mount"
+	dstMntPath, _, err := testDrive.Path(dstMntBasename)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +56,7 @@ func TestMount(t *testing.T) {
 			t.Fatalf("could not create bind mount: %s", err)
 		}
 
-		event, err := test.GetEvent(3 * time.Second)
+		event, err := test.GetEvent(3*time.Second, "mount")
 		if err != nil {
 			t.Error(err)
 		} else {
@@ -58,16 +64,54 @@ func TestMount(t *testing.T) {
 				t.Errorf("expected mount event, got %s", event.GetType())
 			}
 
-			p := event.Mount.MountPointStr
-			p = strings.Replace(p, "/tmp", "", 1)
-			if p != strings.Replace(dstMntPath, "/tmp", "", 1) {
-				t.Errorf("expected %v for ParentPathStr, got %v", mntPath, p)
+			if event.Mount.MountPointStr != "/"+dstMntBasename {
+				t.Errorf("expected %v for ParentPathStr, got %v", dstMntPath, event.Mount.MountPointStr)
 			}
 
-			if fs := event.Mount.FSType; fs != "bind" {
+			// use accessor to parse properly the mount type
+			if fs := event.Mount.GetFSType(); fs != "bind" {
 				t.Errorf("expected a bind mount, got %v", fs)
 			}
-			mntID = event.Mount.NewMountID
+			mntID = event.Mount.MountID
+		}
+	})
+
+	t.Run("mount_resolver", func(t *testing.T) {
+		utimFile, utimFilePtr, err := testDrive.Path(path.Join(dstMntBasename, "test-utime"))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		f, err := os.Create(utimFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := f.Close(); err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(utimFile)
+
+		utimbuf := &syscall.Utimbuf{
+			Actime:  123,
+			Modtime: 456,
+		}
+
+		if _, _, errno := syscall.Syscall(syscall.SYS_UTIME, uintptr(utimFilePtr), uintptr(unsafe.Pointer(utimbuf)), 0); errno != 0 {
+			t.Fatal(errno)
+		}
+
+		event, err := test.GetEvent(3*time.Second, "utimes")
+		if err != nil {
+			t.Error(err)
+		} else {
+			if event.GetType() != "utimes" {
+				t.Errorf("expected utimes event, got %s", event.GetType())
+			}
+
+			if event.Utimes.PathnameStr != utimFile {
+				t.Errorf("expected %v for PathnameStr, got %v", utimFile, event.Utimes.PathnameStr)
+			}
 		}
 	})
 
@@ -77,7 +121,7 @@ func TestMount(t *testing.T) {
 			t.Fatalf("could not unmount test-mount: %s", err)
 		}
 
-		event, err := test.GetEvent(3 * time.Second)
+		event, err := test.GetEvent(3*time.Second, "umount")
 		if err != nil {
 			t.Error(err)
 		} else {

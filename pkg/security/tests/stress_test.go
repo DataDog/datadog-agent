@@ -9,8 +9,10 @@ package tests
 
 import (
 	"os"
+	"path"
 	"syscall"
 	"testing"
+	"time"
 
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
@@ -32,19 +34,26 @@ func (h *stressEventHandler) HandleEvent(event *sprobe.Event) {
 	}
 }
 
-func benchmarkOpen(b *testing.B, rule *rules.RuleDefinition, size int) {
+func benchmarkOpen(b *testing.B, rule *rules.RuleDefinition, pathname string, size int) {
 	var rules []*rules.RuleDefinition
 	if rule != nil {
 		rules = append(rules, rule)
 	}
 
-	test, err := newTestProbe(nil, rules, testOpts{enableFilters: true})
+	test, err := newTestProbe(nil, rules, testOpts{enableFilters: true, withoutHandler: true})
 	if err != nil {
 		b.Fatal(err)
 	}
 	defer test.Close()
 
-	testFile, _, err := test.Path("test")
+	testFolder, _, err := test.Path(path.Dir(pathname))
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	os.MkdirAll(testFolder, os.ModePerm)
+
+	testFile, _, err := test.Path(pathname)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -74,6 +83,8 @@ func benchmarkOpen(b *testing.B, rule *rules.RuleDefinition, size int) {
 		}
 	}
 
+	time.Sleep(5 * time.Second)
+
 	lost := eventsStats.GetLost()
 
 	b.ReportMetric(float64(lost), "lost")
@@ -86,7 +97,7 @@ func benchmarkOpen(b *testing.B, rule *rules.RuleDefinition, size int) {
 // this benchmark generate syscall but without having kprobe installed
 
 func BenchmarkE2EOpenNoKprobe(b *testing.B) {
-	benchmarkOpen(b, nil, 0)
+	benchmarkOpen(b, nil, "folder1/folder2/folder1/folder2/test", 0)
 }
 
 // goal: measure the impact of an event catched and passed from the kernel to the userspace
@@ -94,10 +105,10 @@ func BenchmarkE2EOpenNoKprobe(b *testing.B) {
 func BenchmarkE2EOpenEvent(b *testing.B) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.filename == "{{.Root}}/test" && open.flags & O_CREAT != 0`,
+		Expression: `open.filename == "{{.Root}}/folder1/folder2/test" && open.flags & O_CREAT != 0`,
 	}
 
-	benchmarkOpen(b, rule, 0)
+	benchmarkOpen(b, rule, "folder1/folder2/test", 0)
 }
 
 // goal: measure the impact on the kprobe only
@@ -105,10 +116,10 @@ func BenchmarkE2EOpenEvent(b *testing.B) {
 func BenchmarkE2EOpenNoEvent(b *testing.B) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.filename == "{{.Root}}/test-no-event" && open.flags & O_APPEND != 0`,
+		Expression: `open.filename == "{{.Root}}/folder1/folder2/test-no-event" && open.flags & O_APPEND != 0`,
 	}
 
-	benchmarkOpen(b, rule, 0)
+	benchmarkOpen(b, rule, "folder1/folder2/test", 0)
 }
 
 // goal: measure the impact of an event catched and passed from the kernel to the userspace
@@ -116,17 +127,17 @@ func BenchmarkE2EOpenNoEvent(b *testing.B) {
 func BenchmarkE2EOpenWrite1KEvent(b *testing.B) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.filename == "{{.Root}}/test" && open.flags & O_CREAT != 0`,
+		Expression: `open.filename == "{{.Root}}/"folder1/folder2/test" && open.flags & O_CREAT != 0`,
 	}
 
-	benchmarkOpen(b, rule, 1024)
+	benchmarkOpen(b, rule, "folder1/folder2/test", 1024)
 }
 
 // goal: measure host abality to handle open syscall without any kprobe, act as a reference
 // this benchmark generate syscall but without having kprobe installed
 
 func BenchmarkE2EOpenWrite1KNoKprobe(b *testing.B) {
-	benchmarkOpen(b, nil, 1024)
+	benchmarkOpen(b, nil, "folder1/folder2/test", 1024)
 }
 
 // goal: measure the impact on the kprobe only
@@ -134,8 +145,8 @@ func BenchmarkE2EOpenWrite1KNoKprobe(b *testing.B) {
 func BenchmarkE2EOpenWrite1KNoEvent(b *testing.B) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.filename == "{{.Root}}/test-no-event" && open.flags & O_APPEND != 0`,
+		Expression: `open.filename == "{{.Root}}/folder1/folder2/test-no-event" && open.flags & O_APPEND != 0`,
 	}
 
-	benchmarkOpen(b, rule, 1024)
+	benchmarkOpen(b, rule, "folder1/folder2/test", 1024)
 }

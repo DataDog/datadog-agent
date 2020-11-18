@@ -54,6 +54,14 @@ func (t *testTransaction) GetPriority() TransactionPriority {
 	return TransactionPriorityNormal
 }
 
+func (t *testTransaction) GetEndpointName() string {
+	return ""
+}
+
+func (t *testTransaction) GetPayloadSize() int {
+	return t.Called().Get(0).(int)
+}
+
 // Compile-time checking to ensure that MockedForwarder implements Forwarder
 var _ Forwarder = &MockedForwarder{}
 

@@ -13,8 +13,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/heartbeat"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -123,6 +125,22 @@ func runAgent(exit chan struct{}) {
 		cleanupAndExit(1)
 	}
 
+	// Initialize system-probe heartbeats
+	sysprobeMonitor, err := heartbeat.NewModuleMonitor(heartbeat.Options{
+		KeysPerDomain:      api.KeysPerDomains(cfg.APIEndpoints),
+		SysprobeSocketPath: cfg.SystemProbeAddress,
+		HostName:           cfg.HostName,
+		TagVersion:         Version,
+		TagRevision:        GitCommit,
+	})
+	defer sysprobeMonitor.Stop()
+
+	if err != nil {
+		log.Warnf("failed to initialize system-probe monitor: %s", err)
+	} else {
+		sysprobeMonitor.Every(15 * time.Second)
+	}
+
 	// Exit if agent is not enabled and we're not debugging a check.
 	if !cfg.Enabled && opts.check == "" {
 		log.Infof(agent6DisabledMessage)
@@ -183,6 +201,7 @@ func runAgent(exit chan struct{}) {
 		os.Exit(1)
 		return
 	}
+
 	for range exit {
 
 	}
