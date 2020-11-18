@@ -21,12 +21,17 @@ const maxRedisNbCommands = 3
 var redisCompoundCommandSet = map[string]bool{
 	"CLIENT": true, "CLUSTER": true, "COMMAND": true, "CONFIG": true, "DEBUG": true, "SCRIPT": true}
 
-// quantizeRedis generates resource for Redis spans
+func (o *Obfuscator) quantizeRedis(span *pb.Span) {
+	span.Resource = o.QuantizeRedisString(span.Resource)
+}
+
+// QuantizeRedisString returns a quantized version of a Redis query.
+//
 // TODO(gbbr): Refactor this method to use the tokenizer and
 // remove "compactWhitespaces". This method is buggy when commands
 // contain quoted strings with newlines.
-func (*Obfuscator) quantizeRedis(span *pb.Span) {
-	query := compactWhitespaces(span.Resource)
+func (*Obfuscator) QuantizeRedisString(query string) string {
+	query = compactWhitespaces(query)
 
 	var resource strings.Builder
 	truncated := false
@@ -81,7 +86,7 @@ func (*Obfuscator) quantizeRedis(span *pb.Span) {
 		resource.WriteString(" ...")
 	}
 
-	span.Resource = strings.Trim(resource.String(), " ")
+	return strings.Trim(resource.String(), " ")
 }
 
 const redisRawCommand = "redis.raw_command"

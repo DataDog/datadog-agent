@@ -407,12 +407,6 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 		in.Env = r.conf.DefaultEnv
 	}
 	in.Env = traceutil.NormalizeTag(in.Env)
-	for _, rule := range r.conf.ReplaceTags {
-		switch rule.Name {
-		case "env", "*":
-			in.Env = rule.Re.ReplaceAllString(in.Env, rule.Repl)
-		}
-	}
 	out := stats.Payload{
 		HostName: in.Hostname,
 		Env:      in.Env,
@@ -427,7 +421,6 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 				b.Resource = b.Name
 			}
 			b.Resource, _ = traceutil.TruncateResource(b.Resource)
-			// TODO: obfuscate other types
 			if b.Type == "sql" || b.DBType != "" {
 				// TODO(gbbr): perhaps we should store only one instance instead of
 				// a new one on each request?
@@ -437,6 +430,9 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 				} else {
 					b.Resource = oq.Query
 				}
+			}
+			if b.Type == "redis" {
+				b.Resource = obfuscate.NewObfuscator(r.conf.Obfuscation).QuantizeRedisString(b.Resource)
 			}
 
 			tags := map[string]string{"version": in.Version}
