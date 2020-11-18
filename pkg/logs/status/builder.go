@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"strings"
 	"sync/atomic"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
@@ -124,13 +123,16 @@ func (b *Builder) getIntegrations() []Integration {
 		var sources []Source
 		for _, source := range logSources {
 			sources = append(sources, Source{
-				BytesRead:         source.BytesRead.Value(),
-				AllTimeAvgLatency: source.GetAllTimeAvgLatency() / int64(time.Millisecond),
-				Type:              source.Config.Type,
-				Configuration:     b.toDictionary(source.Config),
-				Status:            b.toString(source.Status),
-				Inputs:            source.GetInputs(),
-				Messages:          source.Messages.GetMessages(),
+				BytesRead:          source.BytesRead.Value(),
+				AllTimeAvgLatency:  source.LatencyStats.AllTimeAvg(), // / int64(time.Millisecond)
+				AllTimePeakLatency: source.LatencyStats.AllTimePeak(),
+				RecentAvgLatency:   source.LatencyStats.MovingAvg(),
+				RecentPeakLatency:  source.LatencyStats.MovingPeak(),
+				Type:               source.Config.Type,
+				Configuration:      b.toDictionary(source.Config),
+				Status:             b.toString(source.Status),
+				Inputs:             source.GetInputs(),
+				Messages:           source.Messages.GetMessages(),
 			})
 		}
 		integrations = append(integrations, Integration{

@@ -8,6 +8,7 @@ package config
 import (
 	"expvar"
 	"sync"
+	"time"
 )
 
 // SourceType used for log line parsing logic.
@@ -27,10 +28,7 @@ const (
 type LogSource struct {
 	// Put expvar Int first because it's modified with sync/atomic, so it needs to
 	// be 64-bit aligned on 32-bit systems. See https://golang.org/pkg/sync/atomic/#pkg-note-BUG
-	BytesRead          expvar.Int
-	messageCount       int64
-	allTimeAvgLatency  int64
-	allTimePeakLatency int64
+	BytesRead expvar.Int
 
 	Name     string
 	Config   *LogsConfig
@@ -44,18 +42,20 @@ type LogSource struct {
 	sourceType SourceType
 	// In the case that the source is overridden, keep a reference to the parent for bubbling up information about the child
 	ParentSource *LogSource
+	LatencyStats SimpleStats
 }
 
 // NewLogSource creates a new log source.
 func NewLogSource(name string, config *LogsConfig) *LogSource {
 	return &LogSource{
-		Name:      name,
-		Config:    config,
-		Status:    NewLogStatus(),
-		inputs:    make(map[string]bool),
-		lock:      &sync.Mutex{},
-		Messages:  NewMessages(),
-		BytesRead: expvar.Int{},
+		Name:         name,
+		Config:       config,
+		Status:       NewLogStatus(),
+		inputs:       make(map[string]bool),
+		lock:         &sync.Mutex{},
+		Messages:     NewMessages(),
+		BytesRead:    expvar.Int{},
+		LatencyStats: NewSimpleStats(time.Hour * 24),
 	}
 }
 
@@ -96,19 +96,4 @@ func (s *LogSource) GetSourceType() SourceType {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	return s.sourceType
-}
-
-// UpdateLatency adds a new latency delta to the current average
-func (s *LogSource) UpdateLatency(delta int64) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	s.allTimeAvgLatency = (s.messageCount*s.allTimeAvgLatency + delta) / (s.messageCount + 1)
-	s.messageCount++
-}
-
-// GetAllTimeAvgLatency returns the average log processing latency
-func (s *LogSource) GetAllTimeAvgLatency() int64 {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	return s.allTimeAvgLatency
 }

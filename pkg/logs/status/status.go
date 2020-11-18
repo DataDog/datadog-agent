@@ -34,13 +34,16 @@ var (
 
 // Source provides some information about a logs source.
 type Source struct {
-	BytesRead         int64                  `json:"bytes_read"`
-	AllTimeAvgLatency int64                  `json:"all_time_latency"`
-	Type              string                 `json:"type"`
-	Configuration     map[string]interface{} `json:"configuration"`
-	Status            string                 `json:"status"`
-	Inputs            []string               `json:"inputs"`
-	Messages          []string               `json:"messages"`
+	BytesRead          int64                  `json:"bytes_read"`
+	AllTimeAvgLatency  int64                  `json:"all_time_avg_latency"`
+	AllTimePeakLatency int64                  `json:"all_time_peak_latency"`
+	RecentAvgLatency   int64                  `json:"recent_avg_latency"`
+	RecentPeakLatency  int64                  `json:"recent_peak_latency"`
+	Type               string                 `json:"type"`
+	Configuration      map[string]interface{} `json:"configuration"`
+	Status             string                 `json:"status"`
+	Inputs             []string               `json:"inputs"`
+	Messages           []string               `json:"messages"`
 }
 
 // Integration provides some information about a logs integration.

@@ -64,7 +64,10 @@ Logs Agent
     Inputs: {{ range $input := .inputs }}{{$input}} {{ end }}
     {{- end }}
     BytesRead: {{ .bytes_read }}
-    Average Latency (ms): {{ .all_time_latency }}
+    Average Latency (us): {{ .all_time_avg_latency }}
+    24h Average Latency (us): {{ .all_time_peak_latency }}
+    Peak Latency (us): {{ .recent_avg_latency }}
+    24h Peak Latency (us): {{ .recent_peak_latency }}
   {{- end }}
 {{- end }}
 
