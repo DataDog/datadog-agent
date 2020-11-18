@@ -9,17 +9,21 @@ import (
 	"sort"
 )
 
-type state struct {
-	model             Model
-	field             Field
-	events            map[EventType]bool
-	fieldValues       map[Field][]FieldValue
-	macros            map[MacroID]*MacroEvaluator
-	registerIterators map[RegisterID]Iterator
-	registerFields    map[RegisterID]Field
+type registerInfo struct {
+	iterator  Iterator
+	field     Field
+	subFields map[Field]bool
 }
 
-//
+type state struct {
+	model         Model
+	field         Field
+	events        map[EventType]bool
+	fieldValues   map[Field][]FieldValue
+	macros        map[MacroID]*MacroEvaluator
+	registersInfo map[RegisterID]*registerInfo
+}
+
 func (s *state) UpdateFields(field Field) {
 	if _, ok := s.fieldValues[field]; !ok {
 		s.fieldValues[field] = []FieldValue{}
@@ -52,12 +56,11 @@ func newState(model Model, field Field, macros map[MacroID]*MacroEvaluator) *sta
 		macros = make(map[MacroID]*MacroEvaluator)
 	}
 	return &state{
-		field:             field,
-		macros:            macros,
-		model:             model,
-		events:            make(map[EventType]bool),
-		fieldValues:       make(map[Field][]FieldValue),
-		registerIterators: make(map[RegisterID]Iterator),
-		registerFields:    make(map[RegisterID]Field),
+		field:         field,
+		macros:        macros,
+		model:         model,
+		events:        make(map[EventType]bool),
+		fieldValues:   make(map[Field][]FieldValue),
+		registersInfo: make(map[RegisterID]*registerInfo),
 	}
 }

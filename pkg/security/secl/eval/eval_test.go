@@ -371,7 +371,7 @@ func TestPartial(t *testing.T) {
 
 	tests := []struct {
 		Expr        string
-		Field       string
+		Field       Field
 		IsDiscarder bool
 	}{
 		{Expr: `true || process.name == "/usr/bin/cat"`, Field: "process.name", IsDiscarder: false},
@@ -416,6 +416,7 @@ func TestPartial(t *testing.T) {
 	for _, test := range tests {
 		model := &testModel{}
 		opts := &Opts{Constants: testConstants}
+
 		rule, err := parseRule(test.Expr, model, opts)
 		if err != nil {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
@@ -710,6 +711,60 @@ func TestRegister(t *testing.T) {
 
 		if result != test.Expected {
 			t.Errorf("expected result `%t` not found, got `%t`\n%s", test.Expected, result, test.Expr)
+		}
+	}
+}
+
+func TestRegisterPartial(t *testing.T) {
+	event := &testEvent{
+		process: testProcess{},
+	}
+
+	event.process.list = list.New()
+	event.process.list.PushBack(&testItem{key: 10, value: 11})
+	event.process.list.PushBack(&testItem{key: 100, value: 101})
+	event.process.list.PushBack(&testItem{key: 200, value: 201})
+
+	event.process.array = []*testItem{
+		&testItem{key: 1000, value: 1001},
+		&testItem{key: 1002, value: 1003},
+	}
+
+	tests := []struct {
+		Expr        string
+		Field       Field
+		IsDiscarder bool
+	}{
+		{Expr: `process.list[_].key == 10 && process.list[_].value == 11`, Field: "process.list.key", IsDiscarder: false},
+		{Expr: `process.list[_].key == 55 && process.list[_].value == 11`, Field: "process.list.key", IsDiscarder: true},
+		{Expr: `process.list[_].key == 55 && process.list[_].value == 11`, Field: "process.list.value", IsDiscarder: false},
+		{Expr: `process.list[_].key == 10 && process.list[_].value == 55`, Field: "process.list.value", IsDiscarder: true},
+		{Expr: `process.list[A].key == 10 && process.list[B].value == 55`, Field: "process.list.key", IsDiscarder: false},
+		{Expr: `process.list[A].key == 55 && process.list[B].value == 11`, Field: "process.list.key", IsDiscarder: true},
+	}
+
+	ctx := &Context{}
+	ctx.SetObject(unsafe.Pointer(event))
+
+	for _, test := range tests {
+		model := &testModel{}
+		opts := &Opts{Constants: testConstants}
+
+		rule, err := parseRule(test.Expr, model, opts)
+		if err != nil {
+			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+		}
+		if err := rule.GenPartials(); err != nil {
+			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+		}
+
+		result, err := rule.PartialEval(ctx, test.Field)
+		if err != nil {
+			t.Fatalf("error while partial evaluating `%s` for `%s`: %s", test.Expr, test.Field, err)
+		}
+
+		if !result != test.IsDiscarder {
+			t.Fatalf("expected result `%t` for `%s`, got `%t`\n%s", test.IsDiscarder, test.Field, result, test.Expr)
 		}
 	}
 }

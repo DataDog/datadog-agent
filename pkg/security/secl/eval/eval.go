@@ -466,12 +466,22 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, in
 					regID = utils.RandString(8)
 				}
 
-				if rf, exists := state.registerFields[regID]; exists && rf != itField {
-					return nil, nil, obj.Pos, NewRegisterMultipleFields(obj.Pos, regID, errors.New("used by multiple fields"))
-				}
-				state.registerFields[regID] = itField
+				if info, exists := state.registersInfo[regID]; exists {
+					if info.field != itField {
+						return nil, nil, obj.Pos, NewRegisterMultipleFields(obj.Pos, regID, errors.New("used by multiple fields"))
+					}
 
-				state.registerIterators[regID] = iterator
+					info.subFields[field] = true
+				} else {
+					info = &registerInfo{
+						field:    itField,
+						iterator: iterator,
+						subFields: map[Field]bool{
+							field: true,
+						},
+					}
+					state.registersInfo[regID] = info
+				}
 			}
 
 			accessor, err := state.model.GetEvaluator(field, regID)

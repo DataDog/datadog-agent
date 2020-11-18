@@ -156,15 +156,15 @@ func combineRegisters(combinations []Registers, regID RegisterID, values []unsaf
 	return combined
 }
 
-func handleRegisters(evalFnc BoolEvalFnc, registerIterators map[RegisterID]Iterator) BoolEvalFnc {
+func handleRegisters(evalFnc BoolEvalFnc, registersInfo map[RegisterID]*registerInfo) BoolEvalFnc {
 	return func(ctx *Context) bool {
 		ctx.Registers = make(Registers)
 
 		// start with the head of all register
-		for id, iterator := range registerIterators {
+		for id, info := range registersInfo {
 			ctx.Registers[id] = &Register{
-				Value:    iterator.Front(ctx),
-				iterator: iterator,
+				Value:    info.iterator.Front(ctx),
+				iterator: info.iterator,
 			}
 		}
 
@@ -189,7 +189,7 @@ func handleRegisters(evalFnc BoolEvalFnc, registerIterators map[RegisterID]Itera
 		}
 
 		// no need to combine there is only one registers used
-		if len(registerIterators) == 1 {
+		if len(registersInfo) == 1 {
 			return false
 		}
 
@@ -240,8 +240,9 @@ func ruleToEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, e
 		}
 	}
 
-	if len(state.registerIterators) > 0 {
-		evalBool.EvalFnc = handleRegisters(evalBool.EvalFnc, state.registerIterators)
+	// rule uses register replace the original eval function with the one handling registers
+	if len(state.registersInfo) > 0 {
+		evalBool.EvalFnc = handleRegisters(evalBool.EvalFnc, state.registersInfo)
 	}
 
 	return &RuleEvaluator{
@@ -317,6 +318,19 @@ func (r *Rule) GenPartials() error {
 			pEvalBool.EvalFnc = func(ctx *Context) bool {
 				return pEvalBool.Value
 			}
+		}
+
+		// rule uses register replace the original eval function with the one handling registers
+		if len(state.registersInfo) > 0 {
+			// generate register map for the given field only
+			registersInfo := make(map[RegisterID]*registerInfo)
+			for regID, info := range state.registersInfo {
+				if _, exists := info.subFields[field]; exists {
+					registersInfo[regID] = info
+				}
+			}
+
+			pEvalBool.EvalFnc = handleRegisters(pEvalBool.EvalFnc, registersInfo)
 		}
 
 		r.evaluator.setPartial(field, pEvalBool.EvalFnc)

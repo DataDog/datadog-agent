@@ -14,7 +14,6 @@ type RegisterID = string
 
 // Register describes a register that can be used by a set
 type Register struct {
-	ID    string
 	Value unsafe.Pointer
 
 	iterator Iterator
