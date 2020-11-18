@@ -123,12 +123,12 @@ func (b *Builder) getIntegrations() []Integration {
 		var sources []Source
 		for _, source := range logSources {
 			sources = append(sources, Source{
+				BytesRead:     source.BytesRead.Value(),
 				Type:          source.Config.Type,
 				Configuration: b.toDictionary(source.Config),
 				Status:        b.toString(source.Status),
 				Inputs:        source.GetInputs(),
 				Messages:      source.Messages.GetMessages(),
-				BytesRead:     source.BytesRead.Value(),
 			})
 		}
 		integrations = append(integrations, Integration{
