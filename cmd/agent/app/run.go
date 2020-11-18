@@ -359,7 +359,7 @@ func StartAgent() error {
 	util.LogVersionHistory()
 
 	// create and setup the Autoconfig instance
-	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
+	common.LoadComponents(config.Datadog.GetString("confd_path"))
 	// start the autoconfig, this will immediately run any configured check
 	common.StartAutoConfig()
 
