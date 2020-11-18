@@ -190,3 +190,68 @@ func TestProcfsChange(t *testing.T) {
 	assert.NotContains(t, newProcByPID2, int32(29613))
 	assert.Contains(t, procByPID, int32(29613))
 }
+
+func BenchmarkGetCmdGopsutil(b *testing.B) {
+	hostProc := "resources/test_procfs/proc"
+	os.Setenv("HOST_PROC", hostProc)
+	defer os.Unsetenv("HOST_PROC")
+
+	pids, err := process.Pids()
+	assert.NoError(b, err)
+
+	for i := 0; i < b.N; i++ {
+		for _, pid := range pids {
+			expProc, err := process.NewProcess(pid)
+			assert.NoError(b, err)
+			_, err = expProc.Cmdline()
+			assert.NoError(b, err)
+		}
+	}
+}
+
+func BenchmarkGetCmdProcutil(b *testing.B) {
+	hostProc := "resources/test_procfs/proc"
+	os.Setenv("HOST_PROC", hostProc)
+	defer os.Unsetenv("HOST_PROC")
+
+	probe := NewProcessProbe()
+	defer probe.Close()
+
+	pids, err := probe.getActivePIDs()
+	assert.NoError(b, err)
+
+	for i := 0; i < b.N; i++ {
+		for _, pid := range pids {
+			probe.getCmdline(filepath.Join(hostProc, strconv.Itoa(int(pid))))
+		}
+	}
+}
+
+func BenchmarkLocalGetCmdGopsutil(b *testing.B) {
+	pids, err := process.Pids()
+	assert.NoError(b, err)
+
+	for i := 0; i < b.N; i++ {
+		for _, pid := range pids {
+			expProc, err := process.NewProcess(pid)
+			assert.NoError(b, err)
+			_, err = expProc.Cmdline()
+			assert.NoError(b, err)
+		}
+	}
+}
+
+func BenchmarkLocalGetCmdProcutil(b *testing.B) {
+	probe := NewProcessProbe()
+	defer probe.Close()
+
+	pids, err := probe.getActivePIDs()
+	assert.NoError(b, err)
+
+	for i := 0; i < b.N; i++ {
+		for _, pid := range pids {
+			pathForPID := filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid)))
+			probe.getCmdline(filepath.Join(pathForPID, strconv.Itoa(int(pid))))
+		}
+	}
+}
