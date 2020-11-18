@@ -29,10 +29,13 @@ SET PATH=%PATH%;%GOPATH%/bin
 @echo VSTUDIO_ROOT %VSTUDIO_ROOT%
 @echo TARGET_ARCH %TARGET_ARCH%
 
-REM Equivalent to the "ridk enable" command, but without the exit
+REM Section to pre-install libyajl2 gem with fix for gcc10 compatibility
+Powershell -C "ridk enable; ./tasks/winbuildscripts/libyajl2_install.ps1"
+
+
 if "%TARGET_ARCH%" == "x64" (
     @echo IN x64 BRANCH
-    @for /f "delims=" %%x in ('"ruby" --disable-gems -x '%RIDK%' enable') do set "%%x"
+    call ridk enable
 )
 
 if "%TARGET_ARCH%" == "x86" (
@@ -41,7 +44,8 @@ if "%TARGET_ARCH%" == "x86" (
     Powershell -C "ridk enable; cd omnibus; bundle install"
 )
 
-pip install -r requirements.txt || exit /b 4
+pip3 install -r requirements.txt || exit /b 4
+
 
 inv -e deps --verbose || exit /b 5
 

@@ -8,8 +8,8 @@ package app
 
 // Servicedef defines a service
 type Servicedef struct {
-	name      string
-	configKey string
+	name       string
+	configKeys []string
 }
 
 var subservices = []Servicedef{}
