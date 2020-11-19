@@ -119,19 +119,10 @@ func (s *Runner) PostMsgpack(path string, data msgp.Encodable) error {
 	if err != nil {
 		return err
 	}
-
 	req.Header.Set("Content-Type", "application/msgpack")
 	req.Header.Set("Content-Length", strconv.Itoa(buf.Len()))
 
-	resp, err := http.DefaultClient.Do(req)
-	if resp.StatusCode != 200 {
-		slurp, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return fmt.Errorf("%s (error reading response body: %v)", resp.Status, err)
-		}
-		return fmt.Errorf("%s: %s", resp.Status, slurp)
-	}
-	return err
+	return s.doRequest(req)
 }
 
 // Post posts the given list of traces to the trace agent. Before posting, agent must
@@ -157,6 +148,10 @@ func (s *Runner) Post(traceList pb.Traces) error {
 	req.Header.Set("Content-Type", "application/msgpack")
 	req.Header.Set("Content-Length", strconv.Itoa(buf.Len()))
 
+	return s.doRequest(req)
+}
+
+func (s *Runner) doRequest(req *http.Request) error {
 	resp, err := http.DefaultClient.Do(req)
 	if resp.StatusCode != 200 {
 		slurp, err := ioutil.ReadAll(resp.Body)
