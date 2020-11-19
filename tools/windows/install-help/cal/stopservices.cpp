@@ -937,6 +937,7 @@ int verifyServices(CustomActionData& data)
             break;
         }
     }
+#ifdef __REGISTER_ALL_SERVICES
     if(!data.installSysprobe()) {
         retval = services[SYSPROBE_INDEX].destroy(hScManager);
         if(0 == retval) {
@@ -950,6 +951,7 @@ int verifyServices(CustomActionData& data)
         // and it's not present anyway, don't cause the entire install to fail
         retval = 0;
     }
+#endif
     WcaLog(LOGMSG_STANDARD, "done updating services");
    
     CloseServiceHandle(hScManager);
