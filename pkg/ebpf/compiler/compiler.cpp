@@ -1,4 +1,5 @@
 #include "compiler.h"
+#include "files.h"
 
 #include <iostream>
 #include <llvm/IR/LegacyPassManager.h>
@@ -7,10 +8,13 @@
 #include <clang/Driver/Job.h>
 #include <clang/Driver/Tool.h>
 #include <clang/Frontend/CompilerInstance.h>
+#include <clang/Lex/PreprocessorOptions.h>
 
 bool ClangCompiler::llvmInitialized = false;
 
 enum Architecture { PPC, PPCLE, S390X, ARM64, X86 };
+
+std::map<std::string, std::unique_ptr<llvm::MemoryBuffer>> ClangCompiler::remapped_files_;
 
 ClangCompiler::ClangCompiler(const char *name) :
     llvmContext(new llvm::LLVMContext),
@@ -20,12 +24,16 @@ ClangCompiler::ClangCompiler(const char *name) :
     diagnosticsEngine(new clang::DiagnosticsEngine(diagID, diagOpts, textDiagnosticPrinter.get(), false)),
     defaultCflags({
         "clang", // DO NOT REMOVE, first flag is ignored
+        "-emit-llvm",
         "-O2",
         "-D__KERNEL__",
         "-fno-color-diagnostics",
         "-fno-unwind-tables",
         "-fno-asynchronous-unwind-tables",
         "-fno-stack-protector",
+        "-nostdinc",
+        "-include../c/asm_goto_workaround.h",
+        "-isystem/virtual/lib/clang/include",
         "-x", "c"
     }),
     theTriple("bpf")
@@ -50,7 +58,8 @@ ClangCompiler::ClangCompiler(const char *name) :
 
     theTarget = llvm::TargetRegistry::lookupTarget(theTriple.getTriple(), Error);
     if (!theTarget) {
-        throw Error;
+        errString = "could not lookup target";
+        return;
     }
 
     llvm::TargetOptions targetOptions;
@@ -59,7 +68,14 @@ ClangCompiler::ClangCompiler(const char *name) :
         theTriple.getTriple(), "generic", "", targetOptions, RM, llvm::None, llvm::CodeGenOpt::Aggressive));
 
     if (!targetMachine) {
-        throw std::string("Could not allocate target machine");
+        errString = "could not allocate target machine";
+        return;
+    }
+
+    if (remapped_files_.empty()) {
+        for (auto f : MappedFiles::files()) {
+            remapped_files_[f.first] = llvm::MemoryBuffer::getMemBuffer(f.second);
+        }
     }
 }
 
@@ -134,12 +150,18 @@ std::unique_ptr<llvm::Module> ClangCompiler::compileToBytecode(
         return nullptr;
     }
 
+    invocation->getPreprocessorOpts().RetainRemappedFileBuffers = true;
+    for (const auto &f : remapped_files_) {
+        invocation->getPreprocessorOpts().addRemappedFile(f.first, &*f.second);
+    }
 
     if (outputFile) {
         invocation->getFrontendOpts().OutputFile = std::string(llvm::StringRef(outputFile));
     }
 
     invocation->getFrontendOpts().ProgramAction = clang::frontend::EmitLLVM;
+    invocation->getFrontendOpts().DisableFree = false;
+    invocation->getCodeGenOpts().DisableFree = false;
 
     clang::CompilerInstance compiler;
     compiler.setInvocation(std::move(invocation));
@@ -159,18 +181,10 @@ std::unique_ptr<llvm::Module> ClangCompiler::compileToBytecode(
 
 llvm::StringRef ClangCompiler::getDataLayout()
 {
-#if LLVM_MAJOR_VERSION >= 11
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
     return "e-m:e-p:64:64-i64:64-i128:128-n32:64-S128";
 #else
     return "E-m:e-p:64:64-i64:64-i128:128-n32:64-S128";
-#endif
-#else
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-    return "e-m:e-p:64:64-i64:64-n32:64-S128";
-#else
-    return "E-m:e-p:64:64-i64:64-n32:64-S128";
-#endif
 #endif
 }
 

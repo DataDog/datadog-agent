@@ -7,6 +7,7 @@
 #include <clang/Frontend/TextDiagnosticPrinter.h>
 #include <clang/Driver/Driver.h>
 #include <clang/Basic/FileManager.h>
+#include <clang/Lex/PreprocessorOptions.h>
 
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
@@ -48,7 +49,7 @@ public:
     ~ClangCompiler();
 
 private:
-
+    static std::map<std::string, std::unique_ptr<llvm::MemoryBuffer>> remapped_files_;
     static llvm::StringRef getDataLayout();
     static llvm::StringRef getArch();
     std::unique_ptr<clang::CompilerInvocation> buildCompilation(
