@@ -28,7 +28,7 @@ func bindataTcpqueuelengthkernC() (*asset, error) {
 		name:        "tcp-queue-length-kern.c",
 		size:        3246,
 		md5checksum: "",
-		mode:        os.FileMode(436),
+		mode:        os.FileMode(420),
 		modTime:     time.Unix(1, 0),
 	}
 

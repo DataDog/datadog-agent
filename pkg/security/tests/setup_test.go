@@ -51,6 +51,7 @@ system_probe_config:
 runtime_security_config:
   enabled: true
   socket: /tmp/test-security-probe.sock
+  flush_discarder_window: 0
 {{if .DisableFilters}}
   enable_kernel_filters: false
 {{end}}
@@ -374,7 +375,6 @@ func (tm *testModule) Path(filename string) (string, unsafe.Pointer, error) {
 func (tm *testModule) cleanup() {
 	tm.st.Close()
 	tm.module.Close()
-	time.Sleep(time.Second)
 }
 
 func (tm *testModule) Close() {

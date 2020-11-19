@@ -46,6 +46,7 @@ func setFlagsFilter(probe *Probe, tableName string, flags ...int) (activeApprove
 			tableName: tableName,
 			index:     uint32(0),
 			value:     flagsItem,
+			zeroValue: ebpf.ZeroUint32MapItem,
 		}, nil
 	}
 

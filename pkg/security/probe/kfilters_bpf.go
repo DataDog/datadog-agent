@@ -83,6 +83,7 @@ type arrayEntry struct {
 	tableName string
 	index     interface{}
 	value     interface{}
+	zeroValue interface{}
 }
 
 func (e *arrayEntry) Key() interface{} {
@@ -93,7 +94,11 @@ func (e *arrayEntry) Key() interface{} {
 }
 
 func (e *arrayEntry) Remove(probe *Probe) error {
-	return nil
+	table, err := probe.Map(e.tableName)
+	if err != nil {
+		return err
+	}
+	return table.Put(e.index, e.zeroValue)
 }
 
 func (e *arrayEntry) Apply(probe *Probe) error {

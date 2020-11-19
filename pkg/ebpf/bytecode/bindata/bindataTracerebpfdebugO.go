@@ -28,7 +28,7 @@ func bindataTracerebpfdebugO() (*asset, error) {
 		name:        "tracer-ebpf-debug.o",
 		size:        70728,
 		md5checksum: "",
-		mode:        os.FileMode(436),
+		mode:        os.FileMode(420),
 		modTime:     time.Unix(1, 0),
 	}
 

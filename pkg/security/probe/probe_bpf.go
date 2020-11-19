@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
@@ -50,30 +51,30 @@ type onDiscarderHandler func(rs *rules.RuleSet, event *Event, probe *Probe, disc
 var (
 	allApproversHandlers = make(map[eval.EventType]onApproverHandler)
 	allDiscarderHandlers = make(map[eval.EventType]onDiscarderHandler)
-	constantEditors      = make(map[eval.EventType][]manager.ConstantEditor)
 )
 
 // Probe represents the runtime security eBPF probe in charge of
 // setting up the required kProbes and decoding events sent from the kernel
 type Probe struct {
-	manager           *manager.Manager
-	managerOptions    manager.Options
-	config            *config.Config
-	handler           EventHandler
-	resolvers         *Resolvers
-	discarderHandlers map[eval.EventType][]onDiscarderHandler
-	pidDiscarders     *lib.Map
-	inodeDiscarders   *lib.Map
-	invalidDiscarders map[eval.Field]map[interface{}]bool
-	approvers         map[eval.EventType]activeApprovers
-	syscallMonitor    *SyscallMonitor
-	loadController    *LoadController
-	kernelVersion     kernel.Version
-	_                 uint32 // padding for goarch=386
-	eventsStats       EventsStats
-	startTime         time.Time
-	event             *Event
-	mountEvent        *Event
+	manager            *manager.Manager
+	managerOptions     manager.Options
+	config             *config.Config
+	handler            EventHandler
+	resolvers          *Resolvers
+	discarderHandlers  map[eval.EventType][]onDiscarderHandler
+	pidDiscarders      *lib.Map
+	inodeDiscarders    *lib.Map
+	invalidDiscarders  map[eval.Field]map[interface{}]bool
+	flushingDiscarders int64
+	approvers          map[eval.EventType]activeApprovers
+	syscallMonitor     *SyscallMonitor
+	loadController     *LoadController
+	kernelVersion      kernel.Version
+	_                  uint32 // padding for goarch=386
+	eventsStats        EventsStats
+	startTime          time.Time
+	event              *Event
+	mountEvent         *Event
 }
 
 // Map returns a map by its name
@@ -137,10 +138,6 @@ func (p *Probe) Init() error {
 
 	if selectors, exists := probes.SelectorsPerEventType["*"]; exists {
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, selectors...)
-	}
-
-	for _, constants := range constantEditors {
-		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, constants...)
 	}
 
 	if err := p.manager.InitWithOptions(bytecodeReader, p.managerOptions); err != nil {
@@ -495,6 +492,10 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, event *Event, field eval.Field
 		return nil
 	}
 
+	if atomic.LoadInt64(&p.flushingDiscarders) == 1 {
+		return nil
+	}
+
 	log.Tracef("New discarder of type %s for field %s", eventType, field)
 
 	if handler, ok := allDiscarderHandlers[eventType]; ok {
@@ -590,12 +591,32 @@ func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 		log.Tracef("probe %s selected", id)
 	}
 
+	enabledEventsMap, err := p.Map("enabled_events")
+	if err != nil {
+		return err
+	}
+
+	enabledEvents := uint64(0)
+	for _, eventName := range rs.GetEventTypes() {
+		if eventName != "*" {
+			eventType := parseEvalEventType(eventName)
+			if eventType == UnknownEventType {
+				return fmt.Errorf("unknown event type '%s'", eventName)
+			}
+			enabledEvents |= 1 << (eventType - 1)
+		}
+	}
+
+	if err := enabledEventsMap.Put(ebpf.ZeroUint32MapItem, enabledEvents); err != nil {
+		return errors.Wrap(err, "failed to set enabled events")
+	}
+
 	return p.manager.UpdateActivatedProbes(activatedProbes)
 }
 
 // FlushDiscarders removes all the discarders
 func (p *Probe) FlushDiscarders() error {
-	log.Tracef("Flushing discarders")
+	log.Debugf("Freezing discarders")
 
 	flushingMap, err := p.Map("flushing_discarders")
 	if err != nil {
@@ -606,14 +627,22 @@ func (p *Probe) FlushDiscarders() error {
 		return errors.Wrap(err, "failed to set flush_discarders flag")
 	}
 
-	defer func() {
+	unfreezeDiscarders := func() {
+		atomic.StoreInt64(&p.flushingDiscarders, 0)
+
 		if err := flushingMap.Put(ebpf.ZeroUint32MapItem, uint32(0)); err != nil {
 			log.Errorf("Failed to reset flush_discarders flag: %s", err)
 		}
-	}()
 
-	// Sleeping a bit to avoid races with executing kprobes
-	time.Sleep(time.Second)
+		log.Debugf("Unfreezing discarders")
+	}
+	defer unfreezeDiscarders()
+
+	// Sleeping a bit to avoid races with executing kprobes and setting discarders
+	if !atomic.CompareAndSwapInt64(&p.flushingDiscarders, 0, 1) {
+		return errors.New("already flushing discarders")
+	}
+	time.Sleep(100 * time.Millisecond)
 
 	var discardedInodes []inodeDiscarder
 	var inodeParams inodeDiscarderParameters
@@ -634,29 +663,39 @@ func (p *Probe) FlushDiscarders() error {
 		return nil
 	}
 
-	flushWindow := time.Second * 3
+	flushWindow := time.Second * time.Duration(p.config.FlushDiscarderWindow)
 	delay := flushWindow / time.Duration(discarderCount)
 
-	for _, inode := range discardedInodes {
-		if err := p.inodeDiscarders.Delete(&inode); err != nil {
-			log.Tracef("Failed to flush discarder for inode %d: %s", inode, err)
+	flushDiscarders := func() {
+		log.Debugf("Flushing discarders")
+
+		for _, inode := range discardedInodes {
+			if err := p.inodeDiscarders.Delete(&inode); err != nil {
+				log.Tracef("Failed to flush discarder for inode %d: %s", inode, err)
+			}
+
+			discarderCount--
+			if discarderCount > 0 {
+				time.Sleep(delay)
+			}
 		}
 
-		discarderCount--
-		if discarderCount > 0 {
-			time.Sleep(delay)
+		for _, pid := range discardedPids {
+			if err := p.pidDiscarders.Delete(pid); err != nil {
+				log.Tracef("Failed to flush discarder for pid %d: %s", pid, err)
+			}
+
+			discarderCount--
+			if discarderCount > 0 {
+				time.Sleep(delay)
+			}
 		}
 	}
 
-	for _, pid := range discardedPids {
-		if err := p.pidDiscarders.Delete(pid); err != nil {
-			log.Tracef("Failed to flush discarder for pid %d: %s", pid, err)
-		}
-
-		discarderCount--
-		if discarderCount > 0 {
-			time.Sleep(delay)
-		}
+	if p.config.FlushDiscarderWindow != 0 {
+		go flushDiscarders()
+	} else {
+		flushDiscarders()
 	}
 
 	return nil
@@ -882,18 +921,4 @@ func init() {
 				return "removexattr.filename", event.RemoveXAttr.MountID, event.RemoveXAttr.Inode, event.RemoveXAttr.PathID, false
 			}))
 	SupportedDiscarders["removexattr.filename"] = true
-
-	// constant rewrites
-	constantEditors["unlink"] = []manager.ConstantEditor{
-		{Name: "unlink_event_enabled", Value: uint64(1)},
-	}
-
-	constantEditors["rmdir"] = []manager.ConstantEditor{
-		{Name: "rmdir_event_enabled", Value: uint64(1)},
-		{Name: "unlink_event_enabled", Value: uint64(1)},
-	}
-
-	constantEditors["rename"] = []manager.ConstantEditor{
-		{Name: "rename_event_enabled", Value: uint64(1)},
-	}
 }

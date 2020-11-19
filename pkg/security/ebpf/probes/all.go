@@ -75,6 +75,8 @@ func AllMaps() []*manager.Map {
 		{Name: "noisy_processes_bb"},
 		// Flushing discarders boolean
 		{Name: "flushing_discarders"},
+		// Enabled event mask
+		{Name: "enabled_events"},
 	}
 }
 

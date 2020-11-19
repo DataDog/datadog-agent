@@ -101,8 +101,8 @@ func TestOpenBasenameApproverFilter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer syscall.Close(fd1)
 	defer os.Remove(testFile1)
+	defer syscall.Close(fd1)
 
 	if _, err := waitForOpenEvent(test, testFile1); err != nil {
 		t.Fatal(err)
@@ -112,8 +112,8 @@ func TestOpenBasenameApproverFilter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer syscall.Close(fd2)
 	defer os.Remove(testFile2)
+	defer syscall.Close(fd2)
 
 	if event, err := waitForOpenEvent(test, testFile2); err == nil {
 		t.Fatalf("shouldn't get an event: %+v", event)

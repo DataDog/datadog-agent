@@ -375,4 +375,29 @@ static __attribute__((always_inline)) u32 atoi(char *buff) {
 // implemented in the probe.c file
 void __attribute__((always_inline)) invalidate_inode(struct pt_regs *ctx, u32 mount_id, u64 inode, int send_invalidate_event);
 
+struct bpf_map_def SEC("maps/enabled_events") enabled_events = {
+    .type = BPF_MAP_TYPE_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u64),
+    .max_entries = 1,
+    .pinning = 0,
+    .namespace = "",
+};
+
+static __attribute__((always_inline)) u64 get_enabled_events(void) {
+    u32 key = 0;
+    u64 *mask = bpf_map_lookup_elem(&enabled_events, &key);
+    if (mask)
+        return *mask;
+    return 0;
+}
+
+static __attribute__((always_inline)) int mask_has_event(u64 event_mask, enum event_type event) {
+    return event_mask & (1 << (event-1));
+}
+
+static __attribute__((always_inline)) int is_event_enabled(enum event_type event) {
+    return mask_has_event(get_enabled_events(), event);
+}
+
 #endif

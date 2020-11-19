@@ -58,7 +58,8 @@ int __attribute__((always_inline)) discarded_by_inode(u64 event_type, u32 mount_
     };
 
     struct filter_t *filter = bpf_map_lookup_elem(&inode_discarders, &key);
-    if (filter && (filter->event_mask & (1 << (event_type-1)))) {
+
+    if (filter && mask_has_event(filter->event_mask, event_type)) {
 #ifdef DEBUG
         bpf_printk("file with inode %d discarded\n", inode);
 #endif
@@ -110,7 +111,7 @@ int __attribute__((always_inline)) discarded_by_pid(u64 event_type, u32 tgid) {
 #ifdef DEBUG
         bpf_printk("process with pid %d discarded\n", tgid);
 #endif
-    return params->event_mask & (1 << (event_type-1));
+    return mask_has_event(params->event_mask, event_type);
 }
 
 // cache_syscall checks the event policy in order to see if the syscall struct can be cached
