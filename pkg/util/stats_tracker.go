@@ -12,7 +12,7 @@ type taggedPoint struct {
 	value     int64
 }
 
-// StatsTracker TODO
+// StatsTracker Keeps track of simple stats over its lifetime and a configurable time range
 type StatsTracker struct {
 	allTimeAvg   int64
 	movingAvg    int64
@@ -24,66 +24,66 @@ type StatsTracker struct {
 	lock         *sync.Mutex
 }
 
-// NewStatsTracker TODO
+// NewStatsTracker Creates a new StatsTracker instance
 func NewStatsTracker(timeFrame time.Duration) StatsTracker {
 	return NewStatsTrackerWithTimeProvider(timeFrame, func() int64 {
 		return time.Now().UnixNano()
 	})
 }
 
-// NewStatsTrackerWithTimeProvider TODO
+// NewStatsTrackerWithTimeProvider Creates a new StatsTracker instance with a time provider closure (mostly for testing)
 func NewStatsTrackerWithTimeProvider(timeFrame time.Duration, timeProvider timeProvider) StatsTracker {
-	StatsTracker := StatsTracker{}
-	StatsTracker.taggedPoints = make([]taggedPoint, 0)
-	StatsTracker.timeFrame = int64(timeFrame)
-	StatsTracker.timeProvider = timeProvider
-	StatsTracker.lock = &sync.Mutex{}
-	return StatsTracker
+	return StatsTracker{
+		taggedPoints: make([]taggedPoint, 0),
+		timeFrame:    int64(timeFrame),
+		timeProvider: timeProvider,
+		lock:         &sync.Mutex{},
+	}
 }
 
-// Add TODO
-func (s *StatsTracker) Add(point int64) {
+// Add Records a new value
+func (s *StatsTracker) Add(value int64) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	s.allTimeAvg = (s.totalPoints*s.allTimeAvg + point) / (s.totalPoints + 1)
+	s.allTimeAvg = (s.totalPoints*s.allTimeAvg + value) / (s.totalPoints + 1)
 	s.totalPoints++
 
-	if point > s.allTimePeak {
-		s.allTimePeak = point
+	if value > s.allTimePeak {
+		s.allTimePeak = value
 	}
 
 	bufferSize := int64(len(s.taggedPoints))
-	s.movingAvg = (bufferSize*s.movingAvg + point) / (bufferSize + 1)
+	s.movingAvg = (bufferSize*s.movingAvg + value) / (bufferSize + 1)
 
 	now := s.timeProvider()
-	s.taggedPoints = append(s.taggedPoints, taggedPoint{now, point})
+	s.taggedPoints = append(s.taggedPoints, taggedPoint{now, value})
 
 	s.dropPoints(now)
 }
 
-// AllTimeAvg TODO
+// AllTimeAvg Gets the all time average of values seen so far
 func (s *StatsTracker) AllTimeAvg() int64 {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	return s.allTimeAvg
 }
 
-// MovingAvg TODO
+// MovingAvg Gets the moving average of values within the time frame
 func (s *StatsTracker) MovingAvg() int64 {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	return s.movingAvg
 }
 
-// AllTimePeak TODO
+// AllTimePeak Gets the largest value seen so far
 func (s *StatsTracker) AllTimePeak() int64 {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	return s.allTimePeak
 }
 
-// MovingPeak TODO
+// MovingPeak Gets the largest value seen within the time frame
 func (s *StatsTracker) MovingPeak() int64 {
 	s.lock.Lock()
 	defer s.lock.Unlock()
