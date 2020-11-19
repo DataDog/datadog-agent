@@ -139,17 +139,17 @@ func AssetNames() []string {
 // _bindata is a table, holding each asset generator, mapped to its name.
 //
 var _bindata = map[string]func() (*asset, error){
-	"pkg/ebpf/c/bpf-common.h":                                bindataPkgEbpfCBpfcommonH,
-	"pkg/ebpf/c/offset-guess-debug.o":                        bindataPkgEbpfCOffsetguessdebugO,
-	"pkg/ebpf/c/offset-guess.o":                              bindataPkgEbpfCOffsetguessO,
-	"pkg/ebpf/c/oom-kill-kern.c":                             bindataPkgEbpfCOomkillkernC,
-	"pkg/ebpf/c/tcp-queue-length-kern.c":                     bindataPkgEbpfCTcpqueuelengthkernC,
-	"pkg/ebpf/c/tracer-ebpf-debug.o":                         bindataPkgEbpfCTracerebpfdebugO,
-	"pkg/ebpf/c/tracer-ebpf.o":                               bindataPkgEbpfCTracerebpfO,
-	"pkg/ebpf/oom-kill-kern-user.h":                          bindataPkgEbpfOomkillkernuserH,
-	"pkg/ebpf/tcp-queue-length-kern-user.h":                  bindataPkgEbpfTcpqueuelengthkernuserH,
-	"pkg/security/ebpf/c/runtime-security-syscall-wrapper.o": bindataPkgSecurityEbpfCRuntimesecuritysyscallwrapperO,
-	"pkg/security/ebpf/c/runtime-security.o":                 bindataPkgSecurityEbpfCRuntimesecurityO,
+	"bpf-common.h":                       bindataBpfcommonH,
+	"offset-guess-debug.o":               bindataOffsetguessdebugO,
+	"offset-guess.o":                     bindataOffsetguessO,
+	"oom-kill-kern-user.h":               bindataOomkillkernuserH,
+	"oom-kill-kern.c":                    bindataOomkillkernC,
+	"runtime-security-syscall-wrapper.o": bindataRuntimesecuritysyscallwrapperO,
+	"runtime-security.o":                 bindataRuntimesecurityO,
+	"tcp-queue-length-kern-user.h":       bindataTcpqueuelengthkernuserH,
+	"tcp-queue-length-kern.c":            bindataTcpqueuelengthkernC,
+	"tracer-ebpf-debug.o":                bindataTracerebpfdebugO,
+	"tracer-ebpf.o":                      bindataTracerebpfO,
 }
 
 //
@@ -203,29 +203,17 @@ type bintree struct {
 }
 
 var _bintree = &bintree{Func: nil, Children: map[string]*bintree{
-	"pkg": {Func: nil, Children: map[string]*bintree{
-		"ebpf": {Func: nil, Children: map[string]*bintree{
-			"c": {Func: nil, Children: map[string]*bintree{
-				"bpf-common.h":            {Func: bindataPkgEbpfCBpfcommonH, Children: map[string]*bintree{}},
-				"offset-guess-debug.o":    {Func: bindataPkgEbpfCOffsetguessdebugO, Children: map[string]*bintree{}},
-				"offset-guess.o":          {Func: bindataPkgEbpfCOffsetguessO, Children: map[string]*bintree{}},
-				"oom-kill-kern.c":         {Func: bindataPkgEbpfCOomkillkernC, Children: map[string]*bintree{}},
-				"tcp-queue-length-kern.c": {Func: bindataPkgEbpfCTcpqueuelengthkernC, Children: map[string]*bintree{}},
-				"tracer-ebpf-debug.o":     {Func: bindataPkgEbpfCTracerebpfdebugO, Children: map[string]*bintree{}},
-				"tracer-ebpf.o":           {Func: bindataPkgEbpfCTracerebpfO, Children: map[string]*bintree{}},
-			}},
-			"oom-kill-kern-user.h":         {Func: bindataPkgEbpfOomkillkernuserH, Children: map[string]*bintree{}},
-			"tcp-queue-length-kern-user.h": {Func: bindataPkgEbpfTcpqueuelengthkernuserH, Children: map[string]*bintree{}},
-		}},
-		"security": {Func: nil, Children: map[string]*bintree{
-			"ebpf": {Func: nil, Children: map[string]*bintree{
-				"c": {Func: nil, Children: map[string]*bintree{
-					"runtime-security-syscall-wrapper.o": {Func: bindataPkgSecurityEbpfCRuntimesecuritysyscallwrapperO, Children: map[string]*bintree{}},
-					"runtime-security.o":                 {Func: bindataPkgSecurityEbpfCRuntimesecurityO, Children: map[string]*bintree{}},
-				}},
-			}},
-		}},
-	}},
+	"bpf-common.h":                       {Func: bindataBpfcommonH, Children: map[string]*bintree{}},
+	"offset-guess-debug.o":               {Func: bindataOffsetguessdebugO, Children: map[string]*bintree{}},
+	"offset-guess.o":                     {Func: bindataOffsetguessO, Children: map[string]*bintree{}},
+	"oom-kill-kern-user.h":               {Func: bindataOomkillkernuserH, Children: map[string]*bintree{}},
+	"oom-kill-kern.c":                    {Func: bindataOomkillkernC, Children: map[string]*bintree{}},
+	"runtime-security-syscall-wrapper.o": {Func: bindataRuntimesecuritysyscallwrapperO, Children: map[string]*bintree{}},
+	"runtime-security.o":                 {Func: bindataRuntimesecurityO, Children: map[string]*bintree{}},
+	"tcp-queue-length-kern-user.h":       {Func: bindataTcpqueuelengthkernuserH, Children: map[string]*bintree{}},
+	"tcp-queue-length-kern.c":            {Func: bindataTcpqueuelengthkernC, Children: map[string]*bintree{}},
+	"tracer-ebpf-debug.o":                {Func: bindataTracerebpfdebugO, Children: map[string]*bintree{}},
+	"tracer-ebpf.o":                      {Func: bindataTracerebpfO, Children: map[string]*bintree{}},
 }}
 
 // RestoreAsset restores an asset under the given directory
