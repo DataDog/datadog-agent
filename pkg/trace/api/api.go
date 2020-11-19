@@ -100,12 +100,12 @@ func (r *HTTPReceiver) Start() {
 		killProcess("Error creating tcp listener: %v", err)
 	}
 
-	mux := cmux.New(ln)
+	tcpm := cmux.New(ln)
 
-	// We first match on HTTP 1.1 methods.
-	httpl := mux.Match(cmux.HTTP1Fast())
 	// Else, we assume TLS
-	tlsl := mux.Match(cmux.Any())
+	tlsl := tcpm.Match(cmux.TLS())
+	// We first match on HTTP 1.1 methods.
+	httpl := tcpm.Match(cmux.Any())
 
 	go func() {
 		defer watchdog.LogOnPanic()
@@ -113,7 +113,7 @@ func (r *HTTPReceiver) Start() {
 	}()
 	go func() {
 		// do we need a watchdog?
-		r.tlsServer.Serve(tlsl)
+		r.ServeGRPC(tlsl)
 	}()
 	log.Infof("Listening for traces at http://%s", addr)
 
@@ -135,6 +135,13 @@ func (r *HTTPReceiver) Start() {
 	go func() {
 		defer watchdog.LogOnPanic()
 		r.loop()
+	}()
+
+	// start cmux serving
+	go func() {
+		if err := tcpm.Serve(); !strings.Contains(err.Error(), "use of closed network connection") {
+			panic(err)
+		}
 	}()
 }
 
@@ -200,7 +207,6 @@ func (r *HTTPReceiver) ServeHTTP(l net.Listener) {
 
 	r.attachDebugHandlers(mux)
 	r.attachHandlers(mux)
-	mux.Handle("/profiling/v1/input", r.profileProxyHandler())
 
 	timeout := 5 * time.Second
 	if r.conf.ReceiverTimeout > 0 {
@@ -214,6 +220,7 @@ func (r *HTTPReceiver) ServeHTTP(l net.Listener) {
 		Handler:      mux,
 	}
 
+	log.Infof("Starting HTTP Server...")
 	r.server.Serve(l)
 
 }
@@ -221,6 +228,7 @@ func (r *HTTPReceiver) ServeHTTP(l net.Listener) {
 func (r *HTTPReceiver) ServeGRPC(l net.Listener) {
 
 	addr := l.Addr().String()
+	log.Infof("TLS listener will be configured for: %v", addr)
 	hosts := []string{"127.0.0.1", "localhost", "::1", addr}
 	tlsKeyPair, tlsCertPool := security.InitializeTLS(hosts)
 
@@ -262,15 +270,18 @@ func (r *HTTPReceiver) ServeGRPC(l net.Listener) {
 		ReadTimeout:  timeout,
 		WriteTimeout: timeout,
 		ErrorLog:     stdlog.New(httpLogger, "https.Server: ", 0),
-		// Handler:      grpcHandlerFunc(s, gwmux),
-		Handler: gwmux,
+		Handler:      grpcHandlerFunc(s, tlsMux),
 		TLSConfig: &tls.Config{
 			Certificates: []tls.Certificate{*tlsKeyPair},
 			NextProtos:   []string{"h2"},
 		},
 	}
 
-	r.tlsServer.Serve(l)
+	// Create TLS listener
+	tlsl := tls.NewListener(l, r.tlsServer.TLSConfig)
+
+	log.Infof("Starting TLS Server...")
+	r.tlsServer.Serve(tlsl)
 }
 
 // listenUnix returns a net.Listener listening on the given "unix" socket path.
