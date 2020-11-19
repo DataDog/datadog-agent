@@ -431,6 +431,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				{{end}}
 			},
 			Field: field,
+			{{if $Field.Iterator}}
+				Weight: eval.IteratorWeight,
+			{{else if $Field.Handler}}
+				Weight: eval.HandlerWeight,
+			{{else}}
+				Weight: eval.FunctionWeight,
+			{{end}}
 		}, nil
 	{{end}}
 	}

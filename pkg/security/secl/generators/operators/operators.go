@@ -46,24 +46,34 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 		{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
 			if state.field != "" {
 				if a.isPartial {
-					ea = func(ctx *Context, idx int) {{ .EvalReturnType }} {
+					ea = func(ctx *Context) {{ .EvalReturnType }} {
 						return true
 					}
 				}
 				if b.isPartial {
-					eb = func(ctx *Context, idx int) {{ .EvalReturnType }} {
+					eb = func(ctx *Context) {{ .EvalReturnType }} {
 						return true
 					}
 				}
 			}
 		{{ end }}
 
-		evalFnc := func(ctx *Context, idx int) {{ .EvalReturnType }} {
-			return ea(ctx, idx) {{ .Op }} eb(ctx, idx)
+		// optimise the evaluation if need moving the evaluation with more weight at the right
+		{{ if .Commutative }}
+			if a.Weight > b.Weight {
+				tmp := ea
+				ea = eb
+				eb = tmp
+			}
+		{{ end }}
+
+		evalFnc := func(ctx *Context) {{ .EvalReturnType }} {
+			return ea(ctx) {{ .Op }} eb(ctx)
 		}
 
 		return &{{ .FuncReturnType }}{
 			EvalFnc: evalFnc,
+			Weight: a.Weight + b.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -100,7 +110,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 		{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
 			if state.field != "" {
 				if a.isPartial {
-					ea = func(ctx *Context, idx int) {{ .EvalReturnType }} {
+					ea = func(ctx *Context) {{ .EvalReturnType }} {
 						return true
 					}
 				}
@@ -110,12 +120,13 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			}
 		{{ end }}
 
-		evalFnc := func(ctx *Context, idx int) {{ .EvalReturnType }} {
-			return ea(ctx, idx) {{ .Op }} eb
+		evalFnc := func(ctx *Context) {{ .EvalReturnType }} {
+			return ea(ctx) {{ .Op }} eb
 		}
 
 		return &{{ .FuncReturnType }}{
 			EvalFnc: evalFnc,
+			Weight: a.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -134,19 +145,20 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 				ea = true
 			}
 			if b.isPartial {
-				eb = func(ctx *Context, idx int) {{ .EvalReturnType }} {
+				eb = func(ctx *Context) {{ .EvalReturnType }} {
 					return true
 				}
 			}
 		}
 	{{ end }}
 
-	evalFnc := func(ctx *Context, idx int) {{ .EvalReturnType }} {
-		return ea {{ .Op }} eb(ctx, idx)
+	evalFnc := func(ctx *Context) {{ .EvalReturnType }} {
+		return ea {{ .Op }} eb(ctx)
 	}
 
 	return &{{ .FuncReturnType }}{
-		EvalFnc: evalFnc	,
+		EvalFnc: evalFnc,
+		Weight: b.Weight,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -166,6 +178,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 		EvalReturnType string
 		Op             string
 		ValueType      string
+		Commutative    bool
 	}{
 		{
 			FuncName:       "Or",
@@ -175,6 +188,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			EvalReturnType: "bool",
 			Op:             "||",
 			ValueType:      "ScalarValueType",
+			Commutative:    true,
 		},
 		{
 			FuncName:       "And",
@@ -184,6 +198,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			EvalReturnType: "bool",
 			Op:             "&&",
 			ValueType:      "ScalarValueType",
+			Commutative:    true,
 		},
 		{
 			FuncName:       "IntEquals",

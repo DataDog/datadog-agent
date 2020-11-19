@@ -769,6 +769,39 @@ func TestRegisterPartial(t *testing.T) {
 	}
 }
 
+func TestOptimizer(t *testing.T) {
+	event := &testEvent{
+		process: testProcess{
+			uid: 44,
+			gid: 44,
+		},
+	}
+
+	event.process.list = list.New()
+	event.process.list.PushBack(&testItem{key: 10, value: 11})
+
+	tests := []struct {
+		Expr      string
+		Evaluated func() bool
+	}{
+		{Expr: `process.list[_].key == 44 && process.gid == 55`, Evaluated: func() bool { return event.listEvaluated }},
+		{Expr: `process.gid == 55 && process.list[_].key == 44`, Evaluated: func() bool { return event.listEvaluated }},
+		{Expr: `process.uid in [66, 77, 88] && process.gid == 55`, Evaluated: func() bool { return event.uidEvaluated }},
+		{Expr: `process.gid == 55 && process.uid in [66, 77, 88]`, Evaluated: func() bool { return event.uidEvaluated }},
+	}
+
+	for _, test := range tests {
+		_, _, err := eval(t, event, test.Expr)
+		if err != nil {
+			t.Fatalf("error while evaluating: %s", err)
+		}
+
+		if test.Evaluated() {
+			t.Fatalf("not optimized: %s", test.Expr)
+		}
+	}
+}
+
 func BenchmarkComplex(b *testing.B) {
 	event := &testEvent{
 		process: testProcess{

@@ -92,6 +92,10 @@ type testEvent struct {
 	process testProcess
 	open    testOpen
 	mkdir   testMkdir
+
+	listEvaluated bool
+	uidEvaluated  bool
+	gidEvaluated  bool
 }
 
 type testModel struct {
@@ -152,15 +156,25 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 	case "process.uid":
 
 		return &IntEvaluator{
-			EvalFnc: func(ctx *Context) int { return (*testEvent)(ctx.Object).process.uid },
-			Field:   field,
+			EvalFnc: func(ctx *Context) int {
+				// to test optimisation
+				(*testEvent)(ctx.Object).uidEvaluated = true
+
+				return (*testEvent)(ctx.Object).process.uid
+			},
+			Field: field,
 		}, nil
 
 	case "process.gid":
 
 		return &IntEvaluator{
-			EvalFnc: func(ctx *Context) int { return (*testEvent)(ctx.Object).process.gid },
-			Field:   field,
+			EvalFnc: func(ctx *Context) int {
+				// to test optimisation
+				(*testEvent)(ctx.Object).gidEvaluated = true
+
+				return (*testEvent)(ctx.Object).process.gid
+			},
+			Field: field,
 		}, nil
 
 	case "process.is_root":
@@ -174,6 +188,9 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 
 		return &IntEvaluator{
 			EvalFnc: func(ctx *Context) int {
+				// to test optimisation
+				(*testEvent)(ctx.Object).listEvaluated = true
+
 				reg := ctx.Registers[regID]
 				if element := (*list.Element)(reg.Value); element != nil {
 					return element.Value.(*testItem).key
@@ -181,13 +198,17 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 
 				return 0
 			},
-			Field: field,
+			Field:  field,
+			Weight: IteratorWeight,
 		}, nil
 
 	case "process.list.value":
 
 		return &IntEvaluator{
 			EvalFnc: func(ctx *Context) int {
+				// to test optimisation
+				(*testEvent)(ctx.Object).listEvaluated = true
+
 				reg := ctx.Registers[regID]
 				if element := (*list.Element)(reg.Value); element != nil {
 					return element.Value.(*testItem).value
@@ -195,7 +216,8 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 
 				return 0
 			},
-			Field: field,
+			Field:  field,
+			Weight: IteratorWeight,
 		}, nil
 
 	case "process.array.key":
@@ -209,7 +231,8 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 
 				return 0
 			},
-			Field: field,
+			Field:  field,
+			Weight: IteratorWeight,
 		}, nil
 
 	case "process.array.value":
@@ -223,7 +246,8 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 
 				return 0
 			},
-			Field: field,
+			Field:  field,
+			Weight: IteratorWeight,
 		}, nil
 
 	case "open.filename":

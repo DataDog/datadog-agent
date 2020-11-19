@@ -15,7 +15,7 @@ func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 
 	}
 
-	return nil, &eval.ErrIteratorNoSupported{Field: field}
+	return nil, &eval.ErrIteratorNotSupported{Field: field}
 }
 
 func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
@@ -29,6 +29,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "chmod.container_path":
@@ -39,6 +41,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "chmod.filename":
@@ -49,6 +53,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "chmod.inode":
@@ -59,6 +65,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "chmod.mode":
@@ -69,6 +77,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "chmod.overlay_numlower":
@@ -79,6 +89,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "chmod.retval":
@@ -89,6 +101,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "chown.basename":
@@ -99,6 +113,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "chown.container_path":
@@ -109,6 +125,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "chown.filename":
@@ -119,6 +137,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "chown.gid":
@@ -129,6 +149,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "chown.inode":
@@ -139,6 +161,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "chown.overlay_numlower":
@@ -149,6 +173,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "chown.retval":
@@ -159,6 +185,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "chown.uid":
@@ -169,6 +197,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "container.id":
@@ -179,6 +209,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "exec.AllowCacheResolution":
@@ -189,6 +221,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.basename":
@@ -199,6 +233,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "exec.container_path":
@@ -209,6 +245,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "exec.cookie":
@@ -219,6 +257,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "exec.filename":
@@ -229,6 +269,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "exec.group":
@@ -239,6 +281,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "exec.inode":
@@ -249,6 +293,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.name":
@@ -259,6 +305,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "exec.overlay_numlower":
@@ -269,6 +317,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.ppid":
@@ -279,6 +329,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "exec.tty_name":
@@ -289,6 +341,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "exec.uid":
@@ -299,6 +353,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "exec.user":
@@ -309,6 +365,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "link.retval":
@@ -319,6 +377,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "link.source.basename":
@@ -329,6 +389,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "link.source.container_path":
@@ -339,6 +401,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "link.source.filename":
@@ -349,6 +413,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "link.source.inode":
@@ -359,6 +425,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "link.source.overlay_numlower":
@@ -369,6 +437,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "link.target.basename":
@@ -379,6 +449,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "link.target.container_path":
@@ -389,6 +461,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "link.target.filename":
@@ -399,6 +473,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "link.target.inode":
@@ -409,6 +485,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "link.target.overlay_numlower":
@@ -419,6 +497,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "mkdir.basename":
@@ -429,6 +509,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "mkdir.container_path":
@@ -439,6 +521,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "mkdir.filename":
@@ -449,6 +533,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "mkdir.inode":
@@ -459,6 +545,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "mkdir.mode":
@@ -469,6 +557,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "mkdir.overlay_numlower":
@@ -479,6 +569,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "mkdir.retval":
@@ -489,6 +581,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "open.basename":
@@ -499,6 +593,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "open.container_path":
@@ -509,6 +605,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "open.filename":
@@ -519,6 +617,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "open.flags":
@@ -529,6 +629,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "open.inode":
@@ -539,6 +641,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "open.mode":
@@ -549,6 +653,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "open.overlay_numlower":
@@ -559,6 +665,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "open.retval":
@@ -569,6 +677,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.AllowCacheResolution":
@@ -579,6 +689,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.basename":
@@ -589,6 +701,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "process.container_path":
@@ -599,6 +713,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "process.cookie":
@@ -609,6 +725,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "process.filename":
@@ -619,6 +737,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "process.gid":
@@ -629,6 +749,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.group":
@@ -639,6 +761,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "process.inode":
@@ -649,6 +773,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.name":
@@ -659,6 +785,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "process.overlay_numlower":
@@ -669,6 +797,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.pid":
@@ -679,6 +809,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.ppid":
@@ -689,6 +821,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "process.tid":
@@ -699,6 +833,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.tty_name":
@@ -709,6 +845,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "process.uid":
@@ -719,6 +857,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.user":
@@ -729,6 +869,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "removexattr.basename":
@@ -739,6 +881,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "removexattr.container_path":
@@ -749,6 +893,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "removexattr.filename":
@@ -759,6 +905,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "removexattr.inode":
@@ -769,6 +917,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "removexattr.name":
@@ -779,6 +929,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "removexattr.namespace":
@@ -789,6 +941,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "removexattr.overlay_numlower":
@@ -799,6 +953,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "removexattr.retval":
@@ -809,6 +965,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "rename.new.basename":
@@ -819,6 +977,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "rename.new.container_path":
@@ -829,6 +989,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "rename.new.filename":
@@ -839,6 +1001,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "rename.new.inode":
@@ -849,6 +1013,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "rename.new.overlay_numlower":
@@ -859,6 +1025,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "rename.old.basename":
@@ -869,6 +1037,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "rename.old.container_path":
@@ -879,6 +1049,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "rename.old.filename":
@@ -889,6 +1061,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "rename.old.inode":
@@ -899,6 +1073,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "rename.old.overlay_numlower":
@@ -909,6 +1085,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "rename.retval":
@@ -919,6 +1097,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "rmdir.basename":
@@ -929,6 +1109,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "rmdir.container_path":
@@ -939,6 +1121,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "rmdir.filename":
@@ -949,6 +1133,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "rmdir.inode":
@@ -959,6 +1145,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "rmdir.overlay_numlower":
@@ -969,6 +1157,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "rmdir.retval":
@@ -979,6 +1169,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "setxattr.basename":
@@ -989,6 +1181,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "setxattr.container_path":
@@ -999,6 +1193,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "setxattr.filename":
@@ -1009,6 +1205,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "setxattr.inode":
@@ -1019,6 +1217,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "setxattr.name":
@@ -1029,6 +1229,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "setxattr.namespace":
@@ -1039,6 +1241,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "setxattr.overlay_numlower":
@@ -1049,6 +1253,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "setxattr.retval":
@@ -1059,6 +1265,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "unlink.basename":
@@ -1069,6 +1277,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "unlink.container_path":
@@ -1079,6 +1289,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "unlink.filename":
@@ -1089,6 +1301,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "unlink.flags":
@@ -1099,6 +1313,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "unlink.inode":
@@ -1109,6 +1325,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "unlink.overlay_numlower":
@@ -1119,6 +1337,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "unlink.retval":
@@ -1129,6 +1349,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "utimes.basename":
@@ -1139,6 +1361,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "utimes.container_path":
@@ -1149,6 +1373,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "utimes.filename":
@@ -1159,6 +1385,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "utimes.inode":
@@ -1169,6 +1397,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "utimes.overlay_numlower":
@@ -1179,6 +1409,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "utimes.retval":
@@ -1189,6 +1421,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	}

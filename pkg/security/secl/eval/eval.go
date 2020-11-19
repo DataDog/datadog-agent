@@ -34,6 +34,15 @@ const (
 	BitmaskValueType FieldValueType = 4
 )
 
+// defines factor applied by specific operator
+const (
+	FunctionWeight = 5
+	InArrayWeight  = 10
+	HandlerWeight  = 50
+	PatternWeight  = 100
+	IteratorWeight = 1000
+)
+
 // FieldValue describes a field value with its type
 type FieldValue struct {
 	Value interface{}
@@ -75,6 +84,7 @@ type BoolEvaluator struct {
 	EvalFnc BoolEvalFnc
 	Field   Field
 	Value   bool
+	Weight  int
 
 	isPartial bool
 }
@@ -89,6 +99,7 @@ type IntEvaluator struct {
 	EvalFnc func(ctx *Context) int
 	Field   Field
 	Value   int
+	Weight  int
 
 	isPartial bool
 }
@@ -103,6 +114,7 @@ type StringEvaluator struct {
 	EvalFnc func(ctx *Context) string
 	Field   Field
 	Value   string
+	Weight  int
 
 	isPartial bool
 }
