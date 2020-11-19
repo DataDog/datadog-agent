@@ -20,17 +20,17 @@ type Message struct {
 }
 
 // NewMessageWithSource constructs message with content, status and log source.
-func NewMessageWithSource(content []byte, status string, source *config.LogSource, IngestionTimestamp int64) *Message {
-	return NewMessage(content, NewOrigin(source), status, IngestionTimestamp)
+func NewMessageWithSource(content []byte, status string, source *config.LogSource, ingestionTimestamp int64) *Message {
+	return NewMessage(content, NewOrigin(source), status, ingestionTimestamp)
 }
 
 // NewMessage constructs message with full information.
-func NewMessage(content []byte, origin *Origin, status string, IngestionTimestamp int64) *Message {
+func NewMessage(content []byte, origin *Origin, status string, ingestionTimestamp int64) *Message {
 	return &Message{
 		Content:            content,
 		Origin:             origin,
 		status:             status,
-		IngestionTimestamp: IngestionTimestamp,
+		IngestionTimestamp: ingestionTimestamp,
 	}
 }
 

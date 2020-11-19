@@ -1,4 +1,4 @@
-package config
+package util
 
 import (
 	"testing"
@@ -7,9 +7,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func setupTest(timeFrame time.Duration) (*int64, SimpleStats) {
+func setupStatsTracker(timeFrame time.Duration) (*int64, StatsTracker) {
 	now := time.Now().UnixNano()
-	s := NewSimpleStatsWithTimeProvider(timeFrame, func() int64 {
+	s := NewStatsTrackerWithTimeProvider(timeFrame, func() int64 {
 		return now
 	})
 	return &now, s
@@ -18,7 +18,7 @@ func setupTest(timeFrame time.Duration) (*int64, SimpleStats) {
 // TestMovingAvg TODO
 func TestMovingAvg(t *testing.T) {
 
-	now, s := setupTest(3 * time.Second)
+	now, s := setupStatsTracker(3 * time.Second)
 
 	assert.Equal(t, int64(0), s.MovingAvg())
 
@@ -55,7 +55,7 @@ func TestMovingAvg(t *testing.T) {
 
 func TestMovingAvgSmallSize(t *testing.T) {
 
-	now, s := setupTest(0)
+	now, s := setupStatsTracker(0)
 
 	assert.Equal(t, int64(0), s.MovingAvg())
 
@@ -77,7 +77,7 @@ func TestMovingAvgSmallSize(t *testing.T) {
 // TestMovingAvg TODO
 func TestMovingPeak(t *testing.T) {
 
-	now, s := setupTest(3 * time.Second)
+	now, s := setupStatsTracker(3 * time.Second)
 
 	assert.Equal(t, int64(0), s.MovingPeak())
 
