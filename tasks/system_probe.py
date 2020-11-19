@@ -34,6 +34,11 @@ GIMME_ENV_VARS = ['GOROOT', 'PATH']
 
 DATADOG_AGENT_EMBEDDED_PATH = '/opt/datadog-agent/embedded'
 
+KITCHEN_DIR = os.path.join("test", "kitchen")
+KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-system-probe-check", "files", "default", "tests")
+TEST_PACKAGES_LIST = ["./pkg/ebpf/...", "./pkg/network/..."]
+TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
+
 
 @task
 def build(
@@ -170,23 +175,27 @@ def build_in_docker(
 
 
 @task
-def test(ctx, skip_object_files=False, only_check_bpf_bytes=False, bundle_ebpf=True):
+def test(
+        ctx,
+        packages=TEST_PACKAGES,
+        skip_object_files=False,
+        only_check_bpf_bytes=False,
+        bundle_ebpf=True,
+        output_path=None
+):
     """
     Run tests on eBPF parts
     If skip_object_files is set to True, this won't rebuild object files
     If only_check_bpf_bytes is set to True this will only check that the assets bundled are
     matching the currently generated object files
+    If output_path is set, we run `go test` with the flags `-c -o output_path`, which *compiles* the test suite
+    into a single binary. This artifact is meant to be used in conjunction with kitchen tests.
     """
 
     if not skip_object_files:
         build_object_files(ctx, bundle_ebpf=bundle_ebpf)
 
-    pkg = "./pkg/ebpf/... ./pkg/network/..."
-
-    # Pass along the PATH env variable to retrieve the go binary path
-    path = os.environ['PATH']
-
-    cmd = 'go test -mod={go_mod} -v -tags {bpf_tag} {pkg}'
+    cmd = 'go test -mod=vendor -v -tags {bpf_tag} {output_params} {pkgs}'
     if not is_root():
         cmd = 'sudo -E PATH={path} ' + cmd
 
@@ -203,7 +212,63 @@ def test(ctx, skip_object_files=False, only_check_bpf_bytes=False, bundle_ebpf=T
             )
             raise Exit(code=1)
 
-    ctx.run(cmd.format(path=path, go_mod="vendor", bpf_tag=bpf_tag, pkg=pkg))
+    args = {
+        "path": os.environ['PATH'],
+        "bpf_tag": bpf_tag,
+        "output_params": "-c -o " + output_path if output_path else "",
+        "pkgs": packages,
+    }
+
+    ctx.run(cmd.format(**args))
+
+
+@task
+def kitchen_prepare(ctx):
+    """
+    Compile test suite for kitchen
+    """
+    target_packages = []
+    for pkg in TEST_PACKAGES_LIST:
+        target_packages += check_output(
+            "go list -f '{{ .Dir }}' %s" % (pkg),
+            shell=True,
+        ).decode('utf-8').strip().split("\n")
+
+
+    # This will compile one 'testsuite' file per package by running `go test -c -o output_path`.
+    # These artifacts will be "vendored" inside a chef recipe like the following:
+    # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/network/testsuite
+    # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/network/netlink/testsuite
+    # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/ebpf/testsuite
+    # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/ebpf/bytecode/testsuite
+    for i, pkg in enumerate(target_packages):
+        relative_path = os.path.relpath(pkg)
+        target_path = os.path.join(KITCHEN_ARTIFACT_DIR, relative_path)
+
+        test(
+            ctx,
+            packages=pkg,
+            skip_object_files=(i != 0),
+            only_check_bpf_bytes=False,
+            bundle_ebpf=True,
+            output_path=os.path.join(target_path, "testsuite"),
+        )
+
+        # copy testdata directory, if applicable
+        testdata_path = os.path.join(pkg, "testdata")
+        if os.path.isdir(testdata_path):
+            shutil.copytree(testdata_path, os.path.join(target_path, "testdata"))
+
+
+@task
+def kitchen_test(ctx):
+    """
+    Run tests (locally) using chef kitchen against an array of different platforms.
+    * Make sure to run `inv -e system-probe.kitchen-prepare` using the agent-development VM;
+    * Then we recommend to run `inv -e system-probe.kitchen-test` directly from your (macOS) machine;
+    """
+    with ctx.cd(KITCHEN_DIR):
+        ctx.run("kitchen test", env={"KITCHEN_YAML": "kitchen-vagrant-system-probe.yml"})
 
 
 @task
