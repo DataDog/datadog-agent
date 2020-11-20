@@ -514,6 +514,22 @@ func getScrubCases() map[string]struct {
 				Command: []string{"mysql", "--password", "********"},
 			},
 		},
+		"non sensitive CLI": {
+			input: v1.Container{
+				Command: []string{"mysql", "--arg", "afztyerbzio1234"},
+			},
+			expected: v1.Container{
+				Command: []string{"mysql", "--arg", "afztyerbzio1234"},
+			},
+		},
+		"non sensitive CLI joined": {
+			input: v1.Container{
+				Command: []string{"mysql --arg afztyerbzio1234"},
+			},
+			expected: v1.Container{
+				Command: []string{"mysql --arg afztyerbzio1234"},
+			},
+		},
 		"sensitive CLI joined": {
 			input: v1.Container{
 				Command: []string{"mysql --password afztyerbzio1234"},
