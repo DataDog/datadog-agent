@@ -13,6 +13,9 @@ import (
 func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 	switch field {
 
+	case "process.ancestors":
+		return &ProcessAncestorsIterator{}, nil
+
 	}
 
 	return nil, &eval.ErrIteratorNotSupported{Field: field}
@@ -211,18 +214,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field: field,
 
 			Weight: eval.HandlerWeight,
-		}, nil
-
-	case "exec.AllowCacheResolution":
-		return &eval.BoolEvaluator{
-			EvalFnc: func(ctx *eval.Context) bool {
-
-				return (*Event)(ctx.Object).Exec.AllowCacheResolution
-
-			},
-			Field: field,
-
-			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.basename":
@@ -681,16 +672,356 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
-	case "process.AllowCacheResolution":
-		return &eval.BoolEvaluator{
-			EvalFnc: func(ctx *eval.Context) bool {
+	case "process.ancestors.basename":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).Process.AllowCacheResolution
+				var result string
+
+				reg := ctx.Registers[regID]
+				element := (*ProcessCacheEntry)(reg.Value)
+				if element != nil {
+
+					result = element.ResolveBasename((*Event)(ctx.Object))
+
+				}
+
+				return result
 
 			},
 			Field: field,
 
-			Weight: eval.FunctionWeight,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.container_path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				var result string
+
+				reg := ctx.Registers[regID]
+				element := (*ProcessCacheEntry)(reg.Value)
+				if element != nil {
+
+					result = element.ResolveContainerPath((*Event)(ctx.Object))
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.cookie":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				var result int
+
+				reg := ctx.Registers[regID]
+				element := (*ProcessCacheEntry)(reg.Value)
+				if element != nil {
+
+					result = int(element.ResolveCookie((*Event)(ctx.Object)))
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.filename":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				var result string
+
+				reg := ctx.Registers[regID]
+				element := (*ProcessCacheEntry)(reg.Value)
+				if element != nil {
+
+					result = element.ResolveInode((*Event)(ctx.Object))
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				var result int
+
+				reg := ctx.Registers[regID]
+				element := (*ProcessCacheEntry)(reg.Value)
+				if element != nil {
+
+					result = int(element.GID)
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				var result string
+
+				reg := ctx.Registers[regID]
+				element := (*ProcessCacheEntry)(reg.Value)
+				if element != nil {
+
+					result = element.ResolveGroup((*Event)(ctx.Object))
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				var result string
+
+				reg := ctx.Registers[regID]
+				element := (*ProcessCacheEntry)(reg.Value)
+				if element != nil {
+
+					result = element.ResolveContainerID((*Event)(ctx.Object))
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				var result int
+
+				reg := ctx.Registers[regID]
+				element := (*ProcessCacheEntry)(reg.Value)
+				if element != nil {
+
+					result = int(element.Inode)
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				var result string
+
+				reg := ctx.Registers[regID]
+				element := (*ProcessCacheEntry)(reg.Value)
+				if element != nil {
+
+					result = element.ResolveComm((*Event)(ctx.Object))
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.overlay_numlower":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				var result int
+
+				reg := ctx.Registers[regID]
+				element := (*ProcessCacheEntry)(reg.Value)
+				if element != nil {
+
+					result = int(element.OverlayNumLower)
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.pid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				var result int
+
+				reg := ctx.Registers[regID]
+				element := (*ProcessCacheEntry)(reg.Value)
+				if element != nil {
+
+					result = int(element.Pid)
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.ppid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				var result int
+
+				reg := ctx.Registers[regID]
+				element := (*ProcessCacheEntry)(reg.Value)
+				if element != nil {
+
+					result = int(element.ResolvePPID((*Event)(ctx.Object)))
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.tid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				var result int
+
+				reg := ctx.Registers[regID]
+				element := (*ProcessCacheEntry)(reg.Value)
+				if element != nil {
+
+					result = int(element.Tid)
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.tty_name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				var result string
+
+				reg := ctx.Registers[regID]
+				element := (*ProcessCacheEntry)(reg.Value)
+				if element != nil {
+
+					result = element.ResolveTTY((*Event)(ctx.Object))
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				var result int
+
+				reg := ctx.Registers[regID]
+				element := (*ProcessCacheEntry)(reg.Value)
+				if element != nil {
+
+					result = int(element.UID)
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				var result string
+
+				reg := ctx.Registers[regID]
+				element := (*ProcessCacheEntry)(reg.Value)
+				if element != nil {
+
+					result = element.ResolveUser((*Event)(ctx.Object))
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.basename":
@@ -1497,10 +1828,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.Container.ResolveContainerID(e), nil
 
-	case "exec.AllowCacheResolution":
-
-		return e.Exec.AllowCacheResolution, nil
-
 	case "exec.basename":
 
 		return e.Exec.ResolveBasename(e), nil
@@ -1653,9 +1980,69 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.Open.Retval), nil
 
-	case "process.AllowCacheResolution":
+	case "process.ancestors.basename":
 
-		return e.Process.AllowCacheResolution, nil
+		return e.Process.Parent.ResolveBasename(e), nil
+
+	case "process.ancestors.container_path":
+
+		return e.Process.Parent.ResolveContainerPath(e), nil
+
+	case "process.ancestors.cookie":
+
+		return int(e.Process.Parent.ResolveCookie(e)), nil
+
+	case "process.ancestors.filename":
+
+		return e.Process.Parent.ResolveInode(e), nil
+
+	case "process.ancestors.gid":
+
+		return int(e.Process.Parent.GID), nil
+
+	case "process.ancestors.group":
+
+		return e.Process.Parent.ResolveGroup(e), nil
+
+	case "process.ancestors.id":
+
+		return e.Process.Parent.ResolveContainerID(e), nil
+
+	case "process.ancestors.inode":
+
+		return int(e.Process.Parent.Inode), nil
+
+	case "process.ancestors.name":
+
+		return e.Process.Parent.ResolveComm(e), nil
+
+	case "process.ancestors.overlay_numlower":
+
+		return int(e.Process.Parent.OverlayNumLower), nil
+
+	case "process.ancestors.pid":
+
+		return int(e.Process.Parent.Pid), nil
+
+	case "process.ancestors.ppid":
+
+		return int(e.Process.Parent.ResolvePPID(e)), nil
+
+	case "process.ancestors.tid":
+
+		return int(e.Process.Parent.Tid), nil
+
+	case "process.ancestors.tty_name":
+
+		return e.Process.Parent.ResolveTTY(e), nil
+
+	case "process.ancestors.uid":
+
+		return int(e.Process.Parent.UID), nil
+
+	case "process.ancestors.user":
+
+		return e.Process.Parent.ResolveUser(e), nil
 
 	case "process.basename":
 
@@ -1957,9 +2344,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "container.id":
 		return "*", nil
 
-	case "exec.AllowCacheResolution":
-		return "exec", nil
-
 	case "exec.basename":
 		return "exec", nil
 
@@ -2074,7 +2458,52 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "open.retval":
 		return "open", nil
 
-	case "process.AllowCacheResolution":
+	case "process.ancestors.basename":
+		return "*", nil
+
+	case "process.ancestors.container_path":
+		return "*", nil
+
+	case "process.ancestors.cookie":
+		return "*", nil
+
+	case "process.ancestors.filename":
+		return "*", nil
+
+	case "process.ancestors.gid":
+		return "*", nil
+
+	case "process.ancestors.group":
+		return "*", nil
+
+	case "process.ancestors.id":
+		return "*", nil
+
+	case "process.ancestors.inode":
+		return "*", nil
+
+	case "process.ancestors.name":
+		return "*", nil
+
+	case "process.ancestors.overlay_numlower":
+		return "*", nil
+
+	case "process.ancestors.pid":
+		return "*", nil
+
+	case "process.ancestors.ppid":
+		return "*", nil
+
+	case "process.ancestors.tid":
+		return "*", nil
+
+	case "process.ancestors.tty_name":
+		return "*", nil
+
+	case "process.ancestors.uid":
+		return "*", nil
+
+	case "process.ancestors.user":
 		return "*", nil
 
 	case "process.basename":
@@ -2332,10 +2761,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
-	case "exec.AllowCacheResolution":
-
-		return reflect.Bool, nil
-
 	case "exec.basename":
 
 		return reflect.String, nil
@@ -2488,9 +2913,69 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
-	case "process.AllowCacheResolution":
+	case "process.ancestors.basename":
 
-		return reflect.Bool, nil
+		return reflect.String, nil
+
+	case "process.ancestors.container_path":
+
+		return reflect.String, nil
+
+	case "process.ancestors.cookie":
+
+		return reflect.Int, nil
+
+	case "process.ancestors.filename":
+
+		return reflect.String, nil
+
+	case "process.ancestors.gid":
+
+		return reflect.Int, nil
+
+	case "process.ancestors.group":
+
+		return reflect.String, nil
+
+	case "process.ancestors.id":
+
+		return reflect.String, nil
+
+	case "process.ancestors.inode":
+
+		return reflect.Int, nil
+
+	case "process.ancestors.name":
+
+		return reflect.String, nil
+
+	case "process.ancestors.overlay_numlower":
+
+		return reflect.Int, nil
+
+	case "process.ancestors.pid":
+
+		return reflect.Int, nil
+
+	case "process.ancestors.ppid":
+
+		return reflect.Int, nil
+
+	case "process.ancestors.tid":
+
+		return reflect.Int, nil
+
+	case "process.ancestors.tty_name":
+
+		return reflect.String, nil
+
+	case "process.ancestors.uid":
+
+		return reflect.Int, nil
+
+	case "process.ancestors.user":
+
+		return reflect.String, nil
 
 	case "process.basename":
 
@@ -2875,13 +3360,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 
-	case "exec.AllowCacheResolution":
-
-		if e.Exec.AllowCacheResolution, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Exec.AllowCacheResolution"}
-		}
-		return nil
-
 	case "exec.basename":
 
 		if e.Exec.BasenameStr, ok = value.(string); !ok {
@@ -3184,13 +3662,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Open.Retval"}
 		}
 		e.Open.Retval = int64(v)
-		return nil
-
-	case "process.AllowCacheResolution":
-
-		if e.Process.AllowCacheResolution, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Process.AllowCacheResolution"}
-		}
 		return nil
 
 	case "process.basename":
