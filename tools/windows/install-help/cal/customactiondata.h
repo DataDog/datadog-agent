@@ -52,6 +52,14 @@ class CustomActionData
         std::wstring domain;
         bool doInstallSysprobe;
 
+        std::wstring pvsUser;       // previously installed user, read from registry
+        std::wstring pvsDomain;     // previously installed domain for user, read from registry
+
+        bool findPreviousUserInfo();
+        void checkForUserMismatch(bool previousInstall, bool userSupplied, std::wstring &computed_domain, std::wstring &computed_user);
+        void findSuppliedUserInfo(std::wstring &input, std::wstring &computed_domain, std::wstring &computed_user);
+
+
         bool parseUsernameData();
         bool parseSysprobeData();
 };
