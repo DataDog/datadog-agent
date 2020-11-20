@@ -377,6 +377,53 @@ func TestParseIO(t *testing.T) {
 	}
 }
 
+func TestParseStatContent(t *testing.T) {
+	probe := NewProcessProbe()
+	defer probe.Close()
+
+	now := time.Now()
+
+	for _, tc := range []struct {
+		line     []byte
+		expected *statInfo
+	}{
+		{
+			line: []byte("1 (systemd) S 0 1 1 0 -1 4194560 425768 306165945 70 4299 4890 2184 563120 375308 20 0 1 0 15 189849600 1541 18446744073709551615 94223912931328 94223914360080 140733806473072 140733806469312 140053573122579 0 671173123 4096 1260 1 0 0 17 0 0 0 155 0 0 94223914368000 942\n23914514184 94223918080000 140733806477086 140733806477133 140733806477133 140733806477283 0"),
+			expected: &statInfo{
+				ppid:       0,
+				createTime: 1605906702000,
+				nice:       1,
+				cpuStat: &CPUTimesStat{
+					CPU:       "cpu",
+					User:      48.9,
+					System:    21.84,
+					Nice:      0,
+					Timestamp: now.Unix(),
+				},
+			},
+		},
+		{
+			line: []byte("1 ((sd-pam)) S 0 1 1 0 -1 4194560 425768 306165945 70 4299 4890 2184 563120 375308 20 0 1 0 15 189849600 1541 18446744073709551615 94223912931328 94223914360080 140733806473072 140733806469312 140053573122579 0 671173123 4096 1260 1 0 0 17 0 0 0 155 0 0 94223914368000 942\n23914514184 94223918080000 140733806477086 140733806477133 140733806477133 140733806477283 0"),
+			expected: &statInfo{
+				ppid:       0,
+				createTime: 1605906702000,
+				nice:       1,
+				cpuStat: &CPUTimesStat{
+					CPU:       "cpu",
+					User:      48.9,
+					System:    21.84,
+					Nice:      0,
+					Timestamp: now.Unix(),
+				},
+			},
+		},
+	} {
+
+		actual := probe.parseStatContent(tc.line, &statInfo{cpuStat: &CPUTimesStat{}}, now)
+		assert.EqualValues(t, tc.expected, actual)
+	}
+}
+
 func TestParseStat(t *testing.T) {
 	hostProc := "resources/test_procfs/proc/"
 	os.Setenv("HOST_PROC", hostProc)
