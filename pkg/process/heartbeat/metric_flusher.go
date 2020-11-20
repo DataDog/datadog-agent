@@ -3,6 +3,7 @@ package heartbeat
 import (
 	"fmt"
 	"regexp"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
@@ -21,6 +22,7 @@ type apiFlusher struct {
 	fallback   flusher
 	tags       []string
 	hostname   string
+	once       sync.Once
 }
 
 var _ flusher = &apiFlusher{}
@@ -61,6 +63,7 @@ func (f *apiFlusher) Flush(metricNames []string, now time.Time) {
 	}
 
 	if f.apiWatcher.state() == apiUnreachable && f.fallback != nil {
+		f.Stop()
 		f.fallback.Flush(metricNames, now)
 		return
 	}
@@ -77,7 +80,9 @@ func (f *apiFlusher) Flush(metricNames []string, now time.Time) {
 
 // Stop forwarder
 func (f *apiFlusher) Stop() {
-	f.forwarder.Stop()
+	f.once.Do(func() {
+		f.forwarder.Stop()
+	})
 }
 
 func (f *apiFlusher) jsonPayload(metricNames []string, now time.Time) ([]byte, error) {

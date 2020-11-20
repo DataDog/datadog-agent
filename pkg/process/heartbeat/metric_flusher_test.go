@@ -88,7 +88,7 @@ func TestURLSanitization(t *testing.T) {
 
 	for _, tc := range testCases {
 		keysPerDomain := map[string][]string{
-			tc.originalURL: []string{"dd-api-key"},
+			tc.originalURL: {"dd-api-key"},
 		}
 
 		result := sanitize(keysPerDomain)
