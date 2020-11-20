@@ -340,14 +340,14 @@ func ImportRegistryConfig() error {
 		if commandLineSettingFound {
 			log.Warnf("Install command line settings ignored, valid configuration already in place")
 			return fmt.Errorf("Install command line settings ignored, valid configuration already in place")
-		} else {
-			log.Debugf("Valid configuration file found,  not overwriting config")
 		}
+		log.Debugf("Valid configuration file found,  not overwriting config")
+
 		// already had a valid config; don't assign the overrides
 		return nil
-	} else {
-		log.Debugf("Applying settings")
 	}
+	log.Debugf("Applying settings")
+
 	// apply overrides to the config
 	config.AddOverrides(overrides)
 
