@@ -8,14 +8,15 @@ package topologycollectors
 
 import (
 	"fmt"
+	"testing"
+	"time"
+
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
 	"github.com/stretchr/testify/assert"
 	coreV1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"testing"
-	"time"
 )
 
 var configMap coreV1.ConfigMapVolumeSource
@@ -76,6 +77,7 @@ func TestPodCollector(t *testing.T) {
 					}
 					assert.EqualValues(t, expectedComponent, component)
 				},
+				expectNamespaceRelation(relationChannel, "test-pod-1"),
 				func() {
 					relation := <-relationChannel
 					expectedRelation := &topology.Relation{
@@ -123,6 +125,7 @@ func TestPodCollector(t *testing.T) {
 					}
 					assert.EqualValues(t, expectedComponent, component)
 				},
+				expectNamespaceRelation(relationChannel, "test-pod-2"),
 				func() {
 					relation := <-relationChannel
 					expectedRelation := &topology.Relation{
@@ -164,6 +167,7 @@ func TestPodCollector(t *testing.T) {
 					}
 					assert.EqualValues(t, expectedComponent, component)
 				},
+				expectNamespaceRelation(relationChannel, "test-pod-3"),
 				func() {
 					relation := <-relationChannel
 					expectedRelation := &topology.Relation{
@@ -265,6 +269,7 @@ func TestPodCollector(t *testing.T) {
 					}
 					assert.EqualValues(t, expectedComponent, component)
 				},
+				expectNamespaceRelation(relationChannel, "test-pod-4"),
 				func() {
 					relation := <-relationChannel
 					expectedRelation := &topology.Relation{
@@ -358,6 +363,7 @@ func TestPodCollector(t *testing.T) {
 					}
 					assert.EqualValues(t, expectedComponent, component)
 				},
+				expectNamespaceRelation(relationChannel, "test-pod-5"),
 				func() {
 					relation := <-relationChannel
 					expectedRelation := &topology.Relation{
@@ -423,6 +429,7 @@ func TestPodCollector(t *testing.T) {
 					}
 					assert.EqualValues(t, expectedComponent, component)
 				},
+				expectNamespaceRelation(relationChannel, "test-pod-6"),
 				func() {
 					relation := <-relationChannel
 					expectedRelation := &topology.Relation{
@@ -576,4 +583,19 @@ func (m MockPodAPICollectorClient) GetPods() ([]coreV1.Pod, error) {
 	}
 
 	return pods, nil
+}
+
+func expectNamespaceRelation(t *testing.T, ch <-chan (*topology.Relation), podName string) func() {
+	return func() {
+		relation := <-ch
+		expected := &topology.Relation{
+			ExternalID: "urn:kubernetes:/test-cluster-name:namespace/test-namespace->" +
+				fmt.Sprintf("urn:kubernetes:/test-cluster-name:test-namespace:pod/%s", podName),
+			Type:     topology.Type{Name: "encloses"},
+			SourceID: "urn:kubernetes:/test-cluster-name:namespace/test-namespace",
+			TargetID: fmt.Sprintf("urn:kubernetes:/test-cluster-name:test-namespace:pod/%s", podName),
+			Data:     map[string]interface{}{},
+		}
+		assert.EqualValues(t, expected, relation)
+	}
 }

@@ -11,13 +11,15 @@ import (
 // DeploymentCollector implements the ClusterTopologyCollector interface.
 type DeploymentCollector struct {
 	ComponentChan chan<- *topology.Component
+	RelationChan  chan<- *topology.Relation
 	ClusterTopologyCollector
 }
 
 // NewDeploymentCollector
-func NewDeploymentCollector(componentChannel chan<- *topology.Component, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
+func NewDeploymentCollector(componentChannel chan<- *topology.Component, relationChannel chan<- *topology.Relation, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
 	return &DeploymentCollector{
 		ComponentChan:            componentChannel,
+		RelationChan:             relationChannel,
 		ClusterTopologyCollector: clusterTopologyCollector,
 	}
 }
@@ -35,7 +37,10 @@ func (dmc *DeploymentCollector) CollectorFunction() error {
 	}
 
 	for _, dep := range deployments {
-		dmc.ComponentChan <- dmc.deploymentToStackStateComponent(dep)
+		component := dmc.deploymentToStackStateComponent(dep)
+		dmc.ComponentChan <- component
+
+		dms.RelationChan <- dmc.namespaceToDeploymentStackStateRelation(dmc.buildNamespaceExternalID(dep.Namespace), component.ExternalID)
 	}
 
 	return nil
@@ -67,4 +72,15 @@ func (dmc *DeploymentCollector) deploymentToStackStateComponent(deployment v1.De
 	log.Tracef("Created StackState Deployment component %s: %v", deploymentExternalID, component.JSONString())
 
 	return component
+}
+
+// Creates a StackState relation from a Kubernetes / OpenShift Namespace to Deployment relation
+func (dmc *DeploymentCollector) namespaceToDeploymentStackStateRelation(namespaceExternalID, deploymentExternalID string) *topology.Relation {
+	log.Tracef("Mapping kubernetes namespace to deployment relation: %s -> %s", namespaceExternalID, deploymentExternalID)
+
+	relation := pc.CreateRelation(namespaceExternalID, deployment, "encloses")
+
+	log.Tracef("Created StackState namespace -> deployment relation %s->%s", relation.SourceID, relation.TargetID)
+
+	return relation
 }

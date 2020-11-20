@@ -8,25 +8,28 @@ package topologycollectors
 
 import (
 	"fmt"
+	"testing"
+	"time"
+
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
 	"github.com/stretchr/testify/assert"
 	appsV1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"testing"
-	"time"
 )
 
 func TestDeploymentCollector(t *testing.T) {
 
 	componentChannel := make(chan *topology.Component)
 	defer close(componentChannel)
+	relationChannel := make(chan *topology.Relation)
+	defer close(relationChannel)
 
 	creationTime = v1.Time{Time: time.Now().Add(-1 * time.Hour)}
 	replicas = int32(1)
 
-	cmc := NewDeploymentCollector(componentChannel, NewTestCommonClusterCollector(MockDeploymentAPICollectorClient{}))
+	cmc := NewDeploymentCollector(componentChannel, relationChannel, NewTestCommonClusterCollector(MockDeploymentAPICollectorClient{}))
 	expectedCollectorName := "Deployment Collector"
 	RunCollectorTest(t, cmc, expectedCollectorName)
 
@@ -85,6 +88,17 @@ func TestDeploymentCollector(t *testing.T) {
 		t.Run(tc.testCase, func(t *testing.T) {
 			component := <-componentChannel
 			assert.EqualValues(t, tc.expected, component)
+
+			actualRelation := <-relationChannel
+			expectedRelation := &topology.Relation{
+				ExternalID: "urn:kubernetes:/test-cluster-name:namespace/test-namespace->" + component.ExternalID,
+				Type:       topology.Type{Name: "encloses"},
+				SourceID:   "urn:kubernetes:/test-cluster-name:namespace/test-namespace",
+				TargetID:   component.ExternalID,
+				Data:       map[string]interface{}{},
+			}
+			assert.EqualValues(t, expected, relation)
+
 		})
 	}
 }

@@ -56,6 +56,10 @@ func (pc *PodCollector) CollectorFunction() error {
 		// creates and publishes StackState pod component with relations
 		component = pc.podToStackStateComponent(pod)
 		pc.ComponentChan <- component
+
+		// Link the pod to its Namespace
+		pc.RelationChan <- pc.namespaceToPodStackStateRelation(pc.buildNamespaceExternalID(pod.Namespace), component.ExternalID)
+
 		// pod could not be scheduled for some reason
 		if pod.Spec.NodeName != "" {
 			pc.RelationChan <- pc.podToNodeStackStateRelation(pod)
@@ -236,6 +240,17 @@ func (pc *PodCollector) podToConfigMapStackStateRelation(podExternalID, configMa
 	relation := pc.CreateRelation(podExternalID, configMapExternalID, "uses")
 
 	log.Tracef("Created StackState pod -> config map relation %s->%s", relation.SourceID, relation.TargetID)
+
+	return relation
+}
+
+// Creates a StackState relation from a Kubernetes / OpenShift Pod to Namespace relation
+func (pc *PodCollector) namespaceToPodStackStateRelation(namespaceExternalID, podExternalID string) *topology.Relation {
+	log.Tracef("Mapping kubernetes namespace to pod relation: %s -> %s", namespaceExternalID, podExternalID)
+
+	relation := pc.CreateRelation(namespaceExternalID, podExternalID, "encloses")
+
+	log.Tracef("Created StackState namespace -> pod relation %s->%s", relation.SourceID, relation.TargetID)
 
 	return relation
 }

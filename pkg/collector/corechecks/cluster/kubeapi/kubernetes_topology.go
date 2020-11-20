@@ -149,6 +149,7 @@ func (t *TopologyCheck) Run() error {
 		// Register Deployment Component Collector
 		collectors.NewDeploymentCollector(
 			componentChannel,
+			relationChannel,
 			commonClusterCollector,
 		),
 		// Register ReplicaSet Component Collector
