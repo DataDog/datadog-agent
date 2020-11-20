@@ -136,7 +136,7 @@ bool CustomActionData::parseUsernameData()
         WcaLog(LOGMSG_STANDARD, "previous user registration not found in registry");
         previousInstall = false;
     } else {
-        WcaLog(LOGMSG_STANDARD, "found previous user registration in registry");
+        WcaLog(LOGMSG_STANDARD, "found previous user (%S) registration in registry", pvsUser.c_str());
         previousInstall = true;
     }
     if (std::wstring::npos == tmpName.find(L'\\')) {
@@ -186,7 +186,7 @@ bool CustomActionData::parseUsernameData()
                 this->domainUser = true;
             }
         }
-        if(!previousInstall)
+        if(!previousInstall && userSupplied)
         {
             WcaLog(LOGMSG_STANDARD, "using supplied username");
         }
