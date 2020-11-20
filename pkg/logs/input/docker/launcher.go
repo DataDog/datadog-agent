@@ -251,6 +251,7 @@ func (l *Launcher) stopTailer(containerID string) {
 		// No-op if the tailer source came from AD
 		if l.collectAllSource != nil {
 			l.collectAllSource.RemoveInput(containerID)
+			l.collectAllSource.RemoveInfo(containerID)
 		}
 		go tailer.Stop()
 		l.removeTailer(containerID)
@@ -266,6 +267,7 @@ func (l *Launcher) restartTailer(containerID string) {
 		source = oldTailer.source
 		if l.collectAllSource != nil {
 			l.collectAllSource.RemoveInput(containerID)
+			l.collectAllSource.RemoveInfo(containerID)
 		}
 		oldTailer.Stop()
 		l.removeTailer(containerID)

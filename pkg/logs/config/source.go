@@ -104,6 +104,13 @@ func (s *LogSource) UpdateInfo(key string, val string) {
 	s.lock.Unlock()
 }
 
+// RemoveInfo remove the info data given a unique key
+func (s *LogSource) RemoveInfo(key string) {
+	s.lock.Lock()
+	delete(s.info, key)
+	s.lock.Unlock()
+}
+
 // GetInfo returns a list of info about the source
 func (s *LogSource) GetInfo() []string {
 	s.lock.Lock()
