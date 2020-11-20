@@ -100,6 +100,29 @@ func zipTypeperfData(tempDir, hostname string) error {
 	}
 	return nil
 }
+func zipLodctrOutput(tempDir, hostname string) error {
+	cmd := exec.Command("lodctr", "/q")
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err := cmd.Run()
+	if err != nil {
+		log.Warnf("Error running lodctr command %v", err);
+	}
+	f := filepath.Join(tempDir, hostname, "lodctr.txt")
+	err = ensureParentDirsExist(f)
+	if err != nil {
+		log.Warnf("Error in ensureParentDirsExist %v", err)
+		return err
+	}
+
+	err = ioutil.WriteFile(f, out.Bytes(), os.ModePerm)
+	if err != nil {
+		log.Warnf("Error writing file %v", err)
+		return err
+	}
+	return nil
+}
+
 
 // zipWindowsEventLogs exports Windows event logs.
 func zipWindowsEventLogs(tempDir, hostname string) error {

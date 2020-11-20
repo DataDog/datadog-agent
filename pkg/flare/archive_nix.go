@@ -26,6 +26,9 @@ func zipTypeperfData(tempDir, hostname string) error {
 	return nil
 }
 
+func zipLodctrOutput(tempDir, hostname string) error {
+	return nil
+}
 func zipWindowsEventLogs(tempDir, hostname string) error {
 	return nil
 }
