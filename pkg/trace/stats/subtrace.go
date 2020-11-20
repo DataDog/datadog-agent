@@ -23,32 +23,26 @@ type spanAndAncestors struct {
 	Ancestors []*pb.Span
 }
 
-// element and queue implement a very basic LIFO used to do an iterative DFS on a trace
-type element struct {
-	SpanAndAncestors *spanAndAncestors
-	Next             *element
+func newStack(l int) stack {
+	return stack{
+		elements: make([]spanAndAncestors, 0, l),
+	}
 }
 
 type stack struct {
-	head *element
+	elements []spanAndAncestors
 }
 
-func (s *stack) Push(value *spanAndAncestors) {
-	e := &element{value, nil}
-	if s.head == nil {
-		s.head = e
-		return
-	}
-	e.Next = s.head
-	s.head = e
+func (s *stack) Push(value spanAndAncestors) {
+	s.elements = append(s.elements, value)
 }
 
 func (s *stack) Pop() *spanAndAncestors {
-	if s.head == nil {
+	if len(s.elements) == 0 {
 		return nil
 	}
-	value := s.head.SpanAndAncestors
-	s.head = s.head.Next
+	value := &s.elements[0]
+	s.elements = s.elements[1:]
 	return value
 }
 
@@ -59,14 +53,13 @@ func ExtractSubtraces(t pb.Trace, root *pb.Span) []Subtrace {
 		return []Subtrace{}
 	}
 	childrenMap := traceutil.ChildrenMap(t)
-	subtraces := []Subtrace{}
 
 	visited := make(map[*pb.Span]bool, len(t))
 	subtracesMap := make(map[*pb.Span][]*pb.Span)
-	var next stack
-	next.Push(&spanAndAncestors{root, []*pb.Span{}})
+	next := newStack(len(t))
+	next.Push(spanAndAncestors{root, []*pb.Span{}})
 
-	// We do a DFS on the trace to record the toplevel ancesters of each span
+	// We do a DFS on the trace to record the toplevel ancestors of each span
 	for current := next.Pop(); current != nil; current = next.Pop() {
 		// We do not extract subtraces for top-level/measured spans that have no children
 		// since these are not interesting
@@ -84,10 +77,11 @@ func ExtractSubtraces(t pb.Trace, root *pb.Span) []Subtrace {
 				log.Warnf("Found a cycle while processing traceID:%v, trace should be a tree", t[0].TraceID)
 				continue
 			}
-			next.Push(&spanAndAncestors{child, current.Ancestors})
+			next.Push(spanAndAncestors{child, current.Ancestors})
 		}
 	}
 
+	subtraces := make([]Subtrace, 0, len(subtracesMap))
 	for topLevel, subtrace := range subtracesMap {
 		subtraces = append(subtraces, Subtrace{topLevel, subtrace})
 	}
