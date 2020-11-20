@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/gopsutil/process"
 )
@@ -197,14 +198,14 @@ func BenchmarkTestFSGetCmdGopsutil(b *testing.B) {
 	defer os.Unsetenv("HOST_PROC")
 
 	pids, err := process.Pids()
-	assert.NoError(b, err)
+	require.NoError(b, err)
 
 	for i := 0; i < b.N; i++ {
 		for _, pid := range pids {
 			expProc, err := process.NewProcess(pid)
-			assert.NoError(b, err)
+			require.NoError(b, err)
 			_, err = expProc.Cmdline()
-			assert.NoError(b, err)
+			require.NoError(b, err)
 		}
 	}
 }
@@ -218,7 +219,7 @@ func BenchmarkTestFSGetCmdProcutil(b *testing.B) {
 	defer probe.Close()
 
 	pids, err := probe.getActivePIDs()
-	assert.NoError(b, err)
+	require.NoError(b, err)
 
 	for i := 0; i < b.N; i++ {
 		for _, pid := range pids {
@@ -229,14 +230,14 @@ func BenchmarkTestFSGetCmdProcutil(b *testing.B) {
 
 func BenchmarkLocalFSGetCmdGopsutil(b *testing.B) {
 	pids, err := process.Pids()
-	assert.NoError(b, err)
+	require.NoError(b, err)
 
 	for i := 0; i < b.N; i++ {
 		for _, pid := range pids {
 			expProc, err := process.NewProcess(pid)
-			assert.NoError(b, err)
+			require.NoError(b, err)
 			_, err = expProc.Cmdline()
-			assert.NoError(b, err)
+			require.NoError(b, err)
 		}
 	}
 }
@@ -246,7 +247,7 @@ func BenchmarkLocalFSGetCmdProcutil(b *testing.B) {
 	defer probe.Close()
 
 	pids, err := probe.getActivePIDs()
-	assert.NoError(b, err)
+	require.NoError(b, err)
 
 	for i := 0; i < b.N; i++ {
 		for _, pid := range pids {
