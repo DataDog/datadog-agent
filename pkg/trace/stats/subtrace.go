@@ -49,8 +49,9 @@ func (s *stack) Pop() *spanAndAncestors {
 // ExtractSubtraces extracts all subtraces rooted in top-level/measured spans.
 // ComputeTopLevel should be called before so that top-level spans are identified.
 func ExtractSubtraces(t pb.Trace, root *pb.Span) []Subtrace {
-	if root == nil {
-		return []Subtrace{}
+	// if there is no root or a single span no need to compute anything
+	if root == nil || len(t) < 2 {
+		return nil
 	}
 	childrenMap := traceutil.ChildrenMap(t)
 

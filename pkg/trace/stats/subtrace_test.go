@@ -13,6 +13,19 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestExtractSubtracesWithSingleSpan(t *testing.T) {
+	assert := assert.New(t)
+
+	trace := pb.Trace{
+		&pb.Span{SpanID: 1, ParentID: 0, Service: "s1"},
+	}
+
+	traceutil.ComputeTopLevel(trace)
+	subtraces := ExtractSubtraces(trace, trace[0])
+
+	assert.Equal(0, len(subtraces))
+}
+
 func TestExtractSubtracesWithSimpleTrace(t *testing.T) {
 	assert := assert.New(t)
 
@@ -166,16 +179,16 @@ func BenchmarkExtractSubtraceLarge(b *testing.B) {
 		&pb.Span{SpanID: 7, ParentID: 1, Service: "s4"},
 	}
 
-	nextId := trace[len(trace)-1].SpanID + 1
+	nextID := trace[len(trace)-1].SpanID + 1
 
 	for i := 0; i < 1000; i++ {
-		trace = append(trace, &pb.Span{SpanID: nextId, ParentID: 6, Service: "s3"})
-		nextId++
+		trace = append(trace, &pb.Span{SpanID: nextID, ParentID: 6, Service: "s3"})
+		nextID++
 	}
 
 	for i := 0; i < 1000; i++ {
-		trace = append(trace, &pb.Span{SpanID: nextId, ParentID: 7, Service: "s4"})
-		nextId++
+		trace = append(trace, &pb.Span{SpanID: nextID, ParentID: 7, Service: "s4"})
+		nextID++
 	}
 
 	traceutil.ComputeTopLevel(trace)
