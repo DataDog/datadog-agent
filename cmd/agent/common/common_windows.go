@@ -308,8 +308,8 @@ func ImportRegistryConfig() error {
 
 	// we've read in the config from the registry; remove the registry keys so it's
 	// not repeated on next startup
-	valuenames := []string{"api_key", 
-		"tags", 
+	valuenames := []string{"api_key",
+		"tags",
 		"site",
 		"dd_url",
 		"logs_dd_url",
@@ -318,10 +318,10 @@ func ImportRegistryConfig() error {
 		"py_version",
 		"hostname_fqdn",
 		"hostname",
-		"proxy_host", 
-		"proxy_port", 
-		"proxy_user", 
-		"proxy_password", 
+		"proxy_host",
+		"proxy_port",
+		"proxy_user",
+		"proxy_password",
 		"cmd_port"}
 	for _, valuename := range valuenames {
 		k.DeleteValue(valuename)
@@ -370,7 +370,6 @@ func ImportRegistryConfig() error {
 		return fmt.Errorf("unable to unmarshal config to %s: %v", datadogYamlPath, err)
 	}
 
-	
 	log.Debugf("Successfully wrote the config into %s\n", datadogYamlPath)
 
 	return nil
