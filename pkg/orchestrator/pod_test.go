@@ -514,12 +514,36 @@ func getScrubCases() map[string]struct {
 				Command: []string{"mysql", "--password", "********"},
 			},
 		},
+		"sensitive CLI joined": {
+			input: v1.Container{
+				Command: []string{"mysql --password afztyerbzio1234"},
+			},
+			expected: v1.Container{
+				Command: []string{"mysql", "--password", "********"},
+			},
+		},
 		"sensitive env var": {
 			input: v1.Container{
 				Env: []v1.EnvVar{{Name: "password", Value: "kqhkiG9w0BAQEFAASCAl8wggJbAgEAAoGBAOLJ"}},
 			},
 			expected: v1.Container{
 				Env: []v1.EnvVar{{Name: "password", Value: "********"}},
+			},
+		},
+		"sensitive arg": {
+			input: v1.Container{
+				Args: []string{"mysql", "--password", "afztyerbzio1234"},
+			},
+			expected: v1.Container{
+				Args: []string{"mysql", "--password", "********"},
+			},
+		},
+		"sensitive arg joined": {
+			input: v1.Container{
+				Args: []string{"pwd pwd afztyerbzio1234 --password 1234"},
+			},
+			expected: v1.Container{
+				Args: []string{"pwd", "pwd", "********", "--password", "********"},
 			},
 		},
 		"sensitive container": {
@@ -531,6 +555,7 @@ func getScrubCases() map[string]struct {
 					{Name: "hostname", Value: "password"},
 					{Name: "pwd", Value: "yolo"},
 				},
+				Args: []string{"mysql", "--password", "afztyerbzio1234"},
 			},
 			expected: v1.Container{
 				Name:    "test container",
@@ -540,6 +565,7 @@ func getScrubCases() map[string]struct {
 					{Name: "hostname", Value: "password"},
 					{Name: "pwd", Value: "********"},
 				},
+				Args: []string{"mysql", "--password", "********"},
 			},
 		},
 	}

@@ -127,6 +127,10 @@ func ScrubContainer(c *v1.Container, scrubber *DataScrubber) {
 		}
 	}()
 
+	// scrub args
+	scrubbedArgs, _ := scrubber.ScrubSimpleCommand(c.Args)
+	c.Args = scrubbedArgs
+
 	// scrub command line
 	scrubbedCmd, _ := scrubber.ScrubSimpleCommand(c.Command)
 	c.Command = scrubbedCmd
