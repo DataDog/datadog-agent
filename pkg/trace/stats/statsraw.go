@@ -234,10 +234,10 @@ func (sb *RawBucket) add(s *WeightedSpan, aggr string, tags TagSet) {
 	// TODO add for s.Metrics ability to define arbitrary counts and distros, check some config?
 	// alter resolution of duration distro
 	trundur := nsTimestampToFloat(s.Duration)
-	gs.durationDistribution.Insert(trundur, s.SpanID)
+	gs.durationDistribution.Insert(trundur)
 
 	if s.Error != 0 {
-		gs.errDurationDistribution.Insert(trundur, s.SpanID)
+		gs.errDurationDistribution.Insert(trundur)
 	}
 
 	sb.data[key] = gs
