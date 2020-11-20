@@ -2,7 +2,7 @@ package heartbeat
 
 import (
 	"fmt"
-	"strings"
+	"regexp"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
@@ -105,10 +105,12 @@ func (f *apiFlusher) jsonPayload(metricNames []string, now time.Time) ([]byte, e
 	return heartbeats.MarshalJSON()
 }
 
+var urlRegexp = regexp.MustCompile(`(https://)?.*process\.(.*)$`)
+
 func sanitize(keysPerDomain map[string][]string) map[string][]string {
 	sanitized := make(map[string][]string)
 	for domain, keys := range keysPerDomain {
-		sanitizedDomain := strings.Replace(domain, "process", "app", 1)
+		sanitizedDomain := urlRegexp.ReplaceAllString(domain, "${1}app.${2}")
 		sanitized[sanitizedDomain] = keys
 	}
 	return sanitized
