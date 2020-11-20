@@ -97,7 +97,7 @@ func TestDeploymentCollector(t *testing.T) {
 				TargetID:   component.ExternalID,
 				Data:       map[string]interface{}{},
 			}
-			assert.EqualValues(t, expected, relation)
+			assert.EqualValues(t, expectedRelation, actualRelation)
 
 		})
 	}

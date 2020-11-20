@@ -77,7 +77,7 @@ func TestPodCollector(t *testing.T) {
 					}
 					assert.EqualValues(t, expectedComponent, component)
 				},
-				expectNamespaceRelation(relationChannel, "test-pod-1"),
+				expectNamespaceRelation(t, relationChannel, "test-pod-1"),
 				func() {
 					relation := <-relationChannel
 					expectedRelation := &topology.Relation{
@@ -125,7 +125,7 @@ func TestPodCollector(t *testing.T) {
 					}
 					assert.EqualValues(t, expectedComponent, component)
 				},
-				expectNamespaceRelation(relationChannel, "test-pod-2"),
+				expectNamespaceRelation(t, relationChannel, "test-pod-2"),
 				func() {
 					relation := <-relationChannel
 					expectedRelation := &topology.Relation{
@@ -167,7 +167,7 @@ func TestPodCollector(t *testing.T) {
 					}
 					assert.EqualValues(t, expectedComponent, component)
 				},
-				expectNamespaceRelation(relationChannel, "test-pod-3"),
+				expectNamespaceRelation(t, relationChannel, "test-pod-3"),
 				func() {
 					relation := <-relationChannel
 					expectedRelation := &topology.Relation{
@@ -269,7 +269,7 @@ func TestPodCollector(t *testing.T) {
 					}
 					assert.EqualValues(t, expectedComponent, component)
 				},
-				expectNamespaceRelation(relationChannel, "test-pod-4"),
+				expectNamespaceRelation(t, relationChannel, "test-pod-4"),
 				func() {
 					relation := <-relationChannel
 					expectedRelation := &topology.Relation{
@@ -363,7 +363,7 @@ func TestPodCollector(t *testing.T) {
 					}
 					assert.EqualValues(t, expectedComponent, component)
 				},
-				expectNamespaceRelation(relationChannel, "test-pod-5"),
+				expectNamespaceRelation(t, relationChannel, "test-pod-5"),
 				func() {
 					relation := <-relationChannel
 					expectedRelation := &topology.Relation{
@@ -429,7 +429,7 @@ func TestPodCollector(t *testing.T) {
 					}
 					assert.EqualValues(t, expectedComponent, component)
 				},
-				expectNamespaceRelation(relationChannel, "test-pod-6"),
+				expectNamespaceRelation(t, relationChannel, "test-pod-6"),
 				func() {
 					relation := <-relationChannel
 					expectedRelation := &topology.Relation{
@@ -585,7 +585,7 @@ func (m MockPodAPICollectorClient) GetPods() ([]coreV1.Pod, error) {
 	return pods, nil
 }
 
-func expectNamespaceRelation(t *testing.T, ch <-chan (*topology.Relation), podName string) func() {
+func expectNamespaceRelation(t *testing.T, ch chan (*topology.Relation), podName string) func() {
 	return func() {
 		relation := <-ch
 		expected := &topology.Relation{
