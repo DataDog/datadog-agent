@@ -63,13 +63,13 @@ Logs Agent
     {{- if .inputs }}
     Inputs: {{ range $input := .inputs }}{{$input}} {{ end }}
     {{- end }}
+    BytesRead: {{ .bytes_read }}
     {{- if .info }}
     Container Info:
     {{- range $inf := .info }}
       {{ $inf }}
     {{- end }}
     {{- end }}
-    BytesRead: {{ .bytes_read }}
   {{- end }}
 {{- end }}
 
