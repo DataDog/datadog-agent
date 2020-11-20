@@ -8,24 +8,27 @@ package topologycollectors
 
 import (
 	"fmt"
+	"testing"
+	"time"
+
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/api/batch/v1beta1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"testing"
-	"time"
 )
 
 func TestCronJobCollector(t *testing.T) {
 
 	componentChannel := make(chan *topology.Component)
 	defer close(componentChannel)
+	relationChannel := make(chan *topology.Relation)
+	defer close(relationChannel)
 
 	creationTime = v1.Time{Time: time.Now().Add(-1 * time.Hour)}
 
-	cjc := NewCronJobCollector(componentChannel, NewTestCommonClusterCollector(MockCronJobAPICollectorClient{}))
+	cjc := NewCronJobCollector(componentChannel, relationChannel, NewTestCommonClusterCollector(MockCronJobAPICollectorClient{}))
 	expectedCollectorName := "CronJob Collector"
 	RunCollectorTest(t, cjc, expectedCollectorName)
 
@@ -69,6 +72,17 @@ func TestCronJobCollector(t *testing.T) {
 		t.Run(tc.testCase, func(t *testing.T) {
 			cronJob := <-componentChannel
 			assert.EqualValues(t, tc.expected, cronJob)
+
+			actualRelation := <-relationChannel
+			expectedRelation := &topology.Relation{
+				ExternalID: "urn:kubernetes:/test-cluster-name:namespace/test-namespace->" + component.ExternalID,
+				Type:       topology.Type{Name: "encloses"},
+				SourceID:   "urn:kubernetes:/test-cluster-name:namespace/test-namespace",
+				TargetID:   component.ExternalID,
+				Data:       map[string]interface{}{},
+			}
+			assert.EqualValues(t, expectedRelation, actualRelation)
+
 		})
 	}
 }

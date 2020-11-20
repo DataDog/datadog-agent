@@ -8,14 +8,15 @@ package topologycollectors
 
 import (
 	"fmt"
+	"testing"
+	"time"
+
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
 	"github.com/stretchr/testify/assert"
 	batchV1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"testing"
-	"time"
 )
 
 var parralelism int32
@@ -80,6 +81,16 @@ func TestJobCollector(t *testing.T) {
 					"parallelism":       &parralelism,
 				},
 			},
+			expectedRelations: []*topology.Relation{
+				{
+					ExternalID: "urn:kubernetes:/test-cluster-name:namespace/test-namespace->" +
+						"urn:kubernetes:/test-cluster-name:test-namespace:job/test-job-2",
+					Type:     topology.Type{Name: "encloses"},
+					SourceID: "urn:kubernetes:/test-cluster-name:namespace/test-namespace",
+					TargetID: "urn:kubernetes:/test-cluster-name:test-namespace:job/test-job-2",
+					Data:     map[string]interface{}{},
+				},
+			},
 		},
 		{
 			testCase: "Test Job 3 - Kind + Generate Name",
@@ -95,6 +106,16 @@ func TestJobCollector(t *testing.T) {
 					"generateName":      "some-specified-generation",
 					"backoffLimit":      &backoffLimit,
 					"parallelism":       &parralelism,
+				},
+			},
+			expectedRelations: []*topology.Relation{
+				{
+					ExternalID: "urn:kubernetes:/test-cluster-name:namespace/test-namespace->" +
+						"urn:kubernetes:/test-cluster-name:test-namespace:job/test-job-3",
+					Type:     topology.Type{Name: "encloses"},
+					SourceID: "urn:kubernetes:/test-cluster-name:namespace/test-namespace",
+					TargetID: "urn:kubernetes:/test-cluster-name:test-namespace:job/test-job-3",
+					Data:     map[string]interface{}{},
 				},
 			},
 		},

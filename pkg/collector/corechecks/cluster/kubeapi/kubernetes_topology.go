@@ -198,6 +198,7 @@ func (t *TopologyCheck) Run() error {
 		// Register CronJob Component Collector
 		collectors.NewCronJobCollector(
 			componentChannel,
+			relationChannel,
 			commonClusterCollector,
 		),
 	}
