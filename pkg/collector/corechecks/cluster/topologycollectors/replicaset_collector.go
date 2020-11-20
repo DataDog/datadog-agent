@@ -39,7 +39,7 @@ func (rsc *ReplicaSetCollector) CollectorFunction() error {
 	for _, rs := range replicaSets {
 		component := rsc.replicaSetToStackStateComponent(rs)
 		rsc.ComponentChan <- component
-		rsc.RelationChan <- rsc.namepaceToReplicaSetStackStateRelation(rsc.buildNamespaceExternalID(rs.Namespace), component.ExternalID)
+		rsc.RelationChan <- rsc.namespaceToReplicaSetStackStateRelation(rsc.buildNamespaceExternalID(rs.Namespace), component.ExternalID)
 
 		// check to see if this pod is "controlled" by a deployment
 		for _, ref := range rs.OwnerReferences {
