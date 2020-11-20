@@ -112,11 +112,11 @@ func (t *TCPQueueLengthTracer) Get() tcpqueuelength.Stats {
 				log.Error("Too many CPUs")
 				continue
 			}
-			if uint32(statsValue[cpu].read_buffer_max_fill_rate) > max.ReadBufferMaxFillRate {
-				max.ReadBufferMaxFillRate = uint32(statsValue[cpu].read_buffer_max_fill_rate)
+			if uint32(statsValue[cpu].read_buffer_max_usage) > max.ReadBufferMaxUsage {
+				max.ReadBufferMaxUsage = uint32(statsValue[cpu].read_buffer_max_usage)
 			}
-			if uint32(statsValue[cpu].write_buffer_max_fill_rate) > max.WriteBufferMaxFillRate {
-				max.WriteBufferMaxFillRate = uint32(statsValue[cpu].write_buffer_max_fill_rate)
+			if uint32(statsValue[cpu].write_buffer_max_usage) > max.WriteBufferMaxUsage {
+				max.WriteBufferMaxUsage = uint32(statsValue[cpu].write_buffer_max_usage)
 			}
 		}
 		result[containerID] = max

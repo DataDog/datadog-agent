@@ -1180,6 +1180,11 @@ api_key:
 #
 # jmx_use_container_support: false
 
+## @param jmx_log_file - string - optional
+## Path of the log file where JMXFetch logs are written.
+#
+# jmx_log_file: <JMXFETCH_LOG_FILE_PATH>
+
 ## @param jmx_max_restarts - integer - optional - default: 3
 ## Number of JMX restarts allowed in the restart-interval before giving up.
 #

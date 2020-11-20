@@ -9,6 +9,7 @@ package tests
 
 import (
 	"os"
+	"path"
 	"path/filepath"
 	"syscall"
 	"testing"
@@ -140,7 +141,10 @@ func TestOpenParentDiscarderFilter(t *testing.T) {
 	defer os.Remove(testFile1)
 
 	if _, err := waitForOpenDiscarder(test, testFile1); err != nil {
-		t.Fatal(err)
+		inode := getInode(t, testFile1)
+		parentInode := getInode(t, path.Dir(testFile1))
+
+		t.Fatalf("not able to get the expected event inode: %d, parent inode: %d", inode, parentInode)
 	}
 
 	fd2, testFile2, err := openTestFile(test, "test-obd-2", syscall.O_CREAT|syscall.O_SYNC)

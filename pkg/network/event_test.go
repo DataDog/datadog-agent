@@ -1,7 +1,6 @@
 package network
 
 import (
-	"bytes"
 	"fmt"
 	"net"
 	"testing"
@@ -27,7 +26,7 @@ var (
 )
 
 func TestBeautifyKey(t *testing.T) {
-	buf := &bytes.Buffer{}
+	var buf [ConnectionByteKeyMaxLen]byte
 	for _, c := range []ConnectionStats{
 		testConn,
 		{
@@ -58,7 +57,7 @@ func TestBeautifyKey(t *testing.T) {
 }
 
 func TestConnStatsByteKey(t *testing.T) {
-	buf := new(bytes.Buffer)
+	var buf [ConnectionByteKeyMaxLen]byte
 	addrA := util.AddressFromString("127.0.0.1")
 	addrB := util.AddressFromString("127.0.0.2")
 

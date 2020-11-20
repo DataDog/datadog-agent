@@ -280,7 +280,7 @@ func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 	// or replaced.
 	for {
 		token, buff := tokenizer.Scan()
-		if token == EOFChar {
+		if token == EndChar {
 			break
 		}
 		if token == LexError {

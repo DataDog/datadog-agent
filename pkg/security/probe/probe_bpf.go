@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -63,7 +64,7 @@ type Probe struct {
 	onDiscardersFncs  map[eval.EventType][]onDiscarderFnc
 	syscallMonitor    *SyscallMonitor
 	loadController    *LoadController
-	kernelVersion     uint32
+	kernelVersion     kernel.Version
 	_                 uint32 // padding for goarch=386
 	eventsStats       EventsStats
 	startTime         time.Time
@@ -85,7 +86,7 @@ func (p *Probe) Map(name string) *lib.Map {
 }
 
 func (p *Probe) detectKernelVersion() {
-	if kernelVersion, err := lib.CurrentKernelVersion(); err != nil {
+	if kernelVersion, err := kernel.HostVersion(); err != nil {
 		log.Warn("unable to detect the kernel version")
 	} else {
 		p.kernelVersion = kernelVersion
@@ -274,13 +275,11 @@ var eventZero Event
 
 func (p *Probe) zeroEvent() *Event {
 	*p.event = eventZero
-	p.event.resolvers = p.resolvers
 	return p.event
 }
 
 func (p *Probe) zeroMountEvent() *Event {
 	*p.mountEvent = eventZero
-	p.event.resolvers = p.resolvers
 	return p.mountEvent
 }
 
@@ -625,6 +624,8 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		return nil, err
 	}
 
+	eventZero.resolvers = p.resolvers
+
 	return p, nil
 }
 
@@ -672,7 +673,7 @@ func filenameDiscarderWrapper(eventType EventType, fnc onDiscarderFnc, getter in
 				return nil
 			}
 
-			isDiscarded, err := discardParentInode(probe, rs, eventType, field, filename, mountID, inode, pathID)
+			isDiscarded, _, parentInode, err := discardParentInode(probe, rs, eventType, field, filename, mountID, inode, pathID)
 			if !isDiscarded && !isDeleted {
 				if _, ok := err.(*ErrInvalidKeyPath); !ok {
 					log.Tracef("apply `%s.filename` inode discarder for event `%s`, inode: %d", eventType, eventType, inode)
@@ -685,7 +686,7 @@ func filenameDiscarderWrapper(eventType EventType, fnc onDiscarderFnc, getter in
 			}
 
 			if err != nil {
-				err = errors.Wrapf(err, "unable to set inode discarders for `%s` for event `%s`", filename, eventType)
+				err = errors.Wrapf(err, "unable to set inode discarders for `%s` for event `%s`, inode: %d", filename, eventType, parentInode)
 			}
 
 			return err
