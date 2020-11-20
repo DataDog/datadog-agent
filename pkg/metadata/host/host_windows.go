@@ -43,6 +43,7 @@ type InfoStat struct {
 	PlatformFamily       string `json:"platformFamily"`  // ex: debian, rhel
 	PlatformVersion      string `json:"platformVersion"` // version of the complete OS
 	KernelVersion        string `json:"kernelVersion"`   // version of the OS kernel (if available)
+	KernelArch           string `json:"kernelArch"`
 	VirtualizationSystem string `json:"virtualizationSystem"`
 	VirtualizationRole   string `json:"virtualizationRole"` // guest or host
 	HostID               string `json:"hostid"`             // ex: uuid
@@ -119,6 +120,8 @@ func getHostInfo() *InfoStat {
 	pids, _ := Pids()
 	info.Procs = uint64(len(pids))
 	info.OS = runtime.GOOS
+
+	info.KernelArch = runtime.GOARCH
 
 	pi, _ := platform.GetArchInfo()
 	info.Platform = pi["os"].(string)

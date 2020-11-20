@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"strconv"
 	"time"
@@ -121,7 +122,13 @@ func (s *Runner) Post(traceList pb.Traces) error {
 	req.Header.Set("Content-Type", "application/msgpack")
 	req.Header.Set("Content-Length", strconv.Itoa(buf.Len()))
 
-	_, err = http.DefaultClient.Do(req)
-	// TODO: check response
+	resp, err := http.DefaultClient.Do(req)
+	if resp.StatusCode != 200 {
+		slurp, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("%s (error reading response body: %v)", resp.Status, err)
+		}
+		return fmt.Errorf("%s: %s", resp.Status, slurp)
+	}
 	return err
 }

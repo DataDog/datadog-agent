@@ -3,7 +3,6 @@
 package network
 
 import (
-	"fmt"
 	"math/rand"
 	"net"
 	"strings"
@@ -11,33 +10,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/gopacket/layers"
-
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
+	"github.com/google/gopacket/layers"
 	mdns "github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// isPre410Kernel compares current kernel version to the minimum kernel version(4.1.0) and see if it's older
-func isPre410Kernel(currentKernelCode uint32) bool {
-	return currentKernelCode < stringToKernelCode("4.1.0")
-}
-
-func stringToKernelCode(str string) uint32 {
-	var a, b, c uint32
-	fmt.Sscanf(str, "%d.%d.%d", &a, &b, &c)
-	return linuxKernelVersionCode(a, b, c)
-}
-
-// KERNEL_VERSION(a,b,c) = (a << 16) + (b << 8) + (c)
-// Per https://github.com/torvalds/linux/blob/master/Makefile#L1187
-func linuxKernelVersionCode(major, minor, patch uint32) uint32 {
-	return (major << 16) + (minor << 8) + patch
-}
 
 func getSnooper(
 	t *testing.T,
@@ -46,9 +28,9 @@ func getSnooper(
 	collectLocalDNS bool,
 	dnsTimeout time.Duration,
 ) (*manager.Manager, *SocketFilterSnooper) {
-	currKernelVersion, err := ebpf.CurrentKernelVersion()
+	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
-	pre410Kernel := isPre410Kernel(currKernelVersion)
+	pre410Kernel := currKernelVersion < kernel.VersionCode(4, 1, 0)
 	if pre410Kernel {
 		t.Skip("DNS feature not available on pre 4.1.0 kernels")
 		return nil, nil

@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestEnvvarWhitelisting(t *testing.T) {
+func TestEnvvarFiltering(t *testing.T) {
 	testCases := []struct {
 		name string
 		in   map[string]string
@@ -86,6 +86,23 @@ func TestEnvvarWhitelisting(t *testing.T) {
 				"GOGC=120",
 			},
 		},
+		{
+			name: "env vars corresponding to nested configs",
+			in: map[string]string{
+				"DOCKER_HOST":                                   "tcp://10.0.0.10:8888",
+				"DD_EXTERNAL_METRICS_PROVIDER_MAX_AGE":          "500",  // external_metrics_provider.max_age
+				"DD_EXTERNAL_METRICS_PROVIDER.MAX_AGE":          "500",  // external_metrics_provider.max_age
+				"DD_ADMISSION_CONTROLLER_INJECT_CONFIG_ENABLED": "true", // admission_controller.inject_config.enabled
+				"GOGC": "120",
+			},
+			out: []string{
+				"DOCKER_HOST=tcp://10.0.0.10:8888",
+				"DD_EXTERNAL_METRICS_PROVIDER_MAX_AGE=500",
+				"DD_EXTERNAL_METRICS_PROVIDER.MAX_AGE=500",
+				"DD_ADMISSION_CONTROLLER_INJECT_CONFIG_ENABLED=true",
+				"GOGC=120",
+			},
+		},
 	}
 
 	for i, test := range testCases {
@@ -95,7 +112,7 @@ func TestEnvvarWhitelisting(t *testing.T) {
 				os.Setenv(k, v)
 			}
 
-			result := getWhitelistedEnvvars()
+			result := getAllowedEnvvars()
 
 			assert.Equal(t, len(test.out), len(result))
 			for _, v := range test.out {

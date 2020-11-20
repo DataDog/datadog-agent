@@ -92,7 +92,7 @@ variables:
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
   DATADOG_AGENT_BUILDIMAGES: v2894686-d80c3ce
-  DATADOG_AGENT_BUILDERS: v2894668-736db00
+  DATADOG_AGENT_BUILDERS: v3399751-fc72c60
   DATADOG_AGENT_WINBUILDIMAGES: v3283120-ecb88be
   DATADOG_AGENT_ARMBUILDIMAGES: v2894686-d80c3ce
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v2894686-d80c3ce
@@ -1797,7 +1797,7 @@ deploy_windows_testing-a7:
 .kitchen_os_suse: &kitchen_os_suse
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
-    - export TEST_PLATFORMS="sles-12,urn,SUSE:SLES-BYOS:12-SP4:2020.06.10"
+    - export TEST_PLATFORMS="sles-12,urn,SUSE:sles-12-sp5-byos:gen1:2020.09.21"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|sles-15,urn,SUSE:sles-15-sp2-byos:gen1:2020.09.21"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
@@ -3176,7 +3176,7 @@ twistlock_scan-7:
     - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}
     - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
     - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text > /tmp/gcr_key.json
-    - gcloud auth activate-service-account "$DOCKER_REGISTRY_LOGIN" --key-file=/tmp/gcr_key.json
+    - gcloud --no-user-output-enabled auth activate-service-account "$DOCKER_REGISTRY_LOGIN" --key-file=/tmp/gcr_key.json
     - gcloud config set project $GOOGLE_PROJECT_ID
     - gcloud auth print-access-token | docker login -u oauth2accesstoken --password-stdin https://gcr.io
     - python3 -m pip install -r requirements.txt
@@ -3204,7 +3204,7 @@ twistlock_scan-7:
       # GCR Login
       `$DOCKER_REGISTRY_LOGIN = aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.${DOCKER_REGISTRY_LOGIN_SSM_KEY} --with-decryption --query "Parameter.Value" --out text
       aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.${DOCKER_REGISTRY_PWD_SSM_KEY} --with-decryption --query "Parameter.Value" --out text | Set-Content gcr_key.json
-      gcloud auth activate-service-account "`${DOCKER_REGISTRY_LOGIN}" --key-file=gcr_key.json
+      gcloud --no-user-output-enabled auth activate-service-account "`${DOCKER_REGISTRY_LOGIN}" --key-file=gcr_key.json
       gcloud config set project ${GOOGLE_PROJECT_ID}
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       # DockerHub login
@@ -3943,7 +3943,7 @@ deploy_staging_dsd:
   tags: [ "runner:main", "size:large" ]
   dependencies: []
   script:
-    - python3.5 -m pip install --user -r requirements.txt
+    - python3.6 -m pip install --user -r requirements.txt
     - $S3_CP_CMD $S3_ARTIFACTS_URI/dogstatsd/dogstatsd ./dogstatsd
     - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7)
     - $S3_CP_CMD ./dogstatsd $S3_DSD6_URI/linux/dogstatsd-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
@@ -3959,7 +3959,7 @@ deploy_staging_iot_agent:
   tags: [ "runner:main", "size:large" ]
   dependencies: []
   script:
-    - python3.5 -m pip install --user -r requirements.txt
+    - python3.6 -m pip install --user -r requirements.txt
     - $S3_CP_CMD $S3_ARTIFACTS_URI/iot/agent ./agent
     - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7)
     - $S3_CP_CMD ./agent $S3_DSD6_URI/linux/iot/agent-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
@@ -4485,6 +4485,36 @@ revert_latest_7_google_container_registry:
     - inv -e docker.publish gcr.io/datadoghq/dogstatsd:${NEW_LATEST_RELEASE_7} gcr.io/datadoghq/dogstatsd:latest
     - inv -e docker.publish gcr.io/datadoghq/dogstatsd:${NEW_LATEST_RELEASE_7} gcr.io/datadoghq/dogstatsd:7
 
+# Once a day, before the nightly build, cleans up the artifacts used during kitchen tests which might have been left over
+# This can happen when a kitchen test fails and is never retried, since that pipeline's cleanup job won't run
+periodic_kitchen_cleanup_s3:
+  stage: maintenance_jobs
+  tags: [ "runner:main", "size:large" ]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  rules:
+    - if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_6 == "nightly" && $RELEASE_VERSION_7 == "nightly-a7" && $TESTING_CLEANUP == "true"
+  script:
+    - aws s3 rm --recursive s3://$DEB_TESTING_S3_BUCKET/pool
+    - aws s3 rm --recursive s3://$DEB_TESTING_S3_BUCKET/dists
+    - aws s3 rm --recursive s3://$RPM_TESTING_S3_BUCKET/testing/
+    - aws s3 rm --recursive s3://$RPM_TESTING_S3_BUCKET/suse/testing/
+    - aws s3 rm --recursive s3://$WIN_S3_BUCKET/pipelines/A6/
+    - aws s3 rm --recursive s3://$WIN_S3_BUCKET/pipelines/A7/
+
+# Once a day, before the nightly build, kills any VMs that might have been left over by kitchen
+periodic_kitchen_cleanup_azure:
+  stage: maintenance_jobs
+  tags: [ "runner:main", "size:large" ]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  rules:
+    - if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_6 == "nightly" && $RELEASE_VERSION_7 == "nightly-a7" && $TESTING_CLEANUP == "true"
+  script:
+    - export ARM_SUBSCRIPTION_ID=`aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_subscription_id --with-decryption --query "Parameter.Value" --out text`
+    - export ARM_CLIENT_ID=`aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_client_id --with-decryption --query "Parameter.Value" --out text`
+    - export ARM_CLIENT_SECRET=`aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_client_secret --with-decryption --query "Parameter.Value" --out text`
+    - export ARM_TENANT_ID=`aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_tenant_id --with-decryption --query "Parameter.Value" --out text`
+    - python3.6 ~/deploy_scripts/cleanup_azure.py
+
 #
 # Use this step to delete a tag of a given image
 # We call the Docker Hub API because docker cli doesn't support deleting tags
@@ -4583,7 +4613,7 @@ trigger_release_6:
   dependencies: []
   before_script:
   - cd $SRC_PATH
-  - python3.5 -m pip install --user -r requirements.txt
+  - python3.6 -m pip install --user -r requirements.txt
 
 pupernetes-dev:
   rules:

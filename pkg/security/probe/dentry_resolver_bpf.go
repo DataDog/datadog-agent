@@ -183,6 +183,8 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 
 	if err == nil {
 		for k, v := range toAdd {
+			// TODO(sbaubeau): find a way to not cache fake inodes
+			// in the case of rename events
 			dr.cache.Add(k, v)
 		}
 	}

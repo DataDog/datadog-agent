@@ -43,13 +43,13 @@ func (voltageMetricsSender *voltageMetricsSender) SendMetrics(sender aggregator.
 		if err != nil {
 			return err
 		}
-		sender.Gauge("nvidia.jetson.vdd.instant", instantVoltage, "", voltageProbeTags)
+		sender.Gauge("nvidia.jetson.power.instant", instantVoltage, "", voltageProbeTags)
 
 		averageVoltage, err := strconv.ParseFloat(voltageFields[i][regexSubexpIndex(r, "averageVoltage")], 64)
 		if err != nil {
 			return err
 		}
-		sender.Gauge("nvidia.jetson.vdd.average", averageVoltage, "", voltageProbeTags)
+		sender.Gauge("nvidia.jetson.power.average", averageVoltage, "", voltageProbeTags)
 	}
 
 	return nil
