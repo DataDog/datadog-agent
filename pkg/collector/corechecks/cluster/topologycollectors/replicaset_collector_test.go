@@ -50,7 +50,15 @@ func TestReplicaSetCollector(t *testing.T) {
 					"desiredReplicas":   &replicas,
 				},
 			},
-			expectedRelations: []*topology.Relation{},
+			expectedRelations: []*topology.Relation{
+				{
+					ExternalID: "urn:kubernetes:/test-cluster-name:namespace/test-namespace->urn:kubernetes:/test-cluster-name:test-namespace:replicaset/test-replicaset-1",
+					Type:       topology.Type{Name: "encloses"},
+					SourceID:   "urn:kubernetes:/test-cluster-name:namespace/test-namespace",
+					TargetID:   "urn:kubernetes:/test-cluster-name:test-namespace:replicaset/test-replicaset-1",
+					Data:       map[string]interface{}{},
+				}
+			},
 		},
 		{
 			testCase: "Test ReplicaSet 2 - Kind + Generate Name",
@@ -67,7 +75,16 @@ func TestReplicaSetCollector(t *testing.T) {
 					"generateName":      "some-specified-generation",
 				},
 			},
-			expectedRelations: []*topology.Relation{},
+			expectedRelations: []*topology.Relation{
+				{
+					ExternalID: "urn:kubernetes:/test-cluster-name:namespace/test-namespace->urn:kubernetes:/test-cluster-name:test-namespace:replicaset/test-replicaset-2",
+					Type:       topology.Type{Name: "encloses"},
+					SourceID:   "urn:kubernetes:/test-cluster-name:namespace/test-namespace",
+					TargetID:   "urn:kubernetes:/test-cluster-name:test-namespace:replicaset/test-replicaset-2",
+					Data:       map[string]interface{}{},
+				}
+
+			},
 		},
 		{
 			testCase: "Test ReplicaSet 3 - Complete",
@@ -86,13 +103,20 @@ func TestReplicaSetCollector(t *testing.T) {
 			},
 			expectedRelations: []*topology.Relation{
 				{
+					ExternalID: "urn:kubernetes:/test-cluster-name:namespace/test-namespace->urn:kubernetes:/test-cluster-name:test-namespace:replicaset/test-replicaset-3",
+					Type:       topology.Type{Name: "encloses"},
+					SourceID:   "urn:kubernetes:/test-cluster-name:namespace/test-namespace",
+					TargetID:   "urn:kubernetes:/test-cluster-name:test-namespace:replicaset/test-replicaset-3",
+					Data:       map[string]interface{}{},
+				}, {
 					ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:deployment/test-deployment-3->" +
 						"urn:kubernetes:/test-cluster-name:test-namespace:replicaset/test-replicaset-3",
 					Type:     topology.Type{Name: "controls"},
 					SourceID: "urn:kubernetes:/test-cluster-name:test-namespace:deployment/test-deployment-3",
 					TargetID: "urn:kubernetes:/test-cluster-name:test-namespace:replicaset/test-replicaset-3",
 					Data:     map[string]interface{}{},
-				},
+				}
+
 			},
 		},
 	} {

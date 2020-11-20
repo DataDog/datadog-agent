@@ -144,6 +144,7 @@ func (t *TopologyCheck) Run() error {
 		// Register DaemonSet Component Collector
 		collectors.NewDaemonSetCollector(
 			componentChannel,
+			relationChannel,
 			commonClusterCollector,
 		),
 		// Register Deployment Component Collector
@@ -161,6 +162,7 @@ func (t *TopologyCheck) Run() error {
 		// Register StatefulSet Component Collector
 		collectors.NewStatefulSetCollector(
 			componentChannel,
+			relationChannel,
 			commonClusterCollector,
 		),
 		// Register Persistent Volume Component Collector

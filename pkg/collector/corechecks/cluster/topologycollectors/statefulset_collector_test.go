@@ -8,14 +8,15 @@ package topologycollectors
 
 import (
 	"fmt"
+	"testing"
+	"time"
+
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
 	"github.com/stretchr/testify/assert"
 	appsV1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"testing"
-	"time"
 )
 
 func TestStatefulSetCollector(t *testing.T) {
@@ -92,6 +93,16 @@ func TestStatefulSetCollector(t *testing.T) {
 		t.Run(tc.testCase, func(t *testing.T) {
 			component := <-componentChannel
 			assert.EqualValues(t, tc.expected, component)
+
+			actualRelation := <-relationChannel
+			expectedRelation := &topology.Relation{
+				ExternalID: "urn:kubernetes:/test-cluster-name:namespace/test-namespace->" + component.ExternalID,
+				Type:       topology.Type{Name: "encloses"},
+				SourceID:   "urn:kubernetes:/test-cluster-name:namespace/test-namespace",
+				TargetID:   component.ExternalID,
+				Data:       map[string]interface{}{},
+			}
+			assert.EqualValues(t, expectedRelation, actualRelation)
 		})
 	}
 }
