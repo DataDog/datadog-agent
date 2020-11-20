@@ -7,6 +7,9 @@
 package kubeapi
 
 import (
+	"sync"
+	"time"
+
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
 	core "github.com/StackVista/stackstate-agent/pkg/collector/corechecks"
@@ -14,8 +17,6 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
-	"sync"
-	"time"
 )
 
 const (
@@ -128,6 +129,11 @@ func (t *TopologyCheck) Run() error {
 			componentChannel,
 			relationChannel,
 			nodeIdentifierCorrelationChannel,
+			commonClusterCollector,
+		),
+		// Register Namespace Component Collector
+		collectors.NewNamespaceCollector(
+			componentChannel,
 			commonClusterCollector,
 		),
 		// Register ConfigMap Component Collector
