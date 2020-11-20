@@ -13,9 +13,9 @@ import (
 	"github.com/pkg/errors"
 )
 
-type kprobeStats struct {
-	hits int64
-	miss int64
+type KProbeStats struct {
+	Hits int64
+	Miss int64
 }
 
 // KprobeProfile is the default path to the kprobe_profile file
@@ -31,16 +31,16 @@ func GetProbeStats() map[string]int64 {
 
 	res := make(map[string]int64, 2*len(m))
 	for event, st := range m {
-		res[fmt.Sprintf("%s_hits", event)] = st.hits
-		res[fmt.Sprintf("%s_misses", event)] = st.miss
+		res[fmt.Sprintf("%s_hits", event)] = st.Hits
+		res[fmt.Sprintf("%s_misses", event)] = st.Miss
 	}
 
 	return res
 }
 
-// getProbeTotals returns the total number of kprobes triggered or missed by reading the kprobe_profile file
-func getProbeTotals() kprobeStats {
-	stats := kprobeStats{}
+// GetProbeTotals returns the total number of kprobes triggered or missed by reading the kprobe_profile file
+func GetProbeTotals() KProbeStats {
+	stats := KProbeStats{}
 	m, err := readKprobeProfile(KprobeProfile)
 	if err != nil {
 		log.Debugf("error retrieving probe stats: %s", err)
@@ -48,14 +48,14 @@ func getProbeTotals() kprobeStats {
 	}
 
 	for _, st := range m {
-		stats.hits += st.hits
-		stats.miss += st.miss
+		stats.Hits += st.Hits
+		stats.Miss += st.Miss
 	}
 	return stats
 }
 
 // readKprobeProfile reads a /sys/kernel/debug/tracing/kprobe_profile file and returns a map of probe -> stats
-func readKprobeProfile(path string) (map[string]kprobeStats, error) {
+func readKprobeProfile(path string) (map[string]KProbeStats, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error opening kprobe profile file at: %s", path)
@@ -65,7 +65,7 @@ func readKprobeProfile(path string) (map[string]kprobeStats, error) {
 	scanner := bufio.NewScanner(f)
 	scanner.Split(bufio.ScanLines)
 
-	stats := map[string]kprobeStats{}
+	stats := map[string]KProbeStats{}
 	for scanner.Scan() {
 		fields := strings.Fields(scanner.Text())
 		if len(fields) != 3 {
@@ -84,9 +84,9 @@ func readKprobeProfile(path string) (map[string]kprobeStats, error) {
 			continue
 		}
 
-		stats[fields[0]] = kprobeStats{
-			hits: hits,
-			miss: miss,
+		stats[fields[0]] = KProbeStats{
+			Hits: hits,
+			Miss: miss,
 		}
 	}
 
