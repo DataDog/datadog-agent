@@ -364,7 +364,7 @@ func (p *Probe) parseStat(pidPath string, now time.Time) *statInfo {
 	}
 
 	// We want to skip past the executable name, which is wrapped in parenthesis
-	startIndex := bytes.IndexByte(contents, byte(')'))
+	startIndex := bytes.LastIndexByte(contents, byte(')'))
 	if startIndex+1 >= len(contents) {
 		return sInfo
 	}
@@ -376,13 +376,20 @@ func (p *Probe) parseStat(pidPath string, now time.Time) *statInfo {
 // parseStatContent takes the content of "stat" file and parses the values we care about
 func (p *Probe) parseStatContent(content []byte, sInfo *statInfo, now time.Time) *statInfo {
 	spaces := 0
+	prevCharSpace := false
 	var ppidStr, utimeStr, stimeStr, niceStr, startTimeStr string
 
 	for i := range content {
 		if content[i] == ' ' {
-			spaces++
+			if !prevCharSpace {
+				spaces++
+			}
+			prevCharSpace = true
 			continue
+		} else {
+			prevCharSpace = false
 		}
+
 		if spaces == 2 {
 			ppidStr += string(content[i])
 		} else if spaces == 12 {
