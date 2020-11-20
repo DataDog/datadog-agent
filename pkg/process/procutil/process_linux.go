@@ -23,6 +23,11 @@ const (
 	WorldReadable os.FileMode = 4
 )
 
+var (
+	// PageSize is the system's memory page size
+	PageSize = uint64(os.Getpagesize())
+)
+
 type statusInfo struct {
 	name       string
 	status     string
@@ -440,6 +445,59 @@ func (p *Probe) parseStatContent(content []byte, sInfo *statInfo, now time.Time)
 	sInfo.createTime = int64(ctime * 1000)
 
 	return sInfo
+}
+
+// Get memory info from /proc/(pid)/statm
+func (p *Probe) parseStatm(pidPath string) (*MemoryInfoStat, *MemoryInfoExStat) {
+	path := filepath.Join(pidPath, "statm")
+	var err error
+
+	memInfo := &MemoryInfoStat{}
+	memInfoEx := &MemoryInfoExStat{}
+
+	contents, err := ioutil.ReadFile(path)
+	if err != nil {
+		return memInfo, memInfoEx
+	}
+	fields := strings.Split(string(contents), " ")
+
+	vms, err := strconv.ParseUint(fields[0], 10, 64)
+	if err != nil {
+		return memInfo, memInfoEx
+	}
+	rss, err := strconv.ParseUint(fields[1], 10, 64)
+	if err != nil {
+		return memInfo, memInfoEx
+	}
+
+	memInfo.RSS = rss * PageSize
+	memInfo.VMS = vms * PageSize
+
+	shared, err := strconv.ParseUint(fields[2], 10, 64)
+	if err != nil {
+		return memInfo, memInfoEx
+	}
+	text, err := strconv.ParseUint(fields[3], 10, 64)
+	if err != nil {
+		return memInfo, memInfoEx
+	}
+	lib, err := strconv.ParseUint(fields[4], 10, 64)
+	if err != nil {
+		return memInfo, memInfoEx
+	}
+	dirty, err := strconv.ParseUint(fields[5], 10, 64)
+	if err != nil {
+		return memInfo, memInfoEx
+	}
+
+	memInfoEx.RSS = rss * PageSize
+	memInfoEx.VMS = vms * PageSize
+	memInfoEx.Shared = shared * PageSize
+	memInfoEx.Text = text * PageSize
+	memInfoEx.Lib = lib * PageSize
+	memInfoEx.Dirty = dirty * PageSize
+
+	return memInfo, memInfoEx
 }
 
 // ensurePathReadable ensures that the current user is able to read the path before opening it.
