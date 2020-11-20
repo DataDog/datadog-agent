@@ -39,8 +39,8 @@ func IntNot(a *IntEvaluator, opts *Opts, state *state) *IntEvaluator {
 }
 
 func patternToRegexp(pattern string) (*regexp.Regexp, error) {
-	// only accept suffix wilcard, ex: /etc/* or /etc/*.conf
-	if matched, err := regexp.Match(`\*.*/`, []byte(pattern)); err != nil || matched {
+	// do not accept full wildcard value
+	if matched, err := regexp.Match(`[a-zA-Z0-9\.]+`, []byte(pattern)); err != nil || !matched {
 		return nil, &ErrInvalidPattern{Pattern: pattern}
 	}
 
@@ -73,7 +73,7 @@ func StringMatches(a *StringEvaluator, b *StringEvaluator, not bool, opts *Opts,
 	}
 
 	if a.Field != "" {
-		if err := state.UpdateFieldValues(a.Field, FieldValue{Value: b.Value, Type: PatternValueType}); err != nil {
+		if err := state.UpdateFieldValues(a.Field, FieldValue{Value: b.Value, Type: PatternValueType, Regex: re}); err != nil {
 			return nil, err
 		}
 	}

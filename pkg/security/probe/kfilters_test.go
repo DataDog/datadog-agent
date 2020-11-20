@@ -96,4 +96,32 @@ func TestIsParentDiscarder(t *testing.T) {
 	if is, _ := isParentPathDiscarder(rs, FileRenameEventType, "rename.old.filename", "/etc/nginx/nginx.conf"); !is {
 		t.Fatal("should be a parent discarder")
 	}
+
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(SECLConstants, nil))
+	addRuleExpr(t, rs, `unlink.filename =~ "/etc/conf.d/*"`)
+
+	if is, _ := isParentPathDiscarder(rs, FileUnlinkEventType, "unlink.filename", "/etc/sys.d/nginx.conf"); !is {
+		t.Fatal("should be a parent discarder")
+	}
+
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(SECLConstants, nil))
+	addRuleExpr(t, rs, `unlink.filename =~ "*/conf.*"`)
+
+	if is, _ := isParentPathDiscarder(rs, FileUnlinkEventType, "unlink.filename", "/etc/conf.d/abc"); is {
+		t.Fatal("shouldn't be a parent discarder")
+	}
+
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(SECLConstants, nil))
+	addRuleExpr(t, rs, `unlink.filename =~ "*/conf.d"`)
+
+	if is, _ := isParentPathDiscarder(rs, FileUnlinkEventType, "unlink.filename", "/etc/conf.d/abc"); is {
+		t.Fatal("shouldn't be a parent discarder")
+	}
+
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(SECLConstants, nil))
+	addRuleExpr(t, rs, `unlink.filename =~ "/etc/*"`)
+
+	if is, _ := isParentPathDiscarder(rs, FileUnlinkEventType, "unlink.filename", "/etc/cron.d/log"); is {
+		t.Fatal("shouldn't be a parent discarder")
+	}
 }

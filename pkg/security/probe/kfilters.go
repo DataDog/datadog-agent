@@ -38,6 +38,8 @@ func (f *FilterPolicy) Bytes() ([]byte, error) {
 	return []byte{uint8(f.Mode), uint8(f.Flags)}, nil
 }
 
+// Important should always be called after having checked that the file is not a discarder itself otherwise it can report incorrect
+// parent discarder
 func isParentPathDiscarder(rs *rules.RuleSet, eventType EventType, filenameField eval.Field, filename string) (bool, error) {
 	dirname := filepath.Dir(filename)
 
@@ -73,8 +75,14 @@ func isParentPathDiscarder(rs *rules.RuleSet, eventType EventType, filenameField
 		// check filename
 		if values := rule.GetFieldValues(filenameField); len(values) > 0 {
 			for _, value := range values {
-				if strings.HasPrefix(value.Value.(string), dirname) {
-					return false, nil
+				if value.Type == eval.PatternValueType {
+					if value.Regex.MatchString(dirname) {
+						return false, nil
+					}
+				} else {
+					if strings.HasPrefix(value.Value.(string), dirname) {
+						return false, nil
+					}
 				}
 			}
 
