@@ -23,12 +23,14 @@ func TestStatefulSetCollector(t *testing.T) {
 
 	componentChannel := make(chan *topology.Component)
 	defer close(componentChannel)
+	relationChannel := make(chan *topology.Relation)
+	defer close(relationChannel)
 
 	creationTime = v1.Time{Time: time.Now().Add(-1 * time.Hour)}
 
 	replicas = int32(1)
 
-	cmc := NewStatefulSetCollector(componentChannel, NewTestCommonClusterCollector(MockStatefulSetAPICollectorClient{}))
+	cmc := NewStatefulSetCollector(componentChannel, relationChannel, NewTestCommonClusterCollector(MockStatefulSetAPICollectorClient{}))
 	expectedCollectorName := "StatefulSet Collector"
 	RunCollectorTest(t, cmc, expectedCollectorName)
 

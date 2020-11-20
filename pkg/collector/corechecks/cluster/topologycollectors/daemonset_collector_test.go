@@ -23,10 +23,12 @@ func TestDaemonSetCollector(t *testing.T) {
 
 	componentChannel := make(chan *topology.Component)
 	defer close(componentChannel)
+	relationChannel := make(chan *topology.Relation)
+	defer close(relationChannel)
 
 	creationTime = v1.Time{Time: time.Now().Add(-1 * time.Hour)}
 
-	cmc := NewDaemonSetCollector(componentChannel, NewTestCommonClusterCollector(MockDaemonSetAPICollectorClient{}))
+	cmc := NewDaemonSetCollector(componentChannel, relationChannel, NewTestCommonClusterCollector(MockDaemonSetAPICollectorClient{}))
 	expectedCollectorName := "DaemonSet Collector"
 	RunCollectorTest(t, cmc, expectedCollectorName)
 
