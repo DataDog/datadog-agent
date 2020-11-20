@@ -82,7 +82,7 @@ type MockNamespaceAPICollectorClient struct {
 
 func (m MockNamespaceAPICollectorClient) GetNamespaces() ([]coreV1.Namespace, error) {
 	namespaces := make([]coreV1.Namespace, 0)
-	for i := 1; i <= 3; i++ {
+	for i := 1; i <= 2; i++ {
 
 		namespace := coreV1.Namespace{
 			TypeMeta: v1.TypeMeta{
@@ -91,7 +91,6 @@ func (m MockNamespaceAPICollectorClient) GetNamespaces() ([]coreV1.Namespace, er
 			ObjectMeta: v1.ObjectMeta{
 				Name:              fmt.Sprintf("test-namespace-%d", i),
 				CreationTimestamp: creationTime,
-				Namespace:         "test-namespace",
 				UID:               types.UID(fmt.Sprintf("test-namespace-%d", i)),
 				GenerateName:      "",
 			},
