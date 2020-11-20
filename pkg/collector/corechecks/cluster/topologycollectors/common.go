@@ -19,6 +19,7 @@ type ClusterTopologyCommon interface {
 	initTags(meta metav1.ObjectMeta) map[string]string
 	buildClusterExternalID() string
 	buildConfigMapExternalID(namespace, configMapName string) string
+	buildNamespaceExternalID(namespaceName string) string
 	buildContainerExternalID(namespace, podName, containerName string) string
 	buildDaemonSetExternalID(namespace, daemonSetName string) string
 	buildDeploymentExternalID(namespace, deploymentName string) string
