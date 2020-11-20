@@ -40,7 +40,7 @@ func (dmc *DeploymentCollector) CollectorFunction() error {
 		component := dmc.deploymentToStackStateComponent(dep)
 		dmc.ComponentChan <- component
 
-		dms.RelationChan <- dmc.namespaceToDeploymentStackStateRelation(dmc.buildNamespaceExternalID(dep.Namespace), component.ExternalID)
+		dmc.RelationChan <- dmc.namespaceToDeploymentStackStateRelation(dmc.buildNamespaceExternalID(dep.Namespace), component.ExternalID)
 	}
 
 	return nil
@@ -78,7 +78,7 @@ func (dmc *DeploymentCollector) deploymentToStackStateComponent(deployment v1.De
 func (dmc *DeploymentCollector) namespaceToDeploymentStackStateRelation(namespaceExternalID, deploymentExternalID string) *topology.Relation {
 	log.Tracef("Mapping kubernetes namespace to deployment relation: %s -> %s", namespaceExternalID, deploymentExternalID)
 
-	relation := pc.CreateRelation(namespaceExternalID, deployment, "encloses")
+	relation := dmc.CreateRelation(namespaceExternalID, deploymentExternalID, "encloses")
 
 	log.Tracef("Created StackState namespace -> deployment relation %s->%s", relation.SourceID, relation.TargetID)
 
