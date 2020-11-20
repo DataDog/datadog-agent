@@ -145,6 +145,11 @@ func (c *clusterTopologyCommon) buildConfigMapExternalID(namespace, configMapNam
 	return fmt.Sprintf("%s:%s:configmap/%s", c.urnPrefix, namespace, configMapName)
 }
 
+// buildNamespaceExternalID creates the urn external identifier for a cluster namespace
+func (c *clusterTopologyCommon) buildNamespaceExternalID(namespaceName string) string {
+	return fmt.Sprintf("%s:namespace/%s", c.urnPrefix, namespaceName)
+}
+
 // buildCronJobExternalID creates the urn external identifier for a cluster cron job
 func (c *clusterTopologyCommon) buildCronJobExternalID(namespace, cronJobName string) string {
 	return fmt.Sprintf("%s:%s:cronjob/%s", c.urnPrefix, namespace, cronJobName)
