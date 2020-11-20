@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/gopsutil/process"
 )
@@ -320,12 +321,14 @@ func BenchmarkTestFSStatusGopsutil(b *testing.B) {
 	defer os.Unsetenv("HOST_PROC")
 
 	pids, err := process.Pids()
-	assert.NoError(b, err)
+	require.NoError(b, err)
 
 	for i := 0; i < b.N; i++ {
 		for _, pid := range pids {
-			expProc, _ := process.NewProcess(pid)
-			expProc.Status()
+			expProc, err := process.NewProcess(pid)
+			require.NoError(b, err)
+			_, err = expProc.Status()
+			require.NoError(b, err)
 		}
 	}
 }
@@ -339,7 +342,7 @@ func BenchmarkTestFSStatusProcutil(b *testing.B) {
 	defer probe.Close()
 
 	pids, err := probe.getActivePIDs()
-	assert.NoError(b, err)
+	require.NoError(b, err)
 
 	for i := 0; i < b.N; i++ {
 		for _, pid := range pids {
@@ -354,8 +357,10 @@ func BenchmarkLocalFSStatusGopsutil(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		for _, pid := range pids {
-			expProc, _ := process.NewProcess(pid)
-			expProc.Status()
+			expProc, err := process.NewProcess(pid)
+			require.NoError(b, err)
+			_, err = expProc.Status()
+			require.NoError(b, err)
 		}
 	}
 }
@@ -365,11 +370,11 @@ func BenchmarkLocalFSStatusProcutil(b *testing.B) {
 	defer probe.Close()
 
 	pids, err := probe.getActivePIDs()
-	assert.NoError(b, err)
+	require.NoError(b, err)
 
 	for i := 0; i < b.N; i++ {
 		for _, pid := range pids {
-			_ = probe.parseStatus(filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid))))
+			probe.parseStatus(filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid))))
 		}
 	}
 }
