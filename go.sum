@@ -203,8 +203,8 @@ github.com/bhmj/jsonslice v0.0.0-20200323023432-92c3edaad8e2 h1:11xwzvvHBTyUMCD7
 github.com/bhmj/jsonslice v0.0.0-20200323023432-92c3edaad8e2/go.mod h1:blvNODZOz8uOvDJzGiXzoi8QlzcAhA57sMnKx1D18/k=
 github.com/bifurcation/mint v0.0.0-20180715133206-93c51c6ce115/go.mod h1:zVt7zX3K/aDCk9Tj+VM7YymsX66ERvzCJzw8rFCX2JU=
 github.com/bitly/go-hostpool v0.0.0-20171023180738-a3a6125de932/go.mod h1:NOuUCSz6Q9T7+igc/hlvDOUdtWKryOrtFyIVABv/p7k=
-github.com/blabber/go-freebsd-sysctl v0.0.0-20151024120420-30a4aca6b547 h1:1Lq3EYC2UiZFI0ey2tmDfwrCxrDDyFkXDNaIL7Pqmzg=
-github.com/blabber/go-freebsd-sysctl v0.0.0-20151024120420-30a4aca6b547/go.mod h1:cTRyHktEaXkKTTEyZ0hAgS7H4V0AVoKhB8Dx0tVr/tY=
+github.com/blabber/go-freebsd-sysctl v0.0.0-20201120232245-08ae2714d320 h1:lGIMHxtRBEg+QgpKEqWReZGJy7gWokHIlTANy1QGIg8=
+github.com/blabber/go-freebsd-sysctl v0.0.0-20201120232245-08ae2714d320/go.mod h1:cTRyHktEaXkKTTEyZ0hAgS7H4V0AVoKhB8Dx0tVr/tY=
 github.com/blang/semver v3.1.0+incompatible/go.mod h1:kRBLl5iJ+tD4TcOOxsy/0fnwebNt5EWlYSAyrTnjyyk=
 github.com/blang/semver v3.5.0+incompatible/go.mod h1:kRBLl5iJ+tD4TcOOxsy/0fnwebNt5EWlYSAyrTnjyyk=
 github.com/blang/semver v3.5.1+incompatible h1:cQNTCjp13qL8KC3Nbxr/y2Bqb63oX6wdnnjpJbkM4JQ=
