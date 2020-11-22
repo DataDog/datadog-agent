@@ -28,6 +28,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	gorilla "github.com/gorilla/mux"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpc_runtime "github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/soheilhy/cmux"
@@ -37,6 +38,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	mainconfig "github.com/DataDog/datadog-agent/pkg/config"
+	remote_flare "github.com/DataDog/datadog-agent/pkg/flare/remote"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -201,6 +203,16 @@ func (r *HTTPReceiver) attachDebugHandlers(m *http.ServeMux) *http.ServeMux {
 	return m
 }
 
+// SetupHandlers adds the specific handlers for /agent endpoints
+func (r *HTTPReceiver) attachRESTHandlers(mux *gorilla.Router) *gorilla.Router {
+	mux.HandleFunc("/flare/{type}/{op}", remote_flare.Handler).Methods("POST")
+	mux.HandleFunc("/flare/log/{flare_id}/{tracer_id}/{type}", remote_flare.LogHandler).Methods("POST")
+
+	remote_flare.InitAPI(r.conf.LogFilePath, "", "")
+
+	return mux
+}
+
 func (r *HTTPReceiver) ServeHTTP(l net.Listener) {
 	// Setup multiplexer
 	mux := http.NewServeMux()
@@ -257,7 +269,11 @@ func (r *HTTPReceiver) ServeGRPC(l net.Listener) {
 		panic(err)
 	}
 
+	// create the REST HTTP router
+	restMux := gorilla.NewRouter()
+
 	tlsMux := http.NewServeMux()
+	tlsMux.Handle("/rest/", http.StripPrefix("/rest", r.attachRESTHandlers(restMux)))
 	tlsMux.Handle("/", gwmux) // grpc-gateway for all other requests
 
 	timeout := 5 * time.Second
