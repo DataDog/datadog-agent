@@ -6,6 +6,7 @@
 package api
 
 import (
+	"fmt"
 	"net/url"
 )
 
@@ -26,4 +27,21 @@ const (
 type Endpoint struct {
 	APIKey   string
 	Endpoint *url.URL
+}
+
+// KeysPerDomains turns a list of endpoints into a map of URL -> []APIKey
+func KeysPerDomains(endpoints []Endpoint) map[string][]string {
+	keysPerDomains := make(map[string][]string)
+
+	for _, ep := range endpoints {
+		domain := removePathIfPresent(ep.Endpoint)
+		keysPerDomains[domain] = append(keysPerDomains[domain], ep.APIKey)
+	}
+
+	return keysPerDomains
+}
+
+// removePathIfPresent removes the path component from the URL if it is present
+func removePathIfPresent(url *url.URL) string {
+	return fmt.Sprintf("%s://%s", url.Scheme, url.Host)
 }

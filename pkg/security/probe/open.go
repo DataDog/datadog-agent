@@ -24,8 +24,4 @@ var openCapabilities = Capabilities{
 		PolicyFlags:     PolicyFlagFlags,
 		FieldValueTypes: eval.ScalarValueType | eval.BitmaskValueType,
 	},
-	"process.filename": {
-		PolicyFlags:     PolicyFlagProcessInode,
-		FieldValueTypes: eval.ScalarValueType,
-	},
 }

@@ -12,7 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	secagentcommon "github.com/DataDog/datadog-agent/cmd/security-agent/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/compliance/agent"
@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddgostatsd "github.com/DataDog/datadog-go/statsd"
 )
 
 var (
@@ -60,11 +61,9 @@ func init() {
 }
 
 func eventRun(cmd *cobra.Command, args []string) error {
-	// we'll search for a config file named `datadog.yaml`
-	coreconfig.Datadog.SetConfigName("datadog")
-	err := common.SetupConfig(confPath)
-	if err != nil {
-		return fmt.Errorf("unable to set up global agent configuration: %w", err)
+	// Read configuration files received from the command line arguments '-c'
+	if err := secagentcommon.MergeConfigurationFiles("datadog", confPathArray); err != nil {
+		return err
 	}
 
 	stopper := restart.NewSerialStopper()
@@ -119,7 +118,7 @@ func newComplianceReporter(stopper restart.Stopper, sourceName, sourceType strin
 	return event.NewReporter(logSource, pipelineProvider.NextPipelineChan()), nil
 }
 
-func startCompliance(hostname string, endpoints *config.Endpoints, context *client.DestinationsContext, stopper restart.Stopper) error {
+func startCompliance(hostname string, endpoints *config.Endpoints, context *client.DestinationsContext, stopper restart.Stopper, statsdClient *ddgostatsd.Client) error {
 	enabled := coreconfig.Datadog.GetBool("compliance_config.enabled")
 	if !enabled {
 		return nil
@@ -174,5 +173,10 @@ func startCompliance(hostname string, endpoints *config.Endpoints, context *clie
 	stopper.Add(agent)
 
 	log.Infof("Running compliance checks every %s", checkInterval.String())
+
+	// Send the compliance 'running' metrics periodically
+	ticker := sendRunningMetrics(statsdClient, "compliance")
+	stopper.Add(ticker)
+
 	return nil
 }

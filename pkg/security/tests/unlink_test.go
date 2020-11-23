@@ -39,6 +39,8 @@ func TestUnlink(t *testing.T) {
 	f.Close()
 	defer os.Remove(testFile)
 
+	inode := getInode(t, testFile)
+
 	t.Run("unlink", func(t *testing.T) {
 		if _, _, err := syscall.Syscall(syscall.SYS_UNLINK, uintptr(testFilePtr), 0, 0); err != 0 {
 			t.Fatal(err)
@@ -51,6 +53,12 @@ func TestUnlink(t *testing.T) {
 			if event.GetType() != "unlink" {
 				t.Errorf("expected unlink event, got %s", event.GetType())
 			}
+
+			if inode != event.Unlink.Inode {
+				t.Errorf("expected inode %d, got %d", event.Unlink.Inode, inode)
+			}
+
+			testContainerPath(t, event, "unlink.container_path")
 		}
 	})
 
@@ -66,6 +74,8 @@ func TestUnlink(t *testing.T) {
 	f.Close()
 	defer os.Remove(testatFile)
 
+	inode = getInode(t, testatFile)
+
 	t.Run("unlinkat", func(t *testing.T) {
 		if _, _, err := syscall.Syscall(syscall.SYS_UNLINKAT, 0, uintptr(testatFilePtr), 0); err != 0 {
 			t.Fatal(err)
@@ -78,6 +88,12 @@ func TestUnlink(t *testing.T) {
 			if event.GetType() != "unlink" {
 				t.Errorf("expected unlink event, got %s", event.GetType())
 			}
+
+			if inode != event.Unlink.Inode {
+				t.Errorf("expected inode %d, got %d", event.Unlink.Inode, inode)
+			}
+
+			testContainerPath(t, event, "unlink.container_path")
 		}
 	})
 }

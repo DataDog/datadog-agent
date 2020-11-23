@@ -6,11 +6,35 @@
 package pb
 
 import (
+	"bytes"
 	"errors"
 	"math"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/tinylib/msgp/msgp"
 )
+
+// repairUTF8 ensures all characters in s are UTF-8 by replacing non-UTF-8 characters
+// with the replacement char �
+func repairUTF8(s string) string {
+	in := strings.NewReader(s)
+	var out bytes.Buffer
+	out.Grow(len(s))
+
+	for {
+		r, _, err := in.ReadRune()
+		if err != nil {
+			// note: by contract, if `in` contains non-valid utf-8, no error is returned. Rather the utf-8 replacement
+			// character is returned. Therefore, the only error should usually be io.EOF indicating end of string.
+			// If any other error is returned by chance, we quit as well, outputting whatever part of the string we
+			// had already constructed.
+			return out.String()
+		}
+
+		out.WriteRune(r)
+	}
+}
 
 // parseString reads the next type in the msgpack payload and
 // converts the BinType or the StrType in a valid string.
@@ -26,13 +50,19 @@ func parseString(dc *msgp.Reader) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		return msgp.UnsafeString(i), nil
+		if utf8.Valid(i) {
+			return msgp.UnsafeString(i), nil
+		}
+		return repairUTF8(msgp.UnsafeString(i)), nil
 	case msgp.StrType:
 		i, err := dc.ReadString()
 		if err != nil {
 			return "", err
 		}
-		return i, nil
+		if utf8.ValidString(i) {
+			return i, nil
+		}
+		return repairUTF8(i), nil
 	default:
 		return "", msgp.TypeError{Encoded: t, Method: msgp.StrType}
 	}

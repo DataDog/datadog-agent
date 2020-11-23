@@ -1,42 +1,75 @@
 #!/bin/bash
+set -euo pipefail
 
 printf '=%.0s' {0..79} ; echo
-set -o pipefail
 set -x
 
-cd "$(dirname $0)"
+cd "$(dirname "$0")"
 
-WORKFLOWS=0
 # Wait for any Running workflow
-for workflow in $(./argo list -o name)
-do
-    while ./argo get ${workflow} -o json | jq 'select(.status.phase=="Running")' -re
-    do
-        sleep 10
-    done
-    let WORKFLOWS++
+until [[ -z $(./argo list -l workflows.argoproj.io/phase=Running -o name) ]]; do
+    sleep 10
 done
 
-if [[ "${WORKFLOWS}" == "0" ]]
-then
-    echo "incorrect workflow number: ${WORKFLOWS}"
+if [[ -z $(./argo list -o name) ]]; then
+    echo "No workflow found"
     exit 1
 fi
 
 set +x
-echo "${WORKFLOWS} workflows are not in Running status anymore"
 
-EXIT_CODE=0
-for workflow in $(./argo list -o name)
-do
-    WF=$(./argo get ${workflow} -o json)
-    echo "${WF}" | jq 'select(.metadata.labels["workflows.argoproj.io/phase"]=="Succeeded")' -re || {
-        # Display the workflow because it didn't match the jq select
-        echo "${WF}" | jq .
-        EXIT_CODE=2
-    }
+# `argo get` command outputs some utf-8 characters that are breaking GitLab
+# The below hack can be removed once the following PR is merged and released:
+# https://github.com/argoproj/argo/pull/4449
+function filter_argo_output() {
+    if locale -k LC_CTYPE | grep -qi 'charmap="utf-\+8"'; then
+        cat
+    else
+        oldstate=$(set +o)
+        set +x
+        sed 's/◷/Pending  /g;
+             s/●/Running  /g;
+             s/✔/Succeeded/g;
+             s/○/Skipped  /g;
+             s/✖/Failed   /g;
+             s/⚠/Error    /g;
+             s/ǁ/Suspend  /g;
+             s/·/+/g;
+             s/└/`/g;
+             s/├/|/g;'
+        eval "$oldstate"
+    fi
+}
+
+for workflow in $(./argo list -l workflows.argoproj.io/phase=Succeeded -o name); do
+    ./argo get "$workflow" | filter_argo_output
 done
 
-kubectl get hpa,svc,ep,ds,deploy,job,po --all-namespaces -o wide
+EXIT_CODE=0
+for workflow in $(./argo list -l workflows.argoproj.io/phase=Failed -o name); do
+    ./argo get "$workflow" | filter_argo_output
+    EXIT_CODE=2
+done
+
+# Make the Argo UI available from the user
+/opt/bin/kubectl patch svc -n argo argo-server --type json --patch $'[{"op": "replace", "path": "/spec/type", "value": "NodePort"}]'
+
+# The goal of the following iptables magic is to make the `argo-server` NodePort service available on port 80.
+# We cannot do it with Kube since 80 isn’t in the NodePort service range and yet, 80 is a convenient port for an HTTP UI.
+# It basically copies the iptables rules that are injected by Kuberntes for a NodePort service.
+until [[ -n ${KUBE_SVC:+x} ]]; do
+    sleep 1
+    KUBE_SVC="$(sudo iptables -w -t nat -L KUBE-NODEPORTS -n -v | awk '/argo\/argo-server:web/ && $3 ~ /^KUBE-SVC-/ {print $3}')"
+done
+sudo iptables -w -t nat -N HACK
+sudo iptables -w -t nat -A HACK -m comment --comment 'argo/argo-server:web' -p tcp --dport 80 -j KUBE-MARK-MASQ
+sudo iptables -w -t nat -A HACK -m comment --comment 'argo/argo-server:web' -p tcp --dport 80 -j "${KUBE_SVC}"
+sudo iptables -w -t nat -A PREROUTING -m addrtype --dst-type LOCAL -j HACK
+sudo iptables -w -t nat -A OUTPUT     -m addrtype --dst-type LOCAL -j HACK
+
+TIME_LEFT=$(systemctl status terminate.timer | awk '$1 == "Trigger:" {print gensub(/ *Trigger: (.*)/, "\\1", 1)}')
+LOCAL_IP=$(curl -s http://169.254.169.254/2020-10-27/meta-data/local-ipv4)
+
+echo "The Argo UI will remain available at http://${LOCAL_IP} until ${TIME_LEFT}"
 
 exit ${EXIT_CODE}
