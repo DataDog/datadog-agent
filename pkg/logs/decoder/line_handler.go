@@ -9,6 +9,8 @@ import (
 	"bytes"
 	"regexp"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // truncatedFlag is the flag that is added at the beginning
@@ -244,4 +246,145 @@ func (h *MultiLineHandler) sendBuffer() {
 	if len(content) > 0 || h.linesLen > 0 {
 		h.outputChan <- NewMessage(content, h.status, h.linesLen, h.timestamp)
 	}
+}
+
+// AutoMultilineHandler can switch from single to multiline handler if upon the occurrence
+// of a stable pattern at the begginning of the process
+type AutoMultilineHandler struct {
+	multiLineHandler  *MultiLineHandler
+	singleLineHandler *SingleLineHandler
+	inputChan         chan *Message
+	outputChan        chan *Message
+	flipChan          chan struct{}
+	linesToAssess     int
+	linesTested       int
+	lineLimit         int
+	potentialRegexp   []*regexp.Regexp
+	processsingFunc   func(message *Message)
+}
+
+// NewAutoMultilineHandler returns a new SingleLineHandler.
+func NewAutoMultilineHandler(outputChan chan *Message, lineLimit, linesToAssess int) *AutoMultilineHandler {
+	h := &AutoMultilineHandler{
+		inputChan:       make(chan *Message),
+		outputChan:      outputChan,
+		flipChan:        make(chan struct{}, 1),
+		lineLimit:       lineLimit,
+		potentialRegexp: formatsToTry,
+		linesToAssess:   linesToAssess,
+	}
+
+	h.singleLineHandler = NewSingleLineHandler(outputChan, lineLimit)
+	h.processsingFunc = h.processAndTry
+
+	return h
+}
+
+// Handle puts all new lines into a channel for later processing.
+func (h *AutoMultilineHandler) Handle(input *Message) {
+	h.inputChan <- input
+}
+
+// Stop stops the handler.
+func (h *AutoMultilineHandler) Stop() {
+	close(h.inputChan)
+}
+
+// Start starts the handler.
+func (h *AutoMultilineHandler) Start() {
+	go h.run()
+}
+
+// run consumes new lines and processes them.
+func (h *AutoMultilineHandler) run() {
+	for {
+		select {
+		case <-h.flipChan:
+			return
+		case line, isOpen := <-h.inputChan:
+			if !isOpen {
+				close(h.outputChan)
+				return
+			}
+			h.processsingFunc(line)
+		}
+	}
+}
+
+func (h *AutoMultilineHandler) processAndTry(message *Message) {
+	// Process message before anything else
+	h.singleLineHandler.process(message)
+
+	workingRegexp := []*regexp.Regexp{}
+	for _, r := range h.potentialRegexp {
+		match := r.Match(message.Content)
+		if match {
+			log.Tracef("A regexp matched during multi-line auto sensing: %v", r)
+			workingRegexp = append(workingRegexp, r)
+		}
+	}
+
+	if len(workingRegexp) == 0 {
+		// TODO per regexp matching count, here we exit as soon as a line just don't match any regexp
+		log.Debug("No matching pattern found during multi-line autosensing")
+		// Stay with the single line handler
+		h.processsingFunc = h.singleLineHandler.process
+		return
+	}
+
+	h.potentialRegexp = workingRegexp
+
+	if h.linesTested++; h.linesTested == h.linesToAssess {
+		// TODO: support score / tolerate some matching failure
+		// score := float32(h.linesMatching) / float32(h.linesTested)
+		// if score > threshold ....
+		log.Debug("At least one pattern matched all sampled lines")
+		h.switchToMultilineHandler(workingRegexp[0])
+	} else {
+		h.potentialRegexp = workingRegexp
+	}
+}
+
+func (h *AutoMultilineHandler) switchToMultilineHandler(r *regexp.Regexp) {
+	// Cleanup interim logic
+	h.flipChan <- struct{}{}
+	h.singleLineHandler = nil
+
+	// Build & start a multiline-handler
+	h.multiLineHandler = &MultiLineHandler{
+		inputChan:    h.inputChan,
+		outputChan:   h.outputChan,
+		newContentRe: r,
+		buffer:       bytes.NewBuffer(nil),
+		flushTimeout: defaultFlushTimeout,
+		lineLimit:    h.lineLimit,
+	}
+	h.multiLineHandler.Start()
+}
+
+// Savegely grabbed from https://github.com/egnyte/ax/blob/master/pkg/heuristic/timestamp.go
+// TODO: Update these
+var formatsToTry []*regexp.Regexp = []*regexp.Regexp{
+	// time.RFC3339,
+	regexp.MustCompile(`\d+-\d+-\d+T\d+:\d+:\d+(\.\d+)?(Z\d*:?\d*)?`),
+	// time.ANSIC,
+	regexp.MustCompile(`[A-Za-z_]+ [A-Za-z_]+ +\d+ \d+:\d+:\d+ \d+`),
+	// time.UnixDate,
+	regexp.MustCompile(`[A-Za-z_]+ [A-Za-z_]+ +\d+ \d+:\d+:\d+( [A-Za-z_]+ \d+)?`),
+	// time.RubyDate,
+	regexp.MustCompile(`[A-Za-z_]+ [A-Za-z_]+ \d+ \d+:\d+:\d+ [\-\+]\d+ \d+`),
+	// time.RFC822,
+	regexp.MustCompile(`\d+ [A-Za-z_]+ \d+ \d+:\d+ [A-Za-z_]+`),
+	// time.RFC822Z,
+	regexp.MustCompile(`\d+ [A-Za-z_]+ \d+ \d+:\d+ -\d+`),
+	// time.RFC850,
+	regexp.MustCompile(`[A-Za-z_]+, \d+-[A-Za-z_]+-\d+ \d+:\d+:\d+ [A-Za-z_]+`),
+	// time.RFC1123,
+	regexp.MustCompile(`[A-Za-z_]+, \d+ [A-Za-z_]+ \d+ \d+:\d+:\d+ [A-Za-z_]+`),
+	// time.RFC1123Z,
+	regexp.MustCompile(`[A-Za-z_]+, \d+ [A-Za-z_]+ \d+ \d+:\d+:\d+ -\d+`),
+	// time.RFC3339Nano,
+	regexp.MustCompile(`\d+-\d+-\d+[A-Za-z_]+\d+:\d+:\d+\.\d+[A-Za-z_]+\d+:\d+`),
+	// "2006-01-02 15:04:05",
+	regexp.MustCompile(`\d+-\d+-\d+ \d+:\d+:\d+(,\d+)?`),
 }

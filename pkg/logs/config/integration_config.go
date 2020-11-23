@@ -57,6 +57,9 @@ type LogsConfig struct {
 	SourceCategory  string
 	Tags            []string
 	ProcessingRules []*ProcessingRule `mapstructure:"log_processing_rules" json:"log_processing_rules"`
+
+	AutoMultiLineOff        bool `mapstructure:"disable_auto_multi_line" json:"disable_auto_multi_line"`
+	AutoMultiLineSampleSize int  `mapstructure:"auto_multi_line_sample_size" json:"auto_multi_line_sample_size"`
 }
 
 // TailingMode type

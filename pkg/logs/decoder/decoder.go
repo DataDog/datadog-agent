@@ -8,8 +8,10 @@ package decoder
 import (
 	"bytes"
 
+	dd_conf "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/parser"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // defaultContentLenLimit represents the max size for a line,
@@ -92,7 +94,16 @@ func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parser.Parser
 		}
 	}
 	if lineHandler == nil {
-		lineHandler = NewSingleLineHandler(outputChan, lineLimit)
+		if !(dd_conf.Datadog.GetBool("logs_config.disable_auto_multi_line") || source.Config.AutoMultiLineOff) {
+			log.Infof("!!! Enabling auto multiline !!!")
+			n := source.Config.AutoMultiLineSampleSize
+			if n == 0 {
+				n = dd_conf.Datadog.GetInt("logs_config.auto_multi_line_default_sample_size")
+			}
+			lineHandler = NewAutoMultilineHandler(outputChan, lineLimit, n)
+		} else {
+			lineHandler = NewSingleLineHandler(outputChan, lineLimit)
+		}
 	}
 
 	if parser.SupportsPartialLine() {
@@ -101,6 +112,8 @@ func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parser.Parser
 		lineParser = NewSingleLineParser(parser, lineHandler)
 	}
 
+	log.Infof("disable_auto_multi_line=%v", source.Config.AutoMultiLineOff)
+	log.Infof("auto_multi_line_sample_size=%v", source.Config.AutoMultiLineSampleSize)
 	return New(inputChan, outputChan, lineParser, lineLimit, matcher)
 }
 
