@@ -143,7 +143,7 @@ func (k *kubernetesEventMapper) externalIdentifierForInvolvedObject(event *v1.Ev
 func kubernetesFlavour(ac *apiserver.APIClient) urn.ClusterType {
 	switch openshiftPresence := ac.DetectOpenShiftAPILevel(); openshiftPresence {
 	case apiserver.OpenShiftAPIGroup, apiserver.OpenShiftOAPI:
-		return urn.Openshift
+		return urn.OpenShift
 	default:
 		return urn.Kubernetes
 	}

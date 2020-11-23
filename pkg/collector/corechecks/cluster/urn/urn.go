@@ -11,7 +11,7 @@ const (
 	// Kubernetes is a Generic K8s cluster
 	Kubernetes ClusterType = "kubernetes"
 	// OpenShift is a RH OpenShift K8s cluster
-	Openshift ClusterType = "openshift"
+	OpenShift ClusterType = "openshift"
 )
 
 // Builder builds StackState compatible URNs for Kubernetes components
@@ -185,8 +185,8 @@ func (b *urnBuilder) BuildEndpointExternalID(endpointID string) string {
 
 // ClusterTypeFromString converts a string representation of the ClusterType to the specific ClusterType
 func ClusterTypeFromString(s string) ClusterType {
-	if s == string(Openshift) {
-		return Openshift
+	if s == string(OpenShift) {
+		return OpenShift
 	}
 
 	return Kubernetes
