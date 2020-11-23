@@ -289,6 +289,10 @@ func TestParseStatusTestFS(t *testing.T) {
 }
 
 func TestParseStatusLocalFS(t *testing.T) {
+	// this test is flaky as the underlying procfs could change during
+	// the comparison of procutil and gopsutil,
+	// but we could use it to test locally
+	t.Skip("flaky test in CI")
 	testParseStatus(t)
 }
 
