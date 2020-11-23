@@ -26,7 +26,14 @@ type jmxState struct {
 }
 
 var state jmxState = jmxState{
-	configs:     cache.NewBasicCache(),
+	configs: cache.NewBasicCacheWithEqualityFunc(func(a, b interface{}) bool {
+		cfgA, okA := a.(integration.Config)
+		cfgB, okB := b.(integration.Config)
+		if !(okA && okB) {
+			return false
+		}
+		return cfgA.Equal(&cfgB)
+	}),
 	runnerError: make(chan struct{}),
 	runner:      &runner{},
 	lock:        &sync.Mutex{},

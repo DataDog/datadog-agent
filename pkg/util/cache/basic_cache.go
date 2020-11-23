@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"reflect"
 	"sync"
 	"time"
 )
@@ -10,12 +11,22 @@ type BasicCache struct {
 	m        sync.RWMutex
 	cache    map[string]interface{}
 	modified int64
+	eqFunc   func(interface{}, interface{}) bool
 }
 
 // NewBasicCache Creates new BasicCache
 func NewBasicCache() *BasicCache {
 	return &BasicCache{
-		cache: make(map[string]interface{}),
+		cache:  make(map[string]interface{}),
+		eqFunc: func(a, b interface{}) bool { return reflect.DeepEqual(a, b) },
+	}
+}
+
+// NewBasicCacheWithEqualityFunc Creates new BasicCache with custom equality function
+func NewBasicCacheWithEqualityFunc(f func(interface{}, interface{}) bool) *BasicCache {
+	return &BasicCache{
+		cache:  make(map[string]interface{}),
+		eqFunc: f,
 	}
 }
 
@@ -27,7 +38,7 @@ func (b *BasicCache) Add(k string, v interface{}) bool {
 	defer b.m.Unlock()
 
 	current, found := b.cache[k]
-	if !found || current != v {
+	if !found || !b.eqFunc(current, v) {
 		b.cache[k] = v
 		b.modified = time.Now().Unix()
 		return true

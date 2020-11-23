@@ -11,6 +11,7 @@ func TestBasicCache(t *testing.T) {
 		"a": 1,
 		"b": "dos",
 		"c": struct{}{},
+		"d": []string{"42", "platypus"},
 	}
 
 	c := NewBasicCache()
@@ -37,7 +38,41 @@ func TestBasicCache(t *testing.T) {
 		assert.Equal(t, m[k], v)
 	}
 
+	added = c.Add("d", []string{"56", "wombat"})
+	assert.True(t, added) // Update there
+
 	for k := range m {
+		c.Remove(k)
+	}
+	assert.Equal(t, 0, c.Size())
+}
+
+func TestBasicCacheWithCustomEqFunc(t *testing.T) {
+	data := map[string]interface{}{
+		"1": 1,
+		"2": "2",
+		"3": struct{}{},
+		"4": "four",
+	}
+
+	c := NewBasicCacheWithEqualityFunc(func(a, b interface{}) bool { return true })
+	for k, v := range data {
+		added := c.Add(k, v)
+		assert.True(t, added)
+	}
+
+	assert.Equal(t, len(data), c.Size())
+	m := c.GetModified()
+
+	for k, v := range data {
+		added := c.Add(k, "koala")
+		assert.False(t, added)              // Already there and equal given the custom equalitfy func
+		assert.Equal(t, m, c.GetModified()) // Thus the cache should not have been updated
+		val, _ := c.Get(k)
+		assert.Equal(t, v, val)
+	}
+
+	for k := range data {
 		c.Remove(k)
 	}
 	assert.Equal(t, 0, c.Size())
