@@ -104,11 +104,11 @@ func GetFilledProcess(p *process.Process) *process.FilledProcess {
 	}
 
 	return &process.FilledProcess{
-		Pid:     p.Pid,
-		Ppid:    ppid,
-		CreateTime:  createTime,
-		Name:        name,
-		Uids:        uids,
-		Gids:        gids,
+		Pid:        p.Pid,
+		Ppid:       ppid,
+		CreateTime: createTime,
+		Name:       name,
+		Uids:       uids,
+		Gids:       gids,
 	}
 }

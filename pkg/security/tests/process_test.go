@@ -209,8 +209,6 @@ func TestProcessLineage(t *testing.T) {
 		Expression: fmt.Sprintf(`exec.filename == "%s"`, executable),
 	}
 
-	pid := os.Getpid()
-
 	test, err := newTestProbe(nil, []*rules.RuleDefinition{rule}, testOpts{enableFilters: true})
 	if err != nil {
 		t.Fatal(err)
@@ -223,29 +221,12 @@ func TestProcessLineage(t *testing.T) {
 	}
 
 	t.Run("fork", func(t *testing.T) {
-		// we might get multiple forks from other processes in the system
-		timeout := time.After(3 * time.Second)
-
-	ForkLoop:
-		for {
-			select {
-			case <-timeout:
-				t.Error("timeout")
-				break ForkLoop
-			default:
-				event, err := test.GetEvent(3*time.Second, "fork")
-				if err != nil {
-					t.Error(err)
-					break ForkLoop
-				} else {
-					// we're looking for a fork from the test binary
-					if ppid, _ := event.GetFieldValue("process.ppid"); ppid == pid {
-						if err := testProcessLineageFork(t, event); err != nil {
-							t.Error(err)
-						}
-						break ForkLoop
-					}
-				}
+		event, err := test.GetEvent(3*time.Second, "fork")
+		if err != nil {
+			t.Error(err)
+		} else {
+			if err := testProcessLineageFork(t, event); err != nil {
+				t.Error(err)
 			}
 		}
 	})
@@ -268,17 +249,14 @@ func TestProcessLineage(t *testing.T) {
 					t.Error(err)
 					break ExecLoop
 				} else {
-					// we're looking for a fork from the test binary
-					if ppid, _ := event.GetFieldValue("process.ppid"); ppid == pid {
-						// look for the new process
-						if filename, _ := event.GetFieldValue("exec.filename"); filename.(string) == executable {
-							if err := testProcessLineageExec(t, event); err != nil {
-								t.Error(err)
-							} else {
-								executablePid = event.Process.Pid
-							}
-							break ExecLoop
+					// look for the new process
+					if filename, _ := event.GetFieldValue("exec.filename"); filename.(string) == executable {
+						if err := testProcessLineageExec(t, event); err != nil {
+							t.Error(err)
+						} else {
+							executablePid = event.Process.Pid
 						}
+						break ExecLoop
 					}
 				}
 			}
@@ -286,28 +264,14 @@ func TestProcessLineage(t *testing.T) {
 	})
 
 	t.Run("exit", func(t *testing.T) {
-		// we might get multiple forks from other processes on the system
-		timeout := time.After(3 * time.Second)
-
-	ExitLoop:
-		for {
-			select {
-			case <-timeout:
-				t.Error("timeout")
-				break ExitLoop
-			default:
-				event, err := test.GetEvent(3*time.Second, "exit")
-				if err != nil {
+		event, err := test.GetEvent(3*time.Second, "exit")
+		if err != nil {
+			t.Error(err)
+		} else {
+			// we're looking for the exit of /usr/bin/touch
+			if pid, _ := event.GetFieldValue("process.pid"); pid == int(executablePid) {
+				if err := testProcessLineageExit(t, event, executable, test); err != nil {
 					t.Error(err)
-					break ExitLoop
-				} else {
-					// we're looking for the exit of /usr/bin/touch
-					if pid, _ := event.GetFieldValue("process.pid"); pid == int(executablePid) {
-						if err := testProcessLineageExit(t, event, executable, test); err != nil {
-							t.Error(err)
-						}
-						break ExitLoop
-					}
 				}
 			}
 		}
@@ -360,16 +324,9 @@ func testProcessLineageFork(t *testing.T, event *probe.Event) error {
 				return errors.Errorf("expected container ID %s, got %s", parentEntry.ID, newEntry.ID)
 			}
 
-			// check that the new entry is in the list of the children of its parent
-			var found bool
-			for _, child := range parentEntry.Children {
-				if child == newEntry {
-					found = true
-				}
-			}
-			if !found {
-				return errors.Errorf("the child entry was expected to have the following container ID %s, got %s", parentEntry.ID, newEntry.ID)
-			}
+			// We can't check that the new entry is in the list of the children of its parent because the exit event
+			// has probably already been processed (thus the parent list of children has already been updated and the
+			// child entry deleted).
 		}
 
 		testContainerPath(t, event, "process.container_path")

@@ -313,8 +313,8 @@ func (p *ProcessResolver) resolveWithKernelMaps(pid uint32) *ProcessCacheEntry {
 		return nil
 	}
 
-	entry.UID = ebpf.ByteOrder.Uint32(data[read:read+4])
-	entry.GID = ebpf.ByteOrder.Uint32(data[read+4:read+8])
+	entry.UID = ebpf.ByteOrder.Uint32(data[read : read+4])
+	entry.GID = ebpf.ByteOrder.Uint32(data[read+4 : read+8])
 	entry.Pid = pid
 	entry.Tid = pid
 

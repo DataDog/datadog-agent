@@ -22,10 +22,10 @@ func TestMkdirJSON(t *testing.T) {
 	}
 	e := NewEvent(&Resolvers{TimeResolver: tr})
 	e.Process = ProcessContext{
-		Pid:     123,
-		Tid:     456,
-		UID:     8,
-		GID:     9,
+		Pid: 123,
+		Tid: 456,
+		UID: 8,
+		GID: 9,
 	}
 	e.Mkdir = MkdirEvent{
 		FileEvent: FileEvent{

@@ -383,9 +383,6 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 	}
 	offset += read
 
-	// resolve event context
-	event.ResolveProcessCacheEntry()
-
 	switch eventType {
 	case FileOpenEventType:
 		if _, err := event.Open.UnmarshalBinary(data[offset:]); err != nil {
@@ -477,6 +474,9 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 		log.Errorf("unsupported event type %d on perf map %s", eventType, perfMap.Name)
 		return
 	}
+
+	// resolve event context
+	event.ResolveProcessCacheEntry()
 
 	log.Tracef("Dispatching event %+v\n", event)
 

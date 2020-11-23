@@ -808,8 +808,8 @@ type ExecEvent struct {
 	PPid          uint32    `field:"ppid" handler:"ResolvePPID,int"`
 
 	// The following fields should only be used here for evaluation
-	UID uint32 `field:"uid" handler:"ResolveUID,int"`
-	GID uint32 `field:"uid" handler:"ResolveGID,int"`
+	UID   uint32 `field:"uid" handler:"ResolveUID,int"`
+	GID   uint32 `field:"uid" handler:"ResolveGID,int"`
 	User  string `field:"user" handler:"ResolveUser,string"`
 	Group string `field:"group" handler:"ResolveGroup,string"`
 }
@@ -826,7 +826,7 @@ func (e *ExecEvent) UnmarshalBinary(data []byte, resolvers *Resolvers) (int, err
 		return read, err
 	}
 
-	e.ExecTimestamp = resolvers.TimeResolver.ResolveMonotonicTimestamp(ebpf.ByteOrder.Uint64(data[read:read+8]))
+	e.ExecTimestamp = resolvers.TimeResolver.ResolveMonotonicTimestamp(ebpf.ByteOrder.Uint64(data[read : read+8]))
 	read += 8
 
 	var ttyRaw [64]byte
@@ -840,10 +840,10 @@ func (e *ExecEvent) UnmarshalBinary(data []byte, resolvers *Resolvers) (int, err
 	read += 16
 
 	// Unmarshal pid_cache_t
-	e.Cookie = ebpf.ByteOrder.Uint32(data[read:read+4])
-	e.PPid = ebpf.ByteOrder.Uint32(data[read+4:read+8])
-	e.ForkTimestamp = resolvers.TimeResolver.ResolveMonotonicTimestamp(ebpf.ByteOrder.Uint64(data[read+8:read+16]))
-	e.ExitTimestamp = resolvers.TimeResolver.ResolveMonotonicTimestamp(ebpf.ByteOrder.Uint64(data[read+16:read+24]))
+	e.Cookie = ebpf.ByteOrder.Uint32(data[read : read+4])
+	e.PPid = ebpf.ByteOrder.Uint32(data[read+4 : read+8])
+	e.ForkTimestamp = resolvers.TimeResolver.ResolveMonotonicTimestamp(ebpf.ByteOrder.Uint64(data[read+8 : read+16]))
+	e.ExitTimestamp = resolvers.TimeResolver.ResolveMonotonicTimestamp(ebpf.ByteOrder.Uint64(data[read+16 : read+24]))
 
 	// resolve FileEvent now so that the dentry cache is up to date
 	e.FileEvent.ResolveInodeWithResolvers(resolvers)
@@ -852,7 +852,7 @@ func (e *ExecEvent) UnmarshalBinary(data []byte, resolvers *Resolvers) (int, err
 	// ignore uid / gid, it has already been parsed in Event.Process
 	// add 8 to the total
 
-	return read+32, nil
+	return read + 32, nil
 }
 
 // UnmarshalEvent unmarshal an ExecEvent
