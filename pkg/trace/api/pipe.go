@@ -13,8 +13,9 @@ import (
 	"github.com/Microsoft/go-winio"
 )
 
-func listenPipe(path string, bufferSize int) (net.Listener, error) {
+func listenPipe(path string, secdec string, bufferSize int) (net.Listener, error) {
 	return winio.ListenPipe(path, &winio.PipeConfig{
-		InputBufferSize: int32(bufferSize),
+		SecurityDescriptor: secdec,
+		InputBufferSize:    int32(bufferSize),
 	})
 }

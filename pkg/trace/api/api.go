@@ -141,7 +141,8 @@ func (r *HTTPReceiver) Start() {
 	if path := mainconfig.Datadog.GetString("apm_config.windows_pipe_name"); path != "" {
 		pipepath := `\\.\pipe\` + path
 		bufferSize := mainconfig.Datadog.GetInt("apm_config.windows_pipe_buffer_size")
-		ln, err := listenPipe(pipepath, bufferSize)
+		secdec := mainconfig.Datadog.GetString("apm_config.windows_pipe_security_descriptor")
+		ln, err := listenPipe(pipepath, secdec, bufferSize)
 		if err != nil {
 			killProcess("Error creating %q named pipe: %v", pipepath, err)
 		}
@@ -150,7 +151,7 @@ func (r *HTTPReceiver) Start() {
 			r.server.Serve(ln)
 			ln.Close()
 		}()
-		log.Infof("Listening for traces on Windowes pipe %s", pipepath)
+		log.Infof("Listening for traces on Windowes pipe %q. Security descriptor is %q", pipepath, secdec)
 	}
 
 	go r.RateLimiter.Run()

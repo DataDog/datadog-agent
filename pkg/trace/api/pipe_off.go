@@ -12,6 +12,6 @@ import (
 	"net"
 )
 
-func listenPipe(path string, bufferSize int) (net.Listener, error) {
+func listenPipe(_, _ string, _ int) (net.Listener, error) {
 	return nil, errors.New("Windows named pipes are only supported on Windows operating systems")
 }
