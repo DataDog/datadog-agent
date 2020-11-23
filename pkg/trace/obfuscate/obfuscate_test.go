@@ -88,6 +88,28 @@ func TestCompactWhitespaces(t *testing.T) {
 	}
 }
 
+func TestObfuscateStatsGroup(t *testing.T) {
+	statsGroup := func(typ, resource string) *pb.ClientGroupedStats {
+		return &pb.ClientGroupedStats{
+			Type:     typ,
+			Resource: resource,
+		}
+	}
+	o := NewObfuscator(nil)
+	for _, tt := range []struct {
+		in  *pb.ClientGroupedStats // input stats
+		out string                 // output obfuscated resource
+	}{
+		{statsGroup("sql", "SELECT 1 FROM db"), "SELECT ? FROM db"},
+		{statsGroup("sql", "SELECT 1\nFROM Blogs AS [b\nORDER BY [b]"), nonParsableResource},
+		{statsGroup("redis", "ADD 1, 2"), "ADD"},
+		{statsGroup("other", "ADD 1, 2"), "ADD 1, 2"},
+	} {
+		o.ObfuscateStatsGroup(tt.in)
+		assert.Equal(t, tt.in.Resource, tt.out)
+	}
+}
+
 // TestObfuscateDefaults ensures that running the obfuscator with no config continues to obfuscate/quantize
 // SQL queries and Redis commands in span resources.
 func TestObfuscateDefaults(t *testing.T) {

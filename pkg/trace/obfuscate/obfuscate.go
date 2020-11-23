@@ -97,6 +97,7 @@ func (o *Obfuscator) ObfuscateStatsGroup(b *pb.ClientGroupedStats) {
 		oq, err := o.ObfuscateSQLString(b.Resource)
 		if err != nil {
 			log.Errorf("Error obfuscating stats group resource %q: %v", b.Resource, err)
+			b.Resource = nonParsableResource
 		} else {
 			b.Resource = oq.Query
 		}
