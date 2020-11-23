@@ -79,6 +79,11 @@ type Probe struct {
 	mountEvent         *Event
 }
 
+// GetResolvers returns the resolvers of Probe
+func (p *Probe) GetResolvers() *Resolvers {
+	return p.resolvers
+}
+
 // Map returns a map by its name
 func (p *Probe) Map(name string) (*lib.Map, error) {
 	if p.manager == nil {
@@ -466,15 +471,8 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 
 		// update the process resolver cache
 		event.updateProcessCachePointer(p.resolvers.ProcessResolver.AddEntry(event.Process.Pid, event.processCacheEntry))
-
-		// do not dispatch fork event
-		if eventType == ForkEventType {
-			return
-		}
 	case ExitEventType:
-		p.resolvers.ProcessResolver.DeleteEntry(event.Process.Pid, event.ResolveEventTimestamp())
-		// no need to dispatch
-		return
+		defer p.resolvers.ProcessResolver.DeleteEntry(event.Process.Pid, event.ResolveEventTimestamp())
 	default:
 		log.Errorf("unsupported event type %d on perf map %s", eventType, perfMap.Name)
 		return

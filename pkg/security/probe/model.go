@@ -1428,7 +1428,7 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 				field:      "file",
 				marshalFnc: e.RemoveXAttr.marshalJSON,
 			})
-	case ExecEventType:
+	case ExecEventType, ForkEventType, ExitEventType:
 		entries = append(entries,
 			eventMarshaler{
 				field:      "process",

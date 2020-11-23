@@ -61,7 +61,7 @@ func checkPolicies(cmd *cobra.Command, args []string) error {
 		EnableDiscarders:    true,
 	}
 
-	probe, err := sprobe.NewProbe(cfg)
+	probe, err := sprobe.NewProbe(cfg, nil)
 	if err != nil {
 		return err
 	}
