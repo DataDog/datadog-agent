@@ -444,10 +444,19 @@ func printMetrics(agg *aggregator.BufferedAggregator) {
 		if formatTable {
 			headers, data := series.MarshalStrings()
 
+			// plain table with no borders
 			table := tablewriter.NewWriter(os.Stdout)
 			table.SetHeader(headers)
-			table.SetBorders(tablewriter.Border{Left: true, Top: false, Right: true, Bottom: false})
-			table.SetCenterSeparator("|")
+			table.SetAutoWrapText(false)
+			table.SetAutoFormatHeaders(true)
+			table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+			table.SetAlignment(tablewriter.ALIGN_LEFT)
+			table.SetCenterSeparator("")
+			table.SetColumnSeparator("")
+			table.SetRowSeparator("")
+			table.SetHeaderLine(false)
+			table.SetBorder(false)
+			table.SetTablePadding("\t")
 
 			table.AppendBulk(data)
 			table.Render()

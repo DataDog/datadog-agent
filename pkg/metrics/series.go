@@ -11,6 +11,7 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"sort"
 	"strings"
 
 	agentpayload "github.com/DataDog/agent-payload/gogen"
@@ -93,7 +94,7 @@ func (series Series) Marshal() ([]byte, error) {
 	return proto.Marshal(payload)
 }
 
-// MarshalStrings converts the timeseries to array of strings
+// MarshalStrings converts the timeseries to a sorted array of strings
 func (series Series) MarshalStrings() ([]string, [][]string) {
 	var headers = []string{"Metric", "Type", "Timestamp", "Value", "Tags"}
 	var payload = make([][]string, len(series))
@@ -107,6 +108,19 @@ func (series Series) MarshalStrings() ([]string, [][]string) {
 			fmt.Sprint(serie.Tags),
 		})
 	}
+
+	sort.Slice(payload, func(i, j int) bool {
+		// edge cases
+		if len(payload[i]) == 0 && len(payload[j]) == 0 {
+			return false
+		}
+		if len(payload[i]) == 0 || len(payload[j]) == 0 {
+			return len(payload[i]) == 0
+		}
+		// sort my metric name
+		return payload[i][0] < payload[j][0]
+	})
+
 	return headers, payload
 }
 
