@@ -112,7 +112,7 @@ func (s *sum32a) Write(data []byte) {
 	*s = hash
 }
 
-func (s *sum32a) WriteChar(c byte) {
+func (s *sum32a) WriteByte(c byte) {
 	hash := *s
 	hash ^= sum32a(c)
 	hash *= prime32
