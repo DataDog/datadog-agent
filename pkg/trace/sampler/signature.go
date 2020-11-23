@@ -90,7 +90,7 @@ func computeSpanHash(span *pb.Span, env string, withResource bool) spanHash {
 	return spanHash(h.Sum32())
 }
 
-// sum32a is lifted from golang fnv package but simplified
+// sum32a is an adaptation of https://golang.org/pkg/hash/fnv/#New32a, but simplified
 // for our use case to remove interfaces which caused unnecessary allocations.
 type sum32a uint32
 
