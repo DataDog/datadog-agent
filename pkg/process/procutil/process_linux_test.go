@@ -206,29 +206,43 @@ func TestProcfsChange(t *testing.T) {
 	assert.Contains(t, procByPID, int32(29613))
 }
 
-func BenchmarkTestFSGetCmdGopsutil(b *testing.B) {
-	hostProc := "resources/test_procfs/proc"
-	os.Setenv("HOST_PROC", hostProc)
+func BenchmarkGetCmdGopsutilTestFS(b *testing.B) {
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc")
 	defer os.Unsetenv("HOST_PROC")
 
+	benchmarkGetCmdGopsutil(b)
+}
+
+func BenchmarkGetCmdProcutilTestFS(b *testing.B) {
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc")
+	defer os.Unsetenv("HOST_PROC")
+
+	benchmarkGetCmdProcutil(b)
+}
+
+func BenchmarkGetCmdGopsutilLocalFS(b *testing.B) {
+	benchmarkGetCmdGopsutil(b)
+}
+
+func BenchmarkGetCmdProcutilLocalFS(b *testing.B) {
+	benchmarkGetCmdProcutil(b)
+}
+
+func benchmarkGetCmdGopsutil(b *testing.B) {
 	pids, err := process.Pids()
 	require.NoError(b, err)
 
 	for i := 0; i < b.N; i++ {
 		for _, pid := range pids {
-			expProc, err := process.NewProcess(pid)
+			proc, err := process.NewProcess(pid)
 			require.NoError(b, err)
-			_, err = expProc.Cmdline()
+			_, err = proc.Cmdline()
 			require.NoError(b, err)
 		}
 	}
 }
 
-func BenchmarkTestFSGetCmdProcutil(b *testing.B) {
-	hostProc := "resources/test_procfs/proc"
-	os.Setenv("HOST_PROC", hostProc)
-	defer os.Unsetenv("HOST_PROC")
-
+func benchmarkGetCmdProcutil(b *testing.B) {
 	probe := NewProcessProbe()
 	defer probe.Close()
 
@@ -237,36 +251,7 @@ func BenchmarkTestFSGetCmdProcutil(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		for _, pid := range pids {
-			probe.getCmdline(filepath.Join(hostProc, strconv.Itoa(int(pid))))
-		}
-	}
-}
-
-func BenchmarkLocalFSGetCmdGopsutil(b *testing.B) {
-	pids, err := process.Pids()
-	require.NoError(b, err)
-
-	for i := 0; i < b.N; i++ {
-		for _, pid := range pids {
-			expProc, err := process.NewProcess(pid)
-			require.NoError(b, err)
-			_, err = expProc.Cmdline()
-			require.NoError(b, err)
-		}
-	}
-}
-
-func BenchmarkLocalFSGetCmdProcutil(b *testing.B) {
-	probe := NewProcessProbe()
-	defer probe.Close()
-
-	pids, err := probe.getActivePIDs()
-	require.NoError(b, err)
-
-	for i := 0; i < b.N; i++ {
-		for _, pid := range pids {
-			pathForPID := filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid)))
-			probe.getCmdline(filepath.Join(pathForPID, strconv.Itoa(int(pid))))
+			probe.getCmdline(filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid))))
 		}
 	}
 }
