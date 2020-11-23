@@ -6,9 +6,10 @@
 package sampler
 
 import (
+	"sort"
+
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
-	"sort"
 )
 
 // Signature is a hash representation of trace or a service, used to identify
@@ -61,7 +62,7 @@ type ServiceSignature struct{ Name, Env string }
 func (s ServiceSignature) Hash() Signature {
 	h := new32a()
 	h.Write([]byte(s.Name))
-	h.WriteChar(',')
+	h.WriteByte(',')
 	h.Write([]byte(s.Env))
 	return Signature(h.Sum32())
 }
@@ -75,7 +76,7 @@ func computeSpanHash(span *pb.Span, env string, withResource bool) spanHash {
 	h.Write([]byte(env))
 	h.Write([]byte(span.Service))
 	h.Write([]byte(span.Name))
-	h.WriteChar(byte(span.Error))
+	h.WriteByte(byte(span.Error))
 	if withResource {
 		h.Write([]byte(span.Resource))
 	}
