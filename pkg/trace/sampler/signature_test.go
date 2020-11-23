@@ -158,7 +158,7 @@ func TestServiceSignatureDifferentEnv(t *testing.T) {
 	assert.NotEqual(testComputeServiceSignature(t1), testComputeServiceSignature(t2))
 }
 
-func TestFnvImplem(t *testing.T) {
+func TestSum32a(t *testing.T) {
 	assert := assert.New(t)
 	testList := []string{"this", "is", "just", "a", "sanity", "check", "Съешь же ещё этих мягких французских булок да выпей чаю"}
 	for _, s := range testList {
