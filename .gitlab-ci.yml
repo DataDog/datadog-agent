@@ -2661,7 +2661,7 @@ send_pkg_size-a7:
     - aws s3 sync --only-show-errors $S3_ARTIFACTS_URI $BUILD_CONTEXT
     - TAG_SUFFIX=${TAG_SUFFIX:-}
     - BUILD_ARG=${BUILD_ARG:-}
-    - TARGET_TAG=$IMAGE:v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}$TAG_SUFFIX-$ARCH
+    - TARGET_TAG=$IMAGE:v$CI_PIPELINE_ID-${CI_COMMIT_SHORT_SHA}$TAG_SUFFIX-$ARCH
     # Pull base image(s) with content trust enabled
     - python3 -m pip install -r requirements.txt
     # DockerHub login for build to limit rate limit when pulling base images
@@ -2840,7 +2840,6 @@ docker_build_agent7_jmx_arm64:
     BUILD_ARG: --target release --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_arm64.deb
     TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_arm64.deb
 
-
 .docker_hub_variables: &docker_hub_variables
   DOCKER_REGISTRY_LOGIN_SSM_KEY: docker_hub_login
   DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd
@@ -2883,8 +2882,7 @@ docker_build_agent7_jmx_arm64:
     <<: *docker_hub_variables
   before_script:
     - $ErrorActionPreference = "Stop"
-    - $SHORT_CI_COMMIT_SHA = ${CI_COMMIT_SHA}.Substring(0,7)
-    - $SRC_TAG = "v${CI_PIPELINE_ID}-${SHORT_CI_COMMIT_SHA}"
+    - $SRC_TAG = "v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
     - mkdir ci-scripts
     - |
       @"
@@ -2936,8 +2934,7 @@ docker_build_agent7_windows1809:
     VARIANT: 1809
   script:
     - $ErrorActionPreference = "Stop"
-    - $SHORT_CI_COMMIT_SHA = ${CI_COMMIT_SHA}.Substring(0,7)
-    - $TARGET_TAG = "${IMAGE}:v${CI_PIPELINE_ID}-${SHORT_CI_COMMIT_SHA}${TAG_SUFFIX}-win1809-amd64"
+    - $TARGET_TAG = "${IMAGE}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}${TAG_SUFFIX}-win1809-amd64"
     - cp ${OMNIBUS_PACKAGE_DIR}/datadog-agent-7*-x86_64.zip ${BUILD_CONTEXT}/datadog-agent-7-latest.amd64.zip
     - cp entrypoint.exe ${BUILD_CONTEXT}/entrypoint.exe
     - get-childitem ${BUILD_CONTEXT}
@@ -2970,8 +2967,7 @@ docker_build_agent7_windows1809_jmx:
     VARIANT: 1809
   script:
     - $ErrorActionPreference = "Stop"
-    - $SHORT_CI_COMMIT_SHA = ${CI_COMMIT_SHA}.Substring(0,7)
-    - $TARGET_TAG = "${IMAGE}:v${CI_PIPELINE_ID}-${SHORT_CI_COMMIT_SHA}${TAG_SUFFIX}-win1809-amd64"
+    - $TARGET_TAG = "${IMAGE}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}${TAG_SUFFIX}-win1809-amd64"
     - cp ${OMNIBUS_PACKAGE_DIR}/datadog-agent-7*-x86_64.zip ${BUILD_CONTEXT}/datadog-agent-7-latest.amd64.zip
     - cp entrypoint.exe ${BUILD_CONTEXT}/entrypoint.exe
     - get-childitem ${BUILD_CONTEXT}
@@ -3005,8 +3001,7 @@ docker_build_agent7_windows1909:
     VARIANT: 1909
   script:
     - $ErrorActionPreference = "Stop"
-    - $SHORT_CI_COMMIT_SHA = ${CI_COMMIT_SHA}.Substring(0,7)
-    - $TARGET_TAG = "${IMAGE}:v${CI_PIPELINE_ID}-${SHORT_CI_COMMIT_SHA}${TAG_SUFFIX}-win1909-amd64"
+    - $TARGET_TAG = "${IMAGE}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}${TAG_SUFFIX}-win1909-amd64"
     - cp ${OMNIBUS_PACKAGE_DIR}/datadog-agent-7*-x86_64.zip ${BUILD_CONTEXT}/datadog-agent-7-latest.amd64.zip
     - cp entrypoint.exe ${BUILD_CONTEXT}/entrypoint.exe
     - get-childitem ${BUILD_CONTEXT}
@@ -3039,8 +3034,7 @@ docker_build_agent7_windows1909_jmx:
     VARIANT: 1909
   script:
     - $ErrorActionPreference = "Stop"
-    - $SHORT_CI_COMMIT_SHA = ${CI_COMMIT_SHA}.Substring(0,7)
-    - $TARGET_TAG = "${IMAGE}:v${CI_PIPELINE_ID}-${SHORT_CI_COMMIT_SHA}${TAG_SUFFIX}-win1909-amd64"
+    - $TARGET_TAG = "${IMAGE}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}${TAG_SUFFIX}-win1909-amd64"
     - cp ${OMNIBUS_PACKAGE_DIR}/datadog-agent-7*-x86_64.zip ${BUILD_CONTEXT}/datadog-agent-7-latest.amd64.zip
     - cp entrypoint.exe ${BUILD_CONTEXT}/entrypoint.exe
     - get-childitem ${BUILD_CONTEXT}
@@ -3088,6 +3082,32 @@ docker_build_dogstatsd_amd64:
     BUILD_CONTEXT: Dockerfiles/dogstatsd/alpine
 
 #
+# Internal image deployment
+#
+docker_trigger_internal_amd64:
+  stage: image_deploy
+  rules:
+    - <<: *if_version_7
+      when: on_success
+    - <<: *if_deploy_7
+      when: on_success
+  needs:
+    - job: docker_build_agent7_jmx
+      artifacts: false
+  trigger:
+    project: DataDog/images
+    branch: master
+    strategy: depend
+  variables:
+    IMAGE_VERSION: tmpl-v1
+    IMAGE_NAME: datadog-agent
+    RELEASE_TAG: $CI_COMMIT_REF_SLUG
+    BUILD_TAG: $CI_COMMIT_REF_SLUG
+    TMPL_AGENT_SRC_IMAGE: v$CI_PIPELINE_ID-${CI_COMMIT_SHORT_SHA}-7-jmx-amd64
+    RELEASE_STAGING: "true"
+    RELEASE_PROD: "true"
+
+#
 # Docker dev image deployments
 #
 
@@ -3104,7 +3124,7 @@ twistlock_scan-6:
     SRC_DSD: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
     SRC_DCA: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
   before_script:
-    - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}
+    - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHORT_SHA}
     - export DOCKER_CLIENT_ADDRESS=$DOCKER_HOST
     - TWISTLOCK_PASS=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.twistlock_password --with-decryption --query "Parameter.Value" --out text)
     - scan () { echo -e "\n==== Scanning $1 ====\n"; docker pull $1 > /dev/null; /twistcli images scan --address="$TWISTLOCK_URL" --user="$TWISTLOCK_USER" --password="$TWISTLOCK_PASS" --vulnerability-threshold=$THRESHOLD --details $1; }
@@ -3127,7 +3147,7 @@ twistlock_scan-7:
     SRC_DSD: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
     SRC_DCA: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
   before_script:
-    - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}
+    - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHORT_SHA}
     - export DOCKER_CLIENT_ADDRESS=$DOCKER_HOST
     - TWISTLOCK_PASS=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.twistlock_password --with-decryption --query "Parameter.Value" --out text)
     - scan () { echo -e "\n==== Scanning $1 ====\n"; docker pull $1 > /dev/null; /twistcli images scan --address="$TWISTLOCK_URL" --user="$TWISTLOCK_USER" --password="$TWISTLOCK_PASS" --vulnerability-threshold=$THRESHOLD --details $1; }
@@ -3154,7 +3174,7 @@ twistlock_scan-7:
   variables:
     <<: *docker_hub_variables
   before_script:
-    - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}
+    - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHORT_SHA}
     - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
     - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
     - python3 -m pip install -r requirements.txt
@@ -3173,7 +3193,7 @@ twistlock_scan-7:
   variables:
     <<: *google_container_registry_variables
   before_script:
-    - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}
+    - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHORT_SHA}
     - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
     - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text > /tmp/gcr_key.json
     - gcloud --no-user-output-enabled auth activate-service-account "$DOCKER_REGISTRY_LOGIN" --key-file=/tmp/gcr_key.json
@@ -3187,8 +3207,7 @@ twistlock_scan-7:
     <<: *google_container_registry_variables
   before_script:
     - $ErrorActionPreference = "Stop"
-    - $SHORT_CI_COMMIT_SHA = ${CI_COMMIT_SHA}.Substring(0,7)
-    - $SRC_TAG = "v${CI_PIPELINE_ID}-${SHORT_CI_COMMIT_SHA}"
+    - $SRC_TAG = "v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
     - mkdir ci-scripts
     - mkdir tmp
     - |
@@ -4024,7 +4043,7 @@ deploy_staging_process_and_sysprobe:
     - dpkg -x $(ls -1 datadog-agent_*_amd64.deb | sort -V | head -n 1) ./out
     # Use tag or shortened branch with short commit hash to identify the binary
     - export SHORT_REF=$(echo $CI_COMMIT_REF_NAME | cut -d'/' -f2- | cut -c -10 | sed -E 's/[^[:alnum:]]+/-/g')
-    - export NAME="${CI_COMMIT_TAG:-$SHORT_REF}-${CI_COMMIT_SHA:0:7}"
+    - export NAME="${CI_COMMIT_TAG:-$SHORT_REF}-${CI_COMMIT_SHORT_SHA}"
     - echo "Uploading with name=$NAME"
     - $S3_CP_CMD ./out$DATADOG_AGENT_EMBEDDED_PATH/bin/process-agent s3://$PROCESS_S3_BUCKET/process-agent-amd64-$NAME --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=612548d92af7fa77f7ad7bcab230494f7310438ac6332e904a8fb2e6daa5cb23
     - $S3_CP_CMD ./out$DATADOG_AGENT_EMBEDDED_PATH/bin/system-probe s3://$PROCESS_S3_BUCKET/system-probe-amd64-$NAME --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=612548d92af7fa77f7ad7bcab230494f7310438ac6332e904a8fb2e6daa5cb23
