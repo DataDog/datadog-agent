@@ -39,7 +39,7 @@ type ClusterTopologyCommon interface {
 type clusterTopologyCommon struct {
 	Instance           topology.Instance
 	APICollectorClient apiserver.APICollectorClient
-	urnPrefix          string
+	urn                urn.URNBuilder
 }
 
 // NewClusterTopologyCommon creates a clusterTopologyCommon
@@ -47,7 +47,7 @@ func NewClusterTopologyCommon(instance topology.Instance, ac apiserver.APICollec
 	return &clusterTopologyCommon{
 		Instance:           instance,
 		APICollectorClient: ac,
-		urnPrefix:          fmt.Sprintf("urn:%s:/%s", instance.Type, instance.URL),
+		urn:                urn.NewURNBuilder(urn.ClusterTypeFromString(instance.Type), instance.URL),
 	}
 }
 
@@ -98,88 +98,88 @@ func (c *clusterTopologyCommon) CreateRelation(sourceExternalID, targetExternalI
 
 // buildClusterExternalID
 func (c *clusterTopologyCommon) buildClusterExternalID() string {
-	return fmt.Sprintf("urn:cluster:/%s:%s", c.Instance.Type, c.Instance.URL)
+	return c.urn.BuildClusterExternalID()
 }
 
 // buildNodeExternalID creates the urn external identifier for a cluster node
 func (c *clusterTopologyCommon) buildNodeExternalID(nodeName string) string {
-	return fmt.Sprintf("%s:node/%s", c.urnPrefix, nodeName)
+	return c.urn.BuildNodeExternalID(nodeName)
 }
 
 // buildPodExternalID creates the urn external identifier for a cluster pod
 func (c *clusterTopologyCommon) buildPodExternalID(namespace, podName string) string {
-	return fmt.Sprintf("%s:%s:pod/%s", c.urnPrefix, namespace, podName)
+	return c.urn.BuildPodExternalID(namespace, podName)
 }
 
 // buildContainerExternalID creates the urn external identifier for a pod's container
 func (c *clusterTopologyCommon) buildContainerExternalID(namespace, podName, containerName string) string {
-	return fmt.Sprintf("%s:%s:pod/%s:container/%s", c.urnPrefix, namespace, podName, containerName)
+	return c.urn.BuildContainerExternalID(namespace, podName, containerName)
 }
 
 // buildServiceExternalID creates the urn external identifier for a cluster service
 func (c *clusterTopologyCommon) buildServiceExternalID(namespace, serviceName string) string {
-	return fmt.Sprintf("%s:%s:service/%s", c.urnPrefix, namespace, serviceName)
+	return c.urn.BuildServiceExternalID(namespace, serviceName)
 }
 
 // buildDaemonSetExternalID creates the urn external identifier for a cluster daemon set
 func (c *clusterTopologyCommon) buildDaemonSetExternalID(namespace, daemonSetName string) string {
-	return fmt.Sprintf("%s:%s:daemonset/%s", c.urnPrefix, namespace, daemonSetName)
+	return c.urn.BuildDaemonSetExternalID(namespace, daemonSetName)
 }
 
 // buildDeploymentExternalID creates the urn external identifier for a cluster deployment
 func (c *clusterTopologyCommon) buildDeploymentExternalID(namespace, deploymentName string) string {
-	return fmt.Sprintf("%s:%s:deployment/%s", c.urnPrefix, namespace, deploymentName)
+	return c.urn.BuildDeploymentExternalID(namespace, deploymentName)
 }
 
 // buildReplicaSetExternalID creates the urn external identifier for a cluster replica set
 func (c *clusterTopologyCommon) buildReplicaSetExternalID(namespace, replicaSetName string) string {
-	return fmt.Sprintf("%s:%s:replicaset/%s", c.urnPrefix, namespace, replicaSetName)
+	return c.urn.BuildReplicaSetExternalID(namespace, replicaSetName)
 }
 
 // buildStatefulSetExternalID creates the urn external identifier for a cluster stateful set
 func (c *clusterTopologyCommon) buildStatefulSetExternalID(namespace, statefulSetName string) string {
-	return fmt.Sprintf("%s:%s:statefulset/%s", c.urnPrefix, namespace, statefulSetName)
+	return c.urn.BuildStatefulSetExternalID(namespace, statefulSetName)
 }
 
 // buildConfigMapExternalID creates the urn external identifier for a cluster config map
 func (c *clusterTopologyCommon) buildConfigMapExternalID(namespace, configMapName string) string {
-	return fmt.Sprintf("%s:%s:configmap/%s", c.urnPrefix, namespace, configMapName)
+	return c.urn.BuildConfigMapExternalID(namespace, configMapName)
 }
 
 // buildNamespaceExternalID creates the urn external identifier for a cluster namespace
 func (c *clusterTopologyCommon) buildNamespaceExternalID(namespaceName string) string {
-	return fmt.Sprintf("%s:namespace/%s", c.urnPrefix, namespaceName)
+	return c.urn.BuildNamespaceExternalID(namespaceName)
 }
 
 // buildCronJobExternalID creates the urn external identifier for a cluster cron job
 func (c *clusterTopologyCommon) buildCronJobExternalID(namespace, cronJobName string) string {
-	return fmt.Sprintf("%s:%s:cronjob/%s", c.urnPrefix, namespace, cronJobName)
+	return c.urn.BuildCronJobExternalID(namespace, cronJobName)
 }
 
 // buildJobExternalID creates the urn external identifier for a cluster job
 func (c *clusterTopologyCommon) buildJobExternalID(namespace, jobName string) string {
-	return fmt.Sprintf("%s:%s:job/%s", c.urnPrefix, namespace, jobName)
+	return c.urn.BuildJobExternalID(namespace, jobName)
 }
 
 // buildIngressExternalID creates the urn external identifier for a cluster ingress
 func (c *clusterTopologyCommon) buildIngressExternalID(namespace, ingressName string) string {
-	return fmt.Sprintf("%s:%s:ingress/%s", c.urnPrefix, namespace, ingressName)
+	return c.urn.BuildIngressExternalID(namespace, ingressName)
 }
 
 // buildVolumeExternalID creates the urn external identifier for a cluster volume
 func (c *clusterTopologyCommon) buildVolumeExternalID(namespace, volumeName string) string {
-	return fmt.Sprintf("%s:%s:volume/%s", c.urnPrefix, namespace, volumeName)
+	return c.urn.BuildVolumeExternalID(namespace, volumeName)
 }
 
 // buildPersistentVolumeExternalID creates the urn external identifier for a cluster persistent volume
 func (c *clusterTopologyCommon) buildPersistentVolumeExternalID(persistentVolumeName string) string {
-	return fmt.Sprintf("%s:persistent-volume/%s", c.urnPrefix, persistentVolumeName)
+	return c.urn.BuildPersistentVolumeExternalID(persistentVolumeName)
 }
 
 // buildEndpointExternalID
 // endpointID
 func (c *clusterTopologyCommon) buildEndpointExternalID(endpointID string) string {
-	return fmt.Sprintf("urn:endpoint:/%s:%s", c.Instance.URL, endpointID)
+	return c.urn.BuildEndpointExternalID(endpointID)
 }
 
 func (c *clusterTopologyCommon) initTags(meta metav1.ObjectMeta) map[string]string {

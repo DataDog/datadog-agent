@@ -11,8 +11,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/StackVista/stackstate-agent/pkg/collector/corechecks/cluster/topologycollectors"
-	"github.com/StackVista/stackstate-agent/pkg/topology"
+	"github.com/StackVista/stackstate-agent/pkg/collector/corechecks/cluster/urn"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
 
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
@@ -22,20 +21,19 @@ import (
 )
 
 type kubernetesEventMapper struct {
-	ac                    *apiserver.APIClient
-	clusterTopologyCommon topologycollectors.ClusterTopologyCommon
-	clusterName           string
-	sourceType            string
+	ac          *apiserver.APIClient
+	urn         urn.URNBuilder
+	clusterName string
+	sourceType  string
 }
 
 func newKubernetesEventMapper(ac *apiserver.APIClient, clusterName string) *kubernetesEventMapper {
 	f := kubernetesFlavour(ac)
-	instance := topology.Instance{Type: f, URL: clusterName}
 	return &kubernetesEventMapper{
-		ac:                    ac,
-		clusterTopologyCommon: topologycollectors.NewClusterTopologyCommon(instance, ac),
-		clusterName:           clusterName,
-		sourceType:            f,
+		ac:          ac,
+		urn:         urn.NewURNBuilder(f, clusterName),
+		clusterName: clusterName,
+		sourceType:  string(f),
 	}
 }
 
@@ -132,49 +130,22 @@ func (k *kubernetesEventMapper) getTags(event *v1.Event) []string {
 func (k *kubernetesEventMapper) externalIdentifierForInvolvedObject(event *v1.Event) string {
 	namespace := event.Namespace
 	obj := event.InvolvedObject
-	switch obj.Kind {
-	case "ConfigMap":
-		return k.clusterTopologyCommon.buildConfigMapExternalID(namespace, obj.Name)
-	case "Namespace":
-		return k.clusterTopologyCommon.buildNamespaceExternalID(obj.Name)
-	case "DaemonSet":
-		return k.clusterTopologyCommon.buildDaemonSetExternalID(namespace, obj.Name)
-	case "Deployment":
-		return k.clusterTopologyCommon.buildDeploymentExternalID(namespace, obj.Name)
-	case "Node":
-		return k.clusterTopologyCommon.buildNodeExternalID(obj.Name)
-	case "Pod":
-		return k.clusterTopologyCommon.buildPodExternalID(namespace, obj.Name)
-	case "ReplicaSet":
-		return k.clusterTopologyCommon.buildReplicaSetExternalID(namespace, obj.Name)
-	case "Service":
-		return k.clusterTopologyCommon.buildServiceExternalID(namespace, obj.Name)
-	case "StatefulSet":
-		return k.clusterTopologyCommon.buildStatefulSetExternalID(namespace, obj.Name)
-	case "CronJob":
-		return k.clusterTopologyCommon.buildCronJobExternalID(namespace, obj.Name)
-	case "Job":
-		return k.clusterTopologyCommon.buildJobExternalID(namespace, obj.Name)
-	case "Ingress":
-		return k.clusterTopologyCommon.buildIngressExternalID(namespace, obj.Name)
-	case "Volume":
-		return k.clusterTopologyCommon.buildVolumeExternalID(namespace, obj.Name)
-	case "PersistentVolume":
-		return k.clusterTopologyCommon.buildPersistentVolumeExternalID(obj.Name)
-	case "Endpoint":
-		return k.clusterTopologyCommon.buildEndpointExternalID(obj.Name)
+
+	urn, err := k.urn.BuildExternalID(obj.Kind, namespace, obj.Name)
+	if err != nil {
+		log.Warnf("Unknown InvolvedObject type '%s' for obj '%s/%s' in event '%s'", obj.Kind, namespace, obj.Name, event.Name)
+		return ""
 	}
 
-	log.Warnf("Unknown InvolvedObject type '%s' for event '%s'", obj.Kind, event.Name)
-	return ""
+	return urn
 }
 
-func kubernetesFlavour(ac *apiserver.APIClient) string {
+func kubernetesFlavour(ac *apiserver.APIClient) urn.ClusterType {
 	switch openshiftPresence := ac.DetectOpenShiftAPILevel(); openshiftPresence {
 	case apiserver.OpenShiftAPIGroup, apiserver.OpenShiftOAPI:
-		return string(OpenShift)
+		return urn.Openshift
 	default:
-		return string(Kubernetes)
+		return urn.Kubernetes
 	}
 
 }
