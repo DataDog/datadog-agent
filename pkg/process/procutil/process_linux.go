@@ -4,6 +4,7 @@ package procutil
 
 import (
 	"bytes"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -14,7 +15,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/gopsutil/host"
 )
 
 const (
@@ -57,10 +57,11 @@ type Probe struct {
 
 // NewProcessProbe initializes a new Probe object
 func NewProcessProbe() *Probe {
-	bootTime, _ := host.BootTime() // TODO (sk): Rewrite this w/o gopsutil
+	hostProc := util.HostProc()
+	bootTime, _ := bootTime(hostProc)
 
 	p := &Probe{
-		procRootLoc: util.HostProc(),
+		procRootLoc: hostProc,
 		uid:         uint32(os.Getuid()),
 		euid:        uint32(os.Geteuid()),
 		bootTime:    bootTime,
@@ -512,4 +513,38 @@ func trimAndSplitBytes(bs []byte) []string {
 	}
 
 	return components
+}
+
+// bootTime returns the system boot time expressed in seconds since the epoch.
+// the value is extracted from "/proc/stat"
+func bootTime(hostProc string) (uint64, error) {
+	filePath := filepath.Join(hostProc, "stat")
+	content, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		log.Debugf("Unable to read stat file from %s: %s", filePath, err)
+		return 0, nil
+	}
+
+	index := 0
+	btimePrefix := []byte("btime")
+
+	for i, r := range content {
+		if r == '\n' {
+			if bytes.HasPrefix(content[index:i], btimePrefix) {
+				f := strings.Fields(string(content[index:i]))
+				if len(f) != 2 {
+					return 0, fmt.Errorf("wrong btime format")
+				}
+
+				b, err := strconv.ParseInt(f[1], 10, 64)
+				if err != nil {
+					return 0, err
+				}
+				return uint64(b), nil
+			}
+			index = i + 1
+		}
+	}
+
+	return 0, fmt.Errorf("could not parse btime")
 }

@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/gopsutil/host"
 	"github.com/DataDog/gopsutil/process"
 )
 
@@ -391,7 +392,7 @@ func TestParseStatContent(t *testing.T) {
 			line: []byte("1 (systemd) S 0 1 1 0 -1 4194560 425768 306165945 70 4299 4890 2184 563120 375308 20 0 1 0 15 189849600 1541 18446744073709551615 94223912931328 94223914360080 140733806473072 140733806469312 140053573122579 0 671173123 4096 1260 1 0 0 17 0 0 0 155 0 0 94223914368000 942\n23914514184 94223918080000 140733806477086 140733806477133 140733806477133 140733806477283 0"),
 			expected: &statInfo{
 				ppid:       0,
-				createTime: 1605906702000,
+				createTime: 1606127264000,
 				nice:       1,
 				cpuStat: &CPUTimesStat{
 					CPU:       "cpu",
@@ -406,7 +407,7 @@ func TestParseStatContent(t *testing.T) {
 			line: []byte("1 ((sd-pam)) S 0 1 1 0 -1 4194560 425768 306165945 70 4299 4890 2184 563120 375308 20 0 1 0 15 189849600 1541 18446744073709551615 94223912931328 94223914360080 140733806473072 140733806469312 140053573122579 0 671173123 4096 1260 1 0 0 17 0 0 0 155 0 0 94223914368000 942\n23914514184 94223918080000 140733806477086 140733806477133 140733806477133 140733806477283 0"),
 			expected: &statInfo{
 				ppid:       0,
-				createTime: 1605906702000,
+				createTime: 1606127264000,
 				nice:       1,
 				cpuStat: &CPUTimesStat{
 					CPU:       "cpu",
@@ -424,11 +425,22 @@ func TestParseStatContent(t *testing.T) {
 	}
 }
 
-func TestParseStat(t *testing.T) {
-	hostProc := "resources/test_procfs/proc/"
-	os.Setenv("HOST_PROC", hostProc)
+func TestParseStatTestFS(t *testing.T) {
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc/")
 	defer os.Unsetenv("HOST_PROC")
 
+	testParseStat(t)
+}
+
+func TestParseStatLocalFS(t *testing.T) {
+	// this test is flaky as the underlying procfs could change during
+	// the comparison of procutil and gopsutil,
+	// but we could use it to test locally
+	t.Skip("flaky test in CI")
+	testParseStat(t)
+}
+
+func testParseStat(t *testing.T) {
 	probe := NewProcessProbe()
 	defer probe.Close()
 
@@ -436,7 +448,7 @@ func TestParseStat(t *testing.T) {
 	assert.NoError(t, err)
 
 	for _, pid := range pids {
-		actual := probe.parseStat(filepath.Join(hostProc, strconv.Itoa(int(pid))), time.Now())
+		actual := probe.parseStat(filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid))), time.Now())
 		expProc, err := process.NewProcess(pid)
 		assert.NoError(t, err)
 		expCreate, err := expProc.CreateTime()
@@ -451,4 +463,18 @@ func TestParseStat(t *testing.T) {
 		assert.Equal(t, exptimes.User, actual.cpuStat.User)
 		assert.Equal(t, exptimes.System, actual.cpuStat.System)
 	}
+}
+
+func TestBootTime(t *testing.T) {
+	bootT, err := bootTime("resources/test_procfs/proc/")
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(1606127264), bootT)
+
+	// use local procfs to test and compare with gopsutil
+	// NOTE: this local procfs test is not skipped because we could get consistent reading
+	probe := NewProcessProbe()
+	defer probe.Close()
+	expectT, err := host.BootTime()
+	assert.NoError(t, err)
+	assert.Equal(t, expectT, probe.bootTime)
 }
