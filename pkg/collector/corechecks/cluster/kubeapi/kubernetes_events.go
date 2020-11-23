@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v2"
-	"k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/StackVista/stackstate-agent/pkg/aggregator"
