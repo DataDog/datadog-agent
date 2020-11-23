@@ -65,8 +65,8 @@ Logs Agent
     {{- end }}
     BytesRead: {{ .bytes_read }}
     Average Latency (us): {{ .all_time_avg_latency }}
-    24h Average Latency (us): {{ .all_time_peak_latency }}
-    Peak Latency (us): {{ .recent_avg_latency }}
+    24h Average Latency (us): {{ .recent_avg_latency }}
+    Peak Latency (us): {{ .all_time_peak_latency }}
     24h Peak Latency (us): {{ .recent_peak_latency }}
   {{- end }}
 {{- end }}

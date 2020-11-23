@@ -57,7 +57,7 @@ func NewLogSource(name string, config *LogsConfig) *LogSource {
 		lock:         &sync.Mutex{},
 		Messages:     NewMessages(),
 		BytesRead:    expvar.Int{},
-		LatencyStats: util.NewStatsTracker(time.Hour * 24),
+		LatencyStats: util.NewStatsTracker(time.Hour*24, time.Hour),
 	}
 }
 

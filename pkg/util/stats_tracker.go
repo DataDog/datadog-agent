@@ -10,34 +10,40 @@ type timeProvider func() int64
 type taggedPoint struct {
 	timeStamp int64
 	value     int64
+	count     int64
 }
 
 // StatsTracker Keeps track of simple stats over its lifetime and a configurable time range
 type StatsTracker struct {
-	allTimeAvg   int64
-	movingAvg    int64
-	allTimePeak  int64
-	totalPoints  int64
-	timeFrame    int64
-	taggedPoints []taggedPoint
-	timeProvider timeProvider
-	lock         *sync.Mutex
+	allTimeAvg           int64
+	allTimePeak          int64
+	totalPoints          int64
+	timeFrame            int64
+	bucketFrame          int64
+	avgPointsHead        *taggedPoint
+	peakPointsHead       *taggedPoint
+	aggregatedAvgPoints  []*taggedPoint
+	aggregatedPeakPoints []*taggedPoint
+	timeProvider         timeProvider
+	lock                 *sync.Mutex
 }
 
 // NewStatsTracker Creates a new StatsTracker instance
-func NewStatsTracker(timeFrame time.Duration) StatsTracker {
-	return NewStatsTrackerWithTimeProvider(timeFrame, func() int64 {
+func NewStatsTracker(timeFrame time.Duration, bucketSize time.Duration) StatsTracker {
+	return NewStatsTrackerWithTimeProvider(timeFrame, bucketSize, func() int64 {
 		return time.Now().UnixNano()
 	})
 }
 
 // NewStatsTrackerWithTimeProvider Creates a new StatsTracker instance with a time provider closure (mostly for testing)
-func NewStatsTrackerWithTimeProvider(timeFrame time.Duration, timeProvider timeProvider) StatsTracker {
+func NewStatsTrackerWithTimeProvider(timeFrame time.Duration, bucketSize time.Duration, timeProvider timeProvider) StatsTracker {
 	return StatsTracker{
-		taggedPoints: make([]taggedPoint, 0),
-		timeFrame:    int64(timeFrame),
-		timeProvider: timeProvider,
-		lock:         &sync.Mutex{},
+		aggregatedAvgPoints:  make([]*taggedPoint, 0),
+		aggregatedPeakPoints: make([]*taggedPoint, 0),
+		timeFrame:            int64(timeFrame),
+		bucketFrame:          int64(bucketSize),
+		timeProvider:         timeProvider,
+		lock:                 &sync.Mutex{},
 	}
 }
 
@@ -53,13 +59,44 @@ func (s *StatsTracker) Add(value int64) {
 		s.allTimePeak = value
 	}
 
-	bufferSize := int64(len(s.taggedPoints))
-	s.movingAvg = (bufferSize*s.movingAvg + value) / (bufferSize + 1)
-
 	now := s.timeProvider()
-	s.taggedPoints = append(s.taggedPoints, taggedPoint{now, value})
 
-	s.dropPoints(now)
+	if s.avgPointsHead == nil {
+		s.avgPointsHead = &taggedPoint{now, value, 0}
+		s.peakPointsHead = &taggedPoint{now, value, 0}
+	} else if s.avgPointsHead.timeStamp < now-s.bucketFrame {
+		// Pop off the oldest value
+		if len(s.aggregatedAvgPoints) > 0 {
+			dropFromIndex := 0
+			for _, v := range s.aggregatedAvgPoints {
+				if v.timeStamp > now-s.timeFrame {
+					break
+				}
+				dropFromIndex++
+			}
+
+			s.aggregatedAvgPoints = s.aggregatedAvgPoints[dropFromIndex:]
+			s.aggregatedPeakPoints = s.aggregatedPeakPoints[dropFromIndex:]
+		}
+
+		// Add the new aggregated point
+		s.aggregatedAvgPoints = append(s.aggregatedAvgPoints, s.avgPointsHead)
+		s.aggregatedPeakPoints = append(s.aggregatedPeakPoints, s.peakPointsHead)
+
+		// Reset the current aggregated point
+		s.avgPointsHead = &taggedPoint{now, value, 0}
+		s.peakPointsHead = &taggedPoint{now, value, 0}
+	}
+
+	if s.peakPointsHead.value < value {
+		s.peakPointsHead.value = value
+	}
+
+	// We initialized avgPointsHead with the first value, don't count it twice
+	if s.avgPointsHead.count > 0 {
+		s.avgPointsHead.value = (s.avgPointsHead.count*s.avgPointsHead.value + value) / (s.avgPointsHead.count + 1)
+	}
+	s.avgPointsHead.count++
 }
 
 // AllTimeAvg Gets the all time average of values seen so far
@@ -73,7 +110,16 @@ func (s *StatsTracker) AllTimeAvg() int64 {
 func (s *StatsTracker) MovingAvg() int64 {
 	s.lock.Lock()
 	defer s.lock.Unlock()
-	return s.movingAvg
+	if s.avgPointsHead == nil {
+		return 0
+	}
+	sum := s.avgPointsHead.value * s.avgPointsHead.count
+	count := s.avgPointsHead.count
+	for _, v := range s.aggregatedAvgPoints {
+		sum += v.value * v.count
+		count += v.count
+	}
+	return sum / count
 }
 
 // AllTimePeak Gets the largest value seen so far
@@ -87,34 +133,14 @@ func (s *StatsTracker) AllTimePeak() int64 {
 func (s *StatsTracker) MovingPeak() int64 {
 	s.lock.Lock()
 	defer s.lock.Unlock()
-	if len(s.taggedPoints) == 0 {
+	if s.peakPointsHead == nil {
 		return 0
 	}
-	largest := s.taggedPoints[0].value
-	for _, v := range s.taggedPoints {
+	largest := s.peakPointsHead.value
+	for _, v := range s.aggregatedPeakPoints {
 		if v.value > largest {
 			largest = v.value
 		}
 	}
 	return largest
-}
-
-func (s *StatsTracker) dropPoints(from int64) {
-	dropFromIndex := 0
-	for i, v := range s.taggedPoints {
-		dropFromIndex = i
-		if v.timeStamp > from-s.timeFrame {
-			break
-		}
-	}
-
-	size := int64(len(s.taggedPoints))
-	if size > 1 {
-		for _, droppedPoint := range s.taggedPoints[:dropFromIndex] {
-			s.movingAvg = (size*s.movingAvg - droppedPoint.value) / (size - 1)
-			size--
-		}
-	}
-
-	s.taggedPoints = s.taggedPoints[dropFromIndex:]
 }
