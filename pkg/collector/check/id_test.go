@@ -8,29 +8,13 @@ package check
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/stretchr/testify/assert"
 )
 
-// FIXTURE
-type TestCheck struct{}
-
-func (c *TestCheck) String() string                                             { return "TestCheck" }
-func (c *TestCheck) Version() string                                            { return "" }
-func (c *TestCheck) ConfigSource() string                                       { return "" }
-func (c *TestCheck) Stop()                                                      {}
-func (c *TestCheck) Configure(integration.Data, integration.Data, string) error { return nil }
-func (c *TestCheck) Interval() time.Duration                                    { return 1 }
-func (c *TestCheck) Run() error                                                 { return nil }
-func (c *TestCheck) ID() ID                                                     { return ID(c.String()) }
-func (c *TestCheck) GetWarnings() []error                                       { return []error{} }
-func (c *TestCheck) GetMetricStats() (map[string]int64, error)                  { return make(map[string]int64), nil }
-func (c *TestCheck) IsTelemetryEnabled() bool                                   { return false }
-
 func TestIdentify(t *testing.T) {
-	testCheck := &TestCheck{}
+	testCheck := &StubCheck{}
 
 	instance1 := integration.Data("key1:value1\nkey2:value2")
 	initConfig1 := integration.Data("key:value")

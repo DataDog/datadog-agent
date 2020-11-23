@@ -3,14 +3,14 @@
 package ebpf
 
 import (
-	"encoding/binary"
 	"fmt"
-	"net"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/tcpqueuelength"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	bpflib "github.com/iovisor/gobpf/bcc"
+	"github.com/iovisor/gobpf/pkg/cpuonline"
 )
 
 /*
@@ -21,13 +21,13 @@ import "C"
 
 type TCPQueueLengthTracer struct {
 	m        *bpflib.Module
-	queueMap *bpflib.Table
+	statsMap *bpflib.Table
 }
 
 func NewTCPQueueLengthTracer(cfg *Config) (*TCPQueueLengthTracer, error) {
-	source, err := processHeaders(cfg.BPFDir, "pkg/ebpf/c/tcp-queue-length-kern.c")
+	source, err := processHeaders(cfg.BPFDir, "tcp-queue-length-kern.c")
 	if err != nil {
-		return nil, fmt.Errorf("Couldn’t process headers for asset “pkg/ebpf/c/tcp-queue-length-kern.c”: %v", err)
+		return nil, fmt.Errorf("Couldn’t process headers for asset “tcp-queue-length-kern.c”: %v", err)
 	}
 
 	m := bpflib.NewModule(source.String(), []string{})
@@ -71,11 +71,11 @@ func NewTCPQueueLengthTracer(cfg *Config) (*TCPQueueLengthTracer, error) {
 		return nil, fmt.Errorf("Failed to attach tcp_sendmsg: %s\n", err)
 	}
 
-	table := bpflib.NewTable(m.TableId("queue"), m)
+	table := bpflib.NewTable(m.TableId("tcp_queue_stats"), m)
 
 	return &TCPQueueLengthTracer{
 		m:        m,
-		queueMap: table,
+		statsMap: table,
 	}, nil
 }
 
@@ -83,48 +83,50 @@ func (t *TCPQueueLengthTracer) Close() {
 	t.m.Close()
 }
 
-func (t *TCPQueueLengthTracer) Get() []tcpqueuelength.Stats {
+func (t *TCPQueueLengthTracer) Get() tcpqueuelength.Stats {
 	if t == nil {
 		return nil
 	}
 
-	var result []tcpqueuelength.Stats
+	cpus, err := cpuonline.Get()
+	if err != nil {
+		log.Errorf("Failed to get online CPUs: %v", err)
+		return tcpqueuelength.Stats{}
+	}
 
-	for it := t.queueMap.Iter(); it.Next(); {
-		var stat C.struct_stats
+	result := make(tcpqueuelength.Stats)
 
-		data := it.Leaf()
-		C.memcpy(unsafe.Pointer(&stat), unsafe.Pointer(&data[0]), C.sizeof_struct_stats)
+	for it := t.statsMap.Iter(); it.Next(); {
+		var statsKey C.struct_stats_key
+		data := it.Key()
+		C.memcpy(unsafe.Pointer(&statsKey), unsafe.Pointer(&data[0]), C.sizeof_struct_stats_key)
+		containerID := C.GoString(&statsKey.cgroup_name[0])
 
-		result = append(result, convertStat(stat))
+		var statsValue [256]C.struct_stats_value
+		data = it.Leaf()
+		C.memcpy(unsafe.Pointer(&statsValue), unsafe.Pointer(&data[0]), C.sizeof_struct_stats_value*C.ulong(len(cpus)))
+
+		max := tcpqueuelength.StatsValue{}
+		for _, cpu := range cpus {
+			if cpu > 256 {
+				log.Error("Too many CPUs")
+				continue
+			}
+			if uint32(statsValue[cpu].read_buffer_max_usage) > max.ReadBufferMaxUsage {
+				max.ReadBufferMaxUsage = uint32(statsValue[cpu].read_buffer_max_usage)
+			}
+			if uint32(statsValue[cpu].write_buffer_max_usage) > max.WriteBufferMaxUsage {
+				max.WriteBufferMaxUsage = uint32(statsValue[cpu].write_buffer_max_usage)
+			}
+		}
+		result[containerID] = max
 	}
 
 	return result
 }
 
-func (t *TCPQueueLengthTracer) GetAndFlush() []tcpqueuelength.Stats {
+func (t *TCPQueueLengthTracer) GetAndFlush() tcpqueuelength.Stats {
 	result := t.Get()
-	t.queueMap.DeleteAll()
+	t.statsMap.DeleteAll()
 	return result
-}
-
-func convertStat(in C.struct_stats) (out tcpqueuelength.Stats) {
-	out.Pid = uint32(in.pid)
-	out.ContainerID = C.GoString(&in.cgroup_name[0])
-	out.Conn.Saddr = make(net.IP, 4)
-	bpflib.GetHostByteOrder().PutUint32(out.Conn.Saddr, uint32(in.conn.saddr))
-	out.Conn.Daddr = make(net.IP, 4)
-	bpflib.GetHostByteOrder().PutUint32(out.Conn.Daddr, uint32(in.conn.daddr))
-	port := make([]byte, 2)
-	bpflib.GetHostByteOrder().PutUint16(port, uint16(in.conn.dport))
-	out.Conn.Dport = binary.BigEndian.Uint16(port)
-	bpflib.GetHostByteOrder().PutUint16(port, uint16(in.conn.sport))
-	out.Conn.Sport = binary.BigEndian.Uint16(port)
-	out.Rqueue.Size = int(in.rqueue.size)
-	out.Rqueue.Min = uint32(in.rqueue.min)
-	out.Rqueue.Max = uint32(in.rqueue.max)
-	out.Wqueue.Size = int(in.wqueue.size)
-	out.Wqueue.Min = uint32(in.wqueue.min)
-	out.Wqueue.Max = uint32(in.wqueue.max)
-	return
 }

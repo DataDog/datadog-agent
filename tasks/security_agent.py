@@ -237,7 +237,8 @@ def docker_functional_tests(ctx, race=False, verbose=False, go_version=None, arc
     container_name = 'security-agent-tests'
     capabilities = ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
 
-    cmd = 'docker run --name {container_name} {caps} -d '
+    cmd = 'docker run --name {container_name} {caps} --privileged -d '
+    cmd += '-v /proc:/host/proc -e HOST_PROC=/host/proc '
     cmd += '-v {GOPATH}/src/{REPO_PATH}/pkg/security/tests:/tests debian:bullseye sleep 3600'
 
     args = {
@@ -252,7 +253,7 @@ def docker_functional_tests(ctx, race=False, verbose=False, go_version=None, arc
     cmd = 'docker exec {container_name} mount -t debugfs none /sys/kernel/debug'
     ctx.run(cmd.format(**args))
 
-    cmd = 'docker exec {container_name} /tests/testsuite {pattern}'
+    cmd = 'docker exec {container_name} /tests/testsuite --env docker {pattern}'
     if verbose:
         cmd += ' -test.v'
     try:

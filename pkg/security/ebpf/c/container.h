@@ -20,7 +20,7 @@ static __attribute__((always_inline)) u32 copy_container_id(char dst[CONTAINER_I
 
 static void __attribute__((always_inline)) fill_container_data(struct proc_cache_t *entry, struct container_context_t *context) {
     if (entry) {
-        copy_container_id(context->container_id, entry->container_id);
+        copy_container_id(context->container_id, entry->container.container_id);
     }
 }
 

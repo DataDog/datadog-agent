@@ -7,6 +7,7 @@ package aggregator
 
 import (
 	// stdlib
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -16,8 +17,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -157,6 +160,7 @@ func TestDefaultData(t *testing.T) {
 	s.On("SendServiceChecks", metrics.ServiceChecks{{
 		CheckName: "datadog.agent.up",
 		Status:    metrics.ServiceCheckOK,
+		Tags:      []string{},
 		Ts:        start.Unix(),
 		Host:      agg.hostname,
 	}}).Return(nil).Times(1)
@@ -172,6 +176,7 @@ func TestDefaultData(t *testing.T) {
 		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: 0, Ts: float64(start.Unix())}},
 		Host:           agg.hostname,
+		Tags:           []string{},
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
 	}}
@@ -211,6 +216,7 @@ func TestRecurentSeries(t *testing.T) {
 		Status:    metrics.ServiceCheckOK,
 		Ts:        start.Unix(),
 		Host:      agg.hostname,
+		Tags:      []string{},
 	}}
 
 	series := metrics.Series{&metrics.Serie{
@@ -238,6 +244,7 @@ func TestRecurentSeries(t *testing.T) {
 		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: 0, Ts: float64(start.Unix())}},
 		Host:           agg.hostname,
+		Tags:           []string{},
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
 	}}
@@ -256,4 +263,58 @@ func TestRecurentSeries(t *testing.T) {
 	s.AssertNotCalled(t, "SendEvents")
 	s.AssertNotCalled(t, "SendSketch")
 
+}
+
+func TestTags(t *testing.T) {
+	tests := []struct {
+		name                    string
+		tlmContainerTagsEnabled bool
+		agentTags               func(collectors.TagCardinality) ([]string, error)
+		withVersion             bool
+		want                    []string
+	}{
+		{
+			name:                    "tags disabled, with version",
+			tlmContainerTagsEnabled: false,
+			agentTags:               func(collectors.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
+			withVersion:             true,
+			want:                    []string{"version:" + version.AgentVersion},
+		},
+		{
+			name:                    "tags disabled, without version",
+			tlmContainerTagsEnabled: false,
+			agentTags:               func(collectors.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
+			withVersion:             false,
+			want:                    []string{},
+		},
+		{
+			name:                    "tags enabled, with version",
+			tlmContainerTagsEnabled: true,
+			agentTags:               func(collectors.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
+			withVersion:             true,
+			want:                    []string{"container_name:agent", "version:" + version.AgentVersion},
+		},
+		{
+			name:                    "tags enabled, without version",
+			tlmContainerTagsEnabled: true,
+			agentTags:               func(collectors.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
+			withVersion:             false,
+			want:                    []string{"container_name:agent"},
+		},
+		{
+			name:                    "tags enabled, with version, tagger error",
+			tlmContainerTagsEnabled: true,
+			agentTags:               func(collectors.TagCardinality) ([]string, error) { return nil, errors.New("no tags") },
+			withVersion:             true,
+			want:                    []string{"version:" + version.AgentVersion},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config.Datadog.Set("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
+			agg := NewBufferedAggregator(nil, "hostname", time.Second)
+			agg.agentTags = tt.agentTags
+			assert.ElementsMatch(t, tt.want, agg.tags(tt.withVersion))
+		})
+	}
 }

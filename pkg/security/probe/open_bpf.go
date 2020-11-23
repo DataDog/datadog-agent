@@ -34,11 +34,6 @@ func openOnNewApprovers(probe *Probe, approvers rules.Approvers) error {
 
 	for field, values := range approvers {
 		switch field {
-		case "process.filename":
-			if err := approveProcessFilenames(probe, "open_process_inode_approvers", stringValues(values)...); err != nil {
-				return err
-			}
-
 		case "open.basename":
 			if err := approveBasenames(probe, "open_basename_approvers", stringValues(values)...); err != nil {
 				return err
@@ -63,37 +58,4 @@ func openOnNewApprovers(probe *Probe, approvers rules.Approvers) error {
 	}
 
 	return nil
-}
-
-func openOnNewDiscarder(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) error {
-	field := discarder.Field
-
-	switch field {
-	case "open.flags":
-		return discardFlags(probe, "open_flags_discarders", discarder.Value.(int))
-
-	case "open.filename":
-		fsEvent := event.Open
-		table := "open_path_inode_discarders"
-		value := discarder.Value.(string)
-
-		if value == "" {
-			return nil
-		}
-
-		isDiscarded, err := discardParentInode(probe, rs, "open", value, fsEvent.MountID, fsEvent.Inode, table)
-		if !isDiscarded {
-			if _, ok := err.(*ErrInvalidKeyPath); !ok {
-				// not able to discard the parent then only discard the filename
-				_, err = discardInode(probe, fsEvent.MountID, fsEvent.Inode, table)
-			}
-		}
-
-		if err != nil {
-			err = errors.Wrapf(err, "unable to set inode discarders for `%s`", value)
-		}
-
-		return err
-	}
-	return &ErrDiscarderNotSupported{Field: field}
 }

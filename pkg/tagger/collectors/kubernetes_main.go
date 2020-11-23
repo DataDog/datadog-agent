@@ -23,6 +23,7 @@ import (
 
 const (
 	kubeMetadataCollectorName = "kube-metadata-collector"
+	kubeMetadataExpireFreq    = 5 * time.Minute
 )
 
 type KubeMetadataCollector struct {
@@ -33,6 +34,10 @@ type KubeMetadataCollector struct {
 	// used to set a custom delay
 	lastUpdate time.Time
 	updateFreq time.Duration
+
+	lastExpire time.Time
+	lastSeen   map[string]time.Time
+	expireFreq time.Duration
 
 	clusterAgentEnabled bool
 }
@@ -75,8 +80,13 @@ func (c *KubeMetadataCollector) Detect(out chan<- []*TagInfo) (CollectionMode, e
 			return NoCollection, err
 		}
 	}
+
 	c.infoOut = out
 	c.updateFreq = time.Duration(config.Datadog.GetInt("kubernetes_metadata_tag_update_freq")) * time.Second
+	c.expireFreq = kubeMetadataExpireFreq
+	c.lastExpire = time.Now()
+	c.lastSeen = make(map[string]time.Time)
+
 	return PullCollection, nil
 }
 
@@ -100,8 +110,38 @@ func (c *KubeMetadataCollector) Pull() error {
 			log.Debugf("Cannot add the metadataMapping to cache: %s", err)
 		}
 	}
-	c.infoOut <- c.getTagInfos(pods)
-	c.lastUpdate = time.Now()
+
+	tagInfos := c.getTagInfos(pods)
+	now := time.Now()
+
+	for _, tagInfo := range tagInfos {
+		c.lastSeen[tagInfo.Entity] = now
+	}
+
+	if now.Sub(c.lastExpire) >= c.expireFreq {
+		for id, lastSeen := range c.lastSeen {
+			if now.Sub(lastSeen) >= c.expireFreq {
+				delete(c.lastSeen, id)
+				entityID, err := kubelet.KubeIDToTaggerEntityID(id)
+				if err != nil {
+					log.Warnf("error extracting tagger entity id from %q: %s", id, err)
+					continue
+				}
+
+				tagInfos = append(tagInfos, &TagInfo{
+					Source:       kubeMetadataCollectorName,
+					Entity:       entityID,
+					DeleteEntity: true,
+				})
+			}
+		}
+
+		c.lastExpire = now
+	}
+
+	c.lastUpdate = now
+	c.infoOut <- tagInfos
+
 	return nil
 }
 

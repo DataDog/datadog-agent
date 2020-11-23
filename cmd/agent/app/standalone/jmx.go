@@ -24,7 +24,7 @@ import (
 // reports with the ConsoleReporter to the agent's `log.Info`.
 // The common utils, including AutoConfig, must have already been initialized.
 func ExecJMXCommandConsole(command string, selectedChecks []string, logLevel string) error {
-	return execJmxCommand(command, selectedChecks, jmxfetch.ReporterConsole, log.Info, logLevel)
+	return execJmxCommand(command, selectedChecks, jmxfetch.ReporterConsole, log.JMXInfo, logLevel)
 }
 
 // ExecJmxListWithMetricsJSON runs the JMX command with "with-metrics", reporting

@@ -50,6 +50,13 @@ __u16 cpu;
 */
 type batch C.batch_t
 
+/* port_binding_t
+__u32 pid;
+__u32 net_ns;
+__u16 port;
+*/
+type portBindingTuple C.port_binding_t
+
 func (t *ConnTuple) copy() *ConnTuple {
 	return &ConnTuple{
 		pid:      t.pid,
@@ -114,6 +121,41 @@ func connTupleFromConn(conn net.Conn, pid uint32) (*ConnTuple, error) {
 	return ct, nil
 }
 
+func newConnTuple(pid int, netns uint64, saddr, daddr util.Address, sport, dport uint16, proto network.ConnectionType) *ConnTuple {
+	ct := &ConnTuple{
+		pid:   C.__u32(pid),
+		netns: C.__u32(netns),
+		sport: C.__u16(sport),
+		dport: C.__u16(dport),
+	}
+	sbytes := saddr.Bytes()
+	dbytes := daddr.Bytes()
+	if len(sbytes) == 4 {
+		ct.metadata |= C.CONN_V4
+		ct.saddr_h = 0
+		ct.saddr_l = C.__u64(binary.LittleEndian.Uint32(sbytes))
+		ct.daddr_h = 0
+		ct.daddr_l = C.__u64(binary.LittleEndian.Uint32(dbytes))
+	} else if len(sbytes) == 16 {
+		ct.metadata |= C.CONN_V6
+		ct.saddr_h = C.__u64(binary.LittleEndian.Uint64(sbytes[:8]))
+		ct.saddr_l = C.__u64(binary.LittleEndian.Uint64(sbytes[8:]))
+		ct.daddr_h = C.__u64(binary.LittleEndian.Uint64(dbytes[:8]))
+		ct.daddr_l = C.__u64(binary.LittleEndian.Uint64(dbytes[8:]))
+	} else {
+		return nil
+	}
+
+	switch proto {
+	case network.TCP:
+		ct.metadata |= C.CONN_TYPE_TCP
+	case network.UDP:
+		ct.metadata |= C.CONN_TYPE_UDP
+	}
+
+	return ct
+}
+
 func (t *ConnTuple) isTCP() bool {
 	return connType(uint(t.metadata)) == network.TCP
 }
@@ -134,6 +176,10 @@ func (t *ConnTuple) SourceEndpoint() string {
 	return net.JoinHostPort(t.SourceAddress().String(), strconv.Itoa(int(t.sport)))
 }
 
+func (t *ConnTuple) SourcePort() uint16 {
+	return uint16(t.sport)
+}
+
 func (t *ConnTuple) DestAddress() util.Address {
 	if t.isIPv4() {
 		return util.V4Address(uint32(t.daddr_l))
@@ -144,6 +190,18 @@ func (t *ConnTuple) DestAddress() util.Address {
 // DestEndpoint returns the destination address in the ip:port format (for example, "192.0.2.1:25", "[2001:db8::1]:80")
 func (t *ConnTuple) DestEndpoint() string {
 	return net.JoinHostPort(t.DestAddress().String(), strconv.Itoa(int(t.dport)))
+}
+
+func (t *ConnTuple) DestPort() uint16 {
+	return uint16(t.dport)
+}
+
+func (t *ConnTuple) Pid() uint32 {
+	return uint32(t.pid)
+}
+
+func (t *ConnTuple) NetNS() uint64 {
+	return uint64(t.netns)
 }
 
 func (t *ConnTuple) String() string {

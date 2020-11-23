@@ -40,6 +40,9 @@ type complianceCheck struct {
 func (c *complianceCheck) Stop() {
 }
 
+func (c *complianceCheck) Cancel() {
+}
+
 func (c *complianceCheck) String() string {
 	return compliance.CheckName(c.ruleID, c.description)
 }
