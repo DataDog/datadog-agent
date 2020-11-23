@@ -116,6 +116,23 @@ func populateDeviceField(serie *Serie) {
 	serie.Tags = filteredTags
 }
 
+// Marshal timeseries to array of strings
+func (series Series) marshalStrings() ([]string, [][]string) {
+	var headers = []string{"Metric", "Type", "Timestamp", "Value", "Tags"}
+	var payload = make([][]string, len(series))
+
+	for _, serie := range series {
+		payload = append(payload, []string{
+			serie.Name,
+			fmt.Sprintf(serie.MType.String()),
+			fmt.Sprintf("%.0f", serie.Points[0].Ts),
+			fmt.Sprint(serie.Points[0].Value),
+			fmt.Sprint(serie.Tags),
+		})
+	}
+	return headers, payload
+}
+
 // hasDeviceTag checks whether a series contains a device tag
 func hasDeviceTag(serie *Serie) bool {
 	for _, tag := range serie.Tags {
