@@ -548,10 +548,20 @@ func getScrubCases() map[string]struct {
 		},
 		"sensitive arg": {
 			input: v1.Container{
-				Args: []string{"mysql", "--password", "afztyerbzio1234"},
+				Command: []string{"mysql"},
+				Args:    []string{"--password", "afztyerbzio1234"},
 			},
 			expected: v1.Container{
-				Args: []string{"mysql", "--password", "********"},
+				Command: []string{"mysql"},
+				Args:    []string{"--password", "********"},
+			},
+		},
+		"sensitive arg no command": {
+			input: v1.Container{
+				Args: []string{"password", "--password", "afztyerbzio1234"},
+			},
+			expected: v1.Container{
+				Args: []string{"password", "--password", "********"},
 			},
 		},
 		"sensitive arg joined": {
@@ -571,7 +581,7 @@ func getScrubCases() map[string]struct {
 					{Name: "hostname", Value: "password"},
 					{Name: "pwd", Value: "yolo"},
 				},
-				Args: []string{"mysql", "--password", "afztyerbzio1234"},
+				Args: []string{"--password", "afztyerbzio1234"},
 			},
 			expected: v1.Container{
 				Name:    "test container",
@@ -581,7 +591,7 @@ func getScrubCases() map[string]struct {
 					{Name: "hostname", Value: "password"},
 					{Name: "pwd", Value: "********"},
 				},
-				Args: []string{"mysql", "--password", "********"},
+				Args: []string{"--password", "********"},
 			},
 		},
 	}

@@ -127,13 +127,22 @@ func ScrubContainer(c *v1.Container, scrubber *DataScrubber) {
 		}
 	}()
 
-	// scrub args
-	scrubbedArgs, _ := scrubber.ScrubSimpleCommand(c.Args)
-	c.Args = scrubbedArgs
-
-	// scrub command line
-	scrubbedCmd, _ := scrubber.ScrubSimpleCommand(c.Command)
-	c.Command = scrubbedCmd
+	// scrub args and commands
+	merged := append(c.Command, c.Args...)
+	words := 0
+	for _, cmd := range c.Command {
+		words += len(strings.Split(cmd, " "))
+	}
+	scrubbedMergedCommand, changed := scrubber.ScrubSimpleCommand(merged) // return value is split if has been changed
+	if !changed {
+		return // no change has happened, no need to go further down the line
+	}
+	if len(c.Command) > 0 {
+		c.Command = scrubbedMergedCommand[:words]
+	}
+	if len(c.Args) > 0 {
+		c.Args = scrubbedMergedCommand[words:]
+	}
 
 }
 
