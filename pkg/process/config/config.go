@@ -516,6 +516,7 @@ func loadSysProbeEnvVariables() {
 		{"DD_API_KEY", "system_probe_config.profiling.api_key"},
 		{"DD_ENV", "system_probe_config.profiling.env"},
 		{"DD_ENABLE_RUNTIME_COMPILER", "system_probe_config.enable_runtime_compiler"},
+		{"DD_KERNEL_HEADER_DIRS", "system_probe_config.kernel_header_dirs"},
 		{"DD_RUNTIME_COMPILER_OUTPUT_DIR", "system_probe_config.runtime_compiler_output_dir"},
 	} {
 		if v, ok := os.LookupEnv(variable.env); ok {
