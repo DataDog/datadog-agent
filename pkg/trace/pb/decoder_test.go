@@ -72,7 +72,7 @@ func TestParseFloat64Bytes(t *testing.T) {
 	assert.NoError(err)
 	assert.Equal(2715.0, f)
 
-	f, bts, err = parseFloat64Bytes(bts)
+	f, _, err = parseFloat64Bytes(bts)
 	assert.NoError(err)
 	assert.Equal(3.14, f)
 }
