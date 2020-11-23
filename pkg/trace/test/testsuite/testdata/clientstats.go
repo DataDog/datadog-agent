@@ -38,11 +38,11 @@ var ClientStatsTests = []struct {
 			HostName: "testhost",
 			Env:      "testing",
 			Stats: []stats.Bucket{
-				stats.Bucket{
+				{
 					Start:    1,
 					Duration: 2,
 					Counts: map[string]stats.Count{
-						"noname00|duration|env:testing,resource:noname00,service:unnamed-service,http.status_code:200,version:0.1-alpha": stats.Count{
+						"noname00|duration|env:testing,resource:noname00,service:unnamed-service,http.status_code:200,version:0.1-alpha": {
 							Key:     "noname00|duration|env:testing,resource:noname00,service:unnamed-service,http.status_code:200,version:0.1-alpha",
 							Name:    "noname00",
 							Measure: "duration",
@@ -56,7 +56,7 @@ var ClientStatsTests = []struct {
 							TopLevel: 22,
 							Value:    44,
 						},
-						"noname00|errors|env:testing,resource:noname00,service:unnamed-service,http.status_code:200,version:0.1-alpha": stats.Count{
+						"noname00|errors|env:testing,resource:noname00,service:unnamed-service,http.status_code:200,version:0.1-alpha": {
 							Key:     "noname00|errors|env:testing,resource:noname00,service:unnamed-service,http.status_code:200,version:0.1-alpha",
 							Name:    "noname00",
 							Measure: "errors",
@@ -70,7 +70,7 @@ var ClientStatsTests = []struct {
 							TopLevel: 22,
 							Value:    33,
 						},
-						"noname00|hits|env:testing,resource:noname00,service:unnamed-service,http.status_code:200,version:0.1-alpha": stats.Count{
+						"noname00|hits|env:testing,resource:noname00,service:unnamed-service,http.status_code:200,version:0.1-alpha": {
 							Key:     "noname00|hits|env:testing,resource:noname00,service:unnamed-service,http.status_code:200,version:0.1-alpha",
 							Name:    "noname00",
 							Measure: "hits",
@@ -144,11 +144,11 @@ var ClientStatsTests = []struct {
 			HostName: "testhost",
 			Env:      "testing",
 			Stats: []stats.Bucket{
-				stats.Bucket{
+				{
 					Start:    1,
 					Duration: 2,
 					Counts: map[string]stats.Count{
-						"noname00|duration|env:testing,resource:/rsc/path,service:svc,http.status_code:200,version:0.1-alpha": stats.Count{
+						"noname00|duration|env:testing,resource:/rsc/path,service:svc,http.status_code:200,version:0.1-alpha": {
 							Key:     "noname00|duration|env:testing,resource:/rsc/path,service:svc,http.status_code:200,version:0.1-alpha",
 							Name:    "noname00",
 							Measure: "duration",
@@ -162,7 +162,7 @@ var ClientStatsTests = []struct {
 							TopLevel: 22,
 							Value:    44,
 						},
-						"noname00|errors|env:testing,resource:/rsc/path,service:svc,http.status_code:200,version:0.1-alpha": stats.Count{
+						"noname00|errors|env:testing,resource:/rsc/path,service:svc,http.status_code:200,version:0.1-alpha": {
 							Key:     "noname00|errors|env:testing,resource:/rsc/path,service:svc,http.status_code:200,version:0.1-alpha",
 							Name:    "noname00",
 							Measure: "errors",
@@ -176,7 +176,7 @@ var ClientStatsTests = []struct {
 							TopLevel: 22,
 							Value:    33,
 						},
-						"noname00|hits|env:testing,resource:/rsc/path,service:svc,http.status_code:200,version:0.1-alpha": stats.Count{
+						"noname00|hits|env:testing,resource:/rsc/path,service:svc,http.status_code:200,version:0.1-alpha": {
 							Key:     "noname00|hits|env:testing,resource:/rsc/path,service:svc,http.status_code:200,version:0.1-alpha",
 							Name:    "noname00",
 							Measure: "hits",
@@ -192,11 +192,11 @@ var ClientStatsTests = []struct {
 						},
 					},
 				},
-				stats.Bucket{
+				{
 					Start:    1,
 					Duration: 2,
 					Counts: map[string]stats.Count{
-						"sql.query|duration|env:testing,resource:SELECT * FROM users WHERE id = ? AND name = ?,service:users-db,version:0.1-alpha": stats.Count{
+						"sql.query|duration|env:testing,resource:SELECT * FROM users WHERE id = ? AND name = ?,service:users-db,version:0.1-alpha": {
 							Key:     "sql.query|duration|env:testing,resource:SELECT * FROM users WHERE id = ? AND name = ?,service:users-db,version:0.1-alpha",
 							Name:    "sql.query",
 							Measure: "duration",
@@ -209,7 +209,7 @@ var ClientStatsTests = []struct {
 							TopLevel: 5,
 							Value:    8,
 						},
-						"sql.query|errors|env:testing,resource:SELECT * FROM users WHERE id = ? AND name = ?,service:users-db,version:0.1-alpha": stats.Count{
+						"sql.query|errors|env:testing,resource:SELECT * FROM users WHERE id = ? AND name = ?,service:users-db,version:0.1-alpha": {
 							Key:     "sql.query|errors|env:testing,resource:SELECT * FROM users WHERE id = ? AND name = ?,service:users-db,version:0.1-alpha",
 							Name:    "sql.query",
 							Measure: "errors",
@@ -222,7 +222,7 @@ var ClientStatsTests = []struct {
 							TopLevel: 5,
 							Value:    7,
 						},
-						"sql.query|hits|env:testing,resource:SELECT * FROM users WHERE id = ? AND name = ?,service:users-db,version:0.1-alpha": stats.Count{
+						"sql.query|hits|env:testing,resource:SELECT * FROM users WHERE id = ? AND name = ?,service:users-db,version:0.1-alpha": {
 							Key:     "sql.query|hits|env:testing,resource:SELECT * FROM users WHERE id = ? AND name = ?,service:users-db,version:0.1-alpha",
 							Name:    "sql.query",
 							Measure: "hits",
@@ -237,11 +237,11 @@ var ClientStatsTests = []struct {
 						},
 					},
 				},
-				stats.Bucket{
+				{
 					Start:    3,
 					Duration: 4,
 					Counts: map[string]stats.Count{
-						"sql.query|duration|env:testing,resource:SELECT * FROM profiles WHERE name = ?,service:profiles-db,version:0.1-alpha": stats.Count{
+						"sql.query|duration|env:testing,resource:SELECT * FROM profiles WHERE name = ?,service:profiles-db,version:0.1-alpha": {
 							Key:     "sql.query|duration|env:testing,resource:SELECT * FROM profiles WHERE name = ?,service:profiles-db,version:0.1-alpha",
 							Name:    "sql.query",
 							Measure: "duration",
@@ -254,7 +254,7 @@ var ClientStatsTests = []struct {
 							TopLevel: 11,
 							Value:    13,
 						},
-						"sql.query|errors|env:testing,resource:SELECT * FROM profiles WHERE name = ?,service:profiles-db,version:0.1-alpha": stats.Count{
+						"sql.query|errors|env:testing,resource:SELECT * FROM profiles WHERE name = ?,service:profiles-db,version:0.1-alpha": {
 							Key:     "sql.query|errors|env:testing,resource:SELECT * FROM profiles WHERE name = ?,service:profiles-db,version:0.1-alpha",
 							Name:    "sql.query",
 							Measure: "errors",
@@ -267,7 +267,7 @@ var ClientStatsTests = []struct {
 							TopLevel: 11,
 							Value:    12,
 						},
-						"sql.query|hits|env:testing,resource:SELECT * FROM profiles WHERE name = ?,service:profiles-db,version:0.1-alpha": stats.Count{
+						"sql.query|hits|env:testing,resource:SELECT * FROM profiles WHERE name = ?,service:profiles-db,version:0.1-alpha": {
 							Key:     "sql.query|hits|env:testing,resource:SELECT * FROM profiles WHERE name = ?,service:profiles-db,version:0.1-alpha",
 							Name:    "sql.query",
 							Measure: "hits",

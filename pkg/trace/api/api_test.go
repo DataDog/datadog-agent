@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"reflect"
 	"strconv"
 	"sync"
 	"testing"
@@ -512,6 +513,25 @@ func TestDecodeV05(t *testing.T) {
 	})
 }
 
+type mockStatsProcessor struct {
+	mu       sync.RWMutex
+	lastP    pb.ClientStatsPayload
+	lastLang string
+}
+
+func (m *mockStatsProcessor) ProcessStats(p pb.ClientStatsPayload, lang string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.lastP = p
+	m.lastLang = lang
+}
+
+func (m *mockStatsProcessor) Got() (p pb.ClientStatsPayload, lang string) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.lastP, m.lastLang
+}
+
 func TestHandleStats(t *testing.T) {
 	bucket := func(start, duration uint64) pb.ClientStatsBucket {
 		return pb.ClientStatsBucket{
@@ -538,40 +558,54 @@ func TestHandleStats(t *testing.T) {
 			bucket(500, 100342),
 		},
 	}
-	b, err := proto.Marshal(&p)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var buf bytes.Buffer
-	if err := msgp.Encode(&buf, &p); err != nil {
-		t.Fatal(err)
-	}
 
 	cfg := newTestReceiverConfig()
 	rcv := newTestReceiverFromConfig(cfg)
+	mockProcessor := new(mockStatsProcessor)
+	rcv.statsProcessor = mockProcessor
 	rcv.Start()
 	defer rcv.Stop()
 
-	req, _ := http.NewRequest("POST", "http://127.0.0.1:8126/v0.5/stats", bytes.NewReader(b))
-	req.Header.Set("Content-Type", "application/protobuf")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if resp.StatusCode != 200 {
-		t.Fatal(resp.StatusCode)
-	}
+	t.Run("proto", func(t *testing.T) {
+		protobytes, err := proto.Marshal(&p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req, _ := http.NewRequest("POST", "http://127.0.0.1:8126/v0.5/stats", bytes.NewReader(protobytes))
+		req.Header.Set("Content-Type", "application/protobuf")
+		req.Header.Set(headerLang, "lang1")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp.StatusCode != 200 {
+			t.Fatal(resp.StatusCode)
+		}
+		if gotp, gotlang := mockProcessor.Got(); !reflect.DeepEqual(gotp, p) || gotlang != "lang1" {
+			t.Fatalf("Did not match payload: %v: %v", gotlang, gotp)
+		}
+	})
 
-	req, _ = http.NewRequest("POST", "http://127.0.0.1:8126/v0.5/stats", &buf)
-	req.Header.Set("Content-Type", "application/msgpack")
-	resp, err = http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if resp.StatusCode != 200 {
-		slurp, _ := ioutil.ReadAll(resp.Body)
-		t.Fatal(string(slurp), resp.StatusCode)
-	}
+	t.Run("msgpack", func(t *testing.T) {
+		var buf bytes.Buffer
+		if err := msgp.Encode(&buf, &p); err != nil {
+			t.Fatal(err)
+		}
+		req, _ := http.NewRequest("POST", "http://127.0.0.1:8126/v0.5/stats", &buf)
+		req.Header.Set("Content-Type", "application/msgpack")
+		req.Header.Set(headerLang, "lang1")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp.StatusCode != 200 {
+			slurp, _ := ioutil.ReadAll(resp.Body)
+			t.Fatal(string(slurp), resp.StatusCode)
+		}
+		if gotp, gotlang := mockProcessor.Got(); !reflect.DeepEqual(gotp, p) || gotlang != "lang1" {
+			t.Fatalf("Did not match payload: %v: %v", gotlang, gotp)
+		}
+	})
 }
 
 func TestHandleTraces(t *testing.T) {
