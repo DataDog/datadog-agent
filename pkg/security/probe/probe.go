@@ -12,6 +12,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
+// SupportedDiscarders lists all field which supports discarders
+var SupportedDiscarders = make(map[eval.Field]bool)
+
 // NewRuleSet returns a new rule set
 func (p *Probe) NewRuleSet(opts *rules.Opts) *rules.RuleSet {
 	eventCtor := func() eval.Event {

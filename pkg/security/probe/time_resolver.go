@@ -34,3 +34,8 @@ func NewTimeResolver() (*TimeResolver, error) {
 func (tr *TimeResolver) ResolveMonotonicTimestamp(timestamp uint64) time.Time {
 	return tr.bootTime.Add(time.Duration(timestamp) * time.Nanosecond)
 }
+
+// ComputeMonotonicTimestamp converts an absolute time to a kernel monotonic timestamp
+func (tr *TimeResolver) ComputeMonotonicTimestamp(timestamp time.Time) int64 {
+	return timestamp.Sub(tr.bootTime).Nanoseconds()
+}

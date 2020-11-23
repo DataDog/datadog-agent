@@ -29,7 +29,7 @@ func jsonTraceFromPath(path string) (pb.Trace, error) {
 }
 
 func TestAPMEvents(t *testing.T) {
-	runner := test.Runner{Verbose: true}
+	runner := test.Runner{}
 	if err := runner.Start(); err != nil {
 		t.Fatal(err)
 	}

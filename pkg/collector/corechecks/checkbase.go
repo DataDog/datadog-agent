@@ -172,6 +172,11 @@ func (c *CheckBase) Warnf(format string, params ...interface{}) error {
 // long-running checks (persisting after Run() exits)
 func (c *CheckBase) Stop() {}
 
+// Cancel does nothing by default, you need to implement it if
+// your check has background resources that need to be cleaned up
+// when the check is unscheduled.
+func (c *CheckBase) Cancel() {}
+
 // Interval returns the scheduling time for the check.
 // Long-running checks should override to return 0.
 func (c *CheckBase) Interval() time.Duration {

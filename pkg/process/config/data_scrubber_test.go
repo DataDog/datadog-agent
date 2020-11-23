@@ -59,6 +59,13 @@ type testProcess struct {
 func setupSensitiveCmdlines() []testCase {
 	return []testCase{
 		{[]string{"agent", "-password", "1234"}, []string{"agent", "-password", "********"}},
+		{[]string{"agent --password > /password/secret; agent --password echo >> /etc"}, []string{"agent", "--password", "********", "/password/secret;", "agent", "--password", "********", ">>", "/etc"}},
+		{[]string{"agent --password > /password/secret; ls"}, []string{"agent", "--password", "********", "/password/secret;", "ls"}},
+		{[]string{"agent", "-password=========123"}, []string{"agent", "-password=********"}},
+		{[]string{"agent", "-password:123"}, []string{"agent", "-password:********"}},
+		{[]string{"agent", "password/test:123"}, []string{"agent", "password/test:********"}},
+		{[]string{"agent", "-password////:123"}, []string{"agent", "-password////:********"}},
+		{[]string{"agent", "-password", "-password"}, []string{"agent", "-password", "********"}},
 		{[]string{"agent", "--password", "1234"}, []string{"agent", "--password", "********"}},
 		{[]string{"agent", "-password=1234"}, []string{"agent", "-password=********"}},
 		{[]string{"agent", "--password=1234"}, []string{"agent", "--password=********"}},
@@ -96,6 +103,11 @@ func setupSensitiveCmdlines() []testCase {
 
 func setupInsensitiveCmdlines() []testCase {
 	return []testCase{
+		{[]string{"agent", "-password/123"}, []string{"agent", "-password/123"}},
+		{[]string{"/usr/local/bin/bash -c cat /etc/vaultd/secrets/haproxy-crt.pem > /etc/vaultd/secrets/haproxy.pem; echo >> /etc/vaultd/secrets/haproxy.pem; cat /etc/vaultd/secrets/haproxy-key.pem >> /etc/vaultd/secrets/haproxy.pem"},
+			[]string{"/usr/local/bin/bash -c cat /etc/vaultd/secrets/haproxy-crt.pem > /etc/vaultd/secrets/haproxy.pem; echo >> /etc/vaultd/secrets/haproxy.pem; cat /etc/vaultd/secrets/haproxy-key.pem >> /etc/vaultd/secrets/haproxy.pem"}},
+		{[]string{":usr:local:bin:bash -c cat :etc:vaultd:secrets:haproxy-crt.pem > :etc:vaultd:secrets:haproxy.pem; echo >> :etc:vaultd:secrets:haproxy.pem; cat :etc:vaultd:secrets:haproxy-key.pem >> :etc:vaultd:secrets:haproxy.pem"},
+			[]string{":usr:local:bin:bash -c cat :etc:vaultd:secrets:haproxy-crt.pem > :etc:vaultd:secrets:haproxy.pem; echo >> :etc:vaultd:secrets:haproxy.pem; cat :etc:vaultd:secrets:haproxy-key.pem >> :etc:vaultd:secrets:haproxy.pem"}},
 		{[]string{"spidly", "--debug_port=2043"}, []string{"spidly", "--debug_port=2043"}},
 		{[]string{"agent", "start", "-p", "config.cfg"}, []string{"agent", "start", "-p", "config.cfg"}},
 		{[]string{"p1", "-user=admin"}, []string{"p1", "-user=admin"}},
@@ -408,7 +420,7 @@ var avoidOptimization []string
 
 func benchmarkRegexMatching(nbProcesses int, b *testing.B) {
 	runningProcesses := make([][]string, nbProcesses)
-	foolCmdline := []string{"python ~/test/run.py --password=1234 -password 1234 -password=admin -secret 2345 -credentials=1234 -api_key 2808 &"}
+	foolCmdline := []string{"python ~/test/run.py --dd_password=1234 -password 1234 -password=admin -secret 2345 -credentials=1234 -api_key 2808 &"}
 
 	customSensitiveWords := []string{
 		"*consul_token",
@@ -419,7 +431,7 @@ func benchmarkRegexMatching(nbProcesses int, b *testing.B) {
 	scrubber.AddCustomSensitiveWords(customSensitiveWords)
 
 	for i := 0; i < nbProcesses; i++ {
-		runningProcesses = append(runningProcesses, foolCmdline)
+		runningProcesses[i] = foolCmdline
 	}
 
 	var r []string

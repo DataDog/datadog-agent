@@ -14,7 +14,8 @@ import (
 	"net/url"
 	"path"
 	"reflect"
-	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/ecs/common"
 )
 
 const (
@@ -24,9 +25,6 @@ const (
 	// Metadata v1 API paths
 	instancePath     = "/metadata"
 	taskMetadataPath = "/tasks"
-
-	// Default client configuration
-	endpointTimeout = 500 * time.Millisecond
 )
 
 // Client represents a client for a metadata v1 API endpoint.
@@ -69,7 +67,7 @@ func (c *Client) makeURL(requestPath string) (string, error) {
 }
 
 func (c *Client) get(path string, v interface{}) error {
-	client := http.Client{Timeout: endpointTimeout}
+	client := http.Client{Timeout: common.MetadataTimeout()}
 	url, err := c.makeURL(path)
 	if err != nil {
 		return fmt.Errorf("Error constructing metadata request URL: %s", err)

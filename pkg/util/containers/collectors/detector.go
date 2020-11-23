@@ -37,6 +37,11 @@ type Detector struct {
 	preferredName      string
 }
 
+// DetectorInterface is useful to mock the Detector in other packages
+type DetectorInterface interface {
+	GetPreferred() (Collector, string, error)
+}
+
 // NewDetector returns a Detector ready to use. If configuredName
 // is empty, autodetection is enabled. If not, only the one name
 // will be tried.

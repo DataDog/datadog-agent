@@ -28,18 +28,18 @@ type RuleSetApplier struct {
 // Applier describes the set of methods required to apply kernel event passing policies
 type Applier interface {
 	Init() error
-	ApplyFilterPolicy(eventType eval.EventType, tableName string, mode PolicyMode, flags PolicyFlag) error
+	ApplyFilterPolicy(eventType eval.EventType, mode PolicyMode, flags PolicyFlag) error
 	ApplyApprovers(eventType eval.EventType, approvers rules.Approvers) error
 	RegisterProbesSelectors(selectors []manager.ProbesSelector) error
 }
 
-func (rsa *RuleSetApplier) applyFilterPolicy(eventType eval.EventType, tableName string, mode PolicyMode, flags PolicyFlag, applier Applier) error {
-	if err := rsa.reporter.SetFilterPolicy(eventType, tableName, mode, flags); err != nil {
+func (rsa *RuleSetApplier) applyFilterPolicy(eventType eval.EventType, mode PolicyMode, flags PolicyFlag, applier Applier) error {
+	if err := rsa.reporter.SetFilterPolicy(eventType, mode, flags); err != nil {
 		return err
 	}
 
 	if applier != nil {
-		return applier.ApplyFilterPolicy(eventType, tableName, mode, flags)
+		return applier.ApplyFilterPolicy(eventType, mode, flags)
 	}
 
 	return nil
@@ -65,13 +65,8 @@ func (rsa *RuleSetApplier) registerProbesSelectors(selectors []manager.ProbesSel
 }
 
 func (rsa *RuleSetApplier) setupFilters(rs *rules.RuleSet, eventType eval.EventType, applier Applier) error {
-	policyTable := allPolicyTables[eventType]
-	if policyTable == "" {
-		return nil
-	}
-
 	if !rsa.config.EnableKernelFilters {
-		if err := rsa.applyFilterPolicy(eventType, policyTable, PolicyModeNoFilter, math.MaxUint8, applier); err != nil {
+		if err := rsa.applyFilterPolicy(eventType, PolicyModeNoFilter, math.MaxUint8, applier); err != nil {
 			return err
 		}
 		return nil
@@ -79,33 +74,24 @@ func (rsa *RuleSetApplier) setupFilters(rs *rules.RuleSet, eventType eval.EventT
 
 	// if approvers disabled
 	if !rsa.config.EnableApprovers {
-		if err := rsa.applyFilterPolicy(eventType, policyTable, PolicyModeAccept, math.MaxUint8, applier); err != nil {
-			return err
-		}
-		return nil
+		return rsa.applyFilterPolicy(eventType, PolicyModeAccept, math.MaxUint8, applier)
 	}
 
 	capabilities, exists := allCapabilities[eventType]
 	if !exists {
-		return &ErrCapabilityNotFound{EventType: eventType}
+		return rsa.applyFilterPolicy(eventType, PolicyModeAccept, math.MaxUint8, applier)
 	}
 
 	approvers, err := rs.GetApprovers(eventType, capabilities.GetFieldCapabilities())
 	if err != nil {
-		if err := rsa.applyFilterPolicy(eventType, policyTable, PolicyModeAccept, math.MaxUint8, applier); err != nil {
-			return err
-		}
-		return nil
+		return rsa.applyFilterPolicy(eventType, PolicyModeAccept, math.MaxUint8, applier)
 	}
 
 	if err := rsa.applyApprovers(eventType, approvers, applier); err != nil {
-		if err := rsa.applyFilterPolicy(eventType, policyTable, PolicyModeAccept, math.MaxUint8, applier); err != nil {
-			return err
-		}
-		return nil
+		return rsa.applyFilterPolicy(eventType, PolicyModeAccept, math.MaxUint8, applier)
 	}
 
-	if err := rsa.applyFilterPolicy(eventType, policyTable, PolicyModeDeny, capabilities.GetFlags(), applier); err != nil {
+	if err := rsa.applyFilterPolicy(eventType, PolicyModeDeny, capabilities.GetFlags(), applier); err != nil {
 		return err
 	}
 
@@ -114,11 +100,9 @@ func (rsa *RuleSetApplier) setupFilters(rs *rules.RuleSet, eventType eval.EventT
 
 // Apply setup the filters for the provided set of rules and returns the policy report.
 func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet, applier Applier) (*Report, error) {
-	for eventType := range probes.SelectorsPerEventType {
-		if rs.HasRulesForEventType(eventType) {
-			if err := rsa.setupFilters(rs, eventType, applier); err != nil {
-				return nil, err
-			}
+	for _, eventType := range rs.GetEventTypes() {
+		if err := rsa.setupFilters(rs, eventType, applier); err != nil {
+			return nil, err
 		}
 	}
 	return rsa.reporter.GetReport(), nil
@@ -154,7 +138,7 @@ func (rsa *RuleSetApplier) SelectProbes(rs *rules.RuleSet, applier Applier) erro
 
 	// Print the list of unique probe identification IDs that are registered
 	for _, id := range selectedIDs {
-		log.Debugf("probe %s registered", id)
+		log.Debugf("probe %s selected", id)
 	}
 	return nil
 }

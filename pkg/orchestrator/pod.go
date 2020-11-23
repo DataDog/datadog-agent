@@ -15,7 +15,6 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/process"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -34,8 +33,8 @@ const (
 	nodeUnreachablePodReason = "NodeLost"
 )
 
-// ProcessPodlist processes a pod list into process messages
-func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, hostName string, clusterName string, clusterID string, withScrubbing bool) ([]model.MessageBody, error) {
+// ProcessPodList processes a pod list into process messages
+func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterName string, clusterID string, withScrubbing bool, maxPerMessage int, scrubber *DataScrubber, extraTags []string) ([]model.MessageBody, error) {
 	start := time.Now()
 	podMsgs := make([]*model.Pod, 0, len(podList))
 
@@ -65,16 +64,15 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 		}
 
 		// additional tags
-		tags = append(tags, fmt.Sprintf("pod_status:%s", strings.ToLower(podModel.Status)))
-		podModel.Tags = tags
+		podModel.Tags = append(tags, fmt.Sprintf("pod_status:%s", strings.ToLower(podModel.Status)))
 
 		// scrub & generate YAML
 		if withScrubbing {
 			for c := 0; c < len(podList[p].Spec.Containers); c++ {
-				ScrubContainer(&podList[p].Spec.Containers[c], cfg)
+				ScrubContainer(&podList[p].Spec.Containers[c], scrubber)
 			}
 			for c := 0; c < len(podList[p].Spec.InitContainers); c++ {
-				ScrubContainer(&podList[p].Spec.InitContainers[c], cfg)
+				ScrubContainer(&podList[p].Spec.InitContainers[c], scrubber)
 			}
 		}
 
@@ -82,7 +80,7 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 		// and marshalling is more performant than YAML
 		jsonPod, err := jsoniter.Marshal(podList[p])
 		if err != nil {
-			log.Debugf("Could not marshal pod to JSON: %s", err)
+			log.Warnf("Could not marshal pod to JSON: %s", err)
 			continue
 		}
 		podModel.Yaml = jsonPod
@@ -90,11 +88,11 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 		podMsgs = append(podMsgs, podModel)
 	}
 
-	groupSize := len(podMsgs) / cfg.MaxPerMessage
-	if len(podMsgs)%cfg.MaxPerMessage != 0 {
+	groupSize := len(podMsgs) / maxPerMessage
+	if len(podMsgs)%maxPerMessage != 0 {
 		groupSize++
 	}
-	chunked := chunkPods(podMsgs, groupSize, cfg.MaxPerMessage)
+	chunked := chunkPods(podMsgs, groupSize, maxPerMessage)
 	messages := make([]model.MessageBody, 0, groupSize)
 	for i := 0; i < groupSize; i++ {
 		messages = append(messages, &model.CollectorPod{
@@ -104,6 +102,7 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 			GroupId:     groupID,
 			GroupSize:   int32(groupSize),
 			ClusterId:   clusterID,
+			Tags:        extraTags,
 		})
 	}
 
@@ -112,19 +111,26 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 }
 
 // ScrubContainer scrubs sensitive information in the command line & env vars
-func ScrubContainer(c *v1.Container, cfg *config.AgentConfig) {
-	// scrub command line
-	scrubbedCmd, _ := cfg.Scrubber.ScrubCommand(c.Command)
-	c.Command = scrubbedCmd
+func ScrubContainer(c *v1.Container, scrubber *DataScrubber) {
 	// scrub env vars
 	for e := 0; e < len(c.Env); e++ {
-		// use the "key: value" format to work with the regular credential cleaner
-		combination := c.Env[e].Name + ": " + c.Env[e].Value
-		scrubbedVal, err := log.CredentialsCleanerBytes([]byte(combination))
-		if err == nil && combination != string(scrubbedVal) {
+		if scrubber.ContainsSensitiveWord(c.Env[e].Name) {
 			c.Env[e].Value = redactedValue
 		}
 	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("Failed to parse cmd from pod, obscuring whole command")
+			// we still want to obscure to be safe
+			c.Command = []string{redactedValue}
+		}
+	}()
+
+	// scrub command line
+	scrubbedCmd, _ := scrubber.ScrubSimpleCommand(c.Command)
+	c.Command = scrubbedCmd
+
 }
 
 // chunkPods formats and chunks the pods into a slice of chunks using a specific number of chunks.
