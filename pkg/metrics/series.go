@@ -93,6 +93,23 @@ func (series Series) Marshal() ([]byte, error) {
 	return proto.Marshal(payload)
 }
 
+// Marshal timeseries to array of strings
+func (series Series) MarshalStrings() ([]string, [][]string) {
+	var headers = []string{"Metric", "Type", "Timestamp", "Value", "Tags"}
+	var payload = make([][]string, len(series))
+
+	for _, serie := range series {
+		payload = append(payload, []string{
+			serie.Name,
+			fmt.Sprintf(serie.MType.String()),
+			fmt.Sprintf("%.0f", serie.Points[0].Ts),
+			fmt.Sprint(serie.Points[0].Value),
+			fmt.Sprint(serie.Tags),
+		})
+	}
+	return headers, payload
+}
+
 // populateDeviceField removes any `device:` tag in the series tags and uses the value to
 // populate the Serie.Device field
 //FIXME(olivier): remove this as soon as the v1 API can handle `device` as a regular tag
@@ -114,23 +131,6 @@ func populateDeviceField(serie *Serie) {
 	}
 
 	serie.Tags = filteredTags
-}
-
-// Marshal timeseries to array of strings
-func (series Series) marshalStrings() ([]string, [][]string) {
-	var headers = []string{"Metric", "Type", "Timestamp", "Value", "Tags"}
-	var payload = make([][]string, len(series))
-
-	for _, serie := range series {
-		payload = append(payload, []string{
-			serie.Name,
-			fmt.Sprintf(serie.MType.String()),
-			fmt.Sprintf("%.0f", serie.Points[0].Ts),
-			fmt.Sprint(serie.Points[0].Value),
-			fmt.Sprint(serie.Tags),
-		})
-	}
-	return headers, payload
 }
 
 // hasDeviceTag checks whether a series contains a device tag

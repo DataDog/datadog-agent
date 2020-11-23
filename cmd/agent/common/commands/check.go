@@ -442,7 +442,7 @@ func printMetrics(agg *aggregator.BufferedAggregator) {
 		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Series")))
 
 		if formatTable {
-			headers, data := series.marshalStrings()
+			headers, data := series.MarshalStrings()
 
 			table := tablewriter.NewWriter(os.Stdout)
 			table.SetHeader(headers)
