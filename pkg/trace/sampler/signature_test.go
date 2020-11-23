@@ -7,12 +7,13 @@ package sampler
 
 import (
 	"hash/fnv"
-	"k8s.io/apimachinery/pkg/util/rand"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+
 	"github.com/stretchr/testify/assert"
+	"k8s.io/apimachinery/pkg/util/rand"
 )
 
 func testComputeSignature(trace pb.Trace) Signature {
