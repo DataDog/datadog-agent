@@ -70,7 +70,7 @@ func TestURLSanitization(t *testing.T) {
 		},
 		{
 			originalURL: "process.datadoghq.com",
-			expectedURL: "app.datadoghq.com",
+			expectedURL: "https://app.datadoghq.com",
 		},
 		{
 			originalURL: "https://process.datad0g.com",
@@ -91,7 +91,8 @@ func TestURLSanitization(t *testing.T) {
 			tc.originalURL: {"dd-api-key"},
 		}
 
-		result := sanitize(keysPerDomain)
+		result, err := sanitize(keysPerDomain)
+		assert.Nil(t, err)
 		assert.Len(t, result, 1)
 		for url, keys := range result {
 			assert.Equal(t, tc.expectedURL, url)

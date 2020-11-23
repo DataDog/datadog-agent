@@ -2,7 +2,9 @@ package heartbeat
 
 import (
 	"fmt"
+	"net/url"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -37,12 +39,17 @@ func newAPIFlusher(opts Options, fallback flusher) (flusher, error) {
 
 	apiWatcher := newAPIWatcher(time.Minute)
 
+	keysPerDomain, err := sanitize(opts.KeysPerDomain)
+	if err != nil {
+		return nil, err
+	}
+
 	// Instantiate forwarder responsible for sending hearbeat metrics to the API
-	fwdOpts := forwarder.NewOptions(sanitize(opts.KeysPerDomain))
+	fwdOpts := forwarder.NewOptions(keysPerDomain)
 	fwdOpts.DisableAPIKeyChecking = true
 	fwdOpts.CompletionHandler = apiWatcher.handler()
 	heartbeatForwarder := forwarder.NewDefaultForwarder(fwdOpts)
-	err := heartbeatForwarder.Start()
+	err = heartbeatForwarder.Start()
 	if err != nil {
 		return nil, err
 	}
@@ -110,15 +117,25 @@ func (f *apiFlusher) jsonPayload(metricNames []string, now time.Time) ([]byte, e
 	return heartbeats.MarshalJSON()
 }
 
-var urlRegexp = regexp.MustCompile(`(https://)?.*process\.(.*)$`)
+var urlRegexp = regexp.MustCompile(`.*process\.(.*)$`)
 
-func sanitize(keysPerDomain map[string][]string) map[string][]string {
+func sanitize(keysPerDomain map[string][]string) (map[string][]string, error) {
 	sanitized := make(map[string][]string)
 	for domain, keys := range keysPerDomain {
-		sanitizedDomain := urlRegexp.ReplaceAllString(domain, "${1}app.${2}")
-		sanitized[sanitizedDomain] = keys
+		if !strings.HasPrefix(domain, "https://") && !strings.HasPrefix(domain, "http://") {
+			domain = "https://" + domain
+		}
+
+		url, err := url.Parse(domain)
+		if err != nil {
+			return nil, err
+		}
+
+		url.Host = urlRegexp.ReplaceAllString(url.Hostname(), "app.${1}")
+		sanitized[url.String()] = keys
 	}
-	return sanitized
+
+	return sanitized, nil
 }
 
 func tagsFromOptions(opts Options) []string {
