@@ -2,19 +2,13 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
+// +build !linux
 
-// +build linux_bpf
+package system
 
-package probe
+import "github.com/DataDog/datadog-agent/pkg/aggregator"
 
-import (
-	"testing"
-)
-
-func TestInvalidDiscarders(t *testing.T) {
-	probe := NewProbe(nil)
-
-	if !probe.isInvalidDiscarder("open.filename", dentryInvalidDiscarder) {
-		t.Errorf("should be an invalid discarder")
-	}
+func (c *CPUCheck) collectCtxSwitches(sender aggregator.Sender) error {
+	// On non-linux systems, do nothing
+	return nil
 }

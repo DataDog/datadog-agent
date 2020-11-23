@@ -80,7 +80,7 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterNa
 		// and marshalling is more performant than YAML
 		jsonPod, err := jsoniter.Marshal(podList[p])
 		if err != nil {
-			log.Debugf("Could not marshal pod to JSON: %s", err)
+			log.Warnf("Could not marshal pod to JSON: %s", err)
 			continue
 		}
 		podModel.Yaml = jsonPod
@@ -121,7 +121,7 @@ func ScrubContainer(c *v1.Container, scrubber *DataScrubber) {
 
 	defer func() {
 		if r := recover(); r != nil {
-			log.Errorf("failed to parse cmd from pod, obscuring whole command")
+			log.Errorf("Failed to parse cmd from pod, obscuring whole command")
 			// we still want to obscure to be safe
 			c.Command = []string{redactedValue}
 		}

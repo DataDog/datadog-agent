@@ -72,6 +72,102 @@ func TestDentryRename(t *testing.T) {
 	}
 }
 
+func TestDentryRenameReuseInode(t *testing.T) {
+	rules := []*rules.RuleDefinition{{
+		ID:         "test_rule",
+		Expression: `open.filename == "{{.Root}}/test-rename-reuse-inode"`,
+	}, {
+		ID:         "test_rule2",
+		Expression: `open.filename == "{{.Root}}/test-rename-new"`,
+	}}
+
+	testDrive, err := newTestDrive("xfs", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer testDrive.Close()
+
+	test, err := newTestModule(nil, rules, testOpts{enableFilters: true, testDir: testDrive.Root()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	testOldFile, _, err := test.Path("test-rename-old")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	f, err := os.Create(testOldFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testOldFile)
+
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	testNewFile, _, err := test.Path("test-rename-new")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testNewFile)
+
+	f, err = os.Create(testNewFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	event, _, err := test.GetEvent()
+	if err != nil {
+		t.Error(err)
+	} else {
+		if event.GetType() != "open" {
+			t.Errorf("expected open event, got %s", event.GetType())
+		}
+	}
+
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.Rename(testOldFile, testNewFile); err != nil {
+		t.Fatal(err)
+	}
+
+	// At this point, the inode of test-rename-new was freed. We then
+	// create a new file - with xfs, it will recycle the inode. This test
+	// checks that we properly invalidated the cache entry of this inode.
+
+	testReuseInodeFile, _, err := test.Path("test-rename-reuse-inode")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	f, err = os.Create(testReuseInodeFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testReuseInodeFile)
+
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	event, _, err = test.GetEvent()
+	if err != nil {
+		t.Error(err)
+	} else {
+		if event.GetType() != "open" {
+			t.Errorf("expected open event, got %s", event.GetType())
+		}
+		if value, _ := event.GetFieldValue("open.filename"); value.(string) != testReuseInodeFile {
+			t.Errorf("expected filename not found")
+		}
+	}
+}
+
 func TestDentryRenameFolder(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
