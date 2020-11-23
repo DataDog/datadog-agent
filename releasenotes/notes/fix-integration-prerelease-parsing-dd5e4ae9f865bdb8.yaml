@@ -6,7 +6,7 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-enhancements:
+fixes:
   - |
-    Added UDS support for JMXFetch
-    JMXFetch upgraded to `0.40.3 <https://github.com/DataDog/jmxfetch/releases/0.40.3>`
+    Fix a bug when parsing the current version of an integration that prevented
+    upgrading from an alpha or beta prerelease version.

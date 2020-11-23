@@ -41,7 +41,7 @@ func (n NodeType) String() string {
 	case K8sPod:
 		return "Pod"
 	default:
-		log.Errorf("trying to convert unknown NodeType iota: %v", n)
+		log.Errorf("Trying to convert unknown NodeType iota: %v", n)
 		return ""
 	}
 }

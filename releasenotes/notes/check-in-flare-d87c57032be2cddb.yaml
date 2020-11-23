@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    Added UDS support for JMXFetch
-    JMXFetch upgraded to `0.40.3 <https://github.com/DataDog/jmxfetch/releases/0.40.3>`
+    Added `--flare` flag to `agent check` to save check results to the agent logs directory.
+    This enables flare to pick up check results.

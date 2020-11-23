@@ -55,7 +55,7 @@ require (
 	github.com/DataDog/agent-payload v4.47.0+incompatible
 	github.com/DataDog/datadog-go v3.5.0+incompatible
 	github.com/DataDog/datadog-operator v0.2.1-0.20200709152311-9c71245c6822
-	github.com/DataDog/ebpf v0.0.0-20201117114248-e7f8186804a5
+	github.com/DataDog/ebpf v0.0.0-20201120093539-d2690c373d70
 	github.com/DataDog/gohai v0.0.0-20200605003749-e17d616e422a
 	github.com/DataDog/gopsutil v0.0.0-20200624212600-1b53412ef321
 	github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981 // indirect

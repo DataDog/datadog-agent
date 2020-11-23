@@ -5,5 +5,16 @@
 
 package common
 
+import (
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+)
+
 // CloudProviderName contains the inventory name of for ECS
 const CloudProviderName = "AWS"
+
+// MetadataTimeout defines timeout for ECS metadata endpoints
+func MetadataTimeout() time.Duration {
+	return config.Datadog.GetDuration("ecs_metadata_timeout") * time.Millisecond
+}

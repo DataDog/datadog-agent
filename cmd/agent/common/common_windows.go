@@ -48,6 +48,8 @@ var (
 	DefaultDCALogFile = "c:\\programdata\\datadog\\logs\\cluster-agent.log"
 	//DefaultJmxLogFile points to the jmx fetch log file that will be used if not configured
 	DefaultJmxLogFile = "c:\\programdata\\datadog\\logs\\jmxfetch.log"
+	// DefaultCheckFlareDirectory a flare friendly location for checks to be written
+	DefaultCheckFlareDirectory = "c:\\programdata\\datadog\\logs\\checks\\"
 )
 
 func init() {
@@ -164,10 +166,10 @@ func ImportRegistryConfig() error {
 
 	// store the current datadog.yaml path
 	datadogYamlPath := config.Datadog.ConfigFileUsed()
-
+	validConfigFound := false
+	commandLineSettingFound := false
 	if config.Datadog.GetString("api_key") != "" {
-		log.Infof("%s seems to contain a valid configuration, not overwriting config", datadogYamlPath)
-		return nil
+		validConfigFound = true
 	}
 
 	overrides := make(map[string]interface{})
@@ -177,17 +179,20 @@ func ImportRegistryConfig() error {
 	if val, _, err = k.GetStringValue("api_key"); err == nil && val != "" {
 		overrides["api_key"] = val
 		log.Debug("Setting API key")
+		commandLineSettingFound = true
 	} else {
 		log.Debug("API key not found, not setting")
 	}
 	if val, _, err = k.GetStringValue("tags"); err == nil && val != "" {
 		overrides["tags"] = strings.Split(val, ",")
+		commandLineSettingFound = true
 		log.Debugf("Setting tags %s", val)
 	} else {
 		log.Debug("Tags not found, not setting")
 	}
 	if val, _, err = k.GetStringValue("hostname"); err == nil && val != "" {
 		overrides["hostname"] = val
+		commandLineSettingFound = true
 		log.Debugf("Setting hostname %s", val)
 	} else {
 		log.Debug("hostname not found in registry: using default value")
@@ -200,6 +205,7 @@ func ImportRegistryConfig() error {
 			log.Warnf("Not setting api port, invalid configuration %s", val)
 		} else {
 			overrides["cmd_port"] = cmdPortInt
+			commandLineSettingFound = true
 			log.Debugf("Setting cmd_port  %d", cmdPortInt)
 		}
 	} else {
@@ -232,6 +238,7 @@ func ImportRegistryConfig() error {
 					}
 					log.Debugf("Setting %s to false", cfg)
 				}
+				commandLineSettingFound = true
 			} else {
 				log.Warnf("Unknown setting %s = %s", key, val)
 			}
@@ -261,37 +268,87 @@ func ImportRegistryConfig() error {
 		proxyMap["http"] = u.String()
 		proxyMap["https"] = u.String()
 		overrides["proxy"] = proxyMap
+		commandLineSettingFound = true
 	} else {
 		log.Debug("proxy key not found, not setting proxy config")
 	}
 	if val, _, err = k.GetStringValue("site"); err == nil && val != "" {
 		overrides["site"] = val
 		log.Debugf("Setting site to %s", val)
+		commandLineSettingFound = true
 	}
 	if val, _, err = k.GetStringValue("dd_url"); err == nil && val != "" {
 		overrides["dd_url"] = val
 		log.Debugf("Setting dd_url to %s", val)
+		commandLineSettingFound = true
 	}
 	if val, _, err = k.GetStringValue("logs_dd_url"); err == nil && val != "" {
 		overrides["logs_config.logs_dd_url"] = val
 		log.Debugf("Setting logs_config.dd_url to %s", val)
+		commandLineSettingFound = true
 	}
 	if val, _, err = k.GetStringValue("process_dd_url"); err == nil && val != "" {
 		overrides["process_config.process_dd_url"] = val
 		log.Debugf("Setting process_config.process_dd_url to %s", val)
+		commandLineSettingFound = true
 	}
 	if val, _, err = k.GetStringValue("trace_dd_url"); err == nil && val != "" {
 		overrides["apm_config.apm_dd_url"] = val
 		log.Debugf("Setting apm_config.apm_dd_url to %s", val)
+		commandLineSettingFound = true
 	}
 	if val, _, err = k.GetStringValue("py_version"); err == nil && val != "" {
 		overrides["python_version"] = val
 		log.Debugf("Setting python version to %s", val)
+		commandLineSettingFound = true
 	}
 	if val, _, err = k.GetStringValue("hostname_fqdn"); err == nil && val != "" {
 		overrides["hostname_fqdn"] = val
 		log.Debugf("Setting hostname_fqdn to %s", val)
+		commandLineSettingFound = true
 	}
+
+	// we've read in the config from the registry; remove the registry keys so it's
+	// not repeated on next startup
+	valuenames := []string{"api_key",
+		"tags",
+		"site",
+		"dd_url",
+		"logs_dd_url",
+		"process_dd_url",
+		"trace_dd_url",
+		"py_version",
+		"hostname_fqdn",
+		"hostname",
+		"proxy_host",
+		"proxy_port",
+		"proxy_user",
+		"proxy_password",
+		"cmd_port"}
+	for _, valuename := range valuenames {
+		k.DeleteValue(valuename)
+	}
+	for valuename := range subServices {
+		k.DeleteValue(valuename)
+	}
+	if !commandLineSettingFound {
+		log.Debugf("No installation command line entries to update")
+		return nil
+	}
+	if validConfigFound {
+		// do this check after walking through all the registry keys.  Even though
+		// we aren't going to use the results, we can have a more accurate reason
+		// as to why (and how important it is)
+		if commandLineSettingFound {
+			log.Warnf("Install command line settings ignored, valid configuration already in place")
+			return fmt.Errorf("Install command line settings ignored, valid configuration already in place")
+		}
+		log.Debugf("Valid configuration file found,  not overwriting config")
+
+		// already had a valid config; don't assign the overrides
+		return nil
+	}
+	log.Debugf("Applying settings")
 
 	// apply overrides to the config
 	config.AddOverrides(overrides)
@@ -315,14 +372,6 @@ func ImportRegistryConfig() error {
 		return fmt.Errorf("unable to unmarshal config to %s: %v", datadogYamlPath, err)
 	}
 
-	valuenames := []string{"api_key", "tags", "hostname",
-		"proxy_host", "proxy_port", "proxy_user", "proxy_password", "cmd_port"}
-	for _, valuename := range valuenames {
-		k.DeleteValue(valuename)
-	}
-	for valuename := range subServices {
-		k.DeleteValue(valuename)
-	}
 	log.Debugf("Successfully wrote the config into %s\n", datadogYamlPath)
 
 	return nil

@@ -37,7 +37,7 @@ type Concentrator struct {
 	// This only applies to past buckets. Stats buckets in the future are allowed with no restriction.
 	bufferLen int
 
-	In  chan []*Input
+	In  chan []Input
 	Out chan []Bucket
 
 	exit   chan struct{}
@@ -59,7 +59,7 @@ func NewConcentrator(aggregators []string, bsize int64, out chan []Bucket) *Conc
 		// TODO: Move to configuration.
 		bufferLen: defaultBufferLen,
 
-		In:  make(chan []*Input, 100),
+		In:  make(chan []Input, 100),
 		Out: out,
 
 		exit:   make(chan struct{}),
@@ -126,10 +126,10 @@ type Input struct {
 }
 
 // Add applies the given input to the concentrator.
-func (c *Concentrator) Add(inputs []*Input) {
+func (c *Concentrator) Add(inputs []Input) {
 	c.mu.Lock()
-	for _, i := range inputs {
-		c.addNow(i)
+	for i := range inputs {
+		c.addNow(&inputs[i])
 	}
 	c.mu.Unlock()
 }
