@@ -27,7 +27,6 @@ import (
 
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
-	"github.com/tinylib/msgp/msgp"
 	vmsgp "github.com/vmihailenco/msgpack/v4"
 )
 
@@ -260,10 +259,9 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 			)
 
 			// send traces to that endpoint using the msgpack content-type
-			var buf bytes.Buffer
-			err := msgp.Encode(&buf, tc.traces)
+			bts, err := tc.traces.MarshalMsg(nil)
 			assert.Nil(err)
-			req, err := http.NewRequest("POST", server.URL, &buf)
+			req, err := http.NewRequest("POST", server.URL, bytes.NewReader(bts))
 			assert.Nil(err)
 			req.Header.Set("Content-Type", tc.contentType)
 
@@ -511,8 +509,8 @@ func TestHandleTraces(t *testing.T) {
 	assert := assert.New(t)
 
 	// prepare the msgpack payload
-	var buf bytes.Buffer
-	msgp.Encode(&buf, testutil.GetTestTraces(10, 10, true))
+	bts, err := testutil.GetTestTraces(10, 10, true).MarshalMsg(nil)
+	assert.Nil(err)
 
 	// prepare the receiver
 	conf := newTestReceiverConfig()
@@ -530,7 +528,7 @@ func TestHandleTraces(t *testing.T) {
 
 		// forge the request
 		rr := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", "/v0.4/traces", bytes.NewReader(buf.Bytes()))
+		req, _ := http.NewRequest("POST", "/v0.4/traces", bytes.NewReader(bts))
 		req.Header.Set("Content-Type", "application/msgpack")
 
 		// Add meta data to simulate data coming from multiple applications
@@ -621,10 +619,10 @@ func TestReceiverRateLimiterCancel(t *testing.T) {
 	assert := assert.New(t)
 
 	var wg sync.WaitGroup
-	var buf bytes.Buffer
 
 	n := 100 // Payloads need to be big enough, else bug is not triggered
-	msgp.Encode(&buf, testutil.GetTestTraces(n, n, true))
+	bts, err := testutil.GetTestTraces(n, n, true).MarshalMsg(nil)
+	assert.Nil(err)
 
 	conf := newTestReceiverConfig()
 	receiver := newTestReceiverFromConfig(conf)
@@ -643,7 +641,7 @@ func TestReceiverRateLimiterCancel(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			for j := 0; j < 3; j++ {
-				reader := &chunkedReader{reader: bytes.NewReader(buf.Bytes())}
+				reader := &chunkedReader{reader: bytes.NewReader(bts)}
 				req, err := http.NewRequest("POST", url, reader)
 				req.Header.Set("Content-Type", "application/msgpack")
 				req.Header.Set(headerTraceCount, strconv.Itoa(n))
@@ -663,10 +661,11 @@ func TestReceiverRateLimiterCancel(t *testing.T) {
 }
 
 func BenchmarkHandleTracesFromOneApp(b *testing.B) {
+	assert := assert.New(b)
 	// prepare the payload
 	// msgpack payload
-	var buf bytes.Buffer
-	msgp.Encode(&buf, testutil.GetTestTraces(1, 1, true))
+	bts, err := testutil.GetTestTraces(1, 1, true).MarshalMsg(nil)
+	assert.Nil(err)
 
 	// prepare the receiver
 	conf := newTestReceiverConfig()
@@ -688,7 +687,7 @@ func BenchmarkHandleTracesFromOneApp(b *testing.B) {
 
 		// forge the request
 		rr := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", "/v0.4/traces", bytes.NewReader(buf.Bytes()))
+		req, _ := http.NewRequest("POST", "/v0.4/traces", bytes.NewReader(bts))
 		req.Header.Set("Content-Type", "application/msgpack")
 
 		// Add meta data to simulate data coming from multiple applications
@@ -703,10 +702,11 @@ func BenchmarkHandleTracesFromOneApp(b *testing.B) {
 }
 
 func BenchmarkHandleTracesFromMultipleApps(b *testing.B) {
+	assert := assert.New(b)
 	// prepare the payload
 	// msgpack payload
-	var buf bytes.Buffer
-	msgp.Encode(&buf, testutil.GetTestTraces(1, 1, true))
+	bts, err := testutil.GetTestTraces(1, 1, true).MarshalMsg(nil)
+	assert.Nil(err)
 
 	// prepare the receiver
 	conf := newTestReceiverConfig()
@@ -728,7 +728,7 @@ func BenchmarkHandleTracesFromMultipleApps(b *testing.B) {
 
 		// forge the request
 		rr := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", "/v0.4/traces", bytes.NewReader(buf.Bytes()))
+		req, _ := http.NewRequest("POST", "/v0.4/traces", bytes.NewReader(bts))
 		req.Header.Set("Content-Type", "application/msgpack")
 
 		// Add meta data to simulate data coming from multiple applications
@@ -768,20 +768,24 @@ func BenchmarkDecoderMsgpack(b *testing.B) {
 	assert := assert.New(b)
 
 	// msgpack payload
-	var buf bytes.Buffer
-	err := msgp.Encode(&buf, testutil.GetTestTraces(150, 66, true))
+	bts, err := testutil.GetTestTraces(150, 66, true).MarshalMsg(nil)
 	assert.Nil(err)
+	bufferPool := &sync.Pool{
+		New: func() interface{} {
+			return new(bytes.Buffer)
+		},
+	}
 
 	// benchmark
 	b.ResetTimer()
 	b.ReportAllocs()
 	for n := 0; n < b.N; n++ {
-		b.StopTimer()
-		reader := bytes.NewReader(buf.Bytes())
-
-		b.StartTimer()
 		var traces pb.Traces
-		_ = msgp.Decode(reader, &traces)
+		buffer := bufferPool.Get().(*bytes.Buffer)
+		buffer.Reset()
+		_, _ = io.Copy(buffer, bytes.NewReader(bts))
+		_, _ = traces.UnmarshalMsg(buffer.Bytes())
+		bufferPool.Put(buffer)
 	}
 }
 
@@ -916,9 +920,9 @@ func TestWatchdog(t *testing.T) {
 }
 
 func msgpTraces(t *testing.T, traces pb.Traces) []byte {
-	var body bytes.Buffer
-	if err := msgp.Encode(&body, traces); err != nil {
+	bts, err := traces.MarshalMsg(nil)
+	if err != nil {
 		t.Fatal(err)
 	}
-	return body.Bytes()
+	return bts
 }
