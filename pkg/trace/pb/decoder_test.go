@@ -7,10 +7,10 @@ package pb
 
 import (
 	"bytes"
-	"github.com/tinylib/msgp/msgp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/tinylib/msgp/msgp"
 	vmsgp "github.com/vmihailenco/msgpack/v4"
 )
 
