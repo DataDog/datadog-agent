@@ -117,6 +117,10 @@ func (series Series) MarshalStrings() ([]string, [][]string) {
 		if len(payload[i]) == 0 || len(payload[j]) == 0 {
 			return len(payload[i]) == 0
 		}
+		// sort by tags as tie breaker
+		if payload[i][0] == payload[j][0] {
+			return payload[i][len(payload[i])-1] < payload[j][len(payload[j])-1]
+		}
 		// sort my metric name
 		return payload[i][0] < payload[j][0]
 	})
