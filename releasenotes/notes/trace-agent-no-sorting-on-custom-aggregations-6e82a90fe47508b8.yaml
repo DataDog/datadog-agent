@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    APM: improved stats computation by removing not needed sorting step.
+    APM: improved stats computation by removing unneeded sorting step.
