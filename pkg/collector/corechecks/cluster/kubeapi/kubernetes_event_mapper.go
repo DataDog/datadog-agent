@@ -22,7 +22,7 @@ import (
 
 type kubernetesEventMapper struct {
 	ac          *apiserver.APIClient
-	urn         urn.URNBuilder
+	urn         urn.Builder
 	clusterName string
 	sourceType  string
 }

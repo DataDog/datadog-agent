@@ -4,14 +4,18 @@ import (
 	"fmt"
 )
 
+// The type of K8s Cluster
 type ClusterType string
 
 const (
+	// A Generic kubernetes Cluster
 	Kubernetes ClusterType = "kubernetes"
-	Openshift  ClusterType = "openshift"
+	// A RH OpenShift Kubernetes cluster
+	Openshift ClusterType = "openshift"
 )
 
-type URNBuilder interface {
+// Builder builds StackState compatible URNs for Kubernetes components
+type Builder interface {
 	BuildExternalID(kind, namespace, objName string) (string, error)
 	BuildClusterExternalID() string
 	BuildConfigMapExternalID(namespace, configMapName string) string
@@ -38,7 +42,8 @@ type urnBuilder struct {
 	urnPrefix   string
 }
 
-func NewURNBuilder(clusterType ClusterType, url string) URNBuilder {
+// NewURNBuilder creates a new URNBuilder
+func NewURNBuilder(clusterType ClusterType, url string) Builder {
 	return &urnBuilder{
 		clusterType: clusterType,
 		url:         url,
@@ -178,6 +183,7 @@ func (b *urnBuilder) BuildEndpointExternalID(endpointID string) string {
 	return fmt.Sprintf("urn:endpoint:/%s:%s", b.url, endpointID)
 }
 
+// ClusterTypeFromString converts a string representation of the ClusterType to the specific ClusterType
 func ClusterTypeFromString(s string) ClusterType {
 	if s == string(Openshift) {
 		return Openshift

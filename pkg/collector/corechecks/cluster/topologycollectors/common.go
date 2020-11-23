@@ -40,7 +40,7 @@ type ClusterTopologyCommon interface {
 type clusterTopologyCommon struct {
 	Instance           topology.Instance
 	APICollectorClient apiserver.APICollectorClient
-	urn                urn.URNBuilder
+	urn                urn.Builder
 }
 
 // NewClusterTopologyCommon creates a clusterTopologyCommon
