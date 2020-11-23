@@ -36,6 +36,25 @@ func TestGrainWithExtraTags(t *testing.T) {
 	assert.Equal(TagSet{Tag{"env", "default"}, Tag{"resource", "yo"}, Tag{"service", "thing"}, Tag{"meta1", "ONE"}, Tag{"meta2", "two"}}, tgs)
 }
 
+func TestHandleSpanSkipStats(t *testing.T) {
+	span := &WeightedSpan{Span: traceutil.GetRoot(benchTrace)}
+	subdata := []SublayerValue{{"a", Tag{"x", "y"}, 0.5}}
+
+	t.Run("on", func(t *testing.T) {
+		sb := NewRawBucket(0, 1e9)
+		sb.HandleSpan(span, "env", nil, subdata, false)
+		assert.Len(t, sb.data, 1)
+		assert.Len(t, sb.sublayerData, 1)
+	})
+
+	t.Run("off", func(t *testing.T) {
+		sb := NewRawBucket(0, 1e9)
+		sb.HandleSpan(span, "env", nil, subdata, true)
+		assert.Len(t, sb.data, 0)
+		assert.Len(t, sb.sublayerData, 1)
+	})
+}
+
 func BenchmarkHandleSpanRandom(b *testing.B) {
 	sb := NewRawBucket(0, 1e9)
 	aggr := []string{}
