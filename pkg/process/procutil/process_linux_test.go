@@ -352,11 +352,22 @@ func TestParseIOLine(t *testing.T) {
 	}
 }
 
-func TestParseIO(t *testing.T) {
-	hostProc := "resources/test_procfs/proc/"
-	os.Setenv("HOST_PROC", hostProc)
+func TestParseIOTestFS(t *testing.T) {
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc/")
 	defer os.Unsetenv("HOST_PROC")
 
+	testParseIO(t)
+}
+
+func TestParseIOLocalFS(t *testing.T) {
+	// this test is flaky as the underlying procfs could change during
+	// the comparison of procutil and gopsutil,
+	// but we could use it to test locally
+	t.Skip("flaky test in CI")
+	testParseIO(t)
+}
+
+func testParseIO(t *testing.T) {
 	probe := NewProcessProbe()
 	defer probe.Close()
 
@@ -364,7 +375,7 @@ func TestParseIO(t *testing.T) {
 	assert.NoError(t, err)
 
 	for _, pid := range pids {
-		actual := probe.parseIO(filepath.Join(hostProc, strconv.Itoa(int(pid))))
+		actual := probe.parseIO(filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid))))
 		expProc, err := process.NewProcess(pid)
 		assert.NoError(t, err)
 		expIO, err := expProc.IOCounters()
