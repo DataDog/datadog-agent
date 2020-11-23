@@ -93,7 +93,7 @@ func (series Series) Marshal() ([]byte, error) {
 	return proto.Marshal(payload)
 }
 
-// Marshal timeseries to array of strings
+// MarshalStrings converts the timeseries to array of strings
 func (series Series) MarshalStrings() ([]string, [][]string) {
 	var headers = []string{"Metric", "Type", "Timestamp", "Value", "Tags"}
 	var payload = make([][]string, len(series))
