@@ -168,7 +168,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 		}
 	}
 
-	pipeName := config.Datadog.GetString("dogstatsd_windows_pipe_name")
+	pipeName := config.Datadog.GetString("dogstatsd_pipe_name")
 	if len(pipeName) > 0 {
 		namedPipeListener, err := listeners.NewNamedPipeListener(pipeName, packetsChannel, sharedPacketPool)
 		if err != nil {
