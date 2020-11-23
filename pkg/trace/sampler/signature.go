@@ -62,7 +62,7 @@ type ServiceSignature struct{ Name, Env string }
 func (s ServiceSignature) Hash() Signature {
 	h := new32a()
 	h.Write([]byte(s.Name))
-	h.WriteByte(',')
+	h.WriteChar(',')
 	h.Write([]byte(s.Env))
 	return Signature(h.Sum32())
 }
@@ -76,7 +76,7 @@ func computeSpanHash(span *pb.Span, env string, withResource bool) spanHash {
 	h.Write([]byte(env))
 	h.Write([]byte(span.Service))
 	h.Write([]byte(span.Name))
-	h.WriteByte(byte(span.Error))
+	h.WriteChar(byte(span.Error))
 	if withResource {
 		h.Write([]byte(span.Resource))
 	}
@@ -113,7 +113,7 @@ func (s *sum32a) Write(data []byte) {
 	*s = hash
 }
 
-func (s *sum32a) WriteByte(c byte) {
+func (s *sum32a) WriteChar(c byte) {
 	hash := *s
 	hash ^= sum32a(c)
 	hash *= prime32
