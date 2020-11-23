@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/gopsutil/process"
 )
@@ -384,5 +385,55 @@ func testParseIO(t *testing.T) {
 		assert.Equal(t, expIO.ReadBytes, actual.ReadBytes)
 		assert.Equal(t, expIO.WriteCount, actual.WriteCount)
 		assert.Equal(t, expIO.WriteBytes, actual.WriteBytes)
+	}
+}
+
+func BenchmarkParseIOGopsutilTestFS(b *testing.B) {
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc")
+	defer os.Unsetenv("HOST_PROC")
+
+	benchmarkParseIOGopsutil(b)
+}
+
+func BenchmarkParseIOProcutilTestFS(b *testing.B) {
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc")
+	defer os.Unsetenv("HOST_PROC")
+
+	benchmarkParseIOProcutil(b)
+}
+
+func BenchmarkParseIOGopsutilLocalFS(b *testing.B) {
+	benchmarkParseIOGopsutil(b)
+}
+
+func BenchmarkParseIOProcutilLocalFS(b *testing.B) {
+	benchmarkParseIOProcutil(b)
+}
+
+func benchmarkParseIOGopsutil(b *testing.B) {
+	pids, err := process.Pids()
+	require.NoError(b, err)
+
+	for i := 0; i < b.N; i++ {
+		for _, pid := range pids {
+			proc, err := process.NewProcess(pid)
+			require.NoError(b, err)
+			_, err = proc.IOCounters()
+			require.NoError(b, err)
+		}
+	}
+}
+
+func benchmarkParseIOProcutil(b *testing.B) {
+	probe := NewProcessProbe()
+	defer probe.Close()
+
+	pids, err := probe.getActivePIDs()
+	require.NoError(b, err)
+
+	for i := 0; i < b.N; i++ {
+		for _, pid := range pids {
+			probe.parseIO(filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid))))
+		}
 	}
 }
