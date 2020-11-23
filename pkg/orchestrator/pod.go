@@ -133,10 +133,13 @@ func ScrubContainer(c *v1.Container, scrubber *DataScrubber) {
 	for _, cmd := range c.Command {
 		words += len(strings.Split(cmd, " "))
 	}
+
 	scrubbedMergedCommand, changed := scrubber.ScrubSimpleCommand(merged) // return value is split if has been changed
 	if !changed {
 		return // no change has happened, no need to go further down the line
 	}
+
+	// if part of the merged command got scrubbed the updated value will be split, even for e.g. c.Args only if the c.Command got scrubbed
 	if len(c.Command) > 0 {
 		c.Command = scrubbedMergedCommand[:words]
 	}

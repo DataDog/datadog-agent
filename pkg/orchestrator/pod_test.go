@@ -514,6 +514,20 @@ func getScrubCases() map[string]struct {
 				Command: []string{"mysql", "--password", "********"},
 			},
 		},
+		"empty container": {
+			input:    v1.Container{},
+			expected: v1.Container{},
+		},
+		"empty container empty slices": {
+			input: v1.Container{
+				Command: []string{},
+				Args:    []string{},
+			},
+			expected: v1.Container{
+				Command: []string{},
+				Args:    []string{},
+			},
+		},
 		"non sensitive CLI": {
 			input: v1.Container{
 				Command: []string{"mysql", "--arg", "afztyerbzio1234"},
@@ -546,7 +560,7 @@ func getScrubCases() map[string]struct {
 				Env: []v1.EnvVar{{Name: "password", Value: "********"}},
 			},
 		},
-		"sensitive arg": {
+		"command with sensitive arg": {
 			input: v1.Container{
 				Command: []string{"mysql"},
 				Args:    []string{"--password", "afztyerbzio1234"},
@@ -554,6 +568,36 @@ func getScrubCases() map[string]struct {
 			expected: v1.Container{
 				Command: []string{"mysql"},
 				Args:    []string{"--password", "********"},
+			},
+		},
+		"command with no sensitive arg": {
+			input: v1.Container{
+				Command: []string{"mysql"},
+				Args:    []string{"--debug", "afztyerbzio1234"},
+			},
+			expected: v1.Container{
+				Command: []string{"mysql"},
+				Args:    []string{"--debug", "afztyerbzio1234"},
+			},
+		},
+		"sensitive command with no sensitive arg": {
+			input: v1.Container{
+				Command: []string{"mysql --password 123"},
+				Args:    []string{"--debug", "123"},
+			},
+			expected: v1.Container{
+				Command: []string{"mysql", "--password", "********"},
+				Args:    []string{"--debug", "123"},
+			},
+		},
+		"sensitive command with no sensitive arg joined": {
+			input: v1.Container{
+				Command: []string{"mysql --password 123"},
+				Args:    []string{"--debug 123"},
+			},
+			expected: v1.Container{
+				Command: []string{"mysql", "--password", "********"},
+				Args:    []string{"--debug", "123"},
 			},
 		},
 		"sensitive arg no command": {
