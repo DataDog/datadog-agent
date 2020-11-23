@@ -4,13 +4,13 @@ import (
 	"fmt"
 )
 
-// The type of K8s Cluster
+// ClusterType represents the type of K8s Cluster
 type ClusterType string
 
 const (
-	// A Generic kubernetes Cluster
+	// Kubernetes is a Generic K8s cluster
 	Kubernetes ClusterType = "kubernetes"
-	// A RH OpenShift Kubernetes cluster
+	// OpenShift is a RH OpenShift K8s cluster
 	Openshift ClusterType = "openshift"
 )
 
