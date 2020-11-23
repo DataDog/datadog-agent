@@ -606,6 +606,67 @@ func TestHandleStats(t *testing.T) {
 			t.Fatalf("Did not match payload: %v: %v", gotlang, gotp)
 		}
 	})
+
+	t.Run("overflow", func(t *testing.T) {
+		body := bytes.NewReader(bytes.Repeat([]byte("x"), int(rcv.conf.MaxRequestBytes+10)))
+		req, _ := http.NewRequest("POST", "http://127.0.0.1:8126/v0.5/stats", body)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp.StatusCode != 413 {
+			slurp, _ := ioutil.ReadAll(resp.Body)
+			t.Fatal(string(slurp), resp.StatusCode)
+		}
+	})
+}
+
+func TestClientComputedStatsHeader(t *testing.T) {
+	conf := newTestReceiverConfig()
+	rcv := newTestReceiverFromConfig(conf)
+	rcv.Start()
+	defer rcv.Stop()
+
+	// run runs the test with ClientComputedStats turned on.
+	run := func(on bool) func(t *testing.T) {
+		return func(t *testing.T) {
+			var buf bytes.Buffer
+			msgp.Encode(&buf, testutil.GetTestTraces(10, 10, true))
+
+			req, _ := http.NewRequest("POST", "http://127.0.0.1:8126/v0.4/traces", &buf)
+			req.Header.Set("Content-Type", "application/msgpack")
+			req.Header.Set(headerLang, "lang1")
+			if on {
+				req.Header.Set(headerComputedStats, "yes")
+			}
+			var wg sync.WaitGroup
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				resp, err := http.DefaultClient.Do(req)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if resp.StatusCode != 200 {
+					t.Fatal(resp.StatusCode)
+				}
+			}()
+			timeout := time.After(time.Second)
+			for {
+				select {
+				case p := <-rcv.out:
+					assert.Equal(t, p.ClientComputedStats, on)
+					wg.Wait()
+					return
+				case <-timeout:
+					t.Fatal("no output")
+				}
+			}
+		}
+	}
+
+	t.Run("on", run(true))
+	t.Run("off", run(false))
 }
 
 func TestHandleTraces(t *testing.T) {
