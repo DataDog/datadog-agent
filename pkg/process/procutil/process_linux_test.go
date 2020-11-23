@@ -81,11 +81,18 @@ func TestTrimAndSplitBytes(t *testing.T) {
 	}
 }
 
-func TestGetCmdline(t *testing.T) {
-	hostProc := "resources/test_procfs/proc"
-	os.Setenv("HOST_PROC", hostProc)
+func TestGetCmdlineTestFS(t *testing.T) {
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc")
 	defer os.Unsetenv("HOST_PROC")
 
+	testGetCmdline(t)
+}
+
+func TestGetCmdlineLocalFS(t *testing.T) {
+	testGetCmdline(t)
+}
+
+func testGetCmdline(t *testing.T) {
 	probe := NewProcessProbe()
 	defer probe.Close()
 
@@ -93,7 +100,7 @@ func TestGetCmdline(t *testing.T) {
 	assert.NoError(t, err)
 
 	for _, pid := range pids {
-		actual := strings.Join(probe.getCmdline(filepath.Join(hostProc, strconv.Itoa(int(pid)))), " ")
+		actual := strings.Join(probe.getCmdline(filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid)))), " ")
 		expProc, err := process.NewProcess(pid)
 		assert.NoError(t, err)
 
@@ -104,11 +111,18 @@ func TestGetCmdline(t *testing.T) {
 	}
 }
 
-func TestProcessesByPID(t *testing.T) {
-	hostProc := "resources/test_procfs/proc/"
-	os.Setenv("HOST_PROC", hostProc)
+func TestProcessesByPIDTestFS(t *testing.T) {
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc/")
 	defer os.Unsetenv("HOST_PROC")
 
+	testProcessesByPID(t)
+}
+
+func TestProcessesByPIDLocalFS(t *testing.T) {
+	testProcessesByPID(t)
+}
+
+func testProcessesByPID(t *testing.T) {
 	probe := NewProcessProbe()
 	defer probe.Close()
 
@@ -120,7 +134,7 @@ func TestProcessesByPID(t *testing.T) {
 
 	// make sure the process that has no command line doesn't get included in the output
 	for _, pid := range pids {
-		cmd := strings.Join(probe.getCmdline(filepath.Join(hostProc, strconv.Itoa(int(pid)))), " ")
+		cmd := strings.Join(probe.getCmdline(filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid)))), " ")
 		if cmd == "" {
 			assert.NotContains(t, procByPID, pid)
 		} else {
