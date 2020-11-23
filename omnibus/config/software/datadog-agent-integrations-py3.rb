@@ -36,6 +36,8 @@ if linux?
   # add libkrb5 for all integrations supporting kerberos auth with `requests-kerberos`
   dependency 'libkrb5'
 
+  dependency 'gstatus'
+
   unless suse? || arm?
     dependency 'aerospike-py3'
   end
