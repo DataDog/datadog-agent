@@ -162,8 +162,12 @@ func TestProcessContext(t *testing.T) {
 
 func TestProcessExec(t *testing.T) {
 	executable := "/usr/bin/touch"
-	if _, err := os.Stat(executable); err != nil {
-		executable = "/bin/touch"
+	if resolved, err := os.Readlink(executable); err == nil {
+		executable = resolved
+	} else {
+		if os.IsNotExist(err) {
+			executable = "/bin/touch"
+		}
 	}
 
 	ruleDef := &rules.RuleDefinition{
@@ -200,8 +204,12 @@ func TestProcessExec(t *testing.T) {
 
 func TestProcessLineage(t *testing.T) {
 	executable := "/usr/bin/touch"
-	if _, err := os.Stat(executable); err != nil {
-		executable = "/bin/touch"
+	if resolved, err := os.Readlink(executable); err == nil {
+		executable = resolved
+	} else {
+		if os.IsNotExist(err) {
+			executable = "/bin/touch"
+		}
 	}
 
 	rule := &rules.RuleDefinition{
