@@ -123,7 +123,7 @@ func (p *Probe) InitManager(rs *rules.RuleSet) error {
 	p.startTime = time.Now()
 	p.detectKernelVersion()
 
-	asset := "pkg/security/ebpf/c/runtime-security"
+	asset := "runtime-security"
 	openSyscall, err := manager.GetSyscallFnName("open")
 	if err != nil {
 		return err

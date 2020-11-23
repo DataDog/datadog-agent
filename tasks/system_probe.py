@@ -292,6 +292,7 @@ def build_object_files(ctx, bundle_ebpf=False):
         ]
 
     bpf_dir = os.path.join(".", "pkg", "ebpf")
+    build_dir = os.path.join(bpf_dir, "bytecode", "build")
     c_dir = os.path.join(bpf_dir, "c")
 
     flags = [
@@ -344,29 +345,34 @@ def build_object_files(ctx, bundle_ebpf=False):
     cmd = "clang {flags} -c '{c_file}' -o '{bc_file}'"
     llc_cmd = "llc -march=bpf -filetype=obj -o '{obj_file}' '{bc_file}'"
 
-    commands = []
+    commands = ["mkdir -p {build_dir}".format(build_dir=build_dir)]
+    bindata_files = []
 
     compiled_programs = [
         "tracer-ebpf",
         "offset-guess",
     ]
-    bindata_files = [
+    bcc_files = [
         os.path.join(c_dir, "tcp-queue-length-kern.c"),
         os.path.join(bpf_dir, "tcp-queue-length-kern-user.h"),
         os.path.join(c_dir, "oom-kill-kern.c"),
         os.path.join(bpf_dir, "oom-kill-kern-user.h"),
         os.path.join(c_dir, "bpf-common.h"),
     ]
+    for f in bcc_files:
+        commands.append("cp {file} {dest}".format(file=f, dest=build_dir))
+        bindata_files.append(os.path.join(build_dir, os.path.basename(f)))
+
     for p in compiled_programs:
         # Build both the standard and debug version
         src_file = os.path.join(c_dir, "{}.c".format(p))
-        bc_file = os.path.join(c_dir, "{}.bc".format(p))
-        obj_file = os.path.join(c_dir, "{}.o".format(p))
+        bc_file = os.path.join(build_dir, "{}.bc".format(p))
+        obj_file = os.path.join(build_dir, "{}.o".format(p))
         commands.append(cmd.format(flags=" ".join(flags), bc_file=bc_file, c_file=src_file))
         commands.append(llc_cmd.format(flags=" ".join(flags), bc_file=bc_file, obj_file=obj_file))
 
-        debug_bc_file = os.path.join(c_dir, "{}-debug.bc".format(p))
-        debug_obj_file = os.path.join(c_dir, "{}-debug.o".format(p))
+        debug_bc_file = os.path.join(build_dir, "{}-debug.bc".format(p))
+        debug_obj_file = os.path.join(build_dir, "{}-debug.o".format(p))
         commands.append(cmd.format(flags=" ".join(flags + ["-DDEBUG=1"]), bc_file=debug_bc_file, c_file=src_file))
         commands.append(llc_cmd.format(flags=" ".join(flags), bc_file=debug_bc_file, obj_file=debug_obj_file))
 
@@ -375,8 +381,8 @@ def build_object_files(ctx, bundle_ebpf=False):
     # Build security runtime programs
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
     security_c_file = os.path.join(security_agent_c_dir, "probe.c")
-    security_bc_file = os.path.join(security_agent_c_dir, "runtime-security.bc")
-    security_agent_obj_file = os.path.join(security_agent_c_dir, "runtime-security.o")
+    security_bc_file = os.path.join(build_dir, "runtime-security.bc")
+    security_agent_obj_file = os.path.join(build_dir, "runtime-security.o")
 
     commands.append(
         cmd.format(
@@ -385,8 +391,8 @@ def build_object_files(ctx, bundle_ebpf=False):
     )
     commands.append(llc_cmd.format(flags=" ".join(flags), bc_file=security_bc_file, obj_file=security_agent_obj_file))
 
-    security_agent_syscall_wrapper_bc_file = os.path.join(security_agent_c_dir, "runtime-security-syscall-wrapper.bc")
-    security_agent_syscall_wrapper_obj_file = os.path.join(security_agent_c_dir, "runtime-security-syscall-wrapper.o")
+    security_agent_syscall_wrapper_bc_file = os.path.join(build_dir, "runtime-security-syscall-wrapper.bc")
+    security_agent_syscall_wrapper_obj_file = os.path.join(build_dir, "runtime-security-syscall-wrapper.o")
     commands.append(
         cmd.format(
             flags=" ".join(flags + ["-DUSE_SYSCALL_WRAPPER=1"]),
@@ -408,7 +414,7 @@ def build_object_files(ctx, bundle_ebpf=False):
 
     if bundle_ebpf:
         go_dir = os.path.join(bpf_dir, "bytecode", "bindata")
-        bundle_files(ctx, bindata_files, c_dir, go_dir)
+        bundle_files(ctx, bindata_files, "pkg/.*/", go_dir)
 
 
 def bundle_files(ctx, bindata_files, dir_prefix, go_dir):

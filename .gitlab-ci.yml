@@ -387,10 +387,10 @@ tests_ebpf:
     - tar -xvf /tmp/libbcc.tar.xz -C /opt/libbcc
   after_script:
     - cd $SRC_PATH
-    - cp ./pkg/ebpf/c/tracer-ebpf.o $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer-ebpf.o
-    - cp ./pkg/ebpf/c/tracer-ebpf-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer-ebpf-debug.o
-    - cp ./pkg/ebpf/c/offset-guess.o $CI_PROJECT_DIR/.tmp/binary-ebpf/offset-guess.o
-    - cp ./pkg/ebpf/c/offset-guess-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/offset-guess-debug.o
+    - cp ./pkg/ebpf/bytecode/build/tracer-ebpf.o $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer-ebpf.o
+    - cp ./pkg/ebpf/bytecode/build/tracer-ebpf-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer-ebpf-debug.o
+    - cp ./pkg/ebpf/bytecode/build/offset-guess.o $CI_PROJECT_DIR/.tmp/binary-ebpf/offset-guess.o
+    - cp ./pkg/ebpf/bytecode/build/offset-guess-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/offset-guess-debug.o
   tags: [ "runner:main", "size:large" ]
   script:
     # For now only check bpf bytes since we don't have a way to run eBPF tests without mounting a debugfs
@@ -702,12 +702,12 @@ dogstatsd_arm64_size_test:
     - inv -e system-probe.build --go-version=$SYSTEM_PROBE_GO_VERSION --embedded-path=$DATADOG_AGENT_EMBEDDED_PATH
     - inv -e system-probe.test --only-check-bpf-bytes
     - $S3_CP_CMD $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe $S3_ARTIFACTS_URI/system-probe.$ARCH
-    - $S3_CP_CMD $SRC_PATH/pkg/ebpf/c/tracer-ebpf.o $S3_ARTIFACTS_URI/tracer-ebpf.o.$ARCH
-    - $S3_CP_CMD $SRC_PATH/pkg/ebpf/c/tracer-ebpf-debug.o $S3_ARTIFACTS_URI/tracer-ebpf-debug.o.$ARCH
-    - $S3_CP_CMD $SRC_PATH/pkg/ebpf/c/offset-guess.o $S3_ARTIFACTS_URI/offset-guess.o.$ARCH
-    - $S3_CP_CMD $SRC_PATH/pkg/ebpf/c/offset-guess-debug.o $S3_ARTIFACTS_URI/offset-guess-debug.o.$ARCH
-    - $S3_CP_CMD $SRC_PATH/pkg/security/ebpf/c/runtime-security.o $S3_ARTIFACTS_URI/runtime-security.o.$ARCH
-    - $S3_CP_CMD $SRC_PATH/pkg/security/ebpf/c/runtime-security-syscall-wrapper.o $S3_ARTIFACTS_URI/runtime-security-syscall-wrapper.o.$ARCH
+    - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/tracer-ebpf.o $S3_ARTIFACTS_URI/tracer-ebpf.o.$ARCH
+    - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/tracer-ebpf-debug.o $S3_ARTIFACTS_URI/tracer-ebpf-debug.o.$ARCH
+    - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/offset-guess.o $S3_ARTIFACTS_URI/offset-guess.o.$ARCH
+    - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/offset-guess-debug.o $S3_ARTIFACTS_URI/offset-guess-debug.o.$ARCH
+    - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/runtime-security.o $S3_ARTIFACTS_URI/runtime-security.o.$ARCH
+    - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/runtime-security-syscall-wrapper.o $S3_ARTIFACTS_URI/runtime-security-syscall-wrapper.o.$ARCH
 
 build_system-probe-x64:
   stage: binary_build

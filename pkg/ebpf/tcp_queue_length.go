@@ -25,9 +25,9 @@ type TCPQueueLengthTracer struct {
 }
 
 func NewTCPQueueLengthTracer(cfg *Config) (*TCPQueueLengthTracer, error) {
-	source, err := processHeaders(cfg.BPFDir, "pkg/ebpf/c/tcp-queue-length-kern.c")
+	source, err := processHeaders(cfg.BPFDir, "tcp-queue-length-kern.c")
 	if err != nil {
-		return nil, fmt.Errorf("Couldn’t process headers for asset “pkg/ebpf/c/tcp-queue-length-kern.c”: %v", err)
+		return nil, fmt.Errorf("Couldn’t process headers for asset “tcp-queue-length-kern.c”: %v", err)
 	}
 
 	m := bpflib.NewModule(source.String(), []string{})
