@@ -157,6 +157,12 @@ func (sb *RawBucket) Export() Bucket {
 // service and any additional tags specified by m. It uses b as the buffer to write to.
 func AssembleGrain(b *strings.Builder, env, resource, service string, m map[string]string) (string, TagSet) {
 	b.Reset()
+	size := len("env:") + len(env) + len(",resource:") + len(resource) + len(",service:") + len(service)
+	for k, v := range m {
+		// Adds 2 additional chars for each tag to account for the "," and ":" separators in the resulting string
+		size += len(k) + len(v) + 2
+	}
+	b.Grow(size)
 
 	b.WriteString("env:")
 	b.WriteString(env)
