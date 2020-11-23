@@ -38,7 +38,11 @@ func getRuntimeCompiledTracer(config *config.Config) (CompiledOutput, error) {
 	// TODO do we need to pre-process input to include all `#include`s in hash?
 	// filename includes kernel version and input file hash
 	// this ensures we re-compile when either of the input changes
-	outputFile := filepath.Join(runtimeDir, fmt.Sprintf("tracer-%d-%s.o", kv, hash))
+	if err := os.MkdirAll(config.RuntimeCompilerOutputDir, 0755); err != nil {
+		return nil, fmt.Errorf("unable to create compiler output directory %s: %w", config.RuntimeCompilerOutputDir, err)
+	}
+
+	outputFile := filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("tracer-%d-%s.o", kv, hash))
 	if _, err := os.Stat(outputFile); err != nil {
 		if !os.IsNotExist(err) {
 			return nil, fmt.Errorf("error stat-ing output file %s: %w", outputFile, err)

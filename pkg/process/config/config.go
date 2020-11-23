@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var (
+const (
 	// defaultProxyPort is the default port used for proxies.
 	// This mirrors the configuration for the infrastructure agent.
 	defaultProxyPort = 3128
@@ -31,6 +31,11 @@ var (
 	// defaultSystemProbeBPFDir is the default path for eBPF programs
 	defaultSystemProbeBPFDir = "/opt/datadog-agent/embedded/share/system-probe/ebpf"
 
+	// defaultRuntimeCompilerOutputDir is the default path for output from the system-probe runtime compiler
+	defaultRuntimeCompilerOutputDir = "/var/tmp/datadog-agent/system-probe/build"
+)
+
+var (
 	processChecks   = []string{"process", "rtprocess"}
 	containerChecks = []string{"container", "rtcontainer"}
 )
@@ -110,6 +115,7 @@ type AgentConfig struct {
 	EnableTracepoints              bool
 	EnableRuntimeCompilation       bool
 	KernelHeadersDirs              []string
+	RuntimeCompilerOutputDir       string
 
 	// Orchestrator config
 	Orchestrator *oconfig.OrchestratorConfig
@@ -224,6 +230,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		OffsetGuessThreshold:         400,
 		EnableTracepoints:            false,
 		CollectDNSStats:              true,
+		RuntimeCompilerOutputDir:     defaultRuntimeCompilerOutputDir,
 
 		// Orchestrator config
 		Orchestrator: oconfig.NewDefaultOrchestratorConfig(),
@@ -507,10 +514,10 @@ func loadSysProbeEnvVariables() {
 		{"DD_APM_PROFILING_DD_URL", "system_probe_config.profiling.profile_dd_url"},
 		{"DD_API_KEY", "system_probe_config.profiling.api_key"},
 		{"DD_ENV", "system_probe_config.profiling.env"},
+		{"DD_RUNTIME_COMPILER_OUTPUT_DIR", "system_probe_config.runtime_compiler_output_dir"},
 	} {
 		if v, ok := os.LookupEnv(variable.env); ok {
 			config.Datadog.Set(variable.cfg, v)
-
 		}
 	}
 }

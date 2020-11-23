@@ -27,6 +27,9 @@ type Config struct {
 
 	// KernelHeadersDir is the directories of the kernel headers to use for runtime compilation
 	KernelHeadersDirs []string
+
+	// RuntimeCompilerOutputDir is the directory where the runtime compiler will store compiled programs
+	RuntimeCompilerOutputDir string
 }
 
 // NewDefaultConfig creates a instance of Config with sane default values
@@ -36,6 +39,7 @@ func NewDefaultConfig() *Config {
 		BPFDebug:                 false,
 		ProcRoot:                 "/proc",
 		EnableRuntimeCompilation: true,
+		RuntimeCompilerOutputDir: "/var/tmp/datadog-agent/system-probe/build",
 	}
 }
 
@@ -49,6 +53,7 @@ func SysProbeConfigFromConfig(cfg *config.AgentConfig) *Config {
 	ebpfConfig.EnableTracepoints = cfg.EnableTracepoints
 	ebpfConfig.EnableRuntimeCompilation = cfg.EnableRuntimeCompilation
 	ebpfConfig.KernelHeadersDirs = cfg.KernelHeadersDirs
+	ebpfConfig.RuntimeCompilerOutputDir = cfg.RuntimeCompilerOutputDir
 
 	return ebpfConfig
 }
