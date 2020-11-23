@@ -113,7 +113,7 @@ type AgentConfig struct {
 	MaxConnectionsStateBuffered    int
 	OffsetGuessThreshold           uint64
 	EnableTracepoints              bool
-	EnableRuntimeCompilation       bool
+	EnableRuntimeCompiler          bool
 	KernelHeadersDirs              []string
 	RuntimeCompilerOutputDir       string
 
@@ -230,6 +230,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		OffsetGuessThreshold:         400,
 		EnableTracepoints:            false,
 		CollectDNSStats:              true,
+		EnableRuntimeCompiler:        false,
 		RuntimeCompilerOutputDir:     defaultRuntimeCompilerOutputDir,
 
 		// Orchestrator config
@@ -514,6 +515,7 @@ func loadSysProbeEnvVariables() {
 		{"DD_APM_PROFILING_DD_URL", "system_probe_config.profiling.profile_dd_url"},
 		{"DD_API_KEY", "system_probe_config.profiling.api_key"},
 		{"DD_ENV", "system_probe_config.profiling.env"},
+		{"DD_ENABLE_RUNTIME_COMPILER", "system_probe_config.enable_runtime_compiler"},
 		{"DD_RUNTIME_COMPILER_OUTPUT_DIR", "system_probe_config.runtime_compiler_output_dir"},
 	} {
 		if v, ok := os.LookupEnv(variable.env); ok {

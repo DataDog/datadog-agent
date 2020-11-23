@@ -22,8 +22,8 @@ type Config struct {
 	// EnableTracepoints enables use of tracepoints instead of kprobes for probing syscalls (if available on system)
 	EnableTracepoints bool
 
-	// EnableRuntimeCompilation enables the use of the embedded compiler to build eBPF programs on-host
-	EnableRuntimeCompilation bool
+	// EnableRuntimeCompiler enables the use of the embedded compiler to build eBPF programs on-host
+	EnableRuntimeCompiler bool
 
 	// KernelHeadersDir is the directories of the kernel headers to use for runtime compilation
 	KernelHeadersDirs []string
@@ -38,7 +38,7 @@ func NewDefaultConfig() *Config {
 		BPFDir:                   "build",
 		BPFDebug:                 false,
 		ProcRoot:                 "/proc",
-		EnableRuntimeCompilation: true,
+		EnableRuntimeCompiler:    true,
 		RuntimeCompilerOutputDir: "/var/tmp/datadog-agent/system-probe/build",
 	}
 }
@@ -51,7 +51,7 @@ func SysProbeConfigFromConfig(cfg *config.AgentConfig) *Config {
 	ebpfConfig.BPFDebug = cfg.SysProbeBPFDebug
 	ebpfConfig.BPFDir = cfg.SystemProbeBPFDir
 	ebpfConfig.EnableTracepoints = cfg.EnableTracepoints
-	ebpfConfig.EnableRuntimeCompilation = cfg.EnableRuntimeCompilation
+	ebpfConfig.EnableRuntimeCompiler = cfg.EnableRuntimeCompiler
 	ebpfConfig.KernelHeadersDirs = cfg.KernelHeadersDirs
 	ebpfConfig.RuntimeCompilerOutputDir = cfg.RuntimeCompilerOutputDir
 

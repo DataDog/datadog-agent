@@ -152,7 +152,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	}
 
 	var buf io.ReaderAt
-	if config.EnableRuntimeCompilation {
+	if config.EnableRuntimeCompiler {
 		of, err := getRuntimeCompiledTracer(config)
 		if err != nil {
 			return nil, fmt.Errorf("failed to open runtime-compiled output file")
