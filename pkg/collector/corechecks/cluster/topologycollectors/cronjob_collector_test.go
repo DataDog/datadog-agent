@@ -75,10 +75,10 @@ func TestCronJobCollector(t *testing.T) {
 
 			actualRelation := <-relationChannel
 			expectedRelation := &topology.Relation{
-				ExternalID: "urn:kubernetes:/test-cluster-name:namespace/test-namespace->" + component.ExternalID,
+				ExternalID: "urn:kubernetes:/test-cluster-name:namespace/test-namespace->" + cronJob.ExternalID,
 				Type:       topology.Type{Name: "encloses"},
 				SourceID:   "urn:kubernetes:/test-cluster-name:namespace/test-namespace",
-				TargetID:   component.ExternalID,
+				TargetID:   cronJob.ExternalID,
 				Data:       map[string]interface{}{},
 			}
 			assert.EqualValues(t, expectedRelation, actualRelation)
