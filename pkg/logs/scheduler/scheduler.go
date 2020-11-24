@@ -11,6 +11,7 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
+	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -217,8 +218,12 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 		if service != nil {
 			// a config defined in a docker label or a pod annotation does not always contain a type,
 			// override it here to ensure that the config won't be dropped at validation.
-			cfg.Type = service.Type
-			cfg.Identifier = service.Identifier // used for matching a source with a service
+			if cfg.Type == logsConfig.FileType && service.Type == "docker" {
+				cfg.Identifier = dockerutil.ContainerIDToTaggerEntityName(service.Identifier)
+			} else {
+				cfg.Type = service.Type
+				cfg.Identifier = service.Identifier // used for matching a source with a service
+			}
 		}
 
 		source := logsConfig.NewLogSource(configName, cfg)
