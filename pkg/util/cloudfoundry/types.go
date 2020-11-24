@@ -206,7 +206,7 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP) DesiredLRP {
 		SpaceNameKey:        "",
 	}
 	for key := range extractVA {
-		ok := false
+		var ok bool
 		extractVA[key], ok = envVA[key]
 		if !ok || extractVA[key] == "" {
 			log.Errorf("Couldn't extract %s from LRP %s", key, bbsLRP.ProcessGuid)
