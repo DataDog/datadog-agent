@@ -180,11 +180,10 @@ func TestProcessEvent(t *testing.T) {
 		Text:           "%%% \n2 **Scheduled**: Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54\n \n _New events emitted by the default-scheduler seen at " + time.Unix(709662600000, 0).String() + "_ \n\n %%%",
 		Priority:       "normal",
 		Tags:           []string{"source_component:default-scheduler", "kube_namespace:default"},
-		AggregationKey: "kubernetes_apiserver:e6417a7f-f566-11e7-9749-0e4863e1cbf4",
 		SourceTypeName: "kubernetes",
 		Ts:             709662600,
 		Host:           "",
-		EventType:      "kubernetes_api_events",
+		EventType:      "Scheduled",
 	}
 	mocked.On("Event", mock.AnythingOfType("metrics.Event"))
 	_ = kubeApiEventsCheck.processEvents(mocked, newKubeEventBundle, false)
