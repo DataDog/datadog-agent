@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Added additional container information when collect all container logs is enabled in agent status.
+    Added additional container information to the status page when collect all container logs is enabled in agent status.
