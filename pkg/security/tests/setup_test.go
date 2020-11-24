@@ -316,7 +316,12 @@ func (tm *testModule) Root() string {
 
 func (tm *testModule) RuleMatch(rule *eval.Rule, event eval.Event) {
 	e := event.(*sprobe.Event).Clone()
-	tm.events <- testEvent{Event: &e, rule: rule}
+	te := testEvent{Event: &e, rule: rule}
+	select {
+	case tm.events <- te:
+	default:
+		log.Warnf("Discarding rule match %+v", te)
+	}
 }
 
 func (tm *testModule) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
