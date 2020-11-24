@@ -526,12 +526,13 @@ func TestTsRounding(t *testing.T) {
 }
 
 func BenchmarkHandleSpan(b *testing.B) {
-
 	srb := NewRawBucket(0, 1e9)
+	wt := testWeightedSpans(false)
+
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		for _, s := range testWeightedSpans(false) {
+		for _, s := range wt {
 			srb.HandleSpan(s, defaultEnv, nil)
 		}
 	}
