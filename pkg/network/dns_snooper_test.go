@@ -10,12 +10,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/gopacket/layers"
-
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
+	"github.com/google/gopacket/layers"
 	mdns "github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,6 +28,14 @@ func getSnooper(
 	collectLocalDNS bool,
 	dnsTimeout time.Duration,
 ) (*manager.Manager, *SocketFilterSnooper) {
+	currKernelVersion, err := kernel.HostVersion()
+	require.NoError(t, err)
+	pre410Kernel := currKernelVersion < kernel.VersionCode(4, 1, 0)
+	if pre410Kernel {
+		t.Skip("DNS feature not available on pre 4.1.0 kernels")
+		return nil, nil
+	}
+
 	mgr := &manager.Manager{
 		Probes: []*manager.Probe{
 			{Section: string(bytecode.SocketDnsFilter)},
@@ -54,7 +62,7 @@ func getSnooper(
 			Value: uint64(1),
 		})
 	}
-	err := mgr.InitWithOptions(buf, mgrOptions)
+	err = mgr.InitWithOptions(buf, mgrOptions)
 	require.NoError(t, err)
 
 	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{Section: string(bytecode.SocketDnsFilter)})
@@ -103,7 +111,7 @@ Loop:
 }
 
 func TestDNSOverUDPSnooping(t *testing.T) {
-	buf, err := bytecode.ReadBPFModule("", false)
+	buf, err := bytecode.ReadBPFModule("build", false)
 	require.NoError(t, err)
 
 	m, reverseDNS := getSnooper(t, buf, false, false, 15*time.Second)
@@ -159,7 +167,7 @@ const (
 )
 
 func initDNSTests(t *testing.T, localDNS bool) (*manager.Manager, *SocketFilterSnooper) {
-	buf, err := bytecode.ReadBPFModule("", false)
+	buf, err := bytecode.ReadBPFModule("build", false)
 	require.NoError(t, err)
 	return getSnooper(t, buf, true, localDNS, 1*time.Second)
 }
@@ -355,7 +363,7 @@ func TestDNSOverUDPTimeoutCount(t *testing.T) {
 }
 
 func TestParsingError(t *testing.T) {
-	buf, err := bytecode.ReadBPFModule("", false)
+	buf, err := bytecode.ReadBPFModule("build", false)
 	require.NoError(t, err)
 
 	m, reverseDNS := getSnooper(t, buf, false, false, 15*time.Second)

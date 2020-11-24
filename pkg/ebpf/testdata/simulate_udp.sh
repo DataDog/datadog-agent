@@ -8,6 +8,11 @@
 
 set -ex
 
+if ! command -v nc >/dev/null 2>&1; then
+  echo "nc cound not be found"
+  exit 1
+fi
+
 LOCALHOST=127.0.0.1
 PORT=8081
 
@@ -22,13 +27,13 @@ sleep_echo() {
 }
 
 server() {
-	sleep_echo "$SERVER_MESSAGE"  | nc -u -l "$LOCALHOST" "$PORT"
+	sleep_echo "$SERVER_MESSAGE" | nc -u -l "$LOCALHOST" "$PORT"
 	echo "server done"
 }
 server &
 
 client() {
-	sleep_echo "$CLIENT_MESSAGE" | nc -u  "$LOCALHOST"  "$PORT"
+	sleep_echo "$CLIENT_MESSAGE" | nc -u "$LOCALHOST" "$PORT"
 	echo "client done"
 }
 

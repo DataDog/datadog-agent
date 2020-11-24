@@ -147,6 +147,52 @@ func TestProcess(t *testing.T) {
 		assert.EqualValues(2, want.SpansFiltered)
 	})
 
+	t.Run("BlacklistPayload", func(t *testing.T) {
+		// Regression test for DataDog/datadog-agent#6500
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		cfg.Ignore["resource"] = []string{"^INSERT.*"}
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewAgent(ctx, cfg)
+		defer cancel()
+
+		now := time.Now()
+		spanValid := &pb.Span{
+			TraceID:  1,
+			SpanID:   1,
+			Resource: "SELECT name FROM people WHERE age = 42 AND extra = 55",
+			Type:     "sql",
+			Start:    now.Add(-time.Second).UnixNano(),
+			Duration: (500 * time.Millisecond).Nanoseconds(),
+		}
+		spanInvalid := &pb.Span{
+			TraceID:  1,
+			SpanID:   1,
+			Resource: "INSERT INTO db VALUES (1, 2, 3)",
+			Type:     "sql",
+			Start:    now.Add(-time.Second).UnixNano(),
+			Duration: (500 * time.Millisecond).Nanoseconds(),
+		}
+
+		want := agnt.Receiver.Stats.GetTagStats(info.Tags{})
+		assert := assert.New(t)
+
+		agnt.Process(&api.Payload{
+			Traces: pb.Traces{{spanInvalid, spanInvalid}, {spanValid}},
+			Source: want,
+		}, stats.NewSublayerCalculator())
+		assert.EqualValues(1, want.TracesFiltered)
+		assert.EqualValues(2, want.SpansFiltered)
+		var span *pb.Span
+		select {
+		case ss := <-agnt.Out:
+			span = ss.Traces[0].Spans[0]
+		case <-time.After(2 * time.Second):
+			t.Fatal("timeout: Expected one valid trace, but none were received.")
+		}
+		assert.Equal("unnamed_operation", span.Name)
+	})
+
 	t.Run("ContainerTags", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
@@ -316,7 +362,9 @@ func TestProcess(t *testing.T) {
 						Metrics:  map[string]float64{sampler.KeySamplingPriority: 2},
 					},
 				},
-				f: func(t *testing.T, spans []*pb.Span) { assert.Equal(t, 2.0, spans[0].Metrics["_sublayers.span_count"]) },
+				f: func(t *testing.T, spans []*pb.Span) {
+					assert.Equal(t, float64(0), spans[0].Metrics["_sublayers.duration.by_service.sublayer_service:unnamed-service"])
+				},
 			},
 			{
 				trace: pb.Trace{
@@ -332,7 +380,9 @@ func TestProcess(t *testing.T) {
 						Metrics:  map[string]float64{sampler.KeySamplingPriority: -1},
 					},
 				},
-				f: func(t *testing.T, spans []*pb.Span) { assert.NotContains(t, spans[0].Metrics, "_sublayers.span_count") },
+				f: func(t *testing.T, spans []*pb.Span) {
+					assert.NotContains(t, spans[0].Metrics, "_sublayers.duration.by_service.sublayer_service:unnamed-service")
+				},
 			},
 		} {
 			t.Run("", func(t *testing.T) {
@@ -688,7 +738,7 @@ func BenchmarkThroughput(b *testing.B) {
 		b.SkipNow()
 	}
 
-	ddlog.SetupDatadogLogger(seelog.Disabled, "") // disable logging
+	ddlog.SetupLogger(seelog.Disabled, "") // disable logging
 
 	folder := filepath.Join(env, "benchmarks")
 	filepath.Walk(folder, func(path string, info os.FileInfo, err error) error {

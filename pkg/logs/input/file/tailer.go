@@ -160,10 +160,11 @@ func (t *Tailer) readForever() {
 		if err != nil {
 			return
 		}
+		t.source.BytesRead.Add(int64(n))
 
 		select {
 		case <-t.stop:
-			if n != 0 && t.didFileRotate == 1 {
+			if n != 0 && atomic.LoadInt32(&t.didFileRotate) == 1 {
 				log.Warn("Tailer stopped after rotation close timeout with remaining unread data")
 			}
 			// stop reading data from file

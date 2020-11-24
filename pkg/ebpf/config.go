@@ -82,7 +82,7 @@ type Config struct {
 	ConntrackRateLimit int
 
 	// EnableConntrackAllNamespaces enables network address translation via netlink for all namespaces that are peers of the root namespace.
-	// default is false
+	// default is true
 	EnableConntrackAllNamespaces bool
 
 	// DebugPort specifies a port to run golang's expvar and pprof debug endpoint
@@ -124,7 +124,7 @@ func NewDefaultConfig() *Config {
 		MaxTrackedConnections:        65536,
 		ConntrackMaxStateSize:        65536,
 		ConntrackRateLimit:           500,
-		EnableConntrackAllNamespaces: false,
+		EnableConntrackAllNamespaces: true,
 		ProcRoot:                     "/proc",
 		BPFDebug:                     false,
 		EnableConntrack:              true,
@@ -139,5 +139,6 @@ func NewDefaultConfig() *Config {
 		DNSTimeout:           15 * time.Second,
 		OffsetGuessThreshold: 400,
 		EnableMonotonicCount: false,
+		BPFDir:               "build",
 	}
 }

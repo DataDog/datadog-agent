@@ -54,6 +54,7 @@ func (t *Tailer) run() {
 			log.Errorf("failed to format packet: %s", err)
 			continue
 		}
+		t.source.BytesRead.Add(int64(len(data)))
 		content, err := json.Marshal(data)
 		if err != nil {
 			log.Errorf("failed to serialize packet data to JSON: %s", err)

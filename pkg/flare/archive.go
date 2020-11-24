@@ -124,18 +124,18 @@ func CreatePerformanceProfile(prefix, debugURL string, cpusec int, target *Profi
 }
 
 // CreateArchive packages up the files
-func CreateArchive(local bool, distPath, pyChecksPath, logFilePath string, pdata ProfileData) (string, error) {
-	zipFilePath := GetArchivePath()
+func CreateArchive(local bool, distPath, pyChecksPath string, logFilePaths []string, pdata ProfileData) (string, error) {
+	zipFilePath := getArchivePath()
 	confSearchPaths := SearchPaths{
 		"":        config.Datadog.GetString("confd_path"),
 		"dist":    filepath.Join(distPath, "conf.d"),
 		"checksd": pyChecksPath,
 	}
-	return createArchive(confSearchPaths, local, zipFilePath, logFilePath, pdata)
+	return createArchive(confSearchPaths, local, zipFilePath, logFilePaths, pdata)
 }
 
-func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath, logFilePath string, pdata ProfileData) (string, error) {
-	tempDir, err := CreateTempDir()
+func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, logFilePaths []string, pdata ProfileData) (string, error) {
+	tempDir, err := createTempDir()
 	if err != nil {
 		return "", err
 	}
@@ -277,9 +277,11 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath, logFile
 
 	// force a log flush before zipping them
 	log.Flush()
-	err = zipLogFiles(tempDir, hostname, logFilePath, permsInfos)
-	if err != nil {
-		log.Errorf("Could not zip logs: %s", err)
+	for _, logFilePath := range logFilePaths {
+		err = zipLogFiles(tempDir, hostname, logFilePath, permsInfos)
+		if err != nil {
+			log.Errorf("Could not zip logs: %s", err)
+		}
 	}
 
 	err = zipInstallInfo(tempDir, hostname)

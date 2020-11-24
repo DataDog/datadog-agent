@@ -6,7 +6,6 @@
 package collectors
 
 import (
-	"fmt"
 	"sort"
 	"testing"
 
@@ -62,34 +61,5 @@ func assertTagInfoListEqual(t *testing.T, expectedUpdates []*TagInfo, updates []
 	assert.Equal(t, len(expectedUpdates), len(updates))
 	for i := 0; i < len(expectedUpdates); i++ {
 		assertTagInfoEqual(t, expectedUpdates[i], updates[i])
-	}
-}
-
-func TestResolveTag(t *testing.T) {
-	testCases := []struct {
-		tmpl, label, expected string
-	}{
-		{
-			"kube_%%label%%", "app", "kube_app",
-		},
-		{
-			"foo_%%label%%_bar", "app", "foo_app_bar",
-		},
-		{
-			"%%label%%%%label%%", "app", "appapp",
-		},
-		{
-			"kube_", "app", "kube_", // no template variable
-		},
-		{
-			"kube_%%foo%%", "app", "kube_", // unsupported template variable
-		},
-	}
-
-	for i, testCase := range testCases {
-		t.Run(fmt.Sprintf("#%d", i), func(t *testing.T) {
-			tagName := resolveTag(testCase.tmpl, testCase.label)
-			assert.Equal(t, testCase.expected, tagName)
-		})
 	}
 }

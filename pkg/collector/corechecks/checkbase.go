@@ -26,7 +26,7 @@ import (
 // NewCheckBase() in your factory, plus:
 // - long-running checks must override Stop() and Interval()
 // - checks supporting multiple instances must call BuildID() from
-// their Config() method
+// their Configure() method
 // - after optionally building a unique ID, CommonConfigure() must
 // be called from the Config() method to handle the common instance
 // fields
@@ -171,6 +171,11 @@ func (c *CheckBase) Warnf(format string, params ...interface{}) error {
 // Stop does nothing by default, you need to implement it in
 // long-running checks (persisting after Run() exits)
 func (c *CheckBase) Stop() {}
+
+// Cancel does nothing by default, you need to implement it if
+// your check has background resources that need to be cleaned up
+// when the check is unscheduled.
+func (c *CheckBase) Cancel() {}
 
 // Interval returns the scheduling time for the check.
 // Long-running checks should override to return 0.

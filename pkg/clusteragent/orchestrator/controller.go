@@ -18,9 +18,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	processcfg "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -62,9 +64,11 @@ type Controller struct {
 	clusterName             string
 	clusterID               string
 	forwarder               forwarder.Forwarder
-	processConfig           *processcfg.AgentConfig
+	orchestratorConfig      *orchcfg.OrchestratorConfig
+	simpleDataScrubber      *orchestrator.DataScrubber
 	isLeaderFunc            func() bool
 	isScrubbingEnabled      bool
+	extraTags               []string
 }
 
 // StartController starts the orchestrator controller
@@ -73,6 +77,11 @@ func StartController(ctx ControllerContext) error {
 		log.Info("Orchestrator explorer is disabled")
 		return nil
 	}
+
+	if !config.Datadog.GetBool("leader_election") {
+		return log.Errorf("Leader Election not enabled. Resource collection only happens on the leader nodes.")
+	}
+
 	if ctx.ClusterName == "" {
 		log.Warn("Orchestrator explorer enabled but no cluster name set: disabling")
 		return nil
@@ -109,16 +118,20 @@ func newController(ctx ControllerContext) (*Controller, error) {
 	serviceInformer := ctx.InformerFactory.Core().V1().Services()
 	nodesInformer := ctx.InformerFactory.Core().V1().Nodes()
 
-	cfg := processcfg.NewDefaultAgentConfig(true)
-	if err := cfg.LoadProcessYamlConfig(ctx.ConfigPath); err != nil {
+	// Deprecated, we want to move away from processcfg
+	processCfg := processcfg.NewDefaultAgentConfig(true)
+	if err := processCfg.LoadProcessYamlConfig(ctx.ConfigPath); err != nil {
 		log.Errorf("Error loading the process config: %s", err)
 	}
 
-	keysPerDomain := make(map[string][]string)
-	for _, ep := range cfg.OrchestratorEndpoints {
-		keysPerDomain[ep.Endpoint.String()] = []string{ep.APIKey}
+	// We slowly want to migrate from processcfg to orchestratorCfg
+	orchestratorCfg := orchcfg.NewDefaultOrchestratorConfig()
+	if err := orchestratorCfg.LoadYamlConfig(ctx.ConfigPath); err != nil {
+		log.Errorf("Error loading the orchestrator config: %s", err)
 	}
+	orchestratorCfg.MaxPerMessage = processCfg.MaxPerMessage
 
+	keysPerDomain := api.KeysPerDomains(processCfg.OrchestratorEndpoints)
 	podForwarderOpts := forwarder.NewOptions(keysPerDomain)
 	podForwarderOpts.DisableAPIKeyChecking = true
 
@@ -137,13 +150,14 @@ func newController(ctx ControllerContext) (*Controller, error) {
 		hostName:                ctx.Hostname,
 		clusterName:             ctx.ClusterName,
 		clusterID:               clusterID,
-		processConfig:           cfg,
+		orchestratorConfig:      orchestratorCfg,
+		simpleDataScrubber:      orchestrator.NewDefaultDataScrubber(),
 		forwarder:               forwarder.NewDefaultForwarder(podForwarderOpts),
 		isLeaderFunc:            ctx.IsLeaderFunc,
 		isScrubbingEnabled:      config.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled"),
+		extraTags:               config.Datadog.GetStringSlice("orchestrator_explorer.extra_tags"),
 	}
 
-	oc.processConfig = cfg
 	return oc, nil
 }
 
@@ -152,8 +166,13 @@ func (o *Controller) Run(stopCh <-chan struct{}) {
 	log.Infof("Starting orchestrator controller")
 	defer log.Infof("Stopping orchestrator controller")
 
+	if err := o.runLeaderElection(); err != nil {
+		log.Errorf("Error running the leader engine: %s", err)
+		return
+	}
+
 	if err := o.forwarder.Start(); err != nil {
-		log.Errorf("error starting pod forwarder: %s", err)
+		log.Errorf("Error starting pod forwarder: %s", err)
 		return
 	}
 
@@ -187,11 +206,19 @@ func (o *Controller) processDeploys() {
 		return
 	}
 
-	msg, err := processDeploymentList(deployList, atomic.AddInt32(&o.groupID, 1), o.processConfig, o.clusterName, o.clusterID, o.isScrubbingEnabled)
+	msg, err := processDeploymentList(deployList, atomic.AddInt32(&o.groupID, 1), o.orchestratorConfig, o.clusterName, o.clusterID, o.isScrubbingEnabled, o.extraTags)
 	if err != nil {
 		log.Errorf("Unable to process deployment list: %v", err)
 		return
 	}
+
+	stats := CheckStats{
+		CacheHits: len(deployList) - len(msg),
+		CacheMiss: len(msg),
+		NodeType:  orchestrator.K8sDeployment,
+	}
+
+	orchestrator.KubernetesResourceCache.Set(BuildStatsKey(orchestrator.K8sDeployment), stats, orchestrator.NoExpiration)
 
 	o.sendMessages(msg, forwarder.PayloadTypeDeployment)
 }
@@ -207,11 +234,19 @@ func (o *Controller) processReplicaSets() {
 		return
 	}
 
-	msg, err := processReplicaSetList(rsList, atomic.AddInt32(&o.groupID, 1), o.processConfig, o.clusterName, o.clusterID, o.isScrubbingEnabled)
+	msg, err := processReplicaSetList(rsList, atomic.AddInt32(&o.groupID, 1), o.orchestratorConfig, o.clusterName, o.clusterID, o.isScrubbingEnabled, o.extraTags)
 	if err != nil {
 		log.Errorf("Unable to process replica set list: %v", err)
 		return
 	}
+
+	stats := CheckStats{
+		CacheHits: len(rsList) - len(msg),
+		CacheMiss: len(msg),
+		NodeType:  orchestrator.K8sReplicaSet,
+	}
+
+	orchestrator.KubernetesResourceCache.Set(BuildStatsKey(orchestrator.K8sReplicaSet), stats, orchestrator.NoExpiration)
 
 	o.sendMessages(msg, forwarder.PayloadTypeReplicaSet)
 }
@@ -228,11 +263,19 @@ func (o *Controller) processPods() {
 	}
 
 	// we send an empty hostname for unassigned pods
-	msg, err := orchestrator.ProcessPodlist(podList, atomic.AddInt32(&o.groupID, 1), o.processConfig, "", o.clusterName, o.clusterID, o.isScrubbingEnabled)
+	msg, err := orchestrator.ProcessPodList(podList, atomic.AddInt32(&o.groupID, 1), "", o.clusterName, o.clusterID, o.isScrubbingEnabled, o.orchestratorConfig.MaxPerMessage, o.simpleDataScrubber, o.extraTags)
 	if err != nil {
 		log.Errorf("Unable to process pod list: %v", err)
 		return
 	}
+
+	stats := CheckStats{
+		CacheHits: len(podList) - len(msg),
+		CacheMiss: len(msg),
+		NodeType:  orchestrator.K8sPod,
+	}
+
+	orchestrator.KubernetesResourceCache.Set(BuildStatsKey(orchestrator.K8sPod), stats, orchestrator.NoExpiration)
 
 	o.sendMessages(msg, forwarder.PayloadTypePod)
 }
@@ -248,11 +291,19 @@ func (o *Controller) processServices() {
 	}
 	groupID := atomic.AddInt32(&o.groupID, 1)
 
-	messages, err := processServiceList(serviceList, groupID, o.processConfig, o.clusterName, o.clusterID)
+	messages, err := processServiceList(serviceList, groupID, o.orchestratorConfig, o.clusterName, o.clusterID, o.extraTags)
 	if err != nil {
 		log.Errorf("Unable to process service list: %s", err)
 		return
 	}
+
+	stats := CheckStats{
+		CacheHits: len(serviceList) - len(messages),
+		CacheMiss: len(messages),
+		NodeType:  orchestrator.K8sService,
+	}
+
+	orchestrator.KubernetesResourceCache.Set(BuildStatsKey(orchestrator.K8sService), stats, orchestrator.NoExpiration)
 
 	o.sendMessages(messages, forwarder.PayloadTypeService)
 }
@@ -268,11 +319,19 @@ func (o *Controller) processNodes() {
 	}
 	groupID := atomic.AddInt32(&o.groupID, 1)
 
-	messages, err := processNodesList(nodesList, groupID, o.processConfig, o.clusterName, o.clusterID)
+	messages, err := processNodesList(nodesList, groupID, o.orchestratorConfig, o.clusterName, o.clusterID, o.extraTags)
 	if err != nil {
 		log.Errorf("Unable to process node list: %s", err)
 		return
 	}
+
+	stats := CheckStats{
+		CacheHits: len(nodesList) - len(messages),
+		CacheMiss: len(messages),
+		NodeType:  orchestrator.K8sNode,
+	}
+
+	orchestrator.KubernetesResourceCache.Set(BuildStatsKey(orchestrator.K8sNode), stats, orchestrator.NoExpiration)
 
 	o.sendMessages(messages, forwarder.PayloadTypeNode)
 }
@@ -303,6 +362,18 @@ func (o *Controller) sendMessages(msg []model.MessageBody, payloadType string) {
 
 		}
 	}
+}
+
+func (o *Controller) runLeaderElection() error {
+	engine, err := leaderelection.GetLeaderEngine()
+	if err != nil {
+		return err
+	}
+	err = engine.EnsureLeaderElectionRuns()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func spreadProcessors(processors []func(), spreadInterval, processorPeriod time.Duration, stopCh <-chan struct{}) {

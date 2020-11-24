@@ -72,20 +72,21 @@ func connDirection(flags C.uint32_t) ConnectionDirection {
 
 func isFlowClosed(flags C.uint32_t) bool {
 	// Connection is closed
-	if (flags & C.FLOW_CLOSED_MASK) == C.FLOW_CLOSED_MASK {
-		return true
-	}
-	return false
+	return (flags & C.FLOW_CLOSED_MASK) == C.FLOW_CLOSED_MASK
+}
+
+func isTCPFlowEstablished(flags C.uint32_t) bool {
+	return (flags & C.TCP_FLOW_ESTABLISHED_MASK) == C.TCP_FLOW_ESTABLISHED_MASK
 }
 
 func convertV4Addr(addr [16]C.uint8_t) util.Address {
 	// We only read the first 4 bytes for v4 address
-	return util.V4AddressFromBytes(C.GoBytes(unsafe.Pointer(&addr), net.IPv4len))
+	return util.V4AddressFromBytes((*[16]byte)(unsafe.Pointer(&addr))[:net.IPv4len])
 }
 
 func convertV6Addr(addr [16]C.uint8_t) util.Address {
 	// We read all 16 bytes for v6 address
-	return util.V6AddressFromBytes(C.GoBytes(unsafe.Pointer(&addr), net.IPv6len))
+	return util.V4AddressFromBytes((*[16]byte)(unsafe.Pointer(&addr))[:net.IPv6len])
 }
 
 // Monotonic values include retransmits and headers, while transport does not. We default to using transport
@@ -99,7 +100,7 @@ func monotonicOrTransportBytes(useMonotonicCounts bool, monotonic C.uint64_t, tr
 }
 
 // FlowToConnStat converts a C.struct__perFlowData into a ConnectionStats struct for use with the tracer
-func FlowToConnStat(flow *C.struct__perFlowData, enableMonotonicCounts bool) ConnectionStats {
+func FlowToConnStat(cs *ConnectionStats, flow *C.struct__perFlowData, enableMonotonicCounts bool) {
 	var (
 		family         ConnectionFamily
 		srcAddr        util.Address
@@ -117,28 +118,53 @@ func FlowToConnStat(flow *C.struct__perFlowData, enableMonotonicCounts bool) Con
 		srcAddr, dstAddr = convertV6Addr(flow.localAddress), convertV6Addr(flow.remoteAddress)
 	}
 
-	cs := ConnectionStats{
-		Source: srcAddr,
-		Dest:   dstAddr,
-		// after lengthy discussion, use the transport bytes in/out.  monotonic
-		// RecvBytes/SentBytes includes the size of the IP header and transport
-		// header, transportBytes is the raw transport data.  At present,
-		// the linux probe only reports the raw transport data.  So do that by default.
-		MonotonicSentBytes: monotonicOrTransportBytes(enableMonotonicCounts, flow.monotonicSentBytes, flow.transportBytesOut),
-		MonotonicRecvBytes: monotonicOrTransportBytes(enableMonotonicCounts, flow.monotonicRecvBytes, flow.transportBytesIn),
-		LastUpdateEpoch:    uint64(flow.timestamp),
-		Pid:                uint32(flow.processId),
-		SPort:              uint16(flow.localPort),
-		DPort:              uint16(flow.remotePort),
-		Type:               connectionType,
-		Family:             family,
-		Direction:          connDirection(flow.flags),
-	}
+	cs.Source = srcAddr
+	cs.Dest = dstAddr
+	// after lengthy discussion, use the transport bytes in/out.  monotonic
+	// RecvBytes/SentBytes includes the size of the IP header and transport
+	// header, transportBytes is the raw transport data.  At present,
+	// the linux probe only reports the raw transport data.  So do that by default.
+	cs.MonotonicSentBytes = monotonicOrTransportBytes(enableMonotonicCounts, flow.monotonicSentBytes, flow.transportBytesOut)
+	cs.MonotonicRecvBytes = monotonicOrTransportBytes(enableMonotonicCounts, flow.monotonicRecvBytes, flow.transportBytesIn)
+	cs.LastUpdateEpoch = uint64(flow.timestamp)
+	cs.Pid = uint32(flow.processId)
+	cs.SPort = uint16(flow.localPort)
+	cs.DPort = uint16(flow.remotePort)
+	cs.Type = connectionType
+	cs.Family = family
+	cs.Direction = connDirection(flow.flags)
+
+	// reset other fields to default values
+	cs.NetNS = 0
+	cs.IPTranslation = nil
+	cs.IntraHost = false
+	cs.DNSSuccessfulResponses = 0
+	cs.DNSFailedResponses = 0
+	cs.DNSTimeouts = 0
+	cs.DNSSuccessLatencySum = 0
+	cs.DNSFailureLatencySum = 0
+	cs.DNSCountByRcode = nil
+	cs.LastSentBytes = 0
+	cs.LastRecvBytes = 0
+	cs.MonotonicRetransmits = 0
+	cs.LastRetransmits = 0
+	cs.MonotonicTCPEstablished = 0
+	cs.LastTCPEstablished = 0
+	cs.MonotonicTCPClosed = 0
+	cs.LastTCPClosed = 0
+	cs.RTT = 0
+	cs.RTTVar = 0
 
 	if connectionType == TCP {
 		cs.MonotonicRetransmits = uint32(C.getTcp_retransmitCount(flow))
 		cs.RTT = uint32(C.getTcp_sRTT(flow))
 		cs.RTTVar = uint32(C.getTcp_rttVariance(flow))
+
+		if isTCPFlowEstablished(flow.flags) {
+			cs.MonotonicTCPEstablished = 1
+		}
+		if isFlowClosed(flow.flags) {
+			cs.MonotonicTCPClosed = 1
+		}
 	}
-	return cs
 }

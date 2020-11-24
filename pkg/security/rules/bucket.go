@@ -84,6 +84,9 @@ func (rb *RuleBucket) GetApprovers(event eval.Event, fieldCaps FieldCapabilities
 		var ruleApprovers map[eval.Field]FilterValues
 		for _, fields := range fcs {
 			ruleApprovers = truthTable.getApprovers(fields...)
+
+			// only one approver is currently required to ensure that the rule will be applied
+			// this could be improve by adding weight to use the most valuable one
 			if ruleApprovers != nil && len(ruleApprovers) > 0 && fieldCaps.Validate(ruleApprovers) {
 				break
 			}

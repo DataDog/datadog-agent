@@ -70,19 +70,37 @@ func (m *Module) Register(httpMux *http.ServeMux) error {
 
 	go m.statsMonitor(context.Background())
 
-	if err := m.probe.Start(); err != nil {
+	// initialize the default values of the probe
+	if err := m.probe.Init(); err != nil {
 		return err
 	}
 
 	rsa := sprobe.NewRuleSetApplier(m.config)
 
-	report, err := rsa.Apply(m.ruleSet, m.probe)
-	if err != nil {
-		log.Warn(err)
+	// based on the ruleset and the requested rules, select the probes that need to be activated
+	if err := rsa.SelectProbes(m.ruleSet, m.probe); err != nil {
+		return err
 	}
 
-	// now that the probes have started, run the snapshot functions for the probes that require
-	// to fetch the current state of the system (example: mount points probes, process probes, ...)
+	// initialize the eBPF manager and load the programs and maps in the kernel. At this stage, the probes are not
+	// running yet.
+	if err := m.probe.InitManager(m.ruleSet); err != nil {
+		return err
+	}
+
+	// analyze the ruleset, push default policies in the kernel and generate the policy report
+	report, err := rsa.Apply(m.ruleSet, m.probe)
+	if err != nil {
+		return err
+	}
+
+	// start the manager and its probes / perf maps
+	if err := m.probe.Start(); err != nil {
+		return err
+	}
+
+	// fetch the current state of the system (example: mount points, running processes, ...) so that our user space
+	// context is ready when we start the probes
 	if err := m.probe.Snapshot(); err != nil {
 		return err
 	}
@@ -101,9 +119,10 @@ func (m *Module) Close() {
 
 	if m.listener != nil {
 		m.listener.Close()
+		os.Remove(m.config.SocketPath)
 	}
 
-	m.probe.Stop()
+	m.probe.Close()
 }
 
 // RuleMatch is called by the ruleset when a rule matches
@@ -111,13 +130,13 @@ func (m *Module) RuleMatch(rule *eval.Rule, event eval.Event) {
 	if m.rateLimiter.Allow(rule.ID) {
 		m.eventServer.SendEvent(rule, event)
 	} else {
-		log.Debugf("Event on rule %s was dropped due to rate limiting", rule.ID)
+		log.Tracef("Event on rule %s was dropped due to rate limiting", rule.ID)
 	}
 }
 
 // EventDiscarderFound is called by the ruleset when a new discarder discovered
-func (m *Module) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field string) {
-	if err := m.probe.OnNewDiscarder(rs, event.(*sprobe.Event), field); err != nil {
+func (m *Module) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
+	if err := m.probe.OnNewDiscarder(rs, event.(*sprobe.Event), field, eventType); err != nil {
 		log.Trace(err)
 	}
 }
@@ -197,12 +216,12 @@ func NewModule(cfg *aconfig.AgentConfig) (api.Module, error) {
 		log.Warn("Logs won't be send to DataDog")
 	}
 
-	probe, err := sprobe.NewProbe(config)
+	probe, err := sprobe.NewProbe(config, statsdClient)
 	if err != nil {
 		return nil, err
 	}
 
-	ruleSet := probe.NewRuleSet(rules.NewOptsWithParams(config.Debug, sprobe.SECLConstants, sprobe.InvalidDiscarders))
+	ruleSet := probe.NewRuleSet(rules.NewOptsWithParams(sprobe.SECLConstants, sprobe.SupportedDiscarders))
 	if err := policy.LoadPolicies(config, ruleSet); err != nil {
 		return nil, err
 	}

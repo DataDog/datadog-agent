@@ -6,7 +6,6 @@
 package agent
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"math"
@@ -117,7 +116,6 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 		log.Debugf("Fixing malformed trace. Resource is empty (reason:resource_empty), setting span.resource=%s: %s", s.Name, s)
 		s.Resource = s.Name
 	}
-	s.Resource = toUTF8(s.Resource)
 
 	// ParentID, TraceID and SpanID set in the client could be the same
 	// Supporting the ParentID == TraceID == SpanID for the root span, is compliant
@@ -152,19 +150,10 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 		}
 	}
 
-	s.Type = toUTF8(s.Type)
 	if len(s.Type) > MaxTypeLen {
 		atomic.AddInt64(&ts.SpansMalformed.TypeTruncate, 1)
 		log.Debugf("Fixing malformed trace. Type is too long (reason:type_truncate), truncating span.type to length=%d: %s", MaxTypeLen, s)
 		s.Type = traceutil.TruncateUTF8(s.Type, MaxTypeLen)
-	}
-	for k, v := range s.Meta {
-		utf8K := toUTF8(k)
-		if k != utf8K {
-			delete(s.Meta, k)
-			k = utf8K
-		}
-		s.Meta[k] = toUTF8(v)
 	}
 	if env, ok := s.Meta["env"]; ok {
 		s.Meta["env"] = normalizeTag(env)
@@ -284,31 +273,6 @@ func normMetricNameParse(name string) (string, bool) {
 	}
 
 	return string(res), true
-}
-
-// toUTF8 forces the string to utf-8 by replacing illegal character sequences with the utf-8 replacement character.
-func toUTF8(s string) string {
-	if utf8.ValidString(s) {
-		// if string is already valid utf8, return it as-is. Checking validity is cheaper than blindly rewriting.
-		return s
-	}
-
-	in := strings.NewReader(s)
-	var out bytes.Buffer
-	out.Grow(len(s))
-
-	for {
-		r, _, err := in.ReadRune()
-		if err != nil {
-			// note: by contract, if `in` contains non-valid utf-8, no error is returned. Rather the utf-8 replacement
-			// character is returned. Therefore, the only error should usually be io.EOF indicating end of string.
-			// If any other error is returned by chance, we quit as well, outputting whatever part of the string we
-			// had already constructed.
-			return out.String()
-		}
-
-		out.WriteRune(r)
-	}
 }
 
 const maxTagLength = 200

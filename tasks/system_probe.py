@@ -1,6 +1,5 @@
 import contextlib
 import datetime
-import getpass
 import glob
 import os
 import shutil
@@ -198,9 +197,6 @@ def test(ctx, skip_object_files=False, only_check_bpf_bytes=False, bundle_ebpf=T
         # bpf_tag += ",ebpf_bindata"
         cmd += " -run=TestEbpfBytesCorrect"
     else:
-        if getpass.getuser() != "root":
-            print("system-probe tests must be run as root")
-            raise Exit(code=1)
         if os.getenv("GOPATH") is None:
             print(
                 "GOPATH is not set, if you are running tests with sudo, you may need to use the -E option to preserve your environment"
@@ -296,6 +292,7 @@ def build_object_files(ctx, bundle_ebpf=False):
         ]
 
     bpf_dir = os.path.join(".", "pkg", "ebpf")
+    build_dir = os.path.join(bpf_dir, "bytecode", "build")
     c_dir = os.path.join(bpf_dir, "c")
 
     flags = [
@@ -312,6 +309,8 @@ def build_object_files(ctx, bundle_ebpf=False):
         "-include {}".format(os.path.join(c_dir, "asm_goto_workaround.h")),
         '-O2',
         '-emit-llvm',
+        # Some linux distributions enable stack protector by default which is not available on eBPF
+        '-fno-stack-protector',
     ]
 
     # Mapping used by the kernel, from https://elixir.bootlin.com/linux/latest/source/scripts/subarch.include
@@ -346,29 +345,34 @@ def build_object_files(ctx, bundle_ebpf=False):
     cmd = "clang {flags} -c '{c_file}' -o '{bc_file}'"
     llc_cmd = "llc -march=bpf -filetype=obj -o '{obj_file}' '{bc_file}'"
 
-    commands = []
+    commands = ["mkdir -p {build_dir}".format(build_dir=build_dir)]
+    bindata_files = []
 
     compiled_programs = [
         "tracer-ebpf",
         "offset-guess",
     ]
-    bindata_files = [
+    bcc_files = [
         os.path.join(c_dir, "tcp-queue-length-kern.c"),
         os.path.join(bpf_dir, "tcp-queue-length-kern-user.h"),
         os.path.join(c_dir, "oom-kill-kern.c"),
         os.path.join(bpf_dir, "oom-kill-kern-user.h"),
         os.path.join(c_dir, "bpf-common.h"),
     ]
+    for f in bcc_files:
+        commands.append("cp {file} {dest}".format(file=f, dest=build_dir))
+        bindata_files.append(os.path.join(build_dir, os.path.basename(f)))
+
     for p in compiled_programs:
         # Build both the standard and debug version
         src_file = os.path.join(c_dir, "{}.c".format(p))
-        bc_file = os.path.join(c_dir, "{}.bc".format(p))
-        obj_file = os.path.join(c_dir, "{}.o".format(p))
+        bc_file = os.path.join(build_dir, "{}.bc".format(p))
+        obj_file = os.path.join(build_dir, "{}.o".format(p))
         commands.append(cmd.format(flags=" ".join(flags), bc_file=bc_file, c_file=src_file))
         commands.append(llc_cmd.format(flags=" ".join(flags), bc_file=bc_file, obj_file=obj_file))
 
-        debug_bc_file = os.path.join(c_dir, "{}-debug.bc".format(p))
-        debug_obj_file = os.path.join(c_dir, "{}-debug.o".format(p))
+        debug_bc_file = os.path.join(build_dir, "{}-debug.bc".format(p))
+        debug_obj_file = os.path.join(build_dir, "{}-debug.o".format(p))
         commands.append(cmd.format(flags=" ".join(flags + ["-DDEBUG=1"]), bc_file=debug_bc_file, c_file=src_file))
         commands.append(llc_cmd.format(flags=" ".join(flags), bc_file=debug_bc_file, obj_file=debug_obj_file))
 
@@ -377,8 +381,8 @@ def build_object_files(ctx, bundle_ebpf=False):
     # Build security runtime programs
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
     security_c_file = os.path.join(security_agent_c_dir, "probe.c")
-    security_bc_file = os.path.join(security_agent_c_dir, "runtime-security.bc")
-    security_agent_obj_file = os.path.join(security_agent_c_dir, "runtime-security.o")
+    security_bc_file = os.path.join(build_dir, "runtime-security.bc")
+    security_agent_obj_file = os.path.join(build_dir, "runtime-security.o")
 
     commands.append(
         cmd.format(
@@ -387,8 +391,8 @@ def build_object_files(ctx, bundle_ebpf=False):
     )
     commands.append(llc_cmd.format(flags=" ".join(flags), bc_file=security_bc_file, obj_file=security_agent_obj_file))
 
-    security_agent_syscall_wrapper_bc_file = os.path.join(security_agent_c_dir, "runtime-security-syscall-wrapper.bc")
-    security_agent_syscall_wrapper_obj_file = os.path.join(security_agent_c_dir, "runtime-security-syscall-wrapper.o")
+    security_agent_syscall_wrapper_bc_file = os.path.join(build_dir, "runtime-security-syscall-wrapper.bc")
+    security_agent_syscall_wrapper_obj_file = os.path.join(build_dir, "runtime-security-syscall-wrapper.o")
     commands.append(
         cmd.format(
             flags=" ".join(flags + ["-DUSE_SYSCALL_WRAPPER=1"]),
@@ -405,17 +409,21 @@ def build_object_files(ctx, bundle_ebpf=False):
     )
     bindata_files.extend([security_agent_obj_file, security_agent_syscall_wrapper_obj_file])
 
-    if bundle_ebpf:
-        assets_cmd = (
-            "go run github.com/shuLhan/go-bindata/cmd/go-bindata"
-            + " -pkg bytecode -tags ebpf_bindata -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{bindata_files}'"
-        )
-        go_file = os.path.join(bpf_dir, "bytecode", "tracer-ebpf.go")
-        commands.append(assets_cmd.format(c_dir=c_dir, go_file=go_file, bindata_files="' '".join(bindata_files)))
-        commands.append("gofmt -w -s {go_file}".format(go_file=go_file))
-
     for cmd in commands:
         ctx.run(cmd)
+
+    if bundle_ebpf:
+        go_dir = os.path.join(bpf_dir, "bytecode", "bindata")
+        bundle_files(ctx, bindata_files, "pkg/.*/", go_dir)
+
+
+def bundle_files(ctx, bindata_files, dir_prefix, go_dir):
+    assets_cmd = (
+        "go run github.com/shuLhan/go-bindata/cmd/go-bindata -tags ebpf_bindata -split"
+        + " -pkg bindata -prefix '{dir_prefix}' -modtime 1 -o '{go_dir}' '{bindata_files}'"
+    )
+    ctx.run(assets_cmd.format(dir_prefix=dir_prefix, go_dir=go_dir, bindata_files="' '".join(bindata_files)))
+    ctx.run("gofmt -w -s {go_dir}".format(go_dir=go_dir))
 
 
 def build_ebpf_builder(ctx):

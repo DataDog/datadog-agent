@@ -35,6 +35,12 @@ func TestParseKubeletPodlist(t *testing.T) {
 							ID:   "testID",
 						},
 					},
+					AllContainers: []kubelet.ContainerStatus{
+						{
+							Name: "testName",
+							ID:   "testID",
+						},
+					},
 				},
 			},
 			expectedCfg: nil,
@@ -54,6 +60,12 @@ func TestParseKubeletPodlist(t *testing.T) {
 				},
 				Status: kubelet.Status{
 					Containers: []kubelet.ContainerStatus{
+						{
+							Name: "apache",
+							ID:   "container_id://3b8efe0c50e8",
+						},
+					},
+					AllContainers: []kubelet.ContainerStatus{
 						{
 							Name: "apache",
 							ID:   "container_id://3b8efe0c50e8",
@@ -86,6 +98,16 @@ func TestParseKubeletPodlist(t *testing.T) {
 				},
 				Status: kubelet.Status{
 					Containers: []kubelet.ContainerStatus{
+						{
+							Name: "apache",
+							ID:   "container_id://3b8efe0c50e8",
+						},
+						{
+							Name: "nginx",
+							ID:   "container_id://4ac8352d70bf1",
+						},
+					},
+					AllContainers: []kubelet.ContainerStatus{
 						{
 							Name: "apache",
 							ID:   "container_id://3b8efe0c50e8",
@@ -131,6 +153,12 @@ func TestParseKubeletPodlist(t *testing.T) {
 							ID:   "container_id://3b8efe0c50e8",
 						},
 					},
+					AllContainers: []kubelet.ContainerStatus{
+						{
+							Name: "apache",
+							ID:   "container_id://3b8efe0c50e8",
+						},
+					},
 				},
 			},
 			expectedCfg: []integration.Config{
@@ -147,6 +175,42 @@ func TestParseKubeletPodlist(t *testing.T) {
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
 					Source:        "kubelet:container_id://3b8efe0c50e8",
+				},
+			},
+		},
+		{
+			desc: "Custom check ID",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Annotations: map[string]string{
+						"ad.datadoghq.com/nginx.check.id":            "nginx-custom",
+						"ad.datadoghq.com/nginx-custom.check_names":  "[\"http_check\"]",
+						"ad.datadoghq.com/nginx-custom.init_configs": "[{}]",
+						"ad.datadoghq.com/nginx-custom.instances":    "[{\"name\": \"Other service\", \"url\": \"http://%%host_external%%\", \"timeout\": 1}]",
+					},
+				},
+				Status: kubelet.Status{
+					Containers: []kubelet.ContainerStatus{
+						{
+							Name: "nginx",
+							ID:   "container_id://4ac8352d70bf1",
+						},
+					},
+					AllContainers: []kubelet.ContainerStatus{
+						{
+							Name: "nginx",
+							ID:   "container_id://4ac8352d70bf1",
+						},
+					},
+				},
+			},
+			expectedCfg: []integration.Config{
+				{
+					Name:          "http_check",
+					ADIdentifiers: []string{"container_id://4ac8352d70bf1"},
+					InitConfig:    integration.Data("{}"),
+					Instances:     []integration.Data{integration.Data("{\"name\":\"Other service\",\"timeout\":1,\"url\":\"http://%%host_external%%\"}")},
+					Source:        "kubelet:container_id://4ac8352d70bf1",
 				},
 			},
 		},

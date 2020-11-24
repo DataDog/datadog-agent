@@ -51,7 +51,7 @@ func TestMitre(t *testing.T) {
 				}
 				f.Close()
 			},
-			expectedRule: "credential_modified",
+			expectedRule: "credential_accessed",
 		},
 		{
 			action: func(t *testing.T) {
@@ -98,19 +98,12 @@ func TestMitre(t *testing.T) {
 				}
 
 				os.Remove("/usr/local/bin/pleaseremoveme")
+
+				// wait a bit to ensure that the discarder will be placed before the file delete
+				// see the race explanation in the probe_bpf.go in the invalidate event.
+				time.Sleep(2 * time.Second)
 			},
 			expectedRule: "permissions_changed",
-		},
-		{
-			action: func(t *testing.T) {
-				f, err := os.Create("/.removeme")
-				if err != nil {
-					t.Fatal(err)
-				}
-				f.Close()
-				os.Remove("/.removeme")
-			},
-			expectedRule: "hidden_file",
 		},
 		{
 			action: func(t *testing.T) {

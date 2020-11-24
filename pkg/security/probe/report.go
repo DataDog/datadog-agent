@@ -44,7 +44,7 @@ func (r *Reporter) getPolicyReport(eventType eval.EventType) *PolicyReport {
 }
 
 // SetFilterPolicy is called when a passing policy for an event type is applied
-func (r *Reporter) SetFilterPolicy(eventType eval.EventType, tableName string, mode PolicyMode, flags PolicyFlag) error {
+func (r *Reporter) SetFilterPolicy(eventType eval.EventType, mode PolicyMode, flags PolicyFlag) error {
 	policyReport := r.getPolicyReport(eventType)
 	policyReport.Mode = mode
 	policyReport.Flags = flags

@@ -4,10 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"time"
 
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/dockerproxy"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
@@ -171,6 +173,16 @@ func batchConnections(
 
 	dnsEncoder := model.NewV1DNSEncoder()
 
+	if len(cxs) > cfg.MaxConnsPerMessage {
+		// Sort connections by remote IP/PID for more efficient resolution
+		sort.Slice(cxs, func(i, j int) bool {
+			if cxs[i].Raddr.Ip != cxs[j].Raddr.Ip {
+				return cxs[i].Raddr.Ip < cxs[j].Raddr.Ip
+			}
+			return cxs[i].Pid < cxs[j].Pid
+		})
+	}
+
 	for len(cxs) > 0 {
 		batchSize := min(cfg.MaxConnsPerMessage, len(cxs))
 		batchConns := cxs[:batchSize] // Connections for this particular batch
@@ -197,6 +209,15 @@ func batchConnections(
 			EncodedDNS:        dnsEncoder.Encode(batchDNS),
 			ContainerHostType: cfg.ContainerHostType,
 		}
+
+		// Add OS telemetry
+		if hostInfo := host.GetStatusInformation(); hostInfo != nil {
+			cc.KernelVersion = hostInfo.KernelVersion
+			cc.Architecture = hostInfo.KernelArch
+			cc.Platform = hostInfo.Platform
+			cc.PlatformVersion = hostInfo.PlatformVersion
+		}
+
 		// only add the telemetry to the first message to prevent double counting
 		if len(batches) == 0 {
 			cc.Telemetry = telemetry

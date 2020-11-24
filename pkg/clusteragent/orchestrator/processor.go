@@ -14,7 +14,8 @@ import (
 
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	jsoniter "github.com/json-iterator/go"
@@ -22,13 +23,13 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string, withScrubbing bool) ([]model.MessageBody, error) {
+func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *config.OrchestratorConfig, clusterName string, clusterID string, withScrubbing bool, extraTags []string) ([]model.MessageBody, error) {
 	start := time.Now()
 	deployMsgs := make([]*model.Deployment, 0, len(deploymentList))
 
 	for d := 0; d < len(deploymentList); d++ {
 		depl := deploymentList[d]
-		if orchestrator.SkipKubernetesResource(depl.UID, depl.ResourceVersion) {
+		if orchestrator.SkipKubernetesResource(depl.UID, depl.ResourceVersion, orchestrator.K8sDeployment) {
 			continue
 		}
 
@@ -37,17 +38,17 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 		// scrub & generate YAML
 		if withScrubbing {
 			for c := 0; c < len(depl.Spec.Template.Spec.InitContainers); c++ {
-				orchestrator.ScrubContainer(&depl.Spec.Template.Spec.InitContainers[c], cfg)
+				orchestrator.ScrubContainer(&depl.Spec.Template.Spec.InitContainers[c], cfg.Scrubber)
 			}
 			for c := 0; c < len(deploymentList[d].Spec.Template.Spec.Containers); c++ {
-				orchestrator.ScrubContainer(&depl.Spec.Template.Spec.Containers[c], cfg)
+				orchestrator.ScrubContainer(&depl.Spec.Template.Spec.Containers[c], cfg.Scrubber)
 			}
 		}
 		// k8s objects only have json "omitempty" annotations
 		// and marshalling is more performant than YAML
 		jsonDeploy, err := jsoniter.Marshal(depl)
 		if err != nil {
-			log.Debugf("Could not marshal deployment to JSON: %s", err)
+			log.Warnf("Could not marshal deployment to JSON: %s", err)
 			continue
 		}
 		deployModel.Yaml = jsonDeploy
@@ -68,6 +69,7 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 			GroupId:     groupID,
 			GroupSize:   int32(groupSize),
 			ClusterId:   clusterID,
+			Tags:        extraTags,
 		})
 	}
 
@@ -94,13 +96,13 @@ func chunkDeployments(deploys []*model.Deployment, chunkCount, chunkSize int) []
 	return chunks
 }
 
-func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string, withScrubbing bool) ([]model.MessageBody, error) {
+func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.OrchestratorConfig, clusterName string, clusterID string, withScrubbing bool, extraTags []string) ([]model.MessageBody, error) {
 	start := time.Now()
 	rsMsgs := make([]*model.ReplicaSet, 0, len(rsList))
 
 	for rs := 0; rs < len(rsList); rs++ {
 		r := rsList[rs]
-		if orchestrator.SkipKubernetesResource(r.UID, r.ResourceVersion) {
+		if orchestrator.SkipKubernetesResource(r.UID, r.ResourceVersion, orchestrator.K8sReplicaSet) {
 			continue
 		}
 
@@ -110,10 +112,10 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.A
 		// scrub & generate YAML
 		if withScrubbing {
 			for c := 0; c < len(r.Spec.Template.Spec.InitContainers); c++ {
-				orchestrator.ScrubContainer(&r.Spec.Template.Spec.InitContainers[c], cfg)
+				orchestrator.ScrubContainer(&r.Spec.Template.Spec.InitContainers[c], cfg.Scrubber)
 			}
 			for c := 0; c < len(r.Spec.Template.Spec.Containers); c++ {
-				orchestrator.ScrubContainer(&r.Spec.Template.Spec.Containers[c], cfg)
+				orchestrator.ScrubContainer(&r.Spec.Template.Spec.Containers[c], cfg.Scrubber)
 			}
 		}
 
@@ -121,7 +123,7 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.A
 		// and marshalling is more performant than YAML
 		jsonRS, err := jsoniter.Marshal(r)
 		if err != nil {
-			log.Debugf("Could not marshal replica set to JSON: %s", err)
+			log.Warnf("Could not marshal replica set to JSON: %s", err)
 			continue
 		}
 		rsModel.Yaml = jsonRS
@@ -142,6 +144,7 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.A
 			GroupId:     groupID,
 			GroupSize:   int32(groupSize),
 			ClusterId:   clusterID,
+			Tags:        extraTags,
 		})
 	}
 
@@ -169,13 +172,13 @@ func chunkReplicaSets(replicaSets []*model.ReplicaSet, chunkCount, chunkSize int
 }
 
 // processServiceList process a service list into process messages.
-func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string) ([]model.MessageBody, error) {
+func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *config.OrchestratorConfig, clusterName string, clusterID string, extraTags []string) ([]model.MessageBody, error) {
 	start := time.Now()
 	serviceMsgs := make([]*model.Service, 0, len(serviceList))
 
 	for s := 0; s < len(serviceList); s++ {
 		svc := serviceList[s]
-		if orchestrator.SkipKubernetesResource(svc.UID, svc.ResourceVersion) {
+		if orchestrator.SkipKubernetesResource(svc.UID, svc.ResourceVersion, orchestrator.K8sService) {
 			continue
 		}
 
@@ -185,7 +188,7 @@ func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *confi
 		// + marshalling is more performant than YAML
 		jsonSvc, err := jsoniter.Marshal(svc)
 		if err != nil {
-			log.Debugf("Could not marshal service to JSON: %s", err)
+			log.Warnf("Could not marshal service to JSON: %s", err)
 			continue
 		}
 		serviceModel.Yaml = jsonSvc
@@ -208,6 +211,7 @@ func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *confi
 			GroupId:     groupID,
 			GroupSize:   int32(groupSize),
 			Services:    chunks[i],
+			Tags:        extraTags,
 		})
 	}
 
@@ -236,13 +240,13 @@ func chunkServices(services []*model.Service, chunkCount, chunkSize int) [][]*mo
 }
 
 // processNodesList process a nodes list into process messages.
-func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string) ([]model.MessageBody, error) {
+func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.OrchestratorConfig, clusterName string, clusterID string, extraTags []string) ([]model.MessageBody, error) {
 	start := time.Now()
 	nodeMsgs := make([]*model.Node, 0, len(nodesList))
 
 	for s := 0; s < len(nodesList); s++ {
 		node := nodesList[s]
-		if orchestrator.SkipKubernetesResource(node.UID, node.ResourceVersion) {
+		if orchestrator.SkipKubernetesResource(node.UID, node.ResourceVersion, orchestrator.K8sNode) {
 			continue
 		}
 
@@ -251,7 +255,7 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Agent
 		// + marshalling is more performant than YAML
 		jsonNode, err := jsoniter.Marshal(node)
 		if err != nil {
-			log.Debugf("Could not marshal node to JSON: %s", err)
+			log.Warnf("Could not marshal node to JSON: %s", err)
 			continue
 		}
 		nodeModel.Yaml = jsonNode
@@ -262,7 +266,7 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Agent
 		}
 
 		for _, role := range nodeModel.Roles {
-			nodeModel.Tags = append(nodeModel.Tags, fmt.Sprintf("node_role:%s", strings.ToLower(role)))
+			nodeModel.Tags = append(nodeModel.Tags, fmt.Sprintf("%s:%s", kubernetes.KubeNodeRoleTagName, strings.ToLower(role)))
 		}
 
 		nodeMsgs = append(nodeMsgs, nodeModel)
@@ -283,6 +287,7 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Agent
 			GroupId:     groupID,
 			GroupSize:   int32(groupSize),
 			Nodes:       chunks[i],
+			Tags:        extraTags,
 		})
 	}
 

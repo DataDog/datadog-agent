@@ -26,7 +26,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestHostname(t *testing.T) {
-	r := test.Runner{Verbose: true}
+	r := test.Runner{}
 	if err := r.Start(); err != nil {
 		t.Fatal(err)
 	}

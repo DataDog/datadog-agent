@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/app/settings"
 	"github.com/DataDog/datadog-agent/cmd/agent/clcrunnerapi"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -51,6 +52,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/nvidia/jetson"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/systemd"
 
@@ -151,9 +153,15 @@ func StartAgent() error {
 			logFile = common.DefaultLogFile
 		}
 
+		jmxLogFile := config.Datadog.GetString("jmx_log_file")
+		if jmxLogFile == "" {
+			jmxLogFile = common.DefaultJmxLogFile
+		}
+
 		if config.Datadog.GetBool("disable_file_logging") {
 			// this will prevent any logging on file
 			logFile = ""
+			jmxLogFile = ""
 		}
 
 		err = config.SetupLogger(
@@ -165,6 +173,20 @@ func StartAgent() error {
 			config.Datadog.GetBool("log_to_console"),
 			config.Datadog.GetBool("log_format_json"),
 		)
+
+		//Setup JMX logger
+		if err == nil {
+			err = config.SetupJMXLogger(
+				jmxLoggerName,
+				config.Datadog.GetString("log_level"),
+				jmxLogFile,
+				syslogURI,
+				config.Datadog.GetBool("syslog_rfc"),
+				config.Datadog.GetBool("log_to_console"),
+				config.Datadog.GetBool("log_format_json"),
+			)
+		}
+
 	} else {
 		err = config.SetupLogger(
 			loggerName,
@@ -175,6 +197,19 @@ func StartAgent() error {
 			true,  // always log to console
 			false, // not in json
 		)
+
+		//Setup JMX logger
+		if err == nil {
+			err = config.SetupJMXLogger(
+				jmxLoggerName,
+				config.Datadog.GetString("log_level"),
+				"", // no log file on android
+				"", // no syslog on android,
+				false,
+				true,  // always log to console
+				false, // not in json
+			)
+		}
 	}
 	if err != nil {
 		return fmt.Errorf("Error while setting up logging, exiting: %v", err)
@@ -322,6 +357,9 @@ func StartAgent() error {
 	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 	// start the autoconfig, this will immediately run any configured check
 	common.StartAutoConfig()
+
+	// check for common misconfigurations and report them to log
+	misconfig.ToLog()
 
 	// setup the metadata collector
 	common.MetadataScheduler = metadata.NewScheduler(s)

@@ -129,15 +129,15 @@ UINT doFinalizeInstall(CustomActionData &data)
     }
     hr = 0;
 
-    if (!data.GetTargetMachine().IsBackupDomainController()) {
-        DWORD errCode = AddUserToGroup(sid, L"S-1-5-32-558", L"Performance Monitor Users");
-        if (errCode != NERR_Success) {
-            WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", errCode);
+    if (!data.GetTargetMachine().IsReadOnlyDomainController()) {
+        er = AddUserToGroup(sid, L"S-1-5-32-558", L"Performance Monitor Users");
+        if (er != NERR_Success) {
+            WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", er);
             goto LExit;
         }
-        errCode = AddUserToGroup(sid, L"S-1-5-32-573", L"Event Log Readers");
-        if (errCode != NERR_Success) {
-            WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", errCode);
+        er = AddUserToGroup(sid, L"S-1-5-32-573", L"Event Log Readers");
+        if (er != NERR_Success) {
+            WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", er);
             goto LExit;
         }
     }

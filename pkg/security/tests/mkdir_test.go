@@ -24,7 +24,7 @@ func TestMkdir(t *testing.T) {
 		},
 		{
 			ID:         "test_rule2",
-			Expression: `mkdir.retval == EACCES`,
+			Expression: `process.name == "{{.ProcessName}}" && mkdir.retval == EACCES`,
 		},
 	}
 
@@ -56,6 +56,12 @@ func TestMkdir(t *testing.T) {
 			if mode := event.Mkdir.Mode; mode != 0707 {
 				t.Errorf("expected mkdir mode 0707, got %#o (%+v)", mode, event)
 			}
+
+			if inode := getInode(t, testFile); inode != event.Mkdir.Inode {
+				t.Errorf("expected inode %d, got %d", event.Mkdir.Inode, inode)
+			}
+
+			testContainerPath(t, event, "mkdir.container_path")
 		}
 	})
 
@@ -80,6 +86,12 @@ func TestMkdir(t *testing.T) {
 			if mode := event.Mkdir.Mode; mode != 0777 {
 				t.Errorf("expected mkdir mode 0777, got %#o", mode)
 			}
+
+			if inode := getInode(t, testatFile); inode != event.Mkdir.Inode {
+				t.Errorf("expected inode %d, got %d", event.Mkdir.Inode, inode)
+			}
+
+			testContainerPath(t, event, "mkdir.container_path")
 		}
 
 		if err := syscall.Rmdir(testatFile); err != nil {
@@ -99,7 +111,7 @@ func TestMkdir(t *testing.T) {
 
 		go func() {
 			runtime.LockOSThread()
-			defer runtime.UnlockOSThread()
+			// do not unlock, we want the thread to be killed when exiting the goroutine
 
 			if _, _, errno := syscall.Syscall(syscall.SYS_SETREGID, 10000, 10000, 0); errno != 0 {
 				t.Fatal(err)

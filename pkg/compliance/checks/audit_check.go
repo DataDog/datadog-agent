@@ -8,6 +8,7 @@ package checks
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
@@ -37,6 +38,11 @@ func resolveAudit(_ context.Context, e env.Env, ruleID string, res compliance.Re
 	path, err := resolvePath(e, audit.Path)
 	if err != nil {
 		return nil, err
+	}
+
+	normPath := e.NormalizeToHostRoot(path)
+	if _, err := os.Stat(normPath); err != nil && os.IsNotExist(err) {
+		return nil, fmt.Errorf("%s: audit resource path does not exist", ruleID)
 	}
 
 	paths := []string{path}

@@ -30,6 +30,7 @@ import (
 	pb "github.com/DataDog/datadog-agent/cmd/agent/api/pb"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
 	gorilla "github.com/gorilla/mux"
 )
 
@@ -85,7 +86,9 @@ func StartServer() error {
 
 	s := grpc.NewServer(opts...)
 	pb.RegisterAgentServer(s, &server{})
-	pb.RegisterAgentSecureServer(s, &serverSecure{})
+	pb.RegisterAgentSecureServer(s, &serverSecure{
+		tagger: tagger.GetDefaultTagger(),
+	})
 
 	dcreds := credentials.NewTLS(&tls.Config{
 		ServerName: tlsAddr,
@@ -129,7 +132,7 @@ func StartServer() error {
 			NextProtos:   []string{"h2"},
 		},
 		ErrorLog: stdLog.New(&config.ErrorLogWriter{
-			AdditionalDepth: 4, // Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
+			AdditionalDepth: 5, // Use a stack depth of 5 on top of the default one to get a relevant filename in the stdlib
 		}, "Error from the agent http API server: ", 0), // log errors to seelog,
 		WriteTimeout: config.Datadog.GetDuration("server_timeout") * time.Second,
 	}

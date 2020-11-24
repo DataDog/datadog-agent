@@ -157,7 +157,7 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 	defer timing.Since("datadog.trace_agent.internal.process_payload_ms", time.Now())
 	ts := p.Source
 	ss := new(writer.SampledSpans)
-	sinputs := make([]*stats.Input, 0, len(p.Traces))
+	sinputs := make([]stats.Input, 0, len(p.Traces))
 	for _, t := range p.Traces {
 		if len(t) == 0 {
 			log.Debugf("Skipping received empty trace")
@@ -180,7 +180,7 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 			log.Debugf("Trace rejected by blacklister. root: %v", root)
 			atomic.AddInt64(&ts.TracesFiltered, 1)
 			atomic.AddInt64(&ts.SpansFiltered, tracen)
-			return
+			continue
 		}
 
 		// Extra sanitization steps of the trace.
@@ -227,11 +227,11 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 		for _, subtrace := range subtraces {
 			subtraceSublayers := sublayerCalculator.ComputeSublayers(subtrace.Trace)
 			pt.Sublayers[subtrace.Root] = subtraceSublayers
-			if keep || len(events) > 0 {
+			if keep {
 				stats.SetSublayersOnSpan(subtrace.Root, subtraceSublayers)
 			}
 		}
-		sinputs = append(sinputs, &stats.Input{
+		sinputs = append(sinputs, stats.Input{
 			Trace:     pt.WeightedTrace,
 			Sublayers: pt.Sublayers,
 			Env:       pt.Env,

@@ -9,11 +9,12 @@ package tests
 
 import (
 	"bytes"
-	"context"
+	"flag"
 	"io/ioutil"
 	"net"
 	"os"
 	"path"
+	"strings"
 	"syscall"
 	"testing"
 	"text/template"
@@ -51,7 +52,6 @@ system_probe_config:
 
 runtime_security_config:
   enabled: true
-  debug: true
   socket: /tmp/test-security-probe.sock
 {{if not .EnableFilters}}
   enable_kernel_filters: false
@@ -83,6 +83,13 @@ rules:
 {{end}}
 `
 
+var testEnvironment string
+
+const (
+	HostEnvironment   = "host"
+	DockerEnvironment = "docker"
+)
+
 type testEvent struct {
 	event eval.Event
 	rule  *eval.Rule
@@ -93,6 +100,7 @@ type testOpts struct {
 	disableApprovers  bool
 	disableDiscarders bool
 	testDir           string
+	withoutHandler    bool
 }
 
 type testModule struct {
@@ -103,8 +111,9 @@ type testModule struct {
 }
 
 type testDiscarder struct {
-	event eval.Event
-	field string
+	event     eval.Event
+	field     string
+	eventType eval.EventType
 }
 
 type testProbe struct {
@@ -122,14 +131,30 @@ type testEventHandler struct {
 }
 
 func (h *testEventHandler) HandleEvent(event *sprobe.Event) {
-	h.events <- event
+	e := event.Clone()
+	h.events <- &e
 	h.ruleSet.Evaluate(event)
 }
 
 func (h *testEventHandler) RuleMatch(rule *eval.Rule, event eval.Event) {}
 
-func (h *testEventHandler) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field string) {
-	h.discarders <- &testDiscarder{event: event, field: field}
+func (h *testEventHandler) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
+	e := event.(*sprobe.Event).Clone()
+	h.discarders <- &testDiscarder{event: &e, field: field, eventType: eventType}
+}
+
+func getInode(t *testing.T, path string) uint64 {
+	fileInfo, err := os.Lstat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stats, ok := fileInfo.Sys().(*syscall.Stat_t)
+	if !ok {
+		t.Fatal(errors.New("Not a syscall.Stat_t"))
+	}
+
+	return stats.Ino
 }
 
 func setTestConfig(dir string, macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, opts testOpts) (string, error) {
@@ -226,23 +251,32 @@ func (tm *testModule) Root() string {
 }
 
 func (tm *testModule) RuleMatch(rule *eval.Rule, event eval.Event) {
-	tm.events <- testEvent{event: event, rule: rule}
+	e := event.(*sprobe.Event).Clone()
+	tm.events <- testEvent{event: &e, rule: rule}
 }
 
-func (tm *testModule) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field string) {
+func (tm *testModule) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
 }
 
-func (tm *testModule) GetEvent() (*sprobe.Event, *eval.Rule, error) {
+func (tm *testModule) GetEvent(eventType ...eval.EventType) (*sprobe.Event, *eval.Rule, error) {
 	timeout := time.After(3 * time.Second)
 
-	select {
-	case event := <-tm.events:
-		if e, ok := event.event.(*sprobe.Event); ok {
-			return e, event.rule, nil
+	for {
+		select {
+		case event := <-tm.events:
+			if e, ok := event.event.(*sprobe.Event); ok {
+				if len(eventType) > 0 {
+					if e.GetType() == eventType[0] {
+						return e, event.rule, nil
+					}
+				} else {
+					return e, event.rule, nil
+				}
+			}
+			return nil, nil, errors.New("invalid event")
+		case <-timeout:
+			return nil, nil, errors.New("timeout")
 		}
-		return nil, nil, errors.New("invalid event")
-	case <-timeout:
-		return nil, nil, errors.New("timeout")
 	}
 }
 
@@ -254,24 +288,6 @@ func (tm *testModule) Close() {
 	tm.st.Close()
 	tm.module.Close()
 	time.Sleep(time.Second)
-}
-
-func waitProcScan(test *testProbe) {
-	// Consume test.events so that testEventHandler.HandleEvent doesn't block
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		for {
-			select {
-			case <-test.events:
-			case <-test.discarders:
-				continue
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-	time.Sleep(5 * time.Second)
-	cancel()
 }
 
 func newTestProbe(macrosDef []*rules.MacroDefinition, rulesDef []*rules.RuleDefinition, opts testOpts) (*testProbe, error) {
@@ -291,12 +307,12 @@ func newTestProbe(macrosDef []*rules.MacroDefinition, rulesDef []*rules.RuleDefi
 		return nil, err
 	}
 
-	probe, err := sprobe.NewProbe(config)
+	probe, err := sprobe.NewProbe(config, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	ruleSet := probe.NewRuleSet(rules.NewOptsWithParams(false, sprobe.SECLConstants, sprobe.InvalidDiscarders))
+	ruleSet := probe.NewRuleSet(rules.NewOptsWithParams(sprobe.SECLConstants, sprobe.SupportedDiscarders))
 
 	if err := policy.LoadPolicies(config, ruleSet); err != nil {
 		return nil, err
@@ -305,21 +321,40 @@ func newTestProbe(macrosDef []*rules.MacroDefinition, rulesDef []*rules.RuleDefi
 	events := make(chan *sprobe.Event, eventChanLength)
 	discarders := make(chan *testDiscarder, discarderChanLength)
 
-	handler := &testEventHandler{events: events, discarders: discarders, ruleSet: ruleSet}
-	probe.SetEventHandler(handler)
-	ruleSet.AddListener(handler)
+	if !opts.withoutHandler {
+		handler := &testEventHandler{events: events, discarders: discarders, ruleSet: ruleSet}
+		probe.SetEventHandler(handler)
+		ruleSet.AddListener(handler)
+	}
 
-	if err := probe.Start(); err != nil {
+	if err := probe.Init(); err != nil {
 		return nil, err
 	}
 
 	rsa := sprobe.NewRuleSetApplier(config)
 
-	if _, err := rsa.Apply(ruleSet, probe); err != nil {
+	if err := rsa.SelectProbes(ruleSet, probe); err != nil {
 		return nil, err
 	}
 
+	if err := probe.InitManager(ruleSet); err != nil {
+		return nil, err
+	}
+
+	_, err = rsa.Apply(ruleSet, probe)
+	if err != nil {
+		return nil, err
+	}
+
+	// Start and Snapshot are called in the reverse order in the real module. Calling the snapshot before some discarder
+	// tests is very noisy and makes the output unreadable. The (very unlikely) risk of missing a crucial mount point or
+	// process between the call of Snapshot and Start is acceptable for testing, and not worth delaying the tests or
+	// making them unreadable.
 	if err := probe.Snapshot(); err != nil {
+		return nil, err
+	}
+
+	if err := probe.Start(); err != nil {
 		return nil, err
 	}
 
@@ -331,8 +366,6 @@ func newTestProbe(macrosDef []*rules.MacroDefinition, rulesDef []*rules.RuleDefi
 		rs:         ruleSet,
 	}
 
-	waitProcScan(test)
-
 	return test, nil
 }
 
@@ -340,12 +373,22 @@ func (tp *testProbe) Root() string {
 	return tp.st.root
 }
 
-func (tp *testProbe) GetEvent(timeout time.Duration) (*sprobe.Event, error) {
-	select {
-	case event := <-tp.events:
-		return event, nil
-	case <-time.After(timeout):
-		return nil, errors.New("timeout")
+func (tp *testProbe) GetEvent(timeout time.Duration, eventType ...eval.EventType) (*sprobe.Event, error) {
+	t := time.After(timeout)
+
+	for {
+		select {
+		case event := <-tp.events:
+			if len(eventType) > 0 {
+				if event.GetType() == eventType[0] {
+					return event, nil
+				}
+			} else {
+				return event, nil
+			}
+		case <-t:
+			return nil, errors.New("timeout")
+		}
 	}
 }
 
@@ -355,8 +398,8 @@ func (tp *testProbe) Path(filename string) (string, unsafe.Pointer, error) {
 
 func (tp *testProbe) Close() {
 	tp.st.Close()
-	tp.probe.Stop()
-	time.Sleep(time.Second)
+	tp.probe.Close()
+	time.Sleep(10 * time.Second)
 }
 
 type simpleTest struct {
@@ -374,6 +417,11 @@ func (t *simpleTest) Root() string {
 	return t.root
 }
 
+func (t *simpleTest) ProcessName() string {
+	executable, _ := os.Executable()
+	return path.Base(executable)
+}
+
 func (t *simpleTest) Path(filename string) (string, unsafe.Pointer, error) {
 	filename = path.Join(t.root, filename)
 	filenamePtr, err := syscall.BytePtrFromString(filename)
@@ -383,22 +431,46 @@ func (t *simpleTest) Path(filename string) (string, unsafe.Pointer, error) {
 	return filename, unsafe.Pointer(filenamePtr), nil
 }
 
+var logInitilialized bool
+
 func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, testDir string) (*simpleTest, error) {
-	var logLevel seelog.LogLevel = seelog.InfoLvl
-	if testing.Verbose() {
-		logLevel = seelog.TraceLvl
-	}
+	var err error
 
-	logger, err := seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stderr, logLevel, "%Ns [%LEVEL] %Msg\n")
-	if err != nil {
-		return nil, err
-	}
+	if !logInitilialized {
+		var logLevel seelog.LogLevel = seelog.InfoLvl
+		if testing.Verbose() {
+			logLevel = seelog.TraceLvl
+		}
 
-	err = seelog.ReplaceLogger(logger)
-	if err != nil {
-		return nil, err
+		constraints, err := seelog.NewMinMaxConstraints(logLevel, seelog.CriticalLvl)
+		if err != nil {
+			return nil, err
+		}
+
+		formatter, err := seelog.NewFormatter("%Ns [%LEVEL] %Func %Line %Msg\n")
+		if err != nil {
+			return nil, err
+		}
+
+		dispatcher, err := seelog.NewSplitDispatcher(formatter, []interface{}{os.Stderr})
+		if err != nil {
+			return nil, err
+		}
+
+		specificConstraints, _ := seelog.NewListConstraints([]seelog.LogLevel{})
+		ex, _ := seelog.NewLogLevelException("*.Snapshot", "*", specificConstraints)
+		exceptions := []*seelog.LogLevelException{ex}
+
+		logger := seelog.NewAsyncLoopLogger(seelog.NewLoggerConfig(constraints, exceptions, dispatcher))
+
+		err = seelog.ReplaceLogger(logger)
+		if err != nil {
+			return nil, err
+		}
+		log.SetupLogger(logger, logLevel.String())
+
+		logInitilialized = true
 	}
-	log.SetupDatadogLogger(logger, logLevel.String())
 
 	t := &simpleTest{
 		root: testDir,
@@ -439,4 +511,33 @@ func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 	}
 
 	return t, nil
+}
+
+func testContainerPath(t *testing.T, event *sprobe.Event, fieldPath string) {
+	if testEnvironment != DockerEnvironment {
+		return
+	}
+
+	path, err := event.GetFieldValue(fieldPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.Contains(path.(string), "docker") {
+		t.Errorf("incorrect container_path, should contain `docker`: %s", path)
+	}
+}
+
+func TestEnv(t *testing.T) {
+	if testEnvironment != "" && testEnvironment != HostEnvironment && testEnvironment != DockerEnvironment {
+		t.Fatal("invalid environment")
+	}
+}
+
+func TestMain(m *testing.M) {
+	flag.Parse()
+}
+
+func init() {
+	flag.StringVar(&testEnvironment, "env", HostEnvironment, "environment used to run the test suite: ex: host, docker")
 }
