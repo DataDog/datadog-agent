@@ -27,7 +27,7 @@ func NewDefaultOptions() manager.Options {
 
 		// DefaultPerfRingBufferSize is the default buffer size of the perf buffers
 		// PLEASE NOTE: for the perf ring buffer usage metrics to be accurate, the provided value must have the
-		// following form: (1 + 2^n) * pages. See https://github.com/DataDog/ebpf/blob/master/perf/ring.go#L64
+		// following form: (1 + 2^n) * pages. Checkout https://github.com/DataDog/ebpf for more.
 		DefaultPerfRingBufferSize: 4097 * os.Getpagesize(),
 
 		// DefaultProbeAttach is the default number of attach / detach retries on error
@@ -62,12 +62,5 @@ func NewRuntimeSecurityManager() *manager.Manager {
 		Probes:   probes.AllProbes(),
 		Maps:     probes.AllMaps(),
 		PerfMaps: probes.AllPerfMaps(),
-	}
-}
-
-// GetPerfBufferStatisticsMaps returns the list of maps used to monitor the performances of each perf buffers
-func GetPerfBufferStatisticsMaps() map[string][2]string {
-	return map[string][2]string{
-		"events":             {"events_stats_one", "events_stats_two"},
 	}
 }

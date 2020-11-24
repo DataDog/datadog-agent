@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build linux_bpf
+// +build linux
 
 package probe
 
@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 )
 
 // PerfMapStats contains the collected metrics for one event and one cpu in a perf buffer statistics map
@@ -88,7 +89,7 @@ func NewEventsStats(ebpfManager *manager.Manager, options manager.Options, confi
 		perfBufferStatsMaps: make(map[string][2]*lib.Map),
 		perfBufferSize:      make(map[string]float64),
 
-		perfBufferMapNameToStatsMapsName: ebpf.GetPerfBufferStatisticsMaps(),
+		perfBufferMapNameToStatsMapsName: probes.GetPerfBufferStatisticsMaps(),
 		statsMapsNameToPerfBufferMapName: make(map[string]string),
 
 		stats:          make(map[string][][maxEventType]PerfMapStats),
@@ -149,15 +150,6 @@ func NewEventsStats(ebpfManager *manager.Manager, options manager.Options, confi
 	}
 	es.bufferSelector = bufferSelector
 	return &es, nil
-}
-
-// getPerfMapFromStatsMap returns the perf map associated with a stats map
-func (e *EventsStats) getPerfMapFromStatsMap(statsMap string) string {
-	perfMap, ok := e.statsMapsNameToPerfBufferMapName[statsMap]
-	if ok {
-		return perfMap
-	}
-	return fmt.Sprintf("unknown_%s", statsMap)
 }
 
 // getReadLostCount is an internal function, it can segfault if its parameters are incorrect.
@@ -259,7 +251,7 @@ func (e *EventsStats) GetEventStats(eventType EventType, perfMap string, cpu int
 				stats.Count += e.getEventCount(eventType, perfMap, i)
 				stats.Bytes += e.getEventBytes(eventType, perfMap, i)
 				stats.Usage += e.getEventUsage(eventType, perfMap, i)
-				stats.InQueue += e.getEventUsage(eventType, perfMap, i)
+				stats.InQueue += e.getEventInQueue(eventType, perfMap, i)
 			}
 			break
 		case cpu >= 0:
@@ -269,7 +261,7 @@ func (e *EventsStats) GetEventStats(eventType EventType, perfMap string, cpu int
 			stats.Count += e.getEventCount(eventType, perfMap, cpu)
 			stats.Bytes += e.getEventBytes(eventType, perfMap, cpu)
 			stats.Usage += e.getEventUsage(eventType, perfMap, cpu)
-			stats.InQueue += e.getEventUsage(eventType, perfMap, cpu)
+			stats.InQueue += e.getEventInQueue(eventType, perfMap, cpu)
 		}
 
 	}
@@ -349,7 +341,7 @@ func (e *EventsStats) CountLostEvent(count uint64, m *manager.PerfMap, cpu int) 
 	atomic.AddUint64(&e.readLostEvents[m.Name][cpu], count)
 }
 
-// CountEventType adds `count` to the counter of received events of the specified type
+// CountEvent adds `count` to the counter of received events of the specified type
 func (e *EventsStats) CountEvent(eventType EventType, count uint64, size uint64, m *manager.PerfMap, cpu int) {
 	// sanity check
 	if (e.stats[m.Name] == nil) || (len(e.stats[m.Name]) <= cpu) || (len(e.stats[m.Name][cpu]) <= int(eventType)) {
@@ -503,6 +495,7 @@ func (e *EventsStats) sendKernelStats(client *statsd.Client, stats PerfMapStats,
 	return nil
 }
 
+// SendStats send event stats using the provided statsd client
 func (e *EventsStats) SendStats(client *statsd.Client) error {
 	if e.config.PerfBufferMonitor {
 		if err := e.collectAndSendKernelStats(client); err != nil {
