@@ -6,11 +6,14 @@
 package sampler
 
 import (
+	"hash/fnv"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+
 	"github.com/stretchr/testify/assert"
+	"k8s.io/apimachinery/pkg/util/rand"
 )
 
 func testComputeSignature(trace pb.Trace) Signature {
@@ -154,4 +157,37 @@ func TestServiceSignatureDifferentEnv(t *testing.T) {
 	}
 
 	assert.NotEqual(testComputeServiceSignature(t1), testComputeServiceSignature(t2))
+}
+
+func TestSum32a(t *testing.T) {
+	assert := assert.New(t)
+	testList := []string{"this", "is", "just", "a", "sanity", "check", "Съешь же ещё этих мягких французских булок да выпей чаю"}
+	for _, s := range testList {
+		h := fnv.New32a()
+		h.Write([]byte(s))
+		expected := h.Sum32()
+
+		h2 := new32a()
+		h2.Write([]byte(s))
+		actual := h2.Sum32()
+
+		assert.Equal(expected, actual)
+	}
+}
+
+func BenchmarkServiceSignature_Hash(b *testing.B) {
+	s1 := rand.String(10)
+	s2 := rand.String(10)
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		ServiceSignature{s1, s2}.Hash()
+	}
+}
+
+func BenchmarkComputeSpanHash(b *testing.B) {
+	span := &pb.Span{TraceID: 101, SpanID: 1014, ParentID: 1013, Service: "x2", Name: "y2", Resource: "z2", Duration: 34384993}
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		computeSpanHash(span, "prod", true)
+	}
 }
