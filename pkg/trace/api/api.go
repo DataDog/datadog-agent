@@ -208,7 +208,7 @@ func (r *HTTPReceiver) attachRESTHandlers(mux *gorilla.Router) *gorilla.Router {
 	mux.HandleFunc("/flare/{type}/{op}", remote_flare.Handler).Methods("POST")
 	mux.HandleFunc("/flare/log/{flare_id}/{tracer_id}/{type}", remote_flare.LogHandler).Methods("POST")
 
-	remote_flare.InitAPI(r.conf.LogFilePath, "", "")
+	remote_flare.InitAPI(r.conf.LogFilePath, "", "", "")
 
 	return mux
 }

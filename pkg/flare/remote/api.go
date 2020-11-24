@@ -24,13 +24,15 @@ import (
 )
 
 var (
-	defaultLogFile string
-	distPath       string
-	pyChecksPath   string
+	defaultLogFile    string
+	defaultJmxLogFile string
+	distPath          string
+	pyChecksPath      string
 )
 
-func InitAPI(logFile, distPath, pyPath string) {
+func InitAPI(logFile, jmxLogFile, distPath, pyPath string) {
 	defaultLogFile = logFile
+	defaultJmxLogFile = jmxLogFile
 	distPath = distPath
 	pyChecksPath = pyPath
 }
@@ -149,8 +151,14 @@ func vanillaFlare(w http.ResponseWriter, r *http.Request) {
 		logFile = defaultLogFile
 	}
 
+	jmxLogFile := config.Datadog.GetString("jmx_log_file")
+	if jmxLogFile == "" {
+		jmxLogFile = defaultJmxLogFile
+	}
+	logFiles := []string{logFile, jmxLogFile}
+
 	log.Infof("Making a flare")
-	filePath, err := flare.CreateArchive(false, distPath, pyChecksPath, logFile, profile)
+	filePath, err := flare.CreateArchive(false, distPath, pyChecksPath, logFiles, profile)
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)

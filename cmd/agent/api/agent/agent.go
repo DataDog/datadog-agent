@@ -60,7 +60,7 @@ func SetupHandlers(r *mux.Router) *mux.Router {
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
 	r.HandleFunc("/secrets", secretInfo).Methods("GET")
 
-	remote_flare.InitAPI(common.DefaultLogFile, common.GetDistPath(), common.PyChecksPath)
+	remote_flare.InitAPI(common.DefaultLogFile, common.DefaultJmxLogFile, common.GetDistPath(), common.PyChecksPath)
 
 	return r
 }
