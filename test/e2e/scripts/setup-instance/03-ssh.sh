@@ -30,7 +30,15 @@ until _ssh /bin/true; do
     sleep 5
 done
 
-until _ssh systemctl is-system-running; do
+until _ssh systemctl is-system-running --wait; do
+    if [[ $? -eq 255 ]]; then
+        sleep 5
+        continue
+    fi
+    _ssh journalctl -n 30 ||:
+    _ssh systemctl list-units --failed ||:
+    # Let's try to reboot until we have more clues about what can go wrong here.
+    _ssh sudo systemctl reboot ||:
     sleep 5
 done
 
