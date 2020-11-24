@@ -2560,12 +2560,14 @@ send_pkg_size-a7:
     - docker push $TARGET_TAG
 
 .docker_build_job_definition_amd64:
+  extends: .docker_build_job_definition
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker:v2718644-9ce6565-18.09.6-py3
   tags: [ "runner:docker", "size:large" ]
   variables:
     ARCH: amd64
 
 .docker_build_job_definition_arm64:
+  extends: .docker_build_job_definition
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker:v2718787-3888eda-18.09.6-arm64-py3
   tags: [ "runner:docker-arm", "platform:arm64" ]
   variables:
@@ -2573,9 +2575,7 @@ send_pkg_size-a7:
 
 # build agent6 py2 image
 docker_build_agent6:
-  extends:
-    - .docker_build_job_definition
-    - .docker_build_job_definition_amd64
+  extends: .docker_build_job_definition_amd64
   rules:
     - <<: *if_version_6
       when: on_success
@@ -2590,9 +2590,7 @@ docker_build_agent6:
     TESTING_ARG:  --target testing --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
 
 docker_build_agent6_arm64:
-  extends:
-    - .docker_build_job_definition
-    - .docker_build_job_definition_arm64
+  extends: .docker_build_job_definition_arm64
   rules:
     - <<: *if_version_6
       when: on_success
@@ -2608,9 +2606,7 @@ docker_build_agent6_arm64:
 
 # build agent6 py2 jmx image
 docker_build_agent6_jmx:
-  extends:
-    - .docker_build_job_definition
-    - .docker_build_job_definition_amd64
+  extends: .docker_build_job_definition_amd64
   rules:
     - <<: *if_version_6
       when: on_success
@@ -2627,9 +2623,7 @@ docker_build_agent6_jmx:
 
 # build agent6 py2 jmx image
 docker_build_agent6_jmx_arm64:
-  extends:
-    - .docker_build_job_definition
-    - .docker_build_job_definition_arm64
+  extends: .docker_build_job_definition_arm64
   rules:
     - <<: *if_version_6
       when: on_success
@@ -2647,9 +2641,7 @@ docker_build_agent6_jmx_arm64:
 # TESTING ONLY: This image is for internal testing purposes, not customer facing.
 # build agent6 jmx unified image (including python3)
 docker_build_agent6_py2py3_jmx:
-  extends:
-    - .docker_build_job_definition
-    - .docker_build_job_definition_amd64
+  extends: .docker_build_job_definition_amd64
   rules:
     - <<: *if_version_6
       when: on_success
@@ -2665,9 +2657,7 @@ docker_build_agent6_py2py3_jmx:
 
 # build agent7 image
 docker_build_agent7:
-  extends:
-    - .docker_build_job_definition
-    - .docker_build_job_definition_amd64
+  extends: .docker_build_job_definition_amd64
   rules:
     - <<: *if_version_7
       when: on_success
@@ -2682,9 +2672,7 @@ docker_build_agent7:
     TESTING_ARG:  --target testing --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
 
 docker_build_agent7_arm64:
-  extends:
-    - .docker_build_job_definition
-    - .docker_build_job_definition_arm64
+  extends: .docker_build_job_definition_arm64
   rules:
     - <<: *if_version_7
       when: on_success
@@ -2700,9 +2688,7 @@ docker_build_agent7_arm64:
 
 # build agent7 jmx image
 docker_build_agent7_jmx:
-  extends:
-    - .docker_build_job_definition
-    - .docker_build_job_definition_amd64
+  extends: .docker_build_job_definition_amd64
   rules:
     - <<: *if_version_7
       when: on_success
@@ -2717,9 +2703,7 @@ docker_build_agent7_jmx:
     TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
 
 docker_build_agent7_jmx_arm64:
-  extends:
-    - .docker_build_job_definition
-    - .docker_build_job_definition_arm64
+  extends: .docker_build_job_definition_arm64
   rules:
     - <<: *if_version_7
       when: on_success
@@ -2942,9 +2926,7 @@ docker_build_agent7_windows1909_jmx:
 
 # build the cluster-agent image
 docker_build_cluster_agent_amd64:
-  extends:
-    - .docker_build_job_definition
-    - .docker_build_job_definition_amd64
+  extends: .docker_build_job_definition_amd64
   needs:
     - job: cluster_agent-build_amd64
       artifacts: false
@@ -2953,9 +2935,7 @@ docker_build_cluster_agent_amd64:
     BUILD_CONTEXT: Dockerfiles/cluster-agent
 
 docker_build_cluster_agent_arm64:
-  extends:
-    - .docker_build_job_definition
-    - .docker_build_job_definition_arm64
+  extends: .docker_build_job_definition_arm64
   needs:
     - job: cluster_agent-build_arm64
       artifacts: false
@@ -2965,9 +2945,7 @@ docker_build_cluster_agent_arm64:
 
 # build the dogstatsd image
 docker_build_dogstatsd_amd64:
-  extends:
-    - .docker_build_job_definition
-    - .docker_build_job_definition_amd64
+  extends: .docker_build_job_definition_amd64
   needs:
     - job: build_dogstatsd_static-deb_x64
       artifacts: false
