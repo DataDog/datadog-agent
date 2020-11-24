@@ -105,11 +105,10 @@ func TestProcessBundledEvents(t *testing.T) {
 		Text:           "%%% \n30 **MissingClusterDNS**: MountVolume.SetUp succeeded\n \n _Events emitted by the kubelet seen at " + time.Unix(709675200, 0).String() + "_ \n\n %%%",
 		Priority:       "normal",
 		Tags:           []string{"namespace:default", "source_component:kubelet"},
-		AggregationKey: "kubernetes_apiserver:e63e74fa-f566-11e7-9749-0e4863e1cbf4",
 		SourceTypeName: "kubernetes",
 		Ts:             709675200,
 		Host:           "machine-blue",
-		EventType:      "kubernetes_api_events",
+		EventType:      "MissingClusterDNS",
 	}
 	mocked = mocksender.NewMockSender(kubeApiEventsCheck.ID())
 	mocked.On("Event", mock.AnythingOfType("metrics.Event"))
@@ -133,11 +132,10 @@ func TestProcessBundledEvents(t *testing.T) {
 		Text:           "%%% \n30 **MissingClusterDNS**: MountVolume.SetUp succeeded\n \n _Events emitted by the kubelet seen at " + time.Unix(709675200, 0).String() + "_ \n\n %%%",
 		Priority:       "normal",
 		Tags:           []string{"namespace:default", "source_component:kubelet"},
-		AggregationKey: "kubernetes_apiserver:e63e74fa-f566-11e7-9749-0e4863e1cbf4",
 		SourceTypeName: "kubernetes",
 		Ts:             709675200,
 		Host:           "machine-blue-" + testClusterName,
-		EventType:      "kubernetes_api_events",
+		EventType:      "MissingClusterDNS",
 	}
 
 	mocked = mocksender.NewMockSender(kubeApiEventsCheck.ID())
@@ -162,6 +160,13 @@ func TestProcessEvent(t *testing.T) {
 		CommonCheck: CommonCheck{
 			CheckBase:             core.NewCheckBase(kubernetesAPIEventsCheckName),
 			KubeAPIServerHostname: "hostname",
+		},
+		mapperFactory: func(d apiserver.OpenShiftDetector, clusterName string) *kubernetesEventMapper {
+			return &kubernetesEventMapper{
+				urn:         urn.NewURNBuilder(urn.Kubernetes, clusterName),
+				clusterName: clusterName,
+				sourceType:  string(urn.Kubernetes),
+			}
 		},
 	}
 	mocked := mocksender.NewMockSender(kubeApiEventsCheck.ID())
