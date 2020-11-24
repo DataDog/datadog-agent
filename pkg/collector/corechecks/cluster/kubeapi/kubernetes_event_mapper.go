@@ -20,11 +20,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-type ClusterTypeDetector interface {
-	Detect() ClusterType
-}
-
-type KubernetesEventMapperFactory func(detector OpenShiftDetector, clusterName string) *kubernetesEventMapper
+type KubernetesEventMapperFactory func(detector apiserver.OpenShiftDetector, clusterName string) *kubernetesEventMapper
 
 type kubernetesEventMapper struct {
 	urn         urn.Builder
@@ -32,7 +28,7 @@ type kubernetesEventMapper struct {
 	sourceType  string
 }
 
-func newKubernetesEventMapper(detector OpenShiftDetector, clusterName string) *kubernetesEventMapper {
+func newKubernetesEventMapper(detector apiserver.OpenShiftDetector, clusterName string) *kubernetesEventMapper {
 	f := kubernetesFlavour(detector)
 	return &kubernetesEventMapper{
 		urn:         urn.NewURNBuilder(f, clusterName),
@@ -146,7 +142,7 @@ func (k *kubernetesEventMapper) externalIdentifierForInvolvedObject(event *v1.Ev
 	return urn
 }
 
-func kubernetesFlavour(detector OpenShiftDetector) urn.ClusterType {
+func kubernetesFlavour(detector apiserver.OpenShiftDetector) urn.ClusterType {
 	switch openshiftPresence := detector.DetectOpenShiftAPILevel(); openshiftPresence {
 	case apiserver.OpenShiftAPIGroup, apiserver.OpenShiftOAPI:
 		return urn.OpenShift
