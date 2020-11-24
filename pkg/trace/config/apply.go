@@ -340,13 +340,6 @@ func (c *AgentConfig) loadDeprecatedValues() error {
 	if cfg.IsSet("apm_config.log_level") {
 		c.LogLevel = config.Datadog.GetString("apm_config.log_level")
 	}
-	if v := cfg.GetString("apm_config.extra_aggregators"); len(v) > 0 {
-		aggs, err := splitString(v, ',')
-		if err != nil {
-			return err
-		}
-		c.ExtraAggregators = append(c.ExtraAggregators, aggs...)
-	}
 	if cfg.IsSet("apm_config.log_throttling") {
 		c.LogThrottling = cfg.GetBool("apm_config.log_throttling")
 	}
