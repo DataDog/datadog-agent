@@ -60,6 +60,8 @@ func (k *kubernetesEventMapper) mapKubernetesEvent(event *v1.Event, modified boo
 			ElementIdentifiers: []string{
 				k.externalIdentifierForInvolvedObject(event),
 			},
+			SourceLinks: []metrics.SourceLink{},
+			Data:        map[string]interface{}{},
 		},
 		Text: event.Message,
 	}
