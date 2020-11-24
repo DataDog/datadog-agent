@@ -12,6 +12,7 @@ import (
 	"expvar"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	agentpayload "github.com/DataDog/agent-payload/gogen"
@@ -103,8 +104,8 @@ func (series Series) MarshalStrings() ([]string, [][]string) {
 		payload = append(payload, []string{
 			serie.Name,
 			serie.MType.String(),
-			fmt.Sprintf("%.0f", serie.Points[0].Ts),
-			fmt.Sprint(serie.Points[0].Value),
+			strconv.FormatFloat(serie.Points[0].Ts, 'f', -1, 64),
+			strconv.FormatFloat(serie.Points[0].Value, 'f', -1, 64),
 			strings.Join(serie.Tags, ", "),
 		})
 	}
