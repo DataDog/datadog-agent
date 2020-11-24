@@ -102,10 +102,10 @@ func (series Series) MarshalStrings() ([]string, [][]string) {
 	for _, serie := range series {
 		payload = append(payload, []string{
 			serie.Name,
-			fmt.Sprintf(serie.MType.String()),
+			serie.MType.String(),
 			fmt.Sprintf("%.0f", serie.Points[0].Ts),
 			fmt.Sprint(serie.Points[0].Value),
-			fmt.Sprint(serie.Tags),
+			strings.Join(serie.Tags, ", "),
 		})
 	}
 
