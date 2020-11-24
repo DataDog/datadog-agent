@@ -1,6 +1,9 @@
 package ebpf
 
 import (
+	"path/filepath"
+	"runtime"
+
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -32,10 +35,15 @@ type Config struct {
 	RuntimeCompilerOutputDir string
 }
 
+func curDir() string {
+	_, file, _, _ := runtime.Caller(0)
+	return filepath.Dir(file)
+}
+
 // NewDefaultConfig creates a instance of Config with sane default values
 func NewDefaultConfig() *Config {
 	return &Config{
-		BPFDir:                   "build",
+		BPFDir:                   filepath.Join(curDir(), "bytecode/build"),
 		BPFDebug:                 false,
 		ProcRoot:                 "/proc",
 		EnableRuntimeCompiler:    true,

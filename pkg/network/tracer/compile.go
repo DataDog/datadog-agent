@@ -27,10 +27,7 @@ func getRuntimeCompiledTracer(config *config.Config) (CompiledOutput, error) {
 	}
 	pre410Kernel := kv < kernel.VersionCode(4, 1, 0)
 
-	// TODO support input file from bundled files?
-	// TODO fix default config.BPFDir to be an absolute path, so this isn't required
-	runtimeDir, _ := filepath.Abs(filepath.Join("../../ebpf/bytecode", config.BPFDir, "runtime"))
-	inputFile := filepath.Join(runtimeDir, "tracer.c")
+	inputFile := filepath.Join(config.BPFDir, "runtime/tracer.c")
 	hash, err := hashInput(inputFile)
 	if err != nil {
 		return nil, fmt.Errorf("error hashing input file: %w", err)

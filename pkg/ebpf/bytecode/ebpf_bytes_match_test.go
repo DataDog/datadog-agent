@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/bindata"
@@ -13,8 +15,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func curDir() string {
+	_, file, _, _ := runtime.Caller(0)
+	return filepath.Dir(file)
+}
+
 func TestEbpfBytesCorrect(t *testing.T) {
-	dir := "build"
+	dir := filepath.Join(curDir(), "build")
 	for _, filename := range bindata.AssetNames() {
 		bs, err := ioutil.ReadFile(path.Join(dir, filename))
 		require.NoError(t, err)
