@@ -54,7 +54,7 @@ int kprobe__vfs_rename(struct pt_regs *ctx) {
     syscall->rename.src_overlay_numlower = get_overlay_numlower(syscall->rename.src_dentry);
 
     // we generate a fake source key as the inode is (can be ?) reused
-    syscall->rename.src_key.ino = bpf_get_prandom_u32() << 32 | bpf_get_prandom_u32();
+    syscall->rename.src_key.ino = FAKE_INODE_MSW<<32 | bpf_get_prandom_u32();
 
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
     resolve_dentry(syscall->rename.src_dentry, syscall->rename.src_key, 0);

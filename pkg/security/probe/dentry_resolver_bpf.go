@@ -19,6 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 )
 
+const fakeInodeMSW = 0xdeadc001
+
 // DentryResolver resolves inode/mountID to full paths
 type DentryResolver struct {
 	probe     *Probe
@@ -183,9 +185,10 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 
 	if err == nil {
 		for k, v := range toAdd {
-			// TODO(sbaubeau): find a way to not cache fake inodes
-			// in the case of rename events
-			dr.cache.Add(k, v)
+			// do not cache fake path keys in the case of rename events
+			if k.Inode>>32 != fakeInodeMSW {
+				dr.cache.Add(k, v)
+			}
 		}
 	}
 
