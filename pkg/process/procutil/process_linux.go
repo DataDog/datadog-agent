@@ -12,6 +12,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unicode"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -390,7 +391,7 @@ func (p *Probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 	var ppidStr, utimeStr, stimeStr, startTimeStr string
 
 	for i := range content {
-		if content[i] == ' ' {
+		if unicode.IsSpace(rune(content[i])) {
 			if !prevCharIsSpace {
 				spaces++
 			}
@@ -422,11 +423,11 @@ func (p *Probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 
 	utime, err := strconv.ParseFloat(utimeStr, 64)
 	if err == nil {
-		sInfo.cpuStat.User = float64(utime / ClockTicks)
+		sInfo.cpuStat.User = utime / ClockTicks
 	}
 	stime, err := strconv.ParseFloat(stimeStr, 64)
 	if err == nil {
-		sInfo.cpuStat.System = float64(stime / ClockTicks)
+		sInfo.cpuStat.System = stime / ClockTicks
 	}
 	// the nice parameter location seems to be different for various procfs,
 	// so we fetch that using syscall
