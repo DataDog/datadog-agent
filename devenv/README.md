@@ -80,3 +80,10 @@ tar zxvf ../windows_10_ent_vmware.box
 Two third party files are used and adapted:
 - `devenv\scripts\Install-GuestTools.ps1` from https://github.com/luciusbono/Packer-Windows10/blob/master/install-guest-tools.ps1
 - `devenv\scripts\Enable-WinRM.ps1` from https://github.com/StefanScherer/packer-windows/blob/my/scripts/enable-winrm.ps1
+
+## Run and debug with VSCode (Linux/Mac)
+
+1. Open the workspace in VSCode
+2. Install the [Go VSCode extension](https://marketplace.visualstudio.com/items?itemName=golang.Go)
+- See `.vscode/tasks.json.template` for an example of available tasks.
+- See `.vscode/launch.json.template` for an example launch configuration.

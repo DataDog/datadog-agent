@@ -16,7 +16,6 @@ venv3[78]/
 **/debug.test
 # files
 .DS_Store
-.vscode
 *.cov
 *.pyc
 *.swp
