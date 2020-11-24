@@ -18,8 +18,9 @@ import (
 )
 
 const (
-	PrioProcess = 0   // linux/resource.h
-	ClockTicks  = 100 // C.sysconf(C._SC_CLK_TCK)
+	// ClockTicks is the number of clock ticks per second
+	// C.sysconf(C._SC_CLK_TCK)
+	ClockTicks = 100
 	// WorldReadable represents file permission that's world readable
 	WorldReadable os.FileMode = 4
 )
@@ -378,7 +379,7 @@ func (p *Probe) parseStat(pidPath string, pid int32, now time.Time) *statInfo {
 func (p *Probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32, now time.Time) *statInfo {
 	// We want to skip past the executable name, which is wrapped in one or more parenthesis
 	startIndex := bytes.LastIndexByte(statContent, byte(')'))
-	if startIndex+1 >= len(statContent) {
+	if startIndex == -1 || startIndex+1 >= len(statContent) {
 		return sInfo
 	}
 
@@ -420,30 +421,28 @@ func (p *Probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 	}
 
 	utime, err := strconv.ParseFloat(utimeStr, 64)
-	if err != nil {
-		return sInfo
+	if err == nil {
+		sInfo.cpuStat.User = float64(utime / ClockTicks)
 	}
 	stime, err := strconv.ParseFloat(stimeStr, 64)
-	if err != nil {
-		return sInfo
+	if err == nil {
+		sInfo.cpuStat.System = float64(stime / ClockTicks)
 	}
 	// the nice parameter location seems to be different for various procfs,
 	// so we fetch that using syscall
-	snice, _ := syscall.Getpriority(PrioProcess, int(pid))
-	sInfo.nice = int32(snice)
+	snice, err := syscall.Getpriority(syscall.PRIO_PROCESS, int(pid))
+	if err == nil {
+		sInfo.nice = int32(snice)
+	}
 
 	sInfo.cpuStat.CPU = "cpu"
-	sInfo.cpuStat.User = float64(utime / ClockTicks)
-	sInfo.cpuStat.System = float64(stime / ClockTicks)
 	sInfo.cpuStat.Timestamp = now.Unix()
 
 	t, err := strconv.ParseUint(startTimeStr, 10, 64)
-	if err != nil {
-		return sInfo
+	if err == nil {
+		ctime := (t / uint64(ClockTicks)) + p.bootTime
+		sInfo.createTime = int64(ctime * 1000)
 	}
-
-	ctime := (t / uint64(ClockTicks)) + p.bootTime
-	sInfo.createTime = int64(ctime * 1000)
 
 	return sInfo
 }

@@ -477,14 +477,11 @@ func testParseStat(t *testing.T) {
 		assert.NoError(t, err)
 		exptimes, err := expProc.Times()
 		assert.NoError(t, err)
-		expNice, err := expProc.Nice()
-		assert.NoError(t, err)
 
 		assert.Equal(t, expCreate, actual.createTime)
 		assert.Equal(t, expPpid, actual.ppid)
 		assert.Equal(t, exptimes.User, actual.cpuStat.User)
 		assert.Equal(t, exptimes.System, actual.cpuStat.System)
-		assert.Equal(t, expNice, actual.nice, pid)
 	}
 }
 
