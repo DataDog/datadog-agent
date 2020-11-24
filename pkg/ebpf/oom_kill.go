@@ -24,9 +24,9 @@ type OOMKillProbe struct {
 }
 
 func NewOOMKillProbe(cfg *Config) (*OOMKillProbe, error) {
-	source, err := processHeaders(cfg.BPFDir, "pkg/ebpf/c/oom-kill-kern.c")
+	source, err := processHeaders(cfg.BPFDir, "oom-kill-kern.c")
 	if err != nil {
-		return nil, fmt.Errorf("Couldn’t process headers for asset “pkg/ebpf/c/oom-kill-kern.c”: %v", err)
+		return nil, fmt.Errorf("Couldn’t process headers for asset “oom-kill-kern.c”: %v", err)
 	}
 
 	m := bpflib.NewModule(source.String(), []string{})

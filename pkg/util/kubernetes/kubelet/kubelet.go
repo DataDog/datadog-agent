@@ -305,8 +305,9 @@ func (ku *KubeUtil) GetStatusForContainerID(pod *Pod, containerID string) (Conta
 }
 
 // GetSpecForContainerName returns the container spec from the pod given a name
+// It searches spec.containers then spec.initContainers
 func (ku *KubeUtil) GetSpecForContainerName(pod *Pod, containerName string) (ContainerSpec, error) {
-	for _, containerSpec := range pod.Spec.Containers {
+	for _, containerSpec := range append(pod.Spec.Containers, pod.Spec.InitContainers...) {
 		if containerName == containerSpec.Name {
 			return containerSpec, nil
 		}

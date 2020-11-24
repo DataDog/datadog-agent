@@ -5,8 +5,8 @@
 #include <linux/tcp.h>
 #include <net/inet_sock.h>
 
-#include "pkg/ebpf/c/bpf-common.h"
-#include "pkg/ebpf/tcp-queue-length-kern-user.h"
+#include "bpf-common.h"
+#include "tcp-queue-length-kern-user.h"
 
 /*
  * The `tcp_queue_stats` map is used to share with the userland program system-probe

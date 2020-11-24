@@ -139,5 +139,6 @@ func NewDefaultConfig() *Config {
 		DNSTimeout:           15 * time.Second,
 		OffsetGuessThreshold: 400,
 		EnableMonotonicCount: false,
+		BPFDir:               "build",
 	}
 }

@@ -6,6 +6,7 @@
 #include <linux/version.h>
 
 #include "defs.h"
+#include "buffer_selector.h"
 #include "dentry.h"
 #include "exec.h"
 #include "process.h"

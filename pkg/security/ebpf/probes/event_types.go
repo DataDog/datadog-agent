@@ -16,6 +16,7 @@ import (
 // SyscallMonitorSelectors is the list of probes that should be activated for the syscall monitor feature
 var SyscallMonitorSelectors = []manager.ProbesSelector{
 	&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "tracepoint/raw_syscalls/sys_enter"}},
+	&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "tracepoint/sched/sched_process_exec"}},
 }
 
 // SelectorsPerEventType is the list of probes that should be activated for each event
@@ -38,14 +39,12 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/cgroup_tasks_write"}},
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/cgroup1_tasks_write"}},
 		}},
-		&manager.OneOf{Selectors: []manager.ProbesSelector{
-			&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
-				manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "execve"}, Entry),
-			},
-			&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
-				manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "execveat"}, Entry),
-			},
-		}},
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
+			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "execve"}, Entry),
+		},
+		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
+			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "execveat"}, Entry),
+		},
 
 		// Mount probes
 		&manager.AllOf{Selectors: []manager.ProbesSelector{
@@ -53,10 +52,10 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/propagate_mnt"}},
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/security_sb_umount"}},
 		}},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "mount"}, EntryAndExit, true),
 		},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "umount"}, EntryAndExit),
 		},
 
@@ -65,13 +64,13 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/vfs_rename"}},
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/mnt_want_write"}},
 		}},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "rename"}, EntryAndExit),
 		},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "renameat"}, EntryAndExit),
 		},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "renameat2"}, EntryAndExit),
 		},
 
@@ -79,7 +78,7 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 		&manager.AllOf{Selectors: []manager.ProbesSelector{
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/mnt_want_write"}},
 		}},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "unlinkat"}, EntryAndExit),
 		},
 
@@ -87,7 +86,7 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 		&manager.AllOf{Selectors: []manager.ProbesSelector{
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/security_inode_rmdir"}},
 		}},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "rmdir"}, EntryAndExit),
 		},
 
@@ -95,7 +94,7 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 		&manager.AllOf{Selectors: []manager.ProbesSelector{
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/vfs_unlink"}},
 		}},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "unlink"}, EntryAndExit),
 		},
 
@@ -117,13 +116,13 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/security_inode_setattr"}},
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/mnt_want_write"}},
 		}},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "chmod"}, EntryAndExit),
 		},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "fchmod"}, EntryAndExit),
 		},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "fchmodat"}, EntryAndExit),
 		},
 	},
@@ -138,25 +137,25 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/mnt_want_write_file"}},
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/mnt_want_write_file_path"}},
 		}},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "chown"}, EntryAndExit),
 		},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "chown16"}, EntryAndExit),
 		},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "fchown"}, EntryAndExit),
 		},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "fchown16"}, EntryAndExit),
 		},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "fchownat"}, EntryAndExit),
 		},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "lchown"}, EntryAndExit),
 		},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "lchown16"}, EntryAndExit),
 		},
 	},
@@ -167,10 +166,10 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/vfs_link"}},
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/filename_create"}},
 		}},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "link"}, EntryAndExit),
 		},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "linkat"}, EntryAndExit),
 		},
 	},
@@ -181,10 +180,10 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/vfs_mkdir"}},
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/filename_create"}},
 		}},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "mkdir"}, EntryAndExit),
 		},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "mkdirat"}, EntryAndExit),
 		},
 	},
@@ -194,20 +193,20 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 		&manager.AllOf{Selectors: []manager.ProbesSelector{
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/vfs_truncate"}},
 		}},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "open"}, EntryAndExit, true),
 		},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "creat"}, EntryAndExit),
 		},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
-			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "open_by_handle_at"}, EntryAndExit, true),
-		},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "truncate"}, EntryAndExit, true),
 		},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "openat"}, EntryAndExit, true),
+		},
+		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
+			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "open_by_handle_at"}, EntryAndExit, true),
 		},
 	},
 
@@ -221,13 +220,13 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/mnt_want_write_file"}},
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/mnt_want_write_file_path"}},
 		}},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "removexattr"}, EntryAndExit),
 		},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "fremovexattr"}, EntryAndExit),
 		},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "lremovexattr"}, EntryAndExit),
 		},
 	},
@@ -242,13 +241,13 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/mnt_want_write_file"}},
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/mnt_want_write_file_path"}},
 		}},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "setxattr"}, EntryAndExit),
 		},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "fsetxattr"}, EntryAndExit),
 		},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "lsetxattr"}, EntryAndExit),
 		},
 	},
@@ -259,37 +258,29 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/security_inode_setattr"}},
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/mnt_want_write"}},
 		}},
-		&manager.OneOf{Selectors: []manager.ProbesSelector{
-			&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
-				manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "utime"}, EntryAndExit, true),
-			},
-			&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
-				manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "utime32"}, EntryAndExit),
-			},
-		}},
-		&manager.OneOf{Selectors: []manager.ProbesSelector{
-			&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
-				manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "utimes"}, EntryAndExit, true),
-			},
-			&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
-				manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "utimes"}, EntryAndExit|ExpandTime32),
-			},
-		}},
-		&manager.OneOf{Selectors: []manager.ProbesSelector{
-			&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
-				manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "utimensat"}, EntryAndExit, true),
-			},
-			&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
-				manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "utimensat"}, EntryAndExit|ExpandTime32),
-			},
-		}},
-		&manager.OneOf{Selectors: []manager.ProbesSelector{
-			&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
-				manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "futimesat"}, EntryAndExit, true),
-			},
-			&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
-				manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "futimesat"}, EntryAndExit|ExpandTime32),
-			},
-		}},
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
+			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "utime"}, EntryAndExit, true),
+		},
+		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
+			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "utime32"}, EntryAndExit),
+		},
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
+			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "utimes"}, EntryAndExit, true),
+		},
+		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
+			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "utimes"}, EntryAndExit|ExpandTime32),
+		},
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
+			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "utimensat"}, EntryAndExit, true),
+		},
+		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
+			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "utimensat"}, EntryAndExit|ExpandTime32),
+		},
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
+			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "futimesat"}, EntryAndExit, true),
+		},
+		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
+			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "futimesat"}, EntryAndExit|ExpandTime32),
+		},
 	},
 }
