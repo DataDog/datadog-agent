@@ -464,18 +464,6 @@ def build_object_files(ctx, bundle_ebpf=False):
 
         bindata_files.extend([obj_file, debug_obj_file])
 
-    runtime_files = [
-        os.path.join(network_runtime_dir, "tracer.c"),
-        os.path.join(network_c_dir, "tracer.h"),
-        os.path.join(network_c_dir, "tracer-maps.h"),
-        os.path.join(network_c_dir, "syscalls.h"),
-        os.path.join(c_dir, "bpf_helpers.h"),
-        os.path.join(c_dir, "bpf_endian.h"),
-        os.path.join(c_dir, "asm_goto_workaround.h"),
-    ]
-    for p in runtime_files:
-        commands.append("cp {file} {dest}".format(file=p, dest=build_runtime_dir))
-
     # Build security runtime programs
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
     security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
@@ -513,6 +501,8 @@ def build_object_files(ctx, bundle_ebpf=False):
         )
     )
     bindata_files.extend([security_agent_obj_file, security_agent_syscall_wrapper_obj_file])
+
+    commands.append("go generate -mod=vendor -tags linux_bpf ./pkg/network/tracer")
 
     for cmd in commands:
         ctx.run(cmd)

@@ -32,7 +32,6 @@ ClangCompiler::ClangCompiler(const char *name) :
         "-fno-asynchronous-unwind-tables",
         "-fno-stack-protector",
         "-nostdinc",
-        "-includeasm_goto_workaround.h",
         "-isystem/virtual/lib/clang/include",
         "-x", "c"
     }),

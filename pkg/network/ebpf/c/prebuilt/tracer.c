@@ -21,10 +21,12 @@
 #define LOAD_CONSTANT(param, var) asm("%0 = " param " ll" \
                                       : "=r"(var))
 
+static const __u64 ENABLED = 1;
+
 static __always_inline bool dns_stats_enabled() {
     __u64 val = 0;
     LOAD_CONSTANT("dns_stats_enabled", val);
-    return val == 1;
+    return val == ENABLED;
 }
 
 static __always_inline __u64 offset_family() {

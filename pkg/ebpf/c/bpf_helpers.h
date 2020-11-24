@@ -26,6 +26,9 @@
  */
 #define SEC(NAME) __attribute__((section(NAME), used))
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-variable"
+
 /* helper functions called from eBPF programs written in C */
 static void* (*bpf_map_lookup_elem)(void* map, void* key) = (void*)BPF_FUNC_map_lookup_elem;
 static int (*bpf_map_update_elem)(void* map, void* key, void* value,
@@ -51,6 +54,11 @@ static int (*bpf_skb_get_tunnel_key)(void* ctx, void* key, int size, int flags) 
 static int (*bpf_skb_set_tunnel_key)(void* ctx, void* key, int size, int flags) = (void*)BPF_FUNC_skb_set_tunnel_key;
 static unsigned long long (*bpf_get_prandom_u32)(void) = (void*)BPF_FUNC_get_prandom_u32;
 static u64 (*bpf_get_current_task)(void) = (void *) BPF_FUNC_get_current_task;
+static int (*bpf_skb_store_bytes)(void* ctx, int off, void* from, int len, int flags) = (void*)BPF_FUNC_skb_store_bytes;
+static int (*bpf_l3_csum_replace)(void* ctx, int off, int from, int to, int flags) = (void*)BPF_FUNC_l3_csum_replace;
+static int (*bpf_l4_csum_replace)(void* ctx, int off, int from, int to, int flags) = (void*)BPF_FUNC_l4_csum_replace;
+
+#pragma clang diagnostic pop
 
 /* llvm builtin functions that eBPF C program may use to
  * emit BPF_LD_ABS and BPF_LD_IND instructions
@@ -77,10 +85,6 @@ struct bpf_map_def {
     unsigned int pinning;
     char namespace[BUF_SIZE_MAP_NS];
 };
-
-static int (*bpf_skb_store_bytes)(void* ctx, int off, void* from, int len, int flags) = (void*)BPF_FUNC_skb_store_bytes;
-static int (*bpf_l3_csum_replace)(void* ctx, int off, int from, int to, int flags) = (void*)BPF_FUNC_l3_csum_replace;
-static int (*bpf_l4_csum_replace)(void* ctx, int off, int from, int to, int flags) = (void*)BPF_FUNC_l4_csum_replace;
 
 #if defined(__x86_64__)
 

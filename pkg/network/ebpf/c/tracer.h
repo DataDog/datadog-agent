@@ -23,9 +23,6 @@ static __always_inline bool is_ipv4_mapped_ipv6(__u64 saddr_h, __u64 saddr_l, __
 #endif
 }
 
-static const __u64 DISABLED = 0;
-static const __u64 ENABLED = 1;
-
 typedef struct {
     __u64 sent_bytes;
     __u64 recv_bytes;

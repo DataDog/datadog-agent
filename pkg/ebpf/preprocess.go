@@ -12,7 +12,13 @@ import (
 var (
 	// CIncludePattern is the regex for #include headers of C files
 	CIncludePattern = `^\s*#\s*include\s+"(.*)"$`
+
+	includeRegexp *regexp.Regexp
 )
+
+func init() {
+	includeRegexp = regexp.MustCompile(CIncludePattern)
+}
 
 // PreprocessFile pre-processes the `#include` of embedded headers.
 // It will only replace top-level includes for files that exist
@@ -25,7 +31,6 @@ func PreprocessFile(bpfDir, fileName string) (*bytes.Buffer, error) {
 
 	// Note that embedded headers including other embedded headers is not managed because
 	// this would also require to properly handle inclusion guards.
-	includeRegexp := regexp.MustCompile(CIncludePattern)
 	source := new(bytes.Buffer)
 	scanner := bufio.NewScanner(sourceReader)
 	for scanner.Scan() {
