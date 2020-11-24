@@ -20,7 +20,7 @@ import (
 type ProviderTestSuite struct {
 	suite.Suite
 	p *provider
-	a *auditor.Auditor
+	a *auditor.RegistryAuditor
 }
 
 func (suite *ProviderTestSuite) SetupTest() {

@@ -20,9 +20,9 @@ import (
 // The name "daemon" is just in order to avoid serverless.StartServer ...
 type Daemon struct {
 	httpServer *http.Server
-	// http server used to collect AWS logs
-	httpLogsServer *http.Server
-	statsdServer   *dogstatsd.Server
+
+	statsdServer *dogstatsd.Server
+
 	// aggregator used by the statsd server
 	aggregator *aggregator.BufferedAggregator
 	stopCh     chan struct{}
@@ -74,10 +74,10 @@ func StartDaemon(stopCh chan struct{}) *Daemon {
 	return daemon
 }
 
-// StartHttpLogsServer starts an HTTP server, receiving logs from the AWS platform.
+// StartHTTPLogsServer starts an HTTP server, receiving logs from the AWS platform.
 // Returns the HTTP URL on which AWS should send the logs.
 // FIXME(remy): that would be awesome to have this directly running within the initial HTTP daemon?
-func (d *Daemon) StartHttpLogsServer(port int) (string, chan aws.LogMessage, error) {
+func (d *Daemon) StartHTTPLogsServer(port int) (string, chan aws.LogMessage, error) {
 	httpAddr := fmt.Sprintf("http://sandbox:%d", port)
 	listenAddr := fmt.Sprintf("0.0.0.0:%d", port)
 	// http server receiving logs from the AWS Lambda environment
@@ -104,35 +104,35 @@ func (d *Daemon) StartHttpLogsServer(port int) (string, chan aws.LogMessage, err
 							// report enhanced metrics using DogStatsD
 							tags := []string{fmt.Sprintf("functionname:%s", functionName)} // FIXME(remy): could this be exported to properly get all tags?
 							metricsChan := d.aggregator.GetBufferedMetricsWithTsChannel()
-							metricsChan <- []metrics.MetricSample{metrics.MetricSample{
+							metricsChan <- []metrics.MetricSample{{
 								Name:       "aws.lambda.enhanced.max_memory_used",
 								Value:      float64(message.ObjectRecord.Metrics.MaxMemoryUsedMB),
 								Mtype:      metrics.DistributionType,
 								Tags:       tags,
 								SampleRate: 1,
 								Timestamp:  float64(message.Time.UnixNano()),
-							}, metrics.MetricSample{
+							}, {
 								Name:       "aws.lambda.enhanced.memorysize",
 								Value:      float64(message.ObjectRecord.Metrics.MemorySizeMB),
 								Mtype:      metrics.DistributionType,
 								Tags:       tags,
 								SampleRate: 1,
 								Timestamp:  float64(message.Time.UnixNano()),
-							}, metrics.MetricSample{
+							}, {
 								Name:       "aws.lambda.enhanced.billed_duration",
 								Value:      float64(message.ObjectRecord.Metrics.BilledDurationMs),
 								Mtype:      metrics.DistributionType,
 								Tags:       tags,
 								SampleRate: 1,
 								Timestamp:  float64(message.Time.UnixNano()),
-							}, metrics.MetricSample{
+							}, {
 								Name:       "aws.lambda.enhanced.duration",
 								Value:      message.ObjectRecord.Metrics.DurationMs,
 								Mtype:      metrics.DistributionType,
 								Tags:       tags,
 								SampleRate: 1,
 								Timestamp:  float64(message.Time.UnixNano()),
-							}, metrics.MetricSample{
+							}, {
 								Name:       "aws.lambda.enhanced.init_duration",
 								Value:      message.ObjectRecord.Metrics.InitDurationMs,
 								Mtype:      metrics.DistributionType,

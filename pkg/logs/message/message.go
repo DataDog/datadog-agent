@@ -34,6 +34,7 @@ func NewMessage(content []byte, origin *Origin, status string) *Message {
 	}
 }
 
+// NewMessageWithTime constructs a message with the given information, using the given time for the message timestamp.
 func NewMessageWithTime(content []byte, origin *Origin, status string, utcTime time.Time) *Message {
 	return &Message{
 		Content:   content,

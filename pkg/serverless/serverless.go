@@ -24,7 +24,7 @@ const (
 	routeSubscribeLogs string = "http://localhost:9001/2020-08-15/logs"
 
 	headerExtName     string = "Lambda-Extension-Name"
-	headerExtId       string = "Lambda-Extension-Identifier"
+	headerExtID       string = "Lambda-Extension-Identifier"
 	headerExtErrType  string = "Lambda-Extension-Function-Error-Type"
 	headerContentType string = "Content-Type"
 
@@ -42,7 +42,7 @@ const (
 	// bad endpoints have been configured. Unused until we can report error
 	// without stopping the extension.
 	FatalBadEndpoint ErrorEnum = "Fatal.BadEndpoint"
-	// FatalBadEndpoint is the error reported to the AWS Extension environment when
+	// FatalConnectFailed is the error reported to the AWS Extension environment when
 	// a connection failed.
 	FatalConnectFailed ErrorEnum = "Fatal.ConnectFailed"
 )
@@ -115,7 +115,7 @@ func Register() (ID, error) {
 	// read the ID
 	// -----------
 
-	id := response.Header.Get(headerExtId)
+	id := response.Header.Get(headerExtID)
 	if len(id) == 0 {
 		return "", fmt.Errorf("Register: didn't receive an identifier -- Response body content: %v", string(body))
 	}
@@ -126,7 +126,7 @@ func Register() (ID, error) {
 // SubscribeLogs subscribes to the logs collection on the platform.
 // We send a request to AWS to subscribe for logs, indicating on which port we
 // are opening an HTTP server, to receive logs from AWS.
-// When we are receving logs on this HTTP server, we're pushing them in a channel
+// When we are receiving logs on this HTTP server, we're pushing them in a channel
 // tailed by the Logs Agent pipeline, these logs then go through the regular
 // Logs Agent pipeline to finally be sent on the intake when we receive a FLUSH
 // call from the Lambda function / client.
@@ -165,7 +165,7 @@ func SubscribeLogs(id ID, httpAddr string, logsType []string) error {
 	if request, err = http.NewRequest(http.MethodPut, routeSubscribeLogs, bytes.NewBuffer(jsonBytes)); err != nil {
 		return fmt.Errorf("SubscribeLogs: can't create the PUT request: %v", err)
 	}
-	request.Header.Set(headerExtId, id.String())
+	request.Header.Set(headerExtID, id.String())
 	request.Header.Set(headerContentType, "application/json")
 
 	client := &http.Client{
@@ -200,7 +200,7 @@ func ReportInitError(id ID, errorEnum ErrorEnum) error {
 		return fmt.Errorf("ReportInitError: can't create the POST request: %s", err)
 	}
 
-	request.Header.Set(headerExtId, id.String())
+	request.Header.Set(headerExtID, id.String())
 	request.Header.Set(headerExtErrType, FatalConnectFailed.String())
 
 	client := &http.Client{
@@ -234,7 +234,7 @@ func WaitForNextInvocation(stopCh chan struct{}, statsdServer *dogstatsd.Server,
 	if request, err = http.NewRequest(http.MethodGet, routeEventNext, nil); err != nil {
 		return fmt.Errorf("WaitForNextInvocation: can't create the GET request: %v", err)
 	}
-	request.Header.Set(headerExtId, id.String())
+	request.Header.Set(headerExtID, id.String())
 
 	// the blocking call is here
 	client := &http.Client{Timeout: 0} // this one should never timeout

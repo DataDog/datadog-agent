@@ -49,6 +49,7 @@ func (p *Processor) Stop() {
 	<-p.done
 }
 
+// Flush processes synchronously the messages that this processor has to process.
 func (p *Processor) Flush() {
 	p.mu.Lock()
 	for {

@@ -54,6 +54,7 @@ func (s *Sender) Stop() {
 	<-s.done
 }
 
+// Flush sends synchronously the messages that this sender has to send.
 func (s *Sender) Flush() {
 	s.strategy.Flush(s.inputChan, s.outputChan, s.send, &s.mu)
 }

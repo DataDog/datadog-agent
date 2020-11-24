@@ -116,6 +116,7 @@ func (a *Agent) Start() {
 	starter.Start()
 }
 
+// Flush flushes synchronously the pipelines managed by the Logs Agent.
 func (a *Agent) Flush() {
 	a.pipelineProvider.Flush()
 }

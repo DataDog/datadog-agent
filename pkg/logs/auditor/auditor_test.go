@@ -27,7 +27,7 @@ type AuditorTestSuite struct {
 	testDir  string
 	testPath string
 
-	a      *Auditor
+	a      *RegistryAuditor
 	source *config.LogSource
 }
 

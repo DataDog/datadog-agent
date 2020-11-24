@@ -9,12 +9,17 @@ import (
 )
 
 const (
+	// LogTypeExtension is used to represent logs messages emitted by extensions
 	LogTypeExtension = "extension"
 
+	// LogTypeFunction is used to represent logs messages emitted by the function
 	LogTypeFunction = "function"
 
-	LogTypePlatformStart  = "platform.start"
-	LogTypePlatformEnd    = "platform.end"
+	// LogTypePlatformStart is used for the log message about the platform starting
+	LogTypePlatformStart = "platform.start"
+	// LogTypePlatformEnd is used for the log message about the platform shutting down
+	LogTypePlatformEnd = "platform.end"
+	// LogTypePlatformReport is used for the log messages containing a report of the last invocation.
 	LogTypePlatformReport = "platform.report"
 )
 
@@ -26,7 +31,7 @@ type LogMessage struct {
 	StringRecord string `json:"record"`
 	// platform log messages contain a struct record object
 	ObjectRecord struct {
-		RequestId string // uuid; LogTypePlatform{Start,End,Report}
+		RequestID string // uuid; LogTypePlatform{Start,End,Report}
 		Version   string // LogTypePlatformStart
 		Metrics   struct {
 			DurationMs       float64
@@ -38,6 +43,7 @@ type LogMessage struct {
 	}
 }
 
+// UnmarshalJSON unmarshals the given bytes in a LogMessage object.
 func (l *LogMessage) UnmarshalJSON(data []byte) error {
 	var j map[string]interface{}
 
@@ -74,8 +80,8 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error {
 		l.Type = typ
 		if objectRecord, ok := j["record"].(map[string]interface{}); ok {
 			// all of these have the requestId
-			if requestId, ok := objectRecord["requestId"].(string); ok {
-				l.ObjectRecord.RequestId = requestId
+			if requestID, ok := objectRecord["requestId"].(string); ok {
+				l.ObjectRecord.RequestID = requestID
 			}
 
 			switch typ {
@@ -84,12 +90,12 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error {
 					l.ObjectRecord.Version = version
 				}
 				l.StringRecord = fmt.Sprintf("START RequestId: %s Version: %s",
-					l.ObjectRecord.RequestId,
+					l.ObjectRecord.RequestID,
 					l.ObjectRecord.Version,
 				)
 			case LogTypePlatformEnd:
 				l.StringRecord = fmt.Sprintf("END RequestId: %s",
-					l.ObjectRecord.RequestId,
+					l.ObjectRecord.RequestID,
 				)
 			case LogTypePlatformReport:
 				// only logTypePlatformReport has what we call "enhanced metrics"
@@ -115,7 +121,7 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error {
 						log.Error("LogMessage.UnmarshalJSON: can't read the metrics object")
 					}
 					l.StringRecord = fmt.Sprintf("REPORT RequestId: %s	Duration: %.2f ms    	Billed Duration: %d ms	Memory Size: %d MB	Max Memory Used: %d MB	Init Duration: %.2f ms",
-						l.ObjectRecord.RequestId,
+						l.ObjectRecord.RequestID,
 						l.ObjectRecord.Metrics.DurationMs,
 						l.ObjectRecord.Metrics.BilledDurationMs,
 						l.ObjectRecord.Metrics.MemorySizeMB,

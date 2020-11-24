@@ -24,7 +24,7 @@ func NewNullAuditor() *NullAuditor {
 // GetOffset returns an empty string.
 func (a *NullAuditor) GetOffset(identifier string) string { return "" }
 
-// GetOffset returns an empty string.
+// GetTailingMode returns an empty string.
 func (a *NullAuditor) GetTailingMode(identifier string) string { return "" }
 
 // Start starts the NullAuditor main loop.

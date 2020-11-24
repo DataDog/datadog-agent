@@ -82,6 +82,7 @@ func (p *Pipeline) Stop() {
 	p.sender.Stop()
 }
 
+// Flush flushes synchronously the processor and sender managed by this pipeline.
 func (p *Pipeline) Flush() {
 	p.processor.Flush() // flush messages in the processor into the sender
 	p.sender.Flush()    // flush the sender

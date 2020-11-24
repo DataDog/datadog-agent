@@ -78,7 +78,7 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 
 	logLevelEnvVar = "DD_LOG_LEVEL"
 
-	logsHttpPortEnvVar     = "DD_LOGS_CONFIG_HTTP_SERVER_PORT"
+	logsHTTPPortEnvVar     = "DD_LOGS_CONFIG_HTTP_SERVER_PORT"
 	logsLogsTypeSubscribed = "DD_LOGS_CONFIG_LAMBDA_LOGS_TYPE"
 )
 
@@ -240,7 +240,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 
 	if config.Datadog.GetBool("logs_enabled") {
 		httpPort := 8888
-		if v, exists := os.LookupEnv(logsHttpPortEnvVar); exists {
+		if v, exists := os.LookupEnv(logsHTTPPortEnvVar); exists {
 			if i, err := strconv.Atoi(v); err != nil {
 				httpPort = i
 			}
@@ -269,14 +269,14 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		}
 
 		log.Debugf("Enabling logs collection with HTTP server running port %d", httpPort)
-		if httpAddr, logsChan, err := daemon.StartHttpLogsServer(httpPort); err != nil {
+		if httpAddr, logsChan, err := daemon.StartHTTPLogsServer(httpPort); err != nil {
 			log.Error("While starting the HTTP Logs Server:", err)
 		} else {
 			// subscribe to the logs on the platform
 			if err := serverless.SubscribeLogs(serverlessID, httpAddr, logsType); err != nil {
 				log.Error("Can't subscribe to logs:", err)
 			} else {
-				// we subscribed to the logs collection on the platform, let's instanciate
+				// we subscribed to the logs collection on the platform, let's instantiate
 				// a logs agent to collect/process/flush the logs.
 				if err := logs.StartServerless(func() *autodiscovery.AutoConfig { return common.AC }, logsChan); err != nil {
 					log.Error("Could not start an instance of the Logs Agent:", err)

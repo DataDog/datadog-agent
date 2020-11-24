@@ -48,6 +48,7 @@ func Start(getAC func() *autodiscovery.AutoConfig) error {
 	return start(getAC, false, nil)
 }
 
+// StartServerless starts a Serverless instance of the Logs Agent.
 func StartServerless(getAC func() *autodiscovery.AutoConfig, logsChan chan aws.LogMessage) error {
 	return start(getAC, true, logsChan)
 }
@@ -171,6 +172,7 @@ func Stop() {
 	log.Info("logs-agent stopped")
 }
 
+// Flush flushes synchronously the running instance of the Logs Agent.
 func Flush() {
 	log.Info("Triggering a flush in the logs-agent")
 	if IsAgentRunning() {

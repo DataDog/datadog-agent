@@ -7,6 +7,7 @@ package sender
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -28,13 +29,15 @@ func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Message)
 
+	var mu sync.Mutex
+
 	var content []byte
 	success := func(payload []byte) error {
 		assert.Equal(t, content, payload)
 		return nil
 	}
 
-	go newBatchStrategyWithLimits(LineSerializer, 2, 2, 100*time.Millisecond).Send(input, output, success)
+	go newBatchStrategyWithLimits(LineSerializer, 2, 2, 100*time.Millisecond).Send(input, output, success, &mu)
 
 	content = []byte("a\nb")
 
@@ -90,13 +93,15 @@ func TestBatchStrategySendsPayloadWhenClosingInput(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Message)
 
+	var mu sync.Mutex
+
 	var content []byte
 	success := func(payload []byte) error {
 		assert.Equal(t, content, payload)
 		return nil
 	}
 
-	go newBatchStrategyWithLimits(LineSerializer, 2, 2, 100*time.Millisecond).Send(input, output, success)
+	go newBatchStrategyWithLimits(LineSerializer, 2, 2, 100*time.Millisecond).Send(input, output, success, &mu)
 
 	content = []byte("a")
 
@@ -117,6 +122,8 @@ func TestBatchStrategyShouldNotBlockWhenForceStopping(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Message)
 
+	var mu sync.Mutex
+
 	var content []byte
 	success := func(payload []byte) error {
 		return context.Canceled
@@ -128,12 +135,14 @@ func TestBatchStrategyShouldNotBlockWhenForceStopping(t *testing.T) {
 		close(input)
 	}()
 
-	newBatchStrategyWithLimits(LineSerializer, 2, 2, 100*time.Millisecond).Send(input, output, success)
+	newBatchStrategyWithLimits(LineSerializer, 2, 2, 100*time.Millisecond).Send(input, output, success, &mu)
 }
 
 func TestBatchStrategyShouldNotBlockWhenStoppingGracefully(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Message)
+
+	var mu sync.Mutex
 
 	var content []byte
 	success := func(payload []byte) error {
@@ -147,5 +156,5 @@ func TestBatchStrategyShouldNotBlockWhenStoppingGracefully(t *testing.T) {
 		assert.Equal(t, message, <-output)
 	}()
 
-	newBatchStrategyWithLimits(LineSerializer, 2, 2, 100*time.Millisecond).Send(input, output, success)
+	newBatchStrategyWithLimits(LineSerializer, 2, 2, 100*time.Millisecond).Send(input, output, success, &mu)
 }
