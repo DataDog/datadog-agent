@@ -116,8 +116,8 @@ func getTimeStamp(event *v1.Event, modified bool) int64 {
 func (k *kubernetesEventMapper) getTags(event *v1.Event) []string {
 	tags := []string{}
 
-	if event.Namespace != "" {
-		tags = append(tags, fmt.Sprintf("kube_namespace:%s", event.Namespace))
+	if event.InvolvedObject.Namespace != "" {
+		tags = append(tags, fmt.Sprintf("kube_namespace:%s", event.InvolvedObject.Namespace))
 	}
 
 	tags = append(tags, fmt.Sprintf("source_component:%s", event.Source.Component))
