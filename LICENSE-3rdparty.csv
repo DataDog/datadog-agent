@@ -13,7 +13,6 @@ core,"code.cloudfoundry.org/garden/routes",Apache-2.0
 core,"code.cloudfoundry.org/garden/transport",Apache-2.0
 core,"code.cloudfoundry.org/lager",Apache-2.0
 core,"code.cloudfoundry.org/tlsconfig",Apache-2.0
-core,"github.com/avast/retry-go",MIT
 core,"github.com/DataDog/agent-payload/gogen",NewBSD
 core,"github.com/DataDog/agent-payload/process",NewBSD
 core,"github.com/DataDog/datadog-go/statsd",MIT
@@ -81,6 +80,7 @@ core,"github.com/alecthomas/participle/lexer",MIT
 core,"github.com/alecthomas/participle/lexer/ebnf",MIT
 core,"github.com/alecthomas/participle/lexer/ebnf/internal",MIT
 core,"github.com/alecthomas/repr",MIT
+core,"github.com/andybalholm/brotli",MIT
 core,"github.com/armon/go-metrics",MIT
 core,"github.com/avast/retry-go",MIT
 core,"github.com/aws/aws-sdk-go/aws",Apache-2.0
@@ -377,6 +377,14 @@ core,"github.com/itchyny/gojq",MIT
 core,"github.com/jmespath/go-jmespath",Apache-2.0
 core,"github.com/json-iterator/go",MIT
 core,"github.com/kardianos/osext",NewBSD
+core,"github.com/klauspost/compress/flate",NewBSD
+core,"github.com/klauspost/compress/fse",NewBSD
+core,"github.com/klauspost/compress/gzip",NewBSD
+core,"github.com/klauspost/compress/huff0",NewBSD
+core,"github.com/klauspost/compress/snappy",NewBSD
+core,"github.com/klauspost/compress/zstd",NewBSD
+core,"github.com/klauspost/compress/zstd/internal/xxhash",MIT
+core,"github.com/klauspost/pgzip",MIT
 core,"github.com/konsorten/go-windows-terminal-sequences",MIT
 core,"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/apiserver",Apache-2.0
 core,"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/apiserver/endpoints/handlers",Apache-2.0
@@ -401,6 +409,7 @@ core,"github.com/matttproud/golang_protobuf_extensions/pbutil",Apache-2.0
 core,"github.com/mdlayher/netlink",MIT
 core,"github.com/mdlayher/netlink/nlenc",MIT
 core,"github.com/mholt/archiver",MIT
+core,"github.com/mholt/archiver/v3",MIT
 core,"github.com/miekg/dns",NewBSD
 core,"github.com/mitchellh/copystructure",MIT
 core,"github.com/mitchellh/go-homedir",MIT
@@ -425,6 +434,11 @@ core,"github.com/pelletier/go-toml",MIT
 core,"github.com/philhofer/fwd",MIT
 core,"github.com/pierrec/lz4",NewBSD
 core,"github.com/pierrec/lz4/internal/xxh32",NewBSD
+core,"github.com/pierrec/lz4/v4",NewBSD
+core,"github.com/pierrec/lz4/v4/internal/lz4block",NewBSD
+core,"github.com/pierrec/lz4/v4/internal/lz4errors",NewBSD
+core,"github.com/pierrec/lz4/v4/internal/lz4stream",NewBSD
+core,"github.com/pierrec/lz4/v4/internal/xxh32",NewBSD
 core,"github.com/pkg/errors",FreeBSD
 core,"github.com/pmezard/go-difflib/difflib",FreeBSD
 core,"github.com/prometheus/client_golang/prometheus",Apache-2.0
@@ -490,6 +504,10 @@ core,"go.opencensus.io/trace",Apache-2.0
 core,"go.opencensus.io/trace/internal",Apache-2.0
 core,"go.opencensus.io/trace/tracestate",Apache-2.0
 core,"go.uber.org/atomic",MIT
+core,"go.uber.org/automaxprocs",MIT
+core,"go.uber.org/automaxprocs/internal/cgroups",MIT
+core,"go.uber.org/automaxprocs/internal/runtime",MIT
+core,"go.uber.org/automaxprocs/maxprocs",MIT
 core,"go.uber.org/multierr",MIT
 core,"go.uber.org/zap",MIT
 core,"go.uber.org/zap/buffer",MIT
@@ -541,9 +559,9 @@ core,"golang.org/x/text/encoding/internal",NewBSD
 core,"golang.org/x/text/encoding/internal/identifier",NewBSD
 core,"golang.org/x/text/encoding/unicode",NewBSD
 core,"golang.org/x/text/internal/utf8internal",NewBSD
+core,"golang.org/x/text/runes",NewBSD
 core,"golang.org/x/text/secure/bidirule",NewBSD
 core,"golang.org/x/text/transform",NewBSD
-core,"golang.org/x/text/runes",NewBSD
 core,"golang.org/x/text/unicode/bidi",NewBSD
 core,"golang.org/x/text/unicode/norm",NewBSD
 core,"golang.org/x/text/width",NewBSD
@@ -1116,9 +1134,4 @@ core,"sigs.k8s.io/structured-merge-diff/schema",Apache-2.0
 core,"sigs.k8s.io/structured-merge-diff/typed",Apache-2.0
 core,"sigs.k8s.io/structured-merge-diff/value",Apache-2.0
 core,"sigs.k8s.io/yaml",MIT
-core,"go.uber.org/automaxprocs",MIT
-core,"go.uber.org/automaxprocs/maxprocs",MIT
-core,"go.uber.org/automaxprocs/internal/cgroups",MIT
-core,"go.uber.org/automaxprocs/internal/runtime",MIT
-core,"go.uber.org/automaxprocs/maxprocs",MIT
 core,go.opencensus.io,Apache-2.0

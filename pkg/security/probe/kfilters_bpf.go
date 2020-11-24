@@ -8,8 +8,9 @@
 package probe
 
 import (
-	"github.com/pkg/errors"
 	"time"
+
+	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
@@ -94,18 +95,23 @@ func discardInode(probe *Probe, eventType EventType, mountID uint32, inode uint6
 	return true, nil
 }
 
-func discardParentInode(probe *Probe, rs *rules.RuleSet, eventType EventType, field eval.Field, filename string, mountID uint32, inode uint64, pathID uint32) (bool, error) {
+func discardParentInode(probe *Probe, rs *rules.RuleSet, eventType EventType, field eval.Field, filename string, mountID uint32, inode uint64, pathID uint32) (bool, uint32, uint64, error) {
 	isDiscarder, err := isParentPathDiscarder(rs, eventType, field, filename)
 	if !isDiscarder {
-		return false, err
+		return false, 0, 0, err
 	}
 
 	parentMountID, parentInode, err := probe.resolvers.DentryResolver.GetParent(mountID, inode, pathID)
 	if err != nil {
-		return false, err
+		return false, 0, 0, err
 	}
 
-	return discardInode(probe, eventType, parentMountID, parentInode)
+	result, err := discardInode(probe, eventType, parentMountID, parentInode)
+	if err != nil {
+		return false, 0, 0, err
+	}
+
+	return result, parentMountID, parentInode, nil
 }
 
 func approveBasename(probe *Probe, tableName string, basename string) error {

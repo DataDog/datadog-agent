@@ -92,7 +92,7 @@ variables:
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
   DATADOG_AGENT_BUILDIMAGES: v2894686-d80c3ce
-  DATADOG_AGENT_BUILDERS: v3299433-d824e87
+  DATADOG_AGENT_BUILDERS: v3399751-fc72c60
   DATADOG_AGENT_WINBUILDIMAGES: v3283120-ecb88be
   DATADOG_AGENT_ARMBUILDIMAGES: v2894686-d80c3ce
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v2894686-d80c3ce
@@ -387,10 +387,10 @@ tests_ebpf:
     - tar -xvf /tmp/libbcc.tar.xz -C /opt/libbcc
   after_script:
     - cd $SRC_PATH
-    - cp ./pkg/ebpf/c/tracer-ebpf.o $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer-ebpf.o
-    - cp ./pkg/ebpf/c/tracer-ebpf-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer-ebpf-debug.o
-    - cp ./pkg/ebpf/c/offset-guess.o $CI_PROJECT_DIR/.tmp/binary-ebpf/offset-guess.o
-    - cp ./pkg/ebpf/c/offset-guess-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/offset-guess-debug.o
+    - cp ./pkg/ebpf/bytecode/build/tracer-ebpf.o $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer-ebpf.o
+    - cp ./pkg/ebpf/bytecode/build/tracer-ebpf-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer-ebpf-debug.o
+    - cp ./pkg/ebpf/bytecode/build/offset-guess.o $CI_PROJECT_DIR/.tmp/binary-ebpf/offset-guess.o
+    - cp ./pkg/ebpf/bytecode/build/offset-guess-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/offset-guess-debug.o
   tags: [ "runner:main", "size:large" ]
   script:
     # For now only check bpf bytes since we don't have a way to run eBPF tests without mounting a debugfs
@@ -702,12 +702,12 @@ dogstatsd_arm64_size_test:
     - inv -e system-probe.build --go-version=$SYSTEM_PROBE_GO_VERSION --embedded-path=$DATADOG_AGENT_EMBEDDED_PATH
     - inv -e system-probe.test --only-check-bpf-bytes
     - $S3_CP_CMD $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe $S3_ARTIFACTS_URI/system-probe.$ARCH
-    - $S3_CP_CMD $SRC_PATH/pkg/ebpf/c/tracer-ebpf.o $S3_ARTIFACTS_URI/tracer-ebpf.o.$ARCH
-    - $S3_CP_CMD $SRC_PATH/pkg/ebpf/c/tracer-ebpf-debug.o $S3_ARTIFACTS_URI/tracer-ebpf-debug.o.$ARCH
-    - $S3_CP_CMD $SRC_PATH/pkg/ebpf/c/offset-guess.o $S3_ARTIFACTS_URI/offset-guess.o.$ARCH
-    - $S3_CP_CMD $SRC_PATH/pkg/ebpf/c/offset-guess-debug.o $S3_ARTIFACTS_URI/offset-guess-debug.o.$ARCH
-    - $S3_CP_CMD $SRC_PATH/pkg/security/ebpf/c/runtime-security.o $S3_ARTIFACTS_URI/runtime-security.o.$ARCH
-    - $S3_CP_CMD $SRC_PATH/pkg/security/ebpf/c/runtime-security-syscall-wrapper.o $S3_ARTIFACTS_URI/runtime-security-syscall-wrapper.o.$ARCH
+    - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/tracer-ebpf.o $S3_ARTIFACTS_URI/tracer-ebpf.o.$ARCH
+    - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/tracer-ebpf-debug.o $S3_ARTIFACTS_URI/tracer-ebpf-debug.o.$ARCH
+    - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/offset-guess.o $S3_ARTIFACTS_URI/offset-guess.o.$ARCH
+    - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/offset-guess-debug.o $S3_ARTIFACTS_URI/offset-guess-debug.o.$ARCH
+    - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/runtime-security.o $S3_ARTIFACTS_URI/runtime-security.o.$ARCH
+    - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/runtime-security-syscall-wrapper.o $S3_ARTIFACTS_URI/runtime-security-syscall-wrapper.o.$ARCH
 
 build_system-probe-x64:
   stage: binary_build
@@ -3943,7 +3943,7 @@ deploy_staging_dsd:
   tags: [ "runner:main", "size:large" ]
   dependencies: []
   script:
-    - python3.5 -m pip install --user -r requirements.txt
+    - python3.6 -m pip install --user -r requirements.txt
     - $S3_CP_CMD $S3_ARTIFACTS_URI/dogstatsd/dogstatsd ./dogstatsd
     - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7)
     - $S3_CP_CMD ./dogstatsd $S3_DSD6_URI/linux/dogstatsd-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
@@ -3959,7 +3959,7 @@ deploy_staging_iot_agent:
   tags: [ "runner:main", "size:large" ]
   dependencies: []
   script:
-    - python3.5 -m pip install --user -r requirements.txt
+    - python3.6 -m pip install --user -r requirements.txt
     - $S3_CP_CMD $S3_ARTIFACTS_URI/iot/agent ./agent
     - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7)
     - $S3_CP_CMD ./agent $S3_DSD6_URI/linux/iot/agent-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
@@ -4513,7 +4513,7 @@ periodic_kitchen_cleanup_azure:
     - export ARM_CLIENT_ID=`aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_client_id --with-decryption --query "Parameter.Value" --out text`
     - export ARM_CLIENT_SECRET=`aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_client_secret --with-decryption --query "Parameter.Value" --out text`
     - export ARM_TENANT_ID=`aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_tenant_id --with-decryption --query "Parameter.Value" --out text`
-    - python3 ~/deploy_scripts/cleanup_azure.py
+    - python3.6 ~/deploy_scripts/cleanup_azure.py
 
 #
 # Use this step to delete a tag of a given image
@@ -4613,7 +4613,7 @@ trigger_release_6:
   dependencies: []
   before_script:
   - cd $SRC_PATH
-  - python3.5 -m pip install --user -r requirements.txt
+  - python3.6 -m pip install --user -r requirements.txt
 
 pupernetes-dev:
   rules:

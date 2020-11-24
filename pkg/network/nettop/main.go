@@ -8,17 +8,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
-	ddebpf "github.com/DataDog/ebpf"
 )
 
 func main() {
-	kernelVersion, err := ddebpf.CurrentKernelVersion()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
-	}
-	fmt.Printf("-- Kernel: %d (%d.%d)--\n", kernelVersion, (kernelVersion>>16)&0xff, (kernelVersion>>8)&0xff)
-
 	if supported, msg := ebpf.IsTracerSupportedByOS(nil); !supported {
 		fmt.Fprintf(os.Stderr, "system-probe is not supported: %s\n", msg)
 		os.Exit(1)

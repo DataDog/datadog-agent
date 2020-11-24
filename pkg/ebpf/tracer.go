@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
@@ -92,8 +92,8 @@ const (
 
 func NewTracer(config *Config) (*Tracer, error) {
 	// make sure debugfs is mounted
-	if mounted, msg := util.IsDebugfsMounted(); !mounted {
-		return nil, fmt.Errorf("%s: %s", "system-probe unsupported", msg)
+	if mounted, err := kernel.IsDebugFSMounted(); !mounted {
+		return nil, fmt.Errorf("%s: %s", "system-probe unsupported", err)
 	}
 
 	buf, err := bytecode.ReadBPFModule(config.BPFDir, config.BPFDebug)
@@ -106,16 +106,16 @@ func NewTracer(config *Config) (*Tracer, error) {
 	}
 
 	// check if current platform is using old kernel API because it affects what kprobe are we going to enable
-	currKernelVersion, err := ebpf.CurrentKernelVersion()
+	currKernelVersion, err := kernel.HostVersion()
 	if err != nil {
 		// if the platform couldn't be determined, treat it as new kernel case
 		log.Warn("could not detect the platform, will use kprobes from kernel version >= 4.1.0")
 	}
 
 	// check to see if current kernel is earlier than version 4.1.0
-	pre410Kernel := isPre410Kernel(currKernelVersion)
+	pre410Kernel := currKernelVersion < kernel.VersionCode(4, 1, 0)
 	if pre410Kernel {
-		log.Infof("detected platform %s, switch to use kprobes from kernel version < 4.1.0", kernelCodeToString(currKernelVersion))
+		log.Infof("detected platform %s, switch to use kprobes from kernel version < 4.1.0", currKernelVersion)
 	}
 
 	mgrOptions := manager.Options{

@@ -121,10 +121,7 @@ tools/windows/install-help/cal/packages/
 [Rr]elease/
 
 # ebpf object files
-pkg/ebpf/c/*.o
-pkg/ebpf/c/*.bc
-pkg/security/ebpf/c/*.o
-pkg/security/ebpf/c/*.bc
+pkg/ebpf/bytecode/build/
 
 # windows container build output
 build.out/

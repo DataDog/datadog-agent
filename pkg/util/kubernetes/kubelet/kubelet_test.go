@@ -847,9 +847,21 @@ func TestGetSpecForContainerName(t *testing.T) {
 		Image: "fooPrefix:fooImage",
 	}
 
+	specC := ContainerSpec{
+		Name:  "fooInitC",
+		Image: "fooInitPrefix:fooInitImage",
+	}
+
 	pod := &Pod{
 		Spec: Spec{
 			Containers: []ContainerSpec{specA, specB},
+		},
+	}
+
+	podWithInit := &Pod{
+		Spec: Spec{
+			InitContainers: []ContainerSpec{specC},
+			Containers:     []ContainerSpec{specA, specB},
 		},
 	}
 
@@ -859,6 +871,10 @@ func TestGetSpecForContainerName(t *testing.T) {
 
 	containerSpec, err = k.GetSpecForContainerName(pod, specB.Name)
 	assert.Equal(t, specB, containerSpec)
+	assert.Nil(t, err)
+
+	containerSpec, err = k.GetSpecForContainerName(podWithInit, specC.Name)
+	assert.Equal(t, specC, containerSpec)
 	assert.Nil(t, err)
 
 	containerSpec, err = k.GetSpecForContainerName(pod, "noMatch")
