@@ -18,7 +18,8 @@ import (
 )
 
 const (
-	ClockTicks = 100 // C.sysconf(C._SC_CLK_TCK)
+	PrioProcess = 0   // linux/resource.h
+	ClockTicks  = 100 // C.sysconf(C._SC_CLK_TCK)
 	// WorldReadable represents file permission that's world readable
 	WorldReadable os.FileMode = 4
 )
@@ -78,7 +79,7 @@ func (p *Probe) Close() {
 }
 
 // ProcessesByPID returns a map of process info indexed by PID
-func (p *Probe) ProcessesByPID() (map[int32]*Process, error) {
+func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 	pids, err := p.getActivePIDs()
 	if err != nil {
 		return nil, err
@@ -102,9 +103,11 @@ func (p *Probe) ProcessesByPID() (map[int32]*Process, error) {
 
 		statusInfo := p.parseStatus(pathForPID)
 		ioInfo := p.parseIO(pathForPID)
+		statInfo := p.parseStat(pathForPID, pid, now)
 
 		procsByPID[pid] = &Process{
 			Pid:     pid,               // /proc/{pid}
+			Ppid:    statInfo.ppid,     // /proc/{pid}/{stat}
 			Cmdline: cmdline,           // /proc/{pid}/cmdline
 			Name:    statusInfo.name,   // /proc/{pid}/status
 			Status:  statusInfo.status, // /proc/{pid}/status
@@ -112,6 +115,9 @@ func (p *Probe) ProcessesByPID() (map[int32]*Process, error) {
 			Gids:    statusInfo.gids,   // /proc/{pid}/status
 			NsPid:   statusInfo.nspid,  // /proc/{pid}/status
 			Stats: &Stats{
+				CreateTime:  statInfo.createTime,    // /proc/{pid}/{stat}
+				Nice:        statInfo.nice,          // /proc/{pid}/{stat}
+				CPUTime:     statInfo.cpuStat,       // /proc/{pid}/{stat}
 				MemInfo:     statusInfo.memInfo,     // /proc/{pid}/status or statm
 				CtxSwitches: statusInfo.ctxSwitches, // /proc/{pid}/status
 				NumThreads:  statusInfo.numThreads,  // /proc/{pid}/status
@@ -351,7 +357,7 @@ func (p *Probe) parseStatusKV(key, value string, sInfo *statusInfo) {
 }
 
 // parseStat retrieves stat info from "stat" file for a process in procfs
-func (p *Probe) parseStat(pidPath string, now time.Time) *statInfo {
+func (p *Probe) parseStat(pidPath string, pid int32, now time.Time) *statInfo {
 	path := filepath.Join(pidPath, "stat")
 	var err error
 
@@ -364,12 +370,12 @@ func (p *Probe) parseStat(pidPath string, now time.Time) *statInfo {
 		return sInfo
 	}
 
-	sInfo = p.parseStatContent(contents, sInfo, now)
+	sInfo = p.parseStatContent(contents, sInfo, pid, now)
 	return sInfo
 }
 
 // parseStatContent takes the content of "stat" file and parses the values we care about
-func (p *Probe) parseStatContent(statContent []byte, sInfo *statInfo, now time.Time) *statInfo {
+func (p *Probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32, now time.Time) *statInfo {
 	// We want to skip past the executable name, which is wrapped in one or more parenthesis
 	startIndex := bytes.LastIndexByte(statContent, byte(')'))
 	if startIndex+1 >= len(statContent) {
@@ -377,19 +383,20 @@ func (p *Probe) parseStatContent(statContent []byte, sInfo *statInfo, now time.T
 	}
 
 	content := statContent[startIndex+1:]
+	// use spaces and prevChartIsSpace to simulate strings.Fields() to avoid allocation
 	spaces := 0
-	prevCharSpace := false
-	var ppidStr, utimeStr, stimeStr, niceStr, startTimeStr string
+	prevCharIsSpace := false
+	var ppidStr, utimeStr, stimeStr, startTimeStr string
 
 	for i := range content {
 		if content[i] == ' ' {
-			if !prevCharSpace {
+			if !prevCharIsSpace {
 				spaces++
 			}
-			prevCharSpace = true
+			prevCharIsSpace = true
 			continue
 		} else {
-			prevCharSpace = false
+			prevCharIsSpace = false
 		}
 
 		if spaces == 2 {
@@ -398,8 +405,6 @@ func (p *Probe) parseStatContent(statContent []byte, sInfo *statInfo, now time.T
 			utimeStr += string(content[i])
 		} else if spaces == 13 {
 			stimeStr += string(content[i])
-		} else if spaces == 18 {
-			niceStr += string(content[i])
 		} else if spaces == 20 {
 			startTimeStr += string(content[i])
 		}
@@ -422,11 +427,10 @@ func (p *Probe) parseStatContent(statContent []byte, sInfo *statInfo, now time.T
 	if err != nil {
 		return sInfo
 	}
-
-	nice, err := strconv.ParseInt(niceStr, 10, 32)
-	if err == nil {
-		sInfo.nice = int32(nice)
-	}
+	// the nice parameter location seems to be different for various procfs,
+	// so we fetch that using syscall
+	snice, _ := syscall.Getpriority(PrioProcess, int(pid))
+	sInfo.nice = int32(snice)
 
 	sInfo.cpuStat.CPU = "cpu"
 	sInfo.cpuStat.User = float64(utime / ClockTicks)

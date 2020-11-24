@@ -117,7 +117,7 @@ func TestProcessesByPID(t *testing.T) {
 	pids, err := probe.getActivePIDs()
 	assert.NoError(t, err)
 
-	procByPID, err := probe.ProcessesByPID()
+	procByPID, err := probe.ProcessesByPID(time.Now())
 	assert.NoError(t, err)
 
 	// make sure the process that has no command line doesn't get included in the output
@@ -141,14 +141,16 @@ func TestMultipleProbes(t *testing.T) {
 	probe2 := NewProcessProbe()
 	defer probe2.Close()
 
-	procByPID1, err := probe1.ProcessesByPID()
+	now := time.Now()
+
+	procByPID1, err := probe1.ProcessesByPID(now)
 	assert.NoError(t, err)
-	procByPID2, err := probe2.ProcessesByPID()
+	procByPID2, err := probe2.ProcessesByPID(now)
 	assert.NoError(t, err)
 	for i := 0; i < 10; i++ {
-		currProcByPID1, err := probe1.ProcessesByPID()
+		currProcByPID1, err := probe1.ProcessesByPID(now)
 		assert.NoError(t, err)
-		currProcByPID2, err := probe2.ProcessesByPID()
+		currProcByPID2, err := probe2.ProcessesByPID(now)
 		assert.NoError(t, err)
 		assert.EqualValues(t, currProcByPID1, currProcByPID2)
 		assert.EqualValues(t, currProcByPID1, procByPID1)
@@ -165,7 +167,9 @@ func TestProcfsChange(t *testing.T) {
 	probe := NewProcessProbe()
 	defer probe.Close()
 
-	procByPID, err := probe.ProcessesByPID()
+	now := time.Now()
+
+	procByPID, err := probe.ProcessesByPID(now)
 	assert.NoError(t, err)
 
 	// update the procfs file structure to add a pid, make sure next time it reads in the updates
@@ -175,7 +179,7 @@ func TestProcfsChange(t *testing.T) {
 		err = os.Rename("resources/test_procfs/proc/10389", "resources/10389")
 		assert.NoError(t, err)
 	}()
-	newProcByPID1, err := probe.ProcessesByPID()
+	newProcByPID1, err := probe.ProcessesByPID(now)
 	assert.NoError(t, err)
 	assert.Contains(t, newProcByPID1, int32(10389))
 	assert.NotContains(t, procByPID, int32(10389))
@@ -187,7 +191,7 @@ func TestProcfsChange(t *testing.T) {
 		err = os.Rename("resources/29613", "resources/test_procfs/proc/29613")
 		assert.NoError(t, err)
 	}()
-	newProcByPID2, err := probe.ProcessesByPID()
+	newProcByPID2, err := probe.ProcessesByPID(now)
 	assert.NoError(t, err)
 	assert.NotContains(t, newProcByPID2, int32(29613))
 	assert.Contains(t, procByPID, int32(29613))
@@ -382,45 +386,61 @@ func TestParseStatContent(t *testing.T) {
 	probe := NewProcessProbe()
 	defer probe.Close()
 
+	// hard code the bootTime so we get consistent calculation for createTime
+	probe.bootTime = 1606181252
 	now := time.Now()
 
 	for _, tc := range []struct {
 		line     []byte
 		expected *statInfo
 	}{
+		// standard content
 		{
 			line: []byte("1 (systemd) S 0 1 1 0 -1 4194560 425768 306165945 70 4299 4890 2184 563120 375308 20 0 1 0 15 189849600 1541 18446744073709551615 94223912931328 94223914360080 140733806473072 140733806469312 140053573122579 0 671173123 4096 1260 1 0 0 17 0 0 0 155 0 0 94223914368000 942\n23914514184 94223918080000 140733806477086 140733806477133 140733806477133 140733806477283 0"),
 			expected: &statInfo{
 				ppid:       0,
-				createTime: 1606127264000,
-				nice:       1,
+				createTime: 1606181252000,
 				cpuStat: &CPUTimesStat{
 					CPU:       "cpu",
 					User:      48.9,
 					System:    21.84,
-					Nice:      0,
 					Timestamp: now.Unix(),
 				},
 			},
 		},
+		// command line has brackets around
 		{
 			line: []byte("1 ((sd-pam)) S 0 1 1 0 -1 4194560 425768 306165945 70 4299 4890 2184 563120 375308 20 0 1 0 15 189849600 1541 18446744073709551615 94223912931328 94223914360080 140733806473072 140733806469312 140053573122579 0 671173123 4096 1260 1 0 0 17 0 0 0 155 0 0 94223914368000 942\n23914514184 94223918080000 140733806477086 140733806477133 140733806477133 140733806477283 0"),
 			expected: &statInfo{
 				ppid:       0,
-				createTime: 1606127264000,
-				nice:       1,
+				createTime: 1606181252000,
 				cpuStat: &CPUTimesStat{
 					CPU:       "cpu",
 					User:      48.9,
 					System:    21.84,
-					Nice:      0,
+					Timestamp: now.Unix(),
+				},
+			},
+		},
+		// fields are separated by multiple white spaces
+		{
+			line: []byte("5  (kworker/0:0H)   S 2 0 0 0 -1   69238880 0 0  0 0  0 0 0 0 0  -20 1 0 17 0 0 18446744073709551615 0 0 0 0 0 0 0 2147483647 0 0 0 0 17 0 0 0 0 0 0 0 0 0 0 0 0 0 0"),
+			expected: &statInfo{
+				ppid:       2,
+				createTime: 1606181252000,
+				cpuStat: &CPUTimesStat{
+					CPU:       "cpu",
+					User:      0,
+					System:    0,
 					Timestamp: now.Unix(),
 				},
 			},
 		},
 	} {
 
-		actual := probe.parseStatContent(tc.line, &statInfo{cpuStat: &CPUTimesStat{}}, now)
+		actual := probe.parseStatContent(tc.line, &statInfo{cpuStat: &CPUTimesStat{}}, int32(1), now)
+		// nice value is fetched at the run time so we just assign the actual value for the sake for comparison
+		tc.expected.nice = actual.nice
 		assert.EqualValues(t, tc.expected, actual)
 	}
 }
@@ -448,7 +468,7 @@ func testParseStat(t *testing.T) {
 	assert.NoError(t, err)
 
 	for _, pid := range pids {
-		actual := probe.parseStat(filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid))), time.Now())
+		actual := probe.parseStat(filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid))), pid, time.Now())
 		expProc, err := process.NewProcess(pid)
 		assert.NoError(t, err)
 		expCreate, err := expProc.CreateTime()
@@ -457,11 +477,14 @@ func testParseStat(t *testing.T) {
 		assert.NoError(t, err)
 		exptimes, err := expProc.Times()
 		assert.NoError(t, err)
+		expNice, err := expProc.Nice()
+		assert.NoError(t, err)
 
 		assert.Equal(t, expCreate, actual.createTime)
 		assert.Equal(t, expPpid, actual.ppid)
 		assert.Equal(t, exptimes.User, actual.cpuStat.User)
 		assert.Equal(t, exptimes.System, actual.cpuStat.System)
+		assert.Equal(t, expNice, actual.nice, pid)
 	}
 }
 
@@ -469,9 +492,14 @@ func TestBootTime(t *testing.T) {
 	bootT, err := bootTime("resources/test_procfs/proc/")
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(1606127264), bootT)
+}
 
-	// use local procfs to test and compare with gopsutil
-	// NOTE: this local procfs test is not skipped because we could get consistent reading
+func TestBootTimeLocalFS(t *testing.T) {
+	// this test doesn't work when running with other tests,
+	// because bootTime is cached in gopsutil as module level variable
+	// but we could use it to test locally
+	t.Skip("flaky test in CI")
+
 	probe := NewProcessProbe()
 	defer probe.Close()
 	expectT, err := host.BootTime()
