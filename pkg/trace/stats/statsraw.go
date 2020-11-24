@@ -22,12 +22,17 @@ type groupedStats struct {
 	duration                float64
 	durationDistribution    *quantile.SliceSummary
 	errDurationDistribution *quantile.SliceSummary
+	sublayerStats           map[sublayerKey]sublayerStat
 }
 
-type sublayerStats struct {
+type sublayerStat struct {
 	topLevel float64
+	value    int64
+}
 
-	value int64
+type sublayerKey struct {
+	Metric string
+	Tag    Tag
 }
 
 func newGroupedStats() *groupedStats {
@@ -42,12 +47,6 @@ type statsKey struct {
 	aggr aggregation
 }
 
-type statsSubKey struct {
-	name string
-	sub  SublayerValue
-	aggr aggregation
-}
-
 // RawBucket is used to compute span data and aggregate it
 // within a time-framed bucket. This should not be used outside
 // the agent, use Bucket for this.
@@ -58,8 +57,7 @@ type RawBucket struct {
 	duration int64 // duration of a bucket in nanoseconds
 
 	// this should really remain private as it's subject to refactoring
-	data         map[statsKey]*groupedStats
-	sublayerData map[statsSubKey]*sublayerStats
+	data map[statsKey]*groupedStats
 
 	// internal buffer for aggregate strings - not threadsafe
 	keyBuf bytes.Buffer
@@ -69,10 +67,9 @@ type RawBucket struct {
 func NewRawBucket(ts, d int64) *RawBucket {
 	// The only non-initialized value is the Duration which should be set by whoever closes that bucket
 	return &RawBucket{
-		start:        ts,
-		duration:     d,
-		data:         make(map[statsKey]*groupedStats),
-		sublayerData: make(map[statsSubKey]*sublayerStats),
+		start:    ts,
+		duration: d,
+		data:     make(map[statsKey]*groupedStats),
 	}
 }
 
@@ -126,17 +123,17 @@ func (sb *RawBucket) Export() Bucket {
 			TopLevel: v.topLevel,
 			Summary:  v.errDurationDistribution,
 		}
-	}
-	for k, v := range sb.sublayerData {
-		key := GrainKey(k.name, k.sub.Metric, k.aggr) + "," + k.sub.Tag.Name + ":" + k.sub.Tag.Value
-		tagSet := append(k.aggr.toTags(), k.sub.Tag)
-		ret.Counts[key] = Count{
-			Key:      key,
-			Name:     k.name,
-			Measure:  k.sub.Metric,
-			TagSet:   tagSet,
-			TopLevel: v.topLevel,
-			Value:    float64(v.value),
+		for sk, sv := range v.sublayerStats {
+			key := GrainKey(k.name, sk.Metric, k.aggr) + "," + sk.Tag.Name + ":" + sk.Tag.Value
+			tagSet := append(k.aggr.toTags(), sk.Tag)
+			ret.Counts[key] = Count{
+				Key:      key,
+				Name:     k.name,
+				Measure:  sk.Metric,
+				TagSet:   tagSet,
+				TopLevel: sv.topLevel,
+				Value:    float64(sv.value),
+			}
 		}
 	}
 	return ret
@@ -149,14 +146,11 @@ func (sb *RawBucket) HandleSpan(s *WeightedSpan, env string, sublayers []Sublaye
 	}
 
 	aggr := newAggregationFromSpan(s.Span, env)
-	sb.add(s, aggr)
+	sb.add(s, aggr, sublayers)
 
-	for _, sub := range sublayers {
-		sb.addSublayer(s, aggr, sub)
-	}
 }
 
-func (sb *RawBucket) add(s *WeightedSpan, aggr aggregation) {
+func (sb *RawBucket) add(s *WeightedSpan, aggr aggregation, sublayers []SublayerValue) {
 	var gs *groupedStats
 	var ok bool
 
@@ -184,29 +178,28 @@ func (sb *RawBucket) add(s *WeightedSpan, aggr aggregation) {
 	if s.Error != 0 {
 		gs.errDurationDistribution.Insert(trundur)
 	}
-}
 
-func (sb *RawBucket) addSublayer(s *WeightedSpan, aggr aggregation, sub SublayerValue) {
-	// This is not as efficient as a "regular" add as we don't update
-	// all sublayers at once (one call for HITS, and another one for ERRORS, DURATION...)
-	// when logically, if we have a sublayer for HITS, we also have one for DURATION,
-	// they should indeed come together. Still room for improvement here.
+	for _, sub := range sublayers {
+		var ss sublayerStat
+		var ok bool
 
-	var ss *sublayerStats
-	var ok bool
+		sKey := sublayerKey{sub.Metric, sub.Tag}
+		if ss, ok = gs.sublayerStats[sKey]; !ok {
+			if gs.sublayerStats == nil {
+				// there are 3 types of sublayers
+				gs.sublayerStats = make(map[sublayerKey]sublayerStat, 3)
+			}
+			ss = sublayerStat{}
+		}
 
-	key := statsSubKey{name: s.Name, sub: sub, aggr: aggr}
-	if ss, ok = sb.sublayerData[key]; !ok {
-		ss = &sublayerStats{}
-		sb.sublayerData[key] = ss
+		if s.TopLevel {
+			ss.topLevel += s.Weight
+		}
+
+		ss.value += int64(s.Weight * sub.Value)
+
+		gs.sublayerStats[sKey] = ss
 	}
-
-	if s.TopLevel {
-		ss.topLevel += s.Weight
-	}
-
-	ss.value += int64(s.Weight * sub.Value)
-
 }
 
 // 10 bits precision (any value will be +/- 1/1024)
