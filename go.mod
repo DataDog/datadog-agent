@@ -106,6 +106,8 @@ require (
 	github.com/golang/mock v1.3.1
 	github.com/golang/protobuf v1.4.3
 	github.com/google/gopacket v1.1.17
+	github.com/google/pprof v0.0.0-20201117184057-ae444373da19
+	github.com/google/uuid v1.1.1
 	github.com/gorilla/mux v1.7.4
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.0
 	github.com/grpc-ecosystem/grpc-gateway v1.14.1

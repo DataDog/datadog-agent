@@ -8,141 +8,172 @@
 package tests
 
 import (
+	"flag"
 	"os"
 	"path"
-	"syscall"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/cihub/seelog"
+
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
-func benchmarkOpen(b *testing.B, rule *rules.RuleDefinition, pathname string, size int) {
+var keepProfile bool
+var reportFile string
+var diffBase string
+
+// Stress test of open syscalls
+func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size int) {
 	var rules []*rules.RuleDefinition
 	if rule != nil {
 		rules = append(rules, rule)
 	}
 
-	test, err := newTestModule(nil, rules, testOpts{wantProbeEvents: true})
+	test, err := newTestModule(nil, rules, testOpts{})
 	if err != nil {
-		b.Fatal(err)
+		t.Fatal(err)
 	}
 	defer test.Close()
 
 	testFolder, _, err := test.Path(path.Dir(pathname))
 	if err != nil {
-		b.Fatal(err)
+		t.Fatal(err)
 	}
 
 	os.MkdirAll(testFolder, os.ModePerm)
 
 	testFile, _, err := test.Path(pathname)
 	if err != nil {
-		b.Fatal(err)
+		t.Fatal(err)
 	}
 
 	eventsStats := test.probe.GetEventsStats()
 	eventsStats.GetAndResetLost()
 
-	b.ResetTimer()
-
-	count := 0
+	events := 0
 	go func() {
-		for event := range test.probeHandler.events {
-			if probe.EventType(event.Type) == probe.FileOpenEventType {
-				if flags := event.Open.Flags; flags&syscall.O_CREAT != 0 {
-					filename, err := event.GetFieldValue("open.filename")
-					if err == nil && filename.(string) == testFile {
-						count++
-					}
-				}
-			}
+		for range test.events {
+			events++
 		}
 	}()
 
-	for i := 0; i < b.N; i++ {
+	var prevLogLevel seelog.LogLevel
+
+	pre := func() (err error) {
+		prevLogLevel, err = test.SwapLogLevel(seelog.ErrorLvl)
+		return err
+	}
+
+	post := func() error {
+		_, err := test.SwapLogLevel(prevLogLevel)
+		return err
+	}
+
+	fnc := func() error {
 		f, err := os.Create(testFile)
 		if err != nil {
-			b.Fatal(err)
+			return err
 		}
 
 		if size > 0 {
 			data := make([]byte, size, size)
 			if n, err := f.Write(data); err != nil || n != 1024 {
-				b.Fatal(err)
+				return err
 			}
 		}
 
 		if err := f.Close(); err != nil {
-			b.Fatal(err)
+			return err
 		}
+
+		return nil
 	}
 
-	time.Sleep(5 * time.Second)
+	opts := StressOpts{
+		Duration:    30 * time.Second,
+		KeepProfile: keepProfile,
+		DiffBase:    diffBase,
+		TopFrom:     "module",
+		ReportFile:  reportFile,
+	}
 
-	lost := eventsStats.GetLost()
+	report, err := StressIt(t, pre, post, fnc, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	b.ReportMetric(float64(lost), "lost")
-	b.ReportMetric(float64(count), "events")
-	b.ReportMetric(100*float64(count)/float64(b.N), "%seen")
-	b.ReportMetric(100*float64(lost)/float64(b.N), "%lost")
+	report.AddMetric("lost", float64(eventsStats.GetLost()), "lost")
+	report.AddMetric("events", float64(events), "events")
+	report.AddMetric("events/sec", float64(events)/report.Duration.Seconds(), "event/s")
+
+	report.Print()
+
+	if report.Delta() < -0.10 {
+		t.Error("unexpected performance degradation")
+	}
 }
 
 // goal: measure host abality to handle open syscall without any kprobe, act as a reference
 // this benchmark generate syscall but without having kprobe installed
 
-func BenchmarkE2EOpenNoKprobe(b *testing.B) {
-	benchmarkOpen(b, nil, "folder1/folder2/folder1/folder2/test", 0)
+func TestStress_E2EOpenNoKprobe(t *testing.T) {
+	stressOpen(t, nil, "folder1/folder2/folder1/folder2/test", 0)
 }
 
 // goal: measure the impact of an event catched and passed from the kernel to the userspace
 // this benchmark generate event that passs from the kernel to the userspace
-func BenchmarkE2EOpenEvent(b *testing.B) {
+func TestStress_E2EOpenEvent(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.filename == "{{.Root}}/folder1/folder2/test" && open.flags & O_CREAT != 0`,
 	}
 
-	benchmarkOpen(b, rule, "folder1/folder2/test", 0)
+	stressOpen(t, rule, "folder1/folder2/test", 0)
 }
 
 // goal: measure the impact on the kprobe only
 // this benchmark generate syscall but without having event generated
-func BenchmarkE2EOpenNoEvent(b *testing.B) {
+func TestStress_E2EOpenNoEvent(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.filename == "{{.Root}}/folder1/folder2/test-no-event" && open.flags & O_APPEND != 0`,
 	}
 
-	benchmarkOpen(b, rule, "folder1/folder2/test", 0)
+	stressOpen(t, rule, "folder1/folder2/test", 0)
 }
 
 // goal: measure the impact of an event catched and passed from the kernel to the userspace
 // this benchmark generate event that passs from the kernel to the userspace
-func BenchmarkE2EOpenWrite1KEvent(b *testing.B) {
+func TestStress_E2EOpenWrite1KEvent(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.filename == "{{.Root}}/folder1/folder2/test" && open.flags & O_CREAT != 0`,
 	}
 
-	benchmarkOpen(b, rule, "folder1/folder2/test", 1024)
+	stressOpen(t, rule, "folder1/folder2/test", 1024)
 }
 
 // goal: measure host abality to handle open syscall without any kprobe, act as a reference
 // this benchmark generate syscall but without having kprobe installed
 
-func BenchmarkE2EOpenWrite1KNoKprobe(b *testing.B) {
-	benchmarkOpen(b, nil, "folder1/folder2/test", 1024)
+func TestStress_E2EOpenWrite1KNoKprobe(t *testing.T) {
+	stressOpen(t, nil, "folder1/folder2/test", 1024)
 }
 
 // goal: measure the impact on the kprobe only
 // this benchmark generate syscall but without having event generated
-func BenchmarkE2EOpenWrite1KNoEvent(b *testing.B) {
+func TestStress_E2EOpenWrite1KNoEvent(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.filename == "{{.Root}}/folder1/folder2/test-no-event" && open.flags & O_APPEND != 0`,
 	}
 
-	benchmarkOpen(b, rule, "folder1/folder2/test", 1024)
+	stressOpen(t, rule, "folder1/folder2/test", 1024)
+}
+
+func init() {
+	flag.BoolVar(&keepProfile, "keep-profile", false, "do not delete profile after run")
+	flag.StringVar(&reportFile, "report-file", "", "save report of the stress test")
+	flag.StringVar(&diffBase, "diff-base", "", "source of base stress report for comparison")
 }

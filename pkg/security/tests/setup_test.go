@@ -52,6 +52,8 @@ runtime_security_config:
   enabled: true
   socket: /tmp/test-security-probe.sock
   flush_discarder_window: 0
+  load_controller:
+    events_count_threshold: 100000000
 {{if .DisableFilters}}
   enable_kernel_filters: false
 {{end}}
@@ -101,6 +103,7 @@ type testOpts struct {
 	disableApprovers  bool
 	disableDiscarders bool
 	wantProbeEvents   bool
+	logLevel          seelog.LogLevel
 }
 
 type testModule struct {
@@ -234,7 +237,16 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 		}
 	}()
 
-	st, err := newSimpleTest(macros, rules, opts.testDir)
+	var logLevel seelog.LogLevel = seelog.InfoLvl
+	if testing.Verbose() {
+		logLevel = seelog.TraceLvl
+	}
+
+	if opts.logLevel != seelog.TraceLvl {
+		logLevel = opts.logLevel
+	}
+
+	st, err := newSimpleTest(macros, rules, opts.testDir, logLevel)
 	if err != nil {
 		return nil, err
 	}
@@ -312,6 +324,10 @@ func (tm *testModule) reloadConfiguration() error {
 
 func (tm *testModule) Root() string {
 	return tm.st.root
+}
+
+func (tm *testModule) SwapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, error) {
+	return tm.st.swapLogLevel(logLevel)
 }
 
 func (tm *testModule) RuleMatch(rule *rules.Rule, event eval.Event) {
@@ -409,6 +425,7 @@ func (tm *testModule) Close() {
 type simpleTest struct {
 	root     string
 	toRemove bool
+	logLevel seelog.LogLevel
 }
 
 func (t *simpleTest) Close() {
@@ -467,47 +484,53 @@ func (t *simpleTest) load(macros []*rules.MacroDefinition, rules []*rules.RuleDe
 
 var logInitilialized bool
 
-func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, testDir string) (*simpleTest, error) {
-	var err error
-
-	if !logInitilialized {
-		var logLevel seelog.LogLevel = seelog.InfoLvl
-		if testing.Verbose() {
-			logLevel = seelog.TraceLvl
-		}
-
-		constraints, err := seelog.NewMinMaxConstraints(logLevel, seelog.CriticalLvl)
-		if err != nil {
-			return nil, err
-		}
-
-		formatter, err := seelog.NewFormatter("%Ns [%LEVEL] %Func %Line %Msg\n")
-		if err != nil {
-			return nil, err
-		}
-
-		dispatcher, err := seelog.NewSplitDispatcher(formatter, []interface{}{os.Stderr})
-		if err != nil {
-			return nil, err
-		}
-
-		specificConstraints, _ := seelog.NewListConstraints([]seelog.LogLevel{})
-		ex, _ := seelog.NewLogLevelException("*.Snapshot", "*", specificConstraints)
-		exceptions := []*seelog.LogLevelException{ex}
-
-		logger := seelog.NewAsyncLoopLogger(seelog.NewLoggerConfig(constraints, exceptions, dispatcher))
-
-		err = seelog.ReplaceLogger(logger)
-		if err != nil {
-			return nil, err
-		}
-		log.SetupLogger(logger, logLevel.String())
-
-		logInitilialized = true
+func (t *simpleTest) swapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, error) {
+	constraints, err := seelog.NewMinMaxConstraints(logLevel, seelog.CriticalLvl)
+	if err != nil {
+		return t.logLevel, err
 	}
+
+	formatter, err := seelog.NewFormatter("%Ns [%LEVEL] %Func %Line %Msg\n")
+	if err != nil {
+		return t.logLevel, err
+	}
+
+	dispatcher, err := seelog.NewSplitDispatcher(formatter, []interface{}{os.Stderr})
+	if err != nil {
+		return t.logLevel, err
+	}
+
+	specificConstraints, _ := seelog.NewListConstraints([]seelog.LogLevel{})
+	ex, _ := seelog.NewLogLevelException("*.Snapshot", "*", specificConstraints)
+	exceptions := []*seelog.LogLevelException{ex}
+
+	logger := seelog.NewAsyncLoopLogger(seelog.NewLoggerConfig(constraints, exceptions, dispatcher))
+
+	err = seelog.ReplaceLogger(logger)
+	if err != nil {
+		return t.logLevel, err
+	}
+	log.SetupLogger(logger, logLevel.String())
+
+	prevLevel := t.logLevel
+	t.logLevel = logLevel
+
+	return prevLevel, nil
+}
+
+func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, testDir string, logLevel seelog.LogLevel) (*simpleTest, error) {
+	var err error
 
 	t := &simpleTest{
 		root: testDir,
+	}
+
+	if !logInitilialized {
+		if _, err := t.swapLogLevel(logLevel); err != nil {
+			return nil, err
+		}
+
+		logInitilialized = true
 	}
 
 	if testDir == "" {
