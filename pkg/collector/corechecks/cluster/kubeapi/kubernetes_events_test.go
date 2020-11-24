@@ -13,11 +13,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	obj "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/StackVista/stackstate-agent/pkg/aggregator/mocksender"
 	core "github.com/StackVista/stackstate-agent/pkg/collector/corechecks"
+	"github.com/StackVista/stackstate-agent/pkg/collector/corechecks/cluster/urn"
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/metrics"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/clustername"
@@ -65,6 +66,13 @@ func TestProcessBundledEvents(t *testing.T) {
 			CheckBase:             core.NewCheckBase(kubernetesAPIEventsCheckName),
 			KubeAPIServerHostname: "hostname",
 		},
+		mapperFactory: func(d OpenShiftDetector, clusterName string) *kubernetesEventMapper {
+			return &kubernetesEventMapper{
+				urn: urn.NewURNBuilder(urn.Kubernetes, clusterName),
+				clusterName: clusterName,
+				sourceType: string(urn.Kubernetes),
+			}
+		}
 	}
 	// Several new events, testing aggregation
 	// Not testing full match of the event message as the order of the actions in the summary isn't guaranteed
@@ -81,10 +89,9 @@ func TestProcessBundledEvents(t *testing.T) {
 	// We are only expecting one bundle event.
 	// We need to check that the countByAction concatenated string contains the source events.
 	// As the order is not guaranteed we want to use contains.
-	res := (mocked.Calls[0].Arguments.Get(0)).(metrics.Event).Text
-	assert.Contains(t, res, "2 **Scheduled**")
-	assert.Contains(t, res, "3 **Started**")
-	mocked.AssertNumberOfCalls(t, "Event", 1)
+	res1 := (mocked.Calls[0].Arguments.Get(0)).(metrics.Event)
+	assert.Contains(t, res1.Title, "Scheduled - dca-789976f5d7-2ljx6 Pod")
+	mocked.AssertNumberOfCalls(t, "Event", 2)
 	mocked.AssertExpectations(t)
 
 	// Several modified events, timestamp is the latest, event submitted has the correct key and count.

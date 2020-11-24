@@ -42,6 +42,7 @@ type EventsCheck struct {
 	instance           *EventsConfig
 	latestEventToken   string
 	configMapAvailable bool
+	mapperFactory      KubernetesEventMapperFactory
 }
 
 func (c *EventsConfig) parse(data []byte) error {
@@ -125,6 +126,7 @@ func KubernetesApiEventsFactory() check.Check {
 			CheckBase: core.NewCheckBase(kubernetesAPIEventsCheckName),
 		},
 		instance: &EventsConfig{},
+		mapperFactory: newKubernetesEventMapper,
 	}
 }
 
@@ -201,7 +203,7 @@ func (k *EventsCheck) processEvents(sender aggregator.Sender, events []*v1.Event
 	filteredByType := make(map[string]int)
 
 	clusterName := clustername.GetClusterName()
-	mapper := newKubernetesEventMapper(k.ac, clusterName)
+	mapper := k.mapperFactory(k.ac, clusterName)
 
 	for _, event := range events {
 		filtered := false
