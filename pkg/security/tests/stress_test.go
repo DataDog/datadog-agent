@@ -123,7 +123,7 @@ func BenchmarkE2EOpenNoEvent(b *testing.B) {
 func BenchmarkE2EOpenWrite1KEvent(b *testing.B) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.filename == "{{.Root}}/"folder1/folder2/test" && open.flags & O_CREAT != 0`,
+		Expression: `open.filename == "{{.Root}}/folder1/folder2/test" && open.flags & O_CREAT != 0`,
 	}
 
 	benchmarkOpen(b, rule, "folder1/folder2/test", 1024)
