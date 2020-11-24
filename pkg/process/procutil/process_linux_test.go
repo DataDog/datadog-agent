@@ -503,3 +503,71 @@ func TestBootTimeLocalFS(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expectT, probe.bootTime)
 }
+
+func TestParseStatmTestFS(t *testing.T) {
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc/")
+	defer os.Unsetenv("HOST_PROC")
+
+	testParseStatm(t)
+}
+
+func TestParseStatmLocalFS(t *testing.T) {
+	// this test is flaky as the underlying procfs could change during
+	// the comparison of procutil and gopsutil,
+	// but we could use it to test locally
+	t.Skip("flaky test in CI")
+	testParseStatm(t)
+}
+
+func testParseStatm(t *testing.T) {
+	probe := NewProcessProbe()
+	defer probe.Close()
+
+	pids, err := probe.getActivePIDs()
+	assert.NoError(t, err)
+
+	for _, pid := range pids {
+		actual := probe.parseStatm(filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid))))
+		expProc, err := process.NewProcess(pid)
+		assert.NoError(t, err)
+		memInfo, err := expProc.MemoryInfoEx()
+		assert.NoError(t, err)
+		assert.Equal(t, memInfo.VMS, actual.VMS)
+		assert.Equal(t, memInfo.RSS, actual.RSS, pid)
+		assert.Equal(t, memInfo.Shared, actual.Shared)
+		assert.Equal(t, memInfo.Text, actual.Text)
+		assert.Equal(t, memInfo.Lib, actual.Lib)
+		assert.Equal(t, memInfo.Data, actual.Data)
+		assert.Equal(t, memInfo.Dirty, actual.Dirty)
+	}
+}
+
+func TestParseStatmStatusMatchTestFS(t *testing.T) {
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc/")
+	defer os.Unsetenv("HOST_PROC")
+
+	testParseStatmStatusMatch(t)
+}
+
+func TestParseStatmStatusMatchLocalFS(t *testing.T) {
+	// this test is flaky as the underlying procfs could change during
+	// the comparison of procutil and gopsutil,
+	// but we could use it to test locally
+	t.Skip("flaky test in CI")
+	testParseStatmStatusMatch(t)
+}
+
+func testParseStatmStatusMatch(t *testing.T) {
+	probe := NewProcessProbe()
+	defer probe.Close()
+
+	pids, err := probe.getActivePIDs()
+	assert.NoError(t, err)
+
+	for _, pid := range pids {
+		statm := probe.parseStatm(filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid))))
+		status := probe.parseStatus(filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid))))
+		assert.Equal(t, statm.VMS, status.memInfo.VMS)
+		assert.Equal(t, statm.RSS, status.memInfo.RSS)
+	}
+}

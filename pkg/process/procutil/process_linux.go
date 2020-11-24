@@ -110,6 +110,7 @@ func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 		statusInfo := p.parseStatus(pathForPID)
 		ioInfo := p.parseIO(pathForPID)
 		statInfo := p.parseStat(pathForPID, pid, now)
+		memInfoEx := p.parseStatm(pathForPID)
 
 		procsByPID[pid] = &Process{
 			Pid:     pid,               // /proc/{pid}
@@ -124,7 +125,8 @@ func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 				CreateTime:  statInfo.createTime,    // /proc/{pid}/{stat}
 				Nice:        statInfo.nice,          // /proc/{pid}/{stat}
 				CPUTime:     statInfo.cpuStat,       // /proc/{pid}/{stat}
-				MemInfo:     statusInfo.memInfo,     // /proc/{pid}/status or statm
+				MemInfo:     statusInfo.memInfo,     // /proc/{pid}/status
+				MemInfoEx:   memInfoEx,              // /proc/{pid}/statm
 				CtxSwitches: statusInfo.ctxSwitches, // /proc/{pid}/status
 				NumThreads:  statusInfo.numThreads,  // /proc/{pid}/status
 				IOStat:      ioInfo,                 // /proc/{pid}/io, requires permission checks
@@ -136,7 +138,7 @@ func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 }
 
 func (p *Probe) getRootProcFile() (*os.File, error) {
-	if p.procRootFile != nil { // TODO (sk): Should we consider refreshing the file descriptor occasionally?
+	if p.procRootFile != nil {
 		return p.procRootFile, nil
 	}
 
@@ -452,49 +454,46 @@ func (p *Probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 	return sInfo
 }
 
-// Get memory info from /proc/(pid)/statm
-func (p *Probe) parseStatm(pidPath string) (*MemoryInfoStat, *MemoryInfoExStat) {
+// parseStatm gets memory info from /proc/(pid)/statm
+func (p *Probe) parseStatm(pidPath string) *MemoryInfoExStat {
 	path := filepath.Join(pidPath, "statm")
 	var err error
 
-	memInfo := &MemoryInfoStat{}
 	memInfoEx := &MemoryInfoExStat{}
 
 	contents, err := ioutil.ReadFile(path)
 	if err != nil {
-		return memInfo, memInfoEx
+		return memInfoEx
 	}
 	fields := strings.Split(string(contents), " ")
 
 	vms, err := strconv.ParseUint(fields[0], 10, 64)
 	if err != nil {
-		return memInfo, memInfoEx
+		return memInfoEx
 	}
 	rss, err := strconv.ParseUint(fields[1], 10, 64)
 	if err != nil {
-		return memInfo, memInfoEx
+		return memInfoEx
 	}
-
-	memInfo.RSS = rss * PageSize
-	memInfo.VMS = vms * PageSize
 
 	shared, err := strconv.ParseUint(fields[2], 10, 64)
 	if err != nil {
-		return memInfo, memInfoEx
+		return memInfoEx
 	}
 	text, err := strconv.ParseUint(fields[3], 10, 64)
 	if err != nil {
-		return memInfo, memInfoEx
+		return memInfoEx
 	}
 	lib, err := strconv.ParseUint(fields[4], 10, 64)
 	if err != nil {
-		return memInfo, memInfoEx
+		return memInfoEx
 	}
 	dirty, err := strconv.ParseUint(fields[5], 10, 64)
 	if err != nil {
-		return memInfo, memInfoEx
+		return memInfoEx
 	}
 
+	// the numbers here are per-page, to get real numbers we multiply by PageSize
 	memInfoEx.RSS = rss * PageSize
 	memInfoEx.VMS = vms * PageSize
 	memInfoEx.Shared = shared * PageSize
@@ -502,7 +501,7 @@ func (p *Probe) parseStatm(pidPath string) (*MemoryInfoStat, *MemoryInfoExStat) 
 	memInfoEx.Lib = lib * PageSize
 	memInfoEx.Dirty = dirty * PageSize
 
-	return memInfo, memInfoEx
+	return memInfoEx
 }
 
 // ensurePathReadable ensures that the current user is able to read the path before opening it.
