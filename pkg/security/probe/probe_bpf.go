@@ -127,6 +127,7 @@ func (p *Probe) Init() error {
 	if err != nil {
 		return err
 	}
+	defer bytecodeReader.Close()
 
 	p.manager = ebpf.NewRuntimeSecurityManager()
 

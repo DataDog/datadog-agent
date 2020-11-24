@@ -133,6 +133,7 @@ func TestDNSOverUDPSnooping(t *testing.T) {
 	cfg := config.NewDefaultConfig()
 	buf, err := netebpf.ReadBPFModule(cfg.BPFDir, false)
 	require.NoError(t, err)
+	defer buf.Close()
 
 	m, reverseDNS := getSnooper(t, buf, false, false, 15*time.Second)
 	defer m.Stop(manager.CleanAll)
@@ -190,6 +191,7 @@ func initDNSTests(t *testing.T, localDNS bool) (*manager.Manager, *SocketFilterS
 	cfg := config.NewDefaultConfig()
 	buf, err := netebpf.ReadBPFModule(cfg.BPFDir, false)
 	require.NoError(t, err)
+	defer buf.Close()
 	return getSnooper(t, buf, true, localDNS, 1*time.Second)
 }
 
@@ -387,6 +389,7 @@ func TestParsingError(t *testing.T) {
 	cfg := config.NewDefaultConfig()
 	buf, err := netebpf.ReadBPFModule(cfg.BPFDir, false)
 	require.NoError(t, err)
+	defer buf.Close()
 
 	m, reverseDNS := getSnooper(t, buf, false, false, 15*time.Second)
 	defer m.Stop(manager.CleanAll)

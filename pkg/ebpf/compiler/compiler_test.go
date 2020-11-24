@@ -47,6 +47,7 @@ func TestCompilerMatch(t *testing.T) {
 	bundleFilename := "offset-guess.o"
 	actualReader, err := bytecode.GetReader(cfg.BPFDir, bundleFilename)
 	require.NoError(t, err)
+	defer actualReader.Close()
 
 	actual, err := ioutil.ReadAll(actualReader)
 	require.NoError(t, err)

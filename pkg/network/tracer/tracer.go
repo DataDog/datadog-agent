@@ -5,7 +5,6 @@ package tracer
 import (
 	"expvar"
 	"fmt"
-	"io"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -153,7 +152,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		},
 	}
 
-	var buf io.ReaderAt
+	var buf bytecode.AssetReader
 	if config.EnableRuntimeCompiler {
 		of, err := getRuntimeCompiledTracer(config)
 		if err != nil {
@@ -166,11 +165,13 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		if err != nil {
 			return nil, fmt.Errorf("could not read bpf module: %s", err)
 		}
+		defer buf.Close()
 
 		offsetBuf, err := netebpf.ReadOffsetBPFModule(config.BPFDir, config.BPFDebug)
 		if err != nil {
 			return nil, fmt.Errorf("could not read offset bpf module: %s", err)
 		}
+		defer offsetBuf.Close()
 
 		mgrOptions.ConstantEditors, err = runOffsetGuessing(config, offsetBuf)
 		if err != nil {

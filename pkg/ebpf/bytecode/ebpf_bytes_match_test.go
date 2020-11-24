@@ -28,6 +28,7 @@ func TestEbpfBytesCorrect(t *testing.T) {
 
 		actualReader, err := GetReader(dir, filename)
 		require.NoError(t, err)
+		defer actualReader.Close()
 
 		actual, err := ioutil.ReadAll(actualReader)
 		require.NoError(t, err)
