@@ -35,7 +35,7 @@ if linux?
   dependency 'nfsiostat'
   # add libkrb5 for all integrations supporting kerberos auth with `requests-kerberos`
   dependency 'libkrb5'
-
+  # need for glusterfs
   dependency 'gstatus'
 
   unless suse? || arm?
