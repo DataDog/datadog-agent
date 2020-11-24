@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    Add `--table` option to `agent check` command to output
+    Add ``--table`` option to ``agent check`` command to output
     results in condensed tabular format instead of JSON.
