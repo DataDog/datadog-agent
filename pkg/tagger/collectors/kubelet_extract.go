@@ -156,6 +156,13 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 
 		// container tags
 		for _, container := range pod.Status.GetAllContainers() {
+			if container.ID == "" {
+				log.Debugf("Cannot collect container tags for container '%s' in pod '%s': Empty container ID", container.Name, pod.Metadata.Name)
+				// This can happen due to kubelet latency
+				// Ignore the container as early as possible to avoid unnecessary processing and warn logging
+				// The container will be detected once again when container.ID is set
+				continue
+			}
 			cTags := tags.Copy()
 			cTags.AddLow("kube_container_name", container.Name)
 			cTags.AddHigh("container_id", kubelet.TrimRuntimeFromCID(container.ID))
