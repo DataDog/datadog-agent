@@ -422,11 +422,11 @@ func (p *Probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 
 	utime, err := strconv.ParseFloat(utimeStr, 64)
 	if err == nil {
-		sInfo.cpuStat.User = float64(utime / ClockTicks)
+		sInfo.cpuStat.User = utime / ClockTicks
 	}
 	stime, err := strconv.ParseFloat(stimeStr, 64)
 	if err == nil {
-		sInfo.cpuStat.System = float64(stime / ClockTicks)
+		sInfo.cpuStat.System = stime / ClockTicks
 	}
 	// the nice parameter location seems to be different for various procfs,
 	// so we fetch that using syscall
