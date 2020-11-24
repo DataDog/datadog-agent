@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/gopsutil/process"
 )
 
-<<<<<<< HEAD
 var snapshotProbeIDs = []manager.ProbeIdentificationPair{
 	{
 		UID:     probes.SecurityAgentUID,
@@ -58,11 +57,6 @@ type ProcessResolver struct {
 	inodeInfoMap   *lib.Map
 	procCacheMap   *lib.Map
 	pidCookieMap   *lib.Map
-=======
-// Copy returns a copy of the current ProcessCacheEntry
-func (pc *ProcessCacheEntry) Copy() *ProcessCacheEntry {
-	dup := *pc
->>>>>>> 9ccdee338... Add ancestors support on processes
 
 	entryCache map[uint32]*ProcessCacheEntry
 }

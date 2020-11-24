@@ -93,6 +93,15 @@ func (e ErrIteratorNotSupported) Error() string {
 	return fmt.Sprintf("field `%s` doesn't support iteration", e.Field)
 }
 
+// ErrNotSupported returned when something is not supported on a field
+type ErrNotSupported struct {
+	Field string
+}
+
+func (e ErrNotSupported) Error() string {
+	return fmt.Sprintf("not supported by field `%s`", e.Field)
+}
+
 // ErrValueTypeMismatch error when the given value is not having the correct type
 type ErrValueTypeMismatch struct {
 	Field string

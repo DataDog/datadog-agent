@@ -6,6 +6,7 @@ package probe
 
 import (
 	"reflect"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
@@ -679,8 +680,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				var result string
 
 				reg := ctx.Registers[regID]
-				element := (*ProcessCacheEntry)(reg.Value)
-				if element != nil {
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
 
 					result = element.ResolveBasename((*Event)(ctx.Object))
 
@@ -701,8 +702,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				var result string
 
 				reg := ctx.Registers[regID]
-				element := (*ProcessCacheEntry)(reg.Value)
-				if element != nil {
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
 
 					result = element.ResolveContainerPath((*Event)(ctx.Object))
 
@@ -723,8 +724,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				var result int
 
 				reg := ctx.Registers[regID]
-				element := (*ProcessCacheEntry)(reg.Value)
-				if element != nil {
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
 
 					result = int(element.ResolveCookie((*Event)(ctx.Object)))
 
@@ -745,8 +746,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				var result string
 
 				reg := ctx.Registers[regID]
-				element := (*ProcessCacheEntry)(reg.Value)
-				if element != nil {
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
 
 					result = element.ResolveInode((*Event)(ctx.Object))
 
@@ -767,8 +768,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				var result int
 
 				reg := ctx.Registers[regID]
-				element := (*ProcessCacheEntry)(reg.Value)
-				if element != nil {
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
 
 					result = int(element.GID)
 
@@ -789,8 +790,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				var result string
 
 				reg := ctx.Registers[regID]
-				element := (*ProcessCacheEntry)(reg.Value)
-				if element != nil {
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
 
 					result = element.ResolveGroup((*Event)(ctx.Object))
 
@@ -811,8 +812,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				var result string
 
 				reg := ctx.Registers[regID]
-				element := (*ProcessCacheEntry)(reg.Value)
-				if element != nil {
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
 
 					result = element.ResolveContainerID((*Event)(ctx.Object))
 
@@ -833,8 +834,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				var result int
 
 				reg := ctx.Registers[regID]
-				element := (*ProcessCacheEntry)(reg.Value)
-				if element != nil {
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
 
 					result = int(element.Inode)
 
@@ -855,8 +856,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				var result string
 
 				reg := ctx.Registers[regID]
-				element := (*ProcessCacheEntry)(reg.Value)
-				if element != nil {
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
 
 					result = element.ResolveComm((*Event)(ctx.Object))
 
@@ -877,8 +878,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				var result int
 
 				reg := ctx.Registers[regID]
-				element := (*ProcessCacheEntry)(reg.Value)
-				if element != nil {
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
 
 					result = int(element.OverlayNumLower)
 
@@ -899,8 +900,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				var result int
 
 				reg := ctx.Registers[regID]
-				element := (*ProcessCacheEntry)(reg.Value)
-				if element != nil {
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
 
 					result = int(element.Pid)
 
@@ -921,8 +922,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				var result int
 
 				reg := ctx.Registers[regID]
-				element := (*ProcessCacheEntry)(reg.Value)
-				if element != nil {
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
 
 					result = int(element.ResolvePPID((*Event)(ctx.Object)))
 
@@ -943,8 +944,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				var result int
 
 				reg := ctx.Registers[regID]
-				element := (*ProcessCacheEntry)(reg.Value)
-				if element != nil {
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
 
 					result = int(element.Tid)
 
@@ -965,8 +966,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				var result string
 
 				reg := ctx.Registers[regID]
-				element := (*ProcessCacheEntry)(reg.Value)
-				if element != nil {
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
 
 					result = element.ResolveTTY((*Event)(ctx.Object))
 
@@ -987,8 +988,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				var result int
 
 				reg := ctx.Registers[regID]
-				element := (*ProcessCacheEntry)(reg.Value)
-				if element != nil {
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
 
 					result = int(element.UID)
 
@@ -1009,8 +1010,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				var result string
 
 				reg := ctx.Registers[regID]
-				element := (*ProcessCacheEntry)(reg.Value)
-				if element != nil {
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
 
 					result = element.ResolveUser((*Event)(ctx.Object))
 
@@ -1982,67 +1983,355 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "process.ancestors.basename":
 
-		return e.Process.Parent.ResolveBasename(e), nil
+		var values []string
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ResolveBasename((*Event)(ctx.Object))
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
 
 	case "process.ancestors.container_path":
 
-		return e.Process.Parent.ResolveContainerPath(e), nil
+		var values []string
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ResolveContainerPath((*Event)(ctx.Object))
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
 
 	case "process.ancestors.cookie":
 
-		return int(e.Process.Parent.ResolveCookie(e)), nil
+		var values []int
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.ResolveCookie((*Event)(ctx.Object)))
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
 
 	case "process.ancestors.filename":
 
-		return e.Process.Parent.ResolveInode(e), nil
+		var values []string
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ResolveInode((*Event)(ctx.Object))
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
 
 	case "process.ancestors.gid":
 
-		return int(e.Process.Parent.GID), nil
+		var values []int
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.GID)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
 
 	case "process.ancestors.group":
 
-		return e.Process.Parent.ResolveGroup(e), nil
+		var values []string
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ResolveGroup((*Event)(ctx.Object))
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
 
 	case "process.ancestors.id":
 
-		return e.Process.Parent.ResolveContainerID(e), nil
+		var values []string
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ResolveContainerID((*Event)(ctx.Object))
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
 
 	case "process.ancestors.inode":
 
-		return int(e.Process.Parent.Inode), nil
+		var values []int
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.Inode)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
 
 	case "process.ancestors.name":
 
-		return e.Process.Parent.ResolveComm(e), nil
+		var values []string
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ResolveComm((*Event)(ctx.Object))
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
 
 	case "process.ancestors.overlay_numlower":
 
-		return int(e.Process.Parent.OverlayNumLower), nil
+		var values []int
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.OverlayNumLower)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
 
 	case "process.ancestors.pid":
 
-		return int(e.Process.Parent.Pid), nil
+		var values []int
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.Pid)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
 
 	case "process.ancestors.ppid":
 
-		return int(e.Process.Parent.ResolvePPID(e)), nil
+		var values []int
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.ResolvePPID((*Event)(ctx.Object)))
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
 
 	case "process.ancestors.tid":
 
-		return int(e.Process.Parent.Tid), nil
+		var values []int
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.Tid)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
 
 	case "process.ancestors.tty_name":
 
-		return e.Process.Parent.ResolveTTY(e), nil
+		var values []string
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ResolveTTY((*Event)(ctx.Object))
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
 
 	case "process.ancestors.uid":
 
-		return int(e.Process.Parent.UID), nil
+		var values []int
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.UID)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
 
 	case "process.ancestors.user":
 
-		return e.Process.Parent.ResolveUser(e), nil
+		var values []string
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ResolveUser((*Event)(ctx.Object))
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
 
 	case "process.basename":
 
@@ -2915,67 +3204,67 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 	case "process.ancestors.basename":
 
-		return reflect.String, nil
+		return reflect.Slice, nil
 
 	case "process.ancestors.container_path":
 
-		return reflect.String, nil
+		return reflect.Slice, nil
 
 	case "process.ancestors.cookie":
 
-		return reflect.Int, nil
+		return reflect.Slice, nil
 
 	case "process.ancestors.filename":
 
-		return reflect.String, nil
+		return reflect.Slice, nil
 
 	case "process.ancestors.gid":
 
-		return reflect.Int, nil
+		return reflect.Slice, nil
 
 	case "process.ancestors.group":
 
-		return reflect.String, nil
+		return reflect.Slice, nil
 
 	case "process.ancestors.id":
 
-		return reflect.String, nil
+		return reflect.Slice, nil
 
 	case "process.ancestors.inode":
 
-		return reflect.Int, nil
+		return reflect.Slice, nil
 
 	case "process.ancestors.name":
 
-		return reflect.String, nil
+		return reflect.Slice, nil
 
 	case "process.ancestors.overlay_numlower":
 
-		return reflect.Int, nil
+		return reflect.Slice, nil
 
 	case "process.ancestors.pid":
 
-		return reflect.Int, nil
+		return reflect.Slice, nil
 
 	case "process.ancestors.ppid":
 
-		return reflect.Int, nil
+		return reflect.Slice, nil
 
 	case "process.ancestors.tid":
 
-		return reflect.Int, nil
+		return reflect.Slice, nil
 
 	case "process.ancestors.tty_name":
 
-		return reflect.String, nil
+		return reflect.Slice, nil
 
 	case "process.ancestors.uid":
 
-		return reflect.Int, nil
+		return reflect.Slice, nil
 
 	case "process.ancestors.user":
 
-		return reflect.String, nil
+		return reflect.Slice, nil
 
 	case "process.basename":
 

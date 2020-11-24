@@ -29,9 +29,10 @@ type Event interface {
 	GetPointer() unsafe.Pointer
 }
 
+// Iterator interface of a field iterator
 type Iterator interface {
 	Front(ctx *Context) unsafe.Pointer
-	Next(ctx *Context) unsafe.Pointer
+	Next() unsafe.Pointer
 }
 
 func eventTypesFromFields(model Model, state *state) ([]EventType, error) {

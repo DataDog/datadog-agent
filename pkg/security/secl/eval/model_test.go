@@ -41,7 +41,7 @@ func (t *testItemListIterator) Front(ctx *Context) unsafe.Pointer {
 	return nil
 }
 
-func (t *testItemListIterator) Next(ctx *Context) unsafe.Pointer {
+func (t *testItemListIterator) Next() unsafe.Pointer {
 	if next := (*list.Element)(t.prev).Next(); next != nil {
 		t.prev = next
 		return unsafe.Pointer(next)
@@ -50,10 +50,13 @@ func (t *testItemListIterator) Next(ctx *Context) unsafe.Pointer {
 }
 
 type testItemArrayIterator struct {
+	ctx   *Context
 	index int
 }
 
 func (t *testItemArrayIterator) Front(ctx *Context) unsafe.Pointer {
+	t.ctx = ctx
+
 	array := (*testEvent)(ctx.Object).process.array
 	if t.index < len(array) {
 		t.index++
@@ -62,8 +65,8 @@ func (t *testItemArrayIterator) Front(ctx *Context) unsafe.Pointer {
 	return nil
 }
 
-func (t *testItemArrayIterator) Next(ctx *Context) unsafe.Pointer {
-	array := (*testEvent)(ctx.Object).process.array
+func (t *testItemArrayIterator) Next() unsafe.Pointer {
+	array := (*testEvent)(t.ctx.Object).process.array
 	if t.index < len(array) {
 		value := array[t.index]
 		t.index++

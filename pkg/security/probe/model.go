@@ -1077,7 +1077,7 @@ func (it *ProcessAncestorsIterator) Front(ctx *eval.Context) unsafe.Pointer {
 	return nil
 }
 
-func (it *ProcessAncestorsIterator) Next(ctx *eval.Context) unsafe.Pointer {
+func (it *ProcessAncestorsIterator) Next() unsafe.Pointer {
 	if next := (*ProcessCacheEntry)(it.prev).Parent; next != nil {
 		it.prev = next
 		return unsafe.Pointer(next)

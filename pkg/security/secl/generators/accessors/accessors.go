@@ -163,7 +163,6 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 					fieldAlias := fieldName
 
 					if dejavu[fieldName] {
-						fmt.Printf(">>>>>>>>>>>>>>: %s\n", fieldName)
 						continue
 					}
 
@@ -367,6 +366,7 @@ package {{.Name}}
 
 import (
 	"reflect"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
@@ -399,8 +399,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					var result {{$Field.ReturnType}}
 
 					reg := ctx.Registers[regID]
-					element := (*{{$Field.Iterator.OrigType}})(reg.Value)
-					if element != nil {
+					if reg.Value != nil {
+						element := (*{{$Field.Iterator.OrigType}})(reg.Value)
+
 						{{$SubName := $Field.Iterator.Name | TrimPrefix $Field.Name}}
 
 						{{$Return := $SubName | printf "element%s"}}
@@ -448,18 +449,52 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	switch field {
 		{{range $Name, $Field := .Fields}}
-		{{$Return := $Field.Name | printf "e.%s"}}
-		{{if ne $Field.Handler ""}}
-			{{$Return = $Field.Handler | printf "e.%s(e)"}}
-		{{end}}
-
 		case "{{$Name}}":
-		{{if eq $Field.ReturnType "string"}}
-			return {{$Return}}, nil
-		{{else if eq $Field.ReturnType "int"}}
-			return int({{$Return}}), nil
-		{{else if eq $Field.ReturnType "bool"}}
-			return {{$Return}}, nil
+		{{if $Field.Iterator}}
+			var values []{{$Field.ReturnType}}
+
+			ctx := &eval.Context{}
+			ctx.SetObject(unsafe.Pointer(e))
+
+			iterator := &{{$Field.Iterator.ReturnType}}{}
+			ptr := iterator.Front(ctx)
+
+			for ptr != nil {
+				element := (*{{$Field.Iterator.OrigType}})(ptr)
+
+				{{$SubName := $Field.Iterator.Name | TrimPrefix $Field.Name}}
+
+				{{$Return := $SubName | printf "element%s"}}
+				{{if ne $Field.Handler ""}}
+					{{$Handler := $Field.Iterator.Name | TrimPrefix $Field.Handler}}
+					{{$Return = $Handler | printf "element%s((*Event)(ctx.Object))"}}
+				{{end}}
+
+				{{if eq $Field.ReturnType "int"}}
+					result := int({{$Return}})
+				{{else}}
+					result := {{$Return}}
+				{{end}}
+
+				values = append(values, result)
+
+				ptr = iterator.Next()
+			}
+
+			return values, nil
+		{{else}}
+			{{$Return := $Field.Name | printf "e.%s"}}
+			{{if ne $Field.Handler ""}}
+				{{$Return = $Field.Handler | printf "e.%s(e)"}}
+			{{end}}
+
+			{{if eq $Field.ReturnType "string"}}
+				return {{$Return}}, nil
+			{{else if eq $Field.ReturnType "int"}}
+				return int({{$Return}}), nil
+			{{else if eq $Field.ReturnType "bool"}}
+				return {{$Return}}, nil
+			{{end}}
 		{{end}}
 		{{end}}
 		}
@@ -483,7 +518,9 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		{{range $Name, $Field := .Fields}}
 
 		case "{{$Name}}":
-		{{if eq $Field.ReturnType "string"}}
+		{{if $Field.Iterator}}
+			return reflect.Slice, nil
+		{{else if eq $Field.ReturnType "string"}}
 			return reflect.String, nil
 		{{else if eq $Field.ReturnType "int"}}
 			return reflect.Int, nil

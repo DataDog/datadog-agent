@@ -70,12 +70,23 @@ func TestProcess(t *testing.T) {
 }
 
 func TestProcessContext(t *testing.T) {
-	ruleDef := &rules.RuleDefinition{
-		ID:         "test_rule",
-		Expression: fmt.Sprintf(`open.filename == "{{.Root}}/test-process-context" && open.flags & O_CREAT == 0`),
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{ruleDef}, testOpts{})
+	ruleDefs := []*rules.RuleDefinition{
+		&rules.RuleDefinition{
+			ID:         "test_rule",
+			Expression: fmt.Sprintf(`open.filename == "{{.Root}}/test-process-context" && open.flags & O_CREAT == 0`),
+		},
+		&rules.RuleDefinition{
+			ID:         "test_rule_ancestors",
+			Expression: fmt.Sprintf(`open.filename == "{{.Root}}/test-process-ancestors" && process.ancestors[_].name == "%s"`, path.Base(executable)),
+		},
+	}
+
+	test, err := newTestModule(nil, ruleDefs, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,6 +167,41 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			testContainerPath(t, event, "process.container_path")
+		}
+	})
+
+	t.Run("ancestors", func(t *testing.T) {
+		touch := "/usr/bin/touch"
+		if _, err := os.Stat(executable); err != nil {
+			executable = "/bin/touch"
+		}
+
+		testFile, _, err := test.Path("test-process-ancestors")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		cmd := exec.Command("sh", "-c", touch+" "+testFile)
+		if _, err := cmd.CombinedOutput(); err != nil {
+			t.Error(err)
+		}
+
+		event, rule, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if filename, _ := event.GetFieldValue("process.filename"); filename.(string) != touch {
+				t.Errorf("not able to find the proper process filename `%v` vs `%s`: %v", filename, executable, event)
+			}
+
+			if rule.ID != "test_rule_ancestors" {
+				t.Error("Wrong rule triggered")
+			}
+
+			values, _ := event.GetFieldValue("process.ancestors.name")
+			if names := values.([]string); names[0] != "sh" {
+				t.Error("ancestor expected not found")
+			}
 		}
 	})
 }

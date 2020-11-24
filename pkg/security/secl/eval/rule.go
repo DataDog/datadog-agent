@@ -180,7 +180,7 @@ func handleRegisters(evalFnc BoolEvalFnc, registersInfo map[RegisterID]*register
 				}
 				values = append(values, reg.Value)
 
-				reg.Value = reg.iterator.Next(ctx)
+				reg.Value = reg.iterator.Next()
 			}
 			registerValues[id] = values
 
