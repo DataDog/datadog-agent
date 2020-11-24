@@ -45,6 +45,7 @@ type Module struct {
 	listener     net.Listener
 	statsdClient *statsd.Client
 	rateLimiter  *RateLimiter
+	sigupChan    chan os.Signal
 }
 
 // Register the runtime security agent module
@@ -93,11 +94,10 @@ func (m *Module) Register(httpMux *http.ServeMux) error {
 
 	m.probe.SetEventHandler(m)
 
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, syscall.SIGHUP)
+	signal.Notify(m.sigupChan, syscall.SIGHUP)
 
 	go func() {
-		for range c {
+		for range m.sigupChan {
 			log.Info("Reload configuration")
 
 			if err := m.Reload(); err != nil {
@@ -146,6 +146,8 @@ func (m *Module) Reload() error {
 
 // Close the module
 func (m *Module) Close() {
+	close(m.sigupChan)
+
 	if m.grpcServer != nil {
 		m.grpcServer.Stop()
 	}
@@ -262,6 +264,7 @@ func NewModule(cfg *config.Config) (api.Module, error) {
 		grpcServer:   grpc.NewServer(),
 		statsdClient: statsdClient,
 		rateLimiter:  NewRateLimiter(),
+		sigupChan:    make(chan os.Signal, 1),
 	}
 
 	sapi.RegisterSecurityModuleServer(m.grpcServer, m.eventServer)
