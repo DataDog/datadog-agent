@@ -38,8 +38,6 @@ func init() {
 	}
 }
 
-//go:generate go run ../../ebpf/bytecode/include_headers.go ../ebpf/c/runtime/tracer.c ../../ebpf/bytecode/build/runtime/tracer.c ../ebpf/c ../../ebpf/c
-
 type Tracer struct {
 	m *manager.Manager
 

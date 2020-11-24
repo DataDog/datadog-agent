@@ -3,12 +3,12 @@
 package tracer
 
 import (
-	"crypto/sha256"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/build/runtime"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/compiler"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -20,6 +20,9 @@ type CompiledOutput interface {
 	io.Closer
 }
 
+//go:generate go run ../../ebpf/bytecode/include_headers.go ../ebpf/c/runtime/tracer.c ../../ebpf/bytecode/build/runtime/tracer.c ../ebpf/c ../../ebpf/c
+//go:generate go run ../../ebpf/bytecode/integrity.go ../../ebpf/bytecode/build/runtime/tracer.c ../../ebpf/bytecode/build/runtime/tracer.go runtime
+
 func getRuntimeCompiledTracer(config *config.Config) (CompiledOutput, error) {
 	kv, err := kernel.HostVersion()
 	if err != nil {
@@ -27,10 +30,9 @@ func getRuntimeCompiledTracer(config *config.Config) (CompiledOutput, error) {
 	}
 	pre410Kernel := kv < kernel.VersionCode(4, 1, 0)
 
-	inputFile := filepath.Join(config.BPFDir, "runtime/tracer.c")
-	hash, err := hashInput(inputFile)
+	inputFile, hash, err := runtime.Tracer.Verify(config.BPFDir)
 	if err != nil {
-		return nil, fmt.Errorf("error hashing input file: %w", err)
+		return nil, fmt.Errorf("error reading input file: %s", err)
 	}
 
 	if err := os.MkdirAll(config.RuntimeCompilerOutputDir, 0755); err != nil {
@@ -61,17 +63,4 @@ func getRuntimeCompiledTracer(config *config.Config) (CompiledOutput, error) {
 		}
 	}
 	return os.Open(outputFile)
-}
-
-func hashInput(path string) (string, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return "", fmt.Errorf("unable to read input file: %w", err)
-	}
-	defer f.Close()
-	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
-		return "", fmt.Errorf("error hashing input file: %w", err)
-	}
-	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
