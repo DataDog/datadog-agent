@@ -4,6 +4,7 @@ package procutil
 
 import (
 	"bytes"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -14,11 +15,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/gopsutil/host"
 )
 
 const (
-	ClockTicks = 100 // C.sysconf(C._SC_CLK_TCK)
+	// ClockTicks is the number of clock ticks per second
+	// C.sysconf(C._SC_CLK_TCK)
+	ClockTicks = 100
 	// WorldReadable represents file permission that's world readable
 	WorldReadable os.FileMode = 4
 )
@@ -62,10 +64,11 @@ type Probe struct {
 
 // NewProcessProbe initializes a new Probe object
 func NewProcessProbe() *Probe {
-	bootTime, _ := host.BootTime() // TODO (sk): Rewrite this w/o gopsutil
+	hostProc := util.HostProc()
+	bootTime, _ := bootTime(hostProc)
 
 	p := &Probe{
-		procRootLoc: util.HostProc(),
+		procRootLoc: hostProc,
 		uid:         uint32(os.Getuid()),
 		euid:        uint32(os.Geteuid()),
 		bootTime:    bootTime,
@@ -82,7 +85,7 @@ func (p *Probe) Close() {
 }
 
 // ProcessesByPID returns a map of process info indexed by PID
-func (p *Probe) ProcessesByPID() (map[int32]*Process, error) {
+func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 	pids, err := p.getActivePIDs()
 	if err != nil {
 		return nil, err
@@ -106,9 +109,11 @@ func (p *Probe) ProcessesByPID() (map[int32]*Process, error) {
 
 		statusInfo := p.parseStatus(pathForPID)
 		ioInfo := p.parseIO(pathForPID)
+		statInfo := p.parseStat(pathForPID, pid, now)
 
 		procsByPID[pid] = &Process{
 			Pid:     pid,               // /proc/{pid}
+			Ppid:    statInfo.ppid,     // /proc/{pid}/{stat}
 			Cmdline: cmdline,           // /proc/{pid}/cmdline
 			Name:    statusInfo.name,   // /proc/{pid}/status
 			Status:  statusInfo.status, // /proc/{pid}/status
@@ -116,6 +121,9 @@ func (p *Probe) ProcessesByPID() (map[int32]*Process, error) {
 			Gids:    statusInfo.gids,   // /proc/{pid}/status
 			NsPid:   statusInfo.nspid,  // /proc/{pid}/status
 			Stats: &Stats{
+				CreateTime:  statInfo.createTime,    // /proc/{pid}/{stat}
+				Nice:        statInfo.nice,          // /proc/{pid}/{stat}
+				CPUTime:     statInfo.cpuStat,       // /proc/{pid}/{stat}
 				MemInfo:     statusInfo.memInfo,     // /proc/{pid}/status or statm
 				CtxSwitches: statusInfo.ctxSwitches, // /proc/{pid}/status
 				NumThreads:  statusInfo.numThreads,  // /proc/{pid}/status
@@ -355,7 +363,7 @@ func (p *Probe) parseStatusKV(key, value string, sInfo *statusInfo) {
 }
 
 // parseStat retrieves stat info from "stat" file for a process in procfs
-func (p *Probe) parseStat(pidPath string, now time.Time) *statInfo {
+func (p *Probe) parseStat(pidPath string, pid int32, now time.Time) *statInfo {
 	path := filepath.Join(pidPath, "stat")
 	var err error
 
@@ -368,31 +376,33 @@ func (p *Probe) parseStat(pidPath string, now time.Time) *statInfo {
 		return sInfo
 	}
 
-	// We want to skip past the executable name, which is wrapped in parenthesis
-	startIndex := bytes.LastIndexByte(contents, byte(')'))
-	if startIndex+1 >= len(contents) {
-		return sInfo
-	}
-
-	sInfo = p.parseStatContent(contents[startIndex+1:], sInfo, now)
+	sInfo = p.parseStatContent(contents, sInfo, pid, now)
 	return sInfo
 }
 
 // parseStatContent takes the content of "stat" file and parses the values we care about
-func (p *Probe) parseStatContent(content []byte, sInfo *statInfo, now time.Time) *statInfo {
+func (p *Probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32, now time.Time) *statInfo {
+	// We want to skip past the executable name, which is wrapped in one or more parenthesis
+	startIndex := bytes.LastIndexByte(statContent, byte(')'))
+	if startIndex == -1 || startIndex+1 >= len(statContent) {
+		return sInfo
+	}
+
+	content := statContent[startIndex+1:]
+	// use spaces and prevChartIsSpace to simulate strings.Fields() to avoid allocation
 	spaces := 0
-	prevCharSpace := false
-	var ppidStr, utimeStr, stimeStr, niceStr, startTimeStr string
+	prevCharIsSpace := false
+	var ppidStr, utimeStr, stimeStr, startTimeStr string
 
 	for i := range content {
 		if content[i] == ' ' {
-			if !prevCharSpace {
+			if !prevCharIsSpace {
 				spaces++
 			}
-			prevCharSpace = true
+			prevCharIsSpace = true
 			continue
 		} else {
-			prevCharSpace = false
+			prevCharIsSpace = false
 		}
 
 		if spaces == 2 {
@@ -401,8 +411,6 @@ func (p *Probe) parseStatContent(content []byte, sInfo *statInfo, now time.Time)
 			utimeStr += string(content[i])
 		} else if spaces == 13 {
 			stimeStr += string(content[i])
-		} else if spaces == 18 {
-			niceStr += string(content[i])
 		} else if spaces == 20 {
 			startTimeStr += string(content[i])
 		}
@@ -418,31 +426,28 @@ func (p *Probe) parseStatContent(content []byte, sInfo *statInfo, now time.Time)
 	}
 
 	utime, err := strconv.ParseFloat(utimeStr, 64)
-	if err != nil {
-		return sInfo
+	if err == nil {
+		sInfo.cpuStat.User = utime / ClockTicks
 	}
 	stime, err := strconv.ParseFloat(stimeStr, 64)
-	if err != nil {
-		return sInfo
-	}
-
-	nice, err := strconv.ParseInt(niceStr, 10, 32)
 	if err == nil {
-		sInfo.nice = int32(nice)
+		sInfo.cpuStat.System = stime / ClockTicks
+	}
+	// the nice parameter location seems to be different for various procfs,
+	// so we fetch that using syscall
+	snice, err := syscall.Getpriority(syscall.PRIO_PROCESS, int(pid))
+	if err == nil {
+		sInfo.nice = int32(snice)
 	}
 
 	sInfo.cpuStat.CPU = "cpu"
-	sInfo.cpuStat.User = float64(utime / ClockTicks)
-	sInfo.cpuStat.System = float64(stime / ClockTicks)
 	sInfo.cpuStat.Timestamp = now.Unix()
 
 	t, err := strconv.ParseUint(startTimeStr, 10, 64)
-	if err != nil {
-		return sInfo
+	if err == nil {
+		ctime := (t / uint64(ClockTicks)) + p.bootTime
+		sInfo.createTime = int64(ctime * 1000)
 	}
-
-	ctime := (t / uint64(ClockTicks)) + p.bootTime
-	sInfo.createTime = int64(ctime * 1000)
 
 	return sInfo
 }
@@ -569,4 +574,38 @@ func trimAndSplitBytes(bs []byte) []string {
 	}
 
 	return components
+}
+
+// bootTime returns the system boot time expressed in seconds since the epoch.
+// the value is extracted from "/proc/stat"
+func bootTime(hostProc string) (uint64, error) {
+	filePath := filepath.Join(hostProc, "stat")
+	content, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		log.Debugf("Unable to read stat file from %s: %s", filePath, err)
+		return 0, nil
+	}
+
+	index := 0
+	btimePrefix := []byte("btime")
+
+	for i, r := range content {
+		if r == '\n' {
+			if bytes.HasPrefix(content[index:i], btimePrefix) {
+				f := strings.Fields(string(content[index:i]))
+				if len(f) != 2 {
+					return 0, fmt.Errorf("wrong btime format")
+				}
+
+				b, err := strconv.ParseInt(f[1], 10, 64)
+				if err != nil {
+					return 0, err
+				}
+				return uint64(b), nil
+			}
+			index = i + 1
+		}
+	}
+
+	return 0, fmt.Errorf("could not parse btime")
 }
