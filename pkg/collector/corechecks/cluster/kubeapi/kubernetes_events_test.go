@@ -21,6 +21,7 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/collector/corechecks/cluster/urn"
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/metrics"
+	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/clustername"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -66,13 +67,13 @@ func TestProcessBundledEvents(t *testing.T) {
 			CheckBase:             core.NewCheckBase(kubernetesAPIEventsCheckName),
 			KubeAPIServerHostname: "hostname",
 		},
-		mapperFactory: func(d OpenShiftDetector, clusterName string) *kubernetesEventMapper {
+		mapperFactory: func(d apiserver.OpenShiftDetector, clusterName string) *kubernetesEventMapper {
 			return &kubernetesEventMapper{
-				urn: urn.NewURNBuilder(urn.Kubernetes, clusterName),
+				urn:         urn.NewURNBuilder(urn.Kubernetes, clusterName),
 				clusterName: clusterName,
-				sourceType: string(urn.Kubernetes),
+				sourceType:  string(urn.Kubernetes),
 			}
-		}
+		},
 	}
 	// Several new events, testing aggregation
 	// Not testing full match of the event message as the order of the actions in the summary isn't guaranteed
