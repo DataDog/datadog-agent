@@ -176,12 +176,7 @@ def build_in_docker(
 
 @task
 def test(
-        ctx,
-        packages=TEST_PACKAGES,
-        skip_object_files=False,
-        only_check_bpf_bytes=False,
-        bundle_ebpf=True,
-        output_path=None
+    ctx, packages=TEST_PACKAGES, skip_object_files=False, only_check_bpf_bytes=False, bundle_ebpf=True, output_path=None
 ):
     """
     Run tests on eBPF parts
@@ -229,11 +224,9 @@ def kitchen_prepare(ctx):
     """
     target_packages = []
     for pkg in TEST_PACKAGES_LIST:
-        target_packages += check_output(
-            "go list -f '{{ .Dir }}' %s" % (pkg),
-            shell=True,
-        ).decode('utf-8').strip().split("\n")
-
+        target_packages += (
+            check_output("go list -f '{{ .Dir }}' %s" % (pkg), shell=True).decode('utf-8').strip().split("\n")
+        )
 
     # This will compile one 'testsuite' file per package by running `go test -c -o output_path`.
     # These artifacts will be "vendored" inside a chef recipe like the following:
@@ -413,10 +406,7 @@ def build_object_files(ctx, bundle_ebpf=False):
     commands = ["mkdir -p {build_dir}".format(build_dir=build_dir)]
     bindata_files = []
 
-    compiled_programs = [
-        "tracer-ebpf",
-        "offset-guess",
-    ]
+    compiled_programs = ["tracer-ebpf", "offset-guess"]
     bcc_files = [
         os.path.join(c_dir, "tcp-queue-length-kern.c"),
         os.path.join(bpf_dir, "tcp-queue-length-kern-user.h"),
