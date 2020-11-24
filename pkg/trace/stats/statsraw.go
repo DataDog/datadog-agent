@@ -30,8 +30,8 @@ type sublayerStats struct {
 	value int64
 }
 
-func newGroupedStats() groupedStats {
-	return groupedStats{
+func newGroupedStats() *groupedStats {
+	return &groupedStats{
 		durationDistribution:    quantile.NewSliceSummary(),
 		errDurationDistribution: quantile.NewSliceSummary(),
 	}
@@ -58,8 +58,8 @@ type RawBucket struct {
 	duration int64 // duration of a bucket in nanoseconds
 
 	// this should really remain private as it's subject to refactoring
-	data         map[statsKey]groupedStats
-	sublayerData map[statsSubKey]sublayerStats
+	data         map[statsKey]*groupedStats
+	sublayerData map[statsSubKey]*sublayerStats
 
 	// internal buffer for aggregate strings - not threadsafe
 	keyBuf bytes.Buffer
@@ -71,8 +71,8 @@ func NewRawBucket(ts, d int64) *RawBucket {
 	return &RawBucket{
 		start:        ts,
 		duration:     d,
-		data:         make(map[statsKey]groupedStats),
-		sublayerData: make(map[statsSubKey]sublayerStats),
+		data:         make(map[statsKey]*groupedStats),
+		sublayerData: make(map[statsSubKey]*sublayerStats),
 	}
 }
 
@@ -157,12 +157,13 @@ func (sb *RawBucket) HandleSpan(s *WeightedSpan, env string, sublayers []Sublaye
 }
 
 func (sb *RawBucket) add(s *WeightedSpan, aggr aggregation) {
-	var gs groupedStats
+	var gs *groupedStats
 	var ok bool
 
 	key := statsKey{name: s.Name, aggr: aggr}
 	if gs, ok = sb.data[key]; !ok {
 		gs = newGroupedStats()
+		sb.data[key] = gs
 	}
 
 	if s.TopLevel {
@@ -183,8 +184,6 @@ func (sb *RawBucket) add(s *WeightedSpan, aggr aggregation) {
 	if s.Error != 0 {
 		gs.errDurationDistribution.Insert(trundur)
 	}
-
-	sb.data[key] = gs
 }
 
 func (sb *RawBucket) addSublayer(s *WeightedSpan, aggr aggregation, sub SublayerValue) {
@@ -193,12 +192,13 @@ func (sb *RawBucket) addSublayer(s *WeightedSpan, aggr aggregation, sub Sublayer
 	// when logically, if we have a sublayer for HITS, we also have one for DURATION,
 	// they should indeed come together. Still room for improvement here.
 
-	var ss sublayerStats
+	var ss *sublayerStats
 	var ok bool
 
 	key := statsSubKey{name: s.Name, sub: sub, aggr: aggr}
 	if ss, ok = sb.sublayerData[key]; !ok {
-		ss = sublayerStats{}
+		ss = &sublayerStats{}
+		sb.sublayerData[key] = ss
 	}
 
 	if s.TopLevel {
@@ -207,7 +207,6 @@ func (sb *RawBucket) addSublayer(s *WeightedSpan, aggr aggregation, sub Sublayer
 
 	ss.value += int64(s.Weight * sub.Value)
 
-	sb.sublayerData[key] = ss
 }
 
 // 10 bits precision (any value will be +/- 1/1024)
