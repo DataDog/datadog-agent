@@ -45,11 +45,11 @@ Datadog Serverless Agent accepts custom application metrics points over UDP, agg
 where they can be graphed on dashboards. The Datadog Serverless Agent implements the StatsD protocol, along with a few extensions for special Datadog features.`,
 	}
 
-	startCmd = &cobra.Command{
-		Use:   "start",
-		Short: "Start the Serverless Datadog Agent",
-		Long:  `Runs the Serverless Agent`,
-		RunE:  start,
+	runCmd = &cobra.Command{
+		Use:   "run",
+		Short: "Runs the Serverless Datadog Agent",
+		Long:  `Runs the Serverless Datadog Agent`,
+		RunE:  run,
 	}
 
 	versionCmd = &cobra.Command{
@@ -82,11 +82,11 @@ const (
 
 func init() {
 	// attach the command to the root
-	serverlessAgentCmd.AddCommand(startCmd)
+	serverlessAgentCmd.AddCommand(runCmd)
 	serverlessAgentCmd.AddCommand(versionCmd)
 }
 
-func start(cmd *cobra.Command, args []string) error {
+func run(cmd *cobra.Command, args []string) error {
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
 	defer stopCallback(cancel)
@@ -115,9 +115,9 @@ func main() {
 		fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_stats_port")),
 		http.DefaultServeMux)
 
-	// if not command has been provided, run start
+	// if not command has been provided, run the agent
 	if len(os.Args) == 1 {
-		os.Args = append(os.Args, "start")
+		os.Args = append(os.Args, "run")
 	}
 
 	if err := serverlessAgentCmd.Execute(); err != nil {
