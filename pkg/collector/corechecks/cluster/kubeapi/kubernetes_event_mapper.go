@@ -61,6 +61,11 @@ var EventTypeMap map[string]MetricsCategory = map[string]MetricsCategory{
 	events.ImageGCFailed:                        Activities,
 	events.SuccessfulNodeAllocatableEnforcement: Activities,
 	events.SandboxChanged:                       Changes,
+
+	// Seen in the wild, not keys of our current lib
+	"SuccesfulCreate":   Changes,
+	"Scheduled":         Activities,
+	"NotTriggerScaleUp": Alerts,
 }
 
 type KubernetesEventMapperFactory func(detector apiserver.OpenShiftDetector, clusterName string) *kubernetesEventMapper
