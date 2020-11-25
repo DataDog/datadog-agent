@@ -240,8 +240,8 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		log.Errorf("Misconfiguration of agent endpoints: %s", err)
 	}
 	forwarderTimeout := config.Datadog.GetDuration("forwarder_timeout") * time.Second
-	log.Debugf("Using a SyncDefaultForwarder with a %v timeout", forwarderTimeout)
-	f := forwarder.NewSyncDefaultForwarder(keysPerDomain, forwarderTimeout)
+	log.Debugf("Using a SyncForwarder with a %v timeout", forwarderTimeout)
+	f := forwarder.NewSyncForwarder(keysPerDomain, forwarderTimeout)
 	f.Start() //nolint:errcheck
 	serializer := serializer.NewSerializer(f)
 
