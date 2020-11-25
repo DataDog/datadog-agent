@@ -112,9 +112,8 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 				log.Warnf("Invalid configuration: %v", err)
 				continue
 			}
-
 			for _, source := range s.sources.GetSources() {
-				if identifier == source.Config.Identifier {
+				if identifier == source.Config.Identifier || dockerutil.ContainerIDToTaggerEntityName(identifier) == source.Config.Identifier {
 					s.sources.RemoveSource(source)
 				}
 			}
