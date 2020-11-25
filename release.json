@@ -1,7 +1,7 @@
 {
     "nightly": {
         "INTEGRATIONS_CORE_VERSION": "master",
-        "OMNIBUS_SOFTWARE_VERSION": "cc/gstatus",
+        "OMNIBUS_SOFTWARE_VERSION": "master",
         "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
         "JMXFETCH_VERSION": "0.40.3",
         "JMXFETCH_HASH": "6e8984c4b65cc553ab22b907b7947e00cd007c7aad7e85ef1799a1b532d52bee",
@@ -12,7 +12,7 @@
     },
     "nightly-a7": {
         "INTEGRATIONS_CORE_VERSION": "master",
-        "OMNIBUS_SOFTWARE_VERSION": "cc/gstatus",
+        "OMNIBUS_SOFTWARE_VERSION": "master",
         "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
         "JMXFETCH_VERSION": "0.40.3",
         "JMXFETCH_HASH": "6e8984c4b65cc553ab22b907b7947e00cd007c7aad7e85ef1799a1b532d52bee",
