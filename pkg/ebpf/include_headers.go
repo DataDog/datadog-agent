@@ -22,10 +22,10 @@ func init() {
 	includeRegexp = regexp.MustCompile(CIncludePattern)
 }
 
-// this program is intended to be called from go generate
-// it will preprocess a .c file to replace all the `#include "file.h"` statements with the header files contents
+// This program is intended to be called from go generate.
+// It will preprocess a .c file to replace all the `#include "file.h"` statements with the header files contents
 // while making sure to only include a file once.
-// you may optionally specify additional include directories to search
+// You may optionally specify additional include directories to search.
 func main() {
 	if len(os.Args[1:]) < 2 {
 		panic("please use 'go run include_headers.go <c_file> <output_file> [include_dir]...'")

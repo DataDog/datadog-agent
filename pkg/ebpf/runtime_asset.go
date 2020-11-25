@@ -1,4 +1,6 @@
-package bytecode
+// +build linux_bpf
+
+package ebpf
 
 import (
 	"crypto/sha256"
@@ -8,7 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/compiler"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -35,7 +36,7 @@ func NewRuntimeAsset(filename, hash string) *RuntimeAsset {
 // Verify reads the asset in the provided directory and verifies the content hash matches what is expected.
 // On success, it returns the full path and content hash of the asset.
 func (a *RuntimeAsset) Verify(dir string) (string, string, error) {
-	p := filepath.Join(dir, a.filename)
+	p := filepath.Join(dir, "runtime", a.filename)
 	f, err := os.Open(p)
 	if err != nil {
 		return "", "", err
@@ -53,7 +54,7 @@ func (a *RuntimeAsset) Verify(dir string) (string, string, error) {
 }
 
 // Compile compiles the runtime asset if necessary and returns the resulting file.
-func (a *RuntimeAsset) Compile(config *ebpf.Config, cflags []string) (CompiledOutput, error) {
+func (a *RuntimeAsset) Compile(config *Config, cflags []string) (CompiledOutput, error) {
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return nil, fmt.Errorf("unable to get kernel version: %w", err)
