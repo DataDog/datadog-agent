@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -150,6 +151,10 @@ func (c *CRICheck) computeContainerUptime(sender aggregator.Sender, currentTime 
 
 // isExcluded returns whether a container should be excluded based on its image, name and namespace
 func (c *CRICheck) isExcluded(ctr *pb.ContainerStatus) bool {
+	if config.Datadog.GetBool("exclude_pause_container") && containers.IsPauseContainer(ctr.Labels) {
+		return true
+	}
+
 	name := ""
 	if meta := ctr.GetMetadata(); meta != nil {
 		name = meta.GetName()

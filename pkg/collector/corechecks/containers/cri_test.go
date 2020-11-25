@@ -69,6 +69,12 @@ func TestExcludedContainers(t *testing.T) {
 		Metadata: &pb.ContainerMetadata{Name: "foo-name"},
 	}
 
+	pauseCtr := &pb.ContainerStatus{
+		Labels:   map[string]string{"io.kubernetes.container.name": "POD"},
+		Image:    &pb.ImageSpec{Image: "pod"},
+		Metadata: &pb.ContainerMetadata{Name: "pod"},
+	}
+
 	// Namespace based exclusion
 	config.Datadog.Set("container_exclude", "kube_namespace:foo*")
 	containers.ResetSharedFilter()
@@ -86,6 +92,9 @@ func TestExcludedContainers(t *testing.T) {
 	containers.ResetSharedFilter()
 	criCheck.filter, _ = containers.GetSharedMetricFilter()
 	require.True(t, criCheck.isExcluded(ctr))
+
+	// Pause container exclusion
+	require.True(t, criCheck.isExcluded(pauseCtr))
 
 	// Container not excluded
 	config.Datadog.Set("container_exclude", "image:bar* name:bar* kube_namespace:bar*")
