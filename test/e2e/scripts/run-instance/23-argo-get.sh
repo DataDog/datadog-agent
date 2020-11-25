@@ -52,7 +52,7 @@ for workflow in $(./argo list -l workflows.argoproj.io/phase=Failed -o name); do
 done
 
 # Make the Argo UI available from the user
-/opt/bin/kubectl patch svc -n argo argo-server --type json --patch $'[{"op": "replace", "path": "/spec/type", "value": "NodePort"}]'
+/opt/bin/kubectl --namespace argo patch service/argo-server --type json --patch $'[{"op": "replace", "path": "/spec/type", "value": "NodePort"}]'
 
 # The goal of the following iptables magic is to make the `argo-server` NodePort service available on port 80.
 # We cannot do it with Kube since 80 isn’t in the NodePort service range and yet, 80 is a convenient port for an HTTP UI.

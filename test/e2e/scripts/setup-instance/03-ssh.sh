@@ -16,7 +16,7 @@ test "${COMMIT_ID}" || {
     COMMIT_ID=$(git rev-parse --verify HEAD)
 }
 
-SSH_OPTS=("-o" "ServerAliveInterval=20" "-o" "ConnectTimeout=6" "-o" "StrictHostKeyChecking=no" "-o" "UserKnownHostsFile=/dev/null" "-i" "${PWD}/id_rsa" "-o" "SendEnv=DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE:-datadog/agent-dev:master} DATADOG_CLUSTER_AGENT_IMAGE=${DATADOG_CLUSTER_AGENT_IMAGE:-datadog/cluster-agent-dev:master}")
+SSH_OPTS=("-o" "ServerAliveInterval=20" "-o" "ConnectTimeout=6" "-o" "StrictHostKeyChecking=no" "-o" "UserKnownHostsFile=/dev/null" "-i" "${PWD}/id_rsa" "-o" "SendEnv=DOCKER_REGISTRY_* DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE:-datadog/agent-dev:master} DATADOG_CLUSTER_AGENT_IMAGE=${DATADOG_CLUSTER_AGENT_IMAGE:-datadog/cluster-agent-dev:master}")
 
 function _ssh() {
     ssh "${SSH_OPTS[@]}" -lcore "${MACHINE}" "$@"
@@ -52,6 +52,12 @@ _ssh git -C /home/core/datadog-agent checkout "${COMMIT_ID}"
 
 _ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/10-pupernetes-wait.sh
 _ssh timeout 120 /home/core/datadog-agent/test/e2e/scripts/run-instance/11-pupernetes-ready.sh
+if [[ -n ${DOCKER_REGISTRY_URL+x} ]] && [[ -n ${DOCKER_REGISTRY_LOGIN+x} ]] && [[ -n ${DOCKER_REGISTRY_PWD+x} ]]; then
+    oldstate=$(shopt -po xtrace); set +x  # Do not log credentials
+    _ssh_logged sudo docker login --username "${DOCKER_REGISTRY_LOGIN}" --password "${DOCKER_REGISTRY_PWD}" "${DOCKER_REGISTRY_URL}"
+    eval "$oldstate"
+fi
+
 
 # Use a logged bash
 _ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/20-argo-download.sh
