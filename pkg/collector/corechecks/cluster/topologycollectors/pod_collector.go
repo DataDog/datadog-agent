@@ -90,7 +90,7 @@ func (pc *PodCollector) CollectorFunction() error {
 		}
 
 		if !managed {
-			pc.RelationChan <- pc.namespaceToReplicaSetStackStateRelation(pc.buildNamespaceExternalID(pod.Namespace), component.ExternalID)
+			pc.RelationChan <- pc.namespaceToPodStackStateRelation(pc.buildNamespaceExternalID(pod.Namespace), component.ExternalID)
 		}
 
 		// map the volume components and relation to this pod
