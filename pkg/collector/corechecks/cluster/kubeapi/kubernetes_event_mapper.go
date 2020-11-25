@@ -30,87 +30,37 @@ const (
 	Others                     = "Others"
 )
 
+// EventTypeMap contains a mapping of Kubernetes EventReason strings to specific Event Categories.
+// If an event is 'event.Type = warning' then we map it automatically to an 'Alert'
 var EventTypeMap map[string]MetricsCategory = map[string]MetricsCategory{
 	// Container events
-	events.CreatedContainer: Changes,
-	events.StartedContainer: Activities,
-	// events.FailedToCreateContainer: Alerts,
-	// events.FailedToStartContainer:  Alerts,
+	events.CreatedContainer:      Changes,
+	events.StartedContainer:      Activities,
 	events.KillingContainer:      Activities,
 	events.PreemptContainer:      Activities,
 	events.BackOffStartContainer: Activities,
 	events.ExceededGracePeriod:   Activities,
 
-	// Pod event reason list
-	events.FailedToKillPod:            Alerts,
-	events.FailedToCreatePodContainer: Alerts,
-	// events.FailedToMakePodDataDirectories: Alerts,
-	events.NetworkNotReady: Alerts,
-
 	// Image events
 	events.PullingImage: Activities,
 	events.PulledImage:  Activities,
-	// events.FailedToPullImage:       Alerts,
-	events.FailedToInspectImage:    Alerts,
-	events.ErrImageNeverPullPolicy: Alerts,
-	// events.BackOffPullImage:        Activities,
 
 	// Kubelet events
-	events.NodeReady:                Changes,
-	events.NodeNotReady:             Activities,
-	events.NodeSchedulable:          Activities,
-	events.NodeNotSchedulable:       Alerts,
-	events.StartingKubelet:          Activities,
-	events.KubeletSetupFailed:       Alerts,
-	events.FailedAttachVolume:       Alerts,
-	events.FailedDetachVolume:       Alerts,
-	events.FailedMountVolume:        Alerts,
-	events.VolumeResizeFailed:       Alerts,
-	events.VolumeResizeSuccess:      Activities,
-	events.FileSystemResizeFailed:   Alerts,
-	events.FileSystemResizeSuccess:  Activities,
-	events.FailedUnMountVolume:      Alerts,
-	events.FailedMapVolume:          Alerts,
-	events.FailedUnmapDevice:        Alerts,
-	events.WarnAlreadyMountedVolume: Alerts,
-
+	events.NodeReady:                            Changes,
+	events.NodeNotReady:                         Activities,
+	events.NodeSchedulable:                      Activities,
+	events.StartingKubelet:                      Activities,
+	events.VolumeResizeSuccess:                  Activities,
+	events.FileSystemResizeSuccess:              Activities,
 	events.SuccessfulDetachVolume:               Activities,
 	events.SuccessfulAttachVolume:               Activities,
 	events.SuccessfulMountVolume:                Activities,
 	events.SuccessfulUnMountVolume:              Activities,
-	events.HostPortConflict:                     Alerts,
-	events.NodeSelectorMismatching:              Alerts,
-	events.InsufficientFreeCPU:                  Alerts,
-	events.InsufficientFreeMemory:               Alerts,
-	events.HostNetworkNotSupported:              Alerts,
-	events.UndefinedShaper:                      Alerts,
 	events.NodeRebooted:                         Activities,
 	events.ContainerGCFailed:                    Activities,
 	events.ImageGCFailed:                        Activities,
-	events.FailedNodeAllocatableEnforcement:     Alerts,
 	events.SuccessfulNodeAllocatableEnforcement: Activities,
-	events.UnsupportedMountOption:               Alerts,
 	events.SandboxChanged:                       Changes,
-	events.FailedCreatePodSandBox:               Alerts,
-	events.FailedStatusPodSandBox:               Alerts,
-
-	// Image manager events
-	events.InvalidDiskCapacity: Alerts,
-	events.FreeDiskSpaceFailed: Alerts,
-
-	// Probe event reason list
-	events.ContainerUnhealthy: Alerts,
-
-	// Pod worker event reason list
-	events.FailedSync: Alerts,
-
-	// Config event reason list
-	events.FailedValidation: Alerts,
-
-	// Lifecycle hooks
-	events.FailedPostStartHook:   Alerts,
-	events.FailedPreStopHook:     Alerts,
-	events.UnfinishedPreStopHook: Alerts,
 }
 
 type KubernetesEventMapperFactory func(detector apiserver.OpenShiftDetector, clusterName string) *kubernetesEventMapper
