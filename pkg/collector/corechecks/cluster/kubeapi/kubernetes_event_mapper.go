@@ -18,7 +18,100 @@ import (
 
 	"github.com/StackVista/stackstate-agent/pkg/metrics"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/kubernetes/pkg/kubelet/events"
 )
+
+type MetricsCategory string
+
+const (
+	Alerts     MetricsCategory = "Alerts"
+	Changes                    = "Changes"
+	Activities                 = "Activities"
+	Others                     = "Others"
+)
+
+var EventTypeMap map[string]MetricsCategory = map[string]MetricsCategory{
+	// Container events
+	events.CreatedContainer: Changes,
+	events.StartedContainer: Activities,
+	// events.FailedToCreateContainer: Alerts,
+	// events.FailedToStartContainer:  Alerts,
+	events.KillingContainer:      Activities,
+	events.PreemptContainer:      Activities,
+	events.BackOffStartContainer: Activities,
+	events.ExceededGracePeriod:   Activities,
+
+	// Pod event reason list
+	events.FailedToKillPod:            Alerts,
+	events.FailedToCreatePodContainer: Alerts,
+	// events.FailedToMakePodDataDirectories: Alerts,
+	events.NetworkNotReady: Alerts,
+
+	// Image events
+	events.PullingImage: Activities,
+	events.PulledImage:  Activities,
+	// events.FailedToPullImage:       Alerts,
+	events.FailedToInspectImage:    Alerts,
+	events.ErrImageNeverPullPolicy: Alerts,
+	// events.BackOffPullImage:        Activities,
+
+	// Kubelet events
+	events.NodeReady:                Changes,
+	events.NodeNotReady:             Activities,
+	events.NodeSchedulable:          Activities,
+	events.NodeNotSchedulable:       Alerts,
+	events.StartingKubelet:          Activities,
+	events.KubeletSetupFailed:       Alerts,
+	events.FailedAttachVolume:       Alerts,
+	events.FailedDetachVolume:       Alerts,
+	events.FailedMountVolume:        Alerts,
+	events.VolumeResizeFailed:       Alerts,
+	events.VolumeResizeSuccess:      Activities,
+	events.FileSystemResizeFailed:   Alerts,
+	events.FileSystemResizeSuccess:  Activities,
+	events.FailedUnMountVolume:      Alerts,
+	events.FailedMapVolume:          Alerts,
+	events.FailedUnmapDevice:        Alerts,
+	events.WarnAlreadyMountedVolume: Alerts,
+
+	events.SuccessfulDetachVolume:               Activities,
+	events.SuccessfulAttachVolume:               Activities,
+	events.SuccessfulMountVolume:                Activities,
+	events.SuccessfulUnMountVolume:              Activities,
+	events.HostPortConflict:                     Alerts,
+	events.NodeSelectorMismatching:              Alerts,
+	events.InsufficientFreeCPU:                  Alerts,
+	events.InsufficientFreeMemory:               Alerts,
+	events.HostNetworkNotSupported:              Alerts,
+	events.UndefinedShaper:                      Alerts,
+	events.NodeRebooted:                         Activities,
+	events.ContainerGCFailed:                    Activities,
+	events.ImageGCFailed:                        Activities,
+	events.FailedNodeAllocatableEnforcement:     Alerts,
+	events.SuccessfulNodeAllocatableEnforcement: Activities,
+	events.UnsupportedMountOption:               Alerts,
+	events.SandboxChanged:                       Changes,
+	events.FailedCreatePodSandBox:               Alerts,
+	events.FailedStatusPodSandBox:               Alerts,
+
+	// Image manager events
+	events.InvalidDiskCapacity: Alerts,
+	events.FreeDiskSpaceFailed: Alerts,
+
+	// Probe event reason list
+	events.ContainerUnhealthy: Alerts,
+
+	// Pod worker event reason list
+	events.FailedSync: Alerts,
+
+	// Config event reason list
+	events.FailedValidation: Alerts,
+
+	// Lifecycle hooks
+	events.FailedPostStartHook:   Alerts,
+	events.FailedPreStopHook:     Alerts,
+	events.UnfinishedPreStopHook: Alerts,
+}
 
 type KubernetesEventMapperFactory func(detector apiserver.OpenShiftDetector, clusterName string) *kubernetesEventMapper
 
@@ -44,6 +137,9 @@ func (k *kubernetesEventMapper) mapKubernetesEvent(event *v1.Event, modified boo
 		return metrics.Event{}, err
 	}
 
+	// Map Category to event type
+	//
+
 	mEvent := metrics.Event{
 		Title:          fmt.Sprintf("%s - %s %s (%dx)", event.Reason, event.InvolvedObject.Name, event.InvolvedObject.Kind, event.Count),
 		Host:           getHostName(event, k.clusterName),
@@ -55,7 +151,7 @@ func (k *kubernetesEventMapper) mapKubernetesEvent(event *v1.Event, modified boo
 		Tags:           k.getTags(event),
 		EventContext: &metrics.EventContext{
 			Source:           k.sourceType,
-			Category:         k.sourceType,
+			Category:         string(getCategory(event)),
 			SourceIdentifier: string(event.GetUID()),
 			ElementIdentifiers: []string{
 				k.externalIdentifierForInvolvedObject(event),
@@ -95,6 +191,21 @@ func getHostName(event *v1.Event, clusterName string) string {
 	return ""
 }
 
+func getCategory(event *v1.Event) MetricsCategory {
+	alertType := getAlertType(event)
+	if alertType == metrics.EventAlertTypeWarning || alertType == metrics.EventAlertTypeError {
+		return Alerts
+	}
+
+	v, ok := EventTypeMap[event.Reason]
+	if !ok {
+		log.Warnf("Unknown Reason '%s' found, Categorising as 'Others'", event.Reason)
+		return Others
+	}
+
+	return v
+}
+
 func getAlertType(event *v1.Event) metrics.EventAlertType {
 	switch strings.ToLower(event.Type) {
 	case "normal":
@@ -127,6 +238,7 @@ func (k *kubernetesEventMapper) getTags(event *v1.Event) []string {
 	tags = append(tags, fmt.Sprintf("kube_object_kind:%s", event.InvolvedObject.Kind))
 	tags = append(tags, fmt.Sprintf("kube_cluster_name:%s", k.clusterName))
 	tags = append(tags, fmt.Sprintf("kube_reason:%s", event.Reason))
+	tags = append(tags, fmt.Sprintf("alert_type:%s", getAlertType(event)))
 
 	return tags
 }
