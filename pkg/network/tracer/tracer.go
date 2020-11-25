@@ -152,13 +152,15 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 
 	var buf bytecode.AssetReader
 	if config.EnableRuntimeCompiler {
-		of, err := getRuntimeCompiledTracer(config)
+		buf, err = getRuntimeCompiledTracer(config)
 		if err != nil {
-			return nil, fmt.Errorf("failed to open runtime-compiled output file")
+			log.Warnf("error compiling network tracer, falling back to pre-compiled: %s", err)
+		} else {
+			defer buf.Close()
 		}
-		defer of.Close()
-		buf = of
-	} else {
+	}
+
+	if buf == nil {
 		buf, err = netebpf.ReadBPFModule(config.BPFDir, config.BPFDebug)
 		if err != nil {
 			return nil, fmt.Errorf("could not read bpf module: %s", err)
