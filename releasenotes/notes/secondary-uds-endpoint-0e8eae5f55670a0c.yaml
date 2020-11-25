@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    Adding a secondary endpoint to DogStatsD dedicated to telemetry metrics.
+    This is useful in high throughput scenarios to avoid dropping telemetry
+    metrics which prevents users from troubleshooting issues. The new option is
+    "dogstatsd_telemetry_listener", supports UDS/UDP and is disabled by default.
+    This also requires the DogStatsD client to send telemetry to a custom
+    endpoint, see the clients documentation for more details.
