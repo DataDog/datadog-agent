@@ -103,12 +103,6 @@ func TestReplicaSetCollector(t *testing.T) {
 			},
 			expectedRelations: []*topology.Relation{
 				{
-					ExternalID: "urn:kubernetes:/test-cluster-name:namespace/test-namespace->urn:kubernetes:/test-cluster-name:test-namespace:replicaset/test-replicaset-3",
-					Type:       topology.Type{Name: "encloses"},
-					SourceID:   "urn:kubernetes:/test-cluster-name:namespace/test-namespace",
-					TargetID:   "urn:kubernetes:/test-cluster-name:test-namespace:replicaset/test-replicaset-3",
-					Data:       map[string]interface{}{},
-				}, {
 					ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:deployment/test-deployment-3->" +
 						"urn:kubernetes:/test-cluster-name:test-namespace:replicaset/test-replicaset-3",
 					Type:     topology.Type{Name: "controls"},

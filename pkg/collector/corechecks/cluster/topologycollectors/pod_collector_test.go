@@ -167,7 +167,6 @@ func TestPodCollector(t *testing.T) {
 					}
 					assert.EqualValues(t, expectedComponent, component)
 				},
-				expectNamespaceRelation(t, relationChannel, "test-pod-3"),
 				func() {
 					relation := <-relationChannel
 					expectedRelation := &topology.Relation{

@@ -57,33 +57,40 @@ func (pc *PodCollector) CollectorFunction() error {
 		component = pc.podToStackStateComponent(pod)
 		pc.ComponentChan <- component
 
-		// Link the pod to its Namespace
-		pc.RelationChan <- pc.namespaceToPodStackStateRelation(pc.buildNamespaceExternalID(pod.Namespace), component.ExternalID)
-
 		// pod could not be scheduled for some reason
 		if pod.Spec.NodeName != "" {
 			pc.RelationChan <- pc.podToNodeStackStateRelation(pod)
 		}
 
+		managed := false
 		// check to see if this pod is "managed" by a kubernetes controller
 		for _, ref := range pod.OwnerReferences {
 			switch kind := ref.Kind; kind {
 			case DaemonSet:
 				controllerExternalID = pc.buildDaemonSetExternalID(pod.Namespace, ref.Name)
 				pc.RelationChan <- pc.controllerWorkloadToPodStackStateRelation(controllerExternalID, component.ExternalID)
+				managed = true
 			case Deployment:
 				controllerExternalID = pc.buildDeploymentExternalID(pod.Namespace, ref.Name)
 				pc.RelationChan <- pc.controllerWorkloadToPodStackStateRelation(controllerExternalID, component.ExternalID)
+				managed = true
 			case ReplicaSet:
 				controllerExternalID = pc.buildReplicaSetExternalID(pod.Namespace, ref.Name)
 				pc.RelationChan <- pc.controllerWorkloadToPodStackStateRelation(controllerExternalID, component.ExternalID)
+				managed = true
 			case StatefulSet:
 				controllerExternalID = pc.buildStatefulSetExternalID(pod.Namespace, ref.Name)
 				pc.RelationChan <- pc.controllerWorkloadToPodStackStateRelation(controllerExternalID, component.ExternalID)
+				managed = true
 			case Job:
 				controllerExternalID = pc.buildJobExternalID(pod.Namespace, ref.Name)
 				pc.RelationChan <- pc.controllerWorkloadToPodStackStateRelation(controllerExternalID, component.ExternalID)
+				managed = true
 			}
+		}
+
+		if !managed {
+			rsc.RelationChan <- rsc.namespaceToReplicaSetStackStateRelation(rsc.buildNamespaceExternalID(rs.Namespace), component.ExternalID)
 		}
 
 		// map the volume components and relation to this pod
