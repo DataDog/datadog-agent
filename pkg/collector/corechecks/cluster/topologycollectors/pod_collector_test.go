@@ -535,7 +535,7 @@ func expectNamespaceRelation(t *testing.T, ch chan (*topology.Relation), podName
 
 func expectPodNodeRelation(t *testing.T, ch chan (*topology.Relation), podName string) func() {
 	return func() {
-		relation := <-relationChannel
+		relation := <-ch
 		expectedRelation := &topology.Relation{
 			ExternalID: fmt.Sprintf("urn:kubernetes:/test-cluster-name:test-namespace:pod/%s->", podName) +
 				"urn:kubernetes:/test-cluster-name:node/test-node",
