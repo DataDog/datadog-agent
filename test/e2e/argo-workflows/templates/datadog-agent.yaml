@@ -18,85 +18,90 @@ spec:
         source: |
           set -euo pipefail
 
+          cat > /tmp/values.yaml <<EOF
+          datadog:
+            dd_url: http://fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local
+            apiKey: 123er
+            appKey: 123er1
+            env:
+              - name: DD_HOSTNAME
+                value: e2e-test
+            leaderElection: true
+            logs:
+              enabled: true
+              containerCollectAll: true
+            apm:
+              enabled: true
+            processAgent:
+              enabled: true
+            systemProbe:
+              enabled: true
+
+            confd:
+              memory.yaml: |
+                init_config:
+                instances:
+                  - empty_default_hostname: true
+
+              network.yaml: |
+                init_config:
+                instances:
+                  - collect_connection_state: false
+                    excluded_interfaces:
+                      - lo
+                      - lo0
+                  - collect_connection_state: false
+                    empty_default_hostname: true
+                    excluded_interfaces:
+                      - lo
+                      - lo0
+
+              kubernetes_state.yaml: |
+                ad_identifiers:
+                  - kube_state_metrics
+
+                init_config:
+
+                # Ignore tags coming from autodiscovery
+                ignore_autodiscovery_tags: true
+
+                instances:
+                  - kube_state_url: http://%%host%%:8080/metrics
+                    hostname_override: false
+
+            dogstatsd:
+              useSocketVolume: true
+              socketPath: /var/run/dogstatsd/dsd.socket
+              hostSocketPath: /var/run/dogstatsd
+
+          agents:
+            image:
+              repository: {{inputs.parameters.agent-image-repository}}
+              tag: {{inputs.parameters.agent-image-tag}}
+              doNotCheckTag: true
+              pullSecrets:
+                - name: docker-registry
+
+          clusterAgent:
+            enabled: true
+            image:
+              repository: {{inputs.parameters.agent-image-repository}}
+              tag: {{inputs.parameters.agent-image-tag}}
+              doNotCheckTag: true
+              pullSecrets:
+                - name: docker-registry
+            token: c9e21a248434a400b1de021dbdd554d790983a1212a5eac0ba36e79346ec52fd
+            metricsProvider:
+              enabled: true
+            env:
+              - name: DATADOG_HOST
+                value: http://fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local
+          EOF
+
           helm repo add datadog https://helm.datadoghq.com
           helm repo update
           helm --namespace {{inputs.parameters.namespace}} install \
-            --values <(cat <<EOF
-            datadog:
-              dd_url: http://fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local
-              apiKey: 123er
-              appKey: 123er1
-              env:
-                - name: DD_HOSTNAME
-                  value: e2e-test
-              leaderElection: true
-              logs:
-                enabled: true
-                containerCollectAll: true
-              apm:
-                enabled: true
-              processAgent:
-                enabled: true
-              systemProbe:
-                enabled: true
-
-              confd:
-                memory.yaml: |
-                  init_config:
-                  instances:
-                    - empty_default_hostname: true
-
-                network.yaml: |
-                  init_config:
-                  instances:
-                    - collect_connection_state: false
-                      excluded_interfaces:
-                        - lo
-                        - lo0
-                    - collect_connection_state: false
-                      empty_default_hostname: true
-                      excluded_interfaces:
-                        - lo
-                        - lo0
-
-                kubernetes_state.yaml: |
-                  ad_identifiers:
-                    - kube_state_metrics
-
-                  init_config:
-
-                  # Ignore tags coming from autodiscovery
-                  ignore_autodiscovery_tags: true
-
-                  instances:
-                    - kube_state_url: http://%%host%%:8080/metrics
-                      hostname_override: false
-
-              dogstatsd:
-                useSocketVolume: true
-                socketPath: /var/run/dogstatsd/dsd.socket
-                hostSocketPath: /var/run/dogstatsd
-
-            agents:
-              image:
-                repository: {{inputs.parameters.agent-image-repository}}
-                tag: {{inputs.parameters.agent-image-tag}}
-                doNotCheckTag: true
-
-            clusterAgent:
-              enabled: true
-              image:
-                repository: {{inputs.parameters.agent-image-repository}}
-                tag: {{inputs.parameters.agent-image-tag}}
-                doNotCheckTag: true
-              token: c9e21a248434a400b1de021dbdd554d790983a1212a5eac0ba36e79346ec52fd
-              metricsProvider:
-                enabled: true
-              env:
-                - name: DATADOG_HOST
-                  value: http://fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local
-            EOF
-            ) \
+            --values /tmp/values.yaml \
             datadog-agent datadog/datadog
 
     - name: delete
