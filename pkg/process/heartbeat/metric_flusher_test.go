@@ -56,3 +56,47 @@ func TestFlush(t *testing.T) {
 	mockForwarder.AssertExpectations(t)
 	assert.JSONEq(t, requestBody, string(*payloads[0]))
 }
+
+func TestURLSanitization(t *testing.T) {
+	type testCase struct {
+		originalURL string
+		expectedURL string
+	}
+
+	testCases := []testCase{
+		{
+			originalURL: "https://process.datadoghq.com",
+			expectedURL: "https://app.datadoghq.com",
+		},
+		{
+			originalURL: "process.datadoghq.com",
+			expectedURL: "https://app.datadoghq.com",
+		},
+		{
+			originalURL: "https://process.datad0g.com",
+			expectedURL: "https://app.datad0g.com",
+		},
+		{
+			originalURL: "https://k8s.process.datad0g.com",
+			expectedURL: "https://app.datad0g.com",
+		},
+		{
+			originalURL: "https://process.datadoghq.eu",
+			expectedURL: "https://app.datadoghq.eu",
+		},
+	}
+
+	for _, tc := range testCases {
+		keysPerDomain := map[string][]string{
+			tc.originalURL: {"dd-api-key"},
+		}
+
+		result, err := sanitize(keysPerDomain)
+		assert.Nil(t, err)
+		assert.Len(t, result, 1)
+		for url, keys := range result {
+			assert.Equal(t, tc.expectedURL, url)
+			assert.Equal(t, keys, []string{"dd-api-key"})
+		}
+	}
+}
