@@ -16,6 +16,7 @@ import (
 	"os/signal"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -37,15 +38,16 @@ import (
 // Module represents the system-probe module for the runtime security agent
 type Module struct {
 	sync.RWMutex
-	probe        *sprobe.Probe
-	config       *config.Config
-	ruleSet      *rules.RuleSet
-	eventServer  *EventServer
-	grpcServer   *grpc.Server
-	listener     net.Listener
-	statsdClient *statsd.Client
-	rateLimiter  *RateLimiter
-	sigupChan    chan os.Signal
+	probe          *sprobe.Probe
+	config         *config.Config
+	ruleSets       [2]*rules.RuleSet
+	currentRuleSet uint64
+	eventServer    *EventServer
+	grpcServer     *grpc.Server
+	listener       net.Listener
+	statsdClient   *statsd.Client
+	rateLimiter    *RateLimiter
+	sigupChan      chan os.Signal
 }
 
 // Register the runtime security agent module
@@ -137,7 +139,9 @@ func (m *Module) Reload() error {
 
 	m.eventServer.Apply(ruleIDs)
 	m.rateLimiter.Apply(ruleIDs)
-	m.ruleSet = ruleSet
+
+	atomic.StoreUint64(&m.currentRuleSet, 1-m.currentRuleSet)
+	m.ruleSets[m.currentRuleSet] = ruleSet
 
 	m.displayReport(report)
 
@@ -178,9 +182,9 @@ func (m *Module) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field 
 
 // HandleEvent is called by the probe when an event arrives from the kernel
 func (m *Module) HandleEvent(event *sprobe.Event) {
-	m.RLock()
-	m.ruleSet.Evaluate(event)
-	m.RUnlock()
+	if ruleSet := m.ruleSets[atomic.LoadUint64(&m.currentRuleSet)]; ruleSet != nil {
+		ruleSet.Evaluate(event)
+	}
 }
 
 func (m *Module) statsMonitor(ctx context.Context) {
@@ -227,10 +231,7 @@ func (m *Module) GetProbe() *sprobe.Probe {
 
 // GetRuleSet returns the set of loaded rules
 func (m *Module) GetRuleSet() *rules.RuleSet {
-	m.RLock()
-	defer m.RUnlock()
-
-	return m.ruleSet
+	return m.ruleSets[atomic.LoadUint64(&m.currentRuleSet)]
 }
 
 // NewModule instantiates a runtime security system-probe module
@@ -258,13 +259,14 @@ func NewModule(cfg *config.Config) (api.Module, error) {
 	}
 
 	m := &Module{
-		config:       cfg,
-		probe:        probe,
-		eventServer:  NewEventServer(cfg),
-		grpcServer:   grpc.NewServer(),
-		statsdClient: statsdClient,
-		rateLimiter:  NewRateLimiter(),
-		sigupChan:    make(chan os.Signal, 1),
+		config:         cfg,
+		probe:          probe,
+		eventServer:    NewEventServer(cfg),
+		grpcServer:     grpc.NewServer(),
+		statsdClient:   statsdClient,
+		rateLimiter:    NewRateLimiter(),
+		sigupChan:      make(chan os.Signal, 1),
+		currentRuleSet: 1,
 	}
 
 	sapi.RegisterSecurityModuleServer(m.grpcServer, m.eventServer)
