@@ -192,7 +192,10 @@ func (s *Scanner) launchTailers(source *config.LogSource) {
 		if len(s.tailers) >= s.tailingLimit {
 			return
 		}
-		if _, isTailed := s.tailers[buildTailerKey(file)]; isTailed {
+		if tailer, isTailed := s.tailers[buildTailerKey(file)]; isTailed {
+			// the file is already tailed, update the existing tailer's source so that the tailer
+			// uses this new source going forward
+			tailer.ReplaceSource(source)
 			continue
 		}
 

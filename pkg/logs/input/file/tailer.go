@@ -7,11 +7,13 @@ package file
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -43,8 +45,10 @@ type Tailer struct {
 
 	outputChan  chan *message.Message
 	decoder     *decoder.Decoder
-	source      *config.LogSource
 	tagProvider tag.Provider
+
+	sourceMu sync.Mutex
+	source   *config.LogSource
 
 	sleepDuration time.Duration
 
@@ -128,6 +132,8 @@ func (t *Tailer) getPath() string {
 
 // getSourceIdentifier returns the source config identifier
 func (t *Tailer) getSourceIdentifier() string {
+	t.sourceMu.Lock()
+	defer t.sourceMu.Unlock()
 	if t.source != nil && t.source.Config != nil {
 		return t.source.Config.Identifier
 	}
@@ -138,11 +144,15 @@ func (t *Tailer) getSourceIdentifier() string {
 func (t *Tailer) Start(offset int64, whence int) error {
 	err := t.setup(offset, whence)
 	if err != nil {
+		t.sourceMu.Lock()
 		t.source.Status.Error(err)
+		t.sourceMu.Unlock()
 		return err
 	}
+	t.sourceMu.Lock()
 	t.source.Status.Success()
 	t.source.AddInput(t.path)
+	t.sourceMu.Unlock()
 
 	go t.forwardMessages()
 	t.decoder.Start()
@@ -160,7 +170,9 @@ func (t *Tailer) readForever() {
 		if err != nil {
 			return
 		}
+		t.sourceMu.Lock()
 		t.source.BytesRead.Add(int64(n))
+		t.sourceMu.Unlock()
 
 		select {
 		case <-t.stop:
@@ -187,6 +199,22 @@ func (t *Tailer) buildTailerTags() []string {
 	return tags
 }
 
+// ReplaceSource allows replacing the source of a started tailer.
+// Useful when the source to which a tailer should be attached changes after it started.
+func (t *Tailer) ReplaceSource(source *config.LogSource) {
+	t.sourceMu.Lock()
+	defer t.sourceMu.Unlock()
+	// update the status of the new source with current source's status
+	if t.source.Status.IsSuccess() {
+		source.Status.Success()
+		source.AddInput(t.path)
+	} else if t.source.Status.IsError() {
+		source.Status.Error(errors.New(t.source.Status.GetError()))
+	}
+
+	t.source = source
+}
+
 // StartFromBeginning lets the tailer start tailing its file
 // from the beginning
 func (t *Tailer) StartFromBeginning() error {
@@ -197,7 +225,9 @@ func (t *Tailer) StartFromBeginning() error {
 func (t *Tailer) Stop() {
 	atomic.StoreInt32(&t.didFileRotate, 0)
 	t.stop <- struct{}{}
+	t.sourceMu.Lock()
 	t.source.RemoveInput(t.path)
+	t.sourceMu.Unlock()
 	// wait for the decoder to be flushed
 	<-t.done
 }
@@ -207,7 +237,9 @@ func (t *Tailer) Stop() {
 func (t *Tailer) StopAfterFileRotation() {
 	atomic.StoreInt32(&t.didFileRotate, 1)
 	go t.startStopTimer()
+	t.sourceMu.Lock()
 	t.source.RemoveInput(t.path)
+	t.sourceMu.Unlock()
 }
 
 // startStopTimer initialises and starts a timer to stop the tailor after the timeout
@@ -240,7 +272,9 @@ func (t *Tailer) forwardMessages() {
 			identifier = ""
 		}
 		t.decodedOffset = offset
+		t.sourceMu.Lock()
 		origin := message.NewOrigin(t.source)
+		t.sourceMu.Unlock()
 		origin.Identifier = identifier
 		origin.Offset = strconv.FormatInt(offset, 10)
 		origin.SetTags(append(t.tags, t.tagProvider.GetTags()...))
