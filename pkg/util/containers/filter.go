@@ -56,6 +56,8 @@ const (
 	pauseContainerECR = `image:ecr(.*)amazonaws\.com/pause.*`
 	// - *.ecr.us-east-1.amazonaws.com/upstream/pause
 	pauseContainerUpstream = `image:upstream/pause.*`
+	// - cdk/pause-amd64
+	pauseContainerCDK = `image:cdk/pause.*`
 )
 
 // Filter holds the state for the container filtering logic
@@ -180,6 +182,7 @@ func newMetricFilterFromConfig() (*Filter, error) {
 			pauseContainerAKS,
 			pauseContainerECR,
 			pauseContainerUpstream,
+			pauseContainerCDK,
 		)
 	}
 	return NewFilter(includeList, excludeList)
