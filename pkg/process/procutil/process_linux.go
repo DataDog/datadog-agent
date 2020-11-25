@@ -113,14 +113,16 @@ func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 		memInfoEx := p.parseStatm(pathForPID)
 
 		procsByPID[pid] = &Process{
-			Pid:     pid,               // /proc/{pid}
-			Ppid:    statInfo.ppid,     // /proc/{pid}/{stat}
-			Cmdline: cmdline,           // /proc/{pid}/cmdline
-			Name:    statusInfo.name,   // /proc/{pid}/status
-			Status:  statusInfo.status, // /proc/{pid}/status
-			Uids:    statusInfo.uids,   // /proc/{pid}/status
-			Gids:    statusInfo.gids,   // /proc/{pid}/status
-			NsPid:   statusInfo.nspid,  // /proc/{pid}/status
+			Pid:     pid,                                       // /proc/{pid}
+			Ppid:    statInfo.ppid,                             // /proc/{pid}/{stat}
+			Cmdline: cmdline,                                   // /proc/{pid}/cmdline
+			Name:    statusInfo.name,                           // /proc/{pid}/status
+			Status:  statusInfo.status,                         // /proc/{pid}/status
+			Uids:    statusInfo.uids,                           // /proc/{pid}/status
+			Gids:    statusInfo.gids,                           // /proc/{pid}/status
+			Cwd:     p.getLinkWithAuthCheck(pathForPID, "cwd"), // /proc/{pid}/cwd, requires permission checks
+			Exe:     p.getLinkWithAuthCheck(pathForPID, "exe"), // /proc/{pid}/exe, requires permission checks
+			NsPid:   statusInfo.nspid,                          // /proc/{pid}/status
 			Stats: &Stats{
 				CreateTime:  statInfo.createTime,    // /proc/{pid}/{stat}
 				Nice:        statInfo.nice,          // /proc/{pid}/{stat}
@@ -502,6 +504,20 @@ func (p *Probe) parseStatm(pidPath string) *MemoryInfoExStat {
 	memInfoEx.Dirty = dirty * PageSize
 
 	return memInfoEx
+}
+
+// getLinkWithAuthCheck fetches the destination of a symlink with permission check
+func (p *Probe) getLinkWithAuthCheck(pidPath string, file string) string {
+	path := filepath.Join(pidPath, file)
+	if err := p.ensurePathReadable(path); err != nil {
+		return ""
+	}
+
+	str, err := os.Readlink(path)
+	if err != nil {
+		return ""
+	}
+	return str
 }
 
 // ensurePathReadable ensures that the current user is able to read the path before opening it.

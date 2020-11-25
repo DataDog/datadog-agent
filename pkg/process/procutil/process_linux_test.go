@@ -571,3 +571,29 @@ func testParseStatmStatusMatch(t *testing.T) {
 		assert.Equal(t, statm.RSS, status.memInfo.RSS)
 	}
 }
+
+func TestGetLinkWithAuthCheck(t *testing.T) {
+	// this test would be flaky in CI with changing procfs,
+	// also, both "cwd" and "exe" symlink requires PTRACE_MODE_READ_FS‐CREDS permission
+	t.Skip("flaky test in CI")
+	probe := NewProcessProbe()
+	defer probe.Close()
+
+	pids, err := probe.getActivePIDs()
+	assert.NoError(t, err)
+
+	for _, pid := range pids {
+		pathForPID := filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid)))
+		cwd := probe.getLinkWithAuthCheck(pathForPID, "cwd")
+		exe := probe.getLinkWithAuthCheck(pathForPID, "exe")
+
+		expProc, err := process.NewProcess(pid)
+		assert.NoError(t, err)
+		if expCwd, err := expProc.Cwd(); err == nil {
+			assert.Equal(t, expCwd, cwd)
+		}
+		if expExe, err := expProc.Exe(); err == nil {
+			assert.Equal(t, expExe, exe)
+		}
+	}
+}
