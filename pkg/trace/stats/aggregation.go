@@ -77,21 +77,15 @@ func (aggr *aggregation) writeKey(b *strings.Builder) {
 
 	// Keys should be written in lexicographical order of the tag name
 	if len(aggr.Hostname) > 0 {
-		b.WriteRune(',')
-		b.WriteString(hostnameTag)
-		b.WriteRune(':')
+		b.WriteString("," + hostnameTag + ":")
 		b.WriteString(aggr.Hostname)
 	}
 	if len(aggr.StatusCode) > 0 {
-		b.WriteRune(',')
-		b.WriteString(statusCodeTag)
-		b.WriteRune(':')
+		b.WriteString("," + statusCodeTag + ":")
 		b.WriteString(aggr.StatusCode)
 	}
 	if len(aggr.Version) > 0 {
-		b.WriteRune(',')
-		b.WriteString(versionTag)
-		b.WriteRune(':')
+		b.WriteString("," + versionTag + ":")
 		b.WriteString(aggr.Version)
 	}
 }
