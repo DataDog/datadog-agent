@@ -19,17 +19,24 @@ func main() {
 		panic("please use 'go run integrity.go <in_file> <out_file> <package>'")
 	}
 
-	err := genIntegrity(os.Args[1:])
+	args := os.Args[1:]
+	inputFile, err := filepath.Abs(args[0])
+	if err != nil {
+		log.Fatalf("unable to get absolute path to %s: %s", args[0], err)
+	}
+	outputFile, err := filepath.Abs(args[1])
+	if err != nil {
+		log.Fatalf("unable to get absolute path to %s: %s", args[1], err)
+	}
+
+	err = genIntegrity(inputFile, outputFile, args[2])
 	if err != nil {
 		log.Fatalf("error generating integrity: %s", err)
 	}
-	fmt.Printf("successfully generated %s\n", os.Args[2])
+	fmt.Printf("successfully generated from %s => %s\n", inputFile, outputFile)
 }
 
-func genIntegrity(args []string) error {
-	inputFile, outputFile := args[0], args[1]
-	pkg := args[2]
-
+func genIntegrity(inputFile, outputFile, pkg string) error {
 	hash, err := hashFile(inputFile)
 	if err != nil {
 		return err

@@ -28,31 +28,32 @@ func init() {
 // you may optionally specify additional include directories to search
 func main() {
 	if len(os.Args[1:]) < 2 {
-		panic("please use 'go run preprocess.go <c_file> <output_file> [include_dir]...'")
+		panic("please use 'go run include_headers.go <c_file> <output_file> [include_dir]...'")
 	}
 
-	err := runProcessing(os.Args[1:])
-	if err != nil {
-		log.Fatalf("error preprocessing: %s", err)
-	}
-	fmt.Printf("successfully preprocessed %s => %s\n", os.Args[1], os.Args[2])
-}
-
-func runProcessing(args []string) error {
+	args := os.Args[1:]
 	inputFile, err := filepath.Abs(args[0])
 	if err != nil {
-		return fmt.Errorf("unable to get absolute path to %s: %s", args[0], err)
+		log.Fatalf("unable to get absolute path to %s: %s", args[0], err)
 	}
 	outputFile, err := filepath.Abs(args[1])
 	if err != nil {
-		return fmt.Errorf("unable to get absolute path to %s: %s", args[1], err)
+		log.Fatalf("unable to get absolute path to %s: %s", args[1], err)
 	}
 
+	err = runProcessing(inputFile, outputFile, args[2:])
+	if err != nil {
+		log.Fatalf("error including headers: %s", err)
+	}
+	fmt.Printf("successfully included headers from %s => %s\n", inputFile, outputFile)
+}
+
+func runProcessing(inputFile, outputFile string, dirs []string) error {
 	var includeDirs []string
-	for i := 2; i < len(args); i++ {
-		dir, err := filepath.Abs(args[i])
+	for _, d := range dirs {
+		dir, err := filepath.Abs(d)
 		if err != nil {
-			return fmt.Errorf("unable to get absolute path to %s: %s", args[i], err)
+			return fmt.Errorf("unable to get absolute path to %s: %s", d, err)
 		}
 		includeDirs = append(includeDirs, dir)
 	}
