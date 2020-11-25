@@ -35,7 +35,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("error preprocessing: %s", err)
 	}
-	fmt.Printf("successfully preprocessed %s\n", os.Args[1])
+	fmt.Printf("successfully preprocessed %s => %s\n", os.Args[1], os.Args[2])
 }
 
 func runProcessing(args []string) error {
@@ -55,6 +55,10 @@ func runProcessing(args []string) error {
 			return fmt.Errorf("unable to get absolute path to %s: %s", args[i], err)
 		}
 		includeDirs = append(includeDirs, dir)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(outputFile), 0755); err != nil {
+		return err
 	}
 
 	of, err := os.Create(outputFile)

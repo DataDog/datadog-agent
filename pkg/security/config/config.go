@@ -10,6 +10,7 @@ import (
 	"time"
 
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 )
 
@@ -22,10 +23,10 @@ type Policy struct {
 
 // Config holds the configuration for the runtime security agent
 type Config struct {
+	ebpf.Config
+
 	// Enabled defines if the runtime security module should be enabled
 	Enabled bool
-	// BPFDir defines where the eBPF programs are stored
-	BPFDir string
 	// PoliciesDir defines the folder in which the policy files are located
 	PoliciesDir string
 	// EnableKernelFilters defines if in-kernel filtering should be activated or not
@@ -61,6 +62,7 @@ type Config struct {
 // NewConfig returns a new Config object
 func NewConfig(cfg *config.AgentConfig) (*Config, error) {
 	c := &Config{
+		Config:                             *ebpf.SysProbeConfigFromConfig(cfg),
 		Enabled:                            aconfig.Datadog.GetBool("runtime_security_config.enabled"),
 		EnableKernelFilters:                aconfig.Datadog.GetBool("runtime_security_config.enable_kernel_filters"),
 		EnableApprovers:                    aconfig.Datadog.GetBool("runtime_security_config.enable_approvers"),
@@ -76,10 +78,6 @@ func NewConfig(cfg *config.AgentConfig) (*Config, error) {
 		LoadControllerDiscarderTimeout:     time.Duration(aconfig.Datadog.GetInt("runtime_security_config.load_controller.discarder_timeout")) * time.Second,
 		LoadControllerControlPeriod:        time.Duration(aconfig.Datadog.GetInt("runtime_security_config.load_controller.control_period")) * time.Second,
 		StatsdAddr:                         fmt.Sprintf("%s:%d", cfg.StatsdHost, cfg.StatsdPort),
-	}
-
-	if cfg != nil {
-		c.BPFDir = cfg.SystemProbeBPFDir
 	}
 
 	if !c.Enabled {

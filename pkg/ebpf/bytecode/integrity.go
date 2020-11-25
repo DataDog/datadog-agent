@@ -35,6 +35,10 @@ func genIntegrity(args []string) error {
 		return err
 	}
 
+	if err := os.MkdirAll(filepath.Dir(outputFile), 0755); err != nil {
+		return err
+	}
+
 	f, err := os.Create(outputFile)
 	if err != nil {
 		return err
@@ -42,7 +46,7 @@ func genIntegrity(args []string) error {
 	defer f.Close()
 
 	base := filepath.Base(inputFile)
-	name := strings.Trim(strings.Title(strings.TrimSuffix(base, filepath.Ext(base))), "-_.")
+	name := sanitizeFilename(strings.Title(strings.TrimSuffix(base, filepath.Ext(base))))
 	if err := assetTemplate.Execute(f, struct {
 		Package   string
 		AssetName string
@@ -53,6 +57,17 @@ func genIntegrity(args []string) error {
 	}
 
 	return nil
+}
+
+func sanitizeFilename(s string) string {
+	return strings.Map(func(r rune) rune {
+		switch r {
+		case '-', '_', '.':
+			return -1
+		default:
+			return r
+		}
+	}, s)
 }
 
 func hashFile(path string) (string, error) {

@@ -121,6 +121,8 @@ tools/windows/install-help/cal/packages/
 
 # ebpf object files
 pkg/ebpf/bytecode/build/
+# generated runtime assets
+pkg/ebpf/bytecode/runtime/
 
 # windows container build output
 build.out/

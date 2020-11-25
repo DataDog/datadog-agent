@@ -46,7 +46,7 @@ func NewDefaultConfig() *Config {
 		BPFDir:                   filepath.Join(curDir(), "bytecode/build"),
 		BPFDebug:                 false,
 		ProcRoot:                 "/proc",
-		EnableRuntimeCompiler:    true,
+		EnableRuntimeCompiler:    false,
 		RuntimeCompilerOutputDir: "/var/tmp/datadog-agent/system-probe/build",
 	}
 }
@@ -56,12 +56,14 @@ func SysProbeConfigFromConfig(cfg *config.AgentConfig) *Config {
 	ebpfConfig := NewDefaultConfig()
 
 	ebpfConfig.ProcRoot = util.GetProcRoot()
-	ebpfConfig.BPFDebug = cfg.SysProbeBPFDebug
-	ebpfConfig.BPFDir = cfg.SystemProbeBPFDir
-	ebpfConfig.EnableTracepoints = cfg.EnableTracepoints
-	ebpfConfig.EnableRuntimeCompiler = cfg.EnableRuntimeCompiler
-	ebpfConfig.KernelHeadersDirs = cfg.KernelHeadersDirs
-	ebpfConfig.RuntimeCompilerOutputDir = cfg.RuntimeCompilerOutputDir
+	if cfg != nil {
+		ebpfConfig.BPFDebug = cfg.SysProbeBPFDebug
+		ebpfConfig.BPFDir = cfg.SystemProbeBPFDir
+		ebpfConfig.EnableTracepoints = cfg.EnableTracepoints
+		ebpfConfig.EnableRuntimeCompiler = cfg.EnableRuntimeCompiler
+		ebpfConfig.KernelHeadersDirs = cfg.KernelHeadersDirs
+		ebpfConfig.RuntimeCompilerOutputDir = cfg.RuntimeCompilerOutputDir
+	}
 
 	return ebpfConfig
 }

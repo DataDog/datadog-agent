@@ -502,7 +502,12 @@ def build_object_files(ctx, bundle_ebpf=False):
     )
     bindata_files.extend([security_agent_obj_file, security_agent_syscall_wrapper_obj_file])
 
-    commands.append("go generate -mod=vendor -tags linux_bpf ./pkg/network/tracer")
+    runtime_compiler_files = [
+        "./pkg/network/tracer/compile.go",
+        "./pkg/security/probe/compile.go",
+    ]
+    for f in runtime_compiler_files:
+        commands.append("go generate -mod=vendor -tags linux_bpf {}".format(f))
 
     for cmd in commands:
         ctx.run(cmd)
