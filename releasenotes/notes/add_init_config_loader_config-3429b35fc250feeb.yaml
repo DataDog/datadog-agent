@@ -8,5 +8,6 @@
 ---
 enhancements:
   - |
-    Add `init_config.loader` config to allow selecting spefic loader
-    at runtime.
+    Add `loader` config to allow selecting spefic loader
+    at runtime. This config is available at `init_config`
+    and `instances` level.
