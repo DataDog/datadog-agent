@@ -600,6 +600,36 @@ func getScrubCases() map[string]struct {
 				Args:    []string{"--debug", "123"},
 			},
 		},
+		"sensitive command with no sensitive arg split": {
+			input: v1.Container{
+				Command: []string{"mysql", "--password", "123"},
+				Args:    []string{"--debug", "123"},
+			},
+			expected: v1.Container{
+				Command: []string{"mysql", "--password", "********"},
+				Args:    []string{"--debug", "123"},
+			},
+		},
+		"sensitive command with no sensitive arg mixed": {
+			input: v1.Container{
+				Command: []string{"mysql", "--password", "123"},
+				Args:    []string{"--debug", "123"},
+			},
+			expected: v1.Container{
+				Command: []string{"mysql", "--password", "********"},
+				Args:    []string{"--debug", "123"},
+			},
+		},
+		"sensitive pass in args": {
+			input: v1.Container{
+				Command: []string{"agent --password"},
+				Args:    []string{"token123"},
+			},
+			expected: v1.Container{
+				Command: []string{"agent", "--password"},
+				Args:    []string{"********"},
+			},
+		},
 		"sensitive arg no command": {
 			input: v1.Container{
 				Args: []string{"password", "--password", "afztyerbzio1234"},
