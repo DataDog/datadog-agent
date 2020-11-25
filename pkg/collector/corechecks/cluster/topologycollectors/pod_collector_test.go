@@ -77,19 +77,8 @@ func TestPodCollector(t *testing.T) {
 					}
 					assert.EqualValues(t, expectedComponent, component)
 				},
+				expectPodNodeRelation(t, relationChannel, "test-pod-1"),
 				expectNamespaceRelation(t, relationChannel, "test-pod-1"),
-				func() {
-					relation := <-relationChannel
-					expectedRelation := &topology.Relation{
-						ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:pod/test-pod-1->" +
-							"urn:kubernetes:/test-cluster-name:node/test-node",
-						Type:     topology.Type{Name: "scheduled_on"},
-						SourceID: "urn:kubernetes:/test-cluster-name:test-namespace:pod/test-pod-1",
-						TargetID: "urn:kubernetes:/test-cluster-name:node/test-node",
-						Data:     map[string]interface{}{},
-					}
-					assert.EqualValues(t, expectedRelation, relation)
-				},
 			},
 		},
 		{
@@ -125,19 +114,8 @@ func TestPodCollector(t *testing.T) {
 					}
 					assert.EqualValues(t, expectedComponent, component)
 				},
+				expectPodNodeRelation(t, relationChannel, "test-pod-2"),
 				expectNamespaceRelation(t, relationChannel, "test-pod-2"),
-				func() {
-					relation := <-relationChannel
-					expectedRelation := &topology.Relation{
-						ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:pod/test-pod-2->" +
-							"urn:kubernetes:/test-cluster-name:node/test-node",
-						Type:     topology.Type{Name: "scheduled_on"},
-						SourceID: "urn:kubernetes:/test-cluster-name:test-namespace:pod/test-pod-2",
-						TargetID: "urn:kubernetes:/test-cluster-name:node/test-node",
-						Data:     map[string]interface{}{},
-					}
-					assert.EqualValues(t, expectedRelation, relation)
-				},
 			},
 		},
 		{
@@ -167,18 +145,7 @@ func TestPodCollector(t *testing.T) {
 					}
 					assert.EqualValues(t, expectedComponent, component)
 				},
-				func() {
-					relation := <-relationChannel
-					expectedRelation := &topology.Relation{
-						ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:pod/test-pod-3->" +
-							"urn:kubernetes:/test-cluster-name:node/test-node",
-						Type:     topology.Type{Name: "scheduled_on"},
-						SourceID: "urn:kubernetes:/test-cluster-name:test-namespace:pod/test-pod-3",
-						TargetID: "urn:kubernetes:/test-cluster-name:node/test-node",
-						Data:     map[string]interface{}{},
-					}
-					assert.EqualValues(t, expectedRelation, relation)
-				},
+				expectPodNodeRelation(t, relationChannel, "test-pod-3"),
 				func() {
 					relation := <-relationChannel
 					expectedRelation := &topology.Relation{
@@ -268,19 +235,8 @@ func TestPodCollector(t *testing.T) {
 					}
 					assert.EqualValues(t, expectedComponent, component)
 				},
+				expectPodNodeRelation(t, relationChannel, "test-pod-4"),
 				expectNamespaceRelation(t, relationChannel, "test-pod-4"),
-				func() {
-					relation := <-relationChannel
-					expectedRelation := &topology.Relation{
-						ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:pod/test-pod-4->" +
-							"urn:kubernetes:/test-cluster-name:node/test-node",
-						Type:     topology.Type{Name: "scheduled_on"},
-						SourceID: "urn:kubernetes:/test-cluster-name:test-namespace:pod/test-pod-4",
-						TargetID: "urn:kubernetes:/test-cluster-name:node/test-node",
-						Data:     map[string]interface{}{},
-					}
-					assert.EqualValues(t, expectedRelation, relation)
-				},
 				func() {
 					relation := <-relationChannel
 					expectedRelation := &topology.Relation{
@@ -362,19 +318,8 @@ func TestPodCollector(t *testing.T) {
 					}
 					assert.EqualValues(t, expectedComponent, component)
 				},
+				expectPodNodeRelation(t, relationChannel, "test-pod-5"),
 				expectNamespaceRelation(t, relationChannel, "test-pod-5"),
-				func() {
-					relation := <-relationChannel
-					expectedRelation := &topology.Relation{
-						ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:pod/test-pod-5->" +
-							"urn:kubernetes:/test-cluster-name:node/test-node",
-						Type:     topology.Type{Name: "scheduled_on"},
-						SourceID: "urn:kubernetes:/test-cluster-name:test-namespace:pod/test-pod-5",
-						TargetID: "urn:kubernetes:/test-cluster-name:node/test-node",
-						Data:     map[string]interface{}{},
-					}
-					assert.EqualValues(t, expectedRelation, relation)
-				},
 				func() {
 					relation := <-relationChannel
 					expectedRelation := &topology.Relation{
@@ -428,19 +373,8 @@ func TestPodCollector(t *testing.T) {
 					}
 					assert.EqualValues(t, expectedComponent, component)
 				},
+				expectPodNodeRelation(t, relationChannel, "test-pod-6"),
 				expectNamespaceRelation(t, relationChannel, "test-pod-6"),
-				func() {
-					relation := <-relationChannel
-					expectedRelation := &topology.Relation{
-						ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:pod/test-pod-6->" +
-							"urn:kubernetes:/test-cluster-name:node/test-node",
-						Type:     topology.Type{Name: "scheduled_on"},
-						SourceID: "urn:kubernetes:/test-cluster-name:test-namespace:pod/test-pod-6",
-						TargetID: "urn:kubernetes:/test-cluster-name:node/test-node",
-						Data:     map[string]interface{}{},
-					}
-					assert.EqualValues(t, expectedRelation, relation)
-				},
 				func() {
 					correlation := <-containerCorrelationChannel
 					expectedCorrelation := &ContainerCorrelation{
@@ -597,4 +531,20 @@ func expectNamespaceRelation(t *testing.T, ch chan (*topology.Relation), podName
 		}
 		assert.EqualValues(t, expected, relation)
 	}
+}
+
+func expectPodNodeRelation(t *testing.T, ch chan (*topology.Relation), podName string) func() {
+	return func() {
+		relation := <-relationChannel
+		expectedRelation := &topology.Relation{
+			ExternalID: fmt.Sprintf("urn:kubernetes:/test-cluster-name:test-namespace:pod/%s->", podName) +
+				"urn:kubernetes:/test-cluster-name:node/test-node",
+			Type:     topology.Type{Name: "scheduled_on"},
+			SourceID: fmt.Sprintf("urn:kubernetes:/test-cluster-name:test-namespace:pod/%s", podName),
+			TargetID: "urn:kubernetes:/test-cluster-name:node/test-node",
+			Data:     map[string]interface{}{},
+		}
+		assert.EqualValues(t, expectedRelation, relation)
+	}
+
 }
