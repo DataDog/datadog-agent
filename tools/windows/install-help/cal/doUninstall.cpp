@@ -8,7 +8,6 @@ UINT doUninstallAs(UNINSTALL_TYPE t)
 
     DWORD er = ERROR_SUCCESS;
     CustomActionData data;
-    PSID sid = NULL;
     LSA_HANDLE hLsa = NULL;
     std::wstring propval;
     ddRegKey regkey;
@@ -64,25 +63,27 @@ UINT doUninstallAs(UNINSTALL_TYPE t)
 
     if (willDeleteUser)
     {
-        sid = GetSidForUser(NULL, installedComplete.c_str());
+        auto sidResult = GetSidForUser(NULL, installedComplete.c_str());
 
         // Do not try to do anything if we don't find the user.
-        if (sid != NULL) {
+        if (std::get<1>(sidResult) == S_OK) {
+            const auto & sid = std::get<0>(sidResult);
+
             // remove dd user from programdata root
-            removeUserPermsFromFile(programdataroot, sid);
+            removeUserPermsFromFile(programdataroot, sid.get());
 
             // remove dd user from log directory
-            removeUserPermsFromFile(logdir, sid);
+            removeUserPermsFromFile(logdir, sid.get());
 
             // remove dd user from conf directory
-            removeUserPermsFromFile(confddir, sid);
+            removeUserPermsFromFile(confddir, sid.get());
 
             // remove dd user from datadog.yaml
-            removeUserPermsFromFile(datadogyamlfile, sid);
+            removeUserPermsFromFile(datadogyamlfile, sid.get());
 
             // remove dd user from Performance monitor users
-            DelUserFromGroup(sid, L"S-1-5-32-558", L"Performance Monitor Users");
-            DelUserFromGroup(sid, L"S-1-5-32-573", L"Event Log Readers");
+            DelUserFromGroup(sid.get(), L"S-1-5-32-558", L"Performance Monitor Users");
+            DelUserFromGroup(sid.get(), L"S-1-5-32-573", L"Event Log Readers");
 
             // remove dd user right for
             //   SE_SERVICE_LOGON NAME
@@ -90,17 +91,17 @@ UINT doUninstallAs(UNINSTALL_TYPE t)
             //   SE_DENY_NETWORK_LOGIN_NAME
             //   SE_DENY_INTERACTIVE_LOGIN_NAME
             if ((hLsa = GetPolicyHandle()) != NULL) {
-                if (!RemovePrivileges(sid, hLsa, SE_DENY_INTERACTIVE_LOGON_NAME)) {
+                if (!RemovePrivileges(sid.get(), hLsa, SE_DENY_INTERACTIVE_LOGON_NAME)) {
                     WcaLog(LOGMSG_STANDARD, "failed to remove deny interactive login right");
                 }
 
-                if (!RemovePrivileges(sid, hLsa, SE_DENY_NETWORK_LOGON_NAME)) {
+                if (!RemovePrivileges(sid.get(), hLsa, SE_DENY_NETWORK_LOGON_NAME)) {
                     WcaLog(LOGMSG_STANDARD, "failed to remove deny network login right");
                 }
-                if (!RemovePrivileges(sid, hLsa, SE_DENY_REMOTE_INTERACTIVE_LOGON_NAME)) {
+                if (!RemovePrivileges(sid.get(), hLsa, SE_DENY_REMOTE_INTERACTIVE_LOGON_NAME)) {
                     WcaLog(LOGMSG_STANDARD, "failed to remove deny remote interactive login right");
                 }
-                if (!RemovePrivileges(sid, hLsa, SE_SERVICE_LOGON_NAME)) {
+                if (!RemovePrivileges(sid.get(), hLsa, SE_SERVICE_LOGON_NAME)) {
                     WcaLog(LOGMSG_STANDARD, "failed to remove service login right");
                 }
             }
@@ -114,7 +115,7 @@ UINT doUninstallAs(UNINSTALL_TYPE t)
             }
             else {
                 // delete the home directory that was left behind
-                DeleteHomeDirectory(installedUser, sid);
+                DeleteHomeDirectory(installedUser, sid.get());
             }
         }
     }
@@ -137,9 +138,6 @@ UINT doUninstallAs(UNINSTALL_TYPE t)
     std::wstring embedded = installdir + L"\\embedded";
     RemoveDirectory(embedded.c_str());
 
-    if (sid) {
-        delete[](BYTE *) sid;
-    }
     if (hLsa) {
         LsaClose(hLsa);
     }

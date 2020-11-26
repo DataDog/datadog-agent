@@ -15,38 +15,28 @@ class CustomActionData
         bool present(const std::wstring& key) const;
         bool value(const std::wstring& key, std::wstring &val) const;
 
-        bool isUserDomainUser() const {
-            return domainUser;
-        }
-        bool isUserLocalUser() const {
-            return !domainUser;
-        }
+        bool isUserDomainUser() const;
 
-        const std::wstring& Username() const {
-            return this->username;
-        }
-        const std::wstring& UnqualifiedUsername() const {
-            return this->uqusername;
-        }
-        const std::wstring& Domain() const {
-            return this->domain;
-        }
+        bool isUserLocalUser() const;
 
-        bool installSysprobe() const {
-            return doInstallSysprobe;
-        }
+        const std::wstring& UnqualifiedUsername() const;
 
-        const TargetMachine& GetTargetMachine() const {
-            return machine;
-        }
+        const std::wstring& Username() const;
+
+        const std::wstring& Domain() const;
+        void Domain(const std::wstring& domain);
+
+        bool installSysprobe() const;
+
+        const TargetMachine& GetTargetMachine() const;
     private:
         MSIHANDLE hInstall;
         TargetMachine machine;
         bool domainUser;
         std::map< std::wstring, std::wstring> values;
-        std::wstring username; // qualified
-        std::wstring uqusername;// unqualified
-        std::wstring domain;
+        std::wstring _unqualifiedUsername;
+        std::wstring _domain;
+        std::wstring _fqUsernameFromCli;
         bool doInstallSysprobe;
 
         bool parseUsernameData();

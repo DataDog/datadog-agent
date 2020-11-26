@@ -70,6 +70,47 @@ bool CustomActionData::value(const std::wstring& key, std::wstring &val) const {
     return true;
 }
 
+bool CustomActionData::isUserDomainUser() const
+{
+    return domainUser;
+}
+
+bool CustomActionData::isUserLocalUser() const
+{
+    return !domainUser;
+}
+
+const std::wstring& CustomActionData::UnqualifiedUsername() const
+{
+    return _unqualifiedUsername;
+}
+
+const std::wstring& CustomActionData::Username() const
+{
+    return _fqUsernameFromCli;
+}
+
+const std::wstring& CustomActionData::Domain() const
+{
+    return _domain;
+}
+
+void CustomActionData::Domain(const std::wstring& domain)
+{
+    _domain = domain;
+    _fqUsernameFromCli = _domain + L"\\" + _unqualifiedUsername;
+}
+
+bool CustomActionData::installSysprobe() const
+{
+    return doInstallSysprobe;
+}
+
+const TargetMachine& CustomActionData::GetTargetMachine() const
+{
+    return machine;
+}
+
 // return value of this function is true if the data was parsed,
 // false otherwise. Return value of this function doesn't indicate whether
 // sysprobe is to be installed; this function sets the boolean that can
@@ -125,42 +166,38 @@ bool CustomActionData::parseUsernameData()
         tmpName = L".\\" + tmpName;
     }
     // now create the splits between the domain and user for all to use, too
-    std::wstring computed_domain, computed_user;
     std::wistringstream asStream(tmpName);
     // username is going to be of the form <domain>\<username>
     // if the <domain> is ".", then just do local machine
-    getline(asStream, computed_domain, L'\\');
-    getline(asStream, computed_user, L'\\');
+    getline(asStream, _domain, L'\\');
+    getline(asStream, _unqualifiedUsername, L'\\');
 
-    if (computed_domain == L".")
+    if (_domain == L".")
     {
         WcaLog(LOGMSG_STANDARD, "Supplied qualified domain '.', using hostname");
-        computed_domain = machine.GetMachineName();
+        _domain = machine.GetMachineName();
         this->domainUser = false;
     }
     else
     {
-        if(0 == _wcsicmp(computed_domain.c_str(), machine.GetMachineName().c_str()))
+        if(0 == _wcsicmp(_domain.c_str(), machine.GetMachineName().c_str()))
         {
             WcaLog(LOGMSG_STANDARD, "Supplied hostname as authority");
             this->domainUser = false;
         }
-        else if(0 == _wcsicmp(computed_domain.c_str(), machine.GetDomain().c_str()))
+        else if(0 == _wcsicmp(_domain.c_str(), machine.JoinedDomainName().c_str()))
         {
-            WcaLog(LOGMSG_STANDARD, "Supplied domain name %S %S", computed_domain.c_str(), machine.GetDomain().c_str());
+            WcaLog(LOGMSG_STANDARD, "Supplied domain name %S", _domain.c_str());
             this->domainUser = true;
         }
         else
         {
-            WcaLog(LOGMSG_STANDARD, "Warning: Supplied user in different domain (%S != %S)", computed_domain.c_str(), machine.GetDomain().c_str());
-            computed_domain = machine.GetDomain();
+            WcaLog(LOGMSG_STANDARD, "Warning: Supplied user in different domain (%S != %S)", _domain.c_str(), machine.JoinedDomainName().c_str());
             this->domainUser = true;
         }
     }
-    this->domain = computed_domain;
-    this->username = computed_domain + L"\\" + computed_user;
-    this->uqusername = computed_user;
 
-    WcaLog(LOGMSG_STANDARD, "Computed fully qualified username %S", this->username.c_str());
+    _fqUsernameFromCli = _domain + L"\\" + _unqualifiedUsername;
+    WcaLog(LOGMSG_STANDARD, "Computed fully qualified username %S", _fqUsernameFromCli.c_str());
     return true;
 }
