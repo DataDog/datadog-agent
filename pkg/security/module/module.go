@@ -14,7 +14,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"runtime"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -238,9 +237,7 @@ func (m *Module) GetRuleSet() *rules.RuleSet {
 func NewModule(cfg *config.Config) (api.Module, error) {
 	var statsdClient *statsd.Client
 	var err error
-	// statsd segfaults on 386 because of atomic primitive usage with wrong alignment
-	// https://github.com/golang/go/issues/37262
-	if runtime.GOARCH != "386" && cfg != nil {
+	if cfg != nil {
 		statsdAddr := os.Getenv("STATSD_URL")
 		if statsdAddr == "" {
 			statsdAddr = cfg.StatsdAddr
