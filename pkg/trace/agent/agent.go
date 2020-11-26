@@ -204,9 +204,11 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 				traceutil.SetMeta(root, tagContainersTags, p.ContainerTags)
 			}
 		}
-		// Figure out the top-level spans and sublayers now as it involves modifying the Metrics map
-		// which is not thread-safe while samplers and Concentrator might modify it too.
-		traceutil.ComputeTopLevel(t)
+		if !p.ClientComputedTopLevel {
+			// Figure out the top-level spans and sublayers now as it involves modifying the Metrics map
+			// which is not thread-safe while samplers and Concentrator might modify it too.
+			traceutil.ComputeTopLevel(t)
+		}
 
 		env := a.conf.DefaultEnv
 		if v := traceutil.GetEnv(t); v != "" {
