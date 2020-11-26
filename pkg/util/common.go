@@ -119,6 +119,23 @@ func CopyDir(src, dst string) error {
 	return nil
 }
 
+// GetFileSize gets the file size
+func GetFileSize(path string) (int64, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = file.Close() }()
+
+	stat, err := file.Stat()
+
+	if err != nil {
+		return 0, err
+	}
+
+	return stat.Size(), nil
+}
+
 // EnsureParentDirsExist makes a path immediately available for
 // writing by creating the necessary parent directories.
 func EnsureParentDirsExist(p string) error {
