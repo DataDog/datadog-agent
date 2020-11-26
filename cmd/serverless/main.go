@@ -134,6 +134,7 @@ func main() {
 }
 
 func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
+
 	startTime := time.Now()
 
 	// setup logger
@@ -293,7 +294,6 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		// we're not reporting the error to AWS because we don't want the function
 		// execution to be stopped. TODO(remy): discuss with AWS if there is way
 		// of reporting non-critical init errors.
-		// serverless.ReportInitError(serverlessId, serverless.FatalBadEndpoint)
 		log.Errorf("Misconfiguration of agent endpoints: %s", err)
 	}
 	forwarderTimeout := config.Datadog.GetDuration("forwarder_timeout") * time.Second

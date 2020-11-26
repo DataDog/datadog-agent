@@ -26,6 +26,7 @@ type Daemon struct {
 	// aggregator used by the statsd server
 	aggregator *aggregator.BufferedAggregator
 	stopCh     chan struct{}
+
 	// Wait on this WaitGroup in controllers to be sure that the Daemon is ready.
 	// (i.e. that the DogStatsD server is properly instanciated)
 	ReadyWg *sync.WaitGroup
@@ -71,6 +72,7 @@ func StartDaemon(stopCh chan struct{}) *Daemon {
 			log.Error(err)
 		}
 	}()
+
 	return daemon
 }
 
@@ -194,6 +196,7 @@ func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("DogStatsD server not ready"))
 		return
 	}
+
 	// synchronous flush of the logs agent
 	// FIXME(remy): could the enhanced metrics be generated at this point? if not
 	//              and they're already generated when REPORT is received on the http server,

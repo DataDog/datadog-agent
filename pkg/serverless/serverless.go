@@ -222,7 +222,6 @@ func ReportInitError(id ID, errorEnum ErrorEnum) error {
 // WaitForNextInvocation starts waiting and blocking until it receives a request.
 // Note that for now, we only subscribe to INVOKE and SHUTDOWN messages.
 // Write into stopCh to stop the main thread of the running program.
-// Returns the current ARN.
 func WaitForNextInvocation(stopCh chan struct{}, statsdServer *dogstatsd.Server, id ID) error {
 	var err error
 
