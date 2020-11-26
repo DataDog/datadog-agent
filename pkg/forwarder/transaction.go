@@ -212,18 +212,25 @@ type Transaction interface {
 	GetPriority() TransactionPriority
 	GetEndpointName() string
 	GetPayloadSize() int
+	SerializeTo(*TransactionsSerializer) error
 }
 
 // NewHTTPTransaction returns a new HTTPTransaction.
 func NewHTTPTransaction() *HTTPTransaction {
-	return &HTTPTransaction{
-		createdAt:         time.Now(),
-		ErrorCount:        0,
-		retryable:         true,
-		Headers:           make(http.Header),
-		attemptHandler:    defaultAttemptHandler,
-		completionHandler: defaultCompletionHandler,
+	tr := &HTTPTransaction{
+		createdAt:  time.Now(),
+		ErrorCount: 0,
+		retryable:  true,
+		Headers:    make(http.Header),
 	}
+	tr.SetDefaultHandlers()
+	return tr
+}
+
+// SetDefaultHandlers sets the default handlers for attemptHandler and completionHandler
+func (t *HTTPTransaction) SetDefaultHandlers() {
+	t.attemptHandler = defaultAttemptHandler
+	t.completionHandler = defaultCompletionHandler
 }
 
 // GetCreatedAt returns the creation time of the HTTPTransaction.
@@ -366,4 +373,9 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 	}
 	log.Tracef("Successfully posted payload to %q: %s", logURL, string(body))
 	return resp.StatusCode, body, nil
+}
+
+// SerializeTo serializes the transaction using TransactionsSerializer
+func (t *HTTPTransaction) SerializeTo(serializer *TransactionsSerializer) error {
+	return serializer.Add(t)
 }
