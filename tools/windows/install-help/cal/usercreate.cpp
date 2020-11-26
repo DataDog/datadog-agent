@@ -72,7 +72,7 @@ bool generatePassword(wchar_t* passbuf, int passbuflen) {
     return true;
 
 }
-DWORD changeRegistryAcls(CustomActionData& data, const wchar_t* name) {
+DWORD changeRegistryAcls(PSID sid, const wchar_t* name) {
 
     WcaLog(LOGMSG_STANDARD, "Changing registry ACL on %S", name);
     ExplicitAccess localsystem;
@@ -84,9 +84,8 @@ DWORD changeRegistryAcls(CustomActionData& data, const wchar_t* name) {
     //ExplicitAccess suser;
     //suser.BuildGrantUser(secretUserUsername.c_str(), GENERIC_READ | GENERIC_EXECUTE | READ_CONTROL | KEY_READ);
 
-    PSID  usersid = GetSidForUser(NULL, data.Username().c_str());
     ExplicitAccess dduser;
-    dduser.BuildGrantUser((SID *)usersid, GENERIC_ALL | KEY_ALL_ACCESS,
+    dduser.BuildGrantUser((SID *)sid, GENERIC_ALL | KEY_ALL_ACCESS,
         SUB_CONTAINERS_AND_OBJECTS_INHERIT);
 
 
@@ -114,7 +113,7 @@ DWORD changeRegistryAcls(CustomActionData& data, const wchar_t* name) {
 
 }
 
-DWORD addDdUserPermsToFile(CustomActionData& data, std::wstring &filename)
+DWORD addDdUserPermsToFile(PSID sid, std::wstring &filename)
 {
 
     if(!PathFileExistsW((LPCWSTR) filename.c_str()))
@@ -124,9 +123,8 @@ DWORD addDdUserPermsToFile(CustomActionData& data, std::wstring &filename)
         return 0;
     }
     WcaLog(LOGMSG_STANDARD, "Changing file permissions on %S", filename.c_str());
-    PSID  usersid = GetSidForUser(NULL, data.Username().c_str());
     ExplicitAccess dduser;
-    dduser.BuildGrantUser((SID *)usersid, FILE_ALL_ACCESS,
+    dduser.BuildGrantUser((SID *)sid, FILE_ALL_ACCESS,
                           SUB_CONTAINERS_AND_OBJECTS_INHERIT);
 
     // get the current ACLs and append, rather than just set; if the file exists,
@@ -288,111 +286,5 @@ int doSetUserPassword(const std::wstring& name,  const wchar_t* passbuf)
 DWORD DeleteUser(const wchar_t* host, const wchar_t* name){
     NET_API_STATUS ret = NetUserDel(NULL, name);
     return (DWORD)ret;
-}
-
-int doesUserExist(const CustomActionData& data, bool isDC)
-{
-    int retval = 0;
-    SID *newsid = NULL;
-    DWORD cbSid = 0;
-    LPWSTR refDomain = NULL;
-    DWORD cchRefDomain = 0;
-    SID_NAME_USE use;
-    DWORD err = 0;
-    const wchar_t * userToTry = data.Username().c_str();
-    const wchar_t * hostToTry = NULL;
-
-    WcaLog(LOGMSG_STANDARD, "First lookup account name %S", data.Username().c_str());
-    BOOL bRet = LookupAccountName(NULL, userToTry, newsid, &cbSid, refDomain, &cchRefDomain, &use);
-    if (bRet) {
-        err = GetLastError();
-        // this should *never* happen, because we didn't pass in a buffer large enough for
-        // the sid or the domain name.
-        WcaLog(LOGMSG_STANDARD, "doesUserExist: Lookup Account Name: Unexpected error %d 0x%x", err, err);
-        return -1;
-    }
-    err = GetLastError();
-    if (ERROR_NONE_MAPPED == err) {
-        // this user doesn't exist.  We're done
-        WcaLog(LOGMSG_STANDARD, "Account %S not found, continuing.", data.Username().c_str());
-        return 0;
-    }
-    if (ERROR_INSUFFICIENT_BUFFER != err) {
-        if (!isDC) {
-            // can only try this if we're not on a primary/backup DC; on DCs we must
-            // be able to contact the domain authority.  
-            if (err >= ERROR_NO_TRUST_LSA_SECRET && err <= ERROR_TRUST_FAILURE) {
-                WcaLog(LOGMSG_STANDARD, "Can't reach domain controller %d", err);
-                // if the user specified a domain, then also must be able to contact
-                // the domain authority
-                if (data.isUserLocalUser() == NULL) {
-                    WcaLog(LOGMSG_STANDARD, "trying fully qualified local account");
-                    bRet = LookupAccountName(data.GetTargetMachine().GetMachineName().c_str(), data.Username().c_str(), newsid, &cbSid, refDomain, &cchRefDomain, &use);
-                    if (bRet) {
-                        // this should *never* happen, because we didn't pass in a buffer large enough for
-                        // the sid or the domain name.
-                        WcaLog(LOGMSG_STANDARD, "doesUserExist: Lookup Account Name: Unexpected error %d 0x%x", err, err);
-                        return -1;
-                    }
-                    err = GetLastError();
-                    if (ERROR_NONE_MAPPED == err) {
-                        // this user doesn't exist.  We're done
-                        WcaLog(LOGMSG_STANDARD, "retried user doesn't exist");
-                        return 0;
-                    }
-                    if (ERROR_INSUFFICIENT_BUFFER != err) {
-                        WcaLog(LOGMSG_STANDARD, "Failed retry of lookup account name %d", err);
-                        return -1;
-                    }
-                }
-                else {
-                    WcaLog(LOGMSG_STANDARD, "doesUserExist: Lookup Account Name: supplied domain, but can't check user database %d 0x%x", err, err);
-                    return -1;
-                }
-            }
-            else {
-                WcaLog(LOGMSG_STANDARD, "doesUserExist: Lookup Account Name: Unexpected error %d 0x%x", err, err);
-                return -1;
-            }
-            hostToTry = data.GetTargetMachine().GetMachineName().c_str();
-
-        }
-        else {        // we don't know what happened
-            // on a DC, can't try without domain access
-            WcaLog(LOGMSG_STANDARD, "doesUserExist: Lookup Account Name: Expected insufficient buffer, got error %d 0x%x", err, err);
-            return -1;
-        }
-    }
-    newsid = (SID *) new BYTE[cbSid];
-    ZeroMemory(newsid, cbSid);
-
-    refDomain = new wchar_t[cchRefDomain + 1];
-    ZeroMemory(refDomain, (cchRefDomain + 1) * sizeof(wchar_t));
-
-    // try it again
-    WcaLog(LOGMSG_STANDARD, "Looking up account %S in %S", userToTry, hostToTry);
-    bRet = LookupAccountName(hostToTry, userToTry, newsid, &cbSid, refDomain, &cchRefDomain, &use);
-    if (!bRet) {
-        err = GetLastError();
-        WcaLog(LOGMSG_STANDARD, "Failed to lookup account name %d", GetLastError());
-        retval = -1;
-        goto cleanAndFail;
-    }
-    if (!IsValidSid(newsid)) {
-        WcaLog(LOGMSG_STANDARD, "New SID is invalid");
-        retval = -1;
-        goto cleanAndFail;
-    }
-    retval = 1;
-    WcaLog(LOGMSG_STANDARD, "Got SID from %S", refDomain);
-
-cleanAndFail:
-    if (newsid) {
-        delete[](BYTE*)newsid;
-    }
-    if (refDomain) {
-        delete[] refDomain;
-    }
-    return retval;
 }
 

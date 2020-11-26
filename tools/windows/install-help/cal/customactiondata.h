@@ -15,50 +15,29 @@ class CustomActionData
         bool present(const std::wstring& key) const;
         bool value(const std::wstring& key, std::wstring &val) const;
 
-        bool isUserDomainUser() const {
-            return domainUser;
-        }
-        bool isUserLocalUser() const {
-            return !domainUser;
-        }
+        bool isUserDomainUser() const;
 
-        const std::wstring& Username() const {
-            return this->username;
-        }
-        const std::wstring& UnqualifiedUsername() const {
-            return this->uqusername;
-        }
-        const std::wstring& Domain() const {
-            return this->domain;
-        }
+        bool isUserLocalUser() const;
 
-        bool installSysprobe() const {
-            return doInstallSysprobe;
-        }
-        bool UserParamMismatch() const {
-            return userParamMismatch;
-        }
-        const TargetMachine& GetTargetMachine() const {
-            return machine;
-        }
+        const std::wstring& UnqualifiedUsername() const;
+
+        const std::wstring& Username() const;
+
+        const std::wstring& Domain() const;
+        void Domain(const std::wstring& domain);
+
+        bool installSysprobe() const;
+
+        const TargetMachine& GetTargetMachine() const;
     private:
         MSIHANDLE hInstall;
         TargetMachine machine;
         bool domainUser;
-        bool userParamMismatch;
         std::map< std::wstring, std::wstring> values;
-        std::wstring username; // qualified
-        std::wstring uqusername;// unqualified
-        std::wstring domain;
+        std::wstring _unqualifiedUsername;
+        std::wstring _domain;
+        std::wstring _fqUsernameFromCli;
         bool doInstallSysprobe;
-
-        std::wstring pvsUser;       // previously installed user, read from registry
-        std::wstring pvsDomain;     // previously installed domain for user, read from registry
-
-        bool findPreviousUserInfo();
-        void checkForUserMismatch(bool previousInstall, bool userSupplied, std::wstring &computed_domain, std::wstring &computed_user);
-        void findSuppliedUserInfo(std::wstring &input, std::wstring &computed_domain, std::wstring &computed_user);
-
 
         bool parseUsernameData();
         bool parseSysprobeData();

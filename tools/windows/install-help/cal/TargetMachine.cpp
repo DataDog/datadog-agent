@@ -5,8 +5,9 @@
 TargetMachine::TargetMachine()
 : _serverType(0)
 , _machineName(L"")
-, _domain(L"")
+, _joinedDomain(L"")
 , _isDomainJoined(false)
+, _dnsDomainName(L"")
 {
 
 }
@@ -53,13 +54,13 @@ DWORD TargetMachine::Detect()
     }
 
     // Retrieves a NetBIOS or DNS name associated with the local computer.
-    if (DetectComputerName(ComputerNameDnsDomain, _domain))
+    if (DetectComputerName(ComputerNameDnsDomain, _dnsDomainName))
     {
         // newer domains will look like DNS domains.  (i.e. domain.local)
         // just take the domain portion, which is all we're interested in.
-        size_t pos = _domain.find(L'.');
+        size_t pos = _dnsDomainName.find(L'.');
         if (pos != std::wstring::npos) {
-            _domain = _domain.substr(0, pos);
+            _dnsDomainName = _dnsDomainName.substr(0, pos);
         }
     }
     else
@@ -149,14 +150,13 @@ bool TargetMachine::DetectComputerName(COMPUTER_NAME_FORMAT fmt, std::wstring& r
 DWORD TargetMachine::DetectDomainInformation()
 {
     // check if it's actually domain joined or not
-    std::wstring joined_domain;
     LPWSTR name = nullptr;
     NETSETUP_JOIN_STATUS st;
     DWORD nErr = NetGetJoinInformation(nullptr, &name, &st);
     if (nErr == NERR_Success)
     {
         _wcslwr_s(name, wcslen(name) + 1);
-        joined_domain = name;
+        _joinedDomain = name;
         (void)NetApiBufferFree(name);
     }
     else
@@ -183,17 +183,16 @@ DWORD TargetMachine::DetectDomainInformation()
             WcaLog(LOGMSG_STANDARD, "Computer is joined to a workgroup");
             break;
         case NetSetupDomainName:
-            WcaLog(LOGMSG_STANDARD, "Computer is domain-joined");
+            WcaLog(LOGMSG_STANDARD, "Computer is joined to domain \"%S\"", _joinedDomain.c_str());
             _isDomainJoined = true;
             break;
     }
 
     if (_isDomainJoined)
     {
-        if (_domain != joined_domain)
+        if (_dnsDomainName != _joinedDomain)
         {
-            WcaLog(LOGMSG_STANDARD, "DNS domain name %S doesn't match the joined domain %S", _domain.c_str(), joined_domain.c_str());
-            _domain = joined_domain;
+            WcaLog(LOGMSG_STANDARD, "DNS domain name \"%S\" doesn't match the joined domain \"%S\"", _dnsDomainName.c_str(), _joinedDomain.c_str());
         }
 
         // Detect if we are on a read-only domain controller
@@ -204,7 +203,7 @@ DWORD TargetMachine::DetectDomainInformation()
             // ComputerName = nullptr means local computer
             nErr = DsGetDcName(
                 /*ComputerName*/ nullptr,
-                _domain.c_str(),
+                _joinedDomain.c_str(),
                 /*DomainGuid*/ nullptr,
                 /*SiteName*/ nullptr,
                 0,
@@ -228,9 +227,14 @@ std::wstring TargetMachine::GetMachineName() const
     return _machineName;
 }
 
-std::wstring TargetMachine::GetDomain() const
+std::wstring TargetMachine::JoinedDomainName() const
 {
-    return _domain;
+    return _joinedDomain;
+}
+
+std::wstring TargetMachine::DnsDomainName() const
+{
+    return _dnsDomainName;
 }
 
 bool TargetMachine::IsDomainJoined() const
