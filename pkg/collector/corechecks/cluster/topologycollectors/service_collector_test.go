@@ -8,6 +8,9 @@ package topologycollectors
 
 import (
 	"fmt"
+	"testing"
+	"time"
+
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
 	"github.com/stretchr/testify/assert"
@@ -15,8 +18,6 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"testing"
-	"time"
 )
 
 func TestServiceCollector(t *testing.T) {
@@ -59,6 +60,14 @@ func TestServiceCollector(t *testing.T) {
 					TargetID: "urn:kubernetes:/test-cluster-name:pod-namespace:pod/some-pod-name",
 					Data:     map[string]interface{}{},
 				},
+				{
+					ExternalID: "urn:kubernetes:/test-cluster-name:namespace/test-namespace->" +
+						"urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-1",
+					Type:     topology.Type{Name: "encloses"},
+					SourceID: "urn:kubernetes:/test-cluster-name:namespace/test-namespace",
+					TargetID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-1",
+					Data:     map[string]interface{}{},
+				},
 			},
 		},
 		{
@@ -78,7 +87,16 @@ func TestServiceCollector(t *testing.T) {
 					},
 				},
 			},
-			expectedRelations: []*topology.Relation{},
+			expectedRelations: []*topology.Relation{
+				{
+					ExternalID: "urn:kubernetes:/test-cluster-name:namespace/test-namespace->" +
+						"urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-2",
+					Type:     topology.Type{Name: "encloses"},
+					SourceID: "urn:kubernetes:/test-cluster-name:namespace/test-namespace",
+					TargetID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-2",
+					Data:     map[string]interface{}{},
+				},
+			},
 		},
 		{
 			testCase: "Test Service 3 - Minimal - Cluster IP + External IPs",
@@ -97,7 +115,16 @@ func TestServiceCollector(t *testing.T) {
 					},
 				},
 			},
-			expectedRelations: []*topology.Relation{},
+			expectedRelations: []*topology.Relation{
+				{
+					ExternalID: "urn:kubernetes:/test-cluster-name:namespace/test-namespace->" +
+						"urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-3",
+					Type:     topology.Type{Name: "encloses"},
+					SourceID: "urn:kubernetes:/test-cluster-name:namespace/test-namespace",
+					TargetID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-3",
+					Data:     map[string]interface{}{},
+				},
+			},
 		},
 		{
 			testCase: "Test Service 4 - Minimal - Cluster IP",
@@ -115,7 +142,16 @@ func TestServiceCollector(t *testing.T) {
 					},
 				},
 			},
-			expectedRelations: []*topology.Relation{},
+			expectedRelations: []*topology.Relation{
+				{
+					ExternalID: "urn:kubernetes:/test-cluster-name:namespace/test-namespace->" +
+						"urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-4",
+					Type:     topology.Type{Name: "encloses"},
+					SourceID: "urn:kubernetes:/test-cluster-name:namespace/test-namespace",
+					TargetID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-4",
+					Data:     map[string]interface{}{},
+				},
+			},
 		},
 		{
 			testCase: "Test Service 5 - Minimal - Cluster IP - None",
@@ -132,7 +168,16 @@ func TestServiceCollector(t *testing.T) {
 					"identifiers": []string{"urn:service:/test-cluster-name:test-namespace:test-service-5"},
 				},
 			},
-			expectedRelations: []*topology.Relation{},
+			expectedRelations: []*topology.Relation{
+				{
+					ExternalID: "urn:kubernetes:/test-cluster-name:namespace/test-namespace->" +
+						"urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-5",
+					Type:     topology.Type{Name: "encloses"},
+					SourceID: "urn:kubernetes:/test-cluster-name:namespace/test-namespace",
+					TargetID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-5",
+					Data:     map[string]interface{}{},
+				},
+			},
 		},
 		{
 			testCase: "Test Service 6 - LoadBalancer + Ingress Points + Ingress Correlation",
@@ -159,6 +204,14 @@ func TestServiceCollector(t *testing.T) {
 					Type:     topology.Type{Name: "exposes"},
 					SourceID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-6",
 					TargetID: "urn:kubernetes:/test-cluster-name:pod-namespace:pod/some-pod-name",
+					Data:     map[string]interface{}{},
+				},
+				{
+					ExternalID: "urn:kubernetes:/test-cluster-name:namespace/test-namespace->" +
+						"urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-6",
+					Type:     topology.Type{Name: "encloses"},
+					SourceID: "urn:kubernetes:/test-cluster-name:namespace/test-namespace",
+					TargetID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-6",
 					Data:     map[string]interface{}{},
 				},
 			},

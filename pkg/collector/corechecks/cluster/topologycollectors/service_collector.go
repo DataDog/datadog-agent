@@ -90,6 +90,7 @@ func (sc *ServiceCollector) CollectorFunction() error {
 		component := sc.serviceToStackStateComponent(service)
 
 		sc.ComponentChan <- component
+		sc.RelationChan <- sc.namespaceToServiceStackStateRelation(sc.buildNamespaceExternalID(service.Namespace), component.ExternalID)
 
 		publishedPodRelations := make(map[string]string, 0)
 		for _, endpoint := range serviceEndpointIdentifiers[serviceID] {
@@ -218,6 +219,17 @@ func (sc *ServiceCollector) serviceToPodStackStateRelation(serviceExternalID, po
 	relation := sc.CreateRelation(serviceExternalID, podExternalID, "exposes")
 
 	log.Tracef("Created StackState service -> pod relation %s->%s", relation.SourceID, relation.TargetID)
+
+	return relation
+}
+
+// Creates a StackState relation from a Kubernetes / OpenShift Service to Namespace relation
+func (sc *ServiceCollector) namespaceToServiceStackStateRelation(namespaceExternalID, serviceExternalID string) *topology.Relation {
+	log.Tracef("Mapping kubernetes namespace to service relation: %s -> %s", namespaceExternalID, serviceExternalID)
+
+	relation := sc.CreateRelation(namespaceExternalID, serviceExternalID, "encloses")
+
+	log.Tracef("Created StackState namespace -> service relation %s->%s", relation.SourceID, relation.TargetID)
 
 	return relation
 }
