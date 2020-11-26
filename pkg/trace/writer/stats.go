@@ -36,22 +36,26 @@ const (
 
 // StatsWriter ingests stats buckets and flushes them to the API.
 type StatsWriter struct {
-	in        <-chan []stats.Bucket
-	inPayload chan *stats.Payload
-	hostname  string
-	env       string
-	senders   []*sender
-	stop      chan struct{}
-	stats     *info.StatsWriterInfo
+	// InBuckets is the input channel for stats buckets.
+	InBuckets chan []stats.Bucket
+
+	// InPayload is the input channel for payloads.
+	InPayload chan *stats.Payload
+
+	hostname string
+	env      string
+	senders  []*sender
+	stop     chan struct{}
+	stats    *info.StatsWriterInfo
 
 	easylog *logutil.ThrottledLogger
 }
 
 // NewStatsWriter returns a new StatsWriter. It must be started using Run.
-func NewStatsWriter(cfg *config.AgentConfig, inBuckets <-chan []stats.Bucket, inPayloads chan *stats.Payload) *StatsWriter {
+func NewStatsWriter(cfg *config.AgentConfig, inBuckets chan []stats.Bucket) *StatsWriter {
 	sw := &StatsWriter{
-		in:        inBuckets,
-		inPayload: inPayloads,
+		InBuckets: inBuckets,
+		InPayload: make(chan *stats.Payload, 10),
 		hostname:  cfg.Hostname,
 		env:       cfg.DefaultEnv,
 		stats:     &info.StatsWriterInfo{},
@@ -87,9 +91,9 @@ func (w *StatsWriter) Run() {
 	defer close(w.stop)
 	for {
 		select {
-		case stats := <-w.in:
+		case stats := <-w.InBuckets:
 			w.addStats(stats)
-		case p := <-w.inPayload:
+		case p := <-w.InPayload:
 			w.sendPayload(p)
 		case <-t.C:
 			w.report()

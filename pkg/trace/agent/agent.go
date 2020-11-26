@@ -52,9 +52,8 @@ type Agent struct {
 	// tags based on their type.
 	obfuscator *obfuscate.Obfuscator
 
-	In       chan *api.Payload
-	Out      chan *writer.SampledSpans
-	OutStats chan *stats.Payload
+	// In is the input channel for incoming payloads.
+	In chan *api.Payload
 
 	// config
 	conf *config.AgentConfig
@@ -68,8 +67,6 @@ type Agent struct {
 func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	dynConf := sampler.NewDynamicConfig(conf.DefaultEnv)
 	in := make(chan *api.Payload, 1000)
-	out := make(chan *writer.SampledSpans, 1000)
-	statsPayloadChan := make(chan *stats.Payload, 10)
 	statsBucketsChan := make(chan []stats.Bucket, 100)
 
 	agnt := &Agent{
@@ -81,12 +78,10 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		ErrorsScoreSampler: NewErrorsSampler(conf),
 		PrioritySampler:    NewPrioritySampler(conf, dynConf),
 		EventProcessor:     newEventProcessor(conf),
-		TraceWriter:        writer.NewTraceWriter(conf, out),
-		StatsWriter:        writer.NewStatsWriter(conf, statsBucketsChan, statsPayloadChan),
+		TraceWriter:        writer.NewTraceWriter(conf),
+		StatsWriter:        writer.NewStatsWriter(conf, statsBucketsChan),
 		obfuscator:         obfuscate.NewObfuscator(conf.Obfuscation),
 		In:                 in,
-		Out:                out,
-		OutStats:           statsPayloadChan,
 		conf:               conf,
 		ctx:                ctx,
 	}
@@ -255,12 +250,12 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 			ss.Size += pb.Trace(events).Msgsize()
 		}
 		if ss.Size > writer.MaxPayloadSize {
-			a.Out <- ss
+			a.TraceWriter.In <- ss
 			ss = new(writer.SampledSpans)
 		}
 	}
 	if ss.Size > 0 {
-		a.Out <- ss
+		a.TraceWriter.In <- ss
 	}
 	if len(sinputs) > 0 {
 		a.Concentrator.In <- sinputs
@@ -327,7 +322,7 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang string) {
 		}
 	}
 
-	a.OutStats <- &out
+	a.StatsWriter.InPayload <- &out
 }
 
 // sample decides whether the trace will be kept and extracts any APM events
