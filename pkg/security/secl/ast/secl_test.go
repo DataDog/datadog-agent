@@ -124,3 +124,28 @@ func TestMacroExpression(t *testing.T) {
 
 	print(t, macro)
 }
+
+func TestMultiline(t *testing.T) {
+	expr := `process.filename == "/usr/bin/vipw" &&
+	process.pid == 44`
+
+	if _, err := ParseRule(expr); err != nil {
+		t.Error(err)
+	}
+
+	expr = `process.filename in ["/usr/bin/vipw",
+	"/usr/bin/test"]`
+
+	if _, err := ParseRule(expr); err != nil {
+		t.Error(err)
+	}
+
+	expr = `process.filename == "/usr/bin/vipw" && (
+	process.filename == "/usr/bin/test" ||
+	process.filename == "/ust/bin/false"
+	)`
+
+	if _, err := ParseRule(expr); err != nil {
+		t.Error(err)
+	}
+}
