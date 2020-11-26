@@ -8,5 +8,5 @@
 ---
 other:
   - |
-    Upgrade embedded `libkrb5` Kerberos library to v1.18.2. This version drops support for
+    Upgrade embedded `libkrb5` Kerberos library to v1.18.3. This version drops support for
     the encryption types marked as "weak" in the `docs of the library <https://web.mit.edu/kerberos/krb5-1.17/doc/admin/conf_files/kdc_conf.html#encryption-types>_`
