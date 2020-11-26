@@ -14,14 +14,8 @@ build do
 
   ship_license "https://raw.githubusercontent.com/krb5/krb5/master/NOTICE"
 
-  patch :source => "aclocal-add-parameter-to-disable-keyutils-detection.patch"
-
-  # after patching we need to recreate configure scripts w/ autoconf
-  autoconf_cmd = ["autoreconf", "--install"].join(" ")
-  command autoconf_cmd, :env => reconf_env
-
   cmd = ["./configure",
-         "--disable-keyutils",
+         "--without-keyutils", # this would require additional deps/system deps, disable it
          "--without-system-verto", # do not prefer libverto from the system, if installed
          "--without-libedit", # we don't want to link with libraries outside of the install dir
          "--prefix=#{install_dir}/embedded"].join(" ")
