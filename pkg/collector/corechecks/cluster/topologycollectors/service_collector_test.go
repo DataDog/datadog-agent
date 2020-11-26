@@ -53,19 +53,19 @@ func TestServiceCollector(t *testing.T) {
 			},
 			expectedRelations: []*topology.Relation{
 				{
-					ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-1->" +
-						"urn:kubernetes:/test-cluster-name:pod-namespace:pod/some-pod-name",
-					Type:     topology.Type{Name: "exposes"},
-					SourceID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-1",
-					TargetID: "urn:kubernetes:/test-cluster-name:pod-namespace:pod/some-pod-name",
-					Data:     map[string]interface{}{},
-				},
-				{
 					ExternalID: "urn:kubernetes:/test-cluster-name:namespace/test-namespace->" +
 						"urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-1",
 					Type:     topology.Type{Name: "encloses"},
 					SourceID: "urn:kubernetes:/test-cluster-name:namespace/test-namespace",
 					TargetID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-1",
+					Data:     map[string]interface{}{},
+				},
+				{
+					ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-1->" +
+						"urn:kubernetes:/test-cluster-name:pod-namespace:pod/some-pod-name",
+					Type:     topology.Type{Name: "exposes"},
+					SourceID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-1",
+					TargetID: "urn:kubernetes:/test-cluster-name:pod-namespace:pod/some-pod-name",
 					Data:     map[string]interface{}{},
 				},
 			},
@@ -199,19 +199,19 @@ func TestServiceCollector(t *testing.T) {
 			},
 			expectedRelations: []*topology.Relation{
 				{
-					ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-6->" +
-						"urn:kubernetes:/test-cluster-name:pod-namespace:pod/some-pod-name",
-					Type:     topology.Type{Name: "exposes"},
-					SourceID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-6",
-					TargetID: "urn:kubernetes:/test-cluster-name:pod-namespace:pod/some-pod-name",
-					Data:     map[string]interface{}{},
-				},
-				{
 					ExternalID: "urn:kubernetes:/test-cluster-name:namespace/test-namespace->" +
 						"urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-6",
 					Type:     topology.Type{Name: "encloses"},
 					SourceID: "urn:kubernetes:/test-cluster-name:namespace/test-namespace",
 					TargetID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-6",
+					Data:     map[string]interface{}{},
+				},
+				{
+					ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-6->" +
+						"urn:kubernetes:/test-cluster-name:pod-namespace:pod/some-pod-name",
+					Type:     topology.Type{Name: "exposes"},
+					SourceID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-6",
+					TargetID: "urn:kubernetes:/test-cluster-name:pod-namespace:pod/some-pod-name",
 					Data:     map[string]interface{}{},
 				},
 			},
