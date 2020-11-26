@@ -240,7 +240,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	// ---------------------------------
 
 	if config.Datadog.GetBool("logs_enabled") {
-		httpPort := 8888
+		httpPort := 8123
 		if v, exists := os.LookupEnv(logsHTTPPortEnvVar); exists {
 			if i, err := strconv.Atoi(v); err != nil {
 				httpPort = i
