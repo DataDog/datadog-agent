@@ -54,7 +54,7 @@ _ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/10-pupernetes
 _ssh timeout 120 /home/core/datadog-agent/test/e2e/scripts/run-instance/11-pupernetes-ready.sh
 if [[ -n ${DOCKER_REGISTRY_URL+x} ]] && [[ -n ${DOCKER_REGISTRY_LOGIN+x} ]] && [[ -n ${DOCKER_REGISTRY_PWD+x} ]]; then
     oldstate=$(shopt -po xtrace); set +x  # Do not log credentials
-    _ssh_logged sudo docker login --username "${DOCKER_REGISTRY_LOGIN}" --password "${DOCKER_REGISTRY_PWD}" "${DOCKER_REGISTRY_URL}"
+    _ssh_logged \"sudo docker login --username \\\"${DOCKER_REGISTRY_LOGIN}\\\" --password \\\"${DOCKER_REGISTRY_PWD}\\\" \\\"${DOCKER_REGISTRY_URL}\\\"\"
     eval "$oldstate"
 fi
 
