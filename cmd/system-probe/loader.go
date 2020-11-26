@@ -29,7 +29,7 @@ func (l *Loader) Register(cfg *config.AgentConfig, httpMux *http.ServeMux, facto
 		module, err := factory.Fn(cfg)
 
 		// If the module is not enabled we simply skip to the next one
-		if err == api.ErrNotEnabled {
+		if errors.Is(err, api.ErrNotEnabled) {
 			continue
 		}
 

@@ -90,9 +90,7 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
         return 0;
     }
 
-    u64 enabled;
-    LOAD_CONSTANT("rename_event_enabled", enabled);
-
+    int enabled = is_event_enabled(EVENT_RENAME);
     if (enabled) {
         syscall->rename.target_key.path_id = get_path_id(1);
 

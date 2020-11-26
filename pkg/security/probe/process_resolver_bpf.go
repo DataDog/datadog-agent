@@ -14,6 +14,7 @@ import (
 
 	lib "github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
+	"github.com/avast/retry-go"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/pkg/errors"
 
@@ -140,17 +141,17 @@ func (p *ProcessResolver) Start() error {
 		p.snapshotProbes = append(p.snapshotProbes, probe)
 	}
 
-	p.inodeInfoMap = p.probe.Map("inode_info_cache")
-	if p.inodeInfoMap == nil {
-		return errors.New("map inode_info_cache not found")
+	var err error
+	if p.inodeInfoMap, err = p.probe.Map("inode_info_cache"); err != nil {
+		return err
 	}
-	p.procCacheMap = p.probe.Map("proc_cache")
-	if p.procCacheMap == nil {
-		return errors.New("map proc_cache not found")
+
+	if p.procCacheMap, err = p.probe.Map("proc_cache"); err != nil {
+		return err
 	}
-	p.pidCookieMap = p.probe.Map("pid_cookie")
-	if p.pidCookieMap == nil {
-		return errors.New("map pid_cookie not found")
+
+	if p.pidCookieMap, err = p.probe.Map("pid_cookie"); err != nil {
+		return err
 	}
 
 	return nil
@@ -316,26 +317,24 @@ func (p *ProcessResolver) stopSnapshotProbes() {
 
 func (p *ProcessResolver) Snapshot(containerResolver *ContainerResolver, mountResolver *MountResolver) error {
 	// start the snapshot probes
-	if err := p.startSnapshotProbes(); err != nil {
+	err := p.startSnapshotProbes()
+	if err != nil {
 		return err
 	}
 
 	// Select the inode numlower map to prepare for the snapshot
-	p.inodeInfoMap = p.probe.Map("inode_info_cache")
-	if p.inodeInfoMap == nil {
-		return errors.New("inode_info_cache BPF_HASH table doesn't exist")
+	if p.inodeInfoMap, err = p.probe.Map("inode_info_cache"); err != nil {
+		return err
 	}
 
 	// Deregister probes
 	defer p.stopSnapshotProbes()
 
-	for retry := 0; retry < 5; retry++ {
-		if err := p.snapshot(); err == nil {
-			return nil
-		}
+	if err := retry.Do(p.snapshot, retry.Delay(0), retry.Attempts(5)); err != nil {
+		return errors.Wrap(err, "unable to snapshot processes")
 	}
 
-	return errors.New("unable to snapshot processes")
+	return nil
 }
 
 // NewProcessResolver returns a new process resolver

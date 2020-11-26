@@ -41,9 +41,8 @@ void __attribute__((always_inline)) invalidate_inode(struct pt_regs *ctx, u32 mo
     if (!inode || !mount_id)
         return;
 
-#pragma unroll
-    for (int i = 1; i < EVENT_MAX; i++) {
-        remove_inode_discarder(i, mount_id, inode);
+    if (!is_flushing_discarders()) {
+        remove_inode_discarder(mount_id, inode);
     }
 
     if (send_invalidate_event) {

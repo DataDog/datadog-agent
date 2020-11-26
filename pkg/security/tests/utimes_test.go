@@ -130,7 +130,7 @@ func TestUtime(t *testing.T) {
 			},
 		}
 
-		if _, _, errno := syscall.Syscall(syscall.SYS_UTIMENSAT, 0, uintptr(testFilePtr), uintptr(unsafe.Pointer(&ntimes[0]))); errno != 0 {
+		if _, _, errno := syscall.Syscall6(syscall.SYS_UTIMENSAT, 0, uintptr(testFilePtr), uintptr(unsafe.Pointer(&ntimes[0])), 0, 0, 0); errno != 0 {
 			if errno == syscall.EINVAL {
 				t.Skip("utimensat not supported")
 			}
