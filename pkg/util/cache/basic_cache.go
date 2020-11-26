@@ -16,10 +16,7 @@ type BasicCache struct {
 
 // NewBasicCache Creates new BasicCache
 func NewBasicCache() *BasicCache {
-	return &BasicCache{
-		cache:  make(map[string]interface{}),
-		eqFunc: func(a, b interface{}) bool { return reflect.DeepEqual(a, b) },
-	}
+	return NewBasicCacheWithEqualityFunc(func(a, b interface{}) bool { return reflect.DeepEqual(a, b) })
 }
 
 // NewBasicCacheWithEqualityFunc Creates new BasicCache with custom equality function
