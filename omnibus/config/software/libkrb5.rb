@@ -1,9 +1,9 @@
 name "libkrb5"
-default_version "1.16.2"
+default_version "1.18.3"
 
-version "1.16.2" do
-  source url: "https://kerberos.org/dist/krb5/1.16/krb5-1.16.2.tar.gz"
-  source sha256: "9f721e1fe593c219174740c71de514c7228a97d23eb7be7597b2ae14e487f027"
+version "1.18.3" do
+  source url: "https://kerberos.org/dist/krb5/1.18/krb5-1.18.3.tar.gz"
+  source sha256: "e61783c292b5efd9afb45c555a80dd267ac67eebabca42185362bee6c4fbd719"
 end
 
 relative_path "krb5-#{version}/src"
