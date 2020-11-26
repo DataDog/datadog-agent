@@ -185,16 +185,17 @@ func TestStatsWriter(t *testing.T) {
 
 func testStatsWriter() (*StatsWriter, chan []stats.Bucket, *testServer) {
 	srv := newTestServer()
-	// We use a blocking channel to make sure that sends get received on the
-	// other end.
-	in := make(chan []stats.Bucket)
 	cfg := &config.AgentConfig{
 		Hostname:    testHostname,
 		DefaultEnv:  testEnv,
 		Endpoints:   []*config.Endpoint{{Host: srv.URL, APIKey: "123"}},
 		StatsWriter: &config.WriterConfig{ConnectionLimit: 20, QueueSize: 20},
 	}
-	return NewStatsWriter(cfg, in, nil), in, srv
+	sw := NewStatsWriter(cfg, nil)
+	// We use a blocking channel to make sure that sends get received on the
+	// other end.
+	sw.InBuckets = make(chan []stats.Bucket)
+	return sw, sw.InBuckets, srv
 }
 
 func removeDuplicateEntries(stats []stats.Bucket) int {
