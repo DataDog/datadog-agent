@@ -52,8 +52,7 @@ type Agent struct {
 	obfuscator *obfuscate.Obfuscator
 
 	// In takes incoming payloads to be processed by the agent.
-	In       chan *api.Payload
-	OutStats chan *stats.Payload
+	In chan *api.Payload
 
 	// config
 	conf *config.AgentConfig
@@ -67,11 +66,10 @@ type Agent struct {
 func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	dynConf := sampler.NewDynamicConfig(conf.DefaultEnv)
 	in := make(chan *api.Payload, 1000)
-	statsPayloadChan := make(chan *stats.Payload, 10)
-	statsBucketsChan := make(chan []stats.Bucket, 100)
+	statsChan := make(chan []stats.Bucket, 100)
 
 	agnt := &Agent{
-		Concentrator:       stats.NewConcentrator(conf.BucketInterval.Nanoseconds(), statsBucketsChan),
+		Concentrator:       stats.NewConcentrator(conf.BucketInterval.Nanoseconds(), statsChan),
 		Blacklister:        filters.NewBlacklister(conf.Ignore["resource"]),
 		Replacer:           filters.NewReplacer(conf.ReplaceTags),
 		ScoreSampler:       NewScoreSampler(conf),
@@ -80,10 +78,9 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		PrioritySampler:    NewPrioritySampler(conf, dynConf),
 		EventProcessor:     newEventProcessor(conf),
 		TraceWriter:        writer.NewTraceWriter(conf),
-		StatsWriter:        writer.NewStatsWriter(conf, statsBucketsChan, statsPayloadChan),
+		StatsWriter:        writer.NewStatsWriter(conf, statsChan),
 		obfuscator:         obfuscate.NewObfuscator(conf.Obfuscation),
 		In:                 in,
-		OutStats:           statsPayloadChan,
 		conf:               conf,
 		ctx:                ctx,
 	}
@@ -327,7 +324,7 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang string) {
 		}
 	}
 
-	a.OutStats <- &out
+	a.StatsWriter.SendPayload(&out)
 }
 
 // sample decides whether the trace will be kept and extracts any APM events
