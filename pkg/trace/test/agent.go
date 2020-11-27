@@ -41,6 +41,9 @@ func newAgentRunner(ddAddr string, verbose bool) (*agentRunner, error) {
 		if verbose {
 			log.Print("agent: trace-agent not found, trying to install...")
 		}
+		// TODO(x): Do not use $GOBIN/trace-agent. Install a new one every time.
+		// Otherwise running the tests will give unexpected results based on a build
+		// different from the source.
 		err := exec.Command("go", "install", "github.com/DataDog/datadog-agent/cmd/trace-agent").Run()
 		if err != nil {
 			if verbose {

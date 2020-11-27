@@ -36,27 +36,25 @@ const (
 
 // StatsWriter ingests stats buckets and flushes them to the API.
 type StatsWriter struct {
-	in        <-chan []stats.Bucket
-	inPayload chan *stats.Payload
-	hostname  string
-	env       string
-	senders   []*sender
-	stop      chan struct{}
-	stats     *info.StatsWriterInfo
+	in       <-chan []stats.Bucket
+	hostname string
+	env      string
+	senders  []*sender
+	stop     chan struct{}
+	stats    *info.StatsWriterInfo
 
 	easylog *logutil.ThrottledLogger
 }
 
 // NewStatsWriter returns a new StatsWriter. It must be started using Run.
-func NewStatsWriter(cfg *config.AgentConfig, inBuckets <-chan []stats.Bucket, inPayloads chan *stats.Payload) *StatsWriter {
+func NewStatsWriter(cfg *config.AgentConfig, in <-chan []stats.Bucket) *StatsWriter {
 	sw := &StatsWriter{
-		in:        inBuckets,
-		inPayload: inPayloads,
-		hostname:  cfg.Hostname,
-		env:       cfg.DefaultEnv,
-		stats:     &info.StatsWriterInfo{},
-		stop:      make(chan struct{}),
-		easylog:   logutil.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
+		in:       in,
+		hostname: cfg.Hostname,
+		env:      cfg.DefaultEnv,
+		stats:    &info.StatsWriterInfo{},
+		stop:     make(chan struct{}),
+		easylog:  logutil.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
 	}
 	climit := cfg.StatsWriter.ConnectionLimit
 	if climit == 0 {
@@ -89,8 +87,6 @@ func (w *StatsWriter) Run() {
 		select {
 		case stats := <-w.in:
 			w.addStats(stats)
-		case p := <-w.inPayload:
-			w.sendPayload(p)
 		case <-t.C:
 			w.report()
 		case <-w.stop:
@@ -120,11 +116,11 @@ func (w *StatsWriter) addStats(s []stats.Bucket) {
 	log.Debugf("Flushing %d entries (buckets=%d payloads=%v)", entryCount, bucketCount, len(payloads))
 
 	for _, p := range payloads {
-		w.sendPayload(p)
+		w.SendPayload(p)
 	}
 }
 
-func (w *StatsWriter) sendPayload(p *stats.Payload) {
+func (w *StatsWriter) SendPayload(p *stats.Payload) {
 	req := newPayload(map[string]string{
 		headerLanguages:    strings.Join(info.Languages(), "|"),
 		"Content-Type":     "application/json",
