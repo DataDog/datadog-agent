@@ -72,6 +72,8 @@ LOCAL_IP=$(curl -s http://169.254.169.254/2020-10-27/meta-data/local-ipv4)
 
 echo "The Argo UI will remain available at http://${LOCAL_IP} until ${TIME_LEFT}"
 
+set -x
+
 if [[ -n ${CI_JOB_URL+x} ]] && [[ -n ${DD_API_KEY+x} ]]; then
     if [[ $EXIT_CODE -eq 0 ]]; then
         event="{
