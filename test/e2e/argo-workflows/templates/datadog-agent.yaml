@@ -58,7 +58,7 @@ spec:
 
               kubernetes_state.yaml: |
                 ad_identifiers:
-                  - kube_state_metrics
+                  - kube-state-metrics
 
                 init_config:
 
@@ -85,8 +85,8 @@ spec:
           clusterAgent:
             enabled: true
             image:
-              repository: {{inputs.parameters.agent-image-repository}}
-              tag: {{inputs.parameters.agent-image-tag}}
+              repository: {{inputs.parameters.cluster-agent-image-repository}}
+              tag: {{inputs.parameters.cluster-agent-image-tag}}
               doNotCheckTag: true
               pullSecrets:
                 - name: docker-registry
@@ -154,7 +154,7 @@ spec:
             sleep 1
           done
 
-          until ! kubectl --namespace {{inputs.parameters.namespace}} get pod -l app=datadog-agent -o custom-columns=ready:status.conditions[?(.type==\"Ready\")].status --no-headers | grep -v True; do
+          until ! kubectl --namespace {{inputs.parameters.namespace}} get pod -l app=datadog-agent -o custom-columns=ready:status.conditions[?\(.type==\"Ready\"\)].status --no-headers | grep -v True; do
             sleep 1
           done
 
