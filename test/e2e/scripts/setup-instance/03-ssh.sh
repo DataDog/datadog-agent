@@ -16,7 +16,7 @@ test "${COMMIT_ID}" || {
     COMMIT_ID=$(git rev-parse --verify HEAD)
 }
 
-SSH_OPTS=("-o" "ServerAliveInterval=20" "-o" "ConnectTimeout=6" "-o" "StrictHostKeyChecking=no" "-o" "UserKnownHostsFile=/dev/null" "-i" "${PWD}/id_rsa" "-o" "SendEnv=DOCKER_REGISTRY_* DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE:-datadog/agent-dev:master} DATADOG_CLUSTER_AGENT_IMAGE=${DATADOG_CLUSTER_AGENT_IMAGE:-datadog/cluster-agent-dev:master} CI_JOB_URL")
+SSH_OPTS=("-o" "ServerAliveInterval=20" "-o" "ConnectTimeout=6" "-o" "StrictHostKeyChecking=no" "-o" "UserKnownHostsFile=/dev/null" "-i" "${PWD}/id_rsa" "-o" "SendEnv=DOCKER_REGISTRY_* DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE:-datadog/agent-dev:master} DATADOG_CLUSTER_AGENT_IMAGE=${DATADOG_CLUSTER_AGENT_IMAGE:-datadog/cluster-agent-dev:master}")
 
 function _ssh() {
     ssh "${SSH_OPTS[@]}" -lcore "${MACHINE}" "$@"
@@ -65,4 +65,8 @@ _ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/20-argo-downl
 _ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/21-argo-setup.sh
 
 _ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/22-argo-submit.sh
+set +e
 _ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/23-argo-get.sh
+EXIT_CODE=$?
+set -e
+./04-send-dd-event.sh $EXIT_CODE
