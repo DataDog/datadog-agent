@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"os/user"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -66,10 +67,19 @@ func (m *Model) NewEvent() eval.Event {
 func (m *Model) ValidateField(key string, field eval.FieldValue) error {
 	// check that all path are absolute
 	if strings.HasSuffix(key, "filename") || strings.HasSuffix(key, "_path") {
-		value, ok := field.Value.(string)
-		if ok {
-			if value != path.Clean(value) || !path.IsAbs(value) {
-				return fmt.Errorf("invalid path `%s`, all the path have to be absolute", value)
+		if value, ok := field.Value.(string); ok {
+			errAbs := fmt.Errorf("invalid path `%s`, all the path have to be absolute", value)
+
+			if value != path.Clean(value) {
+				return errAbs
+			}
+
+			if matched, err := regexp.Match(`\.\.`, []byte(value)); err != nil || matched {
+				return errAbs
+			}
+
+			if matched, err := regexp.Match(`^~`, []byte(value)); err != nil || matched {
+				return errAbs
 			}
 		}
 	}
