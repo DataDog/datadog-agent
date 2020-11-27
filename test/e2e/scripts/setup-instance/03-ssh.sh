@@ -65,7 +65,7 @@ _ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/20-argo-downl
 _ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/21-argo-setup.sh
 
 _ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/22-argo-submit.sh
-set +xe
+set +e
 _ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/23-argo-get.sh
 EXIT_CODE=$?
 set -e
