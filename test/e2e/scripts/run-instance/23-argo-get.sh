@@ -77,6 +77,6 @@ fi
 TIME_LEFT=$(systemctl status terminate.timer | awk '$1 == "Trigger:" {print gensub(/ *Trigger: (.*)/, "\\1", 1)}')
 LOCAL_IP=$(curl -s http://169.254.169.254/2020-10-27/meta-data/local-ipv4)
 
-echo "The Argo UI will remain available at http://${LOCAL_IP} until ${TIME_LEFT}"
+printf "\033[1mThe Argo UI will remain available at \033[1;34mhttp://%s\033[0m until \033[1;33m%s\033[0m.\n" "$LOCAL_IP" "$TIME_LEFT"
 
 exit ${EXIT_CODE}
