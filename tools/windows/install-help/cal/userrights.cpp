@@ -13,13 +13,14 @@ std::tuple<sid_ptr, DWORD> GetSidForUser(LPCWSTR host, LPCWSTR user) {
 	{
 		return std::make_tuple(nullptr, GetLastError());
 	}
-
+	WcaLog(LOGMSG_VERBOSE, "Got SID from %S", refDomain.get());
 	if (!IsValidSid(newsid.get()))
 	{
+		WcaLog(LOGMSG_STANDARD, "New SID is invalid");
 		return std::make_tuple(nullptr, ERROR_INVALID_SID);
 	}
 
-	return std::make_tuple(std::move(newsid), S_OK);
+	return std::make_tuple(std::move(newsid), ERROR_SUCCESS);
 }
 
 bool GetNameForSid(LPCWSTR host, PSID sid, std::wstring& namestr) 

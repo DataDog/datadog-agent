@@ -63,12 +63,10 @@ UINT doUninstallAs(UNINSTALL_TYPE t)
 
     if (willDeleteUser)
     {
-        auto sidResult = GetSidForUser(NULL, installedComplete.c_str());
+        auto [sid, err] = GetSidForUser(nullptr, installedComplete.c_str());
 
         // Do not try to do anything if we don't find the user.
-        if (std::get<1>(sidResult) == S_OK) {
-            const auto & sid = std::get<0>(sidResult);
-
+        if (err == S_OK) {
             // remove dd user from programdata root
             removeUserPermsFromFile(programdataroot, sid.get());
 
