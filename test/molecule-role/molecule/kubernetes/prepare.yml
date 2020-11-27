@@ -76,8 +76,14 @@
       shell: kubectl get secret docker-registry-key || kubectl create secret generic docker-registry-key --from-file=.dockerconfigjson=/home/ubuntu/.docker/config.json --type=kubernetes.io/dockerconfigjson
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+    - name: Create global lock namespace (only one test can run on the cluster at the same time)
+      shell: kubectl create ns test-global-lock
+      args:
+        chdir: /home/ubuntu/deployment
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
     - name: Create test namespace '{{namespace}}'
-      shell: kubectl get ns {{ namespace }} || kubectl create ns {{ namespace }}
+      shell: kubectl create ns {{ namespace }}
       args:
         chdir: /home/ubuntu/deployment
       environment:
