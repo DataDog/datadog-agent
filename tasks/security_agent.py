@@ -125,19 +125,35 @@ def gen_mocks(ctx):
 
 
 @task
-def functional_tests(
+def run_functional_tests(
+    ctx, testsuite, race=False, verbose=False, pattern='', bench_pattern='', fail_fast=False,
+):
+    cmd = '{testsuite} {race_opt} {verbose_opt} {failfast_opt} {run_opt} {bench_opt}'
+    if os.getuid() != 0:
+        cmd = 'sudo -E PATH={path} ' + cmd
+
+    args = {
+        "testsuite": testsuite,
+        "verbose_opt": "-test.v" if verbose else "",
+        "race_opt": "-test.race" if race else "",
+        "run_opt": "-test.run " + pattern if pattern else "",
+        "bench_opt": "-test.bench " + bench_pattern if bench_pattern else "",
+        "failfast_opt": "-test.failfast" if fail_fast else "",
+        "path": os.environ['PATH'],
+    }
+
+    ctx.run(cmd.format(**args))
+
+
+@task
+def build_functional_tests(
     ctx,
-    race=False,
-    verbose=False,
+    output='pkg/security/tests/testsuite',
     go_version=None,
     arch="x64",
     major_version='7',
-    pattern='',
-    bench_pattern='',
-    output='',
     build_tags='',
     bundle_ebpf=True,
-    fail_fast=False,
 ):
     ldflags, gcflags, env = get_build_flags(ctx, arch=arch, major_version=major_version)
 
@@ -151,21 +167,12 @@ def functional_tests(
     if bundle_ebpf:
         build_tags = "ebpf_bindata," + build_tags
 
-    cmd = 'go test -tags functionaltests,{build_tags} {race_opt} {output_opt} '
-    cmd += '{verbose_opt} {failfast_opt} {run_opt} {bench_opt} {repo_path}/pkg/security/tests'
-
-    if os.getuid() != 0 and not output:
-        cmd = 'sudo -E PATH={path} ' + cmd
+    cmd = 'go test -tags functionaltests,{build_tags} -c -o {output} '
+    cmd += '{repo_path}/pkg/security/tests'
 
     args = {
-        "verbose_opt": "-v" if verbose else "",
-        "race_opt": "-race" if race else "",
-        "output_opt": "-c -o " + output if output else "",
-        "run_opt": "-run " + pattern if pattern else "",
-        "bench_opt": "-bench " + bench_pattern if bench_pattern else "",
-        "failfast_opt": "-failfast" if fail_fast else "",
+        "output": output,
         "build_tags": build_tags,
-        "path": os.environ['PATH'],
         "repo_path": REPO_PATH,
     }
 
@@ -251,6 +258,42 @@ def build_all_functional_tests(
         output=os.path.join(output, "testsuite32"),
         build_tags="ebpf_bindata",
         arch="x86",
+    )
+
+
+@task
+def functional_tests(
+    ctx,
+    race=False,
+    verbose=False,
+    go_version=None,
+    arch="x64",
+    major_version='7',
+    pattern='',
+    bench_pattern='',
+    output='pkg/security/tests/testsuite',
+    build_tags='',
+    bundle_ebpf=True,
+    fail_fast=False,
+):
+    build_functional_tests(
+        ctx,
+        go_version=go_version,
+        arch=arch,
+        major_version=major_version,
+        output=output,
+        build_tags=build_tags,
+        bundle_ebpf=bundle_ebpf,
+    )
+
+    run_functional_tests(
+        ctx,
+        testsuite=output,
+        race=race,
+        verbose=verbose,
+        pattern=pattern,
+        bench_pattern=bench_pattern,
+        fail_fast=fail_fast,
     )
 
 
