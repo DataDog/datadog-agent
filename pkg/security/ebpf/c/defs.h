@@ -198,8 +198,11 @@ enum event_type
     EVENT_EXEC,
     EVENT_EXIT,
     EVENT_INVALIDATE_DENTRY,
-    EVENT_MAX = EVENT_INVALIDATE_DENTRY, // has to be the last one and a power of two
+    EVENT_MAX, // has to be the last one and a power of two
 };
+
+// closest power of 2 that is bigger than EVENT_MAX
+#define EVENT_MAX_ROUNDED_UP 32
 
 enum syscall_type
 {

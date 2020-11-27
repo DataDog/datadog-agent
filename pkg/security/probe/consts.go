@@ -64,8 +64,11 @@ const (
 	// InvalidateDentryEventType - Dentry invalidated event
 	InvalidateDentryEventType
 	// internalEventType - used internally to get the maximum number of event. Has to be the last one
-	maxEventType
+	maxEventType //nolint:deadcode,unused
 )
+
+// maxEventRoundedUp is the closest power of 2 that is bigger than maxEventType
+const maxEventRoundedUp = 32 //nolint:deadcode,unused
 
 func (t EventType) String() string {
 	switch t {
