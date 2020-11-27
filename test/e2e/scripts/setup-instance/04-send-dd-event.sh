@@ -12,7 +12,7 @@ if [[ -n ${CI_JOB_URL+x} ]] && [[ -n ${DD_API_KEY+x} ]]; then
         alert_type=error
     fi
 
-    oldstate=$(shopt -po xtrace); set +x  # Do not log credentials
+    oldstate=$(shopt -po xtrace ||:); set +x  # Do not log credentials
     curl -s -X POST "https://api.datadoghq.com/api/v1/events?api_key=${DD_API_KEY}" \
          -H "Content-Type: application/json" \
          -d @- <<EOF
