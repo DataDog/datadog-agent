@@ -18,7 +18,7 @@ if [[ -n ${CI_JOB_URL+x} ]] && [[ -n ${DD_API_KEY+x} ]]; then
          -d @- <<EOF
 {
   "title": "datadog-agent e2e tests result",
-  "text": "# E2e tests ${succeeded_or_failed}\ndatadog-agent image: ${DATADOG_AGENT_IMAGE}\ndatadog-cluster-agent image: ${DATADOG_CLUSTER_AGENT_IMAGE}\nCommit: ${CI_COMMIT_SHORT_SHA}\n\nGitLab job: ${CI_JOB_URL}\nArgo UI: http://${MACHINE}",
+  "text": "E2e tests ${succeeded_or_failed}\ndatadog-agent image: ${DATADOG_AGENT_IMAGE}\ndatadog-cluster-agent image: ${DATADOG_CLUSTER_AGENT_IMAGE}\nCommit: ${CI_COMMIT_SHORT_SHA}\n\nGitLab job: ${CI_JOB_URL}\nArgo UI: http://${MACHINE}",
   "alert_type": "${alert_type}",
   "tags": [
     "app:agent-e2e-tests",
