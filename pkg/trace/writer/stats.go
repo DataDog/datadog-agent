@@ -36,27 +36,27 @@ const (
 
 // StatsWriter ingests stats buckets and flushes them to the API.
 type StatsWriter struct {
-	in        <-chan []stats.Bucket
-	inPayload chan *stats.Payload
-	hostname  string
-	env       string
-	senders   []*sender
-	stop      chan struct{}
-	stats     *info.StatsWriterInfo
+	// In receives incoming buckets for processing
+	In chan []stats.Bucket
+
+	hostname string
+	env      string
+	senders  []*sender
+	stop     chan struct{}
+	stats    *info.StatsWriterInfo
 
 	easylog *logutil.ThrottledLogger
 }
 
 // NewStatsWriter returns a new StatsWriter. It must be started using Run.
-func NewStatsWriter(cfg *config.AgentConfig, inBuckets <-chan []stats.Bucket, inPayloads chan *stats.Payload) *StatsWriter {
+func NewStatsWriter(cfg *config.AgentConfig) *StatsWriter {
 	sw := &StatsWriter{
-		in:        inBuckets,
-		inPayload: inPayloads,
-		hostname:  cfg.Hostname,
-		env:       cfg.DefaultEnv,
-		stats:     &info.StatsWriterInfo{},
-		stop:      make(chan struct{}),
-		easylog:   logutil.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
+		In:       make(chan []stats.Bucket, 100),
+		hostname: cfg.Hostname,
+		env:      cfg.DefaultEnv,
+		stats:    &info.StatsWriterInfo{},
+		stop:     make(chan struct{}),
+		easylog:  logutil.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
 	}
 	climit := cfg.StatsWriter.ConnectionLimit
 	if climit == 0 {
@@ -87,10 +87,8 @@ func (w *StatsWriter) Run() {
 	defer close(w.stop)
 	for {
 		select {
-		case stats := <-w.in:
+		case stats := <-w.In:
 			w.addStats(stats)
-		case p := <-w.inPayload:
-			w.sendPayload(p)
 		case <-t.C:
 			w.report()
 		case <-w.stop:

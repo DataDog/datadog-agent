@@ -53,8 +53,7 @@ type Agent struct {
 	obfuscator *obfuscate.Obfuscator
 
 	// In takes incoming payloads to be processed by the agent.
-	In       chan *api.Payload
-	OutStats chan *stats.Payload
+	In chan *api.Payload
 
 	// config
 	conf *config.AgentConfig
@@ -68,11 +67,10 @@ type Agent struct {
 func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	dynConf := sampler.NewDynamicConfig(conf.DefaultEnv)
 	in := make(chan *api.Payload, 1000)
-	statsPayloadChan := make(chan *stats.Payload, 10)
-	statsBucketsChan := make(chan []stats.Bucket, 100)
+	statsWriter := writer.NewStatsWriter(conf)
 
 	agnt := &Agent{
-		Concentrator:       stats.NewConcentrator(conf.ExtraAggregators, conf.BucketInterval.Nanoseconds(), statsBucketsChan),
+		Concentrator:       stats.NewConcentrator(conf.ExtraAggregators, conf.BucketInterval.Nanoseconds(), statsWriter.In),
 		Blacklister:        filters.NewBlacklister(conf.Ignore["resource"]),
 		Replacer:           filters.NewReplacer(conf.ReplaceTags),
 		ScoreSampler:       NewScoreSampler(conf),
@@ -81,10 +79,9 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		PrioritySampler:    NewPrioritySampler(conf, dynConf),
 		EventProcessor:     newEventProcessor(conf),
 		TraceWriter:        writer.NewTraceWriter(conf),
-		StatsWriter:        writer.NewStatsWriter(conf, statsBucketsChan, statsPayloadChan),
+		StatsWriter:        statsWriter,
 		obfuscator:         obfuscate.NewObfuscator(conf.Obfuscation),
 		In:                 in,
-		OutStats:           statsPayloadChan,
 		conf:               conf,
 		ctx:                ctx,
 	}
@@ -269,15 +266,15 @@ var _ api.StatsProcessor = (*Agent)(nil)
 
 // ProcessStats processes incoming client stats in from the given language lang.
 func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang string) {
-	if in.Env == "" {
-		in.Env = a.conf.DefaultEnv
+	env := in.Env
+	if env == "" {
+		env = a.conf.DefaultEnv
 	}
-	in.Env = traceutil.NormalizeTag(in.Env)
-	out := stats.Payload{
-		HostName: in.Hostname,
-		Env:      in.Env,
-	}
-	var buf strings.Builder
+	env = traceutil.NormalizeTag(env)
+	var (
+		buf     strings.Builder
+		buckets []stats.Bucket
+	)
 	for _, group := range in.Stats {
 		for _, b := range group.Stats {
 			normalizeStatsGroup(&b, lang)
@@ -293,7 +290,7 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang string) {
 				Duration: int64(group.Duration),
 				Counts:   make(map[string]stats.Count),
 			}
-			grain, tagset := stats.AssembleGrain(&buf, out.Env, b.Resource, b.Service, tags)
+			grain, tagset := stats.AssembleGrain(&buf, env, b.Resource, b.Service, tags)
 			key := stats.GrainKey(b.Name, stats.HITS, grain)
 			newb.Counts[key] = stats.Count{
 				Key:      key,
@@ -321,11 +318,10 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang string) {
 				TopLevel: float64(b.Hits),
 				Value:    float64(b.Duration),
 			}
-			out.Stats = append(out.Stats, newb)
+			buckets = append(buckets, newb)
 		}
 	}
-
-	a.OutStats <- &out
+	a.StatsWriter.In <- buckets
 }
 
 // sample decides whether the trace will be kept and extracts any APM events
