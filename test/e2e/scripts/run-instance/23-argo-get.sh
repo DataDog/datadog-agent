@@ -67,6 +67,13 @@ sudo iptables -w -t nat -A HACK -m comment --comment 'argo/argo-server:web' -p t
 sudo iptables -w -t nat -A PREROUTING -m addrtype --dst-type LOCAL -j HACK
 sudo iptables -w -t nat -A OUTPUT     -m addrtype --dst-type LOCAL -j HACK
 
+# In case of failure, let's keep the VM for 1 day instead of 2 hours for investigation
+if [[ $EXIT_CODE != 0 ]]; then
+    sudo sed -i 's/^OnBootSec=.*/OnBootSec=86400/' /etc/systemd/system/terminate.timer
+    sudo systemctl daemon-reload
+    sudo systemctl restart terminate.timer
+fi
+
 TIME_LEFT=$(systemctl status terminate.timer | awk '$1 == "Trigger:" {print gensub(/ *Trigger: (.*)/, "\\1", 1)}')
 LOCAL_IP=$(curl -s http://169.254.169.254/2020-10-27/meta-data/local-ipv4)
 
