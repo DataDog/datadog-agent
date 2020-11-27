@@ -6,6 +6,6 @@
   gather_facts: false
   tasks:
     - name: Delete namespace '{{namespace}}' and global lock if we took it
-      shell: "if kubectl delete ns {{ namespace }}; then kubectl delete ns test_global_lock; fi"
+      shell: "if kubectl delete ns {{ namespace }}; then kubectl delete ns test-global-lock; fi"
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig

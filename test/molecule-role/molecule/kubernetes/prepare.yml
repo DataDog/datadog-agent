@@ -77,7 +77,7 @@
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
     - name: Create global lock namespace (only one test can run on the cluster at the same time)
-      shell: kubectl create ns test_global_lock
+      shell: kubectl create ns test-global-lock
       args:
         chdir: /home/ubuntu/deployment
       environment:
