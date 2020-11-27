@@ -185,7 +185,7 @@ func TestProcess(t *testing.T) {
 		assert.EqualValues(2, want.SpansFiltered)
 		var span *pb.Span
 		select {
-		case ss := <-agnt.Out:
+		case ss := <-agnt.TraceWriter.In:
 			span = ss.Traces[0].Spans[0]
 		case <-time.After(2 * time.Second):
 			t.Fatal("timeout: Expected one valid trace, but none were received.")
@@ -293,7 +293,7 @@ func TestProcess(t *testing.T) {
 		timeout := time.After(2 * time.Second)
 		var span *pb.Span
 		select {
-		case ss := <-agnt.Out:
+		case ss := <-agnt.TraceWriter.In:
 			span = ss.Traces[0].Spans[0]
 		case <-timeout:
 			t.Fatal("timed out")
@@ -333,7 +333,7 @@ func TestProcess(t *testing.T) {
 		// expect multiple payloads
 		for i := 0; i < payloadN+2; i++ {
 			select {
-			case ss := <-agnt.Out:
+			case ss := <-agnt.TraceWriter.In:
 				gotCount += int(ss.SpanCount)
 			case <-timeout:
 				t.Fatal("timed out")
@@ -430,7 +430,7 @@ func TestClientComputedTopLevel(t *testing.T) {
 		timeout := time.After(time.Second)
 		for {
 			select {
-			case ss := <-agnt.Out:
+			case ss := <-agnt.TraceWriter.In:
 				_, ok := ss.Traces[0].Spans[0].Metrics["_top_level"]
 				assert.False(t, ok)
 				return
@@ -449,7 +449,7 @@ func TestClientComputedTopLevel(t *testing.T) {
 		timeout := time.After(time.Second)
 		for {
 			select {
-			case ss := <-agnt.Out:
+			case ss := <-agnt.TraceWriter.In:
 				_, ok := ss.Traces[0].Spans[0].Metrics["_top_level"]
 				assert.True(t, ok)
 				return
@@ -824,7 +824,7 @@ func benchThroughput(file string) func(*testing.B) {
 		// start the agent without the trace and stats writers; we will be draining
 		// these channels ourselves in the benchmarks, plus we don't want the writers
 		// resource usage to show up in the results.
-		agnt.Out = make(chan *writer.SampledSpans)
+		agnt.TraceWriter.In = make(chan *writer.SampledSpans)
 		go agnt.Run()
 
 		// wait for receiver to start:
@@ -877,7 +877,7 @@ func benchThroughput(file string) func(*testing.B) {
 		loop:
 			for {
 				select {
-				case <-agnt.Out:
+				case <-agnt.TraceWriter.In:
 					got++
 					if got == count {
 						// processed everything!
