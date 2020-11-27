@@ -967,11 +967,6 @@ type Event struct {
 	processCacheEntry *ProcessCacheEntry `field:"-"`
 }
 
-// GetEventType returns the event type of the event
-func (e *Event) GetEventType() EventType {
-	return EventType(e.Type)
-}
-
 func (e *Event) String() string {
 	d, err := json.Marshal(e)
 	if err != nil {
@@ -993,6 +988,11 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 // GetType returns the event type
 func (e *Event) GetType() string {
 	return EventType(e.Type).String()
+}
+
+// GetEventType returns the event type of the event
+func (e *Event) GetEventType() EventType {
+	return EventType(e.Type)
 }
 
 // GetTags returns the list of tags specific to this event

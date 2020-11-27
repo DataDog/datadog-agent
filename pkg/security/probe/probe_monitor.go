@@ -9,6 +9,7 @@ package probe
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/DataDog/ebpf/manager"
@@ -40,7 +41,7 @@ func NewMonitor(p *Probe, client *statsd.Client) (*Monitor, error) {
 	}
 
 	// instantiate a new event statistics monitor
-	m.perfBufferMonitor, err = NewPerfBufferMonitor(p.manager, p.managerOptions, p.config)
+	m.perfBufferMonitor, err = NewPerfBufferMonitor(p)
 	if err != nil {
 		return nil, errors.Wrap(err, "couldn't create the events statistics monitor")
 	}
@@ -106,4 +107,9 @@ func (m *Monitor) GetStats() (map[string]interface{}, error) {
 // ProcessEvent processes an event through the various monitors and controllers of the probe
 func (m *Monitor) ProcessEvent(event *Event, size uint64, CPU int, perfMap *manager.PerfMap) {
 	m.loadController.Count(event.GetEventType(), event.Process.Pid)
+}
+
+func (m *Monitor) ProcessLostEvent(count uint64, cpu int, perfMap *manager.PerfMap) {
+	log.Tracef("lost %d events\n", count)
+	m.perfBufferMonitor.CountLostEvent(count, perfMap, cpu)
 }

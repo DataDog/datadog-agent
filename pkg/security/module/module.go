@@ -41,6 +41,7 @@ type Module struct {
 	ruleSets       [2]*rules.RuleSet
 	currentRuleSet uint64
 	reloading      uint64
+	statsdClient   *statsd.Client
 	apiServer      *APIServer
 	grpcServer     *grpc.Server
 	listener       net.Listener
@@ -165,15 +166,6 @@ func (m *Module) Close() {
 	m.probe.Close()
 }
 
-// RuleMatch is called by the ruleset when a rule matches
-func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
-	if m.rateLimiter.Allow(rule.ID) {
-		m.apiServer.SendEvent(rule, event)
-	} else {
-		log.Tracef("Event on rule %s was dropped due to rate limiting", rule.ID)
-	}
-}
-
 // EventDiscarderFound is called by the ruleset when a new discarder discovered
 func (m *Module) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
 	if atomic.LoadUint64(&m.reloading) == 1 {
@@ -189,6 +181,25 @@ func (m *Module) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field 
 func (m *Module) HandleEvent(event *sprobe.Event) {
 	if ruleSet := m.ruleSets[atomic.LoadUint64(&m.currentRuleSet)]; ruleSet != nil {
 		ruleSet.Evaluate(event)
+	}
+}
+
+// HandleCustomEvent is called by the probe when an event should be sent to Datadog but doesn't need evaluation
+func (m *Module) HandleCustomEvent(rule *rules.Rule, event *sprobe.CustomEvent) {
+	m.SendEvent(rule, event)
+}
+
+// RuleMatch is called by the ruleset when a rule matches
+func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
+	m.SendEvent(rule, event)
+}
+
+// SendEvent sends an event to the backend after checking that the rate limiter allows it for the provided rule
+func (m *Module) SendEvent(rule *rules.Rule, event Event) {
+	if m.rateLimiter.Allow(rule.ID) {
+		m.apiServer.SendEvent(rule, event)
+	} else {
+		log.Tracef("Event on rule %s was dropped due to rate limiting", rule.ID)
 	}
 }
 
@@ -257,7 +268,7 @@ func NewModule(cfg *config.Config) (api.Module, error) {
 		log.Warn("Logs won't be send to DataDog")
 	}
 
-	probe, err := sprobe.NewProbe(cfg)
+	probe, err := sprobe.NewProbe(cfg, statsdClient)
 	if err != nil {
 		return nil, err
 	}
@@ -265,6 +276,7 @@ func NewModule(cfg *config.Config) (api.Module, error) {
 	m := &Module{
 		config:         cfg,
 		probe:          probe,
+		statsdClient:   statsdClient,
 		apiServer:      NewAPIServer(cfg, probe, statsdClient),
 		grpcServer:     grpc.NewServer(),
 		rateLimiter:    NewRateLimiter(statsdClient),

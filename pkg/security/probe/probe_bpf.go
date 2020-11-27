@@ -43,6 +43,7 @@ const (
 // EventHandler represents an handler for the events sent by the probe
 type EventHandler interface {
 	HandleEvent(event *Event)
+	HandleCustomEvent(rule *rules.Rule, event *CustomEvent)
 }
 
 // Discarder represents a discarder which is basically the field that we know for sure
@@ -63,25 +64,24 @@ var (
 // setting up the required kProbes and decoding events sent from the kernel
 type Probe struct {
 	// Constants and configuration
-	manager            *manager.Manager
-	managerOptions     manager.Options
-	config             *config.Config
-	statsdClient       *statsd.Client
-	startTime          time.Time
-	kernelVersion      kernel.Version
-	_                  uint32 // padding for goarch=386
-	ctx                context.Context
-	cancelFnc          context.CancelFunc
+	manager        *manager.Manager
+	managerOptions manager.Options
+	config         *config.Config
+	statsdClient   *statsd.Client
+	startTime      time.Time
+	kernelVersion  kernel.Version
+	_              uint32 // padding for goarch=386
+	ctx            context.Context
+	cancelFnc      context.CancelFunc
 
 	// Events section
-	handler            EventHandler
-	monitor               *Monitor
-	customEventsGenerator *CustomEventsGenerator
-	resolvers          *Resolvers
-	event              *Event
-	perfMap            *manager.PerfMap
-	reOrderer          *ReOrderer
-	lastTimestamp      uint64
+	handler       EventHandler
+	monitor       *Monitor
+	resolvers     *Resolvers
+	event         *Event
+	perfMap       *manager.PerfMap
+	reOrderer     *ReOrderer
+	lastTimestamp uint64
 
 	// Approvers / discarders section
 	discarderRevisions *lib.Map
@@ -215,12 +215,23 @@ func (p *Probe) SetEventHandler(handler EventHandler) {
 	p.handler = handler
 }
 
-// DispatchEvent sends an event to probe event handler
+// DispatchEvent sends an event to the probe event handler
 func (p *Probe) DispatchEvent(event *Event, size uint64, CPU int, perfMap *manager.PerfMap) {
+	log.Tracef("Dispatching event %+v\n", event)
+
 	p.monitor.ProcessEvent(event, size, CPU, perfMap)
 
 	if p.handler != nil {
 		p.handler.HandleEvent(event)
+	}
+}
+
+// DispatchCustomEvent sends a custom event to the probe event handler
+func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *CustomEvent) {
+	log.Tracef("Dispatching custom event %+v\n", event)
+
+	if p.handler != nil {
+		p.handler.HandleCustomEvent(rule, event)
 	}
 }
 
