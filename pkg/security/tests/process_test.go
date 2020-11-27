@@ -175,7 +175,7 @@ func TestProcessExec(t *testing.T) {
 		Expression: fmt.Sprintf(`exec.filename == "%s"`, executable),
 	}
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{ruleDef}, testOpts{enableFilters: true})
+	test, err := newTestModule(nil, []*rules.RuleDefinition{ruleDef}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -217,7 +217,7 @@ func TestProcessLineage(t *testing.T) {
 		Expression: fmt.Sprintf(`exec.filename == "%s"`, executable),
 	}
 
-	test, err := newTestProbe(nil, []*rules.RuleDefinition{rule}, testOpts{enableFilters: true})
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{wantProbeEvents: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -229,7 +229,7 @@ func TestProcessLineage(t *testing.T) {
 	}
 
 	t.Run("fork", func(t *testing.T) {
-		event, err := test.GetEvent(3*time.Second, "fork")
+		event, err := test.GetProbeEvent(3*time.Second, "fork")
 		if err != nil {
 			t.Error(err)
 		} else {
@@ -252,7 +252,7 @@ func TestProcessLineage(t *testing.T) {
 				t.Error("timeout")
 				break ExecLoop
 			default:
-				event, err := test.GetEvent(3*time.Second, "exec")
+				event, err := test.GetProbeEvent(3*time.Second, "exec")
 				if err != nil {
 					t.Error(err)
 					break ExecLoop
@@ -272,7 +272,7 @@ func TestProcessLineage(t *testing.T) {
 	})
 
 	t.Run("exit", func(t *testing.T) {
-		event, err := test.GetEvent(3*time.Second, "exit")
+		event, err := test.GetProbeEvent(3*time.Second, "exit")
 		if err != nil {
 			t.Error(err)
 		} else {
@@ -342,7 +342,7 @@ func testProcessLineageFork(t *testing.T, event *probe.Event) error {
 	return nil
 }
 
-func testProcessLineageExit(t *testing.T, event *probe.Event, executable string, test *testProbe) error {
+func testProcessLineageExit(t *testing.T, event *probe.Event, executable string, test *testModule) error {
 	// check for the new process context
 	cacheEntry := event.ResolveProcessCacheEntry()
 	if cacheEntry == nil {
