@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
+set -x
+
 EXIT_CODE=$1
 
 if [[ -n ${CI_JOB_URL+x} ]] && [[ -n ${DD_API_KEY+x} ]]; then
