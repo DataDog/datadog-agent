@@ -10,6 +10,7 @@ package tests
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path"
 	"syscall"
 	"testing"
@@ -309,4 +310,110 @@ func TestDentryRmdir(t *testing.T) {
 			}
 		}
 	}
+}
+func createOverlayLayer(t *testing.T, test *testModule, name string) string {
+	p, _, err := test.Path(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	os.MkdirAll(p, os.ModePerm)
+
+	return p
+}
+
+func createOverlayLayers(t *testing.T, test *testModule) (string, string, string, string) {
+	return createOverlayLayer(t, test, "lower"),
+		createOverlayLayer(t, test, "upper"),
+		createOverlayLayer(t, test, "workdir"),
+		createOverlayLayer(t, test, "merged")
+}
+
+func TestDentryOverlay(t *testing.T) {
+	if testEnvironment == DockerEnvironment {
+		t.Skip()
+	}
+
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `open.filename == "{{.Root}}/merged/kiki.txt"`,
+	}
+
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	testLower, testUpper, testWordir, testMerged := createOverlayLayers(t, test)
+
+	testFile, _, err := test.Path("lower/kiki.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	f, err := os.Create(testFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	args := []string{
+		"mount", "-t", "overlay", "overlay", "-o", "lowerdir=" + testLower + ",upperdir=" + testUpper + ",workdir=" + testWordir, testMerged,
+	}
+
+	_, err = exec.Command(args[0], args[1:]...).CombinedOutput()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		exec.Command("umount", testMerged).CombinedOutput()
+	}()
+
+	testFile, _, err = test.Path("merged/kiki.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("read-only", func(t *testing.T) {
+		f, err = os.Open(testFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := f.Close(); err != nil {
+			t.Fatal(err)
+		}
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if value, _ := event.GetFieldValue("open.filename"); value.(string) != testFile {
+				t.Errorf("expected filename not found")
+			}
+		}
+	})
+
+	t.Run("read-write", func(t *testing.T) {
+		f, err = os.OpenFile(testFile, os.O_RDWR, 0755)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := f.Close(); err != nil {
+			t.Fatal(err)
+		}
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if value, _ := event.GetFieldValue("open.filename"); value.(string) != testFile {
+				t.Errorf("expected filename not found")
+			}
+		}
+	})
 }

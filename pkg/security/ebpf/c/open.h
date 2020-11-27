@@ -167,7 +167,10 @@ int kprobe__ovl_dentry_upper(struct pt_regs *ctx) {
         return 0;
 
     struct dentry *dentry = (struct dentry *)PT_REGS_RC(ctx);
-    syscall->open.path_key.ino = get_dentry_ino(dentry);
+    u64 inode = get_dentry_ino(dentry);
+
+    if (inode && !syscall->open.path_key.ino)
+        syscall->open.path_key.ino = inode;
 
     return 0;
 }
