@@ -125,6 +125,6 @@ func (m *Monitor) ReportRuleSetLoaded(ruleSet *rules.RuleSet, timestamp time.Tim
 	}
 
 	m.probe.DispatchCustomEvent(
-		NewRuleSetLoadedEvent(timestamp, ruleSet.ListPolicies(), ruleSet.ListRuleIDs(), ruleSet.ListMacroIDs()),
+		NewRuleSetLoadedEvent(ruleSet.ListPolicies(), ruleSet.ListRuleIDs(), ruleSet.ListMacroIDs(), timestamp),
 	)
 }

@@ -19,6 +19,8 @@ const (
 	LostEventsRuleID = "lost_events"
 	// RuleSetLoadedRuleID is the rule ID for the ruleset_loaded events
 	RuleSetLoadedRuleID = "ruleset_loaded"
+	// NoisyProcessRuleID is the rule ID for the noisy_process events
+	NoisyProcessRuleID = "noisy_process"
 )
 
 // AllCustomRuleIDs returns the list of custom rule IDs
@@ -26,6 +28,7 @@ func AllCustomRuleIDs() []string {
 	return []string{
 		LostEventsRuleID,
 		RuleSetLoadedRuleID,
+		NoisyProcessRuleID,
 	}
 }
 
@@ -59,43 +62,47 @@ func (ce *CustomEvent) String() string {
 }
 
 // NewEventLostReadEvent returns the rule and a populated custom event for a lost_events_read event
-func NewEventLostReadEvent(mapName string, perCPU map[int]int64) (*eval.Rule, *CustomEvent) {
+func NewEventLostReadEvent(mapName string, perCPU map[int]int64, timestamp time.Time) (*eval.Rule, *CustomEvent) {
 	return &eval.Rule{
 			ID: LostEventsRuleID,
 		}, &CustomEvent{
 			eventType: "lost_events_read",
 			marshalFunc: func() ([]byte, error) {
 				return json.Marshal(struct {
-					Name string        `json:"map"`
-					Lost map[int]int64 `json:"per_cpu"`
+					Timestamp time.Time     `json:"timestamp"`
+					Name      string        `json:"map"`
+					Lost      map[int]int64 `json:"per_cpu"`
 				}{
-					Name: mapName,
-					Lost: perCPU,
+					Timestamp: timestamp,
+					Name:      mapName,
+					Lost:      perCPU,
 				})
 			},
 		}
 }
 
 // NewEventLostWriteEvent returns the rule and a populated custom event for a lost_events_write event
-func NewEventLostWriteEvent(mapName string, perEventPerCPU map[string]map[int]uint64) (*eval.Rule, *CustomEvent) {
+func NewEventLostWriteEvent(mapName string, perEventPerCPU map[string]map[int]uint64, timestamp time.Time) (*eval.Rule, *CustomEvent) {
 	return &eval.Rule{
 			ID: LostEventsRuleID,
 		}, &CustomEvent{
 			eventType: "lost_events_write",
 			marshalFunc: func() ([]byte, error) {
 				return json.Marshal(struct {
-					Name string                    `json:"map"`
-					Lost map[string]map[int]uint64 `json:"per_event_per_cpu"`
+					Timestamp time.Time                 `json:"timestamp"`
+					Name      string                    `json:"map"`
+					Lost      map[string]map[int]uint64 `json:"per_event_per_cpu"`
 				}{
-					Name: mapName,
-					Lost: perEventPerCPU,
+					Timestamp: timestamp,
+					Name:      mapName,
+					Lost:      perEventPerCPU,
 				})
 			},
 		}
 }
 
 // NewRuleSetLoadedEvent returns the rule and a populated custom event for a new_rules_loaded event
-func NewRuleSetLoadedEvent(timestamp time.Time, loadedPolicies map[string]string, loadedRules []rules.RuleID, loadedMacros []rules.MacroID) (*eval.Rule, *CustomEvent) {
+func NewRuleSetLoadedEvent(loadedPolicies map[string]string, loadedRules []rules.RuleID, loadedMacros []rules.MacroID, timestamp time.Time) (*eval.Rule, *CustomEvent) {
 	return &eval.Rule{
 			ID: RuleSetLoadedRuleID,
 		}, &CustomEvent{
@@ -111,6 +118,34 @@ func NewRuleSetLoadedEvent(timestamp time.Time, loadedPolicies map[string]string
 					Policies:  loadedPolicies,
 					Rules:     loadedRules,
 					Macros:    loadedMacros,
+				})
+			},
+		}
+}
+
+// NewNoisyProcessEvent returns the rule and a populated custom event for a noisy_process event
+func NewNoisyProcessEvent(eventType EventType, count uint64, threshold int64, controlPeriod time.Duration, discardedUntil time.Time, process *ProcessCacheEntry, timestamp time.Time) (*eval.Rule, *CustomEvent) {
+	return &eval.Rule{
+			ID: NoisyProcessRuleID,
+		}, &CustomEvent{
+			eventType: "noisy_process",
+			marshalFunc: func() ([]byte, error) {
+				return json.Marshal(struct {
+					Timestamp      time.Time          `json:"timestamp"`
+					Event          string             `json:"event_type"`
+					Count          uint64             `json:"pid_count"`
+					Threshold      int64              `json:"threshold"`
+					ControlPeriod  time.Duration      `json:"control_period"`
+					DiscardedUntil time.Time          `json:"discarded_until"`
+					Process        *ProcessCacheEntry `json:"process"`
+				}{
+					Timestamp:      timestamp,
+					Event:          eventType.String(),
+					Count:          count,
+					Threshold:      threshold,
+					ControlPeriod:  controlPeriod,
+					DiscardedUntil: discardedUntil,
+					Process:        process,
 				})
 			},
 		}

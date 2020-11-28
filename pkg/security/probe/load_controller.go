@@ -108,7 +108,8 @@ func (lc *LoadController) discardNoisiestProcess() {
 	}
 
 	// update current total and remove biggest entry from cache
-	atomic.AddInt64(&lc.total, -int64(atomic.SwapUint64(maxCount, 0)))
+	oldMaxCount := atomic.SwapUint64(maxCount, 0)
+	atomic.AddInt64(&lc.total, -int64(oldMaxCount))
 
 	if lc.statsdClient != nil {
 		// send load_controller.pids_discarder metric
@@ -119,6 +120,21 @@ func (lc *LoadController) discardNoisiestProcess() {
 			log.Warnf("couldn't send load_controller.pids_discarder metric: %v", err)
 			return
 		}
+
+		// fetch noisy process metadata
+		process := lc.probe.resolvers.ProcessResolver.Resolve(maxKey.Pid)
+
+		lc.probe.DispatchCustomEvent(
+			NewNoisyProcessEvent(
+				maxKey.Event,
+				oldMaxCount,
+				lc.EventsCountThreshold,
+				lc.ControllerPeriod,
+				time.Now().Add(lc.DiscarderTimeout),
+				process,
+				time.Now(),
+			),
+		)
 	}
 }
 
