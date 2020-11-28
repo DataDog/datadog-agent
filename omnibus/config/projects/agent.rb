@@ -171,6 +171,12 @@ if linux?
   dependency 'curl'
 end
 
+if redhat?
+  # preinst scripts run "useradd" and "groupadd" if
+  # the "dd-agent" user is not already created
+  runtime_dependency 'shadow-utils'
+end
+
 # creates required build directories
 dependency 'datadog-agent-prepare'
 

@@ -118,33 +118,6 @@ jobs:
           name: run integration tests
           command: inv -e integration-tests --race --remote-docker
 
-  release_note:
-    <<: *job_template
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          command: inv -e lint-releasenote
-          name: run PR check for release note
-
-  team_label:
-    <<: *job_template
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          command: inv -e lint-teamassignment
-          name: run PR check for team assignment labels
-
-  milestone:
-    <<: *job_template
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          command: inv -e lint-milestone
-          name: run PR check for milestone assignment
-
   filename_linting:
     <<: *job_template
     steps:
@@ -194,89 +167,23 @@ jobs:
           name: run docker image integration tests
           command: inv -e docker.integration-tests
 
-  build_binaries:
+  build_rpm:
     <<: *job_template
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - run:
-          name: build dogstatsd
-          command: inv -e dogstatsd.build --static
-      - run:
-          name: build agent
-          command: inv -e agent.build --exclude-rtloader
-
-  build_iot_agent:
-    <<: *job_template
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          name: build iot agent
-          command: inv -e agent.build --iot
-      - run:
-          name: test iot agent
-          command: ./bin/agent/agent -c ./bin/agent/dist check cpu
-
-  documentation_generation:
-    <<: *job_template
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          name: generate doxygen documentation
-          command: inv -e rtloader.generate-doc
-
-  macos_tests:
-    macos:
-      xcode: 10.1.0
-    environment:
-      BUILDIMAGES_VERSION: "a8226a8e78774afad285e7372fe8c6c179340dd9" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
-    working_directory: ~/go/src/github.com/DataDog/datadog-agent
-    steps:
-      - checkout
-      - run:
-          name: Setup runner
-          command: |
-            bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/$BUILDIMAGES_VERSION/macos/builder_setup.sh)"
-      - run:
-          name: Install python deps & clang-format
-          command: |
-            brew install clang-format
-            python3 -m pip install -r requirements.txt
-      - run:
-          name: Compile rtloader
-          command: |
-            source ~/.build_setup
-
-            inv rtloader.make --install-prefix=$GOPATH/src/github.com/DataDog/datadog-agent/dev
-            inv rtloader.install
-      - run:
-          name: Lint rtloader
-          command: |
-            source ~/.build_setup
-
-            inv rtloader.format --raise-if-changed
-      - run:
-          name: Test rtloader
-          command: |
-            source ~/.build_setup
-
-            inv rtloader.test
-      - run:
-          name: Run tests
-          command: |
-            source ~/.build_setup
-
-            inv -e deps
-            inv -e test --python-runtimes 3 --coverage --race --profile --fail-on-fmt --cpus 3
+          name: build RPM package
+          command: ./build.sh
+      - store_artifacts:
+          path: omnibus/pkg
+          destination: rpm
 
 workflows:
   version: 2
   test_and_build:
     jobs:
       - checkout_code
-      - macos_tests
       - dependencies:
           requires:
             - checkout_code
@@ -284,15 +191,6 @@ workflows:
           requires:
             - dependencies
       - integration_tests:
-          requires:
-            - dependencies
-      - release_note:
-          requires:
-            - dependencies
-      - team_label:
-          requires:
-            - dependencies
-      - milestone:
           requires:
             - dependencies
       - filename_linting:
@@ -307,15 +205,7 @@ workflows:
       - docker_tests:
           requires:
             - dependencies
-      - documentation_generation:
-          requires:
-            - dependencies
-      - build_binaries:
-          requires:
-            - unit_tests
-            - integration_tests
-            - docker_tests
-      - build_iot_agent:
+      - build_rpm:
           requires:
             - unit_tests
             - integration_tests
