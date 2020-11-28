@@ -7,9 +7,9 @@ package rules
 
 import (
 	"fmt"
-
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -81,6 +81,7 @@ func NewOptsWithParams(constants map[string]interface{}, supportedDiscarders map
 // against it. If the rule matches, the listeners for this rule set are notified
 type RuleSet struct {
 	opts             *Opts
+	loadedPolicies   map[string]string
 	eventRuleBuckets map[eval.EventType]*RuleBucket
 	rules            map[eval.RuleID]*eval.Rule
 	model            eval.Model
@@ -97,6 +98,20 @@ func (rs *RuleSet) ListRuleIDs() []RuleID {
 		ids = append(ids, ruleID)
 	}
 	return ids
+}
+
+// ListMacroIDs returns the list of MacroIDs from the ruleset
+func (rs *RuleSet) ListMacroIDs() []MacroID {
+	var ids []string
+	for macroID := range rs.opts.Macros {
+		ids = append(ids, macroID)
+	}
+	return ids
+}
+
+// ListPolicies returns the list of loaded policies and their version
+func (rs *RuleSet) ListPolicies() map[string]string {
+	return rs.loadedPolicies
 }
 
 // AddMacros parses the macros AST and adds them to the list of macros of the ruleset
@@ -384,6 +399,11 @@ func (rs *RuleSet) generatePartials() error {
 	return nil
 }
 
+// AddPolicyVersion adds the provided policy filename and version to the map of loaded policies
+func (rs *RuleSet) AddPolicyVersion(filename string, version string) {
+	rs.loadedPolicies[strings.ReplaceAll(filename, ".", "_")] = version
+}
+
 // NewRuleSet returns a new ruleset for the specified data model
 func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts) *RuleSet {
 	return &RuleSet{
@@ -392,5 +412,6 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts) *Rule
 		opts:             opts,
 		eventRuleBuckets: make(map[eval.EventType]*RuleBucket),
 		rules:            make(map[eval.RuleID]*eval.Rule),
+		loadedPolicies:   make(map[string]string),
 	}
 }

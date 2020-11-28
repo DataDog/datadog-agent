@@ -119,6 +119,9 @@ func LoadPolicies(config *config.Config, ruleSet *RuleSet) error {
 			result = multierror.Append(result, err)
 		}
 
+		// Add policy version for logging purposes
+		ruleSet.AddPolicyVersion(filename, policy.Version)
+
 		rules = append(rules, policy.Rules...)
 	}
 

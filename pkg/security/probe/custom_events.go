@@ -9,8 +9,25 @@ package probe
 
 import (
 	"encoding/json"
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"time"
 )
+
+const (
+	// LostEventsRuleID is the rule ID for the lost_events_* events
+	LostEventsRuleID = "lost_events"
+	// RuleSetLoadedRuleID is the rule ID for the ruleset_loaded events
+	RuleSetLoadedRuleID = "ruleset_loaded"
+)
+
+// AllCustomRuleIDs returns the list of custom rule IDs
+func AllCustomRuleIDs() []string {
+	return []string{
+		LostEventsRuleID,
+		RuleSetLoadedRuleID,
+	}
+}
 
 type CustomEvent struct {
 	eventType   string
@@ -44,7 +61,7 @@ func (ce *CustomEvent) String() string {
 // NewEventLostReadEvent returns the rule and a populated custom event for a lost_events_read event
 func NewEventLostReadEvent(mapName string, perCPU map[int]int64) (*eval.Rule, *CustomEvent) {
 	return &eval.Rule{
-			ID: "lost_events",
+			ID: LostEventsRuleID,
 		}, &CustomEvent{
 			eventType: "lost_events_read",
 			marshalFunc: func() ([]byte, error) {
@@ -62,7 +79,7 @@ func NewEventLostReadEvent(mapName string, perCPU map[int]int64) (*eval.Rule, *C
 // NewEventLostWriteEvent returns the rule and a populated custom event for a lost_events_write event
 func NewEventLostWriteEvent(mapName string, perEventPerCPU map[string]map[int]uint64) (*eval.Rule, *CustomEvent) {
 	return &eval.Rule{
-			ID: "lost_events",
+			ID: LostEventsRuleID,
 		}, &CustomEvent{
 			eventType: "lost_events_write",
 			marshalFunc: func() ([]byte, error) {
@@ -72,6 +89,28 @@ func NewEventLostWriteEvent(mapName string, perEventPerCPU map[string]map[int]ui
 				}{
 					Name: mapName,
 					Lost: perEventPerCPU,
+				})
+			},
+		}
+}
+
+// NewRuleSetLoadedEvent returns the rule and a populated custom event for a new_rules_loaded event
+func NewRuleSetLoadedEvent(timestamp time.Time, loadedPolicies map[string]string, loadedRules []rules.RuleID, loadedMacros []rules.MacroID) (*eval.Rule, *CustomEvent) {
+	return &eval.Rule{
+			ID: RuleSetLoadedRuleID,
+		}, &CustomEvent{
+			eventType: "ruleset_loaded",
+			marshalFunc: func() ([]byte, error) {
+				return json.Marshal(struct {
+					Timestamp time.Time         `json:"timestamp"`
+					Policies  map[string]string `json:"policies"`
+					Rules     []rules.RuleID    `json:"rules"`
+					Macros    []rules.MacroID   `json:"macros"`
+				}{
+					Timestamp: timestamp,
+					Policies:  loadedPolicies,
+					Rules:     loadedRules,
+					Macros:    loadedMacros,
 				})
 			},
 		}

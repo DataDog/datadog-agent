@@ -184,7 +184,7 @@ func (a *APIServer) SendStats() error {
 	for ruleID, val := range a.GetStats() {
 		tags := []string{fmt.Sprintf("rule_id:%s", ruleID)}
 		if val > 0 {
-			if err := a.statsdClient.Count(sprobe.MetricPrefix+".rules.event_server.expired", val, tags, 1.0); err != nil {
+			if err := a.statsdClient.Count(sprobe.MetricEventServerExpired, val, tags, 1.0); err != nil {
 				return err
 			}
 		}

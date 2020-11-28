@@ -115,7 +115,7 @@ func (lc *LoadController) discardNoisiestProcess() {
 		tags := []string{
 			fmt.Sprintf("event_type:%s", maxKey.Event),
 		}
-		if err := lc.statsdClient.Count(MetricPrefix+".load_controller.pids_discarder", 1, tags, 1.0); err != nil {
+		if err := lc.statsdClient.Count(MetricLoadControllerPidDiscarder, 1, tags, 1.0); err != nil {
 			log.Warnf("couldn't send load_controller.pids_discarder metric: %v", err)
 			return
 		}

@@ -3,12 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build linux
+// +build linux_bpf
 
 package probe
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-go/statsd"
@@ -109,7 +112,19 @@ func (m *Monitor) ProcessEvent(event *Event, size uint64, CPU int, perfMap *mana
 	m.loadController.Count(event.GetEventType(), event.Process.Pid)
 }
 
+// ProcessLostEvent processes a lost event through the various monitors and controllers of the probe
 func (m *Monitor) ProcessLostEvent(count uint64, cpu int, perfMap *manager.PerfMap) {
 	log.Tracef("lost %d events\n", count)
 	m.perfBufferMonitor.CountLostEvent(count, perfMap, cpu)
+}
+
+// ReportRuleSetLoaded reports to Datadog that new ruleset was loaded
+func (m *Monitor) ReportRuleSetLoaded(ruleSet *rules.RuleSet, timestamp time.Time) {
+	if err := m.client.Count(MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
+		log.Error(errors.Wrap(err, "failed to send ruleset_loaded metric"))
+	}
+
+	m.probe.DispatchCustomEvent(
+		NewRuleSetLoadedEvent(timestamp, ruleSet.ListPolicies(), ruleSet.ListRuleIDs(), ruleSet.ListMacroIDs()),
+	)
 }
