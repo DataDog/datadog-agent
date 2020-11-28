@@ -36,8 +36,10 @@ var (
 	// Syscall monitoring metrics
 
 	// MetricSyscalls is the name of the metric used to count each syscall executed on the host
+	// Tags: process, syscall
 	MetricSyscalls = newRuntimeSecurityMetric(".syscalls")
 	// MetricExec is the name of the metric used to count the executions on the host
+	// Tags: process
 	MetricExec = newRuntimeSecurityMetric(".exec")
 	// MetricConcurrentSyscall is the name of the metric used to count concurrent syscalls
 	MetricConcurrentSyscall = newRuntimeSecurityMetric(".concurrent_syscalls")
@@ -45,25 +47,33 @@ var (
 	// Perf buffer metrics
 
 	// MetricPerfBufferInQueue is the name of the metric used to count the number of events currently in a perf buffer
+	// Tags: map, cpu, event_type
 	MetricPerfBufferInQueue = newRuntimeSecurityMetric(".perf_buffer.in_queue")
 	// MetricPerfBufferUsage is the name of the metric used to report the usage of a perf buffer
+	// Tags: map, cpu, event_type
 	MetricPerfBufferUsage = newRuntimeSecurityMetric(".perf_buffer.usage")
 
 	// MetricPerfBufferLostWrite is the name of the metric used to count the number of lost events, as reported by a
 	// dedicated count in kernel space
+	// Tags: map, cpu, event_type
 	MetricPerfBufferLostWrite = newRuntimeSecurityMetric(".perf_buffer.lost_events.write")
 	// MetricPerfBufferLostRead is the name of the metric used to count the number of lost events, as reported in user
 	// space by a perf buffer
+	// Tags: map, cpu
 	MetricPerfBufferLostRead = newRuntimeSecurityMetric(".perf_buffer.lost_events.read")
 
 	// MetricPerfBufferEventsWrite is the name of the metric used to count the number of events written to a perf buffer
+	// Tags: map, cpu, event_type
 	MetricPerfBufferEventsWrite = newRuntimeSecurityMetric(".perf_buffer.events.write")
 	// MetricPerfBufferEventsRead is the name of the metric used to count the number of events read from a perf buffer
+	// Tags: map, cpu
 	MetricPerfBufferEventsRead = newRuntimeSecurityMetric(".perf_buffer.events.read")
 
 	// MetricPerfBufferBytesWrite is the name of the metric used to count the number of bytes written to a perf buffer
+	// Tags: map, cpu, event_type
 	MetricPerfBufferBytesWrite = newRuntimeSecurityMetric(".perf_buffer.bytes.write")
 	// MetricPerfBufferBytesRead is the name of the metric used to count the number of bytes read from a perf buffer
+	// Tags: map, cpu
 	MetricPerfBufferBytesRead = newRuntimeSecurityMetric(".perf_buffer.bytes.read")
 
 	// Process Resolver metrics
@@ -75,6 +85,7 @@ var (
 	// Custom events
 
 	// MetricRuleSetLoaded is the name of the metric used to report that a new ruleset was loaded
+	// Tags: -
 	MetricRuleSetLoaded = newRuntimeSecurityMetric(".ruleset_loaded")
 )
 
