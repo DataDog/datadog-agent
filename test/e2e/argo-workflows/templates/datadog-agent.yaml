@@ -36,6 +36,11 @@ spec:
               enabled: true
             systemProbe:
               enabled: true
+            securityAgent:
+              compliance:
+                enabled: true
+              runtime:
+                enabled: true
 
             confd:
               memory.yaml: |
@@ -155,6 +160,7 @@ spec:
           done
 
           until ! kubectl --namespace {{inputs.parameters.namespace}} get pod -l app=datadog-agent -o custom-columns=ready:status.conditions[?\(.type==\"Ready\"\)].status --no-headers | grep -v True; do
+            kubectl --namespace {{inputs.parameters.namespace}} get pod -l app=datadog-agent
             sleep 1
           done
 
