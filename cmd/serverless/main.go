@@ -225,6 +225,12 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		log.Warn("A configuration file has been found, which should not happen in this mode.")
 	}
 
+	// extra tags to append to all logs / metrics
+	extraTags := config.Datadog.GetStringSlice("tags")
+	if dsdTags := config.Datadog.GetStringSlice("dogstatsd_tags"); len(dsdTags) > 0 {
+		extraTags = append(extraTags, dsdTags...)
+	}
+
 	// validate that an apikey has been set, either by the env var, read from KMS or SSM.
 	// ---------------------------
 
@@ -279,7 +285,10 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 			} else {
 				// we subscribed to the logs collection on the platform, let's instantiate
 				// a logs agent to collect/process/flush the logs.
-				if err := logs.StartServerless(func() *autodiscovery.AutoConfig { return common.AC }, logsChan); err != nil {
+				if err := logs.StartServerless(
+					func() *autodiscovery.AutoConfig { return common.AC },
+					logsChan, extraTags,
+				); err != nil {
 					log.Error("Could not start an instance of the Logs Agent:", err)
 				}
 			}
@@ -307,7 +316,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	// initializes the DogStatsD server
 	// --------------------------------
 
-	statsdServer, err = dogstatsd.NewServer(aggregatorInstance)
+	statsdServer, err = dogstatsd.NewServer(aggregatorInstance, extraTags)
 	if err != nil {
 		// we're not reporting the error to AWS because we don't want the function
 		// execution to be stopped. TODO(remy): discuss with AWS if there is way

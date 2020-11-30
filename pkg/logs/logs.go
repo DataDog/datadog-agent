@@ -45,15 +45,15 @@ var (
 // The parameter serverless indicates whether or not this Logs Agent is running
 // in a serverless environment.
 func Start(getAC func() *autodiscovery.AutoConfig) error {
-	return start(getAC, false, nil)
+	return start(getAC, false, nil, nil)
 }
 
 // StartServerless starts a Serverless instance of the Logs Agent.
-func StartServerless(getAC func() *autodiscovery.AutoConfig, logsChan chan aws.LogMessage) error {
-	return start(getAC, true, logsChan)
+func StartServerless(getAC func() *autodiscovery.AutoConfig, logsChan chan aws.LogMessage, extraTags []string) error {
+	return start(getAC, true, logsChan, extraTags)
 }
 
-func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan chan aws.LogMessage) error {
+func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan chan aws.LogMessage, extraTags []string) error {
 	if IsAgentRunning() {
 		return nil
 	}
@@ -114,6 +114,7 @@ func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan cha
 			Type:    config.StringChannelType,
 			Service: "agent",  // FIXME(remy):
 			Source:  "lambda", // TODO(remy): do we want this to be configurable at some point?
+			Tags:    extraTags,
 			Channel: logsChan,
 		})
 		sources.AddSource(chanSource)
