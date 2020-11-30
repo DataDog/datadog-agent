@@ -17,11 +17,13 @@
 
 #define FAKE_INODE_MSW 0xdeadc001UL
 
+#define MAX_SEGMENT_LENGTH 127
+
 struct path_leaf_t {
   struct path_key_t parent;
   // TODO: reduce the amount of allocated structs during the resolution so that we can take this buffer to its max
   // theoretical value (256), without reaching the eBPF stack max size.
-  char name[128];
+  char name[MAX_SEGMENT_LENGTH + 1];
 };
 
 struct bpf_map_def SEC("maps/pathnames") pathnames = {
@@ -246,10 +248,11 @@ static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, 
     }
 
     // If the last next_id isn't null, this means that there are still other parents to fetch.
-    // TODO: use BPF_PROG_ARRAY to recursively fetch 32 more times. For now, add a fake parent to notify
-    // that we couldn't fetch everything.
+    // TODO: use BPF_PROG_ARRAY to recursively fetch 32 more times.
 
-    map_value.name[0] = 0;
+    // 21 is the ASCII code for NAK = Negative Acknowledge. This value is used to notify that we couldn't resolve the
+    // entire path.
+    map_value.name[0] = 0x15;
     map_value.parent.mount_id = 0;
     map_value.parent.ino = 0;
     bpf_map_update_elem(&pathnames, &next_key, &map_value, BPF_ANY);

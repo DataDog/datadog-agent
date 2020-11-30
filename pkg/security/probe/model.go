@@ -66,6 +66,8 @@ func (m *Model) ValidateField(key string, field eval.FieldValue) error {
 	if strings.HasSuffix(key, "filename") || strings.HasSuffix(key, "_path") {
 		if value, ok := field.Value.(string); ok {
 			errAbs := fmt.Errorf("invalid path `%s`, all the path have to be absolute", value)
+			errDepth := fmt.Errorf("invalid path `%s`, path depths have to be shorter than %d", value, MaxPathDepth)
+			errSegment := fmt.Errorf("invalid path `%s`, each segment of a path must be shorter than %d", value, MaxSegmentLength)
 
 			if value != path.Clean(value) {
 				return errAbs
@@ -77,6 +79,17 @@ func (m *Model) ValidateField(key string, field eval.FieldValue) error {
 
 			if matched, err := regexp.Match(`^~`, []byte(value)); err != nil || matched {
 				return errAbs
+			}
+
+			// check resolution limitations
+			segments := strings.Split(value, "/")
+			if len(segments) > MaxPathDepth {
+				return errDepth
+			}
+			for _, segment := range segments {
+				if len(segment) > MaxSegmentLength {
+					return errSegment
+				}
 			}
 		}
 	}
@@ -120,19 +133,30 @@ type FileEvent struct {
 	PathnameStr     string `field:"filename" handler:"ResolveInode,string"`
 	ContainerPath   string `field:"container_path" handler:"ResolveContainerPath,string"`
 	BasenameStr     string `field:"basename" handler:"ResolveBasename,string"`
+
+	pathResolutionError error `field:"-"`
 }
 
 // ResolveInode resolves the inode to a full path
 func (e *FileEvent) ResolveInode(event *Event) string {
-	return e.ResolveInodeWithResolvers(event.resolvers)
+	path, err := e.ResolveInodeWithResolvers(event.resolvers)
+	if err != nil {
+		if _, ok := err.(ErrTruncatedSegment); ok {
+			event.SetPathResolutionError(err)
+		}
+		if _, ok := err.(ErrTruncatedParents); ok {
+			event.SetPathResolutionError(err)
+		}
+	}
+	return path
 }
 
-// ResolveInodeWithResolvers resolves the inode to a full path
-func (e *FileEvent) ResolveInodeWithResolvers(resolvers *Resolvers) string {
+// ResolveInodeWithResolvers resolves the inode to a full path. Returns the path and true if it was entirely resolved
+func (e *FileEvent) ResolveInodeWithResolvers(resolvers *Resolvers) (string, error) {
 	if len(e.PathnameStr) == 0 {
-		e.PathnameStr = resolvers.DentryResolver.Resolve(e.MountID, e.Inode, e.PathID)
+		e.PathnameStr, e.pathResolutionError = resolvers.DentryResolver.Resolve(e.MountID, e.Inode, e.PathID)
 		if e.PathnameStr == dentryPathKeyNotFound {
-			return e.PathnameStr
+			return e.PathnameStr, e.pathResolutionError
 		}
 
 		_, mountPath, rootPath, err := resolvers.MountResolver.GetMountPath(e.MountID)
@@ -144,7 +168,7 @@ func (e *FileEvent) ResolveInodeWithResolvers(resolvers *Resolvers) string {
 		}
 	}
 
-	return e.PathnameStr
+	return e.PathnameStr, e.pathResolutionError
 }
 
 // ResolveContainerPath resolves the inode to a path relative to the container
@@ -522,7 +546,7 @@ func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
 // ResolveMountPoint resolves the mountpoint to a full path
 func (e *MountEvent) ResolveMountPoint(event *Event) string {
 	if len(e.MountPointStr) == 0 {
-		e.MountPointStr = event.resolvers.DentryResolver.Resolve(e.ParentMountID, e.ParentInode, 0)
+		e.MountPointStr, _ = event.resolvers.DentryResolver.Resolve(e.ParentMountID, e.ParentInode, 0)
 	}
 	return e.MountPointStr
 }
@@ -530,7 +554,7 @@ func (e *MountEvent) ResolveMountPoint(event *Event) string {
 // ResolveRoot resolves the mountpoint to a full path
 func (e *MountEvent) ResolveRoot(event *Event) string {
 	if len(e.RootStr) == 0 {
-		e.RootStr = event.resolvers.DentryResolver.Resolve(e.RootMountID, e.RootInode, 0)
+		e.RootStr, _ = event.resolvers.DentryResolver.Resolve(e.RootMountID, e.RootInode, 0)
 	}
 	return e.RootStr
 }
@@ -657,7 +681,8 @@ func (e *ExecEvent) UnmarshalBinary(data []byte, resolvers *Resolvers) (int, err
 	e.ForkTimestamp = resolvers.TimeResolver.ResolveMonotonicTimestamp(ebpf.ByteOrder.Uint64(data[read+8 : read+16]))
 	e.ExitTimestamp = resolvers.TimeResolver.ResolveMonotonicTimestamp(ebpf.ByteOrder.Uint64(data[read+16 : read+24]))
 
-	// resolve FileEvent now so that the dentry cache is up to date
+	// resolve FileEvent now so that the dentry cache is up to date. Fork events might send a null inode if the parent
+	// wasn't in the kernel cache, so only resolve if necessary
 	if e.FileEvent.Inode != 0 && e.FileEvent.MountID != 0 {
 		e.FileEvent.ResolveInodeWithResolvers(resolvers)
 		e.FileEvent.ResolveContainerPathWithResolvers(resolvers)
@@ -963,8 +988,9 @@ type Event struct {
 	Umount           UmountEvent           `field:"-"`
 	InvalidateDentry InvalidateDentryEvent `field:"-"`
 
-	resolvers         *Resolvers         `field:"-"`
-	processCacheEntry *ProcessCacheEntry `field:"-"`
+	resolvers           *Resolvers         `field:"-"`
+	processCacheEntry   *ProcessCacheEntry `field:"-"`
+	pathResolutionError error              `field:"-"`
 }
 
 func (e *Event) String() string {
@@ -973,6 +999,21 @@ func (e *Event) String() string {
 		return err.Error()
 	}
 	return string(d)
+}
+
+// SetPathResolutionError sets the Event.pathResolutionError
+func (e *Event) SetPathResolutionError(err error) {
+	e.pathResolutionError = err
+}
+
+// GetPathResolutionError returns the path resolution error
+func (e *Event) GetPathResolutionError() error {
+	return e.pathResolutionError
+}
+
+type eventMarshaler struct {
+	field      string
+	marshalFnc func(event *Event) ([]byte, error)
 }
 
 // MarshalJSON returns the JSON encoding of the event

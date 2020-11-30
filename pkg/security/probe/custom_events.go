@@ -9,9 +9,10 @@ package probe
 
 import (
 	"encoding/json"
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
-	"time"
 )
 
 const (
@@ -21,6 +22,8 @@ const (
 	RuleSetLoadedRuleID = "ruleset_loaded"
 	// NoisyProcessRuleID is the rule ID for the noisy_process events
 	NoisyProcessRuleID = "noisy_process"
+	// AbnormalPathRuleID is the rule ID for the abnormal_path events
+	AbnormalPathRuleID = "abnormal_path"
 )
 
 // AllCustomRuleIDs returns the list of custom rule IDs
@@ -29,6 +32,7 @@ func AllCustomRuleIDs() []string {
 		LostEventsRuleID,
 		RuleSetLoadedRuleID,
 		NoisyProcessRuleID,
+		AbnormalPathRuleID,
 	}
 }
 
@@ -36,6 +40,15 @@ type CustomEvent struct {
 	eventType   string
 	tags        []string
 	marshalFunc func() ([]byte, error)
+}
+
+// Clone returns a copy of the current CustomEvent
+func (ce *CustomEvent) Clone() CustomEvent {
+	return CustomEvent{
+		eventType: ce.eventType,
+		tags: ce.tags,
+		marshalFunc: ce.marshalFunc,
+	}
 }
 
 func (ce *CustomEvent) GetTags() []string {
@@ -146,6 +159,26 @@ func NewNoisyProcessEvent(eventType EventType, count uint64, threshold int64, co
 					ControlPeriod:  controlPeriod,
 					DiscardedUntil: discardedUntil,
 					Process:        process,
+				})
+			},
+		}
+}
+
+// NewAbnormalPathEvent returns the rule and a populated custom event for a abnormal_path event
+func NewAbnormalPathEvent(event *Event, now time.Time, pathResolutionError error) (*eval.Rule, *CustomEvent) {
+	return &eval.Rule{
+			ID: AbnormalPathRuleID,
+		}, &CustomEvent{
+			eventType: event.GetPathResolutionError().Error(),
+			marshalFunc: func() ([]byte, error) {
+				return json.Marshal(struct {
+					Timestamp           time.Time `json:"timestamp"`
+					Event               *Event    `json:"triggering_event"`
+					PathResolutionError string    `json:"path_resolution_error"`
+				}{
+					Timestamp:           now,
+					Event:               event,
+					PathResolutionError: pathResolutionError.Error(),
 				})
 			},
 		}

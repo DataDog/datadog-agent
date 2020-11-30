@@ -141,6 +141,7 @@ type testProbe struct {
 type testEventHandler struct {
 	ruleSet *rules.RuleSet
 	events  chan *sprobe.Event
+	customEvents chan *module.RuleEvent
 }
 
 func (h *testEventHandler) HandleEvent(event *sprobe.Event) {
@@ -152,6 +153,20 @@ func (h *testEventHandler) HandleEvent(event *sprobe.Event) {
 		log.Debugf("dropped probe event %+v")
 	}
 	h.ruleSet.Evaluate(event)
+}
+
+func (h *testEventHandler) HandleCustomEvent(rule *eval.Rule, event *sprobe.CustomEvent) {
+	e := event.Clone()
+	re := module.RuleEvent{
+		RuleID: rule.ID,
+		Event: &e,
+	}
+	select {
+	case h.customEvents <- &re:
+		break
+	default:
+		log.Debugf("dropped probe custom event %+v")
+	}
 }
 
 func getInode(t *testing.T, path string) uint64 {
@@ -233,6 +248,7 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 			ruleSet := testMod.module.GetRuleSet()
 			handler := &testEventHandler{
 				events:  make(chan *sprobe.Event, 16384),
+				customEvents: make(chan *module.RuleEvent, 16384),
 				ruleSet: ruleSet,
 			}
 			testMod.probeHandler = handler

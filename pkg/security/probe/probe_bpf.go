@@ -219,11 +219,12 @@ func (p *Probe) SetEventHandler(handler EventHandler) {
 func (p *Probe) DispatchEvent(event *Event, size uint64, CPU int, perfMap *manager.PerfMap) {
 	log.Tracef("Dispatching event %+v\n", event)
 
-	p.monitor.ProcessEvent(event, size, CPU, perfMap)
-
 	if p.handler != nil {
 		p.handler.HandleEvent(event)
 	}
+
+	// Process after evaluation because some monitors need the DentryResolver to have been called.
+	p.monitor.ProcessEvent(event, size, CPU, perfMap)
 }
 
 // DispatchCustomEvent sends a custom event to the probe event handler
