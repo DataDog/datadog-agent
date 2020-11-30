@@ -108,7 +108,7 @@ def test_dnat(host, common_vars):
         with open("./topic-topo-process-agents-dnat.json", 'w') as f:
             json.dump(json_data, f, indent=4)
 
-        endpoint_match = re.compile("urn:endpoint:/.*:{}".format(ubuntu_private_ip))
+        endpoint_match = re.compile("urn:endpoint:/{}".format(ubuntu_private_ip))
         endpoint = _find_component(
             json_data=json_data,
             type_name="endpoint",
@@ -137,7 +137,7 @@ def test_dnat(host, common_vars):
             type_name="directional_connection",
             external_id_assert_fn=lambda v: service_to_proc_id_match.findall(v))["incoming"]["ip"] == ubuntu_private_ip
 
-    util.wait_until(wait_for_components, 30, 3)
+    util.wait_until(wait_for_components, 600, 3)
 
 
 def test_topology_filtering(host, common_vars):
