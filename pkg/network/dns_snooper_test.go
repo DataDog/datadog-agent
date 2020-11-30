@@ -365,7 +365,7 @@ func TestDNSOverUDPTimeoutCount(t *testing.T) {
 
 	allStats := getStats(reverseDNS, 1)
 	key := getKey(queryIP, queryPort, invalidServerIP, UDP)
-	require.Equal(t, 1, len(allStats))
+	require.Contains(t, allStats, key)
 	assert.Equal(t, 0, len(allStats[key].countByRcode))
 	assert.Equal(t, uint32(1), allStats[key].timeouts)
 	assert.Equal(t, uint64(0), allStats[key].successLatencySum)

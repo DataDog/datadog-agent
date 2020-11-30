@@ -17,6 +17,15 @@ end
 
 package 'conntrack'
 
+package 'netcat' do
+  case node[:platform]
+  when 'redhat', 'centos', 'fedora'
+    package_name 'nc'
+  else
+    package_name 'netcat'
+  end
+end
+
 # This will copy the whole file tree from COOKBOOK_NAME/files/default/tests
 # to the directory /tmp/system-probe-tests where RSpec is expecting them.
 remote_directory "/tmp/system-probe-tests" do
