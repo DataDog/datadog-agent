@@ -38,6 +38,8 @@ func (e *ErrInvalidKeyPath) Error() string {
 	return fmt.Sprintf("invalid inode/mountID couple: %d/%d", e.Inode, e.MountID)
 }
 
+var ErrEntryNotFound = errors.New("entry not found")
+
 type PathKey struct {
 	Inode   uint64
 	MountID uint32
@@ -81,7 +83,7 @@ func (dr *DentryResolver) getNameFromCache(mountID uint32, inode uint64) (name s
 
 	entry, exists := dr.cache.Get(key)
 	if !exists {
-		return "", errors.New("entry not found")
+		return "", ErrEntryNotFound
 	}
 	path := entry.(PathValue)
 
@@ -119,7 +121,7 @@ func (dr *DentryResolver) ResolveFromCache(mountID uint32, inode uint64) (filena
 
 		entry, exists := dr.cache.Get(cacheKey)
 		if !exists {
-			return "", errors.New("entry not found")
+			return "", ErrEntryNotFound
 		}
 		path = entry.(PathValue)
 
@@ -209,7 +211,7 @@ func (dr *DentryResolver) getParentFromCache(mountID uint32, inode uint64) (uint
 
 	entry, exists := dr.cache.Get(key)
 	if !exists {
-		return 0, 0, errors.New("entry not found")
+		return 0, 0, ErrEntryNotFound
 	}
 	path := entry.(PathValue)
 
