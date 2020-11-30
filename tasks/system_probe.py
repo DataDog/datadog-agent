@@ -466,10 +466,14 @@ def build_object_files(ctx, bundle_ebpf=False):
 
     commands.append(
         cmd.format(
-            flags=" ".join(security_flags + ["-DUSE_SYSCALL_WRAPPER=0"]), c_file=security_c_file, bc_file=security_bc_file
+            flags=" ".join(security_flags + ["-DUSE_SYSCALL_WRAPPER=0"]),
+            c_file=security_c_file,
+            bc_file=security_bc_file,
         )
     )
-    commands.append(llc_cmd.format(flags=" ".join(security_flags), bc_file=security_bc_file, obj_file=security_agent_obj_file))
+    commands.append(
+        llc_cmd.format(flags=" ".join(security_flags), bc_file=security_bc_file, obj_file=security_agent_obj_file)
+    )
 
     security_agent_syscall_wrapper_bc_file = os.path.join(build_dir, "runtime-security-syscall-wrapper.bc")
     security_agent_syscall_wrapper_obj_file = os.path.join(build_dir, "runtime-security-syscall-wrapper.o")
