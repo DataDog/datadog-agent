@@ -19,11 +19,10 @@ name "gstatus"
 default_version "1.0.4"
 
 source :url => "https://github.com/gluster/gstatus/releases/download/v#{version}/gstatus",
-       :sha256 => "60f4b08c0bdbe0e710e4c025ccf7cf5496cb2ec6a6ca2c1569cd060ae0463bc8"
-
-relative_path "gstatus"
+       :sha256 => "60f4b08c0bdbe0e710e4c025ccf7cf5496cb2ec6a6ca2c1569cd060ae0463bc8",
+       :target_filename => "gstatus"
 
 build do
-  mkdir "#{install_dir}/embedded/sbin/"
+  copy "gstatus", "#{install_dir}/embedded/sbin/gstatus"
   command "chmod +x #{install_dir}/embedded/sbin/gstatus"
 end
