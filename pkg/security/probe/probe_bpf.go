@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 	lib "github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
+	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -65,6 +66,7 @@ type Probe struct {
 	pidDiscarders      *lib.Map
 	inodeDiscarders    *lib.Map
 	invalidDiscarders  map[eval.Field]map[interface{}]bool
+	regexCache         *simplelru.LRU
 	flushingDiscarders int64
 	approvers          map[eval.EventType]activeApprovers
 	syscallMonitor     *SyscallMonitor
@@ -744,11 +746,17 @@ func getInvalidDiscarders() map[eval.Field]map[interface{}]bool {
 
 // NewProbe instantiates a new runtime security agent probe
 func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
+	regexCache, err := simplelru.NewLRU(64, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	p := &Probe{
 		config:            config,
 		invalidDiscarders: getInvalidDiscarders(),
 		approvers:         make(map[eval.EventType]activeApprovers),
 		managerOptions:    ebpf.NewDefaultOptions(),
+		regexCache:        regexCache,
 	}
 
 	if !p.config.EnableKernelFilters {
