@@ -10,6 +10,11 @@ var currentARN struct {
 	sync.Mutex
 }
 
+var currentReqID struct {
+	value string
+	sync.Mutex
+}
+
 // GetARN returns an ARN of the current running function.
 // Thread-safe.
 func GetARN() string {
@@ -32,6 +37,20 @@ func SetARN(arn string) {
 	}
 
 	currentARN.value = arn
+}
+
+func GetRequestID() string {
+	currentReqID.Lock()
+	defer currentReqID.Unlock()
+
+	return currentReqID.value
+}
+
+func SetRequestID(reqID string) {
+	currentReqID.Lock()
+	defer currentReqID.Unlock()
+
+	currentReqID.value = reqID
 }
 
 // FunctionNameFromARN returns the function name from the currently set ARN.

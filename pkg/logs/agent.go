@@ -90,7 +90,7 @@ func NewServerless(sources *config.LogSources, services *service.Services, proce
 	destinationsCtx := client.NewDestinationsContext()
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, processingRules, endpoints, destinationsCtx)
+	pipelineProvider := pipeline.NewServerlessProvider(config.NumberOfPipelines, auditor, processingRules, endpoints, destinationsCtx)
 
 	// setup the inputs
 	inputs := []restart.Restartable{

@@ -6,6 +6,8 @@
 package channel
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
@@ -46,14 +48,18 @@ func (t *Tailer) run() {
 	}()
 
 	// Loop terminates when the channel is closed.
+	// TODO(remy): calling GetARN(), GetRequestID() and FunctionNameFromARN() in this loop
+	// may not be the most performant.
 	for logline := range t.inputChan {
 		origin := message.NewOrigin(t.source)
 		tags := origin.Tags()
-		tags = append(tags, "source:agent") // FIXME(remy): to remove
+		if functionName := aws.FunctionNameFromARN(); len(functionName) > 0 {
+			tags = append(tags, fmt.Sprintf("functionname:%s", functionName))
+		}
 		if len(t.source.Config.Tags) > 0 {
 			tags = append(tags, t.source.Config.Tags...)
 		}
 		origin.SetTags(tags)
-		t.outputChan <- message.NewMessageWithTime([]byte(logline.StringRecord), origin, message.StatusInfo, logline.Time)
+		t.outputChan <- message.NewMessageFromLambda([]byte(logline.StringRecord), origin, message.StatusInfo, logline.Time, aws.GetARN(), aws.GetRequestID())
 	}
 }

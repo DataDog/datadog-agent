@@ -97,8 +97,12 @@ func (d *Daemon) StartHTTPLogsServer(port int) (string, chan aws.LogMessage, err
 			} else {
 				for _, message := range messages {
 					switch message.Type {
-					case aws.LogTypeExtension, aws.LogTypeFunction,
-						aws.LogTypePlatformStart, aws.LogTypePlatformEnd:
+					case aws.LogTypePlatformStart:
+						if len(message.ObjectRecord.RequestID) > 0 {
+							aws.SetRequestID(message.ObjectRecord.RequestID)
+						}
+						fallthrough
+					default:
 						logsChan <- message
 					case aws.LogTypePlatformReport:
 						functionName := aws.FunctionNameFromARN()

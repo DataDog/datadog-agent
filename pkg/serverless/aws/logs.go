@@ -26,6 +26,7 @@ const (
 // LogMessage is a log message sent by the AWS API.
 type LogMessage struct {
 	Time time.Time
+	ARN  string
 	Type string
 	// "extension" / "function" log messages contain a record which basically a log string
 	StringRecord string `json:"record"`
@@ -46,7 +47,6 @@ type LogMessage struct {
 // UnmarshalJSON unmarshals the given bytes in a LogMessage object.
 func (l *LogMessage) UnmarshalJSON(data []byte) error {
 	var j map[string]interface{}
-
 	if err := json.Unmarshal(data, &j); err != nil {
 		return fmt.Errorf("LogMessage.UnmarshalJSON: can't unmarshal json: %s", err)
 	}
@@ -86,6 +86,7 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error {
 
 			switch typ {
 			case LogTypePlatformStart:
+				SetRequestID(l.ObjectRecord.RequestID)
 				if version, ok := objectRecord["version"].(string); ok {
 					l.ObjectRecord.Version = version
 				}

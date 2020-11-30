@@ -35,10 +35,21 @@ type provider struct {
 	pipelines            []*Pipeline
 	currentPipelineIndex int32
 	destinationsContext  *client.DestinationsContext
+
+	serverless bool
 }
 
 // NewProvider returns a new Provider
 func NewProvider(numberOfPipelines int, auditor auditor.Auditor, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) Provider {
+	return newProvider(numberOfPipelines, auditor, processingRules, endpoints, destinationsContext, false)
+}
+
+// NewServerlessProvider returns a new Provider in serverless mode
+func NewServerlessProvider(numberOfPipelines int, auditor auditor.Auditor, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) Provider {
+	return newProvider(numberOfPipelines, auditor, processingRules, endpoints, destinationsContext, true)
+}
+
+func newProvider(numberOfPipelines int, auditor auditor.Auditor, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, serverless bool) Provider {
 	return &provider{
 		numberOfPipelines:   numberOfPipelines,
 		auditor:             auditor,
@@ -46,6 +57,7 @@ func NewProvider(numberOfPipelines int, auditor auditor.Auditor, processingRules
 		endpoints:           endpoints,
 		pipelines:           []*Pipeline{},
 		destinationsContext: destinationsContext,
+		serverless:          serverless,
 	}
 }
 
@@ -55,7 +67,7 @@ func (p *provider) Start() {
 	p.outputChan = p.auditor.Channel()
 
 	for i := 0; i < p.numberOfPipelines; i++ {
-		pipeline := NewPipeline(p.outputChan, p.processingRules, p.endpoints, p.destinationsContext)
+		pipeline := NewPipeline(p.outputChan, p.processingRules, p.endpoints, p.destinationsContext, p.serverless)
 		pipeline.Start()
 		p.pipelines = append(p.pipelines, pipeline)
 	}
