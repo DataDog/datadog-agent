@@ -267,13 +267,11 @@ func (p *Probe) handleLostEvents(CPU int, count uint64, perfMap *manager.PerfMap
 var eventZero Event
 
 func (p *Probe) zeroEvent() *Event {
-	eventZero.resolvers = p.resolvers
 	*p.event = eventZero
 	return p.event
 }
 
 func (p *Probe) zeroMountEvent() *Event {
-	eventZero.resolvers = p.resolvers
 	*p.mountEvent = eventZero
 	return p.mountEvent
 }
@@ -461,11 +459,6 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 			return
 		}
 
-		// allow cache resolution for ExecEventType only
-		if eventType == ExecEventType {
-			event.Exec.AllowCacheResolution = true
-		}
-
 		// update the process resolver cache
 		event.updateProcessCachePointer(p.resolvers.ProcessResolver.AddEntry(event.Process.Pid, event.processCacheEntry))
 	case ExitEventType:
@@ -476,7 +469,9 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 	}
 
 	// resolve event context
-	event.ResolveProcessCacheEntry()
+	if eventType != ExitEventType {
+		event.ResolveProcessCacheEntry()
+	}
 
 	log.Tracef("Dispatching event %+v\n", event)
 

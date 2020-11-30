@@ -202,16 +202,17 @@ func (p *ProcessResolver) insertEntry(pid uint32, entry *ProcessCacheEntry) *Pro
 		}
 
 		// add entry to the children of its parent
-		parent.Children = append(parent.Children, entry)
+		parent.Children[entry.Pid] = entry
 	} else {
 		if entry.PPid >= 1 {
 			// create an entry for the parent, if the parent exists it might be populated later
-			parent = &ProcessCacheEntry{
-				ProcessContext: ProcessContext{
-					Pid: entry.PPid,
-				},
-				Children: []*ProcessCacheEntry{entry},
+			parent = NewProcessCacheEntry()
+			parent.ProcessContext = ProcessContext{
+				Pid: entry.PPid,
 			}
+
+			// update lineage
+			parent.Children[entry.Pid] = entry
 			p.entryCache[entry.PPid] = parent
 		}
 	}
@@ -258,12 +259,7 @@ func (p *ProcessResolver) recursiveDelete(entry *ProcessCacheEntry) {
 	}
 
 	// Delete the reference to the entry from its parent
-	for i, child := range entry.Parent.Children {
-		if child.Pid == entry.Pid {
-			entry.Parent.Children = append(entry.Parent.Children[:i], entry.Parent.Children[i+1:]...)
-			break
-		}
-	}
+	delete(entry.Parent.Children, entry.Pid)
 
 	// Check recursively if the parent entry can be deleted
 	p.recursiveDelete(entry.Parent)
@@ -302,7 +298,7 @@ func (p *ProcessResolver) resolveWithKernelMaps(pid uint32) *ProcessCacheEntry {
 		return nil
 	}
 
-	var entry ProcessCacheEntry
+	entry := NewProcessCacheEntry()
 	data := append(entryb, cookieb...)
 	if len(data) < 208 {
 		// not enough data
@@ -318,7 +314,7 @@ func (p *ProcessResolver) resolveWithKernelMaps(pid uint32) *ProcessCacheEntry {
 	entry.Pid = pid
 	entry.Tid = pid
 
-	return p.insertEntry(pid, &entry)
+	return p.insertEntry(pid, entry)
 }
 
 func (p *ProcessResolver) resolveWithProcfs(pid uint32) *ProcessCacheEntry {
@@ -395,7 +391,7 @@ func (p *ProcessResolver) syncCache(proc *process.FilledProcess) (*ProcessCacheE
 		return nil, false
 	}
 	if !inCache {
-		entry = &ProcessCacheEntry{}
+		entry = NewProcessCacheEntry()
 	}
 
 	// update the cache entry

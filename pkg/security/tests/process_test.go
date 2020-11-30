@@ -239,34 +239,13 @@ func TestProcessLineage(t *testing.T) {
 		}
 	})
 
-	var executablePid uint32
-
 	t.Run("exec", func(t *testing.T) {
-		// we might get multiple exec from other processes in the system
-		timeout := time.After(3 * time.Second)
-
-	ExecLoop:
-		for {
-			select {
-			case <-timeout:
-				t.Error("timeout")
-				break ExecLoop
-			default:
-				event, err := test.GetProbeEvent(3*time.Second, "exec")
-				if err != nil {
-					t.Error(err)
-					break ExecLoop
-				} else {
-					// look for the new process
-					if filename, _ := event.GetFieldValue("exec.filename"); filename.(string) == executable {
-						if err := testProcessLineageExec(t, event); err != nil {
-							t.Error(err)
-						} else {
-							executablePid = event.Process.Pid
-						}
-						break ExecLoop
-					}
-				}
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if err := testProcessLineageExec(t, event); err != nil {
+				t.Error(err)
 			}
 		}
 	})
@@ -276,11 +255,8 @@ func TestProcessLineage(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			// we're looking for the exit of /usr/bin/touch
-			if pid, _ := event.GetFieldValue("process.pid"); pid == int(executablePid) {
-				if err := testProcessLineageExit(t, event, executable, test); err != nil {
-					t.Error(err)
-				}
+			if err := testProcessLineageExit(t, event, test); err != nil {
+				t.Error(err)
 			}
 		}
 	})
@@ -342,25 +318,11 @@ func testProcessLineageFork(t *testing.T, event *probe.Event) error {
 	return nil
 }
 
-func testProcessLineageExit(t *testing.T, event *probe.Event, executable string, test *testModule) error {
+func testProcessLineageExit(t *testing.T, event *probe.Event, test *testModule) error {
 	// check for the new process context
 	cacheEntry := event.ResolveProcessCacheEntry()
 	if cacheEntry == nil {
 		return errors.Errorf("expected a process cache entry, got nil")
-	} else {
-		// look for the new process context
-		if filename, _ := event.GetFieldValue("process.filename"); filename.(string) != executable {
-			return errors.Errorf("expected exec filename `%v`, got `%v`", executable, filename)
-		}
-
-		// make sure the container ID was properly inherited from the parent
-		if cacheEntry.Parent == nil {
-			return errors.Errorf("expected a parent, got nil")
-		} else {
-			if cacheEntry.ID != cacheEntry.Parent.ID {
-				return errors.Errorf("expected container ID %s, got %s", cacheEntry.Parent.ID, cacheEntry.ID)
-			}
-		}
 	}
 
 	// make sure that the process cache entry of the process was properly deleted from the cache
@@ -369,7 +331,5 @@ func testProcessLineageExit(t *testing.T, event *probe.Event, executable string,
 	if entry != nil {
 		return errors.Errorf("the process cache entry was not deleted from the user space cache")
 	}
-
-	testContainerPath(t, event, "process.container_path")
 	return nil
 }

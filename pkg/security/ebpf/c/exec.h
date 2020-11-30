@@ -266,6 +266,8 @@ int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
         }
     }
 
+    pop_syscall(SYSCALL_EXEC);
+
     return 0;
 }
 #endif

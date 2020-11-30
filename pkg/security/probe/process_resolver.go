@@ -18,7 +18,14 @@ type ProcessCacheEntry struct {
 	ProcessContext
 
 	Parent   *ProcessCacheEntry
-	Children []*ProcessCacheEntry
+	Children map[uint32]*ProcessCacheEntry
+}
+
+// NewProcessCacheEntry returns an empty instance of ProcessCacheEntry
+func NewProcessCacheEntry() *ProcessCacheEntry {
+	return &ProcessCacheEntry{
+		Children: make(map[uint32]*ProcessCacheEntry),
+	}
 }
 
 // Copy returns a copy of the current ProcessCacheEntry
@@ -28,7 +35,7 @@ func (pc *ProcessCacheEntry) Copy() *ProcessCacheEntry {
 	// reset pointers
 	dup.Parent = nil
 	dup.ProcessContext.Parent = nil
-	dup.Children = []*ProcessCacheEntry{}
+	dup.Children = make(map[uint32]*ProcessCacheEntry)
 	return &dup
 }
 
