@@ -477,7 +477,7 @@ func (t *Tracer) getConnTelemetry(mapSize int) *network.ConnectionsTelemetry {
 	kprobeStats := ddebpf.GetProbeTotals()
 	tm := &network.ConnectionsTelemetry{
 		MonotonicKprobesTriggered: kprobeStats.Hits,
-		MonotonicKprobesMissed:    kprobeStats.Miss,
+		MonotonicKprobesMissed:    kprobeStats.Misses,
 		ConnsBpfMapSize:           int64(mapSize),
 		MonotonicConnsClosed:      atomic.LoadInt64(&t.closedConns),
 	}
