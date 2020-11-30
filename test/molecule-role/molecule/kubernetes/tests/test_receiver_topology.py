@@ -480,8 +480,8 @@ def test_cluster_agent_base_topology(host, ansible_var):
         # Assert Namespace relationships
         # Namespace -> Deployment (encloses)
         namespace_deployment_encloses_match = re.compile("urn:kubernetes:/%s:namespace/%s->"
-                                                    "urn:kubernetes:/%s:%s:deployment/stackstate-cluster-agent" % (cluster_name, namespace,
-                                                                                       cluster_name, namespace))
+                                                         "urn:kubernetes:/%s:%s:deployment/stackstate-cluster-agent" %
+                                                         (cluster_name, namespace, cluster_name, namespace))
         assert _relation_data(
             json_data=json_data,
             type_name="encloses",
@@ -489,8 +489,8 @@ def test_cluster_agent_base_topology(host, ansible_var):
         ).startswith("urn:kubernetes:/%s:namespace/%s" % (cluster_name, namespace))
         # Namespace -> StatefulSet (encloses)
         namespace_statefulset_encloses_match = re.compile("urn:kubernetes:/%s:namespace/%s->"
-                                                    "urn:kubernetes:/%s:%s:statefulset/mehdb" % (cluster_name, namespace,
-                                                                                       cluster_name, namespace))
+                                                          "urn:kubernetes:/%s:%s:statefulset/mehdb" %
+                                                          (cluster_name, namespace, cluster_name, namespace))
         assert _relation_data(
             json_data=json_data,
             type_name="encloses",
@@ -498,8 +498,8 @@ def test_cluster_agent_base_topology(host, ansible_var):
         ).startswith("urn:kubernetes:/%s:namespace/%s" % (cluster_name, namespace))
         # Namespace -> DaemonSet (encloses)
         namespace_daemonset_encloses_match = re.compile("urn:kubernetes:/%s:namespace/%s->"
-                                                    "urn:kubernetes:/%s:%s:daemonset/stackstate-agent" % (cluster_name, namespace,
-                                                                                       cluster_name, namespace))
+                                                        "urn:kubernetes:/%s:%s:daemonset/stackstate-agent" %
+                                                        (cluster_name, namespace, cluster_name, namespace))
         assert _relation_data(
             json_data=json_data,
             type_name="encloses",
@@ -507,8 +507,8 @@ def test_cluster_agent_base_topology(host, ansible_var):
         ).startswith("urn:kubernetes:/%s:namespace/%s" % (cluster_name, namespace))
         # Namespace -> ReplicaSet does not exist as managed by Deployment
         namespace_daemonset_encloses_match = re.compile("urn:kubernetes:/%s:namespace/%s->"
-                                                    "urn:kubernetes:/%s:%s:replicaset/stackstate-cluster-agent-.*" % (cluster_name, namespace,
-                                                                                       cluster_name, namespace))
+                                                        "urn:kubernetes:/%s:%s:replicaset/stackstate-cluster-agent-.*" %
+                                                        (cluster_name, namespace, cluster_name, namespace))
         assert _relation_data(
             json_data=json_data,
             type_name="encloses",
@@ -516,15 +516,12 @@ def test_cluster_agent_base_topology(host, ansible_var):
         ) is None
         # Namespace -> Service (encloses)
         namespace_daemonset_encloses_match = re.compile("urn:kubernetes:/%s:namespace/%s->"
-                                                    "urn:kubernetes:/%s:%s:service/stackstate-cluster-agent" % (cluster_name, namespace,
-                                                                                       cluster_name, namespace))
+                                                        "urn:kubernetes:/%s:%s:service/stackstate-cluster-agent" %
+                                                        (cluster_name, namespace, cluster_name, namespace))
         assert _relation_data(
             json_data=json_data,
             type_name="encloses",
             external_id_assert_fn=lambda eid: namespace_daemonset_encloses_match.findall(eid)
         ).startswith("urn:kubernetes:/%s:namespace/%s" % (cluster_name, namespace))
-
-
-
 
     util.wait_until(wait_for_cluster_agent_components, 120, 3)
