@@ -1,10 +1,12 @@
-package bytecode
+package ebpf
 
 import (
 	"bufio"
 	"bytes"
 	"io"
 	"regexp"
+
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 )
 
 var (
@@ -13,8 +15,10 @@ var (
 )
 
 // PreprocessFile pre-processes the `#include` of embedded headers.
+// It will only replace top-level includes for files that exist
+// and does not evaluate the content of included files for #include directives.
 func PreprocessFile(bpfDir, fileName string) (*bytes.Buffer, error) {
-	sourceReader, err := GetReader(bpfDir, fileName)
+	sourceReader, err := bytecode.GetReader(bpfDir, fileName)
 	if err != nil {
 		return nil, err
 	}
@@ -27,7 +31,7 @@ func PreprocessFile(bpfDir, fileName string) (*bytes.Buffer, error) {
 	for scanner.Scan() {
 		match := includeRegexp.FindSubmatch(scanner.Bytes())
 		if len(match) == 2 {
-			header, err := GetReader(bpfDir, string(match[1]))
+			header, err := bytecode.GetReader(bpfDir, string(match[1]))
 			if err == nil {
 				if _, err := io.Copy(source, header); err != nil {
 					return source, err

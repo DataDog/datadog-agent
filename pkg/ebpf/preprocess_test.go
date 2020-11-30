@@ -1,6 +1,6 @@
 // +build !ebpf_bindata
 
-package bytecode
+package ebpf
 
 import (
 	"io/ioutil"

@@ -7,7 +7,6 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	bpflib "github.com/iovisor/gobpf/bcc"
@@ -26,7 +25,7 @@ type TCPQueueLengthTracer struct {
 }
 
 func NewTCPQueueLengthTracer(cfg *ebpf.Config) (*TCPQueueLengthTracer, error) {
-	source, err := bytecode.PreprocessFile(cfg.BPFDir, "tcp-queue-length-kern.c")
+	source, err := ebpf.PreprocessFile(cfg.BPFDir, "tcp-queue-length-kern.c")
 	if err != nil {
 		return nil, fmt.Errorf("Couldn’t process headers for asset “tcp-queue-length-kern.c”: %v", err)
 	}
