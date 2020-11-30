@@ -1,7 +1,6 @@
 package quantile
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/DataDog/sketches-go/ddsketch/mapping"
 	"github.com/DataDog/sketches-go/ddsketch/store"
@@ -13,37 +12,45 @@ import (
 
 const relativeValueError = 0.01
 
-func genConvertedSummarySlice(t *testing.T, n int, gen func(i int) float64, testQuantiles []float64) []float64 {
+func genConvertedSummarySlice(t *testing.T, n int, gen func(i int) float64, testQuantiles []float64) (hits []float64, errors []float64) {
 	assert := assert.New(t)
 	m, err := mapping.NewLogarithmicMapping(relativeValueError)
 	assert.Nil(err)
-	s := ddsketch.NewDDSketch(m, store.NewDenseStore(), store.NewDenseStore())
+	errS := ddsketch.NewDDSketch(m, store.NewDenseStore(), store.NewDenseStore())
+	okS := ddsketch.NewDDSketch(m, store.NewDenseStore(), store.NewDenseStore())
 
+	// err is the distribution until n, hits (ok + err) is the distribution until 2*n
 	for i := 0; i < n; i++ {
 		x := gen(i)
-		assert.Nil(s.Accept(x))
+		assert.Nil(errS.Accept(x))
+	}
+	for i := n; i < n*2; i++ {
+		x := gen(i)
+		assert.Nil(okS.Accept(x))
 	}
 
-	data, err := proto.Marshal(s.ToProto())
+	okData, err := proto.Marshal(okS.ToProto())
 	assert.Nil(err)
-	var ske pb.DDSketch
-	err = proto.Unmarshal(data, &ske)
+	errData, err := proto.Marshal(errS.ToProto())
 	assert.Nil(err)
-	_, gkSketch, err := DDSketchesToGK(data, data)
+	gkHitsSketch, gkErrSketch, err := DDSketchesToGK(okData, errData)
 	assert.Nil(err)
 
-	vals := make([]float64, 0, len(testQuantiles))
 	for _, q := range testQuantiles {
-		val := gkSketch.Quantile(q)
-		vals = append(vals, val)
+		val := gkHitsSketch.Quantile(q)
+		hits = append(hits, val)
 	}
-	return vals
+	for _, q := range testQuantiles {
+		val := gkErrSketch.Quantile(q)
+		errors = append(errors, val)
+	}
+	return hits, errors
 }
 
 func testDDSketchToGKConstant(t *testing.T, n int) {
 	assert := assert.New(t)
-	vals := genConvertedSummarySlice(t, n, ConstantGenerator, testQuantiles)
-	for _, v := range vals {
+	hits, errors := genConvertedSummarySlice(t, n, ConstantGenerator, testQuantiles)
+	for _, v := range append(hits, errors...) {
 		assert.InEpsilon(42.0, v, relativeValueError)
 	}
 }
@@ -63,9 +70,9 @@ func TestDDSketchToGKConstant1000(t *testing.T) {
 
 func testDDSketchToGKUniform(t *testing.T, n int) {
 	assert := assert.New(t)
-	vals := genConvertedSummarySlice(t, n, UniformGenerator, testQuantiles)
+	hits, errors := genConvertedSummarySlice(t, n, UniformGenerator, testQuantiles)
 
-	for i, v := range vals {
+	for i, v := range errors {
 		var exp float64
 		if testQuantiles[i] == 0 {
 			exp = 0
@@ -77,6 +84,19 @@ func testDDSketchToGKUniform(t *testing.T, n int) {
 		}
 		// the errors stack
 		assert.InDelta(exp, v,EPSILON*float64(n)+ relativeValueError*exp, "quantile %f failed, exp: %f, val: %f", testQuantiles[i], exp, v)
+	}
+	for i, v := range hits {
+		var exp float64
+		if testQuantiles[i] == 0 {
+			exp = 0
+		} else if testQuantiles[i] == 1 {
+			exp = float64(n) - 1
+		} else {
+			rank := math.Ceil(testQuantiles[i] * float64(2*n))
+			exp = rank - 1
+		}
+		// the errors stack
+		assert.InDelta(exp, v,EPSILON*float64(2*n)+ relativeValueError*exp, "quantile %f failed, exp: %f, val: %f", testQuantiles[i], exp, v)
 	}
 }
 

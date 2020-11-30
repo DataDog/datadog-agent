@@ -18,7 +18,8 @@ import (
 	our epsilon-approximate quantiles
 ************************************************************************************/
 
-var testQuantiles = []float64{0, 0.1, 0.25, 0.5, 0.75, 0.90, 0.95, 0.99, 0.999, 0.9999, 1}
+// var testQuantiles = []float64{0, 0.1, 0.25, 0.5, 0.75, 0.90, 0.95, 0.99, 0.999, 0.9999, 1}
+var testQuantiles = []float64{0.25}
 
 func GenSummarySlice(n int, gen func(i int) float64) []float64 {
 	s := NewSliceSummary()

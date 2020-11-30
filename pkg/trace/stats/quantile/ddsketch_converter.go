@@ -58,7 +58,6 @@ func ddSketchToGK(okDDSketch ddSketch, errDDSketch ddSketch) (hits, errors *Slic
 			continue
 		}
 		hits.N += gHits
-		errors.N += gErr
 		v := okDDSketch.mapping.Value(index)
 		hits.Entries = append(hits.Entries, Entry{
 			V:     v,
@@ -68,6 +67,7 @@ func ddSketchToGK(okDDSketch ddSketch, errDDSketch ddSketch) (hits, errors *Slic
 		if gErr == 0 {
 			continue
 		}
+		errors.N += gErr
 		errors.Entries = append(errors.Entries, Entry{
 			V:     v,
 			G:     gErr,
