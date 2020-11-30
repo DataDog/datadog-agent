@@ -55,7 +55,7 @@ func newMountEventFromMountInfo(mnt *mountinfo.Info) (*MountEvent, error) {
 		MountID:       uint32(mnt.ID),
 		GroupID:       uint32(groupID),
 		Device:        uint32(unix.Mkdev(uint32(mnt.Major), uint32(mnt.Minor))),
-		FSType:        mnt.Fstype,
+		FSType:        mnt.FSType,
 	}, nil
 }
 
