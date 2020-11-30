@@ -23,8 +23,7 @@ tests_ebpf:
     - tar -xvf /tmp/libbcc.tar.xz -C $DATADOG_AGENT_EMBEDDED_PATH
     - tar -xvf /tmp/clang.tar.xz -C $DATADOG_AGENT_EMBEDDED_PATH
   script:
-    # For now only check bpf bytes since we don't have a way to run eBPF tests without mounting a debugfs
-    - inv -e system-probe.test --only-check-bpf-bytes
+    - inv -e system-probe.object-files
     - inv -e system-probe.kitchen-prepare
     # Compile runtime security functional tests to be executed in kitchen tests
     - inv -e security-agent.build-functional-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/testsuite
