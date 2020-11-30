@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/gopsutil/host"
@@ -595,5 +596,47 @@ func TestGetLinkWithAuthCheck(t *testing.T) {
 		if expExe, err := expProc.Exe(); err == nil {
 			assert.Equal(t, expExe, exe)
 		}
+	}
+}
+
+func BenchmarkGetProcsGopsutilTestFS(b *testing.B) {
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc")
+	defer os.Unsetenv("HOST_PROC")
+
+	benchmarkGetProcsGopsutil(b)
+}
+
+func BenchmarkGetProcsProcutilTestFS(b *testing.B) {
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc")
+	defer os.Unsetenv("HOST_PROC")
+
+	benchmarkGetProcsProcutil(b)
+}
+
+func BenchmarkGetProcsGopsutilLocalFS(b *testing.B) {
+	benchmarkGetProcsGopsutil(b)
+}
+
+func BenchmarkGetProcsProcutilLocalFS(b *testing.B) {
+	benchmarkGetProcsProcutil(b)
+}
+
+func benchmarkGetProcsGopsutil(b *testing.B) {
+	// disable log output from gopsutil
+	seelog.UseLogger(seelog.Disabled)
+	for i := 0; i < b.N; i++ {
+		_, err := process.AllProcesses()
+		assert.NoError(b, err)
+	}
+}
+
+func benchmarkGetProcsProcutil(b *testing.B) {
+	probe := NewProcessProbe()
+	defer probe.Close()
+
+	now := time.Now()
+	for i := 0; i < b.N; i++ {
+		_, err := probe.ProcessesByPID(now)
+		assert.NoError(b, err)
 	}
 }
