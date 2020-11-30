@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/sketches-go/ddsketch/mapping"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/gogo/protobuf/proto"
 )
 
@@ -123,10 +124,14 @@ func DDSketchesToGK(okSummaryData []byte, errorSummaryData []byte) (hitsSketch *
 	if err != nil {
 		return nil, nil, err
 	}
+	fmt.Println("\nok sketch")
+	spew.Dump(okDDSketch)
 	errDDSketch, err := ddSketchFromData(errorSummaryData)
 	if err != nil {
 		return nil, nil, err
 	}
+	fmt.Println("\nerror sketch")
+	spew.Dump(errDDSketch)
 	hits, errors := ddSketchToGK(okDDSketch, errDDSketch)
 	return hits, errors, nil
 }
