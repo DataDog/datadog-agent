@@ -255,3 +255,19 @@ func benchmarkGetCmdProcutil(b *testing.B) {
 		}
 	}
 }
+
+func BenchmarkGetPIDsGopsutilLocalFS(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_, err := process.Pids()
+		require.NoError(b, err)
+	}
+}
+
+func BenchmarkGetPIDsProcutilLocalFS(b *testing.B) {
+	probe := NewProcessProbe()
+	defer probe.Close()
+	for i := 0; i < b.N; i++ {
+		_, err := probe.getActivePIDs()
+		require.NoError(b, err)
+	}
+}
