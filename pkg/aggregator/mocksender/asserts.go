@@ -115,6 +115,7 @@ func eventLike(expectedEvent, actualEvent metrics.Event) bool {
 		assert.ObjectsAreEqualValues(expectedEvent.SourceTypeName, actualEvent.SourceTypeName) &&
 		assert.ObjectsAreEqualValues(expectedEvent.EventType, actualEvent.EventType) &&
 		assert.ObjectsAreEqualValues(expectedEvent.Host, actualEvent.Host) &&
+		assert.ObjectsAreEqualValues(expectedEvent.EventContext.Category, actualEvent.EventContext.Category) &&
 		expectedInActual(expectedEvent.Tags, actualEvent.Tags))
 }
 

@@ -26,7 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-func createEvent(count int32, namespace, objname, objkind, objuid, component, hostname, reason string, message string, timestamp int64) *v1.Event {
+func createEvent(count int32, namespace, objname, objkind, objuid, component, hostname, reason string, message string, timestamp int64, alertType string) *v1.Event {
 	return &v1.Event{
 		InvolvedObject: v1.ObjectReference{
 			Name:      objname,
@@ -35,6 +35,7 @@ func createEvent(count int32, namespace, objname, objkind, objuid, component, ho
 			Namespace: namespace,
 		},
 		Count: count,
+		Type:  alertType,
 		Source: v1.EventSource{
 			Component: component,
 			Host:      hostname,
@@ -53,10 +54,10 @@ func createEvent(count int32, namespace, objname, objkind, objuid, component, ho
 func TestProcessBundledEvents(t *testing.T) {
 	// We want to check if the format of several new events and several modified events creates DD events accordingly
 	// We also want to check that a modified event with an existing key is aggregated (i.e. the key is already known)
-	ev1 := createEvent(2, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Scheduled", "Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54", 709662600)
-	ev2 := createEvent(3, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Started", "Started container", 709662600)
-	ev3 := createEvent(1, "default", "localhost", "Node", "e63e74fa-f566-11e7-9749-0e4863e1cbf4", "kubelet", "machine-blue", "MissingClusterDNS", "MountVolume.SetUp succeeded", 709675200)
-	ev4 := createEvent(29, "default", "localhost", "Node", "e63e74fa-f566-11e7-9749-0e4863e1cbf4", "kubelet", "machine-blue", "MissingClusterDNS", "MountVolume.SetUp succeeded", 709675200)
+	ev1 := createEvent(2, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Scheduled", "Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54", 709662600, "info")
+	ev2 := createEvent(3, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Started", "Started container", 709662600, "info")
+	ev3 := createEvent(1, "default", "localhost", "Node", "e63e74fa-f566-11e7-9749-0e4863e1cbf4", "kubelet", "machine-blue", "MissingClusterDNS", "MountVolume.SetUp succeeded", 709675200, "info")
+	ev4 := createEvent(29, "default", "localhost", "Node", "e63e74fa-f566-11e7-9749-0e4863e1cbf4", "kubelet", "machine-blue", "MissingClusterDNS", "MountVolume.SetUp succeeded", 709675200, "info")
 	// (As Object kinds are Pod and Node here, the event should take the remote hostname `machine-blue`)
 
 	kubeApiEventsCheck := &EventsCheck{
@@ -92,6 +93,7 @@ func TestProcessBundledEvents(t *testing.T) {
 	// As the order is not guaranteed we want to use contains.
 	res1 := (mocked.Calls[0].Arguments.Get(0)).(metrics.Event)
 	assert.Contains(t, res1.Title, "Scheduled - dca-789976f5d7-2ljx6 Pod")
+	assert.Equal(t, "Activities", res1.EventContext.Category)
 	mocked.AssertNumberOfCalls(t, "Event", 2)
 	mocked.AssertExpectations(t)
 
@@ -109,6 +111,9 @@ func TestProcessBundledEvents(t *testing.T) {
 		Ts:             709675200,
 		Host:           "machine-blue",
 		EventType:      "MissingClusterDNS",
+		EventContext: &metrics.EventContext{
+			Category: "Alerts",
+		},
 	}
 	mocked = mocksender.NewMockSender(kubeApiEventsCheck.ID())
 	mocked.On("Event", mock.AnythingOfType("metrics.Event"))
@@ -136,6 +141,9 @@ func TestProcessBundledEvents(t *testing.T) {
 		Ts:             709675200,
 		Host:           "machine-blue-" + testClusterName,
 		EventType:      "MissingClusterDNS",
+		EventContext: &metrics.EventContext{
+			Category: "Alerts",
+		},
 	}
 
 	mocked = mocksender.NewMockSender(kubeApiEventsCheck.ID())
@@ -150,7 +158,7 @@ func TestProcessBundledEvents(t *testing.T) {
 func TestProcessEvent(t *testing.T) {
 	// We want to check if the format of 1 New event creates a DD event accordingly.
 	// We also want to check that filtered and empty events aren't submitted
-	ev1 := createEvent(2, "default", "dca-789976f5d7-2ljx6", "ReplicaSet", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Scheduled", "Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54", 709662600)
+	ev1 := createEvent(2, "default", "dca-789976f5d7-2ljx6", "ReplicaSet", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Scheduled", "Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54", 709662600, "info")
 	// (Object kind was changed from Pod to ReplicaSet to test the choice of hostname: it should take here the local hostname below `hostname`)
 
 	kubeApiEventsCheck := &EventsCheck{
@@ -184,6 +192,9 @@ func TestProcessEvent(t *testing.T) {
 		Ts:             709662600,
 		Host:           "",
 		EventType:      "Scheduled",
+		EventContext: &metrics.EventContext{
+			Category: "Activities",
+		},
 	}
 	mocked.On("Event", mock.AnythingOfType("metrics.Event"))
 	_ = kubeApiEventsCheck.processEvents(mocked, newKubeEventBundle, false)
@@ -198,7 +209,7 @@ func TestProcessEvent(t *testing.T) {
 	mocked.AssertExpectations(t)
 
 	// Ignored Event
-	ev5 := createEvent(1, "default", "machine-blue", "Node", "529fe848-e132-11e7-bad4-0e4863e1cbf4", "kubelet", "machine-blue", "ignored", "", 709675200)
+	ev5 := createEvent(1, "default", "machine-blue", "Node", "529fe848-e132-11e7-bad4-0e4863e1cbf4", "kubelet", "machine-blue", "ignored", "", 709675200, "info")
 	filteredKubeEventsBundle := []*v1.Event{
 		ev5,
 	}

@@ -197,8 +197,8 @@ func (k *EventsCheck) eventCollectionCheck() ([]*v1.Event, []*v1.Event, error) {
 
 // processEvents:
 // - iterates over the Kubernetes Events
-// - extracts some attributes and builds a structure ready to be submitted as a Datadog event (bundle)
-// - formats the bundle and submit the Datadog event
+// - filter events that shouldn't be sent to the intake
+// - convert each K8s event to a metrics event to be processed by the intake
 func (k *EventsCheck) processEvents(sender aggregator.Sender, events []*v1.Event, modified bool) error {
 	filteredByType := make(map[string]int)
 
