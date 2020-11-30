@@ -222,6 +222,13 @@ def kitchen_prepare(ctx):
     """
     Compile test suite for kitchen
     """
+
+    # Clean up previous build
+    if os.path.exists(KITCHEN_ARTIFACT_DIR):
+        shutil.rmtree(KITCHEN_ARTIFACT_DIR)
+
+    # Retrieve a list of all packages we want to test
+    # This handles the elipsis notation (eg. ./pkg/ebpf/...)
     target_packages = []
     for pkg in TEST_PACKAGES_LIST:
         target_packages += (
