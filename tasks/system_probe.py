@@ -250,14 +250,15 @@ def kitchen_prepare(ctx):
             packages=pkg,
             skip_object_files=(i != 0),
             only_check_bpf_bytes=False,
-            bundle_ebpf=True,
+            bundle_ebpf=False,
             output_path=os.path.join(target_path, "testsuite"),
         )
 
-        # copy testdata directory, if applicable
-        testdata_path = os.path.join(pkg, "testdata")
-        if os.path.isdir(testdata_path):
-            shutil.copytree(testdata_path, os.path.join(target_path, "testdata"))
+        # copy ancillary data, if applicable
+        for extra in ["testdata", "build"]:
+            extra_path = os.path.join(pkg, extra)
+            if os.path.isdir(extra_path):
+                shutil.copytree(extra_path, os.path.join(target_path, extra))
 
 
 @task

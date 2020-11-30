@@ -31,18 +31,6 @@ tmtags
 .settings
 mkmf.log
 
-## COMPILED ##
-##############
-a.out
-*.o
-*.pyc
-*.so
-*.com
-*.class
-*.dll
-*.exe
-*/rdoc/
-
 # Testing #
 ###########
 .watchr
