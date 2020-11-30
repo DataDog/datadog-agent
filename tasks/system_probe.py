@@ -457,29 +457,32 @@ def build_object_files(ctx, bundle_ebpf=False):
 
     # Build security runtime programs
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
-    security_c_file = os.path.join(security_agent_c_dir, "probe.c")
+    security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
+    security_c_file = os.path.join(security_agent_prebuilt_dir, "probe.c")
     security_bc_file = os.path.join(build_dir, "runtime-security.bc")
     security_agent_obj_file = os.path.join(build_dir, "runtime-security.o")
+    security_flags = list(flags)
+    security_flags.append("-I{}".format(security_agent_c_dir))
 
     commands.append(
         cmd.format(
-            flags=" ".join(flags + ["-DUSE_SYSCALL_WRAPPER=0"]), c_file=security_c_file, bc_file=security_bc_file
+            flags=" ".join(security_flags + ["-DUSE_SYSCALL_WRAPPER=0"]), c_file=security_c_file, bc_file=security_bc_file
         )
     )
-    commands.append(llc_cmd.format(flags=" ".join(flags), bc_file=security_bc_file, obj_file=security_agent_obj_file))
+    commands.append(llc_cmd.format(flags=" ".join(security_flags), bc_file=security_bc_file, obj_file=security_agent_obj_file))
 
     security_agent_syscall_wrapper_bc_file = os.path.join(build_dir, "runtime-security-syscall-wrapper.bc")
     security_agent_syscall_wrapper_obj_file = os.path.join(build_dir, "runtime-security-syscall-wrapper.o")
     commands.append(
         cmd.format(
-            flags=" ".join(flags + ["-DUSE_SYSCALL_WRAPPER=1"]),
+            flags=" ".join(security_flags + ["-DUSE_SYSCALL_WRAPPER=1"]),
             c_file=security_c_file,
             bc_file=security_agent_syscall_wrapper_bc_file,
         )
     )
     commands.append(
         llc_cmd.format(
-            flags=" ".join(flags),
+            flags=" ".join(security_flags),
             bc_file=security_agent_syscall_wrapper_bc_file,
             obj_file=security_agent_syscall_wrapper_obj_file,
         )
