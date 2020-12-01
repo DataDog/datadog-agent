@@ -30,7 +30,7 @@ func decodeDDSketch(data []byte) (ddSketch, error) {
 	if err := proto.Unmarshal(data, &sketchPb); err != nil {
 		return ddSketch{}, err
 	}
-	mapping, err := getDDSketchMapping(sketchPb.Mapping)
+	mapping, err := ddSketchMappingFromProto(sketchPb.Mapping)
 	if err != nil {
 		return ddSketch{}, err
 	}
@@ -48,16 +48,16 @@ func decodeDDSketch(data []byte) (ddSketch, error) {
 	}, nil
 }
 
-func getDDSketchMapping(protoMapping *pb.IndexMapping) (m mapping.IndexMapping, err error) {
-	switch protoMapping.Interpolation {
+func ddSketchMappingFromProto(mappingPb *pb.IndexMapping) (m mapping.IndexMapping, err error) {
+	switch mappingPb.Interpolation {
 	case pb.IndexMapping_NONE:
-		return mapping.NewLogarithmicMappingWithGamma(protoMapping.Gamma, protoMapping.IndexOffset)
+		return mapping.NewLogarithmicMappingWithGamma(mappingPb.Gamma, mappingPb.IndexOffset)
 	case pb.IndexMapping_LINEAR:
-		return mapping.NewLinearlyInterpolatedMappingWithGamma(protoMapping.Gamma, protoMapping.IndexOffset)
+		return mapping.NewLinearlyInterpolatedMappingWithGamma(mappingPb.Gamma, mappingPb.IndexOffset)
 	case pb.IndexMapping_CUBIC:
-		return mapping.NewCubicallyInterpolatedMappingWithGamma(protoMapping.Gamma, protoMapping.IndexOffset)
+		return mapping.NewCubicallyInterpolatedMappingWithGamma(mappingPb.Gamma, mappingPb.IndexOffset)
 	default:
-		return nil, fmt.Errorf("interpolation not supported: %d", protoMapping.Interpolation)
+		return nil, fmt.Errorf("interpolation not supported: %d", mappingPb.Interpolation)
 	}
 }
 
