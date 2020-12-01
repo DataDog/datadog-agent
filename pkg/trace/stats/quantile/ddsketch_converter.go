@@ -34,11 +34,12 @@ func decodeDDSketch(data []byte) (ddSketch, error) {
 	if err != nil {
 		return ddSketch{}, err
 	}
-	if sketchPb.Mapping.IndexOffset > 0 ||
-		len(sketchPb.NegativeValues.BinCounts) > 0 ||
-		len(sketchPb.NegativeValues.ContiguousBinCounts) > 0 ||
-		len(sketchPb.PositiveValues.BinCounts) > 0 {
-		return ddSketch{}, errors.New("ddSketch format not supported")
+	if sketchPb.Mapping.IndexOffset > 0 { err = errors.New("index offset non 0") }
+	if  len(sketchPb.NegativeValues.BinCounts)> 0 { err = errors.New("contains negative values") }
+	if  len(sketchPb.NegativeValues.ContiguousBinCounts)> 0 { err = errors.New("contains negative values") }
+	if  len(sketchPb.PositiveValues.BinCounts) > 0 { err = errors.New("contains non contiguous bins") }
+	if err != nil {
+		return ddSketch{}, errors.New("ddSketch format not supported: " + err.Error())
 	}
 	return ddSketch{
 		mapping: mapping,
