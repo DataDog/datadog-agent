@@ -12,7 +12,9 @@ import (
 
 const relativeValueError = 0.01
 
-func genConvertedSummarySlice(t *testing.T, n int, gen func(i int) float64, testQuantiles []float64) (hits []float64, errors []float64) {
+// getConvertedSketchQuantiles generates a DDSketch using the generator function, then converts it
+// to GK Sketch and gets the quantiles.
+func getConvertedSketchQuantiles(t *testing.T, n int, gen func(i int) float64, testQuantiles []float64) (hits []float64, errors []float64) {
 	assert := assert.New(t)
 	m, err := mapping.NewLogarithmicMapping(relativeValueError)
 	assert.Nil(err)
@@ -33,7 +35,7 @@ func genConvertedSummarySlice(t *testing.T, n int, gen func(i int) float64, test
 	assert.Nil(err)
 	errData, err := proto.Marshal(errS.ToProto())
 	assert.Nil(err)
-	gkHitsSketch, gkErrSketch, err := DDSketchesToGK(okData, errData)
+	gkHitsSketch, gkErrSketch, err := DDToGKSketches(okData, errData)
 	assert.Nil(err)
 
 	for _, q := range testQuantiles {
@@ -49,7 +51,7 @@ func genConvertedSummarySlice(t *testing.T, n int, gen func(i int) float64, test
 
 func testDDSketchToGKConstant(t *testing.T, n int) {
 	assert := assert.New(t)
-	hits, errors := genConvertedSummarySlice(t, n, ConstantGenerator, testQuantiles)
+	hits, errors := getConvertedSketchQuantiles(t, n, ConstantGenerator, testQuantiles)
 	for _, v := range append(hits, errors...) {
 		assert.InEpsilon(42.0, v, relativeValueError)
 	}
@@ -64,13 +66,12 @@ func TestDDSketchToGKConstant1000(t *testing.T) {
 }
 
 /* uniform distribution
-   expected quantiles are easily to compute as the value == its rank
-   1 to i
+   expected quantiles are easy to compute as the value == its rank
 */
 
 func testDDSketchToGKUniform(t *testing.T, n int) {
 	assert := assert.New(t)
-	hits, errors := genConvertedSummarySlice(t, n, UniformGenerator, testQuantiles)
+	hits, errors := getConvertedSketchQuantiles(t, n, UniformGenerator, testQuantiles)
 
 	for i, v := range errors {
 		var exp float64
@@ -82,9 +83,10 @@ func testDDSketchToGKUniform(t *testing.T, n int) {
 			rank := math.Ceil(testQuantiles[i] * float64(n))
 			exp = rank - 1
 		}
-		// the errors stack
 		assert.InDelta(exp, v,EPSILON*float64(n)+ relativeValueError*exp, "quantile %f failed, exp: %f, val: %f", testQuantiles[i], exp, v)
 	}
+	// hits = ok + err. because ok is the distribution from n to 2n,
+	// and errors is the distribution from 1 to n, hits is the distribution from 1 to 2n
 	for i, v := range hits {
 		var exp float64
 		if testQuantiles[i] == 0 {
@@ -95,7 +97,6 @@ func testDDSketchToGKUniform(t *testing.T, n int) {
 			rank := math.Ceil(testQuantiles[i] * float64(2*n))
 			exp = rank - 1
 		}
-		// the errors stack
 		assert.InDelta(exp, v,EPSILON*float64(2*n)+ relativeValueError*exp, "quantile %f failed, exp: %f, val: %f", testQuantiles[i], exp, v)
 	}
 }

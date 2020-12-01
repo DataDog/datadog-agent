@@ -321,28 +321,26 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang string) {
 				TopLevel: float64(b.Hits),
 				Value:    float64(b.Duration),
 			}
-			hitsSummary, errorSummary, err := quantile.DDSketchesToGK(b.HitsSummary, b.ErrorSummary)
-			if err != nil {
-				log.Errorf("Error handling distributions. Dropping payload %v", err)
-				continue
+			if hitsSummary, errorSummary, err := quantile.DDToGKSketches(b.HitsSummary, b.ErrorSummary); err == nil {
+				newb.Distributions[key] = stats.Distribution{
+					Key:      key,
+					Name:     b.Name,
+					Measure:  stats.DURATION,
+					TagSet:   tagset,
+					TopLevel: 0,
+					Summary: hitsSummary,
+				}
+				newb.ErrDistributions[key] = stats.Distribution{
+					Key:      key,
+					Name:     b.Name,
+					Measure:  stats.DURATION,
+					TagSet:   tagset,
+					TopLevel: 0,
+					Summary: errorSummary,
+				}
+			} else {
+				log.Errorf("Error handling distributions: %v", err)
 			}
-			newb.Distributions[key] = stats.Distribution{
-				Key:      key,
-				Name:     b.Name,
-				Measure:  stats.DURATION,
-				TagSet:   tagset,
-				TopLevel: 0,
-				Summary: hitsSummary,
-			}
-			newb.ErrDistributions[key] = stats.Distribution{
-				Key:      key,
-				Name:     b.Name,
-				Measure:  stats.DURATION,
-				TagSet:   tagset,
-				TopLevel: 0,
-				Summary: errorSummary,
-			}
-
 			out.Stats = append(out.Stats, newb)
 		}
 	}
