@@ -138,6 +138,53 @@ def functional_tests(
     build_tags='',
     bundle_ebpf=True,
     fail_fast=False,
+):
+    ldflags, gcflags, env = get_build_flags(ctx, arch=arch, major_version=major_version)
+
+    goenv = get_go_env(ctx, go_version)
+    env.update(goenv)
+
+    env["CGO_ENABLED"] = "1"
+    if arch == "x86":
+        env["GOARCH"] = "386"
+
+    if bundle_ebpf:
+        build_tags = "ebpf_bindata," + build_tags
+
+    cmd = 'go test -tags functionaltests,linux_bpf,{build_tags} {race_opt} {output_opt} '
+    cmd += '{verbose_opt} {failfast_opt} {run_opt} {bench_opt} {repo_path}/pkg/security/tests'
+
+    if os.getuid() != 0 and not output:
+        cmd = 'sudo -E PATH={path} ' + cmd
+
+    args = {
+        "verbose_opt": "-v" if verbose else "",
+        "race_opt": "-race" if race else "",
+        "output_opt": "-c -o " + output if output else "",
+        "run_opt": "-run " + pattern if pattern else "",
+        "bench_opt": "-bench " + bench_pattern if bench_pattern else "",
+        "failfast_opt": "-failfast" if fail_fast else "",
+        "build_tags": build_tags,
+        "path": os.environ['PATH'],
+        "repo_path": REPO_PATH,
+    }
+
+    ctx.run(cmd.format(**args), env=env)
+
+@task
+def stress_tests(
+    ctx,
+    race=False,
+    verbose=False,
+    go_version=None,
+    arch="x64",
+    major_version='7',
+    pattern='',
+    bench_pattern='',
+    output='',
+    build_tags='',
+    bundle_ebpf=True,
+    fail_fast=False,
     keep_profile=False,
     report_file='',
     diff_base='',
@@ -154,7 +201,7 @@ def functional_tests(
     if bundle_ebpf:
         build_tags = "ebpf_bindata," + build_tags
 
-    cmd = 'go test -tags functionaltests,{build_tags} {race_opt} {output_opt} '
+    cmd = 'go test -tags functionaltests,stresstests,{build_tags} {race_opt} {output_opt} '
     cmd += '{verbose_opt} {failfast_opt} {run_opt} {bench_opt} {repo_path}/pkg/security/tests'
     cmd += '{keep_profile} {report_file} {diff_base}
 
@@ -168,21 +215,19 @@ def functional_tests(
         "run_opt": "-run " + pattern if pattern else "",
         "bench_opt": "-bench " + bench_pattern if bench_pattern else "",
         "failfast_opt": "-failfast" if fail_fast else "",
-        "keep_profile": "--keep-profile" if keep_profile else "",
-        "report_file": "--report-file " + report_file if report_file else "",
-        "diff_base": "--diff-base " + diff_base if diff_base else "",
         "build_tags": build_tags,
         "path": os.environ['PATH'],
         "repo_path": REPO_PATH,
+        "keep_profile": "--keep-profile" if keep_profile else "",
+        "report_file": "--report-file " + report_file if report_file else "",
+        "diff_base": "--diff-base " + diff_base if diff_base else "",
     }
 
     ctx.run(cmd.format(**args), env=env)
 
-
 @task
 def build_all_functional_tests(
     ctx, race=False, verbose=False, go_version=None, major_version='7', pattern='', output='pkg/security/tests',
-    keep_profile=False, report_file='', diff_base='',
 ):
     functional_tests(
         ctx,
@@ -193,9 +238,6 @@ def build_all_functional_tests(
         major_version=major_version,
         output=os.path.join(output, "testsuite"),
         build_tags="ebpf_bindata",
-        keep_profile=keep_profile,
-        report_file=report_file,
-        diff_base=diff_base,
     )
 
     functional_tests(
@@ -207,16 +249,12 @@ def build_all_functional_tests(
         output=os.path.join(output, "testsuite32"),
         build_tags="ebpf_bindata",
         arch="x86",
-        keep_profile=keep_profile,
-        report_file=report_file,
-        diff_base=diff_base,
     )
 
 
 @task
 def kitchen_functional_tests(
     ctx, race=False, verbose=False, go_version=None, major_version='7', pattern='', build_tests=False,
-    keep_profile=False, report_file='', diff_base='',
 ):
     chef_files_path = "test/kitchen/site-cookbooks/dd-security-agent-check/files"
     if build_tests:
@@ -228,9 +266,6 @@ def kitchen_functional_tests(
             major_version=major_version,
             pattern=pattern,
             output=chef_files_path,
-            keep_profile=keep_profile,
-            report_file=report_file,
-            diff_base=diff_base,
         )
 
     if not os.path.exists(os.path.join(chef_files_path, 'testsuite')):
@@ -248,7 +283,6 @@ def kitchen_functional_tests(
 @task
 def docker_functional_tests(
     ctx, race=False, verbose=False, go_version=None, arch="x64", major_version='7', pattern='',
-    keep_profile=False, report_file='', diff_base='',
 ):
     functional_tests(
         ctx,
@@ -259,9 +293,6 @@ def docker_functional_tests(
         major_version=major_version,
         output="pkg/security/tests/testsuite",
         build_tags="ebpf_bindata",
-        keep_profile=keep_profile,
-        report_file=report_file,
-        diff_base=diff_base,
     )
 
     container_name = 'security-agent-tests'
