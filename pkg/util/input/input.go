@@ -14,9 +14,7 @@ import (
 
 // AskForEmail asks for the user's email
 func AskForEmail() (string, error) {
-	var email string
-	email, err := askForInput("Please enter your email: ", "")
-	return email, err
+	return "a", nil
 }
 
 // AskForConfirmation asks for the user's confirmation to send the flare
