@@ -39,6 +39,7 @@ func SetARN(arn string) {
 	currentARN.value = arn
 }
 
+// GetRequestID returns the currently running function request ID.
 func GetRequestID() string {
 	currentReqID.Lock()
 	defer currentReqID.Unlock()
@@ -46,6 +47,7 @@ func GetRequestID() string {
 	return currentReqID.value
 }
 
+// SetRequestID stores the currently running function request ID.
 func SetRequestID(reqID string) {
 	currentReqID.Lock()
 	defer currentReqID.Unlock()

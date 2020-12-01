@@ -24,6 +24,7 @@ type Message struct {
 	Lambda *Lambda
 }
 
+// Lambda is a struct storing information about the Lambda function and function execution.
 type Lambda struct {
 	ARN       string
 	RequestID string
