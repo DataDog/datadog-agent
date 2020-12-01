@@ -7,6 +7,7 @@
 package kubeapi
 
 import (
+	"fmt"
 	"testing"
 
 	"time"
@@ -112,7 +113,11 @@ func TestProcessBundledEvents(t *testing.T) {
 		Host:           "machine-blue",
 		EventType:      "MissingClusterDNS",
 		EventContext: &metrics.EventContext{
+			Source:   "kubernetes",
 			Category: "Alerts",
+			ElementIdentifiers: []string{
+				fmt.Sprintf("urn:kubernetes:/%s:node/localhost", clustername.GetClusterName()),
+			},
 		},
 	}
 	mocked = mocksender.NewMockSender(kubeApiEventsCheck.ID())
@@ -142,7 +147,11 @@ func TestProcessBundledEvents(t *testing.T) {
 		Host:           "machine-blue-" + testClusterName,
 		EventType:      "MissingClusterDNS",
 		EventContext: &metrics.EventContext{
+			Source:   "kubernetes",
 			Category: "Alerts",
+			ElementIdentifiers: []string{
+				fmt.Sprintf("urn:kubernetes:/%s:node/localhost", clustername.GetClusterName()),
+			},
 		},
 	}
 
@@ -193,7 +202,11 @@ func TestProcessEvent(t *testing.T) {
 		Host:           "",
 		EventType:      "Scheduled",
 		EventContext: &metrics.EventContext{
+			Source:   "kubernetes",
 			Category: "Activities",
+			ElementIdentifiers: []string{
+				fmt.Sprintf("urn:kubernetes:/%s:default:replicaset/dca-789976f5d7-2ljx6", clustername.GetClusterName()),
+			},
 		},
 	}
 	mocked.On("Event", mock.AnythingOfType("metrics.Event"))

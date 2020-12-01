@@ -125,7 +125,9 @@ func contextLike(expectedContext, actualContext *metrics.EventContext) bool {
 		return actualContext == nil
 	}
 
-	return assert.ObjectsAreEqualValues(expectedContext.Category, actualContext.Category)
+	return assert.ObjectsAreEqualValues(expectedContext.Category, actualContext.Category) &&
+		assert.ObjectsAreEqualValues(expectedContext.Source, actualContext.Source) &&
+		expectedInActual(expectedContext.ElementIdentifiers, actualContext.ElementIdentifiers)
 }
 
 // Return a bool value if all the elements of expected are inside the actual array

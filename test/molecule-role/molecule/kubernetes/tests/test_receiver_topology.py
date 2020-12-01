@@ -84,6 +84,14 @@ def test_cluster_agent_base_topology(host, ansible_var):
         with open("./topic-topo-process-agents-k8s.json", 'w') as f:
             json.dump(process_json_data, f, indent=4)
 
+        # 1 namespace
+        assert _component_data(
+            json_data=json_data,
+            type_name="namespace",
+            external_id_assert_fn=lambda eid: eid.startswith("urn:kubernetes:/%s:namespace/%s" % (cluster_name, namespace)),
+            cluster_name=cluster_name,
+            identifiers_assert_fn=lambda identifiers: next(x for x in identifiers if x.startswith("urn:kubernetes:/%s:namespace/%s" % (cluster_name, namespace)))
+        )
         # TODO make sure we identify the 2 different ec2 instances using i-*
         # 2 nodes
         assert _component_data(
