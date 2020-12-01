@@ -22,3 +22,4 @@ cookbook 'dd-agent-sles-workaround', path: './site-cookbooks/dd-agent-sles-worka
 cookbook 'dd-agent-rhel-workaround', path: './site-cookbooks/dd-agent-rhel-workaround'
 cookbook 'dd-agent-system-files-check', path: './site-cookbooks/dd-agent-system-files-check'
 cookbook 'dd-security-agent-check', path: './site-cookbooks/dd-security-agent-check'
+cookbook 'dd-system-probe-check', path: './site-cookbooks/dd-system-probe-check'
