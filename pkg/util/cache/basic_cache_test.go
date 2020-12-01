@@ -16,13 +16,9 @@ func TestBasicCache(t *testing.T) {
 
 	c := NewBasicCache()
 	for k, v := range m {
-		added := c.Add(k, v)
-		assert.True(t, added)
+		c.Add(k, v)
 	}
 	assert.Equal(t, len(m), c.Size())
-
-	added := c.Add("a", 1)
-	assert.False(t, added) // Already there
 
 	for k, v := range m {
 		cached, found := c.Get(k)
@@ -38,41 +34,18 @@ func TestBasicCache(t *testing.T) {
 		assert.Equal(t, m[k], v)
 	}
 
-	added = c.Add("d", []string{"56", "wombat"})
-	assert.True(t, added) // Update there
+	wombat := "wombat"
+	initialTimestamp := c.GetModified()
+	c.modified = 0
+	c.Add("d", wombat)
+	cached, found := c.Get("d")
+	assert.True(t, found)
+	assert.Equal(t, cached, wombat)
+	// Timestamp was reset to 0 before calling .Add, so equality
+	// also means that the timestamp was updated
+	assert.GreaterOrEqual(t, c.GetModified(), initialTimestamp)
 
 	for k := range m {
-		c.Remove(k)
-	}
-	assert.Equal(t, 0, c.Size())
-}
-
-func TestBasicCacheWithCustomEqFunc(t *testing.T) {
-	data := map[string]interface{}{
-		"1": 1,
-		"2": "2",
-		"3": struct{}{},
-		"4": "four",
-	}
-
-	c := NewBasicCacheWithEqualityFunc(func(a, b interface{}) bool { return true })
-	for k, v := range data {
-		added := c.Add(k, v)
-		assert.True(t, added)
-	}
-
-	assert.Equal(t, len(data), c.Size())
-	m := c.GetModified()
-
-	for k, v := range data {
-		added := c.Add(k, "koala")
-		assert.False(t, added)              // Already there and equal given the custom equalitfy func
-		assert.Equal(t, m, c.GetModified()) // Thus the cache should not have been updated
-		val, _ := c.Get(k)
-		assert.Equal(t, v, val)
-	}
-
-	for k := range data {
 		c.Remove(k)
 	}
 	assert.Equal(t, 0, c.Size())

@@ -1,7 +1,6 @@
 package cache
 
 import (
-	"reflect"
 	"sync"
 	"time"
 )
@@ -11,36 +10,23 @@ type BasicCache struct {
 	m        sync.RWMutex
 	cache    map[string]interface{}
 	modified int64
-	eqFunc   func(interface{}, interface{}) bool
 }
 
 // NewBasicCache Creates new BasicCache
 func NewBasicCache() *BasicCache {
-	return NewBasicCacheWithEqualityFunc(func(a, b interface{}) bool { return reflect.DeepEqual(a, b) })
-}
-
-// NewBasicCacheWithEqualityFunc Creates new BasicCache with custom equality function
-func NewBasicCacheWithEqualityFunc(f func(interface{}, interface{}) bool) *BasicCache {
 	return &BasicCache{
-		cache:  make(map[string]interface{}),
-		eqFunc: f,
+		cache: make(map[string]interface{}),
 	}
 }
 
 // Add adds value to cache for specified key
-// Returns true if the value was added/changed, or false if it was already there.
-// If the value was added/changed, it updates the modified timestamp
-func (b *BasicCache) Add(k string, v interface{}) bool {
+// It will overwrite any existing value
+func (b *BasicCache) Add(k string, v interface{}) {
 	b.m.Lock()
 	defer b.m.Unlock()
 
-	current, found := b.cache[k]
-	if !found || !b.eqFunc(current, v) {
-		b.cache[k] = v
-		b.modified = time.Now().Unix()
-		return true
-	}
-	return false
+	b.cache[k] = v
+	b.modified = time.Now().Unix()
 }
 
 // Get gets interface for specified key and a boolean that's false when the key is not found
