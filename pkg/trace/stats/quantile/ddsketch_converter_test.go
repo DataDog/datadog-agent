@@ -92,7 +92,7 @@ func testDDSketchToGKUniform(t *testing.T, n int) {
 		if testQuantiles[i] == 0 {
 			exp = 0
 		} else if testQuantiles[i] == 1 {
-			exp = float64(n) - 1
+			exp = float64(2*n) - 1
 		} else {
 			rank := math.Ceil(testQuantiles[i] * float64(2*n))
 			exp = rank - 1
