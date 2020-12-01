@@ -1977,6 +1977,8 @@ deploy_windows_testing-a7:
   rules:
     - when: manual
       allow_failure: true
+    - if: '$CI_MERGE_REQUEST_LABELS =~ /.*networks.*/'
+      allow_failure: true
   needs: ["tests_ebpf"]
   variables:
     AGENT_MAJOR_VERSION: 7
