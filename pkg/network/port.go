@@ -77,7 +77,7 @@ func (pm *PortMapping) ReadInitialState() error {
 		paths = append(paths, "net/tcp6")
 	}
 
-	pm.readState(paths, tcpListen)
+	pm.readState(paths, tcpListen, false)
 	return nil
 }
 
@@ -91,11 +91,11 @@ func (pm *PortMapping) ReadInitialUDPState() error {
 		paths = append(paths, "net/udp6")
 	}
 
-	pm.readState(paths, tcpClose)
+	pm.readState(paths, tcpClose, true)
 	return nil
 }
 
-func (pm *PortMapping) readState(paths []string, status int64) {
+func (pm *PortMapping) readState(paths []string, status int64, isUDP bool) {
 	seen := make(map[uint64]interface{})
 	_ = util.WithAllProcs(pm.procRoot, func(pid int) error {
 		nsIno, err := util.GetNetNsInoFromPid(pm.procRoot, pid)
@@ -109,6 +109,11 @@ func (pm *PortMapping) readState(paths []string, status int64) {
 		}
 
 		seen[nsIno] = struct{}{}
+		if isUDP {
+			// cannot use namespace info in key since ebpf port binding code does not provide namespace info
+			nsIno = 0
+		}
+
 		for _, p := range paths {
 			ports, err := readProcNetWithStatus(path.Join(pm.procRoot, fmt.Sprintf("%d", pid), p), status)
 			if err != nil {
