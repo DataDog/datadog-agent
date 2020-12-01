@@ -16,6 +16,7 @@ const (
 
 // Builder builds StackState compatible URNs for Kubernetes components
 type Builder interface {
+	URNPrefix() string
 	BuildExternalID(kind, namespace, objName string) (string, error)
 	BuildClusterExternalID() string
 	BuildConfigMapExternalID(namespace, configMapName string) string
@@ -53,6 +54,11 @@ func NewURNBuilder(clusterType ClusterType, url string) Builder {
 
 func buildURNPrefix(clusterType ClusterType, url string) string {
 	return fmt.Sprintf("urn:%s:/%s", clusterType, url)
+}
+
+// URNPrefix
+func (b *urnBuilder) URNPrefix() string {
+	return b.urnPrefix
 }
 
 func (b *urnBuilder) BuildExternalID(kind, namespace, objName string) (string, error) {

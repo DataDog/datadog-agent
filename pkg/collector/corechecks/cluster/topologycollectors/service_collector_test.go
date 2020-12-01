@@ -30,25 +30,31 @@ func TestServiceCollector(t *testing.T) {
 	creationTime = v1.Time{Time: time.Now().Add(-1 * time.Hour)}
 
 	cjc := NewServiceCollector(componentChannel, relationChannel, NewTestCommonClusterCollector(MockServiceAPICollectorClient{}))
+	// Mock out DNS resolution function for test
+	cjc.(*ServiceCollector).DNS = func(name string) ([]string, error) {
+		return []string{"10.10.42.42", "10.10.42.43"}, nil
+	}
 	expectedCollectorName := "Service Collector"
 	RunCollectorTest(t, cjc, expectedCollectorName)
 
 	for _, tc := range []struct {
-		testCase          string
-		expectedComponent *topology.Component
-		expectedRelations []*topology.Relation
+		testCase           string
+		expectedComponents []*topology.Component
+		expectedRelations  []*topology.Relation
 	}{
 		{
 			testCase: "Test Service 1 - Service + Pod Relation",
-			expectedComponent: &topology.Component{
-				ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-1",
-				Type:       topology.Type{Name: "service"},
-				Data: topology.Data{
-					"name":              "test-service-1",
-					"creationTimestamp": creationTime,
-					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
-					"uid":               types.UID("test-service-1"),
-					"identifiers":       []string{"urn:service:/test-cluster-name:test-namespace:test-service-1"},
+			expectedComponents: []*topology.Component{
+				{
+					ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-1",
+					Type:       topology.Type{Name: "service"},
+					Data: topology.Data{
+						"name":              "test-service-1",
+						"creationTimestamp": creationTime,
+						"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
+						"uid":               types.UID("test-service-1"),
+						"identifiers":       []string{"urn:service:/test-cluster-name:test-namespace:test-service-1"},
+					},
 				},
 			},
 			expectedRelations: []*topology.Relation{
@@ -72,18 +78,20 @@ func TestServiceCollector(t *testing.T) {
 		},
 		{
 			testCase: "Test Service 2 - Minimal - NodePort",
-			expectedComponent: &topology.Component{
-				ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-2",
-				Type:       topology.Type{Name: "service"},
-				Data: topology.Data{
-					"name":              "test-service-2",
-					"creationTimestamp": creationTime,
-					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
-					"uid":               types.UID("test-service-2"),
-					"identifiers": []string{
-						"urn:endpoint:/test-cluster-name:10.100.200.20",
-						"urn:endpoint:/test-cluster-name:10.100.200.20:10202",
-						"urn:service:/test-cluster-name:test-namespace:test-service-2",
+			expectedComponents: []*topology.Component{
+				{
+					ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-2",
+					Type:       topology.Type{Name: "service"},
+					Data: topology.Data{
+						"name":              "test-service-2",
+						"creationTimestamp": creationTime,
+						"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
+						"uid":               types.UID("test-service-2"),
+						"identifiers": []string{
+							"urn:endpoint:/test-cluster-name:10.100.200.20",
+							"urn:endpoint:/test-cluster-name:10.100.200.20:10202",
+							"urn:service:/test-cluster-name:test-namespace:test-service-2",
+						},
 					},
 				},
 			},
@@ -100,18 +108,20 @@ func TestServiceCollector(t *testing.T) {
 		},
 		{
 			testCase: "Test Service 3 - Minimal - Cluster IP + External IPs",
-			expectedComponent: &topology.Component{
-				ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-3",
-				Type:       topology.Type{Name: "service"},
-				Data: topology.Data{
-					"name":              "test-service-3",
-					"creationTimestamp": creationTime,
-					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
-					"uid":               types.UID("test-service-3"),
-					"identifiers": []string{
-						"urn:endpoint:/34.100.200.12:83", "urn:endpoint:/34.100.200.13:83",
-						"urn:endpoint:/test-cluster-name:10.100.200.21",
-						"urn:service:/test-cluster-name:test-namespace:test-service-3",
+			expectedComponents: []*topology.Component{
+				{
+					ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-3",
+					Type:       topology.Type{Name: "service"},
+					Data: topology.Data{
+						"name":              "test-service-3",
+						"creationTimestamp": creationTime,
+						"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
+						"uid":               types.UID("test-service-3"),
+						"identifiers": []string{
+							"urn:endpoint:/34.100.200.12:83", "urn:endpoint:/34.100.200.13:83",
+							"urn:endpoint:/test-cluster-name:10.100.200.21",
+							"urn:service:/test-cluster-name:test-namespace:test-service-3",
+						},
 					},
 				},
 			},
@@ -128,17 +138,19 @@ func TestServiceCollector(t *testing.T) {
 		},
 		{
 			testCase: "Test Service 4 - Minimal - Cluster IP",
-			expectedComponent: &topology.Component{
-				ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-4",
-				Type:       topology.Type{Name: "service"},
-				Data: topology.Data{
-					"name":              "test-service-4",
-					"creationTimestamp": creationTime,
-					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
-					"uid":               types.UID("test-service-4"),
-					"identifiers": []string{
-						"urn:endpoint:/test-cluster-name:10.100.200.22",
-						"urn:service:/test-cluster-name:test-namespace:test-service-4",
+			expectedComponents: []*topology.Component{
+				{
+					ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-4",
+					Type:       topology.Type{Name: "service"},
+					Data: topology.Data{
+						"name":              "test-service-4",
+						"creationTimestamp": creationTime,
+						"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
+						"uid":               types.UID("test-service-4"),
+						"identifiers": []string{
+							"urn:endpoint:/test-cluster-name:10.100.200.22",
+							"urn:service:/test-cluster-name:test-namespace:test-service-4",
+						},
 					},
 				},
 			},
@@ -155,17 +167,19 @@ func TestServiceCollector(t *testing.T) {
 		},
 		{
 			testCase: "Test Service 5 - Minimal - Cluster IP - None",
-			expectedComponent: &topology.Component{
-				ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-5",
-				Type:       topology.Type{Name: "service"},
-				Data: topology.Data{
-					"name":              "test-service-5",
-					"creationTimestamp": creationTime,
-					"tags": map[string]string{
-						"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace", "service": "headless",
+			expectedComponents: []*topology.Component{
+				{
+					ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-5",
+					Type:       topology.Type{Name: "service"},
+					Data: topology.Data{
+						"name":              "test-service-5",
+						"creationTimestamp": creationTime,
+						"tags": map[string]string{
+							"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace", "service": "headless",
+						},
+						"uid":         types.UID("test-service-5"),
+						"identifiers": []string{"urn:service:/test-cluster-name:test-namespace:test-service-5"},
 					},
-					"uid":         types.UID("test-service-5"),
-					"identifiers": []string{"urn:service:/test-cluster-name:test-namespace:test-service-5"},
 				},
 			},
 			expectedRelations: []*topology.Relation{
@@ -181,20 +195,22 @@ func TestServiceCollector(t *testing.T) {
 		},
 		{
 			testCase: "Test Service 6 - LoadBalancer + Ingress Points + Ingress Correlation",
-			expectedComponent: &topology.Component{
-				ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-6",
-				Type:       topology.Type{Name: "service"},
-				Data: topology.Data{
-					"name":              "test-service-6",
-					"creationTimestamp": creationTime,
-					"tags": map[string]string{
-						"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace",
+			expectedComponents: []*topology.Component{
+				{
+					ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-6",
+					Type:       topology.Type{Name: "service"},
+					Data: topology.Data{
+						"name":              "test-service-6",
+						"creationTimestamp": creationTime,
+						"tags": map[string]string{
+							"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace",
+						},
+						"uid": types.UID("test-service-6"),
+						"identifiers": []string{
+							"urn:endpoint:/test-cluster-name:10.100.200.23", "urn:ingress-point:/34.100.200.15",
+							"urn:ingress-point:/64047e8f24bb48e9a406ac8286ee8b7d.eu-west-1.elb.amazonaws.com",
+							"urn:service:/test-cluster-name:test-namespace:test-service-6"},
 					},
-					"uid": types.UID("test-service-6"),
-					"identifiers": []string{
-						"urn:endpoint:/test-cluster-name:10.100.200.23", "urn:ingress-point:/34.100.200.15",
-						"urn:ingress-point:/64047e8f24bb48e9a406ac8286ee8b7d.eu-west-1.elb.amazonaws.com",
-						"urn:service:/test-cluster-name:test-namespace:test-service-6"},
 				},
 			},
 			expectedRelations: []*topology.Relation{
@@ -216,10 +232,69 @@ func TestServiceCollector(t *testing.T) {
 				},
 			},
 		},
+		{
+			testCase: "Test Service 7 - ExternalName Service",
+			expectedComponents: []*topology.Component{
+				{
+					ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-7",
+					Type:       topology.Type{Name: "service"},
+					Data: topology.Data{
+						"name":              "test-service-7",
+						"creationTimestamp": creationTime,
+						"tags": map[string]string{
+							"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace",
+						},
+						"uid":         types.UID("test-service-7"),
+						"identifiers": []string{"urn:service:/test-cluster-name:test-namespace:test-service-7"},
+					},
+				},
+				{
+					ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:external-service/test-service-7",
+					Type:       topology.Type{Name: "external-service"},
+					Data: topology.Data{
+						"name":              "test-service-7",
+						"creationTimestamp": creationTime,
+						"tags": map[string]string{
+							"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace",
+						},
+						"uid": types.UID("test-service-7"),
+						"identifiers": []string{
+							"urn:endpoint:/mysql-db.host.example.com",
+							"urn:endpoint:/test-cluster-name:mysql-db.host.example.com:87",
+							"urn:endpoint:/test-cluster-name:10.10.42.42",
+							"urn:endpoint:/test-cluster-name:10.10.42.42:87",
+							"urn:endpoint:/test-cluster-name:10.10.42.43",
+							"urn:endpoint:/test-cluster-name:10.10.42.43:87",
+							"urn:external-service:/test-cluster-name:test-namespace:test-service-7",
+						},
+					},
+				},
+			},
+			expectedRelations: []*topology.Relation{
+				{
+					ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-7->" +
+						"urn:kubernetes:/test-cluster-name:test-namespace:external-service/test-service-7",
+					Type:     topology.Type{Name: "uses"},
+					SourceID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-7",
+					TargetID: "urn:kubernetes:/test-cluster-name:test-namespace:external-service/test-service-7",
+					Data:     map[string]interface{}{},
+				},
+				{
+					ExternalID: "urn:kubernetes:/test-cluster-name:namespace/test-namespace->" +
+						"urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-7",
+					Type:     topology.Type{Name: "encloses"},
+					SourceID: "urn:kubernetes:/test-cluster-name:namespace/test-namespace",
+					TargetID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-7",
+					Data:     map[string]interface{}{},
+				},
+			},
+		},
 	} {
 		t.Run(tc.testCase, func(t *testing.T) {
-			service := <-componentChannel
-			assert.EqualValues(t, tc.expectedComponent, service)
+			for _, expectedComponent := range tc.expectedComponents {
+				component := <-componentChannel
+				assert.EqualValues(t, expectedComponent, component)
+			}
 
 			for _, expectedRelation := range tc.expectedRelations {
 				serviceRelation := <-relationChannel
@@ -235,7 +310,7 @@ type MockServiceAPICollectorClient struct {
 
 func (m MockServiceAPICollectorClient) GetServices() ([]coreV1.Service, error) {
 	services := make([]coreV1.Service, 0)
-	for i := 1; i <= 6; i++ {
+	for i := 1; i <= 7; i++ {
 
 		service := coreV1.Service{
 			TypeMeta: v1.TypeMeta{
@@ -310,6 +385,18 @@ func (m MockServiceAPICollectorClient) GetServices() ([]coreV1.Service, error) {
 				},
 			}
 			service.Spec.LoadBalancerIP = "10.100.200.23"
+		}
+
+		if i == 7 {
+			service.Spec.Type = coreV1.ServiceTypeExternalName
+			service.Spec.Ports = []coreV1.ServicePort{
+				{
+					Name:       fmt.Sprintf("test-service-port-%d", i),
+					Port:       int32(80 + i),
+					TargetPort: intstr.FromInt(8080 + i),
+				},
+			}
+			service.Spec.ExternalName = "mysql-db.host.example.com"
 		}
 
 		services = append(services, service)

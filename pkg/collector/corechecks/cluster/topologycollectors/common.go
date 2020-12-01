@@ -15,6 +15,7 @@ type ClusterTopologyCommon interface {
 	GetAPIClient() apiserver.APICollectorClient
 	GetInstance() topology.Instance
 	GetName() string
+	GetURNBuilder() urn.Builder
 	CreateRelation(sourceExternalID, targetExternalID, typeName string) *topology.Relation
 	CreateRelationData(sourceExternalID, targetExternalID, typeName string, data map[string]interface{}) *topology.Relation
 	initTags(meta metav1.ObjectMeta) map[string]string
@@ -65,6 +66,11 @@ func (c *clusterTopologyCommon) GetInstance() topology.Instance {
 // GetAPIClient
 func (c *clusterTopologyCommon) GetAPIClient() apiserver.APICollectorClient {
 	return c.APICollectorClient
+}
+
+// GetURNBuilder
+func (c *clusterTopologyCommon) GetURNBuilder() urn.Builder {
+	return c.urn
 }
 
 // CreateRelationData creates a StackState relation called typeName for the given sourceExternalID and targetExternalID
