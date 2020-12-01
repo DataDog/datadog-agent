@@ -197,7 +197,7 @@ enum event_type
     EVENT_EXEC,
     EVENT_EXIT,
     EVENT_INVALIDATE_DENTRY,
-    EVENT_MAX, // has to be the last one
+    EVENT_MAX = EVENT_INVALIDATE_DENTRY, // has to be the last one and a power of two
 };
 
 enum syscall_type
@@ -294,6 +294,21 @@ static __attribute__((always_inline)) u32 get_path_id(int invalidate) {
     return id;
 }
 
+struct bpf_map_def SEC("maps/flushing_discarders") flushing_discarders = {
+    .type = BPF_MAP_TYPE_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u32),
+    .max_entries = 1,
+    .pinning = 0,
+    .namespace = "",
+};
+
+static __attribute__((always_inline)) u32 is_flushing_discarders(void) {
+    u32 key = 0;
+    u32 *prev_id = bpf_map_lookup_elem(&flushing_discarders, &key);
+    return prev_id != NULL && *prev_id;
+}
+
 struct bpf_map_def SEC("maps/events") events = {
     .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
     .key_size = sizeof(__u32),
@@ -359,5 +374,30 @@ static __attribute__((always_inline)) u32 atoi(char *buff) {
 
 // implemented in the probe.c file
 void __attribute__((always_inline)) invalidate_inode(struct pt_regs *ctx, u32 mount_id, u64 inode, int send_invalidate_event);
+
+struct bpf_map_def SEC("maps/enabled_events") enabled_events = {
+    .type = BPF_MAP_TYPE_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u64),
+    .max_entries = 1,
+    .pinning = 0,
+    .namespace = "",
+};
+
+static __attribute__((always_inline)) u64 get_enabled_events(void) {
+    u32 key = 0;
+    u64 *mask = bpf_map_lookup_elem(&enabled_events, &key);
+    if (mask)
+        return *mask;
+    return 0;
+}
+
+static __attribute__((always_inline)) int mask_has_event(u64 event_mask, enum event_type event) {
+    return event_mask & (1 << (event-1));
+}
+
+static __attribute__((always_inline)) int is_event_enabled(enum event_type event) {
+    return mask_has_event(get_enabled_events(), event);
+}
 
 #endif

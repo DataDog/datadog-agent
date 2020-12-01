@@ -113,9 +113,7 @@ SYSCALL_KRETPROBE(rmdir) {
         return 0;
     }
 
-    u64 enabled;
-    LOAD_CONSTANT("rmdir_event_enabled", enabled);
-
+    int enabled = is_event_enabled(EVENT_RMDIR);
     if (enabled) {
         struct rmdir_event_t event = {
             .event.type = EVENT_RMDIR,

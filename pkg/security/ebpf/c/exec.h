@@ -164,12 +164,8 @@ int kprobe_do_exit(struct pt_regs *ctx) {
     u32 pid = pid_tgid;
 
     if (tgid == pid) {
-        struct pid_discarder_t key = {
-            .tgid = tgid,
-        };
-        for (int i = 1; i < EVENT_MAX; i++) {
-            key.event_type = i;
-            bpf_map_delete_elem(&pid_discarders, &key);
+        if (!is_flushing_discarders()) {
+            bpf_map_delete_elem(&pid_discarders, &tgid);
         }
 
         // send the entry to maintain userspace cache

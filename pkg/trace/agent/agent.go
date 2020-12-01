@@ -50,8 +50,8 @@ type Agent struct {
 	// tags based on their type.
 	obfuscator *obfuscate.Obfuscator
 
-	In  chan *api.Payload
-	Out chan *writer.SampledSpans
+	// In takes incoming payloads to be processed by the agent.
+	In chan *api.Payload
 
 	// config
 	conf *config.AgentConfig
@@ -65,7 +65,6 @@ type Agent struct {
 func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	dynConf := sampler.NewDynamicConfig(conf.DefaultEnv)
 	in := make(chan *api.Payload, 1000)
-	out := make(chan *writer.SampledSpans, 1000)
 	statsChan := make(chan []stats.Bucket)
 
 	return &Agent{
@@ -78,11 +77,10 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		ErrorsScoreSampler: NewErrorsSampler(conf),
 		PrioritySampler:    NewPrioritySampler(conf, dynConf),
 		EventProcessor:     newEventProcessor(conf),
-		TraceWriter:        writer.NewTraceWriter(conf, out),
+		TraceWriter:        writer.NewTraceWriter(conf),
 		StatsWriter:        writer.NewStatsWriter(conf, statsChan),
 		obfuscator:         obfuscate.NewObfuscator(conf.Obfuscation),
 		In:                 in,
-		Out:                out,
 		conf:               conf,
 		ctx:                ctx,
 	}
@@ -204,9 +202,11 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 				traceutil.SetMeta(root, tagContainersTags, p.ContainerTags)
 			}
 		}
-		// Figure out the top-level spans and sublayers now as it involves modifying the Metrics map
-		// which is not thread-safe while samplers and Concentrator might modify it too.
-		traceutil.ComputeTopLevel(t)
+		if !p.ClientComputedTopLevel {
+			// Figure out the top-level spans and sublayers now as it involves modifying the Metrics map
+			// which is not thread-safe while samplers and Concentrator might modify it too.
+			traceutil.ComputeTopLevel(t)
+		}
 
 		env := a.conf.DefaultEnv
 		if v := traceutil.GetEnv(t); v != "" {
@@ -247,12 +247,12 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 			ss.Size += pb.Trace(events).Msgsize()
 		}
 		if ss.Size > writer.MaxPayloadSize {
-			a.Out <- ss
+			a.TraceWriter.In <- ss
 			ss = new(writer.SampledSpans)
 		}
 	}
 	if ss.Size > 0 {
-		a.Out <- ss
+		a.TraceWriter.In <- ss
 	}
 	if len(sinputs) > 0 {
 		a.Concentrator.In <- sinputs

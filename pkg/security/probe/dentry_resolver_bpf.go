@@ -19,6 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 )
 
+const fakeInodeMSW = 0xdeadc001
+
 // DentryResolver resolves inode/mountID to full paths
 type DentryResolver struct {
 	probe     *Probe
@@ -35,6 +37,8 @@ type ErrInvalidKeyPath struct {
 func (e *ErrInvalidKeyPath) Error() string {
 	return fmt.Sprintf("invalid inode/mountID couple: %d/%d", e.Inode, e.MountID)
 }
+
+var ErrEntryNotFound = errors.New("entry not found")
 
 type PathKey struct {
 	Inode   uint64
@@ -79,7 +83,7 @@ func (dr *DentryResolver) getNameFromCache(mountID uint32, inode uint64) (name s
 
 	entry, exists := dr.cache.Get(key)
 	if !exists {
-		return "", errors.New("entry not found")
+		return "", ErrEntryNotFound
 	}
 	path := entry.(PathValue)
 
@@ -117,7 +121,7 @@ func (dr *DentryResolver) ResolveFromCache(mountID uint32, inode uint64) (filena
 
 		entry, exists := dr.cache.Get(cacheKey)
 		if !exists {
-			return "", errors.New("entry not found")
+			return "", ErrEntryNotFound
 		}
 		path = entry.(PathValue)
 
@@ -183,9 +187,10 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 
 	if err == nil {
 		for k, v := range toAdd {
-			// TODO(sbaubeau): find a way to not cache fake inodes
-			// in the case of rename events
-			dr.cache.Add(k, v)
+			// do not cache fake path keys in the case of rename events
+			if k.Inode>>32 != fakeInodeMSW {
+				dr.cache.Add(k, v)
+			}
 		}
 	}
 
@@ -206,7 +211,7 @@ func (dr *DentryResolver) getParentFromCache(mountID uint32, inode uint64) (uint
 
 	entry, exists := dr.cache.Get(key)
 	if !exists {
-		return 0, 0, errors.New("entry not found")
+		return 0, 0, ErrEntryNotFound
 	}
 	path := entry.(PathValue)
 

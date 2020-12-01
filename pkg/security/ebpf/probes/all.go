@@ -36,6 +36,10 @@ func AllProbes() []*manager.Probe {
 			UID:     SecurityAgentUID,
 			Section: "tracepoint/raw_syscalls/sys_enter",
 		},
+		&manager.Probe{
+			UID:     SecurityAgentUID,
+			Section: "tracepoint/sched/sched_process_exec",
+		},
 		// Snapshot probe
 		&manager.Probe{
 			UID:     SecurityAgentUID,
@@ -66,9 +70,13 @@ func AllMaps() []*manager.Map {
 		// Mount tables
 		{Name: "mount_id_offset"},
 		// Syscall monitor tables
-		{Name: "noisy_processes_buffer"},
+		{Name: "buffer_selector"},
 		{Name: "noisy_processes_fb"},
 		{Name: "noisy_processes_bb"},
+		// Flushing discarders boolean
+		{Name: "flushing_discarders"},
+		// Enabled event mask
+		{Name: "enabled_events"},
 	}
 }
 

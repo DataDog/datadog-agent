@@ -111,9 +111,11 @@ func (c *PythonCheck) RunSimple() error {
 // Stop does nothing
 func (c *PythonCheck) Stop() {}
 
-// Cancel does nothing
-// TODO: implement Cancel for python checks
-func (c *PythonCheck) Cancel() {}
+// Cancel deregisters the sender
+// TODO: allow python checks to implement Cancel
+func (c *PythonCheck) Cancel() {
+	aggregator.DestroySender(c.id)
+}
 
 // String representation (for debug and logging)
 func (c *PythonCheck) String() string {

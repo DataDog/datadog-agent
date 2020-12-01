@@ -161,8 +161,8 @@ func (p *parser) parseEvent(message []byte) (dogstatsdEvent, error) {
 	if len(rawEvent) < header.textLength+header.titleLength+1 {
 		return dogstatsdEvent{}, fmt.Errorf("invalid event")
 	}
-	if header.titleLength == 0 || header.textLength == 0 {
-		return dogstatsdEvent{}, fmt.Errorf("invalid event: empty title or text")
+	if header.titleLength == 0 {
+		return dogstatsdEvent{}, fmt.Errorf("invalid event: empty title")
 	}
 	title := cleanEventText(rawEvent[:header.titleLength])
 	text := cleanEventText(rawEvent[header.titleLength+1 : header.titleLength+1+header.textLength])
