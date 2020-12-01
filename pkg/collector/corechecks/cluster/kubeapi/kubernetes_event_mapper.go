@@ -199,7 +199,7 @@ func (k *kubernetesEventMapper) getTags(event *v1.Event) []string {
 }
 
 func (k *kubernetesEventMapper) externalIdentifierForInvolvedObject(event *v1.Event) string {
-	namespace := event.Namespace
+	namespace := event.InvolvedObject.Namespace
 	obj := event.InvolvedObject
 
 	urn, err := k.urn.BuildExternalID(obj.Kind, namespace, obj.Name)
