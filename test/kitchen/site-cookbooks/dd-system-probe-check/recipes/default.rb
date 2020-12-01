@@ -26,6 +26,8 @@ package 'netcat' do
   end
 end
 
+package 'socat'
+
 # Enable IPv6 support
 kernel_module 'ipv6' do
   action :load
