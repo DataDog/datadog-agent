@@ -26,6 +26,12 @@ package 'netcat' do
   end
 end
 
+# Enable IPv6 support
+kernel_module 'ipv6' do
+  action :load
+end
+execute 'sysctl net.ipv6.conf.all.disable_ipv6=0'
+
 # This will copy the whole file tree from COOKBOOK_NAME/files/default/tests
 # to the directory /tmp/system-probe-tests where RSpec is expecting them.
 remote_directory "/tmp/system-probe-tests" do
