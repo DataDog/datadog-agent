@@ -460,6 +460,7 @@ func printMetrics(agg *aggregator.BufferedAggregator) {
 
 			table.AppendBulk(data)
 			table.Render()
+			fmt.Println()
 		} else {
 			j, _ := json.MarshalIndent(series, "", "  ")
 			fmt.Println(string(j))
@@ -494,6 +495,7 @@ func printMetrics(agg *aggregator.BufferedAggregator) {
 
 			table.AppendBulk(data)
 			table.Render()
+			fmt.Println()
 		} else {
 			j, _ := json.MarshalIndent(serviceChecks, "", "  ")
 			fmt.Println(string(j))
