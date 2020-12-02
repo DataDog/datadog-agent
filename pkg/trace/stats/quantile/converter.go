@@ -10,10 +10,9 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-
 	"github.com/DataDog/sketches-go/ddsketch/mapping"
-	"github.com/gogo/protobuf/proto"
+	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
+	"github.com/golang/latestprotobuf/proto"
 )
 
 // ddSketch represents the sketch described here: http://www.vldb.org/pvldb/vol12/p2195-masson.pdf
@@ -85,7 +84,7 @@ func getIndexes(s1 ddSketch, s2 ddSketch) []int {
 // decodeDDSketch decodes a ddSketch from a protobuf encoded ddSketch
 // it only supports positive contiguous bins
 func decodeDDSketch(data []byte) (ddSketch, error) {
-	var sketchPb pb.DDSketch
+	var sketchPb sketchpb.DDSketch
 	if err := proto.Unmarshal(data, &sketchPb); err != nil {
 		return ddSketch{}, err
 	}
@@ -108,13 +107,13 @@ func decodeDDSketch(data []byte) (ddSketch, error) {
 	}, nil
 }
 
-func ddSketchMappingFromProto(mappingPb *pb.IndexMapping) (m mapping.IndexMapping, err error) {
+func ddSketchMappingFromProto(mappingPb *sketchpb.IndexMapping) (m mapping.IndexMapping, err error) {
 	switch mappingPb.Interpolation {
-	case pb.IndexMapping_NONE:
+	case sketchpb.IndexMapping_NONE:
 		return mapping.NewLogarithmicMappingWithGamma(mappingPb.Gamma, mappingPb.IndexOffset)
-	case pb.IndexMapping_LINEAR:
+	case sketchpb.IndexMapping_LINEAR:
 		return mapping.NewLinearlyInterpolatedMappingWithGamma(mappingPb.Gamma, mappingPb.IndexOffset)
-	case pb.IndexMapping_CUBIC:
+	case sketchpb.IndexMapping_CUBIC:
 		return mapping.NewCubicallyInterpolatedMappingWithGamma(mappingPb.Gamma, mappingPb.IndexOffset)
 	default:
 		return nil, fmt.Errorf("interpolation not supported: %d", mappingPb.Interpolation)

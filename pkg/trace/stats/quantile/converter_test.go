@@ -2,6 +2,7 @@ package quantile
 
 import (
 	"fmt"
+	"github.com/golang/protobuf/proto"
 	"math"
 	"testing"
 
@@ -9,7 +10,6 @@ import (
 	"github.com/DataDog/sketches-go/ddsketch/mapping"
 	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
 	"github.com/DataDog/sketches-go/ddsketch/store"
-	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 )
 
