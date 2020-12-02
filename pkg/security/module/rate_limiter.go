@@ -59,6 +59,7 @@ func NewRateLimiter() *RateLimiter {
 	}
 }
 
+// Apply a set of rules
 func (rl *RateLimiter) Apply(rules []rules.RuleID) {
 	rl.Lock()
 	defer rl.Unlock()

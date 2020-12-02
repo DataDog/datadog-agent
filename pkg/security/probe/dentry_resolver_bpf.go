@@ -38,8 +38,10 @@ func (e *ErrInvalidKeyPath) Error() string {
 	return fmt.Sprintf("invalid inode/mountID couple: %d/%d", e.Inode, e.MountID)
 }
 
+// ErrEntryNotFound is thrown when a path key was not found in the cache
 var ErrEntryNotFound = errors.New("entry not found")
 
+// PathKey identifies an entry in the dentry cache
 type PathKey struct {
 	Inode   uint64
 	MountID uint32
@@ -52,6 +54,7 @@ func (p *PathKey) Write(buffer []byte) {
 	ebpf.ByteOrder.PutUint32(buffer[12:16], p.PathID)
 }
 
+// IsNull returns true if a key is invalid
 func (p *PathKey) IsNull() bool {
 	return p.Inode == 0 && p.MountID == 0
 }
@@ -60,6 +63,7 @@ func (p *PathKey) String() string {
 	return fmt.Sprintf("%x/%x", p.MountID, p.Inode)
 }
 
+// MarshalBinary returns the binary representation of a path key
 func (p *PathKey) MarshalBinary() ([]byte, error) {
 	if p.IsNull() {
 		return nil, &ErrInvalidKeyPath{Inode: p.Inode, MountID: p.MountID}
@@ -68,11 +72,13 @@ func (p *PathKey) MarshalBinary() ([]byte, error) {
 	return make([]byte, 16), nil
 }
 
+// PathValue describes a value of an entry of the cache
 type PathValue struct {
 	Parent PathKey
 	Name   [128]byte
 }
 
+// DelCacheEntry removes an entry from the cache
 func (dr *DentryResolver) DelCacheEntry(mountID uint32, inode uint64) {
 	key := PathKey{MountID: mountID, Inode: inode}
 	dr.cache.Remove(key)

@@ -331,6 +331,7 @@ func (p *ProcessResolver) resolveWithProcfs(pid uint32) *ProcessCacheEntry {
 	return nil
 }
 
+// Get returns the cache entry for a specified pid
 func (p *ProcessResolver) Get(pid uint32) *ProcessCacheEntry {
 	p.RLock()
 	defer p.RUnlock()

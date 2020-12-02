@@ -58,7 +58,7 @@ type ProcessPath struct {
 	Path    string
 }
 
-// IsNull returns true if the current instance of ProcessPath is empty
+// IsEmpty returns true if the current instance of ProcessPath is empty
 func (p *ProcessPath) IsEmpty() bool {
 	return p.Path[0] == '\x00'
 }
