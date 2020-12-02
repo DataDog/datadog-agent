@@ -77,14 +77,6 @@ func testDDSketchToGKConstant(t *testing.T, n int) {
 	}
 }
 
-func TestDDSketchToGKConstant10(t *testing.T) {
-	testDDSketchToGKConstant(t, 10)
-}
-
-func TestDDSketchToGKConstant1e3(t *testing.T) {
-	testDDSketchToGKConstant(t, 1000)
-}
-
 /* uniform distribution
    expected quantiles are easy to compute as the value == its rank
 */
@@ -121,10 +113,17 @@ func testDDSketchToGKUniform(t *testing.T, n int) {
 	}
 }
 
-func TestDDSketchToGKUniform10(t *testing.T) {
-	testDDSketchToGKUniform(t, 10)
-}
-
-func TestDDSketchToGKUniform1e3(t *testing.T) {
-	testDDSketchToGKUniform(t, 1000)
+func TestDDToGKSketch(t *testing.T) {
+	t.Run("uniform10", func(t *testing.T) {
+		testDDSketchToGKUniform(t, 10)
+	})
+	t.Run("uniform1e3", func(t *testing.T) {
+		testDDSketchToGKUniform(t, 1000)
+	})
+	t.Run("constant10", func(t *testing.T) {
+		testDDSketchToGKConstant(t, 10)
+	})
+	t.Run("constant1e3", func(t *testing.T) {
+		testDDSketchToGKConstant(t, 1000)
+	})
 }
