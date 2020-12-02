@@ -41,8 +41,6 @@ func TestBasicCache(t *testing.T) {
 	cached, found := c.Get("d")
 	assert.True(t, found)
 	assert.Equal(t, cached, wombat)
-	// Timestamp was reset to 0 before calling .Add, so equality
-	// also means that the timestamp was updated
 	assert.GreaterOrEqual(t, c.GetModified(), initialTimestamp)
 
 	for k := range m {
