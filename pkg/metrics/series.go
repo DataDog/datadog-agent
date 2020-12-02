@@ -104,7 +104,7 @@ func (series Series) MarshalStrings() ([]string, [][]string) {
 		payload = append(payload, []string{
 			serie.Name,
 			serie.MType.String(),
-			strconv.FormatFloat(serie.Points[0].Ts, 'f', -1, 64),
+			strconv.FormatFloat(serie.Points[0].Ts, 'f', 0, 64),
 			strconv.FormatFloat(serie.Points[0].Value, 'f', -1, 64),
 			strings.Join(serie.Tags, ", "),
 		})
@@ -118,12 +118,16 @@ func (series Series) MarshalStrings() ([]string, [][]string) {
 		if len(payload[i]) == 0 || len(payload[j]) == 0 {
 			return len(payload[i]) == 0
 		}
-		// sort by tags as tie breaker
-		if payload[i][0] == payload[j][0] {
-			return payload[i][len(payload[i])-1] < payload[j][len(payload[j])-1]
+		// sort by metric name
+		if payload[i][0] != payload[j][0] {
+			return payload[i][0] < payload[j][0]
 		}
-		// sort my metric name
-		return payload[i][0] < payload[j][0]
+		// then by timestamp
+		if payload[i][2] != payload[j][2] {
+			return payload[i][2] < payload[j][2]
+		}
+		// finally by tags (last field) as tie breaker
+		return payload[i][len(payload[i])-1] < payload[j][len(payload[j])-1]
 	})
 
 	return headers, payload
