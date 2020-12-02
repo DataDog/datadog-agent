@@ -38,6 +38,7 @@ KITCHEN_DIR = os.path.join("test", "kitchen")
 KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-system-probe-check", "files", "default", "tests")
 TEST_PACKAGES_LIST = ["./pkg/ebpf/...", "./pkg/network/..."]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
+is_windows = os.name == "nt"
 
 
 @task
@@ -50,7 +51,7 @@ def build(
     python_runtimes='3',
     with_bcc=True,
     go_mod="vendor",
-    windows=False,
+    windows=is_windows,
     arch="x64",
     embedded_path=DATADOG_AGENT_EMBEDDED_PATH,
     bundle_ebpf=False,
