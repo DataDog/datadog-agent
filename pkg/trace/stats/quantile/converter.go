@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 
 	"github.com/DataDog/sketches-go/ddsketch/mapping"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/gogo/protobuf/proto"
 )
 
@@ -27,8 +26,8 @@ type ddSketch struct {
 	mapping mapping.IndexMapping
 }
 
-// get returns the count for a given index.
-func (s *ddSketch) get(index int) (count int) {
+// count returns the count for a given index.
+func (s *ddSketch) count(index int) (count int) {
 	if index >= s.offset && index < s.offset + len(s.contiguousBins) {
 		count = int(s.contiguousBins[index-s.offset])
 	}
@@ -129,16 +128,10 @@ func DDToGKSketches(okSketchData []byte, errSketchData []byte) (hits, errors *Sl
 	if err != nil {
 		return nil, nil, err
 	}
-	// todo: remove dump
-	fmt.Println("\nok sketch")
-	spew.Dump(okDDSketch)
 	errDDSketch, err := decodeDDSketch(errSketchData)
 	if err != nil {
 		return nil, nil, err
 	}
-	// todo: remove dump
-	fmt.Println("\nerror sketch")
-	spew.Dump(errDDSketch)
 
 	hits = &SliceSummary{Entries: make([]Entry, 0, okDDSketch.maxSize())}
 	errors = &SliceSummary{Entries: make([]Entry, 0, errDDSketch.maxSize())}
@@ -152,8 +145,8 @@ func DDToGKSketches(okSketchData []byte, errSketchData []byte) (hits, errors *Sl
 	}
 	indexes := getIndexes(okDDSketch, errDDSketch)
 	for _, index := range indexes {
-		gErr := errDDSketch.get(index)
-		gHits := okDDSketch.get(index) + gErr
+		gErr := errDDSketch.count(index)
+		gHits := okDDSketch.count(index) + gErr
 		if gHits == 0 {
 			// gHits == 0 implies gErr == 0
 			continue
