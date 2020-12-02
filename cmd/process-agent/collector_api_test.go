@@ -209,7 +209,7 @@ func TestSendPodMessage(t *testing.T) {
 		assert.Equal(t, "/api/v1/orchestrator", req.uri)
 
 		assert.Equal(t, cfg.HostName, req.headers.Get(api.HostHeader))
-		assert.Equal(t, cfg.OrchestratorEndpoints[0].APIKey, req.headers.Get("DD-Api-Key"))
+		assert.Equal(t, cfg.Orchestrator.OrchestratorEndpoints[0].APIKey, req.headers.Get("DD-Api-Key"))
 		assert.Equal(t, "0", req.headers.Get(api.ContainerCountHeader))
 		assert.Equal(t, "1", req.headers.Get("X-DD-Agent-Attempts"))
 		assert.NotEmpty(t, req.headers.Get(api.TimestampHeader))
@@ -329,9 +329,9 @@ func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, cfg *config.A
 		cfg.APIEndpoints[index] = api.Endpoint{APIKey: key, Endpoint: collectorAddr}
 	}
 
-	cfg.OrchestratorEndpoints = make([]api.Endpoint, len(orchAPIKeys))
+	cfg.Orchestrator.OrchestratorEndpoints = make([]api.Endpoint, len(orchAPIKeys))
 	for index, key := range orchAPIKeys {
-		cfg.OrchestratorEndpoints[index] = api.Endpoint{APIKey: key, Endpoint: orchestratorAddr}
+		cfg.Orchestrator.OrchestratorEndpoints[index] = api.Endpoint{APIKey: key, Endpoint: orchestratorAddr}
 	}
 
 	cfg.HostName = testHostName
