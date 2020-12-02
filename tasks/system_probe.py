@@ -39,6 +39,13 @@ KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-system-pr
 TEST_PACKAGES_LIST = ["./pkg/ebpf/...", "./pkg/network/..."]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
 
+BUILD_DIGEST_CMDS = [
+    "cat /etc/lsb-release",
+    "uname -r",
+    "clang --version",
+    "echo \"llvm-version: $(llvm-config --version)\"",
+]
+
 
 @task
 def build(
@@ -479,6 +486,8 @@ def build_object_files(ctx, bundle_ebpf=False):
         go_dir = os.path.join(bpf_dir, "bytecode", "bindata")
         bundle_files(ctx, bindata_files, "pkg/.*/", go_dir)
 
+    generate_build_digest(ctx, os.path.join(bpf_dir, "bytecode", ".build_digest"))
+
 
 def bundle_files(ctx, bindata_files, dir_prefix, go_dir):
     assets_cmd = (
@@ -517,6 +526,15 @@ def should_use_sudo(ctx):
             return True
 
     return False
+
+
+def generate_build_digest(ctx, file_path):
+    header = "// This file is used for the purpose of diagnosing diffs in object files\n"
+    header += "// Contents are based on the host to last run `system-probe.build` task"
+    ctx.run("echo '{header}' > {digest}".format(header=header, digest=file_path), hide=True)
+
+    for cmd in BUILD_DIGEST_CMDS:
+        ctx.run("{cmd} 2>&1 >> {digest}".format(cmd=cmd, digest=file_path), hide=True, warn=True)
 
 
 @contextlib.contextmanager

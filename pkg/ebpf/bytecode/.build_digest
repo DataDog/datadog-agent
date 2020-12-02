@@ -1,0 +1,12 @@
+// This file is used for the purpose of diagnosing diffs in object files
+// Contents are based on the host to last run `system-probe.build` task
+DISTRIB_ID=Ubuntu
+DISTRIB_RELEASE=19.10
+DISTRIB_CODENAME=eoan
+DISTRIB_DESCRIPTION="Ubuntu 19.10"
+5.3.0-55-generic
+clang version 8.0.0 (tags/RELEASE_800/final)
+Target: x86_64-unknown-linux-gnu
+Thread model: posix
+InstalledDir: /opt/clang/bin
+llvm-version: 8.0.0
