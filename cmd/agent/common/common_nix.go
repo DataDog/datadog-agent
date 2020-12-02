@@ -4,7 +4,7 @@
 // Copyright 2016-2020 Datadog, Inc.
 
 // +build netbsd openbsd solaris dragonfly linux
-// +build !freebsd !android
+// +build !android
 
 package common
 
