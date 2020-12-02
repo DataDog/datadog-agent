@@ -3,6 +3,7 @@ package quantile
 import (
 	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/DataDog/sketches-go/ddsketch/mapping"
+	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
 	"github.com/DataDog/sketches-go/ddsketch/store"
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
@@ -11,6 +12,17 @@ import (
 )
 
 const relativeValueError = 0.01
+
+func fillNonContiguousBins(s *sketchpb.DDSketch) {
+	// copy half of the bins to the map
+	s.PositiveValues.BinCounts = make(map[int32]float64)
+	n := len(s.PositiveValues.ContiguousBinCounts)
+	x := n/2
+	for i, c := range s.PositiveValues.ContiguousBinCounts[x:] {
+		s.PositiveValues.BinCounts[int32(i + x) + s.PositiveValues.ContiguousBinIndexOffset] = c
+	}
+	s.PositiveValues.ContiguousBinCounts = s.PositiveValues.ContiguousBinCounts[:x-1]
+}
 
 // getConvertedSketchQuantiles generates a DDSketch using the generator function, then converts it
 // to GK Sketch and gets the quantiles.
@@ -30,10 +42,15 @@ func getConvertedSketchQuantiles(t *testing.T, n int, gen func(i int) float64, t
 		x := gen(i)
 		assert.Nil(okS.Accept(x))
 	}
+	okProto := okS.ToProto()
+	errProto := errS.ToProto()
 
-	okData, err := proto.Marshal(okS.ToProto())
+	fillNonContiguousBins(okProto)
+	fillNonContiguousBins(errProto)
+
+	okData, err := proto.Marshal(okProto)
 	assert.Nil(err)
-	errData, err := proto.Marshal(errS.ToProto())
+	errData, err := proto.Marshal(errProto)
 	assert.Nil(err)
 	gkHitsSketch, gkErrSketch, err := DDToGKSketches(okData, errData)
 	assert.Nil(err)
@@ -61,7 +78,7 @@ func TestDDSketchToGKConstant10(t *testing.T) {
 	testDDSketchToGKConstant(t, 10)
 }
 
-func TestDDSketchToGKConstant1000(t *testing.T) {
+func TestDDSketchToGKConstant1e3(t *testing.T) {
 	testDDSketchToGKConstant(t, 1000)
 }
 

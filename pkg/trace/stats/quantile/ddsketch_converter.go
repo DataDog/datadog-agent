@@ -5,22 +5,76 @@ import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/sketches-go/ddsketch/mapping"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/gogo/protobuf/proto"
+	"sort"
 )
 
 type ddSketch struct {
-	bins []float64
+	contiguousBins []float64
+	bins map[int32]float64
 	offset int
 	zeros int
 	mapping mapping.IndexMapping
 }
 
-func (s *ddSketch) get(index int) int {
-	if index < s.offset || index >= s.offset + len(s.bins) {
-		return 0
+// get returns the count for a given index.
+// it requires to be called in order.
+func (s *ddSketch) get(index int) (count int) {
+	if index >= s.offset && index < s.offset + len(s.contiguousBins) {
+		count = int(s.contiguousBins[index-s.offset])
 	}
-	return int(s.bins[index-s.offset])
+	if c, ok := s.bins[int32(index)]; ok {
+		count += int(c)
+	}
+	return count
+}
+
+func (s *ddSketch) maxSize() int {
+	return len(s.bins) + len(s.contiguousBins)
+}
+
+func getIndexes(s1 ddSketch, s2 ddSketch) []int {
+	indexes := make([]int, s1.maxSize() + s2.maxSize())
+	n := 0
+	for i := range s1.contiguousBins {
+		indexes[n] = i + s1.offset
+		n++
+	}
+	for i := range s2.contiguousBins {
+		ind := i + s2.offset
+		if ind >= s1.offset && ind < s1.offset + len(s1.contiguousBins) {
+			continue
+		}
+		indexes[n] = ind
+		n++
+	}
+	for i := range s1.bins {
+		ind := int(i)
+		if ind >= s1.offset && ind < s1.offset + len(s1.contiguousBins) {
+			continue
+		}
+		if ind >= s2.offset && ind < s2.offset + len(s2.contiguousBins) {
+			continue
+		}
+		indexes[n] = ind
+		n++
+	}
+	for i := range s2.bins {
+		ind := int(i)
+		if ind >= s1.offset && ind < s1.offset + len(s1.contiguousBins) {
+			continue
+		}
+		if ind >= s2.offset && ind < s2.offset + len(s2.contiguousBins) {
+			continue
+		}
+		if _, ok := s1.bins[i]; ok {
+			continue
+		}
+		indexes[n] = ind
+		n++
+	}
+	sort.Ints(indexes[:n])
+	return indexes[:n]
 }
 
 // decodeDDSketch decodes a ddSketch from a protobuf encoded ddSketch
@@ -37,13 +91,13 @@ func decodeDDSketch(data []byte) (ddSketch, error) {
 	if sketchPb.Mapping.IndexOffset > 0 { err = errors.New("index offset non 0") }
 	if  len(sketchPb.NegativeValues.BinCounts)> 0 { err = errors.New("contains negative values") }
 	if  len(sketchPb.NegativeValues.ContiguousBinCounts)> 0 { err = errors.New("contains negative values") }
-	if  len(sketchPb.PositiveValues.BinCounts) > 0 { err = errors.New("contains non contiguous bins") }
 	if err != nil {
 		return ddSketch{}, errors.New("ddSketch format not supported: " + err.Error())
 	}
 	return ddSketch{
 		mapping: mapping,
-		bins: sketchPb.PositiveValues.ContiguousBinCounts,
+		bins: sketchPb.PositiveValues.BinCounts,
+		contiguousBins: sketchPb.PositiveValues.ContiguousBinCounts,
 		offset: int(sketchPb.PositiveValues.ContiguousBinIndexOffset),
 		zeros: int(sketchPb.ZeroCount),
 	}, nil
@@ -84,20 +138,18 @@ func DDToGKSketches(okSketchData []byte, errSketchData []byte) (hits, errors *Sl
 		return nil, nil, err
 	}
 	// todo: remove dump
-	fmt.Println("\nok sketch")
-	spew.Dump(okDDSketch)
+	// fmt.Println("\nok sketch")
+	// spew.Dump(okDDSketch)
 	errDDSketch, err := decodeDDSketch(errSketchData)
 	if err != nil {
 		return nil, nil, err
 	}
 	// todo: remove dump
-	fmt.Println("\nerror sketch")
-	spew.Dump(errDDSketch)
+	// fmt.Println("\nerror sketch")
+	// spew.Dump(errDDSketch)
 
-	minOffset := min(okDDSketch.offset, errDDSketch.offset)
-	maxIndex := max(okDDSketch.offset + len(okDDSketch.bins), errDDSketch.offset + len(errDDSketch.bins))
-	hits = &SliceSummary{Entries: make([]Entry, 0, maxIndex - minOffset)}
-	errors = &SliceSummary{Entries: make([]Entry, 0, len(errDDSketch.bins))}
+	hits = &SliceSummary{Entries: make([]Entry, 0, okDDSketch.maxSize())}
+	errors = &SliceSummary{Entries: make([]Entry, 0, errDDSketch.maxSize())}
 	if zeros := okDDSketch.zeros + errDDSketch.zeros; zeros > 0 {
 		hits.Entries = append(hits.Entries, Entry{V: 0, G: zeros, Delta: 0})
 		hits.N = zeros
@@ -106,7 +158,8 @@ func DDToGKSketches(okSketchData []byte, errSketchData []byte) (hits, errors *Sl
 		errors.Entries = append(errors.Entries, Entry{V: 0, G: zeros, Delta: 0})
 		errors.N = zeros
 	}
-	for index := minOffset; index < maxIndex; index++ {
+	indexes := getIndexes(okDDSketch, errDDSketch)
+	for _, index := range indexes {
 		gErr := errDDSketch.get(index)
 		gHits := okDDSketch.get(index) + gErr
 		if gHits == 0 {
