@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -40,7 +41,7 @@ func getSnooper(
 		return nil, nil
 	}
 
-	mgr := bytecode.NewManager(bytecode.NewPerfHandler(1))
+	mgr := netebpf.NewManager(ddebpf.NewPerfHandler(1))
 	mgrOptions := manager.Options{
 		MapSpecEditors: map[string]manager.MapSpecEditor{
 			// These maps are unrelated to DNS but are getting set because the eBPF library loads all of them
