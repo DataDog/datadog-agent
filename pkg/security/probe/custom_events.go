@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
 const (
@@ -24,6 +23,8 @@ const (
 	NoisyProcessRuleID = "noisy_process"
 	// AbnormalPathRuleID is the rule ID for the abnormal_path events
 	AbnormalPathRuleID = "abnormal_path"
+	// ForkBombRuleID is the rule ID for the fork_bomb events
+	ForkBombRuleID = "fork_bomb"
 )
 
 // AllCustomRuleIDs returns the list of custom rule IDs
@@ -33,6 +34,7 @@ func AllCustomRuleIDs() []string {
 		RuleSetLoadedRuleID,
 		NoisyProcessRuleID,
 		AbnormalPathRuleID,
+		ForkBombRuleID,
 	}
 }
 
@@ -45,8 +47,8 @@ type CustomEvent struct {
 // Clone returns a copy of the current CustomEvent
 func (ce *CustomEvent) Clone() CustomEvent {
 	return CustomEvent{
-		eventType: ce.eventType,
-		tags: ce.tags,
+		eventType:   ce.eventType,
+		tags:        ce.tags,
 		marshalFunc: ce.marshalFunc,
 	}
 }
@@ -75,9 +77,11 @@ func (ce *CustomEvent) String() string {
 }
 
 // NewEventLostReadEvent returns the rule and a populated custom event for a lost_events_read event
-func NewEventLostReadEvent(mapName string, perCPU map[int]int64, timestamp time.Time) (*eval.Rule, *CustomEvent) {
-	return &eval.Rule{
-			ID: LostEventsRuleID,
+func NewEventLostReadEvent(mapName string, perCPU map[int]int64, timestamp time.Time) (*rules.Rule, *CustomEvent) {
+	return &rules.Rule{
+			Definition: &rules.RuleDefinition{
+				ID: LostEventsRuleID,
+			},
 		}, &CustomEvent{
 			eventType: "lost_events_read",
 			marshalFunc: func() ([]byte, error) {
@@ -95,9 +99,11 @@ func NewEventLostReadEvent(mapName string, perCPU map[int]int64, timestamp time.
 }
 
 // NewEventLostWriteEvent returns the rule and a populated custom event for a lost_events_write event
-func NewEventLostWriteEvent(mapName string, perEventPerCPU map[string]map[int]uint64, timestamp time.Time) (*eval.Rule, *CustomEvent) {
-	return &eval.Rule{
-			ID: LostEventsRuleID,
+func NewEventLostWriteEvent(mapName string, perEventPerCPU map[string]map[int]uint64, timestamp time.Time) (*rules.Rule, *CustomEvent) {
+	return &rules.Rule{
+			Definition: &rules.RuleDefinition{
+				ID: LostEventsRuleID,
+			},
 		}, &CustomEvent{
 			eventType: "lost_events_write",
 			marshalFunc: func() ([]byte, error) {
@@ -115,9 +121,11 @@ func NewEventLostWriteEvent(mapName string, perEventPerCPU map[string]map[int]ui
 }
 
 // NewRuleSetLoadedEvent returns the rule and a populated custom event for a new_rules_loaded event
-func NewRuleSetLoadedEvent(loadedPolicies map[string]string, loadedRules []rules.RuleID, loadedMacros []rules.MacroID, timestamp time.Time) (*eval.Rule, *CustomEvent) {
-	return &eval.Rule{
-			ID: RuleSetLoadedRuleID,
+func NewRuleSetLoadedEvent(loadedPolicies map[string]string, loadedRules []rules.RuleID, loadedMacros []rules.MacroID, timestamp time.Time) (*rules.Rule, *CustomEvent) {
+	return &rules.Rule{
+			Definition: &rules.RuleDefinition{
+				ID: RuleSetLoadedRuleID,
+			},
 		}, &CustomEvent{
 			eventType: "ruleset_loaded",
 			marshalFunc: func() ([]byte, error) {
@@ -137,9 +145,11 @@ func NewRuleSetLoadedEvent(loadedPolicies map[string]string, loadedRules []rules
 }
 
 // NewNoisyProcessEvent returns the rule and a populated custom event for a noisy_process event
-func NewNoisyProcessEvent(eventType EventType, count uint64, threshold int64, controlPeriod time.Duration, discardedUntil time.Time, process *ProcessCacheEntry, timestamp time.Time) (*eval.Rule, *CustomEvent) {
-	return &eval.Rule{
-			ID: NoisyProcessRuleID,
+func NewNoisyProcessEvent(eventType EventType, count uint64, threshold int64, controlPeriod time.Duration, discardedUntil time.Time, process *ProcessCacheEntry, timestamp time.Time) (*rules.Rule, *CustomEvent) {
+	return &rules.Rule{
+			Definition: &rules.RuleDefinition{
+				ID: NoisyProcessRuleID,
+			},
 		}, &CustomEvent{
 			eventType: "noisy_process",
 			marshalFunc: func() ([]byte, error) {
@@ -165,9 +175,11 @@ func NewNoisyProcessEvent(eventType EventType, count uint64, threshold int64, co
 }
 
 // NewAbnormalPathEvent returns the rule and a populated custom event for a abnormal_path event
-func NewAbnormalPathEvent(event *Event, now time.Time, pathResolutionError error) (*eval.Rule, *CustomEvent) {
-	return &eval.Rule{
-			ID: AbnormalPathRuleID,
+func NewAbnormalPathEvent(event *Event, now time.Time, pathResolutionError error) (*rules.Rule, *CustomEvent) {
+	return &rules.Rule{
+			Definition: &rules.RuleDefinition{
+				ID: AbnormalPathRuleID,
+			},
 		}, &CustomEvent{
 			eventType: event.GetPathResolutionError().Error(),
 			marshalFunc: func() ([]byte, error) {
@@ -179,6 +191,26 @@ func NewAbnormalPathEvent(event *Event, now time.Time, pathResolutionError error
 					Timestamp:           now,
 					Event:               event,
 					PathResolutionError: pathResolutionError.Error(),
+				})
+			},
+		}
+}
+
+// NewForkBombEvent returns the rule and a populated custom event for a fork_bomb event
+func NewForkBombEvent(event *Event, now time.Time) (*rules.Rule, *CustomEvent) {
+	return &rules.Rule{
+			Definition: &rules.RuleDefinition{
+				ID: ForkBombRuleID,
+			},
+		}, &CustomEvent{
+			eventType: "fork_bomb",
+			marshalFunc: func() ([]byte, error) {
+				return json.Marshal(struct {
+					Timestamp time.Time `json:"timestamp"`
+					Event     *Event    `json:"triggering_event"`
+				}{
+					Timestamp: now,
+					Event:     event,
 				})
 			},
 		}

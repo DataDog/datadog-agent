@@ -186,6 +186,7 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     u32 ppid = 0;
     bpf_probe_read(&pid, sizeof(pid), &args->child_pid);
     u64 ts = bpf_ktime_get_ns();
+    u8 best_effort_cookie = 0;
 
     struct exec_event_t event = {
         .pid_entry.fork_timestamp = ts,
@@ -204,6 +205,12 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     event.pid_entry.gid = event.process.gid;
 
     struct pid_cache_t *parent_pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &ppid);
+    if (!parent_pid_entry) {
+        parent_pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&best_effort_pid_cache, &ppid);
+        if (parent_pid_entry) {
+            best_effort_cookie = 1;
+        }
+    }
     if (parent_pid_entry) {
         // ensures pid and ppid point to the same cookie
         event.pid_entry.cookie = parent_pid_entry->cookie;
@@ -223,13 +230,41 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
             // fetch container context
             fill_container_context(parent_proc_entry, &event.proc_entry.container);
         }
+
+        if (!best_effort_cookie) {
+            // the best_effort_pid_cache switch is racy, double check that the provided cookie was not marked as best effort
+            u8 *is_best_effort = (u8 *) bpf_map_lookup_elem(&best_effort_cookies, &event.pid_entry.cookie);
+            if (is_best_effort) {
+                best_effort_cookie = 1;
+
+                // insert the parent entry to the best effort pid cache
+                struct pid_cache_t new_parent_pid_entry = {
+                    .cookie = parent_pid_entry->cookie,
+                    .ppid = parent_pid_entry->ppid,
+                    .fork_timestamp = parent_pid_entry->fork_timestamp,
+                    .exit_timestamp = parent_pid_entry->exit_timestamp,
+                    .uid = parent_pid_entry->uid,
+                    .gid = parent_pid_entry->gid,
+                };
+                bpf_map_update_elem(&best_effort_pid_cache, &ppid, &new_parent_pid_entry, BPF_ANY);
+
+                // delete the parent entry from the normal pid cache
+                bpf_map_delete_elem(&pid_cache, &ppid);
+            }
+        }
     }
 
-    // insert the pid cache entry for the new process
-    bpf_map_update_elem(&pid_cache, &pid, &event.pid_entry, BPF_ANY);
+    if (!best_effort_cookie) {
+        // insert the pid cache entry for the new process
+        bpf_map_update_elem(&pid_cache, &pid, &event.pid_entry, BPF_ANY);
 
-    // send the entry to maintain userspace cache
-    send_event(args, EVENT_FORK, event);
+        // send the entry to maintain userspace cache
+        send_event(args, EVENT_FORK, event);
+    } else {
+        // insert the pid cache entry for the new process in the best effort pid cache
+        bpf_map_update_elem(&best_effort_pid_cache, &pid, &event.pid_entry, BPF_ANY);
+        // do not send to user space
+    }
 
     return 0;
 }

@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-go/statsd"
 	lib "github.com/DataDog/ebpf"
+	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
@@ -65,15 +66,24 @@ type ProcessResolverOpts struct {
 // ProcessResolver resolved process context
 type ProcessResolver struct {
 	sync.RWMutex
-	probe        *Probe
-	resolvers    *Resolvers
-	client       *statsd.Client
-	inodeInfoMap *lib.Map
-	procCacheMap *lib.Map
-	pidCookieMap *lib.Map
-	entryCache   map[uint32]*ProcessCacheEntry
+	probe                 *Probe
+	resolvers             *Resolvers
+	client         *statsd.Client
+	inodeInfoMap          *lib.Map
+	procCacheMap          *lib.Map
+	pidCacheMap           *lib.Map
+	bestEffortPidCacheMap *lib.Map
+	bestEffortCookiesMap  *lib.Map
 	cacheSize    int64
 	opts         ProcessResolverOpts
+
+	entryCache  map[uint32]*ProcessCacheEntry
+	cookieCache *simplelru.LRU
+}
+
+// GetProbes returns the probes required by the snapshot
+func (p *ProcessResolver) GetProbes() []*manager.Probe {
+	return p.snapshotProbes
 }
 
 // AddForkEntry adds an entry to the local cache and returns the newly created entry
@@ -228,6 +238,10 @@ func (p *ProcessResolver) insertExecEntry(pid uint32, entry *ProcessCacheEntry) 
 		})
 	}
 
+	if entry.Cookie != 0 {
+		p.cookieCache.Add(entry.Cookie, entry)
+	}
+
 	return entry
 }
 
@@ -247,7 +261,7 @@ func (p *ProcessResolver) DeleteEntry(pid uint32, exitTime time.Time) {
 }
 
 // Resolve returns the cache entry for the given pid
-func (p *ProcessResolver) Resolve(pid uint32) *ProcessCacheEntry {
+func (p *ProcessResolver) Resolve(pid uint32, cookie uint32) *ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
 
@@ -255,6 +269,14 @@ func (p *ProcessResolver) Resolve(pid uint32) *ProcessCacheEntry {
 	if exists {
 		_ = p.client.Count(MetricPrefix+".process_resolver.hits", 1, []string{"type:cache"}, 1.0)
 		return entry
+	}
+
+	// fallback to the cookie selection
+	if cookie > 0 {
+		entryP, exists := p.cookieCache.Get(cookie)
+		if exists {
+			return entryP.(*ProcessCacheEntry)
+		}
 	}
 
 	// fallback to the kernel maps directly, the perf event may be delayed / may have been lost
@@ -278,9 +300,12 @@ func (p *ProcessResolver) resolveWithKernelMaps(pid uint32) *ProcessCacheEntry {
 	pidb := make([]byte, 4)
 	ebpf.ByteOrder.PutUint32(pidb, pid)
 
-	cookieb, err := p.pidCookieMap.LookupBytes(pidb)
+	cookieb, err := p.pidCacheMap.LookupBytes(pidb)
 	if err != nil || cookieb == nil {
-		return nil
+		cookieb, err = p.bestEffortPidCacheMap.LookupBytes(pidb)
+		if err != nil || cookieb == nil {
+			return nil
+		}
 	}
 
 	// first 4 bytes are the actual cookie
@@ -323,7 +348,6 @@ func (p *ProcessResolver) resolveWithProcfs(pid uint32) *ProcessCacheEntry {
 	return entry
 }
 
-// Get returns the cache entry for a specified pid
 func (p *ProcessResolver) Get(pid uint32) *ProcessCacheEntry {
 	p.RLock()
 	defer p.RUnlock()
@@ -341,7 +365,15 @@ func (p *ProcessResolver) Start() error {
 		return err
 	}
 
-	if p.pidCookieMap, err = p.probe.Map("pid_cache"); err != nil {
+	if p.pidCacheMap, err = p.probe.Map("pid_cache"); err != nil {
+		return err
+	}
+
+	if p.bestEffortPidCacheMap, err = p.probe.Map("best_effort_pid_cache"); err != nil {
+		return err
+	}
+
+	if p.bestEffortCookiesMap, err = p.probe.Map("best_effort_cookies"); err != nil {
 		return err
 	}
 
@@ -452,13 +484,61 @@ func (p *ProcessResolver) GetEntryCacheSize() float64 {
 	return float64(atomic.LoadInt64(&p.cacheSize))
 }
 
+// MarkCookieAsBestEffort switches the pid_cache entries with the provided cookie to the best_effort_pid_cache map.
+// This will prevent fork events with the provided cookie from being sent over the perf map.
+func (p *ProcessResolver) MarkCookieAsBestEffort(cookie uint32) {
+	if cookie == 0 {
+		// nothing to do
+		return
+	}
+
+	var pid, toDelete uint32
+	// 32 is the size of pid_cache_t
+	var entry [32]byte
+	var mapCookie uint32
+
+	// mark cookie as best effort
+	if err := p.bestEffortCookiesMap.Put(&cookie, ebpf.BytesMapItem([]byte{1})); err != nil {
+		return
+	}
+
+	iter := p.pidCacheMap.Iterate()
+	for iter.Next(&pid, &entry) {
+		// Next must be called before a key is deleted otherwise the iteration will restart from the beginning
+		// after every delete. Defer deletion to the next iteration by setting the pid in toDelete.
+		if toDelete > 0 {
+			_ = p.pidCacheMap.Delete(&toDelete)
+			toDelete = 0
+		}
+
+		// check if the cookies match
+		mapCookie = ebpf.ByteOrder.Uint32(entry[0:4])
+		if mapCookie == cookie {
+
+			// move entry to the best effort map
+			_ = p.bestEffortPidCacheMap.Put(&pid, &entry)
+
+			// delete entry in the normal pid cache map
+			toDelete = pid
+		}
+	}
+	if toDelete > 0 {
+		_ = p.pidCacheMap.Delete(&toDelete)
+	}
+}
+
 // NewProcessResolver returns a new process resolver
 func NewProcessResolver(probe *Probe, resolvers *Resolvers, client *statsd.Client, opts ProcessResolverOpts) (*ProcessResolver, error) {
+	cookieLRU, err := simplelru.NewLRU(probe.config.PIDCacheSize, nil)
+	if err != nil {
+		return nil, err
+	}
 	return &ProcessResolver{
-		probe:      probe,
-		resolvers:  resolvers,
+		probe:       probe,
+		resolvers:   resolvers,
 		client:     client,
-		entryCache: make(map[uint32]*ProcessCacheEntry),
+		entryCache:  make(map[uint32]*ProcessCacheEntry),
+		cookieCache: cookieLRU,
 		opts:       opts,
 	}, nil
 }

@@ -791,9 +791,11 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.event_server.burst", 40)
 	config.BindEnvAndSetDefault("runtime_security_config.event_server.rate", 10)
 	config.BindEnvAndSetDefault("runtime_security_config.load_controller.events_count_threshold", 20000)
+	config.BindEnvAndSetDefault("runtime_security_config.load_controller.fork_bomb_threshold", 500)
 	config.BindEnvAndSetDefault("runtime_security_config.load_controller.discarder_timeout", 10)
 	config.BindEnvAndSetDefault("runtime_security_config.load_controller.control_period", 2)
 	config.BindEnvAndSetDefault("runtime_security_config.pid_cache_size", 10000)
+	config.BindEnvAndSetDefault("runtime_security_config.agent_monitoring_events", true)
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")

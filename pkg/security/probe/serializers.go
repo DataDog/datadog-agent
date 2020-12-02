@@ -25,20 +25,21 @@ const (
 // FileSerializer serializes a file to JSON
 // easyjson:json
 type FileSerializer struct {
-	Path            string     `json:"path,omitempty"`
-	Name            string     `json:"name,omitempty"`
-	ContainerPath   string     `json:"container_path,omitempty"`
-	Inode           *uint64    `json:"inode,omitempty"`
-	Mode            *uint32    `json:"mode,omitempty"`
-	OverlayNumLower *int32     `json:"overlay_numlower,omitempty"`
-	MountID         *uint32    `json:"mount_id,omitempty"`
-	UID             *int32     `json:"uid,omitempty"`
-	GID             *int32     `json:"gid,omitempty"`
-	XAttrName       string     `json:"attribute_name,omitempty"`
-	XAttrNamespace  string     `json:"attribute_namespace,omitempty"`
-	Flags           []string   `json:"flags,omitempty"`
-	Atime           *time.Time `json:"access_time,omitempty"`
-	Mtime           *time.Time `json:"modification_time,omitempty"`
+	Path                string     `json:"path,omitempty"`
+	Name                string     `json:"name,omitempty"`
+	ContainerPath       string     `json:"container_path,omitempty"`
+	PathResolutionError string     `json:"path_resolution_error,omitempty"`
+	Inode               *uint64    `json:"inode,omitempty"`
+	Mode                *uint32    `json:"mode,omitempty"`
+	OverlayNumLower     *int32     `json:"overlay_numlower,omitempty"`
+	MountID             *uint32    `json:"mount_id,omitempty"`
+	UID                 *int32     `json:"uid,omitempty"`
+	GID                 *int32     `json:"gid,omitempty"`
+	XAttrName           string     `json:"attribute_name,omitempty"`
+	XAttrNamespace      string     `json:"attribute_namespace,omitempty"`
+	Flags               []string   `json:"flags,omitempty"`
+	Atime               *time.Time `json:"access_time,omitempty"`
+	Mtime               *time.Time `json:"modification_time,omitempty"`
 }
 
 // UserContextSerializer serializes a user context to JSON

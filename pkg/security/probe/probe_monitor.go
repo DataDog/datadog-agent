@@ -109,7 +109,7 @@ func (m *Monitor) GetStats() (map[string]interface{}, error) {
 
 // ProcessEvent processes an event through the various monitors and controllers of the probe
 func (m *Monitor) ProcessEvent(event *Event, size uint64, CPU int, perfMap *manager.PerfMap) {
-	m.loadController.Count(event.GetEventType(), event.Process.Pid)
+	m.loadController.Count(event)
 
 	// Look for an unresolved path
 	if err := event.GetPathResolutionError(); err != nil {

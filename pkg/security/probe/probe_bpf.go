@@ -231,7 +231,7 @@ func (p *Probe) DispatchEvent(event *Event, size uint64, CPU int, perfMap *manag
 func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *CustomEvent) {
 	log.Tracef("Dispatching custom event %+v\n", event)
 
-	if p.handler != nil {
+	if p.handler != nil && p.config.AgentMonitoringEvents {
 		p.handler.HandleCustomEvent(rule, event)
 	}
 }
