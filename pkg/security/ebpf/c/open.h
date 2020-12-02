@@ -191,7 +191,7 @@ SEC("kprobe/do_dentry_open")
 int kprobe__do_dentry_open(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN | SYSCALL_EXEC);
     if (!syscall)
-        return 0;   
+        return 0;
 
     switch(syscall->type) {
         case SYSCALL_OPEN:
@@ -240,7 +240,8 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
        return 0;
     }
 
-    fill_process_data(&event.process);
+    struct proc_cache_t *entry = fill_process_context(&event.process);
+    fill_container_context(entry, &event.container);
 
     send_event(ctx, event);
 

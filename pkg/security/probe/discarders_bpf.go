@@ -18,7 +18,7 @@ import (
 
 type pidDiscarderParameters struct {
 	EventType  EventType
-	Timestamps [maxEventType - 1]uint64
+	Timestamps [maxEventRoundedUp]uint64
 }
 
 func (p *Probe) discardPID(eventType EventType, pid uint32) error {

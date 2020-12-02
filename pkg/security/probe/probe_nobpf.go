@@ -8,6 +8,8 @@
 package probe
 
 import (
+	"github.com/DataDog/datadog-go/statsd"
+
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
@@ -46,7 +48,7 @@ func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 }
 
 // NewProbe instantiates a new runtime security agent probe
-func NewProbe(config *config.Config) (*Probe, error) {
+func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	p := &Probe{}
 
 	resolvers, err := NewResolvers(p)
