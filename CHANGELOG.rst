@@ -81,7 +81,7 @@ Enhancement Notes
 - Added UDS support for JMXFetch
   JMXFetch upgraded to `0.40.3 <https://github.com/DataDog/jmxfetch/releases/0.40.3>`
 
-- dogstatsd_mapper_profiles may now be defined as an environmnet variable DD_DOGSTATSD_MAPPER_PROFILES formatted as JSON
+- dogstatsd_mapper_profiles may now be defined as an environment variable DD_DOGSTATSD_MAPPER_PROFILES formatted as JSON
 
 - Add orchestrator explorer related section into DCA Status
 
