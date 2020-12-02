@@ -7,6 +7,9 @@
 package kubeapi
 
 import (
+	"sync"
+	"time"
+
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
 	core "github.com/StackVista/stackstate-agent/pkg/collector/corechecks"
@@ -14,8 +17,6 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
-	"sync"
-	"time"
 )
 
 const (
@@ -130,6 +131,11 @@ func (t *TopologyCheck) Run() error {
 			nodeIdentifierCorrelationChannel,
 			commonClusterCollector,
 		),
+		// Register Namespace Component Collector
+		collectors.NewNamespaceCollector(
+			componentChannel,
+			commonClusterCollector,
+		),
 		// Register ConfigMap Component Collector
 		collectors.NewConfigMapCollector(
 			componentChannel,
@@ -138,11 +144,13 @@ func (t *TopologyCheck) Run() error {
 		// Register DaemonSet Component Collector
 		collectors.NewDaemonSetCollector(
 			componentChannel,
+			relationChannel,
 			commonClusterCollector,
 		),
 		// Register Deployment Component Collector
 		collectors.NewDeploymentCollector(
 			componentChannel,
+			relationChannel,
 			commonClusterCollector,
 		),
 		// Register ReplicaSet Component Collector
@@ -154,6 +162,7 @@ func (t *TopologyCheck) Run() error {
 		// Register StatefulSet Component Collector
 		collectors.NewStatefulSetCollector(
 			componentChannel,
+			relationChannel,
 			commonClusterCollector,
 		),
 		// Register Persistent Volume Component Collector
@@ -189,6 +198,7 @@ func (t *TopologyCheck) Run() error {
 		// Register CronJob Component Collector
 		collectors.NewCronJobCollector(
 			componentChannel,
+			relationChannel,
 			commonClusterCollector,
 		),
 	}

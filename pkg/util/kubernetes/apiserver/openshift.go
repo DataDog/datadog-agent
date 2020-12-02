@@ -11,6 +11,8 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
+var _ OpenShiftDetector = (*APIClient)(nil) // Compile-time check
+
 // DetectOpenShiftAPILevel looks at known endpoints to detect if OpenShift
 // APIs are available on this apiserver. OpenShift transitioned from a
 // non-standard `/oapi` URL prefix to standard api groups under the `/apis`

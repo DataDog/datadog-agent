@@ -8,14 +8,15 @@ package topologycollectors
 
 import (
 	"fmt"
+	"testing"
+	"time"
+
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
 	"github.com/stretchr/testify/assert"
 	appsV1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"testing"
-	"time"
 )
 
 func TestReplicaSetCollector(t *testing.T) {
@@ -50,7 +51,15 @@ func TestReplicaSetCollector(t *testing.T) {
 					"desiredReplicas":   &replicas,
 				},
 			},
-			expectedRelations: []*topology.Relation{},
+			expectedRelations: []*topology.Relation{
+				{
+					ExternalID: "urn:kubernetes:/test-cluster-name:namespace/test-namespace->urn:kubernetes:/test-cluster-name:test-namespace:replicaset/test-replicaset-1",
+					Type:       topology.Type{Name: "encloses"},
+					SourceID:   "urn:kubernetes:/test-cluster-name:namespace/test-namespace",
+					TargetID:   "urn:kubernetes:/test-cluster-name:test-namespace:replicaset/test-replicaset-1",
+					Data:       map[string]interface{}{},
+				},
+			},
 		},
 		{
 			testCase: "Test ReplicaSet 2 - Kind + Generate Name",
@@ -67,7 +76,15 @@ func TestReplicaSetCollector(t *testing.T) {
 					"generateName":      "some-specified-generation",
 				},
 			},
-			expectedRelations: []*topology.Relation{},
+			expectedRelations: []*topology.Relation{
+				{
+					ExternalID: "urn:kubernetes:/test-cluster-name:namespace/test-namespace->urn:kubernetes:/test-cluster-name:test-namespace:replicaset/test-replicaset-2",
+					Type:       topology.Type{Name: "encloses"},
+					SourceID:   "urn:kubernetes:/test-cluster-name:namespace/test-namespace",
+					TargetID:   "urn:kubernetes:/test-cluster-name:test-namespace:replicaset/test-replicaset-2",
+					Data:       map[string]interface{}{},
+				},
+			},
 		},
 		{
 			testCase: "Test ReplicaSet 3 - Complete",

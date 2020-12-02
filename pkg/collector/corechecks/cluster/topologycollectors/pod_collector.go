@@ -56,30 +56,41 @@ func (pc *PodCollector) CollectorFunction() error {
 		// creates and publishes StackState pod component with relations
 		component = pc.podToStackStateComponent(pod)
 		pc.ComponentChan <- component
+
 		// pod could not be scheduled for some reason
 		if pod.Spec.NodeName != "" {
 			pc.RelationChan <- pc.podToNodeStackStateRelation(pod)
 		}
 
+		managed := false
 		// check to see if this pod is "managed" by a kubernetes controller
 		for _, ref := range pod.OwnerReferences {
 			switch kind := ref.Kind; kind {
 			case DaemonSet:
 				controllerExternalID = pc.buildDaemonSetExternalID(pod.Namespace, ref.Name)
 				pc.RelationChan <- pc.controllerWorkloadToPodStackStateRelation(controllerExternalID, component.ExternalID)
+				managed = true
 			case Deployment:
 				controllerExternalID = pc.buildDeploymentExternalID(pod.Namespace, ref.Name)
 				pc.RelationChan <- pc.controllerWorkloadToPodStackStateRelation(controllerExternalID, component.ExternalID)
+				managed = true
 			case ReplicaSet:
 				controllerExternalID = pc.buildReplicaSetExternalID(pod.Namespace, ref.Name)
 				pc.RelationChan <- pc.controllerWorkloadToPodStackStateRelation(controllerExternalID, component.ExternalID)
+				managed = true
 			case StatefulSet:
 				controllerExternalID = pc.buildStatefulSetExternalID(pod.Namespace, ref.Name)
 				pc.RelationChan <- pc.controllerWorkloadToPodStackStateRelation(controllerExternalID, component.ExternalID)
+				managed = true
 			case Job:
 				controllerExternalID = pc.buildJobExternalID(pod.Namespace, ref.Name)
 				pc.RelationChan <- pc.controllerWorkloadToPodStackStateRelation(controllerExternalID, component.ExternalID)
+				managed = true
 			}
+		}
+
+		if !managed {
+			pc.RelationChan <- pc.namespaceToPodStackStateRelation(pc.buildNamespaceExternalID(pod.Namespace), component.ExternalID)
 		}
 
 		// map the volume components and relation to this pod
@@ -236,6 +247,17 @@ func (pc *PodCollector) podToConfigMapStackStateRelation(podExternalID, configMa
 	relation := pc.CreateRelation(podExternalID, configMapExternalID, "uses")
 
 	log.Tracef("Created StackState pod -> config map relation %s->%s", relation.SourceID, relation.TargetID)
+
+	return relation
+}
+
+// Creates a StackState relation from a Kubernetes / OpenShift Pod to Namespace relation
+func (pc *PodCollector) namespaceToPodStackStateRelation(namespaceExternalID, podExternalID string) *topology.Relation {
+	log.Tracef("Mapping kubernetes namespace to pod relation: %s -> %s", namespaceExternalID, podExternalID)
+
+	relation := pc.CreateRelation(namespaceExternalID, podExternalID, "encloses")
+
+	log.Tracef("Created StackState namespace -> pod relation %s->%s", relation.SourceID, relation.TargetID)
 
 	return relation
 }

@@ -11,13 +11,15 @@ import (
 // DaemonSetCollector implements the ClusterTopologyCollector interface.
 type DaemonSetCollector struct {
 	ComponentChan chan<- *topology.Component
+	RelationChan  chan<- *topology.Relation
 	ClusterTopologyCollector
 }
 
 // NewDaemonSetCollector
-func NewDaemonSetCollector(componentChannel chan<- *topology.Component, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
+func NewDaemonSetCollector(componentChannel chan<- *topology.Component, relationChannel chan<- *topology.Relation, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
 	return &DaemonSetCollector{
 		ComponentChan:            componentChannel,
+		RelationChan:             relationChannel,
 		ClusterTopologyCollector: clusterTopologyCollector,
 	}
 }
@@ -35,7 +37,9 @@ func (dsc *DaemonSetCollector) CollectorFunction() error {
 	}
 
 	for _, ds := range daemonSets {
-		dsc.ComponentChan <- dsc.daemonSetToStackStateComponent(ds)
+		component := dsc.daemonSetToStackStateComponent(ds)
+		dsc.ComponentChan <- component
+		dsc.RelationChan <- dsc.namespaceToDaemonSetStackStateRelation(dsc.buildNamespaceExternalID(ds.Namespace), component.ExternalID)
 	}
 
 	return nil
@@ -66,4 +70,15 @@ func (dsc *DaemonSetCollector) daemonSetToStackStateComponent(daemonSet v1.Daemo
 	log.Tracef("Created StackState DaemonSet component %s: %v", daemonSetExternalID, component.JSONString())
 
 	return component
+}
+
+// Creates a StackState relation from a Kubernetes / OpenShift Namespace to DaemonSet relation
+func (dsc *DaemonSetCollector) namespaceToDaemonSetStackStateRelation(namespaceExternalID, daemonSetExternalID string) *topology.Relation {
+	log.Tracef("Mapping kubernetes namespace to daemon set relation: %s -> %s", namespaceExternalID, daemonSetExternalID)
+
+	relation := dsc.CreateRelation(namespaceExternalID, daemonSetExternalID, "encloses")
+
+	log.Tracef("Created StackState namespace -> daemon set relation %s->%s", relation.SourceID, relation.TargetID)
+
+	return relation
 }

@@ -40,13 +40,20 @@ func (jc *JobCollector) CollectorFunction() error {
 		component := jc.jobToStackStateComponent(job)
 		jc.ComponentChan <- component
 
+		ownedByCron := false
 		// Create relation to the cron job
 		for _, ref := range job.OwnerReferences {
 			switch kind := ref.Kind; kind {
 			case CronJob:
 				cronJobExternalID := jc.buildCronJobExternalID(job.Namespace, ref.Name)
 				jc.RelationChan <- jc.cronJobToJobStackStateRelation(cronJobExternalID, component.ExternalID)
+				ownedByCron = true
 			}
+		}
+
+		// If not owned by Cron Job, make a direct relation from the Namespace
+		if !ownedByCron {
+			jc.RelationChan <- jc.namespaceToJobStackStateRelation(jc.buildNamespaceExternalID(job.Namespace), component.ExternalID)
 		}
 	}
 
@@ -88,6 +95,17 @@ func (jc *JobCollector) cronJobToJobStackStateRelation(cronJobExternalID, jobExt
 	relation := jc.CreateRelation(cronJobExternalID, jobExternalID, "creates")
 
 	log.Tracef("Created StackState cron job -> job relation %s->%s", relation.SourceID, relation.TargetID)
+
+	return relation
+}
+
+// Creates a StackState relation from a Kubernetes / OpenShift Namespace to Job relation
+func (jc *JobCollector) namespaceToJobStackStateRelation(namespaceExternalID, jobExternalID string) *topology.Relation {
+	log.Tracef("Mapping kubernetes namespace to job relation: %s -> %s", namespaceExternalID, jobExternalID)
+
+	relation := jc.CreateRelation(namespaceExternalID, jobExternalID, "encloses")
+
+	log.Tracef("Created StackState namespace -> job relation %s->%s", relation.SourceID, relation.TargetID)
 
 	return relation
 }

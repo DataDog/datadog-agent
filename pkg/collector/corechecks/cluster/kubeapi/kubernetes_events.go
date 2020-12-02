@@ -11,8 +11,7 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v2"
-	"k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
+	v1 "k8s.io/api/core/v1"
 
 	"github.com/StackVista/stackstate-agent/pkg/aggregator"
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
@@ -43,6 +42,7 @@ type EventsCheck struct {
 	instance           *EventsConfig
 	latestEventToken   string
 	configMapAvailable bool
+	mapperFactory      KubernetesEventMapperFactory
 }
 
 func (c *EventsConfig) parse(data []byte) error {
@@ -126,6 +126,7 @@ func KubernetesApiEventsFactory() check.Check {
 			CheckBase: core.NewCheckBase(kubernetesAPIEventsCheckName),
 		},
 		instance: &EventsConfig{},
+		mapperFactory: newKubernetesEventMapper,
 	}
 }
 
@@ -196,45 +197,42 @@ func (k *EventsCheck) eventCollectionCheck() ([]*v1.Event, []*v1.Event, error) {
 
 // processEvents:
 // - iterates over the Kubernetes Events
-// - extracts some attributes and builds a structure ready to be submitted as a Datadog event (bundle)
-// - formats the bundle and submit the Datadog event
+// - filter events that shouldn't be sent to the intake
+// - convert each K8s event to a metrics event to be processed by the intake
 func (k *EventsCheck) processEvents(sender aggregator.Sender, events []*v1.Event, modified bool) error {
-	eventsByObject := make(map[types.UID]*kubernetesEventBundle)
 	filteredByType := make(map[string]int)
 
-	// Only process the events which actions aren't part of the FilteredEventType list in the yaml config.
-ITER_EVENTS:
+	clusterName := clustername.GetClusterName()
+	mapper := k.mapperFactory(k.ac, clusterName)
+
 	for _, event := range events {
+		filtered := false
 		for _, action := range k.instance.FilteredEventType {
 			if event.Reason == action {
 				filteredByType[action] = filteredByType[action] + 1
-				continue ITER_EVENTS
+				filtered = true
+				break
 			}
 		}
-		bundle, found := eventsByObject[event.InvolvedObject.UID]
-		if found == false {
-			bundle = newKubernetesEventBundler(event.InvolvedObject.UID, event.Source.Component)
-			eventsByObject[event.InvolvedObject.UID] = bundle
-		}
-		err := bundle.addEvent(event)
-		if err != nil {
-			_ = k.Warnf("Error while bundling events, %s.", err.Error())
-		}
 
-		if len(filteredByType) > 0 {
-			log.Debugf("Filtered out the following events: %s", formatStringIntMap(filteredByType))
-		}
-	}
-
-	clusterName := clustername.GetClusterName()
-	for _, bundle := range eventsByObject {
-		datadogEv, err := bundle.formatEvents(modified, clusterName)
-		if err != nil {
-			_ = k.Warnf("Error while formatting bundled events, %s. Not submitting", err.Error())
+		if filtered {
 			continue
 		}
-		sender.Event(datadogEv)
+
+		mappedEvent, err := mapper.mapKubernetesEvent(event, modified)
+		if err != nil {
+			_ = k.Warnf("Error while mapping event, %s.", err.Error())
+			continue
+		}
+
+		sender.Event(mappedEvent)
+
 	}
+
+	if len(filteredByType) > 0 {
+		log.Debugf("Filtered out the following events: %s", formatStringIntMap(filteredByType))
+	}
+
 	return nil
 }
 
