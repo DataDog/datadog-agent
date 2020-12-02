@@ -11,10 +11,12 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"golang.org/x/net/http/httpproxy"
 )
 
 // CreateHTTPTransport creates an *http.Transport for use in the agent
@@ -57,46 +59,78 @@ func CreateHTTPTransport() *http.Transport {
 // GetProxyTransportFunc return a proxy function for a http.Transport that
 // would return the right proxy depending on the configuration.
 func GetProxyTransportFunc(p *config.Proxy) func(*http.Request) (*url.URL, error) {
+
+	proxyConfig := &httpproxy.Config{
+		HTTPProxy:  p.HTTP,
+		HTTPSProxy: p.HTTPS,
+		NoProxy:    strings.Join(p.NoProxy, ","),
+	}
+
+	if config.Datadog.GetBool("proxy.no_proxy_nonexact_match") {
+		return func(r *http.Request) (*url.URL, error) {
+			return proxyConfig.ProxyFunc()(r.URL)
+		}
+	}
+
 	return func(r *http.Request) (*url.URL, error) {
-		// check no_proxy list first
-		for _, host := range p.NoProxy {
-			if r.URL.Host == host {
-				log.Debugf("URL match no_proxy list item '%s': not using any proxy", host)
-				return nil, nil
-			}
-		}
-
-		// check proxy by scheme
-		confProxy := ""
-		if r.URL.Scheme == "http" {
-			confProxy = p.HTTP
-		} else if r.URL.Scheme == "https" {
-			confProxy = p.HTTPS
-		} else {
-			log.Warnf("Proxy configuration do not support scheme '%s'", r.URL.Scheme)
-		}
-
-		if confProxy != "" {
-			proxyURL, err := url.Parse(confProxy)
-			if err != nil {
-				err := fmt.Errorf("Could not parse the proxy URL for scheme %s from configuration: %s", r.URL.Scheme, err)
-				log.Error(err.Error())
-				return nil, err
-			}
-			userInfo := ""
-			if proxyURL.User != nil {
-				if _, isSet := proxyURL.User.Password(); isSet {
-					userInfo = "*****:*****@"
-				} else {
-					userInfo = "*****@"
+		url, err := func(r *http.Request) (*url.URL, error) {
+			// check no_proxy list first
+			for _, host := range p.NoProxy {
+				if r.URL.Host == host {
+					log.Debugf("URL match no_proxy list item '%s': not using any proxy", host)
+					return nil, nil
 				}
 			}
 
-			log.Debugf("Using proxy %s://%s%s for URL '%s'", proxyURL.Scheme, userInfo, proxyURL.Host, SanitizeURL(r.URL.String()))
-			return proxyURL, nil
+			// check proxy by scheme
+			confProxy := ""
+			if r.URL.Scheme == "http" {
+				confProxy = p.HTTP
+			} else if r.URL.Scheme == "https" {
+				confProxy = p.HTTPS
+			} else {
+				log.Warnf("Proxy configuration do not support scheme '%s'", r.URL.Scheme)
+			}
+
+			if confProxy != "" {
+				proxyURL, err := url.Parse(confProxy)
+				if err != nil {
+					err := fmt.Errorf("Could not parse the proxy URL for scheme %s from configuration: %s", r.URL.Scheme, err)
+					log.Error(err.Error())
+					return nil, err
+				}
+				userInfo := ""
+				if proxyURL.User != nil {
+					if _, isSet := proxyURL.User.Password(); isSet {
+						userInfo = "*****:*****@"
+					} else {
+						userInfo = "*****@"
+					}
+				}
+
+				log.Debugf("Using proxy %s://%s%s for URL '%s'", proxyURL.Scheme, userInfo, proxyURL.Host, SanitizeURL(r.URL.String()))
+				return proxyURL, nil
+			}
+
+			// no proxy set for this request
+			return nil, nil
+		}(r)
+
+		// Print a warning if the proxy behavior would change if the new no_proxy behavior would be enabled
+		newURL, _ := proxyConfig.ProxyFunc()(r.URL)
+		if url != newURL {
+			oldURLStr := "nil"
+			if url != nil {
+				oldURLStr = url.String()
+			}
+
+			newURLStr := "nil"
+			if newURL != nil {
+				newURLStr = newURL.String()
+			}
+			log.Warnf("with proxy.no_proxy_nonexact_match = true, the proxy used for %s would be %s instead of %s", SanitizeURL(r.URL.String()), newURLStr, oldURLStr)
 		}
 
-		// no proxy set for this request
-		return nil, nil
+		return url, err
 	}
 }
