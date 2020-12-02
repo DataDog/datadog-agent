@@ -18,7 +18,6 @@ type ddSketch struct {
 }
 
 // get returns the count for a given index.
-// it requires to be called in order.
 func (s *ddSketch) get(index int) (count int) {
 	if index >= s.offset && index < s.offset + len(s.contiguousBins) {
 		count = int(s.contiguousBins[index-s.offset])
@@ -34,6 +33,8 @@ func (s *ddSketch) maxSize() int {
 }
 
 func getIndexes(s1 ddSketch, s2 ddSketch) []int {
+	// todo: No need to re-allocate that array at each conversion.
+	// but this function needs to be thread safe in the agent.
 	indexes := make([]int, s1.maxSize() + s2.maxSize())
 	n := 0
 	for i := range s1.contiguousBins {
