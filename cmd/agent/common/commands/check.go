@@ -474,8 +474,30 @@ func printMetrics(agg *aggregator.BufferedAggregator) {
 	serviceChecks := agg.GetServiceChecks()
 	if len(serviceChecks) != 0 {
 		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Service Checks")))
-		j, _ := json.MarshalIndent(serviceChecks, "", "  ")
-		fmt.Println(string(j))
+
+		if formatTable {
+			headers, data := serviceChecks.MarshalStrings()
+
+			// plain table with no borders
+			table := tablewriter.NewWriter(os.Stdout)
+			table.SetHeader(headers)
+			table.SetAutoWrapText(false)
+			table.SetAutoFormatHeaders(true)
+			table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+			table.SetAlignment(tablewriter.ALIGN_LEFT)
+			table.SetCenterSeparator("")
+			table.SetColumnSeparator("")
+			table.SetRowSeparator("")
+			table.SetHeaderLine(false)
+			table.SetBorder(false)
+			table.SetTablePadding("\t")
+
+			table.AppendBulk(data)
+			table.Render()
+		} else {
+			j, _ := json.MarshalIndent(serviceChecks, "", "  ")
+			fmt.Println(string(j))
+		}
 	}
 
 	events := agg.GetEvents()
