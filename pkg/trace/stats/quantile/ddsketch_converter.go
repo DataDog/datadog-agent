@@ -116,20 +116,6 @@ func ddSketchMappingFromProto(mappingPb *pb.IndexMapping) (m mapping.IndexMappin
 	}
 }
 
-func min(x, y int) int {
-	if x < y {
-		return x
-	}
-	return y
-}
-
-func max(x, y int) int {
-	if x > y {
-		return x
-	}
-	return y
-}
-
 // DDToGKSketches converts two dd sketches: ok and errors to 2 gk sketches: hits and errors
 // with hits = ok + errors
 func DDToGKSketches(okSketchData []byte, errSketchData []byte) (hits, errors *SliceSummary, err error) {
