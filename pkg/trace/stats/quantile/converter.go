@@ -1,15 +1,24 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package quantile
 
 import (
 	"errors"
 	"fmt"
+	"sort"
+
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+
 	"github.com/DataDog/sketches-go/ddsketch/mapping"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/gogo/protobuf/proto"
-	"sort"
 )
 
+// ddSketch represents the sketch described here: http://www.vldb.org/pvldb/vol12/p2195-masson.pdf
+// This representation only supports positive values.
 type ddSketch struct {
 	contiguousBins []float64
 	bins map[int32]float64

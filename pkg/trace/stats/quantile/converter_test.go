@@ -1,14 +1,15 @@
 package quantile
 
 import (
+	"math"
+	"testing"
+
 	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/DataDog/sketches-go/ddsketch/mapping"
 	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
 	"github.com/DataDog/sketches-go/ddsketch/store"
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
-	"math"
-	"testing"
 )
 
 const relativeValueError = 0.01

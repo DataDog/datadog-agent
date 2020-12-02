@@ -7,7 +7,6 @@ package agent
 
 import (
 	"context"
-	"github.com/DataDog/datadog-agent/pkg/trace/stats/quantile"
 	"runtime"
 	"strconv"
 	"strings"
@@ -24,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats/quantile"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -321,14 +321,16 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang string) {
 				TopLevel: float64(b.Hits),
 				Value:    float64(b.Duration),
 			}
-			if hitsSummary, errorSummary, err := quantile.DDToGKSketches(b.HitsSummary, b.ErrorSummary); err == nil {
+			if hits, errors, err := quantile.DDToGKSketches(b.HitsSummary, b.ErrorSummary); err != nil {
+				log.Errorf("Error handling distributions: %v", err)
+			} else {
 				newb.Distributions[key] = stats.Distribution{
 					Key:      key,
 					Name:     b.Name,
 					Measure:  stats.DURATION,
 					TagSet:   tagset,
 					TopLevel: 0,
-					Summary: hitsSummary,
+					Summary:  hits,
 				}
 				newb.ErrDistributions[key] = stats.Distribution{
 					Key:      key,
@@ -336,10 +338,8 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang string) {
 					Measure:  stats.DURATION,
 					TagSet:   tagset,
 					TopLevel: 0,
-					Summary: errorSummary,
+					Summary:  errors,
 				}
-			} else {
-				log.Errorf("Error handling distributions: %v", err)
 			}
 			out.Stats = append(out.Stats, newb)
 		}
