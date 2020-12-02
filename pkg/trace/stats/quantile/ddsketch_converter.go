@@ -35,19 +35,16 @@ func (s *ddSketch) maxSize() int {
 func getIndexes(s1 ddSketch, s2 ddSketch) []int {
 	// todo: No need to re-allocate that array at each conversion.
 	// but this function needs to be thread safe in the agent.
-	indexes := make([]int, s1.maxSize() + s2.maxSize())
-	n := 0
+	indexes := make([]int, 0, s1.maxSize() + s2.maxSize())
 	for i := range s1.contiguousBins {
-		indexes[n] = i + s1.offset
-		n++
+		indexes = append(indexes, i + s1.offset)
 	}
 	for i := range s2.contiguousBins {
 		ind := i + s2.offset
 		if ind >= s1.offset && ind < s1.offset + len(s1.contiguousBins) {
 			continue
 		}
-		indexes[n] = ind
-		n++
+		indexes = append(indexes, ind)
 	}
 	for i := range s1.bins {
 		ind := int(i)
@@ -57,8 +54,7 @@ func getIndexes(s1 ddSketch, s2 ddSketch) []int {
 		if ind >= s2.offset && ind < s2.offset + len(s2.contiguousBins) {
 			continue
 		}
-		indexes[n] = ind
-		n++
+		indexes = append(indexes, ind)
 	}
 	for i := range s2.bins {
 		ind := int(i)
@@ -71,11 +67,10 @@ func getIndexes(s1 ddSketch, s2 ddSketch) []int {
 		if _, ok := s1.bins[i]; ok {
 			continue
 		}
-		indexes[n] = ind
-		n++
+		indexes = append(indexes, ind)
 	}
-	sort.Ints(indexes[:n])
-	return indexes[:n]
+	sort.Ints(indexes)
+	return indexes
 }
 
 // decodeDDSketch decodes a ddSketch from a protobuf encoded ddSketch
