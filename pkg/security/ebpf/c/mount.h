@@ -98,8 +98,8 @@ SYSCALL_COMPAT_KRETPROBE(mount) {
         return 0;
     }
 
-    struct proc_cache_t *entry = fill_process_data(&event.process);
-    fill_container_data(entry, &event.container);
+    struct proc_cache_t *entry = fill_process_context(&event.process);
+    fill_container_context(entry, &event.container);
 
     resolve_dentry(dentry, path_key, 0);
 

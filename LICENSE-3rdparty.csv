@@ -127,6 +127,7 @@ core,"github.com/beevik/ntp",FreeBSD
 core,"github.com/benesch/cgosymbolizer",FreeBSD
 core,"github.com/beorn7/perks/quantile",MIT
 core,"github.com/bhmj/jsonslice",MIT
+core,"github.com/blabber/go-freebsd-sysctl/sysctl",ISC
 core,"github.com/blang/semver",MIT
 core,"github.com/cenkalti/backoff",MIT
 core,"github.com/cespare/xxhash",MIT

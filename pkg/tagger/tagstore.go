@@ -293,8 +293,11 @@ func (s *tagStore) prune() error {
 		prefix, _ := containers.SplitEntityName(entity)
 
 		for source := range storedTags.toDelete {
-			delete(storedTags.sourceTags, source)
+			if _, ok := storedTags.sourceTags[source]; !ok {
+				continue
+			}
 
+			delete(storedTags.sourceTags, source)
 			storedEntities.Dec(source, prefix)
 		}
 

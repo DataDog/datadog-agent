@@ -132,6 +132,11 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 		return err
 	}
 
+	err = k.CommonConfigure(initConfig, source)
+	if err != nil {
+		return err
+	}
+
 	err = k.instance.parse(config)
 	if err != nil {
 		return err

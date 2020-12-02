@@ -66,7 +66,7 @@ func AllMaps() []*manager.Map {
 		{Name: "open_flags_approvers"},
 		// Exec tables
 		{Name: "proc_cache"},
-		{Name: "pid_cookie"},
+		{Name: "pid_cache"},
 		// Mount tables
 		{Name: "mount_id_offset"},
 		// Syscall monitor tables

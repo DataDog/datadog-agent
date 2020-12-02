@@ -32,10 +32,16 @@ func NewTimeResolver() (*TimeResolver, error) {
 
 // ResolveMonotonicTimestamp converts a kernel monotonic timestamp to an absolute time
 func (tr *TimeResolver) ResolveMonotonicTimestamp(timestamp uint64) time.Time {
-	return tr.bootTime.Add(time.Duration(timestamp) * time.Nanosecond)
+	if timestamp > 0 {
+		return tr.bootTime.Add(time.Duration(timestamp) * time.Nanosecond)
+	}
+	return time.Time{}
 }
 
 // ComputeMonotonicTimestamp converts an absolute time to a kernel monotonic timestamp
 func (tr *TimeResolver) ComputeMonotonicTimestamp(timestamp time.Time) int64 {
-	return timestamp.Sub(tr.bootTime).Nanoseconds()
+	if !timestamp.IsZero() {
+		return timestamp.Sub(tr.bootTime).Nanoseconds()
+	}
+	return 0
 }

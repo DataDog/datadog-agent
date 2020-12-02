@@ -43,7 +43,7 @@ var execProbes = []*manager.Probe{
 	},
 	{
 		UID:     SecurityAgentUID,
-		Section: "kprobe/do_close_on_exec",
+		Section: "kprobe/security_bprm_committed_creds",
 	},
 }
 
