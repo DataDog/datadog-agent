@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/app/settings"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/fatih/color"
@@ -72,7 +73,7 @@ func setupConfig() error {
 		return err
 	}
 
-	return util.SetAuthToken()
+	return security.SetAuthToken()
 }
 
 func showRuntimeConfiguration(cmd *cobra.Command, args []string) error {

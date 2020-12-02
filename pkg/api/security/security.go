@@ -8,6 +8,7 @@ package security
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/hex"
@@ -104,6 +105,43 @@ func GenerateRootCert(hosts []string, bits int) (
 	b := pem.Block{Type: "CERTIFICATE", Bytes: certDER}
 	certPEM = pem.EncodeToMemory(&b)
 	return
+}
+
+func buildSelfSignedKeyPair(hosts []string) ([]byte, []byte) {
+
+	_, rootCertPEM, rootKey, err := GenerateRootCert(hosts, 2048)
+	if err != nil {
+		return nil, nil
+	}
+
+	// PEM encode the private key
+	rootKeyPEM := pem.EncodeToMemory(&pem.Block{
+		Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(rootKey),
+	})
+
+	// Create and return TLS private cert and key
+	return rootCertPEM, rootKeyPEM
+}
+
+// InitializeTLS builds a TLS key pair and a cert pool
+func InitializeTLS(hosts []string) (*tls.Certificate, *x509.CertPool) {
+
+	cert, key := buildSelfSignedKeyPair(hosts)
+	if cert == nil {
+		panic("unable to generate certificate")
+	}
+	pair, err := tls.X509KeyPair(cert, key)
+	if err != nil {
+		panic(err)
+	}
+	tlsKeyPair := &pair
+	tlsCertPool := x509.NewCertPool()
+	ok := tlsCertPool.AppendCertsFromPEM(cert)
+	if !ok {
+		panic("bad certs")
+	}
+
+	return tlsKeyPair, tlsCertPool
 }
 
 // GetAuthTokenFilepath returns the path to the auth_token file.

@@ -125,7 +125,7 @@ func CreatePerformanceProfile(prefix, debugURL string, cpusec int, target *Profi
 
 // CreateArchive packages up the files
 func CreateArchive(local bool, distPath, pyChecksPath string, logFilePaths []string, pdata ProfileData) (string, error) {
-	zipFilePath := getArchivePath()
+	zipFilePath := GetArchivePath()
 	confSearchPaths := SearchPaths{
 		"":        config.Datadog.GetString("confd_path"),
 		"dist":    filepath.Join(distPath, "conf.d"),
@@ -135,7 +135,7 @@ func CreateArchive(local bool, distPath, pyChecksPath string, logFilePaths []str
 }
 
 func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, logFilePaths []string, pdata ProfileData) (string, error) {
-	tempDir, err := createTempDir()
+	tempDir, err := CreateTempDir()
 	if err != nil {
 		return "", err
 	}
@@ -309,7 +309,8 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, 
 	return zipFilePath, nil
 }
 
-func createTempDir() (string, error) {
+// CrateTempDir created a temporary directory
+func CreateTempDir() (string, error) {
 	b := make([]byte, 10)
 	_, err := rand.Read(b)
 	if err != nil {
@@ -893,7 +894,7 @@ func getFirstSuffix(s string) string {
 	return filepath.Ext(strings.TrimSuffix(s, filepath.Ext(s)))
 }
 
-func getArchivePath() string {
+func GetArchivePath() string {
 	dir := os.TempDir()
 	t := time.Now()
 	timeString := t.Format("2006-01-02-15-04-05")

@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
-	"io/ioutil"
 	"net/http"
 	"sort"
 
@@ -28,7 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/flare"
+	remote_flare "github.com/DataDog/datadog-agent/pkg/flare/remote"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -42,7 +41,6 @@ import (
 func SetupHandlers(r *mux.Router) *mux.Router {
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
-	r.HandleFunc("/flare", makeFlare).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", getStatus).Methods("GET")
 	r.HandleFunc("/dogstatsd-stats", getDogstatsdStats).Methods("GET")
@@ -56,9 +54,13 @@ func SetupHandlers(r *mux.Router) *mux.Router {
 	r.HandleFunc("/config", getFullRuntimeConfig).Methods("GET")
 	r.HandleFunc("/config/list-runtime", getRuntimeConfigurableSettings).Methods("GET")
 	r.HandleFunc("/config/{setting}", getRuntimeConfig).Methods("GET")
+	r.HandleFunc("/flare/{type}/{op}", remote_flare.Handler).Methods("POST")
+	r.HandleFunc("/flare/log/{flare_id}/{tracer_id}/{type}", remote_flare.LogHandler).Methods("POST")
 	r.HandleFunc("/config/{setting}", setRuntimeConfig).Methods("POST")
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
 	r.HandleFunc("/secrets", secretInfo).Methods("GET")
+
+	remote_flare.InitAPI(common.DefaultLogFile, common.DefaultJmxLogFile, common.GetDistPath(), common.PyChecksPath)
 
 	return r
 }
@@ -79,43 +81,6 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 	}
 	j, _ := json.Marshal(hname)
 	w.Write(j)
-}
-
-func makeFlare(w http.ResponseWriter, r *http.Request) {
-	var profile flare.ProfileData
-
-	if r.Body != http.NoBody {
-		body, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, log.Errorf("Error while reading HTTP request body: %s", err).Error(), 500)
-			return
-		}
-
-		if err := json.Unmarshal(body, &profile); err != nil {
-			http.Error(w, log.Errorf("Error while unmarshaling JSON from request body: %s", err).Error(), 500)
-			return
-		}
-	}
-
-	logFile := config.Datadog.GetString("log_file")
-	if logFile == "" {
-		logFile = common.DefaultLogFile
-	}
-	jmxLogFile := config.Datadog.GetString("jmx_log_file")
-	if jmxLogFile == "" {
-		jmxLogFile = common.DefaultJmxLogFile
-	}
-	log.Infof("Making a flare")
-	filePath, err := flare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, []string{logFile, jmxLogFile}, profile)
-	if err != nil || filePath == "" {
-		if err != nil {
-			log.Errorf("The flare failed to be created: %s", err)
-		} else {
-			log.Warnf("The flare failed to be created")
-		}
-		http.Error(w, err.Error(), 500)
-	}
-	w.Write([]byte(filePath))
 }
 
 func componentConfigHandler(w http.ResponseWriter, r *http.Request) {

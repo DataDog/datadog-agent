@@ -81,6 +81,7 @@ func (TagCardinality) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_00212fb1f9d3bf1c, []int{1}
 }
 
+// Hostname
 type HostnameRequest struct {
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -152,6 +153,7 @@ func (m *HostnameReply) GetHostname() string {
 	return ""
 }
 
+// Tagger
 type StreamTagsRequest struct {
 	Cardinality          TagCardinality `protobuf:"varint,1,opt,name=cardinality,proto3,enum=pb.TagCardinality" json:"cardinality,omitempty"`
 	IncludeFilter        *Filter        `protobuf:"bytes,2,opt,name=includeFilter,proto3" json:"includeFilter,omitempty"`
@@ -687,7 +689,45 @@ var _Agent_serviceDesc = grpc.ServiceDesc{
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type AgentSecureClient interface {
+	// subscribes to added, removed, or changed entities in the Tagger
+	// and streams them to clients as events.
+	// can be called through the HTTP gateway, and events will be streamed as JSON:
+	//   $  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
+	//      -XPOST -k https://localhost:5001/v1/grpc/tagger/stream_entities
+	//   {
+	//    "result": {
+	//        "entity": {
+	//            "id": {
+	//                "prefix": "kubernetes_pod_uid",
+	//                "uid": "4025461f832caf3fceb7fc2a32f879c6"
+	//            },
+	//            "hash": "cad4fc8fc409fcc1",
+	//            "lowCardinalityTags": [
+	//                "kube_namespace:kube-system",
+	//                "pod_phase:running"
+	//            ]
+	//        }
+	//    }
+	//}
 	TaggerStreamEntities(ctx context.Context, in *StreamTagsRequest, opts ...grpc.CallOption) (AgentSecure_TaggerStreamEntitiesClient, error)
+	// fetches an entity from the Tagger with the desired cardinality tags.
+	// can be called through the HTTP gateway, and entity will be returned as JSON:
+	//   $ curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
+	//      -XPOST -k -H "Content-Type: application/json" \
+	//      --data '{"id":{"prefix":"kubernetes_pod_uid","uid":"d575fb58-82dc-418e-bfb1-aececc9bc507"}}' \
+	//      https://localhost:5001/v1/grpc/tagger/fetch_entity
+	//   {
+	//    "id": {
+	//        "prefix": "kubernetes_pod_uid",
+	//        "uid": "d575fb58-82dc-418e-bfb1-aececc9bc507"
+	//    },
+	//    "tags": [
+	//        "kube_namespace:kube-system",
+	//        "pod_phase:running",
+	//        "kube_deployment:coredns",
+	//        "kube_service:kube-dns"
+	//    ]
+	//}
 	TaggerFetchEntity(ctx context.Context, in *FetchEntityRequest, opts ...grpc.CallOption) (*FetchEntityResponse, error)
 }
 
@@ -742,7 +782,45 @@ func (c *agentSecureClient) TaggerFetchEntity(ctx context.Context, in *FetchEnti
 
 // AgentSecureServer is the server API for AgentSecure service.
 type AgentSecureServer interface {
+	// subscribes to added, removed, or changed entities in the Tagger
+	// and streams them to clients as events.
+	// can be called through the HTTP gateway, and events will be streamed as JSON:
+	//   $  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
+	//      -XPOST -k https://localhost:5001/v1/grpc/tagger/stream_entities
+	//   {
+	//    "result": {
+	//        "entity": {
+	//            "id": {
+	//                "prefix": "kubernetes_pod_uid",
+	//                "uid": "4025461f832caf3fceb7fc2a32f879c6"
+	//            },
+	//            "hash": "cad4fc8fc409fcc1",
+	//            "lowCardinalityTags": [
+	//                "kube_namespace:kube-system",
+	//                "pod_phase:running"
+	//            ]
+	//        }
+	//    }
+	//}
 	TaggerStreamEntities(*StreamTagsRequest, AgentSecure_TaggerStreamEntitiesServer) error
+	// fetches an entity from the Tagger with the desired cardinality tags.
+	// can be called through the HTTP gateway, and entity will be returned as JSON:
+	//   $ curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
+	//      -XPOST -k -H "Content-Type: application/json" \
+	//      --data '{"id":{"prefix":"kubernetes_pod_uid","uid":"d575fb58-82dc-418e-bfb1-aececc9bc507"}}' \
+	//      https://localhost:5001/v1/grpc/tagger/fetch_entity
+	//   {
+	//    "id": {
+	//        "prefix": "kubernetes_pod_uid",
+	//        "uid": "d575fb58-82dc-418e-bfb1-aececc9bc507"
+	//    },
+	//    "tags": [
+	//        "kube_namespace:kube-system",
+	//        "pod_phase:running",
+	//        "kube_deployment:coredns",
+	//        "kube_service:kube-dns"
+	//    ]
+	//}
 	TaggerFetchEntity(context.Context, *FetchEntityRequest) (*FetchEntityResponse, error)
 }
 

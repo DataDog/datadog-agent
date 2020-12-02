@@ -35,3 +35,7 @@ func BuildAgentKey(keys ...string) string {
 	keys = append([]string{AgentCachePrefix}, keys...)
 	return path.Join(keys...)
 }
+
+func NewCache(expire, purge time.Duration) *cache.Cache {
+	return cache.New(expire, purge)
+}

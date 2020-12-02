@@ -20,9 +20,9 @@ import (
 
 // CreateSecurityAgentArchive packages up the files
 func CreateSecurityAgentArchive(local bool, logFilePath string, runtimeStatus map[string]interface{}) (string, error) {
-	zipFilePath := getArchivePath()
+	zipFilePath := GetArchivePath()
 
-	tempDir, err := createTempDir()
+	tempDir, err := CreateTempDir()
 	if err != nil {
 		return "", err
 	}

@@ -1,0 +1,99 @@
+syntax = "proto3";
+
+package pb;
+
+import "google/api/annotations.proto";
+
+// The flare service definition.
+service Flare {
+
+    // get tracer heartbeat
+    rpc ServiceHeartbeat (FlareHeartbeatRequest) returns (FlareHeartbeatResponse) {
+        option (google.api.http) = {
+            post: "/v1/grpc/flare/service_heartbeat"
+            body: "*"
+        };
+    }
+
+    // make flare service request
+    rpc ServiceQuery (FlareQueryRequest) returns (FlareQueryResponse) {
+        option (google.api.http) = {
+            post: "/v1/grpc/flare/service_query"
+            body: "*"
+        };
+    }
+
+    // log events
+    rpc LogEvent (FlareLogRequest) returns (FlareLogResponse) {
+        option (google.api.http) = {
+            post: "/v1/grpc/flare/log/{flare_identifier}/{tracer_identifier}"
+            body: "*"
+        };
+    }
+}
+
+// Flare
+enum FlareLogLevel {
+    TRACE = 0;
+    DEBUG = 1;
+    INFO  = 2;
+    WARN  = 3;
+    ERROR = 4;
+}
+
+message FlareHeartbeatRequest {
+    string tracer_identifier = 1;
+    string tracer_service = 2;
+    string tracer_environment = 3;
+}
+
+message FlareHeartbeatResponse {
+    message Trigger {
+        string flare_identifier = 1;   // Identifier that the tracer
+                                      // should supply with the log
+                                      // request to be able to
+                                      // correlate the log lines with
+                                      // a specific flare request.
+        FlareLogLevel log_level = 2;  // Which log level the tracer
+                                      // should switch to.
+        int64 end_time  = 3;          // For how long should the dump
+                                      // logs be sent to the agent.
+                                      // Can be 0 to only send the
+                                      // initialization logs and
+                                      // exception logs that the tracer
+                                      // might have collected during
+                                      // its normal operation.
+    }
+    Trigger trigger = 1;     // The flare heartbeat response
+                             // should be empty if no flare
+                             // should be triggered on the
+                             // tracer side.
+}
+
+message FlareQueryRequest {
+    FlareHeartbeatRequest query = 1;
+}
+
+message FlareQueryResponse {
+    repeated FlareHeartbeatRequest answer = 1;
+}
+
+
+message FlareLogRequest {
+    string flare_identifier = 1;
+    string tracer_identifier = 2;
+
+    message LogLine {
+        // relevant?
+        FlareLogLevel log_level = 1;
+        string message = 2;
+    }
+    repeated LogLine logs = 3; // log messages
+
+}
+
+message FlareLogResponse {
+    string stop_reason = 1; // Human readable reason why the
+                            // tracer should stop sending
+                            // logs.
+}

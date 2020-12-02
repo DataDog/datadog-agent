@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
@@ -191,7 +192,7 @@ func makeRequest(url string) ([]byte, error) {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	// Set session token
-	e = util.SetAuthToken()
+	e = security.SetAuthToken()
 	if e != nil {
 		return nil, e
 	}

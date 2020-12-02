@@ -11,6 +11,8 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 )
 
 // GetClient is a convenience function returning an http client
@@ -33,7 +35,7 @@ func DoGet(c *http.Client, url string) (body []byte, e error) {
 		return body, e
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+GetAuthToken())
+	req.Header.Set("Authorization", "Bearer "+security.GetAuthToken())
 
 	r, e := c.Do(req)
 	if e != nil {
@@ -58,7 +60,7 @@ func DoPost(c *http.Client, url string, contentType string, body io.Reader) (res
 		return resp, e
 	}
 	req.Header.Set("Content-Type", contentType)
-	req.Header.Set("Authorization", "Bearer "+GetAuthToken())
+	req.Header.Set("Authorization", "Bearer "+security.GetAuthToken())
 
 	r, e := c.Do(req)
 	if e != nil {
