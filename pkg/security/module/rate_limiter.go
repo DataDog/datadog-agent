@@ -33,9 +33,8 @@ type Limiter struct {
 	limiter *rate.Limiter
 
 	// https://github.com/golang/go/issues/36606
-	padding int32
+	padding int32 //nolint:structcheck,unused
 	dropped int64
-	align   int64
 	allowed int64
 }
 

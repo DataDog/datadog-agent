@@ -62,7 +62,6 @@ type Probe struct {
 	config             *config.Config
 	handler            EventHandler
 	resolvers          *Resolvers
-	discarderHandlers  map[eval.EventType][]onDiscarderHandler
 	pidDiscarders      *lib.Map
 	inodeDiscarders    *lib.Map
 	invalidDiscarders  map[eval.Field]map[interface{}]bool

@@ -62,7 +62,7 @@ func (p *Probe) removeDiscarderInode(mountID uint32, inode uint64) {
 			Inode:   inode,
 		},
 	}
-	p.inodeDiscarders.Delete(&key)
+	_ = p.inodeDiscarders.Delete(&key)
 }
 
 func (p *Probe) discardInode(eventType EventType, mountID uint32, inode uint64) error {
