@@ -1,6 +1,7 @@
 package quantile
 
 import (
+	"fmt"
 	"math"
 	"testing"
 
@@ -22,7 +23,8 @@ func fillNonContiguousBins(s *sketchpb.DDSketch) {
 	for i, c := range s.PositiveValues.ContiguousBinCounts[x:] {
 		s.PositiveValues.BinCounts[int32(i + x) + s.PositiveValues.ContiguousBinIndexOffset] = c
 	}
-	s.PositiveValues.ContiguousBinCounts = s.PositiveValues.ContiguousBinCounts[:x-1]
+	fmt.Println("adding")
+	s.PositiveValues.ContiguousBinCounts = s.PositiveValues.ContiguousBinCounts[:x]
 }
 
 // getConvertedSketchQuantiles generates a DDSketch using the generator function, then converts it
