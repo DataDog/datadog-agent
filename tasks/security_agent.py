@@ -203,7 +203,7 @@ def stress_tests(
 
     cmd = 'go test -tags functionaltests,stresstests,{build_tags} {race_opt} {output_opt} '
     cmd += '{verbose_opt} {failfast_opt} {run_opt} {bench_opt} {repo_path}/pkg/security/tests'
-    cmd += '{keep_profile} {report_file} {diff_base}
+    cmd += '{keep_profile} {report_file} {diff_base}'
 
     if os.getuid() != 0 and not output:
         cmd = 'sudo -E PATH={path} ' + cmd

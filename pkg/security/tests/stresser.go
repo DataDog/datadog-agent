@@ -8,11 +8,13 @@
 package tests
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"runtime/pprof"
+	"strings"
 	"testing"
 	"text/tabwriter"
 	"time"
@@ -93,6 +95,8 @@ func (s *StressFlag) Parse(usage func()) []string {
 	return []string{s.Path}
 }
 
+type StressReports map[string]*StressReport
+
 // StressReport defines a Stresser report
 type StressReport struct {
 	Duration      time.Duration
@@ -102,7 +106,7 @@ type StressReport struct {
 		Value float64
 		Unit  string
 	} `json:",omitempty"`
-	Top []byte `json:",omitempty"`
+	Top []byte `json:"-"`
 }
 
 // AddMetric add custom metrics to the report
@@ -152,10 +156,13 @@ func (s *StressReport) Print() {
 	fmt.Println()
 	fmt.Println("----- Profiling Report -----")
 	fmt.Println(string(s.Top))
+	fmt.Println()
 }
 
 // Write the report information for delta computation
-func (s *StressReport) Write(filename string) error {
+func (s *StressReport) Save(filename string, name string) error {
+	var reports StressReports
+
 	if filename == "" {
 		file, err := ioutil.TempFile("/tmp", "stress-report-")
 		if err != nil {
@@ -164,11 +171,23 @@ func (s *StressReport) Write(filename string) error {
 		file.Close()
 
 		filename = file.Name()
+
+		reports = map[string]*StressReport{
+			name: s,
+		}
+	} else {
+		if err := reports.Load(filename); err != nil {
+			reports = map[string]*StressReport{
+				name: s,
+			}
+		} else {
+			reports[name] = s
+		}
 	}
 
-	fmt.Printf("Writing state in %s\n", filename)
+	fmt.Printf("Writing reports in %s\n", filename)
 
-	j, _ := json.Marshal(s)
+	j, _ := json.Marshal(reports)
 	err := ioutil.WriteFile(filename, j, 0644)
 	if err != nil {
 		return err
@@ -177,8 +196,8 @@ func (s *StressReport) Write(filename string) error {
 	return nil
 }
 
-// Parse previous report
-func (s *StressReport) Parse(filename string) error {
+// Load previous report
+func (s *StressReports) Load(filename string) error {
 	jsonFile, err := os.Open(filename)
 	if err != nil {
 		return err
@@ -197,6 +216,39 @@ func (s *StressReport) Parse(filename string) error {
 	return nil
 }
 
+func getTopData(filename string, from string, size int) ([]byte, error) {
+	topFile, err := ioutil.TempFile("/tmp", "stress-top-")
+	if err != nil {
+		return nil, err
+	}
+	defer os.Remove(topFile.Name())
+
+	flagSet := &StressFlag{Path: filename, Top: topFile.Name(), From: from}
+
+	if err := driver.PProf(&driver.Options{Flagset: flagSet}); err != nil {
+		return nil, err
+	}
+
+	file, err := os.Open(topFile.Name())
+	if err != nil {
+		return nil, err
+	}
+
+	scanner := bufio.NewScanner(file)
+	scanner.Split(bufio.ScanLines)
+
+	var topLines []string
+	for scanner.Scan() {
+		topLines = append(topLines, scanner.Text())
+		if len(topLines) > size {
+			break
+		}
+	}
+	file.Close()
+
+	return []byte(strings.Join(topLines, "\n")), nil
+}
+
 // StressIt starts the stress test
 func StressIt(t *testing.T, pre, post, fnc func() error, opts StressOpts) (StressReport, error) {
 	proFile, err := ioutil.TempFile("/tmp", "stress-profile-")
@@ -209,12 +261,6 @@ func StressIt(t *testing.T, pre, post, fnc func() error, opts StressOpts) (Stres
 	} else {
 		fmt.Printf("Generating profile in %s\n", proFile.Name())
 	}
-
-	topFile, err := ioutil.TempFile("/tmp", "stress-top-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(topFile.Name())
 
 	if err := pre(); err != nil {
 		t.Fatal(err)
@@ -256,14 +302,7 @@ LOOP:
 		t.Fatal(err)
 	}
 
-	// generate report
-	flagSet := &StressFlag{Path: proFile.Name(), Top: topFile.Name(), From: opts.TopFrom}
-
-	if err := driver.PProf(&driver.Options{Flagset: flagSet}); err != nil {
-		t.Fatal(err)
-	}
-
-	topData, err := ioutil.ReadFile(topFile.Name())
+	topData, err := getTopData(proFile.Name(), opts.TopFrom, 50)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -275,15 +314,19 @@ LOOP:
 	}
 
 	if opts.DiffBase != "" {
-		var baseReport StressReport
-		if err := baseReport.Parse(diffBase); err != nil {
+		var baseReports StressReports
+		if err := baseReports.Load(diffBase); err != nil {
 			t.Fatal(err)
 		}
-		report.BaseIteration = baseReport.Iteration
+
+		baseReport, exists := baseReports[t.Name()]
+		if exists {
+			report.BaseIteration = baseReport.Iteration
+		}
 	}
 
 	// save report for further comparison
-	if err := report.Write(opts.ReportFile); err != nil {
+	if err := report.Save(opts.ReportFile, t.Name()); err != nil {
 		t.Fatal(err)
 	}
 

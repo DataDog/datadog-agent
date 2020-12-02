@@ -130,12 +130,12 @@ if [[ $1 == "security-agent-test" ]]; then
   cat kitchen-azure-security-agent-test.yml >> kitchen.yml
 fi
 
-if [[ $1 == "system-probe-test" ]]; then
-  cat kitchen-azure-system-probe-test.yml >> kitchen.yml
-fi
-
 if [[ $1 == "security-agent-stress" ]]; then
   cat kitchen-azure-security-agent-stress.yml >> kitchen.yml
+fi
+
+if [[ $1 == "system-probe-test" ]]; then
+  cat kitchen-azure-system-probe-test.yml >> kitchen.yml
 fi
 
 bundle exec kitchen diagnose --no-instances --loader

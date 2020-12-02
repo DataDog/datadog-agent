@@ -19,9 +19,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
-var keepProfile bool
-var reportFile string
-var diffBase string
+var (
+	keepProfile bool
+	reportFile  string
+	diffBase    string
+	duration    int
+)
 
 // Stress test of open syscalls
 func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size int) {
@@ -91,7 +94,7 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 	}
 
 	opts := StressOpts{
-		Duration:    30 * time.Second,
+		Duration:    time.Duration(30) * time.Second,
 		KeepProfile: keepProfile,
 		DiffBase:    diffBase,
 		TopFrom:     "module",
@@ -176,4 +179,5 @@ func init() {
 	flag.BoolVar(&keepProfile, "keep-profile", false, "do not delete profile after run")
 	flag.StringVar(&reportFile, "report-file", "", "save report of the stress test")
 	flag.StringVar(&diffBase, "diff-base", "", "source of base stress report for comparison")
+	flag.IntVar(&duration, "duration", 30, "duration of the run in second")
 }
