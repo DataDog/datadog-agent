@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-headless-server
+  labels:
+    type: headless-server
+spec:
+  containers:
+    - image: itsthenetwork/alpine-ncat
+      name: headless-server
+      command: ["/bin/bash", "-c", "ncat -vv --broker --listen -p 543 > /dev/null"]
+      ports:
+        - containerPort: 543
+  nodeSelector:
+    failure-domain.beta.kubernetes.io/zone: eu-west-1a
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: headless-service
+  labels:
+    type: headless-service
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - port: 543
+      protocol: TCP
+  selector:
+    type: headless-server
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-headless-client
+spec:
+  containers:
+    - image: jgkamat/netcat
+      name: headless-client
+      command: ["/bin/bash", "-c", "yes | nc -vv headless-service 543"]
+  nodeSelector:
+    failure-domain.beta.kubernetes.io/zone: eu-west-1b
