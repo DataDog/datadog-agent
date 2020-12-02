@@ -1,8 +1,6 @@
 package quantile
 
 import (
-	"fmt"
-	"github.com/golang/protobuf/proto"
 	"math"
 	"testing"
 
@@ -10,25 +8,31 @@ import (
 	"github.com/DataDog/sketches-go/ddsketch/mapping"
 	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
 	"github.com/DataDog/sketches-go/ddsketch/store"
+	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 )
 
 const relativeValueError = 0.01
 
-func fillNonContiguousBins(s *sketchpb.DDSketch) {
-	// copy half of the bins to the map
+// fillBinsMap copies half of the bins to the map in order to ensure
+// that we test both the map and the array storage of bins.
+func fillBinsMap(s *sketchpb.DDSketch) {
 	s.PositiveValues.BinCounts = make(map[int32]float64)
 	n := len(s.PositiveValues.ContiguousBinCounts)
-	x := n / 2
-	for i, c := range s.PositiveValues.ContiguousBinCounts[x:] {
-		s.PositiveValues.BinCounts[int32(i+x)+s.PositiveValues.ContiguousBinIndexOffset] = c
+	m := n / 2
+	for i, c := range s.PositiveValues.ContiguousBinCounts[m:] {
+		s.PositiveValues.BinCounts[int32(i+m)+s.PositiveValues.ContiguousBinIndexOffset] = c
 	}
-	fmt.Println("adding")
-	s.PositiveValues.ContiguousBinCounts = s.PositiveValues.ContiguousBinCounts[:x]
+	s.PositiveValues.ContiguousBinCounts = s.PositiveValues.ContiguousBinCounts[:m]
 }
 
-// getConvertedSketchQuantiles generates a DDSketch using the generator function, then converts it
-// to GK Sketch and gets the quantiles.
+// getConvertedSketchQuantiles follows this steps:
+// 1. Generates two DDSketches: OK and Errors:
+//    - Errors uses the generator function from 0 to n-1
+//    - OK uses the generator function from n to 2*n-1)
+// 2. Converts OK and errors DDSketches to hits and errors GK sketches (hits = ok + errors)
+//    - That way, hits is the distribution from 0 to 2*n-1
+// 3. Computes quantiles on the GK sketches hits and errors and returns them
 func getConvertedSketchQuantiles(t *testing.T, n int, gen func(i int) float64, testQuantiles []float64) (hits []float64, errors []float64) {
 	assert := assert.New(t)
 	m, err := mapping.NewLogarithmicMapping(relativeValueError)
@@ -36,7 +40,6 @@ func getConvertedSketchQuantiles(t *testing.T, n int, gen func(i int) float64, t
 	errS := ddsketch.NewDDSketch(m, store.NewDenseStore(), store.NewDenseStore())
 	okS := ddsketch.NewDDSketch(m, store.NewDenseStore(), store.NewDenseStore())
 
-	// err is the distribution until n, hits (ok + err) is the distribution until 2*n
 	for i := 0; i < n; i++ {
 		x := gen(i)
 		assert.Nil(errS.Accept(x))
@@ -48,8 +51,8 @@ func getConvertedSketchQuantiles(t *testing.T, n int, gen func(i int) float64, t
 	okProto := okS.ToProto()
 	errProto := errS.ToProto()
 
-	fillNonContiguousBins(okProto)
-	fillNonContiguousBins(errProto)
+	fillBinsMap(okProto)
+	fillBinsMap(errProto)
 
 	okData, err := proto.Marshal(okProto)
 	assert.Nil(err)
@@ -77,10 +80,8 @@ func testDDSketchToGKConstant(t *testing.T, n int) {
 	}
 }
 
-/* uniform distribution
-   expected quantiles are easy to compute as the value == its rank
-*/
-
+// testDDSketchToGKUniform tests the conversion from dd to gk sketches on uniform distributions.
+// For uniform distributions, quantiles are easy to compute as the value == its rank.
 func testDDSketchToGKUniform(t *testing.T, n int) {
 	assert := assert.New(t)
 	hits, errors := getConvertedSketchQuantiles(t, n, UniformGenerator, testQuantiles)
@@ -97,8 +98,6 @@ func testDDSketchToGKUniform(t *testing.T, n int) {
 		}
 		assert.InDelta(exp, v, EPSILON*float64(n)+relativeValueError*exp, "quantile %f failed, exp: %f, val: %f", testQuantiles[i], exp, v)
 	}
-	// hits = ok + err. because ok is the distribution from n to 2n,
-	// and errors is the distribution from 1 to n, hits is the distribution from 1 to 2n
 	for i, v := range hits {
 		var exp float64
 		if testQuantiles[i] == 0 {

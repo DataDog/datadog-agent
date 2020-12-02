@@ -18,17 +18,17 @@ import (
 // ddSketch represents the sketch described here: http://www.vldb.org/pvldb/vol12/p2195-masson.pdf
 // This representation only supports positive values.
 type ddSketch struct {
-	contiguousBins []float64
-	bins           map[int32]float64
-	offset         int
-	zeros          int
-	mapping        mapping.IndexMapping
+	contiguousBins       []float64
+	bins                 map[int32]float64
+	contiguousBinsOffset int
+	zeros                int
+	mapping              mapping.IndexMapping
 }
 
 // count returns the count for a given index.
 func (s *ddSketch) count(index int) (count int) {
-	if index >= s.offset && index < s.offset+len(s.contiguousBins) {
-		count = int(s.contiguousBins[index-s.offset])
+	if index >= s.contiguousBinsOffset && index < s.contiguousBinsOffset+len(s.contiguousBins) {
+		count = int(s.contiguousBins[index-s.contiguousBinsOffset])
 	}
 	if c, ok := s.bins[int32(index)]; ok {
 		count += int(c)
@@ -40,36 +40,37 @@ func (s *ddSketch) maxSize() int {
 	return len(s.bins) + len(s.contiguousBins)
 }
 
+// getIndexes returns all the sorted indexes contained in s1 and s2.
 func getIndexes(s1 ddSketch, s2 ddSketch) []int {
 	// todo: No need to re-allocate that array at each conversion.
 	// but this function needs to be thread safe in the agent.
 	indexes := make([]int, 0, s1.maxSize()+s2.maxSize())
 	for i := range s1.contiguousBins {
-		indexes = append(indexes, i+s1.offset)
+		indexes = append(indexes, i+s1.contiguousBinsOffset)
 	}
 	for i := range s2.contiguousBins {
-		ind := i + s2.offset
-		if ind >= s1.offset && ind < s1.offset+len(s1.contiguousBins) {
+		ind := i + s2.contiguousBinsOffset
+		if ind >= s1.contiguousBinsOffset && ind < s1.contiguousBinsOffset+len(s1.contiguousBins) {
 			continue
 		}
 		indexes = append(indexes, ind)
 	}
 	for i := range s1.bins {
 		ind := int(i)
-		if ind >= s1.offset && ind < s1.offset+len(s1.contiguousBins) {
+		if ind >= s1.contiguousBinsOffset && ind < s1.contiguousBinsOffset+len(s1.contiguousBins) {
 			continue
 		}
-		if ind >= s2.offset && ind < s2.offset+len(s2.contiguousBins) {
+		if ind >= s2.contiguousBinsOffset && ind < s2.contiguousBinsOffset+len(s2.contiguousBins) {
 			continue
 		}
 		indexes = append(indexes, ind)
 	}
 	for i := range s2.bins {
 		ind := int(i)
-		if ind >= s1.offset && ind < s1.offset+len(s1.contiguousBins) {
+		if ind >= s1.contiguousBinsOffset && ind < s1.contiguousBinsOffset+len(s1.contiguousBins) {
 			continue
 		}
-		if ind >= s2.offset && ind < s2.offset+len(s2.contiguousBins) {
+		if ind >= s2.contiguousBinsOffset && ind < s2.contiguousBinsOffset+len(s2.contiguousBins) {
 			continue
 		}
 		if _, ok := s1.bins[i]; ok {
@@ -81,35 +82,27 @@ func getIndexes(s1 ddSketch, s2 ddSketch) []int {
 	return indexes
 }
 
-// decodeDDSketch decodes a ddSketch from a protobuf encoded ddSketch
-// it only supports positive contiguous bins
+// decodeDDSketch decodes a ddSketch from a protobuf encoded ddSketch.
+// It only supports sketches with positive values.
 func decodeDDSketch(data []byte) (ddSketch, error) {
-	var sketchPb sketchpb.DDSketch
-	if err := proto.Unmarshal(data, &sketchPb); err != nil {
+	var pb sketchpb.DDSketch
+	if err := proto.Unmarshal(data, &pb); err != nil {
 		return ddSketch{}, err
 	}
-	mapping, err := ddSketchMappingFromProto(sketchPb.Mapping)
+	mapping, err := ddSketchMappingFromProto(pb.Mapping)
 	if err != nil {
 		return ddSketch{}, err
 	}
-	if sketchPb.Mapping.IndexOffset > 0 {
-		err = errors.New("index offset non 0")
-	}
-	if len(sketchPb.NegativeValues.BinCounts) > 0 {
-		err = errors.New("contains negative values")
-	}
-	if len(sketchPb.NegativeValues.ContiguousBinCounts) > 0 {
-		err = errors.New("contains negative values")
-	}
-	if err != nil {
-		return ddSketch{}, errors.New("ddSketch format not supported: " + err.Error())
+	if len(pb.NegativeValues.BinCounts) > 0 ||
+		len(pb.NegativeValues.ContiguousBinCounts) > 0 {
+		return ddSketch{}, errors.New("negative values not supported")
 	}
 	return ddSketch{
-		mapping:        mapping,
-		bins:           sketchPb.PositiveValues.BinCounts,
-		contiguousBins: sketchPb.PositiveValues.ContiguousBinCounts,
-		offset:         int(sketchPb.PositiveValues.ContiguousBinIndexOffset),
-		zeros:          int(sketchPb.ZeroCount),
+		mapping:              mapping,
+		bins:                 pb.PositiveValues.BinCounts,
+		contiguousBins:       pb.PositiveValues.ContiguousBinCounts,
+		contiguousBinsOffset: int(pb.PositiveValues.ContiguousBinIndexOffset),
+		zeros:                int(pb.ZeroCount),
 	}, nil
 }
 
