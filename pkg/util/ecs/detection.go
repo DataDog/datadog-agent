@@ -22,6 +22,7 @@ const (
 	isFargateInstanceCacheKey      = "IsFargateInstanceCacheKey"
 	hasFargateResourceTagsCacheKey = "HasFargateResourceTagsCacheKey"
 	hasEC2ResourceTagsCacheKey     = "HasEC2ResourceTagsCacheKey"
+	hasEC2ResourceTagsCacheExpiry  = 5 * time.Minute
 )
 
 // IsECSInstance returns whether the agent is running in ECS.
@@ -82,10 +83,12 @@ func HasEC2ResourceTags() bool {
 	return queryCacheBool(hasEC2ResourceTagsCacheKey, func() (bool, time.Duration) {
 		client, err := ecsmeta.V3FromCurrentTask()
 		if err != nil {
-			return newBoolEntry(false)
+			log.Debugf("failed to detect V3 metadata endpoint: %s", err)
+			return false, hasEC2ResourceTagsCacheExpiry
 		}
 		_, err = client.GetTaskWithTags()
-		return newBoolEntry(err == nil)
+		log.Debugf("failed to get task with tags: %s", err)
+		return err == nil, hasEC2ResourceTagsCacheExpiry
 	})
 }
 
