@@ -18,11 +18,16 @@ import (
 // ddSketch represents the sketch described here: http://www.vldb.org/pvldb/vol12/p2195-masson.pdf
 // This representation only supports positive values.
 type ddSketch struct {
+	// bins is the map from index --> count
+	bins map[int32]float64
+	// contiguousBins is a more compact representation for contiguous bins.
+	// the index of each bin is the index in the array + contiguousBinsOffset
 	contiguousBins       []float64
-	bins                 map[int32]float64
 	contiguousBinsOffset int
-	zeros                int
-	mapping              mapping.IndexMapping
+	// zeros is the count of 0 and its close neighbors (close defined by gamma).
+	zeros int
+	// mapping is the mapping of the ddSketch: interpolation, gamma and global index offset.
+	mapping mapping.IndexMapping
 }
 
 // count returns the count for a given index.
