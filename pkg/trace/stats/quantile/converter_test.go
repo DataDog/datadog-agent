@@ -19,9 +19,9 @@ func fillNonContiguousBins(s *sketchpb.DDSketch) {
 	// copy half of the bins to the map
 	s.PositiveValues.BinCounts = make(map[int32]float64)
 	n := len(s.PositiveValues.ContiguousBinCounts)
-	x := n/2
+	x := n / 2
 	for i, c := range s.PositiveValues.ContiguousBinCounts[x:] {
-		s.PositiveValues.BinCounts[int32(i + x) + s.PositiveValues.ContiguousBinIndexOffset] = c
+		s.PositiveValues.BinCounts[int32(i+x)+s.PositiveValues.ContiguousBinIndexOffset] = c
 	}
 	fmt.Println("adding")
 	s.PositiveValues.ContiguousBinCounts = s.PositiveValues.ContiguousBinCounts[:x]
@@ -103,7 +103,7 @@ func testDDSketchToGKUniform(t *testing.T, n int) {
 			rank := math.Ceil(testQuantiles[i] * float64(n))
 			exp = rank - 1
 		}
-		assert.InDelta(exp, v,EPSILON*float64(n)+ relativeValueError*exp, "quantile %f failed, exp: %f, val: %f", testQuantiles[i], exp, v)
+		assert.InDelta(exp, v, EPSILON*float64(n)+relativeValueError*exp, "quantile %f failed, exp: %f, val: %f", testQuantiles[i], exp, v)
 	}
 	// hits = ok + err. because ok is the distribution from n to 2n,
 	// and errors is the distribution from 1 to n, hits is the distribution from 1 to 2n
@@ -117,7 +117,7 @@ func testDDSketchToGKUniform(t *testing.T, n int) {
 			rank := math.Ceil(testQuantiles[i] * float64(2*n))
 			exp = rank - 1
 		}
-		assert.InDelta(exp, v,EPSILON*float64(2*n)+ relativeValueError*exp, "quantile %f failed, exp: %f, val: %f", testQuantiles[i], exp, v)
+		assert.InDelta(exp, v, EPSILON*float64(2*n)+relativeValueError*exp, "quantile %f failed, exp: %f, val: %f", testQuantiles[i], exp, v)
 	}
 }
 

@@ -287,10 +287,10 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang string) {
 				tags["http.status_code"] = strconv.Itoa(int(b.HTTPStatusCode))
 			}
 			newb := stats.Bucket{
-				Start:    int64(group.Start),
-				Duration: int64(group.Duration),
-				Counts:   make(map[string]stats.Count),
-				Distributions: make(map[string]stats.Distribution),
+				Start:            int64(group.Start),
+				Duration:         int64(group.Duration),
+				Counts:           make(map[string]stats.Count),
+				Distributions:    make(map[string]stats.Distribution),
 				ErrDistributions: make(map[string]stats.Distribution),
 			}
 			grain, tagset := stats.AssembleGrain(&buf, out.Env, b.Resource, b.Service, tags)

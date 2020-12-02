@@ -19,15 +19,15 @@ import (
 // This representation only supports positive values.
 type ddSketch struct {
 	contiguousBins []float64
-	bins map[int32]float64
-	offset int
-	zeros int
-	mapping mapping.IndexMapping
+	bins           map[int32]float64
+	offset         int
+	zeros          int
+	mapping        mapping.IndexMapping
 }
 
 // count returns the count for a given index.
 func (s *ddSketch) count(index int) (count int) {
-	if index >= s.offset && index < s.offset + len(s.contiguousBins) {
+	if index >= s.offset && index < s.offset+len(s.contiguousBins) {
 		count = int(s.contiguousBins[index-s.offset])
 	}
 	if c, ok := s.bins[int32(index)]; ok {
@@ -43,33 +43,33 @@ func (s *ddSketch) maxSize() int {
 func getIndexes(s1 ddSketch, s2 ddSketch) []int {
 	// todo: No need to re-allocate that array at each conversion.
 	// but this function needs to be thread safe in the agent.
-	indexes := make([]int, 0, s1.maxSize() + s2.maxSize())
+	indexes := make([]int, 0, s1.maxSize()+s2.maxSize())
 	for i := range s1.contiguousBins {
-		indexes = append(indexes, i + s1.offset)
+		indexes = append(indexes, i+s1.offset)
 	}
 	for i := range s2.contiguousBins {
 		ind := i + s2.offset
-		if ind >= s1.offset && ind < s1.offset + len(s1.contiguousBins) {
+		if ind >= s1.offset && ind < s1.offset+len(s1.contiguousBins) {
 			continue
 		}
 		indexes = append(indexes, ind)
 	}
 	for i := range s1.bins {
 		ind := int(i)
-		if ind >= s1.offset && ind < s1.offset + len(s1.contiguousBins) {
+		if ind >= s1.offset && ind < s1.offset+len(s1.contiguousBins) {
 			continue
 		}
-		if ind >= s2.offset && ind < s2.offset + len(s2.contiguousBins) {
+		if ind >= s2.offset && ind < s2.offset+len(s2.contiguousBins) {
 			continue
 		}
 		indexes = append(indexes, ind)
 	}
 	for i := range s2.bins {
 		ind := int(i)
-		if ind >= s1.offset && ind < s1.offset + len(s1.contiguousBins) {
+		if ind >= s1.offset && ind < s1.offset+len(s1.contiguousBins) {
 			continue
 		}
-		if ind >= s2.offset && ind < s2.offset + len(s2.contiguousBins) {
+		if ind >= s2.offset && ind < s2.offset+len(s2.contiguousBins) {
 			continue
 		}
 		if _, ok := s1.bins[i]; ok {
@@ -92,18 +92,24 @@ func decodeDDSketch(data []byte) (ddSketch, error) {
 	if err != nil {
 		return ddSketch{}, err
 	}
-	if sketchPb.Mapping.IndexOffset > 0 { err = errors.New("index offset non 0") }
-	if  len(sketchPb.NegativeValues.BinCounts)> 0 { err = errors.New("contains negative values") }
-	if  len(sketchPb.NegativeValues.ContiguousBinCounts)> 0 { err = errors.New("contains negative values") }
+	if sketchPb.Mapping.IndexOffset > 0 {
+		err = errors.New("index offset non 0")
+	}
+	if len(sketchPb.NegativeValues.BinCounts) > 0 {
+		err = errors.New("contains negative values")
+	}
+	if len(sketchPb.NegativeValues.ContiguousBinCounts) > 0 {
+		err = errors.New("contains negative values")
+	}
 	if err != nil {
 		return ddSketch{}, errors.New("ddSketch format not supported: " + err.Error())
 	}
 	return ddSketch{
-		mapping: mapping,
-		bins: sketchPb.PositiveValues.BinCounts,
+		mapping:        mapping,
+		bins:           sketchPb.PositiveValues.BinCounts,
 		contiguousBins: sketchPb.PositiveValues.ContiguousBinCounts,
-		offset: int(sketchPb.PositiveValues.ContiguousBinIndexOffset),
-		zeros: int(sketchPb.ZeroCount),
+		offset:         int(sketchPb.PositiveValues.ContiguousBinIndexOffset),
+		zeros:          int(sketchPb.ZeroCount),
 	}, nil
 }
 
