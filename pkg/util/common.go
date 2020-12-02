@@ -121,19 +121,34 @@ func CopyDir(src, dst string) error {
 
 // GetFileSize gets the file size
 func GetFileSize(path string) (int64, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return 0, err
-	}
-	defer func() { _ = file.Close() }()
-
-	stat, err := file.Stat()
+	stat, err := getFileStat(path)
 
 	if err != nil {
 		return 0, err
 	}
 
 	return stat.Size(), nil
+}
+
+// GetFileModTime gets the modification time
+func GetFileModTime(path string) (time.Time, error) {
+	stat, err := getFileStat(path)
+
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	return stat.ModTime(), nil
+}
+
+func getFileStat(path string) (os.FileInfo, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = file.Close() }()
+
+	return file.Stat()
 }
 
 // EnsureParentDirsExist makes a path immediately available for
