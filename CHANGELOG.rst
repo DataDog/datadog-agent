@@ -79,7 +79,7 @@ Enhancement Notes
   in the default agent log directory, and can be configured with ``jmx_log_file``.
 
 - Added UDS support for JMXFetch
-  JMXFetch upgraded to `0.40.3 <https://github.com/DataDog/jmxfetch/releases/0.40.3>`
+  JMXFetch upgraded to `0.40.3 <https://github.com/DataDog/jmxfetch/releases/0.40.3>`_
 
 - dogstatsd_mapper_profiles may now be defined as an environment variable DD_DOGSTATSD_MAPPER_PROFILES formatted as JSON
 
