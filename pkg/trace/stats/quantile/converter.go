@@ -7,7 +7,6 @@ package quantile
 
 import (
 	"errors"
-	"fmt"
 	"sort"
 
 	"github.com/DataDog/sketches-go/ddsketch/mapping"
@@ -94,7 +93,7 @@ func decodeDDSketch(data []byte) (ddSketch, error) {
 	if err := proto.Unmarshal(data, &pb); err != nil {
 		return ddSketch{}, err
 	}
-	mapping, err := ddSketchMappingFromProto(pb.Mapping)
+	mapping, err := mapping.FromProto(pb.Mapping)
 	if err != nil {
 		return ddSketch{}, err
 	}
@@ -109,19 +108,6 @@ func decodeDDSketch(data []byte) (ddSketch, error) {
 		contiguousBinsOffset: int(pb.PositiveValues.ContiguousBinIndexOffset),
 		zeros:                int(pb.ZeroCount),
 	}, nil
-}
-
-func ddSketchMappingFromProto(mappingPb *sketchpb.IndexMapping) (m mapping.IndexMapping, err error) {
-	switch mappingPb.Interpolation {
-	case sketchpb.IndexMapping_NONE:
-		return mapping.NewLogarithmicMappingWithGamma(mappingPb.Gamma, mappingPb.IndexOffset)
-	case sketchpb.IndexMapping_LINEAR:
-		return mapping.NewLinearlyInterpolatedMappingWithGamma(mappingPb.Gamma, mappingPb.IndexOffset)
-	case sketchpb.IndexMapping_CUBIC:
-		return mapping.NewCubicallyInterpolatedMappingWithGamma(mappingPb.Gamma, mappingPb.IndexOffset)
-	default:
-		return nil, fmt.Errorf("interpolation not supported: %d", mappingPb.Interpolation)
-	}
 }
 
 // DDToGKSketches converts two dd sketches: ok and errors to 2 gk sketches: hits and errors

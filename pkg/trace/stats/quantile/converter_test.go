@@ -47,11 +47,11 @@ func getConvertedSketchQuantiles(t *testing.T, n int, gen func(i int) float64, t
 
 	for i := 0; i < n; i++ {
 		x := gen(i)
-		assert.Nil(errS.Accept(x))
+		assert.Nil(errS.Add(x))
 	}
 	for i := n; i < n*2; i++ {
 		x := gen(i)
-		assert.Nil(okS.Accept(x))
+		assert.Nil(okS.Add(x))
 	}
 	okProto := okS.ToProto()
 	errProto := errS.ToProto()

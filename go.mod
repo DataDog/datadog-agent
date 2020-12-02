@@ -60,7 +60,7 @@ require (
 	github.com/DataDog/gohai v0.0.0-20200605003749-e17d616e422a
 	github.com/DataDog/gopsutil v0.0.0-20200624212600-1b53412ef321
 	github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981 // indirect
-	github.com/DataDog/sketches-go v0.0.2-0.20201202141728-7e4faaa360e8
+	github.com/DataDog/sketches-go v0.0.2-0.20201202232949-822217a43020
 	github.com/DataDog/watermarkpodautoscaler v0.1.0
 	github.com/DataDog/zstd v0.0.0-20160706220725-2bf71ec48360
 	github.com/Masterminds/semver v1.5.0
