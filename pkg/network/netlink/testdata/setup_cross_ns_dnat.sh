@@ -13,7 +13,7 @@ ip -n test link set veth2 up
 # this is required to enable conntrack in the root net namespace
 # conntrack won't be enabled unless there is at least one iptables
 # rule that uses connection tracking
-iptables -A INPUT -m conntrack --ctstate NEW,RELATED,ESTABLISHED -j ACCEPT
+iptables -I INPUT 1 -m conntrack --ctstate NEW,RELATED,ESTABLISHED -j ACCEPT
 
 ip netns exec test iptables -A PREROUTING -t nat -p tcp --dport 80 -j REDIRECT --to-port 8080
 ip netns exec test iptables -A PREROUTING -t nat -p udp --dport 80 -j REDIRECT --to-port 8080
