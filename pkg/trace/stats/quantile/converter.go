@@ -165,7 +165,5 @@ func DDToGKSketches(okSketchData []byte, errSketchData []byte) (hits, errors *Sl
 		errors.Entries[0].Delta = 0
 		errors.Entries[len(errors.Entries)-1].Delta = 0
 	}
-	hits.compress()
-	errors.compress()
 	return hits, errors, nil
 }
