@@ -17,7 +17,7 @@ import (
 // ddSketch represents the sketch described here: http://www.vldb.org/pvldb/vol12/p2195-masson.pdf
 // This representation only supports positive values.
 type ddSketch struct {
-	// bins is the map from index --> count
+	// bins is the map from index to count
 	bins map[int32]float64
 	// contiguousBins is a more compact representation for contiguous bins.
 	// the index of each bin is the index in the array + contiguousBinsOffset
@@ -46,41 +46,41 @@ func (s *ddSketch) maxSize() int {
 
 // getIndexes returns all the sorted indexes contained in s1 and s2.
 func getIndexes(s1 ddSketch, s2 ddSketch) []int {
-	// todo: No need to re-allocate that array at each conversion.
+	// TODO(piochelepiotr): No need to re-allocate that array at each conversion.
 	// but this function needs to be thread safe in the agent.
 	indexes := make([]int, 0, s1.maxSize()+s2.maxSize())
 	for i := range s1.contiguousBins {
 		indexes = append(indexes, i+s1.contiguousBinsOffset)
 	}
 	for i := range s2.contiguousBins {
-		ind := i + s2.contiguousBinsOffset
-		if ind >= s1.contiguousBinsOffset && ind < s1.contiguousBinsOffset+len(s1.contiguousBins) {
+		index := i + s2.contiguousBinsOffset
+		if index >= s1.contiguousBinsOffset && index < s1.contiguousBinsOffset+len(s1.contiguousBins) {
 			continue
 		}
-		indexes = append(indexes, ind)
+		indexes = append(indexes, index)
 	}
 	for i := range s1.bins {
-		ind := int(i)
-		if ind >= s1.contiguousBinsOffset && ind < s1.contiguousBinsOffset+len(s1.contiguousBins) {
+		index := int(i)
+		if index >= s1.contiguousBinsOffset && index < s1.contiguousBinsOffset+len(s1.contiguousBins) {
 			continue
 		}
-		if ind >= s2.contiguousBinsOffset && ind < s2.contiguousBinsOffset+len(s2.contiguousBins) {
+		if index >= s2.contiguousBinsOffset && index < s2.contiguousBinsOffset+len(s2.contiguousBins) {
 			continue
 		}
-		indexes = append(indexes, ind)
+		indexes = append(indexes, index)
 	}
 	for i := range s2.bins {
-		ind := int(i)
-		if ind >= s1.contiguousBinsOffset && ind < s1.contiguousBinsOffset+len(s1.contiguousBins) {
+		index := int(i)
+		if index >= s1.contiguousBinsOffset && index < s1.contiguousBinsOffset+len(s1.contiguousBins) {
 			continue
 		}
-		if ind >= s2.contiguousBinsOffset && ind < s2.contiguousBinsOffset+len(s2.contiguousBins) {
+		if index >= s2.contiguousBinsOffset && index < s2.contiguousBinsOffset+len(s2.contiguousBins) {
 			continue
 		}
 		if _, ok := s1.bins[i]; ok {
 			continue
 		}
-		indexes = append(indexes, ind)
+		indexes = append(indexes, index)
 	}
 	sort.Ints(indexes)
 	return indexes
