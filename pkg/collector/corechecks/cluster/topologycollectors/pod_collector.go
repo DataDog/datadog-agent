@@ -143,12 +143,12 @@ func (pc *PodCollector) CollectorFunction() error {
 // Checks to see if the volume is a persistent volume
 func (pc *PodCollector) isPersistentVolume(volume v1.Volume) bool {
 	if volume.EmptyDir != nil || volume.Secret != nil || volume.ConfigMap != nil || volume.DownwardAPI != nil ||
-		volume.Projected != nil {
+		volume.Projected != nil || volumne.HostPath != nil {
 		return false
 	}
 
 	// persistent volume types
-	if volume.HostPath != nil || volume.GCEPersistentDisk != nil || volume.AWSElasticBlockStore != nil ||
+	if volume.GCEPersistentDisk != nil || volume.AWSElasticBlockStore != nil ||
 		volume.NFS != nil || volume.ISCSI != nil || volume.Glusterfs != nil ||
 		volume.RBD != nil || volume.FlexVolume != nil || volume.Cinder != nil || volume.CephFS != nil ||
 		volume.Flocker != nil || volume.DownwardAPI != nil || volume.FC != nil || volume.AzureFile != nil ||
@@ -282,6 +282,9 @@ func (pc *PodCollector) volumeToStackStateComponent(pod v1.Pod, volume v1.Volume
 
 	identifiers := make([]string, 0)
 	if volume.EmptyDir != nil {
+		identifiers = append(identifiers, fmt.Sprintf("urn:/%s:%s:volume:%s:%s", pc.GetInstance().URL, pc.GetInstance().Type, pod.Spec.NodeName, volume.Name))
+	}
+	if volume.HostPath != nil {
 		identifiers = append(identifiers, fmt.Sprintf("urn:/%s:%s:volume:%s:%s", pc.GetInstance().URL, pc.GetInstance().Type, pod.Spec.NodeName, volume.Name))
 	}
 	if volume.Secret != nil {
