@@ -11,7 +11,7 @@ import (
 
 	"github.com/DataDog/sketches-go/ddsketch/mapping"
 	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
-	"github.com/golang/latestprotobuf/proto"
+	"github.com/golang/protobuf/proto"
 )
 
 // ddSketch represents the sketch described here: http://www.vldb.org/pvldb/vol12/p2195-masson.pdf
