@@ -2,6 +2,7 @@
 #include <map>
 #include <string>
 #include "TargetMachine.h"
+#include "SID.h"
 
 class CustomActionData
 {
@@ -19,16 +20,21 @@ class CustomActionData
 
         bool isUserLocalUser() const;
 
+        bool DoesUserExists() const;
+
         const std::wstring& UnqualifiedUsername() const;
 
         const std::wstring& Username() const;
 
         const std::wstring& Domain() const;
-        void Domain(const std::wstring& domain);
+
+        PSID  Sid() const;
+        void Sid(sid_ptr& sid);
 
         bool installSysprobe() const;
 
         const TargetMachine& GetTargetMachine() const;
+        
     private:
         MSIHANDLE hInstall;
         TargetMachine machine;
@@ -36,8 +42,10 @@ class CustomActionData
         std::map< std::wstring, std::wstring> values;
         std::wstring _unqualifiedUsername;
         std::wstring _domain;
-        std::wstring _fqUsernameFromCli;
+        std::wstring _fqUsername;
+        sid_ptr _sid;
         bool doInstallSysprobe;
+        bool _ddUserExists;
 
         bool parseUsernameData();
         bool parseSysprobeData();

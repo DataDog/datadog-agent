@@ -182,6 +182,7 @@
     <ClInclude Include="ddreg.h" />
     <ClInclude Include="lmerr_str.h" />
     <ClInclude Include="resource.h" />
+    <ClInclude Include="SID.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="strings.h" />
     <ClInclude Include="TargetMachine.h" />
