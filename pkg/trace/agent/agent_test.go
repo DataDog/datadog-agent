@@ -323,7 +323,7 @@ func TestProcess(t *testing.T) {
 		// setting writer.MaxPayloadSize to the size of 1 trace (+1 byte)
 		defer func(oldSize int) { writer.MaxPayloadSize = oldSize }(writer.MaxPayloadSize)
 		writer.MaxPayloadSize = trace.Msgsize() + 1
-		// and expecting it to result in ~2.8 payloads (3)
+		// and expecting it to result in 3 payloads
 		expectedPayloads := 3
 		go agnt.Process(&api.Payload{
 			Traces: traces,
