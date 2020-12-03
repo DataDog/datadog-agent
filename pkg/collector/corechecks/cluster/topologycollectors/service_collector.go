@@ -4,7 +4,6 @@ package topologycollectors
 
 import (
 	"fmt"
-	"net"
 
 	"github.com/StackVista/stackstate-agent/pkg/collector/corechecks/cluster/dns"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
@@ -17,7 +16,7 @@ type ServiceCollector struct {
 	ComponentChan chan<- *topology.Component
 	RelationChan  chan<- *topology.Relation
 	ClusterTopologyCollector
-	DNS dns.DNSResolver
+	DNS dns.Resolver
 }
 
 // EndpointID contains the definition of a cluster ip
@@ -33,7 +32,7 @@ func NewServiceCollector(componentChannel chan<- *topology.Component, relationCh
 		ComponentChan:            componentChannel,
 		RelationChan:             relationChannel,
 		ClusterTopologyCollector: clusterTopologyCollector,
-		DNS:                      net.LookupHost,
+		DNS:                      dns.StandardResolver,
 	}
 }
 

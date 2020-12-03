@@ -2,6 +2,10 @@ package dns
 
 import "net"
 
-type DNSResolver func(name string) ([]string, error)
+// Resolver abstracts away the system dependency on the net.LookupHost, allowing it to be mocked out in testing.
+type Resolver func(name string) ([]string, error)
 
-var _ DNSResolver = net.LookupHost // Compile-time check
+// StandardResolver is the default net.LookupHost DNS resolver
+var StandardResolver = net.LookupHost
+
+var _ Resolver = StandardResolver // Compile-time check
