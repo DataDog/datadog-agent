@@ -774,7 +774,7 @@ func TestUDPSendAndReceive(t *testing.T) {
 
 	cmd := exec.Command("testdata/simulate_udp.sh")
 	if err := cmd.Run(); err != nil {
-		t.Errorf("simulate_udp failed: %s", err)
+		require.NoError(t, err)
 	}
 
 	defer func() {
@@ -1512,7 +1512,7 @@ func iptablesWrapper(t *testing.T, f func()) {
 
 	// Init iptables rule to simulate packet loss
 	rule := "INPUT --source 127.0.0.1 -j DROP"
-	create := strings.Fields(fmt.Sprintf("-A %s", rule))
+	create := strings.Fields(fmt.Sprintf("-I %s", rule))
 	remove := strings.Fields(fmt.Sprintf("-D %s", rule))
 
 	createCmd := exec.Command(iptables, create...)
