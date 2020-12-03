@@ -6,6 +6,8 @@ node-agents' collector, the cluster-agent is only responsible for spreading
 the load across available nodes.
 
 
+
+
 ## Architecture
 
 ```

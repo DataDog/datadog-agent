@@ -42,6 +42,7 @@ func (d *dispatcher) getState() (types.StateResponse, error) {
 }
 
 func (d *dispatcher) addConfig(config integration.Config, targetNodeName string) {
+
 	d.store.Lock()
 	defer d.store.Unlock()
 

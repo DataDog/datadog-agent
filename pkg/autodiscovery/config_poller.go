@@ -106,6 +106,7 @@ func (pd *configPoller) poll(ac *AutoConfig) {
 				config.Provider = pd.provider.String()
 				resolvedConfigs := ac.processNewConfig(config)
 				ac.schedule(resolvedConfigs)
+
 			}
 		}
 	}
@@ -118,6 +119,7 @@ func (pd *configPoller) collect() ([]integration.Config, []integration.Config) {
 	var removedConf []integration.Config
 	old := pd.configs
 
+	// Poller collection
 	fetched, err := pd.provider.Collect()
 	if err != nil {
 		log.Errorf("Unable to collect configurations from provider %s: %s", pd.provider, err)

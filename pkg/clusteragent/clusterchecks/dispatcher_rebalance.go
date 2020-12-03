@@ -141,6 +141,7 @@ func pickNode(diffMap map[string]int, sourceNode string) string {
 
 // moveCheck moves a check by its ID from a node to another
 func (d *dispatcher) moveCheck(src, dest, checkID string) error {
+
 	log.Debugf("Moving %s from %s to %s", checkID, src, dest)
 
 	d.store.RLock()

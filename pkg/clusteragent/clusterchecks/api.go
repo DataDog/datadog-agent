@@ -52,6 +52,7 @@ func (h *Handler) GetState() (types.StateResponse, error) {
 
 // GetConfigs returns configurations dispatched to a given node
 func (h *Handler) GetConfigs(nodeName string) (types.ConfigResponse, error) {
+
 	configs, lastChange, err := h.dispatcher.getNodeConfigs(nodeName)
 	response := types.ConfigResponse{
 		Configs:    configs,

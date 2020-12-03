@@ -26,8 +26,24 @@ import (
 // Install registers v1 API endpoints
 func installClusterCheckEndpoints(r *mux.Router, sc clusteragent.ServerContext) {
 	r.HandleFunc("/clusterchecks/status/{nodeName}", postCheckStatus(sc)).Methods("POST")
+	// See NodeStatus object
+	// Called here: https://github.com/DataDog/datadog-agent/blob/1c76b8381a195a0b0f629011a6225e936fe1d37a/pkg/util/clusteragent/clusterchecks.go#L48
+	// Post status of the node
+
 	r.HandleFunc("/clusterchecks/configs/{nodeName}", getCheckConfigs(sc)).Methods("GET")
+	// See ConfigResponse object
+	// Called here: https://github.com/DataDog/datadog-agent/blob/1c76b8381a195a0b0f629011a6225e936fe1d37a/pkg/util/clusteragent/clusterchecks.go#L92
+
+	r.HandleFunc("/clusterchecks/configs/{nodeName}", getCheckConfigs(sc)).Methods("POST")
+	// See ConfigResponse object
+	// Called here: https://github.com/DataDog/datadog-agent/blob/1c76b8381a195a0b0f629011a6225e936fe1d37a/pkg/util/clusteragent/clusterchecks.go#L92
+
+	// Cluster Agent
+	// https://github.com/DataDog/datadog-agent/blob/af24c655c4448ea3ab58fb2f662bd31b61a4de1b/pkg/autodiscovery/config_poller.go#L116-L140
+
 	r.HandleFunc("/clusterchecks/rebalance", postRebalanceChecks(sc)).Methods("POST")
+	// See RebalanceResponse object
+
 	r.HandleFunc("/clusterchecks", getState(sc)).Methods("GET")
 }
 

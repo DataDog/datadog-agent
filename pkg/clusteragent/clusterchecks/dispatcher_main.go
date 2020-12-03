@@ -73,6 +73,7 @@ func (d *dispatcher) Stop() {
 
 // Schedule implements the scheduler.Scheduler interface
 func (d *dispatcher) Schedule(configs []integration.Config) {
+
 	for _, c := range configs {
 		if !c.ClusterCheck {
 			continue // Ignore non cluster-check configs
