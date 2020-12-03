@@ -163,6 +163,23 @@ def test_cluster_agent_base_topology(host, ansible_var):
             cluster_name=cluster_name,
             identifiers_assert_fn=lambda identifiers: next(x for x in identifiers if x.startswith("urn:endpoint:/%s:" % cluster_name))
         )
+        # 1 externalname service with associated external-service component
+        assert _component_data(
+            json_data=json_data,
+            type_name="service",
+            external_id_assert_fn=lambda eid: eid.startswith("urn:kubernetes:/%s:%s:service/"
+                                                             "google-service" % (cluster_name, namespace)),
+            cluster_name=cluster_name,
+            identifiers_assert_fn=lambda identifiers: next(x for x in identifiers if x.startswith("urn:endpoint:/%s:" % cluster_name))
+        )
+        assert _component_data(
+            json_data=json_data,
+            type_name="external-service",
+            external_id_assert_fn=lambda eid: eid.startswith("urn:kubernetes:/%s:%s:external-service/"
+                                                             "google-service" % (cluster_name, namespace)),
+            cluster_name=cluster_name,
+            identifiers_assert_fn=lambda identifiers: next(x for x in identifiers if x.startswith("urn:endpoint:/google.com"))
+        )
         # 1 config map aws-auth
         configmap_match = re.compile("urn:kubernetes:/{}:{}:configmap/aws-auth"
                                      .format(cluster_name, "kube-system"))
