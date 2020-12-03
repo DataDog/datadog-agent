@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-std::tuple<sid_ptr, DWORD> GetSidForUser(LPCWSTR host, LPCWSTR user) {
+SidResult GetSidForUser(LPCWSTR host, LPCWSTR user) {
 	
 	DWORD cbSid = 0;
 	DWORD cchRefDomain = 0;
@@ -8,19 +8,20 @@ std::tuple<sid_ptr, DWORD> GetSidForUser(LPCWSTR host, LPCWSTR user) {
 
 	LookupAccountName(host, user, nullptr, &cbSid, nullptr, &cchRefDomain, &use);
 	sid_ptr newsid = make_sid(cbSid);
-	std::unique_ptr<wchar_t[]> refDomain(new wchar_t[cchRefDomain + 1]);
-	if (!LookupAccountName(host, user, newsid.get(), &cbSid, refDomain.get(), &cchRefDomain, &use))
+	std::wstring refDomain;
+	refDomain.resize(cchRefDomain + 1);
+	if (!LookupAccountName(host, user, newsid.get(), &cbSid, &refDomain[0], &cchRefDomain, &use))
 	{
-		return std::make_tuple(nullptr, GetLastError());
+		return SidResult(GetLastError());
 	}
-	WcaLog(LOGMSG_VERBOSE, "Got SID from %S", refDomain.get());
+	WcaLog(LOGMSG_VERBOSE, "Got SID from %S", refDomain);
 	if (!IsValidSid(newsid.get()))
 	{
 		WcaLog(LOGMSG_STANDARD, "New SID is invalid");
-		return std::make_tuple(nullptr, ERROR_INVALID_SID);
+		return SidResult(ERROR_INVALID_SID);
 	}
 
-	return std::make_tuple(std::move(newsid), ERROR_SUCCESS);
+	return SidResult(newsid, refDomain, ERROR_SUCCESS);
 }
 
 bool GetNameForSid(LPCWSTR host, PSID sid, std::wstring& namestr) 

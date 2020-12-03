@@ -20,7 +20,6 @@ bool CustomActionData::init(MSIHANDLE hi)
         return false;
     }
     return init(data);
-
 }
 
 bool CustomActionData::init(const std::wstring& data)
@@ -50,11 +49,8 @@ bool CustomActionData::init(const std::wstring& data)
         }
     }
 
-    // pre-populate the domain/user information
-    this->parseUsernameData();
-    // pre-populate sysprobe
-    this->parseSysprobeData();
-    return true;
+    return parseUsernameData()
+        && parseSysprobeData();
 }
 
 bool CustomActionData::present(const std::wstring& key) const {
@@ -80,6 +76,11 @@ bool CustomActionData::isUserLocalUser() const
     return !domainUser;
 }
 
+bool CustomActionData::DoesUserExists() const
+{
+    return _ddUserExists;
+}
+
 const std::wstring& CustomActionData::UnqualifiedUsername() const
 {
     return _unqualifiedUsername;
@@ -87,7 +88,7 @@ const std::wstring& CustomActionData::UnqualifiedUsername() const
 
 const std::wstring& CustomActionData::Username() const
 {
-    return _fqUsernameFromCli;
+    return _fqUsername;
 }
 
 const std::wstring& CustomActionData::Domain() const
@@ -95,10 +96,14 @@ const std::wstring& CustomActionData::Domain() const
     return _domain;
 }
 
-void CustomActionData::Domain(const std::wstring& domain)
+PSID CustomActionData::Sid() const
 {
-    _domain = domain;
-    _fqUsernameFromCli = _domain + L"\\" + _unqualifiedUsername;
+    return _sid.get();
+}
+
+void CustomActionData::Sid(sid_ptr& sid)
+{
+    _sid = std::move(sid);
 }
 
 bool CustomActionData::installSysprobe() const
@@ -161,43 +166,45 @@ bool CustomActionData::parseUsernameData()
             tmpName = ddAgentUserName;
         }
     }
-    if (std::wstring::npos == tmpName.find(L'\\')) {
-        WcaLog(LOGMSG_STANDARD, "loaded username doesn't have domain specifier, assuming local");
-        tmpName = L".\\" + tmpName;
+    auto sidResult = GetSidForUser(nullptr, tmpName.c_str());
+    if (sidResult.Result != ERROR_SUCCESS)
+    {
+        WcaLog(LOGMSG_STANDARD, "Could not get SID for user %S: %d", tmpName.c_str(), sidResult.Result);
+        return false;
     }
-    // now create the splits between the domain and user for all to use, too
-    std::wistringstream asStream(tmpName);
-    // username is going to be of the form <domain>\<username>
-    // if the <domain> is ".", then just do local machine
-    getline(asStream, _domain, L'\\');
-    getline(asStream, _unqualifiedUsername, L'\\');
 
-    if (_domain == L".")
+    if (sidResult.Result == ERROR_NONE_MAPPED)
     {
-        WcaLog(LOGMSG_STANDARD, "Supplied qualified domain '.', using hostname");
-        _domain = machine.GetMachineName();
-        this->domainUser = false;
+        WcaLog(LOGMSG_STANDARD, "User not found.");
+        _ddUserExists = false;
     }
-    else
+    else if (sidResult.Result != ERROR_NONE_MAPPED)
     {
-        if(0 == _wcsicmp(_domain.c_str(), machine.GetMachineName().c_str()))
+        if (sidResult.Sid != nullptr)
         {
-            WcaLog(LOGMSG_STANDARD, "Supplied hostname as authority");
-            this->domainUser = false;
-        }
-        else if(0 == _wcsicmp(_domain.c_str(), machine.JoinedDomainName().c_str()))
-        {
-            WcaLog(LOGMSG_STANDARD, "Supplied domain name %S", _domain.c_str());
-            this->domainUser = true;
+            WcaLog(LOGMSG_STANDARD, "User found.");
+            _ddUserExists = true;
+            _sid = std::move(sidResult.Sid);
         }
         else
         {
-            WcaLog(LOGMSG_STANDARD, "Warning: Supplied user in different domain (%S != %S)", _domain.c_str(), machine.JoinedDomainName().c_str());
-            this->domainUser = true;
+            WcaLog(LOGMSG_STANDARD, "Failed to lookup account name: %d", GetLastError());
+            return false;
         }
     }
 
-    _fqUsernameFromCli = _domain + L"\\" + _unqualifiedUsername;
-    WcaLog(LOGMSG_STANDARD, "Computed fully qualified username %S", _fqUsernameFromCli.c_str());
+    // The domnain can be the local computer
+    _domain = sidResult.Domain;
+
+    // We're on a domain AND the user specified on the command line is not the local machine name
+    if (GetTargetMachine().IsDomainJoined() &&
+        _wcsicmp(sidResult.Domain.c_str(), GetTargetMachine().GetMachineName().c_str()) != 0)
+    {
+        WcaLog(LOGMSG_STANDARD, "Supplied domain name %S", _domain.c_str());
+        domainUser = true;
+    }
+
+    _fqUsername = tmpName;
+    _unqualifiedUsername = tmpName;
     return true;
 }
