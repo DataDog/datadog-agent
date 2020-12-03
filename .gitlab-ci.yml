@@ -2027,9 +2027,11 @@ deploy_windows_testing-a7:
     - .kitchen_azure_location_north_central_us
   <<: *kitchen_common
   rules:
+    - changes:
+        - pkg/ebpf/**/*
+        - pkg/network/**/*
+      when: on_success
     - when: manual
-      allow_failure: true
-    - if: '$CI_MERGE_REQUEST_LABELS =~ /.*networks.*/'
       allow_failure: true
   needs: ["tests_ebpf"]
   variables:
