@@ -29,38 +29,37 @@ type agentRunner struct {
 	mu  sync.RWMutex // guards pid
 	pid int          // agent pid, if running
 
-	port    int         // agent port
-	log     *safeBuffer // agent log
-	ddAddr  string      // Datadog API address (host:port)
+	port    int         // agent receiver port
+	log     *safeBuffer // agent log output
+	ddAddr  string      // Datadog intake address (host:port)
+	binpath string      // full trace-agent binary path
 	verbose bool
 }
 
 func newAgentRunner(ddAddr string, verbose bool) (*agentRunner, error) {
-	if _, err := exec.LookPath("trace-agent"); err != nil {
-		// trace-agent not in $PATH, try to install
+	binpath := filepath.Join(os.TempDir(), "trace-agent-testbin")
+	if verbose {
+		log.Printf("agent: installing in %s...", binpath)
+	}
+	err := exec.Command("go", "build", "-o", binpath, "github.com/DataDog/datadog-agent/cmd/trace-agent").Run()
+	if err != nil {
 		if verbose {
-			log.Print("agent: trace-agent not found, trying to install...")
+			log.Printf("error installing trace-agent: %v", err)
 		}
-		err := exec.Command("go", "install", "github.com/DataDog/datadog-agent/cmd/trace-agent").Run()
-		if err != nil {
-			if verbose {
-				log.Printf("error installing trace-agent: %v", err)
-			}
-			return nil, ErrNotInstalled
-		}
-		if _, err := exec.LookPath("trace-agent"); err != nil {
-			// still not in $PATH, fail
-			if verbose {
-				log.Print("trace-agent installed but not found in $PATH")
-			}
-			return nil, ErrNotInstalled
-		}
+		return nil, ErrNotInstalled
 	}
 	return &agentRunner{
+		binpath: binpath,
 		ddAddr:  ddAddr,
 		log:     newSafeBuffer(),
 		verbose: verbose,
 	}, nil
+}
+
+// cleanup removes the agent binary.
+func (s *agentRunner) cleanup() error {
+	s.Kill()
+	return os.Remove(s.binpath)
 }
 
 // Run runs the agent using a given yaml config. If an agent is already running,
@@ -124,7 +123,7 @@ func (s *agentRunner) Kill() {
 
 func (s *agentRunner) runAgentConfig(path string) <-chan error {
 	s.Kill()
-	cmd := exec.Command("trace-agent", "-config", path)
+	cmd := exec.Command(s.binpath, "-config", path)
 	s.log.Reset()
 	cmd.Stdout = s.log
 	cmd.Stderr = ioutil.Discard
