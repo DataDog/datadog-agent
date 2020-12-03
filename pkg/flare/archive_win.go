@@ -106,7 +106,7 @@ func zipLodctrOutput(tempDir, hostname string) error {
 	cmd.Stdout = &out
 	err := cmd.Run()
 	if err != nil {
-		log.Warnf("Error running lodctr command %v", err);
+		log.Warnf("Error running lodctr command %v", err)
 	}
 	f := filepath.Join(tempDir, hostname, "lodctr.txt")
 	err = ensureParentDirsExist(f)
@@ -122,7 +122,6 @@ func zipLodctrOutput(tempDir, hostname string) error {
 	}
 	return nil
 }
-
 
 // zipWindowsEventLogs exports Windows event logs.
 func zipWindowsEventLogs(tempDir, hostname string) error {
