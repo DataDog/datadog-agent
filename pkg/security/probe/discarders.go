@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build linux_bpf
+// +build linux
 
 package probe
 
@@ -18,7 +18,7 @@ import (
 
 type pidDiscarderParameters struct {
 	EventType  EventType
-	Timestamps [maxEventType - 1]uint64
+	Timestamps [maxEventRoundedUp]uint64
 }
 
 func (p *Probe) discardPID(eventType EventType, pid uint32) error {
@@ -62,7 +62,7 @@ func (p *Probe) removeDiscarderInode(mountID uint32, inode uint64) {
 			Inode:   inode,
 		},
 	}
-	p.inodeDiscarders.Delete(&key)
+	_ = p.inodeDiscarders.Delete(&key)
 }
 
 func (p *Probe) discardInode(eventType EventType, mountID uint32, inode uint64) error {

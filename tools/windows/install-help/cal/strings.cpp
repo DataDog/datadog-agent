@@ -54,6 +54,9 @@ std::wstring trace_exe;
 std::wstring process_exe;
 std::wstring sysprobe_exe;
 
+std::wstring keyInstalledUser;
+std::wstring keyInstalledDomain;
+
 std::wstring* loadStrings[] = {
     &datadog_path,
     &datadog_key_root_base,
@@ -77,7 +80,9 @@ std::wstring* loadStrings[] = {
     &datadogdir,
     &strRollbackKeyName,
     &strUninstallKeyName,
-    &systemProbeService
+    &systemProbeService,
+    &keyInstalledUser,
+    &keyInstalledDomain
 };
 
 // strings for tracking install state

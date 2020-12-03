@@ -121,6 +121,7 @@ func (r *HTTPReceiver) Start() {
 	go func() {
 		defer watchdog.LogOnPanic()
 		r.server.Serve(ln)
+		ln.Close()
 	}()
 	log.Infof("Listening for traces at http://%s", addr)
 
@@ -132,8 +133,25 @@ func (r *HTTPReceiver) Start() {
 		go func() {
 			defer watchdog.LogOnPanic()
 			r.server.Serve(ln)
+			ln.Close()
 		}()
 		log.Infof("Listening for traces at unix://%s", path)
+	}
+
+	if path := mainconfig.Datadog.GetString("apm_config.windows_pipe_name"); path != "" {
+		pipepath := `\\.\pipe\` + path
+		bufferSize := mainconfig.Datadog.GetInt("apm_config.windows_pipe_buffer_size")
+		secdec := mainconfig.Datadog.GetString("apm_config.windows_pipe_security_descriptor")
+		ln, err := listenPipe(pipepath, secdec, bufferSize)
+		if err != nil {
+			killProcess("Error creating %q named pipe: %v", pipepath, err)
+		}
+		go func() {
+			defer watchdog.LogOnPanic()
+			r.server.Serve(ln)
+			ln.Close()
+		}()
+		log.Infof("Listening for traces on Windowes pipe %q. Security descriptor is %q", pipepath, secdec)
 	}
 
 	go r.RateLimiter.Run()

@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	ct "github.com/florianl/go-conntrack"
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
@@ -59,6 +60,10 @@ func TestConntrackExists(t *testing.T) {
 }
 
 func testConntrackExists(t *testing.T, laddrIP string, laddrPort int, proto string, testNs netns.NsHandle, ctrks map[int]Conntrack) {
+	rootNs, err := util.GetRootNetNamespace("/proc")
+	require.NoError(t, err)
+	defer rootNs.Close()
+
 	var ipProto uint8 = unix.IPPROTO_UDP
 	if proto == "tcp" {
 		ipProto = unix.IPPROTO_TCP
@@ -77,7 +82,7 @@ func testConntrackExists(t *testing.T, laddrIP string, laddrPort int, proto stri
 				},
 			},
 			exists: true,
-			ns:     0,
+			ns:     int(rootNs),
 		},
 		{
 			desc: fmt.Sprintf("net ns 0, reply exists, proto %s", proto),
@@ -87,7 +92,7 @@ func testConntrackExists(t *testing.T, laddrIP string, laddrPort int, proto stri
 				},
 			},
 			exists: true,
-			ns:     0,
+			ns:     int(rootNs),
 		},
 		{
 			desc: fmt.Sprintf("net ns 0, origin does not exist, proto %s", proto),
@@ -97,7 +102,7 @@ func testConntrackExists(t *testing.T, laddrIP string, laddrPort int, proto stri
 				},
 			},
 			exists: false,
-			ns:     0,
+			ns:     int(rootNs),
 		},
 		{
 			desc: fmt.Sprintf("net ns %d, origin exists, proto %s", int(testNs), proto),
