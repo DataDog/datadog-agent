@@ -28,7 +28,7 @@ const (
 type DentryResolver struct {
 	probe     *Probe
 	pathnames *lib.Map
-	cache     *lru.Cache
+	cache     map[uint32]*lru.Cache
 }
 
 // ErrInvalidKeyPath is returned when inode or mountid are not valid
@@ -83,18 +83,52 @@ type PathValue struct {
 
 // DelCacheEntry removes an entry from the cache
 func (dr *DentryResolver) DelCacheEntry(mountID uint32, inode uint64) {
-	key := PathKey{MountID: mountID, Inode: inode}
-	dr.cache.Remove(key)
+	if entries, exists := dr.cache[mountID]; exists {
+		entries.Remove(inode)
+	}
+}
+
+// DelCacheEntries removes all the entries belonging to a mountID
+func (dr *DentryResolver) DelCacheEntries(mountID uint32) {
+	delete(dr.cache, mountID)
+}
+
+func (dr *DentryResolver) lookupInode(mountID uint32, inode uint64) (pathValue PathValue, err error) {
+	entries, exists := dr.cache[mountID]
+	if !exists {
+		return pathValue, ErrEntryNotFound
+	}
+
+	entry, exists := entries.Get(inode)
+	if !exists {
+		return pathValue, ErrEntryNotFound
+	}
+
+	return entry.(PathValue), nil
+}
+
+func (dr *DentryResolver) cacheInode(mountID uint32, inode uint64, pathValue PathValue) error {
+	entries, exists := dr.cache[mountID]
+	if !exists {
+		var err error
+
+		entries, err = lru.New(128)
+		if err != nil {
+			return err
+		}
+		dr.cache[mountID] = entries
+	}
+
+	entries.Add(inode, pathValue)
+
+	return nil
 }
 
 func (dr *DentryResolver) getNameFromCache(mountID uint32, inode uint64) (name string, err error) {
-	key := PathKey{MountID: mountID, Inode: inode}
-
-	entry, exists := dr.cache.Get(key)
-	if !exists {
-		return "", ErrEntryNotFound
+	path, err := dr.lookupInode(mountID, inode)
+	if err != nil {
+		return "", err
 	}
-	path := entry.(PathValue)
 
 	return C.GoString((*C.char)(unsafe.Pointer(&path.Name))), nil
 }
@@ -122,17 +156,13 @@ func (dr *DentryResolver) GetName(mountID uint32, inode uint64, pathID uint32) s
 // ResolveFromCache resolve from the cache
 func (dr *DentryResolver) ResolveFromCache(mountID uint32, inode uint64) (filename string, err error) {
 	key := PathKey{MountID: mountID, Inode: inode}
-	var path PathValue
 
 	// Fetch path recursively
 	for {
-		cacheKey := PathKey{MountID: key.MountID, Inode: key.Inode}
-
-		entry, exists := dr.cache.Get(cacheKey)
-		if !exists {
-			return "", ErrEntryNotFound
+		path, err := dr.lookupInode(key.MountID, key.Inode)
+		if err != nil {
+			return "", err
 		}
-		path = entry.(PathValue)
 
 		// Don't append dentry name if this is the root dentry (i.d. name == '/')
 		if path.Name[0] != '\x00' && path.Name[0] != '/' {
@@ -198,7 +228,7 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 		for k, v := range toAdd {
 			// do not cache fake path keys in the case of rename events
 			if k.Inode>>32 != fakeInodeMSW {
-				dr.cache.Add(k, v)
+				dr.cacheInode(k.MountID, k.Inode, v)
 			}
 		}
 	}
@@ -216,13 +246,10 @@ func (dr *DentryResolver) Resolve(mountID uint32, inode uint64, pathID uint32) s
 }
 
 func (dr *DentryResolver) getParentFromCache(mountID uint32, inode uint64) (uint32, uint64, error) {
-	key := PathKey{MountID: mountID, Inode: inode}
-
-	entry, exists := dr.cache.Get(key)
-	if !exists {
+	path, err := dr.lookupInode(mountID, inode)
+	if err != nil {
 		return 0, 0, ErrEntryNotFound
 	}
-	path := entry.(PathValue)
 
 	return path.Parent.MountID, path.Parent.Inode, nil
 }
@@ -258,12 +285,6 @@ func (dr *DentryResolver) Start() error {
 	}
 	dr.pathnames = pathnames
 
-	cache, err := lru.New(128)
-	if err != nil {
-		return err
-	}
-	dr.cache = cache
-
 	return nil
 }
 
@@ -271,5 +292,6 @@ func (dr *DentryResolver) Start() error {
 func NewDentryResolver(probe *Probe) (*DentryResolver, error) {
 	return &DentryResolver{
 		probe: probe,
+		cache: make(map[uint32]*lru.Cache),
 	}, nil
 }

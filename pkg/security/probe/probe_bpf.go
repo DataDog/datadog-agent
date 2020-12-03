@@ -333,6 +333,9 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 			log.Errorf("failed to decode umount event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+		// Remove all dentry entries belonging to the mountID
+		p.resolvers.DentryResolver.DelCacheEntries(event.Umount.MountID)
+
 		// Delete new mount point from cache
 		if err := p.resolvers.MountResolver.Delete(event.Umount.MountID); err != nil {
 			log.Errorf("failed to delete mount point %d from cache: %s", event.Umount.MountID, err)
