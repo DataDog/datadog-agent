@@ -95,7 +95,17 @@ func runService(isDebug bool) {
 
 // main is the main application entry point
 func main() {
-	flag.Parse()
+	// set the command
+	flags.TraceCmd.RunE = run
+
+	// Invoke the Agent
+	if err := flags.TraceCmd.Execute(); err != nil {
+		os.Exit(-1)
+	}
+}
+
+// Start the main loop
+func run(cmd *cobra.Command, args []string) error {
 
 	if !flags.Win.Foreground {
 		isIntSess, err := svc.IsAnInteractiveSession()
@@ -150,17 +160,17 @@ func main() {
 			return
 		}
 	}
+	ctx, cancelFunc := context.WithCancel(cmd.Context())
 
-	// if we are an interactive session, then just invoke the agent on the command line.
-	ctx, cancelFunc := context.WithCancel(context.Background())
 	// Handle stops properly
 	go func() {
 		defer watchdog.LogOnPanic()
 		handleSignal(cancelFunc)
 	}()
 
-	// Invoke the Agent
 	agent.Run(ctx)
+
+	return nil
 }
 
 func startService() error {

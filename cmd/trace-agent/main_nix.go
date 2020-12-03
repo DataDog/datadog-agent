@@ -9,15 +9,20 @@ package main
 
 import (
 	"context"
-	"flag"
+	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
+	"github.com/DataDog/datadog-agent/pkg/trace/flags"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
+
+	"github.com/spf13/cobra"
 )
 
-// main is the main application entry point
-func main() {
-	ctx, cancelFunc := context.WithCancel(context.Background())
+var ()
+
+// Start the main loop
+func run(cmd *cobra.Command, args []string) error {
+	ctx, cancelFunc := context.WithCancel(cmd.Context())
 
 	// Handle stops properly
 	go func() {
@@ -25,7 +30,19 @@ func main() {
 		handleSignal(cancelFunc)
 	}()
 
-	flag.Parse()
-
 	agent.Run(ctx)
+
+	return nil
+}
+
+// main is the main application entry point
+func main() {
+	// set the command
+	flags.TraceCmd.RunE = run
+
+	// Invoke the Agent
+	if err := flags.TraceCmd.Execute(); err != nil {
+		os.Exit(-1)
+	}
+
 }

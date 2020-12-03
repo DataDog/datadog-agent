@@ -5,7 +5,12 @@
 
 package flags
 
-import "flag"
+import (
+	"fmt"
+	"os"
+
+	"github.com/spf13/cobra"
+)
 
 var (
 	// ConfigPath specifies the path to the configuration file.
@@ -30,6 +35,17 @@ var (
 	// MemProfile specifies the path to output memory profiling information to.
 	// When empty, memory profiling is disabled.
 	MemProfile string
+
+	// TraceCmd is the root command
+	TraceCmd = &cobra.Command{
+		Use:   fmt.Sprintf("%s [command]", os.Args[0]),
+		Short: "Datadog Agent at your service.",
+		Long: `
+The Datadog Agent faithfully collects events and metrics and brings them
+to Datadog on your behalf so that you can do something useful with your
+monitoring and performance data.`,
+		SilenceUsage: true,
+	}
 )
 
 // Win holds a set of flags which will be populated only during the Windows build.
@@ -42,14 +58,14 @@ var Win = struct {
 }{}
 
 func init() {
-	flag.StringVar(&ConfigPath, "config", DefaultConfigPath, "Datadog Agent config file location")
-	flag.StringVar(&PIDFilePath, "pid", "", "Path to set pidfile for process")
-	flag.BoolVar(&Version, "version", false, "Show version information and exit")
-	flag.BoolVar(&Info, "info", false, "Show info about running trace agent process and exit")
+	TraceCmd.PersistentFlags().StringVar(&ConfigPath, "config", DefaultConfigPath, "Datadog Agent config file location")
+	TraceCmd.PersistentFlags().StringVar(&PIDFilePath, "pid", "", "Path to set pidfile for process")
+	TraceCmd.PersistentFlags().BoolVar(&Version, "version", false, "Show version information and exit")
+	TraceCmd.PersistentFlags().BoolVar(&Info, "info", false, "Show info about running trace agent process and exit")
 
 	// profiling
-	flag.StringVar(&CPUProfile, "cpuprofile", "", "Write cpu profile to file")
-	flag.StringVar(&MemProfile, "memprofile", "", "Write memory profile to `file`")
+	TraceCmd.PersistentFlags().StringVar(&CPUProfile, "cpuprofile", "", "Write cpu profile to file")
+	TraceCmd.PersistentFlags().StringVar(&MemProfile, "memprofile", "", "Write memory profile to `file`")
 
 	registerOSSpecificFlags()
 }
