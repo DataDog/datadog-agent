@@ -89,8 +89,7 @@ func runAgent(exit <-chan struct{}) {
 
 	if cfg.ProfilingEnabled {
 		if err := enableProfiling(cfg); err != nil {
-			log.Criticalf("failed to enable profiling: %s", err)
-			cleanupAndExit(1)
+			log.Warnf("failed to enable profiling: %s", err)
 		}
 		defer profiling.Stop()
 	}
