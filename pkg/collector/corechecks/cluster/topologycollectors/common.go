@@ -4,6 +4,7 @@ package topologycollectors
 
 import (
 	"fmt"
+
 	"github.com/StackVista/stackstate-agent/pkg/collector/corechecks/cluster/urn"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
@@ -192,7 +193,9 @@ func (c *clusterTopologyCommon) buildEndpointExternalID(endpointID string) strin
 func (c *clusterTopologyCommon) initTags(meta metav1.ObjectMeta) map[string]string {
 	tags := make(map[string]string, 0)
 	if meta.Labels != nil {
-		tags = meta.Labels
+		for k, v := range meta.Labels {
+			tags[k] = v
+		}
 	}
 
 	// set the cluster name and the namespace
