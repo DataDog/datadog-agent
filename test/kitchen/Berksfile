@@ -9,7 +9,8 @@ cookbook 'datadog', '~> 4.4.0'
 # (ie: when the datadog cookbook requires chef >= 13.3, which already bundles everything we use from apt).
 cookbook 'apt', '< 4.0'
 
-cookbook 'docker'
+# Version 7.3.0 of the cookbook depends on chef version >= 15.0 but right now we are running 14.12.9
+cookbook 'docker', '< 7.3.0'
 cookbook 'selinux'
 
 cookbook 'dd-agent-install', path: './site-cookbooks/dd-agent-install'

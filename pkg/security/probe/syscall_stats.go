@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build linux_bpf
+// +build linux
 
 package probe
 
@@ -58,7 +58,7 @@ type ProcessPath struct {
 	Path    string
 }
 
-// IsNull returns true if the current instance of ProcessPath is empty
+// IsEmpty returns true if the current instance of ProcessPath is empty
 func (p *ProcessPath) IsEmpty() bool {
 	return p.Path[0] == '\x00'
 }
