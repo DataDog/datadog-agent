@@ -9,6 +9,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
+	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -25,15 +28,25 @@ type transactionsFileStorage struct {
 	currentSizeInBytes int64
 }
 
-func newTransactionsFileStorage(serializer *TransactionsSerializer, storagePath string, maxSizeInBytes int64) *transactionsFileStorage {
-	// Do not return an error when the path already exists
-	_ = os.MkdirAll(storagePath, 0755)
+func newTransactionsFileStorage(
+	serializer *TransactionsSerializer,
+	storagePath string,
+	maxSizeInBytes int64) (*transactionsFileStorage, error) {
 
-	return &transactionsFileStorage{
+	if err := os.MkdirAll(storagePath, 0755); err != nil {
+		return nil, err
+	}
+
+	storage := &transactionsFileStorage{
 		serializer:     serializer,
 		storagePath:    storagePath,
 		maxSizeInBytes: maxSizeInBytes,
 	}
+
+	if err := storage.reloadExistingRetryFiles(); err != nil {
+		return nil, err
+	}
+	return storage, nil
 }
 
 // Serialize serializes transactions to the file system.
@@ -137,4 +150,38 @@ func (s *transactionsFileStorage) removeFileAt(index int) error {
 	s.currentSizeInBytes -= size
 	s.filenames = append(s.filenames[:index], s.filenames[index+1:]...)
 	return nil
+}
+
+func (s *transactionsFileStorage) reloadExistingRetryFiles() error {
+	files, sizeInBytes, err := s.getExistingRetryFiles()
+	if err != nil {
+		return err
+	}
+	s.currentSizeInBytes = sizeInBytes
+
+	sort.Slice(files, func(i, j int) bool {
+		return files[i].ModTime().Before(files[j].ModTime())
+	})
+
+	for _, file := range files {
+		fullPath := path.Join(s.storagePath, file.Name())
+		s.filenames = append(s.filenames, fullPath)
+	}
+	return nil
+}
+
+func (s *transactionsFileStorage) getExistingRetryFiles() ([]os.FileInfo, int64, error) {
+	entries, err := ioutil.ReadDir(s.storagePath)
+	if err != nil {
+		return nil, 0, err
+	}
+	var files []os.FileInfo
+	currentSizeInBytes := int64(0)
+	for _, entry := range entries {
+		if entry.Mode().IsRegular() && filepath.Ext(entry.Name()) == retryTransactionsExtension {
+			currentSizeInBytes += entry.Size()
+			files = append(files, entry)
+		}
+	}
+	return files, currentSizeInBytes, nil
 }

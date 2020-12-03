@@ -14,8 +14,9 @@ func TestTransactionsFileStorage(t *testing.T) {
 	path, clean := createTmpFolder(a)
 	defer clean()
 
-	s := newTransactionsFileStorage(NewTransactionsSerializer(), path, 1000)
-	err := s.Serialize(createHTTPTransactionCollectionTests("domain1", "domain2"))
+	s, err := newTransactionsFileStorage(NewTransactionsSerializer(), path, 1000)
+	a.NoError(err)
+	err = s.Serialize(createHTTPTransactionCollectionTests("domain1", "domain2"))
 	a.NoError(err)
 	err = s.Serialize(createHTTPTransactionCollectionTests("domain3", "domain4"))
 	a.NoError(err)
@@ -39,10 +40,11 @@ func TestTransactionsFileStorageMaxSize(t *testing.T) {
 	defer clean()
 
 	maxSizeInBytes := int64(100)
-	s := newTransactionsFileStorage(NewTransactionsSerializer(), path, maxSizeInBytes)
+	s, err := newTransactionsFileStorage(NewTransactionsSerializer(), path, maxSizeInBytes)
+	a.NoError(err)
 
 	i := 0
-	err := s.Serialize(createHTTPTransactionCollectionTests(strconv.Itoa(i)))
+	err = s.Serialize(createHTTPTransactionCollectionTests(strconv.Itoa(i)))
 	a.NoError(err)
 	maxNumberOfFiles := int(maxSizeInBytes / s.GetCurrentSizeInBytes())
 	a.Greaterf(maxNumberOfFiles, 2, "Not enough files for this test, increase maxSizeInBytes")
@@ -62,6 +64,25 @@ func TestTransactionsFileStorageMaxSize(t *testing.T) {
 	}
 
 	a.Equal(0, s.GetFilesCount())
+}
+
+func TestTransactionsFileStorageReloadExistingRetryFiles(t *testing.T) {
+	a := assert.New(t)
+	path, clean := createTmpFolder(a)
+	defer clean()
+
+	storage, err := newTransactionsFileStorage(NewTransactionsSerializer(), path, 1000)
+	a.NoError(err)
+	err = storage.Serialize(createHTTPTransactionCollectionTests("domain1", "domain2"))
+	a.NoError(err)
+
+	newStorage, err := newTransactionsFileStorage(NewTransactionsSerializer(), path, 1000)
+	a.NoError(err)
+	a.Equal(storage.GetCurrentSizeInBytes(), newStorage.GetCurrentSizeInBytes())
+	a.Equal(storage.GetFilesCount(), newStorage.GetFilesCount())
+	transactions, err := newStorage.Deserialize()
+	a.NoError(err)
+	a.Equal([]string{"domain1", "domain2"}, getDomainsFromTransactions(transactions))
 }
 
 func createHTTPTransactionCollectionTests(domain ...string) []Transaction {

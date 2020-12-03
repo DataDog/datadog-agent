@@ -10,7 +10,8 @@ func TestTransactionContainerAdd(t *testing.T) {
 	a := assert.New(t)
 	path, clean := createTmpFolder(a)
 	defer clean()
-	s := newTransactionsFileStorage(NewTransactionsSerializer(), path, 1000)
+	s, err := newTransactionsFileStorage(NewTransactionsSerializer(), path, 1000)
+	a.NoError(err)
 	container := newTransactionContainer(s, 100, 0.6)
 
 	// When adding the last element `15`, the buffer becomes full and the first 3
@@ -34,7 +35,8 @@ func TestTransactionContainerSeveralFlushToDisk(t *testing.T) {
 	a := assert.New(t)
 	path, clean := createTmpFolder(a)
 	defer clean()
-	s := newTransactionsFileStorage(NewTransactionsSerializer(), path, 1000)
+	s, err := newTransactionsFileStorage(NewTransactionsSerializer(), path, 1000)
+	a.NoError(err)
 	container := newTransactionContainer(s, 50, 0.1)
 
 	// Flush to disk when adding `40`
