@@ -36,6 +36,9 @@
 #elif __APPLE__
 #    define DATADOG_AGENT_TWO "libdatadog-agent-two.dylib"
 #    define DATADOG_AGENT_THREE "libdatadog-agent-three.dylib"
+#elif __FreeBSD__
+#    define DATADOG_AGENT_TWO "libdatadog-agent-two.so"
+#    define DATADOG_AGENT_THREE "libdatadog-agent-three.so"
 #elif _WIN32
 #    define DATADOG_AGENT_TWO "libdatadog-agent-two.dll"
 #    define DATADOG_AGENT_THREE "libdatadog-agent-three.dll"

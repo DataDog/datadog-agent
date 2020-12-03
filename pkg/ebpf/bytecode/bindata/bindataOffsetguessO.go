@@ -28,7 +28,7 @@ func bindataOffsetguessO() (*asset, error) {
 		name:        "offset-guess.o",
 		size:        12360,
 		md5checksum: "",
-		mode:        os.FileMode(436),
+		mode:        os.FileMode(420),
 		modTime:     time.Unix(1, 0),
 	}
 

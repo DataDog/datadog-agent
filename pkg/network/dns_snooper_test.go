@@ -3,6 +3,7 @@
 package network
 
 import (
+	"math"
 	"math/rand"
 	"net"
 	"strings"
@@ -19,6 +20,7 @@ import (
 	mdns "github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 )
 
 func getSnooper(
@@ -36,26 +38,34 @@ func getSnooper(
 		return nil, nil
 	}
 
-	mgr := &manager.Manager{
-		Probes: []*manager.Probe{
-			{Section: string(bytecode.SocketDnsFilter)},
-		},
-		Maps: []*manager.Map{
-			{Name: string(bytecode.ConnMap)},
-			{Name: string(bytecode.TcpStatsMap)},
-			{Name: string(bytecode.PortBindingsMap)},
-			{Name: string(bytecode.UdpPortBindingsMap)},
-		},
-		PerfMaps: []*manager.PerfMap{},
-	}
+	mgr := bytecode.NewManager(bytecode.NewPerfHandler(1))
 	mgrOptions := manager.Options{
 		MapSpecEditors: map[string]manager.MapSpecEditor{
+			// These maps are unrelated to DNS but are getting set because the eBPF library loads all of them
 			string(bytecode.ConnMap):            {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
 			string(bytecode.TcpStatsMap):        {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
 			string(bytecode.PortBindingsMap):    {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
 			string(bytecode.UdpPortBindingsMap): {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
 		},
+		RLimit: &unix.Rlimit{
+			Cur: math.MaxUint64,
+			Max: math.MaxUint64,
+		},
+		ActivatedProbes: []manager.ProbesSelector{
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					Section: string(bytecode.SocketDnsFilter),
+				},
+			},
+		},
 	}
+
+	for _, p := range mgr.Probes {
+		if p.Section != string(bytecode.SocketDnsFilter) {
+			mgrOptions.ExcludedSections = append(mgrOptions.ExcludedSections, p.Section)
+		}
+	}
+
 	if collectStats {
 		mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors, manager.ConstantEditor{
 			Name:  "dns_stats_enabled",
@@ -355,7 +365,7 @@ func TestDNSOverUDPTimeoutCount(t *testing.T) {
 
 	allStats := getStats(reverseDNS, 1)
 	key := getKey(queryIP, queryPort, invalidServerIP, UDP)
-	require.Equal(t, 1, len(allStats))
+	require.Contains(t, allStats, key)
 	assert.Equal(t, 0, len(allStats[key].countByRcode))
 	assert.Equal(t, uint32(1), allStats[key].timeouts)
 	assert.Equal(t, uint64(0), allStats[key].successLatencySum)

@@ -3,7 +3,7 @@
 set -ex
 
 ip netns add test
-ip link add veth1 type veth peer veth2
+ip link add veth1 type veth peer name veth2
 ip link set veth2 netns test
 ip address add 2.2.2.3/24 dev veth1
 ip -n test address add 2.2.2.4/24 dev veth2

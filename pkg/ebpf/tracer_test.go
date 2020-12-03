@@ -1895,10 +1895,11 @@ func setupDNAT(t *testing.T) {
 		return
 	}
 
+	// Using dummy1 instead of dummy0 (https://serverfault.com/a/841723)
 	cmds := []string{
-		"ip link add dummy0 type dummy",
-		"ip address add 1.1.1.1 broadcast + dev dummy0",
-		"ip link set dummy0 up",
+		"ip link add dummy1 type dummy",
+		"ip address add 1.1.1.1 broadcast + dev dummy1",
+		"ip link set dummy1 up",
 		"iptables -t nat -A OUTPUT --dest 2.2.2.2 -j DNAT --to-destination 1.1.1.1",
 	}
 	runCommands(t, cmds)
@@ -1907,7 +1908,7 @@ func setupDNAT(t *testing.T) {
 func teardownDNAT(t *testing.T) {
 	cmds := []string{
 		// tear down the testing interface, and iptables rule
-		"ip link del dummy0",
+		"ip link del dummy1",
 		"iptables -t nat -D OUTPUT -d 2.2.2.2 -j DNAT --to-destination 1.1.1.1",
 		// clear out the conntrack table
 		"conntrack -F",
@@ -1921,7 +1922,7 @@ func runCommands(t *testing.T, cmds []string) {
 		c := exec.Command(args[0], args[1:]...)
 		out, err := c.CombinedOutput()
 		if err != nil {
-			t.Errorf("%s: %s", err, out)
+			t.Errorf("%s returned %s: %s", c, err, out)
 			return
 		}
 	}

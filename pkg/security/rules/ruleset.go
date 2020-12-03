@@ -83,7 +83,7 @@ type RuleSet struct {
 }
 
 // ListRuleIDs returns the list of RuleIDs from the ruleset
-func (rs *RuleSet) ListRuleIDs() []string {
+func (rs *RuleSet) ListRuleIDs() []RuleID {
 	var ids []string
 	for ruleID := range rs.rules {
 		ids = append(ids, ruleID)

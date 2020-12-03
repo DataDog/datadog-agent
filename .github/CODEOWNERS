@@ -107,6 +107,7 @@
 /pkg/collector/corechecks/net/          @DataDog/agent-platform
 /pkg/collector/corechecks/system/       @DataDog/agent-platform
 /pkg/collector/corechecks/systemd/      @DataDog/agent-integrations
+/pkg/collector/corechecks/nvidia/       @DataDog/agent-platform
 /pkg/config/config_template.yaml        @DataDog/agent-all @DataDog/documentation
 /pkg/tagger/                            @DataDog/container-integrations
 /pkg/tagger/collectors/garden*.go       @DataDog/integrations-tools-and-libraries
@@ -156,6 +157,9 @@
 /test/kitchen/kitchen-azure-security-agent-test.yml @DataDog/agent-security
 /test/kitchen/kitchen-vagrant-security-agent.yml @DataDog/agent-security
 /test/kitchen/site-cookbooks/dd-security-agent-check/ @DataDog/agent-security
+/test/kitchen/kitchen-azure-system-probe-test.yml @DataDog/networks
+/test/kitchen/kitchen-vagrant-system-probe.yml @DataDog/networks
+/test/kitchen/site-cookbooks/dd-system-probe-check/ @DataDog/networks
 /test/system/                           @DataDog/agent-core
 
 /tools/                                 @DataDog/agent-platform

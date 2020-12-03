@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/gopsutil/process"
 	"github.com/moby/sys/mountinfo"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -72,4 +73,42 @@ func ParseMountInfoFile(pid uint32) ([]*mountinfo.Info, error) {
 	defer f.Close()
 
 	return mountinfo.GetMountsFromReader(f, nil)
+}
+
+// GetFilledProcess returns a FilledProcess from a Process input
+// TODO: make a PR to export a similar function in Datadog/gopsutil. We only populate the fields we need for now.
+func GetFilledProcess(p *process.Process) *process.FilledProcess {
+	ppid, err := p.Ppid()
+	if err != nil {
+		return nil
+	}
+
+	createTime, err := p.CreateTime()
+	if err != nil {
+		return nil
+	}
+
+	uids, err := p.Uids()
+	if err != nil {
+		return nil
+	}
+
+	gids, err := p.Gids()
+	if err != nil {
+		return nil
+	}
+
+	name, err := p.Name()
+	if err != nil {
+		return nil
+	}
+
+	return &process.FilledProcess{
+		Pid:        p.Pid,
+		Ppid:       ppid,
+		CreateTime: createTime,
+		Name:       name,
+		Uids:       uids,
+		Gids:       gids,
+	}
 }

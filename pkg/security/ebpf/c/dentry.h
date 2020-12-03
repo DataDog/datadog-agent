@@ -15,6 +15,8 @@
 #define DENTRY_INVALID -1
 #define DENTRY_DISCARDED -2
 
+#define FAKE_INODE_MSW 0xdeadc001UL
+
 // temporary fix before constant edition
 struct bpf_map_def SEC("maps/mount_id_offset") mount_id_offset = {
     .type = BPF_MAP_TYPE_ARRAY,

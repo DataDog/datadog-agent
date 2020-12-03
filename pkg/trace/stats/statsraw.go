@@ -55,9 +55,10 @@ type statsKey struct {
 }
 
 type statsSubKey struct {
-	name string
-	sub  SublayerValue
-	aggr string
+	name   string
+	metric string
+	tag    Tag
+	aggr   string
 }
 
 // RawBucket is used to compute span data and aggregate it
@@ -139,11 +140,11 @@ func (sb *RawBucket) Export() Bucket {
 		}
 	}
 	for k, v := range sb.sublayerData {
-		key := GrainKey(k.name, k.sub.Metric, k.aggr+","+k.sub.Tag.Name+":"+k.sub.Tag.Value)
+		key := GrainKey(k.name, k.metric, k.aggr+","+k.tag.Name+":"+k.tag.Value)
 		ret.Counts[key] = Count{
 			Key:      key,
 			Name:     k.name,
-			Measure:  k.sub.Metric,
+			Measure:  k.metric,
 			TagSet:   v.tags,
 			TopLevel: v.topLevel,
 			Value:    float64(v.value),
@@ -256,7 +257,7 @@ func (sb *RawBucket) addSublayer(s *WeightedSpan, aggr string, tags TagSet, sub 
 	copy(subTags, tags)
 	subTags[len(tags)] = sub.Tag
 
-	key := statsSubKey{name: s.Name, sub: sub, aggr: aggr}
+	key := statsSubKey{name: s.Name, metric: sub.Metric, tag: sub.Tag, aggr: aggr}
 	if ss, ok = sb.sublayerData[key]; !ok {
 		ss = newSublayerStats(subTags)
 	}

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# This script simulates a UDP "client" and "server" using nc for the purposes
+# This script simulates a UDP "client" and "server" using socat for the purposes
 # of a system-probe integration test.
 # UDP communication within the same process triggers a code path where
 # the socket address is not set, and we are unable to instrument "server"
@@ -8,8 +8,8 @@
 
 set -ex
 
-if ! command -v nc >/dev/null 2>&1; then
-  echo "nc cound not be found"
+if ! command -v socat >/dev/null 2>&1; then
+  echo "socat command not be found"
   exit 1
 fi
 
@@ -20,23 +20,13 @@ PORT=8081
 SERVER_MESSAGE=$(cat /dev/urandom | base64 | head -c 256)
 CLIENT_MESSAGE=$(cat /dev/urandom | base64 | head -c 512)
 
-sleep_echo() {
-	# sleep for one second, and then echo "$1"
-	sleep 1
-	echo -n "$1"
-}
-
 server() {
-	sleep_echo "$SERVER_MESSAGE" | nc -u -l "$LOCALHOST" "$PORT"
+	echo -n "$SERVER_MESSAGE" | socat -v stdio udp-listen:"$PORT"
 	echo "server done"
 }
+
 server &
+sleep 1
 
-client() {
-	sleep_echo "$CLIENT_MESSAGE" | nc -u "$LOCALHOST" "$PORT"
-	echo "client done"
-}
-
-client &
-
-sleep 2
+echo -n "$CLIENT_MESSAGE" | socat -v -t 1 stdio udp:"$LOCALHOST":"$PORT",shut-none
+echo "client done"
