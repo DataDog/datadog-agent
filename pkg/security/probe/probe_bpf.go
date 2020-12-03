@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build linux_bpf
+// +build linux
 
 package probe
 
@@ -62,7 +62,6 @@ type Probe struct {
 	config             *config.Config
 	handler            EventHandler
 	resolvers          *Resolvers
-	discarderHandlers  map[eval.EventType][]onDiscarderHandler
 	pidDiscarders      *lib.Map
 	inodeDiscarders    *lib.Map
 	invalidDiscarders  map[eval.Field]map[interface{}]bool

@@ -36,7 +36,7 @@ until _ssh systemctl is-system-running --wait; do
         continue
     fi
     _ssh journalctl -n 30 ||:
-    _ssh systemctl list-units --failed ||:
+    _ssh LC_ALL=C systemctl list-units --failed ||:
     # Let's try to reboot until we have more clues about what can go wrong here.
     _ssh sudo systemctl reboot ||:
     sleep 5
