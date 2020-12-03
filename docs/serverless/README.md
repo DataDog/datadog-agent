@@ -18,9 +18,10 @@ different routes:
     - /lambda/hello
     - /lambda/flush
 
-These routes are not doing anything in particular while running in AWS, however,
-they can be at some point and if the Serverless Agent has to support a new serverless
-environment one day, it would be important to create different HTTP routes.
+These routes are not doing anything in specialized for AWS, however, they can be
+at some point. That's the reason that if the Serverless Agent has to support a new
+serverless environment, it would be important to create different HTTP routes (most
+likely sharing a big part of the implementation).
 
 #### `Hello` route
 
@@ -47,3 +48,6 @@ For the Datadog Lambda Extension, some fields are set directly in the environmen
 at startup for the config package to pick them up. (See `cmd/serverless/main.go` for the
 startup process).
 
+### Build
+
+In order to build a Serverless Agent, please refer to [this README](https://github.com/DataDog/datadog-agent/tree/master/cmd/serverless/README.md).
