@@ -32,7 +32,6 @@ replace (
 
 // pinned to grpc v1.26.0
 replace (
-	github.com/golang/protobuf => github.com/golang/protobuf v1.4.3
 	github.com/grpc-ecosystem/grpc-gateway => github.com/grpc-ecosystem/grpc-gateway v1.12.2
 	google.golang.org/grpc => github.com/grpc/grpc-go v1.26.0
 )
@@ -104,7 +103,7 @@ require (
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e
 	github.com/golang/mock v1.3.1
-	github.com/golang/protobuf v1.4.1
+	github.com/golang/protobuf v1.4.3
 	github.com/google/gopacket v1.1.17
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/mux v1.7.4
