@@ -45,6 +45,7 @@ AGENT_CORECHECKS = [
     "io",
     "jmx",
     "kubernetes_apiserver",
+    "linux_audit",
     "load",
     "memory",
     "ntp",

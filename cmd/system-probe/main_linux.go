@@ -5,10 +5,13 @@ package main
 import (
 	"flag"
 
+	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 func main() {
+	factories = append(factories, modules.LinuxAuditProbe)
+
 	// Parse flags
 	flag.StringVar(&opts.configPath, "config", "/etc/datadog-agent/system-probe.yaml", "Path to system-probe config formatted as YAML")
 	flag.StringVar(&opts.pidFilePath, "pid", "", "Path to set pidfile for process")
