@@ -28,9 +28,7 @@ func VerifyKernelFuncs(path string, requiredKernelFuncs []string) ([]string, err
 	scanner.Split(bufio.ScanWords)
 	for scanner.Scan() && len(missing) > 0 {
 		if i := missing.Search(scanner.Bytes()); i < len(missing) {
-			missing[0], missing[i] = missing[i], missing[0]
-			missing = missing[1:]
-			sort.Sort(missing)
+			missing = append(missing[:i], missing[i+1:]...)
 		}
 	}
 
