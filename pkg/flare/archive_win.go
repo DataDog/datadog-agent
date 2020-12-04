@@ -84,7 +84,7 @@ func zipCounterStrings(tempDir, hostname string) error {
 }
 
 func zipTypeperfData(tempDir, hostname string) error {
-	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeoutInSeconds * time.Second)
+	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeoutInSeconds*time.Second)
 	defer cancelfunc()
 
 	cmd := exec.CommandContext(cancelctx, "typeperf", "-qx")
@@ -108,17 +108,19 @@ func zipTypeperfData(tempDir, hostname string) error {
 	return nil
 }
 func zipLodctrOutput(tempDir, hostname string) error {
-	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeoutInSeconds * time.Second)
+	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeoutInSeconds*time.Second)
 	defer cancelfunc()
 
-	cmd := exec.CommandContext(cancelctx, "lodctr", "/q")
+	cmd := exec.CommandContext(cancelctx, "lodctr.exe", "/q")
 
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	err := cmd.Run()
 	if err != nil {
 		log.Warnf("Error running lodctr command %v", err)
-		return err
+		// for some reason the lodctr command returns error 259 even when
+		// it succeeds.  Log the error in case it's some other error,
+		// but continue on.
 	}
 	f := filepath.Join(tempDir, hostname, "lodctr.txt")
 	err = ensureParentDirsExist(f)
