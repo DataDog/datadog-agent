@@ -229,15 +229,43 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 		},
 		completionHandler: options.CompletionHandler,
 	}
+	storagePath := config.Datadog.GetString("forwarder_storage_path")
+	outdatedFileInDays := config.Datadog.GetInt("forwarder_outdated_file_in_days")
+	optionalRemovalPolicy, err := newFailedTransactionRemovalPolicy(storagePath, outdatedFileInDays)
+	if err != nil {
+		log.Errorf("Error when initializing the removal policy: %v", err)
+	}
+
+	flushToDiskMemRatio := config.Datadog.GetFloat64("forwarder_flush_to_disk_mem_ratio")
 
 	for domain, keys := range options.KeysPerDomain {
 		domain, _ := config.AddAgentVersionToDomain(domain, "app")
 		if keys == nil || len(keys) == 0 {
 			log.Errorf("No API keys for domain '%s', dropping domain ", domain)
 		} else {
+			var optionalTransactionsFileStorage *transactionsFileStorage
+			if optionalRemovalPolicy != nil {
+				optionalTransactionsFileStorage = f.tryCreateTransactionsFileStorage(optionalRemovalPolicy, domain)
+			}
+
+			transactionContainer := newTransactionContainer(optionalTransactionsFileStorage, options.RetryQueuePayloadsTotalMaxSize, flushToDiskMemRatio)
 			f.keysPerDomains[domain] = keys
-			f.domainForwarders[domain] = newDomainForwarder(domain, options.NumberOfWorkers, options.RetryQueueSize, options.RetryQueuePayloadsTotalMaxSize, options.ConnectionResetInterval)
+			f.domainForwarders[domain] = newDomainForwarder(
+				domain,
+				transactionContainer,
+				options.NumberOfWorkers,
+				options.RetryQueueSize,
+				options.RetryQueuePayloadsTotalMaxSize,
+				options.ConnectionResetInterval)
 		}
+	}
+
+	if optionalRemovalPolicy != nil {
+		filesRemoved, err := optionalRemovalPolicy.RemoveOutdatedFiles()
+		if err != nil {
+			log.Errorf("Error when removing outdated files: %v", err)
+		}
+		log.Debugf("Outdated files removed: %v", strings.Join(filesRemoved, ", "))
 	}
 
 	return f
@@ -539,4 +567,29 @@ func (f *DefaultForwarder) submitProcessLikePayload(ep endpoint, payload Payload
 	}()
 
 	return results, f.sendHTTPTransactions(transactions)
+}
+
+func (f *DefaultForwarder) tryCreateTransactionsFileStorage(removalPolicy *failedTransactionRemovalPolicy, domain string) *transactionsFileStorage {
+	var transactionsFileStorage *transactionsFileStorage
+	storageMaxSize := config.Datadog.GetInt64("forwarder_storage_max_size_in_bytes")
+	var errorMsg error
+
+	if storageMaxSize == 0 {
+		log.Infof("Retry queue storage on disk is disabled")
+	} else {
+		domainFolderPath, err := removalPolicy.RegisterDomain(domain)
+		if err != nil {
+			errorMsg = fmt.Errorf("Cannot register the domain '%v': %v", domain, err)
+		} else {
+			transactionsFileStorage, err = newTransactionsFileStorage(NewTransactionsSerializer(), domainFolderPath, storageMaxSize)
+			if err != nil {
+				errorMsg = fmt.Errorf("Cannot create the retry queue storage for '%v': %v", domain, err)
+			}
+		}
+	}
+
+	if errorMsg != nil {
+		log.Errorf("Retry queue storage on disk for domain '%v' failed: %v.", domain, errorMsg)
+	}
+	return transactionsFileStorage
 }

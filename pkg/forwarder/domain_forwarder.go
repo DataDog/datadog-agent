@@ -43,7 +43,7 @@ type domainForwarder struct {
 	blockedList *blockedEndpoints
 }
 
-func newDomainForwarder(domain string, numberOfWorkers int, retryQueueLimit int, retryQueueAllPayloadsMaxSize int, connectionResetInterval time.Duration) *domainForwarder {
+func newDomainForwarder(domain string, transactionContainer *transactionContainer, numberOfWorkers int, retryQueueLimit int, retryQueueAllPayloadsMaxSize int, connectionResetInterval time.Duration) *domainForwarder {
 	return &domainForwarder{
 		domain:                       domain,
 		numberOfWorkers:              numberOfWorkers,
