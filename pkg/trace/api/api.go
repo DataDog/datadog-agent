@@ -48,10 +48,14 @@ var bufferPool = sync.Pool{
 	},
 }
 
-func newBuffer() *bytes.Buffer {
+func getBuffer() *bytes.Buffer {
 	buffer := bufferPool.Get().(*bytes.Buffer)
 	buffer.Reset()
 	return buffer
+}
+
+func putBuffer(buffer *bytes.Buffer) {
+	bufferPool.Put(buffer)
 }
 
 // HTTPReceiver is a collector that uses HTTP protocol and just holds
@@ -590,8 +594,8 @@ func (r *HTTPReceiver) Languages() string {
 func decodeRequest(req *http.Request, dest *pb.Traces) error {
 	switch mediaType := getMediaType(req); mediaType {
 	case "application/msgpack":
-		buffer := newBuffer()
-		defer bufferPool.Put(buffer)
+		buffer := getBuffer()
+		defer putBuffer(buffer)
 		_, err := io.Copy(buffer, req.Body)
 		if err != nil {
 			return err
@@ -607,8 +611,8 @@ func decodeRequest(req *http.Request, dest *pb.Traces) error {
 	default:
 		// do our best
 		if err1 := json.NewDecoder(req.Body).Decode(dest); err1 != nil {
-			buffer := newBuffer()
-			defer bufferPool.Put(buffer)
+			buffer := getBuffer()
+			defer putBuffer(buffer)
 			_, err2 := io.Copy(buffer, req.Body)
 			if err2 != nil {
 				return fmt.Errorf("could not decode JSON (%q), nor Msgpack (%q)", err1, err2)
