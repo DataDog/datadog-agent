@@ -1,5 +1,4 @@
 #include "stdafx.h"
-#include "lmerr_str.h"
 #pragma comment(lib, "shlwapi.lib")
 
 
