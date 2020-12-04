@@ -9,10 +9,12 @@ package flare
 
 import (
 	"bytes"
+	"context"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -29,6 +31,7 @@ var (
 		"Application": "Event/System/Provider[@Name=\"datadog-trace-agent\"]",
 		"Microsoft-Windows-WMI-Activity/Operational": "*",
 	}
+	execTimeoutInSeconds = time.Duration(30)
 )
 
 const (
@@ -81,7 +84,11 @@ func zipCounterStrings(tempDir, hostname string) error {
 }
 
 func zipTypeperfData(tempDir, hostname string) error {
-	cmd := exec.Command("typeperf", "-qx")
+	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeoutInSeconds * time.Second)
+	defer cancelfunc()
+
+	cmd := exec.CommandContext(cancelctx, "typeperf", "-qx")
+
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	err := cmd.Run()
@@ -101,12 +108,17 @@ func zipTypeperfData(tempDir, hostname string) error {
 	return nil
 }
 func zipLodctrOutput(tempDir, hostname string) error {
-	cmd := exec.Command("lodctr", "/q")
+	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeoutInSeconds * time.Second)
+	defer cancelfunc()
+
+	cmd := exec.CommandContext(cancelctx, "lodctr", "/q")
+
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	err := cmd.Run()
 	if err != nil {
 		log.Warnf("Error running lodctr command %v", err)
+		return err
 	}
 	f := filepath.Join(tempDir, hostname, "lodctr.txt")
 	err = ensureParentDirsExist(f)
