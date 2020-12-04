@@ -7,6 +7,7 @@ package types
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
 
 // NodeStatus holds the status report from the node-agent
@@ -35,6 +36,18 @@ type RebalanceResponse struct {
 type ConfigResponse struct {
 	LastChange int64                `json:"last_change"`
 	Configs    []integration.Config `json:"configs"`
+}
+
+// ConfigsToSchedule holds the request to send new configs to DCA
+type ConfigsToSchedule struct {
+	CheckID check.ID             `json:"check_id"`
+	Configs []integration.Config `json:"configs"`
+}
+
+// ConfigsToScheduleResponse holds the DCA response for ConfigsToSchedule
+type ConfigsToScheduleResponse struct {
+	// TODO: TDB
+	Ok bool `json:"ok"`
 }
 
 // StateResponse holds the DCA response for a dispatching state query

@@ -113,3 +113,52 @@ func (c *DCAClient) doGetClusterCheckConfigs(nodeName string) (types.ConfigRespo
 	err = json.Unmarshal(b, &configs)
 	return configs, err
 }
+
+// PostClusterCheckConfigs is called by integrations to schedule new check instances
+func (c *DCAClient) PostClusterCheckConfigs(nodeName string, configs types.ConfigsToSchedule) (types.ConfigsToScheduleResponse, error) {
+	// Retry on the main URL if the leader fails
+	willRetry := c.leaderClient.hasLeader()
+
+	result, err := c.doPostClusterCheckConfigs(nodeName, configs)
+	if err != nil && willRetry {
+		log.Debugf("Got error on leader, retrying via the service: %s", err)
+		c.leaderClient.resetURL()
+		return c.doPostClusterCheckConfigs(nodeName, configs)
+	}
+	return result, err
+}
+
+func (c *DCAClient) doPostClusterCheckConfigs(nodeName string, configs types.ConfigsToSchedule) (types.ConfigsToScheduleResponse, error) {
+	var configsResp types.ConfigsToScheduleResponse
+	var err error
+
+	queryBody, err := json.Marshal(configs)
+	if err != nil {
+		return configsResp, err
+	}
+
+	// POST https://host:port/api/v1/clusterchecks/configs/{nodeName}
+	rawURL := c.leaderClient.buildURL(dcaClusterChecksConfigsPath, nodeName)
+	req, err := http.NewRequest("POST", rawURL, bytes.NewBuffer(queryBody))
+	if err != nil {
+		return configsResp, err
+	}
+	req.Header = c.clusterAgentAPIRequestHeaders
+
+	resp, err := c.leaderClient.Do(req)
+	if err != nil {
+		return configsResp, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return configsResp, fmt.Errorf("unexpected response: %d - %s", resp.StatusCode, resp.Status)
+	}
+
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return configsResp, err
+	}
+	err = json.Unmarshal(b, &configsResp)
+	return configsResp, err
+}
