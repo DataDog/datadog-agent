@@ -48,6 +48,12 @@ var bufferPool = sync.Pool{
 	},
 }
 
+func newBuffer() *bytes.Buffer {
+	buffer := bufferPool.Get().(*bytes.Buffer)
+	buffer.Reset()
+	return buffer
+}
+
 // HTTPReceiver is a collector that uses HTTP protocol and just holds
 // a chan where the spans received are sent one by one
 type HTTPReceiver struct {
@@ -584,8 +590,7 @@ func (r *HTTPReceiver) Languages() string {
 func decodeRequest(req *http.Request, dest *pb.Traces) error {
 	switch mediaType := getMediaType(req); mediaType {
 	case "application/msgpack":
-		buffer := bufferPool.Get().(*bytes.Buffer)
-		buffer.Reset()
+		buffer := newBuffer()
 		defer bufferPool.Put(buffer)
 		_, err := io.Copy(buffer, req.Body)
 		if err != nil {
@@ -602,8 +607,7 @@ func decodeRequest(req *http.Request, dest *pb.Traces) error {
 	default:
 		// do our best
 		if err1 := json.NewDecoder(req.Body).Decode(dest); err1 != nil {
-			buffer := bufferPool.Get().(*bytes.Buffer)
-			buffer.Reset()
+			buffer := newBuffer()
 			defer bufferPool.Put(buffer)
 			_, err2 := io.Copy(buffer, req.Body)
 			if err2 != nil {
