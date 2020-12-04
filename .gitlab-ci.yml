@@ -97,6 +97,7 @@ variables:
   DATADOG_AGENT_WINBUILDIMAGES: v3496931-201092e
   DATADOG_AGENT_ARMBUILDIMAGES: v3496931-201092e
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v3496931-201092e
+  DATADOG_AGENT_LIBBCC_BUILDIMAGES: v2894686-d80c3ce
   BCC_VERSION: v0.12.0
   SYSTEM_PROBE_GO_VERSION: 1.14.7
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -222,14 +223,14 @@ variables:
 
 build_libbcc_x64:
   extends: .build_libbcc_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_LIBBCC_BUILDIMAGES
   tags: [ "runner:main", "size:large" ]
   variables:
     ARCH: amd64
 
 build_libbcc_arm64:
   extends: .build_libbcc_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_LIBBCC_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
     ARCH: arm64
@@ -698,6 +699,8 @@ dogstatsd_arm64_size_test:
     - mkdir clang && tar xf clang.src.tar.xz --strip-components=1 --no-same-owner -C clang
     - mkdir llvm && tar xf llvm.src.tar.xz --strip-components=1 --no-same-owner -C llvm
     - mkdir build && cd build
+    # Note: on ARM, this may fail (process gets killed), indicating an OOM error.
+    # In that case, reduce this job's parallelism (eg. with -DLLVM_PARALLEL_COMPILE_JOBS=2 -DLLVM_PARALLEL_LINK_JOBS=2)
     - |
       cmake -DLLVM_ENABLE_PROJECTS=clang \
       -DLLVM_TARGETS_TO_BUILD="BPF" \
