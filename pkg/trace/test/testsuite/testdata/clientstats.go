@@ -3,7 +3,24 @@ package testdata
 import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats/quantile"
+
+	"github.com/DataDog/sketches-go/ddsketch"
+	"github.com/DataDog/sketches-go/ddsketch/mapping"
+	"github.com/DataDog/sketches-go/ddsketch/store"
+	"github.com/golang/protobuf/proto"
 )
+
+func getEmptyDDSketch() []byte {
+	m, _ := mapping.NewLogarithmicMapping(0.01)
+	s := ddsketch.NewDDSketch(m, store.NewDenseStore(), store.NewDenseStore())
+	data, _ := proto.Marshal(s.ToProto())
+	return data
+}
+
+func getEmptyGKSketch() *quantile.SliceSummary {
+	return &quantile.SliceSummary{Entries: make([]quantile.Entry, 0)}
+}
 
 // ClientStatsTests contains a suite of tests for testing the stats endpoint.
 var ClientStatsTests = []struct {
@@ -29,6 +46,8 @@ var ClientStatsTests = []struct {
 							Hits:           22,
 							Errors:         33,
 							Duration:       44,
+							HitsSummary:    getEmptyDDSketch(),
+							ErrorSummary:   getEmptyDDSketch(),
 						},
 					},
 				},
@@ -85,6 +104,38 @@ var ClientStatsTests = []struct {
 							Value:    22,
 						},
 					},
+					Distributions: map[string]stats.Distribution{
+						"noname00|duration|env:testing,resource:noname00,service:unnamed-service,http.status_code:200,version:0.1-alpha": {
+							Key:     "noname00|duration|env:testing,resource:noname00,service:unnamed-service,http.status_code:200,version:0.1-alpha",
+							Name:    "noname00",
+							Measure: "duration",
+							TagSet: stats.TagSet{
+								stats.Tag{Name: "env", Value: "testing"},
+								stats.Tag{Name: "resource", Value: "noname00"},
+								stats.Tag{Name: "service", Value: "unnamed-service"},
+								stats.Tag{Name: "http.status_code", Value: "200"},
+								stats.Tag{Name: "version", Value: "0.1-alpha"},
+							},
+							TopLevel: 0,
+							Summary:  getEmptyGKSketch(),
+						},
+					},
+					ErrDistributions: map[string]stats.Distribution{
+						"noname00|duration|env:testing,resource:noname00,service:unnamed-service,http.status_code:200,version:0.1-alpha": {
+							Key:     "noname00|duration|env:testing,resource:noname00,service:unnamed-service,http.status_code:200,version:0.1-alpha",
+							Name:    "noname00",
+							Measure: "duration",
+							TagSet: stats.TagSet{
+								stats.Tag{Name: "env", Value: "testing"},
+								stats.Tag{Name: "resource", Value: "noname00"},
+								stats.Tag{Name: "service", Value: "unnamed-service"},
+								stats.Tag{Name: "http.status_code", Value: "200"},
+								stats.Tag{Name: "version", Value: "0.1-alpha"},
+							},
+							TopLevel: 0,
+							Summary:  getEmptyGKSketch(),
+						},
+					},
 				},
 			},
 		},
@@ -109,16 +160,20 @@ var ClientStatsTests = []struct {
 							Hits:           22,
 							Errors:         33,
 							Duration:       44,
+							HitsSummary:    getEmptyDDSketch(),
+							ErrorSummary:   getEmptyDDSketch(),
 						},
 						{
-							Service:  "users-db",
-							Name:     "sql.query",
-							Resource: "SELECT * FROM users WHERE id=4 AND name='John'",
-							Type:     "sql",
-							DBType:   "mysql",
-							Hits:     5,
-							Errors:   7,
-							Duration: 8,
+							Service:      "users-db",
+							Name:         "sql.query",
+							Resource:     "SELECT * FROM users WHERE id=4 AND name='John'",
+							Type:         "sql",
+							DBType:       "mysql",
+							Hits:         5,
+							Errors:       7,
+							Duration:     8,
+							HitsSummary:  getEmptyDDSketch(),
+							ErrorSummary: getEmptyDDSketch(),
 						},
 					},
 				},
@@ -127,14 +182,16 @@ var ClientStatsTests = []struct {
 					Duration: 4,
 					Stats: []pb.ClientGroupedStats{
 						{
-							Service:  "profiles-db",
-							Name:     "sql.query",
-							Resource: "SELECT * FROM profiles WHERE name='Mary'",
-							Type:     "sql",
-							DBType:   "oracle",
-							Hits:     11,
-							Errors:   12,
-							Duration: 13,
+							Service:      "profiles-db",
+							Name:         "sql.query",
+							Resource:     "SELECT * FROM profiles WHERE name='Mary'",
+							Type:         "sql",
+							DBType:       "oracle",
+							Hits:         11,
+							Errors:       12,
+							Duration:     13,
+							HitsSummary:  getEmptyDDSketch(),
+							ErrorSummary: getEmptyDDSketch(),
 						},
 					},
 				},
@@ -191,6 +248,38 @@ var ClientStatsTests = []struct {
 							Value:    22,
 						},
 					},
+					Distributions: map[string]stats.Distribution{
+						"noname00|duration|env:testing,resource:/rsc/path,service:svc,http.status_code:200,version:0.1-alpha": {
+							Key:     "noname00|duration|env:testing,resource:/rsc/path,service:svc,http.status_code:200,version:0.1-alpha",
+							Name:    "noname00",
+							Measure: "duration",
+							TagSet: stats.TagSet{
+								stats.Tag{Name: "env", Value: "testing"},
+								stats.Tag{Name: "resource", Value: "/rsc/path"},
+								stats.Tag{Name: "service", Value: "svc"},
+								stats.Tag{Name: "http.status_code", Value: "200"},
+								stats.Tag{Name: "version", Value: "0.1-alpha"},
+							},
+							TopLevel: 0,
+							Summary:  getEmptyGKSketch(),
+						},
+					},
+					ErrDistributions: map[string]stats.Distribution{
+						"noname00|duration|env:testing,resource:/rsc/path,service:svc,http.status_code:200,version:0.1-alpha": {
+							Key:     "noname00|duration|env:testing,resource:/rsc/path,service:svc,http.status_code:200,version:0.1-alpha",
+							Name:    "noname00",
+							Measure: "duration",
+							TagSet: stats.TagSet{
+								stats.Tag{Name: "env", Value: "testing"},
+								stats.Tag{Name: "resource", Value: "/rsc/path"},
+								stats.Tag{Name: "service", Value: "svc"},
+								stats.Tag{Name: "http.status_code", Value: "200"},
+								stats.Tag{Name: "version", Value: "0.1-alpha"},
+							},
+							TopLevel: 0,
+							Summary:  getEmptyGKSketch(),
+						},
+					},
 				},
 				{
 					Start:    1,
@@ -236,6 +325,36 @@ var ClientStatsTests = []struct {
 							Value:    5,
 						},
 					},
+					Distributions: map[string]stats.Distribution{
+						"sql.query|duration|env:testing,resource:SELECT * FROM users WHERE id = ? AND name = ?,service:users-db,version:0.1-alpha": {
+							Key:     "sql.query|duration|env:testing,resource:SELECT * FROM users WHERE id = ? AND name = ?,service:users-db,version:0.1-alpha",
+							Name:    "sql.query",
+							Measure: "duration",
+							TagSet: stats.TagSet{
+								stats.Tag{Name: "env", Value: "testing"},
+								stats.Tag{Name: "resource", Value: "SELECT * FROM users WHERE id = ? AND name = ?"},
+								stats.Tag{Name: "service", Value: "users-db"},
+								stats.Tag{Name: "version", Value: "0.1-alpha"},
+							},
+							TopLevel: 0,
+							Summary:  getEmptyGKSketch(),
+						},
+					},
+					ErrDistributions: map[string]stats.Distribution{
+						"sql.query|duration|env:testing,resource:SELECT * FROM users WHERE id = ? AND name = ?,service:users-db,version:0.1-alpha": {
+							Key:     "sql.query|duration|env:testing,resource:SELECT * FROM users WHERE id = ? AND name = ?,service:users-db,version:0.1-alpha",
+							Name:    "sql.query",
+							Measure: "duration",
+							TagSet: stats.TagSet{
+								stats.Tag{Name: "env", Value: "testing"},
+								stats.Tag{Name: "resource", Value: "SELECT * FROM users WHERE id = ? AND name = ?"},
+								stats.Tag{Name: "service", Value: "users-db"},
+								stats.Tag{Name: "version", Value: "0.1-alpha"},
+							},
+							TopLevel: 0,
+							Summary:  getEmptyGKSketch(),
+						},
+					},
 				},
 				{
 					Start:    3,
@@ -279,6 +398,36 @@ var ClientStatsTests = []struct {
 							},
 							TopLevel: 11,
 							Value:    11,
+						},
+					},
+					Distributions: map[string]stats.Distribution{
+						"sql.query|duration|env:testing,resource:SELECT * FROM profiles WHERE name = ?,service:profiles-db,version:0.1-alpha": {
+							Key:     "sql.query|duration|env:testing,resource:SELECT * FROM profiles WHERE name = ?,service:profiles-db,version:0.1-alpha",
+							Name:    "sql.query",
+							Measure: "duration",
+							TagSet: stats.TagSet{
+								stats.Tag{Name: "env", Value: "testing"},
+								stats.Tag{Name: "resource", Value: "SELECT * FROM profiles WHERE name = ?"},
+								stats.Tag{Name: "service", Value: "profiles-db"},
+								stats.Tag{Name: "version", Value: "0.1-alpha"},
+							},
+							TopLevel: 0,
+							Summary:  getEmptyGKSketch(),
+						},
+					},
+					ErrDistributions: map[string]stats.Distribution{
+						"sql.query|duration|env:testing,resource:SELECT * FROM profiles WHERE name = ?,service:profiles-db,version:0.1-alpha": {
+							Key:     "sql.query|duration|env:testing,resource:SELECT * FROM profiles WHERE name = ?,service:profiles-db,version:0.1-alpha",
+							Name:    "sql.query",
+							Measure: "duration",
+							TagSet: stats.TagSet{
+								stats.Tag{Name: "env", Value: "testing"},
+								stats.Tag{Name: "resource", Value: "SELECT * FROM profiles WHERE name = ?"},
+								stats.Tag{Name: "service", Value: "profiles-db"},
+								stats.Tag{Name: "version", Value: "0.1-alpha"},
+							},
+							TopLevel: 0,
+							Summary:  getEmptyGKSketch(),
 						},
 					},
 				},
