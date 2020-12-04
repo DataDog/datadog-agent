@@ -112,9 +112,35 @@ func getCheckConfigs(sc clusteragent.ServerContext) func(w http.ResponseWriter, 
 
 // postCheckConfigs is used by the node-agent integrations to schedule new check instances
 func postCheckConfigs(sc clusteragent.ServerContext) func(w http.ResponseWriter, r *http.Request) {
-	log.Warn("postCheckConfigs called")
+	if sc.ClusterCheckHandler == nil {
+		return clusterChecksDisabledHandler
+	}
+	log.Warn("postCheckConfigs called")  // TODO: Remove me
 	return func(w http.ResponseWriter, r *http.Request) {
-		log.Warn("postCheckConfigs handler called")
+		if !shouldHandle(w, r, sc.ClusterCheckHandler, "postCheckConfigs") {
+			return
+		}
+		log.Warn("postCheckConfigs handler called")  // TODO: Remove me
+
+		vars := mux.Vars(r)
+		nodeName := vars["nodeName"]
+
+		decoder := json.NewDecoder(r.Body)
+		var configs cctypes.ConfigsToSchedule
+		err := decoder.Decode(&configs)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			incrementRequestMetric("postCheckConfigs", http.StatusInternalServerError)
+			return
+		}
+		response, err := sc.ClusterCheckHandler.PostConfigs(nodeName)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			incrementRequestMetric("postCheckConfigs", http.StatusInternalServerError)
+			return
+		}
+
+		writeJSONResponse(w, response, "getCheckConfigs")
 	}
 }
 

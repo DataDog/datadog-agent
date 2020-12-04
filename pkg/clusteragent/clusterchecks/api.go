@@ -61,6 +61,15 @@ func (h *Handler) GetConfigs(nodeName string) (types.ConfigResponse, error) {
 	return response, err
 }
 
+// PostConfigs handles new configs to be scheduled
+func (h *Handler) PostConfigs(nodeName string, configs types.ConfigsToSchedule) (types.ConfigsToScheduleResponse, error) {
+	ok, err := h.dispatcher.processNodeConfigs(nodeName, configs)
+	response := types.ConfigsToScheduleResponse{
+		Ok:    ok,
+	}
+	return response, err
+}
+
 // PostStatus handles status reports from the node agents
 func (h *Handler) PostStatus(nodeName, clientIP string, status types.NodeStatus) (types.StatusResponse, error) {
 	upToDate, err := h.dispatcher.processNodeStatus(nodeName, clientIP, status)

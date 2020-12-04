@@ -35,6 +35,24 @@ func (d *dispatcher) getNodeConfigs(nodeName string) ([]integration.Config, int6
 	return makeConfigArray(node.digestToConfig), node.lastConfigChange, nil
 }
 
+// processNodeConfigs handles new configs to be scheduled
+func (d *dispatcher) processNodeConfigs(nodeName string, configs types.ConfigsToSchedule) (bool, error) {
+	d.store.RLock()
+	defer d.store.RUnlock()
+
+	// Add configs to
+	//node, found := d.store.getNodeStore(nodeName)
+	//if !found {
+	//	return false, fmt.Errorf("node %s is unknown", nodeName)
+	//}
+
+	// TODO: Schedule/Add configs to clusterStore. For example using:
+	//   d.Schedule(configs.Configs)
+	//   d.add()
+
+	return true, nil
+}
+
 // processNodeStatus keeps the node's status in the store, and returns true
 // if the last configuration change matches the one sent by the node agent.
 func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.NodeStatus) (bool, error) {
