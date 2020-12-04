@@ -54,6 +54,19 @@ func TestTransactionContainerSeveralFlushToDisk(t *testing.T) {
 	a.Equal(int64(0), s.GetCurrentSizeInBytes())
 }
 
+func TestTransactionContainerNoTransactionStorage(t *testing.T) {
+	a := assert.New(t)
+	container := newTransactionContainer(nil, 50, 0.1)
+
+	// Drop when adding `30`
+	for _, payloadSize := range []int{9, 10, 11, 30} {
+		container.Add(createTransactionWithPayloadSize(payloadSize))
+	}
+	a.Equal(11+30, container.GetCurrentMemSizeInBytes())
+
+	assertPayloadSizeFromExtractTransactions(a, container, []int{11, 30})
+}
+
 func createTransactionWithPayloadSize(payloadSize int) *HTTPTransaction {
 	tr := NewHTTPTransaction()
 	payload := make([]byte, payloadSize)

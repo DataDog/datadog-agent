@@ -43,15 +43,24 @@ func newTransactionContainer(
 // When adding the last payload `15`, the buffer becomes full (10+20+30+40+15 > 100) and
 // 100*0.6=60 bytes must be flushed on disk.
 // The first 3 transactions are flushed to the disk as 10 + 20 + 30 >= 60
+// If disk serialization failed or is not enabled, remove old transactions such as
+// `currentMemSizeInBytes` <= `maxMemSizeInBytes`
 func (f *transactionContainer) Add(t Transaction) error {
+	var err error
 	payloadSize := t.GetPayloadSize()
-	if err := f.makeRoomFor(payloadSize); err != nil {
-		return fmt.Errorf("Not enough space for the payload %v %v", t.GetTarget(), err)
+	if err = f.makeRoomFor(payloadSize); err != nil {
+		err = fmt.Errorf("Not enough space for the transaction %v %v", t.GetTarget(), err)
+	}
+
+	// If disk serialization failed or is not enabled, make sure `currentMemSizeInBytes` <= `maxMemSizeInBytes`
+	payloadSizeInBytesToDrop := (f.currentMemSizeInBytes + payloadSize) - f.maxMemSizeInBytes
+	if payloadSizeInBytesToDrop > 0 {
+		f.extractTransactions(payloadSizeInBytesToDrop)
 	}
 
 	f.transactions = append(f.transactions, t)
 	f.currentMemSizeInBytes += payloadSize
-	return nil
+	return err
 }
 
 // ExtractTransactions extracts transactions from the container.
