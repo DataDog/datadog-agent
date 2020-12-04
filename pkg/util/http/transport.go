@@ -12,11 +12,17 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/net/http/httpproxy"
+)
+
+var (
+	NoProxyWarningMap      = make(map[string]bool)
+	NoProxyWarningMapMutex = sync.Mutex{}
 )
 
 // CreateHTTPTransport creates an *http.Transport for use in the agent
@@ -118,17 +124,14 @@ func GetProxyTransportFunc(p *config.Proxy) func(*http.Request) (*url.URL, error
 
 		// Print a warning if the proxy behavior would change if the new no_proxy behavior would be enabled
 		newURL, _ := proxyConfig.ProxyFunc()(r.URL)
-		if url != newURL {
-			oldURLStr := "nil"
-			if url != nil {
-				oldURLStr = url.String()
+		if url != newURL && url != nil {
+			urlString := r.URL.String()
+			NoProxyWarningMapMutex.Lock()
+			if _, ok := NoProxyWarningMap[urlString]; !ok {
+				NoProxyWarningMap[r.URL.String()] = true
+				log.Warnf("Deprecation warning: the HTTP request to %s uses proxy %s but will ignore the proxy when the Agent configuration option proxy.no_proxy_nonexact_match defaults to true in a future agent version. Please adapt the Agent’s proxy configuration accordingly", SanitizeURL(r.URL.String()), url.String())
 			}
-
-			newURLStr := "nil"
-			if newURL != nil {
-				newURLStr = newURL.String()
-			}
-			log.Warnf("with proxy.no_proxy_nonexact_match = true, the proxy used for %s would be %s instead of %s", SanitizeURL(r.URL.String()), newURLStr, oldURLStr)
+			NoProxyWarningMapMutex.Unlock()
 		}
 
 		return url, err
