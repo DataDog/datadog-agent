@@ -96,12 +96,12 @@ func (s *transactionsFileStorage) Deserialize() ([]Transaction, error) {
 		return nil, err
 	}
 
-	transactions, err := s.serializer.Deserialize(bytes)
-	if err != nil {
+	if err := s.removeFileAt(index); err != nil {
 		return nil, err
 	}
 
-	if err := s.removeFileAt(index); err != nil {
+	transactions, err := s.serializer.Deserialize(bytes)
+	if err != nil {
 		return nil, err
 	}
 
