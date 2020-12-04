@@ -423,6 +423,7 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 		httpDecodingError(err, []string{"handler:stats", "v:v0.5"}, w)
 		return
 	}
+	// TODO(gbbr): add tagStats to all metrics
 	metrics.Count("datadog.trace_agent.receiver.stats_payload", 1, nil, 1)
 	metrics.Count("datadog.trace_agent.receiver.stats_bytes", int64(len(slurp)), nil, 1)
 
