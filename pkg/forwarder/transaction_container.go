@@ -46,10 +46,18 @@ func newTransactionContainer(
 // If disk serialization failed or is not enabled, remove old transactions such as
 // `currentMemSizeInBytes` <= `maxMemSizeInBytes`
 func (f *transactionContainer) Add(t Transaction) error {
-	var err error
+	var diskErr error
 	payloadSize := t.GetPayloadSize()
-	if err = f.makeRoomFor(payloadSize); err != nil {
-		err = fmt.Errorf("Not enough space for the transaction %v %v", t.GetTarget(), err)
+	if f.optionalTransactionStorage != nil {
+		payloadsGroupToFlush := f.extractTransactionsForDisk(payloadSize)
+		for _, payloads := range payloadsGroupToFlush {
+			if err := f.optionalTransactionStorage.Serialize(payloads); err != nil {
+				diskErr = fmt.Errorf("%v %v", diskErr, err)
+			}
+		}
+		if diskErr != nil {
+			diskErr = fmt.Errorf("Cannot store transactions on disk:%v", diskErr)
+		}
 	}
 
 	// If disk serialization failed or is not enabled, make sure `currentMemSizeInBytes` <= `maxMemSizeInBytes`
@@ -60,7 +68,7 @@ func (f *transactionContainer) Add(t Transaction) error {
 
 	f.transactions = append(f.transactions, t)
 	f.currentMemSizeInBytes += payloadSize
-	return err
+	return diskErr
 }
 
 // ExtractTransactions extracts transactions from the container.
@@ -88,26 +96,17 @@ func (f *transactionContainer) GetCurrentMemSizeInBytes() int {
 	return f.currentMemSizeInBytes
 }
 
-func (f *transactionContainer) makeRoomFor(payloadSize int) error {
-	for f.currentMemSizeInBytes+payloadSize > f.maxMemSizeInBytes && len(f.transactions) > 0 {
-		if err := f.flushToStorage(); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (f *transactionContainer) flushToStorage() error {
+func (f *transactionContainer) extractTransactionsForDisk(payloadSize int) [][]Transaction {
 	sizeInBytesToFlush := int(float64(f.maxMemSizeInBytes) * f.flushToStorageRatio)
+	var payloadsGroupToFlush [][]Transaction
+	for f.currentMemSizeInBytes+payloadSize > f.maxMemSizeInBytes && len(f.transactions) > 0 {
+		// Flush the N first transactions whose payload size sum is greater than `sizeInBytesToFlush`
+		transactions := f.extractTransactions(sizeInBytesToFlush)
 
-	// Flush the N first transactions whose payload size sum is greater than `sizeInBytesToFlush`
-	payloadsToFlush := f.extractTransactions(sizeInBytesToFlush)
-
-	if len(payloadsToFlush) > 0 && f.optionalTransactionStorage != nil {
-		return f.optionalTransactionStorage.Serialize(payloadsToFlush)
+		payloadsGroupToFlush = append(payloadsGroupToFlush, transactions)
 	}
 
-	return nil
+	return payloadsGroupToFlush
 }
 
 func (f *transactionContainer) extractTransactions(payloadSizeInBytesToExtract int) []Transaction {
