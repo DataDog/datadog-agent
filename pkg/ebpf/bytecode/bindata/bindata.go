@@ -148,8 +148,8 @@ var _bindata = map[string]func() (*asset, error){
 	"runtime-security.o":                 bindataRuntimesecurityO,
 	"tcp-queue-length-kern-user.h":       bindataTcpqueuelengthkernuserH,
 	"tcp-queue-length-kern.c":            bindataTcpqueuelengthkernC,
-	"tracer-ebpf-debug.o":                bindataTracerebpfdebugO,
-	"tracer-ebpf.o":                      bindataTracerebpfO,
+	"tracer-debug.o":                     bindataTracerdebugO,
+	"tracer.o":                           bindataTracerO,
 }
 
 //
@@ -212,8 +212,8 @@ var _bintree = &bintree{Func: nil, Children: map[string]*bintree{
 	"runtime-security.o":                 {Func: bindataRuntimesecurityO, Children: map[string]*bintree{}},
 	"tcp-queue-length-kern-user.h":       {Func: bindataTcpqueuelengthkernuserH, Children: map[string]*bintree{}},
 	"tcp-queue-length-kern.c":            {Func: bindataTcpqueuelengthkernC, Children: map[string]*bintree{}},
-	"tracer-ebpf-debug.o":                {Func: bindataTracerebpfdebugO, Children: map[string]*bintree{}},
-	"tracer-ebpf.o":                      {Func: bindataTracerebpfO, Children: map[string]*bintree{}},
+	"tracer-debug.o":                     {Func: bindataTracerdebugO, Children: map[string]*bintree{}},
+	"tracer.o":                           {Func: bindataTracerO, Children: map[string]*bintree{}},
 }}
 
 // RestoreAsset restores an asset under the given directory

@@ -1,7 +1,7 @@
 #ifndef _DEFS_H_
 #define _DEFS_H_
 
-#include "../../../ebpf/c/bpf_helpers.h"
+#include "bpf_helpers.h"
 
 #define LOAD_CONSTANT(param, var) asm("%0 = " param " ll" : "=r"(var))
 
