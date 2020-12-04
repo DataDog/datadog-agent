@@ -69,7 +69,7 @@ UINT doFinalizeInstall(CustomActionData& data)
         }
         if (bResetPassword)
         {
-            DWORD ret = doSetUserPassword(data.Username(), passToUse);
+            DWORD ret = doSetUserPassword(data.UnqualifiedUsername(), passToUse);
             if (ret != 0)
             {
                 WcaLog(LOGMSG_STANDARD, "Failed to set DD user password");
@@ -79,8 +79,7 @@ UINT doFinalizeInstall(CustomActionData& data)
         }
         else
         {
-            DWORD nErr = 0;
-            DWORD ret = doCreateUser(data.Username(), ddAgentUserDescription, passToUse);
+            DWORD ret = doCreateUser(data.UnqualifiedUsername(), ddAgentUserDescription, passToUse);
             if (ret != 0)
             {
                 WcaLog(LOGMSG_STANDARD, "Failed to create DD user");

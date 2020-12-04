@@ -227,13 +227,12 @@ int doCreateUser(const std::wstring& name, const std::wstring& comment, const wc
     ui.usri1_priv = USER_PRIV_USER;
     ui.usri1_comment = (LPWSTR)comment.c_str();
     ui.usri1_flags = UF_DONT_EXPIRE_PASSWD;
-    DWORD ret = 0;
-    
-    WcaLog(LOGMSG_STANDARD, "Calling NetUserAdd.");
-    ret = NetUserAdd(nullptr, // LOCAL_MACHINE
-                     1, // indicates we're using a USER_INFO_1
-                     reinterpret_cast<LPBYTE>(&ui),
-                     nullptr);
+
+    WcaLog(LOGMSG_STANDARD, "Adding user %S", name.c_str());
+    DWORD ret = NetUserAdd(nullptr, // LOCAL_MACHINE
+                           1, // indicates we're using a USER_INFO_1
+                           reinterpret_cast<LPBYTE>(&ui),
+                           nullptr);
     /*
      * If the function fails, the return value can be one of the following error codes.
      *   - ERROR_ACCESS_DENIED

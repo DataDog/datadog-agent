@@ -8,20 +8,20 @@ SidResult GetSidForUser(LPCWSTR host, LPCWSTR user) {
 
 	LookupAccountName(host, user, nullptr, &cbSid, nullptr, &cchRefDomain, &use);
 	sid_ptr newsid = make_sid(cbSid);
-	std::wstring refDomain;
+	std::vector<wchar_t> refDomain;
+	// +1 in case cchRefDomain == 0
 	refDomain.resize(cchRefDomain + 1);
 	if (!LookupAccountName(host, user, newsid.get(), &cbSid, &refDomain[0], &cchRefDomain, &use))
 	{
 		return SidResult(GetLastError());
 	}
-	WcaLog(LOGMSG_VERBOSE, "Got SID from %S", refDomain.c_str());
+
 	if (!IsValidSid(newsid.get()))
 	{
-		WcaLog(LOGMSG_STANDARD, "New SID is invalid");
 		return SidResult(ERROR_INVALID_SID);
 	}
 
-	return SidResult(newsid, refDomain, ERROR_SUCCESS);
+	return SidResult(newsid, std::wstring(refDomain.data()), ERROR_SUCCESS);
 }
 
 bool GetNameForSid(LPCWSTR host, PSID sid, std::wstring& namestr) 
