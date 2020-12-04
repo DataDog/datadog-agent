@@ -42,17 +42,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+var bufferPool = sync.Pool{
+	New: func() interface{} {
+		return new(bytes.Buffer)
+	},
+}
+
 // HTTPReceiver is a collector that uses HTTP protocol and just holds
 // a chan where the spans received are sent one by one
 type HTTPReceiver struct {
 	Stats       *info.ReceiverStats
 	RateLimiter *rateLimiter
 
-	out        chan *Payload
-	conf       *config.AgentConfig
-	dynConf    *sampler.DynamicConfig
-	server     *http.Server
-	bufferPool *sync.Pool
+	out     chan *Payload
+	conf    *config.AgentConfig
+	dynConf *sampler.DynamicConfig
+	server  *http.Server
 
 	debug               bool
 	rateLimiterResponse int // HTTP status code when refusing
@@ -74,12 +79,6 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 
 		conf:    conf,
 		dynConf: dynConf,
-
-		bufferPool: &sync.Pool{
-			New: func() interface{} {
-				return new(bytes.Buffer)
-			},
-		},
 
 		debug:               strings.ToLower(conf.LogLevel) == "debug",
 		rateLimiterResponse: rateLimiterResponse,
@@ -337,7 +336,7 @@ func (r *HTTPReceiver) tagStats(v Version, req *http.Request) *info.TagStats {
 	})
 }
 
-func decodeTraces(v Version, req *http.Request, bufferPool *sync.Pool) (pb.Traces, error) {
+func decodeTraces(v Version, req *http.Request) (pb.Traces, error) {
 	switch v {
 	case v01:
 		var spans []pb.Span
@@ -353,7 +352,7 @@ func decodeTraces(v Version, req *http.Request, bufferPool *sync.Pool) (pb.Trace
 		return traces, err
 	default:
 		var traces pb.Traces
-		if err := decodeRequest(req, &traces, bufferPool); err != nil {
+		if err := decodeRequest(req, &traces); err != nil {
 			return nil, err
 		}
 		return traces, nil
@@ -394,7 +393,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		return
 	}
 
-	traces, err := decodeTraces(v, req, r.bufferPool)
+	traces, err := decodeTraces(v, req)
 	if err != nil {
 		httpDecodingError(err, []string{"handler:traces", fmt.Sprintf("v:%s", v)}, w)
 		switch err {
@@ -582,7 +581,7 @@ func (r *HTTPReceiver) Languages() string {
 	return strings.Join(str, "|")
 }
 
-func decodeRequest(req *http.Request, dest *pb.Traces, bufferPool *sync.Pool) error {
+func decodeRequest(req *http.Request, dest *pb.Traces) error {
 	switch mediaType := getMediaType(req); mediaType {
 	case "application/msgpack":
 		buffer := bufferPool.Get().(*bytes.Buffer)
