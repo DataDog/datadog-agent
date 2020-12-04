@@ -5,6 +5,7 @@ import (
 	"sort"
 )
 
+// SSBytes implements the sort.Interface for the [][]byte type
 type SSBytes [][]byte
 
 var _ sort.Interface = SSBytes{}
