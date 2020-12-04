@@ -16,7 +16,6 @@ import (
 	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -113,7 +112,7 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 				continue
 			}
 			for _, source := range s.sources.GetSources() {
-				if identifier == source.Config.Identifier || dockerutil.ContainerIDToTaggerEntityName(identifier) == source.Config.Identifier {
+				if identifier == source.Config.Identifier {
 					s.sources.RemoveSource(source)
 				}
 			}
@@ -218,7 +217,9 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 			// a config defined in a docker label or a pod annotation does not always contain a type,
 			// override it here to ensure that the config won't be dropped at validation.
 			if cfg.Type == logsConfig.FileType && service.Type == "docker" {
-				cfg.Identifier = dockerutil.ContainerIDToTaggerEntityName(service.Identifier)
+				// cfg.Type is not overwritten as tailing a file from a docker AD configuration
+				// is explicitly supported
+				cfg.Identifier = service.Identifier
 			} else {
 				cfg.Type = service.Type
 				cfg.Identifier = service.Identifier // used for matching a source with a service
