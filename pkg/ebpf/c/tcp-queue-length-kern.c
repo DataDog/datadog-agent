@@ -5,8 +5,8 @@
 #include <linux/tcp.h>
 #include <net/inet_sock.h>
 
-#include "pkg/ebpf/c/bpf-common.h"
-#include "pkg/ebpf/tcp-queue-length-kern-user.h"
+#include "bpf-common.h"
+#include "tcp-queue-length-kern-user.h"
 
 /*
  * The `tcp_queue_stats` map is used to share with the userland program system-probe
@@ -24,8 +24,8 @@ BPF_HASH(who_sendmsg, u64, struct sock*, 100);
 // TODO: replace all `bpf_probe_read` by `bpf_probe_read_kernel` once we can assume that we have at least kernel 5.5
 static inline int check_sock(struct sock* sk) {
     struct stats_value zero = {
-        .read_buffer_max_fill_rate = 0,
-        .write_buffer_max_fill_rate = 0
+        .read_buffer_max_usage = 0,
+        .write_buffer_max_usage = 0
     };
 
     struct stats_key k;
@@ -51,13 +51,13 @@ static inline int check_sock(struct sock* sk) {
         rqueue = 0;
     u32 wqueue = write_seq - snd_una;
 
-    u32 rqueue_fill_rate = 1000 * rqueue / rqueue_size;
-    u32 wqueue_fill_rate = 1000 * wqueue / wqueue_size;
+    u32 rqueue_usage = 1000 * rqueue / rqueue_size;
+    u32 wqueue_usage = 1000 * wqueue / wqueue_size;
 
-    if (rqueue_fill_rate > v->read_buffer_max_fill_rate)
-        v->read_buffer_max_fill_rate = rqueue_fill_rate;
-    if (wqueue_fill_rate > v->write_buffer_max_fill_rate)
-        v->write_buffer_max_fill_rate = wqueue_fill_rate;
+    if (rqueue_usage > v->read_buffer_max_usage)
+        v->read_buffer_max_usage = rqueue_usage;
+    if (wqueue_usage > v->write_buffer_max_usage)
+        v->write_buffer_max_usage = wqueue_usage;
 
     return 0;
 }

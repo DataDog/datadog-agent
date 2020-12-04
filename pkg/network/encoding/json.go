@@ -20,9 +20,15 @@ func (j jsonSerializer) Marshal(conns *network.Connections) ([]byte, error) {
 	for i, conn := range conns.Conns {
 		agentConns[i] = FormatConnection(conn)
 	}
-	payload := &model.Connections{Conns: agentConns, Dns: FormatDNS(conns.DNS), Telemetry: FormatTelemetry(conns.Telemetry)}
+
+	payload := connsPool.Get().(*model.Connections)
+	payload.Conns = agentConns
+	payload.Dns = FormatDNS(conns.DNS)
+	payload.Telemetry = FormatTelemetry(conns.Telemetry)
+
 	writer := new(bytes.Buffer)
 	err := j.marshaller.Marshal(writer, payload)
+	returnToPool(payload)
 	return writer.Bytes(), err
 }
 

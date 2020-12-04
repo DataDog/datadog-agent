@@ -18,13 +18,14 @@ func (protoSerializer) Marshal(conns *network.Connections) ([]byte, error) {
 		agentConns[i] = FormatConnection(conn)
 	}
 
-	payload := &model.Connections{
-		Conns:     agentConns,
-		Dns:       FormatDNS(conns.DNS),
-		Telemetry: FormatTelemetry(conns.Telemetry),
-	}
+	payload := connsPool.Get().(*model.Connections)
+	payload.Conns = agentConns
+	payload.Dns = FormatDNS(conns.DNS)
+	payload.Telemetry = FormatTelemetry(conns.Telemetry)
 
-	return proto.Marshal(payload)
+	buf, err := proto.Marshal(payload)
+	returnToPool(payload)
+	return buf, err
 }
 
 func (protoSerializer) Unmarshal(blob []byte) (*model.Connections, error) {

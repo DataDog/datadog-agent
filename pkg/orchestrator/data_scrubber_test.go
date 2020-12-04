@@ -9,13 +9,12 @@ package orchestrator
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/api/core/v1"
 	"testing"
 
-	v1 "k8s.io/api/core/v1"
-
 	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func BenchmarkNoRegexMatching1(b *testing.B)        { benchmarkMatching(1, b) }
@@ -30,10 +29,14 @@ func BenchmarkRegexMatchingCustom1000(b *testing.B) { benchmarkMatchingCustomReg
 //goland:noinspection ALL
 var avoidOptimization bool
 
+//goland:noinspection ALL
+var avoidOptContainer v1.Container
+
 func benchmarkMatching(nbContainers int, b *testing.B) {
 	containersBenchmarks := make([]v1.Container, nbContainers)
 	containersToBenchmark := make([]v1.Container, nbContainers)
-	var changed bool
+	c := v1.Container{}
+
 	scrubber := NewDefaultDataScrubber()
 	for _, testCase := range getScrubCases() {
 		containersToBenchmark = append(containersToBenchmark, testCase.input)
@@ -46,19 +49,17 @@ func benchmarkMatching(nbContainers int, b *testing.B) {
 	b.Run(fmt.Sprintf("simplified"), func(b *testing.B) {
 		for n := 0; n < b.N; n++ {
 			for _, c := range containersBenchmarks {
-				changed = ScrubContainer(&c, scrubber)
+				ScrubContainer(&c, scrubber)
 			}
 		}
 	})
-
-	avoidOptimization = changed
+	avoidOptContainer = c
 }
 
 func benchmarkMatchingCustomRegex(nbContainers int, b *testing.B) {
-	var changed bool
-
 	var containersBenchmarks []v1.Container
 	var containersToBenchmark []v1.Container
+	c := v1.Container{}
 
 	customRegs := []string{"pwd*", "*test"}
 	cfg := config.NewDefaultAgentConfig(true)
@@ -77,16 +78,16 @@ func benchmarkMatchingCustomRegex(nbContainers int, b *testing.B) {
 	b.Run(fmt.Sprintf("simplified"), func(b *testing.B) {
 		for n := 0; n < b.N; n++ {
 			for _, c := range containersBenchmarks {
-				changed = ScrubContainer(&c, scrubber)
+				ScrubContainer(&c, scrubber)
 			}
 		}
 	})
 
-	avoidOptimization = changed
+	avoidOptContainer = c
 }
 
 func TestMatchSimpleCommand(t *testing.T) {
-	cases := setupSensitiveCmdlines()
+	cases := setupSensitiveCmdLines()
 	customSensitiveWords := []string{
 		"consul_token",
 		"dd_password",
@@ -133,7 +134,6 @@ func TestMatchSimpleCommandScrubRegex(t *testing.T) {
 
 	for i := range cases {
 		cases[i].cmdline, _ = scrubber.ScrubSimpleCommand(cases[i].cmdline)
-		println(cases[i].cmdline)
 		assert.Equal(t, cases[i].parsedCmdline, cases[i].cmdline)
 	}
 }
@@ -228,9 +228,30 @@ type testCase struct {
 	parsedCmdline []string
 }
 
-func setupSensitiveCmdlines() []testCase {
+func setupSensitiveCmdLines() []testCase {
 	return []testCase{
+		// in case the "keyword" is part of the command itself
+		{[]string{"agent", "-password////:123"}, []string{"agent", "-password////:********"}},
 		{[]string{"agent", "-password", "1234"}, []string{"agent", "-password", "********"}},
+		{[]string{"agent --password > /password/secret; agent --password echo >> /etc"}, []string{"agent", "--password", "********", "/password/secret;", "agent", "--password", "********", ">>", "/etc"}},
+		{[]string{"agent --password > /password/secret; ls"}, []string{"agent", "--password", "********", "/password/secret;", "ls"}},
+		{[]string{"agent", "-password=========123"}, []string{"agent", "-password=********"}},
+		{[]string{"agent", "-password/123"}, []string{"agent", "-password/123"}},
+		{[]string{"agent", "-password:123"}, []string{"agent", "-password:********"}},
+		{[]string{"agent", "-password", "-password"}, []string{"agent", "-password", "********"}},
+		{[]string{"/usr/local/bin/bash -c cat /etc/vaultd/secrets/haproxy-crt.pem > /etc/vaultd/secrets/haproxy.pem; echo >> /etc/vaultd/secrets/haproxy.pem; cat /etc/vaultd/secrets/haproxy-key.pem >> /etc/vaultd/secrets/haproxy.pem"},
+			[]string{"/usr/local/bin/bash -c cat /etc/vaultd/secrets/haproxy-crt.pem > /etc/vaultd/secrets/haproxy.pem; echo >> /etc/vaultd/secrets/haproxy.pem; cat /etc/vaultd/secrets/haproxy-key.pem >> /etc/vaultd/secrets/haproxy.pem"}},
+		{[]string{":usr:local:bin:bash -c cat :etc:vaultd:secrets:haproxy-crt.pem > :etc:vaultd:secrets:haproxy.pem; echo >> :etc:vaultd:secrets:haproxy.pem; cat :etc:vaultd:secrets:haproxy-key.pem >> :etc:vaultd:secrets:haproxy.pem"},
+			[]string{":usr:local:bin:bash -c cat :etc:vaultd:secrets:haproxy-crt.pem > :etc:vaultd:secrets:haproxy.pem; echo >> :etc:vaultd:secrets:haproxy.pem; cat :etc:vaultd:secrets:haproxy-key.pem >> :etc:vaultd:secrets:haproxy.pem"}},
+		{[]string{"/bin/bash", "-c", "find /tmp/datadog-agent/conf.d -name '*.yaml' | xargs -I % sh -c 'cp -vr $(dirname\n      %) /etc/datadog-agent-dest/conf.d/$(echo % | cut -d'/' -f6)'; cp -vR /etc/datadog-agent/conf.d/*\n      /etc/datadog-agent-dest/conf.d/"}, []string{"/bin/bash", "-c", "find /tmp/datadog-agent/conf.d -name '*.yaml' | xargs -I % sh -c 'cp -vr $(dirname\n      %) /etc/datadog-agent-dest/conf.d/$(echo % | cut -d'/' -f6)'; cp -vR /etc/datadog-agent/conf.d/*\n      /etc/datadog-agent-dest/conf.d/"}},
+		{[]string{""}, []string{""}},
+		{[]string{"", ""}, []string{"", ""}},
+		// in case the "password" only consist of whitespaces we can assume that it is not something we need to mask
+		{[]string{"agent password    "}, []string{"agent", "password", "", "", "", ""}},
+		{[]string{"agent", "password", ""}, []string{"agent", "password", ""}},
+		{[]string{"agent", "password"}, []string{"agent", "password"}},
+		{[]string{"agent", "-password"}, []string{"agent", "-password"}},
+		{[]string{"agent -password"}, []string{"agent", "-password"}},
 		{[]string{"agent", "--password", "1234"}, []string{"agent", "--password", "********"}},
 		{[]string{"agent", "-password=1234"}, []string{"agent", "-password=********"}},
 		{[]string{"agent", "--password=1234"}, []string{"agent", "--password=********"}},

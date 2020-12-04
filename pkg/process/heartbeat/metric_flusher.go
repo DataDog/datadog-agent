@@ -2,7 +2,10 @@ package heartbeat
 
 import (
 	"fmt"
+	"net/url"
+	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
@@ -21,6 +24,7 @@ type apiFlusher struct {
 	fallback   flusher
 	tags       []string
 	hostname   string
+	once       sync.Once
 }
 
 var _ flusher = &apiFlusher{}
@@ -35,12 +39,17 @@ func newAPIFlusher(opts Options, fallback flusher) (flusher, error) {
 
 	apiWatcher := newAPIWatcher(time.Minute)
 
+	keysPerDomain, err := sanitize(opts.KeysPerDomain)
+	if err != nil {
+		return nil, err
+	}
+
 	// Instantiate forwarder responsible for sending hearbeat metrics to the API
-	fwdOpts := forwarder.NewOptions(sanitize(opts.KeysPerDomain))
+	fwdOpts := forwarder.NewOptions(keysPerDomain)
 	fwdOpts.DisableAPIKeyChecking = true
 	fwdOpts.CompletionHandler = apiWatcher.handler()
 	heartbeatForwarder := forwarder.NewDefaultForwarder(fwdOpts)
-	err := heartbeatForwarder.Start()
+	err = heartbeatForwarder.Start()
 	if err != nil {
 		return nil, err
 	}
@@ -61,6 +70,7 @@ func (f *apiFlusher) Flush(metricNames []string, now time.Time) {
 	}
 
 	if f.apiWatcher.state() == apiUnreachable && f.fallback != nil {
+		f.Stop()
 		f.fallback.Flush(metricNames, now)
 		return
 	}
@@ -77,7 +87,9 @@ func (f *apiFlusher) Flush(metricNames []string, now time.Time) {
 
 // Stop forwarder
 func (f *apiFlusher) Stop() {
-	f.forwarder.Stop()
+	f.once.Do(func() {
+		f.forwarder.Stop()
+	})
 }
 
 func (f *apiFlusher) jsonPayload(metricNames []string, now time.Time) ([]byte, error) {
@@ -105,13 +117,25 @@ func (f *apiFlusher) jsonPayload(metricNames []string, now time.Time) ([]byte, e
 	return heartbeats.MarshalJSON()
 }
 
-func sanitize(keysPerDomain map[string][]string) map[string][]string {
+var urlRegexp = regexp.MustCompile(`.*process\.(.*)$`)
+
+func sanitize(keysPerDomain map[string][]string) (map[string][]string, error) {
 	sanitized := make(map[string][]string)
 	for domain, keys := range keysPerDomain {
-		sanitizedDomain := strings.Replace(domain, "process", "app", 1)
-		sanitized[sanitizedDomain] = keys
+		if !strings.HasPrefix(domain, "https://") && !strings.HasPrefix(domain, "http://") {
+			domain = "https://" + domain
+		}
+
+		url, err := url.Parse(domain)
+		if err != nil {
+			return nil, err
+		}
+
+		url.Host = urlRegexp.ReplaceAllString(url.Hostname(), "app.${1}")
+		sanitized[url.String()] = keys
 	}
-	return sanitized
+
+	return sanitized, nil
 }
 
 func tagsFromOptions(opts Options) []string {

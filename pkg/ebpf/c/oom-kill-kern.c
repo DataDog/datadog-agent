@@ -1,8 +1,8 @@
 #define KBUILD_MODNAME "foo"
 #include <linux/oom.h>
 
-#include "pkg/ebpf/c/bpf-common.h"
-#include "pkg/ebpf/oom-kill-kern-user.h"
+#include "bpf-common.h"
+#include "oom-kill-kern-user.h"
 
 
 /*

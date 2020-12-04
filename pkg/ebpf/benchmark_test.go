@@ -13,13 +13,13 @@ import (
 	"testing"
 	"time"
 
-	bpflib "github.com/DataDog/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/stretchr/testify/require"
 )
 
 var (
 	bpfToolPath       string
-	currKernelVersion uint32
+	currKernelVersion kernel.Version
 	readVars          sync.Once
 )
 
@@ -33,7 +33,7 @@ type bpftoolStats struct {
 
 func readGlobalVars() {
 	var err error
-	currKernelVersion, err = bpflib.CurrentKernelVersion()
+	currKernelVersion, err = kernel.HostVersion()
 	if err != nil {
 		log.Fatalf("unable to read kernel version: %s\n", err)
 	}
@@ -44,7 +44,7 @@ func readGlobalVars() {
 }
 
 func setBPFStatsCollection(b *testing.B, enable bool) error {
-	if currKernelVersion < stringToKernelCode("5.1.0") {
+	if currKernelVersion < kernel.VersionCode(5, 1, 0) {
 		b.Skip("kernel version must be at least 5.1.0 for kernel-level eBPF stats collection")
 		return nil
 	}

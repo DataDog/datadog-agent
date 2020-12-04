@@ -14,12 +14,13 @@ import (
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"golang.org/x/sys/unix"
 )
 
-const (
+var (
 	// KERNEL_VERSION(a,b,c) = (a << 16) + (b << 8) + (c)
-	kernel4_13 = (4 << 16) + (13 << 8) //nolint:deadcode,unused
+	kernel4_13 = kernel.VersionCode(4, 13, 0) //nolint:deadcode,unused
 )
 
 // EventType describes the type of an event sent from the kernel
@@ -54,6 +55,8 @@ const (
 	FileSetXAttrEventType
 	// FileRemoveXAttrEventType - Removexattr event
 	FileRemoveXAttrEventType
+	// ForkEventType - Fork event
+	ForkEventType
 	// ExecEventType - Exec event
 	ExecEventType
 	// ExitEventType - Exit event
@@ -61,8 +64,11 @@ const (
 	// InvalidateDentryEventType - Dentry invalidated event
 	InvalidateDentryEventType
 	// internalEventType - used internally to get the maximum number of event. Has to be the last one
-	maxEventType
+	maxEventType //nolint:deadcode,unused
 )
+
+// maxEventRoundedUp is the closest power of 2 that is bigger than maxEventType
+const maxEventRoundedUp = 32 //nolint:deadcode,unused
 
 func (t EventType) String() string {
 	switch t {
@@ -92,6 +98,8 @@ func (t EventType) String() string {
 		return "setxattr"
 	case FileRemoveXAttrEventType:
 		return "removexattr"
+	case ForkEventType:
+		return "fork"
 	case ExecEventType:
 		return "exec"
 	case ExitEventType:

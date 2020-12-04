@@ -24,9 +24,10 @@ import (
 // constants below or in some cases the actual rune itself.
 type TokenKind uint32
 
-// EOFChar is used to signal that no more characters were found by the scanner. It is
-// an invalid rune value that can not be found in any valid string.
-const EOFChar = unicode.MaxRune + 1
+// EndChar is used to signal that the scanner has finished reading the query. This happens when
+// there are no more characters left in the query or when invalid encoding is discovered. EndChar
+// is an invalid rune value that can not be found in any valid string.
+const EndChar = unicode.MaxRune + 1
 
 // list of available tokens; this list has been reduced because we don't
 // need a full-fledged tokenizer to implement a Lexer
@@ -126,6 +127,9 @@ var keywords = map[string]TokenKind{
 func (tkn *SQLTokenizer) Err() error { return tkn.err }
 
 func (tkn *SQLTokenizer) setErr(format string, args ...interface{}) {
+	if tkn.err != nil {
+		return
+	}
 	tkn.err = fmt.Errorf("at position %d: %v", tkn.pos, fmt.Errorf(format, args...))
 }
 
@@ -147,9 +151,16 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 		return tkn.scanNumber(false)
 	default:
 		tkn.advance()
+		if tkn.lastChar == EndChar && tkn.err != nil {
+			// advance discovered an invalid encoding. We should return early.
+			return LexError, nil
+		}
 		switch ch {
-		case EOFChar:
-			return EOFChar, nil
+		case EndChar:
+			if tkn.err != nil {
+				return LexError, nil
+			}
+			return EndChar, nil
 		case ':':
 			if tkn.lastChar == ':' {
 				tkn.advance()
@@ -328,7 +339,7 @@ func (tkn *SQLTokenizer) scanLiteralIdentifier(quote rune) (TokenKind, []byte) {
 }
 
 func (tkn *SQLTokenizer) scanVariableIdentifier(prefix rune) (TokenKind, []byte) {
-	for tkn.advance(); tkn.lastChar != ')' && tkn.lastChar != EOFChar; tkn.advance() {
+	for tkn.advance(); tkn.lastChar != ')' && tkn.lastChar != EndChar; tkn.advance() {
 	}
 	tkn.advance()
 	if !isLetter(tkn.lastChar) {
@@ -362,13 +373,13 @@ func (tkn *SQLTokenizer) scanPreparedStatement(prefix rune) (TokenKind, []byte) 
 }
 
 func (tkn *SQLTokenizer) scanEscapeSequence(braces rune) (TokenKind, []byte) {
-	for tkn.lastChar != '}' && tkn.lastChar != EOFChar {
+	for tkn.lastChar != '}' && tkn.lastChar != EndChar {
 		tkn.advance()
 	}
 
 	// we've reached the end of the string without finding
 	// the closing curly braces
-	if tkn.lastChar == EOFChar {
+	if tkn.lastChar == EndChar {
 		tkn.setErr("unexpected EOF in escape sequence")
 		return LexError, tkn.bytes()
 	}
@@ -481,7 +492,7 @@ func (tkn *SQLTokenizer) scanString(delim rune, kind TokenKind) (TokenKind, []by
 				tkn.advance()
 			}
 		}
-		if ch == EOFChar {
+		if ch == EndChar {
 			tkn.setErr("unexpected EOF in string")
 			return LexError, buffer.Bytes()
 		}
@@ -499,7 +510,7 @@ func (tkn *SQLTokenizer) scanString(delim rune, kind TokenKind) (TokenKind, []by
 }
 
 func (tkn *SQLTokenizer) scanCommentType1(prefix string) (TokenKind, []byte) {
-	for tkn.lastChar != EOFChar {
+	for tkn.lastChar != EndChar {
 		if tkn.lastChar == '\n' {
 			tkn.advance()
 			break
@@ -519,7 +530,7 @@ func (tkn *SQLTokenizer) scanCommentType2() (TokenKind, []byte) {
 			}
 			continue
 		}
-		if tkn.lastChar == EOFChar {
+		if tkn.lastChar == EndChar {
 			tkn.setErr("unexpected EOF in comment")
 			return LexError, tkn.bytes()
 		}
@@ -528,37 +539,40 @@ func (tkn *SQLTokenizer) scanCommentType2() (TokenKind, []byte) {
 	return Comment, tkn.bytes()
 }
 
-// advance advances the tokenizer to the next rune. If this is not possible, tkn.lastChar will
-// be set to EOFChar.
+// advance advances the tokenizer to the next rune. If the decoder encounters an error decoding, or
+// the end of the buffer is reached, tkn.lastChar will be set to EndChar. In case of a decoding
+// error, tkn.err will also be set.
 func (tkn *SQLTokenizer) advance() {
 	ch, n := utf8.DecodeRune(tkn.buf[tkn.off:])
-	if ch == utf8.RuneError && n == 0 {
-		// only EOF is possible
+	if ch == utf8.RuneError && n < 2 {
 		tkn.pos++
-		tkn.lastChar = EOFChar
+		tkn.lastChar = EndChar
+		if n == 1 {
+			tkn.setErr("invalid UTF-8 encoding beginning with 0x%x", tkn.buf[tkn.off])
+		}
 		return
 	}
-
-	len := utf8.RuneLen(ch)
 	if tkn.lastChar != 0 || tkn.pos > 0 {
 		// we are past the first character
-		tkn.pos += len
+		tkn.pos += n
 	}
-	tkn.off += len
+	tkn.off += n
 	tkn.lastChar = ch
 }
 
 // bytes returns all the bytes that were advanced over since its last call.
+// This excludes tkn.lastChar, which will remain in the buffer
 func (tkn *SQLTokenizer) bytes() []byte {
-	if tkn.lastChar == EOFChar {
+	if tkn.lastChar == EndChar {
 		ret := tkn.buf[:tkn.off]
 		tkn.buf = tkn.buf[tkn.off:]
 		tkn.off = 0
 		return ret
 	}
-	ret := tkn.buf[:tkn.off-1]
-	tkn.buf = tkn.buf[tkn.off-1:]
-	tkn.off = 1
+	lastLen := utf8.RuneLen(tkn.lastChar)
+	ret := tkn.buf[:tkn.off-lastLen]
+	tkn.buf = tkn.buf[tkn.off-lastLen:]
+	tkn.off = lastLen
 	return ret
 }
 

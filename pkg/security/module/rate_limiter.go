@@ -3,18 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build linux_bpf
+// +build linux
 
 package module
 
 import (
 	"fmt"
-	"sync/atomic"
+	"sync"
 
 	"github.com/DataDog/datadog-go/statsd"
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
 const (
@@ -32,9 +33,8 @@ type Limiter struct {
 	limiter *rate.Limiter
 
 	// https://github.com/golang/go/issues/36606
-	padding int32
+	padding int32 //nolint:structcheck,unused
 	dropped int64
-	align   int64
 	allowed int64
 }
 
@@ -47,31 +47,47 @@ func NewLimiter(limit rate.Limit, burst int) *Limiter {
 
 // RateLimiter describes a set of rule rate limiters
 type RateLimiter struct {
-	limiters map[string]*Limiter
+	sync.RWMutex
+	limiters map[rules.RuleID]*Limiter
 }
 
 // NewRateLimiter initializes an empty rate limiter
-func NewRateLimiter(ids []string) *RateLimiter {
-	limiters := make(map[string]*Limiter)
-	for _, id := range ids {
-		limiters[id] = NewLimiter(defaultLimit, defaultBurst)
-	}
+func NewRateLimiter() *RateLimiter {
 	return &RateLimiter{
-		limiters: limiters,
+		limiters: make(map[string]*Limiter),
 	}
+}
+
+// Apply a set of rules
+func (rl *RateLimiter) Apply(rules []rules.RuleID) {
+	rl.Lock()
+	defer rl.Unlock()
+
+	newLimiters := make(map[string]*Limiter)
+	for _, id := range rules {
+		if limiter, found := rl.limiters[id]; found {
+			newLimiters[id] = limiter
+		} else {
+			newLimiters[id] = NewLimiter(defaultLimit, defaultBurst)
+		}
+	}
+	rl.limiters = newLimiters
 }
 
 // Allow returns true if a specific rule shall be allowed to sent a new event
 func (rl *RateLimiter) Allow(ruleID string) bool {
+	rl.RLock()
+	defer rl.RUnlock()
+
 	ruleLimiter, ok := rl.limiters[ruleID]
 	if !ok {
 		return false
 	}
 	if ruleLimiter.limiter.Allow() {
-		atomic.AddInt64(&ruleLimiter.allowed, 1)
+		ruleLimiter.allowed++
 		return true
 	}
-	atomic.AddInt64(&ruleLimiter.dropped, 1)
+	ruleLimiter.dropped++
 	return false
 }
 
@@ -83,13 +99,18 @@ type RateLimiterStat struct {
 
 // GetStats returns a map indexed by ruleIDs that describes the amount of events
 // that were dropped because of the rate limiter
-func (rl *RateLimiter) GetStats() map[string]RateLimiterStat {
-	stats := make(map[string]RateLimiterStat)
+func (rl *RateLimiter) GetStats() map[rules.RuleID]RateLimiterStat {
+	rl.RLock()
+	defer rl.RUnlock()
+
+	stats := make(map[rules.RuleID]RateLimiterStat)
 	for ruleID, ruleLimiter := range rl.limiters {
 		stats[ruleID] = RateLimiterStat{
-			dropped: atomic.SwapInt64(&ruleLimiter.dropped, 0),
-			allowed: atomic.SwapInt64(&ruleLimiter.allowed, 0),
+			dropped: ruleLimiter.dropped,
+			allowed: ruleLimiter.allowed,
 		}
+		ruleLimiter.dropped = 0
+		ruleLimiter.allowed = 0
 	}
 	return stats
 }

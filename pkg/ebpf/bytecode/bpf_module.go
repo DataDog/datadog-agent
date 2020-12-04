@@ -8,9 +8,9 @@ import (
 
 // ReadBPFModule from the asset file
 func ReadBPFModule(bpfDir string, debug bool) (AssetReader, error) {
-	file := "pkg/ebpf/c/tracer-ebpf.o"
+	file := "tracer-ebpf.o"
 	if debug {
-		file = "pkg/ebpf/c/tracer-ebpf-debug.o"
+		file = "tracer-ebpf-debug.o"
 	}
 
 	ebpfReader, err := GetReader(bpfDir, file)
@@ -23,9 +23,9 @@ func ReadBPFModule(bpfDir string, debug bool) (AssetReader, error) {
 
 // ReadOffsetBPFModule from the asset file
 func ReadOffsetBPFModule(bpfDir string, debug bool) (AssetReader, error) {
-	file := "pkg/ebpf/c/offset-guess.o"
+	file := "offset-guess.o"
 	if debug {
-		file = "pkg/ebpf/c/offset-guess-debug.o"
+		file = "offset-guess-debug.o"
 	}
 
 	ebpfReader, err := GetReader(bpfDir, file)

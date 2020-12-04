@@ -57,8 +57,8 @@ func (s SliceSummary) String() string {
 	return b.String()
 }
 
-// Insert inserts a new value v in the summary paired with t (the ID of the span it was reported from)
-func (s *SliceSummary) Insert(v float64, t uint64) {
+// Insert inserts a new value v in the summary
+func (s *SliceSummary) Insert(v float64) {
 	newEntry := Entry{
 		V:     v,
 		G:     1,

@@ -131,11 +131,7 @@ func newController(ctx ControllerContext) (*Controller, error) {
 	}
 	orchestratorCfg.MaxPerMessage = processCfg.MaxPerMessage
 
-	keysPerDomain := make(map[string][]string)
-	for _, ep := range processCfg.OrchestratorEndpoints {
-		keysPerDomain[ep.Endpoint.String()] = []string{ep.APIKey}
-	}
-
+	keysPerDomain := api.KeysPerDomains(processCfg.OrchestratorEndpoints)
 	podForwarderOpts := forwarder.NewOptions(keysPerDomain)
 	podForwarderOpts.DisableAPIKeyChecking = true
 

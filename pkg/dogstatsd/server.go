@@ -66,6 +66,9 @@ type Server struct {
 	// aggregator is a pointer to the aggregator that the dogstatsd daemon
 	// will send the metrics samples, events and service checks to.
 	aggregator *aggregator.BufferedAggregator
+	// running in their own routine, workers are responsible of parsing the packets
+	// and pushing them to the aggregator
+	workers []*worker
 
 	packetsIn                 chan listeners.Packets
 	sharedPacketPool          *listeners.PacketPool
@@ -88,6 +91,9 @@ type Server struct {
 	// NOTE(remy): this should probably be dropped and use a throttler logger, see
 	// package (pkg/trace/logutils) for a possible throttler implemetation.
 	disableVerboseLogs bool
+
+	// ServerlessMode is set to true if we're running in a serverless environment.
+	ServerlessMode     bool
 	UdsListenerRunning bool
 }
 
@@ -121,7 +127,7 @@ type metricsCountBuckets struct {
 	closeChan  chan struct{}
 }
 
-// NewServer returns a running Dogstatsd server
+// NewServer returns a running DogStatsD server
 func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 	var stats *util.Stats
 	if config.Datadog.GetBool("dogstatsd_stats_enable") == true {
@@ -168,7 +174,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 		}
 	}
 
-	pipeName := config.Datadog.GetString("dogstatsd_windows_pipe_name")
+	pipeName := config.Datadog.GetString("dogstatsd_pipe_name")
 	if len(pipeName) > 0 {
 		namedPipeListener, err := listeners.NewNamedPipeListener(pipeName, packetsChannel, sharedPacketPool)
 		if err != nil {
@@ -290,13 +296,15 @@ func (s *Server) handleMessages() {
 
 	// Run min(2, GoMaxProcs-2) workers, we dedicate a core to the
 	// listener goroutine and another to aggregator + forwarder
-	workers := runtime.GOMAXPROCS(-1) - 2
-	if workers < 2 {
-		workers = 2
+	workersCount := runtime.GOMAXPROCS(-1) - 2
+	if workersCount < 2 {
+		workersCount = 2
 	}
 
-	for i := 0; i < workers; i++ {
-		go s.worker()
+	for i := 0; i < workersCount; i++ {
+		worker := newWorker(s)
+		go worker.run()
+		s.workers = append(s.workers, worker)
 	}
 }
 
@@ -318,22 +326,17 @@ func (s *Server) forwarder(fcon net.Conn, packetsChannel chan listeners.Packets)
 	}
 }
 
-func (s *Server) worker() {
-	// the batcher will be responsible of batching a few samples / events / service
-	// checks and it will automatically forward them to the aggregator, meaning that
-	// the flushing logic to the aggregator is actually in the batcher.
-	batcher := newBatcher(s.aggregator)
-
-	parser := newParser()
-	for {
-		select {
-		case <-s.stopChan:
-			return
-		case <-s.health.C:
-		case packets := <-s.packetsIn:
-			s.parsePackets(batcher, parser, packets)
-		}
+// Flush flushes all the data to the aggregator to them send it to the Datadog intake.
+// Set waitForSerializer to true to serialize and send the data synchronously.
+func (s *Server) Flush(waitForSerializer bool) {
+	log.Debug("Received a Flush trigger")
+	// make all workers flush their aggregated data (in the batcher) to the aggregator.
+	for _, w := range s.workers {
+		w.flush()
 	}
+	// flush the aggregator to have the serializer/forwarder send data to the backend.
+	// We add 10 seconds to the interval to ensure that we're getting the whole sketches bucket
+	s.aggregator.Flush(time.Now().Add(time.Second*10), true)
 }
 
 func nextMessage(packet *[]byte) (message []byte) {
@@ -443,8 +446,9 @@ func (s *Server) parseMetricMessage(parser *parser, message []byte, originTagsFu
 			sample.tags = append(sample.tags, mapResult.Tags...)
 		}
 	}
-	metricSample := enrichMetricSample(sample, s.metricPrefix, s.metricPrefixBlacklist, s.defaultHostname, originTagsFunc, s.entityIDPrecedenceEnabled)
+	metricSample := enrichMetricSample(sample, s.metricPrefix, s.metricPrefixBlacklist, s.defaultHostname, originTagsFunc, s.entityIDPrecedenceEnabled, s.ServerlessMode)
 	metricSample.Tags = append(metricSample.Tags, s.extraTags...)
+
 	dogstatsdMetricPackets.Add(1)
 	tlmProcessed.IncWithTags(tlmProcessedOkTags)
 	return metricSample, nil

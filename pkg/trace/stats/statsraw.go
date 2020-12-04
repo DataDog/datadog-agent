@@ -55,9 +55,10 @@ type statsKey struct {
 }
 
 type statsSubKey struct {
-	name    string
-	measure string
-	aggr    string
+	name   string
+	metric string
+	tag    Tag
+	aggr   string
 }
 
 // RawBucket is used to compute span data and aggregate it
@@ -139,11 +140,11 @@ func (sb *RawBucket) Export() Bucket {
 		}
 	}
 	for k, v := range sb.sublayerData {
-		key := GrainKey(k.name, k.measure, k.aggr)
+		key := GrainKey(k.name, k.metric, k.aggr+","+k.tag.Name+":"+k.tag.Value)
 		ret.Counts[key] = Count{
 			Key:      key,
 			Name:     k.name,
-			Measure:  k.measure,
+			Measure:  k.metric,
 			TagSet:   v.tags,
 			TopLevel: v.topLevel,
 			Value:    float64(v.value),
@@ -234,10 +235,10 @@ func (sb *RawBucket) add(s *WeightedSpan, aggr string, tags TagSet) {
 	// TODO add for s.Metrics ability to define arbitrary counts and distros, check some config?
 	// alter resolution of duration distro
 	trundur := nsTimestampToFloat(s.Duration)
-	gs.durationDistribution.Insert(trundur, s.SpanID)
+	gs.durationDistribution.Insert(trundur)
 
 	if s.Error != 0 {
-		gs.errDurationDistribution.Insert(trundur, s.SpanID)
+		gs.errDurationDistribution.Insert(trundur)
 	}
 
 	sb.data[key] = gs
@@ -252,12 +253,11 @@ func (sb *RawBucket) addSublayer(s *WeightedSpan, aggr string, tags TagSet, sub 
 	var ss sublayerStats
 	var ok bool
 
-	subAggr := aggr + "," + sub.Tag.Name + ":" + sub.Tag.Value
 	subTags := make(TagSet, len(tags)+1)
 	copy(subTags, tags)
 	subTags[len(tags)] = sub.Tag
 
-	key := statsSubKey{name: s.Name, measure: sub.Metric, aggr: subAggr}
+	key := statsSubKey{name: s.Name, metric: sub.Metric, tag: sub.Tag, aggr: aggr}
 	if ss, ok = sb.sublayerData[key]; !ok {
 		ss = newSublayerStats(subTags)
 	}

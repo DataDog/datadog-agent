@@ -187,23 +187,25 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 		if !l.collectAll {
 			return nil, errCollectAllDisabled
 		}
+		// The logs source is the short image name
+		logsSource := ""
+		shortImageName, err := l.getShortImageName(pod, container.Name)
+		if err != nil {
+			log.Debugf("Couldn't get short image for container '%s': %v", container.Name, err)
+			// Fallback and use `kubernetes` as source name
+			logsSource = kubernetesIntegration
+		} else {
+			logsSource = shortImageName
+		}
 		if standardService != "" {
 			cfg = &config.LogsConfig{
-				Source:  kubernetesIntegration,
+				Source:  logsSource,
 				Service: standardService,
 			}
 		} else {
-			shortImageName, err := l.getShortImageName(pod, container.Name)
-			if err != nil {
-				cfg = &config.LogsConfig{
-					Source:  kubernetesIntegration,
-					Service: kubernetesIntegration,
-				}
-			} else {
-				cfg = &config.LogsConfig{
-					Source:  shortImageName,
-					Service: shortImageName,
-				}
+			cfg = &config.LogsConfig{
+				Source:  logsSource,
+				Service: logsSource,
 			}
 		}
 	}

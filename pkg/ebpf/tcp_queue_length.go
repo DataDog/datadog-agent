@@ -25,9 +25,9 @@ type TCPQueueLengthTracer struct {
 }
 
 func NewTCPQueueLengthTracer(cfg *Config) (*TCPQueueLengthTracer, error) {
-	source, err := processHeaders(cfg.BPFDir, "pkg/ebpf/c/tcp-queue-length-kern.c")
+	source, err := processHeaders(cfg.BPFDir, "tcp-queue-length-kern.c")
 	if err != nil {
-		return nil, fmt.Errorf("Couldn’t process headers for asset “pkg/ebpf/c/tcp-queue-length-kern.c”: %v", err)
+		return nil, fmt.Errorf("Couldn’t process headers for asset “tcp-queue-length-kern.c”: %v", err)
 	}
 
 	m := bpflib.NewModule(source.String(), []string{})
@@ -112,11 +112,11 @@ func (t *TCPQueueLengthTracer) Get() tcpqueuelength.Stats {
 				log.Error("Too many CPUs")
 				continue
 			}
-			if uint32(statsValue[cpu].read_buffer_max_fill_rate) > max.ReadBufferMaxFillRate {
-				max.ReadBufferMaxFillRate = uint32(statsValue[cpu].read_buffer_max_fill_rate)
+			if uint32(statsValue[cpu].read_buffer_max_usage) > max.ReadBufferMaxUsage {
+				max.ReadBufferMaxUsage = uint32(statsValue[cpu].read_buffer_max_usage)
 			}
-			if uint32(statsValue[cpu].write_buffer_max_fill_rate) > max.WriteBufferMaxFillRate {
-				max.WriteBufferMaxFillRate = uint32(statsValue[cpu].write_buffer_max_fill_rate)
+			if uint32(statsValue[cpu].write_buffer_max_usage) > max.WriteBufferMaxUsage {
+				max.WriteBufferMaxUsage = uint32(statsValue[cpu].write_buffer_max_usage)
 			}
 		}
 		result[containerID] = max

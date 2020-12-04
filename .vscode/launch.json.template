@@ -1,0 +1,39 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Build Run Debug",
+            "preLaunchTask": "build agent",
+            "type": "go",
+            "request": "launch",
+            "mode": "exec",
+            "program": "${workspaceRoot}/bin/agent/agent",
+            "env": {},
+            "args": [
+                "run",
+                "-c",
+                "${workspaceRoot}/bin/agent/dist/datadog.yaml"
+            ]
+        },
+        {
+            "name": "Run Debug",
+            "type": "go",
+            "request": "launch",
+            "mode": "exec",
+            "program": "${workspaceRoot}/bin/agent/agent",
+            "env": {},
+            "args": [
+                "run",
+                "-c",
+                "${workspaceRoot}/bin/agent/dist/datadog.yaml"
+            ]
+        },
+        {
+            "name": "Test Package",
+            "type": "go",
+            "request": "launch",
+            "mode": "test",
+            "program": "${fileDirname}"
+        },
+    ]
+}

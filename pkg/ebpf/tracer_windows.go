@@ -5,7 +5,6 @@ package ebpf
 import (
 	"expvar"
 	"fmt"
-	"math"
 	"sync"
 	"time"
 
@@ -19,10 +18,14 @@ const (
 
 var (
 	expvarEndpoints map[string]*expvar.Map
-	expvarTypes     = []string{"state", "driver_total_flow_stats", "driver_flow_handle_stats", "total_flows", "open_flows", "closed_flows", "more_data_errors"}
 )
 
 func init() {
+	expvarTypes := []string{"state"}
+	for _, n := range network.DriverExpvarNames {
+		expvarTypes = append(expvarTypes, string(n))
+	}
+
 	expvarEndpoints = make(map[string]*expvar.Map, len(expvarTypes))
 	for _, name := range expvarTypes {
 		expvarEndpoints[name] = expvar.NewMap(name)
@@ -36,12 +39,10 @@ type Tracer struct {
 	stopChan        chan struct{}
 	state           network.State
 	reverseDNS      network.ReverseDNS
-	bufferLock      sync.Mutex
 
-	// buffers
-	connStatsActive []network.ConnectionStats
-	connStatsClosed []network.ConnectionStats
-	driverBuffer    []uint8
+	connStatsActive *network.DriverBuffer
+	connStatsClosed *network.DriverBuffer
+	connLock        sync.Mutex
 
 	timerInterval int
 
@@ -52,7 +53,7 @@ type Tracer struct {
 
 // NewTracer returns an initialized tracer struct
 func NewTracer(config *Config) (*Tracer, error) {
-	di, err := network.NewDriverInterface(config.EnableMonotonicCount)
+	di, err := network.NewDriverInterface(config.EnableMonotonicCount, config.DriverBufferSize)
 	if err != nil {
 		return nil, fmt.Errorf("could not create windows driver controller: %v", err)
 	}
@@ -70,9 +71,8 @@ func NewTracer(config *Config) (*Tracer, error) {
 		timerInterval:   defaultPollInterval,
 		state:           state,
 		reverseDNS:      network.NewNullReverseDNS(),
-		connStatsActive: make([]network.ConnectionStats, 512),
-		connStatsClosed: make([]network.ConnectionStats, 512),
-		driverBuffer:    make([]uint8, config.DriverBufferSize),
+		connStatsActive: network.NewDriverBuffer(512),
+		connStatsClosed: network.NewDriverBuffer(512),
 	}
 
 	go tr.expvarStats(tr.stopChan)
@@ -82,7 +82,10 @@ func NewTracer(config *Config) (*Tracer, error) {
 // Stop function stops running tracer
 func (t *Tracer) Stop() {
 	close(t.stopChan)
-	t.driverInterface.Close()
+	err := t.driverInterface.Close()
+	if err != nil {
+		log.Errorf("error closing driver interface: %s", err)
+	}
 }
 
 func (t *Tracer) expvarStats(exit <-chan struct{}) {
@@ -110,63 +113,40 @@ func (t *Tracer) expvarStats(exit <-chan struct{}) {
 				for metric, val := range stat.(map[string]int64) {
 					currVal := &expvar.Int{}
 					currVal.Set(val)
-					expvarEndpoints[name].Set(snakeToCapInitialCamel(metric), currVal)
+					if ep, ok := expvarEndpoints[name]; ok {
+						ep.Set(snakeToCapInitialCamel(metric), currVal)
+					}
 				}
 			}
 		}
 	}
 }
 
-// printStats can be used to debug the stats we pull from the driver
-func printStats(stats []network.ConnectionStats) {
-	for _, stat := range stats {
-		log.Infof("%v", stat)
-	}
-}
-
 // GetActiveConnections returns all active connections
 func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, error) {
-	t.bufferLock.Lock()
-	defer t.bufferLock.Unlock()
+	t.connLock.Lock()
+	defer t.connLock.Unlock()
 
-	activeConnStats, closedConnStats, bytesRead, err := t.driverInterface.GetConnectionStats(t.connStatsActive[:0], t.connStatsClosed[:0], t.driverBuffer)
+	t.connStatsActive.Reset()
+	t.connStatsClosed.Reset()
+
+	_, _, err := t.driverInterface.GetConnectionStats(t.connStatsActive, t.connStatsClosed)
 	if err != nil {
 		log.Errorf("failed to get connections")
 		return nil, err
 	}
 
+	activeConnStats := t.connStatsActive.Connections()
+	closedConnStats := t.connStatsClosed.Connections()
+
 	for _, connStat := range closedConnStats {
-		t.state.StoreClosedConnection(connStat)
+		t.state.StoreClosedConnection(&connStat)
 	}
 
 	// check for expired clients in the state
 	t.state.RemoveExpiredClients(time.Now())
 	conns := t.state.Connections(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats())
-	t.connStatsActive = t.resizeConnectionStatBuffer(len(activeConnStats), t.connStatsActive)
-	t.connStatsClosed = t.resizeConnectionStatBuffer(len(closedConnStats), t.connStatsClosed)
-	t.driverBuffer = t.resizeDriverBuffer(bytesRead, t.driverBuffer)
 	return &network.Connections{Conns: conns}, nil
-}
-
-func (t *Tracer) resizeConnectionStatBuffer(compareSize int, buffer []network.ConnectionStats) []network.ConnectionStats {
-	if compareSize >= cap(buffer)*2 {
-		return make([]network.ConnectionStats, 0, cap(buffer)*2)
-	} else if compareSize <= cap(buffer)/2 {
-		// Take the max of buffer/2 and compareSize to limit future array resizes
-		return make([]network.ConnectionStats, 0, int(math.Max(float64(cap(buffer)/2), float64(compareSize))))
-	}
-	return buffer
-}
-
-func (t *Tracer) resizeDriverBuffer(compareSize int, buffer []uint8) []uint8 {
-	// Explicitly setting len to 0 causes the ReadFile syscall to break, so allocate buffer with cap = len
-	if compareSize >= cap(buffer)*2 {
-		return make([]uint8, cap(buffer)*2)
-	} else if compareSize <= cap(buffer)/2 {
-		// Take the max of buffer/2 and compareSize to limit future array resizes
-		return make([]uint8, int(math.Max(float64(cap(buffer)/2), float64(compareSize))))
-	}
-	return buffer
 }
 
 // GetStats returns a map of statistics about the current tracer's internal state
@@ -177,20 +157,17 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 	}
 
 	stateStats := t.state.GetStats()
-
-	return map[string]interface{}{
-		"state":                    stateStats,
-		"total_flows":              driverStats["total_flows"],
-		"open_flows":               driverStats["open_flows"],
-		"closed_flows":             driverStats["closed_flows"],
-		"more_data_errors":         driverStats["more_data_errors"],
-		"driver_total_flow_stats":  driverStats["driver_total_flow_stats"],
-		"driver_flow_handle_stats": driverStats["driver_flow_handle_stats"],
-	}, nil
+	stats := map[string]interface{}{
+		"state": stateStats,
+	}
+	for _, name := range network.DriverExpvarNames {
+		stats[string(name)] = driverStats[name]
+	}
+	return stats, nil
 }
 
 // DebugNetworkState returns a map with the current tracer's internal state, for debugging
-func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, error) {
+func (t *Tracer) DebugNetworkState(_ string) (map[string]interface{}, error) {
 	return nil, ErrNotImplemented
 }
 

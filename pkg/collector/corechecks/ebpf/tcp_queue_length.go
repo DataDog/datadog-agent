@@ -115,8 +115,8 @@ func (t *TCPQueueLengthCheck) Run() error {
 			}
 		}
 
-		sender.Gauge("tcp_queue.read_buffer_max_fill_rate", float64(v.ReadBufferMaxFillRate)/1000.0, "", tags)
-		sender.Gauge("tcp_queue.write_buffer_max_fill_rate", float64(v.WriteBufferMaxFillRate)/1000.0, "", tags)
+		sender.Gauge("tcp_queue.read_buffer_max_usage_pct", float64(v.ReadBufferMaxUsage)/1000.0, "", tags)
+		sender.Gauge("tcp_queue.write_buffer_max_usage_pct", float64(v.WriteBufferMaxUsage)/1000.0, "", tags)
 	}
 
 	sender.Commit()
