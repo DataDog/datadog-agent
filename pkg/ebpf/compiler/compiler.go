@@ -18,6 +18,7 @@ import "C"
 import (
 	"errors"
 	"fmt"
+	"os"
 	"runtime"
 	"unsafe"
 
@@ -43,7 +44,7 @@ func (e *EBPFCompiler) CompileToObjectFile(inputFile, outputFile string, cflags 
 		cflagsC[i] = C.CString(cflag)
 	}
 	for i, cflag := range cflags {
-		cflagsC[i] = C.CString(cflag)
+		cflagsC[len(e.defaultCflags)+i] = C.CString(cflag)
 	}
 	cflagsC[len(cflagsC)-1] = nil
 
@@ -61,7 +62,7 @@ func (e *EBPFCompiler) CompileToObjectFile(inputFile, outputFile string, cflags 
 	}
 
 	if err := C.bpf_compile_to_object_file(e.compiler, inputC, outputC, (**C.char)(&cflagsC[0]), verboseC); err != 0 {
-		return fmt.Errorf("error compiling: %w", e.getErrors())
+		return fmt.Errorf("error compiling: %s", e.getErrors())
 	}
 	return nil
 }
@@ -82,7 +83,7 @@ func (e *EBPFCompiler) Close() {
 	e.compiler = nil
 }
 
-func NewEBPFCompiler(verbose bool) (*EBPFCompiler, error) {
+func NewEBPFCompiler(headerDirs []string, verbose bool) (*EBPFCompiler, error) {
 	ebpfCompiler := &EBPFCompiler{
 		compiler: C.new_bpf_compiler(),
 		verbose:  verbose,
@@ -108,10 +109,34 @@ func NewEBPFCompiler(verbose bool) (*EBPFCompiler, error) {
 		"-Werror",
 	}
 
-	dirs, err := kernel.FindHeaderDirs()
-	if err != nil {
+	var err error
+	var dirs []string
+	if len(headerDirs) > 0 {
+		for _, d := range headerDirs {
+			err = kernel.ValidateHeaderDir(d)
+			if err != nil {
+				if os.IsNotExist(err) {
+					// allow missing version.h errors
+					continue
+				}
+				ebpfCompiler.Close()
+				return nil, fmt.Errorf("error validating kernel header directories: %w", err)
+			}
+			// as long as one directory passes, use the entire set
+			dirs = headerDirs
+			break
+		}
+	} else {
+		dirs, err = kernel.FindHeaderDirs()
+		if err != nil {
+			ebpfCompiler.Close()
+			return nil, fmt.Errorf("unable to find kernel headers: %w", err)
+		}
+	}
+
+	if len(dirs) == 0 {
 		ebpfCompiler.Close()
-		return nil, fmt.Errorf("unable to find kernel headers: %w", err)
+		return nil, fmt.Errorf("unable to find kernel headers")
 	}
 
 	for _, d := range dirs {

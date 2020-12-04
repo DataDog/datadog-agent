@@ -4,137 +4,54 @@
 #include "bpf_endian.h"
 #include "syscalls.h"
 #include <linux/kconfig.h>
+#include <linux/version.h>
 #include <net/inet_sock.h>
 #include <net/net_namespace.h>
 #include <net/tcp_states.h>
 #include <uapi/linux/ip.h>
 #include <uapi/linux/ipv6.h>
 #include <uapi/linux/ptrace.h>
-#include <uapi/linux/tcp.h>
+#include <linux/tcp.h>
 #include <uapi/linux/udp.h>
 
-/* The LOAD_CONSTANT macro is used to define a named constant that will be replaced
- * at runtime by the Go code. This replaces usage of a bpf_map for storing values, which
- * eliminates a bpf_map_lookup_elem per kprobe hit. The constants are best accessed with a
- * dedicated inlined function. See example functions offset_* below.
- */
-#define LOAD_CONSTANT(param, var) asm("%0 = " param " ll" \
-                                      : "=r"(var))
+#ifndef LINUX_VERSION_CODE
+# error "kernel version not included?"
+#endif
 
-static __always_inline bool dns_stats_enabled() {
-    __u64 val = 0;
-    LOAD_CONSTANT("dns_stats_enabled", val);
-    return val == 1;
-}
-
-static __always_inline __u64 offset_family() {
-    __u64 val = 0;
-    LOAD_CONSTANT("offset_family", val);
-    return val;
-}
-
-static __always_inline __u64 offset_saddr() {
-    __u64 val = 0;
-    LOAD_CONSTANT("offset_saddr", val);
-    return val;
-}
-
-static __always_inline __u64 offset_daddr() {
-    __u64 val = 0;
-    LOAD_CONSTANT("offset_daddr", val);
-    return val;
-}
-
-static __always_inline __u64 offset_daddr_ipv6() {
-    __u64 val = 0;
-    LOAD_CONSTANT("offset_daddr_ipv6", val);
-    return val;
-}
-
-static __always_inline __u64 offset_sport() {
-    __u64 val = 0;
-    LOAD_CONSTANT("offset_sport", val);
-    return val;
-}
-
-static __always_inline __u64 offset_dport() {
-    __u64 val = 0;
-    LOAD_CONSTANT("offset_dport", val);
-    return val;
-}
-
-static __always_inline __u64 offset_netns() {
-    __u64 val = 0;
-    LOAD_CONSTANT("offset_netns", val);
-    return val;
-}
-
-static __always_inline __u64 offset_ino() {
-    __u64 val = 0;
-    LOAD_CONSTANT("offset_ino", val);
-    return val;
-}
-
-static __always_inline __u64 offset_rtt() {
-    __u64 val = 0;
-    LOAD_CONSTANT("offset_rtt", val);
-    return val;
-}
-
-static __always_inline __u64 offset_rtt_var() {
-    __u64 val = 0;
-    LOAD_CONSTANT("offset_rtt_var", val);
-    return val;
-}
-
-static __always_inline bool is_ipv6_enabled() {
-    __u64 val = 0;
-    LOAD_CONSTANT("ipv6_enabled", val);
-    return val == ENABLED;
-}
-
-static __always_inline bool are_fl4_offsets_known() {
-    __u64 val = 0;
-    LOAD_CONSTANT("fl4_offsets", val);
-    return val == ENABLED;
-}
-
-static __always_inline __u64 offset_saddr_fl4() {
-    __u64 val = 0;
-    LOAD_CONSTANT("offset_saddr_fl4", val);
-    return val;
-}
-
-static __always_inline __u64 offset_daddr_fl4() {
-     __u64 val = 0;
-     LOAD_CONSTANT("offset_daddr_fl4", val);
-     return val;
-}
-
-static __always_inline __u64 offset_sport_fl4() {
-    __u64 val = 0;
-    LOAD_CONSTANT("offset_sport_fl4", val);
-    return val;
-}
-
-static __always_inline __u64 offset_dport_fl4() {
-     __u64 val = 0;
-     LOAD_CONSTANT("offset_dport_fl4", val);
-     return val;
-}
-
-static __always_inline __u32 get_netns_from_sock(struct sock* sk) {
-    possible_net_t* skc_net = NULL;
+static __always_inline __u32 get_netns_from_sock(struct sock* skp) {
     __u32 net_ns_inum = 0;
-    bpf_probe_read(&skc_net, sizeof(possible_net_t*), ((char*)sk) + offset_netns());
-    bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), ((char*)skc_net) + offset_ino());
+#ifdef CONFIG_NET_NS
+    #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
+        struct net *skc_net = NULL;
+        bpf_probe_read(&skc_net, sizeof(skc_net), &skp->__sk_common.skc_net);
+        if (!skc_net) {
+            return 0;
+        }
+        #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
+            bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), &skc_net->proc_inum);
+        #else
+            bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), &skc_net->ns.inum);
+        #endif
+    #else
+        struct net *skc_net = NULL;
+        bpf_probe_read(&skc_net, sizeof(skc_net), &skp->__sk_common.skc_net.net);
+        if (!skc_net) {
+            return 0;
+        }
+        bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), &skc_net->ns.inum);
+    #endif
+#endif
     return net_ns_inum;
 }
 
-static __always_inline bool check_family(struct sock* sk, u16 expected_family) {
-    u16 family = 0;
-    bpf_probe_read(&family, sizeof(u16), ((char*)sk) + offset_family());
-    return family == expected_family;
+static __always_inline __u16 read_sport(struct sock* skp) {
+    __u16 sport = 0;
+    bpf_probe_read(&sport, sizeof(sport), &skp->__sk_common.skc_num);
+    if (sport == 0) {
+        bpf_probe_read(&sport, sizeof(sport), &inet_sk(skp)->inet_sport);
+        sport = bpf_ntohs(sport);
+    }
+    return sport;
 }
 
 static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type) {
@@ -144,28 +61,39 @@ static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u6
     t->daddr_l = 0;
     t->sport = 0;
     t->dport = 0;
+    t->netns = 0;
     t->pid = pid_tgid >> 32;
     t->metadata = type;
 
     // Retrieve network namespace id first since addresses and ports may not be available for unconnected UDP
     // sends
     t->netns = get_netns_from_sock(skp);
+    u16 family = 0;
+    bpf_probe_read(&family, sizeof(family), &skp->__sk_common.skc_family);
 
     // Retrieve addresses
-    if (check_family(skp, AF_INET)) {
+    if (family == AF_INET) {
         t->metadata |= CONN_V4;
-        bpf_probe_read(&t->saddr_l, sizeof(__u32), ((char*)skp) + offset_saddr());
-        bpf_probe_read(&t->daddr_l, sizeof(__u32), ((char*)skp) + offset_daddr());
+        bpf_probe_read(&t->saddr_l, sizeof(t->saddr_l), &skp->__sk_common.skc_rcv_saddr);
+        bpf_probe_read(&t->daddr_l, sizeof(t->daddr_l), &skp->__sk_common.skc_daddr);
 
         if (!t->saddr_l || !t->daddr_l) {
             log_debug("ERR(read_conn_tuple.v4): src/dst addr not set src:%d,dst:%d\n", t->saddr_l, t->daddr_l);
             return 0;
         }
-    } else if (is_ipv6_enabled() && check_family(skp, AF_INET6)) {
-        bpf_probe_read(&t->saddr_h, sizeof(t->saddr_h), ((char*)skp) + offset_daddr_ipv6() + 2 * sizeof(u64));
-        bpf_probe_read(&t->saddr_l, sizeof(t->saddr_l), ((char*)skp) + offset_daddr_ipv6() + 3 * sizeof(u64));
-        bpf_probe_read(&t->daddr_h, sizeof(t->daddr_h), ((char*)skp) + offset_daddr_ipv6());
-        bpf_probe_read(&t->daddr_l, sizeof(t->daddr_l), ((char*)skp) + offset_daddr_ipv6() + sizeof(u64));
+    }
+#ifdef FEATURE_IPV6_ENABLED
+    else if (family == AF_INET6) {
+        // TODO cleanup? having it split on 64 bits is not nice for kernel reads
+        __be32 v6src[4] = {};
+        __be32 v6dst[4] = {};
+        bpf_probe_read(&v6src, sizeof(v6src), skp->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32);
+        bpf_probe_read(&v6dst, sizeof(v6dst), skp->__sk_common.skc_v6_daddr.in6_u.u6_addr32);
+
+        bpf_probe_read(&t->saddr_h, sizeof(t->saddr_h), v6src);
+        bpf_probe_read(&t->saddr_l, sizeof(t->saddr_l), v6src + 2);
+        bpf_probe_read(&t->daddr_h, sizeof(t->daddr_h), v6dst);
+        bpf_probe_read(&t->daddr_l, sizeof(t->daddr_l), v6dst + 2);
 
         // We can only pass 4 args to bpf_trace_printk
         // so split those 2 statements to be able to log everything
@@ -192,19 +120,16 @@ static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u6
             t->metadata |= CONN_V6;
         }
     }
+#endif
 
     // Retrieve ports
-    bpf_probe_read(&t->sport, sizeof(t->sport), ((char*)skp) + offset_sport());
-    bpf_probe_read(&t->dport, sizeof(t->dport), ((char*)skp) + offset_dport());
-
+    t->sport = read_sport(skp);
+    bpf_probe_read(&t->dport, sizeof(t->dport), &skp->__sk_common.skc_dport);
+    t->dport = bpf_ntohs(t->dport);
     if (t->sport == 0 || t->dport == 0) {
         log_debug("ERR(read_conn_tuple.v4): src/dst port not set: src:%d, dst:%d\n", t->sport, t->dport);
         return 0;
     }
-
-    // Making ports human-readable
-    t->sport = ntohs(t->sport);
-    t->dport = ntohs(t->dport);
 
     return 1;
 }
@@ -375,10 +300,10 @@ static __always_inline int handle_retransmit(struct sock* sk) {
     return 0;
 }
 
-static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk) {
-    u32 rtt = 0, rtt_var = 0;
-    bpf_probe_read(&rtt, sizeof(rtt), ((char*)sk) + offset_rtt());
-    bpf_probe_read(&rtt_var, sizeof(rtt_var), ((char*)sk) + offset_rtt_var());
+static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* skp) {
+    __u32 rtt = 0, rtt_var = 0;
+    bpf_probe_read(&rtt, sizeof(rtt), &tcp_sk(skp)->srtt_us);
+    bpf_probe_read(&rtt_var, sizeof(rtt_var), &tcp_sk(skp)->mdev_us);
 
     tcp_stats_t stats = { .retransmits = 0, .rtt = rtt, .rtt_var = rtt_var };
     update_tcp_stats(t, stats);
@@ -386,17 +311,17 @@ static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk) {
 
 SEC("kprobe/tcp_sendmsg")
 int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
-    struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
+    struct sock* skp = (struct sock*)PT_REGS_PARM1(ctx);
     size_t size = (size_t)PT_REGS_PARM3(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("kprobe/tcp_sendmsg: pid_tgid: %d, size: %d\n", pid_tgid, size);
 
     conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+    if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
 
-    handle_tcp_stats(&t, sk);
+    handle_tcp_stats(&t, skp);
     return handle_message(&t, size, 0);
 }
 
@@ -460,7 +385,6 @@ int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
     int ret = PT_REGS_RC(ctx);
 
     log_debug("kretprobe/tcp_sendmsg: return: %d\n", ret);
-
     // If ret < 0 it means an error occurred but we still counted the bytes as being sent
     // let's increment our miscount count
     if (ret < 0) {
@@ -534,12 +458,10 @@ int kprobe__ip6_make_skb(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
     size_t size = (size_t)PT_REGS_PARM4(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
-
     size = size - sizeof(struct udphdr);
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
-
         increment_telemetry_count(udp_send_missed);
         return 0;
     }
@@ -562,33 +484,24 @@ int kprobe__ip_make_skb(struct pt_regs* ctx) {
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
-        if (!are_fl4_offsets_known()) {
-            log_debug("ERR: src/dst addr not set src:%d,dst:%d. fl4 offsets are not known\n", t.saddr_l, t.daddr_l);
-            increment_telemetry_count(udp_send_missed);
-            return 0;
-        }
-
         struct flowi4* fl4 = (struct flowi4*)PT_REGS_PARM2(ctx);
-        bpf_probe_read(&t.saddr_l, sizeof(__u32), ((char*)fl4) + offset_saddr_fl4());
-        bpf_probe_read(&t.daddr_l, sizeof(__u32), ((char*)fl4) + offset_daddr_fl4());
-
+        bpf_probe_read(&t.saddr_l, sizeof(t.saddr_l), &fl4->saddr);
+        bpf_probe_read(&t.daddr_l, sizeof(t.daddr_l), &fl4->daddr);
         if (!t.saddr_l || !t.daddr_l) {
             log_debug("ERR(fl4): src/dst addr not set src:%d,dst:%d\n", t.saddr_l, t.daddr_l);
             increment_telemetry_count(udp_send_missed);
             return 0;
         }
 
-        bpf_probe_read(&t.sport, sizeof(t.sport), ((char*)fl4) + offset_sport_fl4());
-        bpf_probe_read(&t.dport, sizeof(t.dport), ((char*)fl4) + offset_dport_fl4());
-
+        bpf_probe_read(&t.sport, sizeof(t.sport), &fl4->fl4_sport);
+        bpf_probe_read(&t.dport, sizeof(t.dport), &fl4->fl4_dport);
+        t.sport = bpf_ntohs(t.sport);
+        t.dport = bpf_ntohs(t.dport);
         if (t.sport == 0 || t.dport == 0) {
             log_debug("ERR(fl4): src/dst port not set: src:%d, dst:%d\n", t.sport, t.dport);
             increment_telemetry_count(udp_send_missed);
             return 0;
         }
-
-        t.sport = ntohs(t.sport);
-        t.dport = ntohs(t.dport);
     }
 
     log_debug("kprobe/ip_send_skb: pid_tgid: %d, size: %d\n", pid_tgid, size);
@@ -691,22 +604,18 @@ int kprobe__tcp_set_state(struct pt_regs* ctx) {
 
 SEC("kretprobe/inet_csk_accept")
 int kretprobe__inet_csk_accept(struct pt_regs* ctx) {
-    struct sock* newsk = (struct sock*)PT_REGS_RC(ctx);
-
-    if (newsk == NULL) {
+    struct sock* skp = (struct sock*)PT_REGS_RC(ctx);
+    if (!skp) {
         return 0;
     }
 
-    __u16 lport = 0;
-
-    bpf_probe_read(&lport, sizeof(lport), ((char*)newsk) + offset_dport() + sizeof(lport));
-
+    __u16 lport = read_sport(skp);
     if (lport == 0) {
         return 0;
     }
 
     port_binding_t t = {};
-    t.net_ns = get_netns_from_sock(newsk);
+    t.net_ns = get_netns_from_sock(skp);
     t.port = lport;
 
     __u8* val = bpf_map_lookup_elem(&port_bindings, &t);
@@ -722,24 +631,20 @@ int kretprobe__inet_csk_accept(struct pt_regs* ctx) {
 
 SEC("kprobe/tcp_v4_destroy_sock")
 int kprobe__tcp_v4_destroy_sock(struct pt_regs* ctx) {
-    struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
-
-    if (sk == NULL) {
+    struct sock* skp = (struct sock*)PT_REGS_PARM1(ctx);
+    if (!skp) {
         log_debug("ERR(tcp_v4_destroy_sock): socket is null \n");
         return 0;
     }
 
-    __u16 lport = 0;
-
-    bpf_probe_read(&lport, sizeof(lport), ((char*)sk) + offset_dport() + sizeof(lport));
-
+    __u16 lport = read_sport(skp);
     if (lport == 0) {
         log_debug("ERR(tcp_v4_destroy_sock): lport is 0 \n");
         return 0;
     }
 
-    port_binding_t t = {};
-    t.net_ns = get_netns_from_sock(sk);
+    port_binding_t t = { .net_ns = 0, .port = 0 };
+    t.net_ns = get_netns_from_sock(skp);
     t.port = lport;
     __u8* val = bpf_map_lookup_elem(&port_bindings, &t);
     if (val != NULL) {
@@ -753,18 +658,14 @@ int kprobe__tcp_v4_destroy_sock(struct pt_regs* ctx) {
 
 SEC("kprobe/udp_destroy_sock")
 int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
-    struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
-
-    if (sk == NULL) {
+    struct sock* skp = (struct sock*)PT_REGS_PARM1(ctx);
+    if (!skp) {
         log_debug("ERR(udp_destroy_sock): socket is null \n");
         return 0;
     }
 
     // get the port for the current sock
-    __u16 lport = 0;
-    bpf_probe_read(&lport, sizeof(lport), ((char*)sk) + offset_sport());
-    lport = ntohs(lport);
-
+    __u16 lport = read_sport(skp);
     if (lport == 0) {
         log_debug("ERR(udp_destroy_sock): lport is 0 \n");
         return 0;
@@ -821,7 +722,7 @@ static __always_inline int sys_enter_bind(__u64 fd, struct sockaddr* addr) {
         bpf_probe_read(&sin_port, sizeof(u16), &(((struct sockaddr_in6*)addr)->sin6_port));
     }
 
-    sin_port = ntohs(sin_port);
+    sin_port = bpf_ntohs(sin_port);
     if (sin_port == 0) {
         log_debug("ERR(sys_enter_bind): sin_port is 0\n");
         return 0;
@@ -1109,9 +1010,15 @@ int socket__dns_filter(struct __sk_buff* skb) {
         return 0;
     }
 
-    if (skb_info.tup.sport != 53 && (!dns_stats_enabled() || skb_info.tup.dport != 53)) {
+#ifdef FEATURE_DNS_STATS_ENABLED
+    if (skb_info.tup.sport != 53 && skb_info.tup.dport != 53) {
         return 0;
     }
+#else
+    if (skb_info.tup.sport != 53) {
+        return 0;
+    }
+#endif
 
     return -1;
 }

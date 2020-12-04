@@ -1927,6 +1927,7 @@ func teardownDNAT(t *testing.T) {
 }
 
 func runCommands(t *testing.T, cmds []string) {
+	t.Helper()
 	for _, c := range cmds {
 		args := strings.Split(c, " ")
 		c := exec.Command(args[0], args[1:]...)

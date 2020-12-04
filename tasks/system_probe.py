@@ -360,11 +360,13 @@ def build_object_files(ctx, bundle_ebpf=False):
 
     bpf_dir = os.path.join(".", "pkg", "ebpf")
     build_dir = os.path.join(bpf_dir, "bytecode", "build")
+    build_runtime_dir = os.path.join(build_dir, "runtime")
     c_dir = os.path.join(bpf_dir, "c")
 
     network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
     network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
+    network_runtime_dir = os.path.join(network_c_dir, "runtime")
 
     flags = [
         '-D__KERNEL__',
@@ -385,7 +387,7 @@ def build_object_files(ctx, bundle_ebpf=False):
         '-fno-color-diagnostics',
         '-fno-unwind-tables',
         '-fno-asynchronous-unwind-tables',
-		"-I{}".format(c_dir),
+        "-I{}".format(c_dir),
     ]
 
     # Mapping used by the kernel, from https://elixir.bootlin.com/linux/latest/source/scripts/subarch.include
@@ -420,13 +422,12 @@ def build_object_files(ctx, bundle_ebpf=False):
     cmd = "clang {flags} -c '{c_file}' -o '{bc_file}'"
     llc_cmd = "llc -march=bpf -filetype=obj -o '{obj_file}' '{bc_file}'"
 
-    commands = ["mkdir -p {build_dir}".format(build_dir=build_dir)]
+    commands = [
+        "mkdir -p {build_dir}".format(build_dir=build_dir),
+        "mkdir -p {build_runtime_dir}".format(build_runtime_dir=build_runtime_dir),
+    ]
     bindata_files = []
 
-    compiled_programs = [
-        "tracer",
-        "offset-guess",
-    ]
     corechecks_c_dir = os.path.join(".", "pkg", "collector", "corechecks", "ebpf", "c")
     corechecks_bcc_dir = os.path.join(corechecks_c_dir, "bcc")
     bcc_files = [
@@ -440,6 +441,10 @@ def build_object_files(ctx, bundle_ebpf=False):
         commands.append("cp {file} {dest}".format(file=f, dest=build_dir))
         bindata_files.append(os.path.join(build_dir, os.path.basename(f)))
 
+    compiled_programs = [
+        "tracer",
+        "offset-guess",
+    ]
     network_flags = list(flags)
     network_flags.append("-I{}".format(network_c_dir))
     for p in compiled_programs:
@@ -458,6 +463,18 @@ def build_object_files(ctx, bundle_ebpf=False):
         commands.append(llc_cmd.format(flags=" ".join(network_flags), bc_file=debug_bc_file, obj_file=debug_obj_file))
 
         bindata_files.extend([obj_file, debug_obj_file])
+
+    runtime_files = [
+        os.path.join(network_runtime_dir, "tracer.c"),
+        os.path.join(network_c_dir, "tracer.h"),
+        os.path.join(network_c_dir, "tracer-maps.h"),
+        os.path.join(network_c_dir, "syscalls.h"),
+        os.path.join(c_dir, "bpf_helpers.h"),
+        os.path.join(c_dir, "bpf_endian.h"),
+        os.path.join(c_dir, "asm_goto_workaround.h"),
+    ]
+    for p in runtime_files:
+        commands.append("cp {file} {dest}".format(file=p, dest=build_runtime_dir))
 
     # Build security runtime programs
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
