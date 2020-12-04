@@ -89,26 +89,30 @@ func (f *transactionContainer) makeRoomFor(payloadSize int) error {
 }
 
 func (f *transactionContainer) flushToStorage() error {
-	sizeInBytesFlushed := 0
-	var payloadsToFlush []Transaction
+	sizeInBytesToFlush := int(float64(f.maxMemSizeInBytes) * f.flushToStorageRatio)
 
-	i := 0
-	sizeInBytesToFlush := int(float32(f.maxMemSizeInBytes) * f.flushToStorageRatio)
 	// Flush the N first transactions whose payload size sum is greater than `sizeInBytesToFlush`
-	for ; i < len(f.transactions) && sizeInBytesFlushed < sizeInBytesToFlush; i++ {
-		transaction := f.transactions[i]
-		sizeInBytesFlushed += transaction.GetPayloadSize()
-		payloadsToFlush = append(payloadsToFlush, transaction)
-	}
+	payloadsToFlush := f.extractTransactions(sizeInBytesToFlush)
 
-	if len(payloadsToFlush) > 0 {
-		err := f.transactionStorage.Serialize(payloadsToFlush)
-		if err != nil {
-			return err
-		}
-		f.transactions = f.transactions[i:]
-		f.currentMemSizeInBytes -= sizeInBytesFlushed
+	if len(payloadsToFlush) > 0 && f.optionalTransactionStorage != nil {
+		return f.optionalTransactionStorage.Serialize(payloadsToFlush)
 	}
 
 	return nil
+}
+
+func (f *transactionContainer) extractTransactions(payloadSizeInBytesToExtract int) []Transaction {
+	i := 0
+	sizeInBytesExtracted := 0
+	var transactionsExtracted []Transaction
+
+	for ; i < len(f.transactions) && sizeInBytesExtracted < payloadSizeInBytesToExtract; i++ {
+		transaction := f.transactions[i]
+		sizeInBytesExtracted += transaction.GetPayloadSize()
+		transactionsExtracted = append(transactionsExtracted, transaction)
+	}
+
+	f.transactions = f.transactions[i:]
+	f.currentMemSizeInBytes -= sizeInBytesExtracted
+	return transactionsExtracted
 }
