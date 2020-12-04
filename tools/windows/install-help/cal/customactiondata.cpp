@@ -27,7 +27,7 @@ bool CustomActionData::init(const std::wstring& data)
     DWORD errCode = machine.Detect();
     if (errCode != ERROR_SUCCESS)
     {
-        WcaLog(LOGMSG_STANDARD, "Could not determine machine information: %d", errCode);
+        WcaLog(LOGMSG_STANDARD, "Could not determine machine information: %S", FormatErrorMessage(errCode).c_str());
         return false;
     }
 
@@ -167,12 +167,6 @@ bool CustomActionData::parseUsernameData()
         }
     }
     auto sidResult = GetSidForUser(nullptr, tmpName.c_str());
-    if (sidResult.Result != ERROR_SUCCESS)
-    {
-        WcaLog(LOGMSG_STANDARD, "Could not get SID for user %S: %d", tmpName.c_str(), sidResult.Result);
-        return false;
-    }
-
     if (sidResult.Result == ERROR_NONE_MAPPED)
     {
         WcaLog(LOGMSG_STANDARD, "User not found.");
@@ -188,12 +182,12 @@ bool CustomActionData::parseUsernameData()
         }
         else
         {
-            WcaLog(LOGMSG_STANDARD, "Failed to lookup account name: %d", GetLastError());
+            WcaLog(LOGMSG_STANDARD, "Could not get SID for user %S: %S", tmpName.c_str(), FormatErrorMessage(sidResult.Result).c_str());
             return false;
         }
     }
 
-    // The domnain can be the local computer
+    // The domain can be the local computer
     _domain = sidResult.Domain;
 
     // We're on a domain AND the user specified on the command line is not the local machine name

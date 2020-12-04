@@ -14,7 +14,7 @@ SidResult GetSidForUser(LPCWSTR host, LPCWSTR user) {
 	{
 		return SidResult(GetLastError());
 	}
-	WcaLog(LOGMSG_VERBOSE, "Got SID from %S", refDomain);
+	WcaLog(LOGMSG_VERBOSE, "Got SID from %S", refDomain.c_str());
 	if (!IsValidSid(newsid.get()))
 	{
 		WcaLog(LOGMSG_STANDARD, "New SID is invalid");

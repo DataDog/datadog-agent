@@ -40,7 +40,7 @@
 #include "customaction.h"
 #include "strings.h"
 #include "ddreg.h"
-
+#include "Error.h"
 #include "resource.h"
 
 #ifdef _WIN64
