@@ -1,7 +1,6 @@
 package pb
 
 import (
-	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,7 +12,7 @@ import (
 
 func decodeBytes(bts []byte) (*Span, error) {
 	var s Span
-	err := s.DecodeMsg(msgp.NewReader(bytes.NewReader(bts)))
+	_, err := s.UnmarshalMsg(bts)
 	return &s, err
 }
 
