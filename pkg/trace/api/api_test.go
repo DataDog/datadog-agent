@@ -576,10 +576,8 @@ func TestClientComputedTopLevel(t *testing.T) {
 	// run runs the test with ClientComputedStats turned on.
 	run := func(on bool) func(t *testing.T) {
 		return func(t *testing.T) {
-			var buf bytes.Buffer
-			msgp.Encode(&buf, testutil.GetTestTraces(10, 10, true))
-
-			req, _ := http.NewRequest("POST", "http://127.0.0.1:8126/v0.4/traces", &buf)
+			bts, _ := testutil.GetTestTraces(10, 10, true).MarshalMsg(nil)
+			req, _ := http.NewRequest("POST", "http://127.0.0.1:8126/v0.4/traces", bytes.NewReader(bts))
 			req.Header.Set("Content-Type", "application/msgpack")
 			req.Header.Set(headerLang, "lang1")
 			if on {
