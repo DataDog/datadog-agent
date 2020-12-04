@@ -131,7 +131,7 @@ int __attribute__((always_inline)) handle_open_event(struct pt_regs *ctx, struct
     struct inode *inode = (struct inode *)PT_REGS_PARM2(ctx);
 
     if (syscall->open.dentry) {
-        syscall->open.real_inode = get_inode_key_path(inode, &file->f_path).ino;
+       // syscall->open.real_inode = get_inode_key_path(inode, &file->f_path).ino;
         return 0;
     }
 
