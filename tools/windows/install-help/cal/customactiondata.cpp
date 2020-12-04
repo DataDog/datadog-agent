@@ -160,45 +160,87 @@ bool CustomActionData::parseSysprobeData()
 bool CustomActionData::parseUsernameData()
 {
     std::wstring tmpName = ddAgentUserName;
-    
+
     if (this->value(propertyDDAgentUserName, tmpName)) {
         if (tmpName.length() == 0) {
             tmpName = ddAgentUserName;
         }
     }
-    auto sidResult = GetSidForUser(nullptr, tmpName.c_str());
-    if (sidResult.Result == ERROR_NONE_MAPPED)
-    {
-        WcaLog(LOGMSG_STANDARD, "User not found.");
-        _ddUserExists = false;
+    if (std::wstring::npos == tmpName.find(L'\\')) {
+        WcaLog(LOGMSG_STANDARD, "loaded username doesn't have domain specifier, assuming local");
+        tmpName = L".\\" + tmpName;
     }
-    else if (sidResult.Result != ERROR_NONE_MAPPED)
+    // now create the splits between the domain and user for all to use, too
+    std::wstring computed_domain, computed_user;
+    std::wistringstream asStream(tmpName);
+    // username is going to be of the form <domain>\<username>
+    // if the <domain> is ".", then just do local machine
+    getline(asStream, computed_domain, L'\\');
+    getline(asStream, computed_user, L'\\');
+
+    if (computed_domain == L".")
     {
-        if (sidResult.Sid != nullptr)
+        WcaLog(LOGMSG_STANDARD, "Supplied qualified domain '.', using hostname");
+        computed_domain = machine.GetMachineName();
+        domainUser = false;
+    }
+    else
+    {
+        if (0 == _wcsicmp(computed_domain.c_str(), machine.GetMachineName().c_str()))
         {
-            WcaLog(LOGMSG_STANDARD, "User found.");
-            _ddUserExists = true;
-            _sid = std::move(sidResult.Sid);
+            WcaLog(LOGMSG_STANDARD, "Supplied hostname as authority");
+            domainUser = false;
+        }
+        else if (0 == _wcsicmp(computed_domain.c_str(), machine.DnsDomainName().c_str()))
+        {
+            WcaLog(LOGMSG_STANDARD, "Supplied domain name %S %S", computed_domain.c_str(), machine.DnsDomainName().c_str());
+            domainUser = true;
         }
         else
         {
-            WcaLog(LOGMSG_STANDARD, "Could not get SID for user %S: %S", tmpName.c_str(), FormatErrorMessage(sidResult.Result).c_str());
+            WcaLog(LOGMSG_STANDARD, "Warning: Supplied user in different domain (%S != %S)", computed_domain.c_str(), machine.DnsDomainName().c_str());
+            domainUser = true;
+        }
+    }
+    _domain = computed_domain;
+    _fqUsername = computed_domain + L"\\" + computed_user;
+    _unqualifiedUsername = computed_user;
+
+    auto sidResult = GetSidForUser(nullptr, _fqUsername.c_str());
+
+    if (sidResult.Result == ERROR_NONE_MAPPED)
+    {
+        WcaLog(LOGMSG_STANDARD, "No account \"%S\" found.", tmpName.c_str());
+        _ddUserExists = false;
+    }
+    else
+    {
+        if (sidResult.Result == ERROR_SUCCESS &&
+            sidResult.Sid != nullptr)
+        {
+            WcaLog(LOGMSG_STANDARD, "Found SID for \"%S\" in \"%S\"", tmpName.c_str(), sidResult.Domain.c_str());
+            _ddUserExists = true;
+            _sid = std::move(sidResult.Sid);
+
+            // The domain can be the local computer
+            _domain = sidResult.Domain;
+
+            // Use the domain returned by <see cref="LookupAccountName" /> because
+            // it might be != from the one the user passed in.
+            _fqUsername = _domain + L"\\" + _unqualifiedUsername;
+        }
+        else
+        {
+            WcaLog(LOGMSG_STANDARD, "Looking up SID for \"%S\": %S", tmpName.c_str(), FormatErrorMessage(sidResult.Result).c_str());
             return false;
         }
     }
 
-    // The domain can be the local computer
-    _domain = sidResult.Domain;
-
-    // We're on a domain AND the user specified on the command line is not the local machine name
     if (GetTargetMachine().IsDomainJoined() &&
         _wcsicmp(sidResult.Domain.c_str(), GetTargetMachine().GetMachineName().c_str()) != 0)
     {
-        WcaLog(LOGMSG_STANDARD, "Supplied domain name %S", _domain.c_str());
-        domainUser = true;
+        //domainUser = true;
     }
 
-    _fqUsername = tmpName;
-    _unqualifiedUsername = tmpName;
     return true;
 }
