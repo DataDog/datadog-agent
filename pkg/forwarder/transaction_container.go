@@ -17,21 +17,21 @@ type transactionStorage interface {
 // transactionContainer stores transactions in memory and flush them to disk when the memory
 // limit is exceeded.
 type transactionContainer struct {
-	transactions          []Transaction
-	currentMemSizeInBytes int
-	maxMemSizeInBytes     int
-	flushToStorageRatio   float32
-	transactionStorage    transactionStorage
+	transactions               []Transaction
+	currentMemSizeInBytes      int
+	maxMemSizeInBytes          int
+	flushToStorageRatio        float64
+	optionalTransactionStorage transactionStorage
 }
 
 func newTransactionContainer(
-	transactionStorage transactionStorage,
+	optionalTransactionStorage transactionStorage,
 	maxMemSizeInBytes int,
-	flushToStorageRatio float32) *transactionContainer {
+	flushToStorageRatio float64) *transactionContainer {
 	return &transactionContainer{
-		maxMemSizeInBytes:   maxMemSizeInBytes,
-		flushToStorageRatio: flushToStorageRatio,
-		transactionStorage:  transactionStorage,
+		maxMemSizeInBytes:          maxMemSizeInBytes,
+		flushToStorageRatio:        flushToStorageRatio,
+		optionalTransactionStorage: optionalTransactionStorage,
 	}
 }
 
@@ -64,8 +64,8 @@ func (f *transactionContainer) ExtractTransactions() ([]Transaction, error) {
 	if len(f.transactions) > 0 {
 		transactions = f.transactions
 		f.transactions = nil
-	} else {
-		transactions, err = f.transactionStorage.Deserialize()
+	} else if f.optionalTransactionStorage != nil {
+		transactions, err = f.optionalTransactionStorage.Deserialize()
 		if err != nil {
 			return nil, err
 		}
