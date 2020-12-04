@@ -361,6 +361,10 @@ def build_object_files(ctx, bundle_ebpf=False):
     build_dir = os.path.join(bpf_dir, "bytecode", "build")
     c_dir = os.path.join(bpf_dir, "c")
 
+    network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
+    network_c_dir = os.path.join(network_bpf_dir, "c")
+    network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
+
     flags = [
         '-D__KERNEL__',
         '-DCONFIG_64BIT',
@@ -377,6 +381,7 @@ def build_object_files(ctx, bundle_ebpf=False):
         '-emit-llvm',
         # Some linux distributions enable stack protector by default which is not available on eBPF
         '-fno-stack-protector',
+        "-I{}".format(c_dir),
     ]
 
     # Mapping used by the kernel, from https://elixir.bootlin.com/linux/latest/source/scripts/subarch.include
@@ -414,58 +419,74 @@ def build_object_files(ctx, bundle_ebpf=False):
     commands = ["mkdir -p {build_dir}".format(build_dir=build_dir)]
     bindata_files = []
 
-    compiled_programs = ["tracer-ebpf", "offset-guess"]
+    compiled_programs = [
+        "tracer",
+        "offset-guess",
+    ]
+    corechecks_c_dir = os.path.join(".", "pkg", "collector", "corechecks", "ebpf", "c")
+    corechecks_bcc_dir = os.path.join(corechecks_c_dir, "bcc")
     bcc_files = [
-        os.path.join(c_dir, "tcp-queue-length-kern.c"),
-        os.path.join(bpf_dir, "tcp-queue-length-kern-user.h"),
-        os.path.join(c_dir, "oom-kill-kern.c"),
-        os.path.join(bpf_dir, "oom-kill-kern-user.h"),
-        os.path.join(c_dir, "bpf-common.h"),
+        os.path.join(corechecks_bcc_dir, "tcp-queue-length-kern.c"),
+        os.path.join(corechecks_c_dir, "tcp-queue-length-kern-user.h"),
+        os.path.join(corechecks_bcc_dir, "oom-kill-kern.c"),
+        os.path.join(corechecks_c_dir, "oom-kill-kern-user.h"),
+        os.path.join(corechecks_bcc_dir, "bpf-common.h"),
     ]
     for f in bcc_files:
         commands.append("cp {file} {dest}".format(file=f, dest=build_dir))
         bindata_files.append(os.path.join(build_dir, os.path.basename(f)))
 
+    network_flags = list(flags)
+    network_flags.append("-I{}".format(network_c_dir))
     for p in compiled_programs:
         # Build both the standard and debug version
-        src_file = os.path.join(c_dir, "{}.c".format(p))
+        src_file = os.path.join(network_prebuilt_dir, "{}.c".format(p))
         bc_file = os.path.join(build_dir, "{}.bc".format(p))
         obj_file = os.path.join(build_dir, "{}.o".format(p))
-        commands.append(cmd.format(flags=" ".join(flags), bc_file=bc_file, c_file=src_file))
-        commands.append(llc_cmd.format(flags=" ".join(flags), bc_file=bc_file, obj_file=obj_file))
+        commands.append(cmd.format(flags=" ".join(network_flags), bc_file=bc_file, c_file=src_file))
+        commands.append(llc_cmd.format(flags=" ".join(network_flags), bc_file=bc_file, obj_file=obj_file))
 
         debug_bc_file = os.path.join(build_dir, "{}-debug.bc".format(p))
         debug_obj_file = os.path.join(build_dir, "{}-debug.o".format(p))
-        commands.append(cmd.format(flags=" ".join(flags + ["-DDEBUG=1"]), bc_file=debug_bc_file, c_file=src_file))
-        commands.append(llc_cmd.format(flags=" ".join(flags), bc_file=debug_bc_file, obj_file=debug_obj_file))
+        commands.append(
+            cmd.format(flags=" ".join(network_flags + ["-DDEBUG=1"]), bc_file=debug_bc_file, c_file=src_file)
+        )
+        commands.append(llc_cmd.format(flags=" ".join(network_flags), bc_file=debug_bc_file, obj_file=debug_obj_file))
 
         bindata_files.extend([obj_file, debug_obj_file])
 
     # Build security runtime programs
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
-    security_c_file = os.path.join(security_agent_c_dir, "probe.c")
+    security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
+    security_c_file = os.path.join(security_agent_prebuilt_dir, "probe.c")
     security_bc_file = os.path.join(build_dir, "runtime-security.bc")
     security_agent_obj_file = os.path.join(build_dir, "runtime-security.o")
+    security_flags = list(flags)
+    security_flags.append("-I{}".format(security_agent_c_dir))
 
     commands.append(
         cmd.format(
-            flags=" ".join(flags + ["-DUSE_SYSCALL_WRAPPER=0"]), c_file=security_c_file, bc_file=security_bc_file
+            flags=" ".join(security_flags + ["-DUSE_SYSCALL_WRAPPER=0"]),
+            c_file=security_c_file,
+            bc_file=security_bc_file,
         )
     )
-    commands.append(llc_cmd.format(flags=" ".join(flags), bc_file=security_bc_file, obj_file=security_agent_obj_file))
+    commands.append(
+        llc_cmd.format(flags=" ".join(security_flags), bc_file=security_bc_file, obj_file=security_agent_obj_file)
+    )
 
     security_agent_syscall_wrapper_bc_file = os.path.join(build_dir, "runtime-security-syscall-wrapper.bc")
     security_agent_syscall_wrapper_obj_file = os.path.join(build_dir, "runtime-security-syscall-wrapper.o")
     commands.append(
         cmd.format(
-            flags=" ".join(flags + ["-DUSE_SYSCALL_WRAPPER=1"]),
+            flags=" ".join(security_flags + ["-DUSE_SYSCALL_WRAPPER=1"]),
             c_file=security_c_file,
             bc_file=security_agent_syscall_wrapper_bc_file,
         )
     )
     commands.append(
         llc_cmd.format(
-            flags=" ".join(flags),
+            flags=" ".join(security_flags),
             bc_file=security_agent_syscall_wrapper_bc_file,
             obj_file=security_agent_syscall_wrapper_obj_file,
         )
@@ -490,7 +511,8 @@ def bundle_files(ctx, bindata_files, dir_prefix, go_dir):
 
 
 def build_ebpf_builder(ctx):
-    """build_ebpf_builder builds the docker image for the ebpf builder
+    """
+    build_ebpf_builder builds the docker image for the ebpf builder
     """
 
     cmd = "docker build -t {image} -f {file} ."
