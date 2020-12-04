@@ -13,6 +13,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -82,11 +83,15 @@ func getSnooper(
 	require.NotNil(t, filter)
 
 	reverseDNS, err := NewSocketFilterSnooper(
-		"/proc",
+		&config.Config{
+			Config: ddebpf.Config{
+				ProcRoot: "/proc",
+			},
+			CollectDNSStats: collectStats,
+			CollectLocalDNS: collectLocalDNS,
+			DNSTimeout:      dnsTimeout,
+		},
 		filter,
-		collectStats,
-		collectLocalDNS,
-		dnsTimeout,
 	)
 	require.NoError(t, err)
 	return mgr, reverseDNS
