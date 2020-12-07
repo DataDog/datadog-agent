@@ -18,8 +18,10 @@ func parseStringBytes(bts []byte) (string, []byte, error) {
 	// read the generic representation type without decoding
 	t := msgp.NextType(bts)
 
-	var err error
-	var i []byte
+	var (
+		err error
+		i   []byte
+	)
 	switch t {
 	case msgp.BinType:
 		i, bts, err = msgp.ReadBytesZC(bts)
@@ -82,9 +84,11 @@ func parseInt64Bytes(bts []byte) (int64, []byte, error) {
 	// read the generic representation type without decoding
 	t := msgp.NextType(bts)
 
-	var i int64
-	var u uint64
-	var err error
+	var (
+		i   int64
+		u   uint64
+		err error
+	)
 	switch t {
 	case msgp.IntType:
 		i, bts, err = msgp.ReadInt64Bytes(bts)
@@ -118,9 +122,11 @@ func parseUint64Bytes(bts []byte) (uint64, []byte, error) {
 	// read the generic representation type without decoding
 	t := msgp.NextType(bts)
 
-	var i int64
-	var u uint64
-	var err error
+	var (
+		i   int64
+		u   uint64
+		err error
+	)
 	switch t {
 	case msgp.UintType:
 		u, bts, err = msgp.ReadUint64Bytes(bts)
@@ -146,9 +152,11 @@ func parseInt32Bytes(bts []byte) (int32, []byte, error) {
 	// read the generic representation type without decoding
 	t := msgp.NextType(bts)
 
-	var i int32
-	var u uint32
-	var err error
+	var (
+		i   int32
+		u   uint32
+		err error
+	)
 	switch t {
 	case msgp.IntType:
 		i, bts, err = msgp.ReadInt32Bytes(bts)

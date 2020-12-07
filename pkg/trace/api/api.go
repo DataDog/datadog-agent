@@ -594,13 +594,13 @@ func (r *HTTPReceiver) Languages() string {
 func decodeRequest(req *http.Request, dest *pb.Traces) error {
 	switch mediaType := getMediaType(req); mediaType {
 	case "application/msgpack":
-		buffer := getBuffer()
-		defer putBuffer(buffer)
-		_, err := io.Copy(buffer, req.Body)
+		buf := getBuffer()
+		defer putBuffer(buf)
+		_, err := io.Copy(buf, req.Body)
 		if err != nil {
 			return err
 		}
-		_, err = dest.UnmarshalMsg(buffer.Bytes())
+		_, err = dest.UnmarshalMsg(buf.Bytes())
 		return err
 	case "application/json":
 		fallthrough
@@ -611,13 +611,13 @@ func decodeRequest(req *http.Request, dest *pb.Traces) error {
 	default:
 		// do our best
 		if err1 := json.NewDecoder(req.Body).Decode(dest); err1 != nil {
-			buffer := getBuffer()
-			defer putBuffer(buffer)
-			_, err2 := io.Copy(buffer, req.Body)
+			buf := getBuffer()
+			defer putBuffer(buf)
+			_, err2 := io.Copy(buf, req.Body)
 			if err2 != nil {
 				return fmt.Errorf("could not decode JSON (%q), nor Msgpack (%q)", err1, err2)
 			}
-			_, err2 = dest.UnmarshalMsg(buffer.Bytes())
+			_, err2 = dest.UnmarshalMsg(buf.Bytes())
 			if err2 != nil {
 				return fmt.Errorf("could not decode JSON (%q), nor Msgpack (%q)", err1, err2)
 			}
