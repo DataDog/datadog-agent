@@ -189,6 +189,7 @@ type LogsConfigKeys struct {
 	BatchWait               string
 }
 
+// logsConfigDefaultKeys defines the default YAML keys used to retrieve logs configuration
 var logsConfigDefaultKeys = LogsConfigKeys{
 	UseCompression:          "logs_config.use_compression",
 	CompressionLevel:        "logs_config.compression_level",

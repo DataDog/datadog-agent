@@ -108,9 +108,9 @@ func init() {
 	SecurityAgentCmd.AddCommand(startCmd)
 }
 
-func newLogContext() (*config.Endpoints, *client.DestinationsContext, error) {
+func newLogContext(logsConfig config.LogsConfigKeys, endpointPrefix string) (*config.Endpoints, *client.DestinationsContext, error) {
 	httpConnectivity := config.HTTPConnectivityFailure
-	if endpoints, err := config.BuildHTTPEndpoints(); err == nil {
+	if endpoints, err := config.BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix); err == nil {
 		httpConnectivity = logshttp.CheckConnectivity(endpoints.Main)
 	}
 
@@ -123,6 +123,36 @@ func newLogContext() (*config.Endpoints, *client.DestinationsContext, error) {
 	destinationsCtx.Start()
 
 	return endpoints, destinationsCtx, nil
+}
+
+func newLogContextCompliance() (*config.Endpoints, *client.DestinationsContext, error) {
+	logsConfigComplianceKeys := config.LogsConfigKeys{
+		UseCompression:          "compliance_config.logs_config.use_compression",
+		CompressionLevel:        "compliance_config.logs_config.compression_level",
+		ConnectionResetInterval: "compliance_config.logs_config.connection_reset_interval",
+		LogsDDURL:               "compliance_config.logs_config.logs_dd_url",
+		LogsNoSSL:               "compliance_config.logs_config.logs_no_ssl",
+		DDURL:                   "compliance_config.logs_config.dd_url",
+		DevModeNoSSL:            "compliance_config.logs_config.dev_mode_no_ssl",
+		AdditionalEndpoints:     "compliance_config.logs_config.additional_endpoints",
+		BatchWait:               "compliance_config.logs_config.batch_wait",
+	}
+	return newLogContext(logsConfigComplianceKeys, "agent-http-intake.logs.")
+}
+
+func newLogContextRuntime() (*config.Endpoints, *client.DestinationsContext, error) {
+	logsConfigRuntimeKeys := config.LogsConfigKeys{
+		UseCompression:          "runtime_security_config.logs_config.use_compression",
+		CompressionLevel:        "runtime_security_config.logs_config.compression_level",
+		ConnectionResetInterval: "runtime_security_config.logs_config.connection_reset_interval",
+		LogsDDURL:               "runtime_security_config.logs_config.logs_dd_url",
+		LogsNoSSL:               "runtime_security_config.logs_config.logs_no_ssl",
+		DDURL:                   "runtime_security_config.logs_config.dd_url",
+		DevModeNoSSL:            "runtime_security_config.logs_config.dev_mode_no_ssl",
+		AdditionalEndpoints:     "runtime_security_config.logs_config.additional_endpoints",
+		BatchWait:               "runtime_security_config.logs_config.batch_wait",
+	}
+	return newLogContext(logsConfigRuntimeKeys, "agent-http-intake.logs.")
 }
 
 func start(cmd *cobra.Command, args []string) error {
@@ -211,12 +241,6 @@ func start(cmd *cobra.Command, args []string) error {
 	stopper := restart.NewSerialStopper()
 	defer stopper.Stop()
 
-	endpoints, dstContext, err := newLogContext()
-	if err != nil {
-		log.Error(err)
-	}
-	stopper.Add(dstContext)
-
 	// Retrieve statsd host and port from the datadog agent configuration file
 	statsdHost := coreconfig.Datadog.GetString("bind_host")
 	statsdPort := coreconfig.Datadog.GetInt("dogstatsd_port")
@@ -228,12 +252,12 @@ func start(cmd *cobra.Command, args []string) error {
 		return log.Criticalf("Error creating statsd Client: %s", err)
 	}
 
-	if err = startCompliance(hostname, endpoints, dstContext, stopper, statsdClient); err != nil {
+	if err = startCompliance(hostname, stopper, statsdClient); err != nil {
 		return err
 	}
 
 	// start runtime security agent
-	runtimeAgent, err := startRuntimeSecurity(hostname, endpoints, dstContext, stopper, statsdClient)
+	runtimeAgent, err := startRuntimeSecurity(hostname, stopper, statsdClient)
 	if err != nil {
 		return err
 	}
