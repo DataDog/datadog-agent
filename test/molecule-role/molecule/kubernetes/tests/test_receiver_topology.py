@@ -543,8 +543,8 @@ def test_cluster_agent_base_topology(host, ansible_var):
             external_id_assert_fn=lambda eid: namespace_daemonset_encloses_match.findall(eid)
         ).startswith("urn:kubernetes:/%s:namespace/%s" % (cluster_name, namespace))
         external_name_service_uses_external_match = re.compile("urn:kubernetes:/%s:%s:service/google-service->"
-                                                        "urn:kubernetes:/%s:%s:external-service/google-service" %
-                                                        (cluster_name, namespace, cluster_name, namespace))
+                                                               "urn:kubernetes:/%s:%s:external-service/google-service" %
+                                                               (cluster_name, namespace, cluster_name, namespace))
         assert _relation_data(
             json_data=json_data,
             type_name="uses",
