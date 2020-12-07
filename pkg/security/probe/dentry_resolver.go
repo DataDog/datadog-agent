@@ -84,7 +84,24 @@ type PathValue struct {
 // DelCacheEntry removes an entry from the cache
 func (dr *DentryResolver) DelCacheEntry(mountID uint32, inode uint64) {
 	if entries, exists := dr.cache[mountID]; exists {
-		entries.Remove(inode)
+		key := PathKey{Inode: inode}
+
+		// Delete path recursively
+		for {
+			path, exists := entries.Get(key.Inode)
+			if !exists {
+				break
+			}
+			entries.Remove(key.Inode)
+
+			parent := path.(PathValue).Parent
+			if parent.Inode == 0 {
+				break
+			}
+
+			// Prepare next key
+			key = parent
+		}
 	}
 }
 
@@ -228,7 +245,7 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 		for k, v := range toAdd {
 			// do not cache fake path keys in the case of rename events
 			if k.Inode>>32 != fakeInodeMSW {
-				dr.cacheInode(k.MountID, k.Inode, v)
+				_ = dr.cacheInode(k.MountID, k.Inode, v)
 			}
 		}
 	}
