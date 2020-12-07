@@ -146,3 +146,8 @@ instances:
     #     exclude:
     #       bean_regex:
     #         - <REGEX>
+
+    ## @param collect_default_jvm_metrics - boolean - optional - default: true
+    ## Collects default JVM metrics when true
+    #
+    # collect_default_jvm_metrics: false
