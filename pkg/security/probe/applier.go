@@ -11,74 +11,48 @@ import (
 	"math"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/pkg/errors"
 )
 
 // RuleSetApplier defines a rule set applier. It applies rules using an Applier
 type RuleSetApplier struct {
 	config   *config.Config
 	reporter *Reporter
+	probe    *Probe
 }
 
-// Applier describes the set of methods required to apply kernel event passing policies
-type Applier interface {
-	Init() error
-	ApplyFilterPolicy(eventType eval.EventType, tableName string, mode PolicyMode, flags PolicyFlag) error
-	ApplyApprovers(eventType eval.EventType, approvers rules.Approvers) error
-	RegisterKProbe(kprobe *ebpf.KProbe) error
-	RegisterTracepoint(tracepoint string) error
-}
-
-func (rsa *RuleSetApplier) applyFilterPolicy(eventType eval.EventType, tableName string, mode PolicyMode, flags PolicyFlag, applier Applier) error {
-	if err := rsa.reporter.SetFilterPolicy(eventType, tableName, mode, flags); err != nil {
+func (rsa *RuleSetApplier) applyFilterPolicy(eventType eval.EventType, mode PolicyMode, flags PolicyFlag) error {
+	if err := rsa.reporter.SetFilterPolicy(eventType, mode, flags); err != nil {
 		return err
 	}
 
-	if applier != nil {
-		return applier.ApplyFilterPolicy(eventType, tableName, mode, flags)
+	if rsa.probe != nil {
+		return rsa.probe.ApplyFilterPolicy(eventType, mode, flags)
 	}
 
 	return nil
 }
 
-func (rsa *RuleSetApplier) applyApprovers(eventType eval.EventType, approvers rules.Approvers, applier Applier) error {
+func (rsa *RuleSetApplier) applyApprovers(eventType eval.EventType, approvers rules.Approvers) error {
 	if err := rsa.reporter.SetApprovers(eventType, approvers); err != nil {
 		return err
 	}
 
-	if applier != nil {
-		return applier.ApplyApprovers(eventType, approvers)
+	if rsa.probe != nil {
+		if err := rsa.probe.SetApprovers(eventType, approvers); err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
-func (rsa *RuleSetApplier) registerKProbe(kprobe *ebpf.KProbe, applier Applier) error {
-	if applier != nil {
-		return applier.RegisterKProbe(kprobe)
-	}
-
-	return nil
-}
-
-func (rsa *RuleSetApplier) registerTracepoint(tracepoint string, applier Applier) error {
-	if applier != nil {
-		return applier.RegisterTracepoint(tracepoint)
-	}
-
-	return nil
-}
-
-func (rsa *RuleSetApplier) setupKProbe(rs *rules.RuleSet, eventType eval.EventType, applier Applier) error {
-	policyTable := allPolicyTables[eventType]
-	if policyTable == "" {
-		return nil
-	}
-
+func (rsa *RuleSetApplier) setupFilters(rs *rules.RuleSet, eventType eval.EventType) error {
 	if !rsa.config.EnableKernelFilters {
-		if err := rsa.applyFilterPolicy(eventType, policyTable, PolicyModeNoFilter, math.MaxUint8, applier); err != nil {
+		if err := rsa.applyFilterPolicy(eventType, PolicyModeNoFilter, math.MaxUint8); err != nil {
 			return err
 		}
 		return nil
@@ -86,97 +60,53 @@ func (rsa *RuleSetApplier) setupKProbe(rs *rules.RuleSet, eventType eval.EventTy
 
 	// if approvers disabled
 	if !rsa.config.EnableApprovers {
-		if err := rsa.applyFilterPolicy(eventType, policyTable, PolicyModeAccept, math.MaxUint8, applier); err != nil {
-			return err
-		}
-		return nil
+		return rsa.applyFilterPolicy(eventType, PolicyModeAccept, math.MaxUint8)
 	}
 
 	capabilities, exists := allCapabilities[eventType]
 	if !exists {
-		return &ErrCapabilityNotFound{EventType: eventType}
+		return rsa.applyFilterPolicy(eventType, PolicyModeAccept, math.MaxUint8)
 	}
 
 	approvers, err := rs.GetApprovers(eventType, capabilities.GetFieldCapabilities())
 	if err != nil {
-		if err := rsa.applyFilterPolicy(eventType, policyTable, PolicyModeAccept, math.MaxUint8, applier); err != nil {
+		if err := rsa.applyFilterPolicy(eventType, PolicyModeAccept, math.MaxUint8); err != nil {
 			return err
 		}
 		return nil
 	}
 
-	if err := rsa.applyApprovers(eventType, approvers, applier); err != nil {
-		if err := rsa.applyFilterPolicy(eventType, policyTable, PolicyModeAccept, math.MaxUint8, applier); err != nil {
+	if err := rsa.applyApprovers(eventType, approvers); err != nil {
+		log.Errorf("Failed to apply approvers, setting policy mode to 'accept' (error: %s)", err)
+		if err := rsa.applyFilterPolicy(eventType, PolicyModeAccept, math.MaxUint8); err != nil {
 			return err
 		}
 		return nil
 	}
 
-	if err := rsa.applyFilterPolicy(eventType, policyTable, PolicyModeDeny, capabilities.GetFlags(), applier); err != nil {
+	if err := rsa.applyFilterPolicy(eventType, PolicyModeDeny, capabilities.GetFlags()); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-// Apply applies the loaded set of rules and returns a report
-// of the applied approvers for it.
-func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet, applier Applier) (*Report, error) {
-	alreadySetup := make(map[eval.EventType]bool)
-	alreadyRegistered := make(map[*HookPoint]bool)
+// Apply setup the filters for the provided set of rules and returns the policy report.
+func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet) (*Report, error) {
+	if rsa.probe != nil {
+		if err := rsa.probe.FlushDiscarders(); err != nil {
+			return nil, errors.Wrap(err, "failed to flush discarders")
+		}
 
-	if applier != nil {
-		if err := applier.Init(); err != nil {
-			return nil, err
+		// based on the ruleset and the requested rules, select the probes that need to be activated
+		if err := rsa.probe.SelectProbes(rs); err != nil {
+			return nil, errors.Wrap(err, "failed to select probes")
 		}
 	}
 
-	for _, hookPoint := range allHookPoints {
-		if hookPoint.EventTypes == nil {
-			continue
-		}
-
-		// first set policies
-		for _, eventType := range hookPoint.EventTypes {
-			if _, ok := alreadySetup[eventType]; ok {
-				continue
-			}
-
-			if rs.HasRulesForEventType(eventType) {
-				if err := rsa.setupKProbe(rs, eventType, applier); err != nil {
-					return nil, err
-				}
-				alreadySetup[eventType] = true
-			}
-		}
-
-		// then register kprobes
-		for _, eventType := range hookPoint.EventTypes {
-			if eventType == "*" || rs.HasRulesForEventType(eventType) {
-				if _, ok := alreadyRegistered[hookPoint]; ok {
-					continue
-				}
-
-				for _, kprobe := range hookPoint.KProbes {
-					// use hook point name if kprobe name not provided
-					if len(kprobe.Name) == 0 {
-						kprobe.Name = hookPoint.Name
-					}
-
-					if err := rsa.registerKProbe(kprobe, applier); err != nil {
-						if !hookPoint.Optional && len(hookPoint.KProbes) == 1 {
-							return nil, err
-						}
-					}
-				}
-
-				if len(hookPoint.Tracepoint) > 0 {
-					if err := rsa.registerTracepoint(hookPoint.Tracepoint, applier); err != nil {
-						return nil, err
-					}
-				}
-				alreadyRegistered[hookPoint] = true
-			}
+	for _, eventType := range rs.GetEventTypes() {
+		if err := rsa.setupFilters(rs, eventType); err != nil {
+			return nil, err
 		}
 	}
 
@@ -184,9 +114,10 @@ func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet, applier Applier) (*Report, e
 }
 
 // NewRuleSetApplier returns a new RuleSetApplier
-func NewRuleSetApplier(cfg *config.Config) *RuleSetApplier {
+func NewRuleSetApplier(cfg *config.Config, probe *Probe) *RuleSetApplier {
 	return &RuleSetApplier{
 		config:   cfg,
+		probe:    probe,
 		reporter: NewReporter(),
 	}
 }

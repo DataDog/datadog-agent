@@ -49,6 +49,18 @@ clusterAgent:
     enabled: true
 EOF
 
+cat > "$TMPDIR/values-cluster-agent-datadogmetrics.yaml" <<EOF
+datadog:
+  collectEvents: true
+  processAgent:
+    enabled: false
+clusterAgent:
+  enabled: true
+  metricsProvider:
+    enabled: true
+    useDatadogMetrics: true
+EOF
+
 cat > "$TMPDIR/values-cluster-checks-runners.yaml" <<EOF
 datadog:
   collectEvents: true
@@ -61,6 +73,17 @@ clusterAgent:
   metricsProvider:
     enabled: true
 clusterChecksRunner:
+  enabled: true
+EOF
+
+cat > "$TMPDIR/values-orchestrator-explorer.yaml" <<EOF
+datadog:
+  collectEvents: true
+  processAgent:
+    enabled: true
+  orchestratorExplorer:
+    enabled: true
+clusterAgent:
   enabled: true
 EOF
 

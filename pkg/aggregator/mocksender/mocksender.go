@@ -46,6 +46,13 @@ func (m *MockSender) SetupAcceptAll() {
 			mock.AnythingOfType("[]string"), // Tags
 		).Return()
 	}
+	m.On("MonotonicCountWithFlushFirstValue",
+		mock.AnythingOfType("string"),   // Metric
+		mock.AnythingOfType("float64"),  // Value
+		mock.AnythingOfType("string"),   // Hostname
+		mock.AnythingOfType("[]string"), // Tags
+		mock.AnythingOfType("bool"),     // FlushFirstValue
+	).Return()
 	m.On("ServiceCheck",
 		mock.AnythingOfType("string"),                     // checkName (e.g: docker.exit)
 		mock.AnythingOfType("metrics.ServiceCheckStatus"), // (e.g: metrics.ServiceCheckOK)

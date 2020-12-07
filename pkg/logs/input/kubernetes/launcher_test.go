@@ -11,7 +11,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"reflect"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -280,6 +279,7 @@ func TestGetSourceServiceNameOrder(t *testing.T) {
 		pod             *kubelet.Pod
 		container       kubelet.ContainerStatus
 		wantServiceName string
+		wantSourceName  string
 		wantErr         bool
 	}{
 		{
@@ -301,6 +301,7 @@ func TestGetSourceServiceNameOrder(t *testing.T) {
 				ID:    "docker://fooID",
 			},
 			wantServiceName: "annotServiceName",
+			wantSourceName:  "foo",
 			wantErr:         false,
 		},
 		{
@@ -322,6 +323,32 @@ func TestGetSourceServiceNameOrder(t *testing.T) {
 				ID:    "docker://fooID",
 			},
 			wantServiceName: "stdServiceName",
+			wantSourceName:  "foo",
+			wantErr:         false,
+		},
+		{
+			name:  "standard tags, undefined source, use image as source",
+			sFunc: func(n, e string) string { return "stdServiceName" },
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name:      "podName",
+					Namespace: "podNamespace",
+					UID:       "podUIDFoo",
+				},
+				Spec: kubelet.Spec{
+					Containers: []kubelet.ContainerSpec{{
+						Name:  "fooName",
+						Image: "fooImage",
+					}},
+				},
+			},
+			container: kubelet.ContainerStatus{
+				Name:  "fooName",
+				Image: "fooImage",
+				ID:    "docker://fooID",
+			},
+			wantServiceName: "stdServiceName",
+			wantSourceName:  "fooImage",
 			wantErr:         false,
 		},
 		{
@@ -346,6 +373,7 @@ func TestGetSourceServiceNameOrder(t *testing.T) {
 				ID:    "docker://fooID",
 			},
 			wantServiceName: "fooImage",
+			wantSourceName:  "fooImage",
 			wantErr:         false,
 		},
 	}
@@ -361,9 +389,8 @@ func TestGetSourceServiceNameOrder(t *testing.T) {
 				t.Errorf("Launcher.getSource() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(got.Config.Service, tt.wantServiceName) {
-				t.Errorf("Launcher.getSource() = %v, want %v", got, tt.wantServiceName)
-			}
+			assert.Equal(t, tt.wantServiceName, got.Config.Service)
+			assert.Equal(t, tt.wantSourceName, got.Config.Source)
 		})
 	}
 }

@@ -109,7 +109,7 @@ func NewDistribution(m, ckey, name string, tgs TagSet) Distribution {
 
 // Add inserts the proper values in a given distribution from a span
 func (d Distribution) Add(v float64, sampleID uint64) {
-	d.Summary.Insert(v, sampleID)
+	d.Summary.Insert(v)
 }
 
 // Merge is used when 2 Distributions represent the same thing and it merges the 2 underlying summaries

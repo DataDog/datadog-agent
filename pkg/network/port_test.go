@@ -1,18 +1,47 @@
-// +build linux
+// +build linux_bpf
 
 package network
 
 import (
+	"log"
 	"net"
 	"net/url"
+	"os/exec"
 	"strconv"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/vishvananda/netns"
 )
 
+var testRootNs uint64
+
+func TestMain(m *testing.M) {
+	rootNs, err := util.GetRootNetNamespace("/proc")
+	if err != nil {
+		log.Fatal(err)
+	}
+	testRootNs, err = util.GetInoForNs(rootNs)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	m.Run()
+}
+
 func TestReadInitialState(t *testing.T) {
+
+	err := exec.Command("testdata/setup_netns.sh").Run()
+	require.NoError(t, err, "setup_netns.sh failed")
+
+	defer func() {
+		err := exec.Command("testdata/teardown_netns.sh").Run()
+		assert.NoError(t, err, "failed to teardown netns")
+	}()
+
 	l, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
 	defer func() { _ = l.Close() }()
@@ -21,29 +50,68 @@ func TestReadInitialState(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = l.Close() }()
 
-	tcpPort := getPort(t, l)
-	tcp6Port := getPort(t, l6)
+	ports := []uint16{
+		getPort(t, l),
+		getPort(t, l6),
+		34567,
+		34568,
+	}
+	require.Eventually(t, func() bool {
+		ns, err := netns.GetFromName("test")
+		if err != nil {
+			return false
+		}
 
-	waitUntil(t, "tcp/tcp6 ports are listening", time.Second, func() bool {
-		ports := NewPortMapping("/proc", true, true)
-		err = ports.ReadInitialState()
+		defer ns.Close()
+
+		nsIno, err := util.GetInoForNs(ns)
+		if err != nil {
+			return false
+		}
+
+		pm := NewPortMapping("/proc", true, true)
+		err = pm.ReadInitialState()
 		require.NoError(t, err)
-		return ports.IsListening(tcpPort) && ports.IsListening(tcp6Port) && !ports.IsListening(999)
-	})
+		for _, p := range ports[:2] {
+			if !pm.IsListening(testRootNs, p) {
+				t.Errorf("pm.IsListening(testRootNs) returned false for port %d", p)
+				return false
+			}
+		}
+		for _, p := range ports[2:] {
+			if !pm.IsListening(nsIno, p) {
+				t.Errorf("pm.IsListening(test ns) returned false for port %d", p)
+				return false
+			}
+		}
+
+		if pm.IsListening(testRootNs, 999) {
+			t.Errorf("expected IsListening(testRootNs, 999) to return false, but returned true")
+			return false
+		}
+		if pm.IsListening(nsIno, 999) {
+			t.Errorf("expected IsListening(nsIno, 999) to return false, but returned true")
+			return false
+		}
+
+		return true
+	}, 3*time.Second, time.Second, "tcp/tcp6 ports are listening")
 }
 
 func TestAddRemove(t *testing.T) {
 	ports := NewPortMapping("/proc", true, true)
 
-	require.False(t, ports.IsListening(123))
+	const testNs uint64 = 1234
 
-	ports.AddMapping(123)
+	require.False(t, ports.IsListening(testNs, 123))
 
-	require.True(t, ports.IsListening(123))
+	ports.AddMapping(testNs, 123)
 
-	ports.RemoveMapping(123)
+	require.True(t, ports.IsListening(testNs, 123))
 
-	require.False(t, ports.IsListening(123))
+	ports.RemoveMapping(testNs, 123)
+
+	require.False(t, ports.IsListening(testNs, 123))
 }
 
 func getPort(t *testing.T, listener net.Listener) uint16 {
@@ -52,18 +120,4 @@ func getPort(t *testing.T, listener net.Listener) uint16 {
 	port, err := strconv.Atoi(listenerURL.Port())
 	require.NoError(t, err)
 	return uint16(port)
-}
-
-func waitUntil(t *testing.T, description string, timeout time.Duration, condition func() bool) {
-	for {
-		select {
-		case <-time.After(timeout):
-			t.Errorf("condition failed: %s after %s", description, timeout)
-			return
-		default:
-			if condition() {
-				return
-			}
-		}
-	}
 }

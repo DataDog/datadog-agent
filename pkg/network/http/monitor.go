@@ -9,8 +9,9 @@ import (
 
 	"C"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
@@ -24,13 +25,13 @@ import (
 type Monitor struct {
 	batchMap      *ebpf.Map
 	perfMap       *manager.PerfMap
-	perfHandler   *bytecode.PerfHandler
+	perfHandler   *ddebpf.PerfHandler
 	closeFilterFn func()
 }
 
 // NewMonitor returns a new Monitor instance
-func NewMonitor(procRoot string, m *manager.Manager, h *bytecode.PerfHandler) (*Monitor, error) {
-	filter, _ := m.GetProbe(manager.ProbeIdentificationPair{Section: string(bytecode.SocketHTTPFilter)})
+func NewMonitor(procRoot string, m *manager.Manager, h *ddebpf.PerfHandler) (*Monitor, error) {
+	filter, _ := m.GetProbe(manager.ProbeIdentificationPair{Section: string(probes.SocketHTTPFilter)})
 	if filter == nil {
 		return nil, fmt.Errorf("error retrieving socket filter")
 	}
@@ -40,17 +41,17 @@ func NewMonitor(procRoot string, m *manager.Manager, h *bytecode.PerfHandler) (*
 		return nil, fmt.Errorf("error enabling HTTP traffic inspection: %s", err)
 	}
 
-	batchMap, _, err := m.GetMap(string(bytecode.HttpBatchesMap))
+	batchMap, _, err := m.GetMap(string(probes.HttpBatchesMap))
 	if err != nil {
 		return nil, err
 	}
 
-	batchStateMap, _, err := m.GetMap(string(bytecode.HttpBatchStateMap))
+	batchStateMap, _, err := m.GetMap(string(probes.HttpBatchStateMap))
 	if err != nil {
 		return nil, err
 	}
 
-	notificationMap, _, _ := m.GetMap(string(bytecode.HttpNotificationsMap))
+	notificationMap, _, _ := m.GetMap(string(probes.HttpNotificationsMap))
 	numCPUs := int(notificationMap.ABI().MaxEntries)
 	batch := new(httpBatch)
 	batchState := new(httpBatchState)
@@ -63,9 +64,9 @@ func NewMonitor(procRoot string, m *manager.Manager, h *bytecode.PerfHandler) (*
 		}
 	}
 
-	pm, found := m.GetPerfMap(string(bytecode.HttpNotificationsMap))
+	pm, found := m.GetPerfMap(string(probes.HttpNotificationsMap))
 	if !found {
-		return nil, fmt.Errorf("unable to find perf map %s", bytecode.HttpNotificationsMap)
+		return nil, fmt.Errorf("unable to find perf map %s", probes.HttpNotificationsMap)
 	}
 
 	return &Monitor{
@@ -99,7 +100,7 @@ func (http *Monitor) Start() error {
 
 		for {
 			select {
-			case data, ok := <-http.perfHandler.ClosedChannel:
+			case data, ok := <-http.perfHandler.DataChannel:
 				if !ok {
 					return
 				}

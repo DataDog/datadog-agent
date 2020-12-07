@@ -1,3 +1,5 @@
+// +build linux
+
 package network
 
 import (
@@ -37,7 +39,7 @@ func TestReadProcNet(t *testing.T) {
 		//noinspection GoDeferInLoop
 		defer func() { _ = os.Remove(file.Name()) }()
 
-		ports, err := readProcNet(file.Name())
+		ports, err := readProcNetListeners(file.Name())
 		require.NoError(t, err)
 
 		require.Len(t, ports, len(tt.expected))

@@ -8,8 +8,11 @@
 package probe
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
+	"path"
+
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/pkg/errors"
 )
 
 var openCapabilities = Capabilities{
@@ -25,51 +28,57 @@ var openCapabilities = Capabilities{
 		PolicyFlags:     PolicyFlagFlags,
 		FieldValueTypes: eval.ScalarValueType | eval.BitmaskValueType,
 	},
-	"process.filename": {
-		PolicyFlags:     PolicyFlagProcessInode,
-		FieldValueTypes: eval.ScalarValueType,
-	},
 }
 
-// openHookPoints holds the list of open's kProbes
-var openHookPoints = []*HookPoint{
-	{
-		Name:       "sys_open",
-		KProbes:    syscallKprobe("open", true),
-		EventTypes: []eval.EventType{"open"},
-	},
-	{
-		Name:       "sys_creat",
-		KProbes:    syscallKprobe("creat"),
-		EventTypes: []eval.EventType{"open"},
-	},
-	{
-		Name:       "sys_open_by_handle_at",
-		KProbes:    syscallKprobe("open_by_handle_at", true),
-		EventTypes: []eval.EventType{"open"},
-	},
-	{
-		Name:       "sys_truncate",
-		KProbes:    syscallKprobe("truncate", true),
-		EventTypes: []eval.EventType{"open"},
-	},
-	{
-		Name:       "sys_openat",
-		KProbes:    syscallKprobe("openat", true),
-		EventTypes: []eval.EventType{"open"},
-	},
-	{
-		Name: "vfs_open",
-		KProbes: []*ebpf.KProbe{{
-			EntryFunc: "kprobe/vfs_open",
-		}},
-		EventTypes: []eval.EventType{"open"},
-	},
-	{
-		Name: "vfs_truncate",
-		KProbes: []*ebpf.KProbe{{
-			EntryFunc: "kprobe/vfs_truncate",
-		}},
-		EventTypes: []eval.EventType{"open"},
-	},
+func openOnNewApprovers(probe *Probe, approvers rules.Approvers) (activeApprovers, error) {
+	stringValues := func(fvs rules.FilterValues) []string {
+		var values []string
+		for _, v := range fvs {
+			values = append(values, v.Value.(string))
+		}
+		return values
+	}
+
+	intValues := func(fvs rules.FilterValues) []int {
+		var values []int
+		for _, v := range fvs {
+			values = append(values, v.Value.(int))
+		}
+		return values
+	}
+
+	var openApprovers []activeApprover
+	for field, values := range approvers {
+		switch field {
+		case "open.basename":
+			activeApprovers, err := approveBasenames("open_basename_approvers", stringValues(values)...)
+			if err != nil {
+				return nil, err
+			}
+			openApprovers = append(openApprovers, activeApprovers...)
+
+		case "open.filename":
+			for _, value := range stringValues(values) {
+				basename := path.Base(value)
+				activeApprover, err := approveBasename("open_basename_approvers", basename)
+				if err != nil {
+					return nil, err
+				}
+				openApprovers = append(openApprovers, activeApprover)
+			}
+
+		case "open.flags":
+			activeApprover, err := approveFlags("open_flags_approvers", intValues(values)...)
+			if err != nil {
+				return nil, err
+			}
+			openApprovers = append(openApprovers, activeApprover)
+
+		default:
+			return nil, errors.New("field unknown")
+		}
+
+	}
+
+	return newActiveKFilters(openApprovers...), nil
 }

@@ -26,7 +26,7 @@ Orchestrator Explorer
 {{- if .ContainerScrubbing }}
   {{.ContainerScrubbing}}
 {{- end}}
-
+{{- if and (not .Error) (not .Disabled) }}
   ======================
   Orchestrator Endpoints
   ======================
@@ -34,7 +34,10 @@ Orchestrator Explorer
     OrchestratorEndpoint: {{.OrchestratorEndpoint}}
 {{- end }}
 {{- if .OrchestratorAdditionalEndpoints }}
-    OrchestratorAdditionalEndpoints: {{.OrchestratorAdditionalEndpoints}}
+    {{ range $key, $value := .OrchestratorAdditionalEndpoints }}OrchestratorAdditionalEndpoint: {{$key}}
+    {{/* this line intentionally left blank */}}
+    {{- end }}
+
 {{- end }}
 
   ===============
@@ -50,6 +53,10 @@ Orchestrator Explorer
 {{- end -}}
 {{/* this line intentionally left blank */}}
 {{/* this line intentionally left blank */}}
+{{- if .LeaderError }}
+    LeaderError: {{.ClusterIDError}}
+{{else}}
+{{- if .Leader }}
   ===========
   Cache Stats
   ===========
@@ -64,4 +71,9 @@ Orchestrator Explorer
       Last Run: (Hits: {{.ServicesStats.CacheHits}} Miss: {{.ServicesStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Services}} Miss: {{.CacheMiss.Services}})
     Nodes:
       Last Run: (Hits: {{.NodesStats.CacheHits}} Miss: {{.NodesStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Nodes}} Miss: {{.CacheMiss.Nodes}})
+{{else}}
+  Status: Follower, redirecting to leader at: {{ .LeaderIP }}
+{{- end}}
+{{- end}}
+{{- end}}
 {{/* this line intentionally left blank */}}

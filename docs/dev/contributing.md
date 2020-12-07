@@ -5,6 +5,21 @@ First of all, thanks for contributing!
 This document provides some basic guidelines for contributing to this repository.
 To propose improvements, feel free to submit a PR.
 
+
+<!-- vim-markdown-toc GFM -->
+
+* [Submitting issues](#submitting-issues)
+* [Pull Requests](#pull-requests)
+	- [Keep it small, focused](#keep-it-small-focused)
+	- [Commit Messages](#commit-messages)
+	- [Squash your commits](#squash-your-commits)
+	- [Reno](#reno)
+		+ [Reno sections](#reno-sections)
+* [PR labels](#pr-labels)
+* [Integrations](#integrations)
+
+<!-- vim-markdown-toc -->
+
 ## Submitting issues
 
   * If you think you've found an issue, please search the [Troubleshooting][troubleshooting]
@@ -27,8 +42,9 @@ when submitting your PR:
     changes, cross-referencing any related bugs/PRs.
   * use [Reno](#reno) to create a releasenote.
   * open your PR against the `master` branch.
-  * set the `team/agent-core` label
-  * add a milestone to your PR (use the highest available, ex: `6.8.0`)
+  * for PRs from contributors with write access to the repository (for community PRs, will be done by Datadog employees):
+    + set the relevant `team/` label
+    + add a milestone to your PR (by default, use the highest milestone version available, ex: `6.8.0`)
 
 Your pull request must pass all CI tests before we will merge it. If you're seeing
 an error and don't think it's your fault, it may not be! [Join us on Slack][slack]
@@ -198,6 +214,20 @@ users and not its developers.
       Only enable the ``resources`` metadata collector on Linux by default, to match
       Agent 5's behavior.
   ```
+
+## PR labels
+
+For internal PRs (from people in the Datadog organisation), you have few extra
+labels that can be use:
+- `community/help-wanted`: for community PRs where help is needed to finish it.
+- `community`: for community PRs.
+- `changelog/no-changelog`: for PRs that don't require a reno releasenote
+  (useful for PRs only changing documentation or tests).
+- `qa/skip-qa`: this will skip creating a QA card for the PR during the release
+  process (example: for a documentation only PRs).
+- `major_change`: to flag the PR as a major change impacting many/all teams
+  working on the agent and will require deeper QA (example: when we change the
+  Python version shipped in the agent).
 
 ## Integrations
 

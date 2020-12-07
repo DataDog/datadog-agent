@@ -29,7 +29,7 @@ func TestSetXAttr(t *testing.T) {
 	}
 	defer testDrive.Close()
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{enableFilters: true, testDir: testDrive.Root()})
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{testDir: testDrive.Root()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,6 +72,12 @@ func TestSetXAttr(t *testing.T) {
 			if event.SetXAttr.Name != "user.test_xattr" || event.SetXAttr.Namespace != "user" {
 				t.Errorf("expected setxattr name user.test_xattr, got %s", event.SetXAttr.Name)
 			}
+
+			if inode := getInode(t, testFile); inode != event.SetXAttr.Inode {
+				t.Errorf("expected inode %d, got %d", event.SetXAttr.Inode, inode)
+			}
+
+			testContainerPath(t, event, "setxattr.container_path")
 		}
 	})
 
@@ -144,14 +150,22 @@ func TestSetXAttr(t *testing.T) {
 			if event.SetXAttr.Name != "user.test_xattr" || event.SetXAttr.Namespace != "user" {
 				t.Errorf("expected setxattr name user.test_xattr, got %s", event.SetXAttr.Name)
 			}
+
+			if inode := getInode(t, testFile); inode != event.SetXAttr.Inode {
+				t.Errorf("expected inode %d, got %d", event.SetXAttr.Inode, inode)
+			}
+
+			testContainerPath(t, event, "setxattr.container_path")
 		}
 	})
 }
 
 func TestRemoveXAttr(t *testing.T) {
-	rule := &rules.RuleDefinition{
-		ID:         "test_rule",
-		Expression: `removexattr.filename == "{{.Root}}/test-removexattr" && removexattr.namespace == "user" && removexattr.name == "user.test_xattr"`,
+	rules := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule",
+			Expression: `removexattr.filename == "{{.Root}}/test-removexattr" && removexattr.namespace == "user" && removexattr.name == "user.test_xattr"`,
+		},
 	}
 
 	testDrive, err := newTestDrive("ext4", []string{"user_xattr"})
@@ -160,7 +174,7 @@ func TestRemoveXAttr(t *testing.T) {
 	}
 	defer testDrive.Close()
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{enableFilters: true, testDir: testDrive.Root()})
+	test, err := newTestModule(nil, rules, testOpts{testDir: testDrive.Root()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -208,6 +222,12 @@ func TestRemoveXAttr(t *testing.T) {
 			if event.RemoveXAttr.Name != "user.test_xattr" || event.RemoveXAttr.Namespace != "user" {
 				t.Errorf("expected removexattr name user.test_xattr, got %s", event.RemoveXAttr.Name)
 			}
+
+			if inode := getInode(t, testFile); inode != event.RemoveXAttr.Inode {
+				t.Errorf("expected inode %d, got %d", event.RemoveXAttr.Inode, inode)
+			}
+
+			testContainerPath(t, event, "removexattr.container_path")
 		}
 	})
 
@@ -293,6 +313,12 @@ func TestRemoveXAttr(t *testing.T) {
 			if event.RemoveXAttr.Name != "user.test_xattr" || event.RemoveXAttr.Namespace != "user" {
 				t.Errorf("expected removexattr name user.test_xattr, got %s", event.RemoveXAttr.Name)
 			}
+
+			if inode := getInode(t, testFile); inode != event.RemoveXAttr.Inode {
+				t.Errorf("expected inode %d, got %d", event.RemoveXAttr.Inode, inode)
+			}
+
+			testContainerPath(t, event, "removexattr.container_path")
 		}
 	})
 }

@@ -34,15 +34,6 @@ var durations = []int64{
 	10 * 1e9,  // 10s
 }
 
-var errors = []int32{
-	0,
-	1,
-	2,
-	400,
-	403,
-	502,
-}
-
 var resources = []string{
 	"GET cache|xxx",
 	"events.buckets",
@@ -52,6 +43,10 @@ var resources = []string{
 }
 
 var services = []string{
+	"mysql-db",
+	"postgres-db",
+	"gorm",
+	"mux",
 	"rails",
 	"django",
 	"web-billing",
@@ -68,7 +63,7 @@ var names = []string{
 }
 
 var metas = map[string][]string{
-	"query": {
+	"sql.query": {
 		"GET beaker:c76db4c3af90410197cf88b0afba4942:session",
 		"SELECT id\n                 FROM ddsuperuser\n                WHERE id = %(id)s",
 		"\n        -- get_contexts_sub_query[[org:9543 query_id:a135e15e7d batch:1]]\n        WITH sub_contexts as (\n            \n        -- \n        --\n        SELECT key,\n            host_name,\n            device_name,\n            tags,\n            org_id\n        FROM vs9543.dim_context c\n        WHERE key = ANY(%(key)s)\n        \n        \n        \n        \n    \n        )\n        \n        -- \n        --\n        SELECT key,\n            host_name,\n            device_name,\n            tags\n        FROM sub_contexts c\n        WHERE (c.org_id = %(org_id)s AND c.tags @> %(yes_tags0)s)\n        OR (c.org_id = %(org_id)s AND c.tags @> %(yes_tags1)s)\n        OR (c.org_id = %(org_id)s AND c.tags @> %(yes_tags2)s)\n        OR (c.org_id = %(org_id)s AND c.tags @> %(yes_tags3)s)\n        OR (c.org_id = %(org_id)s AND c.tags @> %(yes_tags4)s)\n        OR (c.org_id = %(org_id)s AND c.tags @> %(yes_tags5)s)\n        OR (c.org_id = %(org_id)s AND c.tags @> %(yes_tags6)s)\n        OR (c.org_id = %(org_id)s AND c.tags @> %(yes_tags7)s)\n        OR (c.org_id = %(org_id)s AND c.tags @> %(yes_tags8)s)\n        OR (c.org_id = %(org_id)s AND c.tags @> %(yes_tags9)s)\n        OR (c.org_id = %(org_id)s AND c.tags @> %(yes_tags10)s)\n        OR (c.org_id = %(org_id)s AND c.tags @> %(yes_tags11)s)\n        OR (c.org_id = %(org_id)s AND c.tags @> %(yes_tags12)s)\n        OR (c.org_id = %(org_id)s AND c.tags @> %(yes_tags13)s)\n        OR (c.org_id = %(org_id)s AND c.tags @> %(yes_tags14)s)\n        OR (c.org_id = %(org_id)s AND c.tags @> %(yes_tags15)s)\n        \n        \n        \n        \n    \n        ",
@@ -79,6 +74,73 @@ var metas = map[string][]string{
 		"2a01:e35:2ee1:7160:f66d:4ff:fe71:b690",
 		"postgres.service.consul",
 		"",
+	},
+	"http.method": {
+		"GET",
+		"POST",
+		"PUT",
+		"DELETE",
+		"UPDATED",
+	},
+	"http.status_code": {
+		"400",
+		"500",
+		"300",
+		"200",
+		"404",
+		"402",
+		"401",
+		"202",
+		"220",
+	},
+	"out.port": {
+		"1233",
+		"8124",
+		"8125",
+		"9999",
+		"8888",
+		"80",
+		"8080",
+	},
+	"version": {
+		"1.2.0",
+		"1.0.0",
+		"0.2.2-alpha",
+		"3.4.4",
+		"2.0.0",
+		"7.12.0",
+	},
+	"system.pid": {
+		"1322",
+		"9021",
+		"9911",
+		"9000",
+		"919",
+		"414",
+		"788",
+	},
+	"db.name": {
+		"jdbc",
+		"users",
+		"products",
+		"services",
+		"accounts",
+		"photos",
+	},
+	"db.user": {
+		"root",
+		"john",
+		"jane",
+		"admin",
+		"user0",
+	},
+	"cassandra.row_count": {
+		"10",
+		"11",
+		"12",
+		"13",
+		"14",
+		"50",
 	},
 	"out.host": {
 		"/dev/null",
@@ -116,10 +178,16 @@ var metrics = []string{
 }
 
 var types = []string{
+	"web",
+	"db",
+	"cache",
 	"http",
 	"sql",
 	"redis",
-	"lamar",
+	"cassandra",
+	"consul",
+	"leveldb",
+	"memcached",
 }
 
 type sliceRandomizer interface {
@@ -175,7 +243,7 @@ func RandomSpanDuration() int64 {
 
 // RandomSpanError generates a random span error code
 func RandomSpanError() int32 {
-	return int32RandomChoice(errors)
+	return int32RandomChoice([]int32{0, 1})
 }
 
 // RandomSpanResource generates a random span resource string

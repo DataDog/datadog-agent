@@ -101,7 +101,13 @@ func runAgent(exit <-chan struct{}) {
 
 	// if a debug port is specified, we expose the default handler to that port
 	if cfg.SystemProbeDebugPort > 0 {
-		go http.ListenAndServe(fmt.Sprintf("localhost:%d", cfg.SystemProbeDebugPort), http.DefaultServeMux) //nolint:errcheck
+		go func() {
+			err := http.ListenAndServe(fmt.Sprintf("localhost:%d", cfg.SystemProbeDebugPort), http.DefaultServeMux)
+			if err != nil && err != http.ErrServerClosed {
+				log.Criticalf("Error creating debug HTTP server: %v", err)
+				cleanupAndExit(1)
+			}
+		}()
 	}
 
 	loader := NewLoader()
@@ -139,21 +145,6 @@ func runAgent(exit <-chan struct{}) {
 	}()
 
 	log.Infof("system probe successfully started")
-
-	go func() {
-		tags := []string{
-			fmt.Sprintf("version:%s", Version),
-			fmt.Sprintf("revision:%s", GitCommit),
-		}
-		heartbeat := time.NewTicker(15 * time.Second)
-		for range heartbeat.C {
-			statsd.Client.Gauge("datadog.system_probe.agent", 1, tags, 1) //nolint:errcheck
-			for moduleName := range loader.modules {
-				statsd.Client.Gauge(fmt.Sprintf("datadog.system_probe.agent.%s", moduleName), 1, tags, 1) //nolint:errcheck
-			}
-		}
-	}()
-
 	<-exit
 }
 

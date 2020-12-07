@@ -230,3 +230,26 @@ func TestEventMetadataMultiple(t *testing.T) {
 	assert.Equal(t, string("aggKey"), e.aggregationKey)
 	assert.Equal(t, string("source test"), e.sourceType)
 }
+
+func TestEventEmptyTitle(t *testing.T) {
+	_, err := parseEvent([]byte("_e{0,9}:|test text"))
+
+	require.Error(t, err, "invalid event: empty title")
+}
+
+func TestEventEmptyText(t *testing.T) {
+	e, err := parseEvent([]byte("_e{10,0}:test title|"))
+
+	require.NoError(t, err)
+	assert.Equal(t, string("test title"), e.title)
+	assert.Equal(t, string(""), e.text)
+}
+
+func TestEventEmptyTextWithAlertType(t *testing.T) {
+	e, err := parseEvent([]byte("_e{10,0}:test title||t:warning"))
+
+	require.NoError(t, err)
+	assert.Equal(t, string("test title"), e.title)
+	assert.Equal(t, string(""), e.text)
+	assert.Equal(t, alertTypeWarning, e.alertType)
+}

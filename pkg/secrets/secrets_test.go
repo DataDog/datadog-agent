@@ -55,17 +55,16 @@ instances:
   user: test2
 `)
 
+	testConfDash = []byte(`---
+some_encoded_password: ENC[pass1]
+keys_with_dash_string_value:
+  foo: "-"
+`)
+
 	testConf2 = []byte(`---
 instances:
 - password: ENC[pass3]
 - password: ENC[pass2]
-`)
-
-	testConfJSON = []byte(`---
-instances:
-- "{\"password\": \"ENC[pass1]\", \"user\": \"test\"}"
-- password: ENC[pass2]
-  user: test2
 `)
 
 	testConfDecrypted = []byte(`instances:
@@ -73,6 +72,11 @@ instances:
   user: test
 - password: password2
   user: test2
+`)
+
+	testConfDecryptedDash = []byte(`keys_with_dash_string_value:
+  foo: '-'
+some_encoded_password: password1
 `)
 )
 
@@ -188,6 +192,35 @@ func TestDecryptSecretError(t *testing.T) {
 	require.NotNil(t, err)
 }
 
+// TestDecryptSecretStringMapStringWithDashValue checks that a nested string config value
+// that can be interpreted as YAML (such as a "-") is not interpreted as YAML by the secrets
+// decryption logic, but is left unchanged as a string instead.
+// See https://github.com/DataDog/datadog-agent/pull/6586 for details.
+func TestDecryptSecretStringMapStringWithDashValue(t *testing.T) {
+	secretBackendCommand = "some_command"
+
+	defer func() {
+		secretBackendCommand = ""
+		secretCache = map[string]string{}
+		secretOrigin = map[string]common.StringSet{}
+		secretFetcher = fetchSecret
+	}()
+
+	secretFetcher = func(secrets []string, origin string) (map[string]string, error) {
+		assert.Equal(t, []string{
+			"pass1",
+		}, secrets)
+
+		return map[string]string{
+			"pass1": "password1",
+		}, nil
+	}
+
+	newConf, err := Decrypt(testConfDash, "test")
+	require.Nil(t, err)
+	assert.Equal(t, string(testConfDecryptedDash), string(newConf))
+}
+
 func TestDecryptSecretNoCache(t *testing.T) {
 	secretBackendCommand = "some_command"
 
@@ -212,34 +245,6 @@ func TestDecryptSecretNoCache(t *testing.T) {
 	}
 
 	newConf, err := Decrypt(testConf, "test")
-	require.Nil(t, err)
-	assert.Equal(t, string(testConfDecrypted), string(newConf))
-}
-
-func TestDecryptSecretNestedJSON(t *testing.T) {
-	secretBackendCommand = "some_command"
-
-	defer func() {
-		secretBackendCommand = ""
-		secretCache = map[string]string{}
-		secretOrigin = map[string]common.StringSet{}
-		secretFetcher = fetchSecret
-	}()
-
-	secretFetcher = func(secrets []string, origin string) (map[string]string, error) {
-		sort.Strings(secrets)
-		assert.Equal(t, []string{
-			"pass1",
-			"pass2",
-		}, secrets)
-
-		return map[string]string{
-			"pass1": "password1",
-			"pass2": "password2",
-		}, nil
-	}
-
-	newConf, err := Decrypt(testConfJSON, "test")
 	require.Nil(t, err)
 	assert.Equal(t, string(testConfDecrypted), string(newConf))
 }

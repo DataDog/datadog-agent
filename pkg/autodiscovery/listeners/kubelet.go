@@ -10,10 +10,12 @@ package listeners
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"sort"
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -242,15 +244,24 @@ func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRu
 			svc.metricsExcluded = l.filters.IsExcluded(containers.MetricsFilter, container.Name, containerImage, pod.Metadata.Namespace)
 			svc.logsExcluded = l.filters.IsExcluded(containers.LogsFilter, container.Name, containerImage, pod.Metadata.Namespace)
 
+			// Cache the container name to get the corresponding ports after breaking the for-loop
 			containerName = container.Name
+
+			// Check for custom AD identifiers
+			adIdentifier := containerName
+			if customADIdentifier, customIDFound := common.GetCustomCheckID(pod.Metadata.Annotations, containerName); customIDFound {
+				adIdentifier = customADIdentifier
+				// Add custom check ID as AD identifier
+				svc.adIdentifiers = append(svc.adIdentifiers, customADIdentifier)
+			}
 
 			// Add container uid as ID
 			svc.adIdentifiers = append(svc.adIdentifiers, entity)
 
 			// Cache check names if the pod template is annotated
-			if podHasADTemplate(pod.Metadata.Annotations, containerName) {
+			if podHasADTemplate(pod.Metadata.Annotations, adIdentifier) {
 				var err error
-				svc.checkNames, err = getCheckNamesFromAnnotations(pod.Metadata.Annotations, containerName)
+				svc.checkNames, err = getCheckNamesFromAnnotations(pod.Metadata.Annotations, adIdentifier)
 				if err != nil {
 					log.Error(err.Error())
 				}
@@ -296,10 +307,47 @@ func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRu
 	}
 
 	l.m.Lock()
+	defer l.m.Unlock()
+	old, found := l.services[entity]
+	if found && kubeletSvcEqual(old, &svc) {
+		log.Tracef("Received a duplicated kubelet service '%s'", svc.entity)
+		return
+	}
 	l.services[entity] = &svc
-	l.m.Unlock()
 
 	l.newService <- &svc
+}
+
+// kubeletSvcEqual returns false if one of the following fields aren't equal
+// - hosts
+// - ports
+// - ad identifiers
+// - check names
+// - readiness
+func kubeletSvcEqual(first, second Service) bool {
+	hosts1, _ := first.GetHosts()
+	hosts2, _ := second.GetHosts()
+	if !reflect.DeepEqual(hosts1, hosts2) {
+		return false
+	}
+
+	ports1, _ := first.GetPorts()
+	ports2, _ := second.GetPorts()
+	if !reflect.DeepEqual(ports1, ports2) {
+		return false
+	}
+
+	ad1, _ := first.GetADIdentifiers()
+	ad2, _ := second.GetADIdentifiers()
+	if !reflect.DeepEqual(ad1, ad2) {
+		return false
+	}
+
+	if !reflect.DeepEqual(first.GetCheckNames(), second.GetCheckNames()) {
+		return false
+	}
+
+	return first.IsReady() == second.IsReady()
 }
 
 // podHasADTemplate looks in pod annotations and looks for annotations containing an

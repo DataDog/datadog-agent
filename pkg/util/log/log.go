@@ -17,7 +17,8 @@ import (
 )
 
 var (
-	logger *DatadogLogger
+	logger    *DatadogLogger
+	jmxLogger *DatadogLogger
 
 	// This buffer holds log lines sent to the logger before its
 	// initialization. Even if initializing the logger is one of the first
@@ -40,10 +41,29 @@ type DatadogLogger struct {
 	contextLock sync.Mutex
 }
 
-// SetupDatadogLogger configure logger singleton with seelog interface
-func SetupDatadogLogger(l seelog.LoggerInterface, level string) {
-	logger = &DatadogLogger{
-		inner: l,
+// SetupLogger setup agent wide logger
+func SetupLogger(i seelog.LoggerInterface, level string) {
+	logger = setupCommonLogger(i, level)
+
+	// Flush the log entries logged before initialization now that the logger is initialized
+	bufferMutex.Lock()
+	bufferLogsBeforeInit = false
+	defer bufferMutex.Unlock()
+	for _, logLine := range logsBuffer {
+		logLine()
+	}
+	logsBuffer = []func(){}
+}
+
+// SetupJMXLogger setup JMXfetch specific logger
+func SetupJMXLogger(i seelog.LoggerInterface, level string) {
+	jmxLogger = setupCommonLogger(i, level)
+}
+
+func setupCommonLogger(i seelog.LoggerInterface, level string) *DatadogLogger {
+
+	l := &DatadogLogger{
+		inner: i,
 		extra: make(map[string]seelog.LoggerInterface),
 	}
 
@@ -51,7 +71,7 @@ func SetupDatadogLogger(l seelog.LoggerInterface, level string) {
 	if !ok {
 		lvl = seelog.InfoLvl
 	}
-	logger.level = lvl
+	l.level = lvl
 
 	// We're not going to call DatadogLogger directly, but using the
 	// exported functions, that will give us two frames in the stack
@@ -60,16 +80,9 @@ func SetupDatadogLogger(l seelog.LoggerInterface, level string) {
 	// The fact we need a constant "additional depth" means some
 	// theoretical refactor to avoid duplication in the functions
 	// below cannot be performed.
-	logger.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
+	l.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
 
-	// Flushing logs since the logger is now initialized
-	bufferMutex.Lock()
-	bufferLogsBeforeInit = false
-	defer bufferMutex.Unlock()
-	for _, logLine := range logsBuffer {
-		logLine()
-	}
-	logsBuffer = []func(){}
+	return l
 }
 
 func addLogToBuffer(logHandle func()) {
@@ -178,9 +191,23 @@ func (sw *DatadogLogger) info(s string) {
 
 	scrubbed := sw.scrub(s)
 	sw.inner.Info(scrubbed)
-
 	for _, l := range sw.extra {
 		l.Info(scrubbed)
+	}
+}
+
+// info logs at the info level and the current stack depth plus the additional given one
+func (sw *DatadogLogger) infoStackDepth(s string, depth int) {
+	sw.l.Lock()
+	defer sw.l.Unlock()
+
+	scrubbed := sw.scrub(s)
+	sw.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
+	sw.inner.Info(scrubbed)
+	sw.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
+
+	for _, l := range sw.extra {
+		l.Info(scrubbed) //nolint:errcheck
 	}
 }
 
@@ -191,6 +218,23 @@ func (sw *DatadogLogger) warn(s string) error {
 
 	scrubbed := sw.scrub(s)
 	err := sw.inner.Warn(scrubbed)
+
+	for _, l := range sw.extra {
+		l.Warn(scrubbed) //nolint:errcheck
+	}
+
+	return err
+}
+
+// error logs at the error level and the current stack depth plus the additional given one
+func (sw *DatadogLogger) warnStackDepth(s string, depth int) error {
+	sw.l.Lock()
+	defer sw.l.Unlock()
+
+	scrubbed := sw.scrub(s)
+	sw.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
+	err := sw.inner.Warn(scrubbed)
+	sw.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
 
 	for _, l := range sw.extra {
 		l.Warn(scrubbed) //nolint:errcheck
@@ -238,6 +282,23 @@ func (sw *DatadogLogger) critical(s string) error {
 
 	scrubbed := sw.scrub(s)
 	err := sw.inner.Critical(scrubbed)
+
+	for _, l := range sw.extra {
+		l.Critical(scrubbed) //nolint:errcheck
+	}
+
+	return err
+}
+
+// critical logs at the critical level and the current stack depth plus the additional given one
+func (sw *DatadogLogger) criticalStackDepth(s string, depth int) error {
+	sw.l.Lock()
+	defer sw.l.Unlock()
+
+	scrubbed := sw.scrub(s)
+	sw.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
+	err := sw.inner.Critical(scrubbed)
+	sw.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
 
 	for _, l := range sw.extra {
 		l.Critical(scrubbed) //nolint:errcheck
@@ -500,6 +561,20 @@ func Criticalf(format string, params ...interface{}) error {
 	return logFormatWithError(seelog.CriticalLvl, func() { Criticalf(format, params...) }, logger.criticalf, format, true, params...)
 }
 
+// InfoStackDepth logs at the info level and the current stack depth plus the additional given one
+func InfoStackDepth(depth int, v ...interface{}) {
+	log(seelog.InfoLvl, func() { InfoStackDepth(depth, v...) }, func(s string) {
+		logger.infoStackDepth(s, depth)
+	}, v...)
+}
+
+// WarnStackDepth logs at the warn level and the current stack depth plus the additional given one and returns an error containing the formated log message
+func WarnStackDepth(depth int, v ...interface{}) error {
+	return logWithError(seelog.WarnLvl, func() { WarnStackDepth(depth, v...) }, func(s string) error {
+		return logger.warnStackDepth(s, depth)
+	}, false, v...)
+}
+
 // ErrorStackDepth logs at the error level and the current stack depth plus the additional given one and returns an error containing the formated log message
 func ErrorStackDepth(depth int, v ...interface{}) error {
 	return logWithError(seelog.ErrorLvl, func() { ErrorStackDepth(depth, v...) }, func(s string) error {
@@ -507,10 +582,30 @@ func ErrorStackDepth(depth int, v ...interface{}) error {
 	}, true, v...)
 }
 
+// CriticalStackDepth logs at the critical level and the current stack depth plus the additional given one and returns an error containing the formated log message
+func CriticalStackDepth(depth int, v ...interface{}) error {
+	return logWithError(seelog.CriticalLvl, func() { CriticalStackDepth(depth, v...) }, func(s string) error {
+		return logger.criticalStackDepth(s, depth)
+	}, true, v...)
+}
+
+// JMXError Logs for JMX check
+func JMXError(v ...interface{}) error {
+	return logWithError(seelog.ErrorLvl, func() { JMXError(v...) }, jmxLogger.error, true, v...)
+}
+
+//JMXInfo Logs
+func JMXInfo(v ...interface{}) {
+	log(seelog.InfoLvl, func() { JMXInfo(v...) }, jmxLogger.info, v...)
+}
+
 // Flush flushes the underlying inner log
 func Flush() {
 	if logger != nil && logger.inner != nil {
 		logger.inner.Flush()
+	}
+	if jmxLogger != nil && jmxLogger.inner != nil {
+		jmxLogger.inner.Flush()
 	}
 }
 
@@ -561,7 +656,7 @@ func ChangeLogLevel(l seelog.LoggerInterface, level string) error {
 		if err != nil {
 			return err
 		}
-		// See detailed explanation in SetupDatadogLogger(...)
+		// See detailed explanation in SetupLogger(...)
 		err = l.SetAdditionalStackDepth(defaultStackDepth)
 		if err != nil {
 			return err

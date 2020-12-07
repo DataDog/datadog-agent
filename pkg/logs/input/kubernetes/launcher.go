@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/input"
@@ -18,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/cenkalti/backoff"
 )
 
 const (
@@ -88,7 +90,15 @@ func (l *Launcher) run() {
 	for {
 		select {
 		case service := <-l.addedServices:
-			l.addSource(service)
+			exp := &backoff.ExponentialBackOff{
+				InitialInterval:     500 * time.Millisecond,
+				RandomizationFactor: 0,
+				Multiplier:          2,
+				MaxInterval:         5 * time.Second,
+				MaxElapsedTime:      30 * time.Second,
+				Clock:               backoff.SystemClock,
+			}
+			_ = backoff.RetryNotify(addSourceRetriableOps(l, service), exp, addSourceNotify(service.Identifier))
 		case service := <-l.removedServices:
 			l.removeSource(service)
 		case <-l.stopped:
@@ -100,30 +110,28 @@ func (l *Launcher) run() {
 
 // addSource creates a new log-source from a service by resolving the
 // pod linked to the entityID of the service
-func (l *Launcher) addSource(svc *service.Service) {
+func (l *Launcher) addSource(svc *service.Service) error {
 	// If the container is already tailed, we don't do anything
 	// That shoudn't happen
 	if _, exists := l.sourcesByContainer[svc.GetEntityID()]; exists {
 		log.Warnf("A source already exist for container %v", svc.GetEntityID())
-		return
+		return nil
 	}
 
 	pod, err := l.kubeutil.GetPodForEntityID(svc.GetEntityID())
 	if err != nil {
-		log.Warnf("Could not add source for container %v: %v", svc.Identifier, err)
-		return
+		return err
 	}
 	container, err := l.kubeutil.GetStatusForContainerID(pod, svc.GetEntityID())
 	if err != nil {
-		log.Warn(err)
-		return
+		return err
 	}
 	source, err := l.getSource(pod, container)
 	if err != nil {
 		if err != errCollectAllDisabled {
 			log.Warnf("Invalid configuration for pod %v, container %v: %v", pod.Metadata.Name, container.Name, err)
 		}
-		return
+		return nil
 	}
 
 	switch svc.Type {
@@ -135,6 +143,22 @@ func (l *Launcher) addSource(svc *service.Service) {
 
 	l.sourcesByContainer[svc.GetEntityID()] = source
 	l.sources.AddSource(source)
+	return nil
+}
+
+func addSourceRetriableOps(l *Launcher, service *service.Service) backoff.Operation {
+	return func() error {
+		return l.addSource(service)
+	}
+}
+
+func addSourceNotify(id string) backoff.Notify {
+	i := 0
+	return func(err error, delay time.Duration) {
+		i++
+		secs := int(delay.Seconds())
+		log.Warnf("Could not add source for container %v (attempt=%d): %v, will retry in %ds", id, i, err, secs)
+	}
 }
 
 // removeSource removes a new log-source from a service
@@ -163,23 +187,25 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 		if !l.collectAll {
 			return nil, errCollectAllDisabled
 		}
+		// The logs source is the short image name
+		logsSource := ""
+		shortImageName, err := l.getShortImageName(pod, container.Name)
+		if err != nil {
+			log.Debugf("Couldn't get short image for container '%s': %v", container.Name, err)
+			// Fallback and use `kubernetes` as source name
+			logsSource = kubernetesIntegration
+		} else {
+			logsSource = shortImageName
+		}
 		if standardService != "" {
 			cfg = &config.LogsConfig{
-				Source:  kubernetesIntegration,
+				Source:  logsSource,
 				Service: standardService,
 			}
 		} else {
-			shortImageName, err := l.getShortImageName(pod, container.Name)
-			if err != nil {
-				cfg = &config.LogsConfig{
-					Source:  kubernetesIntegration,
-					Service: kubernetesIntegration,
-				}
-			} else {
-				cfg = &config.LogsConfig{
-					Source:  shortImageName,
-					Service: shortImageName,
-				}
+			cfg = &config.LogsConfig{
+				Source:  logsSource,
+				Service: logsSource,
 			}
 		}
 	}

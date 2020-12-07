@@ -7,7 +7,7 @@ import (
 )
 
 /*
-#include "../../ebpf/c/tracer-ebpf.h"
+#include "../ebpf/c/tracer.h"
 */
 import "C"
 

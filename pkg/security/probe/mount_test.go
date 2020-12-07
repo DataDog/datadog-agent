@@ -17,7 +17,6 @@ func TestMountResolver(t *testing.T) {
 	// Prepare test cases
 	type testCase struct {
 		mountID               uint32
-		numlower              int32
 		expectedMountPath     string
 		expectedContainerPath string
 		expectedError         error
@@ -40,10 +39,10 @@ func TestMountResolver(t *testing.T) {
 				[]event{
 					{
 						mount: &MountEvent{
-							BaseEvent:     BaseEvent{},
-							NewMountID:    127,
-							NewGroupID:    71,
-							NewDevice:     52,
+							SyscallEvent:  SyscallEvent{},
+							MountID:       127,
+							GroupID:       71,
+							Device:        52,
 							ParentMountID: 27,
 							ParentInode:   0,
 							FSType:        "overlay",
@@ -58,20 +57,11 @@ func TestMountResolver(t *testing.T) {
 				[]testCase{
 					{
 						127,
-						0,
-						"",
 						"/var/lib/docker/overlay2/f44b5a1fe134f57a31da79fa2e76ea09f8659a34edfa0fa2c3b4f52adbd91963/merged",
+						"",
 						nil,
 					},
 					{
-						127,
-						1,
-						"",
-						"/var/lib/docker/overlay2/f44b5a1fe134f57a31da79fa2e76ea09f8659a34edfa0fa2c3b4f52adbd91963/merged",
-						nil,
-					},
-					{
-						0,
 						0,
 						"",
 						"",
@@ -79,7 +69,6 @@ func TestMountResolver(t *testing.T) {
 					},
 					{
 						27,
-						0,
 						"",
 						"",
 						ErrMountNotFound,
@@ -93,15 +82,14 @@ func TestMountResolver(t *testing.T) {
 				[]event{
 					{
 						umount: &UmountEvent{
-							BaseEvent: BaseEvent{},
-							MountID:   127,
+							SyscallEvent: SyscallEvent{},
+							MountID:      127,
 						},
 					},
 				},
 				[]testCase{
 					{
 						127,
-						0,
 						"",
 						"",
 						ErrMountNotFound,
@@ -115,10 +103,10 @@ func TestMountResolver(t *testing.T) {
 				[]event{
 					{
 						mount: &MountEvent{
-							BaseEvent:     BaseEvent{},
-							NewMountID:    27,
-							NewGroupID:    0,
-							NewDevice:     1,
+							SyscallEvent:  SyscallEvent{},
+							MountID:       27,
+							GroupID:       0,
+							Device:        1,
 							ParentMountID: 1,
 							ParentInode:   0,
 							FSType:        "ext4",
@@ -131,10 +119,10 @@ func TestMountResolver(t *testing.T) {
 					},
 					{
 						mount: &MountEvent{
-							BaseEvent:     BaseEvent{},
-							NewMountID:    22,
-							NewGroupID:    0,
-							NewDevice:     21,
+							SyscallEvent:  SyscallEvent{},
+							MountID:       22,
+							GroupID:       0,
+							Device:        21,
 							ParentMountID: 27,
 							ParentInode:   0,
 							FSType:        "sysfs",
@@ -147,14 +135,14 @@ func TestMountResolver(t *testing.T) {
 					},
 					{
 						mount: &MountEvent{
-							BaseEvent:     BaseEvent{},
-							NewMountID:    31,
-							NewGroupID:    0,
-							NewDevice:     26,
+							SyscallEvent:  SyscallEvent{},
+							MountID:       31,
+							GroupID:       0,
+							Device:        26,
 							ParentMountID: 22,
 							ParentInode:   0,
 							FSType:        "tmpfs",
-							MountPointStr: "/fs/cgroup",
+							MountPointStr: "/sys/fs/cgroup",
 							RootMountID:   0,
 							RootInode:     0,
 							RootStr:       "",
@@ -165,21 +153,18 @@ func TestMountResolver(t *testing.T) {
 				[]testCase{
 					{
 						27,
-						0,
-						"",
+						"/",
 						"",
 						nil,
 					},
 					{
-						27,
-						1,
-						"",
+						22,
+						"/sys",
 						"",
 						nil,
 					},
 					{
 						31,
-						0,
 						"/sys/fs/cgroup",
 						"",
 						nil,
@@ -193,29 +178,26 @@ func TestMountResolver(t *testing.T) {
 				[]event{
 					{
 						umount: &UmountEvent{
-							BaseEvent: BaseEvent{},
-							MountID:   27,
+							SyscallEvent: SyscallEvent{},
+							MountID:      27,
 						},
 					},
 				},
 				[]testCase{
 					{
 						27,
-						0,
 						"",
 						"",
 						ErrMountNotFound,
 					},
 					{
 						22,
-						0,
 						"",
 						"",
 						ErrMountNotFound,
 					},
 					{
 						31,
-						0,
 						"",
 						"",
 						ErrMountNotFound,
@@ -229,10 +211,10 @@ func TestMountResolver(t *testing.T) {
 				[]event{
 					{
 						mount: &MountEvent{
-							BaseEvent:     BaseEvent{},
-							NewMountID:    27,
-							NewGroupID:    0,
-							NewDevice:     1,
+							SyscallEvent:  SyscallEvent{},
+							MountID:       27,
+							GroupID:       0,
+							Device:        1,
 							ParentMountID: 1,
 							ParentInode:   0,
 							FSType:        "ext4",
@@ -245,10 +227,10 @@ func TestMountResolver(t *testing.T) {
 					},
 					{
 						mount: &MountEvent{
-							BaseEvent:     BaseEvent{},
-							NewMountID:    176,
-							NewGroupID:    71,
-							NewDevice:     52,
+							SyscallEvent:  SyscallEvent{},
+							MountID:       176,
+							GroupID:       71,
+							Device:        52,
 							ParentMountID: 27,
 							ParentInode:   0,
 							FSType:        "overlay",
@@ -261,10 +243,10 @@ func TestMountResolver(t *testing.T) {
 					},
 					{
 						mount: &MountEvent{
-							BaseEvent:     BaseEvent{},
-							NewMountID:    638,
-							NewGroupID:    0,
-							NewDevice:     52,
+							SyscallEvent:  SyscallEvent{},
+							MountID:       638,
+							GroupID:       71,
+							Device:        52,
 							ParentMountID: 635,
 							ParentInode:   0,
 							FSType:        "bind",
@@ -277,10 +259,10 @@ func TestMountResolver(t *testing.T) {
 					},
 					{
 						mount: &MountEvent{
-							BaseEvent:     BaseEvent{},
-							NewMountID:    639,
-							NewGroupID:    0,
-							NewDevice:     54,
+							SyscallEvent:  SyscallEvent{},
+							MountID:       639,
+							GroupID:       0,
+							Device:        54,
 							ParentMountID: 638,
 							ParentInode:   0,
 							FSType:        "proc",
@@ -295,7 +277,6 @@ func TestMountResolver(t *testing.T) {
 				[]testCase{
 					{
 						639,
-						1,
 						"proc",
 						"/var/lib/docker/overlay2/f44b5a1fe134f57a31da79fa2e76ea09f8659a34edfa0fa2c3b4f52adbd91963/merged",
 						nil,
@@ -309,29 +290,26 @@ func TestMountResolver(t *testing.T) {
 				[]event{
 					{
 						umount: &UmountEvent{
-							BaseEvent: BaseEvent{},
-							MountID:   176,
+							SyscallEvent: SyscallEvent{},
+							MountID:      176,
 						},
 					},
 				},
 				[]testCase{
 					{
 						176,
-						0,
 						"",
 						"",
 						ErrMountNotFound,
 					},
 					{
 						638,
-						0,
 						"",
 						"",
 						ErrMountNotFound,
 					},
 					{
 						639,
-						0,
 						"",
 						"",
 						ErrMountNotFound,
@@ -347,7 +325,7 @@ func TestMountResolver(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, evt := range tt.args.events {
 				if evt.mount != nil {
-					mr.Insert(evt.mount)
+					mr.Insert(*evt.mount)
 				}
 				if evt.umount != nil {
 					if err := mr.Delete(evt.umount.MountID); err != nil {
@@ -356,7 +334,7 @@ func TestMountResolver(t *testing.T) {
 				}
 			}
 			for _, testC := range tt.args.cases {
-				cp, p, _, err := mr.GetMountPath(testC.mountID, testC.numlower)
+				cp, p, _, err := mr.GetMountPath(testC.mountID)
 				if err != nil {
 					if testC.expectedError != nil {
 						assert.Equal(t, testC.expectedError.Error(), err.Error())

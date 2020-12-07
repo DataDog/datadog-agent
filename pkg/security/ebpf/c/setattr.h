@@ -5,9 +5,11 @@
 
 SEC("kprobe/security_inode_setattr")
 int kprobe__security_inode_setattr(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall();
+    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_UTIME | SYSCALL_CHMOD | SYSCALL_CHOWN);
     if (!syscall)
         return 0;
+
+    struct dentry *dentry = (struct dentry *)PT_REGS_PARM1(ctx);
 
     struct iattr *iattr = (struct iattr *)PT_REGS_PARM2(ctx);
     if (iattr != NULL) {
@@ -18,20 +20,43 @@ int kprobe__security_inode_setattr(struct pt_regs *ctx) {
         }
 
         if (valid & (ATTR_TOUCH | ATTR_ATIME_SET | ATTR_MTIME_SET)) {
-            if (syscall->setattr.dentry)
+            if (syscall->setattr.dentry) {
+                syscall->setattr.real_inode = get_dentry_ino(dentry);
                 return 0;
+            }
             bpf_probe_read(&syscall->setattr.atime, sizeof(syscall->setattr.atime), &iattr->ia_atime);
             bpf_probe_read(&syscall->setattr.mtime, sizeof(syscall->setattr.mtime), &iattr->ia_mtime);
         }
     }
 
-    if (syscall->type == EVENT_UTIME || syscall->type == EVENT_CHMOD || syscall->type == EVENT_CHOWN) {
-        if (syscall->setattr.dentry)
-            return 0;
-        syscall->setattr.dentry = (struct dentry *)PT_REGS_PARM1(ctx);
-        syscall->setattr.path_key.ino = get_dentry_ino(syscall->setattr.dentry);
-        // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
-        resolve_dentry(syscall->setattr.dentry, syscall->setattr.path_key, NULL);
+    // if second pass, ex: overlayfs, just cache the inode that will be used in ret
+    if (syscall->setattr.dentry) {
+        syscall->setattr.real_inode = get_dentry_ino(dentry);
+        return 0;
+    }
+
+    syscall->setattr.dentry = dentry;
+
+    // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
+    syscall->setattr.path_key.ino = get_dentry_ino(syscall->setattr.dentry);
+    syscall->setattr.path_key.path_id = get_path_id(0);
+
+    u64 event_type = 0;
+    switch (syscall->type) {
+        case SYSCALL_UTIME:
+            event_type = EVENT_UTIME;
+            break;
+        case SYSCALL_CHMOD:
+            event_type = EVENT_CHMOD;
+            break;
+        case SYSCALL_CHOWN:
+            event_type = EVENT_CHOWN;
+            break;
+    }
+
+    int ret = resolve_dentry(syscall->setattr.dentry, syscall->setattr.path_key, syscall->policy.mode != NO_FILTER ? event_type : 0);
+    if (ret == DENTRY_DISCARDED) {
+        pop_syscall(syscall->type);
     }
 
     return 0;

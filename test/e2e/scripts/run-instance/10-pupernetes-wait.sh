@@ -1,14 +1,25 @@
 #!/bin/bash
+set -euo pipefail
 
 printf '=%.0s' {0..79} ; echo
 
 for f in /run/systemd/resolve/resolv.conf /etc/resolv.conf /etc/hosts /etc/os-release
 do
-    echo ${f}
+    [[ -e $f ]] || continue
+    echo $f
     echo "---"
-    cat ${f}
+    cat $f
     printf '=%.0s' {0..79} ; echo
 done
+
+_wait_systemd_unit() {
+    echo "waiting for $1 systemd unit to be active"
+    for i in {0..240}
+    do
+        systemctl is-active "$1" && break
+        systemctl is-failed "$1" && exit 1
+    done
+}
 
 _wait_binary() {
     echo "waiting for $1 binary to be in PATH=${PATH} ..."
@@ -26,6 +37,8 @@ _wait_binary() {
     fi
 }
 
+_wait_systemd_unit install-pupernetes-dependencies.service
+_wait_systemd_unit setup-pupernetes
 _wait_binary pupernetes
 
 # Binary is here, so setup-pupernetes has completed

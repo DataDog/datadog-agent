@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
-	"net/url"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -216,12 +215,12 @@ func (l *Collector) run(exit chan struct{}) error {
 		}
 	}()
 
-	processForwarderOpts := forwarder.NewOptions(keysPerDomains(l.cfg.APIEndpoints))
+	processForwarderOpts := forwarder.NewOptions(api.KeysPerDomains(l.cfg.APIEndpoints))
 	processForwarderOpts.DisableAPIKeyChecking = true
 	processForwarderOpts.RetryQueueSize = l.cfg.QueueSize // Allow more in-flight requests than the default
 	processForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
 
-	podForwarderOpts := forwarder.NewOptions(keysPerDomains(l.cfg.OrchestratorEndpoints))
+	podForwarderOpts := forwarder.NewOptions(api.KeysPerDomains(l.cfg.OrchestratorEndpoints))
 	podForwarderOpts.DisableAPIKeyChecking = true
 	podForwarderOpts.RetryQueueSize = l.cfg.QueueSize // Allow more in-flight requests than the default
 	podForwarder := forwarder.NewDefaultForwarder(podForwarderOpts)
@@ -427,20 +426,4 @@ func readResponseStatuses(checkName string, responses <-chan forwarder.Response)
 	}
 
 	return statuses
-}
-
-func keysPerDomains(endpoints []api.Endpoint) map[string][]string {
-	keysPerDomains := make(map[string][]string)
-
-	for _, ep := range endpoints {
-		domain := removePathIfPresent(ep.Endpoint)
-		keysPerDomains[domain] = append(keysPerDomains[domain], ep.APIKey)
-	}
-
-	return keysPerDomains
-}
-
-// removePathIfPresent removes the path component from the URL if it is present
-func removePathIfPresent(url *url.URL) string {
-	return fmt.Sprintf("%s://%s", url.Scheme, url.Host)
 }
