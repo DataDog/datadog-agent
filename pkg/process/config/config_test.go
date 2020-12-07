@@ -188,28 +188,31 @@ func TestDisablingDNSInspection(t *testing.T) {
 	})
 }
 
-func TestDisablingHTTPInspection(t *testing.T) {
-	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	defer restoreGlobalConfig()
-
+func TestEnableHTTPMonitoring(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
+		config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+		defer restoreGlobalConfig()
+
 		cfg, err := NewAgentConfig(
 			"test",
-			"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DisableHTTP.yaml",
+			"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableHTTP.yaml",
 			"",
 		)
 
 		assert.Nil(t, err)
-		assert.True(t, cfg.DisableHTTPInspection)
+		assert.True(t, cfg.EnableHTTPMonitoring)
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
-		os.Setenv("DD_DISABLE_HTTP_INSPECTION", "true")
-		defer os.Unsetenv("DD_DISABLE_HTTP_INSPECTION")
+		config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+		defer restoreGlobalConfig()
+
+		os.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "true")
+		defer os.Unsetenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING")
 		cfg, err := NewAgentConfig("test", "", "")
 
 		assert.Nil(t, err)
-		assert.True(t, cfg.DisableHTTPInspection)
+		assert.True(t, cfg.EnableHTTPMonitoring)
 	})
 }
 

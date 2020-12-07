@@ -39,11 +39,6 @@ func TracerConfigFromConfig(cfg *config.AgentConfig) *Config {
 		log.Info("system probe DNS inspection disabled by configuration")
 	}
 
-	if cfg.DisableHTTPInspection {
-		tracerConfig.HTTPInspection = false
-		log.Info("system probe HTTP inspection disabled by configuration")
-	}
-
 	if len(cfg.ExcludedSourceConnections) > 0 {
 		tracerConfig.ExcludedSourceConnections = cfg.ExcludedSourceConnections
 	}
@@ -64,6 +59,7 @@ func TracerConfigFromConfig(cfg *config.AgentConfig) *Config {
 	tracerConfig.ConntrackMaxStateSize = cfg.ConntrackMaxStateSize
 	tracerConfig.EnableConntrackAllNamespaces = cfg.EnableConntrackAllNamespaces
 	tracerConfig.DebugPort = cfg.SystemProbeDebugPort
+	tracerConfig.EnableHTTPMonitoring = cfg.EnableHTTPMonitoring
 
 	if mccb := cfg.MaxClosedConnectionsBuffered; mccb > 0 {
 		tracerConfig.MaxClosedConnectionsBuffered = mccb

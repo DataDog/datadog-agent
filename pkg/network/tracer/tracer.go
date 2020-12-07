@@ -173,7 +173,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		}
 	}
 
-	if config.HTTPInspection && !pre410Kernel {
+	if config.EnableHTTPMonitoring && !pre410Kernel {
 		enabledProbes[probes.SocketHTTPFilter] = struct{}{}
 	}
 
@@ -864,8 +864,7 @@ func (t *Tracer) conntrackExists(conn *ConnTuple) bool {
 }
 
 func newHTTPMonitor(supported bool, c *config.Config, m *manager.Manager, h *ddebpf.PerfHandler) *http.Monitor {
-	if !c.HTTPInspection {
-		log.Infof("http monitoring disabled")
+	if !c.EnableHTTPMonitoring {
 		return nil
 	}
 

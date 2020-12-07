@@ -705,7 +705,6 @@ func InitConfig(config Config) {
 	config.SetKnown("system_probe_config.disable_udp")
 	config.SetKnown("system_probe_config.disable_ipv6")
 	config.SetKnown("system_probe_config.disable_dns_inspection")
-	config.SetKnown("system_probe_config.disable_http_inspection")
 	config.SetKnown("system_probe_config.collect_local_dns")
 	config.SetKnown("system_probe_config.use_local_system_probe")
 	config.SetKnown("system_probe_config.enable_conntrack")
@@ -729,6 +728,7 @@ func InitConfig(config Config) {
 	config.SetKnown("system_probe_config.windows.enable_monotonic_count")
 	config.SetKnown("system_probe_config.windows.driver_buffer_size")
 	config.SetKnown("network_config.enabled")
+	config.SetKnown("network_config.enable_http_monitoring")
 
 	// Network
 	config.BindEnv("network.id") //nolint:errcheck
