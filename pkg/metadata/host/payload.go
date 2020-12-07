@@ -51,6 +51,11 @@ type InstallMethod struct {
 	InstallerVersion *string `json:"installer_version"`
 }
 
+type ProxyMeta struct {
+	NoProxyNonexactMatch bool `json:"no-proxy-nonexact-match"`
+	ProxyBehaviorChanged bool `json:"proxy-behavior-changed"`
+}
+
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
 	Os            string            `json:"os"`
@@ -63,4 +68,5 @@ type Payload struct {
 	NetworkMeta   *NetworkMeta      `json:"network"`
 	LogsMeta      *LogsMeta         `json:"logs"`
 	InstallMethod *InstallMethod    `json:"install-method"`
+	ProxyMeta     *ProxyMeta        `json:"proxy-info"`
 }
