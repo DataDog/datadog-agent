@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats/quantile"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -287,9 +288,11 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang string) {
 				statusCode = strconv.Itoa(int(b.HTTPStatusCode))
 			}
 			newb := stats.Bucket{
-				Start:    int64(group.Start),
-				Duration: int64(group.Duration),
-				Counts:   make(map[string]stats.Count),
+				Start:            int64(group.Start),
+				Duration:         int64(group.Duration),
+				Counts:           make(map[string]stats.Count),
+				Distributions:    make(map[string]stats.Distribution),
+				ErrDistributions: make(map[string]stats.Distribution),
 			}
 			aggr := stats.NewAggregation(out.Env, b.Resource, b.Service, "", statusCode, in.Version)
 			tagset := aggr.ToTagSet()
@@ -319,6 +322,26 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang string) {
 				TagSet:   tagset,
 				TopLevel: float64(b.Hits),
 				Value:    float64(b.Duration),
+			}
+			if hits, errors, err := quantile.DDToGKSketches(b.HitsSummary, b.ErrorSummary); err != nil {
+				log.Errorf("Error handling distributions: %v", err)
+			} else {
+				newb.Distributions[key] = stats.Distribution{
+					Key:      key,
+					Name:     b.Name,
+					Measure:  stats.DURATION,
+					TagSet:   tagset,
+					TopLevel: 0,
+					Summary:  hits,
+				}
+				newb.ErrDistributions[key] = stats.Distribution{
+					Key:      key,
+					Name:     b.Name,
+					Measure:  stats.DURATION,
+					TagSet:   tagset,
+					TopLevel: 0,
+					Summary:  errors,
+				}
 			}
 			out.Stats = append(out.Stats, newb)
 		}

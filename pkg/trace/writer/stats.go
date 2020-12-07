@@ -120,6 +120,7 @@ func (w *StatsWriter) addStats(s []stats.Bucket) {
 	}
 }
 
+// SendPayload sends a stats payload to the Datadog backend.
 func (w *StatsWriter) SendPayload(p *stats.Payload) {
 	req := newPayload(map[string]string{
 		headerLanguages:    strings.Join(info.Languages(), "|"),
