@@ -45,7 +45,7 @@ func newTransactionContainer(
 // The first 3 transactions are flushed to the disk as 10 + 20 + 30 >= 60
 // If disk serialization failed or is not enabled, remove old transactions such as
 // `currentMemSizeInBytes` <= `maxMemSizeInBytes`
-func (f *transactionContainer) Add(t Transaction) error {
+func (f *transactionContainer) Add(t Transaction) (int, error) {
 	var diskErr error
 	payloadSize := t.GetPayloadSize()
 	if f.optionalTransactionStorage != nil {
@@ -62,13 +62,15 @@ func (f *transactionContainer) Add(t Transaction) error {
 
 	// If disk serialization failed or is not enabled, make sure `currentMemSizeInBytes` <= `maxMemSizeInBytes`
 	payloadSizeInBytesToDrop := (f.currentMemSizeInBytes + payloadSize) - f.maxMemSizeInBytes
+	inMemTransactionDroppedCount := 0
 	if payloadSizeInBytesToDrop > 0 {
-		f.extractTransactions(payloadSizeInBytesToDrop)
+		transactions := f.extractTransactions(payloadSizeInBytesToDrop)
+		inMemTransactionDroppedCount = len(transactions)
 	}
 
 	f.transactions = append(f.transactions, t)
 	f.currentMemSizeInBytes += payloadSize
-	return diskErr
+	return inMemTransactionDroppedCount, diskErr
 }
 
 // ExtractTransactions extracts transactions from the container.
@@ -94,6 +96,16 @@ func (f *transactionContainer) ExtractTransactions() ([]Transaction, error) {
 // GetCurrentMemSizeInBytes gets the current memory usage in bytes
 func (f *transactionContainer) GetCurrentMemSizeInBytes() int {
 	return f.currentMemSizeInBytes
+}
+
+// GetTransactionCount gets the number of transactions in the container
+func (f *transactionContainer) GetTransactionCount() int {
+	return len(f.transactions)
+}
+
+// GetMaxMemSizeInBytes gets the maximum memory usage for storing transactions
+func (f *transactionContainer) GetMaxMemSizeInBytes() int {
+	return f.maxMemSizeInBytes
 }
 
 func (f *transactionContainer) extractTransactionsForDisk(payloadSize int) [][]Transaction {
