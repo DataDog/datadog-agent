@@ -122,15 +122,9 @@ func (c *KubeMetadataCollector) Pull() error {
 		for id, lastSeen := range c.lastSeen {
 			if now.Sub(lastSeen) >= c.expireFreq {
 				delete(c.lastSeen, id)
-				entityID, err := kubelet.KubeIDToTaggerEntityID(id)
-				if err != nil {
-					log.Warnf("error extracting tagger entity id from %q: %s", id, err)
-					continue
-				}
-
 				tagInfos = append(tagInfos, &TagInfo{
 					Source:       kubeMetadataCollectorName,
-					Entity:       entityID,
+					Entity:       id,
 					DeleteEntity: true,
 				})
 			}

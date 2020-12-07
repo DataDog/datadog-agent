@@ -99,8 +99,8 @@ int __attribute__((always_inline)) trace__sys_link_ret(struct pt_regs *ctx) {
         }
     };
 
-    struct proc_cache_t *entry = fill_process_data(&event.process);
-    fill_container_data(entry, &event.container);
+    struct proc_cache_t *entry = fill_process_context(&event.process);
+    fill_container_context(entry, &event.container);
 
     resolve_dentry(syscall->link.target_dentry, syscall->link.target_key, 0);
 
