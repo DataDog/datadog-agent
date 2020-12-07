@@ -86,20 +86,18 @@ type SQLTokenizer struct {
 	off      int    // off is the index into buf where the unread portion of the query begins.
 	err      error  // any error occurred while reading
 
-	curlys uint32 // number of active open curly braces in PL/SQL statements.
+	curlys uint32 // number of active open curly braces in top-level SQL escape sequences.
 
-	literalEscapes bool   // indicates we should not treat backslashes as escape characters
-	seenEscape     bool   // indicates whether this tokenizer has seen an escape character within a string
-	dbType         string // type of db (e.g. "oracle")
+	literalEscapes bool // indicates we should not treat backslashes as escape characters
+	seenEscape     bool // indicates whether this tokenizer has seen an escape character within a string
 }
 
 // NewSQLTokenizer creates a new SQLTokenizer for the given SQL string. The literalEscapes argument specifies
 // whether escape characters should be treated literally or as such.
-func NewSQLTokenizer(sql, dbtype string, literalEscapes bool) *SQLTokenizer {
+func NewSQLTokenizer(sql string, literalEscapes bool) *SQLTokenizer {
 	return &SQLTokenizer{
 		buf:            []byte(sql),
 		literalEscapes: literalEscapes,
-		dbType:         dbtype,
 	}
 }
 
@@ -250,22 +248,18 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 		case '$':
 			return tkn.scanPreparedStatement('$')
 		case '{':
-			if tkn.dbType == "oracle" {
-				// this may be an Oracle embedded pl/sql call
-				// e.g. {call user_count(4)}
-				if tkn.pos == 1 || tkn.curlys > 0 {
-					// if we're at the start or have already started a PL/SQL
-					// statement, count the curly braces to know when we're past it
-					tkn.curlys++
-					return TokenKind(ch), tkn.bytes()
-				}
-				// Otherwise, this may be just a regular string escape {}:
-				// https://docs.oracle.com/cd/E18283_01/text.112/e16593/cqspcl.htm
+			if tkn.pos == 1 || tkn.curlys > 0 {
+				// Do not fully obfuscate top-level SQL escape sequences like {{[?=]call procedure-name[([parameter][,parameter]...)]}.
+				// We want these to display a bit more context than just a plain '?'
+				// See: https://docs.oracle.com/cd/E13157_01/wlevs/docs30/jdbc_drivers/sqlescape.html
+				tkn.curlys++
+				return TokenKind(ch), tkn.bytes()
 			}
 			return tkn.scanEscapeSequence('{')
 		case '}':
 			if tkn.curlys == 0 {
-				// Not an Oracle PL/SQL statement
+				// A closing curly brace has no place outside an in-progress top-level SQL escape sequence
+				// started by the '{' switch-case.
 				tkn.setErr(`unexpected byte %d`, ch)
 				return LexError, tkn.bytes()
 			}

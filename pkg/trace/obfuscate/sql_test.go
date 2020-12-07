@@ -166,7 +166,7 @@ func TestSQLUTF8(t *testing.T) {
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			oq, err := NewObfuscator(nil).ObfuscateSQLString(tt.in, "mysql")
+			oq, err := NewObfuscator(nil).ObfuscateSQLString(tt.in)
 			assert.NoError(err)
 			assert.Equal(tt.out, oq.Query)
 		})
@@ -233,7 +233,7 @@ func TestSQLTableFinder(t *testing.T) {
 		} {
 			t.Run("", func(t *testing.T) {
 				assert := assert.New(t)
-				oq, err := NewObfuscator(nil).ObfuscateSQLString(tt.query, "mysql")
+				oq, err := NewObfuscator(nil).ObfuscateSQLString(tt.query)
 				assert.NoError(err)
 				assert.Equal(tt.tables, oq.TablesCSV)
 			})
@@ -241,7 +241,7 @@ func TestSQLTableFinder(t *testing.T) {
 	})
 
 	t.Run("off", func(t *testing.T) {
-		oq, err := NewObfuscator(nil).ObfuscateSQLString("DELETE FROM table WHERE table.a=1", "mysql")
+		oq, err := NewObfuscator(nil).ObfuscateSQLString("DELETE FROM table WHERE table.a=1")
 		assert.NoError(t, err)
 		assert.Empty(t, oq.TablesCSV)
 	})
@@ -578,12 +578,15 @@ ORDER BY [b].[Name]`,
 			`{call px_cu_se_security_pg.sps_get_my_accounts_count(1, 2, 'one', 'two')};`,
 			"{ call px_cu_se_security_pg.sps_get_my_accounts_count ( ? ) }",
 		},
+		{
+			`SELECT id, name FROM emp WHERE name LIKE {fn UCASE('Smith')}`,
+			`SELECT id, name FROM emp WHERE name LIKE ?`,
+		},
 	}
 
 	for _, c := range cases {
 		t.Run("", func(t *testing.T) {
 			s := SQLSpan(c.query)
-			s.Meta["db.type"] = "oracle"
 			NewObfuscator(nil).Obfuscate(s)
 			assert.Equal(t, c.expected, s.Resource)
 		})
@@ -714,7 +717,7 @@ in the middle'`,
 
 	for _, c := range cases {
 		t.Run(fmt.Sprintf("tokenize_%s", c.str), func(t *testing.T) {
-			tokenizer := NewSQLTokenizer(c.str, "mysql", false)
+			tokenizer := NewSQLTokenizer(c.str, false)
 			kind, buffer := tokenizer.Scan()
 			assert.Equal(t, c.expectedKind, kind)
 			assert.Equal(t, c.expected, string(buffer))
@@ -843,7 +846,7 @@ in the middle'`,
 
 	for _, c := range cases {
 		t.Run(fmt.Sprintf("tokenize_%s", c.str), func(t *testing.T) {
-			tokenizer := NewSQLTokenizer(c.str, "mysql", true)
+			tokenizer := NewSQLTokenizer(c.str, true)
 			tokenizer.literalEscapes = true
 			kind, buffer := tokenizer.Scan()
 			assert.Equal(t, c.expectedKind, kind)
@@ -883,7 +886,7 @@ LIMIT 1000`,
 
 	// The consumer is the same between executions
 	for _, tc := range testCases {
-		oq, err := NewObfuscator(nil).ObfuscateSQLString(tc.query, "mysql")
+		oq, err := NewObfuscator(nil).ObfuscateSQLString(tc.query)
 		assert.Nil(err)
 		assert.Equal(tc.expected, oq.Query)
 	}
@@ -896,7 +899,7 @@ func TestConsumerError(t *testing.T) {
 	// what to do with malformed SQL
 	input := "SELECT * FROM users WHERE users.id = '1 AND users.name = 'dog'"
 
-	_, err := NewObfuscator(nil).ObfuscateSQLString(input, "mysql")
+	_, err := NewObfuscator(nil).ObfuscateSQLString(input)
 	assert.NotNil(err)
 }
 
@@ -989,7 +992,7 @@ func TestSQLErrors(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run("", func(t *testing.T) {
-			_, err := NewObfuscator(nil).ObfuscateSQLString(tc.query, "mysql")
+			_, err := NewObfuscator(nil).ObfuscateSQLString(tc.query)
 			assert.Error(t, err)
 			assert.Equal(t, tc.expected, err.Error())
 		})
@@ -1043,7 +1046,7 @@ func TestLiteralEscapesUpdates(t *testing.T) {
 		t.Run("", func(t *testing.T) {
 			o := NewObfuscator(nil)
 			o.SetSQLLiteralEscapes(c.initial)
-			_, err := o.ObfuscateSQLString(c.query, "mysql")
+			_, err := o.ObfuscateSQLString(c.query)
 			if c.err != nil {
 				assert.Equal(t, c.err, err)
 			} else {
@@ -1136,7 +1139,7 @@ func BenchmarkObfuscateSQLString(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				_, err := obf.ObfuscateSQLString(bm.query, "mysql")
+				_, err := obf.ObfuscateSQLString(bm.query)
 				if err != nil {
 					b.Fatal(err)
 				}
@@ -1147,7 +1150,7 @@ func BenchmarkObfuscateSQLString(b *testing.B) {
 	b.Run("random", func(b *testing.B) {
 		var j uint64
 		for i := 0; i < b.N; i++ {
-			_, err := obf.ObfuscateSQLString(fmt.Sprintf("SELECT * FROM users WHERE id=%d", atomic.AddUint64(&j, 1)), "mysql")
+			_, err := obf.ObfuscateSQLString(fmt.Sprintf("SELECT * FROM users WHERE id=%d", atomic.AddUint64(&j, 1)))
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -1164,7 +1167,7 @@ func BenchmarkQueryCacheTippingPoint(b *testing.B) {
 	queries := 1000
 
 	bench1KQueries := func(
-		fn func(*Obfuscator, string, string) (*ObfuscatedQuery, error), // obfuscating function
+		fn func(*Obfuscator, string) (*ObfuscatedQuery, error), // obfuscating function
 		hitrate float64, // desired cache hit rate
 		queryfmt string, // actual query (passed to fmt.Sprintf)
 	) func(*testing.B) {
@@ -1178,12 +1181,12 @@ func BenchmarkQueryCacheTippingPoint(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				for n := 0; n < hitcount; n++ {
-					if _, err := fn(o, fmt.Sprintf(queryfmt, -1), "mysql"); err != nil {
+					if _, err := fn(o, fmt.Sprintf(queryfmt, -1)); err != nil {
 						b.Fatal(err)
 					}
 				}
 				for n := 0; n < queries-hitcount; n++ {
-					if _, err := fn(o, fmt.Sprintf(queryfmt, atomic.AddUint64(&idx, 1)), "mysql"); err != nil {
+					if _, err := fn(o, fmt.Sprintf(queryfmt, atomic.AddUint64(&idx, 1))); err != nil {
 						b.Fatal(err)
 					}
 				}
@@ -1267,7 +1270,7 @@ func TestCassQuantizer(t *testing.T) {
 func TestUnicodeDigit(t *testing.T) {
 	hangStr := "٩"
 	o := NewObfuscator(nil)
-	o.ObfuscateSQLString(hangStr, "mysql")
+	o.ObfuscateSQLString(hangStr)
 }
 
 // TestToUpper contains test data lifted from Go's bytes/bytes_test.go, but we test
