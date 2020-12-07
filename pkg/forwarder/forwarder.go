@@ -254,11 +254,20 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 		},
 		completionHandler: options.CompletionHandler,
 	}
-	storagePath := config.Datadog.GetString("forwarder_storage_path")
-	outdatedFileInDays := config.Datadog.GetInt("forwarder_outdated_file_in_days")
-	optionalRemovalPolicy, err := newFailedTransactionRemovalPolicy(storagePath, outdatedFileInDays)
-	if err != nil {
-		log.Errorf("Error when initializing the removal policy: %v", err)
+	var optionalRemovalPolicy *failedTransactionRemovalPolicy
+	storageMaxSize := config.Datadog.GetInt64("forwarder_storage_max_size_in_bytes")
+
+	if storageMaxSize == 0 {
+		log.Infof("Retry queue storage on disk is disabled")
+	} else {
+		storagePath := config.Datadog.GetString("forwarder_storage_path")
+		outdatedFileInDays := config.Datadog.GetInt("forwarder_outdated_file_in_days")
+		var err error
+
+		optionalRemovalPolicy, err = newFailedTransactionRemovalPolicy(storagePath, outdatedFileInDays)
+		if err != nil {
+			log.Errorf("Error when initializing the removal policy: %v", err)
+		}
 	}
 
 	flushToDiskMemRatio := config.Datadog.GetFloat64("forwarder_flush_to_disk_mem_ratio")
@@ -272,7 +281,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 		} else {
 			var optionalTransactionsFileStorage *transactionsFileStorage
 			if optionalRemovalPolicy != nil {
-				optionalTransactionsFileStorage = f.tryCreateTransactionsFileStorage(optionalRemovalPolicy, domain)
+				optionalTransactionsFileStorage = f.tryCreateTransactionsFileStorage(storageMaxSize, optionalRemovalPolicy, domain)
 			}
 
 			var transactionContainer *transactionContainer
@@ -599,14 +608,11 @@ func (f *DefaultForwarder) submitProcessLikePayload(ep endpoint, payload Payload
 	return results, f.sendHTTPTransactions(transactions)
 }
 
-func (f *DefaultForwarder) tryCreateTransactionsFileStorage(removalPolicy *failedTransactionRemovalPolicy, domain string) *transactionsFileStorage {
+func (f *DefaultForwarder) tryCreateTransactionsFileStorage(storageMaxSize int64, removalPolicy *failedTransactionRemovalPolicy, domain string) *transactionsFileStorage {
 	var transactionsFileStorage *transactionsFileStorage
-	storageMaxSize := config.Datadog.GetInt64("forwarder_storage_max_size_in_bytes")
 	var errorMsg error
 
-	if storageMaxSize == 0 {
-		log.Infof("Retry queue storage on disk is disabled")
-	} else {
+	if removalPolicy != nil {
 		domainFolderPath, err := removalPolicy.RegisterDomain(domain)
 		if err != nil {
 			errorMsg = fmt.Errorf("Cannot register the domain '%v': %v", domain, err)
