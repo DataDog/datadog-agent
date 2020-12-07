@@ -6,6 +6,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"expvar"
@@ -27,8 +28,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/tinylib/msgp/msgp"
-
 	mainconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -42,6 +41,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var bufferPool = sync.Pool{
+	New: func() interface{} {
+		return new(bytes.Buffer)
+	},
+}
+
+func getBuffer() *bytes.Buffer {
+	buffer := bufferPool.Get().(*bytes.Buffer)
+	buffer.Reset()
+	return buffer
+}
+
+func putBuffer(buffer *bytes.Buffer) {
+	bufferPool.Put(buffer)
+}
 
 // HTTPReceiver is a collector that uses HTTP protocol and just holds
 // a chan where the spans received are sent one by one
@@ -576,10 +591,17 @@ func (r *HTTPReceiver) Languages() string {
 	return strings.Join(str, "|")
 }
 
-func decodeRequest(req *http.Request, dest msgp.Decodable) error {
+func decodeRequest(req *http.Request, dest *pb.Traces) error {
 	switch mediaType := getMediaType(req); mediaType {
 	case "application/msgpack":
-		return msgp.Decode(req.Body, dest)
+		buf := getBuffer()
+		defer putBuffer(buf)
+		_, err := io.Copy(buf, req.Body)
+		if err != nil {
+			return err
+		}
+		_, err = dest.UnmarshalMsg(buf.Bytes())
+		return err
 	case "application/json":
 		fallthrough
 	case "text/json":
@@ -589,7 +611,14 @@ func decodeRequest(req *http.Request, dest msgp.Decodable) error {
 	default:
 		// do our best
 		if err1 := json.NewDecoder(req.Body).Decode(dest); err1 != nil {
-			if err2 := msgp.Decode(req.Body, dest); err2 != nil {
+			buf := getBuffer()
+			defer putBuffer(buf)
+			_, err2 := io.Copy(buf, req.Body)
+			if err2 != nil {
+				return fmt.Errorf("could not decode JSON (%q), nor Msgpack (%q)", err1, err2)
+			}
+			_, err2 = dest.UnmarshalMsg(buf.Bytes())
+			if err2 != nil {
 				return fmt.Errorf("could not decode JSON (%q), nor Msgpack (%q)", err1, err2)
 			}
 		}

@@ -8,6 +8,7 @@ package agent
 import (
 	"bytes"
 	"context"
+	"io/ioutil"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -33,7 +34,6 @@ import (
 
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
-	"github.com/tinylib/msgp/msgp"
 )
 
 func newMockSampler(wantSampled bool, wantRate float64) *Sampler {
@@ -913,7 +913,8 @@ func tracesFromFile(file string) (raw []byte, count int, err error) {
 	// prepare the traces in this file by adding sampling.priority=2
 	// everywhere to ensure consistent sampling assumptions and results.
 	var traces pb.Traces
-	if err := msgp.Decode(in, &traces); err != nil {
+	bts, err := ioutil.ReadAll(in)
+	if _, err = traces.UnmarshalMsg(bts); err != nil {
 		return nil, 0, err
 	}
 	for _, t := range traces {
@@ -927,9 +928,9 @@ func tracesFromFile(file string) (raw []byte, count int, err error) {
 		}
 	}
 	// re-encode the modified payload
-	var data bytes.Buffer
-	if err := msgp.Encode(&data, traces); err != nil {
+	var data []byte
+	if data, err = traces.MarshalMsg(nil); err != nil {
 		return nil, 0, err
 	}
-	return data.Bytes(), count, nil
+	return data, count, nil
 }
