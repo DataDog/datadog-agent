@@ -462,7 +462,9 @@ func TestSecretDecrypt(t *testing.T) {
 		},
 	}
 
+	originalSecretsDecrypt := secretsDecrypt
 	secretsDecrypt = mockDecrypt.getDecryptFunc()
+	defer func() { secretsDecrypt = originalSecretsDecrypt }()
 
 	// no services
 	res := ac.resolveTemplate(tpl)
