@@ -286,7 +286,12 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 
 			var transactionContainer *transactionContainer
 			if options.RetryQueuePayloadsTotalMaxSize > 0 {
-				transactionContainer = newTransactionContainer(transactionContainerSort, optionalTransactionsFileStorage, options.RetryQueuePayloadsTotalMaxSize, flushToDiskMemRatio)
+				var storage transactionStorage = nil
+				if optionalTransactionsFileStorage != nil {
+					// storage is an interface
+					storage = optionalTransactionsFileStorage
+				}
+				transactionContainer = newTransactionContainer(transactionContainerSort, storage, options.RetryQueuePayloadsTotalMaxSize, flushToDiskMemRatio)
 			}
 			f.keysPerDomains[domain] = keys
 			f.domainForwarders[domain] = newDomainForwarder(
