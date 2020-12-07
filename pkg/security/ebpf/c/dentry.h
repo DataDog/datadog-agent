@@ -205,6 +205,26 @@ void __attribute__((always_inline)) get_dentry_name(struct dentry *dentry, void 
 #define get_dentry_key_path(dentry, path) (struct path_key_t) { .ino = get_dentry_ino(dentry), .mount_id = get_path_mount_id(path) }
 #define get_inode_key_path(inode, path) (struct path_key_t) { .ino = get_inode_ino(inode), .mount_id = get_path_mount_id(path) }
 
+int __attribute__((always_inline)) get_ovl_lower_ino(struct dentry *dentry) {
+    struct inode *d_inode;
+    bpf_probe_read(&d_inode, sizeof(d_inode), &dentry->d_inode);
+
+    struct inode *lower;
+    bpf_probe_read(&lower, sizeof(lower), (void* )d_inode + sizeof(struct inode) + 16);
+
+    return get_inode_ino(lower);
+}
+
+int __attribute__((always_inline)) get_ovl_upper_ino(struct dentry *dentry) {
+    struct inode *d_inode;
+    bpf_probe_read(&d_inode, sizeof(d_inode), &dentry->d_inode);
+
+    struct dentry *upper;
+    bpf_probe_read(&upper, sizeof(upper), (void* )d_inode + sizeof(struct inode) + 8);
+
+    return get_dentry_ino(upper);
+}
+
 static __attribute__((always_inline)) void link_dentry_inode(struct path_key_t key, u64 inode) {
     // avoid a infinite loop, parent a child have the same inode
     if (key.ino == inode) {

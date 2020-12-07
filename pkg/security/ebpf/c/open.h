@@ -216,9 +216,11 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
 
     // add an real entry to reach the first dentry with the proper inode
     u64 inode = syscall->open.path_key.ino;
-    if (syscall->open.real_inode) {
-        inode = syscall->open.real_inode;
-        link_dentry_inode(syscall->open.path_key, inode);
+
+    // add an real entry to reach the first dentry with the proper inode
+    u64 ino = get_ovl_lower_ino(syscall->open.dentry);;
+    if (ino) {
+        link_dentry_inode(syscall->open.path_key, ino);
     }
 
     struct open_event_t event = {

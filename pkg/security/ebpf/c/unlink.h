@@ -49,8 +49,13 @@ int kprobe__vfs_unlink(struct pt_regs *ctx) {
     // ensure that we invalidate all the layers
     invalidate_inode(ctx, syscall->unlink.path_key.mount_id, inode, 1);
 
+    u64 real_inode = get_ovl_lower_ino(dentry);
+    if (real_inode) {
+        syscall->unlink.real_inode = real_inode;
+    }
+
     // if second pass, ex: overlayfs, just cache the inode that will be used in ret
-    if (syscall->unlink.path_key.ino) {
+    if (syscall->unlink.path_key.ino && !syscall->unlink.real_inode) {
         syscall->unlink.real_inode = inode;
         return 0;
     }
