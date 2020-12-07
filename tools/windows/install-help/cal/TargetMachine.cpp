@@ -155,7 +155,6 @@ DWORD TargetMachine::DetectDomainInformation()
     DWORD nErr = NetGetJoinInformation(nullptr, &name, &st);
     if (nErr == NERR_Success)
     {
-        _wcslwr_s(name, wcslen(name) + 1);
         _joinedDomain = name;
         (void)NetApiBufferFree(name);
     }

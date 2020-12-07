@@ -193,12 +193,12 @@ bool CustomActionData::parseUsernameData()
         }
         else if (0 == _wcsicmp(computed_domain.c_str(), machine.DnsDomainName().c_str()))
         {
-            WcaLog(LOGMSG_STANDARD, "Supplied domain name %S %S", computed_domain.c_str(), machine.DnsDomainName().c_str());
+            WcaLog(LOGMSG_STANDARD, "Supplied domain name %\"S\"", computed_domain.c_str());
             domainUser = true;
         }
         else
         {
-            WcaLog(LOGMSG_STANDARD, "Warning: Supplied user in different domain (%S != %S)", computed_domain.c_str(), machine.DnsDomainName().c_str());
+            WcaLog(LOGMSG_STANDARD, "Warning: Supplied user in different domain (\"%S\" != \"%S\")", computed_domain.c_str(), machine.DnsDomainName().c_str());
             domainUser = true;
         }
     }
