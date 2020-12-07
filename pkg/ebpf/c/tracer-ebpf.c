@@ -1174,7 +1174,7 @@ int socket__dns_filter(struct __sk_buff* skb) {
         ip_hdr_size = sizeof(struct iphdr);
         l4_proto = load_byte(skb, ETH_HLEN + offsetof(struct iphdr, protocol));
         break;
-   case ETH_P_IPV6:
+    case ETH_P_IPV6:
         ip_hdr_size = sizeof(struct ipv6hdr);
         l4_proto = load_byte(skb, ETH_HLEN + offsetof(struct ipv6hdr, nexthdr));
         break;
