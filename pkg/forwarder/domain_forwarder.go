@@ -7,7 +7,6 @@ package forwarder
 
 import (
 	"fmt"
-	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -41,8 +40,8 @@ type domainForwarder struct {
 	connectionResetInterval      time.Duration
 	internalState                uint32
 	m                            sync.Mutex // To control Start/Stop races
-
-	blockedList *blockedEndpoints
+	transactionPrioritySorter    transactionPrioritySorter
+	blockedList                  *blockedEndpoints
 }
 
 func newDomainForwarder(
@@ -50,7 +49,8 @@ func newDomainForwarder(
 	optionalTransactionContainer *transactionContainer,
 	numberOfWorkers int,
 	retryQueueLimit int,
-	connectionResetInterval time.Duration) *domainForwarder {
+	connectionResetInterval time.Duration,
+	transactionPrioritySorter transactionPrioritySorter) *domainForwarder {
 	retryQueueAllPayloadsMaxSize := 0
 	if optionalTransactionContainer != nil {
 		retryQueueAllPayloadsMaxSize = optionalTransactionContainer.GetMaxMemSizeInBytes()
@@ -64,18 +64,8 @@ func newDomainForwarder(
 		connectionResetInterval:      connectionResetInterval,
 		internalState:                Stopped,
 		blockedList:                  newBlockedEndpoints(),
+		transactionPrioritySorter:    transactionPrioritySorter,
 	}
-}
-
-type byCreatedTimeAndPriority []Transaction
-
-func (v byCreatedTimeAndPriority) Len() int      { return len(v) }
-func (v byCreatedTimeAndPriority) Swap(i, j int) { v[i], v[j] = v[j], v[i] }
-func (v byCreatedTimeAndPriority) Less(i, j int) bool {
-	if v[i].GetPriority() != v[j].GetPriority() {
-		return v[i].GetPriority() > v[j].GetPriority()
-	}
-	return v[i].GetCreatedAt().After(v[j].GetCreatedAt())
 }
 
 func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
@@ -101,9 +91,10 @@ func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 			log.Errorf("Error when getting transactions from the retry queue", err)
 		}
 	} else {
-		sort.Sort(byCreatedTimeAndPriority(f.retryQueue))
 		transactions = f.retryQueue
 	}
+
+	f.transactionPrioritySorter.Sort(transactions)
 
 	for _, t := range transactions {
 		transactionEndpointName := t.GetEndpointName()

@@ -14,7 +14,7 @@ import (
 )
 
 func TestNewDomainForwarder(t *testing.T) {
-	forwarder := newDomainForwarder("test", nil, 1, 10, 120*time.Second)
+	forwarder := newDomainForwarderForTest(120 * time.Second)
 
 	assert.NotNil(t, forwarder)
 	assert.Equal(t, 1, forwarder.numberOfWorkers)
@@ -32,7 +32,7 @@ func TestNewDomainForwarder(t *testing.T) {
 }
 
 func TestDomainForwarderStart(t *testing.T) {
-	forwarder := newDomainForwarder("test", nil, 1, 10, 0)
+	forwarder := newDomainForwarderForTest(0)
 	err := forwarder.Start()
 
 	assert.Nil(t, err)
@@ -51,14 +51,14 @@ func TestDomainForwarderStart(t *testing.T) {
 }
 
 func TestDomainForwarderInit(t *testing.T) {
-	forwarder := newDomainForwarder("test", nil, 1, 10, 0)
+	forwarder := newDomainForwarderForTest(0)
 	forwarder.init()
 	assert.Len(t, forwarder.workers, 0)
 	assert.Len(t, forwarder.retryQueue, 0)
 }
 
 func TestDomainForwarderStop(t *testing.T) {
-	forwarder := newDomainForwarder("test", nil, 1, 10, 0)
+	forwarder := newDomainForwarderForTest(0)
 	forwarder.Stop(false) // this should be a noop
 	forwarder.Start()
 	assert.Equal(t, Started, forwarder.State())
@@ -69,7 +69,7 @@ func TestDomainForwarderStop(t *testing.T) {
 }
 
 func TestDomainForwarderStop_WithConnectionReset(t *testing.T) {
-	forwarder := newDomainForwarder("test", nil, 1, 10, 120*time.Second)
+	forwarder := newDomainForwarderForTest(120 * time.Second)
 	forwarder.Stop(false) // this should be a noop
 	forwarder.Start()
 	assert.Equal(t, Started, forwarder.State())
@@ -80,7 +80,7 @@ func TestDomainForwarderStop_WithConnectionReset(t *testing.T) {
 }
 
 func TestDomainForwarderSendHTTPTransactions(t *testing.T) {
-	forwarder := newDomainForwarder("test", nil, 1, 10, 0)
+	forwarder := newDomainForwarderForTest(0)
 	tr := newTestTransaction()
 
 	// fw is stopped, we should get an error
@@ -102,7 +102,7 @@ func TestDomainForwarderSendHTTPTransactions(t *testing.T) {
 }
 
 func TestRequeueTransaction(t *testing.T) {
-	forwarder := newDomainForwarder("test", nil, 1, 10, 0)
+	forwarder := newDomainForwarderForTest(0)
 	tr := NewHTTPTransaction()
 	assert.Len(t, forwarder.retryQueue, 0)
 	forwarder.requeueTransaction(tr)
@@ -110,7 +110,7 @@ func TestRequeueTransaction(t *testing.T) {
 }
 
 func TestRetryTransactions(t *testing.T) {
-	forwarder := newDomainForwarder("test", nil, 1, 10, 0)
+	forwarder := newDomainForwarderForTest(0)
 	forwarder.init()
 	forwarder.retryQueueLimit = 1
 
@@ -141,7 +141,7 @@ func TestRetryTransactions(t *testing.T) {
 }
 
 func TestForwarderRetry(t *testing.T) {
-	forwarder := newDomainForwarder("test", nil, 1, 10, 0)
+	forwarder := newDomainForwarderForTest(0)
 	forwarder.Start()
 	defer forwarder.Stop(false)
 
@@ -173,7 +173,7 @@ func TestForwarderRetry(t *testing.T) {
 }
 
 func TestForwarderRetryLifo(t *testing.T) {
-	forwarder := newDomainForwarder("test", nil, 1, 10, 0)
+	forwarder := newDomainForwarderForTest(0)
 	forwarder.init()
 
 	transaction1 := newTestTransaction()
@@ -202,7 +202,7 @@ func TestForwarderRetryLifo(t *testing.T) {
 }
 
 func TestForwarderRetryLimitQueue(t *testing.T) {
-	forwarder := newDomainForwarder("test", nil, 1, 10, 0)
+	forwarder := newDomainForwarderForTest(0)
 	forwarder.init()
 
 	forwarder.retryQueueLimit = 1
@@ -237,8 +237,8 @@ func TestDomainForwarderRetryQueueAllPayloadsMaxSize(t *testing.T) {
 	defer func() { flushInterval = oldFlushInterval }()
 	flushInterval = 1 * time.Minute
 
-	transactionContainer := newTransactionContainer(nil, 1+2, 0)
-	forwarder := newDomainForwarder("test", transactionContainer, 0, 10, 0)
+	transactionContainer := newTransactionContainer(sortByCreatedTimeAndPriority{highPriorityFirst: true}, nil, 1+2, 0)
+	forwarder := newDomainForwarder("test", transactionContainer, 0, 10, 0, sortByCreatedTimeAndPriority{highPriorityFirst: true})
 	forwarder.blockedList.close("blocked")
 	forwarder.blockedList.errorPerEndpoint["blocked"].until = time.Now().Add(1 * time.Minute)
 
@@ -258,4 +258,9 @@ func TestDomainForwarderRetryQueueAllPayloadsMaxSize(t *testing.T) {
 	require.Equal(t, 2, transactionContainer.GetTransactionCount())
 	require.Equal(t, 1, forwarder.retryQueue[0].GetPayloadSize())
 	require.Equal(t, 2, forwarder.retryQueue[1].GetPayloadSize())
+}
+
+func newDomainForwarderForTest(connectionResetInterval time.Duration) *domainForwarder {
+	sorter := sortByCreatedTimeAndPriority{highPriorityFirst: true}
+	return newDomainForwarder("test", nil, 1, 10, connectionResetInterval, sorter)
 }

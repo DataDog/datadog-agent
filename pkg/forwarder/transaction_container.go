@@ -14,6 +14,10 @@ type transactionStorage interface {
 	Deserialize() ([]Transaction, error)
 }
 
+type transactionPrioritySorter interface {
+	Sort([]Transaction)
+}
+
 // transactionContainer stores transactions in memory and flush them to disk when the memory
 // limit is exceeded.
 type transactionContainer struct {
@@ -21,16 +25,19 @@ type transactionContainer struct {
 	currentMemSizeInBytes      int
 	maxMemSizeInBytes          int
 	flushToStorageRatio        float64
+	dropPrioritySorter         transactionPrioritySorter
 	optionalTransactionStorage transactionStorage
 }
 
 func newTransactionContainer(
+	dropPrioritySorter transactionPrioritySorter,
 	optionalTransactionStorage transactionStorage,
 	maxMemSizeInBytes int,
 	flushToStorageRatio float64) *transactionContainer {
 	return &transactionContainer{
 		maxMemSizeInBytes:          maxMemSizeInBytes,
 		flushToStorageRatio:        flushToStorageRatio,
+		dropPrioritySorter:         dropPrioritySorter,
 		optionalTransactionStorage: optionalTransactionStorage,
 	}
 }
@@ -126,6 +133,7 @@ func (f *transactionContainer) extractTransactions(payloadSizeInBytesToExtract i
 	sizeInBytesExtracted := 0
 	var transactionsExtracted []Transaction
 
+	f.dropPrioritySorter.Sort(f.transactions)
 	for ; i < len(f.transactions) && sizeInBytesExtracted < payloadSizeInBytesToExtract; i++ {
 		transaction := f.transactions[i]
 		sizeInBytesExtracted += transaction.GetPayloadSize()

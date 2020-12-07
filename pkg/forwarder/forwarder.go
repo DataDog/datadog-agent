@@ -9,6 +9,7 @@ import (
 	"expvar"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -215,6 +216,30 @@ type DefaultForwarder struct {
 	completionHandler HTTPCompletionHandler
 }
 
+type sortByCreatedTimeAndPriority struct {
+	highPriorityFirst bool
+}
+
+func (s sortByCreatedTimeAndPriority) Sort(transactions []Transaction) {
+	sorter := byCreatedTimeAndPriority(transactions)
+	if s.highPriorityFirst {
+		sort.Sort(sorter)
+	} else {
+		sort.Sort(sort.Reverse(sorter))
+	}
+}
+
+type byCreatedTimeAndPriority []Transaction
+
+func (v byCreatedTimeAndPriority) Len() int      { return len(v) }
+func (v byCreatedTimeAndPriority) Swap(i, j int) { v[i], v[j] = v[j], v[i] }
+func (v byCreatedTimeAndPriority) Less(i, j int) bool {
+	if v[i].GetPriority() != v[j].GetPriority() {
+		return v[i].GetPriority() > v[j].GetPriority()
+	}
+	return v[i].GetCreatedAt().After(v[j].GetCreatedAt())
+}
+
 // NewDefaultForwarder returns a new DefaultForwarder.
 func NewDefaultForwarder(options *Options) *DefaultForwarder {
 	f := &DefaultForwarder{
@@ -237,6 +262,8 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 	}
 
 	flushToDiskMemRatio := config.Datadog.GetFloat64("forwarder_flush_to_disk_mem_ratio")
+	domainForwarderSort := sortByCreatedTimeAndPriority{highPriorityFirst: true}
+	transactionContainerSort := sortByCreatedTimeAndPriority{highPriorityFirst: false}
 
 	for domain, keys := range options.KeysPerDomain {
 		domain, _ := config.AddAgentVersionToDomain(domain, "app")
@@ -250,7 +277,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 
 			var transactionContainer *transactionContainer
 			if options.RetryQueuePayloadsTotalMaxSize > 0 {
-				transactionContainer = newTransactionContainer(optionalTransactionsFileStorage, options.RetryQueuePayloadsTotalMaxSize, flushToDiskMemRatio)
+				transactionContainer = newTransactionContainer(transactionContainerSort, optionalTransactionsFileStorage, options.RetryQueuePayloadsTotalMaxSize, flushToDiskMemRatio)
 			}
 			f.keysPerDomains[domain] = keys
 			f.domainForwarders[domain] = newDomainForwarder(
@@ -258,7 +285,8 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 				transactionContainer,
 				options.NumberOfWorkers,
 				options.RetryQueueSize,
-				options.ConnectionResetInterval)
+				options.ConnectionResetInterval,
+				domainForwarderSort)
 		}
 	}
 
