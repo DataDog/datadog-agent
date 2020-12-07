@@ -36,6 +36,7 @@ func testStringField(t *testing.T, name string, get func(span *Span) string) {
 		assert.Nil(t, err)
 		assert.Equal(t, "", get(s))
 	})
+
 	t.Run("BinType", func(t *testing.T) {
 		b := newEmptyMessage()
 		b = msgp.AppendString(b, name)
@@ -44,6 +45,7 @@ func testStringField(t *testing.T, name string, get func(span *Span) string) {
 		assert.Nil(t, err)
 		assert.Equal(t, "test_string", get(s))
 	})
+
 	t.Run("StrType", func(t *testing.T) {
 		b := newEmptyMessage()
 		b = msgp.AppendString(b, name)
@@ -52,6 +54,7 @@ func testStringField(t *testing.T, name string, get func(span *Span) string) {
 		assert.Nil(t, err)
 		assert.Equal(t, "test_string", get(s))
 	})
+
 	t.Run("BinType_InvalidUTF8", func(t *testing.T) {
 		b := newEmptyMessage()
 		b = msgp.AppendString(b, name)
@@ -60,6 +63,7 @@ func testStringField(t *testing.T, name string, get func(span *Span) string) {
 		assert.Nil(t, err)
 		assert.Equal(t, "op��", get(s))
 	})
+
 	t.Run("StrType_InvalidUTF8", func(t *testing.T) {
 		bts := newEmptyMessage()
 		bts = msgp.AppendString(bts, name)
@@ -79,6 +83,7 @@ func testUint64Field(t *testing.T, name string, get func(span *Span) uint64) {
 		assert.Nil(t, err)
 		assert.Equal(t, uint64(0), get(s))
 	})
+
 	t.Run("Unsigned", func(t *testing.T) {
 		b := newEmptyMessage()
 		b = msgp.AppendString(b, name)
@@ -87,6 +92,7 @@ func testUint64Field(t *testing.T, name string, get func(span *Span) uint64) {
 		assert.Nil(t, err)
 		assert.Equal(t, uint64(42), get(s))
 	})
+
 	t.Run("Signed", func(t *testing.T) {
 		b := newEmptyMessage()
 		b = msgp.AppendString(b, name)
@@ -106,6 +112,7 @@ func testInt64Field(t *testing.T, name string, get func(span *Span) int64) {
 		assert.Nil(t, err)
 		assert.Equal(t, int64(0), get(s))
 	})
+
 	t.Run("Unsigned", func(t *testing.T) {
 		b := newEmptyMessage()
 		b = msgp.AppendString(b, name)
@@ -114,6 +121,7 @@ func testInt64Field(t *testing.T, name string, get func(span *Span) int64) {
 		assert.Nil(t, err)
 		assert.Equal(t, int64(42), get(s))
 	})
+
 	t.Run("Signed", func(t *testing.T) {
 		b := newEmptyMessage()
 		b = msgp.AppendString(b, name)
@@ -133,6 +141,7 @@ func testInt32Field(t *testing.T, name string, get func(span *Span) int32) {
 		assert.Nil(t, err)
 		assert.Equal(t, int32(0), get(s))
 	})
+
 	t.Run("Unsigned", func(t *testing.T) {
 		b := newEmptyMessage()
 		b = msgp.AppendString(b, name)
@@ -141,6 +150,7 @@ func testInt32Field(t *testing.T, name string, get func(span *Span) int32) {
 		assert.Nil(t, err)
 		assert.Equal(t, int32(42), get(s))
 	})
+
 	t.Run("Signed", func(t *testing.T) {
 		b := newEmptyMessage()
 		b = msgp.AppendString(b, name)
@@ -160,6 +170,7 @@ func TestMetaMapDeserialization(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Nil(t, s.Meta)
 	})
+
 	t.Run("Empty", func(t *testing.T) {
 		b := newEmptyMessage()
 		b = msgp.AppendString(b, "meta")
@@ -168,6 +179,7 @@ func TestMetaMapDeserialization(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Nil(t, s.Meta)
 	})
+
 	t.Run("StrType", func(t *testing.T) {
 		b := newEmptyMessage()
 		b = msgp.AppendString(b, "meta")
@@ -178,6 +190,7 @@ func TestMetaMapDeserialization(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, map[string]string{"key": "value"}, s.Meta)
 	})
+
 	t.Run("BinType", func(t *testing.T) {
 		b := newEmptyMessage()
 		b = msgp.AppendString(b, "meta")
@@ -188,6 +201,7 @@ func TestMetaMapDeserialization(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, map[string]string{"key": "value"}, s.Meta)
 	})
+
 	t.Run("StrType_InvalidUTF8", func(t *testing.T) {
 		b := newEmptyMessage()
 		b = msgp.AppendString(b, "meta")
@@ -198,6 +212,7 @@ func TestMetaMapDeserialization(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, map[string]string{"key": "op��"}, s.Meta)
 	})
+
 	t.Run("BinType_InvalidUTF8", func(t *testing.T) {
 		b := newEmptyMessage()
 		b = msgp.AppendString(b, "meta")
@@ -219,6 +234,7 @@ func TestMetricsMapDeserialization(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Nil(t, s.Metrics)
 	})
+
 	t.Run("Empty", func(t *testing.T) {
 		b := newEmptyMessage()
 		b = msgp.AppendString(b, "metrics")
@@ -227,6 +243,7 @@ func TestMetricsMapDeserialization(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Nil(t, s.Metrics)
 	})
+
 	t.Run("StrType_Float64", func(t *testing.T) {
 		b := newEmptyMessage()
 		b = msgp.AppendString(b, "metrics")
@@ -237,6 +254,7 @@ func TestMetricsMapDeserialization(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, map[string]float64{"key": 42.42}, s.Metrics)
 	})
+
 	t.Run("BinType_Float64", func(t *testing.T) {
 		b := newEmptyMessage()
 		b = msgp.AppendString(b, "metrics")
@@ -247,6 +265,7 @@ func TestMetricsMapDeserialization(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, map[string]float64{"key": 42.42}, s.Metrics)
 	})
+
 	t.Run("StrType_InvalidUTF8_Float64", func(t *testing.T) {
 		b := newEmptyMessage()
 		b = msgp.AppendString(b, "metrics")
@@ -257,6 +276,7 @@ func TestMetricsMapDeserialization(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, map[string]float64{"key��": 42.42}, s.Metrics)
 	})
+
 	t.Run("BinType_InvalidUTF8_Float64", func(t *testing.T) {
 		b := newEmptyMessage()
 		b = msgp.AppendString(b, "metrics")
@@ -267,6 +287,7 @@ func TestMetricsMapDeserialization(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, map[string]float64{"key��": 42.42}, s.Metrics)
 	})
+
 	t.Run("StrType_UInt64", func(t *testing.T) {
 		b := newEmptyMessage()
 		b = msgp.AppendString(b, "metrics")
@@ -277,6 +298,7 @@ func TestMetricsMapDeserialization(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, map[string]float64{"key": 42}, s.Metrics)
 	})
+
 	t.Run("StrType_Int64", func(t *testing.T) {
 		b := newEmptyMessage()
 		b = msgp.AppendString(b, "metrics")
@@ -295,41 +317,49 @@ func TestDeserialization(t *testing.T) {
 			return span.Service
 		})
 	})
+
 	t.Run("name", func(t *testing.T) {
 		testStringField(t, "name", func(span *Span) string {
 			return span.Name
 		})
 	})
+
 	t.Run("resoure", func(t *testing.T) {
 		testStringField(t, "resource", func(span *Span) string {
 			return span.Resource
 		})
 	})
+
 	t.Run("type", func(t *testing.T) {
 		testStringField(t, "type", func(span *Span) string {
 			return span.Type
 		})
 	})
+
 	t.Run("trace_id", func(t *testing.T) {
 		testUint64Field(t, "trace_id", func(span *Span) uint64 {
 			return span.TraceID
 		})
 	})
+
 	t.Run("span_id", func(t *testing.T) {
 		testUint64Field(t, "span_id", func(span *Span) uint64 {
 			return span.SpanID
 		})
 	})
+
 	t.Run("start", func(t *testing.T) {
 		testInt64Field(t, "start", func(span *Span) int64 {
 			return span.Start
 		})
 	})
+
 	t.Run("duration", func(t *testing.T) {
 		testInt64Field(t, "duration", func(span *Span) int64 {
 			return span.Duration
 		})
 	})
+
 	t.Run("error", func(t *testing.T) {
 		testInt32Field(t, "error", func(span *Span) int32 {
 			return span.Error
