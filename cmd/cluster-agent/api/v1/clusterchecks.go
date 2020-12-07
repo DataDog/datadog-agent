@@ -133,7 +133,7 @@ func postCheckConfigs(sc clusteragent.ServerContext) func(w http.ResponseWriter,
 			incrementRequestMetric("postCheckConfigs", http.StatusInternalServerError)
 			return
 		}
-		response, err := sc.ClusterCheckHandler.PostConfigs(nodeName)
+		response, err := sc.ClusterCheckHandler.PostConfigs(nodeName, configs)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			incrementRequestMetric("postCheckConfigs", http.StatusInternalServerError)
