@@ -148,6 +148,6 @@ instances:
     #         - <REGEX>
 
     ## @param collect_default_jvm_metrics - boolean - optional - default: true
-    ## Collects default JVM metrics when true
+    ## Allows disabling the collection of default JVM metrics
     #
     # collect_default_jvm_metrics: false
