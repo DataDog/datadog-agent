@@ -63,12 +63,12 @@ func (tx *httpTX) StatusClass() int {
 // IsDirty detects whether the batch page we're supposed to read from is still
 // valid.  A "dirty" page here means that between the time the
 // http_notification_t message was sent to userspace and the time we performed
-// the batch lookup the page was overriden.
+// the batch lookup the page was overridden.
 func (batch *httpBatch) IsDirty(notification httpNotification) bool {
 	return batch.idx != notification.batch_idx
 }
 
-// GetTransactions extracts the HTTP transactions from the batch acording to the
+// GetTransactions extracts the HTTP transactions from the batch according to the
 // httpNotification received from the Kernel.
 func (batch *httpBatch) GetTransactions(notif httpNotification) *[HTTPBatchSize]httpTX {
 	return (*[HTTPBatchSize]httpTX)(unsafe.Pointer(&batch.txs))
