@@ -1,8 +1,8 @@
 #include "stdafx.h"
 
-CustomActionData::CustomActionData() :
-    domainUser(false),
-    doInstallSysprobe(false)
+CustomActionData::CustomActionData()
+: domainUser(false)
+, doInstallSysprobe(false)
 {
 
 }
