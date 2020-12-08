@@ -9,4 +9,4 @@
 enhancements:
   - |
     Add a new config flag ``forwarder_storage_max_size_in_bytes`` that defines the maximum disk space 
-    usage for storing transactions when the memory retry queue is full.
+    used for storing failed transactions when the memory retry queue is full.
