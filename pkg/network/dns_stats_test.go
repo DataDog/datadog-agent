@@ -33,7 +33,7 @@ func testLatency(
 	expectedFailureLatency uint64,
 	expectedTimeouts uint32,
 ) {
-	var d domain = "abc.com"
+	var d = "abc.com"
 	sk := newDNSStatkeeper(DNSTimeoutSecs * time.Second)
 	key := getSampleDNSKey()
 	qPkt := dnsPacketInfo{transactionID: 1, pktType: Query, key: key, question: string(d)}
@@ -73,7 +73,7 @@ func TestTimeout(t *testing.T) {
 func TestExpiredStateRemoval(t *testing.T) {
 	sk := newDNSStatkeeper(DNSTimeoutSecs * time.Second)
 	key := getSampleDNSKey()
-	var d domain = "abc.com"
+	var d = "abc.com"
 	qPkt1 := dnsPacketInfo{transactionID: 1, pktType: Query, key: key, question: string(d)}
 	rPkt1 := dnsPacketInfo{transactionID: 1, key: key, pktType: SuccessfulResponse}
 	qPkt2 := dnsPacketInfo{transactionID: 2, pktType: Query, key: key, question: string(d)}

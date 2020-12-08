@@ -35,7 +35,7 @@ type State interface {
 		clientID string,
 		latestTime uint64,
 		latestConns []ConnectionStats,
-		dns map[dnsKey]map[domain]dnsStats,
+		dns map[dnsKey]map[string]dnsStats,
 	) []ConnectionStats
 
 	// StoreClosedConnection stores a new closed connection
@@ -80,7 +80,7 @@ type client struct {
 
 	closedConnections map[string]ConnectionStats
 	stats             map[string]*stats
-	dnsStats          map[dnsKey]map[domain]dnsStats
+	dnsStats          map[dnsKey]map[string]dnsStats
 }
 
 type networkState struct {
@@ -130,7 +130,7 @@ func (ns *networkState) Connections(
 	id string,
 	latestTime uint64,
 	latestConns []ConnectionStats,
-	dnsStats map[dnsKey]map[domain]dnsStats,
+	dnsStats map[dnsKey]map[string]dnsStats,
 ) []ConnectionStats {
 	ns.Lock()
 	defer ns.Unlock()
@@ -227,7 +227,7 @@ func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
 					conn.DNSCountByRcode[uint32(rcode)] += count
 					total += count
 				}
-				conn.DNSStatsByDomain[string(domain)] = ds
+				conn.DNSStatsByDomain[domain] = ds
 				conn.DNSSuccessfulResponses += dnsStats.countByRcode[DNSResponseCodeNoError]
 			}
 			conn.DNSFailedResponses = total - conn.DNSSuccessfulResponses
@@ -236,7 +236,7 @@ func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
 	}
 
 	// flush the DNS stats
-	ns.clients[id].dnsStats = make(map[dnsKey]map[domain]dnsStats)
+	ns.clients[id].dnsStats = make(map[dnsKey]map[string]dnsStats)
 }
 
 // getConnsByKey returns a mapping of byte-key -> connection for easier access + manipulation
@@ -292,7 +292,7 @@ func (ns *networkState) StoreClosedConnection(conn *ConnectionStats) {
 }
 
 // storeDNSStats stores latest DNS stats for all clients
-func (ns *networkState) storeDNSStats(stats map[dnsKey]map[domain]dnsStats) {
+func (ns *networkState) storeDNSStats(stats map[dnsKey]map[string]dnsStats) {
 	for key, statsByDomain := range stats {
 		for _, client := range ns.clients {
 			// If we've seen DNS stats for this key already, let's combine the two
@@ -332,7 +332,7 @@ func (ns *networkState) newClient(clientID string) (*client, bool) {
 		lastFetch:         time.Now(),
 		stats:             map[string]*stats{},
 		closedConnections: map[string]ConnectionStats{},
-		dnsStats:          map[dnsKey]map[domain]dnsStats{},
+		dnsStats:          map[dnsKey]map[string]dnsStats{},
 	}
 	ns.clients[clientID] = c
 	return c, false

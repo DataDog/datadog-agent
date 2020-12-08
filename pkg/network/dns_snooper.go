@@ -78,7 +78,7 @@ func NewSocketFilterSnooper(cfg *config.Config, filter *manager.Probe) (*SocketF
 	}
 	snooper := &SocketFilterSnooper{
 		source:          packetSrc,
-		parser:          newDNSParser(cfg.CollectDNSStats),
+		parser:          newDNSParser(cfg.CollectDNSStats, cfg.CollectDNSDomains),
 		cache:           cache,
 		statKeeper:      statKeeper,
 		translation:     new(translation),
@@ -108,7 +108,7 @@ func (s *SocketFilterSnooper) Resolve(connections []ConnectionStats) map[util.Ad
 	return s.cache.Get(connections, time.Now())
 }
 
-func (s *SocketFilterSnooper) GetDNSStats() map[dnsKey]map[domain]dnsStats {
+func (s *SocketFilterSnooper) GetDNSStats() map[dnsKey]map[string]dnsStats {
 	if s.statKeeper == nil {
 		return nil
 	}

@@ -55,14 +55,12 @@ type stateKey struct {
 
 type stateValue struct {
 	ts       uint64
-	question domain
+	question string
 }
-
-type domain string
 
 type dnsStatKeeper struct {
 	mux              sync.Mutex
-	stats            map[dnsKey]map[domain]dnsStats
+	stats            map[dnsKey]map[string]dnsStats
 	state            map[stateKey]stateValue
 	expirationPeriod time.Duration
 	exit             chan struct{}
@@ -72,7 +70,7 @@ type dnsStatKeeper struct {
 
 func newDNSStatkeeper(timeout time.Duration) *dnsStatKeeper {
 	statsKeeper := &dnsStatKeeper{
-		stats:            make(map[dnsKey]map[domain]dnsStats),
+		stats:            make(map[dnsKey]map[string]dnsStats),
 		state:            make(map[stateKey]stateValue),
 		expirationPeriod: timeout,
 		exit:             make(chan struct{}),
@@ -98,7 +96,7 @@ func microSecs(t time.Time) uint64 {
 	return uint64(t.UnixNano() / 1000)
 }
 
-func (d *dnsStatKeeper) getStats(key dnsKey) map[domain]dnsStats {
+func (d *dnsStatKeeper) getStats(key dnsKey) map[string]dnsStats {
 	return d.stats[key]
 }
 
@@ -113,7 +111,7 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 		}
 
 		if _, ok := d.state[sk]; !ok {
-			d.state[sk] = stateValue{question: domain(info.question), ts: microSecs(ts)}
+			d.state[sk] = stateValue{question: info.question, ts: microSecs(ts)}
 		}
 		return
 	}
@@ -132,7 +130,7 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 
 	allStats, ok := d.stats[info.key]
 	if !ok {
-		allStats = make(map[domain]dnsStats)
+		allStats = make(map[string]dnsStats)
 	}
 	stats, ok := allStats[start.question]
 	if !ok {
@@ -155,11 +153,11 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 	d.stats[info.key] = allStats
 }
 
-func (d *dnsStatKeeper) GetAndResetAllStats() map[dnsKey]map[domain]dnsStats {
+func (d *dnsStatKeeper) GetAndResetAllStats() map[dnsKey]map[string]dnsStats {
 	d.mux.Lock()
 	defer d.mux.Unlock()
 	ret := d.stats // No deep copy needed since `d.stats` gets reset
-	d.stats = make(map[dnsKey]map[domain]dnsStats)
+	d.stats = make(map[dnsKey]map[string]dnsStats)
 	return ret
 }
 
@@ -173,7 +171,7 @@ func (d *dnsStatKeeper) removeExpiredStates(earliestTs time.Time) {
 			delete(d.state, k)
 			allStats, ok := d.stats[k.key]
 			if !ok {
-				allStats = make(map[domain]dnsStats)
+				allStats = make(map[string]dnsStats)
 			}
 			stats, ok := allStats[v.question]
 			if !ok {
