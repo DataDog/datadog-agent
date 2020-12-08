@@ -18,6 +18,13 @@ type transactionPrioritySorter interface {
 	Sort([]Transaction)
 }
 
+type transactionContainerTelemetry interface {
+	setCurrentMemSizeInBytes(int)
+	setTransactionsCount(int)
+	addTransactionsDroppedCount(int)
+	addErrorsCount()
+}
+
 // transactionContainer stores transactions in memory and flush them to disk when the memory
 // limit is exceeded.
 type transactionContainer struct {

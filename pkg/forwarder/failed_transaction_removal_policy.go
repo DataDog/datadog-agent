@@ -18,6 +18,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
+type failedTransactionRemovalPolicyTelemetry interface {
+	addNewRemovalPolicyCount()
+	addRegisteredDomainCount()
+	addOutdatedFilesCount(count int)
+	addFilesFromUnknownDomainCount(count int)
+}
+
 type failedTransactionRemovalPolicy struct {
 	rootPath           string
 	knownDomainFolders map[string]struct{}
