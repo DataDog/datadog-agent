@@ -579,6 +579,10 @@ ORDER BY [b].[Name]`,
 			"{ call px_cu_se_security_pg.sps_get_my_accounts_count ( ? ) }",
 		},
 		{
+			`{call curly_fun('{{', '}}', '}', '}')};`,
+			"{ call curly_fun ( ? ) }",
+		},
+		{
 			`SELECT id, name FROM emp WHERE name LIKE {fn UCASE('Smith')}`,
 			`SELECT id, name FROM emp WHERE name LIKE ?`,
 		},
