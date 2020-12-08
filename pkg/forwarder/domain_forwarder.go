@@ -105,7 +105,7 @@ func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 				transactionsRetried.Add(1)
 				tlmTxRetried.Inc(f.domain, transactionEndpointName)
 			default:
-				if enabled, dropCount, _ := f.tryAddToTransactionContainer(t); enabled {
+				if enabled, dropCount := f.tryAddToTransactionContainer(t); enabled {
 					tlmTxRequeued.Inc(f.domain, transactionEndpointName)
 					droppedWorkerBusy += dropCount
 				} else {
@@ -116,7 +116,7 @@ func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 				}
 			}
 		} else {
-			if enabled, dropCount, _ := f.tryAddToTransactionContainer(t); enabled {
+			if enabled, dropCount := f.tryAddToTransactionContainer(t); enabled {
 				newQueue = append(newQueue, t)
 				transactionsRequeued.Add(1)
 				tlmTxRequeued.Inc(f.domain, transactionEndpointName)
@@ -150,9 +150,9 @@ func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 	}
 }
 
-func (f *domainForwarder) tryAddToTransactionContainer(t Transaction) (bool, int, int) {
+func (f *domainForwarder) tryAddToTransactionContainer(t Transaction) (bool, int) {
 	if f.optionalTransactionContainer == nil {
-		return false, 0, 0
+		return false, 0
 	}
 
 	f.transactionContainerMutex.Lock()
@@ -160,7 +160,7 @@ func (f *domainForwarder) tryAddToTransactionContainer(t Transaction) (bool, int
 	if err != nil {
 		log.Errorf("Error when adding a transaction to the retry queue: %v", err)
 	}
-	retryQueueSize := f.optionalTransactionContainer.GetTransactionCount()
+
 	f.transactionContainerMutex.Unlock()
 
 	if dropCount > 0 {
@@ -169,13 +169,18 @@ func (f *domainForwarder) tryAddToTransactionContainer(t Transaction) (bool, int
 		transactionsDropped.Add(int64(dropCount))
 		tlmTxDropped.Inc(f.domain, transactionEndpointName)
 	}
-	return true, dropCount, retryQueueSize
+	return true, dropCount
 }
 
 func (f *domainForwarder) requeueTransaction(t Transaction) {
 	var retryQueueSize int
 	var enabled bool
-	if enabled, _, retryQueueSize = f.tryAddToTransactionContainer(t); !enabled {
+
+	if enabled, _ = f.tryAddToTransactionContainer(t); enabled {
+		f.transactionContainerMutex.Lock()
+		retryQueueSize = f.optionalTransactionContainer.GetTransactionCount()
+		f.transactionContainerMutex.Unlock()
+	} else {
 		f.retryQueue = append(f.retryQueue, t)
 		retryQueueSize = len(f.retryQueue)
 	}
@@ -295,7 +300,7 @@ func (f *domainForwarder) sendHTTPTransactions(transaction Transaction) error {
 	select {
 	case f.highPrio <- transaction:
 	default:
-		if enabled, _, _ := f.tryAddToTransactionContainer(transaction); !enabled {
+		if enabled, _ := f.tryAddToTransactionContainer(transaction); !enabled {
 			transactionsDroppedOnInput.Add(1)
 			tlmTxDroppedOnInput.Inc(f.domain, transaction.GetEndpointName())
 			return fmt.Errorf("the forwarder input queue for %s is full: dropping transaction", f.domain)
