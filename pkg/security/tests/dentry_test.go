@@ -416,6 +416,27 @@ func TestDentryOverlay(t *testing.T) {
 			}
 		}
 
+		f, err = os.OpenFile(testFile, os.O_RDONLY, 0755)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = f.Close(); err != nil {
+			t.Fatal(err)
+		}
+
+		event, _, err = test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if value, _ := event.GetFieldValue("open.filename"); value.(string) != testFile {
+				t.Errorf("expected filename not found")
+			}
+
+			if inode = getInode(t, testFile); inode != event.Open.Inode {
+				t.Errorf("expected inode not found %d(real) != %d\n", inode, event.Open.Inode)
+			}
+		}
+
 		if err := os.Remove(testFile); err != nil {
 			t.Fatal(err)
 		}

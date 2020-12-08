@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 )
+import "github.com/cobaugh/osrelease"
 
 const (
 	dentryPathKeyNotFound = "error: dentry path key not found"
@@ -79,6 +80,23 @@ func (p *PathKey) MarshalBinary() ([]byte, error) {
 type PathValue struct {
 	Parent PathKey
 	Name   [128]byte
+}
+
+func getSizeOfStructInode(probe *Probe) uint64 {
+	var centos7Kernel bool
+	osrelease, err := osrelease.Read()
+	if err == nil {
+		centos7Kernel = (osrelease["ID"] == "centos") && (osrelease["VERSION_ID"] == "7")
+	}
+
+	var sizeOf uint64
+	if centos7Kernel {
+		sizeOf = 584
+	} else {
+		sizeOf = 600
+	}
+
+	return sizeOf
 }
 
 // DelCacheEntry removes an entry from the cache

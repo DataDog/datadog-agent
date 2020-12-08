@@ -19,9 +19,7 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -251,36 +249,23 @@ func (mr *MountResolver) GetMountPath(mountID uint32) (string, string, string, e
 	return mr.getOverlayPath(ref), mr.getParentPath(mountID), mount.RootStr, nil
 }
 
-func (mr *MountResolver) setMountIDOffset() error {
+func getMountIDOffset(probe *Probe) uint64 {
 	var suseKernel bool
 	osrelease, err := osrelease.Read()
 	if err == nil {
 		suseKernel = (osrelease["ID"] == "sles") || (osrelease["ID"] == "opensuse-leap")
 	}
 
-	var offsetItem ebpf.Uint32MapItem
+	var offset uint64
 	if suseKernel {
-		offsetItem = 292
-	} else if mr.probe.kernelVersion != 0 && mr.probe.kernelVersion <= kernel4_13 {
-		offsetItem = 268
+		offset = 292
+	} else if probe.kernelVersion != 0 && probe.kernelVersion <= kernel4_13 {
+		offset = 268
+	} else {
+		offset = 284
 	}
 
-	if offsetItem != 0 {
-		log.Debugf("Setting mount_id offset to %d", offsetItem)
-
-		table, err := mr.probe.Map("mount_id_offset")
-		if err != nil {
-			return err
-		}
-		return table.Put(ebpf.ZeroUint32MapItem, offsetItem)
-	}
-
-	return nil
-}
-
-// Start the mount resolver
-func (mr *MountResolver) Start() error {
-	return mr.setMountIDOffset()
+	return offset
 }
 
 // NewMountResolver instantiates a new mount resolver
