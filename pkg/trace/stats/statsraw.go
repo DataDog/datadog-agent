@@ -80,7 +80,7 @@ func (sb *RawBucket) Export() Bucket {
 	ret := NewBucket(sb.start, sb.duration)
 	for k, v := range sb.data {
 		hitsKey := GrainKey(k.name, HITS, k.aggr)
-		tagSet := k.aggr.toTags()
+		tagSet := k.aggr.toTagSet()
 		ret.Counts[hitsKey] = Count{
 			Key:      hitsKey,
 			Name:     k.name,
@@ -125,7 +125,7 @@ func (sb *RawBucket) Export() Bucket {
 		}
 		for sk, sv := range v.sublayerStats {
 			key := GrainKey(k.name, sk.Metric, k.aggr) + "," + sk.Tag.Name + ":" + sk.Tag.Value
-			tagSet := append(k.aggr.toTags(), sk.Tag)
+			tagSet := append(k.aggr.toTagSet(), sk.Tag)
 			ret.Counts[key] = Count{
 				Key:      key,
 				Name:     k.name,
@@ -180,8 +180,10 @@ func (sb *RawBucket) add(s *WeightedSpan, aggr aggregation, sublayers []Sublayer
 	}
 
 	for _, sub := range sublayers {
-		var ss sublayerStat
-		var ok bool
+		var (
+			ss sublayerStat
+			ok bool
+		)
 
 		sKey := sublayerKey{sub.Metric, sub.Tag}
 		if ss, ok = gs.sublayerStats[sKey]; !ok {

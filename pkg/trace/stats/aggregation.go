@@ -6,12 +6,13 @@ import (
 )
 
 const (
-	hostnameTag   = "_dd.hostname"
-	statusCodeTag = "http.status_code"
-	versionTag    = "version"
+	tagHostname   = "_dd.hostname"
+	tagStatusCode = "http.status_code"
+	tagVersion    = "version"
 )
 
-// When adding or removing fields to aggregation the methods toTags, keyLen and
+// aggregation contains all the dimension on which we aggregate statistics
+// when adding or removing fields to aggregation the methods toTagSet, keyLen and
 // writeKey should always be updated accordingly
 type aggregation struct {
 	Env        string
@@ -27,25 +28,25 @@ func newAggregationFromSpan(s *pb.Span, env string) aggregation {
 		Env:        env,
 		Resource:   s.Resource,
 		Service:    s.Service,
-		Hostname:   s.Meta[hostnameTag],
-		StatusCode: s.Meta[statusCodeTag],
-		Version:    s.Meta[versionTag],
+		Hostname:   s.Meta[tagHostname],
+		StatusCode: s.Meta[tagStatusCode],
+		Version:    s.Meta[tagVersion],
 	}
 }
 
-func (aggr *aggregation) toTags() TagSet {
+func (aggr *aggregation) toTagSet() TagSet {
 	tagSet := make(TagSet, 3, 7)
 	tagSet[0] = Tag{"env", aggr.Env}
 	tagSet[1] = Tag{"resource", aggr.Resource}
 	tagSet[2] = Tag{"service", aggr.Service}
 	if len(aggr.Hostname) > 0 {
-		tagSet = append(tagSet, Tag{hostnameTag, aggr.Hostname})
+		tagSet = append(tagSet, Tag{tagHostname, aggr.Hostname})
 	}
 	if len(aggr.StatusCode) > 0 {
-		tagSet = append(tagSet, Tag{statusCodeTag, aggr.StatusCode})
+		tagSet = append(tagSet, Tag{tagStatusCode, aggr.StatusCode})
 	}
 	if len(aggr.Version) > 0 {
-		tagSet = append(tagSet, Tag{versionTag, aggr.Version})
+		tagSet = append(tagSet, Tag{tagVersion, aggr.Version})
 	}
 	return tagSet
 }
@@ -54,15 +55,15 @@ func (aggr *aggregation) keyLen() int {
 	length := len("env:") + len(aggr.Env) + len(",resource:") + len(aggr.Resource) + len(",service:") + len(aggr.Service)
 	if len(aggr.Hostname) > 0 {
 		// +2 for "," and ":" separator
-		length += 1 + len(hostnameTag) + 1 + len(aggr.Hostname)
+		length += 1 + len(tagHostname) + 1 + len(aggr.Hostname)
 	}
 	if len(aggr.StatusCode) > 0 {
 		// +2 for "," and ":" separator
-		length += 1 + len(statusCodeTag) + 1 + len(aggr.StatusCode)
+		length += 1 + len(tagStatusCode) + 1 + len(aggr.StatusCode)
 	}
 	if len(aggr.Version) > 0 {
 		// +2 for "," and ":" separator
-		length += 1 + len(versionTag) + 1 + len(aggr.Version)
+		length += 1 + len(tagVersion) + 1 + len(aggr.Version)
 	}
 	return length
 }
@@ -77,15 +78,15 @@ func (aggr *aggregation) writeKey(b *strings.Builder) {
 
 	// Keys should be written in lexicographical order of the tag name
 	if len(aggr.Hostname) > 0 {
-		b.WriteString("," + hostnameTag + ":")
+		b.WriteString("," + tagHostname + ":")
 		b.WriteString(aggr.Hostname)
 	}
 	if len(aggr.StatusCode) > 0 {
-		b.WriteString("," + statusCodeTag + ":")
+		b.WriteString("," + tagStatusCode + ":")
 		b.WriteString(aggr.StatusCode)
 	}
 	if len(aggr.Version) > 0 {
-		b.WriteString("," + versionTag + ":")
+		b.WriteString("," + tagVersion + ":")
 		b.WriteString(aggr.Version)
 	}
 }
