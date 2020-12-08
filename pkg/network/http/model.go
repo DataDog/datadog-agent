@@ -57,7 +57,7 @@ func (tx *httpTX) Path() string {
 // StatusClass returns an integer representing the status code class
 // Example: a 404 would return 400
 func (tx *httpTX) StatusClass() int {
-	return (int(tx.status_code) / 100) * 100
+	return (int(tx.response_status_code) / 100) * 100
 }
 
 // IsDirty detects whether the batch page we're supposed to read from is still

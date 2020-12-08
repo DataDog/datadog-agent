@@ -1332,8 +1332,12 @@ int socket__dns_filter(struct __sk_buff* skb) {
     return -1;
 }
 
+static __always_inline int http_responding(http_transaction_t *http) {
+    return (http != NULL && http->response_status_code != 0);
+}
+
 static __always_inline void http_end_response(http_transaction_t *http) {
-    if (http->state != HTTP_RESPONDING) {
+    if (!http_responding(http)) {
         return;
     }
 
@@ -1399,27 +1403,27 @@ static __always_inline void http_end_response(http_transaction_t *http) {
     }
 
     batch_state->pos++;
-    log_debug("http response ended: code: %d duration: %d(ms)\n", http->status_code, (http->response_last_seen-http->request_started)/(1000*1000));
+    log_debug("http response ended: code: %d duration: %d(ms)\n", http->response_status_code, (http->response_last_seen-http->request_started)/(1000*1000));
 }
 
-static __always_inline int http_begin_request(http_transaction_t *http, http_state_t new_state, char *buffer) {
+static __always_inline int http_begin_request(http_transaction_t *http, http_method_t method, char *buffer) {
     // This can happen in the context of HTTP keep-alives;
-    if (http->state == HTTP_RESPONDING) {
+    if (http_responding(http)) {
         http_end_response(http);
     }
 
     log_debug("http request started\n");
-    http->state = new_state;
+    http->request_method = method;
     http->request_started = bpf_ktime_get_ns();
     http->response_last_seen = 0;
-    http->status_code = 0;
+    http->response_status_code = 0;
     __builtin_memcpy(&http->request_fragment, buffer, HTTP_BUFFER_SIZE);
     return 1;
 }
 
 static __always_inline int http_begin_response(http_transaction_t *http, char *buffer) {
     // We missed the corresponding request so nothing to do
-    if (!(http->state&HTTP_REQUESTING)) {
+    if (!(http->request_started)) {
         return 0;
     }
 
@@ -1442,13 +1446,12 @@ static __always_inline int http_begin_response(http_transaction_t *http, char *b
         return 0;
     }
 
-    http->state = HTTP_RESPONDING;
-    http->status_code = status_code;
-    log_debug("http response started: code: %d\n", http->status_code);
+    http->response_status_code = status_code;
+    log_debug("http response started: code: %d\n", http->response_status_code);
     return 1;
 }
 
-static __always_inline http_state_t http_read_data(struct __sk_buff* skb, skb_info_t* skb_info, char* p) {
+static __always_inline void http_read_data(struct __sk_buff* skb, skb_info_t* skb_info, char* p, http_packet_t* packet_type, http_method_t* method) {
 #pragma unroll
     for (int i = 0; i < HTTP_BUFFER_SIZE; i++) {
         if (skb_info->data_off + i <= skb->len-1) {
@@ -1460,31 +1463,35 @@ static __always_inline http_state_t http_read_data(struct __sk_buff* skb, skb_in
         }
     }
 
-    http_state_t packet_type = HTTP_UNKNOWN;
     if ((p[0] == 'H') && (p[1] == 'T') && (p[2] == 'T') && (p[3] == 'P')) {
-        packet_type = HTTP_RESPONDING;
+        *packet_type = HTTP_RESPONSE;
     } else if ((p[0] == 'G') && (p[1] == 'E') && (p[2] == 'T')) {
-        packet_type = HTTP_REQUESTING_GET;
+        *packet_type = HTTP_REQUEST;
+        *method = HTTP_GET;
     } else if ((p[0] == 'P') && (p[1] == 'O') && (p[2] == 'S') && (p[3] == 'T')) {
-        packet_type = HTTP_REQUESTING_POST;
+        *packet_type = HTTP_REQUEST;
+        *method = HTTP_POST;
     } else if ((p[0] == 'P') && (p[1] == 'U') && (p[2] == 'T')) {
-        packet_type = HTTP_REQUESTING_PUT;
+        *packet_type = HTTP_REQUEST;
+        *method = HTTP_POST;
     } else if ((p[0] == 'D') && (p[1] == 'E') && (p[2] == 'L') && (p[3] == 'E') && (p[4] == 'T') && (p[5] == 'E')) {
-        packet_type = HTTP_REQUESTING_DELETE;
+        *packet_type = HTTP_REQUEST;
+        *method = HTTP_DELETE;
     } else if ((p[0] == 'H') && (p[1] == 'E') && (p[2] == 'A') && (p[3] == 'D')) {
-        packet_type = HTTP_REQUESTING_HEAD;
+        *packet_type = HTTP_RESPONSE;
+        *method = HTTP_HEAD;
     }
-
-    return packet_type;
 }
 
 static __always_inline int http_handle_packet(struct __sk_buff* skb, skb_info_t* skb_info) {
     char buffer[HTTP_BUFFER_SIZE];
     __builtin_memset(&buffer, '\0', sizeof(HTTP_BUFFER_SIZE));
 
-    http_state_t packet_type = http_read_data(skb, skb_info, buffer);
+    http_packet_t packet_type = HTTP_PACKET_UNKNOWN;
+    http_method_t method = HTTP_METHOD_UNKNOWN;
+    http_read_data(skb, skb_info, buffer, &packet_type, &method);
 
-    if (packet_type&HTTP_REQUESTING) {
+    if (packet_type == HTTP_REQUEST) {
         // Ensure the creation of a http_transaction_t entry for tracking this request
         http_transaction_t new_entry = {};
         __builtin_memcpy(&new_entry.tup, &skb_info->tup, sizeof(conn_tuple_t));
@@ -1497,15 +1504,15 @@ static __always_inline int http_handle_packet(struct __sk_buff* skb, skb_info_t*
         return 0;
     }
 
-    if (packet_type&HTTP_REQUESTING) {
+    if (packet_type == HTTP_REQUEST) {
         // We intercepted the first segment of the HTTP *request*
-        http_begin_request(http, packet_type, buffer);
-    } else if (packet_type == HTTP_RESPONDING) {
+        http_begin_request(http, method, buffer);
+    } else if (packet_type == HTTP_RESPONSE) {
         // We intercepted the first segment of the HTTP *response*
         http_begin_response(http, buffer);
     }
 
-    if (http->state == HTTP_RESPONDING) {
+    if (http_responding(http)) {
         if (skb->len-1 > skb_info->data_off) {
             // Only if we have a (L7/application-layer) payload we want to update the response_last_seen
             // This is to prevent things such as a keep-alive adding up to the transaction latency

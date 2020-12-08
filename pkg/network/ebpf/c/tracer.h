@@ -80,16 +80,19 @@ typedef struct {
 #define HTTP_BATCH_PAGES 10
 
 typedef enum {
-    HTTP_UNKNOWN           = 0,
-    HTTP_RESPONDING        = 1,
-    HTTP_REQUESTING_GET    = 1 << 1,
-    HTTP_REQUESTING_POST   = 1 << 2,
-    HTTP_REQUESTING_PUT    = 1 << 3,
-    HTTP_REQUESTING_DELETE = 1 << 4,
-    HTTP_REQUESTING_HEAD   = 1 << 5,
-} http_state_t;
+    HTTP_PACKET_UNKNOWN,
+    HTTP_REQUEST,
+    HTTP_RESPONSE
+} http_packet_t;
 
-static const __u8 HTTP_REQUESTING = HTTP_REQUESTING_GET|HTTP_REQUESTING_POST|HTTP_REQUESTING_PUT|HTTP_REQUESTING_DELETE|HTTP_REQUESTING_HEAD;
+typedef enum {
+    HTTP_METHOD_UNKNOWN,
+    HTTP_GET,
+    HTTP_POST,
+    HTTP_PUT,
+    HTTP_DELETE,
+    HTTP_HEAD
+} http_method_t;
 
 typedef struct {
     // idx is a monotonic counter used for uniquely determinng a batch within a CPU core
@@ -110,9 +113,9 @@ typedef struct {
 // HTTP transaction information associated to a certain socket (tuple_t)
 typedef struct {
     conn_tuple_t tup;
-    __u8 state;
+    __u8 request_method;
     __u64 request_started;
-    __u16 status_code;
+    __u16 response_status_code;
     __u64 response_last_seen;
     char request_fragment[HTTP_BUFFER_SIZE];
 } http_transaction_t;
