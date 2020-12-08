@@ -1,16 +1,16 @@
 #include "stdafx.h"
 #include "TargetMachine.h"
 
-UINT doFinalizeInstall(CustomActionData& data)
+UINT doFinalizeInstall(CustomActionData &data)
 {
     HRESULT hr = S_OK;
     UINT er = ERROR_SUCCESS;
 
-    bool ddUserExists;
+    bool ddUserExists = false;
     int ddServiceExists = 0;
     int passbuflen = 0;
-    wchar_t* passbuf = NULL;
-    const wchar_t* passToUse = NULL;
+    wchar_t *passbuf = NULL;
+    const wchar_t * passToUse = NULL;
 
     std::wstring providedPassword;
     LSA_HANDLE hLsa = NULL;
