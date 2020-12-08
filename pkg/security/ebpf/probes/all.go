@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build linux_bpf
+// +build linux
 
 package probes
 
@@ -66,13 +66,17 @@ func AllMaps() []*manager.Map {
 		{Name: "open_flags_approvers"},
 		// Exec tables
 		{Name: "proc_cache"},
-		{Name: "pid_cookie"},
+		{Name: "pid_cache"},
 		// Mount tables
 		{Name: "mount_id_offset"},
 		// Syscall monitor tables
 		{Name: "buffer_selector"},
 		{Name: "noisy_processes_fb"},
 		{Name: "noisy_processes_bb"},
+		// Flushing discarders boolean
+		{Name: "flushing_discarders"},
+		// Enabled event mask
+		{Name: "enabled_events"},
 	}
 }
 

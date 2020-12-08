@@ -269,7 +269,10 @@ func TestRegexp(t *testing.T) {
 		{Expr: `process.name !~ "/usr/sbin/*"`, Expected: true},
 		{Expr: `process.name =~ "/bin/"`, Expected: false},
 		{Expr: `process.name =~ "/bin/*"`, Expected: false},
-		{Expr: `process.name =~ ""`, Expected: false},
+		{Expr: `process.name =~ "*/bin/*"`, Expected: true},
+		{Expr: `process.name =~ "*/bin"`, Expected: false},
+		{Expr: `process.name =~ "/usr/*/c$t"`, Expected: true},
+		{Expr: `process.name =~ "/usr/*/bin/*"`, Expected: false},
 	}
 
 	for _, test := range tests {

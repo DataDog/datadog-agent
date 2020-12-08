@@ -9,7 +9,7 @@
 struct bpf_map_def SEC("maps/open_basename_approvers") open_basename_approvers = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = BASENAME_FILTER_SIZE,
-    .value_size = sizeof(struct filter_t),
+    .value_size = sizeof(u8),
     .max_entries = 255,
     .pinning = 0,
     .namespace = "",
@@ -81,7 +81,7 @@ int __attribute__((always_inline)) approve_by_basename(struct syscall_cache_t *s
     struct open_basename_t basename = {};
     get_dentry_name(syscall->open.dentry, &basename, sizeof(basename));
 
-    struct filter_t *filter = bpf_map_lookup_elem(&open_basename_approvers, &basename);
+    struct u8 *filter = bpf_map_lookup_elem(&open_basename_approvers, &basename);
     if (filter) {
 #ifdef DEBUG
         bpf_printk("open basename %s approved\n", basename.value);
@@ -167,7 +167,10 @@ int kprobe__ovl_dentry_upper(struct pt_regs *ctx) {
         return 0;
 
     struct dentry *dentry = (struct dentry *)PT_REGS_RC(ctx);
-    syscall->open.path_key.ino = get_dentry_ino(dentry);
+    u64 inode = get_dentry_ino(dentry);
+
+    if (inode && !syscall->open.path_key.ino)
+        syscall->open.path_key.ino = inode;
 
     return 0;
 }
@@ -188,7 +191,7 @@ SEC("kprobe/do_dentry_open")
 int kprobe__do_dentry_open(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN | SYSCALL_EXEC);
     if (!syscall)
-        return 0;   
+        return 0;
 
     switch(syscall->type) {
         case SYSCALL_OPEN:
@@ -237,7 +240,8 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
        return 0;
     }
 
-    fill_process_data(&event.process);
+    struct proc_cache_t *entry = fill_process_context(&event.process);
+    fill_container_context(entry, &event.container);
 
     send_event(ctx, event);
 

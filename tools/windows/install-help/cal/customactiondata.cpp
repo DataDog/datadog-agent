@@ -2,7 +2,8 @@
 
 CustomActionData::CustomActionData() :
     domainUser(false),
-    doInstallSysprobe(false)
+    doInstallSysprobe(false),
+    userParamMismatch(false)
 {
 
 }
@@ -111,22 +112,58 @@ bool CustomActionData::parseSysprobeData()
     return true;
 }
 
-bool CustomActionData::parseUsernameData()
+bool CustomActionData::findPreviousUserInfo()
 {
-    std::wstring tmpName = ddAgentUserName;
-    
-    if (this->value(propertyDDAgentUserName, tmpName)) {
-        if (tmpName.length() == 0) {
-            tmpName = ddAgentUserName;
+    ddRegKey regkeybase;
+    bool previousInstall = false;
+    if(!regkeybase.getStringValue(keyInstalledUser.c_str(), pvsUser) ||
+       !regkeybase.getStringValue(keyInstalledDomain.c_str(), pvsDomain) ||
+       pvsUser.length() == 0 ||
+       pvsDomain.length() == 0)
+    {
+        WcaLog(LOGMSG_STANDARD, "previous user registration not found in registry");
+        previousInstall = false;
+    } else {
+        WcaLog(LOGMSG_STANDARD, "found previous user (%S) registration in registry", pvsUser.c_str());
+        previousInstall = true;
+    }
+    return previousInstall;
+}
+
+void CustomActionData::checkForUserMismatch(bool previousInstall, bool userSupplied, std::wstring &computed_domain, std::wstring &computed_user)
+{
+    if(!previousInstall && userSupplied)
+    {
+        WcaLog(LOGMSG_STANDARD, "using supplied username");
+    }
+    if(previousInstall && userSupplied)
+    {
+        WcaLog(LOGMSG_STANDARD, "user info supplied on command line and by previous install, checking");
+        if(_wcsicmp(pvsDomain.c_str(), computed_domain.c_str()) != 0)
+        {
+            WcaLog(LOGMSG_STANDARD, "supplied domain and computed domain don't match");
+            this->userParamMismatch = true;
+        }
+        if(_wcsicmp(pvsUser.c_str(), computed_user.c_str()) != 0)
+        {
+            WcaLog(LOGMSG_STANDARD, "supplied user and computed user don't match");
+            this->userParamMismatch = true;
         }
     }
-    if (std::wstring::npos == tmpName.find(L'\\')) {
-        WcaLog(LOGMSG_STANDARD, "loaded username doesn't have domain specifier, assuming local");
-        tmpName = L".\\" + tmpName;
+    if(previousInstall)
+    {
+        // this is a bit obtuse, but there's no way of passing the failure up
+        // from here, so even if we set `userParamMismatch` above, we'll hit this
+        // code.  That's ok, the install will be failed in `canInstall()`.
+        computed_domain = pvsDomain;
+        computed_user = pvsUser;
+        WcaLog(LOGMSG_STANDARD, "Using previously installed user");
     }
-    // now create the splits between the domain and user for all to use, too
-    std::wstring computed_domain, computed_user;
-    std::wistringstream asStream(tmpName);
+
+}
+void CustomActionData::findSuppliedUserInfo(std::wstring &input, std::wstring &computed_domain, std::wstring &computed_user)
+{
+    std::wistringstream asStream(input);
     // username is going to be of the form <domain>\<username>
     // if the <domain> is ".", then just do local machine
     getline(asStream, computed_domain, L'\\');
@@ -156,6 +193,41 @@ bool CustomActionData::parseUsernameData()
             computed_domain = machine.GetDomain();
             this->domainUser = true;
         }
+    }
+}
+bool CustomActionData::parseUsernameData()
+{
+    std::wstring tmpName = ddAgentUserName;
+    bool previousInstall = false;
+    bool userSupplied = false;
+
+    if (this->value(propertyDDAgentUserName, tmpName)) {
+        if (tmpName.length() == 0) {
+            tmpName = ddAgentUserName;
+        } else {
+            userSupplied = true;
+        }
+    }
+    previousInstall = this->findPreviousUserInfo();
+
+    if (std::wstring::npos == tmpName.find(L'\\')) {
+        WcaLog(LOGMSG_STANDARD, "loaded username doesn't have domain specifier, assuming local");
+        tmpName = L".\\" + tmpName;
+    }
+    // now create the splits between the domain and user for all to use, too
+    std::wstring computed_domain, computed_user;
+
+    // if this is an upgrade (we found a previously recorded username in the registry)
+    // and nothing was supplied on the command line, don't bother computing that.  Just use
+    // the existing
+    if(previousInstall && !userSupplied)
+    {
+        computed_domain = pvsDomain;
+        computed_user = pvsUser;
+        WcaLog(LOGMSG_STANDARD, "Using username from previous install");
+    } else {
+        findSuppliedUserInfo(tmpName, computed_domain, computed_user);
+        checkForUserMismatch(previousInstall, userSupplied, computed_domain, computed_user);
     }
     this->domain = computed_domain;
     this->username = computed_domain + L"\\" + computed_user;

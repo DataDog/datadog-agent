@@ -9,6 +9,12 @@ package nvidia
 
 import (
 	"fmt"
+	"os/exec"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -16,18 +22,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/yaml.v2"
-	"os/exec"
-	"regexp"
-	"strconv"
-	"strings"
-	"time"
 )
 
 const (
 	checkName = "jetson"
 
 	// The interval to run tegrastats at, in seconds
-	tegraStatsInterval = 1 * time.Second
+	tegraStatsInterval = 500 * time.Millisecond
 
 	kb = 1024
 	mb = kb * 1024

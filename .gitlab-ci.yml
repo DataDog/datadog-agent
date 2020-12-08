@@ -84,6 +84,7 @@ variables:
   S3_CP_OPTIONS: --only-show-errors --region us-east-1 --sse AES256
   S3_CP_CMD: aws s3 cp $S3_CP_OPTIONS
   S3_ARTIFACTS_URI: s3://dd-ci-artefacts-build-stable/$CI_PROJECT_NAME/$CI_PIPELINE_ID
+  S3_PERMANENT_ARTIFACTS_URI: s3://dd-ci-persistent-artefacts-build-stable/$CI_PROJECT_NAME
 ## comment out both lines below (S3_OMNIBUS_CACHE_BUCKET and USE_S3_CACHING) to allow
 ## build to succeed with S3 caching disabled.
   S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
@@ -95,7 +96,7 @@ variables:
   DATADOG_AGENT_BUILDERS: v3399751-fc72c60
   DATADOG_AGENT_WINBUILDIMAGES: v3283120-ecb88be
   DATADOG_AGENT_ARMBUILDIMAGES: v2894686-d80c3ce
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v2894686-d80c3ce
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v3384103-12f9098
   BCC_VERSION: v0.12.0
   SYSTEM_PROBE_GO_VERSION: 1.14.7
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -383,26 +384,30 @@ tests_ebpf:
     - python3 -m pip install -r requirements.txt
     # Retrieve libbcc from S3
     - $S3_CP_CMD $S3_ARTIFACTS_URI/libbcc-amd64.tar.xz /tmp/libbcc.tar.xz
-    - mkdir /opt/libbcc
-    - tar -xvf /tmp/libbcc.tar.xz -C /opt/libbcc
+    - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/clang-amd64-11.0.0.tar.xz /tmp/clang.tar.xz
+    - mkdir -p $DATADOG_AGENT_EMBEDDED_PATH
+    - tar -xvf /tmp/libbcc.tar.xz -C $DATADOG_AGENT_EMBEDDED_PATH
+    - tar -xvf /tmp/clang.tar.xz -C $DATADOG_AGENT_EMBEDDED_PATH
   after_script:
     - cd $SRC_PATH
-    - cp ./pkg/ebpf/bytecode/build/tracer-ebpf.o $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer-ebpf.o
-    - cp ./pkg/ebpf/bytecode/build/tracer-ebpf-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer-ebpf-debug.o
+    - cp ./pkg/ebpf/bytecode/build/tracer.o $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer.o
+    - cp ./pkg/ebpf/bytecode/build/tracer-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer-debug.o
     - cp ./pkg/ebpf/bytecode/build/offset-guess.o $CI_PROJECT_DIR/.tmp/binary-ebpf/offset-guess.o
     - cp ./pkg/ebpf/bytecode/build/offset-guess-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/offset-guess-debug.o
   tags: [ "runner:main", "size:large" ]
   script:
     # For now only check bpf bytes since we don't have a way to run eBPF tests without mounting a debugfs
-    - CGO_CFLAGS='-I/opt/libbcc/include' CGO_LDFLAGS='-Wl,-rpath,/opt/libbcc/lib -L/opt/libbcc/lib' inv -e system-probe.test --only-check-bpf-bytes
+    - inv -e system-probe.test --only-check-bpf-bytes
     # Compile runtime security functional tests to be executed in kitchen tests
     - inv -e security-agent.functional-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/testsuite
+    - inv -e system-probe.kitchen-prepare
 
   artifacts:
     when: always
     paths:
       - $CI_PROJECT_DIR/.tmp/binary-ebpf
       - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files
+      - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files
 
 # scan the dependencies for security vulnerabilities with snyk
 security_scan_test:
@@ -681,6 +686,53 @@ dogstatsd_arm64_size_test:
   script:
     - inv -e dogstatsd.size-test --skip-build
 
+.build_clang_common:
+  rules:
+    - when: manual
+      allow_failure: true
+  stage: deps_build
+  timeout: 2h 00m
+  script:
+    - wget https://github.com/llvm/llvm-project/releases/download/llvmorg-11.0.0/clang-11.0.0.src.tar.xz -O clang.src.tar.xz
+    - wget https://github.com/llvm/llvm-project/releases/download/llvmorg-11.0.0/llvm-11.0.0.src.tar.xz -O llvm.src.tar.xz
+    - mkdir clang && tar xf clang.src.tar.xz --strip-components=1 --no-same-owner -C clang
+    - mkdir llvm && tar xf llvm.src.tar.xz --strip-components=1 --no-same-owner -C llvm
+    - mkdir build && cd build
+    - |
+      cmake -DLLVM_ENABLE_PROJECTS=clang \
+      -DLLVM_TARGETS_TO_BUILD="BPF" \
+      -DCMAKE_INSTALL_PREFIX=$DATADOG_AGENT_EMBEDDED_PATH \
+      -G "Ninja" \
+      -DCMAKE_BUILD_TYPE=MinSizeRel \
+      -DLLVM_BUILD_TOOLS=OFF \
+      -DLLVM_INCLUDE_EXAMPLES=OFF \
+      -DLLVM_INCLUDE_TESTS=OFF \
+      -DLLVM_INCLUDE_BENCHMARKS=OFF \
+      -DLLVM_STATIC_LINK_CXX_STDLIB=ON \
+      -DLLVM_ENABLE_BINDINGS=OFF \
+      -DLLVM_PARALLEL_COMPILE_JOBS=4 \
+      -DLLVM_PARALLEL_LINK_JOBS=4 \
+      ../llvm
+    - cmake --build . --target install
+    - cd $DATADOG_AGENT_EMBEDDED_PATH
+    - rm -rf bin share libexec lib/clang lib/cmake lib/*.so*
+    - tar cvaf /tmp/clang.tar.xz .
+    - $S3_CP_CMD /tmp/clang.tar.xz $S3_PERMANENT_ARTIFACTS_URI/clang-$ARCH-11.0.0.tar.xz
+
+build_clang_x64:
+  extends: .build_clang_common
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: [ "runner:main", "size:2xlarge" ]
+  variables:
+    ARCH: amd64
+
+build_clang_arm64:
+  extends: .build_clang_common
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: [ "runner:docker-arm", "platform:arm64" ]
+  variables:
+    ARCH: arm64
+
 .system-probe_build_common:
   before_script:
     # Hack to work around the cloning issue with arm runners
@@ -695,15 +747,17 @@ dogstatsd_arm64_size_test:
     - inv -e deps --verbose
     # Retrieve libbcc from S3
     - $S3_CP_CMD $S3_ARTIFACTS_URI/libbcc-$ARCH.tar.xz /tmp/libbcc.tar.xz
+    - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/clang-$ARCH-11.0.0.tar.xz /tmp/clang.tar.xz
     - mkdir -p $DATADOG_AGENT_EMBEDDED_PATH
     - tar -xvf /tmp/libbcc.tar.xz -C $DATADOG_AGENT_EMBEDDED_PATH
+    - tar -xvf /tmp/clang.tar.xz -C $DATADOG_AGENT_EMBEDDED_PATH
 
   script:
     - inv -e system-probe.build --go-version=$SYSTEM_PROBE_GO_VERSION --embedded-path=$DATADOG_AGENT_EMBEDDED_PATH
     - inv -e system-probe.test --only-check-bpf-bytes
     - $S3_CP_CMD $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe $S3_ARTIFACTS_URI/system-probe.$ARCH
-    - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/tracer-ebpf.o $S3_ARTIFACTS_URI/tracer-ebpf.o.$ARCH
-    - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/tracer-ebpf-debug.o $S3_ARTIFACTS_URI/tracer-ebpf-debug.o.$ARCH
+    - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/tracer.o $S3_ARTIFACTS_URI/tracer.o.$ARCH
+    - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/tracer-debug.o $S3_ARTIFACTS_URI/tracer-debug.o.$ARCH
     - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/offset-guess.o $S3_ARTIFACTS_URI/offset-guess.o.$ARCH
     - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/offset-guess-debug.o $S3_ARTIFACTS_URI/offset-guess-debug.o.$ARCH
     - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/runtime-security.o $S3_ARTIFACTS_URI/runtime-security.o.$ARCH
@@ -740,8 +794,8 @@ build_system-probe-arm64:
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     - mkdir -p /tmp/system-probe
     - $S3_CP_CMD $S3_ARTIFACTS_URI/system-probe.${PACKAGE_ARCH} /tmp/system-probe/system-probe
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/tracer-ebpf.o.${PACKAGE_ARCH} /tmp/system-probe/tracer-ebpf.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/tracer-ebpf-debug.o.${PACKAGE_ARCH} /tmp/system-probe/tracer-ebpf-debug.o
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/tracer.o.${PACKAGE_ARCH} /tmp/system-probe/tracer.o
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/tracer-debug.o.${PACKAGE_ARCH} /tmp/system-probe/tracer-debug.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/offset-guess.o.${PACKAGE_ARCH} /tmp/system-probe/offset-guess.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/offset-guess-debug.o.${PACKAGE_ARCH} /tmp/system-probe/offset-guess-debug.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/runtime-security.o.${PACKAGE_ARCH} /tmp/system-probe/runtime-security.o
@@ -921,8 +975,8 @@ iot_agent_deb-armhf:
 
     - mkdir -p /tmp/system-probe
     - $S3_CP_CMD $S3_ARTIFACTS_URI/system-probe.${PACKAGE_ARCH} /tmp/system-probe/system-probe
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/tracer-ebpf.o.${PACKAGE_ARCH} /tmp/system-probe/tracer-ebpf.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/tracer-ebpf-debug.o.${PACKAGE_ARCH} /tmp/system-probe/tracer-ebpf-debug.o
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/tracer.o.${PACKAGE_ARCH} /tmp/system-probe/tracer.o
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/tracer-debug.o.${PACKAGE_ARCH} /tmp/system-probe/tracer-debug.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/offset-guess.o.${PACKAGE_ARCH} /tmp/system-probe/offset-guess.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/offset-guess-debug.o.${PACKAGE_ARCH} /tmp/system-probe/offset-guess-debug.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/runtime-security.o.${PACKAGE_ARCH} /tmp/system-probe/runtime-security.o
@@ -1087,8 +1141,8 @@ iot_agent_rpm-armhf:
     - set -x
     - mkdir -p /tmp/system-probe
     - $S3_CP_CMD $S3_ARTIFACTS_URI/system-probe.${PACKAGE_ARCH} /tmp/system-probe/system-probe
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/tracer-ebpf.o.${PACKAGE_ARCH} /tmp/system-probe/tracer-ebpf.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/tracer-ebpf-debug.o.${PACKAGE_ARCH} /tmp/system-probe/tracer-ebpf-debug.o
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/tracer.o.${PACKAGE_ARCH} /tmp/system-probe/tracer.o
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/tracer-debug.o.${PACKAGE_ARCH} /tmp/system-probe/tracer-debug.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/offset-guess.o.${PACKAGE_ARCH} /tmp/system-probe/offset-guess.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/offset-guess-debug.o.${PACKAGE_ARCH} /tmp/system-probe/offset-guess-debug.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/runtime-security.o.${PACKAGE_ARCH} /tmp/system-probe/runtime-security.o
@@ -1965,6 +2019,26 @@ deploy_windows_testing-a7:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   stage: functional_test
 
+.kitchen_test_system_probe:
+  script:
+    - bash -l tasks/run-test-kitchen.sh system-probe-test $AGENT_MAJOR_VERSION
+  extends:
+    - .kitchen_datadog_agent_flavor
+    - .kitchen_azure_location_north_central_us
+  <<: *kitchen_common
+  rules:
+    - changes:
+        - pkg/ebpf/**/*
+        - pkg/network/**/*
+      when: on_success
+    - when: manual
+      allow_failure: true
+  needs: ["tests_ebpf"]
+  variables:
+    AGENT_MAJOR_VERSION: 7
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
+  stage: functional_test
+
 .kitchen_test_windows_installer_agent:
   extends:
     - .kitchen_test_windows_installer
@@ -2189,6 +2263,16 @@ kitchen_centos_security_agent:
   extends:
     - .kitchen_test_security_agent
 
+sysprobe_centos:
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export TEST_PLATFORMS="centos-77,urn,OpenLogic:CentOS:7.7:7.7.201912090"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|rhel-81,urn,RedHat:RHEL:8.1:8.1.2020020415"
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
+  extends:
+    - .kitchen_test_system_probe
+
 # Ubuntu kitchen tests
 # Could fail if we encounter the issue with apt locks/azure agent, but should be investigated if that's the case
 
@@ -2277,6 +2361,18 @@ kitchen_ubuntu_security_agent:
     - bash -l tasks/kitchen_setup.sh
   extends:
     - .kitchen_test_security_agent
+
+sysprobe_ubuntu:
+  allow_failure: false
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export TEST_PLATFORMS="ubuntu-16-04,urn,Canonical:UbuntuServer:16.04.0-LTS:16.04.201906170"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|ubuntu-18-04,urn,Canonical:UbuntuServer:18.04-LTS:18.04.201906040"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|ubuntu-20-04,urn,Canonical:0001-com-ubuntu-server-focal:20_04-lts:20.04.202004230"
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
+  extends:
+    - .kitchen_test_system_probe
 
 # SUSE kitchen tests
 
@@ -2448,6 +2544,15 @@ kitchen_debian_security_agent:
     - bash -l tasks/kitchen_setup.sh
   extends:
     - .kitchen_test_security_agent
+
+sysprobe_debian:
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export TEST_PLATFORMS="debian-10,urn,Debian:debian-10:10:0.20200610.293"
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
+  extends:
+    - .kitchen_test_system_probe
 
 .kitchen_cleanup_s3_common: &kitchen_cleanup_s3_common
   stage: testkitchen_cleanup
@@ -4028,8 +4133,8 @@ deploy_staging_process_and_sysprobe:
     - echo "Uploading with name=$NAME"
     - $S3_CP_CMD ./out$DATADOG_AGENT_EMBEDDED_PATH/bin/process-agent s3://$PROCESS_S3_BUCKET/process-agent-amd64-$NAME --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=612548d92af7fa77f7ad7bcab230494f7310438ac6332e904a8fb2e6daa5cb23
     - $S3_CP_CMD ./out$DATADOG_AGENT_EMBEDDED_PATH/bin/system-probe s3://$PROCESS_S3_BUCKET/system-probe-amd64-$NAME --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=612548d92af7fa77f7ad7bcab230494f7310438ac6332e904a8fb2e6daa5cb23
-    - $S3_CP_CMD ./out$DATADOG_AGENT_EMBEDDED_PATH/share/system-probe/ebpf/tracer-ebpf.o s3://$PROCESS_S3_BUCKET/tracer-ebpf.o --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=612548d92af7fa77f7ad7bcab230494f7310438ac6332e904a8fb2e6daa5cb23
-    - $S3_CP_CMD ./out$DATADOG_AGENT_EMBEDDED_PATH/share/system-probe/ebpf/tracer-ebpf-debug.o s3://$PROCESS_S3_BUCKET/tracer-ebpf-debug.o --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=612548d92af7fa77f7ad7bcab230494f7310438ac6332e904a8fb2e6daa5cb23
+    - $S3_CP_CMD ./out$DATADOG_AGENT_EMBEDDED_PATH/share/system-probe/ebpf/tracer.o s3://$PROCESS_S3_BUCKET/tracer.o --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=612548d92af7fa77f7ad7bcab230494f7310438ac6332e904a8fb2e6daa5cb23
+    - $S3_CP_CMD ./out$DATADOG_AGENT_EMBEDDED_PATH/share/system-probe/ebpf/tracer-debug.o s3://$PROCESS_S3_BUCKET/tracer-debug.o --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=612548d92af7fa77f7ad7bcab230494f7310438ac6332e904a8fb2e6daa5cb23
     - $S3_CP_CMD ./out$DATADOG_AGENT_EMBEDDED_PATH/share/system-probe/ebpf/offset-guess.o s3://$PROCESS_S3_BUCKET/offset-guess.o --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=612548d92af7fa77f7ad7bcab230494f7310438ac6332e904a8fb2e6daa5cb23
     - $S3_CP_CMD ./out$DATADOG_AGENT_EMBEDDED_PATH/share/system-probe/ebpf/offset-guess-debug.o s3://$PROCESS_S3_BUCKET/offset-guess-debug.o --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=612548d92af7fa77f7ad7bcab230494f7310438ac6332e904a8fb2e6daa5cb23
     - $S3_CP_CMD ./out$DATADOG_AGENT_EMBEDDED_PATH/share/system-probe/ebpf/runtime-security.o s3://$PROCESS_S3_BUCKET/runtime-security.o --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=612548d92af7fa77f7ad7bcab230494f7310438ac6332e904a8fb2e6daa5cb23
@@ -4614,6 +4719,9 @@ trigger_release_6:
   before_script:
   - cd $SRC_PATH
   - python3.6 -m pip install --user -r requirements.txt
+  - export DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
+  - export DOCKER_REGISTRY_PWD=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
+  - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key --with-decryption --query "Parameter.Value" --out text)
 
 pupernetes-dev:
   rules:
