@@ -10,52 +10,40 @@ Orchestrator Explorer
   Disabled: {{ .Disabled }}
 {{- end }}
 {{- if .ClusterIDError }}
-  ClusterIDError: {{.ClusterIDError}}
+  Cluster ID error: {{.ClusterIDError}}
 {{- end }}
 
 {{- if .ClusterID }}
-  ClusterID: {{.ClusterID}}
+  Cluster ID: {{.ClusterID}}
 {{- end }}
 {{- if .ClusterNameError }}
-  ClusterIDError: {{.ClusterNameError}}
+  Cluster ID error: {{.ClusterNameError}}
 {{- end }}
 
 {{- if .ClusterName }}
-  ClusterName: {{.ClusterName}}
+  Cluster name: {{.ClusterName}}
 {{- end }}
 {{- if .ContainerScrubbing }}
   {{.ContainerScrubbing}}
 {{- end}}
 {{- if and (not .Error) (not .Disabled) }}
+{{- if .OrchestratorEndpoint }}
+{{/* this line intentionally left blank */}}
   ======================
   Orchestrator Endpoints
   ======================
-{{- if .OrchestratorEndpoint }}
-    OrchestratorEndpoint: {{.OrchestratorEndpoint}}
-{{- end }}
+    Orchestrator endpoint: {{.OrchestratorEndpoint}}
 {{- if .OrchestratorAdditionalEndpoints }}
-    {{ range $key, $value := .OrchestratorAdditionalEndpoints }}OrchestratorAdditionalEndpoint: {{$key}}
+    {{ range $key, $value := .OrchestratorAdditionalEndpoints }}Orchestrator additional endpoint: {{$key}}
     {{/* this line intentionally left blank */}}
     {{- end }}
-
+{{- end }}
 {{- end }}
 
-  ===============
-  Forwarder Stats
-  ===============
-{{- with .Transactions -}}
-    {{/* this line intentionally left blank */}}
-    Pods: {{.Pods}}
-    Deployments: {{.Deployments}}
-    ReplicaSets: {{.ReplicaSets}}
-    Services: {{.Services}}
-    Nodes: {{.Nodes}}
-{{- end -}}
-{{/* this line intentionally left blank */}}
-{{/* this line intentionally left blank */}}
 {{- if .LeaderError }}
-    LeaderError: {{.ClusterIDError}}
+    Leader election error: {{.ClusterIDError}}
 {{else}}
+{{/* this line intentionally left blank */}}
 {{- if .Leader }}
   ===========
   Cache Stats
@@ -72,8 +60,7 @@ Orchestrator Explorer
     Nodes:
       Last Run: (Hits: {{.NodesStats.CacheHits}} Miss: {{.NodesStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Nodes}} Miss: {{.CacheMiss.Nodes}})
 {{else}}
-  Status: Follower, redirecting to leader at: {{ .LeaderIP }}
+  Status: Follower, cluster agent leader is: {{ .LeaderName }}
 {{- end}}
 {{- end}}
 {{- end}}
-{{/* this line intentionally left blank */}}

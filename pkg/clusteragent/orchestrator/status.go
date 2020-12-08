@@ -66,13 +66,6 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 		status["OrchestratorEndpoint"] = orchestratorEndpoint
 	}
 
-	// get forwarder stats
-	forwarderStatsJSON := []byte(expvar.Get("forwarder").String())
-	forwarderStats := make(map[string]interface{})
-	json.Unmarshal(forwarderStatsJSON, &forwarderStats) //nolint:errcheck
-	transactions := forwarderStats["Transactions"].(map[string]interface{})
-	status["Transactions"] = transactions
-
 	// get cache size
 	status["CacheNumber"] = orchestrator.KubernetesResourceCache.ItemCount()
 
@@ -101,16 +94,12 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 		status["LeaderError"] = err
 	} else {
 		status["Leader"] = engine.IsLeader()
-		if ip, err := engine.GetLeaderIP(); err == nil {
-			status["LeaderIP"] = ip
-		} else {
-			status["LeaderError"] = err
-		}
+		status["LeaderName"] = engine.GetLeader()
 	}
 
 	// get options
 	if config.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled") {
-		status["ContainerScrubbing"] = "ContainerScrubbing: Enabled"
+		status["ContainerScrubbing"] = "Container scrubbing: enabled"
 	}
 
 	return status
