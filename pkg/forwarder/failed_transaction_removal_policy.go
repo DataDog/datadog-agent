@@ -105,7 +105,7 @@ func (p *failedTransactionRemovalPolicy) removeOutdatedFiles(folderPath string) 
 	})
 }
 
-func (p *failedTransactionRemovalPolicy) removeRetryFiles(folderPath string, predicate func(string) bool) ([]string, error) {
+func (p *failedTransactionRemovalPolicy) removeRetryFiles(folderPath string, shouldRemove func(string) bool) ([]string, error) {
 	files, err := p.getRetryFiles(folderPath)
 	if err != nil {
 		return nil, err
@@ -113,7 +113,7 @@ func (p *failedTransactionRemovalPolicy) removeRetryFiles(folderPath string, pre
 
 	var filesRemoved []string
 	for _, f := range files {
-		if predicate(f) {
+		if shouldRemove(f) {
 			if err = os.Remove(f); err != nil {
 				return nil, err
 			}

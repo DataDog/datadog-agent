@@ -183,7 +183,7 @@ api_key:
 ## storing failed transactions when the memory retry queue is full (see `forwarder_retry_queue_payloads_max_size`).
 ## Setting `forwarder_storage_max_size_in_bytes` at `0` disables the storage on disk.
 #
-# forwarder_storage_max_size_in_bytes: 104857600 # 100Mb = 100 * 1024 * 1024
+# forwarder_storage_max_size_in_bytes: 104857600 # 100MB
 
 ## @param forwarder_num_workers - integer - optional - default: 1
 ## The number of workers used by the forwarder.

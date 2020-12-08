@@ -617,15 +617,13 @@ func (f *DefaultForwarder) tryCreateTransactionsFileStorage(storageMaxSize int64
 	var transactionsFileStorage *transactionsFileStorage
 	var errorMsg error
 
-	if removalPolicy != nil {
-		domainFolderPath, err := removalPolicy.RegisterDomain(domain)
+	domainFolderPath, err := removalPolicy.RegisterDomain(domain)
+	if err != nil {
+		errorMsg = fmt.Errorf("Cannot register the domain '%v': %v", domain, err)
+	} else {
+		transactionsFileStorage, err = newTransactionsFileStorage(NewTransactionsSerializer(), domainFolderPath, storageMaxSize)
 		if err != nil {
-			errorMsg = fmt.Errorf("Cannot register the domain '%v': %v", domain, err)
-		} else {
-			transactionsFileStorage, err = newTransactionsFileStorage(NewTransactionsSerializer(), domainFolderPath, storageMaxSize)
-			if err != nil {
-				errorMsg = fmt.Errorf("Cannot create the retry queue storage for '%v': %v", domain, err)
-			}
+			errorMsg = fmt.Errorf("Cannot create the retry queue storage for '%v': %v", domain, err)
 		}
 	}
 

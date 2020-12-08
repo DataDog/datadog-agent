@@ -93,7 +93,7 @@ func (s *TransactionsSerializer) Deserialize(bytes []byte) ([]Transaction, error
 			retryable:  transaction.Retryable,
 			priority:   priority,
 		}
-		tr.SetDefaultHandlers()
+		tr.setDefaultHandlers()
 		httpTransactions = append(httpTransactions, &tr)
 	}
 	return httpTransactions, nil
