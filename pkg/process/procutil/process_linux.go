@@ -223,7 +223,9 @@ func (p *Probe) parseStatusKV(key, value string, sInfo *statusInfo) {
 			}
 		}
 	case "NSpid":
-		v, err := strconv.ParseInt(value, 10, 32)
+		values := strings.Split(value, "\t")
+		// only report process namespaced PID
+		v, err := strconv.ParseInt(values[len(values)-1], 10, 32)
 		if err == nil {
 			sInfo.nspid = int32(v)
 		}

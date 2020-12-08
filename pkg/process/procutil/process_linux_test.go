@@ -276,6 +276,14 @@ func TestParseStatusLine(t *testing.T) {
 			},
 		},
 		{
+			line: []byte("NSpid:\t123\t456"),
+			expected: &statusInfo{
+				nspid:       456,
+				memInfo:     &MemoryInfoStat{},
+				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
+		{
 			line: []byte("VmRSS:\t712 kB"),
 			expected: &statusInfo{
 				memInfo:     &MemoryInfoStat{RSS: 712 * 1024},
