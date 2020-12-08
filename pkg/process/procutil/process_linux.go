@@ -69,7 +69,7 @@ func (p *Probe) ProcessesByPID() (map[int32]*Process, error) {
 	for _, pid := range pids {
 		pathForPID := filepath.Join(p.procRootLoc, strconv.Itoa(int(pid)))
 		if !util.PathExists(pathForPID) {
-			log.Debugf("Unable to create new process %d, dir doesn't exist", pid)
+			log.Debugf("Unable to create new process %d, dir %s doesn't exist", pid, pathForPID)
 			continue
 		}
 
@@ -77,7 +77,6 @@ func (p *Probe) ProcessesByPID() (map[int32]*Process, error) {
 		if len(cmdline) == 0 {
 			// NOTE: The agent's process check currently skips all processes that have no cmdline (i.e kernel processes).
 			//       Moving this check down the stack saves us from a number of needless follow-up system calls.
-			//       In the test resources for Postgres, this accounts for ~30% of processes.
 			continue
 		}
 
@@ -270,8 +269,8 @@ func trimAndSplitBytes(bs []byte) []string {
 
 	// Remove leading null bytes
 	i := 0
-	for j := 0; j < len(bs); j++ {
-		if bs[j] == 0 {
+	for i < len(bs) {
+		if bs[i] == 0 {
 			i++
 		} else {
 			break
