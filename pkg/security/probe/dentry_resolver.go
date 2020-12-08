@@ -41,8 +41,10 @@ func (e *ErrInvalidKeyPath) Error() string {
 	return fmt.Sprintf("invalid inode/mountID couple: %d/%d", e.Inode, e.MountID)
 }
 
+// ErrEntryNotFound is thrown when a path key was not found in the cache
 var ErrEntryNotFound = errors.New("entry not found")
 
+// PathKey identifies an entry in the dentry cache
 type PathKey struct {
 	Inode   uint64
 	MountID uint32
@@ -55,6 +57,7 @@ func (p *PathKey) Write(buffer []byte) {
 	ebpf.ByteOrder.PutUint32(buffer[12:16], p.PathID)
 }
 
+// IsNull returns true if a key is invalid
 func (p *PathKey) IsNull() bool {
 	return p.Inode == 0 && p.MountID == 0
 }
@@ -63,6 +66,7 @@ func (p *PathKey) String() string {
 	return fmt.Sprintf("%x/%x", p.MountID, p.Inode)
 }
 
+// MarshalBinary returns the binary representation of a path key
 func (p *PathKey) MarshalBinary() ([]byte, error) {
 	if p.IsNull() {
 		return nil, &ErrInvalidKeyPath{Inode: p.Inode, MountID: p.MountID}
@@ -71,11 +75,13 @@ func (p *PathKey) MarshalBinary() ([]byte, error) {
 	return make([]byte, 16), nil
 }
 
+// PathValue describes a value of an entry of the cache
 type PathValue struct {
 	Parent PathKey
 	Name   [MaxSegmentLength + 1]byte
 }
 
+// DelCacheEntry removes an entry from the cache
 func (dr *DentryResolver) DelCacheEntry(mountID uint32, inode uint64) {
 	if entries, exists := dr.cache[mountID]; exists {
 		key := PathKey{Inode: inode}
@@ -220,13 +226,13 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 		cacheKey := PathKey{MountID: key.MountID, Inode: key.Inode}
 		toAdd[cacheKey] = path
 
-		if path.Name[0] == '\x15' {
+		if path.Name[0] == '\x00' {
 			resolutionErr = ErrTruncatedParents{}
 			break
 		}
 
 		// Don't append dentry name if this is the root dentry (i.d. name == '/')
-		if path.Name[0] != '\x00' && path.Name[0] != '/' {
+		if path.Name[0] != '/' {
 			segment = C.GoString((*C.char)(unsafe.Pointer(&path.Name)))
 			if len(segment) >= (MaxSegmentLength) {
 				resolutionErr = ErrTruncatedSegment{}
@@ -316,14 +322,14 @@ func (dr *DentryResolver) Start() error {
 }
 
 // ErrTruncatedSegment is used to notify that a segment of the path was truncated because it was too long
-type ErrTruncatedSegment struct {}
+type ErrTruncatedSegment struct{}
 
 func (err ErrTruncatedSegment) Error() string {
 	return "truncated_segment"
 }
 
 // ErrTruncatedParents is used to notify that some parents of the path are missing
-type ErrTruncatedParents struct {}
+type ErrTruncatedParents struct{}
 
 func (err ErrTruncatedParents) Error() string {
 	return "truncated_parents"

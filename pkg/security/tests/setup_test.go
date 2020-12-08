@@ -55,7 +55,7 @@ runtime_security_config:
   socket: /tmp/test-security-probe.sock
   flush_discarder_window: 0
   load_controller:
-    events_count_threshold: 100000000
+    events_count_threshold: 10000
 {{if .DisableFilters}}
   enable_kernel_filters: false
 {{end}}
@@ -144,14 +144,14 @@ type testEventHandler struct {
 }
 
 func (h *testEventHandler) HandleEvent(event *sprobe.Event) {
+	testMod.module.HandleEvent(event)
 	e := event.Clone()
 	select {
 	case h.events <- &e:
 		break
 	default:
-		log.Debugf("dropped probe event %+v")
+		log.Tracef("dropped probe event %+v", event)
 	}
-	testMod.module.HandleEvent(event)
 }
 
 func (h *testEventHandler) HandleCustomEvent(rule *rules.Rule, event *sprobe.CustomEvent) {
@@ -164,7 +164,7 @@ func (h *testEventHandler) HandleCustomEvent(rule *rules.Rule, event *sprobe.Cus
 	case h.customEvents <- &re:
 		break
 	default:
-		log.Debugf("dropped probe custom event %+v")
+		log.Tracef("dropped probe custom event %+v")
 	}
 }
 
@@ -259,6 +259,23 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 	defer os.Remove(cfgFilename)
 
 	if useReload && testMod != nil {
+		if opts.disableApprovers == testMod.opts.disableApprovers &&
+			opts.disableDiscarders == testMod.opts.disableDiscarders &&
+			opts.disableFilters == testMod.opts.disableFilters {
+
+			if opts.disableApprovers {
+				testMod.config.EnableApprovers = false
+			}
+
+			if opts.disableDiscarders {
+				testMod.config.EnableDiscarders = false
+			}
+
+			testMod.reset()
+			testMod.st = st
+			return testMod, testMod.reloadConfiguration()
+		}
+
 		testMod.cleanup()
 	}
 
@@ -349,7 +366,7 @@ func (tm *testModule) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, f
 	select {
 	case tm.discarders <- discarder:
 	default:
-		log.Warnf("Discarding discarder %+v", discarder)
+		log.Tracef("Discarding discarder %+v", discarder)
 	}
 }
 
@@ -371,7 +388,7 @@ func (tm *testModule) GetEvent() (*sprobe.Event, *eval.Rule, error) {
 
 func (tm *testModule) GetProbeCustomEvent(timeout time.Duration, eventType ...eval.EventType) (*module.RuleEvent, error) {
 	if tm.probeHandler == nil {
-		return nil, errors.New("could not get the probe events without using the `wantoProbeEvents` test option")
+		return nil, errors.New("could not get the probe events without using the `wantProbeEvents` test option")
 	}
 
 	t := time.After(timeout)
@@ -616,6 +633,9 @@ func testContainerPath(t *testing.T, event *sprobe.Event, fieldPath string) {
 	}
 }
 
+// waitForOpenProbeEvent returns the first open event with the provided filename.
+// WARNING: this function may yield a "fatal error: concurrent map writes" error the ruleset of testModule does not
+// contain a rule on "open.filename"
 func waitForOpenProbeEvent(test *testModule, filename string) (*probe.Event, error) {
 	timeout := time.After(3 * time.Second)
 	exhaust := time.After(time.Second)

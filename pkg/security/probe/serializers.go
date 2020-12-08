@@ -53,20 +53,21 @@ type UserContextSerializer struct {
 // easyjson:json
 type ProcessCacheEntrySerializer struct {
 	UserContextSerializer
-	Pid           uint32     `json:"pid"`
-	PPid          uint32     `json:"ppid"`
-	Tid           uint32     `json:"tid"`
-	UID           uint32     `json:"uid"`
-	GID           uint32     `json:"gid"`
-	Name          string     `json:"name"`
-	ContainerPath string     `json:"executable_container_path,omitempty"`
-	Path          string     `json:"executable_path"`
-	Inode         uint64     `json:"executable_inode"`
-	MountID       uint32     `json:"executable_mount_id"`
-	TTY           string     `json:"tty,omitempty"`
-	ForkTime      *time.Time `json:"fork_time,omitempty"`
-	ExecTime      *time.Time `json:"exec_time,omitempty"`
-	ExitTime      *time.Time `json:"exit_time,omitempty"`
+	Pid                 uint32     `json:"pid"`
+	PPid                uint32     `json:"ppid"`
+	Tid                 uint32     `json:"tid"`
+	UID                 uint32     `json:"uid"`
+	GID                 uint32     `json:"gid"`
+	Name                string     `json:"name"`
+	ContainerPath       string     `json:"executable_container_path,omitempty"`
+	Path                string     `json:"executable_path"`
+	PathResolutionError string     `json:"path_resolution_error"`
+	Inode               uint64     `json:"executable_inode"`
+	MountID             uint32     `json:"executable_mount_id"`
+	TTY                 string     `json:"tty,omitempty"`
+	ForkTime            *time.Time `json:"fork_time,omitempty"`
+	ExecTime            *time.Time `json:"exec_time,omitempty"`
+	ExitTime            *time.Time `json:"exit_time,omitempty"`
 }
 
 // ContainerContextSerializer serializes a container context to JSON
@@ -116,11 +117,12 @@ type EventSerializer struct {
 
 func newFileSerializer(fe *FileEvent, e *Event) *FileSerializer {
 	return &FileSerializer{
-		Path:            fe.ResolveInode(e),
-		ContainerPath:   fe.ResolveContainerPath(e),
-		Inode:           getUint64Pointer(&fe.Inode),
-		MountID:         getUint32Pointer(&fe.MountID),
-		OverlayNumLower: getInt32Pointer(&fe.OverlayNumLower),
+		Path:                fe.ResolveInode(e),
+		PathResolutionError: fe.GetPathResolutionError(),
+		ContainerPath:       fe.ResolveContainerPath(e),
+		Inode:               getUint64Pointer(&fe.Inode),
+		MountID:             getUint32Pointer(&fe.MountID),
+		OverlayNumLower:     getInt32Pointer(&fe.OverlayNumLower),
 	}
 }
 
@@ -179,19 +181,20 @@ func newProcessCacheEntrySerializer(pce *ProcessCacheEntry, e *Event, useEvent b
 			User:  user,
 			Group: group,
 		},
-		Pid:      pid,
-		PPid:     ppid,
-		Tid:      tid,
-		UID:      uid,
-		GID:      gid,
-		Name:     pce.Comm,
-		Path:     pce.ResolveInode(e),
-		Inode:    pce.Inode,
-		MountID:  pce.MountID,
-		TTY:      pce.ResolveTTY(e),
-		ForkTime: getTimeIfNotZero(pce.ForkTimestamp),
-		ExecTime: getTimeIfNotZero(pce.ExecTimestamp),
-		ExitTime: getTimeIfNotZero(pce.ExitTimestamp),
+		Pid:                 pid,
+		PPid:                ppid,
+		Tid:                 tid,
+		UID:                 uid,
+		GID:                 gid,
+		Name:                pce.Comm,
+		Path:                pce.ResolveInode(e),
+		PathResolutionError: pce.GetPathResolutionError(),
+		Inode:               pce.Inode,
+		MountID:             pce.MountID,
+		TTY:                 pce.ResolveTTY(e),
+		ForkTime:            getTimeIfNotZero(pce.ForkTimestamp),
+		ExecTime:            getTimeIfNotZero(pce.ExecTimestamp),
+		ExitTime:            getTimeIfNotZero(pce.ExitTimestamp),
 	}
 }
 
@@ -331,14 +334,16 @@ func newEventSerializer(event *Event) (*EventSerializer, error) {
 	case FileMountEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: FileSerializer{
-				Path:    event.Mount.ResolveRoot(event),
-				MountID: &event.Mount.RootMountID,
-				Inode:   &event.Mount.RootInode,
+				Path:                event.Mount.ResolveRoot(event),
+				PathResolutionError: event.Mount.GetRootPathResolutionError(),
+				MountID:             &event.Mount.RootMountID,
+				Inode:               &event.Mount.RootInode,
 			},
 			Destination: &FileSerializer{
-				Path:    event.Mount.ResolveMountPoint(event),
-				MountID: &event.Mount.ParentMountID,
-				Inode:   &event.Mount.ParentInode,
+				Path:                event.Mount.ResolveMountPoint(event),
+				PathResolutionError: event.Mount.GetMountPointPathResolutionError(),
+				MountID:             &event.Mount.ParentMountID,
+				Inode:               &event.Mount.ParentInode,
 			},
 			NewMountID: event.Mount.MountID,
 			GroupID:    event.Mount.GroupID,

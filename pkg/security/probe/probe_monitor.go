@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build linux_bpf
+// +build linux
 
 package probe
 
@@ -21,10 +21,10 @@ import (
 
 // Monitor regroups all the work we want to do to monitor the probes we pushed in the kernel
 type Monitor struct {
-	probe *Probe
+	probe  *Probe
 	client *statsd.Client
 
-	loadController *LoadController
+	loadController    *LoadController
 	perfBufferMonitor *PerfBufferMonitor
 	syscallMonitor    *SyscallMonitor
 }
@@ -33,7 +33,7 @@ type Monitor struct {
 func NewMonitor(p *Probe, client *statsd.Client) (*Monitor, error) {
 	var err error
 	m := &Monitor{
-		probe: p,
+		probe:  p,
 		client: client,
 	}
 

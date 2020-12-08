@@ -108,7 +108,13 @@ func (lc *LoadController) CountFork(event *Event) {
 	var forkBomb bool
 	var newCount uint64
 
-	lruKey := newForkLRUKey(lc.hashFunc([]byte(event.Process.ResolveContainerPath(event) + event.Process.ResolveInode(event))))
+	// About the key of the LRU below.
+	// - We could have used the process cookie. However cookies are not set in kernel space during the snapshot, which
+	//   means the forks of the existing processes on startup will all be counted at key "0". In other words this does
+	//   not work. (setting a cookie on snapshot doesn't work either because of possible races)
+	// - We could have used (mount_id, inode). With all the problems we've had with caches indexed by inodes, we decided
+	//   to stay on the safe side an avoid having to invalidate keys based on unlink / rename / ...
+	lruKey := newForkLRUKey(lc.hashFunc([]byte(event.Process.ResolveContainerPath(event) + "/" + event.Process.ResolveInode(event))))
 	entry, ok := lc.forkCounters.Get(lruKey)
 	if ok {
 		counter := entry.(*uint64)
@@ -134,7 +140,7 @@ func (lc *LoadController) CountFork(event *Event) {
 	}
 }
 
-// Count increments the event counter of the provided event type and pid
+// GenericCount increments the event counter of the provided event type and pid
 func (lc *LoadController) GenericCount(event *Event) {
 	lc.Lock()
 	defer lc.Unlock()

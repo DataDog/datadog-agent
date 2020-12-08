@@ -137,6 +137,14 @@ type FileEvent struct {
 	pathResolutionError error `field:"-"`
 }
 
+// GetPathResolutionError returns the path resolution error as a string if there is one
+func (e *FileEvent) GetPathResolutionError() string {
+	if e.pathResolutionError != nil {
+		return e.pathResolutionError.Error()
+	}
+	return ""
+}
+
 // ResolveInode resolves the inode to a full path
 func (e *FileEvent) ResolveInode(event *Event) string {
 	path, err := e.ResolveInodeWithResolvers(event.resolvers)
@@ -185,7 +193,7 @@ func (e *FileEvent) ResolveContainerPathWithResolvers(resolvers *Resolvers) stri
 		}
 		if len(containerPath) == 0 && len(e.PathnameStr) == 0 {
 			// The container path might be included in the pathname. The container path will be set there.
-			e.ResolveInodeWithResolvers(resolvers)
+			_, _ = e.ResolveInodeWithResolvers(resolvers)
 		}
 	}
 	return e.ContainerPath
@@ -502,18 +510,36 @@ func (e *LinkEvent) UnmarshalBinary(data []byte) (int, error) {
 // MountEvent represents a mount event
 type MountEvent struct {
 	SyscallEvent
-	MountID       uint32
-	GroupID       uint32
-	Device        uint32
-	ParentMountID uint32
-	ParentInode   uint64
-	FSType        string
-	MountPointStr string
-	RootMountID   uint32
-	RootInode     uint64
-	RootStr       string
+	MountID                       uint32
+	GroupID                       uint32
+	Device                        uint32
+	ParentMountID                 uint32
+	ParentInode                   uint64
+	FSType                        string
+	MountPointStr                 string
+	MountPointPathResolutionError error
+	RootMountID                   uint32
+	RootInode                     uint64
+	RootStr                       string
+	RootPathResolutionError       error
 
 	FSTypeRaw [16]byte
+}
+
+// GetRootPathResolutionError returns the root path resolution error as a string if there is one
+func (e *MountEvent) GetRootPathResolutionError() string {
+	if e.RootPathResolutionError != nil {
+		return e.RootPathResolutionError.Error()
+	}
+	return ""
+}
+
+// GetMountPointPathResolutionError returns the mount point path resolution error as a string if there is one
+func (e *MountEvent) GetMountPointPathResolutionError() string {
+	if e.MountPointPathResolutionError != nil {
+		return e.MountPointPathResolutionError.Error()
+	}
+	return ""
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -546,7 +572,7 @@ func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
 // ResolveMountPoint resolves the mountpoint to a full path
 func (e *MountEvent) ResolveMountPoint(event *Event) string {
 	if len(e.MountPointStr) == 0 {
-		e.MountPointStr, _ = event.resolvers.DentryResolver.Resolve(e.ParentMountID, e.ParentInode, 0)
+		e.MountPointStr, e.MountPointPathResolutionError = event.resolvers.DentryResolver.Resolve(e.ParentMountID, e.ParentInode, 0)
 	}
 	return e.MountPointStr
 }
@@ -554,7 +580,7 @@ func (e *MountEvent) ResolveMountPoint(event *Event) string {
 // ResolveRoot resolves the mountpoint to a full path
 func (e *MountEvent) ResolveRoot(event *Event) string {
 	if len(e.RootStr) == 0 {
-		e.RootStr, _ = event.resolvers.DentryResolver.Resolve(e.RootMountID, e.RootInode, 0)
+		e.RootStr, e.RootPathResolutionError = event.resolvers.DentryResolver.Resolve(e.RootMountID, e.RootInode, 0)
 	}
 	return e.RootStr
 }
@@ -684,7 +710,7 @@ func (e *ExecEvent) UnmarshalBinary(data []byte, resolvers *Resolvers) (int, err
 	// resolve FileEvent now so that the dentry cache is up to date. Fork events might send a null inode if the parent
 	// wasn't in the kernel cache, so only resolve if necessary
 	if e.FileEvent.Inode != 0 && e.FileEvent.MountID != 0 {
-		e.FileEvent.ResolveInodeWithResolvers(resolvers)
+		_, _ = e.FileEvent.ResolveInodeWithResolvers(resolvers)
 		e.FileEvent.ResolveContainerPathWithResolvers(resolvers)
 	}
 
@@ -1009,11 +1035,6 @@ func (e *Event) SetPathResolutionError(err error) {
 // GetPathResolutionError returns the path resolution error
 func (e *Event) GetPathResolutionError() error {
 	return e.pathResolutionError
-}
-
-type eventMarshaler struct {
-	field      string
-	marshalFnc func(event *Event) ([]byte, error)
 }
 
 // MarshalJSON returns the JSON encoding of the event

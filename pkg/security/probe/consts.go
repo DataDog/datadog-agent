@@ -126,10 +126,10 @@ func parseEvalEventType(eventType eval.EventType) EventType {
 }
 
 // MaxSegmentLength defines the maximum length of each segment of a path
-const MaxSegmentLength = 127 //nolint:deadcode,unused
+const MaxSegmentLength = 127
 
 // MaxPathDepth defines the maximum depth of a path
-const MaxPathDepth = 15 //nolint:deadcode,unused
+const MaxPathDepth = 15
 
 var (
 	errorConstants = map[string]int{

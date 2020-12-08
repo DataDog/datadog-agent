@@ -1,13 +1,21 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
+// +build functionaltests
+
 package tests
 
 import (
 	"fmt"
-	"github.com/cihub/seelog"
 	"os"
 	"path"
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
@@ -103,7 +111,8 @@ func TestProbeMonitor(t *testing.T) {
 	})
 
 	t.Run("fork_bomb", func(t *testing.T) {
-		if err := test.st.setLogLevel(seelog.DebugLvl); err != nil {
+		prevLevel, err := test.st.swapLogLevel(seelog.DebugLvl)
+		if err != nil {
 			t.Error(err)
 		}
 
@@ -137,8 +146,59 @@ func TestProbeMonitor(t *testing.T) {
 
 		time.Sleep(3 * time.Second)
 
-		if err := test.st.setLogLevel(seelog.TraceLvl); err != nil {
+		if _, err := test.st.swapLogLevel(prevLevel); err != nil {
 			t.Error(err)
 		}
 	})
+}
+
+func TestNoisyProcess(t *testing.T) {
+	rule := &rules.RuleDefinition{
+		ID:         "path_test",
+		Expression: `open.filename =~ "*do-not-match/test-open" && open.flags & O_CREAT != 0`,
+	}
+
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{disableDiscarders: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	file, filePtr, err := test.Path("test-open")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	prevLevel, err := test.st.swapLogLevel(seelog.DebugLvl)
+	if err != nil {
+		t.Error(err)
+	}
+
+	t.Run("noisy_process", func(t *testing.T) {
+		// generate load
+		for i := int64(0); i < testMod.config.LoadControllerEventsCountThreshold*12/10; i++ {
+			fd, _, errno := syscall.Syscall(syscall.SYS_OPEN, uintptr(filePtr), syscall.O_CREAT, 0755)
+			if errno != 0 {
+				t.Fatal(error(errno))
+			}
+			_ = syscall.Close(int(fd))
+			_ = os.Remove(file)
+		}
+
+		ruleEvent, err := test.GetProbeCustomEvent(1*time.Second, probe.NoisyProcessRuleID)
+		if err != nil {
+			t.Error(err)
+		} else {
+			if ruleEvent.RuleID != probe.NoisyProcessRuleID {
+				t.Errorf("expected %s rule, got %s", probe.NoisyProcessRuleID, ruleEvent.RuleID)
+			}
+		}
+
+		// make sure the discarder has expired before moving on to other tests
+		t.Logf("waiting for the discarder to expire (%s)", testMod.config.LoadControllerDiscarderTimeout)
+		time.Sleep(testMod.config.LoadControllerDiscarderTimeout + 1*time.Second)
+	})
+
+	if _, err := test.st.swapLogLevel(prevLevel); err != nil {
+		t.Error(err)
+	}
 }

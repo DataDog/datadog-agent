@@ -81,11 +81,6 @@ type ProcessResolver struct {
 	cookieCache *simplelru.LRU
 }
 
-// GetProbes returns the probes required by the snapshot
-func (p *ProcessResolver) GetProbes() []*manager.Probe {
-	return p.snapshotProbes
-}
-
 // AddForkEntry adds an entry to the local cache and returns the newly created entry
 func (p *ProcessResolver) AddForkEntry(pid uint32, entry *ProcessCacheEntry) *ProcessCacheEntry {
 	p.Lock()
@@ -348,6 +343,7 @@ func (p *ProcessResolver) resolveWithProcfs(pid uint32) *ProcessCacheEntry {
 	return entry
 }
 
+// Get returns the cache entry for a specified pid
 func (p *ProcessResolver) Get(pid uint32) *ProcessCacheEntry {
 	p.RLock()
 	defer p.RUnlock()
@@ -536,7 +532,7 @@ func NewProcessResolver(probe *Probe, resolvers *Resolvers, client *statsd.Clien
 	return &ProcessResolver{
 		probe:       probe,
 		resolvers:   resolvers,
-		client:     client,
+		client:      client,
 		entryCache:  make(map[uint32]*ProcessCacheEntry),
 		cookieCache: cookieLRU,
 		opts:       opts,

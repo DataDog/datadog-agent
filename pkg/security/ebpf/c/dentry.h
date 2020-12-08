@@ -234,6 +234,7 @@ static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, 
         bpf_probe_read_str(&map_value.name, sizeof(map_value.name), (void *)qstr.name);
 
         if (map_value.name[0] == '/' || map_value.name[0] == 0) {
+            map_value.name[0] = '/';
             next_key.ino = 0;
             next_key.mount_id = 0;
         }
@@ -250,9 +251,7 @@ static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, 
     // If the last next_id isn't null, this means that there are still other parents to fetch.
     // TODO: use BPF_PROG_ARRAY to recursively fetch 32 more times.
 
-    // 21 is the ASCII code for NAK = Negative Acknowledge. This value is used to notify that we couldn't resolve the
-    // entire path.
-    map_value.name[0] = 0x15;
+    map_value.name[0] = 0;
     map_value.parent.mount_id = 0;
     map_value.parent.ino = 0;
     bpf_map_update_elem(&pathnames, &next_key, &map_value, BPF_ANY);

@@ -31,7 +31,7 @@ var (
 	MetricRateLimiterDrop = newRuntimeSecurityMetric(".rules.rate_limiter.drop")
 	// MetricRateLimiterAllow is the name of the metric used to count the amount of events allowed by the rate limiter
 	// Tags: rule_id
-	MetricRateLimiterAllow = newRuntimeSecurityMetric(".rules.rate_limiter.drop")
+	MetricRateLimiterAllow = newRuntimeSecurityMetric(".rules.rate_limiter.allow")
 
 	// Syscall monitoring metrics
 

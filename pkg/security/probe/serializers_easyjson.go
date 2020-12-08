@@ -176,6 +176,8 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(in *jle
 			out.ContainerPath = string(in.String())
 		case "executable_path":
 			out.Path = string(in.String())
+		case "path_resolution_error":
+			out.PathResolutionError = string(in.String())
 		case "executable_inode":
 			out.Inode = uint64(in.Uint64())
 		case "executable_mount_id":
@@ -306,6 +308,11 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(out *jw
 		out.String(string(in.Path))
 	}
 	{
+		const prefix string = ",\"path_resolution_error\":"
+		out.RawString(prefix)
+		out.String(string(in.PathResolutionError))
+	}
+	{
 		const prefix string = ",\"executable_inode\":"
 		out.RawString(prefix)
 		out.Uint64(uint64(in.Inode))
@@ -406,6 +413,8 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe2(in *jle
 			out.ContainerPath = string(in.String())
 		case "executable_path":
 			out.Path = string(in.String())
+		case "path_resolution_error":
+			out.PathResolutionError = string(in.String())
 		case "executable_inode":
 			out.Inode = uint64(in.Uint64())
 		case "executable_mount_id":
@@ -507,6 +516,11 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe2(out *jw
 		out.String(string(in.Path))
 	}
 	{
+		const prefix string = ",\"path_resolution_error\":"
+		out.RawString(prefix)
+		out.String(string(in.PathResolutionError))
+	}
+	{
 		const prefix string = ",\"executable_inode\":"
 		out.RawString(prefix)
 		out.Uint64(uint64(in.Inode))
@@ -597,6 +611,8 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe3(in *jle
 			out.Name = string(in.String())
 		case "container_path":
 			out.ContainerPath = string(in.String())
+		case "path_resolution_error":
+			out.PathResolutionError = string(in.String())
 		case "inode":
 			if in.IsNull() {
 				in.Skip()
@@ -747,6 +763,16 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe3(out *jw
 			out.RawString(prefix)
 		}
 		out.String(string(in.ContainerPath))
+	}
+	if in.PathResolutionError != "" {
+		const prefix string = ",\"path_resolution_error\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.PathResolutionError))
 	}
 	if in.Inode != nil {
 		const prefix string = ",\"inode\":"
@@ -936,6 +962,8 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe4(in *jle
 			out.Name = string(in.String())
 		case "container_path":
 			out.ContainerPath = string(in.String())
+		case "path_resolution_error":
+			out.PathResolutionError = string(in.String())
 		case "inode":
 			if in.IsNull() {
 				in.Skip()
@@ -1136,6 +1164,16 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe4(out *jw
 			out.RawString(prefix)
 		}
 		out.String(string(in.ContainerPath))
+	}
+	if in.PathResolutionError != "" {
+		const prefix string = ",\"path_resolution_error\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.PathResolutionError))
 	}
 	if in.Inode != nil {
 		const prefix string = ",\"inode\":"

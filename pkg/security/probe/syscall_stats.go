@@ -125,7 +125,7 @@ func (s *SyscallStatsdCollector) CountExec(process string, count uint64) error {
 // CountConcurrentSyscalls counts the number of syscalls that are currently being executed
 func (s *SyscallStatsdCollector) CountConcurrentSyscalls(count int64) error {
 	if count > 0 {
-		return s.statsdClient.Count(concurrentSyscallsMetric, count, []string{}, 1.0)
+		return s.statsdClient.Count(MetricConcurrentSyscall, count, []string{}, 1.0)
 	}
 	return nil
 }
