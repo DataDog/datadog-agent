@@ -966,12 +966,7 @@ func TestGetPropertyBool(t *testing.T) {
 type mockAutoConfig struct{}
 
 func (*mockAutoConfig) GetLoadedConfigs() map[string]integration.Config {
-	ret := make(map[string]integration.Config)
-	ret["systemd_digest"] = integration.Config{
-		Name:     "systemd",
-		Provider: "provider1",
-	}
-	return ret
+	return make(map[string]integration.Config)
 }
 
 type mockCollector struct{}
@@ -1012,7 +1007,6 @@ unit_names:
 	systemdMetadata := *checkMetadata["systemd"][0]
 	assert.Equal(t, systemdVersion, systemdMetadata["version.raw"])
 }
-
 
 func TestCheckID(t *testing.T) {
 	check1 := systemdFactory()
