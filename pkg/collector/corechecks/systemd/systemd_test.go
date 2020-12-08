@@ -1012,3 +1012,29 @@ unit_names:
 	systemdMetadata := *checkMetadata["systemd"][0]
 	assert.Equal(t, systemdVersion, systemdMetadata["version.raw"])
 }
+
+
+func TestCheckID(t *testing.T) {
+	check1 := systemdFactory()
+	check2 := systemdFactory()
+	// language=yaml
+	rawInstanceConfig1 := []byte(`
+unit_names:
+ - ssh.service1
+`)
+	// language=yaml
+	rawInstanceConfig2 := []byte(`
+unit_names:
+ - ssh.service2
+`)
+
+	err := check1.Configure(rawInstanceConfig1, []byte(``), "test")
+	assert.Nil(t, err)
+
+	err = check2.Configure(rawInstanceConfig2, []byte(``), "test")
+	assert.Nil(t, err)
+
+	assert.Equal(t, check.ID("systemd:31a0365c91baa00f"), check1.ID())
+	assert.Equal(t, check.ID("systemd:31a0335c91ba9ae6"), check2.ID())
+	assert.NotEqual(t, check1.ID(), check2.ID())
+}

@@ -532,6 +532,9 @@ func (c *SystemdCheck) Configure(rawInstance integration.Data, rawInitConfig int
 		return err
 	}
 
+	// Make sure check id is different for each different config
+	c.BuildID(rawInstance, rawInitConfig)
+
 	if len(c.config.instance.UnitNames) == 0 {
 		return fmt.Errorf("instance config `unit_names` must not be empty")
 	}
