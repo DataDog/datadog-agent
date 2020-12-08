@@ -256,7 +256,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 	}
 	var optionalRemovalPolicy *failedTransactionRemovalPolicy
 	storageMaxSize := config.Datadog.GetInt64("forwarder_storage_max_size_in_bytes")
-
+	telemetry := retryQueueTelemetry{}
 	if storageMaxSize == 0 {
 		log.Infof("Retry queue storage on disk is disabled")
 	} else {
@@ -264,7 +264,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 		outdatedFileInDays := config.Datadog.GetInt("forwarder_outdated_file_in_days")
 		var err error
 
-		optionalRemovalPolicy, err = newFailedTransactionRemovalPolicy(storagePath, outdatedFileInDays)
+		optionalRemovalPolicy, err = newFailedTransactionRemovalPolicy(storagePath, outdatedFileInDays, telemetry)
 		if err != nil {
 			log.Errorf("Error when initializing the removal policy: %v", err)
 		}
@@ -281,17 +281,17 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 		} else {
 			var optionalTransactionsFileStorage *transactionsFileStorage
 			if optionalRemovalPolicy != nil {
-				optionalTransactionsFileStorage = f.tryCreateTransactionsFileStorage(storageMaxSize, optionalRemovalPolicy, domain)
+				optionalTransactionsFileStorage = f.tryCreateTransactionsFileStorage(storageMaxSize, optionalRemovalPolicy, domain, telemetry)
 			}
 
 			var transactionContainer *transactionContainer
 			if options.RetryQueuePayloadsTotalMaxSize > 0 {
-				var storage transactionStorage = nil
+				var storage transactionStorage
 				if optionalTransactionsFileStorage != nil {
 					// storage is an interface
 					storage = optionalTransactionsFileStorage
 				}
-				transactionContainer = newTransactionContainer(transactionContainerSort, storage, options.RetryQueuePayloadsTotalMaxSize, flushToDiskMemRatio)
+				transactionContainer = newTransactionContainer(transactionContainerSort, storage, options.RetryQueuePayloadsTotalMaxSize, flushToDiskMemRatio, telemetry)
 			}
 			f.keysPerDomains[domain] = keys
 			f.domainForwarders[domain] = newDomainForwarder(
@@ -613,7 +613,11 @@ func (f *DefaultForwarder) submitProcessLikePayload(ep endpoint, payload Payload
 	return results, f.sendHTTPTransactions(transactions)
 }
 
-func (f *DefaultForwarder) tryCreateTransactionsFileStorage(storageMaxSize int64, removalPolicy *failedTransactionRemovalPolicy, domain string) *transactionsFileStorage {
+func (f *DefaultForwarder) tryCreateTransactionsFileStorage(
+	storageMaxSize int64,
+	removalPolicy *failedTransactionRemovalPolicy,
+	domain string,
+	telemetry retryQueueTelemetry) *transactionsFileStorage {
 	var transactionsFileStorage *transactionsFileStorage
 	var errorMsg error
 
@@ -622,7 +626,7 @@ func (f *DefaultForwarder) tryCreateTransactionsFileStorage(storageMaxSize int64
 		if err != nil {
 			errorMsg = fmt.Errorf("Cannot register the domain '%v': %v", domain, err)
 		} else {
-			transactionsFileStorage, err = newTransactionsFileStorage(NewTransactionsSerializer(), domainFolderPath, storageMaxSize)
+			transactionsFileStorage, err = newTransactionsFileStorage(NewTransactionsSerializer(), domainFolderPath, storageMaxSize, telemetry)
 			if err != nil {
 				errorMsg = fmt.Errorf("Cannot create the retry queue storage for '%v': %v", domain, err)
 			}

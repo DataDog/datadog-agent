@@ -34,18 +34,21 @@ type transactionContainer struct {
 	flushToStorageRatio        float64
 	dropPrioritySorter         transactionPrioritySorter
 	optionalTransactionStorage transactionStorage
+	telemetry                  transactionContainerTelemetry
 }
 
 func newTransactionContainer(
 	dropPrioritySorter transactionPrioritySorter,
 	optionalTransactionStorage transactionStorage,
 	maxMemSizeInBytes int,
-	flushToStorageRatio float64) *transactionContainer {
+	flushToStorageRatio float64,
+	telemetry transactionContainerTelemetry) *transactionContainer {
 	return &transactionContainer{
 		maxMemSizeInBytes:          maxMemSizeInBytes,
 		flushToStorageRatio:        flushToStorageRatio,
 		dropPrioritySorter:         dropPrioritySorter,
 		optionalTransactionStorage: optionalTransactionStorage,
+		telemetry:                  telemetry,
 	}
 }
 
@@ -71,6 +74,7 @@ func (f *transactionContainer) Add(t Transaction) (int, error) {
 		}
 		if diskErr != nil {
 			diskErr = fmt.Errorf("Cannot store transactions on disk:%v", diskErr)
+			f.telemetry.addErrorsCount()
 		}
 	}
 
@@ -80,10 +84,14 @@ func (f *transactionContainer) Add(t Transaction) (int, error) {
 	if payloadSizeInBytesToDrop > 0 {
 		transactions := f.extractTransactions(payloadSizeInBytesToDrop)
 		inMemTransactionDroppedCount = len(transactions)
+		f.telemetry.addTransactionsDroppedCount(inMemTransactionDroppedCount)
 	}
 
 	f.transactions = append(f.transactions, t)
 	f.currentMemSizeInBytes += payloadSize
+	f.telemetry.setCurrentMemSizeInBytes(f.GetCurrentMemSizeInBytes())
+	f.telemetry.setTransactionsCount(f.GetTransactionCount())
+
 	return inMemTransactionDroppedCount, diskErr
 }
 
@@ -100,10 +108,13 @@ func (f *transactionContainer) ExtractTransactions() ([]Transaction, error) {
 	} else if f.optionalTransactionStorage != nil {
 		transactions, err = f.optionalTransactionStorage.Deserialize()
 		if err != nil {
+			f.telemetry.addErrorsCount()
 			return nil, err
 		}
 	}
 	f.currentMemSizeInBytes = 0
+	f.telemetry.setCurrentMemSizeInBytes(f.GetCurrentMemSizeInBytes())
+	f.telemetry.setTransactionsCount(f.GetTransactionCount())
 	return transactions, nil
 }
 
