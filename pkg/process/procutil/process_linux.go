@@ -165,8 +165,8 @@ func (p *Probe) parseStatus(pidPath string) *statusInfo {
 	var err error
 
 	sInfo := &statusInfo{
-		uids:        make([]int32, 0),
-		gids:        make([]int32, 0),
+		uids:        []int32{},
+		gids:        []int32{},
 		memInfo:     &MemoryInfoStat{},
 		ctxSwitches: &NumCtxSwitchesStat{},
 	}
