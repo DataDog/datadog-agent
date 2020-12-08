@@ -140,7 +140,8 @@ func newLogContextCompliance() (*config.Endpoints, *client.DestinationsContext, 
 	return newLogContext(logsConfigComplianceKeys, "agent-http-intake.logs.")
 }
 
-func newLogContextRuntime() (*config.Endpoints, *client.DestinationsContext, error) {
+// This function will only be used on Linux. The only platforms where the runtime agent runs
+func newLogContextRuntime() (*config.Endpoints, *client.DestinationsContext, error) { // nolint: deadcode, unused
 	logsConfigRuntimeKeys := config.LogsConfigKeys{
 		UseCompression:          "runtime_security_config.logs_config.use_compression",
 		CompressionLevel:        "runtime_security_config.logs_config.compression_level",
