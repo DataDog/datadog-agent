@@ -44,7 +44,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/tinylib/msgp/msgp"
 )
 
@@ -428,20 +427,11 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	metrics.Count("datadog.trace_agent.receiver.stats_bytes", int64(len(slurp)), nil, 1)
 
 	req.Header.Set("Accept", "application/msgpack")
-	req.Header.Add("Accept", "application/protobuf")
 
 	var in pb.ClientStatsPayload
-	switch ct := getMediaType(req); ct {
-	case "application/msgpack":
-		if err := msgp.Decode(bytes.NewReader(slurp), &in); err != nil {
-			httpDecodingError(err, []string{"handler:stats", "codec:msgpack", "v:v0.5"}, w)
-			return
-		}
-	default:
-		if err := proto.Unmarshal(slurp, &in); err != nil {
-			httpDecodingError(err, []string{"handler:stats", "codec:proto", "v:v0.5"}, w)
-			return
-		}
+	if err := msgp.Decode(bytes.NewReader(slurp), &in); err != nil {
+		httpDecodingError(err, []string{"handler:stats", "codec:msgpack", "v:v0.5"}, w)
+		return
 	}
 	metrics.Count("datadog.trace_agent.receiver.stats_buckets", int64(len(in.Stats)), nil, 1)
 

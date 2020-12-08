@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 
 	"github.com/cihub/seelog"
-	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/tinylib/msgp/msgp"
 	vmsgp "github.com/vmihailenco/msgpack/v4"
@@ -564,26 +563,6 @@ func TestHandleStats(t *testing.T) {
 	rcv.statsProcessor = mockProcessor
 	rcv.Start()
 	defer rcv.Stop()
-
-	t.Run("proto", func(t *testing.T) {
-		protobytes, err := proto.Marshal(&p)
-		if err != nil {
-			t.Fatal(err)
-		}
-		req, _ := http.NewRequest("POST", "http://127.0.0.1:8126/v0.5/stats", bytes.NewReader(protobytes))
-		req.Header.Set("Content-Type", "application/protobuf")
-		req.Header.Set(headerLang, "lang1")
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if resp.StatusCode != 200 {
-			t.Fatal(resp.StatusCode)
-		}
-		if gotp, gotlang := mockProcessor.Got(); !reflect.DeepEqual(gotp, p) || gotlang != "lang1" {
-			t.Fatalf("Did not match payload: %v: %v", gotlang, gotp)
-		}
-	})
 
 	t.Run("msgpack", func(t *testing.T) {
 		var buf bytes.Buffer
