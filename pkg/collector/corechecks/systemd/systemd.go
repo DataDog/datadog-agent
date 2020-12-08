@@ -519,6 +519,10 @@ func isValidServiceCheckStatus(serviceCheckStatus string) bool {
 
 // Configure configures the systemd checks
 func (c *SystemdCheck) Configure(rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
+	// Make sure check id is different for each different config
+	// Must be called before CommonConfigure that uses checkID
+	c.BuildID(rawInstance, rawInitConfig)
+
 	err := c.CommonConfigure(rawInstance, source)
 	if err != nil {
 		return err
@@ -531,9 +535,6 @@ func (c *SystemdCheck) Configure(rawInstance integration.Data, rawInitConfig int
 	if err != nil {
 		return err
 	}
-
-	// Make sure check id is different for each different config
-	c.BuildID(rawInstance, rawInitConfig)
 
 	if len(c.config.instance.UnitNames) == 0 {
 		return fmt.Errorf("instance config `unit_names` must not be empty")
