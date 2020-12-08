@@ -93,9 +93,9 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
         link_dentry_inode(syscall->unlink.path_key, inode);
     }
 
-    u64 enabled;
-    LOAD_CONSTANT("unlink_event_enabled", enabled);
-
+    u64 enabled_events = get_enabled_events();
+    int enabled = mask_has_event(enabled_events, EVENT_UNLINK) ||
+                  mask_has_event(enabled_events, EVENT_RMDIR);
     if (enabled) {
         struct unlink_event_t event = {
             .event.type = syscall->unlink.flags&AT_REMOVEDIR ? EVENT_RMDIR : EVENT_UNLINK,
@@ -110,13 +110,13 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
             .flags = syscall->unlink.flags,
         };
 
-        struct proc_cache_t *entry = fill_process_data(&event.process);
-        fill_container_data(entry, &event.container);
+        struct proc_cache_t *entry = fill_process_context(&event.process);
+        fill_container_context(entry, &event.container);
 
         send_event(ctx, event);
     }
 
-    invalidate_inode(ctx, syscall->unlink.path_key.mount_id, inode, 0);
+    invalidate_inode(ctx, syscall->unlink.path_key.mount_id, inode, !enabled);
 
     return 0;
 }

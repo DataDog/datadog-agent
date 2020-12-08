@@ -2,6 +2,151 @@
 Release Notes
 =============
 
+.. _Release Notes_7.24.0:
+
+7.24.0 / 6.24.0
+======
+
+.. _Release Notes_7.24.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2020-12-03
+
+- Please refer to the `7.24.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7240>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.24.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- tcp_queue_length check: the previous metrics reported by this check (``tcp_queue.rqueue.size``, ``tcp_queue.rqueue.min``, ``tcp_queue.rqueue.max``, ``tcp_queue.wqueue.size``, ``tcp_queue.wqueue.min``, ``tcp_queue.wqueue.max``) were generating too much data because there was one time series generated per TCP connection.
+  Those metrics have been replaced by ``tcp_queue.read_buffer_max_usage_pct``, ``tcp_queue.write_buffer_max_usage_pct`` which are aggregating all the connections of a container.
+  These metrics are reporting the maximum usage in percent (amount of data divided by the queue capacity) of the busiest buffer.
+  Additionally, `only_count_nb_context` option from the `tcp_queue_length` check configuration has been removed and will be ignored from now on.
+
+
+.. _Release Notes_7.24.0_New Features:
+
+New Features
+------------
+
+- Added new configuration flag,
+  system_probe_config.enable_conntrack_all_namespaces,
+  false by default. When set to true, this will allow system
+  probe to monitor conntrack entries (for NAT info) in all
+  namespaces that are peers of the root namespace.
+
+- Added JMX version and java runtime version to agent status page
+
+- ``kubernetes_pod_annotations_as_tags`` (``DD_KUBERNETES_POD_ANNOTATIONS_AS_TAGS``) now support regex wildcards:
+  ``'{"*":"<PREFIX>_%%annotation%%"}'`` can be used as value to collect all pod annotations as tags.
+  ``kubernetes_node_labels_as_tags`` (``DD_KUBERNETES_NODE_LABELS_AS_TAGS``) now support regex wildcards:
+  ``'{"*":"<PREFIX>_%%label%%"}'`` can be used as value to collect all node labels as tags.
+  Note: ``kubernetes_pod_labels_as_tags`` (``DD_KUBERNETES_POD_LABELS_AS_TAGS``) supports this already.
+
+- Listening for conntrack updates from all network namespaces
+  (system_probe_config.enable_conntrack_all_namespaces flag) is now turned
+  on by default
+
+
+.. _Release Notes_7.24.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Expand pause container image filter
+
+- Adds misconfig check for hidepid=2 option on proc mount.
+
+- It's possible to ignore ``auto_conf.yaml`` configuration files using ``ignore_autoconf`` or ``DD_IGNORE_AUTOCONF``.
+  Example: DD_IGNORE_AUTOCONF="redisdb kubernetes_state"
+
+- APM: The trace-agent now automatically sets the GOMAXPROCS value in
+  Linux containers to match allocated CPU quota, as opposed to the matching
+  the entire node's quota.
+
+- APM: Lowered CPU usage when using analytics.
+
+- APM: Move UTF-8 validation from the span normalizer to the trace decoder, which reduces the number of times each distinct string will be validated to once, which is beneficial when the v0.5 trace format is used.
+
+- Add the config `forwarder_retry_queue_payloads_max_size` which defines the 
+  maximum size in bytes of all the payloads in the forwarder's retry queue.
+
+- When enabled, JMXFetch now logs to its own log file. Defaults to ``jmxfetch.log``
+  in the default agent log directory, and can be configured with ``jmx_log_file``.
+
+- Added UDS support for JMXFetch
+  JMXFetch upgraded to `0.40.3 <https://github.com/DataDog/jmxfetch/releases/0.40.3>`_
+
+- dogstatsd_mapper_profiles may now be defined as an environment variable DD_DOGSTATSD_MAPPER_PROFILES formatted as JSON
+
+- Add orchestrator explorer related section into DCA Status
+
+- Added byte count per log source and display it on the status page.
+
+- APM: refactored the SQL obfuscator to be significantly more efficient.
+
+
+.. _Release Notes_7.24.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- IO check: device_blacklist_re has been deprecated in favor of device_exclude_re.
+
+- The config options tracemalloc_whitelist and tracemalloc_blacklist have been
+  deprecated in favor of tracemalloc_include and tracemalloc_exclude.
+
+
+.. _Release Notes_7.24.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- APM: Fix a bug where non-float64 numeric values in apm_config.analyzed_spans
+  would disable this functionality.
+
+- Disable stack protector on system-probe to make it buildable on the environments which stack protector is enabled by default.
+  
+  Some linux distributions like Alpine Linux enable stack protector by default which is not available on eBPF.
+
+- Fix a panic in containerd if retrieved ociSpec is nil
+
+- Fix random panic in Kubelet searchPodForContainerID due to concurrent modification of pod.Status.AllContainers
+
+- Add retries to Kubernetes host tags retrievals, minimize the chance of missing/changing host tags every 30mins
+
+- Fix rtloader build on strict posix environment, e.g. musl libc on Alpine Linux.
+
+- Allows system_probe to be enabled without enabling network performance monitoring.
+  
+  Set ``network_config.enabled=false`` in your ``system-probe.yaml`` when running the system-probe without networks enabled.
+
+- Fixes truncated output for status of compliance checks in Security Agent.
+
+- Under some circumstances, the Agent would delete all tags for a workload if
+  they were collected from different sources, such as the kubelet and docker,
+  but deleted from only one of them. Now, the agent keeps track of tags per
+  collector correctly.
+
+
+.. _Release Notes_7.24.0_Other Notes:
+
+Other Notes
+-----------
+
+- The utilities provided by the `sysstat` package have been removed: the ``iostat``,
+  ``mpstat``, ``pidstat``, ``sar``, ``sadf``, ``cifsiostat`` and ``nfsiostat-sysstat``
+  binaries have been removed from the packaged Agent. This has no effect on the
+  behavior of the Agent and official integrations, but your custom checks may be
+  affected if they rely on these embedded binaries.
+
+- Activate security-agent service by default in the Linux packages of the Agent (RPM/DEB). The security-agent won't be started if the file /etc/datadog-agent/security-agent.yaml does not exist.
+
+
 .. _Release Notes_7.23.1:
 
 7.23.1 / 6.23.1

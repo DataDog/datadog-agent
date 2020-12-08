@@ -95,17 +95,7 @@ func ChildrenMap(t pb.Trace) map[uint64][]*pb.Span {
 		if span.ParentID == 0 {
 			continue
 		}
-		_, ok := childrenMap[span.SpanID]
-		if !ok {
-			childrenMap[span.SpanID] = []*pb.Span{}
-		}
-		children, ok := childrenMap[span.ParentID]
-		if ok {
-			children = append(children, span)
-		} else {
-			children = []*pb.Span{span}
-		}
-		childrenMap[span.ParentID] = children
+		childrenMap[span.ParentID] = append(childrenMap[span.ParentID], span)
 	}
 
 	return childrenMap

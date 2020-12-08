@@ -113,17 +113,21 @@ core,"github.com/aws/aws-sdk-go/internal/sync/singleflight",NewBSD
 core,"github.com/aws/aws-sdk-go/private/protocol",Apache-2.0
 core,"github.com/aws/aws-sdk-go/private/protocol/ec2query",Apache-2.0
 core,"github.com/aws/aws-sdk-go/private/protocol/json/jsonutil",Apache-2.0
+core,"github.com/aws/aws-sdk-go/private/protocol/jsonrpc",Apache-2.0
 core,"github.com/aws/aws-sdk-go/private/protocol/query",Apache-2.0
 core,"github.com/aws/aws-sdk-go/private/protocol/query/queryutil",Apache-2.0
 core,"github.com/aws/aws-sdk-go/private/protocol/rest",Apache-2.0
 core,"github.com/aws/aws-sdk-go/private/protocol/xml/xmlutil",Apache-2.0
 core,"github.com/aws/aws-sdk-go/service/ec2",Apache-2.0
+core,"github.com/aws/aws-sdk-go/service/kms",Apache-2.0
+core,"github.com/aws/aws-sdk-go/service/secretsmanager",Apache-2.0
 core,"github.com/aws/aws-sdk-go/service/sts",Apache-2.0
 core,"github.com/aws/aws-sdk-go/service/sts/stsiface",Apache-2.0
 core,"github.com/beevik/ntp",FreeBSD
 core,"github.com/benesch/cgosymbolizer",FreeBSD
 core,"github.com/beorn7/perks/quantile",MIT
 core,"github.com/bhmj/jsonslice",MIT
+core,"github.com/blabber/go-freebsd-sysctl/sysctl",ISC
 core,"github.com/blang/semver",MIT
 core,"github.com/cenkalti/backoff",MIT
 core,"github.com/cespare/xxhash",MIT
@@ -382,7 +386,6 @@ core,"github.com/klauspost/compress/snappy",NewBSD
 core,"github.com/klauspost/compress/zstd",NewBSD
 core,"github.com/klauspost/compress/zstd/internal/xxhash",MIT
 core,"github.com/klauspost/pgzip",MIT
-core,"github.com/konsorten/go-windows-terminal-sequences",MIT
 core,"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/apiserver",Apache-2.0
 core,"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/apiserver/endpoints/handlers",Apache-2.0
 core,"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/apiserver/installer",Apache-2.0
@@ -402,6 +405,7 @@ core,"github.com/mailru/easyjson/jlexer",MIT
 core,"github.com/mailru/easyjson/jwriter",MIT
 core,"github.com/mattn/go-colorable",MIT
 core,"github.com/mattn/go-isatty",MIT
+core,"github.com/mattn/go-runewidth",MIT
 core,"github.com/matttproud/golang_protobuf_extensions/pbutil",Apache-2.0
 core,"github.com/mdlayher/netlink",MIT
 core,"github.com/mdlayher/netlink/nlenc",MIT
@@ -416,6 +420,7 @@ core,"github.com/moby/sys/mountinfo",Apache-2.0
 core,"github.com/modern-go/concurrent",Apache-2.0
 core,"github.com/modern-go/reflect2",Apache-2.0
 core,"github.com/nwaples/rardecode",FreeBSD
+core,"github.com/olekukonko/tablewriter",MIT
 core,"github.com/opencontainers/image-spec/identity",Apache-2.0
 core,"github.com/opencontainers/image-spec/specs-go",Apache-2.0
 core,"github.com/opencontainers/image-spec/specs-go/v1",Apache-2.0
@@ -544,6 +549,7 @@ core,"golang.org/x/oauth2/internal",NewBSD
 core,"golang.org/x/sync/errgroup",NewBSD
 core,"golang.org/x/sys/cpu",NewBSD
 core,"golang.org/x/sys/internal/unsafeheader",NewBSD
+core,"golang.org/x/sys/plan9",NewBSD
 core,"golang.org/x/sys/unix",NewBSD
 core,"golang.org/x/sys/windows",NewBSD
 core,"golang.org/x/sys/windows/registry",NewBSD
@@ -551,6 +557,7 @@ core,"golang.org/x/sys/windows/svc",NewBSD
 core,"golang.org/x/sys/windows/svc/debug",NewBSD
 core,"golang.org/x/sys/windows/svc/eventlog",NewBSD
 core,"golang.org/x/sys/windows/svc/mgr",NewBSD
+core,"golang.org/x/term",NewBSD
 core,"golang.org/x/text/encoding",NewBSD
 core,"golang.org/x/text/encoding/internal",NewBSD
 core,"golang.org/x/text/encoding/internal/identifier",NewBSD
@@ -631,6 +638,7 @@ core,"gopkg.in/Knetic/govaluate.v3",MIT
 core,"gopkg.in/inf.v0",NewBSD
 core,"gopkg.in/natefinch/lumberjack.v2",MIT
 core,"gopkg.in/yaml.v2",Apache-2.0
+core,"gopkg.in/yaml.v3",MIT
 core,"gopkg.in/zorkian/go-datadog-api.v2",NewBSD
 core,"k8s.io/api/admission/v1",Apache-2.0
 core,"k8s.io/api/admission/v1beta1",Apache-2.0

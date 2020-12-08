@@ -18,7 +18,7 @@ const (
 	containersCountMetricName = "datadog.security_agent.compliance.containers_running"
 )
 
-// telemetry reports environment information (e.g containers running count) when the compliance component is running
+// telemetry reports environment information (e.g containers running) when the compliance component is running
 type telemetry struct {
 	sender   aggregator.Sender
 	detector collectors.DetectorInterface
@@ -48,14 +48,14 @@ func (t *telemetry) run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-metricsTicker.C:
-			if err := t.reportContainersCount(); err != nil {
-				log.Debugf("Couldn't report containers count: %v", err)
+			if err := t.reportContainers(); err != nil {
+				log.Debugf("Couldn't report containers: %v", err)
 			}
 		}
 	}
 }
 
-func (t *telemetry) reportContainersCount() error {
+func (t *telemetry) reportContainers() error {
 	collector, _, err := t.detector.GetPreferred()
 	if err != nil {
 		return err
@@ -66,7 +66,10 @@ func (t *telemetry) reportContainersCount() error {
 		return err
 	}
 
-	t.sender.Gauge(containersCountMetricName, float64(len(containers)), "", []string{})
+	for _, container := range containers {
+		t.sender.Gauge(containersCountMetricName, 1.0, "", []string{"container_id:" + container.ID})
+	}
+
 	t.sender.Commit()
 
 	return nil
