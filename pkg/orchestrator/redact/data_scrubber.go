@@ -152,7 +152,7 @@ func (ds *DataScrubber) AddCustomSensitiveRegex(words []string) {
 }
 
 // compileStringsToRegex compile each word in the slice into a regex pattern to match
-// against the cmdline arguments
+// against the cmdline arguments (originally imported from pkg/process/config)
 // The word must contain only word characters ([a-zA-z0-9_]) or wildcards *
 func compileStringsToRegex(words []string) []*regexp.Regexp {
 	compiledRegexps := make([]*regexp.Regexp, 0, len(words))

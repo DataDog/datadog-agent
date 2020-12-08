@@ -366,7 +366,6 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	}
 
 	// activate the pod collection if enabled and we have the cluster name set
-	// todo use orchestration config
 	if cfg.Orchestrator.OrchestrationCollectionEnabled && cfg.Orchestrator.KubeClusterName != "" {
 		cfg.EnabledChecks = append(cfg.EnabledChecks, "pod")
 	}

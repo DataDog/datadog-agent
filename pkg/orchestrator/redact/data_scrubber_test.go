@@ -134,35 +134,6 @@ func TestMatchSimpleCommandScrubRegex(t *testing.T) {
 	}
 }
 
-func BenchmarkCommandMatching1(b *testing.B)    { benchmarkCommandMatching(1, b) }
-func BenchmarkCommandMatching10(b *testing.B)   { benchmarkCommandMatching(10, b) }
-func BenchmarkCommandMatching100(b *testing.B)  { benchmarkCommandMatching(100, b) }
-func BenchmarkCommandMatching1000(b *testing.B) { benchmarkCommandMatching(1000, b) }
-
-func benchmarkCommandMatching(nbCommands int, b *testing.B) {
-	runningProcesses := make([][]string, nbCommands)
-	var c bool
-	foolCmdline := []string{"python ~/test/run.py --dd_password=1234 -password 1234 -password=admin -secret 2345 -credentials=1234 -api_key 2808 &"}
-
-	scrubber := NewDefaultDataScrubber()
-
-	for i := 0; i < nbCommands; i++ {
-		runningProcesses[i] = foolCmdline
-	}
-
-	b.ResetTimer()
-
-	b.Run("simplified", func(b *testing.B) {
-		for n := 0; n < b.N; n++ {
-			for _, p := range runningProcesses {
-				_, c = scrubber.ScrubSimpleCommand(p)
-			}
-		}
-	})
-
-	avoidOptimization = c
-}
-
 func BenchmarkEnvScrubbing1(b *testing.B)    { benchmarkEnvScrubbing(1, b) }
 func BenchmarkEnvScrubbing10(b *testing.B)   { benchmarkEnvScrubbing(10, b) }
 func BenchmarkEnvScrubbing100(b *testing.B)  { benchmarkEnvScrubbing(100, b) }
