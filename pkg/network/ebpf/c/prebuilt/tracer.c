@@ -1478,8 +1478,14 @@ static __always_inline void http_read_data(struct __sk_buff* skb, skb_info_t* sk
         *packet_type = HTTP_REQUEST;
         *method = HTTP_DELETE;
     } else if ((p[0] == 'H') && (p[1] == 'E') && (p[2] == 'A') && (p[3] == 'D')) {
-        *packet_type = HTTP_RESPONSE;
+        *packet_type = HTTP_REQUEST;
         *method = HTTP_HEAD;
+    } else if ((p[0] == 'O') && (p[1] == 'P') && (p[2] == 'T') && (p[3] == 'I') && (p[4] == 'O') && (p[5] == 'N') && (p[6] == 'S')) {
+        *packet_type = HTTP_REQUEST;
+        *method = HTTP_OPTIONS;
+    } else if ((p[0] == 'P') && (p[1] == 'A') && (p[2] == 'T') && (p[3] == 'C') && (p[4] == 'H')) {
+        *packet_type = HTTP_REQUEST;
+        *method = HTTP_PATCH;
     }
 }
 

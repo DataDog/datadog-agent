@@ -91,7 +91,9 @@ typedef enum {
     HTTP_POST,
     HTTP_PUT,
     HTTP_DELETE,
-    HTTP_HEAD
+    HTTP_HEAD,
+    HTTP_OPTIONS,
+    HTTP_PATCH
 } http_method_t;
 
 typedef struct {
