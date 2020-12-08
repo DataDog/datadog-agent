@@ -8,8 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf/oomkill"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/tcpqueuelength"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe"
 )
 
 const (
@@ -36,14 +35,14 @@ func (r *RemoteSysProbeUtil) GetCheck(check string) (interface{}, error) {
 	}
 
 	if check == "tcp_queue_length" {
-		var stats tcpqueuelength.Stats
+		var stats probe.TCPQueueLengthStats
 		err = json.Unmarshal(body, &stats)
 		if err != nil {
 			return nil, err
 		}
 		return stats, nil
 	} else if check == "oom_kill" {
-		var stats []oomkill.Stats
+		var stats []probe.OOMKillStats
 		err = json.Unmarshal(body, &stats)
 		if err != nil {
 			return nil, err

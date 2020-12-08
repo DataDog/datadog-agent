@@ -14,8 +14,16 @@ import (
 func setupAPM(config Config) {
 	config.SetKnown("apm_config.obfuscation.elasticsearch.enabled")
 	config.SetKnown("apm_config.obfuscation.elasticsearch.keep_values")
+	config.SetKnown("apm_config.obfuscation.elasticsearch.obfuscate_sql_values")
 	config.SetKnown("apm_config.obfuscation.mongodb.enabled")
 	config.SetKnown("apm_config.obfuscation.mongodb.keep_values")
+	config.SetKnown("apm_config.obfuscation.mongodb.obfuscate_sql_values")
+	config.SetKnown("apm_config.obfuscation.sql_exec_plan.enabled")
+	config.SetKnown("apm_config.obfuscation.sql_exec_plan.keep_values")
+	config.SetKnown("apm_config.obfuscation.sql_exec_plan.obfuscate_sql_values")
+	config.SetKnown("apm_config.obfuscation.sql_exec_plan_normalize.enabled")
+	config.SetKnown("apm_config.obfuscation.sql_exec_plan_normalize.keep_values")
+	config.SetKnown("apm_config.obfuscation.sql_exec_plan_normalize.obfuscate_sql_values")
 	config.SetKnown("apm_config.obfuscation.http.remove_query_string")
 	config.SetKnown("apm_config.obfuscation.http.remove_paths_with_digits")
 	config.SetKnown("apm_config.obfuscation.remove_stack_traces")
@@ -43,6 +51,8 @@ func setupAPM(config Config) {
 	}
 
 	config.BindEnvAndSetDefault("apm_config.receiver_port", 8126, "DD_APM_RECEIVER_PORT", "DD_RECEIVER_PORT")
+	config.BindEnvAndSetDefault("apm_config.windows_pipe_buffer_size", 1_000_000, "DD_APM_WINDOWS_PIPE_BUFFER_SIZE")                          //nolint:errcheck
+	config.BindEnvAndSetDefault("apm_config.windows_pipe_security_descriptor", "D:AI(A;;GA;;;WD)", "DD_APM_WINDOWS_PIPE_SECURITY_DESCRIPTOR") //nolint:errcheck
 
 	config.BindEnv("apm_config.receiver_timeout", "DD_APM_RECEIVER_TIMEOUT")                             //nolint:errcheck
 	config.BindEnv("apm_config.max_payload_size", "DD_APM_MAX_PAYLOAD_SIZE")                             //nolint:errcheck
@@ -63,6 +73,7 @@ func setupAPM(config Config) {
 	config.BindEnv("apm_config.analyzed_spans", "DD_APM_ANALYZED_SPANS")                                 //nolint:errcheck
 	config.BindEnv("apm_config.ignore_resources", "DD_APM_IGNORE_RESOURCES", "DD_IGNORE_RESOURCE")       //nolint:errcheck
 	config.BindEnv("apm_config.receiver_socket", "DD_APM_RECEIVER_SOCKET")                               //nolint:errcheck
+	config.BindEnv("apm_config.windows_pipe_name", "DD_APM_WINDOWS_PIPE_NAME")                           //nolint:errcheck
 
 	config.SetEnvKeyTransformer("apm_config.ignore_resources", func(in string) interface{} {
 		r, err := splitCSVString(in, ',')

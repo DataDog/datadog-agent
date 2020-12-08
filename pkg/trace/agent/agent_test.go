@@ -8,6 +8,7 @@ package agent
 import (
 	"bytes"
 	"context"
+	"io/ioutil"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -33,7 +34,6 @@ import (
 
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
-	"github.com/tinylib/msgp/msgp"
 )
 
 func newMockSampler(wantSampled bool, wantRate float64) *Sampler {
@@ -185,7 +185,7 @@ func TestProcess(t *testing.T) {
 		assert.EqualValues(2, want.SpansFiltered)
 		var span *pb.Span
 		select {
-		case ss := <-agnt.Out:
+		case ss := <-agnt.TraceWriter.In:
 			span = ss.Traces[0].Spans[0]
 		case <-time.After(2 * time.Second):
 			t.Fatal("timeout: Expected one valid trace, but none were received.")
@@ -293,7 +293,7 @@ func TestProcess(t *testing.T) {
 		timeout := time.After(2 * time.Second)
 		var span *pb.Span
 		select {
-		case ss := <-agnt.Out:
+		case ss := <-agnt.TraceWriter.In:
 			span = ss.Traces[0].Spans[0]
 		case <-timeout:
 			t.Fatal("timed out")
@@ -309,7 +309,6 @@ func TestProcess(t *testing.T) {
 		agnt := NewAgent(ctx, cfg)
 		defer cancel()
 
-		payloadN := 2
 		trace := pb.Trace{{
 			TraceID:  1,
 			SpanID:   1,
@@ -319,10 +318,13 @@ func TestProcess(t *testing.T) {
 			Duration: (500 * time.Millisecond).Nanoseconds(),
 			Metrics:  map[string]float64{sampler.KeySamplingPriority: 2},
 		}}
-		var traces pb.Traces
-		for size := 0; size < writer.MaxPayloadSize*payloadN; size += trace.Msgsize() {
-			traces = append(traces, trace)
-		}
+		// we are sending 3 traces
+		traces := pb.Traces{trace, trace, trace}
+		// setting writer.MaxPayloadSize to the size of 1 trace (+1 byte)
+		defer func(oldSize int) { writer.MaxPayloadSize = oldSize }(writer.MaxPayloadSize)
+		writer.MaxPayloadSize = trace.Msgsize() + 1
+		// and expecting it to result in 3 payloads
+		expectedPayloads := 3
 		go agnt.Process(&api.Payload{
 			Traces: traces,
 			Source: agnt.Receiver.Stats.GetTagStats(info.Tags{}),
@@ -331,9 +333,9 @@ func TestProcess(t *testing.T) {
 		var gotCount int
 		timeout := time.After(3 * time.Second)
 		// expect multiple payloads
-		for i := 0; i < payloadN+2; i++ {
+		for i := 0; i < expectedPayloads; i++ {
 			select {
-			case ss := <-agnt.Out:
+			case ss := <-agnt.TraceWriter.In:
 				gotCount += int(ss.SpanCount)
 			case <-timeout:
 				t.Fatal("timed out")
@@ -400,6 +402,62 @@ func TestProcess(t *testing.T) {
 				}, stats.NewSublayerCalculator())
 				tt.f(t, tt.trace)
 			})
+		}
+	})
+}
+
+func TestClientComputedTopLevel(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	ctx, cancel := context.WithCancel(context.Background())
+	agnt := NewAgent(ctx, cfg)
+	defer cancel()
+	traces := pb.Traces{{{
+		Service:  "something &&<@# that should be a metric!",
+		TraceID:  1,
+		SpanID:   1,
+		Resource: "SELECT name FROM people WHERE age = 42 AND extra = 55",
+		Type:     "sql",
+		Start:    time.Now().Add(-time.Second).UnixNano(),
+		Duration: (500 * time.Millisecond).Nanoseconds(),
+		Metrics:  map[string]float64{sampler.KeySamplingPriority: 2},
+	}}}
+
+	t.Run("on", func(t *testing.T) {
+		go agnt.Process(&api.Payload{
+			Traces:                 traces,
+			Source:                 agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			ClientComputedTopLevel: true,
+		}, stats.NewSublayerCalculator())
+		timeout := time.After(time.Second)
+		for {
+			select {
+			case ss := <-agnt.TraceWriter.In:
+				_, ok := ss.Traces[0].Spans[0].Metrics["_top_level"]
+				assert.False(t, ok)
+				return
+			case <-timeout:
+				t.Fatal("timed out waiting for input")
+			}
+		}
+	})
+
+	t.Run("off", func(t *testing.T) {
+		go agnt.Process(&api.Payload{
+			Traces:                 traces,
+			Source:                 agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			ClientComputedTopLevel: false,
+		}, stats.NewSublayerCalculator())
+		timeout := time.After(time.Second)
+		for {
+			select {
+			case ss := <-agnt.TraceWriter.In:
+				_, ok := ss.Traces[0].Spans[0].Metrics["_top_level"]
+				assert.True(t, ok)
+				return
+			case <-timeout:
+				t.Fatal("timed out waiting for input")
+			}
 		}
 	})
 }
@@ -768,7 +826,7 @@ func benchThroughput(file string) func(*testing.B) {
 		// start the agent without the trace and stats writers; we will be draining
 		// these channels ourselves in the benchmarks, plus we don't want the writers
 		// resource usage to show up in the results.
-		agnt.Out = make(chan *writer.SampledSpans)
+		agnt.TraceWriter.In = make(chan *writer.SampledSpans)
 		go agnt.Run()
 
 		// wait for receiver to start:
@@ -821,7 +879,7 @@ func benchThroughput(file string) func(*testing.B) {
 		loop:
 			for {
 				select {
-				case <-agnt.Out:
+				case <-agnt.TraceWriter.In:
 					got++
 					if got == count {
 						// processed everything!
@@ -855,7 +913,8 @@ func tracesFromFile(file string) (raw []byte, count int, err error) {
 	// prepare the traces in this file by adding sampling.priority=2
 	// everywhere to ensure consistent sampling assumptions and results.
 	var traces pb.Traces
-	if err := msgp.Decode(in, &traces); err != nil {
+	bts, err := ioutil.ReadAll(in)
+	if _, err = traces.UnmarshalMsg(bts); err != nil {
 		return nil, 0, err
 	}
 	for _, t := range traces {
@@ -869,9 +928,9 @@ func tracesFromFile(file string) (raw []byte, count int, err error) {
 		}
 	}
 	// re-encode the modified payload
-	var data bytes.Buffer
-	if err := msgp.Encode(&data, traces); err != nil {
+	var data []byte
+	if data, err = traces.MarshalMsg(nil); err != nil {
 		return nil, 0, err
 	}
-	return data.Bytes(), count, nil
+	return data, count, nil
 }

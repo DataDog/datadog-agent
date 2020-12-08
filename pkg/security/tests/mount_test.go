@@ -8,13 +8,14 @@
 package tests
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"os"
 	"path"
 	"syscall"
 	"testing"
 	"time"
 	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
 func TestMount(t *testing.T) {
@@ -27,8 +28,9 @@ func TestMount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer testDrive.Close()
 
-	test, err := newTestProbe(nil, []*rules.RuleDefinition{rule}, testOpts{testDir: testDrive.Root()})
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{testDir: testDrive.Root(), wantProbeEvents: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +58,7 @@ func TestMount(t *testing.T) {
 			t.Fatalf("could not create bind mount: %s", err)
 		}
 
-		event, err := test.GetEvent(3*time.Second, "mount")
+		event, err := test.GetProbeEvent(3*time.Second, "mount")
 		if err != nil {
 			t.Error(err)
 		} else {
@@ -101,7 +103,7 @@ func TestMount(t *testing.T) {
 			t.Fatal(errno)
 		}
 
-		event, err := test.GetEvent(3*time.Second, "utimes")
+		event, err := test.GetProbeEvent(3*time.Second, "utimes")
 		if err != nil {
 			t.Error(err)
 		} else {
@@ -121,7 +123,7 @@ func TestMount(t *testing.T) {
 			t.Fatalf("could not unmount test-mount: %s", err)
 		}
 
-		event, err := test.GetEvent(3*time.Second, "umount")
+		event, err := test.GetProbeEvent(3*time.Second, "umount")
 		if err != nil {
 			t.Error(err)
 		} else {

@@ -44,11 +44,11 @@ func TestReportContainersCount(t *testing.T) {
 
 	telemetry := &telemetry{sender: mockSender}
 
-	telemetry.detector = newDummyDetector(10)
-	assert.NoError(t, telemetry.reportContainersCount())
-	mockSender.AssertCalled(t, "Gauge", containersCountMetricName, 10.0, "", []string{})
-
-	telemetry.detector = newDummyDetector(100)
-	assert.NoError(t, telemetry.reportContainersCount())
-	mockSender.AssertCalled(t, "Gauge", containersCountMetricName, 100.0, "", []string{})
+	containersCount := 10
+	telemetry.detector = newDummyDetector(containersCount)
+	assert.NoError(t, telemetry.reportContainers())
+	mockSender.AssertNumberOfCalls(t, "Gauge", containersCount)
+	for i := 0; i < containersCount; i++ {
+		mockSender.AssertCalled(t, "Gauge", containersCountMetricName, 1.0, "", []string{"container_id:" + strconv.Itoa(i)})
+	}
 }

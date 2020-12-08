@@ -3,160 +3,108 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build linux_bpf
+// +build linux
 
 package probe
 
-import (
-	"time"
-
-	"github.com/pkg/errors"
-
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
-)
-
-type pidDiscarder struct {
-	eventType EventType
-	pid       uint32
-	padding   uint32
+type activeKFilter interface {
+	Remove(*Probe) error
+	Apply(*Probe) error
+	Key() interface{}
 }
 
-type pidDiscarderParameters struct {
-	timestamp uint64
+type activeKFilters map[interface{}]activeKFilter
+
+func newActiveKFilters(kfilters ...activeKFilter) (ak activeKFilters) {
+	ak = make(map[interface{}]activeKFilter)
+	for _, kfilter := range kfilters {
+		ak.Add(kfilter)
+	}
+	return
 }
 
-func discardPID(probe *Probe, eventType EventType, pid uint32) (bool, error) {
-	key := pidDiscarder{
-		eventType: eventType,
-		pid:       pid,
-	}
-
-	table := probe.Map("pid_discarders")
-	if err := table.Put(&key, &pidDiscarderParameters{}); err != nil {
-		return false, err
-	}
-
-	return true, nil
+func (ak activeKFilters) HasKey(key interface{}) bool {
+	_, found := ak[key]
+	return found
 }
 
-func discardPIDWithTimeout(probe *Probe, eventType EventType, pid uint32, timeout time.Duration) (bool, error) {
-	key := pidDiscarder{
-		eventType: eventType,
-		pid:       pid,
-	}
-	params := pidDiscarderParameters{
-		timestamp: uint64(probe.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Now().Add(timeout))),
-	}
-
-	table := probe.Map("pid_discarders")
-	if err := table.Put(&key, &params); err != nil {
-		return false, err
-	}
-
-	return true, nil
-}
-
-type inodeDiscarder struct {
-	eventType EventType
-	pathKey   PathKey
-}
-
-func removeDiscarderInode(probe *Probe, mountID uint32, inode uint64) {
-	key := inodeDiscarder{
-		pathKey: PathKey{
-			MountID: mountID,
-			Inode:   inode,
-		},
-	}
-
-	table := probe.Map("inode_discarders")
-	for eventType := UnknownEventType + 1; eventType != maxEventType; eventType++ {
-		key.eventType = eventType
-		table.Delete(&key)
+func (ak activeKFilters) Sub(ak2 activeKFilters) {
+	for key := range ak {
+		if _, found := ak2[key]; found {
+			delete(ak, key)
+		}
 	}
 }
 
-func discardInode(probe *Probe, eventType EventType, mountID uint32, inode uint64) (bool, error) {
-	key := inodeDiscarder{
-		eventType: eventType,
-		pathKey: PathKey{
-			MountID: mountID,
-			Inode:   inode,
-		},
-	}
-
-	table := probe.Map("inode_discarders")
-	if err := table.Put(&key, ebpf.ZeroUint8MapItem); err != nil {
-		return false, err
-	}
-
-	return true, nil
+func (ak activeKFilters) Add(a activeKFilter) {
+	ak[a.Key()] = a
 }
 
-func discardParentInode(probe *Probe, rs *rules.RuleSet, eventType EventType, field eval.Field, filename string, mountID uint32, inode uint64, pathID uint32) (bool, uint32, uint64, error) {
-	isDiscarder, err := isParentPathDiscarder(rs, eventType, field, filename)
-	if !isDiscarder {
-		return false, 0, 0, err
-	}
+func (ak activeKFilters) Remove(a activeKFilter) {
+	delete(ak, a.Key())
+}
 
-	parentMountID, parentInode, err := probe.resolvers.DentryResolver.GetParent(mountID, inode, pathID)
+type mapEntry struct {
+	tableName string
+	key       interface{}
+	tableKey  interface{}
+	value     interface{}
+}
+
+type mapHash struct {
+	tableName string
+	key       interface{}
+}
+
+func (e *mapEntry) Key() interface{} {
+	return mapHash{
+		tableName: e.tableName,
+		key:       e.key,
+	}
+}
+
+func (e *mapEntry) Remove(probe *Probe) error {
+	table, err := probe.Map(e.tableName)
 	if err != nil {
-		return false, 0, 0, err
-	}
-
-	result, err := discardInode(probe, eventType, parentMountID, parentInode)
-	if err != nil {
-		return false, 0, 0, err
-	}
-
-	return result, parentMountID, parentInode, nil
-}
-
-func approveBasename(probe *Probe, tableName string, basename string) error {
-	key := ebpf.NewStringMapItem(basename, BasenameFilterSize)
-
-	table := probe.Map(tableName)
-	if table == nil {
-		return errors.Errorf("map %s not found", tableName)
-	}
-	if err := table.Put(key, ebpf.ZeroUint8MapItem); err != nil {
 		return err
 	}
-
-	return nil
+	return table.Delete(e.tableKey)
 }
 
-func approveBasenames(probe *Probe, tableName string, basenames ...string) error {
-	for _, basename := range basenames {
-		if err := approveBasename(probe, tableName, basename); err != nil {
-			return err
-		}
+func (e *mapEntry) Apply(probe *Probe) error {
+	table, err := probe.Map(e.tableName)
+	if err != nil {
+		return err
 	}
-	return nil
+	return table.Put(e.tableKey, e.value)
 }
 
-func setFlagsFilter(probe *Probe, tableName string, flags ...int) error {
-	var flagsItem ebpf.Uint32MapItem
-
-	for _, flag := range flags {
-		flagsItem |= ebpf.Uint32MapItem(flag)
-	}
-
-	if flagsItem != 0 {
-		table := probe.Map(tableName)
-		if table == nil {
-			return errors.Errorf("map %s not found", tableName)
-		}
-		if err := table.Put(ebpf.ZeroUint32MapItem, flagsItem); err != nil {
-			return err
-		}
-	}
-
-	return nil
+type arrayEntry struct {
+	tableName string
+	index     interface{}
+	value     interface{}
+	zeroValue interface{}
 }
 
-func approveFlags(probe *Probe, tableName string, flags ...int) error {
-	return setFlagsFilter(probe, tableName, flags...)
+func (e *arrayEntry) Key() interface{} {
+	return mapHash{
+		tableName: e.tableName,
+		key:       e.index,
+	}
+}
+
+func (e *arrayEntry) Remove(probe *Probe) error {
+	table, err := probe.Map(e.tableName)
+	if err != nil {
+		return err
+	}
+	return table.Put(e.index, e.zeroValue)
+}
+
+func (e *arrayEntry) Apply(probe *Probe) error {
+	table, err := probe.Map(e.tableName)
+	if err != nil {
+		return err
+	}
+	return table.Put(e.index, e.value)
 }

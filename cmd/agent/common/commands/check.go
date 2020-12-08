@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v2"
 
@@ -44,6 +45,7 @@ var (
 	checkDelay           int
 	logLevel             string
 	formatJSON           bool
+	formatTable          bool
 	breakPoint           string
 	fullSketches         bool
 	saveFlare            bool
@@ -67,6 +69,7 @@ func setupCmd(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&logLevel, "log-level", "l", "", "set the log level (default 'off') (deprecated, use the env var DD_LOG_LEVEL instead)")
 	cmd.Flags().IntVarP(&checkDelay, "delay", "d", 100, "delay between running the check and grabbing the metrics in milliseconds")
 	cmd.Flags().BoolVarP(&formatJSON, "json", "", false, "format aggregator and check runner output as json")
+	cmd.Flags().BoolVarP(&formatTable, "table", "", false, "format aggregator and check runner output as an ascii table")
 	cmd.Flags().StringVarP(&breakPoint, "breakpoint", "b", "", "set a breakpoint at a particular line number (Python checks only)")
 	cmd.Flags().BoolVarP(&profileMemory, "profile-memory", "m", false, "run the memory profiler (Python checks only)")
 	cmd.Flags().BoolVar(&fullSketches, "full-sketches", false, "output sketches with bins information")
@@ -434,11 +437,34 @@ func runCheck(c check.Check, agg *aggregator.BufferedAggregator) *check.Stats {
 }
 
 func printMetrics(agg *aggregator.BufferedAggregator) {
-	series, sketches := agg.GetSeriesAndSketches()
+	series, sketches := agg.GetSeriesAndSketches(time.Now())
 	if len(series) != 0 {
 		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Series")))
-		j, _ := json.MarshalIndent(series, "", "  ")
-		fmt.Println(string(j))
+
+		if formatTable {
+			headers, data := series.MarshalStrings()
+
+			// plain table with no borders
+			table := tablewriter.NewWriter(os.Stdout)
+			table.SetHeader(headers)
+			table.SetAutoWrapText(false)
+			table.SetAutoFormatHeaders(true)
+			table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+			table.SetAlignment(tablewriter.ALIGN_LEFT)
+			table.SetCenterSeparator("")
+			table.SetColumnSeparator("")
+			table.SetRowSeparator("")
+			table.SetHeaderLine(false)
+			table.SetBorder(false)
+			table.SetTablePadding("\t")
+
+			table.AppendBulk(data)
+			table.Render()
+			fmt.Println()
+		} else {
+			j, _ := json.MarshalIndent(series, "", "  ")
+			fmt.Println(string(j))
+		}
 	}
 	if len(sketches) != 0 {
 		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Sketches")))
@@ -449,8 +475,31 @@ func printMetrics(agg *aggregator.BufferedAggregator) {
 	serviceChecks := agg.GetServiceChecks()
 	if len(serviceChecks) != 0 {
 		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Service Checks")))
-		j, _ := json.MarshalIndent(serviceChecks, "", "  ")
-		fmt.Println(string(j))
+
+		if formatTable {
+			headers, data := serviceChecks.MarshalStrings()
+
+			// plain table with no borders
+			table := tablewriter.NewWriter(os.Stdout)
+			table.SetHeader(headers)
+			table.SetAutoWrapText(false)
+			table.SetAutoFormatHeaders(true)
+			table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+			table.SetAlignment(tablewriter.ALIGN_LEFT)
+			table.SetCenterSeparator("")
+			table.SetColumnSeparator("")
+			table.SetRowSeparator("")
+			table.SetHeaderLine(false)
+			table.SetBorder(false)
+			table.SetTablePadding("\t")
+
+			table.AppendBulk(data)
+			table.Render()
+			fmt.Println()
+		} else {
+			j, _ := json.MarshalIndent(serviceChecks, "", "  ")
+			fmt.Println(string(j))
+		}
 	}
 
 	events := agg.GetEvents()
@@ -478,7 +527,7 @@ func writeCheckToFile(c check.Check, checkStatus []byte) {
 func getMetricsData(agg *aggregator.BufferedAggregator) map[string]interface{} {
 	aggData := make(map[string]interface{})
 
-	series, sketches := agg.GetSeriesAndSketches()
+	series, sketches := agg.GetSeriesAndSketches(time.Now())
 	if len(series) != 0 {
 		// Workaround to get the raw sequence of metrics, see:
 		// https://github.com/DataDog/datadog-agent/blob/b2d9527ec0ec0eba1a7ae64585df443c5b761610/pkg/metrics/series.go#L109-L122

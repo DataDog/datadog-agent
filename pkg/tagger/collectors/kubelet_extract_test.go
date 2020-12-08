@@ -234,6 +234,24 @@ func TestParsePods(t *testing.T) {
 		},
 	}
 
+	containerStatusEmptyID := kubelet.Status{
+		Containers: []kubelet.ContainerStatus{
+			{
+				ID:    "",
+				Image: "sha256:0f006d265944c984e05200fab1c14ac54163cbcd4e8ae0ba3b35eb46fc559823",
+				Name:  "redis-master",
+			},
+		},
+		AllContainers: []kubelet.ContainerStatus{
+			{
+				ID:    "",
+				Image: "sha256:0f006d265944c984e05200fab1c14ac54163cbcd4e8ae0ba3b35eb46fc559823",
+				Name:  "redis-master",
+			},
+		},
+		Phase: "Running",
+	}
+
 	for nb, tc := range []struct {
 		skip              bool
 		desc              string
@@ -1197,6 +1215,35 @@ func TestParsePods(t *testing.T) {
 				},
 				OrchestratorCardTags: []string{},
 				HighCardTags:         []string{"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f"},
+				StandardTags:         []string{},
+			}},
+		},
+		{
+			desc: "Empty container ID",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name: "foo-pod",
+					UID:  "foo-uid",
+					Owners: []kubelet.PodOwner{
+						{
+							Kind: "ReplicaSet",
+							Name: "foo-rs",
+						},
+					},
+				},
+				Status: containerStatusEmptyID,
+				Spec:   criContainerSpec,
+			},
+			labelsAsTags: map[string]string{},
+			expectedInfo: []*TagInfo{{
+				Source: "kubelet",
+				Entity: "kubernetes_pod_uid://foo-uid",
+				LowCardTags: []string{
+					"kube_replica_set:foo-rs",
+					"pod_phase:running",
+				},
+				OrchestratorCardTags: []string{"pod_name:foo-pod"},
+				HighCardTags:         []string{},
 				StandardTags:         []string{},
 			}},
 		},

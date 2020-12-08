@@ -50,6 +50,8 @@ add_library(datadog-agent-three SHARED
 
 if(WIN32)
   set_target_properties(datadog-agent-three PROPERTIES LINK_FLAGS -static)
+elseif(APPLE)
+  set_target_properties(datadog-agent-three PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
 endif()
 
 add_compile_definitions(DATADOG_AGENT_THREE)
