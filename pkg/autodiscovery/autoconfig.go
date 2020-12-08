@@ -33,7 +33,7 @@ var (
 	errorStats            = newAcErrorStats()
 )
 
-var secretsDecrypt func(data []byte, origin string) ([]byte, error)
+var secretsDecrypt = secrets.Decrypt
 
 func init() {
 	acErrors = expvar.NewMap("autoconfig")
@@ -43,7 +43,6 @@ func init() {
 	acErrors.Set("ResolveWarnings", expvar.Func(func() interface{} {
 		return errorStats.getResolveWarnings()
 	}))
-	secretsDecrypt = secrets.Decrypt
 }
 
 // AutoConfig is responsible to collect integrations configurations from
