@@ -97,6 +97,7 @@ func (http *Monitor) Start() error {
 			report = time.NewTicker(30 * time.Second)
 			key    = new(httpBatchKey)
 		)
+		defer report.Stop()
 
 		for {
 			select {
