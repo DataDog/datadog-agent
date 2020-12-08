@@ -56,7 +56,7 @@ func (p *Probe) ProcessesByPID() (map[int32]*Process, error) {
 	for _, pid := range pids {
 		pathForPID := filepath.Join(p.procRootLoc, strconv.Itoa(int(pid)))
 		if !util.PathExists(pathForPID) {
-			log.Debugf("Unable to create new process %d, dir doesn't exist", pid)
+			log.Debugf("Unable to create new process %d, dir %s doesn't exist", pid, pathForPID)
 			continue
 		}
 
@@ -129,8 +129,8 @@ func trimAndSplitBytes(bs []byte) []string {
 
 	// Remove leading null bytes
 	i := 0
-	for j := 0; j < len(bs); j++ {
-		if bs[j] == 0 {
+	for i < len(bs) {
+		if bs[i] == 0 {
 			i++
 		} else {
 			break
@@ -165,9 +165,10 @@ func (p *Probe) getRootProcFile() (*os.File, error) {
 	}
 
 	f, err := os.Open(p.procRootLoc)
-	if err == nil {
-		p.procRootFile = f
+	if err != nil {
+		return nil, err
 	}
 
-	return f, err
+	p.procRootFile = f
+	return f, nil
 }
