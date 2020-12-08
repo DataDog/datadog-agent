@@ -689,8 +689,6 @@ dogstatsd_arm64_size_test:
     - mkdir clang && tar xf clang.src.tar.xz --strip-components=1 --no-same-owner -C clang
     - mkdir llvm && tar xf llvm.src.tar.xz --strip-components=1 --no-same-owner -C llvm
     - mkdir build && cd build
-    # Note: on ARM, this may fail (process gets killed), indicating an OOM error.
-    # In that case, reduce this job's parallelism (eg. with -DLLVM_PARALLEL_COMPILE_JOBS=2 -DLLVM_PARALLEL_LINK_JOBS=2)
     - |
       cmake -DLLVM_ENABLE_PROJECTS=clang \
       -DLLVM_TARGETS_TO_BUILD="BPF" \
@@ -703,8 +701,8 @@ dogstatsd_arm64_size_test:
       -DLLVM_INCLUDE_BENCHMARKS=OFF \
       -DLLVM_STATIC_LINK_CXX_STDLIB=ON \
       -DLLVM_ENABLE_BINDINGS=OFF \
-      -DLLVM_PARALLEL_COMPILE_JOBS=4 \
-      -DLLVM_PARALLEL_LINK_JOBS=4 \
+      -DLLVM_PARALLEL_COMPILE_JOBS=$PARALLEL_JOBS \
+      -DLLVM_PARALLEL_LINK_JOBS=$PARALLEL_JOBS \
       ../llvm
     - cmake --build . --target install
     - cd $DATADOG_AGENT_EMBEDDED_PATH
@@ -719,6 +717,7 @@ build_clang_x64:
   tags: ["runner:main", "size:2xlarge"]
   variables:
     ARCH: amd64
+    PARALLEL_JOBS: 4
 
 build_clang_arm64:
   extends: .build_clang_common
@@ -726,6 +725,7 @@ build_clang_arm64:
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
     ARCH: arm64
+    PARALLEL_JOBS: 2
 
 .system-probe_build_common:
   before_script:
