@@ -43,11 +43,7 @@ int kprobe__vfs_unlink(struct pt_regs *ctx) {
 
     // we resolve all the information before the file is actually removed
     struct dentry *dentry = (struct dentry *) PT_REGS_PARM2(ctx);
-
     u64 inode = get_dentry_ino(dentry);
-
-    // ensure that we invalidate all the layers
-    invalidate_inode(ctx, syscall->unlink.path_key.mount_id, inode, 1);
 
     u64 real_inode = get_ovl_lower_ino(dentry);
     if (real_inode) {
