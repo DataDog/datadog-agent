@@ -90,6 +90,10 @@ func TestGetCmdlineTestFS(t *testing.T) {
 }
 
 func TestGetCmdlineLocalFS(t *testing.T) {
+	// this test is flaky as the underlying procfs could change during
+	// the comparison of procutil and gopsutil,
+	// but we could use it to test locally
+	t.Skip("flaky test in CI")
 	testGetCmdline(t)
 }
 
@@ -120,6 +124,10 @@ func TestProcessesByPIDTestFS(t *testing.T) {
 }
 
 func TestProcessesByPIDLocalFS(t *testing.T) {
+	// this test is flaky as the underlying procfs could change during
+	// the comparison of procutil and gopsutil,
+	// but we could use it to test locally
+	t.Skip("flaky test in CI")
 	testProcessesByPID(t)
 }
 
