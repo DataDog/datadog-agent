@@ -93,21 +93,23 @@ type networkState struct {
 	latestTimeEpoch uint64
 
 	// Network state configuration
-	clientExpiry   time.Duration
-	maxClosedConns int
-	maxClientStats int
-	maxDNSStats    int
+	clientExpiry      time.Duration
+	maxClosedConns    int
+	maxClientStats    int
+	maxDNSStats       int
+	collectDNSDomains bool
 }
 
 // NewState creates a new network state
-func NewState(clientExpiry time.Duration, maxClosedConns, maxClientStats int, maxDNSStats int) State {
+func NewState(clientExpiry time.Duration, maxClosedConns, maxClientStats int, maxDNSStats int, collectDNSDomains bool) State {
 	return &networkState{
-		clients:        map[string]*client{},
-		telemetry:      telemetry{},
-		clientExpiry:   clientExpiry,
-		maxClosedConns: maxClosedConns,
-		maxClientStats: maxClientStats,
-		maxDNSStats:    maxDNSStats,
+		clients:           map[string]*client{},
+		telemetry:         telemetry{},
+		clientExpiry:      clientExpiry,
+		maxClosedConns:    maxClosedConns,
+		maxClientStats:    maxClientStats,
+		maxDNSStats:       maxDNSStats,
+		collectDNSDomains: collectDNSDomains,
 	}
 }
 
@@ -210,27 +212,37 @@ func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
 		}
 
 		if dnsStatsByDomain, ok := ns.clients[id].dnsStats[key]; ok {
-			conn.DNSStatsByDomain = make(map[string]DNSStats)
-			conn.DNSCountByRcode = make(map[uint32]uint32)
+			if ns.collectDNSDomains {
+				conn.DNSStatsByDomain = make(map[string]DNSStats)
+			} else {
+				conn.DNSCountByRcode = make(map[uint32]uint32)
+			}
 			var total uint32
 			for domain, dnsStats := range dnsStatsByDomain {
-				var ds DNSStats
-				ds.DNSCountByRcode = make(map[uint32]uint32)
-				conn.DNSTimeouts += dnsStats.timeouts
-				ds.DNSTimeouts = dnsStats.timeouts
-				conn.DNSSuccessLatencySum += dnsStats.successLatencySum
-				ds.DNSSuccessLatencySum = dnsStats.successLatencySum
-				conn.DNSFailureLatencySum += dnsStats.failureLatencySum
-				ds.DNSFailureLatencySum = dnsStats.failureLatencySum
-				for rcode, count := range dnsStats.countByRcode {
-					ds.DNSCountByRcode[uint32(rcode)] = count
-					conn.DNSCountByRcode[uint32(rcode)] += count
-					total += count
+				if ns.collectDNSDomains {
+					var ds DNSStats
+					ds.DNSTimeouts = dnsStats.timeouts
+					ds.DNSSuccessLatencySum = dnsStats.successLatencySum
+					ds.DNSFailureLatencySum = dnsStats.failureLatencySum
+					ds.DNSCountByRcode = make(map[uint32]uint32)
+					for rcode, count := range dnsStats.countByRcode {
+						ds.DNSCountByRcode[uint32(rcode)] = count
+					}
+					conn.DNSStatsByDomain[domain] = ds
+				} else {
+					conn.DNSSuccessfulResponses += dnsStats.countByRcode[DNSResponseCodeNoError]
+					conn.DNSTimeouts += dnsStats.timeouts
+					conn.DNSSuccessLatencySum += dnsStats.successLatencySum
+					conn.DNSFailureLatencySum += dnsStats.failureLatencySum
+					for rcode, count := range dnsStats.countByRcode {
+						conn.DNSCountByRcode[uint32(rcode)] += count
+						total += count
+					}
 				}
-				conn.DNSStatsByDomain[domain] = ds
-				conn.DNSSuccessfulResponses += dnsStats.countByRcode[DNSResponseCodeNoError]
 			}
-			conn.DNSFailedResponses = total - conn.DNSSuccessfulResponses
+			if !ns.collectDNSDomains {
+				conn.DNSFailedResponses = total - conn.DNSSuccessfulResponses
+			}
 		}
 		seen[key] = struct{}{}
 	}
