@@ -87,6 +87,9 @@ var (
 	// MetricRuleSetLoaded is the name of the metric used to report that a new ruleset was loaded
 	// Tags: -
 	MetricRuleSetLoaded = newRuntimeSecurityMetric(".ruleset_loaded")
+	// MetricForkBomb is the name of the metric used to report the number of processes that crossed the fork bomb
+	// threshold. Tags: -
+	MetricForkBomb = newRuntimeSecurityMetric(".fork_bomb")
 )
 
 func newRuntimeSecurityMetric(name string) string {

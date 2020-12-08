@@ -228,7 +228,7 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 		// Don't append dentry name if this is the root dentry (i.d. name == '/')
 		if path.Name[0] != '\x00' && path.Name[0] != '/' {
 			segment = C.GoString((*C.char)(unsafe.Pointer(&path.Name)))
-			if len(segment) > (MaxSegmentLength) {
+			if len(segment) >= (MaxSegmentLength) {
 				resolutionErr = ErrTruncatedSegment{}
 			}
 			filename = "/" + segment + filename
