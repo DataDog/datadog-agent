@@ -80,6 +80,7 @@ func NewSocketFilterSnooper(
 	var statKeeper *dnsStatKeeper
 	if collectDNSStats {
 		statKeeper = newDNSStatkeeper(dnsTimeout)
+		log.Infof("DNS Stats collection is enabled")
 	}
 	snooper := &SocketFilterSnooper{
 		source:          packetSrc,

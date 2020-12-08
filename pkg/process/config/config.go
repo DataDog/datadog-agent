@@ -105,8 +105,9 @@ type AgentConfig struct {
 	EnableTracepoints              bool
 
 	// DNS stats configuration
-	CollectDNSStats bool
-	DNSTimeout      time.Duration
+	CollectDNSStats   bool
+	DNSTimeout        time.Duration
+	CollectDNSDomains bool
 
 	// Orchestrator collection configuration
 	OrchestrationCollectionEnabled bool
@@ -226,6 +227,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		OffsetGuessThreshold:         400,
 		EnableTracepoints:            false,
 		CollectDNSStats:              true,
+		CollectDNSDomains:            false,
 
 		// Check config
 		EnabledChecks: enabledChecks,
@@ -493,6 +495,7 @@ func loadSysProbeEnvVariables() {
 		{"DD_DISABLE_DNS_INSPECTION", "system_probe_config.disable_dns_inspection"},
 		{"DD_COLLECT_LOCAL_DNS", "system_probe_config.collect_local_dns"},
 		{"DD_COLLECT_DNS_STATS", "system_probe_config.collect_dns_stats"},
+		{"DD_COLLECT_DNS_DOMAINS", "system_probe_config.collect_dns_domains"},
 	} {
 		if v, ok := os.LookupEnv(variable.env); ok {
 			config.Datadog.Set(variable.cfg, v)
