@@ -6,6 +6,7 @@ import (
 	"math"
 	"math/rand"
 	"net"
+	"os/exec"
 	"strings"
 	"sync"
 	"testing"
@@ -164,8 +165,8 @@ func TestDNSOverTCPSnooping(t *testing.T) {
 
 // Get the preferred outbound IP of this machine
 func getOutboundIP(t *testing.T, serverIP string) net.IP {
-	if serverIP == localhost {
-		return net.ParseIP(localhost)
+	if parsedIP := net.ParseIP(serverIP); parsedIP.IsLoopback() {
+		return parsedIP
 	}
 	conn, err := net.Dial("udp", serverIP+":80")
 	require.NoError(t, err)
@@ -388,4 +389,32 @@ func TestParsingError(t *testing.T) {
 	stats := reverseDNS.GetStats()
 	assert.True(t, stats["ips"] == 0)
 	assert.True(t, stats["decoding_errors"] == 1)
+}
+
+func TestDNSOverIPv6(t *testing.T) {
+	m, reverseDNS := initDNSTests(t, true)
+	defer m.Stop(manager.CleanAll)
+	defer reverseDNS.Close()
+
+	cmd := exec.Command("testdata/setup_ipv6_dns_server.sh")
+	if err := cmd.Run(); err != nil {
+		require.NoError(t, err)
+	}
+
+	defer func() {
+		exec.Command("testdata/teardown_ipv6_dns_server.sh").Run()
+	}()
+
+	// This local DNS server is set up so it always returns a NXDOMAIN answer
+	serverIP := net.IPv6loopback.String()
+	queryIP, queryPort, reps := sendDNSQueries(t, []string{"nxdomain-123.com"}, serverIP, UDP)
+	require.NotNil(t, reps[0])
+
+	allStats := getStats(reverseDNS, 1)
+	key := getKey(queryIP, queryPort, serverIP, UDP)
+	require.Contains(t, allStats, key)
+
+	stats := allStats[key]
+	assert.Equal(t, 1, len(stats.countByRcode))
+	assert.Equal(t, uint32(1), stats.countByRcode[uint8(layers.DNSResponseCodeNXDomain)])
 }
