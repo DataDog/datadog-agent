@@ -66,9 +66,13 @@ type Server struct {
 	// aggregator is a pointer to the aggregator that the dogstatsd daemon
 	// will send the metrics samples, events and service checks to.
 	aggregator *aggregator.BufferedAggregator
+	// running in their own routine, workers are responsible of parsing the packets
+	// and pushing them to the aggregator
+	workers []*worker
 
 	packetsIn                 chan listeners.Packets
 	sharedPacketPool          *listeners.PacketPool
+	sharedFloat64List         *float64ListPool
 	Statistics                *util.Stats
 	Started                   bool
 	stopChan                  chan bool
@@ -88,6 +92,9 @@ type Server struct {
 	// NOTE(remy): this should probably be dropped and use a throttler logger, see
 	// package (pkg/trace/logutils) for a possible throttler implemetation.
 	disableVerboseLogs bool
+
+	// ServerlessMode is set to true if we're running in a serverless environment.
+	ServerlessMode     bool
 	UdsListenerRunning bool
 }
 
@@ -121,7 +128,7 @@ type metricsCountBuckets struct {
 	closeChan  chan struct{}
 }
 
-// NewServer returns a running Dogstatsd server
+// NewServer returns a running DogStatsD server
 func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 	var stats *util.Stats
 	if config.Datadog.GetBool("dogstatsd_stats_enable") == true {
@@ -168,7 +175,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 		}
 	}
 
-	pipeName := config.Datadog.GetString("dogstatsd_windows_pipe_name")
+	pipeName := config.Datadog.GetString("dogstatsd_pipe_name")
 	if len(pipeName) > 0 {
 		namedPipeListener, err := listeners.NewNamedPipeListener(pipeName, packetsChannel, sharedPacketPool)
 		if err != nil {
@@ -206,6 +213,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 		Statistics:                stats,
 		packetsIn:                 packetsChannel,
 		sharedPacketPool:          sharedPacketPool,
+		sharedFloat64List:         newFloat64ListPool(),
 		aggregator:                aggregator,
 		listeners:                 tmpListeners,
 		stopChan:                  make(chan bool),
@@ -290,13 +298,15 @@ func (s *Server) handleMessages() {
 
 	// Run min(2, GoMaxProcs-2) workers, we dedicate a core to the
 	// listener goroutine and another to aggregator + forwarder
-	workers := runtime.GOMAXPROCS(-1) - 2
-	if workers < 2 {
-		workers = 2
+	workersCount := runtime.GOMAXPROCS(-1) - 2
+	if workersCount < 2 {
+		workersCount = 2
 	}
 
-	for i := 0; i < workers; i++ {
-		go s.worker()
+	for i := 0; i < workersCount; i++ {
+		worker := newWorker(s)
+		go worker.run()
+		s.workers = append(s.workers, worker)
 	}
 }
 
@@ -318,22 +328,17 @@ func (s *Server) forwarder(fcon net.Conn, packetsChannel chan listeners.Packets)
 	}
 }
 
-func (s *Server) worker() {
-	// the batcher will be responsible of batching a few samples / events / service
-	// checks and it will automatically forward them to the aggregator, meaning that
-	// the flushing logic to the aggregator is actually in the batcher.
-	batcher := newBatcher(s.aggregator)
-
-	parser := newParser()
-	for {
-		select {
-		case <-s.stopChan:
-			return
-		case <-s.health.C:
-		case packets := <-s.packetsIn:
-			s.parsePackets(batcher, parser, packets)
-		}
+// Flush flushes all the data to the aggregator to them send it to the Datadog intake.
+// Set waitForSerializer to true to serialize and send the data synchronously.
+func (s *Server) Flush(waitForSerializer bool) {
+	log.Debug("Received a Flush trigger")
+	// make all workers flush their aggregated data (in the batcher) to the aggregator.
+	for _, w := range s.workers {
+		w.flush()
 	}
+	// flush the aggregator to have the serializer/forwarder send data to the backend.
+	// We add 10 seconds to the interval to ensure that we're getting the whole sketches bucket
+	s.aggregator.Flush(time.Now().Add(time.Second*10), true)
 }
 
 func nextMessage(packet *[]byte) (message []byte) {
@@ -350,7 +355,7 @@ func nextMessage(packet *[]byte) (message []byte) {
 	return message
 }
 
-func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*listeners.Packet) {
+func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*listeners.Packet, samples []metrics.MetricSample) []metrics.MetricSample {
 	for _, packet := range packets {
 		originTagger := originTags{origin: packet.Origin}
 		log.Tracef("Dogstatsd receive: %q", packet.Contents)
@@ -393,7 +398,10 @@ func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*liste
 				}
 				batcher.appendEvent(event)
 			case metricSampleType:
-				sample, err := s.parseMetricMessage(parser, message, originTagger.getTags)
+				var err error
+				samples = samples[0:0]
+
+				samples, err = s.parseMetricMessage(samples, parser, message, originTagger.getTags)
 				if err != nil {
 					originTags := originTagger.getTags()
 					if len(originTags) > 0 {
@@ -403,21 +411,24 @@ func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*liste
 					}
 					continue
 				}
-				if atomic.LoadUint64(&s.Debug.Enabled) == 1 {
-					s.storeMetricStats(sample)
-				}
-				batcher.appendSample(sample)
-				if s.histToDist && sample.Mtype == metrics.HistogramType {
-					distSample := sample.Copy()
-					distSample.Name = s.histToDistPrefix + distSample.Name
-					distSample.Mtype = metrics.DistributionType
-					batcher.appendSample(*distSample)
+				for idx := range samples {
+					if atomic.LoadUint64(&s.Debug.Enabled) == 1 {
+						s.storeMetricStats(samples[idx])
+					}
+					batcher.appendSample(samples[idx])
+					if s.histToDist && samples[idx].Mtype == metrics.HistogramType {
+						distSample := samples[idx].Copy()
+						distSample.Name = s.histToDistPrefix + distSample.Name
+						distSample.Mtype = metrics.DistributionType
+						batcher.appendSample(*distSample)
+					}
 				}
 			}
 		}
 		s.sharedPacketPool.Put(packet)
 	}
 	batcher.flush()
+	return samples
 }
 
 func (s *Server) errLog(format string, params ...interface{}) {
@@ -428,12 +439,12 @@ func (s *Server) errLog(format string, params ...interface{}) {
 	}
 }
 
-func (s *Server) parseMetricMessage(parser *parser, message []byte, originTagsFunc func() []string) (metrics.MetricSample, error) {
+func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, originTagsFunc func() []string) ([]metrics.MetricSample, error) {
 	sample, err := parser.parseMetricSample(message)
 	if err != nil {
 		dogstatsdMetricParseErrors.Add(1)
 		tlmProcessed.IncWithTags(tlmProcessedErrorTags)
-		return metrics.MetricSample{}, err
+		return metricSamples, err
 	}
 	if s.mapper != nil {
 		mapResult := s.mapper.Map(sample.name)
@@ -443,11 +454,24 @@ func (s *Server) parseMetricMessage(parser *parser, message []byte, originTagsFu
 			sample.tags = append(sample.tags, mapResult.Tags...)
 		}
 	}
-	metricSample := enrichMetricSample(sample, s.metricPrefix, s.metricPrefixBlacklist, s.defaultHostname, originTagsFunc, s.entityIDPrecedenceEnabled)
-	metricSample.Tags = append(metricSample.Tags, s.extraTags...)
-	dogstatsdMetricPackets.Add(1)
-	tlmProcessed.IncWithTags(tlmProcessedOkTags)
-	return metricSample, nil
+	metricSamples = enrichMetricSample(metricSamples, sample, s.metricPrefix, s.metricPrefixBlacklist, s.defaultHostname, originTagsFunc, s.entityIDPrecedenceEnabled, s.ServerlessMode)
+
+	if len(sample.values) > 0 {
+		s.sharedFloat64List.put(sample.values)
+	}
+
+	for idx := range metricSamples {
+		// All metricSamples already share the same Tags slice. We can
+		// extends the first one and reuse it for the rest.
+		if idx == 0 {
+			metricSamples[idx].Tags = append(metricSamples[idx].Tags, s.extraTags...)
+		} else {
+			metricSamples[idx].Tags = metricSamples[0].Tags
+		}
+		dogstatsdMetricPackets.Add(1)
+		tlmProcessed.IncWithTags(tlmProcessedOkTags)
+	}
+	return metricSamples, nil
 }
 
 func (s *Server) parseEventMessage(parser *parser, message []byte, originTagsFunc func() []string) (*metrics.Event, error) {

@@ -42,6 +42,7 @@ type LogSource struct {
 	// that reads log lines for this source. E.g, a sourceType == containerd and Config.Type == file means that
 	// the agent is tailing a file to read logs of a containerd container
 	sourceType SourceType
+	info       map[string]string
 	// In the case that the source is overridden, keep a reference to the parent for bubbling up information about the child
 	ParentSource *LogSource
 	LatencyStats util.StatsTracker
@@ -57,6 +58,7 @@ func NewLogSource(name string, config *LogsConfig) *LogSource {
 		lock:         &sync.Mutex{},
 		Messages:     NewMessages(),
 		BytesRead:    expvar.Int{},
+		info:         make(map[string]string),
 		LatencyStats: util.NewStatsTracker(time.Hour*24, time.Hour),
 	}
 }
@@ -98,4 +100,29 @@ func (s *LogSource) GetSourceType() SourceType {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	return s.sourceType
+}
+
+// UpdateInfo sets the info data with a unique key
+func (s *LogSource) UpdateInfo(key string, val string) {
+	s.lock.Lock()
+	s.info[key] = val
+	s.lock.Unlock()
+}
+
+// RemoveInfo remove the info data given a unique key
+func (s *LogSource) RemoveInfo(key string) {
+	s.lock.Lock()
+	delete(s.info, key)
+	s.lock.Unlock()
+}
+
+// GetInfo returns a list of info about the source
+func (s *LogSource) GetInfo() []string {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	info := make([]string, 0, len(s.info))
+	for _, v := range s.info {
+		info = append(info, v)
+	}
+	return info
 }

@@ -1598,6 +1598,11 @@ api_key:
 #
 # ecs_collect_resource_tags_ec2: false
 
+## @param ecs_metadata_timeout - integer - optional - default: 500
+## Timeout in milliseconds on calls to the AWS ECS metadata endpoints.
+#
+# ecs_metadata_timeout: 500
+
 {{ end -}}
 {{- if .CRI }}
 

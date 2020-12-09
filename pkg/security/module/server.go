@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build linux_bpf
+// +build linux
 
 package module
 
 import (
 	"encoding/json"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -27,8 +28,9 @@ import (
 // EventServer represents a gRPC server in charge of receiving events sent by
 // the runtime security system-probe module and forwards them to Datadog
 type EventServer struct {
+	sync.RWMutex
 	msgs          chan *api.SecurityEventMessage
-	expiredEvents map[string]*int64
+	expiredEvents map[rules.RuleID]*int64
 	rate          *Limiter
 }
 
@@ -102,6 +104,9 @@ func (e *EventServer) SendEvent(rule *eval.Rule, event eval.Event) {
 
 // expireEvent updates the count of expired messages for the appropriate rule
 func (e *EventServer) expireEvent(msg *api.SecurityEventMessage) {
+	e.RLock()
+	defer e.RUnlock()
+
 	// Update metric
 	count, ok := e.expiredEvents[msg.RuleID]
 	if ok {
@@ -113,6 +118,9 @@ func (e *EventServer) expireEvent(msg *api.SecurityEventMessage) {
 // GetStats returns a map indexed by ruleIDs that describes the amount of events
 // that were expired or rate limited before reaching
 func (e *EventServer) GetStats() map[string]int64 {
+	e.RLock()
+	defer e.RUnlock()
+
 	stats := make(map[string]int64)
 	for ruleID, val := range e.expiredEvents {
 		stats[ruleID] = atomic.SwapInt64(val, 0)
@@ -133,16 +141,23 @@ func (e *EventServer) SendStats(client *statsd.Client) error {
 	return nil
 }
 
+// Apply a rule set
+func (e *EventServer) Apply(ruleIDs []rules.RuleID) {
+	e.Lock()
+	defer e.Unlock()
+
+	e.expiredEvents = make(map[rules.RuleID]*int64)
+	for _, id := range ruleIDs {
+		e.expiredEvents[id] = new(int64)
+	}
+}
+
 // NewEventServer returns a new gRPC event server
-func NewEventServer(ids []string, cfg *config.Config) *EventServer {
+func NewEventServer(cfg *config.Config) *EventServer {
 	es := &EventServer{
 		msgs:          make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
-		expiredEvents: make(map[string]*int64),
+		expiredEvents: make(map[rules.RuleID]*int64),
 		rate:          NewLimiter(rate.Limit(cfg.EventServerRate), cfg.EventServerBurst),
-	}
-	for _, id := range ids {
-		var val int64
-		es.expiredEvents[id] = &val
 	}
 	return es
 }

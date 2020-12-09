@@ -291,6 +291,7 @@
         <span class="stat_subtitle">{{ .name }}</span>
         <span class="stat_subdata">
           {{- range .sources }}
+            <span class="stat_subdata">
             Type: {{ .type }}</br>
             {{- range $key, $value := .configuration }}
             {{$key}}: {{$value}}</br>
@@ -303,8 +304,17 @@
             {{- end }}
             {{- if .inputs }}
             Inputs: {{ range $input := .inputs }}{{$input}} {{ end }}</br>
-            {{- end }}
             BytesRead: {{ .bytes_read }}</br>
+            {{- if .info }}
+            Container Info:</br>
+              <span class="stat_subdata">
+                {{- range $inf := .info }}
+                  {{ $inf }}</br>
+                {{- end }}
+              </span>
+            {{- end }}
+            {{- end }}
+            </span>
           {{- end }}
         </span>
       {{- end }}

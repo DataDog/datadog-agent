@@ -48,7 +48,7 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 		// and marshalling is more performant than YAML
 		jsonDeploy, err := jsoniter.Marshal(depl)
 		if err != nil {
-			log.Debugf("Could not marshal deployment to JSON: %s", err)
+			log.Warnf("Could not marshal deployment to JSON: %s", err)
 			continue
 		}
 		deployModel.Yaml = jsonDeploy
@@ -123,7 +123,7 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.O
 		// and marshalling is more performant than YAML
 		jsonRS, err := jsoniter.Marshal(r)
 		if err != nil {
-			log.Debugf("Could not marshal replica set to JSON: %s", err)
+			log.Warnf("Could not marshal replica set to JSON: %s", err)
 			continue
 		}
 		rsModel.Yaml = jsonRS
@@ -188,7 +188,7 @@ func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *confi
 		// + marshalling is more performant than YAML
 		jsonSvc, err := jsoniter.Marshal(svc)
 		if err != nil {
-			log.Debugf("Could not marshal service to JSON: %s", err)
+			log.Warnf("Could not marshal service to JSON: %s", err)
 			continue
 		}
 		serviceModel.Yaml = jsonSvc
@@ -255,7 +255,7 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Orche
 		// + marshalling is more performant than YAML
 		jsonNode, err := jsoniter.Marshal(node)
 		if err != nil {
-			log.Debugf("Could not marshal node to JSON: %s", err)
+			log.Warnf("Could not marshal node to JSON: %s", err)
 			continue
 		}
 		nodeModel.Yaml = jsonNode

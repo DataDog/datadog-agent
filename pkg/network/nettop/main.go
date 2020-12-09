@@ -6,29 +6,22 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
-	ddebpf "github.com/DataDog/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 )
 
 func main() {
-	kernelVersion, err := ddebpf.CurrentKernelVersion()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
-	}
-	fmt.Printf("-- Kernel: %d (%d.%d)--\n", kernelVersion, (kernelVersion>>16)&0xff, (kernelVersion>>8)&0xff)
-
-	if supported, msg := ebpf.IsTracerSupportedByOS(nil); !supported {
+	if supported, msg := tracer.IsTracerSupportedByOS(nil); !supported {
 		fmt.Fprintf(os.Stderr, "system-probe is not supported: %s\n", msg)
 		os.Exit(1)
 	}
 
-	cfg := ebpf.NewDefaultConfig()
+	cfg := config.NewDefaultConfig()
 	fmt.Printf("-- Config: %+v --\n", cfg)
 	cfg.BPFDebug = true
 
-	t, err := ebpf.NewTracer(cfg)
+	t, err := tracer.NewTracer(cfg)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)

@@ -11,6 +11,9 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/gogo/protobuf/proto"
 	jsoniter "github.com/json-iterator/go"
@@ -115,6 +118,45 @@ func (sc ServiceChecks) MarshalJSON() ([]byte, error) {
 	reqBody := &bytes.Buffer{}
 	err := json.NewEncoder(reqBody).Encode(ServiceChecksAlias(sc))
 	return reqBody.Bytes(), err
+}
+
+// MarshalStrings converts the service checks to a sorted slice of string slices
+func (sc ServiceChecks) MarshalStrings() ([]string, [][]string) {
+	var headers = []string{"Check", "Hostname", "Timestamp", "Status", "Message", "Tags"}
+	var payload = make([][]string, len(sc))
+
+	for _, c := range sc {
+		payload = append(payload, []string{
+			c.CheckName,
+			c.Host,
+			strconv.FormatInt(c.Ts, 10),
+			c.Status.String(),
+			c.Message,
+			strings.Join(c.Tags, ", "),
+		})
+	}
+
+	sort.Slice(payload, func(i, j int) bool {
+		// edge cases
+		if len(payload[i]) == 0 && len(payload[j]) == 0 {
+			return false
+		}
+		if len(payload[i]) == 0 || len(payload[j]) == 0 {
+			return len(payload[i]) == 0
+		}
+		// sort by service check name
+		if payload[i][0] != payload[j][0] {
+			return payload[i][0] < payload[j][0]
+		}
+		// then by timestamp
+		if payload[i][2] != payload[j][2] {
+			return payload[i][2] < payload[j][2]
+		}
+		// finally by tags (last field) as tie breaker
+		return payload[i][len(payload[i])-1] < payload[j][len(payload[j])-1]
+	})
+
+	return headers, payload
 }
 
 // SplitPayload breaks the payload into times number of pieces

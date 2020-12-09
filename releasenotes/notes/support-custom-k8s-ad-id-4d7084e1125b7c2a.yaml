@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Support custom autodiscovery identifiers on Kubernetes using the `ad.datadoghq.com/<container_name>.check.id` pod annotation.

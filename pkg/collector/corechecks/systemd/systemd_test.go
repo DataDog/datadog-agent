@@ -9,8 +9,10 @@ package systemd
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -966,12 +968,7 @@ func TestGetPropertyBool(t *testing.T) {
 type mockAutoConfig struct{}
 
 func (*mockAutoConfig) GetLoadedConfigs() map[string]integration.Config {
-	ret := make(map[string]integration.Config)
-	ret["systemd_digest"] = integration.Config{
-		Name:     "systemd",
-		Provider: "provider1",
-	}
-	return ret
+	return make(map[string]integration.Config)
 }
 
 type mockCollector struct{}
@@ -1011,4 +1008,33 @@ unit_names:
 	checkMetadata := *p.CheckMetadata
 	systemdMetadata := *checkMetadata["systemd"][0]
 	assert.Equal(t, systemdVersion, systemdMetadata["version.raw"])
+}
+
+func TestCheckID(t *testing.T) {
+	check1 := systemdFactory()
+	check2 := systemdFactory()
+	aggregator.InitAggregatorWithFlushInterval(nil, "", 1*time.Hour)
+
+	// language=yaml
+	rawInstanceConfig1 := []byte(`
+unit_names:
+ - ssh.service1
+tags:
+ - "foo:bar"
+`)
+	// language=yaml
+	rawInstanceConfig2 := []byte(`
+unit_names:
+ - ssh.service2
+`)
+
+	err := check1.Configure(rawInstanceConfig1, []byte(``), "test")
+	assert.Nil(t, err)
+
+	err = check2.Configure(rawInstanceConfig2, []byte(``), "test")
+	assert.Nil(t, err)
+
+	assert.Equal(t, check.ID("systemd:29388db26b0a8c38"), check1.ID())
+	assert.Equal(t, check.ID("systemd:31a0335c91ba9ae6"), check2.ID())
+	assert.NotEqual(t, check1.ID(), check2.ID())
 }

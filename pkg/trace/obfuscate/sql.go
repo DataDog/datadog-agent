@@ -358,3 +358,12 @@ func (o *Obfuscator) obfuscateSQL(span *pb.Span) {
 	}
 	traceutil.SetMeta(span, sqlQueryTag, oq.Query)
 }
+
+// ObfuscateSQLExecPlan obfuscates query conditions in the provided JSON encoded execution plan. If normalize=True,
+// then cost and row estimates are also obfuscated away.
+func (o *Obfuscator) ObfuscateSQLExecPlan(jsonPlan string, normalize bool) (string, error) {
+	if normalize {
+		return o.sqlExecPlanNormalize.obfuscate([]byte(jsonPlan))
+	}
+	return o.sqlExecPlan.obfuscate([]byte(jsonPlan))
+}

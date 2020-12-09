@@ -10,6 +10,7 @@ import (
 	"time"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
@@ -102,13 +103,8 @@ func runAgent(exit chan struct{}) {
 	}
 
 	// Now that the logger is configured log host info
-	platform, err := util.GetPlatform()
-	if err != nil {
-		log.Debugf("error retrieving platform: %s", err)
-	} else {
-		log.Infof("running on platform: %s", platform)
-	}
-
+	hostInfo := host.GetStatusInformation()
+	log.Infof("running on platform: %s", hostInfo.Platform)
 	log.Infof("running version: %s", versionString(", "))
 
 	// Tagger must be initialized after agent config has been setup

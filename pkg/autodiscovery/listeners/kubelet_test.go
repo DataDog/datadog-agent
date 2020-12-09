@@ -122,6 +122,18 @@ func getMockedPods() []*kubelet.Pod {
 				},
 			},
 		},
+		{
+			Name:  "custom",
+			Image: "org/custom:latest",
+			Ports: []kubelet.ContainerPortSpec{
+				{
+					ContainerPort: 1122,
+					HostPort:      1133,
+					Name:          "barport",
+					Protocol:      "TCP",
+				},
+			},
+		},
 	}
 	kubeletSpec := kubelet.Spec{
 		HostNetwork: false,
@@ -169,6 +181,11 @@ func getMockedPods() []*kubelet.Pod {
 			Image: "datadoghq.com/bar:latest",
 			ID:    "docker://bad-status-random-hash",
 		},
+		{
+			Name:  "custom",
+			Image: "org/custom:latest",
+			ID:    "docker://custom-check-id",
+		},
 	}
 	kubeletStatus := kubelet.Status{
 		Phase:         "Running",
@@ -187,6 +204,7 @@ func getMockedPods() []*kubelet.Pod {
 				Annotations: map[string]string{
 					"ad.datadoghq.com/baz.check_names": "[\"baz_check\"]",
 					"ad.datadoghq.com/baz.instances":   "[]",
+					"ad.datadoghq.com/custom.check.id": "custom-check-id",
 				},
 			},
 		},
@@ -208,7 +226,7 @@ func TestProcessNewPod(t *testing.T) {
 		config.Datadog.SetDefault("exclude_pause_container", true)
 	}()
 
-	services := make(chan Service, 8)
+	services := make(chan Service, 9)
 	listener := KubeletListener{
 		newService: services,
 		services:   make(map[string]Service),
@@ -373,6 +391,28 @@ func TestProcessNewPod(t *testing.T) {
 		assert.FailNow(t, "eighth service not in channel")
 	}
 
+	select {
+	case service := <-services:
+		assert.Equal(t, "docker://custom-check-id", service.GetEntity())
+		assert.Equal(t, "container_id://custom-check-id", service.GetTaggerEntity())
+		adIdentifiers, err := service.GetADIdentifiers()
+		assert.Nil(t, err)
+		assert.Equal(t, []string{"custom-check-id", "docker://custom-check-id", "org/custom:latest", "custom"}, adIdentifiers)
+		hosts, err := service.GetHosts()
+		assert.Nil(t, err)
+		assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)
+		ports, err := service.GetPorts()
+		assert.Nil(t, err)
+		assert.Equal(t, []ContainerPort{{1122, "barport"}}, ports)
+		_, err = service.GetPid()
+		assert.Equal(t, ErrNotSupported, err)
+		assert.Len(t, service.GetCheckNames(), 0)
+		assert.False(t, service.HasFilter(containers.MetricsFilter))
+		assert.False(t, service.HasFilter(containers.LogsFilter))
+	default:
+		assert.FailNow(t, "ninth service not in channel")
+	}
+
 	// Pod service
 	select {
 	case service := <-services:
@@ -386,7 +426,7 @@ func TestProcessNewPod(t *testing.T) {
 		assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)
 		ports, err := service.GetPorts()
 		assert.Nil(t, err)
-		assert.Equal(t, []ContainerPort{{1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1337, "footcpport"}, {1339, "fooudpport"}}, ports)
+		assert.Equal(t, []ContainerPort{{1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1337, "footcpport"}, {1339, "fooudpport"}}, ports)
 		_, err = service.GetPid()
 		assert.Equal(t, ErrNotSupported, err)
 		assert.Len(t, service.GetCheckNames(), 0)
@@ -398,7 +438,7 @@ func TestProcessNewPod(t *testing.T) {
 
 	select {
 	case <-services:
-		assert.FailNow(t, "9 services in channel, filtering is broken")
+		assert.FailNow(t, "10 services in channel, filtering is broken")
 	default:
 		// all good
 	}

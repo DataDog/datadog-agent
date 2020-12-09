@@ -80,7 +80,7 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterNa
 		// and marshalling is more performant than YAML
 		jsonPod, err := jsoniter.Marshal(podList[p])
 		if err != nil {
-			log.Debugf("Could not marshal pod to JSON: %s", err)
+			log.Warnf("Could not marshal pod to JSON: %s", err)
 			continue
 		}
 		podModel.Yaml = jsonPod
@@ -121,15 +121,31 @@ func ScrubContainer(c *v1.Container, scrubber *DataScrubber) {
 
 	defer func() {
 		if r := recover(); r != nil {
-			log.Errorf("failed to parse cmd from pod, obscuring whole command")
+			log.Errorf("Failed to parse cmd from pod, obscuring whole command")
 			// we still want to obscure to be safe
 			c.Command = []string{redactedValue}
 		}
 	}()
 
-	// scrub command line
-	scrubbedCmd, _ := scrubber.ScrubSimpleCommand(c.Command)
-	c.Command = scrubbedCmd
+	// scrub args and commands
+	merged := append(c.Command, c.Args...)
+	words := 0
+	for _, cmd := range c.Command {
+		words += len(strings.Split(cmd, " "))
+	}
+
+	scrubbedMergedCommand, changed := scrubber.ScrubSimpleCommand(merged) // return value is split if has been changed
+	if !changed {
+		return // no change has happened, no need to go further down the line
+	}
+
+	// if part of the merged command got scrubbed the updated value will be split, even for e.g. c.Args only if the c.Command got scrubbed
+	if len(c.Command) > 0 {
+		c.Command = scrubbedMergedCommand[:words]
+	}
+	if len(c.Args) > 0 {
+		c.Args = scrubbedMergedCommand[words:]
+	}
 
 }
 

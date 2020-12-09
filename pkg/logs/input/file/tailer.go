@@ -17,6 +17,7 @@ import (
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	lineParser "github.com/DataDog/datadog-agent/pkg/logs/parser"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -85,8 +86,9 @@ func NewTailer(outputChan chan *message.Message, source *config.LogSource, path 
 	}
 
 	var tagProvider tag.Provider
+
 	if source.Config.Identifier != "" {
-		tagProvider = tag.NewProvider(source.Config.Identifier)
+		tagProvider = tag.NewProvider(containers.BuildTaggerEntityName(source.Config.Identifier))
 	} else {
 		tagProvider = tag.NoopProvider
 	}
