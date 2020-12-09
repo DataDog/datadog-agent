@@ -54,7 +54,7 @@ func (suite *TailerTestSuite) SetupTest() {
 		Path: suite.testPath,
 	})
 	sleepDuration := 10 * time.Millisecond
-	suite.tailer = NewTailer(suite.outputChan, suite.source, suite.testPath, sleepDuration, false)
+	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, suite.source, false), sleepDuration)
 	suite.tailer.closeTimeout = closeTimeout
 }
 
@@ -98,7 +98,7 @@ func (suite *TailerTestSuite) TestTialerTimeDurationConfig() {
 	suite.tailer.StartFromBeginning()
 
 	coreConfig.Datadog.Set("logs_config.close_timeout", 42)
-	tailer := NewTailer(suite.outputChan, suite.source, suite.testPath, 10*time.Millisecond, false)
+	tailer := NewTailer(suite.outputChan, NewFile(suite.testPath, suite.source, false), 10*time.Millisecond)
 	tailer.StartFromBeginning()
 
 	suite.Equal(tailer.closeTimeout, time.Duration(42)*time.Second)
@@ -251,7 +251,7 @@ func (suite *TailerTestSuite) TestDirTagWhenTailingFiles() {
 		Path: suite.testPath,
 	})
 	sleepDuration := 10 * time.Millisecond
-	suite.tailer = NewTailer(suite.outputChan, dirTaggedSource, suite.testPath, sleepDuration, true)
+	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, dirTaggedSource, true), sleepDuration)
 	suite.tailer.StartFromBeginning()
 
 	_, err := suite.testFile.WriteString("foo\n")
@@ -270,7 +270,8 @@ func (suite *TailerTestSuite) TestBuildTagsFileOnly() {
 		Path: suite.testPath,
 	})
 	sleepDuration := 10 * time.Millisecond
-	suite.tailer = NewTailer(suite.outputChan, dirTaggedSource, suite.testPath, sleepDuration, false)
+	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, dirTaggedSource, false), sleepDuration)
+
 	suite.tailer.StartFromBeginning()
 
 	tags := suite.tailer.buildTailerTags()
@@ -284,7 +285,7 @@ func (suite *TailerTestSuite) TestBuildTagsFileDir() {
 		Path: suite.testPath,
 	})
 	sleepDuration := 10 * time.Millisecond
-	suite.tailer = NewTailer(suite.outputChan, dirTaggedSource, suite.testPath, sleepDuration, true)
+	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, dirTaggedSource, true), sleepDuration)
 	suite.tailer.StartFromBeginning()
 
 	tags := suite.tailer.buildTailerTags()
