@@ -1,8 +1,9 @@
 package stats
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
 const (
@@ -35,7 +36,7 @@ func NewAggregationFromSpan(s *pb.Span, env string) Aggregation {
 	}
 }
 
-// NewAggregationFromSpan creates a new aggregation from the provided fields
+// NewAggregation creates a new aggregation from the provided fields
 func NewAggregation(env string, resource string, service string, hostname string, statusCode string, version string) Aggregation {
 	return Aggregation{
 		Env:        env,
