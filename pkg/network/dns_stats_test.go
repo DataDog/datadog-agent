@@ -36,7 +36,7 @@ func testLatency(
 	var d = "abc.com"
 	sk := newDNSStatkeeper(DNSTimeoutSecs * time.Second)
 	key := getSampleDNSKey()
-	qPkt := dnsPacketInfo{transactionID: 1, pktType: Query, key: key, question: string(d)}
+	qPkt := dnsPacketInfo{transactionID: 1, pktType: Query, key: key, question: d}
 	then := time.Now()
 	sk.ProcessPacketInfo(qPkt, then)
 	stats := sk.GetAndResetAllStats()
@@ -74,10 +74,10 @@ func TestExpiredStateRemoval(t *testing.T) {
 	sk := newDNSStatkeeper(DNSTimeoutSecs * time.Second)
 	key := getSampleDNSKey()
 	var d = "abc.com"
-	qPkt1 := dnsPacketInfo{transactionID: 1, pktType: Query, key: key, question: string(d)}
+	qPkt1 := dnsPacketInfo{transactionID: 1, pktType: Query, key: key, question: d}
 	rPkt1 := dnsPacketInfo{transactionID: 1, key: key, pktType: SuccessfulResponse}
-	qPkt2 := dnsPacketInfo{transactionID: 2, pktType: Query, key: key, question: string(d)}
-	qPkt3 := dnsPacketInfo{transactionID: 3, pktType: Query, key: key, question: string(d)}
+	qPkt2 := dnsPacketInfo{transactionID: 2, pktType: Query, key: key, question: d}
+	qPkt3 := dnsPacketInfo{transactionID: 3, pktType: Query, key: key, question: d}
 	rPkt3 := dnsPacketInfo{transactionID: 3, key: key, pktType: SuccessfulResponse}
 
 	sk.ProcessPacketInfo(qPkt1, time.Now())

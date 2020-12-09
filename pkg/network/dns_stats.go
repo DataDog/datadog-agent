@@ -96,10 +96,6 @@ func microSecs(t time.Time) uint64 {
 	return uint64(t.UnixNano() / 1000)
 }
 
-func (d *dnsStatKeeper) getStats(key dnsKey) map[string]dnsStats {
-	return d.stats[key]
-}
-
 func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 	d.mux.Lock()
 	defer d.mux.Unlock()
