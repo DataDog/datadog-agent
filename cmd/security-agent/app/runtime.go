@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/policy"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -68,7 +67,7 @@ func checkPolicies(cmd *cobra.Command, args []string) error {
 	}
 
 	ruleSet := probe.NewRuleSet(rules.NewOptsWithParams(sprobe.SECLConstants, sprobe.SupportedDiscarders))
-	if err := policy.LoadPolicies(cfg, ruleSet); err != nil {
+	if err := rules.LoadPolicies(cfg, ruleSet); err != nil {
 		return err
 	}
 

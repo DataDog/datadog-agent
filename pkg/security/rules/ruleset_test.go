@@ -21,7 +21,7 @@ type testHandler struct {
 	filters map[string]testFieldValues
 }
 
-func (f *testHandler) RuleMatch(rule *eval.Rule, event eval.Event) {
+func (f *testHandler) RuleMatch(rule *Rule, event eval.Event) {
 }
 
 func (f *testHandler) EventDiscarderFound(rs *RuleSet, event eval.Event, field string, eventType eval.EventType) {
