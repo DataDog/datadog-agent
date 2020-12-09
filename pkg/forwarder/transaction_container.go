@@ -7,6 +7,7 @@ package forwarder
 
 import (
 	"fmt"
+	"sync"
 )
 
 type transactionStorage interface {
@@ -27,6 +28,7 @@ type transactionContainer struct {
 	flushToStorageRatio        float64
 	dropPrioritySorter         transactionPrioritySorter
 	optionalTransactionStorage transactionStorage
+	mutex                      sync.RWMutex
 }
 
 func newTransactionContainer(
@@ -53,6 +55,9 @@ func newTransactionContainer(
 // If disk serialization failed or is not enabled, remove old transactions such as
 // `currentMemSizeInBytes` <= `maxMemSizeInBytes`
 func (tc *transactionContainer) Add(t Transaction) (int, error) {
+	tc.mutex.Lock()
+	defer tc.mutex.Unlock()
+
 	var diskErr error
 	payloadSize := t.GetPayloadSize()
 	if tc.optionalTransactionStorage != nil {
@@ -85,6 +90,9 @@ func (tc *transactionContainer) Add(t Transaction) (int, error) {
 // from the disk.
 // No transactions are in memory after calling this method.
 func (tc *transactionContainer) ExtractTransactions() ([]Transaction, error) {
+	tc.mutex.Lock()
+	defer tc.mutex.Unlock()
+
 	var transactions []Transaction
 	var err error
 	if len(tc.transactions) > 0 {
@@ -102,16 +110,25 @@ func (tc *transactionContainer) ExtractTransactions() ([]Transaction, error) {
 
 // GetCurrentMemSizeInBytes gets the current memory usage in bytes
 func (tc *transactionContainer) GetCurrentMemSizeInBytes() int {
+	tc.mutex.RLock()
+	defer tc.mutex.RUnlock()
+
 	return tc.currentMemSizeInBytes
 }
 
 // GetTransactionCount gets the number of transactions in the container
 func (tc *transactionContainer) GetTransactionCount() int {
+	tc.mutex.RLock()
+	defer tc.mutex.RUnlock()
+
 	return len(tc.transactions)
 }
 
 // GetMaxMemSizeInBytes gets the maximum memory usage for storing transactions
 func (tc *transactionContainer) GetMaxMemSizeInBytes() int {
+	tc.mutex.RLock()
+	defer tc.mutex.RUnlock()
+
 	return tc.maxMemSizeInBytes
 }
 

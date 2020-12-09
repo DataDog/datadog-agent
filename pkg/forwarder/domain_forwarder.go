@@ -36,7 +36,6 @@ type domainForwarder struct {
 	retryQueueLimit              int
 	retryQueueAllPayloadsMaxSize int
 	optionalTransactionContainer *transactionContainer
-	transactionContainerMutex    sync.Mutex
 	connectionResetInterval      time.Duration
 	internalState                uint32
 	m                            sync.Mutex // To control Start/Stop races
@@ -84,9 +83,7 @@ func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 	var transactions []Transaction
 	var err error
 	if f.optionalTransactionContainer != nil {
-		f.transactionContainerMutex.Lock()
 		transactions, err = f.optionalTransactionContainer.ExtractTransactions()
-		f.transactionContainerMutex.Unlock()
 		if err != nil {
 			log.Errorf("Error when getting transactions from the retry queue", err)
 		}
@@ -155,13 +152,10 @@ func (f *domainForwarder) tryAddToTransactionContainer(t Transaction) (bool, int
 		return false, 0
 	}
 
-	f.transactionContainerMutex.Lock()
 	dropCount, err := f.optionalTransactionContainer.Add(t)
 	if err != nil {
 		log.Errorf("Error when adding a transaction to the retry queue: %v", err)
 	}
-
-	f.transactionContainerMutex.Unlock()
 
 	if dropCount > 0 {
 		transactionEndpointName := t.GetEndpointName()
@@ -177,9 +171,7 @@ func (f *domainForwarder) requeueTransaction(t Transaction) {
 	var enabled bool
 
 	if enabled, _ = f.tryAddToTransactionContainer(t); enabled {
-		f.transactionContainerMutex.Lock()
 		retryQueueSize = f.optionalTransactionContainer.GetTransactionCount()
-		f.transactionContainerMutex.Unlock()
 	} else {
 		f.retryQueue = append(f.retryQueue, t)
 		retryQueueSize = len(f.retryQueue)
