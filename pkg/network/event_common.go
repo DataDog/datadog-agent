@@ -255,6 +255,7 @@ func printAddress(address util.Address, names []string) string {
 	return strings.Join(names, ",")
 }
 
+// DNSStats holds statistics corresponding to a particular domain
 type DNSStats struct {
 	DNSTimeouts          uint32
 	DNSSuccessLatencySum uint64
