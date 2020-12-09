@@ -42,7 +42,7 @@ func (t *testItemListIterator) Front(ctx *Context) unsafe.Pointer {
 }
 
 func (t *testItemListIterator) Next() unsafe.Pointer {
-	if next := (*list.Element)(t.prev).Next(); next != nil {
+	if next := t.prev.Next(); next != nil {
 		t.prev = next
 		return unsafe.Pointer(next)
 	}

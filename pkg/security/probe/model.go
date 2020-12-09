@@ -1065,10 +1065,12 @@ type ProcessContext struct {
 	Parent *ProcessCacheEntry `field:"ancestors" iterator:"ProcessAncestorsIterator"`
 }
 
+// ProcessAncestorsIterator defines an iterator of ancestors
 type ProcessAncestorsIterator struct {
 	prev *ProcessCacheEntry
 }
 
+// Front returns the first element
 func (it *ProcessAncestorsIterator) Front(ctx *eval.Context) unsafe.Pointer {
 	if front := (*Event)(ctx.Object).Process.Parent; front != nil {
 		it.prev = front
@@ -1077,8 +1079,9 @@ func (it *ProcessAncestorsIterator) Front(ctx *eval.Context) unsafe.Pointer {
 	return nil
 }
 
+// Next returns the next element
 func (it *ProcessAncestorsIterator) Next() unsafe.Pointer {
-	if next := (*ProcessCacheEntry)(it.prev).Parent; next != nil {
+	if next := it.prev.Parent; next != nil {
 		it.prev = next
 		return unsafe.Pointer(next)
 	}

@@ -680,8 +680,8 @@ func TestRegister(t *testing.T) {
 	event.process.list.PushBack(&testItem{key: 200, value: 201})
 
 	event.process.array = []*testItem{
-		&testItem{key: 1000, value: 1001},
-		&testItem{key: 1002, value: 1003},
+		{key: 1000, value: 1001},
+		{key: 1002, value: 1003},
 	}
 
 	tests := []struct {
@@ -726,8 +726,8 @@ func TestRegisterPartial(t *testing.T) {
 	event.process.list.PushBack(&testItem{key: 200, value: 201})
 
 	event.process.array = []*testItem{
-		&testItem{key: 1000, value: 1001},
-		&testItem{key: 1002, value: 1003},
+		{key: 1000, value: 1001},
+		{key: 1002, value: 1003},
 	}
 
 	tests := []struct {

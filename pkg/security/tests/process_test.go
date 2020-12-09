@@ -76,11 +76,11 @@ func TestProcessContext(t *testing.T) {
 	}
 
 	ruleDefs := []*rules.RuleDefinition{
-		&rules.RuleDefinition{
+		{
 			ID:         "test_rule",
 			Expression: fmt.Sprintf(`open.filename == "{{.Root}}/test-process-context" && open.flags & O_CREAT == 0`),
 		},
-		&rules.RuleDefinition{
+		{
 			ID:         "test_rule_ancestors",
 			Expression: fmt.Sprintf(`open.filename == "{{.Root}}/test-process-ancestors" && process.ancestors[_].name == "%s"`, path.Base(executable)),
 		},
@@ -141,8 +141,12 @@ func TestProcessContext(t *testing.T) {
 		t.Skip()
 
 		executable := "/usr/bin/cat"
-		if _, err := os.Stat(executable); err != nil {
-			executable = "/bin/cat"
+		if resolved, err := os.Readlink(executable); err == nil {
+			executable = resolved
+		} else {
+			if os.IsNotExist(err) {
+				executable = "/bin/cat"
+			}
 		}
 
 		cmd := exec.Command("script", "/dev/null", "-c", executable+" "+testFile)
@@ -171,9 +175,13 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	t.Run("ancestors", func(t *testing.T) {
-		touch := "/usr/bin/touch"
-		if _, err := os.Stat(executable); err != nil {
-			executable = "/bin/touch"
+		executable := "/usr/bin/touch"
+		if resolved, err := os.Readlink(executable); err == nil {
+			executable = resolved
+		} else {
+			if os.IsNotExist(err) {
+				executable = "/bin/touch"
+			}
 		}
 
 		testFile, _, err := test.Path("test-process-ancestors")
@@ -181,7 +189,7 @@ func TestProcessContext(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		cmd := exec.Command("sh", "-c", touch+" "+testFile)
+		cmd := exec.Command("sh", "-c", executable+" "+testFile)
 		if _, err := cmd.CombinedOutput(); err != nil {
 			t.Error(err)
 		}
@@ -190,8 +198,8 @@ func TestProcessContext(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if filename, _ := event.GetFieldValue("process.filename"); filename.(string) != touch {
-				t.Errorf("not able to find the proper process filename `%v` vs `%s`: %v", filename, executable, event)
+			if filename, _ := event.GetFieldValue("process.filename"); filename.(string) != executable {
+				t.Errorf("expected process filename `%s`, got `%s`: %v", executable, filename, event)
 			}
 
 			if rule.ID != "test_rule_ancestors" {
@@ -200,7 +208,7 @@ func TestProcessContext(t *testing.T) {
 
 			values, _ := event.GetFieldValue("process.ancestors.name")
 			if names := values.([]string); names[0] != "sh" {
-				t.Error("ancestor expected not found")
+				t.Errorf("ancestor `sh` expected, got %s, event:%v", names[0], event)
 			}
 		}
 	})

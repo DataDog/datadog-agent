@@ -28,6 +28,7 @@ func IntNot(a *IntEvaluator, opts *Opts, state *state) *IntEvaluator {
 
 		return &IntEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
 			isPartial: isPartialLeaf,
 		}
 	}
@@ -92,6 +93,7 @@ func StringMatches(a *StringEvaluator, b *StringEvaluator, not bool, opts *Opts,
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight + PatternWeight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -110,6 +112,7 @@ func StringMatches(a *StringEvaluator, b *StringEvaluator, not bool, opts *Opts,
 
 	return &BoolEvaluator{
 		Value:     ea,
+		Weight:    a.Weight + PatternWeight,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -148,6 +151,7 @@ func Not(a *BoolEvaluator, opts *Opts, state *state) *BoolEvaluator {
 
 	return &BoolEvaluator{
 		Value:     value,
+		Weight:    a.Weight,
 		isPartial: isPartialLeaf,
 	}
 }
@@ -175,6 +179,7 @@ func Minus(a *IntEvaluator, opts *Opts, state *state) *IntEvaluator {
 
 	return &IntEvaluator{
 		Value:     -a.Value,
+		Weight:    a.Weight,
 		isPartial: isPartialLeaf,
 	}
 }
@@ -225,6 +230,7 @@ func StringArrayContains(a *StringEvaluator, b *StringArray, not bool, opts *Opt
 
 	return &BoolEvaluator{
 		Value:     ea,
+		Weight:    a.Weight + InArrayWeight*len(b.Values),
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -275,6 +281,7 @@ func IntArrayContains(a *IntEvaluator, b *IntArray, not bool, opts *Opts, state 
 
 	return &BoolEvaluator{
 		Value:     ea,
+		Weight:    a.Weight + InArrayWeight*len(b.Values),
 		isPartial: isPartialLeaf,
 	}, nil
 }

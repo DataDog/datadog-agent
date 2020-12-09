@@ -77,7 +77,6 @@ func (r *Rule) GetFieldValues(field Field) []FieldValue {
 
 // PartialEval - Partial evaluation with the given Field
 func (r *Rule) PartialEval(ctx *Context, field Field) (bool, error) {
-	// TODO safchain
 	return r.evaluator.PartialEval(ctx, field)
 }
 

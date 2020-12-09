@@ -58,7 +58,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			}
 		{{ end }}
 
-		// optimise the evaluation if need moving the evaluation with more weight at the right
+		// optimize the evaluation if needed, moving the evaluation with more weight at the right
 		{{ if .Commutative }}
 			if a.Weight > b.Weight {
 				tmp := ea
