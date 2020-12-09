@@ -256,7 +256,7 @@ func newReverseDNS(cfg *config.Config, m *manager.Manager, pre410Kernel bool) (n
 	}
 
 	if pre410Kernel {
-		log.Warn("dns inspection not supported by this kernel version. please refer to our documention.")
+		log.Warn("DNS inspection not supported by kernel versions < 4.1.0. Please see https://docs.datadoghq.com/network_performance_monitoring/installation for more details.")
 		return network.NewNullReverseDNS(), nil
 	}
 
