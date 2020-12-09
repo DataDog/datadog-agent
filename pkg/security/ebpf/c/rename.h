@@ -90,6 +90,11 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
         return 0;
     }
 
+    u64 lower_inode = get_ovl_lower_ino(syscall->rename.src_dentry);
+    if (lower_inode) {
+        syscall->rename.target_key.ino = lower_inode;
+    }
+
     int enabled = is_event_enabled(EVENT_RENAME);
     if (enabled) {
         syscall->rename.target_key.path_id = get_path_id(1);

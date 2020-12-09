@@ -338,15 +338,15 @@ func TestDentryOverlay(t *testing.T) {
 	rules := []*rules.RuleDefinition{
 		&rules.RuleDefinition{
 			ID:         "test_rule_open",
-			Expression: `open.filename == "{{.Root}}/merged/file1.txt"`,
+			Expression: `open.filename in ["{{.Root}}/merged/file1.txt", "{{.Root}}/merged/file2.txt", "{{.Root}}/merged/file3.txt", "{{.Root}}/merged/new.txt"]`,
 		},
 		&rules.RuleDefinition{
 			ID:         "test_rule_unlink",
-			Expression: `unlink.filename == "{{.Root}}/merged/file1.txt"`,
+			Expression: `unlink.filename in ["{{.Root}}/merged/file1.txt", "{{.Root}}/merged/file2.txt", "{{.Root}}/merged/file3.txt", "{{.Root}}/merged/new.txt", "{{.Root}}/merged/renamed.txt"]`,
 		},
 		&rules.RuleDefinition{
-			ID:         "test_rule_new",
-			Expression: `open.filename == "{{.Root}}/merged/upper.txt"`,
+			ID:         "test_rule_rename",
+			Expression: `rename.old.filename in ["{{.Root}}/merged/file1.txt", "{{.Root}}/merged/file2.txt", "{{.Root}}/merged/file3.txt"]`,
 		},
 	}
 
@@ -362,11 +362,15 @@ func TestDentryOverlay(t *testing.T) {
 	}
 	defer test.Close()
 
+	// create layers
 	testLower, testUpper, testWordir, testMerged := createOverlayLayers(t, test)
 
-	_, _, err = test.Create("lower/file1.txt")
-	if err != nil {
-		t.Fatal(err)
+	// create all the lower files
+	for _, filename := range []string{"lower/file1.txt", "lower/file2.txt", "lower/file3.txt"} {
+		_, _, err = test.Create(filename)
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	args := []string{
@@ -525,5 +529,54 @@ func TestDentryOverlay(t *testing.T) {
 				t.Errorf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
 			}
 		}
+	})
+
+	t.Run("rename-lower", func(t *testing.T) {
+		oldFile, _, err := test.Path("merged/file3.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		newFile, _, err := test.Path("merged/renamed.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := os.Rename(oldFile, newFile); err != nil {
+			t.Fatal(err)
+		}
+
+		var inode uint64
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if value, _ := event.GetFieldValue("rename.old.filename"); value.(string) != oldFile {
+				t.Errorf("expected filename not found %s != %s", value.(string), oldFile)
+			}
+
+			if value, _ := event.GetFieldValue("rename.new.filename"); value.(string) != newFile {
+				t.Errorf("expected filename not found %s != %s", value.(string), newFile)
+			}
+
+			if inode = getInode(t, newFile); inode != event.Rename.New.Inode {
+				t.Errorf("expected inode not found %d(real) != %d\n", inode, event.Rename.New.Inode)
+			}
+		}
+
+		if err := os.Remove(newFile); err != nil {
+			t.Fatal(err)
+		}
+
+		// TODO: Remove after a rename from a lower is currently broken. the following tests trigger the issues
+		/*event, _, err = test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if inode != event.Unlink.Inode {
+				t.Errorf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
+			}
+		}*/
 	})
 }

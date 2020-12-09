@@ -45,9 +45,9 @@ int kprobe__vfs_unlink(struct pt_regs *ctx) {
     struct dentry *dentry = (struct dentry *) PT_REGS_PARM2(ctx);
     u64 inode = get_dentry_ino(dentry);
 
-    u64 real_inode = get_ovl_lower_ino(dentry);
-    if (real_inode) {
-        syscall->unlink.real_inode = real_inode;
+    u64 lower_inode = get_ovl_lower_ino(dentry);
+    if (lower_inode) {
+        syscall->unlink.real_inode = lower_inode;
     }
 
     // if second pass, ex: overlayfs, just cache the inode that will be used in ret
@@ -64,7 +64,6 @@ int kprobe__vfs_unlink(struct pt_regs *ctx) {
 
     if (discarded_by_process(syscall->policy.mode, EVENT_UNLINK)) {
         pop_syscall(SYSCALL_UNLINK);
-
         return 0;
     }
 
