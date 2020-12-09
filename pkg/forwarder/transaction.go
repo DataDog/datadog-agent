@@ -214,8 +214,9 @@ type Transaction interface {
 	GetPayloadSize() int
 
 	// This method serializes the transaction to `TransactionsSerializer`.
-	// It forces the implementation of `Transaction` to define how to
-	// serialize as the transactions in domainFowarder must be serializable.
+	// It forces a new implementation of `Transaction` to define how to
+	// serialize the transaction to `TransactionsSerializer` as a `Transaction`
+	// must be serializable in domainForwarder.
 	SerializeTo(*TransactionsSerializer) error
 }
 
