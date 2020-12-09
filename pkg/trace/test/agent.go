@@ -32,16 +32,22 @@ type agentRunner struct {
 	port    int         // agent receiver port
 	log     *safeBuffer // agent log output
 	ddAddr  string      // Datadog intake address (host:port)
-	binpath string      // full trace-agent binary path
+	bindir  string      // the temporary directory where the trace-agent binary is located
 	verbose bool
 }
 
 func newAgentRunner(ddAddr string, verbose bool) (*agentRunner, error) {
-	binpath := filepath.Join(os.TempDir(), "trace-agent-testbin")
+	bindir, err := ioutil.TempDir("", "trace-agent-integration-tests")
+	if err != nil {
+		return nil, err
+	}
+	binpath := filepath.Join(bindir, "trace-agent")
 	if verbose {
 		log.Printf("agent: installing in %s...", binpath)
 	}
-	err := exec.Command("go", "build", "-o", binpath, "github.com/DataDog/datadog-agent/cmd/trace-agent").Run()
+	// TODO(gbbr): find a way to re-use the same binary within a whole run
+	// instead of creating new ones on each test creating a new runner.
+	err = exec.Command("go", "build", "-o", binpath, "github.com/DataDog/datadog-agent/cmd/trace-agent").Run()
 	if err != nil {
 		if verbose {
 			log.Printf("error installing trace-agent: %v", err)
@@ -49,7 +55,7 @@ func newAgentRunner(ddAddr string, verbose bool) (*agentRunner, error) {
 		return nil, ErrNotInstalled
 	}
 	return &agentRunner{
-		binpath: binpath,
+		bindir:  bindir,
 		ddAddr:  ddAddr,
 		log:     newSafeBuffer(),
 		verbose: verbose,
@@ -59,7 +65,7 @@ func newAgentRunner(ddAddr string, verbose bool) (*agentRunner, error) {
 // cleanup removes the agent binary.
 func (s *agentRunner) cleanup() error {
 	s.Kill()
-	return os.Remove(s.binpath)
+	return os.RemoveAll(s.bindir)
 }
 
 // Run runs the agent using a given yaml config. If an agent is already running,
@@ -123,7 +129,7 @@ func (s *agentRunner) Kill() {
 
 func (s *agentRunner) runAgentConfig(path string) <-chan error {
 	s.Kill()
-	cmd := exec.Command(s.binpath, "-config", path)
+	cmd := exec.Command(filepath.Join(s.bindir, "trace-agent"), "-config", path)
 	s.log.Reset()
 	cmd.Stdout = s.log
 	cmd.Stderr = ioutil.Discard
