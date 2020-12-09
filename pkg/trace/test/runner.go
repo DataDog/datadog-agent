@@ -54,7 +54,7 @@ func (s *Runner) Shutdown(wait time.Duration) error {
 	if s.agent == nil || s.backend == nil {
 		return ErrNotStarted
 	}
-	s.agent.Kill()
+	s.agent.cleanup()
 	if err := s.backend.Shutdown(wait); err != nil {
 		return err
 	}
