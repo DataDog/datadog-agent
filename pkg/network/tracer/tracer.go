@@ -188,11 +188,22 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		return nil, fmt.Errorf("failed to init ebpf manager: %v", err)
 	}
 
-	reverseDNS, err := newReverseDNS(config, m, pre410Kernel)
-	if err != nil {
-		return nil, fmt.Errorf("error enabling DNS traffic inspection: %s", err)
-	}
+	reverseDNS := network.NewNullReverseDNS()
+	if enableSocketFilter {
+		filter, _ := m.GetProbe(manager.ProbeIdentificationPair{Section: string(probes.SocketDnsFilter)})
+		if filter == nil {
+			return nil, fmt.Errorf("error retrieving socket filter")
+		}
 
+		if snooper, err := network.NewSocketFilterSnooper(
+			config,
+			filter,
+		); err == nil {
+			reverseDNS = snooper
+		} else {
+			return nil, fmt.Errorf("error enabling DNS traffic inspection: %s", err)
+		}
+	}
 	portMapping := network.NewPortMapping(config.ProcRoot, config.CollectTCPConns, config.CollectIPv6Conns)
 	udpPortMapping := network.NewPortMapping(config.ProcRoot, config.CollectTCPConns, config.CollectIPv6Conns)
 	if err := portMapping.ReadInitialState(); err != nil {
@@ -249,24 +260,6 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	go tr.expvarStats()
 
 	return tr, nil
-}
-
-func newReverseDNS(cfg *config.Config, m *manager.Manager, pre410Kernel bool) (network.ReverseDNS, error) {
-	if !cfg.DNSInspection {
-		return network.NewNullReverseDNS(), nil
-	}
-
-	if pre410Kernel {
-		log.Warn("dns inspection not supported by this kernel version. please refer to our documention.")
-		return network.NewNullReverseDNS(), nil
-	}
-
-	filter, _ := m.GetProbe(manager.ProbeIdentificationPair{Section: string(probes.SocketDnsFilter)})
-	if filter == nil {
-		return nil, fmt.Errorf("error retrieving socket filter")
-	}
-
-	return network.NewSocketFilterSnooper(cfg, filter)
 }
 
 func runOffsetGuessing(config *config.Config, buf bytecode.AssetReader) ([]manager.ConstantEditor, error) {
