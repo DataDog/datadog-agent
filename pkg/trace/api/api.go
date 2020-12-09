@@ -416,24 +416,23 @@ type StatsProcessor interface {
 func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	defer timing.Since("datadog.trace_agent.receiver.stats_process_ms", time.Now())
 
+	ts := r.tagStats(v05, req)
 	rd := NewLimitedReader(req.Body, r.conf.MaxRequestBytes)
-	slurp, err := ioutil.ReadAll(rd)
-	if err != nil {
-		httpDecodingError(err, []string{"handler:stats", "v:v0.5"}, w)
-		return
+	metrics.Count("datadog.trace_agent.receiver.stats_payload", 1, ts.AsTags(), 1)
+	if v := req.Header.Get("Content-Length"); v != "" {
+		d, err := strconv.ParseInt(v, 10, 64)
+		if err == nil {
+			metrics.Count("datadog.trace_agent.receiver.stats_bytes", d, ts.AsTags(), 1)
+		}
 	}
-	// TODO(gbbr): add tagStats to all metrics
-	metrics.Count("datadog.trace_agent.receiver.stats_payload", 1, nil, 1)
-	metrics.Count("datadog.trace_agent.receiver.stats_bytes", int64(len(slurp)), nil, 1)
 
 	req.Header.Set("Accept", "application/msgpack")
-
 	var in pb.ClientStatsPayload
-	if err := msgp.Decode(bytes.NewReader(slurp), &in); err != nil {
+	if err := msgp.Decode(rd, &in); err != nil {
 		httpDecodingError(err, []string{"handler:stats", "codec:msgpack", "v:v0.5"}, w)
 		return
 	}
-	metrics.Count("datadog.trace_agent.receiver.stats_buckets", int64(len(in.Stats)), nil, 1)
+	metrics.Count("datadog.trace_agent.receiver.stats_buckets", int64(len(in.Stats)), ts.AsTags(), 1)
 
 	r.statsProcessor.ProcessStats(in, req.Header.Get(headerLang))
 }

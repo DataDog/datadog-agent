@@ -584,19 +584,6 @@ func TestHandleStats(t *testing.T) {
 			t.Fatalf("Did not match payload: %v: %v", gotlang, gotp)
 		}
 	})
-
-	t.Run("overflow", func(t *testing.T) {
-		body := bytes.NewReader(bytes.Repeat([]byte("x"), int(rcv.conf.MaxRequestBytes+10)))
-		req, _ := http.NewRequest("POST", "http://127.0.0.1:8126/v0.5/stats", body)
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if resp.StatusCode != 413 {
-			slurp, _ := ioutil.ReadAll(resp.Body)
-			t.Fatal(string(slurp), resp.StatusCode)
-		}
-	})
 }
 
 func TestClientComputedStatsHeader(t *testing.T) {
