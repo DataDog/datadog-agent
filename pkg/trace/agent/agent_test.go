@@ -478,6 +478,64 @@ func TestClientComputedTopLevel(t *testing.T) {
 	})
 }
 
+func TestClientComputedStats(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	ctx, cancel := context.WithCancel(context.Background())
+	agnt := NewAgent(ctx, cfg)
+	defer cancel()
+	traces := pb.Traces{{{
+		Service:  "something &&<@# that should be a metric!",
+		TraceID:  1,
+		SpanID:   1,
+		Resource: "SELECT name FROM people WHERE age = 42 AND extra = 55",
+		Type:     "sql",
+		Start:    time.Now().Add(-time.Second).UnixNano(),
+		Duration: (500 * time.Millisecond).Nanoseconds(),
+		Metrics:  map[string]float64{sampler.KeySamplingPriority: 2},
+	}}}
+
+	t.Run("on", func(t *testing.T) {
+		go agnt.Process(&api.Payload{
+			Traces:              traces,
+			Source:              agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			ClientComputedStats: true,
+		}, stats.NewSublayerCalculator())
+		timeout := time.After(time.Second)
+		for {
+			select {
+			case inputs := <-agnt.Concentrator.In:
+				for _, in := range inputs {
+					assert.True(t, in.SublayersOnly)
+				}
+				return
+			case <-timeout:
+				t.Fatal("timed out waiting for input")
+			}
+		}
+	})
+
+	t.Run("off", func(t *testing.T) {
+		go agnt.Process(&api.Payload{
+			Traces:              traces,
+			Source:              agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			ClientComputedStats: false,
+		}, stats.NewSublayerCalculator())
+		timeout := time.After(time.Second)
+		for {
+			select {
+			case inputs := <-agnt.Concentrator.In:
+				for _, in := range inputs {
+					assert.False(t, in.SublayersOnly)
+				}
+				return
+			case <-timeout:
+				t.Fatal("timed out waiting for input")
+			}
+		}
+	})
+}
+
 func TestSampling(t *testing.T) {
 	for name, tt := range map[string]struct {
 		// hasErrors will be true if the input trace should have errors

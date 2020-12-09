@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Obfuscator quantizes and obfuscates spans. The obfuscator is not safe for
@@ -94,6 +95,22 @@ func (o *Obfuscator) Obfuscate(span *pb.Span) {
 		o.obfuscateJSON(span, "mongodb.query", o.mongo)
 	case "elasticsearch":
 		o.obfuscateJSON(span, "elasticsearch.body", o.es)
+	}
+}
+
+// ObfuscateStatsGroup obfuscates the given stats bucket group.
+func (o *Obfuscator) ObfuscateStatsGroup(b *pb.ClientGroupedStats) {
+	switch b.Type {
+	case "sql":
+		oq, err := o.ObfuscateSQLString(b.Resource)
+		if err != nil {
+			log.Errorf("Error obfuscating stats group resource %q: %v", b.Resource, err)
+			b.Resource = nonParsableResource
+		} else {
+			b.Resource = oq.Query
+		}
+	case "redis":
+		b.Resource = o.QuantizeRedisString(b.Resource)
 	}
 }
 
