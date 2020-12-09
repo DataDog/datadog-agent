@@ -190,6 +190,8 @@ func (p *Probe) parseStatus(pidPath string) *statusInfo {
 // parseStatusLine takes each line in "status" file and parses info from it
 func (p *Probe) parseStatusLine(line []byte, sInfo *statusInfo) {
 	for i := range line {
+		// the fields are all having format "field_name:\tfield_value", so we always
+		// look for ":\t" and skip them
 		if i+2 < len(line) && line[i] == ':' && line[i+1] == '\t' {
 			key := line[0:i]
 			value := line[i+2:]

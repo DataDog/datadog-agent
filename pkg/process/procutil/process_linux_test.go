@@ -231,7 +231,7 @@ func TestParseStatusLine(t *testing.T) {
 			},
 		},
 		{
-			line: []byte("Name:\t\t\t\t\tpostgres"),
+			line: []byte("Name:\t\t  \t\t\t  postgres"),
 			expected: &statusInfo{
 				name:        "postgres",
 				memInfo:     &MemoryInfoStat{},
@@ -247,6 +247,14 @@ func TestParseStatusLine(t *testing.T) {
 			},
 		},
 		{
+			line: []byte("State:\tR (running)"),
+			expected: &statusInfo{
+				status:      "R",
+				memInfo:     &MemoryInfoStat{},
+				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
+		{
 			line: []byte("Uid:\t112\t112\t112\t112"),
 			expected: &statusInfo{
 				uids:        []int32{112, 112, 112, 112},
@@ -255,15 +263,9 @@ func TestParseStatusLine(t *testing.T) {
 			},
 		},
 		{
-			line: []byte("bad status line"), // bad status
+			line: []byte("Gid:\t1000\t1000\t1000\t1000"),
 			expected: &statusInfo{
-				memInfo:     &MemoryInfoStat{},
-				ctxSwitches: &NumCtxSwitchesStat{},
-			},
-		},
-		{
-			line: []byte("Name:\t"), // edge case for parsing failure
-			expected: &statusInfo{
+				gids:        []int32{1000, 1000, 1000, 1000},
 				memInfo:     &MemoryInfoStat{},
 				ctxSwitches: &NumCtxSwitchesStat{},
 			},
@@ -285,9 +287,63 @@ func TestParseStatusLine(t *testing.T) {
 			},
 		},
 		{
+			line: []byte("Threads:\t1"),
+			expected: &statusInfo{
+				numThreads:  1,
+				memInfo:     &MemoryInfoStat{},
+				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
+		{
+			line: []byte("voluntary_ctxt_switches:\t3"),
+			expected: &statusInfo{
+				memInfo: &MemoryInfoStat{},
+				ctxSwitches: &NumCtxSwitchesStat{
+					Voluntary: 3,
+				},
+			},
+		},
+		{
+			line: []byte("nonvoluntary_ctxt_switches:\t411"),
+			expected: &statusInfo{
+				memInfo: &MemoryInfoStat{},
+				ctxSwitches: &NumCtxSwitchesStat{
+					Involuntary: 411,
+				},
+			},
+		},
+		{
+			line: []byte("bad status line"), // bad status
+			expected: &statusInfo{
+				memInfo:     &MemoryInfoStat{},
+				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
+		{
+			line: []byte("Name:\t"), // edge case for parsing failure
+			expected: &statusInfo{
+				memInfo:     &MemoryInfoStat{},
+				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
+		{
 			line: []byte("VmRSS:\t712 kB"),
 			expected: &statusInfo{
 				memInfo:     &MemoryInfoStat{RSS: 712 * 1024},
+				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
+		{
+			line: []byte("VmSize:\t14652 kB"),
+			expected: &statusInfo{
+				memInfo:     &MemoryInfoStat{VMS: 14652 * 1024},
+				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
+		{
+			line: []byte("VmSwap:\t3 kB"),
+			expected: &statusInfo{
+				memInfo:     &MemoryInfoStat{Swap: 3 * 1024},
 				ctxSwitches: &NumCtxSwitchesStat{},
 			},
 		},
