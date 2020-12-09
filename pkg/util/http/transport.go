@@ -21,7 +21,10 @@ import (
 )
 
 var (
-	NoProxyWarningMap      = make(map[string]bool)
+	// NoProxyWarningMap map containing URL's whos proxy behavior will change in the future.
+	NoProxyWarningMap = make(map[string]bool)
+
+	// NoProxyWarningMapMutex Lock for NoProxyWarningMap
 	NoProxyWarningMapMutex = sync.Mutex{}
 )
 

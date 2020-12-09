@@ -51,6 +51,7 @@ type InstallMethod struct {
 	InstallerVersion *string `json:"installer_version"`
 }
 
+// ProxyMeta is metatdata about the proxy configuration
 type ProxyMeta struct {
 	NoProxyNonexactMatch bool `json:"no-proxy-nonexact-match"`
 	ProxyBehaviorChanged bool `json:"proxy-behavior-changed"`
