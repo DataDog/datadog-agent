@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/gopsutil/process"
 )
@@ -211,4 +212,70 @@ func TestProcfsChange(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotContains(t, newProcByPID2, int32(29613))
 	assert.Contains(t, procByPID, int32(29613))
+}
+
+func BenchmarkGetCmdGopsutilTestFS(b *testing.B) {
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc")
+	defer os.Unsetenv("HOST_PROC")
+
+	benchmarkGetCmdGopsutil(b)
+}
+
+func BenchmarkGetCmdProcutilTestFS(b *testing.B) {
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc")
+	defer os.Unsetenv("HOST_PROC")
+
+	benchmarkGetCmdProcutil(b)
+}
+
+func BenchmarkGetCmdGopsutilLocalFS(b *testing.B) {
+	benchmarkGetCmdGopsutil(b)
+}
+
+func BenchmarkGetCmdProcutilLocalFS(b *testing.B) {
+	benchmarkGetCmdProcutil(b)
+}
+
+func benchmarkGetCmdGopsutil(b *testing.B) {
+	pids, err := process.Pids()
+	require.NoError(b, err)
+
+	for i := 0; i < b.N; i++ {
+		for _, pid := range pids {
+			proc, err := process.NewProcess(pid)
+			require.NoError(b, err)
+			_, err = proc.Cmdline()
+			require.NoError(b, err)
+		}
+	}
+}
+
+func benchmarkGetCmdProcutil(b *testing.B) {
+	probe := NewProcessProbe()
+	defer probe.Close()
+
+	pids, err := probe.getActivePIDs()
+	require.NoError(b, err)
+
+	for i := 0; i < b.N; i++ {
+		for _, pid := range pids {
+			probe.getCmdline(filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid))))
+		}
+	}
+}
+
+func BenchmarkGetPIDsGopsutilLocalFS(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_, err := process.Pids()
+		require.NoError(b, err)
+	}
+}
+
+func BenchmarkGetPIDsProcutilLocalFS(b *testing.B) {
+	probe := NewProcessProbe()
+	defer probe.Close()
+	for i := 0; i < b.N; i++ {
+		_, err := probe.getActivePIDs()
+		require.NoError(b, err)
+	}
 }
