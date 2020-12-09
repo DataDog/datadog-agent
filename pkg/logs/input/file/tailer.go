@@ -88,7 +88,7 @@ func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.
 
 	var tagProvider tag.Provider
 	if file.Source.Config.Identifier != "" {
-		tagProvider = tag.NewProvider(containers.BuildTaggerEntityName(file.source.Config.Identifier))
+		tagProvider = tag.NewProvider(containers.BuildTaggerEntityName(file.Source.Config.Identifier))
 	} else {
 		tagProvider = tag.NoopProvider
 	}
