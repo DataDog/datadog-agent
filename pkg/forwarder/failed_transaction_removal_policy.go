@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/hashicorp/go-multierror"
 )
 
 type failedTransactionRemovalPolicy struct {
@@ -112,15 +113,17 @@ func (p *failedTransactionRemovalPolicy) removeRetryFiles(folderPath string, sho
 	}
 
 	var filesRemoved []string
+	var errs error
 	for _, f := range files {
 		if shouldRemove(f) {
 			if err = os.Remove(f); err != nil {
-				return nil, err
+				errs = multierror.Append(errs, err)
+			} else {
+				filesRemoved = append(filesRemoved, f)
 			}
-			filesRemoved = append(filesRemoved, f)
 		}
 	}
-	return filesRemoved, nil
+	return filesRemoved, errs
 }
 
 func (p *failedTransactionRemovalPolicy) getRetryFiles(folder string) ([]string, error) {

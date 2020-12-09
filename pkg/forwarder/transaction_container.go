@@ -8,6 +8,8 @@ package forwarder
 import (
 	"fmt"
 	"sync"
+
+	"github.com/hashicorp/go-multierror"
 )
 
 type transactionStorage interface {
@@ -64,11 +66,11 @@ func (tc *transactionContainer) Add(t Transaction) (int, error) {
 		payloadsGroupToFlush := tc.extractTransactionsForDisk(payloadSize)
 		for _, payloads := range payloadsGroupToFlush {
 			if err := tc.optionalTransactionStorage.Serialize(payloads); err != nil {
-				diskErr = fmt.Errorf("%v %v", diskErr, err)
+				diskErr = multierror.Append(diskErr, err)
 			}
 		}
 		if diskErr != nil {
-			diskErr = fmt.Errorf("Cannot store transactions on disk:%v", diskErr)
+			diskErr = fmt.Errorf("Cannot store transactions on disk: %v", diskErr)
 		}
 	}
 
