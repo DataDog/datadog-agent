@@ -130,6 +130,11 @@ func (l *ECSListener) refreshServices(firstRun bool) {
 	}
 
 	for _, c := range meta.Containers {
+		// Skip containers for which ECS failed to retrieve metadata
+		if c.DockerID == "" {
+			log.Info("Skipping a container for which ECS is reporting an empty ID: name %q, docker name: %q, image %q, image id: %q", c.Name, c.DockerName, c.Image, c.ImageID)
+			continue
+		}
 		if _, found := l.services[c.DockerID]; found {
 			delete(notSeen, c.DockerID)
 			continue
@@ -140,7 +145,11 @@ func (l *ECSListener) refreshServices(firstRun bool) {
 		}
 		// Detect AD exclusion
 		if l.filters.IsExcluded(containers.GlobalFilter, c.DockerName, c.Image, "") {
-			log.Debugf("container %s filtered out: name %q image %q", c.DockerID[:12], c.DockerName, c.Image)
+			dockerID := c.DockerID
+			if len(c.DockerID) >= 12 {
+				dockerID = c.DockerID[:12]
+			}
+			log.Debugf("container %s filtered out: name %q image %q", dockerID, c.DockerName, c.Image)
 			continue
 		}
 		s, err := l.createService(c, firstRun)
@@ -204,7 +213,11 @@ func (l *ECSListener) createService(c v2.Container, firstRun bool) (ECSService, 
 	// Tags
 	tags, err := tagger.Tag(svc.GetTaggerEntity(), tagger.ChecksCardinality)
 	if err != nil {
-		log.Errorf("Failed to extract tags for container %s - %s", c.DockerID[:12], err)
+		dockerID := c.DockerID
+		if len(c.DockerID) >= 12 {
+			dockerID = c.DockerID[:12]
+		}
+		log.Errorf("Failed to extract tags for container %s - %s", dockerID, err)
 	}
 	svc.tags = tags
 
