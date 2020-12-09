@@ -74,7 +74,11 @@ func NewSocketFilterSnooper(cfg *config.Config, filter *manager.Probe) (*SocketF
 	var statKeeper *dnsStatKeeper
 	if cfg.CollectDNSStats {
 		statKeeper = newDNSStatkeeper(cfg.DNSTimeout)
-		log.Infof("DNS Stats collection is enabled")
+		log.Infof("DNS stats collection is enabled")
+		fmt.Println(cfg.CollectDNSDomains)
+		if cfg.CollectDNSDomains {
+			log.Infof("DNS domain collection is enabled")
+		}
 	}
 	snooper := &SocketFilterSnooper{
 		source:          packetSrc,
