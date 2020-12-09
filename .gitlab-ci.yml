@@ -696,6 +696,7 @@ dogstatsd_arm64_size_test:
       -G "Ninja" \
       -DCMAKE_BUILD_TYPE=MinSizeRel \
       -DLLVM_BUILD_TOOLS=OFF \
+      -DLLVM_ENABLE_TERMINFO=OFF \
       -DLLVM_INCLUDE_EXAMPLES=OFF \
       -DLLVM_INCLUDE_TESTS=OFF \
       -DLLVM_INCLUDE_BENCHMARKS=OFF \
