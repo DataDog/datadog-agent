@@ -51,9 +51,10 @@ func TestMovingAvg(t *testing.T) {
 	*now += int64(time.Second)
 
 	assert.Equal(t, int64(60), s.MovingAvg())
+
 }
 
-func TestMovingAvgBig(t *testing.T) {
+func TestMovingAvgBigWindow(t *testing.T) {
 
 	now, s := setupStatsTracker(24*time.Hour, time.Hour)
 	then := *now + 12*int64(time.Hour)
@@ -117,4 +118,39 @@ func TestMovingPeak(t *testing.T) {
 	s.Add(99)
 	*now += int64(time.Second)
 	assert.Equal(t, int64(100), s.MovingPeak())
+}
+
+func TestAllTimePeak(t *testing.T) {
+	_, s := setupStatsTracker(3*time.Second, time.Second)
+
+	assert.Equal(t, int64(0), s.AllTimePeak())
+
+	s.Add(10)
+	s.Add(20)
+
+	assert.Equal(t, int64(20), s.AllTimePeak())
+
+	s.Add(5)
+
+	assert.Equal(t, int64(20), s.AllTimePeak())
+
+}
+
+func TestAllTimeAvg(t *testing.T) {
+
+	_, s := setupStatsTracker(3*time.Second, time.Second)
+
+	assert.Equal(t, int64(0), s.AllTimeAvg())
+
+	s.Add(10)
+
+	assert.Equal(t, int64(10), s.AllTimeAvg())
+
+	s.Add(20)
+
+	assert.Equal(t, int64(15), s.AllTimeAvg())
+
+	s.Add(100)
+
+	assert.Equal(t, int64(43), s.AllTimeAvg())
 }

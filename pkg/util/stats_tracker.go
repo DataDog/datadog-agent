@@ -47,7 +47,7 @@ func NewStatsTrackerWithTimeProvider(timeFrame time.Duration, bucketSize time.Du
 	}
 }
 
-// Add Records a new value
+// Add Records a new value to the stats tracker
 func (s *StatsTracker) Add(value int64) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -65,7 +65,7 @@ func (s *StatsTracker) Add(value int64) {
 		s.avgPointsHead = &taggedPoint{now, value, 0}
 		s.peakPointsHead = &taggedPoint{now, value, 0}
 	} else if s.avgPointsHead.timeStamp < now-s.bucketFrame {
-		// Pop off the oldest value
+		// Pop off the oldest values
 		if len(s.aggregatedAvgPoints) > 0 {
 			dropFromIndex := 0
 			for _, v := range s.aggregatedAvgPoints {
