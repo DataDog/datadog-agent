@@ -891,6 +891,11 @@ void Three::setObfuscateSqlCb(cb_obfuscate_sql_t cb)
     _set_obfuscate_sql_cb(cb);
 }
 
+void Three::setObfuscateSqlExecPlanCb(cb_obfuscate_sql_exec_plan_t cb)
+{
+    _set_obfuscate_sql_exec_plan_cb(cb);
+}
+
 // Python Helpers
 
 // get_integration_list return a list of every datadog's wheels installed.
