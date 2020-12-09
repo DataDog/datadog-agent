@@ -13,11 +13,20 @@ const (
 
 	// measuredKey is a special metric flag that marks a span for trace metrics calculation.
 	measuredKey = "_dd.measured"
+	// tracerTopLevelKey is a metric flag set by tracers on top_level spans
+	tracerTopLevelKey = "_dd.top_level"
 )
 
 // HasTopLevel returns true if span is top-level.
 func HasTopLevel(s *pb.Span) bool {
 	return s.Metrics[topLevelKey] == 1
+}
+
+// UpdateTracerTopLevel sets _top_level tag on spans flagged by the tracer
+func UpdateTracerTopLevel(s *pb.Span) {
+	if s.Metrics[tracerTopLevelKey] == 1 {
+		SetMetric(s, topLevelKey, 1)
+	}
 }
 
 // IsMeasured returns true if a span should be measured (i.e., it should get trace metrics calculated).
