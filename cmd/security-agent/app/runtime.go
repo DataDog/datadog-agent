@@ -59,7 +59,7 @@ func checkPolicies(cmd *cobra.Command, args []string) error {
 		EnableKernelFilters: true,
 		EnableApprovers:     true,
 		EnableDiscarders:    true,
-		PIDCacheSize:        10000,
+		PIDCacheSize:        1,
 	}
 
 	probe, err := sprobe.NewProbe(cfg, nil)
