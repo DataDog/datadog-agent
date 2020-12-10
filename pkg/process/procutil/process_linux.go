@@ -168,7 +168,7 @@ func (p *Probe) getCmdline(pidPath string) []string {
 	return trimAndSplitBytes(cmdline)
 }
 
-// parseStatus retrieves io info from "io" file for a process in procfs
+// parseIO retrieves io info from "io" file for a process in procfs
 func (p *Probe) parseIO(pidPath string) *IOCountersStat {
 	path := filepath.Join(pidPath, "io")
 	var err error
