@@ -33,6 +33,29 @@ type transactionContainer struct {
 	mutex                      sync.RWMutex
 }
 
+func tryNewTransactionContainer(
+	maxMemSizeInBytes int,
+	flushToStorageRatio float64,
+	optionalDomainFolderPath string,
+	storageMaxSize int64,
+	dropPrioritySorter transactionPrioritySorter) (*transactionContainer, error) {
+	if maxMemSizeInBytes <= 0 {
+		return nil, nil
+	}
+	var storage transactionStorage = nil
+	var err error
+
+	if optionalDomainFolderPath != "" && storageMaxSize > 0 {
+		serializer := NewTransactionsSerializer()
+		storage, err = newTransactionsFileStorage(serializer, optionalDomainFolderPath, storageMaxSize)
+		if err != nil {
+			return nil, fmt.Errorf("Error when creating the file storage: %v", err)
+		}
+	}
+
+	return newTransactionContainer(dropPrioritySorter, storage, maxMemSizeInBytes, flushToStorageRatio), nil
+}
+
 func newTransactionContainer(
 	dropPrioritySorter transactionPrioritySorter,
 	optionalTransactionStorage transactionStorage,

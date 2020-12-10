@@ -279,24 +279,29 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 		if keys == nil || len(keys) == 0 {
 			log.Errorf("No API keys for domain '%s', dropping domain ", domain)
 		} else {
-			var optionalTransactionsFileStorage *transactionsFileStorage
+			var domainFolderPath string
+			var err error
 			if optionalRemovalPolicy != nil {
-				optionalTransactionsFileStorage = f.tryCreateTransactionsFileStorage(storageMaxSize, optionalRemovalPolicy, domain)
+				domainFolderPath, err = optionalRemovalPolicy.RegisterDomain(domain)
+				if err != nil {
+					log.Errorf("Retry queue storage on disk disabled. Cannot register the domain '%v': %v", domain, err)
+				}
 			}
 
-			var transactionContainer *transactionContainer
-			if options.RetryQueuePayloadsTotalMaxSize > 0 {
-				var storage transactionStorage = nil
-				if optionalTransactionsFileStorage != nil {
-					// storage is an interface
-					storage = optionalTransactionsFileStorage
-				}
-				transactionContainer = newTransactionContainer(transactionContainerSort, storage, options.RetryQueuePayloadsTotalMaxSize, flushToDiskMemRatio)
+			optionalTransactionContainer, err := tryNewTransactionContainer(
+				options.RetryQueuePayloadsTotalMaxSize,
+				flushToDiskMemRatio,
+				domainFolderPath,
+				storageMaxSize,
+				transactionContainerSort)
+			if err != nil {
+				log.Errorf("Retry queue storage on disk disabled: %v", err)
 			}
+
 			f.keysPerDomains[domain] = keys
 			f.domainForwarders[domain] = newDomainForwarder(
 				domain,
-				transactionContainer,
+				optionalTransactionContainer,
 				options.NumberOfWorkers,
 				options.RetryQueueSize,
 				options.ConnectionResetInterval,
@@ -611,24 +616,4 @@ func (f *DefaultForwarder) submitProcessLikePayload(ep endpoint, payload Payload
 	}()
 
 	return results, f.sendHTTPTransactions(transactions)
-}
-
-func (f *DefaultForwarder) tryCreateTransactionsFileStorage(storageMaxSize int64, removalPolicy *failedTransactionRemovalPolicy, domain string) *transactionsFileStorage {
-	var transactionsFileStorage *transactionsFileStorage
-	var errorMsg error
-
-	domainFolderPath, err := removalPolicy.RegisterDomain(domain)
-	if err != nil {
-		errorMsg = fmt.Errorf("Cannot register the domain '%v': %v", domain, err)
-	} else {
-		transactionsFileStorage, err = newTransactionsFileStorage(NewTransactionsSerializer(), domainFolderPath, storageMaxSize)
-		if err != nil {
-			errorMsg = fmt.Errorf("Cannot create the retry queue storage for '%v': %v", domain, err)
-		}
-	}
-
-	if errorMsg != nil {
-		log.Errorf("Retry queue storage on disk for domain '%v' failed: %v.", domain, errorMsg)
-	}
-	return transactionsFileStorage
 }
