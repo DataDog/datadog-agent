@@ -228,7 +228,9 @@ func (l *SNMPListener) checkDevices() {
 	discoveryTicker := time.NewTicker(time.Duration(l.config.DiscoveryInterval) * time.Second)
 
 	for {
-		for i, subnet := range subnets {
+		var subnet *snmpSubnet
+		for i := range subnets {
+			subnet = &subnets[i]
 			startingIP := make(net.IP, len(subnet.startingIP))
 			copy(startingIP, subnet.startingIP)
 			for currentIP := startingIP; subnet.network.Contains(currentIP); incrementIP(currentIP) {
@@ -241,7 +243,7 @@ func (l *SNMPListener) checkDevices() {
 				copy(jobIP, currentIP)
 				job := snmpJob{
 					// Use `&subnets[i]` (not `&subnet`) to pass the correct pointer address
-					subnet:    &subnets[i],
+					subnet:    subnet,
 					currentIP: jobIP,
 				}
 				jobs <- job
