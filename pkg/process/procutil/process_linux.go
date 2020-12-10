@@ -246,6 +246,7 @@ func (p *Probe) parseStatus(pidPath string) *statusInfo {
 	}
 
 	content, err := ioutil.ReadFile(path)
+
 	if err != nil {
 		return sInfo
 	}

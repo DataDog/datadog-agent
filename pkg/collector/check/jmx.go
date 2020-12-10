@@ -35,7 +35,15 @@ func IsJMXInstance(name string, instance integration.Data, initConfig integratio
 		return false
 	}
 
-	x, ok := rawInstance["is_jmx"]
+	x, ok := rawInstance["loader"]
+	if ok {
+		loaderName, ok := x.(string)
+		if ok {
+			return loaderName == "jmx"
+		}
+	}
+
+	x, ok = rawInstance["is_jmx"]
 	if ok {
 		isInstanceJMX, ok := x.(bool)
 		if ok && isInstanceJMX {
@@ -47,6 +55,14 @@ func IsJMXInstance(name string, instance integration.Data, initConfig integratio
 	err = yaml.Unmarshal(initConfig, &rawInitConfig)
 	if err != nil {
 		return false
+	}
+
+	x, ok = rawInitConfig["loader"]
+	if ok {
+		loaderName, ok := x.(string)
+		if ok {
+			return loaderName == "jmx"
+		}
 	}
 
 	x, ok = rawInitConfig["is_jmx"]

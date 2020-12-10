@@ -14,16 +14,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
-	coreutil "github.com/DataDog/datadog-agent/pkg/util"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	ns             = "process_config"
-	orchestratorNS = "orchestrator_explorer"
-	spNS           = "system_probe_config"
+	ns   = "process_config"
+	spNS = "system_probe_config"
 )
 
 func key(pieces ...string) string {
@@ -216,15 +213,8 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	}
 	a.APIEndpoints[0].Endpoint = URL
 
-	URL, err = extractOrchestratorDDUrl()
-	if err != nil {
-		return err
-	}
-	a.OrchestratorEndpoints[0].Endpoint = URL
-
 	if key := "api_key"; config.Datadog.IsSet(key) {
 		a.APIEndpoints[0].APIKey = config.Datadog.GetString(key)
-		a.OrchestratorEndpoints[0].APIKey = config.Datadog.GetString(key)
 	}
 
 	if config.Datadog.IsSet("hostname") {
@@ -324,12 +314,6 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		}
 	}
 
-	if k := key(ns, "pod_queue_bytes"); config.Datadog.IsSet(k) {
-		if queueBytes := config.Datadog.GetInt(k); queueBytes > 0 {
-			a.PodQueueBytes = queueBytes
-		}
-	}
-
 	// The maximum number of processes, or containers per message. Note: Only change if the defaults are causing issues.
 	if k := key(ns, "max_per_message"); config.Datadog.IsSet(k) {
 		if maxPerMessage := config.Datadog.GetInt(k); maxPerMessage <= 0 {
@@ -374,9 +358,6 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 			}
 		}
 	}
-	if err := extractOrchestratorAdditionalEndpoints(URL, &a.OrchestratorEndpoints); err != nil {
-		return err
-	}
 
 	// Used to override container source auto-detection
 	// and to enable multiple collector sources if needed.
@@ -406,58 +387,7 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	// Build transport (w/ proxy if needed)
 	a.Transport = httputils.CreateHTTPTransport()
 
-	// Orchestrator Explorer
-	if config.Datadog.GetBool("orchestrator_explorer.enabled") {
-		a.OrchestrationCollectionEnabled = true
-		// Set clustername
-		hostname, _ := coreutil.GetHostname()
-		if clusterName := clustername.GetClusterName(hostname); clusterName != "" {
-			a.KubeClusterName = clusterName
-		}
-	}
-	a.IsScrubbingEnabled = config.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled")
-
 	return nil
-}
-
-func extractOrchestratorAdditionalEndpoints(URL *url.URL, orchestratorEndpoints *[]api.Endpoint) error {
-	if k := key(orchestratorNS, "orchestrator_additional_endpoints"); config.Datadog.IsSet(k) {
-		if err := extractEndpoints(URL, k, orchestratorEndpoints); err != nil {
-			return err
-		}
-	} else if k := key(ns, "orchestrator_additional_endpoints"); config.Datadog.IsSet(k) {
-		if err := extractEndpoints(URL, k, orchestratorEndpoints); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func extractEndpoints(URL *url.URL, k string, endpoints *[]api.Endpoint) error {
-	for endpointURL, apiKeys := range config.Datadog.GetStringMapStringSlice(k) {
-		u, err := URL.Parse(endpointURL)
-		if err != nil {
-			return fmt.Errorf("invalid additional endpoint url '%s': %s", endpointURL, err)
-		}
-		for _, k := range apiKeys {
-			*endpoints = append(*endpoints, api.Endpoint{
-				APIKey:   k,
-				Endpoint: u,
-			})
-		}
-	}
-	return nil
-}
-
-// extractOrchestratorDDUrl contains backward compatible config parsing code.
-func extractOrchestratorDDUrl() (*url.URL, error) {
-	orchestratorURL := key(orchestratorNS, "orchestrator_dd_url")
-	processURL := key(ns, "orchestrator_dd_url")
-	URL, err := url.Parse(config.GetMainEndpointWithConfigBackwardCompatible(config.Datadog, "https://orchestrator.", orchestratorURL, processURL))
-	if err != nil {
-		return nil, fmt.Errorf("error parsing orchestrator_dd_url: %s", err)
-	}
-	return URL, nil
 }
 
 func (a *AgentConfig) setCheckInterval(ns, check, checkKey string) {
