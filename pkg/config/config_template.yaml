@@ -920,6 +920,25 @@ api_key:
   #
   # log_file: /var/log/datadog/system-probe.log
 
+{{- if .Profiling -}}
+  ## @param profiling - custom object - optional
+  ## Enter specific configurations for profiling.
+  ## Uncomment this parameter and the one below to enable profiling.
+  ## See https://docs.datadoghq.com/tracing/profiling/
+  #
+  ## NOTE: If enabled this option may incur billing charges or other
+  ##       unexpected side-effects (ie. system probe profiles showing with your
+  ##       services).
+  #
+  # profiling:
+  #
+    ## @param enabled - boolean - optional - default: false
+    ## Enable profiling for the System Probe process.
+    #
+    # enabled: false
+
+{{ end }}
+
 {{- if .NetworkModule }}
 
 ########################################
