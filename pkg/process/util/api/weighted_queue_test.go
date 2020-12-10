@@ -35,7 +35,7 @@ func TestWeightedQueue(t *testing.T) {
 }
 
 func TestWeightedQueuePollInterrupt(t *testing.T) {
-	q := NewWeightedQueue(3, math.MaxInt64)
+	q := NewWeightedQueue(3, math.MaxInt64, "test")
 	exit := make(chan struct{})
 
 	go func() {
@@ -49,7 +49,7 @@ func TestWeightedQueuePollInterrupt(t *testing.T) {
 }
 
 func TestWeightedQueuePollBlocking(t *testing.T) {
-	q := NewWeightedQueue(3, math.MaxInt64)
+	q := NewWeightedQueue(3, math.MaxInt64, "test")
 	exit := make(chan struct{})
 
 	go func() {
@@ -64,7 +64,7 @@ func TestWeightedQueuePollBlocking(t *testing.T) {
 }
 
 func TestWeightedQueueItemsEvicted(t *testing.T) {
-	q := NewWeightedQueue(3, math.MaxInt64)
+	q := NewWeightedQueue(3, math.MaxInt64, "test")
 	exit := make(chan struct{})
 
 	q.Add(newItem("item", 1))
@@ -90,7 +90,7 @@ func TestWeightedQueueItemsEvicted(t *testing.T) {
 }
 
 func TestWeightedQueueItemsEvictedByType(t *testing.T) {
-	q := NewWeightedQueue(3, math.MaxInt64)
+	q := NewWeightedQueue(3, math.MaxInt64, "test")
 	exit := make(chan struct{})
 
 	q.Add(newItem("item1", 1))
@@ -117,7 +117,7 @@ func TestWeightedQueueItemsEvictedByType(t *testing.T) {
 }
 
 func TestWeightedQueueItemsEvictedFromHead(t *testing.T) {
-	q := NewWeightedQueue(3, math.MaxInt64)
+	q := NewWeightedQueue(3, math.MaxInt64, "test")
 	exit := make(chan struct{})
 
 	q.Add(newItem("item", 1))
@@ -145,7 +145,7 @@ func TestWeightedQueueItemsEvictedFromHead(t *testing.T) {
 }
 
 func TestWeightedQueueItemsEvictedByTypeForWeight(t *testing.T) {
-	q := NewWeightedQueue(100, 10)
+	q := NewWeightedQueue(100, 10, "test")
 	exit := make(chan struct{})
 
 	q.Add(newItem("item1", 1))
@@ -172,7 +172,7 @@ func TestWeightedQueueItemsEvictedByTypeForWeight(t *testing.T) {
 }
 
 func TestWeightedQueueItemsEvictedForWeight(t *testing.T) {
-	q := NewWeightedQueue(100, 10)
+	q := NewWeightedQueue(100, 10, "test")
 	exit := make(chan struct{})
 
 	q.Add(newItem("item1", 1))
@@ -190,7 +190,7 @@ func TestWeightedQueueItemsEvictedForWeight(t *testing.T) {
 }
 
 func TestWeightedQueueAvailableWeightCorrectlySetEvictingItemsOfSameType(t *testing.T) {
-	q := NewWeightedQueue(100, 10)
+	q := NewWeightedQueue(100, 10, "test")
 	exit := make(chan struct{})
 
 	q.Add(newItem("item1", 1))
@@ -213,7 +213,7 @@ func TestWeightedQueueAvailableWeightCorrectlySetEvictingItemsOfSameType(t *test
 }
 
 func TestWeightedQueueAvailableWeightCorrectlySetEvictingItemsOfDifferentType(t *testing.T) {
-	q := NewWeightedQueue(100, 10)
+	q := NewWeightedQueue(100, 10, "test")
 	exit := make(chan struct{})
 
 	q.Add(newItem("item1", 1))
@@ -236,7 +236,7 @@ func TestWeightedQueueAvailableWeightCorrectlySetEvictingItemsOfDifferentType(t 
 }
 
 func TestWeightedQueueAvailableWeightDecreasedAfterPoll(t *testing.T) {
-	q := NewWeightedQueue(100, 10)
+	q := NewWeightedQueue(100, 10, "test")
 	exit := make(chan struct{})
 
 	q.Add(newItem("item", 2))
