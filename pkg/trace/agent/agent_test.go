@@ -8,6 +8,7 @@ package agent
 import (
 	"bytes"
 	"context"
+	"io/ioutil"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -33,7 +34,6 @@ import (
 
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
-	"github.com/tinylib/msgp/msgp"
 )
 
 func newMockSampler(wantSampled bool, wantRate float64) *Sampler {
@@ -309,7 +309,6 @@ func TestProcess(t *testing.T) {
 		agnt := NewAgent(ctx, cfg)
 		defer cancel()
 
-		payloadN := 2
 		trace := pb.Trace{{
 			TraceID:  1,
 			SpanID:   1,
@@ -319,10 +318,13 @@ func TestProcess(t *testing.T) {
 			Duration: (500 * time.Millisecond).Nanoseconds(),
 			Metrics:  map[string]float64{sampler.KeySamplingPriority: 2},
 		}}
-		var traces pb.Traces
-		for size := 0; size < writer.MaxPayloadSize*payloadN; size += trace.Msgsize() {
-			traces = append(traces, trace)
-		}
+		// we are sending 3 traces
+		traces := pb.Traces{trace, trace, trace}
+		// setting writer.MaxPayloadSize to the size of 1 trace (+1 byte)
+		defer func(oldSize int) { writer.MaxPayloadSize = oldSize }(writer.MaxPayloadSize)
+		writer.MaxPayloadSize = trace.Msgsize() + 1
+		// and expecting it to result in 3 payloads
+		expectedPayloads := 3
 		go agnt.Process(&api.Payload{
 			Traces: traces,
 			Source: agnt.Receiver.Stats.GetTagStats(info.Tags{}),
@@ -331,7 +333,7 @@ func TestProcess(t *testing.T) {
 		var gotCount int
 		timeout := time.After(3 * time.Second)
 		// expect multiple payloads
-		for i := 0; i < payloadN+2; i++ {
+		for i := 0; i < expectedPayloads; i++ {
 			select {
 			case ss := <-agnt.TraceWriter.In:
 				gotCount += int(ss.SpanCount)
@@ -911,7 +913,8 @@ func tracesFromFile(file string) (raw []byte, count int, err error) {
 	// prepare the traces in this file by adding sampling.priority=2
 	// everywhere to ensure consistent sampling assumptions and results.
 	var traces pb.Traces
-	if err := msgp.Decode(in, &traces); err != nil {
+	bts, err := ioutil.ReadAll(in)
+	if _, err = traces.UnmarshalMsg(bts); err != nil {
 		return nil, 0, err
 	}
 	for _, t := range traces {
@@ -925,9 +928,9 @@ func tracesFromFile(file string) (raw []byte, count int, err error) {
 		}
 	}
 	// re-encode the modified payload
-	var data bytes.Buffer
-	if err := msgp.Encode(&data, traces); err != nil {
+	var data []byte
+	if data, err = traces.MarshalMsg(nil); err != nil {
 		return nil, 0, err
 	}
-	return data.Bytes(), count, nil
+	return data, count, nil
 }

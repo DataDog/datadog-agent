@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build linux_bpf
+// +build linux
 
 package probe
 
@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 	lib "github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
+	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -61,10 +62,10 @@ type Probe struct {
 	config             *config.Config
 	handler            EventHandler
 	resolvers          *Resolvers
-	discarderHandlers  map[eval.EventType][]onDiscarderHandler
 	pidDiscarders      *lib.Map
 	inodeDiscarders    *lib.Map
 	invalidDiscarders  map[eval.Field]map[interface{}]bool
+	regexCache         *simplelru.LRU
 	flushingDiscarders int64
 	approvers          map[eval.EventType]activeApprovers
 	syscallMonitor     *SyscallMonitor
@@ -75,6 +76,11 @@ type Probe struct {
 	startTime          time.Time
 	event              *Event
 	mountEvent         *Event
+}
+
+// GetResolvers returns the resolvers of Probe
+func (p *Probe) GetResolvers() *Resolvers {
+	return p.resolvers
 }
 
 // Map returns a map by its name
@@ -191,12 +197,12 @@ func (p *Probe) DispatchEvent(event *Event) {
 func (p *Probe) SendStats(statsdClient *statsd.Client) error {
 	if p.syscallMonitor != nil {
 		if err := p.syscallMonitor.SendStats(statsdClient); err != nil {
-			return err
+			return errors.Wrap(err, "failed to send syscall monitor stats")
 		}
 	}
 
 	if err := statsdClient.Count(MetricPrefix+".events.lost", p.eventsStats.GetAndResetLost(), nil, 1.0); err != nil {
-		return err
+		return errors.Wrap(err, "failed to send events.lost metric")
 	}
 
 	receivedEvents := MetricPrefix + ".events.received"
@@ -209,7 +215,7 @@ func (p *Probe) SendStats(statsdClient *statsd.Client) error {
 		tags := []string{fmt.Sprintf("event_type:%s", eventType.String())}
 		if value := p.eventsStats.GetAndResetEventCount(eventType); value > 0 {
 			if err := statsdClient.Count(receivedEvents, value, tags, 1.0); err != nil {
-				return err
+				return errors.Wrap(err, "failed to send events.received metric")
 			}
 		}
 	}
@@ -275,11 +281,6 @@ func (p *Probe) unmarshalProcessContainer(data []byte, event *Event) (int, error
 		return 0, err
 	}
 
-	if entry := p.resolvers.ProcessResolver.Get(event.Process.Pid); entry != nil {
-		event.Process.FileEvent = entry.FileEvent
-		event.Container = entry.ContainerEvent
-	}
-
 	return read, nil
 }
 
@@ -313,9 +314,9 @@ func (p *Probe) handleMountEvent(CPU int, data []byte, perfMap *manager.PerfMap,
 		}
 
 		// Resolve mount point
-		event.Mount.ResolveMountPoint(p.resolvers)
+		event.Mount.ResolveMountPoint(event)
 		// Resolve root
-		event.Mount.ResolveRoot(p.resolvers)
+		event.Mount.ResolveRoot(event)
 		// Insert new mount point in cache
 		p.resolvers.MountResolver.Insert(event.Mount)
 	case FileUmountEventType:
@@ -352,29 +353,7 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 
 	log.Tracef("Decoding event %s(%d)", eventType, event.Type)
 
-	switch eventType {
-	case ExecEventType:
-		if _, err := event.Exec.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
-			return
-		}
-
-		p.resolvers.ProcessResolver.AddEntry(event.Exec.Pid, event.Exec.ProcessCacheEntry)
-
-		return
-	case ExitEventType:
-		if _, err := event.Exit.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
-			return
-		}
-
-		// as far as we keep only one perf for all the event we can delete the entry right away, there won't be
-		// any race
-		p.resolvers.ProcessResolver.DelEntry(event.Exit.Pid)
-
-		// no need to dispatch
-		return
-	case InvalidateDentryEventType:
+	if eventType == InvalidateDentryEventType {
 		if _, err := event.InvalidateDentry.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode invalidate dentry event: %s (offset %d, len %d)", err, offset, len(data))
 			return
@@ -473,9 +452,24 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 			log.Errorf("failed to decode removexattr event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+	case ExecEventType, ForkEventType:
+		if _, err := event.Exec.UnmarshalEvent(data[offset:], event); err != nil {
+			log.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+
+		// update the process resolver cache
+		event.updateProcessCachePointer(p.resolvers.ProcessResolver.AddEntry(event.Process.Pid, event.processCacheEntry))
+	case ExitEventType:
+		defer p.resolvers.ProcessResolver.DeleteEntry(event.Process.Pid, event.ResolveEventTimestamp())
 	default:
 		log.Errorf("unsupported event type %d on perf map %s", eventType, perfMap.Name)
 		return
+	}
+
+	// resolve event context
+	if eventType != ExitEventType {
+		event.ResolveProcessCacheEntry()
 	}
 
 	log.Tracef("Dispatching event %+v\n", event)
@@ -744,11 +738,17 @@ func getInvalidDiscarders() map[eval.Field]map[interface{}]bool {
 
 // NewProbe instantiates a new runtime security agent probe
 func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
+	regexCache, err := simplelru.NewLRU(64, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	p := &Probe{
 		config:            config,
 		invalidDiscarders: getInvalidDiscarders(),
 		approvers:         make(map[eval.EventType]activeApprovers),
 		managerOptions:    ebpf.NewDefaultOptions(),
+		regexCache:        regexCache,
 	}
 
 	if !p.config.EnableKernelFilters {

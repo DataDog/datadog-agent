@@ -111,7 +111,6 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 				log.Warnf("Invalid configuration: %v", err)
 				continue
 			}
-
 			for _, source := range s.sources.GetSources() {
 				if identifier == source.Config.Identifier {
 					s.sources.RemoveSource(source)
@@ -217,8 +216,14 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 		if service != nil {
 			// a config defined in a docker label or a pod annotation does not always contain a type,
 			// override it here to ensure that the config won't be dropped at validation.
-			cfg.Type = service.Type
-			cfg.Identifier = service.Identifier // used for matching a source with a service
+			if cfg.Type == logsConfig.FileType && service.Type == "docker" {
+				// cfg.Type is not overwritten as tailing a file from a docker AD configuration
+				// is explicitly supported
+				cfg.Identifier = service.Identifier
+			} else {
+				cfg.Type = service.Type
+				cfg.Identifier = service.Identifier // used for matching a source with a service
+			}
 		}
 
 		source := logsConfig.NewLogSource(configName, cfg)

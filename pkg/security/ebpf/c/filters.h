@@ -85,7 +85,7 @@ struct pid_discarder_t {
 
 struct pid_discarder_parameters_t {
     u64 event_mask;
-    u64 timestamps[EVENT_MAX];
+    u64 timestamps[EVENT_MAX_ROUNDED_UP];
 };
 
 struct bpf_map_def SEC("maps/pid_discarders") pid_discarders = { \
@@ -104,7 +104,7 @@ int __attribute__((always_inline)) discarded_by_pid(u64 event_type, u32 tgid) {
 
     struct pid_discarder_parameters_t *params = bpf_map_lookup_elem(&pid_discarders, &key);
 
-    if (params == NULL || (event_type > 0 && params->timestamps[(event_type-1)&(EVENT_MAX-1)] != 0 && params->timestamps[(event_type-1)&(EVENT_MAX-1)] <= bpf_ktime_get_ns())) {
+    if (params == NULL || (event_type > 0 && params->timestamps[(event_type-1)&(EVENT_MAX_ROUNDED_UP-1)] != 0 && params->timestamps[(event_type-1)&(EVENT_MAX_ROUNDED_UP-1)] <= bpf_ktime_get_ns())) {
         return 0;
     }
 
@@ -124,7 +124,7 @@ int __attribute__((always_inline)) discarded_by_process(const char mode, u64 eve
         if (discarded_by_pid(event_type, tgid))
             return 1;
 
-        struct proc_cache_t *entry = get_pid_cache(tgid);
+        struct proc_cache_t *entry = get_proc_cache(tgid);
         if (entry && discarded_by_inode(event_type, entry->executable.mount_id, entry->executable.inode)) {
             return 1;
         }

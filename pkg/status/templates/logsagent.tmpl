@@ -52,24 +52,24 @@ Logs Agent
   {{ .name }}
   {{ printDashes .name "-" }}
   {{- range .sources }}
-    Type: {{ .type }}
-    {{- range $key, $value := .configuration }}
-    {{$key}}: {{$value}}
-    {{- end }}
-    Status: {{ .status }}
-    {{- range $message := .messages }}
-      {{ $message }}
-    {{- end }}
-    {{- if .inputs }}
-    Inputs: {{ range $input := .inputs }}{{$input}} {{ end }}
-    {{- end }}
-    BytesRead: {{ .bytes_read }}
-    {{- if .info }}
-    Container Info:
-    {{- range $inf := .info }}
-      {{ $inf }}
-    {{- end }}
-    {{- end }}
+    - Type: {{ .type }}
+      {{- range $key, $value := .configuration }}
+      {{$key}}: {{$value}}
+      {{- end }}
+      Status: {{ .status }}
+      {{- range $message := .messages }}
+        {{ $message }}
+      {{- end }}
+      {{- if .inputs }}
+      Inputs: {{ range $input := .inputs }}{{$input}} {{ end }}
+      {{- end }}
+      BytesRead: {{ .bytes_read }}
+      {{- if .info }}
+      Container Info:
+      {{- range $inf := .info }}
+        {{ $inf }}
+      {{- end }}
+      {{- end }}
   {{- end }}
 {{- end }}
 

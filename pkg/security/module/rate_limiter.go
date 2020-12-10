@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build linux_bpf
+// +build linux
 
 package module
 
@@ -33,9 +33,8 @@ type Limiter struct {
 	limiter *rate.Limiter
 
 	// https://github.com/golang/go/issues/36606
-	padding int32
+	padding int32 //nolint:structcheck,unused
 	dropped int64
-	align   int64
 	allowed int64
 }
 
@@ -59,6 +58,7 @@ func NewRateLimiter() *RateLimiter {
 	}
 }
 
+// Apply a set of rules
 func (rl *RateLimiter) Apply(rules []rules.RuleID) {
 	rl.Lock()
 	defer rl.Unlock()

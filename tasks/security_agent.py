@@ -151,7 +151,7 @@ def functional_tests(
     if bundle_ebpf:
         build_tags = "ebpf_bindata," + build_tags
 
-    cmd = 'go test -tags functionaltests,linux_bpf,{build_tags} {race_opt} {output_opt} '
+    cmd = 'go test -tags functionaltests,{build_tags} {race_opt} {output_opt} '
     cmd += '{verbose_opt} {failfast_opt} {run_opt} {bench_opt} {repo_path}/pkg/security/tests'
 
     if os.getuid() != 0 and not output:
