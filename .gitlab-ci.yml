@@ -3550,7 +3550,7 @@ dev_nightly_docker_hub-dogstatsd:
 # Images vulnerability scanners
 #
 
-.docker_scan_job_definition: &docker_scan_job_definition
+.docker_scan_job_definition:
   stage: image_scan
   tags: [ "runner:docker", "size:large" ]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:v2718650-9ce6565-0.6.1-py3
@@ -3571,11 +3571,11 @@ dev_nightly_docker_hub-dogstatsd:
 
 # push every night to docker hub agent-scan repo
 scan_nightly_docker_hub-dogstatsd:
+  extends: .docker_scan_job_definition
   rules:
     - <<: *if_not_version_7
       when: never
     - <<: *if_deploy_on_nightly
-  <<: *docker_scan_job_definition
   needs:
     - docker_build_dogstatsd_amd64
   script:
@@ -3583,11 +3583,11 @@ scan_nightly_docker_hub-dogstatsd:
     - inv -e docker.publish ${SRC_DSD}:${SRC_TAG}-amd64 datadog/dogstatsd-scan:nightly
 
 scan_nightly_docker_hub-a6:
+  extends: .docker_scan_job_definition
   rules:
     - <<: *if_not_version_6
       when: never
     - <<: *if_deploy_on_nightly
-  <<: *docker_scan_job_definition
   needs:
     - docker_build_agent6
     - docker_build_agent6_jmx
@@ -3597,11 +3597,11 @@ scan_nightly_docker_hub-a6:
     - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-6-jmx-amd64   datadog/agent-scan:nightly-py2-jmx
 
 scan_nightly_docker_hub-a7:
+  extends: .docker_scan_job_definition
   rules:
     - <<: *if_not_version_7
       when: never
     - <<: *if_deploy_on_nightly
-  <<: *docker_scan_job_definition
   needs:
     - docker_build_agent7
     - docker_build_agent7_jmx
@@ -3610,9 +3610,9 @@ scan_nightly_docker_hub-a7:
     - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-7-jmx-amd64   datadog/agent-scan:nightly-py3-jmx
 
 dca_scan_nightly_docker_hub:
+  extends: .docker_scan_job_definition
   rules:
     - <<: *if_deploy_on_nightly
-  <<: *docker_scan_job_definition
   needs: ["docker_build_cluster_agent_amd64"]
   script:
     - inv -e docker.publish ${SRC_DCA}:${SRC_TAG}-amd64 datadog/cluster-agent-scan:nightly
@@ -3620,11 +3620,11 @@ dca_scan_nightly_docker_hub:
 
 # push on master to docker hub agent-scan repo
 scan_master_docker_hub-dogstatsd:
+  extends: .docker_scan_job_definition
   rules:
     - <<: *if_not_version_7
       when: never
     - <<: *if_master_branch
-  <<: *docker_scan_job_definition
   needs:
     - docker_build_dogstatsd_amd64
   script:
@@ -3632,11 +3632,11 @@ scan_master_docker_hub-dogstatsd:
     - inv -e docker.publish ${SRC_DSD}:${SRC_TAG}-amd64 datadog/dogstatsd-scan:master
 
 scan_master_docker_hub-a6:
+  extends: .docker_scan_job_definition
   rules:
     - <<: *if_not_version_6
       when: never
     - <<: *if_master_branch
-  <<: *docker_scan_job_definition
   needs:
     - docker_build_agent6
     - docker_build_agent6_jmx
@@ -3646,11 +3646,11 @@ scan_master_docker_hub-a6:
     - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-6-jmx-amd64   datadog/agent-scan:master-py2-jmx
 
 scan_master_docker_hub-a7:
+  extends: .docker_scan_job_definition
   rules:
     - <<: *if_not_version_7
       when: never
     - <<: *if_master_branch
-  <<: *docker_scan_job_definition
   needs:
     - docker_build_agent7
     - docker_build_agent7_jmx
@@ -3660,9 +3660,9 @@ scan_master_docker_hub-a7:
 
 
 dca_scan_master_docker_hub:
+  extends: .docker_scan_job_definition
   rules:
     - <<: *if_master_branch
-  <<: *docker_scan_job_definition
   needs: ["docker_build_cluster_agent_amd64"]
   script:
     - inv -e docker.publish ${SRC_DCA}:${SRC_TAG}-amd64 datadog/cluster-agent-scan:master
