@@ -207,7 +207,7 @@ func BuildHTTPEndpoints() (*Endpoints, error) {
 	return BuildHTTPEndpointsWithConfig(logsConfigDefaultKeys, httpEndpointPrefix)
 }
 
-// BuildHTTPEndpointsWithConfig uses two arguments that instructs it how to access configuration parameters, then returns the HTTP endpoints to send logs to.
+// BuildHTTPEndpointsWithConfig uses two arguments that instructs it how to access configuration parameters, then returns the HTTP endpoints to send logs to. This function is able to default to the 'classic' BuildHTTPEndpoints() when passed the default variables logsConfigDefaultKeys and httpEndpointPrefix
 func BuildHTTPEndpointsWithConfig(logsConfig LogsConfigKeys, endpointPrefix string) (*Endpoints, error) {
 	main := Endpoint{
 		APIKey:                  getLogsAPIKey(coreConfig.Datadog),
