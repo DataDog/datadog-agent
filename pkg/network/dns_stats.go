@@ -161,10 +161,13 @@ func (d *dnsStatKeeper) removeExpiredStates(earliestTs time.Time) {
 	deleteThreshold := 5000
 	d.mux.Lock()
 	defer d.mux.Unlock()
+	// Any state older than the threshold should be discarded
 	threshold := microSecs(earliestTs)
 	for k, v := range d.state {
 		if v.ts < threshold {
 			delete(d.state, k)
+			d.deleteCount++
+			// When we expire a state, we need to increment timeout count for that key:domain
 			allStats, ok := d.stats[k.key]
 			if !ok {
 				allStats = make(map[string]dnsStats)
@@ -172,7 +175,6 @@ func (d *dnsStatKeeper) removeExpiredStates(earliestTs time.Time) {
 			stats, ok := allStats[v.question]
 			if !ok {
 				stats.countByRcode = make(map[uint8]uint32)
-				d.deleteCount++
 			}
 			stats.timeouts++
 			allStats[v.question] = stats
