@@ -8,6 +8,7 @@
 package autoscalers
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -414,7 +415,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 			[]*autoscalingv2.HorizontalPodAutoscaler{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						UID:       types.UID(5),
+						UID:       types.UID(fmt.Sprint(5)),
 						Namespace: "nsbar",
 						Name:      "foo",
 					},
@@ -422,7 +423,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						UID:       types.UID(7),
+						UID:       types.UID(fmt.Sprint(7)),
 						Namespace: "zanzi",
 						Name:      "bar",
 					},
@@ -432,7 +433,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 			[]*v1alpha1.WatermarkPodAutoscaler{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						UID:       types.UID(9),
+						UID:       types.UID(fmt.Sprint(9)),
 						Namespace: "nsbar",
 						Name:      "foo",
 					},
@@ -440,7 +441,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						UID:       types.UID(11),
+						UID:       types.UID(fmt.Sprint(11)),
 						Namespace: "zanzi",
 						Name:      "bar",
 					},
@@ -454,7 +455,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 					Valid:      true,
 					Ref: custommetrics.ObjectReference{
 						Type:      "horizontal",
-						UID:       string(5),
+						UID:       fmt.Sprint(5),
 						Name:      "foo",
 						Namespace: "nsbar",
 					},
@@ -465,7 +466,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 					Valid:      false,
 					Ref: custommetrics.ObjectReference{
 						Type:      "horizontal",
-						UID:       string(6),
+						UID:       fmt.Sprint(6),
 						Name:      "foo",
 						Namespace: "baz",
 					},
@@ -476,7 +477,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 					Valid:      false,
 					Ref: custommetrics.ObjectReference{
 						Type:      "horizontal",
-						UID:       string(7),
+						UID:       fmt.Sprint(7),
 						Name:      "bar",
 						Namespace: "zanzi",
 					},
@@ -487,7 +488,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 					Valid:      false,
 					Ref: custommetrics.ObjectReference{
 						Type:      "watermark",
-						UID:       string(9),
+						UID:       fmt.Sprint(9),
 						Name:      "bar",
 						Namespace: "zanzi",
 					},
@@ -500,7 +501,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 					Valid:      false,
 					Ref: custommetrics.ObjectReference{
 						Type:      "horizontal",
-						UID:       string(6),
+						UID:       fmt.Sprint(6),
 						Name:      "foo",
 						Namespace: "baz",
 					},
@@ -511,7 +512,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 					Valid:      false,
 					Ref: custommetrics.ObjectReference{
 						Type:      "watermark",
-						UID:       string(9),
+						UID:       fmt.Sprint(9),
 						Name:      "bar",
 						Namespace: "zanzi",
 					},
@@ -522,7 +523,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 			[]*autoscalingv2.HorizontalPodAutoscaler{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						UID:       types.UID(5),
+						UID:       types.UID(fmt.Sprint(5)),
 						Namespace: "bar",
 						Name:      "foo",
 					},
@@ -530,7 +531,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						UID:       types.UID(7),
+						UID:       types.UID(fmt.Sprint(7)),
 						Namespace: "baz",
 						Name:      "foo",
 					},
@@ -545,7 +546,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 					Valid:      true,
 					Ref: custommetrics.ObjectReference{
 						Type:      "horizontal",
-						UID:       string(5),
+						UID:       fmt.Sprint(5),
 						Namespace: "bar",
 						Name:      "foo",
 					},
@@ -556,7 +557,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 					Valid:      false,
 					Ref: custommetrics.ObjectReference{
 						Type:      "horizontal",
-						UID:       string(7),
+						UID:       fmt.Sprint(7),
 						Namespace: "baz",
 						Name:      "foo",
 					},
@@ -569,7 +570,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 					Valid:      false,
 					Ref: custommetrics.ObjectReference{
 						Type:      "horizontal",
-						UID:       string(7),
+						UID:       fmt.Sprint(7),
 						Name:      "foo",
 						Namespace: "baz",
 					},
@@ -581,7 +582,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 			[]*v1alpha1.WatermarkPodAutoscaler{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						UID:       types.UID(7),
+						UID:       types.UID(fmt.Sprint(7)),
 						Namespace: "zanzi",
 						Name:      "bar",
 					},
@@ -594,7 +595,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 					Labels:     map[string]string{"foo": "tu"},
 					Valid:      true,
 					Ref: custommetrics.ObjectReference{
-						UID:       string(7),
+						UID:       fmt.Sprint(7),
 						Name:      "bar",
 						Namespace: "zanzi",
 					},
@@ -606,7 +607,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 					Labels:     map[string]string{"foo": "tu"},
 					Valid:      true,
 					Ref: custommetrics.ObjectReference{
-						UID:       string(7),
+						UID:       fmt.Sprint(7),
 						Name:      "bar",
 						Namespace: "zanzi",
 					},
@@ -617,7 +618,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 			[]*autoscalingv2.HorizontalPodAutoscaler{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						UID:       types.UID(5),
+						UID:       types.UID(fmt.Sprint(5)),
 						Namespace: "bar",
 						Name:      "foo",
 					},
@@ -625,7 +626,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						UID:       types.UID(7),
+						UID:       types.UID(fmt.Sprint(7)),
 						Namespace: "baz",
 						Name:      "foo",
 					},
@@ -640,7 +641,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 					Valid:      true,
 					Ref: custommetrics.ObjectReference{
 						Type:      "horizontal",
-						UID:       string(5),
+						UID:       fmt.Sprint(5),
 						Namespace: "bar",
 						Name:      "foo",
 					},
@@ -651,7 +652,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 					Valid:      false,
 					Ref: custommetrics.ObjectReference{
 						Type:      "horizontal",
-						UID:       string(7),
+						UID:       fmt.Sprint(7),
 						Namespace: "baz",
 						Name:      "foo",
 					},
@@ -664,7 +665,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 					Valid:      false,
 					Ref: custommetrics.ObjectReference{
 						Type:      "horizontal",
-						UID:       string(7),
+						UID:       fmt.Sprint(7),
 						Name:      "foo",
 						Namespace: "baz",
 					},
@@ -674,7 +675,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 		"upgrade from old template": {[]*autoscalingv2.HorizontalPodAutoscaler{
 			{
 				ObjectMeta: metav1.ObjectMeta{
-					UID:       types.UID(5),
+					UID:       types.UID(fmt.Sprint(5)),
 					Namespace: "bar",
 					Name:      "foo",
 				},
@@ -682,7 +683,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 			},
 			{
 				ObjectMeta: metav1.ObjectMeta{
-					UID:       types.UID(7),
+					UID:       types.UID(fmt.Sprint(7)),
 					Namespace: "baz",
 					Name:      "foo",
 				},
@@ -697,7 +698,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 					Valid:      true,
 					Ref: custommetrics.ObjectReference{
 						Type:      "horizontal",
-						UID:       string(5),
+						UID:       fmt.Sprint(5),
 						Namespace: "bar",
 						Name:      "foo",
 					},
@@ -708,7 +709,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 					Valid:      false,
 					Ref: custommetrics.ObjectReference{
 						Type:      "horizontal",
-						UID:       string(7),
+						UID:       fmt.Sprint(7),
 						Namespace: "baz",
 						Name:      "foo",
 					},
@@ -721,7 +722,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 					Valid:      false,
 					Ref: custommetrics.ObjectReference{
 						Type:      "horizontal",
-						UID:       string(7),
+						UID:       fmt.Sprint(7),
 						Name:      "foo",
 						Namespace: "baz",
 					},

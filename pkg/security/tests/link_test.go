@@ -16,6 +16,7 @@ import (
 )
 
 func TestLink(t *testing.T) {
+
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `link.source.filename == "{{.Root}}/test-link" && link.target.filename == "{{.Root}}/test2-link"`,

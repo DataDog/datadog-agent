@@ -52,6 +52,11 @@ func NewGoCheckLoader() (*GoCheckLoader, error) {
 	return &GoCheckLoader{}, nil
 }
 
+// Name return returns Go loader name
+func (gl *GoCheckLoader) Name() string {
+	return "core"
+}
+
 // Load returns a Go check
 func (gl *GoCheckLoader) Load(config integration.Config, instance integration.Data) (check.Check, error) {
 	var c check.Check

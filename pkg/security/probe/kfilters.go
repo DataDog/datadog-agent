@@ -11,11 +11,13 @@ import (
 	"fmt"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/hashicorp/golang-lru/simplelru"
 )
 
 // ErrDiscarderNotSupported is returned when trying to discover a discarder on a field that doesn't support them
@@ -38,7 +40,9 @@ func (f *FilterPolicy) Bytes() ([]byte, error) {
 	return []byte{uint8(f.Mode), uint8(f.Flags)}, nil
 }
 
-func isParentPathDiscarder(rs *rules.RuleSet, eventType EventType, filenameField eval.Field, filename string) (bool, error) {
+// Important should always be called after having checked that the file is not a discarder itself otherwise it can report incorrect
+// parent discarder
+func isParentPathDiscarder(rs *rules.RuleSet, regexCache *simplelru.LRU, eventType EventType, filenameField eval.Field, filename string) (bool, error) {
 	dirname := filepath.Dir(filename)
 
 	bucket := rs.GetBucket(eventType.String())
@@ -73,8 +77,31 @@ func isParentPathDiscarder(rs *rules.RuleSet, eventType EventType, filenameField
 		// check filename
 		if values := rule.GetFieldValues(filenameField); len(values) > 0 {
 			for _, value := range values {
-				if strings.HasPrefix(value.Value.(string), dirname) {
-					return false, nil
+				if value.Type == eval.PatternValueType {
+					if value.Regex.MatchString(dirname) {
+						return false, nil
+					}
+
+					valueDir := path.Dir(value.Value.(string))
+					var regexDir *regexp.Regexp
+					if entry, found := regexCache.Get(valueDir); found {
+						regexDir = entry.(*regexp.Regexp)
+					} else {
+						var err error
+						regexDir, err = regexp.Compile(valueDir)
+						if err != nil {
+							return false, err
+						}
+						regexCache.Add(valueDir, regexDir)
+					}
+
+					if regexDir.MatchString(dirname) {
+						return false, nil
+					}
+				} else {
+					if strings.HasPrefix(value.Value.(string), dirname) {
+						return false, nil
+					}
 				}
 			}
 

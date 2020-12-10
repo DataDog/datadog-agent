@@ -17,6 +17,10 @@ import (
 
 type LoaderOne struct{}
 
+func (lo LoaderOne) Name() string {
+	return "loader_one"
+}
+
 func (lo LoaderOne) Load(config integration.Config, instance integration.Data) (check.Check, error) {
 	var c check.Check
 	return c, nil
@@ -24,12 +28,20 @@ func (lo LoaderOne) Load(config integration.Config, instance integration.Data) (
 
 type LoaderTwo struct{}
 
+func (lt LoaderTwo) Name() string {
+	return "loader_two"
+}
+
 func (lt LoaderTwo) Load(config integration.Config, instance integration.Data) (check.Check, error) {
 	var c check.Check
 	return c, nil
 }
 
 type LoaderThree struct{}
+
+func (lt *LoaderThree) Name() string {
+	return "loader_three"
+}
 
 func (lt *LoaderThree) Load(config integration.Config, instance integration.Data) (check.Check, error) {
 	var c check.Check

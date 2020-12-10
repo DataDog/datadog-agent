@@ -16,8 +16,6 @@ import (
 )
 
 func TestSetupConfigs(t *testing.T) {
-	trueVar := true
-	falseVar := false
 	tests := []struct {
 		name       string
 		config     []*common.PrometheusCheck
@@ -36,7 +34,6 @@ func TestSetupConfigs(t *testing.T) {
 						},
 					},
 					AD: &common.ADConfig{
-						ExcludeAutoconf: &trueVar,
 						KubeAnnotations: &common.InclExcl{
 							Excl: map[string]string{"prometheus.io/scrape": "false"},
 							Incl: map[string]string{"prometheus.io/scrape": "true"},
@@ -68,7 +65,6 @@ func TestSetupConfigs(t *testing.T) {
 						},
 					},
 					AD: &common.ADConfig{
-						ExcludeAutoconf: &trueVar,
 						KubeAnnotations: &common.InclExcl{
 							Excl: map[string]string{"prometheus.io/scrape": "false"},
 							Incl: map[string]string{"prometheus.io/scrape": "true"},
@@ -100,7 +96,6 @@ func TestSetupConfigs(t *testing.T) {
 						},
 					},
 					AD: &common.ADConfig{
-						ExcludeAutoconf: &trueVar,
 						KubeAnnotations: &common.InclExcl{
 							Excl: map[string]string{"custom/annotation": "exclude"},
 							Incl: map[string]string{"prometheus.io/scrape": "true"},
@@ -124,7 +119,6 @@ func TestSetupConfigs(t *testing.T) {
 						},
 					},
 					AD: &common.ADConfig{
-						ExcludeAutoconf: &falseVar,
 						KubeAnnotations: &common.InclExcl{
 							Incl: map[string]string{"custom/annotation": "include"},
 							Excl: map[string]string{"custom/annotation": "exclude"},
@@ -143,7 +137,6 @@ func TestSetupConfigs(t *testing.T) {
 						},
 					},
 					AD: &common.ADConfig{
-						ExcludeAutoconf: &falseVar,
 						KubeAnnotations: &common.InclExcl{
 							Incl: map[string]string{"custom/annotation": "include"},
 							Excl: map[string]string{"custom/annotation": "exclude"},
@@ -189,7 +182,6 @@ func TestSetupConfigs(t *testing.T) {
 						},
 					},
 					AD: &common.ADConfig{
-						ExcludeAutoconf: &trueVar,
 						KubeAnnotations: &common.InclExcl{
 							Excl: map[string]string{"prometheus.io/scrape": "false"},
 							Incl: map[string]string{"prometheus.io/scrape": "true"},

@@ -10,9 +10,11 @@ package tests
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
@@ -23,7 +25,7 @@ func TestDentryRename(t *testing.T) {
 		Expression: `rename.old.filename in ["{{.Root}}/test-rename", "{{.Root}}/test2-rename"]`,
 	}
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{enableFilters: true})
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +89,7 @@ func TestDentryRenameReuseInode(t *testing.T) {
 	}
 	defer testDrive.Close()
 
-	test, err := newTestModule(nil, rules, testOpts{enableFilters: true, testDir: testDrive.Root()})
+	test, err := newTestModule(nil, rules, testOpts{testDir: testDrive.Root()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,7 +176,7 @@ func TestDentryRenameFolder(t *testing.T) {
 		Expression: `open.basename == "test-rename" && (open.flags & O_CREAT) > 0`,
 	}
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{enableFilters: true})
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -234,7 +236,7 @@ func TestDentryUnlink(t *testing.T) {
 		Expression: `unlink.filename =~ "{{.Root}}/test-unlink-*"`,
 	}
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{enableFilters: true})
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -276,7 +278,7 @@ func TestDentryRmdir(t *testing.T) {
 		Expression: `rmdir.filename =~ "{{.Root}}/test-rmdir-*"`,
 	}
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{enableFilters: true})
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -309,4 +311,112 @@ func TestDentryRmdir(t *testing.T) {
 			}
 		}
 	}
+}
+func createOverlayLayer(t *testing.T, test *testModule, name string) string {
+	p, _, err := test.Path(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	os.MkdirAll(p, os.ModePerm)
+
+	return p
+}
+
+func createOverlayLayers(t *testing.T, test *testModule) (string, string, string, string) {
+	return createOverlayLayer(t, test, "lower"),
+		createOverlayLayer(t, test, "upper"),
+		createOverlayLayer(t, test, "workdir"),
+		createOverlayLayer(t, test, "merged")
+}
+
+func TestDentryOverlay(t *testing.T) {
+	if testEnvironment == DockerEnvironment {
+		t.Skip()
+	}
+
+	rules := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_open",
+			Expression: `open.filename == "{{.Root}}/merged/file1.txt"`,
+		},
+		{
+			ID:         "test_rule_unlink",
+			Expression: `unlink.filename == "{{.Root}}/merged/file1.txt"`,
+		},
+	}
+
+	test, err := newTestModule(nil, rules, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	testLower, testUpper, testWordir, testMerged := createOverlayLayers(t, test)
+
+	_, _, err = test.Create("lower/file1.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	args := []string{
+		"mount", "-t", "overlay", "overlay", "-o", "lowerdir=" + testLower + ",upperdir=" + testUpper + ",workdir=" + testWordir, testMerged,
+	}
+
+	_, err = exec.Command(args[0], args[1:]...).CombinedOutput()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// wait until the mount event is reported until the event ordered bug is fixed
+	time.Sleep(2 * time.Second)
+
+	defer func() {
+		exec.Command("umount", testMerged).CombinedOutput()
+	}()
+
+	// open a file in lower in RDONLY and check that open/unlink inode are valid from userspace
+	// perspective and equals
+	t.Run("read-lower", func(t *testing.T) {
+		testFile, _, err := test.Path("merged/file1.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		f, err := os.OpenFile(testFile, os.O_RDONLY, 0755)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = f.Close(); err != nil {
+			t.Fatal(err)
+		}
+
+		var inode uint64
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if value, _ := event.GetFieldValue("open.filename"); value.(string) != testFile {
+				t.Errorf("expected filename not found")
+			}
+
+			if inode = getInode(t, testFile); inode != event.Open.Inode {
+				t.Errorf("expected inode not found %d(real) != %d\n", inode, event.Open.Inode)
+			}
+		}
+
+		if err := os.Remove(testFile); err != nil {
+			t.Fatal(err)
+		}
+
+		event, _, err = test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if inode != event.Unlink.Inode {
+				t.Errorf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
+			}
+		}
+	})
 }

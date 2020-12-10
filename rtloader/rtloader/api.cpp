@@ -36,6 +36,9 @@
 #elif __APPLE__
 #    define DATADOG_AGENT_TWO "libdatadog-agent-two.dylib"
 #    define DATADOG_AGENT_THREE "libdatadog-agent-three.dylib"
+#elif __FreeBSD__
+#    define DATADOG_AGENT_TWO "libdatadog-agent-two.so"
+#    define DATADOG_AGENT_THREE "libdatadog-agent-three.so"
 #elif _WIN32
 #    define DATADOG_AGENT_TWO "libdatadog-agent-two.dll"
 #    define DATADOG_AGENT_THREE "libdatadog-agent-three.dll"
@@ -536,6 +539,11 @@ void set_read_persistent_cache_cb(rtloader_t *rtloader, cb_read_persistent_cache
 void set_obfuscate_sql_cb(rtloader_t *rtloader, cb_obfuscate_sql_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setObfuscateSqlCb(cb);
+}
+
+void set_obfuscate_sql_exec_plan_cb(rtloader_t *rtloader, cb_obfuscate_sql_exec_plan_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setObfuscateSqlExecPlanCb(cb);
 }
 
 /*

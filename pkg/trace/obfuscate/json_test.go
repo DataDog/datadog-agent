@@ -6,9 +6,10 @@
 package obfuscate
 
 import (
+	"bytes"
 	"encoding/json"
 	"encoding/xml"
-	"log"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -27,11 +28,12 @@ type xmlObfuscateTests struct {
 }
 
 type xmlObfuscateTest struct {
-	Tag           string
-	DontNormalize bool // this test contains invalid JSON
-	In            string
-	Out           string
-	KeepValues    []string `xml:"KeepValues>key"`
+	Tag                string
+	DontNormalize      bool // this test contains invalid JSON
+	In                 string
+	Out                string
+	KeepValues         []string `xml:"KeepValues>key"`
+	ObfuscateSQLValues []string `xml:"ObfuscateSQLValues>key"`
 }
 
 // loadTests loads all XML tests from ./testdata/obfuscate.xml
@@ -49,11 +51,17 @@ func loadTests() ([]*xmlObfuscateTest, error) {
 	if err := xml.NewDecoder(f).Decode(&suite); err != nil {
 		return nil, err
 	}
-	for _, test := range suite.Tests {
+	for i, test := range suite.Tests {
 		// normalize JSON output
 		if !test.DontNormalize {
-			test.Out = normalize(test.Out)
-			test.In = normalize(test.In)
+			test.Out, err = normalize(test.Out)
+			if err != nil {
+				return nil, fmt.Errorf("failed to normalize test.Out. test_case_number=%d tag=%s error='%s'", i, test.Tag, err.Error())
+			}
+			test.In, err = normalize(test.In)
+			if err != nil {
+				return nil, fmt.Errorf("failed to normalize test.In. test_case_number=%d tag=%s error='%s'", i, test.Tag, err.Error())
+			}
 		}
 	}
 	return suite.Tests, err
@@ -61,31 +69,47 @@ func loadTests() ([]*xmlObfuscateTest, error) {
 
 // normalize normalizes JSON input. This allows us to write "pretty" JSON
 // inside the test file using \t, \r, \n, etc.
-func normalize(in string) string {
+func normalize(in string) (string, error) {
 	var tmp map[string]interface{}
 	if err := json.Unmarshal([]byte(in), &tmp); err != nil {
-		log.Fatal(err)
+		return "", err
 	}
-	out, err := json.Marshal(tmp)
+	var out bytes.Buffer
+	encoder := json.NewEncoder(&out)
+	encoder.SetEscapeHTML(false)
+	err := encoder.Encode(tmp)
 	if err != nil {
-		log.Fatal(err)
+		return "", err
 	}
-	return string(out)
+	return out.String(), nil
 }
 
 // jsonSuite holds the JSON test suite. It is loaded in TestMain.
 var jsonSuite []*xmlObfuscateTest
 
+func assertEqualJSON(t *testing.T, expected string, actual string) {
+	var expectedParsed map[string]interface{}
+	var actualParsed map[string]interface{}
+	err := json.Unmarshal([]byte(expected), &expectedParsed)
+	assert.NoError(t, err)
+	err = json.Unmarshal([]byte(actual), &actualParsed)
+	assert.NoError(t, err)
+	assert.Equal(t, expectedParsed, actualParsed)
+}
+
 func TestObfuscateJSON(t *testing.T) {
 	runTest := func(s *xmlObfuscateTest) func(*testing.T) {
 		return func(t *testing.T) {
 			assert := assert.New(t)
-			cfg := &config.JSONObfuscationConfig{KeepValues: s.KeepValues}
-			out, err := newJSONObfuscator(cfg).obfuscate([]byte(s.In))
+			cfg := &config.JSONObfuscationConfig{
+				KeepValues:         s.KeepValues,
+				ObfuscateSQLValues: s.ObfuscateSQLValues,
+			}
+			out, err := newJSONObfuscator(cfg, NewObfuscator(nil)).obfuscate([]byte(s.In))
 			if !s.DontNormalize {
 				assert.NoError(err)
+				assertEqualJSON(t, s.Out, out)
 			}
-			assert.Equal(s.Out, out)
 		}
 	}
 	for i, s := range jsonSuite {
@@ -94,7 +118,7 @@ func TestObfuscateJSON(t *testing.T) {
 			name += "invalid/"
 		}
 		name += strconv.Itoa(i + 1)
-		t.Run(name, runTest(s))
+		t.Run(fmt.Sprintf("%s/%s/", name, s.Tag), runTest(s))
 	}
 }
 
@@ -103,18 +127,13 @@ func BenchmarkObfuscateJSON(b *testing.B) {
 	if len(jsonSuite) == 0 {
 		b.Fatal("no test suite loaded")
 	}
-	var ran int
 	for i := len(jsonSuite) - 1; i >= 0; i-- {
-		ran++
-		if ran > 3 {
-			// run max 3 benchmarks
-			break
-		}
 		test := jsonSuite[i]
-		b.Run(strconv.Itoa(len(test.In)), func(b *testing.B) {
+		obf := newJSONObfuscator(cfg, NewObfuscator(nil))
+		b.Run(test.Tag, func(b *testing.B) {
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				_, err := newJSONObfuscator(cfg).obfuscate([]byte(test.In))
+				_, err := obf.obfuscate([]byte(test.In))
 				if !test.DontNormalize && err != nil {
 					b.Fatal(err)
 				}

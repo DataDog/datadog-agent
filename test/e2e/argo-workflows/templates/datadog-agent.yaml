@@ -18,57 +18,95 @@ spec:
         source: |
           set -euo pipefail
 
+          cat > /tmp/values.yaml <<EOF
+          datadog:
+            dd_url: http://fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local
+            apiKey: 123er
+            appKey: 123er1
+            env:
+              - name: DD_HOSTNAME
+                value: e2e-test
+            leaderElection: true
+            logs:
+              enabled: true
+              containerCollectAll: true
+            apm:
+              enabled: true
+            processAgent:
+              enabled: true
+            systemProbe:
+              enabled: true
+            securityAgent:
+              compliance:
+                enabled: true
+              runtime:
+                enabled: true
+
+            confd:
+              memory.yaml: |
+                init_config:
+                instances:
+                  - empty_default_hostname: true
+
+              network.yaml: |
+                init_config:
+                instances:
+                  - collect_connection_state: false
+                    excluded_interfaces:
+                      - lo
+                      - lo0
+                  - collect_connection_state: false
+                    empty_default_hostname: true
+                    excluded_interfaces:
+                      - lo
+                      - lo0
+
+              kubernetes_state.yaml: |
+                ad_identifiers:
+                  - kube-state-metrics
+
+                init_config:
+
+                # Ignore tags coming from autodiscovery
+                ignore_autodiscovery_tags: true
+
+                instances:
+                  - kube_state_url: http://%%host%%:8080/metrics
+                    hostname_override: false
+
+            dogstatsd:
+              useSocketVolume: true
+              socketPath: /var/run/dogstatsd/dsd.socket
+              hostSocketPath: /var/run/dogstatsd
+
+          agents:
+            image:
+              repository: {{inputs.parameters.agent-image-repository}}
+              tag: {{inputs.parameters.agent-image-tag}}
+              doNotCheckTag: true
+              pullSecrets:
+                - name: docker-registry
+
+          clusterAgent:
+            enabled: true
+            image:
+              repository: {{inputs.parameters.cluster-agent-image-repository}}
+              tag: {{inputs.parameters.cluster-agent-image-tag}}
+              doNotCheckTag: true
+              pullSecrets:
+                - name: docker-registry
+            token: c9e21a248434a400b1de021dbdd554d790983a1212a5eac0ba36e79346ec52fd
+            metricsProvider:
+              enabled: true
+            env:
+              - name: DATADOG_HOST
+                value: http://fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local
+          EOF
+
           helm repo add datadog https://helm.datadoghq.com
           helm repo update
           helm --namespace {{inputs.parameters.namespace}} install \
-            --set datadog.dd_url=http://fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local \
-            --set datadog.apiKey=123er \
-            --set datadog.appKey=123er1 \
-            --set datadog.env[0].name=DD_HOSTNAME \
-            --set datadog.env[0].value=e2e-test \
-            --set datadog.leaderElection=true \
-            --set datadog.logs.enabled=true \
-            --set datadog.logs.containerCollectAll=true \
-            --set agents.image.repository={{inputs.parameters.agent-image-repository}} \
-            --set agents.image.tag={{inputs.parameters.agent-image-tag}} \
-            --set agents.image.doNotCheckTag=true \
-            --set clusterAgent.enabled=true \
-            --set clusterAgent.image.repository={{inputs.parameters.cluster-agent-image-repository}} \
-            --set clusterAgent.image.tag={{inputs.parameters.cluster-agent-image-tag}} \
-            --set clusterAgent.token=c9e21a248434a400b1de021dbdd554d790983a1212a5eac0ba36e79346ec52fd \
-            --set clusterAgent.metricsProvider.enabled=true \
-            --set clusterAgent.env[0].name=DATADOG_HOST \
-            --set clusterAgent.env[0].value=http://fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local \
-            --set datadog.confd.memory\\.yaml='instances:
-            - empty_default_hostname: true
-          ' \
-            --set datadog.confd.network\\.yaml='init_config:
-          instances:
-            - collect_connection_state: false
-              excluded_interfaces:
-                - lo
-                - lo0
-            - collect_connection_state: false
-              empty_default_hostname: true
-              excluded_interfaces:
-                - lo
-                - lo0
-          ' \
-            --set datadog.confd.kubernetes_state\\.yaml='ad_identifiers:
-            - kube-state-metrics
-
-          init_config:
-
-          # Ignore tags coming from autodiscovery
-          ignore_autodiscovery_tags: true
-
-          instances:
-            - kube_state_url: http://%%host%%:8080/metrics
-              hostname_override: false
-          ' \
-            --set datadog.dogstatsd.useSocketVolume=true \
-            --set datadog.dogstatsd.socketPath=/var/run/dogstatsd/dsd.socket \
-            --set datadog.dogstatsd.hostSocketPath=/var/run/dogstatsd \
+            --values /tmp/values.yaml \
             datadog-agent datadog/datadog
 
     - name: delete
@@ -105,6 +143,27 @@ spec:
             exit 0
           done
 
+    - name: ready
+      inputs:
+        parameters:
+          - name: namespace
+      activeDeadlineSeconds: 200
+      script:
+        image: argoproj/argoexec:latest
+        command: [bash]
+        source: |
+          set -euo pipefail
+          set -x
+
+          until kubectl --namespace {{inputs.parameters.namespace}} get pods -l app=datadog-agent; do
+            sleep 1
+          done
+
+          until ! kubectl --namespace {{inputs.parameters.namespace}} get pod -l app=datadog-agent -o custom-columns=ready:status.conditions[?\(.type==\"Ready\"\)].status --no-headers | grep -v True; do
+            kubectl --namespace {{inputs.parameters.namespace}} get pod -l app=datadog-agent
+            sleep 1
+          done
+
     - name: leader
       inputs:
         parameters:
@@ -128,6 +187,12 @@ spec:
       steps:
         - - name: health
             template: health
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+          - name: ready
+            template: ready
             arguments:
               parameters:
                 - name: namespace
