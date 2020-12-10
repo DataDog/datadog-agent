@@ -188,9 +188,9 @@ func (b *urnBuilder) BuildPersistentVolumeExternalID(persistentVolumeName string
 func (b *urnBuilder) BuildComponentExternalID(component, namespace, name string) string {
 	if namespace != "" {
 		return fmt.Sprintf("%s:%s:%s/%s", b.urnPrefix, namespace, component, name)
-	} else {
-		return fmt.Sprintf("%s:%s/%s", b.urnPrefix, component, name)
 	}
+
+	return fmt.Sprintf("%s:%s/%s", b.urnPrefix, component, name)
 }
 
 // BuildEndpointExternalID
