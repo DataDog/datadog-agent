@@ -4,12 +4,13 @@
 #
 # Copyright (C) 2020 Datadog
 #
+include_recipe 'yum-centos::vault'
 
 kernel_version = `uname -r`.strip
 package 'kernel headers' do
   case node[:platform]
   when 'redhat', 'centos', 'fedora'
-    package_name 'kernel-devel'
+    package_name "kernel-devel-#{kernel_version}"
   when 'ubuntu', 'debian'
     package_name "linux-headers-#{kernel_version}"
   end

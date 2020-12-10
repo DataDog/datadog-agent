@@ -4,8 +4,9 @@ print `cat /etc/os-release`
 print `uname -a`
 
 Dir.glob('/tmp/system-probe-tests/**/testsuite').each do |f|
-  describe "system-probe tests for #{f}" do
-    it 'succesfully runs' do
+  pkg = f.delete_prefix('/tmp/system-probe-tests').delete_suffix('/testsuite')
+  describe "system-probe tests for #{pkg}" do
+    it 'successfully runs' do
       Dir.chdir(File.dirname(f)) do
         `sudo #{f} -test.v 1>&2`
         retval = $?
