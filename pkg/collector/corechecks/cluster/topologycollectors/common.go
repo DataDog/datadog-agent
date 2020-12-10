@@ -4,6 +4,7 @@ package topologycollectors
 
 import (
 	"fmt"
+
 	"github.com/StackVista/stackstate-agent/pkg/collector/corechecks/cluster/urn"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
@@ -15,6 +16,7 @@ type ClusterTopologyCommon interface {
 	GetAPIClient() apiserver.APICollectorClient
 	GetInstance() topology.Instance
 	GetName() string
+	GetURNBuilder() urn.Builder
 	CreateRelation(sourceExternalID, targetExternalID, typeName string) *topology.Relation
 	CreateRelationData(sourceExternalID, targetExternalID, typeName string, data map[string]interface{}) *topology.Relation
 	initTags(meta metav1.ObjectMeta) map[string]string
@@ -65,6 +67,11 @@ func (c *clusterTopologyCommon) GetInstance() topology.Instance {
 // GetAPIClient
 func (c *clusterTopologyCommon) GetAPIClient() apiserver.APICollectorClient {
 	return c.APICollectorClient
+}
+
+// GetURNBuilder
+func (c *clusterTopologyCommon) GetURNBuilder() urn.Builder {
+	return c.urn
 }
 
 // CreateRelationData creates a StackState relation called typeName for the given sourceExternalID and targetExternalID
@@ -186,7 +193,9 @@ func (c *clusterTopologyCommon) buildEndpointExternalID(endpointID string) strin
 func (c *clusterTopologyCommon) initTags(meta metav1.ObjectMeta) map[string]string {
 	tags := make(map[string]string, 0)
 	if meta.Labels != nil {
-		tags = meta.Labels
+		for k, v := range meta.Labels {
+			tags[k] = v
+		}
 	}
 
 	// set the cluster name and the namespace

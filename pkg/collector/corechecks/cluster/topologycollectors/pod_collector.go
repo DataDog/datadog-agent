@@ -4,9 +4,10 @@ package topologycollectors
 
 import (
 	"fmt"
+
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 )
 
 // PodCollector implements the ClusterTopologyCollector interface.
@@ -125,7 +126,7 @@ func (pc *PodCollector) CollectorFunction() error {
 		// send the containers to be correlated
 		if len(pod.Status.ContainerStatuses) > 0 {
 			containerCorrelation := &ContainerCorrelation{
-				Pod:               ContainerPod{ExternalID: component.ExternalID, Name: pod.Name, Labels: pod.Labels, PodIP: pod.Status.PodIP, Namespace: pod.Namespace, NodeName: pod.Spec.NodeName, Phase: string(pod.Status.Phase)},
+				Pod:               ContainerPod{ExternalID: component.ExternalID, Name: pod.Name, Labels: pc.podTags(pod), PodIP: pod.Status.PodIP, Namespace: pod.Namespace, NodeName: pod.Spec.NodeName, Phase: string(pod.Status.Phase)},
 				Containers:        pod.Spec.Containers,
 				ContainerStatuses: pod.Status.ContainerStatuses,
 			}
@@ -187,11 +188,7 @@ func (pc *PodCollector) podToStackStateComponent(pod v1.Pod) *topology.Component
 	podStatus.InitContainerStatuses = make([]v1.ContainerStatus, 0)
 	podStatus.ContainerStatuses = make([]v1.ContainerStatus, 0)
 
-	tags := pc.initTags(pod.ObjectMeta)
-	// add service account as a label to filter on
-	if pod.Spec.ServiceAccountName != "" {
-		tags["service-account"] = pod.Spec.ServiceAccountName
-	}
+	tags := pc.podTags(pod)
 
 	component := &topology.Component{
 		ExternalID: podExternalID,
@@ -213,6 +210,16 @@ func (pc *PodCollector) podToStackStateComponent(pod v1.Pod) *topology.Component
 	log.Tracef("Created StackState pod component %s: %v", podExternalID, component.JSONString())
 
 	return component
+}
+
+// podTags creates the tags for a pod
+func (pc *PodCollector) podTags(pod v1.Pod) map[string]string {
+	tags := pc.initTags(pod.ObjectMeta)
+	// add service account as a label to filter on
+	if pod.Spec.ServiceAccountName != "" {
+		tags["service-account"] = pod.Spec.ServiceAccountName
+	}
+	return tags
 }
 
 // Creates a StackState relation from a Kubernetes / OpenShift Pod to Node relation
