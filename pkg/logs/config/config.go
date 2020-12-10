@@ -207,11 +207,22 @@ func BuildHTTPEndpoints() (*Endpoints, error) {
 	return BuildHTTPEndpointsWithConfig(logsConfigDefaultKeys, httpEndpointPrefix)
 }
 
-// BuildHTTPEndpointsWithConfig uses two arguments that instructs it how to access configuration parameters, then returns the HTTP endpoints to send logs to. This function is able to default to the 'classic' BuildHTTPEndpoints() when passed the default variables logsConfigDefaultKeys and httpEndpointPrefix
+// BuildHTTPEndpointsWithConfig uses two arguments that instructs it how to access configuration parameters, then returns the HTTP endpoints to send logs to. This function is able to default to the 'classic' BuildHTTPEndpoints() w ldHTTPEndpointsWithConfigdefault variables logsConfigDefaultKeys and httpEndpointPrefix
 func BuildHTTPEndpointsWithConfig(logsConfig LogsConfigKeys, endpointPrefix string) (*Endpoints, error) {
+	// Provide default values for legacy settings when the configuration key does not exist
+	defaultUseSSL := false
+	if len(logsConfig.LogsNoSSL) != 0 {
+		defaultUseSSL = coreConfig.Datadog.GetBool(logsConfig.LogsNoSSL)
+	}
+
+	defaultUseCompression := true
+	if len(logsConfig.UseCompression) != 0 {
+		defaultUseCompression = coreConfig.Datadog.GetBool(logsConfig.UseCompression)
+	}
+
 	main := Endpoint{
 		APIKey:                  getLogsAPIKey(coreConfig.Datadog),
-		UseCompression:          coreConfig.Datadog.GetBool(logsConfig.UseCompression),
+		UseCompression:          defaultUseCompression,
 		CompressionLevel:        coreConfig.Datadog.GetInt(logsConfig.CompressionLevel),
 		ConnectionResetInterval: time.Duration(coreConfig.Datadog.GetInt(logsConfig.ConnectionResetInterval)) * time.Second,
 	}
@@ -224,7 +235,7 @@ func BuildHTTPEndpointsWithConfig(logsConfig LogsConfigKeys, endpointPrefix stri
 		}
 		main.Host = host
 		main.Port = port
-		main.UseSSL = !coreConfig.Datadog.GetBool(logsConfig.LogsNoSSL)
+		main.UseSSL = !defaultUseSSL
 	default:
 		main.Host = coreConfig.GetMainEndpoint(endpointPrefix, logsConfig.DDURL)
 		main.UseSSL = !coreConfig.Datadog.GetBool(logsConfig.DevModeNoSSL)
