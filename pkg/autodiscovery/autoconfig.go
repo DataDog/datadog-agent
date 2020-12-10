@@ -33,6 +33,8 @@ var (
 	errorStats            = newAcErrorStats()
 )
 
+var secretsDecrypt = secrets.Decrypt
+
 func init() {
 	acErrors = expvar.NewMap("autoconfig")
 	acErrors.Set("ConfigErrors", expvar.Func(func() interface{} {
@@ -116,7 +118,7 @@ func (ac *AutoConfig) checkTagFreshness() {
 	var servicesToRefresh []listeners.Service
 	for _, service := range ac.store.getServices() {
 		previousHash := ac.store.getTagsHashForService(service.GetTaggerEntity())
-		currentHash := tagger.GetEntityHash(service.GetTaggerEntity())
+		currentHash := tagger.GetEntityHash(service.GetTaggerEntity(), tagger.ChecksCardinality)
 		// Since an empty hash is a valid value, and we are not able to differentiate
 		// an empty tagger or store with an empty value.
 		// So we only look at the difference between current and previous
@@ -423,27 +425,27 @@ func decryptConfig(conf integration.Config) (integration.Config, error) {
 	var err error
 
 	// init_config
-	conf.InitConfig, err = secrets.Decrypt(conf.InitConfig, conf.Name)
+	conf.InitConfig, err = secretsDecrypt(conf.InitConfig, conf.Name)
 	if err != nil {
 		return conf, fmt.Errorf("error while decrypting secrets in 'init_config': %s", err)
 	}
 
 	// instances
 	for idx := range conf.Instances {
-		conf.Instances[idx], err = secrets.Decrypt(conf.Instances[idx], conf.Name)
+		conf.Instances[idx], err = secretsDecrypt(conf.Instances[idx], conf.Name)
 		if err != nil {
 			return conf, fmt.Errorf("error while decrypting secrets in an instance: %s", err)
 		}
 	}
 
 	// metrics
-	conf.MetricConfig, err = secrets.Decrypt(conf.MetricConfig, conf.Name)
+	conf.MetricConfig, err = secretsDecrypt(conf.MetricConfig, conf.Name)
 	if err != nil {
 		return conf, fmt.Errorf("error while decrypting secrets in 'metrics': %s", err)
 	}
 
 	// logs
-	conf.LogsConfig, err = secrets.Decrypt(conf.LogsConfig, conf.Name)
+	conf.LogsConfig, err = secretsDecrypt(conf.LogsConfig, conf.Name)
 	if err != nil {
 		return conf, fmt.Errorf("error while decrypting secrets 'logs': %s", err)
 	}
@@ -528,7 +530,7 @@ func (ac *AutoConfig) resolveTemplate(tpl integration.Config) []integration.Conf
 // resolveTemplateForService calls the config resolver for the template against the service,
 // decrypts secrets and stores the resolved config and service mapping if successful
 func (ac *AutoConfig) resolveTemplateForService(tpl integration.Config, svc listeners.Service) (integration.Config, error) {
-	config, err := configresolver.Resolve(tpl, svc)
+	config, tagsHash, err := configresolver.Resolve(tpl, svc)
 	if err != nil {
 		newErr := fmt.Errorf("error resolving template %s for service %s: %v", tpl.Name, svc.GetEntity(), err)
 		errorStats.setResolveWarning(tpl.Name, newErr.Error())
@@ -544,7 +546,7 @@ func (ac *AutoConfig) resolveTemplateForService(tpl integration.Config, svc list
 	ac.store.addConfigForTemplate(tpl.Digest(), resolvedConfig)
 	ac.store.setTagsHashForService(
 		svc.GetTaggerEntity(),
-		tagger.GetEntityHash(svc.GetTaggerEntity()),
+		tagsHash,
 	)
 	errorStats.removeResolveWarnings(tpl.Name)
 	return resolvedConfig, nil
@@ -581,7 +583,7 @@ func (ac *AutoConfig) processNewService(svc listeners.Service) {
 	ac.store.setServiceForEntity(svc, svc.GetEntity())
 	ac.store.setTagsHashForService(
 		svc.GetTaggerEntity(),
-		tagger.GetEntityHash(svc.GetTaggerEntity()),
+		tagger.GetEntityHash(svc.GetTaggerEntity(), tagger.ChecksCardinality),
 	)
 
 	// get all the templates matching service identifiers

@@ -59,8 +59,8 @@ func (s *dummyService) GetPorts() ([]listeners.ContainerPort, error) {
 }
 
 // GetTags returns mil
-func (s *dummyService) GetTags() ([]string, error) {
-	return nil, nil
+func (s *dummyService) GetTags() ([]string, string, error) {
+	return nil, "", nil
 }
 
 // GetPid return a dummy pid
@@ -566,7 +566,7 @@ func TestResolve(t *testing.T) {
 			// Make sure we don't modify the template object
 			checksum := tc.tpl.Digest()
 
-			cfg, err := Resolve(tc.tpl, tc.svc)
+			cfg, _, err := Resolve(tc.tpl, tc.svc)
 			if tc.errorString != "" {
 				assert.EqualError(t, err, tc.errorString)
 			} else {
