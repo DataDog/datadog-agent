@@ -33,6 +33,8 @@ var (
 	errorStats            = newAcErrorStats()
 )
 
+var secretsDecrypt = secrets.Decrypt
+
 func init() {
 	acErrors = expvar.NewMap("autoconfig")
 	acErrors.Set("ConfigErrors", expvar.Func(func() interface{} {
@@ -423,27 +425,27 @@ func decryptConfig(conf integration.Config) (integration.Config, error) {
 	var err error
 
 	// init_config
-	conf.InitConfig, err = secrets.Decrypt(conf.InitConfig, conf.Name)
+	conf.InitConfig, err = secretsDecrypt(conf.InitConfig, conf.Name)
 	if err != nil {
 		return conf, fmt.Errorf("error while decrypting secrets in 'init_config': %s", err)
 	}
 
 	// instances
 	for idx := range conf.Instances {
-		conf.Instances[idx], err = secrets.Decrypt(conf.Instances[idx], conf.Name)
+		conf.Instances[idx], err = secretsDecrypt(conf.Instances[idx], conf.Name)
 		if err != nil {
 			return conf, fmt.Errorf("error while decrypting secrets in an instance: %s", err)
 		}
 	}
 
 	// metrics
-	conf.MetricConfig, err = secrets.Decrypt(conf.MetricConfig, conf.Name)
+	conf.MetricConfig, err = secretsDecrypt(conf.MetricConfig, conf.Name)
 	if err != nil {
 		return conf, fmt.Errorf("error while decrypting secrets in 'metrics': %s", err)
 	}
 
 	// logs
-	conf.LogsConfig, err = secrets.Decrypt(conf.LogsConfig, conf.Name)
+	conf.LogsConfig, err = secretsDecrypt(conf.LogsConfig, conf.Name)
 	if err != nil {
 		return conf, fmt.Errorf("error while decrypting secrets 'logs': %s", err)
 	}
