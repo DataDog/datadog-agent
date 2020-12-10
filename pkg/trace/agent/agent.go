@@ -298,49 +298,44 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang string) {
 			tagset := aggr.ToTagSet()
 			key := stats.GrainKey(b.Name, stats.HITS, aggr)
 			newb.Counts[key] = stats.Count{
-				Key:      key,
-				Name:     b.Name,
-				Measure:  stats.HITS,
-				TagSet:   tagset,
-				TopLevel: float64(b.Hits),
-				Value:    float64(b.Hits),
+				Key:     key,
+				Name:    b.Name,
+				Measure: stats.HITS,
+				TagSet:  tagset,
+				Value:   float64(b.Hits),
 			}
 			key = stats.GrainKey(b.Name, stats.ERRORS, aggr)
 			newb.Counts[key] = stats.Count{
-				Key:      key,
-				Name:     b.Name,
-				Measure:  stats.ERRORS,
-				TagSet:   tagset,
-				TopLevel: float64(b.Hits),
-				Value:    float64(b.Errors),
+				Key:     key,
+				Name:    b.Name,
+				Measure: stats.ERRORS,
+				TagSet:  tagset,
+				Value:   float64(b.Errors),
 			}
 			key = stats.GrainKey(b.Name, stats.DURATION, aggr)
 			newb.Counts[key] = stats.Count{
-				Key:      key,
-				Name:     b.Name,
-				Measure:  stats.DURATION,
-				TagSet:   tagset,
-				TopLevel: float64(b.Hits),
-				Value:    float64(b.Duration),
+				Key:     key,
+				Name:    b.Name,
+				Measure: stats.DURATION,
+				TagSet:  tagset,
+				Value:   float64(b.Duration),
 			}
 			if hits, errors, err := quantile.DDToGKSketches(b.HitsSummary, b.ErrorSummary); err != nil {
 				log.Errorf("Error handling distributions: %v", err)
 			} else {
 				newb.Distributions[key] = stats.Distribution{
-					Key:      key,
-					Name:     b.Name,
-					Measure:  stats.DURATION,
-					TagSet:   tagset,
-					TopLevel: 0,
-					Summary:  hits,
+					Key:     key,
+					Name:    b.Name,
+					Measure: stats.DURATION,
+					TagSet:  tagset,
+					Summary: hits,
 				}
 				newb.ErrDistributions[key] = stats.Distribution{
-					Key:      key,
-					Name:     b.Name,
-					Measure:  stats.DURATION,
-					TagSet:   tagset,
-					TopLevel: 0,
-					Summary:  errors,
+					Key:     key,
+					Name:    b.Name,
+					Measure: stats.DURATION,
+					TagSet:  tagset,
+					Summary: errors,
 				}
 			}
 			out.Stats = append(out.Stats, newb)
