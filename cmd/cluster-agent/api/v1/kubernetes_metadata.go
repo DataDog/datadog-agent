@@ -1,3 +1,5 @@
+// +build kubeapiserver
+
 package v1
 
 import (
@@ -21,6 +23,8 @@ func installKubernetesMetadataEndpoints(r *mux.Router) {
 	r.HandleFunc("/tags/node/{nodeName}", getNodeMetadata).Methods("GET")
 	r.HandleFunc("/cluster/id", getClusterID).Methods("GET")
 }
+
+func installCloudFoundryMetadataEndpoints(r *mux.Router) {}
 
 // getNodeMetadata is only used when the node agent hits the DCA for the list of labels
 func getNodeMetadata(w http.ResponseWriter, r *http.Request) {
