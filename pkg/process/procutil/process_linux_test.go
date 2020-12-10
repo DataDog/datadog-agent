@@ -578,6 +578,70 @@ func benchmarkGetCmdProcutil(b *testing.B) {
 	}
 }
 
+func BenchmarkTestFSStatusGopsutil(b *testing.B) {
+	hostProc := "resources/test_procfs/proc"
+	os.Setenv("HOST_PROC", hostProc)
+	defer os.Unsetenv("HOST_PROC")
+
+	pids, err := process.Pids()
+	require.NoError(b, err)
+
+	for i := 0; i < b.N; i++ {
+		for _, pid := range pids {
+			expProc, err := process.NewProcess(pid)
+			require.NoError(b, err)
+			_, err = expProc.Status()
+			require.NoError(b, err)
+		}
+	}
+}
+
+func BenchmarkTestFSStatusProcutil(b *testing.B) {
+	hostProc := "resources/test_procfs/proc"
+	os.Setenv("HOST_PROC", hostProc)
+	defer os.Unsetenv("HOST_PROC")
+
+	probe := NewProcessProbe()
+	defer probe.Close()
+
+	pids, err := probe.getActivePIDs()
+	require.NoError(b, err)
+
+	for i := 0; i < b.N; i++ {
+		for _, pid := range pids {
+			probe.parseStatus(filepath.Join(hostProc, strconv.Itoa(int(pid))))
+		}
+	}
+}
+
+func BenchmarkLocalFSStatusGopsutil(b *testing.B) {
+	pids, err := process.Pids()
+	assert.NoError(b, err)
+
+	for i := 0; i < b.N; i++ {
+		for _, pid := range pids {
+			expProc, err := process.NewProcess(pid)
+			require.NoError(b, err)
+			_, err = expProc.Status()
+			require.NoError(b, err)
+		}
+	}
+}
+
+func BenchmarkLocalFSStatusProcutil(b *testing.B) {
+	probe := NewProcessProbe()
+	defer probe.Close()
+
+	pids, err := probe.getActivePIDs()
+	require.NoError(b, err)
+
+	for i := 0; i < b.N; i++ {
+		for _, pid := range pids {
+			probe.parseStatus(filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid))))
+		}
+	}
+}
+
 func BenchmarkGetPIDsGopsutilLocalFS(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_, err := process.Pids()

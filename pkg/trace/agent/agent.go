@@ -185,6 +185,9 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 		for _, span := range t {
 			a.obfuscator.Obfuscate(span)
 			Truncate(span)
+			if p.ClientComputedTopLevel {
+				traceutil.UpdateTracerTopLevel(span)
+			}
 		}
 		a.Replacer.Replace(t)
 

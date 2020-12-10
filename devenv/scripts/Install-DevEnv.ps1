@@ -51,7 +51,37 @@ cinst -y cmake
     [System.EnvironmentVariableTarget]::Machine)
 
 Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Golang'
-cinst -y golang --version 1.14.7
+
+# TODO: Enable this when we can use Chocolatey again
+#cinst -y golang --version 1.14.12
+
+# Workaround for go 1.14.12 since it does not exist in Chocolatey
+# taken from https://github.com/DataDog/datadog-agent-buildimages/blob/master/windows/install_go.ps1
+$ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
+
+Write-Host -ForegroundColor Green "Installing go 1.14.12"
+
+$gozip = "https://dl.google.com/go/go1.14.12.windows-amd64.zip"
+if ($Env:TARGET_ARCH -eq "x86") {
+    $gozip = "https://dl.google.com/go/go1.14.12.windows-386.zip"
+}
+
+$out = 'c:\go.zip'
+Write-Host -ForegroundColor Green "Downloading $gozip to $out"
+(New-Object System.Net.WebClient).DownloadFile($gozip, $out)
+Write-Host -ForegroundColor Green "Extracting $out to c:\"
+Start-Process "7z" -ArgumentList 'x -oc:\ c:\go.zip' -Wait
+Write-Host -ForegroundColor Green "Removing temporary file $out"
+Remove-Item 'c:\go.zip'
+
+setx GOROOT c:\go
+$Env:GOROOT="c:\go"
+setx PATH "$Env:Path;c:\go\bin;"
+$Env:Path="$Env:Path;c:\go\bin;"
+# End Go workaround
+
+Write-Host -ForegroundColor Green "Installed go $ENV:GO_VERSION"
 
 Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Python 2'
 cinst -y python2
