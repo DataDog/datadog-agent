@@ -18,9 +18,9 @@ func TestFailedTransactionRemovalPolicyUnknownDomain(t *testing.T) {
 	p, err := newFailedTransactionRemovalPolicy(root, 1)
 	a.NoError(err)
 
-	domain1, err := p.RegisterDomain("domain1")
+	domain1, err := p.registerDomain("domain1")
 	a.NoError(err)
-	domain2, err := p.RegisterDomain("domain2")
+	domain2, err := p.registerDomain("domain2")
 	a.NoError(err)
 
 	file1 := createRetryFile(a, domain1, "file1")
@@ -28,7 +28,7 @@ func TestFailedTransactionRemovalPolicyUnknownDomain(t *testing.T) {
 	file3 := createRetryFile(a, root+"/unknownDomain", "file3")
 	file4 := createFile(a, root+"/unknownDomain", "notRetryFileMustNotBeRemoved")
 
-	pathsRemoved, err := p.RemoveOutdatedFiles()
+	pathsRemoved, err := p.removeOutdatedFiles()
 	a.NoError(err)
 	a.EqualValues([]string{file3}, pathsRemoved)
 	a.EqualValues([]string{file1, file2, file4}, getRemainingFiles(a, root))
@@ -42,7 +42,7 @@ func TestFailedTransactionRemovalPolicyOutdatedFiles(t *testing.T) {
 	p, err := newFailedTransactionRemovalPolicy(root, outDatedFileDayCount)
 	a.NoError(err)
 
-	domain, err := p.RegisterDomain("domain")
+	domain, err := p.registerDomain("domain")
 	a.NoError(err)
 
 	file1 := createRetryFile(a, domain, "file1")
@@ -55,7 +55,7 @@ func TestFailedTransactionRemovalPolicyOutdatedFiles(t *testing.T) {
 	modTime = time.Now().Add(time.Duration(-1*24) * time.Hour)
 	a.NoError(os.Chtimes(file3, modTime, modTime))
 
-	pathsRemoved, err := p.RemoveOutdatedFiles()
+	pathsRemoved, err := p.removeOutdatedFiles()
 	a.NoError(err)
 	a.EqualValues([]string{file2}, pathsRemoved)
 	a.EqualValues([]string{file1, file3}, getRemainingFiles(a, root))

@@ -282,7 +282,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 			var domainFolderPath string
 			var err error
 			if optionalRemovalPolicy != nil {
-				domainFolderPath, err = optionalRemovalPolicy.RegisterDomain(domain)
+				domainFolderPath, err = optionalRemovalPolicy.registerDomain(domain)
 				if err != nil {
 					log.Errorf("Retry queue storage on disk disabled. Cannot register the domain '%v': %v", domain, err)
 				}
@@ -310,7 +310,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 	}
 
 	if optionalRemovalPolicy != nil {
-		filesRemoved, err := optionalRemovalPolicy.RemoveOutdatedFiles()
+		filesRemoved, err := optionalRemovalPolicy.removeOutdatedFiles()
 		if err != nil {
 			log.Errorf("Error when removing outdated files: %v", err)
 		}

@@ -37,8 +37,8 @@ func newFailedTransactionRemovalPolicy(rootPath string, outdatedFileDayCount int
 	}, nil
 }
 
-// RegisterDomain registers a domain name.
-func (p *failedTransactionRemovalPolicy) RegisterDomain(domainName string) (string, error) {
+// registerDomain registers a domain name.
+func (p *failedTransactionRemovalPolicy) registerDomain(domainName string) (string, error) {
 	folder, err := p.getFolderPathForDomain(domainName)
 	if err != nil {
 		return "", err
@@ -48,11 +48,11 @@ func (p *failedTransactionRemovalPolicy) RegisterDomain(domainName string) (stri
 	return folder, nil
 }
 
-// RemoveOutdatedFiles removes the outdated files.
+// removeOutdatedFiles removes the outdated files.
 // It removes files with extension retryTransactionsExtension:
 // - For domains not registered
 // - When a file is older than outDatedFileDayCount days
-func (p *failedTransactionRemovalPolicy) RemoveOutdatedFiles() ([]string, error) {
+func (p *failedTransactionRemovalPolicy) removeOutdatedFiles() ([]string, error) {
 	entries, err := ioutil.ReadDir(p.rootPath)
 	if err != nil {
 		return nil, err
@@ -64,7 +64,7 @@ func (p *failedTransactionRemovalPolicy) RemoveOutdatedFiles() ([]string, error)
 			folderPath := path.Join(p.rootPath, domain.Name())
 			var files []string
 			if _, found := p.knownDomainFolders[folderPath]; found {
-				files, err = p.removeOutdatedFiles(folderPath)
+				files, err = p.removeOutdatedRetryFiles(folderPath)
 			} else {
 				files, err = p.removeUnknownDomain(folderPath)
 			}
@@ -96,7 +96,7 @@ func (p *failedTransactionRemovalPolicy) removeUnknownDomain(folderPath string) 
 	return files, err
 }
 
-func (p *failedTransactionRemovalPolicy) removeOutdatedFiles(folderPath string) ([]string, error) {
+func (p *failedTransactionRemovalPolicy) removeOutdatedRetryFiles(folderPath string) ([]string, error) {
 	return p.removeRetryFiles(folderPath, func(filename string) bool {
 		modTime, err := util.GetFileModTime(filename)
 		if err != nil {

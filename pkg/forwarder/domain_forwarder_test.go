@@ -250,12 +250,12 @@ func TestDomainForwarderRetryQueueAllPayloadsMaxSize(t *testing.T) {
 		tr.On("GetPayloadSize").Return(payloadSize)
 		tr.On("GetTarget").Return("blocked")
 		tr.On("GetCreatedAt").Return(time.Now().Add(time.Duration(-payloadSize) * time.Second))
-		transactionContainer.Add(tr)
+		transactionContainer.add(tr)
 	}
 
 	forwarder.retryTransactions(time.Now())
 
-	require.Equal(t, 2, transactionContainer.GetTransactionCount())
+	require.Equal(t, 2, transactionContainer.getTransactionCount())
 	require.Equal(t, 1, forwarder.retryQueue[0].GetPayloadSize())
 	require.Equal(t, 2, forwarder.retryQueue[1].GetPayloadSize())
 }

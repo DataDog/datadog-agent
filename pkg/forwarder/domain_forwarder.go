@@ -52,7 +52,7 @@ func newDomainForwarder(
 	transactionPrioritySorter transactionPrioritySorter) *domainForwarder {
 	retryQueueAllPayloadsMaxSize := 0
 	if optionalTransactionContainer != nil {
-		retryQueueAllPayloadsMaxSize = optionalTransactionContainer.GetMaxMemSizeInBytes()
+		retryQueueAllPayloadsMaxSize = optionalTransactionContainer.getMaxMemSizeInBytes()
 	}
 	return &domainForwarder{
 		domain:                       domain,
@@ -83,7 +83,7 @@ func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 	var transactions []Transaction
 	var err error
 	if f.optionalTransactionContainer != nil {
-		transactions, err = f.optionalTransactionContainer.ExtractTransactions()
+		transactions, err = f.optionalTransactionContainer.extractTransactions()
 		if err != nil {
 			log.Errorf("Error when getting transactions from the retry queue", err)
 		}
@@ -152,7 +152,7 @@ func (f *domainForwarder) tryAddToTransactionContainer(t Transaction) (bool, int
 		return false, 0
 	}
 
-	dropCount, err := f.optionalTransactionContainer.Add(t)
+	dropCount, err := f.optionalTransactionContainer.add(t)
 	if err != nil {
 		log.Errorf("Error when adding a transaction to the retry queue: %v", err)
 	}
@@ -171,7 +171,7 @@ func (f *domainForwarder) requeueTransaction(t Transaction) {
 	var enabled bool
 
 	if enabled, _ = f.tryAddToTransactionContainer(t); enabled {
-		retryQueueSize = f.optionalTransactionContainer.GetTransactionCount()
+		retryQueueSize = f.optionalTransactionContainer.getTransactionCount()
 	} else {
 		f.retryQueue = append(f.retryQueue, t)
 		retryQueueSize = len(f.retryQueue)

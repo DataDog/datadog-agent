@@ -42,7 +42,7 @@ func tryNewTransactionContainer(
 	if maxMemSizeInBytes <= 0 {
 		return nil, nil
 	}
-	var storage transactionStorage = nil
+	var storage transactionStorage
 	var err error
 
 	if optionalDomainFolderPath != "" && storageMaxSize > 0 {
@@ -69,7 +69,7 @@ func newTransactionContainer(
 	}
 }
 
-// Add adds a new transaction and flush transactions to disk if the memory limit is exceeded.
+// add adds a new transaction and flush transactions to disk if the memory limit is exceeded.
 // The amount of transactions flushed to disk is control by
 // `flushToStorageRatio` which is the ratio of the transactions to be flushed.
 // Consider the following payload sizes 10, 20, 30, 40, 15 with `maxMemSizeInBytes=100` and
@@ -79,7 +79,7 @@ func newTransactionContainer(
 // The first 3 transactions are flushed to the disk as 10 + 20 + 30 >= 60
 // If disk serialization failed or is not enabled, remove old transactions such as
 // `currentMemSizeInBytes` <= `maxMemSizeInBytes`
-func (tc *transactionContainer) Add(t Transaction) (int, error) {
+func (tc *transactionContainer) add(t Transaction) (int, error) {
 	tc.mutex.Lock()
 	defer tc.mutex.Unlock()
 
@@ -101,7 +101,7 @@ func (tc *transactionContainer) Add(t Transaction) (int, error) {
 	payloadSizeInBytesToDrop := (tc.currentMemSizeInBytes + payloadSize) - tc.maxMemSizeInBytes
 	inMemTransactionDroppedCount := 0
 	if payloadSizeInBytesToDrop > 0 {
-		transactions := tc.extractTransactions(payloadSizeInBytesToDrop)
+		transactions := tc.extractTransactionsFromMemory(payloadSizeInBytesToDrop)
 		inMemTransactionDroppedCount = len(transactions)
 	}
 
@@ -110,11 +110,11 @@ func (tc *transactionContainer) Add(t Transaction) (int, error) {
 	return inMemTransactionDroppedCount, diskErr
 }
 
-// ExtractTransactions extracts transactions from the container.
+// extractTransactions extracts transactions from the container.
 // If some transactions exist in memory extract them otherwise extract transactions
 // from the disk.
 // No transactions are in memory after calling this method.
-func (tc *transactionContainer) ExtractTransactions() ([]Transaction, error) {
+func (tc *transactionContainer) extractTransactions() ([]Transaction, error) {
 	tc.mutex.Lock()
 	defer tc.mutex.Unlock()
 
@@ -133,24 +133,24 @@ func (tc *transactionContainer) ExtractTransactions() ([]Transaction, error) {
 	return transactions, nil
 }
 
-// GetCurrentMemSizeInBytes gets the current memory usage in bytes
-func (tc *transactionContainer) GetCurrentMemSizeInBytes() int {
+// getCurrentMemSizeInBytes gets the current memory usage in bytes
+func (tc *transactionContainer) getCurrentMemSizeInBytes() int {
 	tc.mutex.RLock()
 	defer tc.mutex.RUnlock()
 
 	return tc.currentMemSizeInBytes
 }
 
-// GetTransactionCount gets the number of transactions in the container
-func (tc *transactionContainer) GetTransactionCount() int {
+// getTransactionCount gets the number of transactions in the container
+func (tc *transactionContainer) getTransactionCount() int {
 	tc.mutex.RLock()
 	defer tc.mutex.RUnlock()
 
 	return len(tc.transactions)
 }
 
-// GetMaxMemSizeInBytes gets the maximum memory usage for storing transactions
-func (tc *transactionContainer) GetMaxMemSizeInBytes() int {
+// getMaxMemSizeInBytes gets the maximum memory usage for storing transactions
+func (tc *transactionContainer) getMaxMemSizeInBytes() int {
 	tc.mutex.RLock()
 	defer tc.mutex.RUnlock()
 
@@ -162,7 +162,7 @@ func (tc *transactionContainer) extractTransactionsForDisk(payloadSize int) [][]
 	var payloadsGroupToFlush [][]Transaction
 	for tc.currentMemSizeInBytes+payloadSize > tc.maxMemSizeInBytes && len(tc.transactions) > 0 {
 		// Flush the N first transactions whose payload size sum is greater than `sizeInBytesToFlush`
-		transactions := tc.extractTransactions(sizeInBytesToFlush)
+		transactions := tc.extractTransactionsFromMemory(sizeInBytesToFlush)
 
 		payloadsGroupToFlush = append(payloadsGroupToFlush, transactions)
 	}
@@ -170,7 +170,7 @@ func (tc *transactionContainer) extractTransactionsForDisk(payloadSize int) [][]
 	return payloadsGroupToFlush
 }
 
-func (tc *transactionContainer) extractTransactions(payloadSizeInBytesToExtract int) []Transaction {
+func (tc *transactionContainer) extractTransactionsFromMemory(payloadSizeInBytesToExtract int) []Transaction {
 	i := 0
 	sizeInBytesExtracted := 0
 	var transactionsExtracted []Transaction

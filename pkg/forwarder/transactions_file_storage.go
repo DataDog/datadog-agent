@@ -110,12 +110,12 @@ func (s *transactionsFileStorage) Deserialize() ([]Transaction, error) {
 }
 
 // GetFileCount returns the current files count.
-func (s *transactionsFileStorage) GetFilesCount() int {
+func (s *transactionsFileStorage) getFilesCount() int {
 	return len(s.filenames)
 }
 
-// GetCurrentSizeInBytes returns the current disk space used.
-func (s *transactionsFileStorage) GetCurrentSizeInBytes() int64 {
+// getCurrentSizeInBytes returns the current disk space used.
+func (s *transactionsFileStorage) getCurrentSizeInBytes() int64 {
 	return s.currentSizeInBytes
 }
 
