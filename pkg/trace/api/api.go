@@ -43,8 +43,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/tinylib/msgp/msgp"
 )
 
 var bufferPool = sync.Pool{
