@@ -46,6 +46,10 @@ extern std::wstring installCreatedDDUser;
 extern std::wstring installCreatedDDDomain;
 extern std::wstring installInstalledServices;
 
+extern std::wstring keyInstalledUser;
+extern std::wstring keyInstalledDomain;
+
+
 void initializeStringsFromStringTable();
 
 

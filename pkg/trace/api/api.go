@@ -6,6 +6,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"expvar"
@@ -27,8 +28,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/tinylib/msgp/msgp"
-
 	mainconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -42,6 +41,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var bufferPool = sync.Pool{
+	New: func() interface{} {
+		return new(bytes.Buffer)
+	},
+}
+
+func getBuffer() *bytes.Buffer {
+	buffer := bufferPool.Get().(*bytes.Buffer)
+	buffer.Reset()
+	return buffer
+}
+
+func putBuffer(buffer *bytes.Buffer) {
+	bufferPool.Put(buffer)
+}
 
 // HTTPReceiver is a collector that uses HTTP protocol and just holds
 // a chan where the spans received are sent one by one
@@ -121,6 +136,7 @@ func (r *HTTPReceiver) Start() {
 	go func() {
 		defer watchdog.LogOnPanic()
 		r.server.Serve(ln)
+		ln.Close()
 	}()
 	log.Infof("Listening for traces at http://%s", addr)
 
@@ -132,8 +148,25 @@ func (r *HTTPReceiver) Start() {
 		go func() {
 			defer watchdog.LogOnPanic()
 			r.server.Serve(ln)
+			ln.Close()
 		}()
 		log.Infof("Listening for traces at unix://%s", path)
+	}
+
+	if path := mainconfig.Datadog.GetString("apm_config.windows_pipe_name"); path != "" {
+		pipepath := `\\.\pipe\` + path
+		bufferSize := mainconfig.Datadog.GetInt("apm_config.windows_pipe_buffer_size")
+		secdec := mainconfig.Datadog.GetString("apm_config.windows_pipe_security_descriptor")
+		ln, err := listenPipe(pipepath, secdec, bufferSize)
+		if err != nil {
+			killProcess("Error creating %q named pipe: %v", pipepath, err)
+		}
+		go func() {
+			defer watchdog.LogOnPanic()
+			r.server.Serve(ln)
+			ln.Close()
+		}()
+		log.Infof("Listening for traces on Windowes pipe %q. Security descriptor is %q", pipepath, secdec)
 	}
 
 	go r.RateLimiter.Run()
@@ -296,6 +329,10 @@ const (
 	// headerTracerVersion specifies the name of the header which contains the version
 	// of the tracer sending the payload.
 	headerTracerVersion = "Datadog-Meta-Tracer-Version"
+
+	// headerComputedTopLevel specifies that the client has marked top-level spans, when set.
+	// Any non-empty value will mean 'yes'.
+	headerComputedTopLevel = "Datadog-Client-Computed-Top-Level"
 )
 
 func (r *HTTPReceiver) tagStats(v Version, req *http.Request) *info.TagStats {
@@ -391,9 +428,10 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	atomic.AddInt64(&ts.PayloadAccepted, 1)
 
 	payload := &Payload{
-		Source:        ts,
-		Traces:        traces,
-		ContainerTags: getContainerTags(req.Header.Get(headerContainerID)),
+		Source:                 ts,
+		Traces:                 traces,
+		ContainerTags:          getContainerTags(req.Header.Get(headerContainerID)),
+		ClientComputedTopLevel: req.Header.Get(headerComputedTopLevel) != "",
 	}
 	select {
 	case r.out <- payload:
@@ -424,6 +462,10 @@ type Payload struct {
 
 	// Traces contains all the traces received in the payload
 	Traces pb.Traces
+
+	// ClientComputedTopLevel specifies that the client has already marked top-level
+	// spans.
+	ClientComputedTopLevel bool
 }
 
 // handleServices handle a request with a list of several services
@@ -549,10 +591,17 @@ func (r *HTTPReceiver) Languages() string {
 	return strings.Join(str, "|")
 }
 
-func decodeRequest(req *http.Request, dest msgp.Decodable) error {
+func decodeRequest(req *http.Request, dest *pb.Traces) error {
 	switch mediaType := getMediaType(req); mediaType {
 	case "application/msgpack":
-		return msgp.Decode(req.Body, dest)
+		buf := getBuffer()
+		defer putBuffer(buf)
+		_, err := io.Copy(buf, req.Body)
+		if err != nil {
+			return err
+		}
+		_, err = dest.UnmarshalMsg(buf.Bytes())
+		return err
 	case "application/json":
 		fallthrough
 	case "text/json":
@@ -562,7 +611,14 @@ func decodeRequest(req *http.Request, dest msgp.Decodable) error {
 	default:
 		// do our best
 		if err1 := json.NewDecoder(req.Body).Decode(dest); err1 != nil {
-			if err2 := msgp.Decode(req.Body, dest); err2 != nil {
+			buf := getBuffer()
+			defer putBuffer(buf)
+			_, err2 := io.Copy(buf, req.Body)
+			if err2 != nil {
+				return fmt.Errorf("could not decode JSON (%q), nor Msgpack (%q)", err1, err2)
+			}
+			_, err2 = dest.UnmarshalMsg(buf.Bytes())
+			if err2 != nil {
 				return fmt.Errorf("could not decode JSON (%q), nor Msgpack (%q)", err1, err2)
 			}
 		}

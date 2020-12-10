@@ -83,6 +83,7 @@
         "com.datadoghq.ad.check_names": "[\"redisdb\"]",
         "com.datadoghq.ad.init_configs": "[{}]",
         "com.datadoghq.ad.instances": "[{\"host\": \"%%host%%\", \"port\": 6379}]",
+        "com.datadoghq.ad.tags": "[\"env:staging\", \"service:backend\"]",
         "com.datadoghq.tags.service": "redis",
         "com.datadoghq.tags.env": "prod",
         "com.datadoghq.tags.version": "1.0",

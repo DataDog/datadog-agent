@@ -19,6 +19,7 @@ import (
 	infov1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -31,11 +32,12 @@ const (
 
 // KubeServiceListener listens to kubernetes service creation
 type KubeServiceListener struct {
-	informer   infov1.ServiceInformer
-	services   map[types.UID]Service
-	newService chan<- Service
-	delService chan<- Service
-	m          sync.RWMutex
+	informer      infov1.ServiceInformer
+	services      map[types.UID]Service
+	promInclAnnot map[string]string
+	newService    chan<- Service
+	delService    chan<- Service
+	m             sync.RWMutex
 }
 
 // KubeServiceService represents a Kubernetes Service
@@ -66,8 +68,9 @@ func NewKubeServiceListener() (ServiceListener, error) {
 	}
 
 	return &KubeServiceListener{
-		services: make(map[types.UID]Service),
-		informer: servicesInformer,
+		services:      make(map[types.UID]Service),
+		informer:      servicesInformer,
+		promInclAnnot: getPrometheusInclAnnotations(),
 	}, nil
 }
 
@@ -129,7 +132,7 @@ func (l *KubeServiceListener) updated(old, obj interface{}) {
 		l.createService(castedObj, false)
 		return
 	}
-	if servicesDiffer(castedObj, castedOld) {
+	if servicesDiffer(castedObj, castedOld) || l.prometheusAnnotDiffer(castedObj.GetAnnotations(), castedOld.GetAnnotations()) {
 		l.removeService(castedObj)
 		l.createService(castedObj, false)
 	}
@@ -175,8 +178,9 @@ func (l *KubeServiceListener) createService(ksvc *v1.Service, firstRun bool) {
 	if ksvc == nil {
 		return
 	}
-	if !isServiceAnnotated(ksvc, kubeServiceAnnotationFormat) {
-		// Ignore services with no AD annotation
+
+	if !isServiceAnnotated(ksvc, kubeServiceAnnotationFormat) && !l.isPrometheusService(ksvc.GetAnnotations()) {
+		// Ignore services with no AD or Prometheus AD include annotation
 		return
 	}
 
@@ -244,6 +248,53 @@ func (l *KubeServiceListener) removeService(ksvc *v1.Service) {
 	} else {
 		log.Debugf("Entity %s not found, not removing", ksvc.UID)
 	}
+}
+
+// isPrometheusService returns whether a service matches the AD include rules for Prometheus
+func (l *KubeServiceListener) isPrometheusService(svcAnnotations map[string]string) bool {
+	for k, v := range l.promInclAnnot {
+		if svcAnnotations[k] == v {
+			return true
+		}
+	}
+	return false
+}
+
+// prometheusAnnotDiffer returns whether the Prometheus AD include annotations have changed
+func (l *KubeServiceListener) prometheusAnnotDiffer(first, second map[string]string) bool {
+	for k := range l.promInclAnnot {
+		if first[k] != second[k] {
+			return true
+		}
+	}
+	return false
+}
+
+// getPrometheusInclAnnotations returns the Prometheus AD include annotations based on the Prometheus config
+func getPrometheusInclAnnotations() map[string]string {
+	annotations := map[string]string{}
+	checks, err := common.ReadPrometheusChecksConfig()
+	if err != nil {
+		log.Warnf("Couldn't get configurations from 'prometheus_scrape.checks': %v", err)
+		return annotations
+	}
+
+	if len(checks) == 0 {
+		annotations[common.PrometheusScrapeAnnotation] = "true"
+		return annotations
+	}
+
+	for _, check := range checks {
+		if err := check.Init(); err != nil {
+			log.Errorf("Couldn't init check configuration: %v", err)
+			continue
+		}
+		for k, v := range check.AD.GetIncludeAnnotations() {
+			annotations[k] = v
+		}
+	}
+
+	return annotations
 }
 
 // GetEntity returns the unique entity name linked to that service

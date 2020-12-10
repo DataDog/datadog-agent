@@ -15,7 +15,6 @@ import (
 	"path"
 	"strings"
 	"syscall"
-	"time"
 	"unsafe"
 
 	"github.com/freddierice/go-losetup"
@@ -42,6 +41,10 @@ func (td *testDrive) Path(filename string) (string, unsafe.Pointer, error) {
 }
 
 func newTestDrive(fsType string, mountOpts []string) (*testDrive, error) {
+	return newTestDriveWithMountPoint(fsType, mountOpts, "")
+}
+
+func newTestDriveWithMountPoint(fsType string, mountOpts []string, mountPoint string) (*testDrive, error) {
 	backingFile, err := ioutil.TempFile("", "secagent-testdrive-")
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create testdrive backing file")
@@ -51,13 +54,15 @@ func newTestDrive(fsType string, mountOpts []string) (*testDrive, error) {
 		return nil, errors.Wrap(err, "failed to close testdrive backing file")
 	}
 
-	mountPoint, err := ioutil.TempDir("", "secagent-testdrive-")
-	if err != nil {
-		os.Remove(backingFile.Name())
-		return nil, errors.Wrap(err, "failed to create testdrive mount point")
+	if len(mountPoint) == 0 {
+		mountPoint, err = ioutil.TempDir("", "secagent-testdrive-")
+		if err != nil {
+			os.Remove(backingFile.Name())
+			return nil, errors.Wrap(err, "failed to create testdrive mount point")
+		}
 	}
 
-	if err := os.Truncate(backingFile.Name(), 1*1024*1024); err != nil {
+	if err := os.Truncate(backingFile.Name(), 20*1024*1024); err != nil {
 		os.Remove(backingFile.Name())
 		os.RemoveAll(mountPoint)
 
@@ -75,16 +80,15 @@ func newTestDrive(fsType string, mountOpts []string) (*testDrive, error) {
 		mountOpts = append(mountOpts, "auto")
 	}
 
-	mkfsCmd := exec.Command("mkfs."+fsType, dev.Path())
+	mkfsCmd := exec.Command("/sbin/mkfs."+fsType, dev.Path())
 	if err := mkfsCmd.Run(); err != nil {
 		_ = dev.Detach()
 		os.Remove(backingFile.Name())
 		os.RemoveAll(mountPoint)
-		return nil, errors.Wrap(err, "failed to create testdrive ext4 filesystem")
+		return nil, errors.Wrapf(err, "failed to create testdrive %s filesystem", fsType)
 	}
 
 	mountCmd := exec.Command("mount", "-o", strings.Join(mountOpts, ","), dev.Path(), mountPoint)
-	fmt.Printf("CMD %s\n", mountCmd.String())
 
 	if err := mountCmd.Run(); err != nil {
 		_ = dev.Detach()
@@ -103,24 +107,24 @@ func newTestDrive(fsType string, mountOpts []string) (*testDrive, error) {
 func (td *testDrive) Unmount() error {
 	unmountCmd := exec.Command("umount", "-f", td.mountPoint)
 	if err := unmountCmd.Run(); err != nil {
-		return errors.Wrap(err, "failed to unmount filesystem")
+		lsofCmd := exec.Command("lsof", td.mountPoint)
+		output, _ := lsofCmd.CombinedOutput()
+		return errors.Wrapf(err, "failed to unmount filesystem (%s)", string(output))
 	}
 
 	return nil
 }
 
 func (td *testDrive) Close() {
-	os.RemoveAll(td.mountPoint)
 	if err := td.Unmount(); err != nil {
 		fmt.Print(err)
 	}
-	os.Remove(td.file.Name())
-	os.Remove(td.mountPoint)
-	time.Sleep(time.Second)
 	if err := td.dev.Detach(); err != nil {
 		fmt.Print(err)
 	}
 	if err := td.dev.Remove(); err != nil {
 		fmt.Print(err)
 	}
+	os.Remove(td.file.Name())
+	os.Remove(td.mountPoint)
 }

@@ -19,8 +19,8 @@ type serviceInitFunc func() (err error)
 
 // Servicedef defines a service
 type Servicedef struct {
-	name      string
-	configKey string
+	name       string
+	configKeys []string
 
 	serviceName string
 	serviceInit serviceInitFunc
@@ -29,19 +29,19 @@ type Servicedef struct {
 var subservices = []Servicedef{
 	{
 		name:        "apm",
-		configKey:   "apm_config.enabled",
+		configKeys:  []string{"apm_config.enabled"},
 		serviceName: "datadog-trace-agent",
 		serviceInit: apmInit,
 	},
 	{
 		name:        "process",
-		configKey:   "process_config.enabled",
+		configKeys:  []string{"process_config.enabled", "network_config.enabled", "system_probe.enabled"},
 		serviceName: "datadog-process-agent",
 		serviceInit: processInit,
 	},
 	{
 		name:        "sysprobe",
-		configKey:   "system_probe_config.enabled",
+		configKeys:  []string{"system_probe_config.enabled", "network_config.enabled"},
 		serviceName: "datadog-system-probe",
 		serviceInit: sysprobeInit,
 	}}

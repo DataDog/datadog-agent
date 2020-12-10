@@ -3,124 +3,108 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build linux_bpf
+// +build linux
 
 package probe
 
-import (
-	"os"
-	"syscall"
-
-	"github.com/pkg/errors"
-
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
-)
-
-func discardInode(probe *Probe, mountID uint32, inode uint64, tableName string) (bool, error) {
-	key := PathKey{MountID: mountID, Inode: inode}
-
-	table := probe.Map(tableName)
-	if table == nil {
-		return false, errors.Errorf("map %s not found", tableName)
-	}
-	if err := table.Put(&key, ebpf.ZeroUint8MapItem); err != nil {
-		return false, err
-	}
-
-	return true, nil
+type activeKFilter interface {
+	Remove(*Probe) error
+	Apply(*Probe) error
+	Key() interface{}
 }
 
-func discardParentInode(probe *Probe, rs *rules.RuleSet, eventType eval.EventType, filename string, mountID uint32, inode uint64, tableName string) (bool, error) {
-	isDiscarder, err := isParentPathDiscarder(rs, eventType, filename)
-	if !isDiscarder {
-		return false, err
-	}
+type activeKFilters map[interface{}]activeKFilter
 
-	parentMountID, parentInode, err := probe.resolvers.DentryResolver.GetParent(mountID, inode)
-	if err != nil {
-		return false, err
+func newActiveKFilters(kfilters ...activeKFilter) (ak activeKFilters) {
+	ak = make(map[interface{}]activeKFilter)
+	for _, kfilter := range kfilters {
+		ak.Add(kfilter)
 	}
-
-	return discardInode(probe, parentMountID, parentInode, tableName)
+	return
 }
 
-func approveBasename(probe *Probe, tableName string, basename string) error {
-	key := ebpf.NewStringMapItem(basename, BasenameFilterSize)
-
-	table := probe.Map(tableName)
-	if table == nil {
-		return errors.Errorf("map %s not found", tableName)
-	}
-	if err := table.Put(key, ebpf.ZeroUint8MapItem); err != nil {
-		return err
-	}
-
-	return nil
+func (ak activeKFilters) HasKey(key interface{}) bool {
+	_, found := ak[key]
+	return found
 }
 
-func approveBasenames(probe *Probe, tableName string, basenames ...string) error {
-	for _, basename := range basenames {
-		if err := approveBasename(probe, tableName, basename); err != nil {
-			return err
+func (ak activeKFilters) Sub(ak2 activeKFilters) {
+	for key := range ak {
+		if _, found := ak2[key]; found {
+			delete(ak, key)
 		}
 	}
-	return nil
 }
 
-func setFlagsFilter(probe *Probe, tableName string, flags ...int) error {
-	var flagsItem ebpf.Uint32MapItem
+func (ak activeKFilters) Add(a activeKFilter) {
+	ak[a.Key()] = a
+}
 
-	for _, flag := range flags {
-		flagsItem |= ebpf.Uint32MapItem(flag)
+func (ak activeKFilters) Remove(a activeKFilter) {
+	delete(ak, a.Key())
+}
+
+type mapEntry struct {
+	tableName string
+	key       interface{}
+	tableKey  interface{}
+	value     interface{}
+}
+
+type mapHash struct {
+	tableName string
+	key       interface{}
+}
+
+func (e *mapEntry) Key() interface{} {
+	return mapHash{
+		tableName: e.tableName,
+		key:       e.key,
 	}
-
-	if flagsItem != 0 {
-		table := probe.Map(tableName)
-		if table == nil {
-			return errors.Errorf("map %s not found", tableName)
-		}
-		if err := table.Put(ebpf.ZeroUint32MapItem, flagsItem); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
-func approveFlags(probe *Probe, tableName string, flags ...int) error {
-	return setFlagsFilter(probe, tableName, flags...)
-}
-
-func discardFlags(probe *Probe, tableName string, flags ...int) error {
-	return setFlagsFilter(probe, tableName, flags...)
-}
-
-func approveProcessFilename(probe *Probe, tableName string, filename string) error {
-	fileinfo, err := os.Stat(filename)
+func (e *mapEntry) Remove(probe *Probe) error {
+	table, err := probe.Map(e.tableName)
 	if err != nil {
 		return err
 	}
-	stat, _ := fileinfo.Sys().(*syscall.Stat_t)
-	key := ebpf.Uint64MapItem(uint64(stat.Ino))
-
-	table := probe.Map(tableName)
-	if table == nil {
-		return errors.Errorf("map %s not found", tableName)
-	}
-	if err := table.Put(key, ebpf.ZeroUint8MapItem); err != nil {
-		return err
-	}
-	return nil
+	return table.Delete(e.tableKey)
 }
 
-func approveProcessFilenames(probe *Probe, tableName string, filenames ...string) error {
-	for _, filename := range filenames {
-		if err := approveProcessFilename(probe, tableName, filename); err != nil {
-			return err
-		}
+func (e *mapEntry) Apply(probe *Probe) error {
+	table, err := probe.Map(e.tableName)
+	if err != nil {
+		return err
 	}
+	return table.Put(e.tableKey, e.value)
+}
 
-	return nil
+type arrayEntry struct {
+	tableName string
+	index     interface{}
+	value     interface{}
+	zeroValue interface{}
+}
+
+func (e *arrayEntry) Key() interface{} {
+	return mapHash{
+		tableName: e.tableName,
+		key:       e.index,
+	}
+}
+
+func (e *arrayEntry) Remove(probe *Probe) error {
+	table, err := probe.Map(e.tableName)
+	if err != nil {
+		return err
+	}
+	return table.Put(e.index, e.zeroValue)
+}
+
+func (e *arrayEntry) Apply(probe *Probe) error {
+	table, err := probe.Map(e.tableName)
+	if err != nil {
+		return err
+	}
+	return table.Put(e.index, e.value)
 }

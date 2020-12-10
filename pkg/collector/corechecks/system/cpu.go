@@ -8,7 +8,6 @@ package system
 
 import (
 	"fmt"
-
 	"github.com/shirou/gopsutil/cpu"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -37,6 +36,13 @@ func (c *CPUCheck) Run() error {
 	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
 		return err
+	}
+
+	err = c.collectCtxSwitches(sender)
+	if err != nil {
+		log.Debugf("system.CPUCheck could not read context switches: %s", err.Error())
+		// Don't return here, we still want to collect the CPU metrics even if we could not
+		// read the context switches
 	}
 
 	cpuTimes, err := times(false)

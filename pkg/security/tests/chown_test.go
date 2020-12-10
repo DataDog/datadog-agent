@@ -64,6 +64,12 @@ func TestChown(t *testing.T) {
 			if group := event.Chown.GID; group != 200 {
 				t.Errorf("expected chown group 200, got %d", group)
 			}
+
+			if inode := getInode(t, testFile); inode != event.Chown.Inode {
+				t.Errorf("expected inode %d, got %d", event.Chown.Inode, inode)
+			}
+
+			testContainerPath(t, event, "chown.container_path")
 		}
 	})
 
@@ -88,6 +94,12 @@ func TestChown(t *testing.T) {
 			if group := event.Chown.GID; group != 201 {
 				t.Errorf("expected chown group 201, got %d", group)
 			}
+
+			if inode := getInode(t, testFile); inode != event.Chown.Inode {
+				t.Errorf("expected inode %d, got %d", event.Chown.Inode, inode)
+			}
+
+			testContainerPath(t, event, "chown.container_path")
 		}
 	})
 
@@ -111,6 +123,12 @@ func TestChown(t *testing.T) {
 			if group := event.Chown.GID; group != 202 {
 				t.Errorf("expected chown group 202, got %d", group)
 			}
+
+			if inode := getInode(t, testFile); inode != event.Chown.Inode {
+				t.Errorf("expected inode %d, got %d", event.Chown.Inode, inode)
+			}
+
+			testContainerPath(t, event, "chown.container_path")
 		}
 	})
 
@@ -148,6 +166,12 @@ func TestChown(t *testing.T) {
 			if group := event.Chown.GID; group != 203 {
 				t.Errorf("expected chown group 203, got %d", group)
 			}
+
+			if inode := getInode(t, testSymlink); inode != event.Chown.Inode {
+				t.Errorf("expected inode %d, got %d", event.Chown.Inode, inode)
+			}
+
+			testContainerPath(t, event, "chown.container_path")
 		}
 	})
 }

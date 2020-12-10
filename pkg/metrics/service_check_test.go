@@ -8,6 +8,7 @@
 package metrics
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -172,7 +173,7 @@ func createServiceChecks(numberOfItem int) ServiceChecks {
 	var serviceCheckCollections []*ServiceCheck
 
 	for i := 0; i < numberOfItem; i++ {
-		serviceCheckCollections = append(serviceCheckCollections, createServiceCheck(string(i)))
+		serviceCheckCollections = append(serviceCheckCollections, createServiceCheck(fmt.Sprint(i)))
 	}
 	return ServiceChecks(serviceCheckCollections)
 }

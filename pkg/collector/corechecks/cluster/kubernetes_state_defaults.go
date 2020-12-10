@@ -29,6 +29,8 @@ var (
 		"replicaset":                       "kube_replica_set",
 		"statefulset ":                     "kube_stateful_set",
 		"deployment":                       "kube_deployment",
+		"service":                          "kube_service",
+		"endpoint":                         "kube_endpoint",
 		"container":                        "kube_container_name",
 		"container_id":                     "container_id",
 		"image":                            "image_name",
@@ -118,11 +120,11 @@ var (
 	deniedMetrics = options.MetricSet{
 		".*_created":                                       {},
 		".*_owner":                                         {},
-		".*_time":                                          {},
 		".*_generation":                                    {},
 		".*_metadata_resource_version":                     {},
 		"kube_pod_status_reason":                           {},
 		"kube_pod_restart_policy":                          {},
+		"kube_pod_.*_time":                                 {},
 		"kube_cronjob_status_active":                       {},
 		"kube_namespace_status_phase":                      {},
 		"kube_node_status_phase":                           {},
@@ -131,12 +133,14 @@ var (
 		"kube_job_spec_completions":                        {},
 		"kube_job_spec_parallelism":                        {},
 		"kube_job_status_active":                           {},
+		"kube_job_status_.*_time":                          {},
 		"kube_service_spec_external_ip":                    {},
 		"kube_service_status_load_balancer_ingress":        {},
 		"kube_ingress_path":                                {},
 		"kube_statefulset_status_current_revision":         {},
 		"kube_statefulset_status_update_revision":          {},
 		"kube_pod_container_status_last_terminated_reason": {},
+		"kube_lease_renew_time":                            {},
 	}
 
 	defaultStandardLabels = []string{

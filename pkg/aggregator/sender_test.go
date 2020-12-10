@@ -153,7 +153,7 @@ func TestGetSenderServiceTagMetrics(t *testing.T) {
 	// only tags added by the check
 	checkSender.SetCheckService("")
 	checkSender.FinalizeCheckServiceTag()
-	checkSender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType)
+	checkSender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType, false)
 	sms := <-senderMetricSampleChan
 	assert.Equal(t, checkTags, sms.metricSample.Tags)
 
@@ -161,7 +161,7 @@ func TestGetSenderServiceTagMetrics(t *testing.T) {
 	checkSender.SetCheckService("service1")
 	checkSender.SetCheckService("service2")
 	checkSender.FinalizeCheckServiceTag()
-	checkSender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType)
+	checkSender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType, false)
 	sms = <-senderMetricSampleChan
 	assert.Equal(t, append(checkTags, "service:service2"), sms.metricSample.Tags)
 }
@@ -239,13 +239,13 @@ func TestGetSenderAddCheckCustomTagsMetrics(t *testing.T) {
 	checkSender := newCheckSender(checkID1, "", senderMetricSampleChan, serviceCheckChan, eventChan, bucketChan)
 
 	// no custom tags
-	checkSender.sendMetricSample("metric.test", 42.0, "testhostname", nil, metrics.CounterType)
+	checkSender.sendMetricSample("metric.test", 42.0, "testhostname", nil, metrics.CounterType, false)
 	sms := <-senderMetricSampleChan
 	assert.Nil(t, sms.metricSample.Tags)
 
 	// only tags added by the check
 	checkTags := []string{"check:tag1", "check:tag2"}
-	checkSender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType)
+	checkSender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType, false)
 	sms = <-senderMetricSampleChan
 	assert.Equal(t, checkTags, sms.metricSample.Tags)
 
@@ -255,12 +255,12 @@ func TestGetSenderAddCheckCustomTagsMetrics(t *testing.T) {
 	assert.Len(t, checkSender.checkTags, 2)
 
 	// only tags coming from the configuration file
-	checkSender.sendMetricSample("metric.test", 42.0, "testhostname", nil, metrics.CounterType)
+	checkSender.sendMetricSample("metric.test", 42.0, "testhostname", nil, metrics.CounterType, false)
 	sms = <-senderMetricSampleChan
 	assert.Equal(t, customTags, sms.metricSample.Tags)
 
 	// tags added by the check + tags coming from the configuration file
-	checkSender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType)
+	checkSender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType, false)
 	sms = <-senderMetricSampleChan
 	assert.Equal(t, append(checkTags, customTags...), sms.metricSample.Tags)
 }
@@ -397,6 +397,7 @@ func TestCheckSenderInterface(t *testing.T) {
 	checkSender.Rate("my.rate_metric", 2.0, "my-hostname", []string{"foo", "bar"})
 	checkSender.Count("my.count_metric", 123.0, "my-hostname", []string{"foo", "bar"})
 	checkSender.MonotonicCount("my.monotonic_count_metric", 12.0, "my-hostname", []string{"foo", "bar"})
+	checkSender.MonotonicCountWithFlushFirstValue("my.monotonic_count_metric", 12.0, "my-hostname", []string{"foo", "bar"}, true)
 	checkSender.Counter("my.counter_metric", 1.0, "my-hostname", []string{"foo", "bar"})
 	checkSender.Histogram("my.histo_metric", 3.0, "my-hostname", []string{"foo", "bar"})
 	checkSender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", []string{"foo", "bar"})
@@ -435,6 +436,12 @@ func TestCheckSenderInterface(t *testing.T) {
 	assert.EqualValues(t, checkID1, monotonicCountSenderSample.id)
 	assert.Equal(t, metrics.MonotonicCountType, monotonicCountSenderSample.metricSample.Mtype)
 	assert.Equal(t, false, monotonicCountSenderSample.commit)
+
+	monotonicCountWithFlushFirstValueSenderSample := <-senderMetricSampleChan
+	assert.EqualValues(t, checkID1, monotonicCountWithFlushFirstValueSenderSample.id)
+	assert.Equal(t, metrics.MonotonicCountType, monotonicCountWithFlushFirstValueSenderSample.metricSample.Mtype)
+	assert.Equal(t, true, monotonicCountWithFlushFirstValueSenderSample.metricSample.FlushFirstValue)
+	assert.Equal(t, false, monotonicCountWithFlushFirstValueSenderSample.commit)
 
 	CounterSenderSample := <-senderMetricSampleChan
 	assert.EqualValues(t, checkID1, CounterSenderSample.id)

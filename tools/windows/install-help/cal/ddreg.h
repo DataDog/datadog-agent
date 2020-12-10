@@ -11,6 +11,7 @@ public:
     bool setStringValue(const wchar_t* valname, const wchar_t* value);
 
     bool deleteSubKey(const wchar_t * keyname);
+    bool deleteValue(const wchar_t  * valname);
     bool createSubKey(const wchar_t* keyname, RegKey& subkey, DWORD options = 0);
 
 private:

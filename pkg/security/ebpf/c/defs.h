@@ -1,7 +1,9 @@
 #ifndef _DEFS_H_
 #define _DEFS_H_
 
-#include "../../../ebpf/c/bpf_helpers.h"
+#include "bpf_helpers.h"
+
+#define LOAD_CONSTANT(param, var) asm("%0 = " param " ll" : "=r"(var))
 
 #if defined(__x86_64__)
   #define SYSCALL64_PREFIX "__x64_"
@@ -168,7 +170,6 @@
 #define CONTAINER_ID_LEN 64
 #define MAX_XATTR_NAME_LEN 200
 
-
 #define bpf_printk(fmt, ...)                       \
 	({                                             \
 		char ____fmt[] = fmt;                      \
@@ -193,43 +194,114 @@ enum event_type
     EVENT_UMOUNT,
     EVENT_SETXATTR,
     EVENT_REMOVEXATTR,
+    EVENT_FORK,
     EVENT_EXEC,
+    EVENT_EXIT,
+    EVENT_INVALIDATE_DENTRY,
+    EVENT_MAX, // has to be the last one and a power of two
+};
+
+// closest power of 2 that is bigger than EVENT_MAX
+#define EVENT_MAX_ROUNDED_UP 32
+
+enum syscall_type
+{
+    SYSCALL_OPEN        = 1 << EVENT_OPEN,
+    SYSCALL_MKDIR       = 1 << EVENT_MKDIR,
+    SYSCALL_LINK        = 1 << EVENT_LINK,
+    SYSCALL_RENAME      = 1 << EVENT_RENAME,
+    SYSCALL_UNLINK      = 1 << EVENT_UNLINK,
+    SYSCALL_RMDIR       = 1 << EVENT_RMDIR,
+    SYSCALL_CHMOD       = 1 << EVENT_CHMOD,
+    SYSCALL_CHOWN       = 1 << EVENT_CHOWN,
+    SYSCALL_UTIME       = 1 << EVENT_UTIME,
+    SYSCALL_MOUNT       = 1 << EVENT_MOUNT,
+    SYSCALL_UMOUNT      = 1 << EVENT_UMOUNT,
+    SYSCALL_SETXATTR    = 1 << EVENT_SETXATTR,
+    SYSCALL_REMOVEXATTR = 1 << EVENT_REMOVEXATTR,
+    SYSCALL_EXEC        = 1 << EVENT_EXEC,
 };
 
 struct kevent_t {
     u64 type;
+    u64 timestamp;
 };
 
 struct file_t {
     u64 inode;
     u32 mount_id;
     u32 overlay_numlower;
+    u32 path_id;
+    u32 padding;
 };
 
 struct syscall_t {
-    u64 timestamp;
     s64 retval;
 };
 
 struct process_context_t {
-    u64 pidns;
-    char comm[TASK_COMM_LEN];
-    char tty_name[TTY_NAME_LEN];
     u32 pid;
     u32 tid;
     u32 uid;
     u32 gid;
-    struct file_t executable;
 };
 
 struct container_context_t {
     char container_id[CONTAINER_ID_LEN];
 };
 
-struct proc_cache_t {
-    struct file_t executable;
-    char container_id[CONTAINER_ID_LEN];
+struct path_key_t {
+    u64 ino;
+    u32 mount_id;
+    u32 path_id;
 };
+
+struct bpf_map_def SEC("maps/path_id") path_id = {
+    .type = BPF_MAP_TYPE_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u32),
+    .max_entries = 1,
+    .pinning = 0,
+    .namespace = "",
+};
+
+static __attribute__((always_inline)) u32 get_path_id(int invalidate) {
+    u32 key = 0;
+
+    u32 *prev_id = bpf_map_lookup_elem(&path_id, &key);
+    if (!prev_id) {
+        u32 first_id = 1;
+        bpf_map_update_elem(&path_id, &key, &first_id, BPF_ANY);
+
+        return first_id;
+    }
+
+    // return the current id so that the current event will use it. Increase the id for the next event only.
+    u32 id = *prev_id;
+
+    // need to invalidate the current path id for event which may change the association inode/name like
+    // unlink, rename, rmdir.
+    if (invalidate) {
+        __sync_fetch_and_add(prev_id, 1);
+    }
+
+    return id;
+}
+
+struct bpf_map_def SEC("maps/flushing_discarders") flushing_discarders = {
+    .type = BPF_MAP_TYPE_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u32),
+    .max_entries = 1,
+    .pinning = 0,
+    .namespace = "",
+};
+
+static __attribute__((always_inline)) u32 is_flushing_discarders(void) {
+    u32 key = 0;
+    u32 *prev_id = bpf_map_lookup_elem(&flushing_discarders, &key);
+    return prev_id != NULL && *prev_id;
+}
 
 struct bpf_map_def SEC("maps/events") events = {
     .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
@@ -254,6 +326,9 @@ struct bpf_map_def SEC("maps/mountpoints_events") mountpoints_events = {
 
 #define send_mountpoints_events(ctx, event) \
     bpf_perf_event_output(ctx, &mountpoints_events, bpf_get_smp_processor_id(), &event, sizeof(event))
+
+#define send_process_events(ctx, event) \
+    bpf_perf_event_output(ctx, &events, bpf_get_smp_processor_id(), &event, sizeof(event))
 
 static __attribute__((always_inline)) u32 ord(u8 c) {
     if (c >= 49 && c <= 57) {
@@ -289,6 +364,34 @@ static __attribute__((always_inline)) u32 atoi(char *buff) {
     }
 
     return res;
+}
+
+// implemented in the probe.c file
+void __attribute__((always_inline)) invalidate_inode(struct pt_regs *ctx, u32 mount_id, u64 inode, int send_invalidate_event);
+
+struct bpf_map_def SEC("maps/enabled_events") enabled_events = {
+    .type = BPF_MAP_TYPE_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u64),
+    .max_entries = 1,
+    .pinning = 0,
+    .namespace = "",
+};
+
+static __attribute__((always_inline)) u64 get_enabled_events(void) {
+    u32 key = 0;
+    u64 *mask = bpf_map_lookup_elem(&enabled_events, &key);
+    if (mask)
+        return *mask;
+    return 0;
+}
+
+static __attribute__((always_inline)) int mask_has_event(u64 event_mask, enum event_type event) {
+    return event_mask & (1 << (event-1));
+}
+
+static __attribute__((always_inline)) int is_event_enabled(enum event_type event) {
+    return mask_has_event(get_enabled_events(), event);
 }
 
 #endif
