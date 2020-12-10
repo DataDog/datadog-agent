@@ -14,7 +14,7 @@ import (
 // TestPayloadChunking creates a payload that is N * writer.MaxPayloadSize and
 // expects the trace-agent to writer N+1 payloads and not miss any trace.
 func TestPayloadChunking(t *testing.T) {
-	r := test.Runner{Verbose: true}
+	r := test.Runner{}
 	if err := r.Start(); err != nil {
 		t.Fatal(err)
 	}

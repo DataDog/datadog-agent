@@ -172,6 +172,20 @@ func (c *CheckBase) Warnf(format string, params ...interface{}) error {
 // long-running checks (persisting after Run() exits)
 func (c *CheckBase) Stop() {}
 
+// Cancel calls CommonCancel by default. Override it if
+// your check has background resources that need to be cleaned up
+// when the check is unscheduled. Make sure to call CommonCancel from
+// your override.
+func (c *CheckBase) Cancel() {
+	c.CommonCancel()
+}
+
+// CommonCancel cleans up common resources. Must be called from Cancel
+// when checks implement it.
+func (c *CheckBase) CommonCancel() {
+	aggregator.DestroySender(c.checkID)
+}
+
 // Interval returns the scheduling time for the check.
 // Long-running checks should override to return 0.
 func (c *CheckBase) Interval() time.Duration {

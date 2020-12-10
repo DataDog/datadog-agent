@@ -107,12 +107,14 @@ build do
                 move "#{install_dir}/scripts/datadog-agent", "/etc/init.d"
                 move "#{install_dir}/scripts/datadog-agent-trace", "/etc/init.d"
                 move "#{install_dir}/scripts/datadog-agent-process", "/etc/init.d"
+                move "#{install_dir}/scripts/datadog-agent-security", "/etc/init.d"
             end
             if suse?
                 mkdir "/etc/init.d"
                 move "#{install_dir}/scripts/datadog-agent", "/etc/init.d"
                 move "#{install_dir}/scripts/datadog-agent-trace", "/etc/init.d"
                 move "#{install_dir}/scripts/datadog-agent-process", "/etc/init.d"
+                move "#{install_dir}/scripts/datadog-agent-security", "/etc/init.d"
             end
             mkdir systemd_directory
             move "#{install_dir}/scripts/datadog-agent.service", systemd_directory
@@ -187,7 +189,7 @@ build do
             strip_exclude("*cffi_backend*")
 
             # Do not strip eBPF programs
-            strip_exclude("*tracer-ebpf*")
+            strip_exclude("*tracer*")
             strip_exclude("*offset-guess*")
             strip_exclude("*runtime-security*")
         end

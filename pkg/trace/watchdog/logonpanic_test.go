@@ -28,7 +28,7 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-	log.SetupDatadogLogger(logger, "INFO")
+	log.SetupLogger(logger, "INFO")
 }
 
 func TestLogOnPanicMain(t *testing.T) {

@@ -16,12 +16,12 @@ import (
 func TestBySlicesWeightedHalf(t *testing.T) {
 	s := NewSliceSummary()
 	for i := 0; i < 100000; i++ {
-		s.Insert(float64(i%10000), 0)
+		s.Insert(float64(i % 10000))
 	}
 
 	s2 := NewSliceSummary()
 	for i := 0; i < 100000; i++ {
-		s2.Insert(float64(i%10000), 0)
+		s2.Insert(float64(i % 10000))
 	}
 
 	sw1 := WeightedSliceSummary{1.0, s}
@@ -52,7 +52,7 @@ func TestBySlicesWeightedHalf(t *testing.T) {
 func TestBySlicesWeightedSingle(t *testing.T) {
 	s := NewSliceSummary()
 	for i := 0; i < 1000000; i++ {
-		s.Insert(float64(i), 0)
+		s.Insert(float64(i))
 	}
 
 	sw := WeightedSliceSummary{0.1, s}
@@ -82,7 +82,7 @@ func TestBySlicesWeightedSingle(t *testing.T) {
 func TestBySlicesWeightedSmall(t *testing.T) {
 	s := NewSliceSummary()
 	for i := 0; i < 10; i++ {
-		s.Insert(float64(i), 0)
+		s.Insert(float64(i))
 	}
 
 	sw := WeightedSliceSummary{0.5, s}

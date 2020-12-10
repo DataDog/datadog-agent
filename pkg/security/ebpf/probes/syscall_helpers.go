@@ -28,6 +28,8 @@ func resolveRuntimeArch() {
 	switch string(uname.Machine[:bytes.IndexByte(uname.Machine[:], 0)]) {
 	case "x86_64":
 		RuntimeArch = "x64"
+	case "aarch64":
+		RuntimeArch = "arm64"
 	default:
 		RuntimeArch = "ia32"
 	}
@@ -43,15 +45,15 @@ func getSyscallPrefix() string {
 		if err != nil {
 			panic(err)
 		}
-		syscallPrefix = strings.TrimSuffix(syscall, "open")
-		if syscallPrefix != "SyS_" {
+		syscallPrefix = strings.ToLower(strings.TrimSuffix(syscall, "open"))
+		if syscallPrefix != "sys_" {
 			ia32SyscallPrefix = "__ia32_"
 		} else {
 			ia32SyscallPrefix = "compat_"
 		}
 	}
 
-	return strings.ToLower(syscallPrefix)
+	return syscallPrefix
 }
 
 func getSyscallFnName(name string) string {
@@ -81,7 +83,7 @@ func expandSyscallSections(syscallName string, flag int, compat ...bool) []strin
 	sections := expandKprobe(getSyscallFnName(syscallName), flag)
 
 	if RuntimeArch == "x64" {
-		if len(compat) > 0 && syscallPrefix != "SyS_" {
+		if len(compat) > 0 && syscallPrefix != "sys_" {
 			sections = append(sections, expandKprobe(getCompatSyscallFnName(syscallName), flag)...)
 		} else {
 			sections = append(sections, expandKprobe(getIA32SyscallFnName(syscallName), flag)...)

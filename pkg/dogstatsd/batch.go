@@ -57,6 +57,7 @@ func (b *batcher) flushSamples() {
 	}
 }
 
+// flush pushes all batched metrics to the aggregator.
 func (b *batcher) flush() {
 	b.flushSamples()
 	if len(b.events) > 0 {

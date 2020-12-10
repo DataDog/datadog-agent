@@ -28,27 +28,43 @@ if node['platform_family'] != 'windows'
   end
 
   if not ['redhat', 'suse', 'opensuseleap'].include?(node[:platform])
+    if ['ubuntu', 'debian'].include?(node[:platform])
+      apt_update
+
+      package 'gnupg'
+    end
+
+    if ['ubuntu', 'debian', 'centos'].include?(node[:platform])
+      package 'xfsprogs'
+    end
+
     docker_service 'default' do
       action [:create, :start]
     end
 
-    docker_image 'debian' do
-      tag 'bullseye'
+    docker_image 'centos' do
+      tag '7'
       action :pull
     end
 
     docker_container 'docker-testsuite' do
-      repo 'debian'
-      tag 'bullseye'
+      repo 'centos'
+      tag '7'
       cap_add ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
       command "sleep 3600"
-      volumes '/tmp/security-agent:/tmp/security-agent'
+      volumes ['/tmp/security-agent:/tmp/security-agent', '/proc:/host/proc']
+      env ['HOST_PROC=/host/proc']
       privileged true
     end
 
     docker_exec 'debug_fs' do
       container 'docker-testsuite'
       command ['mount', '-t', 'debugfs', 'none', '/sys/kernel/debug']
+    end
+
+    docker_exec 'install_xfs' do
+      container 'docker-testsuite'
+      command ['yum', '-y', 'install', 'xfsprogs', 'e2fsprogs']
     end
 
     for i in 0..7 do

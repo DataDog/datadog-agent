@@ -32,7 +32,7 @@ func BenchmarkGKSliceInsertion(b *testing.B) {
 	b.ReportAllocs()
 
 	for n := 0; n < b.N; n++ {
-		s.Insert(vals[n%randlen], uint64(n))
+		s.Insert(vals[n%randlen])
 	}
 }
 
@@ -46,7 +46,7 @@ func BenchmarkGKSliceInsertionPreallocd(b *testing.B) {
 	b.ReportAllocs()
 
 	for n := 0; n < b.N; n++ {
-		s.Insert(vals[n%randlen], uint64(n))
+		s.Insert(vals[n%randlen])
 	}
 }
 
@@ -54,7 +54,7 @@ func BGKSliceQuantiles(b *testing.B, n int) {
 	s := NewSliceSummary()
 	vals := randSlice(n)
 	for i := 0; i < n; i++ {
-		s.Insert(vals[i], uint64(i))
+		s.Insert(vals[i])
 	}
 
 	b.ResetTimer()
@@ -84,7 +84,7 @@ func BGKSliceEncoding(b *testing.B, n int) {
 	s := NewSliceSummary()
 	vals := randSlice(n)
 	for i := 0; i < n; i++ {
-		s.Insert(vals[i], uint64(i))
+		s.Insert(vals[i])
 	}
 
 	b.ResetTimer()

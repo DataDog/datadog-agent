@@ -21,6 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/profiling"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // All System Probe modules should register their factories here
@@ -85,6 +87,13 @@ func runAgent(exit <-chan struct{}) {
 		gracefulExit()
 	}
 
+	if cfg.ProfilingEnabled {
+		if err := enableProfiling(cfg); err != nil {
+			log.Warnf("failed to enable profiling: %s", err)
+		}
+		defer profiling.Stop()
+	}
+
 	log.Infof("running system-probe with version: %s", versionString(", "))
 
 	// configure statsd
@@ -101,7 +110,13 @@ func runAgent(exit <-chan struct{}) {
 
 	// if a debug port is specified, we expose the default handler to that port
 	if cfg.SystemProbeDebugPort > 0 {
-		go http.ListenAndServe(fmt.Sprintf("localhost:%d", cfg.SystemProbeDebugPort), http.DefaultServeMux) //nolint:errcheck
+		go func() {
+			err := http.ListenAndServe(fmt.Sprintf("localhost:%d", cfg.SystemProbeDebugPort), http.DefaultServeMux)
+			if err != nil && err != http.ErrServerClosed {
+				log.Criticalf("Error creating debug HTTP server: %v", err)
+				cleanupAndExit(1)
+			}
+		}()
 	}
 
 	loader := NewLoader()
@@ -139,22 +154,29 @@ func runAgent(exit <-chan struct{}) {
 	}()
 
 	log.Infof("system probe successfully started")
-
-	go func() {
-		tags := []string{
-			fmt.Sprintf("version:%s", Version),
-			fmt.Sprintf("revision:%s", GitCommit),
-		}
-		heartbeat := time.NewTicker(15 * time.Second)
-		for range heartbeat.C {
-			statsd.Client.Gauge("datadog.system_probe.agent", 1, tags, 1) //nolint:errcheck
-			for moduleName := range loader.modules {
-				statsd.Client.Gauge(fmt.Sprintf("datadog.system_probe.agent.%s", moduleName), 1, tags, 1) //nolint:errcheck
-			}
-		}
-	}()
-
 	<-exit
+}
+
+func enableProfiling(cfg *config.AgentConfig) error {
+	// allow full url override for development use
+	s := ddconfig.DefaultSite
+	if cfg.ProfilingSite != "" {
+		s = cfg.ProfilingSite
+	}
+
+	site := fmt.Sprintf(profiling.ProfileURLTemplate, s)
+	if cfg.ProfilingURL != "" {
+		site = cfg.ProfilingURL
+	}
+
+	v, _ := version.Agent()
+	return profiling.Start(
+		cfg.ProfilingAPIKey,
+		site,
+		cfg.ProfilingEnvironment,
+		"system-probe",
+		fmt.Sprintf("version:%v", v),
+	)
 }
 
 func gracefulExit() {

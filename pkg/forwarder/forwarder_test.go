@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -30,6 +31,10 @@ var (
 	keysPerDomains = map[string][]string{
 		testDomain:    {"api-key-1", "api-key-2"},
 		"datadog.bar": nil,
+	}
+	keysWithMultipleDomains = map[string][]string{
+		testDomain:    {"api-key-1", "api-key-2"},
+		"datadog.bar": {"api-key-3"},
 	}
 	validKeysPerDomain = map[string][]string{
 		testVersionDomain: {"api-key-1", "api-key-2"},
@@ -123,15 +128,16 @@ func TestCreateHTTPTransactions(t *testing.T) {
 	assert.Equal(t, testVersionDomain, transactions[1].Domain)
 	assert.Equal(t, testVersionDomain, transactions[2].Domain)
 	assert.Equal(t, testVersionDomain, transactions[3].Domain)
-	assert.Equal(t, endpoint.route, transactions[0].Endpoint)
-	assert.Equal(t, endpoint.route, transactions[1].Endpoint)
-	assert.Equal(t, endpoint.route, transactions[2].Endpoint)
-	assert.Equal(t, endpoint.route, transactions[3].Endpoint)
+	assert.Equal(t, endpoint.route, transactions[0].Endpoint.route)
+	assert.Equal(t, endpoint.route, transactions[1].Endpoint.route)
+	assert.Equal(t, endpoint.route, transactions[2].Endpoint.route)
+	assert.Equal(t, endpoint.route, transactions[3].Endpoint.route)
 	assert.Len(t, transactions[0].Headers, 4)
 	assert.NotEmpty(t, transactions[0].Headers.Get("DD-Api-Key"))
 	assert.NotEmpty(t, transactions[0].Headers.Get("HTTP-MAGIC"))
 	assert.Equal(t, version.AgentVersion, transactions[0].Headers.Get("DD-Agent-Version"))
 	assert.Equal(t, "datadog-agent/"+version.AgentVersion, transactions[0].Headers.Get("User-Agent"))
+	assert.Equal(t, "", transactions[0].Headers.Get(arbitraryTagHTTPHeaderKey))
 	assert.Equal(t, p1, *(transactions[0].Payload))
 	assert.Equal(t, p1, *(transactions[1].Payload))
 	assert.Equal(t, p2, *(transactions[2].Payload))
@@ -139,10 +145,59 @@ func TestCreateHTTPTransactions(t *testing.T) {
 
 	transactions = forwarder.createHTTPTransactions(endpoint, payloads, true, headers)
 	require.Len(t, transactions, 4)
-	assert.Contains(t, transactions[0].Endpoint, "api_key=api-key-1")
-	assert.Contains(t, transactions[1].Endpoint, "api_key=api-key-2")
-	assert.Contains(t, transactions[2].Endpoint, "api_key=api-key-1")
-	assert.Contains(t, transactions[3].Endpoint, "api_key=api-key-2")
+	assert.Contains(t, transactions[0].Endpoint.route, "api_key=api-key-1")
+	assert.Contains(t, transactions[1].Endpoint.route, "api_key=api-key-2")
+	assert.Contains(t, transactions[2].Endpoint.route, "api_key=api-key-1")
+	assert.Contains(t, transactions[3].Endpoint.route, "api_key=api-key-2")
+}
+
+func TestCreateHTTPTransactionsWithMultipleDomains(t *testing.T) {
+	forwarder := NewDefaultForwarder(NewOptions(keysWithMultipleDomains))
+	endpoint := endpoint{route: "/api/foo", name: "foo"}
+	p1 := []byte("A payload")
+	payloads := Payloads{&p1}
+	headers := make(http.Header)
+	headers.Set("HTTP-MAGIC", "foo")
+
+	transactions := forwarder.createHTTPTransactions(endpoint, payloads, true, headers)
+	require.Len(t, transactions, 3, "should contain 3 transactions, contains %d", len(transactions))
+
+	var txNormal, txBar []*HTTPTransaction
+	for _, t := range transactions {
+		if t.Domain == testVersionDomain {
+			txNormal = append(txNormal, t)
+		}
+		if t.Domain == "datadog.bar" {
+			txBar = append(txBar, t)
+		}
+	}
+
+	assert.Equal(t, len(txNormal), 2, "Two transactions should target the normal domain")
+	assert.Equal(t, len(txBar), 1, "One transactions should target the normal domain")
+
+	if strings.HasSuffix(txNormal[0].Endpoint.route, "api-key-1") {
+		assert.Equal(t, txNormal[0].Endpoint.route, "/api/foo?api_key=api-key-1")
+		assert.Equal(t, txNormal[1].Endpoint.route, "/api/foo?api_key=api-key-2")
+	} else {
+		assert.Equal(t, txNormal[0].Endpoint.route, "/api/foo?api_key=api-key-2")
+		assert.Equal(t, txNormal[1].Endpoint.route, "/api/foo?api_key=api-key-1")
+	}
+	assert.Equal(t, txBar[0].Endpoint.route, "/api/foo?api_key=api-key-3")
+}
+
+func TestArbitraryTagsHTTPHeader(t *testing.T) {
+	mockConfig := config.Mock()
+	mockConfig.Set("allow_arbitrary_tags", true)
+	defer mockConfig.Set("allow_arbitrary_tags", false)
+
+	forwarder := NewDefaultForwarder(NewOptions(keysPerDomains))
+	endpoint := endpoint{"/api/foo", "foo"}
+	payload := []byte("A payload")
+	headers := make(http.Header)
+
+	transactions := forwarder.createHTTPTransactions(endpoint, Payloads{&payload}, false, headers)
+	require.True(t, len(transactions) > 0)
+	assert.Equal(t, "true", transactions[0].Headers.Get(arbitraryTagHTTPHeaderKey))
 }
 
 func TestSendHTTPTransactions(t *testing.T) {
@@ -494,4 +549,50 @@ func TestHighPriorityTransaction(t *testing.T) {
 	assert.Equal(t, string(dataHighPrio), <-requestChan)
 	assert.Equal(t, string(data2), <-requestChan)
 	assert.Equal(t, string(data1), <-requestChan)
+}
+
+func TestCustomCompletionHandler(t *testing.T) {
+	transactionsDroppedOnInput.Set(0)
+
+	// Setup a test HTTP server
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	// Point agent configuration to it
+	cfg := config.Mock()
+	prevURL := cfg.Get("dd_url")
+	defer cfg.Set("dd_url", prevURL)
+	cfg.Set("dd_url", srv.URL)
+
+	// Now let's create a Forwarder with a custom HTTPCompletionHandler set to it
+	done := make(chan struct{})
+	defer close(done)
+	var handler HTTPCompletionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {
+		done <- struct{}{}
+	}
+
+	options := NewOptions(map[string][]string{
+		srv.URL: {"api_key1"},
+	})
+	options.CompletionHandler = handler
+
+	f := NewDefaultForwarder(options)
+	f.Start()
+	defer f.Stop()
+
+	data := []byte("payload_data")
+	payload := Payloads{&data}
+	assert.Nil(t, f.SubmitV1Series(payload, http.Header{}))
+
+	// And finally let's ensure the handler gets called
+	var handlerCalled bool
+	select {
+	case <-done:
+		handlerCalled = true
+	case <-time.After(time.Second):
+	}
+
+	assert.True(t, handlerCalled)
 }

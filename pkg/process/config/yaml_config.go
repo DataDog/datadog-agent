@@ -14,16 +14,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
-	coreutil "github.com/DataDog/datadog-agent/pkg/util"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	ns             = "process_config"
-	orchestratorNS = "orchestrator_explorer"
-	spNS           = "system_probe_config"
+	ns   = "process_config"
+	spNS = "system_probe_config"
 )
 
 func key(pieces ...string) string {
@@ -58,11 +55,6 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	}
 
 	if config.Datadog.GetBool(key(spNS, "enabled")) {
-		a.EnabledChecks = append(a.EnabledChecks, "connections")
-		if !a.Enabled {
-			log.Info("enabling process-agent for connections check as the system-probe is enabled")
-			a.Enabled = true
-		}
 		a.EnableSystemProbe = true
 	}
 
@@ -159,11 +151,20 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	}
 
 	if config.Datadog.GetBool(key(spNS, "enable_tcp_queue_length")) {
+		log.Info("system_probe_config.enable_tcp_queue_length detected, will enable system-probe with TCP queue length check")
+		a.EnableSystemProbe = true
 		a.EnabledChecks = append(a.EnabledChecks, "TCP queue length")
 	}
 
 	if config.Datadog.GetBool(key(spNS, "enable_oom_kill")) {
+		log.Info("system_probe_config.enable_oom_kill detected, will enable system-probe with OOM Kill check")
+		a.EnableSystemProbe = true
 		a.EnabledChecks = append(a.EnabledChecks, "OOM Kill")
+	}
+
+	if config.Datadog.GetBool("runtime_security_config.enabled") {
+		log.Info("runtime_security_config.enabled=true, enabling system-probe")
+		a.EnableSystemProbe = true
 	}
 
 	if config.Datadog.IsSet(key(spNS, "enable_tracepoints")) {
@@ -176,24 +177,32 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.Windows.DriverBufferSize = driverBufferSize
 	}
 
-	// If there is no network_config, assume it is an old version of the config, and enable
-	// the network check. This has the downside that if the network_config is deleted, network
-	// check will be enabled.  However, this seems like the best option for backwards compatibility.
-	//
-	// The network check won't be run if sysprobe isn't enabled so there's no need to check
-	// EnableSystemProbe here.
-	networkEnabled := true
-	// network_config is a top-level config, not a subconfig of system_probe_config
-	if config.Datadog.IsSet("network_config") {
-		// System probe can be run without the network module as determined on the network_config.enabled value
-		networkEnabled = config.Datadog.GetBool("network_config.enabled")
-		log.Info(fmt.Sprintf("network_config found, enabled = %v", networkEnabled))
-	} else {
-		log.Info("network_config not found, enabling network check by default")
+	// Enable network and connections check
+	if config.Datadog.GetBool("network_config.enabled") {
+		log.Info(fmt.Sprintf("network_config.enabled detected: enabling system-probe with network module running."))
+		a.EnabledChecks = append(a.EnabledChecks, "connections", "Network")
+		a.EnableSystemProbe = true // system-probe is implicitly enabled if networks is enabled
+	} else if config.Datadog.IsSet(key(spNS, "enabled")) && config.Datadog.GetBool(key(spNS, "enabled")) && !config.Datadog.IsSet(key("network_config", "enabled")) {
+		// This case exists to preserve backwards compatibility. If system_probe.enabled is explicitlty set to true, and there is no network_config block,
+		// enable the connections/network check.
+		log.Info("network_config not found, but system-probe was enabled, enabling network module by default")
+		a.EnabledChecks = append(a.EnabledChecks, "Network", "connections")
+		a.EnableSystemProbe = true
 	}
-	if networkEnabled {
-		a.EnabledChecks = append(a.EnabledChecks, "Network")
+
+	if !a.Enabled && util.StringInSlice(a.EnabledChecks, "connections") {
+		log.Info("enabling process-agent for connections check as the system-probe is enabled")
+		a.Enabled = true
 	}
+
+	if config.Datadog.IsSet(key(spNS, "profiling_enabled")) {
+		a.ProfilingEnabled = config.Datadog.GetBool(key(spNS, "profiling.enabled"))
+		a.ProfilingSite = config.Datadog.GetString(key(spNS, "profiling.site"))
+		a.ProfilingURL = config.Datadog.GetString(key(spNS, "profiling.profile_dd_url"))
+		a.ProfilingAPIKey = config.Datadog.GetString(key(spNS, "profiling.api_key"))
+		a.ProfilingEnvironment = config.Datadog.GetString(key(spNS, "profiling.env"))
+	}
+
 	return nil
 }
 
@@ -212,15 +221,8 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	}
 	a.APIEndpoints[0].Endpoint = URL
 
-	URL, err = extractOrchestratorDDUrl()
-	if err != nil {
-		return err
-	}
-	a.OrchestratorEndpoints[0].Endpoint = URL
-
 	if key := "api_key"; config.Datadog.IsSet(key) {
 		a.APIEndpoints[0].APIKey = config.Datadog.GetString(key)
-		a.OrchestratorEndpoints[0].APIKey = config.Datadog.GetString(key)
 	}
 
 	if config.Datadog.IsSet("hostname") {
@@ -320,12 +322,6 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		}
 	}
 
-	if k := key(ns, "pod_queue_bytes"); config.Datadog.IsSet(k) {
-		if queueBytes := config.Datadog.GetInt(k); queueBytes > 0 {
-			a.PodQueueBytes = queueBytes
-		}
-	}
-
 	// The maximum number of processes, or containers per message. Note: Only change if the defaults are causing issues.
 	if k := key(ns, "max_per_message"); config.Datadog.IsSet(k) {
 		if maxPerMessage := config.Datadog.GetInt(k); maxPerMessage <= 0 {
@@ -370,9 +366,6 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 			}
 		}
 	}
-	if err := extractOrchestratorAdditionalEndpoints(URL, &a.OrchestratorEndpoints); err != nil {
-		return err
-	}
 
 	// Used to override container source auto-detection
 	// and to enable multiple collector sources if needed.
@@ -402,58 +395,7 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	// Build transport (w/ proxy if needed)
 	a.Transport = httputils.CreateHTTPTransport()
 
-	// Orchestrator Explorer
-	if config.Datadog.GetBool("orchestrator_explorer.enabled") {
-		a.OrchestrationCollectionEnabled = true
-		// Set clustername
-		hostname, _ := coreutil.GetHostname()
-		if clusterName := clustername.GetClusterName(hostname); clusterName != "" {
-			a.KubeClusterName = clusterName
-		}
-	}
-	a.IsScrubbingEnabled = config.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled")
-
 	return nil
-}
-
-func extractOrchestratorAdditionalEndpoints(URL *url.URL, orchestratorEndpoints *[]api.Endpoint) error {
-	if k := key(orchestratorNS, "orchestrator_additional_endpoints"); config.Datadog.IsSet(k) {
-		if err := extractEndpoints(URL, k, orchestratorEndpoints); err != nil {
-			return err
-		}
-	} else if k := key(ns, "orchestrator_additional_endpoints"); config.Datadog.IsSet(k) {
-		if err := extractEndpoints(URL, k, orchestratorEndpoints); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func extractEndpoints(URL *url.URL, k string, endpoints *[]api.Endpoint) error {
-	for endpointURL, apiKeys := range config.Datadog.GetStringMapStringSlice(k) {
-		u, err := URL.Parse(endpointURL)
-		if err != nil {
-			return fmt.Errorf("invalid additional endpoint url '%s': %s", endpointURL, err)
-		}
-		for _, k := range apiKeys {
-			*endpoints = append(*endpoints, api.Endpoint{
-				APIKey:   k,
-				Endpoint: u,
-			})
-		}
-	}
-	return nil
-}
-
-// extractOrchestratorDDUrl contains backward compatible config parsing code.
-func extractOrchestratorDDUrl() (*url.URL, error) {
-	orchestratorURL := key(orchestratorNS, "orchestrator_dd_url")
-	processURL := key(ns, "orchestrator_dd_url")
-	URL, err := url.Parse(config.GetMainEndpointWithConfigBackwardCompatible(config.Datadog, "https://orchestrator.", orchestratorURL, processURL))
-	if err != nil {
-		return nil, fmt.Errorf("error parsing orchestrator_dd_url: %s", err)
-	}
-	return URL, nil
 }
 
 func (a *AgentConfig) setCheckInterval(ns, check, checkKey string) {

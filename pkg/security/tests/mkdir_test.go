@@ -19,11 +19,15 @@ import (
 func TestMkdir(t *testing.T) {
 	rules := []*rules.RuleDefinition{
 		{
-			ID:         "test_rule",
-			Expression: `mkdir.filename == "{{.Root}}/test-mkdir" || mkdir.filename == "{{.Root}}/testat-mkdir"`,
+			ID:         "test_rule_mkdir",
+			Expression: `mkdir.filename == "{{.Root}}/test-mkdir"`,
 		},
 		{
-			ID:         "test_rule2",
+			ID:         "test_rule_mkdirat",
+			Expression: `mkdir.filename == "{{.Root}}/testat-mkdir"`,
+		},
+		{
+			ID:         "test_rule_mkdirat_error",
 			Expression: `process.name == "{{.ProcessName}}" && mkdir.retval == EACCES`,
 		},
 	}
@@ -45,17 +49,23 @@ func TestMkdir(t *testing.T) {
 		}
 		defer syscall.Rmdir(testFile)
 
-		event, _, err := test.GetEvent()
+		event, rule, err := test.GetEvent()
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "mkdir" {
-				t.Errorf("expected mkdir event, got %s", event.GetType())
+			if rule.ID != "test_rule_mkdir" {
+				t.Errorf("expected triggered rule 'test_rule_mkdir', got '%s'", rule.ID)
 			}
 
 			if mode := event.Mkdir.Mode; mode != 0707 {
 				t.Errorf("expected mkdir mode 0707, got %#o (%+v)", mode, event)
 			}
+
+			if inode := getInode(t, testFile); inode != event.Mkdir.Inode {
+				t.Errorf("expected inode %d, got %d", event.Mkdir.Inode, inode)
+			}
+
+			testContainerPath(t, event, "mkdir.container_path")
 		}
 	})
 
@@ -69,17 +79,23 @@ func TestMkdir(t *testing.T) {
 			t.Fatal(error(errno))
 		}
 
-		event, _, err := test.GetEvent()
+		event, rule, err := test.GetEvent()
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "mkdir" {
-				t.Errorf("expected mkdir event, got %s", event.GetType())
+			if rule.ID != "test_rule_mkdirat" {
+				t.Errorf("expected triggered rule 'test_rule_mkdirat', got '%s'", rule.ID)
 			}
 
 			if mode := event.Mkdir.Mode; mode != 0777 {
 				t.Errorf("expected mkdir mode 0777, got %#o", mode)
 			}
+
+			if inode := getInode(t, testatFile); inode != event.Mkdir.Inode {
+				t.Errorf("expected inode %d, got %d", event.Mkdir.Inode, inode)
+			}
+
+			testContainerPath(t, event, "mkdir.container_path")
 		}
 
 		if err := syscall.Rmdir(testatFile); err != nil {
@@ -114,12 +130,12 @@ func TestMkdir(t *testing.T) {
 			}
 		}()
 
-		event, _, err := test.GetEvent()
+		event, rule, err := test.GetEvent()
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "mkdir" {
-				t.Errorf("expected mkdir event, got %s", event.GetType())
+			if rule.ID != "test_rule_mkdirat_error" {
+				t.Errorf("expected triggered rule 'test_rule_mkdirat_error', got '%s'", rule.ID)
 			}
 
 			if retval := event.Mkdir.Retval; retval != -int64(syscall.EACCES) {

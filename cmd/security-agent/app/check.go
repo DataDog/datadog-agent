@@ -11,5 +11,5 @@ package app
 import "github.com/DataDog/datadog-agent/cmd/security-agent/common"
 
 func init() {
-	SecurityAgentCmd.AddCommand(common.CheckCmd(&confPath))
+	SecurityAgentCmd.AddCommand(common.CheckCmd(confPathArray))
 }
