@@ -359,12 +359,11 @@ func decodeTraces(v Version, req *http.Request) (pb.Traces, error) {
 	case v05:
 		buf := getBuffer()
 		defer putBuffer(buf)
-		_, err := io.Copy(buf, req.Body)
-		if err != nil {
+		if _, err := io.Copy(buf, req.Body); err != nil {
 			return nil, err
 		}
 		var traces pb.Traces
-		err = traces.UnmarshalMsgDictionary(buf.Bytes())
+		err := traces.UnmarshalMsgDictionary(buf.Bytes())
 		return traces, err
 	default:
 		var traces pb.Traces

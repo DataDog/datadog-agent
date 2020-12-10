@@ -155,10 +155,7 @@ func (z *Span) UnmarshalMsgDictionary(bts []byte, dict []string) ([]byte, error)
 	}
 	for sz > 0 {
 		sz--
-		var (
-			key string
-			val string
-		)
+		var key, val string
 		key, bts, err = dictionaryString(bts, dict)
 		if err != nil {
 			return bts, err
