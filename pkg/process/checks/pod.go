@@ -59,5 +59,5 @@ func (c *PodCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageB
 		return nil, err
 	}
 
-	return orchestrator.ProcessPodList(podList, groupID, cfg.HostName, clusterID, cfg.Orchestrator, nil)
+	return orchestrator.ProcessPodList(podList, groupID, cfg.HostName, clusterID, cfg.Orchestrator)
 }

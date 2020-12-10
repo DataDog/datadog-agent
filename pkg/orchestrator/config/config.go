@@ -37,6 +37,7 @@ type OrchestratorConfig struct {
 	OrchestratorEndpoints          []api.Endpoint
 	MaxPerMessage                  int
 	PodQueueBytes                  int // The total number of bytes that can be enqueued for delivery to the orchestrator endpoint
+	ExtraTags                      []string
 }
 
 // NewDefaultOrchestratorConfig returns an NewDefaultOrchestratorConfig using a configuration file. It can be nil
@@ -114,6 +115,7 @@ func (oc *OrchestratorConfig) LoadYamlConfig(path string) error {
 		}
 	}
 	oc.IsScrubbingEnabled = config.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled")
+	oc.ExtraTags = config.Datadog.GetStringSlice("orchestrator_explorer.extra_tags")
 
 	return nil
 }

@@ -33,7 +33,7 @@ const (
 )
 
 // ProcessPodList processes a pod list into process messages
-func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID string, config *config.OrchestratorConfig, extraTags []string) ([]model.MessageBody, error) {
+func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID string, cfg *config.OrchestratorConfig) ([]model.MessageBody, error) {
 	start := time.Now()
 	podMsgs := make([]*model.Pod, 0, len(podList))
 
@@ -44,7 +44,7 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID
 		// static pods "uid" are actually not unique across nodes.
 		// we differ from the k8 uuid format in purpose to differentiate those static pods.
 		if pod.IsStaticPod(podList[p]) {
-			newUID := generateUniqueStaticPodHash(hostName, podList[p].Name, podList[p].Namespace, config.KubeClusterName)
+			newUID := generateUniqueStaticPodHash(hostName, podList[p].Name, podList[p].Namespace, cfg.KubeClusterName)
 			// modify it in the original pod for the YAML and in our model
 			podList[p].UID = types.UID(newUID)
 			podModel.Metadata.Uid = newUID
@@ -66,12 +66,12 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID
 		podModel.Tags = append(tags, fmt.Sprintf("pod_status:%s", strings.ToLower(podModel.Status)))
 
 		// scrub & generate YAML
-		if config.IsScrubbingEnabled {
+		if cfg.IsScrubbingEnabled {
 			for c := 0; c < len(podList[p].Spec.Containers); c++ {
-				redact.ScrubContainer(&podList[p].Spec.Containers[c], config.Scrubber)
+				redact.ScrubContainer(&podList[p].Spec.Containers[c], cfg.Scrubber)
 			}
 			for c := 0; c < len(podList[p].Spec.InitContainers); c++ {
-				redact.ScrubContainer(&podList[p].Spec.InitContainers[c], config.Scrubber)
+				redact.ScrubContainer(&podList[p].Spec.InitContainers[c], cfg.Scrubber)
 			}
 		}
 
@@ -87,21 +87,21 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID
 		podMsgs = append(podMsgs, podModel)
 	}
 
-	groupSize := len(podMsgs) / config.MaxPerMessage
-	if len(podMsgs)%config.MaxPerMessage != 0 {
+	groupSize := len(podMsgs) / cfg.MaxPerMessage
+	if len(podMsgs)%cfg.MaxPerMessage != 0 {
 		groupSize++
 	}
-	chunked := chunkPods(podMsgs, groupSize, config.MaxPerMessage)
+	chunked := chunkPods(podMsgs, groupSize, cfg.MaxPerMessage)
 	messages := make([]model.MessageBody, 0, groupSize)
 	for i := 0; i < groupSize; i++ {
 		messages = append(messages, &model.CollectorPod{
 			HostName:    hostName,
-			ClusterName: config.KubeClusterName,
+			ClusterName: cfg.KubeClusterName,
 			Pods:        chunked[i],
 			GroupId:     groupID,
 			GroupSize:   int32(groupSize),
 			ClusterId:   clusterID,
-			Tags:        extraTags,
+			Tags:        cfg.ExtraTags,
 		})
 	}
 
