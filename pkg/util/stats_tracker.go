@@ -65,34 +65,12 @@ func (s *StatsTracker) Add(value int64) {
 
 	now := s.timeProvider()
 
+	s.dropOldPoints(now)
+
 	if s.avgPointsHead == nil {
 		s.avgPointsHead = &taggedPoint{now, value, 0}
 		s.peakPointsHead = &taggedPoint{now, value, 0}
-	} else if s.avgPointsHead.timeStamp < now-s.bucketFrame {
-		// Pop off the oldest values
-		if len(s.aggregatedAvgPoints) > 0 {
-			dropFromIndex := 0
-			for _, v := range s.aggregatedAvgPoints {
-				if v.timeStamp > now-s.timeFrame {
-					break
-				}
-				dropFromIndex++
-			}
-
-			s.aggregatedAvgPoints = s.aggregatedAvgPoints[dropFromIndex:]
-			s.aggregatedPeakPoints = s.aggregatedPeakPoints[dropFromIndex:]
-		}
-
-		// Add the new aggregated point to the slice
-		s.aggregatedAvgPoints = append(s.aggregatedAvgPoints, s.avgPointsHead)
-		s.aggregatedPeakPoints = append(s.aggregatedPeakPoints, s.peakPointsHead)
-
-		// Reset the current aggregated point
-		s.avgPointsHead = &taggedPoint{now, value, 0}
-		s.peakPointsHead = &taggedPoint{now, value, 0}
-	}
-
-	if s.peakPointsHead.value < value {
+	} else if s.peakPointsHead.value < value {
 		s.peakPointsHead.value = value
 	}
 
@@ -114,6 +92,9 @@ func (s *StatsTracker) AllTimeAvg() int64 {
 func (s *StatsTracker) MovingAvg() int64 {
 	s.lock.Lock()
 	defer s.lock.Unlock()
+
+	s.dropOldPoints(s.timeProvider())
+
 	if s.avgPointsHead == nil {
 		return 0
 	}
@@ -137,6 +118,9 @@ func (s *StatsTracker) AllTimePeak() int64 {
 func (s *StatsTracker) MovingPeak() int64 {
 	s.lock.Lock()
 	defer s.lock.Unlock()
+
+	s.dropOldPoints(s.timeProvider())
+
 	if s.peakPointsHead == nil {
 		return 0
 	}
@@ -147,4 +131,28 @@ func (s *StatsTracker) MovingPeak() int64 {
 		}
 	}
 	return largest
+}
+
+func (s *StatsTracker) dropOldPoints(now int64) {
+	if s.avgPointsHead != nil && s.avgPointsHead.timeStamp < now-s.bucketFrame {
+		// Pop off the oldest values
+		if len(s.aggregatedAvgPoints) > 0 {
+			dropFromIndex := 0
+			for _, v := range s.aggregatedAvgPoints {
+				if v.timeStamp > now-s.timeFrame {
+					break
+				}
+				dropFromIndex++
+			}
+
+			s.aggregatedAvgPoints = s.aggregatedAvgPoints[dropFromIndex:]
+			s.aggregatedPeakPoints = s.aggregatedPeakPoints[dropFromIndex:]
+		}
+
+		// Add the new aggregated point to the slice
+		s.aggregatedAvgPoints = append(s.aggregatedAvgPoints, s.avgPointsHead)
+		s.aggregatedPeakPoints = append(s.aggregatedPeakPoints, s.peakPointsHead)
+		s.avgPointsHead = nil
+		s.peakPointsHead = nil
+	}
 }
