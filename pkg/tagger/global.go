@@ -57,6 +57,22 @@ func Tag(entity string, cardinality collectors.TagCardinality) ([]string, error)
 	return defaultTagger.Tag(entity, cardinality)
 }
 
+// TagWithHash is similar to Tag but it also computes and returns the hash of the tags found
+func TagWithHash(entity string, cardinality collectors.TagCardinality) ([]string, string, error) {
+	tags, err := Tag(entity, cardinality)
+	if err != nil {
+		return tags, "", err
+	}
+	return tags, computeTagsHash(tags), nil
+}
+
+// GetEntityHash returns the hash for the tags associated with the given entity
+// Returns an empty string if the tags lookup fails
+func GetEntityHash(entity string, cardinality collectors.TagCardinality) string {
+	_, hash, _ := TagWithHash(entity, cardinality)
+	return hash
+}
+
 // StandardTags queries the defaultTagger to get entity
 // standard tags (env, version, service) from cache or sources.
 func StandardTags(entity string) ([]string, error) {
@@ -88,11 +104,6 @@ func Stop() error {
 // List the content of the defaulTagger
 func List(cardinality collectors.TagCardinality) response.TaggerListResponse {
 	return defaultTagger.List(cardinality)
-}
-
-// GetEntityHash returns the hash for the tags associated with the given entity
-func GetEntityHash(entity string) string {
-	return defaultTagger.GetEntityHash(entity)
 }
 
 // GetDefaultTagger returns the global Tagger instance

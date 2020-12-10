@@ -7,11 +7,24 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/gopsutil/host"
 )
+
+type statusInfo struct {
+	name       string
+	status     string
+	uids       []int32
+	gids       []int32
+	nspid      int32
+	numThreads int32
+
+	memInfo     *MemoryInfoStat
+	ctxSwitches *NumCtxSwitchesStat
+}
 
 // Probe is a service that fetches process related info on current host
 type Probe struct {
@@ -67,14 +80,38 @@ func (p *Probe) ProcessesByPID() (map[int32]*Process, error) {
 			continue
 		}
 
+		statusInfo := p.parseStatus(pathForPID)
+
 		procsByPID[pid] = &Process{
-			Pid:     pid,     // /proc/{pid}
-			Ppid:    0,       // /proc/{pid}/stat
-			Cmdline: cmdline, // /proc/{pid}/cmdline
+			Pid:     pid,               // /proc/{pid}
+			Cmdline: cmdline,           // /proc/{pid}/cmdline
+			Name:    statusInfo.name,   // /proc/{pid}/status
+			Status:  statusInfo.status, // /proc/{pid}/status
+			Uids:    statusInfo.uids,   // /proc/{pid}/status
+			Gids:    statusInfo.gids,   // /proc/{pid}/status
+			NsPid:   statusInfo.nspid,  // /proc/{pid}/status
+			Stats: &Stats{
+				MemInfo:     statusInfo.memInfo,     // /proc/{pid}/status or statm
+				CtxSwitches: statusInfo.ctxSwitches, // /proc/{pid}/status
+				NumThreads:  statusInfo.numThreads,  // /proc/{pid}/status
+			},
 		}
 	}
 
 	return procsByPID, nil
+}
+
+func (p *Probe) getRootProcFile() (*os.File, error) {
+	if p.procRootFile != nil { // TODO (sk): Should we consider refreshing the file descriptor occasionally?
+		return p.procRootFile, nil
+	}
+
+	f, err := os.Open(p.procRootLoc)
+	if err == nil {
+		p.procRootFile = f
+	}
+
+	return f, err
 }
 
 // getActivePIDs retrieves a list of PIDs representing actively running processes.
@@ -107,7 +144,7 @@ func (p *Probe) getActivePIDs() ([]int32, error) {
 	return pids, nil
 }
 
-// getCmdline takes file path for a PID and retrieves the command line text
+// getCmdline retrieves the command line text from "cmdline" file for a process in procfs
 func (p *Probe) getCmdline(pidPath string) []string {
 	cmdline, err := ioutil.ReadFile(filepath.Join(pidPath, "cmdline"))
 	if err != nil {
@@ -120,6 +157,114 @@ func (p *Probe) getCmdline(pidPath string) []string {
 	}
 
 	return trimAndSplitBytes(cmdline)
+}
+
+// parseStatus retrieves status info from "status" file for a process in procfs
+func (p *Probe) parseStatus(pidPath string) *statusInfo {
+	path := filepath.Join(pidPath, "status")
+	var err error
+
+	sInfo := &statusInfo{
+		uids:        []int32{},
+		gids:        []int32{},
+		memInfo:     &MemoryInfoStat{},
+		ctxSwitches: &NumCtxSwitchesStat{},
+	}
+
+	contents, err := ioutil.ReadFile(path)
+	if err != nil {
+		return sInfo
+	}
+
+	index := 0
+	for i, r := range contents {
+		if r == '\n' {
+			p.parseStatusLine(contents[index:i], sInfo)
+			index = i + 1
+		}
+	}
+
+	return sInfo
+}
+
+// parseStatusLine takes each line in "status" file and parses info from it
+func (p *Probe) parseStatusLine(line []byte, sInfo *statusInfo) {
+	for i := range line {
+		// the fields are all having format "field_name:\tfield_value", so we always
+		// look for ":\t" and skip them
+		if i+2 < len(line) && line[i] == ':' && line[i+1] == '\t' {
+			key := line[0:i]
+			value := line[i+2:]
+			p.parseStatusKV(string(key), string(value), sInfo)
+			break
+		}
+	}
+}
+
+// parseStatusKV takes tokens parsed from each line in "status" file and populates statusInfo object
+func (p *Probe) parseStatusKV(key, value string, sInfo *statusInfo) {
+	switch key {
+	case "Name":
+		sInfo.name = strings.Trim(value, " \t")
+	case "State":
+		sInfo.status = value[0:1]
+	case "Uid":
+		sInfo.uids = make([]int32, 0, 4)
+		for _, i := range strings.Split(value, "\t") {
+			v, err := strconv.ParseInt(i, 10, 32)
+			if err == nil {
+				sInfo.uids = append(sInfo.uids, int32(v))
+			}
+		}
+	case "Gid":
+		sInfo.gids = make([]int32, 0, 4)
+		for _, i := range strings.Split(value, "\t") {
+			v, err := strconv.ParseInt(i, 10, 32)
+			if err == nil {
+				sInfo.gids = append(sInfo.gids, int32(v))
+			}
+		}
+	case "NSpid":
+		values := strings.Split(value, "\t")
+		// only report process namespaced PID
+		v, err := strconv.ParseInt(values[len(values)-1], 10, 32)
+		if err == nil {
+			sInfo.nspid = int32(v)
+		}
+	case "Threads":
+		v, err := strconv.ParseInt(value, 10, 32)
+		if err == nil {
+			sInfo.numThreads = int32(v)
+		}
+	case "voluntary_ctxt_switches":
+		v, err := strconv.ParseInt(value, 10, 64)
+		if err == nil {
+			sInfo.ctxSwitches.Voluntary = v
+		}
+	case "nonvoluntary_ctxt_switches":
+		v, err := strconv.ParseInt(value, 10, 64)
+		if err == nil {
+			sInfo.ctxSwitches.Involuntary = v
+		}
+	case "VmRSS":
+		value := strings.Trim(value, " kB") // remove last "kB"
+		v, err := strconv.ParseUint(value, 10, 64)
+		if err == nil {
+			sInfo.memInfo.RSS = v * 1024
+		}
+	case "VmSize":
+		value := strings.Trim(value, " kB") // remove last "kB"
+		v, err := strconv.ParseUint(value, 10, 64)
+		if err == nil {
+			sInfo.memInfo.VMS = v * 1024
+		}
+	case "VmSwap":
+		value := strings.Trim(value, " kB") // remove last "kB"
+		v, err := strconv.ParseUint(value, 10, 64)
+		if err == nil {
+			sInfo.memInfo.Swap = v * 1024
+		}
+	}
 }
 
 // trimAndSplitBytes converts the raw command line bytes into a list of strings by trimming and splitting on null bytes
@@ -156,18 +301,4 @@ func trimAndSplitBytes(bs []byte) []string {
 	}
 
 	return components
-}
-
-func (p *Probe) getRootProcFile() (*os.File, error) {
-	if p.procRootFile != nil { // TODO (sk): Should we consider refreshing the file descriptor occasionally?
-		return p.procRootFile, nil
-	}
-
-	f, err := os.Open(p.procRootLoc)
-	if err != nil {
-		return nil, err
-	}
-
-	p.procRootFile = f
-	return f, nil
 }

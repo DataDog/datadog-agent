@@ -218,12 +218,6 @@ func (t *Tagger) Stop() error {
 	return nil
 }
 
-// GetEntityHash returns the tags hash of an entity
-func (t *Tagger) GetEntityHash(entity string) string {
-	_, _, tagsHash := t.tagStore.lookup(entity, collectors.HighCardinality)
-	return tagsHash
-}
-
 // Tag returns tags for a given entity
 func (t *Tagger) Tag(entity string, cardinality collectors.TagCardinality) ([]string, error) {
 	queries.Inc(tagCardinalityToString(cardinality))
@@ -292,7 +286,7 @@ func (t *Tagger) Standard(entity string) ([]string, error) {
 	if entity == "" {
 		return nil, fmt.Errorf("empty entity ID")
 	}
-	if hash := t.GetEntityHash(entity); hash == "" {
+	if _, _, hash := t.tagStore.lookup(entity, collectors.HighCardinality); hash == "" {
 		// entity not found yet in the tagger
 		// trigger tagger fetch operations
 		log.Debugf("Entity '%s' not found in tagger cache, will try to fetch it", entity)

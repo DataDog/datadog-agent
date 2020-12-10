@@ -3,17 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build orchestrator
-
-package orchestrator
+package redact
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/assert"
-	v1 "k8s.io/api/core/v1"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -62,8 +60,6 @@ func benchmarkMatchingCustomRegex(nbContainers int, b *testing.B) {
 	c := v1.Container{}
 
 	customRegs := []string{"pwd*", "*test"}
-	cfg := config.NewDefaultAgentConfig(true)
-	cfg.Scrubber.AddCustomSensitiveWords(customRegs)
 	scrubber := NewDefaultDataScrubber()
 	scrubber.AddCustomSensitiveRegex(customRegs)
 
@@ -75,7 +71,7 @@ func benchmarkMatchingCustomRegex(nbContainers int, b *testing.B) {
 	}
 
 	b.ResetTimer()
-	b.Run(fmt.Sprintf("simplified"), func(b *testing.B) {
+	b.Run("simplified", func(b *testing.B) {
 		for n := 0; n < b.N; n++ {
 			for _, c := range containersBenchmarks {
 				ScrubContainer(&c, scrubber)
@@ -136,52 +132,6 @@ func TestMatchSimpleCommandScrubRegex(t *testing.T) {
 		cases[i].cmdline, _ = scrubber.ScrubSimpleCommand(cases[i].cmdline)
 		assert.Equal(t, cases[i].parsedCmdline, cases[i].cmdline)
 	}
-}
-
-func BenchmarkCommandMatching1(b *testing.B)    { benchmarkCommandMatching(1, b) }
-func BenchmarkCommandMatching10(b *testing.B)   { benchmarkCommandMatching(10, b) }
-func BenchmarkCommandMatching100(b *testing.B)  { benchmarkCommandMatching(100, b) }
-func BenchmarkCommandMatching1000(b *testing.B) { benchmarkCommandMatching(1000, b) }
-
-func benchmarkCommandMatching(nbCommands int, b *testing.B) {
-	runningProcesses := make([][]string, nbCommands)
-	var c bool
-	foolCmdline := []string{"python ~/test/run.py --dd_password=1234 -password 1234 -password=admin -secret 2345 -credentials=1234 -api_key 2808 &"}
-
-	customSensitiveRegex := []string{
-		"*consul_token",
-		"*dd_password",
-		"*blocked_from_yaml",
-	}
-	scrubber := NewDefaultDataScrubber()
-	scrubber.AddCustomSensitiveRegex(customSensitiveRegex)
-
-	cfgScrubber := config.NewDefaultDataScrubber()
-	cfgScrubber.AddCustomSensitiveWords(customSensitiveRegex)
-
-	for i := 0; i < nbCommands; i++ {
-		runningProcesses[i] = foolCmdline
-	}
-
-	b.ResetTimer()
-
-	b.Run(fmt.Sprintf("simplified"), func(b *testing.B) {
-		for n := 0; n < b.N; n++ {
-			for _, p := range runningProcesses {
-				_, c = scrubber.ScrubSimpleCommand(p)
-			}
-		}
-	})
-
-	b.Run(fmt.Sprintf("default"), func(b *testing.B) {
-		for n := 0; n < b.N; n++ {
-			for _, p := range runningProcesses {
-				_, c = cfgScrubber.ScrubCommand(p)
-			}
-		}
-	})
-
-	avoidOptimization = c
 }
 
 func BenchmarkEnvScrubbing1(b *testing.B)    { benchmarkEnvScrubbing(1, b) }

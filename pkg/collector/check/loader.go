@@ -14,5 +14,6 @@ import (
 //
 // A single check is loaded for the given `instance` YAML.
 type Loader interface {
+	Name() string
 	Load(config integration.Config, instance integration.Data) (Check, error)
 }
