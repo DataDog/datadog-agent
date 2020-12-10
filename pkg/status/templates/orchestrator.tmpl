@@ -27,18 +27,13 @@ Orchestrator Explorer
   {{.ContainerScrubbing}}
 {{- end}}
 {{- if and (not .Error) (not .Disabled) }}
-{{- if .OrchestratorEndpoint }}
 {{/* this line intentionally left blank */}}
   ======================
   Orchestrator Endpoints
   ======================
-    Orchestrator endpoint: {{.OrchestratorEndpoint}}
-{{- if .OrchestratorAdditionalEndpoints }}
-    {{ range $key, $value := .OrchestratorAdditionalEndpoints }}Orchestrator additional endpoint: {{$key}}
-    {{/* this line intentionally left blank */}}
-    {{- end }}
-{{- end }}
-{{- end }}
+  {{- range $key, $value := .OrchestratorEndpoints}}
+  {{$key}} - API Key ending with: {{$value}}
+  {{- end}}
 
 {{- if .LeaderError }}
     Leader election error: {{.ClusterIDError}}
@@ -60,7 +55,11 @@ Orchestrator Explorer
     Nodes:
       Last Run: (Hits: {{.NodesStats.CacheHits}} Miss: {{.NodesStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Nodes}} Miss: {{.CacheMiss.Nodes}})
 {{else}}
+{{- if .LeaderName }}
   Status: Follower, cluster agent leader is: {{ .LeaderName }}
+{{else}}
+  Leader election in progress, see dedicated section for more info
+{{- end}}
 {{- end}}
 {{- end}}
 {{- end}}

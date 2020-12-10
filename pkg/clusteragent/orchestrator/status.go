@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
@@ -49,22 +50,19 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 		status["ClusterName"] = clustername.GetClusterName(hostname)
 	}
 
-	// get orchestrator endpoints, check for old keys, looks like this: map[endpoints] = apikey
-	newKey := "orchestrator_explorer.orchestrator_additional_endpoints"
-	oldKey := "process_config.orchestrator_additional_endpoints"
-	if config.Datadog.IsSet(newKey) {
-		status["OrchestratorAdditionalEndpoints"] = config.Datadog.GetStringMapStringSlice(newKey)
-	} else if config.Datadog.IsSet(oldKey) {
-		status["OrchestratorAdditionalEndpoints"] = config.Datadog.GetStringMapStringSlice(oldKey)
+	// get orchestrator endpoints
+	endpoints := map[string]string{}
+	orchestratorCfg := orchcfg.NewDefaultOrchestratorConfig()
+	err = orchestratorCfg.LoadYamlConfig(config.Datadog.ConfigFileUsed())
+	if err == nil {
+		// obfuscate the api keys
+		for _, endpoint := range orchestratorCfg.OrchestratorEndpoints {
+			if len(endpoint.APIKey) > 5 {
+				endpoints[endpoint.Endpoint.String()] = endpoint.APIKey[len(endpoint.APIKey)-5:]
+			}
+		}
 	}
-
-	orchestratorEndpoint := config.Datadog.GetString("orchestrator_explorer.orchestrator_dd_url")
-	orchestratorOldEndpoint := config.Datadog.GetString("process_config.orchestrator_dd_url")
-	if orchestratorOldEndpoint != "" {
-		status["OrchestratorEndpoint"] = orchestratorOldEndpoint
-	} else if orchestratorEndpoint != "" {
-		status["OrchestratorEndpoint"] = orchestratorEndpoint
-	}
+	status["OrchestratorEndpoints"] = endpoints
 
 	// get cache size
 	status["CacheNumber"] = orchestrator.KubernetesResourceCache.ItemCount()
