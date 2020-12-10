@@ -13,7 +13,11 @@ type taggedPoint struct {
 	count     int64
 }
 
-// StatsTracker Keeps track of simple stats over its lifetime and a configurable time range
+// StatsTracker Keeps track of simple stats over its lifetime and a configurable time range.
+// StatsTracker is designed to be memory efficient by aggregating data into buckets. For example
+// a time frame of 24 hours with a bucketFrame of 1 hour will ensure that only 24 points are ever
+// kept in memory. New data is considered in the stats immediately while old data is removed by
+// dropping expired aggregated buckets.
 type StatsTracker struct {
 	allTimeAvg           int64
 	allTimePeak          int64
@@ -79,7 +83,7 @@ func (s *StatsTracker) Add(value int64) {
 			s.aggregatedPeakPoints = s.aggregatedPeakPoints[dropFromIndex:]
 		}
 
-		// Add the new aggregated point
+		// Add the new aggregated point to the slice
 		s.aggregatedAvgPoints = append(s.aggregatedAvgPoints, s.avgPointsHead)
 		s.aggregatedPeakPoints = append(s.aggregatedPeakPoints, s.peakPointsHead)
 
