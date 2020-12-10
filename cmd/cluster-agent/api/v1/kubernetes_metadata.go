@@ -259,7 +259,7 @@ func getClusterID(w http.ResponseWriter, r *http.Request) {
 	// get clusterID
 	clusterID, err := apicommon.GetOrCreateClusterID(coreCl)
 	if err != nil {
-		log.Errorf("Failed to generate or retrieve the cluster ID: %v", err)
+		log.Errorf("Failed to generate or retrieve the cluster ID: %v", err) //nolint:errcheck
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		apiRequests.Inc(
 			"getClusterID",
