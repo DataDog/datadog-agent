@@ -127,15 +127,15 @@ func newLogContext(logsConfig config.LogsConfigKeys, endpointPrefix string) (*co
 
 func newLogContextCompliance() (*config.Endpoints, *client.DestinationsContext, error) {
 	logsConfigComplianceKeys := config.LogsConfigKeys{
-		UseCompression:          "compliance_config.logs_config.use_compression",
-		CompressionLevel:        "compliance_config.logs_config.compression_level",
-		ConnectionResetInterval: "compliance_config.logs_config.connection_reset_interval",
-		LogsDDURL:               "compliance_config.logs_config.logs_dd_url",
-		LogsNoSSL:               "compliance_config.logs_config.logs_no_ssl",
-		DDURL:                   "compliance_config.logs_config.dd_url",
-		DevModeNoSSL:            "compliance_config.logs_config.dev_mode_no_ssl",
-		AdditionalEndpoints:     "compliance_config.logs_config.additional_endpoints",
-		BatchWait:               "compliance_config.logs_config.batch_wait",
+		UseCompression:          "compliance_config.endpoints.use_compression",
+		CompressionLevel:        "compliance_config.endpoints.compression_level",
+		ConnectionResetInterval: "compliance_config.endpoints.connection_reset_interval",
+		LogsDDURL:               "compliance_config.endpoints.logs_dd_url",
+		LogsNoSSL:               "compliance_config.endpoints.logs_no_ssl",
+		DDURL:                   "compliance_config.endpoints.dd_url",
+		DevModeNoSSL:            "compliance_config.endpoints.dev_mode_no_ssl",
+		AdditionalEndpoints:     "compliance_config.endpoints.additional_endpoints",
+		BatchWait:               "compliance_config.endpoints.batch_wait",
 	}
 	return newLogContext(logsConfigComplianceKeys, "agent-http-intake.logs.")
 }
@@ -143,15 +143,15 @@ func newLogContextCompliance() (*config.Endpoints, *client.DestinationsContext, 
 // This function will only be used on Linux. The only platforms where the runtime agent runs
 func newLogContextRuntime() (*config.Endpoints, *client.DestinationsContext, error) { // nolint: deadcode, unused
 	logsConfigRuntimeKeys := config.LogsConfigKeys{
-		UseCompression:          "runtime_security_config.logs_config.use_compression",
-		CompressionLevel:        "runtime_security_config.logs_config.compression_level",
-		ConnectionResetInterval: "runtime_security_config.logs_config.connection_reset_interval",
-		LogsDDURL:               "runtime_security_config.logs_config.logs_dd_url",
-		LogsNoSSL:               "runtime_security_config.logs_config.logs_no_ssl",
-		DDURL:                   "runtime_security_config.logs_config.dd_url",
-		DevModeNoSSL:            "runtime_security_config.logs_config.dev_mode_no_ssl",
-		AdditionalEndpoints:     "runtime_security_config.logs_config.additional_endpoints",
-		BatchWait:               "runtime_security_config.logs_config.batch_wait",
+		UseCompression:          "runtime_security_config.endpoints.use_compression",
+		CompressionLevel:        "runtime_security_config.endpoints.compression_level",
+		ConnectionResetInterval: "runtime_security_config.endpoints.connection_reset_interval",
+		LogsDDURL:               "runtime_security_config.endpoints.logs_dd_url",
+		LogsNoSSL:               "runtime_security_config.endpoints.logs_no_ssl",
+		DDURL:                   "runtime_security_config.endpoints.dd_url",
+		DevModeNoSSL:            "runtime_security_config.endpoints.dev_mode_no_ssl",
+		AdditionalEndpoints:     "runtime_security_config.endpoints.additional_endpoints",
+		BatchWait:               "runtime_security_config.endpoints.batch_wait",
 	}
 	return newLogContext(logsConfigRuntimeKeys, "agent-http-intake.logs.")
 }
