@@ -112,7 +112,6 @@ def build(
     if "PATH" in os.environ and "PATH" in goenv:
         goenv["PATH"] += ":" + os.environ["PATH"]
     env.update(goenv)
-    env['CGO_LDFLAGS_ALLOW'] = "-Wl,--wrap=.*"
 
     # Add custom ld flags
     ldflags += ' '.join(["-X '{name}={value}'".format(name=main + key, value=value) for key, value in ld_vars.items()])
