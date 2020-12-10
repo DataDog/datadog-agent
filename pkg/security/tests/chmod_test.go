@@ -18,7 +18,7 @@ import (
 func TestChmod(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `chmod.filename == "{{.Root}}/test-chmod"`,
+		Expression: `chmod.filename == "{{.Root}}/test-chmod" && (chmod.mode == 0707 || chmod.mode == 0757)`,
 	}
 
 	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
