@@ -34,6 +34,7 @@ type Builder interface {
 	BuildIngressExternalID(namespace, ingressName string) string
 	BuildVolumeExternalID(namespace, volumeName string) string
 	BuildPersistentVolumeExternalID(persistentVolumeName string) string
+	BuildComponentExternalID(component, namespace, name string) string
 	BuildEndpointExternalID(endpointID string) string
 }
 
@@ -115,72 +116,81 @@ func (b *urnBuilder) BuildNodeExternalID(nodeName string) string {
 
 // BuildPodExternalID creates the urn external identifier for a cluster pod
 func (b *urnBuilder) BuildPodExternalID(namespace, podName string) string {
-	return fmt.Sprintf("%s:%s:pod/%s", b.urnPrefix, namespace, podName)
+	return b.BuildComponentExternalID("pod", namespace, podName)
 }
 
 // BuildContainerExternalID creates the urn external identifier for a pod's container
 func (b *urnBuilder) BuildContainerExternalID(namespace, podName, containerName string) string {
-	return fmt.Sprintf("%s:%s:pod/%s:container/%s", b.urnPrefix, namespace, podName, containerName)
+	return fmt.Sprintf("%s:container/%s", b.BuildPodExternalID(namespace, podName), containerName)
 }
 
 // BuildServiceExternalID creates the urn external identifier for a cluster service
 func (b *urnBuilder) BuildServiceExternalID(namespace, serviceName string) string {
-	return fmt.Sprintf("%s:%s:service/%s", b.urnPrefix, namespace, serviceName)
+	return b.BuildComponentExternalID("service", namespace, serviceName)
 }
 
 // BuildDaemonSetExternalID creates the urn external identifier for a cluster daemon set
 func (b *urnBuilder) BuildDaemonSetExternalID(namespace, daemonSetName string) string {
-	return fmt.Sprintf("%s:%s:daemonset/%s", b.urnPrefix, namespace, daemonSetName)
+	return b.BuildComponentExternalID("daemonset", namespace, daemonSetName)
 }
 
 // BuildDeploymentExternalID creates the urn external identifier for a cluster deployment
 func (b *urnBuilder) BuildDeploymentExternalID(namespace, deploymentName string) string {
-	return fmt.Sprintf("%s:%s:deployment/%s", b.urnPrefix, namespace, deploymentName)
+	return b.BuildComponentExternalID("deployment", namespace, deploymentName)
 }
 
 // BuildReplicaSetExternalID creates the urn external identifier for a cluster replica set
 func (b *urnBuilder) BuildReplicaSetExternalID(namespace, replicaSetName string) string {
-	return fmt.Sprintf("%s:%s:replicaset/%s", b.urnPrefix, namespace, replicaSetName)
+	return b.BuildComponentExternalID("replicaset", namespace, replicaSetName)
 }
 
 // BuildStatefulSetExternalID creates the urn external identifier for a cluster stateful set
 func (b *urnBuilder) BuildStatefulSetExternalID(namespace, statefulSetName string) string {
-	return fmt.Sprintf("%s:%s:statefulset/%s", b.urnPrefix, namespace, statefulSetName)
+	return b.BuildComponentExternalID("statefulset", namespace, statefulSetName)
 }
 
 // BuildConfigMapExternalID creates the urn external identifier for a cluster config map
 func (b *urnBuilder) BuildConfigMapExternalID(namespace, configMapName string) string {
-	return fmt.Sprintf("%s:%s:configmap/%s", b.urnPrefix, namespace, configMapName)
+	return b.BuildComponentExternalID("configmap", namespace, configMapName)
 }
 
 // BuildNamespaceExternalID creates the urn external identifier for a cluster namespace
 func (b *urnBuilder) BuildNamespaceExternalID(namespaceName string) string {
-	return fmt.Sprintf("%s:namespace/%s", b.urnPrefix, namespaceName)
+	return b.BuildComponentExternalID("namespace", "", namespaceName)
 }
 
 // BuildCronJobExternalID creates the urn external identifier for a cluster cron job
 func (b *urnBuilder) BuildCronJobExternalID(namespace, cronJobName string) string {
-	return fmt.Sprintf("%s:%s:cronjob/%s", b.urnPrefix, namespace, cronJobName)
+	return b.BuildComponentExternalID("cronjob", namespace, cronJobName)
 }
 
 // BuildJobExternalID creates the urn external identifier for a cluster job
 func (b *urnBuilder) BuildJobExternalID(namespace, jobName string) string {
-	return fmt.Sprintf("%s:%s:job/%s", b.urnPrefix, namespace, jobName)
+	return b.BuildComponentExternalID("job", namespace, jobName)
 }
 
 // BuildIngressExternalID creates the urn external identifier for a cluster ingress
 func (b *urnBuilder) BuildIngressExternalID(namespace, ingressName string) string {
-	return fmt.Sprintf("%s:%s:ingress/%s", b.urnPrefix, namespace, ingressName)
+	return b.BuildComponentExternalID("ingress", namespace, ingressName)
 }
 
 // BuildVolumeExternalID creates the urn external identifier for a cluster volume
 func (b *urnBuilder) BuildVolumeExternalID(namespace, volumeName string) string {
-	return fmt.Sprintf("%s:%s:volume/%s", b.urnPrefix, namespace, volumeName)
+	return b.BuildComponentExternalID("volume", namespace, volumeName)
 }
 
 // BuildPersistentVolumeExternalID creates the urn external identifier for a cluster persistent volume
 func (b *urnBuilder) BuildPersistentVolumeExternalID(persistentVolumeName string) string {
-	return fmt.Sprintf("%s:persistent-volume/%s", b.urnPrefix, persistentVolumeName)
+	return b.BuildComponentExternalID("persistent-volume", "", persistentVolumeName)
+}
+
+// BuildComponentExternalID creates the urn external identifier for a specific component type
+func (b *urnBuilder) BuildComponentExternalID(component, namespace, name string) string {
+	if namespace != "" {
+		return fmt.Sprintf("%s:%s:%s/%s", b.urnPrefix, namespace, component, name)
+	} else {
+		return fmt.Sprintf("%s:%s/%s", b.urnPrefix, component, name)
+	}
 }
 
 // BuildEndpointExternalID

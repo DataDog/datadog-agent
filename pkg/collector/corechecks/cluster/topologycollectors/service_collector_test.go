@@ -51,7 +51,7 @@ func TestServiceCollector(t *testing.T) {
 					Data: topology.Data{
 						"name":              "test-service-1",
 						"creationTimestamp": creationTime,
-						"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
+						"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace", "service-type": "ClusterIP"},
 						"uid":               types.UID("test-service-1"),
 						"identifiers":       []string{"urn:service:/test-cluster-name:test-namespace:test-service-1"},
 					},
@@ -85,7 +85,7 @@ func TestServiceCollector(t *testing.T) {
 					Data: topology.Data{
 						"name":              "test-service-2",
 						"creationTimestamp": creationTime,
-						"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
+						"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace", "service-type": "NodePort"},
 						"uid":               types.UID("test-service-2"),
 						"identifiers": []string{
 							"urn:endpoint:/test-cluster-name:10.100.200.20",
@@ -115,7 +115,7 @@ func TestServiceCollector(t *testing.T) {
 					Data: topology.Data{
 						"name":              "test-service-3",
 						"creationTimestamp": creationTime,
-						"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
+						"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace", "service-type": "ClusterIP"},
 						"uid":               types.UID("test-service-3"),
 						"identifiers": []string{
 							"urn:endpoint:/34.100.200.12:83", "urn:endpoint:/34.100.200.13:83",
@@ -145,7 +145,7 @@ func TestServiceCollector(t *testing.T) {
 					Data: topology.Data{
 						"name":              "test-service-4",
 						"creationTimestamp": creationTime,
-						"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
+						"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace", "service-type": "ClusterIP"},
 						"uid":               types.UID("test-service-4"),
 						"identifiers": []string{
 							"urn:endpoint:/test-cluster-name:10.100.200.22",
@@ -175,7 +175,7 @@ func TestServiceCollector(t *testing.T) {
 						"name":              "test-service-5",
 						"creationTimestamp": creationTime,
 						"tags": map[string]string{
-							"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace", "service": "headless",
+							"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace", "service": "headless", "service-type": "ClusterIP",
 						},
 						"uid":         types.UID("test-service-5"),
 						"identifiers": []string{"urn:service:/test-cluster-name:test-namespace:test-service-5"},
@@ -203,7 +203,7 @@ func TestServiceCollector(t *testing.T) {
 						"name":              "test-service-6",
 						"creationTimestamp": creationTime,
 						"tags": map[string]string{
-							"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace",
+							"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace", "service-type": "LoadBalancer",
 						},
 						"uid": types.UID("test-service-6"),
 						"identifiers": []string{
@@ -242,7 +242,7 @@ func TestServiceCollector(t *testing.T) {
 						"name":              "test-service-7",
 						"creationTimestamp": creationTime,
 						"tags": map[string]string{
-							"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace",
+							"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace", "service-type": "ExternalName",
 						},
 						"uid":         types.UID("test-service-7"),
 						"identifiers": []string{"urn:service:/test-cluster-name:test-namespace:test-service-7"},
