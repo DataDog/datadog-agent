@@ -557,14 +557,19 @@ func TestHandleStats(t *testing.T) {
 		},
 	}
 
-	cfg := newTestReceiverConfig()
-	rcv := newTestReceiverFromConfig(cfg)
-	mockProcessor := new(mockStatsProcessor)
-	rcv.statsProcessor = mockProcessor
-	rcv.Start()
-	defer rcv.Stop()
+	t.Run("on", func(t *testing.T) {
+		defer func(old string) {
+			os.Setenv("DD_APM_FEATURES", old)
+		}(os.Getenv("DD_APM_FEATURES"))
+		os.Setenv("DD_APM_FEATURES", "client_stats")
 
-	t.Run("msgpack", func(t *testing.T) {
+		cfg := newTestReceiverConfig()
+		rcv := newTestReceiverFromConfig(cfg)
+		mockProcessor := new(mockStatsProcessor)
+		rcv.statsProcessor = mockProcessor
+		rcv.Start()
+		defer rcv.Stop()
+
 		var buf bytes.Buffer
 		if err := msgp.Encode(&buf, &p); err != nil {
 			t.Fatal(err)
@@ -582,6 +587,24 @@ func TestHandleStats(t *testing.T) {
 		}
 		if gotp, gotlang := mockProcessor.Got(); !reflect.DeepEqual(gotp, p) || gotlang != "lang1" {
 			t.Fatalf("Did not match payload: %v: %v", gotlang, gotp)
+		}
+	})
+
+	t.Run("off", func(t *testing.T) {
+		cfg := newTestReceiverConfig()
+		rcv := newTestReceiverFromConfig(cfg)
+		mockProcessor := new(mockStatsProcessor)
+		rcv.statsProcessor = mockProcessor
+		rcv.Start()
+		defer rcv.Stop()
+
+		req, _ := http.NewRequest("POST", "http://127.0.0.1:8126/v0.5/stats", nil)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp.StatusCode != 404 {
+			t.Fail()
 		}
 	})
 }
