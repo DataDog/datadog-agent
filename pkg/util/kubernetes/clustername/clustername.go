@@ -152,7 +152,7 @@ func GetClusterID() (string, error) {
 		if err != nil {
 			return "", err
 		}
-		log.Debugf("Cluster ID retrieved frm the Cluster Agent, set to %s", clusterID)
+		log.Debugf("Cluster ID retrieved from the Cluster Agent, set to %s", clusterID)
 	}
 
 	if len(clusterID) != 36 {
