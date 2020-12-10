@@ -62,68 +62,66 @@ func init() {
 	fileStorage.Set("FilesRemovedCount", &expVars.filesRemovedCount)
 }
 
-type retryQueueTelemetry struct{}
+type failedTransactionRemovalPolicyTelemetry struct{}
 
-var _ failedTransactionRemovalPolicyTelemetry = retryQueueTelemetry{}
-
-func (retryQueueTelemetry) addNewRemovalPolicyCount() {
+func (failedTransactionRemovalPolicyTelemetry) addNewRemovalPolicyCount() {
 	retryQueueTelemetryExpVar.newRemovalPolicyCount.Add(1)
 }
 
-func (retryQueueTelemetry) addRegisteredDomainCount() {
+func (failedTransactionRemovalPolicyTelemetry) addRegisteredDomainCount() {
 	retryQueueTelemetryExpVar.registeredDomainCount.Add(1)
 }
-func (retryQueueTelemetry) addOutdatedFilesCount(count int) {
+func (failedTransactionRemovalPolicyTelemetry) addOutdatedFilesCount(count int) {
 	retryQueueTelemetryExpVar.outdatedFilesCount.Add(int64(count))
 }
 
-func (retryQueueTelemetry) addFilesFromUnknownDomainCount(count int) {
+func (failedTransactionRemovalPolicyTelemetry) addFilesFromUnknownDomainCount(count int) {
 	retryQueueTelemetryExpVar.filesFromUnknownDomainCount.Add(int64(count))
 }
 
-var _ transactionContainerTelemetry = retryQueueTelemetry{}
+type transactionContainerTelemetry struct{}
 
-func (retryQueueTelemetry) setCurrentMemSizeInBytes(count int) {
+func (transactionContainerTelemetry) setCurrentMemSizeInBytes(count int) {
 	retryQueueTelemetryExpVar.currentMemSizeInBytes.Set(int64(count))
 }
 
-func (retryQueueTelemetry) setTransactionsCount(count int) {
+func (transactionContainerTelemetry) setTransactionsCount(count int) {
 	retryQueueTelemetryExpVar.transactionsCount.Set(int64(count))
 }
 
-func (retryQueueTelemetry) addTransactionsDroppedCount(count int) {
+func (transactionContainerTelemetry) addTransactionsDroppedCount(count int) {
 	retryQueueTelemetryExpVar.transactionsDroppedCount.Add(int64(count))
 }
 
-func (retryQueueTelemetry) addErrorsCount() {
+func (transactionContainerTelemetry) incErrorsCount() {
 	retryQueueTelemetryExpVar.errorsCount.Add(1)
 }
 
-var _ transactionsFileStorageTelemetry = retryQueueTelemetry{}
+type transactionsFileStorageTelemetry struct{}
 
-func (retryQueueTelemetry) addSerializeCount() {
+func (transactionsFileStorageTelemetry) addSerializeCount() {
 	retryQueueTelemetryExpVar.serializeCount.Add(1)
 }
 
-func (retryQueueTelemetry) addDeserializeCount() {
+func (transactionsFileStorageTelemetry) addDeserializeCount() {
 	retryQueueTelemetryExpVar.deserializeCount.Add(1)
 }
 
-func (retryQueueTelemetry) setFileSize(count int64) {
+func (transactionsFileStorageTelemetry) setFileSize(count int64) {
 	retryQueueTelemetryExpVar.fileSize.Set(count)
 }
 
-func (retryQueueTelemetry) setCurrentSizeInBytes(count int64) {
+func (transactionsFileStorageTelemetry) setCurrentSizeInBytes(count int64) {
 	retryQueueTelemetryExpVar.currentSizeInBytes.Set(count)
 }
-func (retryQueueTelemetry) setFilesCount(count int) {
+func (transactionsFileStorageTelemetry) setFilesCount(count int) {
 	retryQueueTelemetryExpVar.filesCount.Set(int64(count))
 }
 
-func (retryQueueTelemetry) addReloadedRetryFilesCount(count int) {
+func (transactionsFileStorageTelemetry) addReloadedRetryFilesCount(count int) {
 	retryQueueTelemetryExpVar.reloadedRetryFilesCount.Add(int64(count))
 }
 
-func (retryQueueTelemetry) addFilesRemovedCount() {
+func (transactionsFileStorageTelemetry) addFilesRemovedCount() {
 	retryQueueTelemetryExpVar.filesRemovedCount.Add(1)
 }

@@ -20,16 +20,6 @@ import (
 
 const retryTransactionsExtension = ".retry"
 
-type transactionsFileStorageTelemetry interface {
-	addSerializeCount()
-	addDeserializeCount()
-	setFileSize(int64)
-	setCurrentSizeInBytes(int64)
-	setFilesCount(int)
-	addReloadedRetryFilesCount(int)
-	addFilesRemovedCount()
-}
-
 type transactionsFileStorage struct {
 	serializer         *TransactionsSerializer
 	storagePath        string
@@ -189,7 +179,7 @@ func (s *transactionsFileStorage) reloadExistingRetryFiles() error {
 		filenames = append(filenames, fullPath)
 	}
 	s.telemetry.addReloadedRetryFilesCount(len(filenames))
-	s.filenames = filenames
+	s.filenames = append(s.filenames, filenames...)
 	return nil
 }
 

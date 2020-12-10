@@ -10,10 +10,9 @@ func TestTransactionContainerAdd(t *testing.T) {
 	a := assert.New(t)
 	path, clean := createTmpFolder(a)
 	defer clean()
-	telemetry := retryQueueTelemetryTest{}
-	s, err := newTransactionsFileStorage(NewTransactionsSerializer(), path, 1000, telemetry)
+	s, err := newTransactionsFileStorage(NewTransactionsSerializer(), path, 1000, transactionsFileStorageTelemetry{})
 	a.NoError(err)
-	container := newTransactionContainer(createDropPrioritySorter(), s, 100, 0.6, telemetry)
+	container := newTransactionContainer(createDropPrioritySorter(), s, 100, 0.6, transactionContainerTelemetry{})
 
 	// When adding the last element `15`, the buffer becomes full and the first 3
 	// transactions are flushed to the disk as 10 + 20 + 30 >= 100 * 0.6
@@ -40,10 +39,9 @@ func TestTransactionContainerSeveralFlushToDisk(t *testing.T) {
 	a := assert.New(t)
 	path, clean := createTmpFolder(a)
 	defer clean()
-	telemetry := retryQueueTelemetryTest{}
-	s, err := newTransactionsFileStorage(NewTransactionsSerializer(), path, 1000, telemetry)
+	s, err := newTransactionsFileStorage(NewTransactionsSerializer(), path, 1000, transactionsFileStorageTelemetry{})
 	a.NoError(err)
-	container := newTransactionContainer(createDropPrioritySorter(), s, 50, 0.1, telemetry)
+	container := newTransactionContainer(createDropPrioritySorter(), s, 50, 0.1, transactionContainerTelemetry{})
 
 	// Flush to disk when adding `40`
 	for _, payloadSize := range []int{9, 10, 11, 40} {
@@ -62,8 +60,7 @@ func TestTransactionContainerSeveralFlushToDisk(t *testing.T) {
 
 func TestTransactionContainerNoTransactionStorage(t *testing.T) {
 	a := assert.New(t)
-	telemetry := retryQueueTelemetryTest{}
-	container := newTransactionContainer(createDropPrioritySorter(), nil, 50, 0.1, telemetry)
+	container := newTransactionContainer(createDropPrioritySorter(), nil, 50, 0.1, transactionContainerTelemetry{})
 
 	for _, payloadSize := range []int{9, 10, 11} {
 		dropCount, err := container.Add(createTransactionWithPayloadSize(payloadSize))

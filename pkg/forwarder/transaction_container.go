@@ -18,13 +18,6 @@ type transactionPrioritySorter interface {
 	Sort([]Transaction)
 }
 
-type transactionContainerTelemetry interface {
-	setCurrentMemSizeInBytes(int)
-	setTransactionsCount(int)
-	addTransactionsDroppedCount(int)
-	addErrorsCount()
-}
-
 // transactionContainer stores transactions in memory and flush them to disk when the memory
 // limit is exceeded.
 type transactionContainer struct {
@@ -74,7 +67,7 @@ func (f *transactionContainer) Add(t Transaction) (int, error) {
 		}
 		if diskErr != nil {
 			diskErr = fmt.Errorf("Cannot store transactions on disk:%v", diskErr)
-			f.telemetry.addErrorsCount()
+			f.telemetry.incErrorsCount()
 		}
 	}
 
@@ -108,7 +101,7 @@ func (f *transactionContainer) ExtractTransactions() ([]Transaction, error) {
 	} else if f.optionalTransactionStorage != nil {
 		transactions, err = f.optionalTransactionStorage.Deserialize()
 		if err != nil {
-			f.telemetry.addErrorsCount()
+			f.telemetry.incErrorsCount()
 			return nil, err
 		}
 	}
