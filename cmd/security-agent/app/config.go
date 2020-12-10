@@ -11,7 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/fatih/color"
@@ -32,13 +32,11 @@ var configCommand = &cobra.Command{
 			color.NoColor = true
 		}
 
-		// we'll search for a config file named `datadog.yaml`
-		config.Datadog.SetConfigName("datadog")
-		err := common.SetupConfig(confPath)
+		// Read configuration files received from the command line arguments '-c'
+		err := common.MergeConfigurationFiles("datadog", confPathArray)
 		if err != nil {
-			return fmt.Errorf("unable to set up global security agent configuration: %v", err)
+			return err
 		}
-
 		err = config.SetupLogger(loggerName, config.GetEnv("DD_LOG_LEVEL", "off"), "", "", false, true, false)
 		if err != nil {
 			fmt.Printf("Cannot setup logger, exiting: %v\n", err)

@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/gopsutil/process"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var originalConfig = config.Datadog
@@ -232,7 +233,7 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.Equal(10, agentConfig.QueueSize)
 	assert.Equal(true, agentConfig.AllowRealTime)
 	assert.Equal(true, agentConfig.Enabled)
-	assert.Equal(append(processChecks, "Network"), agentConfig.EnabledChecks)
+	assert.Equal(append(processChecks), agentConfig.EnabledChecks)
 	assert.Equal(8*time.Second, agentConfig.CheckIntervals["container"])
 	assert.Equal(30*time.Second, agentConfig.CheckIntervals["process"])
 	assert.Equal(100, agentConfig.Windows.ArgsRefreshInterval)
@@ -290,7 +291,7 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.Equal(1000, agentConfig.ClosedChannelSize)
 	assert.Equal(agentConfig.ExcludedBPFLinuxVersions, []string{"5.5.0", "4.2.1"})
 	assert.Equal("/var/my-location/system-probe.log", agentConfig.SystemProbeAddress)
-	assert.Equal(append(processChecks, "connections"), agentConfig.EnabledChecks)
+	assert.Equal(append(processChecks), agentConfig.EnabledChecks)
 	assert.True(agentConfig.DisableTCPTracing)
 	assert.True(agentConfig.DisableUDPTracing)
 	assert.True(agentConfig.DisableIPv6Tracing)
@@ -457,6 +458,47 @@ func TestEnvAdditionalEndpointsMalformed(t *testing.T) {
 	for _, actual := range agentConfig.APIEndpoints {
 		assert.Equal(expected[actual.APIKey], actual.Endpoint.Hostname(), actual)
 	}
+}
+
+func TestNetworkConfig(t *testing.T) {
+	t.Run("yaml", func(t *testing.T) {
+		agentConfig, err := NewAgentConfig(
+			"test",
+			"./testdata/TestDDAgentConfigYamlOnly.yaml",
+			"./testdata/TestDDAgentConfig-NetConfig.yaml",
+		)
+		require.NoError(t, err)
+
+		assert.True(t, agentConfig.EnableSystemProbe)
+		assert.True(t, agentConfig.Enabled)
+		assert.ElementsMatch(t, []string{"connections", "Network", "process", "rtprocess"}, agentConfig.EnabledChecks)
+	})
+
+	t.Run("env", func(t *testing.T) {
+		os.Setenv("DD_SYSTEM_PROBE_NETWORK_CONFIG_ENABLED", "true")
+		defer os.Unsetenv("DD_SYSTEM_PROBE_NETWORK_CONFIG_ENABLED")
+
+		agentConfig, err := NewAgentConfig("test", "", "")
+		require.NoError(t, err)
+
+		assert.True(t, agentConfig.EnableSystemProbe)
+		assert.True(t, agentConfig.Enabled)
+		assert.ElementsMatch(t, []string{"connections", "Network", "process", "rtprocess"}, agentConfig.EnabledChecks)
+	})
+}
+
+func TestSystemProbeNoNetwork(t *testing.T) {
+	agentConfig, err := NewAgentConfig(
+		"test",
+		"./testdata/TestDDAgentConfigYamlOnly.yaml",
+		"./testdata/TestDDAgentConfig-OOMKillOnly.yaml",
+	)
+	require.NoError(t, err)
+
+	assert.True(t, agentConfig.EnableSystemProbe)
+	assert.True(t, agentConfig.Enabled)
+	assert.ElementsMatch(t, []string{"OOM Kill", "process", "rtprocess"}, agentConfig.EnabledChecks)
+
 }
 
 func TestIsAffirmative(t *testing.T) {

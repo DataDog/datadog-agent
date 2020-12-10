@@ -21,6 +21,7 @@ ALL_TAGS = set(
         "fargateprocess",
         "gce",
         "jmx",
+        "jetson",
         "kubeapiserver",
         "kubelet",
         "linux_bpf",
@@ -48,6 +49,7 @@ AGENT_TAGS = set(
         "ec2",
         "etcd",
         "gce",
+        "jetson",
         "jmx",
         "kubeapiserver",
         "kubelet",
@@ -74,7 +76,7 @@ CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = set(["clusterchecks", "secrets",])
 DOGSTATSD_TAGS = set(["docker", "kubelet", "secrets", "zlib",])
 
 # IOT_AGENT_TAGS lists the tags needed when building the IoT agent
-IOT_AGENT_TAGS = set(["systemd", "zlib",])
+IOT_AGENT_TAGS = set(["jetson", "systemd", "zlib",])
 
 # PROCESS_AGENT_TAGS lists the tags necessary to build the process-agent
 PROCESS_AGENT_TAGS = AGENT_TAGS.union(set(["clusterchecks", "fargateprocess", "orchestrator",]))
@@ -94,7 +96,7 @@ TEST_TAGS = AGENT_TAGS.union(set(["clusterchecks",]))
 ### Tag exclusion lists
 
 # List of tags to always remove when not building on Linux
-LINUX_ONLY_TAGS = set(["containerd", "cri", "netcgo", "systemd",])
+LINUX_ONLY_TAGS = set(["containerd", "cri", "netcgo", "systemd", "jetson",])
 
 # List of tags to always remove when building on Windows
 WINDOWS_EXCLUDE_TAGS = set(["linux_bpf"])

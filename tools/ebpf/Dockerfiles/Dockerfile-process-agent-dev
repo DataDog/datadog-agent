@@ -9,3 +9,5 @@ RUN apt-get update -y && apt-get install -y jq conntrack netcat dnsutils iproute
 # are in the same directory
 COPY process-agent /opt/datadog-agent/embedded/bin/process-agent
 COPY system-probe /opt/datadog-agent/embedded/bin/system-probe
+
+COPY *.o /opt/datadog-agent/embedded/share/system-probe/ebpf/

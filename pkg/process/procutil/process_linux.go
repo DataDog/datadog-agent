@@ -76,7 +76,7 @@ func (p *Probe) ProcessesByPID() (map[int32]*Process, error) {
 	for _, pid := range pids {
 		pathForPID := filepath.Join(p.procRootLoc, strconv.Itoa(int(pid)))
 		if !util.PathExists(pathForPID) {
-			log.Debugf("Unable to create new process %d, dir doesn't exist", pid)
+			log.Debugf("Unable to create new process %d, dir %s doesn't exist", pid, pathForPID)
 			continue
 		}
 
@@ -84,7 +84,6 @@ func (p *Probe) ProcessesByPID() (map[int32]*Process, error) {
 		if len(cmdline) == 0 {
 			// NOTE: The agent's process check currently skips all processes that have no cmdline (i.e kernel processes).
 			//       Moving this check down the stack saves us from a number of needless follow-up system calls.
-			//       In the test resources for Postgres, this accounts for ~30% of processes.
 			continue
 		}
 
@@ -240,8 +239,8 @@ func (p *Probe) parseStatus(pidPath string) *statusInfo {
 	var err error
 
 	sInfo := &statusInfo{
-		uids:        make([]int32, 0),
-		gids:        make([]int32, 0),
+		uids:        []int32{},
+		gids:        []int32{},
 		memInfo:     &MemoryInfoStat{},
 		ctxSwitches: &NumCtxSwitchesStat{},
 	}
@@ -265,6 +264,8 @@ func (p *Probe) parseStatus(pidPath string) *statusInfo {
 // parseStatusLine takes each line in "status" file and parses info from it
 func (p *Probe) parseStatusLine(line []byte, sInfo *statusInfo) {
 	for i := range line {
+		// the fields are all having format "field_name:\tfield_value", so we always
+		// look for ":\t" and skip them
 		if i+2 < len(line) && line[i] == ':' && line[i+1] == '\t' {
 			key := line[0:i]
 			value := line[i+2:]
@@ -298,7 +299,9 @@ func (p *Probe) parseStatusKV(key, value string, sInfo *statusInfo) {
 			}
 		}
 	case "NSpid":
-		v, err := strconv.ParseInt(value, 10, 32)
+		values := strings.Split(value, "\t")
+		// only report process namespaced PID
+		v, err := strconv.ParseInt(values[len(values)-1], 10, 32)
 		if err == nil {
 			sInfo.nspid = int32(v)
 		}
@@ -379,8 +382,8 @@ func trimAndSplitBytes(bs []byte) []string {
 
 	// Remove leading null bytes
 	i := 0
-	for j := 0; j < len(bs); j++ {
-		if bs[j] == 0 {
+	for i < len(bs) {
+		if bs[i] == 0 {
 			i++
 		} else {
 			break

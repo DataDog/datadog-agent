@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -30,6 +31,13 @@ type ObfuscationConfig struct {
 
 	// Mongo holds the obfuscation configuration for MongoDB queries.
 	Mongo JSONObfuscationConfig `mapstructure:"mongodb"`
+
+	// SQLExecPlan holds the obfuscation configuration for SQL Exec Plans. This is strictly for safety related obfuscation,
+	// not normalization. Normalization of exec plans is configured in SQLExecPlanNormalize.
+	SQLExecPlan JSONObfuscationConfig `mapstructure:"sql_exec_plan"`
+
+	// SQLExecPlanNormalize holds the normalization configuration for SQL Exec Plans.
+	SQLExecPlanNormalize JSONObfuscationConfig `mapstructure:"sql_exec_plan_normalize"`
 
 	// HTTP holds the obfuscation settings for HTTP URLs.
 	HTTP HTTPObfuscationConfig `mapstructure:"http"`
@@ -70,6 +78,10 @@ type JSONObfuscationConfig struct {
 	// KeepValues will specify a set of keys for which their values will
 	// not be obfuscated.
 	KeepValues []string `mapstructure:"keep_values"`
+
+	// ObfuscateSQLValues will specify a set of keys for which their values
+	// will be passed through SQL obfuscation
+	ObfuscateSQLValues []string `mapstructure:"obfuscate_sql_values"`
 }
 
 // ReplaceRule specifies a replace rule.
@@ -288,7 +300,9 @@ func (c *AgentConfig) applyDatadogConfig() error {
 				log.Errorf("Error parsing names: %v", err)
 				continue
 			}
-			if floatrate, ok := rate.(float64); ok {
+			if floatrate, err := toFloat64(rate); err != nil {
+				log.Errorf("Invalid value for apm_config.analyzed_spans: %v", err)
+			} else {
 				if _, ok := c.AnalyzedSpansByService[serviceName]; !ok {
 					c.AnalyzedSpansByService[serviceName] = make(map[string]float64)
 				}
@@ -325,13 +339,6 @@ func (c *AgentConfig) loadDeprecatedValues() error {
 	}
 	if cfg.IsSet("apm_config.log_level") {
 		c.LogLevel = config.Datadog.GetString("apm_config.log_level")
-	}
-	if v := cfg.GetString("apm_config.extra_aggregators"); len(v) > 0 {
-		aggs, err := splitString(v, ',')
-		if err != nil {
-			return err
-		}
-		c.ExtraAggregators = append(c.ExtraAggregators, aggs...)
 	}
 	if cfg.IsSet("apm_config.log_throttling") {
 		c.LogThrottling = cfg.GetBool("apm_config.log_throttling")
@@ -404,4 +411,33 @@ func splitString(s string, sep rune) ([]string, error) {
 	r.Comma = sep
 
 	return r.Read()
+}
+
+func toFloat64(val interface{}) (float64, error) {
+	switch v := val.(type) {
+	case float64:
+		return v, nil
+	case float32:
+		return float64(v), nil
+	case int:
+		return float64(v), nil
+	case int32:
+		return float64(v), nil
+	case int64:
+		return float64(v), nil
+	case uint:
+		return float64(v), nil
+	case uint32:
+		return float64(v), nil
+	case uint64:
+		return float64(v), nil
+	case string:
+		f, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			return 0, err
+		}
+		return f, nil
+	default:
+		return 0, fmt.Errorf("%v can not be converted to float64", val)
+	}
 }

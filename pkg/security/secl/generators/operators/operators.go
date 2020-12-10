@@ -58,20 +58,8 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			}
 		{{ end }}
 
-		var evalFnc func(ctx *Context) {{ .EvalReturnType }}
-		if opts.Debug {
-			evalFnc = func(ctx *Context) {{ .EvalReturnType }} {
-				ctx.evalDepth++
-				op1, op2 := ea(ctx), eb(ctx)
-				result := op1 {{.Op}} op2
-				ctx.Logf("Evaluating %v {{ .Op }} %v => %v", op1, op2, result)
-				ctx.evalDepth--
-				return result
-			}
-		} else {
-			evalFnc = func(ctx *Context) {{ .EvalReturnType }} {
-				return ea(ctx) {{ .Op }} eb(ctx)
-			}
+		evalFnc := func(ctx *Context) {{ .EvalReturnType }} {
+			return ea(ctx) {{ .Op }} eb(ctx)
 		}
 
 		return &{{ .FuncReturnType }}{
@@ -122,20 +110,8 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			}
 		{{ end }}
 
-		var evalFnc func(ctx *Context) {{ .EvalReturnType }}
-		if opts.Debug {
-			evalFnc = func(ctx *Context) {{ .EvalReturnType }} {
-				ctx.evalDepth++
-				op1, op2 := ea(ctx), eb
-				result := op1 {{ .Op }} op2
-				ctx.Logf("Evaluating %v {{.Op}} %v => %v", op1, op2, result)
-				ctx.evalDepth--
-				return result
-			}
-		} else {
-			evalFnc = func(ctx *Context) {{ .EvalReturnType }} {
-				return ea(ctx) {{ .Op }} eb
-			}
+		evalFnc := func(ctx *Context) {{ .EvalReturnType }} {
+			return ea(ctx) {{ .Op }} eb
 		}
 
 		return &{{ .FuncReturnType }}{
@@ -165,20 +141,8 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 		}
 	{{ end }}
 
-	var evalFnc func(ctx *Context) {{ .EvalReturnType }}
-	if opts.Debug {
-		evalFnc = func(ctx *Context) {{ .EvalReturnType }} {
-			ctx.evalDepth++
-			op1, op2 := ea, eb(ctx)
-			result := op1 {{ .Op }} op2
-			ctx.Logf("Evaluating %v {{ .Op }} %v => %v", op1, op2, result)
-			ctx.evalDepth--
-			return result
-		}
-	} else {
-		evalFnc = func(ctx *Context) {{ .EvalReturnType }} {
-			return ea {{ .Op }} eb(ctx)
-		}
+	evalFnc := func(ctx *Context) {{ .EvalReturnType }} {
+		return ea {{ .Op }} eb(ctx)
 	}
 
 	return &{{ .FuncReturnType }}{

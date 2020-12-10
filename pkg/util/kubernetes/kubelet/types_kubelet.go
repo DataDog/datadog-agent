@@ -43,10 +43,11 @@ type PodOwner struct {
 
 // Spec contains fields for unmarshalling a Pod.Spec
 type Spec struct {
-	HostNetwork bool            `json:"hostNetwork,omitempty"`
-	NodeName    string          `json:"nodeName,omitempty"`
-	Containers  []ContainerSpec `json:"containers,omitempty"`
-	Volumes     []VolumeSpec    `json:"volumes,omitempty"`
+	HostNetwork    bool            `json:"hostNetwork,omitempty"`
+	NodeName       string          `json:"nodeName,omitempty"`
+	InitContainers []ContainerSpec `json:"initContainers,omitempty"`
+	Containers     []ContainerSpec `json:"containers,omitempty"`
+	Volumes        []VolumeSpec    `json:"volumes,omitempty"`
 }
 
 // ContainerSpec contains fields for unmarshalling a Pod.Spec.Containers
@@ -105,10 +106,6 @@ type Status struct {
 // GetAllContainers returns the list of init and regular containers
 // the list is created lazily assuming container statuses are not modified
 func (s *Status) GetAllContainers() []ContainerStatus {
-	if len(s.AllContainers) > 0 {
-		return s.AllContainers
-	}
-	s.AllContainers = append(s.InitContainers, s.Containers...)
 	return s.AllContainers
 }
 

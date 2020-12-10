@@ -1,3 +1,5 @@
+// +build linux
+
 package network
 
 import (
@@ -17,8 +19,8 @@ const (
 	tcpClose int64 = 7
 )
 
-// readProcNet reads a /proc/net/ file and returns a list of all source ports for connections in the tcpListen state
-func readProcNet(path string) ([]uint16, error) {
+// readProcNetListeners reads a /proc/net/ file and returns a list of all source ports for connections in the tcpListen state
+func readProcNetListeners(path string) ([]uint16, error) {
 	return readProcNetWithStatus(path, tcpListen)
 }
 

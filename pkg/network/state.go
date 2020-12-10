@@ -1,7 +1,6 @@
 package network
 
 import (
-	"bytes"
 	"sync"
 	"time"
 
@@ -22,6 +21,9 @@ const (
 	// We could have used layers.DNSResponseCodeNoErr here. But importing the gopacket library only for this
 	// constant is not worth the increased memory cost.
 	DNSResponseCodeNoError = 0
+
+	// ConnectionByteKeyMaxLen represents the maximum size in bytes of a connection byte key
+	ConnectionByteKeyMaxLen = 41
 )
 
 // State takes care of handling the logic for:
@@ -37,7 +39,7 @@ type State interface {
 	) []ConnectionStats
 
 	// StoreClosedConnection stores a new closed connection
-	StoreClosedConnection(conn ConnectionStats)
+	StoreClosedConnection(conn *ConnectionStats)
 
 	// RemoveClient stops tracking stateful data for a given client
 	RemoveClient(clientID string)
@@ -87,7 +89,7 @@ type networkState struct {
 	clients   map[string]*client
 	telemetry telemetry
 
-	buf             *bytes.Buffer // Shared buffer
+	buf             [ConnectionByteKeyMaxLen]byte // Shared buffer
 	latestTimeEpoch uint64
 
 	// Network state configuration
@@ -106,7 +108,6 @@ func NewState(clientExpiry time.Duration, maxClosedConns, maxClientStats int, ma
 		maxClosedConns: maxClosedConns,
 		maxClientStats: maxClientStats,
 		maxDNSStats:    maxDNSStats,
-		buf:            &bytes.Buffer{},
 	}
 }
 
@@ -229,7 +230,7 @@ func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
 }
 
 // getConnsByKey returns a mapping of byte-key -> connection for easier access + manipulation
-func getConnsByKey(conns []ConnectionStats, buf *bytes.Buffer) map[string]*ConnectionStats {
+func getConnsByKey(conns []ConnectionStats, buf [ConnectionByteKeyMaxLen]byte) map[string]*ConnectionStats {
 	connsByKey := make(map[string]*ConnectionStats, len(conns))
 	for i, c := range conns {
 		key, err := c.ByteKey(buf)
@@ -243,7 +244,7 @@ func getConnsByKey(conns []ConnectionStats, buf *bytes.Buffer) map[string]*Conne
 }
 
 // StoreClosedConnection stores the given connection for every client
-func (ns *networkState) StoreClosedConnection(conn ConnectionStats) {
+func (ns *networkState) StoreClosedConnection(conn *ConnectionStats) {
 	ns.Lock()
 	defer ns.Unlock()
 
@@ -275,7 +276,7 @@ func (ns *networkState) StoreClosedConnection(conn ConnectionStats) {
 			ns.telemetry.closedConnDropped++
 			continue
 		} else {
-			client.closedConnections[string(key)] = conn
+			client.closedConnections[string(key)] = *conn
 		}
 	}
 }
@@ -564,7 +565,6 @@ func (ns *networkState) DumpState(clientID string) map[string]interface{} {
 }
 
 func (ns *networkState) determineConnectionIntraHost(connections []ConnectionStats) {
-
 	type connKey struct {
 		Address util.Address
 		Port    uint16
@@ -588,20 +588,20 @@ func (ns *networkState) determineConnectionIntraHost(connections []ConnectionSta
 		return key
 	}
 
-	lAddrs := make(map[connKey]struct{})
+	lAddrs := make(map[connKey]struct{}, len(connections))
 	for _, conn := range connections {
 		lAddrs[newConnKey(&conn, false)] = struct{}{}
 	}
 
+	// do not use range value here since it will create a copy of the ConnectionStats object
 	for i := range connections {
 		conn := &connections[i]
-		keyWithRAddr := newConnKey(conn, true)
-
 		if conn.Source == conn.Dest || (conn.Source.IsLoopback() && conn.Dest.IsLoopback()) {
 			conn.IntraHost = true
 			continue
 		}
 
+		keyWithRAddr := newConnKey(conn, true)
 		_, ok := lAddrs[keyWithRAddr]
 		if ok {
 			conn.IntraHost = true

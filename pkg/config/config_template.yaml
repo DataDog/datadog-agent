@@ -170,11 +170,13 @@ api_key:
 #
 # forwarder_retry_queue_max_size: 30
 
-## @param forwarder_retry_queue_payloads_max_size - integer - optional - default: 31457280 (30Mb)
+## @param forwarder_retry_queue_payloads_max_size - integer - optional - default: 15728640 (15MB)
 ## It defines the maximum size in bytes of all the payloads in the forwarder's retry queue.
-## If "forwarder_retry_queue_max_size" is greater than 0, this parameter is ignored. 
+## The actual memory used is greater than the payloads size as there are extra fields like HTTP headers,
+## but no more than 2.5 times the payload size.
+## If "forwarder_retry_queue_max_size" is greater than 0, this parameter is ignored.
 #
-# forwarder_retry_queue_payloads_max_size: 31457280
+# forwarder_retry_queue_payloads_max_size: 15728640
 
 ## @param forwarder_num_workers - integer - optional - default: 1
 ## The number of workers used by the forwarder.
@@ -402,17 +404,17 @@ api_key:
 #
 # tracemalloc_debug: false
 
-## @param tracemalloc_whitelist - string - optional
+## @param tracemalloc_include - string - optional
 ## Comma-separated list of Python checks to enable tracemalloc for when `tracemalloc_debug` is true.
 ## By default, all Python checks are enabled.
 #
-# tracemalloc_whitelist: <TRACEMALLOC_WHITELIST>
+# tracemalloc_include: <TRACEMALLOC_EXCLUDE>
 
-## @param tracemalloc_blacklist - string - optional
+## @param tracemalloc_exclude - string - optional
 ## Comma-separated list of Python checks to disable tracemalloc for when `tracemalloc_debug` is true.
-## By default, all Python checks are enabled. This setting takes precedence over `tracemalloc_whitelist`.
+## By default, all Python checks are enabled. This setting takes precedence over `tracemalloc_include`.
 #
-# tracemalloc_blacklist: <TRACEMALLOC_BLACKLIST>
+# tracemalloc_exclude: <TRACEMALLOC_INCLUDE>
 
 ## @param windows_use_pythonpath - boolean - optional
 ## Whether to honour the value of the PYTHONPATH env var when set on Windows.
@@ -904,17 +906,10 @@ api_key:
 ##################################
 
 ## @param system_probe_config - custom object - optional
-## Beta Agent
 ## Enter specific configurations for your System Probe data collection.
 ## Uncomment this parameter and the one below to enable them.
 #
 # system_probe_config:
-
-  ## @param enabled - boolean - optional - default: false
-  ## Set to true to enable the System Probe.
-  #
-  # enabled: false
-
   ## @param sysprobe_socket - string - optional - default: /opt/datadog-agent/run/sysprobe.sock
   ## The full path to the location of the unix socket where system probes are accessed.
   #
@@ -932,10 +927,10 @@ api_key:
 ########################################
 
 # network_config:
-  ## @param enabled - boolean - optional - default: true
+  ## @param enabled - boolean - optional - default: false
   ## Set to true to enable the Network Module of the System Probe
   #
-  # enabled: true
+  # enabled: false
 
 {{ end -}}
 
@@ -953,11 +948,6 @@ api_key:
   ## Set to true to enable the Security Runtime Module.
   #
   # enabled: false
-
-  ## @param debug - boolean - optional - default: false
-  ## Enable debug mode.
-  #
-  # debug: false
 
   ## @param socket - string - optional - default: /opt/datadog-agent/run/runtime-security.sock
   ## The full path to the location of the unix socket where security runtime module is accessed.
@@ -1189,6 +1179,11 @@ api_key:
 ## this option is set.
 #
 # jmx_use_container_support: false
+
+## @param jmx_log_file - string - optional
+## Path of the log file where JMXFetch logs are written.
+#
+# jmx_log_file: <JMXFETCH_LOG_FILE_PATH>
 
 ## @param jmx_max_restarts - integer - optional - default: 3
 ## Number of JMX restarts allowed in the restart-interval before giving up.
@@ -1602,6 +1597,11 @@ api_key:
 ## ECS Agent for tasks scheduled with the EC2 launch type.
 #
 # ecs_collect_resource_tags_ec2: false
+
+## @param ecs_metadata_timeout - integer - optional - default: 500
+## Timeout in milliseconds on calls to the AWS ECS metadata endpoints.
+#
+# ecs_metadata_timeout: 500
 
 {{ end -}}
 {{- if .CRI }}

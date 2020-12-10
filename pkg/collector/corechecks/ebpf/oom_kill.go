@@ -16,6 +16,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe"
+
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -23,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	dd_config "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/oomkill"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	process_net "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -106,12 +107,11 @@ func (m *OOMKillCheck) Run() error {
 
 	triggerType := ""
 	triggerTypeText := ""
-	for _, lineRaw := range data {
-		line, ok := lineRaw.(oomkill.Stats)
-		if !ok {
-			log.Error("Raw data has incorrect type")
-			continue
-		}
+	oomkillStats, ok := data.([]probe.OOMKillStats)
+	if !ok {
+		return log.Errorf("Raw data has incorrect type")
+	}
+	for _, line := range oomkillStats {
 		entityID := containers.BuildTaggerEntityName(line.ContainerID)
 		var tags []string
 		if entityID != "" {

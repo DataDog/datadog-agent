@@ -3,7 +3,7 @@
 package network
 
 import (
-	"fmt"
+	"math"
 	"math/rand"
 	"net"
 	"strings"
@@ -11,33 +11,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/gopacket/layers"
-
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
+	"github.com/google/gopacket/layers"
 	mdns "github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 )
-
-// isPre410Kernel compares current kernel version to the minimum kernel version(4.1.0) and see if it's older
-func isPre410Kernel(currentKernelCode uint32) bool {
-	return currentKernelCode < stringToKernelCode("4.1.0")
-}
-
-func stringToKernelCode(str string) uint32 {
-	var a, b, c uint32
-	fmt.Sscanf(str, "%d.%d.%d", &a, &b, &c)
-	return linuxKernelVersionCode(a, b, c)
-}
-
-// KERNEL_VERSION(a,b,c) = (a << 16) + (b << 8) + (c)
-// Per https://github.com/torvalds/linux/blob/master/Makefile#L1187
-func linuxKernelVersionCode(major, minor, patch uint32) uint32 {
-	return (major << 16) + (minor << 8) + patch
-}
 
 func getSnooper(
 	t *testing.T,
@@ -46,34 +33,42 @@ func getSnooper(
 	collectLocalDNS bool,
 	dnsTimeout time.Duration,
 ) (*manager.Manager, *SocketFilterSnooper) {
-	currKernelVersion, err := ebpf.CurrentKernelVersion()
+	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
-	pre410Kernel := isPre410Kernel(currKernelVersion)
+	pre410Kernel := currKernelVersion < kernel.VersionCode(4, 1, 0)
 	if pre410Kernel {
 		t.Skip("DNS feature not available on pre 4.1.0 kernels")
 		return nil, nil
 	}
 
-	mgr := &manager.Manager{
-		Probes: []*manager.Probe{
-			{Section: string(bytecode.SocketDnsFilter)},
-		},
-		Maps: []*manager.Map{
-			{Name: string(bytecode.ConnMap)},
-			{Name: string(bytecode.TcpStatsMap)},
-			{Name: string(bytecode.PortBindingsMap)},
-			{Name: string(bytecode.UdpPortBindingsMap)},
-		},
-		PerfMaps: []*manager.PerfMap{},
-	}
+	mgr := netebpf.NewManager(ddebpf.NewPerfHandler(1))
 	mgrOptions := manager.Options{
 		MapSpecEditors: map[string]manager.MapSpecEditor{
-			string(bytecode.ConnMap):            {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
-			string(bytecode.TcpStatsMap):        {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
-			string(bytecode.PortBindingsMap):    {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
-			string(bytecode.UdpPortBindingsMap): {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
+			// These maps are unrelated to DNS but are getting set because the eBPF library loads all of them
+			string(probes.ConnMap):            {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
+			string(probes.TcpStatsMap):        {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
+			string(probes.PortBindingsMap):    {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
+			string(probes.UdpPortBindingsMap): {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
+		},
+		RLimit: &unix.Rlimit{
+			Cur: math.MaxUint64,
+			Max: math.MaxUint64,
+		},
+		ActivatedProbes: []manager.ProbesSelector{
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					Section: string(probes.SocketDnsFilter),
+				},
+			},
 		},
 	}
+
+	for _, p := range mgr.Probes {
+		if p.Section != string(probes.SocketDnsFilter) {
+			mgrOptions.ExcludedSections = append(mgrOptions.ExcludedSections, p.Section)
+		}
+	}
+
 	if collectStats {
 		mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors, manager.ConstantEditor{
 			Name:  "dns_stats_enabled",
@@ -83,7 +78,7 @@ func getSnooper(
 	err = mgr.InitWithOptions(buf, mgrOptions)
 	require.NoError(t, err)
 
-	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{Section: string(bytecode.SocketDnsFilter)})
+	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{Section: string(probes.SocketDnsFilter)})
 	require.NotNil(t, filter)
 
 	reverseDNS, err := NewSocketFilterSnooper(
@@ -129,7 +124,7 @@ Loop:
 }
 
 func TestDNSOverUDPSnooping(t *testing.T) {
-	buf, err := bytecode.ReadBPFModule("", false)
+	buf, err := netebpf.ReadBPFModule("build", false)
 	require.NoError(t, err)
 
 	m, reverseDNS := getSnooper(t, buf, false, false, 15*time.Second)
@@ -185,7 +180,7 @@ const (
 )
 
 func initDNSTests(t *testing.T, localDNS bool) (*manager.Manager, *SocketFilterSnooper) {
-	buf, err := bytecode.ReadBPFModule("", false)
+	buf, err := netebpf.ReadBPFModule("build", false)
 	require.NoError(t, err)
 	return getSnooper(t, buf, true, localDNS, 1*time.Second)
 }
@@ -373,7 +368,7 @@ func TestDNSOverUDPTimeoutCount(t *testing.T) {
 
 	allStats := getStats(reverseDNS, 1)
 	key := getKey(queryIP, queryPort, invalidServerIP, UDP)
-	require.Equal(t, 1, len(allStats))
+	require.Contains(t, allStats, key)
 	assert.Equal(t, 0, len(allStats[key].countByRcode))
 	assert.Equal(t, uint32(1), allStats[key].timeouts)
 	assert.Equal(t, uint64(0), allStats[key].successLatencySum)
@@ -381,7 +376,7 @@ func TestDNSOverUDPTimeoutCount(t *testing.T) {
 }
 
 func TestParsingError(t *testing.T) {
-	buf, err := bytecode.ReadBPFModule("", false)
+	buf, err := netebpf.ReadBPFModule("build", false)
 	require.NoError(t, err)
 
 	m, reverseDNS := getSnooper(t, buf, false, false, 15*time.Second)

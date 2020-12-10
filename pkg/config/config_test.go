@@ -887,3 +887,20 @@ dogstatsd_mapper_profiles:
 	assert.Contains(t, err.Error(), expectedErrorMsg)
 	assert.Empty(t, profiles)
 }
+
+func TestDogstatsdMappingProfilesEnv(t *testing.T) {
+	env := "DD_DOGSTATSD_MAPPER_PROFILES"
+	err := os.Setenv(env, `[{"name":"another_profile","prefix":"abcd","mappings":[{"match":"foo.bar.*.*","name":"foo","tags":{"a":"$1","b":"$2"}}]},{"name":"some_other_profile","prefix":"some_other_profile.","mappings":[{"match":"some_other_profile.*","name":"some_other_profile.abc","tags":{"a":"$1"}}]}]`)
+	assert.Nil(t, err)
+	defer os.Unsetenv(env)
+	expected := []MappingProfile{
+		{Name: "another_profile", Prefix: "abcd", Mappings: []MetricMapping{
+			{Match: "foo.bar.*.*", Name: "foo", Tags: map[string]string{"a": "$1", "b": "$2"}},
+		}},
+		{Name: "some_other_profile", Prefix: "some_other_profile.", Mappings: []MetricMapping{
+			{Match: "some_other_profile.*", Name: "some_other_profile.abc", Tags: map[string]string{"a": "$1"}},
+		}},
+	}
+	mappings, _ := GetDogstatsdMappingProfiles()
+	assert.Equal(t, mappings, expected)
+}

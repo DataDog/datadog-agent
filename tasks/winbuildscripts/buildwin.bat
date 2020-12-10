@@ -32,6 +32,10 @@ SET PATH=%PATH%;%GOPATH%/bin
 @echo VSTUDIO_ROOT %VSTUDIO_ROOT%
 @echo TARGET_ARCH %TARGET_ARCH%
 
+REM Section to pre-install libyajl2 gem with fix for gcc10 compatibility
+Powershell -C "ridk enable; ./tasks/winbuildscripts/libyajl2_install.ps1"
+
+
 if "%TARGET_ARCH%" == "x64" (
     @echo IN x64 BRANCH
     call ridk enable

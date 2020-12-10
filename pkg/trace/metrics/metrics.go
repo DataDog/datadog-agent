@@ -18,11 +18,10 @@ import (
 
 // Configure creates a statsd client for the given agent's configuration, using the specified global tags.
 func Configure(conf *config.AgentConfig, tags []string) error {
-	client, err := statsd.New(fmt.Sprintf("%s:%d", conf.StatsdHost, conf.StatsdPort))
+	client, err := statsd.New(fmt.Sprintf("%s:%d", conf.StatsdHost, conf.StatsdPort), statsd.WithTags(tags))
 	if err != nil {
 		return err
 	}
-	client.Tags = tags
 	Client = client
 	return nil
 }
