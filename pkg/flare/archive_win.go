@@ -31,7 +31,7 @@ var (
 		"Application": "Event/System/Provider[@Name=\"datadog-trace-agent\"]",
 		"Microsoft-Windows-WMI-Activity/Operational": "*",
 	}
-	execTimeoutInSeconds = 30 * time.Second
+	execTimeout = 30 * time.Second
 )
 
 const (
@@ -84,7 +84,7 @@ func zipCounterStrings(tempDir, hostname string) error {
 }
 
 func zipTypeperfData(tempDir, hostname string) error {
-	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeoutInSeconds)
+	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
 	defer cancelfunc()
 
 	cmd := exec.CommandContext(cancelctx, "typeperf", "-qx")
@@ -108,7 +108,7 @@ func zipTypeperfData(tempDir, hostname string) error {
 	return nil
 }
 func zipLodctrOutput(tempDir, hostname string) error {
-	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeoutInSeconds)
+	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
 	defer cancelfunc()
 
 	cmd := exec.CommandContext(cancelctx, "lodctr.exe", "/q")
