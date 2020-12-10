@@ -152,10 +152,11 @@ func GetClusterID() (string, error) {
 		if err != nil {
 			return "", err
 		}
+		log.Debugf("Cluster ID retrieved frm the Cluster Agent, set to %s", clusterID)
 	}
 
 	if len(clusterID) != 36 {
-		err := fmt.Errorf("Unexpected value %s for env variable %s, ignoring it", clusterID, clusterIDEnv)
+		err := fmt.Errorf("Unexpected value for Cluster ID: %s, ignoring it", clusterID)
 		return "", err
 	}
 

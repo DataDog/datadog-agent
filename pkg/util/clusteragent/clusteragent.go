@@ -443,7 +443,10 @@ func (c *DCAClient) GetKubernetesClusterID() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	clusterID = string(b)
+	err = json.Unmarshal(b, &clusterID)
+	if err != nil {
+		return clusterID, err
+	}
 
 	return clusterID, nil
 }
