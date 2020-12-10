@@ -43,7 +43,7 @@ var flareCmd = &cobra.Command{
 		}
 
 		// Read configuration files received from the command line arguments '-c'
-		err := secagentcommon.MergeConfigurationFiles("datadog", confPathArray)
+		err := secagentcommon.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed)
 		if err != nil {
 			return err
 		}

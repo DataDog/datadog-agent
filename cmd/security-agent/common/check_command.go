@@ -69,7 +69,7 @@ func runCheck(cmd *cobra.Command, confPathArray []string, args []string) error {
 	}
 
 	// Read configuration files received from the command line arguments '-c'
-	if err := MergeConfigurationFiles(configName, confPathArray); err != nil {
+	if err := MergeConfigurationFiles(configName, confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
 		return err
 	}
 
