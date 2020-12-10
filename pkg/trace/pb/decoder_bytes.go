@@ -31,7 +31,6 @@ func repairUTF8(s string) string {
 			// had already constructed.
 			return out.String()
 		}
-
 		out.WriteRune(r)
 	}
 }
@@ -110,7 +109,6 @@ func castInt64(v uint64) (int64, bool) {
 	if v > math.MaxInt64 {
 		return 0, false
 	}
-
 	return int64(v), true
 }
 
@@ -191,7 +189,6 @@ func castInt32(v uint32) (int32, bool) {
 	if v > math.MaxInt32 {
 		return 0, false
 	}
-
 	return int32(v), true
 }
 
