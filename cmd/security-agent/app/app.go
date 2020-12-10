@@ -50,6 +50,7 @@ var (
 		Short: "Datadog Security Agent at your service.",
 		Long: `
 Datadog Security Agent takes care of running compliance and security checks.`,
+		SilenceUsage: true, // don't print usage on errors
 	}
 
 	startCmd = &cobra.Command{

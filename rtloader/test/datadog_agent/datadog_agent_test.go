@@ -454,7 +454,7 @@ func TestObfuscateSql(t *testing.T) {
 	}
 	expected := "select * from table where id = ?"
 	if out != expected {
-		t.Fatalf("expected: '%s', found: '%s'", out, expected)
+		t.Fatalf("expected: '%s', found: '%s'", expected, out)
 	}
 
 	helpers.AssertMemoryUsage(t)
@@ -490,6 +490,87 @@ func TestObfuscateSQLErrors(t *testing.T) {
 		}
 		if !matched {
 			t.Fatalf("expected: '%s', found: '%s'", out, c.expected)
+		}
+	}
+
+	helpers.AssertMemoryUsage(t)
+}
+
+func TestObfuscateSqlExecPlan(t *testing.T) {
+	helpers.ResetMemoryStats()
+
+	cases := []struct {
+		args     string
+		expected string
+	}{
+		{
+			"'raw-json-plan'",
+			"obfuscated",
+		},
+		{
+			"'raw-json-plan', normalize=True",
+			"obfuscated-and-normalized",
+		},
+		// normalize must be exactly True, anything else is evaluated to false
+		{
+			"'raw-json-plan', normalize=5",
+			"obfuscated",
+		},
+	}
+
+	for _, testCase := range cases {
+		code := fmt.Sprintf(`
+	result = datadog_agent.obfuscate_sql_exec_plan(%s)
+	with open(r'%s', 'w') as f:
+		f.write(str(result))
+	`, testCase.args, tmpfile.Name())
+		out, err := run(code)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if out != testCase.expected {
+			t.Fatalf("args: (%s) expected: '%s', found: '%s'", testCase.args, testCase.expected, out)
+		}
+	}
+
+	helpers.AssertMemoryUsage(t)
+}
+
+func TestObfuscateSqlExecPlanErrors(t *testing.T) {
+	helpers.ResetMemoryStats()
+
+	cases := []struct {
+		args     string
+		expected string
+	}{
+		{
+			"''",
+			"empty",
+		},
+		{
+			"{}",
+			"argument 1 must be str(ing)?, not dict",
+		},
+	}
+
+	for _, testCase := range cases {
+		code := fmt.Sprintf(`
+	try:
+		result = datadog_agent.obfuscate_sql_exec_plan(%s)
+	except Exception as e:
+		with open(r'%s', 'w') as f:
+			f.write(str(e))
+	`, testCase.args, tmpfile.Name())
+		out, err := run(code)
+		if err != nil {
+			t.Fatal(err)
+		}
+		matched, err := regexp.MatchString(testCase.expected, out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !matched {
+			t.Fatalf("args: (%s) expected-pattern: '%s', found: '%s'", testCase.args, testCase.expected, out)
 		}
 	}
 

@@ -113,7 +113,7 @@ $> reno new <topic-of-my-pr> --edit
 # Remove unused sections and fill the relevant ones.
 # Reno will create a new file in releasenotes/notes.
 #
-# Each section from every releasenote are combined when the CHANGELOG.rst is
+# Each section from every release note are combined when the CHANGELOG.rst is
 # rendered. So the text needs to be worded so that it does not depend on any
 # information only available in another section. This may mean repeating some
 # details, but each section must be readable independently of the other.

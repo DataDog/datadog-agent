@@ -394,11 +394,11 @@ func (s *KubeEndpointService) GetPorts() ([]ContainerPort, error) {
 }
 
 // GetTags retrieves tags
-func (s *KubeEndpointService) GetTags() ([]string, error) {
+func (s *KubeEndpointService) GetTags() ([]string, string, error) {
 	if s.tags == nil {
-		return []string{}, nil
+		return []string{}, "", nil
 	}
-	return s.tags, nil
+	return s.tags, "", nil
 }
 
 // GetHostname returns nil and an error because port is not supported in Kubelet
