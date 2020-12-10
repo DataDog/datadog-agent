@@ -32,6 +32,6 @@ message ClientGroupedStats {
 	uint64 hits = 7;
 	uint64 errors = 8;
 	uint64 duration = 9;
-	bytes hitsSummary = 10;
+	bytes okSummary = 10;
 	bytes errorSummary = 11;
 }

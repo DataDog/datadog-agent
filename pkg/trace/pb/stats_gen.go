@@ -14,73 +14,87 @@ func (z *ClientGroupedStats) DecodeMsg(dc *msgp.Reader) (err error) {
 	var zb0001 uint32
 	zb0001, err = dc.ReadMapHeader()
 	if err != nil {
+		err = msgp.WrapError(err)
 		return
 	}
 	for zb0001 > 0 {
 		zb0001--
 		field, err = dc.ReadMapKeyPtr()
 		if err != nil {
+			err = msgp.WrapError(err)
 			return
 		}
 		switch msgp.UnsafeString(field) {
 		case "Service":
 			z.Service, err = dc.ReadString()
 			if err != nil {
+				err = msgp.WrapError(err, "Service")
 				return
 			}
 		case "Name":
 			z.Name, err = dc.ReadString()
 			if err != nil {
+				err = msgp.WrapError(err, "Name")
 				return
 			}
 		case "Resource":
 			z.Resource, err = dc.ReadString()
 			if err != nil {
+				err = msgp.WrapError(err, "Resource")
 				return
 			}
 		case "HTTPStatusCode":
 			z.HTTPStatusCode, err = dc.ReadUint32()
 			if err != nil {
+				err = msgp.WrapError(err, "HTTPStatusCode")
 				return
 			}
 		case "Type":
 			z.Type, err = dc.ReadString()
 			if err != nil {
+				err = msgp.WrapError(err, "Type")
 				return
 			}
 		case "DBType":
 			z.DBType, err = dc.ReadString()
 			if err != nil {
+				err = msgp.WrapError(err, "DBType")
 				return
 			}
 		case "Hits":
 			z.Hits, err = dc.ReadUint64()
 			if err != nil {
+				err = msgp.WrapError(err, "Hits")
 				return
 			}
 		case "Errors":
 			z.Errors, err = dc.ReadUint64()
 			if err != nil {
+				err = msgp.WrapError(err, "Errors")
 				return
 			}
 		case "Duration":
 			z.Duration, err = dc.ReadUint64()
 			if err != nil {
+				err = msgp.WrapError(err, "Duration")
 				return
 			}
-		case "HitsSummary":
-			z.HitsSummary, err = dc.ReadBytes(z.HitsSummary)
+		case "OkSummary":
+			z.OkSummary, err = dc.ReadBytes(z.OkSummary)
 			if err != nil {
+				err = msgp.WrapError(err, "OkSummary")
 				return
 			}
 		case "ErrorSummary":
 			z.ErrorSummary, err = dc.ReadBytes(z.ErrorSummary)
 			if err != nil {
+				err = msgp.WrapError(err, "ErrorSummary")
 				return
 			}
 		default:
 			err = dc.Skip()
 			if err != nil {
+				err = msgp.WrapError(err)
 				return
 			}
 		}
@@ -98,6 +112,7 @@ func (z *ClientGroupedStats) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 	err = en.WriteString(z.Service)
 	if err != nil {
+		err = msgp.WrapError(err, "Service")
 		return
 	}
 	// write "Name"
@@ -107,6 +122,7 @@ func (z *ClientGroupedStats) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 	err = en.WriteString(z.Name)
 	if err != nil {
+		err = msgp.WrapError(err, "Name")
 		return
 	}
 	// write "Resource"
@@ -116,6 +132,7 @@ func (z *ClientGroupedStats) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 	err = en.WriteString(z.Resource)
 	if err != nil {
+		err = msgp.WrapError(err, "Resource")
 		return
 	}
 	// write "HTTPStatusCode"
@@ -125,6 +142,7 @@ func (z *ClientGroupedStats) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 	err = en.WriteUint32(z.HTTPStatusCode)
 	if err != nil {
+		err = msgp.WrapError(err, "HTTPStatusCode")
 		return
 	}
 	// write "Type"
@@ -134,6 +152,7 @@ func (z *ClientGroupedStats) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 	err = en.WriteString(z.Type)
 	if err != nil {
+		err = msgp.WrapError(err, "Type")
 		return
 	}
 	// write "DBType"
@@ -143,6 +162,7 @@ func (z *ClientGroupedStats) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 	err = en.WriteString(z.DBType)
 	if err != nil {
+		err = msgp.WrapError(err, "DBType")
 		return
 	}
 	// write "Hits"
@@ -152,6 +172,7 @@ func (z *ClientGroupedStats) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 	err = en.WriteUint64(z.Hits)
 	if err != nil {
+		err = msgp.WrapError(err, "Hits")
 		return
 	}
 	// write "Errors"
@@ -161,6 +182,7 @@ func (z *ClientGroupedStats) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 	err = en.WriteUint64(z.Errors)
 	if err != nil {
+		err = msgp.WrapError(err, "Errors")
 		return
 	}
 	// write "Duration"
@@ -170,15 +192,17 @@ func (z *ClientGroupedStats) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 	err = en.WriteUint64(z.Duration)
 	if err != nil {
+		err = msgp.WrapError(err, "Duration")
 		return
 	}
-	// write "HitsSummary"
-	err = en.Append(0xab, 0x48, 0x69, 0x74, 0x73, 0x53, 0x75, 0x6d, 0x6d, 0x61, 0x72, 0x79)
+	// write "OkSummary"
+	err = en.Append(0xa9, 0x4f, 0x6b, 0x53, 0x75, 0x6d, 0x6d, 0x61, 0x72, 0x79)
 	if err != nil {
 		return
 	}
-	err = en.WriteBytes(z.HitsSummary)
+	err = en.WriteBytes(z.OkSummary)
 	if err != nil {
+		err = msgp.WrapError(err, "OkSummary")
 		return
 	}
 	// write "ErrorSummary"
@@ -188,6 +212,7 @@ func (z *ClientGroupedStats) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 	err = en.WriteBytes(z.ErrorSummary)
 	if err != nil {
+		err = msgp.WrapError(err, "ErrorSummary")
 		return
 	}
 	return
@@ -224,9 +249,9 @@ func (z *ClientGroupedStats) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "Duration"
 	o = append(o, 0xa8, 0x44, 0x75, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e)
 	o = msgp.AppendUint64(o, z.Duration)
-	// string "HitsSummary"
-	o = append(o, 0xab, 0x48, 0x69, 0x74, 0x73, 0x53, 0x75, 0x6d, 0x6d, 0x61, 0x72, 0x79)
-	o = msgp.AppendBytes(o, z.HitsSummary)
+	// string "OkSummary"
+	o = append(o, 0xa9, 0x4f, 0x6b, 0x53, 0x75, 0x6d, 0x6d, 0x61, 0x72, 0x79)
+	o = msgp.AppendBytes(o, z.OkSummary)
 	// string "ErrorSummary"
 	o = append(o, 0xac, 0x45, 0x72, 0x72, 0x6f, 0x72, 0x53, 0x75, 0x6d, 0x6d, 0x61, 0x72, 0x79)
 	o = msgp.AppendBytes(o, z.ErrorSummary)
@@ -240,73 +265,87 @@ func (z *ClientGroupedStats) UnmarshalMsg(bts []byte) (o []byte, err error) {
 	var zb0001 uint32
 	zb0001, bts, err = msgp.ReadMapHeaderBytes(bts)
 	if err != nil {
+		err = msgp.WrapError(err)
 		return
 	}
 	for zb0001 > 0 {
 		zb0001--
 		field, bts, err = msgp.ReadMapKeyZC(bts)
 		if err != nil {
+			err = msgp.WrapError(err)
 			return
 		}
 		switch msgp.UnsafeString(field) {
 		case "Service":
 			z.Service, bts, err = msgp.ReadStringBytes(bts)
 			if err != nil {
+				err = msgp.WrapError(err, "Service")
 				return
 			}
 		case "Name":
 			z.Name, bts, err = msgp.ReadStringBytes(bts)
 			if err != nil {
+				err = msgp.WrapError(err, "Name")
 				return
 			}
 		case "Resource":
 			z.Resource, bts, err = msgp.ReadStringBytes(bts)
 			if err != nil {
+				err = msgp.WrapError(err, "Resource")
 				return
 			}
 		case "HTTPStatusCode":
 			z.HTTPStatusCode, bts, err = msgp.ReadUint32Bytes(bts)
 			if err != nil {
+				err = msgp.WrapError(err, "HTTPStatusCode")
 				return
 			}
 		case "Type":
 			z.Type, bts, err = msgp.ReadStringBytes(bts)
 			if err != nil {
+				err = msgp.WrapError(err, "Type")
 				return
 			}
 		case "DBType":
 			z.DBType, bts, err = msgp.ReadStringBytes(bts)
 			if err != nil {
+				err = msgp.WrapError(err, "DBType")
 				return
 			}
 		case "Hits":
 			z.Hits, bts, err = msgp.ReadUint64Bytes(bts)
 			if err != nil {
+				err = msgp.WrapError(err, "Hits")
 				return
 			}
 		case "Errors":
 			z.Errors, bts, err = msgp.ReadUint64Bytes(bts)
 			if err != nil {
+				err = msgp.WrapError(err, "Errors")
 				return
 			}
 		case "Duration":
 			z.Duration, bts, err = msgp.ReadUint64Bytes(bts)
 			if err != nil {
+				err = msgp.WrapError(err, "Duration")
 				return
 			}
-		case "HitsSummary":
-			z.HitsSummary, bts, err = msgp.ReadBytesBytes(bts, z.HitsSummary)
+		case "OkSummary":
+			z.OkSummary, bts, err = msgp.ReadBytesBytes(bts, z.OkSummary)
 			if err != nil {
+				err = msgp.WrapError(err, "OkSummary")
 				return
 			}
 		case "ErrorSummary":
 			z.ErrorSummary, bts, err = msgp.ReadBytesBytes(bts, z.ErrorSummary)
 			if err != nil {
+				err = msgp.WrapError(err, "ErrorSummary")
 				return
 			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
+				err = msgp.WrapError(err)
 				return
 			}
 		}
@@ -317,7 +356,7 @@ func (z *ClientGroupedStats) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *ClientGroupedStats) Msgsize() (s int) {
-	s = 1 + 8 + msgp.StringPrefixSize + len(z.Service) + 5 + msgp.StringPrefixSize + len(z.Name) + 9 + msgp.StringPrefixSize + len(z.Resource) + 15 + msgp.Uint32Size + 5 + msgp.StringPrefixSize + len(z.Type) + 7 + msgp.StringPrefixSize + len(z.DBType) + 5 + msgp.Uint64Size + 7 + msgp.Uint64Size + 9 + msgp.Uint64Size + 12 + msgp.BytesPrefixSize + len(z.HitsSummary) + 13 + msgp.BytesPrefixSize + len(z.ErrorSummary)
+	s = 1 + 8 + msgp.StringPrefixSize + len(z.Service) + 5 + msgp.StringPrefixSize + len(z.Name) + 9 + msgp.StringPrefixSize + len(z.Resource) + 15 + msgp.Uint32Size + 5 + msgp.StringPrefixSize + len(z.Type) + 7 + msgp.StringPrefixSize + len(z.DBType) + 5 + msgp.Uint64Size + 7 + msgp.Uint64Size + 9 + msgp.Uint64Size + 10 + msgp.BytesPrefixSize + len(z.OkSummary) + 13 + msgp.BytesPrefixSize + len(z.ErrorSummary)
 	return
 }
 
@@ -328,29 +367,34 @@ func (z *ClientStatsBucket) DecodeMsg(dc *msgp.Reader) (err error) {
 	var zb0001 uint32
 	zb0001, err = dc.ReadMapHeader()
 	if err != nil {
+		err = msgp.WrapError(err)
 		return
 	}
 	for zb0001 > 0 {
 		zb0001--
 		field, err = dc.ReadMapKeyPtr()
 		if err != nil {
+			err = msgp.WrapError(err)
 			return
 		}
 		switch msgp.UnsafeString(field) {
 		case "Start":
 			z.Start, err = dc.ReadUint64()
 			if err != nil {
+				err = msgp.WrapError(err, "Start")
 				return
 			}
 		case "Duration":
 			z.Duration, err = dc.ReadUint64()
 			if err != nil {
+				err = msgp.WrapError(err, "Duration")
 				return
 			}
 		case "Stats":
 			var zb0002 uint32
 			zb0002, err = dc.ReadArrayHeader()
 			if err != nil {
+				err = msgp.WrapError(err, "Stats")
 				return
 			}
 			if cap(z.Stats) >= int(zb0002) {
@@ -361,12 +405,14 @@ func (z *ClientStatsBucket) DecodeMsg(dc *msgp.Reader) (err error) {
 			for za0001 := range z.Stats {
 				err = z.Stats[za0001].DecodeMsg(dc)
 				if err != nil {
+					err = msgp.WrapError(err, "Stats", za0001)
 					return
 				}
 			}
 		default:
 			err = dc.Skip()
 			if err != nil {
+				err = msgp.WrapError(err)
 				return
 			}
 		}
@@ -384,6 +430,7 @@ func (z *ClientStatsBucket) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 	err = en.WriteUint64(z.Start)
 	if err != nil {
+		err = msgp.WrapError(err, "Start")
 		return
 	}
 	// write "Duration"
@@ -393,6 +440,7 @@ func (z *ClientStatsBucket) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 	err = en.WriteUint64(z.Duration)
 	if err != nil {
+		err = msgp.WrapError(err, "Duration")
 		return
 	}
 	// write "Stats"
@@ -402,11 +450,13 @@ func (z *ClientStatsBucket) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 	err = en.WriteArrayHeader(uint32(len(z.Stats)))
 	if err != nil {
+		err = msgp.WrapError(err, "Stats")
 		return
 	}
 	for za0001 := range z.Stats {
 		err = z.Stats[za0001].EncodeMsg(en)
 		if err != nil {
+			err = msgp.WrapError(err, "Stats", za0001)
 			return
 		}
 	}
@@ -429,6 +479,7 @@ func (z *ClientStatsBucket) MarshalMsg(b []byte) (o []byte, err error) {
 	for za0001 := range z.Stats {
 		o, err = z.Stats[za0001].MarshalMsg(o)
 		if err != nil {
+			err = msgp.WrapError(err, "Stats", za0001)
 			return
 		}
 	}
@@ -442,29 +493,34 @@ func (z *ClientStatsBucket) UnmarshalMsg(bts []byte) (o []byte, err error) {
 	var zb0001 uint32
 	zb0001, bts, err = msgp.ReadMapHeaderBytes(bts)
 	if err != nil {
+		err = msgp.WrapError(err)
 		return
 	}
 	for zb0001 > 0 {
 		zb0001--
 		field, bts, err = msgp.ReadMapKeyZC(bts)
 		if err != nil {
+			err = msgp.WrapError(err)
 			return
 		}
 		switch msgp.UnsafeString(field) {
 		case "Start":
 			z.Start, bts, err = msgp.ReadUint64Bytes(bts)
 			if err != nil {
+				err = msgp.WrapError(err, "Start")
 				return
 			}
 		case "Duration":
 			z.Duration, bts, err = msgp.ReadUint64Bytes(bts)
 			if err != nil {
+				err = msgp.WrapError(err, "Duration")
 				return
 			}
 		case "Stats":
 			var zb0002 uint32
 			zb0002, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
+				err = msgp.WrapError(err, "Stats")
 				return
 			}
 			if cap(z.Stats) >= int(zb0002) {
@@ -475,12 +531,14 @@ func (z *ClientStatsBucket) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			for za0001 := range z.Stats {
 				bts, err = z.Stats[za0001].UnmarshalMsg(bts)
 				if err != nil {
+					err = msgp.WrapError(err, "Stats", za0001)
 					return
 				}
 			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
+				err = msgp.WrapError(err)
 				return
 			}
 		}
@@ -505,34 +563,40 @@ func (z *ClientStatsPayload) DecodeMsg(dc *msgp.Reader) (err error) {
 	var zb0001 uint32
 	zb0001, err = dc.ReadMapHeader()
 	if err != nil {
+		err = msgp.WrapError(err)
 		return
 	}
 	for zb0001 > 0 {
 		zb0001--
 		field, err = dc.ReadMapKeyPtr()
 		if err != nil {
+			err = msgp.WrapError(err)
 			return
 		}
 		switch msgp.UnsafeString(field) {
 		case "Hostname":
 			z.Hostname, err = dc.ReadString()
 			if err != nil {
+				err = msgp.WrapError(err, "Hostname")
 				return
 			}
 		case "Env":
 			z.Env, err = dc.ReadString()
 			if err != nil {
+				err = msgp.WrapError(err, "Env")
 				return
 			}
 		case "Version":
 			z.Version, err = dc.ReadString()
 			if err != nil {
+				err = msgp.WrapError(err, "Version")
 				return
 			}
 		case "Stats":
 			var zb0002 uint32
 			zb0002, err = dc.ReadArrayHeader()
 			if err != nil {
+				err = msgp.WrapError(err, "Stats")
 				return
 			}
 			if cap(z.Stats) >= int(zb0002) {
@@ -543,12 +607,14 @@ func (z *ClientStatsPayload) DecodeMsg(dc *msgp.Reader) (err error) {
 			for za0001 := range z.Stats {
 				err = z.Stats[za0001].DecodeMsg(dc)
 				if err != nil {
+					err = msgp.WrapError(err, "Stats", za0001)
 					return
 				}
 			}
 		default:
 			err = dc.Skip()
 			if err != nil {
+				err = msgp.WrapError(err)
 				return
 			}
 		}
@@ -566,6 +632,7 @@ func (z *ClientStatsPayload) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 	err = en.WriteString(z.Hostname)
 	if err != nil {
+		err = msgp.WrapError(err, "Hostname")
 		return
 	}
 	// write "Env"
@@ -575,6 +642,7 @@ func (z *ClientStatsPayload) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 	err = en.WriteString(z.Env)
 	if err != nil {
+		err = msgp.WrapError(err, "Env")
 		return
 	}
 	// write "Version"
@@ -584,6 +652,7 @@ func (z *ClientStatsPayload) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 	err = en.WriteString(z.Version)
 	if err != nil {
+		err = msgp.WrapError(err, "Version")
 		return
 	}
 	// write "Stats"
@@ -593,11 +662,13 @@ func (z *ClientStatsPayload) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 	err = en.WriteArrayHeader(uint32(len(z.Stats)))
 	if err != nil {
+		err = msgp.WrapError(err, "Stats")
 		return
 	}
 	for za0001 := range z.Stats {
 		err = z.Stats[za0001].EncodeMsg(en)
 		if err != nil {
+			err = msgp.WrapError(err, "Stats", za0001)
 			return
 		}
 	}
@@ -623,6 +694,7 @@ func (z *ClientStatsPayload) MarshalMsg(b []byte) (o []byte, err error) {
 	for za0001 := range z.Stats {
 		o, err = z.Stats[za0001].MarshalMsg(o)
 		if err != nil {
+			err = msgp.WrapError(err, "Stats", za0001)
 			return
 		}
 	}
@@ -636,34 +708,40 @@ func (z *ClientStatsPayload) UnmarshalMsg(bts []byte) (o []byte, err error) {
 	var zb0001 uint32
 	zb0001, bts, err = msgp.ReadMapHeaderBytes(bts)
 	if err != nil {
+		err = msgp.WrapError(err)
 		return
 	}
 	for zb0001 > 0 {
 		zb0001--
 		field, bts, err = msgp.ReadMapKeyZC(bts)
 		if err != nil {
+			err = msgp.WrapError(err)
 			return
 		}
 		switch msgp.UnsafeString(field) {
 		case "Hostname":
 			z.Hostname, bts, err = msgp.ReadStringBytes(bts)
 			if err != nil {
+				err = msgp.WrapError(err, "Hostname")
 				return
 			}
 		case "Env":
 			z.Env, bts, err = msgp.ReadStringBytes(bts)
 			if err != nil {
+				err = msgp.WrapError(err, "Env")
 				return
 			}
 		case "Version":
 			z.Version, bts, err = msgp.ReadStringBytes(bts)
 			if err != nil {
+				err = msgp.WrapError(err, "Version")
 				return
 			}
 		case "Stats":
 			var zb0002 uint32
 			zb0002, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
+				err = msgp.WrapError(err, "Stats")
 				return
 			}
 			if cap(z.Stats) >= int(zb0002) {
@@ -674,12 +752,14 @@ func (z *ClientStatsPayload) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			for za0001 := range z.Stats {
 				bts, err = z.Stats[za0001].UnmarshalMsg(bts)
 				if err != nil {
+					err = msgp.WrapError(err, "Stats", za0001)
 					return
 				}
 			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
+				err = msgp.WrapError(err)
 				return
 			}
 		}

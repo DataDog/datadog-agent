@@ -320,7 +320,7 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang string) {
 				TagSet:  tagset,
 				Value:   float64(b.Duration),
 			}
-			if hits, errors, err := quantile.DDToGKSketches(b.HitsSummary, b.ErrorSummary); err != nil {
+			if hits, errors, err := quantile.DDToGKSketches(b.OkSummary, b.ErrorSummary); err != nil {
 				log.Errorf("Error handling distributions: %v", err)
 			} else {
 				newb.Distributions[key] = stats.Distribution{
