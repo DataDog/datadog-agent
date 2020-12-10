@@ -327,7 +327,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("forwarder_storage_path", defaultForwarderStoragePath)
 	config.BindEnvAndSetDefault("forwarder_outdated_file_in_days", 10)
 	config.BindEnvAndSetDefault("forwarder_flush_to_disk_mem_ratio", 0.5)
-	config.BindEnvAndSetDefault("forwarder_storage_max_size_in_bytes", 0) // 0 means disabled
+	config.BindEnvAndSetDefault("forwarder_storage_max_size_in_bytes", 0) // 0 means disabled. This is a BETA feature.
 
 	// Dogstatsd
 	config.BindEnvAndSetDefault("use_dogstatsd", true)
