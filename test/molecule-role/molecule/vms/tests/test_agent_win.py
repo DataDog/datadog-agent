@@ -8,7 +8,8 @@ testinfra_hosts = AnsibleRunner(os.environ["MOLECULE_INVENTORY_FILE"]).get_hosts
 
 def test_stackstate_agent_is_installed(host):
     pkg = "StackState Agent"
-    res = host.ansible("win_shell", "Get-Package \"{}\"".format(pkg), check=False)
+    # res = host.ansible("win_shell", "Get-Package \"{}\"".format(pkg), check=False)
+    res = host.ansible("win_shell", " Get-WmiObject -Class Win32_Product | where name -eq \"{}\" | select Name, Version ".format(pkg), check=False)
     print(res)
     # Name             Version
     # ----             -------
