@@ -1,14 +1,17 @@
 package stats
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
 const (
 	tagHostname   = "_dd.hostname"
 	tagStatusCode = "http.status_code"
 	tagVersion    = "version"
+	tagOrigin     = "_dd.origin"
+	tagSynthetic  = "synthetic"
 )
 
 // aggregation contains all the dimension on which we aggregate statistics
@@ -21,9 +24,12 @@ type aggregation struct {
 	Hostname   string
 	StatusCode string
 	Version    string
+	Synthetic  bool
 }
 
 func newAggregationFromSpan(s *pb.Span, env string) aggregation {
+	syntheticOrigin := isSynthetic(s.Meta[tagOrigin])
+
 	return aggregation{
 		Env:        env,
 		Resource:   s.Resource,
@@ -31,6 +37,7 @@ func newAggregationFromSpan(s *pb.Span, env string) aggregation {
 		Hostname:   s.Meta[tagHostname],
 		StatusCode: s.Meta[tagStatusCode],
 		Version:    s.Meta[tagVersion],
+		Synthetic:  syntheticOrigin,
 	}
 }
 
@@ -48,6 +55,9 @@ func (aggr *aggregation) toTagSet() TagSet {
 	if len(aggr.Version) > 0 {
 		tagSet = append(tagSet, Tag{tagVersion, aggr.Version})
 	}
+	if aggr.Synthetic {
+		tagSet = append(tagSet, Tag{tagSynthetic, "true"})
+	}
 	return tagSet
 }
 
@@ -64,6 +74,10 @@ func (aggr *aggregation) keyLen() int {
 	if len(aggr.Version) > 0 {
 		// +2 for "," and ":" separator
 		length += 1 + len(tagVersion) + 1 + len(aggr.Version)
+	}
+	if aggr.Synthetic {
+		// +2 for "," and ":" separator
+		length += 1 + len(tagSynthetic) + 1 + len("true")
 	}
 	return length
 }
@@ -89,4 +103,14 @@ func (aggr *aggregation) writeKey(b *strings.Builder) {
 		b.WriteString("," + tagVersion + ":")
 		b.WriteString(aggr.Version)
 	}
+	if aggr.Synthetic {
+		b.WriteString("," + tagSynthetic + ":")
+		b.WriteString("true")
+	}
+}
+
+// isSynthetic determines if the origin indicates synthetic data
+// for now, we assume that synthetic data origins will begin with "synthetics"
+func isSynthetic(origin string) bool {
+	return strings.HasPrefix(origin, "synthetics")
 }
