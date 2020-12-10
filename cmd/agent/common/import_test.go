@@ -54,7 +54,7 @@ instances:
     port: 7199
     cassandra_aliasing: true
 init_config:
-  is_jmx: true
+  loader: jmx
   collect_default_metrics: true`
 	assertRelocation(t, input, input)
 }

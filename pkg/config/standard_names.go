@@ -4,7 +4,7 @@ package config
 // This list is used by the Agent to determine if an integration is JMXFetch-based,
 // based only on the integration name.
 // DEPRECATED: this list is only used for backward compatibility with older JMXFetch integration
-// configs. All JMXFetch integrations should instead define `is_jmx: true` at the init_config or
+// configs. All JMXFetch integrations should instead define `loader: jmx` at the init_config or
 // instance level.
 var StandardJMXIntegrations = map[string]struct{}{
 	"activemq":    {},

@@ -24,6 +24,9 @@ func IsJMXConfig(config integration.Config) bool {
 }
 
 // IsJMXInstance checks if a certain YAML instance is a JMX config
+// Use `loader: jmx` at init config to make all instances jmx integrations.
+// Use `loader: jmx` at instance config to make a single instance a jmx integration.
+// `is_jmx` is deprecated.
 func IsJMXInstance(name string, instance integration.Data, initConfig integration.Data) bool {
 	if _, ok := agentconfig.StandardJMXIntegrations[name]; ok {
 		return true
@@ -35,6 +38,7 @@ func IsJMXInstance(name string, instance integration.Data, initConfig integratio
 		return false
 	}
 
+	// `loader: jmx` takes precedence over `is_jmx`
 	x, ok := rawInstance["loader"]
 	if ok {
 		loaderName, ok := x.(string)
@@ -57,6 +61,7 @@ func IsJMXInstance(name string, instance integration.Data, initConfig integratio
 		return false
 	}
 
+	// `loader: jmx` takes precedence over `is_jmx`
 	x, ok = rawInitConfig["loader"]
 	if ok {
 		loaderName, ok := x.(string)
