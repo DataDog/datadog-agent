@@ -108,9 +108,6 @@ func (s *tagStore) processTagInfo(tagInfos []*collectors.TagInfo) {
 			eventType = EventTypeAdded
 			storedTags = newEntityTags(info.Entity)
 			s.store[info.Entity] = storedTags
-
-			prefix, _ := containers.SplitEntityName(info.Entity)
-			storedEntities.Inc(info.Source, prefix)
 		}
 
 		// TODO: check if real change
@@ -135,10 +132,16 @@ func (s *tagStore) processTagInfo(tagInfos []*collectors.TagInfo) {
 func updateStoredTags(storedTags *entityTags, info *collectors.TagInfo) error {
 	storedTags.Lock()
 	defer storedTags.Unlock()
+
 	_, found := storedTags.sourceTags[info.Source]
 	if found && info.CacheMiss {
 		// check if the source tags is already present for this entry
 		return fmt.Errorf("try to overwrite an existing entry with and empty cache-miss entry, info.Source: %s, info.Entity: %s", info.Source, info.Entity)
+	}
+
+	if !found {
+		prefix, _ := containers.SplitEntityName(info.Entity)
+		storedEntities.Inc(info.Source, prefix)
 	}
 
 	storedTags.cacheValid = false
