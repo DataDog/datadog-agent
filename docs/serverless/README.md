@@ -18,9 +18,9 @@ different routes:
     - /lambda/hello
     - /lambda/flush
 
-If the Serverless Agent needs to be set up to support a different 
-serverless environment, it would be important to create different HTTP routes (most
-likely sharing a big part of the implementation).
+If the Serverless Agent needs to be set up to support a different serverless
+environment, on GCP or Azure for instance, it would be important to create
+different HTTP routes (most likely sharing a big part of the implementation).
 
 #### `Hello` route
 
