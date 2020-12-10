@@ -241,7 +241,7 @@ func start(cmd *cobra.Command, args []string) error {
 			Client:                       apiCl.Cl,
 			StopCh:                       stopCh,
 			Hostname:                     hostname,
-			ClusterName:                  clustername,
+			ClusterName:                  clusterName,
 			ConfigPath:                   confPath,
 		}
 		err = orchestrator.StartController(orchestratorCtx)
