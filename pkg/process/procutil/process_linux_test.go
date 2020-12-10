@@ -688,8 +688,8 @@ func benchmarkParseIOGopsutil(b *testing.B) {
 		for _, pid := range pids {
 			proc, err := process.NewProcess(pid)
 			require.NoError(b, err)
-			_, err = proc.IOCounters()
-			require.NoError(b, err)
+			// ignore permission error for benchmarking
+			_, _ = proc.IOCounters()
 		}
 	}
 }
