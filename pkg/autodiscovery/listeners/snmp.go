@@ -240,6 +240,7 @@ func (l *SNMPListener) checkDevices() {
 				jobIP := make(net.IP, len(currentIP))
 				copy(jobIP, currentIP)
 				job := snmpJob{
+					// Use `&subnets[i]` (not `&subnet`) to pass the correct pointer address
 					subnet:    &subnets[i],
 					currentIP: jobIP,
 				}
