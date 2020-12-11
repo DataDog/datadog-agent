@@ -7,121 +7,112 @@ package forwarder
 
 import "expvar"
 
-type retryQueueTelemetryExpVarData struct {
-	removalPolicy               expvar.Map
-	newRemovalPolicyCount       expvar.Int
-	registeredDomainCount       expvar.Int
-	outdatedFilesCount          expvar.Int
-	filesFromUnknownDomainCount expvar.Int
-
-	transactionContainer     expvar.Map
-	currentMemSizeInBytes    expvar.Int
-	transactionsCount        expvar.Int
-	transactionsDroppedCount expvar.Int
-	errorsCount              expvar.Int
-
-	fileStorageCount        expvar.Map
-	serializeCount          expvar.Int
-	deserializeCount        expvar.Int
-	fileSize                expvar.Int
-	currentSizeInBytes      expvar.Int
-	filesCount              expvar.Int
-	reloadedRetryFilesCount expvar.Int
-	filesRemovedCount       expvar.Int
-}
-
 var (
-	retryQueueTelemetryExpVar = retryQueueTelemetryExpVarData{}
+	removalPolicyExpvar               = expvar.Map{}
+	newRemovalPolicyCountExpvar       = expvar.Int{}
+	registeredDomainCountExpvar       = expvar.Int{}
+	outdatedFilesCountExpvar          = expvar.Int{}
+	filesFromUnknownDomainCountExpvar = expvar.Int{}
+
+	transactionContainerExpvar     = expvar.Map{}
+	currentMemSizeInBytesExpvar    = expvar.Int{}
+	transactionsCountExpvar        = expvar.Int{}
+	transactionsDroppedCountExpvar = expvar.Int{}
+	errorsCountExpvar              = expvar.Int{}
+
+	fileStorageExpvar             = expvar.Map{}
+	serializeCountExpvar          = expvar.Int{}
+	deserializeCountExpvar        = expvar.Int{}
+	fileSizeExpvar                = expvar.Int{}
+	currentSizeInBytesExpvar      = expvar.Int{}
+	filesCountExpvar              = expvar.Int{}
+	reloadedRetryFilesCountExpvar = expvar.Int{}
+	filesRemovedCountExpvar       = expvar.Int{}
 )
 
 func init() {
-	expVars := &retryQueueTelemetryExpVar
+	forwarderExpvars.Set("RemovalPolicy", &removalPolicyExpvar)
+	removalPolicyExpvar.Set("NewRemovalPolicyCount", &newRemovalPolicyCountExpvar)
+	removalPolicyExpvar.Set("RegisteredDomainCount", &registeredDomainCountExpvar)
+	removalPolicyExpvar.Set("OutdatedFilesCount", &outdatedFilesCountExpvar)
+	removalPolicyExpvar.Set("FilesFromUnknownDomainCount", &filesFromUnknownDomainCountExpvar)
 
-	removalPolicy := &expVars.removalPolicy
-	forwarderExpvars.Set("RemovalPolicy", removalPolicy)
-	removalPolicy.Set("NewRemovalPolicyCount", &expVars.newRemovalPolicyCount)
-	removalPolicy.Set("RegisteredDomainCount", &expVars.registeredDomainCount)
-	removalPolicy.Set("OutdatedFilesCount", &expVars.outdatedFilesCount)
-	removalPolicy.Set("FilesFromUnknownDomainCount", &expVars.filesFromUnknownDomainCount)
+	forwarderExpvars.Set("TransactionContainer", &transactionContainerExpvar)
+	transactionContainerExpvar.Set("CurrentMemSizeInBytes", &currentMemSizeInBytesExpvar)
+	transactionContainerExpvar.Set("TransactionsCount", &transactionsCountExpvar)
+	transactionContainerExpvar.Set("TransactionsDroppedCount", &transactionsDroppedCountExpvar)
+	transactionContainerExpvar.Set("ErrorsCount", &errorsCountExpvar)
 
-	transactionContainer := &expVars.transactionContainer
-	forwarderExpvars.Set("TransactionContainer", transactionContainer)
-	transactionContainer.Set("CurrentMemSizeInBytes", &expVars.currentMemSizeInBytes)
-	transactionContainer.Set("TransactionsCount", &expVars.transactionsCount)
-	transactionContainer.Set("TransactionsDroppedCount", &expVars.transactionsDroppedCount)
-	transactionContainer.Set("ErrorsCount", &expVars.errorsCount)
-
-	fileStorage := &expVars.fileStorageCount
-	forwarderExpvars.Set("FileStorage", fileStorage)
-	fileStorage.Set("SerializeCount", &expVars.serializeCount)
-	fileStorage.Set("DeserializeCount", &expVars.deserializeCount)
-	fileStorage.Set("FileSize", &expVars.fileSize)
-	fileStorage.Set("CurrentSizeInBytes", &expVars.currentSizeInBytes)
-	fileStorage.Set("FilesCount", &expVars.filesCount)
-	fileStorage.Set("ReloadedRetryFilesCount", &expVars.reloadedRetryFilesCount)
-	fileStorage.Set("FilesRemovedCount", &expVars.filesRemovedCount)
+	forwarderExpvars.Set("FileStorage", &fileStorageExpvar)
+	fileStorageExpvar.Set("SerializeCount", &serializeCountExpvar)
+	fileStorageExpvar.Set("DeserializeCount", &deserializeCountExpvar)
+	fileStorageExpvar.Set("FileSize", &fileSizeExpvar)
+	fileStorageExpvar.Set("CurrentSizeInBytes", &currentSizeInBytesExpvar)
+	fileStorageExpvar.Set("FilesCount", &filesCountExpvar)
+	fileStorageExpvar.Set("ReloadedRetryFilesCount", &reloadedRetryFilesCountExpvar)
+	fileStorageExpvar.Set("FilesRemovedCount", &filesRemovedCountExpvar)
 }
 
 type failedTransactionRemovalPolicyTelemetry struct{}
 
 func (failedTransactionRemovalPolicyTelemetry) addNewRemovalPolicyCount() {
-	retryQueueTelemetryExpVar.newRemovalPolicyCount.Add(1)
+	newRemovalPolicyCountExpvar.Add(1)
 }
 
 func (failedTransactionRemovalPolicyTelemetry) addRegisteredDomainCount() {
-	retryQueueTelemetryExpVar.registeredDomainCount.Add(1)
+	registeredDomainCountExpvar.Add(1)
 }
 func (failedTransactionRemovalPolicyTelemetry) addOutdatedFilesCount(count int) {
-	retryQueueTelemetryExpVar.outdatedFilesCount.Add(int64(count))
+	outdatedFilesCountExpvar.Add(int64(count))
 }
 
 func (failedTransactionRemovalPolicyTelemetry) addFilesFromUnknownDomainCount(count int) {
-	retryQueueTelemetryExpVar.filesFromUnknownDomainCount.Add(int64(count))
+	filesFromUnknownDomainCountExpvar.Add(int64(count))
 }
 
 type transactionContainerTelemetry struct{}
 
 func (transactionContainerTelemetry) setCurrentMemSizeInBytes(count int) {
-	retryQueueTelemetryExpVar.currentMemSizeInBytes.Set(int64(count))
+	currentMemSizeInBytesExpvar.Set(int64(count))
 }
 
 func (transactionContainerTelemetry) setTransactionsCount(count int) {
-	retryQueueTelemetryExpVar.transactionsCount.Set(int64(count))
+	transactionsCountExpvar.Set(int64(count))
 }
 
 func (transactionContainerTelemetry) addTransactionsDroppedCount(count int) {
-	retryQueueTelemetryExpVar.transactionsDroppedCount.Add(int64(count))
+	transactionsDroppedCountExpvar.Add(int64(count))
 }
 
 func (transactionContainerTelemetry) incErrorsCount() {
-	retryQueueTelemetryExpVar.errorsCount.Add(1)
+	errorsCountExpvar.Add(1)
 }
 
 type transactionsFileStorageTelemetry struct{}
 
 func (transactionsFileStorageTelemetry) addSerializeCount() {
-	retryQueueTelemetryExpVar.serializeCount.Add(1)
+	serializeCountExpvar.Add(1)
 }
 
 func (transactionsFileStorageTelemetry) addDeserializeCount() {
-	retryQueueTelemetryExpVar.deserializeCount.Add(1)
+	deserializeCountExpvar.Add(1)
 }
 
 func (transactionsFileStorageTelemetry) setFileSize(count int64) {
-	retryQueueTelemetryExpVar.fileSize.Set(count)
+	fileSizeExpvar.Set(count)
 }
 
 func (transactionsFileStorageTelemetry) setCurrentSizeInBytes(count int64) {
-	retryQueueTelemetryExpVar.currentSizeInBytes.Set(count)
+	currentSizeInBytesExpvar.Set(count)
 }
 func (transactionsFileStorageTelemetry) setFilesCount(count int) {
-	retryQueueTelemetryExpVar.filesCount.Set(int64(count))
+	filesCountExpvar.Set(int64(count))
 }
 
 func (transactionsFileStorageTelemetry) addReloadedRetryFilesCount(count int) {
-	retryQueueTelemetryExpVar.reloadedRetryFilesCount.Add(int64(count))
+	reloadedRetryFilesCountExpvar.Add(int64(count))
 }
 
 func (transactionsFileStorageTelemetry) addFilesRemovedCount() {
-	retryQueueTelemetryExpVar.filesRemovedCount.Add(1)
+	filesRemovedCountExpvar.Add(1)
 }
