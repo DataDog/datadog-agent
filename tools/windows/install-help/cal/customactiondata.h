@@ -33,20 +33,29 @@ class CustomActionData
 
         bool installSysprobe() const;
 
+        bool UserParamMismatch() const {
+            return userParamMismatch;
+        }
+
         const TargetMachine& GetTargetMachine() const;
         
     private:
         MSIHANDLE hInstall;
         TargetMachine machine;
         bool domainUser;
+        bool userParamMismatch;
         std::map< std::wstring, std::wstring> values;
         std::wstring _unqualifiedUsername;
         std::wstring _domain;
         std::wstring _fqUsername;
+        std::wstring pvsUser;       // previously installed user, read from registry
+        std::wstring pvsDomain;     // previously installed domain for user, read from registry
         sid_ptr _sid;
         bool doInstallSysprobe;
         bool _ddUserExists;
-
+        bool findPreviousUserInfo();
+        void checkForUserMismatch(bool previousInstall, bool userSupplied, std::wstring& computed_domain, std::wstring& computed_user);
+        void findSuppliedUserInfo(std::wstring& input, std::wstring& computed_domain, std::wstring& computed_user);
         bool parseUsernameData();
         bool parseSysprobeData();
 };
