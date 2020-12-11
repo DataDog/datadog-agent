@@ -9,6 +9,7 @@ package jsonstream
 
 import (
 	"bytes"
+	"sync"
 
 	jsoniter "github.com/json-iterator/go"
 
@@ -26,14 +27,15 @@ var jsonConfig = jsoniter.Config{
 // on what was previously need to serialize payloads. Keep that in mind and
 // use multiple PayloadBuilders for different sources.
 type PayloadBuilder struct {
-	inputSizeHint, outputSizeHint int
+	input, output *bytes.Buffer
+	mu            sync.Mutex
 }
 
 // NewPayloadBuilder creates a new PayloadBuilder with default values.
 func NewPayloadBuilder() *PayloadBuilder {
 	return &PayloadBuilder{
-		inputSizeHint:  4096,
-		outputSizeHint: 4096,
+		input:  bytes.NewBuffer(make([]byte, 0, 4096)),
+		output: bytes.NewBuffer(make([]byte, 0, 4096)),
 	}
 }
 
@@ -58,15 +60,14 @@ func (b *PayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	m marshaler.StreamJSONMarshaler,
 	policy OnErrItemTooBigPolicy) (forwarder.Payloads, error) {
 
+	defer b.mu.Unlock()
+	b.mu.Lock()
+
 	var payloads forwarder.Payloads
 	var i int
 	itemCount := m.Len()
 	expvarsTotalCalls.Add(1)
 	tlmTotalCalls.Inc()
-
-	// Inner buffers for the compressor
-	input := bytes.NewBuffer(make([]byte, 0, b.inputSizeHint))
-	output := bytes.NewBuffer(make([]byte, 0, b.outputSizeHint))
 
 	// Temporary buffers
 	var header, footer bytes.Buffer
@@ -83,7 +84,7 @@ func (b *PayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 		return nil, err
 	}
 
-	compressor, err := newCompressor(input, output, header.Bytes(), footer.Bytes())
+	compressor, err := newCompressor(b.input, b.output, header.Bytes(), footer.Bytes())
 	if err != nil {
 		return nil, err
 	}
@@ -111,9 +112,9 @@ func (b *PayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 				return payloads, err
 			}
 			payloads = append(payloads, &payload)
-			input.Reset()
-			output.Reset()
-			compressor, err = newCompressor(input, output, header.Bytes(), footer.Bytes())
+			b.input.Reset()
+			b.output.Reset()
+			compressor, err = newCompressor(b.input, b.output, header.Bytes(), footer.Bytes())
 			if err != nil {
 				return nil, err
 			}
@@ -144,9 +145,6 @@ func (b *PayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 		return payloads, err
 	}
 	payloads = append(payloads, &payload)
-
-	b.inputSizeHint = input.Cap()
-	b.outputSizeHint = output.Cap()
 
 	return payloads, nil
 }
