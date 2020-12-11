@@ -177,17 +177,17 @@ func TestBatchSimilarConnectionsTogether(t *testing.T) {
 }
 
 func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
-	p := makeConnections(4)
+	conns := makeConnections(4)
 
 	domains := []string{"foo.com", "bar.com", "baz.com"}
-	p[1].DnsStatsByDomain = map[int32]*model.DNSStats{
+	conns[1].DnsStatsByDomain = map[int32]*model.DNSStats{
 		0: {DnsTimeouts: 1},
 	}
-	p[2].DnsStatsByDomain = map[int32]*model.DNSStats{
+	conns[2].DnsStatsByDomain = map[int32]*model.DNSStats{
 		0: {DnsTimeouts: 1},
 		2: {DnsTimeouts: 1},
 	}
-	p[3].DnsStatsByDomain = map[int32]*model.DNSStats{
+	conns[3].DnsStatsByDomain = map[int32]*model.DNSStats{
 		1: {DnsTimeouts: 1},
 		2: {DnsTimeouts: 1},
 	}
@@ -196,13 +196,13 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 	cfg := config.NewDefaultAgentConfig(false)
 	cfg.MaxConnsPerMessage = 1
 
-	chunks := batchConnections(cfg, 0, p, dns, "nid", nil, domains)
+	chunks := batchConnections(cfg, 0, conns, dns, "nid", nil, domains)
 
 	assert.Len(t, chunks, 4)
 	total := 0
 	for i, c := range chunks {
 		connections := c.(*model.CollectorConnections)
-
+		total += len(connections.Connections)
 		switch i {
 		case 0:
 			assert.Equal(t, []string{"", "", ""}, connections.Domains)
