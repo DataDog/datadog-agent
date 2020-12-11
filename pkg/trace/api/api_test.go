@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"reflect"
 	"strconv"
 	"sync"
 	"testing"
@@ -27,6 +28,7 @@ import (
 
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
+	"github.com/tinylib/msgp/msgp"
 	vmsgp "github.com/vmihailenco/msgpack/v4"
 )
 
@@ -41,11 +43,15 @@ var headerFields = map[string]string{
 	"tracer_version": "Datadog-Meta-Tracer-Version",
 }
 
+type noopStatsProcessor struct{}
+
+func (noopStatsProcessor) ProcessStats(_ pb.ClientStatsPayload, _ string) {}
+
 func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 	dynConf := sampler.NewDynamicConfig("none")
 
 	rawTraceChan := make(chan *Payload, 5000)
-	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan)
+	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, noopStatsProcessor{})
 
 	return receiver
 }
@@ -505,6 +511,152 @@ func TestDecodeV05(t *testing.T) {
 	})
 }
 
+type mockStatsProcessor struct {
+	mu       sync.RWMutex
+	lastP    pb.ClientStatsPayload
+	lastLang string
+}
+
+func (m *mockStatsProcessor) ProcessStats(p pb.ClientStatsPayload, lang string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.lastP = p
+	m.lastLang = lang
+}
+
+func (m *mockStatsProcessor) Got() (p pb.ClientStatsPayload, lang string) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.lastP, m.lastLang
+}
+
+func TestHandleStats(t *testing.T) {
+	bucket := func(start, duration uint64) pb.ClientStatsBucket {
+		return pb.ClientStatsBucket{
+			Start:    start,
+			Duration: duration,
+			Stats: []pb.ClientGroupedStats{
+				{
+					Name:     "name",
+					Service:  "service",
+					Resource: "/asd/r",
+					Hits:     2,
+					Errors:   440,
+					Duration: 123,
+				},
+			},
+		}
+	}
+	p := pb.ClientStatsPayload{
+		Hostname: "h",
+		Env:      "env",
+		Version:  "1.2",
+		Stats: []pb.ClientStatsBucket{
+			bucket(1, 10),
+			bucket(500, 100342),
+		},
+	}
+
+	t.Run("on", func(t *testing.T) {
+		defer func(old string) {
+			os.Setenv("DD_APM_FEATURES", old)
+		}(os.Getenv("DD_APM_FEATURES"))
+		os.Setenv("DD_APM_FEATURES", "client_stats")
+
+		cfg := newTestReceiverConfig()
+		rcv := newTestReceiverFromConfig(cfg)
+		mockProcessor := new(mockStatsProcessor)
+		rcv.statsProcessor = mockProcessor
+		mux := rcv.buildMux()
+		server := httptest.NewServer(mux)
+
+		var buf bytes.Buffer
+		if err := msgp.Encode(&buf, &p); err != nil {
+			t.Fatal(err)
+		}
+		req, _ := http.NewRequest("POST", server.URL+"/v0.5/stats", &buf)
+		req.Header.Set("Content-Type", "application/msgpack")
+		req.Header.Set(headerLang, "lang1")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp.StatusCode != 200 {
+			slurp, _ := ioutil.ReadAll(resp.Body)
+			t.Fatal(string(slurp), resp.StatusCode)
+		}
+		if gotp, gotlang := mockProcessor.Got(); !reflect.DeepEqual(gotp, p) || gotlang != "lang1" {
+			t.Fatalf("Did not match payload: %v: %v", gotlang, gotp)
+		}
+	})
+
+	t.Run("off", func(t *testing.T) {
+		cfg := newTestReceiverConfig()
+		rcv := newTestReceiverFromConfig(cfg)
+		mockProcessor := new(mockStatsProcessor)
+		rcv.statsProcessor = mockProcessor
+		mux := rcv.buildMux()
+		server := httptest.NewServer(mux)
+
+		req, _ := http.NewRequest("POST", server.URL+"/v0.5/stats", nil)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp.StatusCode != 404 {
+			t.Fail()
+		}
+	})
+}
+
+func TestClientComputedStatsHeader(t *testing.T) {
+	conf := newTestReceiverConfig()
+	rcv := newTestReceiverFromConfig(conf)
+	mux := rcv.buildMux()
+	server := httptest.NewServer(mux)
+
+	// run runs the test with ClientComputedStats turned on.
+	run := func(on bool) func(t *testing.T) {
+		return func(t *testing.T) {
+			bts, err := testutil.GetTestTraces(10, 10, true).MarshalMsg(nil)
+			assert.Nil(t, err)
+
+			req, _ := http.NewRequest("POST", server.URL+"/v0.4/traces", bytes.NewReader(bts))
+			req.Header.Set("Content-Type", "application/msgpack")
+			req.Header.Set(headerLang, "lang1")
+			if on {
+				req.Header.Set(headerComputedStats, "yes")
+			}
+			var wg sync.WaitGroup
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				resp, err := http.DefaultClient.Do(req)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if resp.StatusCode != 200 {
+					t.Fatal(resp.StatusCode)
+				}
+			}()
+			timeout := time.After(time.Second)
+			for {
+				select {
+				case p := <-rcv.out:
+					assert.Equal(t, p.ClientComputedStats, on)
+					wg.Wait()
+					return
+				case <-timeout:
+					t.Fatal("no output")
+				}
+			}
+		}
+	}
+
+	t.Run("on", run(true))
+	t.Run("off", run(false))
+}
+
 func TestHandleTraces(t *testing.T) {
 	assert := assert.New(t)
 
@@ -570,14 +722,16 @@ func (sr *chunkedReader) Read(p []byte) (n int, err error) {
 func TestClientComputedTopLevel(t *testing.T) {
 	conf := newTestReceiverConfig()
 	rcv := newTestReceiverFromConfig(conf)
-	rcv.Start()
-	defer rcv.Stop()
+	mux := rcv.buildMux()
+	server := httptest.NewServer(mux)
 
 	// run runs the test with ClientComputedStats turned on.
 	run := func(on bool) func(t *testing.T) {
 		return func(t *testing.T) {
-			bts, _ := testutil.GetTestTraces(10, 10, true).MarshalMsg(nil)
-			req, _ := http.NewRequest("POST", "http://127.0.0.1:8126/v0.4/traces", bytes.NewReader(bts))
+			bts, err := testutil.GetTestTraces(10, 10, true).MarshalMsg(nil)
+			assert.Nil(t, err)
+
+			req, _ := http.NewRequest("POST", server.URL+"/v0.4/traces", bytes.NewReader(bts))
 			req.Header.Set("Content-Type", "application/msgpack")
 			req.Header.Set(headerLang, "lang1")
 			if on {
@@ -791,7 +945,7 @@ func BenchmarkWatchdog(b *testing.B) {
 	now := time.Now()
 	conf := config.New()
 	conf.Endpoints[0].APIKey = "apikey_2"
-	r := NewHTTPReceiver(conf, nil, nil)
+	r := NewHTTPReceiver(conf, nil, nil, nil)
 
 	b.ResetTimer()
 	b.ReportAllocs()

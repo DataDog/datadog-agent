@@ -340,10 +340,12 @@ func TestParsePods(t *testing.T) {
 					"image_tag:latest5",
 					"image_name:datadog/docker-dd-agent",
 					"short_image:docker-dd-agent",
+					"kube_ownerref_kind:daemonset",
 					"pod_phase:running",
 				},
 				OrchestratorCardTags: []string{
 					"pod_name:dd-agent-rc-qd876",
+					"kube_ownerref_name:dd-agent-rc",
 				},
 				HighCardTags: []string{
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
@@ -377,11 +379,13 @@ func TestParsePods(t *testing.T) {
 					Entity: "kubernetes_pod_uid://5e8e05",
 					LowCardTags: []string{
 						"kube_namespace:default",
+						"kube_ownerref_kind:daemonset",
 						"kube_daemon_set:dd-agent-rc",
 						"pod_phase:pending",
 					},
 					OrchestratorCardTags: []string{
 						"pod_name:dd-agent-rc-qd876",
+						"kube_ownerref_name:dd-agent-rc",
 					},
 					HighCardTags: []string{},
 					StandardTags: []string{},
@@ -396,9 +400,11 @@ func TestParsePods(t *testing.T) {
 						"image_tag:latest5",
 						"image_name:datadog/docker-dd-agent",
 						"short_image:docker-dd-agent",
+						"kube_ownerref_kind:daemonset",
 						"pod_phase:pending",
 					},
 					OrchestratorCardTags: []string{
+						"kube_ownerref_name:dd-agent-rc",
 						"pod_name:dd-agent-rc-qd876",
 					},
 					HighCardTags: []string{
@@ -417,9 +423,11 @@ func TestParsePods(t *testing.T) {
 						"image_tag:latest",
 						"image_name:datadog/docker-filter",
 						"short_image:docker-filter",
+						"kube_ownerref_kind:daemonset",
 						"pod_phase:pending",
 					},
 					OrchestratorCardTags: []string{
+						"kube_ownerref_name:dd-agent-rc",
 						"pod_name:dd-agent-rc-qd876",
 					},
 					HighCardTags: []string{
@@ -450,13 +458,16 @@ func TestParsePods(t *testing.T) {
 				Entity: dockerEntityID,
 				LowCardTags: []string{
 					"kube_container_name:dd-agent",
+					"kube_ownerref_kind:replicaset",
 					"kube_replica_set:kubernetes-dashboard",
 					"image_tag:latest5",
 					"image_name:datadog/docker-dd-agent",
 					"short_image:docker-dd-agent",
 					"pod_phase:running",
 				},
-				OrchestratorCardTags: []string{},
+				OrchestratorCardTags: []string{
+					"kube_ownerref_name:kubernetes-dashboard",
+				},
 				HighCardTags: []string{
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
 				},
@@ -484,12 +495,14 @@ func TestParsePods(t *testing.T) {
 				LowCardTags: []string{
 					"kube_container_name:dd-agent",
 					"kube_deployment:frontend",
+					"kube_ownerref_kind:replicaset",
 					"image_tag:latest5",
 					"image_name:datadog/docker-dd-agent",
 					"short_image:docker-dd-agent",
 					"pod_phase:running",
 				},
 				OrchestratorCardTags: []string{
+					"kube_ownerref_name:frontend-2891696001",
 					"kube_replica_set:frontend-2891696001",
 				},
 				HighCardTags: []string{
@@ -519,12 +532,14 @@ func TestParsePods(t *testing.T) {
 				LowCardTags: []string{
 					"kube_container_name:dd-agent",
 					"kube_deployment:front-end",
+					"kube_ownerref_kind:replicaset",
 					"image_tag:latest5",
 					"image_name:datadog/docker-dd-agent",
 					"short_image:docker-dd-agent",
 					"pod_phase:running",
 				},
 				OrchestratorCardTags: []string{
+					"kube_ownerref_name:front-end-768dd754b7",
 					"kube_replica_set:front-end-768dd754b7",
 				},
 				HighCardTags: []string{
@@ -970,6 +985,7 @@ func TestParsePods(t *testing.T) {
 				Entity: criEntityID,
 				LowCardTags: []string{
 					"kube_container_name:redis-master",
+					"kube_ownerref_kind:replicaset",
 					"kube_deployment:redis-master",
 					"image_name:gcr.io/google_containers/redis",
 					"image_tag:e2e",
@@ -977,6 +993,7 @@ func TestParsePods(t *testing.T) {
 					"pod_phase:running",
 				},
 				OrchestratorCardTags: []string{
+					"kube_ownerref_name:redis-master-546dc4865f",
 					"kube_replica_set:redis-master-546dc4865f",
 					"pod_name:redis-master-bpnn6",
 				},
@@ -1050,6 +1067,7 @@ func TestParsePods(t *testing.T) {
 				Entity: dockerEntityID,
 				LowCardTags: []string{
 					"kube_namespace:default",
+					"kube_ownerref_kind:job",
 					"image_name:datadog/docker-dd-agent",
 					"image_tag:latest5",
 					"kube_container_name:dd-agent",
@@ -1057,7 +1075,11 @@ func TestParsePods(t *testing.T) {
 					"pod_phase:running",
 					"kube_cronjob:hello",
 				},
-				OrchestratorCardTags: []string{"kube_job:hello-1562187720", "pod_name:hello-1562187720-xzbzh"},
+				OrchestratorCardTags: []string{
+					"kube_job:hello-1562187720",
+					"pod_name:hello-1562187720-xzbzh",
+					"kube_ownerref_name:hello-1562187720",
+				},
 				HighCardTags: []string{
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
 					"display_container_name:dd-agent_hello-1562187720-xzbzh",
@@ -1087,6 +1109,7 @@ func TestParsePods(t *testing.T) {
 				Entity: dockerEntityIDCassandra,
 				LowCardTags: []string{
 					"kube_namespace:default",
+					"kube_ownerref_kind:statefulset",
 					"image_name:gcr.io/google-samples/cassandra",
 					"image_tag:v13",
 					"kube_container_name:cassandra",
@@ -1095,7 +1118,10 @@ func TestParsePods(t *testing.T) {
 					"kube_stateful_set:cassandra",
 					"persistentvolumeclaim:cassandra-data-cassandra-0",
 				},
-				OrchestratorCardTags: []string{"pod_name:cassandra-0"},
+				OrchestratorCardTags: []string{
+					"pod_name:cassandra-0",
+					"kube_ownerref_name:cassandra",
+				},
 				HighCardTags: []string{
 					"container_id:6eaa4782de428f5ea639e33a837ed47aa9fa9e6969f8cb23e39ff788a751ce7d",
 					"display_container_name:cassandra_cassandra-0",
@@ -1125,6 +1151,7 @@ func TestParsePods(t *testing.T) {
 				Entity: dockerEntityIDCassandra,
 				LowCardTags: []string{
 					"kube_namespace:default",
+					"kube_ownerref_kind:statefulset",
 					"image_name:gcr.io/google-samples/cassandra",
 					"image_tag:v13",
 					"kube_container_name:cassandra",
@@ -1134,7 +1161,10 @@ func TestParsePods(t *testing.T) {
 					"persistentvolumeclaim:cassandra-data-cassandra-0",
 					"persistentvolumeclaim:another-pvc-data-0",
 				},
-				OrchestratorCardTags: []string{"pod_name:cassandra-0"},
+				OrchestratorCardTags: []string{
+					"kube_ownerref_name:cassandra",
+					"pod_name:cassandra-0",
+				},
 				HighCardTags: []string{
 					"container_id:6eaa4782de428f5ea639e33a837ed47aa9fa9e6969f8cb23e39ff788a751ce7d",
 					"display_container_name:cassandra_cassandra-0",
@@ -1239,12 +1269,16 @@ func TestParsePods(t *testing.T) {
 				Source: "kubelet",
 				Entity: "kubernetes_pod_uid://foo-uid",
 				LowCardTags: []string{
+					"kube_ownerref_kind:replicaset",
 					"kube_replica_set:foo-rs",
 					"pod_phase:running",
 				},
-				OrchestratorCardTags: []string{"pod_name:foo-pod"},
-				HighCardTags:         []string{},
-				StandardTags:         []string{},
+				OrchestratorCardTags: []string{
+					"kube_ownerref_name:foo-rs",
+					"pod_name:foo-pod",
+				},
+				HighCardTags: []string{},
+				StandardTags: []string{},
 			}},
 		},
 	} {

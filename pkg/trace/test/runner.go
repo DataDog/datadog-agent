@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/tinylib/msgp/msgp"
 )
 
 // ErrNotStarted is returned when attempting to operate an unstarted Runner.
@@ -98,6 +99,32 @@ func (s *Runner) Out() <-chan interface{} {
 	return s.backend.Out()
 }
 
+// PostMsgpack encodes data using msgpack and posts it to the given path. The agent
+// must be started using RunAgent.
+//
+// Example: r.PostMsgpack("/v0.5/stats", pb.ClientStatsPayload{})
+func (s *Runner) PostMsgpack(path string, data msgp.Encodable) error {
+	if s.agent == nil {
+		return ErrNotStarted
+	}
+	if s.agent.PID() == 0 {
+		return errors.New("post: trace-agent not running")
+	}
+	var buf bytes.Buffer
+	if err := msgp.Encode(&buf, data); err != nil {
+		return err
+	}
+	addr := fmt.Sprintf("http://%s%s", s.agent.Addr(), path)
+	req, err := http.NewRequest("POST", addr, &buf)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set("Content-Length", strconv.Itoa(buf.Len()))
+
+	return s.doRequest(req)
+}
+
 // Post posts the given list of traces to the trace agent. Before posting, agent must
 // be started. You can start an agent using RunAgent.
 func (s *Runner) Post(traceList pb.Traces) error {
@@ -121,6 +148,10 @@ func (s *Runner) Post(traceList pb.Traces) error {
 	req.Header.Set("Content-Type", "application/msgpack")
 	req.Header.Set("Content-Length", strconv.Itoa(len(bts)))
 
+	return s.doRequest(req)
+}
+
+func (s *Runner) doRequest(req *http.Request) error {
 	resp, err := http.DefaultClient.Do(req)
 	if resp.StatusCode != 200 {
 		slurp, err := ioutil.ReadAll(resp.Body)

@@ -129,6 +129,11 @@ func (l *ECSListener) refreshServices(firstRun bool) {
 	}
 
 	for _, c := range meta.Containers {
+		// Skip containers for which ECS failed to retrieve metadata
+		if c.DockerID == "" {
+			log.Debugf("Skipping a container for which ECS is reporting an empty ID: name %q, docker name: %q, image %q, image id: %q", c.Name, c.DockerName, c.Image, c.ImageID)
+			continue
+		}
 		if _, found := l.services[c.DockerID]; found {
 			delete(notSeen, c.DockerID)
 			continue
@@ -139,7 +144,11 @@ func (l *ECSListener) refreshServices(firstRun bool) {
 		}
 		// Detect AD exclusion
 		if l.filters.IsExcluded(containers.GlobalFilter, c.DockerName, c.Image, "") {
-			log.Debugf("container %s filtered out: name %q image %q", c.DockerID[:12], c.DockerName, c.Image)
+			dockerID := c.DockerID
+			if len(c.DockerID) >= 12 {
+				dockerID = c.DockerID[:12]
+			}
+			log.Debugf("container %s filtered out: name %q image %q", dockerID, c.DockerName, c.Image)
 			continue
 		}
 		s, err := l.createService(c, firstRun)

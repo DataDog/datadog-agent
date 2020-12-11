@@ -343,11 +343,20 @@ func computeNodeStatus(n *corev1.Node) string {
 
 func convertNodeStatusToTags(nodeStatus string) []string {
 	var tags []string
+	unschedulable := false
 	for _, status := range strings.Split(nodeStatus, ",") {
 		if status == "" {
 			continue
 		}
+		if status == "SchedulingDisabled" {
+			unschedulable = true
+			tags = append(tags, "node_schedulable:false")
+			continue
+		}
 		tags = append(tags, fmt.Sprintf("node_status:%s", strings.ToLower(status)))
+	}
+	if !unschedulable {
+		tags = append(tags, "node_schedulable:true")
 	}
 	return tags
 }

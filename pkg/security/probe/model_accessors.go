@@ -6,1001 +6,1767 @@ package probe
 
 import (
 	"reflect"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
-func (m *Model) GetEvaluator(field eval.Field) (eval.Evaluator, error) {
+func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
+	switch field {
+
+	case "process.ancestors":
+		return &ProcessAncestorsIterator{}, nil
+
+	}
+
+	return nil, &eval.ErrIteratorNotSupported{Field: field}
+}
+
+func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
 	switch field {
 
 	case "chmod.basename":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).Chmod.ResolveBasename((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).Chmod.ResolveBasename((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "chmod.container_path":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).Chmod.ResolveContainerPath((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).Chmod.ResolveContainerPath((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "chmod.filename":
-
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string { return (*Event)(ctx.Object).Chmod.ResolveInode((*Event)(ctx.Object)) },
+			EvalFnc: func(ctx *eval.Context) string {
 
+				return (*Event)(ctx.Object).Chmod.ResolveInode((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "chmod.inode":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Chmod.Inode) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Chmod.Inode)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "chmod.mode":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Chmod.Mode) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Chmod.Mode)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "chmod.overlay_numlower":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Chmod.OverlayNumLower) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Chmod.OverlayNumLower)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "chmod.retval":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Chmod.Retval) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Chmod.Retval)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "chown.basename":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).Chown.ResolveBasename((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).Chown.ResolveBasename((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "chown.container_path":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).Chown.ResolveContainerPath((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).Chown.ResolveContainerPath((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "chown.filename":
-
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string { return (*Event)(ctx.Object).Chown.ResolveInode((*Event)(ctx.Object)) },
+			EvalFnc: func(ctx *eval.Context) string {
 
+				return (*Event)(ctx.Object).Chown.ResolveInode((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "chown.gid":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Chown.GID) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Chown.GID)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "chown.inode":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Chown.Inode) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Chown.Inode)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "chown.overlay_numlower":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Chown.OverlayNumLower) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Chown.OverlayNumLower)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "chown.retval":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Chown.Retval) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Chown.Retval)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "chown.uid":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Chown.UID) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Chown.UID)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "container.id":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).Container.ResolveContainerID((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).Container.ResolveContainerID((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "exec.basename":
-
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string { return (*Event)(ctx.Object).Exec.ResolveBasename((*Event)(ctx.Object)) },
+			EvalFnc: func(ctx *eval.Context) string {
 
+				return (*Event)(ctx.Object).Exec.ResolveBasename((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "exec.container_path":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).Exec.ResolveContainerPath((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).Exec.ResolveContainerPath((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "exec.cookie":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Exec.ResolveCookie((*Event)(ctx.Object))) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Exec.ResolveCookie((*Event)(ctx.Object)))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "exec.filename":
-
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string { return (*Event)(ctx.Object).Exec.ResolveInode((*Event)(ctx.Object)) },
+			EvalFnc: func(ctx *eval.Context) string {
 
+				return (*Event)(ctx.Object).Exec.ResolveInode((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "exec.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Exec.ResolveGID((*Event)(ctx.Object)))
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "exec.group":
-
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string { return (*Event)(ctx.Object).Exec.ResolveGroup((*Event)(ctx.Object)) },
+			EvalFnc: func(ctx *eval.Context) string {
 
+				return (*Event)(ctx.Object).Exec.ResolveGroup((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "exec.inode":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Exec.Inode) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Exec.Inode)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.name":
-
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string { return (*Event)(ctx.Object).Exec.ResolveComm((*Event)(ctx.Object)) },
+			EvalFnc: func(ctx *eval.Context) string {
 
+				return (*Event)(ctx.Object).Exec.ResolveComm((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "exec.overlay_numlower":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Exec.OverlayNumLower) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Exec.OverlayNumLower)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.ppid":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Exec.ResolvePPID((*Event)(ctx.Object))) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Exec.ResolvePPID((*Event)(ctx.Object)))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "exec.tty_name":
-
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string { return (*Event)(ctx.Object).Exec.ResolveTTY((*Event)(ctx.Object)) },
+			EvalFnc: func(ctx *eval.Context) string {
 
+				return (*Event)(ctx.Object).Exec.ResolveTTY((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "exec.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Exec.ResolveUID((*Event)(ctx.Object)))
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "exec.user":
-
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string { return (*Event)(ctx.Object).Exec.ResolveUser((*Event)(ctx.Object)) },
+			EvalFnc: func(ctx *eval.Context) string {
 
+				return (*Event)(ctx.Object).Exec.ResolveUser((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "link.retval":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Link.Retval) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Link.Retval)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "link.source.basename":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).Link.Source.ResolveBasename((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).Link.Source.ResolveBasename((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "link.source.container_path":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).Link.Source.ResolveContainerPath((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).Link.Source.ResolveContainerPath((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "link.source.filename":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).Link.Source.ResolveInode((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).Link.Source.ResolveInode((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "link.source.inode":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Link.Source.Inode) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Link.Source.Inode)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "link.source.overlay_numlower":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Link.Source.OverlayNumLower) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Link.Source.OverlayNumLower)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "link.target.basename":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).Link.Target.ResolveBasename((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).Link.Target.ResolveBasename((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "link.target.container_path":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).Link.Target.ResolveContainerPath((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).Link.Target.ResolveContainerPath((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "link.target.filename":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).Link.Target.ResolveInode((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).Link.Target.ResolveInode((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "link.target.inode":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Link.Target.Inode) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Link.Target.Inode)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "link.target.overlay_numlower":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Link.Target.OverlayNumLower) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Link.Target.OverlayNumLower)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "mkdir.basename":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).Mkdir.ResolveBasename((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).Mkdir.ResolveBasename((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "mkdir.container_path":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).Mkdir.ResolveContainerPath((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).Mkdir.ResolveContainerPath((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "mkdir.filename":
-
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string { return (*Event)(ctx.Object).Mkdir.ResolveInode((*Event)(ctx.Object)) },
+			EvalFnc: func(ctx *eval.Context) string {
 
+				return (*Event)(ctx.Object).Mkdir.ResolveInode((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "mkdir.inode":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Mkdir.Inode) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Mkdir.Inode)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "mkdir.mode":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Mkdir.Mode) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Mkdir.Mode)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "mkdir.overlay_numlower":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Mkdir.OverlayNumLower) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Mkdir.OverlayNumLower)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "mkdir.retval":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Mkdir.Retval) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Mkdir.Retval)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "open.basename":
-
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string { return (*Event)(ctx.Object).Open.ResolveBasename((*Event)(ctx.Object)) },
+			EvalFnc: func(ctx *eval.Context) string {
 
+				return (*Event)(ctx.Object).Open.ResolveBasename((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "open.container_path":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).Open.ResolveContainerPath((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).Open.ResolveContainerPath((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "open.filename":
-
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string { return (*Event)(ctx.Object).Open.ResolveInode((*Event)(ctx.Object)) },
+			EvalFnc: func(ctx *eval.Context) string {
 
+				return (*Event)(ctx.Object).Open.ResolveInode((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "open.flags":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Open.Flags) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Open.Flags)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "open.inode":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Open.Inode) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Open.Inode)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "open.mode":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Open.Mode) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Open.Mode)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "open.overlay_numlower":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Open.OverlayNumLower) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Open.OverlayNumLower)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "open.retval":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Open.Retval) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Open.Retval)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "process.ancestors.basename":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				var result string
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
+
+					result = element.ResolveBasename((*Event)(ctx.Object))
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.container_path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				var result string
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
+
+					result = element.ResolveContainerPath((*Event)(ctx.Object))
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.cookie":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				var result int
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
+
+					result = int(element.ResolveCookie((*Event)(ctx.Object)))
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.filename":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				var result string
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
+
+					result = element.ResolveInode((*Event)(ctx.Object))
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				var result int
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
+
+					result = int(element.GID)
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				var result string
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
+
+					result = element.ResolveGroup((*Event)(ctx.Object))
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				var result string
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
+
+					result = element.ResolveContainerID((*Event)(ctx.Object))
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				var result int
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
+
+					result = int(element.Inode)
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				var result string
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
+
+					result = element.ResolveComm((*Event)(ctx.Object))
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.overlay_numlower":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				var result int
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
+
+					result = int(element.OverlayNumLower)
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.pid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				var result int
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
+
+					result = int(element.Pid)
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.ppid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				var result int
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
+
+					result = int(element.ResolvePPID((*Event)(ctx.Object)))
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.tid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				var result int
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
+
+					result = int(element.Tid)
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.tty_name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				var result string
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
+
+					result = element.ResolveTTY((*Event)(ctx.Object))
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				var result int
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
+
+					result = int(element.UID)
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				var result string
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
+
+					result = element.ResolveUser((*Event)(ctx.Object))
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.basename":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).Process.ResolveBasename((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).Process.ResolveBasename((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "process.container_path":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).Process.ResolveContainerPath((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).Process.ResolveContainerPath((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "process.cookie":
-
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				return int((*Event)(ctx.Object).Process.ResolveCookie((*Event)(ctx.Object)))
-			},
 
+				return int((*Event)(ctx.Object).Process.ResolveCookie((*Event)(ctx.Object)))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "process.filename":
-
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string { return (*Event)(ctx.Object).Process.ResolveInode((*Event)(ctx.Object)) },
+			EvalFnc: func(ctx *eval.Context) string {
 
+				return (*Event)(ctx.Object).Process.ResolveInode((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "process.gid":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Process.GID) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Process.GID)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.group":
-
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string { return (*Event)(ctx.Object).Process.ResolveGroup((*Event)(ctx.Object)) },
+			EvalFnc: func(ctx *eval.Context) string {
 
+				return (*Event)(ctx.Object).Process.ResolveGroup((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "process.inode":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Process.Inode) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Process.Inode)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.name":
-
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string { return (*Event)(ctx.Object).Process.ResolveComm((*Event)(ctx.Object)) },
+			EvalFnc: func(ctx *eval.Context) string {
 
+				return (*Event)(ctx.Object).Process.ResolveComm((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "process.overlay_numlower":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Process.OverlayNumLower) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Process.OverlayNumLower)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.pid":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Process.Pid) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Process.Pid)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.ppid":
-
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				return int((*Event)(ctx.Object).Process.ResolvePPID((*Event)(ctx.Object)))
-			},
 
+				return int((*Event)(ctx.Object).Process.ResolvePPID((*Event)(ctx.Object)))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "process.tid":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Process.Tid) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Process.Tid)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.tty_name":
-
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string { return (*Event)(ctx.Object).Process.ResolveTTY((*Event)(ctx.Object)) },
+			EvalFnc: func(ctx *eval.Context) string {
 
+				return (*Event)(ctx.Object).Process.ResolveTTY((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "process.uid":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Process.UID) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Process.UID)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.user":
-
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string { return (*Event)(ctx.Object).Process.ResolveUser((*Event)(ctx.Object)) },
+			EvalFnc: func(ctx *eval.Context) string {
 
+				return (*Event)(ctx.Object).Process.ResolveUser((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "removexattr.basename":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).RemoveXAttr.ResolveBasename((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).RemoveXAttr.ResolveBasename((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "removexattr.container_path":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).RemoveXAttr.ResolveContainerPath((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).RemoveXAttr.ResolveContainerPath((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "removexattr.filename":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).RemoveXAttr.ResolveInode((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).RemoveXAttr.ResolveInode((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "removexattr.inode":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).RemoveXAttr.Inode) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).RemoveXAttr.Inode)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "removexattr.name":
-
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string { return (*Event)(ctx.Object).RemoveXAttr.GetName((*Event)(ctx.Object)) },
+			EvalFnc: func(ctx *eval.Context) string {
 
+				return (*Event)(ctx.Object).RemoveXAttr.GetName((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "removexattr.namespace":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).RemoveXAttr.GetNamespace((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).RemoveXAttr.GetNamespace((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "removexattr.overlay_numlower":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).RemoveXAttr.OverlayNumLower) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).RemoveXAttr.OverlayNumLower)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "removexattr.retval":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).RemoveXAttr.Retval) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).RemoveXAttr.Retval)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "rename.new.basename":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).Rename.New.ResolveBasename((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).Rename.New.ResolveBasename((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "rename.new.container_path":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).Rename.New.ResolveContainerPath((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).Rename.New.ResolveContainerPath((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "rename.new.filename":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).Rename.New.ResolveInode((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).Rename.New.ResolveInode((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "rename.new.inode":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Rename.New.Inode) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Rename.New.Inode)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "rename.new.overlay_numlower":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Rename.New.OverlayNumLower) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Rename.New.OverlayNumLower)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "rename.old.basename":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).Rename.Old.ResolveBasename((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).Rename.Old.ResolveBasename((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "rename.old.container_path":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).Rename.Old.ResolveContainerPath((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).Rename.Old.ResolveContainerPath((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "rename.old.filename":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).Rename.Old.ResolveInode((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).Rename.Old.ResolveInode((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "rename.old.inode":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Rename.Old.Inode) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Rename.Old.Inode)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "rename.old.overlay_numlower":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Rename.Old.OverlayNumLower) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Rename.Old.OverlayNumLower)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "rename.retval":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Rename.Retval) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Rename.Retval)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "rmdir.basename":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).Rmdir.ResolveBasename((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).Rmdir.ResolveBasename((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "rmdir.container_path":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).Rmdir.ResolveContainerPath((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).Rmdir.ResolveContainerPath((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "rmdir.filename":
-
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string { return (*Event)(ctx.Object).Rmdir.ResolveInode((*Event)(ctx.Object)) },
+			EvalFnc: func(ctx *eval.Context) string {
 
+				return (*Event)(ctx.Object).Rmdir.ResolveInode((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "rmdir.inode":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Rmdir.Inode) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Rmdir.Inode)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "rmdir.overlay_numlower":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Rmdir.OverlayNumLower) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Rmdir.OverlayNumLower)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "rmdir.retval":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Rmdir.Retval) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Rmdir.Retval)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "setxattr.basename":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).SetXAttr.ResolveBasename((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).SetXAttr.ResolveBasename((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "setxattr.container_path":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).SetXAttr.ResolveContainerPath((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).SetXAttr.ResolveContainerPath((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "setxattr.filename":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).SetXAttr.ResolveInode((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).SetXAttr.ResolveInode((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "setxattr.inode":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).SetXAttr.Inode) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).SetXAttr.Inode)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "setxattr.name":
-
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string { return (*Event)(ctx.Object).SetXAttr.GetName((*Event)(ctx.Object)) },
+			EvalFnc: func(ctx *eval.Context) string {
 
+				return (*Event)(ctx.Object).SetXAttr.GetName((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "setxattr.namespace":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).SetXAttr.GetNamespace((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).SetXAttr.GetNamespace((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "setxattr.overlay_numlower":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).SetXAttr.OverlayNumLower) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).SetXAttr.OverlayNumLower)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "setxattr.retval":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).SetXAttr.Retval) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).SetXAttr.Retval)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "unlink.basename":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).Unlink.ResolveBasename((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).Unlink.ResolveBasename((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "unlink.container_path":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).Unlink.ResolveContainerPath((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).Unlink.ResolveContainerPath((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "unlink.filename":
-
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string { return (*Event)(ctx.Object).Unlink.ResolveInode((*Event)(ctx.Object)) },
+			EvalFnc: func(ctx *eval.Context) string {
 
+				return (*Event)(ctx.Object).Unlink.ResolveInode((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "unlink.flags":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Unlink.Flags) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Unlink.Flags)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "unlink.inode":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Unlink.Inode) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Unlink.Inode)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "unlink.overlay_numlower":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Unlink.OverlayNumLower) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Unlink.OverlayNumLower)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "unlink.retval":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Unlink.Retval) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Unlink.Retval)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "utimes.basename":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).Utimes.ResolveBasename((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).Utimes.ResolveBasename((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "utimes.container_path":
-
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).Utimes.ResolveContainerPath((*Event)(ctx.Object))
-			},
 
+				return (*Event)(ctx.Object).Utimes.ResolveContainerPath((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "utimes.filename":
-
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string { return (*Event)(ctx.Object).Utimes.ResolveInode((*Event)(ctx.Object)) },
+			EvalFnc: func(ctx *eval.Context) string {
 
+				return (*Event)(ctx.Object).Utimes.ResolveInode((*Event)(ctx.Object))
+
+			},
 			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "utimes.inode":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Utimes.Inode) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Utimes.Inode)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "utimes.overlay_numlower":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Utimes.OverlayNumLower) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Utimes.OverlayNumLower)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "utimes.retval":
-
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Utimes.Retval) },
+			EvalFnc: func(ctx *eval.Context) int {
 
+				return int((*Event)(ctx.Object).Utimes.Retval)
+
+			},
 			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	}
@@ -1091,6 +1857,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.Exec.ResolveInode(e), nil
 
+	case "exec.gid":
+
+		return int(e.Exec.ResolveGID(e)), nil
+
 	case "exec.group":
 
 		return e.Exec.ResolveGroup(e), nil
@@ -1114,6 +1884,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "exec.tty_name":
 
 		return e.Exec.ResolveTTY(e), nil
+
+	case "exec.uid":
+
+		return int(e.Exec.ResolveUID(e)), nil
 
 	case "exec.user":
 
@@ -1222,6 +1996,358 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "open.retval":
 
 		return int(e.Open.Retval), nil
+
+	case "process.ancestors.basename":
+
+		var values []string
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ResolveBasename((*Event)(ctx.Object))
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.container_path":
+
+		var values []string
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ResolveContainerPath((*Event)(ctx.Object))
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.cookie":
+
+		var values []int
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.ResolveCookie((*Event)(ctx.Object)))
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.filename":
+
+		var values []string
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ResolveInode((*Event)(ctx.Object))
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.gid":
+
+		var values []int
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.GID)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.group":
+
+		var values []string
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ResolveGroup((*Event)(ctx.Object))
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.id":
+
+		var values []string
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ResolveContainerID((*Event)(ctx.Object))
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.inode":
+
+		var values []int
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.Inode)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.name":
+
+		var values []string
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ResolveComm((*Event)(ctx.Object))
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.overlay_numlower":
+
+		var values []int
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.OverlayNumLower)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.pid":
+
+		var values []int
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.Pid)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.ppid":
+
+		var values []int
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.ResolvePPID((*Event)(ctx.Object)))
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.tid":
+
+		var values []int
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.Tid)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.tty_name":
+
+		var values []string
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ResolveTTY((*Event)(ctx.Object))
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.uid":
+
+		var values []int
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.UID)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.user":
+
+		var values []string
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ResolveUser((*Event)(ctx.Object))
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
 
 	case "process.basename":
 
@@ -1535,6 +2661,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "exec.filename":
 		return "exec", nil
 
+	case "exec.gid":
+		return "exec", nil
+
 	case "exec.group":
 		return "exec", nil
 
@@ -1551,6 +2680,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exec", nil
 
 	case "exec.tty_name":
+		return "exec", nil
+
+	case "exec.uid":
 		return "exec", nil
 
 	case "exec.user":
@@ -1633,6 +2765,54 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 
 	case "open.retval":
 		return "open", nil
+
+	case "process.ancestors.basename":
+		return "*", nil
+
+	case "process.ancestors.container_path":
+		return "*", nil
+
+	case "process.ancestors.cookie":
+		return "*", nil
+
+	case "process.ancestors.filename":
+		return "*", nil
+
+	case "process.ancestors.gid":
+		return "*", nil
+
+	case "process.ancestors.group":
+		return "*", nil
+
+	case "process.ancestors.id":
+		return "*", nil
+
+	case "process.ancestors.inode":
+		return "*", nil
+
+	case "process.ancestors.name":
+		return "*", nil
+
+	case "process.ancestors.overlay_numlower":
+		return "*", nil
+
+	case "process.ancestors.pid":
+		return "*", nil
+
+	case "process.ancestors.ppid":
+		return "*", nil
+
+	case "process.ancestors.tid":
+		return "*", nil
+
+	case "process.ancestors.tty_name":
+		return "*", nil
+
+	case "process.ancestors.uid":
+		return "*", nil
+
+	case "process.ancestors.user":
+		return "*", nil
 
 	case "process.basename":
 		return "*", nil
@@ -1905,6 +3085,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
+	case "exec.gid":
+
+		return reflect.Int, nil
+
 	case "exec.group":
 
 		return reflect.String, nil
@@ -1928,6 +3112,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "exec.tty_name":
 
 		return reflect.String, nil
+
+	case "exec.uid":
+
+		return reflect.Int, nil
 
 	case "exec.user":
 
@@ -2036,6 +3224,70 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "open.retval":
 
 		return reflect.Int, nil
+
+	case "process.ancestors.basename":
+
+		return reflect.Slice, nil
+
+	case "process.ancestors.container_path":
+
+		return reflect.Slice, nil
+
+	case "process.ancestors.cookie":
+
+		return reflect.Slice, nil
+
+	case "process.ancestors.filename":
+
+		return reflect.Slice, nil
+
+	case "process.ancestors.gid":
+
+		return reflect.Slice, nil
+
+	case "process.ancestors.group":
+
+		return reflect.Slice, nil
+
+	case "process.ancestors.id":
+
+		return reflect.Slice, nil
+
+	case "process.ancestors.inode":
+
+		return reflect.Slice, nil
+
+	case "process.ancestors.name":
+
+		return reflect.Slice, nil
+
+	case "process.ancestors.overlay_numlower":
+
+		return reflect.Slice, nil
+
+	case "process.ancestors.pid":
+
+		return reflect.Slice, nil
+
+	case "process.ancestors.ppid":
+
+		return reflect.Slice, nil
+
+	case "process.ancestors.tid":
+
+		return reflect.Slice, nil
+
+	case "process.ancestors.tty_name":
+
+		return reflect.Slice, nil
+
+	case "process.ancestors.uid":
+
+		return reflect.Slice, nil
+
+	case "process.ancestors.user":
+
+		return reflect.Slice, nil
 
 	case "process.basename":
 
@@ -2450,6 +3702,15 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 
+	case "exec.gid":
+
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.GID"}
+		}
+		e.Exec.GID = uint32(v)
+		return nil
+
 	case "exec.group":
 
 		if e.Exec.Group, ok = value.(string); !ok {
@@ -2496,6 +3757,15 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Exec.TTYName, ok = value.(string); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.TTYName"}
 		}
+		return nil
+
+	case "exec.uid":
+
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.UID"}
+		}
+		e.Exec.UID = uint32(v)
 		return nil
 
 	case "exec.user":
@@ -2628,7 +3898,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Mkdir.Mode"}
 		}
-		e.Mkdir.Mode = int32(v)
+		e.Mkdir.Mode = uint32(v)
 		return nil
 
 	case "mkdir.overlay_numlower":

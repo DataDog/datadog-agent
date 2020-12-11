@@ -103,7 +103,7 @@ func testTraceTopLevel() pb.Trace {
 
 func TestGrainKey(t *testing.T) {
 	assert := assert.New(t)
-	gk := GrainKey("serve", "duration", aggregation{Service: "webserver", Env: "prod", Resource: "api_route"})
+	gk := GrainKey("serve", "duration", Aggregation{Service: "webserver", Env: "prod", Resource: "api_route"})
 	assert.Equal("serve|duration|env:prod,resource:api_route,service:webserver", gk)
 }
 
@@ -125,7 +125,7 @@ func TestBucketDefault(t *testing.T) {
 	// Without version tag
 	for _, s := range testWeightedSpans(false) {
 		t.Logf("weight: %f, topLevel: %v", s.Weight, s.TopLevel)
-		srb.HandleSpan(s, defaultEnv, nil)
+		srb.HandleSpan(s, defaultEnv, nil, false)
 	}
 	sb := srb.Export()
 
@@ -231,7 +231,7 @@ func TestBucketExtraAggregators(t *testing.T) {
 
 	// with version tag
 	for _, s := range testWeightedSpans(true) {
-		srb.HandleSpan(s, defaultEnv, nil)
+		srb.HandleSpan(s, defaultEnv, nil, false)
 	}
 	sb := srb.Export()
 
@@ -294,7 +294,7 @@ func TestBucketMany(t *testing.T) {
 		s := templateSpan
 		s.Resource = "α" + strconv.Itoa(i)
 		srbCopy := *srb
-		srbCopy.HandleSpan(s, defaultEnv, nil)
+		srbCopy.HandleSpan(s, defaultEnv, nil, false)
 	}
 	sb := srb.Export()
 
@@ -328,7 +328,7 @@ func TestBucketSublayers(t *testing.T) {
 
 	// No custom aggregators only the defaults
 	for _, s := range wt {
-		srb.HandleSpan(s, defaultEnv, sublayers)
+		srb.HandleSpan(s, defaultEnv, sublayers, false)
 	}
 	sb := srb.Export()
 
@@ -425,7 +425,7 @@ func TestBucketSublayersTopLevel(t *testing.T) {
 
 	// No custom aggregators only the defaults
 	for _, s := range wt {
-		srb.HandleSpan(s, defaultEnv, sublayers)
+		srb.HandleSpan(s, defaultEnv, sublayers, false)
 	}
 	sb := srb.Export()
 
@@ -533,7 +533,7 @@ func BenchmarkHandleSpan(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		for _, s := range wt {
-			srb.HandleSpan(s, defaultEnv, nil)
+			srb.HandleSpan(s, defaultEnv, nil, false)
 		}
 	}
 }
@@ -551,7 +551,7 @@ func BenchmarkHandleSpanSublayers(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		for _, s := range wt {
-			srb.HandleSpan(s, defaultEnv, sublayers)
+			srb.HandleSpan(s, defaultEnv, sublayers, false)
 		}
 	}
 }
@@ -560,7 +560,7 @@ func BenchmarkHandleSpanSublayers(b *testing.B) {
 // else compiler performs compile-time optimization when using + with strings
 var grainName = "mysql.query"
 var grainMeasure = "duration"
-var grainAggr = aggregation{Resource: "SELECT * FROM stuff", Service: "mysql"}
+var grainAggr = Aggregation{Resource: "SELECT * FROM stuff", Service: "mysql"}
 
 // testing out various way of doing string ops, to check which one is most efficient
 func BenchmarkGrainKey(b *testing.B) {

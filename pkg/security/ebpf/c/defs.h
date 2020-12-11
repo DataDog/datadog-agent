@@ -223,8 +223,8 @@ enum syscall_type
 };
 
 struct kevent_t {
-    u64 type;
     u64 timestamp;
+    u64 type;
 };
 
 struct file_t {

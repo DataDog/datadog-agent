@@ -89,6 +89,7 @@ type AgentConfig struct {
 	DisableIPv6Tracing             bool
 	DisableDNSInspection           bool
 	CollectLocalDNS                bool
+	EnableHTTPMonitoring           bool
 	SystemProbeAddress             string
 	SystemProbeLogFile             string
 	SystemProbeBPFDir              string
@@ -209,6 +210,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		DisableUDPTracing:            false,
 		DisableIPv6Tracing:           false,
 		DisableDNSInspection:         false,
+		EnableHTTPMonitoring:         false,
 		SystemProbeAddress:           defaultSystemProbeAddress,
 		SystemProbeLogFile:           defaultSystemProbeLogFilePath,
 		SystemProbeBPFDir:            defaultSystemProbeBPFDir,
@@ -373,8 +375,12 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	}
 
 	// activate the pod collection if enabled and we have the cluster name set
-	if cfg.Orchestrator.OrchestrationCollectionEnabled && cfg.Orchestrator.KubeClusterName != "" {
-		cfg.EnabledChecks = append(cfg.EnabledChecks, "pod")
+	if cfg.Orchestrator.OrchestrationCollectionEnabled {
+		if cfg.Orchestrator.KubeClusterName != "" {
+			cfg.EnabledChecks = append(cfg.EnabledChecks, "pod")
+		} else {
+			log.Warnf("Failed to auto-detect a Kubernetes cluster name. Pod collection will not start. To fix this, set it manually via the cluster_name config option")
+		}
 	}
 
 	return cfg, nil
@@ -486,6 +492,7 @@ func loadSysProbeEnvVariables() {
 	for _, variable := range []struct{ env, cfg string }{
 		{"DD_SYSTEM_PROBE_ENABLED", "system_probe_config.enabled"},
 		{"DD_SYSTEM_PROBE_NETWORK_ENABLED", "network_config.enabled"},
+		{"DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "network_config.enable_http_monitoring"},
 		{"DD_SYSPROBE_SOCKET", "system_probe_config.sysprobe_socket"},
 		{"DD_SYSTEM_PROBE_CONNTRACK_IGNORE_ENOBUFS", "system_probe_config.conntrack_ignore_enobufs"},
 		{"DD_SYSTEM_PROBE_ENABLE_CONNTRACK_ALL_NAMESPACES", "system_probe_config.enable_conntrack_all_namespaces"},

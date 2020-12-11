@@ -62,14 +62,14 @@ func init() {
 
 func eventRun(cmd *cobra.Command, args []string) error {
 	// Read configuration files received from the command line arguments '-c'
-	if err := secagentcommon.MergeConfigurationFiles("datadog", confPathArray); err != nil {
+	if err := secagentcommon.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
 		return err
 	}
 
 	stopper := restart.NewSerialStopper()
 	defer stopper.Stop()
 
-	endpoints, dstContext, err := newLogContext()
+	endpoints, dstContext, err := newLogContextCompliance()
 	if err != nil {
 		return err
 	}
@@ -118,11 +118,17 @@ func newComplianceReporter(stopper restart.Stopper, sourceName, sourceType strin
 	return event.NewReporter(logSource, pipelineProvider.NextPipelineChan()), nil
 }
 
-func startCompliance(hostname string, endpoints *config.Endpoints, context *client.DestinationsContext, stopper restart.Stopper, statsdClient *ddgostatsd.Client) error {
+func startCompliance(hostname string, stopper restart.Stopper, statsdClient *ddgostatsd.Client) error {
 	enabled := coreconfig.Datadog.GetBool("compliance_config.enabled")
 	if !enabled {
 		return nil
 	}
+
+	endpoints, context, err := newLogContextCompliance()
+	if err != nil {
+		log.Error(err)
+	}
+	stopper.Add(context)
 
 	reporter, err := newComplianceReporter(stopper, "compliance-agent", "compliance", endpoints, context)
 	if err != nil {
