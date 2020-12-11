@@ -220,25 +220,24 @@ void CustomActionData::findSuppliedUserInfo(std::wstring& input, std::wstring& c
     {
         WcaLog(LOGMSG_STANDARD, "Supplied qualified domain '.', using hostname");
         computed_domain = machine.GetMachineName();
-        this->domainUser = false;
+        domainUser = false;
     }
     else
     {
         if (0 == _wcsicmp(computed_domain.c_str(), machine.GetMachineName().c_str()))
         {
             WcaLog(LOGMSG_STANDARD, "Supplied hostname as authority");
-            this->domainUser = false;
+            domainUser = false;
         }
         else if (0 == _wcsicmp(computed_domain.c_str(), machine.DnsDomainName().c_str()))
         {
             WcaLog(LOGMSG_STANDARD, "Supplied domain name %S %S", computed_domain.c_str(), machine.DnsDomainName().c_str());
-            this->domainUser = true;
+            domainUser = true;
         }
         else
         {
             WcaLog(LOGMSG_STANDARD, "Warning: Supplied user in different domain (%S != %S)", computed_domain.c_str(), machine.DnsDomainName().c_str());
-            computed_domain = machine.DnsDomainName();
-            this->domainUser = true;
+            domainUser = true;
         }
     }
 }
@@ -283,7 +282,7 @@ bool CustomActionData::parseUsernameData()
 
     if (sidResult.Result == ERROR_NONE_MAPPED)
     {
-        WcaLog(LOGMSG_STANDARD, "No account \"%S\" found.", tmpName.c_str());
+        WcaLog(LOGMSG_STANDARD, "No account \"%S\" found.", _fqUsername.c_str());
         _ddUserExists = false;
     }
     else
@@ -291,7 +290,7 @@ bool CustomActionData::parseUsernameData()
         if (sidResult.Result == ERROR_SUCCESS &&
             sidResult.Sid != nullptr)
         {
-            WcaLog(LOGMSG_STANDARD, "Found SID for \"%S\" in \"%S\"", tmpName.c_str(), sidResult.Domain.c_str());
+            WcaLog(LOGMSG_STANDARD, "Found SID for \"%S\" in \"%S\"", _fqUsername.c_str(), sidResult.Domain.c_str());
             _ddUserExists = true;
             _sid = std::move(sidResult.Sid);
 
