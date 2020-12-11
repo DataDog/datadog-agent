@@ -8,10 +8,17 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
+	"unicode"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/gopsutil/host"
+)
+
+const (
+	// WorldReadable represents file permission that's world readable
+	WorldReadable os.FileMode = 4
 )
 
 type statusInfo struct {
@@ -31,8 +38,9 @@ type Probe struct {
 	procRootLoc  string // ProcFS
 	procRootFile *os.File
 
-	uid  uint32 // Used for path permission checking to prevent access to files that we can't access
-	euid uint32
+	// uid and euid are cached to minimize system call when check file permission
+	uid  uint32 // UID
+	euid uint32 // Effective UID
 
 	bootTime uint64
 }
@@ -81,6 +89,7 @@ func (p *Probe) ProcessesByPID() (map[int32]*Process, error) {
 		}
 
 		statusInfo := p.parseStatus(pathForPID)
+		ioInfo := p.parseIO(pathForPID)
 
 		procsByPID[pid] = &Process{
 			Pid:     pid,               // /proc/{pid}
@@ -94,6 +103,7 @@ func (p *Probe) ProcessesByPID() (map[int32]*Process, error) {
 				MemInfo:     statusInfo.memInfo,     // /proc/{pid}/status or statm
 				CtxSwitches: statusInfo.ctxSwitches, // /proc/{pid}/status
 				NumThreads:  statusInfo.numThreads,  // /proc/{pid}/status
+				IOStat:      ioInfo,                 // /proc/{pid}/io, requires permission checks
 			},
 		}
 	}
@@ -159,6 +169,73 @@ func (p *Probe) getCmdline(pidPath string) []string {
 	return trimAndSplitBytes(cmdline)
 }
 
+// parseIO retrieves io info from "io" file for a process in procfs
+func (p *Probe) parseIO(pidPath string) *IOCountersStat {
+	path := filepath.Join(pidPath, "io")
+	var err error
+
+	io := &IOCountersStat{}
+
+	if err = p.ensurePathReadable(path); err != nil {
+		return io
+	}
+
+	content, err := ioutil.ReadFile(path)
+	if err != nil {
+		return io
+	}
+
+	lineStart := 0
+	for i, r := range content {
+		if r == '\n' {
+			p.parseIOLine(content[lineStart:i], io)
+			lineStart = i + 1
+		}
+	}
+
+	return io
+}
+
+// parseIOLine extracts key and value for each line in "io" file
+func (p *Probe) parseIOLine(line []byte, io *IOCountersStat) {
+	for i := range line {
+		// the fields are all having format "field_name: field_value", so we always
+		// look for ": " and skip them
+		if i+2 < len(line) && line[i] == ':' && unicode.IsSpace(rune(line[i+1])) {
+			key := line[0:i]
+			value := line[i+2:]
+			p.parseIOKV(string(key), string(value), io)
+			break
+		}
+	}
+}
+
+// parseIOKV matches key with a field in IOCountersStat model and fills in the value
+func (p *Probe) parseIOKV(key, value string, io *IOCountersStat) {
+	switch key {
+	case "syscr":
+		v, err := strconv.ParseUint(value, 10, 64)
+		if err == nil {
+			io.ReadCount = v
+		}
+	case "syscw":
+		v, err := strconv.ParseUint(value, 10, 64)
+		if err == nil {
+			io.WriteCount = v
+		}
+	case "read_bytes":
+		v, err := strconv.ParseUint(value, 10, 64)
+		if err == nil {
+			io.ReadBytes = v
+		}
+	case "write_bytes":
+		v, err := strconv.ParseUint(value, 10, 64)
+		if err == nil {
+			io.WriteBytes = v
+		}
+	}
+}
+
 // parseStatus retrieves status info from "status" file for a process in procfs
 func (p *Probe) parseStatus(pidPath string) *statusInfo {
 	path := filepath.Join(pidPath, "status")
@@ -171,16 +248,17 @@ func (p *Probe) parseStatus(pidPath string) *statusInfo {
 		ctxSwitches: &NumCtxSwitchesStat{},
 	}
 
-	contents, err := ioutil.ReadFile(path)
+	content, err := ioutil.ReadFile(path)
+
 	if err != nil {
 		return sInfo
 	}
 
-	index := 0
-	for i, r := range contents {
+	lineStart := 0
+	for i, r := range content {
 		if r == '\n' {
-			p.parseStatusLine(contents[index:i], sInfo)
-			index = i + 1
+			p.parseStatusLine(content[lineStart:i], sInfo)
+			lineStart = i + 1
 		}
 	}
 
@@ -192,7 +270,7 @@ func (p *Probe) parseStatusLine(line []byte, sInfo *statusInfo) {
 	for i := range line {
 		// the fields are all having format "field_name:\tfield_value", so we always
 		// look for ":\t" and skip them
-		if i+2 < len(line) && line[i] == ':' && line[i+1] == '\t' {
+		if i+2 < len(line) && line[i] == ':' && unicode.IsSpace(rune(line[i+1])) {
 			key := line[0:i]
 			value := line[i+2:]
 			p.parseStatusKV(string(key), string(value), sInfo)
@@ -247,24 +325,59 @@ func (p *Probe) parseStatusKV(key, value string, sInfo *statusInfo) {
 			sInfo.ctxSwitches.Involuntary = v
 		}
 	case "VmRSS":
-		value := strings.Trim(value, " kB") // remove last "kB"
+		value := strings.Trim(value, " kB") // trim spaces and suffix "kB"
 		v, err := strconv.ParseUint(value, 10, 64)
 		if err == nil {
 			sInfo.memInfo.RSS = v * 1024
 		}
 	case "VmSize":
-		value := strings.Trim(value, " kB") // remove last "kB"
+		value := strings.Trim(value, " kB") // trim spaces and suffix "kB"
 		v, err := strconv.ParseUint(value, 10, 64)
 		if err == nil {
 			sInfo.memInfo.VMS = v * 1024
 		}
 	case "VmSwap":
-		value := strings.Trim(value, " kB") // remove last "kB"
+		value := strings.Trim(value, " kB") // trim spaces and suffix "kB"
 		v, err := strconv.ParseUint(value, 10, 64)
 		if err == nil {
 			sInfo.memInfo.Swap = v * 1024
 		}
 	}
+}
+
+// ensurePathReadable ensures that the current user is able to read the path before opening it.
+// On some systems, attempting to open a file that the user does not have permission is problematic for
+// customer security auditing. What we do here is:
+// 1. If the agent is running as root (real or via sudo), allow the request
+// 2. If the file is a not a symlink and has the other-readable permission bit set, allow the request
+// 3. If the owner of the file/link is the current user or effective user, allow the request.
+func (p *Probe) ensurePathReadable(path string) error {
+	// User is (effectively or actually) root
+	if p.euid == 0 {
+		return nil
+	}
+
+	// TODO (sk): Provide caching on this!
+	info, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+
+	// File mode is world readable and not a symlink
+	// If the file is a symlink, the owner check below will cover it
+	if mode := info.Mode(); mode&os.ModeSymlink == 0 && mode.Perm()&WorldReadable != 0 {
+		return nil
+	}
+
+	if stat, ok := info.Sys().(*syscall.Stat_t); ok {
+		// If file is not owned by the user id or effective user id, return a permission error
+		// Group permissions don't come in to play with procfs so we don't bother checking
+		if stat.Uid != p.uid && stat.Uid != p.euid {
+			return os.ErrPermission
+		}
+	}
+
+	return nil
 }
 
 // trimAndSplitBytes converts the raw command line bytes into a list of strings by trimming and splitting on null bytes
