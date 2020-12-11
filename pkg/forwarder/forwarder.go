@@ -9,6 +9,7 @@ import (
 	"expvar"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -215,6 +216,30 @@ type DefaultForwarder struct {
 	completionHandler HTTPCompletionHandler
 }
 
+type sortByCreatedTimeAndPriority struct {
+	highPriorityFirst bool
+}
+
+func (s sortByCreatedTimeAndPriority) Sort(transactions []Transaction) {
+	sorter := byCreatedTimeAndPriority(transactions)
+	if s.highPriorityFirst {
+		sort.Sort(sorter)
+	} else {
+		sort.Sort(sort.Reverse(sorter))
+	}
+}
+
+type byCreatedTimeAndPriority []Transaction
+
+func (v byCreatedTimeAndPriority) Len() int      { return len(v) }
+func (v byCreatedTimeAndPriority) Swap(i, j int) { v[i], v[j] = v[j], v[i] }
+func (v byCreatedTimeAndPriority) Less(i, j int) bool {
+	if v[i].GetPriority() != v[j].GetPriority() {
+		return v[i].GetPriority() > v[j].GetPriority()
+	}
+	return v[i].GetCreatedAt().After(v[j].GetCreatedAt())
+}
+
 // NewDefaultForwarder returns a new DefaultForwarder.
 func NewDefaultForwarder(options *Options) *DefaultForwarder {
 	f := &DefaultForwarder{
@@ -229,15 +254,67 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 		},
 		completionHandler: options.CompletionHandler,
 	}
+	var optionalRemovalPolicy *failedTransactionRemovalPolicy
+	storageMaxSize := config.Datadog.GetInt64("forwarder_storage_max_size_in_bytes")
+
+	if storageMaxSize == 0 {
+		log.Infof("Retry queue storage on disk is disabled")
+	} else {
+		storagePath := config.Datadog.GetString("forwarder_storage_path")
+		outdatedFileInDays := config.Datadog.GetInt("forwarder_outdated_file_in_days")
+		var err error
+
+		optionalRemovalPolicy, err = newFailedTransactionRemovalPolicy(storagePath, outdatedFileInDays)
+		if err != nil {
+			log.Errorf("Error when initializing the removal policy: %v", err)
+		}
+	}
+
+	flushToDiskMemRatio := config.Datadog.GetFloat64("forwarder_flush_to_disk_mem_ratio")
+	domainForwarderSort := sortByCreatedTimeAndPriority{highPriorityFirst: true}
+	transactionContainerSort := sortByCreatedTimeAndPriority{highPriorityFirst: false}
 
 	for domain, keys := range options.KeysPerDomain {
 		domain, _ := config.AddAgentVersionToDomain(domain, "app")
 		if keys == nil || len(keys) == 0 {
 			log.Errorf("No API keys for domain '%s', dropping domain ", domain)
 		} else {
+			var domainFolderPath string
+			var err error
+			if optionalRemovalPolicy != nil {
+				domainFolderPath, err = optionalRemovalPolicy.registerDomain(domain)
+				if err != nil {
+					log.Errorf("Retry queue storage on disk disabled. Cannot register the domain '%v': %v", domain, err)
+				}
+			}
+
+			optionalTransactionContainer, err := tryNewTransactionContainer(
+				options.RetryQueuePayloadsTotalMaxSize,
+				flushToDiskMemRatio,
+				domainFolderPath,
+				storageMaxSize,
+				transactionContainerSort)
+			if err != nil {
+				log.Errorf("Retry queue storage on disk disabled: %v", err)
+			}
+
 			f.keysPerDomains[domain] = keys
-			f.domainForwarders[domain] = newDomainForwarder(domain, options.NumberOfWorkers, options.RetryQueueSize, options.RetryQueuePayloadsTotalMaxSize, options.ConnectionResetInterval)
+			f.domainForwarders[domain] = newDomainForwarder(
+				domain,
+				optionalTransactionContainer,
+				options.NumberOfWorkers,
+				options.RetryQueueSize,
+				options.ConnectionResetInterval,
+				domainForwarderSort)
 		}
+	}
+
+	if optionalRemovalPolicy != nil {
+		filesRemoved, err := optionalRemovalPolicy.removeOutdatedFiles()
+		if err != nil {
+			log.Errorf("Error when removing outdated files: %v", err)
+		}
+		log.Debugf("Outdated files removed: %v", strings.Join(filesRemoved, ", "))
 	}
 
 	return f

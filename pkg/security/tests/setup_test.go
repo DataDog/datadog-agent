@@ -377,6 +377,24 @@ func (tm *testModule) Path(filename string) (string, unsafe.Pointer, error) {
 	return tm.st.Path(filename)
 }
 
+func (tm *testModule) Create(filename string) (string, unsafe.Pointer, error) {
+	testFile, testPtr, err := tm.st.Path(filename)
+	if err != nil {
+		return "", nil, err
+	}
+
+	f, err := os.Create(testFile)
+	if err != nil {
+		return "", nil, err
+	}
+
+	if err := f.Close(); err != nil {
+		return "", nil, err
+	}
+
+	return testFile, testPtr, err
+}
+
 func (tm *testModule) cleanup() {
 	tm.st.Close()
 	tm.module.Close()

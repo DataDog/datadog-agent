@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf/manager"
@@ -52,21 +53,14 @@ type SocketFilterSnooper struct {
 }
 
 // NewSocketFilterSnooper returns a new SocketFilterSnooper
-func NewSocketFilterSnooper(
-	rootPath string,
-	filter *manager.Probe,
-	collectDNSStats bool,
-	collectLocalDNS bool,
-	dnsTimeout time.Duration,
-) (*SocketFilterSnooper, error) {
-
+func NewSocketFilterSnooper(cfg *config.Config, filter *manager.Probe) (*SocketFilterSnooper, error) {
 	var (
 		packetSrc *packetSource
 		srcErr    error
 	)
 
 	// Create the RAW_SOCKET inside the root network namespace
-	err := util.WithRootNS(rootPath, func() error {
+	err := util.WithRootNS(cfg.ProcRoot, func() error {
 		packetSrc, srcErr = newPacketSource(filter)
 		return srcErr
 	})
@@ -76,17 +70,17 @@ func NewSocketFilterSnooper(
 
 	cache := newReverseDNSCache(dnsCacheSize, dnsCacheTTL, dnsCacheExpirationPeriod)
 	var statKeeper *dnsStatKeeper
-	if collectDNSStats {
-		statKeeper = newDNSStatkeeper(dnsTimeout)
+	if cfg.CollectDNSStats {
+		statKeeper = newDNSStatkeeper(cfg.DNSTimeout)
 	}
 	snooper := &SocketFilterSnooper{
 		source:          packetSrc,
-		parser:          newDNSParser(collectDNSStats),
+		parser:          newDNSParser(cfg.CollectDNSStats),
 		cache:           cache,
 		statKeeper:      statKeeper,
 		translation:     new(translation),
 		exit:            make(chan struct{}),
-		collectLocalDNS: collectLocalDNS,
+		collectLocalDNS: cfg.CollectLocalDNS,
 	}
 
 	// Start consuming packets

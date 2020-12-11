@@ -86,8 +86,5 @@ func AllPerfMaps() []*manager.PerfMap {
 		{
 			Map: manager.Map{Name: "events"},
 		},
-		{
-			Map: manager.Map{Name: "mountpoints_events"},
-		},
 	}
 }

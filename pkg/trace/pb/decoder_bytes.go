@@ -6,11 +6,34 @@
 package pb
 
 import (
+	"bytes"
 	"errors"
+	"math"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/tinylib/msgp/msgp"
 )
+
+// repairUTF8 ensures all characters in s are UTF-8 by replacing non-UTF-8 characters
+// with the replacement char �
+func repairUTF8(s string) string {
+	in := strings.NewReader(s)
+	var out bytes.Buffer
+	out.Grow(len(s))
+
+	for {
+		r, _, err := in.ReadRune()
+		if err != nil {
+			// note: by contract, if `in` contains non-valid utf-8, no error is returned. Rather the utf-8 replacement
+			// character is returned. Therefore, the only error should usually be io.EOF indicating end of string.
+			// If any other error is returned by chance, we quit as well, outputting whatever part of the string we
+			// had already constructed.
+			return out.String()
+		}
+		out.WriteRune(r)
+	}
+}
 
 // parseStringBytes reads the next type in the msgpack payload and
 // converts the BinType or the StrType in a valid string.
@@ -75,6 +98,18 @@ func parseFloat64Bytes(bts []byte) (float64, []byte, error) {
 	default:
 		return 0, bts, msgp.TypeError{Encoded: t, Method: msgp.Float64Type}
 	}
+}
+
+// cast to int64 values that are int64 but that are sent in uint64
+// over the wire. Set to 0 if they overflow the MaxInt64 size. This
+// cast should be used ONLY while decoding int64 values that are
+// sent as uint64 to reduce the payload size, otherwise the approach
+// is not correct in the general sense.
+func castInt64(v uint64) (int64, bool) {
+	if v > math.MaxInt64 {
+		return 0, false
+	}
+	return int64(v), true
 }
 
 // parseInt64Bytes parses an int64 even if the sent value is an uint64;
@@ -143,6 +178,18 @@ func parseUint64Bytes(bts []byte) (uint64, []byte, error) {
 	default:
 		return 0, bts, msgp.TypeError{Encoded: t, Method: msgp.IntType}
 	}
+}
+
+// cast to int32 values that are int32 but that are sent in uint32
+// over the wire. Set to 0 if they overflow the MaxInt32 size. This
+// cast should be used ONLY while decoding int32 values that are
+// sent as uint32 to reduce the payload size, otherwise the approach
+// is not correct in the general sense.
+func castInt32(v uint32) (int32, bool) {
+	if v > math.MaxInt32 {
+		return 0, false
+	}
+	return int32(v), true
 }
 
 // parseInt32Bytes parses an int32 even if the sent value is an uint32;
