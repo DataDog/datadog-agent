@@ -44,6 +44,9 @@ type FakeDCAClient struct {
 	ClusterCheckConfigs    types.ConfigResponse
 	ClusterCheckConfigsErr error
 
+	ClusterCheckConfigsToSchedule    types.ConfigsToScheduleResponse
+	ClusterCheckConfigsToScheduleErr error
+
 	EndpointsCheckConfigs    types.ConfigResponse
 	EndpointsCheckConfigsErr error
 }
@@ -73,6 +76,10 @@ func (f *FakeDCAClient) PostClusterCheckStatus(nodeName string, status types.Nod
 
 func (f *FakeDCAClient) GetClusterCheckConfigs(nodeName string) (types.ConfigResponse, error) {
 	return f.ClusterCheckConfigs, f.ClusterCheckConfigsErr
+}
+
+func (f *FakeDCAClient) PostClusterCheckConfigs(nodeName string, configs types.ConfigsToSchedule) (types.ConfigsToScheduleResponse, error) {
+	return f.ClusterCheckConfigsToSchedule, f.ClusterCheckConfigsToScheduleErr
 }
 
 func (f *FakeDCAClient) GetEndpointsCheckConfigs(nodeName string) (types.ConfigResponse, error) {
