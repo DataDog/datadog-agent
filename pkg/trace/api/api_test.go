@@ -567,14 +567,14 @@ func TestHandleStats(t *testing.T) {
 		rcv := newTestReceiverFromConfig(cfg)
 		mockProcessor := new(mockStatsProcessor)
 		rcv.statsProcessor = mockProcessor
-		rcv.Start()
-		defer rcv.Stop()
+		mux := rcv.buildMux()
+		server := httptest.NewServer(mux)
 
 		var buf bytes.Buffer
 		if err := msgp.Encode(&buf, &p); err != nil {
 			t.Fatal(err)
 		}
-		req, _ := http.NewRequest("POST", "http://127.0.0.1:8126/v0.5/stats", &buf)
+		req, _ := http.NewRequest("POST", server.URL+"/v0.5/stats", &buf)
 		req.Header.Set("Content-Type", "application/msgpack")
 		req.Header.Set(headerLang, "lang1")
 		resp, err := http.DefaultClient.Do(req)
@@ -595,10 +595,10 @@ func TestHandleStats(t *testing.T) {
 		rcv := newTestReceiverFromConfig(cfg)
 		mockProcessor := new(mockStatsProcessor)
 		rcv.statsProcessor = mockProcessor
-		rcv.Start()
-		defer rcv.Stop()
+		mux := rcv.buildMux()
+		server := httptest.NewServer(mux)
 
-		req, _ := http.NewRequest("POST", "http://127.0.0.1:8126/v0.5/stats", nil)
+		req, _ := http.NewRequest("POST", server.URL+"/v0.5/stats", nil)
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatal(err)
@@ -612,8 +612,8 @@ func TestHandleStats(t *testing.T) {
 func TestClientComputedStatsHeader(t *testing.T) {
 	conf := newTestReceiverConfig()
 	rcv := newTestReceiverFromConfig(conf)
-	rcv.Start()
-	defer rcv.Stop()
+	mux := rcv.buildMux()
+	server := httptest.NewServer(mux)
 
 	// run runs the test with ClientComputedStats turned on.
 	run := func(on bool) func(t *testing.T) {
@@ -621,7 +621,7 @@ func TestClientComputedStatsHeader(t *testing.T) {
 			bts, err := testutil.GetTestTraces(10, 10, true).MarshalMsg(nil)
 			assert.Nil(t, err)
 
-			req, _ := http.NewRequest("POST", "http://127.0.0.1:8126/v0.4/traces", bytes.NewReader(bts))
+			req, _ := http.NewRequest("POST", server.URL+"/v0.4/traces", bytes.NewReader(bts))
 			req.Header.Set("Content-Type", "application/msgpack")
 			req.Header.Set(headerLang, "lang1")
 			if on {
@@ -722,8 +722,8 @@ func (sr *chunkedReader) Read(p []byte) (n int, err error) {
 func TestClientComputedTopLevel(t *testing.T) {
 	conf := newTestReceiverConfig()
 	rcv := newTestReceiverFromConfig(conf)
-	rcv.Start()
-	defer rcv.Stop()
+	mux := rcv.buildMux()
+	server := httptest.NewServer(mux)
 
 	// run runs the test with ClientComputedStats turned on.
 	run := func(on bool) func(t *testing.T) {
@@ -731,7 +731,7 @@ func TestClientComputedTopLevel(t *testing.T) {
 			bts, err := testutil.GetTestTraces(10, 10, true).MarshalMsg(nil)
 			assert.Nil(t, err)
 
-			req, _ := http.NewRequest("POST", "http://127.0.0.1:8126/v0.4/traces", bytes.NewReader(bts))
+			req, _ := http.NewRequest("POST", server.URL+"/v0.4/traces", bytes.NewReader(bts))
 			req.Header.Set("Content-Type", "application/msgpack")
 			req.Header.Set(headerLang, "lang1")
 			if on {

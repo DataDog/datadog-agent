@@ -102,8 +102,7 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 	}
 }
 
-// Start starts doing the HTTP server and is ready to receive traces
-func (r *HTTPReceiver) Start() {
+func (r *HTTPReceiver) buildMux() *http.ServeMux {
 	mux := http.NewServeMux()
 
 	r.attachDebugHandlers(mux)
@@ -123,6 +122,13 @@ func (r *HTTPReceiver) Start() {
 		mux.HandleFunc("/v0.5/stats", r.handleStats)
 	}
 	mux.Handle("/profiling/v1/input", r.profileProxyHandler())
+
+	return mux
+}
+
+// Start starts doing the HTTP server and is ready to receive traces
+func (r *HTTPReceiver) Start() {
+	mux := r.buildMux()
 
 	timeout := 5 * time.Second
 	if r.conf.ReceiverTimeout > 0 {
