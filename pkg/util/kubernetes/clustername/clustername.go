@@ -142,7 +142,7 @@ func GetClusterID() (string, error) {
 	// in older setups the cluster ID was exposed as an env var from a configmap created by the cluster agent
 	clusterID, found := os.LookupEnv(clusterIDEnv)
 	if !found {
-		log.Debugf("Cluster ID env variable %s is missing, calling the DCA directly", clusterIDEnv)
+		log.Debugf("Cluster ID env variable %s is missing, calling the Cluster Agent", clusterIDEnv)
 
 		dcaClient, err := clusteragent.GetClusterAgentClient()
 		if err != nil {
