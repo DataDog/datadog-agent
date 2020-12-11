@@ -3637,6 +3637,25 @@ dca_scan_master_docker_hub:
     - inv -e docker.publish ${SRC_DCA}:${SRC_TAG}-amd64 datadog/cluster-agent-scan:master
 
 
+scan_release_linux_docker_hub:
+  extends: .docker_scan_job_definition
+  rules:
+    - <<: *if_deploy_on_tag_7
+      when: manual
+      allow_failure: true
+  dependencies:
+    - docker_build_agent7
+    - docker_build_agent7_jmx
+    - docker_build_agent6
+    - docker_build_agent6_jmx
+  script:
+    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-7-amd64      datadog/agent-scan:${VERSION}
+    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-7-jmx-amd64  datadog/agent-scan:${VERSION}-jmx
+    - VERSION=$(inv -e agent.version --major-version 6)
+    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-7-amd64      datadog/agent-scan:${VERSION}
+    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-7-jmx-amd64  datadog/agent-scan:${VERSION}-jmx
+
+
 #
 # Check Deploy
 #
