@@ -27,12 +27,14 @@ type transactionsFileStorage struct {
 	maxSizeInBytes     int64
 	filenames          []string
 	currentSizeInBytes int64
+	telemetry          transactionsFileStorageTelemetry
 }
 
 func newTransactionsFileStorage(
 	serializer *TransactionsSerializer,
 	storagePath string,
-	maxSizeInBytes int64) (*transactionsFileStorage, error) {
+	maxSizeInBytes int64,
+	telemetry transactionsFileStorageTelemetry) (*transactionsFileStorage, error) {
 
 	if err := os.MkdirAll(storagePath, 0755); err != nil {
 		return nil, err
@@ -42,6 +44,7 @@ func newTransactionsFileStorage(
 		serializer:     serializer,
 		storagePath:    storagePath,
 		maxSizeInBytes: maxSizeInBytes,
+		telemetry:      telemetry,
 	}
 
 	if err := storage.reloadExistingRetryFiles(); err != nil {
@@ -52,6 +55,7 @@ func newTransactionsFileStorage(
 
 // Serialize serializes transactions to the file system.
 func (s *transactionsFileStorage) Serialize(transactions []Transaction) error {
+	s.telemetry.addSerializeCount()
 	for _, t := range transactions {
 		if err := t.SerializeTo(s.serializer); err != nil {
 			return err
@@ -82,6 +86,9 @@ func (s *transactionsFileStorage) Serialize(transactions []Transaction) error {
 
 	s.currentSizeInBytes += bufferSize
 	s.filenames = append(s.filenames, file.Name())
+	s.telemetry.setFileSize(bufferSize)
+	s.telemetry.setCurrentSizeInBytes(s.getCurrentSizeInBytes())
+	s.telemetry.setFilesCount(s.getFilesCount())
 	return nil
 }
 
@@ -90,6 +97,7 @@ func (s *transactionsFileStorage) Deserialize() ([]Transaction, error) {
 	if len(s.filenames) == 0 {
 		return nil, nil
 	}
+	s.telemetry.addDeserializeCount()
 	index := len(s.filenames) - 1
 	path := s.filenames[index]
 	bytes, err := ioutil.ReadFile(path)
@@ -106,6 +114,8 @@ func (s *transactionsFileStorage) Deserialize() ([]Transaction, error) {
 		return nil, err
 	}
 
+	s.telemetry.setCurrentSizeInBytes(s.getCurrentSizeInBytes())
+	s.telemetry.setFilesCount(s.getFilesCount())
 	return transactions, err
 }
 
@@ -131,6 +141,7 @@ func (s *transactionsFileStorage) makeRoomFor(bufferSize int64) error {
 		if err := s.removeFileAt(index); err != nil {
 			return err
 		}
+		s.telemetry.addFilesRemovedCount()
 	}
 
 	return nil
@@ -163,11 +174,13 @@ func (s *transactionsFileStorage) reloadExistingRetryFiles() error {
 	sort.Slice(files, func(i, j int) bool {
 		return files[i].ModTime().Before(files[j].ModTime())
 	})
-
+	var filenames []string
 	for _, file := range files {
 		fullPath := path.Join(s.storagePath, file.Name())
-		s.filenames = append(s.filenames, fullPath)
+		filenames = append(filenames, fullPath)
 	}
+	s.telemetry.addReloadedRetryFilesCount(len(filenames))
+	s.filenames = append(s.filenames, filenames...)
 	return nil
 }
 

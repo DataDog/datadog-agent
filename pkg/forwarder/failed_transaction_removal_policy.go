@@ -23,17 +23,23 @@ type failedTransactionRemovalPolicy struct {
 	rootPath           string
 	knownDomainFolders map[string]struct{}
 	outdatedFileTime   time.Time
+	telemetry          failedTransactionRemovalPolicyTelemetry
 }
 
-func newFailedTransactionRemovalPolicy(rootPath string, outdatedFileDayCount int) (*failedTransactionRemovalPolicy, error) {
+func newFailedTransactionRemovalPolicy(
+	rootPath string,
+	outdatedFileDayCount int,
+	telemetry failedTransactionRemovalPolicyTelemetry) (*failedTransactionRemovalPolicy, error) {
 	if err := os.MkdirAll(rootPath, 0755); err != nil {
 		return nil, err
 	}
+	telemetry.addNewRemovalPolicyCount()
 
 	return &failedTransactionRemovalPolicy{
 		rootPath:           rootPath,
 		knownDomainFolders: make(map[string]struct{}),
 		outdatedFileTime:   time.Now().Add(time.Duration(-outdatedFileDayCount*24) * time.Hour),
+		telemetry:          telemetry,
 	}, nil
 }
 
@@ -44,6 +50,7 @@ func (p *failedTransactionRemovalPolicy) registerDomain(domainName string) (stri
 		return "", err
 	}
 
+	p.telemetry.addRegisteredDomainCount()
 	p.knownDomainFolders[folder] = struct{}{}
 	return folder, nil
 }
@@ -65,8 +72,10 @@ func (p *failedTransactionRemovalPolicy) removeOutdatedFiles() ([]string, error)
 			var files []string
 			if _, found := p.knownDomainFolders[folderPath]; found {
 				files, err = p.removeOutdatedRetryFiles(folderPath)
+				p.telemetry.addOutdatedFilesCount(len(files))
 			} else {
 				files, err = p.removeUnknownDomain(folderPath)
+				p.telemetry.addFilesFromUnknownDomainCount(len(files))
 			}
 			if err != nil {
 				return nil, err
