@@ -6,6 +6,7 @@
 package eval
 
 import (
+	"container/list"
 	"fmt"
 	"strings"
 	"syscall"
@@ -370,7 +371,7 @@ func TestPartial(t *testing.T) {
 
 	tests := []struct {
 		Expr        string
-		Field       string
+		Field       Field
 		IsDiscarder bool
 	}{
 		{Expr: `true || process.name == "/usr/bin/cat"`, Field: "process.name", IsDiscarder: false},
@@ -415,6 +416,7 @@ func TestPartial(t *testing.T) {
 	for _, test := range tests {
 		model := &testModel{}
 		opts := &Opts{Constants: testConstants}
+
 		rule, err := parseRule(test.Expr, model, opts)
 		if err != nil {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
@@ -639,6 +641,164 @@ func TestFieldValidator(t *testing.T) {
 	expr := `process.uid == -100 && open.filename == "/etc/passwd"`
 	if _, err := parseRule(expr, &testModel{}, &Opts{}); err == nil {
 		t.Error("expected an error on process.uid being negative")
+	}
+}
+
+func TestRegisterSyntaxError(t *testing.T) {
+	model := &testModel{}
+	opts := NewOptsWithParams(testConstants)
+
+	tests := []struct {
+		Expr     string
+		Expected bool
+	}{
+		{Expr: `process.list[_].key == 10 && process.list[_].value == 11`, Expected: true},
+		{Expr: `process.list[].key == 10 && process.list.value == 11`, Expected: false},
+		{Expr: `process.list[_].key == 10 && process.list.value == 11`, Expected: true},
+		{Expr: `process.list.key[] == 10 && process.list.value == 11`, Expected: false},
+		{Expr: `process[].list.key == 10 && process.list.value == 11`, Expected: false},
+		{Expr: `[]process.list.key == 10 && process.list.value == 11`, Expected: false},
+		{Expr: `process.list[_].key == 10 && process.list[_].value == 11 && process.array[_].key == 10 && process.array[_].value == 11`, Expected: false},
+	}
+
+	for _, test := range tests {
+		_, err := parseRule(test.Expr, model, opts)
+		if err == nil != test.Expected {
+			t.Errorf("expected result `%t` not found, got `%t`\n%s", test.Expected, err == nil, test.Expr)
+		}
+	}
+}
+
+func TestRegister(t *testing.T) {
+	event := &testEvent{
+		process: testProcess{},
+	}
+
+	event.process.list = list.New()
+	event.process.list.PushBack(&testItem{key: 10, value: 11})
+	event.process.list.PushBack(&testItem{key: 100, value: 101})
+	event.process.list.PushBack(&testItem{key: 200, value: 201})
+
+	event.process.array = []*testItem{
+		{key: 1000, value: 1001},
+		{key: 1002, value: 1003},
+	}
+
+	tests := []struct {
+		Expr     string
+		Expected bool
+	}{
+		{Expr: `process.list[_].key == 10 && process.list[_].value == 11`, Expected: true},
+		{Expr: `process.list[_].key == 9999 && process.list[_].value == 11`, Expected: false},
+		{Expr: `process.list[_].key == 100 && process.list[_].value == 101`, Expected: true},
+		{Expr: `process.list[_].key == 200 && process.list[_].value == 201`, Expected: true},
+		{Expr: `process.list[A].key == 200 && process.list[A].value == 201`, Expected: true},
+		{Expr: `process.list[A].key == 200 && process.list[B].value == 101`, Expected: true},
+		{Expr: `process.list[A].key == 200 || process.list[B].value == 11`, Expected: true},
+		{Expr: `process.list.key == 200 && process.list.value == 11`, Expected: true},
+		{Expr: `process.list[_].key == 10 && process.list.value == 11`, Expected: true},
+		{Expr: `process.array[_].key == 1000 && process.array[_].value == 1001`, Expected: true},
+		{Expr: `process.array[_].key == 1002 && process.array[_].value == 1001`, Expected: false},
+		{Expr: `process.array[A].key == 1002 && process.array[B].value == 1003`, Expected: true},
+		{Expr: `process.list[_].key == 10 && process.list[_].value == 11 && process.array[A].key == 1002 && process.array[A].value == 1003`, Expected: true},
+	}
+
+	for _, test := range tests {
+		result, _, err := eval(t, event, test.Expr)
+		if err != nil {
+			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+		}
+
+		if result != test.Expected {
+			t.Errorf("expected result `%t` not found, got `%t`\n%s", test.Expected, result, test.Expr)
+		}
+	}
+}
+
+func TestRegisterPartial(t *testing.T) {
+	event := &testEvent{
+		process: testProcess{},
+	}
+
+	event.process.list = list.New()
+	event.process.list.PushBack(&testItem{key: 10, value: 11})
+	event.process.list.PushBack(&testItem{key: 100, value: 101})
+	event.process.list.PushBack(&testItem{key: 200, value: 201})
+
+	event.process.array = []*testItem{
+		{key: 1000, value: 1001},
+		{key: 1002, value: 1003},
+	}
+
+	tests := []struct {
+		Expr        string
+		Field       Field
+		IsDiscarder bool
+	}{
+		{Expr: `process.list[_].key == 10 && process.list[_].value == 11`, Field: "process.list.key", IsDiscarder: false},
+		{Expr: `process.list[_].key == 55 && process.list[_].value == 11`, Field: "process.list.key", IsDiscarder: true},
+		{Expr: `process.list[_].key == 55 && process.list[_].value == 11`, Field: "process.list.value", IsDiscarder: false},
+		{Expr: `process.list[_].key == 10 && process.list[_].value == 55`, Field: "process.list.value", IsDiscarder: true},
+		{Expr: `process.list[A].key == 10 && process.list[B].value == 55`, Field: "process.list.key", IsDiscarder: false},
+		{Expr: `process.list[A].key == 55 && process.list[B].value == 11`, Field: "process.list.key", IsDiscarder: true},
+	}
+
+	ctx := &Context{}
+	ctx.SetObject(unsafe.Pointer(event))
+
+	for _, test := range tests {
+		model := &testModel{}
+		opts := &Opts{Constants: testConstants}
+
+		rule, err := parseRule(test.Expr, model, opts)
+		if err != nil {
+			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+		}
+		if err := rule.GenPartials(); err != nil {
+			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+		}
+
+		result, err := rule.PartialEval(ctx, test.Field)
+		if err != nil {
+			t.Fatalf("error while partial evaluating `%s` for `%s`: %s", test.Expr, test.Field, err)
+		}
+
+		if !result != test.IsDiscarder {
+			t.Fatalf("expected result `%t` for `%s`, got `%t`\n%s", test.IsDiscarder, test.Field, result, test.Expr)
+		}
+	}
+}
+
+func TestOptimizer(t *testing.T) {
+	event := &testEvent{
+		process: testProcess{
+			uid: 44,
+			gid: 44,
+		},
+	}
+
+	event.process.list = list.New()
+	event.process.list.PushBack(&testItem{key: 10, value: 11})
+
+	tests := []struct {
+		Expr      string
+		Evaluated func() bool
+	}{
+		{Expr: `process.list[_].key == 44 && process.gid == 55`, Evaluated: func() bool { return event.listEvaluated }},
+		{Expr: `process.gid == 55 && process.list[_].key == 44`, Evaluated: func() bool { return event.listEvaluated }},
+		{Expr: `process.uid in [66, 77, 88] && process.gid == 55`, Evaluated: func() bool { return event.uidEvaluated }},
+		{Expr: `process.gid == 55 && process.uid in [66, 77, 88]`, Evaluated: func() bool { return event.uidEvaluated }},
+	}
+
+	for _, test := range tests {
+		_, _, err := eval(t, event, test.Expr)
+		if err != nil {
+			t.Fatalf("error while evaluating: %s", err)
+		}
+
+		if test.Evaluated() {
+			t.Fatalf("not optimized: %s", test.Expr)
+		}
 	}
 }
 

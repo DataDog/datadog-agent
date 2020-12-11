@@ -1037,6 +1037,22 @@ func (e *InvalidateDentryEvent) UnmarshalBinary(data []byte) (int, error) {
 	return 16, nil
 }
 
+// ProcessCacheEntry this structure holds the container context that we keep in kernel for each process
+type ProcessCacheEntry struct {
+	ContainerContext
+	ProcessContext
+
+	Parent   *ProcessCacheEntry
+	Children map[uint32]*ProcessCacheEntry
+}
+
+// NewProcessCacheEntry returns an empty instance of ProcessCacheEntry
+func NewProcessCacheEntry() *ProcessCacheEntry {
+	return &ProcessCacheEntry{
+		Children: make(map[uint32]*ProcessCacheEntry),
+	}
+}
+
 // ProcessContext holds the process context of an event
 type ProcessContext struct {
 	ExecEvent
@@ -1046,7 +1062,30 @@ type ProcessContext struct {
 	UID uint32 `field:"uid"`
 	GID uint32 `field:"gid"`
 
-	Parent *ProcessCacheEntry `field:"-"`
+	Parent *ProcessCacheEntry `field:"ancestors" iterator:"ProcessAncestorsIterator"`
+}
+
+// ProcessAncestorsIterator defines an iterator of ancestors
+type ProcessAncestorsIterator struct {
+	prev *ProcessCacheEntry
+}
+
+// Front returns the first element
+func (it *ProcessAncestorsIterator) Front(ctx *eval.Context) unsafe.Pointer {
+	if front := (*Event)(ctx.Object).Process.Parent; front != nil {
+		it.prev = front
+		return unsafe.Pointer(front)
+	}
+	return nil
+}
+
+// Next returns the next element
+func (it *ProcessAncestorsIterator) Next() unsafe.Pointer {
+	if next := it.prev.Parent; next != nil {
+		it.prev = next
+		return unsafe.Pointer(next)
+	}
+	return nil
 }
 
 func (p *ProcessContext) marshalJSON(event *Event) ([]byte, error) {
