@@ -28,7 +28,7 @@ type aggregation struct {
 }
 
 func newAggregationFromSpan(s *pb.Span, env string) aggregation {
-	syntheticOrigin := isSynthetic(s.Meta[tagOrigin])
+	syntheticOrigin := strings.HasPrefix(s.Meta[tagOrigin], "synthetics")
 
 	return aggregation{
 		Env:        env,
@@ -107,10 +107,4 @@ func (aggr *aggregation) writeKey(b *strings.Builder) {
 		b.WriteString("," + tagSynthetic + ":")
 		b.WriteString("true")
 	}
-}
-
-// isSynthetic determines if the origin indicates synthetic data
-// for now, we assume that synthetic data origins will begin with "synthetics"
-func isSynthetic(origin string) bool {
-	return strings.HasPrefix(origin, "synthetics")
 }
