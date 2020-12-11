@@ -33,7 +33,7 @@ var configCommand = &cobra.Command{
 		}
 
 		// Read configuration files received from the command line arguments '-c'
-		err := common.MergeConfigurationFiles("datadog", confPathArray)
+		err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed)
 		if err != nil {
 			return err
 		}

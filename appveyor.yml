@@ -8,8 +8,8 @@ clone_folder: C:\gopath\src\github.com\DataDog\datadog-agent
 # environment must be set for python 64 bit
 environment:
   GOPATH: C:\gopath
-  GOVERSION: '1.14.7'
-  GOROOT: C:\go_1.14.7
+  GOVERSION: '1.14.12'
+  GOROOT: C:\go_1.14.12
   GOLANGCI_LINT_VERSION: "1.27.0"
   # Give hints to CMake to find Pythons
   Python2_ROOT_DIR: C:\Python27-x64

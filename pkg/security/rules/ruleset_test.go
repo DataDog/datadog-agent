@@ -35,7 +35,7 @@ func (f *testHandler) EventDiscarderFound(rs *RuleSet, event eval.Event, field s
 	if !ok {
 		discarders = []interface{}{}
 	}
-	evaluator, _ := f.model.GetEvaluator(field)
+	evaluator, _ := f.model.GetEvaluator(field, "")
 
 	ctx := &eval.Context{}
 	ctx.SetObject(event.GetPointer())

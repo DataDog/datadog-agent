@@ -96,7 +96,6 @@ type LabelJoinsConfig struct {
 
 // ADConfig contains the autodiscovery configuration data for a PrometheusCheck
 type ADConfig struct {
-	ExcludeAutoconf    *bool     `mapstructure:"exclude_autoconfig_files"`
 	KubeAnnotations    *InclExcl `mapstructure:"kubernetes_annotations"`
 	KubeContainerNames []string  `mapstructure:"kubernetes_container_names"`
 	ContainersRe       *regexp.Regexp
@@ -209,11 +208,6 @@ func (ad *ADConfig) GetExcludeAnnotations() map[string]string {
 
 // defaultAD defaults the values of the autodiscovery structure
 func (ad *ADConfig) defaultAD() {
-	if ad.ExcludeAutoconf == nil {
-		// TODO: Implement OOTB autoconf exclusion
-		ad.ExcludeAutoconf = boolPointer(true)
-	}
-
 	if ad.KubeContainerNames == nil {
 		ad.KubeContainerNames = []string{}
 	}
@@ -271,7 +265,6 @@ var DefaultPrometheusCheck = &PrometheusCheck{
 		},
 	},
 	AD: &ADConfig{
-		ExcludeAutoconf: boolPointer(true),
 		KubeAnnotations: &InclExcl{
 			Excl: map[string]string{PrometheusScrapeAnnotation: "false"},
 			Incl: map[string]string{PrometheusScrapeAnnotation: "true"},
@@ -294,8 +287,4 @@ func buildURL(annotations map[string]string) string {
 	}
 
 	return openmetricsURLPrefix + port + path
-}
-
-func boolPointer(b bool) *bool {
-	return &b
 }

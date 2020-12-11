@@ -6,6 +6,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"expvar"
@@ -42,6 +43,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var bufferPool = sync.Pool{
+	New: func() interface{} {
+		return new(bytes.Buffer)
+	},
+}
+
+func getBuffer() *bytes.Buffer {
+	buffer := bufferPool.Get().(*bytes.Buffer)
+	buffer.Reset()
+	return buffer
+}
+
+func putBuffer(buffer *bytes.Buffer) {
+	bufferPool.Put(buffer)
+}
 
 // HTTPReceiver is a collector that uses HTTP protocol and just holds
 // a chan where the spans received are sent one by one
@@ -340,10 +357,13 @@ func decodeTraces(v Version, req *http.Request) (pb.Traces, error) {
 		}
 		return tracesFromSpans(spans), nil
 	case v05:
+		buf := getBuffer()
+		defer putBuffer(buf)
+		if _, err := io.Copy(buf, req.Body); err != nil {
+			return nil, err
+		}
 		var traces pb.Traces
-		rd := pb.NewMsgpReader(req.Body)
-		err := traces.DecodeMsgDictionary(rd)
-		pb.FreeMsgpReader(rd)
+		err := traces.UnmarshalMsgDictionary(buf.Bytes())
 		return traces, err
 	default:
 		var traces pb.Traces
@@ -394,7 +414,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		switch err {
 		case ErrLimitedReaderLimitReached:
 			atomic.AddInt64(&ts.TracesDropped.PayloadTooLarge, tracen)
-		case io.EOF, io.ErrUnexpectedEOF:
+		case io.EOF, io.ErrUnexpectedEOF, msgp.ErrShortBytes:
 			atomic.AddInt64(&ts.TracesDropped.EOF, tracen)
 		default:
 			if err, ok := err.(net.Error); ok && err.Timeout() {
@@ -576,10 +596,17 @@ func (r *HTTPReceiver) Languages() string {
 	return strings.Join(str, "|")
 }
 
-func decodeRequest(req *http.Request, dest msgp.Decodable) error {
+func decodeRequest(req *http.Request, dest *pb.Traces) error {
 	switch mediaType := getMediaType(req); mediaType {
 	case "application/msgpack":
-		return msgp.Decode(req.Body, dest)
+		buf := getBuffer()
+		defer putBuffer(buf)
+		_, err := io.Copy(buf, req.Body)
+		if err != nil {
+			return err
+		}
+		_, err = dest.UnmarshalMsg(buf.Bytes())
+		return err
 	case "application/json":
 		fallthrough
 	case "text/json":
@@ -589,7 +616,14 @@ func decodeRequest(req *http.Request, dest msgp.Decodable) error {
 	default:
 		// do our best
 		if err1 := json.NewDecoder(req.Body).Decode(dest); err1 != nil {
-			if err2 := msgp.Decode(req.Body, dest); err2 != nil {
+			buf := getBuffer()
+			defer putBuffer(buf)
+			_, err2 := io.Copy(buf, req.Body)
+			if err2 != nil {
+				return fmt.Errorf("could not decode JSON (%q), nor Msgpack (%q)", err1, err2)
+			}
+			_, err2 = dest.UnmarshalMsg(buf.Bytes())
+			if err2 != nil {
 				return fmt.Errorf("could not decode JSON (%q), nor Msgpack (%q)", err1, err2)
 			}
 		}

@@ -53,7 +53,7 @@ require (
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
 	github.com/DataDog/agent-payload v4.47.0+incompatible
-	github.com/DataDog/datadog-go v3.5.0+incompatible
+	github.com/DataDog/datadog-go v4.2.0+incompatible
 	github.com/DataDog/datadog-operator v0.2.1-0.20200709152311-9c71245c6822
 	github.com/DataDog/ebpf v0.0.0-20201120093539-d2690c373d70
 	github.com/DataDog/gohai v0.0.0-20200605003749-e17d616e422a
@@ -133,7 +133,7 @@ require (
 	github.com/opencontainers/runtime-spec v1.0.2
 	github.com/openshift/api v3.9.1-0.20190924102528-32369d4db2ad+incompatible
 	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/philhofer/fwd v1.0.0
+	github.com/philhofer/fwd v1.0.0 // indirect
 	github.com/pierrec/lz4 v2.5.0+incompatible // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.5.1

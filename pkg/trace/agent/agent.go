@@ -69,7 +69,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 
 	return &Agent{
 		Receiver:           api.NewHTTPReceiver(conf, dynConf, in),
-		Concentrator:       stats.NewConcentrator(conf.ExtraAggregators, conf.BucketInterval.Nanoseconds(), statsChan),
+		Concentrator:       stats.NewConcentrator(conf.BucketInterval.Nanoseconds(), statsChan),
 		Blacklister:        filters.NewBlacklister(conf.Ignore["resource"]),
 		Replacer:           filters.NewReplacer(conf.ReplaceTags),
 		ScoreSampler:       NewScoreSampler(conf),
@@ -185,6 +185,9 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 		for _, span := range t {
 			a.obfuscator.Obfuscate(span)
 			Truncate(span)
+			if p.ClientComputedTopLevel {
+				traceutil.UpdateTracerTopLevel(span)
+			}
 		}
 		a.Replacer.Replace(t)
 

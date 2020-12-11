@@ -8,6 +8,7 @@ package agent
 import (
 	"bytes"
 	"context"
+	"io/ioutil"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -33,7 +34,6 @@ import (
 
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
-	"github.com/tinylib/msgp/msgp"
 )
 
 func newMockSampler(wantSampled bool, wantRate float64) *Sampler {
@@ -423,22 +423,20 @@ func TestClientComputedTopLevel(t *testing.T) {
 		Metrics:  map[string]float64{sampler.KeySamplingPriority: 2},
 	}}}
 
-	t.Run("on", func(t *testing.T) {
+	t.Run("onNotTop", func(t *testing.T) {
 		go agnt.Process(&api.Payload{
 			Traces:                 traces,
 			Source:                 agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 			ClientComputedTopLevel: true,
 		}, stats.NewSublayerCalculator())
 		timeout := time.After(time.Second)
-		for {
-			select {
-			case ss := <-agnt.TraceWriter.In:
-				_, ok := ss.Traces[0].Spans[0].Metrics["_top_level"]
-				assert.False(t, ok)
-				return
-			case <-timeout:
-				t.Fatal("timed out waiting for input")
-			}
+		select {
+		case ss := <-agnt.TraceWriter.In:
+			_, ok := ss.Traces[0].Spans[0].Metrics["_top_level"]
+			assert.False(t, ok)
+			return
+		case <-timeout:
+			t.Fatal("timed out waiting for input")
 		}
 	})
 
@@ -449,15 +447,33 @@ func TestClientComputedTopLevel(t *testing.T) {
 			ClientComputedTopLevel: false,
 		}, stats.NewSublayerCalculator())
 		timeout := time.After(time.Second)
-		for {
-			select {
-			case ss := <-agnt.TraceWriter.In:
-				_, ok := ss.Traces[0].Spans[0].Metrics["_top_level"]
-				assert.True(t, ok)
-				return
-			case <-timeout:
-				t.Fatal("timed out waiting for input")
-			}
+		select {
+		case ss := <-agnt.TraceWriter.In:
+			_, ok := ss.Traces[0].Spans[0].Metrics["_top_level"]
+			assert.True(t, ok)
+			return
+		case <-timeout:
+			t.Fatal("timed out waiting for input")
+		}
+	})
+
+	t.Run("onTop", func(t *testing.T) {
+		traces[0][0].Metrics["_dd.top_level"] = 1
+		go agnt.Process(&api.Payload{
+			Traces:                 traces,
+			Source:                 agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			ClientComputedTopLevel: true,
+		}, stats.NewSublayerCalculator())
+		timeout := time.After(time.Second)
+		select {
+		case ss := <-agnt.TraceWriter.In:
+			_, ok := ss.Traces[0].Spans[0].Metrics["_top_level"]
+			assert.True(t, ok)
+			_, ok = ss.Traces[0].Spans[0].Metrics["_dd.top_level"]
+			assert.True(t, ok)
+			return
+		case <-timeout:
+			t.Fatal("timed out waiting for input")
 		}
 	})
 }
@@ -913,7 +929,8 @@ func tracesFromFile(file string) (raw []byte, count int, err error) {
 	// prepare the traces in this file by adding sampling.priority=2
 	// everywhere to ensure consistent sampling assumptions and results.
 	var traces pb.Traces
-	if err := msgp.Decode(in, &traces); err != nil {
+	bts, err := ioutil.ReadAll(in)
+	if _, err = traces.UnmarshalMsg(bts); err != nil {
 		return nil, 0, err
 	}
 	for _, t := range traces {
@@ -927,9 +944,9 @@ func tracesFromFile(file string) (raw []byte, count int, err error) {
 		}
 	}
 	// re-encode the modified payload
-	var data bytes.Buffer
-	if err := msgp.Encode(&data, traces); err != nil {
+	var data []byte
+	if data, err = traces.MarshalMsg(nil); err != nil {
 		return nil, 0, err
 	}
-	return data.Bytes(), count, nil
+	return data, count, nil
 }

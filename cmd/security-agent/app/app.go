@@ -50,6 +50,7 @@ var (
 		Short: "Datadog Security Agent at your service.",
 		Long: `
 Datadog Security Agent takes care of running compliance and security checks.`,
+		SilenceUsage: true, // don't print usage on errors
 	}
 
 	startCmd = &cobra.Command{
@@ -128,7 +129,7 @@ func start(cmd *cobra.Command, args []string) error {
 	defer log.Flush()
 
 	// Read configuration files received from the command line arguments '-c'
-	if err := common.MergeConfigurationFiles("datadog", confPathArray); err != nil {
+	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
 		return err
 	}
 

@@ -86,6 +86,8 @@ type SQLTokenizer struct {
 	off      int    // off is the index into buf where the unread portion of the query begins.
 	err      error  // any error occurred while reading
 
+	curlys uint32 // number of active open curly braces in top-level SQL escape sequences.
+
 	literalEscapes bool // indicates we should not treat backslashes as escape characters
 	seenEscape     bool // indicates whether this tokenizer has seen an escape character within a string
 }
@@ -246,7 +248,23 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 		case '$':
 			return tkn.scanPreparedStatement('$')
 		case '{':
+			if tkn.pos == 1 || tkn.curlys > 0 {
+				// Do not fully obfuscate top-level SQL escape sequences like {{[?=]call procedure-name[([parameter][,parameter]...)]}.
+				// We want these to display a bit more context than just a plain '?'
+				// See: https://docs.oracle.com/cd/E13157_01/wlevs/docs30/jdbc_drivers/sqlescape.html
+				tkn.curlys++
+				return TokenKind(ch), tkn.bytes()
+			}
 			return tkn.scanEscapeSequence('{')
+		case '}':
+			if tkn.curlys == 0 {
+				// A closing curly brace has no place outside an in-progress top-level SQL escape sequence
+				// started by the '{' switch-case.
+				tkn.setErr(`unexpected byte %d`, ch)
+				return LexError, tkn.bytes()
+			}
+			tkn.curlys--
+			return TokenKind(ch), tkn.bytes()
 		default:
 			tkn.setErr(`unexpected byte %d`, ch)
 			return LexError, tkn.bytes()

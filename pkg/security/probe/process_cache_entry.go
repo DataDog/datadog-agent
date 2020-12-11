@@ -12,22 +12,6 @@ import (
 	"fmt"
 )
 
-// ProcessCacheEntry this structure holds the container context that we keep in kernel for each process
-type ProcessCacheEntry struct {
-	ContainerContext
-	ProcessContext
-
-	Parent   *ProcessCacheEntry
-	Children map[uint32]*ProcessCacheEntry
-}
-
-// NewProcessCacheEntry returns an empty instance of ProcessCacheEntry
-func NewProcessCacheEntry() *ProcessCacheEntry {
-	return &ProcessCacheEntry{
-		Children: make(map[uint32]*ProcessCacheEntry),
-	}
-}
-
 // Copy returns a copy of the current ProcessCacheEntry
 func (pc *ProcessCacheEntry) Copy() *ProcessCacheEntry {
 	dup := *pc

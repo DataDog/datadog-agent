@@ -189,7 +189,7 @@ build do
             strip_exclude("*cffi_backend*")
 
             # Do not strip eBPF programs
-            strip_exclude("*tracer-ebpf*")
+            strip_exclude("*tracer*")
             strip_exclude("*offset-guess*")
             strip_exclude("*runtime-security*")
         end

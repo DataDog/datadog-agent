@@ -8,7 +8,7 @@ import (
 )
 
 func parseEvent(rawEvent []byte) (dogstatsdEvent, error) {
-	parser := newParser()
+	parser := newParser(newFloat64ListPool())
 	return parser.parseEvent(rawEvent)
 }
 
