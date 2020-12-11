@@ -225,12 +225,12 @@ static __always_inline bool is_big_endian(void) {
 
 // TODO: Replace this by a macro once we have runtime-compilation
 static inline __attribute__((always_inline))
-u32 bpf_ntohl(u32 val) {
+u64 bpf_ntohl(u64 val) {
     if (is_big_endian()) {
         return val;
     }
 
-    return __builtin_bswap32(val);
+    return __builtin_bswap64(val);
 }
 
 /* check if IPs are IPv4 mapped to IPv6 ::ffff:xxxx:xxxx
@@ -1250,23 +1250,43 @@ int kretprobe__sys_socket(struct pt_regs* ctx) {
 
 //endregion
 
+static __always_inline void read_ipv6_skb(struct __sk_buff* skb, __u64 off, __u64* addr_l, __u64* addr_h) {
+    *addr_h |= (__u64)load_word(skb, off) << 32;
+    *addr_h |= (__u64)load_word(skb, off + 4);
+    *addr_h = bpf_ntohl(*addr_h);
+
+    *addr_l |= (__u64)load_word(skb, off + 8) << 32;
+    *addr_l |= (__u64)load_word(skb, off + 12);
+    *addr_l = bpf_ntohl(*addr_l);
+}
+
+static __always_inline void read_ipv4_skb(struct __sk_buff* skb, __u64 off, __u64* addr) {
+    *addr = load_word(skb, off);
+    *addr = bpf_ntohl(*addr) >> 32;
+}
+
 static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff* skb, skb_info_t* info) {
     __builtin_memset(info, 0, sizeof(skb_info_t));
     info->data_off = ETH_HLEN;
 
     __u16 l3_proto = load_half(skb, offsetof(struct ethhdr, h_proto));
-    __u8 l4_proto;
+    __u8 l4_proto = 0;
     switch (l3_proto) {
     case ETH_P_IP:
         l4_proto = load_byte(skb, info->data_off + offsetof(struct iphdr, protocol));
-
         info->tup.metadata |= CONN_V4;
-        info->tup.saddr_l = load_word(skb, info->data_off + offsetof(struct iphdr, saddr));
-        info->tup.daddr_l = load_word(skb, info->data_off + offsetof(struct iphdr, daddr));
+        read_ipv4_skb(skb, info->data_off + offsetof(struct iphdr, saddr), &info->tup.saddr_l);
+        read_ipv4_skb(skb, info->data_off + offsetof(struct iphdr, daddr), &info->tup.daddr_l);
         info->data_off += sizeof(struct iphdr); // TODO: this assumes there are no IP options
         break;
+    case ETH_P_IPV6:
+        l4_proto = load_byte(skb, info->data_off + offsetof(struct ipv6hdr, nexthdr));
+        info->tup.metadata |= CONN_V6;
+        read_ipv6_skb(skb, info->data_off + offsetof(struct ipv6hdr, saddr), &info->tup.saddr_l, &info->tup.saddr_h);
+        read_ipv6_skb(skb, info->data_off + offsetof(struct ipv6hdr, daddr), &info->tup.daddr_l, &info->tup.daddr_h);
+        info->data_off += sizeof(struct ipv6hdr);
+        break;
     default:
-        // TODO: add case for ETH_P_IPV6
         return 0;
     }
 
@@ -1289,12 +1309,6 @@ static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff* skb, skb_info
     default:
         return 0;
     }
-
-    // Convert IPs to host byte-order;
-    info->tup.saddr_l = bpf_ntohl(info->tup.saddr_l);
-    info->tup.saddr_h = bpf_ntohl(info->tup.saddr_h);
-    info->tup.daddr_l = bpf_ntohl(info->tup.daddr_l);
-    info->tup.daddr_h = bpf_ntohl(info->tup.daddr_h);
 
     return 1;
 }
@@ -1552,6 +1566,7 @@ int socket__http_filter(struct __sk_buff* skb) {
         flip_tuple(&skb_info.tup);
     }
 
+    log_debug("http packet intercepted\n");
     http_handle_packet(skb, &skb_info);
 
     return 0;
