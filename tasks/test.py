@@ -121,7 +121,7 @@ def test(
         lint(ctx, targets=tool_targets)
         misspell(ctx, targets=tool_targets)
         ineffassign(ctx, targets=tool_targets)
-        staticcheck(ctx, targets=tool_targets)
+        staticcheck(ctx, targets=tool_targets, build_tags=build_tags, arch=arch)
 
         # for now we only run golangci_lint on Unix as the Windows env need more work
         if sys.platform != 'win32':

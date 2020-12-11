@@ -371,8 +371,12 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	}
 
 	// activate the pod collection if enabled and we have the cluster name set
-	if cfg.Orchestrator.OrchestrationCollectionEnabled && cfg.Orchestrator.KubeClusterName != "" {
-		cfg.EnabledChecks = append(cfg.EnabledChecks, "pod")
+	if cfg.Orchestrator.OrchestrationCollectionEnabled {
+		if cfg.Orchestrator.KubeClusterName != "" {
+			cfg.EnabledChecks = append(cfg.EnabledChecks, "pod")
+		} else {
+			log.Warnf("Failed to auto-detect a Kubernetes cluster name. Pod collection will not start. To fix this, set it manually via the cluster_name config option")
+		}
 	}
 
 	return cfg, nil

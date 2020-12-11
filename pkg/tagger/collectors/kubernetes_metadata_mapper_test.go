@@ -46,6 +46,9 @@ type FakeDCAClient struct {
 
 	EndpointsCheckConfigs    types.ConfigResponse
 	EndpointsCheckConfigsErr error
+
+	ClusterID    string
+	ClusterIDErr error
 }
 
 func (f *FakeDCAClient) Version() version.Version {
@@ -77,6 +80,10 @@ func (f *FakeDCAClient) GetClusterCheckConfigs(nodeName string) (types.ConfigRes
 
 func (f *FakeDCAClient) GetEndpointsCheckConfigs(nodeName string) (types.ConfigResponse, error) {
 	return f.EndpointsCheckConfigs, f.EndpointsCheckConfigsErr
+}
+
+func (f *FakeDCAClient) GetKubernetesClusterID() (string, error) {
+	return f.ClusterID, f.ClusterIDErr
 }
 
 func (f *FakeDCAClient) GetCFAppsMetadataForNode(nodename string) (map[string][]string, error) {
