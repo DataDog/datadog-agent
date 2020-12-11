@@ -530,7 +530,7 @@ func (m *mockStatsProcessor) Got() (p pb.ClientStatsPayload, lang string) {
 	return m.lastP, m.lastLang
 }
 
-func TestHandleStats(t *testing.T) {
+func TestHandleStatsOn(t *testing.T) {
 	bucket := func(start, duration uint64) pb.ClientStatsBucket {
 		return pb.ClientStatsBucket{
 			Start:    start,
@@ -556,57 +556,37 @@ func TestHandleStats(t *testing.T) {
 			bucket(500, 100342),
 		},
 	}
+	defer func(old string) {
+		os.Setenv("DD_APM_FEATURES", old)
+	}(os.Getenv("DD_APM_FEATURES"))
+	os.Setenv("DD_APM_FEATURES", "client_stats")
 
-	t.Run("on", func(t *testing.T) {
-		defer func(old string) {
-			os.Setenv("DD_APM_FEATURES", old)
-		}(os.Getenv("DD_APM_FEATURES"))
-		os.Setenv("DD_APM_FEATURES", "client_stats")
+	cfg := newTestReceiverConfig()
+	rcv := newTestReceiverFromConfig(cfg)
+	mockProcessor := new(mockStatsProcessor)
+	rcv.statsProcessor = mockProcessor
+	rcv.Start()
+	defer rcv.Stop()
 
-		cfg := newTestReceiverConfig()
-		rcv := newTestReceiverFromConfig(cfg)
-		mockProcessor := new(mockStatsProcessor)
-		rcv.statsProcessor = mockProcessor
-		rcv.Start()
-		defer rcv.Stop()
+	var buf bytes.Buffer
+	if err := msgp.Encode(&buf, &p); err != nil {
+		t.Fatal(err)
+	}
+	req, _ := http.NewRequest("POST", "http://127.0.0.1:8126/v0.5/stats", &buf)
+	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(headerLang, "lang1")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 200 {
+		slurp, _ := ioutil.ReadAll(resp.Body)
+		t.Fatal(string(slurp), resp.StatusCode)
+	}
+	if gotp, gotlang := mockProcessor.Got(); !reflect.DeepEqual(gotp, p) || gotlang != "lang1" {
+		t.Fatalf("Did not match payload: %v: %v", gotlang, gotp)
+	}
 
-		var buf bytes.Buffer
-		if err := msgp.Encode(&buf, &p); err != nil {
-			t.Fatal(err)
-		}
-		req, _ := http.NewRequest("POST", "http://127.0.0.1:8126/v0.5/stats", &buf)
-		req.Header.Set("Content-Type", "application/msgpack")
-		req.Header.Set(headerLang, "lang1")
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if resp.StatusCode != 200 {
-			slurp, _ := ioutil.ReadAll(resp.Body)
-			t.Fatal(string(slurp), resp.StatusCode)
-		}
-		if gotp, gotlang := mockProcessor.Got(); !reflect.DeepEqual(gotp, p) || gotlang != "lang1" {
-			t.Fatalf("Did not match payload: %v: %v", gotlang, gotp)
-		}
-	})
-
-	t.Run("off", func(t *testing.T) {
-		cfg := newTestReceiverConfig()
-		rcv := newTestReceiverFromConfig(cfg)
-		mockProcessor := new(mockStatsProcessor)
-		rcv.statsProcessor = mockProcessor
-		rcv.Start()
-		defer rcv.Stop()
-
-		req, _ := http.NewRequest("POST", "http://127.0.0.1:8126/v0.5/stats", nil)
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if resp.StatusCode != 404 {
-			t.Fail()
-		}
-	})
 }
 
 func TestClientComputedStatsHeader(t *testing.T) {

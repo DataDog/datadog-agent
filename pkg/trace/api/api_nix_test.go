@@ -68,3 +68,23 @@ func TestUDS(t *testing.T) {
 		}
 	})
 }
+
+// FIXME: This test is disabled for WWindows because it fails in AppVeyor but we
+// cannot reproduce it with a Windows VM setup.
+func TestHandleStatsOff(t *testing.T) {
+	cfg := newTestReceiverConfig()
+	rcv := newTestReceiverFromConfig(cfg)
+	mockProcessor := new(mockStatsProcessor)
+	rcv.statsProcessor = mockProcessor
+	rcv.Start()
+	defer rcv.Stop()
+
+	req, _ := http.NewRequest("POST", "http://127.0.0.1:8126/v0.5/stats", nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 404 {
+		t.Fail()
+	}
+}
