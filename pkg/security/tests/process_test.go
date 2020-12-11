@@ -190,7 +190,9 @@ func TestProcessContext(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		cmd := exec.Command("sh", "-c", executable+" "+testFile)
+		// Bash attempts to optimize away forks in the last command in a function body
+		// under appropriate circumstances (source: bash changelog)
+		cmd := exec.Command("sh", "-c", "$("+executable+" "+testFile+")")
 		if _, err := cmd.CombinedOutput(); err != nil {
 			t.Error(err)
 		}
