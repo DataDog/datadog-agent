@@ -70,12 +70,13 @@ type AgentConfig struct {
 	MaxEPS          float64
 
 	// Receiver
-	ReceiverHost    string
-	ReceiverPort    int
-	ReceiverSocket  string // if not empty, UDS will be enabled on unix://<receiver_socket>
-	ConnectionLimit int    // for rate-limiting, how many unique connections to allow in a lease period (30s)
-	ReceiverTimeout int
-	MaxRequestBytes int64 // specifies the maximum allowed request size for incoming trace payloads
+	ReceiverHost         string
+	ReceiverPort         int
+	ReceiverSocket       string // if not empty, UDS will be enabled on unix://<receiver_socket>
+	ConnectionLimit      int    // for rate-limiting, how many unique connections to allow in a lease period (30s)
+	ReceiverReadTimeout  int    // timeout for receiving data from clients (seconds)
+	ReceiverWriteTimeout int    // timeout for sending data to clients (seconds)
+	MaxRequestBytes      int64  // specifies the maximum allowed request size for incoming trace payloads
 
 	// Writers
 	StatsWriter             *WriterConfig

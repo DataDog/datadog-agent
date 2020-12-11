@@ -931,6 +931,23 @@ func BenchmarkWatchdog(b *testing.B) {
 	}
 }
 
+func TestReceiverTimeoutConfig(t *testing.T) {
+	tcs := [][]int{{1, 2, 1, 2}, {1, 0, 1, 5}, {0, 1, 5, 1}, {0, 0, 5, 5}}
+	for _, tc := range tcs {
+		t.Run("receiver timeout", func(t *testing.T) {
+			c := config.New()
+			c.ReceiverReadTimeout = tc[0]
+			c.ReceiverWriteTimeout = tc[1]
+
+			r := newTestReceiverFromConfig(c)
+			r.Start()
+			defer r.Stop()
+			assert.Equal(t, time.Duration(tc[2])*time.Second, r.server.ReadTimeout)
+			assert.Equal(t, time.Duration(tc[3])*time.Second, r.server.WriteTimeout)
+		})
+	}
+}
+
 func TestReplyOKV5(t *testing.T) {
 	r := newTestReceiverFromConfig(config.New())
 	r.Start()

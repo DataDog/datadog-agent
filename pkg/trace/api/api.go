@@ -128,14 +128,18 @@ func (r *HTTPReceiver) buildMux() *http.ServeMux {
 func (r *HTTPReceiver) Start() {
 	mux := r.buildMux()
 
-	timeout := 5 * time.Second
-	if r.conf.ReceiverTimeout > 0 {
-		timeout = time.Duration(r.conf.ReceiverTimeout) * time.Second
+	readTimeout := 5 * time.Second
+	if r.conf.ReceiverReadTimeout > 0 {
+		readTimeout = time.Duration(r.conf.ReceiverReadTimeout) * time.Second
+	}
+	writeTimeout := 5 * time.Second
+	if r.conf.ReceiverWriteTimeout > 0 {
+		writeTimeout = time.Duration(r.conf.ReceiverWriteTimeout) * time.Second
 	}
 	httpLogger := logutil.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	r.server = &http.Server{
-		ReadTimeout:  timeout,
-		WriteTimeout: timeout,
+		ReadTimeout:  readTimeout,
+		WriteTimeout: writeTimeout,
 		ErrorLog:     stdlog.New(httpLogger, "http.Server: ", 0),
 		Handler:      mux,
 	}
