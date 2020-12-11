@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-package snmp
+// +build kubeapiserver
+
+package cluster
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
