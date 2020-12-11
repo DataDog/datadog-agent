@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/policy"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
 type testCase struct {
@@ -27,7 +27,7 @@ type testCase struct {
 func TestMitre(t *testing.T) {
 	reader := bytes.NewBufferString(config.DefaultPolicy)
 
-	policy, err := policy.LoadPolicy(reader)
+	policy, err := rules.LoadPolicy(reader, "default.policy")
 	if err != nil {
 		t.Fatal(err)
 	}

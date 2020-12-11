@@ -106,7 +106,6 @@ require (
 	github.com/golang/mock v1.3.1
 	github.com/golang/protobuf v1.4.3
 	github.com/google/gopacket v1.1.17
-	github.com/google/uuid v1.1.1
 	github.com/gorilla/mux v1.7.4
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.0
 	github.com/grpc-ecosystem/grpc-gateway v1.14.1
@@ -122,6 +121,7 @@ require (
 	github.com/kubernetes-incubator/custom-metrics-apiserver v0.0.0-00010101000000-000000000000
 	github.com/lxn/walk v0.0.0-20191128110447-55ccb3a9f5c1
 	github.com/lxn/win v0.0.0-20191128105842-2da648fda5b4
+	github.com/mailru/easyjson v0.0.0-20190626092158-b2ccc519800e
 	github.com/mdlayher/netlink v1.1.0
 	github.com/mholt/archiver v3.1.1+incompatible
 	github.com/mholt/archiver/v3 v3.5.0

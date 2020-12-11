@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 	lib "github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
+	"github.com/cihub/seelog"
 	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/pkg/errors"
 
@@ -439,7 +440,10 @@ func (p *Probe) handleEvent(data []byte) {
 		event.ResolveProcessCacheEntry()
 	}
 
-	log.Tracef("Dispatching event %+v\n", event)
+	if logLevel, err := log.GetLogLevel(); err != nil || logLevel == seelog.TraceLvl {
+		prettyEvent := event.String()
+		log.Tracef("Dispatching event %s\n", prettyEvent)
+	}
 
 	p.eventsStats.CountEventType(eventType, 1)
 	p.loadController.Count(eventType, event.Process.Pid)

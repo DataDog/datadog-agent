@@ -29,9 +29,11 @@ type RuleID = string
 
 // RuleDefinition holds the definition of a rule
 type RuleDefinition struct {
-	ID         RuleID            `yaml:"id"`
-	Expression string            `yaml:"expression"`
-	Tags       map[string]string `yaml:"tags"`
+	ID          RuleID            `yaml:"id"`
+	Expression  string            `yaml:"expression"`
+	Description string            `yaml:"description"`
+	Tags        map[string]string `yaml:"tags"`
+	Policy      *Policy
 }
 
 // GetTags returns the tags associated to a rule
@@ -45,10 +47,16 @@ func (rd *RuleDefinition) GetTags() []string {
 	return tags
 }
 
+// Rule describes a rule of a ruleset
+type Rule struct {
+	*eval.Rule
+	Definition *RuleDefinition
+}
+
 // RuleSetListener describes the methods implemented by an object used to be
 // notified of events on a rule set.
 type RuleSetListener interface {
-	RuleMatch(rule *eval.Rule, event eval.Event)
+	RuleMatch(rule *Rule, event eval.Event)
 	EventDiscarderFound(rs *RuleSet, event eval.Event, field eval.Field, eventType eval.EventType)
 }
 
@@ -157,10 +165,13 @@ func (rs *RuleSet) AddRule(ruleDef *RuleDefinition) (*eval.Rule, error) {
 		tags = append(tags, k+":"+v)
 	}
 
-	rule := &eval.Rule{
-		ID:         ruleDef.ID,
-		Expression: ruleDef.Expression,
-		Tags:       tags,
+	rule := &Rule{
+		Rule: &eval.Rule{
+			ID:         ruleDef.ID,
+			Expression: ruleDef.Expression,
+			Tags:       tags,
+		},
+		Definition: ruleDef,
 	}
 
 	if err := rule.Parse(); err != nil {
@@ -197,13 +208,13 @@ func (rs *RuleSet) AddRule(ruleDef *RuleDefinition) (*eval.Rule, error) {
 	// Merge the fields of the new rule with the existing list of fields of the ruleset
 	rs.AddFields(rule.GetEvaluator().GetFields())
 
-	rs.rules[ruleDef.ID] = rule
+	rs.rules[ruleDef.ID] = rule.Rule
 
-	return rule, nil
+	return rule.Rule, nil
 }
 
 // NotifyRuleMatch notifies all the ruleset listeners that an event matched a rule
-func (rs *RuleSet) NotifyRuleMatch(rule *eval.Rule, event eval.Event) {
+func (rs *RuleSet) NotifyRuleMatch(rule *Rule, event eval.Event) {
 	for _, listener := range rs.listeners {
 		listener.RuleMatch(rule, event)
 	}

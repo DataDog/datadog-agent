@@ -170,6 +170,9 @@ func (r *runCheckReporter) Report(event *event.Event) {
 
 	var buf bytes.Buffer
 	_ = json.Indent(&buf, data, "", "  ")
+	r.ReportRaw(buf.Bytes())
+}
 
-	fmt.Println(buf.String())
+func (r *runCheckReporter) ReportRaw(content []byte) {
+	fmt.Println(string(content))
 }

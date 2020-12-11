@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
 	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/policy"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
@@ -123,7 +122,7 @@ func (m *Module) Reload() error {
 	rsa := sprobe.NewRuleSetApplier(m.config, m.probe)
 
 	ruleSet := m.probe.NewRuleSet(rules.NewOptsWithParams(sprobe.SECLConstants, sprobe.SupportedDiscarders))
-	if err := policy.LoadPolicies(m.config, ruleSet); err != nil {
+	if err := rules.LoadPolicies(m.config, ruleSet); err != nil {
 		return err
 	}
 
@@ -164,7 +163,7 @@ func (m *Module) Close() {
 }
 
 // RuleMatch is called by the ruleset when a rule matches
-func (m *Module) RuleMatch(rule *eval.Rule, event eval.Event) {
+func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
 	if m.rateLimiter.Allow(rule.ID) {
 		m.eventServer.SendEvent(rule, event)
 	} else {

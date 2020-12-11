@@ -405,6 +405,7 @@ core,"github.com/lestrrat-go/strftime",MIT
 core,"github.com/lxn/walk",FreeBSD
 core,"github.com/lxn/win",FreeBSD
 core,"github.com/magiconair/properties",FreeBSD
+core,"github.com/mailru/easyjson",MIT
 core,"github.com/mailru/easyjson/buffer",MIT
 core,"github.com/mailru/easyjson/jlexer",MIT
 core,"github.com/mailru/easyjson/jwriter",MIT

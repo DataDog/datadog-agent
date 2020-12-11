@@ -7,7 +7,6 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 	"sync"
@@ -100,7 +99,7 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 			if err == io.EOF || in == nil {
 				break
 			}
-			log.Infof("Got message from rule `%s` for event `%s` with tags `%+v` ", in.RuleID, string(in.Data), in.Tags)
+			log.Infof("Got message from rule `%s` for event `%s`", in.RuleID, string(in.Data))
 
 			atomic.AddUint64(&rsa.eventReceived, 1)
 
@@ -112,15 +111,7 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 
 // SendSecurityEvent sends a security event with the provided status
 func (rsa *RuntimeSecurityAgent) SendSecurityEvent(evt *api.SecurityEventMessage, status string) {
-	event := &event.Event{
-		AgentRuleID:  evt.RuleID,
-		ResourceID:   rsa.hostname,
-		ResourceType: "host",
-		Tags:         evt.Tags,
-		Data:         json.RawMessage(evt.GetData()),
-	}
-
-	rsa.reporter.Report(event)
+	rsa.reporter.ReportRaw(evt.GetData())
 }
 
 // DispatchEvent dispatches a security event message to the subsytems of the runtime security agent

@@ -314,9 +314,9 @@ func (tm *testModule) Root() string {
 	return tm.st.root
 }
 
-func (tm *testModule) RuleMatch(rule *eval.Rule, event eval.Event) {
+func (tm *testModule) RuleMatch(rule *rules.Rule, event eval.Event) {
 	e := event.(*sprobe.Event).Clone()
-	te := testEvent{Event: &e, rule: rule}
+	te := testEvent{Event: &e, rule: rule.Rule}
 	select {
 	case tm.events <- te:
 	default:

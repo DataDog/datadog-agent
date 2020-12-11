@@ -265,6 +265,18 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
+	case "exec.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Exec.ResolveGID((*Event)(ctx.Object)))
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
 	case "exec.group":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -341,7 +353,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).Exec.ResolveGID((*Event)(ctx.Object)))
+				return int((*Event)(ctx.Object).Exec.ResolveUID((*Event)(ctx.Object)))
 
 			},
 			Field: field,
@@ -1845,6 +1857,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.Exec.ResolveInode(e), nil
 
+	case "exec.gid":
+
+		return int(e.Exec.ResolveGID(e)), nil
+
 	case "exec.group":
 
 		return e.Exec.ResolveGroup(e), nil
@@ -1871,7 +1887,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "exec.uid":
 
-		return int(e.Exec.ResolveGID(e)), nil
+		return int(e.Exec.ResolveUID(e)), nil
 
 	case "exec.user":
 
@@ -2645,6 +2661,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "exec.filename":
 		return "exec", nil
 
+	case "exec.gid":
+		return "exec", nil
+
 	case "exec.group":
 		return "exec", nil
 
@@ -3065,6 +3084,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "exec.filename":
 
 		return reflect.String, nil
+
+	case "exec.gid":
+
+		return reflect.Int, nil
 
 	case "exec.group":
 
@@ -3679,6 +3702,15 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 
+	case "exec.gid":
+
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.GID"}
+		}
+		e.Exec.GID = uint32(v)
+		return nil
+
 	case "exec.group":
 
 		if e.Exec.Group, ok = value.(string); !ok {
@@ -3731,9 +3763,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Exec.GID"}
+			return &eval.ErrValueTypeMismatch{Field: "Exec.UID"}
 		}
-		e.Exec.GID = uint32(v)
+		e.Exec.UID = uint32(v)
 		return nil
 
 	case "exec.user":
@@ -3866,7 +3898,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Mkdir.Mode"}
 		}
-		e.Mkdir.Mode = int32(v)
+		e.Mkdir.Mode = uint32(v)
 		return nil
 
 	case "mkdir.overlay_numlower":
