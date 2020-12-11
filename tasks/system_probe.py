@@ -368,7 +368,6 @@ def build_object_files(ctx, bundle_ebpf=False):
     network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
     network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
-    network_runtime_dir = os.path.join(network_c_dir, "runtime")
 
     flags = [
         '-D__KERNEL__',
