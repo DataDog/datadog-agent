@@ -28,6 +28,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/tinylib/msgp/msgp"
+
 	mainconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -355,10 +357,13 @@ func decodeTraces(v Version, req *http.Request) (pb.Traces, error) {
 		}
 		return tracesFromSpans(spans), nil
 	case v05:
+		buf := getBuffer()
+		defer putBuffer(buf)
+		if _, err := io.Copy(buf, req.Body); err != nil {
+			return nil, err
+		}
 		var traces pb.Traces
-		rd := pb.NewMsgpReader(req.Body)
-		err := traces.DecodeMsgDictionary(rd)
-		pb.FreeMsgpReader(rd)
+		err := traces.UnmarshalMsgDictionary(buf.Bytes())
 		return traces, err
 	default:
 		var traces pb.Traces
@@ -409,7 +414,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		switch err {
 		case ErrLimitedReaderLimitReached:
 			atomic.AddInt64(&ts.TracesDropped.PayloadTooLarge, tracen)
-		case io.EOF, io.ErrUnexpectedEOF:
+		case io.EOF, io.ErrUnexpectedEOF, msgp.ErrShortBytes:
 			atomic.AddInt64(&ts.TracesDropped.EOF, tracen)
 		default:
 			if err, ok := err.(net.Error); ok && err.Timeout() {

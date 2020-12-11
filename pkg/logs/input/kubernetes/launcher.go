@@ -190,7 +190,7 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 	}
 	cfg.Type = config.FileType
 	cfg.Path = l.getPath(basePath, pod, container)
-	cfg.Identifier = getTaggerEntityID(container.ID)
+	cfg.Identifier = kubelet.TrimRuntimeFromCID(container.ID)
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid kubernetes annotation: %v", err)
 	}

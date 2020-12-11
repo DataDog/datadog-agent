@@ -7,6 +7,7 @@ package eval
 
 import (
 	"reflect"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
 	"github.com/pkg/errors"
@@ -29,11 +30,11 @@ type Rule struct {
 
 // RuleEvaluator - Evaluation part of a Rule
 type RuleEvaluator struct {
-	Eval        func(ctx *Context) bool
+	Eval        BoolEvalFnc
 	EventTypes  []EventType
 	FieldValues map[Field][]FieldValue
 
-	partialEvals map[Field]func(ctx *Context) bool
+	partialEvals map[Field]BoolEvalFnc
 }
 
 // PartialEval partially evaluation of the Rule with the given Field.
@@ -46,9 +47,9 @@ func (r *RuleEvaluator) PartialEval(ctx *Context, field Field) (bool, error) {
 	return eval(ctx), nil
 }
 
-func (r *RuleEvaluator) setPartial(field string, partialEval func(ctx *Context) bool) {
+func (r *RuleEvaluator) setPartial(field string, partialEval BoolEvalFnc) {
 	if r.partialEvals == nil {
-		r.partialEvals = make(map[string]func(ctx *Context) bool)
+		r.partialEvals = make(map[string]BoolEvalFnc)
 	}
 	r.partialEvals[field] = partialEval
 }
@@ -80,7 +81,7 @@ func (r *Rule) PartialEval(ctx *Context, field Field) (bool, error) {
 }
 
 // GetPartialEval - Returns the Partial RuleEvaluator for the given Field
-func (r *Rule) GetPartialEval(field Field) func(ctx *Context) bool {
+func (r *Rule) GetPartialEval(field Field) BoolEvalFnc {
 	return r.evaluator.partialEvals[field]
 }
 
@@ -126,6 +127,89 @@ func (r *Rule) Parse() error {
 	return nil
 }
 
+func combineRegisters(combinations []Registers, regID RegisterID, values []unsafe.Pointer) []Registers {
+	var combined []Registers
+
+	if len(combinations) == 0 {
+		for _, value := range values {
+			registers := make(Registers)
+			registers[regID] = &Register{
+				Value: value,
+			}
+			combined = append(combined, registers)
+		}
+
+		return combined
+	}
+
+	for _, combination := range combinations {
+		for _, value := range values {
+			regs := combination.Clone()
+			regs[regID] = &Register{
+				Value: value,
+			}
+			combined = append(combined, regs)
+		}
+	}
+
+	return combined
+}
+
+func handleRegisters(evalFnc BoolEvalFnc, registersInfo map[RegisterID]*registerInfo) BoolEvalFnc {
+	return func(ctx *Context) bool {
+		ctx.Registers = make(Registers)
+
+		// start with the head of all register
+		for id, info := range registersInfo {
+			ctx.Registers[id] = &Register{
+				Value:    info.iterator.Front(ctx),
+				iterator: info.iterator,
+			}
+		}
+
+		// capture all the values for each register
+		registerValues := make(map[RegisterID][]unsafe.Pointer)
+
+		for id, reg := range ctx.Registers {
+			values := []unsafe.Pointer{}
+			for reg.Value != nil {
+				// short cut if we find a solution while constructing the combinations
+				if evalFnc(ctx) {
+					return true
+				}
+				values = append(values, reg.Value)
+
+				reg.Value = reg.iterator.Next()
+			}
+			registerValues[id] = values
+
+			// restore the head value
+			reg.Value = reg.iterator.Front(ctx)
+		}
+
+		// no need to combine there is only one registers used
+		if len(registersInfo) == 1 {
+			return false
+		}
+
+		// generate all the combinations
+		var combined []Registers
+		for id, values := range registerValues {
+			combined = combineRegisters(combined, id, values)
+		}
+
+		// eval the combinations
+		for _, registers := range combined {
+			ctx.Registers = registers
+			if evalFnc(ctx) {
+				return true
+			}
+		}
+
+		return false
+	}
+}
+
 func ruleToEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, error) {
 	macros := make(map[MacroID]*MacroEvaluator)
 	for id, macro := range opts.Macros {
@@ -148,15 +232,16 @@ func ruleToEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, e
 		return nil, err
 	}
 
-	// case where the rule is just a value and not a expression
+	// direct value, no bool evaluator, wrap value
 	if evalBool.EvalFnc == nil {
-		return &RuleEvaluator{
-			Eval: func(ctx *Context) bool {
-				return evalBool.Value
-			},
-			EventTypes:  events,
-			FieldValues: state.fieldValues,
-		}, nil
+		evalBool.EvalFnc = func(ctx *Context) bool {
+			return evalBool.Value
+		}
+	}
+
+	// rule uses register replace the original eval function with the one handling registers
+	if len(state.registersInfo) > 0 {
+		evalBool.EvalFnc = handleRegisters(evalBool.EvalFnc, state.registersInfo)
 	}
 
 	return &RuleEvaluator{
@@ -232,6 +317,19 @@ func (r *Rule) GenPartials() error {
 			pEvalBool.EvalFnc = func(ctx *Context) bool {
 				return pEvalBool.Value
 			}
+		}
+
+		// rule uses register replace the original eval function with the one handling registers
+		if len(state.registersInfo) > 0 {
+			// generate register map for the given field only
+			registersInfo := make(map[RegisterID]*registerInfo)
+			for regID, info := range state.registersInfo {
+				if _, exists := info.subFields[field]; exists {
+					registersInfo[regID] = info
+				}
+			}
+
+			pEvalBool.EvalFnc = handleRegisters(pEvalBool.EvalFnc, registersInfo)
 		}
 
 		r.evaluator.setPartial(field, pEvalBool.EvalFnc)

@@ -43,7 +43,6 @@ type ECSService struct {
 	runtime         string
 	ADIdentifiers   []string
 	hosts           map[string]string
-	tags            []string
 	clusterName     string
 	taskFamily      string
 	taskVersion     string
@@ -210,17 +209,6 @@ func (l *ECSListener) createService(c v2.Container, firstRun bool) (ECSService, 
 	}
 	svc.hosts = ips
 
-	// Tags
-	tags, err := tagger.Tag(svc.GetTaggerEntity(), tagger.ChecksCardinality)
-	if err != nil {
-		dockerID := c.DockerID
-		if len(c.DockerID) >= 12 {
-			dockerID = c.DockerID[:12]
-		}
-		log.Errorf("Failed to extract tags for container %s - %s", dockerID, err)
-	}
-	svc.tags = tags
-
 	// Detect metrics or logs exclusion
 	svc.metricsExcluded = l.filters.IsExcluded(containers.MetricsFilter, c.DockerName, c.Image, "")
 	svc.logsExcluded = l.filters.IsExcluded(containers.LogsFilter, c.DockerName, c.Image, "")
@@ -264,8 +252,8 @@ func (s *ECSService) GetPorts() ([]ContainerPort, error) {
 }
 
 // GetTags retrieves a container's tags
-func (s *ECSService) GetTags() ([]string, error) {
-	return s.tags, nil
+func (s *ECSService) GetTags() ([]string, string, error) {
+	return tagger.TagWithHash(s.GetTaggerEntity(), tagger.ChecksCardinality)
 }
 
 // GetPid inspect the container and return its pid

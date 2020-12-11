@@ -188,24 +188,9 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		return nil, fmt.Errorf("failed to init ebpf manager: %v", err)
 	}
 
-	reverseDNS := network.NewNullReverseDNS()
-	if enableSocketFilter {
-		filter, _ := m.GetProbe(manager.ProbeIdentificationPair{Section: string(probes.SocketDnsFilter)})
-		if filter == nil {
-			return nil, fmt.Errorf("error retrieving socket filter")
-		}
-
-		if snooper, err := network.NewSocketFilterSnooper(
-			config.ProcRoot,
-			filter,
-			config.CollectDNSStats,
-			config.CollectLocalDNS,
-			config.DNSTimeout,
-		); err == nil {
-			reverseDNS = snooper
-		} else {
-			return nil, fmt.Errorf("error enabling DNS traffic inspection: %s", err)
-		}
+	reverseDNS, err := newReverseDNS(config, m, pre410Kernel)
+	if err != nil {
+		return nil, fmt.Errorf("error enabling DNS traffic inspection: %s", err)
 	}
 
 	portMapping := network.NewPortMapping(config.ProcRoot, config.CollectTCPConns, config.CollectIPv6Conns)
@@ -263,6 +248,24 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	go tr.expvarStats()
 
 	return tr, nil
+}
+
+func newReverseDNS(cfg *config.Config, m *manager.Manager, pre410Kernel bool) (network.ReverseDNS, error) {
+	if !cfg.DNSInspection {
+		return network.NewNullReverseDNS(), nil
+	}
+
+	if pre410Kernel {
+		log.Warn("DNS inspection not supported by kernel versions < 4.1.0. Please see https://docs.datadoghq.com/network_performance_monitoring/installation for more details.")
+		return network.NewNullReverseDNS(), nil
+	}
+
+	filter, _ := m.GetProbe(manager.ProbeIdentificationPair{Section: string(probes.SocketDnsFilter)})
+	if filter == nil {
+		return nil, fmt.Errorf("error retrieving socket filter")
+	}
+
+	return network.NewSocketFilterSnooper(cfg, filter)
 }
 
 func runOffsetGuessing(config *config.Config, buf bytecode.AssetReader) ([]manager.ConstantEditor, error) {

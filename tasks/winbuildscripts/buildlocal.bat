@@ -7,7 +7,6 @@ if NOT DEFINED MAJOR_VERSION set MAJOR_VERSION=7
 if NOT DEFINED PY_RUNTIMES set PY_RUNTIMES="3"
 if NOT DEFINED CI_JOB_ID set CI_JOB_ID=1
 if NOT DEFINED TARGET_ARCH set TARGET_ARCH=x64
-set NEW_BUILDER=true
 
 REM don't use `OUTDIR` as an environment variable. It will confuse the VC build
 set PKG_OUTDIR=c:\mnt\build-out\%CI_JOB_ID%

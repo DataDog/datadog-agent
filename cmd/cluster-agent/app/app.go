@@ -228,6 +228,11 @@ func start(cmd *cobra.Command, args []string) error {
 			log.Errorf("Failed to generate or retrieve the cluster ID")
 		}
 
+		clusterName := clustername.GetClusterName(hostname)
+		if clusterName == "" {
+			log.Warn("Failed to auto-detect a Kubernetes cluster name. We recommend you set it manually via the cluster_name config option")
+		}
+
 		// TODO: move rest of the controllers out of the apiserver package
 		orchestratorCtx := orchestrator.ControllerContext{
 			IsLeaderFunc:                 le.IsLeader,
@@ -236,7 +241,7 @@ func start(cmd *cobra.Command, args []string) error {
 			Client:                       apiCl.Cl,
 			StopCh:                       stopCh,
 			Hostname:                     hostname,
-			ClusterName:                  clustername.GetClusterName(hostname),
+			ClusterName:                  clusterName,
 			ConfigPath:                   confPath,
 		}
 		err = orchestrator.StartController(orchestratorCtx)

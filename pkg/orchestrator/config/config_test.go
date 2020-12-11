@@ -1,11 +1,17 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package config
 
 import (
+	"net/url"
+	"testing"
+
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	"github.com/stretchr/testify/suite"
-	"net/url"
-	"testing"
 )
 
 type YamlConfigTestSuite struct {

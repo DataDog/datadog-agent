@@ -3,15 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build orchestrator
-
-package orchestrator
+package redact
 
 import (
+	"bytes"
+	"fmt"
 	"regexp"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -44,6 +44,9 @@ func NewDefaultDataScrubber() *DataScrubber {
 
 	return newDataScrubber
 }
+
+// ContainsSensitiveWord returns true if the given string contains
+// a sensitive word
 func (ds *DataScrubber) ContainsSensitiveWord(word string) bool {
 	for _, pattern := range ds.LiteralSensitivePatterns {
 		if strings.Contains(strings.ToLower(word), pattern) {
@@ -144,6 +147,61 @@ func (ds *DataScrubber) AddCustomSensitiveWords(words []string) {
 
 // AddCustomSensitiveRegex adds custom sensitive regex on the DataScrubber object
 func (ds *DataScrubber) AddCustomSensitiveRegex(words []string) {
-	r := config.CompileStringsToRegex(words)
+	r := compileStringsToRegex(words)
 	ds.RegexSensitivePatterns = append(ds.RegexSensitivePatterns, r...)
+}
+
+// compileStringsToRegex compile each word in the slice into a regex pattern to match
+// against the cmdline arguments (originally imported from pkg/process/config)
+// The word must contain only word characters ([a-zA-z0-9_]) or wildcards *
+func compileStringsToRegex(words []string) []*regexp.Regexp {
+	compiledRegexps := make([]*regexp.Regexp, 0, len(words))
+	forbiddenSymbols := regexp.MustCompile("[^a-zA-Z0-9_*]")
+
+	for _, word := range words {
+		if forbiddenSymbols.MatchString(word) {
+			log.Warnf("data scrubber: %s skipped. The sensitive word must "+
+				"contain only alphanumeric characters, underscores or wildcards ('*')", word)
+			continue
+		}
+
+		if word == "*" {
+			log.Warn("data scrubber: ignoring wildcard-only ('*') sensitive word as it is not supported")
+			continue
+		}
+
+		originalRunes := []rune(word)
+		var enhancedWord bytes.Buffer
+		valid := true
+		for i, rune := range originalRunes {
+			if rune == '*' {
+				if i == len(originalRunes)-1 {
+					enhancedWord.WriteString("[^ =:]*")
+				} else if originalRunes[i+1] == '*' {
+					log.Warnf("data scrubber: %s skipped. The sensitive word "+
+						"must not contain two consecutives '*'", word)
+					valid = false
+					break
+				} else {
+					enhancedWord.WriteString(fmt.Sprintf("[^\\s=:$/]*"))
+				}
+			} else {
+				enhancedWord.WriteString(string(rune))
+			}
+		}
+
+		if !valid {
+			continue
+		}
+
+		pattern := "(?P<key>( +| -{1,2})(?i)" + enhancedWord.String() + ")(?P<delimiter> +|=|:)(?P<value>[^\\s]*)"
+		r, err := regexp.Compile(pattern)
+		if err == nil {
+			compiledRegexps = append(compiledRegexps, r)
+		} else {
+			log.Warnf("data scrubber: %s skipped. It couldn't be compiled into a regex expression", word)
+		}
+	}
+
+	return compiledRegexps
 }
