@@ -274,6 +274,7 @@ func getClusterID(w http.ResponseWriter, r *http.Request) {
 	// write response
 	j, err := json.Marshal(clusterID)
 	if err != nil {
+		log.Errorf("Failed to marshal the cluster ID: %v", err) //nolint:errcheck
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		apiRequests.Inc(
 			"getClusterID",
