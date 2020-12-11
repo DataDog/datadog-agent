@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
 	"github.com/google/gopacket/layers"
+	"github.com/miekg/dns"
 	mdns "github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -170,8 +171,8 @@ func TestDNSOverTCPSnooping(t *testing.T) {
 
 // Get the preferred outbound IP of this machine
 func getOutboundIP(t *testing.T, serverIP string) net.IP {
-	if serverIP == localhost {
-		return net.ParseIP(localhost)
+	if parsedIP := net.ParseIP(serverIP); parsedIP.IsLoopback() {
+		return parsedIP
 	}
 	conn, err := net.Dial("udp", serverIP+":80")
 	require.NoError(t, err)
@@ -394,4 +395,59 @@ func TestParsingError(t *testing.T) {
 	stats := reverseDNS.GetStats()
 	assert.True(t, stats["ips"] == 0)
 	assert.True(t, stats["decoding_errors"] == 1)
+}
+
+func TestDNSOverIPv6(t *testing.T) {
+	m, reverseDNS := initDNSTests(t, true)
+	defer m.Stop(manager.CleanAll)
+	defer reverseDNS.Close()
+
+	// This DNS server is set up so it always returns a NXDOMAIN answer
+	serverIP := net.IPv6loopback.String()
+	closeFn := newTestServer(t, serverIP, UDP, nxDomainHandler)
+	defer closeFn()
+
+	queryIP, queryPort, reps := sendDNSQueries(t, []string{"nxdomain-123.com"}, serverIP, UDP)
+	require.NotNil(t, reps[0])
+
+	allStats := getStats(reverseDNS, 1)
+	key := getKey(queryIP, queryPort, serverIP, UDP)
+	require.Contains(t, allStats, key)
+
+	stats := allStats[key]
+	assert.Equal(t, 1, len(stats.countByRcode))
+	assert.Equal(t, uint32(1), stats.countByRcode[uint8(layers.DNSResponseCodeNXDomain)])
+}
+
+func newTestServer(t *testing.T, ip string, protocol ConnectionType, handler dns.HandlerFunc) func() {
+	addr := net.JoinHostPort(ip, "53")
+	net := strings.ToLower(protocol.String())
+	srv := &dns.Server{Addr: addr, Net: net, Handler: handler}
+
+	initChan := make(chan error, 1)
+	srv.NotifyStartedFunc = func() {
+		initChan <- nil
+	}
+
+	go func() {
+		initChan <- srv.ListenAndServe()
+		close(initChan)
+	}()
+
+	if err := <-initChan; err != nil {
+		t.Errorf("could not initialize DNS server: %s", err)
+		return func() {}
+	}
+
+	return func() {
+		srv.Shutdown() //nolint:errcheck
+	}
+}
+
+// nxDomainHandler returns a NXDOMAIN response for any query
+func nxDomainHandler(w dns.ResponseWriter, r *dns.Msg) {
+	answer := new(dns.Msg)
+	answer.SetReply(r)
+	answer.SetRcode(r, dns.RcodeNameError)
+	w.WriteMsg(answer) //nolint:errcheck
 }
