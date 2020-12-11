@@ -104,6 +104,10 @@ func (fakeDCAClient) GetClusterCheckConfigs(nodeName string) (types.ConfigRespon
 	panic("implement me")
 }
 
+func (fakeDCAClient) PostClusterCheckConfigs(nodeName string, configs types.ConfigsToSchedule) (types.ConfigsToScheduleResponse, error) {
+	panic("implement me")
+}
+
 func (fakeDCAClient) GetEndpointsCheckConfigs(nodeName string) (types.ConfigResponse, error) {
 	panic("implement me")
 }
