@@ -174,7 +174,7 @@ docker_integration_tests:
       DOCKER_HOST: tcp://docker:2375
       DOCKER_TLS_CERTDIR: ""
   services:
-    - docker:dind
+    - docker:18.09-dind
   script:
     - inv -e docker.integration-tests
   tags:
@@ -423,13 +423,15 @@ pre_release_image:
     DOCKER_HOST: tcp://docker:2375
     DOCKER_TLS_CERTDIR: ""
   services:
-    - docker:dind
+    - docker:18.09-dind
   before_script: []
   script:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
     - cp ./outcomes/pkg/*.deb ./Dockerfiles/agent
     - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO $CI_PROJECT_DIR/Dockerfiles/agent
+  tags:
+    - sts-k8s-m-runner
 
 pre_release_trace_agent_image:
   stage: pre_release
@@ -441,13 +443,15 @@ pre_release_trace_agent_image:
     DOCKER_HOST: tcp://docker:2375
     DOCKER_TLS_CERTDIR: ""
   services:
-    - docker:dind
+    - docker:18.09-dind
   before_script: []
   script:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
     - cp ./outcomes/binary/trace-agent Dockerfiles/trace-agent
     - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO_TRACE $CI_PROJECT_DIR/Dockerfiles/trace-agent
+  tags:
+    - sts-k8s-m-runner
 
 pre_release_cluster_agent_image:
   stage: pre_release
@@ -459,12 +463,14 @@ pre_release_cluster_agent_image:
     DOCKER_HOST: tcp://docker:2375
     DOCKER_TLS_CERTDIR: ""
   services:
-    - docker:dind
+    - docker:18.09-dind
   before_script: []
   script:
     - cd $CI_PROJECT_DIR
     - cp -r ./bin/stackstate-cluster-agent/* ./Dockerfiles/cluster-agent
     - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO_CLUSTER $CI_PROJECT_DIR/Dockerfiles/cluster-agent
+  tags:
+    - sts-k8s-m-runner
 
 
 .molecule_base: &molecule_base
@@ -636,7 +642,7 @@ release_image:
     DOCKER_HOST: tcp://docker:2375
     DOCKER_TLS_CERTDIR: ""
   services:
-    - docker:dind
+    - docker:18.09-dind
   before_script: []
   script:
     - cd $CI_PROJECT_DIR
@@ -648,6 +654,8 @@ release_image:
   only:
     - tags
     - triggers
+  tags:
+    - sts-k8s-m-runner
 
 release_trace_agent_image:
   stage: release
@@ -659,7 +667,7 @@ release_trace_agent_image:
     DOCKER_HOST: tcp://docker:2375
     DOCKER_TLS_CERTDIR: ""
   services:
-    - docker:dind
+    - docker:18.09-dind
   before_script: []
   script:
     - cd $CI_PROJECT_DIR
@@ -671,6 +679,8 @@ release_trace_agent_image:
   only:
     - tags
     - trigger
+  tags:
+    - sts-k8s-m-runner
 
 release_cluster_agent_image:
   stage: release
@@ -682,7 +692,7 @@ release_cluster_agent_image:
     DOCKER_HOST: tcp://docker:2375
     DOCKER_TLS_CERTDIR: ""
   services:
-    - docker:dind
+    - docker:18.09-dind
   before_script: []
   script:
     - cd $CI_PROJECT_DIR
@@ -694,3 +704,6 @@ release_cluster_agent_image:
   only:
     - tags
     - trigger
+  tags:
+    - sts-k8s-m-runner
+
