@@ -62,7 +62,7 @@ func init() {
 
 func eventRun(cmd *cobra.Command, args []string) error {
 	// Read configuration files received from the command line arguments '-c'
-	if err := secagentcommon.MergeConfigurationFiles("datadog", confPathArray); err != nil {
+	if err := secagentcommon.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
 		return err
 	}
 

@@ -272,6 +272,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 	flushToDiskMemRatio := config.Datadog.GetFloat64("forwarder_flush_to_disk_mem_ratio")
 	domainForwarderSort := sortByCreatedTimeAndPriority{highPriorityFirst: true}
 	transactionContainerSort := sortByCreatedTimeAndPriority{highPriorityFirst: false}
+	transactionContainerSort := sortByCreatedTimeAndPriority{highPriorityFirst: false}
 
 	for domain, keys := range options.KeysPerDomain {
 		domain, _ := config.AddAgentVersionToDomain(domain, "app")

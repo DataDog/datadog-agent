@@ -21,6 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/profiling"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // All System Probe modules should register their factories here
@@ -85,6 +87,13 @@ func runAgent(exit <-chan struct{}) {
 		gracefulExit()
 	}
 
+	if cfg.ProfilingEnabled {
+		if err := enableProfiling(cfg); err != nil {
+			log.Warnf("failed to enable profiling: %s", err)
+		}
+		defer profiling.Stop()
+	}
+
 	log.Infof("running system-probe with version: %s", versionString(", "))
 
 	// configure statsd
@@ -146,6 +155,28 @@ func runAgent(exit <-chan struct{}) {
 
 	log.Infof("system probe successfully started")
 	<-exit
+}
+
+func enableProfiling(cfg *config.AgentConfig) error {
+	// allow full url override for development use
+	s := ddconfig.DefaultSite
+	if cfg.ProfilingSite != "" {
+		s = cfg.ProfilingSite
+	}
+
+	site := fmt.Sprintf(profiling.ProfileURLTemplate, s)
+	if cfg.ProfilingURL != "" {
+		site = cfg.ProfilingURL
+	}
+
+	v, _ := version.Agent()
+	return profiling.Start(
+		cfg.ProfilingAPIKey,
+		site,
+		cfg.ProfilingEnvironment,
+		"system-probe",
+		fmt.Sprintf("version:%v", v),
+	)
 }
 
 func gracefulExit() {
