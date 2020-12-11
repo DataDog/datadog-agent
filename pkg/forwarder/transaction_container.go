@@ -112,8 +112,8 @@ func (tc *transactionContainer) add(t Transaction) (int, error) {
 
 	tc.transactions = append(tc.transactions, t)
 	tc.currentMemSizeInBytes += payloadSize
-	tc.telemetry.setCurrentMemSizeInBytes(tc.getCurrentMemSizeInBytes())
-	tc.telemetry.setTransactionsCount(tc.getTransactionCount())
+	tc.telemetry.setCurrentMemSizeInBytes(tc.currentMemSizeInBytes)
+	tc.telemetry.setTransactionsCount(len(tc.transactions))
 
 	return inMemTransactionDroppedCount, diskErr
 }
@@ -139,8 +139,8 @@ func (tc *transactionContainer) extractTransactions() ([]Transaction, error) {
 		}
 	}
 	tc.currentMemSizeInBytes = 0
-	tc.telemetry.setCurrentMemSizeInBytes(tc.getCurrentMemSizeInBytes())
-	tc.telemetry.setTransactionsCount(tc.getTransactionCount())
+	tc.telemetry.setCurrentMemSizeInBytes(tc.currentMemSizeInBytes)
+	tc.telemetry.setTransactionsCount(len(tc.transactions))
 	return transactions, nil
 }
 
