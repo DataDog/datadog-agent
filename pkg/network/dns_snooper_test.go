@@ -6,7 +6,6 @@ import (
 	"math"
 	"math/rand"
 	"net"
-	"os/exec"
 	"strings"
 	"sync"
 	"testing"
@@ -21,6 +20,7 @@ import (
 	"github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
 	"github.com/google/gopacket/layers"
+	"github.com/miekg/dns"
 	mdns "github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -396,17 +396,11 @@ func TestDNSOverIPv6(t *testing.T) {
 	defer m.Stop(manager.CleanAll)
 	defer reverseDNS.Close()
 
-	cmd := exec.Command("testdata/setup_ipv6_dns_server.sh")
-	if err := cmd.Run(); err != nil {
-		require.NoError(t, err)
-	}
-
-	defer func() {
-		exec.Command("testdata/teardown_ipv6_dns_server.sh").Run()
-	}()
-
-	// This local DNS server is set up so it always returns a NXDOMAIN answer
+	// This DNS server is set up so it always returns a NXDOMAIN answer
 	serverIP := net.IPv6loopback.String()
+	closeFn := newTestServer(t, serverIP, UDP, nxDomainHandler)
+	defer closeFn()
+
 	queryIP, queryPort, reps := sendDNSQueries(t, []string{"nxdomain-123.com"}, serverIP, UDP)
 	require.NotNil(t, reps[0])
 
@@ -417,4 +411,37 @@ func TestDNSOverIPv6(t *testing.T) {
 	stats := allStats[key]
 	assert.Equal(t, 1, len(stats.countByRcode))
 	assert.Equal(t, uint32(1), stats.countByRcode[uint8(layers.DNSResponseCodeNXDomain)])
+}
+
+func newTestServer(t *testing.T, ip string, protocol ConnectionType, handler dns.HandlerFunc) func() {
+	addr := net.JoinHostPort(ip, "53")
+	net := strings.ToLower(protocol.String())
+	srv := &dns.Server{Addr: addr, Net: net, Handler: handler}
+
+	initChan := make(chan error, 1)
+	srv.NotifyStartedFunc = func() {
+		initChan <- nil
+	}
+
+	go func() {
+		initChan <- srv.ListenAndServe()
+		close(initChan)
+	}()
+
+	if err := <-initChan; err != nil {
+		t.Errorf("could not initialize DNS server: %s", err)
+		return func() {}
+	}
+
+	return func() {
+		srv.Shutdown() //nolint:errcheck
+	}
+}
+
+// nxDomainHandler returns a NXDOMAIN response for any query
+func nxDomainHandler(w dns.ResponseWriter, r *dns.Msg) {
+	answer := new(dns.Msg)
+	answer.SetReply(r)
+	answer.SetRcode(r, dns.RcodeNameError)
+	w.WriteMsg(answer) //nolint:errcheck
 }
