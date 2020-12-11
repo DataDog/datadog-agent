@@ -4,12 +4,10 @@ New-LocalUser -Name "ddagentuser" -Description "Test user for the secrets featur
 $Env:Python2_ROOT_DIR=$Env:TEST_EMBEDDED_PY2
 $Env:Python3_ROOT_DIR=$Env:TEST_EMBEDDED_PY3
 
-if ($Env:NEW_BUILDER -eq "true") {
-    if ($Env:TARGET_ARCH -eq "x64") {
-        & ridk enable
-    }
-    & $Env:Python3_ROOT_DIR\python.exe -m  pip install -r requirements.txt
+if ($Env:TARGET_ARCH -eq "x64") {
+    & ridk enable
 }
+& $Env:Python3_ROOT_DIR\python.exe -m  pip install -r requirements.txt
 
 $Env:BUILD_ROOT=(Get-Location).Path
 $Env:PATH="$Env:BUILD_ROOT\dev\lib;$Env:GOPATH\bin;$Env:Python2_ROOT_DIR;$Env:Python2_ROOT_DIR\Scripts;$Env:Python3_ROOT_DIR;$Env:Python3_ROOT_DIR\Scripts;$Env:PATH"

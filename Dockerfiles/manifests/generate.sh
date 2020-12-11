@@ -76,6 +76,17 @@ clusterChecksRunner:
   enabled: true
 EOF
 
+cat > "$TMPDIR/values-orchestrator-explorer.yaml" <<EOF
+datadog:
+  collectEvents: true
+  processAgent:
+    enabled: true
+  orchestratorExplorer:
+    enabled: true
+clusterAgent:
+  enabled: true
+EOF
+
 cat > "$TMPDIR/cleanup_instructions.yaml" <<EOF
 - command: delete
   path: metadata.labels."helm.sh/chart"

@@ -17,6 +17,7 @@ import (
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	lineParser "github.com/DataDog/datadog-agent/pkg/logs/parser"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -35,15 +36,16 @@ type Tailer struct {
 	readOffset    int64
 	decodedOffset int64
 
-	path           string
-	fullpath       string
-	file           *os.File
-	isWildcardPath bool
-	tags           []string
+	// file contains the logs configuration for the file to parse (path, source, ...)
+	// If you are looking for the os.file use to read on the FS, see osFile.
+	file *File
+
+	fullpath string
+	osFile   *os.File
+	tags     []string
 
 	outputChan  chan *message.Message
 	decoder     *decoder.Decoder
-	source      *config.LogSource
 	tagProvider tag.Provider
 
 	sleepDuration time.Duration
@@ -59,11 +61,11 @@ type Tailer struct {
 }
 
 // NewTailer returns an initialized Tailer
-func NewTailer(outputChan chan *message.Message, source *config.LogSource, path string, sleepDuration time.Duration, isWildcardPath bool) *Tailer {
+func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.Duration) *Tailer {
 	// TODO: remove those checks and add to source a reference to a tagProvider and a lineParser.
 	var parser lineParser.Parser
 	var matcher decoder.EndLineMatcher
-	switch source.GetSourceType() {
+	switch file.Source.GetSourceType() {
 	case config.KubernetesSourceType:
 		parser = kubernetes.Parser
 		matcher = &decoder.NewLineMatcher{}
@@ -71,7 +73,7 @@ func NewTailer(outputChan chan *message.Message, source *config.LogSource, path 
 		parser = docker.JSONParser
 		matcher = &decoder.NewLineMatcher{}
 	default:
-		switch source.Config.Encoding {
+		switch file.Source.Config.Encoding {
 		case config.UTF16BE:
 			parser = lineParser.NewDecodingParser(lineParser.UTF16BE)
 			matcher = decoder.NewBytesSequenceMatcher(decoder.Utf16beEOL)
@@ -85,8 +87,8 @@ func NewTailer(outputChan chan *message.Message, source *config.LogSource, path 
 	}
 
 	var tagProvider tag.Provider
-	if source.Config.Identifier != "" {
-		tagProvider = tag.NewProvider(source.Config.Identifier)
+	if file.Source.Config.Identifier != "" {
+		tagProvider = tag.NewProvider(containers.BuildTaggerEntityName(file.Source.Config.Identifier))
 	} else {
 		tagProvider = tag.NoopProvider
 	}
@@ -95,17 +97,15 @@ func NewTailer(outputChan chan *message.Message, source *config.LogSource, path 
 	closeTimeout := coreConfig.Datadog.GetDuration("logs_config.close_timeout") * time.Second
 
 	return &Tailer{
-		path:           path,
+		file:           file,
 		outputChan:     outputChan,
-		decoder:        decoder.NewDecoderWithEndLineMatcher(source, parser, matcher),
-		source:         source,
+		decoder:        decoder.NewDecoderWithEndLineMatcher(file.Source, parser, matcher),
 		tagProvider:    tagProvider,
 		readOffset:     0,
 		sleepDuration:  sleepDuration,
 		closeTimeout:   closeTimeout,
 		stop:           make(chan struct{}, 1),
 		done:           make(chan struct{}, 1),
-		isWildcardPath: isWildcardPath,
 		forwardContext: forwardContext,
 		stopForward:    stopForward,
 	}
@@ -118,31 +118,18 @@ func NewTailer(outputChan chan *message.Message, source *config.LogSource, path 
 // where the dead container still has a tailer running on the log file, and the tailer
 // of the freshly spawned container starts tailing this file as well.
 func (t *Tailer) Identifier() string {
-	return fmt.Sprintf("file:%s", t.path)
-}
-
-// getPath returns the file path
-func (t *Tailer) getPath() string {
-	return t.path
-}
-
-// getSourceIdentifier returns the source config identifier
-func (t *Tailer) getSourceIdentifier() string {
-	if t.source != nil && t.source.Config != nil {
-		return t.source.Config.Identifier
-	}
-	return ""
+	return fmt.Sprintf("file:%s", t.file.Path)
 }
 
 // Start let's the tailer open a file and tail from whence
 func (t *Tailer) Start(offset int64, whence int) error {
 	err := t.setup(offset, whence)
 	if err != nil {
-		t.source.Status.Error(err)
+		t.file.Source.Status.Error(err)
 		return err
 	}
-	t.source.Status.Success()
-	t.source.AddInput(t.path)
+	t.file.Source.Status.Success()
+	t.file.Source.AddInput(t.file.Path)
 
 	go t.forwardMessages()
 	t.decoder.Start()
@@ -160,7 +147,7 @@ func (t *Tailer) readForever() {
 		if err != nil {
 			return
 		}
-		t.source.BytesRead.Add(int64(n))
+		t.file.Source.BytesRead.Add(int64(n))
 
 		select {
 		case <-t.stop:
@@ -180,9 +167,9 @@ func (t *Tailer) readForever() {
 
 // buildTailerTags groups the file tag, directory (if wildcard path) and user tags
 func (t *Tailer) buildTailerTags() []string {
-	tags := []string{fmt.Sprintf("filename:%s", filepath.Base(t.path))}
-	if t.isWildcardPath {
-		tags = append(tags, fmt.Sprintf("dirname:%s", filepath.Dir(t.path)))
+	tags := []string{fmt.Sprintf("filename:%s", filepath.Base(t.file.Path))}
+	if t.file.IsWildcardPath {
+		tags = append(tags, fmt.Sprintf("dirname:%s", filepath.Dir(t.file.Path)))
 	}
 	return tags
 }
@@ -197,7 +184,7 @@ func (t *Tailer) StartFromBeginning() error {
 func (t *Tailer) Stop() {
 	atomic.StoreInt32(&t.didFileRotate, 0)
 	t.stop <- struct{}{}
-	t.source.RemoveInput(t.path)
+	t.file.Source.RemoveInput(t.file.Path)
 	// wait for the decoder to be flushed
 	<-t.done
 }
@@ -207,7 +194,7 @@ func (t *Tailer) Stop() {
 func (t *Tailer) StopAfterFileRotation() {
 	atomic.StoreInt32(&t.didFileRotate, 1)
 	go t.startStopTimer()
-	t.source.RemoveInput(t.path)
+	t.file.Source.RemoveInput(t.file.Path)
 }
 
 // startStopTimer initialises and starts a timer to stop the tailor after the timeout
@@ -220,8 +207,8 @@ func (t *Tailer) startStopTimer() {
 
 // onStop finishes to stop the tailer
 func (t *Tailer) onStop() {
-	log.Info("Closing", t.path, "for tailer key", buildTailerKey(t))
-	t.file.Close()
+	log.Info("Closing", t.file.Path, "for tailer key", t.file.GetScanKey())
+	t.osFile.Close()
 	t.decoder.Stop()
 }
 
@@ -240,7 +227,7 @@ func (t *Tailer) forwardMessages() {
 			identifier = ""
 		}
 		t.decodedOffset = offset
-		origin := message.NewOrigin(t.source)
+		origin := message.NewOrigin(t.file.Source)
 		origin.Identifier = identifier
 		origin.Offset = strconv.FormatInt(offset, 10)
 		origin.SetTags(append(t.tags, t.tagProvider.GetTags()...))

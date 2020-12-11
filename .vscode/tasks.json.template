@@ -1,0 +1,37 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build agent",
+            "command": "invoke -e agent.build",
+            "args": [],
+            "type": "shell",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "clean",
+            "command": "invoke -e agent.clean",
+            "args": [],
+            "type": "shell",
+            "problemMatcher": []
+        },
+        {
+            "label": "install dependencies",
+            "command": "invoke -e deps",
+            "args": [],
+            "type": "shell",
+            "problemMatcher": []
+        },
+        {
+            "label": "all tests",
+            "command": "invoke -e test",
+            "args": [],
+            "type": "shell",
+            "problemMatcher": []
+        }
+    ]
+}

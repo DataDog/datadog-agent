@@ -286,7 +286,7 @@ def list_major_change(ctx, milestone):
             milestone
         ),
     )
-    results = json.load(response)
+    results = response.json()
     if not results["items"]:
         print("no major change for {}".format(milestone))
         return

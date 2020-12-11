@@ -20,9 +20,6 @@ const (
 	initializationTimeout = time.Second * 10
 
 	compactInterval = time.Minute
-
-	// generationLength must be greater than compactInterval to ensure we have multiple compactions per generation
-	generationLength = compactInterval + 30*time.Second
 )
 
 // Conntracker is a wrapper around go-conntracker that keeps a record of all connections in user space
@@ -44,15 +41,10 @@ type connKey struct {
 	transport network.ConnectionType
 }
 
-type connValue struct {
-	*network.IPTranslation
-	expGeneration uint8
-}
-
 type realConntracker struct {
-	sync.Mutex
+	sync.RWMutex
 	consumer *Consumer
-	state    map[connKey]*connValue
+	state    map[connKey]*network.IPTranslation
 
 	// The maximum size the state map will grow before we reject new entries
 	maxStateSize int
@@ -66,7 +58,6 @@ type realConntracker struct {
 		registersTotalTime   int64
 		unregisters          int64
 		unregistersTotalTime int64
-		expiresTotal         int64
 	}
 	exceededSizeLogLimit *util.LogLimit
 }
@@ -102,7 +93,7 @@ func newConntrackerOnce(procRoot string, maxStateSize, targetRateLimit int, list
 	ctr := &realConntracker{
 		consumer:             consumer,
 		compactTicker:        time.NewTicker(compactInterval),
-		state:                make(map[connKey]*connValue),
+		state:                make(map[connKey]*network.IPTranslation),
 		maxStateSize:         maxStateSize,
 		exceededSizeLogLimit: util.NewLogLimit(10, time.Minute*10),
 	}
@@ -117,8 +108,8 @@ func newConntrackerOnce(procRoot string, maxStateSize, targetRateLimit int, list
 func (ctr *realConntracker) GetTranslationForConn(c network.ConnectionStats) *network.IPTranslation {
 	then := time.Now().UnixNano()
 
-	ctr.Lock()
-	defer ctr.Unlock()
+	ctr.RLock()
+	defer ctr.RUnlock()
 
 	k := connKey{
 		srcIP:     c.Source,
@@ -127,12 +118,8 @@ func (ctr *realConntracker) GetTranslationForConn(c network.ConnectionStats) *ne
 		dstPort:   c.DPort,
 		transport: c.Type,
 	}
-	var result *network.IPTranslation
-	value, ok := ctr.state[k]
-	if ok {
-		value.expGeneration = getNthGeneration(generationLength, then, 3)
-		result = value.IPTranslation
-	}
+
+	result := ctr.state[k]
 
 	now := time.Now().UnixNano()
 	atomic.AddInt64(&ctr.stats.gets, 1)
@@ -142,13 +129,12 @@ func (ctr *realConntracker) GetTranslationForConn(c network.ConnectionStats) *ne
 
 func (ctr *realConntracker) GetStats() map[string]int64 {
 	// only a few stats are locked
-	ctr.Lock()
+	ctr.RLock()
 	size := len(ctr.state)
-	ctr.Unlock()
+	ctr.RUnlock()
 
 	m := map[string]int64{
 		"state_size": int64(size),
-		"expires":    ctr.stats.expiresTotal,
 	}
 
 	if ctr.stats.gets != 0 {
@@ -175,31 +161,49 @@ func (ctr *realConntracker) GetStats() map[string]int64 {
 
 func (ctr *realConntracker) DeleteTranslation(c network.ConnectionStats) {
 	then := time.Now().UnixNano()
+	defer func() {
+		atomic.AddInt64(&ctr.stats.unregistersTotalTime, time.Now().UnixNano()-then)
+	}()
+
 	ctr.Lock()
 	defer ctr.Unlock()
-	delete(
-		ctr.state,
-		connKey{
+
+	keys := []connKey{
+		{
 			srcIP:     c.Source,
 			srcPort:   c.SPort,
 			dstIP:     c.Dest,
 			dstPort:   c.DPort,
 			transport: c.Type,
 		},
-	)
-	delete(
-		ctr.state,
-		connKey{
+		{
 			srcIP:     c.Dest,
 			srcPort:   c.DPort,
 			dstIP:     c.Source,
 			dstPort:   c.SPort,
 			transport: c.Type,
 		},
-	)
-	now := time.Now().UnixNano()
-	atomic.AddInt64(&ctr.stats.unregisters, 1)
-	atomic.AddInt64(&ctr.stats.unregistersTotalTime, now-then)
+	}
+
+	deleteTrans := func(k connKey) bool {
+		t, ok := ctr.state[k]
+		if !ok {
+			log.Tracef("not deleting %+v from conntrack", k)
+			return false
+		}
+
+		delete(ctr.state, k)
+		delete(ctr.state, ipTranslationToConnKey(k.transport, t))
+		log.Tracef("deleted %+v from conntrack", k)
+		return true
+	}
+
+	for _, k := range keys {
+		if ok := deleteTrans(k); ok {
+			atomic.AddInt64(&ctr.stats.unregisters, 1)
+			break
+		}
+	}
 }
 
 func (ctr *realConntracker) Close() {
@@ -209,18 +213,16 @@ func (ctr *realConntracker) Close() {
 }
 
 func (ctr *realConntracker) loadInitialState(events <-chan Event) {
-	gen := getNthGeneration(generationLength, time.Now().UnixNano(), 3)
-
 	for e := range events {
 		conns := DecodeAndReleaseEvent(e)
 		for _, c := range conns {
 			if len(ctr.state) < ctr.maxStateSize && isNAT(c) {
-				log.Tracef("netns=%d src=%s dst=%s sport=%d dport=%d src=%s dst=%s sport=%d dport=%d", c.NetNS, c.Origin.Src, c.Origin.Dst, *c.Origin.Proto.SrcPort, *c.Origin.Proto.DstPort, c.Reply.Src, c.Reply.Dst, *c.Reply.Proto.SrcPort, *c.Reply.Proto.DstPort)
+				log.Tracef("%s", c)
 				if k, ok := formatKey(c.Origin); ok {
-					ctr.state[k] = formatIPTranslation(c.Reply, gen)
+					ctr.state[k] = formatIPTranslation(c.Reply)
 				}
 				if k, ok := formatKey(c.Reply); ok {
-					ctr.state[k] = formatIPTranslation(c.Origin, gen)
+					ctr.state[k] = formatIPTranslation(c.Origin)
 				}
 			}
 		}
@@ -248,11 +250,10 @@ func (ctr *realConntracker) register(c Con) int {
 			return
 		}
 
-		generation := getNthGeneration(generationLength, now, 3)
-		ctr.state[key] = formatIPTranslation(transTuple, generation)
+		ctr.state[key] = formatIPTranslation(transTuple)
 	}
 
-	log.Tracef("netns=%d src=%s dst=%s sport=%d dport=%d src=%s dst=%s sport=%d dport=%d", c.NetNS, c.Origin.Src, c.Origin.Dst, *c.Origin.Proto.SrcPort, *c.Origin.Proto.DstPort, c.Reply.Src, c.Reply.Dst, *c.Reply.Proto.SrcPort, *c.Reply.Proto.DstPort)
+	log.Tracef("%s", c)
 
 	ctr.Lock()
 	defer ctr.Unlock()
@@ -293,16 +294,10 @@ func (ctr *realConntracker) compact() {
 	ctr.Lock()
 	defer ctr.Unlock()
 
-	gen := getCurrentGeneration(generationLength, time.Now().UnixNano())
-
 	// https://github.com/golang/go/issues/20135
-	copied := make(map[connKey]*connValue, len(ctr.state))
+	copied := make(map[connKey]*network.IPTranslation, len(ctr.state))
 	for k, v := range ctr.state {
-		if v.expGeneration != gen {
-			copied[k] = v
-		} else {
-			atomic.AddInt64(&ctr.stats.expiresTotal, 1)
-		}
+		copied[k] = v
 	}
 	ctr.state = copied
 }
@@ -325,21 +320,18 @@ func isNAT(c Con) bool {
 		*c.Origin.Proto.DstPort != *c.Reply.Proto.SrcPort
 }
 
-func formatIPTranslation(tuple *ct.IPTuple, generation uint8) *connValue {
+func formatIPTranslation(tuple *ct.IPTuple) *network.IPTranslation {
 	srcIP := *tuple.Src
 	dstIP := *tuple.Dst
 
 	srcPort := *tuple.Proto.SrcPort
 	dstPort := *tuple.Proto.DstPort
 
-	return &connValue{
-		IPTranslation: &network.IPTranslation{
-			ReplSrcIP:   util.AddressFromNetIP(srcIP),
-			ReplDstIP:   util.AddressFromNetIP(dstIP),
-			ReplSrcPort: srcPort,
-			ReplDstPort: dstPort,
-		},
-		expGeneration: generation,
+	return &network.IPTranslation{
+		ReplSrcIP:   util.AddressFromNetIP(srcIP),
+		ReplDstIP:   util.AddressFromNetIP(dstIP),
+		ReplSrcPort: srcPort,
+		ReplDstPort: dstPort,
 	}
 }
 
@@ -352,14 +344,23 @@ func formatKey(tuple *ct.IPTuple) (k connKey, ok bool) {
 
 	proto := *tuple.Proto.Number
 	switch proto {
-	case 6:
+	case unix.IPPROTO_TCP:
 		k.transport = network.TCP
-	case 17:
+	case unix.IPPROTO_UDP:
 		k.transport = network.UDP
-
 	default:
 		ok = false
 	}
 
 	return
+}
+
+func ipTranslationToConnKey(proto network.ConnectionType, t *network.IPTranslation) connKey {
+	return connKey{
+		srcIP:     t.ReplSrcIP,
+		dstIP:     t.ReplDstIP,
+		srcPort:   t.ReplSrcPort,
+		dstPort:   t.ReplDstPort,
+		transport: proto,
+	}
 }

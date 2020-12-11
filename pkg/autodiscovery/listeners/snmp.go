@@ -349,8 +349,8 @@ func (s *SNMPService) GetPorts() ([]ContainerPort, error) {
 }
 
 // GetTags returns the list of container tags - currently always empty
-func (s *SNMPService) GetTags() ([]string, error) {
-	return []string{}, nil
+func (s *SNMPService) GetTags() ([]string, string, error) {
+	return []string{}, "", nil
 }
 
 // GetPid returns nil and an error because pids are currently not supported

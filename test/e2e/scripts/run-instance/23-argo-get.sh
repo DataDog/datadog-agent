@@ -52,7 +52,7 @@ for workflow in $(./argo list -l workflows.argoproj.io/phase=Failed -o name); do
 done
 
 # Make the Argo UI available from the user
-/opt/bin/kubectl patch svc -n argo argo-server --type json --patch $'[{"op": "replace", "path": "/spec/type", "value": "NodePort"}]'
+/opt/bin/kubectl --namespace argo patch service/argo-server --type json --patch $'[{"op": "replace", "path": "/spec/type", "value": "NodePort"}]'
 
 # The goal of the following iptables magic is to make the `argo-server` NodePort service available on port 80.
 # We cannot do it with Kube since 80 isn’t in the NodePort service range and yet, 80 is a convenient port for an HTTP UI.
@@ -67,9 +67,16 @@ sudo iptables -w -t nat -A HACK -m comment --comment 'argo/argo-server:web' -p t
 sudo iptables -w -t nat -A PREROUTING -m addrtype --dst-type LOCAL -j HACK
 sudo iptables -w -t nat -A OUTPUT     -m addrtype --dst-type LOCAL -j HACK
 
+# In case of failure, let's keep the VM for 1 day instead of 2 hours for investigation
+if [[ $EXIT_CODE != 0 ]]; then
+    sudo sed -i 's/^OnBootSec=.*/OnBootSec=86400/' /etc/systemd/system/terminate.timer
+    sudo systemctl daemon-reload
+    sudo systemctl restart terminate.timer
+fi
+
 TIME_LEFT=$(systemctl status terminate.timer | awk '$1 == "Trigger:" {print gensub(/ *Trigger: (.*)/, "\\1", 1)}')
 LOCAL_IP=$(curl -s http://169.254.169.254/2020-10-27/meta-data/local-ipv4)
 
-echo "The Argo UI will remain available at http://${LOCAL_IP} until ${TIME_LEFT}"
+printf "\033[1mThe Argo UI will remain available at \033[1;34mhttp://%s\033[0m until \033[1;33m%s\033[0m.\n" "$LOCAL_IP" "$TIME_LEFT"
 
 exit ${EXIT_CODE}

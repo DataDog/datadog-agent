@@ -10,12 +10,14 @@ import (
 	"time"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/heartbeat"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -101,13 +103,8 @@ func runAgent(exit chan struct{}) {
 	}
 
 	// Now that the logger is configured log host info
-	platform, err := util.GetPlatform()
-	if err != nil {
-		log.Debugf("error retrieving platform: %s", err)
-	} else {
-		log.Infof("running on platform: %s", platform)
-	}
-
+	hostInfo := host.GetStatusInformation()
+	log.Infof("running on platform: %s", hostInfo.Platform)
 	log.Infof("running version: %s", versionString(", "))
 
 	// Tagger must be initialized after agent config has been setup
@@ -126,7 +123,7 @@ func runAgent(exit chan struct{}) {
 
 	// Initialize system-probe heartbeats
 	sysprobeMonitor, err := heartbeat.NewModuleMonitor(heartbeat.Options{
-		KeysPerDomain:      keysPerDomains(cfg.APIEndpoints),
+		KeysPerDomain:      api.KeysPerDomains(cfg.APIEndpoints),
 		SysprobeSocketPath: cfg.SystemProbeAddress,
 		HostName:           cfg.HostName,
 		TagVersion:         Version,

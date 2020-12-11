@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	ct "github.com/florianl/go-conntrack"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestIsNat(t *testing.T) {
@@ -179,41 +178,6 @@ func TestRegisterNatUDP(t *testing.T) {
 	assert.Nil(t, translation)
 }
 
-func TestGetUpdatesGen(t *testing.T) {
-	rt := newConntracker()
-	c := makeTranslatedConn(net.ParseIP("10.0.0.0"), net.ParseIP("20.0.0.0"), net.ParseIP("50.30.40.10"), 6, 12345, 80, 80)
-
-	rt.register(c)
-	var last uint8
-
-	// there will be two entries in rt.state for the entry we just registered.
-	// set them both to be 5 generations older than they are
-	require.Len(t, rt.state, 2)
-	for _, v := range rt.state {
-		v.expGeneration -= 5
-		last = v.expGeneration
-	}
-
-	iptr := rt.GetTranslationForConn(
-		network.ConnectionStats{
-			Source: util.AddressFromString("10.0.0.0"),
-			SPort:  12345,
-			Dest:   util.AddressFromString("50.30.40.10"),
-			DPort:  80,
-			Type:   network.TCP,
-		},
-	)
-	require.NotNil(t, iptr)
-
-	require.Len(t, rt.state, 2)
-	entry := rt.state[connKey{
-		srcIP: util.AddressFromString("10.0.0.0"), srcPort: 12345,
-		dstIP: util.AddressFromString("50.30.40.10"), dstPort: 80,
-		transport: network.TCP,
-	}]
-	assert.NotEqual(t, entry.expGeneration, last, "expected %v to equal %v", entry.expGeneration, last)
-}
-
 func TestTooManyEntries(t *testing.T) {
 	rt := newConntracker()
 	rt.maxStateSize = 1
@@ -238,8 +202,7 @@ func TestConntrackerMemoryAllocation(t *testing.T) {
 
 func newConntracker() *realConntracker {
 	return &realConntracker{
-		state:                make(map[connKey]*connValue),
-		compactTicker:        time.NewTicker(time.Hour),
+		state:                make(map[connKey]*network.IPTranslation),
 		maxStateSize:         10000,
 		exceededSizeLogLimit: util.NewLogLimit(1, time.Minute),
 	}

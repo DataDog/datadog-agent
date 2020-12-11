@@ -127,7 +127,7 @@ func StartServer() error {
 			NextProtos:   []string{"h2"},
 		},
 		ErrorLog: stdLog.New(&config.ErrorLogWriter{
-			AdditionalDepth: 4, // Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
+			AdditionalDepth: 5, // Use a stack depth of 5 on top of the default one to get a relevant filename in the stdlib
 		}, "Error from the agent http API server: ", 0), // log errors to seelog,
 		WriteTimeout: config.Datadog.GetDuration("server_timeout") * time.Second,
 	}

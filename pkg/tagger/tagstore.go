@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -68,13 +69,13 @@ func newTagStore() *tagStore {
 	}
 }
 
-func (s *tagStore) processTagInfo(xyz []*collectors.TagInfo) {
+func (s *tagStore) processTagInfo(tagInfos []*collectors.TagInfo) {
 	events := []entityEvent{}
 
 	s.Lock()
 	defer s.Unlock()
 
-	for _, info := range xyz {
+	for _, info := range tagInfos {
 		if info == nil {
 			log.Tracef("processTagInfo err: skipping nil message")
 			continue
@@ -107,8 +108,6 @@ func (s *tagStore) processTagInfo(xyz []*collectors.TagInfo) {
 			eventType = EventTypeAdded
 			storedTags = newEntityTags(info.Entity)
 			s.store[info.Entity] = storedTags
-
-			storedEntities.Inc()
 		}
 
 		// TODO: check if real change
@@ -133,10 +132,16 @@ func (s *tagStore) processTagInfo(xyz []*collectors.TagInfo) {
 func updateStoredTags(storedTags *entityTags, info *collectors.TagInfo) error {
 	storedTags.Lock()
 	defer storedTags.Unlock()
+
 	_, found := storedTags.sourceTags[info.Source]
 	if found && info.CacheMiss {
 		// check if the source tags is already present for this entry
 		return fmt.Errorf("try to overwrite an existing entry with and empty cache-miss entry, info.Source: %s, info.Entity: %s", info.Source, info.Entity)
+	}
+
+	if !found {
+		prefix, _ := containers.SplitEntityName(info.Entity)
+		storedEntities.Inc(info.Source, prefix)
 	}
 
 	storedTags.cacheValid = false
@@ -288,8 +293,15 @@ func (s *tagStore) prune() error {
 
 		storedTags.Lock()
 
+		prefix, _ := containers.SplitEntityName(entity)
+
 		for source := range storedTags.toDelete {
+			if _, ok := storedTags.sourceTags[source]; !ok {
+				continue
+			}
+
 			delete(storedTags.sourceTags, source)
+			storedEntities.Dec(source, prefix)
 		}
 
 		if len(storedTags.sourceTags) == 0 {
@@ -310,14 +322,12 @@ func (s *tagStore) prune() error {
 		storedTags.Unlock()
 	}
 
-	remainingEntities := len(s.store)
-	log.Debugf("pruned %d removed entities, %d remaining", len(s.toDelete), remainingEntities)
+	log.Debugf("pruned %d removed entities, %d remaining", len(s.toDelete), len(s.store))
 
 	// Start fresh
 	s.toDelete = make(map[string]struct{})
 
 	s.notifySubscribers(events)
-	storedEntities.Set(float64(remainingEntities))
 
 	return nil
 }

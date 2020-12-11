@@ -123,12 +123,13 @@ func (b *Builder) getIntegrations() []Integration {
 		var sources []Source
 		for _, source := range logSources {
 			sources = append(sources, Source{
+				BytesRead:     source.BytesRead.Value(),
 				Type:          source.Config.Type,
 				Configuration: b.toDictionary(source.Config),
 				Status:        b.toString(source.Status),
 				Inputs:        source.GetInputs(),
 				Messages:      source.Messages.GetMessages(),
-				BytesRead:     source.BytesRead.Value(),
+				Info:          source.GetInfo(),
 			})
 		}
 		integrations = append(integrations, Integration{
@@ -174,6 +175,7 @@ func (b *Builder) toDictionary(c *config.LogsConfig) map[string]interface{} {
 	case config.FileType:
 		dictionary["Path"] = c.Path
 		dictionary["TailingMode"] = c.TailingMode
+		dictionary["Identifier"] = c.Identifier
 	case config.DockerType:
 		dictionary["Image"] = c.Image
 		dictionary["Label"] = c.Label

@@ -12,6 +12,8 @@ import (
 // Context describes the context used during a rule evaluation
 type Context struct {
 	Object unsafe.Pointer
+
+	Registers Registers
 }
 
 // SetObject set the given object to the context

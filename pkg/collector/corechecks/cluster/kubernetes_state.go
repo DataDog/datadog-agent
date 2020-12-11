@@ -132,6 +132,11 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 		return err
 	}
 
+	err = k.CommonConfigure(initConfig, source)
+	if err != nil {
+		return err
+	}
+
 	err = k.instance.parse(config)
 	if err != nil {
 		return err
@@ -250,6 +255,7 @@ func (k *KSMCheck) Run() error {
 func (k *KSMCheck) Cancel() {
 	log.Infof("Shutting down informers used by the check '%s'", k.ID())
 	k.cancel()
+	k.CommonCancel()
 }
 
 // processMetrics attaches tags and forwards metrics to the aggregator

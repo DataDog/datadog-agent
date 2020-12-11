@@ -18,7 +18,7 @@ import (
 
 // setup sets up the file tailer
 func (t *Tailer) setup(offset int64, whence int) error {
-	fullpath, err := filepath.Abs(t.path)
+	fullpath, err := filepath.Abs(t.file.Path)
 	if err != nil {
 		return err
 	}
@@ -89,7 +89,7 @@ func (t *Tailer) read() (int, error) {
 	if err == io.EOF || os.IsNotExist(err) {
 		return 0, nil
 	} else if err != nil {
-		t.source.Status.Error(err)
+		t.file.Source.Status.Error(err)
 		return 0, log.Error("Err: ", err)
 	}
 	return 0, nil

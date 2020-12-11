@@ -10,63 +10,49 @@ package probe
 import (
 	"math"
 
-	"github.com/DataDog/ebpf/manager"
-
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/pkg/errors"
 )
 
 // RuleSetApplier defines a rule set applier. It applies rules using an Applier
 type RuleSetApplier struct {
 	config   *config.Config
 	reporter *Reporter
+	probe    *Probe
 }
 
-// Applier describes the set of methods required to apply kernel event passing policies
-type Applier interface {
-	Init() error
-	ApplyFilterPolicy(eventType eval.EventType, mode PolicyMode, flags PolicyFlag) error
-	ApplyApprovers(eventType eval.EventType, approvers rules.Approvers) error
-	RegisterProbesSelectors(selectors []manager.ProbesSelector) error
-}
-
-func (rsa *RuleSetApplier) applyFilterPolicy(eventType eval.EventType, mode PolicyMode, flags PolicyFlag, applier Applier) error {
+func (rsa *RuleSetApplier) applyFilterPolicy(eventType eval.EventType, mode PolicyMode, flags PolicyFlag) error {
 	if err := rsa.reporter.SetFilterPolicy(eventType, mode, flags); err != nil {
 		return err
 	}
 
-	if applier != nil {
-		return applier.ApplyFilterPolicy(eventType, mode, flags)
+	if rsa.probe != nil {
+		return rsa.probe.ApplyFilterPolicy(eventType, mode, flags)
 	}
 
 	return nil
 }
 
-func (rsa *RuleSetApplier) applyApprovers(eventType eval.EventType, approvers rules.Approvers, applier Applier) error {
+func (rsa *RuleSetApplier) applyApprovers(eventType eval.EventType, approvers rules.Approvers) error {
 	if err := rsa.reporter.SetApprovers(eventType, approvers); err != nil {
 		return err
 	}
 
-	if applier != nil {
-		return applier.ApplyApprovers(eventType, approvers)
+	if rsa.probe != nil {
+		if err := rsa.probe.SetApprovers(eventType, approvers); err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
-func (rsa *RuleSetApplier) registerProbesSelectors(selectors []manager.ProbesSelector, applier Applier) error {
-	if applier != nil {
-		return applier.RegisterProbesSelectors(selectors)
-	}
-	return nil
-}
-
-func (rsa *RuleSetApplier) setupFilters(rs *rules.RuleSet, eventType eval.EventType, applier Applier) error {
+func (rsa *RuleSetApplier) setupFilters(rs *rules.RuleSet, eventType eval.EventType) error {
 	if !rsa.config.EnableKernelFilters {
-		if err := rsa.applyFilterPolicy(eventType, PolicyModeNoFilter, math.MaxUint8, applier); err != nil {
+		if err := rsa.applyFilterPolicy(eventType, PolicyModeNoFilter, math.MaxUint8); err != nil {
 			return err
 		}
 		return nil
@@ -74,24 +60,31 @@ func (rsa *RuleSetApplier) setupFilters(rs *rules.RuleSet, eventType eval.EventT
 
 	// if approvers disabled
 	if !rsa.config.EnableApprovers {
-		return rsa.applyFilterPolicy(eventType, PolicyModeAccept, math.MaxUint8, applier)
+		return rsa.applyFilterPolicy(eventType, PolicyModeAccept, math.MaxUint8)
 	}
 
 	capabilities, exists := allCapabilities[eventType]
 	if !exists {
-		return rsa.applyFilterPolicy(eventType, PolicyModeAccept, math.MaxUint8, applier)
+		return rsa.applyFilterPolicy(eventType, PolicyModeAccept, math.MaxUint8)
 	}
 
 	approvers, err := rs.GetApprovers(eventType, capabilities.GetFieldCapabilities())
 	if err != nil {
-		return rsa.applyFilterPolicy(eventType, PolicyModeAccept, math.MaxUint8, applier)
+		if err := rsa.applyFilterPolicy(eventType, PolicyModeAccept, math.MaxUint8); err != nil {
+			return err
+		}
+		return nil
 	}
 
-	if err := rsa.applyApprovers(eventType, approvers, applier); err != nil {
-		return rsa.applyFilterPolicy(eventType, PolicyModeAccept, math.MaxUint8, applier)
+	if err := rsa.applyApprovers(eventType, approvers); err != nil {
+		log.Errorf("Failed to apply approvers, setting policy mode to 'accept' (error: %s)", err)
+		if err := rsa.applyFilterPolicy(eventType, PolicyModeAccept, math.MaxUint8); err != nil {
+			return err
+		}
+		return nil
 	}
 
-	if err := rsa.applyFilterPolicy(eventType, PolicyModeDeny, capabilities.GetFlags(), applier); err != nil {
+	if err := rsa.applyFilterPolicy(eventType, PolicyModeDeny, capabilities.GetFlags()); err != nil {
 		return err
 	}
 
@@ -99,54 +92,32 @@ func (rsa *RuleSetApplier) setupFilters(rs *rules.RuleSet, eventType eval.EventT
 }
 
 // Apply setup the filters for the provided set of rules and returns the policy report.
-func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet, applier Applier) (*Report, error) {
+func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet) (*Report, error) {
+	if rsa.probe != nil {
+		if err := rsa.probe.FlushDiscarders(); err != nil {
+			return nil, errors.Wrap(err, "failed to flush discarders")
+		}
+
+		// based on the ruleset and the requested rules, select the probes that need to be activated
+		if err := rsa.probe.SelectProbes(rs); err != nil {
+			return nil, errors.Wrap(err, "failed to select probes")
+		}
+	}
+
 	for _, eventType := range rs.GetEventTypes() {
-		if err := rsa.setupFilters(rs, eventType, applier); err != nil {
+		if err := rsa.setupFilters(rs, eventType); err != nil {
 			return nil, err
 		}
 	}
+
 	return rsa.reporter.GetReport(), nil
 }
 
-// SelectProbes applies the loaded set of rules and returns a report
-// of the applied approvers for it.
-func (rsa *RuleSetApplier) SelectProbes(rs *rules.RuleSet, applier Applier) error {
-	var selectedIDs []manager.ProbeIdentificationPair
-	for eventType, selectors := range probes.SelectorsPerEventType {
-		if eventType == "*" || rs.HasRulesForEventType(eventType) {
-			// register probes selectors
-			if err := rsa.registerProbesSelectors(selectors, applier); err != nil {
-				return err
-			}
-
-			// Extract unique IDs for logging purposes only
-			for _, selector := range selectors {
-				for _, id := range selector.GetProbesIdentificationPairList() {
-					var exists bool
-					for _, selectedID := range selectedIDs {
-						if selectedID.Matches(id) {
-							exists = true
-						}
-					}
-					if !exists {
-						selectedIDs = append(selectedIDs, id)
-					}
-				}
-			}
-		}
-	}
-
-	// Print the list of unique probe identification IDs that are registered
-	for _, id := range selectedIDs {
-		log.Debugf("probe %s selected", id)
-	}
-	return nil
-}
-
 // NewRuleSetApplier returns a new RuleSetApplier
-func NewRuleSetApplier(cfg *config.Config) *RuleSetApplier {
+func NewRuleSetApplier(cfg *config.Config, probe *Probe) *RuleSetApplier {
 	return &RuleSetApplier{
 		config:   cfg,
+		probe:    probe,
 		reporter: NewReporter(),
 	}
 }

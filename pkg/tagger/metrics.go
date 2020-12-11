@@ -9,7 +9,7 @@ import "github.com/DataDog/datadog-agent/pkg/telemetry"
 
 var (
 	storedEntities = telemetry.NewGaugeWithOpts("tagger", "stored_entities",
-		[]string{}, "Number of entities in the store.",
+		[]string{"source", "prefix"}, "Number of entities in the store.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 
 	updatedEntities = telemetry.NewCounterWithOpts("tagger", "updated_entities",
