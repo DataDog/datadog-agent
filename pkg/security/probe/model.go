@@ -1514,10 +1514,20 @@ func (e *Event) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 16 {
 		return 0, ErrNotEnoughData
 	}
-	e.Type = ebpf.ByteOrder.Uint64(data[0:8])
-	e.TimestampRaw = ebpf.ByteOrder.Uint64(data[8:16])
+
+	e.TimestampRaw = ebpf.ByteOrder.Uint64(data[0:8])
+	e.Type = ebpf.ByteOrder.Uint64(data[8:16])
 
 	return 16, nil
+}
+
+// TimestampFromEventData extracts timestamp from the raw data event
+func TimestampFromEventData(data []byte) (uint64, error) {
+	if len(data) < 8 {
+		return 0, ErrNotEnoughData
+	}
+
+	return ebpf.ByteOrder.Uint64(data[0:8]), nil
 }
 
 // ResolveEventTimestamp resolves the monolitic kernel event timestamp to an absolute time

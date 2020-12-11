@@ -201,6 +201,7 @@ int kprobe_do_exit(struct pt_regs *ctx) {
         // send the entry to maintain userspace cache
         struct exit_event_t event = {
             .event.type = EVENT_EXIT,
+            .event.timestamp = bpf_ktime_get_ns(),
         };
         struct proc_cache_t *cache_entry = fill_process_context(&event.process);
         fill_container_context(cache_entry, &event.container);
