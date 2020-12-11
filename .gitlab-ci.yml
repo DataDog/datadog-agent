@@ -3656,6 +3656,19 @@ scan_release_linux_docker_hub:
     - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-7-jmx-amd64  datadog/agent-scan:${VERSION}-jmx
 
 
+# push on master to docker hub agent-scan repo
+scan_release_docker_hub-dogstatsd:
+  extends: .docker_scan_job_definition
+  rules:
+    - <<: *if_deploy_on_tag_7
+      when: manual
+      allow_failure: true
+  needs:
+    - docker_build_dogstatsd_amd64
+  script:
+    # Platform-specific agent images
+    - inv -e docker.publish ${SRC_DSD}:${SRC_TAG}-amd64 datadog/dogstatsd-scan:${VERSION}
+
 #
 # Check Deploy
 #
