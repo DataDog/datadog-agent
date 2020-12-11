@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"unicode"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -184,11 +185,11 @@ func (p *Probe) parseIO(pidPath string) *IOCountersStat {
 		return io
 	}
 
-	index := 0
+	lineStart := 0
 	for i, r := range content {
 		if r == '\n' {
-			p.parseIOLine(content[index:i], io)
-			index = i + 1
+			p.parseIOLine(content[lineStart:i], io)
+			lineStart = i + 1
 		}
 	}
 
@@ -198,7 +199,9 @@ func (p *Probe) parseIO(pidPath string) *IOCountersStat {
 // parseIOLine extracts key and value for each line in "io" file
 func (p *Probe) parseIOLine(line []byte, io *IOCountersStat) {
 	for i := range line {
-		if i+2 < len(line) && line[i] == ':' && line[i+1] == ' ' {
+		// the fields are all having format "field_name: field_value", so we always
+		// look for ": " and skip them
+		if i+2 < len(line) && line[i] == ':' && unicode.IsSpace(rune(line[i+1])) {
 			key := line[0:i]
 			value := line[i+2:]
 			p.parseIOKV(string(key), string(value), io)
@@ -251,11 +254,11 @@ func (p *Probe) parseStatus(pidPath string) *statusInfo {
 		return sInfo
 	}
 
-	index := 0
+	lineStart := 0
 	for i, r := range content {
 		if r == '\n' {
-			p.parseStatusLine(content[index:i], sInfo)
-			index = i + 1
+			p.parseStatusLine(content[lineStart:i], sInfo)
+			lineStart = i + 1
 		}
 	}
 
@@ -267,7 +270,7 @@ func (p *Probe) parseStatusLine(line []byte, sInfo *statusInfo) {
 	for i := range line {
 		// the fields are all having format "field_name:\tfield_value", so we always
 		// look for ":\t" and skip them
-		if i+2 < len(line) && line[i] == ':' && line[i+1] == '\t' {
+		if i+2 < len(line) && line[i] == ':' && unicode.IsSpace(rune(line[i+1])) {
 			key := line[0:i]
 			value := line[i+2:]
 			p.parseStatusKV(string(key), string(value), sInfo)
