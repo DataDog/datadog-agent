@@ -327,12 +327,12 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("forwarder_storage_path", defaultForwarderStoragePath)
 	config.BindEnvAndSetDefault("forwarder_outdated_file_in_days", 10)
 	config.BindEnvAndSetDefault("forwarder_flush_to_disk_mem_ratio", 0.5)
-	config.BindEnvAndSetDefault("forwarder_storage_max_size_in_bytes", 0) // 0 means disabled
+	config.BindEnvAndSetDefault("forwarder_storage_max_size_in_bytes", 0) // 0 means disabled. This is a BETA feature.
 
 	// Dogstatsd
 	config.BindEnvAndSetDefault("use_dogstatsd", true)
-	config.BindEnvAndSetDefault("dogstatsd_port", 8125)            // Notice: 0 means UDP port closed
-	config.BindEnvAndSetDefault("dogstatsd_windows_pipe_name", "") // experimental and not officially supported for now.
+	config.BindEnvAndSetDefault("dogstatsd_port", 8125)    // Notice: 0 means UDP port closed
+	config.BindEnvAndSetDefault("dogstatsd_pipe_name", "") // experimental and not officially supported for now.
 
 	// The following options allow to configure how the dogstatsd intake buffers and queues incoming datagrams.
 	// When a datagram is received it is first added to a datagrams buffer. This buffer fills up until
@@ -761,6 +761,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.policies.dir", DefaultRuntimePoliciesDir)
 	config.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
 	config.BindEnvAndSetDefault("runtime_security_config.enable_kernel_filters", true)
+	config.BindEnvAndSetDefault("runtime_security_config.flush_discarder_window", 3)
 	config.BindEnvAndSetDefault("runtime_security_config.syscall_monitor.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.run_path", defaultRunPath)
 	config.BindEnvAndSetDefault("runtime_security_config.event_server.burst", 40)

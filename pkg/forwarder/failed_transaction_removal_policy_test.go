@@ -18,20 +18,20 @@ func TestFailedTransactionRemovalPolicyUnknownDomain(t *testing.T) {
 	p, err := newFailedTransactionRemovalPolicy(root, 1, failedTransactionRemovalPolicyTelemetry{})
 	a.NoError(err)
 
-	domain1, err := p.RegisterDomain("domain1")
+	domain1, err := p.registerDomain("domain1")
 	a.NoError(err)
-	domain2, err := p.RegisterDomain("domain2")
+	domain2, err := p.registerDomain("domain2")
 	a.NoError(err)
 
 	file1 := createRetryFile(a, domain1, "file1")
 	file2 := createRetryFile(a, domain2, "file2")
-	file3 := createRetryFile(a, root+"/unknownDomain", "file3")
-	file4 := createFile(a, root+"/unknownDomain", "notRetryFileMustNotBeRemoved")
+	file3 := createRetryFile(a, path.Join(root, "unknownDomain"), "file3")
+	file4 := createFile(a, path.Join(root, "unknownDomain"), "notRetryFileMustNotBeRemoved")
 
-	pathsRemoved, err := p.RemoveOutdatedFiles()
+	pathsRemoved, err := p.removeOutdatedFiles()
 	a.NoError(err)
-	a.EqualValues([]string{file3}, pathsRemoved)
-	a.EqualValues([]string{file1, file2, file4}, getRemainingFiles(a, root))
+	assertFilenamesEqual(a, []string{file3}, pathsRemoved)
+	assertFilenamesEqual(a, []string{file1, file2, file4}, getRemainingFiles(a, root))
 }
 
 func TestFailedTransactionRemovalPolicyOutdatedFiles(t *testing.T) {
@@ -42,7 +42,7 @@ func TestFailedTransactionRemovalPolicyOutdatedFiles(t *testing.T) {
 	p, err := newFailedTransactionRemovalPolicy(root, outDatedFileDayCount, failedTransactionRemovalPolicyTelemetry{})
 	a.NoError(err)
 
-	domain, err := p.RegisterDomain("domain")
+	domain, err := p.registerDomain("domain")
 	a.NoError(err)
 
 	file1 := createRetryFile(a, domain, "file1")
@@ -55,10 +55,10 @@ func TestFailedTransactionRemovalPolicyOutdatedFiles(t *testing.T) {
 	modTime = time.Now().Add(time.Duration(-1*24) * time.Hour)
 	a.NoError(os.Chtimes(file3, modTime, modTime))
 
-	pathsRemoved, err := p.RemoveOutdatedFiles()
+	pathsRemoved, err := p.removeOutdatedFiles()
 	a.NoError(err)
-	a.EqualValues([]string{file2}, pathsRemoved)
-	a.EqualValues([]string{file1, file3}, getRemainingFiles(a, root))
+	assertFilenamesEqual(a, []string{file2}, pathsRemoved)
+	assertFilenamesEqual(a, []string{file1, file3}, getRemainingFiles(a, root))
 }
 
 func TestFailedTransactionRemovalPolicyExistingDomain(t *testing.T) {
@@ -99,4 +99,17 @@ func getRemainingFiles(a *assert.Assertions, folder string) []string {
 		}))
 
 	return files
+}
+
+func assertFilenamesEqual(a *assert.Assertions, expected []string, current []string) {
+	a.EqualValues(getFilenames(expected), getFilenames(current))
+}
+
+func getFilenames(paths []string) []string {
+	var filenames []string
+
+	for _, p := range paths {
+		filenames = append(filenames, filepath.Base(p))
+	}
+	return filenames
 }

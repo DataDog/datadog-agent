@@ -212,6 +212,11 @@ type Transaction interface {
 	GetPriority() TransactionPriority
 	GetEndpointName() string
 	GetPayloadSize() int
+
+	// This method serializes the transaction to `TransactionsSerializer`.
+	// It forces a new implementation of `Transaction` to define how to
+	// serialize the transaction to `TransactionsSerializer` as a `Transaction`
+	// must be serializable in domainForwarder.
 	SerializeTo(*TransactionsSerializer) error
 }
 
@@ -223,12 +228,11 @@ func NewHTTPTransaction() *HTTPTransaction {
 		retryable:  true,
 		Headers:    make(http.Header),
 	}
-	tr.SetDefaultHandlers()
+	tr.setDefaultHandlers()
 	return tr
 }
 
-// SetDefaultHandlers sets the default handlers for attemptHandler and completionHandler
-func (t *HTTPTransaction) SetDefaultHandlers() {
+func (t *HTTPTransaction) setDefaultHandlers() {
 	t.attemptHandler = defaultAttemptHandler
 	t.completionHandler = defaultCompletionHandler
 }

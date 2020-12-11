@@ -112,5 +112,5 @@ storage:
     - path: /etc/ssh/sshd_config.d/99-datadog.conf
       mode: 0400
       contents:
-        source: "data:,AcceptEnv%20DATADOG%5F%2AAGENT%5FIMAGE%0A"
+        source: "data:,AcceptEnv%20DOCKER%5FREGISTRY%5F%2A%20DATADOG%5F%2AAGENT%5FIMAGE%0A"
 EOF

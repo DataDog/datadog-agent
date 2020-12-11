@@ -10,6 +10,7 @@ package eval
 import (
 	"fmt"
 	"reflect"
+	"regexp"
 	"sort"
 
 	"github.com/alecthomas/participle/lexer"
@@ -39,6 +40,8 @@ const (
 type FieldValue struct {
 	Value interface{}
 	Type  FieldValueType
+
+	Regex *regexp.Regexp
 }
 
 // Opts are the options to be passed to the evaluator

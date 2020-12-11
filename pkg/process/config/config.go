@@ -16,6 +16,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
@@ -55,26 +56,24 @@ type WindowsConfig struct {
 // AgentConfig is the global config for the process-agent. This information
 // is sourced from config files and the environment variables.
 type AgentConfig struct {
-	Enabled               bool
-	HostName              string
-	APIEndpoints          []api.Endpoint
-	OrchestratorEndpoints []api.Endpoint
-	LogFile               string
-	LogLevel              string
-	LogToConsole          bool
-	QueueSize             int // The number of items allowed in each delivery queue.
-	ProcessQueueBytes     int // The total number of bytes that can be enqueued for delivery to the process intake endpoint
-	PodQueueBytes         int // The total number of bytes that can be enqueued for delivery to the orchestrator endpoint
-	Blacklist             []*regexp.Regexp
-	Scrubber              *DataScrubber
-	MaxPerMessage         int
-	MaxConnsPerMessage    int
-	AllowRealTime         bool
-	Transport             *http.Transport `json:"-"`
-	DDAgentBin            string
-	StatsdHost            string
-	StatsdPort            int
-	ProcessExpVarPort     int
+	Enabled            bool
+	HostName           string
+	APIEndpoints       []api.Endpoint
+	LogFile            string
+	LogLevel           string
+	LogToConsole       bool
+	QueueSize          int // The number of items allowed in each delivery queue.
+	ProcessQueueBytes  int // The total number of bytes that can be enqueued for delivery to the process intake endpoint
+	Blacklist          []*regexp.Regexp
+	Scrubber           *DataScrubber
+	MaxPerMessage      int
+	MaxConnsPerMessage int
+	AllowRealTime      bool
+	Transport          *http.Transport `json:"-"`
+	DDAgentBin         string
+	StatsdHost         string
+	StatsdPort         int
+	ProcessExpVarPort  int
 	// host type of the agent, used to populate container payload with additional host information
 	ContainerHostType model.ContainerHostType
 
@@ -104,14 +103,12 @@ type AgentConfig struct {
 	OffsetGuessThreshold           uint64
 	EnableTracepoints              bool
 
+	// Orchestrator config
+	Orchestrator *oconfig.OrchestratorConfig
+
 	// DNS stats configuration
 	CollectDNSStats bool
 	DNSTimeout      time.Duration
-
-	// Orchestrator collection configuration
-	OrchestrationCollectionEnabled bool
-	KubeClusterName                string
-	IsScrubbingEnabled             bool
 
 	// Check config
 	EnabledChecks  []string
@@ -141,7 +138,6 @@ func (a AgentConfig) CheckInterval(checkName string) time.Duration {
 
 const (
 	defaultProcessEndpoint       = "https://process.datadoghq.com"
-	defaultOrchestratorEndpoint  = "https://orchestrator.datadoghq.com"
 	maxMessageBatch              = 100
 	maxConnsMessageBatch         = 1000
 	defaultMaxTrackedConnections = 65536
@@ -170,11 +166,6 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		// This is a hardcoded URL so parsing it should not fail
 		panic(err)
 	}
-	orchestratorEndpoint, err := url.Parse(defaultOrchestratorEndpoint)
-	if err != nil {
-		// This is a hardcoded URL so parsing it should not fail
-		panic(err)
-	}
 
 	var enabledChecks []string
 	if canAccessContainers {
@@ -182,16 +173,14 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 	}
 
 	ac := &AgentConfig{
-		Enabled:               canAccessContainers, // We'll always run inside of a container.
-		APIEndpoints:          []api.Endpoint{{Endpoint: processEndpoint}},
-		OrchestratorEndpoints: []api.Endpoint{{Endpoint: orchestratorEndpoint}},
-		LogFile:               defaultLogFilePath,
-		LogLevel:              "info",
-		LogToConsole:          false,
+		Enabled:      canAccessContainers, // We'll always run inside of a container.
+		APIEndpoints: []api.Endpoint{{Endpoint: processEndpoint}},
+		LogFile:      defaultLogFilePath,
+		LogLevel:     "info",
+		LogToConsole: false,
 
 		// Allow buffering up to 75 megabytes of payload data in total
 		ProcessQueueBytes: 60 * 1000 * 1000,
-		PodQueueBytes:     15 * 1000 * 1000,
 		// This can be fairly high as the input should get throttled by queue bytes first.
 		// Assuming we generate ~8 checks/minute (for process/network), this should allow buffering of ~30 minutes of data assuming it fits within the queue bytes memory budget
 		QueueSize: 256,
@@ -226,6 +215,9 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		OffsetGuessThreshold:         400,
 		EnableTracepoints:            false,
 		CollectDNSStats:              true,
+
+		// Orchestrator config
+		Orchestrator: oconfig.NewDefaultOrchestratorConfig(),
 
 		// Check config
 		EnabledChecks: enabledChecks,
@@ -310,13 +302,16 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	canAccessContainers := err == nil
 
 	cfg := NewDefaultAgentConfig(canAccessContainers)
-
 	// For Agent 6 we will have a YAML config file to use.
 	if err := loadConfigIfExists(yamlPath); err != nil {
 		return nil, err
 	}
 
 	if err := cfg.LoadProcessYamlConfig(yamlPath); err != nil {
+		return nil, err
+	}
+
+	if err := cfg.Orchestrator.LoadYamlConfig(yamlPath); err != nil {
 		return nil, err
 	}
 
@@ -371,7 +366,7 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	}
 
 	// activate the pod collection if enabled and we have the cluster name set
-	if cfg.OrchestrationCollectionEnabled && cfg.KubeClusterName != "" {
+	if cfg.Orchestrator.OrchestrationCollectionEnabled && cfg.Orchestrator.KubeClusterName != "" {
 		cfg.EnabledChecks = append(cfg.EnabledChecks, "pod")
 	}
 

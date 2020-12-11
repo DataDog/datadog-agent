@@ -33,7 +33,7 @@ if linux?
   dependency 'unixodbc'
   dependency 'freetds'  # needed for SQL Server integration
   dependency 'nfsiostat'
-  # need kerberos for hdfs
+  # add libkrb5 for all integrations supporting kerberos auth with `requests-kerberos`
   dependency 'libkrb5'
 
   unless suse? || arm?

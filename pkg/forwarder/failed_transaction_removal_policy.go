@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/hashicorp/go-multierror"
 )
 
 type failedTransactionRemovalPolicy struct {
@@ -42,8 +43,8 @@ func newFailedTransactionRemovalPolicy(
 	}, nil
 }
 
-// RegisterDomain registers a domain name.
-func (p *failedTransactionRemovalPolicy) RegisterDomain(domainName string) (string, error) {
+// registerDomain registers a domain name.
+func (p *failedTransactionRemovalPolicy) registerDomain(domainName string) (string, error) {
 	folder, err := p.getFolderPathForDomain(domainName)
 	if err != nil {
 		return "", err
@@ -54,11 +55,11 @@ func (p *failedTransactionRemovalPolicy) RegisterDomain(domainName string) (stri
 	return folder, nil
 }
 
-// RemoveOutdatedFiles removes the outdated files.
+// removeOutdatedFiles removes the outdated files.
 // It removes files with extension retryTransactionsExtension:
 // - For domains not registered
 // - When a file is older than outDatedFileDayCount days
-func (p *failedTransactionRemovalPolicy) RemoveOutdatedFiles() ([]string, error) {
+func (p *failedTransactionRemovalPolicy) removeOutdatedFiles() ([]string, error) {
 	entries, err := ioutil.ReadDir(p.rootPath)
 	if err != nil {
 		return nil, err
@@ -70,7 +71,7 @@ func (p *failedTransactionRemovalPolicy) RemoveOutdatedFiles() ([]string, error)
 			folderPath := path.Join(p.rootPath, domain.Name())
 			var files []string
 			if _, found := p.knownDomainFolders[folderPath]; found {
-				files, err = p.removeOutdatedFiles(folderPath)
+				files, err = p.removeOutdatedRetryFiles(folderPath)
 				p.telemetry.addOutdatedFilesCount(len(files))
 			} else {
 				files, err = p.removeUnknownDomain(folderPath)
@@ -104,7 +105,7 @@ func (p *failedTransactionRemovalPolicy) removeUnknownDomain(folderPath string) 
 	return files, err
 }
 
-func (p *failedTransactionRemovalPolicy) removeOutdatedFiles(folderPath string) ([]string, error) {
+func (p *failedTransactionRemovalPolicy) removeOutdatedRetryFiles(folderPath string) ([]string, error) {
 	return p.removeRetryFiles(folderPath, func(filename string) bool {
 		modTime, err := util.GetFileModTime(filename)
 		if err != nil {
@@ -114,22 +115,24 @@ func (p *failedTransactionRemovalPolicy) removeOutdatedFiles(folderPath string) 
 	})
 }
 
-func (p *failedTransactionRemovalPolicy) removeRetryFiles(folderPath string, predicate func(string) bool) ([]string, error) {
+func (p *failedTransactionRemovalPolicy) removeRetryFiles(folderPath string, shouldRemove func(string) bool) ([]string, error) {
 	files, err := p.getRetryFiles(folderPath)
 	if err != nil {
 		return nil, err
 	}
 
 	var filesRemoved []string
+	var errs error
 	for _, f := range files {
-		if predicate(f) {
+		if shouldRemove(f) {
 			if err = os.Remove(f); err != nil {
-				return nil, err
+				errs = multierror.Append(errs, err)
+			} else {
+				filesRemoved = append(filesRemoved, f)
 			}
-			filesRemoved = append(filesRemoved, f)
 		}
 	}
-	return filesRemoved, nil
+	return filesRemoved, errs
 }
 
 func (p *failedTransactionRemovalPolicy) getRetryFiles(folder string) ([]string, error) {

@@ -15,6 +15,12 @@ echo "DATADOG_CLUSTER_AGENT_IMAGE=${DATADOG_CLUSTER_AGENT_IMAGE}"
 
 cd "$(dirname "$0")"
 
+if [[ -n ${DOCKER_REGISTRY_URL+x} ]] && [[ -n ${DOCKER_REGISTRY_LOGIN+x} ]] && [[ -n ${DOCKER_REGISTRY_PWD+x} ]]; then
+    oldstate=$(shopt -po xtrace ||:); set +x  # Do not log credentials
+    /opt/bin/kubectl create secret docker-registry docker-registry --docker-server="$DOCKER_REGISTRY_URL" --docker-username="$DOCKER_REGISTRY_LOGIN" --docker-password="$DOCKER_REGISTRY_PWD"
+    eval "$oldstate"
+fi
+
 # TODO run all workflows ?
 
 ./argo template create ../../argo-workflows/templates/*.yaml

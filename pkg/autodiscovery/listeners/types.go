@@ -31,7 +31,7 @@ type Service interface {
 	GetADIdentifiers() ([]string, error)       // identifiers on which templates will be matched
 	GetHosts() (map[string]string, error)      // network --> IP address
 	GetPorts() ([]ContainerPort, error)        // network ports
-	GetTags() ([]string, error)                // tags
+	GetTags() ([]string, string, error)        // tags and tags hash
 	GetPid() (int, error)                      // process identifier
 	GetHostname() (string, error)              // hostname.domainname for the entity
 	GetCreationTime() integration.CreationTime // created before or after the agent start

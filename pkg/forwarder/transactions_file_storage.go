@@ -19,6 +19,7 @@ import (
 )
 
 const retryTransactionsExtension = ".retry"
+const retryFileFormat = "2006_01_02__15_04_05_"
 
 type transactionsFileStorage struct {
 	serializer         *TransactionsSerializer
@@ -71,7 +72,7 @@ func (s *transactionsFileStorage) Serialize(transactions []Transaction) error {
 		return err
 	}
 
-	filename := time.Now().UTC().Format("2006_01_02__15_04_05_")
+	filename := time.Now().UTC().Format(retryFileFormat)
 	file, err := ioutil.TempFile(s.storagePath, filename+"*"+retryTransactionsExtension)
 	if err != nil {
 		return err
@@ -86,8 +87,8 @@ func (s *transactionsFileStorage) Serialize(transactions []Transaction) error {
 	s.currentSizeInBytes += bufferSize
 	s.filenames = append(s.filenames, file.Name())
 	s.telemetry.setFileSize(bufferSize)
-	s.telemetry.setCurrentSizeInBytes(s.GetCurrentSizeInBytes())
-	s.telemetry.setFilesCount(s.GetFilesCount())
+	s.telemetry.setCurrentSizeInBytes(s.getCurrentSizeInBytes())
+	s.telemetry.setFilesCount(s.getFilesCount())
 	return nil
 }
 
@@ -113,22 +114,26 @@ func (s *transactionsFileStorage) Deserialize() ([]Transaction, error) {
 		return nil, err
 	}
 
-	s.telemetry.setCurrentSizeInBytes(s.GetCurrentSizeInBytes())
-	s.telemetry.setFilesCount(s.GetFilesCount())
+	s.telemetry.setCurrentSizeInBytes(s.getCurrentSizeInBytes())
+	s.telemetry.setFilesCount(s.getFilesCount())
 	return transactions, err
 }
 
 // GetFileCount returns the current files count.
-func (s *transactionsFileStorage) GetFilesCount() int {
+func (s *transactionsFileStorage) getFilesCount() int {
 	return len(s.filenames)
 }
 
-// GetCurrentSizeInBytes returns the current disk space used.
-func (s *transactionsFileStorage) GetCurrentSizeInBytes() int64 {
+// getCurrentSizeInBytes returns the current disk space used.
+func (s *transactionsFileStorage) getCurrentSizeInBytes() int64 {
 	return s.currentSizeInBytes
 }
 
 func (s *transactionsFileStorage) makeRoomFor(bufferSize int64) error {
+	if bufferSize > s.maxSizeInBytes {
+		return fmt.Errorf("The payload is too big. Current:%v Maximum:%v", bufferSize, s.maxSizeInBytes)
+	}
+
 	for len(s.filenames) > 0 && s.currentSizeInBytes+bufferSize > s.maxSizeInBytes {
 		index := 0
 		filename := s.filenames[index]
@@ -137,10 +142,6 @@ func (s *transactionsFileStorage) makeRoomFor(bufferSize int64) error {
 			return err
 		}
 		s.telemetry.addFilesRemovedCount()
-	}
-
-	if s.currentSizeInBytes+bufferSize > s.maxSizeInBytes {
-		return fmt.Errorf("The payload is too big. Current:%v Maximum:%v", bufferSize, s.maxSizeInBytes)
 	}
 
 	return nil
