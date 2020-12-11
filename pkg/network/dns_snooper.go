@@ -60,14 +60,12 @@ func NewSocketFilterSnooper(cfg *config.Config, filter *manager.Probe) (*SocketF
 	)
 
 	// Create the RAW_SOCKET inside the root network namespace
-	nsErr := util.WithRootNS(cfg.ProcRoot, func() {
+	err := util.WithRootNS(cfg.ProcRoot, func() error {
 		packetSrc, srcErr = newPacketSource(filter)
+		return srcErr
 	})
-	if nsErr != nil {
-		return nil, nsErr
-	}
-	if srcErr != nil {
-		return nil, srcErr
+	if err != nil {
+		return nil, err
 	}
 
 	cache := newReverseDNSCache(dnsCacheSize, dnsCacheTTL, dnsCacheExpirationPeriod)

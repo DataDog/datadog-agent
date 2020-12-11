@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -49,6 +50,8 @@ type Tracer struct {
 	conntracker netlink.Conntracker
 
 	reverseDNS network.ReverseDNS
+
+	httpMonitor *http.Monitor
 
 	perfMap      *manager.PerfMap
 	perfHandler  *ddebpf.PerfHandler
@@ -137,6 +140,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 			string(probes.TcpStatsMap):        {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.PortBindingsMap):    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.UdpPortBindingsMap): {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.HttpInFlightMap):    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 		},
 	}
 	mgrOptions.ConstantEditors, err = runOffsetGuessing(config, offsetBuf)
@@ -148,8 +152,9 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	if config.ClosedChannelSize > 0 {
 		closedChannelSize = config.ClosedChannelSize
 	}
-	perfHandler := ddebpf.NewPerfHandler(closedChannelSize)
-	m := netebpf.NewManager(perfHandler)
+	perfHandlerTCP := ddebpf.NewPerfHandler(closedChannelSize)
+	perfHandlerHTTP := ddebpf.NewPerfHandler(closedChannelSize)
+	m := netebpf.NewManager(perfHandlerTCP, perfHandlerHTTP)
 
 	// Use the config to determine what kernel probes should be enabled
 	enabledProbes, err := config.EnabledProbes(pre410Kernel)
@@ -166,6 +171,10 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 				Value: uint64(1),
 			})
 		}
+	}
+
+	if config.EnableHTTPMonitoring && !pre410Kernel {
+		enabledProbes[probes.SocketHTTPFilter] = struct{}{}
 	}
 
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
@@ -226,19 +235,24 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		portMapping:    portMapping,
 		udpPortMapping: udpPortMapping,
 		reverseDNS:     reverseDNS,
+		httpMonitor:    newHTTPMonitor(!pre410Kernel, config, m, perfHandlerHTTP),
 		buffer:         make([]network.ConnectionStats, 0, 512),
 		conntracker:    conntracker,
 		sourceExcludes: network.ParseConnectionFilters(config.ExcludedSourceConnections),
 		destExcludes:   network.ParseConnectionFilters(config.ExcludedDestinationConnections),
-		perfHandler:    perfHandler,
+		perfHandler:    perfHandlerTCP,
 		flushIdle:      make(chan chan struct{}),
 		stop:           make(chan struct{}),
 		conntrack:      newCachedConntrack(config.ProcRoot, netlink.NewConntrack, 128),
 	}
 
-	tr.perfMap, tr.batchManager, err = tr.initPerfPolling(perfHandler)
+	tr.perfMap, tr.batchManager, err = tr.initPerfPolling(perfHandlerTCP)
 	if err != nil {
 		return nil, fmt.Errorf("could not start polling bpf events: %s", err)
+	}
+
+	if err := tr.httpMonitor.Start(); err != nil {
+		log.Errorf("failed to initialize http monitor: %s", err)
 	}
 
 	if err = m.Start(); err != nil {
@@ -443,6 +457,7 @@ func (t *Tracer) Stop() {
 	_ = t.m.Stop(manager.CleanAll)
 	_ = t.perfMap.Stop(manager.CleanAll)
 	t.perfHandler.Stop()
+	t.httpMonitor.Stop()
 	close(t.flushIdle)
 	t.conntracker.Close()
 	t.conntrack.Close()
@@ -849,4 +864,24 @@ func (t *Tracer) conntrackExists(conn *ConnTuple) bool {
 	}
 
 	return ok
+}
+
+func newHTTPMonitor(supported bool, c *config.Config, m *manager.Manager, h *ddebpf.PerfHandler) *http.Monitor {
+	if !c.EnableHTTPMonitoring {
+		return nil
+	}
+
+	if !supported {
+		log.Warnf("http monitoring is not supported by this kernel version. please refer to system-probe's documentation")
+		return nil
+	}
+
+	monitor, err := http.NewMonitor(c.ProcRoot, m, h)
+	if err != nil {
+		log.Errorf("could not enable http monitoring: %s", err)
+		return nil
+	}
+
+	log.Info("http monitoring enabled")
+	return monitor
 }

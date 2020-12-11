@@ -59,6 +59,7 @@ func TracerConfigFromConfig(cfg *config.AgentConfig) *Config {
 	tracerConfig.ConntrackMaxStateSize = cfg.ConntrackMaxStateSize
 	tracerConfig.EnableConntrackAllNamespaces = cfg.EnableConntrackAllNamespaces
 	tracerConfig.DebugPort = cfg.SystemProbeDebugPort
+	tracerConfig.EnableHTTPMonitoring = cfg.EnableHTTPMonitoring
 
 	if mccb := cfg.MaxClosedConnectionsBuffered; mccb > 0 {
 		tracerConfig.MaxClosedConnectionsBuffered = mccb
