@@ -132,7 +132,7 @@ func (l *ECSListener) refreshServices(firstRun bool) {
 	for _, c := range meta.Containers {
 		// Skip containers for which ECS failed to retrieve metadata
 		if c.DockerID == "" {
-			log.Info("Skipping a container for which ECS is reporting an empty ID: name %q, docker name: %q, image %q, image id: %q", c.Name, c.DockerName, c.Image, c.ImageID)
+			log.Debugf("Skipping a container for which ECS is reporting an empty ID: name %q, docker name: %q, image %q, image id: %q", c.Name, c.DockerName, c.Image, c.ImageID)
 			continue
 		}
 		if _, found := l.services[c.DockerID]; found {
