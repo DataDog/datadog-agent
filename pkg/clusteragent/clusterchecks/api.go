@@ -65,7 +65,7 @@ func (h *Handler) GetConfigs(nodeName string) (types.ConfigResponse, error) {
 func (h *Handler) PostConfigs(nodeName string, configs types.ConfigsToSchedule) (types.ConfigsToScheduleResponse, error) {
 	ok, err := h.dispatcher.processNodeConfigs(nodeName, configs)
 	response := types.ConfigsToScheduleResponse{
-		Ok:    ok,
+		Ok: ok,
 	}
 	return response, err
 }

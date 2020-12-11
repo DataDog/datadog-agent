@@ -51,9 +51,9 @@ type DCAClientInterface interface {
 	GetPodsMetadataForNode(nodeName string) (apiv1.NamespacesPodsStringsSet, error)
 	GetKubernetesMetadataNames(nodeName, ns, podName string) ([]string, error)
 	GetCFAppsMetadataForNode(nodename string) (map[string][]string, error)
-
 	PostClusterCheckStatus(nodeName string, status types.NodeStatus) (types.StatusResponse, error)
 	GetClusterCheckConfigs(nodeName string) (types.ConfigResponse, error)
+	PostClusterCheckConfigs(nodeName string, configs types.ConfigsToSchedule) (types.ConfigsToScheduleResponse, error)
 	GetEndpointsCheckConfigs(nodeName string) (types.ConfigResponse, error)
 }
 

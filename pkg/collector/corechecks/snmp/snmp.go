@@ -8,8 +8,11 @@ package snmp
 import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/yaml.v2"
 
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -19,8 +22,8 @@ const (
 	snmpCheckName = "snmp"
 )
 
-// SnmpCheck aggregates metrics from one SnmpCheck instance
-type SnmpCheck struct {
+// Check aggregates metrics from one SnmpCheck instance
+type Check struct {
 	core.CheckBase
 	dcaClient clusteragent.DCAClientInterface
 	config    snmpConfig
@@ -37,13 +40,24 @@ type snmpConfig struct {
 }
 
 // Run executes the check
-func (c *SnmpCheck) Run() error {
+func (c *Check) Run() error {
 	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
 		return err
 	}
 
-	c.dcaClient.GetClusterCheckConfigs()
+	nodeName, err := util.GetHostname()
+	if err != nil {
+		return err
+	}
+
+	schedule := types.ConfigsToSchedule{}
+	configs, err := c.dcaClient.PostClusterCheckConfigs(nodeName, schedule)
+	if err != nil {
+		return err
+	}
+
+	log.Warnf("config: %#v\n", configs)
 
 	sender.Commit()
 
@@ -51,7 +65,7 @@ func (c *SnmpCheck) Run() error {
 }
 
 // Configure configures the snmp checks
-func (c *SnmpCheck) Configure(rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
+func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
 	err := c.CommonConfigure(rawInstance, source)
 	if err != nil {
 		return err
@@ -75,7 +89,7 @@ func (c *SnmpCheck) Configure(rawInstance integration.Data, rawInitConfig integr
 }
 
 func snmpFactory() check.Check {
-	return &SnmpCheck{
+	return &Check{
 		CheckBase: core.NewCheckBase(snmpCheckName),
 	}
 }

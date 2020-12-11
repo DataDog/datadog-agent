@@ -40,6 +40,8 @@ func (d *dispatcher) processNodeConfigs(nodeName string, configs types.ConfigsTo
 	d.store.RLock()
 	defer d.store.RUnlock()
 
+	log.Warn("processNodeConfigs process configs") // TODO: Remove me
+
 	// Add configs to
 	//node, found := d.store.getNodeStore(nodeName)
 	//if !found {
