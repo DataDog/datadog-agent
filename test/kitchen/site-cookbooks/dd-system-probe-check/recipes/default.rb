@@ -4,7 +4,9 @@
 #
 # Copyright (C) 2020 Datadog
 #
-include_recipe 'yum-centos::vault'
+if platform?('centos')
+  include_recipe 'yum-centos::vault'
+end
 
 kernel_version = `uname -r`.strip
 package 'kernel headers' do
