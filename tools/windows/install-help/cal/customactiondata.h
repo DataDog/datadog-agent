@@ -20,7 +20,7 @@ class CustomActionData
 
         bool isUserLocalUser() const;
 
-        bool DoesUserExists() const;
+        bool DoesUserExist() const;
 
         const std::wstring& UnqualifiedUsername() const;
 

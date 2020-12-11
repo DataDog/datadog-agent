@@ -77,7 +77,7 @@ bool CustomActionData::isUserLocalUser() const
     return !domainUser;
 }
 
-bool CustomActionData::DoesUserExists() const
+bool CustomActionData::DoesUserExist() const
 {
     return _ddUserExists;
 }

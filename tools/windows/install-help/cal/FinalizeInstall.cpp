@@ -6,7 +6,7 @@ UINT doFinalizeInstall(CustomActionData &data)
     HRESULT hr = S_OK;
     UINT er = ERROR_SUCCESS;
 
-    bool ddUserExists;
+    bool ddUserExists = false;
     int ddServiceExists = 0;
     int passbuflen = 0;
     wchar_t *passbuf = NULL;
@@ -33,7 +33,7 @@ UINT doFinalizeInstall(CustomActionData &data)
 
     // now we have all the information we need to decide if this is a
     // new installation or an upgrade, and what steps need to be taken
-    ddUserExists = data.DoesUserExists();
+    ddUserExists = data.DoesUserExist();
 
     if (!canInstall(data.GetTargetMachine().IsDomainController(), ddUserExists, ddServiceExists, data, bResetPassword)) {
         er = ERROR_INSTALL_FAILURE;
@@ -96,8 +96,6 @@ UINT doFinalizeInstall(CustomActionData &data)
         }
     }
 
-    auto sid = data.Sid();
-
     // add all the rights we want to the user (either existing or newly created)
     // set the account privileges regardless; if they're already set the OS will silently
     // ignore the request.    
@@ -106,32 +104,32 @@ UINT doFinalizeInstall(CustomActionData &data)
         WcaLog(LOGMSG_STANDARD, "Failed to get policy handle for %S", data.Username().c_str());
         goto LExit;
     }
-    if (!AddPrivileges(sid, hLsa, SE_DENY_INTERACTIVE_LOGON_NAME)) {
+    if (!AddPrivileges(data.Sid(), hLsa, SE_DENY_INTERACTIVE_LOGON_NAME)) {
         WcaLog(LOGMSG_STANDARD, "failed to add deny interactive login right");
         goto LExit;
     }
 
-    if (!AddPrivileges(sid, hLsa, SE_DENY_NETWORK_LOGON_NAME)) {
+    if (!AddPrivileges(data.Sid(), hLsa, SE_DENY_NETWORK_LOGON_NAME)) {
         WcaLog(LOGMSG_STANDARD, "failed to add deny network login right");
         goto LExit;
     }
-    if (!AddPrivileges(sid, hLsa, SE_DENY_REMOTE_INTERACTIVE_LOGON_NAME)) {
+    if (!AddPrivileges(data.Sid(), hLsa, SE_DENY_REMOTE_INTERACTIVE_LOGON_NAME)) {
         WcaLog(LOGMSG_STANDARD, "failed to add deny remote interactive login right");
         goto LExit;
     }
-    if (!AddPrivileges(sid, hLsa, SE_SERVICE_LOGON_NAME)) {
+    if (!AddPrivileges(data.Sid(), hLsa, SE_SERVICE_LOGON_NAME)) {
         WcaLog(LOGMSG_STANDARD, "failed to add service login right");
         goto LExit;
     }
     hr = 0;
 
     if (!data.GetTargetMachine().IsReadOnlyDomainController()) {
-        er = AddUserToGroup(sid, L"S-1-5-32-558", L"Performance Monitor Users");
+        er = AddUserToGroup(data.Sid(), L"S-1-5-32-558", L"Performance Monitor Users");
         if (er != NERR_Success) {
             WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", er);
             goto LExit;
         }
-        er = AddUserToGroup(sid, L"S-1-5-32-573", L"Event Log Readers");
+        er = AddUserToGroup(data.Sid(), L"S-1-5-32-573", L"Event Log Readers");
         if (er != NERR_Success) {
             WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", er);
             goto LExit;
@@ -150,7 +148,7 @@ UINT doFinalizeInstall(CustomActionData &data)
             }
             passToUse = providedPassword.c_str();
         }
-        int ret = installServices(data, sid, passToUse);
+        int ret = installServices(data, data.Sid(), passToUse);
 
         if (ret != 0) {
             WcaLog(LOGMSG_STANDARD, "Failed to create install services");
@@ -169,24 +167,24 @@ UINT doFinalizeInstall(CustomActionData &data)
             goto LExit;
         }
     }
-    er = addDdUserPermsToFile(sid, programdataroot);
+    er = addDdUserPermsToFile(data.Sid(), programdataroot);
     WcaLog(LOGMSG_STANDARD, "%d setting programdata dir perms", er);
-    er = addDdUserPermsToFile(sid, embedded2Dir);
+    er = addDdUserPermsToFile(data.Sid(), embedded2Dir);
     WcaLog(LOGMSG_STANDARD, "%d setting embedded2Dir dir perms", er);
-    er = addDdUserPermsToFile(sid, embedded3Dir);
+    er = addDdUserPermsToFile(data.Sid(), embedded3Dir);
     WcaLog(LOGMSG_STANDARD, "%d setting embedded3Dir dir perms", er);
-    er = addDdUserPermsToFile(sid, logfilename);
+    er = addDdUserPermsToFile(data.Sid(), logfilename);
     WcaLog(LOGMSG_STANDARD, "%d setting log file perms", er);
-    er = addDdUserPermsToFile(sid, authtokenfilename);
+    er = addDdUserPermsToFile(data.Sid(), authtokenfilename);
     WcaLog(LOGMSG_STANDARD, "%d setting token file perms", er);
-    er = addDdUserPermsToFile(sid, datadogyamlfile);
+    er = addDdUserPermsToFile(data.Sid(), datadogyamlfile);
     WcaLog(LOGMSG_STANDARD, "%d setting datadog.yaml file perms", er);
-    er = addDdUserPermsToFile(sid, confddir);
+    er = addDdUserPermsToFile(data.Sid(), confddir);
     WcaLog(LOGMSG_STANDARD, "%d setting confd dir perms", er);
-    er = addDdUserPermsToFile(sid, logdir);
+    er = addDdUserPermsToFile(data.Sid(), logdir);
     WcaLog(LOGMSG_STANDARD, "%d setting log dir perms", er);
 
-    if (0 == changeRegistryAcls(sid, datadog_acl_key_datadog.c_str())) {
+    if (0 == changeRegistryAcls(data.Sid(), datadog_acl_key_datadog.c_str())) {
         WcaLog(LOGMSG_STANDARD, "registry perms updated");
     }
     else {
