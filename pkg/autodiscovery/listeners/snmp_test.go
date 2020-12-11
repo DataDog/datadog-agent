@@ -6,11 +6,10 @@
 package listeners
 
 import (
+	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"strconv"
 	"testing"
-	"unsafe"
-
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
@@ -101,12 +100,12 @@ func TestSNMPListenerSubnets(t *testing.T) {
 
 	l.Listen(newSvc, delSvc)
 
-	subnets := make(map[uintptr]bool)
+	subnets := make(map[string]bool)
 	entities := make(map[string]bool)
 
 	for i := 0; i < 400; i++ {
 		job := <-testChan
-		subnets[uintptr(unsafe.Pointer(job.subnet))] = true
+		subnets[fmt.Sprintf("%p", job.subnet)] = true
 		entities[job.subnet.config.Digest(job.currentIP.String())] = true
 	}
 
