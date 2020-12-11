@@ -14,9 +14,8 @@ func TestTransactionsFileStorage(t *testing.T) {
 	path, clean := createTmpFolder(a)
 	defer clean()
 
-	s, err := newTransactionsFileStorage(NewTransactionsSerializer(), path, 1000)
-	a.NoError(err)
-	err = s.Serialize(createHTTPTransactionCollectionTests("domain1", "domain2"))
+	s := newTestTransactionsFileStorage(a, path, 1000)
+	err := s.Serialize(createHTTPTransactionCollectionTests("domain1", "domain2"))
 	a.NoError(err)
 	err = s.Serialize(createHTTPTransactionCollectionTests("domain3", "domain4"))
 	a.NoError(err)
@@ -40,11 +39,10 @@ func TestTransactionsFileStorageMaxSize(t *testing.T) {
 	defer clean()
 
 	maxSizeInBytes := int64(100)
-	s, err := newTransactionsFileStorage(NewTransactionsSerializer(), path, maxSizeInBytes)
-	a.NoError(err)
+	s := newTestTransactionsFileStorage(a, path, maxSizeInBytes)
 
 	i := 0
-	err = s.Serialize(createHTTPTransactionCollectionTests(strconv.Itoa(i)))
+	err := s.Serialize(createHTTPTransactionCollectionTests(strconv.Itoa(i)))
 	a.NoError(err)
 	maxNumberOfFiles := int(maxSizeInBytes / s.getCurrentSizeInBytes())
 	a.Greaterf(maxNumberOfFiles, 2, "Not enough files for this test, increase maxSizeInBytes")
@@ -71,13 +69,11 @@ func TestTransactionsFileStorageReloadExistingRetryFiles(t *testing.T) {
 	path, clean := createTmpFolder(a)
 	defer clean()
 
-	storage, err := newTransactionsFileStorage(NewTransactionsSerializer(), path, 1000)
-	a.NoError(err)
-	err = storage.Serialize(createHTTPTransactionCollectionTests("domain1", "domain2"))
+	storage := newTestTransactionsFileStorage(a, path, 1000)
+	err := storage.Serialize(createHTTPTransactionCollectionTests("domain1", "domain2"))
 	a.NoError(err)
 
-	newStorage, err := newTransactionsFileStorage(NewTransactionsSerializer(), path, 1000)
-	a.NoError(err)
+	newStorage := newTestTransactionsFileStorage(a, path, 1000)
 	a.Equal(storage.getCurrentSizeInBytes(), newStorage.getCurrentSizeInBytes())
 	a.Equal(storage.getFilesCount(), newStorage.getFilesCount())
 	transactions, err := newStorage.Deserialize()
@@ -109,4 +105,11 @@ func getDomainsFromTransactions(transactions []Transaction) []string {
 		domain = append(domain, httpTransaction.Domain)
 	}
 	return domain
+}
+
+func newTestTransactionsFileStorage(a *assert.Assertions, path string, maxSizeInBytes int64) *transactionsFileStorage {
+	telemetry := transactionsFileStorageTelemetry{}
+	storage, err := newTransactionsFileStorage(NewTransactionsSerializer(), path, maxSizeInBytes, telemetry)
+	a.NoError(err)
+	return storage
 }

@@ -237,7 +237,8 @@ func TestDomainForwarderRetryQueueAllPayloadsMaxSize(t *testing.T) {
 	defer func() { flushInterval = oldFlushInterval }()
 	flushInterval = 1 * time.Minute
 
-	transactionContainer := newTransactionContainer(sortByCreatedTimeAndPriority{highPriorityFirst: true}, nil, 1+2, 0)
+	telemetry := transactionContainerTelemetry{}
+	transactionContainer := newTransactionContainer(sortByCreatedTimeAndPriority{highPriorityFirst: true}, nil, 1+2, 0, telemetry)
 	forwarder := newDomainForwarder("test", transactionContainer, 0, 10, 0, sortByCreatedTimeAndPriority{highPriorityFirst: true})
 	forwarder.blockedList.close("blocked")
 	forwarder.blockedList.errorPerEndpoint["blocked"].until = time.Now().Add(1 * time.Minute)

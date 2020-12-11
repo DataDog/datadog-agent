@@ -15,7 +15,7 @@ func TestFailedTransactionRemovalPolicyUnknownDomain(t *testing.T) {
 	a := assert.New(t)
 	root, clean := createTmpFolder(a)
 	defer clean()
-	p, err := newFailedTransactionRemovalPolicy(root, 1)
+	p, err := newFailedTransactionRemovalPolicy(root, 1, failedTransactionRemovalPolicyTelemetry{})
 	a.NoError(err)
 
 	domain1, err := p.registerDomain("domain1")
@@ -39,7 +39,7 @@ func TestFailedTransactionRemovalPolicyOutdatedFiles(t *testing.T) {
 	root, clean := createTmpFolder(a)
 	defer clean()
 	outDatedFileDayCount := 2
-	p, err := newFailedTransactionRemovalPolicy(root, outDatedFileDayCount)
+	p, err := newFailedTransactionRemovalPolicy(root, outDatedFileDayCount, failedTransactionRemovalPolicyTelemetry{})
 	a.NoError(err)
 
 	domain, err := p.registerDomain("domain")
@@ -65,11 +65,12 @@ func TestFailedTransactionRemovalPolicyExistingDomain(t *testing.T) {
 	a := assert.New(t)
 	root, clean := createTmpFolder(a)
 	defer clean()
-	_, err := newFailedTransactionRemovalPolicy(root, 1)
+	telemetry := failedTransactionRemovalPolicyTelemetry{}
+	_, err := newFailedTransactionRemovalPolicy(root, 1, telemetry)
 	a.NoError(err)
 
 	// No error if the folder already exits.
-	_, err = newFailedTransactionRemovalPolicy(root, 1)
+	_, err = newFailedTransactionRemovalPolicy(root, 1, telemetry)
 	a.NoError(err)
 }
 

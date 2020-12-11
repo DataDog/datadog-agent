@@ -264,7 +264,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 		outdatedFileInDays := config.Datadog.GetInt("forwarder_outdated_file_in_days")
 		var err error
 
-		optionalRemovalPolicy, err = newFailedTransactionRemovalPolicy(storagePath, outdatedFileInDays)
+		optionalRemovalPolicy, err = newFailedTransactionRemovalPolicy(storagePath, outdatedFileInDays, failedTransactionRemovalPolicyTelemetry{})
 		if err != nil {
 			log.Errorf("Error when initializing the removal policy: %v", err)
 		}

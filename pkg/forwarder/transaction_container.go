@@ -30,6 +30,7 @@ type transactionContainer struct {
 	flushToStorageRatio        float64
 	dropPrioritySorter         transactionPrioritySorter
 	optionalTransactionStorage transactionStorage
+	telemetry                  transactionContainerTelemetry
 	mutex                      sync.RWMutex
 }
 
@@ -47,25 +48,27 @@ func tryNewTransactionContainer(
 
 	if optionalDomainFolderPath != "" && storageMaxSize > 0 {
 		serializer := NewTransactionsSerializer()
-		storage, err = newTransactionsFileStorage(serializer, optionalDomainFolderPath, storageMaxSize)
+		storage, err = newTransactionsFileStorage(serializer, optionalDomainFolderPath, storageMaxSize, transactionsFileStorageTelemetry{})
 		if err != nil {
 			return nil, fmt.Errorf("Error when creating the file storage: %v", err)
 		}
 	}
 
-	return newTransactionContainer(dropPrioritySorter, storage, maxMemSizeInBytes, flushToStorageRatio), nil
+	return newTransactionContainer(dropPrioritySorter, storage, maxMemSizeInBytes, flushToStorageRatio, transactionContainerTelemetry{}), nil
 }
 
 func newTransactionContainer(
 	dropPrioritySorter transactionPrioritySorter,
 	optionalTransactionStorage transactionStorage,
 	maxMemSizeInBytes int,
-	flushToStorageRatio float64) *transactionContainer {
+	flushToStorageRatio float64,
+	telemetry transactionContainerTelemetry) *transactionContainer {
 	return &transactionContainer{
 		maxMemSizeInBytes:          maxMemSizeInBytes,
 		flushToStorageRatio:        flushToStorageRatio,
 		dropPrioritySorter:         dropPrioritySorter,
 		optionalTransactionStorage: optionalTransactionStorage,
+		telemetry:                  telemetry,
 	}
 }
 
@@ -94,6 +97,7 @@ func (tc *transactionContainer) add(t Transaction) (int, error) {
 		}
 		if diskErr != nil {
 			diskErr = fmt.Errorf("Cannot store transactions on disk: %v", diskErr)
+			tc.telemetry.incErrorsCount()
 		}
 	}
 
@@ -103,10 +107,14 @@ func (tc *transactionContainer) add(t Transaction) (int, error) {
 	if payloadSizeInBytesToDrop > 0 {
 		transactions := tc.extractTransactionsFromMemory(payloadSizeInBytesToDrop)
 		inMemTransactionDroppedCount = len(transactions)
+		tc.telemetry.addTransactionsDroppedCount(inMemTransactionDroppedCount)
 	}
 
 	tc.transactions = append(tc.transactions, t)
 	tc.currentMemSizeInBytes += payloadSize
+	tc.telemetry.setCurrentMemSizeInBytes(tc.currentMemSizeInBytes)
+	tc.telemetry.setTransactionsCount(len(tc.transactions))
+
 	return inMemTransactionDroppedCount, diskErr
 }
 
@@ -126,10 +134,13 @@ func (tc *transactionContainer) extractTransactions() ([]Transaction, error) {
 	} else if tc.optionalTransactionStorage != nil {
 		transactions, err = tc.optionalTransactionStorage.Deserialize()
 		if err != nil {
+			tc.telemetry.incErrorsCount()
 			return nil, err
 		}
 	}
 	tc.currentMemSizeInBytes = 0
+	tc.telemetry.setCurrentMemSizeInBytes(tc.currentMemSizeInBytes)
+	tc.telemetry.setTransactionsCount(len(tc.transactions))
 	return transactions, nil
 }
 
