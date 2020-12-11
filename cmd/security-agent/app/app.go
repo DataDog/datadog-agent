@@ -135,7 +135,7 @@ func newLogContextCompliance() (*config.Endpoints, *client.DestinationsContext, 
 		AdditionalEndpoints:     "compliance_config.endpoints.additional_endpoints",
 		BatchWait:               "compliance_config.endpoints.batch_wait",
 	}
-	return newLogContext(logsConfigComplianceKeys, "agent-http-intake.logs.")
+	return newLogContext(logsConfigComplianceKeys, "compliance-http-intake.logs.")
 }
 
 // This function will only be used on Linux. The only platforms where the runtime agent runs
@@ -149,7 +149,7 @@ func newLogContextRuntime() (*config.Endpoints, *client.DestinationsContext, err
 		AdditionalEndpoints:     "runtime_security_config.endpoints.additional_endpoints",
 		BatchWait:               "runtime_security_config.endpoints.batch_wait",
 	}
-	return newLogContext(logsConfigRuntimeKeys, "agent-http-intake.logs.")
+	return newLogContext(logsConfigRuntimeKeys, "runtime-security-http-intake.logs.")
 }
 
 func start(cmd *cobra.Command, args []string) error {
