@@ -118,6 +118,11 @@ type Input struct {
 	Trace     WeightedTrace
 	Sublayers SublayerMap
 	Env       string
+
+	// SublayersOnly reports whether stats computation and
+	// export should be disabled in buckets coming from this
+	// input.
+	SublayersOnly bool
 }
 
 // Add applies the given input to the concentrator.
@@ -151,7 +156,7 @@ func (c *Concentrator) addNow(i *Input) {
 		}
 
 		subs, _ := i.Sublayers[s.Span]
-		b.HandleSpan(s, i.Env, subs)
+		b.HandleSpan(s, i.Env, subs, i.SublayersOnly)
 	}
 }
 

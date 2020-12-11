@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
+// +build ignore
+
 // This script is a dummy emulating the behavior of a secret command used in the Datadog Agent configuration
 // as the value of the environment variable "DD_SECRET_BACKEND_COMMAND" which mirrors the YAML config setting
 // "secret_backend_command".
