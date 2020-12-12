@@ -2929,7 +2929,7 @@ docker_build_agent7_windows1809:
   variables:
     VARIANT: 1809
     TAG_SUFFIX: -7
-    WITH_JMX: false
+    WITH_JMX: "false"
 
 
 docker_build_agent7_windows1809_jmx:
@@ -2940,7 +2940,7 @@ docker_build_agent7_windows1809_jmx:
   variables:
     VARIANT: 1809
     TAG_SUFFIX: -7-jmx
-    WITH_JMX: true
+    WITH_JMX: "true"
 
 # build agent7_windows 1909 images
 docker_build_agent7_windows1909:
@@ -2951,7 +2951,7 @@ docker_build_agent7_windows1909:
   variables:
     VARIANT: 1909
     TAG_SUFFIX: -7
-    WITH_JMX: false
+    WITH_JMX: "false"
 
 docker_build_agent7_windows1909_jmx:
   extends: 
@@ -2961,7 +2961,7 @@ docker_build_agent7_windows1909_jmx:
   variables:
     VARIANT: 1909
     TAG_SUFFIX: -7-jmx
-    WITH_JMX: true
+    WITH_JMX: "true"
   
 # build agent7_windows 2004 images
 docker_build_agent7_windows2004:
@@ -2971,8 +2971,8 @@ docker_build_agent7_windows2004:
   tags: ["runner:windows-docker", "windowsversion:2004"]
   variables:
     VARIANT: 2004
-    TAG_SUFFIX: -7
-    WITH_JMX: false
+    TAG_SUFFIX: "-7"
+    WITH_JMX: "false"
 
 docker_build_agent7_windows2004_jmx:
   extends: 
@@ -2983,7 +2983,7 @@ docker_build_agent7_windows2004_jmx:
   variables:
     VARIANT: 2004
     TAG_SUFFIX: -7-jmx
-    WITH_JMX: true
+    WITH_JMX: "true"
 
 # build the cluster-agent image
 docker_build_cluster_agent_amd64:
