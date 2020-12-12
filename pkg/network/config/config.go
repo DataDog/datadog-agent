@@ -30,6 +30,10 @@ type Config struct {
 	// It is relevant *only* when DNSInspection is enabled.
 	CollectDNSStats bool
 
+	// CollectDNSDomains specifies whether collected DNS stats would be scoped by domain
+	// It is relevant *only* when DNSInspection and CollectDNSStats is enabled.
+	CollectDNSDomains bool
+
 	// DNSTimeout determines the length of time to wait before considering a DNS Query to have timed out
 	DNSTimeout time.Duration
 
@@ -128,6 +132,7 @@ func NewDefaultConfig() *Config {
 		ClosedChannelSize:            500,
 		// DNS Stats related configurations
 		CollectDNSStats:      true,
+		CollectDNSDomains:    false,
 		DNSTimeout:           15 * time.Second,
 		OffsetGuessThreshold: 400,
 		EnableMonotonicCount: false,

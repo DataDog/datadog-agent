@@ -579,3 +579,33 @@ func TestEnablingDNSStatsCollection(t *testing.T) {
 		assert.True(t, cfg.CollectDNSStats)
 	})
 }
+
+func TestEnablingDNSDomainCollection(t *testing.T) {
+	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	defer restoreGlobalConfig()
+
+	t.Run("via YAML", func(t *testing.T) {
+		cfg, err := NewAgentConfig(
+			"test",
+			"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableDNSDomains.yaml",
+			"",
+		)
+
+		assert.Nil(t, err)
+		assert.True(t, cfg.CollectDNSDomains)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		defer os.Unsetenv("DD_COLLECT_DNS_DOMAINS")
+
+		os.Setenv("DD_COLLECT_DNS_DOMAINS", "false")
+		cfg, err := NewAgentConfig("test", "", "")
+		assert.Nil(t, err)
+		assert.False(t, cfg.CollectDNSDomains) // default value should be false
+
+		os.Setenv("DD_COLLECT_DNS_DOMAINS", "true")
+		cfg, err = NewAgentConfig("test", "", "")
+		assert.Nil(t, err)
+		assert.True(t, cfg.CollectDNSDomains)
+	})
+}

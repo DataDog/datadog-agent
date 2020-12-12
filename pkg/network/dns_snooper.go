@@ -73,12 +73,15 @@ func NewSocketFilterSnooper(cfg *config.Config, filter *manager.Probe) (*SocketF
 	if cfg.CollectDNSStats {
 		statKeeper = newDNSStatkeeper(cfg.DNSTimeout)
 		log.Infof("DNS Stats Collection has been enabled.")
+		if cfg.CollectDNSDomains {
+			log.Infof("DNS domain collection has been enabled")
+		}
 	} else {
 		log.Infof("DNS Stats Collection has been disabled.")
 	}
 	snooper := &SocketFilterSnooper{
 		source:          packetSrc,
-		parser:          newDNSParser(cfg.CollectDNSStats),
+		parser:          newDNSParser(cfg.CollectDNSStats, cfg.CollectDNSDomains),
 		cache:           cache,
 		statKeeper:      statKeeper,
 		translation:     new(translation),
@@ -114,7 +117,7 @@ func (s *SocketFilterSnooper) Resolve(connections []ConnectionStats) map[util.Ad
 	return s.cache.Get(connections, time.Now())
 }
 
-func (s *SocketFilterSnooper) GetDNSStats() map[dnsKey]dnsStats {
+func (s *SocketFilterSnooper) GetDNSStats() map[dnsKey]map[string]dnsStats {
 	if s.statKeeper == nil {
 		return nil
 	}
@@ -130,6 +133,9 @@ func (s *SocketFilterSnooper) GetStats() map[string]int64 {
 	stats["decoding_errors"] = atomic.LoadInt64(&s.decodingErrors)
 	stats["truncated_packets"] = atomic.LoadInt64(&s.truncatedPkts)
 	stats["timestamp_micro_secs"] = time.Now().UnixNano() / 1000
+	stats["queries"] = atomic.LoadInt64(&s.queries)
+	stats["successes"] = atomic.LoadInt64(&s.successes)
+	stats["errors"] = atomic.LoadInt64(&s.errors)
 	return stats
 }
 

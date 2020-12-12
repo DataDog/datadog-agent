@@ -201,7 +201,6 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error enabling DNS traffic inspection: %s", err)
 	}
-
 	portMapping := network.NewPortMapping(config.ProcRoot, config.CollectTCPConns, config.CollectIPv6Conns)
 	udpPortMapping := network.NewPortMapping(config.ProcRoot, config.CollectTCPConns, config.CollectIPv6Conns)
 	if err := portMapping.ReadInitialState(); err != nil {
@@ -226,6 +225,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		config.MaxClosedConnectionsBuffered,
 		config.MaxConnectionsStateBuffered,
 		config.MaxDNSStatsBufferred,
+		config.CollectDNSDomains,
 	)
 
 	tr := &Tracer{

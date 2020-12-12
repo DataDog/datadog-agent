@@ -113,8 +113,9 @@ type AgentConfig struct {
 	Orchestrator *oconfig.OrchestratorConfig
 
 	// DNS stats configuration
-	CollectDNSStats bool
-	DNSTimeout      time.Duration
+	CollectDNSStats   bool
+	DNSTimeout        time.Duration
+	CollectDNSDomains bool
 
 	// Check config
 	EnabledChecks  []string
@@ -222,6 +223,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		OffsetGuessThreshold:         400,
 		EnableTracepoints:            false,
 		CollectDNSStats:              true,
+		CollectDNSDomains:            false,
 
 		// Orchestrator config
 		Orchestrator: oconfig.NewDefaultOrchestratorConfig(),
@@ -505,6 +507,7 @@ func loadSysProbeEnvVariables() {
 		{"DD_APM_PROFILING_DD_URL", "system_probe_config.profiling.profile_dd_url"},
 		{"DD_API_KEY", "system_probe_config.profiling.api_key"},
 		{"DD_ENV", "system_probe_config.profiling.env"},
+		{"DD_COLLECT_DNS_DOMAINS", "system_probe_config.collect_dns_domains"},
 	} {
 		if v, ok := os.LookupEnv(variable.env); ok {
 			config.Datadog.Set(variable.cfg, v)
