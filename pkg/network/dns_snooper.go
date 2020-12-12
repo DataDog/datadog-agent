@@ -133,6 +133,9 @@ func (s *SocketFilterSnooper) GetStats() map[string]int64 {
 	stats["decoding_errors"] = atomic.LoadInt64(&s.decodingErrors)
 	stats["truncated_packets"] = atomic.LoadInt64(&s.truncatedPkts)
 	stats["timestamp_micro_secs"] = time.Now().UnixNano() / 1000
+	stats["queries"] = atomic.LoadInt64(&s.queries)
+	stats["successes"] = atomic.LoadInt64(&s.successes)
+	stats["errors"] = atomic.LoadInt64(&s.errors)
 	return stats
 }
 
