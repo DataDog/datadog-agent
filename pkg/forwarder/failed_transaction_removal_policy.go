@@ -55,35 +55,47 @@ func (p *failedTransactionRemovalPolicy) registerDomain(domainName string) (stri
 	return folder, nil
 }
 
-// removeOutdatedFiles removes the outdated files.
-// It removes files with extension retryTransactionsExtension:
-// - For domains not registered
-// - When a file is older than outDatedFileDayCount days
+// removeOutdatedFiles removes the outdated files when a file is
+// older than outDatedFileDayCount days.
 func (p *failedTransactionRemovalPolicy) removeOutdatedFiles() ([]string, error) {
+	return p.forEachDomainPath(func(folderPath string) ([]string, error) {
+		files, err := p.removeOutdatedRetryFiles(folderPath)
+		p.telemetry.addOutdatedFilesCount(len(files))
+		return files, err
+	})
+}
+
+// removeUnknownDomains remove unknown domains.
+func (p *failedTransactionRemovalPolicy) removeUnknownDomains() ([]string, error) {
+	return p.forEachDomainPath(func(folderPath string) ([]string, error) {
+		if _, found := p.knownDomainFolders[folderPath]; !found {
+			files, err := p.removeUnknownDomain(folderPath)
+			p.telemetry.addFilesFromUnknownDomainCount(len(files))
+			return files, err
+		}
+		return nil, nil
+	})
+}
+
+func (p *failedTransactionRemovalPolicy) forEachDomainPath(callback func(folderPath string) ([]string, error)) ([]string, error) {
 	entries, err := ioutil.ReadDir(p.rootPath)
 	if err != nil {
 		return nil, err
 	}
 
-	var filesRemoved []string
+	var paths []string
 	for _, domain := range entries {
 		if domain.Mode().IsDir() {
 			folderPath := path.Join(p.rootPath, domain.Name())
-			var files []string
-			if _, found := p.knownDomainFolders[folderPath]; found {
-				files, err = p.removeOutdatedRetryFiles(folderPath)
-				p.telemetry.addOutdatedFilesCount(len(files))
-			} else {
-				files, err = p.removeUnknownDomain(folderPath)
-				p.telemetry.addFilesFromUnknownDomainCount(len(files))
-			}
+			files, err := callback(folderPath)
+
 			if err != nil {
 				return nil, err
 			}
-			filesRemoved = append(filesRemoved, files...)
+			paths = append(paths, files...)
 		}
 	}
-	return filesRemoved, nil
+	return paths, nil
 }
 
 func (p *failedTransactionRemovalPolicy) getFolderPathForDomain(domainName string) (string, error) {
