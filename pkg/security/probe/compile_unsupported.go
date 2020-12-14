@@ -1,4 +1,4 @@
-// +build !linux_bpf
+// +build linux,!linux_bpf
 
 package probe
 
