@@ -41,22 +41,19 @@ int kprobe__vfs_unlink(struct pt_regs *ctx) {
     if (!syscall)
         return 0;
 
-    // we resolve all the information before the file is actually removed
-    struct dentry *dentry = (struct dentry *) PT_REGS_PARM2(ctx);
-    u64 inode = get_dentry_ino(dentry);
-
-    u64 lower_inode = get_ovl_lower_ino(dentry);
-    if (lower_inode) {
-        syscall->unlink.real_inode = lower_inode;
-    }
-
-    // if second pass, ex: overlayfs, just cache the inode that will be used in ret
-    if (syscall->unlink.path_key.ino && !syscall->unlink.real_inode) {
-        syscall->unlink.real_inode = inode;
+    if (syscall->unlink.path_key.ino) {
         return 0;
     }
 
-    syscall->unlink.path_key.ino = inode;
+    // we resolve all the information before the file is actually removed
+    struct dentry *dentry = (struct dentry *) PT_REGS_PARM2(ctx);
+
+    u64 lower_inode = get_ovl_lower_ino(dentry);
+    if (lower_inode) {
+        syscall->unlink.ovl.vfs_lower_inode = lower_inode;
+    }
+
+    syscall->unlink.path_key.ino = get_dentry_ino(dentry);
     syscall->unlink.overlay_numlower = get_overlay_numlower(dentry);
 
     if (!syscall->unlink.path_key.path_id)
@@ -86,12 +83,18 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
         return 0;
     }
 
-    // add an real entry to reach the first dentry with the proper inode
+    // use the inode retrieved in the vfs_unlink call
     u64 inode = syscall->unlink.path_key.ino;
-    if (syscall->unlink.real_inode) {
-        inode = syscall->unlink.real_inode;
-        link_dentry_inode(syscall->unlink.path_key, inode);
+
+    bpf_printk("trace__sys_unlink_ret: %d %d %d\n", syscall->unlink.ovl.lower_inode, syscall->unlink.ovl.upper_inode, syscall->unlink.ovl.real_inode);
+
+    // set the entry dentry key
+    if (syscall->unlink.ovl.vfs_lower_inode) {
+        inode = syscall->unlink.ovl.vfs_lower_inode;
+        link_dentry_inode(syscall->unlink.path_key, inode);   
     }
+
+    bpf_printk("trace__sys_unlink_ret: %d\n", inode);
 
     u64 enabled_events = get_enabled_events();
     int enabled = mask_has_event(enabled_events, EVENT_UNLINK) ||

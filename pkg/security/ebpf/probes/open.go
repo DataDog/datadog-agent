@@ -27,7 +27,15 @@ var openProbes = []*manager.Probe{
 	},
 	{
 		UID:     SecurityAgentUID,
+		Section: "kretprobe/ovl_dentry_lower",
+	},
+	{
+		UID:     SecurityAgentUID,
 		Section: "kprobe/do_dentry_open",
+	},
+	{
+		UID:     SecurityAgentUID,
+		Section: "kprobe/ovl_want_write",
 	},
 }
 

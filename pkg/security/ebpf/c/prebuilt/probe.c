@@ -10,6 +10,7 @@
 #include "process.h"
 #include "container.h"
 #include "dentry.h"
+#include "overlayfs.h"
 #include "exec.h"
 #include "setattr.h"
 #include "mnt.h"

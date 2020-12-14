@@ -259,7 +259,7 @@ func getMountIDOffset(probe *Probe) uint64 {
 	var offset uint64
 	if suseKernel {
 		offset = 292
-	} else if probe.kernelVersion != 0 && probe.kernelVersion <= kernel4_13 {
+	} else if probe.kernelVersion != 0 && probe.kernelVersion < kernel4_14 {
 		offset = 268
 	} else {
 		offset = 284

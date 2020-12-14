@@ -131,11 +131,17 @@ int __attribute__((always_inline)) handle_open_event(struct pt_regs *ctx, struct
     struct inode *inode = (struct inode *)PT_REGS_PARM2(ctx);
 
     if (syscall->open.dentry) {
-       // syscall->open.real_inode = get_inode_key_path(inode, &file->f_path).ino;
         return 0;
     }
 
-    syscall->open.dentry = get_file_dentry(file);
+    struct dentry *dentry = get_file_dentry(file);
+
+    u64 lower_inode = get_ovl_lower_ino(dentry);
+    if (lower_inode) {
+        syscall->open.ovl.vfs_lower_inode = lower_inode;
+    }
+
+    syscall->open.dentry = dentry;
     syscall->open.path_key = get_inode_key_path(inode, &file->f_path);
 
     return filter_open(syscall);
@@ -158,33 +164,6 @@ int kprobe__vfs_truncate(struct pt_regs *ctx) {
     syscall->open.path_key = get_dentry_key_path(syscall->open.dentry, path);
 
     return filter_open(syscall);
-}
-
-SEC("kretprobe/ovl_dentry_upper")
-int kprobe__ovl_dentry_upper(struct pt_regs *ctx) {
-   struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN | SYSCALL_EXEC);
-    if (!syscall)
-        return 0;
-
-    struct dentry *dentry = (struct dentry *)PT_REGS_RC(ctx);
-    u64 inode = get_dentry_ino(dentry);
-
-    if (inode && !syscall->open.path_key.ino)
-        syscall->open.path_key.ino = inode;
-
-    return 0;
-}
-
-SEC("kretprobe/ovl_d_real")
-int kretprobe__ovl_d_real(struct pt_regs *ctx) {
-   struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN | SYSCALL_EXEC);
-    if (!syscall)
-        return 0;
-
-    struct dentry *dentry = (struct dentry *)PT_REGS_RC(ctx);
-    syscall->open.path_key.ino = get_dentry_ino(dentry);
-
-    return 0;
 }
 
 SEC("kprobe/do_dentry_open")
@@ -214,15 +193,16 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
 
     syscall->open.path_key.path_id = get_path_id(0);
 
-    // add an real entry to reach the first dentry with the proper inode
+    // use by default the ino of the dentry used for the dentry resolution
     u64 inode = syscall->open.path_key.ino;
 
-    // add an real entry to reach the first dentry with the proper inode
-    u64 ino = get_ovl_lower_ino(syscall->open.dentry);;
-    if (ino) {
-        inode = ino;
-        link_dentry_inode(syscall->open.path_key, ino);
+    // set the entry dentry key
+    if (syscall->open.ovl.vfs_lower_inode) {
+        inode = syscall->open.ovl.vfs_lower_inode;
+        link_dentry_inode(syscall->open.path_key, inode);   
     }
+
+    bpf_printk("trace__sys_open_ret: %d\n", inode);
 
     struct open_event_t event = {
         .event.type = EVENT_OPEN,

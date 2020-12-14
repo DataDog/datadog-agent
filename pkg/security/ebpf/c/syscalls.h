@@ -11,6 +11,13 @@ struct ktimeval {
     long tv_nsec;
 };
 
+struct overlayfs_t {
+    u64 vfs_lower_inode;
+    u64 lower_inode;
+    u64 upper_inode;
+    u64 real_inode;
+};
+
 struct syscall_cache_t {
     struct policy_t policy;
 
@@ -23,6 +30,8 @@ struct syscall_cache_t {
             struct dentry *dentry;
             struct path_key_t path_key;
             u64 real_inode;
+
+            struct overlayfs_t ovl;
         } open;
 
         struct {
@@ -38,6 +47,8 @@ struct syscall_cache_t {
             int overlay_numlower;
             int flags;
             u64 real_inode;
+
+            struct overlayfs_t ovl;
         } unlink;
 
         struct {
