@@ -96,6 +96,7 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
     // set the entry dentry key
     if (syscall->unlink.ovl.vfs_lower_inode) {
         inode = syscall->unlink.ovl.vfs_lower_inode;
+        // TODO safchain do not link but substitute the key ino
         link_dentry_inode(syscall->unlink.path_key, inode);   
     } else if (syscall->unlink.ovl.vfs_upper_inode) {
         inode = syscall->unlink.ovl.vfs_upper_inode;

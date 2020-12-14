@@ -580,13 +580,13 @@ func TestDentryOverlay(t *testing.T) {
 		}
 
 		// TODO: Remove after a rename from a lower is currently broken. the following tests trigger the issues
-		/*event, _, err = test.GetEvent()
+		event, _, err = test.GetEvent()
 		if err != nil {
 			t.Error(err)
 		} else {
 			if inode != event.Unlink.Inode {
 				t.Errorf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
 			}
-		}*/
+		}
 	})
 }

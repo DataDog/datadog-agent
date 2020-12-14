@@ -40,17 +40,29 @@ int kprobe__vfs_rename(struct pt_regs *ctx) {
     if (!syscall)
         return 0;
 
-    struct dentry *dentry = (struct dentry *)PT_REGS_PARM2(ctx);
-    struct dentry *target_dentry = (struct dentry *)PT_REGS_PARM4(ctx);
-    syscall->rename.target_key.ino = get_dentry_ino(target_dentry);
-
     // if second pass, ex: overlayfs, just cache the inode that will be used in ret
     if (syscall->rename.src_dentry) {
-        syscall->rename.real_src_dentry = dentry;
         return 0;
     }
 
-    syscall->rename.src_dentry = dentry;
+    struct dentry *src_dentry = (struct dentry *)PT_REGS_PARM2(ctx);
+    struct dentry *target_dentry = (struct dentry *)PT_REGS_PARM4(ctx);
+
+    u64 lower_inode = get_ovl_lower_ino(src_dentry);
+    if (lower_inode) {
+        syscall->rename.ovl.vfs_lower_inode = lower_inode;
+    }
+
+    syscall->rename.target_key.ino = get_dentry_ino(target_dentry);
+
+    syscall->rename.src_dentry = src_dentry;
+    syscall->rename.target_dentry = target_dentry;
+
+    u64 upper_inode = get_ovl_upper_ino(syscall->rename.src_dentry);
+    if (upper_inode) {
+        syscall->rename.ovl.vfs_upper_inode = upper_inode;
+    }
+
     syscall->rename.src_overlay_numlower = get_overlay_numlower(syscall->rename.src_dentry);
 
     // we generate a fake source key as the inode is (can be ?) reused
@@ -90,15 +102,24 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
         return 0;
     }
 
-    u64 lower_inode = get_ovl_lower_ino(syscall->rename.src_dentry);
-    if (lower_inode) {
-        syscall->rename.target_key.ino = lower_inode;
+    syscall->rename.target_key.path_id = get_path_id(1);
+
+    u64 inode = syscall->rename.target_key.ino;
+    bpf_printk("trace__sys_rename_ret >: %d\n", inode);
+
+    if (syscall->rename.ovl.vfs_lower_inode) {
+        inode = syscall->rename.ovl.vfs_lower_inode;
+        link_dentry_inode(syscall->rename.target_key, inode);
+    } else if (syscall->rename.ovl.vfs_upper_inode) {
+        inode = syscall->rename.ovl.vfs_upper_inode;
+        link_dentry_inode(syscall->rename.target_key, inode);
     }
+
+     bpf_printk("trace__sys_rename_ret <: %d\n", inode);
+
 
     int enabled = is_event_enabled(EVENT_RENAME);
     if (enabled) {
-        syscall->rename.target_key.path_id = get_path_id(1);
-
         struct rename_event_t event = {
             .event.type = EVENT_RENAME,
             .event.timestamp = bpf_ktime_get_ns(),
@@ -109,7 +130,7 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
                 .overlay_numlower = syscall->rename.src_overlay_numlower,
             },
             .new = {
-                .inode = syscall->rename.target_key.ino,
+                .inode = inode,
                 .mount_id = syscall->rename.target_key.mount_id,
                 .overlay_numlower = get_overlay_numlower(syscall->rename.src_dentry),
                 .path_id = syscall->rename.target_key.path_id,
@@ -119,6 +140,9 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
         struct proc_cache_t *entry = fill_process_context(&event.process);
         fill_container_context(entry, &event.container);
 
+        bpf_printk("trace__sys_rename_ret >: %d\n", syscall->rename.target_key.ino);
+
+        // for centos7, use src dentry for target resolution as the pointers have been swapped
         resolve_dentry(syscall->rename.src_dentry, syscall->rename.target_key, 0);
 
         send_event(ctx, event);
