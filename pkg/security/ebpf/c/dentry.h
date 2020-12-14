@@ -201,6 +201,8 @@ int __attribute__((always_inline)) get_ovl_lower_ino(struct dentry *dentry) {
         sizeof_inode = 600;
     }
 
+    bpf_printk("sizeof_inode: %d\n", sizeof_inode);
+
     struct inode *lower;
     bpf_probe_read(&lower, sizeof(lower), (char *)d_inode + sizeof_inode + 8);
 

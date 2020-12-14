@@ -84,6 +84,7 @@ type PathValue struct {
 
 func getSizeOfStructInode(probe *Probe) uint64 {
 	var centos7Kernel bool
+
 	osrelease, err := osrelease.Read()
 	if err == nil {
 		centos7Kernel = (osrelease["ID"] == "centos") && (osrelease["VERSION_ID"] == "7")
@@ -92,6 +93,8 @@ func getSizeOfStructInode(probe *Probe) uint64 {
 	var sizeOf uint64
 	if centos7Kernel {
 		sizeOf = 584
+	} else if probe.kernelVersion != 0 && probe.kernelVersion < kernel4_16 {
+		sizeOf = 608
 	} else {
 		sizeOf = 600
 	}
