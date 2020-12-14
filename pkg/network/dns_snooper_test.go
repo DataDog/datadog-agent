@@ -467,7 +467,7 @@ func TestParsingError(t *testing.T) {
 }
 
 func TestDNSOverIPv6(t *testing.T) {
-	m, reverseDNS := initDNSTests(t, true)
+	m, reverseDNS := initDNSTestsWithDomainCollection(t, true)
 	defer m.Stop(manager.CleanAll)
 	defer reverseDNS.Close()
 
@@ -483,7 +483,7 @@ func TestDNSOverIPv6(t *testing.T) {
 	key := getKey(queryIP, queryPort, serverIP, UDP)
 	require.Contains(t, allStats, key)
 
-	stats := allStats[key]
+	stats := allStats[key]["nxdomain-123.com"]
 	assert.Equal(t, 1, len(stats.countByRcode))
 	assert.Equal(t, uint32(1), stats.countByRcode[uint8(layers.DNSResponseCodeNXDomain)])
 }
