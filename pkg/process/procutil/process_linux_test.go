@@ -462,6 +462,72 @@ func TestFillNsPidFromStatus(t *testing.T) {
 	})
 }
 
+func TestParseIOLine(t *testing.T) {
+	probe := NewProcessProbe()
+	defer probe.Close()
+
+	for _, tc := range []struct {
+		line     []byte
+		expected *IOCountersStat
+	}{
+		{
+			line:     []byte("syscr: 467721"),
+			expected: &IOCountersStat{ReadCount: 467721},
+		},
+		{
+			line:     []byte("syscw: 4842687"),
+			expected: &IOCountersStat{WriteCount: 4842687},
+		},
+		{
+			line:     []byte("read_bytes: 65536"),
+			expected: &IOCountersStat{ReadBytes: 65536},
+		},
+		{
+			line:     []byte("write_bytes: 4096"),
+			expected: &IOCountersStat{WriteBytes: 4096},
+		},
+	} {
+		result := &IOCountersStat{}
+		probe.parseIOLine(tc.line, result)
+		assert.EqualValues(t, tc.expected, result)
+	}
+}
+
+func TestParseIOTestFS(t *testing.T) {
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc/")
+	defer os.Unsetenv("HOST_PROC")
+
+	testParseIO(t)
+}
+
+func TestParseIOLocalFS(t *testing.T) {
+	// this test is flaky as the underlying procfs could change during
+	// the comparison of procutil and gopsutil,
+	// but we could use it to test locally
+	t.Skip("flaky test in CI")
+	testParseIO(t)
+}
+
+func testParseIO(t *testing.T) {
+	probe := NewProcessProbe()
+	defer probe.Close()
+
+	pids, err := probe.getActivePIDs()
+	assert.NoError(t, err)
+
+	for _, pid := range pids {
+		actual := probe.parseIO(filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid))))
+		expProc, err := process.NewProcess(pid)
+		assert.NoError(t, err)
+		expIO, err := expProc.IOCounters()
+		assert.NoError(t, err)
+		assert.Equal(t, expIO.ReadCount, actual.ReadCount)
+		assert.Equal(t, expIO.ReadBytes, actual.ReadBytes)
+		assert.Equal(t, expIO.WriteCount, actual.WriteCount)
+		assert.Equal(t, expIO.WriteBytes, actual.WriteBytes)
+	}
+}
+
 func BenchmarkGetCmdGopsutilTestFS(b *testing.B) {
 	os.Setenv("HOST_PROC", "resources/test_procfs/proc")
 	defer os.Unsetenv("HOST_PROC")
@@ -589,5 +655,55 @@ func BenchmarkGetPIDsProcutilLocalFS(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_, err := probe.getActivePIDs()
 		require.NoError(b, err)
+	}
+}
+
+func BenchmarkParseIOGopsutilTestFS(b *testing.B) {
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc")
+	defer os.Unsetenv("HOST_PROC")
+
+	benchmarkParseIOGopsutil(b)
+}
+
+func BenchmarkParseIOProcutilTestFS(b *testing.B) {
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc")
+	defer os.Unsetenv("HOST_PROC")
+
+	benchmarkParseIOProcutil(b)
+}
+
+func BenchmarkParseIOGopsutilLocalFS(b *testing.B) {
+	benchmarkParseIOGopsutil(b)
+}
+
+func BenchmarkParseIOProcutilLocalFS(b *testing.B) {
+	benchmarkParseIOProcutil(b)
+}
+
+func benchmarkParseIOGopsutil(b *testing.B) {
+	pids, err := process.Pids()
+	require.NoError(b, err)
+
+	for i := 0; i < b.N; i++ {
+		for _, pid := range pids {
+			proc, err := process.NewProcess(pid)
+			require.NoError(b, err)
+			// ignore permission error for benchmarking
+			_, _ = proc.IOCounters()
+		}
+	}
+}
+
+func benchmarkParseIOProcutil(b *testing.B) {
+	probe := NewProcessProbe()
+	defer probe.Close()
+
+	pids, err := probe.getActivePIDs()
+	require.NoError(b, err)
+
+	for i := 0; i < b.N; i++ {
+		for _, pid := range pids {
+			probe.parseIO(filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid))))
+		}
 	}
 }

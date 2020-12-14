@@ -3536,7 +3536,7 @@ dev_nightly_docker_hub-dogstatsd:
   variables:
     <<: *docker_hub_variables
   before_script:
-    - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}
+    - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHORT_SHA}
     - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
     - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
     - python3 -m pip install -r requirements.txt

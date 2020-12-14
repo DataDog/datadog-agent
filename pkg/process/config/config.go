@@ -121,8 +121,9 @@ type AgentConfig struct {
 	Orchestrator *oconfig.OrchestratorConfig
 
 	// DNS stats configuration
-	CollectDNSStats bool
-	DNSTimeout      time.Duration
+	CollectDNSStats   bool
+	DNSTimeout        time.Duration
+	CollectDNSDomains bool
 
 	// Check config
 	EnabledChecks  []string
@@ -230,6 +231,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		OffsetGuessThreshold:         400,
 		EnableTracepoints:            false,
 		CollectDNSStats:              true,
+		CollectDNSDomains:            false,
 		EnableRuntimeCompiler:        false,
 		RuntimeCompilerOutputDir:     defaultRuntimeCompilerOutputDir,
 
@@ -515,6 +517,7 @@ func loadSysProbeEnvVariables() {
 		{"DD_APM_PROFILING_DD_URL", "system_probe_config.profiling.profile_dd_url"},
 		{"DD_API_KEY", "system_probe_config.profiling.api_key"},
 		{"DD_ENV", "system_probe_config.profiling.env"},
+		{"DD_COLLECT_DNS_DOMAINS", "system_probe_config.collect_dns_domains"},
 		{"DD_ENABLE_RUNTIME_COMPILER", "system_probe_config.enable_runtime_compiler"},
 		{"DD_KERNEL_HEADER_DIRS", "system_probe_config.kernel_header_dirs"},
 		{"DD_RUNTIME_COMPILER_OUTPUT_DIR", "system_probe_config.runtime_compiler_output_dir"},
