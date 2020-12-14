@@ -264,7 +264,9 @@ func getStats(
 	snooper *SocketFilterSnooper,
 	expectedCount int,
 ) map[dnsKey]map[string]dnsStats {
-	timeout := time.After(1 * time.Second)
+	// DNS timeout is set to 1 second for the tests.
+	// So a 3-second timeout here should provide enough time for an unanswered DNS query to be considered as a timeout.
+	timeout := time.After(3 * time.Second)
 Loop:
 	// Wait until DNS stats becomes available
 	for {
