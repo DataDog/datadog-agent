@@ -103,7 +103,6 @@ func TestCompressorSimple(t *testing.T) {
 	c, err := newCompressor(bytes.NewBuffer(make([]byte, 0)), bytes.NewBuffer(make([]byte, 0)), []byte("{["), []byte("]}"))
 	require.NoError(t, err)
 
-	aaa
 	for i := 0; i < 5; i++ {
 		c.addItem([]byte("A"))
 	}
