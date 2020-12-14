@@ -18,6 +18,10 @@ bpf_compiler *new_bpf_compiler(void)
 
 int bpf_compile_to_object_file(bpf_compiler *compiler, const char *input_file, const char *output_file, const char **cflagsv, char verbose)
 {
+    if (!compiler || !input_file || !output_file) {
+        return -1;
+    }
+
     auto cppCompiler = (ClangCompiler*) compiler->cpp_compiler;
     std::vector<const char*> cflags;
     if (cflagsv) {
@@ -33,13 +37,20 @@ int bpf_compile_to_object_file(bpf_compiler *compiler, const char *input_file, c
     return cppCompiler->bytecodeToObjectFile(module.get(), output_file);
 }
 
-const char * bpf_compiler_get_errors(bpf_compiler *compiler) {
+const char * bpf_compiler_get_errors(bpf_compiler *compiler)
+{
+    if (!compiler) {
+        return NULL;
+    }
     auto cppCompiler = (ClangCompiler*) compiler->cpp_compiler;
     return cppCompiler->getErrors().c_str();
 }
 
 void delete_bpf_compiler(bpf_compiler *compiler)
 {
+    if (!compiler) {
+        return;
+    }
     delete (ClangCompiler*) compiler->cpp_compiler;
     delete compiler;
 }

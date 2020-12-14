@@ -5,9 +5,8 @@
 #include <string>
 
 class MappedFiles {
-  static std::map<std::string, const char *> files_;
- public:
-  static const std::map<std::string, const char *> & files() { return files_; }
+public:
+  static const std::map<std::string, const char *> files;
 };
 
 #endif

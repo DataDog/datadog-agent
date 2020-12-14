@@ -45,7 +45,7 @@ public:
         const std::vector<const char*> &cflags = std::vector<const char*>(),
         bool verbose = false);
     int bytecodeToObjectFile(llvm::Module *module, const char *outputFile);
-    const std::string& getErrors();
+    const std::string& getErrors() const;
     ~ClangCompiler();
 
 private:

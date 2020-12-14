@@ -72,7 +72,7 @@ ClangCompiler::ClangCompiler(const char *name) :
     }
 
     if (remapped_files_.empty()) {
-        for (auto f : MappedFiles::files()) {
+        for (auto f : MappedFiles::files) {
             remapped_files_[f.first] = llvm::MemoryBuffer::getMemBuffer(f.second);
         }
     }
@@ -235,6 +235,11 @@ llvm::StringRef ClangCompiler::getArch() {
 
 int ClangCompiler::bytecodeToObjectFile(llvm::Module *module, const char *outputFile)
 {
+    if (!module || !outputFile) {
+        llvm::errs() << "Invalid module or output file";
+        return -1;
+    }
+
     module->setDataLayout(getDataLayout());
     module->setTargetTriple(theTriple.getTriple());
 
@@ -258,9 +263,11 @@ int ClangCompiler::bytecodeToObjectFile(llvm::Module *module, const char *output
     return 0;
 }
 
-const std::string& ClangCompiler::getErrors() {
+const std::string& ClangCompiler::getErrors() const
+{
     return errString;
 }
 
-ClangCompiler::~ClangCompiler() {
+ClangCompiler::~ClangCompiler()
+{
 }
