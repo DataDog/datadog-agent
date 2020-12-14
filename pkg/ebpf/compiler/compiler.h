@@ -44,12 +44,11 @@ public:
         const char *outputFile = NULL,
         const std::vector<const char*> &cflags = std::vector<const char*>(),
         bool verbose = false);
-    int bytecodeToObjectFile(llvm::Module *module, const char *outputFile);
+    int bytecodeToObjectFile(llvm::Module &module, const char *outputFile);
     const std::string& getErrors() const;
     ~ClangCompiler();
 
 private:
-    static std::map<std::string, std::unique_ptr<llvm::MemoryBuffer>> remapped_files_;
     static llvm::StringRef getDataLayout();
     static llvm::StringRef getArch();
     std::unique_ptr<clang::CompilerInvocation> buildCompilation(

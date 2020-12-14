@@ -30,11 +30,11 @@ int bpf_compile_to_object_file(bpf_compiler *compiler, const char *input_file, c
             cflagsv++;
         }
     }
-    auto module = std::move(cppCompiler->compileToBytecode(input_file, NULL, cflags, bool(verbose)));
+    auto module = cppCompiler->compileToBytecode(input_file, NULL, cflags, bool(verbose));
     if (!module) {
         return -1;
     }
-    return cppCompiler->bytecodeToObjectFile(module.get(), output_file);
+    return cppCompiler->bytecodeToObjectFile(*module, output_file);
 }
 
 const char * bpf_compiler_get_errors(bpf_compiler *compiler)
@@ -42,7 +42,7 @@ const char * bpf_compiler_get_errors(bpf_compiler *compiler)
     if (!compiler) {
         return NULL;
     }
-    auto cppCompiler = (ClangCompiler*) compiler->cpp_compiler;
+    auto cppCompiler = static_cast<ClangCompiler*>(compiler->cpp_compiler);
     return cppCompiler->getErrors().c_str();
 }
 

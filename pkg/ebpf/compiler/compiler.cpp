@@ -14,10 +14,12 @@ bool ClangCompiler::llvmInitialized = false;
 
 enum Architecture { PPC, PPCLE, S390X, ARM64, X86 };
 
-std::map<std::string, std::unique_ptr<llvm::MemoryBuffer>> ClangCompiler::remapped_files_;
+namespace {
+    std::map<std::string, std::unique_ptr<llvm::MemoryBuffer>> remapped_files_;
+}
 
 ClangCompiler::ClangCompiler(const char *name) :
-    llvmContext(new llvm::LLVMContext),
+    llvmContext(std::make_unique<llvm::LLVMContext>()),
     diagOpts(new clang::DiagnosticOptions()),
     errStream(errString),
     textDiagnosticPrinter(new clang::TextDiagnosticPrinter(errStream, diagOpts.get())),
@@ -84,11 +86,10 @@ std::unique_ptr<clang::CompilerInvocation> ClangCompiler::buildCompilation(
     const std::vector<const char*> &extraCflags,
     bool verbose)
 {
-    std::vector<const char*> cflags;
-    for (auto it = defaultCflags.begin(); it != defaultCflags.end(); it++)
+    auto cflags = defaultCflags;
+    for (auto it = extraCflags.begin(); it != extraCflags.end(); it++) {
         cflags.push_back(*it);
-    for (auto it = extraCflags.begin(); it != extraCflags.end(); it++)
-        cflags.push_back(*it);
+    }
 
     if (verbose) {
         cflags.push_back("-v");
@@ -131,7 +132,7 @@ std::unique_ptr<clang::CompilerInvocation> ClangCompiler::buildCompilation(
         llvm::errs() << "\n";
     }
 
-    std::unique_ptr<clang::CompilerInvocation> invocation(new clang::CompilerInvocation);
+    auto invocation = std::make_unique<clang::CompilerInvocation>();
     const llvm::opt::ArgStringList &ccargs = cmd.getArguments();
 
     clang::CompilerInvocation::CreateFromArgs(*invocation, ccargs, *diagnosticsEngine);
@@ -233,15 +234,15 @@ llvm::StringRef ClangCompiler::getArch() {
     }
 }
 
-int ClangCompiler::bytecodeToObjectFile(llvm::Module *module, const char *outputFile)
+int ClangCompiler::bytecodeToObjectFile(llvm::Module &module, const char *outputFile)
 {
-    if (!module || !outputFile) {
-        llvm::errs() << "Invalid module or output file";
+    if (!outputFile) {
+        llvm::errs() << "Invalid output file";
         return -1;
     }
 
-    module->setDataLayout(getDataLayout());
-    module->setTargetTriple(theTriple.getTriple());
+    module.setDataLayout(getDataLayout());
+    module.setTargetTriple(theTriple.getTriple());
 
     std::error_code EC;
     llvm::raw_fd_ostream dest(outputFile, EC, llvm::sys::fs::OF_None);
@@ -257,7 +258,7 @@ int ClangCompiler::bytecodeToObjectFile(llvm::Module *module, const char *output
         return -1;
     }
 
-    pass.run(*module);
+    pass.run(module);
     dest.flush();
 
     return 0;
