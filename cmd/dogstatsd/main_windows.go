@@ -8,7 +8,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	_ "net/http/pprof"
 	"net/url"
@@ -31,7 +30,6 @@ import (
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/debug"
 	"golang.org/x/sys/windows/svc/eventlog"
-	yaml "gopkg.in/yaml.v2"
 )
 
 var (
@@ -329,29 +327,6 @@ func importRegistryConfig() error {
 	if err != nil {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
-
-	// dump the current configuration to datadog.yaml
-	b, err := yaml.Marshal(config.Datadog.AllSettings())
-	if err != nil {
-		log.Errorf("unable to unmarshal config to YAML: %v", err)
-		return fmt.Errorf("unable to unmarshal config to YAML: %v", err)
-	}
-	// file permissions will be used only to create the file if doesn't exist,
-	// please note on Windows such permissions have no effect.
-	if err = ioutil.WriteFile(datadogYamlPath, b, 0640); err != nil {
-		log.Errorf("unable to unmarshal config to %s: %v", datadogYamlPath, err)
-		return fmt.Errorf("unable to unmarshal config to %s: %v", datadogYamlPath, err)
-	}
-
-	valuenames := []string{"api_key", "tags", "hostname",
-		"proxy_host", "proxy_port", "proxy_user", "proxy_password", "cmd_port"}
-	for _, valuename := range valuenames {
-		k.DeleteValue(valuename)
-	}
-	for valuename := range subServices {
-		k.DeleteValue(valuename)
-	}
-	log.Debugf("Successfully wrote the config into %s\n", datadogYamlPath)
 
 	return nil
 }

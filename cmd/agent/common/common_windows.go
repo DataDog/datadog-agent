@@ -7,7 +7,6 @@ package common
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -23,7 +22,6 @@ import (
 
 	"github.com/cihub/seelog"
 	"golang.org/x/sys/windows/registry"
-	yaml "gopkg.in/yaml.v2"
 )
 
 var (
@@ -358,21 +356,6 @@ func ImportRegistryConfig() error {
 	if err != nil {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
-
-	// dump the current configuration to datadog.yaml
-	b, err := yaml.Marshal(config.Datadog.AllSettings())
-	if err != nil {
-		log.Errorf("unable to unmarshal config to YAML: %v", err)
-		return fmt.Errorf("unable to unmarshal config to YAML: %v", err)
-	}
-	// file permissions will be used only to create the file if doesn't exist,
-	// please note on Windows such permissions have no effect.
-	if err = ioutil.WriteFile(datadogYamlPath, b, 0640); err != nil {
-		log.Errorf("unable to unmarshal config to %s: %v", datadogYamlPath, err)
-		return fmt.Errorf("unable to unmarshal config to %s: %v", datadogYamlPath, err)
-	}
-
-	log.Debugf("Successfully wrote the config into %s\n", datadogYamlPath)
 
 	return nil
 }
