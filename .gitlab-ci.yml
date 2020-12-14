@@ -3221,7 +3221,11 @@ dev_branch_docker_hub-a7-windows:
     - <<: *if_version_7
       when: manual
       allow_failure: true
-  tags: ["runner:windows-docker", "windowsversion:1909"]
+  ##
+  ## For Future Reference.  Must update to do this job from the newest OS version
+  ## that we're publishing (.e.g. adding windows2104 will require also using the
+  ## 2104 builder)
+  tags: ["runner:windows-docker", "windowsversion:2004"]
   needs:
     - docker_build_agent7_windows1809
     - docker_build_agent7_windows1809_jmx
@@ -3347,7 +3351,11 @@ dev_master_docker_hub-a7-windows:
     - <<: *if_not_version_7
       when: never
     - <<: *if_master_branch
-  tags: ["runner:windows-docker", "windowsversion:1909"]
+  ##
+  ## For Future Reference.  Must update to do this job from the newest OS version
+  ## that we're publishing (.e.g. adding windows2104 will require also using the
+  ## 2104 builder)
+  tags: ["runner:windows-docker", "windowsversion:2004"]
   needs:
     - docker_build_agent7_windows1809
     - docker_build_agent7_windows1809_jmx
@@ -3459,7 +3467,11 @@ dev_nightly_docker_hub-a7-windows:
     - <<: *if_not_version_7
       when: never
     - <<: *if_deploy_on_nightly
-  tags: ["runner:windows-docker", "windowsversion:1909"]
+  ##
+  ## For Future Reference.  Must update to do this job from the newest OS version
+  ## that we're publishing (.e.g. adding windows2104 will require also using the
+  ## 2104 builder)
+  tags: ["runner:windows-docker", "windowsversion:2004"]
   needs:
     - docker_build_agent7_windows1809
     - docker_build_agent7_windows1809_jmx
@@ -4161,7 +4173,11 @@ tag_release_7_windows_docker_hub:
       when: manual
       allow_failure: true
   stage: deploy7
-  tags: ["runner:windows-docker", "windowsversion:1909"]
+  ##
+  ## For Future Reference.  Must update to do this job from the newest OS version
+  ## that we're publishing (.e.g. adding windows2104 will require also using the
+  ## 2104 builder)
+  tags: ["runner:windows-docker", "windowsversion:2004"]
   dependencies:
     - docker_build_agent7_windows1809
     - docker_build_agent7_windows1809_jmx
@@ -4345,7 +4361,11 @@ tag_release_7_windows_google_container_registry:
       when: manual
       allow_failure: true
   stage: deploy7
-  tags: ["runner:windows-docker", "windowsversion:1909"]
+  ##
+  ## For Future Reference.  Must update to do this job from the newest OS version
+  ## that we're publishing (.e.g. adding windows2104 will require also using the
+  ## 2104 builder)
+  tags: ["runner:windows-docker", "windowsversion:2004"]
   dependencies:
     - docker_build_agent7_windows1809
     - docker_build_agent7_windows1809_jmx
