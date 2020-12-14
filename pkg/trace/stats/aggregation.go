@@ -27,11 +27,10 @@ type Aggregation struct {
 	Synthetic  bool
 }
 
-
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
 func NewAggregationFromSpan(s *pb.Span, env string) Aggregation {
-  syntheticOrigin := strings.HasPrefix(s.Meta[tagOrigin], "synthetics")
-  
+	synthetic := strings.HasPrefix(s.Meta[tagOrigin], "synthetics")
+
 	return Aggregation{
 		Env:        env,
 		Resource:   s.Resource,
@@ -39,12 +38,12 @@ func NewAggregationFromSpan(s *pb.Span, env string) Aggregation {
 		Hostname:   s.Meta[tagHostname],
 		StatusCode: s.Meta[tagStatusCode],
 		Version:    s.Meta[tagVersion],
-		Synthetic:  syntheticOrigin,
+		Synthetic:  synthetic,
 	}
 }
 
 // NewAggregation creates a new aggregation from the provided fields
-func NewAggregation(env string, resource string, service string, hostname string, statusCode string, version string) Aggregation {
+func NewAggregation(env string, resource string, service string, hostname string, statusCode string, version string, synthetic bool) Aggregation {
 	return Aggregation{
 		Env:        env,
 		Resource:   resource,
@@ -52,6 +51,7 @@ func NewAggregation(env string, resource string, service string, hostname string
 		Hostname:   hostname,
 		StatusCode: statusCode,
 		Version:    version,
+		Synthetic:  synthetic,
 	}
 }
 
