@@ -25,6 +25,7 @@ func init() {
 // This program is intended to be called from go generate.
 // It will preprocess a .c file to replace all the `#include "file.h"` statements with the header files contents
 // while making sure to only include a file once.
+// This does not process includes using angle brackets, e.g. `#include <stdio>`.
 // You may optionally specify additional include directories to search.
 func main() {
 	if len(os.Args[1:]) < 2 {
