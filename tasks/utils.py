@@ -85,6 +85,9 @@ def get_build_flags(
 
     if sys.platform == 'win32':
         env["CGO_LDFLAGS_ALLOW"] = "-Wl,--allow-multiple-definition"
+    else:
+        # for pkg/ebpf/compiler on linux
+        env['CGO_LDFLAGS_ALLOW'] = "-Wl,--wrap=.*"
 
     if embedded_path is None:
         # fall back to local dev path
@@ -112,8 +115,6 @@ def get_build_flags(
     env['CGO_CFLAGS'] = os.environ.get('CGO_CFLAGS', '') + " -Werror -Wno-deprecated-declarations -I{} -I{}".format(
         rtloader_headers, rtloader_common_headers
     )
-
-    env['CGO_LDFLAGS_ALLOW'] = "-Wl,--wrap=.*"
 
     # if `static` was passed ignore setting rpath, even if `embedded_path` was passed as well
     if static:
