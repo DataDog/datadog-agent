@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Implementes endpoint support for Prometheus scraping in the services provider.

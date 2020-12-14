@@ -23,6 +23,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/labels"
+	infov1 "k8s.io/client-go/informers/core/v1"
 	listersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 )
@@ -72,16 +73,16 @@ func NewPrometheusServicesConfigProvider(configProviders config.ConfigurationPro
 		return nil, errors.New("cannot get services informer")
 	}
 
+	var endpointsInformer infov1.EndpointsInformer
 	var endpointsLister listersv1.EndpointsLister
 
 	collectEndpoints := config.Datadog.GetBool("prometheus_scrape.service_endpoints")
-	endpointsInformer := ac.InformerFactory.Core().V1().Endpoints()
 	if collectEndpoints {
+		endpointsInformer := ac.InformerFactory.Core().V1().Endpoints()
 		if endpointsInformer == nil {
 			return nil, errors.New("cannot get endpoints informer")
 		}
 		endpointsLister = endpointsInformer.Lister()
-
 	}
 
 	api := &svcAPI{
@@ -104,7 +105,7 @@ func NewPrometheusServicesConfigProvider(configProviders config.ConfigurationPro
 		DeleteFunc: p.invalidate,
 	})
 
-	if collectEndpoints {
+	if endpointsInformer != nil {
 		endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 			UpdateFunc: p.invalidateIfChangedEndpoints,
 		})
