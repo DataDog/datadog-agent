@@ -2,6 +2,56 @@
 Release Notes
 =============
 
+.. _Release Notes_dca-1.10.0_dca-1.10.X:
+
+1.10.0
+==========
+
+.. _Release Notes_dca-1.10.0_dca-1.10.X_New Features:
+
+New Features
+------------
+
+- Add a new command 'datadog-cluster-agent health' to show the cluster
+  agent's health, similar to the already existing `agent health`.
+
+- collect node information for the orchestrator explorer
+
+- Fill DatadogMetric `AutoscalerReferences` field to ease usage/investigation of DatadogMetrics
+
+- The Cluster Agent can now collect stats from Cluster Level Check runners
+  to optimize its dispatching logic and rebalance the scheduled checks.
+
+- Allow providing custom tags to orchestrator resources.
+
+
+.. _Release Notes_dca-1.10.0_dca-1.10.X_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add new configuration parameter to allow 'GroupExec' permission on the secret-backend command.
+  The new parameter ('secret_backend_command_allow_group_exec_perm') is now enabled by default in the cluster-agent image.
+
+- Add resolve option to endpoint checks through new annotation `ad.datadoghq.com/endpoints.resolve`. With `ip` value, it allows endpoint checks to target static pods
+
+- Expose metrics for the cluster level checks advanced dispatching.
+
+
+.. _Release Notes_dca-1.10.0_dca-1.10.X_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix 'readsecret.sh' permission in Cluster-Agent dockerfiles that removes `other` permission. 
+
+- Fix issue in Cluster Agent when using external metrics without DatadogMetrics where multiple HPAs using the same metricName + Labels would prevent all HPAs (except 1st one) to get values from Datadog
+
+- Ensure that leader election runs if orchestrator_explorer and leader_election are enabled.
+
+- Rename node role tag from "node_role" to "kube_node_role" in orchestrator_explorer collection.
+
+
 .. _Release Notes_dca-1.9.1_dca-1.9.x:
 
 1.9.1
