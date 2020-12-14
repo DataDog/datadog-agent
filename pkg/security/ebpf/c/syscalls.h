@@ -63,9 +63,12 @@ struct syscall_cache_t {
             struct path_key_t src_key;
             unsigned long src_inode;
             struct dentry *src_dentry;
+            struct dentry *target_dentry;
             struct dentry *real_src_dentry;
             struct path_key_t target_key;
             int src_overlay_numlower;
+
+            struct overlayfs_t ovl;
         } rename;
 
         struct {
