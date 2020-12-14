@@ -13,6 +13,8 @@ struct ktimeval {
 
 struct overlayfs_t {
     u64 vfs_lower_inode;
+    u64 vfs_upper_inode;
+
     u64 lower_inode;
     u64 upper_inode;
     u64 real_inode;
