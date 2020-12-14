@@ -338,11 +338,11 @@ func TestDentryOverlay(t *testing.T) {
 	rules := []*rules.RuleDefinition{
 		&rules.RuleDefinition{
 			ID:         "test_rule_open",
-			Expression: `open.filename in ["{{.Root}}/merged/file1.txt", "{{.Root}}/merged/file2.txt", "{{.Root}}/merged/file3.txt", "{{.Root}}/merged/new.txt"]`,
+			Expression: `open.filename in ["{{.Root}}/merged/file1.txt", "{{.Root}}/merged/file2.txt", "{{.Root}}/merged/file3.txt", "{{.Root}}/merged/new1.txt", "{{.Root}}/merged/new2.txt"]`,
 		},
 		&rules.RuleDefinition{
 			ID:         "test_rule_unlink",
-			Expression: `unlink.filename in ["{{.Root}}/merged/file1.txt", "{{.Root}}/merged/file2.txt", "{{.Root}}/merged/file3.txt", "{{.Root}}/merged/new.txt", "{{.Root}}/merged/renamed.txt"]`,
+			Expression: `unlink.filename in ["{{.Root}}/merged/file1.txt", "{{.Root}}/merged/file2.txt", "{{.Root}}/merged/file3.txt", "{{.Root}}/merged/new.txt", "{{.Root}}/merged/renamed.txt", "{{.Root}}/merged/new2.txt"]`,
 		},
 		&rules.RuleDefinition{
 			ID:         "test_rule_rename",
@@ -462,6 +462,49 @@ func TestDentryOverlay(t *testing.T) {
 		}
 
 		f, err := os.OpenFile(testFile, os.O_RDWR, 0755)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := f.Close(); err != nil {
+			t.Fatal(err)
+		}
+
+		var inode uint64
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if value, _ := event.GetFieldValue("open.filename"); value.(string) != testFile {
+				t.Errorf("expected filename not found")
+			}
+
+			if inode = getInode(t, testFile); inode != event.Open.Inode {
+				t.Errorf("expected inode not found %d(real) != %d\n", inode, event.Open.Inode)
+			}
+		}
+
+		if err := os.Remove(testFile); err != nil {
+			t.Fatal(err)
+		}
+
+		event, _, err = test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if inode != event.Unlink.Inode {
+				t.Errorf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
+			}
+		}
+	})
+
+	t.Run("create-upper", func(t *testing.T) {
+		testFile, _, err := test.Path("merged/new2.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		f, err := os.OpenFile(testFile, os.O_CREATE, 0755)
 		if err != nil {
 			t.Fatal(err)
 		}

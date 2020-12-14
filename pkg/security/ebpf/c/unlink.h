@@ -53,6 +53,11 @@ int kprobe__vfs_unlink(struct pt_regs *ctx) {
         syscall->unlink.ovl.vfs_lower_inode = lower_inode;
     }
 
+    u64 upper_inode = get_ovl_upper_ino(dentry);
+    if (upper_inode) {
+        syscall->unlink.ovl.vfs_upper_inode = upper_inode;
+    }
+
     syscall->unlink.path_key.ino = get_dentry_ino(dentry);
     syscall->unlink.overlay_numlower = get_overlay_numlower(dentry);
 
@@ -92,6 +97,9 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
     if (syscall->unlink.ovl.vfs_lower_inode) {
         inode = syscall->unlink.ovl.vfs_lower_inode;
         link_dentry_inode(syscall->unlink.path_key, inode);   
+    } else if (syscall->unlink.ovl.vfs_upper_inode) {
+        inode = syscall->unlink.ovl.vfs_upper_inode;
+        link_dentry_inode(syscall->unlink.path_key, inode);  
     }
 
     bpf_printk("trace__sys_unlink_ret: %d\n", inode);
