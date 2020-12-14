@@ -319,6 +319,12 @@ func GetConditionMessage(p *v1.Pod) string {
 		v1.PodReady,
 	}
 
+	// in some cases (eg evicted) we don't have conditions
+	// in these case fall back to status message directly
+	if len(p.Status.Conditions) == 0 {
+		return p.Status.Message
+	}
+
 	// populate messageMap with messages for non-passing conditions
 	for _, c := range p.Status.Conditions {
 		if c.Status == v1.ConditionFalse && c.Message != "" {
