@@ -3234,7 +3234,7 @@ dev_branch_docker_hub-a7-windows:
     - docker_build_agent7_windows2004
     - docker_build_agent7_windows2004_jmx
   variables:
-    VARIANT: 1909
+    VARIANT: 2004
   script:
     - $ErrorActionPreference = "Stop"
     - |
@@ -3365,7 +3365,7 @@ dev_master_docker_hub-a7-windows:
     - docker_build_agent7_windows2004_jmx
 
   variables:
-    VARIANT: 1909
+    VARIANT: 2004
   script:
     - $ErrorActionPreference = "Stop"
     - |
@@ -3480,7 +3480,7 @@ dev_nightly_docker_hub-a7-windows:
     - docker_build_agent7_windows2004
     - docker_build_agent7_windows2004_jmx
   variables:
-    VARIANT: 1909
+    VARIANT: 2004
   script:
     - $ErrorActionPreference = "Stop"
     - |
@@ -4186,7 +4186,7 @@ tag_release_7_windows_docker_hub:
     - docker_build_agent7_windows2004
     - docker_build_agent7_windows2004_jmx
   variables:
-    VARIANT: 1909
+    VARIANT: 2004
   script:
     - $ErrorActionPreference = "Stop"
     - |
@@ -4374,7 +4374,7 @@ tag_release_7_windows_google_container_registry:
     - docker_build_agent7_windows2004
     - docker_build_agent7_windows2004_jmx
   variables:
-    VARIANT: 1909
+    VARIANT: 2004
   script:
     - $ErrorActionPreference = "Stop"
     - |
