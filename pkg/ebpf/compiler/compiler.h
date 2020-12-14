@@ -1,6 +1,7 @@
 #ifndef __COMPILER_H
 #define __COMPILER_H
 
+#include <mutex>
 #include <clang/Driver/Compilation.h>
 #include <clang/Frontend/CompilerInvocation.h>
 #include <clang/Frontend/FrontendDiagnostic.h>
@@ -17,9 +18,6 @@
 
 class ClangCompiler {
 protected:
-
-    static bool llvmInitialized;
-
     llvm::IntrusiveRefCntPtr<clang::DiagnosticOptions> diagOpts;
     llvm::IntrusiveRefCntPtr<clang::DiagnosticIDs> diagID;
     std::unique_ptr<clang::TextDiagnosticPrinter> textDiagnosticPrinter;
@@ -49,6 +47,7 @@ public:
     ~ClangCompiler();
 
 private:
+    static std::once_flag llvmInitialized;
     static llvm::StringRef getDataLayout();
     static llvm::StringRef getArch();
     std::unique_ptr<clang::CompilerInvocation> buildCompilation(

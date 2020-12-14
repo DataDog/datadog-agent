@@ -2,6 +2,7 @@
 #include "files.h"
 
 #include <iostream>
+#include <mutex>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/Support/TargetSelect.h>
 #include <clang/CodeGen/CodeGenAction.h>
@@ -10,7 +11,7 @@
 #include <clang/Frontend/CompilerInstance.h>
 #include <clang/Lex/PreprocessorOptions.h>
 
-bool ClangCompiler::llvmInitialized = false;
+std::once_flag ClangCompiler::llvmInitialized;
 
 enum Architecture { PPC, PPCLE, S390X, ARM64, X86 };
 
@@ -39,15 +40,13 @@ ClangCompiler::ClangCompiler(const char *name) :
     }),
     theTriple("bpf")
 {
-    if (!ClangCompiler::llvmInitialized) {
+    std::call_once(llvmInitialized, []{
         LLVMInitializeBPFTarget();
         LLVMInitializeBPFTargetMC();
         LLVMInitializeBPFTargetInfo();
         LLVMInitializeBPFAsmPrinter();
         LLVMInitializeBPFAsmParser();
-
-        ClangCompiler::llvmInitialized = true;
-    }
+    });
 
     theDriver = std::make_unique<clang::driver::Driver>(
         name, getArch(), *diagnosticsEngine,
