@@ -49,7 +49,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	// Read configuration files received from the command line arguments '-c'
-	err := common.MergeConfigurationFiles("datadog", confPathArray)
+	err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed)
 	if err != nil {
 		return err
 	}

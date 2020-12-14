@@ -49,6 +49,7 @@ void __attribute__((always_inline)) invalidate_inode(struct pt_regs *ctx, u32 mo
         // invalidate dentry
         struct invalidate_dentry_event_t event = {
             .event.type = EVENT_INVALIDATE_DENTRY,
+            .event.timestamp = bpf_ktime_get_ns(),
             .inode = inode,
             .mount_id = mount_id,
         };

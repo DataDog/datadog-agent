@@ -25,7 +25,7 @@ func (c *Config) EnabledProbes(pre410Kernel bool) (map[probes.ProbeName]struct{}
 		enabled[probes.TCPv4DestroySock] = struct{}{}
 		enabled[probes.TCPSetState] = struct{}{}
 
-		if c.BPFDebug {
+		if c.BPFDebug || c.EnableHTTPMonitoring {
 			enabled[probes.TCPSendMsgReturn] = struct{}{}
 		}
 	}

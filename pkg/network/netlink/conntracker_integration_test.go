@@ -274,8 +274,9 @@ func startServerTCPNs(t *testing.T, ip net.IP, port int, ns string) io.Closer {
 	require.NoError(t, err)
 
 	var closer io.Closer
-	util.WithNS("/proc", h, func() {
+	util.WithNS("/proc", h, func() error {
 		closer = startServerTCP(t, ip, port)
+		return nil
 	})
 
 	return closer
@@ -314,8 +315,9 @@ func startServerUDPNs(t *testing.T, ip net.IP, port int, ns string) io.Closer {
 	require.NoError(t, err)
 
 	var closer io.Closer
-	util.WithNS("/proc", h, func() {
+	util.WithNS("/proc", h, func() error {
 		closer = startServerUDP(t, ip, port)
+		return nil
 	})
 
 	return closer

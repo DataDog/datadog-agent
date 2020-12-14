@@ -13,21 +13,38 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
-// MergeConfigurationFiles reads an array of configuration filenames and attempts to merge them
-func MergeConfigurationFiles(configName string, configurationFilesArray []string) error {
+// MergeConfigurationFiles reads an array of configuration filenames and attempts to merge them. The userDefined value is used to specify that configurationFilesArray contains filenames defined on the command line
+func MergeConfigurationFiles(configName string, configurationFilesArray []string, userDefined bool) error {
 	// we'll search for a config file named `datadog.yaml`
 	coreconfig.Datadog.SetConfigName(configName)
 
-	for index, configurationFilename := range configurationFilesArray {
-		if index == 0 {
+	// Track if a configuration file was loaded
+	loadedConfiguration := false
+
+	// Load and merge configuration files
+	for _, configurationFilename := range configurationFilesArray {
+		if _, err := os.Stat(configurationFilename); err != nil {
+			if userDefined {
+				fmt.Printf("Warning: unable to access %s\n", configurationFilename)
+			}
+			continue
+		}
+		if loadedConfiguration == false {
 			err := common.SetupConfig(configurationFilename)
 			if err != nil {
-				return fmt.Errorf("Unable to open a configuration file: %v", err)
+				if userDefined {
+					fmt.Printf("Warning: unable to open %s\n", configurationFilename)
+				}
+				continue
 			}
+			loadedConfiguration = true
 		} else {
 			file, err := os.Open(configurationFilename)
 			if err != nil {
-				return fmt.Errorf("Unable to open a configuration file: %v", err)
+				if userDefined {
+					fmt.Printf("Warning: unable to open %s\n", configurationFilename)
+				}
+				continue
 			}
 
 			err = coreconfig.Datadog.MergeConfig(file)
@@ -35,6 +52,10 @@ func MergeConfigurationFiles(configName string, configurationFilesArray []string
 				return fmt.Errorf("Unable to merge a configuration file: %v", err)
 			}
 		}
+	}
+
+	if loadedConfiguration == false {
+		return fmt.Errorf("Unable to load any configuration file from %s", configurationFilesArray)
 	}
 
 	return nil

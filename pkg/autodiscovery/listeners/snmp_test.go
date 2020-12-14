@@ -6,9 +6,10 @@
 package listeners
 
 import (
-	"testing"
-
+	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"strconv"
+	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
@@ -55,6 +56,62 @@ func TestSNMPListener(t *testing.T) {
 	job = <-testChan
 	assert.Equal(t, "192.168.0.1", job.currentIP.String())
 	assert.Equal(t, "192.168.0.0", job.subnet.startingIP.String())
+}
+
+func TestSNMPListenerSubnets(t *testing.T) {
+	newSvc := make(chan Service, 10)
+	delSvc := make(chan Service, 10)
+	testChan := make(chan snmpJob)
+
+	listenerConfig := snmp.ListenerConfig{
+		Configs: []snmp.Config{},
+		Workers: 10,
+	}
+
+	for i := 0; i < 100; i++ {
+		snmpConfig := snmp.Config{
+			Network:     "172.18.0.0/30",
+			Community:   "f5-big-ip",
+			Port:        1161,
+			ContextName: "context" + strconv.Itoa(i),
+		}
+		listenerConfig.Configs = append(listenerConfig.Configs, snmpConfig)
+	}
+
+	mockConfig := config.Mock()
+	mockConfig.Set("snmp_listener", listenerConfig)
+
+	worker = func(l *SNMPListener, jobs <-chan snmpJob) {
+		for {
+			job := <-jobs
+			testChan <- job
+		}
+	}
+
+	snmpListenerConfig, err := snmp.NewListenerConfig()
+	assert.Equal(t, nil, err)
+
+	services := map[string]Service{}
+	l := &SNMPListener{
+		services: services,
+		stop:     make(chan bool),
+		config:   snmpListenerConfig,
+	}
+
+	l.Listen(newSvc, delSvc)
+
+	subnets := make(map[string]bool)
+	entities := make(map[string]bool)
+
+	for i := 0; i < 400; i++ {
+		job := <-testChan
+		subnets[fmt.Sprintf("%p", job.subnet)] = true
+		entities[job.subnet.config.Digest(job.currentIP.String())] = true
+	}
+
+	// make sure we have 100 subnets and 400 different entity hashes
+	assert.Equal(t, 100, len(subnets))
+	assert.Equal(t, 400, len(entities))
 }
 
 func TestSNMPListenerIgnoredAdresses(t *testing.T) {

@@ -60,24 +60,28 @@ func NewSocketFilterSnooper(cfg *config.Config, filter *manager.Probe) (*SocketF
 	)
 
 	// Create the RAW_SOCKET inside the root network namespace
-	nsErr := util.WithRootNS(cfg.ProcRoot, func() {
+	err := util.WithRootNS(cfg.ProcRoot, func() error {
 		packetSrc, srcErr = newPacketSource(filter)
+		return srcErr
 	})
-	if nsErr != nil {
-		return nil, nsErr
-	}
-	if srcErr != nil {
-		return nil, srcErr
+	if err != nil {
+		return nil, err
 	}
 
 	cache := newReverseDNSCache(dnsCacheSize, dnsCacheTTL, dnsCacheExpirationPeriod)
 	var statKeeper *dnsStatKeeper
 	if cfg.CollectDNSStats {
 		statKeeper = newDNSStatkeeper(cfg.DNSTimeout)
+		log.Infof("DNS Stats Collection has been enabled.")
+		if cfg.CollectDNSDomains {
+			log.Infof("DNS domain collection has been enabled")
+		}
+	} else {
+		log.Infof("DNS Stats Collection has been disabled.")
 	}
 	snooper := &SocketFilterSnooper{
 		source:          packetSrc,
-		parser:          newDNSParser(cfg.CollectDNSStats),
+		parser:          newDNSParser(cfg.CollectDNSStats, cfg.CollectDNSDomains),
 		cache:           cache,
 		statKeeper:      statKeeper,
 		translation:     new(translation),
@@ -99,6 +103,12 @@ func NewSocketFilterSnooper(cfg *config.Config, filter *manager.Probe) (*SocketF
 		snooper.wg.Done()
 	}()
 
+	// Start logging DNS stats
+	snooper.wg.Add(1)
+	go func() {
+		snooper.logDNSStats()
+		snooper.wg.Done()
+	}()
 	return snooper, nil
 }
 
@@ -107,7 +117,7 @@ func (s *SocketFilterSnooper) Resolve(connections []ConnectionStats) map[util.Ad
 	return s.cache.Get(connections, time.Now())
 }
 
-func (s *SocketFilterSnooper) GetDNSStats() map[dnsKey]dnsStats {
+func (s *SocketFilterSnooper) GetDNSStats() map[dnsKey]map[string]dnsStats {
 	if s.statKeeper == nil {
 		return nil
 	}
@@ -122,10 +132,10 @@ func (s *SocketFilterSnooper) GetStats() map[string]int64 {
 	stats["packets_dropped"] = atomic.LoadInt64(&s.dropped)
 	stats["decoding_errors"] = atomic.LoadInt64(&s.decodingErrors)
 	stats["truncated_packets"] = atomic.LoadInt64(&s.truncatedPkts)
+	stats["timestamp_micro_secs"] = time.Now().UnixNano() / 1000
 	stats["queries"] = atomic.LoadInt64(&s.queries)
 	stats["successes"] = atomic.LoadInt64(&s.successes)
 	stats["errors"] = atomic.LoadInt64(&s.errors)
-	stats["timestamp_micro_secs"] = time.Now().UnixNano() / 1000
 	return stats
 }
 
@@ -199,6 +209,28 @@ func (s *SocketFilterSnooper) pollPackets() {
 
 		// Sleep briefly and try again
 		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func (s *SocketFilterSnooper) logDNSStats() {
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+
+	var (
+		queries   int64
+		successes int64
+		errors    int64
+	)
+	for {
+		select {
+		case <-ticker.C:
+			queries = atomic.SwapInt64(&s.queries, 0)
+			successes = atomic.SwapInt64(&s.successes, 0)
+			errors = atomic.SwapInt64(&s.errors, 0)
+			log.Infof("DNS Stats. Queries :%d, Successes :%d, Errors: %d", queries, successes, errors)
+		case <-s.exit:
+			return
+		}
 	}
 }
 

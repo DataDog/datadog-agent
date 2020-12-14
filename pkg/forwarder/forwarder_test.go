@@ -503,19 +503,25 @@ func TestProcessLikePayloadResponseTimeout(t *testing.T) {
 }
 
 func TestHighPriorityTransaction(t *testing.T) {
-	var requestCount int32
+	var receivedRequests = make(map[string]struct{})
+	var mutex sync.Mutex
 	var requestChan = make(chan (string))
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// First 3 requests failed
-		if atomic.AddInt32(&requestCount, 1) < 3 {
+		mutex.Lock()
+		defer mutex.Unlock()
+		defer r.Body.Close()
+		body, err := ioutil.ReadAll(r.Body)
+		assert.NoError(t, err)
+		bodyStr := string(body)
+
+		// Failed the first time for each request
+		if _, found := receivedRequests[bodyStr]; !found {
+			receivedRequests[bodyStr] = struct{}{}
 			w.WriteHeader(http.StatusInternalServerError)
 		} else {
-			defer r.Body.Close()
-			body, err := ioutil.ReadAll(r.Body)
-			assert.NoError(t, err)
 			w.WriteHeader(http.StatusOK)
-			requestChan <- string(body)
+			requestChan <- bodyStr
 		}
 	}))
 
@@ -543,7 +549,10 @@ func TestHighPriorityTransaction(t *testing.T) {
 	headers.Set("key", "value")
 
 	assert.Nil(t, f.SubmitMetadata(Payloads{&data1}, headers, TransactionPriorityNormal))
+	// Wait so that GetCreatedAt returns a different value for each HTTPTransaction
+	time.Sleep(10 * time.Millisecond)
 	assert.Nil(t, f.SubmitMetadata(Payloads{&dataHighPrio}, headers, TransactionPriorityHigh))
+	time.Sleep(10 * time.Millisecond)
 	assert.Nil(t, f.SubmitMetadata(Payloads{&data2}, headers, TransactionPriorityNormal))
 
 	assert.Equal(t, string(dataHighPrio), <-requestChan)

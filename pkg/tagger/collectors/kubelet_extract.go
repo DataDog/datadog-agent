@@ -102,6 +102,9 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 
 		// Creator
 		for _, owner := range pod.Owners() {
+			tags.AddLow("kube_ownerref_kind", strings.ToLower(owner.Kind))
+			tags.AddOrchestrator("kube_ownerref_name", owner.Name)
+
 			switch owner.Kind {
 			case "":
 				continue

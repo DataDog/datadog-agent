@@ -8,47 +8,10 @@
 package probe
 
 import (
-	"bytes"
-	"encoding/json"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
-
-func TestMkdirJSON(t *testing.T) {
-	tr, err := NewTimeResolver()
-	if err != nil {
-		t.Fatal(err)
-	}
-	e := NewEvent(&Resolvers{TimeResolver: tr})
-	e.Process = ProcessContext{
-		Pid: 123,
-		Tid: 456,
-		UID: 8,
-		GID: 9,
-	}
-	e.Mkdir = MkdirEvent{
-		FileEvent: FileEvent{
-			Inode:       33,
-			PathnameStr: "/etc/passwd",
-		},
-		Mode: 0777,
-	}
-
-	data, err := json.Marshal(e)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	d := json.NewDecoder(bytes.NewReader(data))
-	d.UseNumber()
-
-	var i interface{}
-	err = d.Decode(&i)
-	if err != nil {
-		t.Fatal(err)
-	}
-}
 
 func TestAbsolutePath(t *testing.T) {
 	model := &Model{}
