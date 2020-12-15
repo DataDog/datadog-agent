@@ -13,10 +13,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"os/user"
 	"path"
 	"regexp"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -752,10 +750,7 @@ func (e *ExecEvent) ResolveGID(event *Event) int {
 // ResolveUser resolves the user id of the process to a username
 func (e *ExecEvent) ResolveUser(event *Event) string {
 	if len(e.User) == 0 {
-		u, err := user.LookupId(strconv.Itoa(int(event.Process.UID)))
-		if err == nil {
-			e.User = u.Username
-		}
+		e.User, _ = event.resolvers.UserGroupResolver.ResolveUser(int(event.Process.UID))
 	}
 	return e.User
 }
@@ -763,10 +758,7 @@ func (e *ExecEvent) ResolveUser(event *Event) string {
 // ResolveGroup resolves the group id of the process to a group name
 func (e *ExecEvent) ResolveGroup(event *Event) string {
 	if len(e.Group) == 0 {
-		g, err := user.LookupGroupId(strconv.Itoa(int(event.Process.GID)))
-		if err == nil {
-			e.Group = g.Name
-		}
+		e.Group, _ = event.resolvers.UserGroupResolver.ResolveGroup(int(event.Process.GID))
 	}
 	return e.Group
 }
@@ -889,10 +881,7 @@ func (p *ProcessContext) UnmarshalBinary(data []byte) (int, error) {
 // ResolveUser resolves the user id of the process to a username
 func (p *ProcessContext) ResolveUser(event *Event) string {
 	if len(p.User) == 0 {
-		u, err := user.LookupId(strconv.Itoa(int(p.UID)))
-		if err == nil {
-			p.User = u.Username
-		}
+		p.User, _ = event.resolvers.UserGroupResolver.ResolveUser(int(p.UID))
 	}
 	return p.User
 }
@@ -900,10 +889,7 @@ func (p *ProcessContext) ResolveUser(event *Event) string {
 // ResolveGroup resolves the group id of the process to a group name
 func (p *ProcessContext) ResolveGroup(event *Event) string {
 	if len(p.Group) == 0 {
-		g, err := user.LookupGroupId(strconv.Itoa(int(p.GID)))
-		if err == nil {
-			p.Group = g.Name
-		}
+		p.Group, _ = event.resolvers.UserGroupResolver.ResolveGroup(int(p.GID))
 	}
 	return p.Group
 }
