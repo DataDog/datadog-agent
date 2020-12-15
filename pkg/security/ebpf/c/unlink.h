@@ -47,7 +47,7 @@ int kprobe__vfs_unlink(struct pt_regs *ctx) {
 
     // we resolve all the information before the file is actually removed
     struct dentry *dentry = (struct dentry *) PT_REGS_PARM2(ctx);
-    set_path_key_inode(dentry, syscall->unlink.path_key, 1);
+    set_path_key_inode(dentry, &syscall->unlink.path_key, 1);
 
     syscall->unlink.overlay_numlower = get_overlay_numlower(dentry);
 
