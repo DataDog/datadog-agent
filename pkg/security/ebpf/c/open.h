@@ -130,16 +130,12 @@ int __attribute__((always_inline)) handle_open_event(struct pt_regs *ctx, struct
     struct file *file = (struct file *)PT_REGS_PARM1(ctx);
     struct inode *inode = (struct inode *)PT_REGS_PARM2(ctx);
 
-    if (syscall->open.dentry) {
+    if (syscall->open.path_key.ino) {
         return 0;
     }
 
     struct dentry *dentry = get_file_dentry(file);
-
-    u64 lower_inode = get_ovl_lower_ino(dentry);
-    if (lower_inode) {
-        syscall->open.ovl.vfs_lower_inode = lower_inode;
-    }
+    set_path_key_inode(dentry, syscall->open.path_key, 0); 
 
     syscall->open.dentry = dentry;
     syscall->open.path_key = get_inode_key_path(inode, &file->f_path);
@@ -191,25 +187,14 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
     if (!syscall)
         return 0;
 
-    syscall->open.path_key.path_id = get_path_id(0);
-
-    // use by default the ino of the dentry used for the dentry resolution
-    u64 inode = syscall->open.path_key.ino;
-
-    // set the entry dentry key
-    if (syscall->open.ovl.vfs_lower_inode) {
-        inode = syscall->open.ovl.vfs_lower_inode;
-        link_dentry_inode(syscall->open.path_key, inode);   
-    }
-
-    bpf_printk("trace__sys_open_ret: %d\n", inode);
+    bpf_printk("trace__sys_open_ret: %d\n", syscall->open.path_key.ino);
 
     struct open_event_t event = {
         .event.type = EVENT_OPEN,
         .event.timestamp = bpf_ktime_get_ns(),
         .syscall.retval = retval,
         .file = {
-            .inode = inode,
+            .inode = syscall->open.path_key.ino,
             .mount_id = syscall->open.path_key.mount_id,
             .overlay_numlower = get_overlay_numlower(syscall->open.dentry),
             .path_id = syscall->open.path_key.path_id,

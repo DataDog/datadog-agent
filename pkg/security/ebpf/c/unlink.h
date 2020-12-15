@@ -47,22 +47,9 @@ int kprobe__vfs_unlink(struct pt_regs *ctx) {
 
     // we resolve all the information before the file is actually removed
     struct dentry *dentry = (struct dentry *) PT_REGS_PARM2(ctx);
+    set_path_key_inode(dentry, syscall->unlink.path_key, 1);
 
-    u64 lower_inode = get_ovl_lower_ino(dentry);
-    if (lower_inode) {
-        syscall->unlink.ovl.vfs_lower_inode = lower_inode;
-    }
-
-    u64 upper_inode = get_ovl_upper_ino(dentry);
-    if (upper_inode) {
-        syscall->unlink.ovl.vfs_upper_inode = upper_inode;
-    }
-
-    syscall->unlink.path_key.ino = get_dentry_ino(dentry);
     syscall->unlink.overlay_numlower = get_overlay_numlower(dentry);
-
-    if (!syscall->unlink.path_key.path_id)
-        syscall->unlink.path_key.path_id = get_path_id(1);
 
     if (discarded_by_process(syscall->policy.mode, EVENT_UNLINK)) {
         pop_syscall(SYSCALL_UNLINK);
@@ -88,22 +75,7 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
         return 0;
     }
 
-    // use the inode retrieved in the vfs_unlink call
-    u64 inode = syscall->unlink.path_key.ino;
-
-    bpf_printk("trace__sys_unlink_ret: %d %d %d\n", syscall->unlink.ovl.lower_inode, syscall->unlink.ovl.upper_inode, syscall->unlink.ovl.real_inode);
-
-    // set the entry dentry key
-    if (syscall->unlink.ovl.vfs_lower_inode) {
-        inode = syscall->unlink.ovl.vfs_lower_inode;
-        // TODO safchain do not link but substitute the key ino
-        link_dentry_inode(syscall->unlink.path_key, inode);   
-    } else if (syscall->unlink.ovl.vfs_upper_inode) {
-        inode = syscall->unlink.ovl.vfs_upper_inode;
-        link_dentry_inode(syscall->unlink.path_key, inode);  
-    }
-
-    bpf_printk("trace__sys_unlink_ret: %d\n", inode);
+    bpf_printk("trace__sys_unlink_ret: %d\n", syscall->unlink.path_key.ino);
 
     u64 enabled_events = get_enabled_events();
     int enabled = mask_has_event(enabled_events, EVENT_UNLINK) ||
@@ -115,7 +87,7 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
             .syscall.retval = retval,
             .file = {
                 .mount_id = syscall->unlink.path_key.mount_id,
-                .inode = inode,
+                .inode = syscall->unlink.path_key.ino,
                 .overlay_numlower = syscall->unlink.overlay_numlower,
                 .path_id = syscall->unlink.path_key.path_id,
             },
@@ -128,7 +100,7 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
         send_event(ctx, event);
     }
 
-    invalidate_inode(ctx, syscall->unlink.path_key.mount_id, inode, !enabled);
+    invalidate_inode(ctx, syscall->unlink.path_key.mount_id, syscall->unlink.path_key.ino, !enabled);
 
     return 0;
 }

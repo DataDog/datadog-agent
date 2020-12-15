@@ -41,27 +41,19 @@ int kprobe__vfs_rename(struct pt_regs *ctx) {
         return 0;
 
     // if second pass, ex: overlayfs, just cache the inode that will be used in ret
-    if (syscall->rename.src_dentry) {
+    if (syscall->rename.target_key.ino) {
         return 0;
     }
 
     struct dentry *src_dentry = (struct dentry *)PT_REGS_PARM2(ctx);
     struct dentry *target_dentry = (struct dentry *)PT_REGS_PARM4(ctx);
 
-    u64 lower_inode = get_ovl_lower_ino(src_dentry);
-    if (lower_inode) {
-        syscall->rename.ovl.vfs_lower_inode = lower_inode;
-    }
-
-    syscall->rename.target_key.ino = get_dentry_ino(target_dentry);
-
     syscall->rename.src_dentry = src_dentry;
     syscall->rename.target_dentry = target_dentry;
 
-    u64 upper_inode = get_ovl_upper_ino(syscall->rename.src_dentry);
-    if (upper_inode) {
-        syscall->rename.ovl.vfs_upper_inode = upper_inode;
-    }
+    // use src_dentry as target inode is currenlty empty and the target file will
+    // have the src inode anyway
+    set_path_key_inode(src_dentry, syscall->rename.target_key, 1); 
 
     syscall->rename.src_overlay_numlower = get_overlay_numlower(syscall->rename.src_dentry);
 
@@ -84,39 +76,11 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
     // invalidate non ovl inode, case of folder renamed
     invalidate_inode(ctx, syscall->rename.target_key.mount_id, get_dentry_ino(syscall->rename.src_dentry), 1);
 
-    // we invalidate the inode of the overridden file
-    if (syscall->rename.target_key.ino) {
-        invalidate_inode(ctx, syscall->rename.target_key.mount_id, syscall->rename.target_key.ino, 1);
-    }
-
-    // Warning: we use the src_dentry twice for compatibility with CentOS. Do not change it :)
-    // (the mount id was set by kprobe/mnt_want_write)
-    syscall->rename.target_key.ino = get_dentry_ino(syscall->rename.src_dentry);
-    if (syscall->rename.real_src_dentry) {
-        syscall->rename.target_key.ino = get_dentry_ino(syscall->rename.real_src_dentry);
-    }
-
     // If we are discarded, we still want to invalidate the inode
     if (discarded_by_process(syscall->policy.mode, EVENT_RENAME) || (IS_UNHANDLED_ERROR(retval))) {
         invalidate_inode(ctx, syscall->rename.target_key.mount_id, syscall->rename.target_key.ino, 1);
         return 0;
     }
-
-    syscall->rename.target_key.path_id = get_path_id(1);
-
-    u64 inode = syscall->rename.target_key.ino;
-    bpf_printk("trace__sys_rename_ret >: %d\n", inode);
-
-    if (syscall->rename.ovl.vfs_lower_inode) {
-        inode = syscall->rename.ovl.vfs_lower_inode;
-        link_dentry_inode(syscall->rename.target_key, inode);
-    } else if (syscall->rename.ovl.vfs_upper_inode) {
-        inode = syscall->rename.ovl.vfs_upper_inode;
-        link_dentry_inode(syscall->rename.target_key, inode);
-    }
-
-     bpf_printk("trace__sys_rename_ret <: %d\n", inode);
-
 
     int enabled = is_event_enabled(EVENT_RENAME);
     if (enabled) {
@@ -130,7 +94,7 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
                 .overlay_numlower = syscall->rename.src_overlay_numlower,
             },
             .new = {
-                .inode = inode,
+                .inode = syscall->rename.target_key.ino,
                 .mount_id = syscall->rename.target_key.mount_id,
                 .overlay_numlower = get_overlay_numlower(syscall->rename.src_dentry),
                 .path_id = syscall->rename.target_key.path_id,
@@ -139,8 +103,6 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
 
         struct proc_cache_t *entry = fill_process_context(&event.process);
         fill_container_context(entry, &event.container);
-
-        bpf_printk("trace__sys_rename_ret >: %d\n", syscall->rename.target_key.ino);
 
         // for centos7, use src dentry for target resolution as the pointers have been swapped
         resolve_dentry(syscall->rename.src_dentry, syscall->rename.target_key, 0);
