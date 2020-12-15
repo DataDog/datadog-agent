@@ -343,7 +343,7 @@ func TestDentryOverlay(t *testing.T) {
 		},
 		&rules.RuleDefinition{
 			ID:         "test_rule_unlink",
-			Expression: `unlink.filename in ["{{.Root}}/merged/read.txt", "{{.Root}}/merged/override.txt", "{{.Root}}/merged/renamed.txt", "{{.Root}}/merged/new.txt"]`,
+			Expression: `unlink.filename in ["{{.Root}}/merged/read.txt", "{{.Root}}/merged/override.txt", "{{.Root}}/merged/renamed.txt", "{{.Root}}/merged/new.txt", "{{.Root}}/merged/chmod.txt", "{{.Root}}/merged/utimes.txt"]`,
 		},
 		&rules.RuleDefinition{
 			ID:         "test_rule_rename",
@@ -360,6 +360,10 @@ func TestDentryOverlay(t *testing.T) {
 		&rules.RuleDefinition{
 			ID:         "test_rule_mkdir",
 			Expression: `mkdir.filename in ["{{.Root}}/merged/mkdir"]`,
+		},
+		&rules.RuleDefinition{
+			ID:         "test_rule_utimes",
+			Expression: `utimes.filename in ["{{.Root}}/merged/utimes.txt"]`,
 		},
 	}
 
@@ -379,7 +383,7 @@ func TestDentryOverlay(t *testing.T) {
 	testLower, testUpper, testWordir, testMerged := createOverlayLayers(t, test)
 
 	// create all the lower files
-	for _, filename := range []string{"lower/read.txt", "lower/override.txt", "lower/create.txt", "lower/chmod.txt"} {
+	for _, filename := range []string{"lower/read.txt", "lower/override.txt", "lower/create.txt", "lower/chmod.txt", "lower/utimes.txt"} {
 		_, _, err = test.Create(filename)
 		if err != nil {
 			t.Fatal(err)
@@ -623,12 +627,27 @@ func TestDentryOverlay(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		var inode uint64
+
 		event, _, err := test.GetEvent()
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode := getInode(t, testFile); inode != event.Chmod.Inode {
-				t.Errorf("expected inode not found %d(real) != %d\n", inode, event.Open.Inode)
+			if inode = getInode(t, testFile); inode != event.Chmod.Inode {
+				t.Errorf("expected inode not found %d(real) != %d\n", inode, event.Chmod.Inode)
+			}
+		}
+
+		if err := os.Remove(testFile); err != nil {
+			t.Fatal(err)
+		}
+
+		event, _, err = test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if inode != event.Unlink.Inode {
+				t.Errorf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
 			}
 		}
 	})
@@ -648,7 +667,42 @@ func TestDentryOverlay(t *testing.T) {
 			t.Error(err)
 		} else {
 			if inode := getInode(t, testFile); inode != event.Mkdir.Inode {
-				t.Errorf("expected inode not found %d(real) != %d\n", inode, event.Open.Inode)
+				t.Errorf("expected inode not found %d(real) != %d\n", inode, event.Mkdir.Inode)
+			}
+		}
+	})
+
+	t.Run("utimes-lower", func(t *testing.T) {
+		testFile, _, err := test.Path("merged/utimes.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := os.Chtimes(testFile, time.Now(), time.Now()); err != nil {
+			t.Fatal(err)
+		}
+
+		var inode uint64
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if inode = getInode(t, testFile); inode != event.Utimes.Inode {
+				t.Errorf("expected inode not found %d(real) != %d\n", inode, event.Utimes.Inode)
+			}
+		}
+
+		if err := os.Remove(testFile); err != nil {
+			t.Fatal(err)
+		}
+
+		event, _, err = test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if inode != event.Unlink.Inode {
+				t.Errorf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
 			}
 		}
 	})
