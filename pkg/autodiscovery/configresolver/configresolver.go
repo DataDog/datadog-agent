@@ -128,33 +128,30 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 
 	if err := SubstituteTemplateEnvVars(&resolvedConfig); err != nil {
 		// We add the service name to the error here, since SubstituteTemplateEnvVars doesn't know about that
-		return resolvedConfig, "", fmt.Errorf("%s, skipping service %s", err, svc.GetEntity())
+		return resolvedConfig, "", fmt.Errorf("%w, skipping service %s", err, svc.GetEntity())
 	}
 
-	tagsHash := ""
+	tags, tagsHash, err := svc.GetTags()
+	if err != nil {
+		return resolvedConfig, "", fmt.Errorf("couldn't get tags for service '%s', err: %w", svc.GetEntity(), err)
+	}
+
 	if !tpl.IgnoreAutodiscoveryTags {
-		var err error
-		tagsHash, err = addServiceTags(&resolvedConfig, svc)
-		if err != nil {
-			return resolvedConfig, "", fmt.Errorf("unable to add tags for service '%s', err: %s", svc.GetEntity(), err)
+		if err := addServiceTags(&resolvedConfig, tags); err != nil {
+			return resolvedConfig, "", fmt.Errorf("unable to add tags for service '%s', err: %w", svc.GetEntity(), err)
 		}
 	}
 
 	return resolvedConfig, tagsHash, nil
 }
 
-func addServiceTags(resolvedConfig *integration.Config, svc listeners.Service) (string, error) {
-	tags, hash, err := svc.GetTags()
-	if err != nil {
-		return hash, err
-	}
+func addServiceTags(resolvedConfig *integration.Config, tags []string) error {
 	for i := 0; i < len(resolvedConfig.Instances); i++ {
-		err = resolvedConfig.Instances[i].MergeAdditionalTags(tags)
-		if err != nil {
-			return hash, err
+		if err := resolvedConfig.Instances[i].MergeAdditionalTags(tags); err != nil {
+			return err
 		}
 	}
-	return hash, nil
+	return nil
 }
 
 func getHost(tplVar []byte, svc listeners.Service) ([]byte, error) {
