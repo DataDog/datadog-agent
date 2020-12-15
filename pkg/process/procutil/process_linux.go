@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -19,11 +20,11 @@ import (
 )
 
 const (
-	// ClockTicks is the number of clock ticks per second
-	// C.sysconf(C._SC_CLK_TCK)
-	ClockTicks = 100
 	// WorldReadable represents file permission that's world readable
 	WorldReadable os.FileMode = 4
+	// DefaultClockTicks is the default number of clock ticks per second
+	// C.sysconf(C._SC_CLK_TCK)
+	DefaultClockTicks = float64(100)
 )
 
 type statusInfo struct {
@@ -55,6 +56,8 @@ type Probe struct {
 	uid  uint32 // UID
 	euid uint32 // Effective UID
 
+	clockTicks float64
+
 	bootTime uint64
 }
 
@@ -68,6 +71,7 @@ func NewProcessProbe() *Probe {
 		uid:         uint32(os.Getuid()),
 		euid:        uint32(os.Geteuid()),
 		bootTime:    bootTime,
+		clockTicks:  getClockTicks(),
 	}
 	return p
 }
@@ -385,13 +389,13 @@ func (p *Probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 	}
 
 	content := statContent[startIndex+1:]
-	// use spaces and prevChartIsSpace to simulate strings.Fields() to avoid allocation
+	// use spaces and prevCharIsSpace to simulate strings.Fields() to avoid allocation
 	spaces := 0
 	prevCharIsSpace := false
 	var ppidStr, utimeStr, stimeStr, startTimeStr string
 
-	for i := range content {
-		if unicode.IsSpace(rune(content[i])) {
+	for _, c := range content {
+		if unicode.IsSpace(rune(c)) {
 			if !prevCharIsSpace {
 				spaces++
 			}
@@ -402,13 +406,13 @@ func (p *Probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 		}
 
 		if spaces == 2 {
-			ppidStr += string(content[i])
+			ppidStr += string(c)
 		} else if spaces == 12 {
-			utimeStr += string(content[i])
+			utimeStr += string(c)
 		} else if spaces == 13 {
-			stimeStr += string(content[i])
+			stimeStr += string(c)
 		} else if spaces == 20 {
-			startTimeStr += string(content[i])
+			startTimeStr += string(c)
 		}
 	}
 
@@ -423,11 +427,11 @@ func (p *Probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 
 	utime, err := strconv.ParseFloat(utimeStr, 64)
 	if err == nil {
-		sInfo.cpuStat.User = utime / ClockTicks
+		sInfo.cpuStat.User = utime / p.clockTicks
 	}
 	stime, err := strconv.ParseFloat(stimeStr, 64)
 	if err == nil {
-		sInfo.cpuStat.System = stime / ClockTicks
+		sInfo.cpuStat.System = stime / p.clockTicks
 	}
 	// the nice parameter location seems to be different for various procfs,
 	// so we fetch that using syscall
@@ -441,7 +445,8 @@ func (p *Probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 
 	t, err := strconv.ParseUint(startTimeStr, 10, 64)
 	if err == nil {
-		ctime := (t / uint64(ClockTicks)) + p.bootTime
+		ctime := (t / uint64(p.clockTicks)) + p.bootTime
+		// convert create time into milliseconds
 		sInfo.createTime = int64(ctime * 1000)
 	}
 
@@ -529,13 +534,13 @@ func bootTime(hostProc string) (uint64, error) {
 		return 0, nil
 	}
 
-	index := 0
+	lineStart := 0
 	btimePrefix := []byte("btime")
 
 	for i, r := range content {
 		if r == '\n' {
-			if bytes.HasPrefix(content[index:i], btimePrefix) {
-				f := strings.Fields(string(content[index:i]))
+			if bytes.HasPrefix(content[lineStart:i], btimePrefix) {
+				f := strings.Fields(string(content[lineStart:i]))
 				if len(f) != 2 {
 					return 0, fmt.Errorf("wrong btime format")
 				}
@@ -546,9 +551,30 @@ func bootTime(hostProc string) (uint64, error) {
 				}
 				return uint64(b), nil
 			}
-			index = i + 1
+			lineStart = i + 1
 		}
 	}
 
 	return 0, fmt.Errorf("could not parse btime")
+}
+
+// getClockTicks uses command "getconf CLK_TCK" to fetch the clock tick on current host,
+// if the command doesn't exist uses the default value 100
+func getClockTicks() float64 {
+	clockTicks := DefaultClockTicks
+	getconf, err := exec.LookPath("getconf")
+	if err != nil {
+		return clockTicks
+	}
+	cmd := exec.Command(getconf, "CLK_TCK")
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err = cmd.Run()
+	if err == nil {
+		ticks, err := strconv.ParseFloat(strings.TrimSpace(out.String()), 64)
+		if err == nil {
+			clockTicks = ticks
+		}
+	}
+	return clockTicks
 }
