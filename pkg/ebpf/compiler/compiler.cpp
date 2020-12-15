@@ -20,8 +20,8 @@ ClangCompiler::ClangCompiler(const char *name) :
     llvmContext(std::make_unique<llvm::LLVMContext>()),
     diagOpts(new clang::DiagnosticOptions()),
     errStream(errString),
-    textDiagnosticPrinter(new clang::TextDiagnosticPrinter(errStream, diagOpts.get())),
-    diagnosticsEngine(new clang::DiagnosticsEngine(diagID, diagOpts, textDiagnosticPrinter.get(), false)),
+    textDiagnosticPrinter(std::make_unique<clang::TextDiagnosticPrinter>(errStream, diagOpts.get())),
+    diagnosticsEngine(std::make_unique<clang::DiagnosticsEngine>(diagID, diagOpts, textDiagnosticPrinter.get(), false)),
     defaultCflags({
         "clang", // DO NOT REMOVE, first flag is ignored
         "-emit-llvm",
