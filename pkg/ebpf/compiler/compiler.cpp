@@ -72,6 +72,8 @@ ClangCompiler::ClangCompiler(const char *name) :
         errString = "could not allocate target machine";
         return;
     }
+
+    diagnosticsEngine->setSuppressSystemWarnings(true);
 }
 
 std::unique_ptr<clang::CompilerInvocation> ClangCompiler::buildCompilation(
@@ -121,9 +123,9 @@ std::unique_ptr<clang::CompilerInvocation> ClangCompiler::buildCompilation(
     }
 
     if (verbose) {
-        llvm::errs() << "clang invocation:\n";
-        jobs.Print(llvm::errs(), "\n", true);
-        llvm::errs() << "\n";
+        errStream << "clang invocation:\n";
+        jobs.Print(errStream, "\n", true);
+        errStream << "\n";
     }
 
     auto invocation = std::make_unique<clang::CompilerInvocation>();
@@ -159,8 +161,8 @@ std::unique_ptr<llvm::Module> ClangCompiler::compileToBytecode(
 
     clang::CompilerInstance compiler;
     compiler.setInvocation(std::move(invocation));
+    compiler.setDiagnostics(diagnosticsEngine.get());
 
-    compiler.createDiagnostics();
     if (!compiler.hasDiagnostics()) {
         return nullptr;
     }
@@ -231,7 +233,7 @@ llvm::StringRef ClangCompiler::getArch() {
 int ClangCompiler::bytecodeToObjectFile(llvm::Module &module, const char *outputFile)
 {
     if (!outputFile) {
-        llvm::errs() << "Invalid output file";
+        diagnosticsEngine->Report(clang::diag::err_cannot_open_file) << "Invalid output file";
         return -1;
     }
 
@@ -242,13 +244,13 @@ int ClangCompiler::bytecodeToObjectFile(llvm::Module &module, const char *output
     llvm::raw_fd_ostream dest(outputFile, EC, llvm::sys::fs::OF_None);
 
     if (EC) {
-        llvm::errs() << "Could not open file: " << EC.message();
+        diagnosticsEngine->Report(clang::diag::err_cannot_open_file) << EC.message();
         return -1;
     }
 
     llvm::legacy::PassManager pass;
     if (targetMachine->addPassesToEmitFile(pass, dest, nullptr, llvm::CGFT_ObjectFile)) {
-        llvm::errs() << "TargetMachine can't emit a file of this type";
+        diagnosticsEngine->Report(clang::diag::err_fe_unable_to_create_target) << "TargetMachine can't emit a file of this type";
         return -1;
     }
 
