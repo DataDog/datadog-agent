@@ -27,6 +27,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
+var (
+	defaultFlags = []string{
+		"-DCONFIG_64BIT",
+		"-D__BPF_TRACING__",
+		`-DKBUILD_MODNAME='"ddsysprobe"'`,
+		"-Wno-unused-value",
+		"-Wno-pointer-sign",
+		"-Wno-compare-distinct-pointer-types",
+		"-Wunused",
+		"-Wall",
+		"-Werror",
+	}
+)
+
 type EBPFCompiler struct {
 	compiler *C.struct_bpf_compiler
 
@@ -99,17 +113,8 @@ func NewEBPFCompiler(headerDirs []string, verbose bool) (*EBPFCompiler, error) {
 		e.Close()
 	})
 
-	cflags := []string{
-		"-DCONFIG_64BIT",
-		"-D__BPF_TRACING__",
-		`-DKBUILD_MODNAME='"ddsysprobe"'`,
-		"-Wno-unused-value",
-		"-Wno-pointer-sign",
-		"-Wno-compare-distinct-pointer-types",
-		"-Wunused",
-		"-Wall",
-		"-Werror",
-	}
+	var cflags []string
+	copy(cflags, defaultFlags)
 
 	var err error
 	var dirs []string
