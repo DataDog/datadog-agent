@@ -164,8 +164,9 @@ func TestDentryRenameReuseInode(t *testing.T) {
 		if event.GetType() != "open" {
 			t.Errorf("expected open event, got %s", event.GetType())
 		}
+
 		if value, _ := event.GetFieldValue("open.filename"); value.(string) != testReuseInodeFile {
-			t.Errorf("expected filename not found")
+			t.Errorf("expected filename not found %s != %s", value.(string), testReuseInodeFile)
 		}
 	}
 }
@@ -424,10 +425,6 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if value, _ := event.GetFieldValue("open.filename"); value.(string) != testFile {
-				t.Errorf("expected filename not found")
-			}
-
 			if inode = getInode(t, testFile); inode != event.Open.Inode {
 				t.Errorf("expected inode not found %d(real) != %d\n", inode, event.Open.Inode)
 			}
@@ -445,10 +442,6 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if value, _ := event.GetFieldValue("open.filename"); value.(string) != testFile {
-				t.Errorf("expected filename not found")
-			}
-
 			if inode = getInode(t, testFile); inode != event.Open.Inode {
 				t.Errorf("expected inode not found %d(real) != %d\n", inode, event.Open.Inode)
 			}
@@ -488,10 +481,6 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if value, _ := event.GetFieldValue("open.filename"); value.(string) != testFile {
-				t.Errorf("expected filename not found")
-			}
-
 			if inode = getInode(t, testFile); inode != event.Open.Inode {
 				t.Errorf("expected inode not found %d(real) != %d\n", inode, event.Open.Inode)
 			}
@@ -531,10 +520,6 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if value, _ := event.GetFieldValue("open.filename"); value.(string) != testFile {
-				t.Errorf("expected filename not found")
-			}
-
 			if inode = getInode(t, testFile); inode != event.Open.Inode {
 				t.Errorf("expected inode not found %d(real) != %d\n", inode, event.Open.Inode)
 			}
@@ -579,10 +564,6 @@ func TestDentryOverlay(t *testing.T) {
 				t.Errorf("expected filename not found %s != %s", value.(string), oldFile)
 			}
 
-			if value, _ := event.GetFieldValue("rename.new.filename"); value.(string) != newFile {
-				t.Errorf("expected filename not found %s != %s", value.(string), newFile)
-			}
-
 			if inode = getInode(t, newFile); inode != event.Rename.New.Inode {
 				t.Errorf("expected inode not found %d(real) != %d\n", inode, event.Rename.New.Inode)
 			}
@@ -618,10 +599,6 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if value, _ := event.GetFieldValue("rmdir.filename"); value.(string) != testDir {
-				t.Errorf("expected filename not found %s != %s", value.(string), testDir)
-			}
-
 			if inode != event.Rmdir.Inode {
 				t.Errorf("expected inode not found %d(real) != %d\n", inode, event.Rename.New.Inode)
 			}
