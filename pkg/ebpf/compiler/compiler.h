@@ -21,7 +21,7 @@ protected:
     llvm::IntrusiveRefCntPtr<clang::DiagnosticOptions> diagOpts;
     llvm::IntrusiveRefCntPtr<clang::DiagnosticIDs> diagID;
     std::unique_ptr<clang::TextDiagnosticPrinter> textDiagnosticPrinter;
-    std::unique_ptr<clang::DiagnosticsEngine> diagnosticsEngine;
+    llvm::IntrusiveRefCntPtr<clang::DiagnosticsEngine> diagnosticsEngine;
     std::unique_ptr<llvm::LLVMContext> llvmContext;
     std::unique_ptr<clang::driver::Driver> theDriver;
     llvm::Triple theTriple;

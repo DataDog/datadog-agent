@@ -21,7 +21,7 @@ ClangCompiler::ClangCompiler(const char *name) :
     diagOpts(new clang::DiagnosticOptions()),
     errStream(errString),
     textDiagnosticPrinter(std::make_unique<clang::TextDiagnosticPrinter>(errStream, diagOpts.get())),
-    diagnosticsEngine(std::make_unique<clang::DiagnosticsEngine>(diagID, diagOpts, textDiagnosticPrinter.get(), false)),
+    diagnosticsEngine(new clang::DiagnosticsEngine(diagID, diagOpts, textDiagnosticPrinter.get(), false)),
     defaultCflags({
         "clang", // DO NOT REMOVE, first flag is ignored
         "-emit-llvm",
