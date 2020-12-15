@@ -15,8 +15,10 @@ import (
 	"syscall"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"golang.org/x/sys/unix"
 )
 
 func TestDentryRename(t *testing.T) {
@@ -343,7 +345,7 @@ func TestDentryOverlay(t *testing.T) {
 		},
 		&rules.RuleDefinition{
 			ID:         "test_rule_unlink",
-			Expression: `unlink.filename in ["{{.Root}}/merged/read.txt", "{{.Root}}/merged/override.txt", "{{.Root}}/merged/renamed.txt", "{{.Root}}/merged/new.txt", "{{.Root}}/merged/chmod.txt", "{{.Root}}/merged/utimes.txt", "{{.Root}}/merged/chown.txt"]`,
+			Expression: `unlink.filename in ["{{.Root}}/merged/read.txt", "{{.Root}}/merged/override.txt", "{{.Root}}/merged/renamed.txt", "{{.Root}}/merged/new.txt", "{{.Root}}/merged/chmod.txt", "{{.Root}}/merged/utimes.txt", "{{.Root}}/merged/chown.txt", "{{.Root}}/merged/xattr.txt"]`,
 		},
 		&rules.RuleDefinition{
 			ID:         "test_rule_rename",
@@ -369,6 +371,10 @@ func TestDentryOverlay(t *testing.T) {
 			ID:         "test_rule_chown",
 			Expression: `chown.filename in ["{{.Root}}/merged/chown.txt"]`,
 		},
+		&rules.RuleDefinition{
+			ID:         "test_rule_xattr",
+			Expression: `setxattr.filename in ["{{.Root}}/merged/xattr.txt"]`,
+		},
 	}
 
 	testDrive, err := newTestDrive("xfs", nil)
@@ -387,7 +393,7 @@ func TestDentryOverlay(t *testing.T) {
 	testLower, testUpper, testWordir, testMerged := createOverlayLayers(t, test)
 
 	// create all the lower files
-	for _, filename := range []string{"lower/read.txt", "lower/override.txt", "lower/create.txt", "lower/chmod.txt", "lower/utimes.txt", "lower/chown.txt"} {
+	for _, filename := range []string{"lower/read.txt", "lower/override.txt", "lower/create.txt", "lower/chmod.txt", "lower/utimes.txt", "lower/chown.txt", "lower/xattr.txt"} {
 		_, _, err = test.Create(filename)
 		if err != nil {
 			t.Fatal(err)
@@ -729,6 +735,49 @@ func TestDentryOverlay(t *testing.T) {
 		} else {
 			if inode = getInode(t, testFile); inode != event.Chown.Inode {
 				t.Errorf("expected inode not found %d(real) != %d\n", inode, event.Chown.Inode)
+			}
+		}
+
+		if err := os.Remove(testFile); err != nil {
+			t.Fatal(err)
+		}
+
+		event, _, err = test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if inode != event.Unlink.Inode {
+				t.Errorf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
+			}
+		}
+	})
+
+	t.Run("xattr-lower", func(t *testing.T) {
+		testFile, testFilePtr, err := test.Path("merged/xattr.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		xattrName, err := syscall.BytePtrFromString("user.test_xattr")
+		if err != nil {
+			t.Fatal(err)
+		}
+		xattrNamePtr := unsafe.Pointer(xattrName)
+		xattrValuePtr := unsafe.Pointer(&[]byte{})
+
+		_, _, errno := syscall.Syscall6(syscall.SYS_SETXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), uintptr(xattrValuePtr), 0, unix.XATTR_CREATE, 0)
+		if errno != 0 {
+			t.Fatal(error(errno))
+		}
+
+		var inode uint64
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if inode = getInode(t, testFile); inode != event.SetXAttr.Inode {
+				t.Errorf("expected inode not found %d(real) != %d\n", inode, event.SetXAttr.Inode)
 			}
 		}
 
