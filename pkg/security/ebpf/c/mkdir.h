@@ -46,16 +46,12 @@ int kprobe__vfs_mkdir(struct pt_regs *ctx) {
     if (!syscall)
         return 0;
 
-    struct dentry *dentry = (struct dentry *)PT_REGS_PARM2(ctx);
-
-    // if second pass, ex: overlayfs, just cache the inode that will be used in ret
     if (syscall->mkdir.dentry) {
-        syscall->mkdir.real_dentry = dentry;
         return 0;
     }
 
-    syscall->mkdir.dentry = dentry;
-    syscall->mkdir.path_key = get_dentry_key_path(syscall->mkdir.dentry, syscall->mkdir.path);
+    syscall->mkdir.dentry = (struct dentry *)PT_REGS_PARM2(ctx);;
+    syscall->mkdir.path_key.mount_id = get_path_mount_id(syscall->mkdir.path);
 
     return 0;
 }
@@ -69,20 +65,12 @@ int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
     if (IS_UNHANDLED_ERROR(retval))
         return 0;
 
-    // the inode of the dentry was not properly set when kprobe/security_path_mkdir was called, make sur we grab it now
-    syscall->mkdir.path_key.ino = get_dentry_ino(syscall->mkdir.dentry);
+    // the inode of the dentry was not properly set when kprobe/security_path_mkdir was called, make sure we grab it now
+    set_path_key_inode(syscall->mkdir.dentry, &syscall->mkdir.path_key, 0);
 
-    syscall->mkdir.path_key.path_id = get_path_id(0);
     int ret = resolve_dentry(syscall->mkdir.dentry, syscall->mkdir.path_key, syscall->policy.mode != NO_FILTER ? EVENT_MKDIR : 0);
     if (ret == DENTRY_DISCARDED) {
         return 0;
-    }
-
-    // add an real entry to reach the first dentry with the proper inode
-    u64 inode = syscall->mkdir.path_key.ino;
-    if (syscall->mkdir.real_dentry) {
-        inode = get_dentry_ino(syscall->mkdir.real_dentry);
-        link_dentry_inode(syscall->mkdir.path_key, inode);
     }
 
     struct mkdir_event_t event = {
@@ -90,7 +78,7 @@ int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
         .event.timestamp = bpf_ktime_get_ns(),
         .syscall.retval = retval,
         .file = {
-            .inode = inode,
+            .inode = syscall->mkdir.path_key.ino,
             .mount_id = syscall->mkdir.path_key.mount_id,
             .overlay_numlower = get_overlay_numlower(syscall->mkdir.dentry),
             .path_id = syscall->mkdir.path_key.path_id,
