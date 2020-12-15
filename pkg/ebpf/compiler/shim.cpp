@@ -51,7 +51,7 @@ void delete_bpf_compiler(bpf_compiler *compiler)
     if (!compiler) {
         return;
     }
-    delete static_cast<ClangCompiler*>(compiler->cpp_compiler);
+    delete compiler->cpp_compiler;
     delete compiler;
 }
 
