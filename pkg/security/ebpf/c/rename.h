@@ -49,7 +49,6 @@ int kprobe__vfs_rename(struct pt_regs *ctx) {
     struct dentry *target_dentry = (struct dentry *)PT_REGS_PARM4(ctx);
 
     syscall->rename.src_dentry = src_dentry;
-    syscall->rename.target_dentry = target_dentry;
 
     // use src_dentry as target inode is currenlty empty and the target file will
     // have the src inode anyway
@@ -63,6 +62,12 @@ int kprobe__vfs_rename(struct pt_regs *ctx) {
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
     resolve_dentry(syscall->rename.src_dentry, syscall->rename.src_key, 0);
 
+    // if destination already exists invalidate
+    u64 inode = get_dentry_ino(target_dentry);
+    if (inode) {
+        invalidate_inode(ctx, syscall->rename.target_key.mount_id, inode, 1);
+    }
+
     return 0;
 }
 
@@ -72,9 +77,6 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
         return 0;
 
     int retval = PT_REGS_RC(ctx);
-
-    // invalidate non ovl inode, case of folder renamed
-    invalidate_inode(ctx, syscall->rename.target_key.mount_id, get_dentry_ino(syscall->rename.src_dentry), 1);
 
     // If we are discarded, we still want to invalidate the inode
     if (discarded_by_process(syscall->policy.mode, EVENT_RENAME) || (IS_UNHANDLED_ERROR(retval))) {
