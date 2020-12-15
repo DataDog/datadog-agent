@@ -188,8 +188,6 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
     if (!syscall)
         return 0;
 
-    bpf_printk("trace__sys_open_ret: %d\n", syscall->open.path_key.ino);
-
     struct open_event_t event = {
         .event.type = EVENT_OPEN,
         .event.timestamp = bpf_ktime_get_ns(),

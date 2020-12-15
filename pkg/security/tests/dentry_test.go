@@ -339,19 +339,23 @@ func TestDentryOverlay(t *testing.T) {
 	rules := []*rules.RuleDefinition{
 		&rules.RuleDefinition{
 			ID:         "test_rule_open",
-			Expression: `open.filename in ["{{.Root}}/merged/file1.txt", "{{.Root}}/merged/file2.txt", "{{.Root}}/merged/file3.txt", "{{.Root}}/merged/new.txt"]`,
+			Expression: `open.filename in ["{{.Root}}/merged/read.txt", "{{.Root}}/merged/override.txt", "{{.Root}}/merged/create.txt", "{{.Root}}/merged/new.txt"]`,
 		},
 		&rules.RuleDefinition{
 			ID:         "test_rule_unlink",
-			Expression: `unlink.filename in ["{{.Root}}/merged/file1.txt", "{{.Root}}/merged/file2.txt", "{{.Root}}/merged/renamed.txt", "{{.Root}}/merged/new.txt"]`,
+			Expression: `unlink.filename in ["{{.Root}}/merged/read.txt", "{{.Root}}/merged/override.txt", "{{.Root}}/merged/renamed.txt", "{{.Root}}/merged/new.txt"]`,
 		},
 		&rules.RuleDefinition{
 			ID:         "test_rule_rename",
-			Expression: `rename.old.filename in ["{{.Root}}/merged/file3.txt"]`,
+			Expression: `rename.old.filename in ["{{.Root}}/merged/create.txt"]`,
 		},
 		&rules.RuleDefinition{
 			ID:         "test_rule_rmdir",
 			Expression: `rmdir.filename in ["{{.Root}}/merged/dir"]`,
+		},
+		&rules.RuleDefinition{
+			ID:         "test_rule_chmod",
+			Expression: `chmod.filename in ["{{.Root}}/merged/chmod.txt"]`,
 		},
 	}
 
@@ -371,7 +375,7 @@ func TestDentryOverlay(t *testing.T) {
 	testLower, testUpper, testWordir, testMerged := createOverlayLayers(t, test)
 
 	// create all the lower files
-	for _, filename := range []string{"lower/file1.txt", "lower/file2.txt", "lower/file3.txt"} {
+	for _, filename := range []string{"lower/read.txt", "lower/override.txt", "lower/create.txt", "lower/chmod.txt"} {
 		_, _, err = test.Create(filename)
 		if err != nil {
 			t.Fatal(err)
@@ -406,7 +410,7 @@ func TestDentryOverlay(t *testing.T) {
 	// open a file in lower in RDONLY and check that open/unlink inode are valid from userspace
 	// perspective and equals
 	t.Run("read-lower", func(t *testing.T) {
-		testFile, _, err := test.Path("merged/file1.txt")
+		testFile, _, err := test.Path("merged/read.txt")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -462,7 +466,7 @@ func TestDentryOverlay(t *testing.T) {
 	})
 
 	t.Run("override-lower", func(t *testing.T) {
-		testFile, _, err := test.Path("merged/file2.txt")
+		testFile, _, err := test.Path("merged/override.txt")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -540,7 +544,7 @@ func TestDentryOverlay(t *testing.T) {
 	})
 
 	t.Run("rename-lower", func(t *testing.T) {
-		oldFile, _, err := test.Path("merged/file3.txt")
+		oldFile, _, err := test.Path("merged/create.txt")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -601,6 +605,26 @@ func TestDentryOverlay(t *testing.T) {
 		} else {
 			if inode != event.Rmdir.Inode {
 				t.Errorf("expected inode not found %d(real) != %d\n", inode, event.Rename.New.Inode)
+			}
+		}
+	})
+
+	t.Run("chmod-lower", func(t *testing.T) {
+		testFile, _, err := test.Path("merged/chmod.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := os.Chmod(testFile, 0777); err != nil {
+			t.Fatal(err)
+		}
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if inode := getInode(t, testFile); inode != event.Chmod.Inode {
+				t.Errorf("expected inode not found %d(real) != %d\n", inode, event.Open.Inode)
 			}
 		}
 	})
