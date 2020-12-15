@@ -48,6 +48,7 @@ public:
 
 private:
     static std::once_flag llvmInitialized;
+    static std::map<std::string, std::unique_ptr<llvm::MemoryBuffer>> remapped_files;
     static llvm::StringRef getDataLayout();
     static llvm::StringRef getArch();
     std::unique_ptr<clang::CompilerInvocation> buildCompilation(

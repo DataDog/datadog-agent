@@ -12,12 +12,9 @@
 #include <clang/Lex/PreprocessorOptions.h>
 
 std::once_flag ClangCompiler::llvmInitialized;
+std::map<std::string, std::unique_ptr<llvm::MemoryBuffer>> ClangCompiler::remapped_files;
 
 enum Architecture { PPC, PPCLE, S390X, ARM64, X86 };
-
-namespace {
-    std::map<std::string, std::unique_ptr<llvm::MemoryBuffer>> remapped_files_;
-}
 
 ClangCompiler::ClangCompiler(const char *name) :
     llvmContext(std::make_unique<llvm::LLVMContext>()),
@@ -46,6 +43,10 @@ ClangCompiler::ClangCompiler(const char *name) :
         LLVMInitializeBPFTargetInfo();
         LLVMInitializeBPFAsmPrinter();
         LLVMInitializeBPFAsmParser();
+
+        for (auto f : MappedFiles::files) {
+            remapped_files[f.first] = llvm::MemoryBuffer::getMemBuffer(f.second);
+        }
     });
 
     theDriver = std::make_unique<clang::driver::Driver>(
@@ -70,12 +71,6 @@ ClangCompiler::ClangCompiler(const char *name) :
     if (!targetMachine) {
         errString = "could not allocate target machine";
         return;
-    }
-
-    if (remapped_files_.empty()) {
-        for (auto f : MappedFiles::files) {
-            remapped_files_[f.first] = llvm::MemoryBuffer::getMemBuffer(f.second);
-        }
     }
 }
 
@@ -150,7 +145,7 @@ std::unique_ptr<llvm::Module> ClangCompiler::compileToBytecode(
     }
 
     invocation->getPreprocessorOpts().RetainRemappedFileBuffers = true;
-    for (const auto &f : remapped_files_) {
+    for (const auto &f : remapped_files) {
         invocation->getPreprocessorOpts().addRemappedFile(f.first, &*f.second);
     }
 
