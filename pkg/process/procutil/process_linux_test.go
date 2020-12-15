@@ -553,7 +553,6 @@ func TestParseStatContent(t *testing.T) {
 				ppid:       0,
 				createTime: 1606181252000,
 				cpuStat: &CPUTimesStat{
-					CPU:       "cpu",
 					User:      48.9,
 					System:    21.84,
 					Timestamp: now.Unix(),
@@ -567,7 +566,6 @@ func TestParseStatContent(t *testing.T) {
 				ppid:       0,
 				createTime: 1606181252000,
 				cpuStat: &CPUTimesStat{
-					CPU:       "cpu",
 					User:      48.9,
 					System:    21.84,
 					Timestamp: now.Unix(),
@@ -581,7 +579,6 @@ func TestParseStatContent(t *testing.T) {
 				ppid:       2,
 				createTime: 1606181252000,
 				cpuStat: &CPUTimesStat{
-					CPU:       "cpu",
 					User:      0,
 					System:    0,
 					Timestamp: now.Unix(),

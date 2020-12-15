@@ -411,18 +411,19 @@ func (p *Probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 			prevCharIsSpace = false
 		}
 
-		if spaces == 2 {
+		switch spaces {
+		case 2:
 			ppidStr += string(c)
-		} else if spaces == 12 {
+		case 12:
 			utimeStr += string(c)
-		} else if spaces == 13 {
+		case 13:
 			stimeStr += string(c)
-		} else if spaces == 20 {
+		case 20:
 			startTimeStr += string(c)
 		}
 	}
 
-	if spaces <= 20 { // We access index 20 and below, so this is just a safety check.
+	if spaces < 20 { // We access index 20 and below, so this is just a safety check.
 		return sInfo
 	}
 
@@ -446,7 +447,6 @@ func (p *Probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 		sInfo.nice = int32(snice)
 	}
 
-	sInfo.cpuStat.CPU = "cpu"
 	sInfo.cpuStat.Timestamp = now.Unix()
 
 	t, err := strconv.ParseUint(startTimeStr, 10, 64)
