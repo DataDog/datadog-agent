@@ -175,60 +175,88 @@ func TestSQLUTF8(t *testing.T) {
 
 func TestSQLTableFinder(t *testing.T) {
 	t.Run("on", func(t *testing.T) {
-		os.Setenv("DD_APM_FEATURES", "table_names")
+		os.Setenv("DD_APM_FEATURES", "table_names,normalize_sql_tables")
 		defer os.Unsetenv("DD_APM_FEATURES")
 
 		for _, tt := range []struct {
-			query  string
-			tables string
+			query      string
+			tables     string
+			obfuscated string
 		}{
 			{
 				"select * from users where id = 42",
 				"users",
+				"select * from users where id = ?",
 			},
 			{
 				"select * from `backslashes` where id = 42",
 				"backslashes",
+				"select * from backslashes where id = ?",
 			},
 			{
 				`select * from "double-quotes" where id = 42`,
 				"double-quotes",
+				`select * from double-quotes where id = ?`,
 			},
 			{
 				"SELECT host, status FROM ec2_status WHERE org_id = 42",
 				"ec2_status",
+				"SELECT host, status FROM ec?_status WHERE org_id = ?",
 			},
 			{
 				"SELECT * FROM (SELECT * FROM nested_table)",
 				"nested_table",
+				"SELECT * FROM (SELECT * FROM nested_table)",
 			},
 			{
 				"-- get user \n--\n select * \n   from users \n    where\n       id = 214325346",
 				"users",
+				"select * from users where id = ?",
 			},
 			{
 				"SELECT articles.* FROM articles WHERE articles.id = 1 LIMIT 1, 20",
 				"articles",
+				"SELECT articles.* FROM articles WHERE articles.id = ? LIMIT ?, ?",
 			},
 			{
 				"UPDATE user_dash_pref SET json_prefs = %(json_prefs)s, modified = '2015-08-27 22:10:32.492912' WHERE user_id = %(user_id)s AND url = %(url)s",
 				"user_dash_pref",
+				"UPDATE user_dash_pref SET json_prefs = ?, modified = ? WHERE user_id = ? AND url = ?",
 			},
 			{
 				"SELECT DISTINCT host.id AS host_id FROM host JOIN host_alias ON host_alias.host_id = host.id WHERE host.org_id = %(org_id_1)s AND host.name NOT IN (%(name_1)s) AND host.name IN (%(name_2)s, %(name_3)s, %(name_4)s, %(name_5)s)",
 				"host,host_alias",
+				"SELECT DISTINCT host.id AS host_id FROM host JOIN host_alias ON host_alias.host_id = host.id WHERE host.org_id = ? AND host.name NOT IN ( ? ) AND host.name IN ( ? )",
 			},
 			{
 				`update Orders set created = "2019-05-24 00:26:17", gross = 30.28, payment_type = "eventbrite", mg_fee = "3.28", fee_collected = "3.28", event = 59366262, status = "10", survey_type = 'direct', tx_time_limit = 480, invite = "", ip_address = "69.215.148.82", currency = 'USD', gross_USD = "30.28", tax_USD = 0.00, journal_activity_id = 4044659812798558774, eb_tax = 0.00, eb_tax_USD = 0.00, cart_uuid = "160b450e7df511e9810e0a0c06de92f8", changed = '2019-05-24 00:26:17' where id = ?`,
 				"Orders",
+				`update Orders set created = ?, gross = ?, payment_type = ?, mg_fee = ?, fee_collected = ?, event = ?, status = ?, survey_type = ?, tx_time_limit = ?, invite = ?, ip_address = ?, currency = ?, gross_USD = ?, tax_USD = ?, journal_activity_id = ?, eb_tax = ?, eb_tax_USD = ?, cart_uuid = ?, changed = ? where id = ?`,
 			},
 			{
 				"SELECT * FROM clients WHERE (clients.first_name = 'Andy') LIMIT 1 BEGIN INSERT INTO owners (created_at, first_name, locked, orders_count, updated_at) VALUES ('2011-08-30 05:22:57', 'Andy', 1, NULL, '2011-08-30 05:22:57') COMMIT",
 				"clients,owners",
+				"SELECT * FROM clients WHERE (clients.first_name = ?) LIMIT ? BEGIN INSERT INTO owners (created_at, first_name, locked, orders_count, updated_at) VALUES ( ? ) COMMIT",
 			},
 			{
 				"DELETE FROM table WHERE table.a=1",
 				"table",
+				"DELETE FROM table WHERE table.a = ?",
+			},
+			{
+				"SELECT wp_woocommerce_order_items.order_id FROM wp_woocommerce_order_items LEFT JOIN ( SELECT meta_value FROM wp_postmeta WHERE meta_key = ? ) ON wp_woocommerce_order_items.order_id = a.post_id WHERE wp_woocommerce_order_items.order_id = ?",
+				"wp_woocommerce_order_items,wp_postmeta",
+				"SELECT wp_woocommerce_order_items.order_id FROM wp_woocommerce_order_items LEFT JOIN ( SELECT meta_value FROM wp_postmeta WHERE meta_key = ? ) ON wp_woocommerce_order_items.order_id = a.post_id WHERE wp_woocommerce_order_items.order_id = ?",
+			},
+			{
+				"REPLACE INTO sales_2019_07_01 (`itemID`, `date`, `qty`, `price`) VALUES ((SELECT itemID FROM item1001 WHERE `sku` = [sku]), CURDATE(), [qty], 0.00)",
+				"sales_2019_07_01,item1001",
+				"REPLACE INTO sales_?_?_? ( itemID, date, qty, price ) VALUES ( ( SELECT itemID FROM item? WHERE sku = [ sku ] ), CURDATE (), [ qty ], ? )",
+			},
+			{
+				"SELECT * FROM 春送x猪福1001福2",
+				"春送x猪福1001福2",
+				"SELECT * FROM 春送x猪福?福2?",
 			},
 		} {
 			t.Run("", func(t *testing.T) {
@@ -244,6 +272,19 @@ func TestSQLTableFinder(t *testing.T) {
 		oq, err := NewObfuscator(nil).ObfuscateSQLString("DELETE FROM table WHERE table.a=1")
 		assert.NoError(t, err)
 		assert.Empty(t, oq.TablesCSV)
+	})
+}
+
+func BenchmarkTableNormalizer(b *testing.B) {
+	rf := &replaceFilter{}
+	os.Setenv("DD_APM_FEATURES", "normalize_sql_tables")
+	defer os.Unsetenv("DD_APM_FEATURES")
+
+	b.Run("", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			rf.replaceDigits([]byte("sales_2019_07_01_orders"))
+		}
 	})
 }
 
@@ -563,6 +604,23 @@ ORDER BY [b].[Name]`,
 			"SELECT * FROM foo LEFT JOIN bar ON ? = foo.b WHERE foo.name = ?",
 		},
 		{
+			"SELECT org_id,metric_key,metric_type,interval FROM metrics_metadata WHERE org_id = ? AND metric_key = ANY(ARRAY[?,?,?,?,?])",
+			"SELECT org_id, metric_key, metric_type, interval FROM metrics_metadata WHERE org_id = ? AND metric_key = ANY ( ARRAY [ ? ] )",
+		},
+		{
+			`SELECT wp_woocommerce_order_items.order_id As No_Commande
+			FROM  wp_woocommerce_order_items
+			LEFT JOIN
+				(
+					SELECT meta_value As Prenom
+					FROM wp_postmeta
+					WHERE meta_key = '_shipping_first_name'
+				) AS a
+			ON wp_woocommerce_order_items.order_id = a.post_id
+			WHERE  wp_woocommerce_order_items.order_id =2198`,
+			"SELECT wp_woocommerce_order_items.order_id FROM wp_woocommerce_order_items LEFT JOIN ( SELECT meta_value FROM wp_postmeta WHERE meta_key = ? ) ON wp_woocommerce_order_items.order_id = a.post_id WHERE wp_woocommerce_order_items.order_id = ?",
+		},
+		{
 			`SELECT a :: VARCHAR(255) FROM foo WHERE foo.name = 'String'`,
 			`SELECT a :: VARCHAR ( ? ) FROM foo WHERE foo.name = ?`,
 		},
@@ -572,7 +630,7 @@ ORDER BY [b].[Name]`,
 		},
 		{
 			"{call px_cu_se_security_pg.sps_get_my_accounts_count(?, ?, ?, ?)}",
-			"{ call px_cu_se_security_pg.sps_get_my_accounts_count ( ?, ?, ?, ? ) }",
+			"{ call px_cu_se_security_pg.sps_get_my_accounts_count ( ? ) }",
 		},
 		{
 			`{call px_cu_se_security_pg.sps_get_my_accounts_count(1, 2, 'one', 'two')};`,
@@ -1101,25 +1159,25 @@ var ComplexQuery = `WITH
  sales AS
  (SELECT sf.*
   FROM gosalesdw.sls_order_method_dim AS md,
-       gosalesdw.sls_product_dim AS pd, 
+       gosalesdw.sls_product_dim AS pd,
        gosalesdw.emp_employee_dim AS ed,
        gosalesdw.sls_sales_fact AS sf
-  WHERE pd.product_key = sf.product_key  
+  WHERE pd.product_key = sf.product_key
     AND pd.product_number > 10000
-    AND pd.base_product_key > 30 
-    AND md.order_method_key = sf.order_method_key 
-    AND md.order_method_code > 5 
-    AND ed.employee_key = sf.employee_key 
+    AND pd.base_product_key > 30
+    AND md.order_method_key = sf.order_method_key
+    AND md.order_method_code > 5
+    AND ed.employee_key = sf.employee_key
     AND ed.manager_code1 > 20),
  inventory AS
  (SELECT if.*
-  FROM gosalesdw.go_branch_dim AS bd, 
+  FROM gosalesdw.go_branch_dim AS bd,
     gosalesdw.dist_inventory_fact AS if
-  WHERE if.branch_key = bd.branch_key 
+  WHERE if.branch_key = bd.branch_key
     AND bd.branch_code > 20)
-SELECT sales.product_key AS PROD_KEY, 
+SELECT sales.product_key AS PROD_KEY,
  SUM(CAST (inventory.quantity_shipped AS BIGINT)) AS INV_SHIPPED,
- SUM(CAST (sales.quantity AS BIGINT)) AS PROD_QUANTITY, 
+ SUM(CAST (sales.quantity AS BIGINT)) AS PROD_QUANTITY,
  RANK() OVER ( ORDER BY SUM(CAST (sales.quantity AS BIGINT)) DESC) AS PROD_RANK
 FROM sales, inventory
  WHERE sales.product_key = inventory.product_key
