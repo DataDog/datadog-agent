@@ -143,6 +143,27 @@ func CheckAndUpgradeConfig() error {
 }
 
 // ImportRegistryConfig imports settings from Windows registry into datadog.yaml
+//
+// Config settings are placed in the registry by the Windows (MSI) installer.  The
+// registry is used as an intermediate step to hold the config options in between
+// the installer running and the first run of the agent.
+//
+// The agent will only apply these settings on a new install.  A new install is determined
+// by the existence of an API key in the config file (datadog.yaml).  Existence of the API key
+// indicates this is an upgrade, and the settings provided on the command line (via the registry)
+// will be ignored.
+//
+// Lack of an API key is interpreted as a new install.  Take any/all of the options supplied
+// on the command line and apply them to the config, and then write the configuration file
+// back out so the command line options persist, and there is a single source of truth
+// for the configuration (the yaml file).   Finally, delete the registry entries so there's
+// no confusion.
+//
+// Applying command line config options is handled this way as it seems preferable to use the
+// existing configuration library to read/write the config, rather than have the installer
+// try to modify the configuration on the fly.  This is _also_ a legacy algorithm, as at some
+// point attempts to modify the config file from the installer (via a shell executable) was 
+// interpreted as bad behavior by some A/V programs.
 func ImportRegistryConfig() error {
 
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
