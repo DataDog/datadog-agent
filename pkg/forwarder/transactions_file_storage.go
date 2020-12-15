@@ -56,6 +56,7 @@ func newTransactionsFileStorage(
 // Serialize serializes transactions to the file system.
 func (s *transactionsFileStorage) Serialize(transactions []Transaction) error {
 	s.telemetry.addSerializeCount()
+	_, _ = s.serializer.GetBytesAndReset()
 	for _, t := range transactions {
 		if err := t.SerializeTo(s.serializer); err != nil {
 			return err
