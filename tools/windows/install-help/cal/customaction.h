@@ -1,6 +1,6 @@
 #pragma once
-#define MIN_PASS_LEN 12
-#define MAX_PASS_LEN 18
+#define MIN_PASS_LEN 16
+#define MAX_PASS_LEN 20
 #include "SID.h"
 
 // usercreate.cpp
