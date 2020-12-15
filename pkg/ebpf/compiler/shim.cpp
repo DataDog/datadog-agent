@@ -22,7 +22,7 @@ int bpf_compile_to_object_file(bpf_compiler *compiler, const char *input_file, c
         return -1;
     }
 
-    auto cppCompiler = (ClangCompiler*) compiler->cpp_compiler;
+    auto cppCompiler = static_cast<ClangCompiler*>(compiler->cpp_compiler);
     std::vector<const char*> cflags;
     if (cflagsv) {
         while(*cflagsv) {
@@ -51,7 +51,7 @@ void delete_bpf_compiler(bpf_compiler *compiler)
     if (!compiler) {
         return;
     }
-    delete (ClangCompiler*) compiler->cpp_compiler;
+    delete static_cast<ClangCompiler*>(compiler->cpp_compiler);
     delete compiler;
 }
 
