@@ -78,6 +78,9 @@ const (
 
 	// SocketDnsFilter is the socket probe for dns
 	SocketDnsFilter ProbeName = "socket/dns_filter"
+
+	// SocketHTTPFilter is the socket probe for HTTP
+	SocketHTTPFilter ProbeName = "socket/http_filter"
 )
 
 const (
@@ -92,14 +95,18 @@ const (
 type BPFMapName string
 
 const (
-	ConnMap            BPFMapName = "conn_stats"
-	TcpStatsMap        BPFMapName = "tcp_stats"
-	TcpCloseEventMap   BPFMapName = "tcp_close_event"
-	TracerStatusMap    BPFMapName = "tracer_status"
-	PortBindingsMap    BPFMapName = "port_bindings"
-	UdpPortBindingsMap BPFMapName = "udp_port_bindings"
-	TelemetryMap       BPFMapName = "telemetry"
-	TcpCloseBatchMap   BPFMapName = "tcp_close_batch"
+	ConnMap              BPFMapName = "conn_stats"
+	TcpStatsMap          BPFMapName = "tcp_stats"
+	TcpCloseEventMap     BPFMapName = "tcp_close_event"
+	TracerStatusMap      BPFMapName = "tracer_status"
+	PortBindingsMap      BPFMapName = "port_bindings"
+	UdpPortBindingsMap   BPFMapName = "udp_port_bindings"
+	TelemetryMap         BPFMapName = "telemetry"
+	TcpCloseBatchMap     BPFMapName = "tcp_close_batch"
+	HttpInFlightMap      BPFMapName = "http_in_flight"
+	HttpBatchesMap       BPFMapName = "http_batches"
+	HttpBatchStateMap    BPFMapName = "http_batch_state"
+	HttpNotificationsMap BPFMapName = "http_notifications"
 )
 
 // SectionName returns the SectionName for the given BPF map

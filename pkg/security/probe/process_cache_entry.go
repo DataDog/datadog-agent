@@ -8,25 +8,8 @@
 package probe
 
 import (
-	"bytes"
 	"fmt"
 )
-
-// ProcessCacheEntry this structure holds the container context that we keep in kernel for each process
-type ProcessCacheEntry struct {
-	ContainerContext
-	ProcessContext
-
-	Parent   *ProcessCacheEntry
-	Children map[uint32]*ProcessCacheEntry
-}
-
-// NewProcessCacheEntry returns an empty instance of ProcessCacheEntry
-func NewProcessCacheEntry() *ProcessCacheEntry {
-	return &ProcessCacheEntry{
-		Children: make(map[uint32]*ProcessCacheEntry),
-	}
-}
 
 // Copy returns a copy of the current ProcessCacheEntry
 func (pc *ProcessCacheEntry) Copy() *ProcessCacheEntry {
@@ -78,40 +61,4 @@ func (pc *ProcessCacheEntry) UnmarshalBinary(data []byte, resolvers *Resolvers, 
 	}
 
 	return read + offset, nil
-}
-
-func (pc *ProcessCacheEntry) marshalJSON(resolvers *Resolvers, topLevelProcess bool) ([]byte, error) {
-	var buf bytes.Buffer
-
-	if !topLevelProcess {
-		d, err := pc.ContainerContext.marshalJSON(nil)
-		if err != nil {
-			return nil, err
-		}
-		if d != nil && len(d) > 0 {
-			fmt.Fprint(&buf, `"container":`)
-			buf.Write(d)
-			buf.WriteRune(',')
-		}
-
-		fmt.Fprintf(&buf, `"user":"%s",`, pc.ProcessContext.ResolveUser(nil))
-		fmt.Fprintf(&buf, `"group":"%s",`, pc.ProcessContext.ResolveGroup(nil))
-		fmt.Fprintf(&buf, `"uid":%d,`, pc.UID)
-		fmt.Fprintf(&buf, `"gid":%d,`, pc.GID)
-		fmt.Fprintf(&buf, `"pid":%d,`, pc.Pid)
-		fmt.Fprintf(&buf, `"tid":%d,`, pc.Tid)
-	}
-	fmt.Fprintf(&buf, `"name":"%s",`, pc.Comm)
-	fmt.Fprintf(&buf, `"filename":"%s",`, pc.PathnameStr)
-	fmt.Fprintf(&buf, `"container_path":"%s",`, pc.ContainerPath)
-	fmt.Fprintf(&buf, `"ppid":%d,`, pc.PPid)
-	fmt.Fprintf(&buf, `"cookie":%d,`, pc.Cookie)
-	fmt.Fprintf(&buf, `"tty":"%s",`, pc.TTYName)
-	fmt.Fprintf(&buf, `"inode":%d,`, pc.Inode)
-	fmt.Fprintf(&buf, `"mount_id":%d,`, pc.MountID)
-	fmt.Fprintf(&buf, `"overlay_numlower":%d,`, pc.OverlayNumLower)
-	fmt.Fprintf(&buf, `"fork_timestamp":"%s",`, pc.ForkTimestamp)
-	fmt.Fprintf(&buf, `"exec_timestamp":"%s",`, pc.ExecTimestamp)
-	fmt.Fprintf(&buf, `"exit_timestamp":"%s"`, pc.ExitTimestamp)
-	return buf.Bytes(), nil
 }
