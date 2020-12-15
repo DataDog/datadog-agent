@@ -35,8 +35,8 @@ func TestGrainWithExtraTags(t *testing.T) {
 
 	b := strings.Builder{}
 	aggr.WriteKey(&b)
-	assert.Equal("env:default,resource:yo,service:thing,_dd.hostname:host-id,http.status_code:418,version:v0,synthetic:true", b.String())
-	assert.Equal(TagSet{Tag{"env", "default"}, Tag{"resource", "yo"}, Tag{"service", "thing"}, Tag{"_dd.hostname", "host-id"}, Tag{"http.status_code", "418"}, Tag{"version", "v0"}, Tag{"synthetic", "true"}}, aggr.ToTagSet())
+	assert.Equal("env:default,resource:yo,service:thing,_dd.hostname:host-id,http.status_code:418,version:v0,synthetics:true", b.String())
+	assert.Equal(TagSet{Tag{"env", "default"}, Tag{"resource", "yo"}, Tag{"service", "thing"}, Tag{"_dd.hostname", "host-id"}, Tag{"http.status_code", "418"}, Tag{"version", "v0"}, Tag{"synthetics", "true"}}, aggr.ToTagSet())
 }
 
 func TestHandleSpanSkipStats(t *testing.T) {

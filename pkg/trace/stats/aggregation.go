@@ -11,7 +11,7 @@ const (
 	tagStatusCode = "http.status_code"
 	tagVersion    = "version"
 	tagOrigin     = "_dd.origin"
-	tagSynthetic  = "synthetic"
+	tagSynthetics = "synthetics"
 )
 
 // Aggregation contains all the dimension on which we aggregate statistics
@@ -24,12 +24,12 @@ type Aggregation struct {
 	Hostname   string
 	StatusCode string
 	Version    string
-	Synthetic  bool
+	Synthetics bool
 }
 
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
 func NewAggregationFromSpan(s *pb.Span, env string) Aggregation {
-	synthetic := strings.HasPrefix(s.Meta[tagOrigin], "synthetics")
+	synthetics := strings.HasPrefix(s.Meta[tagOrigin], "synthetics")
 
 	return Aggregation{
 		Env:        env,
@@ -38,12 +38,12 @@ func NewAggregationFromSpan(s *pb.Span, env string) Aggregation {
 		Hostname:   s.Meta[tagHostname],
 		StatusCode: s.Meta[tagStatusCode],
 		Version:    s.Meta[tagVersion],
-		Synthetic:  synthetic,
+		Synthetics: synthetics,
 	}
 }
 
 // NewAggregation creates a new aggregation from the provided fields
-func NewAggregation(env string, resource string, service string, hostname string, statusCode string, version string, synthetic bool) Aggregation {
+func NewAggregation(env string, resource string, service string, hostname string, statusCode string, version string, synthetics bool) Aggregation {
 	return Aggregation{
 		Env:        env,
 		Resource:   resource,
@@ -51,7 +51,7 @@ func NewAggregation(env string, resource string, service string, hostname string
 		Hostname:   hostname,
 		StatusCode: statusCode,
 		Version:    version,
-		Synthetic:  synthetic,
+		Synthetics: synthetics,
 	}
 }
 
@@ -70,8 +70,8 @@ func (aggr *Aggregation) ToTagSet() TagSet {
 	if len(aggr.Version) > 0 {
 		tagSet = append(tagSet, Tag{tagVersion, aggr.Version})
 	}
-	if aggr.Synthetic {
-		tagSet = append(tagSet, Tag{tagSynthetic, "true"})
+	if aggr.Synthetics {
+		tagSet = append(tagSet, Tag{tagSynthetics, "true"})
 	}
 	return tagSet
 }
@@ -91,9 +91,9 @@ func (aggr *Aggregation) KeyLen() int {
 		// +2 for "," and ":" separator
 		length += 1 + len(tagVersion) + 1 + len(aggr.Version)
 	}
-	if aggr.Synthetic {
+	if aggr.Synthetics {
 		// +2 for "," and ":" separator
-		length += 1 + len(tagSynthetic) + 1 + len("true")
+		length += 1 + len(tagSynthetics) + 1 + len("true")
 	}
 	return length
 }
@@ -120,8 +120,8 @@ func (aggr *Aggregation) WriteKey(b *strings.Builder) {
 		b.WriteString("," + tagVersion + ":")
 		b.WriteString(aggr.Version)
 	}
-	if aggr.Synthetic {
-		b.WriteString("," + tagSynthetic + ":")
+	if aggr.Synthetics {
+		b.WriteString("," + tagSynthetics + ":")
 		b.WriteString("true")
 	}
 }
