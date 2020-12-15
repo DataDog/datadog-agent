@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build orchestrator
-
 package orchestrator
 
 import (
@@ -15,7 +13,8 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/process"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -29,13 +28,12 @@ import (
 )
 
 const (
-	redactedValue = "********"
 	// from https://github.com/kubernetes/kubernetes/blob/abe6321296123aaba8e83978f7d17951ab1b64fd/pkg/util/node/node.go#L43
 	nodeUnreachablePodReason = "NodeLost"
 )
 
-// ProcessPodlist processes a pod list into process messages
-func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, hostName string, clusterName string, clusterID string, withScrubbing bool) ([]model.MessageBody, error) {
+// ProcessPodList processes a pod list into process messages
+func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID string, cfg *config.OrchestratorConfig) ([]model.MessageBody, error) {
 	start := time.Now()
 	podMsgs := make([]*model.Pod, 0, len(podList))
 
@@ -46,7 +44,7 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 		// static pods "uid" are actually not unique across nodes.
 		// we differ from the k8 uuid format in purpose to differentiate those static pods.
 		if pod.IsStaticPod(podList[p]) {
-			newUID := generateUniqueStaticPodHash(hostName, podList[p].Name, podList[p].Namespace, clusterName)
+			newUID := generateUniqueStaticPodHash(hostName, podList[p].Name, podList[p].Namespace, cfg.KubeClusterName)
 			// modify it in the original pod for the YAML and in our model
 			podList[p].UID = types.UID(newUID)
 			podModel.Metadata.Uid = newUID
@@ -65,16 +63,15 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 		}
 
 		// additional tags
-		tags = append(tags, fmt.Sprintf("pod_status:%s", strings.ToLower(podModel.Status)))
-		podModel.Tags = tags
+		podModel.Tags = append(tags, fmt.Sprintf("pod_status:%s", strings.ToLower(podModel.Status)))
 
 		// scrub & generate YAML
-		if withScrubbing {
+		if cfg.IsScrubbingEnabled {
 			for c := 0; c < len(podList[p].Spec.Containers); c++ {
-				ScrubContainer(&podList[p].Spec.Containers[c], cfg)
+				redact.ScrubContainer(&podList[p].Spec.Containers[c], cfg.Scrubber)
 			}
 			for c := 0; c < len(podList[p].Spec.InitContainers); c++ {
-				ScrubContainer(&podList[p].Spec.InitContainers[c], cfg)
+				redact.ScrubContainer(&podList[p].Spec.InitContainers[c], cfg.Scrubber)
 			}
 		}
 
@@ -82,7 +79,7 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 		// and marshalling is more performant than YAML
 		jsonPod, err := jsoniter.Marshal(podList[p])
 		if err != nil {
-			log.Debugf("Could not marshal pod to JSON: %s", err)
+			log.Warnf("Could not marshal pod to JSON: %s", err)
 			continue
 		}
 		podModel.Yaml = jsonPod
@@ -99,32 +96,17 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 	for i := 0; i < groupSize; i++ {
 		messages = append(messages, &model.CollectorPod{
 			HostName:    hostName,
-			ClusterName: clusterName,
+			ClusterName: cfg.KubeClusterName,
 			Pods:        chunked[i],
 			GroupId:     groupID,
 			GroupSize:   int32(groupSize),
 			ClusterId:   clusterID,
+			Tags:        cfg.ExtraTags,
 		})
 	}
 
 	log.Debugf("Collected & enriched %d out of %d pods in %s", len(podMsgs), len(podList), time.Now().Sub(start))
 	return messages, nil
-}
-
-// ScrubContainer scrubs sensitive information in the command line & env vars
-func ScrubContainer(c *v1.Container, cfg *config.AgentConfig) {
-	// scrub command line
-	scrubbedCmd, _ := cfg.Scrubber.ScrubCommand(c.Command)
-	c.Command = scrubbedCmd
-	// scrub env vars
-	for e := 0; e < len(c.Env); e++ {
-		// use the "key: value" format to work with the regular credential cleaner
-		combination := c.Env[e].Name + ": " + c.Env[e].Value
-		scrubbedVal, err := log.CredentialsCleanerBytes([]byte(combination))
-		if err == nil && combination != string(scrubbedVal) {
-			c.Env[e].Value = redactedValue
-		}
-	}
 }
 
 // chunkPods formats and chunks the pods into a slice of chunks using a specific number of chunks.

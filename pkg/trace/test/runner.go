@@ -9,12 +9,12 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/tinylib/msgp/msgp"
 )
 
 // ErrNotStarted is returned when attempting to operate an unstarted Runner.
@@ -54,7 +54,7 @@ func (s *Runner) Shutdown(wait time.Duration) error {
 	if s.agent == nil || s.backend == nil {
 		return ErrNotStarted
 	}
-	s.agent.Kill()
+	s.agent.cleanup()
 	if err := s.backend.Shutdown(wait); err != nil {
 		return err
 	}
@@ -108,20 +108,26 @@ func (s *Runner) Post(traceList pb.Traces) error {
 		return errors.New("post: trace-agent not running")
 	}
 
-	var buf bytes.Buffer
-	if err := msgp.Encode(&buf, traceList); err != nil {
+	bts, err := traceList.MarshalMsg(nil)
+	if err != nil {
 		return err
 	}
 	addr := fmt.Sprintf("http://%s/v0.4/traces", s.agent.Addr())
-	req, err := http.NewRequest("POST", addr, &buf)
+	req, err := http.NewRequest("POST", addr, bytes.NewReader(bts))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("X-Datadog-Trace-Count", strconv.Itoa(len(traceList)))
 	req.Header.Set("Content-Type", "application/msgpack")
-	req.Header.Set("Content-Length", strconv.Itoa(buf.Len()))
+	req.Header.Set("Content-Length", strconv.Itoa(len(bts)))
 
-	_, err = http.DefaultClient.Do(req)
-	// TODO: check response
+	resp, err := http.DefaultClient.Do(req)
+	if resp.StatusCode != 200 {
+		slurp, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("%s (error reading response body: %v)", resp.Status, err)
+		}
+		return fmt.Errorf("%s: %s", resp.Status, slurp)
+	}
 	return err
 }

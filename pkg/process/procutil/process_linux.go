@@ -95,7 +95,7 @@ func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 	for _, pid := range pids {
 		pathForPID := filepath.Join(p.procRootLoc, strconv.Itoa(int(pid)))
 		if !util.PathExists(pathForPID) {
-			log.Debugf("Unable to create new process %d, dir doesn't exist", pid)
+			log.Debugf("Unable to create new process %d, dir %s doesn't exist", pid, pathForPID)
 			continue
 		}
 
@@ -103,7 +103,6 @@ func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 		if len(cmdline) == 0 {
 			// NOTE: The agent's process check currently skips all processes that have no cmdline (i.e kernel processes).
 			//       Moving this check down the stack saves us from a number of needless follow-up system calls.
-			//       In the test resources for Postgres, this accounts for ~30% of processes.
 			continue
 		}
 
@@ -193,7 +192,7 @@ func (p *Probe) getCmdline(pidPath string) []string {
 	return trimAndSplitBytes(cmdline)
 }
 
-// parseStatus retrieves io info from "io" file for a process in procfs
+// parseIO retrieves io info from "io" file for a process in procfs
 func (p *Probe) parseIO(pidPath string) *IOCountersStat {
 	path := filepath.Join(pidPath, "io")
 	var err error
@@ -209,11 +208,11 @@ func (p *Probe) parseIO(pidPath string) *IOCountersStat {
 		return io
 	}
 
-	index := 0
+	lineStart := 0
 	for i, r := range content {
 		if r == '\n' {
-			p.parseIOLine(content[index:i], io)
-			index = i + 1
+			p.parseIOLine(content[lineStart:i], io)
+			lineStart = i + 1
 		}
 	}
 
@@ -223,7 +222,9 @@ func (p *Probe) parseIO(pidPath string) *IOCountersStat {
 // parseIOLine extracts key and value for each line in "io" file
 func (p *Probe) parseIOLine(line []byte, io *IOCountersStat) {
 	for i := range line {
-		if i+2 < len(line) && line[i] == ':' && line[i+1] == ' ' {
+		// the fields are all having format "field_name: field_value", so we always
+		// look for ": " and skip them
+		if i+2 < len(line) && line[i] == ':' && unicode.IsSpace(rune(line[i+1])) {
 			key := line[0:i]
 			value := line[i+2:]
 			p.parseIOKV(string(key), string(value), io)
@@ -264,22 +265,23 @@ func (p *Probe) parseStatus(pidPath string) *statusInfo {
 	var err error
 
 	sInfo := &statusInfo{
-		uids:        make([]int32, 0),
-		gids:        make([]int32, 0),
+		uids:        []int32{},
+		gids:        []int32{},
 		memInfo:     &MemoryInfoStat{},
 		ctxSwitches: &NumCtxSwitchesStat{},
 	}
 
 	content, err := ioutil.ReadFile(path)
+
 	if err != nil {
 		return sInfo
 	}
 
-	index := 0
+	lineStart := 0
 	for i, r := range content {
 		if r == '\n' {
-			p.parseStatusLine(content[index:i], sInfo)
-			index = i + 1
+			p.parseStatusLine(content[lineStart:i], sInfo)
+			lineStart = i + 1
 		}
 	}
 
@@ -289,7 +291,9 @@ func (p *Probe) parseStatus(pidPath string) *statusInfo {
 // parseStatusLine takes each line in "status" file and parses info from it
 func (p *Probe) parseStatusLine(line []byte, sInfo *statusInfo) {
 	for i := range line {
-		if i+2 < len(line) && line[i] == ':' && line[i+1] == '\t' {
+		// the fields are all having format "field_name:\tfield_value", so we always
+		// look for ":\t" and skip them
+		if i+2 < len(line) && line[i] == ':' && unicode.IsSpace(rune(line[i+1])) {
 			key := line[0:i]
 			value := line[i+2:]
 			p.parseStatusKV(string(key), string(value), sInfo)
@@ -322,7 +326,9 @@ func (p *Probe) parseStatusKV(key, value string, sInfo *statusInfo) {
 			}
 		}
 	case "NSpid":
-		v, err := strconv.ParseInt(value, 10, 32)
+		values := strings.Split(value, "\t")
+		// only report process namespaced PID
+		v, err := strconv.ParseInt(values[len(values)-1], 10, 32)
 		if err == nil {
 			sInfo.nspid = int32(v)
 		}
@@ -494,8 +500,8 @@ func trimAndSplitBytes(bs []byte) []string {
 
 	// Remove leading null bytes
 	i := 0
-	for j := 0; j < len(bs); j++ {
-		if bs[j] == 0 {
+	for i < len(bs) {
+		if bs[i] == 0 {
 			i++
 		} else {
 			break

@@ -10,46 +10,36 @@ Orchestrator Explorer
   Disabled: {{ .Disabled }}
 {{- end }}
 {{- if .ClusterIDError }}
-  ClusterIDError: {{.ClusterIDError}}
+  Cluster ID error: {{.ClusterIDError}}
 {{- end }}
 
 {{- if .ClusterID }}
-  ClusterID: {{.ClusterID}}
+  Cluster ID: {{.ClusterID}}
 {{- end }}
 {{- if .ClusterNameError }}
-  ClusterIDError: {{.ClusterNameError}}
+  Cluster ID error: {{.ClusterNameError}}
 {{- end }}
 
 {{- if .ClusterName }}
-  ClusterName: {{.ClusterName}}
+  Cluster name: {{.ClusterName}}
 {{- end }}
 {{- if .ContainerScrubbing }}
   {{.ContainerScrubbing}}
 {{- end}}
-
+{{- if and (not .Error) (not .Disabled) }}
+{{/* this line intentionally left blank */}}
   ======================
   Orchestrator Endpoints
   ======================
-{{- if .OrchestratorEndpoint }}
-    OrchestratorEndpoint: {{.OrchestratorEndpoint}}
-{{- end }}
-{{- if .OrchestratorAdditionalEndpoints }}
-    OrchestratorAdditionalEndpoints: {{.OrchestratorAdditionalEndpoints}}
-{{- end }}
+  {{- range $key, $value := .OrchestratorEndpoints}}
+  {{$key}} - API Key ending with: {{$value}}
+  {{- end}}
 
-  ===============
-  Forwarder Stats
-  ===============
-{{- with .Transactions -}}
-    {{/* this line intentionally left blank */}}
-    Pods: {{.Pods}}
-    Deployments: {{.Deployments}}
-    ReplicaSets: {{.ReplicaSets}}
-    Services: {{.Services}}
-    Nodes: {{.Nodes}}
-{{- end -}}
+{{- if .LeaderError }}
+    Leader election error: {{.ClusterIDError}}
+{{else}}
 {{/* this line intentionally left blank */}}
-{{/* this line intentionally left blank */}}
+{{- if .Leader }}
   ===========
   Cache Stats
   ===========
@@ -64,4 +54,12 @@ Orchestrator Explorer
       Last Run: (Hits: {{.ServicesStats.CacheHits}} Miss: {{.ServicesStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Services}} Miss: {{.CacheMiss.Services}})
     Nodes:
       Last Run: (Hits: {{.NodesStats.CacheHits}} Miss: {{.NodesStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Nodes}} Miss: {{.CacheMiss.Nodes}})
-{{/* this line intentionally left blank */}}
+{{else}}
+{{- if .LeaderName }}
+  Status: Follower, cluster agent leader is: {{ .LeaderName }}
+{{else}}
+  Leader election in progress, see dedicated section for more info
+{{- end}}
+{{- end}}
+{{- end}}
+{{- end}}

@@ -15,7 +15,7 @@ Compliance Checks
     Report:
       Result: {{ complianceResult $Check.LastEvent.result }}
       Data:
-      {{- range $k, $v := index $Check.LastEvent.data }}
+      {{- range $k, $v := $Check.LastEvent.data }}
         {{ $k }}: {{ $v }}
       {{- end }}
   {{- end }}

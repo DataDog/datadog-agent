@@ -11,16 +11,6 @@ instances:
     #
     # collect_tcp_queue_length: true
 
-    ## @param only_count_nb_contexts - boolean - optional - default: true
-    ## For safety reason regarding the potentially high number of metrics that this check can generate,
-    ## by default, it reports only a single metric which is the number of metrics that this check
-    ## can generate once fully activated.
-    ##
-    ## In order to fully activate this check and collect the TCP buffer size for each connection,
-    ## only_count_nb_contexts has to be explicitly set to false.
-    #
-    # only_count_nb_contexts: true
-
     ## @param tags - list of strings following the pattern: "key:value" - optional
     ## List of tags to attach to every metric, event, and service check emitted by this integration.
     ##

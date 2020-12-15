@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/gopsutil/host"
 	"github.com/DataDog/gopsutil/process"
@@ -83,11 +84,22 @@ func TestTrimAndSplitBytes(t *testing.T) {
 	}
 }
 
-func TestGetCmdline(t *testing.T) {
-	hostProc := "resources/test_procfs/proc"
-	os.Setenv("HOST_PROC", hostProc)
+func TestGetCmdlineTestFS(t *testing.T) {
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc")
 	defer os.Unsetenv("HOST_PROC")
 
+	testGetCmdline(t)
+}
+
+func TestGetCmdlineLocalFS(t *testing.T) {
+	// this test is flaky as the underlying procfs could change during
+	// the comparison of procutil and gopsutil,
+	// but we could use it to test locally
+	t.Skip("flaky test in CI")
+	testGetCmdline(t)
+}
+
+func testGetCmdline(t *testing.T) {
 	probe := NewProcessProbe()
 	defer probe.Close()
 
@@ -95,7 +107,7 @@ func TestGetCmdline(t *testing.T) {
 	assert.NoError(t, err)
 
 	for _, pid := range pids {
-		actual := strings.Join(probe.getCmdline(filepath.Join(hostProc, strconv.Itoa(int(pid)))), " ")
+		actual := strings.Join(probe.getCmdline(filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid)))), " ")
 		expProc, err := process.NewProcess(pid)
 		assert.NoError(t, err)
 
@@ -106,11 +118,22 @@ func TestGetCmdline(t *testing.T) {
 	}
 }
 
-func TestProcessesByPID(t *testing.T) {
-	hostProc := "resources/test_procfs/proc/"
-	os.Setenv("HOST_PROC", hostProc)
+func TestProcessesByPIDTestFS(t *testing.T) {
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc/")
 	defer os.Unsetenv("HOST_PROC")
 
+	testProcessesByPID(t)
+}
+
+func TestProcessesByPIDLocalFS(t *testing.T) {
+	// this test is flaky as the underlying procfs could change during
+	// the comparison of procutil and gopsutil,
+	// but we could use it to test locally
+	t.Skip("flaky test in CI")
+	testProcessesByPID(t)
+}
+
+func testProcessesByPID(t *testing.T) {
 	probe := NewProcessProbe()
 	defer probe.Close()
 
@@ -122,7 +145,7 @@ func TestProcessesByPID(t *testing.T) {
 
 	// make sure the process that has no command line doesn't get included in the output
 	for _, pid := range pids {
-		cmd := strings.Join(probe.getCmdline(filepath.Join(hostProc, strconv.Itoa(int(pid)))), " ")
+		cmd := strings.Join(probe.getCmdline(filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid)))), " ")
 		if cmd == "" {
 			assert.NotContains(t, procByPID, pid)
 		} else {
@@ -214,7 +237,7 @@ func TestParseStatusLine(t *testing.T) {
 			},
 		},
 		{
-			line: []byte("Name:\t\t\t\t\tpostgres"),
+			line: []byte("Name:\t\t  \t\t\t  postgres"),
 			expected: &statusInfo{
 				name:        "postgres",
 				memInfo:     &MemoryInfoStat{},
@@ -230,11 +253,69 @@ func TestParseStatusLine(t *testing.T) {
 			},
 		},
 		{
+			line: []byte("State:\tR (running)"),
+			expected: &statusInfo{
+				status:      "R",
+				memInfo:     &MemoryInfoStat{},
+				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
+		{
 			line: []byte("Uid:\t112\t112\t112\t112"),
 			expected: &statusInfo{
 				uids:        []int32{112, 112, 112, 112},
 				memInfo:     &MemoryInfoStat{},
 				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
+		{
+			line: []byte("Gid:\t1000\t1000\t1000\t1000"),
+			expected: &statusInfo{
+				gids:        []int32{1000, 1000, 1000, 1000},
+				memInfo:     &MemoryInfoStat{},
+				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
+		{
+			line: []byte("NSpid:\t123"),
+			expected: &statusInfo{
+				nspid:       123,
+				memInfo:     &MemoryInfoStat{},
+				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
+		{
+			line: []byte("NSpid:\t123\t456"),
+			expected: &statusInfo{
+				nspid:       456,
+				memInfo:     &MemoryInfoStat{},
+				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
+		{
+			line: []byte("Threads:\t1"),
+			expected: &statusInfo{
+				numThreads:  1,
+				memInfo:     &MemoryInfoStat{},
+				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
+		{
+			line: []byte("voluntary_ctxt_switches:\t3"),
+			expected: &statusInfo{
+				memInfo: &MemoryInfoStat{},
+				ctxSwitches: &NumCtxSwitchesStat{
+					Voluntary: 3,
+				},
+			},
+		},
+		{
+			line: []byte("nonvoluntary_ctxt_switches:\t411"),
+			expected: &statusInfo{
+				memInfo: &MemoryInfoStat{},
+				ctxSwitches: &NumCtxSwitchesStat{
+					Involuntary: 411,
+				},
 			},
 		},
 		{
@@ -252,14 +333,6 @@ func TestParseStatusLine(t *testing.T) {
 			},
 		},
 		{
-			line: []byte("NSpid:\t123"),
-			expected: &statusInfo{
-				nspid:       123,
-				memInfo:     &MemoryInfoStat{},
-				ctxSwitches: &NumCtxSwitchesStat{},
-			},
-		},
-		{
 			line: []byte("VmRSS:\t712 kB"),
 			expected: &statusInfo{
 				memInfo:     &MemoryInfoStat{RSS: 712 * 1024},
@@ -267,9 +340,16 @@ func TestParseStatusLine(t *testing.T) {
 			},
 		},
 		{
-			line: []byte("VmRSS:\t  712 kB"),
+			line: []byte("VmSize:\t14652 kB"),
 			expected: &statusInfo{
-				memInfo:     &MemoryInfoStat{RSS: 712 * 1024},
+				memInfo:     &MemoryInfoStat{VMS: 14652 * 1024},
+				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
+		{
+			line: []byte("VmSwap:\t3 kB"),
+			expected: &statusInfo{
+				memInfo:     &MemoryInfoStat{Swap: 3 * 1024},
 				ctxSwitches: &NumCtxSwitchesStat{},
 			},
 		},
@@ -280,11 +360,22 @@ func TestParseStatusLine(t *testing.T) {
 	}
 }
 
-func TestParseStatus(t *testing.T) {
-	hostProc := "resources/test_procfs/proc/"
-	os.Setenv("HOST_PROC", hostProc)
+func TestParseStatusTestFS(t *testing.T) {
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc/")
 	defer os.Unsetenv("HOST_PROC")
 
+	testParseStatus(t)
+}
+
+func TestParseStatusLocalFS(t *testing.T) {
+	// this test is flaky as the underlying procfs could change during
+	// the comparison of procutil and gopsutil,
+	// but we could use it to test locally
+	t.Skip("flaky test in CI")
+	testParseStatus(t)
+}
+
+func testParseStatus(t *testing.T) {
 	probe := NewProcessProbe()
 	defer probe.Close()
 
@@ -292,7 +383,7 @@ func TestParseStatus(t *testing.T) {
 	assert.NoError(t, err)
 
 	for _, pid := range pids {
-		actual := probe.parseStatus(filepath.Join(hostProc, strconv.Itoa(int(pid))))
+		actual := probe.parseStatus(filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid))))
 		expProc, err := process.NewProcess(pid)
 		assert.NoError(t, err)
 
@@ -327,6 +418,56 @@ func TestParseStatus(t *testing.T) {
 	}
 }
 
+func TestFillNsPidFromStatus(t *testing.T) {
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc/")
+	defer os.Unsetenv("HOST_PROC")
+
+	probe := NewProcessProbe()
+	defer probe.Close()
+
+	t.Run("Linux versions 4.1+", func(t *testing.T) {
+		// Process started on the host namespace
+		// NSpid:	6320
+		pid := 6320
+		actual := probe.parseStatus(filepath.Join(probe.procRootLoc, strconv.Itoa(pid)))
+		assert.Equal(t, int32(pid), actual.nspid)
+
+		// Process spawned from P1 with its own namespace
+		// NSpid:	6321	1
+		pid = 6321
+		actual = probe.parseStatus(filepath.Join(probe.procRootLoc, strconv.Itoa(pid)))
+		assert.Equal(t, int32(1), actual.nspid)
+
+		// Process spawned from P2 with its own namespace
+		// NSpid:	6322	2	1
+		pid = 6322
+		actual = probe.parseStatus(filepath.Join(probe.procRootLoc, strconv.Itoa(pid)))
+		assert.Equal(t, int32(1), actual.nspid)
+	})
+
+	t.Run("Older Linux versions", func(t *testing.T) {
+		// The following processes have been generated by the same testing program but
+		// older versions of Linux don't provide the NSpid on the status file.
+		// We expect the library not to populate the NsPid field
+		// True NSpid:	8225
+		pid := 8225
+		actual := probe.parseStatus(filepath.Join(probe.procRootLoc, strconv.Itoa(pid)))
+		assert.Equal(t, int32(0), actual.nspid)
+
+		// Process spawned from P1 with its own namespace
+		// True NSpid:	8226	1
+		pid = 8226
+		actual = probe.parseStatus(filepath.Join(probe.procRootLoc, strconv.Itoa(pid)))
+		assert.Equal(t, int32(0), actual.nspid)
+
+		// Process spawned from P2 with its own namespace
+		// True NSpid:	8227	2	1
+		pid = 8227
+		actual = probe.parseStatus(filepath.Join(probe.procRootLoc, strconv.Itoa(pid)))
+		assert.Equal(t, int32(0), actual.nspid)
+	})
+}
+
 func TestParseIOLine(t *testing.T) {
 	probe := NewProcessProbe()
 	defer probe.Close()
@@ -358,11 +499,22 @@ func TestParseIOLine(t *testing.T) {
 	}
 }
 
-func TestParseIO(t *testing.T) {
-	hostProc := "resources/test_procfs/proc/"
-	os.Setenv("HOST_PROC", hostProc)
+func TestParseIOTestFS(t *testing.T) {
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc/")
 	defer os.Unsetenv("HOST_PROC")
 
+	testParseIO(t)
+}
+
+func TestParseIOLocalFS(t *testing.T) {
+	// this test is flaky as the underlying procfs could change during
+	// the comparison of procutil and gopsutil,
+	// but we could use it to test locally
+	t.Skip("flaky test in CI")
+	testParseIO(t)
+}
+
+func testParseIO(t *testing.T) {
 	probe := NewProcessProbe()
 	defer probe.Close()
 
@@ -370,7 +522,7 @@ func TestParseIO(t *testing.T) {
 	assert.NoError(t, err)
 
 	for _, pid := range pids {
-		actual := probe.parseIO(filepath.Join(hostProc, strconv.Itoa(int(pid))))
+		actual := probe.parseIO(filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid))))
 		expProc, err := process.NewProcess(pid)
 		assert.NoError(t, err)
 		expIO, err := expProc.IOCounters()
@@ -502,4 +654,134 @@ func TestBootTimeLocalFS(t *testing.T) {
 	expectT, err := host.BootTime()
 	assert.NoError(t, err)
 	assert.Equal(t, expectT, probe.bootTime)
+}
+
+func BenchmarkGetCmdGopsutilTestFS(b *testing.B) {
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc")
+	defer os.Unsetenv("HOST_PROC")
+
+	benchmarkGetCmdGopsutil(b)
+}
+
+func BenchmarkGetCmdProcutilTestFS(b *testing.B) {
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc")
+	defer os.Unsetenv("HOST_PROC")
+
+	benchmarkGetCmdProcutil(b)
+}
+
+func BenchmarkGetCmdGopsutilLocalFS(b *testing.B) {
+	benchmarkGetCmdGopsutil(b)
+}
+
+func BenchmarkGetCmdProcutilLocalFS(b *testing.B) {
+	benchmarkGetCmdProcutil(b)
+}
+
+func benchmarkGetCmdGopsutil(b *testing.B) {
+	pids, err := process.Pids()
+	require.NoError(b, err)
+
+	for i := 0; i < b.N; i++ {
+		for _, pid := range pids {
+			proc, err := process.NewProcess(pid)
+			require.NoError(b, err)
+			_, err = proc.Cmdline()
+			require.NoError(b, err)
+		}
+	}
+}
+
+func benchmarkGetCmdProcutil(b *testing.B) {
+	probe := NewProcessProbe()
+	defer probe.Close()
+
+	pids, err := probe.getActivePIDs()
+	require.NoError(b, err)
+
+	for i := 0; i < b.N; i++ {
+		for _, pid := range pids {
+			probe.getCmdline(filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid))))
+		}
+	}
+}
+
+func BenchmarkTestFSStatusGopsutil(b *testing.B) {
+	hostProc := "resources/test_procfs/proc"
+	os.Setenv("HOST_PROC", hostProc)
+	defer os.Unsetenv("HOST_PROC")
+
+	pids, err := process.Pids()
+	require.NoError(b, err)
+
+	for i := 0; i < b.N; i++ {
+		for _, pid := range pids {
+			expProc, err := process.NewProcess(pid)
+			require.NoError(b, err)
+			_, err = expProc.Status()
+			require.NoError(b, err)
+		}
+	}
+}
+
+func BenchmarkTestFSStatusProcutil(b *testing.B) {
+	hostProc := "resources/test_procfs/proc"
+	os.Setenv("HOST_PROC", hostProc)
+	defer os.Unsetenv("HOST_PROC")
+
+	probe := NewProcessProbe()
+	defer probe.Close()
+
+	pids, err := probe.getActivePIDs()
+	require.NoError(b, err)
+
+	for i := 0; i < b.N; i++ {
+		for _, pid := range pids {
+			probe.parseStatus(filepath.Join(hostProc, strconv.Itoa(int(pid))))
+		}
+	}
+}
+
+func BenchmarkLocalFSStatusGopsutil(b *testing.B) {
+	pids, err := process.Pids()
+	assert.NoError(b, err)
+
+	for i := 0; i < b.N; i++ {
+		for _, pid := range pids {
+			expProc, err := process.NewProcess(pid)
+			require.NoError(b, err)
+			_, err = expProc.Status()
+			require.NoError(b, err)
+		}
+	}
+}
+
+func BenchmarkLocalFSStatusProcutil(b *testing.B) {
+	probe := NewProcessProbe()
+	defer probe.Close()
+
+	pids, err := probe.getActivePIDs()
+	require.NoError(b, err)
+
+	for i := 0; i < b.N; i++ {
+		for _, pid := range pids {
+			probe.parseStatus(filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid))))
+		}
+	}
+}
+
+func BenchmarkGetPIDsGopsutilLocalFS(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_, err := process.Pids()
+		require.NoError(b, err)
+	}
+}
+
+func BenchmarkGetPIDsProcutilLocalFS(b *testing.B) {
+	probe := NewProcessProbe()
+	defer probe.Close()
+	for i := 0; i < b.N; i++ {
+		_, err := probe.getActivePIDs()
+		require.NoError(b, err)
+	}
 }

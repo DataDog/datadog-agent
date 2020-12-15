@@ -79,13 +79,6 @@ func TestDomainForwarderStop_WithConnectionReset(t *testing.T) {
 	assert.Equal(t, Stopped, forwarder.State())
 }
 
-func TestDomainForwarderSubmitIfStopped(t *testing.T) {
-	forwarder := newDomainForwarder("test", 1, 10, 0, 0)
-
-	require.NotNil(t, forwarder)
-	assert.NotNil(t, forwarder.sendHTTPTransactions(nil))
-}
-
 func TestDomainForwarderSendHTTPTransactions(t *testing.T) {
 	forwarder := newDomainForwarder("test", 1, 10, 0, 0)
 	tr := newTestTransaction()
@@ -126,10 +119,10 @@ func TestRetryTransactions(t *testing.T) {
 
 	t1 := NewHTTPTransaction()
 	t1.Domain = "domain/"
-	t1.Endpoint = "test1"
+	t1.Endpoint.route = "test1"
 	t2 := NewHTTPTransaction()
 	t2.Domain = "domain/"
-	t2.Endpoint = "test2"
+	t2.Endpoint.route = "test2"
 
 	// Create blocks
 	forwarder.blockedList.recover(t1.GetTarget())

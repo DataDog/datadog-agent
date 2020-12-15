@@ -346,3 +346,9 @@ var testConstants = map[string]interface{}{
 	"O_SYNC":   &eval.IntEvaluator{Value: syscall.O_SYNC},
 	"O_TRUNC":  &eval.IntEvaluator{Value: syscall.O_TRUNC},
 }
+
+var testSupportedDiscarders = map[eval.Field]bool{
+	"open.filename":  true,
+	"mkdir.filename": true,
+	"process.uid":    true,
+}

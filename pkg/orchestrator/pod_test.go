@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build orchestrator
-
 package orchestrator
 
 import (
@@ -13,8 +11,6 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/process"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
-
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -485,57 +481,6 @@ func TestConvertResourceRequirements(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			actual := convertResourceRequirements(tc.input.Resources, tc.input.Name, model.ResourceRequirementsType_container)
 			assert.Equal(t, tc.expected, actual)
-		})
-	}
-}
-
-func TestScrubContainer(t *testing.T) {
-	cfg := config.NewDefaultAgentConfig(true)
-	tests := map[string]struct {
-		input    v1.Container
-		expected v1.Container
-	}{
-		"sensitive CLI": {
-			input: v1.Container{
-				Command: []string{"mysql", "--password", "afztyerbzio1234"},
-			},
-			expected: v1.Container{
-				Command: []string{"mysql", "--password", "********"},
-			},
-		},
-		"sensitive env var": {
-			input: v1.Container{
-				Env: []v1.EnvVar{{Name: "password", Value: "kqhkiG9w0BAQEFAASCAl8wggJbAgEAAoGBAOLJ"}},
-			},
-			expected: v1.Container{
-				Env: []v1.EnvVar{{Name: "password", Value: "********"}},
-			},
-		},
-		"sensitive container": {
-			input: v1.Container{
-				Name:    "test container",
-				Image:   "random",
-				Command: []string{"decrypt", "--password", "afztyerbzio1234", "--access_token", "yolo123"},
-				Env: []v1.EnvVar{
-					{Name: "hostname", Value: "password"},
-					{Name: "pwd", Value: "yolo"},
-				},
-			},
-			expected: v1.Container{
-				Name:    "test container",
-				Image:   "random",
-				Command: []string{"decrypt", "--password", "********", "--access_token", "********"},
-				Env: []v1.EnvVar{
-					{Name: "hostname", Value: "password"},
-					{Name: "pwd", Value: "********"},
-				},
-			},
-		},
-	}
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			ScrubContainer(&tc.input, cfg)
-			assert.Equal(t, tc.expected, tc.input)
 		})
 	}
 }

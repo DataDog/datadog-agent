@@ -24,7 +24,7 @@ func GenSummarySlice(n int, gen func(i int) float64) []float64 {
 	s := NewSliceSummary()
 
 	for i := 0; i < n; i++ {
-		s.Insert(gen(i), uint64(i))
+		s.Insert(gen(i))
 	}
 
 	vals := make([]float64, 0, len(testQuantiles))
@@ -109,12 +109,12 @@ func TestSummarySliceMerge(t *testing.T) {
 	assert := assert.New(t)
 	s1 := NewSliceSummary()
 	for i := 0; i < 101; i++ {
-		s1.Insert(float64(i), uint64(i))
+		s1.Insert(float64(i))
 	}
 
 	s2 := NewSliceSummary()
 	for i := 0; i < 50; i++ {
-		s2.Insert(float64(i), uint64(i))
+		s2.Insert(float64(i))
 	}
 
 	s1.Merge(s2)
@@ -139,7 +139,7 @@ func TestSliceSummaryRemergeReal10000(t *testing.T) {
 	for n := 0; n < 10000; n++ {
 		s1 := NewSliceSummary()
 		for i := 0; i < 100; i++ {
-			s1.Insert(float64(i), uint64(i))
+			s1.Insert(float64(i))
 		}
 		s.Merge(s1)
 
@@ -159,7 +159,7 @@ func TestSliceSummaryRemerge10000(t *testing.T) {
 	s1 := NewSliceSummary()
 	for n := 0; n < 1000; n++ {
 		for i := 0; i < 100; i++ {
-			s1.Insert(float64(i), uint64(i))
+			s1.Insert(float64(i))
 		}
 
 		//      fmt.Println(s1)
@@ -180,10 +180,10 @@ func TestSummaryBySlices(t *testing.T) {
 
 	s := NewSliceSummary()
 	for i := 1; i < 11; i++ {
-		s.Insert(float64(i), uint64(i))
+		s.Insert(float64(i))
 	}
-	s.Insert(float64(5), uint64(42))
-	s.Insert(float64(5), uint64(53))
+	s.Insert(float64(5))
+	s.Insert(float64(5))
 
 	slices := s.BySlices()
 	fmt.Println(slices)

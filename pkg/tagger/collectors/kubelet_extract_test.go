@@ -26,6 +26,13 @@ func TestParsePods(t *testing.T) {
 				Name:  "dd-agent",
 			},
 		},
+		AllContainers: []kubelet.ContainerStatus{
+			{
+				ID:    dockerEntityID,
+				Image: "datadog/docker-dd-agent:latest5",
+				Name:  "dd-agent",
+			},
+		},
 		Phase: "Running",
 	}
 	dockerContainerSpec := kubelet.Spec{
@@ -115,6 +122,18 @@ func TestParsePods(t *testing.T) {
 				Name:  "filter",
 			},
 		},
+		AllContainers: []kubelet.ContainerStatus{
+			{
+				ID:    dockerEntityID,
+				Image: "datadog/docker-dd-agent:latest5",
+				Name:  "dd-agent",
+			},
+			{
+				ID:    dockerEntityID2,
+				Image: "datadog/docker-filter:latest",
+				Name:  "filter",
+			},
+		},
 		Phase: "Pending",
 	}
 	dockerTwoContainersSpec := kubelet.Spec{
@@ -133,6 +152,13 @@ func TestParsePods(t *testing.T) {
 	dockerEntityIDCassandra := "container_id://6eaa4782de428f5ea639e33a837ed47aa9fa9e6969f8cb23e39ff788a751ce7d"
 	dockerContainerStatusCassandra := kubelet.Status{
 		Containers: []kubelet.ContainerStatus{
+			{
+				ID:    dockerEntityIDCassandra,
+				Image: "gcr.io/google-samples/cassandra:v13",
+				Name:  "cassandra",
+			},
+		},
+		AllContainers: []kubelet.ContainerStatus{
 			{
 				ID:    dockerEntityIDCassandra,
 				Image: "gcr.io/google-samples/cassandra:v13",
@@ -190,6 +216,13 @@ func TestParsePods(t *testing.T) {
 				Name:  "redis-master",
 			},
 		},
+		AllContainers: []kubelet.ContainerStatus{
+			{
+				ID:    criEntityID,
+				Image: "sha256:0f006d265944c984e05200fab1c14ac54163cbcd4e8ae0ba3b35eb46fc559823",
+				Name:  "redis-master",
+			},
+		},
 		Phase: "Running",
 	}
 	criContainerSpec := kubelet.Spec{
@@ -199,6 +232,24 @@ func TestParsePods(t *testing.T) {
 				Image: "gcr.io/google_containers/redis:e2e",
 			},
 		},
+	}
+
+	containerStatusEmptyID := kubelet.Status{
+		Containers: []kubelet.ContainerStatus{
+			{
+				ID:    "",
+				Image: "sha256:0f006d265944c984e05200fab1c14ac54163cbcd4e8ae0ba3b35eb46fc559823",
+				Name:  "redis-master",
+			},
+		},
+		AllContainers: []kubelet.ContainerStatus{
+			{
+				ID:    "",
+				Image: "sha256:0f006d265944c984e05200fab1c14ac54163cbcd4e8ae0ba3b35eb46fc559823",
+				Name:  "redis-master",
+			},
+		},
+		Phase: "Running",
 	}
 
 	for nb, tc := range []struct {
@@ -1164,6 +1215,35 @@ func TestParsePods(t *testing.T) {
 				},
 				OrchestratorCardTags: []string{},
 				HighCardTags:         []string{"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f"},
+				StandardTags:         []string{},
+			}},
+		},
+		{
+			desc: "Empty container ID",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name: "foo-pod",
+					UID:  "foo-uid",
+					Owners: []kubelet.PodOwner{
+						{
+							Kind: "ReplicaSet",
+							Name: "foo-rs",
+						},
+					},
+				},
+				Status: containerStatusEmptyID,
+				Spec:   criContainerSpec,
+			},
+			labelsAsTags: map[string]string{},
+			expectedInfo: []*TagInfo{{
+				Source: "kubelet",
+				Entity: "kubernetes_pod_uid://foo-uid",
+				LowCardTags: []string{
+					"kube_replica_set:foo-rs",
+					"pod_phase:running",
+				},
+				OrchestratorCardTags: []string{"pod_name:foo-pod"},
+				HighCardTags:         []string{},
 				StandardTags:         []string{},
 			}},
 		},

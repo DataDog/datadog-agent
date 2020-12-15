@@ -202,6 +202,9 @@ func (c *APMCheck) Stop() {
 	<-c.stopDone
 }
 
+// Cancel does nothing
+func (c *APMCheck) Cancel() {}
+
 // GetWarnings does not return anything in APM
 func (c *APMCheck) GetWarnings() []error {
 	return []error{}

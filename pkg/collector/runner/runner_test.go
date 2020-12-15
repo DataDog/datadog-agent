@@ -16,13 +16,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // FIXTURE
 type TestCheck struct {
+	check.StubCheck
 	sync.Mutex
 	doErr  bool
 	hasRun bool
@@ -38,13 +38,6 @@ func newTestCheck(doErr bool, id string) *TestCheck {
 	}
 }
 
-func (c *TestCheck) String() string                                             { return "TestCheck" }
-func (c *TestCheck) Version() string                                            { return "" }
-func (c *TestCheck) ConfigSource() string                                       { return "" }
-func (c *TestCheck) Stop()                                                      {}
-func (c *TestCheck) Configure(integration.Data, integration.Data, string) error { return nil }
-func (c *TestCheck) Interval() time.Duration                                    { return 1 }
-func (c *TestCheck) IsTelemetryEnabled() bool                                   { return false }
 func (c *TestCheck) Run() error {
 	c.Lock()
 	defer c.Unlock()
@@ -56,6 +49,9 @@ func (c *TestCheck) Run() error {
 
 	c.hasRun = true
 	return nil
+}
+func (c *TestCheck) String() string {
+	return "TestCheck"
 }
 func (c *TestCheck) ID() check.ID {
 	c.Lock()

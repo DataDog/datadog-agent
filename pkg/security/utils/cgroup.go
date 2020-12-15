@@ -25,8 +25,8 @@ var containerIDPattern = regexp.MustCompile(fmt.Sprintf(`([[:xdigit:]]{%v})`, sh
 type ContainerID string
 
 // Bytes returns the container ID as a byte array
-func (c ContainerID) Bytes() [ContainerIDLen]byte {
-	buff := [ContainerIDLen]byte{}
+func (c ContainerID) Bytes() []byte {
+	buff := make([]byte, ContainerIDLen)
 	if len(c) == ContainerIDLen {
 		copy(buff[:], c)
 	}

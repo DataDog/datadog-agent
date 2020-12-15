@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
+// +build !serverless
+
 package util
 
 import (
@@ -223,7 +225,8 @@ func GetHostnameData() (HostnameData, error) {
 		}
 	}
 
-	/* at this point we've either the hostname from the os or an empty string */
+	// at this point we've either the hostname from the os or an empty string
+	// ------------------------
 
 	// We use the instance id if we're on an ECS cluster or we're on EC2
 	// and the hostname is one of the default ones
@@ -266,6 +269,9 @@ func GetHostnameData() (HostnameData, error) {
 	}
 
 	h, err := os.Hostname()
+	// We have a FQDN not equals to the resolved hostname, and the configuration
+	// field `hostname_fqdn` isn't set -> we display a warning message about
+	// the future behavior
 	if err == nil && !config.Datadog.GetBool("hostname_fqdn") && fqdn != "" && hostName == h && h != fqdn {
 		if runtime.GOOS != "windows" {
 			// REMOVEME: This should be removed when the default `hostname_fqdn` is set to true

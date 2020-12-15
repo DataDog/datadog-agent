@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build linux_bpf
+// +build linux
 
 package probes
 
@@ -36,6 +36,14 @@ var execProbes = []*manager.Probe{
 	{
 		UID:     SecurityAgentUID,
 		Section: "kprobe/cgroup1_tasks_write",
+	},
+	{
+		UID:     SecurityAgentUID,
+		Section: "kprobe/exit_itimers",
+	},
+	{
+		UID:     SecurityAgentUID,
+		Section: "kprobe/security_bprm_committed_creds",
 	},
 }
 

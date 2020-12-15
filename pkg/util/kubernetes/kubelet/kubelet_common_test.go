@@ -49,6 +49,12 @@ func loadPodsFixture(path string) ([]*Pod, error) {
 	if err != nil {
 		return nil, err
 	}
+	for _, pod := range podList.Items {
+		allContainers := make([]ContainerStatus, 0, len(pod.Status.InitContainers)+len(pod.Status.Containers))
+		allContainers = append(allContainers, pod.Status.InitContainers...)
+		allContainers = append(allContainers, pod.Status.Containers...)
+		pod.Status.AllContainers = allContainers
+	}
 	return podList.Items, nil
 }
 
