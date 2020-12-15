@@ -162,7 +162,7 @@ func CheckAndUpgradeConfig() error {
 // Applying command line config options is handled this way as it seems preferable to use the
 // existing configuration library to read/write the config, rather than have the installer
 // try to modify the configuration on the fly.  This is _also_ a legacy algorithm, as at some
-// point attempts to modify the config file from the installer (via a shell executable) was 
+// point attempts to modify the config file from the installer (via a shell executable) was
 // interpreted as bad behavior by some A/V programs.
 func ImportRegistryConfig() error {
 
