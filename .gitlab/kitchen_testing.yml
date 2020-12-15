@@ -1,0 +1,7 @@
+---
+include:
+  - /.gitlab/kitchen_testing/centos.yml
+  - /.gitlab/kitchen_testing/debian.yml
+  - /.gitlab/kitchen_testing/suse.yml
+  - /.gitlab/kitchen_testing/ubuntu.yml
+  - /.gitlab/kitchen_testing/windows.yml

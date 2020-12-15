@@ -1,0 +1,27 @@
+---
+.if_deploy_on_tag_7: &if_deploy_on_tag_7
+  # no RELEASE_VERSION means a nightly build for omnibus
+  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_7 != "nightly-a7" && $RELEASE_VERSION_7 != ""
+
+# The online version of the choco job fetches the msi package from S3 so
+# it is run only once the msi package is pushed
+windows_choco_online_7_x64:
+  rules:
+    - <<: *if_deploy_on_tag_7
+  stage: choco_build
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  needs: ["deploy_staging_windows_tags-a7"]
+  variables:
+    ARCH: "x64"
+  script:
+    - $ErrorActionPreference = "Stop"
+    - if (Test-Path .omnibus) { remove-item -recurse -force .omnibus }
+    - if (Test-Path build-out) { remove-item -recurse -force build-out }
+    - mkdir .omnibus\pkg
+    - docker run --rm -v "$(Get-Location):c:\mnt" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES c:\mnt\tasks\winbuildscripts\chocopack.bat online
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+    - copy build-out\*.nupkg .omnibus\pkg
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - .omnibus/pkg

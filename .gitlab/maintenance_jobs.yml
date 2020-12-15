@@ -1,0 +1,4 @@
+---
+include:
+  - /.gitlab/maintenance_jobs/docker.yml
+  - /.gitlab/maintenance_jobs/kitchen.yml
