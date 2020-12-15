@@ -80,6 +80,7 @@ func (a *RuntimeAsset) Compile(config *Config, cflags []string) (CompiledOutput,
 		if err != nil {
 			return nil, fmt.Errorf("failed to create compiler: %w", err)
 		}
+		defer comp.Close()
 
 		if err := comp.CompileToObjectFile(inputFile, outputFile, cflags); err != nil {
 			return nil, fmt.Errorf("failed to compile runtime version of %s: %s", a.filename, err)
