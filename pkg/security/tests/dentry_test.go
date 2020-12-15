@@ -338,15 +338,19 @@ func TestDentryOverlay(t *testing.T) {
 	rules := []*rules.RuleDefinition{
 		&rules.RuleDefinition{
 			ID:         "test_rule_open",
-			Expression: `open.filename in ["{{.Root}}/merged/file1.txt", "{{.Root}}/merged/file2.txt", "{{.Root}}/merged/file3.txt", "{{.Root}}/merged/new1.txt", "{{.Root}}/merged/new2.txt"]`,
+			Expression: `open.filename in ["{{.Root}}/merged/file1.txt", "{{.Root}}/merged/file2.txt", "{{.Root}}/merged/file3.txt", "{{.Root}}/merged/new.txt"]`,
 		},
 		&rules.RuleDefinition{
 			ID:         "test_rule_unlink",
-			Expression: `unlink.filename in ["{{.Root}}/merged/file1.txt", "{{.Root}}/merged/file2.txt", "{{.Root}}/merged/file3.txt", "{{.Root}}/merged/new.txt", "{{.Root}}/merged/renamed.txt", "{{.Root}}/merged/new2.txt"]`,
+			Expression: `unlink.filename in ["{{.Root}}/merged/file1.txt", "{{.Root}}/merged/file2.txt", "{{.Root}}/merged/renamed.txt", "{{.Root}}/merged/new.txt"]`,
 		},
 		&rules.RuleDefinition{
 			ID:         "test_rule_rename",
-			Expression: `rename.old.filename in ["{{.Root}}/merged/file1.txt", "{{.Root}}/merged/file2.txt", "{{.Root}}/merged/file3.txt"]`,
+			Expression: `rename.old.filename in ["{{.Root}}/merged/file3.txt"]`,
+		},
+		&rules.RuleDefinition{
+			ID:         "test_rule_rmdir",
+			Expression: `rmdir.filename in ["{{.Root}}/merged/dir"]`,
 		},
 	}
 
@@ -371,6 +375,15 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+	}
+
+	// create dir in lower
+	testDir, _, err := test.Path("lower/dir")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(testDir, 0777); err != nil {
+		t.Fatal(err)
 	}
 
 	args := []string{
@@ -499,7 +512,7 @@ func TestDentryOverlay(t *testing.T) {
 	})
 
 	t.Run("create-upper", func(t *testing.T) {
-		testFile, _, err := test.Path("merged/new2.txt")
+		testFile, _, err := test.Path("merged/new.txt")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -579,13 +592,38 @@ func TestDentryOverlay(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		// TODO: Remove after a rename from a lower is currently broken. the following tests trigger the issues
 		event, _, err = test.GetEvent()
 		if err != nil {
 			t.Error(err)
 		} else {
 			if inode != event.Unlink.Inode {
 				t.Errorf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
+			}
+		}
+	})
+
+	t.Run("rmdir-lower", func(t *testing.T) {
+		testDir, _, err := test.Path("merged/dir")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		inode := getInode(t, testDir)
+
+		if err := os.Remove(testDir); err != nil {
+			t.Fatal(err)
+		}
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if value, _ := event.GetFieldValue("rmdir.filename"); value.(string) != testDir {
+				t.Errorf("expected filename not found %s != %s", value.(string), testDir)
+			}
+
+			if inode != event.Rmdir.Inode {
+				t.Errorf("expected inode not found %d(real) != %d\n", inode, event.Rename.New.Inode)
 			}
 		}
 	})

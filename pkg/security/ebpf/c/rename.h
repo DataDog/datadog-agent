@@ -53,7 +53,7 @@ int kprobe__vfs_rename(struct pt_regs *ctx) {
 
     // use src_dentry as target inode is currenlty empty and the target file will
     // have the src inode anyway
-    set_path_key_inode(src_dentry, syscall->rename.target_key, 1); 
+    set_path_key_inode(src_dentry, &syscall->rename.target_key, 1);
 
     syscall->rename.src_overlay_numlower = get_overlay_numlower(syscall->rename.src_dentry);
 
