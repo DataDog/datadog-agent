@@ -75,8 +75,6 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
         return 0;
     }
 
-    bpf_printk("trace__sys_unlink_ret: %d\n", syscall->unlink.path_key.ino);
-
     u64 enabled_events = get_enabled_events();
     int enabled = mask_has_event(enabled_events, EVENT_UNLINK) ||
                   mask_has_event(enabled_events, EVENT_RMDIR);
