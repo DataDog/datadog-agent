@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/hashicorp/go-multierror"
 )
 
@@ -50,7 +51,7 @@ func tryNewTransactionContainer(
 		serializer := NewTransactionsSerializer()
 		storage, err = newTransactionsFileStorage(serializer, optionalDomainFolderPath, storageMaxSize, transactionsFileStorageTelemetry{})
 		if err != nil {
-			return nil, fmt.Errorf("Error when creating the file storage: %v", err)
+			log.Errorf("Error when creating the file storage: %v", err)
 		}
 	}
 
