@@ -135,10 +135,11 @@ int __attribute__((always_inline)) handle_open_event(struct pt_regs *ctx, struct
     }
 
     struct dentry *dentry = get_file_dentry(file);
-    set_path_key_inode(dentry, syscall->open.path_key, 0); 
 
     syscall->open.dentry = dentry;
     syscall->open.path_key = get_inode_key_path(inode, &file->f_path);
+
+    set_path_key_inode(dentry, syscall->open.path_key, 0);
 
     return filter_open(syscall);
 }
