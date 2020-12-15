@@ -65,6 +65,7 @@ func (pc *PrometheusCheck) ConfigsForServiceEndpoints(svc *v1.Service, ep *v1.En
 				endpointsID := apiserver.EntityForEndpoints(ep.GetNamespace(), ep.GetName(), address.IP)
 
 				epConfig := integration.Config{
+					Entity:        endpointsID,
 					Name:          openmetricsCheckName,
 					InitConfig:    integration.Data(openmetricsInitConfig),
 					Instances:     instances,
