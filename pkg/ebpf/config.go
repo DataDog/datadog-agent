@@ -38,6 +38,7 @@ type Config struct {
 	RuntimeCompilerOutputDir string
 }
 
+// curDir is used for testing purposes only
 func curDir() (string, error) {
 	_, file, _, ok := runtime.Caller(0)
 	if !ok {
