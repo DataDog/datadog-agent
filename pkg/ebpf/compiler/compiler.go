@@ -113,7 +113,7 @@ func NewEBPFCompiler(headerDirs []string, verbose bool) (*EBPFCompiler, error) {
 		e.Close()
 	})
 
-	var cflags []string
+	cflags := make([]string, len(defaultFlags))
 	copy(cflags, defaultFlags)
 
 	var err error
