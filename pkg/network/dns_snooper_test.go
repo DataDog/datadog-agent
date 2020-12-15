@@ -264,7 +264,9 @@ func getStats(
 	snooper *SocketFilterSnooper,
 	expectedCount int,
 ) map[dnsKey]map[string]dnsStats {
-	timeout := time.After(1 * time.Second)
+	// DNS timeout is set to 1 second for the tests.
+	// So a 3-second timeout here should provide enough time for an unanswered DNS query to be considered as a timeout.
+	timeout := time.After(3 * time.Second)
 Loop:
 	// Wait until DNS stats becomes available
 	for {
@@ -467,7 +469,7 @@ func TestParsingError(t *testing.T) {
 }
 
 func TestDNSOverIPv6(t *testing.T) {
-	m, reverseDNS := initDNSTests(t, true)
+	m, reverseDNS := initDNSTestsWithDomainCollection(t, true)
 	defer m.Stop(manager.CleanAll)
 	defer reverseDNS.Close()
 
@@ -483,7 +485,7 @@ func TestDNSOverIPv6(t *testing.T) {
 	key := getKey(queryIP, queryPort, serverIP, UDP)
 	require.Contains(t, allStats, key)
 
-	stats := allStats[key]
+	stats := allStats[key]["nxdomain-123.com"]
 	assert.Equal(t, 1, len(stats.countByRcode))
 	assert.Equal(t, uint32(1), stats.countByRcode[uint8(layers.DNSResponseCodeNXDomain)])
 }
