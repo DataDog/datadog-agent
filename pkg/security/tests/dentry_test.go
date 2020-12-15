@@ -357,6 +357,10 @@ func TestDentryOverlay(t *testing.T) {
 			ID:         "test_rule_chmod",
 			Expression: `chmod.filename in ["{{.Root}}/merged/chmod.txt"]`,
 		},
+		&rules.RuleDefinition{
+			ID:         "test_rule_mkdir",
+			Expression: `mkdir.filename in ["{{.Root}}/merged/mkdir"]`,
+		},
 	}
 
 	testDrive, err := newTestDrive("xfs", nil)
@@ -624,6 +628,26 @@ func TestDentryOverlay(t *testing.T) {
 			t.Error(err)
 		} else {
 			if inode := getInode(t, testFile); inode != event.Chmod.Inode {
+				t.Errorf("expected inode not found %d(real) != %d\n", inode, event.Open.Inode)
+			}
+		}
+	})
+
+	t.Run("mkdir-lower", func(t *testing.T) {
+		testFile, _, err := test.Path("merged/mkdir")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := syscall.Mkdir(testFile, 0777); err != nil {
+			t.Fatal(err)
+		}
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if inode := getInode(t, testFile); inode != event.Mkdir.Inode {
 				t.Errorf("expected inode not found %d(real) != %d\n", inode, event.Open.Inode)
 			}
 		}
