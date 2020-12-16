@@ -52,14 +52,16 @@ function Format-Source {
         $source_dir
     )
     Write-Host ("Formatting code in {0}" -f $source_dir)
+    $source_files = [System.Collections.ArrayList]@()
     @("*.h", "*.hpp", "*.cpp") | ForEach-Object {
         Get-ChildItem -Recurse $source_dir -Filter $PSItem | ForEach-Object {
             if (!$_.Directory.FullName.StartsWith("$source_dir\cal\packages")) {
-                Write-Host ("Formatting {0}" -f $_.FullName)
-                Invoke-Process $clang_format_path ("-i {0}" -f $_.FullName)
+                Write-Host ($_.FullName)
+                [void]::($source_files.Add($_.FullName))
             }
         }
     }
+    Invoke-Process $clang_format_path ("-i {0}" -f ($source_files -join ' '))
 }
 $clang_format_config_path = "{0}\.clang-format" -f (Get-Location)
 # Make sure to call this from the location where .clang-format is located
