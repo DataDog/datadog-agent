@@ -52,7 +52,7 @@ require (
 	code.cloudfoundry.org/rep v0.0.0-20200325195957-1404b978e31e // indirect
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
-	github.com/DataDog/agent-payload v4.47.0+incompatible
+	github.com/DataDog/agent-payload v4.49.1-0.20201216203203-1934b33f27cf+incompatible
 	github.com/DataDog/datadog-go v3.5.0+incompatible
 	github.com/DataDog/datadog-operator v0.2.1-0.20200709152311-9c71245c6822
 	github.com/DataDog/ebpf v0.0.0-20201120093539-d2690c373d70
@@ -153,7 +153,8 @@ require (
 	github.com/tinylib/msgp v1.1.2
 	github.com/twmb/murmur3 v1.1.3
 	github.com/urfave/negroni v1.0.0
-	github.com/vishvananda/netns v0.0.0-20191106174202-0a2b9b5464df
+	github.com/vishvananda/netlink v1.1.1-0.20201206203632-88079d98e65d
+	github.com/vishvananda/netns v0.0.0-20200728191858-db3c7e526aae
 	github.com/vito/go-sse v1.0.0 // indirect
 	github.com/vmihailenco/msgpack/v4 v4.3.11
 	github.com/zorkian/go-datadog-api v2.28.0+incompatible // indirect
@@ -166,7 +167,7 @@ require (
 	golang.org/x/mod v0.3.1-0.20200828183125-ce943fd02449 // indirect
 	golang.org/x/net v0.0.0-20201110031124-69a78807bb2b
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
-	golang.org/x/sys v0.0.0-20201119102817-f84b799fce68
+	golang.org/x/sys v0.0.0-20201207223542-d4d67f95c62d
 	golang.org/x/text v0.3.4
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 	golang.org/x/tools v0.0.0-20200327195553-82bb89366a1e

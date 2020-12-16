@@ -1,9 +1,12 @@
 #include "tracer.h"
 #include "bpf_helpers.h"
 #include "syscalls.h"
+#include <linux/err.h>
 #include <linux/kconfig.h>
+#include <net/dst.h>
 #include <net/inet_sock.h>
 #include <net/net_namespace.h>
+#include <net/route.h>
 #include <net/tcp_states.h>
 #include <uapi/linux/ip.h>
 #include <uapi/linux/ipv6.h>
@@ -83,6 +86,33 @@ struct bpf_map_def SEC("maps/udp_recv_sock") udp_recv_sock = {
     .pinning = 0,
     .namespace = "",
 };
+
+#if ROUTE_LOOKUP_USE_EBPF
+/*
+ * This map is used to store the parameters for a call to ip_route_output_flow
+ * to match them later to a kretprobe
+ * key is the pid/tid
+ * value is ip_route_flow_t
+*/
+struct bpf_map_def SEC("maps/ip_route_output_flows") ip_route_output_flows = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(__u64),
+    .value_size = sizeof(ip_route_flow_t),
+    .max_entries = 1024,
+    .pinning = 0,
+    .namespace = "",
+};
+
+struct bpf_map_def SEC("maps/dest_gateways") dest_gateways = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(dest_tuple_t),
+    .value_size = sizeof(gw_tuple_t),
+    .max_entries = 1024,
+    .pinning = 0,
+    .namespace = "",
+};
+
+#endif /* ROUTE_LOOKUP_USE_EBPF */
 
 /* This maps tracks listening TCP ports. Entries are added to the map via tracing the inet_csk_accept syscall.  The
  * key in the map is the network namespace inode together with the port and the value is a flag that
@@ -735,6 +765,74 @@ int kprobe__ip_make_skb(struct pt_regs* ctx) {
 
     return 0;
 }
+
+#if ROUTE_LOOKUP_USE_EBPF
+
+SEC("kprobe/ip_route_output_flow")
+int kprobe__ip_route_output_flow(struct pt_regs* ctx) {
+    struct net *net = (struct net*) PT_REGS_PARM1(ctx);
+    struct flowi4* fl4 = (struct flowi4*) PT_REGS_PARM2(ctx);
+    struct sock* sk = (struct sock*) PT_REGS_PARM3(ctx);
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+
+    ip_route_flow_t flow = {};
+    flow.sk = sk;
+    flow.fl = fl4;
+    bpf_probe_read(&flow.net_ns, sizeof(flow.net_ns), ((char*)net) + offset_ino());
+    bpf_map_update_elem(&ip_route_output_flows, &pid_tgid, &flow, BPF_ANY);
+    log_debug("kprobe/ip_route_output_flow: pid_tgid: %d\n", pid_tgid);
+
+    return 0;
+}
+
+SEC("kretprobe/ip_route_output_flow")
+int kretprobe__ip_route_output_flow(struct pt_regs* ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+
+    // Retrieve socket pointer from kprobe via pid/tgid
+    ip_route_flow_t *flow = (ip_route_flow_t*) bpf_map_lookup_elem(&ip_route_output_flows, &pid_tgid);
+    if (!flow) {
+        return 0;
+    }
+
+    // Make sure we clean up that pointer reference
+    bpf_map_delete_elem(&ip_route_output_flows, &pid_tgid);
+
+    struct rtable *rt = (struct rtable*)PT_REGS_RC(ctx);
+    if (IS_ERR_OR_NULL(rt)) {
+        log_debug("kretprobe/ip_route_output_flow: route is not available pid_tgid=%d\n", pid_tgid);
+        return 0;
+    }
+
+    struct flowi4 *fl4 = (struct flowi4*) flow->fl;
+
+    dest_tuple_t dest = {};
+    dest.saddr_h = 0;
+    dest.daddr_h = 0;
+    bpf_probe_read(&dest.saddr_l, sizeof(__u32), ((char*)fl4) + offset_saddr_fl4());
+    bpf_probe_read(&dest.daddr_l, sizeof(__u32), ((char*)fl4) + offset_daddr_fl4());
+    if (!dest.daddr_l) {
+        log_debug("ERR(kretprobe/ip_route_output_flow): dst address not set pid_tgid=%d", pid_tgid);
+        return 0;
+    }
+    dest.netns = flow->net_ns;
+    dest.family = CONN_V4;
+
+    gw_tuple_t gw = {};
+    gw.gw_h = 0;
+    gw.family = CONN_V4;
+    bpf_probe_read(&gw.gw_l, sizeof(__u32), &rt->rt_gw4);
+    struct dst_entry dst = {};
+    bpf_probe_read(&dst, sizeof(struct dst_entry), &(rt->dst));
+    if (dst.dev) {
+        bpf_probe_read(&gw.ifindex, sizeof(__u32), &(dst.dev->ifindex));
+    }
+
+    bpf_map_update_elem(&dest_gateways, &dest, &gw, BPF_ANY);
+    return 0;
+}
+
+#endif /* ROUTE_LOOKUP_USE_EBPF */
 
 // We can only get the accurate number of copied bytes from the return value, so we pass our
 // sock* pointer from the kprobe to the kretprobe via a map (udp_recv_sock) to get all required info

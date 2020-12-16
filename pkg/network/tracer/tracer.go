@@ -6,6 +6,7 @@ import (
 	"expvar"
 	"fmt"
 	"math"
+	"net"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -18,6 +19,8 @@ import (
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf"
@@ -87,6 +90,9 @@ type Tracer struct {
 	destExcludes   []*network.ConnectionFilter
 
 	conntrack *cachedConntrack
+
+	routeCache  network.RouteCache
+	subnetCache map[int]network.Subnet
 }
 
 const (
@@ -249,6 +255,8 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		flushIdle:      make(chan chan struct{}),
 		stop:           make(chan struct{}),
 		conntrack:      newCachedConntrack(config.ProcRoot, netlink.NewConntrack, 128),
+		routeCache:     network.NewRouteCache(512, network.NewNetlinkRouter(config.ProcRoot)),
+		subnetCache:    make(map[int]network.Subnet),
 	}
 
 	tr.perfMap, tr.batchManager, err = tr.initPerfPolling(perfHandler)
@@ -420,6 +428,8 @@ func (t *Tracer) shouldSkipConnection(conn *network.ConnectionStats) bool {
 }
 
 func (t *Tracer) storeClosedConn(cs network.ConnectionStats) {
+	t.connVia(&cs)
+
 	cs.Direction = t.determineConnectionDirection(&cs)
 	if t.shouldSkipConnection(&cs) {
 		atomic.AddInt64(&t.skippedConns, 1)
@@ -566,6 +576,7 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 		} else {
 			conn := connStats(key, stats, t.getTCPStats(tcpMp, key, seen))
 			conn.Direction = t.determineConnectionDirection(&conn)
+			t.connVia(&conn)
 
 			if t.shouldSkipConnection(&conn) {
 				atomic.AddInt64(&t.skippedConns, 1)
@@ -846,4 +857,68 @@ func (t *Tracer) conntrackExists(conn *ConnTuple) bool {
 	}
 
 	return ok
+}
+
+func (t *Tracer) connVia(cs *network.ConnectionStats) {
+	r, ok := t.routeCache.Get(cs.Source, cs.Dest, cs.NetNS)
+	if !ok {
+		return
+	}
+
+	// if there is no gateway, we don't need to add subnet info
+	// for gateway resolution in the backend
+	if util.NetIPFromAddress(r.Gw).IsUnspecified() {
+		return
+	}
+
+	s, ok := t.subnetCache[r.IfIndex]
+	if !ok {
+		ifi, err := net.InterfaceByIndex(r.IfIndex)
+		if err != nil {
+			log.Errorf("error getting index for interface index %d: %s", r.IfIndex, err)
+			return
+		}
+
+		if len(ifi.HardwareAddr) == 0 {
+			// can happen for loopback
+			return
+		}
+
+		snet, err := ec2.GetSubnetForHardwareAddr(ifi.HardwareAddr)
+		if err != nil {
+			log.Errorf("error getting subnet info for interface index %d: %s", r.IfIndex, err)
+			return
+		}
+
+		s.Alias = snet.ID
+		t.subnetCache[r.IfIndex] = s
+	}
+
+	cs.Via = &network.Via{
+		Subnet: s,
+	}
+}
+
+type ebpfRouter struct {
+	gwMp *ebpf.Map
+}
+
+func newEbpfRouter(m *manager.Manager) network.Router {
+	mp, ok, err := m.GetMap(string(probes.GatewayMap))
+	if err != nil || !ok {
+		return nil
+	}
+	return &ebpfRouter{
+		gwMp: mp,
+	}
+}
+
+func (b *ebpfRouter) Route(source, dest util.Address, netns uint32) (network.Route, bool) {
+	d := newDestTuple(source, dest, netns)
+	gw := &gatewayTuple{}
+	if err := b.gwMp.Lookup(unsafe.Pointer(d), unsafe.Pointer(gw)); err != nil || gw.ifIndex() == 0 {
+		return network.Route{}, false
+	}
+
+	return network.Route{Gw: gw.gateway(), IfIndex: gw.ifIndex()}, true
 }

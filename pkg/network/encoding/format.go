@@ -47,6 +47,7 @@ func FormatConnection(conn network.ConnectionStats) *model.Connection {
 	c.DnsCountByRcode = conn.DNSCountByRcode
 	c.LastTcpEstablished = conn.LastTCPEstablished
 	c.LastTcpClosed = conn.LastTCPClosed
+	c.Via = formatVia(conn.Via)
 	return c
 }
 
@@ -168,5 +169,17 @@ func formatIPTranslation(ct *network.IPTranslation) *model.IPTranslation {
 		ReplDstIP:   ct.ReplDstIP.String(),
 		ReplSrcPort: int32(ct.ReplSrcPort),
 		ReplDstPort: int32(ct.ReplDstPort),
+	}
+}
+
+func formatVia(ct *network.Via) *model.Via {
+	if ct == nil {
+		return nil
+	}
+
+	return &model.Via{
+		Subnet: &model.Subnet{
+			Alias: ct.Subnet.Alias,
+		},
 	}
 }

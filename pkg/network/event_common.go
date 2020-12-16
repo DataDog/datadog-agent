@@ -145,6 +145,16 @@ type ConnectionStats struct {
 	DNSSuccessLatencySum   uint64
 	DNSFailureLatencySum   uint64
 	DNSCountByRcode        map[uint32]uint32
+
+	Via *Via
+}
+
+type Via struct {
+	Subnet Subnet
+}
+
+type Subnet struct {
+	Alias string
 }
 
 // IPTranslation can be associated with a connection to show the connection is NAT'd

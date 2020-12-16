@@ -57,6 +57,22 @@ __u16 port;
 */
 type portBindingTuple C.port_binding_t
 
+/* gw_tuple_t
+__u64 gw_h;
+__u64 gw_l;
+__u16 family;
+__u32 ifindex;
+*/
+type gatewayTuple C.gw_tuple_t
+
+/* dest_tuple_t
+__u64 daddr_h;
+__u64 daddr_l;
+__u32 netns;
+__u16 family;
+*/
+type destTuple C.dest_tuple_t
+
 func (t *ConnTuple) copy() *ConnTuple {
 	return &ConnTuple{
 		pid:      t.pid,
@@ -320,4 +336,39 @@ func connFamily(m uint) network.ConnectionFamily {
 
 func isPortClosed(state uint8) bool {
 	return state == C.PORT_CLOSED
+}
+
+func newDestTuple(source, dest util.Address, netns uint32) *destTuple {
+	d := &destTuple{netns: C.__u32(netns)}
+	sbytes := source.Bytes()
+	dbytes := dest.Bytes()
+	switch len(dbytes) {
+	case 4:
+		d.family = C.CONN_V4
+		d.saddr_l = C.__u64(binary.LittleEndian.Uint32(sbytes))
+		d.daddr_l = C.__u64(binary.LittleEndian.Uint32(dbytes))
+	case 16:
+		d.family = C.CONN_V6
+		d.saddr_h = C.__u64(binary.LittleEndian.Uint32(sbytes[:8]))
+		d.saddr_l = C.__u64(binary.LittleEndian.Uint32(sbytes[8:]))
+		d.daddr_h = C.__u64(binary.LittleEndian.Uint64(dbytes[:8]))
+		d.daddr_l = C.__u64(binary.LittleEndian.Uint64(dbytes[8:]))
+	}
+
+	return d
+}
+
+func (g *gatewayTuple) gateway() util.Address {
+	switch g.family {
+	case C.CONN_V4:
+		return util.V4Address(uint32(g.gw_l))
+	case C.CONN_V6:
+		return util.V6Address(uint64(g.gw_l), uint64(g.gw_h))
+	}
+
+	return nil
+}
+
+func (g *gatewayTuple) ifIndex() int {
+	return int(g.ifindex)
 }

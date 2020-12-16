@@ -95,4 +95,28 @@ typedef struct {
     __u16 port;
 } port_binding_t;
 
+typedef struct {
+    __u32 net_ns;
+    void * fl;
+    void * sk;
+} ip_route_flow_t;
+
+typedef struct {
+    __u64 saddr_h;
+    __u64 saddr_l;
+    __u64 daddr_h;
+    __u64 daddr_l;
+    __u32 netns;
+    __u16 family;
+} dest_tuple_t;
+
+typedef struct {
+    __u64 gw_h;
+    __u64 gw_l;
+    __u16 family;
+    __u32 ifindex;
+} gw_tuple_t;
+
+#define ROUTE_LOOKUP_USE_EBPF 0
+
 #endif
