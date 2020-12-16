@@ -56,6 +56,8 @@ func setupAPM(config Config) {
 	config.BindEnvAndSetDefault("apm_config.remote_tagger", false, "DD_APM_REMOTE_TAGGER")                                                    //nolint:errcheck
 
 	config.BindEnv("apm_config.receiver_timeout", "DD_APM_RECEIVER_TIMEOUT")                             //nolint:errcheck
+	config.BindEnv("apm_config.receiver_write_timeout", "DD_APM_RECEIVER_WRITE_TIMEOUT")                 //nolint:errcheck
+	config.BindEnv("apm_config.receiver_read_timeout", "DD_APM_RECEIVER_READ_TIMEOUT")                   //nolint:errcheck
 	config.BindEnv("apm_config.max_payload_size", "DD_APM_MAX_PAYLOAD_SIZE")                             //nolint:errcheck
 	config.BindEnv("apm_config.log_file", "DD_APM_LOG_FILE")                                             //nolint:errcheck
 	config.BindEnv("apm_config.max_events_per_second", "DD_APM_MAX_EPS", "DD_MAX_EPS")                   //nolint:errcheck
