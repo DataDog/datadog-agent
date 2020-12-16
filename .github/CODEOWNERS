@@ -44,6 +44,8 @@
 
 /.gitlab/deps_build.yml                              @DataDog/networks @DataDog/agent-platform
 
+/.gitlab/docker_common/                              @DataDog/container-integrations @DataDog/agent-platform
+
 /.gitlab/e2e.yml                                     @DataDog/container-integrations @DataDog/agent-platform
 
 /.gitlab/functional_test/security_agent.yml          @DataDog/agent-security @DataDog/agent-platform

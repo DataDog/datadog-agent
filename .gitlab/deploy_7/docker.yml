@@ -1,4 +1,10 @@
 ---
+# FIXME: our current Gitlab version doesn't support importing a file more than once
+# For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
+# See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
+# include:
+#   - /.gitlab/docker_common/tag_job_templates.yml
+
 .if_deploy_on_tag_7: &if_deploy_on_tag_7
   # no RELEASE_VERSION means a nightly build for omnibus
   if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_7 != "nightly-a7" && $RELEASE_VERSION_7 != ""
