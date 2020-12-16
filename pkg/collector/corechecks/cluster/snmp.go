@@ -53,13 +53,22 @@ func (c *Check) Run() error {
 		return err
 	}
 
-	schedule := types.ConfigsToSchedule{}
-	configs, err := c.dcaClient.PostClusterCheckConfigs(nodeName, schedule)
+	configs := []integration.Config{
+		{
+			Name: "http_check",
+			Instances: []integration.Data{
+				integration.Data("name: Http Check from AD\nurl: http://example.com"),
+			},
+		},
+	}
+
+	schedule := types.ConfigsToSchedule{CheckID: c.ID(), Configs: configs}
+	configsResp, err := c.dcaClient.PostClusterCheckConfigs(nodeName, schedule)
 	if err != nil {
 		return err
 	}
 
-	log.Warnf("config: %#v\n", configs)
+	log.Warnf("config: %#v\n", configsResp)
 
 	sender.Commit()
 

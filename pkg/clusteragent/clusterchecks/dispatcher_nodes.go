@@ -40,17 +40,15 @@ func (d *dispatcher) processNodeConfigs(nodeName string, configs types.ConfigsTo
 	d.store.RLock()
 	defer d.store.RUnlock()
 
-	log.Warn("processNodeConfigs process configs") // TODO: Remove me
+	log.Warnf("processNodeConfigs process configs: %#v", configs.Configs) // TODO: Remove me
 
-	// Add configs to
-	//node, found := d.store.getNodeStore(nodeName)
-	//if !found {
-	//	return false, fmt.Errorf("node %s is unknown", nodeName)
-	//}
+	for _, config := range configs.Configs {
+		d.addConfig(config, "")
+	}
 
-	// TODO: Schedule/Add configs to clusterStore. For example using:
-	//   d.Schedule(configs.Configs)
-	//   d.add()
+	// TODO: Handle adding new config and removing old configs
+	//   We probably need to store configs by nodeName and autodiscovery integration checkId to do so
+	//   Handle old config removal
 
 	return true, nil
 }
