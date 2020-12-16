@@ -150,10 +150,12 @@ type ConnectionStats struct {
 	Via *Via
 }
 
+// Via has info about the routing decision for a flow
 type Via struct {
 	Subnet Subnet
 }
 
+// Subnet stores info about a subnet
 type Subnet struct {
 	Alias string
 }

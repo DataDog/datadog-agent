@@ -18,6 +18,7 @@ type routeKey struct {
 	connFamily   ConnectionFamily
 }
 
+// Route stores info for a route table entry
 type Route struct {
 	Gw      util.Address
 	IfIndex int
@@ -36,14 +37,17 @@ type routeCache struct {
 
 const defaultTTL = 2 * time.Minute
 
+// RouteCache is the interface to a cache that stores routes for a given (source, destination, net ns) tuple
 type RouteCache interface {
 	Get(source, dest util.Address, netns uint32) (Route, bool)
 }
 
+// Router is an interface to get a route for a (source, destination, net ns) tuple
 type Router interface {
 	Route(source, dest util.Address, netns uint32) (Route, bool)
 }
 
+// NewRouteCache creates a new RouteCache
 func NewRouteCache(size int, router Router) RouteCache {
 	return &routeCache{
 		cache:  lru.New(size),
@@ -100,6 +104,7 @@ type netlinkRouter struct {
 	rootNs uint64
 }
 
+// NewNetlinkRouter create a Router that queries routes via netlink
 func NewNetlinkRouter(procRoot string) Router {
 	rootNs, err := util.GetNetNsInoFromPid(procRoot, 1)
 	if err != nil {
