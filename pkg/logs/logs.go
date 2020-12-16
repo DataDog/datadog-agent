@@ -112,7 +112,6 @@ func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan cha
 
 		chanSource := config.NewLogSource("AWS Logs", &config.LogsConfig{
 			Type:    config.StringChannelType,
-			Service: "agent",  // FIXME(remy):
 			Source:  "lambda", // TODO(remy): do we want this to be configurable at some point?
 			Tags:    extraTags,
 			Channel: logsChan,

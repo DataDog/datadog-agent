@@ -53,9 +53,14 @@ func (t *Tailer) run() {
 	for logline := range t.inputChan {
 		origin := message.NewOrigin(t.source)
 		tags := origin.Tags()
+
 		if functionName := aws.FunctionNameFromARN(); len(functionName) > 0 {
 			tags = append(tags, fmt.Sprintf("functionname:%s", functionName))
+			origin.SetService(functionName)
+		} else {
+			origin.SetService("agent")
 		}
+
 		if len(t.source.Config.Tags) > 0 {
 			tags = append(tags, t.source.Config.Tags...)
 		}
