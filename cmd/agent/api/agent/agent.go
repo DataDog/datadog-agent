@@ -53,6 +53,8 @@ func SetupHandlers(r *mux.Router) *mux.Router {
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
 	r.HandleFunc("/gui/csrf-token", getCSRFToken).Methods("GET")
 	r.HandleFunc("/config-check", getConfigCheck).Methods("GET")
+	// Create POST ?
+	// r.HandleFunc("/config-check", getConfigCheck).Methods("POST")
 	r.HandleFunc("/config", getFullRuntimeConfig).Methods("GET")
 	r.HandleFunc("/config/list-runtime", getRuntimeConfigurableSettings).Methods("GET")
 	r.HandleFunc("/config/{setting}", getRuntimeConfig).Methods("GET")

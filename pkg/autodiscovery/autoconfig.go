@@ -72,6 +72,8 @@ type AutoConfig struct {
 	ranOnce uint32
 }
 
+
+
 // NewAutoConfig creates an AutoConfig instance.
 func NewAutoConfig(scheduler *scheduler.MetaScheduler) *AutoConfig {
 	ac := &AutoConfig{
