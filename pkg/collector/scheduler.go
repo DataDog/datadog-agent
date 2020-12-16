@@ -165,7 +165,11 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 		if instanceConfig.LoaderName != "" {
 			selectedInstanceLoader = instanceConfig.LoaderName
 		}
-		log.Debugf("Check '%s' using loader %s (init_config loader: %s, instance loader: %s)", config.Name, selectedInstanceLoader, initConfig.LoaderName, instanceConfig.LoaderName)
+		if (selectedInstanceLoader != "") {
+			log.Debugf("Loading check instance for check '%s' using loader %s (init_config loader: %s, instance loader: %s)", config.Name, selectedInstanceLoader, initConfig.LoaderName, instanceConfig.LoaderName)
+		} else {
+			log.Debugf("Loading check instance for check '%s' using default loaders", config.Name)
+		}
 
 		for _, loader := range s.loaders {
 			// the loader is skipped if the loader name is set and does not match
