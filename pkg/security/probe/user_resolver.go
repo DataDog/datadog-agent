@@ -28,9 +28,12 @@ func (r *UserGroupResolver) ResolveUser(uid int) (string, error) {
 	}
 
 	u, err := user.LookupId(strconv.Itoa(uid))
-	if err == nil {
-		r.userCache.Add(uid, u.Username)
+	if err != nil {
+		r.userCache.Add(uid, "")
+		return "", err
 	}
+	r.userCache.Add(uid, u.Username)
+
 	return u.Username, nil
 }
 
@@ -42,9 +45,12 @@ func (r *UserGroupResolver) ResolveGroup(gid int) (string, error) {
 	}
 
 	g, err := user.LookupGroupId(strconv.Itoa(gid))
-	if err == nil {
-		r.groupCache.Add(gid, g.Name)
+	if err != nil {
+		r.groupCache.Add(gid, "")
+		return "", err
 	}
+	r.groupCache.Add(gid, g.Name)
+
 	return g.Name, nil
 }
 

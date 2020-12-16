@@ -251,6 +251,7 @@ func (mr *MountResolver) GetMountPath(mountID uint32) (string, string, string, e
 
 func getMountIDOffset(probe *Probe) uint64 {
 	var suseKernel bool
+
 	osrelease, err := osrelease.Read()
 	if err == nil {
 		suseKernel = (osrelease["ID"] == "sles") || (osrelease["ID"] == "opensuse-leap")
@@ -259,7 +260,7 @@ func getMountIDOffset(probe *Probe) uint64 {
 	var offset uint64
 	if suseKernel {
 		offset = 292
-	} else if probe.kernelVersion != 0 && probe.kernelVersion < kernel4_14 {
+	} else if probe.kernelVersion != 0 && probe.kernelVersion < kernel4_13 {
 		offset = 268
 	} else {
 		offset = 284

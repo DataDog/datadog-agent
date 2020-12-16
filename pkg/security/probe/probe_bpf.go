@@ -753,6 +753,10 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 			Name:  "sizeof_inode",
 			Value: getSizeOfStructInode(p),
 		},
+		manager.ConstantEditor{
+			Name:  "sb_magic_offset",
+			Value: getSuperBlockMagicOffset(p),
+		},
 	)
 
 	resolvers, err := NewResolvers(p)

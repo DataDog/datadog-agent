@@ -47,8 +47,6 @@ int __attribute__((always_inline)) trace__sys_chmod_ret(struct pt_regs *ctx) {
     if (!syscall)
         return 0;
 
-    bpf_printk("trace__sys_chmod_ret: %d\n", syscall->setattr.path_key.ino);
-
     int retval = PT_REGS_RC(ctx);
     if (IS_UNHANDLED_ERROR(retval))
         return 0;

@@ -341,39 +341,43 @@ func TestDentryOverlay(t *testing.T) {
 	rules := []*rules.RuleDefinition{
 		&rules.RuleDefinition{
 			ID:         "test_rule_open",
-			Expression: `open.filename in ["{{.Root}}/merged/read.txt", "{{.Root}}/merged/override.txt", "{{.Root}}/merged/create.txt", "{{.Root}}/merged/new.txt"]`,
+			Expression: `open.filename in ["{{.Root}}/merged/read.txt", "{{.Root}}/merged/override.txt", "{{.Root}}/merged/create.txt", "{{.Root}}/merged/new.txt", "{{.Root}}/merged/truncate.txt", "{{.Root}}/merged/linked.txt"]`,
 		},
 		&rules.RuleDefinition{
 			ID:         "test_rule_unlink",
-			Expression: `unlink.filename in ["{{.Root}}/merged/read.txt", "{{.Root}}/merged/override.txt", "{{.Root}}/merged/renamed.txt", "{{.Root}}/merged/new.txt", "{{.Root}}/merged/chmod.txt", "{{.Root}}/merged/utimes.txt", "{{.Root}}/merged/chown.txt", "{{.Root}}/merged/xattr.txt"]`,
+			Expression: `unlink.filename in ["{{.Root}}/merged/read.txt", "{{.Root}}/merged/override.txt", "{{.Root}}/merged/renamed.txt", "{{.Root}}/merged/new.txt", "{{.Root}}/merged/chmod.txt", "{{.Root}}/merged/utimes.txt", "{{.Root}}/merged/chown.txt", "{{.Root}}/merged/xattr.txt", "{{.Root}}/merged/truncate.txt", "{{.Root}}/merged/link.txt", "{{.Root}}/merged/linked.txt"]`,
 		},
 		&rules.RuleDefinition{
 			ID:         "test_rule_rename",
-			Expression: `rename.old.filename in ["{{.Root}}/merged/create.txt"]`,
+			Expression: `rename.old.filename == "{{.Root}}/merged/create.txt"`,
 		},
 		&rules.RuleDefinition{
 			ID:         "test_rule_rmdir",
-			Expression: `rmdir.filename in ["{{.Root}}/merged/dir"]`,
+			Expression: `rmdir.filename == "{{.Root}}/merged/dir"`,
 		},
 		&rules.RuleDefinition{
 			ID:         "test_rule_chmod",
-			Expression: `chmod.filename in ["{{.Root}}/merged/chmod.txt"]`,
+			Expression: `chmod.filename == "{{.Root}}/merged/chmod.txt"`,
 		},
 		&rules.RuleDefinition{
 			ID:         "test_rule_mkdir",
-			Expression: `mkdir.filename in ["{{.Root}}/merged/mkdir"]`,
+			Expression: `mkdir.filename == "{{.Root}}/merged/mkdir"`,
 		},
 		&rules.RuleDefinition{
 			ID:         "test_rule_utimes",
-			Expression: `utimes.filename in ["{{.Root}}/merged/utimes.txt"]`,
+			Expression: `utimes.filename == "{{.Root}}/merged/utimes.txt"`,
 		},
 		&rules.RuleDefinition{
 			ID:         "test_rule_chown",
-			Expression: `chown.filename in ["{{.Root}}/merged/chown.txt"]`,
+			Expression: `chown.filename == "{{.Root}}/merged/chown.txt"`,
 		},
 		&rules.RuleDefinition{
 			ID:         "test_rule_xattr",
-			Expression: `setxattr.filename in ["{{.Root}}/merged/xattr.txt"]`,
+			Expression: `setxattr.filename == "{{.Root}}/merged/xattr.txt"`,
+		},
+		&rules.RuleDefinition{
+			ID:         "test_rule_link",
+			Expression: `link.source.filename == "{{.Root}}/merged/linked.txt"`,
 		},
 	}
 
@@ -393,7 +397,9 @@ func TestDentryOverlay(t *testing.T) {
 	testLower, testUpper, testWordir, testMerged := createOverlayLayers(t, test)
 
 	// create all the lower files
-	for _, filename := range []string{"lower/read.txt", "lower/override.txt", "lower/create.txt", "lower/chmod.txt", "lower/utimes.txt", "lower/chown.txt", "lower/xattr.txt"} {
+	for _, filename := range []string{
+		"lower/read.txt", "lower/override.txt", "lower/create.txt", "lower/chmod.txt",
+		"lower/utimes.txt", "lower/chown.txt", "lower/xattr.txt", "lower/truncate.txt", "lower/linked.txt"} {
 		_, _, err = test.Create(filename)
 		if err != nil {
 			t.Fatal(err)
@@ -782,6 +788,94 @@ func TestDentryOverlay(t *testing.T) {
 		}
 
 		if err := os.Remove(testFile); err != nil {
+			t.Fatal(err)
+		}
+
+		event, _, err = test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if inode != event.Unlink.Inode {
+				t.Errorf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
+			}
+		}
+	})
+
+	t.Run("truncate-lower", func(t *testing.T) {
+		testFile, _, err := test.Path("merged/truncate.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := os.Truncate(testFile, 0); err != nil {
+			t.Fatal(err)
+		}
+
+		var inode uint64
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if inode = getInode(t, testFile); inode != event.Open.Inode {
+				t.Errorf("expected inode not found %d(real) != %d\n", inode, event.Open.Inode)
+			}
+		}
+
+		if err := os.Remove(testFile); err != nil {
+			t.Fatal(err)
+		}
+
+		event, _, err = test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if inode != event.Unlink.Inode {
+				t.Errorf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
+			}
+		}
+	})
+
+	t.Run("link-lower", func(t *testing.T) {
+		testSrc, _, err := test.Path("merged/linked.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		testTarget, _, err := test.Path("merged/link.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := os.Link(testSrc, testTarget); err != nil {
+			t.Fatal(err)
+		}
+
+		var inode uint64
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if inode = getInode(t, testSrc); inode != event.Link.Source.Inode {
+				t.Errorf("expected inode not found %d(real) != %d\n", inode, event.Link.Source.Inode)
+			}
+		}
+
+		if err := os.Remove(testSrc); err != nil {
+			t.Fatal(err)
+		}
+
+		event, _, err = test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if inode != event.Unlink.Inode {
+				t.Errorf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
+			}
+		}
+
+		if err := os.Remove(testTarget); err != nil {
 			t.Fatal(err)
 		}
 

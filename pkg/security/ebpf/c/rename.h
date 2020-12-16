@@ -78,9 +78,18 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
 
     int retval = PT_REGS_RC(ctx);
 
+    u64 inode = get_dentry_ino(syscall->rename.src_dentry);
+
+    // invalidate inode from src dentry to handle ovl folder
+    if (syscall->rename.target_key.ino != inode) {
+        invalidate_inode(ctx, syscall->rename.target_key.mount_id, inode, 1);
+    }
+
+    // invalidate user face inode
+    invalidate_inode(ctx, syscall->rename.target_key.mount_id, syscall->rename.target_key.ino, 1);
+
     // If we are discarded, we still want to invalidate the inode
     if (discarded_by_process(syscall->policy.mode, EVENT_RENAME) || (IS_UNHANDLED_ERROR(retval))) {
-        invalidate_inode(ctx, syscall->rename.target_key.mount_id, syscall->rename.target_key.ino, 1);
         return 0;
     }
 
@@ -112,7 +121,7 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
         send_event(ctx, event);
     }
 
-    invalidate_inode(ctx, syscall->rename.target_key.mount_id, syscall->rename.target_key.ino, !enabled);
+    invalidate_inode(ctx, syscall->rename.target_key.mount_id, syscall->rename.target_key.ino, 0);
 
     return 0;
 }
