@@ -132,7 +132,7 @@ func (r *HTTPReceiver) Start() {
 	if r.conf.ReceiverReadTimeout > 0 {
 		readTimeout = time.Duration(r.conf.ReceiverReadTimeout) * time.Second
 	}
-	writeTimeout := 5 * time.Second
+	writeTimeout := 15 * time.Second
 	if r.conf.ReceiverWriteTimeout > 0 {
 		writeTimeout = time.Duration(r.conf.ReceiverWriteTimeout) * time.Second
 	}

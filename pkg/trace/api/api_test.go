@@ -932,7 +932,7 @@ func BenchmarkWatchdog(b *testing.B) {
 }
 
 func TestReceiverTimeoutConfig(t *testing.T) {
-	tcs := [][]int{{1, 2, 1, 2}, {1, 0, 1, 5}, {0, 1, 5, 1}, {0, 0, 5, 5}}
+	tcs := [][]int{{1, 2, 1, 2}, {1, 0, 1, 15}, {0, 1, 5, 1}, {0, 0, 5, 15}}
 	for _, tc := range tcs {
 		t.Run("receiver timeout", func(t *testing.T) {
 			c := config.New()
