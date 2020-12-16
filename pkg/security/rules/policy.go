@@ -97,7 +97,7 @@ func LoadPolicies(config *config.Config, ruleSet *RuleSet) error {
 		// Open policy path
 		f, err := os.Open(filepath.Join(config.PoliciesDir, filename))
 		if err != nil {
-			result = multierror.Append(result, errors.Wrapf(err, "failed to load policy `%s`", policyPath))
+			result = multierror.Append(result, errors.Wrapf(err, "failed to load policy `%s`", policyPath.Name()))
 			continue
 		}
 		defer f.Close()
@@ -105,7 +105,7 @@ func LoadPolicies(config *config.Config, ruleSet *RuleSet) error {
 		// Parse policy file
 		policy, err := LoadPolicy(f, filepath.Base(filename))
 		if err != nil {
-			result = multierror.Append(result, errors.Wrapf(err, "failed to load policy `%s`", policyPath))
+			result = multierror.Append(result, errors.Wrapf(err, "failed to load policy `%s`", policyPath.Name()))
 			continue
 		}
 

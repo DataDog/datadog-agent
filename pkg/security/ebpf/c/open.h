@@ -127,12 +127,12 @@ int __attribute__((always_inline)) filter_open(struct syscall_cache_t *syscall) 
 }
 
 int __attribute__((always_inline)) handle_open_event(struct pt_regs *ctx, struct syscall_cache_t *syscall) {
-    struct file *file = (struct file *)PT_REGS_PARM1(ctx);
-    struct inode *inode = (struct inode *)PT_REGS_PARM2(ctx);
-
     if (syscall->open.path_key.ino) {
         return 0;
     }
+
+    struct file *file = (struct file *)PT_REGS_PARM1(ctx);
+    struct inode *inode = (struct inode *)PT_REGS_PARM2(ctx);
 
     struct dentry *dentry = get_file_dentry(file);
 
@@ -150,15 +150,18 @@ int kprobe__vfs_truncate(struct pt_regs *ctx) {
     if (!syscall)
         return 0;
 
-    struct path *path = (struct path *)PT_REGS_PARM1(ctx);
-
     if (syscall->open.dentry) {
-        syscall->open.real_inode = get_dentry_key_path(syscall->open.dentry, path).ino;
         return 0;
     }
 
-    syscall->open.dentry = get_path_dentry(path);
+    struct path *path = (struct path *)PT_REGS_PARM1(ctx);
+
+    struct dentry *dentry = get_path_dentry(path);
+
+    syscall->open.dentry = dentry;
     syscall->open.path_key = get_dentry_key_path(syscall->open.dentry, path);
+
+    set_path_key_inode(dentry, &syscall->open.path_key, 0);
 
     return filter_open(syscall);
 }

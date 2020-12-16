@@ -296,6 +296,8 @@ func TestProcessLineage(t *testing.T) {
 		}
 	})
 
+	var execPid int
+
 	t.Run("exec", func(t *testing.T) {
 		event, _, err := test.GetEvent()
 		if err != nil {
@@ -305,6 +307,7 @@ func TestProcessLineage(t *testing.T) {
 				t.Error(err)
 			}
 		}
+		execPid = int(event.Process.Pid)
 	})
 
 	t.Run("exit", func(t *testing.T) {
@@ -316,8 +319,12 @@ func TestProcessLineage(t *testing.T) {
 			case <-timeout:
 				t.Error(errors.New("timeout"))
 				return
-			case event = <-test.probeHandler.events:
-				if event.GetType() == "exit" && int(event.Process.Pid) == cmd.Process.Pid {
+			default:
+				event, err = test.GetProbeEvent(3*time.Second, "exit")
+				if err != nil {
+					continue
+				}
+				if int(event.Process.Pid) == execPid {
 					if err := testProcessLineageExit(t, event, test); err != nil {
 						t.Error(err)
 					}

@@ -102,7 +102,7 @@ int __attribute__((always_inline)) get_mount_peer_group_id(void *mnt) {
 }
 
 struct vfsmount * __attribute__((always_inline)) get_mount_vfsmount(void *mnt) {
-    return (struct vfsmount *)((void *) + 32);
+    return (struct vfsmount *)(mnt + 32);
 }
 
 struct dentry * __attribute__((always_inline)) get_vfsmount_dentry(struct vfsmount *mnt) {
@@ -190,51 +190,6 @@ void __attribute__((always_inline)) get_dentry_name(struct dentry *dentry, void 
 
 #define get_dentry_key_path(dentry, path) (struct path_key_t) { .ino = get_dentry_ino(dentry), .mount_id = get_path_mount_id(path) }
 #define get_inode_key_path(inode, path) (struct path_key_t) { .ino = get_inode_ino(inode), .mount_id = get_path_mount_id(path) }
-
-int __attribute__((always_inline)) get_sizeof_inode() {
-    u64 sizeof_inode;
-    LOAD_CONSTANT("sizeof_inode", sizeof_inode);
-
-    return sizeof_inode;
-}
-
-int __attribute__((always_inline)) get_ovl_lower_ino(struct dentry *dentry) {
-    struct inode *d_inode;
-    bpf_probe_read(&d_inode, sizeof(d_inode), &dentry->d_inode);
-
-    struct inode *lower;
-    bpf_probe_read(&lower, sizeof(lower), (char *)d_inode + get_sizeof_inode() + 8);
-
-    return get_inode_ino(lower);
-}
-
-int __attribute__((always_inline)) get_ovl_upper_ino(struct dentry *dentry) {
-    struct inode *d_inode;
-    bpf_probe_read(&d_inode, sizeof(d_inode), &dentry->d_inode);
-
-    struct dentry *upper;
-    bpf_probe_read(&upper, sizeof(upper), (char *)d_inode + get_sizeof_inode());
-
-    return get_dentry_ino(upper);
-}
-
-static __attribute__((always_inline)) void link_dentry_inode(struct path_key_t key, u64 inode) {
-    // avoid a infinite loop, parent a child have the same inode
-    if (key.ino == inode) {
-        return;
-    }
-
-    struct path_key_t new_key = {
-        .mount_id = key.mount_id,
-        .ino = inode,
-        .path_id = key.path_id,
-    };
-    struct path_leaf_t map_value = {
-        .parent = key
-    };
-
-    bpf_map_update_elem(&pathnames, &new_key, &map_value, BPF_ANY);
-}
 
 static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, struct path_key_t key, u64 event_type) {
     struct path_leaf_t map_value = {};
