@@ -16,6 +16,7 @@ import (
 // Reporter defines an interface for reporting rule events
 type Reporter interface {
 	Report(event *Event)
+	ReportRaw(content []byte)
 }
 
 type reporter struct {
@@ -37,8 +38,10 @@ func (r *reporter) Report(event *Event) {
 		log.Errorf("Failed to serialize rule event for rule %s", event.AgentRuleID)
 		return
 	}
+	r.ReportRaw(buf)
+}
 
-	msg := message.NewMessageWithSource(buf, message.StatusInfo, r.logSource)
-
+func (r *reporter) ReportRaw(content []byte) {
+	msg := message.NewMessageWithSource(content, message.StatusInfo, r.logSource)
 	r.logChan <- msg
 }

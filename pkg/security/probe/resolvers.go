@@ -25,6 +25,7 @@ type Resolvers struct {
 	ContainerResolver *ContainerResolver
 	TimeResolver      *TimeResolver
 	ProcessResolver   *ProcessResolver
+	UserGroupResolver *UserGroupResolver
 }
 
 // NewResolvers creates a new instance of Resolvers
@@ -39,12 +40,18 @@ func NewResolvers(probe *Probe) (*Resolvers, error) {
 		return nil, err
 	}
 
+	userGroupResolver, err := NewUserGroupResolver()
+	if err != nil {
+		return nil, err
+	}
+
 	resolvers := &Resolvers{
 		probe:             probe,
 		DentryResolver:    dentryResolver,
 		MountResolver:     NewMountResolver(probe),
 		TimeResolver:      timeResolver,
 		ContainerResolver: &ContainerResolver{},
+		UserGroupResolver: userGroupResolver,
 	}
 
 	processResolver, err := NewProcessResolver(probe, resolvers)

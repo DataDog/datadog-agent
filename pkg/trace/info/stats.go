@@ -124,6 +124,11 @@ func newTagStats(tags Tags) *TagStats {
 	return &TagStats{tags, Stats{TracesDropped: &TracesDropped{}, SpansMalformed: &SpansMalformed{}}}
 }
 
+// AsTags returns all the tags contained in the TagStats.
+func (ts *TagStats) AsTags() []string {
+	return (&ts.Tags).toArray()
+}
+
 func (ts *TagStats) publish() {
 	// Atomically load the stats from ts
 	tracesReceived := atomic.LoadInt64(&ts.TracesReceived)

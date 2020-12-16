@@ -12,19 +12,17 @@ import (
 	"reflect"
 	"regexp"
 	"sort"
+	"strings"
 
 	"github.com/alecthomas/participle/lexer"
+	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // Field name
 type Field = string
-
-// IdentEvaluator represents the evaluator of an identifier
-type IdentEvaluator struct {
-	Eval func(ctx *Context) bool
-}
 
 // FieldValueType represents the type of the value of a field
 type FieldValueType int
@@ -34,6 +32,15 @@ const (
 	ScalarValueType  FieldValueType = 1
 	PatternValueType FieldValueType = 2
 	BitmaskValueType FieldValueType = 4
+)
+
+// defines factor applied by specific operator
+const (
+	FunctionWeight = 5
+	InArrayWeight  = 10
+	HandlerWeight  = 50
+	PatternWeight  = 100
+	IteratorWeight = 1000
 )
 
 // FieldValue describes a field value with its type
@@ -69,20 +76,15 @@ type EvaluatorStringer struct {
 	Evaluator Evaluator
 }
 
-func (e *EvaluatorStringer) String() string {
-	return fmt.Sprintf("%v", e.Evaluator.Eval(e.Ctx))
-}
-
-// NewEvaluatorStringer returns a new evaluator stringer
-func NewEvaluatorStringer(ctx *Context, evaluator Evaluator) *EvaluatorStringer {
-	return &EvaluatorStringer{Ctx: ctx, Evaluator: evaluator}
-}
+// BoolEvalFnc describe a eval function return a boolean
+type BoolEvalFnc = func(ctx *Context) bool
 
 // BoolEvaluator returns a bool as result of the evaluation
 type BoolEvaluator struct {
-	EvalFnc func(ctx *Context) bool
+	EvalFnc BoolEvalFnc
 	Field   Field
 	Value   bool
+	Weight  int
 
 	isPartial bool
 }
@@ -97,6 +99,7 @@ type IntEvaluator struct {
 	EvalFnc func(ctx *Context) int
 	Field   Field
 	Value   int
+	Weight  int
 
 	isPartial bool
 }
@@ -111,6 +114,7 @@ type StringEvaluator struct {
 	EvalFnc func(ctx *Context) string
 	Field   Field
 	Value   string
+	Weight  int
 
 	isPartial bool
 }
@@ -128,6 +132,31 @@ type StringArray struct {
 // IntArray represents an array of integer values
 type IntArray struct {
 	Values []int
+}
+
+func extractField(field string) (Field, Field, RegisterID, error) {
+	var regID RegisterID
+
+	re := regexp.MustCompile(`\[([^\]]*)\]`)
+	ids := re.FindStringSubmatch(field)
+
+	switch len(ids) {
+	case 0:
+		return field, "", "", nil
+	case 2:
+		regID = ids[1]
+	default:
+		return "", "", "", errors.New("wrong register format")
+	}
+
+	re = regexp.MustCompile(`(.+)\[[^\]]+\](.+)`)
+
+	field, itField := re.ReplaceAllString(field, `$1$2`), re.ReplaceAllString(field, `$1`)
+	if field == itField {
+		return "", "", "", errors.New("wrong register format")
+	}
+
+	return field, itField, regID, nil
 }
 
 func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, interface{}, lexer.Position, error) {
@@ -415,12 +444,64 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, in
 				}
 			}
 
-			accessor, err := state.model.GetEvaluator(*obj.Ident)
+			field, itField, regID, err := extractField(*obj.Ident)
 			if err != nil {
 				return nil, nil, obj.Pos, err
 			}
 
-			state.UpdateFields(*obj.Ident)
+			// extract iterator
+			var iterator Iterator
+			if itField != "" {
+				if iterator, err = state.model.GetIterator(itField); err != nil {
+					return nil, nil, obj.Pos, err
+				}
+			} else {
+				// detect whether a iterator is along the path
+				var candidate string
+				for _, node := range strings.Split(field, ".") {
+					if candidate == "" {
+						candidate = node
+					} else {
+						candidate = candidate + "." + node
+					}
+
+					iterator, err = state.model.GetIterator(candidate)
+					if err == nil {
+						break
+					}
+				}
+			}
+
+			if iterator != nil {
+				// regID not specified generate one
+				if regID == "" {
+					regID = utils.RandString(8)
+				}
+
+				if info, exists := state.registersInfo[regID]; exists {
+					if info.field != itField {
+						return nil, nil, obj.Pos, NewRegisterMultipleFields(obj.Pos, regID, errors.New("used by multiple fields"))
+					}
+
+					info.subFields[field] = true
+				} else {
+					info = &registerInfo{
+						field:    itField,
+						iterator: iterator,
+						subFields: map[Field]bool{
+							field: true,
+						},
+					}
+					state.registersInfo[regID] = info
+				}
+			}
+
+			accessor, err := state.model.GetEvaluator(field, regID)
+			if err != nil {
+				return nil, nil, obj.Pos, err
+			}
+
+			state.UpdateFields(field)
 
 			return accessor, nil, obj.Pos, nil
 		case obj.Number != nil:

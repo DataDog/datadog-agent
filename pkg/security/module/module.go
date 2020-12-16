@@ -14,7 +14,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"runtime"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -26,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
 	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/policy"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
@@ -42,6 +40,7 @@ type Module struct {
 	config         *config.Config
 	ruleSets       [2]*rules.RuleSet
 	currentRuleSet uint64
+	reloading      uint64
 	eventServer    *EventServer
 	grpcServer     *grpc.Server
 	listener       net.Listener
@@ -121,10 +120,13 @@ func (m *Module) Reload() error {
 	m.Lock()
 	defer m.Unlock()
 
+	atomic.StoreUint64(&m.reloading, 1)
+	defer atomic.StoreUint64(&m.reloading, 0)
+
 	rsa := sprobe.NewRuleSetApplier(m.config, m.probe)
 
 	ruleSet := m.probe.NewRuleSet(rules.NewOptsWithParams(sprobe.SECLConstants, sprobe.SupportedDiscarders))
-	if err := policy.LoadPolicies(m.config, ruleSet); err != nil {
+	if err := rules.LoadPolicies(m.config, ruleSet); err != nil {
 		return err
 	}
 
@@ -165,7 +167,7 @@ func (m *Module) Close() {
 }
 
 // RuleMatch is called by the ruleset when a rule matches
-func (m *Module) RuleMatch(rule *eval.Rule, event eval.Event) {
+func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
 	if m.rateLimiter.Allow(rule.ID) {
 		m.eventServer.SendEvent(rule, event)
 	} else {
@@ -175,6 +177,10 @@ func (m *Module) RuleMatch(rule *eval.Rule, event eval.Event) {
 
 // EventDiscarderFound is called by the ruleset when a new discarder discovered
 func (m *Module) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
+	if atomic.LoadUint64(&m.reloading) == 1 {
+		return
+	}
+
 	if err := m.probe.OnNewDiscarder(rs, event.(*sprobe.Event), field, eventType); err != nil {
 		log.Trace(err)
 	}
@@ -238,9 +244,7 @@ func (m *Module) GetRuleSet() *rules.RuleSet {
 func NewModule(cfg *config.Config) (api.Module, error) {
 	var statsdClient *statsd.Client
 	var err error
-	// statsd segfaults on 386 because of atomic primitive usage with wrong alignment
-	// https://github.com/golang/go/issues/37262
-	if runtime.GOARCH != "386" && cfg != nil {
+	if cfg != nil {
 		statsdAddr := os.Getenv("STATSD_URL")
 		if statsdAddr == "" {
 			statsdAddr = cfg.StatsdAddr

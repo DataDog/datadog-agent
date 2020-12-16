@@ -15,7 +15,7 @@ import (
 
 var (
 	seclLexer = lexer.Must(ebnf.New(`
-Ident = (alpha | "_") { "_" | alpha | digit | "." } .
+Ident = (alpha | "_") { "_" | alpha | digit | "." | "[" | "]" } .
 String = "\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
 Int = [ "-" | "+" ] digit { digit } .
 Punct = "!"…"/" | ":"…"@" | "["…` + "\"`\"" + ` | "{"…"~" .

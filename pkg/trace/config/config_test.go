@@ -115,8 +115,6 @@ func TestDefaultConfig(t *testing.T) {
 
 	assert.Equal("INFO", c.LogLevel)
 	assert.Equal(true, c.Enabled)
-
-	assert.Equal([]string{"http.status_code", "version", "_dd.hostname"}, c.ExtraAggregators)
 }
 
 func TestNoAPMConfig(t *testing.T) {

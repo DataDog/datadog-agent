@@ -189,21 +189,21 @@ func TestContainerCollectAll(t *testing.T) {
 
 	source, err := launcherCollectAll.getSource(podFoo, containerFoo)
 	assert.Nil(t, err)
-	assert.Equal(t, "container_id://fooID", source.Config.Identifier)
+	assert.Equal(t, "fooID", source.Config.Identifier)
 	source, err = launcherCollectAll.getSource(podBar, containerBar)
 	assert.Nil(t, err)
-	assert.Equal(t, "container_id://barID", source.Config.Identifier)
+	assert.Equal(t, "barID", source.Config.Identifier)
 
 	source, err = launcherCollectAllDisabled.getSource(podFoo, containerFoo)
 	assert.Nil(t, err)
-	assert.Equal(t, "container_id://fooID", source.Config.Identifier)
+	assert.Equal(t, "fooID", source.Config.Identifier)
 	source, err = launcherCollectAllDisabled.getSource(podBar, containerBar)
 	assert.Equal(t, errCollectAllDisabled, err)
 	assert.Nil(t, source)
 
 	source, err = launcherCollectAll.getSource(podBaz, containerBaz)
 	assert.Nil(t, err)
-	assert.Equal(t, "container_id://bazID", source.Config.Identifier)
+	assert.Equal(t, "bazID", source.Config.Identifier)
 }
 
 func TestGetPath(t *testing.T) {

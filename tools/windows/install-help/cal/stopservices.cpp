@@ -733,7 +733,7 @@ public:
     }
 };
 
-int installServices(CustomActionData& data, const wchar_t *password) {
+int installServices(CustomActionData& data, PSID sid, const wchar_t *password) {
     SC_HANDLE hScManager = NULL;
     SC_HANDLE hService = NULL;
     int retval = 0;
@@ -801,23 +801,23 @@ int installServices(CustomActionData& data, const wchar_t *password) {
         }
     }
     WcaLog(LOGMSG_STANDARD, "done installing services");
-    UINT er = EnableServiceForUser(data, traceService);
+    UINT er = EnableServiceForUser(sid, traceService);
     if (0 != er) {
         WcaLog(LOGMSG_STANDARD, "Warning, unable to enable trace service for dd user %d", er);
     }
-    er = EnableServiceForUser(data, processService);
+    er = EnableServiceForUser(sid, processService);
     if (0 != er) {
         WcaLog(LOGMSG_STANDARD, "Warning, unable to enable process service for dd user %d", er);
     }
     if(data.installSysprobe()){
-        er = EnableServiceForUser(data, systemProbeService);
+        er = EnableServiceForUser(sid, systemProbeService);
         if (0 != er) {
             WcaLog(LOGMSG_STANDARD, "Warning, unable to enable system probe service for dd user %d", er);
         }
     }
     // need to enable user rights for the datadogagent service (main service)
     // so that it can restart itself
-    er = EnableServiceForUser(data, agentService);
+    er = EnableServiceForUser(sid, agentService);
     if (0 != er) {
         WcaLog(LOGMSG_STANDARD, "Warning, unable to enable agent service for dd user %d", er);
     }

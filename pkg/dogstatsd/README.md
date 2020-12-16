@@ -24,3 +24,23 @@ Dogstatsd implementation documentation (PacketsBuffer, StringInterner, ...) is a
 in `docs/dogstatsd/internals.md`.
 
 Details on existing Dogstatsd internals tuning fields are available in `docs/dogstatsd/configuration.md`.
+
+### [Experimental] Dogstatsd protocol 1.1
+
+This feature is experimental for now and could change or be remove in futur release.
+
+Starting with agent 7.25.0/6.25.0 Dogstatsd datagram can contain multiple values using the `:` delimiter.
+
+For example, this payload contains 3 values (`1.5`, `20`, and `30`) for the metric `my_metric`:
+```
+my_metric:1.5:20:30|h|#tag1,tag2
+```
+
+All metric types except `set` support this, since `:` could be in the value of a
+set. Sets are now being aggregated on the client side, so this is not an issue.
+
+Most official Dogstatsd clients now support client-side aggregation for metrics
+type outside histograms and distributions. This evolution in the protocol allows
+clients to buffer histogram and distribution values and send them in fewer
+payload to the agent (providing a behavior close to client-side aggregation for
+those types).

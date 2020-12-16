@@ -13,16 +13,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"os/user"
 	"path"
 	"regexp"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
 	"unsafe"
 
-	"github.com/google/uuid"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
@@ -109,16 +106,6 @@ func (e *SyscallEvent) UnmarshalBinary(data []byte) (int, error) {
 	return 8, nil
 }
 
-func (e *SyscallEvent) marshalJSON(event *Event) ([]byte, error) {
-	var buf bytes.Buffer
-	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"type":"%s",`, EventType(event.Type))
-	fmt.Fprintf(&buf, `"retval":%d`, e.Retval)
-	buf.WriteRune('}')
-
-	return buf.Bytes(), nil
-}
-
 // BinaryUnmarshaler interface implemented by every event type
 type BinaryUnmarshaler interface {
 	UnmarshalBinary(data []byte) (int, error)
@@ -192,23 +179,6 @@ func (e *FileEvent) ResolveBasename(event *Event) string {
 	return e.BasenameStr
 }
 
-func (e *FileEvent) marshalJSONInode(event *Event, inode uint64) ([]byte, error) {
-	var buf bytes.Buffer
-	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"filename":"%s",`, e.ResolveInode(event))
-	fmt.Fprintf(&buf, `"container_path":"%s",`, e.ResolveContainerPath(event))
-	fmt.Fprintf(&buf, `"inode":%d,`, inode)
-	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
-	fmt.Fprintf(&buf, `"overlay_numlower":%d`, e.OverlayNumLower)
-	buf.WriteRune('}')
-
-	return buf.Bytes(), nil
-}
-
-func (e *FileEvent) marshalJSON(event *Event) ([]byte, error) {
-	return e.marshalJSONInode(event, e.Inode)
-}
-
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *FileEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 24 {
@@ -251,20 +221,6 @@ type ChmodEvent struct {
 	Mode uint32 `field:"mode"`
 }
 
-func (e *ChmodEvent) marshalJSON(event *Event) ([]byte, error) {
-	var buf bytes.Buffer
-	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"filename":"%s",`, e.ResolveInode(event))
-	fmt.Fprintf(&buf, `"container_path":"%s",`, e.ResolveContainerPath(event))
-	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
-	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
-	fmt.Fprintf(&buf, `"overlay_numlower":%d,`, e.OverlayNumLower)
-	fmt.Fprintf(&buf, `"mode":%d`, e.Mode)
-	buf.WriteRune('}')
-
-	return buf.Bytes(), nil
-}
-
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *ChmodEvent) UnmarshalBinary(data []byte) (int, error) {
 	n, err := unmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
@@ -287,21 +243,6 @@ type ChownEvent struct {
 	FileEvent
 	UID int32 `field:"uid"`
 	GID int32 `field:"gid"`
-}
-
-func (e *ChownEvent) marshalJSON(event *Event) ([]byte, error) {
-	var buf bytes.Buffer
-	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"filename":"%s",`, e.ResolveInode(event))
-	fmt.Fprintf(&buf, `"container_path":"%s",`, e.ResolveContainerPath(event))
-	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
-	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
-	fmt.Fprintf(&buf, `"overlay_numlower":%d,`, e.OverlayNumLower)
-	fmt.Fprintf(&buf, `"uid":%d,`, e.UID)
-	fmt.Fprintf(&buf, `"gid":%d`, e.GID)
-	buf.WriteRune('}')
-
-	return buf.Bytes(), nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -329,21 +270,6 @@ type SetXAttrEvent struct {
 	Name      string `field:"name" handler:"GetName,string"`
 
 	NameRaw [200]byte
-}
-
-func (e *SetXAttrEvent) marshalJSON(event *Event) ([]byte, error) {
-	var buf bytes.Buffer
-	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"filename":"%s",`, e.ResolveInode(event))
-	fmt.Fprintf(&buf, `"container_path":"%s",`, e.ResolveContainerPath(event))
-	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
-	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
-	fmt.Fprintf(&buf, `"overlay_numlower":%d,`, e.OverlayNumLower)
-	fmt.Fprintf(&buf, `"attribute_name":"%s",`, e.GetName(event))
-	fmt.Fprintf(&buf, `"attribute_namespace":"%s"`, e.GetNamespace(event))
-	buf.WriteRune('}')
-
-	return buf.Bytes(), nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -389,21 +315,6 @@ type OpenEvent struct {
 	Mode  uint32 `field:"mode"`
 }
 
-func (e *OpenEvent) marshalJSON(event *Event) ([]byte, error) {
-	var buf bytes.Buffer
-	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"filename":"%s",`, e.ResolveInode(event))
-	fmt.Fprintf(&buf, `"container_path":"%s",`, e.ResolveContainerPath(event))
-	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
-	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
-	fmt.Fprintf(&buf, `"overlay_numlower":%d,`, e.OverlayNumLower)
-	fmt.Fprintf(&buf, `"mode":%d,`, e.Mode)
-	fmt.Fprintf(&buf, `"flags":"%s"`, OpenFlags(e.Flags))
-	buf.WriteRune('}')
-
-	return buf.Bytes(), nil
-}
-
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
 	n, err := unmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
@@ -425,21 +336,7 @@ func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
 type MkdirEvent struct {
 	SyscallEvent
 	FileEvent
-	Mode int32 `field:"mode"`
-}
-
-func (e *MkdirEvent) marshalJSON(event *Event) ([]byte, error) {
-	var buf bytes.Buffer
-	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"filename":"%s",`, e.ResolveInode(event))
-	fmt.Fprintf(&buf, `"container_path":"%s",`, e.ResolveContainerPath(event))
-	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
-	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
-	fmt.Fprintf(&buf, `"overlay_numlower":%d,`, e.OverlayNumLower)
-	fmt.Fprintf(&buf, `"mode":%d`, e.Mode)
-	buf.WriteRune('}')
-
-	return buf.Bytes(), nil
+	Mode uint32 `field:"mode"`
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -454,7 +351,7 @@ func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
 		return n, ErrNotEnoughData
 	}
 
-	e.Mode = int32(ebpf.ByteOrder.Uint32(data[0:4]))
+	e.Mode = ebpf.ByteOrder.Uint32(data[0:4])
 	return n + 4, nil
 }
 
@@ -462,10 +359,6 @@ func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
 type RmdirEvent struct {
 	SyscallEvent
 	FileEvent
-}
-
-func (e *RmdirEvent) marshalJSON(event *Event) ([]byte, error) {
-	return e.FileEvent.marshalJSON(event)
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -478,20 +371,6 @@ type UnlinkEvent struct {
 	SyscallEvent
 	FileEvent
 	Flags uint32 `field:"flags"`
-}
-
-func (e *UnlinkEvent) marshalJSON(event *Event) ([]byte, error) {
-	var buf bytes.Buffer
-	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"filename":"%s",`, e.ResolveInode(event))
-	fmt.Fprintf(&buf, `"flags":"%s",`, UnlinkFlags(e.Flags))
-	fmt.Fprintf(&buf, `"container_path":"%s",`, e.ResolveContainerPath(event))
-	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
-	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
-	fmt.Fprintf(&buf, `"overlay_numlower":%d`, e.OverlayNumLower)
-	buf.WriteRune('}')
-
-	return buf.Bytes(), nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -522,48 +401,12 @@ func (e *RenameEvent) UnmarshalBinary(data []byte) (int, error) {
 	return unmarshalBinary(data, &e.SyscallEvent, &e.Old, &e.New)
 }
 
-func (e *RenameEvent) marshalJSON(event *Event) ([]byte, error) {
-	var buf bytes.Buffer
-
-	// use the new.inode as the old one is a fake one generated from the probe
-	buf.WriteString(`"old":`)
-	d, err := e.Old.marshalJSONInode(event, e.New.Inode)
-	if err != nil {
-		return d, err
-	}
-	buf.Write(d)
-
-	buf.WriteString(`,"new":`)
-	d, err = e.New.marshalJSONInode(event, e.New.Inode)
-	if err != nil {
-		return d, err
-	}
-	buf.Write(d)
-
-	return buf.Bytes(), nil
-}
-
 // UtimesEvent represents a utime event
 type UtimesEvent struct {
 	SyscallEvent
 	FileEvent
 	Atime time.Time
 	Mtime time.Time
-}
-
-func (e *UtimesEvent) marshalJSON(event *Event) ([]byte, error) {
-	var buf bytes.Buffer
-	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"filename":"%s",`, e.ResolveInode(event))
-	fmt.Fprintf(&buf, `"container_path":"%s",`, e.ResolveContainerPath(event))
-	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
-	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
-	fmt.Fprintf(&buf, `"overlay_numlower":%d,`, e.OverlayNumLower)
-	fmt.Fprintf(&buf, `"access_time":"%s",`, e.Atime)
-	fmt.Fprintf(&buf, `"modification_time":"%s"`, e.Mtime)
-	buf.WriteRune('}')
-
-	return buf.Bytes(), nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -601,27 +444,6 @@ func (e *LinkEvent) UnmarshalBinary(data []byte) (int, error) {
 	return unmarshalBinary(data, &e.SyscallEvent, &e.Source, &e.Target)
 }
 
-func (e *LinkEvent) marshalJSON(event *Event) ([]byte, error) {
-	var buf bytes.Buffer
-
-	// use the source.inode as the target one is a fake one generated from the probe
-	buf.WriteString(`"source":`)
-	d, err := e.Source.marshalJSONInode(event, e.Source.Inode)
-	if err != nil {
-		return d, err
-	}
-	buf.Write(d)
-
-	buf.WriteString(`,"target":`)
-	d, err = e.Target.marshalJSONInode(event, e.Source.Inode)
-	if err != nil {
-		return d, err
-	}
-	buf.Write(d)
-
-	return buf.Bytes(), nil
-}
-
 // MountEvent represents a mount event
 type MountEvent struct {
 	SyscallEvent
@@ -637,24 +459,6 @@ type MountEvent struct {
 	RootStr       string
 
 	FSTypeRaw [16]byte
-}
-
-func (e *MountEvent) marshalJSON(event *Event) ([]byte, error) {
-	var buf bytes.Buffer
-	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"mount_point":"%s",`, e.ResolveMountPoint(event))
-	fmt.Fprintf(&buf, `"parent_mount_id":%d,`, e.ParentMountID)
-	fmt.Fprintf(&buf, `"parent_inode":%d,`, e.ParentInode)
-	fmt.Fprintf(&buf, `"root_inode":%d,`, e.RootInode)
-	fmt.Fprintf(&buf, `"root_mount_id":%d,`, e.RootInode)
-	fmt.Fprintf(&buf, `"root":"%s",`, e.ResolveRoot(event))
-	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
-	fmt.Fprintf(&buf, `"group_id":%d,`, e.GroupID)
-	fmt.Fprintf(&buf, `"device":%d,`, e.Device)
-	fmt.Fprintf(&buf, `"fstype":"%s"`, e.GetFSType())
-	buf.WriteRune('}')
-
-	return buf.Bytes(), nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -714,15 +518,6 @@ type UmountEvent struct {
 	MountID uint32
 }
 
-func (e *UmountEvent) marshalJSON(event *Event) ([]byte, error) {
-	var buf bytes.Buffer
-	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"mount_id":%d`, e.MountID)
-	buf.WriteRune('}')
-
-	return buf.Bytes(), nil
-}
-
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *UmountEvent) UnmarshalBinary(data []byte) (int, error) {
 	n, err := unmarshalBinary(data, &e.SyscallEvent)
@@ -742,19 +537,6 @@ func (e *UmountEvent) UnmarshalBinary(data []byte) (int, error) {
 // ContainerContext holds the container context of an event
 type ContainerContext struct {
 	ID string `field:"id" handler:"ResolveContainerID,string"`
-}
-
-func (e *ContainerContext) marshalJSON(event *Event) ([]byte, error) {
-	if len(e.ResolveContainerID(event)) == 0 {
-		return nil, nil
-	}
-
-	var buf bytes.Buffer
-	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"container_id":"%s"`, e.ResolveContainerID(event))
-	buf.WriteRune('}')
-
-	return buf.Bytes(), nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -805,7 +587,7 @@ type ExecEvent struct {
 
 	// The following fields should only be used here for evaluation
 	UID   uint32 `field:"uid" handler:"ResolveUID,int"`
-	GID   uint32 `field:"uid" handler:"ResolveGID,int"`
+	GID   uint32 `field:"gid" handler:"ResolveGID,int"`
 	User  string `field:"user" handler:"ResolveUser,string"`
 	Group string `field:"group" handler:"ResolveGroup,string"`
 }
@@ -968,10 +750,7 @@ func (e *ExecEvent) ResolveGID(event *Event) int {
 // ResolveUser resolves the user id of the process to a username
 func (e *ExecEvent) ResolveUser(event *Event) string {
 	if len(e.User) == 0 {
-		u, err := user.LookupId(strconv.Itoa(int(event.Process.UID)))
-		if err == nil {
-			e.User = u.Username
-		}
+		e.User, _ = event.resolvers.UserGroupResolver.ResolveUser(int(event.Process.UID))
 	}
 	return e.User
 }
@@ -979,10 +758,7 @@ func (e *ExecEvent) ResolveUser(event *Event) string {
 // ResolveGroup resolves the group id of the process to a group name
 func (e *ExecEvent) ResolveGroup(event *Event) string {
 	if len(e.Group) == 0 {
-		g, err := user.LookupGroupId(strconv.Itoa(int(event.Process.GID)))
-		if err == nil {
-			e.Group = g.Name
-		}
+		e.Group, _ = event.resolvers.UserGroupResolver.ResolveGroup(int(event.Process.GID))
 	}
 	return e.Group
 }
@@ -1037,6 +813,22 @@ func (e *InvalidateDentryEvent) UnmarshalBinary(data []byte) (int, error) {
 	return 16, nil
 }
 
+// ProcessCacheEntry this structure holds the container context that we keep in kernel for each process
+type ProcessCacheEntry struct {
+	ContainerContext
+	ProcessContext
+
+	Parent   *ProcessCacheEntry
+	Children map[uint32]*ProcessCacheEntry
+}
+
+// NewProcessCacheEntry returns an empty instance of ProcessCacheEntry
+func NewProcessCacheEntry() *ProcessCacheEntry {
+	return &ProcessCacheEntry{
+		Children: make(map[uint32]*ProcessCacheEntry),
+	}
+}
+
 // ProcessContext holds the process context of an event
 type ProcessContext struct {
 	ExecEvent
@@ -1046,49 +838,30 @@ type ProcessContext struct {
 	UID uint32 `field:"uid"`
 	GID uint32 `field:"gid"`
 
-	Parent *ProcessCacheEntry `field:"-"`
+	Parent *ProcessCacheEntry `field:"ancestors" iterator:"ProcessAncestorsIterator"`
 }
 
-func (p *ProcessContext) marshalJSON(event *Event) ([]byte, error) {
-	var buf bytes.Buffer
-	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"pid":%d,`, p.Pid)
-	fmt.Fprintf(&buf, `"tid":%d,`, p.Tid)
-	fmt.Fprintf(&buf, `"uid":%d,`, p.UID)
-	fmt.Fprintf(&buf, `"gid":%d,`, p.GID)
-	fmt.Fprintf(&buf, `"user":"%s",`, p.ResolveUser(event))
-	fmt.Fprintf(&buf, `"group":"%s",`, p.ResolveGroup(event))
+// ProcessAncestorsIterator defines an iterator of ancestors
+type ProcessAncestorsIterator struct {
+	prev *ProcessCacheEntry
+}
 
-	entry := event.ResolveProcessCacheEntry()
-	if entry != nil {
-		// add top level cache entry
-		d, err := entry.marshalJSON(event.resolvers, true)
-		if err != nil {
-			return nil, err
-		}
-		buf.Write(d)
-
-		// add ancestors data
-		fmt.Fprint(&buf, `,"ancestors":[`)
-		ancestorTmp := entry.Parent
-		for ancestorTmp != nil && len(ancestorTmp.PathnameStr) > 0 {
-			d, err := ancestorTmp.marshalJSON(event.resolvers, false)
-			if err != nil {
-				return nil, err
-			}
-			buf.WriteRune('{')
-			buf.Write(d)
-			buf.WriteRune('}')
-			ancestorTmp = ancestorTmp.Parent
-			if ancestorTmp != nil && len(ancestorTmp.PathnameStr) > 0 {
-				buf.WriteRune(',')
-			}
-		}
-		buf.WriteRune(']')
+// Front returns the first element
+func (it *ProcessAncestorsIterator) Front(ctx *eval.Context) unsafe.Pointer {
+	if front := (*Event)(ctx.Object).Process.Parent; front != nil {
+		it.prev = front
+		return unsafe.Pointer(front)
 	}
-	buf.WriteRune('}')
+	return nil
+}
 
-	return buf.Bytes(), nil
+// Next returns the next element
+func (it *ProcessAncestorsIterator) Next() unsafe.Pointer {
+	if next := it.prev.Parent; next != nil {
+		it.prev = next
+		return unsafe.Pointer(next)
+	}
+	return nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -1108,10 +881,7 @@ func (p *ProcessContext) UnmarshalBinary(data []byte) (int, error) {
 // ResolveUser resolves the user id of the process to a username
 func (p *ProcessContext) ResolveUser(event *Event) string {
 	if len(p.User) == 0 {
-		u, err := user.LookupId(strconv.Itoa(int(p.UID)))
-		if err == nil {
-			p.User = u.Username
-		}
+		p.User, _ = event.resolvers.UserGroupResolver.ResolveUser(int(p.UID))
 	}
 	return p.User
 }
@@ -1119,10 +889,7 @@ func (p *ProcessContext) ResolveUser(event *Event) string {
 // ResolveGroup resolves the group id of the process to a group name
 func (p *ProcessContext) ResolveGroup(event *Event) string {
 	if len(p.Group) == 0 {
-		g, err := user.LookupGroupId(strconv.Itoa(int(p.GID)))
-		if err == nil {
-			p.Group = g.Name
-		}
+		p.Group, _ = event.resolvers.UserGroupResolver.ResolveGroup(int(p.GID))
 	}
 	return p.Group
 }
@@ -1167,291 +934,14 @@ func (e *Event) String() string {
 	return string(d)
 }
 
-type eventMarshaler struct {
-	field      string
-	marshalFnc func(event *Event) ([]byte, error)
-}
-
 // MarshalJSON returns the JSON encoding of the event
 func (e *Event) MarshalJSON() ([]byte, error) {
-	eventID, _ := uuid.NewRandom()
-
-	var buf bytes.Buffer
-	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"id":"%s",`, eventID)
-	fmt.Fprintf(&buf, `"timestamp":"%s"`, e.ResolveEventTimestamp())
-
-	var entries []eventMarshaler
-
-	eventType := EventType(e.Type)
-
-	eventMarshalJSON := func(e *SyscallEvent) func(*Event) ([]byte, error) {
-		return func(event *Event) ([]byte, error) {
-			return e.marshalJSON(event)
-		}
+	s, err := newEventSerializer(e)
+	if err != nil {
+		return nil, err
 	}
 
-	switch eventType {
-	case FileChmodEventType:
-		entries = append(entries,
-			eventMarshaler{
-				field:      "syscall",
-				marshalFnc: eventMarshalJSON(&e.Chmod.SyscallEvent),
-			},
-			eventMarshaler{
-				field:      "process",
-				marshalFnc: e.Process.marshalJSON,
-			},
-			eventMarshaler{
-				field:      "container",
-				marshalFnc: e.Container.marshalJSON,
-			},
-			eventMarshaler{
-				field:      "file",
-				marshalFnc: e.Chmod.marshalJSON,
-			})
-	case FileChownEventType:
-		entries = append(entries,
-			eventMarshaler{
-				field:      "syscall",
-				marshalFnc: eventMarshalJSON(&e.Chown.SyscallEvent),
-			},
-			eventMarshaler{
-				field:      "process",
-				marshalFnc: e.Process.marshalJSON,
-			},
-			eventMarshaler{
-				field:      "container",
-				marshalFnc: e.Container.marshalJSON,
-			},
-			eventMarshaler{
-				field:      "file",
-				marshalFnc: e.Chown.marshalJSON,
-			})
-	case FileOpenEventType:
-		entries = append(entries,
-			eventMarshaler{
-				field:      "syscall",
-				marshalFnc: eventMarshalJSON(&e.Open.SyscallEvent),
-			},
-			eventMarshaler{
-				field:      "process",
-				marshalFnc: e.Process.marshalJSON,
-			},
-			eventMarshaler{
-				field:      "container",
-				marshalFnc: e.Container.marshalJSON,
-			},
-			eventMarshaler{
-				field:      "file",
-				marshalFnc: e.Open.marshalJSON,
-			})
-	case FileMkdirEventType:
-		entries = append(entries,
-			eventMarshaler{
-				field:      "syscall",
-				marshalFnc: eventMarshalJSON(&e.Mkdir.SyscallEvent),
-			},
-			eventMarshaler{
-				field:      "process",
-				marshalFnc: e.Process.marshalJSON,
-			},
-			eventMarshaler{
-				field:      "container",
-				marshalFnc: e.Container.marshalJSON,
-			},
-			eventMarshaler{
-				field:      "file",
-				marshalFnc: e.Mkdir.marshalJSON,
-			})
-	case FileRmdirEventType:
-		entries = append(entries,
-			eventMarshaler{
-				field:      "syscall",
-				marshalFnc: eventMarshalJSON(&e.Rmdir.SyscallEvent),
-			},
-			eventMarshaler{
-				field:      "process",
-				marshalFnc: e.Process.marshalJSON,
-			},
-			eventMarshaler{
-				field:      "container",
-				marshalFnc: e.Container.marshalJSON,
-			},
-			eventMarshaler{
-				field:      "file",
-				marshalFnc: e.Rmdir.marshalJSON,
-			})
-	case FileUnlinkEventType:
-		entries = append(entries,
-			eventMarshaler{
-				field:      "syscall",
-				marshalFnc: eventMarshalJSON(&e.Unlink.SyscallEvent),
-			},
-			eventMarshaler{
-				field:      "process",
-				marshalFnc: e.Process.marshalJSON,
-			},
-			eventMarshaler{
-				field:      "container",
-				marshalFnc: e.Container.marshalJSON,
-			},
-			eventMarshaler{
-				field:      "file",
-				marshalFnc: e.Unlink.marshalJSON,
-			})
-	case FileRenameEventType:
-		entries = append(entries,
-			eventMarshaler{
-				field:      "syscall",
-				marshalFnc: eventMarshalJSON(&e.Rename.SyscallEvent),
-			},
-			eventMarshaler{
-				field:      "process",
-				marshalFnc: e.Process.marshalJSON,
-			},
-			eventMarshaler{
-				field:      "container",
-				marshalFnc: e.Container.marshalJSON,
-			},
-			eventMarshaler{
-				marshalFnc: e.Rename.marshalJSON,
-			})
-	case FileUtimeEventType:
-		entries = append(entries,
-			eventMarshaler{
-				field:      "syscall",
-				marshalFnc: eventMarshalJSON(&e.Utimes.SyscallEvent),
-			},
-			eventMarshaler{
-				field:      "process",
-				marshalFnc: e.Process.marshalJSON,
-			},
-			eventMarshaler{
-				field:      "container",
-				marshalFnc: e.Container.marshalJSON,
-			},
-			eventMarshaler{
-				field:      "file",
-				marshalFnc: e.Utimes.marshalJSON,
-			})
-	case FileLinkEventType:
-		entries = append(entries,
-			eventMarshaler{
-				field:      "syscall",
-				marshalFnc: eventMarshalJSON(&e.Link.SyscallEvent),
-			},
-			eventMarshaler{
-				field:      "process",
-				marshalFnc: e.Process.marshalJSON,
-			},
-			eventMarshaler{
-				field:      "container",
-				marshalFnc: e.Container.marshalJSON,
-			},
-			eventMarshaler{
-				marshalFnc: e.Link.marshalJSON,
-			})
-	case FileMountEventType:
-		entries = append(entries,
-			eventMarshaler{
-				field:      "syscall",
-				marshalFnc: eventMarshalJSON(&e.Mount.SyscallEvent),
-			},
-			eventMarshaler{
-				field:      "process",
-				marshalFnc: e.Process.marshalJSON,
-			},
-			eventMarshaler{
-				field:      "container",
-				marshalFnc: e.Container.marshalJSON,
-			},
-			eventMarshaler{
-				field:      "mount",
-				marshalFnc: e.Mount.marshalJSON,
-			})
-	case FileUmountEventType:
-		entries = append(entries,
-			eventMarshaler{
-				field:      "syscall",
-				marshalFnc: eventMarshalJSON(&e.Umount.SyscallEvent),
-			},
-			eventMarshaler{
-				field:      "process",
-				marshalFnc: e.Process.marshalJSON,
-			},
-			eventMarshaler{
-				field:      "container",
-				marshalFnc: e.Container.marshalJSON,
-			},
-			eventMarshaler{
-				field:      "umount",
-				marshalFnc: e.Umount.marshalJSON,
-			})
-	case FileSetXAttrEventType:
-		entries = append(entries,
-			eventMarshaler{
-				field:      "syscall",
-				marshalFnc: eventMarshalJSON(&e.SetXAttr.SyscallEvent),
-			},
-			eventMarshaler{
-				field:      "process",
-				marshalFnc: e.Process.marshalJSON,
-			},
-			eventMarshaler{
-				field:      "container",
-				marshalFnc: e.Container.marshalJSON,
-			},
-			eventMarshaler{
-				field:      "file",
-				marshalFnc: e.SetXAttr.marshalJSON,
-			})
-	case FileRemoveXAttrEventType:
-		entries = append(entries,
-			eventMarshaler{
-				field:      "syscall",
-				marshalFnc: eventMarshalJSON(&e.RemoveXAttr.SyscallEvent),
-			},
-			eventMarshaler{
-				field:      "process",
-				marshalFnc: e.Process.marshalJSON,
-			},
-			eventMarshaler{
-				field:      "container",
-				marshalFnc: e.Container.marshalJSON,
-			},
-			eventMarshaler{
-				field:      "file",
-				marshalFnc: e.RemoveXAttr.marshalJSON,
-			})
-	case ExecEventType, ForkEventType, ExitEventType:
-		entries = append(entries,
-			eventMarshaler{
-				field:      "process",
-				marshalFnc: e.Process.marshalJSON,
-			},
-			eventMarshaler{
-				field:      "container",
-				marshalFnc: e.Container.marshalJSON,
-			})
-	}
-
-	for _, entry := range entries {
-		d, err := entry.marshalFnc(e)
-		if err != nil {
-			return nil, errors.Wrapf(err, "in %s", entry.field)
-		}
-		if d != nil {
-			buf.WriteRune(',')
-			if entry.field != "" {
-				buf.WriteString(`"` + entry.field + `":`)
-			}
-			buf.Write(d)
-		}
-	}
-	buf.WriteRune('}')
-
-	return buf.Bytes(), nil
+	return json.Marshal(s)
 }
 
 // GetType returns the event type
@@ -1475,10 +965,20 @@ func (e *Event) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 16 {
 		return 0, ErrNotEnoughData
 	}
-	e.Type = ebpf.ByteOrder.Uint64(data[0:8])
-	e.TimestampRaw = ebpf.ByteOrder.Uint64(data[8:16])
+
+	e.TimestampRaw = ebpf.ByteOrder.Uint64(data[0:8])
+	e.Type = ebpf.ByteOrder.Uint64(data[8:16])
 
 	return 16, nil
+}
+
+// TimestampFromEventData extracts timestamp from the raw data event
+func TimestampFromEventData(data []byte) (uint64, error) {
+	if len(data) < 8 {
+		return 0, ErrNotEnoughData
+	}
+
+	return ebpf.ByteOrder.Uint64(data[0:8]), nil
 }
 
 // ResolveEventTimestamp resolves the monolitic kernel event timestamp to an absolute time

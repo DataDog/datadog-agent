@@ -108,6 +108,10 @@ func (fakeDCAClient) GetEndpointsCheckConfigs(nodeName string) (types.ConfigResp
 	panic("implement me")
 }
 
+func (fakeDCAClient) GetKubernetesClusterID() (string, error) {
+	panic("implement me")
+}
+
 // Unused GardenUtilInterface methodes
 func (fakeGardenUtil) ListContainers() ([]*containers.Container, error) {
 	panic("implement me")

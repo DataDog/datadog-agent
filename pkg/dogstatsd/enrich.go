@@ -104,10 +104,10 @@ func isBlacklisted(metricName, namespace string, namespaceBlacklist []string) bo
 	return false
 }
 
-func enrichMetricSample(metricSample dogstatsdMetricSample, namespace string, namespaceBlacklist []string, defaultHostname string,
-	originTagsFunc func() []string, entityIDPrecedenceEnabled bool, serverlessMode bool) metrics.MetricSample {
-	metricName := metricSample.name
-	tags, hostname := enrichTags(metricSample.tags, defaultHostname, originTagsFunc, entityIDPrecedenceEnabled)
+func enrichMetricSample(metricSamples []metrics.MetricSample, ddSample dogstatsdMetricSample, namespace string, namespaceBlacklist []string,
+	defaultHostname string, originTagsFunc func() []string, entityIDPrecedenceEnabled bool, serverlessMode bool) []metrics.MetricSample {
+	metricName := ddSample.name
+	tags, hostname := enrichTags(ddSample.tags, defaultHostname, originTagsFunc, entityIDPrecedenceEnabled)
 
 	if !isBlacklisted(metricName, namespace, namespaceBlacklist) {
 		metricName = namespace + metricName
@@ -117,15 +117,37 @@ func enrichMetricSample(metricSample dogstatsdMetricSample, namespace string, na
 		hostname = ""
 	}
 
-	return metrics.MetricSample{
+	mtype := enrichMetricType(ddSample.metricType)
+
+	// if 'ddSample.values' contains values we're enriching a multi-value
+	// dogstatsd message and will create a MetricSample per value. If not
+	// we will use 'ddSample.value'and return a single MetricSample
+	if len(ddSample.values) > 0 {
+		for idx := range ddSample.values {
+			metricSamples = append(metricSamples,
+				metrics.MetricSample{
+					Host:       hostname,
+					Name:       metricName,
+					Tags:       tags,
+					Mtype:      mtype,
+					Value:      ddSample.values[idx],
+					SampleRate: ddSample.sampleRate,
+					RawValue:   ddSample.setValue,
+				})
+		}
+		return metricSamples
+	}
+
+	// only one value contained, simple append it
+	return append(metricSamples, metrics.MetricSample{
 		Host:       hostname,
 		Name:       metricName,
 		Tags:       tags,
-		Mtype:      enrichMetricType(metricSample.metricType),
-		Value:      metricSample.value,
-		SampleRate: metricSample.sampleRate,
-		RawValue:   metricSample.setValue,
-	}
+		Mtype:      mtype,
+		Value:      ddSample.value,
+		SampleRate: ddSample.sampleRate,
+		RawValue:   ddSample.setValue,
+	})
 }
 
 func enrichEventPriority(priority eventPriority) metrics.EventPriority {

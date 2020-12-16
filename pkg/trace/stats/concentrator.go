@@ -6,7 +6,6 @@
 package stats
 
 import (
-	"sort"
 	"sync"
 	"time"
 
@@ -24,8 +23,6 @@ const defaultBufferLen = 2
 // Gets an imperial shitton of traces, and outputs pre-computed data structures
 // allowing to find the gold (stats) amongst the traces.
 type Concentrator struct {
-	// list of attributes to use for extra aggregation
-	aggregators []string
 	// bucket duration in nanoseconds
 	bsize int64
 	// Timestamp of the oldest time bucket for which we allow data.
@@ -48,11 +45,10 @@ type Concentrator struct {
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
-func NewConcentrator(aggregators []string, bsize int64, out chan []Bucket) *Concentrator {
+func NewConcentrator(bsize int64, out chan []Bucket) *Concentrator {
 	c := Concentrator{
-		aggregators: aggregators,
-		bsize:       bsize,
-		buckets:     make(map[int64]*RawBucket),
+		bsize:   bsize,
+		buckets: make(map[int64]*RawBucket),
 		// At start, only allow stats for the current time bucket. Ensure we don't
 		// override buckets which could have been sent before an Agent restart.
 		oldestTs: alignTs(time.Now().UnixNano(), bsize),
@@ -65,7 +61,6 @@ func NewConcentrator(aggregators []string, bsize int64, out chan []Bucket) *Conc
 		exit:   make(chan struct{}),
 		exitWG: &sync.WaitGroup{},
 	}
-	sort.Strings(c.aggregators)
 	return &c
 }
 
@@ -123,6 +118,11 @@ type Input struct {
 	Trace     WeightedTrace
 	Sublayers SublayerMap
 	Env       string
+
+	// SublayersOnly reports whether stats computation and
+	// export should be disabled in buckets coming from this
+	// input.
+	SublayersOnly bool
 }
 
 // Add applies the given input to the concentrator.
@@ -156,7 +156,7 @@ func (c *Concentrator) addNow(i *Input) {
 		}
 
 		subs, _ := i.Sublayers[s.Span]
-		b.HandleSpan(s, i.Env, c.aggregators, subs)
+		b.HandleSpan(s, i.Env, subs, i.SublayersOnly)
 	}
 }
 

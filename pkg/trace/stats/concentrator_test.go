@@ -23,7 +23,7 @@ var (
 
 func NewTestConcentrator() *Concentrator {
 	statsChan := make(chan []Bucket)
-	return NewConcentrator([]string{}, time.Second.Nanoseconds(), statsChan)
+	return NewConcentrator(time.Second.Nanoseconds(), statsChan)
 }
 
 // getTsInBucket gives a timestamp in ns which is `offset` buckets late
@@ -160,7 +160,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 	t.Run("cold", func(t *testing.T) {
 		// Running cold, all spans in the past should end up in the current time bucket.
 		flushTime := now
-		c := NewConcentrator([]string{}, testBucketInterval, statsChan)
+		c := NewConcentrator(testBucketInterval, statsChan)
 		c.addNow(testTrace)
 
 		for i := 0; i < c.bufferLen; i++ {
@@ -189,7 +189,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 
 	t.Run("hot", func(t *testing.T) {
 		flushTime := now
-		c := NewConcentrator([]string{}, testBucketInterval, statsChan)
+		c := NewConcentrator(testBucketInterval, statsChan)
 		c.oldestTs = alignTs(now, c.bsize) - int64(c.bufferLen-1)*c.bsize
 		c.addNow(testTrace)
 
@@ -231,12 +231,12 @@ func TestConcentratorOldestTs(t *testing.T) {
 	})
 }
 
-//TestConcentratorStatsTotals tests that the total stats are correct, independently of the
+// TestConcentratorStatsTotals tests that the total stats are correct, independently of the
 // time bucket they end up.
 func TestConcentratorStatsTotals(t *testing.T) {
 	assert := assert.New(t)
 	statsChan := make(chan []Bucket)
-	c := NewConcentrator([]string{}, testBucketInterval, statsChan)
+	c := NewConcentrator(testBucketInterval, statsChan)
 
 	now := time.Now().UnixNano()
 	alignedNow := alignTs(now, c.bsize)
@@ -258,48 +258,92 @@ func TestConcentratorStatsTotals(t *testing.T) {
 	traceutil.ComputeTopLevel(trace)
 	wt := NewWeightedTrace(trace, traceutil.GetRoot(trace))
 
-	testTrace := &Input{
-		Env:   "none",
-		Trace: wt,
-	}
-	c.addNow(testTrace)
+	t.Run("ok", func(t *testing.T) {
+		testTrace := &Input{
+			Env:   "none",
+			Trace: wt,
+		}
+		c.addNow(testTrace)
 
-	var duration float64
-	var hits float64
-	var errors float64
+		var duration float64
+		var hits float64
+		var errors float64
 
-	flushTime := now
-	for i := 0; i <= c.bufferLen; i++ {
-		stats := c.flushNow(flushTime)
+		flushTime := now
+		for i := 0; i <= c.bufferLen; i++ {
+			stats := c.flushNow(flushTime)
 
-		if len(stats) == 0 {
-			continue
+			if len(stats) == 0 {
+				continue
+			}
+
+			for key, count := range stats[0].Counts {
+				if key == "query|duration|env:none,resource:resource1,service:A1" {
+					duration += count.Value
+				}
+				if key == "query|hits|env:none,resource:resource1,service:A1" {
+					hits += count.Value
+				}
+				if key == "query|errors|env:none,resource:resource1,service:A1" {
+					errors += count.Value
+				}
+			}
+			flushTime += c.bsize
 		}
 
-		for key, count := range stats[0].Counts {
-			if key == "query|duration|env:none,resource:resource1,service:A1" {
-				duration += count.Value
-			}
-			if key == "query|hits|env:none,resource:resource1,service:A1" {
-				hits += count.Value
-			}
-			if key == "query|errors|env:none,resource:resource1,service:A1" {
-				errors += count.Value
-			}
-		}
-		flushTime += c.bsize
-	}
+		assert.Equal(duration, float64(50+40+30+20+10+1), "Wrong value for total duration %d", duration)
+		assert.Equal(hits, float64(len(trace)), "Wrong value for total hits %d", hits)
+		assert.Equal(errors, float64(0), "Wrong value for total errors %d", errors)
+	})
 
-	assert.Equal(duration, float64(50+40+30+20+10+1), "Wrong value for total duration %d", duration)
-	assert.Equal(hits, float64(len(trace)), "Wrong value for total hits %d", hits)
-	assert.Equal(errors, float64(0), "Wrong value for total errors %d", errors)
+	t.Run("SublayersOnly=true", func(t *testing.T) {
+		testTrace := &Input{
+			Env:           "none",
+			Trace:         wt,
+			SublayersOnly: true,
+		}
+		c.addNow(testTrace)
+
+		flushTime := now
+		for i := 0; i <= c.bufferLen; i++ {
+			stats := c.flushNow(flushTime)
+			if len(stats) == 0 {
+				continue
+			}
+			for _, stat := range stats {
+				assert.Empty(t, stat.Counts)
+			}
+			flushTime += c.bsize
+		}
+	})
+
+	t.Run("SublayersOnly=false", func(t *testing.T) {
+		testTrace := &Input{
+			Env:           "none",
+			Trace:         wt,
+			SublayersOnly: false,
+		}
+		c.addNow(testTrace)
+
+		flushTime := now
+		for i := 0; i <= c.bufferLen; i++ {
+			stats := c.flushNow(flushTime)
+			if len(stats) == 0 {
+				continue
+			}
+			for _, stat := range stats {
+				assert.NotEmpty(t, stat.Counts)
+			}
+			flushTime += c.bsize
+		}
+	})
 }
 
 // TestConcentratorStatsCounts tests exhaustively each stats bucket, over multiple time buckets.
 func TestConcentratorStatsCounts(t *testing.T) {
 	assert := assert.New(t)
 	statsChan := make(chan []Bucket)
-	c := NewConcentrator([]string{}, testBucketInterval, statsChan)
+	c := NewConcentrator(testBucketInterval, statsChan)
 
 	now := time.Now().UnixNano()
 	alignedNow := alignTs(now, c.bsize)
@@ -418,7 +462,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 func TestConcentratorSublayersStatsCounts(t *testing.T) {
 	assert := assert.New(t)
 	statsChan := make(chan []Bucket)
-	c := NewConcentrator([]string{}, testBucketInterval, statsChan)
+	c := NewConcentrator(testBucketInterval, statsChan)
 
 	now := time.Now().UnixNano()
 	alignedNow := now - now%c.bsize
@@ -582,7 +626,7 @@ func TestConcentratorAdd(t *testing.T) {
 				sublayers[subtrace.Root] = subtraceSublayers
 			}
 			testTrace.Sublayers = sublayers
-			c := NewConcentrator([]string{}, testBucketInterval, statsChan)
+			c := NewConcentrator(testBucketInterval, statsChan)
 			c.addNow(testTrace)
 			stats := c.flushNow(now + (int64(c.bufferLen) * testBucketInterval))
 			countValsEq(t, test.out, stats[0].Counts)

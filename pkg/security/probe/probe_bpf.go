@@ -10,6 +10,7 @@ package probe
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 	lib "github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
+	"github.com/cihub/seelog"
 	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/pkg/errors"
 
@@ -75,7 +77,9 @@ type Probe struct {
 	eventsStats        EventsStats
 	startTime          time.Time
 	event              *Event
-	mountEvent         *Event
+	reOrderer          *ReOrderer
+	ctx                context.Context
+	cancelFnc          context.CancelFunc
 }
 
 // GetResolvers returns the resolvers of Probe
@@ -131,12 +135,7 @@ func (p *Probe) Init() error {
 		switch perfMap.Name {
 		case "events":
 			perfMap.PerfMapOptions = manager.PerfMapOptions{
-				DataHandler: p.handleEvent,
-				LostHandler: p.handleLostEvents,
-			}
-		case "mountpoints_events":
-			perfMap.PerfMapOptions = manager.PerfMapOptions{
-				DataHandler: p.handleMountEvent,
+				DataHandler: p.reOrderer.HandleEvent,
 				LostHandler: p.handleLostEvents,
 			}
 		}
@@ -174,10 +173,14 @@ func (p *Probe) Init() error {
 
 // Start the runtime security probe
 func (p *Probe) Start() error {
+	go p.reOrderer.Start(p.ctx)
+
 	if err := p.manager.Start(); err != nil {
 		return err
 	}
+
 	go p.loadController.Start(context.Background())
+
 	return nil
 }
 
@@ -270,11 +273,6 @@ func (p *Probe) zeroEvent() *Event {
 	return p.event
 }
 
-func (p *Probe) zeroMountEvent() *Event {
-	*p.mountEvent = eventZero
-	return p.mountEvent
-}
-
 func (p *Probe) unmarshalProcessContainer(data []byte, event *Event) (int, error) {
 	read, err := unmarshalBinary(data, &event.Process, &event.Container)
 	if err != nil {
@@ -284,61 +282,7 @@ func (p *Probe) unmarshalProcessContainer(data []byte, event *Event) (int, error
 	return read, nil
 }
 
-func (p *Probe) handleMountEvent(CPU int, data []byte, perfMap *manager.PerfMap, manager *manager.Manager) {
-	offset := 0
-	event := p.zeroMountEvent()
-
-	read, err := event.UnmarshalBinary(data)
-	if err != nil {
-		log.Errorf("failed to decode event: %s", err)
-		return
-	}
-	offset += read
-
-	eventType := EventType(event.Type)
-
-	log.Tracef("Decoding mount event %s(%d)", eventType, event.Type)
-
-	read, err = p.unmarshalProcessContainer(data[offset:], event)
-	if err != nil {
-		log.Errorf("failed to decode event `%s`: %s", err, eventType)
-		return
-	}
-	offset += read
-
-	switch eventType {
-	case FileMountEventType:
-		if _, err := event.Mount.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode mount event: %s (offset %d, len %d)", err, offset, len(data))
-			return
-		}
-
-		// Resolve mount point
-		event.Mount.ResolveMountPoint(event)
-		// Resolve root
-		event.Mount.ResolveRoot(event)
-		// Insert new mount point in cache
-		p.resolvers.MountResolver.Insert(event.Mount)
-	case FileUmountEventType:
-		if _, err := event.Umount.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode umount event: %s (offset %d, len %d)", err, offset, len(data))
-			return
-		}
-		// Delete new mount point from cache
-		if err := p.resolvers.MountResolver.Delete(event.Umount.MountID); err != nil {
-			log.Errorf("failed to delete mount point %d from cache: %s", event.Umount.MountID, err)
-		}
-	default:
-		log.Errorf("unsupported event type %d on perf map %s", eventType, perfMap.Name)
-		return
-	}
-
-	p.eventsStats.CountEventType(eventType, 1)
-	p.loadController.Count(eventType, event.Process.Pid)
-	p.DispatchEvent(event)
-}
-
-func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, manager *manager.Manager) {
+func (p *Probe) handleEvent(data []byte) {
 	offset := 0
 	event := p.zeroEvent()
 
@@ -381,6 +325,30 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 	offset += read
 
 	switch eventType {
+	case FileMountEventType:
+		if _, err := event.Mount.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode mount event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+
+		// Resolve mount point
+		event.Mount.ResolveMountPoint(event)
+		// Resolve root
+		event.Mount.ResolveRoot(event)
+		// Insert new mount point in cache
+		p.resolvers.MountResolver.Insert(event.Mount)
+	case FileUmountEventType:
+		if _, err := event.Umount.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode umount event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+		// Remove all dentry entries belonging to the mountID
+		p.resolvers.DentryResolver.DelCacheEntries(event.Umount.MountID)
+
+		// Delete new mount point from cache
+		if err := p.resolvers.MountResolver.Delete(event.Umount.MountID); err != nil {
+			log.Errorf("failed to delete mount point %d from cache: %s", event.Umount.MountID, err)
+		}
 	case FileOpenEventType:
 		if _, err := event.Open.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode open event: %s (offset %d, len %d)", err, offset, len(data))
@@ -463,7 +431,7 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 	case ExitEventType:
 		defer p.resolvers.ProcessResolver.DeleteEntry(event.Process.Pid, event.ResolveEventTimestamp())
 	default:
-		log.Errorf("unsupported event type %d on perf map %s", eventType, perfMap.Name)
+		log.Errorf("unsupported event type %d", eventType)
 		return
 	}
 
@@ -472,7 +440,10 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 		event.ResolveProcessCacheEntry()
 	}
 
-	log.Tracef("Dispatching event %+v\n", event)
+	if logLevel, err := log.GetLogLevel(); err != nil || logLevel == seelog.TraceLvl {
+		prettyEvent := event.String()
+		log.Tracef("Dispatching event %s\n", prettyEvent)
+	}
 
 	p.eventsStats.CountEventType(eventType, 1)
 	p.loadController.Count(eventType, event.Process.Pid)
@@ -703,6 +674,8 @@ func (p *Probe) Snapshot() error {
 
 // Close the probe
 func (p *Probe) Close() error {
+	p.cancelFnc()
+
 	return p.manager.Stop(manager.CleanAll)
 }
 
@@ -743,12 +716,16 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		return nil, err
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	p := &Probe{
 		config:            config,
 		invalidDiscarders: getInvalidDiscarders(),
 		approvers:         make(map[eval.EventType]activeApprovers),
 		managerOptions:    ebpf.NewDefaultOptions(),
 		regexCache:        regexCache,
+		ctx:               ctx,
+		cancelFnc:         cancel,
 	}
 
 	if !p.config.EnableKernelFilters {
@@ -767,11 +744,24 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 
 	p.resolvers = resolvers
 	p.event = NewEvent(p.resolvers)
-	p.mountEvent = NewEvent(p.resolvers)
 	p.loadController, err = NewLoadController(p, client)
 	if err != nil {
 		return nil, err
 	}
+
+	windowSize := uint64(10 * runtime.NumCPU())
+	if windowSize < 50 {
+		windowSize = 50
+	}
+
+	p.reOrderer = NewReOrderer(p.handleEvent,
+		TimestampFromEventData,
+		resolvers.TimeResolver.ResolveMonotonicTimestamp, ReOrdererOpts{
+			QueueSize:  100000,
+			WindowSize: windowSize,
+			Delay:      20 * time.Millisecond,
+			Rate:       100 * time.Millisecond,
+		})
 
 	eventZero.resolvers = p.resolvers
 

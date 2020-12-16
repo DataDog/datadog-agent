@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -320,6 +321,13 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("forwarder_backoff_max", 64)
 	config.BindEnvAndSetDefault("forwarder_recovery_interval", DefaultForwarderRecoveryInterval)
 	config.BindEnvAndSetDefault("forwarder_recovery_reset", false)
+
+	// Forwarder storage on disk
+	defaultForwarderStoragePath := path.Join(config.GetString("run_path"), "transactions_to_retry")
+	config.BindEnvAndSetDefault("forwarder_storage_path", defaultForwarderStoragePath)
+	config.BindEnvAndSetDefault("forwarder_outdated_file_in_days", 10)
+	config.BindEnvAndSetDefault("forwarder_flush_to_disk_mem_ratio", 0.5)
+	config.BindEnvAndSetDefault("forwarder_storage_max_size_in_bytes", 0) // 0 means disabled. This is a BETA feature.
 
 	// Dogstatsd
 	config.BindEnvAndSetDefault("use_dogstatsd", true)
@@ -721,6 +729,7 @@ func InitConfig(config Config) {
 	config.SetKnown("system_probe_config.closed_channel_size")
 	config.SetKnown("system_probe_config.dns_timeout_in_s")
 	config.SetKnown("system_probe_config.collect_dns_stats")
+	config.SetKnown("system_probe_config.collect_dns_domains")
 	config.SetKnown("system_probe_config.offset_guess_threshold")
 	config.SetKnown("system_probe_config.enable_tcp_queue_length")
 	config.SetKnown("system_probe_config.enable_oom_kill")
@@ -728,6 +737,7 @@ func InitConfig(config Config) {
 	config.SetKnown("system_probe_config.windows.enable_monotonic_count")
 	config.SetKnown("system_probe_config.windows.driver_buffer_size")
 	config.SetKnown("network_config.enabled")
+	config.SetKnown("network_config.enable_http_monitoring")
 
 	// Network
 	config.BindEnv("network.id") //nolint:errcheck

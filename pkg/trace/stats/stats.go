@@ -7,6 +7,7 @@ package stats
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/stats/quantile"
 )
@@ -64,8 +65,21 @@ type Distribution struct {
 // GrainKey generates the key used to aggregate counts and distributions
 // which is of the form: name|measure|aggr
 // for example: serve|duration|service:webserver
-func GrainKey(name, measure, aggr string) string {
-	return name + "|" + measure + "|" + aggr
+func GrainKey(name, measure string, aggr Aggregation) string {
+	b := strings.Builder{}
+	// +2 for "|" separators
+	size := len(name) + 1 + len(measure) + 1
+	size += aggr.KeyLen()
+	b.Grow(size)
+
+	b.WriteString(name)
+	b.WriteRune('|')
+	b.WriteString(measure)
+	b.WriteRune('|')
+
+	aggr.WriteKey(&b)
+
+	return b.String()
 }
 
 // NewCount returns a new Count for a metric and a given tag set

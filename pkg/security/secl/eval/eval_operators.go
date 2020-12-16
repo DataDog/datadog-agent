@@ -33,12 +33,21 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*BoolEval
 			}
 		}
 
+		// optimise the evaluation if need moving the evaluation with more weight at the right
+
+		if a.Weight > b.Weight {
+			tmp := ea
+			ea = eb
+			eb = tmp
+		}
+
 		evalFnc := func(ctx *Context) bool {
 			return ea(ctx) || eb(ctx)
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -87,6 +96,7 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*BoolEval
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -116,6 +126,7 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*BoolEval
 
 	return &BoolEvaluator{
 		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -151,12 +162,21 @@ func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*BoolEva
 			}
 		}
 
+		// optimise the evaluation if need moving the evaluation with more weight at the right
+
+		if a.Weight > b.Weight {
+			tmp := ea
+			ea = eb
+			eb = tmp
+		}
+
 		evalFnc := func(ctx *Context) bool {
 			return ea(ctx) && eb(ctx)
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -205,6 +225,7 @@ func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*BoolEva
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -234,6 +255,7 @@ func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*BoolEva
 
 	return &BoolEvaluator{
 		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -256,12 +278,15 @@ func IntEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*Boo
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
+		// optimise the evaluation if need moving the evaluation with more weight at the right
+
 		evalFnc := func(ctx *Context) bool {
 			return ea(ctx) == eb(ctx)
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -290,6 +315,7 @@ func IntEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*Boo
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -308,6 +334,7 @@ func IntEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*Boo
 
 	return &BoolEvaluator{
 		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -330,12 +357,15 @@ func IntNotEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
+		// optimise the evaluation if need moving the evaluation with more weight at the right
+
 		evalFnc := func(ctx *Context) bool {
 			return ea(ctx) != eb(ctx)
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -364,6 +394,7 @@ func IntNotEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -382,6 +413,7 @@ func IntNotEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*
 
 	return &BoolEvaluator{
 		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -404,12 +436,15 @@ func IntAnd(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*IntEva
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
+		// optimise the evaluation if need moving the evaluation with more weight at the right
+
 		evalFnc := func(ctx *Context) int {
 			return ea(ctx) & eb(ctx)
 		}
 
 		return &IntEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -438,6 +473,7 @@ func IntAnd(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*IntEva
 
 		return &IntEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -456,6 +492,7 @@ func IntAnd(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*IntEva
 
 	return &IntEvaluator{
 		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -478,12 +515,15 @@ func IntOr(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*IntEval
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
+		// optimise the evaluation if need moving the evaluation with more weight at the right
+
 		evalFnc := func(ctx *Context) int {
 			return ea(ctx) | eb(ctx)
 		}
 
 		return &IntEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -512,6 +552,7 @@ func IntOr(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*IntEval
 
 		return &IntEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -530,6 +571,7 @@ func IntOr(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*IntEval
 
 	return &IntEvaluator{
 		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -552,12 +594,15 @@ func IntXor(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*IntEva
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
+		// optimise the evaluation if need moving the evaluation with more weight at the right
+
 		evalFnc := func(ctx *Context) int {
 			return ea(ctx) ^ eb(ctx)
 		}
 
 		return &IntEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -586,6 +631,7 @@ func IntXor(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*IntEva
 
 		return &IntEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -604,6 +650,7 @@ func IntXor(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*IntEva
 
 	return &IntEvaluator{
 		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -626,12 +673,15 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *sta
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
+		// optimise the evaluation if need moving the evaluation with more weight at the right
+
 		evalFnc := func(ctx *Context) bool {
 			return ea(ctx) == eb(ctx)
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -660,6 +710,7 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *sta
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -678,6 +729,7 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *sta
 
 	return &BoolEvaluator{
 		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -700,12 +752,15 @@ func StringNotEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
+		// optimise the evaluation if need moving the evaluation with more weight at the right
+
 		evalFnc := func(ctx *Context) bool {
 			return ea(ctx) != eb(ctx)
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -734,6 +789,7 @@ func StringNotEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -752,6 +808,7 @@ func StringNotEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *
 
 	return &BoolEvaluator{
 		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -774,12 +831,15 @@ func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
+		// optimise the evaluation if need moving the evaluation with more weight at the right
+
 		evalFnc := func(ctx *Context) bool {
 			return ea(ctx) == eb(ctx)
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -808,6 +868,7 @@ func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -826,6 +887,7 @@ func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*
 
 	return &BoolEvaluator{
 		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -848,12 +910,15 @@ func BoolNotEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state)
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
+		// optimise the evaluation if need moving the evaluation with more weight at the right
+
 		evalFnc := func(ctx *Context) bool {
 			return ea(ctx) != eb(ctx)
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -882,6 +947,7 @@ func BoolNotEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state)
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -900,6 +966,7 @@ func BoolNotEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state)
 
 	return &BoolEvaluator{
 		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -922,12 +989,15 @@ func GreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*B
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
+		// optimise the evaluation if need moving the evaluation with more weight at the right
+
 		evalFnc := func(ctx *Context) bool {
 			return ea(ctx) > eb(ctx)
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -956,6 +1026,7 @@ func GreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*B
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -974,6 +1045,7 @@ func GreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*B
 
 	return &BoolEvaluator{
 		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -996,12 +1068,15 @@ func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *sta
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
+		// optimise the evaluation if need moving the evaluation with more weight at the right
+
 		evalFnc := func(ctx *Context) bool {
 			return ea(ctx) >= eb(ctx)
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -1030,6 +1105,7 @@ func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *sta
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -1048,6 +1124,7 @@ func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *sta
 
 	return &BoolEvaluator{
 		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -1070,12 +1147,15 @@ func LesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*Bo
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
+		// optimise the evaluation if need moving the evaluation with more weight at the right
+
 		evalFnc := func(ctx *Context) bool {
 			return ea(ctx) < eb(ctx)
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -1104,6 +1184,7 @@ func LesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*Bo
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -1122,6 +1203,7 @@ func LesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*Bo
 
 	return &BoolEvaluator{
 		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -1144,12 +1226,15 @@ func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *stat
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
+		// optimise the evaluation if need moving the evaluation with more weight at the right
+
 		evalFnc := func(ctx *Context) bool {
 			return ea(ctx) <= eb(ctx)
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -1178,6 +1263,7 @@ func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *stat
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -1196,6 +1282,7 @@ func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *stat
 
 	return &BoolEvaluator{
 		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
 		isPartial: isPartialLeaf,
 	}, nil
 }

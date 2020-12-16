@@ -49,6 +49,7 @@ func TracerConfigFromConfig(cfg *config.AgentConfig) *Config {
 
 	tracerConfig.CollectLocalDNS = cfg.CollectLocalDNS
 	tracerConfig.CollectDNSStats = cfg.CollectDNSStats
+	tracerConfig.CollectDNSDomains = cfg.CollectDNSDomains
 
 	if to := cfg.DNSTimeout; to > 0 {
 		tracerConfig.DNSTimeout = cfg.DNSTimeout
@@ -59,6 +60,7 @@ func TracerConfigFromConfig(cfg *config.AgentConfig) *Config {
 	tracerConfig.ConntrackMaxStateSize = cfg.ConntrackMaxStateSize
 	tracerConfig.EnableConntrackAllNamespaces = cfg.EnableConntrackAllNamespaces
 	tracerConfig.DebugPort = cfg.SystemProbeDebugPort
+	tracerConfig.EnableHTTPMonitoring = cfg.EnableHTTPMonitoring
 
 	if mccb := cfg.MaxClosedConnectionsBuffered; mccb > 0 {
 		tracerConfig.MaxClosedConnectionsBuffered = mccb

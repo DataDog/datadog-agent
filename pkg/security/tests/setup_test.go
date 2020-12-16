@@ -314,9 +314,9 @@ func (tm *testModule) Root() string {
 	return tm.st.root
 }
 
-func (tm *testModule) RuleMatch(rule *eval.Rule, event eval.Event) {
+func (tm *testModule) RuleMatch(rule *rules.Rule, event eval.Event) {
 	e := event.(*sprobe.Event).Clone()
-	te := testEvent{Event: &e, rule: rule}
+	te := testEvent{Event: &e, rule: rule.Rule}
 	select {
 	case tm.events <- te:
 	default:
@@ -375,6 +375,24 @@ func (tm *testModule) GetProbeEvent(timeout time.Duration, eventType ...eval.Eve
 
 func (tm *testModule) Path(filename string) (string, unsafe.Pointer, error) {
 	return tm.st.Path(filename)
+}
+
+func (tm *testModule) Create(filename string) (string, unsafe.Pointer, error) {
+	testFile, testPtr, err := tm.st.Path(filename)
+	if err != nil {
+		return "", nil, err
+	}
+
+	f, err := os.Create(testFile)
+	if err != nil {
+		return "", nil, err
+	}
+
+	if err := f.Close(); err != nil {
+		return "", nil, err
+	}
+
+	return testFile, testPtr, err
 }
 
 func (tm *testModule) cleanup() {
