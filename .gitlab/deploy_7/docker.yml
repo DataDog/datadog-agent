@@ -3,6 +3,10 @@
   # no RELEASE_VERSION means a nightly build for omnibus
   if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_7 != "nightly-a7" && $RELEASE_VERSION_7 != ""
 
+#
+# Dockerhub releases
+#
+
 tag_release_7_linux_docker_hub:
   extends: .docker_tag_job_definition
   rules:
@@ -29,14 +33,19 @@ tag_release_7_windows_docker_hub:
       when: manual
       allow_failure: true
   stage: deploy7
-  tags: ["runner:windows-docker", "windowsversion:1909"]
+  ## For Future Reference.  Must update to do this job from the newest OS version
+  ## that we're publishing (.e.g. adding windows2104 will require also using the
+  ## 2104 builder)
+  tags: ["runner:windows-docker", "windowsversion:2004"]
   dependencies:
     - docker_build_agent7_windows1809
     - docker_build_agent7_windows1809_jmx
     - docker_build_agent7_windows1909
     - docker_build_agent7_windows1909_jmx
+    - docker_build_agent7_windows2004
+    - docker_build_agent7_windows2004_jmx
   variables:
-    VARIANT: 1909
+    VARIANT: 2004
   script:
     - $ErrorActionPreference = "Stop"
     - |
@@ -49,6 +58,10 @@ tag_release_7_windows_docker_hub:
       inv -e docker.publish-bulk --signed-push --platform windows/amd64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-win1909-ARCH --dst-template datadog/agent-ARCH:`${VERSION}-win1909
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       inv -e docker.publish-bulk --signed-push --platform windows/amd64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-jmx-win1909-ARCH --dst-template datadog/agent-ARCH:`${VERSION}-jmx-win1909
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      inv -e docker.publish-bulk --signed-push --platform windows/amd64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-win2004-ARCH --dst-template datadog/agent-ARCH:`${VERSION}-win2004
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      inv -e docker.publish-bulk --signed-push --platform windows/amd64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-jmx-win2004-ARCH --dst-template datadog/agent-ARCH:`${VERSION}-jmx-win2004
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       "@ | Add-Content ci-scripts/docker-publish.ps1
     - cat ci-scripts/docker-publish.ps1
@@ -78,11 +91,13 @@ tag_release_7_manifests_docker_hub:
       --image datadog/agent-amd64:${VERSION},linux/amd64
       --image datadog/agent-amd64:${VERSION}-win1809,windows/amd64
       --image datadog/agent-amd64:${VERSION}-win1909,windows/amd64
+      --image datadog/agent-amd64:${VERSION}-win2004,windows/amd64
       --image datadog/agent-arm64:${VERSION},linux/arm64
     - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag ${VERSION}-jmx
       --image datadog/agent-amd64:${VERSION}-jmx,linux/amd64
       --image datadog/agent-amd64:${VERSION}-jmx-win1809,windows/amd64
       --image datadog/agent-amd64:${VERSION}-jmx-win1909,windows/amd64
+      --image datadog/agent-amd64:${VERSION}-jmx-win2004,windows/amd64
       --image datadog/agent-arm64:${VERSION}-jmx,linux/arm64
 
 latest_release_7_docker_hub:
@@ -102,6 +117,8 @@ latest_release_7_docker_hub:
     - docker_build_agent7_windows1809_jmx
     - docker_build_agent7_windows1909
     - docker_build_agent7_windows1909_jmx
+    - docker_build_agent7_windows2004
+    - docker_build_agent7_windows2004_jmx
   script:
     - VERSION=$(inv -e agent.version --major-version 7)
     # Dogstatsd
@@ -112,27 +129,30 @@ latest_release_7_docker_hub:
       --image datadog/agent-amd64:${VERSION},linux/amd64
       --image datadog/agent-amd64:${VERSION}-win1809,windows/amd64
       --image datadog/agent-amd64:${VERSION}-win1909,windows/amd64
+      --image datadog/agent-amd64:${VERSION}-win2004,windows/amd64
       --image datadog/agent-arm64:${VERSION},linux/arm64
     - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag latest-jmx
       --image datadog/agent-amd64:${VERSION}-jmx,linux/amd64
       --image datadog/agent-amd64:${VERSION}-jmx-win1809,windows/amd64
       --image datadog/agent-amd64:${VERSION}-jmx-win1909,windows/amd64
+      --image datadog/agent-amd64:${VERSION}-jmx-win2004,windows/amd64
       --image datadog/agent-arm64:${VERSION}-jmx,linux/arm64
     - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag 7
       --image datadog/agent-amd64:${VERSION},linux/amd64
       --image datadog/agent-amd64:${VERSION}-win1809,windows/amd64
       --image datadog/agent-amd64:${VERSION}-win1909,windows/amd64
+      --image datadog/agent-amd64:${VERSION}-win2004,windows/amd64
       --image datadog/agent-arm64:${VERSION},linux/arm64
     - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag 7-jmx
       --image datadog/agent-amd64:${VERSION}-jmx,linux/amd64
       --image datadog/agent-amd64:${VERSION}-jmx-win1809,windows/amd64
       --image datadog/agent-amd64:${VERSION}-jmx-win1909,windows/amd64
+      --image datadog/agent-amd64:${VERSION}-jmx-win2004,windows/amd64
       --image datadog/agent-arm64:${VERSION}-jmx,linux/arm64
 
 #
 # Google Container Registry releases
 #
-
 
 tag_release_7_linux_google_container_registry:
   extends: .google_container_registry_tag_job_definition
@@ -160,14 +180,19 @@ tag_release_7_windows_google_container_registry:
       when: manual
       allow_failure: true
   stage: deploy7
-  tags: ["runner:windows-docker", "windowsversion:1909"]
+  ## For Future Reference.  Must update to do this job from the newest OS version
+  ## that we're publishing (.e.g. adding windows2104 will require also using the
+  ## 2104 builder)
+  tags: ["runner:windows-docker", "windowsversion:2004"]
   dependencies:
     - docker_build_agent7_windows1809
     - docker_build_agent7_windows1809_jmx
     - docker_build_agent7_windows1909
     - docker_build_agent7_windows1909_jmx
+    - docker_build_agent7_windows2004
+    - docker_build_agent7_windows2004_jmx
   variables:
-    VARIANT: 1909
+    VARIANT: 2004
   script:
     - $ErrorActionPreference = "Stop"
     - |
@@ -180,6 +205,10 @@ tag_release_7_windows_google_container_registry:
       inv -e docker.publish-bulk --platform windows/amd64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-win1909-ARCH --dst-template gcr.io/datadoghq/agent-ARCH:`${VERSION}-win1909
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       inv -e docker.publish-bulk --platform windows/amd64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-jmx-win1909-ARCH --dst-template gcr.io/datadoghq/agent-ARCH:`${VERSION}-jmx-win1909
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      inv -e docker.publish-bulk --platform windows/amd64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-win2004-ARCH --dst-template gcr.io/datadoghq/agent-ARCH:`${VERSION}-win2004
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      inv -e docker.publish-bulk --platform windows/amd64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-jmx-win2004-ARCH --dst-template gcr.io/datadoghq/agent-ARCH:`${VERSION}-jmx-win2004
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       "@ | Add-Content ci-scripts/gcr-publish.ps1
     - cat ci-scripts/gcr-publish.ps1
@@ -209,11 +238,13 @@ tag_release_7_manifests_google_container_registry:
       --image gcr.io/datadoghq/agent-amd64:${VERSION},linux/amd64
       --image gcr.io/datadoghq/agent-amd64:${VERSION}-win1809,windows/amd64
       --image gcr.io/datadoghq/agent-amd64:${VERSION}-win1909,windows/amd64
+      --image gcr.io/datadoghq/agent-amd64:${VERSION}-win2004,windows/amd64
       --image gcr.io/datadoghq/agent-arm64:${VERSION},linux/arm64
     - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag ${VERSION}-jmx
       --image gcr.io/datadoghq/agent-amd64:${VERSION}-jmx,linux/amd64
       --image gcr.io/datadoghq/agent-amd64:${VERSION}-jmx-win1809,windows/amd64
       --image gcr.io/datadoghq/agent-amd64:${VERSION}-jmx-win1909,windows/amd64
+      --image gcr.io/datadoghq/agent-amd64:${VERSION}-jmx-win2004,windows/amd64
       --image gcr.io/datadoghq/agent-arm64:${VERSION}-jmx,linux/arm64
 
 latest_release_7_google_container_registry:
@@ -233,6 +264,8 @@ latest_release_7_google_container_registry:
     - docker_build_agent7_windows1809_jmx
     - docker_build_agent7_windows1909
     - docker_build_agent7_windows1909_jmx
+    - docker_build_agent7_windows2004
+    - docker_build_agent7_windows2004_jmx
   script:
     - VERSION=$(inv -e agent.version --major-version 7)
     # Dogstatsd
@@ -243,19 +276,23 @@ latest_release_7_google_container_registry:
       --image gcr.io/datadoghq/agent-amd64:${VERSION},linux/amd64
       --image gcr.io/datadoghq/agent-amd64:${VERSION}-win1809,windows/amd64
       --image gcr.io/datadoghq/agent-amd64:${VERSION}-win1909,windows/amd64
+      --image gcr.io/datadoghq/agent-amd64:${VERSION}-win2004,windows/amd64
       --image gcr.io/datadoghq/agent-arm64:${VERSION},linux/arm64
     - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag latest-jmx
       --image gcr.io/datadoghq/agent-amd64:${VERSION}-jmx,linux/amd64
       --image gcr.io/datadoghq/agent-amd64:${VERSION}-jmx-win1809,windows/amd64
       --image gcr.io/datadoghq/agent-amd64:${VERSION}-jmx-win1909,windows/amd64
+      --image gcr.io/datadoghq/agent-amd64:${VERSION}-jmx-win2004,windows/amd64
       --image gcr.io/datadoghq/agent-arm64:${VERSION}-jmx,linux/arm64
     - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag 7
       --image gcr.io/datadoghq/agent-amd64:${VERSION},linux/amd64
       --image gcr.io/datadoghq/agent-amd64:${VERSION}-win1809,windows/amd64
       --image gcr.io/datadoghq/agent-amd64:${VERSION}-win1909,windows/amd64
+      --image gcr.io/datadoghq/agent-amd64:${VERSION}-win2004,windows/amd64
       --image gcr.io/datadoghq/agent-arm64:${VERSION},linux/arm64
     - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag 7-jmx
       --image gcr.io/datadoghq/agent-amd64:${VERSION}-jmx,linux/amd64
       --image gcr.io/datadoghq/agent-amd64:${VERSION}-jmx-win1809,windows/amd64
       --image gcr.io/datadoghq/agent-amd64:${VERSION}-jmx-win1909,windows/amd64
+      --image gcr.io/datadoghq/agent-amd64:${VERSION}-jmx-win2004,windows/amd64
       --image gcr.io/datadoghq/agent-arm64:${VERSION}-jmx,linux/arm64
