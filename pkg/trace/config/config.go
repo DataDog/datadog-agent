@@ -70,13 +70,14 @@ type AgentConfig struct {
 	MaxEPS          float64
 
 	// Receiver
-	ReceiverHost         string
-	ReceiverPort         int
-	ReceiverSocket       string // if not empty, UDS will be enabled on unix://<receiver_socket>
-	ConnectionLimit      int    // for rate-limiting, how many unique connections to allow in a lease period (30s)
-	ReceiverReadTimeout  int    // timeout for receiving data from clients (seconds)
-	ReceiverWriteTimeout int    // timeout for sending data to clients (seconds)
-	MaxRequestBytes      int64  // specifies the maximum allowed request size for incoming trace payloads
+	ReceiverHost    string
+	ReceiverPort    int
+	ReceiverSocket  string // if not empty, UDS will be enabled on unix://<receiver_socket>
+	ConnectionLimit int    // for rate-limiting, how many unique connections to allow in a lease period (30s)
+	MaxRequestBytes int64  // specifies the maximum allowed request size for incoming trace payloads
+
+	ReceiverReadTimeout  time.Duration // timeout for receiving data from clients
+	ReceiverWriteTimeout time.Duration // timeout for sending data to clients
 
 	// Writers
 	StatsWriter             *WriterConfig
@@ -135,6 +136,9 @@ func New() *AgentConfig {
 		ReceiverHost:    "localhost",
 		ReceiverPort:    8126,
 		MaxRequestBytes: 50 * 1024 * 1024, // 50MB
+
+		ReceiverReadTimeout:  time.Duration(5) * time.Second,
+		ReceiverWriteTimeout: time.Duration(15) * time.Second,
 
 		StatsWriter:             new(WriterConfig),
 		TraceWriter:             new(WriterConfig),

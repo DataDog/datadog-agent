@@ -353,14 +353,17 @@ func (c *AgentConfig) loadDeprecatedValues() error {
 		c.BucketInterval = d * time.Second
 	}
 	if cfg.IsSet("apm_config.receiver_timeout") {
-		c.ReceiverReadTimeout = cfg.GetInt("apm_config.receiver_timeout")
-		c.ReceiverWriteTimeout = cfg.GetInt("apm_config.receiver_timeout")
+		d := time.Duration(cfg.GetInt("apm_config.receiver_timeout"))
+		c.ReceiverReadTimeout = d * time.Second
+		c.ReceiverWriteTimeout = d * time.Second
 	}
 	if cfg.IsSet("apm_config.receiver_read_timeout") {
-		c.ReceiverReadTimeout = cfg.GetInt("apm_config.receiver_read_timeout")
+		d := time.Duration(cfg.GetInt("apm_config.receiver_read_timeout"))
+		c.ReceiverReadTimeout = d * time.Second
 	}
 	if cfg.IsSet("apm_config.receiver_write_timeout") {
-		c.ReceiverWriteTimeout = cfg.GetInt("apm_config.receiver_write_timeout")
+		d := time.Duration(cfg.GetInt("apm_config.receiver_write_timeout"))
+		c.ReceiverWriteTimeout = d * time.Second
 	}
 	if cfg.IsSet("apm_config.watchdog_check_delay") {
 		d := time.Duration(cfg.GetInt("apm_config.watchdog_check_delay"))
