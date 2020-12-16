@@ -138,7 +138,7 @@ func New() *AgentConfig {
 		MaxRequestBytes: 50 * 1024 * 1024, // 50MB
 
 		ReceiverReadTimeout:  time.Duration(5) * time.Second,
-		ReceiverWriteTimeout: time.Duration(15) * time.Second,
+		ReceiverWriteTimeout: time.Duration(5) * time.Second,
 
 		StatsWriter:             new(WriterConfig),
 		TraceWriter:             new(WriterConfig),

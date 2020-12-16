@@ -934,9 +934,9 @@ func BenchmarkWatchdog(b *testing.B) {
 func TestReceiverTimeoutConfig(t *testing.T) {
 	tcs := [][]int{
 		{1, 2, 1, 2},
-		{1, 0, 1, 15},
+		{1, 0, 1, 5},
 		{0, 1, 5, 1},
-		{0, 0, 5, 15},
+		{0, 0, 5, 5},
 	}
 	for _, tc := range tcs {
 		t.Run("", func(t *testing.T) {
