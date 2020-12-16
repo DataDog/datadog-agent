@@ -15,6 +15,7 @@ import (
 
 var (
 	seclLexer = lexer.Must(ebnf.New(`
+Comment = ("#" | "//") { "\u0000"…"\uffff"-"\n" } .
 Ident = (alpha | "_") { "_" | alpha | digit | "." | "[" | "]" } .
 String = "\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
 Int = [ "-" | "+" ] digit { digit } .
@@ -30,7 +31,7 @@ any = "\u0000"…"\uffff" .
 func ParseRule(expr string) (*Rule, error) {
 	parser, err := participle.Build(&Rule{},
 		participle.Lexer(seclLexer),
-		participle.Elide("Whitespace"),
+		participle.Elide("Whitespace", "Comment"),
 		participle.Unquote("String"))
 	if err != nil {
 		return nil, err

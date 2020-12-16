@@ -150,7 +150,8 @@ func TestMultiline(t *testing.T) {
 	}
 
 	expr = `process.filename == "/usr/bin/vipw" && (
-	process.filename == "/usr/bin/test" ||
+	process.filename == "/usr/bin/test" || # blah blah
+	# blah blah
 	process.filename == "/ust/bin/false"
 	)`
 

@@ -167,6 +167,12 @@ func TestSimpleBool(t *testing.T) {
 		{Expr: `(444 != 444) && ("test" == "test")`, Expected: false},
 		{Expr: `(444 != 555) && ("test" == "test")`, Expected: true},
 		{Expr: `(444 != 555) && ("test" != "aaaa")`, Expected: true},
+		{Expr: `(444 != 555) && # blah blah
+		# blah blah
+		("test" != "aaaa")`, Expected: true},
+		{Expr: `(444 != 555) && # blah blah
+		# blah blah
+		("test" == "aaaa")`, Expected: false},
 	}
 
 	for _, test := range tests {
