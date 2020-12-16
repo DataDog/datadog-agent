@@ -57,6 +57,9 @@ func profilingEndpoints(apiKey string) (urls []*url.URL, apiKeys []string, err e
 			}
 		}
 	}
+	for i, u := range urls {
+		log.Debugf("Set profiling intake URL [%d]:%s", i, u)
+	}
 	return urls, apiKeys, nil
 }
 
