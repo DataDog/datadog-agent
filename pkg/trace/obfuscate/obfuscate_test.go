@@ -266,3 +266,11 @@ func BenchmarkCompactWhitespaces(b *testing.B) {
 		compactWhitespaces(str)
 	}
 }
+
+func BenchmarkReplaceDigits(b *testing.B) {
+	b.Run("", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			replaceDigits([]byte("sales_2019_07_01_orders"))
+		}
+	})
+}

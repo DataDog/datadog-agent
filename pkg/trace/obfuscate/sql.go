@@ -111,32 +111,12 @@ func (f *replaceFilter) Filter(token, lastToken TokenKind, buffer []byte) (token
 		return FilteredGroupable, []byte("?"), nil
 	case Table:
 		if f.normalizeTables {
-			return token, f.replaceDigits(buffer), nil
+			return token, replaceDigits(buffer), nil
 		}
 		fallthrough
 	default:
 		return token, buffer, nil
 	}
-}
-
-// replaceDigits replaces consecutive sequences of digits with '?',
-// example: "jobs_2020_1597876964" --> "jobs_?_?"
-func (f *replaceFilter) replaceDigits(buffer []byte) []byte {
-	buf := make([]byte, 0, len(buffer))
-	scanningDigit := false
-	for _, c := range string(buffer) {
-		if isDigit(c) {
-			if scanningDigit {
-				continue
-			}
-			scanningDigit = true
-			buf = append(buf, byte('?'))
-			continue
-		}
-		scanningDigit = false
-		buf = append(buf, byte(c))
-	}
-	return buf
 }
 
 // Reset implements tokenFilter.
@@ -250,11 +230,10 @@ func (f *tableFinderFilter) Filter(token, lastToken TokenKind, buffer []byte) (T
 	case Update, Into:
 		// UPDATE [tableName]
 		// INSERT INTO [tableName]
-		token = Table
-
 		if f.storeTableNames {
 			f.storeName(string(buffer))
 		}
+		return Table, buffer, nil
 	}
 	return token, buffer, nil
 }
@@ -304,13 +283,13 @@ func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 	var (
 		storeTableNames = config.HasFeature("table_names")
 		normalizeTables = config.HasFeature("normalize_sql_tables")
-		out             = *bytes.NewBuffer(make([]byte, 0, len(tokenizer.buf)))
+		out             = bytes.NewBuffer(make([]byte, 0, len(tokenizer.buf)))
 		err             error
 		lastToken       TokenKind
 		discard         discardFilter
-		replace         = &replaceFilter{normalizeTables: normalizeTables}
+		replace         = replaceFilter{normalizeTables: normalizeTables}
 		grouping        groupingFilter
-		tableFinder     = &tableFinderFilter{storeTableNames: storeTableNames}
+		tableFinder     = tableFinderFilter{storeTableNames: storeTableNames}
 	)
 	// call Scan() function until tokens are available or if a LEX_ERROR is raised. After
 	// retrieving a token, send it to the tokenFilter chains so that the token is discarded

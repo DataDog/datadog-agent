@@ -54,30 +54,6 @@ func TestSQLResourceQuery(t *testing.T) {
 	assert.Equal("SELECT * FROM users WHERE id = 42", span.Meta["sql.query"])
 }
 
-func TestSQLTableNames(t *testing.T) {
-	t.Run("on", func(t *testing.T) {
-		os.Setenv("DD_APM_FEATURES", "table_names")
-		defer os.Unsetenv("DD_APM_FEATURES")
-
-		span := &pb.Span{
-			Resource: "SELECT * FROM users WHERE id = 42",
-			Type:     "sql",
-		}
-		NewObfuscator(nil).Obfuscate(span)
-		assert.Equal(t, "users", span.Meta["sql.tables"])
-
-	})
-
-	t.Run("off", func(t *testing.T) {
-		span := &pb.Span{
-			Resource: "SELECT * FROM users WHERE id = 42",
-			Type:     "sql",
-		}
-		NewObfuscator(nil).Obfuscate(span)
-		assert.Empty(t, span.Meta["sql.tables"])
-	})
-}
-
 func TestSQLResourceWithoutQuery(t *testing.T) {
 	assert := assert.New(t)
 	span := &pb.Span{
@@ -173,7 +149,82 @@ func TestSQLUTF8(t *testing.T) {
 	}
 }
 
-func TestSQLTableFinder(t *testing.T) {
+func TestSQLTableNames(t *testing.T) {
+	t.Run("on", func(t *testing.T) {
+		os.Setenv("DD_APM_FEATURES", "table_names")
+		defer os.Unsetenv("DD_APM_FEATURES")
+
+		span := &pb.Span{
+			Resource: "SELECT * FROM users WHERE id = 42",
+			Type:     "sql",
+		}
+		NewObfuscator(nil).Obfuscate(span)
+		assert.Equal(t, "users", span.Meta["sql.tables"])
+
+	})
+
+	t.Run("off", func(t *testing.T) {
+		span := &pb.Span{
+			Resource: "SELECT * FROM users WHERE id = 42",
+			Type:     "sql",
+		}
+		NewObfuscator(nil).Obfuscate(span)
+		assert.Empty(t, span.Meta["sql.tables"])
+	})
+}
+
+func TestSQLTableNormalize(t *testing.T) {
+	t.Run("on", func(t *testing.T) {
+		os.Setenv("DD_APM_FEATURES", "normalize_sql_tables")
+		defer os.Unsetenv("DD_APM_FEATURES")
+
+		for _, tt := range []struct {
+			query      string
+			obfuscated string
+		}{
+			{
+				"REPLACE INTO sales_2019_07_01 (`itemID`, `date`, `qty`, `price`) VALUES ((SELECT itemID FROM item1001 WHERE `sku` = [sku]), CURDATE(), [qty], 0.00)",
+				"REPLACE INTO sales_?_?_? ( itemID, date, qty, price ) VALUES ( ( SELECT itemID FROM item? WHERE sku = [ sku ] ), CURDATE (), [ qty ], ? )",
+			},
+			{
+				"SELECT * FROM 春送x猪福1001福2",
+				"SELECT * FROM 春送x猪福?福?",
+			},
+		} {
+			t.Run("", func(t *testing.T) {
+				assert := assert.New(t)
+				oq, err := NewObfuscator(nil).ObfuscateSQLString(tt.query)
+				assert.NoError(err)
+				assert.Empty(oq.TablesCSV)
+			})
+		}
+	})
+
+	t.Run("off", func(t *testing.T) {
+		for _, tt := range []struct {
+			query      string
+			obfuscated string
+		}{
+			{
+				"REPLACE INTO sales_2019_07_01 (`itemID`, `date`, `qty`, `price`) VALUES ((SELECT itemID FROM item1001 WHERE `sku` = [sku]), CURDATE(), [qty], 0.00)",
+				"REPLACE INTO sales_2019_07_01 ( itemID, date, qty, price ) VALUES ( ( SELECT itemID FROM item? WHERE sku = [ sku ] ), CURDATE (), [ qty ], ? )",
+			},
+			{
+				"SELECT * FROM 春送x猪福1001福2",
+				"SELECT * FROM 春送x猪福1001福2",
+			},
+		} {
+			t.Run("", func(t *testing.T) {
+				assert := assert.New(t)
+				oq, err := NewObfuscator(nil).ObfuscateSQLString(tt.query)
+				assert.NoError(err)
+				assert.Empty(oq.TablesCSV)
+			})
+		}
+	})
+}
+
+func TestSQLTableFinderAndNormalizeTables(t *testing.T) {
 	t.Run("on", func(t *testing.T) {
 		os.Setenv("DD_APM_FEATURES", "table_names,normalize_sql_tables")
 		defer os.Unsetenv("DD_APM_FEATURES")
@@ -272,19 +323,6 @@ func TestSQLTableFinder(t *testing.T) {
 		oq, err := NewObfuscator(nil).ObfuscateSQLString("DELETE FROM table WHERE table.a=1")
 		assert.NoError(t, err)
 		assert.Empty(t, oq.TablesCSV)
-	})
-}
-
-func BenchmarkTableNormalizer(b *testing.B) {
-	rf := &replaceFilter{}
-	os.Setenv("DD_APM_FEATURES", "normalize_sql_tables")
-	defer os.Unsetenv("DD_APM_FEATURES")
-
-	b.Run("", func(b *testing.B) {
-		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
-			rf.replaceDigits([]byte("sales_2019_07_01_orders"))
-		}
 	})
 }
 
