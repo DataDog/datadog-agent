@@ -184,6 +184,7 @@ def test_cluster_agent_base_topology(host, ansible_var):
             type_name="configmap",
             external_id_assert_fn=lambda v: configmap_match.findall(v)
         )
+
         # 1 node agent config map sts-agent-config
         agent_configmap_match = re.compile("urn:kubernetes:/{}:{}:configmap/sts-agent-config"
                                            .format(cluster_name, namespace))
@@ -208,6 +209,14 @@ def test_cluster_agent_base_topology(host, ansible_var):
             type_name="configmap",
             external_id_assert_fn=lambda v: agent_configmap_match.findall(v)
         )
+        # 1 volume cgroups
+        volume_match = re.compile("urn:kubernetes:/{}:{}:volume/cgroups".format(cluster_name, namespace))
+        assert _find_component(
+            json_data=json_data,
+            type_name="volume",
+            external_id_assert_fn=lambda v: volume_match.findall(v)
+        )
+
         # 1 replicaset cluster-agent
         replicaset_match = re.compile("urn:kubernetes:/{}:{}:replicaset/"
                                       "stackstate-cluster-agent-.*".format(cluster_name, namespace))
@@ -403,10 +412,10 @@ def test_cluster_agent_base_topology(host, ansible_var):
             type_name="claims",
             external_id_assert_fn=lambda eid:  pod_claims_volume_match.findall(eid)
         ).startswith("urn:kubernetes:/%s:%s:pod/mehdb" % (cluster_name, namespace))
-        #  pod claims persistent-volume
+        #  pod claims HostPath volume
         pod_claims_persistent_volume_match = re.compile("urn:kubernetes:/%s:%s:pod/stackstate-agent-.*->"
-                                                        "urn:kubernetes:/%s:persistent-volume/cgroups" %
-                                                        (cluster_name, namespace, cluster_name))
+                                                        "urn:kubernetes:/%s:%s:volume/cgroups" %
+                                                        (cluster_name, namespace, cluster_name, namespace))
         assert _relation_data(
             json_data=json_data,
             type_name="claims",
