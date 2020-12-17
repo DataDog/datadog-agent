@@ -1,4 +1,7 @@
 ---
+# integration_test stage
+# Contains jobs to run integration tests in go binaries (currently only dogstatsd)
+
 dogstatsd_x64_size_test:
   stage: integration_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES

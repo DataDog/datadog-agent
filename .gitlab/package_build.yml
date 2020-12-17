@@ -1,3 +1,6 @@
+# package_build stage
+# Contains jobs which build the Agent packages with omnibus.
+
 ---
 include:
   - /.gitlab/package_build/apk.yml

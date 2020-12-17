@@ -1,4 +1,7 @@
 ---
+# pkg_metrics stage
+# Contains jobs which send metrics (package size) about the Linus Agent packages to our backend.
+
 .if_not_version_6: &if_not_version_6
   if: $RELEASE_VERSION_6 == ""
 

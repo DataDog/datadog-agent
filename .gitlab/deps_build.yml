@@ -1,4 +1,7 @@
 ---
+# deps_build stage
+# Contains jobs which build various libraries needed for system-probe.
+
 .build_libbcc_common:
   stage: deps_build
   script:

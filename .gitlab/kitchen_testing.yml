@@ -1,4 +1,7 @@
 ---
+# kitchen_testing stage
+# Contains jobs which run kitchen tests on the Agent packages.
+
 include:
   - /.gitlab/kitchen_testing/centos.yml
   - /.gitlab/kitchen_testing/debian.yml

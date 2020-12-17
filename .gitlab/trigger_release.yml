@@ -1,4 +1,7 @@
 ---
+# trigger_release stage
+# Contains jobs which trigger release pipelines in the datadog/agent-release-management repository.
+
 .if_deploy_on_tag_6: &if_deploy_on_tag_6
   # no  RELEASE_VERSION means a nightly build for omnibus
   if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_6 != "nightly" && $RELEASE_VERSION_6 != ""

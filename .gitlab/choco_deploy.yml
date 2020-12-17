@@ -1,4 +1,7 @@
 ---
+# choco_build stage
+# Contains a job which deploys the chocolatey Agent package.
+
 .if_deploy_on_tag_7: &if_deploy_on_tag_7
   # no RELEASE_VERSION means a nightly build for omnibus
   if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_7 != "nightly-a7" && $RELEASE_VERSION_7 != ""

@@ -1,4 +1,8 @@
 ---
+# deploy_invalidate stage
+# Contains jobs which automatically invalidate Cloudfront distributions when packages are deployed
+# to the staging repsositories.
+
 .if_deploy: &if_deploy
   if: $DEPLOY_AGENT == "true"
 

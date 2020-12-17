@@ -1,4 +1,7 @@
 ---
+# e2e stage
+# Contains jobs which runs e2e tests on our Docker images.
+
 .if_master_branch: &if_master_branch
   if: $CI_COMMIT_BRANCH == "master"
 

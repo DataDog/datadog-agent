@@ -1,4 +1,7 @@
 ---
+# internal_deploy stage
+# Contains jobs to deploy some Agent binaries and libraries to an S3 bucket.
+
 deploy_staging_process_and_sysprobe:
   rules:
     - when: manual

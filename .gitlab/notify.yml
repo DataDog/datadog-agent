@@ -1,4 +1,7 @@
 ---
+# notify stage
+# Contains jobs which send slack notifications depending on pipeline status.
+
 include:
   - https://gitlab-templates.ddbuild.io/slack-notifier/v1/template.yml
 

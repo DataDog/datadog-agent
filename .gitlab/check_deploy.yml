@@ -1,4 +1,9 @@
 ---
+# check_deploy stage
+# Contains jobs which which check if the version of the Agent built in the pipeline
+# alteady exists (in the apt staging repo), or if the release branch is "none".
+# In both cases, these jobs fail in order to prevent the pipeline from deploying artifacts.
+
 .if_not_version_6: &if_not_version_6
   if: $RELEASE_VERSION_6 == ""
 

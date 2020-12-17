@@ -1,4 +1,7 @@
 ---
+# choco_build stage
+# Contains jobs which build the chocolatey Agent package.
+
 .if_version_7: &if_version_7
   if: $RELEASE_VERSION_7 != ""
 
