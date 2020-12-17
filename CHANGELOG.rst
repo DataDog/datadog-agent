@@ -9,6 +9,12 @@ Release Notes
 
 .. _Release Notes_7.24.1_Bug Fixes:
 
+Prelude
+-------
+
+Release on: 2020-12-17
+
+
 Bug Fixes
 ---------
 
