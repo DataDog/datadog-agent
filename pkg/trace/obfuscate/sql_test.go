@@ -173,9 +173,9 @@ func TestSQLTableNames(t *testing.T) {
 	})
 }
 
-func TestSQLTableNormalize(t *testing.T) {
+func TestSQLQuantizeTableNames(t *testing.T) {
 	t.Run("on", func(t *testing.T) {
-		os.Setenv("DD_APM_FEATURES", "normalize_sql_tables")
+		os.Setenv("DD_APM_FEATURES", "quantize_sql_tables")
 		defer os.Unsetenv("DD_APM_FEATURES")
 
 		for _, tt := range []struct {
@@ -184,11 +184,7 @@ func TestSQLTableNormalize(t *testing.T) {
 		}{
 			{
 				"REPLACE INTO sales_2019_07_01 (`itemID`, `date`, `qty`, `price`) VALUES ((SELECT itemID FROM item1001 WHERE `sku` = [sku]), CURDATE(), [qty], 0.00)",
-				"REPLACE INTO sales_?_?_? ( itemID, date, qty, price ) VALUES ( ( SELECT itemID FROM item? WHERE sku = [ sku ] ), CURDATE (), [ qty ], ? )",
-			},
-			{
-				"SELECT * FROM 春送x猪福1001福2",
-				"SELECT * FROM 春送x猪福?福?",
+				"REPLACE INTO sales_?_?_? ( itemID, date, qty, price ) VALUES ( ( SELECT itemID FROM item? WHERE sku = [ sku ] ), CURDATE ( ), [ qty ], ? )",
 			},
 		} {
 			t.Run("", func(t *testing.T) {
@@ -196,6 +192,7 @@ func TestSQLTableNormalize(t *testing.T) {
 				oq, err := NewObfuscator(nil).ObfuscateSQLString(tt.query)
 				assert.NoError(err)
 				assert.Empty(oq.TablesCSV)
+				assert.Equal(tt.obfuscated, oq.Query)
 			})
 		}
 	})
@@ -207,11 +204,7 @@ func TestSQLTableNormalize(t *testing.T) {
 		}{
 			{
 				"REPLACE INTO sales_2019_07_01 (`itemID`, `date`, `qty`, `price`) VALUES ((SELECT itemID FROM item1001 WHERE `sku` = [sku]), CURDATE(), [qty], 0.00)",
-				"REPLACE INTO sales_2019_07_01 ( itemID, date, qty, price ) VALUES ( ( SELECT itemID FROM item? WHERE sku = [ sku ] ), CURDATE (), [ qty ], ? )",
-			},
-			{
-				"SELECT * FROM 春送x猪福1001福2",
-				"SELECT * FROM 春送x猪福1001福2",
+				"REPLACE INTO sales_2019_07_01 ( itemID, date, qty, price ) VALUES ( ( SELECT itemID FROM item1001 WHERE sku = [ sku ] ), CURDATE ( ), [ qty ], ? )",
 			},
 		} {
 			t.Run("", func(t *testing.T) {
@@ -219,14 +212,15 @@ func TestSQLTableNormalize(t *testing.T) {
 				oq, err := NewObfuscator(nil).ObfuscateSQLString(tt.query)
 				assert.NoError(err)
 				assert.Empty(oq.TablesCSV)
+				assert.Equal(tt.obfuscated, oq.Query)
 			})
 		}
 	})
 }
 
-func TestSQLTableFinderAndNormalizeTables(t *testing.T) {
+func TestSQLTableFinderAndQuantizeTableNames(t *testing.T) {
 	t.Run("on", func(t *testing.T) {
-		os.Setenv("DD_APM_FEATURES", "table_names,normalize_sql_tables")
+		os.Setenv("DD_APM_FEATURES", "table_names,quantize_sql_tables")
 		defer os.Unsetenv("DD_APM_FEATURES")
 
 		for _, tt := range []struct {
@@ -257,7 +251,7 @@ func TestSQLTableFinderAndNormalizeTables(t *testing.T) {
 			{
 				"SELECT * FROM (SELECT * FROM nested_table)",
 				"nested_table",
-				"SELECT * FROM (SELECT * FROM nested_table)",
+				"SELECT * FROM ( SELECT * FROM nested_table )",
 			},
 			{
 				"-- get user \n--\n select * \n   from users \n    where\n       id = 214325346",
@@ -267,27 +261,27 @@ func TestSQLTableFinderAndNormalizeTables(t *testing.T) {
 			{
 				"SELECT articles.* FROM articles WHERE articles.id = 1 LIMIT 1, 20",
 				"articles",
-				"SELECT articles.* FROM articles WHERE articles.id = ? LIMIT ?, ?",
+				"SELECT articles.* FROM articles WHERE articles.id = ? LIMIT ?",
 			},
 			{
 				"UPDATE user_dash_pref SET json_prefs = %(json_prefs)s, modified = '2015-08-27 22:10:32.492912' WHERE user_id = %(user_id)s AND url = %(url)s",
 				"user_dash_pref",
-				"UPDATE user_dash_pref SET json_prefs = ?, modified = ? WHERE user_id = ? AND url = ?",
+				"UPDATE user_dash_pref SET json_prefs = ? modified = ? WHERE user_id = ? AND url = ?",
 			},
 			{
 				"SELECT DISTINCT host.id AS host_id FROM host JOIN host_alias ON host_alias.host_id = host.id WHERE host.org_id = %(org_id_1)s AND host.name NOT IN (%(name_1)s) AND host.name IN (%(name_2)s, %(name_3)s, %(name_4)s, %(name_5)s)",
 				"host,host_alias",
-				"SELECT DISTINCT host.id AS host_id FROM host JOIN host_alias ON host_alias.host_id = host.id WHERE host.org_id = ? AND host.name NOT IN ( ? ) AND host.name IN ( ? )",
+				"SELECT DISTINCT host.id FROM host JOIN host_alias ON host_alias.host_id = host.id WHERE host.org_id = ? AND host.name NOT IN ( ? ) AND host.name IN ( ? )",
 			},
 			{
 				`update Orders set created = "2019-05-24 00:26:17", gross = 30.28, payment_type = "eventbrite", mg_fee = "3.28", fee_collected = "3.28", event = 59366262, status = "10", survey_type = 'direct', tx_time_limit = 480, invite = "", ip_address = "69.215.148.82", currency = 'USD', gross_USD = "30.28", tax_USD = 0.00, journal_activity_id = 4044659812798558774, eb_tax = 0.00, eb_tax_USD = 0.00, cart_uuid = "160b450e7df511e9810e0a0c06de92f8", changed = '2019-05-24 00:26:17' where id = ?`,
 				"Orders",
-				`update Orders set created = ?, gross = ?, payment_type = ?, mg_fee = ?, fee_collected = ?, event = ?, status = ?, survey_type = ?, tx_time_limit = ?, invite = ?, ip_address = ?, currency = ?, gross_USD = ?, tax_USD = ?, journal_activity_id = ?, eb_tax = ?, eb_tax_USD = ?, cart_uuid = ?, changed = ? where id = ?`,
+				`update Orders set created = ? gross = ? payment_type = ? mg_fee = ? fee_collected = ? event = ? status = ? survey_type = ? tx_time_limit = ? invite = ? ip_address = ? currency = ? gross_USD = ? tax_USD = ? journal_activity_id = ? eb_tax = ? eb_tax_USD = ? cart_uuid = ? changed = ? where id = ?`,
 			},
 			{
 				"SELECT * FROM clients WHERE (clients.first_name = 'Andy') LIMIT 1 BEGIN INSERT INTO owners (created_at, first_name, locked, orders_count, updated_at) VALUES ('2011-08-30 05:22:57', 'Andy', 1, NULL, '2011-08-30 05:22:57') COMMIT",
 				"clients,owners",
-				"SELECT * FROM clients WHERE (clients.first_name = ?) LIMIT ? BEGIN INSERT INTO owners (created_at, first_name, locked, orders_count, updated_at) VALUES ( ? ) COMMIT",
+				"SELECT * FROM clients WHERE ( clients.first_name = ? ) LIMIT ? BEGIN INSERT INTO owners ( created_at, first_name, locked, orders_count, updated_at ) VALUES ( ? ) COMMIT",
 			},
 			{
 				"DELETE FROM table WHERE table.a=1",
@@ -302,12 +296,7 @@ func TestSQLTableFinderAndNormalizeTables(t *testing.T) {
 			{
 				"REPLACE INTO sales_2019_07_01 (`itemID`, `date`, `qty`, `price`) VALUES ((SELECT itemID FROM item1001 WHERE `sku` = [sku]), CURDATE(), [qty], 0.00)",
 				"sales_2019_07_01,item1001",
-				"REPLACE INTO sales_?_?_? ( itemID, date, qty, price ) VALUES ( ( SELECT itemID FROM item? WHERE sku = [ sku ] ), CURDATE (), [ qty ], ? )",
-			},
-			{
-				"SELECT * FROM 春送x猪福1001福2",
-				"春送x猪福1001福2",
-				"SELECT * FROM 春送x猪福?福2?",
+				"REPLACE INTO sales_?_?_? ( itemID, date, qty, price ) VALUES ( ( SELECT itemID FROM item? WHERE sku = [ sku ] ), CURDATE ( ), [ qty ], ? )",
 			},
 		} {
 			t.Run("", func(t *testing.T) {
@@ -315,6 +304,7 @@ func TestSQLTableFinderAndNormalizeTables(t *testing.T) {
 				oq, err := NewObfuscator(nil).ObfuscateSQLString(tt.query)
 				assert.NoError(err)
 				assert.Equal(tt.tables, oq.TablesCSV)
+				assert.Equal(tt.obfuscated, oq.Query)
 			})
 		}
 	})

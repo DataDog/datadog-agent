@@ -88,7 +88,7 @@ func (f *discardFilter) Reset() {}
 // replaceFilter is a token filter which obfuscates strings and numbers in queries by replacing them
 // with the "?" character.
 type replaceFilter struct {
-	normalizeTables bool
+	quantizeTableNames bool
 }
 
 // Filter the given token so that it will be replaced if in the token replacement list
@@ -109,8 +109,8 @@ func (f *replaceFilter) Filter(token, lastToken TokenKind, buffer []byte) (token
 	case '?':
 		// Cases like 'ARRAY [ ?, ? ]' should be collapsed into 'ARRAY [ ? ]'
 		return FilteredGroupable, []byte("?"), nil
-	case Table:
-		if f.normalizeTables {
+	case TableName:
+		if f.quantizeTableNames {
 			return token, replaceDigits(buffer), nil
 		}
 		fallthrough
@@ -233,7 +233,7 @@ func (f *tableFinderFilter) Filter(token, lastToken TokenKind, buffer []byte) (T
 		if f.storeTableNames {
 			f.storeName(string(buffer))
 		}
-		return Table, buffer, nil
+		return TableName, buffer, nil
 	}
 	return token, buffer, nil
 }
@@ -281,15 +281,15 @@ func (oq *ObfuscatedQuery) Cost() int64 {
 func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 
 	var (
-		storeTableNames = config.HasFeature("table_names")
-		normalizeTables = config.HasFeature("normalize_sql_tables")
-		out             = bytes.NewBuffer(make([]byte, 0, len(tokenizer.buf)))
-		err             error
-		lastToken       TokenKind
-		discard         discardFilter
-		replace         = replaceFilter{normalizeTables: normalizeTables}
-		grouping        groupingFilter
-		tableFinder     = tableFinderFilter{storeTableNames: storeTableNames}
+		storeTableNames    = config.HasFeature("table_names")
+		quantizeTableNames = config.HasFeature("quantize_sql_tables")
+		out                = bytes.NewBuffer(make([]byte, 0, len(tokenizer.buf)))
+		err                error
+		lastToken          TokenKind
+		discard            discardFilter
+		replace            = replaceFilter{quantizeTableNames: quantizeTableNames}
+		grouping           groupingFilter
+		tableFinder        = tableFinderFilter{storeTableNames: storeTableNames}
 	)
 	// call Scan() function until tokens are available or if a LEX_ERROR is raised. After
 	// retrieving a token, send it to the tokenFilter chains so that the token is discarded
@@ -306,16 +306,16 @@ func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 		if token, buff, err = discard.Filter(token, lastToken, buff); err != nil {
 			return nil, err
 		}
+		if storeTableNames || quantizeTableNames {
+			if token, buff, err = tableFinder.Filter(token, lastToken, buff); err != nil {
+				return nil, err
+			}
+		}
 		if token, buff, err = replace.Filter(token, lastToken, buff); err != nil {
 			return nil, err
 		}
 		if token, buff, err = grouping.Filter(token, lastToken, buff); err != nil {
 			return nil, err
-		}
-		if storeTableNames || normalizeTables {
-			if token, buff, err = tableFinder.Filter(token, lastToken, buff); err != nil {
-				return nil, err
-			}
 		}
 		if buff != nil {
 			if out.Len() != 0 {
