@@ -88,6 +88,38 @@ func TestCompactWhitespaces(t *testing.T) {
 	}
 }
 
+func TestReplaceDigits(t *testing.T) {
+	assert := assert.New(t)
+
+	for _, tt := range []struct {
+		in       []byte
+		expected []byte
+	}{
+		{
+			[]byte("table123"),
+			[]byte("table?"),
+		},
+		{
+			[]byte(""),
+			[]byte(""),
+		},
+		{
+			[]byte("2020-table"),
+			[]byte("?-table"),
+		},
+		{
+			[]byte("sales_2019_07_01"),
+			[]byte("sales_?_?_?"),
+		},
+		{
+			[]byte("45"),
+			[]byte("?"),
+		},
+	} {
+		assert.Equal(tt.expected, replaceDigits(tt.in))
+	}
+}
+
 func TestObfuscateStatsGroup(t *testing.T) {
 	statsGroup := func(typ, resource string) *pb.ClientGroupedStats {
 		return &pb.ClientGroupedStats{
