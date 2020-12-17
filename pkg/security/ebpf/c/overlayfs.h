@@ -29,8 +29,9 @@ static __attribute__((always_inline)) int is_overlayfs(struct dentry *dentry) {
     u64 magic;
     bpf_probe_read(&magic, sizeof(magic), (char *)sb + get_sb_magic_offset());
 
-    return 1;
-    //return magic == OVERLAYFS_SUPER_MAGIC;
+    bpf_printk("is_overlayfs: %d %d %d\n", sizeof(struct inode), offsetof(struct super_block, s_magic), magic);
+
+    return magic == OVERLAYFS_SUPER_MAGIC;
 }
 
 int __attribute__((always_inline)) get_ovl_lower_ino(struct dentry *dentry) {
@@ -64,6 +65,8 @@ static __attribute__((always_inline)) void set_path_key_inode(struct dentry *den
     if (is_overlayfs(dentry)) {
         u64 lower_inode = get_ovl_lower_ino(dentry);
         u64 upper_inode = get_ovl_upper_ino(dentry);
+
+        bpf_printk("set_path_key_inode inode: %d %d %d\n", path_key->ino, lower_inode, upper_inode);
 
         if (lower_inode) {
             path_key->ino = lower_inode;
