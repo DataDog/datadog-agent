@@ -480,41 +480,38 @@ func (p *Probe) parseStatm(pidPath string) *MemoryInfoExStat {
 	if err != nil {
 		return memInfoEx
 	}
-	fields := strings.Split(string(contents), " ")
 
+	fields := strings.Fields(string(contents))
+
+	// the values for the fields are per-page, to get real numbers we multiply by PageSize
 	vms, err := strconv.ParseUint(fields[0], 10, 64)
-	if err != nil {
-		return memInfoEx
+	if err == nil {
+		memInfoEx.VMS = vms * PageSize
 	}
 	rss, err := strconv.ParseUint(fields[1], 10, 64)
-	if err != nil {
-		return memInfoEx
+	if err == nil {
+		memInfoEx.RSS = rss * PageSize
 	}
-
 	shared, err := strconv.ParseUint(fields[2], 10, 64)
-	if err != nil {
-		return memInfoEx
+	if err == nil {
+		memInfoEx.Shared = shared * PageSize
 	}
 	text, err := strconv.ParseUint(fields[3], 10, 64)
-	if err != nil {
-		return memInfoEx
+	if err == nil {
+		memInfoEx.Text = text * PageSize
 	}
 	lib, err := strconv.ParseUint(fields[4], 10, 64)
-	if err != nil {
-		return memInfoEx
+	if err == nil {
+		memInfoEx.Lib = lib * PageSize
 	}
-	dirty, err := strconv.ParseUint(fields[5], 10, 64)
-	if err != nil {
-		return memInfoEx
+	data, err := strconv.ParseUint(fields[5], 10, 64)
+	if err == nil {
+		memInfoEx.Data = data * PageSize
 	}
-
-	// the numbers here are per-page, to get real numbers we multiply by PageSize
-	memInfoEx.RSS = rss * PageSize
-	memInfoEx.VMS = vms * PageSize
-	memInfoEx.Shared = shared * PageSize
-	memInfoEx.Text = text * PageSize
-	memInfoEx.Lib = lib * PageSize
-	memInfoEx.Dirty = dirty * PageSize
+	dirty, err := strconv.ParseUint(fields[6], 10, 64)
+	if err == nil {
+		memInfoEx.Dirty = dirty * PageSize
+	}
 
 	return memInfoEx
 }
