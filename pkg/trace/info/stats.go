@@ -474,3 +474,29 @@ func (t *Tags) toArray() []string {
 
 	return tags
 }
+
+// KV returns all the non-empty tags as key-value pairs.
+func (t *Tags) KV() map[string]string {
+	tags := make(map[string]string)
+	if t.Lang != "" {
+		// TODO(x): these map keys could be factored out as constants, for
+		// consistency and safety.
+		tags["lang"] = t.Lang
+	}
+	if t.LangVersion != "" {
+		tags["lang_version"] = t.LangVersion
+	}
+	if t.LangVendor != "" {
+		tags["lang_vendor"] = t.LangVendor
+	}
+	if t.Interpreter != "" {
+		tags["interpreter"] = t.Interpreter
+	}
+	if t.TracerVersion != "" {
+		tags["tracer_version"] = t.TracerVersion
+	}
+	if t.EndpointVersion != "" {
+		tags["endpoint_version"] = t.EndpointVersion
+	}
+	return tags
+}

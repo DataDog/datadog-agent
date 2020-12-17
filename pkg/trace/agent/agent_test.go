@@ -404,6 +404,35 @@ func TestProcess(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("root-tags", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewAgent(ctx, cfg)
+		cancel()
+
+		root := &pb.Span{
+			TraceID:  1,
+			SpanID:   1,
+			ParentID: 0,
+		}
+		traces := pb.Traces{pb.Trace{root}}
+		agnt.Process(&api.Payload{
+			Traces: traces,
+			Source: agnt.Receiver.Stats.GetTagStats(info.Tags{
+				Lang:        "go",
+				LangVersion: "1.14",
+				LangVendor:  "gov",
+				Interpreter: "goi",
+			}),
+		}, stats.NewSublayerCalculator())
+
+		assert.Equal(t, root.Meta["lang"], "go")
+		assert.Equal(t, root.Meta["lang_version"], "1.14")
+		assert.Equal(t, root.Meta["lang_vendor"], "gov")
+		assert.Equal(t, root.Meta["interpreter"], "goi")
+	})
 }
 
 func TestClientComputedTopLevel(t *testing.T) {

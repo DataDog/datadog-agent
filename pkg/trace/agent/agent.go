@@ -176,6 +176,9 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 
 		// Root span is used to carry some trace-level metadata, such as sampling rate and priority.
 		root := traceutil.GetRoot(t)
+		for k, v := range p.Source.Tags.KV() {
+			traceutil.SetMeta(root, k, v)
+		}
 
 		if !a.Blacklister.Allows(root) {
 			log.Debugf("Trace rejected by blacklister. root: %v", root)

@@ -69,19 +69,39 @@ func TestSpansMalformed(t *testing.T) {
 }
 
 func TestStatsTags(t *testing.T) {
-	assert.Equal(t, (&Tags{
-		Lang:            "go",
-		LangVersion:     "1.14",
-		LangVendor:      "gov",
-		Interpreter:     "goi",
-		TracerVersion:   "1.21.0",
-		EndpointVersion: "v0.4",
-	}).toArray(), []string{
-		"lang:go",
-		"lang_version:1.14",
-		"lang_vendor:gov",
-		"interpreter:goi",
-		"tracer_version:1.21.0",
-		"endpoint_version:v0.4",
+	t.Run("toArray", func(t *testing.T) {
+		assert.Equal(t, (&Tags{
+			Lang:            "go",
+			LangVersion:     "1.14",
+			LangVendor:      "gov",
+			Interpreter:     "goi",
+			TracerVersion:   "1.21.0",
+			EndpointVersion: "v0.4",
+		}).toArray(), []string{
+			"lang:go",
+			"lang_version:1.14",
+			"lang_vendor:gov",
+			"interpreter:goi",
+			"tracer_version:1.21.0",
+			"endpoint_version:v0.4",
+		})
+	})
+
+	t.Run("KV", func(t *testing.T) {
+		assert.Equal(t, (&Tags{
+			Lang:            "go",
+			LangVersion:     "1.14",
+			LangVendor:      "gov",
+			Interpreter:     "goi",
+			TracerVersion:   "1.21.0",
+			EndpointVersion: "v0.4",
+		}).KV(), map[string]string{
+			"lang":             "go",
+			"lang_version":     "1.14",
+			"lang_vendor":      "gov",
+			"interpreter":      "goi",
+			"tracer_version":   "1.21.0",
+			"endpoint_version": "v0.4",
+		})
 	})
 }
