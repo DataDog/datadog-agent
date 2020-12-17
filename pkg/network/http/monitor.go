@@ -5,7 +5,6 @@ package http
 import (
 	"fmt"
 	"time"
-	"unsafe"
 
 	"C"
 
@@ -13,7 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
 )
 
@@ -23,7 +21,7 @@ import (
 // * Querying these batches by doing a map lookup;
 // * Aggregating and emitting metrics based on the received HTTP transactions;
 type Monitor struct {
-	batchMap      *ebpf.Map
+	batchManager  *batchManager
 	perfMap       *manager.PerfMap
 	perfHandler   *ddebpf.PerfHandler
 	closeFilterFn func()
@@ -53,16 +51,6 @@ func NewMonitor(procRoot string, m *manager.Manager, h *ddebpf.PerfHandler) (*Mo
 
 	notificationMap, _, _ := m.GetMap(string(probes.HttpNotificationsMap))
 	numCPUs := int(notificationMap.ABI().MaxEntries)
-	batch := new(httpBatch)
-	batchState := new(httpBatchState)
-
-	for i := 0; i < numCPUs; i++ {
-		batchStateMap.Put(unsafe.Pointer(&i), unsafe.Pointer(batchState))
-		for j := 0; j < HTTPBatchPages; j++ {
-			key := &httpBatchKey{cpu: C.uint(i), page_num: C.uint(j)}
-			batchMap.Put(unsafe.Pointer(key), unsafe.Pointer(batch))
-		}
-	}
 
 	pm, found := m.GetPerfMap(string(probes.HttpNotificationsMap))
 	if !found {
@@ -70,7 +58,7 @@ func NewMonitor(procRoot string, m *manager.Manager, h *ddebpf.PerfHandler) (*Mo
 	}
 
 	return &Monitor{
-		batchMap:      batchMap,
+		batchManager:  newBatchManager(batchMap, batchStateMap, numCPUs),
 		perfMap:       pm,
 		perfHandler:   h,
 		closeFilterFn: closeFilterFn,
@@ -95,7 +83,6 @@ func (http *Monitor) Start() error {
 			then   = time.Now()
 			hits   = make(map[int]int)
 			report = time.NewTicker(30 * time.Second)
-			key    = new(httpBatchKey)
 		)
 		defer report.Stop()
 
@@ -108,32 +95,18 @@ func (http *Monitor) Start() error {
 
 				// The notification we read off the perf ring tells us which HTTP batch of transactions is ready to be read
 				notification := toHTTPNotification(data)
-				key.Prepare(notification)
-				batch := new(httpBatch)
-				err := http.batchMap.Lookup(unsafe.Pointer(key), unsafe.Pointer(batch))
-				if err != nil {
-					log.Errorf("error retrieving http batch for cpu=%d", notification.cpu)
-					continue
-				}
-
-				if batch.IsDirty(notification) {
-					misses++
-					continue
-				}
-
-				txs := batch.GetTransactions(notification)
-				// This is where we would add code handling the HTTP data (eg., generating latency percentiles etc.)
-				// Right now I'm just aggregating the hits per status code just as a placeholder to make sure everything
-				// is working as expected
-				for _, tx := range txs {
-					hits[tx.StatusClass()]++
-				}
+				txs := http.batchManager.GetTransactionsFrom(notification)
+				aggregate(txs, hits)
 			case _, ok := <-http.perfHandler.LostChannel:
 				if !ok {
 					return
 				}
-				misses++
+
+				http.batchManager.misses++
 			case now := <-report.C:
+				txs := http.batchManager.GetPendingTransactions()
+				aggregate(txs, hits)
+
 				delta := float64(now.Sub(then).Seconds())
 				log.Infof("http report: 100(%d reqs, %.2f/s) 200(%d reqs, %.2f/s) 300(%d reqs, %.2f/s), 400(%d reqs, %.2f/s) 500(%d reqs, %.2f/s), misses(%d reqs, %.2f/s)",
 					hits[100], float64(hits[100])/delta,
@@ -142,11 +115,11 @@ func (http *Monitor) Start() error {
 					hits[400], float64(hits[400])/delta,
 					hits[500], float64(hits[500])/delta,
 					misses*HTTPBatchSize,
-					float64(misses*HTTPBatchSize)/delta,
+					float64(http.batchManager.misses*HTTPBatchSize)/delta,
 				)
 				hits = make(map[int]int)
 				then = now
-				misses = 0
+				http.batchManager.misses = 0
 			}
 		}
 	}()
@@ -163,4 +136,11 @@ func (http *Monitor) Stop() {
 	http.closeFilterFn()
 	_ = http.perfMap.Stop(manager.CleanAll)
 	http.perfHandler.Stop()
+}
+
+// Placeholder code
+func aggregate(txs []httpTX, hits map[int]int) {
+	for _, tx := range txs {
+		hits[tx.StatusClass()]++
+	}
 }

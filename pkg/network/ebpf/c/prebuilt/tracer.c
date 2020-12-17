@@ -675,7 +675,7 @@ static __always_inline void http_notify_batch(struct pt_regs* ctx) {
     notification.batch_idx = batch_state->idx;
 
     bpf_perf_event_output(ctx, &http_notifications, cpu, &notification, sizeof(http_batch_notification_t));
-    log_debug("http batch notification flushed: cpu: %d idx: %d lost_events: %d\n", cpu, batch->idx, batch_state->pos-HTTP_BATCH_SIZE);
+    log_debug("http batch notification flushed: cpu: %d idx: %d lost_events: %d\n", cpu, batch->state.idx, batch_state->pos-HTTP_BATCH_SIZE);
     batch_state->idx++;
     batch_state->pos = 0;
 }
@@ -1381,7 +1381,7 @@ static __always_inline void http_end_response(http_transaction_t *http) {
 
     // This redundant information is useful for detecting dirty batch pages on userspace without
     // incurring on an extra map lookup
-    batch->idx = batch_state->idx;
+    batch->state.idx = batch_state->idx;
 
     // I haven't found a way to avoid this unrolled loop on Kernel 4.4 (newer versions work fine)
     // If you try to directly write the desired batch slot by doing
@@ -1397,14 +1397,7 @@ static __always_inline void http_end_response(http_transaction_t *http) {
     //
     // This is because the value range of the R0 register (holding the memory address of the batch) can't be
     // figured out by the verifier and thus the memory access can't be considered safe during verification time.
-    // I tried different "tricks" to hint the verifier of this range such as:
-    //
-    // * Ensuring 0 <= batch_slot < HTTP_BATCH_SIZE
-    // * Ensuring that &batch <= &batch->txs[batch_state->pos] <= &batch+1
-    // * Setting HTTP_BATCH_SIZEto a power of 2 and doing &batch->txs[batch_slot&(HTTP_BATCH_PAGES-1)]
-    //
-    // Among other things, but nothing really worked on Kernel 4.4
-    // It seems that indeed support for this type of access by the verifier was added later on:
+    // It seems that support for this type of access range by the verifier was added later on:
     // https://patchwork.ozlabs.org/project/netdev/patch/1475074472-23538-1-git-send-email-jbacik@fb.com/
     //
     // What is unfortunate about this is not only that enqueing a HTTP transaction is O(HTTP_BATCH_SIZE),
@@ -1417,6 +1410,8 @@ static __always_inline void http_end_response(http_transaction_t *http) {
     }
 
     batch_state->pos++;
+    // This redundant information is useful for the `http.batchManager` on userspace
+    batch->state.pos = batch_state->pos;
     log_debug("http response ended: code: %d duration: %d(ms)\n", http->response_status_code, (http->response_last_seen-http->request_started)/(1000*1000));
 }
 

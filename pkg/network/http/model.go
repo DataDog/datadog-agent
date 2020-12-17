@@ -65,11 +65,10 @@ func (tx *httpTX) StatusClass() int {
 // http_notification_t message was sent to userspace and the time we performed
 // the batch lookup the page was overridden.
 func (batch *httpBatch) IsDirty(notification httpNotification) bool {
-	return batch.idx != notification.batch_idx
+	return batch.state.idx != notification.batch_idx
 }
 
-// GetTransactions extracts the HTTP transactions from the batch according to the
-// httpNotification received from the Kernel.
-func (batch *httpBatch) GetTransactions(notif httpNotification) *[HTTPBatchSize]httpTX {
-	return (*[HTTPBatchSize]httpTX)(unsafe.Pointer(&batch.txs))
+// Transactions returns the slice of HTTP transactions embedded in the batch
+func (batch *httpBatch) Transactions() []httpTX {
+	return (*(*[HTTPBatchSize]httpTX)(unsafe.Pointer(&batch.txs)))[:]
 }
