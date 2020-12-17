@@ -90,14 +90,12 @@ func NewPrometheusServicesConfigProvider(configProviders config.ConfigurationPro
 		endpointsLister: endpointsLister,
 	}
 
-	// TODO: refactor PrometheusConfigProvider to be an init once helper
-	configProvider := &PrometheusConfigProvider{}
-	err = configProvider.setupConfigs()
+	checks, err := getPrometheusConfigs()
 	if err != nil {
 		return nil, err
 	}
 
-	p := newPromServicesProvider(configProvider.checks, api, collectEndpoints)
+	p := newPromServicesProvider(checks, api, collectEndpoints)
 
 	servicesInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    p.invalidate,
