@@ -211,7 +211,9 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.ProfilingEnvironment = config.Datadog.GetString(key(spNS, "profiling.env"))
 	}
 	a.EnableRuntimeCompiler = config.Datadog.GetBool(key(spNS, "enable_runtime_compiler"))
-	a.KernelHeadersDirs = config.Datadog.GetStringSlice(key(spNS, "kernel_header_dirs"))
+	if config.Datadog.IsSet(key(spNS, "kernel_header_dirs")) {
+		a.KernelHeadersDirs = config.Datadog.GetStringSlice(key(spNS, "kernel_header_dirs"))
+	}
 
 	if config.Datadog.IsSet(key(spNS, "runtime_compiler_output_dir")) {
 		a.RuntimeCompilerOutputDir = config.Datadog.GetString(key(spNS, "runtime_compiler_output_dir"))
