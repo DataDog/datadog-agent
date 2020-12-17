@@ -52,7 +52,6 @@
 /.gitlab/functional_test/system_probe.yml            @DataDog/networks @DataDog/agent-platform
 /.gitlab/functional_test_cleanup.yml                 @DataDog/agent-security @DataDog/networks @DataDog/agent-platform
 
-/.gitlab/image_build/chocolatey.yml                  @DataDog/agent-platform
 /.gitlab/image_build/                                @DataDog/container-integrations @DataDog/agent-platform
 
 /.gitlab/image_deploy/                               @DataDog/container-integrations @DataDog/agent-platform
