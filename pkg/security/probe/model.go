@@ -359,18 +359,34 @@ func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
 type RmdirEvent struct {
 	SyscallEvent
 	FileEvent
+	DiscarderRevision uint32 `field:"-"`
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *RmdirEvent) UnmarshalBinary(data []byte) (int, error) {
-	return unmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
+	n, err := unmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
+	if err != nil {
+		return n, err
+	}
+
+	data = data[n:]
+	if len(data) < 8 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.DiscarderRevision = ebpf.ByteOrder.Uint32(data[0:4])
+
+	// 4 padding
+
+	return n + 8, nil
 }
 
 // UnlinkEvent represents an unlink event
 type UnlinkEvent struct {
 	SyscallEvent
 	FileEvent
-	Flags uint32 `field:"flags"`
+	Flags             uint32 `field:"flags"`
+	DiscarderRevision uint32 `field:"-"`
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -381,12 +397,14 @@ func (e *UnlinkEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	data = data[n:]
-	if len(data) < 4 {
+	if len(data) < 8 {
 		return 0, ErrNotEnoughData
 	}
 
 	e.Flags = ebpf.ByteOrder.Uint32(data[0:4])
-	return n + 4, nil
+	e.DiscarderRevision = ebpf.ByteOrder.Uint32(data[4:8])
+
+	return n + 8, nil
 }
 
 // RenameEvent represents a rename event
@@ -795,8 +813,9 @@ func (e *ExecEvent) ResolveExitTimestamp(event *Event) time.Time {
 
 // InvalidateDentryEvent defines a invalidate dentry event
 type InvalidateDentryEvent struct {
-	Inode   uint64
-	MountID uint32
+	Inode             uint64
+	MountID           uint32
+	DiscarderRevision uint32
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -807,8 +826,7 @@ func (e *InvalidateDentryEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	e.Inode = ebpf.ByteOrder.Uint64(data[0:8])
 	e.MountID = ebpf.ByteOrder.Uint32(data[8:12])
-
-	// 4 of padding
+	e.DiscarderRevision = ebpf.ByteOrder.Uint32(data[12:16])
 
 	return 16, nil
 }

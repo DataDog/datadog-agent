@@ -9,6 +9,8 @@ struct rmdir_event_t {
     struct container_context_t container;
     struct syscall_t syscall;
     struct file_t file;
+    u32 discarder_revision;
+    u32 padding;
 };
 
 SYSCALL_KPROBE0(rmdir) {
@@ -107,7 +109,8 @@ SYSCALL_KRETPROBE(rmdir) {
                 .mount_id = syscall->rmdir.path_key.mount_id,
                 .overlay_numlower = syscall->rmdir.overlay_numlower,
                 .path_id = syscall->rmdir.path_key.path_id,
-            }
+            },
+            .discarder_revision = bump_discarder_revision(syscall->rmdir.path_key.mount_id),
         };
 
         struct proc_cache_t *entry = fill_process_context(&event.process);

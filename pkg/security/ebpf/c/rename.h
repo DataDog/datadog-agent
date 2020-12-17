@@ -50,7 +50,7 @@ int kprobe__vfs_rename(struct pt_regs *ctx) {
 
     syscall->rename.src_dentry = src_dentry;
 
-    // use src_dentry as target inode is currenlty empty and the target file will
+    // use src_dentry as target inode is currently empty and the target file will
     // have the src inode anyway
     set_path_key_inode(src_dentry, &syscall->rename.target_key, 1);
 
@@ -85,7 +85,7 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
         invalidate_inode(ctx, syscall->rename.target_key.mount_id, inode, 1);
     }
 
-    // invalidate user face inode
+    // invalidate user face inode, so no need to bump the discarder revision in the event
     invalidate_inode(ctx, syscall->rename.target_key.mount_id, syscall->rename.target_key.ino, 1);
 
     // If we are discarded, we still want to invalidate the inode

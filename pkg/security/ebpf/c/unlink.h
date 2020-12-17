@@ -11,7 +11,7 @@ struct unlink_event_t {
     struct syscall_t syscall;
     struct file_t file;
     u32 flags;
-    u32 padding;
+    u32 discarder_revision;
 };
 
 int __attribute__((always_inline)) trace__sys_unlink(int flags) {
@@ -88,6 +88,7 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
                 .path_id = syscall->unlink.path_key.path_id,
             },
             .flags = syscall->unlink.flags,
+            .discarder_revision = bump_discarder_revision(syscall->unlink.path_key.mount_id),
         };
 
         struct proc_cache_t *entry = fill_process_context(&event.process);

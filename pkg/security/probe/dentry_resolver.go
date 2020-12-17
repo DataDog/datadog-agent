@@ -13,13 +13,11 @@ import (
 	"unsafe"
 
 	lib "github.com/DataDog/ebpf"
-	"github.com/cobaugh/osrelease"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 )
-import "strings"
 
 const (
 	dentryPathKeyNotFound = "error: dentry path key not found"
@@ -81,52 +79,6 @@ func (p *PathKey) MarshalBinary() ([]byte, error) {
 type PathValue struct {
 	Parent PathKey
 	Name   [128]byte
-}
-
-func getSizeOfStructInode(probe *Probe) uint64 {
-	var centos7Kernel bool
-	var centos8Kernel bool
-	var suse12Kernel bool
-
-	osrelease, err := osrelease.Read()
-	if err == nil {
-		centos7Kernel = (osrelease["ID"] == "centos") && (osrelease["VERSION_ID"] == "7")
-		centos8Kernel = (osrelease["ID"] == "centos") && (osrelease["VERSION_ID"] == "8")
-		suse12Kernel = ((osrelease["ID"] == "sles") || (osrelease["ID"] == "opensuse-leap")) && strings.HasPrefix(osrelease["VERSION_ID"], "12")
-	}
-
-	var sizeOf uint64
-	if centos7Kernel {
-		sizeOf = 584
-	} else if centos8Kernel {
-		sizeOf = 648
-	} else if suse12Kernel {
-		sizeOf = 560
-	} else if probe.kernelVersion != 0 && probe.kernelVersion < kernel4_16 {
-		sizeOf = 608
-	} else {
-		sizeOf = 600
-	}
-
-	return sizeOf
-}
-
-func getSuperBlockMagicOffset(probe *Probe) uint64 {
-	var centos7Kernel bool
-
-	osrelease, err := osrelease.Read()
-	if err == nil {
-		centos7Kernel = (osrelease["ID"] == "centos") && (osrelease["VERSION_ID"] == "7")
-	}
-
-	var sizeOf uint64
-	if centos7Kernel {
-		sizeOf = 88
-	} else {
-		sizeOf = 96
-	}
-
-	return sizeOf
 }
 
 // DelCacheEntry removes an entry from the cache
