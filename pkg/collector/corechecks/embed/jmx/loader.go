@@ -10,6 +10,8 @@ package jmx
 import (
 	"errors"
 
+	yaml "gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
@@ -25,6 +27,11 @@ func NewJMXCheckLoader() (*JMXCheckLoader, error) {
 	return &JMXCheckLoader{}, nil
 }
 
+// Load returns JMX loader name
+func (jl *JMXCheckLoader) Name() string {
+	return "jmx"
+}
+
 // Load returns a JMX check
 func (jl *JMXCheckLoader) Load(config integration.Config, instance integration.Data) (check.Check, error) {
 	var c check.Check
@@ -38,8 +45,16 @@ func (jl *JMXCheckLoader) Load(config integration.Config, instance integration.D
 		return c, err
 	}
 
+	// Validate common instance structure
+	commonOptions := integration.CommonInstanceConfig{}
+	err := yaml.Unmarshal(instance, &commonOptions)
+	if err != nil {
+		log.Debugf("jmx.loader: invalid instance for check %s: %s", config.Name, err)
+	}
+
 	cf := integration.Config{
 		ADIdentifiers: config.ADIdentifiers,
+		Entity:        config.Entity,
 		InitConfig:    config.InitConfig,
 		Instances:     []integration.Data{instance},
 		LogsConfig:    config.LogsConfig,
@@ -49,7 +64,7 @@ func (jl *JMXCheckLoader) Load(config integration.Config, instance integration.D
 	}
 	c = newJMXCheck(cf, config.Source)
 
-	return c, nil
+	return c, err
 }
 
 func (jl *JMXCheckLoader) String() string {

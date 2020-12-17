@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/policy"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
 type testCase struct {
@@ -27,14 +27,12 @@ type testCase struct {
 func TestMitre(t *testing.T) {
 	reader := bytes.NewBufferString(config.DefaultPolicy)
 
-	policy, err := policy.LoadPolicy(reader)
+	policy, err := rules.LoadPolicy(reader, "default.policy")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	test, err := newTestModule(policy.Macros, policy.Rules, testOpts{
-		enableFilters: true,
-	})
+	test, err := newTestModule(policy.Macros, policy.Rules, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,6 +96,10 @@ func TestMitre(t *testing.T) {
 				}
 
 				os.Remove("/usr/local/bin/pleaseremoveme")
+
+				// wait a bit to ensure that the discarder will be placed before the file delete
+				// see the race explanation in the probe_bpf.go in the invalidate event.
+				time.Sleep(2 * time.Second)
 			},
 			expectedRule: "permissions_changed",
 		},
@@ -123,7 +125,7 @@ func TestMitre(t *testing.T) {
 			for {
 				select {
 				case event := <-test.events:
-					if _, ok := event.event.(*sprobe.Event); ok {
+					if _, ok := event.Event.(*sprobe.Event); ok {
 						if event.rule.ID == tc.expectedRule {
 							return
 						}

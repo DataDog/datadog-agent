@@ -733,7 +733,7 @@ public:
     }
 };
 
-int installServices(CustomActionData& data, const wchar_t *password) {
+int installServices(CustomActionData& data, PSID sid, const wchar_t *password) {
     SC_HANDLE hScManager = NULL;
     SC_HANDLE hService = NULL;
     int retval = 0;
@@ -801,23 +801,23 @@ int installServices(CustomActionData& data, const wchar_t *password) {
         }
     }
     WcaLog(LOGMSG_STANDARD, "done installing services");
-    UINT er = EnableServiceForUser(data, traceService);
+    UINT er = EnableServiceForUser(sid, traceService);
     if (0 != er) {
         WcaLog(LOGMSG_STANDARD, "Warning, unable to enable trace service for dd user %d", er);
     }
-    er = EnableServiceForUser(data, processService);
+    er = EnableServiceForUser(sid, processService);
     if (0 != er) {
         WcaLog(LOGMSG_STANDARD, "Warning, unable to enable process service for dd user %d", er);
     }
     if(data.installSysprobe()){
-        er = EnableServiceForUser(data, systemProbeService);
+        er = EnableServiceForUser(sid, systemProbeService);
         if (0 != er) {
             WcaLog(LOGMSG_STANDARD, "Warning, unable to enable system probe service for dd user %d", er);
         }
     }
     // need to enable user rights for the datadogagent service (main service)
     // so that it can restart itself
-    er = EnableServiceForUser(data, agentService);
+    er = EnableServiceForUser(sid, agentService);
     if (0 != er) {
         WcaLog(LOGMSG_STANDARD, "Warning, unable to enable agent service for dd user %d", er);
     }
@@ -887,6 +887,7 @@ int verifyServices(CustomActionData& data)
     // Get a handle to the SCM database. 
 #ifdef __REGISTER_ALL_SERVICES
   #define NUM_SERVICES 4
+  #define SYSPROBE_INDEX 3
     serviceDef services[NUM_SERVICES] = {
         serviceDef(agentService.c_str(), L"Datadog Agent", L"Send metrics to Datadog",
                    agent_exe.c_str(),
@@ -936,6 +937,21 @@ int verifyServices(CustomActionData& data)
             break;
         }
     }
+#ifdef __REGISTER_ALL_SERVICES
+    if(!data.installSysprobe()) {
+        retval = services[SYSPROBE_INDEX].destroy(hScManager);
+        if(0 == retval) {
+            WcaLog(LOGMSG_STANDARD, "Removed system probe service");
+        } else if ( ERROR_SERVICE_DOES_NOT_EXIST == retval ) {
+            WcaLog(LOGMSG_STANDARD, "system probe not present");
+        } else {
+            WcaLog(LOGMSG_STANDARD, "Error removing system probe service %d", retval);
+        }
+        // reset retval to zero.  If we were unable to remove the system-probe service,
+        // and it's not present anyway, don't cause the entire install to fail
+        retval = 0;
+    }
+#endif
     WcaLog(LOGMSG_STANDARD, "done updating services");
    
     CloseServiceHandle(hScManager);

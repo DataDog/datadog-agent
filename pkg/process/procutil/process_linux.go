@@ -7,22 +7,24 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
+	"unicode"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	// ClockTicks is the number of clock ticks per second
-	// C.sysconf(C._SC_CLK_TCK)
-	ClockTicks = 100
 	// WorldReadable represents file permission that's world readable
 	WorldReadable os.FileMode = 4
+	// DefaultClockTicks is the default number of clock ticks per second
+	// C.sysconf(C._SC_CLK_TCK)
+	DefaultClockTicks = float64(100)
 )
 
 var (
@@ -59,6 +61,8 @@ type Probe struct {
 	uid  uint32 // UID
 	euid uint32 // Effective UID
 
+	clockTicks float64
+
 	bootTime uint64
 }
 
@@ -72,6 +76,7 @@ func NewProcessProbe() *Probe {
 		uid:         uint32(os.Getuid()),
 		euid:        uint32(os.Geteuid()),
 		bootTime:    bootTime,
+		clockTicks:  getClockTicks(),
 	}
 	return p
 }
@@ -95,7 +100,7 @@ func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 	for _, pid := range pids {
 		pathForPID := filepath.Join(p.procRootLoc, strconv.Itoa(int(pid)))
 		if !util.PathExists(pathForPID) {
-			log.Debugf("Unable to create new process %d, dir doesn't exist", pid)
+			log.Debugf("Unable to create new process %d, dir %s doesn't exist", pid, pathForPID)
 			continue
 		}
 
@@ -103,7 +108,6 @@ func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 		if len(cmdline) == 0 {
 			// NOTE: The agent's process check currently skips all processes that have no cmdline (i.e kernel processes).
 			//       Moving this check down the stack saves us from a number of needless follow-up system calls.
-			//       In the test resources for Postgres, this accounts for ~30% of processes.
 			continue
 		}
 
@@ -197,7 +201,7 @@ func (p *Probe) getCmdline(pidPath string) []string {
 	return trimAndSplitBytes(cmdline)
 }
 
-// parseStatus retrieves io info from "io" file for a process in procfs
+// parseIO retrieves io info from "io" file for a process in procfs
 func (p *Probe) parseIO(pidPath string) *IOCountersStat {
 	path := filepath.Join(pidPath, "io")
 	var err error
@@ -213,11 +217,11 @@ func (p *Probe) parseIO(pidPath string) *IOCountersStat {
 		return io
 	}
 
-	index := 0
+	lineStart := 0
 	for i, r := range content {
 		if r == '\n' {
-			p.parseIOLine(content[index:i], io)
-			index = i + 1
+			p.parseIOLine(content[lineStart:i], io)
+			lineStart = i + 1
 		}
 	}
 
@@ -227,7 +231,9 @@ func (p *Probe) parseIO(pidPath string) *IOCountersStat {
 // parseIOLine extracts key and value for each line in "io" file
 func (p *Probe) parseIOLine(line []byte, io *IOCountersStat) {
 	for i := range line {
-		if i+2 < len(line) && line[i] == ':' && line[i+1] == ' ' {
+		// the fields are all having format "field_name: field_value", so we always
+		// look for ": " and skip them
+		if i+2 < len(line) && line[i] == ':' && unicode.IsSpace(rune(line[i+1])) {
 			key := line[0:i]
 			value := line[i+2:]
 			p.parseIOKV(string(key), string(value), io)
@@ -268,22 +274,23 @@ func (p *Probe) parseStatus(pidPath string) *statusInfo {
 	var err error
 
 	sInfo := &statusInfo{
-		uids:        make([]int32, 0),
-		gids:        make([]int32, 0),
+		uids:        []int32{},
+		gids:        []int32{},
 		memInfo:     &MemoryInfoStat{},
 		ctxSwitches: &NumCtxSwitchesStat{},
 	}
 
 	content, err := ioutil.ReadFile(path)
+
 	if err != nil {
 		return sInfo
 	}
 
-	index := 0
+	lineStart := 0
 	for i, r := range content {
 		if r == '\n' {
-			p.parseStatusLine(content[index:i], sInfo)
-			index = i + 1
+			p.parseStatusLine(content[lineStart:i], sInfo)
+			lineStart = i + 1
 		}
 	}
 
@@ -293,7 +300,9 @@ func (p *Probe) parseStatus(pidPath string) *statusInfo {
 // parseStatusLine takes each line in "status" file and parses info from it
 func (p *Probe) parseStatusLine(line []byte, sInfo *statusInfo) {
 	for i := range line {
-		if i+2 < len(line) && line[i] == ':' && line[i+1] == '\t' {
+		// the fields are all having format "field_name:\tfield_value", so we always
+		// look for ":\t" and skip them
+		if i+2 < len(line) && line[i] == ':' && unicode.IsSpace(rune(line[i+1])) {
 			key := line[0:i]
 			value := line[i+2:]
 			p.parseStatusKV(string(key), string(value), sInfo)
@@ -326,7 +335,9 @@ func (p *Probe) parseStatusKV(key, value string, sInfo *statusInfo) {
 			}
 		}
 	case "NSpid":
-		v, err := strconv.ParseInt(value, 10, 32)
+		values := strings.Split(value, "\t")
+		// only report process namespaced PID
+		v, err := strconv.ParseInt(values[len(values)-1], 10, 32)
 		if err == nil {
 			sInfo.nspid = int32(v)
 		}
@@ -393,13 +404,13 @@ func (p *Probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 	}
 
 	content := statContent[startIndex+1:]
-	// use spaces and prevChartIsSpace to simulate strings.Fields() to avoid allocation
+	// use spaces and prevCharIsSpace to simulate strings.Fields() to avoid allocation
 	spaces := 0
 	prevCharIsSpace := false
 	var ppidStr, utimeStr, stimeStr, startTimeStr string
 
-	for i := range content {
-		if content[i] == ' ' {
+	for _, c := range content {
+		if unicode.IsSpace(rune(c)) {
 			if !prevCharIsSpace {
 				spaces++
 			}
@@ -409,18 +420,19 @@ func (p *Probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 			prevCharIsSpace = false
 		}
 
-		if spaces == 2 {
-			ppidStr += string(content[i])
-		} else if spaces == 12 {
-			utimeStr += string(content[i])
-		} else if spaces == 13 {
-			stimeStr += string(content[i])
-		} else if spaces == 20 {
-			startTimeStr += string(content[i])
+		switch spaces {
+		case 2:
+			ppidStr += string(c)
+		case 12:
+			utimeStr += string(c)
+		case 13:
+			stimeStr += string(c)
+		case 20:
+			startTimeStr += string(c)
 		}
 	}
 
-	if spaces <= 20 { // We access index 20 and below, so this is just a safety check.
+	if spaces < 20 { // We access index 20 and below, so this is just a safety check.
 		return sInfo
 	}
 
@@ -431,11 +443,12 @@ func (p *Probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 
 	utime, err := strconv.ParseFloat(utimeStr, 64)
 	if err == nil {
-		sInfo.cpuStat.User = utime / ClockTicks
+		sInfo.cpuStat.User = utime / p.clockTicks
 	}
+
 	stime, err := strconv.ParseFloat(stimeStr, 64)
 	if err == nil {
-		sInfo.cpuStat.System = stime / ClockTicks
+		sInfo.cpuStat.System = stime / p.clockTicks
 	}
 	// the nice parameter location seems to be different for various procfs,
 	// so we fetch that using syscall
@@ -444,12 +457,12 @@ func (p *Probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 		sInfo.nice = int32(snice)
 	}
 
-	sInfo.cpuStat.CPU = "cpu"
 	sInfo.cpuStat.Timestamp = now.Unix()
 
 	t, err := strconv.ParseUint(startTimeStr, 10, 64)
 	if err == nil {
-		ctime := (t / uint64(ClockTicks)) + p.bootTime
+		ctime := (t / uint64(p.clockTicks)) + p.bootTime
+		// convert create time into milliseconds
 		sInfo.createTime = int64(ctime * 1000)
 	}
 
@@ -561,8 +574,8 @@ func trimAndSplitBytes(bs []byte) []string {
 
 	// Remove leading null bytes
 	i := 0
-	for j := 0; j < len(bs); j++ {
-		if bs[j] == 0 {
+	for i < len(bs) {
+		if bs[i] == 0 {
 			i++
 		} else {
 			break
@@ -601,13 +614,13 @@ func bootTime(hostProc string) (uint64, error) {
 		return 0, nil
 	}
 
-	index := 0
+	lineStart := 0
 	btimePrefix := []byte("btime")
 
 	for i, r := range content {
 		if r == '\n' {
-			if bytes.HasPrefix(content[index:i], btimePrefix) {
-				f := strings.Fields(string(content[index:i]))
+			if bytes.HasPrefix(content[lineStart:i], btimePrefix) {
+				f := strings.Fields(string(content[lineStart:i]))
 				if len(f) != 2 {
 					return 0, fmt.Errorf("wrong btime format")
 				}
@@ -618,9 +631,30 @@ func bootTime(hostProc string) (uint64, error) {
 				}
 				return uint64(b), nil
 			}
-			index = i + 1
+			lineStart = i + 1
 		}
 	}
 
 	return 0, fmt.Errorf("could not parse btime")
+}
+
+// getClockTicks uses command "getconf CLK_TCK" to fetch the clock tick on current host,
+// if the command doesn't exist uses the default value 100
+func getClockTicks() float64 {
+	clockTicks := DefaultClockTicks
+	getconf, err := exec.LookPath("getconf")
+	if err != nil {
+		return clockTicks
+	}
+	cmd := exec.Command(getconf, "CLK_TCK")
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err = cmd.Run()
+	if err == nil {
+		ticks, err := strconv.ParseFloat(strings.TrimSpace(out.String()), 64)
+		if err == nil {
+			clockTicks = ticks
+		}
+	}
+	return clockTicks
 }

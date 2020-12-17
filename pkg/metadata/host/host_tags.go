@@ -3,6 +3,7 @@ package host
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -12,6 +13,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	k8s "github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+var (
+	retrySleepTime = time.Second
 )
 
 // this is a "low-tech" version of tagger/utils/taglist.go
@@ -59,15 +64,6 @@ func getHostTags() *tags {
 		hostTags = appendToHostTags(hostTags, []string{"env:" + env})
 	}
 
-	if config.Datadog.GetBool("collect_ec2_tags") {
-		ec2Tags, err := ec2.GetTags()
-		if err != nil {
-			log.Debugf("No EC2 host tags %v", err)
-		} else {
-			hostTags = appendToHostTags(hostTags, ec2Tags)
-		}
-	}
-
 	hostname, _ := util.GetHostname()
 	clusterName := clustername.GetClusterName(hostname)
 	if len(clusterName) != 0 {
@@ -79,28 +75,62 @@ func getHostTags() *tags {
 		hostTags = appendToHostTags(hostTags, clusterNameTags)
 	}
 
-	k8sTags, err := k8s.GetTags()
-	if err != nil {
-		log.Debugf("No Kubernetes host tags %v", err)
-	} else {
-		hostTags = appendToHostTags(hostTags, k8sTags)
-	}
-
-	dockerTags, err := docker.GetTags()
-	if err != nil {
-		log.Debugf("No Docker host tags %v", err)
-	} else {
-		hostTags = appendToHostTags(hostTags, dockerTags)
+	getEC2 := func() ([]string, error) {
+		if config.Datadog.GetBool("collect_ec2_tags") {
+			return ec2.GetTags()
+		}
+		return nil, nil
 	}
 
 	gceTags := []string{}
-	if config.Datadog.GetBool("collect_gce_tags") {
-		rawGceTags, err := gce.GetTags()
-		if err != nil {
-			log.Debugf("No GCE host tags %v", err)
-		} else {
+	getGCE := func() ([]string, error) {
+		if config.Datadog.GetBool("collect_gce_tags") {
+			rawGceTags, err := gce.GetTags()
+			if err != nil {
+				return nil, err
+			}
 			gceTags = appendToHostTags(gceTags, rawGceTags)
 		}
+		return nil, nil
+	}
+
+	providers := map[string]*struct {
+		retries   int
+		getTags   func() ([]string, error)
+		retrieved bool
+	}{
+		"ec2":        {1, getEC2, false},
+		"kubernetes": {1, k8s.GetTags, false},
+		"docker":     {1, docker.GetTags, false},
+		"gce":        {1, getGCE, false},
+	}
+
+	if config.IsKubernetes() {
+		providers["kubernetes"].retries = 10
+	}
+
+	for {
+		for name, provider := range providers {
+			provider.retries--
+			tags, err := provider.getTags()
+			if err != nil {
+				log.Debugf("No %s host tags, remaining attempts: %d, err: %v", name, provider.retries, err)
+			} else {
+				provider.retrieved = true
+				hostTags = appendToHostTags(hostTags, tags)
+				log.Debugf("Host tags from %s retrieved successfully", name)
+			}
+
+			if provider.retrieved || provider.retries <= 0 {
+				delete(providers, name)
+			}
+		}
+
+		if len(providers) == 0 {
+			break
+		}
+
+		time.Sleep(retrySleepTime)
 	}
 
 	return &tags{

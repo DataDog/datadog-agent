@@ -176,51 +176,97 @@ func buildTCPEndpoints() (*Endpoints, error) {
 	return NewEndpoints(main, additionals, useProto, false, 0), nil
 }
 
+// LogsConfigKeys stores logs configuration keys stored in YAML configuration files
+type LogsConfigKeys struct {
+	UseCompression          string
+	CompressionLevel        string
+	ConnectionResetInterval string
+	LogsDDURL               string
+	LogsNoSSL               string
+	DDURL                   string
+	DevModeNoSSL            string
+	AdditionalEndpoints     string
+	BatchWait               string
+}
+
+// logsConfigDefaultKeys defines the default YAML keys used to retrieve logs configuration
+var logsConfigDefaultKeys = LogsConfigKeys{
+	UseCompression:          "logs_config.use_compression",
+	CompressionLevel:        "logs_config.compression_level",
+	ConnectionResetInterval: "logs_config.connection_reset_interval",
+	LogsDDURL:               "logs_config.logs_dd_url",
+	LogsNoSSL:               "logs_config.logs_no_ssl",
+	DDURL:                   "logs_config.dd_url",
+	DevModeNoSSL:            "logs_config.dev_mode_no_ssl",
+	AdditionalEndpoints:     "logs_config.additional_endpoints",
+	BatchWait:               "logs_config.batch_wait",
+}
+
 // BuildHTTPEndpoints returns the HTTP endpoints to send logs to.
 func BuildHTTPEndpoints() (*Endpoints, error) {
+	return BuildHTTPEndpointsWithConfig(logsConfigDefaultKeys, httpEndpointPrefix)
+}
+
+// BuildHTTPEndpointsWithConfig uses two arguments that instructs it how to access configuration parameters, then returns the HTTP endpoints to send logs to. This function is able to default to the 'classic' BuildHTTPEndpoints() w ldHTTPEndpointsWithConfigdefault variables logsConfigDefaultKeys and httpEndpointPrefix
+func BuildHTTPEndpointsWithConfig(logsConfig LogsConfigKeys, endpointPrefix string) (*Endpoints, error) {
+	// Provide default values for legacy settings when the configuration key does not exist
+	defaultUseSSL := false
+	if len(logsConfig.LogsNoSSL) != 0 {
+		defaultUseSSL = coreConfig.Datadog.GetBool(logsConfig.LogsNoSSL)
+	}
+
+	defaultUseCompression := true
+	if len(logsConfig.UseCompression) != 0 {
+		defaultUseCompression = coreConfig.Datadog.GetBool(logsConfig.UseCompression)
+	}
+
 	main := Endpoint{
 		APIKey:                  getLogsAPIKey(coreConfig.Datadog),
-		UseCompression:          coreConfig.Datadog.GetBool("logs_config.use_compression"),
-		CompressionLevel:        coreConfig.Datadog.GetInt("logs_config.compression_level"),
-		ConnectionResetInterval: time.Duration(coreConfig.Datadog.GetInt("logs_config.connection_reset_interval")) * time.Second,
+		UseCompression:          defaultUseCompression,
+		CompressionLevel:        coreConfig.Datadog.GetInt(logsConfig.CompressionLevel),
+		ConnectionResetInterval: time.Duration(coreConfig.Datadog.GetInt(logsConfig.ConnectionResetInterval)) * time.Second,
 	}
 
 	switch {
-	case isSetAndNotEmpty(coreConfig.Datadog, "logs_config.logs_dd_url"):
-		host, port, err := parseAddress(coreConfig.Datadog.GetString("logs_config.logs_dd_url"))
+	case isSetAndNotEmpty(coreConfig.Datadog, logsConfig.LogsDDURL):
+		host, port, err := parseAddress(coreConfig.Datadog.GetString(logsConfig.LogsDDURL))
 		if err != nil {
 			return nil, fmt.Errorf("could not parse logs_dd_url: %v", err)
 		}
 		main.Host = host
 		main.Port = port
-		main.UseSSL = !coreConfig.Datadog.GetBool("logs_config.logs_no_ssl")
+		main.UseSSL = !defaultUseSSL
 	default:
-		main.Host = coreConfig.GetMainEndpoint(httpEndpointPrefix, "logs_config.dd_url")
-		main.UseSSL = !coreConfig.Datadog.GetBool("logs_config.dev_mode_no_ssl")
+		main.Host = coreConfig.GetMainEndpoint(endpointPrefix, logsConfig.DDURL)
+		main.UseSSL = !coreConfig.Datadog.GetBool(logsConfig.DevModeNoSSL)
 	}
 
-	additionals := getAdditionalEndpoints()
+	additionals := getAdditionalEndpointsFromKey(logsConfig.AdditionalEndpoints)
 	for i := 0; i < len(additionals); i++ {
 		additionals[i].UseSSL = main.UseSSL
 		additionals[i].APIKey = coreConfig.SanitizeAPIKey(additionals[i].APIKey)
 	}
 
-	batchWait := batchWait(coreConfig.Datadog)
+	batchWait := batchWaitFromKey(coreConfig.Datadog, logsConfig.BatchWait)
 
 	return NewEndpoints(main, additionals, false, true, batchWait), nil
 }
 
 func getAdditionalEndpoints() []Endpoint {
+	return getAdditionalEndpointsFromKey("logs_config.additional_endpoints")
+}
+
+func getAdditionalEndpointsFromKey(additionalEndpointsParameter string) []Endpoint {
 	var endpoints []Endpoint
 	var err error
-	raw := coreConfig.Datadog.Get("logs_config.additional_endpoints")
+	raw := coreConfig.Datadog.Get(additionalEndpointsParameter)
 	if raw == nil {
 		return endpoints
 	}
 	if s, ok := raw.(string); ok && s != "" {
 		err = json.Unmarshal([]byte(s), &endpoints)
 	} else {
-		err = coreConfig.Datadog.UnmarshalKey("logs_config.additional_endpoints", &endpoints)
+		err = coreConfig.Datadog.UnmarshalKey(additionalEndpointsParameter, &endpoints)
 	}
 	if err != nil {
 		log.Warnf("Could not parse additional_endpoints for logs: %v", err)
@@ -253,8 +299,8 @@ func parseAddress(address string) (string, int, error) {
 	return host, port, nil
 }
 
-func batchWait(config coreConfig.Config) time.Duration {
-	batchWait := coreConfig.Datadog.GetInt("logs_config.batch_wait")
+func batchWaitFromKey(config coreConfig.Config, batchWaitKey string) time.Duration {
+	batchWait := coreConfig.Datadog.GetInt(batchWaitKey)
 	if batchWait < 1 || 10 < batchWait {
 		log.Warnf("Invalid batch_wait: %v should be in [1, 10], fallback on %v", batchWait, coreConfig.DefaultBatchWait)
 		return coreConfig.DefaultBatchWait * time.Second

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -68,8 +69,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChanges() {
 
 	// A new container ID in an existing pod should trigger
 	remainingPods[0].Status.Containers[0].ID = "testNewID"
-	// we're modifying the container list here, we need to reset the lazy all containers list
-	remainingPods[0].Status.AllContainers = []ContainerStatus{}
+	remainingPods[0].Status.AllContainers[0].ID = "testNewID"
 	changes, err = watcher.computeChanges(remainingPods)
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 1)
@@ -434,8 +434,9 @@ func (suite *PodwatcherTestSuite) TestPullChanges() {
 	watcher, err := NewPodWatcher(5*time.Minute, false)
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), watcher)
-	<-kubelet.Requests // Throwing away the first /pods GET
+	<-kubelet.Requests // Throwing away the first /spec GET
 
+	ResetCache() // If we want to be sure to get a /pods request after
 	pods, err := watcher.PullChanges()
 	require.Nil(suite.T(), err)
 	<-kubelet.Requests // Throwing away /pods GET
@@ -572,6 +573,40 @@ func (suite *PodwatcherTestSuite) TestPodWatcherAnnotationsValueChange() {
 	changes, err = watcher.computeChanges(twoPods)
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 2)
+}
+
+func (suite *PodwatcherTestSuite) TestPodWatcherContainerCreating() {
+	sourcePods, err := loadPodsFixture("./testdata/podlist_container_creating.json")
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), sourcePods, 1)
+
+	watcher := &PodWatcher{
+		lastSeen:       make(map[string]time.Time),
+		lastSeenReady:  make(map[string]time.Time),
+		expiryDuration: 5 * time.Minute,
+	}
+
+	changes, err := watcher.computeChanges(sourcePods)
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), changes, 0)
+}
+
+func (suite *PodwatcherTestSuite) TestPodWatcherContainerCreatingTags() {
+	sourcePods, err := loadPodsFixture("./testdata/podlist_container_creating.json")
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), sourcePods, 1)
+
+	watcher := &PodWatcher{
+		lastSeen:       make(map[string]time.Time),
+		lastSeenReady:  make(map[string]time.Time),
+		tagsDigest:     make(map[string]string),
+		oldPhase:       make(map[string]string),
+		expiryDuration: 5 * time.Minute,
+	}
+
+	changes, err := watcher.computeChanges(sourcePods)
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), changes, 1)
 }
 
 func TestPodwatcherTestSuite(t *testing.T) {

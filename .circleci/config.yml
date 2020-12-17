@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: datadog/datadog-agent-runner-circle:go1147
+      - image: datadog/datadog-agent-runner-circle:go11412
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -229,7 +229,7 @@ jobs:
 
   macos_tests:
     macos:
-      xcode: 10.1.0
+      xcode: 11.7.0
     environment:
       BUILDIMAGES_VERSION: "a8226a8e78774afad285e7372fe8c6c179340dd9" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
     working_directory: ~/go/src/github.com/DataDog/datadog-agent

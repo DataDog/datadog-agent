@@ -13,15 +13,30 @@ import (
 
 // Check is an interface for types capable to run checks
 type Check interface {
-	Run() error                                                         // run the check
-	Stop()                                                              // stop the check if it's running
-	String() string                                                     // provide a printable version of the check name
-	Configure(config, initConfig integration.Data, source string) error // configure the check from the outside
-	Interval() time.Duration                                            // return the interval time for the check
-	ID() ID                                                             // provide a unique identifier for every check instance
-	GetWarnings() []error                                               // return the last warning registered by the check
-	GetMetricStats() (map[string]int64, error)                          // get metric stats from the sender
-	Version() string                                                    // return the version of the check if available
-	ConfigSource() string                                               // return the configuration source of the check
-	IsTelemetryEnabled() bool                                           // return if telemetry is enabled for this check
+	// Run runs the check
+	Run() error
+	// Stop stops the check if it's running
+	Stop()
+	// Cancel cancels the check. Cancel is called when the check is unscheduled:
+	// - unlike Stop, it is called even if the check is not running when it's unscheduled
+	// - if the check is running, Cancel is called after Stop and may be called before the call to Stop completes
+	Cancel()
+	// String provides a printable version of the check name
+	String() string
+	// Configure configures the check
+	Configure(config, initConfig integration.Data, source string) error
+	// Interval returns the interval time for the check
+	Interval() time.Duration
+	// ID provides a unique identifier for every check instance
+	ID() ID
+	// GetWarnings returns the last warning registered by the check
+	GetWarnings() []error
+	// GetMetricStats gets metric stats from the sender
+	GetMetricStats() (map[string]int64, error)
+	// Version returns the version of the check if available
+	Version() string
+	// ConfigSource returns the configuration source of the check
+	ConfigSource() string
+	// IsTelemetryEnabled returns if telemetry is enabled for this check
+	IsTelemetryEnabled() bool
 }

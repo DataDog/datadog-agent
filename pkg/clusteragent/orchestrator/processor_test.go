@@ -141,19 +141,19 @@ func TestConvertNodeStatusToTags(t *testing.T) {
 		{
 			name:     "Ready,SchedulingDisabled",
 			input:    "Ready,SchedulingDisabled",
-			expected: []string{"node_status:ready", "node_status:schedulingdisabled"},
+			expected: []string{"node_status:ready", "node_schedulable:false"},
 		}, {
 			name:     "Ready",
 			input:    "Ready",
-			expected: []string{"node_status:ready"},
+			expected: []string{"node_status:ready", "node_schedulable:true"},
 		}, {
 			name:     "Unknown",
 			input:    "Unknown",
-			expected: []string{"node_status:unknown"},
+			expected: []string{"node_status:unknown", "node_schedulable:true"},
 		}, {
 			name:     "",
 			input:    "",
-			expected: nil,
+			expected: []string{"node_schedulable:true"},
 		},
 	}
 	for _, tt := range tests {

@@ -121,7 +121,7 @@ def test(
         lint(ctx, targets=tool_targets)
         misspell(ctx, targets=tool_targets)
         ineffassign(ctx, targets=tool_targets)
-        staticcheck(ctx, targets=tool_targets)
+        staticcheck(ctx, targets=tool_targets, build_tags=build_tags, arch=arch)
 
         # for now we only run golangci_lint on Unix as the Windows env need more work
         if sys.platform != 'win32':
@@ -160,6 +160,11 @@ def test(
             print("\n -- Warning... disabling race test, not supported on this platform --\n")
         else:
             race_opt = "-race"
+
+        # Needed to fix an issue when using -race + gcc 10.x on Windows
+        # https://github.com/bazelbuild/rules_go/issues/2614
+        if sys.platform == 'win32':
+            ldflags += " -linkmode=external"
 
     if coverage:
         if race:
@@ -389,7 +394,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
 
 
 @task
-def e2e_tests(ctx, target="gitlab", image=""):
+def e2e_tests(ctx, target="gitlab", agent_image="", dca_image=""):
     """
     Run e2e tests in several environments.
     """
@@ -398,10 +403,15 @@ def e2e_tests(ctx, target="gitlab", image=""):
         print('target %s not in %s' % (target, choices))
         raise Exit(1)
     if not os.getenv("DATADOG_AGENT_IMAGE"):
-        if not image:
+        if not agent_image:
             print("define DATADOG_AGENT_IMAGE envvar or image flag")
             raise Exit(1)
-        os.environ["DATADOG_AGENT_IMAGE"] = image
+        os.environ["DATADOG_AGENT_IMAGE"] = agent_image
+    if not os.getenv("DATADOG_CLUSTER_AGENT_IMAGE"):
+        if not dca_image:
+            print("define DATADOG_CLUSTER_AGENT_IMAGE envvar or image flag")
+            raise Exit(1)
+        os.environ["DATADOG_CLUSTER_AGENT_IMAGE"] = dca_image
 
     ctx.run("./test/e2e/scripts/setup-instance/00-entrypoint-%s.sh" % target)
 

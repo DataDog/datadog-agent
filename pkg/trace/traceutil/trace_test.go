@@ -56,6 +56,6 @@ func TestTraceChildrenMap(t *testing.T) {
 	assert.Equal([]*pb.Span{trace[3]}, childrenMap[2])
 	assert.Equal([]*pb.Span{trace[4]}, childrenMap[3])
 	assert.Equal([]*pb.Span{trace[5]}, childrenMap[4])
-	assert.Equal([]*pb.Span{}, childrenMap[5])
-	assert.Equal([]*pb.Span{}, childrenMap[6])
+	assert.Equal([]*pb.Span(nil), childrenMap[5])
+	assert.Equal([]*pb.Span(nil), childrenMap[6])
 }

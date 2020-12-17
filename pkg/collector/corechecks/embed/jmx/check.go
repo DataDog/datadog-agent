@@ -61,6 +61,8 @@ func (c *JMXCheck) Stop() {
 	state.unscheduleCheck(c)
 }
 
+func (c *JMXCheck) Cancel() {}
+
 func (c *JMXCheck) String() string {
 	return c.name
 }

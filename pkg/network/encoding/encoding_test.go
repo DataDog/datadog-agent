@@ -42,6 +42,14 @@ func TestSerialization(t *testing.T) {
 				Direction: network.LOCAL,
 
 				DNSCountByRcode: map[uint32]uint32{0: 1},
+				DNSStatsByDomain: map[string]network.DNSStats{
+					"foo.com": {
+						DNSTimeouts:          0,
+						DNSSuccessLatencySum: 0,
+						DNSFailureLatencySum: 0,
+						DNSCountByRcode:      map[uint32]uint32{0: 1},
+					},
+				},
 			},
 		},
 		DNS: map[util.Address][]string{
@@ -73,11 +81,20 @@ func TestSerialization(t *testing.T) {
 				Direction: model.ConnectionDirection_local,
 
 				DnsCountByRcode: map[uint32]uint32{0: 1},
+				DnsStatsByDomain: map[int32]*model.DNSStats{
+					0: {
+						DnsTimeouts:          0,
+						DnsSuccessLatencySum: 0,
+						DnsFailureLatencySum: 0,
+						DnsCountByRcode:      map[uint32]uint32{0: 1},
+					},
+				},
 			},
 		},
 		Dns: map[string]*model.DNSEntry{
 			"172.217.12.145": {Names: []string{"golang.org"}},
 		},
+		Domains: []string{"foo.com"},
 	}
 
 	t.Run("requesting application/json serialization", func(t *testing.T) {

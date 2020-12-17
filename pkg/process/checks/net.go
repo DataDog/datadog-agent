@@ -9,6 +9,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/dockerproxy"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
@@ -89,7 +90,7 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	tel := c.diffTelemetry(conns.Telemetry)
 
 	log.Debugf("collected connections in %s", time.Since(start))
-	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, tel), nil
+	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, tel, conns.Domains), nil
 }
 
 func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
@@ -166,6 +167,7 @@ func batchConnections(
 	dns map[string]*model.DNSEntry,
 	networkID string,
 	telemetry *model.CollectorConnectionsTelemetry,
+	domains []string,
 ) []model.MessageBody {
 	groupSize := groupSize(len(cxs), cfg.MaxConnsPerMessage)
 	batches := make([]model.MessageBody, 0, groupSize)
@@ -188,6 +190,7 @@ func batchConnections(
 
 		ctrIDForPID := make(map[int32]string)
 		batchDNS := make(map[string]*model.DNSEntry)
+		domainIndices := make(map[int32]struct{})
 		for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
 			if entries, ok := dns[c.Raddr.Ip]; ok {
 				batchDNS[c.Raddr.Ip] = entries
@@ -196,8 +199,19 @@ func batchConnections(
 			if c.Laddr.ContainerId != "" {
 				ctrIDForPID[c.Pid] = c.Laddr.ContainerId
 			}
+			for d := range c.DnsStatsByDomain {
+				domainIndices[d] = struct{}{}
+			}
 		}
 
+		// We want to keep the length of the domains array same so that the pointers in DnsStatsByDomain remain valid
+		// For absent entries, we simply use an empty string to cut down on storage.
+		batchDomains := make([]string, len(domains))
+		for i, domain := range domains {
+			if _, ok := domainIndices[int32(i)]; ok {
+				batchDomains[i] = domain
+			}
+		}
 		cc := &model.CollectorConnections{
 			HostName:          cfg.HostName,
 			NetworkId:         networkID,
@@ -207,7 +221,17 @@ func batchConnections(
 			ContainerForPid:   ctrIDForPID,
 			EncodedDNS:        dnsEncoder.Encode(batchDNS),
 			ContainerHostType: cfg.ContainerHostType,
+			Domains:           batchDomains,
 		}
+
+		// Add OS telemetry
+		if hostInfo := host.GetStatusInformation(); hostInfo != nil {
+			cc.KernelVersion = hostInfo.KernelVersion
+			cc.Architecture = hostInfo.KernelArch
+			cc.Platform = hostInfo.Platform
+			cc.PlatformVersion = hostInfo.PlatformVersion
+		}
+
 		// only add the telemetry to the first message to prevent double counting
 		if len(batches) == 0 {
 			cc.Telemetry = telemetry

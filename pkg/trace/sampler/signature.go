@@ -6,7 +6,6 @@
 package sampler
 
 import (
-	"hash/fnv"
 	"sort"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -61,9 +60,9 @@ type ServiceSignature struct{ Name, Env string }
 // priority, and used as a key to store the desired rate for a given
 // service,env tuple.
 func (s ServiceSignature) Hash() Signature {
-	h := fnv.New32a()
+	h := new32a()
 	h.Write([]byte(s.Name))
-	h.Write([]byte{','})
+	h.WriteChar(',')
 	h.Write([]byte(s.Env))
 	return Signature(h.Sum32())
 }
@@ -73,11 +72,11 @@ func (s ServiceSignature) String() string {
 }
 
 func computeSpanHash(span *pb.Span, env string, withResource bool) spanHash {
-	h := fnv.New32a()
+	h := new32a()
 	h.Write([]byte(env))
 	h.Write([]byte(span.Service))
 	h.Write([]byte(span.Name))
-	h.Write([]byte{byte(span.Error)})
+	h.WriteChar(byte(span.Error))
 	if withResource {
 		h.Write([]byte(span.Resource))
 	}
@@ -91,3 +90,34 @@ func computeSpanHash(span *pb.Span, env string, withResource bool) spanHash {
 	}
 	return spanHash(h.Sum32())
 }
+
+// sum32a is an adaptation of https://golang.org/pkg/hash/fnv/#New32a, but simplified
+// for our use case to remove interfaces which caused unnecessary allocations.
+type sum32a uint32
+
+const (
+	offset32 = 2166136261
+	prime32  = 16777619
+)
+
+func new32a() sum32a {
+	return offset32
+}
+
+func (s *sum32a) Write(data []byte) {
+	hash := *s
+	for _, c := range data {
+		hash ^= sum32a(c)
+		hash *= prime32
+	}
+	*s = hash
+}
+
+func (s *sum32a) WriteChar(c byte) {
+	hash := *s
+	hash ^= sum32a(c)
+	hash *= prime32
+	*s = hash
+}
+
+func (s *sum32a) Sum32() uint32 { return uint32(*s) }

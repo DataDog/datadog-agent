@@ -16,6 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	yaml "gopkg.in/yaml.v2"
 )
 
 var (
@@ -23,6 +25,14 @@ var (
 	errorStats     = newCollectorErrors()
 	checkScheduler *CheckScheduler
 )
+
+type commonInitConfig struct {
+	LoaderName string `yaml:"loader"`
+}
+
+type commonInstanceConfig struct {
+	LoaderName string `yaml:"loader"`
+}
 
 func init() {
 	schedulerErrs = expvar.NewMap("CheckScheduler")
@@ -134,14 +144,47 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 	checks := []check.Check{}
 	numLoaders := len(s.loaders)
 
+	initConfig := commonInitConfig{}
+	err := yaml.Unmarshal(config.InitConfig, &initConfig)
+	if err != nil {
+		return nil, err
+	}
+	selectedLoader := initConfig.LoaderName
+	log.Debugf("Get checks for check '%s' with loader name '%s'", config.Name, selectedLoader)
+
 	for _, instance := range config.Instances {
 		errors := []string{}
+		selectedInstanceLoader := selectedLoader
+		instanceConfig := commonInstanceConfig{}
+
+		err := yaml.Unmarshal(instance, &instanceConfig)
+		if err != nil {
+			log.Warnf("Unable to parse instance config for check `%s`: %v", config.Name, instance)
+			continue
+		}
+
+		if instanceConfig.LoaderName != "" {
+			selectedInstanceLoader = instanceConfig.LoaderName
+		}
 
 		for _, loader := range s.loaders {
+			// the loader is skipped if the loader name is set and does not match
+			if (selectedInstanceLoader != "") && (selectedInstanceLoader != loader.Name()) {
+				log.Debugf("Loader name %v does not match, skip loader %v for check %v", selectedInstanceLoader, loader.Name(), config.Name)
+				continue
+			}
 			c, err := loader.Load(config, instance)
 			if err == nil {
 				log.Debugf("%v: successfully loaded check '%s'", loader, config.Name)
 				errorStats.removeLoaderErrors(config.Name)
+				checks = append(checks, c)
+				break
+			} else if c != nil && check.IsJMXInstance(config.Name, instance, config.InitConfig) {
+				// JMXfetch is more permissive than the agent regarding instance configuration. It
+				// accepts tags as a map and a list whether the agent only accepts tags as a list
+				// we still attempt to schedule the check but we save the error.
+				log.Debugf("%v: loading issue for JMX check '%s', the agent will still attempt to schedule it", loader, config.Name)
+				errorStats.setLoaderError(config.Name, fmt.Sprintf("%v", loader), err.Error())
 				checks = append(checks, c)
 				break
 			} else {

@@ -279,8 +279,6 @@ func TestSetSublayersOnSpan(t *testing.T) {
 	SetSublayersOnSpan(&span, values)
 
 	assert.Equal(map[string]float64{
-		"_sublayers.span_count":                                      2.0,
-		"_sublayers.duration.by_type.sublayer_type:db":               30.0,
 		"_sublayers.duration.by_service.sublayer_service:pgsql":      30.0,
 		"_sublayers.duration.by_service.sublayer_service:pgsql-read": 20.0,
 	}, span.Metrics)

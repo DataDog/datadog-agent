@@ -15,13 +15,14 @@ import (
 
 // Kubernetes constants
 const (
-	ServiceAccountPath      = "/var/run/secrets/kubernetes.io/serviceaccount"
-	ServiceAccountTokenPath = ServiceAccountPath + "/token"
+	DefaultServiceAccountPath      = "/var/run/secrets/kubernetes.io/serviceaccount"
+	DefaultServiceAccountTokenPath = DefaultServiceAccountPath + "/token"
+	DefaultServiceAccountCAPath    = DefaultServiceAccountPath + "/ca.crt"
 )
 
 // IsServiceAccountTokenAvailable returns if a service account token is available on disk
 func IsServiceAccountTokenAvailable() bool {
-	_, err := os.Stat(ServiceAccountTokenPath)
+	_, err := os.Stat(DefaultServiceAccountPath)
 	return err == nil
 }
 

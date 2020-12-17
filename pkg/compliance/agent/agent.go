@@ -7,6 +7,7 @@
 package agent
 
 import (
+	"context"
 	"expvar"
 	"path"
 	"path/filepath"
@@ -33,7 +34,9 @@ type Scheduler interface {
 type Agent struct {
 	builder   checks.Builder
 	scheduler Scheduler
+	telemetry *telemetry
 	configDir string
+	cancel    context.CancelFunc
 }
 
 // New creates a new instance of Agent
@@ -46,10 +49,16 @@ func New(reporter event.Reporter, scheduler Scheduler, configDir string, options
 		return nil, err
 	}
 
+	telemetry, err := newTelemtry()
+	if err != nil {
+		return nil, err
+	}
+
 	return &Agent{
 		builder:   builder,
 		scheduler: scheduler,
 		configDir: configDir,
+		telemetry: telemetry,
 	}, nil
 }
 
@@ -94,6 +103,11 @@ func RunChecksFromFile(reporter event.Reporter, file string, options ...checks.B
 
 // Run starts the Compliance Agent
 func (a *Agent) Run() error {
+	ctx, cancel := context.WithCancel(context.Background())
+	a.cancel = cancel
+
+	go a.telemetry.run(ctx)
+
 	a.scheduler.Run()
 
 	defer status.Set(
@@ -154,6 +168,8 @@ func (a *Agent) Stop() {
 	if err := a.builder.Close(); err != nil {
 		log.Errorf("Builder failed to close: %v", err)
 	}
+
+	a.cancel()
 }
 
 func (a *Agent) buildChecks(onCheck compliance.CheckVisitor) error {

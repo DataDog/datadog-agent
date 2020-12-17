@@ -42,7 +42,6 @@ type Stats struct {
 
 // CPUTimesStat holds CPU stat metrics of a process
 type CPUTimesStat struct {
-	CPU       string
 	User      float64
 	System    float64
 	Idle      float64

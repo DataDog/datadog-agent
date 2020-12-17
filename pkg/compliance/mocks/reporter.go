@@ -16,3 +16,8 @@ type Reporter struct {
 func (_m *Reporter) Report(_a0 *event.Event) {
 	_m.Called(_a0)
 }
+
+// ReportRaw provides a mock function with given fields: _a0
+func (_m *Reporter) ReportRaw(_a0 []byte) {
+	_m.Called(_a0)
+}

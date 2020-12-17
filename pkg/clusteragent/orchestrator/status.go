@@ -15,8 +15,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
 
@@ -25,6 +27,11 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 	status := make(map[string]interface{})
 	if !config.Datadog.GetBool("orchestrator_explorer.enabled") {
 		status["Disabled"] = "The orchestrator explorer is not enabled on the Cluster Agent"
+		return status
+	}
+
+	if !config.Datadog.GetBool("leader_election") {
+		status["Disabled"] = "Leader election is not enabled on the Cluster Agent. The orchestrator explorer needs leader election for resource collection."
 		return status
 	}
 
@@ -43,29 +50,19 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 		status["ClusterName"] = clustername.GetClusterName(hostname)
 	}
 
-	// get orchestrator endpoints, check for old keys
-	orchestratorEndpoints := config.Datadog.GetString("orchestrator_explorer.orchestrator_additional_endpoints")
-	orchestratorEndpointsOldKey := config.Datadog.GetString("process_config.orchestrator_additional_endpoints")
-	if orchestratorEndpointsOldKey != "" {
-		status["OrchestratorAdditionalEndpoints"] = orchestratorEndpointsOldKey
-	} else if orchestratorEndpoints != "" {
-		status["OrchestratorAdditionalEndpoints"] = orchestratorEndpoints
+	// get orchestrator endpoints
+	endpoints := map[string]string{}
+	orchestratorCfg := orchcfg.NewDefaultOrchestratorConfig()
+	err = orchestratorCfg.LoadYamlConfig(config.Datadog.ConfigFileUsed())
+	if err == nil {
+		// obfuscate the api keys
+		for _, endpoint := range orchestratorCfg.OrchestratorEndpoints {
+			if len(endpoint.APIKey) > 5 {
+				endpoints[endpoint.Endpoint.String()] = endpoint.APIKey[len(endpoint.APIKey)-5:]
+			}
+		}
 	}
-
-	orchestratorEndpoint := config.Datadog.GetString("orchestrator_explorer.orchestrator_dd_url")
-	orchestratorOldEndpoint := config.Datadog.GetString("process_config.orchestrator_dd_url")
-	if orchestratorOldEndpoint != "" {
-		status["OrchestratorEndpoint"] = orchestratorOldEndpoint
-	} else if orchestratorEndpoint != "" {
-		status["OrchestratorEndpoint"] = orchestratorEndpoint
-	}
-
-	// get forwarder stats
-	forwarderStatsJSON := []byte(expvar.Get("forwarder").String())
-	forwarderStats := make(map[string]interface{})
-	json.Unmarshal(forwarderStatsJSON, &forwarderStats) //nolint:errcheck
-	transactions := forwarderStats["Transactions"].(map[string]interface{})
-	status["Transactions"] = transactions
+	status["OrchestratorEndpoints"] = endpoints
 
 	// get cache size
 	status["CacheNumber"] = orchestrator.KubernetesResourceCache.ItemCount()
@@ -83,15 +80,24 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 	status["CacheMiss"] = cacheMiss
 
 	// get cache efficiency
-	nodes := orchestrator.NodeTypes()
-	for _, node := range nodes {
-		statsKey := BuildStatsKey(node)
-		status[node.String()+"sStats"], _ = orchestrator.KubernetesResourceCache.Get(statsKey)
+	for _, node := range orchestrator.NodeTypes() {
+		if value, found := orchestrator.KubernetesResourceCache.Get(BuildStatsKey(node)); found {
+			status[node.String()+"sStats"] = value
+		}
+	}
+
+	// get Leader information
+	engine, err := leaderelection.GetLeaderEngine()
+	if err != nil {
+		status["LeaderError"] = err
+	} else {
+		status["Leader"] = engine.IsLeader()
+		status["LeaderName"] = engine.GetLeader()
 	}
 
 	// get options
 	if config.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled") {
-		status["ContainerScrubbing"] = "ContainerScrubbing: Enabled"
+		status["ContainerScrubbing"] = "Container scrubbing: enabled"
 	}
 
 	return status
