@@ -749,7 +749,7 @@ shared_examples_for 'an Agent that is removed' do
             'c:/windows/System32/LogFiles/',
             'c:/windows/SoftwareDistribution/',
             'c:/windows/ServiceProfiles/NetworkService/AppData/',
-            'c:/windows/System32/Tasks/Microsoft/Windows/UpdateOrchestrator'
+            'c:/windows/System32/Tasks/Microsoft/Windows/UpdateOrchestrator/'
       ].each { |e| e.downcase! }
 
       # We don't really need to create this file since we consume it right afterwards, but it's useful for debugging
