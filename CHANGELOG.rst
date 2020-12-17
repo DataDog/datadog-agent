@@ -2,6 +2,34 @@
 Release Notes
 =============
 
+.. _Release Notes_7.24.1:
+
+7.24.1
+======
+
+.. _Release Notes_7.24.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix a bug when parsing the current version of an integration that prevented
+  upgrading from an alpha or beta prerelease version.
+
+- During a domain installation in a child domain, the Windows installer can now use a user from a parent domain.
+
+- The Datadog Agent had a memory leak where some tags would be collected but
+  never cleaned up after their entities were removed from a Kubernetes
+  cluster due to their IDs not being recognized. This has now been fixed, and
+  all tags are garbage collected when their entities are removed.
+
+
+.. _Release Notes_7.24.1_Other Notes:
+
+Other Notes
+-----------
+
+- Updated the shipped CA certs to latest (2020-12-08)
+
 .. _Release Notes_7.24.0:
 
 7.24.0 / 6.24.0
