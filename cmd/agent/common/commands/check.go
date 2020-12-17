@@ -62,8 +62,6 @@ var (
 	profileMemoryFilters string
 	profileMemoryUnit    string
 	profileMemoryVerbose string
-
-	checkOutput bytes.Buffer
 )
 
 func setupCmd(cmd *cobra.Command) {
@@ -291,6 +289,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				fmt.Println("Multiple check instances found, running each of them")
 			}
 
+			var checkFileOutput bytes.Buffer
 			var instancesData []interface{}
 			for _, c := range cs {
 				s := runCheck(c, agg)
@@ -377,11 +376,11 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 						return fmt.Errorf("no diff data found in %s", profileDataDir)
 					}
 				} else {
-					printMetrics(agg)
+					printMetrics(agg, &checkFileOutput)
 					checkStatus, _ := status.GetCheckStatus(c, s)
 					statusString := string(checkStatus)
 					fmt.Println(statusString)
-					checkOutput.WriteString(fmt.Sprintln(statusString))
+					checkFileOutput.WriteString(statusString + "\n")
 				}
 			}
 
@@ -391,13 +390,13 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 
 			if formatJSON {
 				fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("JSON")))
-				checkOutput.WriteString("=== JSON ===")
+				checkFileOutput.WriteString("=== JSON ===\n")
 
 				instancesJSON, _ := json.MarshalIndent(instancesData, "", "  ")
 				instanceJSONString := string(instancesJSON)
 
 				fmt.Println(instanceJSONString)
-				checkOutput.WriteString(fmt.Sprintln(instanceJSONString))
+				checkFileOutput.WriteString(instanceJSONString + "\n")
 			} else if singleCheckRun() {
 				if profileMemory {
 					color.Yellow("Check has run only once, to collect diff data run the check multiple times with the -t/--check-times flag.")
@@ -411,7 +410,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 			}
 
 			if saveFlare {
-				writeCheckToFile(checkName)
+				writeCheckToFile(checkName, &checkFileOutput)
 			}
 
 			return nil
@@ -449,7 +448,7 @@ func runCheck(c check.Check, agg *aggregator.BufferedAggregator) *check.Stats {
 	return s
 }
 
-func printMetrics(agg *aggregator.BufferedAggregator) {
+func printMetrics(agg *aggregator.BufferedAggregator, checkFileOutput *bytes.Buffer) {
 	series, sketches := agg.GetSeriesAndSketches(time.Now())
 	if len(series) != 0 {
 		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Series")))
@@ -475,18 +474,18 @@ func printMetrics(agg *aggregator.BufferedAggregator) {
 			table.AppendBulk(data)
 			table.Render()
 			fmt.Println(buffer.String())
-			checkOutput.WriteString(fmt.Sprintln(buffer.String()))
+			checkFileOutput.WriteString(buffer.String() + "\n")
 		} else {
 			j, _ := json.MarshalIndent(series, "", "  ")
 			fmt.Println(string(j))
-			checkOutput.WriteString(fmt.Sprintln(string(j)))
+			checkFileOutput.WriteString(string(j) + "\n")
 		}
 	}
 	if len(sketches) != 0 {
 		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Sketches")))
 		j, _ := json.MarshalIndent(sketches, "", "  ")
 		fmt.Println(string(j))
-		checkOutput.WriteString(fmt.Sprintln(string(j)))
+		checkFileOutput.WriteString(string(j) + "\n")
 	}
 
 	serviceChecks := agg.GetServiceChecks()
@@ -514,25 +513,25 @@ func printMetrics(agg *aggregator.BufferedAggregator) {
 			table.AppendBulk(data)
 			table.Render()
 			fmt.Println(buffer.String())
-			checkOutput.WriteString(fmt.Sprintln(buffer.String()))
+			checkFileOutput.WriteString(buffer.String() + "\n")
 		} else {
 			j, _ := json.MarshalIndent(serviceChecks, "", "  ")
 			fmt.Println(string(j))
-			checkOutput.WriteString(fmt.Sprintln(string(j)))
+			checkFileOutput.WriteString(string(j) + "\n")
 		}
 	}
 
 	events := agg.GetEvents()
 	if len(events) != 0 {
 		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Events")))
-		checkOutput.WriteString(fmt.Sprintln("=== Events ==="))
+		checkFileOutput.WriteString("=== Events ===\n")
 		j, _ := json.MarshalIndent(events, "", "  ")
 		fmt.Println(string(j))
-		checkOutput.WriteString(fmt.Sprintln(string(j)))
+		checkFileOutput.WriteString(string(j) + "\n")
 	}
 }
 
-func writeCheckToFile(checkName string) {
+func writeCheckToFile(checkName string, checkFileOutput *bytes.Buffer) {
 	_ = os.Mkdir(common.DefaultCheckFlareDirectory, os.ModeDir)
 
 	// Windows cannot accept ":" in file names
@@ -546,7 +545,7 @@ func writeCheckToFile(checkName string) {
 	}
 	defer w.Close()
 
-	_, err = w.Write(checkOutput.Bytes())
+	_, err = w.Write(checkFileOutput.Bytes())
 
 	if err != nil {
 		fmt.Println("Error while writing the check file (is the location writable by the dd-agent user?):", err)
