@@ -883,13 +883,13 @@ api_key:
   ## See https://docs.datadoghq.com/tracing/profiling/
   #
   ## NOTE: If enabled this option may incur billing charges or other
-  ##       unexpected side-effects (ie. system probe profiles showing with your
+  ##       unexpected side-effects (ie. process-agent profiles showing with your
   ##       services).
   #
   # profiling:
   #
   ## @param enabled - boolean - optional - default: false
-  ## Enable profiling for the System Probe process.
+  ## Enable profiling for the Process Agent process.
   #
   # enabled: false
 

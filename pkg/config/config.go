@@ -702,7 +702,7 @@ func InitConfig(config Config) {
 	config.SetKnown("process_config.intervals.connections")
 	config.SetKnown("process_config.expvar_port")
 	config.SetKnown("process_config.log_file")
-	config.SetKnown("process_config.profiling_enabled")
+	config.SetKnown("process_config.profiling.enabled")
 
 	// System probe
 	config.SetKnown("system_probe_config.enabled")
