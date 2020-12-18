@@ -253,7 +253,7 @@ func newEventSerializer(event *Event) (*EventSerializer, error) {
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Chown.Retval)
 	case FileLinkEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.Chown.FileEvent, event),
+			FileSerializer: *newFileSerializer(&event.Link.Source, event),
 			Destination:    newFileSerializer(&event.Link.Target, event),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Link.Retval)
