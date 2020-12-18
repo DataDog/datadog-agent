@@ -126,7 +126,6 @@ def test_agent_integration_sample_topology(host):
                                     "value": "eu-west-1"
                                 }
                             ],
-                            "identifier": d["metrics"][0]["identifier"],
                             "metric_field": "system.cpu.usage",
                             "name": "Host CPU Usage",
                             "priority": "HIGH",
@@ -145,7 +144,6 @@ def test_agent_integration_sample_topology(host):
                                     "value": "eu-west-1"
                                 }
                             ],
-                            "identifier": d["metrics"][1]["identifier"],
                             "metric_field": "location.availability",
                             "name": "Host Availability",
                             "priority": "HIGH",
@@ -227,7 +225,6 @@ def test_agent_integration_sample_topology(host):
                                     "value": "eu-west-1"
                                 }
                             ],
-                            "identifier": d["metrics"][0]["identifier"],
                             "metric_field": "2xx.responses",
                             "name": "2xx Responses",
                             "priority": "HIGH",
@@ -246,7 +243,6 @@ def test_agent_integration_sample_topology(host):
                                     "value": "eu-west-1"
                                 }
                             ],
-                            "identifier": d["metrics"][1]["identifier"],
                             "metric_field": "5xx.responses",
                             "name": "5xx Responses",
                             "priority": "HIGH",
@@ -305,7 +301,6 @@ def test_agent_integration_sample_topology(host):
                                     "value": "agent-integration"
                                 }
                             ],
-                            "identifier": d["service_checks"][0]["identifier"],
                             "name": "Service Checks",
                             "stream_id": -1
                         }
@@ -347,7 +342,6 @@ def test_agent_integration_sample_topology(host):
                                     "value": "sample"
                                 }
                             ],
-                            "identifier": d["service_checks"][0]["identifier"],
                             "name": "Service Checks",
                             "stream_id": -1
                         }

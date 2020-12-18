@@ -21,7 +21,7 @@ func TestComponentTopology(t *testing.T) {
 	assert.Nil(t, err)
 	expectedTopology := mockBatcher.CollectedTopology.Flush()
 	instance := topology.Instance{Type: "type", URL: "url"}
-	components, relations := getAgentIntegrationTopology(t, "type:url", instance, expectedTopology)
+	components, relations := getAgentIntegrationTopology(t, instance)
 
 	assert.Equal(t, batcher.Topologies(map[check.ID]topology.Topology{
 		"testtopology:c3d960f8ff8a5c55": {
@@ -64,12 +64,12 @@ func TestRelationTopology(t *testing.T) {
 	assert.Nil(t, err)
 	expectedTopology := mockBatcher.CollectedTopology.Flush()
 	instance := topology.Instance{Type: "type", URL: "url"}
-	components, relations := getAgentIntegrationTopology(t, "type:url", instance, expectedTopology)
+	components, relations := getAgentIntegrationTopology(t, instance)
 
 	assert.Equal(t, batcher.Topologies(map[check.ID]topology.Topology{
 		"testtopology:c3d960f8ff8a5c55": {
-			StartSnapshot: true,
-			StopSnapshot:  true,
+			StartSnapshot: false,
+			StopSnapshot:  false,
 			Instance:      instance,
 			Components:    []topology.Component{},
 			Relations: []topology.Relation{
@@ -106,12 +106,12 @@ func TestStartSnapshotCheck(t *testing.T) {
 	assert.Nil(t, err)
 	expectedTopology := mockBatcher.CollectedTopology.Flush()
 	instance := topology.Instance{Type: "type", URL: "url"}
-	components, relations := getAgentIntegrationTopology(t, "type:url", instance, expectedTopology)
+	components, relations := getAgentIntegrationTopology(t, instance)
 
 	assert.Equal(t, batcher.Topologies(map[check.ID]topology.Topology{
 		"testtopology:c3d960f8ff8a5c55": {
 			StartSnapshot: true,
-			StopSnapshot:  true,
+			StopSnapshot:  false,
 			Instance:      instance,
 			Components:    []topology.Component{},
 			Relations:     []topology.Relation{},
@@ -135,11 +135,11 @@ func TestStopSnapshotCheck(t *testing.T) {
 	assert.Nil(t, err)
 	expectedTopology := mockBatcher.CollectedTopology.Flush()
 	instance := topology.Instance{Type: "type", URL: "url"}
-	components, relations := getAgentIntegrationTopology(t, "type:url", instance, expectedTopology)
+	components, relations := getAgentIntegrationTopology(t, instance)
 
 	assert.Equal(t, batcher.Topologies(map[check.ID]topology.Topology{
 		"testtopology:c3d960f8ff8a5c55": {
-			StartSnapshot: true,
+			StartSnapshot: false,
 			StopSnapshot:  true,
 			Instance:      instance,
 			Components:    []topology.Component{},
@@ -165,24 +165,7 @@ func TestAgentIntegration(t *testing.T) {
 	expectedTopology := mockBatcher.CollectedTopology.Flush()
 	t.Logf("ExpectedTopology: %v\n", expectedTopology)
 	instance := topology.Instance{Type: "type", URL: "url"}
-	var hostCPUUsageIdentifier, responses2xxIdentifier, responses5xxIdentifier, healthIdentifier string
-	for _, e := range expectedTopology["testcheck_agent_integration:c3d960f8ff8a5c55"].Components[3].Data["metrics"].([]interface{}) {
-		hostCPUUsageIdentifier = e.(map[string]interface{})["identifier"].(string)
-	}
-	for i, e := range expectedTopology["testcheck_agent_integration:c3d960f8ff8a5c55"].Components[4].Data["metrics"].([]interface{}) {
-		if i == 0 {
-			responses2xxIdentifier = e.(map[string]interface{})["identifier"].(string)
-		}
-
-		if i == 1 {
-			responses5xxIdentifier = e.(map[string]interface{})["identifier"].(string)
-		}
-	}
-	for _, e := range expectedTopology["testcheck_agent_integration:c3d960f8ff8a5c55"].Components[4].Data["events"].([]interface{}) {
-		healthIdentifier = e.(map[string]interface{})["identifier"].(string)
-	}
-
-	components, relations := getAgentIntegrationTopology(t, "testcheck_agent_integration:c3d960f8ff8a5c55", instance, expectedTopology)
+	components, relations := getAgentIntegrationTopology(t, instance)
 
 	assert.Equal(t, batcher.Topologies(map[check.ID]topology.Topology{
 		"testcheck_agent_integration:c3d960f8ff8a5c55": {
@@ -240,7 +223,6 @@ func TestAgentIntegration(t *testing.T) {
 							map[string]interface{}{
 								"unit_of_measure": "Percentage",
 								"name":            "Host CPU Usage",
-								"identifier":      hostCPUUsageIdentifier,
 								"conditions": []interface{}{
 									map[string]interface{}{"value": "this-host", "key": "tags.hostname"},
 								},
@@ -316,7 +298,6 @@ func TestAgentIntegration(t *testing.T) {
 									map[string]interface{}{"key": "status", "value": "RUNNING"},
 									map[string]interface{}{"key": "tags.application", "value": "some-application"},
 								},
-								"identifier": healthIdentifier,
 								"name":       "Health",
 								"stream_id":  int64(-3),
 							},
@@ -327,7 +308,6 @@ func TestAgentIntegration(t *testing.T) {
 								"stream_id":       int64(-1),
 								"unit_of_measure": "Count",
 								"name":            "2xx Responses",
-								"identifier":      responses2xxIdentifier,
 								"conditions": []interface{}{
 									map[string]interface{}{"value": "some_application", "key": "tags.application"},
 									map[string]interface{}{"value": "eu-west-1", "key": "tags.region"},
@@ -336,7 +316,6 @@ func TestAgentIntegration(t *testing.T) {
 								"metric_field": "2xx.responses",
 							},
 							map[string]interface{}{
-								"identifier": responses5xxIdentifier,
 								"conditions": []interface{}{
 									map[string]interface{}{"value": "some_application", "key": "tags.application"},
 									map[string]interface{}{"value": "eu-west-1", "key": "tags.region"},
@@ -365,15 +344,7 @@ func TestAgentIntegration(t *testing.T) {
 	}), expectedTopology)
 }
 
-func getAgentIntegrationTopology(t *testing.T, key check.ID, instance topology.Instance, expectedTopology batcher.Topologies) ([]topology.Component, []topology.Relation) {
-	var integrationIdentifier, integrationInstanceIdentifier string
-	for _, e := range expectedTopology[key].Components[1].Data["service_checks"].([]interface{}) {
-		integrationIdentifier = e.(map[string]interface{})["identifier"].(string)
-	}
-	for _, e := range expectedTopology[key].Components[2].Data["service_checks"].([]interface{}) {
-		integrationInstanceIdentifier = e.(map[string]interface{})["identifier"].(string)
-	}
-
+func getAgentIntegrationTopology(t *testing.T, instance topology.Instance) ([]topology.Component, []topology.Relation) {
 	pid := os.Getpid()
 	ct, err := collectorutil.GetProcessCreateTime(int32(pid))
 	if err != nil {
@@ -417,7 +388,6 @@ func getAgentIntegrationTopology(t *testing.T, key check.ID, instance topology.I
 					},
 					"service_checks": []interface{}{map[string]interface{}{
 						"stream_id":  int64(-1),
-						"identifier": integrationIdentifier,
 						"conditions": []interface{}{
 							map[string]interface{}{"value": host, "key": "host"},
 							map[string]interface{}{"value": instance.Type, "key": "tags.integration-type"},
@@ -455,7 +425,6 @@ func getAgentIntegrationTopology(t *testing.T, key check.ID, instance topology.I
 							},
 							"name":       "Service Checks",
 							"stream_id":  int64(-1),
-							"identifier": integrationInstanceIdentifier,
 						},
 					},
 				},
