@@ -14,8 +14,11 @@ import (
 	"time"
 )
 
-// FIMCategory holds the event category for JSON serialization
-const FIMCategory = "File Activity"
+// Event categories for JSON serialization
+const (
+	FIMCategory     = "File Activity"
+	ProcessActivity = "Process Activity"
+)
 
 // FileSerializer serializes a file to JSON
 // easyjson:json
@@ -340,6 +343,7 @@ func newEventSerializer(event *Event) (*EventSerializer, error) {
 			FileSerializer: *newFileSerializer(&event.processCacheEntry.FileEvent, event),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
+		s.Category = ProcessActivity
 	}
 
 	return s, nil
