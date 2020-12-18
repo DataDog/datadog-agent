@@ -6,6 +6,7 @@
 package traceutil
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,6 +28,7 @@ func TestTruncateResource(t *testing.T) {
 		assert.True(t, ok)
 		assert.Equal(t, "resource", r)
 	})
+
 	t.Run("under", func(t *testing.T) {
 		s := strings.Repeat("a", MaxResourceLen)
 		r, ok := TruncateResource(s + "extra string")
