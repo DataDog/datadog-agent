@@ -51,6 +51,7 @@ type UserContextSerializer struct {
 type ProcessCacheEntrySerializer struct {
 	UserContextSerializer
 	Pid           uint32     `json:"pid"`
+	PPid          uint32     `json:"ppid"`
 	Tid           uint32     `json:"tid"`
 	UID           uint32     `json:"uid"`
 	GID           uint32     `json:"gid"`
@@ -149,11 +150,12 @@ func getTimeIfNotZero(t time.Time) *time.Time {
 }
 
 func newProcessCacheEntrySerializer(pce *ProcessCacheEntry, e *Event, useEvent bool) *ProcessCacheEntrySerializer {
-	var pid, tid, uid, gid uint32
+	var pid, ppid, tid, uid, gid uint32
 	var user, group string
 
 	if useEvent {
 		pid = e.Process.Pid
+		ppid = e.Process.PPid
 		tid = e.Process.Tid
 		uid = e.Process.UID
 		gid = e.Process.GID
@@ -161,6 +163,7 @@ func newProcessCacheEntrySerializer(pce *ProcessCacheEntry, e *Event, useEvent b
 		group = e.Process.ResolveGroup(e)
 	} else {
 		pid = pce.Pid
+		ppid = pce.PPid
 		tid = pce.Tid
 		uid = pce.UID
 		gid = pce.GID
@@ -174,6 +177,7 @@ func newProcessCacheEntrySerializer(pce *ProcessCacheEntry, e *Event, useEvent b
 			Group: group,
 		},
 		Pid:      pid,
+		PPid:     ppid,
 		Tid:      tid,
 		UID:      uid,
 		GID:      gid,
