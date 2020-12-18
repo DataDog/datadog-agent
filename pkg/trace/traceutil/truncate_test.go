@@ -22,16 +22,13 @@ func TestTruncateString(t *testing.T) {
 }
 
 func TestTruncateResource(t *testing.T) {
-	t.Run("below_limit", func(t *testing.T) {
+	t.Run("over", func(t *testing.T) {
 		r, ok := TruncateResource("resource")
 		assert.True(t, ok)
 		assert.Equal(t, "resource", r)
 	})
-	t.Run("above_limit", func(t *testing.T) {
-		s := ""
-		for i := 0; i < MaxResourceLen; i++ {
-			s += "a"
-		}
+	t.Run("under", func(t *testing.T) {
+		s := strings.Repeat("a", MaxResourceLen)
 		r, ok := TruncateResource(s + "extra string")
 		assert.False(t, ok)
 		assert.Equal(t, s, r)
