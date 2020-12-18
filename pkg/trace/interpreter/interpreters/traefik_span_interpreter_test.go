@@ -95,6 +95,73 @@ func TestTraefikSpanInterpreter(t *testing.T) {
 			}},
 		},
 		{
+			testCase:    "Should rewrite the trace so that the forward span is the child of the entrupoint span",
+			interpreter: traefikInterpreter,
+			trace: []*pb.Span{
+				{
+					SpanID:  1,
+					Service: "entrypoint-service",
+					Meta: map[string]string{
+						"http.host": "hostname",
+						"span.kind": "server",
+					},
+				},
+				{
+					SpanID:   2,
+					ParentID: 1,
+					Name:     "TLSClientHeaders",
+					Service:  "TraefikService",
+					Meta: map[string]string{
+						"source": "traefik",
+					},
+				},
+				{
+					SpanID:   3,
+					ParentID: 2,
+					Service:  "forward-service",
+					Meta: map[string]string{
+						"backend.name": "backend-service-name",
+						"span.kind":    "client",
+					},
+				},
+			},
+			expected: []*pb.Span{
+				{
+					SpanID:  1,
+					Service: "entrypoint-service",
+					Meta: map[string]string{
+						"http.host":        "hostname",
+						"span.kind":        "server",
+						"span.serviceName": "hostname",
+						"span.serviceURN":  "urn:service:/hostname",
+						"span.serviceType": "traefik",
+					},
+				},
+				{
+					SpanID:   2,
+					ParentID: 1,
+					Name:     "TLSClientHeaders",
+					Service:  "TraefikService",
+					Meta: map[string]string{
+						"source":           "traefik",
+						"span.serviceType": "traefik",
+					},
+				},
+				{
+					SpanID:   3,
+					ParentID: 1,
+					Service:  "forward-service",
+					Meta: map[string]string{
+						"backend.name":     "backend-service-name",
+						"span.kind":        "client",
+						"span.serviceName": "service-name",
+						"span.serviceURN":  "urn:service:/service-name",
+						"span.serviceType": "traefik",
+					},
+				},
+			},
+		},
+		{
 			testCase:    "Should interpret 4xx http errors",
 			interpreter: traefikInterpreter,
 			trace: []*pb.Span{{

@@ -26,7 +26,8 @@ func (t *TraefikInterpreter) Interpret(spans []*pb.Span) []*pb.Span {
 	// In a Traefik trace we will always find 3 spans:
 	//  entrypoint -> TLS headers -> forward
 	// We interpret:
-	// - the TLS header span as being the core Traefik component,
+	// - the entrypoint as the frontend service
+	// - the TLS header span as being the core Traefik component
 	// - the forward span as being the backend service and service instance component
 	//   they will both merge eventually with other components in StackState
 	var entrypoint, forward *pb.Span
