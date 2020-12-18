@@ -28,7 +28,7 @@ const (
 // TruncateResource truncates a span's resource to the maximum allowed length. The boolean
 // will be true if truncation occurs
 func TruncateResource(r string) (string, bool) {
-	return TruncateUTF8(r, MaxResourceLen), len(r) > MaxResourceLen
+	return TruncateUTF8(r, MaxResourceLen), len(r) <= MaxResourceLen
 }
 
 // TruncateUTF8 truncates the given string to make sure it uses less than limit bytes.

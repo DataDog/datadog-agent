@@ -20,3 +20,20 @@ func TestTruncateString(t *testing.T) {
 	assert.Equal(t, "ééééé", TruncateUTF8("ééééé", 10))
 	assert.Equal(t, "ééé", TruncateUTF8("ééééé", 6))
 }
+
+func TestTruncateResource(t *testing.T) {
+	t.Run("below_limit", func(t *testing.T) {
+		r, ok := TruncateResource("resource")
+		assert.True(t, ok)
+		assert.Equal(t, "resource", r)
+	})
+	t.Run("above_limit", func(t *testing.T) {
+		s := ""
+		for i := 0; i < MaxResourceLen; i++ {
+			s += "a"
+		}
+		r, ok := TruncateResource(s + "extra string")
+		assert.False(t, ok)
+		assert.Equal(t, s, r)
+	})
+}
