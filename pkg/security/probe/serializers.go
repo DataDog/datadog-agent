@@ -26,7 +26,7 @@ type FileSerializer struct {
 	Inode           *uint64    `json:"inode,omitempty"`
 	Mode            *uint32    `json:"mode,omitempty"`
 	OverlayNumLower *int32     `json:"overlay_numlower,omitempty"`
-	MountID         *uint32    `json:"mount_id"`
+	MountID         *uint32    `json:"mount_id,omitempty"`
 	UID             *int32     `json:"uid,omitempty"`
 	GID             *int32     `json:"gid,omitempty"`
 	XAttrName       string     `json:"attribute_name,omitempty"`
@@ -75,10 +75,10 @@ type FileEventSerializer struct {
 	Destination    *FileSerializer `json:"destination,omitempty"`
 
 	// Specific to mount events
-	MountID uint32 `json:"mount_id,omitempty"`
-	GroupID uint32 `json:"group_id,omitempty"`
-	Device  uint32 `json:"device,omitempty"`
-	FSType  string `json:"fstype,omitempty"`
+	NewMountID uint32 `json:"new_mount_id,omitempty"`
+	GroupID    uint32 `json:"group_id,omitempty"`
+	Device     uint32 `json:"device,omitempty"`
+	FSType     string `json:"fstype,omitempty"`
 }
 
 // EventContextSerializer serializes an event context to JSON
@@ -111,10 +111,31 @@ func newFileSerializer(fe *FileEvent, e *Event) *FileSerializer {
 	return &FileSerializer{
 		Path:            fe.ResolveInode(e),
 		ContainerPath:   fe.ResolveContainerPath(e),
-		Inode:           &fe.Inode,
-		MountID:         &fe.MountID,
-		OverlayNumLower: &fe.OverlayNumLower,
+		Inode:           getUint64Pointer(&fe.Inode),
+		MountID:         getUint32Pointer(&fe.MountID),
+		OverlayNumLower: getInt32Pointer(&fe.OverlayNumLower),
 	}
+}
+
+func getUint64Pointer(i *uint64) *uint64 {
+	if *i == 0 {
+		return nil
+	}
+	return i
+}
+
+func getUint32Pointer(i *uint32) *uint32 {
+	if *i == 0 {
+		return nil
+	}
+	return i
+}
+
+func getInt32Pointer(i *int32) *int32 {
+	if *i == 0 {
+		return nil
+	}
+	return i
 }
 
 func getTimeIfNotZero(t time.Time) *time.Time {
@@ -207,7 +228,14 @@ func newEventSerializer(event *Event) (*EventSerializer, error) {
 			Name:     EventType(event.Type).String(),
 			Category: FIMCategory,
 		},
+		ProcessContextSerializer: newProcessContextSerializer(&event.Process, event),
 	}
+
+	if event.Container.ID != "" {
+		s.ContainerContextSerializer = newContainerContextSerializer(&event.Container, event)
+	}
+
+	s.UserContextSerializer = s.ProcessContextSerializer.UserContextSerializer
 
 	switch EventType(event.Type) {
 	case FileChmodEventType:
@@ -292,15 +320,15 @@ func newEventSerializer(event *Event) (*EventSerializer, error) {
 				MountID: &event.Mount.ParentMountID,
 				Inode:   &event.Mount.ParentInode,
 			},
-			MountID: event.Mount.MountID,
-			GroupID: event.Mount.GroupID,
-			Device:  event.Mount.Device,
-			FSType:  event.Mount.GetFSType(),
+			NewMountID: event.Mount.MountID,
+			GroupID:    event.Mount.GroupID,
+			Device:     event.Mount.Device,
+			FSType:     event.Mount.GetFSType(),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Mount.Retval)
 	case FileUmountEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			MountID: event.Umount.MountID,
+			NewMountID: event.Umount.MountID,
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Umount.Retval)
 	case ForkEventType:
@@ -309,17 +337,10 @@ func newEventSerializer(event *Event) (*EventSerializer, error) {
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
 	case ExecEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.Exec.FileEvent, event),
+			FileSerializer: *newFileSerializer(&event.processCacheEntry.FileEvent, event),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
 	}
-
-	s.ProcessContextSerializer = newProcessContextSerializer(&event.Process, event)
-	if event.Container.ID != "" {
-		s.ContainerContextSerializer = newContainerContextSerializer(&event.Container, event)
-	}
-
-	s.UserContextSerializer = s.ProcessContextSerializer.UserContextSerializer
 
 	return s, nil
 }

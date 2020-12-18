@@ -22,30 +22,34 @@ type UserGroupResolver struct {
 
 // ResolveUser resolves a user id to a username
 func (r *UserGroupResolver) ResolveUser(uid int) (string, error) {
-	username, found := r.userCache.Get(uid)
+	cachedEntry, found := r.userCache.Get(uid)
 	if found {
-		return username.(string), nil
+		return cachedEntry.(string), nil
 	}
 
+	var username string
 	u, err := user.LookupId(strconv.Itoa(uid))
 	if err == nil {
-		r.userCache.Add(uid, u.Username)
+		username = u.Username
 	}
-	return u.Username, nil
+	r.userCache.Add(uid, username)
+	return username, err
 }
 
 // ResolveGroup resolves a group id to a group name
 func (r *UserGroupResolver) ResolveGroup(gid int) (string, error) {
-	groupname, found := r.groupCache.Get(gid)
+	cachedEntry, found := r.groupCache.Get(gid)
 	if found {
-		return groupname.(string), nil
+		return cachedEntry.(string), nil
 	}
 
+	var groupname string
 	g, err := user.LookupGroupId(strconv.Itoa(gid))
 	if err == nil {
-		r.groupCache.Add(gid, g.Name)
+		groupname = g.Name
 	}
-	return g.Name, nil
+	r.groupCache.Add(gid, groupname)
+	return groupname, nil
 }
 
 // NewUserGroupResolver instantiates a new user and group resolver

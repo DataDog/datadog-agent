@@ -764,7 +764,7 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe3(out *jw
 		}
 		out.Int32(int32(*in.OverlayNumLower))
 	}
-	{
+	if in.MountID != nil {
 		const prefix string = ",\"mount_id\":"
 		if first {
 			first = false
@@ -772,35 +772,56 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe3(out *jw
 		} else {
 			out.RawString(prefix)
 		}
-		if in.MountID == nil {
-			out.RawString("null")
-		} else {
-			out.Uint32(uint32(*in.MountID))
-		}
+		out.Uint32(uint32(*in.MountID))
 	}
 	if in.UID != nil {
 		const prefix string = ",\"uid\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.Int32(int32(*in.UID))
 	}
 	if in.GID != nil {
 		const prefix string = ",\"gid\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.Int32(int32(*in.GID))
 	}
 	if in.XAttrName != "" {
 		const prefix string = ",\"attribute_name\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.String(string(in.XAttrName))
 	}
 	if in.XAttrNamespace != "" {
 		const prefix string = ",\"attribute_namespace\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.String(string(in.XAttrNamespace))
 	}
 	if len(in.Flags) != 0 {
 		const prefix string = ",\"flags\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		{
 			out.RawByte('[')
 			for v5, v6 := range in.Flags {
@@ -814,12 +835,22 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe3(out *jw
 	}
 	if in.Atime != nil {
 		const prefix string = ",\"access_time\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.Raw((*in.Atime).MarshalJSON())
 	}
 	if in.Mtime != nil {
 		const prefix string = ",\"modification_time\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.Raw((*in.Mtime).MarshalJSON())
 	}
 	out.RawByte('}')
@@ -877,8 +908,8 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe4(in *jle
 				}
 				(*out.Destination).UnmarshalEasyJSON(in)
 			}
-		case "mount_id":
-			out.MountID = uint32(in.Uint32())
+		case "new_mount_id":
+			out.NewMountID = uint32(in.Uint32())
 		case "group_id":
 			out.GroupID = uint32(in.Uint32())
 		case "device":
@@ -920,6 +951,16 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe4(in *jle
 					out.OverlayNumLower = new(int32)
 				}
 				*out.OverlayNumLower = int32(in.Int32())
+			}
+		case "mount_id":
+			if in.IsNull() {
+				in.Skip()
+				out.MountID = nil
+			} else {
+				if out.MountID == nil {
+					out.MountID = new(uint32)
+				}
+				*out.MountID = uint32(in.Uint32())
 			}
 		case "uid":
 			if in.IsNull() {
@@ -1012,15 +1053,15 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe4(out *jw
 		out.RawString(prefix[1:])
 		(*in.Destination).MarshalEasyJSON(out)
 	}
-	if in.MountID != 0 {
-		const prefix string = ",\"mount_id\":"
+	if in.NewMountID != 0 {
+		const prefix string = ",\"new_mount_id\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
 		} else {
 			out.RawString(prefix)
 		}
-		out.Uint32(uint32(in.MountID))
+		out.Uint32(uint32(in.NewMountID))
 	}
 	if in.GroupID != 0 {
 		const prefix string = ",\"group_id\":"
@@ -1111,6 +1152,16 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe4(out *jw
 			out.RawString(prefix)
 		}
 		out.Int32(int32(*in.OverlayNumLower))
+	}
+	if in.MountID != nil {
+		const prefix string = ",\"mount_id\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.Uint32(uint32(*in.MountID))
 	}
 	if in.UID != nil {
 		const prefix string = ",\"uid\":"
