@@ -162,6 +162,8 @@ func runAgent(exit chan struct{}) {
 	if cfg.ProfilingEnabled {
 		if err := enableProfiling(cfg); err != nil {
 			log.Warnf("failed to enable profiling: %s", err)
+		} else {
+			log.Info("start profiling process-agent")
 		}
 		defer profiling.Stop()
 	}
@@ -288,5 +290,6 @@ func enableProfiling(cfg *config.AgentConfig) error {
 	}
 
 	v, _ := version.Agent()
+
 	return profiling.Start(cfg.ProfilingAPIKey, site, cfg.ProfilingEnvironment, "process-agent", fmt.Sprintf("version:%v", v))
 }
