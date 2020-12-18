@@ -28,6 +28,8 @@
   - Check API supports auto snapshots when setting `with_snapshots` to True in the TopologyInstance [(STAC-10885)](https://stackstate.atlassian.net/browse/STAC-10885)
   - Sanitize events and topology data in the base check, encoding unicode to string, before propagating data upstream [(STAC-11298)](https://stackstate.atlassian.net/browse/STAC-11298)
   - Added functionality to the Identifiers utility to provide lower-cased identifiers for all StackState-related identifiers [(STAC-11541)](https://stackstate.atlassian.net/browse/STAC-11541)
+- Trace agent:
+  - Interpret Traefik traces so that the Traefik component is not the parent of a service-instance [(STAC-10847)](https://stackstate.atlassian.net/browse/STAC-10847)
 
 **Bugfix**
 

@@ -298,8 +298,8 @@ func TestAgentIntegration(t *testing.T) {
 									map[string]interface{}{"key": "status", "value": "RUNNING"},
 									map[string]interface{}{"key": "tags.application", "value": "some-application"},
 								},
-								"name":       "Health",
-								"stream_id":  int64(-3),
+								"name":      "Health",
+								"stream_id": int64(-3),
 							},
 						},
 						"metrics": []interface{}{
@@ -387,7 +387,7 @@ func getAgentIntegrationTopology(t *testing.T, instance topology.Instance) ([]to
 						},
 					},
 					"service_checks": []interface{}{map[string]interface{}{
-						"stream_id":  int64(-1),
+						"stream_id": int64(-1),
 						"conditions": []interface{}{
 							map[string]interface{}{"value": host, "key": "host"},
 							map[string]interface{}{"value": instance.Type, "key": "tags.integration-type"},
@@ -423,8 +423,8 @@ func getAgentIntegrationTopology(t *testing.T, instance topology.Instance) ([]to
 								map[string]interface{}{"value": instance.Type, "key": "tags.integration-type"},
 								map[string]interface{}{"value": instance.URL, "key": "tags.integration-url"},
 							},
-							"name":       "Service Checks",
-							"stream_id":  int64(-1),
+							"name":      "Service Checks",
+							"stream_id": int64(-1),
 						},
 					},
 				},

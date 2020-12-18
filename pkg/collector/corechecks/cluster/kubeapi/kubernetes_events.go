@@ -125,7 +125,7 @@ func KubernetesApiEventsFactory() check.Check {
 		CommonCheck: CommonCheck{
 			CheckBase: core.NewCheckBase(kubernetesAPIEventsCheckName),
 		},
-		instance: &EventsConfig{},
+		instance:      &EventsConfig{},
 		mapperFactory: newKubernetesEventMapper,
 	}
 }

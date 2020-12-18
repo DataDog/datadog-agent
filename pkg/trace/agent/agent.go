@@ -2,7 +2,7 @@ package agent
 
 import (
 	"context"
-	"github.com/StackVista/stackstate-agent/pkg/trace/interpreter"
+	"github.com/StackVista/stackstate-agent/pkg/trace/interpreter" //sts
 	"sync/atomic"
 	"time"
 
@@ -24,8 +24,6 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/trace/writer"
 )
 
-const processStatsInterval = time.Minute
-
 // Agent struct holds all the sub-routines structs and make the data flow between them
 type Agent struct {
 	Receiver              *api.HTTPReceiver
@@ -41,7 +39,7 @@ type Agent struct {
 	StatsWriter           *writer.StatsWriter
 	ServiceExtractor      *TraceServiceExtractor
 	ServiceMapper         *ServiceMapper
-	SpanInterpreterEngine *interpreter.SpanInterpreterEngine
+	SpanInterpreterEngine *interpreter.SpanInterpreterEngine //sts
 
 	// obfuscator is used to obfuscate sensitive data from various span
 	// tags based on their type.
@@ -87,7 +85,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	tw := writer.NewTraceWriter(conf, tracePkgChan)
 	sw := writer.NewStatsWriter(conf, statsChan)
 	svcW := writer.NewServiceWriter(conf, filteredServiceChan)
-	sie := interpreter.NewSpanInterpreterEngine(conf)
+	sie := interpreter.NewSpanInterpreterEngine(conf) // sts
 
 	return &Agent{
 		Receiver:              r,
@@ -103,7 +101,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		ServiceWriter:         svcW,
 		ServiceExtractor:      se,
 		ServiceMapper:         sm,
-		SpanInterpreterEngine: sie,
+		SpanInterpreterEngine: sie, // sts
 		obfuscator:            obf,
 		tracePkgChan:          tracePkgChan,
 		conf:                  conf,
@@ -205,9 +203,10 @@ func (a *Agent) Process(t pb.Trace) {
 	for _, span := range t {
 		a.obfuscator.Obfuscate(span)
 		Truncate(span)
-		a.SpanInterpreterEngine.Interpret(span)
 	}
 	a.Replacer.Replace(&t)
+
+	t = a.SpanInterpreterEngine.Interpret(t) //sts
 
 	// Extract the client sampling rate.
 	clientSampleRate := sampler.GetGlobalRate(root)
