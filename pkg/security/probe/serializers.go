@@ -298,15 +298,15 @@ func newEventSerializer(event *Event) (*EventSerializer, error) {
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.RemoveXAttr.FileEvent, event),
 		}
-		s.FileSerializer.XAttrName = event.RemoveXAttr.Name
-		s.FileSerializer.XAttrName = event.RemoveXAttr.Namespace
+		s.FileSerializer.XAttrName = event.RemoveXAttr.GetName(event)
+		s.FileSerializer.XAttrNamespace = event.RemoveXAttr.GetNamespace(event)
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.RemoveXAttr.Retval)
 	case FileSetXAttrEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.SetXAttr.FileEvent, event),
 		}
-		s.FileSerializer.XAttrName = event.SetXAttr.Name
-		s.FileSerializer.XAttrName = event.SetXAttr.Namespace
+		s.FileSerializer.XAttrName = event.SetXAttr.GetName(event)
+		s.FileSerializer.XAttrNamespace = event.SetXAttr.GetNamespace(event)
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.SetXAttr.Retval)
 	case FileUtimeEventType:
 		s.FileEventSerializer = &FileEventSerializer{
