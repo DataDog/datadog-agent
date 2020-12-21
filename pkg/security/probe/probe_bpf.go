@@ -223,6 +223,9 @@ func (p *Probe) SendStats(statsdClient *statsd.Client) error {
 		}
 	}
 
+	if err := statsdClient.Gauge(MetricPrefix+".process_resolver.cache_size", float64(len(p.resolvers.ProcessResolver.entryCache)), []string{}, 1.0); err != nil {
+		return errors.Wrap(err, "failed to send process_resolver cache_size metric")
+	}
 	return nil
 }
 
@@ -737,7 +740,7 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
 	}
 
-	resolvers, err := NewResolvers(p)
+	resolvers, err := NewResolvers(p, client)
 	if err != nil {
 		return nil, err
 	}

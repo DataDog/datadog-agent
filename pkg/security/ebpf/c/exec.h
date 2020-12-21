@@ -208,6 +208,7 @@ int kprobe_do_exit(struct pt_regs *ctx) {
 
         send_process_events(ctx, event);
     }
+
     return 0;
 }
 

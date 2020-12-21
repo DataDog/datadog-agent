@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-go/statsd"
 	lib "github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
 	"github.com/pkg/errors"
@@ -53,6 +54,7 @@ type ProcessResolver struct {
 	sync.RWMutex
 	probe          *Probe
 	resolvers      *Resolvers
+	client         *statsd.Client
 	snapshotProbes []*manager.Probe
 	inodeInfoMap   *lib.Map
 	procCacheMap   *lib.Map
@@ -214,9 +216,13 @@ func (p *ProcessResolver) insertEntry(pid uint32, entry *ProcessCacheEntry) *Pro
 			// update lineage
 			parent.Children[entry.Pid] = entry
 			p.entryCache[entry.PPid] = parent
+			p.client.Count(MetricPrefix+".process_resolver.new_entries", 1, []string{}, 1.0)
 		}
 	}
 	entry.Parent = parent
+	if _, ok := p.entryCache[pid]; !ok {
+		p.client.Count(MetricPrefix+".process_resolver.new_entries", 1, []string{}, 1.0)
+	}
 	p.entryCache[pid] = entry
 
 	return entry
@@ -251,6 +257,7 @@ func (p *ProcessResolver) recursiveDelete(entry *ProcessCacheEntry) {
 	}
 
 	// Delete the entry
+	p.client.Count(MetricPrefix+".process_resolver.deleted_entries", 1, []string{}, 1.0)
 	delete(p.entryCache, entry.Pid)
 
 	// There is nothing left to do if the entry does not have a parent
@@ -269,17 +276,27 @@ func (p *ProcessResolver) recursiveDelete(entry *ProcessCacheEntry) {
 func (p *ProcessResolver) Resolve(pid uint32) *ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
+	var tags []string
+	defer func() {
+		if err := p.client.Count(MetricPrefix+".process_resolver.hits", 1, tags, 1.0); err != nil {
+			log.Warnf("couldn't send process_resolver.hits metric: %v", err)
+		}
+	}()
+
 	entry, exists := p.entryCache[pid]
 	if exists {
+		tags = append(tags, "type:cache")
 		return entry
 	}
 
 	// fallback to the kernel maps directly, the perf event may be delayed / may have been lost
 	if entry = p.resolveWithKernelMaps(pid); entry != nil {
+		tags = append(tags, "type:kernel_maps")
 		return entry
 	}
 
 	// fallback to /proc, the in-kernel LRU may have deleted the entry
+	tags = append(tags, "type:procfs")
 	return p.resolveWithProcfs(pid)
 }
 
@@ -417,10 +434,11 @@ func (p *ProcessResolver) syncCache(proc *process.FilledProcess) (*ProcessCacheE
 }
 
 // NewProcessResolver returns a new process resolver
-func NewProcessResolver(probe *Probe, resolvers *Resolvers) (*ProcessResolver, error) {
+func NewProcessResolver(probe *Probe, resolvers *Resolvers, client *statsd.Client) (*ProcessResolver, error) {
 	return &ProcessResolver{
 		probe:      probe,
 		resolvers:  resolvers,
+		client:     client,
 		entryCache: make(map[uint32]*ProcessCacheEntry),
 	}, nil
 }
