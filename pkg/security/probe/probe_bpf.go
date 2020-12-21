@@ -294,6 +294,7 @@ func (p *Probe) handleEvent(data []byte) {
 	offset += read
 
 	eventType := EventType(event.Type)
+	p.eventsStats.CountEventType(eventType, 1)
 
 	log.Tracef("Decoding event %s(%d)", eventType, event.Type)
 
@@ -445,7 +446,6 @@ func (p *Probe) handleEvent(data []byte) {
 		log.Tracef("Dispatching event %s\n", prettyEvent)
 	}
 
-	p.eventsStats.CountEventType(eventType, 1)
 	p.loadController.Count(eventType, event.Process.Pid)
 	p.DispatchEvent(event)
 }
