@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"runtime"
 	"runtime/pprof"
 	"strings"
 	"testing"
@@ -251,22 +252,22 @@ func getTopData(filename string, from string, size int) ([]byte, error) {
 
 // StressIt starts the stress test
 func StressIt(t *testing.T, pre, post, fnc func() error, opts StressOpts) (StressReport, error) {
-	proFile, err := ioutil.TempFile("/tmp", "stress-profile-")
+	proCPUFile, err := ioutil.TempFile("/tmp", "stress-cpu-")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	if !opts.KeepProfile {
-		defer os.Remove(proFile.Name())
+		defer os.Remove(proCPUFile.Name())
 	} else {
-		fmt.Printf("Generating profile in %s\n", proFile.Name())
+		fmt.Printf("Generating CPU profile in %s\n", proCPUFile.Name())
 	}
 
 	if err := pre(); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := pprof.StartCPUProfile(proFile); err != nil {
+	if err := pprof.StartCPUProfile(proCPUFile); err != nil {
 		t.Fatal(err)
 	}
 
@@ -295,20 +296,38 @@ LOOP:
 		}
 	}
 
+	duration := time.Now().Sub(start)
+
 	pprof.StopCPUProfile()
-	proFile.Close()
+	proCPUFile.Close()
+
+	runtime.GC()
+	proMemFile, err := ioutil.TempFile("/tmp", "stress-mem-")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !opts.KeepProfile {
+		defer os.Remove(proMemFile.Name())
+	} else {
+		fmt.Printf("Generating Memory profile in %s\n", proMemFile.Name())
+	}
+
+	if err := pprof.WriteHeapProfile(proMemFile); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := post(); err != nil {
 		t.Fatal(err)
 	}
 
-	topData, err := getTopData(proFile.Name(), opts.TopFrom, 50)
+	topData, err := getTopData(proCPUFile.Name(), opts.TopFrom, 50)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	report := StressReport{
-		Duration:  time.Now().Sub(start),
+		Duration:  duration,
 		Iteration: iteration,
 		Top:       topData,
 	}

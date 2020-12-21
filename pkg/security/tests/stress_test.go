@@ -18,7 +18,6 @@ import (
 
 	"github.com/cihub/seelog"
 
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
@@ -100,7 +99,7 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 		Duration:    time.Duration(30) * time.Second,
 		KeepProfile: keepProfile,
 		DiffBase:    diffBase,
-		TopFrom:     "module",
+		TopFrom:     "probe",
 		ReportFile:  reportFile,
 	}
 
@@ -208,8 +207,7 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 
 	events := 0
 	go func() {
-		for event := range test.events {
-			fmt.Printf("<PID: %d\n", event.Event.(*sprobe.Event).Process.Pid)
+		for range test.events {
 			events++
 		}
 	}()
@@ -231,7 +229,6 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 		if _, err := cmd.CombinedOutput(); err != nil {
 			return err
 		}
-		fmt.Printf(">PID: %d\n", cmd.Process.Pid)
 
 		return nil
 	}
@@ -240,7 +237,7 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 		Duration:    40 * time.Second,
 		KeepProfile: keepProfile,
 		DiffBase:    diffBase,
-		TopFrom:     "module",
+		TopFrom:     "probe",
 		ReportFile:  reportFile,
 	}
 
