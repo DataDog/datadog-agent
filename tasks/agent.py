@@ -278,7 +278,7 @@ def system_tests(ctx):
 
 
 @task
-def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_tests=False):
+def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_tests=False, squash="false"):
     """
     Build the docker image
     """
@@ -312,7 +312,7 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_
         ctx.run("docker build {} --target testing {}".format(common_build_opts, build_context))
 
     # Build with the release target
-    ctx.run("docker build {} --target release {}".format(common_build_opts, build_context))
+    ctx.run("docker build {} --target release --squash={} {}".format(common_build_opts, squash, build_context))
     ctx.run("rm {}/{}".format(build_context, deb_glob))
 
 
