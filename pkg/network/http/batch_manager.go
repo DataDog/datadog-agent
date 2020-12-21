@@ -3,22 +3,21 @@
 package http
 
 import (
+	"errors"
 	"unsafe"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/ebpf"
 
 	"C"
 )
+import "fmt"
+
+var errLostBatch = errors.New("http batch lost (not consumed fast enough)")
 
 type batchManager struct {
 	batchMap   *ebpf.Map
 	stateByCPU []httpBatchState
 	numCPUs    int
-
-	// telemetry
-	misses int
 }
 
 func newBatchManager(batchMap, batchStateMap *ebpf.Map, numCPUs int) *batchManager {
@@ -42,7 +41,7 @@ func newBatchManager(batchMap, batchStateMap *ebpf.Map, numCPUs int) *batchManag
 	}
 }
 
-func (m *batchManager) GetTransactionsFrom(notification httpNotification) []httpTX {
+func (m *batchManager) GetTransactionsFrom(notification httpNotification) ([]httpTX, error) {
 	state := &m.stateByCPU[notification.cpu]
 
 	batch := new(httpBatch)
@@ -50,20 +49,18 @@ func (m *batchManager) GetTransactionsFrom(notification httpNotification) []http
 	key.Prepare(notification)
 	err := m.batchMap.Lookup(unsafe.Pointer(key), unsafe.Pointer(batch))
 	if err != nil {
-		log.Errorf("error retrieving http batch for cpu=%d", notification.cpu)
-		return nil
+		return nil, fmt.Errorf("error retrieving http batch for cpu=%d", notification.cpu)
 	}
 
 	if batch.IsDirty(notification) {
-		m.misses++
-		return nil
+		return nil, errLostBatch
 	}
 
 	offset := state.pos
 	state.idx = notification.batch_idx + 1
 	state.pos = 0
 
-	return batch.Transactions()[offset:]
+	return batch.Transactions()[offset:], nil
 }
 
 func (m *batchManager) GetPendingTransactions() []httpTX {
@@ -75,8 +72,8 @@ func (m *batchManager) GetPendingTransactions() []httpTX {
 		key := &httpBatchKey{cpu: C.uint(i), page_num: C.uint(page)}
 		batch := new(httpBatch)
 
-		m.batchMap.Lookup(unsafe.Pointer(key), unsafe.Pointer(batch))
-		if batch.state.idx != state.idx || batch.state.pos <= state.pos || int(batch.state.pos) >= HTTPBatchSize {
+		err := m.batchMap.Lookup(unsafe.Pointer(key), unsafe.Pointer(batch))
+		if err != nil || batch.state.idx != state.idx || batch.state.pos <= state.pos || int(batch.state.pos) >= HTTPBatchSize {
 			continue
 		}
 

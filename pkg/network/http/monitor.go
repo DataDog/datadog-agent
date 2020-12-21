@@ -4,16 +4,15 @@ package http
 
 import (
 	"fmt"
-	"time"
 
 	"C"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf/manager"
 )
+import "time"
 
 // Monitor is responsible for:
 // * Creating a raw socket and attaching an eBPF filter to it;
@@ -21,9 +20,13 @@ import (
 // * Querying these batches by doing a map lookup;
 // * Aggregating and emitting metrics based on the received HTTP transactions;
 type Monitor struct {
+	handler func([]httpTX)
+
 	batchManager  *batchManager
 	perfMap       *manager.PerfMap
 	perfHandler   *ddebpf.PerfHandler
+	telemetry     *telemetry
+	pollRequests  chan chan struct{}
 	closeFilterFn func()
 }
 
@@ -61,13 +64,13 @@ func NewMonitor(procRoot string, m *manager.Manager, h *ddebpf.PerfHandler) (*Mo
 		batchManager:  newBatchManager(batchMap, batchStateMap, numCPUs),
 		perfMap:       pm,
 		perfHandler:   h,
+		telemetry:     newTelemetry(),
+		pollRequests:  make(chan chan struct{}),
 		closeFilterFn: closeFilterFn,
 	}, nil
 }
 
 // Start consuming HTTP events
-// Please note the code below is merely an *example* of how to consume the HTTP
-// transaction information sent from the eBPF program
 func (http *Monitor) Start() error {
 	if http == nil {
 		return nil
@@ -77,15 +80,10 @@ func (http *Monitor) Start() error {
 		return fmt.Errorf("error starting perf map: %s", err)
 	}
 
-	go func() {
-		var (
-			misses int
-			then   = time.Now()
-			hits   = make(map[int]int)
-			report = time.NewTicker(30 * time.Second)
-		)
-		defer report.Stop()
+	report := time.NewTicker(30 * time.Second)
+	defer report.Stop()
 
+	go func() {
 		for {
 			select {
 			case data, ok := <-http.perfHandler.DataChannel:
@@ -93,38 +91,38 @@ func (http *Monitor) Start() error {
 					return
 				}
 
-				// The notification we read off the perf ring tells us which HTTP batch of transactions is ready to be read
+				// The notification we read from the perf ring tells us which HTTP batch of transactions is ready to be consumed
 				notification := toHTTPNotification(data)
-				txs := http.batchManager.GetTransactionsFrom(notification)
-				aggregate(txs, hits)
+				transactions, err := http.batchManager.GetTransactionsFrom(notification)
+				http.process(transactions, err)
 			case _, ok := <-http.perfHandler.LostChannel:
 				if !ok {
 					return
 				}
 
-				http.batchManager.misses++
-			case now := <-report.C:
-				txs := http.batchManager.GetPendingTransactions()
-				aggregate(txs, hits)
-
-				delta := float64(now.Sub(then).Seconds())
-				log.Infof("http report: 100(%d reqs, %.2f/s) 200(%d reqs, %.2f/s) 300(%d reqs, %.2f/s), 400(%d reqs, %.2f/s) 500(%d reqs, %.2f/s), misses(%d reqs, %.2f/s)",
-					hits[100], float64(hits[100])/delta,
-					hits[200], float64(hits[200])/delta,
-					hits[300], float64(hits[300])/delta,
-					hits[400], float64(hits[400])/delta,
-					hits[500], float64(hits[500])/delta,
-					misses*HTTPBatchSize,
-					float64(http.batchManager.misses*HTTPBatchSize)/delta,
-				)
-				hits = make(map[int]int)
-				then = now
-				http.batchManager.misses = 0
+				http.process(nil, errLostBatch)
+			case reply := <-http.pollRequests:
+				transactions := http.batchManager.GetPendingTransactions()
+				http.process(transactions, nil)
+				reply <- struct{}{}
+			case <-report.C:
+				transactions := http.batchManager.GetPendingTransactions()
+				http.process(transactions, nil)
 			}
 		}
 	}()
 
 	return nil
+}
+
+// Poll any pending HTTP transactions from eBPF
+func (http *Monitor) Poll() {
+	reply := make(chan struct{})
+	defer close(reply)
+
+	// TODO: Add logic to ensure this won't deadlock during termination
+	http.pollRequests <- reply
+	<-reply
 }
 
 // Stop HTTP monitoring
@@ -138,9 +136,10 @@ func (http *Monitor) Stop() {
 	http.perfHandler.Stop()
 }
 
-// Placeholder code
-func aggregate(txs []httpTX, hits map[int]int) {
-	for _, tx := range txs {
-		hits[tx.StatusClass()]++
+func (http *Monitor) process(transactions []httpTX, err error) {
+	http.telemetry.aggregate(transactions, err)
+
+	if http.handler != nil && len(transactions) > 0 {
+		http.handler(transactions)
 	}
 }

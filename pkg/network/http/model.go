@@ -60,6 +60,20 @@ func (tx *httpTX) StatusClass() int {
 	return (int(tx.response_status_code) / 100) * 100
 }
 
+// Method returns a string representing the HTTP method of the request
+func (tx *httpTX) Method() string {
+	switch tx.request_method {
+	case C.HTTP_GET:
+		return "GET"
+	case C.HTTP_POST:
+		return "POST"
+	case C.HTTP_PUT:
+		return "PUT"
+	default:
+		return ""
+	}
+}
+
 // IsDirty detects whether the batch page we're supposed to read from is still
 // valid.  A "dirty" page here means that between the time the
 // http_notification_t message was sent to userspace and the time we performed
