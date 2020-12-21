@@ -882,8 +882,8 @@ api_key:
   ## Uncomment this parameter and the one below to enable profiling.
   ## See https://docs.datadoghq.com/tracing/profiling/
   #
-  ## NOTE: If enabled this option may incur billing charges or other
-  ##       unexpected side-effects (ie. process-agent profiles showing with your
+  ## NOTE: If you enable this option, it may impact your billing or
+  ##       other features (e.g. process-agent profiles showing with your
   ##       services).
   #
   # profiling:
