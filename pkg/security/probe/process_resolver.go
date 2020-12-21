@@ -8,6 +8,7 @@
 package probe
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"sync"
@@ -343,7 +344,7 @@ func (p *ProcessResolver) Get(pid uint32) *ProcessCacheEntry {
 }
 
 // Start starts the resolver
-func (p *ProcessResolver) Start() error {
+func (p *ProcessResolver) Start(ctx context.Context) error {
 	// initializes the list of snapshot probes
 	for _, id := range snapshotProbeIDs {
 		probe, ok := p.probe.manager.GetProbe(id)
@@ -366,7 +367,65 @@ func (p *ProcessResolver) Start() error {
 		return err
 	}
 
+	go p.resync(ctx)
+
 	return nil
+}
+
+// resync is used to resync the process cache and ensure that we do not have a memory leak over time
+func (p *ProcessResolver) resync(ctx context.Context) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			p.cleanupDeadProcesses()
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// cleanupDeadProcesses is used to cleanup the dead processes cache entries. This is a safety net to avoid a memory leak
+// if the tree was not properly cleaned up at runtime.
+func (p *ProcessResolver) cleanupDeadProcesses() {
+	processes, err := process.Pids()
+	if err != nil {
+		log.Errorf("failed to list processes for cleanup %v", err)
+		return
+	}
+
+	// wait a little bit to make sure that there isn't a race with the perf map
+	time.Sleep(10 * time.Second)
+
+	var toDelete []uint32
+
+	p.RLock()
+	for cachedProc, entry := range p.entryCache {
+		if !entry.ExitTimestamp.IsZero() {
+			continue
+		}
+
+		var alive bool
+		for _, proc := range processes {
+			if proc == int32(cachedProc) {
+				alive = true
+			}
+		}
+		if !alive {
+			toDelete = append(toDelete, cachedProc)
+		}
+	}
+	p.RUnlock()
+
+	for _, proc := range toDelete {
+		p.DeleteEntry(proc, time.Now())
+		time.Sleep(100 * time.Millisecond)
+	}
 }
 
 // SyncCache snapshots /proc for the provided pid. This method returns true if it updated the process cache.

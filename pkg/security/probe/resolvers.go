@@ -8,6 +8,7 @@
 package probe
 
 import (
+	"context"
 	"os"
 
 	"github.com/DataDog/gopsutil/process"
@@ -66,7 +67,7 @@ func NewResolvers(probe *Probe) (*Resolvers, error) {
 
 // Start the resolvers
 func (r *Resolvers) Start() error {
-	if err := r.ProcessResolver.Start(); err != nil {
+	if err := r.ProcessResolver.Start(context.Background()); err != nil {
 		return err
 	}
 
