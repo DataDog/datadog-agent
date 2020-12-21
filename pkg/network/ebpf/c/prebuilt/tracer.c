@@ -1461,15 +1461,13 @@ static __always_inline int http_begin_response(http_transaction_t *http, char *b
 }
 
 static __always_inline void http_read_data(struct __sk_buff* skb, skb_info_t* skb_info, char* p, http_packet_t* packet_type, http_method_t* method) {
+    if (skb->len - skb_info->data_off < HTTP_BUFFER_SIZE) {
+        return;
+    }
+
 #pragma unroll
     for (int i = 0; i < HTTP_BUFFER_SIZE; i++) {
-        if (skb_info->data_off + i <= skb->len-1) {
-            p[i] = load_byte(skb, skb_info->data_off + i);
-        } else {
-            // TODO: follow-up on why the verifier rejects the program without this else branch
-            // even if you memset the buffer before
-            p[i] = '\0';
-        }
+        p[i] = load_byte(skb, skb_info->data_off + i);
     }
 
     if ((p[0] == 'H') && (p[1] == 'T') && (p[2] == 'T') && (p[3] == 'P')) {
@@ -1561,7 +1559,6 @@ int socket__http_filter(struct __sk_buff* skb) {
         flip_tuple(&skb_info.tup);
     }
 
-    log_debug("http packet intercepted\n");
     http_handle_packet(skb, &skb_info);
 
     return 0;
