@@ -9,6 +9,9 @@
 # Rules are matched bottom-to-top, so one team can own subdirectories
 # and another the rest of the directory.
 
+# Config files for various CI systems / tasks
+/.*                                     @DataDog/agent-platform
+
 /CHANGELOG.rst                          @DataDog/agent-platform
 /CHANGELOG-DCA.rst                      @DataDog/container-integrations
 
@@ -31,6 +34,8 @@
 # Gitlab files
 # Files containing job contents are owned by teams in charge of the jobs + agent-platform
 # Files that only describe structure (eg. includes, rules) are owned by agent-platform
+
+/.gitlab/                                            @DataDog/agent-platform
 
 /.gitlab/binary_build/cluster_agent_cloudfoundry.yml @DataDog/integrations-tools-and-libraries @DataDog/agent-platform
 /.gitlab/binary_build/cluster_agent.yml              @DataDog/container-integrations @DataDog/agent-platform
@@ -64,10 +69,6 @@
 
 /.gitlab/source_test/ebpf.yml                        @DataDog/networks @DataDog/agent-platform
 
-/.gitlab/                                            @DataDog/agent-platform
-
-# Config files for various CI systems / tasks
-/.*                                     @DataDog/agent-platform
 
 /chocolatey/                            @DataDog/agent-platform
 
