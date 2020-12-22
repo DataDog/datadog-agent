@@ -867,6 +867,10 @@ func loadProxyFromEnv(config Config) {
 		config.Set("proxy.no_proxy", p.NoProxy)
 		proxies = p
 	}
+
+	if !config.GetBool("proxy.use_proxy_for_host_metadata") {
+		p.NoProxy = append(p.NoProxy, "169.254.169.254")
+	}
 }
 
 // Load reads configs files and initializes the config module
