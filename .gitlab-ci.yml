@@ -2659,7 +2659,6 @@ send_pkg_size-a7:
     - test "$TESTING_ARG" && docker build --file $BUILD_CONTEXT/$ARCH/Dockerfile $TESTING_ARG $BUILD_CONTEXT
     # Build release stage and push to ECR
     - docker build $BUILD_ARG --file $BUILD_CONTEXT/$ARCH/Dockerfile --pull --tag ${TARGET_TAG}-unsquashed $BUILD_CONTEXT
-    - pip install docker-squash
     - docker-squash ${TARGET_TAG}-unsquashed -t ${TARGET_TAG}
     - docker push $TARGET_TAG
 
