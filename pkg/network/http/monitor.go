@@ -7,12 +7,13 @@ import (
 
 	"C"
 
+	"time"
+
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/ebpf/manager"
 )
-import "time"
 
 // Monitor is responsible for:
 // * Creating a raw socket and attaching an eBPF filter to it;
@@ -80,10 +81,9 @@ func (http *Monitor) Start() error {
 		return fmt.Errorf("error starting perf map: %s", err)
 	}
 
-	report := time.NewTicker(30 * time.Second)
-	defer report.Stop()
-
 	go func() {
+		report := time.NewTicker(30 * time.Second)
+		defer report.Stop()
 		for {
 			select {
 			case data, ok := <-http.perfHandler.DataChannel:
@@ -108,6 +108,7 @@ func (http *Monitor) Start() error {
 			case <-report.C:
 				transactions := http.batchManager.GetPendingTransactions()
 				http.process(transactions, nil)
+				http.telemetry.report()
 			}
 		}
 	}()
@@ -115,9 +116,9 @@ func (http *Monitor) Start() error {
 	return nil
 }
 
-// Poll any pending HTTP transactions from eBPF
-func (http *Monitor) Poll() {
-	reply := make(chan struct{})
+// Sync HTTP data between userspace and kernel space
+func (http *Monitor) Sync() {
+	reply := make(chan struct{}, 1)
 	defer close(reply)
 
 	// TODO: Add logic to ensure this won't deadlock during termination

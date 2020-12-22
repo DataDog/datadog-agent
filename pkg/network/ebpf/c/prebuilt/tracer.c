@@ -1363,6 +1363,8 @@ static __always_inline void http_end_response(http_transaction_t *http) {
         return;
     }
 
+    log_debug("http response ended: code: %d duration: %d(ms)\n", http->response_status_code, (http->response_last_seen-http->request_started)/(1000*1000));
+
     if (batch_state->pos >= HTTP_BATCH_SIZE) {
         // We keep incrementing this so we can track how many transactions we're dropping
         batch_state->pos++;
@@ -1409,10 +1411,10 @@ static __always_inline void http_end_response(http_transaction_t *http) {
         }
     }
 
+    log_debug("http transaction enqueued: cpu: %d batch_idx: %d pos: %d\n", cpu, batch_state->idx, batch_state->pos);
     batch_state->pos++;
     // This redundant information is useful for the `http.batchManager` on userspace
     batch->state.pos = batch_state->pos;
-    log_debug("http response ended: code: %d duration: %d(ms)\n", http->response_status_code, (http->response_last_seen-http->request_started)/(1000*1000));
 }
 
 static __always_inline int http_begin_request(http_transaction_t *http, http_method_t method, char *buffer) {
@@ -1480,7 +1482,7 @@ static __always_inline void http_read_data(struct __sk_buff* skb, skb_info_t* sk
         *method = HTTP_POST;
     } else if ((p[0] == 'P') && (p[1] == 'U') && (p[2] == 'T')) {
         *packet_type = HTTP_REQUEST;
-        *method = HTTP_POST;
+        *method = HTTP_PUT;
     } else if ((p[0] == 'D') && (p[1] == 'E') && (p[2] == 'L') && (p[3] == 'E') && (p[4] == 'T') && (p[5] == 'E')) {
         *packet_type = HTTP_REQUEST;
         *method = HTTP_DELETE;

@@ -69,6 +69,14 @@ func (tx *httpTX) Method() string {
 		return "POST"
 	case C.HTTP_PUT:
 		return "PUT"
+	case C.HTTP_HEAD:
+		return "HEAD"
+	case C.HTTP_DELETE:
+		return "DELETE"
+	case C.HTTP_OPTIONS:
+		return "OPTIONS"
+	case C.HTTP_PATCH:
+		return "PATCH"
 	default:
 		return ""
 	}

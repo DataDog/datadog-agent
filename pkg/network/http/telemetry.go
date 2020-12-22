@@ -1,3 +1,5 @@
+// +build linux_bpf
+
 package http
 
 import (
@@ -30,7 +32,8 @@ func (t *telemetry) aggregate(txs []httpTX, err error) {
 
 func (t *telemetry) report() {
 	delta := float64(time.Now().Sub(t.then).Seconds())
-	log.Infof("http report: 100(%d reqs, %.2f/s) 200(%d reqs, %.2f/s) 300(%d reqs, %.2f/s), 400(%d reqs, %.2f/s) 500(%d reqs, %.2f/s), misses(%d reqs, %.2f/s)",
+	log.Errorf(
+		"http report: 100(%d reqs, %.2f/s) 200(%d reqs, %.2f/s) 300(%d reqs, %.2f/s), 400(%d reqs, %.2f/s) 500(%d reqs, %.2f/s), misses(%d reqs, %.2f/s)",
 		t.hits[100], float64(t.hits[100])/delta,
 		t.hits[200], float64(t.hits[200])/delta,
 		t.hits[300], float64(t.hits[300])/delta,
