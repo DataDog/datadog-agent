@@ -28,8 +28,6 @@ const (
 )
 
 type KubeMetadataCollector struct {
-	sync.RWMutex
-
 	kubeUtil            kubelet.KubeUtilInterface
 	apiClient           *apiserver.APIClient
 	infoOut             chan<- []*TagInfo
@@ -38,6 +36,7 @@ type KubeMetadataCollector struct {
 	updateFreq          time.Duration
 	expireFreq          time.Duration
 
+	m sync.RWMutex
 	// used to set a custom delay
 	lastUpdate time.Time
 	lastExpire time.Time
@@ -121,16 +120,16 @@ func (c *KubeMetadataCollector) Pull() error {
 }
 
 func (c *KubeMetadataCollector) getLastUpdate() time.Time {
-	c.RLock()
-	defer c.RUnlock()
+	c.m.RLock()
+	defer c.m.RUnlock()
 	return c.lastUpdate
 }
 
 func (c *KubeMetadataCollector) collectUpdates(pods []*kubelet.Pod) []*TagInfo {
 	tagInfos := c.getTagInfos(pods)
 
-	c.Lock()
-	defer c.Unlock()
+	c.m.Lock()
+	defer c.m.Unlock()
 
 	now := time.Now()
 
