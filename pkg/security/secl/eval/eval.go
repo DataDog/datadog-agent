@@ -36,11 +36,12 @@ const (
 
 // defines factor applied by specific operator
 const (
-	FunctionWeight = 5
-	InArrayWeight  = 10
-	HandlerWeight  = 50
-	PatternWeight  = 100
-	IteratorWeight = 1000
+	FunctionWeight       = 5
+	InArrayWeight        = 10
+	HandlerWeight        = 50
+	PatternWeight        = 100
+	InPatternArrayWeight = 1000
+	IteratorWeight       = 2000
 )
 
 // FieldValue describes a field value with its type
@@ -111,10 +112,11 @@ func (i *IntEvaluator) Eval(ctx *Context) interface{} {
 
 // StringEvaluator returns a string as result of the evaluation
 type StringEvaluator struct {
-	EvalFnc func(ctx *Context) string
-	Field   Field
-	Value   string
-	Weight  int
+	EvalFnc   func(ctx *Context) string
+	Field     Field
+	Value     string
+	Weight    int
+	IsPattern bool
 
 	isPartial bool
 }
@@ -132,6 +134,12 @@ type StringArray struct {
 // IntArray represents an array of integer values
 type IntArray struct {
 	Values []int
+}
+
+// PatternArray represents an array of pattern values
+type PatternArray struct {
+	Values  []string
+	Regexps []*regexp.Regexp
 }
 
 func extractField(field string) (Field, Field, RegisterID, error) {
@@ -157,6 +165,24 @@ func extractField(field string) (Field, Field, RegisterID, error) {
 	}
 
 	return field, itField, regID, nil
+}
+
+func patternToRegexp(pattern string) (*regexp.Regexp, error) {
+	// do not accept full wildcard value
+	if matched, err := regexp.Match(`[a-zA-Z0-9\.]+`, []byte(pattern)); err != nil || !matched {
+		return nil, &ErrInvalidPattern{Pattern: pattern}
+	}
+
+	// quote eveything except wilcard
+	re := regexp.MustCompile(`[\.*+?()|\[\]{}^$]`)
+	quoted := re.ReplaceAllStringFunc(pattern, func(s string) string {
+		if s != "*" {
+			return "\\" + s
+		}
+		return ".*"
+	})
+
+	return regexp.Compile("^" + quoted + "$")
 }
 
 func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, interface{}, lexer.Position, error) {
@@ -262,16 +288,22 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, in
 
 			switch unary := unary.(type) {
 			case *StringEvaluator:
-				nextStringArray, ok := next.(*StringArray)
-				if !ok {
+				switch next.(type) {
+				case *StringArray:
+					boolEvaluator, err := StringArrayContains(unary, next.(*StringArray), *obj.ArrayComparison.Op == "notin", opts, state)
+					if err != nil {
+						return nil, nil, pos, err
+					}
+					return boolEvaluator, nil, obj.Pos, nil
+				case *PatternArray:
+					boolEvaluator, err := StringArrayMatches(unary, next.(*PatternArray), *obj.ArrayComparison.Op == "notin", opts, state)
+					if err != nil {
+						return nil, nil, pos, err
+					}
+					return boolEvaluator, nil, obj.Pos, nil
+				default:
 					return nil, nil, pos, NewTypeError(pos, reflect.Array)
 				}
-
-				boolEvaluator, err := StringArrayContains(unary, nextStringArray, *obj.ArrayComparison.Op == "notin", opts, state)
-				if err != nil {
-					return nil, nil, pos, err
-				}
-				return boolEvaluator, nil, obj.Pos, nil
 			case *IntEvaluator:
 				nextIntArray, ok := next.(*IntArray)
 				if !ok {
@@ -322,17 +354,33 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, in
 
 				switch *obj.ScalarComparison.Op {
 				case "!=":
-					stringEvaluator, err := StringNotEquals(unary, nextString, opts, state)
+					var eval *BoolEvaluator
+					var err error
+
+					if nextString.IsPattern {
+						eval, err = StringMatches(unary, nextString, true, opts, state)
+					} else {
+						eval, err = StringNotEquals(unary, nextString, opts, state)
+					}
+
 					if err != nil {
 						return nil, nil, pos, err
 					}
-					return stringEvaluator, nil, pos, nil
+					return eval, nil, pos, nil
 				case "==":
-					stringEvaluator, err := StringEquals(unary, nextString, opts, state)
+					var eval *BoolEvaluator
+					var err error
+
+					if nextString.IsPattern {
+						eval, err = StringMatches(unary, nextString, false, opts, state)
+					} else {
+						eval, err = StringEquals(unary, nextString, opts, state)
+					}
+
 					if err != nil {
 						return nil, nil, pos, err
 					}
-					return stringEvaluator, nil, pos, nil
+					return eval, nil, pos, nil
 				case "=~", "!~":
 					eval, err := StringMatches(unary, nextString, *obj.ScalarComparison.Op == "!~", opts, state)
 					if err != nil {
@@ -512,6 +560,11 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, in
 			return &StringEvaluator{
 				Value: *obj.String,
 			}, nil, obj.Pos, nil
+		case obj.Pattern != nil:
+			return &StringEvaluator{
+				Value:     *obj.Pattern,
+				IsPattern: true,
+			}, nil, obj.Pos, nil
 		case obj.SubExpression != nil:
 			return nodeToEvaluator(obj.SubExpression, opts, state)
 		default:
@@ -522,8 +575,42 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, in
 			ints := obj.Numbers
 			sort.Ints(ints)
 			return &IntArray{Values: ints}, nil, obj.Pos, nil
-		} else if len(obj.Strings) != 0 {
-			strs := obj.Strings
+		} else if len(obj.StringMembers) != 0 {
+			var strs []string
+			var hasPatterns bool
+
+			for _, member := range obj.StringMembers {
+				if member.String != nil {
+					strs = append(strs, *member.String)
+				} else {
+					strs = append(strs, *member.Pattern)
+					hasPatterns = true
+				}
+			}
+
+			if hasPatterns {
+				var regs []*regexp.Regexp
+				var reg *regexp.Regexp
+				var err error
+
+				for _, member := range obj.StringMembers {
+					if member.String != nil {
+						// escape wildcard
+						str := strings.ReplaceAll(*member.String, "*", "\\*")
+
+						if reg, err = patternToRegexp(str); err != nil {
+							return nil, nil, obj.Pos, NewError(obj.Pos, fmt.Sprintf("invalid pattern '%s': %s", *member.String, err))
+						}
+					} else {
+						if reg, err = patternToRegexp(*member.Pattern); err != nil {
+							return nil, nil, obj.Pos, NewError(obj.Pos, fmt.Sprintf("invalid pattern '%s': %s", *member.Pattern, err))
+						}
+					}
+					regs = append(regs, reg)
+				}
+				return &PatternArray{Values: strs, Regexps: regs}, nil, obj.Pos, nil
+			}
+
 			sort.Strings(strs)
 			return &StringArray{Values: strs}, nil, obj.Pos, nil
 		} else if obj.Ident != nil {

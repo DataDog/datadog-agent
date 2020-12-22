@@ -159,3 +159,21 @@ func TestMultiline(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+func TestPattern(t *testing.T) {
+	rule, err := ParseRule(`process.name == ~"/usr/bin/ls"`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	print(t, rule)
+}
+
+func TestArrayPattern(t *testing.T) {
+	rule, err := ParseRule(`process.name in [~"/usr/bin/ls", "/usr/sbin/ls"]`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	print(t, rule)
+}
