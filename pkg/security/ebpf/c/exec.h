@@ -177,7 +177,7 @@ int kprobe__do_fork(struct pt_regs *ctx) {
 SEC("tracepoint/sched/sched_process_fork")
 int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     // check if this is a thread first
-    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_FORK);
+    struct syscall_cache_t *syscall = pop_syscall(SYSCALL_FORK);
     if (syscall) {
         return 0;
     }
