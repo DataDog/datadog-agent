@@ -112,7 +112,6 @@ func (p *Probe) detectKernelVersion() {
 // Init initializes the probe
 func (p *Probe) Init() error {
 	p.startTime = time.Now()
-	p.detectKernelVersion()
 
 	asset := "runtime-security"
 	openSyscall, err := manager.GetSyscallFnName("open")
@@ -223,6 +222,9 @@ func (p *Probe) SendStats(statsdClient *statsd.Client) error {
 		}
 	}
 
+	if err := statsdClient.Gauge(MetricPrefix+".process_resolver.cache_size", float64(len(p.resolvers.ProcessResolver.entryCache)), []string{}, 1.0); err != nil {
+		return errors.Wrap(err, "failed to send process_resolver cache_size metric")
+	}
 	return nil
 }
 
@@ -728,6 +730,8 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		cancelFnc:         cancel,
 	}
 
+	p.detectKernelVersion()
+
 	if !p.config.EnableKernelFilters {
 		log.Warn("Forcing in-kernel filter policy to `pass`: filtering not enabled")
 	}
@@ -737,7 +741,15 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
 	}
 
-	resolvers, err := NewResolvers(p)
+	// Add global constant editors
+	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
+		manager.ConstantEditor{
+			Name:  "do_fork_input",
+			Value: getDoForkInput(p),
+		},
+	)
+
+	resolvers, err := NewResolvers(p, client)
 	if err != nil {
 		return nil, err
 	}

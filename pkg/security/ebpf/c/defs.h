@@ -220,6 +220,7 @@ enum syscall_type
     SYSCALL_SETXATTR    = 1 << EVENT_SETXATTR,
     SYSCALL_REMOVEXATTR = 1 << EVENT_REMOVEXATTR,
     SYSCALL_EXEC        = 1 << EVENT_EXEC,
+    SYSCALL_FORK        = 1 << EVENT_FORK,
 };
 
 struct kevent_t {
