@@ -2658,7 +2658,7 @@ send_pkg_size-a7:
     # Build testing stage if provided
     - test "$TESTING_ARG" && docker build --file $BUILD_CONTEXT/$ARCH/Dockerfile $TESTING_ARG $BUILD_CONTEXT
     # Build release stage and push to ECR
-    - docker build $BUILD_ARG --file $BUILD_CONTEXT/$ARCH/Dockerfile --pull --squash=true --tag $TARGET_TAG $BUILD_CONTEXT
+    - docker build $BUILD_ARG --file $BUILD_CONTEXT/$ARCH/Dockerfile --pull --tag $TARGET_TAG $BUILD_CONTEXT
     - docker push $TARGET_TAG
 
 .docker_build_job_definition_amd64:
