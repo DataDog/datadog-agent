@@ -33,6 +33,19 @@ var snapshotProbeIDs = []manager.ProbeIdentificationPair{
 	},
 }
 
+const (
+	doForkListInput uint64 = iota
+	doForkStructInput
+)
+
+// getDoForkInput returns the expected input type of _do_fork, do_fork and kernel_clone
+func getDoForkInput(probe *Probe) uint64 {
+	if probe.kernelVersion != 0 && probe.kernelVersion >= kernel5_3 {
+		return doForkStructInput
+	}
+	return doForkListInput
+}
+
 // InodeInfo holds information related to inode from kernel
 type InodeInfo struct {
 	MountID         uint32
@@ -216,12 +229,12 @@ func (p *ProcessResolver) insertEntry(pid uint32, entry *ProcessCacheEntry) *Pro
 			// update lineage
 			parent.Children[entry.Pid] = entry
 			p.entryCache[entry.PPid] = parent
-			p.client.Count(MetricPrefix+".process_resolver.new_entries", 1, []string{}, 1.0)
+			_ = p.client.Count(MetricPrefix+".process_resolver.added", 1, []string{}, 1.0)
 		}
 	}
 	entry.Parent = parent
 	if _, ok := p.entryCache[pid]; !ok {
-		p.client.Count(MetricPrefix+".process_resolver.new_entries", 1, []string{}, 1.0)
+		_ = p.client.Count(MetricPrefix+".process_resolver.added", 1, []string{}, 1.0)
 	}
 	p.entryCache[pid] = entry
 
@@ -257,7 +270,7 @@ func (p *ProcessResolver) recursiveDelete(entry *ProcessCacheEntry) {
 	}
 
 	// Delete the entry
-	p.client.Count(MetricPrefix+".process_resolver.deleted_entries", 1, []string{}, 1.0)
+	_ = p.client.Count(MetricPrefix+".process_resolver.deleted", 1, []string{}, 1.0)
 	delete(p.entryCache, entry.Pid)
 
 	// There is nothing left to do if the entry does not have a parent
@@ -278,9 +291,7 @@ func (p *ProcessResolver) Resolve(pid uint32) *ProcessCacheEntry {
 	defer p.Unlock()
 	var tags []string
 	defer func() {
-		if err := p.client.Count(MetricPrefix+".process_resolver.hits", 1, tags, 1.0); err != nil {
-			log.Warnf("couldn't send process_resolver.hits metric: %v", err)
-		}
+		_ = p.client.Count(MetricPrefix+".process_resolver.hits", 1, tags, 1.0)
 	}()
 
 	entry, exists := p.entryCache[pid]

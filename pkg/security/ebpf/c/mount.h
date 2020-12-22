@@ -33,7 +33,7 @@ SYSCALL_COMPAT_KPROBE3(mount, const char*, source, const char*, target, const ch
 
 SEC("kprobe/attach_recursive_mnt")
 int kprobe__attach_recursive_mnt(struct pt_regs *ctx) {
-   struct syscall_cache_t *syscall = peek_syscall(SYSCALL_MOUNT);
+    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_MOUNT);
     if (!syscall)
         return 0;
 
