@@ -21,6 +21,7 @@ import (
 	pb "github.com/DataDog/datadog-agent/cmd/agent/api/pb"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/tagger/types"
 	hostutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -31,11 +32,6 @@ type server struct {
 
 type serverSecure struct {
 	pb.UnimplementedAgentServer
-
-	// NOTE: tagger.Tagger is a concrete type that makes testing harder
-	// than it should be. We should make that concrete type private, and
-	// create a new tagger.Tagger interface that replicates it.
-	tagger *tagger.Tagger
 }
 
 func (s *server) GetHostname(ctx context.Context, in *pb.HostnameRequest) (*pb.HostnameReply, error) {
@@ -68,8 +64,9 @@ func (s *serverSecure) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.Age
 	// these filters will be introduced when we implement a container
 	// metadata service that can receive them as is from the tagger.
 
-	eventCh := s.tagger.Subscribe(cardinality)
-	defer s.tagger.Unsubscribe(eventCh)
+	t := tagger.GetDefaultTagger()
+	eventCh := t.Subscribe(cardinality)
+	defer t.Unsubscribe(eventCh)
 
 	for events := range eventCh {
 		for _, event := range events {
@@ -101,7 +98,7 @@ func (s *serverSecure) TaggerFetchEntity(ctx context.Context, in *pb.FetchEntity
 		return nil, err
 	}
 
-	tags, err := s.tagger.Tag(entityID, cardinality)
+	tags, err := tagger.Tag(entityID, cardinality)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "%s", err)
 	}
@@ -125,7 +122,7 @@ func tagger2pbEntityID(entityID string) (*pb.EntityId, error) {
 	}, nil
 }
 
-func tagger2pbEntityEvent(event tagger.EntityEvent) (*pb.StreamTagsResponse, error) {
+func tagger2pbEntityEvent(event types.EntityEvent) (*pb.StreamTagsResponse, error) {
 	entity := event.Entity
 	entityID, err := tagger2pbEntityID(entity.ID)
 	if err != nil {
@@ -134,11 +131,11 @@ func tagger2pbEntityEvent(event tagger.EntityEvent) (*pb.StreamTagsResponse, err
 
 	var eventType pb.EventType
 	switch event.EventType {
-	case tagger.EventTypeAdded:
+	case types.EventTypeAdded:
 		eventType = pb.EventType_ADDED
-	case tagger.EventTypeModified:
+	case types.EventTypeModified:
 		eventType = pb.EventType_MODIFIED
-	case tagger.EventTypeDeleted:
+	case types.EventTypeDeleted:
 		eventType = pb.EventType_DELETED
 	default:
 		return nil, fmt.Errorf("invalid event type %q", event.EventType)
@@ -148,7 +145,6 @@ func tagger2pbEntityEvent(event tagger.EntityEvent) (*pb.StreamTagsResponse, err
 		Type: eventType,
 		Entity: &pb.Entity{
 			Id:                          entityID,
-			Hash:                        entity.Hash,
 			HighCardinalityTags:         entity.HighCardinalityTags,
 			OrchestratorCardinalityTags: entity.OrchestratorCardinalityTags,
 			LowCardinalityTags:          entity.LowCardinalityTags,
