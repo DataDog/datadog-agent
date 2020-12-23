@@ -110,13 +110,6 @@ func (p *Probe) StatsByPID(now time.Time) (map[int32]*Stats, error) {
 			continue
 		}
 
-		// NOTE: even though command line is not needed for stats, without this check we would
-		// end up parsing all files for all processes, which is slower than parse cmdline and skip
-		cmdline := p.getCmdline(pathForPID)
-		if len(cmdline) == 0 {
-			continue
-		}
-
 		statusInfo := p.parseStatus(pathForPID)
 		ioInfo := p.parseIO(pathForPID)
 		statInfo := p.parseStat(pathForPID, pid, now)
