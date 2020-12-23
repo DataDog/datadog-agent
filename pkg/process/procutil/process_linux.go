@@ -27,6 +27,11 @@ const (
 	DefaultClockTicks = float64(100)
 )
 
+var (
+	// PageSize is the system's memory page size
+	PageSize = uint64(os.Getpagesize())
+)
+
 type statusInfo struct {
 	name       string
 	status     string
@@ -109,21 +114,25 @@ func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 		statusInfo := p.parseStatus(pathForPID)
 		ioInfo := p.parseIO(pathForPID)
 		statInfo := p.parseStat(pathForPID, pid, now)
+		memInfoEx := p.parseStatm(pathForPID)
 
 		procsByPID[pid] = &Process{
-			Pid:     pid,               // /proc/{pid}
-			Ppid:    statInfo.ppid,     // /proc/{pid}/{stat}
-			Cmdline: cmdline,           // /proc/{pid}/cmdline
-			Name:    statusInfo.name,   // /proc/{pid}/status
-			Status:  statusInfo.status, // /proc/{pid}/status
-			Uids:    statusInfo.uids,   // /proc/{pid}/status
-			Gids:    statusInfo.gids,   // /proc/{pid}/status
-			NsPid:   statusInfo.nspid,  // /proc/{pid}/status
+			Pid:     pid,                                       // /proc/{pid}
+			Ppid:    statInfo.ppid,                             // /proc/{pid}/{stat}
+			Cmdline: cmdline,                                   // /proc/{pid}/cmdline
+			Name:    statusInfo.name,                           // /proc/{pid}/status
+			Status:  statusInfo.status,                         // /proc/{pid}/status
+			Uids:    statusInfo.uids,                           // /proc/{pid}/status
+			Gids:    statusInfo.gids,                           // /proc/{pid}/status
+			Cwd:     p.getLinkWithAuthCheck(pathForPID, "cwd"), // /proc/{pid}/cwd, requires permission checks
+			Exe:     p.getLinkWithAuthCheck(pathForPID, "exe"), // /proc/{pid}/exe, requires permission checks
+			NsPid:   statusInfo.nspid,                          // /proc/{pid}/status
 			Stats: &Stats{
 				CreateTime:  statInfo.createTime,    // /proc/{pid}/{stat}
 				Nice:        statInfo.nice,          // /proc/{pid}/{stat}
 				CPUTime:     statInfo.cpuStat,       // /proc/{pid}/{stat}
-				MemInfo:     statusInfo.memInfo,     // /proc/{pid}/status or statm
+				MemInfo:     statusInfo.memInfo,     // /proc/{pid}/status
+				MemInfoEx:   memInfoEx,              // /proc/{pid}/statm
 				CtxSwitches: statusInfo.ctxSwitches, // /proc/{pid}/status
 				NumThreads:  statusInfo.numThreads,  // /proc/{pid}/status
 				IOStat:      ioInfo,                 // /proc/{pid}/io, requires permission checks
@@ -135,7 +144,7 @@ func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 }
 
 func (p *Probe) getRootProcFile() (*os.File, error) {
-	if p.procRootFile != nil { // TODO (sk): Should we consider refreshing the file descriptor occasionally?
+	if p.procRootFile != nil {
 		return p.procRootFile, nil
 	}
 
@@ -436,6 +445,7 @@ func (p *Probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 	if err == nil {
 		sInfo.cpuStat.User = utime / p.clockTicks
 	}
+
 	stime, err := strconv.ParseFloat(stimeStr, 64)
 	if err == nil {
 		sInfo.cpuStat.System = stime / p.clockTicks
@@ -457,6 +467,67 @@ func (p *Probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 	}
 
 	return sInfo
+}
+
+// parseStatm gets memory info from /proc/(pid)/statm
+func (p *Probe) parseStatm(pidPath string) *MemoryInfoExStat {
+	path := filepath.Join(pidPath, "statm")
+	var err error
+
+	memInfoEx := &MemoryInfoExStat{}
+
+	contents, err := ioutil.ReadFile(path)
+	if err != nil {
+		return memInfoEx
+	}
+
+	fields := strings.Fields(string(contents))
+
+	// the values for the fields are per-page, to get real numbers we multiply by PageSize
+	vms, err := strconv.ParseUint(fields[0], 10, 64)
+	if err == nil {
+		memInfoEx.VMS = vms * PageSize
+	}
+	rss, err := strconv.ParseUint(fields[1], 10, 64)
+	if err == nil {
+		memInfoEx.RSS = rss * PageSize
+	}
+	shared, err := strconv.ParseUint(fields[2], 10, 64)
+	if err == nil {
+		memInfoEx.Shared = shared * PageSize
+	}
+	text, err := strconv.ParseUint(fields[3], 10, 64)
+	if err == nil {
+		memInfoEx.Text = text * PageSize
+	}
+	lib, err := strconv.ParseUint(fields[4], 10, 64)
+	if err == nil {
+		memInfoEx.Lib = lib * PageSize
+	}
+	data, err := strconv.ParseUint(fields[5], 10, 64)
+	if err == nil {
+		memInfoEx.Data = data * PageSize
+	}
+	dirty, err := strconv.ParseUint(fields[6], 10, 64)
+	if err == nil {
+		memInfoEx.Dirty = dirty * PageSize
+	}
+
+	return memInfoEx
+}
+
+// getLinkWithAuthCheck fetches the destination of a symlink with permission check
+func (p *Probe) getLinkWithAuthCheck(pidPath string, file string) string {
+	path := filepath.Join(pidPath, file)
+	if err := p.ensurePathReadable(path); err != nil {
+		return ""
+	}
+
+	str, err := os.Readlink(path)
+	if err != nil {
+		return ""
+	}
+	return str
 }
 
 // ensurePathReadable ensures that the current user is able to read the path before opening it.
