@@ -379,7 +379,9 @@ func StartAgent() error {
 	}
 
 	// start dependent services
-	startDependentServices()
+	go func () {
+		startDependentServices()
+	}()
 	return nil
 }
 
