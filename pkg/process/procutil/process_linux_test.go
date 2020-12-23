@@ -155,6 +155,55 @@ func testProcessesByPID(t *testing.T) {
 	}
 }
 
+func TestStatsByPIDTestFS(t *testing.T) {
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc/")
+	defer os.Unsetenv("HOST_PROC")
+
+	testStatsByPID(t)
+}
+
+func TestStatsByPIDLocalFS(t *testing.T) {
+	// this test is flaky as the underlying procfs could change during
+	// the comparison of procutil and gopsutil,
+	// but we could use it to test locally
+	t.Skip("flaky test in CI")
+	testStatsByPID(t)
+}
+
+func testStatsByPID(t *testing.T) {
+	probe := NewProcessProbe()
+	defer probe.Close()
+
+	go func() {
+		time.Sleep(500 * time.Millisecond)
+		_, err := probe.ProcessesByPID(time.Now())
+		require.NoError(t, err)
+	}()
+
+	result, err := probe.StatsByPID(time.Now())
+	require.NoError(t, err)
+	require.Empty(t, result)
+
+	time.Sleep(time.Second)
+
+	result, err = probe.StatsByPID(time.Now())
+	require.NoError(t, err)
+	lastPIDs := probe.lastPIDs.Load().([]int32)
+	assert.NotEmpty(t, result)
+	assert.Len(t, result, len(lastPIDs))
+	for pid, _ := range result {
+		assert.Contains(t, lastPIDs, pid)
+	}
+}
+
+func TestGetStatsWithEmptyPIDs(t *testing.T) {
+	probe := NewProcessProbe()
+	defer probe.Close()
+	result, err := probe.StatsByPID(time.Now())
+	require.NoError(t, err)
+	assert.Empty(t, result)
+}
+
 func TestMultipleProbes(t *testing.T) {
 	os.Setenv("HOST_PROC", "resources/test_procfs/proc/")
 	defer os.Unsetenv("HOST_PROC")
@@ -776,9 +825,9 @@ func benchmarkGetCmdGopsutil(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		for _, pid := range pids {
 			proc, err := process.NewProcess(pid)
-			require.NoError(b, err)
-			_, err = proc.Cmdline()
-			require.NoError(b, err)
+			if err == nil {
+				_, _ = proc.Cmdline()
+			}
 		}
 	}
 }
@@ -808,9 +857,9 @@ func BenchmarkTestFSStatusGopsutil(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		for _, pid := range pids {
 			expProc, err := process.NewProcess(pid)
-			require.NoError(b, err)
-			_, err = expProc.Status()
-			require.NoError(b, err)
+			if err == nil {
+				_, _ = expProc.Status()
+			}
 		}
 	}
 }
@@ -840,9 +889,9 @@ func BenchmarkLocalFSStatusGopsutil(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		for _, pid := range pids {
 			expProc, err := process.NewProcess(pid)
-			require.NoError(b, err)
-			_, err = expProc.Status()
-			require.NoError(b, err)
+			if err == nil {
+				_, _ = expProc.Status()
+			}
 		}
 	}
 }
@@ -863,8 +912,8 @@ func BenchmarkLocalFSStatusProcutil(b *testing.B) {
 
 func BenchmarkGetPIDsGopsutilLocalFS(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		_, err := process.Pids()
-		require.NoError(b, err)
+		// ignore errors for benchmarking
+		_, _ = process.Pids()
 	}
 }
 
@@ -872,8 +921,8 @@ func BenchmarkGetPIDsProcutilLocalFS(b *testing.B) {
 	probe := NewProcessProbe()
 	defer probe.Close()
 	for i := 0; i < b.N; i++ {
-		_, err := probe.getActivePIDs()
-		require.NoError(b, err)
+		// ignore errors when doing benchmarking
+		_, _ = probe.getActivePIDs()
 	}
 }
 
@@ -905,8 +954,8 @@ func benchmarkParseIOGopsutil(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		for _, pid := range pids {
-			proc, err := process.NewProcess(pid)
-			require.NoError(b, err)
+			// ignore error for benchmarking
+			proc, _ := process.NewProcess(pid)
 			// ignore permission error for benchmarking
 			_, _ = proc.IOCounters()
 		}
@@ -953,8 +1002,8 @@ func benchmarkGetProcsGopsutil(b *testing.B) {
 	// disable log output from gopsutil
 	seelog.UseLogger(seelog.Disabled)
 	for i := 0; i < b.N; i++ {
-		_, err := process.AllProcesses()
-		assert.NoError(b, err)
+		// ignore errors for benchmarking
+		_, _ = process.AllProcesses()
 	}
 }
 
@@ -964,7 +1013,7 @@ func benchmarkGetProcsProcutil(b *testing.B) {
 
 	now := time.Now()
 	for i := 0; i < b.N; i++ {
-		_, err := probe.ProcessesByPID(now)
-		assert.NoError(b, err)
+		// ignore errors for benchmarking
+		_, _ = probe.ProcessesByPID(now)
 	}
 }

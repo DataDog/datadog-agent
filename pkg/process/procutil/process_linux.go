@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 	"unicode"
@@ -64,6 +65,10 @@ type Probe struct {
 	clockTicks float64
 
 	bootTime uint64
+
+	// lastPIDs stores the list of PIDs that ProcessesByPID() has detected
+	// this is currently used by StatsByPID() to extract stats for only these processes
+	lastPIDs atomic.Value
 }
 
 // NewProcessProbe initializes a new Probe object
@@ -78,6 +83,8 @@ func NewProcessProbe() *Probe {
 		bootTime:    bootTime,
 		clockTicks:  getClockTicks(),
 	}
+	// initialize with empty slice
+	p.lastPIDs.Store([]int32{})
 	return p
 }
 
@@ -89,12 +96,53 @@ func (p *Probe) Close() {
 	}
 }
 
+// StatsByPID returns a map of stats info indexed by PID using the PIDs collected by ProcessesByPID()
+// return nil, nil if lastPIDs is empty
+func (p *Probe) StatsByPID(now time.Time) (map[int32]*Stats, error) {
+	// assume lastPIDs is never nil
+	pids := p.lastPIDs.Load().([]int32)
+
+	statsByPID := make(map[int32]*Stats, len(pids))
+	for _, pid := range pids {
+		pathForPID := filepath.Join(p.procRootLoc, strconv.Itoa(int(pid)))
+		if !util.PathExists(pathForPID) {
+			log.Debugf("Unable to create new process %d, dir %s doesn't exist", pid, pathForPID)
+			continue
+		}
+
+		// NOTE: even though command line is not needed for stats, without this check we would
+		// end up parsing all files for all processes, which is slower than parse cmdline and skip
+		cmdline := p.getCmdline(pathForPID)
+		if len(cmdline) == 0 {
+			continue
+		}
+
+		statusInfo := p.parseStatus(pathForPID)
+		ioInfo := p.parseIO(pathForPID)
+		statInfo := p.parseStat(pathForPID, pid, now)
+		statsByPID[pid] = &Stats{
+			CreateTime:  statInfo.createTime,    // /proc/{pid}/{stat}
+			Nice:        statInfo.nice,          // /proc/{pid}/{stat}
+			CPUTime:     statInfo.cpuStat,       // /proc/{pid}/{stat}
+			MemInfo:     statusInfo.memInfo,     // /proc/{pid}/status
+			MemInfoEx:   &MemoryInfoExStat{},    // not needed currently so not collected to reduce workload
+			CtxSwitches: statusInfo.ctxSwitches, // /proc/{pid}/status
+			NumThreads:  statusInfo.numThreads,  // /proc/{pid}/status
+			IOStat:      ioInfo,                 // /proc/{pid}/io, requires permission checks
+		}
+	}
+	return statsByPID, nil
+}
+
 // ProcessesByPID returns a map of process info indexed by PID
 func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 	pids, err := p.getActivePIDs()
 	if err != nil {
 		return nil, err
 	}
+
+	// don't do new allocations
+	currentPIDs := pids[:0]
 
 	procsByPID := make(map[int32]*Process, len(pids))
 	for _, pid := range pids {
@@ -138,7 +186,10 @@ func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 				IOStat:      ioInfo,                 // /proc/{pid}/io, requires permission checks
 			},
 		}
+		currentPIDs = append(currentPIDs, pid)
 	}
+
+	p.lastPIDs.Store(currentPIDs)
 
 	return procsByPID, nil
 }
