@@ -1351,7 +1351,6 @@ static __always_inline void http_end_response(http_transaction_t *http) {
     u32 cpu = bpf_get_smp_processor_id();
     http_batch_state_t *batch_state = bpf_map_lookup_elem(&http_batch_state, &cpu);
     if (batch_state == NULL) {
-        log_debug("http batch state not found. should not happen.");
         return;
     }
 
@@ -1369,7 +1368,6 @@ static __always_inline void http_end_response(http_transaction_t *http) {
     // Retrieve the batch object
     http_batch_t *batch = bpf_map_lookup_elem(&http_batches, &key);
     if (batch == NULL) {
-        log_debug("http batch not found. should not happen. cpu: %d page: %d\n", key.cpu, key.page_num);
         return;
     }
 
@@ -1415,7 +1413,6 @@ static __always_inline int http_begin_request(http_transaction_t *http, http_met
         http_end_response(http);
     }
 
-    log_debug("http request started\n");
     http->request_method = method;
     http->request_started = bpf_ktime_get_ns();
     http->response_last_seen = 0;
@@ -1450,7 +1447,6 @@ static __always_inline int http_begin_response(http_transaction_t *http, char *b
     }
 
     http->response_status_code = status_code;
-    log_debug("http response started: code: %d\n", http->response_status_code);
     return 1;
 }
 
