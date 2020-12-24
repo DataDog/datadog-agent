@@ -251,6 +251,8 @@ bool CustomActionData::parseUsernameData()
     if (this->value(propertyDDAgentUserName, tmpName)) {
         if (tmpName.length() == 0) {
             tmpName = ddAgentUserName;
+        } else {
+            userSupplied = true;
         }
     }
     if (std::wstring::npos == tmpName.find(L'\\')) {

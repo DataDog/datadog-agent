@@ -57,7 +57,7 @@ int kprobe__vfs_link(struct pt_regs *ctx) {
     syscall->link.target_key.ino = FAKE_INODE_MSW<<32 | bpf_get_prandom_u32();
     syscall->link.target_key.mount_id = syscall->link.src_key.mount_id;
 
-    syscall->link.src_key.path_id = get_path_id(0);
+    syscall->link.src_key.path_id = get_path_id(1);
     int ret = resolve_dentry(dentry, syscall->link.src_key, syscall->policy.mode != NO_FILTER ? EVENT_LINK : 0);
     if (ret == DENTRY_DISCARDED) {
         pop_syscall(SYSCALL_LINK);

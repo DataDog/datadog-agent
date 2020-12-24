@@ -63,6 +63,24 @@ def add_dca_prelude(ctx, version, agent7_version, agent6_version=""):
 
 
 @task
+def add_installscript_prelude(ctx, version):
+    res = ctx.run("reno --rel-notes-dir releasenotes-installscript new prelude-release-{0}".format(version))
+    new_releasenote = res.stdout.split(' ')[-1].strip()  # get the new releasenote file path
+
+    with open(new_releasenote, "w") as f:
+        f.write(
+            """prelude:
+    |
+    Released on: {0}""".format(
+                date.today()
+            )
+        )
+
+    ctx.run("git add {}".format(new_releasenote))
+    ctx.run("git commit -m \"Add prelude for {} release\"".format(version))
+
+
+@task
 def update_dca_changelog(ctx, new_version, agent_version):
     """
     Quick task to generate the new CHANGELOG-DCA using reno when releasing a minor
@@ -234,6 +252,77 @@ def update_changelog(ctx, new_version):
     ctx.run(
         "git add CHANGELOG.rst \
             && git commit -m \"Update CHANGELOG for {}\"".format(
+            new_version
+        )
+    )
+
+
+@task
+def update_installscript_changelog(ctx, new_version):
+    """
+    Quick task to generate the new CHANGELOG-INSTALLSCRIPT using reno when releasing a minor
+    version (linux/macOS only).
+    """
+    new_version_int = list(map(int, new_version.split(".")))
+
+    if len(new_version_int) != 3:
+        print("Error: invalid version: {}".format(new_version_int))
+        raise Exit(1)
+
+    # let's avoid losing uncommitted change with 'git reset --hard'
+    try:
+        ctx.run("git diff --exit-code HEAD", hide="both")
+    except Failure:
+        print("Error: You have uncommitted changes, please commit or stash before using update-installscript-changelog")
+        return
+
+    # make sure we are up to date
+    ctx.run("git fetch")
+
+    # let's check that the tag for the new version is present (needed by reno)
+    try:
+        ctx.run("git tag --list | grep installscript-{}".format(new_version))
+    except Failure:
+        print("Missing 'installscript-{}' git tag: mandatory to use 'reno'".format(new_version))
+        raise
+
+    # generate the new changelog
+    ctx.run(
+        "reno --rel-notes-dir releasenotes-installscript report \
+            --ignore-cache \
+            --version installscript-{} \
+            --no-show-source > /tmp/new_changelog-installscript.rst".format(
+            new_version
+        )
+    )
+
+    # reseting git
+    ctx.run("git reset --hard HEAD")
+
+    # mac's `sed` has a different syntax for the "-i" paramter
+    sed_i_arg = "-i"
+    if sys.platform == 'darwin':
+        sed_i_arg = "-i ''"
+    # remove the old header from the existing changelog
+    ctx.run("sed {0} -e '1,4d' CHANGELOG-INSTALLSCRIPT.rst".format(sed_i_arg))
+
+    if sys.platform != 'darwin':
+        # sed on darwin doesn't support `-z`. On mac, you will need to manually update the following.
+        ctx.run(
+            "sed -z {0} -e 's/installscript-{1}\\n===={2}/{1}\\n{2}/' /tmp/new_changelog-installscript.rst".format(
+                sed_i_arg, new_version, '=' * len(new_version)
+            )
+        )
+
+    # merging to CHANGELOG-INSTALLSCRIPT.rst
+    ctx.run(
+        "cat CHANGELOG-INSTALLSCRIPT.rst >> /tmp/new_changelog-installscript.rst && mv /tmp/new_changelog-installscript.rst CHANGELOG-INSTALLSCRIPT.rst"
+    )
+
+    # commit new CHANGELOG-INSTALLSCRIPT
+    ctx.run(
+        "git add CHANGELOG-INSTALLSCRIPT.rst \
+            && git commit -m \"[INSTALLSCRIPT] Update CHANGELOG-INSTALLSCRIPT for {}\"".format(
             new_version
         )
     )

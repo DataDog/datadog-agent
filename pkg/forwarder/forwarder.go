@@ -267,6 +267,12 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 		optionalRemovalPolicy, err = newFailedTransactionRemovalPolicy(storagePath, outdatedFileInDays, failedTransactionRemovalPolicyTelemetry{})
 		if err != nil {
 			log.Errorf("Error when initializing the removal policy: %v", err)
+		} else {
+			filesRemoved, err := optionalRemovalPolicy.removeOutdatedFiles()
+			if err != nil {
+				log.Errorf("Error when removing outdated files: %v", err)
+			}
+			log.Debugf("Outdated files removed: %v", strings.Join(filesRemoved, ", "))
 		}
 	}
 
@@ -310,7 +316,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 	}
 
 	if optionalRemovalPolicy != nil {
-		filesRemoved, err := optionalRemovalPolicy.removeOutdatedFiles()
+		filesRemoved, err := optionalRemovalPolicy.removeUnknownDomains()
 		if err != nil {
 			log.Errorf("Error when removing outdated files: %v", err)
 		}

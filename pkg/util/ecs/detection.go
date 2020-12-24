@@ -87,7 +87,9 @@ func HasEC2ResourceTags() bool {
 			return false, hasEC2ResourceTagsCacheExpiry
 		}
 		_, err = client.GetTaskWithTags()
-		log.Debugf("failed to get task with tags: %s", err)
+		if err != nil {
+			log.Debugf("failed to get task with tags: %s", err)
+		}
 		return err == nil, hasEC2ResourceTagsCacheExpiry
 	})
 }

@@ -28,7 +28,7 @@ func TestFailedTransactionRemovalPolicyUnknownDomain(t *testing.T) {
 	file3 := createRetryFile(a, path.Join(root, "unknownDomain"), "file3")
 	file4 := createFile(a, path.Join(root, "unknownDomain"), "notRetryFileMustNotBeRemoved")
 
-	pathsRemoved, err := p.removeOutdatedFiles()
+	pathsRemoved, err := p.removeUnknownDomains()
 	a.NoError(err)
 	assertFilenamesEqual(a, []string{file3}, pathsRemoved)
 	assertFilenamesEqual(a, []string{file1, file2, file4}, getRemainingFiles(a, root))
