@@ -232,7 +232,10 @@ def kitchen_prepare(ctx):
     target_packages = []
     for pkg in TEST_PACKAGES_LIST:
         target_packages += (
-            check_output("go list -f '{{ .Dir }}' -tags linux_bpf %s" % (pkg), shell=True).decode('utf-8').strip().split("\n")
+            check_output("go list -f '{{ .Dir }}' -tags linux_bpf %s" % (pkg), shell=True)
+            .decode('utf-8')
+            .strip()
+            .split("\n")
         )
 
     # This will compile one 'testsuite' file per package by running `go test -c -o output_path`.
