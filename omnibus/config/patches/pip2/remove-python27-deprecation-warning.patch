@@ -3,7 +3,7 @@
 @@ -139,23 +139,6 @@ class Command(CommandContextMixIn):
              user_log_file=options.log,
          )
- 
+
 -        if (
 -            sys.version_info[:2] == (2, 7) and
 -            not options.no_python_version_warning
