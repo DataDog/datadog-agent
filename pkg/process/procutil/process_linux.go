@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"syscall"
 	"time"
 	"unicode"
@@ -65,10 +64,6 @@ type Probe struct {
 	clockTicks float64
 
 	bootTime uint64
-
-	// lastPIDs stores the list of PIDs that ProcessesByPID() has detected
-	// this is currently used by StatsByPID() to extract stats for only these processes
-	lastPIDs atomic.Value
 }
 
 // NewProcessProbe initializes a new Probe object
@@ -83,8 +78,6 @@ func NewProcessProbe() *Probe {
 		bootTime:    bootTime,
 		clockTicks:  getClockTicks(),
 	}
-	// initialize with empty slice
-	p.lastPIDs.Store([]int32{})
 	return p
 }
 
@@ -96,12 +89,8 @@ func (p *Probe) Close() {
 	}
 }
 
-// StatsByPID returns a map of stats info indexed by PID using the PIDs collected by ProcessesByPID()
-// return nil, nil if lastPIDs is empty
-func (p *Probe) StatsByPID(now time.Time) (map[int32]*Stats, error) {
-	// assume lastPIDs is never nil
-	pids := p.lastPIDs.Load().([]int32)
-
+// StatsForPIDs returns a map of stats info indexed by PID using the given PIDs
+func (p *Probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, error) {
 	statsByPID := make(map[int32]*Stats, len(pids))
 	for _, pid := range pids {
 		pathForPID := filepath.Join(p.procRootLoc, strconv.Itoa(int(pid)))
@@ -181,8 +170,6 @@ func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 		}
 		currentPIDs = append(currentPIDs, pid)
 	}
-
-	p.lastPIDs.Store(currentPIDs)
 
 	return procsByPID, nil
 }

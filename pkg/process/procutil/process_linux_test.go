@@ -18,6 +18,11 @@ import (
 	"github.com/DataDog/gopsutil/process"
 )
 
+var (
+	// change this to false to run all tests against local procfs
+	skipLocalTest = false
+)
+
 func TestGetActivePIDs(t *testing.T) {
 	os.Setenv("HOST_PROC", "resources/test_procfs/proc")
 	defer os.Unsetenv("HOST_PROC")
@@ -93,10 +98,7 @@ func TestGetCmdlineTestFS(t *testing.T) {
 }
 
 func TestGetCmdlineLocalFS(t *testing.T) {
-	// this test is flaky as the underlying procfs could change during
-	// the comparison of procutil and gopsutil,
-	// but we could use it to test locally
-	t.Skip("flaky test in CI")
+	maySkipLocalTest(t)
 	testGetCmdline(t)
 }
 
@@ -127,10 +129,7 @@ func TestProcessesByPIDTestFS(t *testing.T) {
 }
 
 func TestProcessesByPIDLocalFS(t *testing.T) {
-	// this test is flaky as the underlying procfs could change during
-	// the comparison of procutil and gopsutil,
-	// but we could use it to test locally
-	t.Skip("flaky test in CI")
+	maySkipLocalTest(t)
 	testProcessesByPID(t)
 }
 
@@ -163,10 +162,7 @@ func TestStatsByPIDTestFS(t *testing.T) {
 }
 
 func TestStatsByPIDLocalFS(t *testing.T) {
-	// this test is flaky as the underlying procfs could change during
-	// the comparison of procutil and gopsutil,
-	// but we could use it to test locally
-	t.Skip("flaky test in CI")
+	maySkipLocalTest(t)
 	testStatsByPID(t)
 }
 
@@ -174,34 +170,26 @@ func testStatsByPID(t *testing.T) {
 	probe := NewProcessProbe()
 	defer probe.Close()
 
-	go func() {
-		time.Sleep(500 * time.Millisecond)
-		_, err := probe.ProcessesByPID(time.Now())
-		require.NoError(t, err)
-	}()
-
-	result, err := probe.StatsByPID(time.Now())
+	result, err := probe.ProcessesByPID(time.Now())
 	require.NoError(t, err)
-	require.Empty(t, result)
 
-	time.Sleep(time.Second)
+	pids := make([]int32, 0, len(result))
 
-	result, err = probe.StatsByPID(time.Now())
+	stats, err := probe.StatsForPIDs(pids, time.Now())
 	require.NoError(t, err)
-	lastPIDs := probe.lastPIDs.Load().([]int32)
-	assert.NotEmpty(t, result)
-	assert.Len(t, result, len(lastPIDs))
-	for pid, _ := range result {
-		assert.Contains(t, lastPIDs, pid)
+	require.Empty(t, stats)
+
+	for p := range result {
+		pids = append(pids, p)
 	}
-}
 
-func TestGetStatsWithEmptyPIDs(t *testing.T) {
-	probe := NewProcessProbe()
-	defer probe.Close()
-	result, err := probe.StatsByPID(time.Now())
+	stats, err = probe.StatsForPIDs(pids, time.Now())
 	require.NoError(t, err)
-	assert.Empty(t, result)
+	assert.NotEmpty(t, stats)
+	assert.Len(t, stats, len(pids))
+	for pid := range result {
+		assert.Contains(t, pids, pid)
+	}
 }
 
 func TestMultipleProbes(t *testing.T) {
@@ -418,10 +406,7 @@ func TestParseStatusTestFS(t *testing.T) {
 }
 
 func TestParseStatusLocalFS(t *testing.T) {
-	// this test is flaky as the underlying procfs could change during
-	// the comparison of procutil and gopsutil,
-	// but we could use it to test locally
-	t.Skip("flaky test in CI")
+	maySkipLocalTest(t)
 	testParseStatus(t)
 }
 
@@ -557,10 +542,7 @@ func TestParseIOTestFS(t *testing.T) {
 }
 
 func TestParseIOLocalFS(t *testing.T) {
-	// this test is flaky as the underlying procfs could change during
-	// the comparison of procutil and gopsutil,
-	// but we could use it to test locally
-	t.Skip("flaky test in CI")
+	maySkipLocalTest(t)
 	testParseIO(t)
 }
 
@@ -651,11 +633,11 @@ func TestParseStatTestFS(t *testing.T) {
 	testParseStat(t)
 }
 
+// TestParseStatLocalFS has to run on its own because gopsutil caches boot time,
+// so other tests might set the boot time to a different value, and the values
+// in this tests would be messed up
 func TestParseStatLocalFS(t *testing.T) {
-	// this test is flaky as the underlying procfs could change during
-	// the comparison of procutil and gopsutil,
-	// but we could use it to test locally
-	t.Skip("flaky test in CI")
+	maySkipLocalTest(t)
 	testParseStat(t)
 }
 
@@ -690,11 +672,10 @@ func TestBootTime(t *testing.T) {
 	assert.Equal(t, uint64(1606127264), bootT)
 }
 
+// TestBootTimeLocalFS has to run on its own because gopsutil caches boot time,
+// so other tests might set the boot time to a different value
 func TestBootTimeLocalFS(t *testing.T) {
-	// this test doesn't work when running with other tests,
-	// because bootTime is cached in gopsutil as module level variable
-	// but we could use it to test locally
-	t.Skip("flaky test in CI")
+	maySkipLocalTest(t)
 
 	probe := NewProcessProbe()
 	defer probe.Close()
@@ -711,10 +692,7 @@ func TestParseStatmTestFS(t *testing.T) {
 }
 
 func TestParseStatmLocalFS(t *testing.T) {
-	// this test is flaky as the underlying procfs could change during
-	// the comparison of procutil and gopsutil,
-	// but we could use it to test locally
-	t.Skip("flaky test in CI")
+	maySkipLocalTest(t)
 	testParseStatm(t)
 }
 
@@ -748,10 +726,7 @@ func TestParseStatmStatusMatchTestFS(t *testing.T) {
 }
 
 func TestParseStatmStatusMatchLocalFS(t *testing.T) {
-	// this test is flaky as the underlying procfs could change during
-	// the comparison of procutil and gopsutil,
-	// but we could use it to test locally
-	t.Skip("flaky test in CI")
+	maySkipLocalTest(t)
 	testParseStatmStatusMatch(t)
 }
 
@@ -771,9 +746,7 @@ func testParseStatmStatusMatch(t *testing.T) {
 }
 
 func TestGetLinkWithAuthCheck(t *testing.T) {
-	// this test would be flaky in CI with changing procfs,
-	// also, both "cwd" and "exe" symlink requires PTRACE_MODE_READ_FS‐CREDS permission
-	t.Skip("flaky test in CI")
+	maySkipLocalTest(t)
 	probe := NewProcessProbe()
 	defer probe.Close()
 
@@ -1015,5 +988,11 @@ func benchmarkGetProcsProcutil(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		// ignore errors for benchmarking
 		_, _ = probe.ProcessesByPID(now)
+	}
+}
+
+func maySkipLocalTest(t *testing.T) {
+	if skipLocalTest {
+		t.Skip("flaky test in CI")
 	}
 }
