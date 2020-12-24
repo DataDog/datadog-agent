@@ -656,14 +656,6 @@ static __always_inline void http_notify_batch(struct pt_regs* ctx) {
         return;
     }
 
-    http_batch_key_t key;
-    http_prepare_key(cpu, &key, batch_state);
-
-    http_batch_t *batch = bpf_map_lookup_elem(&http_batches, &key);
-    if (batch == NULL) {
-        return;
-    }
-
     // It's important to zero the struct so we account for the padding
     // introduced by the compilation, otherwise you get a `invalid indirect read
     // from stack off`. Alternatively we can either use a #pragma pack directive
@@ -675,7 +667,7 @@ static __always_inline void http_notify_batch(struct pt_regs* ctx) {
     notification.batch_idx = batch_state->idx;
 
     bpf_perf_event_output(ctx, &http_notifications, cpu, &notification, sizeof(http_batch_notification_t));
-    log_debug("http batch notification flushed: cpu: %d idx: %d lost_events: %d\n", cpu, batch->state.idx, batch_state->pos-HTTP_BATCH_SIZE);
+    log_debug("http batch notification flushed: cpu: %d idx: %d lost_events: %d\n", cpu, batch_state->idx, batch_state->pos-HTTP_BATCH_SIZE);
     batch_state->idx++;
     batch_state->pos = 0;
 }
