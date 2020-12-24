@@ -65,6 +65,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		config.MaxClosedConnectionsBuffered,
 		config.MaxConnectionsStateBuffered,
 		config.MaxDNSStatsBufferred,
+		config.MaxHTTPStatsBuffered,
 		config.CollectDNSDomains,
 	)
 

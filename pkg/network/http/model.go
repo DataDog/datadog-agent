@@ -3,7 +3,10 @@
 package http
 
 import (
+	"time"
 	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 /*
@@ -80,6 +83,33 @@ func (tx *httpTX) Method() string {
 	default:
 		return ""
 	}
+}
+
+func (tx *httpTX) SourceIP() util.Address {
+	// Metadata second bit indicates if the connection is V6 (1) or V4 (0)
+	if tx.tup.metadata&0x1 == 0 {
+		return util.V4Address(uint32(tx.tup.saddr_l))
+	}
+	return util.V6Address(uint64(tx.tup.saddr_l), uint64(tx.tup.saddr_h))
+}
+
+func (tx *httpTX) DestIP() util.Address {
+	if tx.tup.metadata&0x1 == 0 {
+		return util.V4Address(uint32(tx.tup.daddr_l))
+	}
+	return util.V6Address(uint64(tx.tup.daddr_l), uint64(tx.tup.daddr_h))
+}
+
+func (tx *httpTX) SourcePort() uint16 {
+	return uint16(tx.tup.sport)
+}
+
+func (tx *httpTX) DestPort() uint16 {
+	return uint16(tx.tup.dport)
+}
+
+func (tx *httpTX) RequestLatency() time.Duration {
+	return time.Duration(int64((tx.response_last_seen-tx.request_started)/(1000000))) * time.Millisecond
 }
 
 // IsDirty detects whether the batch page we're supposed to read from is still
