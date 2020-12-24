@@ -25,7 +25,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func TestHTTPMonitor(t *testing.T) {
+func TestHTTPMonitorIntegration(t *testing.T) {
 	srvDoneFn := serverSetup(t)
 	defer srvDoneFn()
 
