@@ -1500,7 +1500,7 @@ static __always_inline void http_read_data(struct __sk_buff* skb, skb_info_t* sk
 
 static __always_inline int http_handle_packet(struct __sk_buff* skb, skb_info_t* skb_info) {
     char buffer[HTTP_BUFFER_SIZE];
-    __builtin_memset(&buffer, '\0', sizeof(HTTP_BUFFER_SIZE));
+    __builtin_memset(&buffer, '\0', sizeof(buffer));
 
     http_packet_t packet_type = HTTP_PACKET_UNKNOWN;
     http_method_t method = HTTP_METHOD_UNKNOWN;
