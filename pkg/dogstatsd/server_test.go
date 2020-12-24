@@ -407,6 +407,67 @@ func TestHistToDist(t *testing.T) {
 	}
 }
 
+func TestScanLines(t *testing.T) {
+
+	messages := []string{"foo", "bar", "baz", "quz", "hax", ""}
+	packet := []byte(strings.Join(messages, "\n"))
+	t.Logf("parsing: %v", packet)
+	cnt := 0
+	advance, tok, eol, err := ScanLines(packet, true)
+	for tok != nil && err == nil {
+		cnt++
+		t.Logf("token: %s", string(tok))
+		assert.Equal(t, eol, true)
+		packet = packet[advance:]
+		advance, tok, eol, err = ScanLines(packet, true)
+	}
+
+	assert.True(t, eol)
+	assert.Equal(t, 5, cnt)
+
+	cnt = 0
+	packet = []byte(strings.Join(messages[0:len(messages)-1], "\n"))
+	t.Logf("parsing: %v", packet)
+	advance, tok, eol, err = ScanLines(packet, true)
+	for tok != nil && err == nil {
+		cnt++
+		t.Logf("token: %s", string(tok))
+		packet = packet[advance:]
+		advance, tok, eol, err = ScanLines(packet, true)
+	}
+
+	assert.False(t, eol)
+	assert.Equal(t, 5, cnt)
+
+}
+
+func TestEOLParsing(t *testing.T) {
+	config.Datadog.SetDefault("dogstatsd_eol_required", true)
+
+	messages := []string{"foo", "bar", "baz", "quz", "hax", ""}
+	packet := []byte(strings.Join(messages, "\n"))
+	cnt := 0
+	msg := nextMessage(&packet)
+	for msg != nil {
+		msg = nextMessage(&packet)
+		assert.Equal(t, msg, string(messages[cnt]))
+		cnt++
+	}
+
+	assert.Equal(t, 5, cnt)
+
+	packet = []byte(strings.Join(messages[0:len(messages)-1], "\r\n"))
+	cnt = 0
+	msg = nextMessage(&packet)
+	for msg != nil {
+		msg = nextMessage(&packet)
+		cnt++
+	}
+
+	assert.Equal(t, 4, cnt)
+
+}
+
 func TestExtraTags(t *testing.T) {
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)

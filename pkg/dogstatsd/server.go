@@ -6,7 +6,6 @@
 package dogstatsd
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
 	"expvar"
@@ -35,14 +34,15 @@ import (
 )
 
 var (
-	dogstatsdExpvars                 = expvar.NewMap("dogstatsd")
-	dogstatsdServiceCheckParseErrors = expvar.Int{}
-	dogstatsdServiceCheckPackets     = expvar.Int{}
-	dogstatsdEventParseErrors        = expvar.Int{}
-	dogstatsdEventPackets            = expvar.Int{}
-	dogstatsdMetricParseErrors       = expvar.Int{}
-	dogstatsdMetricPackets           = expvar.Int{}
-	dogstatsdPacketsLastSec          = expvar.Int{}
+	dogstatsdExpvars                  = expvar.NewMap("dogstatsd")
+	dogstatsdServiceCheckParseErrors  = expvar.Int{}
+	dogstatsdServiceCheckPackets      = expvar.Int{}
+	dogstatsdEventParseErrors         = expvar.Int{}
+	dogstatsdEventPackets             = expvar.Int{}
+	dogstatsdMetricParseErrors        = expvar.Int{}
+	dogstatsdMetricPackets            = expvar.Int{}
+	dogstatsdPacketsLastSec           = expvar.Int{}
+	dogstatsdUnterminatedMetricErrors = expvar.Int{}
 
 	tlmProcessed = telemetry.NewCounter("dogstatsd", "processed",
 		[]string{"message_type", "state"}, "Count of service checks/events/metrics processed by dogstatsd")
@@ -57,6 +57,7 @@ func init() {
 	dogstatsdExpvars.Set("EventPackets", &dogstatsdEventPackets)
 	dogstatsdExpvars.Set("MetricParseErrors", &dogstatsdMetricParseErrors)
 	dogstatsdExpvars.Set("MetricPackets", &dogstatsdMetricPackets)
+	dogstatsdExpvars.Set("UnterminatedMetricErrors", &dogstatsdUnterminatedMetricErrors)
 }
 
 // Server represent a Dogstatsd server
@@ -341,13 +342,44 @@ func (s *Server) Flush(waitForSerializer bool) {
 	s.aggregator.Flush(time.Now().Add(time.Second*10), true)
 }
 
+// dropCR drops a terminal \r from the data.
+func dropCR(data []byte) []byte {
+	if len(data) > 0 && data[len(data)-1] == '\r' {
+		return data[0 : len(data)-1]
+	}
+	return data
+}
+
+// ScanLines is an almost identical reimplementation of bufio.ScanLines, but also
+// reports if the returned line is newline-terminated
+func ScanLines(data []byte, atEOF bool) (advance int, token []byte, eol bool, err error) {
+	if atEOF && len(data) == 0 {
+		return 0, nil, false, nil
+	}
+	if i := bytes.IndexByte(data, '\n'); i >= 0 {
+		// We have a full newline-terminated line.
+		return i + 1, dropCR(data[0:i]), true, nil
+	}
+	// If we're at EOF, we have a final, non-terminated line. Return it.
+	if atEOF {
+		return len(data), dropCR(data), false, nil
+	}
+	// Request more data.
+	return 0, nil, false, nil
+}
+
 func nextMessage(packet *[]byte) (message []byte) {
 	if len(*packet) == 0 {
 		return nil
 	}
 
-	advance, message, err := bufio.ScanLines(*packet, true)
+	advance, message, eol, err := ScanLines(*packet, true)
 	if err != nil {
+		return nil
+	}
+
+	if config.Datadog.GetBool("dogstatsd_eol_required") && !eol {
+		dogstatsdMetricPackets.Add(1)
 		return nil
 	}
 
