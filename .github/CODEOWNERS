@@ -145,8 +145,8 @@
 /tasks/                                 @DataDog/agent-platform
 /tasks/agent.py                         @DataDog/agent-core
 /tasks/cluster_agent_cloudfoundry.py    @DataDog/integrations-tools-and-libraries
-/tasks/process-agent.py                 @DataDog/processes
-/tasks/system-probe.py                  @DataDog/networks
+/tasks/process_agent.py                 @DataDog/processes
+/tasks/system_probe.py                  @DataDog/networks
 /tasks/trace.py                         @DataDog/agent-apm
 /tasks/security_agent.py                @DataDog/agent-security
 

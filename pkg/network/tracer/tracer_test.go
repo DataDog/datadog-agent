@@ -1891,7 +1891,7 @@ func TestConnectionClobber(t *testing.T) {
 	doneChan <- struct{}{}
 }
 
-func TestHTTPMonitoring(t *testing.T) {
+func TestEnableHTTPMonitoring(t *testing.T) {
 	cfg := config.NewDefaultConfig()
 	cfg.EnableHTTPMonitoring = true
 	tr, err := NewTracer(cfg)
