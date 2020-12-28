@@ -151,7 +151,7 @@ def functional_tests(
     if bundle_ebpf:
         build_tags = "ebpf_bindata," + build_tags
 
-    cmd = 'go test -tags functionaltests,linux_bpf,{build_tags} {race_opt} {output_opt} '
+    cmd = 'go test -tags functionaltests,{build_tags} {race_opt} {output_opt} '
     cmd += '{verbose_opt} {failfast_opt} {run_opt} {bench_opt} {repo_path}/pkg/security/tests'
 
     if os.getuid() != 0 and not output:
@@ -170,6 +170,7 @@ def functional_tests(
     }
 
     ctx.run(cmd.format(**args), env=env)
+
 
 @task
 def stress_tests(
@@ -201,7 +202,7 @@ def stress_tests(
     if bundle_ebpf:
         build_tags = "ebpf_bindata," + build_tags
 
-    cmd = 'go test -tags functionaltests,stresstests,{build_tags} {race_opt} {output_opt} '
+    cmd = 'go test -tags stresstests,{build_tags} {race_opt} {output_opt} '
     cmd += '{verbose_opt} {failfast_opt} {run_opt} {bench_opt} {repo_path}/pkg/security/tests '
     cmd += '{keep_profile} {report_file} {diff_base}'
 
@@ -224,6 +225,7 @@ def stress_tests(
     }
 
     ctx.run(cmd.format(**args), env=env)
+
 
 @task
 def build_all_functional_tests(

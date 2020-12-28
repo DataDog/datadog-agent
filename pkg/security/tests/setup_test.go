@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-//+build functionaltests
+//+build functionaltests stresstests
 
 package tests
 
@@ -485,30 +485,15 @@ func (t *simpleTest) load(macros []*rules.MacroDefinition, rules []*rules.RuleDe
 var logInitilialized bool
 
 func (t *simpleTest) swapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, error) {
-	constraints, err := seelog.NewMinMaxConstraints(logLevel, seelog.CriticalLvl)
-	if err != nil {
-		return t.logLevel, err
-	}
+	if logger == nil {
+		logFormat := "%Ns [%LEVEL] %Func:%Line %Msg\n"
 
-	formatter, err := seelog.NewFormatter("%Ns [%LEVEL] %Func %Line %Msg\n")
-	if err != nil {
-		return t.logLevel, err
-	}
+		var err error
 
-	dispatcher, err := seelog.NewSplitDispatcher(formatter, []interface{}{os.Stderr})
-	if err != nil {
-		return t.logLevel, err
-	}
-
-	specificConstraints, _ := seelog.NewListConstraints([]seelog.LogLevel{})
-	ex, _ := seelog.NewLogLevelException("*.Snapshot", "*", specificConstraints)
-	exceptions := []*seelog.LogLevelException{ex}
-
-	logger := seelog.NewAsyncLoopLogger(seelog.NewLoggerConfig(constraints, exceptions, dispatcher))
-
-	err = seelog.ReplaceLogger(logger)
-	if err != nil {
-		return t.logLevel, err
+		logger, err = seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stdout, seelog.TraceLvl, logFormat)
+		if err != nil {
+			return t.logLevel, err
+		}
 	}
 	log.SetupLogger(logger, logLevel.String())
 

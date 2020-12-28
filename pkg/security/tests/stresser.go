@@ -335,12 +335,12 @@ LOOP:
 	if opts.DiffBase != "" {
 		var baseReports StressReports
 		if err := baseReports.Load(diffBase); err != nil {
-			t.Fatal(err)
-		}
-
-		baseReport, exists := baseReports[t.Name()]
-		if exists {
-			report.BaseIteration = baseReport.Iteration
+			t.Log(err)
+		} else {
+			baseReport, exists := baseReports[t.Name()]
+			if exists {
+				report.BaseIteration = baseReport.Iteration
+			}
 		}
 	}
 
