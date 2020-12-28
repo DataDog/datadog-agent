@@ -52,6 +52,7 @@ build do
             delete "#{install_dir}/bin/agent/dist/*.conf*"
             delete "#{install_dir}/bin/agent/dist/*.yaml"
             command "del /q /s #{windows_safe_path(install_dir)}\\*.pyc"
+            command "del /q /s #{windows_safe_path(install_dir)}\\direct_url.json"
         end
 
         if linux? || osx?

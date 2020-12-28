@@ -218,6 +218,12 @@ build do
     # Install Core integrations
     #
 
+    ##
+    ## on windows, delete the `direct_url.json` file(s) created by the pip installs above, before creating the constraints
+    ## file
+    if windows?
+      command "del /q /s #{windows_safe_path(install_dir)}\\direct_url.json"
+    end
     # Create a constraint file after installing all the core dependencies and before any integration
     # This is then used as a constraint file by the integration command to avoid messing with the agent's python environment
     command "#{pip} freeze > #{install_dir}/#{final_constraints_file}"
