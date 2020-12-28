@@ -63,6 +63,23 @@ def build_dogstatsd(ctx, arch="x64"):
     ctx.run(cmd.format(**args))
 
 
+@task
+def build_kubernetes_state(ctx, arch="x64"):
+    """
+    Build Kubernetes_State benchmarks.
+    """
+    build_tags = get_default_build_tags(build="test", arch=arch)  # pass all the build flags
+
+    cmd = "go build -mod={go_mod} -tags \"{build_tags}\" -o {bin_name} {REPO_PATH}/test/benchmarks/kubernetes_state"
+    args = {
+        "go_mod": "vendor",
+        "build_tags": " ".join(build_tags),
+        "bin_name": os.path.join(BENCHMARKS_BIN_PATH, bin_name("kubernetes_state")),
+        "REPO_PATH": REPO_PATH,
+    }
+    ctx.run(cmd.format(**args))
+
+
 @task(pre=[build_dogstatsd])
 def dogstatsd(ctx):
     """
@@ -104,3 +121,13 @@ def aggregator(ctx):
             bin_path, options
         )
     )
+
+
+@task(pre=[build_kubernetes_state])
+def kubernetes_state(ctx):
+    """
+    Run Kubernetes_State Benchmarks.
+    """
+    bin_path = os.path.join(BENCHMARKS_BIN_PATH, bin_name("kubernetes_state"))
+
+    ctx.run("{}".format(bin_path))

@@ -483,6 +483,19 @@ func KubeStateMetricsFactory() check.Check {
 		})
 }
 
+// KubeStateMetricsFactoryWithParam is used only by test/benchmarks/kubernetes_state
+func KubeStateMetricsFactoryWithParam(labelsMapper map[string]string, labelJoins map[string]*JoinsConfig, store []cache.Store) *KSMCheck {
+	check := newKSMCheck(
+		core.NewCheckBase(kubeStateMetricsCheckName),
+		&KSMConfig{
+			LabelsMapper: labelsMapper,
+			LabelJoins:   labelJoins,
+			Namespaces:   []string{},
+		})
+	check.store = store
+	return check
+}
+
 func newKSMCheck(base core.CheckBase, instance *KSMConfig) *KSMCheck {
 	return &KSMCheck{
 		CheckBase: base,
