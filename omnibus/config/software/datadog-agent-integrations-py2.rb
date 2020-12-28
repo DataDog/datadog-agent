@@ -193,8 +193,8 @@ build do
     # Use pip-compile to create the final requirements file. Notice when we invoke `pip` through `python -m pip <...>`,
     # there's no need to refer to `pip`, the interpreter will pick the right script.
     if windows?
-      command "#{python} -m pip install --no-deps  #{windows_safe_path(project_dir)}\\datadog_checks_base"
-      command "#{python} -m pip install --no-deps  #{windows_safe_path(project_dir)}\\datadog_checks_downloader"
+      command "#{python} -m pip install --no-deps .", :cwd => "#{windows_safe_path(project_dir)}\\datadog_checks_base"
+      command "#{python} -m pip install --no-deps .", :cwd => "#{windows_safe_path(project_dir)}\\datadog_checks_downloader"
       command "#{python} -m piptools compile --generate-hashes --output-file #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{static_reqs_out_file}"
     else
       command "#{pip} install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_base"
