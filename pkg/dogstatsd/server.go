@@ -26,8 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/mapper"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -357,7 +355,6 @@ func nextMessage(packet *[]byte) (message []byte) {
 
 func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*listeners.Packet, samples []metrics.MetricSample) []metrics.MetricSample {
 	for _, packet := range packets {
-		originTagger := originTags{origin: packet.Origin}
 		log.Tracef("Dogstatsd receive: %q", packet.Contents)
 		for {
 			message := nextMessage(&packet.Contents)
@@ -374,26 +371,16 @@ func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*liste
 
 			switch messageType {
 			case serviceCheckType:
-				serviceCheck, err := s.parseServiceCheckMessage(parser, message, originTagger.getTags)
+				serviceCheck, err := s.parseServiceCheckMessage(parser, message, packet.Origin)
 				if err != nil {
-					originTags := originTagger.getTags()
-					if len(originTags) > 0 {
-						s.errLog("Dogstatsd: error parsing service check '%q' origin tags %v: %s", message, originTags, err)
-					} else {
-						s.errLog("Dogstatsd: error parsing service check '%q': %s", message, err)
-					}
+					s.errLog("Dogstatsd: error parsing service check '%q': %s", message, err)
 					continue
 				}
 				batcher.appendServiceCheck(serviceCheck)
 			case eventType:
-				event, err := s.parseEventMessage(parser, message, originTagger.getTags)
+				event, err := s.parseEventMessage(parser, message, packet.Origin)
 				if err != nil {
-					originTags := originTagger.getTags()
-					if len(originTags) > 0 {
-						s.errLog("Dogstatsd: error parsing event '%q' origin tags %v: %s", message, originTags, err)
-					} else {
-						s.errLog("Dogstatsd: error parsing event '%q': %s", message, err)
-					}
+					s.errLog("Dogstatsd: error parsing event '%q': %s", message, err)
 					continue
 				}
 				batcher.appendEvent(event)
@@ -401,14 +388,9 @@ func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*liste
 				var err error
 				samples = samples[0:0]
 
-				samples, err = s.parseMetricMessage(samples, parser, message, originTagger.getTags)
+				samples, err = s.parseMetricMessage(samples, parser, message, packet.Origin)
 				if err != nil {
-					originTags := originTagger.getTags()
-					if len(originTags) > 0 {
-						s.errLog("Dogstatsd: error parsing metric message '%q' origin tags %v: %s", message, originTags, err)
-					} else {
-						s.errLog("Dogstatsd: error parsing metric message '%q': %s", message, err)
-					}
+					s.errLog("Dogstatsd: error parsing metric message '%q': %s", message, err)
 					continue
 				}
 				for idx := range samples {
@@ -439,7 +421,7 @@ func (s *Server) errLog(format string, params ...interface{}) {
 	}
 }
 
-func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, originTagsFunc func() []string) ([]metrics.MetricSample, error) {
+func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string) ([]metrics.MetricSample, error) {
 	sample, err := parser.parseMetricSample(message)
 	if err != nil {
 		dogstatsdMetricParseErrors.Add(1)
@@ -454,7 +436,7 @@ func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 			sample.tags = append(sample.tags, mapResult.Tags...)
 		}
 	}
-	metricSamples = enrichMetricSample(metricSamples, sample, s.metricPrefix, s.metricPrefixBlacklist, s.defaultHostname, originTagsFunc, s.entityIDPrecedenceEnabled, s.ServerlessMode)
+	metricSamples = enrichMetricSample(metricSamples, sample, s.metricPrefix, s.metricPrefixBlacklist, s.defaultHostname, origin, s.entityIDPrecedenceEnabled, s.ServerlessMode)
 
 	if len(sample.values) > 0 {
 		s.sharedFloat64List.put(sample.values)
@@ -474,28 +456,28 @@ func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 	return metricSamples, nil
 }
 
-func (s *Server) parseEventMessage(parser *parser, message []byte, originTagsFunc func() []string) (*metrics.Event, error) {
+func (s *Server) parseEventMessage(parser *parser, message []byte, origin string) (*metrics.Event, error) {
 	sample, err := parser.parseEvent(message)
 	if err != nil {
 		dogstatsdEventParseErrors.Add(1)
 		tlmProcessed.Inc("events", "error")
 		return nil, err
 	}
-	event := enrichEvent(sample, s.defaultHostname, originTagsFunc, s.entityIDPrecedenceEnabled)
+	event := enrichEvent(sample, s.defaultHostname, origin, s.entityIDPrecedenceEnabled)
 	event.Tags = append(event.Tags, s.extraTags...)
 	tlmProcessed.Inc("events", "ok")
 	dogstatsdEventPackets.Add(1)
 	return event, nil
 }
 
-func (s *Server) parseServiceCheckMessage(parser *parser, message []byte, originTagsFunc func() []string) (*metrics.ServiceCheck, error) {
+func (s *Server) parseServiceCheckMessage(parser *parser, message []byte, origin string) (*metrics.ServiceCheck, error) {
 	sample, err := parser.parseServiceCheck(message)
 	if err != nil {
 		dogstatsdServiceCheckParseErrors.Add(1)
 		tlmProcessed.Inc("service_checks", "error")
 		return nil, err
 	}
-	serviceCheck := enrichServiceCheck(sample, s.defaultHostname, originTagsFunc, s.entityIDPrecedenceEnabled)
+	serviceCheck := enrichServiceCheck(sample, s.defaultHostname, origin, s.entityIDPrecedenceEnabled)
 	serviceCheck.Tags = append(serviceCheck.Tags, s.extraTags...)
 	dogstatsdServiceCheckPackets.Add(1)
 	tlmProcessed.Inc("service_checks", "ok")
@@ -657,42 +639,4 @@ func FormatDebugStats(stats []byte) (string, error) {
 	}
 
 	return buf.String(), nil
-}
-
-func findOriginTags(origin string) []string {
-	var tags []string
-	if origin != listeners.NoOrigin {
-		originTags, err := tagger.Tag(origin, tagger.DogstatsdCardinality)
-		if err != nil {
-			log.Errorf(err.Error())
-		} else {
-			tags = append(tags, originTags...)
-		}
-	}
-
-	// Include orchestrator scope tags if the cardinality is set to orchestrator
-	if tagger.DogstatsdCardinality == collectors.OrchestratorCardinality {
-		orchestratorScopeTags, err := tagger.OrchestratorScopeTag()
-		if err != nil {
-			log.Error(err.Error())
-		} else {
-			tags = append(tags, orchestratorScopeTags...)
-		}
-	}
-	return tags
-}
-
-type originTags struct {
-	origin string
-	tags   []string
-	// we don't use "sync.Once" here because we know only on one goroutine can call the function `getTags()`
-	alreadyRun bool
-}
-
-func (o *originTags) getTags() []string {
-	if !o.alreadyRun {
-		o.tags = findOriginTags(o.origin)
-		o.alreadyRun = true
-	}
-	return o.tags
 }

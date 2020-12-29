@@ -558,7 +558,6 @@ func TestDebugStats(t *testing.T) {
 func TestNoMappingsConfig(t *testing.T) {
 	datadogYaml := ``
 	samples := []metrics.MetricSample{}
-	getOriginTags := func() []string { return []string{} }
 
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
@@ -574,7 +573,7 @@ func TestNoMappingsConfig(t *testing.T) {
 	assert.Nil(t, s.mapper)
 
 	parser := newParser(newFloat64ListPool())
-	samples, err = s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), getOriginTags)
+	samples, err = s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "")
 	assert.NoError(t, err)
 	assert.Len(t, samples, 1)
 }
@@ -587,7 +586,6 @@ type MetricSample struct {
 }
 
 func TestMappingCases(t *testing.T) {
-	getOriginTags := func() []string { return []string{} }
 	scenarios := []struct {
 		name              string
 		config            string
@@ -689,7 +687,7 @@ dogstatsd_mapper_profiles:
 			var actualSamples []MetricSample
 			for _, p := range scenario.packets {
 				parser := newParser(newFloat64ListPool())
-				samples, err := s.parseMetricMessage(samples, parser, []byte(p), getOriginTags)
+				samples, err := s.parseMetricMessage(samples, parser, []byte(p), "")
 				assert.NoError(t, err, "Case `%s` failed. parseMetricMessage should not return error %v", err)
 				for _, sample := range samples {
 					actualSamples = append(actualSamples, MetricSample{Name: sample.Name, Tags: sample.Tags, Mtype: sample.Mtype, Value: sample.Value})
