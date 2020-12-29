@@ -97,69 +97,77 @@ func (p *ProcessResolver) DumpCache() {
 }
 
 // enrichEventFromProc uses /proc to enrich a ProcessCacheEntry with additional metadata
-func (p *ProcessResolver) enrichEventFromProc(entry *ProcessCacheEntry, proc *process.FilledProcess) error {
+func (p *ProcessResolver) enrichEventFromProc(entry *ProcessCacheEntry, proc *process.Process) error {
+	filledProc := utils.GetFilledProcess(proc)
 	pid := uint32(proc.Pid)
+	// the provided process is a kernel process if its virtual memory size is null
+	isKernelProcess := filledProc.MemInfo.VMS == 0
 
-	// Get process filename and pre-fill the cache
-	procExecPath := utils.ProcExePath(pid)
-	pathnameStr, err := os.Readlink(procExecPath)
-	if err != nil {
-		log.Debug(errors.Wrapf(err, "snapshot failed for %d: couldn't readlink binary", pid))
-		return err
-	}
-	if pathnameStr == "/ (deleted)" {
-		log.Debugf("snapshot failed for %d: binary was deleted", pid)
-		return errors.New("snapshot failed")
+	if !isKernelProcess {
+		// Get process filename and pre-fill the cache
+		procExecPath := utils.ProcExePath(proc.Pid)
+		pathnameStr, err := os.Readlink(procExecPath)
+		if err != nil {
+			log.Debug(errors.Wrapf(err, "snapshot failed for %d: couldn't readlink binary", proc.Pid))
+			return err
+		}
+		if pathnameStr == "/ (deleted)" {
+			log.Debugf("snapshot failed for %d: binary was deleted", proc.Pid)
+			return errors.New("snapshot failed")
+		}
+
+		// Get the inode of the process binary
+		fi, err := os.Stat(procExecPath)
+		if err != nil {
+			log.Debug(errors.Wrapf(err, "snapshot failed for %d: couldn't stat binary", proc.Pid))
+			return err
+		}
+		stat, ok := fi.Sys().(*syscall.Stat_t)
+		if !ok {
+			log.Debugf("snapshot failed for %d: couldn't stat binary", proc.Pid)
+			return errors.New("snapshot failed")
+		}
+		inode := stat.Ino
+
+		info, err := p.retrieveInodeInfo(inode)
+		if err != nil {
+			log.Debug(errors.Wrapf(err, "snapshot failed for %d: couldn't retrieve inode info", proc.Pid))
+			return err
+		}
+
+		// Retrieve the container ID of the process from /proc
+		containerID, err := p.resolvers.ContainerResolver.GetContainerID(pid)
+		if err != nil {
+			log.Debug(errors.Wrapf(err, "snapshot failed for %d: couldn't parse container ID", proc.Pid))
+			return err
+		}
+
+		entry.FileEvent = FileEvent{
+			Inode:           inode,
+			OverlayNumLower: info.OverlayNumLower,
+			MountID:         info.MountID,
+			PathnameStr:     pathnameStr,
+		}
+		entry.ContainerContext.ID = string(containerID)
 	}
 
-	// Get the inode of the process binary
-	fi, err := os.Stat(procExecPath)
-	if err != nil {
-		log.Debug(errors.Wrapf(err, "snapshot failed for %d: couldn't stat binary", pid))
-		return err
-	}
-	stat, ok := fi.Sys().(*syscall.Stat_t)
-	if !ok {
-		log.Debugf("snapshot failed for %d: couldn't stat binary", pid)
-		return errors.New("snapshot failed")
-	}
-	inode := stat.Ino
-
-	info, err := p.retrieveInodeInfo(inode)
-	if err != nil {
-		log.Debug(errors.Wrapf(err, "snapshot failed for %d: couldn't retrieve inode info", pid))
-		return err
-	}
-
-	// Retrieve the container ID of the process from /proc
-	containerID, err := p.resolvers.ContainerResolver.GetContainerID(pid)
-	if err != nil {
-		log.Debug(errors.Wrapf(err, "snapshot failed for %d: couldn't parse container ID", pid))
-		return err
-	}
-
-	entry.FileEvent = FileEvent{
-		Inode:           inode,
-		OverlayNumLower: info.OverlayNumLower,
-		MountID:         info.MountID,
-		PathnameStr:     pathnameStr,
-	}
 	// resolve container path with the MountResolver
 	entry.FileEvent.ResolveContainerPathWithResolvers(p.resolvers)
 
-	entry.ContainerContext.ID = string(containerID)
-	entry.ExecTimestamp = time.Unix(0, proc.CreateTime*int64(time.Millisecond))
-	entry.Comm = proc.Name
-	entry.PPid = uint32(proc.Ppid)
-	entry.TTYName = utils.PidTTY(pid)
+	entry.ExecTimestamp = time.Unix(0, filledProc.CreateTime*int64(time.Millisecond))
+	entry.Comm = filledProc.Name
+	entry.PPid = uint32(filledProc.Ppid)
+	entry.TTYName = utils.PidTTY(filledProc.Pid)
 	entry.ProcessContext.Pid = pid
 	entry.ProcessContext.Tid = pid
-	if len(proc.Uids) > 0 {
-		entry.ProcessContext.UID = uint32(proc.Uids[0])
+	if len(filledProc.Uids) > 0 {
+		entry.ProcessContext.UID = uint32(filledProc.Uids[0])
 	}
-	if len(proc.Gids) > 0 {
-		entry.ProcessContext.GID = uint32(proc.Gids[0])
+	if len(filledProc.Gids) > 0 {
+		entry.ProcessContext.GID = uint32(filledProc.Gids[0])
 	}
+	_ = entry.ProcessContext.ResolveUserWithResolvers(p.resolvers)
+	_ = entry.ProcessContext.ResolveGroupWithResolvers(p.resolvers)
 	return nil
 }
 
@@ -289,26 +297,27 @@ func (p *ProcessResolver) recursiveDelete(entry *ProcessCacheEntry) {
 func (p *ProcessResolver) Resolve(pid uint32) *ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
-	var tags []string
-	defer func() {
-		_ = p.client.Count(MetricPrefix+".process_resolver.hits", 1, tags, 1.0)
-	}()
 
 	entry, exists := p.entryCache[pid]
 	if exists {
-		tags = append(tags, "type:cache")
+		_ = p.client.Count(MetricPrefix+".process_resolver.hits", 1, []string{"type:cache"}, 1.0)
 		return entry
 	}
 
 	// fallback to the kernel maps directly, the perf event may be delayed / may have been lost
 	if entry = p.resolveWithKernelMaps(pid); entry != nil {
-		tags = append(tags, "type:kernel_maps")
+		_ = p.client.Count(MetricPrefix+".process_resolver.hits", 1, []string{"type:kernel_maps"}, 1.0)
 		return entry
 	}
 
 	// fallback to /proc, the in-kernel LRU may have deleted the entry
-	tags = append(tags, "type:procfs")
-	return p.resolveWithProcfs(pid)
+	if entry = p.resolveWithProcfs(pid); entry != nil {
+		_ = p.client.Count(MetricPrefix+".process_resolver.hits", 1, []string{"type:procfs"}, 1.0)
+		return entry
+	}
+
+	_ = p.client.Count(MetricPrefix+".process_resolver.cache_miss", 1, []string{}, 1.0)
+	return nil
 }
 
 func (p *ProcessResolver) resolveWithKernelMaps(pid uint32) *ProcessCacheEntry {
@@ -352,11 +361,8 @@ func (p *ProcessResolver) resolveWithProcfs(pid uint32) *ProcessCacheEntry {
 		return nil
 	}
 
-	if filledProc := utils.GetFilledProcess(proc); filledProc != nil {
-		entry, _ := p.syncCache(filledProc)
-		return entry
-	}
-	return nil
+	entry, _ := p.syncCache(proc)
+	return entry
 }
 
 // Get returns the cache entry for a specified pid
@@ -398,7 +404,7 @@ func (p *ProcessResolver) Start() error {
 }
 
 // SyncCache snapshots /proc for the provided pid. This method returns true if it updated the process cache.
-func (p *ProcessResolver) SyncCache(proc *process.FilledProcess) bool {
+func (p *ProcessResolver) SyncCache(proc *process.Process) bool {
 	// Only a R lock is necessary to check if the entry exists, but if it exists, we'll update it, so a RW lock is
 	// required.
 	p.Lock()
@@ -408,11 +414,8 @@ func (p *ProcessResolver) SyncCache(proc *process.FilledProcess) bool {
 }
 
 // syncCache snapshots /proc for the provided pid. This method returns true if it updated the process cache.
-func (p *ProcessResolver) syncCache(proc *process.FilledProcess) (*ProcessCacheEntry, bool) {
+func (p *ProcessResolver) syncCache(proc *process.Process) (*ProcessCacheEntry, bool) {
 	pid := uint32(proc.Pid)
-	if pid == 0 {
-		return nil, false
-	}
 
 	// Check if an entry is already in cache for the given pid.
 	entry, inCache := p.entryCache[pid]
@@ -430,7 +433,7 @@ func (p *ProcessResolver) syncCache(proc *process.FilledProcess) (*ProcessCacheE
 
 	entry = p.insertEntry(pid, entry)
 
-	log.Tracef("New process cache entry added: %s %s %d/%d", proc.Name, entry.PathnameStr, pid, entry.Inode)
+	log.Tracef("New process cache entry added: %s %s %d/%d", entry.Comm, entry.PathnameStr, pid, entry.Inode)
 
 	// loop through the children of the newly inserted process to propagate the container ID if necessary
 	if len(entry.ID) > 0 {

@@ -131,23 +131,24 @@ func (r *Resolvers) stopSnapshotProbes() {
 // snapshot internal version of Snapshot. Calls the relevant resolvers to sync their caches.
 func (r *Resolvers) snapshot() error {
 	// List all processes, to trigger the process and mount snapshots
-	processes, err := process.AllProcesses()
+	processes, err := process.Pids()
 	if err != nil {
 		return err
 	}
 
 	cacheModified := false
 
-	for _, proc := range processes {
-		// If Exe is not set, the process is a short lived process and its /proc entry has already expired, move on.
-		if len(proc.Exe) == 0 {
+	for _, pid := range processes {
+		proc, err := process.NewProcess(pid)
+		if err != nil {
+			// the process does not exist anymore, continue
 			continue
 		}
 
 		// Start with the mount resolver because the process resolver might need it to resolve paths
-		if err := r.MountResolver.SyncCache(uint32(proc.Pid)); err != nil {
+		if err := r.MountResolver.SyncCache(proc); err != nil {
 			if !os.IsNotExist(err) {
-				log.Debug(errors.Wrapf(err, "snapshot failed for %d: couldn't sync mount points", proc.Pid))
+				log.Debug(errors.Wrapf(err, "snapshot failed for %d: couldn't sync mount points", proc))
 			}
 		}
 

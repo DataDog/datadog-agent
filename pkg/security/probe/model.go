@@ -880,16 +880,26 @@ func (p *ProcessContext) UnmarshalBinary(data []byte) (int, error) {
 
 // ResolveUser resolves the user id of the process to a username
 func (p *ProcessContext) ResolveUser(event *Event) string {
+	return p.ResolveUserWithResolvers(event.resolvers)
+}
+
+// ResolveUserWithResolvers resolves the user id of the process to a username
+func (p *ProcessContext) ResolveUserWithResolvers(resolvers *Resolvers) string {
 	if len(p.User) == 0 {
-		p.User, _ = event.resolvers.UserGroupResolver.ResolveUser(int(p.UID))
+		p.User, _ = resolvers.UserGroupResolver.ResolveUser(int(p.UID))
 	}
 	return p.User
 }
 
 // ResolveGroup resolves the group id of the process to a group name
 func (p *ProcessContext) ResolveGroup(event *Event) string {
+	return p.ResolveGroupWithResolvers(event.resolvers)
+}
+
+// ResolveGroupWithResolvers resolves the group id of the process to a group name
+func (p *ProcessContext) ResolveGroupWithResolvers(resolvers *Resolvers) string {
 	if len(p.Group) == 0 {
-		p.Group, _ = event.resolvers.UserGroupResolver.ResolveGroup(int(p.GID))
+		p.Group, _ = resolvers.UserGroupResolver.ResolveGroup(int(p.GID))
 	}
 	return p.Group
 }
