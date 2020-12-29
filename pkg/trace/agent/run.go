@@ -39,9 +39,14 @@ func Run(ctx context.Context) {
 	}
 
 	cfg, err := config.Load(flags.ConfigPath)
+	//initializing logger before checking the error to ensure start-up errors are logged to the log file
+	//even if cfg is loaded with an error or does not exist, valid log file will still be created
+	initLogger(cfg)
+	defer log.Flush()
+
 	if err != nil {
 		if err == config.ErrMissingAPIKey {
-			fmt.Println(config.ErrMissingAPIKey)
+			log.Error(config.ErrMissingAPIKey)
 
 			// a sleep is necessary to ensure that supervisor registers this process as "STARTED"
 			// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
@@ -66,19 +71,6 @@ func Run(ctx context.Context) {
 		}
 		return
 	}
-
-	if err := coreconfig.SetupLogger(
-		coreconfig.LoggerName("TRACE"),
-		cfg.LogLevel,
-		cfg.LogFilePath,
-		coreconfig.GetSyslogURI(),
-		coreconfig.Datadog.GetBool("syslog_rfc"),
-		coreconfig.Datadog.GetBool("log_to_console"),
-		coreconfig.Datadog.GetBool("log_format_json"),
-	); err != nil {
-		osutil.Exitf("Cannot create logger: %v", err)
-	}
-	defer log.Flush()
 
 	if !cfg.Enabled {
 		log.Info(messageAgentDisabled)
@@ -146,5 +138,19 @@ func Run(ctx context.Context) {
 			log.Error("Could not write memory profile: ", err)
 		}
 		f.Close()
+	}
+}
+
+func initLogger(cfg *config.AgentConfig) {
+	if err := coreconfig.SetupLogger(
+		coreconfig.LoggerName("TRACE"),
+		cfg.LogLevel,
+		cfg.LogFilePath,
+		coreconfig.GetSyslogURI(),
+		coreconfig.Datadog.GetBool("syslog_rfc"),
+		coreconfig.Datadog.GetBool("log_to_console"),
+		coreconfig.Datadog.GetBool("log_format_json"),
+	); err != nil {
+		osutil.Exitf("Cannot create logger: %v", err)
 	}
 }
