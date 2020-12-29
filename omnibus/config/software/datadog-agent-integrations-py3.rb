@@ -288,10 +288,10 @@ build do
       File.file?("#{check_dir}/setup.py") || next
       if windows?
         command "#{python} -m pip wheel . --wheel-dir=#{wheel_build_dir}", :cwd => "#{windows_safe_path(project_dir)}\\#{check}"
-        command "#{python} -m pip install #{check} --no-deps --no-index --find-links=#{wheel_build_dir}"
+        command "#{python} -m pip install datadog-#{check} --no-deps --no-index --find-links=#{wheel_build_dir}"
       else
         command "#{pip} wheel . --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/#{check}"
-        command "#{pip} install #{check} --no-deps --no-index --find-links=#{wheel_build_dir}"
+        command "#{pip} install datadog-#{check} --no-deps --no-index --find-links=#{wheel_build_dir}"
       end
     end
 
