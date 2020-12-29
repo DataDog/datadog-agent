@@ -232,17 +232,15 @@ func (k *KSMCheck) Run() error {
 	// Note that by design, some metrics cannot have hostnames (e.g kubernetes_state.pod.unschedulable)
 	sender.DisableDefaultHostname(true)
 
-	metricsToGet := []ksmstore.DDMetricsFam{}
+	labelJoiner := newLabelJoiner(&k.instance.LabelJoins)
 	for _, store := range k.store {
 		metrics := store.(*ksmstore.MetricsStore).Push(k.familyFilter, k.metricFilter)
-		for _, m := range metrics {
-			metricsToGet = append(metricsToGet, m...)
-		}
+		labelJoiner.insertFamilies(metrics)
 	}
 
 	for _, store := range k.store {
 		metrics := store.(*ksmstore.MetricsStore).Push(ksmstore.GetAllFamilies, ksmstore.GetAllMetrics)
-		k.processMetrics(sender, metrics, metricsToGet)
+		k.processMetrics(sender, metrics, labelJoiner)
 		k.processTelemetry(metrics)
 	}
 
@@ -259,7 +257,7 @@ func (k *KSMCheck) Cancel() {
 }
 
 // processMetrics attaches tags and forwards metrics to the aggregator
-func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][]ksmstore.DDMetricsFam, metricsToGet []ksmstore.DDMetricsFam) {
+func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][]ksmstore.DDMetricsFam, labelJoiner *labelJoiner) {
 	for _, metricsList := range metrics {
 		for _, metricFamily := range metricsList {
 			if metadataMetricsRegex.MatchString(metricFamily.Name) {
@@ -275,13 +273,13 @@ func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][
 			}
 			if transform, found := metricTransformers[metricFamily.Name]; found {
 				for _, m := range metricFamily.ListMetrics {
-					hostname, tags := k.hostnameAndTags(m.Labels, metricsToGet)
+					hostname, tags := k.hostnameAndTags(m.Labels, labelJoiner)
 					transform(sender, metricFamily.Name, m, hostname, tags)
 				}
 				continue
 			}
 			for _, m := range metricFamily.ListMetrics {
-				hostname, tags := k.hostnameAndTags(m.Labels, metricsToGet)
+				hostname, tags := k.hostnameAndTags(m.Labels, labelJoiner)
 				sender.Gauge(formatMetricName(metricFamily.Name), m.Val, hostname, tags)
 			}
 		}
@@ -289,7 +287,7 @@ func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][
 }
 
 // hostnameAndTags returns the tags and the hostname for a metric based on the metric labels and the check configuration
-func (k *KSMCheck) hostnameAndTags(labels map[string]string, metricsToGet []ksmstore.DDMetricsFam) (string, []string) {
+func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJoiner) (string, []string) {
 	hostname := ""
 	tags := []string{}
 
@@ -302,19 +300,11 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, metricsToGet []ksms
 	}
 
 	// apply label joins
-	for _, mFamily := range metricsToGet {
-		config, found := k.instance.LabelJoins[mFamily.Name]
-		if !found {
-			continue
-		}
-		for _, m := range mFamily.ListMetrics {
-			if isMatching(config, labels, m.Labels) {
-				hostTag, joinedTags := k.getJoinedTags(config, m.Labels)
-				tags = append(tags, joinedTags...)
-				if hostTag != "" {
-					hostname = hostTag
-				}
-			}
+	for _, label := range labelJoiner.getLabelsToAdd(labels) {
+		tag, hostTag := k.buildTag(label.key, label.value)
+		tags = append(tags, tag)
+		if hostTag != "" {
+			hostname = hostTag
 		}
 	}
 
@@ -339,25 +329,6 @@ func (k *KSMCheck) metricFilter(m ksmstore.DDMetric) bool {
 	return m.Val == float64(1)
 }
 
-// isMatching returns whether a targeted metric for label joins is
-// matching another metric labels based on the labels to match config
-func isMatching(config *JoinsConfig, destlabels, srcLabels map[string]string) bool {
-	for _, l := range config.LabelsToMatch {
-		firstVal, found := destlabels[l]
-		if !found {
-			return false
-		}
-		secondVal, found := srcLabels[l]
-		if !found {
-			return false
-		}
-		if firstVal != secondVal {
-			return false
-		}
-	}
-	return true
-}
-
 // buildTag applies the LabelsMapper config and returns the tag in a key:value string format
 // The second return value is the hostname of the metric if a 'node' or 'host' tag is found, empty string otherwise
 func (k *KSMCheck) buildTag(key, value string) (tag, hostname string) {
@@ -369,33 +340,6 @@ func (k *KSMCheck) buildTag(key, value string) (tag, hostname string) {
 		hostname = value
 	}
 	return
-}
-
-// getJoinedTags applies the label joins config, it gets labels from a targeted metric labels
-// getJoinedTags returns the hostname if the hostname of the metric if a 'node' or 'host' tag is found, empty string otherwise
-func (k *KSMCheck) getJoinedTags(config *JoinsConfig, srcLabels map[string]string) (string, []string) {
-	tags := []string{}
-	hostname := ""
-	if config.GetAllLabels {
-		for key, value := range srcLabels {
-			tag, hostTag := k.buildTag(key, value)
-			tags = append(tags, tag)
-			if hostTag != "" {
-				hostname = hostTag
-			}
-		}
-		return hostname, tags
-	}
-	for _, key := range config.LabelsToGet {
-		if value, found := srcLabels[key]; found {
-			tag, hostTag := k.buildTag(key, value)
-			tags = append(tags, tag)
-			if hostTag != "" {
-				hostname = hostTag
-			}
-		}
-	}
-	return hostname, tags
 }
 
 // mergeLabelsMapper adds extra label mappings to the configured labels mapper
