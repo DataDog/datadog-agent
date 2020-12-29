@@ -174,18 +174,6 @@ int kprobe__do_fork(struct pt_regs *ctx) {
     return handle_do_fork(ctx);
 }
 
-SEC("kprobe/kernel_thread")
-int kprobe_kernel_thread(struct pt_regs *ctx) {
-    struct syscall_cache_t syscall = {
-        .type = SYSCALL_FORK,
-        .clone = {
-            .is_thread = 1,
-        }
-    };
-    cache_syscall(&syscall, EVENT_FORK);
-    return 0;
-}
-
 SEC("tracepoint/sched/sched_process_fork")
 int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     // check if this is a thread first
