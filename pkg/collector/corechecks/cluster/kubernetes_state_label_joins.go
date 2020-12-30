@@ -60,7 +60,16 @@ func (lj *labelJoiner) insertMetric(metric ksmstore.DDMetric, config *JoinsConfi
 
 	if config.GetAllLabels {
 		for labelName, labelValue := range metric.Labels {
-			current.labelsToAdd = append(current.labelsToAdd, label{labelName, labelValue})
+			isALabelToMatch := false
+			for _, labelToMatch := range config.LabelsToMatch {
+				if labelName == labelToMatch {
+					isALabelToMatch = true
+					break
+				}
+			}
+			if !isALabelToMatch {
+				current.labelsToAdd = append(current.labelsToAdd, label{labelName, labelValue})
+			}
 		}
 	} else {
 		for _, labelToGet := range config.LabelsToGet {

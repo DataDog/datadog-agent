@@ -294,9 +294,6 @@ func Test_labelJoiner(t *testing.T) {
 						"baz_key": "baz_value1",
 					},
 					labelsToAdd: []label{
-						{key: "foo_key", value: "foo_value1"},
-						{key: "bar_key", value: "bar_value1"},
-						{key: "baz_key", value: "baz_value1"},
 						{key: "qux_key", value: "qux_value1"},
 						{key: "quux_key", value: "quux_value1"},
 					},
@@ -308,9 +305,6 @@ func Test_labelJoiner(t *testing.T) {
 						"baz_key": "baz_value2",
 					},
 					labelsToAdd: []label{
-						{key: "foo_key", value: "foo_value2"},
-						{key: "bar_key", value: "bar_value2"},
-						{key: "baz_key", value: "baz_value2"},
 						{key: "qux_key", value: "qux_value2"},
 						{key: "quux_key", value: "quux_value2"},
 					},
@@ -322,9 +316,6 @@ func Test_labelJoiner(t *testing.T) {
 						"baz_key": "baz_value2",
 					},
 					labelsToAdd: []label{
-						{key: "foo_key", value: "foo_value1"},
-						{key: "bar_key", value: "bar_value1"},
-						{key: "baz_key", value: "baz_value2"},
 						{key: "qux_key", value: "qux_value12"},
 						{key: "quux_key", value: "quux_value12"},
 					},
