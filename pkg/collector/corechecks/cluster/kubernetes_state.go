@@ -267,7 +267,7 @@ func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][
 			if !isKnownMetric(metricFamily.Name) {
 				// ignore the metric if it doesn't have a transformer
 				// or if it isn't mapped to a datadog metric name
-				log.Tracef("KSM metric '%s' is unknown for the check, ignoring it", metricFamily.Name)
+				// log.Tracef("KSM metric '%s' is unknown for the check, ignoring it", metricFamily.Name)
 				continue
 			}
 			if transform, found := metricTransformers[metricFamily.Name]; found {
