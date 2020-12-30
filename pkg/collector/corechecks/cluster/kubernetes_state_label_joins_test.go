@@ -326,7 +326,7 @@ func Test_labelJoiner(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			labelJoiner := newLabelJoiner(&tt.config)
+			labelJoiner := newLabelJoiner(tt.config)
 			labelJoiner.insertFamilies(tt.families)
 			for _, expected := range tt.expected {
 				assert.ElementsMatch(t, labelJoiner.getLabelsToAdd(expected.inputLabels), expected.labelsToAdd)

@@ -231,7 +231,7 @@ func (k *KSMCheck) Run() error {
 	// Note that by design, some metrics cannot have hostnames (e.g kubernetes_state.pod.unschedulable)
 	sender.DisableDefaultHostname(true)
 
-	labelJoiner := newLabelJoiner(&k.instance.LabelJoins)
+	labelJoiner := newLabelJoiner(k.instance.LabelJoins)
 	for _, store := range k.store {
 		metrics := store.(*ksmstore.MetricsStore).Push(k.familyFilter, k.metricFilter)
 		labelJoiner.insertFamilies(metrics)

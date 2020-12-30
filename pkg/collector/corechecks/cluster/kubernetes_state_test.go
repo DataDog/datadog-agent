@@ -268,7 +268,7 @@ func TestProcessMetrics(t *testing.T) {
 		mocked.SetupAcceptAll()
 
 		metricTransformers = test.metricTransformers
-		labelJoiner := newLabelJoiner(&test.config.LabelJoins)
+		labelJoiner := newLabelJoiner(test.config.LabelJoins)
 		for _, metricFam := range test.metricsToGet {
 			labelJoiner.insertFamily(metricFam)
 		}
@@ -739,7 +739,7 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), tt.config)
-			labelJoiner := newLabelJoiner(&tt.config.LabelJoins)
+			labelJoiner := newLabelJoiner(tt.config.LabelJoins)
 			for _, metricFam := range tt.args.metricsToGet {
 				labelJoiner.insertFamily(metricFam)
 			}

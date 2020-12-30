@@ -13,7 +13,7 @@ import (
 )
 
 type labelJoiner struct {
-	config *map[string]*JoinsConfig
+	config map[string]*JoinsConfig
 	forest map[string]*node
 }
 
@@ -27,7 +27,7 @@ type node struct {
 	labelsToAdd []label
 }
 
-func newLabelJoiner(config *map[string]*JoinsConfig) *labelJoiner {
+func newLabelJoiner(config map[string]*JoinsConfig) *labelJoiner {
 	return &labelJoiner{
 		config: config,
 		forest: make(map[string]*node),
@@ -82,7 +82,7 @@ func (lj *labelJoiner) insertMetric(metric ksmstore.DDMetric, config *JoinsConfi
 }
 
 func (lj *labelJoiner) insertFamily(metricFamily ksmstore.DDMetricsFam) {
-	config, found := (*lj.config)[metricFamily.Name]
+	config, found := lj.config[metricFamily.Name]
 	if !found {
 		log.Error("BUG in label joins")
 		return
@@ -126,7 +126,7 @@ func (lj *labelJoiner) getLabelsToAddOne(inputLabels map[string]string, config *
 
 func (lj *labelJoiner) getLabelsToAdd(inputLabels map[string]string) (labelsToAdd []label) {
 	for metricName, tree := range lj.forest {
-		config, found := (*lj.config)[metricName]
+		config, found := lj.config[metricName]
 		if !found {
 			log.Error("BUG in label joins")
 			return
