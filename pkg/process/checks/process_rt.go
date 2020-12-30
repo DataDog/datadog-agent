@@ -1,15 +1,16 @@
 package checks
 
 import (
+	"fmt"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/gopsutil/cpu"
-	"github.com/DataDog/gopsutil/process"
 
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/gopsutil/cpu"
+	"github.com/DataDog/gopsutil/process"
 )
 
 // RTProcess is a singleton RTProcessCheck.
@@ -23,11 +24,17 @@ type RTProcessCheck struct {
 	lastProcs    map[int32]*process.FilledProcess
 	lastCtrRates map[string]util.ContainerRateMetrics
 	lastRun      time.Time
+
+	probe *procutil.Probe
+	// RTProcessCheck needs to know the PIDs that ProcessCheck collected,
+	// so we will keep a reference for the check in order to get PIDs
+	processCheck *ProcessCheck
 }
 
 // Init initializes a new RTProcessCheck instance.
 func (r *RTProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
 	r.sysInfo = info
+	r.probe = procutil.NewProcessProbe()
 }
 
 // Name returns the name of the RTProcessCheck.
@@ -35,6 +42,10 @@ func (r *RTProcessCheck) Name() string { return "rtprocess" }
 
 // RealTime indicates if this check only runs in real-time mode.
 func (r *RTProcessCheck) RealTime() bool { return true }
+
+func (r *RTProcessCheck) AssignProcessCheck(c *ProcessCheck) {
+	r.processCheck = c
+}
 
 // Run runs the RTProcessCheck to collect statistics about the running processes.
 // On most POSIX systems these statistics are collected from procfs. The bulk
@@ -50,7 +61,12 @@ func (r *RTProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 	if len(cpuTimes) == 0 {
 		return nil, errEmptyCPUTime
 	}
-	procs, err := getAllProcesses(cfg)
+
+	if r.processCheck == nil {
+		return nil, fmt.Errorf("cannot run rtprocess check if processCheck is not initialized")
+	}
+
+	procs, err := getAllProcStats(r.probe, r.processCheck.GetLastPIDs())
 	if err != nil {
 		return nil, err
 	}

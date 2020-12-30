@@ -3,18 +3,19 @@ package checks
 import (
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	model "github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	agentutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/gopsutil/cpu"
 	"github.com/DataDog/gopsutil/process"
-
-	model "github.com/DataDog/agent-payload/process"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/DataDog/datadog-agent/pkg/process/statsd"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 const emptyCtrID = ""
@@ -30,6 +31,8 @@ var errEmptyCPUTime = errors.New("empty CPU time information returned")
 type ProcessCheck struct {
 	sync.RWMutex
 
+	probe *procutil.Probe
+
 	sysInfo         *model.SystemInfo
 	lastCPUTime     cpu.TimesStat
 	lastProcs       map[int32]*process.FilledProcess
@@ -37,6 +40,10 @@ type ProcessCheck struct {
 	lastCtrIDForPID map[int32]string
 	lastRun         time.Time
 	networkID       string
+
+	// lastPIDs is []int32 that holds PIDs that the check fetched last time,
+	// will be reused by RTProcessCheck to get stats
+	lastPIDs atomic.Value
 }
 
 // Init initializes the singleton ProcessCheck.
@@ -48,6 +55,7 @@ func (p *ProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
 		log.Infof("no network ID detected: %s", err)
 	}
 	p.networkID = networkID
+	p.probe = procutil.NewProcessProbe()
 }
 
 // Name returns the name of the ProcessCheck.
@@ -75,10 +83,12 @@ func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Mess
 	if len(cpuTimes) == 0 {
 		return nil, errEmptyCPUTime
 	}
-	procs, err := getAllProcesses(cfg)
+
+	procs, err := getAllProcesses(p.probe)
 	if err != nil {
 		return nil, err
 	}
+
 	ctrList, _ := util.GetContainers()
 
 	// Keep track of containers addresses
@@ -108,10 +118,24 @@ func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Mess
 	p.lastRun = time.Now()
 	p.lastCtrIDForPID = ctrByProc
 
+	lastPIDs := make([]int32, 0, len(procs))
+	for pid := range procs {
+		lastPIDs = append(lastPIDs, pid)
+	}
+	p.lastPIDs.Store(lastPIDs)
+
 	statsd.Client.Gauge("datadog.process.containers.host_count", float64(totalContainers), []string{}, 1) //nolint:errcheck
 	statsd.Client.Gauge("datadog.process.processes.host_count", float64(totalProcs), []string{}, 1)       //nolint:errcheck
 	log.Debugf("collected processes in %s", time.Now().Sub(start))
 	return messages, nil
+}
+
+// GetLastPIDs returns the lastPIDs as []int32 slice
+func (p *ProcessCheck) GetLastPIDs() []int32 {
+	if result := p.lastPIDs.Load(); result != nil {
+		return result.([]int32)
+	}
+	return nil
 }
 
 func createProcCtrMessages(

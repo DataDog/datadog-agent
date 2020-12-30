@@ -69,12 +69,27 @@ func NewCollector(cfg *config.AgentConfig) (Collector, error) {
 		return Collector{}, err
 	}
 
+	var processCheck *checks.ProcessCheck
+	var processRTCheck *checks.RTProcessCheck
+
 	enabledChecks := make([]checks.Check, 0)
 	for _, c := range checks.All {
 		if cfg.CheckIsEnabled(c.Name()) {
 			c.Init(cfg, sysInfo)
 			enabledChecks = append(enabledChecks, c)
+
+			if check, ok := c.(*checks.ProcessCheck); ok {
+				processCheck = check
+			}
+			if check, ok := c.(*checks.RTProcessCheck); ok {
+				processRTCheck = check
+			}
 		}
+	}
+
+	// if process check is enabled, add processCheck reference to processRTCheck
+	if processCheck != nil && processRTCheck != nil {
+		processRTCheck.AssignProcessCheck(processCheck)
 	}
 
 	return NewCollectorWithChecks(cfg, enabledChecks), nil
