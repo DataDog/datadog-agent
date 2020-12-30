@@ -25,6 +25,11 @@ type httpBatch C.http_batch_t
 type httpBatchKey C.http_batch_key_t
 type httpBatchState C.http_batch_state_t
 
+const (
+	CONN_V4 uint = 0 << 0
+	CONN_V6 uint = 1 << 1
+)
+
 func toHTTPNotification(data []byte) httpNotification {
 	return *(*httpNotification)(unsafe.Pointer(&data[0]))
 }
@@ -86,18 +91,21 @@ func (tx *httpTX) Method() string {
 }
 
 func (tx *httpTX) SourceIP() util.Address {
-	// Metadata second bit indicates if the connection is V6 (1) or V4 (0)
-	if tx.tup.metadata&0x1 == 0 {
-		return util.V4Address(uint32(tx.tup.saddr_l))
+	// Second bit of metadata indicates if the connection is V6 (1) or V4 (0)
+	metadata := uint(tx.tup.metadata)
+	if metadata&CONN_V6 == 1 {
+		return util.V6Address(uint64(tx.tup.saddr_l), uint64(tx.tup.saddr_h))
 	}
-	return util.V6Address(uint64(tx.tup.saddr_l), uint64(tx.tup.saddr_h))
+	return util.V4Address(uint32(tx.tup.saddr_l))
 }
 
 func (tx *httpTX) DestIP() util.Address {
-	if tx.tup.metadata&0x1 == 0 {
-		return util.V4Address(uint32(tx.tup.daddr_l))
+	// Second bit of metadata indicates if the connection is V6 (1) or V4 (0)
+	metadata := uint(tx.tup.metadata)
+	if metadata&CONN_V6 == 1 {
+		return util.V6Address(uint64(tx.tup.daddr_l), uint64(tx.tup.daddr_h))
 	}
-	return util.V6Address(uint64(tx.tup.daddr_l), uint64(tx.tup.daddr_h))
+	return util.V4Address(uint32(tx.tup.daddr_l))
 }
 
 func (tx *httpTX) SourcePort() uint16 {

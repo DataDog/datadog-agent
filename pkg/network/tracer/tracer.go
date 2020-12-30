@@ -780,7 +780,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 	stateStats := t.state.GetStats()
 	conntrackStats := t.conntracker.GetStats()
 
-	return map[string]interface{}{
+	ret := map[string]interface{}{
 		"conntrack": conntrackStats,
 		"state":     stateStats,
 		"tracer": map[string]int64{
@@ -793,8 +793,13 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 		"ebpf":    t.getEbpfTelemetry(),
 		"kprobes": ddebpf.GetProbeStats(),
 		"dns":     t.reverseDNS.GetStats(),
-		"http":    t.httpMonitor.GetStats(),
-	}, nil
+	}
+
+	if t.httpMonitor != nil {
+		ret["http"] = t.httpMonitor.GetStats()
+	}
+
+	return ret, nil
 }
 
 // DebugNetworkState returns a map with the current tracer's internal state, for debugging

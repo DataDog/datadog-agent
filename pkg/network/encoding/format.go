@@ -5,6 +5,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -48,6 +49,7 @@ func FormatConnection(conn network.ConnectionStats, domainSet map[string]int) *m
 	c.LastTcpEstablished = conn.LastTCPEstablished
 	c.LastTcpClosed = conn.LastTCPClosed
 	c.DnsStatsByDomain = formatDNSStatsByDomain(conn.DNSStatsByDomain, domainSet)
+	c.HttpStatsByPath = formatHTTPStatsByPath(conn.HTTPStatsByPath)
 	return c
 }
 
@@ -188,4 +190,52 @@ func formatIPTranslation(ct *network.IPTranslation) *model.IPTranslation {
 		ReplSrcPort: int32(ct.ReplSrcPort),
 		ReplDstPort: int32(ct.ReplDstPort),
 	}
+}
+
+func formatHTTPStatsByPath(statsByPath map[string]http.RequestStats) map[string]*model.HTTPStats {
+	m := make(map[string]*model.HTTPStats)
+	for path, stats := range statsByPath {
+		var ms model.HTTPStats
+		ms.StatsByResponseStatus = make([]*model.HTTPStats_Data, 5)
+
+		for i := 0; i < 5; i++ {
+			status := model.HTTPResponseStatus(i)
+			count := uint32(stats.Count(status))
+
+			var formattedLatencies *model.DDSketch
+			if latencies := stats.Latencies(status); latencies != nil {
+				sketch := latencies.ToProto()
+				mapping := &model.IndexMapping{
+					Gamma:         sketch.Mapping.Gamma,
+					IndexOffset:   sketch.Mapping.IndexOffset,
+					Interpolation: model.IndexMapping_Interpolation(sketch.Mapping.Interpolation),
+				}
+				posVals := &model.Store{
+					BinCounts:                sketch.PositiveValues.BinCounts,
+					ContiguousBinCounts:      sketch.PositiveValues.ContiguousBinCounts,
+					ContiguousBinIndexOffset: sketch.PositiveValues.ContiguousBinIndexOffset,
+				}
+				negVals := &model.Store{
+					BinCounts:                sketch.NegativeValues.BinCounts,
+					ContiguousBinCounts:      sketch.NegativeValues.ContiguousBinCounts,
+					ContiguousBinIndexOffset: sketch.NegativeValues.ContiguousBinIndexOffset,
+				}
+
+				formattedLatencies = &model.DDSketch{
+					Mapping:        mapping,
+					PositiveValues: posVals,
+					NegativeValues: negVals,
+					ZeroCount:      sketch.ZeroCount,
+				}
+			}
+
+			ms.StatsByResponseStatus[status] = &model.HTTPStats_Data{
+				Count:     count,
+				Latencies: formattedLatencies,
+			}
+		}
+
+		m[path] = &ms
+	}
+	return m
 }

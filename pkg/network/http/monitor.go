@@ -7,13 +7,13 @@ import (
 
 	"C"
 
+	"sync"
 	"time"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/ebpf/manager"
 )
-import "sync"
 
 // Monitor is responsible for:
 // * Creating a raw socket and attaching an eBPF filter to it;
@@ -26,7 +26,7 @@ type Monitor struct {
 	perfHandler  *ddebpf.PerfHandler
 	telemetry    *telemetry
 	pollRequests chan chan struct{}
-	statkeeper    *httpStatKeeper
+	statkeeper   *httpStatKeeper
 
 	// termination
 	mux           sync.Mutex
@@ -36,8 +36,8 @@ type Monitor struct {
 }
 
 // NewMonitor returns a new Monitor instance
-func NewMonitor(m *manager.Manager, h *ddebpf.PerfHandler, closeFilterFn func()) (*Monitor, error) {
-	batchMap, _, err := m.GetMap(string(probes.HttpBatchesMap))
+func NewMonitor(mgr *manager.Manager, h *ddebpf.PerfHandler, closeFilterFn func()) (*Monitor, error) {
+	batchMap, _, err := mgr.GetMap(string(probes.HttpBatchesMap))
 	if err != nil {
 		return nil, err
 	}
@@ -137,6 +137,10 @@ func (m *Monitor) Sync() {
 // GetHTTPStats returns a map of HTTP stats stored in the following format:
 // [source, dest tuple] -> [request path] -> RequestStats object
 func (m *Monitor) GetHTTPStats() map[Key]map[string]RequestStats {
+	if m == nil {
+		return nil
+	}
+
 	m.Sync()
 
 	if m.statkeeper == nil {
@@ -170,8 +174,8 @@ func (m *Monitor) Stop() {
 	m.perfHandler.Stop()
 	close(m.pollRequests)
 	m.eventLoopWG.Wait()
-	if http.statkeeper != nil {
-		http.statkeeper.Close()
+	if m.statkeeper != nil {
+		m.statkeeper.Close()
 	}
 	m.stopped = true
 }

@@ -267,7 +267,8 @@ func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
 
 // addHTTPStats fills in the HTTP stats for each connection
 func (ns *networkState) addHTTPStats(id string, conns []ConnectionStats) {
-	for _, conn := range conns {
+	for i := range conns {
+		conn := &conns[i]
 		key := http.Key{
 			SourceIP:   conn.Source,
 			DestIP:     conn.Dest,
@@ -276,21 +277,12 @@ func (ns *networkState) addHTTPStats(id string, conns []ConnectionStats) {
 		}
 
 		if statsByPath, ok := ns.clients[id].httpStats[key]; ok {
-			conn.HTTPStatsByPath = make(map[string]HTTPStats)
+			if conn.HTTPStatsByPath == nil {
+				conn.HTTPStatsByPath = make(map[string]http.RequestStats)
+			}
 
 			for path, stats := range statsByPath {
-				hs := make(HTTPStats)
-
-				for i := 0; i < 5; i++ {
-					hs[ResponseStatus(i)] = RequestStats{
-						count:      stats.Count(i),
-						latencyP50: stats.GetLatencyQuantile(i, 0.50),
-						latencyP75: stats.GetLatencyQuantile(i, 0.75),
-						latencyP90: stats.GetLatencyQuantile(i, 0.90),
-						latencyP95: stats.GetLatencyQuantile(i, 0.95),
-					}
-				}
-				conn.HTTPStatsByPath[path] = hs
+				conn.HTTPStatsByPath[path] = stats
 			}
 		}
 	}

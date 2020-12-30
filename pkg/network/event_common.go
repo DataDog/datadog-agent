@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/dustin/go-humanize"
 )
@@ -146,7 +147,7 @@ type ConnectionStats struct {
 	DNSFailureLatencySum   uint64
 	DNSCountByRcode        map[uint32]uint32
 	DNSStatsByDomain       map[string]DNSStats
-	HTTPStatsByPath        map[string]HTTPStats
+	HTTPStatsByPath        map[string]http.RequestStats
 }
 
 // IPTranslation can be associated with a connection to show the connection is NAT'd
@@ -262,28 +263,4 @@ type DNSStats struct {
 	DNSSuccessLatencySum uint64
 	DNSFailureLatencySum uint64
 	DNSCountByRcode      map[uint32]uint32
-}
-
-// HTTPStats holds stats relating to HTTP requests made to a particular request path, organized
-// by the HTTP response status code
-type HTTPStats map[ResponseStatus]RequestStats
-
-// ResponseStatus defines classes of HTTP response status codes
-type ResponseStatus int
-
-const (
-	Info      ResponseStatus = iota // 1XX response
-	Success                         // 2XX
-	Redirect                        // 3XX
-	ClientErr                       // 4XX
-	ServerErr                       // 5XX
-)
-
-// RequestStats holds stats corresponding to a particular set of HTTP requests
-type RequestStats struct {
-	count      int
-	latencyP50 float64
-	latencyP75 float64
-	latencyP90 float64
-	latencyP95 float64
 }
