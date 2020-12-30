@@ -26,13 +26,13 @@ import (
 // If none of those volumes are mounted, returns a lazy docker launcher with a retrier to handle the cases
 // where docker is started after the agent.
 // dockerReadTimeout is a configurable read timeout for the docker client.
-func NewLauncher(collectAll bool, collectFromFiles bool, dockerReadTimeout time.Duration, sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry) restart.Restartable {
+func NewLauncher(collectAll bool, kubernetesCollectFromFiles bool, dockerCollectFromFiles bool, dockerReadTimeout time.Duration, sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry) restart.Restartable {
 	var (
 		launcher restart.Restartable
 		err      error
 	)
 
-	if collectFromFiles {
+	if kubernetesCollectFromFiles {
 		launcher, err = kubernetes.NewLauncher(sources, services, collectAll)
 		if err == nil {
 			log.Info("Kubernetes launcher initialized")
@@ -40,14 +40,14 @@ func NewLauncher(collectAll bool, collectFromFiles bool, dockerReadTimeout time.
 		}
 		log.Infof("Could not setup the kubernetes launcher: %v", err)
 
-		launcher, err = docker.NewLauncher(dockerReadTimeout, sources, services, pipelineProvider, registry, false)
+		launcher, err = docker.NewLauncher(dockerReadTimeout, sources, services, pipelineProvider, registry, false, dockerCollectFromFiles)
 		if err == nil {
 			log.Info("Docker launcher initialized")
 			return launcher
 		}
 		log.Infof("Could not setup the docker launcher: %v", err)
 	} else {
-		launcher, err = docker.NewLauncher(dockerReadTimeout, sources, services, pipelineProvider, registry, false)
+		launcher, err = docker.NewLauncher(dockerReadTimeout, sources, services, pipelineProvider, registry, false, dockerCollectFromFiles)
 		if err == nil {
 			log.Info("Docker launcher initialized")
 			return launcher
@@ -62,7 +62,7 @@ func NewLauncher(collectAll bool, collectFromFiles bool, dockerReadTimeout time.
 		log.Infof("Could not setup the kubernetes launcher: %v", err)
 	}
 
-	launcher, err = docker.NewLauncher(dockerReadTimeout, sources, services, pipelineProvider, registry, true)
+	launcher, err = docker.NewLauncher(dockerReadTimeout, sources, services, pipelineProvider, registry, true, dockerCollectFromFiles)
 	if err != nil {
 		log.Warnf("Could not setup the docker launcher: %v. Will not be able to collect container logs", err)
 		return NewNoopLauncher()
