@@ -158,17 +158,44 @@ type Forwarder interface {
 // Compile-time check to ensure that DefaultForwarder implements the Forwarder interface
 var _ Forwarder = &DefaultForwarder{}
 
+// Features is a bitmask to enable specific forwarder features
+type Features uint8
+
+const (
+	// CoreFeatures bitmask to enable specific core features
+	CoreFeatures Features = 1 << iota
+	// TraceFeatures bitmask to enable specific trace features
+	TraceFeatures
+	// ProcessFeatures bitmask to enable specific process features
+	ProcessFeatures
+	// SysProbeFeatures bitmask to enable specific system-probe features
+	SysProbeFeatures
+)
+
 // Options contain the configuration options for the DefaultForwarder
 type Options struct {
 	NumberOfWorkers                int
 	RetryQueueSize                 int
 	RetryQueuePayloadsTotalMaxSize int
 	DisableAPIKeyChecking          bool
+	EnabledFeatures                Features
 	APIKeyValidationInterval       time.Duration
 	KeysPerDomain                  map[string][]string
 	ConnectionResetInterval        time.Duration
 	CompletionHandler              HTTPCompletionHandler
 }
+
+// SetFeature sets forwarder features in a feature set
+func SetFeature(features, flag Features) Features { return features | flag }
+
+// ClearFeature clears forwarder features from a feature set
+func ClearFeature(features, flag Features) Features { return features &^ flag }
+
+// ToggleFeature toggles forwarder features in a feature set
+func ToggleFeature(features, flag Features) Features { return features ^ flag }
+
+// HasFeature lets you know if a specific feature flag is set in a feature set
+func HasFeature(features, flag Features) bool { return features&flag != 0 }
 
 // NewOptions creates new Options with default values
 func NewOptions(keysPerDomain map[string][]string) *Options {
@@ -257,9 +284,10 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 	var optionalRemovalPolicy *failedTransactionRemovalPolicy
 	storageMaxSize := config.Datadog.GetInt64("forwarder_storage_max_size_in_bytes")
 
+	// Disk Persistence is a core-only feature for now.
 	if storageMaxSize == 0 {
 		log.Infof("Retry queue storage on disk is disabled")
-	} else {
+	} else if HasFeature(options.EnabledFeatures, CoreFeatures) {
 		storagePath := config.Datadog.GetString("forwarder_storage_path")
 		outdatedFileInDays := config.Datadog.GetInt("forwarder_outdated_file_in_days")
 		var err error
@@ -274,6 +302,8 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 			}
 			log.Debugf("Outdated files removed: %v", strings.Join(filesRemoved, ", "))
 		}
+	} else {
+		log.Infof("Retry queue storage on disk is disabled because the feature is unavailable for this process.")
 	}
 
 	flushToDiskMemRatio := config.Datadog.GetFloat64("forwarder_flush_to_disk_mem_ratio")
