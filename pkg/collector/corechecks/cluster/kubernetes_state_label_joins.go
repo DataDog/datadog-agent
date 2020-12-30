@@ -12,6 +12,48 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+/*
+   labelJoiner ingests all the metrics used by label joins to build a tree that can then be used to efficiently find which labels should be added to other metrics.
+
+   For ex., for the following JoinsConfig:
+
+     "kube_deployment_labels":
+       LabelsToMatch: ["namespace", "deployment"]
+       LabelsToGet:   ["chart_name", "chart_version"]
+
+   and the following metrics:
+
+     kube_deployment_labels {"namespace": "ns-a", "deployment": "foo", "chart_name": "foo", "chart_version": "1.0"}
+     kube_deployment_labels {"namespace": "ns-a", "deployment": "bar", "chart_name": "bar", "chart_version": "1.1"}
+     kube_deployment_labels {"namespace": "ns-b", "deployment": "foo", "chart_name": "foo", "chart_version": "2.0"}
+
+   it will create the following tree:
+
+   kube_deployment_labels
+     ├─ ns-a
+     │    ├─ foo
+     │    │    └─ [ chart_name:foo, chart_version:1.0 ]
+     │    └─ bar
+     │         └─ [ chart_name:bar, chart_version:1.1 ]
+     └─ ns-b
+          └─ foo
+               └─ [ chart_name:foo, chart_version:2.0 ]
+
+   At the first level of the tree, there are the different values for the "namespace" label (because it’s the first label to match)
+   At the second level of the tree, there are all the different values for the "deployment" label (because it’s the first label to match)
+   At the third level of the tree, there are the lists of labels to add with the keys and the values.
+
+   When a metric like the following needs to be decorated:
+
+     kube_pod_container_status_running {"namespace": "ns-a", "deployment": "bar", "container": "agent", "pod": "XXX"}
+
+   We first extract the "namespace" value because it’s the first label to match.
+   This value is used to lookup the first level node in the tree.
+   The "deployment" value is then extracted because it’s the second label to match.
+   This value is used to lookup the second level node in the tree.
+   That node contains the list of labels to add.
+*/
+
 type labelJoiner struct {
 	metricsToJoin map[string]metricToJoin
 }
