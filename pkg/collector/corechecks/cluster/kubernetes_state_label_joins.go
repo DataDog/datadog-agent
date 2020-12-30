@@ -34,16 +34,24 @@ func newLabelJoiner(config map[string]*JoinsConfig) *labelJoiner {
 	}
 }
 
-func newNode() *node {
+func newInnerNode() *node {
 	return &node{
 		labelValues: make(map[string]*node),
-		//labelsToAdd: make([]label),
+		labelsToAdd: nil,
+	}
+}
+
+func newLeafNode() *node {
+	return &node{
+		labelValues: nil,
+		labelsToAdd: nil,
 	}
 }
 
 func (lj *labelJoiner) insertMetric(metric ksmstore.DDMetric, config *JoinsConfig, tree *node) {
 	current := tree
-	for _, labelToMatch := range config.LabelsToMatch {
+	nbLabelsToMatch := len(config.LabelsToMatch)
+	for i, labelToMatch := range config.LabelsToMatch {
 		labelValue, found := metric.Labels[labelToMatch]
 		if !found {
 			return
@@ -51,7 +59,11 @@ func (lj *labelJoiner) insertMetric(metric ksmstore.DDMetric, config *JoinsConfi
 
 		child, found := current.labelValues[labelValue]
 		if !found {
-			child = newNode()
+			if i < nbLabelsToMatch-1 {
+				child = newInnerNode()
+			} else {
+				child = newLeafNode()
+			}
 			current.labelValues[labelValue] = child
 		}
 
@@ -90,7 +102,7 @@ func (lj *labelJoiner) insertFamily(metricFamily ksmstore.DDMetricsFam) {
 
 	tree, found := lj.forest[metricFamily.Name]
 	if !found {
-		tree = newNode()
+		tree = newInnerNode()
 		lj.forest[metricFamily.Name] = tree
 	}
 
