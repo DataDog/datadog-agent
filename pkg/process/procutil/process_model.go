@@ -99,6 +99,7 @@ type NumCtxSwitchesStat struct {
 	Involuntary int64
 }
 
+// ConvertAllProcesses takes a group of Process objects and convert them into FilledProcess
 func ConvertAllProcesses(processes map[int32]*Process) map[int32]*process.FilledProcess {
 	result := make(map[int32]*process.FilledProcess, len(processes))
 	for pid, p := range processes {
@@ -107,6 +108,7 @@ func ConvertAllProcesses(processes map[int32]*Process) map[int32]*process.Filled
 	return result
 }
 
+// ConvertToFilledProcess takes a Process object and convert it into FilledProcess
 func ConvertToFilledProcess(p *Process) *process.FilledProcess {
 	return &process.FilledProcess{
 		Pid:         p.Pid,
@@ -151,7 +153,7 @@ func ConvertCPUStat(s *CPUTimesStat) *cpu.TimesStat {
 	}
 }
 
-// AssignMemInfo converts procutil MemoryInfoStat object to MemoryInfoStat in gopsutil
+// ConvertMemInfo converts procutil MemoryInfoStat object to MemoryInfoStat in gopsutil
 func ConvertMemInfo(s *MemoryInfoStat) *process.MemoryInfoStat {
 	return &process.MemoryInfoStat{
 		RSS:  s.RSS,

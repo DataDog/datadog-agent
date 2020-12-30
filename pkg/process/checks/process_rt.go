@@ -43,6 +43,7 @@ func (r *RTProcessCheck) Name() string { return "rtprocess" }
 // RealTime indicates if this check only runs in real-time mode.
 func (r *RTProcessCheck) RealTime() bool { return true }
 
+// AssignProcessCheck stores a processCheck instance as reference
 func (r *RTProcessCheck) AssignProcessCheck(c *ProcessCheck) {
 	r.processCheck = c
 }
