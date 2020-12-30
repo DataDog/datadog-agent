@@ -49,7 +49,7 @@
 #include "..\cal\customaction.h"
 #include "..\cal\strings.h"
 #include "..\cal\ddreg.h"
-
+#include "..\cal\Error.h"
 
 #include "resource.h"
 

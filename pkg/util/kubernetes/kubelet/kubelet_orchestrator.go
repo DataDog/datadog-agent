@@ -26,6 +26,7 @@ type KubeUtilInterface interface {
 	ForceGetLocalPodList() ([]*Pod, error)
 	GetPodForContainerID(containerID string) (*Pod, error)
 	GetStatusForContainerID(pod *Pod, containerID string) (ContainerStatus, error)
+	GetSpecForContainerName(pod *Pod, containerName string) (ContainerSpec, error)
 	GetPodFromUID(podUID string) (*Pod, error)
 	GetPodForEntityID(entityID string) (*Pod, error)
 	QueryKubelet(path string) ([]byte, int, error)
@@ -43,10 +44,10 @@ func (ku *KubeUtil) GetRawLocalPodList() ([]*v1.Pod, error) {
 	data, code, err := ku.QueryKubelet(kubeletPodPath)
 
 	if err != nil {
-		return nil, fmt.Errorf("error performing kubelet query %s%s: %s", ku.kubeletAPIEndpoint, kubeletPodPath, err)
+		return nil, fmt.Errorf("error performing kubelet query %s%s: %s", ku.kubeletClient.kubeletURL, kubeletPodPath, err)
 	}
 	if code != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.kubeletAPIEndpoint, kubeletPodPath, string(data))
+		return nil, fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.kubeletClient.kubeletURL, kubeletPodPath, string(data))
 	}
 
 	podListData, err := runtime.Decode(clientsetscheme.Codecs.UniversalDecoder(v1.SchemeGroupVersion), data)

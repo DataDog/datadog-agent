@@ -8,6 +8,7 @@
 package python
 
 import (
+	"errors"
 	"time"
 
 	yaml "gopkg.in/yaml.v2"
@@ -15,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 /*
@@ -34,9 +36,13 @@ var (
 func getConnections() map[string]string {
 	kubeutil, err := kubelet.GetKubeUtil()
 	if err != nil {
-		// Connection to the kubelet fail, return empty dict
+		// Connection to the kubelet fail, return the error
 		log.Errorf("connection to kubelet failed: %v", err)
-		return nil
+		var e *retry.Error
+		if errors.As(err, &e) {
+			return map[string]string{"err": e.Unwrap().Error()}
+		}
+		return map[string]string{"err": err.Error()}
 	}
 
 	// At this point, we have valid credentials to get

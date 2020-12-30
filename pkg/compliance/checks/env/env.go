@@ -31,4 +31,5 @@ type Configuration interface {
 	NormalizeToHostRoot(path string) string
 	RelativeToHostRoot(path string) string
 	EvaluateFromCache(e eval.Evaluatable) (interface{}, error)
+	IsLeader() bool
 }

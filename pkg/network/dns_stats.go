@@ -8,12 +8,10 @@ import (
 )
 
 type dnsStats struct {
-	// More stats like latency, error, etc. will be added here later
-	successfulResponses uint32
-	failedResponses     uint32
-	successLatencySum   uint64 // Stored in µs
-	failureLatencySum   uint64
-	timeouts            uint32
+	successLatencySum uint64 // Stored in µs
+	failureLatencySum uint64
+	timeouts          uint32
+	countByRcode      map[uint8]uint32
 }
 
 type dnsKey struct {
@@ -46,6 +44,8 @@ type dnsPacketInfo struct {
 	transactionID uint16
 	key           dnsKey
 	pktType       DNSPacketType
+	rCode         uint8  // responseCode
+	question      string // only relevant for query packets
 }
 
 type stateKey struct {
@@ -53,10 +53,15 @@ type stateKey struct {
 	id  uint16
 }
 
+type stateValue struct {
+	ts       uint64
+	question string
+}
+
 type dnsStatKeeper struct {
 	mux              sync.Mutex
-	stats            map[dnsKey]dnsStats
-	state            map[stateKey]uint64
+	stats            map[dnsKey]map[string]dnsStats
+	state            map[stateKey]stateValue
 	expirationPeriod time.Duration
 	exit             chan struct{}
 	maxSize          int // maximum size of the state map
@@ -65,8 +70,8 @@ type dnsStatKeeper struct {
 
 func newDNSStatkeeper(timeout time.Duration) *dnsStatKeeper {
 	statsKeeper := &dnsStatKeeper{
-		stats:            make(map[dnsKey]dnsStats),
-		state:            make(map[stateKey]uint64),
+		stats:            make(map[dnsKey]map[string]dnsStats),
+		state:            make(map[stateKey]stateValue),
 		expirationPeriod: timeout,
 		exit:             make(chan struct{}),
 		maxSize:          MaxStateMapSize,
@@ -102,7 +107,7 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 		}
 
 		if _, ok := d.state[sk]; !ok {
-			d.state[sk] = microSecs(ts)
+			d.state[sk] = stateValue{question: info.question, ts: microSecs(ts)}
 		}
 		return
 	}
@@ -117,31 +122,38 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 	delete(d.state, sk)
 	d.deleteCount++
 
-	latency := microSecs(ts) - start
+	latency := microSecs(ts) - start.ts
 
-	stats := d.stats[info.key]
+	allStats, ok := d.stats[info.key]
+	if !ok {
+		allStats = make(map[string]dnsStats)
+	}
+	stats, ok := allStats[start.question]
+	if !ok {
+		stats.countByRcode = make(map[uint8]uint32)
+	}
 
 	// Note: time.Duration in the agent version of go (1.12.9) does not have the Microseconds method.
 	if latency > uint64(d.expirationPeriod.Microseconds()) {
 		stats.timeouts++
 	} else {
+		stats.countByRcode[info.rCode]++
 		if info.pktType == SuccessfulResponse {
-			stats.successfulResponses++
 			stats.successLatencySum += latency
 		} else if info.pktType == FailedResponse {
-			stats.failedResponses++
 			stats.failureLatencySum += latency
 		}
 	}
 
-	d.stats[info.key] = stats
+	allStats[start.question] = stats
+	d.stats[info.key] = allStats
 }
 
-func (d *dnsStatKeeper) GetAndResetAllStats() map[dnsKey]dnsStats {
+func (d *dnsStatKeeper) GetAndResetAllStats() map[dnsKey]map[string]dnsStats {
 	d.mux.Lock()
 	defer d.mux.Unlock()
-	ret := d.stats
-	d.stats = make(map[dnsKey]dnsStats)
+	ret := d.stats // No deep copy needed since `d.stats` gets reset
+	d.stats = make(map[dnsKey]map[string]dnsStats)
 	return ret
 }
 
@@ -149,14 +161,24 @@ func (d *dnsStatKeeper) removeExpiredStates(earliestTs time.Time) {
 	deleteThreshold := 5000
 	d.mux.Lock()
 	defer d.mux.Unlock()
+	// Any state older than the threshold should be discarded
 	threshold := microSecs(earliestTs)
 	for k, v := range d.state {
-		if v < threshold {
+		if v.ts < threshold {
 			delete(d.state, k)
 			d.deleteCount++
-			stats := d.stats[k.key]
+			// When we expire a state, we need to increment timeout count for that key:domain
+			allStats, ok := d.stats[k.key]
+			if !ok {
+				allStats = make(map[string]dnsStats)
+			}
+			stats, ok := allStats[v.question]
+			if !ok {
+				stats.countByRcode = make(map[uint8]uint32)
+			}
 			stats.timeouts++
-			d.stats[k.key] = stats
+			allStats[v.question] = stats
+			d.stats[k.key] = allStats
 		}
 	}
 
@@ -165,7 +187,7 @@ func (d *dnsStatKeeper) removeExpiredStates(earliestTs time.Time) {
 	}
 
 	// golang/go#20135 : maps do not shrink after elements removal (delete)
-	copied := make(map[stateKey]uint64, len(d.state))
+	copied := make(map[stateKey]stateValue, len(d.state))
 	for k, v := range d.state {
 		copied[k] = v
 	}

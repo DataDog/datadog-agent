@@ -13,18 +13,22 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/policy"
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
 func TestMkdir(t *testing.T) {
-	rules := []*policy.RuleDefinition{
+	rules := []*rules.RuleDefinition{
 		{
-			ID:         "test_rule",
-			Expression: `mkdir.filename == "{{.Root}}/test-mkdir" || mkdir.filename == "{{.Root}}/testat-mkdir"`,
+			ID:         "test_rule_mkdir",
+			Expression: `mkdir.filename == "{{.Root}}/test-mkdir"`,
 		},
 		{
-			ID:         "test_rule2",
-			Expression: `mkdir.retval == EACCES`,
+			ID:         "test_rule_mkdirat",
+			Expression: `mkdir.filename == "{{.Root}}/testat-mkdir"`,
+		},
+		{
+			ID:         "test_rule_mkdirat_error",
+			Expression: `process.name == "{{.ProcessName}}" && mkdir.retval == EACCES`,
 		},
 	}
 
@@ -39,86 +43,104 @@ func TestMkdir(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, _, errno := syscall.Syscall(syscall.SYS_MKDIR, uintptr(testFilePtr), uintptr(0707), 0); errno != 0 {
-		t.Fatal(err)
-	}
-	defer syscall.Rmdir(testFile)
-
-	event, _, err := test.GetEvent()
-	if err != nil {
-		t.Error(err)
-	} else {
-		if event.GetType() != "mkdir" {
-			t.Errorf("expected mkdir event, got %s", event.GetType())
+	t.Run("mkdir", func(t *testing.T) {
+		if _, _, errno := syscall.Syscall(syscall.SYS_MKDIR, uintptr(testFilePtr), uintptr(0707), 0); errno != 0 {
+			t.Fatal(err)
 		}
+		defer syscall.Rmdir(testFile)
 
-		if mode := event.Mkdir.Mode; mode != 0707 {
-			t.Errorf("expected mkdir mode 0707, got %#o", mode)
+		event, rule, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if rule.ID != "test_rule_mkdir" {
+				t.Errorf("expected triggered rule 'test_rule_mkdir', got '%s'", rule.ID)
+			}
+
+			if mode := event.Mkdir.Mode; mode != 0707 {
+				t.Errorf("expected mkdir mode 0707, got %#o (%+v)", mode, event)
+			}
+
+			if inode := getInode(t, testFile); inode != event.Mkdir.Inode {
+				t.Errorf("expected inode %d, got %d", event.Mkdir.Inode, inode)
+			}
+
+			testContainerPath(t, event, "mkdir.container_path")
 		}
-	}
+	})
 
-	testatFile, testatFilePtr, err := test.Path("testat-mkdir")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if _, _, errno := syscall.Syscall(syscall.SYS_MKDIRAT, 0, uintptr(testatFilePtr), uintptr(0777)); errno != 0 {
-		t.Fatal(error(errno))
-	}
-
-	event, _, err = test.GetEvent()
-	if err != nil {
-		t.Error(err)
-	} else {
-		if event.GetType() != "mkdir" {
-			t.Errorf("expected mkdir event, got %s", event.GetType())
-		}
-
-		if mode := event.Mkdir.Mode; mode != 0777 {
-			t.Errorf("expected mkdir mode 0777, got %#o", mode)
-		}
-	}
-
-	if err := syscall.Rmdir(testatFile); err != nil {
-		t.Fatal(err)
-	}
-
-	_, testatFilePtr, err = test.Path("testat2-mkdir")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err := os.Chmod(test.Root(), 0711); err != nil {
-		t.Fatal(err)
-	}
-
-	go func() {
-		runtime.LockOSThread()
-		defer runtime.UnlockOSThread()
-
-		if _, _, errno := syscall.Syscall(syscall.SYS_SETREGID, 10000, 10000, 0); errno != 0 {
+	t.Run("mkdirat", func(t *testing.T) {
+		testatFile, testatFilePtr, err := test.Path("testat-mkdir")
+		if err != nil {
 			t.Fatal(err)
 		}
 
-		if _, _, errno := syscall.Syscall(syscall.SYS_SETREUID, 10000, 10000, 0); errno != 0 {
-			t.Fatal(err)
-		}
-
-		if _, _, errno := syscall.Syscall(syscall.SYS_MKDIRAT, 0, uintptr(testatFilePtr), uintptr(0777)); errno == 0 {
+		if _, _, errno := syscall.Syscall(syscall.SYS_MKDIRAT, 0, uintptr(testatFilePtr), uintptr(0777)); errno != 0 {
 			t.Fatal(error(errno))
 		}
-	}()
 
-	event, _, err = test.GetEvent()
-	if err != nil {
-		t.Error(err)
-	} else {
-		if event.GetType() != "mkdir" {
-			t.Errorf("expected mkdir event, got %s", event.GetType())
+		event, rule, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if rule.ID != "test_rule_mkdirat" {
+				t.Errorf("expected triggered rule 'test_rule_mkdirat', got '%s'", rule.ID)
+			}
+
+			if mode := event.Mkdir.Mode; mode != 0777 {
+				t.Errorf("expected mkdir mode 0777, got %#o", mode)
+			}
+
+			if inode := getInode(t, testatFile); inode != event.Mkdir.Inode {
+				t.Errorf("expected inode %d, got %d", event.Mkdir.Inode, inode)
+			}
+
+			testContainerPath(t, event, "mkdir.container_path")
 		}
 
-		if retval := event.Mkdir.Retval; retval != -int64(syscall.EACCES) {
-			t.Errorf("expected retval != EACCES, got %d", retval)
+		if err := syscall.Rmdir(testatFile); err != nil {
+			t.Fatal(err)
 		}
-	}
+	})
+
+	t.Run("mkdirat-error", func(t *testing.T) {
+		_, testatFilePtr, err := test.Path("testat2-mkdir")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := os.Chmod(test.Root(), 0711); err != nil {
+			t.Fatal(err)
+		}
+
+		go func() {
+			runtime.LockOSThread()
+			// do not unlock, we want the thread to be killed when exiting the goroutine
+
+			if _, _, errno := syscall.Syscall(syscall.SYS_SETREGID, 10000, 10000, 0); errno != 0 {
+				t.Fatal(err)
+			}
+
+			if _, _, errno := syscall.Syscall(syscall.SYS_SETREUID, 10000, 10000, 0); errno != 0 {
+				t.Fatal(err)
+			}
+
+			if _, _, errno := syscall.Syscall(syscall.SYS_MKDIRAT, 0, uintptr(testatFilePtr), uintptr(0777)); errno == 0 {
+				t.Fatal(error(errno))
+			}
+		}()
+
+		event, rule, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if rule.ID != "test_rule_mkdirat_error" {
+				t.Errorf("expected triggered rule 'test_rule_mkdirat_error', got '%s'", rule.ID)
+			}
+
+			if retval := event.Mkdir.Retval; retval != -int64(syscall.EACCES) {
+				t.Errorf("expected retval != EACCES, got %d", retval)
+			}
+		}
+	})
 }

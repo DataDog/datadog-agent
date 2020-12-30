@@ -131,3 +131,34 @@ func TestChunkReplicasets(t *testing.T) {
 	actual := chunkReplicaSets(rs, 3, 2)
 	assert.ElementsMatch(t, expected, actual)
 }
+
+func TestConvertNodeStatusToTags(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []string
+	}{
+		{
+			name:     "Ready,SchedulingDisabled",
+			input:    "Ready,SchedulingDisabled",
+			expected: []string{"node_status:ready", "node_schedulable:false"},
+		}, {
+			name:     "Ready",
+			input:    "Ready",
+			expected: []string{"node_status:ready", "node_schedulable:true"},
+		}, {
+			name:     "Unknown",
+			input:    "Unknown",
+			expected: []string{"node_status:unknown", "node_schedulable:true"},
+		}, {
+			name:     "",
+			input:    "",
+			expected: []string{"node_schedulable:true"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, convertNodeStatusToTags(tt.input))
+		})
+	}
+}

@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
         - name: agent
-          image: "datadog/agent:7.21.1"
+          image: "gcr.io/datadoghq/agent:7.23.1"
           imagePullPolicy: IfNotPresent
           command: ["agent", "run"]
           resources: {}
@@ -45,6 +45,10 @@ spec:
               value: "INFO"
             - name: DD_DOGSTATSD_PORT
               value: "8125"
+            - name: DD_LEADER_ELECTION
+              value: "true"
+            - name: DD_COLLECT_KUBERNETES_EVENTS
+              value: "true"
             - name: DD_APM_ENABLED
               value: "false"
             - name: DD_LOGS_ENABLED
@@ -64,6 +68,7 @@ spec:
               mountPath: /etc/datadog-agent
             - name: runtimesocketdir
               mountPath: /host/var/run
+              mountPropagation: None
               readOnly: true
             - name: sysprobe-socket-dir
               mountPath: /var/run/sysprobe
@@ -73,23 +78,29 @@ spec:
               subPath: system-probe.yaml
             - name: procdir
               mountPath: /host/proc
+              mountPropagation: None
               readOnly: true
             - name: cgroups
               mountPath: /host/sys/fs/cgroup
+              mountPropagation: None
               readOnly: true
             - name: pointerdir
               mountPath: /opt/datadog-agent/run
+              mountPropagation: None
             - name: logpodpath
               mountPath: /var/log/pods
+              mountPropagation: None
               readOnly: true
             - name: logdockercontainerpath
               mountPath: /var/lib/docker/containers
+              mountPropagation: None
               readOnly: true
           livenessProbe:
             failureThreshold: 6
             httpGet:
               path: /live
               port: 5555
+              scheme: HTTP
             initialDelaySeconds: 15
             periodSeconds: 15
             successThreshold: 1
@@ -99,12 +110,13 @@ spec:
             httpGet:
               path: /ready
               port: 5555
+              scheme: HTTP
             initialDelaySeconds: 15
             periodSeconds: 15
             successThreshold: 1
             timeoutSeconds: 5
         - name: trace-agent
-          image: "datadog/agent:7.21.1"
+          image: "gcr.io/datadoghq/agent:7.23.1"
           imagePullPolicy: IfNotPresent
           command: ["trace-agent", "-config=/etc/datadog-agent/datadog.yaml"]
           resources: {}
@@ -140,6 +152,7 @@ spec:
               mountPath: /etc/datadog-agent
             - name: runtimesocketdir
               mountPath: /host/var/run
+              mountPropagation: None
               readOnly: true
           livenessProbe:
             initialDelaySeconds: 15
@@ -148,7 +161,7 @@ spec:
               port: 8126
             timeoutSeconds: 5
         - name: process-agent
-          image: "datadog/agent:7.21.1"
+          image: "gcr.io/datadoghq/agent:7.23.1"
           imagePullPolicy: IfNotPresent
           command: ["process-agent", "-config=/etc/datadog-agent/datadog.yaml"]
           resources: {}
@@ -170,19 +183,24 @@ spec:
               value: "INFO"
             - name: DD_SYSTEM_PROBE_ENABLED
               value: "true"
+            - name: DD_ORCHESTRATOR_EXPLORER_ENABLED
+              value: "false"
           volumeMounts:
             - name: config
               mountPath: /etc/datadog-agent
             - name: runtimesocketdir
               mountPath: /host/var/run
+              mountPropagation: None
               readOnly: true
             - name: cgroups
               mountPath: /host/sys/fs/cgroup
+              mountPropagation: None
               readOnly: true
             - name: passwd
               mountPath: /etc/passwd
             - name: procdir
               mountPath: /host/proc
+              mountPropagation: None
               readOnly: true
             - name: sysprobe-socket-dir
               mountPath: /var/run/sysprobe
@@ -191,35 +209,45 @@ spec:
               mountPath: /etc/datadog-agent/system-probe.yaml
               subPath: system-probe.yaml
         - name: system-probe
-          image: "datadog/agent:7.21.1"
+          image: "gcr.io/datadoghq/agent:7.23.1"
           imagePullPolicy: IfNotPresent
           securityContext:
             capabilities:
-              add: ["SYS_ADMIN", "SYS_RESOURCE", "SYS_PTRACE", "NET_ADMIN", "IPC_LOCK"]
+              add: ["SYS_ADMIN", "SYS_RESOURCE", "SYS_PTRACE", "NET_ADMIN", "NET_BROADCAST", "IPC_LOCK"]
           command: ["/opt/datadog-agent/embedded/bin/system-probe", "--config=/etc/datadog-agent/system-probe.yaml"]
           env:
+            - name: DD_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: "datadog"
+                  key: api-key
+            - name: DD_KUBERNETES_KUBELET_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: KUBERNETES
+              value: "yes"
+            - name: DOCKER_HOST
+              value: unix:///host/var/run/docker.sock
             - name: DD_LOG_LEVEL
               value: "INFO"
           resources: {}
           volumeMounts:
             - name: debugfs
               mountPath: /sys/kernel/debug
+              mountPropagation: None
             - name: sysprobe-config
-              mountPath: /etc/datadog-agent
+              mountPath: /etc/datadog-agent/system-probe.yaml
+              subPath: system-probe.yaml
             - name: sysprobe-socket-dir
               mountPath: /var/run/sysprobe
             - name: procdir
               mountPath: /host/proc
-              readOnly: true
-            - name: modules
-              mountPath: /lib/modules
-              readOnly: true
-            - name: src
-              mountPath: /usr/src
+              mountPropagation: None
               readOnly: true
       initContainers:
         - name: init-volume
-          image: "datadog/agent:7.21.1"
+          image: "gcr.io/datadoghq/agent:7.23.1"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -229,7 +257,7 @@ spec:
               mountPath: /opt/datadog-agent
           resources: {}
         - name: init-config
-          image: "datadog/agent:7.21.1"
+          image: "gcr.io/datadoghq/agent:7.23.1"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -239,9 +267,11 @@ spec:
               mountPath: /etc/datadog-agent
             - name: procdir
               mountPath: /host/proc
+              mountPropagation: None
               readOnly: true
             - name: runtimesocketdir
               mountPath: /host/var/run
+              mountPropagation: None
               readOnly: true
             - name: sysprobe-config
               mountPath: /etc/datadog-agent/system-probe.yaml
@@ -260,9 +290,11 @@ spec:
               value: "yes"
             - name: DOCKER_HOST
               value: unix:///host/var/run/docker.sock
+            - name: DD_LEADER_ELECTION
+              value: "true"
           resources: {}
         - name: seccomp-setup
-          image: "datadog/agent:7.21.1"
+          image: "gcr.io/datadoghq/agent:7.23.1"
           command:
             - cp
             - /etc/config/system-probe-seccomp.json
@@ -272,6 +304,7 @@ spec:
               mountPath: /etc/config
             - name: seccomp-root
               mountPath: /host/var/lib/kubelet/seccomp
+              mountPropagation: None
           resources: {}
       volumes:
         - name: installinfo
@@ -304,12 +337,6 @@ spec:
           name: debugfs
         - name: sysprobe-socket-dir
           emptyDir: {}
-        - hostPath:
-            path: /lib/modules
-          name: modules
-        - hostPath:
-            path: /usr/src
-          name: src
         - hostPath:
             path: /etc/passwd
           name: passwd

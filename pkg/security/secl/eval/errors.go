@@ -52,6 +52,11 @@ func NewOpError(pos lexer.Position, op string, err error) *ErrAstToEval {
 	return NewError(pos, fmt.Sprintf("operator `%s` error: %s", op, err))
 }
 
+// NewRegisterMultipleFields returns a new ErrAstToEval error when an operator was used in an invalid manner
+func NewRegisterMultipleFields(pos lexer.Position, regID RegisterID, err error) *ErrAstToEval {
+	return NewError(pos, fmt.Sprintf("register `%s` error: %s", regID, err))
+}
+
 // ErrRuleParse describes a parsing error and its position in the expression
 type ErrRuleParse struct {
 	pos  lexer.Position
@@ -77,6 +82,24 @@ type ErrFieldNotFound struct {
 
 func (e ErrFieldNotFound) Error() string {
 	return fmt.Sprintf("field `%s` not found", e.Field)
+}
+
+// ErrIteratorNotSupported error when a field doesn't support iteration
+type ErrIteratorNotSupported struct {
+	Field string
+}
+
+func (e ErrIteratorNotSupported) Error() string {
+	return fmt.Sprintf("field `%s` doesn't support iteration", e.Field)
+}
+
+// ErrNotSupported returned when something is not supported on a field
+type ErrNotSupported struct {
+	Field string
+}
+
+func (e ErrNotSupported) Error() string {
+	return fmt.Sprintf("not supported by field `%s`", e.Field)
 }
 
 // ErrValueTypeMismatch error when the given value is not having the correct type

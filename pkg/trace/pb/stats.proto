@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+package pb;
+
+// protoc --gogofaster_out=. -I $GOPATH/src -I . stats.proto
+
+// TODO(gbbr): doc
+message ClientStatsPayload {
+	string hostname = 1;
+	string env = 2;
+	string version = 3;
+	repeated ClientStatsBucket stats = 4 [(gogoproto.nullable) = false];
+}
+
+// TODO(gbbr): doc
+message ClientStatsBucket {
+	uint64 start = 1;
+	uint64 duration = 2;
+	repeated ClientGroupedStats stats = 3 [(gogoproto.nullable) = false];
+}
+
+// TODO(gbbr): doc
+message ClientGroupedStats {
+	string service = 1;
+	string name = 2;
+	string resource = 3;
+	uint32 HTTP_status_code = 4;
+	string type = 5;
+	string DB_type = 6;
+	uint64 hits = 7;
+	uint64 errors = 8;
+	uint64 duration = 9;
+	bytes okSummary = 10;
+	bytes errorSummary = 11;
+}

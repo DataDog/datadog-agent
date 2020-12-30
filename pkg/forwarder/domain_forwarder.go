@@ -6,77 +6,66 @@
 package forwarder
 
 import (
-	"expvar"
 	"fmt"
-	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
 	chanBufferSize = 100
 	flushInterval  = 5 * time.Second
-
-	transactionsRetried  = expvar.Int{}
-	transactionsDropped  = expvar.Int{}
-	transactionsRequeued = expvar.Int{}
-
-	tlmTxRetried = telemetry.NewCounter("transactions", "retries",
-		[]string{"domain"}, "Transaction retry count")
-	tlmTxDropped = telemetry.NewCounter("transactions", "dropped",
-		[]string{"domain"}, "Transaction drop count")
-	tlmTxRequeud = telemetry.NewCounter("transactions", "requeud",
-		[]string{"domain"}, "Transaction requeue count")
 )
-
-func initDomainForwarderExpvars() {
-	transactionsExpvars.Set("Retried", &transactionsRetried)
-	transactionsExpvars.Set("Dropped", &transactionsDropped)
-	transactionsExpvars.Set("Requeued", &transactionsRequeued)
-}
 
 // domainForwarder is in charge of sending Transactions to Datadog backend over
 // HTTP and retrying them if needed. One domainForwarder is created per HTTP
 // backend.
 type domainForwarder struct {
-	isRetrying              int32
-	domain                  string
-	numberOfWorkers         int
-	highPrio                chan Transaction // use to receive new transactions
-	lowPrio                 chan Transaction // use to retry transactions
-	requeuedTransaction     chan Transaction
-	stopRetry               chan bool
-	stopConnectionReset     chan bool
-	workers                 []*Worker
-	retryQueue              []Transaction
-	retryQueueLimit         int
-	connectionResetInterval time.Duration
-	internalState           uint32
-	m                       sync.Mutex // To control Start/Stop races
-
-	blockedList *blockedEndpoints
+	isRetrying                   int32
+	domain                       string
+	numberOfWorkers              int
+	highPrio                     chan Transaction // use to receive new transactions
+	lowPrio                      chan Transaction // use to retry transactions
+	requeuedTransaction          chan Transaction
+	stopRetry                    chan bool
+	stopConnectionReset          chan bool
+	workers                      []*Worker
+	retryQueue                   []Transaction
+	retryQueueLimit              int
+	retryQueueAllPayloadsMaxSize int
+	optionalTransactionContainer *transactionContainer
+	connectionResetInterval      time.Duration
+	internalState                uint32
+	m                            sync.Mutex // To control Start/Stop races
+	transactionPrioritySorter    transactionPrioritySorter
+	blockedList                  *blockedEndpoints
 }
 
-func newDomainForwarder(domain string, numberOfWorkers int, retryQueueLimit int, connectionResetInterval time.Duration) *domainForwarder {
+func newDomainForwarder(
+	domain string,
+	optionalTransactionContainer *transactionContainer,
+	numberOfWorkers int,
+	retryQueueLimit int,
+	connectionResetInterval time.Duration,
+	transactionPrioritySorter transactionPrioritySorter) *domainForwarder {
+	retryQueueAllPayloadsMaxSize := 0
+	if optionalTransactionContainer != nil {
+		retryQueueAllPayloadsMaxSize = optionalTransactionContainer.getMaxMemSizeInBytes()
+	}
 	return &domainForwarder{
-		domain:                  domain,
-		numberOfWorkers:         numberOfWorkers,
-		retryQueueLimit:         retryQueueLimit,
-		connectionResetInterval: connectionResetInterval,
-		internalState:           Stopped,
-		blockedList:             newBlockedEndpoints(),
+		domain:                       domain,
+		numberOfWorkers:              numberOfWorkers,
+		retryQueueLimit:              retryQueueLimit,
+		retryQueueAllPayloadsMaxSize: retryQueueAllPayloadsMaxSize,
+		optionalTransactionContainer: optionalTransactionContainer,
+		connectionResetInterval:      connectionResetInterval,
+		internalState:                Stopped,
+		blockedList:                  newBlockedEndpoints(),
+		transactionPrioritySorter:    transactionPrioritySorter,
 	}
 }
-
-type byCreatedTime []Transaction
-
-func (v byCreatedTime) Len() int           { return len(v) }
-func (v byCreatedTime) Swap(i, j int)      { v[i], v[j] = v[j], v[i] }
-func (v byCreatedTime) Less(i, j int) bool { return v[i].GetCreatedAt().After(v[j].GetCreatedAt()) }
 
 func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 	// In case it takes more that flushInterval to sort and retry
@@ -91,27 +80,53 @@ func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 	droppedRetryQueueFull := 0
 	droppedWorkerBusy := 0
 
-	sort.Sort(byCreatedTime(f.retryQueue))
+	var transactions []Transaction
+	var err error
+	if f.optionalTransactionContainer != nil {
+		transactions, err = f.optionalTransactionContainer.extractTransactions()
+		if err != nil {
+			log.Errorf("Error when getting transactions from the retry queue", err)
+		}
+	} else {
+		transactions = f.retryQueue
+	}
 
-	for _, t := range f.retryQueue {
+	f.transactionPrioritySorter.Sort(transactions)
+
+	for _, t := range transactions {
+		transactionEndpointName := t.GetEndpointName()
 		if !f.blockedList.isBlock(t.GetTarget()) {
 			select {
 			case f.lowPrio <- t:
+				transactionsRetriedByEndpoint.Add(transactionEndpointName, 1)
 				transactionsRetried.Add(1)
-				tlmTxRetried.Inc(f.domain)
+				tlmTxRetried.Inc(f.domain, transactionEndpointName)
 			default:
-				droppedWorkerBusy++
-				transactionsDropped.Add(1)
-				tlmTxDropped.Inc(f.domain)
+				if enabled, dropCount := f.tryAddToTransactionContainer(t); enabled {
+					tlmTxRequeued.Inc(f.domain, transactionEndpointName)
+					droppedWorkerBusy += dropCount
+				} else {
+					droppedWorkerBusy++
+					transactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
+					transactionsDropped.Add(1)
+					tlmTxDropped.Inc(f.domain, transactionEndpointName)
+				}
 			}
-		} else if len(newQueue) < f.retryQueueLimit {
-			newQueue = append(newQueue, t)
-			transactionsRequeued.Add(1)
-			tlmTxRequeud.Inc(f.domain)
 		} else {
-			droppedRetryQueueFull++
-			transactionsDropped.Add(1)
-			tlmTxDropped.Inc(f.domain)
+			if enabled, dropCount := f.tryAddToTransactionContainer(t); enabled {
+				newQueue = append(newQueue, t)
+				transactionsRequeued.Add(1)
+				tlmTxRequeued.Inc(f.domain, transactionEndpointName)
+				droppedRetryQueueFull += dropCount
+			} else if len(newQueue) < f.retryQueueLimit {
+				newQueue = append(newQueue, t)
+				transactionsRequeued.Add(1)
+				tlmTxRequeued.Inc(f.domain, transactionEndpointName)
+			} else {
+				droppedRetryQueueFull++
+				transactionsDropped.Add(1)
+				tlmTxDropped.Inc(f.domain, transactionEndpointName)
+			}
 		}
 	}
 
@@ -120,16 +135,51 @@ func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 	tlmTxRetryQueueSize.Set(float64(len(f.retryQueue)), f.domain)
 
 	if droppedRetryQueueFull+droppedWorkerBusy > 0 {
-		log.Errorf("Dropped %d transactions in this retry attempt: %d for exceeding the retry queue size limit of %d, %d because the workers are too busy",
-			droppedRetryQueueFull+droppedWorkerBusy, droppedRetryQueueFull, f.retryQueueLimit, droppedWorkerBusy)
+		var errorMessage string
+		if f.retryQueueAllPayloadsMaxSize > 0 {
+			errorMessage = fmt.Sprintf("the retry queue payloads size limit of %d", f.retryQueueAllPayloadsMaxSize)
+		} else {
+			errorMessage = fmt.Sprintf("the retry queue size limit of %d", f.retryQueueLimit)
+		}
+
+		log.Errorf("Dropped %d transactions in this retry attempt: %d for exceeding %s, %d because the workers are too busy",
+			droppedRetryQueueFull+droppedWorkerBusy, droppedRetryQueueFull, errorMessage, droppedWorkerBusy)
 	}
 }
 
+func (f *domainForwarder) tryAddToTransactionContainer(t Transaction) (bool, int) {
+	if f.optionalTransactionContainer == nil {
+		return false, 0
+	}
+
+	dropCount, err := f.optionalTransactionContainer.add(t)
+	if err != nil {
+		log.Errorf("Error when adding a transaction to the retry queue: %v", err)
+	}
+
+	if dropCount > 0 {
+		transactionEndpointName := t.GetEndpointName()
+		transactionsDroppedByEndpoint.Add(transactionEndpointName, int64(dropCount))
+		transactionsDropped.Add(int64(dropCount))
+		tlmTxDropped.Inc(f.domain, transactionEndpointName)
+	}
+	return true, dropCount
+}
+
 func (f *domainForwarder) requeueTransaction(t Transaction) {
-	f.retryQueue = append(f.retryQueue, t)
+	var retryQueueSize int
+	var enabled bool
+
+	if enabled, _ = f.tryAddToTransactionContainer(t); enabled {
+		retryQueueSize = f.optionalTransactionContainer.getTransactionCount()
+	} else {
+		f.retryQueue = append(f.retryQueue, t)
+		retryQueueSize = len(f.retryQueue)
+	}
+	transactionsRequeuedByEndpoint.Add(t.GetEndpointName(), 1)
 	transactionsRequeued.Add(1)
-	transactionsRetryQueueSize.Set(int64(len(f.retryQueue)))
-	tlmTxRetryQueueSize.Set(float64(len(f.retryQueue)), f.domain)
+	transactionsRetryQueueSize.Set(int64(retryQueueSize))
+	tlmTxRetryQueueSize.Set(float64(retryQueueSize), f.domain)
 }
 
 func (f *domainForwarder) handleFailedTransactions() {
@@ -242,9 +292,11 @@ func (f *domainForwarder) sendHTTPTransactions(transaction Transaction) error {
 	select {
 	case f.highPrio <- transaction:
 	default:
-		transactionsDroppedOnInput.Add(1)
-		tlmTxDroppedOnInput.Inc(f.domain)
-		return fmt.Errorf("the forwarder input queue for %s is full: dropping transaction", f.domain)
+		if enabled, _ := f.tryAddToTransactionContainer(transaction); !enabled {
+			transactionsDroppedOnInput.Add(1)
+			tlmTxDroppedOnInput.Inc(f.domain, transaction.GetEndpointName())
+			return fmt.Errorf("the forwarder input queue for %s is full: dropping transaction", f.domain)
+		}
 	}
 	return nil
 }

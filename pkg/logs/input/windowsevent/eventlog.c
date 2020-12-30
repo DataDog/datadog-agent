@@ -14,7 +14,7 @@ DWORD WINAPI SubscriptionCallback(EVT_SUBSCRIBE_NOTIFY_ACTION action, PVOID pCon
 DWORD PrintEvent(EVT_HANDLE hEvent);
 ULONGLONG startEventSubscribe(char *channel, char* query, ULONGLONG ullBookmark, int iFlags, PVOID ctx)
 {
-    EVT_HANDLE hBookmark = (EVT_HANDLE) ullBookmark;
+    EVT_HANDLE hBookmark = (EVT_HANDLE) (ULONG_PTR)ullBookmark;
     EVT_SUBSCRIBE_FLAGS flags = (EVT_SUBSCRIBE_FLAGS) iFlags;
 	DWORD status = ERROR_SUCCESS;
 	EVT_HANDLE hSubscription = NULL;
@@ -60,7 +60,7 @@ cleanup:
     if(pwsChannel){
         free(pwsChannel);
     }
-    return (ULONGLONG)hSubscription;
+    return (ULONGLONG)(ULONG_PTR)hSubscription;
 }
 
 // The callback that receives the events that match the query criteria.
@@ -75,18 +75,18 @@ DWORD WINAPI SubscriptionCallback(EVT_SUBSCRIBE_NOTIFY_ACTION action, PVOID pCon
 		// You should only get the EvtSubscribeActionError action if your subscription flags
 		// includes EvtSubscribeStrict and the channel contains missing event records.
 	case EvtSubscribeActionError:
-		if ((ULONGLONG)ERROR_EVT_QUERY_RESULT_STALE == (ULONGLONG)hEvent)
+		if ((ULONGLONG)ERROR_EVT_QUERY_RESULT_STALE == (ULONGLONG)(ULONG_PTR)hEvent)
 		{
-			goStaleCallback((ULONGLONG)hEvent, pContext);
+			goStaleCallback((ULONGLONG)(ULONG_PTR)hEvent, pContext);
 		}
 		else
 		{
-			goErrorCallback((ULONGLONG) hEvent, pContext);
+			goErrorCallback((ULONGLONG)(ULONG_PTR)hEvent, pContext);
 		}
 		break;
 
 	case EvtSubscribeActionDeliver:
-		goNotificationCallback((ULONGLONG) hEvent, pContext);
+		goNotificationCallback((ULONGLONG) (ULONG_PTR)hEvent, pContext);
 		break;
 
 	default:
@@ -155,7 +155,7 @@ RichEvent* EnrichEvent(ULONGLONG ullEvent)
 {
     EVT_HANDLE hProviderMetadata = NULL;
     LPWSTR pwsMessage = NULL;
-    EVT_HANDLE hEvent = (EVT_HANDLE) ullEvent;
+    EVT_HANDLE hEvent = (EVT_HANDLE)(ULONG_PTR) ullEvent;
     RichEvent *richEvent = (RichEvent*)malloc(sizeof(RichEvent));
 
     // Get Provider name

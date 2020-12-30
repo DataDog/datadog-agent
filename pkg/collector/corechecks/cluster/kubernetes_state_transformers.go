@@ -32,6 +32,7 @@ var (
 		"kube_pod_container_status_waiting_reason":    containerWaitingReasonTransformer,
 		"kube_pod_container_status_terminated_reason": containerTerminatedReasonTransformer,
 		"kube_cronjob_next_schedule_time":             cronJobNextScheduleTransformer,
+		"kube_cronjob_status_last_schedule_time":      cronJobLastScheduleTransformer,
 		"kube_job_complete":                           jobCompleteTransformer,
 		"kube_job_failed":                             jobFailedTransformer,
 		"kube_job_status_failed":                      jobStatusFailedTransformer,
@@ -194,6 +195,11 @@ func cronJobNextScheduleTransformer(s aggregator.Sender, name string, metric ksm
 	s.ServiceCheck(ksmMetricPrefix+"cronjob.on_schedule_check", status, hostname, tags, message)
 }
 
+// cronJobLastScheduleTransformer sends the duration since the last time the cronjob was scheduled
+func cronJobLastScheduleTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
+	s.Gauge(ksmMetricPrefix+"cronjob.duration_since_last_schedule", float64(now().Unix())-metric.Val, hostname, tags)
+}
+
 // jobCompleteTransformer sends a service check based on kube_job_complete
 func jobCompleteTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
 	jobServiceCheck(s, metric, metrics.ServiceCheckOK, hostname, tags)
@@ -224,10 +230,9 @@ func validateJob(val float64, tags []string) ([]string, bool) {
 
 	for i, tag := range tags {
 		split := strings.Split(tag, ":")
-		if len(split) == 2 && split[0] == "job" || split[0] == "job_name" {
+		if len(split) == 2 && split[0] == "kube_job" || split[0] == "job" || split[0] == "job_name" {
 			// Trim the timestamp suffix to avoid high cardinality
 			tags[i] = fmt.Sprintf("%s:%s", split[0], trimJobTag(split[1]))
-			return tags, true
 		}
 	}
 
@@ -254,8 +259,6 @@ func jobStatusFailedTransformer(s aggregator.Sender, name string, metric ksmstor
 // jobMetric sends a gauge for job status
 func jobMetric(s aggregator.Sender, metric ksmstore.DDMetric, metricName string, hostname string, tags []string) {
 	if strippedTags, valid := validateJob(metric.Val, tags); valid {
-		// TODO: Many problems have been reported about job metrics in the v1 check
-		// This is different compared to what we do in the v1 check already but let's investigate more
 		s.Gauge(metricName, 1, hostname, strippedTags)
 	}
 }

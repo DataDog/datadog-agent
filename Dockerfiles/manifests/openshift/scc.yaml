@@ -40,6 +40,7 @@ allowedCapabilities:
 - SYS_RESOURCE
 - SYS_PTRACE
 - NET_ADMIN
+- NET_BROADCAST
 - IPC_LOCK
 #
 # The rest is copied from restricted SCC

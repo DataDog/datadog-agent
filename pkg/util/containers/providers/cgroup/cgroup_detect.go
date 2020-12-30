@@ -56,7 +56,7 @@ func (c ContainerCgroup) cgroupFilePath(target, file string) string {
 	}
 	targetPath, ok := c.Paths[target]
 	if !ok {
-		log.Errorf("Missing target %s from paths", target)
+		log.Debugf("Missing target %s from paths", target)
 		return ""
 	}
 	// sometimes the container is running inside a "dind container" instead of directly on the host,

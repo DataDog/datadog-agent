@@ -11,11 +11,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/policy"
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
 func TestMacros(t *testing.T) {
-	macros := []*policy.MacroDefinition{
+	macros := []*rules.MacroDefinition{
 		{
 			ID:         "testmacro",
 			Expression: `"{{.Root}}/test-macro"`,
@@ -26,7 +26,7 @@ func TestMacros(t *testing.T) {
 		},
 	}
 
-	rules := []*policy.RuleDefinition{
+	rules := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule",
 			Expression: `testmacro in testmacro2 && mkdir.filename in testmacro2`,

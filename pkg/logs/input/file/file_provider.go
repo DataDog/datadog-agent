@@ -39,6 +39,16 @@ func NewFile(path string, source *config.LogSource, isWildcardPath bool) *File {
 	}
 }
 
+// GetScanKey returns a key used by the scanner to index the scanned file.
+// If it is a file scanned for a container, it will use the format: <filepath>/<container_id>
+// Otherwise, it will simply use the format: <filepath>
+func (t *File) GetScanKey() string {
+	if t.Source != nil && t.Source.Config != nil && t.Source.Config.Identifier != "" {
+		return fmt.Sprintf("%s/%s", t.Path, t.Source.Config.Identifier)
+	}
+	return t.Path
+}
+
 // Provider implements the logic to retrieve at most filesLimit Files defined in sources
 type Provider struct {
 	filesLimit      int

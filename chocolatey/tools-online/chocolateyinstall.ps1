@@ -1,20 +1,12 @@
 $ErrorActionPreference = 'Stop';
 
-$url = "https://s3.amazonaws.com/ddagent-windows-stable/ddagent-cli-$($env:chocolateyPackageVersion).msi"
-# Note: match x.x.x-rc-x nuspec version format
-$releaseCandidatePattern = "(\d+\.\d+\.\d+)-rc\-(\d+)"
-if ($env:chocolateyPackageVersion -match $releaseCandidatePattern) {
-  # and turn it back into Datadog version format x.x.x-rc.x
-  $agentVersionMatches = $env:chocolateyPackageVersion | Select-String -Pattern $releaseCandidatePattern
-  $url = "https://s3.amazonaws.com/dd-agent-mstesting/builds/tagged/datadog-agent-$($agentVersionMatches.Matches.Groups[1])-rc.$($agentVersionMatches.Matches.Groups[2])-1-x86_64.msi"
-}
-
 $toolsDir   = "$(Split-Path -parent $MyInvocation.MyCommand.Definition)"
 $packageArgs = @{
   packageName   = $env:ChocolateyPackageName
   unzipLocation = $toolsDir
   fileType      = 'msi'
-  url64bit      = $url
+  # Note: Url is replaced at build time with the full URL to the MSI
+  url64bit      = $__url_from_ci__
   softwareName  = 'Datadog Agent'
   silentArgs    = "/qn /norestart /l*v `"$($env:TEMP)\$($packageName).$($env:chocolateyPackageVersion).MsiInstall.log`""
   validExitCodes= @(0, 3010, 1641)

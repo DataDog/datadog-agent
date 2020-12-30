@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -219,11 +220,11 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 
 		ociSpec, err := cu.Spec(ctn)
 		if err != nil {
-			log.Errorf("Could not retrieve OCI Spec from: %s: %v", ctn.ID(), err)
+			log.Warnf("Could not retrieve OCI Spec from: %s: %v", ctn.ID(), err)
 		}
 
 		var cpuLimits *specs.LinuxCPU
-		if ociSpec.Linux != nil && ociSpec.Linux.Resources != nil {
+		if ociSpec != nil && ociSpec.Linux != nil && ociSpec.Linux.Resources != nil {
 			cpuLimits = ociSpec.Linux.Resources.CPU
 		}
 		computeCPU(sender, metrics.CPU, cpuLimits, info.CreatedAt, currentTime, tags)
@@ -264,6 +265,9 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 }
 
 func isExcluded(ctn containers.Container, fil *ddContainers.Filter) bool {
+	if config.Datadog.GetBool("exclude_pause_container") && ddContainers.IsPauseContainer(ctn.Labels) {
+		return true
+	}
 	// The container name is not available in Containerd, we only rely on image name and kube namespace based exclusion
 	return fil.IsExcluded("", ctn.Image, ctn.Labels["io.kubernetes.pod.namespace"])
 }
@@ -391,12 +395,16 @@ func parseAndSubmitBlkio(metricName string, sender aggregator.Sender, list []*v1
 			continue
 		}
 
-		tags = append(tags, fmt.Sprintf("device:%s", m.Device))
-		tags = append(tags, fmt.Sprintf("device_name:%s", m.Device))
+		// +3 As we will add tags after
+		deviceTags := make([]string, 0, len(tags)+3)
+		deviceTags = append(deviceTags, tags...)
+
+		deviceTags = append(deviceTags, fmt.Sprintf("device:%s", m.Device))
+		deviceTags = append(deviceTags, fmt.Sprintf("device_name:%s", m.Device))
 		if m.Op != "" {
-			tags = append(tags, fmt.Sprintf("operation:%s", m.Op))
+			deviceTags = append(deviceTags, fmt.Sprintf("operation:%s", m.Op))
 		}
 
-		sender.Rate(metricName, float64(m.Value), "", tags)
+		sender.Rate(metricName, float64(m.Value), "", deviceTags)
 	}
 }

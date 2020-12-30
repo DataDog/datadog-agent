@@ -1,10 +1,19 @@
 
-# Disable infra checks that would report metrics from the container (instead of the host)
-Remove-Item C:\ProgramData\Datadog\conf.d\disk.d\conf.yaml.default
-Remove-Item C:\ProgramData\Datadog\conf.d\network.d\conf.yaml.default
-Remove-Item C:\ProgramData\Datadog\conf.d\winproc.d\conf.yaml.default
-Remove-Item C:\ProgramData\Datadog\conf.d\file_handle.d\conf.yaml.default
+# Disable infra checks that would report metrics from the container (instead of the host),
+# if they're not already disabled
 
-# TODO: Conditionally enable the IO check if the host drives are mounted in the container
-Remove-Item C:\ProgramData\Datadog\conf.d\io.d\conf.yaml.default
+$defaultChecks = @(
+    "disk",
+    "network",
+    "winproc",
+    "file_handle",
+    # TODO: Conditionally enable the IO check if the host drives are mounted in the container
+    "io"
+)
 
+ForEach ($defaultCheck in $defaultChecks) {
+    $confPath = "C:\ProgramData\Datadog\conf.d\$defaultCheck.d\conf.yaml.default"
+    if (Test-Path $confPath) {
+        Remove-Item $confPath
+    }
+}

@@ -1,0 +1,20 @@
+## This file is overwritten upon Agent upgrade.
+## To make modifications to the check configuration, please copy this file
+## to `conf.yaml` and make your changes on that file.
+
+instances:
+
+  -
+    ## @param tegrastats_path - string - optional
+    ## Path to the tegrastats binary.
+    ## Defaults to `/usr/bin/tegrastats`
+    #
+    # tegrastats_path: <PATH_TO_TEGRASTATS_UTILITY>
+
+    ## @param use_sudo - boolean - optional - default: false
+    ## Certain metrics require super-user privileges, such as the CPU/GPU frequency,
+    ## the Audio-Processing Engine usage, and IRAM values.
+    ## Set this to `true` to allow collecting these metrics.
+    ## Note that an entry needs to be added to the sudoers file for the dd-agent user.
+    #
+    # use_sudo: false

@@ -1,3 +1,5 @@
+// +build kubeapiserver
+
 package v1
 
 import (
@@ -6,7 +8,10 @@ import (
 	"net/http"
 	"strconv"
 
+	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/mux"
 )
@@ -16,7 +21,10 @@ func installKubernetesMetadataEndpoints(r *mux.Router) {
 	r.HandleFunc("/tags/pod/{nodeName}", getPodMetadataForNode).Methods("GET")
 	r.HandleFunc("/tags/pod", getAllMetadata).Methods("GET")
 	r.HandleFunc("/tags/node/{nodeName}", getNodeMetadata).Methods("GET")
+	r.HandleFunc("/cluster/id", getClusterID).Methods("GET")
 }
+
+func installCloudFoundryMetadataEndpoints(r *mux.Router) {}
 
 // getNodeMetadata is only used when the node agent hits the DCA for the list of labels
 func getNodeMetadata(w http.ResponseWriter, r *http.Request) {
@@ -234,6 +242,51 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 	apiRequests.Inc(
 		"getAllMetadata",
 		strconv.Itoa(http.StatusNotFound),
+	)
+	return
+}
+
+// getClusterID is used by recent agents to get the cluster UUID, needed for enabling the orchestrator explorer
+func getClusterID(w http.ResponseWriter, r *http.Request) {
+	// bootstrap client
+	cl, err := as.GetAPIClient()
+	if err != nil {
+		log.Errorf("Can't create client to query the API Server: %v", err) //nolint:errcheck
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		apiRequests.Inc(
+			"getClusterID",
+			strconv.Itoa(http.StatusInternalServerError),
+		)
+		return
+	}
+	coreCl := cl.Cl.CoreV1().(*corev1.CoreV1Client)
+	// get clusterID
+	clusterID, err := apicommon.GetOrCreateClusterID(coreCl)
+	if err != nil {
+		log.Errorf("Failed to generate or retrieve the cluster ID: %v", err) //nolint:errcheck
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		apiRequests.Inc(
+			"getClusterID",
+			strconv.Itoa(http.StatusInternalServerError),
+		)
+		return
+	}
+	// write response
+	j, err := json.Marshal(clusterID)
+	if err != nil {
+		log.Errorf("Failed to marshal the cluster ID: %v", err) //nolint:errcheck
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		apiRequests.Inc(
+			"getClusterID",
+			strconv.Itoa(http.StatusInternalServerError),
+		)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(j)
+	apiRequests.Inc(
+		"getClusterID",
+		strconv.Itoa(http.StatusOK),
 	)
 	return
 }

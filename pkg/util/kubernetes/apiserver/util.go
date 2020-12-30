@@ -21,7 +21,7 @@ import (
 // syncTimeout can be used to wait for the kubernetes client-go cache to sync.
 var syncTimeout = config.Datadog.GetDuration("cache_sync_timeout") * time.Second
 
-// SyncInformers should be called after the instanciation of new informers.
+// SyncInformers should be called after the instantiation of new informers.
 // It's blocking until the informers are synced or the timeout exceeded.
 func SyncInformers(informers map[InformerName]cache.SharedInformer) error {
 	var g errgroup.Group

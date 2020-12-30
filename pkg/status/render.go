@@ -77,6 +77,7 @@ func FormatDCAStatus(data []byte) (string, error) {
 	checkSchedulerStats := stats["checkSchedulerStats"]
 	endpointsInfos := stats["endpointsInfos"]
 	logsStats := stats["logsStats"]
+	orchestratorStats := stats["orchestrator"]
 	title := fmt.Sprintf("Datadog Cluster Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderStatusTemplate(b, "/header.tmpl", stats)
@@ -85,6 +86,9 @@ func FormatDCAStatus(data []byte) (string, error) {
 	renderStatusTemplate(b, "/endpoints.tmpl", endpointsInfos)
 	if config.Datadog.GetBool("compliance_config.enabled") {
 		renderStatusTemplate(b, "/logsagent.tmpl", logsStats)
+	}
+	if config.Datadog.GetBool("orchestrator_explorer.enabled") {
+		renderStatusTemplate(b, "/orchestrator.tmpl", orchestratorStats)
 	}
 
 	return b.String(), nil
@@ -106,11 +110,13 @@ func FormatSecurityAgentStatus(data []byte) (string, error) {
 	stats := make(map[string]interface{})
 	json.Unmarshal(data, &stats) //nolint:errcheck
 	runnerStats := stats["runnerStats"]
+	complianceChecks := stats["complianceChecks"]
 	title := fmt.Sprintf("Datadog Security Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderStatusTemplate(b, "/header.tmpl", stats)
-	renderComplianceChecksStats(b, runnerStats)
+
 	renderRuntimeSecurityStats(b, stats["runtimeSecurityStatus"])
+	renderComplianceChecksStats(b, runnerStats, complianceChecks)
 
 	return b.String(), nil
 }
@@ -156,9 +162,10 @@ func renderCheckStats(data []byte, checkName string) (string, error) {
 	return b.String(), nil
 }
 
-func renderComplianceChecksStats(w io.Writer, runnerStats /*, checkSchedulerStats*/ interface{} /*, onlyCheck string*/) {
+func renderComplianceChecksStats(w io.Writer, runnerStats interface{}, complianceChecks interface{}) {
 	checkStats := make(map[string]interface{})
 	checkStats["RunnerStats"] = runnerStats
+	checkStats["ComplianceChecks"] = complianceChecks
 	renderStatusTemplate(w, "/compliance.tmpl", checkStats)
 }
 

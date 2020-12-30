@@ -13,6 +13,7 @@ var statusFormats map[Status]string
 // you can get its Status with IsRetryError()
 type Error struct {
 	LogicError    error
+	LastTryError  error
 	RessourceName string
 	RetryStatus   Status
 }
@@ -24,6 +25,11 @@ func (e *Error) Error() string {
 		format = "error in %s: %s"
 	}
 	return fmt.Sprintf(format, e.RessourceName, e.LogicError)
+}
+
+// Unwrap implements the Go 1.13 unwrap convention
+func (e *Error) Unwrap() error {
+	return e.LastTryError
 }
 
 // IsRetryError checks an `error` object to tell if it's a Retry.Error

@@ -11,7 +11,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"reflect"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -35,6 +34,12 @@ func TestGetSource(t *testing.T) {
 		},
 		Status: kubelet.Status{
 			Containers: []kubelet.ContainerStatus{container},
+		},
+		Spec: kubelet.Spec{
+			Containers: []kubelet.ContainerSpec{{
+				Name:  "foo",
+				Image: "bar",
+			}},
 		},
 	}
 
@@ -184,21 +189,21 @@ func TestContainerCollectAll(t *testing.T) {
 
 	source, err := launcherCollectAll.getSource(podFoo, containerFoo)
 	assert.Nil(t, err)
-	assert.Equal(t, "container_id://fooID", source.Config.Identifier)
+	assert.Equal(t, "fooID", source.Config.Identifier)
 	source, err = launcherCollectAll.getSource(podBar, containerBar)
 	assert.Nil(t, err)
-	assert.Equal(t, "container_id://barID", source.Config.Identifier)
+	assert.Equal(t, "barID", source.Config.Identifier)
 
 	source, err = launcherCollectAllDisabled.getSource(podFoo, containerFoo)
 	assert.Nil(t, err)
-	assert.Equal(t, "container_id://fooID", source.Config.Identifier)
+	assert.Equal(t, "fooID", source.Config.Identifier)
 	source, err = launcherCollectAllDisabled.getSource(podBar, containerBar)
 	assert.Equal(t, errCollectAllDisabled, err)
 	assert.Nil(t, source)
 
 	source, err = launcherCollectAll.getSource(podBaz, containerBaz)
 	assert.Nil(t, err)
-	assert.Equal(t, "container_id://bazID", source.Config.Identifier)
+	assert.Equal(t, "bazID", source.Config.Identifier)
 }
 
 func TestGetPath(t *testing.T) {
@@ -267,13 +272,6 @@ func contains(list []string, items ...string) bool {
 	return true
 }
 
-func getLauncher(collectAll bool) *Launcher {
-	return &Launcher{
-		collectAll:      collectAll,
-		serviceNameFunc: func(string, string) string { return "" },
-	}
-}
-
 func TestGetSourceServiceNameOrder(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -281,6 +279,7 @@ func TestGetSourceServiceNameOrder(t *testing.T) {
 		pod             *kubelet.Pod
 		container       kubelet.ContainerStatus
 		wantServiceName string
+		wantSourceName  string
 		wantErr         bool
 	}{
 		{
@@ -295,13 +294,6 @@ func TestGetSourceServiceNameOrder(t *testing.T) {
 						"ad.datadoghq.com/fooName.logs": `[{"source":"foo","service":"annotServiceName"}]`,
 					},
 				},
-				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{{
-						Name:  "fooName",
-						Image: "fooImage",
-						ID:    "docker://fooID",
-					}},
-				},
 			},
 			container: kubelet.ContainerStatus{
 				Name:  "fooName",
@@ -309,6 +301,7 @@ func TestGetSourceServiceNameOrder(t *testing.T) {
 				ID:    "docker://fooID",
 			},
 			wantServiceName: "annotServiceName",
+			wantSourceName:  "foo",
 			wantErr:         false,
 		},
 		{
@@ -323,11 +316,29 @@ func TestGetSourceServiceNameOrder(t *testing.T) {
 						"ad.datadoghq.com/fooName.logs": `[{"source":"foo"}]`,
 					},
 				},
-				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{{
+			},
+			container: kubelet.ContainerStatus{
+				Name:  "fooName",
+				Image: "fooImage",
+				ID:    "docker://fooID",
+			},
+			wantServiceName: "stdServiceName",
+			wantSourceName:  "foo",
+			wantErr:         false,
+		},
+		{
+			name:  "standard tags, undefined source, use image as source",
+			sFunc: func(n, e string) string { return "stdServiceName" },
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name:      "podName",
+					Namespace: "podNamespace",
+					UID:       "podUIDFoo",
+				},
+				Spec: kubelet.Spec{
+					Containers: []kubelet.ContainerSpec{{
 						Name:  "fooName",
 						Image: "fooImage",
-						ID:    "docker://fooID",
 					}},
 				},
 			},
@@ -337,6 +348,7 @@ func TestGetSourceServiceNameOrder(t *testing.T) {
 				ID:    "docker://fooID",
 			},
 			wantServiceName: "stdServiceName",
+			wantSourceName:  "fooImage",
 			wantErr:         false,
 		},
 		{
@@ -348,11 +360,10 @@ func TestGetSourceServiceNameOrder(t *testing.T) {
 					Namespace: "podNamespace",
 					UID:       "podUIDFoo",
 				},
-				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{{
+				Spec: kubelet.Spec{
+					Containers: []kubelet.ContainerSpec{{
 						Name:  "fooName",
 						Image: "fooImage",
-						ID:    "docker://fooID",
 					}},
 				},
 			},
@@ -362,6 +373,7 @@ func TestGetSourceServiceNameOrder(t *testing.T) {
 				ID:    "docker://fooID",
 			},
 			wantServiceName: "fooImage",
+			wantSourceName:  "fooImage",
 			wantErr:         false,
 		},
 	}
@@ -369,6 +381,7 @@ func TestGetSourceServiceNameOrder(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			l := &Launcher{
 				collectAll:      true,
+				kubeutil:        kubelet.NewKubeUtil(),
 				serviceNameFunc: tt.sFunc,
 			}
 			got, err := l.getSource(tt.pod, tt.container)
@@ -376,9 +389,84 @@ func TestGetSourceServiceNameOrder(t *testing.T) {
 				t.Errorf("Launcher.getSource() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(got.Config.Service, tt.wantServiceName) {
-				t.Errorf("Launcher.getSource() = %v, want %v", got, tt.wantServiceName)
+			assert.Equal(t, tt.wantServiceName, got.Config.Service)
+			assert.Equal(t, tt.wantSourceName, got.Config.Source)
+		})
+	}
+}
+
+func TestGetShortImageName(t *testing.T) {
+	tests := []struct {
+		name          string
+		pod           *kubelet.Pod
+		containerName string
+		wantImageName string
+		wantErr       bool
+	}{
+		{
+			name: "standard",
+			pod: &kubelet.Pod{
+				Spec: kubelet.Spec{
+					Containers: []kubelet.ContainerSpec{{
+						Name:  "fooName",
+						Image: "fooImage",
+					}},
+				},
+			},
+			containerName: "fooName",
+			wantImageName: "fooImage",
+			wantErr:       false,
+		},
+		{
+			name: "empty",
+			pod: &kubelet.Pod{
+				Spec: kubelet.Spec{
+					Containers: []kubelet.ContainerSpec{{
+						Name:  "fooName",
+						Image: "",
+					}},
+				},
+			},
+			containerName: "fooName",
+			wantImageName: "",
+			wantErr:       true,
+		},
+		{
+			name: "with prefix",
+			pod: &kubelet.Pod{
+				Spec: kubelet.Spec{
+					Containers: []kubelet.ContainerSpec{{
+						Name:  "fooName",
+						Image: "org/fooImage:tag",
+					}},
+				},
+			},
+			containerName: "fooName",
+			wantImageName: "fooImage",
+			wantErr:       false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := getLauncher(true)
+
+			got, err := l.getShortImageName(tt.pod, tt.containerName)
+			if got != tt.wantImageName {
+				t.Errorf("Launcher.getShortImageName() = %s, want %s", got, tt.wantImageName)
+			}
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Launcher.getShortImageName() error = %v, wantErr %v", err, tt.wantErr)
+				return
 			}
 		})
+	}
+}
+
+func getLauncher(collectAll bool) *Launcher {
+	k := kubelet.NewKubeUtil()
+	return &Launcher{
+		collectAll:      collectAll,
+		kubeutil:        k,
+		serviceNameFunc: func(string, string) string { return "" },
 	}
 }

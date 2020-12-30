@@ -82,7 +82,7 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 }
 
 func makeFlare(w http.ResponseWriter, r *http.Request) {
-	var profile *flare.Profile
+	var profile flare.ProfileData
 
 	if r.Body != http.NoBody {
 		body, err := ioutil.ReadAll(r.Body)
@@ -101,9 +101,12 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 	if logFile == "" {
 		logFile = common.DefaultLogFile
 	}
-
+	jmxLogFile := config.Datadog.GetString("jmx_log_file")
+	if jmxLogFile == "" {
+		jmxLogFile = common.DefaultJmxLogFile
+	}
 	log.Infof("Making a flare")
-	filePath, err := flare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, logFile, profile)
+	filePath, err := flare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, []string{logFile, jmxLogFile}, profile)
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)

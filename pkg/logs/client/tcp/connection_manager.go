@@ -13,6 +13,7 @@ import (
 	"math/rand"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -143,6 +144,12 @@ func (cm *ConnectionManager) address() string {
 	return net.JoinHostPort(cm.endpoint.Host, strconv.Itoa(cm.endpoint.Port))
 }
 
+// ShouldReset returns whether the connection should be reset, depending on the endpoint's config
+// and the passed connection creation time.
+func (cm *ConnectionManager) ShouldReset(connCreationTime time.Time) bool {
+	return cm.endpoint.ConnectionResetInterval != 0 && time.Since(connCreationTime) > cm.endpoint.ConnectionResetInterval
+}
+
 // CloseConnection closes a connection on the client side
 func (cm *ConnectionManager) CloseConnection(conn net.Conn) {
 	conn.Close()
@@ -157,10 +164,16 @@ func (cm *ConnectionManager) handleServerClose(conn net.Conn) {
 	for {
 		buff := make([]byte, 1)
 		_, err := conn.Read(buff)
-		if err == io.EOF {
+		switch {
+		case err == nil:
+		case strings.Contains(err.Error(), "use of closed network connection"):
+			// TODO: in go1.16+, match the newly-exported `net.ErrClosed` error instead.
+			// Connection already closed, expected
+			return
+		case err == io.EOF:
 			cm.CloseConnection(conn)
 			return
-		} else if err != nil {
+		default:
 			log.Warn(err)
 			return
 		}

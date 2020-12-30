@@ -30,6 +30,7 @@ func resetPackageVars() {
 	config.Datadog.Set("ec2_metadata_timeout", initialTimeout)
 	metadataURL = initialMetadataURL
 	tokenURL = initialTokenURL
+	token = ec2Token{}
 }
 
 func TestIsDefaultHostname(t *testing.T) {
@@ -322,9 +323,10 @@ func TestMetedataRequestWithToken(t *testing.T) {
 	var requestForToken *http.Request
 	var requestWithToken *http.Request
 	var seq int
+	config.Datadog.SetDefault("ec2_prefer_imdsv2", true)
 
 	ipv4 := "198.51.100.1"
-	token := "AQAAAFKw7LyqwVmmBMkqXHpDBuDWw2GnfGswTHi2yiIOGvzD7OMaWw=="
+	tok := "AQAAAFKw7LyqwVmmBMkqXHpDBuDWw2GnfGswTHi2yiIOGvzD7OMaWw=="
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
@@ -338,11 +340,11 @@ func TestMetedataRequestWithToken(t *testing.T) {
 			r.Header.Add("X-sequence", fmt.Sprintf("%v", seq))
 			seq++
 			requestForToken = r
-			io.WriteString(w, token)
+			io.WriteString(w, tok)
 		case http.MethodGet:
 			// Should be a metadata request
 			t := r.Header.Get("X-aws-ec2-metadata-token")
-			if t != token {
+			if t != tok {
 				r.Header.Add("X-sequence", fmt.Sprintf("%v", seq))
 				seq++
 				requestWithoutToken = r
@@ -373,16 +375,88 @@ func TestMetedataRequestWithToken(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{ipv4}, ips)
 
-	assert.Equal(t, "0", requestWithoutToken.Header.Get("X-sequence"))
-	assert.Equal(t, "1", requestForToken.Header.Get("X-sequence"))
-	assert.Equal(t, "2", requestWithToken.Header.Get("X-sequence"))
-	assert.Equal(t, "", requestWithoutToken.Header.Get("X-aws-ec2-metadata-token"))
-	assert.Equal(t, "/local-ipv4", requestWithoutToken.RequestURI)
-	assert.Equal(t, http.MethodGet, requestWithoutToken.Method)
-	assert.Equal(t, "60", requestForToken.Header.Get("X-aws-ec2-metadata-token-ttl-seconds"))
+	assert.Nil(t, requestWithoutToken)
+
+	assert.Equal(t, "0", requestForToken.Header.Get("X-sequence"))
+	assert.Equal(t, "1", requestWithToken.Header.Get("X-sequence"))
+	assert.Equal(t, fmt.Sprint(config.Datadog.GetInt("ec2_metadata_token_lifetime")), requestForToken.Header.Get("X-aws-ec2-metadata-token-ttl-seconds"))
 	assert.Equal(t, http.MethodPut, requestForToken.Method)
 	assert.Equal(t, "/", requestForToken.RequestURI)
-	assert.Equal(t, token, requestWithToken.Header.Get("X-aws-ec2-metadata-token"))
+	assert.Equal(t, tok, requestWithToken.Header.Get("X-aws-ec2-metadata-token"))
 	assert.Equal(t, "/local-ipv4", requestWithToken.RequestURI)
 	assert.Equal(t, http.MethodGet, requestWithToken.Method)
+
+	// Ensure token has been cached
+	ips, err = GetLocalIPv4()
+	require.NoError(t, err)
+	assert.Equal(t, []string{ipv4}, ips)
+	// Unchanged
+	assert.Equal(t, "0", requestForToken.Header.Get("X-sequence"))
+	// Incremented
+	assert.Equal(t, "2", requestWithToken.Header.Get("X-sequence"))
+
+	// Force refresh
+	token.expirationDate = time.Now()
+	ips, err = GetLocalIPv4()
+	require.NoError(t, err)
+	assert.Equal(t, []string{ipv4}, ips)
+	// Incremented
+	assert.Equal(t, "3", requestForToken.Header.Get("X-sequence"))
+	assert.Equal(t, "4", requestWithToken.Header.Get("X-sequence"))
+}
+
+func TestMetedataRequestWithoutToken(t *testing.T) {
+	var requestWithoutToken *http.Request
+	config.Datadog.SetDefault("ec2_prefer_imdsv2", false)
+
+	ipv4 := "198.51.100.1"
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		// Put is only use for token
+		assert.NotEqual(t, r.Method, http.MethodPut)
+		switch r.Method {
+		case http.MethodGet:
+			// Should be a metadata request without token
+			token := r.Header.Get("X-aws-ec2-metadata-token")
+			assert.Equal(t, token, "")
+			switch r.RequestURI {
+			case "/local-ipv4":
+				requestWithoutToken = r
+				io.WriteString(w, ipv4)
+			default:
+				w.WriteHeader(http.StatusNotFound)
+			}
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer ts.Close()
+	metadataURL = ts.URL
+	tokenURL = ts.URL
+	config.Datadog.Set("ec2_metadata_timeout", 1000)
+	defer resetPackageVars()
+
+	ips, err := GetLocalIPv4()
+	require.NoError(t, err)
+	assert.Equal(t, []string{ipv4}, ips)
+
+	assert.Equal(t, "/local-ipv4", requestWithoutToken.RequestURI)
+	assert.Equal(t, http.MethodGet, requestWithoutToken.Method)
+}
+
+func TestGetNTPHosts(t *testing.T) {
+	expectedHosts := []string{"169.254.169.123"}
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		io.WriteString(w, "test")
+	}))
+	defer ts.Close()
+
+	metadataURL = ts.URL
+	config.Datadog.Set("cloud_provider_metadata", []string{"aws"})
+	actualHosts := GetNTPHosts()
+
+	assert.Equal(t, expectedHosts, actualHosts)
 }

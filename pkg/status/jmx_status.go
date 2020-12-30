@@ -16,8 +16,10 @@ type jmxCheckStatus struct {
 
 // JMXStatus holds status for JMX checks
 type JMXStatus struct {
-	ChecksStatus jmxCheckStatus `json:"checks"`
-	Timestamp    int64          `json:"timestamp"`
+	Info         map[string]interface{} `json:"info"`
+	ChecksStatus jmxCheckStatus         `json:"checks"`
+	Timestamp    int64                  `json:"timestamp"`
+	Errors       int64                  `json:"errors"`
 }
 
 // JMXStartupError holds startup status and errors

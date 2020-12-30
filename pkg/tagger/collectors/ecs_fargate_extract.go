@@ -22,27 +22,24 @@ import (
 // parseMetadata parses the task metadata and its container list, and returns a list of TagInfo for the new ones.
 // It also updates the lastSeen cache of the ECSFargateCollector and return the list of dead containers to be expired.
 func (c *ECSFargateCollector) parseMetadata(meta *v2.Task, parseAll bool) ([]*TagInfo, error) {
-	var output []*TagInfo
-	now := time.Now()
-
 	if meta.KnownStatus != "RUNNING" {
-		return output, fmt.Errorf("Task %s is in %s status, skipping", meta.Family, meta.KnownStatus)
+		return nil, fmt.Errorf("Task %s is in %s status, skipping", meta.Family, meta.KnownStatus)
 	}
 
-	c.doOnceOrchScope.Do(func() {
-		tags := utils.NewTagList()
-		tags.AddOrchestrator("task_arn", meta.TaskARN)
-		low, orch, high, standard := tags.Compute()
-		info := &TagInfo{
+	now := time.Now()
+	tags := utils.NewTagList()
+	tags.AddOrchestrator("task_arn", meta.TaskARN)
+	low, orch, high, standard := tags.Compute()
+	output := []*TagInfo{
+		{
 			Source:               ecsFargateCollectorName,
 			Entity:               OrchestratorScopeEntityID,
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
 			StandardTags:         standard,
-		}
-		output = append(output, info)
-	})
+		},
+	}
 
 	for _, ctr := range meta.Containers {
 		if c.expire.Update(ctr.DockerID, now) || parseAll {
@@ -94,12 +91,18 @@ func (c *ECSFargateCollector) parseMetadata(meta *v2.Task, parseAll bool) ([]*Ta
 
 			for labelName, labelValue := range ctr.Labels {
 				switch labelName {
+
+				// Standard tags
 				case dockerLabelEnv:
 					tags.AddStandard(tagKeyEnv, labelValue)
 				case dockerLabelVersion:
 					tags.AddStandard(tagKeyVersion, labelValue)
 				case dockerLabelService:
 					tags.AddStandard(tagKeyService, labelValue)
+
+				// Custom labels as tags
+				case autodiscoveryLabelTagsKey:
+					parseContainerADTagsLabels(tags, labelValue)
 				}
 
 				if tagName, found := c.labelsAsTags[strings.ToLower(labelName)]; found {

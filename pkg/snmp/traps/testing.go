@@ -26,7 +26,7 @@ var (
 		// sysUpTimeInstance
 		{Name: "1.3.6.1.2.1.1.3.0", Type: gosnmp.TimeTicks, Value: uint32(1000)},
 		// snmpTrapOID
-		{Name: "1.3.6.1.6.3.1.1.4.1", Type: gosnmp.OctetString, Value: "1.3.6.1.4.1.8072.2.3.0.1"},
+		{Name: "1.3.6.1.6.3.1.1.4.1.0", Type: gosnmp.OctetString, Value: "1.3.6.1.4.1.8072.2.3.0.1"},
 		// heartBeatRate
 		{Name: "1.3.6.1.4.1.8072.2.3.2.1", Type: gosnmp.Integer, Value: 1024},
 		// heartBeatName
@@ -115,7 +115,7 @@ func assertV2Variables(t *testing.T, packet *SnmpPacket) {
 	assert.Equal(t, gosnmp.TimeTicks, sysUptimeInstance.Type)
 
 	snmptrapOID := variables[1]
-	assert.Equal(t, ".1.3.6.1.6.3.1.1.4.1", snmptrapOID.Name)
+	assert.Equal(t, ".1.3.6.1.6.3.1.1.4.1.0", snmptrapOID.Name)
 	assert.Equal(t, gosnmp.OctetString, snmptrapOID.Type)
 	assert.Equal(t, "1.3.6.1.4.1.8072.2.3.0.1", string(snmptrapOID.Value.([]byte)))
 

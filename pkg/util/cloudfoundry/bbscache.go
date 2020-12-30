@@ -284,18 +284,17 @@ func (bc *BBSCache) extractNodeTags(nodeActualLRPs []*ActualLRP, desiredLRPsByPr
 			continue
 		}
 		vcApp := dlrp.EnvVcapApplication
-		appName, ok := vcApp[ApplicationNameKey]
+		_, ok = vcApp[ApplicationNameKey]
 		if !ok {
 			log.Debugf("Could not find application_name of app %s", dlrp.AppGUID)
 			continue
 		}
 		tags[alrp.InstanceGUID] = []string{
-			fmt.Sprintf("%s:%s_%d", ContainerNameTagKey, appName, alrp.Index),
-			fmt.Sprintf("%s:%s", AppNameTagKey, appName),
-			fmt.Sprintf("%s:%s", AppGUIDTagKey, dlrp.AppGUID),
+			fmt.Sprintf("%s:%s_%d", ContainerNameTagKey, dlrp.AppName, alrp.Index),
 			fmt.Sprintf("%s:%d", AppInstanceIndexTagKey, alrp.Index),
 			fmt.Sprintf("%s:%s", AppInstanceGUIDTagKey, alrp.InstanceGUID),
 		}
+		tags[alrp.InstanceGUID] = append(tags[alrp.InstanceGUID], dlrp.GetTagsFromDLRP()...)
 	}
 	return tags
 }

@@ -11,8 +11,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"os"
-	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -138,13 +136,6 @@ func requestStatus() error {
 // key with an explanation.
 func getAPMStatus() map[string]interface{} {
 	port := 8126
-	// TODO(gbbr): This should be handled by the shared config package once
-	// we migrate APM env. vars there.
-	if p, ok := os.LookupEnv("DD_APM_RECEIVER_PORT"); ok {
-		if v, err := strconv.Atoi(p); err == nil {
-			port = v
-		}
-	}
 	if config.Datadog.IsSet("apm_config.receiver_port") {
 		port = config.Datadog.GetInt("apm_config.receiver_port")
 	}

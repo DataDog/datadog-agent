@@ -138,10 +138,7 @@ func (l *CloudFoundryListener) createService(adID cloudfoundry.ADIdentifier, fir
 			containerIPs:   map[string]string{},
 			containerPorts: []ContainerPort{},
 			creationTime:   crTime,
-			tags: []string{
-				fmt.Sprintf("%s:%s", cloudfoundry.AppNameTagKey, dLRP.AppName),
-				fmt.Sprintf("%s:%s", cloudfoundry.AppGUIDTagKey, dLRP.AppGUID),
-			},
+			tags:           dLRP.GetTagsFromDLRP(),
 		}
 	} else {
 		if aLRP.State != cloudfoundry.ActualLrpStateRunning {
@@ -230,8 +227,8 @@ func (s *CloudFoundryService) GetPorts() ([]ContainerPort, error) {
 }
 
 // GetTags returns the list of container tags
-func (s *CloudFoundryService) GetTags() ([]string, error) {
-	return s.tags, nil
+func (s *CloudFoundryService) GetTags() ([]string, string, error) {
+	return s.tags, "", nil
 }
 
 // GetPid returns nil and an error because pids are currently not supported in CF

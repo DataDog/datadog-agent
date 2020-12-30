@@ -3,7 +3,6 @@ package checks
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
@@ -18,21 +17,18 @@ func makeConnection(pid int32) *model.Connection {
 	}
 }
 
+func makeConnections(n int) []*model.Connection {
+	conns := make([]*model.Connection, 0)
+	for i := 1; i <= n; i++ {
+		c := makeConnection(int32(i))
+		c.Laddr = &model.Addr{ContainerId: fmt.Sprintf("%d", c.Pid)}
+
+		conns = append(conns, c)
+	}
+	return conns
+}
+
 func TestNetworkConnectionBatching(t *testing.T) {
-	p := []*model.Connection{
-		makeConnection(1),
-		makeConnection(2),
-		makeConnection(3),
-		makeConnection(4),
-	}
-
-	Process.lastCtrIDForPID = map[int32]string{}
-	for _, proc := range p {
-		Process.lastCtrIDForPID[proc.Pid] = fmt.Sprintf("%d", proc.Pid)
-	}
-	// update lastRun to indicate that Process check is enabled and ran
-	Process.lastRun = time.Now()
-
 	cfg := config.NewDefaultAgentConfig(false)
 
 	for i, tc := range []struct {
@@ -42,31 +38,31 @@ func TestNetworkConnectionBatching(t *testing.T) {
 		expectedChunks int
 	}{
 		{
-			cur:            []*model.Connection{p[0], p[1], p[2]},
+			cur:            makeConnections(3),
 			maxSize:        1,
 			expectedTotal:  3,
 			expectedChunks: 3,
 		},
 		{
-			cur:            []*model.Connection{p[0], p[1], p[2]},
+			cur:            makeConnections(3),
 			maxSize:        2,
 			expectedTotal:  3,
 			expectedChunks: 2,
 		},
 		{
-			cur:            []*model.Connection{p[0], p[1], p[2], p[3]},
+			cur:            makeConnections(4),
 			maxSize:        10,
 			expectedTotal:  4,
 			expectedChunks: 1,
 		},
 		{
-			cur:            []*model.Connection{p[0], p[1], p[2], p[3]},
+			cur:            makeConnections(4),
 			maxSize:        3,
 			expectedTotal:  4,
 			expectedChunks: 2,
 		},
 		{
-			cur:            []*model.Connection{p[0], p[1], p[2], p[3], p[2], p[3]},
+			cur:            makeConnections(6),
 			maxSize:        2,
 			expectedTotal:  6,
 			expectedChunks: 3,
@@ -74,7 +70,7 @@ func TestNetworkConnectionBatching(t *testing.T) {
 	} {
 		cfg.MaxConnsPerMessage = tc.maxSize
 		tm := &model.CollectorConnectionsTelemetry{}
-		chunks := batchConnections(cfg, 0, tc.cur, map[string]*model.DNSEntry{}, "nid", tm)
+		chunks := batchConnections(cfg, 0, tc.cur, map[string]*model.DNSEntry{}, "nid", tm, nil)
 
 		assert.Len(t, chunks, tc.expectedChunks, "len %d", i)
 		total := 0
@@ -103,36 +99,25 @@ func TestNetworkConnectionBatching(t *testing.T) {
 }
 
 func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
-	p := []*model.Connection{
-		makeConnection(1),
-		makeConnection(2),
-		makeConnection(3),
-		makeConnection(4),
-	}
+	p := makeConnections(4)
 
-	p[0].Raddr.Ip = "1.1.2.3"
+	p[3].Raddr.Ip = "1.1.2.3"
 	dns := map[string]*model.DNSEntry{
 		"1.1.2.3": {Names: []string{"datacat.edu"}},
 	}
 
-	Process.lastCtrIDForPID = map[int32]string{}
-	for _, proc := range p {
-		Process.lastCtrIDForPID[proc.Pid] = fmt.Sprintf("%d", proc.Pid)
-	}
-	Process.lastRun = time.Now() // Update lastRun to indicate that Process check is enabled and ran
-
 	cfg := config.NewDefaultAgentConfig(false)
 	cfg.MaxConnsPerMessage = 1
 
-	chunks := batchConnections(cfg, 0, p, dns, "nid", nil)
+	chunks := batchConnections(cfg, 0, p, dns, "nid", nil, nil)
 
 	assert.Len(t, chunks, 4)
 	total := 0
 	for i, c := range chunks {
 		connections := c.(*model.CollectorConnections)
 
-		// Only the first chunk should have a DNS mapping!
-		if i == 0 {
+		// Only the last chunk should have a DNS mapping
+		if i == 3 {
 			assert.NotEmpty(t, connections.EncodedDNS)
 		} else {
 			assert.Empty(t, connections.EncodedDNS)
@@ -147,6 +132,86 @@ func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 		for _, conn := range connections.Connections {
 			assert.Contains(t, connections.ContainerForPid, conn.Pid)
 			assert.Equal(t, fmt.Sprintf("%d", conn.Pid), connections.ContainerForPid[conn.Pid])
+		}
+	}
+	assert.Equal(t, 4, total)
+}
+
+func TestBatchSimilarConnectionsTogether(t *testing.T) {
+	p := makeConnections(6)
+
+	p[0].Raddr.Ip = "1.1.2.3"
+	p[1].Raddr.Ip = "1.2.3.4"
+	p[2].Raddr.Ip = "1.3.4.5"
+	p[3].Raddr.Ip = "1.1.2.3"
+	p[4].Raddr.Ip = "1.2.3.4"
+	p[5].Raddr.Ip = "1.3.4.5"
+
+	cfg := config.NewDefaultAgentConfig(false)
+	cfg.MaxConnsPerMessage = 2
+
+	chunks := batchConnections(cfg, 0, p, map[string]*model.DNSEntry{}, "nid", nil, nil)
+
+	assert.Len(t, chunks, 3)
+	total := 0
+	for _, c := range chunks {
+		connections := c.(*model.CollectorConnections)
+		total += len(connections.Connections)
+		assert.Equal(t, int32(3), connections.GroupSize)
+		assert.Equal(t, 2, len(connections.Connections))
+
+		// make sure the connections with similar remote addresses were grouped together
+		rAddr := connections.Connections[0].Raddr.Ip
+		for _, cc := range connections.Connections {
+			assert.Equal(t, rAddr, cc.Raddr.Ip)
+		}
+
+		// make sure the connections with the same remote address are ordered by PID
+		lastSeenPID := connections.Connections[0].Pid
+		for _, cc := range connections.Connections {
+			assert.LessOrEqual(t, lastSeenPID, cc.Pid)
+			lastSeenPID = cc.Pid
+		}
+	}
+	assert.Equal(t, 6, total)
+}
+
+func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
+	conns := makeConnections(4)
+
+	domains := []string{"foo.com", "bar.com", "baz.com"}
+	conns[1].DnsStatsByDomain = map[int32]*model.DNSStats{
+		0: {DnsTimeouts: 1},
+	}
+	conns[2].DnsStatsByDomain = map[int32]*model.DNSStats{
+		0: {DnsTimeouts: 1},
+		2: {DnsTimeouts: 1},
+	}
+	conns[3].DnsStatsByDomain = map[int32]*model.DNSStats{
+		1: {DnsTimeouts: 1},
+		2: {DnsTimeouts: 1},
+	}
+	dns := map[string]*model.DNSEntry{}
+
+	cfg := config.NewDefaultAgentConfig(false)
+	cfg.MaxConnsPerMessage = 1
+
+	chunks := batchConnections(cfg, 0, conns, dns, "nid", nil, domains)
+
+	assert.Len(t, chunks, 4)
+	total := 0
+	for i, c := range chunks {
+		connections := c.(*model.CollectorConnections)
+		total += len(connections.Connections)
+		switch i {
+		case 0:
+			assert.Equal(t, []string{"", "", ""}, connections.Domains)
+		case 1:
+			assert.Equal(t, []string{"foo.com", "", ""}, connections.Domains)
+		case 2:
+			assert.Equal(t, []string{"foo.com", "", "baz.com"}, connections.Domains)
+		case 3:
+			assert.Equal(t, []string{"", "bar.com", "baz.com"}, connections.Domains)
 		}
 	}
 	assert.Equal(t, 4, total)

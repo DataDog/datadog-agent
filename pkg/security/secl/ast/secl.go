@@ -15,11 +15,11 @@ import (
 
 var (
 	seclLexer = lexer.Must(ebnf.New(`
-Ident = (alpha | "_") { "_" | alpha | digit | "." } .
+Ident = (alpha | "_") { "_" | alpha | digit | "." | "[" | "]" } .
 String = "\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
 Int = [ "-" | "+" ] digit { digit } .
 Punct = "!"…"/" | ":"…"@" | "["…` + "\"`\"" + ` | "{"…"~" .
-Whitespace = ( " " | "\t" ) { " " | "\t" } .
+Whitespace = ( " " | "\t" | "\n" ) { " " | "\t" | "\n" } .
 alpha = "a"…"z" | "A"…"Z" .
 digit = "0"…"9" .
 any = "\u0000"…"\uffff" .

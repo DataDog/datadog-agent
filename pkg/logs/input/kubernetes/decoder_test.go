@@ -17,7 +17,7 @@ import (
 )
 
 func TestDecoderWithSingleline(t *testing.T) {
-	var output *decoder.Output
+	var output *decoder.Message
 	var line []byte
 	var lineLen int
 
@@ -47,7 +47,7 @@ func TestDecoderWithSingleline(t *testing.T) {
 }
 
 func TestDecoderWithMultiline(t *testing.T) {
-	var output *decoder.Output
+	var output *decoder.Message
 	var line []byte
 	var lineLen int
 

@@ -18,6 +18,7 @@ import (
 
 /*
 #include <datadog_agent_rtloader.h>
+#include <string.h>
 
 int get_class_calls = 0;
 int get_class_return = 0;
@@ -60,25 +61,6 @@ int get_attr_string(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const c
 	return get_attr_string_return;
 }
 
-py_info_t *get_py_info(rtloader_t *sic) {
-	py_info_t *i = malloc(sizeof(py_info_t));
-	i->version = strdup("fake python");
-	i->path = strdup("/fake/path");
-
-	return i;
-}
-
-void free_py_info(rtloader_t *sic, py_info_t *info) {
-	if(info->version){
-        free(info->version);
-    }
-    if(info->path){
-        free(info->path);
-    }
-    free(info);
-    return;
-
-}
 void reset_loader_mock() {
 	get_class_calls = 0;
 	get_class_return = 0;

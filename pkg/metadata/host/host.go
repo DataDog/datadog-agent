@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/alibaba"
@@ -26,8 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/gce"
 	kubelet "github.com/DataDog/datadog-agent/pkg/util/hostname/kubelet"
-
-	"github.com/DataDog/datadog-agent/pkg/logs"
 
 	"io/ioutil"
 
@@ -235,7 +234,7 @@ func getContainerMeta(timeout time.Duration) map[string]string {
 }
 
 func getLogsMeta() *LogsMeta {
-	return &LogsMeta{Transport: string(logs.CurrentTransport)}
+	return &LogsMeta{Transport: string(status.CurrentTransport)}
 }
 
 func buildKey(key string) string {

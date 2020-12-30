@@ -45,9 +45,15 @@ func TestSecrets(t *testing.T) {
 		t.Skip(err.Error())
 	}
 
+	// CI environment might have no datadog.yaml; we don't care in this
+	// case so we can just use an empty file to avoid failure.
+	if err := ioutil.WriteFile(filepath.Join(tmpDir, "datadog.yaml"), []byte(""), os.ModePerm); err != nil {
+		t.Skip(err.Error())
+	}
+
 	// run the trace-agent
 	var buf safeWriter
-	cmd = exec.Command(binTraceAgent)
+	cmd = exec.Command(binTraceAgent, "-config", filepath.Join(tmpDir, "datadog.yaml"))
 	cmd.Env = []string{
 		"DD_SECRET_BACKEND_COMMAND=" + binSecrets,
 		"DD_HOSTNAME=ENC[secret1]",

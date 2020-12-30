@@ -41,14 +41,14 @@ extern std::wstring trace_exe;
 extern std::wstring process_exe;
 extern std::wstring sysprobe_exe;
 
-extern std::wstring computername;
-extern std::wstring domainname; // if domain joined, workgroup name otherwise
-extern bool isDomainJoined;
-
 // installation steps
 extern std::wstring installCreatedDDUser;
 extern std::wstring installCreatedDDDomain;
 extern std::wstring installInstalledServices;
+
+extern std::wstring keyInstalledUser;
+extern std::wstring keyInstalledDomain;
+
 
 void initializeStringsFromStringTable();
 

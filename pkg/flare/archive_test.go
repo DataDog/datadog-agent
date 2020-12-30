@@ -32,7 +32,7 @@ func TestCreateArchive(t *testing.T) {
 	mockConfig.Set("confd_path", "./test/confd")
 	mockConfig.Set("log_file", "./test/logs/agent.log")
 	zipFilePath := getArchivePath()
-	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, "", nil)
+	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, []string{""}, nil)
 
 	assert.Nil(t, err)
 	assert.Equal(t, zipFilePath, filePath)
@@ -56,7 +56,7 @@ func TestCreateArchiveAndGoRoutines(t *testing.T) {
 	pprofURL = ts.URL
 
 	zipFilePath := getArchivePath()
-	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, "", nil)
+	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, []string{""}, nil)
 
 	assert.Nil(t, err)
 	assert.Equal(t, zipFilePath, filePath)
@@ -100,7 +100,7 @@ func TestCreateArchiveAndGoRoutines(t *testing.T) {
 func TestCreateArchiveBadConfig(t *testing.T) {
 	common.SetupConfig("")
 	zipFilePath := getArchivePath()
-	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, "", nil)
+	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, []string{""}, nil)
 
 	assert.Nil(t, err)
 	assert.Equal(t, zipFilePath, filePath)
@@ -154,7 +154,7 @@ func TestIncludeSystemProbeConfig(t *testing.T) {
 	defer os.Remove("./test/system-probe.yaml")
 
 	zipFilePath := getArchivePath()
-	filePath, err := createArchive(SearchPaths{"": "./test/confd"}, true, zipFilePath, "", nil)
+	filePath, err := createArchive(SearchPaths{"": "./test/confd"}, true, zipFilePath, []string{""}, nil)
 	assert.NoError(err)
 	assert.Equal(zipFilePath, filePath)
 
@@ -182,7 +182,7 @@ func TestIncludeConfigFiles(t *testing.T) {
 
 	common.SetupConfig("./test")
 	zipFilePath := getArchivePath()
-	filePath, err := createArchive(SearchPaths{"": "./test/confd"}, true, zipFilePath, "", nil)
+	filePath, err := createArchive(SearchPaths{"": "./test/confd"}, true, zipFilePath, []string{""}, nil)
 
 	assert.NoError(err)
 	assert.Equal(zipFilePath, filePath)
@@ -283,13 +283,13 @@ func TestZipTaggerList(t *testing.T) {
 }
 
 func TestPerformanceProfile(t *testing.T) {
-	testProfile := &Profile{
-		FirstHeapProfile:  []byte{},
-		SecondHeapProfile: []byte{},
-		CPUProfile:        []byte{},
+	testProfile := ProfileData{
+		"first":  []byte{},
+		"second": []byte{},
+		"third":  []byte{},
 	}
 	zipFilePath := getArchivePath()
-	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, "", testProfile)
+	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, []string{""}, testProfile)
 
 	assert.NoError(t, err)
 	assert.Equal(t, zipFilePath, filePath)
@@ -305,11 +305,11 @@ func TestPerformanceProfile(t *testing.T) {
 	firstHeap, secondHeap, cpu := false, false, false
 	for _, f := range z.File {
 		switch path.Base(f.Name) {
-		case firstHeapProfileName:
+		case "first":
 			firstHeap = true
-		case secondHeapProfileName:
+		case "second":
 			secondHeap = true
-		case cpuProfileName:
+		case "third":
 			cpu = true
 		}
 	}

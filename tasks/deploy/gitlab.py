@@ -1,7 +1,9 @@
 import errno
 import json
 import os
+import platform
 import re
+import subprocess
 
 from invoke.exceptions import Exit
 
@@ -107,6 +109,15 @@ class Gitlab(object):
         )
         return self.make_request(path, json=True)
 
+    def find_tag(self, project_name, tag_name):
+        """
+        Look up a tag by its name.
+        """
+        from urllib.parse import quote
+
+        path = "/projects/{}/repository/tags/{}".format(quote(project_name, safe=""), tag_name)
+        return self.make_request(path, json=True)
+
     def make_request(self, path, headers=None, data=None, json=False):
         """
         Utility to make a request to the Gitlab API.
@@ -157,10 +168,22 @@ class Gitlab(object):
 
     def _api_token(self):
         if "GITLAB_TOKEN" not in os.environ:
+            print("GITLAB_TOKEN not found in env. Trying keychain...")
+            if platform.system() == "Darwin":
+                try:
+                    output = subprocess.check_output(
+                        ['security', 'find-generic-password', '-a', os.environ["USER"], '-s', 'GITLAB_TOKEN', '-w']
+                    )
+                    if len(output) > 0:
+                        return output.strip()
+                except subprocess.CalledProcessError:
+                    print("GITLAB_TOKEN not found in keychain...")
+                    pass
             print(
                 "Please create an 'api' access token at "
                 "https://gitlab.ddbuild.io/profile/personal_access_tokens and "
-                "export it is as GITLAB_TOKEN from your .bashrc or equivalent."
+                "add it as GITLAB_TOKEN in your keychain "
+                "or export it from your .bashrc or equivalent."
             )
             raise Exit(code=1)
         return os.environ["GITLAB_TOKEN"]

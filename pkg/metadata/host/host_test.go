@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs"
+	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -106,15 +106,15 @@ func TestGetContainerMetaTimeout(t *testing.T) {
 
 func TestGetLogsMeta(t *testing.T) {
 	// No transport
-	logs.CurrentTransport = ""
+	status.CurrentTransport = ""
 	meta := getLogsMeta()
 	assert.Equal(t, &LogsMeta{Transport: ""}, meta)
 	// TCP transport
-	logs.CurrentTransport = logs.TransportTCP
+	status.CurrentTransport = status.TransportTCP
 	meta = getLogsMeta()
 	assert.Equal(t, &LogsMeta{Transport: "TCP"}, meta)
 	// HTTP transport
-	logs.CurrentTransport = logs.TransportHTTP
+	status.CurrentTransport = status.TransportHTTP
 	meta = getLogsMeta()
 	assert.Equal(t, &LogsMeta{Transport: "HTTP"}, meta)
 }

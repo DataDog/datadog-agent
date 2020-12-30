@@ -23,6 +23,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
@@ -318,7 +319,8 @@ func (k *KubeASCheck) processEvents(sender aggregator.Sender, events []*v1.Event
 			k.Warnf("Error while bundling events, %s.", err.Error()) //nolint:errcheck
 		}
 	}
-	clusterName := clustername.GetClusterName()
+	hostname, _ := util.GetHostname()
+	clusterName := clustername.GetClusterName(hostname)
 	for _, bundle := range eventsByObject {
 		datadogEv, err := bundle.formatEvents(clusterName, k.providerIDCache)
 		if err != nil {

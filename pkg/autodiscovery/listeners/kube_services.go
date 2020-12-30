@@ -19,6 +19,7 @@ import (
 	infov1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -31,11 +32,12 @@ const (
 
 // KubeServiceListener listens to kubernetes service creation
 type KubeServiceListener struct {
-	informer   infov1.ServiceInformer
-	services   map[types.UID]Service
-	newService chan<- Service
-	delService chan<- Service
-	m          sync.RWMutex
+	informer      infov1.ServiceInformer
+	services      map[types.UID]Service
+	promInclAnnot common.PrometheusAnnotations
+	newService    chan<- Service
+	delService    chan<- Service
+	m             sync.RWMutex
 }
 
 // KubeServiceService represents a Kubernetes Service
@@ -66,8 +68,9 @@ func NewKubeServiceListener() (ServiceListener, error) {
 	}
 
 	return &KubeServiceListener{
-		services: make(map[types.UID]Service),
-		informer: servicesInformer,
+		services:      make(map[types.UID]Service),
+		informer:      servicesInformer,
+		promInclAnnot: common.GetPrometheusIncludeAnnotations(),
 	}, nil
 }
 
@@ -129,7 +132,7 @@ func (l *KubeServiceListener) updated(old, obj interface{}) {
 		l.createService(castedObj, false)
 		return
 	}
-	if servicesDiffer(castedObj, castedOld) {
+	if servicesDiffer(castedObj, castedOld) || l.promInclAnnot.AnnotationsDiffer(castedObj.GetAnnotations(), castedOld.GetAnnotations()) {
 		l.removeService(castedObj)
 		l.createService(castedObj, false)
 	}
@@ -175,8 +178,9 @@ func (l *KubeServiceListener) createService(ksvc *v1.Service, firstRun bool) {
 	if ksvc == nil {
 		return
 	}
-	if !isServiceAnnotated(ksvc, kubeServiceAnnotationFormat) {
-		// Ignore services with no AD annotation
+
+	if !isServiceAnnotated(ksvc, kubeServiceAnnotationFormat) && !l.promInclAnnot.IsMatchingAnnotations(ksvc.GetAnnotations()) {
+		// Ignore services with no AD or Prometheus AD include annotation
 		return
 	}
 
@@ -278,8 +282,8 @@ func (s *KubeServiceService) GetPorts() ([]ContainerPort, error) {
 }
 
 // GetTags retrieves tags
-func (s *KubeServiceService) GetTags() ([]string, error) {
-	return s.tags, nil
+func (s *KubeServiceService) GetTags() ([]string, string, error) {
+	return s.tags, "", nil
 }
 
 // GetHostname returns nil and an error because port is not supported in Kubelet

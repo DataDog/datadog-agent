@@ -30,6 +30,14 @@ func TestExtractTags(t *testing.T) {
 		"node-role.kubernetes.io/foo":          "bar",
 	}
 
+	gkeLabelsWithRole := map[string]string{
+		"beta.kubernetes.io/arch":       "amd64",
+		"beta.kubernetes.io/os":         "linux",
+		"cloud.google.com/gke-nodepool": "default-pool",
+		"kubernetes.io/hostname":        "gke-dummy-18-default-pool-6888842e-hcv0",
+		"kubernetes.io/role":            "foo",
+	}
+
 	for _, tc := range []struct {
 		nodeLabels   map[string]string
 		labelsToTags map[string]string
@@ -83,6 +91,19 @@ func TestExtractTags(t *testing.T) {
 				"kube_node_role:9090-090-9",
 				"kube_node_role:compute-node",
 				"kube_node_role:foo",
+			},
+		},
+		{
+			nodeLabels: gkeLabelsWithRole,
+			labelsToTags: map[string]string{
+				"*": "foo_%%label%%",
+			},
+			expectedTags: []string{
+				"foo_beta.kubernetes.io/arch:amd64",
+				"foo_beta.kubernetes.io/os:linux",
+				"foo_cloud.google.com/gke-nodepool:default-pool",
+				"foo_kubernetes.io/hostname:gke-dummy-18-default-pool-6888842e-hcv0",
+				"foo_kubernetes.io/role:foo",
 			},
 		},
 	} {

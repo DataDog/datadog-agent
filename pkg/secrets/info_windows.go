@@ -14,7 +14,7 @@ import (
 )
 
 func (info *SecretInfo) populateRights() {
-	err := checkRights(info.ExecutablePath)
+	err := checkRights(info.ExecutablePath, secretBackendCommandAllowGroupExec)
 	if err != nil {
 		info.Rights = fmt.Sprintf("Error: %s", err)
 	} else {

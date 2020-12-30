@@ -55,6 +55,7 @@ type DCAClientInterface interface {
 	PostClusterCheckStatus(nodeName string, status types.NodeStatus) (types.StatusResponse, error)
 	GetClusterCheckConfigs(nodeName string) (types.ConfigResponse, error)
 	GetEndpointsCheckConfigs(nodeName string) (types.ConfigResponse, error)
+	GetKubernetesClusterID() (string, error)
 }
 
 // DCAClient is required to query the API of Datadog cluster agent
@@ -407,4 +408,41 @@ func (c *DCAClient) GetKubernetesMetadataNames(nodeName, ns, podName string) ([]
 	}
 
 	return metadataNames, nil
+}
+
+// GetKubernetesClusterID queries the datadog cluster agent to get the Kubernetes cluster ID
+// Prefer calling clustername.GetClusterID which has a cached response
+func (c *DCAClient) GetKubernetesClusterID() (string, error) {
+	const dcaClusterIDPath = "api/v1/cluster/id"
+	var clusterID string
+	var err error
+
+	if c == nil {
+		return "", fmt.Errorf("cluster agent's client is not properly initialized")
+	}
+
+	// https://host:port/api/v1/cluster/id
+	rawURL := fmt.Sprintf("%s/%s", c.clusterAgentAPIEndpoint, dcaClusterIDPath)
+	req, err := http.NewRequest("GET", rawURL, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header = c.clusterAgentAPIRequestHeaders
+
+	resp, err := c.clusterAgentAPIClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("unexpected status code from cluster agent: %d", resp.StatusCode)
+	}
+
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	err = json.Unmarshal(b, &clusterID)
+	return clusterID, err
 }

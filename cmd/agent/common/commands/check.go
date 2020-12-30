@@ -6,6 +6,7 @@
 package commands
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v2"
 
@@ -29,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status"
@@ -44,8 +47,10 @@ var (
 	checkDelay           int
 	logLevel             string
 	formatJSON           bool
+	formatTable          bool
 	breakPoint           string
 	fullSketches         bool
+	saveFlare            bool
 	profileMemory        bool
 	profileMemoryDir     string
 	profileMemoryFrames  string
@@ -66,9 +71,11 @@ func setupCmd(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&logLevel, "log-level", "l", "", "set the log level (default 'off') (deprecated, use the env var DD_LOG_LEVEL instead)")
 	cmd.Flags().IntVarP(&checkDelay, "delay", "d", 100, "delay between running the check and grabbing the metrics in milliseconds")
 	cmd.Flags().BoolVarP(&formatJSON, "json", "", false, "format aggregator and check runner output as json")
+	cmd.Flags().BoolVarP(&formatTable, "table", "", false, "format aggregator and check runner output as an ascii table")
 	cmd.Flags().StringVarP(&breakPoint, "breakpoint", "b", "", "set a breakpoint at a particular line number (Python checks only)")
 	cmd.Flags().BoolVarP(&profileMemory, "profile-memory", "m", false, "run the memory profiler (Python checks only)")
 	cmd.Flags().BoolVar(&fullSketches, "full-sketches", false, "output sketches with bins information")
+	cmd.Flags().BoolVarP(&saveFlare, "flare", "", false, "save check results to the log dir so it may be reported in a flare")
 	config.Datadog.BindPFlag("cmd.check.fullsketches", cmd.Flags().Lookup("full-sketches")) //nolint:errcheck
 
 	// Power user flags - mark as hidden
@@ -282,6 +289,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				fmt.Println("Multiple check instances found, running each of them")
 			}
 
+			var checkFileOutput bytes.Buffer
 			var instancesData []interface{}
 			for _, c := range cs {
 				s := runCheck(c, agg)
@@ -368,9 +376,11 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 						return fmt.Errorf("no diff data found in %s", profileDataDir)
 					}
 				} else {
-					printMetrics(agg)
+					printMetrics(agg, &checkFileOutput)
 					checkStatus, _ := status.GetCheckStatus(c, s)
-					fmt.Println(string(checkStatus))
+					statusString := string(checkStatus)
+					fmt.Println(statusString)
+					checkFileOutput.WriteString(statusString + "\n")
 				}
 			}
 
@@ -380,8 +390,13 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 
 			if formatJSON {
 				fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("JSON")))
+				checkFileOutput.WriteString("=== JSON ===\n")
+
 				instancesJSON, _ := json.MarshalIndent(instancesData, "", "  ")
-				fmt.Println(string(instancesJSON))
+				instanceJSONString := string(instancesJSON)
+
+				fmt.Println(instanceJSONString)
+				checkFileOutput.WriteString(instanceJSONString + "\n")
 			} else if singleCheckRun() {
 				if profileMemory {
 					color.Yellow("Check has run only once, to collect diff data run the check multiple times with the -t/--check-times flag.")
@@ -393,6 +408,11 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 			if warnings != nil && warnings.TraceMallocEnabledWithPy2 {
 				return errors.New("tracemalloc is enabled but unavailable with python version 2")
 			}
+
+			if saveFlare {
+				writeCheckToFile(checkName, &checkFileOutput)
+			}
+
 			return nil
 		},
 	}
@@ -428,38 +448,116 @@ func runCheck(c check.Check, agg *aggregator.BufferedAggregator) *check.Stats {
 	return s
 }
 
-func printMetrics(agg *aggregator.BufferedAggregator) {
-	series, sketches := agg.GetSeriesAndSketches()
+func printMetrics(agg *aggregator.BufferedAggregator, checkFileOutput *bytes.Buffer) {
+	series, sketches := agg.GetSeriesAndSketches(time.Now())
 	if len(series) != 0 {
 		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Series")))
-		j, _ := json.MarshalIndent(series, "", "  ")
-		fmt.Println(string(j))
+
+		if formatTable {
+			headers, data := series.MarshalStrings()
+			var buffer bytes.Buffer
+
+			// plain table with no borders
+			table := tablewriter.NewWriter(&buffer)
+			table.SetHeader(headers)
+			table.SetAutoWrapText(false)
+			table.SetAutoFormatHeaders(true)
+			table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+			table.SetAlignment(tablewriter.ALIGN_LEFT)
+			table.SetCenterSeparator("")
+			table.SetColumnSeparator("")
+			table.SetRowSeparator("")
+			table.SetHeaderLine(false)
+			table.SetBorder(false)
+			table.SetTablePadding("\t")
+
+			table.AppendBulk(data)
+			table.Render()
+			fmt.Println(buffer.String())
+			checkFileOutput.WriteString(buffer.String() + "\n")
+		} else {
+			j, _ := json.MarshalIndent(series, "", "  ")
+			fmt.Println(string(j))
+			checkFileOutput.WriteString(string(j) + "\n")
+		}
 	}
 	if len(sketches) != 0 {
 		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Sketches")))
 		j, _ := json.MarshalIndent(sketches, "", "  ")
 		fmt.Println(string(j))
+		checkFileOutput.WriteString(string(j) + "\n")
 	}
 
 	serviceChecks := agg.GetServiceChecks()
 	if len(serviceChecks) != 0 {
 		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Service Checks")))
-		j, _ := json.MarshalIndent(serviceChecks, "", "  ")
-		fmt.Println(string(j))
+
+		if formatTable {
+			headers, data := serviceChecks.MarshalStrings()
+			var buffer bytes.Buffer
+
+			// plain table with no borders
+			table := tablewriter.NewWriter(&buffer)
+			table.SetHeader(headers)
+			table.SetAutoWrapText(false)
+			table.SetAutoFormatHeaders(true)
+			table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+			table.SetAlignment(tablewriter.ALIGN_LEFT)
+			table.SetCenterSeparator("")
+			table.SetColumnSeparator("")
+			table.SetRowSeparator("")
+			table.SetHeaderLine(false)
+			table.SetBorder(false)
+			table.SetTablePadding("\t")
+
+			table.AppendBulk(data)
+			table.Render()
+			fmt.Println(buffer.String())
+			checkFileOutput.WriteString(buffer.String() + "\n")
+		} else {
+			j, _ := json.MarshalIndent(serviceChecks, "", "  ")
+			fmt.Println(string(j))
+			checkFileOutput.WriteString(string(j) + "\n")
+		}
 	}
 
 	events := agg.GetEvents()
 	if len(events) != 0 {
 		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Events")))
+		checkFileOutput.WriteString("=== Events ===\n")
 		j, _ := json.MarshalIndent(events, "", "  ")
 		fmt.Println(string(j))
+		checkFileOutput.WriteString(string(j) + "\n")
+	}
+}
+
+func writeCheckToFile(checkName string, checkFileOutput *bytes.Buffer) {
+	_ = os.Mkdir(common.DefaultCheckFlareDirectory, os.ModeDir)
+
+	// Windows cannot accept ":" in file names
+	filenameSafeTimeStamp := strings.ReplaceAll(time.Now().Format(time.RFC3339), ":", "_")
+	flarePath := filepath.Join(common.DefaultCheckFlareDirectory, "check_"+checkName+"_"+filenameSafeTimeStamp+".log")
+
+	w, err := flare.NewRedactingWriter(flarePath, os.ModePerm, true)
+	if err != nil {
+		fmt.Println("Error while writing the check file:", err)
+		return
+	}
+	defer w.Close()
+
+	_, err = w.Write(checkFileOutput.Bytes())
+
+	if err != nil {
+		fmt.Println("Error while writing the check file (is the location writable by the dd-agent user?):", err)
+	} else {
+		fmt.Println("check written to:", flarePath)
 	}
 }
 
 func getMetricsData(agg *aggregator.BufferedAggregator) map[string]interface{} {
 	aggData := make(map[string]interface{})
 
-	series, sketches := agg.GetSeriesAndSketches()
+	series, sketches := agg.GetSeriesAndSketches(time.Now())
 	if len(series) != 0 {
 		// Workaround to get the raw sequence of metrics, see:
 		// https://github.com/DataDog/datadog-agent/blob/b2d9527ec0ec0eba1a7ae64585df443c5b761610/pkg/metrics/series.go#L109-L122

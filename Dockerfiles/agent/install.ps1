@@ -24,8 +24,8 @@ Move-Item "C:/Program Files/Datadog/Datadog Agent/EXAMPLECONFSLOCATION" "C:/Prog
 
 # Register as a service
 New-Service -Name "datadogagent" -StartupType "Manual" -BinaryPathName "C:\Program Files\Datadog\Datadog Agent\bin\agent.exe"
-New-Service -Name "datadog-process-agent" -StartupType "Manual" -BinaryPathName "C:\Program Files\Datadog\Datadog Agent\bin\agent\process-agent.exe"
-New-Service -Name "datadog-trace-agent" -StartupType "Manual" -BinaryPathName "C:\Program Files\Datadog\Datadog Agent\bin\agent\trace-agent.exe"
+New-Service -Name "datadog-process-agent" -StartupType "Manual" -BinaryPathName "C:\Program Files\Datadog\Datadog Agent\bin\agent\process-agent.exe" -DependsOn "datadogagent"
+New-Service -Name "datadog-trace-agent" -StartupType "Manual" -BinaryPathName "C:\Program Files\Datadog\Datadog Agent\bin\agent\trace-agent.exe" -DependsOn "datadogagent"
 
 # Allow to run agent binaries as `agent`
 setx /m PATH "$Env:Path;C:/Program Files/Datadog/Datadog Agent/bin;C:/Program Files/Datadog/Datadog Agent/bin/agent"

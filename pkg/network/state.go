@@ -1,7 +1,6 @@
 package network
 
 import (
-	"bytes"
 	"sync"
 	"time"
 
@@ -17,6 +16,14 @@ var (
 const (
 	// DEBUGCLIENT is the ClientID for debugging
 	DEBUGCLIENT = "-1"
+
+	// DNSResponseCodeNoError is the value that indicates that the DNS reply contains no errors.
+	// We could have used layers.DNSResponseCodeNoErr here. But importing the gopacket library only for this
+	// constant is not worth the increased memory cost.
+	DNSResponseCodeNoError = 0
+
+	// ConnectionByteKeyMaxLen represents the maximum size in bytes of a connection byte key
+	ConnectionByteKeyMaxLen = 41
 )
 
 // State takes care of handling the logic for:
@@ -28,11 +35,11 @@ type State interface {
 		clientID string,
 		latestTime uint64,
 		latestConns []ConnectionStats,
-		dns map[dnsKey]dnsStats,
+		dns map[dnsKey]map[string]dnsStats,
 	) []ConnectionStats
 
 	// StoreClosedConnection stores a new closed connection
-	StoreClosedConnection(conn ConnectionStats)
+	StoreClosedConnection(conn *ConnectionStats)
 
 	// RemoveClient stops tracking stateful data for a given client
 	RemoveClient(clientID string)
@@ -73,7 +80,7 @@ type client struct {
 
 	closedConnections map[string]ConnectionStats
 	stats             map[string]*stats
-	dnsStats          map[dnsKey]dnsStats
+	dnsStats          map[dnsKey]map[string]dnsStats
 }
 
 type networkState struct {
@@ -82,26 +89,27 @@ type networkState struct {
 	clients   map[string]*client
 	telemetry telemetry
 
-	buf             *bytes.Buffer // Shared buffer
+	buf             [ConnectionByteKeyMaxLen]byte // Shared buffer
 	latestTimeEpoch uint64
 
 	// Network state configuration
-	clientExpiry   time.Duration
-	maxClosedConns int
-	maxClientStats int
-	maxDNSStats    int
+	clientExpiry      time.Duration
+	maxClosedConns    int
+	maxClientStats    int
+	maxDNSStats       int
+	collectDNSDomains bool
 }
 
 // NewState creates a new network state
-func NewState(clientExpiry time.Duration, maxClosedConns, maxClientStats int, maxDNSStats int) State {
+func NewState(clientExpiry time.Duration, maxClosedConns, maxClientStats int, maxDNSStats int, collectDNSDomains bool) State {
 	return &networkState{
-		clients:        map[string]*client{},
-		telemetry:      telemetry{},
-		clientExpiry:   clientExpiry,
-		maxClosedConns: maxClosedConns,
-		maxClientStats: maxClientStats,
-		maxDNSStats:    maxDNSStats,
-		buf:            &bytes.Buffer{},
+		clients:           map[string]*client{},
+		telemetry:         telemetry{},
+		clientExpiry:      clientExpiry,
+		maxClosedConns:    maxClosedConns,
+		maxClientStats:    maxClientStats,
+		maxDNSStats:       maxDNSStats,
+		collectDNSDomains: collectDNSDomains,
 	}
 }
 
@@ -124,7 +132,7 @@ func (ns *networkState) Connections(
 	id string,
 	latestTime uint64,
 	latestConns []ConnectionStats,
-	dnsStats map[dnsKey]dnsStats,
+	dnsStats map[dnsKey]map[string]dnsStats,
 ) []ConnectionStats {
 	ns.Lock()
 	defer ns.Unlock()
@@ -154,7 +162,10 @@ func (ns *networkState) Connections(
 			ns.storeDNSStats(dnsStats)
 			ns.addDNSStats(id, latestConns)
 		}
-		return latestConns
+		// copy to ensure return value doesn't get clobbered
+		conns := make([]ConnectionStats, len(latestConns))
+		copy(conns, latestConns)
+		return conns
 	}
 
 	// Update all connections with relevant up-to-date stats for client
@@ -200,22 +211,48 @@ func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
 			continue
 		}
 
-		if dnsStats, ok := ns.clients[id].dnsStats[key]; ok {
-			conn.DNSSuccessfulResponses = dnsStats.successfulResponses
-			conn.DNSFailedResponses = dnsStats.failedResponses
-			conn.DNSTimeouts = dnsStats.timeouts
-			conn.DNSSuccessLatencySum = dnsStats.successLatencySum
-			conn.DNSFailureLatencySum = dnsStats.failureLatencySum
+		if dnsStatsByDomain, ok := ns.clients[id].dnsStats[key]; ok {
+			if ns.collectDNSDomains {
+				conn.DNSStatsByDomain = make(map[string]DNSStats)
+			} else {
+				conn.DNSCountByRcode = make(map[uint32]uint32)
+			}
+			var total uint32
+			for domain, dnsStats := range dnsStatsByDomain {
+				if ns.collectDNSDomains {
+					var ds DNSStats
+					ds.DNSTimeouts = dnsStats.timeouts
+					ds.DNSSuccessLatencySum = dnsStats.successLatencySum
+					ds.DNSFailureLatencySum = dnsStats.failureLatencySum
+					ds.DNSCountByRcode = make(map[uint32]uint32)
+					for rcode, count := range dnsStats.countByRcode {
+						ds.DNSCountByRcode[uint32(rcode)] = count
+					}
+					conn.DNSStatsByDomain[domain] = ds
+				} else {
+					conn.DNSSuccessfulResponses += dnsStats.countByRcode[DNSResponseCodeNoError]
+					conn.DNSTimeouts += dnsStats.timeouts
+					conn.DNSSuccessLatencySum += dnsStats.successLatencySum
+					conn.DNSFailureLatencySum += dnsStats.failureLatencySum
+					for rcode, count := range dnsStats.countByRcode {
+						conn.DNSCountByRcode[uint32(rcode)] += count
+						total += count
+					}
+				}
+			}
+			if !ns.collectDNSDomains {
+				conn.DNSFailedResponses = total - conn.DNSSuccessfulResponses
+			}
 		}
 		seen[key] = struct{}{}
 	}
 
 	// flush the DNS stats
-	ns.clients[id].dnsStats = make(map[dnsKey]dnsStats)
+	ns.clients[id].dnsStats = make(map[dnsKey]map[string]dnsStats)
 }
 
 // getConnsByKey returns a mapping of byte-key -> connection for easier access + manipulation
-func getConnsByKey(conns []ConnectionStats, buf *bytes.Buffer) map[string]*ConnectionStats {
+func getConnsByKey(conns []ConnectionStats, buf [ConnectionByteKeyMaxLen]byte) map[string]*ConnectionStats {
 	connsByKey := make(map[string]*ConnectionStats, len(conns))
 	for i, c := range conns {
 		key, err := c.ByteKey(buf)
@@ -229,7 +266,7 @@ func getConnsByKey(conns []ConnectionStats, buf *bytes.Buffer) map[string]*Conne
 }
 
 // StoreClosedConnection stores the given connection for every client
-func (ns *networkState) StoreClosedConnection(conn ConnectionStats) {
+func (ns *networkState) StoreClosedConnection(conn *ConnectionStats) {
 	ns.Lock()
 	defer ns.Unlock()
 
@@ -261,28 +298,37 @@ func (ns *networkState) StoreClosedConnection(conn ConnectionStats) {
 			ns.telemetry.closedConnDropped++
 			continue
 		} else {
-			client.closedConnections[string(key)] = conn
+			client.closedConnections[string(key)] = *conn
 		}
 	}
 }
 
 // storeDNSStats stores latest DNS stats for all clients
-func (ns *networkState) storeDNSStats(stats map[dnsKey]dnsStats) {
-	for key, dns := range stats {
+func (ns *networkState) storeDNSStats(stats map[dnsKey]map[string]dnsStats) {
+	for key, statsByDomain := range stats {
 		for _, client := range ns.clients {
-			// If we've seen DNS stats for this key already, lets combine the two
-			if prev, ok := client.dnsStats[key]; ok {
-				prev.successfulResponses += dns.successfulResponses
-				prev.failedResponses += dns.failedResponses
-				prev.timeouts += dns.timeouts
-				prev.successLatencySum += dns.successLatencySum
-				prev.failureLatencySum += dns.failureLatencySum
-				client.dnsStats[key] = prev
+			// If we've seen DNS stats for this key already, let's combine the two
+			if prevByDomain, ok := client.dnsStats[key]; ok {
+				for domain, dns := range statsByDomain {
+					if prev, ok := prevByDomain[domain]; ok {
+						prev.timeouts += dns.timeouts
+						prev.successLatencySum += dns.successLatencySum
+						prev.failureLatencySum += dns.failureLatencySum
+						for rcode, count := range dns.countByRcode {
+							prev.countByRcode[rcode] += count
+						}
+						prevByDomain[domain] = prev
+					} else {
+						prevByDomain[domain] = dns
+					}
+
+				}
+				client.dnsStats[key] = prevByDomain
 			} else if len(client.dnsStats) >= ns.maxDNSStats {
 				ns.telemetry.dnsStatsDropped++
 				continue
 			} else {
-				client.dnsStats[key] = dns
+				client.dnsStats[key] = statsByDomain
 			}
 		}
 	}
@@ -298,7 +344,7 @@ func (ns *networkState) newClient(clientID string) (*client, bool) {
 		lastFetch:         time.Now(),
 		stats:             map[string]*stats{},
 		closedConnections: map[string]ConnectionStats{},
-		dnsStats:          map[dnsKey]dnsStats{},
+		dnsStats:          map[dnsKey]map[string]dnsStats{},
 	}
 	ns.clients[clientID] = c
 	return c, false
@@ -549,7 +595,6 @@ func (ns *networkState) DumpState(clientID string) map[string]interface{} {
 }
 
 func (ns *networkState) determineConnectionIntraHost(connections []ConnectionStats) {
-
 	type connKey struct {
 		Address util.Address
 		Port    uint16
@@ -573,20 +618,20 @@ func (ns *networkState) determineConnectionIntraHost(connections []ConnectionSta
 		return key
 	}
 
-	lAddrs := make(map[connKey]struct{})
+	lAddrs := make(map[connKey]struct{}, len(connections))
 	for _, conn := range connections {
 		lAddrs[newConnKey(&conn, false)] = struct{}{}
 	}
 
+	// do not use range value here since it will create a copy of the ConnectionStats object
 	for i := range connections {
 		conn := &connections[i]
-		keyWithRAddr := newConnKey(conn, true)
-
 		if conn.Source == conn.Dest || (conn.Source.IsLoopback() && conn.Dest.IsLoopback()) {
 			conn.IntraHost = true
 			continue
 		}
 
+		keyWithRAddr := newConnKey(conn, true)
 		_, ok := lAddrs[keyWithRAddr]
 		if ok {
 			conn.IntraHost = true

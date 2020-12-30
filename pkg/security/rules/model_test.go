@@ -75,7 +75,11 @@ func (m *testModel) ValidateField(key string, value eval.FieldValue) error {
 	return nil
 }
 
-func (m *testModel) GetEvaluator(key string) (eval.Evaluator, error) {
+func (m *testModel) GetIterator(field eval.Field) (eval.Iterator, error) {
+	return nil, &eval.ErrIteratorNotSupported{Field: field}
+}
+
+func (m *testModel) GetEvaluator(key string, regID eval.RegisterID) (eval.Evaluator, error) {
 	switch key {
 
 	case "process.name":
@@ -345,4 +349,10 @@ var testConstants = map[string]interface{}{
 	"O_EXCL":   &eval.IntEvaluator{Value: syscall.O_EXCL},
 	"O_SYNC":   &eval.IntEvaluator{Value: syscall.O_SYNC},
 	"O_TRUNC":  &eval.IntEvaluator{Value: syscall.O_TRUNC},
+}
+
+var testSupportedDiscarders = map[eval.Field]bool{
+	"open.filename":  true,
+	"mkdir.filename": true,
+	"process.uid":    true,
 }

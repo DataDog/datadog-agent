@@ -57,7 +57,6 @@ void ExplicitAccess::BuildGrantUser(LPCWSTR name, DWORD rights, DWORD inheritanc
 
 
 void ExplicitAccess::BuildGrantUser(SID *sid, DWORD rights, DWORD inheritance_flags) {
-    this->deleteSid = true;
     data.grfAccessPermissions = rights;
     data.grfAccessMode = GRANT_ACCESS;
     data.grfInheritance = inheritance_flags;

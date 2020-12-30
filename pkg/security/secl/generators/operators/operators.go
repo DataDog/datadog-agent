@@ -58,24 +58,22 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			}
 		{{ end }}
 
-		var evalFnc func(ctx *Context) {{ .EvalReturnType }}
-		if opts.Debug {
-			evalFnc = func(ctx *Context) {{ .EvalReturnType }} {
-				ctx.evalDepth++
-				op1, op2 := ea(ctx), eb(ctx)
-				result := op1 {{.Op}} op2
-				ctx.Logf("Evaluating %v {{ .Op }} %v => %v", op1, op2, result)
-				ctx.evalDepth--
-				return result
+		// optimize the evaluation if needed, moving the evaluation with more weight at the right
+		{{ if .Commutative }}
+			if a.Weight > b.Weight {
+				tmp := ea
+				ea = eb
+				eb = tmp
 			}
-		} else {
-			evalFnc = func(ctx *Context) {{ .EvalReturnType }} {
-				return ea(ctx) {{ .Op }} eb(ctx)
-			}
+		{{ end }}
+
+		evalFnc := func(ctx *Context) {{ .EvalReturnType }} {
+			return ea(ctx) {{ .Op }} eb(ctx)
 		}
 
 		return &{{ .FuncReturnType }}{
 			EvalFnc: evalFnc,
+			Weight: a.Weight + b.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -122,24 +120,13 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			}
 		{{ end }}
 
-		var evalFnc func(ctx *Context) {{ .EvalReturnType }}
-		if opts.Debug {
-			evalFnc = func(ctx *Context) {{ .EvalReturnType }} {
-				ctx.evalDepth++
-				op1, op2 := ea(ctx), eb
-				result := op1 {{ .Op }} op2
-				ctx.Logf("Evaluating %v {{.Op}} %v => %v", op1, op2, result)
-				ctx.evalDepth--
-				return result
-			}
-		} else {
-			evalFnc = func(ctx *Context) {{ .EvalReturnType }} {
-				return ea(ctx) {{ .Op }} eb
-			}
+		evalFnc := func(ctx *Context) {{ .EvalReturnType }} {
+			return ea(ctx) {{ .Op }} eb
 		}
 
 		return &{{ .FuncReturnType }}{
 			EvalFnc: evalFnc,
+			Weight: a.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -165,24 +152,13 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 		}
 	{{ end }}
 
-	var evalFnc func(ctx *Context) {{ .EvalReturnType }}
-	if opts.Debug {
-		evalFnc = func(ctx *Context) {{ .EvalReturnType }} {
-			ctx.evalDepth++
-			op1, op2 := ea, eb(ctx)
-			result := op1 {{ .Op }} op2
-			ctx.Logf("Evaluating %v {{ .Op }} %v => %v", op1, op2, result)
-			ctx.evalDepth--
-			return result
-		}
-	} else {
-		evalFnc = func(ctx *Context) {{ .EvalReturnType }} {
-			return ea {{ .Op }} eb(ctx)
-		}
+	evalFnc := func(ctx *Context) {{ .EvalReturnType }} {
+		return ea {{ .Op }} eb(ctx)
 	}
 
 	return &{{ .FuncReturnType }}{
-		EvalFnc: evalFnc	,
+		EvalFnc: evalFnc,
+		Weight: b.Weight,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -202,6 +178,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 		EvalReturnType string
 		Op             string
 		ValueType      string
+		Commutative    bool
 	}{
 		{
 			FuncName:       "Or",
@@ -211,6 +188,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			EvalReturnType: "bool",
 			Op:             "||",
 			ValueType:      "ScalarValueType",
+			Commutative:    true,
 		},
 		{
 			FuncName:       "And",
@@ -220,6 +198,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			EvalReturnType: "bool",
 			Op:             "&&",
 			ValueType:      "ScalarValueType",
+			Commutative:    true,
 		},
 		{
 			FuncName:       "IntEquals",

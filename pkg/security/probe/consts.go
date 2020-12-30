@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build linux_bpf
+// +build linux
 
 package probe
 
@@ -13,9 +13,16 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"golang.org/x/sys/unix"
+)
+
+var (
+	// KERNEL_VERSION(a,b,c) = (a << 16) + (b << 8) + (c)
+	kernel4_13 = kernel.VersionCode(4, 13, 0) //nolint:deadcode,unused
+	// KERNEL_VERSION(a,b,c) = (a << 16) + (b << 8) + (c)
+	kernel5_3 = kernel.VersionCode(5, 3, 0) //nolint:deadcode,unused
 )
 
 // EventType describes the type of an event sent from the kernel
@@ -46,9 +53,24 @@ const (
 	FileMountEventType
 	// FileUmountEventType - Umount event
 	FileUmountEventType
+	// FileSetXAttrEventType - Setxattr event
+	FileSetXAttrEventType
+	// FileRemoveXAttrEventType - Removexattr event
+	FileRemoveXAttrEventType
+	// ForkEventType - Fork event
+	ForkEventType
+	// ExecEventType - Exec event
+	ExecEventType
+	// ExitEventType - Exit event
+	ExitEventType
+	// InvalidateDentryEventType - Dentry invalidated event
+	InvalidateDentryEventType
 	// internalEventType - used internally to get the maximum number of event. Has to be the last one
-	maxEventType
+	maxEventType //nolint:deadcode,unused
 )
+
+// maxEventRoundedUp is the closest power of 2 that is bigger than maxEventType
+const maxEventRoundedUp = 32 //nolint:deadcode,unused
 
 func (t EventType) String() string {
 	switch t {
@@ -74,8 +96,33 @@ func (t EventType) String() string {
 		return "mount"
 	case FileUmountEventType:
 		return "umount"
+	case FileSetXAttrEventType:
+		return "setxattr"
+	case FileRemoveXAttrEventType:
+		return "removexattr"
+	case ForkEventType:
+		return "fork"
+	case ExecEventType:
+		return "exec"
+	case ExitEventType:
+		return "exit"
+	case InvalidateDentryEventType:
+		return "invalidate_dentry"
 	}
 	return "unknown"
+}
+
+// parseEvalEventType convert a eval.EventType (string) to its uint64 representation
+// the current algorithm is not efficient but allow us to only keep few conversion implementations
+//nolint:deadcode,unused
+func parseEvalEventType(eventType eval.EventType) EventType {
+	for i := uint64(0); i != uint64(maxEventType); i++ {
+		if EventType(i).String() == eventType {
+			return EventType(i)
+		}
+	}
+
+	return UnknownEventType
 }
 
 var (
@@ -231,13 +278,13 @@ var (
 		"O_DIRECTORY": syscall.O_DIRECTORY,
 		"O_DSYNC":     syscall.O_DSYNC,
 		"O_FSYNC":     syscall.O_FSYNC,
-		"O_LARGEFILE": syscall.O_LARGEFILE,
-		"O_NDELAY":    syscall.O_NDELAY,
-		"O_NOATIME":   syscall.O_NOATIME,
-		"O_NOCTTY":    syscall.O_NOCTTY,
-		"O_NOFOLLOW":  syscall.O_NOFOLLOW,
-		"O_NONBLOCK":  syscall.O_NONBLOCK,
-		"O_RSYNC":     syscall.O_RSYNC,
+		//"O_LARGEFILE": syscall.O_LARGEFILE, golang defines this as 0
+		"O_NDELAY":   syscall.O_NDELAY,
+		"O_NOATIME":  syscall.O_NOATIME,
+		"O_NOCTTY":   syscall.O_NOCTTY,
+		"O_NOFOLLOW": syscall.O_NOFOLLOW,
+		"O_NONBLOCK": syscall.O_NONBLOCK,
+		"O_RSYNC":    syscall.O_RSYNC,
 	}
 
 	chmodModeConstants = map[string]int{
@@ -330,7 +377,7 @@ func initConstants() {
 	initUnlinkConstanst()
 }
 
-func bitmaskToString(bitmask int, intToStrMap map[int]string) string {
+func bitmaskToStringArray(bitmask int, intToStrMap map[int]string) []string {
 	var strs []string
 	var result int
 
@@ -350,15 +397,29 @@ func bitmaskToString(bitmask int, intToStrMap map[int]string) string {
 	}
 
 	sort.Strings(strs)
+	return strs
+}
 
-	return strings.Join(strs, " | ")
+func bitmaskToString(bitmask int, intToStrMap map[int]string) string {
+	return strings.Join(bitmaskToStringArray(bitmask, intToStrMap), " | ")
 }
 
 // OpenFlags represents an open flags bitmask value
 type OpenFlags int
 
 func (f OpenFlags) String() string {
+	if int(f) == syscall.O_RDONLY {
+		return openFlagsStrings[syscall.O_RDONLY]
+	}
 	return bitmaskToString(int(f), openFlagsStrings)
+}
+
+// StringArray returns the open flags as an array of string
+func (f OpenFlags) StringArray() []string {
+	if int(f) == syscall.O_RDONLY {
+		return []string{openFlagsStrings[syscall.O_RDONLY]}
+	}
+	return bitmaskToStringArray(int(f), openFlagsStrings)
 }
 
 // ChmodMode represent a chmod mode bitmask value
@@ -375,7 +436,12 @@ func (f UnlinkFlags) String() string {
 	return bitmaskToString(int(f), unlinkFlagsStrings)
 }
 
-// ReturnValue represents a syscall return value
+// StringArray returns the unlink flags as an array of string
+func (f UnlinkFlags) StringArray() []string {
+	return bitmaskToStringArray(int(f), unlinkFlagsStrings)
+}
+
+// RetValError represents a syscall return error value
 type RetValError int
 
 func (f RetValError) String() string {
@@ -389,5 +455,3 @@ func (f RetValError) String() string {
 func init() {
 	initConstants()
 }
-
-var byteOrder = ebpf.ByteOrder

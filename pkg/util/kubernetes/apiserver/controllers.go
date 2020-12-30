@@ -81,7 +81,7 @@ func StartControllers(ctx ControllerContext) errors.Aggregate {
 		}
 
 		// controllers should be started in parallel as their start functions are
-		// blocking until the informers are sync'ed or the sync period timed-out.
+		// blocking until the informers are synced or the sync period timed-out.
 		// for error propagation we rely on a buffered channel to gather errors
 		// from the spawned goroutines.
 		wg.Add(1)

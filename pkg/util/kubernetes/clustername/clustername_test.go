@@ -22,38 +22,38 @@ func TestGetClusterName(t *testing.T) {
 	mockConfig.Set("cluster_name", testClusterName)
 	defer mockConfig.Set("cluster_name", nil)
 
-	assert.Equal(t, testClusterName, getClusterName(data))
+	assert.Equal(t, testClusterName, getClusterName(data, "hostname"))
 
 	// Test caching and reset
 	var newClusterName = "youri"
 	mockConfig.Set("cluster_name", newClusterName)
-	assert.Equal(t, testClusterName, getClusterName(data))
+	assert.Equal(t, testClusterName, getClusterName(data, "hostname"))
 	freshData := newClusterNameData()
-	assert.Equal(t, newClusterName, getClusterName(freshData))
+	assert.Equal(t, newClusterName, getClusterName(freshData, "hostname"))
 
 	var dotClusterName = "aclusternamewitha.dot"
 	mockConfig.Set("cluster_name", dotClusterName)
 	data = newClusterNameData()
-	assert.Equal(t, dotClusterName, getClusterName(data))
+	assert.Equal(t, dotClusterName, getClusterName(data, "hostname"))
 
 	var dotsClusterName = "a.cluster.name.with.dots"
 	mockConfig.Set("cluster_name", dotsClusterName)
 	data = newClusterNameData()
-	assert.Equal(t, dotsClusterName, getClusterName(data))
+	assert.Equal(t, dotsClusterName, getClusterName(data, "hostname"))
 
 	// Test invalid cluster names
 	for _, invalidClusterName := range []string{
 		"Capital",
 		"with_underscore",
 		"with_dot._underscore",
-		"toolongtoolongtoolongtoolongtoolongtoolong",
+		"toolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoo",
 		"a..a",
 		"a.1.a",
 		"mx.gmail.com.",
 	} {
 		mockConfig.Set("cluster_name", invalidClusterName)
 		freshData = newClusterNameData()
-		assert.Equal(t, "", getClusterName(freshData))
+		assert.Equal(t, "", getClusterName(freshData, "hostname"))
 	}
 }
 

@@ -4,7 +4,7 @@ The agent offers different type of metric. Each metrics offers 2 methods `addSam
 
 - `addSample`: add a new sample to the metrics.
 - `flush`: aggregate all samples received since the last flush and return a
-  `Series` to be forwarded to the DataDog backend.
+  `Series` to be forwarded to the Datadog backend.
 
 ### gauge
 

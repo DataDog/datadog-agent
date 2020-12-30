@@ -8,6 +8,7 @@
 package externalmetrics
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -42,6 +43,7 @@ type DatadogMetricController struct {
 	workqueue workqueue.RateLimitingInterface
 	store     *DatadogMetricsInternalStore
 	isLeader  func() bool
+	context   context.Context
 }
 
 // NewAutoscalersController returns a new AutoscalersController
@@ -77,19 +79,25 @@ func NewDatadogMetricController(client dd_clientset.Interface, informer dd_infor
 }
 
 // Run starts the controller to handle DatadogMetrics
-func (c *DatadogMetricController) Run(stopCh <-chan struct{}) {
+func (c *DatadogMetricController) Run(ctx context.Context) {
+	if ctx == nil {
+		log.Errorf("Cannot run with a nil context")
+		return
+	}
+	c.context = ctx
+
 	defer c.workqueue.ShutDown()
 
 	log.Infof("Starting DatadogMetric Controller (waiting for cache sync)")
-	if !cache.WaitForCacheSync(stopCh, c.synced) {
+	if !cache.WaitForCacheSync(ctx.Done(), c.synced) {
 		log.Errorf("Failed to wait for DatadogMetric caches to sync")
 		return
 	}
 
-	go wait.Until(c.worker, time.Second, stopCh)
+	go wait.Until(c.worker, time.Second, ctx.Done())
 
 	log.Infof("Started DatadogMetric Controller (cache sync finished)")
-	<-stopCh
+	<-ctx.Done()
 	log.Infof("Stopping DatadogMetric Controller")
 	return
 }

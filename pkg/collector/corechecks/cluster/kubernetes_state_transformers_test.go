@@ -14,6 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+
+	"github.com/stretchr/testify/assert"
 )
 
 type args struct {
@@ -195,6 +197,51 @@ func Test_cronJobNextScheduleTransformer(t *testing.T) {
 				s.AssertNumberOfCalls(t, "ServiceCheck", 1)
 			} else {
 				s.AssertNotCalled(t, "ServiceCheck")
+			}
+		})
+	}
+}
+
+func Test_cronJobLastScheduleTransformer(t *testing.T) {
+	tests := []struct {
+		name     string
+		args     args
+		expected *metricsExpected
+	}{
+		{
+			name: "60 seconds",
+			args: args{
+				name: "kube_cronjob_status_last_schedule_time",
+				metric: ksmstore.DDMetric{
+					Val: 1595501615,
+					Labels: map[string]string{
+						"cronjob":   "foo",
+						"namespace": "default",
+					},
+				},
+				tags:     []string{"cronjob:foo", "namespace:default"},
+				hostname: "foo",
+				now:      func() time.Time { return time.Unix(int64(1595501615+60), 0) },
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.cronjob.duration_since_last_schedule",
+				val:      60,
+				tags:     []string{"cronjob:foo", "namespace:default"},
+				hostname: "foo",
+			},
+		},
+	}
+	for _, tt := range tests {
+		s := mocksender.NewMockSender("ksm")
+		s.SetupAcceptAll()
+		t.Run(tt.name, func(t *testing.T) {
+			now = tt.args.now
+			cronJobLastScheduleTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags)
+			if tt.expected != nil {
+				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.expected.tags)
+				s.AssertNumberOfCalls(t, "Gauge", 1)
+			} else {
+				s.AssertNotCalled(t, "Gauge")
 			}
 		})
 	}
@@ -1356,6 +1403,52 @@ func Test_nodeConditionTransformer(t *testing.T) {
 			} else {
 				s.AssertNotCalled(t, "Gauge")
 			}
+		})
+	}
+}
+
+func Test_validateJob(t *testing.T) {
+	tests := []struct {
+		name  string
+		val   float64
+		tags  []string
+		want  []string
+		want1 bool
+	}{
+		{
+			name:  "kube_job",
+			val:   1.0,
+			tags:  []string{"foo:bar", "kube_job:foo-1600167000"},
+			want:  []string{"foo:bar", "kube_job:foo"},
+			want1: true,
+		},
+		{
+			name:  "job",
+			val:   1.0,
+			tags:  []string{"foo:bar", "job:foo-1600167000"},
+			want:  []string{"foo:bar", "job:foo"},
+			want1: true,
+		},
+		{
+			name:  "job_name and kube_job",
+			val:   1.0,
+			tags:  []string{"foo:bar", "job_name:foo-1600167000", "kube_job:foo-1600167000"},
+			want:  []string{"foo:bar", "job_name:foo", "kube_job:foo"},
+			want1: true,
+		},
+		{
+			name:  "invalid",
+			val:   0.0,
+			tags:  []string{"foo:bar", "job_name:foo"},
+			want:  nil,
+			want1: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, got1 := validateJob(tt.val, tt.tags)
+			assert.ElementsMatch(t, got, tt.want)
+			assert.Equal(t, got1, tt.want1)
 		})
 	}
 }

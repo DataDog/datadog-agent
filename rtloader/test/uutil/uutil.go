@@ -16,7 +16,7 @@ import (
 #include "rtloader_mem.h"
 #include "datadog_agent_rtloader.h"
 
-extern void getSubprocessOutput(char **, char **, char **, int*, char **);
+extern void getSubprocessOutput(char **, char **, char **, char **, int*, char **);
 
 static void init_utilTests(rtloader_t *rtloader) {
    set_cgo_free_cb(rtloader, _free);
@@ -93,6 +93,9 @@ except Exception as e:
 }
 
 func charArrayToSlice(array **C.char) (res []string) {
+	if array == nil {
+		return
+	}
 	pTags := uintptr(unsafe.Pointer(array))
 	ptrSize := unsafe.Sizeof(*array)
 
@@ -107,8 +110,9 @@ func charArrayToSlice(array **C.char) (res []string) {
 }
 
 //export getSubprocessOutput
-func getSubprocessOutput(cargs **C.char, cstdout **C.char, cstderr **C.char, cretCode *C.int, cexception **C.char) {
+func getSubprocessOutput(cargs **C.char, cenv **C.char, cstdout **C.char, cstderr **C.char, cretCode *C.int, cexception **C.char) {
 	args = charArrayToSlice(cargs)
+	env = charArrayToSlice(cenv)
 	*cstdout = (*C.char)(helpers.TrackedCString(stdout))
 	*cstderr = (*C.char)(helpers.TrackedCString(stderr))
 	*cretCode = C.int(retCode)

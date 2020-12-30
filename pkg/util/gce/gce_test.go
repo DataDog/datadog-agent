@@ -13,6 +13,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestGetHostname(t *testing.T) {
@@ -171,4 +173,20 @@ func TestGetNetworkMultipleVPC(t *testing.T) {
 	_, err := GetNetworkID()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "more than one network interface")
+}
+
+func TestGetNTPHosts(t *testing.T) {
+	expectedHosts := []string{"metadata.google.internal"}
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		io.WriteString(w, "test")
+	}))
+	defer ts.Close()
+
+	metadataURL = ts.URL
+	config.Datadog.Set("cloud_provider_metadata", []string{"gcp"})
+	actualHosts := GetNTPHosts()
+
+	assert.Equal(t, expectedHosts, actualHosts)
 }

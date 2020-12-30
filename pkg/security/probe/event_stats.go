@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build linux_bpf
+// +build linux
 
 package probe
 
 import "sync/atomic"
 
 // EventsStats holds statistics about the number of lost and received events
+//nolint:structcheck,unused
 type EventsStats struct {
 	Lost         int64
 	PerEventType [maxEventType]int64

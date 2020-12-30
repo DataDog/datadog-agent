@@ -104,7 +104,7 @@ type ec2Identity struct {
 func getInstanceIdentity() (*ec2Identity, error) {
 	instanceIdentity := &ec2Identity{}
 
-	res, err := doHTTPRequest(instanceIdentityURL, http.MethodGet, map[string]string{}, true)
+	res, err := doHTTPRequest(instanceIdentityURL, http.MethodGet, map[string]string{}, config.Datadog.GetBool("ec2_prefer_imdsv2"))
 	if err != nil {
 		return instanceIdentity, fmt.Errorf("unable to fetch EC2 API, %s", err)
 	}
@@ -137,7 +137,7 @@ func getSecurityCreds() (*ec2SecurityCred, error) {
 		return iamParams, err
 	}
 
-	res, err := doHTTPRequest(metadataURL+"/iam/security-credentials/"+iamRole, http.MethodGet, map[string]string{}, true)
+	res, err := doHTTPRequest(metadataURL+"/iam/security-credentials/"+iamRole, http.MethodGet, map[string]string{}, config.Datadog.GetBool("ec2_prefer_imdsv2"))
 	if err != nil {
 		return iamParams, fmt.Errorf("unable to fetch EC2 API, %s", err)
 	}
@@ -156,7 +156,7 @@ func getSecurityCreds() (*ec2SecurityCred, error) {
 }
 
 func getIAMRole() (string, error) {
-	res, err := doHTTPRequest(metadataURL+"/iam/security-credentials/", http.MethodGet, map[string]string{}, true)
+	res, err := doHTTPRequest(metadataURL+"/iam/security-credentials/", http.MethodGet, map[string]string{}, config.Datadog.GetBool("ec2_prefer_imdsv2"))
 	if err != nil {
 		return "", fmt.Errorf("unable to fetch EC2 API, %s", err)
 	}

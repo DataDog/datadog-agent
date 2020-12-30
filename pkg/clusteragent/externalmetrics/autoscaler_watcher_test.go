@@ -155,7 +155,7 @@ func TestUpdateAutoscalerReferences(t *testing.T) {
 	}, "utest")
 	f.store.Set("default/dd-metric-1", model.DatadogMetricInternal{
 		ID:         "default/dd-metric-1",
-		Active:     false,
+		Active:     true,
 		Query:      "metric query1",
 		Valid:      true,
 		Value:      11.0,
@@ -163,13 +163,14 @@ func TestUpdateAutoscalerReferences(t *testing.T) {
 		Error:      nil,
 	}, "utest")
 	f.store.Set("default/dd-metric-2", model.DatadogMetricInternal{
-		ID:         "default/dd-metric-2",
-		Active:     true,
-		Query:      "metric query2",
-		Valid:      true,
-		Value:      12.0,
-		UpdateTime: updateTime,
-		Error:      nil,
+		ID:                   "default/dd-metric-2",
+		Active:               true,
+		Query:                "metric query2",
+		Valid:                true,
+		Value:                12.0,
+		UpdateTime:           updateTime,
+		AutoscalerReferences: "ns1/hpa1",
+		Error:                nil,
 	}, "utest")
 
 	f.runWatcherUpdate()
@@ -177,31 +178,34 @@ func TestUpdateAutoscalerReferences(t *testing.T) {
 	// Check internal store content
 	assert.Equal(t, 3, f.store.Count())
 	compareDatadogMetricInternal(t, &model.DatadogMetricInternal{
-		ID:         "default/dd-metric-0",
-		Active:     true,
-		Query:      "metric query0",
-		Valid:      true,
-		Value:      10.0,
-		UpdateTime: updateTime,
-		Error:      nil,
+		ID:                   "default/dd-metric-0",
+		Active:               true,
+		Query:                "metric query0",
+		Valid:                true,
+		Value:                10.0,
+		UpdateTime:           updateTime,
+		Error:                nil,
+		AutoscalerReferences: "ns0/hpa0",
 	}, f.store.Get("default/dd-metric-0"))
 	compareDatadogMetricInternal(t, &model.DatadogMetricInternal{
-		ID:         "default/dd-metric-1",
-		Active:     true,
-		Query:      "metric query1",
-		Valid:      true,
-		Value:      11.0,
-		UpdateTime: updateTime,
-		Error:      nil,
+		ID:                   "default/dd-metric-1",
+		Active:               true,
+		Query:                "metric query1",
+		Valid:                true,
+		Value:                11.0,
+		UpdateTime:           updateTime,
+		Error:                nil,
+		AutoscalerReferences: "ns0/wpa0",
 	}, f.store.Get("default/dd-metric-1"))
 	compareDatadogMetricInternal(t, &model.DatadogMetricInternal{
-		ID:         "default/dd-metric-2",
-		Active:     false,
-		Query:      "metric query2",
-		Valid:      false,
-		Value:      12.0,
-		UpdateTime: updateTime,
-		Error:      nil,
+		ID:                   "default/dd-metric-2",
+		Active:               false,
+		Query:                "metric query2",
+		Valid:                false,
+		Value:                12.0,
+		UpdateTime:           updateTime,
+		Error:                nil,
+		AutoscalerReferences: "",
 	}, f.store.Get("default/dd-metric-2"))
 }
 
@@ -273,26 +277,28 @@ func TestCreateAutogenDatadogMetrics(t *testing.T) {
 		Error:      nil,
 	}, f.store.Get("default/dd-metric-0"))
 	compareDatadogMetricInternal(t, &model.DatadogMetricInternal{
-		ID:                 "default/dcaautogen-f311ac1e6b29e3723d1445645c43afd4340d22",
-		Active:             true,
-		Query:              "avg:docker.cpu.usage{foo:bar}.rollup(30)",
-		Valid:              false,
-		Autogen:            true,
-		ExternalMetricName: "docker.cpu.usage",
-		Value:              0.0,
-		UpdateTime:         updateTime,
-		Error:              nil,
+		ID:                   "default/dcaautogen-f311ac1e6b29e3723d1445645c43afd4340d22",
+		Active:               true,
+		Query:                "avg:docker.cpu.usage{foo:bar}.rollup(30)",
+		Valid:                false,
+		Autogen:              true,
+		ExternalMetricName:   "docker.cpu.usage",
+		Value:                0.0,
+		UpdateTime:           updateTime,
+		Error:                nil,
+		AutoscalerReferences: "ns0/hpa0",
 	}, f.store.Get("default/dcaautogen-f311ac1e6b29e3723d1445645c43afd4340d22"))
 	compareDatadogMetricInternal(t, &model.DatadogMetricInternal{
-		ID:                 "default/dcaautogen-b6ea72b610c00aba6791b5eca1912e68dc7412",
-		Active:             true,
-		Query:              "avg:docker.cpu.usage{bar:foo}.rollup(30)",
-		Valid:              false,
-		Autogen:            true,
-		ExternalMetricName: "docker.cpu.usage",
-		Value:              0.0,
-		UpdateTime:         updateTime,
-		Error:              nil,
+		ID:                   "default/dcaautogen-b6ea72b610c00aba6791b5eca1912e68dc7412",
+		Active:               true,
+		Query:                "avg:docker.cpu.usage{bar:foo}.rollup(30)",
+		Valid:                false,
+		Autogen:              true,
+		ExternalMetricName:   "docker.cpu.usage",
+		Value:                0.0,
+		UpdateTime:           updateTime,
+		Error:                nil,
+		AutoscalerReferences: "ns0/wpa0",
 	}, f.store.Get("default/dcaautogen-b6ea72b610c00aba6791b5eca1912e68dc7412"))
 }
 

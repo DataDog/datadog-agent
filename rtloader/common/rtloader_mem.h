@@ -65,9 +65,7 @@ void *_malloc(size_t sz);
 void _free(void *ptr);
 
 #ifdef __cplusplus
-#    ifdef _WIN32
-#        define __THROW
-#    elif __APPLE__
+#    ifndef __GLIBC__
 #        define __THROW
 #    endif
 

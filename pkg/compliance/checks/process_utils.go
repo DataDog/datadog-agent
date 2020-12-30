@@ -21,7 +21,7 @@ const (
 )
 
 var (
-	processFetcher func() (processes, error) = fetchProcesses
+	processFetcher = fetchProcesses
 )
 
 func (p processes) findProcessesByName(name string) []*process.FilledProcess {

@@ -12,7 +12,7 @@
 // must be set by the caller
 static cb_get_subprocess_output_t cb_get_subprocess_output = NULL;
 
-static PyObject *subprocess_output(PyObject *self, PyObject *args);
+static PyObject *subprocess_output(PyObject *self, PyObject *args, PyObject *kw);
 
 // Exceptions
 
@@ -92,6 +92,7 @@ static void raiseEmptyOutputError()
     \param self A PyObject* pointer to the _util module.
     \param args A PyObject* pointer to the args tuple with the desired subprocess commands, and
     optionally a boolean raise_on_empty flag.
+    \param kw A PyObject* pointer to the kw dict with optionally an env dict.
     \return a PyObject * pointer to a python tuple with the stdout, stderr output and the
     command exit code.
 
@@ -103,18 +104,21 @@ static void raiseEmptyOutputError()
     empty an exception will be raised: the error will be set in the interpreter and NULL will be
     returned.
 */
-PyObject *subprocess_output(PyObject *self, PyObject *args)
+PyObject *subprocess_output(PyObject *self, PyObject *args, PyObject *kw)
 {
     int i;
     int raise = 0;
     int ret_code = 0;
     int subprocess_args_sz;
+    int subprocess_env_sz;
     char **subprocess_args = NULL;
+    char **subprocess_env = NULL;
     char *c_stdout = NULL;
     char *c_stderr = NULL;
     char *exception = NULL;
     PyObject *cmd_args = NULL;
     PyObject *cmd_raise_on_empty = NULL;
+    PyObject *cmd_env = NULL;
     PyObject *pyResult = NULL;
 
     if (!cb_get_subprocess_output) {
@@ -123,14 +127,16 @@ PyObject *subprocess_output(PyObject *self, PyObject *args)
 
     PyGILState_STATE gstate = PyGILState_Ensure();
 
+    static char *keywords[] = { "command", "raise_on_empty", "env", NULL };
     // `cmd_args` is mandatory and should be a list, `cmd_raise_on_empty` is an optional
     // boolean. The string after the ':' is used as the function name in error messages.
-    if (!PyArg_ParseTuple(args, "O|O:get_subprocess_output", &cmd_args, &cmd_raise_on_empty)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kw, "O|O" PY_ARG_PARSE_TUPLE_KEYWORD_ONLY "O:get_subprocess_output",
+                                     keywords, &cmd_args, &cmd_raise_on_empty, &cmd_env)) {
         goto cleanup;
     }
 
     if (!PyList_Check(cmd_args)) {
-        PyErr_SetString(PyExc_TypeError, "command args not a list");
+        PyErr_SetString(PyExc_TypeError, "command args is not a list");
         goto cleanup;
     }
 
@@ -162,6 +168,61 @@ PyObject *subprocess_output(PyObject *self, PyObject *args)
         subprocess_args[i] = subprocess_arg;
     }
 
+    if (cmd_env != NULL && cmd_env != Py_None) {
+        if (!PyDict_Check(cmd_env)) {
+            PyErr_SetString(PyExc_TypeError, "env is not a dict");
+            goto cleanup;
+        }
+
+        subprocess_env_sz = PyDict_Size(cmd_env);
+        if (subprocess_env_sz != 0) {
+
+            if (!(subprocess_env = (char **)_malloc(sizeof(*subprocess_env) * (subprocess_env_sz + 1)))) {
+                PyErr_SetString(PyExc_MemoryError, "unable to allocate memory, bailing out");
+                goto cleanup;
+            }
+
+            for (i = 0; i <= subprocess_env_sz; i++) {
+                subprocess_env[i] = NULL;
+            }
+
+            Py_ssize_t pos = 0;
+            PyObject *key = NULL, *value = NULL;
+            for (i = 0; i < subprocess_env_sz && PyDict_Next(cmd_env, &pos, &key, &value); i++) {
+
+                char *env_key = as_string(key);
+                if (env_key == NULL) {
+                    PyErr_SetString(PyExc_TypeError, "env key is not a string");
+                    goto cleanup;
+                }
+
+                char *env_value = as_string(value);
+                if (env_value == NULL) {
+                    PyErr_SetString(PyExc_TypeError, "env value is not a string");
+                    _free(env_key);
+                    goto cleanup;
+                }
+
+                char *env = (char *)_malloc((strlen(env_key) + 1 + strlen(env_value) + 1) * sizeof(*env));
+                if (env == NULL) {
+                    PyErr_SetString(PyExc_MemoryError, "unable to allocate memory, bailing out");
+                    _free(env_key);
+                    _free(env_value);
+                    goto cleanup;
+                }
+
+                strcpy(env, env_key);
+                strcat(env, "=");
+                strcat(env, env_value);
+
+                _free(env_key);
+                _free(env_value);
+
+                subprocess_env[i] = env;
+            }
+        }
+    }
+
     if (cmd_raise_on_empty != NULL && !PyBool_Check(cmd_raise_on_empty)) {
         PyErr_SetString(PyExc_TypeError, "bad raise_on_empty argument: should be bool");
         goto cleanup;
@@ -175,7 +236,7 @@ PyObject *subprocess_output(PyObject *self, PyObject *args)
     PyGILState_Release(gstate);
     PyThreadState *Tstate = PyEval_SaveThread();
 
-    cb_get_subprocess_output(subprocess_args, &c_stdout, &c_stderr, &ret_code, &exception);
+    cb_get_subprocess_output(subprocess_args, subprocess_env, &c_stdout, &c_stderr, &ret_code, &exception);
 
     // Acquire the GIL now that Go is done
     PyEval_RestoreThread(Tstate);
@@ -232,6 +293,13 @@ cleanup:
             _free(subprocess_args[i]);
         }
         _free(subprocess_args);
+    }
+
+    if (subprocess_env) {
+        for (i = 0; i <= subprocess_env_sz && subprocess_env[i]; i++) {
+            _free(subprocess_env[i]);
+        }
+        _free(subprocess_env);
     }
 
     // Please note that if we get here we have a matching PyGILState_Ensure above, so we're safe.

@@ -481,4 +481,13 @@ func TestIsExcluded(t *testing.T) {
 		},
 	}
 	require.True(t, isExcluded(c, containerdCheck.filters))
+
+	// Pause container filtering
+	c = containers.Container{
+		Image: "foo",
+		Labels: map[string]string{
+			"io.kubernetes.pod.name": "foo",
+		},
+	}
+	require.True(t, isExcluded(c, containerdCheck.filters))
 }

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017-2020 Datadog, Inc.
 
-// +build !clusterchecks
+// +build !clusterchecks,!kubeapiserver
 
 package v1
 
@@ -12,3 +12,5 @@ import (
 )
 
 func installCloudFoundryMetadataEndpoints(r *mux.Router) {}
+
+func installKubernetesMetadataEndpoints(r *mux.Router) {}

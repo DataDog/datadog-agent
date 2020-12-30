@@ -66,10 +66,15 @@ func TestBBSCache_GetTagsForNode(t *testing.T) {
 	expectedTags := map[string][]string{
 		"0123456789012345678": {
 			"container_name:name_of_the_app_4",
-			"app_name:name_of_the_app",
-			"app_guid:random_app_guid",
 			"app_instance_index:4",
 			"app_instance_guid:0123456789012345678",
+			"app_guid:random_app_guid",
+			"app_id:random_app_guid",
+			"app_name:name_of_the_app",
+			"org_id:random_org_guid",
+			"org_name:name_of_the_org",
+			"space_id:random_space_guid",
+			"space_name:name_of_the_space",
 		},
 	}
 	tags, err := c.GetTagsForNode("cell123")
@@ -78,10 +83,15 @@ func TestBBSCache_GetTagsForNode(t *testing.T) {
 	expectedTags = map[string][]string{
 		"0123456789012345679": {
 			"container_name:name_of_the_app_3",
-			"app_name:name_of_the_app",
-			"app_guid:random_app_guid",
 			"app_instance_index:3",
 			"app_instance_guid:0123456789012345679",
+			"app_guid:random_app_guid",
+			"app_id:random_app_guid",
+			"app_name:name_of_the_app",
+			"org_id:random_org_guid",
+			"org_name:name_of_the_org",
+			"space_id:random_space_guid",
+			"space_name:name_of_the_space",
 		},
 	}
 	tags, err = c.GetTagsForNode("cell1234")

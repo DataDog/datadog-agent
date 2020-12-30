@@ -163,23 +163,25 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 		if !l.collectAll {
 			return nil, errCollectAllDisabled
 		}
+		// The logs source is the short image name
+		logsSource := ""
+		shortImageName, err := l.getShortImageName(pod, container.Name)
+		if err != nil {
+			log.Debugf("Couldn't get short image for container '%s': %v", container.Name, err)
+			// Fallback and use `kubernetes` as source name
+			logsSource = kubernetesIntegration
+		} else {
+			logsSource = shortImageName
+		}
 		if standardService != "" {
 			cfg = &config.LogsConfig{
-				Source:  kubernetesIntegration,
+				Source:  logsSource,
 				Service: standardService,
 			}
 		} else {
-			shortImageName, err := l.getShortImageName(container)
-			if err != nil {
-				cfg = &config.LogsConfig{
-					Source:  kubernetesIntegration,
-					Service: kubernetesIntegration,
-				}
-			} else {
-				cfg = &config.LogsConfig{
-					Source:  shortImageName,
-					Service: shortImageName,
-				}
+			cfg = &config.LogsConfig{
+				Source:  logsSource,
+				Service: logsSource,
 			}
 		}
 	}
@@ -188,7 +190,7 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 	}
 	cfg.Type = config.FileType
 	cfg.Path = l.getPath(basePath, pod, container)
-	cfg.Identifier = getTaggerEntityID(container.ID)
+	cfg.Identifier = kubelet.TrimRuntimeFromCID(container.ID)
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid kubernetes annotation: %v", err)
 	}
@@ -285,8 +287,12 @@ func (l *Launcher) getPodDirectorySince1_14(pod *kubelet.Pod) string {
 }
 
 // getShortImageName returns the short image name of a container
-func (l *Launcher) getShortImageName(container kubelet.ContainerStatus) (string, error) {
-	_, shortName, _, err := containers.SplitImageName(container.Image)
+func (l *Launcher) getShortImageName(pod *kubelet.Pod, containerName string) (string, error) {
+	containerSpec, err := l.kubeutil.GetSpecForContainerName(pod, containerName)
+	if err != nil {
+		return "", err
+	}
+	_, shortName, _, err := containers.SplitImageName(containerSpec.Image)
 	if err != nil {
 		log.Debugf("Cannot parse image name: %v", err)
 	}

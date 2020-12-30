@@ -11,17 +11,24 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // PayloadVersion defines the current payload version sent to a secret backend
 const PayloadVersion = "1.0"
+
+var (
+	tlmSecretBackendElapsed = telemetry.NewGauge("secret_backend", "elapsed_ms", []string{"command", "exit_code"}, "Elapsed time of secret backend invocation")
+)
 
 type limitBuffer struct {
 	max int
@@ -41,7 +48,7 @@ func execCommand(inputPayload string) ([]byte, error) {
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, secretBackendCommand, secretBackendArguments...)
-	if err := checkRights(cmd.Path); err != nil {
+	if err := checkRights(cmd.Path, secretBackendCommandAllowGroupExec); err != nil {
 		return nil, err
 	}
 
@@ -58,15 +65,29 @@ func execCommand(inputPayload string) ([]byte, error) {
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
+	start := time.Now()
 	err := cmd.Run()
+	elapsed := time.Since(start)
+	log.Debugf("secret_backend_command '%s' completed in %s", secretBackendCommand, elapsed)
+
 	if err != nil {
 		log.Errorf("secret_backend_command stderr: %s", stderr.buf.String())
+
+		exitCode := "unknown"
+		var e *exec.ExitError
+		if errors.As(err, &e) {
+			exitCode = strconv.Itoa(e.ExitCode())
+		} else if ctx.Err() == context.DeadlineExceeded {
+			exitCode = "timeout"
+		}
+		tlmSecretBackendElapsed.Add(float64(elapsed.Milliseconds()), secretBackendCommand, exitCode)
 
 		if ctx.Err() == context.DeadlineExceeded {
 			return nil, fmt.Errorf("error while running '%s': command timeout", secretBackendCommand)
 		}
 		return nil, fmt.Errorf("error while running '%s': %s", secretBackendCommand, err)
 	}
+	tlmSecretBackendElapsed.Add(float64(elapsed.Milliseconds()), secretBackendCommand, "0")
 	return stdout.buf.Bytes(), nil
 }
 

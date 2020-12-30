@@ -8,16 +8,19 @@
 package agent
 
 import (
+	"encoding/json"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -85,6 +88,8 @@ func eventMatcher(m eventMatch) interface{} {
 
 func TestRun(t *testing.T) {
 	assert := assert.New(t)
+
+	aggregator.InitAggregator(nil, "foo")
 
 	e := enterTempEnv(t)
 	defer e.leave()
@@ -158,10 +163,26 @@ func TestRun(t *testing.T) {
 	err = agent.Run()
 	assert.NoError(err)
 	agent.Stop()
+
+	st := agent.builder.GetCheckStatus()
+	assert.Len(st, 2)
+	assert.Equal("cis-docker-1", st[0].RuleID)
+	assert.Equal("passed", st[0].LastEvent.Result)
+
+	assert.Equal("cis-kubernetes-1", st[1].RuleID)
+	assert.Equal("failed", st[1].LastEvent.Result)
+
+	v, err := json.Marshal(st)
+	assert.NoError(err)
+
+	// Check the expvar value
+	assert.JSONEq(string(v), status.Get("Checks").String())
 }
 
 func TestRunChecks(t *testing.T) {
 	assert := assert.New(t)
+
+	aggregator.InitAggregator(nil, "foo")
 
 	e := enterTempEnv(t)
 	defer e.leave()

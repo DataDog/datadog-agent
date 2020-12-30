@@ -123,10 +123,7 @@ func (a *Agent) getHealth(w http.ResponseWriter, r *http.Request) {
 func (a *Agent) makeFlare(w http.ResponseWriter, r *http.Request) {
 	log.Infof("Making a flare")
 	w.Header().Set("Content-Type", "application/json")
-	logFile := config.Datadog.GetString("log_file")
-	if logFile == "" {
-		logFile = common.DefaultLogFile
-	}
+	logFile := config.Datadog.GetString("security_agent.log_file")
 
 	var runtimeAgentStatus map[string]interface{}
 	if a.runtimeAgent != nil {

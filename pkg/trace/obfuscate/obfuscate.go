@@ -13,19 +13,24 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Obfuscator quantizes and obfuscates spans. The obfuscator is not safe for
 // concurrent use.
 type Obfuscator struct {
-	opts  *config.ObfuscationConfig
-	es    *jsonObfuscator // nil if disabled
-	mongo *jsonObfuscator // nil if disabled
+	opts                 *config.ObfuscationConfig
+	es                   *jsonObfuscator // nil if disabled
+	mongo                *jsonObfuscator // nil if disabled
+	sqlExecPlan          *jsonObfuscator // nil if disabled
+	sqlExecPlanNormalize *jsonObfuscator // nil if disabled
 	// sqlLiteralEscapes reports whether we should treat escape characters literally or as escape characters.
 	// A non-zero value means 'yes'. Different SQL engines behave in different ways and the tokenizer needs
 	// to be generic.
 	// Not safe for concurrent use.
 	sqlLiteralEscapes int32
+	// queryCache keeps a cache of already obfuscated queries.
+	queryCache *measuredCache
 }
 
 // SetSQLLiteralEscapes sets whether or not escape characters should be treated literally by the SQL obfuscator.
@@ -42,20 +47,32 @@ func (o *Obfuscator) SQLLiteralEscapes() bool {
 	return atomic.LoadInt32(&o.sqlLiteralEscapes) == 1
 }
 
-// NewObfuscator creates a new obfuscator from the provided config
+// NewObfuscator creates a new obfuscator
 func NewObfuscator(cfg *config.ObfuscationConfig) *Obfuscator {
 	if cfg == nil {
 		cfg = new(config.ObfuscationConfig)
 	}
-	o := Obfuscator{opts: cfg}
+	o := Obfuscator{
+		opts:       cfg,
+		queryCache: newMeasuredCache(),
+	}
 	if cfg.ES.Enabled {
-		o.es = newJSONObfuscator(&cfg.ES)
+		o.es = newJSONObfuscator(&cfg.ES, &o)
 	}
 	if cfg.Mongo.Enabled {
-		o.mongo = newJSONObfuscator(&cfg.Mongo)
+		o.mongo = newJSONObfuscator(&cfg.Mongo, &o)
+	}
+	if cfg.SQLExecPlan.Enabled {
+		o.sqlExecPlan = newJSONObfuscator(&cfg.SQLExecPlan, &o)
+	}
+	if cfg.SQLExecPlanNormalize.Enabled {
+		o.sqlExecPlanNormalize = newJSONObfuscator(&cfg.SQLExecPlanNormalize, &o)
 	}
 	return &o
 }
+
+// Stop cleans up after a finished Obfuscator.
+func (o *Obfuscator) Stop() { o.queryCache.Close() }
 
 // Obfuscate may obfuscate span's properties based on its type and on the Obfuscator's
 // configuration.
@@ -78,6 +95,22 @@ func (o *Obfuscator) Obfuscate(span *pb.Span) {
 		o.obfuscateJSON(span, "mongodb.query", o.mongo)
 	case "elasticsearch":
 		o.obfuscateJSON(span, "elasticsearch.body", o.es)
+	}
+}
+
+// ObfuscateStatsGroup obfuscates the given stats bucket group.
+func (o *Obfuscator) ObfuscateStatsGroup(b *pb.ClientGroupedStats) {
+	switch b.Type {
+	case "sql", "cassandra":
+		oq, err := o.ObfuscateSQLString(b.Resource)
+		if err != nil {
+			log.Errorf("Error obfuscating stats group resource %q: %v", b.Resource, err)
+			b.Resource = nonParsableResource
+		} else {
+			b.Resource = oq.Query
+		}
+	case "redis":
+		b.Resource = o.QuantizeRedisString(b.Resource)
 	}
 }
 

@@ -3,31 +3,33 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build linux_bpf
+// +build linux
 
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/generators/accessors -tags linux_bpf -output model_accessors.go
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/generators/accessors -tags linux -output model_accessors.go
 
 package probe
 
 import (
 	"bytes"
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"os/user"
 	"path"
-	"strconv"
+	"regexp"
 	"strings"
 	"syscall"
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
-	"github.com/google/uuid"
 	"github.com/pkg/errors"
+
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
-var dentryInvalidDiscarder = []interface{}{dentryPathKeyNotFound}
+var (
+	dentryInvalidDiscarder = []interface{}{dentryPathKeyNotFound}
+)
 
 // InvalidDiscarders exposes list of values that are not discarders
 var InvalidDiscarders = map[eval.Field][]interface{}{
@@ -43,15 +45,15 @@ var InvalidDiscarders = map[eval.Field][]interface{}{
 	"link.source.filename": dentryInvalidDiscarder,
 	"link.target.filename": dentryInvalidDiscarder,
 	"process.filename":     dentryInvalidDiscarder,
+	"setxattr.filename":    dentryInvalidDiscarder,
+	"removexattr.filename": dentryInvalidDiscarder,
 }
 
 // ErrNotEnoughData is returned when the buffer is too small to unmarshal the event
 var ErrNotEnoughData = errors.New("not enough data")
 
 // Model describes the data model for the runtime security agent events
-type Model struct {
-	event *Event
-}
+type Model struct{}
 
 // NewEvent returns a new Event
 func (m *Model) NewEvent() eval.Event {
@@ -62,10 +64,19 @@ func (m *Model) NewEvent() eval.Event {
 func (m *Model) ValidateField(key string, field eval.FieldValue) error {
 	// check that all path are absolute
 	if strings.HasSuffix(key, "filename") || strings.HasSuffix(key, "_path") {
-		value, ok := field.Value.(string)
-		if ok {
-			if value != path.Clean(value) || !path.IsAbs(value) {
-				return fmt.Errorf("invalid path `%s`, all the path have to be absolute", value)
+		if value, ok := field.Value.(string); ok {
+			errAbs := fmt.Errorf("invalid path `%s`, all the path have to be absolute", value)
+
+			if value != path.Clean(value) {
+				return errAbs
+			}
+
+			if matched, err := regexp.Match(`\.\.`, []byte(value)); err != nil || matched {
+				return errAbs
+			}
+
+			if matched, err := regexp.Match(`^~`, []byte(value)); err != nil || matched {
+				return errAbs
 			}
 		}
 	}
@@ -81,59 +92,50 @@ func (m *Model) ValidateField(key string, field eval.FieldValue) error {
 	return nil
 }
 
-type BaseEvent struct {
-	TimestampRaw uint64    `field:"-"`
-	Timestamp    time.Time `field:"-"`
-	Retval       int64     `field:"retval"`
+// SyscallEvent contains common fields for all the event
+type SyscallEvent struct {
+	Retval int64 `field:"retval"`
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
-func (e *BaseEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 16 {
+func (e *SyscallEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 8 {
 		return 0, ErrNotEnoughData
 	}
-	e.TimestampRaw = byteOrder.Uint64(data[0:8])
-	e.Retval = int64(byteOrder.Uint64(data[8:16]))
-	return 16, nil
+	e.Retval = int64(ebpf.ByteOrder.Uint64(data[0:8]))
+	return 8, nil
 }
 
-func (e *BaseEvent) marshalJSON(eventType EventType, resolvers *Resolvers) ([]byte, error) {
-	var buf bytes.Buffer
-	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"type":"%s",`, eventType.String())
-	fmt.Fprintf(&buf, `"timestamp":"%s",`, e.ResolveMonotonicTimestamp(resolvers))
-	fmt.Fprintf(&buf, `"retval":%d`, e.Retval)
-	buf.WriteRune('}')
-
-	return buf.Bytes(), nil
-}
-
-// ResolveMonotonicTimestamp resolves the monolitic kernel timestamp to an absolute time
-func (e *BaseEvent) ResolveMonotonicTimestamp(resolvers *Resolvers) time.Time {
-	if (e.Timestamp.Equal(time.Time{})) {
-		e.Timestamp = resolvers.TimeResolver.ResolveMonotonicTimestamp(e.TimestampRaw)
-	}
-	return e.Timestamp
-}
-
+// BinaryUnmarshaler interface implemented by every event type
 type BinaryUnmarshaler interface {
 	UnmarshalBinary(data []byte) (int, error)
 }
 
+// FileEvent is the common file event type
 type FileEvent struct {
 	MountID         uint32 `field:"-"`
 	Inode           uint64 `field:"inode"`
+	PathID          uint32 `field:"-"`
 	OverlayNumLower int32  `field:"overlay_numlower"`
 	PathnameStr     string `field:"filename" handler:"ResolveInode,string"`
 	ContainerPath   string `field:"container_path" handler:"ResolveContainerPath,string"`
 	BasenameStr     string `field:"basename" handler:"ResolveBasename,string"`
 }
 
-// FileEvent resolves the inode to a full path
-func (e *FileEvent) ResolveInode(resolvers *Resolvers) string {
+// ResolveInode resolves the inode to a full path
+func (e *FileEvent) ResolveInode(event *Event) string {
+	return e.ResolveInodeWithResolvers(event.resolvers)
+}
+
+// ResolveInodeWithResolvers resolves the inode to a full path
+func (e *FileEvent) ResolveInodeWithResolvers(resolvers *Resolvers) string {
 	if len(e.PathnameStr) == 0 {
-		e.PathnameStr = resolvers.DentryResolver.Resolve(e.MountID, e.Inode)
-		_, mountPath, rootPath, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
+		e.PathnameStr = resolvers.DentryResolver.Resolve(e.MountID, e.Inode, e.PathID)
+		if e.PathnameStr == dentryPathKeyNotFound {
+			return e.PathnameStr
+		}
+
+		_, mountPath, rootPath, err := resolvers.MountResolver.GetMountPath(e.MountID)
 		if err == nil {
 			if strings.HasPrefix(e.PathnameStr, rootPath) && rootPath != "/" {
 				e.PathnameStr = strings.Replace(e.PathnameStr, rootPath, "", 1)
@@ -141,54 +143,53 @@ func (e *FileEvent) ResolveInode(resolvers *Resolvers) string {
 			e.PathnameStr = path.Join(mountPath, e.PathnameStr)
 		}
 	}
+
 	return e.PathnameStr
 }
 
 // ResolveContainerPath resolves the inode to a path relative to the container
-func (e *FileEvent) ResolveContainerPath(resolvers *Resolvers) string {
+func (e *FileEvent) ResolveContainerPath(event *Event) string {
+	return e.ResolveContainerPathWithResolvers(event.resolvers)
+}
+
+// ResolveContainerPathWithResolvers resolves the inode to a path relative to the container
+func (e *FileEvent) ResolveContainerPathWithResolvers(resolvers *Resolvers) string {
 	if len(e.ContainerPath) == 0 {
-		containerPath, _, _, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
+		containerPath, _, _, err := resolvers.MountResolver.GetMountPath(e.MountID)
 		if err == nil {
 			e.ContainerPath = containerPath
 		}
 		if len(containerPath) == 0 && len(e.PathnameStr) == 0 {
 			// The container path might be included in the pathname. The container path will be set there.
-			_ = e.ResolveInode(resolvers)
+			e.ResolveInodeWithResolvers(resolvers)
 		}
 	}
 	return e.ContainerPath
 }
 
 // ResolveBasename resolves the inode to a filename
-func (e *FileEvent) ResolveBasename(resolvers *Resolvers) string {
+func (e *FileEvent) ResolveBasename(event *Event) string {
 	if len(e.BasenameStr) == 0 {
-		e.BasenameStr = resolvers.DentryResolver.GetName(e.MountID, e.Inode)
+		if e.PathnameStr != "" {
+			e.BasenameStr = path.Base(e.PathnameStr)
+		} else {
+			e.BasenameStr = event.resolvers.DentryResolver.GetName(e.MountID, e.Inode, e.PathID)
+		}
 	}
 	return e.BasenameStr
 }
 
-func (e *FileEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
-	var buf bytes.Buffer
-	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"filename":"%s",`, e.ResolveInode(resolvers))
-	fmt.Fprintf(&buf, `"container_path":"%s",`, e.ResolveContainerPath(resolvers))
-	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
-	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
-	fmt.Fprintf(&buf, `"overlay_numlower":%d`, e.OverlayNumLower)
-	buf.WriteRune('}')
-
-	return buf.Bytes(), nil
-}
-
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *FileEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 16 {
+	if len(data) < 24 {
 		return 0, ErrNotEnoughData
 	}
-	e.Inode = byteOrder.Uint64(data[0:8])
-	e.MountID = byteOrder.Uint32(data[8:12])
-	e.OverlayNumLower = int32(byteOrder.Uint32(data[12:16]))
-	return 16, nil
+	e.Inode = ebpf.ByteOrder.Uint64(data[0:8])
+	e.MountID = ebpf.ByteOrder.Uint32(data[8:12])
+	e.OverlayNumLower = int32(ebpf.ByteOrder.Uint32(data[12:16]))
+	e.PathID = ebpf.ByteOrder.Uint32(data[16:20])
+
+	return 24, nil
 }
 
 func unmarshalBinary(data []byte, binaryUnmarshalers ...BinaryUnmarshaler) (int, error) {
@@ -203,30 +204,26 @@ func unmarshalBinary(data []byte, binaryUnmarshalers ...BinaryUnmarshaler) (int,
 	return read, nil
 }
 
+// Bytes returns a binary representation of itself
+func (e *FileEvent) Bytes() []byte {
+	b := make([]byte, 16)
+	ebpf.ByteOrder.PutUint64(b[0:8], e.Inode)
+	ebpf.ByteOrder.PutUint32(b[8:12], e.MountID)
+	ebpf.ByteOrder.PutUint32(b[12:16], uint32(e.OverlayNumLower))
+	ebpf.ByteOrder.PutUint32(b[16:20], e.PathID)
+	return b
+}
+
 // ChmodEvent represents a chmod event
 type ChmodEvent struct {
-	BaseEvent
+	SyscallEvent
 	FileEvent
 	Mode uint32 `field:"mode"`
 }
 
-func (e *ChmodEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
-	var buf bytes.Buffer
-	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"filename":"%s",`, e.ResolveInode(resolvers))
-	fmt.Fprintf(&buf, `"container_path":"%s",`, e.ResolveContainerPath(resolvers))
-	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
-	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
-	fmt.Fprintf(&buf, `"overlay_numlower":%d,`, e.OverlayNumLower)
-	fmt.Fprintf(&buf, `"mode":%d`, e.Mode)
-	buf.WriteRune('}')
-
-	return buf.Bytes(), nil
-}
-
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *ChmodEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := unmarshalBinary(data, &e.BaseEvent, &e.FileEvent)
+	n, err := unmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
 	if err != nil {
 		return n, err
 	}
@@ -236,36 +233,21 @@ func (e *ChmodEvent) UnmarshalBinary(data []byte) (int, error) {
 		return n, ErrNotEnoughData
 	}
 
-	e.Mode = byteOrder.Uint32(data[0:4])
+	e.Mode = ebpf.ByteOrder.Uint32(data[0:4])
 	return n + 4, nil
 }
 
 // ChownEvent represents a chown event
 type ChownEvent struct {
-	BaseEvent
+	SyscallEvent
 	FileEvent
 	UID int32 `field:"uid"`
 	GID int32 `field:"gid"`
 }
 
-func (e *ChownEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
-	var buf bytes.Buffer
-	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"filename":"%s",`, e.ResolveInode(resolvers))
-	fmt.Fprintf(&buf, `"container_path":"%s",`, e.ResolveContainerPath(resolvers))
-	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
-	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
-	fmt.Fprintf(&buf, `"overlay_numlower":%d,`, e.OverlayNumLower)
-	fmt.Fprintf(&buf, `"uid":%d,`, e.UID)
-	fmt.Fprintf(&buf, `"gid":%d`, e.GID)
-	buf.WriteRune('}')
-
-	return buf.Bytes(), nil
-}
-
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *ChownEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := unmarshalBinary(data, &e.BaseEvent, &e.FileEvent)
+	n, err := unmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
 	if err != nil {
 		return n, err
 	}
@@ -275,37 +257,67 @@ func (e *ChownEvent) UnmarshalBinary(data []byte) (int, error) {
 		return n, ErrNotEnoughData
 	}
 
-	e.UID = int32(byteOrder.Uint32(data[0:4]))
-	e.GID = int32(byteOrder.Uint32(data[4:8]))
+	e.UID = int32(ebpf.ByteOrder.Uint32(data[0:4]))
+	e.GID = int32(ebpf.ByteOrder.Uint32(data[4:8]))
 	return n + 8, nil
+}
+
+// SetXAttrEvent represents an extended attributes event
+type SetXAttrEvent struct {
+	SyscallEvent
+	FileEvent
+	Namespace string `field:"namespace" handler:"GetNamespace,string"`
+	Name      string `field:"name" handler:"GetName,string"`
+
+	NameRaw [200]byte
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *SetXAttrEvent) UnmarshalBinary(data []byte) (int, error) {
+	n, err := unmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
+	if err != nil {
+		return n, err
+	}
+
+	data = data[n:]
+	if len(data) < 200 {
+		return n, ErrNotEnoughData
+	}
+	utils.SliceToArray(data[0:200], unsafe.Pointer(&e.NameRaw))
+
+	return n + 200, nil
+}
+
+// GetName returns the string representation of the extended attribute name
+func (e *SetXAttrEvent) GetName(event *Event) string {
+	if len(e.Name) == 0 {
+		e.Name = string(bytes.Trim(e.NameRaw[:], "\x00"))
+	}
+	return e.Name
+}
+
+// GetNamespace returns the string representation of the extended attribute namespace
+func (e *SetXAttrEvent) GetNamespace(event *Event) string {
+	if len(e.Namespace) == 0 {
+		fragments := strings.Split(e.GetName(event), ".")
+		if len(fragments) > 0 {
+			e.Namespace = fragments[0]
+		}
+	}
+	return e.Namespace
 }
 
 // OpenEvent represents an open event
 type OpenEvent struct {
-	BaseEvent
+	SyscallEvent
 	FileEvent
-	Flags uint32 `yaml:"flags" field:"flags"`
-	Mode  uint32 `yaml:"mode" field:"mode"`
-}
-
-func (e *OpenEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
-	var buf bytes.Buffer
-	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"filename":"%s",`, e.ResolveInode(resolvers))
-	fmt.Fprintf(&buf, `"container_path":"%s",`, e.ResolveContainerPath(resolvers))
-	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
-	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
-	fmt.Fprintf(&buf, `"overlay_numlower":%d,`, e.OverlayNumLower)
-	fmt.Fprintf(&buf, `"mode":%d,`, e.Mode)
-	fmt.Fprintf(&buf, `"flags":"%s"`, OpenFlags(e.Flags))
-	buf.WriteRune('}')
-
-	return buf.Bytes(), nil
+	Flags uint32 `field:"flags"`
+	Mode  uint32 `field:"mode"`
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := unmarshalBinary(data, &e.BaseEvent, &e.FileEvent)
+	n, err := unmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
 	if err != nil {
 		return n, err
 	}
@@ -315,35 +327,21 @@ func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
 		return n, ErrNotEnoughData
 	}
 
-	e.Flags = byteOrder.Uint32(data[0:4])
-	e.Mode = byteOrder.Uint32(data[4:8])
+	e.Flags = ebpf.ByteOrder.Uint32(data[0:4])
+	e.Mode = ebpf.ByteOrder.Uint32(data[4:8])
 	return n + 8, nil
 }
 
 // MkdirEvent represents a mkdir event
 type MkdirEvent struct {
-	BaseEvent
+	SyscallEvent
 	FileEvent
-	Mode int32 `field:"mode"`
-}
-
-func (e *MkdirEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
-	var buf bytes.Buffer
-	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"filename":"%s",`, e.ResolveInode(resolvers))
-	fmt.Fprintf(&buf, `"container_path":"%s",`, e.ResolveContainerPath(resolvers))
-	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
-	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
-	fmt.Fprintf(&buf, `"overlay_numlower":%d,`, e.OverlayNumLower)
-	fmt.Fprintf(&buf, `"mode":%d`, e.Mode)
-	buf.WriteRune('}')
-
-	return buf.Bytes(), nil
+	Mode uint32 `field:"mode"`
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := unmarshalBinary(data, &e.BaseEvent, &e.FileEvent)
+	n, err := unmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
 	if err != nil {
 		return n, err
 	}
@@ -353,49 +351,31 @@ func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
 		return n, ErrNotEnoughData
 	}
 
-	e.Mode = int32(byteOrder.Uint32(data[0:4]))
+	e.Mode = ebpf.ByteOrder.Uint32(data[0:4])
 	return n + 4, nil
 }
 
 // RmdirEvent represents a rmdir event
 type RmdirEvent struct {
-	BaseEvent
+	SyscallEvent
 	FileEvent
-}
-
-func (e *RmdirEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
-	return e.FileEvent.marshalJSON(resolvers)
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *RmdirEvent) UnmarshalBinary(data []byte) (int, error) {
-	return unmarshalBinary(data, &e.BaseEvent, &e.FileEvent)
+	return unmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
 }
 
 // UnlinkEvent represents an unlink event
 type UnlinkEvent struct {
-	BaseEvent
+	SyscallEvent
 	FileEvent
 	Flags uint32 `field:"flags"`
 }
 
-func (e *UnlinkEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
-	var buf bytes.Buffer
-	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"filename":"%s",`, e.ResolveInode(resolvers))
-	fmt.Fprintf(&buf, `"flags":"%s",`, UnlinkFlags(e.Flags))
-	fmt.Fprintf(&buf, `"container_path":"%s",`, e.ResolveContainerPath(resolvers))
-	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
-	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
-	fmt.Fprintf(&buf, `"overlay_numlower":%d`, e.OverlayNumLower)
-	buf.WriteRune('}')
-
-	return buf.Bytes(), nil
-}
-
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *UnlinkEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := unmarshalBinary(data, &e.BaseEvent, &e.FileEvent)
+	n, err := unmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
 	if err != nil {
 		return n, err
 	}
@@ -405,48 +385,33 @@ func (e *UnlinkEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.Flags = byteOrder.Uint32(data[0:4])
+	e.Flags = ebpf.ByteOrder.Uint32(data[0:4])
 	return n + 4, nil
 }
 
 // RenameEvent represents a rename event
 type RenameEvent struct {
-	BaseEvent
+	SyscallEvent
 	Old FileEvent `field:"old"`
 	New FileEvent `field:"new"`
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *RenameEvent) UnmarshalBinary(data []byte) (int, error) {
-	return unmarshalBinary(data, &e.BaseEvent, &e.Old, &e.New)
+	return unmarshalBinary(data, &e.SyscallEvent, &e.Old, &e.New)
 }
 
 // UtimesEvent represents a utime event
 type UtimesEvent struct {
-	BaseEvent
+	SyscallEvent
 	FileEvent
 	Atime time.Time
 	Mtime time.Time
 }
 
-func (e *UtimesEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
-	var buf bytes.Buffer
-	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"filename":"%s",`, e.ResolveInode(resolvers))
-	fmt.Fprintf(&buf, `"container_path":"%s",`, e.ResolveContainerPath(resolvers))
-	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
-	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
-	fmt.Fprintf(&buf, `"overlay_numlower":%d`, e.OverlayNumLower)
-	fmt.Fprintf(&buf, `"access_time":"%s"`, e.Atime)
-	fmt.Fprintf(&buf, `"modification_time":"%s"`, e.Mtime)
-	buf.WriteRune('}')
-
-	return buf.Bytes(), nil
-}
-
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *UtimesEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := unmarshalBinary(data, &e.BaseEvent, &e.FileEvent)
+	n, err := unmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
 	if err != nil {
 		return n, err
 	}
@@ -456,12 +421,12 @@ func (e *UtimesEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	timeSec := byteOrder.Uint64(data[0:8])
-	timeNsec := byteOrder.Uint64(data[8:16])
+	timeSec := ebpf.ByteOrder.Uint64(data[0:8])
+	timeNsec := ebpf.ByteOrder.Uint64(data[8:16])
 	e.Atime = time.Unix(int64(timeSec), int64(timeNsec))
 
-	timeSec = byteOrder.Uint64(data[16:24])
-	timeNsec = byteOrder.Uint64(data[24:32])
+	timeSec = ebpf.ByteOrder.Uint64(data[16:24])
+	timeNsec = ebpf.ByteOrder.Uint64(data[24:32])
 	e.Mtime = time.Unix(int64(timeSec), int64(timeNsec))
 
 	return n + 32, nil
@@ -469,39 +434,22 @@ func (e *UtimesEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // LinkEvent represents a link event
 type LinkEvent struct {
-	BaseEvent
+	SyscallEvent
 	Source FileEvent `field:"source"`
 	Target FileEvent `field:"target"`
 }
 
-func (e *LinkEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
-	var buf bytes.Buffer
-	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"src_mount_id":%d,`, e.Source.MountID)
-	fmt.Fprintf(&buf, `"src_inode":%d,`, e.Source.Inode)
-	fmt.Fprintf(&buf, `"src_filename":"%s",`, e.Source.ResolveInode(resolvers))
-	fmt.Fprintf(&buf, `"src_container_path":"%s",`, e.Source.ResolveContainerPath(resolvers))
-	fmt.Fprintf(&buf, `"src_overlay_numlower":%d,`, e.Source.OverlayNumLower)
-	fmt.Fprintf(&buf, `"new_mount_id":%d,`, e.Target.MountID)
-	fmt.Fprintf(&buf, `"new_inode":%d,`, e.Source.Inode)
-	fmt.Fprintf(&buf, `"new_filename":"%s",`, e.Target.ResolveInode(resolvers))
-	fmt.Fprintf(&buf, `"new_container_path":"%s",`, e.Target.ResolveContainerPath(resolvers))
-	fmt.Fprintf(&buf, `"new_overlay_numlower":%d`, e.Target.OverlayNumLower)
-	buf.WriteRune('}')
-
-	return buf.Bytes(), nil
-}
-
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *LinkEvent) UnmarshalBinary(data []byte) (int, error) {
-	return unmarshalBinary(data, &e.BaseEvent, &e.Source, &e.Target)
+	return unmarshalBinary(data, &e.SyscallEvent, &e.Source, &e.Target)
 }
 
 // MountEvent represents a mount event
 type MountEvent struct {
-	NewMountID    uint32
-	NewGroupID    uint32
-	NewDevice     uint32
+	SyscallEvent
+	MountID       uint32
+	GroupID       uint32
+	Device        uint32
 	ParentMountID uint32
 	ParentInode   uint64
 	FSType        string
@@ -513,57 +461,45 @@ type MountEvent struct {
 	FSTypeRaw [16]byte
 }
 
-func (e *MountEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
-	var buf bytes.Buffer
-	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"mount_point":"%s",`, e.ResolveMountPoint(resolvers))
-	fmt.Fprintf(&buf, `"parent_mount_id":%d,`, e.ParentMountID)
-	fmt.Fprintf(&buf, `"parent_inode":%d,`, e.ParentInode)
-	fmt.Fprintf(&buf, `"root_inode":%d,`, e.RootInode)
-	fmt.Fprintf(&buf, `"root_mount_id":%d,`, e.RootInode)
-	fmt.Fprintf(&buf, `"root":"%s",`, e.ResolveRoot(resolvers))
-	fmt.Fprintf(&buf, `"new_mount_id":%d,`, e.NewMountID)
-	fmt.Fprintf(&buf, `"new_group_id":%d,`, e.NewGroupID)
-	fmt.Fprintf(&buf, `"new_device":%d,`, e.NewDevice)
-	fmt.Fprintf(&buf, `"fstype":"%s"`, e.GetFSType())
-	buf.WriteRune('}')
-
-	return buf.Bytes(), nil
-}
-
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
+	n, err := unmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return n, err
+	}
+
+	data = data[n:]
 	if len(data) < 56 {
 		return 0, ErrNotEnoughData
 	}
 
-	e.NewMountID = byteOrder.Uint32(data[0:4])
-	e.NewGroupID = byteOrder.Uint32(data[4:8])
-	e.NewDevice = byteOrder.Uint32(data[8:12])
-	e.ParentMountID = byteOrder.Uint32(data[12:16])
-	e.ParentInode = byteOrder.Uint64(data[16:24])
-	e.RootInode = byteOrder.Uint64(data[24:32])
-	e.RootMountID = byteOrder.Uint32(data[32:36])
+	e.MountID = ebpf.ByteOrder.Uint32(data[0:4])
+	e.GroupID = ebpf.ByteOrder.Uint32(data[4:8])
+	e.Device = ebpf.ByteOrder.Uint32(data[8:12])
+	e.ParentMountID = ebpf.ByteOrder.Uint32(data[12:16])
+	e.ParentInode = ebpf.ByteOrder.Uint64(data[16:24])
+	e.RootInode = ebpf.ByteOrder.Uint64(data[24:32])
+	e.RootMountID = ebpf.ByteOrder.Uint32(data[32:36])
 
-	if err := binary.Read(bytes.NewBuffer(data[40:56]), byteOrder, &e.FSTypeRaw); err != nil {
-		return 40, err
-	}
+	// Notes: bytes 36 to 40 are used to pad the structure
+
+	utils.SliceToArray(data[40:56], unsafe.Pointer(&e.FSTypeRaw))
 
 	return 56, nil
 }
 
 // ResolveMountPoint resolves the mountpoint to a full path
-func (e *MountEvent) ResolveMountPoint(resolvers *Resolvers) string {
+func (e *MountEvent) ResolveMountPoint(event *Event) string {
 	if len(e.MountPointStr) == 0 {
-		e.MountPointStr = resolvers.DentryResolver.Resolve(e.ParentMountID, e.ParentInode)
+		e.MountPointStr = event.resolvers.DentryResolver.Resolve(e.ParentMountID, e.ParentInode, 0)
 	}
 	return e.MountPointStr
 }
 
 // ResolveRoot resolves the mountpoint to a full path
-func (e *MountEvent) ResolveRoot(resolvers *Resolvers) string {
+func (e *MountEvent) ResolveRoot(event *Event) string {
 	if len(e.RootStr) == 0 {
-		e.RootStr = resolvers.DentryResolver.Resolve(e.RootMountID, e.RootInode)
+		e.RootStr = event.resolvers.DentryResolver.Resolve(e.RootMountID, e.RootInode, 0)
 	}
 	return e.RootStr
 }
@@ -578,196 +514,416 @@ func (e *MountEvent) GetFSType() string {
 
 // UmountEvent represents an umount event
 type UmountEvent struct {
+	SyscallEvent
 	MountID uint32
-}
-
-func (e *UmountEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
-	var buf bytes.Buffer
-	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"mount_id":%d`, e.MountID)
-	buf.WriteRune('}')
-
-	return buf.Bytes(), nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *UmountEvent) UnmarshalBinary(data []byte) (int, error) {
+	n, err := unmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return n, err
+	}
+
+	data = data[n:]
 	if len(data) < 4 {
 		return 0, ErrNotEnoughData
 	}
 
-	e.MountID = byteOrder.Uint32(data[0:4])
+	e.MountID = ebpf.ByteOrder.Uint32(data[0:4])
 	return 4, nil
 }
 
-// ContainerEvent holds the container context of an event
-type ContainerEvent struct {
+// ContainerContext holds the container context of an event
+type ContainerContext struct {
 	ID string `field:"id" handler:"ResolveContainerID,string"`
-
-	IDRaw [64]byte `field:"-"`
-}
-
-func (e *ContainerEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
-	var buf bytes.Buffer
-	buf.WriteRune('{')
-	if id := e.GetContainerID(); len(id) > 0 {
-		fmt.Fprintf(&buf, `"container_id":"%s"`, id)
-	}
-	buf.WriteRune('}')
-
-	return buf.Bytes(), nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
-func (e *ContainerEvent) UnmarshalBinary(data []byte) (int, error) {
+func (e *ContainerContext) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 64 {
 		return 0, ErrNotEnoughData
 	}
-	if err := binary.Read(bytes.NewBuffer(data[0:64]), byteOrder, &e.IDRaw); err != nil {
-		return 0, err
+
+	idRaw := [64]byte{}
+	utils.SliceToArray(data[0:64], unsafe.Pointer(&idRaw))
+	e.ID = string(bytes.Trim(idRaw[:], "\x00"))
+	if len(e.ID) > 1 && len(e.ID) < 64 {
+		e.ID = ""
 	}
+
 	return 64, nil
 }
 
-// ResolveContainerID resolves the container ID of the event
-func (e *ContainerEvent) ResolveContainerID(resolvers *Resolvers) string {
-	return e.GetContainerID()
+// Bytes returns a binary representation of itself
+func (e *ContainerContext) Bytes() []byte {
+	return utils.ContainerID(e.ID).Bytes()
 }
 
-// GetContainerID returns the container ID of the event
-func (e *ContainerEvent) GetContainerID() string {
-	if len(e.ID) == 0 {
-		e.ID = string(bytes.Trim(e.IDRaw[:], "\x00"))
-		if len(e.ID) > 1 && len(e.ID) < 64 {
-			e.ID = ""
+// ResolveContainerID resolves the container ID of the event
+func (e *ContainerContext) ResolveContainerID(event *Event) string {
+	if len(e.ID) == 0 && event != nil {
+		if entry := event.ResolveProcessCacheEntry(); entry != nil {
+			e.ID = entry.ID
 		}
 	}
 	return e.ID
 }
 
-// ProcessEvent holds the process context of an event
-type ProcessEvent struct {
+// ExecEvent represents a exec event
+type ExecEvent struct {
+	// proc_cache_t
+	// (container context is parsed in Event.Container)
 	FileEvent
-	Pidns   uint64 `field:"pidns"`
-	Comm    string `field:"name" handler:"ResolveComm,string"`
-	TTYName string `field:"tty_name" handler:"ResolveTTY,string"`
-	Pid     uint32 `field:"pid"`
-	Tid     uint32 `field:"tid"`
-	UID     uint32 `field:"uid"`
-	GID     uint32 `field:"gid"`
-	User    string `field:"user" handler:"ResolveUser,string"`
-	Group   string `field:"group" handler:"ResolveGroup,string"`
+	ExecTimestamp time.Time `field:"-"`
+	TTYName       string    `field:"tty_name" handler:"ResolveTTY,string"`
+	Comm          string    `field:"name" handler:"ResolveComm,string"`
 
-	CommRaw    [16]byte `field:"-"`
-	TTYNameRaw [64]byte `field:"-"`
+	// pid_cache_t
+	ForkTimestamp time.Time `field:"-"`
+	ExitTimestamp time.Time `field:"-"`
+	Cookie        uint32    `field:"cookie" handler:"ResolveCookie,int"`
+	PPid          uint32    `field:"ppid" handler:"ResolvePPID,int"`
+
+	// The following fields should only be used here for evaluation
+	UID   uint32 `field:"uid" handler:"ResolveUID,int"`
+	GID   uint32 `field:"gid" handler:"ResolveGID,int"`
+	User  string `field:"user" handler:"ResolveUser,string"`
+	Group string `field:"group" handler:"ResolveGroup,string"`
 }
 
-func (p *ProcessEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
-	var buf bytes.Buffer
-	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"pidns":%d,`, p.Pidns)
-	fmt.Fprintf(&buf, `"name":"%s",`, p.GetComm())
-	if tty := p.GetTTY(); tty != "" {
-		fmt.Fprintf(&buf, `"tty_name":"%s",`, tty)
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *ExecEvent) UnmarshalBinary(data []byte, resolvers *Resolvers) (int, error) {
+	if len(data) < 136 {
+		return 0, ErrNotEnoughData
 	}
-	fmt.Fprintf(&buf, `"pid":%d,`, p.Pid)
-	fmt.Fprintf(&buf, `"tid":%d,`, p.Tid)
-	fmt.Fprintf(&buf, `"uid":%d,`, p.UID)
-	fmt.Fprintf(&buf, `"gid":%d`, p.GID)
-	buf.WriteRune('}')
 
-	return buf.Bytes(), nil
+	// Unmarshal proc_cache_t
+	read, err := unmarshalBinary(data, &e.FileEvent)
+	if err != nil {
+		return read, err
+	}
+
+	e.ExecTimestamp = resolvers.TimeResolver.ResolveMonotonicTimestamp(ebpf.ByteOrder.Uint64(data[read : read+8]))
+	read += 8
+
+	var ttyRaw [64]byte
+	utils.SliceToArray(data[read:read+64], unsafe.Pointer(&ttyRaw))
+	e.TTYName = string(bytes.Trim(ttyRaw[:], "\x00"))
+	read += 64
+
+	var commRaw [16]byte
+	utils.SliceToArray(data[read:read+16], unsafe.Pointer(&commRaw))
+	e.Comm = string(bytes.Trim(commRaw[:], "\x00"))
+	read += 16
+
+	// Unmarshal pid_cache_t
+	e.Cookie = ebpf.ByteOrder.Uint32(data[read : read+4])
+	e.PPid = ebpf.ByteOrder.Uint32(data[read+4 : read+8])
+	e.ForkTimestamp = resolvers.TimeResolver.ResolveMonotonicTimestamp(ebpf.ByteOrder.Uint64(data[read+8 : read+16]))
+	e.ExitTimestamp = resolvers.TimeResolver.ResolveMonotonicTimestamp(ebpf.ByteOrder.Uint64(data[read+16 : read+24]))
+
+	// resolve FileEvent now so that the dentry cache is up to date
+	if e.FileEvent.Inode != 0 && e.FileEvent.MountID != 0 {
+		e.FileEvent.ResolveInodeWithResolvers(resolvers)
+		e.FileEvent.ResolveContainerPathWithResolvers(resolvers)
+	}
+
+	// ignore uid / gid, it has already been parsed in Event.Process
+	// add 8 to the total
+
+	return read + 32, nil
+}
+
+// UnmarshalEvent unmarshal an ExecEvent
+func (e *ExecEvent) UnmarshalEvent(data []byte, event *Event) (int, error) {
+	if len(data) < 136 {
+		return 0, ErrNotEnoughData
+	}
+
+	// reset the process cache entry of the current event
+	entry := NewProcessCacheEntry()
+	entry.ContainerContext = event.Container
+	entry.ProcessContext = ProcessContext{
+		Pid: event.Process.Pid,
+		Tid: event.Process.Tid,
+		UID: event.Process.UID,
+		GID: event.Process.GID,
+	}
+	event.processCacheEntry = entry
+
+	return event.processCacheEntry.UnmarshalBinary(data, event.resolvers, false)
+}
+
+// ResolvePPID resolves the parent process ID
+func (e *ExecEvent) ResolvePPID(event *Event) int {
+	if e.PPid == 0 {
+		if entry := event.ResolveProcessCacheEntry(); entry != nil {
+			e.PPid = entry.PPid
+		}
+	}
+	return int(e.PPid)
+}
+
+// ResolveInode resolves the inode to a full path
+func (e *ExecEvent) ResolveInode(event *Event) string {
+	if len(e.PathnameStr) == 0 {
+		if entry := event.ResolveProcessCacheEntry(); entry != nil {
+			e.PathnameStr = entry.PathnameStr
+		}
+	}
+	return e.PathnameStr
+}
+
+// ResolveContainerPath resolves the inode to a path relative to the container
+func (e *ExecEvent) ResolveContainerPath(event *Event) string {
+	if len(e.ContainerPath) == 0 {
+		if entry := event.ResolveProcessCacheEntry(); entry != nil {
+			e.ContainerPath = entry.ContainerPath
+		}
+	}
+	return e.ContainerPath
+}
+
+// ResolveBasename resolves the inode to a filename
+func (e *ExecEvent) ResolveBasename(event *Event) string {
+	if len(e.BasenameStr) == 0 {
+		if e.PathnameStr == "" {
+			e.PathnameStr = e.ResolveInode(event)
+		}
+
+		e.BasenameStr = path.Base(e.PathnameStr)
+	}
+	return e.BasenameStr
+}
+
+// ResolveCookie resolves the cookie of the process
+func (e *ExecEvent) ResolveCookie(event *Event) int {
+	if e.Cookie == 0 {
+		if entry := event.ResolveProcessCacheEntry(); entry != nil {
+			e.Cookie = entry.Cookie
+		}
+	}
+	return int(e.Cookie)
 }
 
 // ResolveTTY resolves the name of the process tty
-func (p *ProcessEvent) ResolveTTY(resolvers *Resolvers) string {
-	return p.GetTTY()
-}
-
-// GetTTY returns the name of the process tty
-func (p *ProcessEvent) GetTTY() string {
-	if len(p.TTYName) == 0 {
-		p.TTYName = string(bytes.Trim(p.TTYNameRaw[:], "\x00"))
+func (e *ExecEvent) ResolveTTY(event *Event) string {
+	if e.TTYName == "" {
+		if entry := event.ResolveProcessCacheEntry(); entry != nil {
+			e.TTYName = entry.TTYName
+		}
 	}
-	return p.TTYName
+	return e.TTYName
 }
 
 // ResolveComm resolves the comm of the process
-func (p *ProcessEvent) ResolveComm(resolvers *Resolvers) string {
-	return p.GetComm()
+func (e *ExecEvent) ResolveComm(event *Event) string {
+	if len(e.Comm) == 0 {
+		if entry := event.ResolveProcessCacheEntry(); entry != nil {
+			e.Comm = entry.Comm
+		}
+	}
+	return e.Comm
 }
 
-// GetComm returns the comm of the process
-func (p *ProcessEvent) GetComm() string {
-	if len(p.Comm) == 0 {
-		p.Comm = string(bytes.Trim(p.CommRaw[:], "\x00"))
+// ResolveUID resolves the user id of the process
+func (e *ExecEvent) ResolveUID(event *Event) int {
+	if e.UID == 0 {
+		if entry := event.ResolveProcessCacheEntry(); entry != nil {
+			e.UID = entry.UID
+		}
 	}
-	return p.Comm
+	return int(e.UID)
+}
+
+// ResolveGID resolves the group id of the process
+func (e *ExecEvent) ResolveGID(event *Event) int {
+	if e.GID == 0 {
+		if entry := event.ResolveProcessCacheEntry(); entry != nil {
+			e.GID = entry.GID
+		}
+	}
+	return int(e.GID)
 }
 
 // ResolveUser resolves the user id of the process to a username
-func (p *ProcessEvent) ResolveUser(resolvers *Resolvers) string {
-	u, err := user.LookupId(strconv.Itoa(int(p.UID)))
-	if err == nil {
-		p.User = u.Username
+func (e *ExecEvent) ResolveUser(event *Event) string {
+	if len(e.User) == 0 {
+		e.User, _ = event.resolvers.UserGroupResolver.ResolveUser(int(event.Process.UID))
+	}
+	return e.User
+}
+
+// ResolveGroup resolves the group id of the process to a group name
+func (e *ExecEvent) ResolveGroup(event *Event) string {
+	if len(e.Group) == 0 {
+		e.Group, _ = event.resolvers.UserGroupResolver.ResolveGroup(int(event.Process.GID))
+	}
+	return e.Group
+}
+
+// ResolveForkTimestamp returns the fork timestamp of the process
+func (e *ExecEvent) ResolveForkTimestamp(event *Event) time.Time {
+	if e.ForkTimestamp.IsZero() && event != nil {
+		if entry := event.ResolveProcessCacheEntry(); entry != nil {
+			e.ForkTimestamp = entry.ForkTimestamp
+		}
+	}
+	return e.ForkTimestamp
+}
+
+// ResolveExecTimestamp returns the execve timestamp of the process
+func (e *ExecEvent) ResolveExecTimestamp(event *Event) time.Time {
+	if e.ExecTimestamp.IsZero() && event != nil {
+		if entry := event.ResolveProcessCacheEntry(); entry != nil {
+			e.ExecTimestamp = entry.ExecTimestamp
+		}
+	}
+	return e.ExecTimestamp
+}
+
+// ResolveExitTimestamp returns the exit timestamp of the process
+func (e *ExecEvent) ResolveExitTimestamp(event *Event) time.Time {
+	if e.ExitTimestamp.IsZero() && event != nil {
+		if entry := event.ResolveProcessCacheEntry(); entry != nil {
+			e.ExitTimestamp = entry.ExitTimestamp
+		}
+	}
+	return e.ExitTimestamp
+}
+
+// InvalidateDentryEvent defines a invalidate dentry event
+type InvalidateDentryEvent struct {
+	Inode   uint64
+	MountID uint32
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *InvalidateDentryEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 16 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.Inode = ebpf.ByteOrder.Uint64(data[0:8])
+	e.MountID = ebpf.ByteOrder.Uint32(data[8:12])
+
+	// 4 of padding
+
+	return 16, nil
+}
+
+// ProcessCacheEntry this structure holds the container context that we keep in kernel for each process
+type ProcessCacheEntry struct {
+	ContainerContext
+	ProcessContext
+
+	Parent   *ProcessCacheEntry
+	Children map[uint32]*ProcessCacheEntry
+}
+
+// NewProcessCacheEntry returns an empty instance of ProcessCacheEntry
+func NewProcessCacheEntry() *ProcessCacheEntry {
+	return &ProcessCacheEntry{
+		Children: make(map[uint32]*ProcessCacheEntry),
+	}
+}
+
+// ProcessContext holds the process context of an event
+type ProcessContext struct {
+	ExecEvent
+
+	Pid uint32 `field:"pid"`
+	Tid uint32 `field:"tid"`
+	UID uint32 `field:"uid"`
+	GID uint32 `field:"gid"`
+
+	Parent *ProcessCacheEntry `field:"ancestors" iterator:"ProcessAncestorsIterator"`
+}
+
+// ProcessAncestorsIterator defines an iterator of ancestors
+type ProcessAncestorsIterator struct {
+	prev *ProcessCacheEntry
+}
+
+// Front returns the first element
+func (it *ProcessAncestorsIterator) Front(ctx *eval.Context) unsafe.Pointer {
+	if front := (*Event)(ctx.Object).Process.Parent; front != nil {
+		it.prev = front
+		return unsafe.Pointer(front)
+	}
+	return nil
+}
+
+// Next returns the next element
+func (it *ProcessAncestorsIterator) Next() unsafe.Pointer {
+	if next := it.prev.Parent; next != nil {
+		it.prev = next
+		return unsafe.Pointer(next)
+	}
+	return nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (p *ProcessContext) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 16 {
+		return 0, ErrNotEnoughData
+	}
+
+	p.Pid = ebpf.ByteOrder.Uint32(data[0:4])
+	p.Tid = ebpf.ByteOrder.Uint32(data[4:8])
+	p.UID = ebpf.ByteOrder.Uint32(data[8:12])
+	p.GID = ebpf.ByteOrder.Uint32(data[12:16])
+
+	return 16, nil
+}
+
+// ResolveUser resolves the user id of the process to a username
+func (p *ProcessContext) ResolveUser(event *Event) string {
+	if len(p.User) == 0 {
+		p.User, _ = event.resolvers.UserGroupResolver.ResolveUser(int(p.UID))
 	}
 	return p.User
 }
 
 // ResolveGroup resolves the group id of the process to a group name
-func (p *ProcessEvent) ResolveGroup(resolvers *Resolvers) string {
-	g, err := user.LookupGroupId(strconv.Itoa(int(p.GID)))
-	if err == nil {
-		p.Group = g.Name
+func (p *ProcessContext) ResolveGroup(event *Event) string {
+	if len(p.Group) == 0 {
+		p.Group, _ = event.resolvers.UserGroupResolver.ResolveGroup(int(p.GID))
 	}
 	return p.Group
-}
-
-// UnmarshalBinary unmarshals a binary representation of itself
-func (p *ProcessEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 108 {
-		return 0, ErrNotEnoughData
-	}
-	p.Pidns = byteOrder.Uint64(data[0:8])
-	if err := binary.Read(bytes.NewBuffer(data[8:24]), byteOrder, &p.CommRaw); err != nil {
-		return 8, err
-	}
-	if err := binary.Read(bytes.NewBuffer(data[24:88]), byteOrder, &p.TTYNameRaw); err != nil {
-		return 8 + len(p.CommRaw), err
-	}
-	p.Pid = byteOrder.Uint32(data[88:92])
-	p.Tid = byteOrder.Uint32(data[92:96])
-	p.UID = byteOrder.Uint32(data[96:100])
-	p.GID = byteOrder.Uint32(data[100:104])
-
-	read, err := p.FileEvent.UnmarshalBinary(data[104:])
-	if err != nil {
-		return 104 + read, err
-	}
-	return 104 + read, nil
 }
 
 // Event represents an event sent from the kernel
 // genaccessors
 type Event struct {
-	ID   string `field:"-"`
-	Type uint64 `field:"-"`
+	ID           string    `field:"-"`
+	Type         uint64    `field:"-"`
+	TimestampRaw uint64    `field:"-"`
+	Timestamp    time.Time `field:"timestamp"`
 
-	Process   ProcessEvent   `yaml:"process" field:"process" event:"*"`
-	Container ContainerEvent `yaml:"container" field:"container"`
-	Chmod     ChmodEvent     `yaml:"chmod" field:"chmod" event:"chmod"`
-	Chown     ChownEvent     `yaml:"chown" field:"chown" event:"chown"`
-	Open      OpenEvent      `yaml:"open" field:"open" event:"open"`
-	Mkdir     MkdirEvent     `yaml:"mkdir" field:"mkdir" event:"mkdir"`
-	Rmdir     RmdirEvent     `yaml:"rmdir" field:"rmdir" event:"rmdir"`
-	Rename    RenameEvent    `yaml:"rename" field:"rename" event:"rename"`
-	Unlink    UnlinkEvent    `yaml:"unlink" field:"unlink" event:"unlink"`
-	Utimes    UtimesEvent    `yaml:"utimes" field:"utimes" event:"utimes"`
-	Link      LinkEvent      `yaml:"link" field:"link" event:"link"`
-	Mount     MountEvent     `yaml:"mount" field:"-"`
-	Umount    UmountEvent    `yaml:"umount" field:"-"`
+	Process   ProcessContext   `field:"process" event:"*"`
+	Container ContainerContext `field:"container"`
 
-	resolvers *Resolvers `field:"-"`
+	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`
+	Chown       ChownEvent    `field:"chown" event:"chown"`
+	Open        OpenEvent     `field:"open" event:"open"`
+	Mkdir       MkdirEvent    `field:"mkdir" event:"mkdir"`
+	Rmdir       RmdirEvent    `field:"rmdir" event:"rmdir"`
+	Rename      RenameEvent   `field:"rename" event:"rename"`
+	Unlink      UnlinkEvent   `field:"unlink" event:"unlink"`
+	Utimes      UtimesEvent   `field:"utimes" event:"utimes"`
+	Link        LinkEvent     `field:"link" event:"link"`
+	SetXAttr    SetXAttrEvent `field:"setxattr" event:"setxattr"`
+	RemoveXAttr SetXAttrEvent `field:"removexattr" event:"removexattr"`
+	Exec        ExecEvent     `field:"exec" event:"exec"`
+
+	Mount            MountEvent            `field:"-"`
+	Umount           UmountEvent           `field:"-"`
+	InvalidateDentry InvalidateDentryEvent `field:"-"`
+
+	resolvers         *Resolvers         `field:"-"`
+	processCacheEntry *ProcessCacheEntry `field:"-"`
 }
 
 func (e *Event) String() string {
@@ -778,172 +934,14 @@ func (e *Event) String() string {
 	return string(d)
 }
 
-type eventMarshaler struct {
-	field      string
-	marshalFnc func(resolvers *Resolvers) ([]byte, error)
-}
-
 // MarshalJSON returns the JSON encoding of the event
 func (e *Event) MarshalJSON() ([]byte, error) {
-	eventID, _ := uuid.NewRandom()
-
-	var buf bytes.Buffer
-	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"id":"%s",`, eventID)
-
-	entries := []eventMarshaler{
-		{
-			field:      "process",
-			marshalFnc: e.Process.marshalJSON,
-		},
+	s, err := newEventSerializer(e)
+	if err != nil {
+		return nil, err
 	}
 
-	if len(e.Container.GetContainerID()) > 0 {
-		entries = append(entries, eventMarshaler{
-			field:      "container",
-			marshalFnc: e.Container.marshalJSON,
-		})
-	}
-
-	eventType := EventType(e.Type)
-
-	eventMarshalJSON := func(e *BaseEvent) func(*Resolvers) ([]byte, error) {
-		return func(resolvers *Resolvers) ([]byte, error) {
-			return e.marshalJSON(eventType, resolvers)
-		}
-	}
-
-	switch eventType {
-	case FileChmodEventType:
-		entries = append(entries,
-			eventMarshaler{
-				field:      "syscall",
-				marshalFnc: eventMarshalJSON(&e.Chmod.BaseEvent),
-			},
-			eventMarshaler{
-				field:      "file",
-				marshalFnc: e.Chmod.marshalJSON,
-			})
-	case FileChownEventType:
-		entries = append(entries,
-			eventMarshaler{
-				field:      "syscall",
-				marshalFnc: eventMarshalJSON(&e.Chown.BaseEvent),
-			},
-			eventMarshaler{
-				field:      "file",
-				marshalFnc: e.Chown.marshalJSON,
-			})
-	case FileOpenEventType:
-		entries = append(entries,
-			eventMarshaler{
-				field:      "syscall",
-				marshalFnc: eventMarshalJSON(&e.Open.BaseEvent),
-			},
-			eventMarshaler{
-				field:      "file",
-				marshalFnc: e.Open.marshalJSON,
-			})
-	case FileMkdirEventType:
-		entries = append(entries,
-			eventMarshaler{
-				field:      "syscall",
-				marshalFnc: eventMarshalJSON(&e.Mkdir.BaseEvent),
-			},
-			eventMarshaler{
-				field:      "file",
-				marshalFnc: e.Mkdir.marshalJSON,
-			})
-	case FileRmdirEventType:
-		entries = append(entries,
-			eventMarshaler{
-				field:      "syscall",
-				marshalFnc: eventMarshalJSON(&e.Rmdir.BaseEvent),
-			},
-			eventMarshaler{
-				field:      "file",
-				marshalFnc: e.Rmdir.marshalJSON,
-			})
-	case FileUnlinkEventType:
-		entries = append(entries,
-			eventMarshaler{
-				field:      "syscall",
-				marshalFnc: eventMarshalJSON(&e.Unlink.BaseEvent),
-			},
-			eventMarshaler{
-				field:      "file",
-				marshalFnc: e.Unlink.marshalJSON,
-			})
-	case FileRenameEventType:
-		entries = append(entries,
-			eventMarshaler{
-				field:      "syscall",
-				marshalFnc: eventMarshalJSON(&e.Rename.BaseEvent),
-			},
-			eventMarshaler{
-				field:      "old",
-				marshalFnc: e.Rename.Old.marshalJSON,
-			},
-			eventMarshaler{
-				field:      "new",
-				marshalFnc: e.Rename.New.marshalJSON,
-			})
-	case FileUtimeEventType:
-		entries = append(entries,
-			eventMarshaler{
-				field:      "syscall",
-				marshalFnc: eventMarshalJSON(&e.Utimes.BaseEvent),
-			},
-			eventMarshaler{
-				field:      "file",
-				marshalFnc: e.Utimes.marshalJSON,
-			})
-	case FileLinkEventType:
-		entries = append(entries,
-			eventMarshaler{
-				field:      "syscall",
-				marshalFnc: eventMarshalJSON(&e.Link.BaseEvent),
-			},
-			eventMarshaler{
-				field:      "source",
-				marshalFnc: e.Link.Source.marshalJSON,
-			},
-			eventMarshaler{
-				field:      "target",
-				marshalFnc: e.Link.Target.marshalJSON,
-			})
-	case FileMountEventType:
-		entries = append(entries,
-			eventMarshaler{
-				field:      "mount",
-				marshalFnc: e.Mount.marshalJSON,
-			})
-	case FileUmountEventType:
-		entries = append(entries,
-			eventMarshaler{
-				field:      "umount",
-				marshalFnc: e.Umount.marshalJSON,
-			})
-	}
-
-	var prev bool
-	for _, entry := range entries {
-		d, err := entry.marshalFnc(e.resolvers)
-		if err != nil {
-			return nil, errors.Wrapf(err, "in %s", entry.field)
-		}
-		if d != nil {
-			if prev {
-				buf.WriteRune(',')
-			}
-			buf.WriteString(`"` + entry.field + `":`)
-			buf.Write(d)
-			prev = true
-		}
-	}
-	buf.WriteRune('}')
-
-	return buf.Bytes(), nil
+	return json.Marshal(s)
 }
 
 // GetType returns the event type
@@ -964,13 +962,57 @@ func (e *Event) GetPointer() unsafe.Pointer {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *Event) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 16 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.TimestampRaw = ebpf.ByteOrder.Uint64(data[0:8])
+	e.Type = ebpf.ByteOrder.Uint64(data[8:16])
+
+	return 16, nil
+}
+
+// TimestampFromEventData extracts timestamp from the raw data event
+func TimestampFromEventData(data []byte) (uint64, error) {
 	if len(data) < 8 {
 		return 0, ErrNotEnoughData
 	}
-	e.Type = byteOrder.Uint64(data[0:8])
 
-	n, err := unmarshalBinary(data[8:], &e.Process, &e.Container)
-	return n + 8, err
+	return ebpf.ByteOrder.Uint64(data[0:8]), nil
+}
+
+// ResolveEventTimestamp resolves the monolitic kernel event timestamp to an absolute time
+func (e *Event) ResolveEventTimestamp() time.Time {
+	if e.Timestamp.IsZero() {
+		e.Timestamp = e.resolvers.TimeResolver.ResolveMonotonicTimestamp(e.TimestampRaw)
+		if e.Timestamp.IsZero() {
+			e.Timestamp = time.Now()
+		}
+	}
+	return e.Timestamp
+}
+
+// ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessCacheEntry of the event
+func (e *Event) ResolveProcessCacheEntry() *ProcessCacheEntry {
+	if e.processCacheEntry == nil {
+		e.processCacheEntry = e.resolvers.ProcessResolver.Resolve(e.Process.Pid)
+		if e.processCacheEntry == nil {
+			e.processCacheEntry = &ProcessCacheEntry{}
+		}
+	}
+	e.updateProcessCachePointer(e.processCacheEntry)
+	return e.processCacheEntry
+}
+
+// updateProcessCachePointer updates the internal pointers of the event structure to the ProcessCacheEntry of the event
+func (e *Event) updateProcessCachePointer(event *ProcessCacheEntry) {
+	e.processCacheEntry = event
+	e.Process.Parent = event.Parent
+}
+
+// Clone returns a copy on the event
+func (e *Event) Clone() Event {
+	return *e
 }
 
 // NewEvent returns a new event

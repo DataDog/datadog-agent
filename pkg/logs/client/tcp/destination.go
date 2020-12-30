@@ -9,6 +9,7 @@ import (
 	"expvar"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -27,6 +28,7 @@ type Destination struct {
 	connManager         *ConnectionManager
 	destinationsContext *client.DestinationsContext
 	conn                net.Conn
+	connCreationTime    time.Time
 	inputChan           chan []byte
 	once                sync.Once
 }
@@ -55,6 +57,7 @@ func (d *Destination) Send(payload []byte) error {
 			// this can happen only when the context is cancelled.
 			return err
 		}
+		d.connCreationTime = time.Now()
 	}
 
 	metrics.BytesSent.Add(int64(len(payload)))
@@ -74,6 +77,12 @@ func (d *Destination) Send(payload []byte) error {
 		d.connManager.CloseConnection(d.conn)
 		d.conn = nil
 		return client.NewRetryableError(err)
+	}
+
+	if d.connManager.ShouldReset(d.connCreationTime) {
+		log.Debug("Resetting TCP connection")
+		d.connManager.CloseConnection(d.conn)
+		d.conn = nil
 	}
 
 	return nil

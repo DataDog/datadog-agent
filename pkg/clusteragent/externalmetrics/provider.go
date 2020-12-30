@@ -92,7 +92,7 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (
 
 	// Start informers & controllers (informers can be started multiple times)
 	apiCl.DDInformerFactory.Start(ctx.Done())
-	go controller.Run(ctx.Done())
+	go controller.Run(ctx)
 
 	return provider, nil
 }

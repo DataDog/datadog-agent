@@ -6,6 +6,8 @@
 // Package compliance defines common interfaces and types for Compliance Agent
 package compliance
 
+import "fmt"
+
 // Rule defines a rule in a compliance config
 type Rule struct {
 	ID           string        `yaml:"id"`
@@ -38,4 +40,9 @@ func (l RuleScopeList) Includes(ruleScope RuleScope) bool {
 		}
 	}
 	return false
+}
+
+// CheckName returns a canonical name of a check for a rule ID and description
+func CheckName(ruleID string, description string) string {
+	return fmt.Sprintf("%s: %s", ruleID, description)
 }

@@ -17,10 +17,11 @@ import (
 // See the unit test for an example.
 type Retrier struct {
 	sync.RWMutex
-	cfg      Config
-	status   Status
-	nextTry  time.Time
-	tryCount uint
+	cfg          Config
+	status       Status
+	nextTry      time.Time
+	tryCount     uint
+	lastTryError error
 }
 
 // SetupRetrier must be called before calling other methods
@@ -107,6 +108,7 @@ func (r *Retrier) doTry() *Error {
 	err := method()
 
 	r.Lock()
+	r.lastTryError = err
 	if err == nil {
 		r.status = OK
 	} else {
@@ -153,5 +155,6 @@ func (r *Retrier) wrapError(err error) *Error {
 		RessourceName: r.cfg.Name,
 		RetryStatus:   r.status,
 		LogicError:    err,
+		LastTryError:  r.lastTryError,
 	}
 }

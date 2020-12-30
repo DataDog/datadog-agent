@@ -17,6 +17,8 @@ var (
 	defaultRunPath              = "c:\\programdata\\datadog\\run"
 	defaultSyslogURI            = ""
 	defaultGuiPort              = 5002
+	// defaultSecurityAgentLogFile points to the log file that will be used by the security-agent if not configured
+	defaultSecurityAgentLogFile = "c:\\programdata\\datadog\\logs\\security-agent.log"
 )
 
 // ServiceName is the name that'll be used to register the Agent
@@ -28,6 +30,7 @@ func osinit() {
 		defaultConfdPath = filepath.Join(pd, "conf.d")
 		defaultAdditionalChecksPath = filepath.Join(pd, "checks.d")
 		defaultRunPath = filepath.Join(pd, "run")
+		defaultSecurityAgentLogFile = filepath.Join(pd, "logs", "security-agent.log")
 	} else {
 		winutil.LogEventViewer(ServiceName, 0x8000000F, defaultConfdPath)
 	}

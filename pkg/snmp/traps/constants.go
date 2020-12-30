@@ -5,10 +5,8 @@
 
 package traps
 
-import "time"
-
 const (
 	defaultPort        = uint16(162) // Standard UDP port for traps.
-	defaultStopTimeout = 5 * time.Second
+	defaultStopTimeout = 5
 	packetsChanSize    = 100
 )

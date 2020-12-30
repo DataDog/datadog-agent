@@ -12,12 +12,12 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
 
 func TestProcessService(t *testing.T) {
@@ -63,7 +63,7 @@ func TestProcessService(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []ContainerPort{{123, "test1"}, {126, "test2"}}, ports)
 
-	tags, err := svc.GetTags()
+	tags, _, err := svc.GetTags()
 	assert.NoError(t, err)
 	expectedTags := []string{
 		"kube_service:myservice",

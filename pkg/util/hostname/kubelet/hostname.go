@@ -30,7 +30,7 @@ func HostnameProvider() (string, error) {
 		return "", fmt.Errorf("couldn't fetch the host nodename from the kubelet: %s", err)
 	}
 
-	clusterName := clustername.GetClusterName()
+	clusterName := clustername.GetClusterName(nodeName)
 	if clusterName == "" {
 		log.Debugf("Now using plain kubernetes nodename as an alias: no cluster name was set and none could be autodiscovered")
 		return nodeName, nil

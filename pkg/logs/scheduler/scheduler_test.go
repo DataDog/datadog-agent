@@ -19,7 +19,7 @@ import (
 func TestScheduleConfigCreatesNewSource(t *testing.T) {
 	logSources := config.NewLogSources()
 	services := service.NewServices()
-	scheduler := NewScheduler(logSources, services)
+	CreateScheduler(logSources, services)
 
 	logSourcesStream := logSources.GetAddedForType(config.DockerType)
 
@@ -33,7 +33,7 @@ func TestScheduleConfigCreatesNewSource(t *testing.T) {
 		CreationTime:  0,
 	}
 
-	go scheduler.Schedule([]integration.Config{configSource})
+	go adScheduler.Schedule([]integration.Config{configSource})
 	logSource := <-logSourcesStream
 	assert.Equal(t, config.DockerType, logSource.Name)
 	// We use the docker socket, not sourceType here
@@ -47,7 +47,7 @@ func TestScheduleConfigCreatesNewSource(t *testing.T) {
 func TestScheduleConfigCreatesNewSourceServiceFallback(t *testing.T) {
 	logSources := config.NewLogSources()
 	services := service.NewServices()
-	scheduler := NewScheduler(logSources, services)
+	CreateScheduler(logSources, services)
 
 	logSourcesStream := logSources.GetAddedForType(config.DockerType)
 
@@ -62,7 +62,7 @@ func TestScheduleConfigCreatesNewSourceServiceFallback(t *testing.T) {
 		CreationTime:  0,
 	}
 
-	go scheduler.Schedule([]integration.Config{configSource})
+	go adScheduler.Schedule([]integration.Config{configSource})
 	logSource := <-logSourcesStream
 	assert.Equal(t, config.DockerType, logSource.Name)
 	// We use the docker socket, not sourceType here
@@ -76,7 +76,7 @@ func TestScheduleConfigCreatesNewSourceServiceFallback(t *testing.T) {
 func TestScheduleConfigCreatesNewSourceServiceOverride(t *testing.T) {
 	logSources := config.NewLogSources()
 	services := service.NewServices()
-	scheduler := NewScheduler(logSources, services)
+	CreateScheduler(logSources, services)
 
 	logSourcesStream := logSources.GetAddedForType(config.DockerType)
 
@@ -91,7 +91,7 @@ func TestScheduleConfigCreatesNewSourceServiceOverride(t *testing.T) {
 		CreationTime:  0,
 	}
 
-	go scheduler.Schedule([]integration.Config{configSource})
+	go adScheduler.Schedule([]integration.Config{configSource})
 	logSource := <-logSourcesStream
 	assert.Equal(t, config.DockerType, logSource.Name)
 	// We use the docker socket, not sourceType here
@@ -105,7 +105,7 @@ func TestScheduleConfigCreatesNewSourceServiceOverride(t *testing.T) {
 func TestScheduleConfigCreatesNewService(t *testing.T) {
 	logSources := config.NewLogSources()
 	services := service.NewServices()
-	scheduler := NewScheduler(logSources, services)
+	CreateScheduler(logSources, services)
 
 	servicesStream := services.GetAddedServicesForType(config.DockerType)
 
@@ -117,7 +117,7 @@ func TestScheduleConfigCreatesNewService(t *testing.T) {
 		CreationTime: 0,
 	}
 
-	go scheduler.Schedule([]integration.Config{configService})
+	go adScheduler.Schedule([]integration.Config{configService})
 	svc := <-servicesStream
 	assert.Equal(t, configService.Entity, svc.GetEntityID())
 
@@ -129,7 +129,7 @@ func TestScheduleConfigCreatesNewService(t *testing.T) {
 		ClusterCheck: false,
 		CreationTime: 0,
 	}
-	go scheduler.Schedule([]integration.Config{configService})
+	go adScheduler.Schedule([]integration.Config{configService})
 	select {
 	case <-servicesStream:
 		assert.Fail(t, "Pod should be ignored")
@@ -141,7 +141,7 @@ func TestScheduleConfigCreatesNewService(t *testing.T) {
 func TestUnscheduleConfigRemovesSource(t *testing.T) {
 	logSources := config.NewLogSources()
 	services := service.NewServices()
-	scheduler := NewScheduler(logSources, services)
+	CreateScheduler(logSources, services)
 	logSourcesStream := logSources.GetRemovedForType(config.DockerType)
 
 	configSource := integration.Config{
@@ -155,10 +155,10 @@ func TestUnscheduleConfigRemovesSource(t *testing.T) {
 	}
 
 	// We need to have a source to remove
-	sources, _ := scheduler.toSources(configSource)
+	sources, _ := adScheduler.toSources(configSource)
 	logSources.AddSource(sources[0])
 
-	go scheduler.Unschedule([]integration.Config{configSource})
+	go adScheduler.Unschedule([]integration.Config{configSource})
 	logSource := <-logSourcesStream
 	assert.Equal(t, config.DockerType, logSource.Name)
 	// We use the docker socket, not sourceType here
@@ -172,7 +172,7 @@ func TestUnscheduleConfigRemovesSource(t *testing.T) {
 func TestUnscheduleConfigRemovesService(t *testing.T) {
 	logSources := config.NewLogSources()
 	services := service.NewServices()
-	scheduler := NewScheduler(logSources, services)
+	CreateScheduler(logSources, services)
 	servicesStream := services.GetRemovedServicesForType(config.DockerType)
 
 	configService := integration.Config{
@@ -183,7 +183,7 @@ func TestUnscheduleConfigRemovesService(t *testing.T) {
 		CreationTime: 0,
 	}
 
-	go scheduler.Unschedule([]integration.Config{configService})
+	go adScheduler.Unschedule([]integration.Config{configService})
 	svc := <-servicesStream
 	assert.Equal(t, configService.Entity, svc.GetEntityID())
 
@@ -196,7 +196,7 @@ func TestUnscheduleConfigRemovesService(t *testing.T) {
 		CreationTime: 0,
 	}
 
-	go scheduler.Unschedule([]integration.Config{configService})
+	go adScheduler.Unschedule([]integration.Config{configService})
 	select {
 	case <-servicesStream:
 		assert.Fail(t, "Pod should be ignored")
@@ -208,7 +208,7 @@ func TestUnscheduleConfigRemovesService(t *testing.T) {
 func TestIgnoreConfigIfLogsExcluded(t *testing.T) {
 	logSources := config.NewLogSources()
 	services := service.NewServices()
-	scheduler := NewScheduler(logSources, services)
+	CreateScheduler(logSources, services)
 	servicesStreamIn := services.GetAddedServicesForType(config.DockerType)
 	servicesStreamOut := services.GetRemovedServicesForType(config.DockerType)
 
@@ -221,7 +221,7 @@ func TestIgnoreConfigIfLogsExcluded(t *testing.T) {
 		LogsExcluded: true,
 	}
 
-	go scheduler.Schedule([]integration.Config{configService})
+	go adScheduler.Schedule([]integration.Config{configService})
 	select {
 	case <-servicesStreamIn:
 		assert.Fail(t, "config must be ignored")
@@ -229,7 +229,7 @@ func TestIgnoreConfigIfLogsExcluded(t *testing.T) {
 		break
 	}
 
-	go scheduler.Unschedule([]integration.Config{configService})
+	go adScheduler.Unschedule([]integration.Config{configService})
 	select {
 	case <-servicesStreamOut:
 		assert.Fail(t, "config must be ignored")

@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/beevik/ntp"
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -21,11 +21,14 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const ntpCheckName = "ntp"
-const defaultMinCollectionInterval = 900 // 15 minutes, to follow pool.ntp.org's guidelines on the query rate
+const (
+	ntpCheckName                 = "ntp"
+	defaultMinCollectionInterval = 900 // 15 minutes, to follow pool.ntp.org's guidelines on the query rate
+)
 
 var (
 	ntpExpVar = expvar.NewFloat("ntpOffset")
@@ -73,7 +76,13 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 	defaultPort := 123
 	defaultOffsetThreshold := 60
 
-	defaultHosts := []string{"0.datadog.pool.ntp.org", "1.datadog.pool.ntp.org", "2.datadog.pool.ntp.org", "3.datadog.pool.ntp.org"}
+	defaultHosts := util.GetCloudProviderNTPHosts()
+
+	// Default to our domains on pool.ntp.org if no cloud provider detected
+	if defaultHosts == nil {
+		log.Debug("No cloud provider detected, using default ntp pool.")
+		defaultHosts = []string{"0.datadog.pool.ntp.org", "1.datadog.pool.ntp.org", "2.datadog.pool.ntp.org", "3.datadog.pool.ntp.org"}
+	}
 
 	if err := yaml.Unmarshal(data, &instance); err != nil {
 		return err

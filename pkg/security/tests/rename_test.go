@@ -9,19 +9,20 @@ package tests
 
 import (
 	"os"
+	"runtime"
 	"syscall"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/policy"
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
 func TestRename(t *testing.T) {
-	rule := &policy.RuleDefinition{
+	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `rename.old.filename == "{{.Root}}/test-rename" && rename.new.filename == "{{.Root}}/test2-rename"`,
 	}
 
-	test, err := newTestModule(nil, []*policy.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,53 +47,90 @@ func TestRename(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, _, errno := syscall.Syscall(syscall.SYS_RENAME, uintptr(testOldFilePtr), uintptr(testNewFilePtr), 0)
-	if errno != 0 {
-		t.Fatal(err)
-	}
-
-	event, _, err := test.GetEvent()
-	if err != nil {
-		t.Error(err)
-	} else {
-		if event.GetType() != "rename" {
-			t.Errorf("expected rename event, got %s", event.GetType())
+	t.Run("rename", func(t *testing.T) {
+		_, _, errno := syscall.Syscall(syscall.SYS_RENAME, uintptr(testOldFilePtr), uintptr(testNewFilePtr), 0)
+		if errno != 0 {
+			t.Fatal(err)
 		}
-	}
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if event.GetType() != "rename" {
+				t.Errorf("expected rename event, got %s", event.GetType())
+			}
+
+			if inode := getInode(t, testNewFile); inode != event.Rename.New.Inode {
+				t.Errorf("expected inode %d, got %d", event.Rename.New.Inode, inode)
+			}
+
+			testContainerPath(t, event, "rename.old.container_path")
+			testContainerPath(t, event, "rename.new.container_path")
+		}
+	})
 
 	if err := os.Rename(testNewFile, testOldFile); err != nil {
 		t.Fatal(err)
 	}
 
-	_, _, errno = syscall.Syscall6(syscall.SYS_RENAMEAT, 0, uintptr(testOldFilePtr), 0, uintptr(testNewFilePtr), 0, 0)
-	if errno != 0 {
-		t.Fatal(err)
-	}
-
-	event, _, err = test.GetEvent()
-	if err != nil {
-		t.Error(err)
-	} else {
-		if event.GetType() != "rename" {
-			t.Errorf("expected rename event, got %s", event.GetType())
+	t.Run("renameat", func(t *testing.T) {
+		_, _, errno := syscall.Syscall6(syscall.SYS_RENAMEAT, 0, uintptr(testOldFilePtr), 0, uintptr(testNewFilePtr), 0, 0)
+		if errno != 0 {
+			t.Fatal(err)
 		}
-	}
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if event.GetType() != "rename" {
+				t.Errorf("expected rename event, got %s", event.GetType())
+			}
+
+			if inode := getInode(t, testNewFile); inode != event.Rename.New.Inode {
+				t.Errorf("expected inode %d, got %d", event.Rename.New.Inode, inode)
+			}
+
+			testContainerPath(t, event, "rename.old.container_path")
+			testContainerPath(t, event, "rename.new.container_path")
+		}
+	})
 
 	if err := os.Rename(testNewFile, testOldFile); err != nil {
 		t.Fatal(err)
 	}
 
-	_, _, errno = syscall.Syscall6(316 /* syscall.SYS_RENAMEAT2 */, 0, uintptr(testOldFilePtr), 0, uintptr(testNewFilePtr), 0, 0)
-	if errno != 0 {
-		t.Fatal(err)
-	}
-
-	event, _, err = test.GetEvent()
-	if err != nil {
-		t.Error(err)
-	} else {
-		if event.GetType() != "rename" {
-			t.Errorf("expected rename event, got %s", event.GetType())
+	t.Run("renameat2", func(t *testing.T) {
+		var renameat2syscall uintptr
+		if runtime.GOARCH == "386" {
+			renameat2syscall = 353
+		} else {
+			renameat2syscall = 316
 		}
-	}
+		_, _, errno := syscall.Syscall6(renameat2syscall, 0, uintptr(testOldFilePtr), 0, uintptr(testNewFilePtr), 0, 0)
+		if errno != 0 {
+			if errno == syscall.ENOSYS {
+				t.Skip()
+				return
+			}
+			t.Fatal(err)
+		}
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if event.GetType() != "rename" {
+				t.Errorf("expected rename event, got %s", event.GetType())
+			}
+
+			if inode := getInode(t, testNewFile); inode != event.Rename.New.Inode {
+				t.Errorf("expected inode %d, got %d", event.Rename.New.Inode, inode)
+			}
+
+			testContainerPath(t, event, "rename.old.container_path")
+			testContainerPath(t, event, "rename.new.container_path")
+		}
+	})
 }

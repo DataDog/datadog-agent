@@ -118,20 +118,6 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 	return messages, nil
 }
 
-// filterCtrIDsByPIDs uses lastCtrIDForPID and filter down only the pid -> cid that we need
-func (c *ContainerCheck) filterCtrIDsByPIDs(pids []int32) map[int32]string {
-	c.Lock()
-	defer c.Unlock()
-
-	ctrByPid := make(map[int32]string)
-	for _, pid := range pids {
-		if cid, ok := c.lastCtrIDForPID[pid]; ok {
-			ctrByPid[pid] = cid
-		}
-	}
-	return ctrByPid
-}
-
 // fmtContainers loops through container list and converts them to a list of container objects
 func fmtContainers(ctrList []*containers.Container, lastRates map[string]util.ContainerRateMetrics, lastRun time.Time) []*model.Container {
 	containersList := make([]*model.Container, 0, len(ctrList))

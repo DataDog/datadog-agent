@@ -108,6 +108,46 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 			},
 		},
 		{
+			"perform unique from list of input externalMetrics",
+			map[string]custommetrics.ExternalMetricValue{
+				"id1": {
+					MetricName: metricName,
+					Labels:     map[string]string{"foo": "bar"},
+					Valid:      false,
+				},
+				"id2": {
+					MetricName: metricName,
+					Labels:     map[string]string{"foo": "bar"},
+					Valid:      false,
+				},
+			},
+			[]datadog.Series{
+				{
+					Metric: &metricName,
+					Points: []datadog.DataPoint{
+						makePoints(1531492452000, 12),
+						makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
+						makePoints(0, 27),
+					},
+					Scope: makePtr("foo:bar"),
+				},
+			},
+			map[string]custommetrics.ExternalMetricValue{
+				"id1": {
+					MetricName: "requests_per_s",
+					Labels:     map[string]string{"foo": "bar"},
+					Value:      14,
+					Valid:      true,
+				},
+				"id2": {
+					MetricName: "requests_per_s",
+					Labels:     map[string]string{"foo": "bar"},
+					Value:      14,
+					Valid:      true,
+				},
+			},
+		},
+		{
 			"do not update valid sparse metric",
 			map[string]custommetrics.ExternalMetricValue{
 				"id2": {

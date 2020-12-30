@@ -19,6 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+
+	"k8s.io/kubernetes/third_party/forked/golang/expansion"
 )
 
 const (
@@ -69,25 +71,16 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 			case kubernetes.KubeAppManagedByLabelKey:
 				tags.AddLow(tagKeyKubeAppManagedBy, value)
 			}
-			for pattern, tmpl := range c.labelsAsTags {
-				n := strings.ToLower(name)
-				if g, ok := c.globMap[pattern]; ok {
-					if !g.Match(n) {
-						continue
-					}
-				} else if pattern != n {
-					continue
-				}
-				tags.AddAuto(resolveTag(tmpl, name), value)
-			}
+
+			// Pod labels as tags
+			utils.AddMetadataAsTags(name, value, c.labelsAsTags, c.globLabels, tags)
 		}
 
-		// Pod annotations
+		// Pod annotations as tags
 		for name, value := range pod.Metadata.Annotations {
-			if tagName, found := c.annotationsAsTags[strings.ToLower(name)]; found {
-				tags.AddAuto(tagName, value)
-			}
+			utils.AddMetadataAsTags(name, value, c.annotationsAsTags, c.globAnnotations, tags)
 		}
+
 		if podTags, found := extractTagsFromMap(podTagsAnnotation, pod.Metadata.Annotations); found {
 			for tagName, values := range podTags {
 				for _, val := range values {
@@ -109,6 +102,9 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 
 		// Creator
 		for _, owner := range pod.Owners() {
+			tags.AddLow("kube_ownerref_kind", strings.ToLower(owner.Kind))
+			tags.AddOrchestrator("kube_ownerref_name", owner.Name)
+
 			switch owner.Kind {
 			case "":
 				continue
@@ -163,6 +159,13 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 
 		// container tags
 		for _, container := range pod.Status.GetAllContainers() {
+			if container.ID == "" {
+				log.Debugf("Cannot collect container tags for container '%s' in pod '%s': Empty container ID", container.Name, pod.Metadata.Name)
+				// This can happen due to kubelet latency
+				// Ignore the container as early as possible to avoid unnecessary processing and warn logging
+				// The container will be detected once again when container.ID is set
+				continue
+			}
 			cTags := tags.Copy()
 			cTags.AddLow("kube_container_name", container.Name)
 			cTags.AddHigh("container_id", kubelet.TrimRuntimeFromCID(container.ID))
@@ -198,16 +201,29 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 			}
 
 			// check env vars and image tag in spec
+			// TODO: Implement support of environment variables set from ConfigMap, Secret, DownwardAPI.
+			// See https://github.com/kubernetes/kubernetes/blob/d20fd4088476ec39c5ae2151b8fffaf0f4834418/pkg/kubelet/kubelet_pods.go#L566
+			// for the complete environment variable resolution process that is done by the kubelet.
 			for _, containerSpec := range pod.Spec.Containers {
 				if containerSpec.Name == container.Name {
+					tmpEnv := make(map[string]string)
+					mappingFunc := expansion.MappingFuncFor(tmpEnv)
+
 					for _, env := range containerSpec.Env {
-						switch env.Name {
-						case envVarEnv:
-							cTags.AddStandard(tagKeyEnv, env.Value)
-						case envVarVersion:
-							cTags.AddStandard(tagKeyVersion, env.Value)
-						case envVarService:
-							cTags.AddStandard(tagKeyService, env.Value)
+						if env.Value != "" {
+							runtimeVal := expansion.Expand(env.Value, mappingFunc)
+							tmpEnv[env.Name] = runtimeVal
+
+							switch env.Name {
+							case envVarEnv:
+								cTags.AddStandard(tagKeyEnv, runtimeVal)
+							case envVarVersion:
+								cTags.AddStandard(tagKeyVersion, runtimeVal)
+							case envVarService:
+								cTags.AddStandard(tagKeyService, runtimeVal)
+							}
+						} else if env.Name == envVarEnv || env.Name == envVarVersion || env.Name == envVarService {
+							log.Warnf("Reading %s from a ConfigMap, Secret or anything but a literal value is not implemented yet.", env.Name)
 						}
 					}
 					imageName, shortImage, imageTag, err := containers.SplitImageName(containerSpec.Image)
