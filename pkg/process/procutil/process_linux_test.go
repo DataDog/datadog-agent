@@ -20,7 +20,7 @@ import (
 
 var (
 	// change this to false to run all tests against local procfs
-	skipLocalTest = false
+	skipLocalTest = true
 )
 
 func TestGetActivePIDs(t *testing.T) {
