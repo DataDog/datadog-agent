@@ -9,7 +9,6 @@ package cluster
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -335,7 +334,14 @@ func (k *KSMCheck) buildTag(key, value string) (tag, hostname string) {
 	if newKey, found := k.instance.LabelsMapper[key]; found {
 		key = newKey
 	}
-	tag = fmt.Sprintf("%s:%s", key, value)
+
+	var sb strings.Builder
+	sb.Grow(len(key) + 1 + len(value))
+	sb.WriteString(key)
+	sb.WriteRune(':')
+	sb.WriteString(value)
+	tag = sb.String()
+
 	if key == "host" || key == "node" {
 		hostname = value
 	}
