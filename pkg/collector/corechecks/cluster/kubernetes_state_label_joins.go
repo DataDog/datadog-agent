@@ -13,8 +13,12 @@ import (
 )
 
 type labelJoiner struct {
-	config map[string]*JoinsConfig
-	forest map[string]*node
+	metricsToJoin map[string]metricToJoin
+}
+
+type metricToJoin struct {
+	config *JoinsConfig
+	tree   *node
 }
 
 type label struct {
@@ -28,9 +32,24 @@ type node struct {
 }
 
 func newLabelJoiner(config map[string]*JoinsConfig) *labelJoiner {
+	metricsToJoin := make(map[string]metricToJoin)
+
+	for key, joinsConfig := range config {
+		if len(joinsConfig.LabelsToMatch) > 0 {
+			metricsToJoin[key] = metricToJoin{
+				config: joinsConfig,
+				tree:   newInnerNode(),
+			}
+		} else {
+			metricsToJoin[key] = metricToJoin{
+				config: joinsConfig,
+				tree:   newLeafNode(),
+			}
+		}
+	}
+
 	return &labelJoiner{
-		config: config,
-		forest: make(map[string]*node),
+		metricsToJoin: metricsToJoin,
 	}
 }
 
@@ -71,6 +90,10 @@ func (lj *labelJoiner) insertMetric(metric ksmstore.DDMetric, config *JoinsConfi
 	}
 
 	if config.GetAllLabels {
+		if current.labelsToAdd == nil {
+			current.labelsToAdd = make([]label, 0, len(metric.Labels)-len(config.LabelsToMatch))
+		}
+
 		for labelName, labelValue := range metric.Labels {
 			isALabelToMatch := false
 			for _, labelToMatch := range config.LabelsToMatch {
@@ -84,6 +107,10 @@ func (lj *labelJoiner) insertMetric(metric ksmstore.DDMetric, config *JoinsConfi
 			}
 		}
 	} else {
+		if current.labelsToAdd == nil {
+			current.labelsToAdd = make([]label, 0, len(config.LabelsToGet))
+		}
+
 		for _, labelToGet := range config.LabelsToGet {
 			labelValue, found := metric.Labels[labelToGet]
 			if found {
@@ -94,20 +121,14 @@ func (lj *labelJoiner) insertMetric(metric ksmstore.DDMetric, config *JoinsConfi
 }
 
 func (lj *labelJoiner) insertFamily(metricFamily ksmstore.DDMetricsFam) {
-	config, found := lj.config[metricFamily.Name]
+	metricToJoin, found := lj.metricsToJoin[metricFamily.Name]
 	if !found {
 		log.Error("BUG in label joins")
 		return
 	}
 
-	tree, found := lj.forest[metricFamily.Name]
-	if !found {
-		tree = newInnerNode()
-		lj.forest[metricFamily.Name] = tree
-	}
-
 	for _, metric := range metricFamily.ListMetrics {
-		lj.insertMetric(metric, config, tree)
+		lj.insertMetric(metric, metricToJoin.config, metricToJoin.tree)
 	}
 }
 
@@ -137,14 +158,8 @@ func (lj *labelJoiner) getLabelsToAddOne(inputLabels map[string]string, config *
 }
 
 func (lj *labelJoiner) getLabelsToAdd(inputLabels map[string]string) (labelsToAdd []label) {
-	for metricName, tree := range lj.forest {
-		config, found := lj.config[metricName]
-		if !found {
-			log.Error("BUG in label joins")
-			return
-		}
-
-		lj.getLabelsToAddOne(inputLabels, config, tree, &labelsToAdd)
+	for _, metricToJoin := range lj.metricsToJoin {
+		lj.getLabelsToAddOne(inputLabels, metricToJoin.config, metricToJoin.tree, &labelsToAdd)
 	}
 
 	return
