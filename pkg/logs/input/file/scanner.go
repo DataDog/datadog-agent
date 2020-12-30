@@ -222,10 +222,6 @@ func (s *Scanner) startNewTailer(file *File, m config.TailingMode) bool {
 		log.Warnf("Could not recover offset for file with path %v: %v", file.Path, err)
 	}
 
-	if sourceID := file.getSourceIdentifier(); sourceID != "" {
-		s.registry.SetConfigID(tailer.Identifier(), sourceID)
-	}
-
 	log.Infof("Starting a new tailer for: %s (offset: %d, whence: %d) for tailer key %s", file.Path, offset, whence, file.GetScanKey())
 
 	err = tailer.Start(offset, whence)
