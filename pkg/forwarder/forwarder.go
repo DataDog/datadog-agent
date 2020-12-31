@@ -324,22 +324,18 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 				}
 			}
 
-			optionalTransactionContainer, err := tryNewTransactionContainer(
+			transactionContainer := buildTransactionContainer(
 				options.RetryQueuePayloadsTotalMaxSize,
 				flushToDiskMemRatio,
 				domainFolderPath,
 				storageMaxSize,
 				transactionContainerSort)
-			if err != nil {
-				log.Errorf("Retry queue storage on disk disabled: %v", err)
-			}
 
 			f.keysPerDomains[domain] = keys
 			f.domainForwarders[domain] = newDomainForwarder(
 				domain,
-				optionalTransactionContainer,
+				transactionContainer,
 				options.NumberOfWorkers,
-				options.RetryQueueSize,
 				options.ConnectionResetInterval,
 				domainForwarderSort)
 		}

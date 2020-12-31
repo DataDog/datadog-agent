@@ -44,7 +44,6 @@ func newDomainForwarder(
 	domain string,
 	transactionContainer *transactionContainer,
 	numberOfWorkers int,
-	retryQueueLimit int,
 	connectionResetInterval time.Duration,
 	transactionPrioritySorter transactionPrioritySorter) *domainForwarder {
 	return &domainForwarder{
