@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    `forwarder_retry_queue_max_size` is deprecated in favor of 
+    `forwarder_retry_queue_payloads_max_size`. If 
+    `forwarder_retry_queue_max_size` is set but 
+    `forwarder_retry_queue_payloads_max_size` is not set, the Agent displays a
+    warning telling that `forwarder_retry_queue_max_size * 2MB` is used as the  
+    value of `forwarder_retry_queue_payloads_max_size`.
