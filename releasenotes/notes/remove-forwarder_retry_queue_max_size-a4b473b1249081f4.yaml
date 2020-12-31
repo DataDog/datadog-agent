@@ -10,7 +10,8 @@ upgrade:
   - |
     `forwarder_retry_queue_max_size` is deprecated in favor of 
     `forwarder_retry_queue_payloads_max_size`. If 
-    `forwarder_retry_queue_max_size` is set but 
+    `forwarder_retry_queue_max_size` is not set, you are not affected by this 
+    change. If `forwarder_retry_queue_max_size` is set but 
     `forwarder_retry_queue_payloads_max_size` is not set, the Agent displays a
     warning telling that `forwarder_retry_queue_max_size * 2MB` is used as the  
     value of `forwarder_retry_queue_payloads_max_size`.
