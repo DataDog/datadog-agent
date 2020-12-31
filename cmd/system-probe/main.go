@@ -56,6 +56,7 @@ const loggerName = ddconfig.LoggerName("SYS-PROBE")
 func runAgent(exit <-chan struct{}) {
 	// --version
 	if opts.version {
+		fmt.Println("no op")
 		fmt.Println(versionString("\n"))
 		cleanupAndExit(0)
 	}
