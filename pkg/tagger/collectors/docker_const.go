@@ -3,18 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build docker kubelet
+// +build docker
 
 package collectors
 
 const (
-	// Standard tag - Tag keys
-	tagKeyEnv     = "env"
-	tagKeyVersion = "version"
-	tagKeyService = "service"
-
-	// Standard tag - Environment variables
-	envVarEnv     = "DD_ENV"
-	envVarVersion = "DD_VERSION"
-	envVarService = "DD_SERVICE"
+	// Docker label keys
+	dockerLabelEnv     = "com.datadoghq.tags.env"
+	dockerLabelVersion = "com.datadoghq.tags.version"
+	dockerLabelService = "com.datadoghq.tags.service"
 )
