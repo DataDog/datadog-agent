@@ -329,7 +329,8 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 				flushToDiskMemRatio,
 				domainFolderPath,
 				storageMaxSize,
-				transactionContainerSort)
+				transactionContainerSort,
+				keys)
 			if err != nil {
 				log.Errorf("Retry queue storage on disk disabled: %v", err)
 			}

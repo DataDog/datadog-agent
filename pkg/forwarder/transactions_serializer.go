@@ -6,28 +6,41 @@
 package forwarder
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
+	"sort"
+	"strings"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 
 	proto "github.com/golang/protobuf/proto"
 )
 
 const transactionsSerializerVersion = 1
+const placeHolderPrefix = "@@@API_KEY@"
+const placeHolderFormat = placeHolderPrefix + "%v@"
 
 // TransactionsSerializer serializes Transaction instances.
 // To support a new Transaction implementation, add a new
 // method `func (s *TransactionsSerializer) Add(transaction NEW_TYPE) error {`
 type TransactionsSerializer struct {
-	collection HttpTransactionProtoCollection
+	collection          HttpTransactionProtoCollection
+	apiKeyToPlaceholder *strings.Replacer
+	placeholderToAPIKey *strings.Replacer
 }
 
 // NewTransactionsSerializer creates a new instance of TransactionsSerializer
-func NewTransactionsSerializer() *TransactionsSerializer {
+func NewTransactionsSerializer(apiKeys []string) *TransactionsSerializer {
+	apiKeyToPlaceholder, placeholderToAPIKey := createReplacers(apiKeys)
+
 	return &TransactionsSerializer{
 		collection: HttpTransactionProtoCollection{
 			Version: transactionsSerializerVersion,
 		},
+		apiKeyToPlaceholder: apiKeyToPlaceholder,
+		placeholderToAPIKey: placeholderToAPIKey,
 	}
 }
 
@@ -48,8 +61,8 @@ func (s *TransactionsSerializer) Add(transaction *HTTPTransaction) error {
 	endpoint := transaction.Endpoint
 	transactionProto := HttpTransactionProto{
 		Domain:     transaction.Domain,
-		Endpoint:   &EndpointProto{Route: endpoint.route, Name: endpoint.name},
-		Headers:    toHeaderProto(transaction.Headers),
+		Endpoint:   &EndpointProto{Route: s.replaceAPIKeys(endpoint.route), Name: endpoint.name},
+		Headers:    s.toHeaderProto(transaction.Headers),
 		Payload:    payload,
 		ErrorCount: int64(transaction.ErrorCount),
 		CreatedAt:  transaction.createdAt.Unix(),
@@ -83,10 +96,19 @@ func (s *TransactionsSerializer) Deserialize(bytes []byte) ([]Transaction, error
 			return nil, err
 		}
 		e := transaction.Endpoint
+		route, err := s.restoreAPIKeys(e.Route)
+		if err != nil {
+			return nil, err
+		}
+		proto, err := s.fromHeaderProto(transaction.Headers)
+		if err != nil {
+			return nil, err
+		}
+
 		tr := HTTPTransaction{
 			Domain:     transaction.Domain,
-			Endpoint:   endpoint{route: e.Route, name: e.Name},
-			Headers:    fromHeaderProto(transaction.Headers),
+			Endpoint:   endpoint{route: route, name: e.Name},
+			Headers:    proto,
 			Payload:    &transaction.Payload,
 			ErrorCount: int(transaction.ErrorCount),
 			createdAt:  time.Unix(transaction.CreatedAt, 0),
@@ -99,12 +121,33 @@ func (s *TransactionsSerializer) Deserialize(bytes []byte) ([]Transaction, error
 	return httpTransactions, nil
 }
 
-func fromHeaderProto(headersProto map[string]*HeaderValuesProto) http.Header {
+func (s *TransactionsSerializer) replaceAPIKeys(str string) string {
+	return s.apiKeyToPlaceholder.Replace(str)
+}
+
+func (s *TransactionsSerializer) restoreAPIKeys(str string) (string, error) {
+	newStr := s.placeholderToAPIKey.Replace(str)
+
+	if strings.Contains(newStr, placeHolderPrefix) {
+		return "", errors.New("cannot restore the transaction as an API Key is missing")
+	}
+	return newStr, nil
+}
+
+func (s *TransactionsSerializer) fromHeaderProto(headersProto map[string]*HeaderValuesProto) (http.Header, error) {
 	headers := make(http.Header)
 	for key, headerValuesProto := range headersProto {
-		headers[key] = headerValuesProto.Values
+		var headerValues []string
+		for _, v := range headerValuesProto.Values {
+			value, err := s.restoreAPIKeys(v)
+			if err != nil {
+				return nil, err
+			}
+			headerValues = append(headerValues, value)
+		}
+		headers[key] = headerValues
 	}
-	return headers
+	return headers, nil
 }
 
 func fromTransactionPriorityProto(priority TransactionPriorityProto) (TransactionPriority, error) {
@@ -118,10 +161,10 @@ func fromTransactionPriorityProto(priority TransactionPriorityProto) (Transactio
 	}
 }
 
-func toHeaderProto(headers http.Header) map[string]*HeaderValuesProto {
+func (s *TransactionsSerializer) toHeaderProto(headers http.Header) map[string]*HeaderValuesProto {
 	headersProto := make(map[string]*HeaderValuesProto)
 	for key, headerValues := range headers {
-		headerValuesProto := HeaderValuesProto{Values: headerValues}
+		headerValuesProto := HeaderValuesProto{Values: common.StringSliceMap(headerValues, s.replaceAPIKeys)}
 		headersProto[key] = &headerValuesProto
 	}
 	return headersProto
@@ -136,4 +179,21 @@ func toTransactionPriorityProto(priority TransactionPriority) (TransactionPriori
 	default:
 		return TransactionPriorityProto_NORMAL, fmt.Errorf("Unsupported priority %v", priority)
 	}
+}
+
+func createReplacers(apiKeys []string) (*strings.Replacer, *strings.Replacer) {
+	// Copy to not modify apiKeys order
+	keys := make([]string, len(apiKeys))
+	copy(keys, apiKeys)
+
+	// Sort to always have the same order
+	sort.Strings(keys)
+	var apiKeyPlaceholder []string
+	var placeholderToAPIKey []string
+	for i, k := range keys {
+		placeholder := fmt.Sprintf(placeHolderFormat, i)
+		apiKeyPlaceholder = append(apiKeyPlaceholder, k, placeholder)
+		placeholderToAPIKey = append(placeholderToAPIKey, placeholder, k)
+	}
+	return strings.NewReplacer(apiKeyPlaceholder...), strings.NewReplacer(placeholderToAPIKey...)
 }

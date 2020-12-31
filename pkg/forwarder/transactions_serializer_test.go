@@ -7,12 +7,16 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+const apiKey1 = "apiKey1"
+const apiKey2 = "apiKey2"
 
 func TestSerializeDeserialize(t *testing.T) {
 	a := assert.New(t)
 	tr := createHTTPTransactionTests()
-	serializer := NewTransactionsSerializer()
+	serializer := NewTransactionsSerializer([]string{apiKey1, apiKey2})
 
 	a.NoError(serializer.Add(tr))
 	bytes, err := serializer.GetBytesAndReset()
@@ -35,7 +39,7 @@ func TestSerializeDeserialize(t *testing.T) {
 func TestPartialDeserialize(t *testing.T) {
 	a := assert.New(t)
 	transaction := createHTTPTransactionTests()
-	serializer := NewTransactionsSerializer()
+	serializer := NewTransactionsSerializer(nil)
 
 	a.NoError(serializer.Add(transaction))
 	a.NoError(serializer.Add(transaction))
@@ -54,6 +58,24 @@ func TestPartialDeserialize(t *testing.T) {
 	}
 }
 
+func TestTransactionSerializerMissingAPIKey(t *testing.T) {
+	r := require.New(t)
+
+	serializer := NewTransactionsSerializer([]string{apiKey1, apiKey2})
+
+	r.NoError(serializer.Add(createHTTPTransactionWithHeaderTests(http.Header{"Key": []string{apiKey1}})))
+	r.NoError(serializer.Add(createHTTPTransactionWithHeaderTests(http.Header{"Key": []string{apiKey2}})))
+	bytes, err := serializer.GetBytesAndReset()
+	r.NoError(err)
+
+	_, err = serializer.Deserialize(bytes)
+	r.NoError(err)
+
+	serializerMissingAPIKey := NewTransactionsSerializer([]string{apiKey1})
+	_, err = serializerMissingAPIKey.Deserialize(bytes)
+	r.Error(err)
+}
+
 func TestHTTPTransactionFieldsCount(t *testing.T) {
 	transaction := HTTPTransaction{}
 	transactionType := reflect.TypeOf(transaction)
@@ -64,11 +86,15 @@ func TestHTTPTransactionFieldsCount(t *testing.T) {
 }
 
 func createHTTPTransactionTests() *HTTPTransaction {
+	return createHTTPTransactionWithHeaderTests(http.Header{"Key": []string{"value1", apiKey1, apiKey2}})
+}
+
+func createHTTPTransactionWithHeaderTests(header http.Header) *HTTPTransaction {
 	payload := []byte{1, 2, 3}
 	tr := NewHTTPTransaction()
 	tr.Domain = "domain"
-	tr.Endpoint = endpoint{route: "route", name: "name"}
-	tr.Headers = http.Header{"Key": []string{"value1", "value2"}}
+	tr.Endpoint = endpoint{route: "route" + apiKey1, name: "name"}
+	tr.Headers = header
 	tr.Payload = &payload
 	tr.ErrorCount = 1
 	tr.createdAt = time.Now()

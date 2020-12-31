@@ -109,7 +109,7 @@ func getDomainsFromTransactions(transactions []Transaction) []string {
 
 func newTestTransactionsFileStorage(a *assert.Assertions, path string, maxSizeInBytes int64) *transactionsFileStorage {
 	telemetry := transactionsFileStorageTelemetry{}
-	storage, err := newTransactionsFileStorage(NewTransactionsSerializer(), path, maxSizeInBytes, telemetry)
+	storage, err := newTransactionsFileStorage(NewTransactionsSerializer(nil), path, maxSizeInBytes, telemetry)
 	a.NoError(err)
 	return storage
 }
