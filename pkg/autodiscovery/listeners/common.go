@@ -6,7 +6,6 @@
 package listeners
 
 import (
-	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"strconv"
@@ -19,9 +18,8 @@ import (
 
 const (
 	// Label keys of Docker Autodiscovery
-	newIdentifierLabel         = "com.datadoghq.ad.check.id"
-	legacyIdentifierLabel      = "com.datadoghq.sd.check.id"
-	dockerADTemplateCheckNames = "com.datadoghq.ad.check_names"
+	newIdentifierLabel    = "com.datadoghq.ad.check.id"
+	legacyIdentifierLabel = "com.datadoghq.sd.check.id"
 	// Keys of standard tags
 	tagKeyEnv     = "env"
 	tagKeyVersion = "version"
@@ -62,20 +60,6 @@ func ComputeContainerServiceIDs(entity string, image string, labels map[string]s
 		ids = append(ids, short)
 	}
 	return ids
-}
-
-// getCheckNamesFromLabels unmarshals the json string of check names
-// defined in docker labels and returns a slice of check names
-func getCheckNamesFromLabels(labels map[string]string) ([]string, error) {
-	if checkLabels, found := labels[dockerADTemplateCheckNames]; found {
-		checkNames := []string{}
-		err := json.Unmarshal([]byte(checkLabels), &checkNames)
-		if err != nil {
-			return nil, fmt.Errorf("Cannot parse check names: %v", err)
-		}
-		return checkNames, nil
-	}
-	return nil, nil
 }
 
 // getStandardTags extract standard tags from labels of kubernetes services

@@ -27,6 +27,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	// Label keys of Docker Autodiscovery
+	dockerADTemplateCheckNames = "com.datadoghq.ad.check_names"
+)
+
 // DockerListener implements the ServiceListener interface.
 // It listens for Docker events and reports container updates to Auto Discovery
 // It also holds a cache of services that the AutoConfig can query to
@@ -612,6 +617,20 @@ func findKubernetesInLabels(labels map[string]string) bool {
 		}
 	}
 	return false
+}
+
+// getCheckNamesFromLabels unmarshals the json string of check names
+// defined in docker labels and returns a slice of check names
+func getCheckNamesFromLabels(labels map[string]string) ([]string, error) {
+	if checkLabels, found := labels[dockerADTemplateCheckNames]; found {
+		checkNames := []string{}
+		err := json.Unmarshal([]byte(checkLabels), &checkNames)
+		if err != nil {
+			return nil, fmt.Errorf("Cannot parse check names: %v", err)
+		}
+		return checkNames, nil
+	}
+	return nil, nil
 }
 
 // IsReady returns if the service is ready
