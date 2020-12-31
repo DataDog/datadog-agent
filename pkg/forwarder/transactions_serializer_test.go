@@ -80,7 +80,7 @@ func TestTransactionSerializerMissingAPIKey(t *testing.T) {
 func TestHTTPTransactionFieldsCount(t *testing.T) {
 	transaction := HTTPTransaction{}
 	transactionType := reflect.TypeOf(transaction)
-	assert.Equalf(t, 10, transactionType.NumField(),
+	assert.Equalf(t, 11, transactionType.NumField(),
 		"A field was added or remove from HTTPTransaction. "+
 			"You probably need to update the implementation of "+
 			"TransactionsSerializer and then adjust this unit test.")

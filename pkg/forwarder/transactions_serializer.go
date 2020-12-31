@@ -113,14 +113,15 @@ func (s *TransactionsSerializer) Deserialize(bytes []byte) ([]Transaction, error
 		}
 
 		tr := HTTPTransaction{
-			Domain:     s.domain,
-			Endpoint:   endpoint{route: route, name: e.Name},
-			Headers:    proto,
-			Payload:    &transaction.Payload,
-			ErrorCount: int(transaction.ErrorCount),
-			createdAt:  time.Unix(transaction.CreatedAt, 0),
-			retryable:  transaction.Retryable,
-			priority:   priority,
+			Domain:         s.domain,
+			Endpoint:       endpoint{route: route, name: e.Name},
+			Headers:        proto,
+			Payload:        &transaction.Payload,
+			ErrorCount:     int(transaction.ErrorCount),
+			createdAt:      time.Unix(transaction.CreatedAt, 0),
+			retryable:      transaction.Retryable,
+			storableOnDisk: true,
+			priority:       priority,
 		}
 		tr.setDefaultHandlers()
 		httpTransactions = append(httpTransactions, &tr)
