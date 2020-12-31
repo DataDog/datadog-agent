@@ -20,6 +20,32 @@ import (
 	v3 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3"
 )
 
+func requireMatchInfo(t *testing.T, expected []*TagInfo, item *TagInfo) bool {
+	t.Helper()
+	for _, template := range expected {
+		if template.Entity != item.Entity {
+			continue
+		}
+		if template.Source != item.Source {
+			continue
+		}
+		sort.Strings(template.LowCardTags)
+		sort.Strings(item.LowCardTags)
+		require.Equal(t, template.LowCardTags, item.LowCardTags)
+
+		sort.Strings(template.HighCardTags)
+		sort.Strings(item.HighCardTags)
+		require.Equal(t, template.HighCardTags, item.HighCardTags)
+
+		require.Equal(t, template.DeleteEntity, item.DeleteEntity)
+
+		return true
+	}
+
+	t.Logf("could not find expected result for entity %s with sourcce %s", item.Entity, item.Source)
+	return false
+}
+
 func TestECSParseTasks(t *testing.T) {
 	ecsExpireFreq := 5 * time.Minute
 	expiretest, _ := taggerutil.NewExpire(ecsExpireFreq)

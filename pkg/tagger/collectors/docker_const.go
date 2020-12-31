@@ -12,4 +12,6 @@ const (
 	dockerLabelEnv     = "com.datadoghq.tags.env"
 	dockerLabelVersion = "com.datadoghq.tags.version"
 	dockerLabelService = "com.datadoghq.tags.service"
+
+	autodiscoveryLabelTagsKey = "com.datadoghq.ad.tags"
 )

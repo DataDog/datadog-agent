@@ -22,6 +22,35 @@ import (
 // dockerExtractImage while using a mock for tests
 type resolveHook func(co types.ContainerJSON) (string, error)
 
+// retrieveMappingFromConfig gets a stringmapstring config key and
+// lowercases all map keys to make envvar and yaml sources consistent
+func retrieveMappingFromConfig(configKey string) map[string]string {
+	labelsList := config.Datadog.GetStringMapString(configKey)
+	for label, value := range labelsList {
+		delete(labelsList, label)
+		labelsList[strings.ToLower(label)] = value
+	}
+
+	return labelsList
+}
+
+func parseContainerADTagsLabels(tags *utils.TagList, labelValue string) {
+	tagNames := []string{}
+	err := json.Unmarshal([]byte(labelValue), &tagNames)
+	if err != nil {
+		log.Debugf("Cannot unmarshal AD tags: %s", err)
+	}
+	for _, tag := range tagNames {
+		tagParts := strings.Split(tag, ":")
+		// skip if tag is not in expected k:v format
+		if len(tagParts) != 2 {
+			log.Debugf("Tag '%s' is not in k:v format", tag)
+			continue
+		}
+		tags.AddHigh(tagParts[0], tagParts[1])
+	}
+}
+
 // extractFromInspect extract tags for a container inspect JSON
 func (c *DockerCollector) extractFromInspect(co types.ContainerJSON) ([]string, []string, []string, []string) {
 	tags := utils.NewTagList()
