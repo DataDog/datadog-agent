@@ -89,6 +89,13 @@ func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Mess
 		return nil, err
 	}
 
+	// stores lastPIDs to be used by RTProcess
+	lastPIDs := make([]int32, 0, len(procs))
+	for pid := range procs {
+		lastPIDs = append(lastPIDs, pid)
+	}
+	p.lastPIDs.Store(lastPIDs)
+
 	ctrList, _ := util.GetContainers()
 
 	// Keep track of containers addresses
@@ -117,12 +124,6 @@ func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Mess
 	p.lastCPUTime = cpuTimes[0]
 	p.lastRun = time.Now()
 	p.lastCtrIDForPID = ctrByProc
-
-	lastPIDs := make([]int32, 0, len(procs))
-	for pid := range procs {
-		lastPIDs = append(lastPIDs, pid)
-	}
-	p.lastPIDs.Store(lastPIDs)
 
 	statsd.Client.Gauge("datadog.process.containers.host_count", float64(totalContainers), []string{}, 1) //nolint:errcheck
 	statsd.Client.Gauge("datadog.process.processes.host_count", float64(totalProcs), []string{}, 1)       //nolint:errcheck

@@ -66,8 +66,13 @@ func (r *RTProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 	if r.processCheck == nil {
 		return nil, fmt.Errorf("cannot run rtprocess check if processCheck is not initialized")
 	}
+	// if processCheck haven't fetched any PIDs, return early
+	lastPIDs := r.processCheck.GetLastPIDs()
+	if len(lastPIDs) == 0 {
+		return nil, nil
+	}
 
-	procs, err := getAllProcStats(r.probe, r.processCheck.GetLastPIDs())
+	procs, err := getAllProcStats(r.probe, lastPIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -82,8 +87,7 @@ func (r *RTProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 		return nil, nil
 	}
 
-	chunkedStats := fmtProcessStats(cfg, procs, r.lastProcs,
-		ctrList, cpuTimes[0], r.lastCPUTime, r.lastRun)
+	chunkedStats := fmtProcessStats(cfg, procs, r.lastProcs, ctrList, cpuTimes[0], r.lastCPUTime, r.lastRun)
 	groupSize := len(chunkedStats)
 	chunkedCtrStats := fmtContainerStats(ctrList, r.lastCtrRates, r.lastRun, groupSize)
 	messages := make([]model.MessageBody, 0, groupSize)
@@ -127,11 +131,13 @@ func fmtProcessStats(
 
 	chunked := make([][]*model.ProcessStat, 0)
 	chunk := make([]*model.ProcessStat, 0, cfg.MaxPerMessage)
+
 	for _, fp := range procs {
-		if skipProcess(cfg, fp, lastProcs) {
+		// Skipping any processes that didn't exist in the previous run.
+		// This means short-lived processes (<2s) will never be captured.
+		if _, ok := lastProcs[fp.Pid]; !ok {
 			continue
 		}
-
 		chunk = append(chunk, &model.ProcessStat{
 			Pid:                    fp.Pid,
 			CreateTime:             fp.CreateTime,

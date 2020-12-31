@@ -78,10 +78,10 @@ func NewCollector(cfg *config.AgentConfig) (Collector, error) {
 			c.Init(cfg, sysInfo)
 			enabledChecks = append(enabledChecks, c)
 
-			if check, ok := c.(*checks.ProcessCheck); ok {
+			switch check := c.(type) {
+			case *checks.ProcessCheck:
 				processCheck = check
-			}
-			if check, ok := c.(*checks.RTProcessCheck); ok {
+			case *checks.RTProcessCheck:
 				processRTCheck = check
 			}
 		}

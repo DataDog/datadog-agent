@@ -27,7 +27,7 @@ func getAllProcStats(probe *procutil.Probe, pids []int32) (map[int32]*process.Fi
 
 	procs := make(map[int32]*process.FilledProcess, len(stats))
 	for pid, stat := range stats {
-		procs[pid] = procutil.ConvertToFilledProcess(&procutil.Process{Stats: stat})
+		procs[pid] = procutil.ConvertToFilledProcess(&procutil.Process{Pid: pid, Stats: stat})
 	}
 	return procs, nil
 }
