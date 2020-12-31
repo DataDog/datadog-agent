@@ -12,11 +12,12 @@ import (
 
 const apiKey1 = "apiKey1"
 const apiKey2 = "apiKey2"
+const domain = "domain"
 
 func TestSerializeDeserialize(t *testing.T) {
 	a := assert.New(t)
 	tr := createHTTPTransactionTests()
-	serializer := NewTransactionsSerializer([]string{apiKey1, apiKey2})
+	serializer := NewTransactionsSerializer(domain, []string{apiKey1, apiKey2})
 
 	a.NoError(serializer.Add(tr))
 	bytes, err := serializer.GetBytesAndReset()
@@ -39,7 +40,7 @@ func TestSerializeDeserialize(t *testing.T) {
 func TestPartialDeserialize(t *testing.T) {
 	a := assert.New(t)
 	transaction := createHTTPTransactionTests()
-	serializer := NewTransactionsSerializer(nil)
+	serializer := NewTransactionsSerializer(domain, nil)
 
 	a.NoError(serializer.Add(transaction))
 	a.NoError(serializer.Add(transaction))
@@ -61,7 +62,7 @@ func TestPartialDeserialize(t *testing.T) {
 func TestTransactionSerializerMissingAPIKey(t *testing.T) {
 	r := require.New(t)
 
-	serializer := NewTransactionsSerializer([]string{apiKey1, apiKey2})
+	serializer := NewTransactionsSerializer(domain, []string{apiKey1, apiKey2})
 
 	r.NoError(serializer.Add(createHTTPTransactionWithHeaderTests(http.Header{"Key": []string{apiKey1}})))
 	r.NoError(serializer.Add(createHTTPTransactionWithHeaderTests(http.Header{"Key": []string{apiKey2}})))
@@ -71,7 +72,7 @@ func TestTransactionSerializerMissingAPIKey(t *testing.T) {
 	_, err = serializer.Deserialize(bytes)
 	r.NoError(err)
 
-	serializerMissingAPIKey := NewTransactionsSerializer([]string{apiKey1})
+	serializerMissingAPIKey := NewTransactionsSerializer(domain, []string{apiKey1})
 	_, err = serializerMissingAPIKey.Deserialize(bytes)
 	r.Error(err)
 }
@@ -92,7 +93,7 @@ func createHTTPTransactionTests() *HTTPTransaction {
 func createHTTPTransactionWithHeaderTests(header http.Header) *HTTPTransaction {
 	payload := []byte{1, 2, 3}
 	tr := NewHTTPTransaction()
-	tr.Domain = "domain"
+	tr.Domain = domain
 	tr.Endpoint = endpoint{route: "route" + apiKey1, name: "name"}
 	tr.Headers = header
 	tr.Payload = &payload

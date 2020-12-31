@@ -29,10 +29,11 @@ type TransactionsSerializer struct {
 	collection          HttpTransactionProtoCollection
 	apiKeyToPlaceholder *strings.Replacer
 	placeholderToAPIKey *strings.Replacer
+	domain              string
 }
 
 // NewTransactionsSerializer creates a new instance of TransactionsSerializer
-func NewTransactionsSerializer(apiKeys []string) *TransactionsSerializer {
+func NewTransactionsSerializer(domain string, apiKeys []string) *TransactionsSerializer {
 	apiKeyToPlaceholder, placeholderToAPIKey := createReplacers(apiKeys)
 
 	return &TransactionsSerializer{
@@ -41,6 +42,7 @@ func NewTransactionsSerializer(apiKeys []string) *TransactionsSerializer {
 		},
 		apiKeyToPlaceholder: apiKeyToPlaceholder,
 		placeholderToAPIKey: placeholderToAPIKey,
+		domain:              domain,
 	}
 }
 
@@ -48,6 +50,11 @@ func NewTransactionsSerializer(apiKeys []string) *TransactionsSerializer {
 // This function uses references on HTTPTransaction.Payload and HTTPTransaction.Headers
 // and so the transaction must not be updated until a call to `GetBytesAndReset`.
 func (s *TransactionsSerializer) Add(transaction *HTTPTransaction) error {
+	if transaction.Domain != s.domain {
+		// This error is not supposed to happen (Sanity check).
+		return fmt.Errorf("The domain of the transaction %v does not match the domain %v", transaction.Domain, s.domain)
+	}
+
 	priority, err := toTransactionPriorityProto(transaction.priority)
 	if err != nil {
 		return err
@@ -60,7 +67,7 @@ func (s *TransactionsSerializer) Add(transaction *HTTPTransaction) error {
 
 	endpoint := transaction.Endpoint
 	transactionProto := HttpTransactionProto{
-		Domain:     transaction.Domain,
+		Domain:     "", // Domain is always the same
 		Endpoint:   &EndpointProto{Route: s.replaceAPIKeys(endpoint.route), Name: endpoint.name},
 		Headers:    s.toHeaderProto(transaction.Headers),
 		Payload:    payload,
@@ -106,7 +113,7 @@ func (s *TransactionsSerializer) Deserialize(bytes []byte) ([]Transaction, error
 		}
 
 		tr := HTTPTransaction{
-			Domain:     transaction.Domain,
+			Domain:     s.domain,
 			Endpoint:   endpoint{route: route, name: e.Name},
 			Headers:    proto,
 			Payload:    &transaction.Payload,
