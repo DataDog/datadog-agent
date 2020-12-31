@@ -123,9 +123,6 @@ func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 		return nil, err
 	}
 
-	// don't do new allocations
-	currentPIDs := pids[:0]
-
 	procsByPID := make(map[int32]*Process, len(pids))
 	for _, pid := range pids {
 		pathForPID := filepath.Join(p.procRootLoc, strconv.Itoa(int(pid)))
@@ -168,7 +165,6 @@ func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 				IOStat:      ioInfo,                 // /proc/{pid}/io, requires permission checks
 			},
 		}
-		currentPIDs = append(currentPIDs, pid)
 	}
 
 	return procsByPID, nil

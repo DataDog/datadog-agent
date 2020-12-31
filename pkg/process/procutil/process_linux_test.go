@@ -154,19 +154,19 @@ func testProcessesByPID(t *testing.T) {
 	}
 }
 
-func TestStatsByPIDTestFS(t *testing.T) {
+func TestStatsForPIDsTestFS(t *testing.T) {
 	os.Setenv("HOST_PROC", "resources/test_procfs/proc/")
 	defer os.Unsetenv("HOST_PROC")
 
-	testStatsByPID(t)
+	testStatsForPIDs(t)
 }
 
-func TestStatsByPIDLocalFS(t *testing.T) {
+func TestStatsForPIDsLocalFS(t *testing.T) {
 	maySkipLocalTest(t)
-	testStatsByPID(t)
+	testStatsForPIDs(t)
 }
 
-func testStatsByPID(t *testing.T) {
+func testStatsForPIDs(t *testing.T) {
 	probe := NewProcessProbe()
 	defer probe.Close()
 
@@ -175,6 +175,7 @@ func testStatsByPID(t *testing.T) {
 
 	pids := make([]int32, 0, len(result))
 
+	// empty PIDs should yield empty stats
 	stats, err := probe.StatsForPIDs(pids, time.Now())
 	require.NoError(t, err)
 	require.Empty(t, stats)
@@ -187,7 +188,7 @@ func testStatsByPID(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, stats)
 	assert.Len(t, stats, len(pids))
-	for pid := range result {
+	for pid := range stats {
 		assert.Contains(t, pids, pid)
 	}
 }
