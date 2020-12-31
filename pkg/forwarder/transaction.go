@@ -388,5 +388,6 @@ func (t *HTTPTransaction) SerializeTo(serializer *TransactionsSerializer) error 
 	if t.storableOnDisk {
 		return serializer.Add(t)
 	}
+	log.Debug("The transaction is not stored on disk because `storableOnDisk` is false.")
 	return nil
 }

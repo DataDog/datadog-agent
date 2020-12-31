@@ -97,14 +97,17 @@ func (f *SyncForwarder) SubmitSketchSeries(payload Payloads, extra http.Header) 
 
 // SubmitHostMetadata will send a host_metadata tag type payload to Datadog backend.
 func (f *SyncForwarder) SubmitHostMetadata(payload Payloads, extra http.Header) error {
-	transactions := f.defaultForwarder.createHTTPTransactions(hostMetadataEndpoint, payload, false, extra)
-	return f.sendHTTPTransactions(transactions)
+	return f.SubmitV1Intake(payload, extra)
 }
 
 // SubmitMetadata will send a metadata type payload to Datadog backend.
 func (f *SyncForwarder) SubmitMetadata(payload Payloads, extra http.Header) error {
-	transactions := f.defaultForwarder.createHTTPTransactions(metadataEndpoint, payload, false, extra)
-	return f.sendHTTPTransactions(transactions)
+	return f.SubmitV1Intake(payload, extra)
+}
+
+// SubmitAgentchecksMetadata will send a agentchecks_metadata tag type payload to Datadog backend.
+func (f *SyncForwarder) SubmitAgentchecksMetadata(payload Payloads, extra http.Header) error {
+	return f.SubmitV1Intake(payload, extra)
 }
 
 // SubmitProcessChecks sends process checks

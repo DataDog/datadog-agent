@@ -124,6 +124,11 @@ func (tf *MockedForwarder) SubmitHostMetadata(payload Payloads, extra http.Heade
 	return tf.Called(payload, extra).Error(0)
 }
 
+// SubmitAgentchecksMetadata updates the internal mock struct
+func (tf *MockedForwarder) SubmitAgentchecksMetadata(payload Payloads, extra http.Header) error {
+	return tf.Called(payload, extra).Error(0)
+}
+
 // SubmitMetadata updates the internal mock struct
 func (tf *MockedForwarder) SubmitMetadata(payload Payloads, extra http.Header) error {
 	return tf.Called(payload, extra).Error(0)
