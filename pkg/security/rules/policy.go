@@ -77,7 +77,10 @@ func LoadPolicy(r io.Reader, name string) (*Policy, error) {
 
 // LoadPolicies loads the policies listed in the configuration and apply them to the given ruleset
 func LoadPolicies(config *config.Config, ruleSet *RuleSet) error {
-	var result *multierror.Error
+	var (
+		result *multierror.Error
+		rules  []*RuleDefinition
+	)
 
 	policyFiles, err := ioutil.ReadDir(config.PoliciesDir)
 	if err != nil {
@@ -114,10 +117,12 @@ func LoadPolicies(config *config.Config, ruleSet *RuleSet) error {
 			result = multierror.Append(result, err)
 		}
 
-		// Add rules to the ruleset and generate rules evaluators
-		if err := ruleSet.AddRules(policy.Rules); err != nil {
-			result = multierror.Append(result, err)
-		}
+		rules = append(rules, policy.Rules...)
+	}
+
+	// Add rules to the ruleset and generate rules evaluators
+	if err := ruleSet.AddRules(rules); err != nil {
+		result = multierror.Append(result, err)
 	}
 
 	return result.ErrorOrNil()
