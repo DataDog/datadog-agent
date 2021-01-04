@@ -137,7 +137,7 @@ func ConvertToFilledProcess(p *Process) *process.FilledProcess {
 // ConvertCPUStat converts procutil CPUTimeStat object to TimesStat in gopsutil
 func ConvertCPUStat(s *CPUTimesStat) *cpu.TimesStat {
 	return &cpu.TimesStat{
-		CPU:       "CPU",
+		CPU:       "cpu",
 		User:      s.User,
 		System:    s.System,
 		Idle:      s.Idle,

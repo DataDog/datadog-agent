@@ -102,15 +102,18 @@ func (p *Probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, err
 		statusInfo := p.parseStatus(pathForPID)
 		ioInfo := p.parseIO(pathForPID)
 		statInfo := p.parseStat(pathForPID, pid, now)
+		memInfoEx := p.parseStatm(pathForPID)
+
 		statsByPID[pid] = &Stats{
-			CreateTime:  statInfo.createTime,    // /proc/{pid}/{stat}
-			Nice:        statInfo.nice,          // /proc/{pid}/{stat}
-			CPUTime:     statInfo.cpuStat,       // /proc/{pid}/{stat}
-			MemInfo:     statusInfo.memInfo,     // /proc/{pid}/status
-			MemInfoEx:   &MemoryInfoExStat{},    // not needed currently so not collected to reduce workload
-			CtxSwitches: statusInfo.ctxSwitches, // /proc/{pid}/status
-			NumThreads:  statusInfo.numThreads,  // /proc/{pid}/status
-			IOStat:      ioInfo,                 // /proc/{pid}/io, requires permission checks
+			CreateTime:  statInfo.createTime,      // /proc/{pid}/{stat}
+			Nice:        statInfo.nice,            // /proc/{pid}/{stat}
+			OpenFdCount: p.getFDCount(pathForPID), // /proc/{pid}/fd, requires permission checks
+			CPUTime:     statInfo.cpuStat,         // /proc/{pid}/{stat}
+			MemInfo:     statusInfo.memInfo,       // /proc/{pid}/status
+			MemInfoEx:   memInfoEx,                // /proc/{pid}/statm
+			CtxSwitches: statusInfo.ctxSwitches,   // /proc/{pid}/status
+			NumThreads:  statusInfo.numThreads,    // /proc/{pid}/status
+			IOStat:      ioInfo,                   // /proc/{pid}/io, requires permission checks
 		}
 	}
 	return statsByPID, nil
