@@ -7,4 +7,4 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
-var Tracer = ebpf.NewRuntimeAsset("tracer.c", "cfee97cf8f2e1ff493387ebd757dc07e6798c3e10ca06c1b7976bddc84645afb")
+var Tracer = ebpf.NewRuntimeAsset("tracer.c", "a41081124e1996aa11159d85b619dc96a6c85ec23574384b8b2f6fdd65e111b4")
