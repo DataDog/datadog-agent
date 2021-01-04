@@ -48,13 +48,15 @@ func NewLimiter(limit rate.Limit, burst int) *Limiter {
 // RateLimiter describes a set of rule rate limiters
 type RateLimiter struct {
 	sync.RWMutex
-	limiters map[rules.RuleID]*Limiter
+	limiters     map[rules.RuleID]*Limiter
+	statsdClient *statsd.Client
 }
 
 // NewRateLimiter initializes an empty rate limiter
-func NewRateLimiter() *RateLimiter {
+func NewRateLimiter(client *statsd.Client) *RateLimiter {
 	return &RateLimiter{
-		limiters: make(map[string]*Limiter),
+		limiters:     make(map[string]*Limiter),
+		statsdClient: client,
 	}
 }
 
@@ -117,16 +119,16 @@ func (rl *RateLimiter) GetStats() map[rules.RuleID]RateLimiterStat {
 
 // SendStats sends statistics about the number of sent and drops events
 // for the set of rules
-func (rl *RateLimiter) SendStats(client *statsd.Client) error {
+func (rl *RateLimiter) SendStats() error {
 	for ruleID, counts := range rl.GetStats() {
 		tags := []string{fmt.Sprintf("rule_id:%s", ruleID)}
 		if counts.dropped > 0 {
-			if err := client.Count(probe.MetricPrefix+".rules.rate_limiter.drop", counts.dropped, tags, 1.0); err != nil {
+			if err := rl.statsdClient.Count(probe.MetricPrefix+".rules.rate_limiter.drop", counts.dropped, tags, 1.0); err != nil {
 				return err
 			}
 		}
 		if counts.allowed > 0 {
-			if err := client.Count(probe.MetricPrefix+".rules.rate_limiter.allow", counts.allowed, tags, 1.0); err != nil {
+			if err := rl.statsdClient.Count(probe.MetricPrefix+".rules.rate_limiter.allow", counts.allowed, tags, 1.0); err != nil {
 				return err
 			}
 		}

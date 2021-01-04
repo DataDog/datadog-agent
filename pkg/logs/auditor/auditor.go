@@ -34,17 +34,14 @@ const registryAPIVersion = 2
 type Registry interface {
 	GetOffset(identifier string) string
 	GetTailingMode(identifier string) string
-	SetConfigID(identifier, configID string)
 }
 
 // A RegistryEntry represents an entry in the registry where we keep track
 // of current offsets
 type RegistryEntry struct {
-	LastUpdated time.Time `json:"LastUpdated"`
-	Offset      string    `json:"Offset"`
-	TailingMode string    `json:"TailingMode"`
-	// CurrentConfigID is meaningfull only during runtime
-	CurrentConfigID string `json:"-"`
+	LastUpdated time.Time
+	Offset      string
+	TailingMode string
 }
 
 // JSONRegistry represents the registry that will be written on disk
@@ -53,23 +50,16 @@ type JSONRegistry struct {
 	Registry map[string]RegistryEntry
 }
 
-// Identifiers associates config id vs. origin id
-type Identifiers struct {
-	OriginID string
-	ConfigID string
-}
-
 // An Auditor handles messages successfully submitted to the intake
 type Auditor struct {
-	health          *health.Handle
-	chansMutex      sync.Mutex
-	inputChan       chan *message.Message
-	identifiersChan chan *Identifiers
-	registry        map[string]*RegistryEntry
-	registryPath    string
-	registryMutex   sync.Mutex
-	entryTTL        time.Duration
-	done            chan struct{}
+	health        *health.Handle
+	chansMutex    sync.Mutex
+	inputChan     chan *message.Message
+	registry      map[string]*RegistryEntry
+	registryPath  string
+	registryMutex sync.Mutex
+	entryTTL      time.Duration
+	done          chan struct{}
 }
 
 // New returns an initialized Auditor
@@ -102,7 +92,6 @@ func (a *Auditor) createChannels() {
 	a.chansMutex.Lock()
 	defer a.chansMutex.Unlock()
 	a.inputChan = make(chan *message.Message, config.ChanSize)
-	a.identifiersChan = make(chan *Identifiers, config.ChanSize)
 	a.done = make(chan struct{})
 }
 
@@ -112,32 +101,18 @@ func (a *Auditor) closeChannels() {
 	if a.inputChan != nil {
 		close(a.inputChan)
 	}
-	if a.identifiersChan != nil {
-		close(a.identifiersChan)
-	}
 
 	if a.done != nil {
 		<-a.done
 		a.done = nil
 	}
-
 	a.inputChan = nil
-	a.identifiersChan = nil
 }
 
 // Channel returns the channel to use to communicate with the auditor or nil
 // if the auditor is currently stopped.
 func (a *Auditor) Channel() chan *message.Message {
 	return a.inputChan
-}
-
-// SetConfigID set the valid source configuration ID (typically a container ID) for registry
-// update subsequent attempt with a different ID will be ignore for this identifier. It aims
-// to allow only one tailer for the same file to be able to update the registry.
-func (a *Auditor) SetConfigID(identifier, configID string) {
-	if a.identifiersChan != nil {
-		a.identifiersChan <- &Identifiers{identifier, configID}
-	}
 }
 
 // GetOffset returns the last committed offset for a given identifier,
@@ -177,17 +152,13 @@ func (a *Auditor) run() {
 	for {
 		select {
 		case <-a.health.C:
-		case id, isOpen := <-a.identifiersChan:
-			if isOpen {
-				a.updateCurrentConfigID(id.OriginID, id.ConfigID)
-			}
 		case msg, isOpen := <-a.inputChan:
 			if !isOpen {
 				// inputChan has been closed, no need to update the registry anymore
 				return
 			}
 			// update the registry with new entry
-			a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.LogSource.Config.TailingMode, msg.Origin.LogSource.Config.Identifier)
+			a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.LogSource.Config.TailingMode)
 		case <-cleanUpTicker.C:
 			// remove expired offsets from registry
 			a.cleanupRegistry()
@@ -239,7 +210,7 @@ func (a *Auditor) cleanupRegistry() {
 }
 
 // updateRegistry updates the registry entry matching identifier with new the offset and timestamp
-func (a *Auditor) updateRegistry(identifier string, offset string, tailingMode string, configID string) {
+func (a *Auditor) updateRegistry(identifier string, offset string, tailingMode string) {
 	a.registryMutex.Lock()
 	defer a.registryMutex.Unlock()
 	if identifier == "" {
@@ -248,26 +219,10 @@ func (a *Auditor) updateRegistry(identifier string, offset string, tailingMode s
 		// specially want to avoid storing the offset
 		return
 	}
-	entry, exists := a.registry[identifier]
-	if !(exists && entry.CurrentConfigID != configID) {
-		a.registry[identifier] = &RegistryEntry{
-			LastUpdated:     time.Now().UTC(),
-			Offset:          offset,
-			TailingMode:     tailingMode,
-			CurrentConfigID: configID,
-		}
-	}
-}
-
-// updateCurrentConfigID updates the registry entry matching identifier with new the offset and timestamp
-func (a *Auditor) updateCurrentConfigID(identifier, configID string) {
-	a.registryMutex.Lock()
-	defer a.registryMutex.Unlock()
-	if identifier == "" {
-		return
-	}
-	if _, exists := a.registry[identifier]; exists {
-		a.registry[identifier].CurrentConfigID = configID
+	a.registry[identifier] = &RegistryEntry{
+		LastUpdated: time.Now().UTC(),
+		Offset:      offset,
+		TailingMode: tailingMode,
 	}
 }
 

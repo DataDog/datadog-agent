@@ -656,14 +656,6 @@ static __always_inline void http_notify_batch(struct pt_regs* ctx) {
         return;
     }
 
-    http_batch_key_t key;
-    http_prepare_key(cpu, &key, batch_state);
-
-    http_batch_t *batch = bpf_map_lookup_elem(&http_batches, &key);
-    if (batch == NULL) {
-        return;
-    }
-
     // It's important to zero the struct so we account for the padding
     // introduced by the compilation, otherwise you get a `invalid indirect read
     // from stack off`. Alternatively we can either use a #pragma pack directive
@@ -675,7 +667,7 @@ static __always_inline void http_notify_batch(struct pt_regs* ctx) {
     notification.batch_idx = batch_state->idx;
 
     bpf_perf_event_output(ctx, &http_notifications, cpu, &notification, sizeof(http_batch_notification_t));
-    log_debug("http batch notification flushed: cpu: %d idx: %d lost_events: %d\n", cpu, batch->idx, batch_state->pos-HTTP_BATCH_SIZE);
+    log_debug("http batch notification flushed: cpu: %d idx: %d lost_events: %d\n", cpu, batch_state->idx, batch_state->pos-HTTP_BATCH_SIZE);
     batch_state->idx++;
     batch_state->pos = 0;
 }
@@ -1359,9 +1351,10 @@ static __always_inline void http_end_response(http_transaction_t *http) {
     u32 cpu = bpf_get_smp_processor_id();
     http_batch_state_t *batch_state = bpf_map_lookup_elem(&http_batch_state, &cpu);
     if (batch_state == NULL) {
-        log_debug("http batch state not found. should not happen.");
         return;
     }
+
+    log_debug("http response ended: code: %d duration: %d(ms)\n", http->response_status_code, (http->response_last_seen-http->request_started)/(1000*1000));
 
     if (batch_state->pos >= HTTP_BATCH_SIZE) {
         // We keep incrementing this so we can track how many transactions we're dropping
@@ -1375,13 +1368,12 @@ static __always_inline void http_end_response(http_transaction_t *http) {
     // Retrieve the batch object
     http_batch_t *batch = bpf_map_lookup_elem(&http_batches, &key);
     if (batch == NULL) {
-        log_debug("http batch not found. should not happen. cpu: %d page: %d\n", key.cpu, key.page_num);
         return;
     }
 
     // This redundant information is useful for detecting dirty batch pages on userspace without
     // incurring on an extra map lookup
-    batch->idx = batch_state->idx;
+    batch->state.idx = batch_state->idx;
 
     // I haven't found a way to avoid this unrolled loop on Kernel 4.4 (newer versions work fine)
     // If you try to directly write the desired batch slot by doing
@@ -1397,14 +1389,7 @@ static __always_inline void http_end_response(http_transaction_t *http) {
     //
     // This is because the value range of the R0 register (holding the memory address of the batch) can't be
     // figured out by the verifier and thus the memory access can't be considered safe during verification time.
-    // I tried different "tricks" to hint the verifier of this range such as:
-    //
-    // * Ensuring 0 <= batch_slot < HTTP_BATCH_SIZE
-    // * Ensuring that &batch <= &batch->txs[batch_state->pos] <= &batch+1
-    // * Setting HTTP_BATCH_SIZEto a power of 2 and doing &batch->txs[batch_slot&(HTTP_BATCH_PAGES-1)]
-    //
-    // Among other things, but nothing really worked on Kernel 4.4
-    // It seems that indeed support for this type of access by the verifier was added later on:
+    // It seems that support for this type of access range by the verifier was added later on:
     // https://patchwork.ozlabs.org/project/netdev/patch/1475074472-23538-1-git-send-email-jbacik@fb.com/
     //
     // What is unfortunate about this is not only that enqueing a HTTP transaction is O(HTTP_BATCH_SIZE),
@@ -1416,8 +1401,10 @@ static __always_inline void http_end_response(http_transaction_t *http) {
         }
     }
 
+    log_debug("http transaction enqueued: cpu: %d batch_idx: %d pos: %d\n", cpu, batch_state->idx, batch_state->pos);
     batch_state->pos++;
-    log_debug("http response ended: code: %d duration: %d(ms)\n", http->response_status_code, (http->response_last_seen-http->request_started)/(1000*1000));
+    // This redundant information is useful for the `http.batchManager` on userspace
+    batch->state.pos = batch_state->pos;
 }
 
 static __always_inline int http_begin_request(http_transaction_t *http, http_method_t method, char *buffer) {
@@ -1426,7 +1413,6 @@ static __always_inline int http_begin_request(http_transaction_t *http, http_met
         http_end_response(http);
     }
 
-    log_debug("http request started\n");
     http->request_method = method;
     http->request_started = bpf_ktime_get_ns();
     http->response_last_seen = 0;
@@ -1461,20 +1447,17 @@ static __always_inline int http_begin_response(http_transaction_t *http, char *b
     }
 
     http->response_status_code = status_code;
-    log_debug("http response started: code: %d\n", http->response_status_code);
     return 1;
 }
 
 static __always_inline void http_read_data(struct __sk_buff* skb, skb_info_t* skb_info, char* p, http_packet_t* packet_type, http_method_t* method) {
+    if (skb->len - skb_info->data_off < HTTP_BUFFER_SIZE) {
+        return;
+    }
+
 #pragma unroll
     for (int i = 0; i < HTTP_BUFFER_SIZE; i++) {
-        if (skb_info->data_off + i <= skb->len-1) {
-            p[i] = load_byte(skb, skb_info->data_off + i);
-        } else {
-            // TODO: follow-up on why the verifier rejects the program without this else branch
-            // even if you memset the buffer before
-            p[i] = '\0';
-        }
+        p[i] = load_byte(skb, skb_info->data_off + i);
     }
 
     if ((p[0] == 'H') && (p[1] == 'T') && (p[2] == 'T') && (p[3] == 'P')) {
@@ -1487,7 +1470,7 @@ static __always_inline void http_read_data(struct __sk_buff* skb, skb_info_t* sk
         *method = HTTP_POST;
     } else if ((p[0] == 'P') && (p[1] == 'U') && (p[2] == 'T')) {
         *packet_type = HTTP_REQUEST;
-        *method = HTTP_POST;
+        *method = HTTP_PUT;
     } else if ((p[0] == 'D') && (p[1] == 'E') && (p[2] == 'L') && (p[3] == 'E') && (p[4] == 'T') && (p[5] == 'E')) {
         *packet_type = HTTP_REQUEST;
         *method = HTTP_DELETE;
@@ -1505,7 +1488,7 @@ static __always_inline void http_read_data(struct __sk_buff* skb, skb_info_t* sk
 
 static __always_inline int http_handle_packet(struct __sk_buff* skb, skb_info_t* skb_info) {
     char buffer[HTTP_BUFFER_SIZE];
-    __builtin_memset(&buffer, '\0', sizeof(HTTP_BUFFER_SIZE));
+    __builtin_memset(&buffer, '\0', sizeof(buffer));
 
     http_packet_t packet_type = HTTP_PACKET_UNKNOWN;
     http_method_t method = HTTP_METHOD_UNKNOWN;
@@ -1566,7 +1549,6 @@ int socket__http_filter(struct __sk_buff* skb) {
         flip_tuple(&skb_info.tup);
     }
 
-    log_debug("http packet intercepted\n");
     http_handle_packet(skb, &skb_info);
 
     return 0;
