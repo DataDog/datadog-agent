@@ -49,6 +49,9 @@ const (
 	// DefaultBatchWait is the default HTTP batch wait in second for logs
 	DefaultBatchWait = 5
 
+	// DefaultAuditorTTL is the default logs auditor TTL in hours
+	DefaultAuditorTTL = 23
+
 	// ClusterIDCacheKey is the key name for the orchestrator cluster id in the agent in-mem cache
 	ClusterIDCacheKey = "orchestratorClusterID"
 
@@ -438,7 +441,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("kubernetes_map_services_on_ip", false) // temporary opt-out of the new mapping logic
 	config.BindEnvAndSetDefault("kubernetes_apiserver_use_protobuf", false)
 
-	config.SetKnown("prometheus_scrape.checks") // defines any extra prometheus/openmetrics check configurations to be handled by the prometheus config provider
+	config.BindEnvAndSetDefault("prometheus_scrape.enabled", false)           // Enables the prometheus config provider
+	config.SetKnown("prometheus_scrape.checks")                               // Defines any extra prometheus/openmetrics check configurations to be handled by the prometheus config provider
+	config.BindEnvAndSetDefault("prometheus_scrape.service_endpoints", false) // Enables Service Endpoints checks in the prometheus config provider
 
 	// SNMP
 	config.SetKnown("snmp_listener.discovery_interval")
@@ -589,7 +594,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.dd_url_443", "agent-443-intake.logs.datadoghq.com")
 	config.BindEnvAndSetDefault("logs_config.stop_grace_period", 30)
 	config.BindEnvAndSetDefault("logs_config.close_timeout", 60)
-	config.BindEnv("logs_config.additional_endpoints") //nolint:errcheck
+	config.BindEnvAndSetDefault("logs_config.auditor_ttl", DefaultAuditorTTL) // in hours
+	config.BindEnv("logs_config.additional_endpoints")                        //nolint:errcheck
 
 	// The cardinality of tags to send for checks and dogstatsd respectively.
 	// Choices are: low, orchestrator, high.
@@ -737,6 +743,11 @@ func InitConfig(config Config) {
 	config.SetKnown("system_probe_config.enable_runtime_compiler")
 	config.SetKnown("system_probe_config.kernel_header_dirs")
 	config.SetKnown("system_probe_config.runtime_compiler_output_dir")
+	config.SetKnown("system_probe_config.profiling.enabled")
+	config.SetKnown("system_probe_config.profiling.site")
+	config.SetKnown("system_probe_config.profiling.profile_dd_url")
+	config.SetKnown("system_probe_config.profiling.api_key")
+	config.SetKnown("system_probe_config.profiling.env")
 	config.SetKnown("system_probe_config.windows.enable_monotonic_count")
 	config.SetKnown("system_probe_config.windows.driver_buffer_size")
 	config.SetKnown("network_config.enabled")

@@ -78,8 +78,10 @@ type Probe struct {
 	startTime          time.Time
 	event              *Event
 	reOrderer          *ReOrderer
+	lastTimestamp      uint64
 	ctx                context.Context
 	cancelFnc          context.CancelFunc
+	statsdClient       *statsd.Client
 }
 
 // GetResolvers returns the resolvers of Probe
@@ -112,7 +114,6 @@ func (p *Probe) detectKernelVersion() {
 // Init initializes the probe
 func (p *Probe) Init() error {
 	p.startTime = time.Now()
-	p.detectKernelVersion()
 
 	var err error
 	var bytecodeReader bytecode.AssetReader
@@ -218,14 +219,14 @@ func (p *Probe) DispatchEvent(event *Event) {
 }
 
 // SendStats sends statistics about the probe to Datadog
-func (p *Probe) SendStats(statsdClient *statsd.Client) error {
+func (p *Probe) SendStats() error {
 	if p.syscallMonitor != nil {
-		if err := p.syscallMonitor.SendStats(statsdClient); err != nil {
+		if err := p.syscallMonitor.SendStats(p.statsdClient); err != nil {
 			return errors.Wrap(err, "failed to send syscall monitor stats")
 		}
 	}
 
-	if err := statsdClient.Count(MetricPrefix+".events.lost", p.eventsStats.GetAndResetLost(), nil, 1.0); err != nil {
+	if err := p.statsdClient.Count(MetricPrefix+".events.lost", p.eventsStats.GetAndResetLost(), nil, 1.0); err != nil {
 		return errors.Wrap(err, "failed to send events.lost metric")
 	}
 
@@ -238,12 +239,15 @@ func (p *Probe) SendStats(statsdClient *statsd.Client) error {
 		eventType := EventType(i)
 		tags := []string{fmt.Sprintf("event_type:%s", eventType.String())}
 		if value := p.eventsStats.GetAndResetEventCount(eventType); value > 0 {
-			if err := statsdClient.Count(receivedEvents, value, tags, 1.0); err != nil {
+			if err := p.statsdClient.Count(receivedEvents, value, tags, 1.0); err != nil {
 				return errors.Wrap(err, "failed to send events.received metric")
 			}
 		}
 	}
 
+	if err := p.statsdClient.Gauge(MetricPrefix+".process_resolver.cache_size", p.resolvers.ProcessResolver.GetCacheSize(), []string{}, 1.0); err != nil {
+		return errors.Wrap(err, "failed to send process_resolver cache_size metric")
+	}
 	return nil
 }
 
@@ -314,7 +318,15 @@ func (p *Probe) handleEvent(data []byte) {
 	}
 	offset += read
 
+	// check event order
+	if event.TimestampRaw < p.lastTimestamp && p.lastTimestamp != 0 {
+		_ = p.statsdClient.Count(MetricPrefix+".events.sorting_error", 1, []string{}, 1.0)
+	} else {
+		p.lastTimestamp = event.TimestampRaw
+	}
+
 	eventType := EventType(event.Type)
+	p.eventsStats.CountEventType(eventType, 1)
 
 	log.Tracef("Decoding event %s(%d)", eventType, event.Type)
 
@@ -466,7 +478,6 @@ func (p *Probe) handleEvent(data []byte) {
 		log.Tracef("Dispatching event %s\n", prettyEvent)
 	}
 
-	p.eventsStats.CountEventType(eventType, 1)
 	p.loadController.Count(eventType, event.Process.Pid)
 	p.DispatchEvent(event)
 }
@@ -747,7 +758,10 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		regexCache:        regexCache,
 		ctx:               ctx,
 		cancelFnc:         cancel,
+		statsdClient:      client,
 	}
+
+	p.detectKernelVersion()
 
 	if !p.config.EnableKernelFilters {
 		log.Warn("Forcing in-kernel filter policy to `pass`: filtering not enabled")
@@ -758,7 +772,15 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
 	}
 
-	resolvers, err := NewResolvers(p)
+	// Add global constant editors
+	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
+		manager.ConstantEditor{
+			Name:  "do_fork_input",
+			Value: getDoForkInput(p),
+		},
+	)
+
+	resolvers, err := NewResolvers(p, client)
 	if err != nil {
 		return nil, err
 	}
@@ -770,17 +792,17 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		return nil, err
 	}
 
-	windowSize := uint64(10 * runtime.NumCPU())
-	if windowSize < 50 {
-		windowSize = 50
+	windowSize := uint64(15 * runtime.NumCPU())
+	if windowSize < 60 {
+		windowSize = 60
 	}
 
 	p.reOrderer = NewReOrderer(p.handleEvent,
 		TimestampFromEventData,
-		resolvers.TimeResolver.ResolveMonotonicTimestamp, ReOrdererOpts{
+		ReOrdererOpts{
 			QueueSize:  100000,
 			WindowSize: windowSize,
-			Delay:      20 * time.Millisecond,
+			Delay:      100 * time.Millisecond,
 			Rate:       100 * time.Millisecond,
 		})
 

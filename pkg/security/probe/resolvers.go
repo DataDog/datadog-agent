@@ -10,6 +10,7 @@ package probe
 import (
 	"os"
 
+	"github.com/DataDog/datadog-go/statsd"
 	"github.com/DataDog/gopsutil/process"
 	"github.com/avast/retry-go"
 	"github.com/pkg/errors"
@@ -25,10 +26,11 @@ type Resolvers struct {
 	ContainerResolver *ContainerResolver
 	TimeResolver      *TimeResolver
 	ProcessResolver   *ProcessResolver
+	UserGroupResolver *UserGroupResolver
 }
 
 // NewResolvers creates a new instance of Resolvers
-func NewResolvers(probe *Probe) (*Resolvers, error) {
+func NewResolvers(probe *Probe, client *statsd.Client) (*Resolvers, error) {
 	dentryResolver, err := NewDentryResolver(probe)
 	if err != nil {
 		return nil, err
@@ -39,15 +41,21 @@ func NewResolvers(probe *Probe) (*Resolvers, error) {
 		return nil, err
 	}
 
+	userGroupResolver, err := NewUserGroupResolver()
+	if err != nil {
+		return nil, err
+	}
+
 	resolvers := &Resolvers{
 		probe:             probe,
 		DentryResolver:    dentryResolver,
 		MountResolver:     NewMountResolver(probe),
 		TimeResolver:      timeResolver,
 		ContainerResolver: &ContainerResolver{},
+		UserGroupResolver: userGroupResolver,
 	}
 
-	processResolver, err := NewProcessResolver(probe, resolvers)
+	processResolver, err := NewProcessResolver(probe, resolvers, client)
 	if err != nil {
 		return nil, err
 	}

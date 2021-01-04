@@ -203,7 +203,7 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.Enabled = true
 	}
 
-	if config.Datadog.IsSet(key(spNS, "profiling_enabled")) {
+	if config.Datadog.IsSet(key(spNS, "profiling.enabled")) {
 		a.ProfilingEnabled = config.Datadog.GetBool(key(spNS, "profiling.enabled"))
 		a.ProfilingSite = config.Datadog.GetString(key(spNS, "profiling.site"))
 		a.ProfilingURL = config.Datadog.GetString(key(spNS, "profiling.profile_dd_url"))

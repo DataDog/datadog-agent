@@ -40,10 +40,10 @@ type Module struct {
 	config         *config.Config
 	ruleSets       [2]*rules.RuleSet
 	currentRuleSet uint64
+	reloading      uint64
 	eventServer    *EventServer
 	grpcServer     *grpc.Server
 	listener       net.Listener
-	statsdClient   *statsd.Client
 	rateLimiter    *RateLimiter
 	sigupChan      chan os.Signal
 }
@@ -119,6 +119,9 @@ func (m *Module) Reload() error {
 	m.Lock()
 	defer m.Unlock()
 
+	atomic.StoreUint64(&m.reloading, 1)
+	defer atomic.StoreUint64(&m.reloading, 0)
+
 	rsa := sprobe.NewRuleSetApplier(m.config, m.probe)
 
 	ruleSet := m.probe.NewRuleSet(rules.NewOptsWithParams(sprobe.SECLConstants, sprobe.SupportedDiscarders))
@@ -173,6 +176,10 @@ func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
 
 // EventDiscarderFound is called by the ruleset when a new discarder discovered
 func (m *Module) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
+	if atomic.LoadUint64(&m.reloading) == 1 {
+		return
+	}
+
 	if err := m.probe.OnNewDiscarder(rs, event.(*sprobe.Event), field, eventType); err != nil {
 		log.Trace(err)
 	}
@@ -195,13 +202,13 @@ func (m *Module) statsMonitor(ctx context.Context) {
 	for {
 		select {
 		case <-ticker.C:
-			if err := m.probe.SendStats(m.statsdClient); err != nil {
+			if err := m.probe.SendStats(); err != nil {
 				log.Debug(err)
 			}
-			if err := m.rateLimiter.SendStats(m.statsdClient); err != nil {
+			if err := m.rateLimiter.SendStats(); err != nil {
 				log.Debug(err)
 			}
-			if err := m.eventServer.SendStats(m.statsdClient); err != nil {
+			if err := m.eventServer.SendStats(); err != nil {
 				log.Debug(err)
 			}
 		case <-ctx.Done():
@@ -257,10 +264,9 @@ func NewModule(cfg *config.Config) (api.Module, error) {
 	m := &Module{
 		config:         cfg,
 		probe:          probe,
-		eventServer:    NewEventServer(cfg),
+		eventServer:    NewEventServer(cfg, statsdClient),
 		grpcServer:     grpc.NewServer(),
-		statsdClient:   statsdClient,
-		rateLimiter:    NewRateLimiter(),
+		rateLimiter:    NewRateLimiter(statsdClient),
 		sigupChan:      make(chan os.Signal, 1),
 		currentRuleSet: 1,
 	}

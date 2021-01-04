@@ -1022,7 +1022,6 @@ int socket__http_filter(struct __sk_buff* skb) {
         flip_tuple(&skb_info.tup);
     }
 
-    log_debug("http packet intercepted\n");
     http_handle_packet(skb, &skb_info);
 
     return 0;

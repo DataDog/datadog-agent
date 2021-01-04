@@ -6,7 +6,9 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-enhancements:
+features:
   - |
-    APM: Add a tag allowing trace metrics from synthetic data to 
-    be aggregated independently.
+    APM: Support SQL obfuscator feature to replace consecutive digits in table names.
+fixes:
+  - |
+    APM: Group arrays of consecutive '?' identifiers

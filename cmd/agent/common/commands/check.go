@@ -6,6 +6,7 @@
 package commands
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -30,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status"
@@ -287,6 +289,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				fmt.Println("Multiple check instances found, running each of them")
 			}
 
+			var checkFileOutput bytes.Buffer
 			var instancesData []interface{}
 			for _, c := range cs {
 				s := runCheck(c, agg)
@@ -373,12 +376,11 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 						return fmt.Errorf("no diff data found in %s", profileDataDir)
 					}
 				} else {
-					printMetrics(agg)
+					printMetrics(agg, &checkFileOutput)
 					checkStatus, _ := status.GetCheckStatus(c, s)
-					fmt.Println(string(checkStatus))
-					if saveFlare {
-						writeCheckToFile(c, checkStatus)
-					}
+					statusString := string(checkStatus)
+					fmt.Println(statusString)
+					checkFileOutput.WriteString(statusString + "\n")
 				}
 			}
 
@@ -388,8 +390,13 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 
 			if formatJSON {
 				fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("JSON")))
+				checkFileOutput.WriteString("=== JSON ===\n")
+
 				instancesJSON, _ := json.MarshalIndent(instancesData, "", "  ")
-				fmt.Println(string(instancesJSON))
+				instanceJSONString := string(instancesJSON)
+
+				fmt.Println(instanceJSONString)
+				checkFileOutput.WriteString(instanceJSONString + "\n")
 			} else if singleCheckRun() {
 				if profileMemory {
 					color.Yellow("Check has run only once, to collect diff data run the check multiple times with the -t/--check-times flag.")
@@ -401,6 +408,11 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 			if warnings != nil && warnings.TraceMallocEnabledWithPy2 {
 				return errors.New("tracemalloc is enabled but unavailable with python version 2")
 			}
+
+			if saveFlare {
+				writeCheckToFile(checkName, &checkFileOutput)
+			}
+
 			return nil
 		},
 	}
@@ -436,16 +448,17 @@ func runCheck(c check.Check, agg *aggregator.BufferedAggregator) *check.Stats {
 	return s
 }
 
-func printMetrics(agg *aggregator.BufferedAggregator) {
+func printMetrics(agg *aggregator.BufferedAggregator, checkFileOutput *bytes.Buffer) {
 	series, sketches := agg.GetSeriesAndSketches(time.Now())
 	if len(series) != 0 {
 		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Series")))
 
 		if formatTable {
 			headers, data := series.MarshalStrings()
+			var buffer bytes.Buffer
 
 			// plain table with no borders
-			table := tablewriter.NewWriter(os.Stdout)
+			table := tablewriter.NewWriter(&buffer)
 			table.SetHeader(headers)
 			table.SetAutoWrapText(false)
 			table.SetAutoFormatHeaders(true)
@@ -460,16 +473,19 @@ func printMetrics(agg *aggregator.BufferedAggregator) {
 
 			table.AppendBulk(data)
 			table.Render()
-			fmt.Println()
+			fmt.Println(buffer.String())
+			checkFileOutput.WriteString(buffer.String() + "\n")
 		} else {
 			j, _ := json.MarshalIndent(series, "", "  ")
 			fmt.Println(string(j))
+			checkFileOutput.WriteString(string(j) + "\n")
 		}
 	}
 	if len(sketches) != 0 {
 		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Sketches")))
 		j, _ := json.MarshalIndent(sketches, "", "  ")
 		fmt.Println(string(j))
+		checkFileOutput.WriteString(string(j) + "\n")
 	}
 
 	serviceChecks := agg.GetServiceChecks()
@@ -478,9 +494,10 @@ func printMetrics(agg *aggregator.BufferedAggregator) {
 
 		if formatTable {
 			headers, data := serviceChecks.MarshalStrings()
+			var buffer bytes.Buffer
 
 			// plain table with no borders
-			table := tablewriter.NewWriter(os.Stdout)
+			table := tablewriter.NewWriter(&buffer)
 			table.SetHeader(headers)
 			table.SetAutoWrapText(false)
 			table.SetAutoFormatHeaders(true)
@@ -495,29 +512,42 @@ func printMetrics(agg *aggregator.BufferedAggregator) {
 
 			table.AppendBulk(data)
 			table.Render()
-			fmt.Println()
+			fmt.Println(buffer.String())
+			checkFileOutput.WriteString(buffer.String() + "\n")
 		} else {
 			j, _ := json.MarshalIndent(serviceChecks, "", "  ")
 			fmt.Println(string(j))
+			checkFileOutput.WriteString(string(j) + "\n")
 		}
 	}
 
 	events := agg.GetEvents()
 	if len(events) != 0 {
 		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Events")))
+		checkFileOutput.WriteString("=== Events ===\n")
 		j, _ := json.MarshalIndent(events, "", "  ")
 		fmt.Println(string(j))
+		checkFileOutput.WriteString(string(j) + "\n")
 	}
 }
 
-func writeCheckToFile(c check.Check, checkStatus []byte) {
+func writeCheckToFile(checkName string, checkFileOutput *bytes.Buffer) {
 	_ = os.Mkdir(common.DefaultCheckFlareDirectory, os.ModeDir)
 
 	// Windows cannot accept ":" in file names
 	filenameSafeTimeStamp := strings.ReplaceAll(time.Now().Format(time.RFC3339), ":", "_")
-	flarePath := filepath.Join(common.DefaultCheckFlareDirectory, "check_"+string(c.ID())+"_"+filenameSafeTimeStamp+".log")
+	flarePath := filepath.Join(common.DefaultCheckFlareDirectory, "check_"+checkName+"_"+filenameSafeTimeStamp+".log")
 
-	if err := ioutil.WriteFile(flarePath, checkStatus, 0644); err != nil {
+	w, err := flare.NewRedactingWriter(flarePath, os.ModePerm, true)
+	if err != nil {
+		fmt.Println("Error while writing the check file:", err)
+		return
+	}
+	defer w.Close()
+
+	_, err = w.Write(checkFileOutput.Bytes())
+
+	if err != nil {
 		fmt.Println("Error while writing the check file (is the location writable by the dd-agent user?):", err)
 	} else {
 		fmt.Println("check written to:", flarePath)

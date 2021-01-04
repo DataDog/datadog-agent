@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-go/statsd"
 	lib "github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
 	"github.com/pkg/errors"
@@ -30,6 +31,19 @@ var snapshotProbeIDs = []manager.ProbeIdentificationPair{
 		UID:     probes.SecurityAgentUID,
 		Section: "kretprobe/get_task_exe_file",
 	},
+}
+
+const (
+	doForkListInput uint64 = iota
+	doForkStructInput
+)
+
+// getDoForkInput returns the expected input type of _do_fork, do_fork and kernel_clone
+func getDoForkInput(probe *Probe) uint64 {
+	if probe.kernelVersion != 0 && probe.kernelVersion >= kernel5_3 {
+		return doForkStructInput
+	}
+	return doForkListInput
 }
 
 // InodeInfo holds information related to inode from kernel
@@ -53,6 +67,7 @@ type ProcessResolver struct {
 	sync.RWMutex
 	probe          *Probe
 	resolvers      *Resolvers
+	client         *statsd.Client
 	snapshotProbes []*manager.Probe
 	inodeInfoMap   *lib.Map
 	procCacheMap   *lib.Map
@@ -214,9 +229,13 @@ func (p *ProcessResolver) insertEntry(pid uint32, entry *ProcessCacheEntry) *Pro
 			// update lineage
 			parent.Children[entry.Pid] = entry
 			p.entryCache[entry.PPid] = parent
+			_ = p.client.Count(MetricPrefix+".process_resolver.added", 1, []string{}, 1.0)
 		}
 	}
 	entry.Parent = parent
+	if _, ok := p.entryCache[pid]; !ok {
+		_ = p.client.Count(MetricPrefix+".process_resolver.added", 1, []string{}, 1.0)
+	}
 	p.entryCache[pid] = entry
 
 	return entry
@@ -251,6 +270,7 @@ func (p *ProcessResolver) recursiveDelete(entry *ProcessCacheEntry) {
 	}
 
 	// Delete the entry
+	_ = p.client.Count(MetricPrefix+".process_resolver.deleted", 1, []string{}, 1.0)
 	delete(p.entryCache, entry.Pid)
 
 	// There is nothing left to do if the entry does not have a parent
@@ -269,17 +289,25 @@ func (p *ProcessResolver) recursiveDelete(entry *ProcessCacheEntry) {
 func (p *ProcessResolver) Resolve(pid uint32) *ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
+	var tags []string
+	defer func() {
+		_ = p.client.Count(MetricPrefix+".process_resolver.hits", 1, tags, 1.0)
+	}()
+
 	entry, exists := p.entryCache[pid]
 	if exists {
+		tags = append(tags, "type:cache")
 		return entry
 	}
 
 	// fallback to the kernel maps directly, the perf event may be delayed / may have been lost
 	if entry = p.resolveWithKernelMaps(pid); entry != nil {
+		tags = append(tags, "type:kernel_maps")
 		return entry
 	}
 
 	// fallback to /proc, the in-kernel LRU may have deleted the entry
+	tags = append(tags, "type:procfs")
 	return p.resolveWithProcfs(pid)
 }
 
@@ -416,11 +444,19 @@ func (p *ProcessResolver) syncCache(proc *process.FilledProcess) (*ProcessCacheE
 	return entry, true
 }
 
+// GetCacheSize returns the cache size of the process resolver
+func (p *ProcessResolver) GetCacheSize() float64 {
+	p.resolvers.ProcessResolver.RLock()
+	defer p.resolvers.ProcessResolver.RUnlock()
+	return float64(len(p.resolvers.ProcessResolver.entryCache))
+}
+
 // NewProcessResolver returns a new process resolver
-func NewProcessResolver(probe *Probe, resolvers *Resolvers) (*ProcessResolver, error) {
+func NewProcessResolver(probe *Probe, resolvers *Resolvers, client *statsd.Client) (*ProcessResolver, error) {
 	return &ProcessResolver{
 		probe:      probe,
 		resolvers:  resolvers,
+		client:     client,
 		entryCache: make(map[uint32]*ProcessCacheEntry),
 	}, nil
 }
