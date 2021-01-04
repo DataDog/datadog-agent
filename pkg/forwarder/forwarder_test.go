@@ -54,6 +54,23 @@ func TestNewDefaultForwarder(t *testing.T) {
 	assert.Equal(t, forwarder.State(), forwarder.internalState)
 }
 
+func TestFeature(t *testing.T) {
+	var featureSet Features
+
+	featureSet = SetFeature(featureSet, CoreFeatures)
+	featureSet = SetFeature(featureSet, ProcessFeatures)
+	assert.True(t, HasFeature(featureSet, CoreFeatures))
+	assert.True(t, HasFeature(featureSet, ProcessFeatures))
+
+	featureSet = ClearFeature(featureSet, CoreFeatures)
+	assert.False(t, HasFeature(featureSet, CoreFeatures))
+	assert.True(t, HasFeature(featureSet, ProcessFeatures))
+
+	featureSet = ToggleFeature(featureSet, ProcessFeatures)
+	assert.False(t, HasFeature(featureSet, CoreFeatures))
+	assert.False(t, HasFeature(featureSet, ProcessFeatures))
+}
+
 func TestStart(t *testing.T) {
 	forwarder := NewDefaultForwarder(NewOptions(monoKeysDomains))
 	err := forwarder.Start()

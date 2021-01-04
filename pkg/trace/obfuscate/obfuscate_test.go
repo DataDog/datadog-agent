@@ -88,6 +88,38 @@ func TestCompactWhitespaces(t *testing.T) {
 	}
 }
 
+func TestReplaceDigits(t *testing.T) {
+	assert := assert.New(t)
+
+	for _, tt := range []struct {
+		in       []byte
+		expected []byte
+	}{
+		{
+			[]byte("table123"),
+			[]byte("table?"),
+		},
+		{
+			[]byte(""),
+			[]byte(""),
+		},
+		{
+			[]byte("2020-table"),
+			[]byte("?-table"),
+		},
+		{
+			[]byte("sales_2019_07_01"),
+			[]byte("sales_?_?_?"),
+		},
+		{
+			[]byte("45"),
+			[]byte("?"),
+		},
+	} {
+		assert.Equal(tt.expected, replaceDigits(tt.in))
+	}
+}
+
 func TestObfuscateStatsGroup(t *testing.T) {
 	statsGroup := func(typ, resource string) *pb.ClientGroupedStats {
 		return &pb.ClientGroupedStats{
@@ -264,5 +296,12 @@ func BenchmarkCompactWhitespaces(b *testing.B) {
 	str := "a b       cde     fg       hi                     j  jk   lk lkjfdsalfd     afsd sfdafsd f"
 	for i := 0; i < b.N; i++ {
 		compactWhitespaces(str)
+	}
+}
+
+func BenchmarkReplaceDigits(b *testing.B) {
+	tbl := []byte("sales_2019_07_01_orders")
+	for i := 0; i < b.N; i++ {
+		replaceDigits(tbl)
 	}
 }

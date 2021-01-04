@@ -35,10 +35,6 @@ var execProbes = []*manager.Probe{
 	},
 	{
 		UID:     SecurityAgentUID,
-		Section: "kprobe/kernel_thread",
-	},
-	{
-		UID:     SecurityAgentUID,
 		Section: "kprobe/cgroup_procs_write",
 	},
 	{
