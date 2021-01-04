@@ -23,8 +23,9 @@ func TestSerializeDeserialize(t *testing.T) {
 	bytes, err := serializer.GetBytesAndReset()
 	a.NoError(err)
 
-	transactions, err := serializer.Deserialize(bytes)
+	transactions, errorCount, err := serializer.Deserialize(bytes)
 	a.NoError(err)
+	a.Equal(0, errorCount)
 	a.Len(transactions, 1)
 	transactionDeserialized := transactions[0].(*HTTPTransaction)
 
@@ -32,7 +33,8 @@ func TestSerializeDeserialize(t *testing.T) {
 
 	bytes, err = serializer.GetBytesAndReset()
 	a.NoError(err)
-	transactions, err = serializer.Deserialize(bytes)
+	transactions, errorCount, err = serializer.Deserialize(bytes)
+	a.Equal(0, errorCount)
 	a.NoError(err)
 	a.Len(transactions, 0)
 }
@@ -48,7 +50,7 @@ func TestPartialDeserialize(t *testing.T) {
 	a.NoError(err)
 
 	for end := len(bytes); end >= 0; end-- {
-		trs, err := serializer.Deserialize(bytes[:end])
+		trs, _, err := serializer.Deserialize(bytes[:end])
 
 		// If there is no error, transactions should be valid.
 		if err == nil {
@@ -69,12 +71,14 @@ func TestTransactionSerializerMissingAPIKey(t *testing.T) {
 	bytes, err := serializer.GetBytesAndReset()
 	r.NoError(err)
 
-	_, err = serializer.Deserialize(bytes)
+	_, errorCount, err := serializer.Deserialize(bytes)
 	r.NoError(err)
+	r.Equal(0, errorCount)
 
 	serializerMissingAPIKey := NewTransactionsSerializer(domain, []string{apiKey1})
-	_, err = serializerMissingAPIKey.Deserialize(bytes)
-	r.Error(err)
+	_, errorCount, err = serializerMissingAPIKey.Deserialize(bytes)
+	r.NoError(err)
+	r.Equal(1, errorCount)
 }
 
 func TestHTTPTransactionFieldsCount(t *testing.T) {

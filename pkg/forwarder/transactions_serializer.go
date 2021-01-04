@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/common"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	proto "github.com/golang/protobuf/proto"
 )
@@ -92,29 +93,33 @@ func (s *TransactionsSerializer) GetBytesAndReset() ([]byte, error) {
 }
 
 // Deserialize deserializes from bytes.
-func (s *TransactionsSerializer) Deserialize(bytes []byte) ([]Transaction, error) {
+func (s *TransactionsSerializer) Deserialize(bytes []byte) ([]Transaction, int, error) {
 	collection := HttpTransactionProtoCollection{}
 
 	if err := proto.Unmarshal(bytes, &collection); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	var httpTransactions []Transaction
+	errorCount := 0
 	for _, transaction := range collection.Values {
-		priority, err := fromTransactionPriorityProto(transaction.Priority)
-		if err != nil {
-			return nil, err
-		}
+		var route string
+		var proto http.Header
 		e := transaction.Endpoint
-		route, err := s.restoreAPIKeys(e.Route)
-		if err != nil {
-			return nil, err
-		}
-		proto, err := s.fromHeaderProto(transaction.Headers)
-		if err != nil {
-			return nil, err
+
+		priority, err := fromTransactionPriorityProto(transaction.Priority)
+		if err == nil {
+			route, err = s.restoreAPIKeys(e.Route)
+			if err == nil {
+				proto, err = s.fromHeaderProto(transaction.Headers)
+			}
 		}
 
+		if err != nil {
+			log.Error(err)
+			errorCount++
+			continue
+		}
 		tr := HTTPTransaction{
 			Domain:         s.domain,
 			Endpoint:       endpoint{route: route, name: e.Name},
@@ -129,7 +134,7 @@ func (s *TransactionsSerializer) Deserialize(bytes []byte) ([]Transaction, error
 		tr.setDefaultHandlers()
 		httpTransactions = append(httpTransactions, &tr)
 	}
-	return httpTransactions, nil
+	return httpTransactions, errorCount, nil
 }
 
 func (s *TransactionsSerializer) replaceAPIKeys(str string) string {
