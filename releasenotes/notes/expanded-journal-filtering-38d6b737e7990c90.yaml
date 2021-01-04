@@ -1,0 +1,6 @@
+enhancements:
+  - |
+    Logs: Support filtering on arbitrary journal log fields
+deprecations:
+  - |
+    Logs: `include_units`/`exclude_units` deprecated in favour of `include_matches`/`exclude_matches`
