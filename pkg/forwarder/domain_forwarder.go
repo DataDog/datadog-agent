@@ -61,7 +61,7 @@ func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 	// In case it takes more that flushInterval to sort and retry
 	// transactions we skip a retry.
 	if !atomic.CompareAndSwapInt32(&f.isRetrying, 0, 1) {
-		log.Errorf("The forwarder is still retrying Transaction: this should never happens and you might lower the 'forwarder_retry_queue_payloads_max_size'")
+		log.Errorf("The forwarder is still retrying Transaction: this should never happens, you might want to lower the 'forwarder_retry_queue_payloads_max_size'")
 		return
 	}
 	defer atomic.StoreInt32(&f.isRetrying, 0)
