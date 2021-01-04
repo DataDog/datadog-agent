@@ -19,8 +19,11 @@ import (
 )
 
 const transactionsSerializerVersion = 1
-const placeHolderPrefix = "@@@API_KEY@"
-const placeHolderFormat = placeHolderPrefix + "%v@"
+
+// Use an non US ASCII char as a separator (Should neither appear in an HTTP header value nor in a URL).
+const squareChar = "\xfe"
+const placeHolderPrefix = squareChar + "API_KEY" + squareChar
+const placeHolderFormat = placeHolderPrefix + "%v" + squareChar
 
 // TransactionsSerializer serializes Transaction instances.
 // To support a new Transaction implementation, add a new
