@@ -58,6 +58,7 @@ const (
 	Insert
 	Into
 	Join
+	TableName
 	ColonCast
 
 	// FilteredGroupable specifies that the given token has been discarded by one of the
