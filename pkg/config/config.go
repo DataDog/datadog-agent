@@ -869,7 +869,8 @@ func loadProxyFromEnv(config Config) {
 	}
 
 	if !config.GetBool("proxy.use_proxy_for_host_metadata") {
-		p.NoProxy = append(p.NoProxy, "169.254.169.254")
+		p.NoProxy = append(p.NoProxy, "169.254.169.254") // Azure, EC2, GCE
+		p.NoProxy = append(p.NoProxy, "100.100.100.200") // Alibaba
 	}
 }
 
