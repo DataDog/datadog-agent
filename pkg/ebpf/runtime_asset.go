@@ -20,7 +20,7 @@ type CompiledOutput interface {
 	io.Closer
 }
 
-// RuntimeAsset represents an asset that needs it content integrity checked at runtime
+// RuntimeAsset represents an asset that needs its content integrity checked at runtime
 type RuntimeAsset struct {
 	filename string
 	hash     string
