@@ -16,9 +16,9 @@ bpf_compiler *new_bpf_compiler(void)
     return c_compiler;
 }
 
-int bpf_compile_to_object_file(bpf_compiler *compiler, const char *input_file, const char *output_file, const char **cflagsv, char verbose)
+int bpf_compile_to_object_file(bpf_compiler *compiler, const char *input_buf, const char *output_file, const char **cflagsv, char verbose)
 {
-    if (!compiler || !input_file || !output_file) {
+    if (!compiler || !input_buf || !output_file) {
         return -1;
     }
 
@@ -30,7 +30,7 @@ int bpf_compile_to_object_file(bpf_compiler *compiler, const char *input_file, c
             cflagsv++;
         }
     }
-    auto module = cppCompiler->compileToBytecode(input_file, NULL, cflags, bool(verbose));
+    auto module = cppCompiler->compileToBytecode(input_buf, NULL, cflags, bool(verbose));
     if (!module) {
         return -1;
     }

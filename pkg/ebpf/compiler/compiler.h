@@ -38,7 +38,7 @@ public:
 
     ClangCompiler(const char *name);
     std::unique_ptr<llvm::Module> compileToBytecode(
-        const char *inputFile,
+        const char *inputBuffer,
         const char *outputFile = NULL,
         const std::vector<const char*> &cflags = std::vector<const char*>(),
         bool verbose = false);
@@ -47,12 +47,12 @@ public:
     ~ClangCompiler();
 
 private:
+    static const std::string main_path;
     static std::once_flag llvmInitialized;
     static std::map<std::string, std::unique_ptr<llvm::MemoryBuffer>> remapped_files;
     static llvm::StringRef getDataLayout();
     static llvm::StringRef getArch();
     std::unique_ptr<clang::CompilerInvocation> buildCompilation(
-        const char *inputFile,
         const char *outputFile,
         const std::vector<const char*> &cflags,
         bool verbose);

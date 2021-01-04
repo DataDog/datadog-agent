@@ -41,7 +41,11 @@ func TestCompilerMatch(t *testing.T) {
 	defer os.Remove(tmpObjFile.Name())
 
 	onDiskObjFilename := tmpObjFile.Name()
-	err = c.CompileToObjectFile(cPath, onDiskObjFilename, cflags)
+	cFile, err := os.Open(cPath)
+	require.NoError(t, err)
+	defer cFile.Close()
+
+	err = c.CompileToObjectFile(cFile, onDiskObjFilename, cflags)
 	require.NoError(t, err)
 
 	bs, err := ioutil.ReadFile(onDiskObjFilename)

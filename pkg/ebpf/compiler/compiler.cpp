@@ -13,6 +13,7 @@
 
 std::once_flag ClangCompiler::llvmInitialized;
 std::map<std::string, std::unique_ptr<llvm::MemoryBuffer>> ClangCompiler::remapped_files;
+const std::string ClangCompiler::main_path = "/virtual/main.c";
 
 enum Architecture { PPC, PPCLE, S390X, ARM64, X86 };
 
@@ -77,7 +78,6 @@ ClangCompiler::ClangCompiler(const char *name) :
 }
 
 std::unique_ptr<clang::CompilerInvocation> ClangCompiler::buildCompilation(
-    const char *inputFile,
     const char *outputFile,
     const std::vector<const char*> &extraCflags,
     bool verbose)
@@ -91,8 +91,10 @@ std::unique_ptr<clang::CompilerInvocation> ClangCompiler::buildCompilation(
         cflags.push_back("-v");
     }
 
+    cflags.push_back("-x");
+    cflags.push_back("c");
     cflags.push_back("-c");
-    cflags.push_back(inputFile);
+    cflags.push_back(main_path.c_str());
 
     if (outputFile) {
         cflags.push_back("-o");
@@ -100,6 +102,7 @@ std::unique_ptr<clang::CompilerInvocation> ClangCompiler::buildCompilation(
     }
 
     // Build
+    theDriver->setCheckInputsExist(false);
     std::unique_ptr<clang::driver::Compilation> compilation(theDriver->BuildCompilation(cflags));
 
     // expect exactly 1 job, otherwise error
@@ -136,20 +139,23 @@ std::unique_ptr<clang::CompilerInvocation> ClangCompiler::buildCompilation(
 }
 
 std::unique_ptr<llvm::Module> ClangCompiler::compileToBytecode(
-    const char *inputFile,
+    const char *inputBuffer,
     const char *outputFile,
     const std::vector<const char*> &cflags,
     bool verbose)
 {
-    auto invocation = buildCompilation(inputFile, outputFile, cflags, verbose);
+    auto invocation = buildCompilation(outputFile, cflags, verbose);
     if (!invocation) {
         return nullptr;
     }
+
+    auto main_buf = llvm::MemoryBuffer::getMemBuffer(inputBuffer);
 
     invocation->getPreprocessorOpts().RetainRemappedFileBuffers = true;
     for (const auto &f : remapped_files) {
         invocation->getPreprocessorOpts().addRemappedFile(f.first, &*f.second);
     }
+    invocation->getPreprocessorOpts().addRemappedFile(main_path, &*main_buf);
 
     if (outputFile) {
         invocation->getFrontendOpts().OutputFile = std::string(llvm::StringRef(outputFile));
