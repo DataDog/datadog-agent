@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -86,6 +87,7 @@ func LoadPolicies(config *config.Config, ruleSet *RuleSet) error {
 	if err != nil {
 		return err
 	}
+	sort.Slice(policyFiles, func(i, j int) bool { return policyFiles[i].Name() < policyFiles[j].Name() })
 
 	// Load and parse policies
 	for _, policyPath := range policyFiles {
