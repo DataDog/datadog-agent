@@ -444,6 +444,13 @@ func (p *ProcessResolver) syncCache(proc *process.FilledProcess) (*ProcessCacheE
 	return entry, true
 }
 
+// GetCacheSize returns the cache size of the process resolver
+func (p *ProcessResolver) GetCacheSize() float64 {
+	p.resolvers.ProcessResolver.RLock()
+	defer p.resolvers.ProcessResolver.RUnlock()
+	return float64(len(p.resolvers.ProcessResolver.entryCache))
+}
+
 // NewProcessResolver returns a new process resolver
 func NewProcessResolver(probe *Probe, resolvers *Resolvers, client *statsd.Client) (*ProcessResolver, error) {
 	return &ProcessResolver{

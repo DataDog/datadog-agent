@@ -9,8 +9,6 @@ package mock
 type Registry struct {
 	offset      string
 	tailingMode string
-	configID    string
-	identifier  string
 }
 
 // NewRegistry returns a new registry.
@@ -36,20 +34,4 @@ func (r *Registry) GetTailingMode(identifier string) string {
 // SetTailingMode sets the tailing mode.
 func (r *Registry) SetTailingMode(tailingMode string) {
 	r.tailingMode = tailingMode
-}
-
-// SetConfigID allow only one identifier to update an offset
-func (r *Registry) SetConfigID(identifier, configID string) {
-	r.configID = configID
-	r.identifier = identifier
-}
-
-// GetConfigID get the config identifier
-func (r *Registry) GetConfigID() string {
-	return r.configID
-}
-
-// GetIdentifier get the config identifier
-func (r *Registry) GetIdentifier() string {
-	return r.identifier
 }
