@@ -526,7 +526,7 @@ func (f *DefaultForwarder) SubmitSketchSeries(payload Payloads, extra http.Heade
 
 // SubmitHostMetadata will send a host_metadata tag type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitHostMetadata(payload Payloads, extra http.Header) error {
-	return f.submitV1Intake(payload, extra,
+	return f.submitV1IntakeWithTransactionsFactory(payload, extra,
 		func(endpoint endpoint, payloads Payloads, apiKeyInQueryString bool, extra http.Header) []*HTTPTransaction {
 			return f.createAdvancedHTTPTransactions(endpoint, payloads, apiKeyInQueryString, extra, TransactionPriorityHigh)
 		})
@@ -534,7 +534,7 @@ func (f *DefaultForwarder) SubmitHostMetadata(payload Payloads, extra http.Heade
 
 // SubmitMetadata will send a metadata type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitMetadata(payload Payloads, extra http.Header) error {
-	return f.submitV1Intake(payload, extra, f.createHTTPTransactions)
+	return f.submitV1IntakeWithTransactionsFactory(payload, extra, f.createHTTPTransactions)
 }
 
 // SubmitV1Series will send timeserie to v1 endpoint (this will be remove once
@@ -553,10 +553,10 @@ func (f *DefaultForwarder) SubmitV1CheckRuns(payload Payloads, extra http.Header
 
 // SubmitV1Intake will send payloads to the universal `/intake/` endpoint used by Agent v.5
 func (f *DefaultForwarder) SubmitV1Intake(payload Payloads, extra http.Header) error {
-	return f.submitV1Intake(payload, extra, f.createHTTPTransactions)
+	return f.submitV1IntakeWithTransactionsFactory(payload, extra, f.createHTTPTransactions)
 }
 
-func (f *DefaultForwarder) submitV1Intake(
+func (f *DefaultForwarder) submitV1IntakeWithTransactionsFactory(
 	payload Payloads,
 	extra http.Header,
 	createHTTPTransactions func(endpoint endpoint, payload Payloads, apiKeyInQueryString bool, extra http.Header) []*HTTPTransaction) error {
