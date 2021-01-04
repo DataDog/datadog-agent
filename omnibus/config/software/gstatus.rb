@@ -16,7 +16,7 @@
 #
 
 name "gstatus"
-default_version "1.0.4"
+default_version "1.0.5"
 
 source :url => "https://github.com/gluster/gstatus/releases/download/v#{version}/gstatus",
        :sha256 => "60f4b08c0bdbe0e710e4c025ccf7cf5496cb2ec6a6ca2c1569cd060ae0463bc8",
