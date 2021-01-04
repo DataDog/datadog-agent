@@ -108,38 +108,32 @@ func (p *ProcessResolver) enrichEventFromProc(entry *ProcessCacheEntry, proc *pr
 		procExecPath := utils.ProcExePath(proc.Pid)
 		pathnameStr, err := os.Readlink(procExecPath)
 		if err != nil {
-			log.Debug(errors.Wrapf(err, "snapshot failed for %d: couldn't readlink binary", proc.Pid))
-			return err
+			return errors.Wrapf(err, "snapshot failed for %d: couldn't readlink binary", proc.Pid)
 		}
 		if pathnameStr == "/ (deleted)" {
-			log.Debugf("snapshot failed for %d: binary was deleted", proc.Pid)
-			return errors.New("snapshot failed")
+			return errors.Errorf("snapshot failed for %d: binary was deleted", proc.Pid)
 		}
 
 		// Get the inode of the process binary
 		fi, err := os.Stat(procExecPath)
 		if err != nil {
-			log.Debug(errors.Wrapf(err, "snapshot failed for %d: couldn't stat binary", proc.Pid))
-			return err
+			return errors.Wrapf(err, "snapshot failed for %d: couldn't stat binary", proc.Pid)
 		}
 		stat, ok := fi.Sys().(*syscall.Stat_t)
 		if !ok {
-			log.Debugf("snapshot failed for %d: couldn't stat binary", proc.Pid)
-			return errors.New("snapshot failed")
+			return errors.Errorf("snapshot failed for %d: couldn't stat binary", proc.Pid)
 		}
 		inode := stat.Ino
 
 		info, err := p.retrieveInodeInfo(inode)
 		if err != nil {
-			log.Debug(errors.Wrapf(err, "snapshot failed for %d: couldn't retrieve inode info", proc.Pid))
-			return err
+			return errors.Wrapf(err, "snapshot failed for %d: couldn't retrieve inode info", proc.Pid)
 		}
 
 		// Retrieve the container ID of the process from /proc
 		containerID, err := p.resolvers.ContainerResolver.GetContainerID(pid)
 		if err != nil {
-			log.Debug(errors.Wrapf(err, "snapshot failed for %d: couldn't parse container ID", proc.Pid))
-			return err
+			return errors.Wrapf(err, "snapshot failed for %d: couldn't parse container ID", proc.Pid)
 		}
 
 		entry.FileEvent = FileEvent{
@@ -428,6 +422,7 @@ func (p *ProcessResolver) syncCache(proc *process.Process) (*ProcessCacheEntry, 
 
 	// update the cache entry
 	if err := p.enrichEventFromProc(entry, proc); err != nil {
+		log.Debug(err)
 		return nil, false
 	}
 
