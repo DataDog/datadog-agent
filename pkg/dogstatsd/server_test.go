@@ -411,27 +411,23 @@ func TestScanLines(t *testing.T) {
 
 	messages := []string{"foo", "bar", "baz", "quz", "hax", ""}
 	packet := []byte(strings.Join(messages, "\n"))
-	t.Logf("parsing: %v", packet)
 	cnt := 0
 	advance, tok, eol, err := ScanLines(packet, true)
 	for tok != nil && err == nil {
 		cnt++
-		t.Logf("token: %s", string(tok))
 		assert.Equal(t, eol, true)
 		packet = packet[advance:]
 		advance, tok, eol, err = ScanLines(packet, true)
 	}
 
-	assert.True(t, eol)
+	assert.False(t, eol)
 	assert.Equal(t, 5, cnt)
 
 	cnt = 0
 	packet = []byte(strings.Join(messages[0:len(messages)-1], "\n"))
-	t.Logf("parsing: %v", packet)
 	advance, tok, eol, err = ScanLines(packet, true)
 	for tok != nil && err == nil {
 		cnt++
-		t.Logf("token: %s", string(tok))
 		packet = packet[advance:]
 		advance, tok, eol, err = ScanLines(packet, true)
 	}
@@ -443,14 +439,16 @@ func TestScanLines(t *testing.T) {
 
 func TestEOLParsing(t *testing.T) {
 	config.Datadog.SetDefault("dogstatsd_eol_required", true)
+	// reset to default
+	defer config.Datadog.SetDefault("dogstatsd_eol_required", false)
 
 	messages := []string{"foo", "bar", "baz", "quz", "hax", ""}
 	packet := []byte(strings.Join(messages, "\n"))
 	cnt := 0
 	msg := nextMessage(&packet)
 	for msg != nil {
+		assert.Equal(t, string(msg), messages[cnt])
 		msg = nextMessage(&packet)
-		assert.Equal(t, msg, string(messages[cnt]))
 		cnt++
 	}
 
@@ -466,6 +464,45 @@ func TestEOLParsing(t *testing.T) {
 
 	assert.Equal(t, 4, cnt)
 
+}
+
+func TestE2EParsing(t *testing.T) {
+	port, err := getAvailableUDPPort()
+	require.NoError(t, err)
+	config.Datadog.SetDefault("dogstatsd_port", port)
+
+	agg := mockAggregator()
+	metricOut, _, _ := agg.GetBufferedChannels()
+	s, err := NewServer(agg)
+	require.NoError(t, err, "cannot start DSD")
+	defer s.Stop()
+
+	url := fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_port"))
+	conn, err := net.Dial("udp", url)
+	require.NoError(t, err, "cannot connect to DSD socket")
+	defer conn.Close()
+
+	// Test metric
+	conn.Write([]byte("daemon:666|g|#foo:bar\ndaemon:666|g|#foo:bar"))
+	select {
+	case res := <-metricOut:
+		assert.Equal(t, len(res), 2)
+	case <-time.After(2 * time.Second):
+		assert.FailNow(t, "Timeout on receive channel")
+	}
+
+	config.Datadog.SetDefault("dogstatsd_eol_required", true)
+	// reset to default
+	defer config.Datadog.SetDefault("dogstatsd_eol_required", false)
+
+	// Test metric expecting an EOL
+	conn.Write([]byte("daemon:666|g|#foo:bar\ndaemon:666|g|#foo:bar"))
+	select {
+	case res := <-metricOut:
+		assert.Equal(t, len(res), 1)
+	case <-time.After(2 * time.Second):
+		assert.FailNow(t, "Timeout on receive channel")
+	}
 }
 
 func TestExtraTags(t *testing.T) {
