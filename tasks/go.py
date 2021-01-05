@@ -208,7 +208,7 @@ def ineffassign(ctx, targets):
         # as comma separated tokens in a string
         targets = targets.split(',')
 
-    ctx.run("ineffassign " + " ".join(targets))
+    ctx.run("ineffassign " + " ".join(target + "/..." for target in targets))
     # ineffassign exits with status 1 when it finds an issue, if we're here
     # everything went smooth
     print("ineffassign found no issues")

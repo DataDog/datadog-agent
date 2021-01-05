@@ -44,7 +44,6 @@ type Module struct {
 	eventServer    *EventServer
 	grpcServer     *grpc.Server
 	listener       net.Listener
-	statsdClient   *statsd.Client
 	rateLimiter    *RateLimiter
 	sigupChan      chan os.Signal
 }
@@ -203,13 +202,13 @@ func (m *Module) statsMonitor(ctx context.Context) {
 	for {
 		select {
 		case <-ticker.C:
-			if err := m.probe.SendStats(m.statsdClient); err != nil {
+			if err := m.probe.SendStats(); err != nil {
 				log.Debug(err)
 			}
-			if err := m.rateLimiter.SendStats(m.statsdClient); err != nil {
+			if err := m.rateLimiter.SendStats(); err != nil {
 				log.Debug(err)
 			}
-			if err := m.eventServer.SendStats(m.statsdClient); err != nil {
+			if err := m.eventServer.SendStats(); err != nil {
 				log.Debug(err)
 			}
 		case <-ctx.Done():
@@ -265,10 +264,9 @@ func NewModule(cfg *config.Config) (api.Module, error) {
 	m := &Module{
 		config:         cfg,
 		probe:          probe,
-		eventServer:    NewEventServer(cfg),
+		eventServer:    NewEventServer(cfg, statsdClient),
 		grpcServer:     grpc.NewServer(),
-		statsdClient:   statsdClient,
-		rateLimiter:    NewRateLimiter(),
+		rateLimiter:    NewRateLimiter(statsdClient),
 		sigupChan:      make(chan os.Signal, 1),
 		currentRuleSet: 1,
 	}
