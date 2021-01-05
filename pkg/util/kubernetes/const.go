@@ -35,4 +35,55 @@ const (
 
 	// KubeNodeRoleTagName is the role label tag name
 	KubeNodeRoleTagName = "kube_node_role"
+
+	// PodKind represents the Pod object kind
+	PodKind = "Pod"
+	// DeploymentKind represents the Deployment object kind
+	DeploymentKind = "Deployment"
+	// ReplicaSetKind represents the ReplicaSet object kind
+	ReplicaSetKind = "ReplicaSet"
+	// ReplicationControllerKind represents the ReplicaSetController object kind
+	ReplicationControllerKind = "ReplicationController"
+	// StatefulSetKind represents the StatefulSet object kind
+	StatefulSetKind = "StatefulSet"
+	// DaemonSetKind represents the DaemonSet object kind
+	DaemonSetKind = "DaemonSet"
+	// JobKind represents the Job object kind
+	JobKind = "Job"
+	// CronJobKind represents the CronJob object kind
+	CronJobKind = "CronJob"
+	// ServiceKind represents the ServiceKind object kind
+	ServiceKind = "Service"
+
+	// PodTagName represents the pods tag name
+	PodTagName = "pod_name"
+	// DeploymentTagName represents the Deployment tag name
+	DeploymentTagName = "kube_deployment"
+	// ReplicaSetTagName represents the ReplicaSet tag name
+	ReplicaSetTagName = "kube_replica_set"
+	// ReplicationControllerTagName represents the ReplicationController tag name
+	ReplicationControllerTagName = "kube_replication_controller"
+	// StatefulSetTagName represents the StatefulSet tag name
+	StatefulSetTagName = "kube_stateful_set"
+	// DaemonSetTagName represents the DaemonSet tag name
+	DaemonSetTagName = "kube_daemon_set"
+	// JobTagName represents the Job tag name
+	JobTagName = "kube_job"
+	// CronJobTagName represents the CronJob tag name
+	CronJobTagName = "kube_cronjob"
+	// ServiceTagName represents the CronJob tag name
+	ServiceTagName = "kube_service"
 )
+
+// KindToTagName returns the tag name for a given kubernetes object name
+var KindToTagName = map[string]string{
+	PodKind:                   PodTagName,
+	DeploymentKind:            DeploymentTagName,
+	ReplicaSetKind:            ReplicaSetTagName,
+	ReplicationControllerKind: ReplicationControllerTagName,
+	StatefulSetKind:           StatefulSetTagName,
+	DaemonSetKind:             DaemonSetTagName,
+	JobKind:                   JobTagName,
+	CronJobKind:               CronJobTagName,
+	ServiceKind:               ServiceTagName,
+}

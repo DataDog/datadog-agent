@@ -880,16 +880,26 @@ func (p *ProcessContext) UnmarshalBinary(data []byte) (int, error) {
 
 // ResolveUser resolves the user id of the process to a username
 func (p *ProcessContext) ResolveUser(event *Event) string {
+	return p.ResolveUserWithResolvers(event.resolvers)
+}
+
+// ResolveUserWithResolvers resolves the user id of the process to a username
+func (p *ProcessContext) ResolveUserWithResolvers(resolvers *Resolvers) string {
 	if len(p.User) == 0 {
-		p.User, _ = event.resolvers.UserGroupResolver.ResolveUser(int(p.UID))
+		p.User, _ = resolvers.UserGroupResolver.ResolveUser(int(p.UID))
 	}
 	return p.User
 }
 
 // ResolveGroup resolves the group id of the process to a group name
 func (p *ProcessContext) ResolveGroup(event *Event) string {
+	return p.ResolveGroupWithResolvers(event.resolvers)
+}
+
+// ResolveGroupWithResolvers resolves the group id of the process to a group name
+func (p *ProcessContext) ResolveGroupWithResolvers(resolvers *Resolvers) string {
 	if len(p.Group) == 0 {
-		p.Group, _ = event.resolvers.UserGroupResolver.ResolveGroup(int(p.GID))
+		p.Group, _ = resolvers.UserGroupResolver.ResolveGroup(int(p.GID))
 	}
 	return p.Group
 }
@@ -962,23 +972,23 @@ func (e *Event) GetPointer() unsafe.Pointer {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *Event) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 16 {
+	if len(data) < 24 {
 		return 0, ErrNotEnoughData
 	}
 
-	e.TimestampRaw = ebpf.ByteOrder.Uint64(data[0:8])
-	e.Type = ebpf.ByteOrder.Uint64(data[8:16])
+	e.TimestampRaw = ebpf.ByteOrder.Uint64(data[8:16])
+	e.Type = ebpf.ByteOrder.Uint64(data[16:24])
 
-	return 16, nil
+	return 24, nil
 }
 
-// TimestampFromEventData extracts timestamp from the raw data event
-func TimestampFromEventData(data []byte) (uint64, error) {
-	if len(data) < 8 {
-		return 0, ErrNotEnoughData
+// ExtractEventInfo extracts cpu and timestamp from the raw data event
+func ExtractEventInfo(data []byte) (uint64, uint64, error) {
+	if len(data) < 16 {
+		return 0, 0, ErrNotEnoughData
 	}
 
-	return ebpf.ByteOrder.Uint64(data[0:8]), nil
+	return ebpf.ByteOrder.Uint64(data[0:8]), ebpf.ByteOrder.Uint64(data[8:16]), nil
 }
 
 // ResolveEventTimestamp resolves the monolitic kernel event timestamp to an absolute time

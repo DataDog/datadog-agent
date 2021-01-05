@@ -876,6 +876,24 @@ api_key:
   #   - 'sql*'
   #   - '*pass*d*'
 
+{{- if .Profiling -}}
+  ## @param profiling - custom object - optional
+  ## Enter specific configurations for profiling.
+  ## Uncomment this parameter and the one below to enable profiling.
+  ## See https://docs.datadoghq.com/tracing/profiling/
+  #
+  ## NOTE: If you enable this option, it may impact your billing or
+  ##       other features (e.g. process-agent profiles showing with your
+  ##       services).
+  #
+  # profiling:
+  #
+  ## @param enabled - boolean - optional - default: false
+  ## Enable profiling for the Process Agent process.
+  #
+  # enabled: false
+
+{{ end }}
 {{ end -}}
 {{- if .Compliance }}
 #############################################

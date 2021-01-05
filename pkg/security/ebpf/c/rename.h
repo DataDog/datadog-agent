@@ -95,8 +95,6 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
         syscall->rename.target_key.path_id = get_path_id(1);
 
         struct rename_event_t event = {
-            .event.type = EVENT_RENAME,
-            .event.timestamp = bpf_ktime_get_ns(),
             .syscall.retval = retval,
             .old = {
                 .inode = syscall->rename.src_key.ino,
@@ -116,7 +114,7 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
 
         resolve_dentry(syscall->rename.src_dentry, syscall->rename.target_key, 0);
 
-        send_event(ctx, event);
+        send_event(ctx, EVENT_RENAME, event);
     }
 
     invalidate_inode(ctx, syscall->rename.target_key.mount_id, syscall->rename.target_key.ino, !enabled);

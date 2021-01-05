@@ -563,18 +563,18 @@ func (p *Probe) getFDCount(pidPath string) int32 {
 	path := filepath.Join(pidPath, "fd")
 
 	if err := p.ensurePathReadable(path); err != nil {
-		return 0
+		return -1
 	}
 
 	d, err := os.Open(path)
 	if err != nil {
-		return 0
+		return -1
 	}
 	defer d.Close()
 
 	names, err := d.Readdirnames(-1)
 	if err != nil {
-		return 0
+		return -1
 	}
 	return int32(len(names))
 }

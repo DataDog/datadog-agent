@@ -224,6 +224,7 @@ enum syscall_type
 };
 
 struct kevent_t {
+    u64 cpu;
     u64 timestamp;
     u64 type;
 };
@@ -313,14 +314,11 @@ struct bpf_map_def SEC("maps/events") events = {
     .namespace = "",
 };
 
-#define send_event(ctx, event) \
-    bpf_perf_event_output(ctx, &events, bpf_get_smp_processor_id(), &event, sizeof(event))
-
-#define send_mountpoints_events(ctx, event) \
-    bpf_perf_event_output(ctx, &events, bpf_get_smp_processor_id(), &event, sizeof(event))
-
-#define send_process_events(ctx, event) \
-    bpf_perf_event_output(ctx, &events, bpf_get_smp_processor_id(), &event, sizeof(event))
+#define send_event(ctx, event_type, event) \
+    event.event.type = event_type; \
+    event.event.cpu = bpf_get_smp_processor_id(); \
+    event.event.timestamp = bpf_ktime_get_ns(); \
+    bpf_perf_event_output(ctx, &events, event.event.cpu, &event, sizeof(event))
 
 static __attribute__((always_inline)) u32 ord(u8 c) {
     if (c >= 49 && c <= 57) {
