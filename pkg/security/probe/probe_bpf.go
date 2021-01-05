@@ -286,7 +286,7 @@ func (p *Probe) unmarshalProcessContainer(data []byte, event *Event) (int, error
 	return read, nil
 }
 
-func (p *Probe) handleEvent(data []byte) {
+func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	offset := 0
 	event := p.zeroEvent()
 
@@ -777,7 +777,7 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	}
 
 	p.reOrderer = NewReOrderer(p.handleEvent,
-		TimestampFromEventData,
+		ExtractEventInfo,
 		ReOrdererOpts{
 			QueueSize:  100000,
 			WindowSize: windowSize,
