@@ -114,17 +114,17 @@ type Proxy struct {
 
 // MappingProfile represent a group of mappings
 type MappingProfile struct {
-	Name     string          `mapstructure:"name"`
-	Prefix   string          `mapstructure:"prefix"`
-	Mappings []MetricMapping `mapstructure:"mappings"`
+	Name     string          `mapstructure:"name" json:"name"`
+	Prefix   string          `mapstructure:"prefix" json:"prefix"`
+	Mappings []MetricMapping `mapstructure:"mappings" json:"mappings"`
 }
 
 // MetricMapping represent one mapping rule
 type MetricMapping struct {
-	Match     string            `mapstructure:"match"`
-	MatchType string            `mapstructure:"match_type"`
-	Name      string            `mapstructure:"name"`
-	Tags      map[string]string `mapstructure:"tags"`
+	Match     string            `mapstructure:"match" json:"match"`
+	MatchType string            `mapstructure:"match_type" json:"match_type"`
+	Name      string            `mapstructure:"name" json:"name"`
+	Tags      map[string]string `mapstructure:"tags" json:"tags"`
 }
 
 // Warnings represent the warnings in the config
