@@ -580,7 +580,7 @@ func newEventGenerator() (*eventGenerator, error) {
 		return nil, err
 	}
 
-	udpConn, err := net.Dial("udp", "8.8.8.8:53")
+	udpConn, err := net.Dial("udp", "8.8.4.4:53")
 	if err != nil {
 		return nil, err
 	}
