@@ -438,17 +438,14 @@ func TestScanLines(t *testing.T) {
 }
 
 func TestEOLParsing(t *testing.T) {
-	config.Datadog.SetDefault("dogstatsd_eol_required", true)
-	// reset to default
-	defer config.Datadog.SetDefault("dogstatsd_eol_required", false)
 
 	messages := []string{"foo", "bar", "baz", "quz", "hax", ""}
 	packet := []byte(strings.Join(messages, "\n"))
 	cnt := 0
-	msg := nextMessage(&packet)
+	msg := nextMessage(&packet, true)
 	for msg != nil {
 		assert.Equal(t, string(msg), messages[cnt])
-		msg = nextMessage(&packet)
+		msg = nextMessage(&packet, true)
 		cnt++
 	}
 
@@ -456,9 +453,9 @@ func TestEOLParsing(t *testing.T) {
 
 	packet = []byte(strings.Join(messages[0:len(messages)-1], "\r\n"))
 	cnt = 0
-	msg = nextMessage(&packet)
+	msg = nextMessage(&packet, true)
 	for msg != nil {
-		msg = nextMessage(&packet)
+		msg = nextMessage(&packet, true)
 		cnt++
 	}
 
@@ -475,7 +472,6 @@ func TestE2EParsing(t *testing.T) {
 	metricOut, _, _ := agg.GetBufferedChannels()
 	s, err := NewServer(agg)
 	require.NoError(t, err, "cannot start DSD")
-	defer s.Stop()
 
 	url := fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_port"))
 	conn, err := net.Dial("udp", url)
@@ -490,10 +486,18 @@ func TestE2EParsing(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
+	s.Stop()
 
+	// EOL enabled
 	config.Datadog.SetDefault("dogstatsd_eol_required", true)
 	// reset to default
 	defer config.Datadog.SetDefault("dogstatsd_eol_required", false)
+
+	agg = mockAggregator()
+	metricOut, _, _ = agg.GetBufferedChannels()
+	s, err = NewServer(agg)
+	require.NoError(t, err, "cannot start DSD")
+	defer s.Stop()
 
 	// Test metric expecting an EOL
 	conn.Write([]byte("daemon:666|g|#foo:bar\ndaemon:666|g|#foo:bar"))

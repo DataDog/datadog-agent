@@ -86,6 +86,7 @@ type Server struct {
 	extraTags                 []string
 	Debug                     *dsdServerDebug
 	mapper                    *mapper.MetricMapper
+	eolTerminationEnabled     bool
 	telemetryEnabled          bool
 	entityIDPrecedenceEnabled bool
 	// disableVerboseLogs is a feature flag to disable the logs capable
@@ -225,6 +226,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 		histToDist:                histToDist,
 		histToDistPrefix:          histToDistPrefix,
 		extraTags:                 extraTags,
+		eolTerminationEnabled:     config.Datadog.GetBool("dogstatsd_eol_required"),
 		telemetryEnabled:          telemetry_utils.IsEnabled(),
 		entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
 		disableVerboseLogs:        config.Datadog.GetBool("dogstatsd_disable_verbose_logs"),
@@ -368,7 +370,7 @@ func ScanLines(data []byte, atEOF bool) (advance int, token []byte, eol bool, er
 	return 0, nil, false, nil
 }
 
-func nextMessage(packet *[]byte) (message []byte) {
+func nextMessage(packet *[]byte, eolTermination bool) (message []byte) {
 	if len(*packet) == 0 {
 		return nil
 	}
@@ -378,8 +380,8 @@ func nextMessage(packet *[]byte) (message []byte) {
 		return nil
 	}
 
-	if config.Datadog.GetBool("dogstatsd_eol_required") && !eol {
-		dogstatsdMetricPackets.Add(1)
+	if eolTermination && !eol {
+		dogstatsdUnterminatedMetricErrors.Add(1)
 		return nil
 	}
 
@@ -392,7 +394,7 @@ func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*liste
 		originTagger := originTags{origin: packet.Origin}
 		log.Tracef("Dogstatsd receive: %q", packet.Contents)
 		for {
-			message := nextMessage(&packet.Contents)
+			message := nextMessage(&packet.Contents, s.eolTerminationEnabled)
 			if message == nil {
 				break
 			}
