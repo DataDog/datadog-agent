@@ -267,7 +267,7 @@ func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][
 			if !isKnownMetric(metricFamily.Name) {
 				// ignore the metric if it doesn't have a transformer
 				// or if it isn't mapped to a datadog metric name
-				// log.Tracef("KSM metric '%s' is unknown for the check, ignoring it", metricFamily.Name)
+				log.Tracef("KSM metric '%s' is unknown for the check, ignoring it", metricFamily.Name)
 				continue
 			}
 			if transform, found := metricTransformers[metricFamily.Name]; found {
@@ -288,7 +288,9 @@ func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][
 // hostnameAndTags returns the tags and the hostname for a metric based on the metric labels and the check configuration
 func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJoiner) (string, []string) {
 	hostname := ""
-	tags := []string{}
+
+	labelsToAdd := labelJoiner.getLabelsToAdd(labels)
+	tags := make([]string, 0, len(labels)+len(labelsToAdd))
 
 	for key, value := range labels {
 		tag, hostTag := k.buildTag(key, value)
@@ -299,7 +301,7 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 	}
 
 	// apply label joins
-	for _, label := range labelJoiner.getLabelsToAdd(labels) {
+	for _, label := range labelsToAdd {
 		tag, hostTag := k.buildTag(label.key, label.value)
 		tags = append(tags, tag)
 		if hostTag != "" {
@@ -338,7 +340,7 @@ func (k *KSMCheck) buildTag(key, value string) (tag, hostname string) {
 	var sb strings.Builder
 	sb.Grow(len(key) + 1 + len(value))
 	sb.WriteString(key)
-	sb.WriteRune(':')
+	sb.WriteByte(':')
 	sb.WriteString(value)
 	tag = sb.String()
 

@@ -95,6 +95,9 @@ func newLabelJoiner(config map[string]*JoinsConfig) *labelJoiner {
 	}
 }
 
+// newInnerNode creates a non-leaf node for the tree.
+// a non-leaf node has child nodes in the `labelValues` map.
+// a non-leaf node doesn’t use `labelsToAdd`.
 func newInnerNode() *node {
 	return &node{
 		labelValues: make(map[string]*node),
@@ -102,6 +105,9 @@ func newInnerNode() *node {
 	}
 }
 
+// newLeafNode creates a leaf node for the tree.
+// a leaf node has no children. So, the `labelValues` map can remain `nil`.
+// a leaf node holds a list of labels to add in `labelsToAdd`. But this slice is allocated later, when we know its expected final size.
 func newLeafNode() *node {
 	return &node{
 		labelValues: nil,
@@ -111,6 +117,8 @@ func newLeafNode() *node {
 
 func (lj *labelJoiner) insertMetric(metric ksmstore.DDMetric, config *JoinsConfig, tree *node) {
 	current := tree
+
+	// Parse the tree from the root to the leaf and add missing nodes on the way.
 	nbLabelsToMatch := len(config.LabelsToMatch)
 	for i, labelToMatch := range config.LabelsToMatch {
 		labelValue, found := metric.Labels[labelToMatch]
@@ -120,6 +128,8 @@ func (lj *labelJoiner) insertMetric(metric ksmstore.DDMetric, config *JoinsConfi
 
 		child, found := current.labelValues[labelValue]
 		if !found {
+			// If the node hasn’t been found in the tree, a node for the current `labelValue` needs to be added.
+			// The current depth is checked to know if the node will be a leaf or not.
 			if i < nbLabelsToMatch-1 {
 				child = newInnerNode()
 			} else {
@@ -131,6 +141,7 @@ func (lj *labelJoiner) insertMetric(metric ksmstore.DDMetric, config *JoinsConfi
 		current = child
 	}
 
+	// Fill the `labelsToAdd` on the leaf node.
 	if config.GetAllLabels {
 		if current.labelsToAdd == nil {
 			current.labelsToAdd = make([]label, 0, len(metric.Labels)-len(config.LabelsToMatch))
@@ -163,6 +174,11 @@ func (lj *labelJoiner) insertMetric(metric ksmstore.DDMetric, config *JoinsConfi
 }
 
 func (lj *labelJoiner) insertFamily(metricFamily ksmstore.DDMetricsFam) {
+	// The metricsToJoin map has been created in newLabelJoiner and contains one entry per label join config.
+	// insertFamily is then called with the metrics to use to do the label join.
+	// The metrics passed to insertFamily are retrieved by (*KSMCheck)Run() and are filtered by (*KSMCheck)familyFilter
+	// And (*KSMCheck)familyFilter keeps only the metrics that are in the label join config.
+	// That’s why we cannot have a miss here.
 	metricToJoin, found := lj.metricsToJoin[metricFamily.Name]
 	if !found {
 		log.Error("BUG in label joins")
