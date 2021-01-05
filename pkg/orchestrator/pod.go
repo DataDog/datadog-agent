@@ -320,7 +320,7 @@ func GetConditionMessage(p *v1.Pod) string {
 	}
 
 	// in some cases (eg evicted) we don't have conditions
-	// in these case fall back to status message directly
+	// in these cases fall back to status message directly
 	if len(p.Status.Conditions) == 0 {
 		return p.Status.Message
 	}
