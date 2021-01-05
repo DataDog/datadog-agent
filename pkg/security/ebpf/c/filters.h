@@ -79,8 +79,8 @@ int __attribute__((always_inline)) bump_discarder_revision(u32 mount_id) {
     // bump only already > 0 meaning that the user space decided that for this mount_id
     // all the discarders will be invalidated
     if (*revision > 0) {
-        if (revision + 1 == 0) {
-            __sync_fetch_and_add(revision, 2); // handle override
+        if (*revision + 1 == 0) {
+            __sync_fetch_and_add(revision, 2); // handle overflow
         } else {
             __sync_fetch_and_add(revision, 1);
         }

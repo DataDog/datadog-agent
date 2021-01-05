@@ -10,6 +10,8 @@ struct rename_event_t {
     struct syscall_t syscall;
     struct file_t old;
     struct file_t new;
+    u32 discarder_revision;
+    u32 padding;
 };
 
 int __attribute__((always_inline)) trace__sys_rename() {
@@ -107,7 +109,8 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
                 .mount_id = syscall->rename.target_key.mount_id,
                 .overlay_numlower = get_overlay_numlower(syscall->rename.src_dentry),
                 .path_id = syscall->rename.target_key.path_id,
-            }
+            },
+            .discarder_revision = bump_discarder_revision(syscall->rename.target_key.mount_id),
         };
 
         struct proc_cache_t *entry = fill_process_context(&event.process);

@@ -375,8 +375,7 @@ func (e *RmdirEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	e.DiscarderRevision = ebpf.ByteOrder.Uint32(data[0:4])
-
-	// 4 padding
+	// padding
 
 	return n + 8, nil
 }
@@ -410,13 +409,27 @@ func (e *UnlinkEvent) UnmarshalBinary(data []byte) (int, error) {
 // RenameEvent represents a rename event
 type RenameEvent struct {
 	SyscallEvent
-	Old FileEvent `field:"old"`
-	New FileEvent `field:"new"`
+	Old               FileEvent `field:"old"`
+	New               FileEvent `field:"new"`
+	DiscarderRevision uint32    `field:"-"`
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *RenameEvent) UnmarshalBinary(data []byte) (int, error) {
-	return unmarshalBinary(data, &e.SyscallEvent, &e.Old, &e.New)
+	n, err := unmarshalBinary(data, &e.SyscallEvent, &e.Old, &e.New)
+	if err != nil {
+		return n, err
+	}
+
+	data = data[n:]
+	if len(data) < 8 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.DiscarderRevision = ebpf.ByteOrder.Uint32(data[0:4])
+	// padding
+
+	return n + 8, nil
 }
 
 // UtimesEvent represents a utime event
@@ -533,7 +546,8 @@ func (e *MountEvent) GetFSType() string {
 // UmountEvent represents an umount event
 type UmountEvent struct {
 	SyscallEvent
-	MountID uint32
+	MountID           uint32
+	DiscarderRevision uint32 `field:"-"`
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -544,12 +558,14 @@ func (e *UmountEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	data = data[n:]
-	if len(data) < 4 {
+	if len(data) < 8 {
 		return 0, ErrNotEnoughData
 	}
 
 	e.MountID = ebpf.ByteOrder.Uint32(data[0:4])
-	return 4, nil
+	e.DiscarderRevision = ebpf.ByteOrder.Uint32(data[4:8])
+
+	return 8, nil
 }
 
 // ContainerContext holds the container context of an event
