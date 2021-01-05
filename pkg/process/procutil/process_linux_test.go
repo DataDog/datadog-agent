@@ -764,6 +764,8 @@ func TestGetFDCountLocalFS(t *testing.T) {
 		// skip the ones that have permission issues
 		if expFdCount, err := expProc.NumFDs(); err == nil {
 			assert.Equal(t, expFdCount, fdCount)
+		} else {
+			assert.Equal(t, int32(-1), fdCount)
 		}
 	}
 }
