@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func setupStatsTracker(timeFrame time.Duration, bucketSize time.Duration) (*int64, StatsTracker) {
+func setupStatsTracker(timeFrame time.Duration, bucketSize time.Duration) (*int64, *StatsTracker) {
 	now := time.Now().UnixNano()
 	s := NewStatsTrackerWithTimeProvider(timeFrame, bucketSize, func() int64 {
 		return now
@@ -15,7 +15,6 @@ func setupStatsTracker(timeFrame time.Duration, bucketSize time.Duration) (*int6
 	return &now, s
 }
 
-// TestMovingAvg TODO
 func TestMovingAvg(t *testing.T) {
 
 	now, s := setupStatsTracker(3*time.Second, time.Second)
@@ -75,7 +74,7 @@ func TestMovingAvgBigWindow(t *testing.T) {
 		s.Add(30)
 		*now += int64(time.Second)
 	}
-	// actually 19.99 but check for 19 because of truncation
+	// Internally the value is 19.99 but check for 19 because of integer truncation
 	assert.Equal(t, int64(19), s.MovingAvg())
 
 	then = *now + 12*int64(time.Hour)
@@ -84,11 +83,10 @@ func TestMovingAvgBigWindow(t *testing.T) {
 		s.Add(60)
 		*now += int64(time.Second)
 	}
-	// actually 44.99 but check for 44 because of truncation
+	// Internally the value is 44.99 but check for 44 because of integer truncation
 	assert.Equal(t, int64(44), s.MovingAvg())
 }
 
-// TestMovingAvg TODO
 func TestMovingPeak(t *testing.T) {
 
 	now, s := setupStatsTracker(3*time.Second, time.Second)

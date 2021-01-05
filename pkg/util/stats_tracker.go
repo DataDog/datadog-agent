@@ -33,15 +33,15 @@ type StatsTracker struct {
 }
 
 // NewStatsTracker Creates a new StatsTracker instance
-func NewStatsTracker(timeFrame time.Duration, bucketSize time.Duration) StatsTracker {
+func NewStatsTracker(timeFrame time.Duration, bucketSize time.Duration) *StatsTracker {
 	return NewStatsTrackerWithTimeProvider(timeFrame, bucketSize, func() int64 {
 		return time.Now().UnixNano()
 	})
 }
 
 // NewStatsTrackerWithTimeProvider Creates a new StatsTracker instance with a time provider closure (mostly for testing)
-func NewStatsTrackerWithTimeProvider(timeFrame time.Duration, bucketSize time.Duration, timeProvider timeProvider) StatsTracker {
-	return StatsTracker{
+func NewStatsTrackerWithTimeProvider(timeFrame time.Duration, bucketSize time.Duration, timeProvider timeProvider) *StatsTracker {
+	return &StatsTracker{
 		aggregatedAvgPoints:  make([]*taggedPoint, 0),
 		aggregatedPeakPoints: make([]*taggedPoint, 0),
 		timeFrame:            int64(timeFrame),
