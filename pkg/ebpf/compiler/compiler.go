@@ -50,12 +50,24 @@ type EBPFCompiler struct {
 	defaultCflags []string
 }
 
+func (e *EBPFCompiler) CompileFileToObjectFile(inputFile, outputFile string, cflags []string) error {
+	inputC := C.CString(inputFile)
+	defer C.free(unsafe.Pointer(inputC))
+
+	return e.compile(inputC, outputFile, cflags, false)
+}
+
 func (e *EBPFCompiler) CompileToObjectFile(in io.Reader, outputFile string, cflags []string) error {
 	inputBuf, err := ioutil.ReadAll(in)
 	if err != nil {
 		return fmt.Errorf("error reading input: %w", err)
 	}
+	inputC := (*C.char)(unsafe.Pointer(&inputBuf[0]))
 
+	return e.compile(inputC, outputFile, cflags, true)
+}
+
+func (e *EBPFCompiler) compile(inputC *C.char, outputFile string, cflags []string, inMemory bool) error {
 	outputC := C.CString(outputFile)
 	defer C.free(unsafe.Pointer(outputC))
 
@@ -81,7 +93,12 @@ func (e *EBPFCompiler) CompileToObjectFile(in io.Reader, outputFile string, cfla
 		verboseC = 1
 	}
 
-	if err := C.bpf_compile_to_object_file(e.compiler, (*C.char)(unsafe.Pointer(&inputBuf[0])), outputC, (**C.char)(&cflagsC[0]), verboseC); err != 0 {
+	inMemoryC := C.char(0)
+	if inMemory {
+		inMemoryC = 1
+	}
+
+	if err := C.bpf_compile_to_object_file(e.compiler, inputC, outputC, (**C.char)(&cflagsC[0]), verboseC, inMemoryC); err != 0 {
 		return fmt.Errorf("error compiling: %s", e.getErrors())
 	}
 	return nil

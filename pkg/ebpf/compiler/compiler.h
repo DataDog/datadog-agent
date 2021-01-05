@@ -38,10 +38,11 @@ public:
 
     ClangCompiler(const char *name);
     std::unique_ptr<llvm::Module> compileToBytecode(
-        const char *inputBuffer,
+        const char *input,
         const char *outputFile = NULL,
         const std::vector<const char*> &cflags = std::vector<const char*>(),
-        bool verbose = false);
+        bool verbose = false,
+        bool inMemory = true);
     int bytecodeToObjectFile(llvm::Module &module, const char *outputFile);
     const std::string& getErrors() const;
     ~ClangCompiler();
@@ -53,9 +54,11 @@ private:
     static llvm::StringRef getDataLayout();
     static llvm::StringRef getArch();
     std::unique_ptr<clang::CompilerInvocation> buildCompilation(
+        const char *inputFile,
         const char *outputFile,
         const std::vector<const char*> &cflags,
-        bool verbose);
+        bool verbose,
+        bool inMemory);
 };
 
 #endif

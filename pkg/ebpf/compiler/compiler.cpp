@@ -78,9 +78,11 @@ ClangCompiler::ClangCompiler(const char *name) :
 }
 
 std::unique_ptr<clang::CompilerInvocation> ClangCompiler::buildCompilation(
+    const char *inputFile,
     const char *outputFile,
     const std::vector<const char*> &extraCflags,
-    bool verbose)
+    bool verbose,
+    bool inMemory)
 {
     auto cflags = defaultCflags;
     for (auto it = extraCflags.begin(); it != extraCflags.end(); it++) {
@@ -94,7 +96,7 @@ std::unique_ptr<clang::CompilerInvocation> ClangCompiler::buildCompilation(
     cflags.push_back("-x");
     cflags.push_back("c");
     cflags.push_back("-c");
-    cflags.push_back(main_path.c_str());
+    cflags.push_back(inputFile);
 
     if (outputFile) {
         cflags.push_back("-o");
@@ -102,7 +104,9 @@ std::unique_ptr<clang::CompilerInvocation> ClangCompiler::buildCompilation(
     }
 
     // Build
-    theDriver->setCheckInputsExist(false);
+    if (inMemory) {
+        theDriver->setCheckInputsExist(false);
+    }
     std::unique_ptr<clang::driver::Compilation> compilation(theDriver->BuildCompilation(cflags));
 
     // expect exactly 1 job, otherwise error
@@ -139,23 +143,34 @@ std::unique_ptr<clang::CompilerInvocation> ClangCompiler::buildCompilation(
 }
 
 std::unique_ptr<llvm::Module> ClangCompiler::compileToBytecode(
-    const char *inputBuffer,
+    const char *input,
     const char *outputFile,
     const std::vector<const char*> &cflags,
-    bool verbose)
+    bool verbose,
+    bool inMemory)
 {
-    auto invocation = buildCompilation(outputFile, cflags, verbose);
+    std::unique_ptr<llvm::MemoryBuffer> main_buf;
+    const char *inputFile;
+
+    if (inMemory) {
+        inputFile = main_path.c_str();
+    } else {
+        inputFile = input;
+    }
+
+    auto invocation = buildCompilation(inputFile, outputFile, cflags, verbose, inMemory);
     if (!invocation) {
         return nullptr;
     }
 
-    auto main_buf = llvm::MemoryBuffer::getMemBuffer(inputBuffer);
-
     invocation->getPreprocessorOpts().RetainRemappedFileBuffers = true;
+    if (inMemory) {
+        main_buf = llvm::MemoryBuffer::getMemBuffer(input);
+        invocation->getPreprocessorOpts().addRemappedFile(main_path, &*main_buf);
+    }
     for (const auto &f : remapped_files) {
         invocation->getPreprocessorOpts().addRemappedFile(f.first, &*f.second);
     }
-    invocation->getPreprocessorOpts().addRemappedFile(main_path, &*main_buf);
 
     if (outputFile) {
         invocation->getFrontendOpts().OutputFile = std::string(llvm::StringRef(outputFile));
