@@ -189,6 +189,13 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 		},
 	},
 
+	// List of probes to activate to capture mkdir events
+	"ioctl": {
+		&manager.AllOf{Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/do_vfs_ioctl"}},
+		}},
+	},
+
 	// List of probes to activate to capture open events
 	"open": {
 		&manager.AllOf{Selectors: []manager.ProbesSelector{

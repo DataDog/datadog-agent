@@ -48,6 +48,9 @@ struct inode_discarder_t {
 struct inode_filter_t {
     u64 parent_mask;
     u64 leaf_mask;
+    u64 timestamp;
+    u32 is_invalid;
+    u32 padding;
 };
 
 struct bpf_map_def SEC("maps/inode_discarders") inode_discarders = {
@@ -73,12 +76,18 @@ int __attribute__((always_inline)) discarded_by_inode(u64 event_type, u32 mount_
         return 0;
     }
 
-    // this a filter for leaf only
-    if (depth == 0 && mask_has_event(filter->leaf_mask, event_type)) {
-        return 1;
-    }
+    if ((depth == 0 && mask_has_event(filter->leaf_mask, event_type)) ||
+        (depth > 0 && mask_has_event(filter->parent_mask, event_type))) {
 
-    if (depth > 0 && mask_has_event(filter->parent_mask, event_type)) {
+         // this discarder has been marked as invalid by event such as unlink, rename, etc.
+        // keep them for a while in the map to avoid userspace to reinsert it
+        if (filter->is_invalid) {
+            if (filter->timestamp < bpf_ktime_get_ns()) {
+                bpf_map_delete_elem(&inode_discarders, &key);
+            }
+            return 0;
+        }
+
         return 1;
     }
 
@@ -94,7 +103,17 @@ void __attribute__((always_inline)) remove_inode_discarder(u32 mount_id, u64 ino
         .revision = get_discarder_revision(mount_id),
     };
 
-    bpf_map_delete_elem(&inode_discarders, &key);
+    u64 mask = ~0; // all the events
+    
+    // do not remove it direclty, first mark it as invalid for a period of time, after that it will be removed
+    struct inode_filter_t filter = {
+        .leaf_mask = mask,
+        .parent_mask = mask,
+        .is_invalid = 1,
+        .timestamp = bpf_ktime_get_ns() + 5000000000, // 5 seconds
+    };
+
+    bpf_map_update_elem(&inode_discarders, &key, &filter, BPF_EXIST);
 }
 
 static __always_inline u32 get_system_probe_pid() {
