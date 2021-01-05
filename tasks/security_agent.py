@@ -126,19 +126,16 @@ def gen_mocks(ctx):
 
 @task
 def run_functional_tests(
-    ctx, testsuite, race=False, verbose=False, pattern='', bench_pattern='', fail_fast=False,
+    ctx, testsuite, verbose=False, testflags='',
 ):
-    cmd = '{testsuite} {race_opt} {verbose_opt} {failfast_opt} {run_opt} {bench_opt}'
+    cmd = '{testsuite} {verbose_opt} {testflags}'
     if os.getuid() != 0:
         cmd = 'sudo -E PATH={path} ' + cmd
 
     args = {
         "testsuite": testsuite,
         "verbose_opt": "-test.v" if verbose else "",
-        "race_opt": "-test.race" if race else "",
-        "run_opt": "-test.run " + pattern if pattern else "",
-        "bench_opt": "-test.bench " + bench_pattern if bench_pattern else "",
-        "failfast_opt": "-test.failfast" if fail_fast else "",
+        "testflags": testflags,
         "path": os.environ['PATH'],
     }
 
@@ -152,7 +149,7 @@ def build_functional_tests(
     go_version=None,
     arch="x64",
     major_version='7',
-    build_tags='',
+    build_tags='functionaltests',
     bundle_ebpf=True,
 ):
     ldflags, gcflags, env = get_build_flags(ctx, arch=arch, major_version=major_version)
@@ -167,7 +164,7 @@ def build_functional_tests(
     if bundle_ebpf:
         build_tags = "ebpf_bindata," + build_tags
 
-    cmd = 'go test -tags functionaltests,{build_tags} -c -o {output} '
+    cmd = 'go test -tags {build_tags} -c -o {output} '
     cmd += '{repo_path}/pkg/security/tests'
 
     args = {
@@ -180,141 +177,84 @@ def build_functional_tests(
 
 
 @task
+def build_stress_tests(
+    ctx, output='pkg/security/tests/stresssuite', go_version=None, arch="x64", major_version='7', bundle_ebpf=True,
+):
+    build_functional_tests(
+        ctx,
+        output=output,
+        go_version=go_version,
+        arch=arch,
+        major_version=major_version,
+        build_tags='stresstests',
+        bundle_ebpf=bundle_ebpf,
+    )
+
+
+@task
 def stress_tests(
     ctx,
-    race=False,
     verbose=False,
     go_version=None,
     arch="x64",
     major_version='7',
-    pattern='',
-    bench_pattern='',
-    output='',
-    build_tags='',
+    output='pkg/security/tests/stresssuite',
     bundle_ebpf=True,
-    fail_fast=False,
-    keep_profile=False,
-    report_file='',
-    diff_base='',
+    testflags='',
 ):
-    ldflags, gcflags, env = get_build_flags(ctx, arch=arch, major_version=major_version)
-
-    goenv = get_go_env(ctx, go_version)
-    env.update(goenv)
-
-    env["CGO_ENABLED"] = "1"
-    if arch == "x86":
-        env["GOARCH"] = "386"
-
-    if bundle_ebpf:
-        build_tags = "ebpf_bindata," + build_tags
-
-    cmd = 'go test -tags stresstests,{build_tags} {race_opt} {output_opt} '
-    cmd += '{verbose_opt} {failfast_opt} {run_opt} {bench_opt} {repo_path}/pkg/security/tests '
-    cmd += '{keep_profile} {report_file} {diff_base}'
-
-    if os.getuid() != 0 and not output:
-        cmd = 'sudo -E PATH={path} ' + cmd
-
-    args = {
-        "verbose_opt": "-v" if verbose else "",
-        "race_opt": "-race" if race else "",
-        "output_opt": "-c -o " + output if output else "",
-        "run_opt": "-run " + pattern if pattern else "",
-        "bench_opt": "-bench " + bench_pattern if bench_pattern else "",
-        "failfast_opt": "-failfast" if fail_fast else "",
-        "build_tags": build_tags,
-        "path": os.environ['PATH'],
-        "repo_path": REPO_PATH,
-        "keep_profile": "--keep-profile" if keep_profile else "",
-        "report_file": "--report-file " + report_file if report_file else "",
-        "diff_base": "--diff-base " + diff_base if diff_base else "",
-    }
-
-    ctx.run(cmd.format(**args), env=env)
-
-
-@task
-def build_all_functional_tests(
-    ctx, race=False, verbose=False, go_version=None, major_version='7', pattern='', output='pkg/security/tests',
-):
-    functional_tests(
-        ctx,
-        race=race,
-        verbose=verbose,
-        go_version=go_version,
-        arch="x64",
-        major_version=major_version,
-        output=os.path.join(output, "testsuite"),
-        build_tags="ebpf_bindata",
+    build_stress_tests(
+        ctx, go_version=go_version, arch=arch, major_version=major_version, output=output, bundle_ebpf=bundle_ebpf,
     )
 
-    functional_tests(
-        ctx,
-        race=race,
-        verbose=verbose,
-        go_version=go_version,
-        major_version=major_version,
-        output=os.path.join(output, "testsuite32"),
-        build_tags="ebpf_bindata",
-        arch="x86",
+    run_functional_tests(
+        ctx, testsuite=output, verbose=verbose, testflags=testflags,
     )
 
 
 @task
 def functional_tests(
     ctx,
-    race=False,
     verbose=False,
     go_version=None,
     arch="x64",
     major_version='7',
-    pattern='',
-    bench_pattern='',
     output='pkg/security/tests/testsuite',
-    build_tags='',
     bundle_ebpf=True,
-    fail_fast=False,
+    testflags='',
 ):
     build_functional_tests(
-        ctx,
-        go_version=go_version,
-        arch=arch,
-        major_version=major_version,
-        output=output,
-        build_tags=build_tags,
-        bundle_ebpf=bundle_ebpf,
+        ctx, go_version=go_version, arch=arch, major_version=major_version, output=output, bundle_ebpf=bundle_ebpf,
     )
 
     run_functional_tests(
-        ctx,
-        testsuite=output,
-        race=race,
-        verbose=verbose,
-        pattern=pattern,
-        bench_pattern=bench_pattern,
-        fail_fast=fail_fast,
+        ctx, testsuite=output, verbose=verbose, testflags=testflags,
     )
 
 
 @task
 def kitchen_functional_tests(
-    ctx, race=False, verbose=False, go_version=None, major_version='7', pattern='', build_tests=False,
+    ctx, verbose=False, go_version=None, major_version='7', build_tests=False, testflags='',
 ):
-    chef_files_path = "test/kitchen/site-cookbooks/dd-security-agent-check/files"
     if build_tests:
-        build_all_functional_tests(
+        functional_tests(
             ctx,
-            race=race,
+            verbose=verbose,
+            go_version=go_version,
+            arch="x64",
+            major_version=major_version,
+            output="test/kitchen/site-cookbooks/dd-security-agent-check/files/testsuite",
+            testflags=testflags,
+        )
+
+        functional_tests(
+            ctx,
             verbose=verbose,
             go_version=go_version,
             major_version=major_version,
-            pattern=pattern,
-            output=chef_files_path,
+            output="test/kitchen/site-cookbooks/dd-security-agent-check/files/testsuite32",
+            arch="x86",
+            testflags=testflags,
         )
-
-    if not os.path.exists(os.path.join(chef_files_path, 'testsuite')):
-        raise Exception("failed to find compiled tests in " + chef_files_path)
 
     kitchen_dir = os.path.join("test", "kitchen")
     shutil.copy(
@@ -327,17 +267,16 @@ def kitchen_functional_tests(
 
 @task
 def docker_functional_tests(
-    ctx, race=False, verbose=False, go_version=None, arch="x64", major_version='7', pattern='',
+    ctx, verbose=False, go_version=None, arch="x64", major_version='7', testflags='',
 ):
-    functional_tests(
+    build_functional_tests(
         ctx,
-        race=race,
         verbose=verbose,
         go_version=go_version,
         arch=arch,
         major_version=major_version,
         output="pkg/security/tests/testsuite",
-        build_tags="ebpf_bindata",
+        bundle_ebpf=True,
     )
 
     container_name = 'security-agent-tests'
@@ -359,11 +298,11 @@ def docker_functional_tests(
     cmd = 'docker exec {container_name} mount -t debugfs none /sys/kernel/debug'
     ctx.run(cmd.format(**args))
 
-    cmd = 'docker exec {container_name} /tests/testsuite --env docker {pattern}'
+    cmd = 'docker exec {container_name} /tests/testsuite --env docker {testflags}'
     if verbose:
         cmd += ' -test.v'
     try:
-        ctx.run(cmd.format(pattern='-test.run ' + pattern if pattern else '', **args))
+        ctx.run(cmd.format(testflags=testflags, **args))
     finally:
         cmd = 'docker rm -f {container_name}'
         ctx.run(cmd.format(**args))

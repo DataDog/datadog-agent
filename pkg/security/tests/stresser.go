@@ -163,27 +163,12 @@ func (s *StressReport) Print() {
 // Write the report information for delta computation
 func (s *StressReport) Save(filename string, name string) error {
 	var reports StressReports
-
-	if filename == "" {
-		file, err := ioutil.TempFile("/tmp", "stress-report-")
-		if err != nil {
-			return err
-		}
-		file.Close()
-
-		filename = file.Name()
-
+	if err := reports.Load(filename); err != nil {
 		reports = map[string]*StressReport{
 			name: s,
 		}
 	} else {
-		if err := reports.Load(filename); err != nil {
-			reports = map[string]*StressReport{
-				name: s,
-			}
-		} else {
-			reports[name] = s
-		}
+		reports[name] = s
 	}
 
 	fmt.Printf("Writing reports in %s\n", filename)
@@ -345,8 +330,10 @@ LOOP:
 	}
 
 	// save report for further comparison
-	if err := report.Save(opts.ReportFile, t.Name()); err != nil {
-		t.Fatal(err)
+	if opts.ReportFile != "" {
+		if err := report.Save(opts.ReportFile, t.Name()); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	return report, err

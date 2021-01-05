@@ -1,5 +1,3 @@
-require 'spec_helper'
-
 print `cat /etc/os-release`
 print `uname -a`
 
