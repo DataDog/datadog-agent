@@ -45,7 +45,7 @@ type LogSource struct {
 	info       map[string]string
 	// In the case that the source is overridden, keep a reference to the parent for bubbling up information about the child
 	ParentSource *LogSource
-	LatencyStats util.StatsTracker
+	LatencyStats *util.StatsTracker
 }
 
 // NewLogSource creates a new log source.
