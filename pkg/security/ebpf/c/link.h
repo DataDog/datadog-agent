@@ -104,7 +104,7 @@ int __attribute__((always_inline)) trace__sys_link_ret(struct pt_regs *ctx) {
 
     resolve_dentry(syscall->link.target_dentry, syscall->link.target_key, 0);
 
-    send_event(ctx, event);
+    send_event(ctx, EVENT_LINK, event);
 
     return 0;
 }

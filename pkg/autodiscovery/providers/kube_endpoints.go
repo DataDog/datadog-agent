@@ -18,6 +18,7 @@ import (
 	listersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -30,8 +31,6 @@ type endpointResolveMode string
 const (
 	kubeEndpointAnnotationPrefix = "ad.datadoghq.com/endpoints."
 	kubeEndpointResolvePath      = "resolve"
-	kubePodKind                  = "Pod"
-	KubePodPrefix                = "kubernetes_pod://"
 
 	kubeEndpointResolveAuto endpointResolveMode = "auto"
 	kubeEndpointResolveIP   endpointResolveMode = "ip"
@@ -258,7 +257,7 @@ func generateConfigs(tpl integration.Config, resolveMode endpointResolveMode, ke
 	case "":
 		fallthrough
 	case kubeEndpointResolveAuto:
-		resolveFunc = resolveConfigAuto
+		resolveFunc = common.ResolveEndpointConfigAuto
 	}
 
 	for i := range kep.Subsets {
@@ -287,26 +286,6 @@ func generateConfigs(tpl integration.Config, resolveMode endpointResolveMode, ke
 		}
 	}
 	return generatedConfigs
-}
-
-func resolveConfigAuto(conf *integration.Config, addr v1.EndpointAddress) {
-	log.Debugf("using 'auto' resolve for config: %s, entity: %s", conf.Name, conf.Entity)
-	if targetRef := addr.TargetRef; targetRef != nil && targetRef.Kind == kubePodKind {
-		// The endpoint is backed by a pod.
-		// We add the pod uid as AD identifiers so the check can get the pod tags.
-		podUID := string(targetRef.UID)
-		conf.ADIdentifiers = append(conf.ADIdentifiers, getPodEntity(podUID))
-		if nodeName := addr.NodeName; nodeName != nil {
-			// Set the node name to schedule the endpoint check on the correct node.
-			// This field needs to be set only when the endpoint is backed by a pod.
-			conf.NodeName = *nodeName
-		}
-	}
-}
-
-// getPodEntity returns pod entity
-func getPodEntity(podUID string) string {
-	return KubePodPrefix + podUID
 }
 
 func init() {

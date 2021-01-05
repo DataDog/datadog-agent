@@ -3,22 +3,33 @@
 package procutil
 
 import (
+	"bytes"
+	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 	"unicode"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/gopsutil/host"
 )
 
 const (
 	// WorldReadable represents file permission that's world readable
 	WorldReadable os.FileMode = 4
+	// DefaultClockTicks is the default number of clock ticks per second
+	// C.sysconf(C._SC_CLK_TCK)
+	DefaultClockTicks = float64(100)
+)
+
+var (
+	// PageSize is the system's memory page size
+	PageSize = uint64(os.Getpagesize())
 )
 
 type statusInfo struct {
@@ -33,6 +44,14 @@ type statusInfo struct {
 	ctxSwitches *NumCtxSwitchesStat
 }
 
+type statInfo struct {
+	ppid       int32
+	createTime int64
+	nice       int32
+
+	cpuStat *CPUTimesStat
+}
+
 // Probe is a service that fetches process related info on current host
 type Probe struct {
 	procRootLoc  string // ProcFS
@@ -42,18 +61,22 @@ type Probe struct {
 	uid  uint32 // UID
 	euid uint32 // Effective UID
 
+	clockTicks float64
+
 	bootTime uint64
 }
 
 // NewProcessProbe initializes a new Probe object
 func NewProcessProbe() *Probe {
-	bootTime, _ := host.BootTime() // TODO (sk): Rewrite this w/o gopsutil
+	hostProc := util.HostProc()
+	bootTime, _ := bootTime(hostProc)
 
 	p := &Probe{
-		procRootLoc: util.HostProc(),
+		procRootLoc: hostProc,
 		uid:         uint32(os.Getuid()),
 		euid:        uint32(os.Geteuid()),
 		bootTime:    bootTime,
+		clockTicks:  getClockTicks(),
 	}
 	return p
 }
@@ -67,7 +90,7 @@ func (p *Probe) Close() {
 }
 
 // ProcessesByPID returns a map of process info indexed by PID
-func (p *Probe) ProcessesByPID() (map[int32]*Process, error) {
+func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 	pids, err := p.getActivePIDs()
 	if err != nil {
 		return nil, err
@@ -90,17 +113,26 @@ func (p *Probe) ProcessesByPID() (map[int32]*Process, error) {
 
 		statusInfo := p.parseStatus(pathForPID)
 		ioInfo := p.parseIO(pathForPID)
+		statInfo := p.parseStat(pathForPID, pid, now)
+		memInfoEx := p.parseStatm(pathForPID)
 
 		procsByPID[pid] = &Process{
-			Pid:     pid,               // /proc/{pid}
-			Cmdline: cmdline,           // /proc/{pid}/cmdline
-			Name:    statusInfo.name,   // /proc/{pid}/status
-			Status:  statusInfo.status, // /proc/{pid}/status
-			Uids:    statusInfo.uids,   // /proc/{pid}/status
-			Gids:    statusInfo.gids,   // /proc/{pid}/status
-			NsPid:   statusInfo.nspid,  // /proc/{pid}/status
+			Pid:     pid,                                       // /proc/{pid}
+			Ppid:    statInfo.ppid,                             // /proc/{pid}/{stat}
+			Cmdline: cmdline,                                   // /proc/{pid}/cmdline
+			Name:    statusInfo.name,                           // /proc/{pid}/status
+			Status:  statusInfo.status,                         // /proc/{pid}/status
+			Uids:    statusInfo.uids,                           // /proc/{pid}/status
+			Gids:    statusInfo.gids,                           // /proc/{pid}/status
+			Cwd:     p.getLinkWithAuthCheck(pathForPID, "cwd"), // /proc/{pid}/cwd, requires permission checks
+			Exe:     p.getLinkWithAuthCheck(pathForPID, "exe"), // /proc/{pid}/exe, requires permission checks
+			NsPid:   statusInfo.nspid,                          // /proc/{pid}/status
 			Stats: &Stats{
-				MemInfo:     statusInfo.memInfo,     // /proc/{pid}/status or statm
+				CreateTime:  statInfo.createTime,    // /proc/{pid}/{stat}
+				Nice:        statInfo.nice,          // /proc/{pid}/{stat}
+				CPUTime:     statInfo.cpuStat,       // /proc/{pid}/{stat}
+				MemInfo:     statusInfo.memInfo,     // /proc/{pid}/status
+				MemInfoEx:   memInfoEx,              // /proc/{pid}/statm
 				CtxSwitches: statusInfo.ctxSwitches, // /proc/{pid}/status
 				NumThreads:  statusInfo.numThreads,  // /proc/{pid}/status
 				IOStat:      ioInfo,                 // /proc/{pid}/io, requires permission checks
@@ -112,7 +144,7 @@ func (p *Probe) ProcessesByPID() (map[int32]*Process, error) {
 }
 
 func (p *Probe) getRootProcFile() (*os.File, error) {
-	if p.procRootFile != nil { // TODO (sk): Should we consider refreshing the file descriptor occasionally?
+	if p.procRootFile != nil {
 		return p.procRootFile, nil
 	}
 
@@ -345,6 +377,159 @@ func (p *Probe) parseStatusKV(key, value string, sInfo *statusInfo) {
 	}
 }
 
+// parseStat retrieves stat info from "stat" file for a process in procfs
+func (p *Probe) parseStat(pidPath string, pid int32, now time.Time) *statInfo {
+	path := filepath.Join(pidPath, "stat")
+	var err error
+
+	sInfo := &statInfo{
+		cpuStat: &CPUTimesStat{},
+	}
+
+	contents, err := ioutil.ReadFile(path)
+	if err != nil {
+		return sInfo
+	}
+
+	sInfo = p.parseStatContent(contents, sInfo, pid, now)
+	return sInfo
+}
+
+// parseStatContent takes the content of "stat" file and parses the values we care about
+func (p *Probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32, now time.Time) *statInfo {
+	// We want to skip past the executable name, which is wrapped in one or more parenthesis
+	startIndex := bytes.LastIndexByte(statContent, byte(')'))
+	if startIndex == -1 || startIndex+1 >= len(statContent) {
+		return sInfo
+	}
+
+	content := statContent[startIndex+1:]
+	// use spaces and prevCharIsSpace to simulate strings.Fields() to avoid allocation
+	spaces := 0
+	prevCharIsSpace := false
+	var ppidStr, utimeStr, stimeStr, startTimeStr string
+
+	for _, c := range content {
+		if unicode.IsSpace(rune(c)) {
+			if !prevCharIsSpace {
+				spaces++
+			}
+			prevCharIsSpace = true
+			continue
+		} else {
+			prevCharIsSpace = false
+		}
+
+		switch spaces {
+		case 2:
+			ppidStr += string(c)
+		case 12:
+			utimeStr += string(c)
+		case 13:
+			stimeStr += string(c)
+		case 20:
+			startTimeStr += string(c)
+		}
+	}
+
+	if spaces < 20 { // We access index 20 and below, so this is just a safety check.
+		return sInfo
+	}
+
+	ppid, err := strconv.ParseInt(ppidStr, 10, 32)
+	if err == nil {
+		sInfo.ppid = int32(ppid)
+	}
+
+	utime, err := strconv.ParseFloat(utimeStr, 64)
+	if err == nil {
+		sInfo.cpuStat.User = utime / p.clockTicks
+	}
+
+	stime, err := strconv.ParseFloat(stimeStr, 64)
+	if err == nil {
+		sInfo.cpuStat.System = stime / p.clockTicks
+	}
+	// the nice parameter location seems to be different for various procfs,
+	// so we fetch that using syscall
+	snice, err := syscall.Getpriority(syscall.PRIO_PROCESS, int(pid))
+	if err == nil {
+		sInfo.nice = int32(snice)
+	}
+
+	sInfo.cpuStat.Timestamp = now.Unix()
+
+	t, err := strconv.ParseUint(startTimeStr, 10, 64)
+	if err == nil {
+		ctime := (t / uint64(p.clockTicks)) + p.bootTime
+		// convert create time into milliseconds
+		sInfo.createTime = int64(ctime * 1000)
+	}
+
+	return sInfo
+}
+
+// parseStatm gets memory info from /proc/(pid)/statm
+func (p *Probe) parseStatm(pidPath string) *MemoryInfoExStat {
+	path := filepath.Join(pidPath, "statm")
+	var err error
+
+	memInfoEx := &MemoryInfoExStat{}
+
+	contents, err := ioutil.ReadFile(path)
+	if err != nil {
+		return memInfoEx
+	}
+
+	fields := strings.Fields(string(contents))
+
+	// the values for the fields are per-page, to get real numbers we multiply by PageSize
+	vms, err := strconv.ParseUint(fields[0], 10, 64)
+	if err == nil {
+		memInfoEx.VMS = vms * PageSize
+	}
+	rss, err := strconv.ParseUint(fields[1], 10, 64)
+	if err == nil {
+		memInfoEx.RSS = rss * PageSize
+	}
+	shared, err := strconv.ParseUint(fields[2], 10, 64)
+	if err == nil {
+		memInfoEx.Shared = shared * PageSize
+	}
+	text, err := strconv.ParseUint(fields[3], 10, 64)
+	if err == nil {
+		memInfoEx.Text = text * PageSize
+	}
+	lib, err := strconv.ParseUint(fields[4], 10, 64)
+	if err == nil {
+		memInfoEx.Lib = lib * PageSize
+	}
+	data, err := strconv.ParseUint(fields[5], 10, 64)
+	if err == nil {
+		memInfoEx.Data = data * PageSize
+	}
+	dirty, err := strconv.ParseUint(fields[6], 10, 64)
+	if err == nil {
+		memInfoEx.Dirty = dirty * PageSize
+	}
+
+	return memInfoEx
+}
+
+// getLinkWithAuthCheck fetches the destination of a symlink with permission check
+func (p *Probe) getLinkWithAuthCheck(pidPath string, file string) string {
+	path := filepath.Join(pidPath, file)
+	if err := p.ensurePathReadable(path); err != nil {
+		return ""
+	}
+
+	str, err := os.Readlink(path)
+	if err != nil {
+		return ""
+	}
+	return str
+}
+
 // ensurePathReadable ensures that the current user is able to read the path before opening it.
 // On some systems, attempting to open a file that the user does not have permission is problematic for
 // customer security auditing. What we do here is:
@@ -414,4 +599,59 @@ func trimAndSplitBytes(bs []byte) []string {
 	}
 
 	return components
+}
+
+// bootTime returns the system boot time expressed in seconds since the epoch.
+// the value is extracted from "/proc/stat"
+func bootTime(hostProc string) (uint64, error) {
+	filePath := filepath.Join(hostProc, "stat")
+	content, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		log.Debugf("Unable to read stat file from %s: %s", filePath, err)
+		return 0, nil
+	}
+
+	lineStart := 0
+	btimePrefix := []byte("btime")
+
+	for i, r := range content {
+		if r == '\n' {
+			if bytes.HasPrefix(content[lineStart:i], btimePrefix) {
+				f := strings.Fields(string(content[lineStart:i]))
+				if len(f) != 2 {
+					return 0, fmt.Errorf("wrong btime format")
+				}
+
+				b, err := strconv.ParseInt(f[1], 10, 64)
+				if err != nil {
+					return 0, err
+				}
+				return uint64(b), nil
+			}
+			lineStart = i + 1
+		}
+	}
+
+	return 0, fmt.Errorf("could not parse btime")
+}
+
+// getClockTicks uses command "getconf CLK_TCK" to fetch the clock tick on current host,
+// if the command doesn't exist uses the default value 100
+func getClockTicks() float64 {
+	clockTicks := DefaultClockTicks
+	getconf, err := exec.LookPath("getconf")
+	if err != nil {
+		return clockTicks
+	}
+	cmd := exec.Command(getconf, "CLK_TCK")
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err = cmd.Run()
+	if err == nil {
+		ticks, err := strconv.ParseFloat(strings.TrimSpace(out.String()), 64)
+		if err == nil {
+			clockTicks = ticks
+		}
+	}
+	return clockTicks
 }
