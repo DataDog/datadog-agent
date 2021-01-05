@@ -56,24 +56,29 @@ type WindowsConfig struct {
 // AgentConfig is the global config for the process-agent. This information
 // is sourced from config files and the environment variables.
 type AgentConfig struct {
-	Enabled            bool
-	HostName           string
-	APIEndpoints       []api.Endpoint
-	LogFile            string
-	LogLevel           string
-	LogToConsole       bool
-	QueueSize          int // The number of items allowed in each delivery queue.
-	ProcessQueueBytes  int // The total number of bytes that can be enqueued for delivery to the process intake endpoint
-	Blacklist          []*regexp.Regexp
-	Scrubber           *DataScrubber
-	MaxPerMessage      int
-	MaxConnsPerMessage int
-	AllowRealTime      bool
-	Transport          *http.Transport `json:"-"`
-	DDAgentBin         string
-	StatsdHost         string
-	StatsdPort         int
-	ProcessExpVarPort  int
+	Enabled              bool
+	HostName             string
+	APIEndpoints         []api.Endpoint
+	LogFile              string
+	LogLevel             string
+	LogToConsole         bool
+	QueueSize            int // The number of items allowed in each delivery queue.
+	ProcessQueueBytes    int // The total number of bytes that can be enqueued for delivery to the process intake endpoint
+	Blacklist            []*regexp.Regexp
+	Scrubber             *DataScrubber
+	MaxPerMessage        int
+	MaxConnsPerMessage   int
+	AllowRealTime        bool
+	Transport            *http.Transport `json:"-"`
+	DDAgentBin           string
+	StatsdHost           string
+	StatsdPort           int
+	ProcessExpVarPort    int
+	ProfilingEnabled     bool
+	ProfilingSite        string
+	ProfilingURL         string
+	ProfilingAPIKey      string
+	ProfilingEnvironment string
 	// host type of the agent, used to populate container payload with additional host information
 	ContainerHostType model.ContainerHostType
 
@@ -84,6 +89,7 @@ type AgentConfig struct {
 	DisableIPv6Tracing             bool
 	DisableDNSInspection           bool
 	CollectLocalDNS                bool
+	EnableHTTPMonitoring           bool
 	SystemProbeAddress             string
 	SystemProbeLogFile             string
 	SystemProbeBPFDir              string
@@ -107,8 +113,9 @@ type AgentConfig struct {
 	Orchestrator *oconfig.OrchestratorConfig
 
 	// DNS stats configuration
-	CollectDNSStats bool
-	DNSTimeout      time.Duration
+	CollectDNSStats   bool
+	DNSTimeout        time.Duration
+	CollectDNSDomains bool
 
 	// Check config
 	EnabledChecks  []string
@@ -203,6 +210,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		DisableUDPTracing:            false,
 		DisableIPv6Tracing:           false,
 		DisableDNSInspection:         false,
+		EnableHTTPMonitoring:         false,
 		SystemProbeAddress:           defaultSystemProbeAddress,
 		SystemProbeLogFile:           defaultSystemProbeLogFilePath,
 		SystemProbeBPFDir:            defaultSystemProbeBPFDir,
@@ -215,6 +223,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		OffsetGuessThreshold:         400,
 		EnableTracepoints:            false,
 		CollectDNSStats:              true,
+		CollectDNSDomains:            false,
 
 		// Orchestrator config
 		Orchestrator: oconfig.NewDefaultOrchestratorConfig(),
@@ -366,8 +375,12 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	}
 
 	// activate the pod collection if enabled and we have the cluster name set
-	if cfg.Orchestrator.OrchestrationCollectionEnabled && cfg.Orchestrator.KubeClusterName != "" {
-		cfg.EnabledChecks = append(cfg.EnabledChecks, "pod")
+	if cfg.Orchestrator.OrchestrationCollectionEnabled {
+		if cfg.Orchestrator.KubeClusterName != "" {
+			cfg.EnabledChecks = append(cfg.EnabledChecks, "pod")
+		} else {
+			log.Warnf("Failed to auto-detect a Kubernetes cluster name. Pod collection will not start. To fix this, set it manually via the cluster_name config option")
+		}
 	}
 
 	return cfg, nil
@@ -420,6 +433,7 @@ func loadEnvVariables() {
 		{"DD_SCRUB_ARGS", "process_config.scrub_args"},
 		{"DD_STRIP_PROCESS_ARGS", "process_config.strip_proc_arguments"},
 		{"DD_PROCESS_AGENT_URL", "process_config.process_dd_url"},
+		{"DD_PROCESS_AGENT_PROFILING_ENABLED", "process_config.profiling.enabled"},
 		{"DD_ORCHESTRATOR_URL", "orchestrator_explorer.orchestrator_dd_url"},
 		{"DD_HOSTNAME", "hostname"},
 		{"DD_DOGSTATSD_PORT", "dogstatsd_port"},
@@ -479,6 +493,7 @@ func loadSysProbeEnvVariables() {
 	for _, variable := range []struct{ env, cfg string }{
 		{"DD_SYSTEM_PROBE_ENABLED", "system_probe_config.enabled"},
 		{"DD_SYSTEM_PROBE_NETWORK_ENABLED", "network_config.enabled"},
+		{"DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "network_config.enable_http_monitoring"},
 		{"DD_SYSPROBE_SOCKET", "system_probe_config.sysprobe_socket"},
 		{"DD_SYSTEM_PROBE_CONNTRACK_IGNORE_ENOBUFS", "system_probe_config.conntrack_ignore_enobufs"},
 		{"DD_SYSTEM_PROBE_ENABLE_CONNTRACK_ALL_NAMESPACES", "system_probe_config.enable_conntrack_all_namespaces"},
@@ -488,6 +503,12 @@ func loadSysProbeEnvVariables() {
 		{"DD_DISABLE_DNS_INSPECTION", "system_probe_config.disable_dns_inspection"},
 		{"DD_COLLECT_LOCAL_DNS", "system_probe_config.collect_local_dns"},
 		{"DD_COLLECT_DNS_STATS", "system_probe_config.collect_dns_stats"},
+		{"DD_SYSTEM_PROBE_PROFILING_ENABLED", "system_probe_config.profiling.enabled"},
+		{"DD_SITE", "system_probe_config.profiling.site"},
+		{"DD_APM_PROFILING_DD_URL", "system_probe_config.profiling.profile_dd_url"},
+		{"DD_API_KEY", "system_probe_config.profiling.api_key"},
+		{"DD_ENV", "system_probe_config.profiling.env"},
+		{"DD_COLLECT_DNS_DOMAINS", "system_probe_config.collect_dns_domains"},
 	} {
 		if v, ok := os.LookupEnv(variable.env); ok {
 			config.Datadog.Set(variable.cfg, v)

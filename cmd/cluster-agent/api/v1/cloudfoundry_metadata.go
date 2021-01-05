@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017-2020 Datadog, Inc.
 
-// +build clusterchecks
+// +build clusterchecks,!kubeapiserver
 
 package v1
 
@@ -20,6 +20,8 @@ import (
 func installCloudFoundryMetadataEndpoints(r *mux.Router) {
 	r.HandleFunc("/tags/cf/apps/{nodeName}", getCFAppsMetadataForNode).Methods("GET")
 }
+
+func installKubernetesMetadataEndpoints(r *mux.Router) {}
 
 // getCFAppsMetadataForNode is only used when the node agent hits the DCA for the list of cloudfoundry applications tags
 // It return a list of tags for each application that can be directly used in the tagger

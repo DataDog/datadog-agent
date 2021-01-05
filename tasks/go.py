@@ -208,14 +208,14 @@ def ineffassign(ctx, targets):
         # as comma separated tokens in a string
         targets = targets.split(',')
 
-    ctx.run("ineffassign " + " ".join(targets))
+    ctx.run("ineffassign " + " ".join(target + "/..." for target in targets))
     # ineffassign exits with status 1 when it finds an issue, if we're here
     # everything went smooth
     print("ineffassign found no issues")
 
 
 @task
-def staticcheck(ctx, targets):
+def staticcheck(ctx, targets, build_tags=None, arch="x64"):
     """
     Run staticcheck on targets.
 
@@ -230,7 +230,12 @@ def staticcheck(ctx, targets):
     # staticcheck checks recursively only if path is in "path/..." format
     go_targets = [sub + "/..." for sub in targets]
 
-    ctx.run("staticcheck -checks=SA1027 " + " ".join(go_targets))
+    tags = build_tags or get_default_build_tags(build="test", arch=arch)
+    # these two don't play well with static checking
+    tags.remove("python")
+    tags.remove("jmx")
+
+    ctx.run("staticcheck -checks=SA1027 -tags=" + ",".join(tags) + " " + " ".join(go_targets))
     # staticcheck exits with status 1 when it finds an issue, if we're here
     # everything went smooth
     print("staticcheck found no issues")

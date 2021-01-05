@@ -8,6 +8,7 @@
 package tests
 
 import (
+	"fmt"
 	"os"
 	"path"
 	"syscall"
@@ -19,9 +20,10 @@ import (
 )
 
 func TestMount(t *testing.T) {
+	dstMntBasename := "test-dest-mount"
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `utimes.filename == "{{.Root}}/test-mount"`,
+		Expression: fmt.Sprintf(`utimes.filename == "{{.Root}}/%s/test-mount"`, dstMntBasename),
 	}
 
 	testDrive, err := newTestDrive("ext4", []string{})
@@ -43,7 +45,6 @@ func TestMount(t *testing.T) {
 	os.MkdirAll(mntPath, 0755)
 	defer os.RemoveAll(mntPath)
 
-	dstMntBasename := "test-dest-mount"
 	dstMntPath, _, err := testDrive.Path(dstMntBasename)
 	if err != nil {
 		t.Fatal(err)
@@ -79,7 +80,7 @@ func TestMount(t *testing.T) {
 	})
 
 	t.Run("mount_resolver", func(t *testing.T) {
-		utimFile, utimFilePtr, err := testDrive.Path(path.Join(dstMntBasename, "test-utime"))
+		utimFile, utimFilePtr, err := testDrive.Path(path.Join(dstMntBasename, "test-mount"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -103,7 +104,7 @@ func TestMount(t *testing.T) {
 			t.Fatal(errno)
 		}
 
-		event, err := test.GetProbeEvent(3*time.Second, "utimes")
+		event, _, err := test.GetEvent()
 		if err != nil {
 			t.Error(err)
 		} else {

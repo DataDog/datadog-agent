@@ -56,6 +56,90 @@ typedef struct {
     tcp_stats_t tcp_stats;
 } tcp_conn_t;
 
+// From include/net/tcp.h
+// tcp_flag_byte(th) (((u_int8_t *)th)[13])
+#define TCP_FLAGS_OFFSET 13
+#define TCPHDR_FIN 0x01
+
+// skb_info_t embeds a conn_tuple_t extracted from the skb object as well as
+// some ancillary data such as the data offset (the byte offset pointing to
+// where the application payload begins) and the TCP flags if applicable.
+// This struct is populated by calling `read_conn_tuple_skb` from a program type
+// that manipulates a `__sk_buff` object.
+typedef struct {
+    conn_tuple_t tup;
+    __u32 data_off;
+    __u8 tcp_flags;
+} skb_info_t;
+
+// This determines the size of the payload fragment that is captured for each HTTP request
+#define HTTP_BUFFER_SIZE 25
+// This controls the number of HTTP transactions read from userspace at a time
+#define HTTP_BATCH_SIZE 15
+// The greater this number is the less likely are colisions/data-races between the flushes
+#define HTTP_BATCH_PAGES 10
+
+typedef enum {
+    HTTP_PACKET_UNKNOWN,
+    HTTP_REQUEST,
+    HTTP_RESPONSE
+} http_packet_t;
+
+typedef enum {
+    HTTP_METHOD_UNKNOWN,
+    HTTP_GET,
+    HTTP_POST,
+    HTTP_PUT,
+    HTTP_DELETE,
+    HTTP_HEAD,
+    HTTP_OPTIONS,
+    HTTP_PATCH
+} http_method_t;
+
+typedef struct {
+    // idx is a monotonic counter used for uniquely determinng a batch within a CPU core
+    // this is useful for detecting race conditions that result in a batch being overrriden
+    // before it gets consumed from userspace
+    __u64 idx;
+    // pos indicates the current batch slot that should be written to
+    __u8 pos;
+} http_batch_state_t;
+
+// This struct is used in the map lookup that returns the active batch for a certain CPU core
+typedef struct {
+    __u32 cpu;
+    // page_num can be obtained from (http_batch_state_t->idx % HTTP_BATCHES_PER_CPU)
+    __u32 page_num;
+} http_batch_key_t;
+
+// HTTP transaction information associated to a certain socket (tuple_t)
+typedef struct {
+    conn_tuple_t tup;
+    __u8 request_method;
+    __u64 request_started;
+    __u16 response_status_code;
+    __u64 response_last_seen;
+    char request_fragment[HTTP_BUFFER_SIZE];
+} http_transaction_t;
+
+typedef struct {
+    http_batch_state_t state;
+    http_transaction_t txs[HTTP_BATCH_SIZE];
+} http_batch_t;
+
+// http_batch_notification_t is flushed to userspace every time we complete a
+// batch (that is, when we fill a page with HTTP_BATCH_SIZE entries). uppon
+// receiving this notification the userpace program is then supposed to fetch
+// the full batch by doing a map lookup using `cpu` and then retrieving the full
+// page using batch_idx param. why just not flush the batch itself via the
+// perf-ring? we do this because prior to Kernel 4.11 bpf_perf_event_output
+// requires the data to be allocated in the eBPF stack. that makes batching
+// virtually impossible given the stack limit of 512bytes.
+typedef struct {
+    __u32 cpu;
+    __u64 batch_idx;
+} http_batch_notification_t;
+
 // Must match the number of tcp_conn_t objects embedded in the batch_t struct
 #ifndef TCP_CLOSED_BATCH_SIZE
 #define TCP_CLOSED_BATCH_SIZE 5

@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/avast/retry-go"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
@@ -70,12 +71,23 @@ func TestProcess(t *testing.T) {
 }
 
 func TestProcessContext(t *testing.T) {
-	ruleDef := &rules.RuleDefinition{
-		ID:         "test_rule",
-		Expression: fmt.Sprintf(`open.filename == "{{.Root}}/test-process-context" && open.flags & O_CREAT == 0`),
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{ruleDef}, testOpts{})
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule",
+			Expression: fmt.Sprintf(`open.filename == "{{.Root}}/test-process-context" && open.flags & O_CREAT == 0`),
+		},
+		{
+			ID:         "test_rule_ancestors",
+			Expression: fmt.Sprintf(`open.filename == "{{.Root}}/test-process-ancestors" && process.ancestors[_].name == "%s"`, path.Base(executable)),
+		},
+	}
+
+	test, err := newTestModule(nil, ruleDefs, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,8 +142,12 @@ func TestProcessContext(t *testing.T) {
 		t.Skip()
 
 		executable := "/usr/bin/cat"
-		if _, err := os.Stat(executable); err != nil {
-			executable = "/bin/cat"
+		if resolved, err := os.Readlink(executable); err == nil {
+			executable = resolved
+		} else {
+			if os.IsNotExist(err) {
+				executable = "/bin/cat"
+			}
 		}
 
 		cmd := exec.Command("script", "/dev/null", "-c", executable+" "+testFile)
@@ -156,6 +172,47 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			testContainerPath(t, event, "process.container_path")
+		}
+	})
+
+	t.Run("ancestors", func(t *testing.T) {
+		executable := "/usr/bin/touch"
+		if resolved, err := os.Readlink(executable); err == nil {
+			executable = resolved
+		} else {
+			if os.IsNotExist(err) {
+				executable = "/bin/touch"
+			}
+		}
+
+		testFile, _, err := test.Path("test-process-ancestors")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Bash attempts to optimize away forks in the last command in a function body
+		// under appropriate circumstances (source: bash changelog)
+		cmd := exec.Command("sh", "-c", "$("+executable+" "+testFile+")")
+		if _, err := cmd.CombinedOutput(); err != nil {
+			t.Error(err)
+		}
+
+		event, rule, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if filename, _ := event.GetFieldValue("process.filename"); filename.(string) != executable {
+				t.Errorf("expected process filename `%s`, got `%s`: %v", executable, filename, event)
+			}
+
+			if rule.ID != "test_rule_ancestors" {
+				t.Error("Wrong rule triggered")
+			}
+
+			values, _ := event.GetFieldValue("process.ancestors.name")
+			if names := values.([]string); names[0] != "sh" {
+				t.Errorf("ancestor `sh` expected, got %s, event:%v", names[0], event)
+			}
 		}
 	})
 }
@@ -251,12 +308,21 @@ func TestProcessLineage(t *testing.T) {
 	})
 
 	t.Run("exit", func(t *testing.T) {
-		event, err := test.GetProbeEvent(3*time.Second, "exit")
-		if err != nil {
-			t.Error(err)
-		} else {
-			if err := testProcessLineageExit(t, event, test); err != nil {
-				t.Error(err)
+		timeout := time.After(3 * time.Second)
+		var event *probe.Event
+
+		for {
+			select {
+			case <-timeout:
+				t.Error(errors.New("timeout"))
+				return
+			case event = <-test.probeHandler.events:
+				if event.GetType() == "exit" && int(event.Process.Pid) == cmd.Process.Pid {
+					if err := testProcessLineageExit(t, event, test); err != nil {
+						t.Error(err)
+					}
+					return
+				}
 			}
 		}
 	})
@@ -319,17 +385,13 @@ func testProcessLineageFork(t *testing.T, event *probe.Event) error {
 }
 
 func testProcessLineageExit(t *testing.T, event *probe.Event, test *testModule) error {
-	// check for the new process context
-	cacheEntry := event.ResolveProcessCacheEntry()
-	if cacheEntry == nil {
-		return errors.Errorf("expected a process cache entry, got nil")
-	}
-
 	// make sure that the process cache entry of the process was properly deleted from the cache
-	resolvers := test.probe.GetResolvers()
-	entry := resolvers.ProcessResolver.Get(event.Process.Pid)
-	if entry != nil {
-		return errors.Errorf("the process cache entry was not deleted from the user space cache")
-	}
-	return nil
+	return retry.Do(func() error {
+		resolvers := test.probe.GetResolvers()
+		entry := resolvers.ProcessResolver.Get(event.Process.Pid)
+		if entry != nil {
+			return errors.Errorf("the process cache entry was not deleted from the user space cache")
+		}
+		return nil
+	})
 }

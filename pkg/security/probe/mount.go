@@ -8,6 +8,7 @@
 package probe
 
 import (
+	"github.com/DataDog/gopsutil/process"
 	"os"
 	"path"
 	"strconv"
@@ -76,11 +77,11 @@ type MountResolver struct {
 }
 
 // SyncCache - Snapshots the current mount points of the system by reading through /proc/[pid]/mountinfo.
-func (mr *MountResolver) SyncCache(pid uint32) error {
+func (mr *MountResolver) SyncCache(proc *process.Process) error {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	mnts, err := utils.ParseMountInfoFile(pid)
+	mnts, err := utils.ParseMountInfoFile(proc.Pid)
 	if err != nil {
 		pErr, ok := err.(*os.PathError)
 		if !ok {

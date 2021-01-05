@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Obfuscator quantizes and obfuscates spans. The obfuscator is not safe for
@@ -97,6 +98,22 @@ func (o *Obfuscator) Obfuscate(span *pb.Span) {
 	}
 }
 
+// ObfuscateStatsGroup obfuscates the given stats bucket group.
+func (o *Obfuscator) ObfuscateStatsGroup(b *pb.ClientGroupedStats) {
+	switch b.Type {
+	case "sql", "cassandra":
+		oq, err := o.ObfuscateSQLString(b.Resource)
+		if err != nil {
+			log.Errorf("Error obfuscating stats group resource %q: %v", b.Resource, err)
+			b.Resource = nonParsableResource
+		} else {
+			b.Resource = oq.Query
+		}
+	case "redis":
+		b.Resource = o.QuantizeRedisString(b.Resource)
+	}
+}
+
 // compactWhitespaces compacts all whitespaces in t.
 func compactWhitespaces(t string) string {
 	n := len(t)
@@ -126,4 +143,24 @@ func compactWhitespaces(t string) string {
 	copy(r[nr:], t[nr+offset:n])
 	r = r[:n-offset]
 	return string(bytes.Trim(r, " "))
+}
+
+// replaceDigits replaces consecutive sequences of digits with '?',
+// example: "jobs_2020_1597876964" --> "jobs_?_?"
+func replaceDigits(buffer []byte) []byte {
+	buf := make([]byte, 0, len(buffer))
+	scanningDigit := false
+	for _, c := range string(buffer) {
+		if isDigit(c) {
+			if scanningDigit {
+				continue
+			}
+			scanningDigit = true
+			buf = append(buf, byte('?'))
+			continue
+		}
+		scanningDigit = false
+		buf = append(buf, byte(c))
+	}
+	return buf
 }

@@ -264,6 +264,10 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, 
 	if err != nil {
 		log.Errorf("Could not write typeperf data: %s", err)
 	}
+	err = zipLodctrOutput(tempDir, hostname)
+	if err != nil {
+		log.Errorf("Could not write lodctr data: %s", err)
+	}
 
 	err = zipCounterStrings(tempDir, hostname)
 	if err != nil {

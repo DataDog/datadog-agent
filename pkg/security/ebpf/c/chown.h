@@ -76,8 +76,6 @@ int __attribute__((always_inline)) trace__sys_chown_ret(struct pt_regs *ctx) {
     }
 
     struct chown_event_t event = {
-        .event.type = EVENT_CHOWN,
-        .event.timestamp = bpf_ktime_get_ns(),
         .syscall.retval = retval,
         .file = {
             .inode = inode,
@@ -94,7 +92,7 @@ int __attribute__((always_inline)) trace__sys_chown_ret(struct pt_regs *ctx) {
 
     // dentry resolution in setattr.h
 
-    send_event(ctx, event);
+    send_event(ctx, EVENT_CHOWN, event);
 
     return 0;
 }

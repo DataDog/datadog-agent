@@ -217,7 +217,7 @@ func TestRetrieveClosedConnection(t *testing.T) {
 func TestCleanupClient(t *testing.T) {
 	clientID := "1"
 
-	state := NewState(100*time.Millisecond, 50000, 75000, 75000)
+	state := NewState(100*time.Millisecond, 50000, 75000, 75000, false)
 	clients := state.(*networkState).getClients()
 	assert.Equal(t, 0, len(clients))
 
@@ -1146,12 +1146,15 @@ func TestDNSStatsWithMultipleClients(t *testing.T) {
 
 	dKey := dnsKey{clientIP: c.Source, clientPort: c.SPort, serverIP: c.Dest, protocol: c.Type}
 
-	getStats := func() map[dnsKey]dnsStats {
-		stats := make(map[dnsKey]dnsStats)
+	getStats := func() map[dnsKey]map[string]dnsStats {
+		var d = "foo.com"
+		statsByDomain := make(map[dnsKey]map[string]dnsStats)
+		stats := make(map[string]dnsStats)
 		countByRcode := make(map[uint8]uint32)
 		countByRcode[uint8(DNSResponseCodeNoError)] = 1
-		stats[dKey] = dnsStats{countByRcode: countByRcode}
-		return stats
+		stats[d] = dnsStats{countByRcode: countByRcode}
+		statsByDomain[dKey] = stats
+		return statsByDomain
 	}
 
 	client1 := "client1"
@@ -1182,7 +1185,7 @@ func TestDNSStatsWithMultipleClients(t *testing.T) {
 	assert.EqualValues(t, 3, conns[0].DNSSuccessfulResponses)
 }
 
-func TestDNSStatsPIDCollisions(t *testing.T) {
+func TestDNSStatsWithMultipleClientsWithDomainCollectionEnabled(t *testing.T) {
 	c := ConnectionStats{
 		Pid:    123,
 		Type:   TCP,
@@ -1194,10 +1197,70 @@ func TestDNSStatsPIDCollisions(t *testing.T) {
 	}
 
 	dKey := dnsKey{clientIP: c.Source, clientPort: c.SPort, serverIP: c.Dest, protocol: c.Type}
-	stats := make(map[dnsKey]dnsStats)
+	var d = "foo.com"
+	getStats := func() map[dnsKey]map[string]dnsStats {
+		statsByDomain := make(map[dnsKey]map[string]dnsStats)
+		stats := make(map[string]dnsStats)
+		countByRcode := make(map[uint8]uint32)
+		countByRcode[uint8(DNSResponseCodeNoError)] = 1
+		stats[d] = dnsStats{countByRcode: countByRcode}
+		statsByDomain[dKey] = stats
+		return statsByDomain
+	}
+
+	client1 := "client1"
+	client2 := "client2"
+	client3 := "client3"
+	state := NewState(2*time.Minute, 50000, 75000, 75000, true)
+
+	// Register the first two clients
+	assert.Len(t, state.Connections(client1, latestEpochTime(), nil, nil), 0)
+	assert.Len(t, state.Connections(client2, latestEpochTime(), nil, nil), 0)
+
+	c.LastUpdateEpoch = latestEpochTime()
+	state.StoreClosedConnection(&c)
+
+	conns := state.Connections(client1, latestEpochTime(), nil, getStats())
+	require.Len(t, conns, 1)
+	assert.EqualValues(t, 1, conns[0].DNSStatsByDomain[d].DNSCountByRcode[DNSResponseCodeNoError])
+	// domain agnostic stats should be 0
+	assert.EqualValues(t, 0, conns[0].DNSSuccessfulResponses)
+
+	// Register the third client but also pass in dns stats
+	conns = state.Connections(client3, latestEpochTime(), []ConnectionStats{c}, getStats())
+	require.Len(t, conns, 1)
+	// DNS stats should be available for the new client
+	assert.EqualValues(t, 1, conns[0].DNSStatsByDomain[d].DNSCountByRcode[DNSResponseCodeNoError])
+	// domain agnostic stats should be 0
+	assert.EqualValues(t, 0, conns[0].DNSSuccessfulResponses)
+
+	conns = state.Connections(client2, latestEpochTime(), []ConnectionStats{c}, getStats())
+	require.Len(t, conns, 1)
+	// 2nd client should get accumulated stats
+	assert.EqualValues(t, 3, conns[0].DNSStatsByDomain[d].DNSCountByRcode[DNSResponseCodeNoError])
+	// domain agnostic stats should be 0
+	assert.EqualValues(t, 0, conns[0].DNSSuccessfulResponses)
+}
+
+func TestDNSStatsPIDCollisions(t *testing.T) {
+	c := ConnectionStats{
+		Pid:    123,
+		Type:   TCP,
+		Family: AFINET,
+		Source: util.AddressFromString("127.0.0.1"),
+		Dest:   util.AddressFromString("127.0.0.1"),
+		SPort:  1000,
+		DPort:  53,
+	}
+
+	var d = "foo.com"
+	dKey := dnsKey{clientIP: c.Source, clientPort: c.SPort, serverIP: c.Dest, protocol: c.Type}
+	statsByDomain := make(map[dnsKey]map[string]dnsStats)
+	stats := make(map[string]dnsStats)
 	countByRcode := make(map[uint8]uint32)
 	countByRcode[DNSResponseCodeNoError] = 1
-	stats[dKey] = dnsStats{countByRcode: countByRcode}
+	stats[d] = dnsStats{countByRcode: countByRcode}
+	statsByDomain[dKey] = stats
 
 	client := "client"
 	state := newDefaultState()
@@ -1212,8 +1275,13 @@ func TestDNSStatsPIDCollisions(t *testing.T) {
 	c.Pid++
 	state.StoreClosedConnection(&c)
 
-	conns := state.Connections(client, latestEpochTime(), nil, stats)
+	conns := state.Connections(client, latestEpochTime(), nil, statsByDomain)
 	require.Len(t, conns, 2)
+	successes := 0
+	for _, conn := range conns {
+		successes += int(conn.DNSSuccessfulResponses)
+	}
+	assert.Equal(t, 1, successes)
 	assert.Equal(t, int64(1), state.(*networkState).telemetry.dnsPidCollisions)
 }
 
@@ -1244,5 +1312,5 @@ func latestEpochTime() uint64 {
 
 func newDefaultState() State {
 	// Using values from ebpf.NewDefaultConfig()
-	return NewState(2*time.Minute, 50000, 75000, 75000)
+	return NewState(2*time.Minute, 50000, 75000, 75000, false)
 }

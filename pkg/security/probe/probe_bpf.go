@@ -10,6 +10,7 @@ package probe
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 	lib "github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
+	"github.com/cihub/seelog"
 	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/pkg/errors"
 
@@ -75,6 +77,11 @@ type Probe struct {
 	eventsStats        EventsStats
 	startTime          time.Time
 	event              *Event
+	reOrderer          *ReOrderer
+	lastTimestamp      uint64
+	ctx                context.Context
+	cancelFnc          context.CancelFunc
+	statsdClient       *statsd.Client
 }
 
 // GetResolvers returns the resolvers of Probe
@@ -107,7 +114,6 @@ func (p *Probe) detectKernelVersion() {
 // Init initializes the probe
 func (p *Probe) Init() error {
 	p.startTime = time.Now()
-	p.detectKernelVersion()
 
 	asset := "runtime-security"
 	openSyscall, err := manager.GetSyscallFnName("open")
@@ -130,7 +136,7 @@ func (p *Probe) Init() error {
 		switch perfMap.Name {
 		case "events":
 			perfMap.PerfMapOptions = manager.PerfMapOptions{
-				DataHandler: p.handleEvent,
+				DataHandler: p.reOrderer.HandleEvent,
 				LostHandler: p.handleLostEvents,
 			}
 		}
@@ -168,10 +174,14 @@ func (p *Probe) Init() error {
 
 // Start the runtime security probe
 func (p *Probe) Start() error {
+	go p.reOrderer.Start(p.ctx)
+
 	if err := p.manager.Start(); err != nil {
 		return err
 	}
+
 	go p.loadController.Start(context.Background())
+
 	return nil
 }
 
@@ -188,14 +198,14 @@ func (p *Probe) DispatchEvent(event *Event) {
 }
 
 // SendStats sends statistics about the probe to Datadog
-func (p *Probe) SendStats(statsdClient *statsd.Client) error {
+func (p *Probe) SendStats() error {
 	if p.syscallMonitor != nil {
-		if err := p.syscallMonitor.SendStats(statsdClient); err != nil {
+		if err := p.syscallMonitor.SendStats(p.statsdClient); err != nil {
 			return errors.Wrap(err, "failed to send syscall monitor stats")
 		}
 	}
 
-	if err := statsdClient.Count(MetricPrefix+".events.lost", p.eventsStats.GetAndResetLost(), nil, 1.0); err != nil {
+	if err := p.statsdClient.Count(MetricPrefix+".events.lost", p.eventsStats.GetAndResetLost(), nil, 1.0); err != nil {
 		return errors.Wrap(err, "failed to send events.lost metric")
 	}
 
@@ -208,12 +218,15 @@ func (p *Probe) SendStats(statsdClient *statsd.Client) error {
 		eventType := EventType(i)
 		tags := []string{fmt.Sprintf("event_type:%s", eventType.String())}
 		if value := p.eventsStats.GetAndResetEventCount(eventType); value > 0 {
-			if err := statsdClient.Count(receivedEvents, value, tags, 1.0); err != nil {
+			if err := p.statsdClient.Count(receivedEvents, value, tags, 1.0); err != nil {
 				return errors.Wrap(err, "failed to send events.received metric")
 			}
 		}
 	}
 
+	if err := p.statsdClient.Gauge(MetricPrefix+".process_resolver.cache_size", p.resolvers.ProcessResolver.GetCacheSize(), []string{}, 1.0); err != nil {
+		return errors.Wrap(err, "failed to send process_resolver cache_size metric")
+	}
 	return nil
 }
 
@@ -273,7 +286,7 @@ func (p *Probe) unmarshalProcessContainer(data []byte, event *Event) (int, error
 	return read, nil
 }
 
-func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, manager *manager.Manager) {
+func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	offset := 0
 	event := p.zeroEvent()
 
@@ -284,7 +297,15 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 	}
 	offset += read
 
+	// check event order
+	if event.TimestampRaw < p.lastTimestamp && p.lastTimestamp != 0 {
+		_ = p.statsdClient.Count(MetricPrefix+".events.sorting_error", 1, []string{}, 1.0)
+	} else {
+		p.lastTimestamp = event.TimestampRaw
+	}
+
 	eventType := EventType(event.Type)
+	p.eventsStats.CountEventType(eventType, 1)
 
 	log.Tracef("Decoding event %s(%d)", eventType, event.Type)
 
@@ -422,7 +443,7 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 	case ExitEventType:
 		defer p.resolvers.ProcessResolver.DeleteEntry(event.Process.Pid, event.ResolveEventTimestamp())
 	default:
-		log.Errorf("unsupported event type %d on perf map %s", eventType, perfMap.Name)
+		log.Errorf("unsupported event type %d", eventType)
 		return
 	}
 
@@ -431,9 +452,11 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 		event.ResolveProcessCacheEntry()
 	}
 
-	log.Tracef("Dispatching event %+v\n", event)
+	if logLevel, err := log.GetLogLevel(); err != nil || logLevel == seelog.TraceLvl {
+		prettyEvent := event.String()
+		log.Tracef("Dispatching event %s\n", prettyEvent)
+	}
 
-	p.eventsStats.CountEventType(eventType, 1)
 	p.loadController.Count(eventType, event.Process.Pid)
 	p.DispatchEvent(event)
 }
@@ -662,6 +685,8 @@ func (p *Probe) Snapshot() error {
 
 // Close the probe
 func (p *Probe) Close() error {
+	p.cancelFnc()
+
 	return p.manager.Stop(manager.CleanAll)
 }
 
@@ -702,13 +727,20 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		return nil, err
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	p := &Probe{
 		config:            config,
 		invalidDiscarders: getInvalidDiscarders(),
 		approvers:         make(map[eval.EventType]activeApprovers),
 		managerOptions:    ebpf.NewDefaultOptions(),
 		regexCache:        regexCache,
+		ctx:               ctx,
+		cancelFnc:         cancel,
+		statsdClient:      client,
 	}
+
+	p.detectKernelVersion()
 
 	if !p.config.EnableKernelFilters {
 		log.Warn("Forcing in-kernel filter policy to `pass`: filtering not enabled")
@@ -719,7 +751,15 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
 	}
 
-	resolvers, err := NewResolvers(p)
+	// Add global constant editors
+	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
+		manager.ConstantEditor{
+			Name:  "do_fork_input",
+			Value: getDoForkInput(p),
+		},
+	)
+
+	resolvers, err := NewResolvers(p, client)
 	if err != nil {
 		return nil, err
 	}
@@ -730,6 +770,20 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	windowSize := uint64(15 * runtime.NumCPU())
+	if windowSize < 60 {
+		windowSize = 60
+	}
+
+	p.reOrderer = NewReOrderer(p.handleEvent,
+		ExtractEventInfo,
+		ReOrdererOpts{
+			QueueSize:  100000,
+			WindowSize: windowSize,
+			Delay:      100 * time.Millisecond,
+			Rate:       100 * time.Millisecond,
+		})
 
 	eventZero.resolvers = p.resolvers
 

@@ -70,7 +70,7 @@ func TestNetworkConnectionBatching(t *testing.T) {
 	} {
 		cfg.MaxConnsPerMessage = tc.maxSize
 		tm := &model.CollectorConnectionsTelemetry{}
-		chunks := batchConnections(cfg, 0, tc.cur, map[string]*model.DNSEntry{}, "nid", tm)
+		chunks := batchConnections(cfg, 0, tc.cur, map[string]*model.DNSEntry{}, "nid", tm, nil)
 
 		assert.Len(t, chunks, tc.expectedChunks, "len %d", i)
 		total := 0
@@ -109,7 +109,7 @@ func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 	cfg := config.NewDefaultAgentConfig(false)
 	cfg.MaxConnsPerMessage = 1
 
-	chunks := batchConnections(cfg, 0, p, dns, "nid", nil)
+	chunks := batchConnections(cfg, 0, p, dns, "nid", nil, nil)
 
 	assert.Len(t, chunks, 4)
 	total := 0
@@ -150,7 +150,7 @@ func TestBatchSimilarConnectionsTogether(t *testing.T) {
 	cfg := config.NewDefaultAgentConfig(false)
 	cfg.MaxConnsPerMessage = 2
 
-	chunks := batchConnections(cfg, 0, p, map[string]*model.DNSEntry{}, "nid", nil)
+	chunks := batchConnections(cfg, 0, p, map[string]*model.DNSEntry{}, "nid", nil, nil)
 
 	assert.Len(t, chunks, 3)
 	total := 0
@@ -174,4 +174,45 @@ func TestBatchSimilarConnectionsTogether(t *testing.T) {
 		}
 	}
 	assert.Equal(t, 6, total)
+}
+
+func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
+	conns := makeConnections(4)
+
+	domains := []string{"foo.com", "bar.com", "baz.com"}
+	conns[1].DnsStatsByDomain = map[int32]*model.DNSStats{
+		0: {DnsTimeouts: 1},
+	}
+	conns[2].DnsStatsByDomain = map[int32]*model.DNSStats{
+		0: {DnsTimeouts: 1},
+		2: {DnsTimeouts: 1},
+	}
+	conns[3].DnsStatsByDomain = map[int32]*model.DNSStats{
+		1: {DnsTimeouts: 1},
+		2: {DnsTimeouts: 1},
+	}
+	dns := map[string]*model.DNSEntry{}
+
+	cfg := config.NewDefaultAgentConfig(false)
+	cfg.MaxConnsPerMessage = 1
+
+	chunks := batchConnections(cfg, 0, conns, dns, "nid", nil, domains)
+
+	assert.Len(t, chunks, 4)
+	total := 0
+	for i, c := range chunks {
+		connections := c.(*model.CollectorConnections)
+		total += len(connections.Connections)
+		switch i {
+		case 0:
+			assert.Equal(t, []string{"", "", ""}, connections.Domains)
+		case 1:
+			assert.Equal(t, []string{"foo.com", "", ""}, connections.Domains)
+		case 2:
+			assert.Equal(t, []string{"foo.com", "", "baz.com"}, connections.Domains)
+		case 3:
+			assert.Equal(t, []string{"", "bar.com", "baz.com"}, connections.Domains)
+		}
+	}
+	assert.Equal(t, 4, total)
 }

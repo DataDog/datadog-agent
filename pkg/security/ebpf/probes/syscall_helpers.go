@@ -13,6 +13,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf/manager"
 )
 
@@ -43,7 +44,8 @@ func getSyscallPrefix() string {
 	if syscallPrefix == "" {
 		syscall, err := manager.GetSyscallFnName("open")
 		if err != nil {
-			panic(err)
+			log.Error(err)
+			return "__unknown__"
 		}
 		syscallPrefix = strings.ToLower(strings.TrimSuffix(syscall, "open"))
 		if syscallPrefix != "sys_" {
