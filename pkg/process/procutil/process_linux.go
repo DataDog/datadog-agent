@@ -28,7 +28,9 @@ const (
 	// C.sysconf(C._SC_CLK_TCK)
 	DefaultClockTicks = float64(100)
 
-	DefaultPermCacheTTL           = 5 * time.Minute
+	// DefaultPermCacheTTL is the default TTL for permission cache
+	DefaultPermCacheTTL = 5 * time.Minute
+	// DefaultPermCacheCleanInterval is the default clean up interval for permission cache
 	DefaultPermCacheCleanInterval = 10 * time.Minute
 )
 
