@@ -15,7 +15,6 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -78,7 +77,6 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 
 	logLevelEnvVar = "DD_LOG_LEVEL"
 
-	logsHTTPPortEnvVar     = "DD_LOGS_CONFIG_HTTP_SERVER_PORT"
 	logsLogsTypeSubscribed = "DD_LOGS_CONFIG_LAMBDA_LOGS_TYPE"
 )
 
@@ -246,12 +244,6 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	// ---------------------------------
 
 	if config.Datadog.GetBool("logs_enabled") {
-		httpPort := 8123
-		if v, exists := os.LookupEnv(logsHTTPPortEnvVar); exists {
-			if i, err := strconv.Atoi(v); err != nil {
-				httpPort = i
-			}
-		}
 
 		// type of logs we are subscribing to
 		var logsType []string
@@ -275,8 +267,8 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 			logsType = append(logsType, "platform", "function")
 		}
 
-		log.Debugf("Enabling logs collection with HTTP server running port %d", httpPort)
-		if httpAddr, logsChan, err := daemon.StartHTTPLogsServer(httpPort); err != nil {
+		log.Debug("Enabling logs collection HTTP route")
+		if httpAddr, logsChan, err := daemon.EnableLogsCollection(); err != nil {
 			log.Error("While starting the HTTP Logs Server:", err)
 		} else {
 			// subscribe to the logs on the platform

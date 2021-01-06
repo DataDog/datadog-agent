@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"sync"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
@@ -16,10 +15,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// httpServerPort will be the default port used to run the HTTP server listening
+// to calls from the client libraries and to logs from the AWS environment.
+const httpServerPort int = 8124
+
+const httpLogsCollectionRoute string = "/lambda/logs"
+
 // Daemon is the communcation server for between the runtime and the serverless Agent.
 // The name "daemon" is just in order to avoid serverless.StartServer ...
 type Daemon struct {
 	httpServer *http.Server
+	mux        *http.ServeMux
 
 	statsdServer *dogstatsd.Server
 
@@ -55,7 +61,8 @@ func StartDaemon(stopCh chan struct{}) *Daemon {
 
 	daemon := &Daemon{
 		statsdServer: nil,
-		httpServer:   &http.Server{Addr: ":8124", Handler: mux},
+		httpServer:   &http.Server{Addr: fmt.Sprintf(":%d", httpServerPort), Handler: mux},
+		mux:          mux,
 		stopCh:       stopCh,
 		ReadyWg:      &sync.WaitGroup{},
 	}
@@ -76,96 +83,91 @@ func StartDaemon(stopCh chan struct{}) *Daemon {
 	return daemon
 }
 
-// StartHTTPLogsServer starts an HTTP server, receiving logs from the AWS platform.
+// EnableLogsCollection is adding the HTTP route on which the HTTP server will receive
+// logs from AWS.
 // Returns the HTTP URL on which AWS should send the logs.
-// FIXME(remy): that would be awesome to have this directly running within the initial HTTP daemon?
-func (d *Daemon) StartHTTPLogsServer(port int) (string, chan aws.LogMessage, error) {
-	httpAddr := fmt.Sprintf("http://sandbox:%d", port)
-	listenAddr := fmt.Sprintf("0.0.0.0:%d", port)
-	// http server receiving logs from the AWS Lambda environment
-
+func (d *Daemon) EnableLogsCollection() (string, chan aws.LogMessage, error) {
+	httpAddr := fmt.Sprintf("http://sandbox:%d%s", httpServerPort, httpLogsCollectionRoute)
 	logsChan := make(chan aws.LogMessage)
-
-	go func() {
-		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			data, _ := ioutil.ReadAll(r.Body)
-			defer r.Body.Close()
-			var messages []aws.LogMessage
-			if err := json.Unmarshal(data, &messages); err != nil {
-				log.Error("Can't read log message")
-				w.WriteHeader(400)
-			} else {
-				for _, message := range messages {
-					switch message.Type {
-					case aws.LogTypePlatformStart:
-						if len(message.ObjectRecord.RequestID) > 0 {
-							aws.SetRequestID(message.ObjectRecord.RequestID)
-						}
-						fallthrough
-					default:
-						logsChan <- message
-					case aws.LogTypePlatformReport:
-						functionName := aws.FunctionNameFromARN()
-						if functionName != "" {
-							// report enhanced metrics using DogStatsD
-							tags := []string{fmt.Sprintf("functionname:%s", functionName)} // FIXME(remy): could this be exported to properly get all tags?
-							metricsChan := d.aggregator.GetBufferedMetricsWithTsChannel()
-							metricsChan <- []metrics.MetricSample{{
-								Name:       "aws.lambda.enhanced.max_memory_used",
-								Value:      float64(message.ObjectRecord.Metrics.MaxMemoryUsedMB),
-								Mtype:      metrics.DistributionType,
-								Tags:       tags,
-								SampleRate: 1,
-								Timestamp:  float64(message.Time.UnixNano()),
-							}, {
-								Name:       "aws.lambda.enhanced.memorysize",
-								Value:      float64(message.ObjectRecord.Metrics.MemorySizeMB),
-								Mtype:      metrics.DistributionType,
-								Tags:       tags,
-								SampleRate: 1,
-								Timestamp:  float64(message.Time.UnixNano()),
-							}, {
-								Name:       "aws.lambda.enhanced.billed_duration",
-								Value:      float64(message.ObjectRecord.Metrics.BilledDurationMs),
-								Mtype:      metrics.DistributionType,
-								Tags:       tags,
-								SampleRate: 1,
-								Timestamp:  float64(message.Time.UnixNano()),
-							}, {
-								Name:       "aws.lambda.enhanced.duration",
-								Value:      message.ObjectRecord.Metrics.DurationMs,
-								Mtype:      metrics.DistributionType,
-								Tags:       tags,
-								SampleRate: 1,
-								Timestamp:  float64(message.Time.UnixNano()),
-							}, {
-								Name:       "aws.lambda.enhanced.init_duration",
-								Value:      message.ObjectRecord.Metrics.InitDurationMs,
-								Mtype:      metrics.DistributionType,
-								Tags:       tags,
-								SampleRate: 1,
-								Timestamp:  float64(message.Time.UnixNano()),
-							}}
-						}
-						logsChan <- message
-					}
-				}
-				w.WriteHeader(200)
-			}
-		})
-		s := &http.Server{
-			Addr:         listenAddr,
-			Handler:      handler,
-			ReadTimeout:  10 * time.Second,
-			WriteTimeout: 10 * time.Second,
-		}
-		log.Debug("Logs collection HTTP server starts")
-		if err := s.ListenAndServe(); err != nil {
-			log.Error("ListenAndServe:", err)
-		}
-	}()
-
+	d.mux.Handle(httpLogsCollectionRoute, &LogsCollection{daemon: d, ch: logsChan})
+	log.Debugf("Logs collection route has been initialized. Logs must be sent to %s", httpAddr)
 	return httpAddr, logsChan, nil
+}
+
+// LogsCollection is the route on which the AWS environment is sending the logs
+// for the extension to collect them. It is attached to the main HTTP server
+// already receiving hits from the libraries client.
+type LogsCollection struct {
+	daemon *Daemon
+	ch     chan aws.LogMessage
+}
+
+// ServeHTTP - see type LogsCollection comment.
+func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	data, _ := ioutil.ReadAll(r.Body)
+	defer r.Body.Close()
+	var messages []aws.LogMessage
+	if err := json.Unmarshal(data, &messages); err != nil {
+		log.Error("Can't read log message")
+		w.WriteHeader(400)
+	} else {
+		for _, message := range messages {
+			switch message.Type {
+			case aws.LogTypePlatformStart:
+				if len(message.ObjectRecord.RequestID) > 0 {
+					aws.SetRequestID(message.ObjectRecord.RequestID)
+				}
+				fallthrough
+			default:
+				l.ch <- message
+			case aws.LogTypePlatformReport:
+				functionName := aws.FunctionNameFromARN()
+				if functionName != "" {
+					// report enhanced metrics using DogStatsD
+					tags := []string{fmt.Sprintf("functionname:%s", functionName)} // FIXME(remy): could this be exported to properly get all tags?
+					metricsChan := l.daemon.aggregator.GetBufferedMetricsWithTsChannel()
+					metricsChan <- []metrics.MetricSample{{
+						Name:       "aws.lambda.enhanced.max_memory_used",
+						Value:      float64(message.ObjectRecord.Metrics.MaxMemoryUsedMB),
+						Mtype:      metrics.DistributionType,
+						Tags:       tags,
+						SampleRate: 1,
+						Timestamp:  float64(message.Time.UnixNano()),
+					}, {
+						Name:       "aws.lambda.enhanced.memorysize",
+						Value:      float64(message.ObjectRecord.Metrics.MemorySizeMB),
+						Mtype:      metrics.DistributionType,
+						Tags:       tags,
+						SampleRate: 1,
+						Timestamp:  float64(message.Time.UnixNano()),
+					}, {
+						Name:       "aws.lambda.enhanced.billed_duration",
+						Value:      float64(message.ObjectRecord.Metrics.BilledDurationMs),
+						Mtype:      metrics.DistributionType,
+						Tags:       tags,
+						SampleRate: 1,
+						Timestamp:  float64(message.Time.UnixNano()),
+					}, {
+						Name:       "aws.lambda.enhanced.duration",
+						Value:      message.ObjectRecord.Metrics.DurationMs,
+						Mtype:      metrics.DistributionType,
+						Tags:       tags,
+						SampleRate: 1,
+						Timestamp:  float64(message.Time.UnixNano()),
+					}, {
+						Name:       "aws.lambda.enhanced.init_duration",
+						Value:      message.ObjectRecord.Metrics.InitDurationMs,
+						Mtype:      metrics.DistributionType,
+						Tags:       tags,
+						SampleRate: 1,
+						Timestamp:  float64(message.Time.UnixNano()),
+					}}
+				}
+				l.ch <- message
+			}
+		}
+		w.WriteHeader(200)
+	}
 }
 
 // Hello implements the basic Hello route, creating a way for the runtime to
