@@ -15,6 +15,8 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/patrickmn/go-cache"
+
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -25,6 +27,9 @@ const (
 	// DefaultClockTicks is the default number of clock ticks per second
 	// C.sysconf(C._SC_CLK_TCK)
 	DefaultClockTicks = float64(100)
+
+	DefaultPermCacheTTL           = 5 * time.Minute
+	DefaultPermCacheCleanInterval = 10 * time.Minute
 )
 
 var (
@@ -52,6 +57,11 @@ type statInfo struct {
 	cpuStat *CPUTimesStat
 }
 
+type permInfo struct {
+	createTime int64
+	isReadable bool
+}
+
 // Probe is a service that fetches process related info on current host
 type Probe struct {
 	procRootLoc  string // ProcFS
@@ -64,6 +74,11 @@ type Probe struct {
 	clockTicks float64
 
 	bootTime uint64
+
+	// permCache holds procfs file permissions for individual process, because checking file
+	// permissions involves "lstat" system call
+	permCache        *cache.Cache
+	permCacheEnabled bool
 }
 
 // NewProcessProbe initializes a new Probe object
@@ -77,6 +92,9 @@ func NewProcessProbe() *Probe {
 		euid:        uint32(os.Geteuid()),
 		bootTime:    bootTime,
 		clockTicks:  getClockTicks(),
+		permCache:   cache.New(DefaultPermCacheTTL, DefaultPermCacheCleanInterval),
+		// default to true
+		permCacheEnabled: true,
 	}
 	return p
 }
@@ -88,6 +106,12 @@ func (p *Probe) Close() {
 		p.procRootFile = nil
 	}
 }
+
+// DisableCache disables the use of permission cache
+func (p *Probe) DisableCache() { p.permCacheEnabled = false }
+
+// EnableCache enables the use of permission cache
+func (p *Probe) EnableCache() { p.permCacheEnabled = true }
 
 // ProcessesByPID returns a map of process info indexed by PID
 func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
@@ -111,32 +135,35 @@ func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 			continue
 		}
 
-		statusInfo := p.parseStatus(pathForPID)
-		ioInfo := p.parseIO(pathForPID)
 		statInfo := p.parseStat(pathForPID, pid, now)
+
+		isReadable := p.isReadableFromCache(pid, pathForPID, statInfo.createTime)
+
+		statusInfo := p.parseStatus(pathForPID)
+		ioInfo := p.parseIO(pathForPID, isReadable)
 		memInfoEx := p.parseStatm(pathForPID)
 
 		procsByPID[pid] = &Process{
-			Pid:     pid,                                       // /proc/{pid}
-			Ppid:    statInfo.ppid,                             // /proc/{pid}/{stat}
-			Cmdline: cmdline,                                   // /proc/{pid}/cmdline
-			Name:    statusInfo.name,                           // /proc/{pid}/status
-			Status:  statusInfo.status,                         // /proc/{pid}/status
-			Uids:    statusInfo.uids,                           // /proc/{pid}/status
-			Gids:    statusInfo.gids,                           // /proc/{pid}/status
-			Cwd:     p.getLinkWithAuthCheck(pathForPID, "cwd"), // /proc/{pid}/cwd, requires permission checks
-			Exe:     p.getLinkWithAuthCheck(pathForPID, "exe"), // /proc/{pid}/exe, requires permission checks
-			NsPid:   statusInfo.nspid,                          // /proc/{pid}/status
+			Pid:     pid,                                                   // /proc/{pid}
+			Ppid:    statInfo.ppid,                                         // /proc/{pid}/{stat}
+			Cmdline: cmdline,                                               // /proc/{pid}/cmdline
+			Name:    statusInfo.name,                                       // /proc/{pid}/status
+			Status:  statusInfo.status,                                     // /proc/{pid}/status
+			Uids:    statusInfo.uids,                                       // /proc/{pid}/status
+			Gids:    statusInfo.gids,                                       // /proc/{pid}/status
+			Cwd:     p.getLinkWithAuthCheck(pathForPID, "cwd", isReadable), // /proc/{pid}/cwd, requires permission checks
+			Exe:     p.getLinkWithAuthCheck(pathForPID, "exe", isReadable), // /proc/{pid}/exe, requires permission checks
+			NsPid:   statusInfo.nspid,                                      // /proc/{pid}/status
 			Stats: &Stats{
-				CreateTime:  statInfo.createTime,      // /proc/{pid}/{stat}
-				Nice:        statInfo.nice,            // /proc/{pid}/{stat}
-				OpenFdCount: p.getFDCount(pathForPID), // /proc/{pid}/fd, requires permission checks
-				CPUTime:     statInfo.cpuStat,         // /proc/{pid}/{stat}
-				MemInfo:     statusInfo.memInfo,       // /proc/{pid}/status
-				MemInfoEx:   memInfoEx,                // /proc/{pid}/statm
-				CtxSwitches: statusInfo.ctxSwitches,   // /proc/{pid}/status
-				NumThreads:  statusInfo.numThreads,    // /proc/{pid}/status
-				IOStat:      ioInfo,                   // /proc/{pid}/io, requires permission checks
+				CreateTime:  statInfo.createTime,                  // /proc/{pid}/{stat}
+				Nice:        statInfo.nice,                        // /proc/{pid}/{stat}
+				OpenFdCount: p.getFDCount(pathForPID, isReadable), // /proc/{pid}/fd, requires permission checks
+				CPUTime:     statInfo.cpuStat,                     // /proc/{pid}/{stat}
+				MemInfo:     statusInfo.memInfo,                   // /proc/{pid}/status
+				MemInfoEx:   memInfoEx,                            // /proc/{pid}/statm
+				CtxSwitches: statusInfo.ctxSwitches,               // /proc/{pid}/status
+				NumThreads:  statusInfo.numThreads,                // /proc/{pid}/status
+				IOStat:      ioInfo,                               // /proc/{pid}/io, requires permission checks
 			},
 		}
 	}
@@ -203,13 +230,17 @@ func (p *Probe) getCmdline(pidPath string) []string {
 }
 
 // parseIO retrieves io info from "io" file for a process in procfs
-func (p *Probe) parseIO(pidPath string) *IOCountersStat {
+func (p *Probe) parseIO(pidPath string, isReadable bool) *IOCountersStat {
 	path := filepath.Join(pidPath, "io")
 	var err error
 
 	io := &IOCountersStat{}
 
-	if err = p.ensurePathReadable(path); err != nil {
+	if !p.permCacheEnabled {
+		if err = p.ensurePathReadable(path); err != nil {
+			return io
+		}
+	} else if !isReadable {
 		return io
 	}
 
@@ -517,10 +548,15 @@ func (p *Probe) parseStatm(pidPath string) *MemoryInfoExStat {
 	return memInfoEx
 }
 
-// getLinkWithAuthCheck fetches the destination of a symlink with permission check
-func (p *Probe) getLinkWithAuthCheck(pidPath string, file string) string {
+// getLinkWithAuthCheck fetches the destination of a symlink
+func (p *Probe) getLinkWithAuthCheck(pidPath string, file string, isReadable bool) string {
 	path := filepath.Join(pidPath, file)
-	if err := p.ensurePathReadable(path); err != nil {
+
+	if !p.permCacheEnabled {
+		if err := p.ensurePathReadable(path); err != nil {
+			return ""
+		}
+	} else if !isReadable {
 		return ""
 	}
 
@@ -532,10 +568,14 @@ func (p *Probe) getLinkWithAuthCheck(pidPath string, file string) string {
 }
 
 // getFDCount gets num_fds from /proc/(pid)/fd
-func (p *Probe) getFDCount(pidPath string) int32 {
+func (p *Probe) getFDCount(pidPath string, isReadable bool) int32 {
 	path := filepath.Join(pidPath, "fd")
 
-	if err := p.ensurePathReadable(path); err != nil {
+	if !p.permCacheEnabled {
+		if err := p.ensurePathReadable(path); err != nil {
+			return -1
+		}
+	} else if !isReadable {
 		return -1
 	}
 
@@ -550,6 +590,42 @@ func (p *Probe) getFDCount(pidPath string) int32 {
 		return -1
 	}
 	return int32(len(names))
+}
+
+// isReadableFromCache checks the permission + create time using cache if the PID exists.
+// if the start time of current process is later than the cached time,
+// it indicates that the PID has switched to a new process, we remove the entry and treat it as cache miss.
+// For all new PIDs(cache misses) we use "io" dir to test for readability because the permissions for
+// accessing io/cwd/fd/exe are the same(PTRACE_MODE_READ_FSCREDS)
+func (p *Probe) isReadableFromCache(pid int32, pidPath string, createTime int64) (isReadable bool) {
+	pidStr := strconv.Itoa(int(pid))
+	// use /proc/[pid]/io path to get readability
+	path := filepath.Join(pidPath, "io")
+
+	result, missing := p.permCache.Get(pidStr)
+	if missing {
+		// check and cache readability for new PIDs
+		isReadable = p.checkAndCacheReadability(pidStr, path, createTime)
+	} else {
+		perm := result.(*permInfo)
+		if createTime > perm.createTime {
+			// delete cache entry if the create time is old, then check the new permission
+			p.permCache.Delete(pidStr)
+			isReadable = p.checkAndCacheReadability(pidStr, path, createTime)
+		} else {
+			isReadable = perm.isReadable
+		}
+	}
+	return
+}
+
+// checkAndCacheReadability checks if current path has accessibility and write the result to permission cache
+func (p *Probe) checkAndCacheReadability(pidStr string, ioPath string, createTime int64) (isReadable bool) {
+	if err := p.ensurePathReadable(ioPath); err == nil {
+		isReadable = true
+	}
+	p.permCache.SetDefault(pidStr, &permInfo{createTime: createTime, isReadable: isReadable})
+	return
 }
 
 // ensurePathReadable ensures that the current user is able to read the path before opening it.
