@@ -116,8 +116,8 @@ func GetProxyTransportFunc(p *config.Proxy) func(*http.Request) (*url.URL, error
 						userInfo = "*****@"
 					}
 				}
-
-				log.Debugf("Using proxy %s://%s%s for URL '%s'", proxyURL.Scheme, userInfo, proxyURL.Host, SanitizeURL(r.URL.String()))
+				logSafeURL := r.URL.Scheme + r.URL.Host
+				log.Debugf("Using proxy %s://%s%s for URL '%s'", proxyURL.Scheme, userInfo, proxyURL.Host, logSafeURL)
 				return proxyURL, nil
 			}
 
@@ -132,7 +132,8 @@ func GetProxyTransportFunc(p *config.Proxy) func(*http.Request) (*url.URL, error
 			NoProxyWarningMapMutex.Lock()
 			if _, ok := NoProxyWarningMap[urlString]; !ok {
 				NoProxyWarningMap[SanitizeURL(r.URL.String())] = true
-				log.Warnf("Deprecation warning: the HTTP request to %s uses proxy %s but will ignore the proxy when the Agent configuration option proxy.no_proxy_nonexact_match defaults to true in a future agent version. Please adapt the Agent’s proxy configuration accordingly", SanitizeURL(r.URL.String()), url.String())
+				logSafeURL := r.URL.Scheme + r.URL.Host
+				log.Warnf("Deprecation warning: the HTTP request to %s uses proxy %s but will ignore the proxy when the Agent configuration option proxy.no_proxy_nonexact_match defaults to true in a future agent version. Please adapt the Agent’s proxy configuration accordingly", logSafeURL, url.String())
 			}
 			NoProxyWarningMapMutex.Unlock()
 		}
