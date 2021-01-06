@@ -523,7 +523,7 @@ func testParseIO(t *testing.T) {
 	assert.NoError(t, err)
 
 	for _, pid := range pids {
-		actual := probe.parseIO(filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid))))
+		actual := probe.parseIO(filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid))), true)
 		expProc, err := process.NewProcess(pid)
 		assert.NoError(t, err)
 		expIO, err := expProc.IOCounters()
@@ -733,8 +733,8 @@ func TestGetLinkWithAuthCheck(t *testing.T) {
 
 	for _, pid := range pids {
 		pathForPID := filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid)))
-		cwd := probe.getLinkWithAuthCheck(pathForPID, "cwd")
-		exe := probe.getLinkWithAuthCheck(pathForPID, "exe")
+		cwd := probe.getLinkWithAuthCheck(pathForPID, "cwd", true)
+		exe := probe.getLinkWithAuthCheck(pathForPID, "exe", true)
 
 		expProc, err := process.NewProcess(pid)
 		assert.NoError(t, err)
@@ -758,7 +758,7 @@ func TestGetFDCountLocalFS(t *testing.T) {
 
 	for _, pid := range pids {
 		pathForPID := filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid)))
-		fdCount := probe.getFDCount(pathForPID)
+		fdCount := probe.getFDCount(pathForPID, true)
 		expProc, err := process.NewProcess(pid)
 		assert.NoError(t, err)
 		// skip the ones that have permission issues
@@ -945,7 +945,7 @@ func benchmarkParseIOProcutil(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		for _, pid := range pids {
-			probe.parseIO(filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid))))
+			probe.parseIO(filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid))), true)
 		}
 	}
 }
