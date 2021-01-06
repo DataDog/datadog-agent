@@ -295,7 +295,7 @@ func (l *Launcher) scheduleFileSource(container *Container, source *config.LogSo
 	fileSource := l.getFileSource(container, source)
 	// Keep source for later unscheduling
 	l.fileSourcesByContainer[containerID] = fileSource
-	l.sources.AddSource(source)
+	l.sources.AddSource(fileSource)
 }
 
 func (l *Launcher) unscheduleFileSource(containerID string) {
