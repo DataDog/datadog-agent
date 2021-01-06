@@ -205,7 +205,7 @@ func (l *Launcher) overrideSource(container *Container, source *config.LogSource
 		return source
 	}
 
-	source.UpdateInfo(containerID, fmt.Sprintf("Container ID: %s, Image: %s, Created: %s", ShortContainerID(containerID), shortName, container.container.Created))
+	source.UpdateInfo(containerID, fmt.Sprintf("Container ID: %s, Image: %s, Created: %s, Tailing from the Docker socket", ShortContainerID(containerID), shortName, container.container.Created))
 
 	newSource := newOverridenSource(standardService, shortName, source.Status)
 	newSource.ParentSource = source
@@ -228,8 +228,8 @@ func (l *Launcher) getFileSource(container *Container, source *config.LogSource)
 		log.Warnf("Could not get short image name for container %v: %v", ShortContainerID(containerID), err)
 	}
 
-	// If collect all may be update info for consistency with docker socket tailing
-	// source.UpdateInfo(containerID, fmt.Sprintf("Container ID: %s, Image: %s, Created: %s", ShortContainerID(containerID), shortName, container.container.Created))
+	// Update parent source with additional information
+	source.UpdateInfo(containerID, fmt.Sprintf("Container ID: %s, Image: %s, Created: %s, Tailing from file: %s", ShortContainerID(containerID), shortName, container.container.Created, l.getPath(containerID)))
 
 	var serviceName string
 	if standardService != "" {
@@ -247,6 +247,7 @@ func (l *Launcher) getFileSource(container *Container, source *config.LogSource)
 		Type:       config.FileType,
 	})
 	fileSource.SetSourceType(config.DockerSourceType)
+	fileSource.Status = source.Status
 	fileSource.ParentSource = source
 	return fileSource
 }

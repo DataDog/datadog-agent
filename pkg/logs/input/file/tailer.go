@@ -148,6 +148,9 @@ func (t *Tailer) readForever() {
 			return
 		}
 		t.file.Source.BytesRead.Add(int64(n))
+		if t.file.Source.ParentSource != nil {
+			t.file.Source.ParentSource.BytesRead.Add(int64(n))
+		}
 
 		select {
 		case <-t.stop:
