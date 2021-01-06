@@ -535,6 +535,8 @@ func TestLoadProxyConfOnly(t *testing.T) {
 	// check value loaded before aren't overwrite when no env variables are set
 	p := &Proxy{HTTP: "test", HTTPS: "test2", NoProxy: []string{"a", "b", "c"}}
 	config.Set("proxy", p)
+	// Don't include cloud metadata URL's in no_proxy
+	config.Set("use_proxy_for_cloud_metadata", true)
 
 	// circleCI set some proxy setting
 	ciValue := os.Getenv("NO_PROXY")
@@ -548,6 +550,9 @@ func TestLoadProxyConfOnly(t *testing.T) {
 
 func TestLoadProxyStdEnvOnly(t *testing.T) {
 	config := setupConf()
+
+	// Don't include cloud metadata URL's in no_proxy
+	config.Set("use_proxy_for_cloud_metadata", true)
 
 	// uppercase
 	os.Setenv("HTTP_PROXY", "http_url")
@@ -590,6 +595,8 @@ func TestLoadProxyStdEnvOnly(t *testing.T) {
 
 func TestLoadProxyDDSpecificEnvOnly(t *testing.T) {
 	config := setupConf()
+	// Don't include cloud metadata URL's in no_proxy
+	config.Set("use_proxy_for_cloud_metadata", true)
 
 	os.Setenv("DD_PROXY_HTTP", "http_url")
 	os.Setenv("DD_PROXY_HTTPS", "https_url")
@@ -612,6 +619,8 @@ func TestLoadProxyDDSpecificEnvOnly(t *testing.T) {
 
 func TestLoadProxyDDSpecificEnvPrecedenceOverStdEnv(t *testing.T) {
 	config := setupConf()
+	// Don't include cloud metadata URL's in no_proxy
+	config.Set("use_proxy_for_cloud_metadata", true)
 
 	os.Setenv("DD_PROXY_HTTP", "dd_http_url")
 	os.Setenv("DD_PROXY_HTTPS", "dd_https_url")
@@ -640,6 +649,8 @@ func TestLoadProxyDDSpecificEnvPrecedenceOverStdEnv(t *testing.T) {
 
 func TestLoadProxyStdEnvAndConf(t *testing.T) {
 	config := setupConf()
+	// Don't include cloud metadata URL's in no_proxy
+	config.Set("use_proxy_for_cloud_metadata", true)
 
 	os.Setenv("HTTP_PROXY", "http_env")
 	config.Set("proxy.no_proxy", []string{"d", "e", "f"})
@@ -658,6 +669,8 @@ func TestLoadProxyStdEnvAndConf(t *testing.T) {
 
 func TestLoadProxyDDSpecificEnvAndConf(t *testing.T) {
 	config := setupConf()
+	// Don't include cloud metadata URL's in no_proxy
+	config.Set("use_proxy_for_cloud_metadata", true)
 
 	os.Setenv("DD_PROXY_HTTP", "http_env")
 	config.Set("proxy.no_proxy", []string{"d", "e", "f"})
@@ -676,6 +689,8 @@ func TestLoadProxyDDSpecificEnvAndConf(t *testing.T) {
 
 func TestLoadProxyEmptyValuePrecedence(t *testing.T) {
 	config := setupConf()
+	// Don't include cloud metadata URL's in no_proxy
+	config.Set("use_proxy_for_cloud_metadata", true)
 
 	os.Setenv("DD_PROXY_HTTP", "")
 	os.Setenv("DD_PROXY_NO_PROXY", "a b c")
