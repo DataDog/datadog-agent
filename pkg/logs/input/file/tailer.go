@@ -240,7 +240,7 @@ func (t *Tailer) forwardMessages() {
 		// We don't return directly to keep the same shutdown sequence that in the
 		// normal case.
 		select {
-		case t.outputChan <- message.NewMessage(output.Content, origin, output.Status):
+		case t.outputChan <- message.NewMessage(output.Content, origin, output.Status, output.IngestionTimestamp):
 		case <-t.forwardContext.Done():
 		}
 	}

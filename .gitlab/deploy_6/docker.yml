@@ -1,0 +1,90 @@
+---
+# FIXME: our current Gitlab version doesn't support importing a file more than once
+# For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
+# See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
+# include:
+#   - /.gitlab/docker_common/tag_job_templates.yml
+
+.if_deploy_on_tag_6: &if_deploy_on_tag_6
+  # no RELEASE_VERSION means a nightly build for omnibus
+  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_6 != "nightly" && $RELEASE_VERSION_6 != ""
+
+tag_release_6_docker_hub:
+  extends: .docker_tag_job_definition
+  rules:
+    - <<: *if_deploy_on_tag_6
+      when: manual
+      allow_failure: true
+  stage: deploy6
+  dependencies:
+    - docker_build_agent6
+    - docker_build_agent6_arm64
+    - docker_build_agent6_jmx
+    - docker_build_agent6_jmx_arm64
+  script:
+    - VERSION=$(inv -e agent.version --major-version 6)
+    # Platform-specific agent images
+    - inv -e docker.publish-bulk --signed-push --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-6-ARCH      --dst-template datadog/agent-ARCH:${VERSION}
+    - inv -e docker.publish-bulk --signed-push --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-6-jmx-ARCH  --dst-template datadog/agent-ARCH:${VERSION}-jmx
+    # Manifests
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag ${VERSION} --image datadog/agent-amd64:${VERSION},linux/amd64 --image datadog/agent-arm64:${VERSION},linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag ${VERSION}-jmx  --image datadog/agent-amd64:${VERSION}-jmx,linux/amd64 --image datadog/agent-arm64:${VERSION}-jmx,linux/arm64
+
+latest_release_6_docker_hub:
+  extends: .docker_tag_job_definition
+  rules:
+    - <<: *if_deploy_on_tag_6
+      when: manual
+      allow_failure: true
+  stage: deploy6
+  dependencies:
+    - docker_build_agent6
+    - docker_build_agent6_arm64
+    - docker_build_agent6_jmx
+    - docker_build_agent6_jmx_arm64
+  script:
+    - VERSION=$(inv -e agent.version --major-version 6)
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag latest-py2 --image datadog/agent-amd64:${VERSION},linux/amd64 --image datadog/agent-arm64:${VERSION},linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag latest-py2-jmx --image datadog/agent-amd64:${VERSION}-jmx,linux/amd64 --image datadog/agent-arm64:${VERSION}-jmx,linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag 6 --image datadog/agent-amd64:${VERSION},linux/amd64 --image datadog/agent-arm64:${VERSION},linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag 6-jmx --image datadog/agent-amd64:${VERSION}-jmx,linux/amd64 --image datadog/agent-arm64:${VERSION}-jmx,linux/arm64
+
+tag_release_6_google_container_registry:
+  extends: .google_container_registry_tag_job_definition
+  rules:
+    - <<: *if_deploy_on_tag_6
+      when: manual
+      allow_failure: true
+  stage: deploy6
+  dependencies:
+    - docker_build_agent6
+    - docker_build_agent6_arm64
+    - docker_build_agent6_jmx
+    - docker_build_agent6_jmx_arm64
+  script:
+    - VERSION=$(inv -e agent.version --major-version 6)
+    # Platform-specific agent images
+    - inv -e docker.publish-bulk --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-6-ARCH      --dst-template gcr.io/datadoghq/agent-ARCH:${VERSION}
+    - inv -e docker.publish-bulk --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-6-jmx-ARCH  --dst-template gcr.io/datadoghq/agent-ARCH:${VERSION}-jmx
+    # Manifests
+    - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag ${VERSION} --image gcr.io/datadoghq/agent-amd64:${VERSION},linux/amd64 --image gcr.io/datadoghq/agent-arm64:${VERSION},linux/arm64
+    - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag ${VERSION}-jmx  --image gcr.io/datadoghq/agent-amd64:${VERSION}-jmx,linux/amd64 --image gcr.io/datadoghq/agent-arm64:${VERSION}-jmx,linux/arm64
+
+latest_release_6_google_container_registry:
+  extends: .google_container_registry_tag_job_definition
+  rules:
+    - <<: *if_deploy_on_tag_6
+      when: manual
+      allow_failure: true
+  stage: deploy6
+  dependencies:
+    - docker_build_agent6
+    - docker_build_agent6_arm64
+    - docker_build_agent6_jmx
+    - docker_build_agent6_jmx_arm64
+  script:
+    - VERSION=$(inv -e agent.version --major-version 6)
+    - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag latest-py2 --image gcr.io/datadoghq/agent-amd64:${VERSION},linux/amd64 --image gcr.io/datadoghq/agent-arm64:${VERSION},linux/arm64
+    - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag latest-py2-jmx --image gcr.io/datadoghq/agent-amd64:${VERSION}-jmx,linux/amd64 --image gcr.io/datadoghq/agent-arm64:${VERSION}-jmx,linux/arm64
+    - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag 6 --image gcr.io/datadoghq/agent-amd64:${VERSION},linux/amd64 --image gcr.io/datadoghq/agent-arm64:${VERSION},linux/arm64
+    - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag 6-jmx --image gcr.io/datadoghq/agent-amd64:${VERSION}-jmx,linux/amd64 --image gcr.io/datadoghq/agent-arm64:${VERSION}-jmx,linux/arm64

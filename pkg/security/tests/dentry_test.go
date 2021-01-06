@@ -15,8 +15,10 @@ import (
 	"syscall"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"golang.org/x/sys/unix"
 )
 
 func TestDentryRename(t *testing.T) {
@@ -164,8 +166,9 @@ func TestDentryRenameReuseInode(t *testing.T) {
 		if event.GetType() != "open" {
 			t.Errorf("expected open event, got %s", event.GetType())
 		}
+
 		if value, _ := event.GetFieldValue("open.filename"); value.(string) != testReuseInodeFile {
-			t.Errorf("expected filename not found")
+			t.Errorf("expected filename not found %s != %s", value.(string), testReuseInodeFile)
 		}
 	}
 }
@@ -312,6 +315,7 @@ func TestDentryRmdir(t *testing.T) {
 		}
 	}
 }
+
 func createOverlayLayer(t *testing.T, test *testModule, name string) string {
 	p, _, err := test.Path(name)
 	if err != nil {
@@ -338,24 +342,78 @@ func TestDentryOverlay(t *testing.T) {
 	rules := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_open",
-			Expression: `open.filename == "{{.Root}}/merged/file1.txt"`,
+			Expression: `open.filename in ["{{.Root}}/merged/read.txt", "{{.Root}}/merged/override.txt", "{{.Root}}/merged/create.txt", "{{.Root}}/merged/new.txt", "{{.Root}}/merged/truncate.txt", "{{.Root}}/merged/linked.txt"]`,
 		},
 		{
 			ID:         "test_rule_unlink",
-			Expression: `unlink.filename == "{{.Root}}/merged/file1.txt"`,
+			Expression: `unlink.filename in ["{{.Root}}/merged/read.txt", "{{.Root}}/merged/override.txt", "{{.Root}}/merged/renamed.txt", "{{.Root}}/merged/new.txt", "{{.Root}}/merged/chmod.txt", "{{.Root}}/merged/utimes.txt", "{{.Root}}/merged/chown.txt", "{{.Root}}/merged/xattr.txt", "{{.Root}}/merged/truncate.txt", "{{.Root}}/merged/link.txt", "{{.Root}}/merged/linked.txt"]`,
+		},
+		{
+			ID:         "test_rule_rename",
+			Expression: `rename.old.filename == "{{.Root}}/merged/create.txt"`,
+		},
+		{
+			ID:         "test_rule_rmdir",
+			Expression: `rmdir.filename == "{{.Root}}/merged/dir"`,
+		},
+		{
+			ID:         "test_rule_chmod",
+			Expression: `chmod.filename == "{{.Root}}/merged/chmod.txt"`,
+		},
+		{
+			ID:         "test_rule_mkdir",
+			Expression: `mkdir.filename == "{{.Root}}/merged/mkdir"`,
+		},
+		{
+			ID:         "test_rule_utimes",
+			Expression: `utimes.filename == "{{.Root}}/merged/utimes.txt"`,
+		},
+		{
+			ID:         "test_rule_chown",
+			Expression: `chown.filename == "{{.Root}}/merged/chown.txt"`,
+		},
+		{
+			ID:         "test_rule_xattr",
+			Expression: `setxattr.filename == "{{.Root}}/merged/xattr.txt"`,
+		},
+		{
+			ID:         "test_rule_link",
+			Expression: `link.source.filename == "{{.Root}}/merged/linked.txt"`,
 		},
 	}
 
-	test, err := newTestModule(nil, rules, testOpts{})
+	testDrive, err := newTestDrive("xfs", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer testDrive.Close()
+
+	test, err := newTestModule(nil, rules, testOpts{testDir: testDrive.Root(), wantProbeEvents: true, disableApprovers: true})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer test.Close()
 
+	// create layers
 	testLower, testUpper, testWordir, testMerged := createOverlayLayers(t, test)
 
-	_, _, err = test.Create("lower/file1.txt")
+	// create all the lower files
+	for _, filename := range []string{
+		"lower/read.txt", "lower/override.txt", "lower/create.txt", "lower/chmod.txt",
+		"lower/utimes.txt", "lower/chown.txt", "lower/xattr.txt", "lower/truncate.txt", "lower/linked.txt",
+		"lower/discarded.txt", "lower/invalidator.txt"} {
+		_, _, err = test.Create(filename)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// create dir in lower
+	testDir, _, err := test.Path("lower/dir")
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(testDir, 0777); err != nil {
 		t.Fatal(err)
 	}
 
@@ -378,7 +436,7 @@ func TestDentryOverlay(t *testing.T) {
 	// open a file in lower in RDONLY and check that open/unlink inode are valid from userspace
 	// perspective and equals
 	t.Run("read-lower", func(t *testing.T) {
-		testFile, _, err := test.Path("merged/file1.txt")
+		testFile, _, err := test.Path("merged/read.txt")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -397,12 +455,8 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if value, _ := event.GetFieldValue("open.filename"); value.(string) != testFile {
-				t.Errorf("expected filename not found")
-			}
-
 			if inode = getInode(t, testFile); inode != event.Open.Inode {
-				t.Errorf("expected inode not found %d(real) != %d\n", inode, event.Open.Inode)
+				t.Logf("expected inode not found %d(real) != %d\n", inode, event.Open.Inode)
 			}
 		}
 
@@ -415,8 +469,481 @@ func TestDentryOverlay(t *testing.T) {
 			t.Error(err)
 		} else {
 			if inode != event.Unlink.Inode {
-				t.Errorf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
+				t.Logf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
 			}
+		}
+	})
+
+	t.Run("override-lower", func(t *testing.T) {
+		testFile, _, err := test.Path("merged/override.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		f, err := os.OpenFile(testFile, os.O_RDWR, 0755)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := f.Close(); err != nil {
+			t.Fatal(err)
+		}
+
+		var inode uint64
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if inode = getInode(t, testFile); inode != event.Open.Inode {
+				t.Logf("expected inode not found %d(real) != %d\n", inode, event.Open.Inode)
+			}
+
+			inode = event.Open.Inode
+		}
+
+		if err := os.Remove(testFile); err != nil {
+			t.Fatal(err)
+		}
+
+		event, _, err = test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if inode != event.Unlink.Inode {
+				t.Logf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
+			}
+		}
+	})
+
+	t.Run("create-upper", func(t *testing.T) {
+		testFile, _, err := test.Path("merged/new.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		f, err := os.OpenFile(testFile, os.O_CREATE, 0755)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := f.Close(); err != nil {
+			t.Fatal(err)
+		}
+
+		var inode uint64
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if inode = getInode(t, testFile); inode != event.Open.Inode {
+				t.Logf("expected inode not found %d(real) != %d\n", inode, event.Open.Inode)
+			}
+
+			inode = event.Open.Inode
+		}
+
+		if err := os.Remove(testFile); err != nil {
+			t.Fatal(err)
+		}
+
+		event, _, err = test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if inode != event.Unlink.Inode {
+				t.Logf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
+			}
+		}
+	})
+
+	t.Run("rename-lower", func(t *testing.T) {
+		oldFile, _, err := test.Path("merged/create.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		newFile, _, err := test.Path("merged/renamed.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := os.Rename(oldFile, newFile); err != nil {
+			t.Fatal(err)
+		}
+
+		var inode uint64
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if value, _ := event.GetFieldValue("rename.old.filename"); value.(string) != oldFile {
+				t.Errorf("expected filename not found %s != %s", value.(string), oldFile)
+			}
+
+			if inode = getInode(t, newFile); inode != event.Rename.New.Inode {
+				t.Logf("expected inode not found %d(real) != %d\n", inode, event.Rename.New.Inode)
+			}
+
+			inode = event.Rename.New.Inode
+		}
+
+		if err := os.Remove(newFile); err != nil {
+			t.Fatal(err)
+		}
+
+		event, _, err = test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if inode != event.Unlink.Inode {
+				t.Logf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
+			}
+		}
+	})
+
+	t.Run("rmdir-lower", func(t *testing.T) {
+		testDir, _, err := test.Path("merged/dir")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		inode := getInode(t, testDir)
+
+		if err := os.Remove(testDir); err != nil {
+			t.Fatal(err)
+		}
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if inode != event.Rmdir.Inode {
+				t.Logf("expected inode not found %d(real) != %d\n", inode, event.Rename.New.Inode)
+			}
+		}
+	})
+
+	t.Run("chmod-lower", func(t *testing.T) {
+		testFile, _, err := test.Path("merged/chmod.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := os.Chmod(testFile, 0777); err != nil {
+			t.Fatal(err)
+		}
+
+		var inode uint64
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if inode = getInode(t, testFile); inode != event.Chmod.Inode {
+				t.Logf("expected inode not found %d(real) != %d\n", inode, event.Chmod.Inode)
+			}
+
+			inode = event.Chmod.Inode
+		}
+
+		if err := os.Remove(testFile); err != nil {
+			t.Fatal(err)
+		}
+
+		event, _, err = test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if inode != event.Unlink.Inode {
+				t.Logf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
+			}
+		}
+	})
+
+	t.Run("mkdir-lower", func(t *testing.T) {
+		testFile, _, err := test.Path("merged/mkdir")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := syscall.Mkdir(testFile, 0777); err != nil {
+			t.Fatal(err)
+		}
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if inode := getInode(t, testFile); inode != event.Mkdir.Inode {
+				t.Logf("expected inode not found %d(real) != %d\n", inode, event.Mkdir.Inode)
+			}
+		}
+	})
+
+	t.Run("utimes-lower", func(t *testing.T) {
+		testFile, _, err := test.Path("merged/utimes.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := os.Chtimes(testFile, time.Now(), time.Now()); err != nil {
+			t.Fatal(err)
+		}
+
+		var inode uint64
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if inode = getInode(t, testFile); inode != event.Utimes.Inode {
+				t.Logf("expected inode not found %d(real) != %d\n", inode, event.Utimes.Inode)
+			}
+
+			inode = event.Utimes.Inode
+		}
+
+		if err := os.Remove(testFile); err != nil {
+			t.Fatal(err)
+		}
+
+		event, _, err = test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if inode != event.Unlink.Inode {
+				t.Logf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
+			}
+		}
+	})
+
+	t.Run("chown-lower", func(t *testing.T) {
+		testFile, _, err := test.Path("merged/chown.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := os.Chown(testFile, os.Getuid(), os.Getgid()); err != nil {
+			t.Fatal(err)
+		}
+
+		var inode uint64
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if inode = getInode(t, testFile); inode != event.Chown.Inode {
+				t.Logf("expected inode not found %d(real) != %d\n", inode, event.Chown.Inode)
+			}
+
+			inode = event.Chown.Inode
+		}
+
+		if err := os.Remove(testFile); err != nil {
+			t.Fatal(err)
+		}
+
+		event, _, err = test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if inode != event.Unlink.Inode {
+				t.Logf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
+			}
+		}
+	})
+
+	t.Run("xattr-lower", func(t *testing.T) {
+		testFile, testFilePtr, err := test.Path("merged/xattr.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		xattrName, err := syscall.BytePtrFromString("user.test_xattr")
+		if err != nil {
+			t.Fatal(err)
+		}
+		xattrNamePtr := unsafe.Pointer(xattrName)
+		xattrValuePtr := unsafe.Pointer(&[]byte{})
+
+		_, _, errno := syscall.Syscall6(syscall.SYS_SETXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), uintptr(xattrValuePtr), 0, unix.XATTR_CREATE, 0)
+		if errno != 0 {
+			t.Fatal(error(errno))
+		}
+
+		var inode uint64
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if inode = getInode(t, testFile); inode != event.SetXAttr.Inode {
+				t.Logf("expected inode not found %d(real) != %d\n", inode, event.SetXAttr.Inode)
+			}
+
+			inode = event.SetXAttr.Inode
+		}
+
+		if err := os.Remove(testFile); err != nil {
+			t.Fatal(err)
+		}
+
+		event, _, err = test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if inode != event.Unlink.Inode {
+				t.Logf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
+			}
+		}
+	})
+
+	t.Run("truncate-lower", func(t *testing.T) {
+		testFile, _, err := test.Path("merged/truncate.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := os.Truncate(testFile, 0); err != nil {
+			t.Fatal(err)
+		}
+
+		var inode uint64
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if inode = getInode(t, testFile); inode != event.Open.Inode {
+				t.Logf("expected inode not found %d(real) != %d\n", inode, event.Open.Inode)
+			}
+
+			inode = event.Open.Inode
+		}
+
+		if err := os.Remove(testFile); err != nil {
+			t.Fatal(err)
+		}
+
+		event, _, err = test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if inode != event.Unlink.Inode {
+				t.Logf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
+			}
+		}
+	})
+
+	t.Run("link-lower", func(t *testing.T) {
+		testSrc, _, err := test.Path("merged/linked.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		testTarget, _, err := test.Path("merged/link.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := os.Link(testSrc, testTarget); err != nil {
+			t.Fatal(err)
+		}
+
+		var inode uint64
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if inode = getInode(t, testSrc); inode != event.Link.Source.Inode {
+				t.Logf("expected inode not found %d(real) != %d\n", inode, event.Link.Source.Inode)
+			}
+
+			inode = event.Link.Source.Inode
+		}
+
+		if err := os.Remove(testSrc); err != nil {
+			t.Fatal(err)
+		}
+
+		event, _, err = test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if inode != event.Unlink.Inode {
+				t.Logf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
+			}
+		}
+
+		if err := os.Remove(testTarget); err != nil {
+			t.Fatal(err)
+		}
+
+		event, _, err = test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if inode != event.Unlink.Inode {
+				t.Logf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
+			}
+		}
+	})
+
+	t.Run("invalidate-discarder", func(t *testing.T) {
+		testFile, _, err := test.Path("merged/discarded.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// shouldn't be discarded here
+		f, err := os.OpenFile(testFile, os.O_RDONLY, 0755)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = f.Close(); err != nil {
+			t.Fatal(err)
+		}
+
+		if event, err := waitForOpenProbeEvent(test, testFile); err != nil {
+			t.Fatalf("should get an event: %+v", event)
+		}
+
+		// should be now discarderd
+		f, err = os.OpenFile(testFile, os.O_RDONLY, 0755)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = f.Close(); err != nil {
+			t.Fatal(err)
+		}
+
+		if event, err := waitForOpenProbeEvent(test, testFile); err == nil {
+			t.Fatalf("shouldn't get an event: %+v", event)
+		}
+
+		// remove another file which should generate a global discarder invalidation
+		testInvalidator, _, err := test.Path("merged/invalidator.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Remove(testInvalidator); err != nil {
+			t.Fatal(err)
+		}
+
+		// we should be able to get an event again
+		f, err = os.OpenFile(testFile, os.O_RDONLY, 0755)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = f.Close(); err != nil {
+			t.Fatal(err)
+		}
+
+		if event, err := waitForOpenProbeEvent(test, testFile); err != nil {
+			t.Fatalf("should get an event: %+v", event)
 		}
 	})
 }

@@ -17,6 +17,18 @@ if node['platform_family'] != 'windows'
     mode '755'
   end
 
+  cookbook_file "#{wrk_dir}/stresssuite" do
+    source "stresssuite"
+    mode '755'
+  end
+
+  cookbook_file "#{wrk_dir}/stresssuite-master" do
+    source "stresssuite-master"
+    mode '755'
+    # the following line should be removed once PR merged
+    ignore_failure true
+  end
+
   # To uncomment when gitlab runner are able to build with GOARCH=386
   # cookbook_file "#{wrk_dir}/testsuite32" do
   #   source "testsuite32"

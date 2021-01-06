@@ -128,14 +128,15 @@ func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 			Exe:     p.getLinkWithAuthCheck(pathForPID, "exe"), // /proc/{pid}/exe, requires permission checks
 			NsPid:   statusInfo.nspid,                          // /proc/{pid}/status
 			Stats: &Stats{
-				CreateTime:  statInfo.createTime,    // /proc/{pid}/{stat}
-				Nice:        statInfo.nice,          // /proc/{pid}/{stat}
-				CPUTime:     statInfo.cpuStat,       // /proc/{pid}/{stat}
-				MemInfo:     statusInfo.memInfo,     // /proc/{pid}/status
-				MemInfoEx:   memInfoEx,              // /proc/{pid}/statm
-				CtxSwitches: statusInfo.ctxSwitches, // /proc/{pid}/status
-				NumThreads:  statusInfo.numThreads,  // /proc/{pid}/status
-				IOStat:      ioInfo,                 // /proc/{pid}/io, requires permission checks
+				CreateTime:  statInfo.createTime,      // /proc/{pid}/{stat}
+				Nice:        statInfo.nice,            // /proc/{pid}/{stat}
+				OpenFdCount: p.getFDCount(pathForPID), // /proc/{pid}/fd, requires permission checks
+				CPUTime:     statInfo.cpuStat,         // /proc/{pid}/{stat}
+				MemInfo:     statusInfo.memInfo,       // /proc/{pid}/status
+				MemInfoEx:   memInfoEx,                // /proc/{pid}/statm
+				CtxSwitches: statusInfo.ctxSwitches,   // /proc/{pid}/status
+				NumThreads:  statusInfo.numThreads,    // /proc/{pid}/status
+				IOStat:      ioInfo,                   // /proc/{pid}/io, requires permission checks
 			},
 		}
 	}
@@ -528,6 +529,27 @@ func (p *Probe) getLinkWithAuthCheck(pidPath string, file string) string {
 		return ""
 	}
 	return str
+}
+
+// getFDCount gets num_fds from /proc/(pid)/fd
+func (p *Probe) getFDCount(pidPath string) int32 {
+	path := filepath.Join(pidPath, "fd")
+
+	if err := p.ensurePathReadable(path); err != nil {
+		return -1
+	}
+
+	d, err := os.Open(path)
+	if err != nil {
+		return -1
+	}
+	defer d.Close()
+
+	names, err := d.Readdirnames(-1)
+	if err != nil {
+		return -1
+	}
+	return int32(len(names))
 }
 
 // ensurePathReadable ensures that the current user is able to read the path before opening it.

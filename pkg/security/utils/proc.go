@@ -26,7 +26,7 @@ func MountInfoPath() string {
 }
 
 // MountInfoPidPath returns the path to the mountinfo file of a pid in /proc
-func MountInfoPidPath(pid uint32) string {
+func MountInfoPidPath(pid int32) string {
 	return filepath.Join(util.HostProc(), fmt.Sprintf("/%d/mountinfo", pid))
 }
 
@@ -36,12 +36,12 @@ func CgroupTaskPath(tgid, pid uint32) string {
 }
 
 // ProcExePath returns the path to the exe file of a pid in /proc
-func ProcExePath(pid uint32) string {
+func ProcExePath(pid int32) string {
 	return filepath.Join(util.HostProc(), fmt.Sprintf("%d/exe", pid))
 }
 
 // PidTTY returns the TTY of the given pid
-func PidTTY(pid uint32) string {
+func PidTTY(pid int32) string {
 	fdPath := filepath.Join(util.HostProc(), fmt.Sprintf("%d/fd/0", pid))
 
 	ttyPath, err := os.Readlink(fdPath)
@@ -65,7 +65,7 @@ func PidTTY(pid uint32) string {
 }
 
 // ParseMountInfoFile collects the mounts for a specific process ID.
-func ParseMountInfoFile(pid uint32) ([]*mountinfo.Info, error) {
+func ParseMountInfoFile(pid int32) ([]*mountinfo.Info, error) {
 	f, err := os.Open(MountInfoPidPath(pid))
 	if err != nil {
 		return nil, err
@@ -103,6 +103,11 @@ func GetFilledProcess(p *process.Process) *process.FilledProcess {
 		return nil
 	}
 
+	memInfo, err := p.MemoryInfo()
+	if err != nil {
+		return nil
+	}
+
 	return &process.FilledProcess{
 		Pid:        p.Pid,
 		Ppid:       ppid,
@@ -110,5 +115,6 @@ func GetFilledProcess(p *process.Process) *process.FilledProcess {
 		Name:       name,
 		Uids:       uids,
 		Gids:       gids,
+		MemInfo:    memInfo,
 	}
 }

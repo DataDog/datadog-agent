@@ -178,7 +178,7 @@ func (t *Tailer) shouldDrop(entry *sdjournal.JournalEntry) bool {
 // A journal entry has different fields that may vary depending on its nature,
 // for more information, see https://www.freedesktop.org/software/systemd/man/systemd.journal-fields.html.
 func (t *Tailer) toMessage(entry *sdjournal.JournalEntry) *message.Message {
-	return message.NewMessage(t.getContent(entry), t.getOrigin(entry), t.getStatus(entry))
+	return message.NewMessage(t.getContent(entry), t.getOrigin(entry), t.getStatus(entry), time.Now().UnixNano())
 }
 
 // getContent returns all the fields of the entry as a json-string,
