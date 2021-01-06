@@ -602,8 +602,8 @@ func (p *Probe) isReadableFromCache(pid int32, pidPath string, createTime int64)
 	// use /proc/[pid]/io path to get readability
 	path := filepath.Join(pidPath, "io")
 
-	result, missing := p.permCache.Get(pidStr)
-	if missing {
+	result, found := p.permCache.Get(pidStr)
+	if !found {
 		// check and cache readability for new PIDs
 		isReadable = p.checkAndCacheReadability(pidStr, path, createTime)
 	} else {
