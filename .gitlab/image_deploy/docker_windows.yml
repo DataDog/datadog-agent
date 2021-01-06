@@ -1,0 +1,149 @@
+---
+# FIXME: our current Gitlab version doesn't support importing a file more than once
+# For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
+# See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
+# include:
+#   - /.gitlab/docker_common/tag_job_templates.yml
+
+.if_version_7: &if_version_7
+  if: $RELEASE_VERSION_7 != ""
+
+.if_not_version_7: &if_not_version_7
+  if: $RELEASE_VERSION_7 == ""
+
+.if_master_branch: &if_master_branch
+  if: $CI_COMMIT_BRANCH == "master"
+
+.if_deploy_on_nightly: &if_deploy_on_nightly
+  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_6 == "nightly" && $RELEASE_VERSION_7 == "nightly-a7"
+
+dev_branch_docker_hub-a7-windows:
+  extends: .docker_tag_windows_job_definition
+  rules:
+    - <<: *if_version_7
+      when: manual
+      allow_failure: true
+  ## For Future Reference. Must update to do this job from the newest OS version
+  ## that we're publishing (.e.g. adding windows2104 will require also using the
+  ## 2104 builder)
+  tags: ["runner:windows-docker", "windowsversion:2004"]
+  needs:
+    - docker_build_agent7_windows1809
+    - docker_build_agent7_windows1809_jmx
+    - docker_build_agent7_windows1909
+    - docker_build_agent7_windows1909_jmx
+    - docker_build_agent7_windows2004
+    - docker_build_agent7_windows2004_jmx
+  variables:
+    VARIANT: 2004
+  script:
+    - $ErrorActionPreference = "Stop"
+    - |
+      @"
+      # On newer Kernel we can pull/push older images even though these images won't run
+      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win1809-amd64 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-win1809
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-win1809-amd64 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx-win1809
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win1909-amd64 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-win1909
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-win1909-amd64 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx-win1909
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win2004-amd64 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-win2004
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-win2004-amd64 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx-win2004
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      inv -e docker.publish-manifest --signed-push --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}-py3-win --image datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-win1809,windows/amd64 --image datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-win1909,windows/amd64 --image datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-win2004,windows/amd64
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      inv -e docker.publish-manifest --signed-push --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}-py3-jmx-win --image datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx-win1809,windows/amd64 --image datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx-win1909,windows/amd64 --image datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx-win2004,windows/amd64
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      "@ | Add-Content ci-scripts/docker-publish.ps1
+    - cat ci-scripts/docker-publish.ps1
+    - docker run --rm -w C:\mnt -e AWS_NETWORKING=true -e SIGN_WINDOWS=true -v "$(Get-Location):C:\mnt" -v \\.\pipe\docker_engine:\\.\pipe\docker_engine 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_${Env:VARIANT}_x64:${Env:DATADOG_AGENT_WINBUILDIMAGES} powershell -C C:\mnt\ci-scripts\docker-publish.ps1
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+
+dev_master_docker_hub-a7-windows:
+  extends: .docker_tag_windows_job_definition
+  rules:
+    - <<: *if_not_version_7
+      when: never
+    - <<: *if_master_branch
+  ## For Future Reference. Must update to do this job from the newest OS version
+  ## that we're publishing (.e.g. adding windows2104 will require also using the
+  ## 2104 builder)
+  tags: ["runner:windows-docker", "windowsversion:2004"]
+  needs:
+    - docker_build_agent7_windows1809
+    - docker_build_agent7_windows1809_jmx
+    - docker_build_agent7_windows1909
+    - docker_build_agent7_windows1909_jmx
+    - docker_build_agent7_windows2004
+    - docker_build_agent7_windows2004_jmx
+  variables:
+    VARIANT: 2004
+  script:
+    - $ErrorActionPreference = "Stop"
+    - |
+      @"
+      # On newer Kernel we can pull/push older images even though these images won't run
+      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win1809-amd64 datadog/agent-dev:master-py3-win1809
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-win1809-amd64 datadog/agent-dev:master-py3-jmx-win1809
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win1909-amd64 datadog/agent-dev:master-py3-win1909
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-win1909-amd64 datadog/agent-dev:master-py3-jmx-win1909
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win2004-amd64 datadog/agent-dev:master-py3-win2004
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-win2004-amd64 datadog/agent-dev:master-py3-jmx-win2004
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      inv -e docker.publish-manifest --signed-push --name datadog/agent-dev --tag master-py3-win --image datadog/agent-dev:master-py3-win1809,windows/amd64 --image datadog/agent-dev:master-py3-win1909,windows/amd64 --image datadog/agent-dev:master-py3-win2004,windows/amd64
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      inv -e docker.publish-manifest --signed-push --name datadog/agent-dev --tag master-py3-jmx-win --image datadog/agent-dev:master-py3-jmx-win1809,windows/amd64 --image datadog/agent-dev:master-py3-jmx-win1909,windows/amd64 --image datadog/agent-dev:master-py3-jmx-win2004,windows/amd64
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      "@ | Add-Content ci-scripts/docker-publish.ps1
+    - cat ci-scripts/docker-publish.ps1
+    - docker run --rm -w C:\mnt -e AWS_NETWORKING=true -e SIGN_WINDOWS=true -v "$(Get-Location):C:\mnt" -v \\.\pipe\docker_engine:\\.\pipe\docker_engine 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_${Env:VARIANT}_x64:${Env:DATADOG_AGENT_WINBUILDIMAGES} powershell -C C:\mnt\ci-scripts\docker-publish.ps1
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+
+dev_nightly_docker_hub-a7-windows:
+  extends: .docker_tag_windows_job_definition
+  rules:
+    - <<: *if_not_version_7
+      when: never
+    - <<: *if_deploy_on_nightly
+  ##
+  ## For Future Reference.  Must update to do this job from the newest OS version
+  ## that we're publishing (.e.g. adding windows2104 will require also using the
+  ## 2104 builder)
+  tags: ["runner:windows-docker", "windowsversion:2004"]
+  needs:
+    - docker_build_agent7_windows1809
+    - docker_build_agent7_windows1809_jmx
+    - docker_build_agent7_windows1909
+    - docker_build_agent7_windows1909_jmx
+    - docker_build_agent7_windows2004
+    - docker_build_agent7_windows2004_jmx
+  variables:
+    VARIANT: 2004
+  script:
+    - $ErrorActionPreference = "Stop"
+    - |
+      @"
+      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win1809-amd64 datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3-win1809
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-win1809-amd64 datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3-jmx-win1809
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win1909-amd64 datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3-win1909
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-win1909-amd64 datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3-jmx-win1909
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win2004-amd64 datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3-win2004
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-win2004-amd64 datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3-jmx-win2004
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      "@ | Add-Content ci-scripts/docker-publish.ps1
+    - cat ci-scripts/docker-publish.ps1
+    - docker run --rm -w C:\mnt -e AWS_NETWORKING=true -e SIGN_WINDOWS=true -v "$(Get-Location):C:\mnt" -v \\.\pipe\docker_engine:\\.\pipe\docker_engine 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_${Env:VARIANT}_x64:${Env:DATADOG_AGENT_WINBUILDIMAGES} powershell -C C:\mnt\ci-scripts\docker-publish.ps1
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }

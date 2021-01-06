@@ -1,0 +1,121 @@
+---
+.docker_hub_variables: &docker_hub_variables
+  DOCKER_REGISTRY_LOGIN_SSM_KEY: docker_hub_login
+  DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd
+  DELEGATION_KEY_SSM_KEY: docker_hub_signing_key
+  DELEGATION_PASS_SSM_KEY: docker_hub_signing_pass
+  DOCKER_REGISTRY_URL: docker.io
+  SRC_AGENT: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+  SRC_DSD: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
+  SRC_DCA: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
+
+.google_container_registry_variables: &google_container_registry_variables
+  <<: *docker_hub_variables
+  DOCKER_REGISTRY_LOGIN_SSM_KEY: gcr_login
+  DOCKER_REGISTRY_PWD_SSM_KEY: gcr_pwd
+  GOOGLE_PROJECT_ID: datadoghq
+
+.docker_tag_job_definition:
+  stage: image_deploy
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:v2718650-9ce6565-0.6.1-py3
+  tags: ["runner:docker", "size:large"]
+  variables:
+    <<: *docker_hub_variables
+  before_script:
+    - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHORT_SHA}
+    - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
+    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
+    - python3 -m pip install -r requirements.txt
+    - if [[ -z "$DELEGATION_PASS_SSM_KEY" ]]; then echo "No signing key set"; exit 0; fi
+    - echo "Importing delegation signing key"
+    - export DOCKER_CONTENT_TRUST_REPOSITORY_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DELEGATION_PASS_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
+    - export NOTARY_AUTH=$(echo "$DOCKER_REGISTRY_LOGIN:$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text)" | base64)
+    - export NOTARY_DELEGATION_PASSPHRASE="$DOCKER_CONTENT_TRUST_REPOSITORY_PASSPHRASE"
+    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DELEGATION_KEY_SSM_KEY --with-decryption --query "Parameter.Value" --out text > /tmp/docker.key
+    - notary -d ~/.docker/trust key import /tmp/docker.key; rm /tmp/docker.key
+
+.docker_tag_windows_job_definition:
+  stage: image_deploy
+  variables:
+    <<: *docker_hub_variables
+  before_script:
+    - $ErrorActionPreference = "Stop"
+    - $SRC_TAG = "v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
+    - mkdir ci-scripts
+    - |
+      @"
+      Set-PSDebug -Trace 1
+      `$ErrorActionPreference = "Stop"
+      pip3 install -r requirements.txt
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      # ECR Login
+      `$AWS_ECR_PASSWORD = aws ecr get-login-password --region us-east-1
+      docker login --username AWS --password "`${AWS_ECR_PASSWORD}" 486234852809.dkr.ecr.us-east-1.amazonaws.com
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      # DockerHub login
+      `$DOCKER_REGISTRY_LOGIN = aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.${DOCKER_REGISTRY_LOGIN_SSM_KEY} --with-decryption --query "Parameter.Value" --out text
+      `$DOCKER_REGISTRY_PWD = aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.${DOCKER_REGISTRY_PWD_SSM_KEY} --with-decryption --query "Parameter.Value" --out text
+      docker login --username "`${DOCKER_REGISTRY_LOGIN}" --password "`${DOCKER_REGISTRY_PWD}" "${DOCKER_REGISTRY_URL}"
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      # DockerHub image signing
+      `$Env:DOCKER_CONTENT_TRUST_REPOSITORY_PASSPHRASE = aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.${DELEGATION_PASS_SSM_KEY} --with-decryption --query "Parameter.Value" --out text
+      `$Env:NOTARY_DELEGATION_PASSPHRASE = `$Env:DOCKER_CONTENT_TRUST_REPOSITORY_PASSPHRASE
+      `$Env:NOTARY_AUTH = "`${DOCKER_REGISTRY_LOGIN}:`${DOCKER_REGISTRY_PWD}"
+      `$bytes = [System.Text.Encoding]::Unicode.GetBytes(`$Env:NOTARY_AUTH)
+      `$Env:NOTARY_AUTH = [Convert]::ToBase64String(`$bytes)
+      aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.${DELEGATION_KEY_SSM_KEY} --with-decryption --query "Parameter.Value" --out text | Set-Content -Encoding ASCII docker.key
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      docker trust key load `$PWD\docker.key
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      Remove-Item `$PWD\docker.key
+      ridk enable # This is only needed because invoke docker.publish-manifest calls "cat" which doesn't exist on Windows
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      "@ | out-file ci-scripts/docker-publish.ps1
+
+.google_container_registry_tag_job_definition:
+  stage: image_deploy
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-push:1.5.1
+  tags: ["runner:docker", "size:large"]
+  variables:
+    <<: *google_container_registry_variables
+  before_script:
+    - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHORT_SHA}
+    - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
+    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text > /tmp/gcr_key.json
+    - gcloud --no-user-output-enabled auth activate-service-account "$DOCKER_REGISTRY_LOGIN" --key-file=/tmp/gcr_key.json
+    - gcloud config set project $GOOGLE_PROJECT_ID
+    - gcloud auth print-access-token | docker login -u oauth2accesstoken --password-stdin https://gcr.io
+    - python3 -m pip install -r requirements.txt
+
+.google_container_registry_tag_windows_job_definition:
+  stage: image_deploy
+  variables:
+    <<: *google_container_registry_variables
+  before_script:
+    - $ErrorActionPreference = "Stop"
+    - $SRC_TAG = "v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
+    - mkdir ci-scripts
+    - mkdir tmp
+    - |
+      @"
+      Set-PSDebug -Trace 1
+      `$ErrorActionPreference = "Stop"
+      pip3 install -r requirements.txt
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      # ECR Login
+      `$AWS_ECR_PASSWORD = aws ecr get-login-password --region us-east-1
+      docker login --username AWS --password "`${AWS_ECR_PASSWORD}" 486234852809.dkr.ecr.us-east-1.amazonaws.com
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      # GCR Login
+      `$DOCKER_REGISTRY_LOGIN = aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.${DOCKER_REGISTRY_LOGIN_SSM_KEY} --with-decryption --query "Parameter.Value" --out text
+      aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.${DOCKER_REGISTRY_PWD_SSM_KEY} --with-decryption --query "Parameter.Value" --out text | Set-Content gcr_key.json
+      gcloud --no-user-output-enabled auth activate-service-account "`${DOCKER_REGISTRY_LOGIN}" --key-file=gcr_key.json
+      gcloud config set project ${GOOGLE_PROJECT_ID}
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      # DockerHub login
+      `$ACCESS_TOKEN = gcloud auth print-access-token
+      docker login -u oauth2accesstoken -p "`${ACCESS_TOKEN}" https://gcr.io
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      ridk enable # This is only needed because invoke docker.publish-manifest calls "cat" which doesn't exist on Windows
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      "@ | out-file ci-scripts/gcr-publish.ps1
