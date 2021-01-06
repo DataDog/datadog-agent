@@ -56,6 +56,11 @@ func newTransactionsFileStorage(
 // Serialize serializes transactions to the file system.
 func (s *transactionsFileStorage) Serialize(transactions []Transaction) error {
 	s.telemetry.addSerializeCount()
+
+	// Reset the serializer in case some transactions were serialized
+	// but `GetBytesAndReset` was not called because of an error.
+	_, _ = s.serializer.GetBytesAndReset()
+
 	for _, t := range transactions {
 		if err := t.SerializeTo(s.serializer); err != nil {
 			return err
@@ -101,11 +106,13 @@ func (s *transactionsFileStorage) Deserialize() ([]Transaction, error) {
 	index := len(s.filenames) - 1
 	path := s.filenames[index]
 	bytes, err := ioutil.ReadFile(path)
-	if err != nil {
-		return nil, err
+
+	// Remove the file even in case of a read failure.
+	if errRemoveFile := s.removeFileAt(index); errRemoveFile != nil {
+		return nil, errRemoveFile
 	}
 
-	if err := s.removeFileAt(index); err != nil {
+	if err != nil {
 		return nil, err
 	}
 
@@ -150,6 +157,10 @@ func (s *transactionsFileStorage) makeRoomFor(bufferSize int64) error {
 func (s *transactionsFileStorage) removeFileAt(index int) error {
 	filename := s.filenames[index]
 
+	// Remove the file from s.filenames also in case of error to not
+	// fail on the next call.
+	s.filenames = append(s.filenames[:index], s.filenames[index+1:]...)
+
 	size, err := util.GetFileSize(filename)
 	if err != nil {
 		return err
@@ -160,7 +171,6 @@ func (s *transactionsFileStorage) removeFileAt(index int) error {
 	}
 
 	s.currentSizeInBytes -= size
-	s.filenames = append(s.filenames[:index], s.filenames[index+1:]...)
 	return nil
 }
 

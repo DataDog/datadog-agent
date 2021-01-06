@@ -92,8 +92,6 @@ type Tracer struct {
 	sourceExcludes []*network.ConnectionFilter
 	destExcludes   []*network.ConnectionFilter
 
-	conntrack *cachedConntrack
-
 	routeCache  network.RouteCache
 	subnetCache map[int]network.Subnet
 }
@@ -249,7 +247,6 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		perfHandler:    perfHandlerTCP,
 		flushIdle:      make(chan chan struct{}),
 		stop:           make(chan struct{}),
-		conntrack:      newCachedConntrack(config.ProcRoot, netlink.NewConntrack, 128),
 		routeCache:     network.NewRouteCache(512, network.NewNetlinkRouter(config.ProcRoot)),
 		subnetCache:    make(map[int]network.Subnet),
 	}
@@ -470,7 +467,6 @@ func (t *Tracer) Stop() {
 	t.httpMonitor.Stop()
 	close(t.flushIdle)
 	t.conntracker.Close()
-	t.conntrack.Close()
 }
 
 func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, error) {
@@ -579,13 +575,16 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 		return nil, 0, fmt.Errorf("error populating UDP port mapping: %s", err)
 	}
 
+	cachedConntrack := newCachedConntrack(t.config.ProcRoot, netlink.NewConntrack, 128)
+	defer cachedConntrack.Close()
+
 	// Iterate through all key-value pairs in map
 	key, stats := &ConnTuple{}, &ConnStatsWithTimestamp{}
 	seen := make(map[ConnTuple]struct{})
 	var expired []*ConnTuple
 	entries := mp.IterateFrom(unsafe.Pointer(&ConnTuple{}))
 	for entries.Next(unsafe.Pointer(key), unsafe.Pointer(stats)) {
-		if stats.isExpired(latestTime, t.timeoutForConn(key)) && !t.conntrackExists(key) {
+		if stats.isExpired(latestTime, t.timeoutForConn(key)) && !t.conntrackExists(cachedConntrack, key) {
 			expired = append(expired, key.copy())
 			if key.isTCP() {
 				atomic.AddInt64(&t.expiredTCPConns, 1)
@@ -868,8 +867,8 @@ func (t *Tracer) getProbeProgramIDs() (map[string]uint32, error) {
 	return fds, nil
 }
 
-func (t *Tracer) conntrackExists(conn *ConnTuple) bool {
-	ok, err := t.conntrack.Exists(conn)
+func (t *Tracer) conntrackExists(ctr *cachedConntrack, conn *ConnTuple) bool {
+	ok, err := ctr.Exists(conn)
 	if err != nil {
 		log.Errorf("error checking conntrack for connection %+v", *conn)
 	}

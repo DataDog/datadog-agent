@@ -3,6 +3,7 @@
 package bytecode
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"path"
@@ -25,6 +26,7 @@ func TestEbpfBytesCorrect(t *testing.T) {
 		actual, err := ioutil.ReadAll(actualReader)
 		require.NoError(t, err)
 
-		assert.Equal(t, bs, actual, fmt.Sprintf("on-disk file %s and bundled content are different", filename))
+		assertionFn := func() bool { return bytes.Equal(bs, actual) }
+		assert.Condition(t, assertionFn, fmt.Sprintf("on-disk file %s and bundled content are different", filename))
 	}
 }
