@@ -62,17 +62,18 @@ func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services
 	}
 
 	launcher := &Launcher{
-		pipelineProvider:   pipelineProvider,
-		tailers:            make(map[string]*Tailer),
-		pendingContainers:  make(map[string]*Container),
-		registry:           registry,
-		stop:               make(chan struct{}),
-		erroredContainerID: make(chan string),
-		lock:               &sync.Mutex{},
-		readTimeout:        readTimeout,
-		serviceNameFunc:    input.ServiceNameFromTags,
-		sources:            sources,
-		tailFromFile:       tailFromFile,
+		pipelineProvider:       pipelineProvider,
+		tailers:                make(map[string]*Tailer),
+		pendingContainers:      make(map[string]*Container),
+		registry:               registry,
+		stop:                   make(chan struct{}),
+		erroredContainerID:     make(chan string),
+		lock:                   &sync.Mutex{},
+		readTimeout:            readTimeout,
+		serviceNameFunc:        input.ServiceNameFromTags,
+		sources:                sources,
+		tailFromFile:           tailFromFile,
+		fileSourcesByContainer: make(map[string]*config.LogSource),
 	}
 
 	if tailFromFile {
