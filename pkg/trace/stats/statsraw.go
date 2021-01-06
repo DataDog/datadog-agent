@@ -6,8 +6,7 @@
 package stats
 
 import (
-	"bytes"
-	"sort"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/stats/quantile"
 )
@@ -16,8 +15,6 @@ import (
 // is that the final data, the one with send after a call to Export(), is correct.
 
 type groupedStats struct {
-	tags TagSet
-
 	topLevel float64
 
 	hits                    float64
@@ -25,40 +22,33 @@ type groupedStats struct {
 	duration                float64
 	durationDistribution    *quantile.SliceSummary
 	errDurationDistribution *quantile.SliceSummary
+	sublayerStats           map[sublayerKey]sublayerStat
 }
 
-type sublayerStats struct {
-	tags TagSet
+func (g *groupedStats) IsSublayersOnly() bool {
+	return g.hits == 0 && g.durationDistribution.N == 0
+}
 
+type sublayerStat struct {
 	topLevel float64
-
-	value int64
+	value    int64
 }
 
-func newGroupedStats(tags TagSet) groupedStats {
-	return groupedStats{
-		tags:                    tags,
+type sublayerKey struct {
+	Metric string
+	Tag    Tag
+}
+
+func newGroupedStats() *groupedStats {
+	return &groupedStats{
 		durationDistribution:    quantile.NewSliceSummary(),
 		errDurationDistribution: quantile.NewSliceSummary(),
 	}
 }
 
-func newSublayerStats(tags TagSet) sublayerStats {
-	return sublayerStats{
-		tags: tags,
-	}
-}
-
 type statsKey struct {
 	name string
-	aggr string
-}
-
-type statsSubKey struct {
-	name   string
-	metric string
-	tag    Tag
-	aggr   string
+	aggr Aggregation
 }
 
 // RawBucket is used to compute span data and aggregate it
@@ -71,21 +61,19 @@ type RawBucket struct {
 	duration int64 // duration of a bucket in nanoseconds
 
 	// this should really remain private as it's subject to refactoring
-	data         map[statsKey]groupedStats
-	sublayerData map[statsSubKey]sublayerStats
+	data map[statsKey]*groupedStats
 
 	// internal buffer for aggregate strings - not threadsafe
-	keyBuf bytes.Buffer
+	keyBuf strings.Builder
 }
 
 // NewRawBucket opens a new calculation bucket for time ts and initializes it properly
 func NewRawBucket(ts, d int64) *RawBucket {
 	// The only non-initialized value is the Duration which should be set by whoever closes that bucket
 	return &RawBucket{
-		start:        ts,
-		duration:     d,
-		data:         make(map[statsKey]groupedStats),
-		sublayerData: make(map[statsSubKey]sublayerStats),
+		start:    ts,
+		duration: d,
+		data:     make(map[statsKey]*groupedStats),
 	}
 }
 
@@ -96,179 +84,131 @@ func (sb *RawBucket) Export() Bucket {
 	ret := NewBucket(sb.start, sb.duration)
 	for k, v := range sb.data {
 		hitsKey := GrainKey(k.name, HITS, k.aggr)
-		ret.Counts[hitsKey] = Count{
-			Key:      hitsKey,
-			Name:     k.name,
-			Measure:  HITS,
-			TagSet:   v.tags,
-			TopLevel: v.topLevel,
-			Value:    float64(v.hits),
+		tagSet := k.aggr.ToTagSet()
+		if !v.IsSublayersOnly() {
+			ret.Counts[hitsKey] = Count{
+				Key:      hitsKey,
+				Name:     k.name,
+				Measure:  HITS,
+				TagSet:   tagSet,
+				TopLevel: v.topLevel,
+				Value:    float64(v.hits),
+			}
+			errorsKey := GrainKey(k.name, ERRORS, k.aggr)
+			ret.Counts[errorsKey] = Count{
+				Key:      errorsKey,
+				Name:     k.name,
+				Measure:  ERRORS,
+				TagSet:   tagSet,
+				TopLevel: v.topLevel,
+				Value:    float64(v.errors),
+			}
+			durationKey := GrainKey(k.name, DURATION, k.aggr)
+			ret.Counts[durationKey] = Count{
+				Key:      durationKey,
+				Name:     k.name,
+				Measure:  DURATION,
+				TagSet:   tagSet,
+				TopLevel: v.topLevel,
+				Value:    float64(v.duration),
+			}
+			ret.Distributions[durationKey] = Distribution{
+				Key:      durationKey,
+				Name:     k.name,
+				Measure:  DURATION,
+				TagSet:   tagSet,
+				TopLevel: v.topLevel,
+				Summary:  v.durationDistribution,
+			}
+			ret.ErrDistributions[durationKey] = Distribution{
+				Key:      durationKey,
+				Name:     k.name,
+				Measure:  DURATION,
+				TagSet:   tagSet,
+				TopLevel: v.topLevel,
+				Summary:  v.errDurationDistribution,
+			}
 		}
-		errorsKey := GrainKey(k.name, ERRORS, k.aggr)
-		ret.Counts[errorsKey] = Count{
-			Key:      errorsKey,
-			Name:     k.name,
-			Measure:  ERRORS,
-			TagSet:   v.tags,
-			TopLevel: v.topLevel,
-			Value:    float64(v.errors),
-		}
-		durationKey := GrainKey(k.name, DURATION, k.aggr)
-		ret.Counts[durationKey] = Count{
-			Key:      durationKey,
-			Name:     k.name,
-			Measure:  DURATION,
-			TagSet:   v.tags,
-			TopLevel: v.topLevel,
-			Value:    float64(v.duration),
-		}
-		ret.Distributions[durationKey] = Distribution{
-			Key:      durationKey,
-			Name:     k.name,
-			Measure:  DURATION,
-			TagSet:   v.tags,
-			TopLevel: v.topLevel,
-			Summary:  v.durationDistribution,
-		}
-		ret.ErrDistributions[durationKey] = Distribution{
-			Key:      durationKey,
-			Name:     k.name,
-			Measure:  DURATION,
-			TagSet:   v.tags,
-			TopLevel: v.topLevel,
-			Summary:  v.errDurationDistribution,
-		}
-	}
-	for k, v := range sb.sublayerData {
-		key := GrainKey(k.name, k.metric, k.aggr+","+k.tag.Name+":"+k.tag.Value)
-		ret.Counts[key] = Count{
-			Key:      key,
-			Name:     k.name,
-			Measure:  k.metric,
-			TagSet:   v.tags,
-			TopLevel: v.topLevel,
-			Value:    float64(v.value),
+		for sk, sv := range v.sublayerStats {
+			key := GrainKey(k.name, sk.Metric, k.aggr) + "," + sk.Tag.Name + ":" + sk.Tag.Value
+			tagSet := append(k.aggr.ToTagSet(), sk.Tag)
+			ret.Counts[key] = Count{
+				Key:      key,
+				Name:     k.name,
+				Measure:  sk.Metric,
+				TagSet:   tagSet,
+				TopLevel: sv.topLevel,
+				Value:    float64(sv.value),
+			}
 		}
 	}
 	return ret
 }
 
-func assembleGrain(b *bytes.Buffer, env, resource, service string, m map[string]string) (string, TagSet) {
-	b.Reset()
-
-	b.WriteString("env:")
-	b.WriteString(env)
-	b.WriteString(",resource:")
-	b.WriteString(resource)
-	b.WriteString(",service:")
-	b.WriteString(service)
-
-	tagset := TagSet{{"env", env}, {"resource", resource}, {"service", service}}
-
-	if m == nil || len(m) == 0 {
-		return b.String(), tagset
-	}
-
-	keys := make([]string, len(m))
-	j := 0
-	for k := range m {
-		keys[j] = k
-		j++
-	}
-
-	sort.Strings(keys) // required else aggregations would not work
-
-	for _, key := range keys {
-		b.WriteRune(',')
-		b.WriteString(key)
-		b.WriteRune(':')
-		b.WriteString(m[key])
-		tagset = append(tagset, Tag{key, m[key]})
-	}
-
-	return b.String(), tagset
-}
-
 // HandleSpan adds the span to this bucket stats, aggregated with the finest grain matching given aggregators
-func (sb *RawBucket) HandleSpan(s *WeightedSpan, env string, aggregators []string, sublayers []SublayerValue) {
+func (sb *RawBucket) HandleSpan(s *WeightedSpan, env string, sublayers []SublayerValue, skipStats bool) {
 	if env == "" {
 		panic("env should never be empty")
 	}
 
-	m := make(map[string]string)
-
-	for _, agg := range aggregators {
-		if agg != "env" && agg != "resource" && agg != "service" {
-			if v, ok := s.Meta[agg]; ok {
-				m[agg] = v
-			}
-		}
-	}
-
-	grain, tags := assembleGrain(&sb.keyBuf, env, s.Resource, s.Service, m)
-	sb.add(s, grain, tags)
-
-	for _, sub := range sublayers {
-		sb.addSublayer(s, grain, tags, sub)
-	}
+	aggr := NewAggregationFromSpan(s.Span, env)
+	sb.add(s, aggr, sublayers, skipStats)
 }
 
-func (sb *RawBucket) add(s *WeightedSpan, aggr string, tags TagSet) {
-	var gs groupedStats
+func (sb *RawBucket) add(s *WeightedSpan, aggr Aggregation, sublayers []SublayerValue, skipStats bool) {
+	var gs *groupedStats
 	var ok bool
 
 	key := statsKey{name: s.Name, aggr: aggr}
 	if gs, ok = sb.data[key]; !ok {
-		gs = newGroupedStats(tags)
+		gs = newGroupedStats()
+		sb.data[key] = gs
 	}
 
-	if s.TopLevel {
-		gs.topLevel += s.Weight
+	if !skipStats {
+		if s.TopLevel {
+			gs.topLevel += s.Weight
+		}
+
+		gs.hits += s.Weight
+		if s.Error != 0 {
+			gs.errors += s.Weight
+		}
+		gs.duration += float64(s.Duration) * s.Weight
+
+		// TODO add for s.Metrics ability to define arbitrary counts and distros, check some config?
+		// alter resolution of duration distro
+		trundur := nsTimestampToFloat(s.Duration)
+		gs.durationDistribution.Insert(trundur)
+
+		if s.Error != 0 {
+			gs.errDurationDistribution.Insert(trundur)
+		}
 	}
 
-	gs.hits += s.Weight
-	if s.Error != 0 {
-		gs.errors += s.Weight
+	for _, sub := range sublayers {
+		var (
+			ss sublayerStat
+			ok bool
+		)
+
+		sKey := sublayerKey{sub.Metric, sub.Tag}
+		if ss, ok = gs.sublayerStats[sKey]; !ok {
+			if gs.sublayerStats == nil {
+				// there are 3 types of sublayers
+				gs.sublayerStats = make(map[sublayerKey]sublayerStat, 3)
+			}
+			ss = sublayerStat{}
+		}
+
+		if s.TopLevel {
+			ss.topLevel += s.Weight
+		}
+
+		ss.value += int64(s.Weight * sub.Value)
+
+		gs.sublayerStats[sKey] = ss
 	}
-	gs.duration += float64(s.Duration) * s.Weight
-
-	// TODO add for s.Metrics ability to define arbitrary counts and distros, check some config?
-	// alter resolution of duration distro
-	trundur := nsTimestampToFloat(s.Duration)
-	gs.durationDistribution.Insert(trundur)
-
-	if s.Error != 0 {
-		gs.errDurationDistribution.Insert(trundur)
-	}
-
-	sb.data[key] = gs
-}
-
-func (sb *RawBucket) addSublayer(s *WeightedSpan, aggr string, tags TagSet, sub SublayerValue) {
-	// This is not as efficient as a "regular" add as we don't update
-	// all sublayers at once (one call for HITS, and another one for ERRORS, DURATION...)
-	// when logically, if we have a sublayer for HITS, we also have one for DURATION,
-	// they should indeed come together. Still room for improvement here.
-
-	var ss sublayerStats
-	var ok bool
-
-	subTags := make(TagSet, len(tags)+1)
-	copy(subTags, tags)
-	subTags[len(tags)] = sub.Tag
-
-	key := statsSubKey{name: s.Name, metric: sub.Metric, tag: sub.Tag, aggr: aggr}
-	if ss, ok = sb.sublayerData[key]; !ok {
-		ss = newSublayerStats(subTags)
-	}
-
-	if s.TopLevel {
-		ss.topLevel += s.Weight
-	}
-
-	ss.value += int64(s.Weight * sub.Value)
-
-	sb.sublayerData[key] = ss
 }
 
 // 10 bits precision (any value will be +/- 1/1024)

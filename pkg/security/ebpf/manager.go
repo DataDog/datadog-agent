@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build linux_bpf
+// +build linux
 
 package ebpf
 
@@ -29,7 +29,7 @@ func NewDefaultOptions() manager.Options {
 		DefaultPerfRingBufferSize: 4096 * os.Getpagesize(),
 
 		// DefaultProbeAttach is the default number of attach / detach retries on error
-		DefaultProbeRetry:      3,
+		DefaultProbeRetry:      1,
 		DefaultProbeRetryDelay: time.Second,
 
 		VerifierOptions: ebpf.CollectionOptions{

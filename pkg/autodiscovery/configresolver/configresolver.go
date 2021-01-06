@@ -75,7 +75,9 @@ func SubstituteTemplateEnvVars(config *integration.Config) error {
 
 // Resolve takes a template and a service and generates a config with
 // valid connection info and relevant tags.
-func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config, error) {
+// Resolve also returns the hash of the tags to the config.
+// The tags and hashes are computed once and in this function, then propagated to the main AD to avoid having inconsistent tags and hashes in the AD store.
+func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config, string, error) {
 	// Copy original template
 	resolvedConfig := integration.Config{
 		Name:            tpl.Name,
@@ -105,47 +107,47 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 			// Empty check names on k8s annotations or docker labels override the check config from file
 			// Used to deactivate unneeded OOTB autodiscovery checks defined in files
 			// The checkNames slice is considered empty also if it contains one single empty string
-			return resolvedConfig, fmt.Errorf("ignoring config from %s: another empty config is defined with the same AD identifier: %v", tpl.Source, tpl.ADIdentifiers)
+			return resolvedConfig, "", fmt.Errorf("ignoring config from %s: another empty config is defined with the same AD identifier: %v", tpl.Source, tpl.ADIdentifiers)
 		}
 		for _, checkName := range checkNames {
 			if tpl.Name == checkName {
 				// Ignore config from file when the same check is activated on the same service via other config providers (k8s annotations or docker labels)
-				return resolvedConfig, fmt.Errorf("ignoring config from %s: another config is defined for the check %s", tpl.Source, tpl.Name)
+				return resolvedConfig, "", fmt.Errorf("ignoring config from %s: another config is defined for the check %s", tpl.Source, tpl.Name)
 			}
 		}
 
 	}
 
 	if resolvedConfig.IsCheckConfig() && !svc.IsReady() {
-		return resolvedConfig, errors.New("unable to resolve, service not ready")
+		return resolvedConfig, "", errors.New("unable to resolve, service not ready")
 	}
 
 	if err := SubstituteTemplateVariables(&resolvedConfig, templateVariables, svc); err != nil {
-		return resolvedConfig, err
+		return resolvedConfig, "", err
 	}
 
 	if err := SubstituteTemplateEnvVars(&resolvedConfig); err != nil {
 		// We add the service name to the error here, since SubstituteTemplateEnvVars doesn't know about that
-		return resolvedConfig, fmt.Errorf("%s, skipping service %s", err, svc.GetEntity())
+		return resolvedConfig, "", fmt.Errorf("%w, skipping service %s", err, svc.GetEntity())
+	}
+
+	tags, tagsHash, err := svc.GetTags()
+	if err != nil {
+		return resolvedConfig, "", fmt.Errorf("couldn't get tags for service '%s', err: %w", svc.GetEntity(), err)
 	}
 
 	if !tpl.IgnoreAutodiscoveryTags {
-		if err := addServiceTags(&resolvedConfig, svc); err != nil {
-			return resolvedConfig, fmt.Errorf("unable to add tags for service '%s', err: %s", svc.GetEntity(), err)
+		if err := addServiceTags(&resolvedConfig, tags); err != nil {
+			return resolvedConfig, "", fmt.Errorf("unable to add tags for service '%s', err: %w", svc.GetEntity(), err)
 		}
 	}
 
-	return resolvedConfig, nil
+	return resolvedConfig, tagsHash, nil
 }
 
-func addServiceTags(resolvedConfig *integration.Config, svc listeners.Service) error {
-	tags, err := svc.GetTags()
-	if err != nil {
-		return err
-	}
+func addServiceTags(resolvedConfig *integration.Config, tags []string) error {
 	for i := 0; i < len(resolvedConfig.Instances); i++ {
-		err = resolvedConfig.Instances[i].MergeAdditionalTags(tags)
-		if err != nil {
+		if err := resolvedConfig.Instances[i].MergeAdditionalTags(tags); err != nil {
 			return err
 		}
 	}

@@ -62,6 +62,10 @@ func (t *testTransaction) GetPayloadSize() int {
 	return t.Called().Get(0).(int)
 }
 
+func (t *testTransaction) SerializeTo(serializer *TransactionsSerializer) error {
+	return nil
+}
+
 // Compile-time checking to ensure that MockedForwarder implements Forwarder
 var _ Forwarder = &MockedForwarder{}
 

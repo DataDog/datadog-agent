@@ -21,7 +21,7 @@ var connPool = sync.Pool{
 }
 
 // FormatConnection converts a ConnectionStats into an model.Connection
-func FormatConnection(conn network.ConnectionStats) *model.Connection {
+func FormatConnection(conn network.ConnectionStats, domainSet map[string]int) *model.Connection {
 	c := connPool.Get().(*model.Connection)
 	c.Pid = int32(conn.Pid)
 	c.Laddr = formatAddr(conn.Source, conn.SPort)
@@ -47,6 +47,7 @@ func FormatConnection(conn network.ConnectionStats) *model.Connection {
 	c.DnsCountByRcode = conn.DNSCountByRcode
 	c.LastTcpEstablished = conn.LastTCPEstablished
 	c.LastTcpClosed = conn.LastTCPClosed
+	c.DnsStatsByDomain = formatDNSStatsByDomain(conn.DNSStatsByDomain, domainSet)
 	return c
 }
 
@@ -156,6 +157,24 @@ func formatDirection(d network.ConnectionDirection) model.ConnectionDirection {
 	default:
 		return model.ConnectionDirection_unspecified
 	}
+}
+
+func formatDNSStatsByDomain(stats map[string]network.DNSStats, domainSet map[string]int) map[int32]*model.DNSStats {
+	m := make(map[int32]*model.DNSStats)
+	for d, s := range stats {
+		var ms model.DNSStats
+		ms.DnsCountByRcode = s.DNSCountByRcode
+		ms.DnsFailureLatencySum = s.DNSFailureLatencySum
+		ms.DnsSuccessLatencySum = s.DNSSuccessLatencySum
+		ms.DnsTimeouts = s.DNSTimeouts
+		pos, ok := domainSet[d]
+		if !ok {
+			pos = len(domainSet)
+			domainSet[d] = pos
+		}
+		m[int32(pos)] = &ms
+	}
+	return m
 }
 
 func formatIPTranslation(ct *network.IPTranslation) *model.IPTranslation {

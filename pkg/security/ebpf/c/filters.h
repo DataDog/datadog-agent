@@ -24,7 +24,7 @@ struct policy_t {
 };
 
 struct filter_t {
-    char value;
+    u64 event_mask;
 };
 
 struct bpf_map_def SEC("maps/filter_policy") filter_policy = {
@@ -37,7 +37,6 @@ struct bpf_map_def SEC("maps/filter_policy") filter_policy = {
 };
 
 struct inode_discarder_t {
-    u64 event_type;
     struct path_key_t path_key;
 };
 
@@ -52,7 +51,6 @@ struct bpf_map_def SEC("maps/inode_discarders") inode_discarders = { \
 
 int __attribute__((always_inline)) discarded_by_inode(u64 event_type, u32 mount_id, u64 inode) {
     struct inode_discarder_t key = {
-        .event_type = event_type,
         .path_key = {
             .ino = inode,
             .mount_id = mount_id,
@@ -60,7 +58,8 @@ int __attribute__((always_inline)) discarded_by_inode(u64 event_type, u32 mount_
     };
 
     struct filter_t *filter = bpf_map_lookup_elem(&inode_discarders, &key);
-    if (filter) {
+
+    if (filter && mask_has_event(filter->event_mask, event_type)) {
 #ifdef DEBUG
         bpf_printk("file with inode %d discarded\n", inode);
 #endif
@@ -69,9 +68,8 @@ int __attribute__((always_inline)) discarded_by_inode(u64 event_type, u32 mount_
     return 0;
 }
 
-void __attribute__((always_inline)) remove_inode_discarder(u64 event_type, u32 mount_id, u64 inode) {
+void __attribute__((always_inline)) remove_inode_discarder(u32 mount_id, u64 inode) {
     struct inode_discarder_t key = {
-        .event_type = event_type,
         .path_key = {
             .ino = inode,
             .mount_id = mount_id,
@@ -82,18 +80,17 @@ void __attribute__((always_inline)) remove_inode_discarder(u64 event_type, u32 m
 }
 
 struct pid_discarder_t {
-    u64 event_type;
     u32 tgid;
-    u32 padding;
 };
 
 struct pid_discarder_parameters_t {
-    u64 timestamp;
+    u64 event_mask;
+    u64 timestamps[EVENT_MAX_ROUNDED_UP];
 };
 
 struct bpf_map_def SEC("maps/pid_discarders") pid_discarders = { \
     .type = BPF_MAP_TYPE_LRU_HASH,
-    .key_size = sizeof(struct pid_discarder_t),
+    .key_size = sizeof(u32),
     .value_size = sizeof(struct pid_discarder_parameters_t),
     .max_entries = 512,
     .pinning = 0,
@@ -102,19 +99,19 @@ struct bpf_map_def SEC("maps/pid_discarders") pid_discarders = { \
 
 int __attribute__((always_inline)) discarded_by_pid(u64 event_type, u32 tgid) {
     struct pid_discarder_t key = {
-        .event_type = event_type,
         .tgid = tgid,
     };
 
     struct pid_discarder_parameters_t *params = bpf_map_lookup_elem(&pid_discarders, &key);
-    if (params == NULL || (params->timestamp != 0 && params->timestamp <= bpf_ktime_get_ns())) {
+
+    if (params == NULL || (event_type > 0 && params->timestamps[(event_type-1)&(EVENT_MAX_ROUNDED_UP-1)] != 0 && params->timestamps[(event_type-1)&(EVENT_MAX_ROUNDED_UP-1)] <= bpf_ktime_get_ns())) {
         return 0;
     }
 
 #ifdef DEBUG
         bpf_printk("process with pid %d discarded\n", tgid);
 #endif
-    return 1;
+    return mask_has_event(params->event_mask, event_type);
 }
 
 // cache_syscall checks the event policy in order to see if the syscall struct can be cached
@@ -127,7 +124,7 @@ int __attribute__((always_inline)) discarded_by_process(const char mode, u64 eve
         if (discarded_by_pid(event_type, tgid))
             return 1;
 
-        struct proc_cache_t *entry = get_pid_cache(tgid);
+        struct proc_cache_t *entry = get_proc_cache(tgid);
         if (entry && discarded_by_inode(event_type, entry->executable.mount_id, entry->executable.inode)) {
             return 1;
         }

@@ -29,7 +29,7 @@ func TestSetXAttr(t *testing.T) {
 	}
 	defer testDrive.Close()
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{enableFilters: true, testDir: testDrive.Root()})
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{testDir: testDrive.Root()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,9 +161,11 @@ func TestSetXAttr(t *testing.T) {
 }
 
 func TestRemoveXAttr(t *testing.T) {
-	rule := &rules.RuleDefinition{
-		ID:         "test_rule",
-		Expression: `removexattr.filename == "{{.Root}}/test-removexattr" && removexattr.namespace == "user" && removexattr.name == "user.test_xattr"`,
+	rules := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule",
+			Expression: `removexattr.filename == "{{.Root}}/test-removexattr" && removexattr.namespace == "user" && removexattr.name == "user.test_xattr"`,
+		},
 	}
 
 	testDrive, err := newTestDrive("ext4", []string{"user_xattr"})
@@ -172,7 +174,7 @@ func TestRemoveXAttr(t *testing.T) {
 	}
 	defer testDrive.Close()
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{enableFilters: true, testDir: testDrive.Root()})
+	test, err := newTestModule(nil, rules, testOpts{testDir: testDrive.Root()})
 	if err != nil {
 		t.Fatal(err)
 	}

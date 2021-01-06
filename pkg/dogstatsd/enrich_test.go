@@ -12,23 +12,51 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	// All types except set
+	symbolToType = map[string]metrics.MetricType{
+		"g":  metrics.GaugeType,
+		"c":  metrics.CounterType,
+		"h":  metrics.HistogramType,
+		"ms": metrics.HistogramType,
+		"d":  metrics.DistributionType,
+	}
+)
+
 func returnEmptyTags() []string {
 	return []string{}
 }
 
 // TODO(remy): add an unit test using the serverless mode and validate that there is no Host set
 
-func parseAndEnrichMetricMessage(message []byte, namespace string, namespaceBlacklist []string, defaultHostname string) (metrics.MetricSample, error) {
-	parser := newParser()
+func parseAndEnrichSingleMetricMessage(message []byte, namespace string, namespaceBlacklist []string, defaultHostname string) (metrics.MetricSample, error) {
+	parser := newParser(newFloat64ListPool())
 	parsed, err := parser.parseMetricSample(message)
 	if err != nil {
 		return metrics.MetricSample{}, err
 	}
-	return enrichMetricSample(parsed, namespace, namespaceBlacklist, defaultHostname, returnEmptyTags, true, false), nil
+
+	samples := []metrics.MetricSample{}
+	samples = enrichMetricSample(samples, parsed, namespace, namespaceBlacklist, defaultHostname, returnEmptyTags, true, false)
+	if len(samples) != 1 {
+		return metrics.MetricSample{}, fmt.Errorf("wrong number of metrics parsed")
+	}
+	return samples[0], nil
+}
+
+func parseAndEnrichMultipleMetricMessage(message []byte, namespace string, namespaceBlacklist []string, defaultHostname string) ([]metrics.MetricSample, error) {
+	parser := newParser(newFloat64ListPool())
+	parsed, err := parser.parseMetricSample(message)
+	if err != nil {
+		return []metrics.MetricSample{}, err
+	}
+
+	samples := []metrics.MetricSample{}
+	return enrichMetricSample(samples, parsed, namespace, namespaceBlacklist, defaultHostname, returnEmptyTags, true, false), nil
 }
 
 func parseAndEnrichServiceCheckMessage(message []byte, defaultHostname string) (*metrics.ServiceCheck, error) {
-	parser := newParser()
+	parser := newParser(newFloat64ListPool())
 	parsed, err := parser.parseServiceCheck(message)
 	if err != nil {
 		return nil, err
@@ -37,7 +65,7 @@ func parseAndEnrichServiceCheckMessage(message []byte, defaultHostname string) (
 }
 
 func parseAndEnrichEventMessage(message []byte, defaultHostname string) (*metrics.Event, error) {
-	parser := newParser()
+	parser := newParser(newFloat64ListPool())
 	parsed, err := parser.parseEvent(message)
 	if err != nil {
 		return nil, err
@@ -45,100 +73,136 @@ func parseAndEnrichEventMessage(message []byte, defaultHostname string) (*metric
 	return enrichEvent(parsed, defaultHostname, returnEmptyTags, true), nil
 }
 
-func TestConvertParseGauge(t *testing.T) {
-	parsed, err := parseAndEnrichMetricMessage([]byte("daemon:666|g"), "", nil, "default-hostname")
+func TestConvertParseMultiple(t *testing.T) {
+	for metricSymbol, metricType := range symbolToType {
 
-	assert.NoError(t, err)
+		parsed, err := parseAndEnrichMultipleMetricMessage([]byte("daemon:666:777.5|"+metricSymbol), "", nil, "default-hostname")
 
-	assert.Equal(t, "daemon", parsed.Name)
-	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
-	assert.Equal(t, metrics.GaugeType, parsed.Mtype)
-	assert.Equal(t, 0, len(parsed.Tags))
-	assert.Equal(t, "default-hostname", parsed.Host)
-	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
+		assert.NoError(t, err)
+		require.Len(t, parsed, 2)
+
+		assert.Equal(t, "daemon", parsed[0].Name)
+		assert.InEpsilon(t, 666.0, parsed[0].Value, epsilon)
+		assert.Equal(t, metricType, parsed[0].Mtype)
+		assert.Equal(t, 0, len(parsed[0].Tags))
+		assert.Equal(t, "default-hostname", parsed[0].Host)
+		assert.InEpsilon(t, 1.0, parsed[0].SampleRate, epsilon)
+
+		assert.Equal(t, "daemon", parsed[1].Name)
+		assert.InEpsilon(t, 777.5, parsed[1].Value, epsilon)
+		assert.Equal(t, metricType, parsed[1].Mtype)
+		assert.Equal(t, 0, len(parsed[1].Tags))
+		assert.Equal(t, "default-hostname", parsed[1].Host)
+		assert.InEpsilon(t, 1.0, parsed[1].SampleRate, epsilon)
+	}
 }
 
-func TestConvertParseCounter(t *testing.T) {
-	parsed, err := parseAndEnrichMetricMessage([]byte("daemon:21|c"), "", nil, "default-hostname")
+func TestConvertParseSingle(t *testing.T) {
+	for metricSymbol, metricType := range symbolToType {
 
-	assert.NoError(t, err)
+		parsed, err := parseAndEnrichMultipleMetricMessage([]byte("daemon:666|"+metricSymbol), "", nil, "default-hostname")
 
-	assert.Equal(t, "daemon", parsed.Name)
-	assert.Equal(t, 21.0, parsed.Value)
-	assert.Equal(t, metrics.CounterType, parsed.Mtype)
-	assert.Equal(t, 0, len(parsed.Tags))
-	assert.Equal(t, "default-hostname", parsed.Host)
-	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
+		assert.NoError(t, err)
+		require.Len(t, parsed, 1)
+
+		assert.Equal(t, "daemon", parsed[0].Name)
+		assert.InEpsilon(t, 666.0, parsed[0].Value, epsilon)
+		assert.Equal(t, metricType, parsed[0].Mtype)
+		assert.Equal(t, 0, len(parsed[0].Tags))
+		assert.Equal(t, "default-hostname", parsed[0].Host)
+		assert.InEpsilon(t, 1.0, parsed[0].SampleRate, epsilon)
+	}
 }
 
-func TestConvertParseCounterWithTags(t *testing.T) {
-	parsed, err := parseAndEnrichMetricMessage([]byte("custom_counter:1|c|#protocol:http,bench"), "", nil, "default-hostname")
+func TestConvertParseSingleWithTags(t *testing.T) {
+	for metricSymbol, metricType := range symbolToType {
 
-	assert.NoError(t, err)
+		parsed, err := parseAndEnrichMultipleMetricMessage([]byte("daemon:666|"+metricSymbol+"|#protocol:http,bench"), "", nil, "default-hostname")
 
-	assert.Equal(t, "custom_counter", parsed.Name)
-	assert.Equal(t, 1.0, parsed.Value)
-	assert.Equal(t, metrics.CounterType, parsed.Mtype)
-	assert.Equal(t, 2, len(parsed.Tags))
-	assert.Equal(t, "protocol:http", parsed.Tags[0])
-	assert.Equal(t, "bench", parsed.Tags[1])
-	assert.Equal(t, "default-hostname", parsed.Host)
-	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
+		assert.NoError(t, err)
+		require.Len(t, parsed, 1)
+
+		assert.Equal(t, "daemon", parsed[0].Name)
+		assert.InEpsilon(t, 666.0, parsed[0].Value, epsilon)
+		assert.Equal(t, metricType, parsed[0].Mtype)
+		assert.Equal(t, 2, len(parsed[0].Tags))
+		assert.Equal(t, "protocol:http", parsed[0].Tags[0])
+		assert.Equal(t, "bench", parsed[0].Tags[1])
+		assert.Equal(t, "default-hostname", parsed[0].Host)
+		assert.InEpsilon(t, 1.0, parsed[0].SampleRate, epsilon)
+	}
 }
 
-func TestConvertParseHistogram(t *testing.T) {
-	parsed, err := parseAndEnrichMetricMessage([]byte("daemon:21|h"), "", nil, "default-hostname")
+func TestConvertParseSingleWithHostTags(t *testing.T) {
+	for metricSymbol, metricType := range symbolToType {
 
-	assert.NoError(t, err)
+		parsed, err := parseAndEnrichMultipleMetricMessage([]byte("daemon:666|"+metricSymbol+"|#protocol:http,host:custom-host,bench"), "", nil, "default-hostname")
 
-	assert.Equal(t, "daemon", parsed.Name)
-	assert.Equal(t, 21.0, parsed.Value)
-	assert.Equal(t, metrics.HistogramType, parsed.Mtype)
-	assert.Equal(t, 0, len(parsed.Tags))
-	assert.Equal(t, "default-hostname", parsed.Host)
-	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
+		assert.NoError(t, err)
+		require.Len(t, parsed, 1)
+
+		assert.Equal(t, "daemon", parsed[0].Name)
+		assert.InEpsilon(t, 666.0, parsed[0].Value, epsilon)
+		assert.Equal(t, metricType, parsed[0].Mtype)
+		assert.Equal(t, 2, len(parsed[0].Tags))
+		assert.Equal(t, "protocol:http", parsed[0].Tags[0])
+		assert.Equal(t, "bench", parsed[0].Tags[1])
+		assert.Equal(t, "custom-host", parsed[0].Host)
+		assert.InEpsilon(t, 1.0, parsed[0].SampleRate, epsilon)
+	}
 }
 
-func TestConvertParseTimer(t *testing.T) {
-	parsed, err := parseAndEnrichMetricMessage([]byte("daemon:21|ms"), "", nil, "default-hostname")
+func TestConvertParseSingleWithEmptyHostTags(t *testing.T) {
+	for metricSymbol, metricType := range symbolToType {
 
-	assert.NoError(t, err)
+		parsed, err := parseAndEnrichMultipleMetricMessage([]byte("daemon:666|"+metricSymbol+"|#protocol:http,host:,bench"), "", nil, "default-hostname")
 
-	assert.Equal(t, "daemon", parsed.Name)
-	assert.Equal(t, 21.0, parsed.Value)
-	assert.Equal(t, metrics.HistogramType, parsed.Mtype)
-	assert.Equal(t, 0, len(parsed.Tags))
-	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
-	assert.Equal(t, "default-hostname", parsed.Host)
+		assert.NoError(t, err)
+		require.Len(t, parsed, 1)
+
+		assert.Equal(t, "daemon", parsed[0].Name)
+		assert.InEpsilon(t, 666.0, parsed[0].Value, epsilon)
+		assert.Equal(t, metricType, parsed[0].Mtype)
+		assert.Equal(t, 2, len(parsed[0].Tags))
+		assert.Equal(t, "protocol:http", parsed[0].Tags[0])
+		assert.Equal(t, "bench", parsed[0].Tags[1])
+		assert.Equal(t, "", parsed[0].Host)
+		assert.InEpsilon(t, 1.0, parsed[0].SampleRate, epsilon)
+	}
+}
+
+func TestConvertParseSingleWithSampleRate(t *testing.T) {
+	for metricSymbol, metricType := range symbolToType {
+
+		parsed, err := parseAndEnrichMultipleMetricMessage([]byte("daemon:666|"+metricSymbol+"|@0.21"), "", nil, "default-hostname")
+
+		assert.NoError(t, err)
+		require.Len(t, parsed, 1)
+
+		assert.Equal(t, "daemon", parsed[0].Name)
+		assert.InEpsilon(t, 666.0, parsed[0].Value, epsilon)
+		assert.Equal(t, metricType, parsed[0].Mtype)
+		assert.Equal(t, 0, len(parsed[0].Tags))
+		assert.Equal(t, "default-hostname", parsed[0].Host)
+		assert.InEpsilon(t, 0.21, parsed[0].SampleRate, epsilon)
+	}
 }
 
 func TestConvertParseSet(t *testing.T) {
-	parsed, err := parseAndEnrichMetricMessage([]byte("daemon:abc|s"), "", nil, "default-hostname")
+	parsed, err := parseAndEnrichSingleMetricMessage([]byte("daemon:abc:def|s"), "", nil, "default-hostname")
 
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
-	assert.Equal(t, "abc", parsed.RawValue)
+	assert.Equal(t, "abc:def", parsed.RawValue)
 	assert.Equal(t, metrics.SetType, parsed.Mtype)
 	assert.Equal(t, 0, len(parsed.Tags))
 	assert.Equal(t, "default-hostname", parsed.Host)
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
-func TestConvertParseDistribution(t *testing.T) {
-	parsed, err := parseAndEnrichMetricMessage([]byte("daemon:3.5|d"), "", nil, "default-hostname")
-
-	assert.NoError(t, err)
-
-	assert.Equal(t, "daemon", parsed.Name)
-	assert.Equal(t, 3.5, parsed.Value)
-	assert.Equal(t, metrics.DistributionType, parsed.Mtype)
-	assert.Equal(t, "default-hostname", parsed.Host)
-	assert.Equal(t, 0, len(parsed.Tags))
-}
-
 func TestConvertParseSetUnicode(t *testing.T) {
-	parsed, err := parseAndEnrichMetricMessage([]byte("daemon:♬†øU†øU¥ºuT0♪|s"), "", nil, "default-hostname")
+	parsed, err := parseAndEnrichSingleMetricMessage([]byte("daemon:♬†øU†øU¥ºuT0♪|s"), "", nil, "default-hostname")
 
 	assert.NoError(t, err)
 
@@ -150,76 +214,8 @@ func TestConvertParseSetUnicode(t *testing.T) {
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
-func TestConvertParseGaugeWithTags(t *testing.T) {
-	parsed, err := parseAndEnrichMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"), "", nil, "default-hostname")
-
-	assert.NoError(t, err)
-
-	assert.Equal(t, "daemon", parsed.Name)
-	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
-	assert.Equal(t, metrics.GaugeType, parsed.Mtype)
-	require.Equal(t, 2, len(parsed.Tags))
-	assert.Equal(t, "sometag1:somevalue1", parsed.Tags[0])
-	assert.Equal(t, "sometag2:somevalue2", parsed.Tags[1])
-	assert.Equal(t, "default-hostname", parsed.Host)
-	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
-}
-
-func TestConvertParseGaugeWithHostTag(t *testing.T) {
-	parsed, err := parseAndEnrichMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,sometag2:somevalue2"), "", nil, "default-hostname")
-	assert.NoError(t, err)
-
-	assert.Equal(t, "daemon", parsed.Name)
-	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
-	assert.Equal(t, metrics.GaugeType, parsed.Mtype)
-	require.Equal(t, 2, len(parsed.Tags))
-	assert.Equal(t, "sometag1:somevalue1", parsed.Tags[0])
-	assert.Equal(t, "sometag2:somevalue2", parsed.Tags[1])
-	assert.Equal(t, "my-hostname", parsed.Host)
-	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
-}
-
-func TestConvertParseGaugeWithEmptyHostTag(t *testing.T) {
-	parsed, err := parseAndEnrichMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:,sometag2:somevalue2"), "", nil, "default-hostname")
-	assert.NoError(t, err)
-
-	assert.Equal(t, "daemon", parsed.Name)
-	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
-	assert.Equal(t, metrics.GaugeType, parsed.Mtype)
-	require.Equal(t, 2, len(parsed.Tags))
-	assert.Equal(t, "sometag1:somevalue1", parsed.Tags[0])
-	assert.Equal(t, "sometag2:somevalue2", parsed.Tags[1])
-	assert.Equal(t, "", parsed.Host)
-	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
-}
-
-func TestConvertParseGaugeWithNoTags(t *testing.T) {
-	parsed, err := parseAndEnrichMetricMessage([]byte("daemon:666|g"), "", nil, "default-hostname")
-	assert.NoError(t, err)
-
-	assert.Equal(t, "daemon", parsed.Name)
-	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
-	assert.Equal(t, metrics.GaugeType, parsed.Mtype)
-	assert.Empty(t, parsed.Tags)
-	assert.Equal(t, "default-hostname", parsed.Host)
-	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
-}
-
-func TestConvertParseGaugeWithSampleRate(t *testing.T) {
-	parsed, err := parseAndEnrichMetricMessage([]byte("daemon:666|g|@0.21"), "", nil, "default-hostname")
-
-	assert.NoError(t, err)
-
-	assert.Equal(t, "daemon", parsed.Name)
-	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
-	assert.Equal(t, metrics.GaugeType, parsed.Mtype)
-	assert.Equal(t, 0, len(parsed.Tags))
-	assert.Equal(t, "default-hostname", parsed.Host)
-	assert.InEpsilon(t, 0.21, parsed.SampleRate, epsilon)
-}
-
 func TestConvertParseGaugeWithPoundOnly(t *testing.T) {
-	parsed, err := parseAndEnrichMetricMessage([]byte("daemon:666|g|#"), "", nil, "default-hostname")
+	parsed, err := parseAndEnrichSingleMetricMessage([]byte("daemon:666|g|#"), "", nil, "default-hostname")
 
 	assert.NoError(t, err)
 
@@ -232,7 +228,7 @@ func TestConvertParseGaugeWithPoundOnly(t *testing.T) {
 }
 
 func TestConvertParseGaugeWithUnicode(t *testing.T) {
-	parsed, err := parseAndEnrichMetricMessage([]byte("♬†øU†øU¥ºuT0♪:666|g|#intitulé:T0µ"), "", nil, "default-hostname")
+	parsed, err := parseAndEnrichSingleMetricMessage([]byte("♬†øU†øU¥ºuT0♪:666|g|#intitulé:T0µ"), "", nil, "default-hostname")
 
 	assert.NoError(t, err)
 
@@ -247,42 +243,38 @@ func TestConvertParseGaugeWithUnicode(t *testing.T) {
 
 func TestConvertParseMetricError(t *testing.T) {
 	// not enough information
-	_, err := parseAndEnrichMetricMessage([]byte("daemon:666"), "", nil, "default-hostname")
+	_, err := parseAndEnrichSingleMetricMessage([]byte("daemon:666"), "", nil, "default-hostname")
 	assert.Error(t, err)
 
-	_, err = parseAndEnrichMetricMessage([]byte("daemon:666|"), "", nil, "default-hostname")
+	_, err = parseAndEnrichSingleMetricMessage([]byte("daemon:666|"), "", nil, "default-hostname")
 	assert.Error(t, err)
 
-	_, err = parseAndEnrichMetricMessage([]byte("daemon:|g"), "", nil, "default-hostname")
+	_, err = parseAndEnrichSingleMetricMessage([]byte("daemon:|g"), "", nil, "default-hostname")
 	assert.Error(t, err)
 
-	_, err = parseAndEnrichMetricMessage([]byte(":666|g"), "", nil, "default-hostname")
-	assert.Error(t, err)
-
-	// too many value
-	_, err = parseAndEnrichMetricMessage([]byte("daemon:666:777|g"), "", nil, "default-hostname")
+	_, err = parseAndEnrichSingleMetricMessage([]byte(":666|g"), "", nil, "default-hostname")
 	assert.Error(t, err)
 
 	// unknown metadata prefix
-	_, err = parseAndEnrichMetricMessage([]byte("daemon:666|g|m:test"), "", nil, "default-hostname")
+	_, err = parseAndEnrichSingleMetricMessage([]byte("daemon:666|g|m:test"), "", nil, "default-hostname")
 	assert.NoError(t, err)
 
 	// invalid value
-	_, err = parseAndEnrichMetricMessage([]byte("daemon:abc|g"), "", nil, "default-hostname")
+	_, err = parseAndEnrichSingleMetricMessage([]byte("daemon:abc|g"), "", nil, "default-hostname")
 	assert.Error(t, err)
 
 	// invalid metric type
-	_, err = parseAndEnrichMetricMessage([]byte("daemon:666|unknown"), "", nil, "default-hostname")
+	_, err = parseAndEnrichSingleMetricMessage([]byte("daemon:666|unknown"), "", nil, "default-hostname")
 	assert.Error(t, err)
 
 	// invalid sample rate
-	_, err = parseAndEnrichMetricMessage([]byte("daemon:666|g|@abc"), "", nil, "default-hostname")
+	_, err = parseAndEnrichSingleMetricMessage([]byte("daemon:666|g|@abc"), "", nil, "default-hostname")
 	assert.Error(t, err)
 }
 
 func TestConvertParseMonokeyBatching(t *testing.T) {
 	// TODO: not implemented
-	// parsed, err := parseAndEnrichMetricMessage([]byte("test_gauge:1.5|g|#tag1:one,tag2:two:2.3|g|#tag3:three:3|g"), "default-hostname")
+	// parsed, err := parseAndEnrichSingleMetricMessage([]byte("test_gauge:1.5|g|#tag1:one,tag2:two:2.3|g|#tag3:three:3|g"), "default-hostname")
 }
 
 func TestConvertEnsureUTF8(t *testing.T) {
@@ -706,7 +698,7 @@ func TestConvertEventMetadataMultiple(t *testing.T) {
 }
 
 func TestConvertNamespace(t *testing.T) {
-	parsed, err := parseAndEnrichMetricMessage([]byte("daemon:21|ms"), "testNamespace.", nil, "default-hostname")
+	parsed, err := parseAndEnrichSingleMetricMessage([]byte("daemon:21|ms"), "testNamespace.", nil, "default-hostname")
 
 	assert.NoError(t, err)
 
@@ -715,7 +707,7 @@ func TestConvertNamespace(t *testing.T) {
 }
 
 func TestConvertNamespaceBlacklist(t *testing.T) {
-	parsed, err := parseAndEnrichMetricMessage([]byte("datadog.agent.daemon:21|ms"), "testNamespace.", []string{"datadog.agent"}, "default-hostname")
+	parsed, err := parseAndEnrichSingleMetricMessage([]byte("datadog.agent.daemon:21|ms"), "testNamespace.", []string{"datadog.agent"}, "default-hostname")
 
 	assert.NoError(t, err)
 
@@ -731,7 +723,7 @@ func TestConvertEntityOriginDetectionNoTags(t *testing.T) {
 		return []string{}, nil
 	}
 
-	parsed, err := parseAndEnrichMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", nil, "default-hostname")
+	parsed, err := parseAndEnrichSingleMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", nil, "default-hostname")
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
@@ -752,7 +744,7 @@ func TestConvertEntityOriginDetectionTags(t *testing.T) {
 		return []string{}, nil
 	}
 
-	parsed, err := parseAndEnrichMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", nil, "default-hostname")
+	parsed, err := parseAndEnrichSingleMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", nil, "default-hostname")
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
@@ -769,7 +761,7 @@ func TestConvertEntityOriginDetectionTagsError(t *testing.T) {
 		return nil, errors.New("cannot get tags")
 	}
 
-	parsed, err := parseAndEnrichMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", nil, "default-hostname")
+	parsed, err := parseAndEnrichSingleMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", nil, "default-hostname")
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)

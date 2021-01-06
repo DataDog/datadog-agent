@@ -8,6 +8,7 @@ package agent
 import (
 	"context"
 	"runtime"
+	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats/quantile"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -50,8 +52,8 @@ type Agent struct {
 	// tags based on their type.
 	obfuscator *obfuscate.Obfuscator
 
-	In  chan *api.Payload
-	Out chan *writer.SampledSpans
+	// In takes incoming payloads to be processed by the agent.
+	In chan *api.Payload
 
 	// config
 	conf *config.AgentConfig
@@ -65,12 +67,10 @@ type Agent struct {
 func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	dynConf := sampler.NewDynamicConfig(conf.DefaultEnv)
 	in := make(chan *api.Payload, 1000)
-	out := make(chan *writer.SampledSpans, 1000)
-	statsChan := make(chan []stats.Bucket)
+	statsChan := make(chan []stats.Bucket, 100)
 
-	return &Agent{
-		Receiver:           api.NewHTTPReceiver(conf, dynConf, in),
-		Concentrator:       stats.NewConcentrator(conf.ExtraAggregators, conf.BucketInterval.Nanoseconds(), statsChan),
+	agnt := &Agent{
+		Concentrator:       stats.NewConcentrator(conf.BucketInterval.Nanoseconds(), statsChan),
 		Blacklister:        filters.NewBlacklister(conf.Ignore["resource"]),
 		Replacer:           filters.NewReplacer(conf.ReplaceTags),
 		ScoreSampler:       NewScoreSampler(conf),
@@ -78,14 +78,15 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		ErrorsScoreSampler: NewErrorsSampler(conf),
 		PrioritySampler:    NewPrioritySampler(conf, dynConf),
 		EventProcessor:     newEventProcessor(conf),
-		TraceWriter:        writer.NewTraceWriter(conf, out),
+		TraceWriter:        writer.NewTraceWriter(conf),
 		StatsWriter:        writer.NewStatsWriter(conf, statsChan),
 		obfuscator:         obfuscate.NewObfuscator(conf.Obfuscation),
 		In:                 in,
-		Out:                out,
 		conf:               conf,
 		ctx:                ctx,
 	}
+	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt)
+	return agnt
 }
 
 // Run starts routers routines and individual pieces then stop them when the exit order is received
@@ -187,6 +188,9 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 		for _, span := range t {
 			a.obfuscator.Obfuscate(span)
 			Truncate(span)
+			if p.ClientComputedTopLevel {
+				traceutil.UpdateTracerTopLevel(span)
+			}
 		}
 		a.Replacer.Replace(t)
 
@@ -204,9 +208,11 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 				traceutil.SetMeta(root, tagContainersTags, p.ContainerTags)
 			}
 		}
-		// Figure out the top-level spans and sublayers now as it involves modifying the Metrics map
-		// which is not thread-safe while samplers and Concentrator might modify it too.
-		traceutil.ComputeTopLevel(t)
+		if !p.ClientComputedTopLevel {
+			// Figure out the top-level spans and sublayers now as it involves modifying the Metrics map
+			// which is not thread-safe while samplers and Concentrator might modify it too.
+			traceutil.ComputeTopLevel(t)
+		}
 
 		env := a.conf.DefaultEnv
 		if v := traceutil.GetEnv(t); v != "" {
@@ -232,11 +238,11 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 			}
 		}
 		sinputs = append(sinputs, stats.Input{
-			Trace:     pt.WeightedTrace,
-			Sublayers: pt.Sublayers,
-			Env:       pt.Env,
+			Trace:         pt.WeightedTrace,
+			Sublayers:     pt.Sublayers,
+			Env:           pt.Env,
+			SublayersOnly: p.ClientComputedStats,
 		})
-
 		if keep {
 			ss.Traces = append(ss.Traces, traceutil.APITrace(t))
 			ss.Size += t.Msgsize()
@@ -247,16 +253,96 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 			ss.Size += pb.Trace(events).Msgsize()
 		}
 		if ss.Size > writer.MaxPayloadSize {
-			a.Out <- ss
+			a.TraceWriter.In <- ss
 			ss = new(writer.SampledSpans)
 		}
 	}
 	if ss.Size > 0 {
-		a.Out <- ss
+		a.TraceWriter.In <- ss
 	}
 	if len(sinputs) > 0 {
 		a.Concentrator.In <- sinputs
 	}
+}
+
+var _ api.StatsProcessor = (*Agent)(nil)
+
+// ProcessStats processes incoming client stats in from the given language lang.
+func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang string) {
+	if in.Env == "" {
+		in.Env = a.conf.DefaultEnv
+	}
+	in.Env = traceutil.NormalizeTag(in.Env)
+	out := stats.Payload{
+		HostName: in.Hostname,
+		Env:      in.Env,
+	}
+	for _, group := range in.Stats {
+		for _, b := range group.Stats {
+			normalizeStatsGroup(&b, lang)
+			a.obfuscator.ObfuscateStatsGroup(&b)
+			a.Replacer.ReplaceStatsGroup(&b)
+
+			statusCode := ""
+			if b.HTTPStatusCode != 0 {
+				statusCode = strconv.Itoa(int(b.HTTPStatusCode))
+			}
+			newb := stats.Bucket{
+				Start:            int64(group.Start),
+				Duration:         int64(group.Duration),
+				Counts:           make(map[string]stats.Count),
+				Distributions:    make(map[string]stats.Distribution),
+				ErrDistributions: make(map[string]stats.Distribution),
+			}
+			aggr := stats.NewAggregation(out.Env, b.Resource, b.Service, "", statusCode, in.Version)
+			tagset := aggr.ToTagSet()
+			key := stats.GrainKey(b.Name, stats.HITS, aggr)
+			newb.Counts[key] = stats.Count{
+				Key:     key,
+				Name:    b.Name,
+				Measure: stats.HITS,
+				TagSet:  tagset,
+				Value:   float64(b.Hits),
+			}
+			key = stats.GrainKey(b.Name, stats.ERRORS, aggr)
+			newb.Counts[key] = stats.Count{
+				Key:     key,
+				Name:    b.Name,
+				Measure: stats.ERRORS,
+				TagSet:  tagset,
+				Value:   float64(b.Errors),
+			}
+			key = stats.GrainKey(b.Name, stats.DURATION, aggr)
+			newb.Counts[key] = stats.Count{
+				Key:     key,
+				Name:    b.Name,
+				Measure: stats.DURATION,
+				TagSet:  tagset,
+				Value:   float64(b.Duration),
+			}
+			if hits, errors, err := quantile.DDToGKSketches(b.OkSummary, b.ErrorSummary); err != nil {
+				log.Errorf("Error handling distributions: %v", err)
+			} else {
+				newb.Distributions[key] = stats.Distribution{
+					Key:     key,
+					Name:    b.Name,
+					Measure: stats.DURATION,
+					TagSet:  tagset,
+					Summary: hits,
+				}
+				newb.ErrDistributions[key] = stats.Distribution{
+					Key:     key,
+					Name:    b.Name,
+					Measure: stats.DURATION,
+					TagSet:  tagset,
+					Summary: errors,
+				}
+			}
+			out.Stats = append(out.Stats, newb)
+		}
+	}
+
+	a.StatsWriter.SendPayload(&out)
 }
 
 // sample decides whether the trace will be kept and extracts any APM events

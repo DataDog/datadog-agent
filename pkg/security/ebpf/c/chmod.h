@@ -59,8 +59,6 @@ int __attribute__((always_inline)) trace__sys_chmod_ret(struct pt_regs *ctx) {
     }
 
     struct chmod_event_t event = {
-        .event.type = EVENT_CHMOD,
-        .event.timestamp = bpf_ktime_get_ns(),
         .syscall.retval = retval,
         .file = {
             .mount_id = syscall->setattr.path_key.mount_id,
@@ -72,12 +70,12 @@ int __attribute__((always_inline)) trace__sys_chmod_ret(struct pt_regs *ctx) {
         .mode = syscall->setattr.mode,
     };
 
-    struct proc_cache_t *entry = fill_process_data(&event.process);
-    fill_container_data(entry, &event.container);
+    struct proc_cache_t *entry = fill_process_context(&event.process);
+    fill_container_context(entry, &event.container);
 
     // dentry resolution in setattr.h
 
-    send_event(ctx, event);
+    send_event(ctx, EVENT_CHMOD, event);
 
     return 0;
 }

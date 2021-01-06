@@ -54,10 +54,10 @@ int kprobe__vfs_link(struct pt_regs *ctx) {
     // target_path was set by kprobe/filename_create before we reach this point.
     syscall->link.src_key = get_dentry_key_path(dentry, syscall->link.target_path);
     // we generate a fake target key as the inode is the same
-    syscall->link.target_key.ino = bpf_get_prandom_u32() << 32 | bpf_get_prandom_u32();
+    syscall->link.target_key.ino = FAKE_INODE_MSW<<32 | bpf_get_prandom_u32();
     syscall->link.target_key.mount_id = syscall->link.src_key.mount_id;
 
-    syscall->link.src_key.path_id = get_path_id(0);
+    syscall->link.src_key.path_id = get_path_id(1);
     int ret = resolve_dentry(dentry, syscall->link.src_key, syscall->policy.mode != NO_FILTER ? EVENT_LINK : 0);
     if (ret == DENTRY_DISCARDED) {
         pop_syscall(SYSCALL_LINK);
@@ -99,12 +99,12 @@ int __attribute__((always_inline)) trace__sys_link_ret(struct pt_regs *ctx) {
         }
     };
 
-    struct proc_cache_t *entry = fill_process_data(&event.process);
-    fill_container_data(entry, &event.container);
+    struct proc_cache_t *entry = fill_process_context(&event.process);
+    fill_container_context(entry, &event.container);
 
     resolve_dentry(syscall->link.target_dentry, syscall->link.target_key, 0);
 
-    send_event(ctx, event);
+    send_event(ctx, EVENT_LINK, event);
 
     return 0;
 }

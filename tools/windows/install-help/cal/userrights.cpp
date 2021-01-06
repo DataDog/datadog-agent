@@ -1,54 +1,27 @@
 #include "stdafx.h"
 
-
-
-PSID GetSidForUser(LPCWSTR host, LPCWSTR user) {
-	SID *newsid = NULL;
+SidResult GetSidForUser(LPCWSTR host, LPCWSTR user) {
+	
 	DWORD cbSid = 0;
-	LPWSTR refDomain = NULL;
 	DWORD cchRefDomain = 0;
 	SID_NAME_USE use;
-	BOOL bRet = LookupAccountName(host, user, newsid, &cbSid, refDomain, &cchRefDomain, &use);
-	if (bRet) {
-		// this should *never* happen, because we didn't pass in a buffer large enough for
-		// the sid or the domain name.
-		return NULL;
-	}
-	DWORD err = GetLastError();
-	if (ERROR_INSUFFICIENT_BUFFER != err) {
-		// we don't know what happened
-		WcaLog(LOGMSG_STANDARD, "First call to LookupAccountName failed with %d", err);
-		return NULL;
-	}
-	newsid = (SID *) new BYTE[cbSid];
-	ZeroMemory(newsid, cbSid);
 
-	refDomain = new wchar_t[cchRefDomain + 1];
-	ZeroMemory(refDomain, (cchRefDomain + 1) * sizeof(wchar_t));
+	LookupAccountName(host, user, nullptr, &cbSid, nullptr, &cchRefDomain, &use);
+	sid_ptr newsid = make_sid(cbSid);
+	std::vector<wchar_t> refDomain;
+	// +1 in case cchRefDomain == 0
+	refDomain.resize(cchRefDomain + 1);
+	if (!LookupAccountName(host, user, newsid.get(), &cbSid, &refDomain[0], &cchRefDomain, &use))
+	{
+		return SidResult(GetLastError());
+	}
 
-	// try it again
-	bRet = LookupAccountName(NULL, user, newsid, &cbSid, refDomain, &cchRefDomain, &use);
-	if (!bRet) {
-		WcaLog(LOGMSG_STANDARD, "Failed to lookup account name %d", GetLastError());
-		goto cleanAndFail;
+	if (!IsValidSid(newsid.get()))
+	{
+		return SidResult(ERROR_INVALID_SID);
 	}
-	if (!IsValidSid(newsid)) {
-		WcaLog(LOGMSG_STANDARD, "New SID is invalid");
-		goto cleanAndFail;
-	}
-	
-	WcaLog(LOGMSG_STANDARD, "Got SID from %S", refDomain);
-	delete[] refDomain;
-	return newsid;
 
-cleanAndFail:
-	if (newsid) {
-		delete[](BYTE*)newsid;
-	}
-	if (refDomain) {
-		delete[] refDomain;
-	}
-	return NULL;
+	return SidResult(newsid, std::wstring(refDomain.data()), ERROR_SUCCESS);
 }
 
 bool GetNameForSid(LPCWSTR host, PSID sid, std::wstring& namestr) 
@@ -231,7 +204,7 @@ void BuildExplicitAccessWithSid(EXPLICIT_ACCESS_W &data, PSID pSID, DWORD perms,
 	data.Trustee.ptstrName = (LPTSTR)pSID;
 }
 
-int EnableServiceForUser(CustomActionData& data, const std::wstring& service)
+int EnableServiceForUser(PSID sid, const std::wstring& service)
 {
     int ret = 0;
     SC_HANDLE hscm = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS | GENERIC_ALL | READ_CONTROL);
@@ -245,7 +218,6 @@ int EnableServiceForUser(CustomActionData& data, const std::wstring& service)
 	BYTE bigbuf[8192];
 	DWORD pcbBytes = 8192;
 	char *ssec = NULL;
-	PSID sid = NULL;
 	PSECURITY_DESCRIPTOR psec = (PSECURITY_DESCRIPTOR)bigbuf;
 	EXPLICIT_ACCESSW ea;
 	memset(&ea, 0, sizeof(EXPLICIT_ACCESSW));
@@ -264,10 +236,6 @@ int EnableServiceForUser(CustomActionData& data, const std::wstring& service)
 	
 	if (!QueryServiceObjectSecurity(hService, DACL_SECURITY_INFORMATION , psec, 8192, &pcbBytes)) {
 		WcaLog(LOGMSG_STANDARD,"Failed to query security info %d\n", GetLastError());
-		goto cleanAndReturn;
-	}
-	if ((sid = GetSidForUser(NULL, data.Username().c_str())) == NULL) {
-		WcaLog(LOGMSG_STANDARD,"Failed to get sid\n");
 		goto cleanAndReturn;
 	}
 	// Get the DACL...
@@ -325,9 +293,6 @@ cleanAndReturn:
 	}
 	if (hService) {
 		CloseServiceHandle(hscm);
-	}
-	if (sid) {
-		delete[](BYTE *) sid;
 	}
     return ret;
 }

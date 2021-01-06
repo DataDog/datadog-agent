@@ -26,7 +26,6 @@ const DefaultRegistryFilename = "registry.json"
 
 const defaultFlushPeriod = 1 * time.Second
 const defaultCleanupPeriod = 300 * time.Second
-const defaultTTL = 23 * time.Hour
 
 // latest version of the API used by the auditor to retrieve the registry from disk.
 const registryAPIVersion = 2
@@ -72,11 +71,11 @@ type RegistryAuditor struct {
 }
 
 // New returns an initialized Auditor
-func New(runPath string, filename string, health *health.Handle) *RegistryAuditor {
+func New(runPath string, filename string, ttl time.Duration, health *health.Handle) *RegistryAuditor {
 	return &RegistryAuditor{
 		health:       health,
 		registryPath: filepath.Join(runPath, filename),
-		entryTTL:     defaultTTL,
+		entryTTL:     ttl,
 	}
 }
 

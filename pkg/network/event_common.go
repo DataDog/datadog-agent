@@ -145,6 +145,7 @@ type ConnectionStats struct {
 	DNSSuccessLatencySum   uint64
 	DNSFailureLatencySum   uint64
 	DNSCountByRcode        map[uint32]uint32
+	DNSStatsByDomain       map[string]DNSStats
 }
 
 // IPTranslation can be associated with a connection to show the connection is NAT'd
@@ -252,4 +253,12 @@ func printAddress(address util.Address, names []string) string {
 	}
 
 	return strings.Join(names, ",")
+}
+
+// DNSStats holds statistics corresponding to a particular domain
+type DNSStats struct {
+	DNSTimeouts          uint32
+	DNSSuccessLatencySum uint64
+	DNSFailureLatencySum uint64
+	DNSCountByRcode      map[uint32]uint32
 }

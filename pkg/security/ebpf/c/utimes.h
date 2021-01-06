@@ -74,8 +74,6 @@ int __attribute__((always_inline)) trace__sys_utimes_ret(struct pt_regs *ctx) {
     }
 
     struct utime_event_t event = {
-        .event.type = EVENT_UTIME,
-        .event.timestamp = bpf_ktime_get_ns(),
         .syscall.retval = retval,
         .atime = {
             .tv_sec = syscall->setattr.atime.tv_sec,
@@ -93,12 +91,12 @@ int __attribute__((always_inline)) trace__sys_utimes_ret(struct pt_regs *ctx) {
         },
     };
 
-    struct proc_cache_t *entry = fill_process_data(&event.process);
-    fill_container_data(entry, &event.container);
+    struct proc_cache_t *entry = fill_process_context(&event.process);
+    fill_container_context(entry, &event.container);
 
     // dentry resolution in setattr.h
 
-    send_event(ctx, event);
+    send_event(ctx, EVENT_UTIME, event);
 
     return 0;
 }

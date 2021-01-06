@@ -291,6 +291,7 @@
         <span class="stat_subtitle">{{ .name }}</span>
         <span class="stat_subdata">
           {{- range .sources }}
+            <span class="stat_subdata">
             Type: {{ .type }}</br>
             {{- range $key, $value := .configuration }}
             {{$key}}: {{$value}}</br>
@@ -313,7 +314,7 @@
               </span>
             {{- end }}
             {{- end }}
-            BytesRead: {{ .bytes_read }}</br>
+            </span>
           {{- end }}
         </span>
       {{- end }}

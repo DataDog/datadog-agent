@@ -10,9 +10,9 @@ static __attribute__((always_inline)) int trace__cgroup_write(struct pt_regs *ct
     u32 cookie = 0;
 
     // Retrieve the cookie of the process
-    u32 *cookie_p = (u32 *) bpf_map_lookup_elem(&pid_cookie, &pid);
-    if (cookie_p) {
-        cookie = *cookie_p;
+    struct pid_cache_t *pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &pid);
+    if (pid_entry) {
+        cookie = pid_entry->cookie;
         // Select the old cache entry
         old_entry = bpf_map_lookup_elem(&proc_cache, &cookie);
         if (old_entry) {
@@ -39,7 +39,10 @@ static __attribute__((always_inline)) int trace__cgroup_write(struct pt_regs *ct
     bpf_map_update_elem(&proc_cache, &cookie, &new_entry, BPF_ANY);
 
     if (new_cookie) {
-        bpf_map_update_elem(&pid_cookie, &pid, &cookie, BPF_ANY);
+        struct pid_cache_t new_pid_entry = {
+            .cookie = cookie,
+        };
+        bpf_map_update_elem(&pid_cache, &pid, &new_pid_entry, BPF_ANY);
     }
     return 0;
 }
