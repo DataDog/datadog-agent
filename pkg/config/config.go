@@ -671,8 +671,7 @@ func InitConfig(config Config) {
 	config.SetKnown("proxy.http")
 	config.SetKnown("proxy.https")
 	config.SetKnown("proxy.no_proxy")
-
-	config.BindEnvAndSetDefault("proxy.no_proxy_nonexact_match", false)
+	config.SetKnown("proxy.no_proxy_nonexact_match")
 
 	// Orchestrator Explorer DCA and process-agent
 	config.BindEnvAndSetDefault("orchestrator_explorer.enabled", false)
