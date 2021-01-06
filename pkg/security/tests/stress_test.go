@@ -118,6 +118,12 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 
 	if report.Delta() < -0.10 {
 		t.Error("unexpected performance degradation")
+
+		cmdOutput, _ := exec.Command("pstree").Output()
+		fmt.Println(string(cmdOutput))
+
+		cmdOutput, _ = exec.Command("ps", "aux").Output()
+		fmt.Println(string(cmdOutput))
 	}
 }
 
@@ -260,6 +266,11 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 
 	if report.Delta() < -0.10 {
 		t.Error("unexpected performance degradation")
+		cmdOutput, _ := exec.Command("pstree").Output()
+		fmt.Println(string(cmdOutput))
+
+		cmdOutput, _ = exec.Command("ps", "aux").Output()
+		fmt.Println(string(cmdOutput))
 	}
 }
 
