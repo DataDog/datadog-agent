@@ -81,8 +81,6 @@ SYSCALL_COMPAT_KRETPROBE(mount) {
     };
 
     struct mount_event_t event = {
-        .event.type = EVENT_MOUNT,
-        .event.timestamp = bpf_ktime_get_ns(),
         .syscall.retval = PT_REGS_RC(ctx),
         .mount_id = get_mount_mount_id(syscall->mount.src_mnt),
         .group_id = get_mount_peer_group_id(syscall->mount.src_mnt),
@@ -103,7 +101,7 @@ SYSCALL_COMPAT_KRETPROBE(mount) {
 
     resolve_dentry(dentry, path_key, 0);
 
-    send_mountpoints_events(ctx, event);
+    send_event(ctx, EVENT_MOUNT, event);
 
     return 0;
 }

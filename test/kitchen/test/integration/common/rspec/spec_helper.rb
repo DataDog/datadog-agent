@@ -427,7 +427,7 @@ shared_examples_for "an installed Agent" do
       end
       is_signed = is_file_signed(msi_path)
       expect(is_signed).to be_truthy
-      
+
       verify_signature_files = [
         "#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent\\process-agent.exe",
         "#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent\\trace-agent.exe",
