@@ -251,6 +251,30 @@ func (suite *KubeletTestSuite) TestGetLocalPodList() {
 	}
 }
 
+func (suite *KubeletTestSuite) TestGetLocalPodListWithBrokenKubelet() {
+	mockConfig := config.Mock()
+
+	kubelet, err := newDummyKubelet("./testdata/invalid.json")
+	require.Nil(suite.T(), err)
+	ts, kubeletPort, err := kubelet.Start()
+	defer ts.Close()
+	require.Nil(suite.T(), err)
+
+	mockConfig.Set("kubernetes_kubelet_host", "localhost")
+	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.Set("kubernetes_https_kubelet_port", -1)
+	mockConfig.Set("kubelet_tls_verify", false)
+	mockConfig.Set("kubelet_auth_token_path", "")
+
+	kubeutil := suite.getCustomKubeUtil()
+	kubelet.dropRequests() // Throwing away first GETs
+
+	pods, err := kubeutil.GetLocalPodList()
+	require.NotNil(suite.T(), err)
+	require.Len(suite.T(), pods, 0)
+	require.True(suite.T(), errors.IsRetriable(err))
+}
+
 func (suite *KubeletTestSuite) TestGetNodeInfo() {
 	mockConfig := config.Mock()
 
@@ -386,6 +410,41 @@ func (suite *KubeletTestSuite) TestGetPodForContainerID() {
 	// Valid container ID
 	pod, err = kubeutil.GetPodForContainerID("container_id://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6")
 	// The /pods request is still cached
+	require.Nil(suite.T(), err)
+	require.NotNil(suite.T(), pod)
+	require.Equal(suite.T(), "kube-proxy-rnd5q", pod.Metadata.Name)
+}
+
+func (suite *KubeletTestSuite) TestGetPodFromUID() {
+	mockConfig := config.Mock()
+
+	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
+	require.Nil(suite.T(), err)
+	ts, kubeletPort, err := kubelet.Start()
+	defer ts.Close()
+	require.Nil(suite.T(), err)
+
+	mockConfig.Set("kubernetes_kubelet_host", "localhost")
+	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.Set("kubernetes_https_kubelet_port", -1)
+
+	kubeutil := suite.getCustomKubeUtil()
+	kubelet.dropRequests() // Throwing away first GETs
+
+	// Empty Pod UID
+	pod, err := kubeutil.GetPodFromUID("")
+	require.Nil(suite.T(), pod)
+	require.NotNil(suite.T(), err)
+	require.Contains(suite.T(), err.Error(), "pod UID is empty")
+
+	// Not found Pod UID
+	pod, err = kubeutil.GetPodFromUID("invalid")
+	require.Nil(suite.T(), pod)
+	require.NotNil(suite.T(), err)
+	require.True(suite.T(), errors.IsNotFound(err))
+
+	// Valid Pod UID
+	pod, err = kubeutil.GetPodFromUID("e42b42ec-0749-11e8-a2b8-000c29dea4f6")
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pod)
 	require.Equal(suite.T(), "kube-proxy-rnd5q", pod.Metadata.Name)
@@ -831,7 +890,7 @@ func TestGetStatusForContainerID(t *testing.T) {
 	assert.Equal(t, containerFoo, container)
 
 	_, err := k.GetStatusForContainerID(pod, serviceBaz.GetEntityID())
-	assert.EqualError(t, err, "Container docker://bazID not found")
+	assert.EqualError(t, err, `"container docker://bazID in pod" not found`)
 }
 
 func TestGetSpecForContainerName(t *testing.T) {

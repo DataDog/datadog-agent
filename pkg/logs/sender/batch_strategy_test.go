@@ -38,10 +38,10 @@ func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 
 	content = []byte("a\nb")
 
-	message1 := message.NewMessage([]byte("a"), nil, "")
+	message1 := message.NewMessage([]byte("a"), nil, "", 0)
 	input <- message1
 
-	message2 := message.NewMessage([]byte("b"), nil, "")
+	message2 := message.NewMessage([]byte("b"), nil, "", 0)
 	input <- message2
 
 	// expect payload to be sent because buffer is full
@@ -100,7 +100,7 @@ func TestBatchStrategySendsPayloadWhenClosingInput(t *testing.T) {
 
 	content = []byte("a")
 
-	message := message.NewMessage(content, nil, "")
+	message := message.NewMessage(content, nil, "", 0)
 	input <- message
 
 	start := time.Now()
@@ -122,7 +122,7 @@ func TestBatchStrategyShouldNotBlockWhenForceStopping(t *testing.T) {
 		return context.Canceled
 	}
 
-	message := message.NewMessage(content, nil, "")
+	message := message.NewMessage(content, nil, "", 0)
 	go func() {
 		input <- message
 		close(input)
@@ -140,7 +140,7 @@ func TestBatchStrategyShouldNotBlockWhenStoppingGracefully(t *testing.T) {
 		return nil
 	}
 
-	message := message.NewMessage(content, nil, "")
+	message := message.NewMessage(content, nil, "", 0)
 	go func() {
 		input <- message
 		close(input)

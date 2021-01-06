@@ -771,8 +771,7 @@ func TestGetLinkWithAuthCheck(t *testing.T) {
 }
 
 func TestGetFDCountLocalFS(t *testing.T) {
-	// this test would be flaky in CI with changing procfs
-	t.Skip("flaky test in CI")
+	maySkipLocalTest(t)
 	probe := NewProcessProbe()
 	defer probe.Close()
 
@@ -787,6 +786,8 @@ func TestGetFDCountLocalFS(t *testing.T) {
 		// skip the ones that have permission issues
 		if expFdCount, err := expProc.NumFDs(); err == nil {
 			assert.Equal(t, expFdCount, fdCount)
+		} else {
+			assert.Equal(t, int32(-1), fdCount)
 		}
 	}
 }

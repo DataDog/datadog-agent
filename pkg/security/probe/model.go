@@ -359,18 +359,33 @@ func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
 type RmdirEvent struct {
 	SyscallEvent
 	FileEvent
+	DiscarderRevision uint32 `field:"-"`
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *RmdirEvent) UnmarshalBinary(data []byte) (int, error) {
-	return unmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
+	n, err := unmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
+	if err != nil {
+		return n, err
+	}
+
+	data = data[n:]
+	if len(data) < 8 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.DiscarderRevision = ebpf.ByteOrder.Uint32(data[0:4])
+	// padding
+
+	return n + 8, nil
 }
 
 // UnlinkEvent represents an unlink event
 type UnlinkEvent struct {
 	SyscallEvent
 	FileEvent
-	Flags uint32 `field:"flags"`
+	Flags             uint32 `field:"flags"`
+	DiscarderRevision uint32 `field:"-"`
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -381,24 +396,40 @@ func (e *UnlinkEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	data = data[n:]
-	if len(data) < 4 {
+	if len(data) < 8 {
 		return 0, ErrNotEnoughData
 	}
 
 	e.Flags = ebpf.ByteOrder.Uint32(data[0:4])
-	return n + 4, nil
+	e.DiscarderRevision = ebpf.ByteOrder.Uint32(data[4:8])
+
+	return n + 8, nil
 }
 
 // RenameEvent represents a rename event
 type RenameEvent struct {
 	SyscallEvent
-	Old FileEvent `field:"old"`
-	New FileEvent `field:"new"`
+	Old               FileEvent `field:"old"`
+	New               FileEvent `field:"new"`
+	DiscarderRevision uint32    `field:"-"`
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *RenameEvent) UnmarshalBinary(data []byte) (int, error) {
-	return unmarshalBinary(data, &e.SyscallEvent, &e.Old, &e.New)
+	n, err := unmarshalBinary(data, &e.SyscallEvent, &e.Old, &e.New)
+	if err != nil {
+		return n, err
+	}
+
+	data = data[n:]
+	if len(data) < 8 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.DiscarderRevision = ebpf.ByteOrder.Uint32(data[0:4])
+	// padding
+
+	return n + 8, nil
 }
 
 // UtimesEvent represents a utime event
@@ -515,7 +546,8 @@ func (e *MountEvent) GetFSType() string {
 // UmountEvent represents an umount event
 type UmountEvent struct {
 	SyscallEvent
-	MountID uint32
+	MountID           uint32
+	DiscarderRevision uint32 `field:"-"`
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -526,12 +558,14 @@ func (e *UmountEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	data = data[n:]
-	if len(data) < 4 {
+	if len(data) < 8 {
 		return 0, ErrNotEnoughData
 	}
 
 	e.MountID = ebpf.ByteOrder.Uint32(data[0:4])
-	return 4, nil
+	e.DiscarderRevision = ebpf.ByteOrder.Uint32(data[4:8])
+
+	return 8, nil
 }
 
 // ContainerContext holds the container context of an event
@@ -795,8 +829,9 @@ func (e *ExecEvent) ResolveExitTimestamp(event *Event) time.Time {
 
 // InvalidateDentryEvent defines a invalidate dentry event
 type InvalidateDentryEvent struct {
-	Inode   uint64
-	MountID uint32
+	Inode             uint64
+	MountID           uint32
+	DiscarderRevision uint32
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -807,8 +842,7 @@ func (e *InvalidateDentryEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	e.Inode = ebpf.ByteOrder.Uint64(data[0:8])
 	e.MountID = ebpf.ByteOrder.Uint32(data[8:12])
-
-	// 4 of padding
+	e.DiscarderRevision = ebpf.ByteOrder.Uint32(data[12:16])
 
 	return 16, nil
 }
@@ -880,16 +914,26 @@ func (p *ProcessContext) UnmarshalBinary(data []byte) (int, error) {
 
 // ResolveUser resolves the user id of the process to a username
 func (p *ProcessContext) ResolveUser(event *Event) string {
+	return p.ResolveUserWithResolvers(event.resolvers)
+}
+
+// ResolveUserWithResolvers resolves the user id of the process to a username
+func (p *ProcessContext) ResolveUserWithResolvers(resolvers *Resolvers) string {
 	if len(p.User) == 0 {
-		p.User, _ = event.resolvers.UserGroupResolver.ResolveUser(int(p.UID))
+		p.User, _ = resolvers.UserGroupResolver.ResolveUser(int(p.UID))
 	}
 	return p.User
 }
 
 // ResolveGroup resolves the group id of the process to a group name
 func (p *ProcessContext) ResolveGroup(event *Event) string {
+	return p.ResolveGroupWithResolvers(event.resolvers)
+}
+
+// ResolveGroupWithResolvers resolves the group id of the process to a group name
+func (p *ProcessContext) ResolveGroupWithResolvers(resolvers *Resolvers) string {
 	if len(p.Group) == 0 {
-		p.Group, _ = event.resolvers.UserGroupResolver.ResolveGroup(int(p.GID))
+		p.Group, _ = resolvers.UserGroupResolver.ResolveGroup(int(p.GID))
 	}
 	return p.Group
 }
@@ -962,23 +1006,23 @@ func (e *Event) GetPointer() unsafe.Pointer {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *Event) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 16 {
+	if len(data) < 24 {
 		return 0, ErrNotEnoughData
 	}
 
-	e.TimestampRaw = ebpf.ByteOrder.Uint64(data[0:8])
-	e.Type = ebpf.ByteOrder.Uint64(data[8:16])
+	e.TimestampRaw = ebpf.ByteOrder.Uint64(data[8:16])
+	e.Type = ebpf.ByteOrder.Uint64(data[16:24])
 
-	return 16, nil
+	return 24, nil
 }
 
-// TimestampFromEventData extracts timestamp from the raw data event
-func TimestampFromEventData(data []byte) (uint64, error) {
-	if len(data) < 8 {
-		return 0, ErrNotEnoughData
+// ExtractEventInfo extracts cpu and timestamp from the raw data event
+func ExtractEventInfo(data []byte) (uint64, uint64, error) {
+	if len(data) < 16 {
+		return 0, 0, ErrNotEnoughData
 	}
 
-	return ebpf.ByteOrder.Uint64(data[0:8]), nil
+	return ebpf.ByteOrder.Uint64(data[0:8]), ebpf.ByteOrder.Uint64(data[8:16]), nil
 }
 
 // ResolveEventTimestamp resolves the monolitic kernel event timestamp to an absolute time

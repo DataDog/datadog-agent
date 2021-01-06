@@ -1,0 +1,116 @@
+---
+# FIXME: our current Gitlab version doesn't support importing a file more than once
+# For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
+# See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
+# include:
+#   - /.gitlab/kitchen_common/testing.yml
+
+.if_deploy_6: &if_deploy_6
+  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_6 != ""
+
+.if_deploy_7: &if_deploy_7
+  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_7 != ""
+
+# Kitchen: OSes
+# -------------
+
+.kitchen_os_windows:
+  before_script:  # Note: if you are changing this, remember to also change .kitchen_test_windows_installer, which has a copy of this with less TEST_PLATFORMS defined.
+    - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
+    - rsync -azr --delete ./ $SRC_PATH
+    - export TEST_PLATFORMS="win2008r2,id,/subscriptions/8c56d827-5f07-45ce-8f2b-6c5001db5c6f/resourceGroups/kitchen-test-images/providers/Microsoft.Compute/galleries/kitchenimages/images/Windows2008-R2-SP1/versions/1.0.0"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012,urn,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190410"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012r2,urn,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20190416"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2016,urn,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:2016.127.20190416"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2019,urn,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:2019.0.20190410"
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
+
+# Kitchen: tests
+# --------------
+
+.kitchen_test_windows_installer:
+  before_script:  # Use a smaller set of TEST_PLATFORMS than .kitchen_os_windows
+    - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
+    - rsync -azr --delete ./ $SRC_PATH
+    - export TEST_PLATFORMS="win2012,urn,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190410"
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
+  script:
+    - bash -l tasks/run-test-kitchen.sh windows-install-test $AGENT_MAJOR_VERSION
+
+# Kitchen: Test types (test suite * agent flavor + azure location)
+# -------------------------------
+
+.kitchen_test_windows_installer_agent:
+  extends:
+    - .kitchen_test_windows_installer
+    - .kitchen_datadog_agent_flavor
+    - .kitchen_azure_location_north_central_us
+
+# Kitchen: scenarios (os * agent)
+# -------------------------------
+
+.kitchen_scenario_windows_a6:
+  extends:
+    - .kitchen_os_windows
+    - .kitchen_agent_a6
+  needs: ["deploy_windows_testing-a6"]
+
+.kitchen_scenario_windows_a7:
+  extends:
+    - .kitchen_os_windows
+    - .kitchen_agent_a7
+  needs: ["deploy_windows_testing-a7"]
+
+# Kitchen: final test matrix (test types * scenarios)
+# ----------------------------------------------
+
+kitchen_windows_installer_agent-a6:
+  extends:
+    - .kitchen_scenario_windows_a6
+    - .kitchen_test_windows_installer_agent
+  allow_failure: true
+  retry: 0
+
+kitchen_windows_installer_agent-a7:
+  extends:
+    - .kitchen_scenario_windows_a7
+    - .kitchen_test_windows_installer_agent
+  allow_failure: true
+  retry: 0
+
+kitchen_windows_chef_agent-a6:
+  extends:
+    - .kitchen_scenario_windows_a6
+    - .kitchen_test_chef_agent
+
+kitchen_windows_chef_agent-a7:
+  extends:
+    - .kitchen_scenario_windows_a7
+    - .kitchen_test_chef_agent
+
+kitchen_windows_upgrade5_agent-a6:
+  extends:
+    - .kitchen_scenario_windows_a6
+    - .kitchen_test_upgrade5_agent
+
+kitchen_windows_upgrade5_agent-a7:
+  extends:
+    - .kitchen_scenario_windows_a7
+    - .kitchen_test_upgrade5_agent
+
+kitchen_windows_upgrade6_agent-a6:
+  extends:
+    - .kitchen_scenario_windows_a6
+    - .kitchen_test_upgrade6_agent
+
+kitchen_windows_upgrade6_agent-a7:
+  extends:
+    - .kitchen_scenario_windows_a7
+    - .kitchen_test_upgrade6_agent
+
+kitchen_windows_upgrade7_agent-a7:
+  extends:
+    - .kitchen_scenario_windows_a7
+    - .kitchen_test_upgrade7_agent

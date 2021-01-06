@@ -110,8 +110,8 @@ func (m *Module) Register(httpMux *http.ServeMux) error {
 }
 
 func (m *Module) displayReport(report *probe.Report) {
-	content, _ := json.MarshalIndent(report, "", "\t")
-	log.Debug(string(content))
+	content, _ := json.Marshal(report)
+	log.Debugf("Policy report: %s", content)
 }
 
 // Reload the rule set

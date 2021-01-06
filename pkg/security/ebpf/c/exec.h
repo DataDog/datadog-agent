@@ -188,8 +188,6 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     u64 ts = bpf_ktime_get_ns();
 
     struct exec_event_t event = {
-        .event.type = EVENT_FORK,
-        .event.timestamp = ts,
         .pid_entry.fork_timestamp = ts,
     };
     bpf_get_current_comm(&event.proc_entry.comm, sizeof(event.proc_entry.comm));
@@ -231,7 +229,7 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     bpf_map_update_elem(&pid_cache, &pid, &event.pid_entry, BPF_ANY);
 
     // send the entry to maintain userspace cache
-    send_process_events(args, event);
+    send_event(args, EVENT_FORK, event);
 
     return 0;
 }
@@ -254,14 +252,11 @@ int kprobe_do_exit(struct pt_regs *ctx) {
         }
 
         // send the entry to maintain userspace cache
-        struct exit_event_t event = {
-            .event.type = EVENT_EXIT,
-            .event.timestamp = bpf_ktime_get_ns(),
-        };
+        struct exit_event_t event = {};
         struct proc_cache_t *cache_entry = fill_process_context(&event.process);
         fill_container_context(cache_entry, &event.container);
 
-        send_process_events(ctx, event);
+        send_event(ctx, EVENT_EXIT, event);
     }
 
     return 0;
@@ -295,8 +290,6 @@ int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
         struct proc_cache_t *proc_entry = bpf_map_lookup_elem(&proc_cache, &cookie);
         if (proc_entry) {
             struct exec_event_t event = {
-                .event.type = EVENT_EXEC,
-                .event.timestamp = bpf_ktime_get_ns(),
                 .proc_entry.executable = {
                     .inode = proc_entry->executable.inode,
                     .overlay_numlower = proc_entry->executable.overlay_numlower,
@@ -316,7 +309,7 @@ int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
             fill_container_context(proc_entry, &event.proc_entry.container);
 
             // send the entry to maintain userspace cache
-            send_process_events(ctx, event);
+            send_event(ctx, EVENT_EXEC, event);
         }
     }
 

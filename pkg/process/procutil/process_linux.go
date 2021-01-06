@@ -105,15 +105,15 @@ func (p *Probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, err
 		memInfoEx := p.parseStatm(pathForPID)
 
 		statsByPID[pid] = &Stats{
-			CreateTime:  statInfo.createTime,      // /proc/{pid}/{stat}
-			Nice:        statInfo.nice,            // /proc/{pid}/{stat}
-			OpenFdCount: p.getFDCount(pathForPID), // /proc/{pid}/fd, requires permission checks
-			CPUTime:     statInfo.cpuStat,         // /proc/{pid}/{stat}
-			MemInfo:     statusInfo.memInfo,       // /proc/{pid}/status
-			MemInfoEx:   memInfoEx,                // /proc/{pid}/statm
-			CtxSwitches: statusInfo.ctxSwitches,   // /proc/{pid}/status
-			NumThreads:  statusInfo.numThreads,    // /proc/{pid}/status
-			IOStat:      ioInfo,                   // /proc/{pid}/io, requires permission checks
+			CreateTime:  statInfo.createTime,      // /proc/[pid]/stat
+			Nice:        statInfo.nice,            // /proc/[pid]/stat
+			OpenFdCount: p.getFDCount(pathForPID), // /proc/[pid]/fd, requires permission checks
+			CPUTime:     statInfo.cpuStat,         // /proc/[pid]/stat
+			MemInfo:     statusInfo.memInfo,       // /proc/[pid]/status
+			MemInfoEx:   memInfoEx,                // /proc/[pid]/statm
+			CtxSwitches: statusInfo.ctxSwitches,   // /proc/[pid]/status
+			NumThreads:  statusInfo.numThreads,    // /proc/[pid]/status
+			IOStat:      ioInfo,                   // /proc/[pid]/io, requires permission checks
 		}
 	}
 	return statsByPID, nil
@@ -147,26 +147,26 @@ func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 		memInfoEx := p.parseStatm(pathForPID)
 
 		procsByPID[pid] = &Process{
-			Pid:     pid,                                       // /proc/{pid}
-			Ppid:    statInfo.ppid,                             // /proc/{pid}/{stat}
-			Cmdline: cmdline,                                   // /proc/{pid}/cmdline
-			Name:    statusInfo.name,                           // /proc/{pid}/status
-			Status:  statusInfo.status,                         // /proc/{pid}/status
-			Uids:    statusInfo.uids,                           // /proc/{pid}/status
-			Gids:    statusInfo.gids,                           // /proc/{pid}/status
-			Cwd:     p.getLinkWithAuthCheck(pathForPID, "cwd"), // /proc/{pid}/cwd, requires permission checks
-			Exe:     p.getLinkWithAuthCheck(pathForPID, "exe"), // /proc/{pid}/exe, requires permission checks
-			NsPid:   statusInfo.nspid,                          // /proc/{pid}/status
+			Pid:     pid,                                       // /proc/[pid]
+			Ppid:    statInfo.ppid,                             // /proc/[pid]/stat
+			Cmdline: cmdline,                                   // /proc/[pid]/cmdline
+			Name:    statusInfo.name,                           // /proc/[pid]/status
+			Status:  statusInfo.status,                         // /proc/[pid]/status
+			Uids:    statusInfo.uids,                           // /proc/[pid]/status
+			Gids:    statusInfo.gids,                           // /proc/[pid]/status
+			Cwd:     p.getLinkWithAuthCheck(pathForPID, "cwd"), // /proc/[pid]/cwd, requires permission checks
+			Exe:     p.getLinkWithAuthCheck(pathForPID, "exe"), // /proc/[pid]/exe, requires permission checks
+			NsPid:   statusInfo.nspid,                          // /proc/[pid]/status
 			Stats: &Stats{
-				CreateTime:  statInfo.createTime,      // /proc/{pid}/{stat}
-				Nice:        statInfo.nice,            // /proc/{pid}/{stat}
-				OpenFdCount: p.getFDCount(pathForPID), // /proc/{pid}/fd, requires permission checks
-				CPUTime:     statInfo.cpuStat,         // /proc/{pid}/{stat}
-				MemInfo:     statusInfo.memInfo,       // /proc/{pid}/status
-				MemInfoEx:   memInfoEx,                // /proc/{pid}/statm
-				CtxSwitches: statusInfo.ctxSwitches,   // /proc/{pid}/status
-				NumThreads:  statusInfo.numThreads,    // /proc/{pid}/status
-				IOStat:      ioInfo,                   // /proc/{pid}/io, requires permission checks
+				CreateTime:  statInfo.createTime,      // /proc/[pid]/stat
+				Nice:        statInfo.nice,            // /proc/[pid]/stat
+				OpenFdCount: p.getFDCount(pathForPID), // /proc/[pid]/fd, requires permission checks
+				CPUTime:     statInfo.cpuStat,         // /proc/[pid]/stat
+				MemInfo:     statusInfo.memInfo,       // /proc/[pid]/status
+				MemInfoEx:   memInfoEx,                // /proc/[pid]/statm
+				CtxSwitches: statusInfo.ctxSwitches,   // /proc/[pid]/status
+				NumThreads:  statusInfo.numThreads,    // /proc/[pid]/status
+				IOStat:      ioInfo,                   // /proc/[pid]/io, requires permission checks
 			},
 		}
 	}
@@ -566,18 +566,18 @@ func (p *Probe) getFDCount(pidPath string) int32 {
 	path := filepath.Join(pidPath, "fd")
 
 	if err := p.ensurePathReadable(path); err != nil {
-		return 0
+		return -1
 	}
 
 	d, err := os.Open(path)
 	if err != nil {
-		return 0
+		return -1
 	}
 	defer d.Close()
 
 	names, err := d.Readdirnames(-1)
 	if err != nil {
-		return 0
+		return -1
 	}
 	return int32(len(names))
 }
