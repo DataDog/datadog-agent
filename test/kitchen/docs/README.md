@@ -208,3 +208,15 @@ Each test suite runs one or more chef recipes (usually to install the agent in v
 - Remember that your main test file must be in `test/integration/<suite_name>/<suite_name>_spec.rb`.
 
 4. Create the necessary Gitlab jobs to run your test suite on all platforms, Agent flavors and versions you want, following the existing naming conventions.
+
+5. Update the periodic cleanup job (`periodic_kitchen_cleanup_azure`)
+
+When kitchen tests are run, VMs are created in dedicated resource groups in Azure. These resource groups are prefixed with `kitchen-<name_of_the_test_suite>`.
+
+The periodic cleanup jobs runs the `cleanup_azure.py` script on a given list of Azure resource group prefixes. Eg.:
+```
+RESOURCE_GROUP_PREFIX=kitchen-dd-agent python3.6 ~/deploy_scripts/cleanup_azure.py
+```
+cleans up all resources created by test suites that start with `dd-agent`.
+
+If you add a new test suite that doesn't match any of the already present prefixes, then you need to add a line to the cleanup job to clean up the resources created under this new prefix.
