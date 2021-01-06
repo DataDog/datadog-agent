@@ -770,6 +770,25 @@ func TestGetFDCountLocalFS(t *testing.T) {
 	}
 }
 
+func TestPermCache(t *testing.T) {
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc")
+	defer os.Unsetenv("HOST_PROC")
+	probe := NewProcessProbe()
+	defer probe.Close()
+
+	procs, err := probe.ProcessesByPID(time.Now())
+	assert.NoError(t, err)
+	for pid, proc := range procs {
+		result, found := probe.permCache.Get(strconv.Itoa(int(pid)))
+		require.NotNil(t, result)
+		assert.True(t, found)
+		// TestFS always have permission
+		entry := result.(*permInfo)
+		assert.True(t, entry.isReadable)
+		assert.Equal(t, proc.Stats.CreateTime, entry.createTime)
+	}
+}
+
 func BenchmarkGetCmdGopsutilTestFS(b *testing.B) {
 	os.Setenv("HOST_PROC", "resources/test_procfs/proc")
 	defer os.Unsetenv("HOST_PROC")

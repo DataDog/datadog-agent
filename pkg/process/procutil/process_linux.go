@@ -640,7 +640,6 @@ func (p *Probe) ensurePathReadable(path string) error {
 		return nil
 	}
 
-	// TODO (sk): Provide caching on this!
 	info, err := os.Lstat(path)
 	if err != nil {
 		return err
