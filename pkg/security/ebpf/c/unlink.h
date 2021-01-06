@@ -98,8 +98,6 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
                   mask_has_event(enabled_events, EVENT_RMDIR);
     if (enabled) {
         struct unlink_event_t event = {
-            .event.type = syscall->unlink.flags&AT_REMOVEDIR ? EVENT_RMDIR : EVENT_UNLINK,
-            .event.timestamp = bpf_ktime_get_ns(),
             .syscall.retval = retval,
             .file = {
                 .mount_id = syscall->unlink.path_key.mount_id,
@@ -113,7 +111,7 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
         struct proc_cache_t *entry = fill_process_context(&event.process);
         fill_container_context(entry, &event.container);
 
-        send_event(ctx, event);
+        send_event(ctx, syscall->unlink.flags&AT_REMOVEDIR ? EVENT_RMDIR : EVENT_UNLINK, event);
     }
 
     invalidate_inode(ctx, syscall->unlink.path_key.mount_id, inode, !enabled);

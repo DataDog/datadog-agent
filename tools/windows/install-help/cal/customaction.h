@@ -77,7 +77,7 @@ LSA_HANDLE GetPolicyHandle();
 
 
 //stopservices.cpp
-VOID  DoStopSvc(std::wstring &svcName);
+VOID DoStopAllServices();
 DWORD DoStartSvc(std::wstring &svcName);
 int doesServiceExist(std::wstring& svcName);
 int installServices(CustomActionData& data, PSID sid, const wchar_t *password);

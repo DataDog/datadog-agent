@@ -21,6 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/profiling"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const loggerName ddconfig.LoggerName = "PROCESS"
@@ -157,6 +159,15 @@ func runAgent(exit chan struct{}) {
 	// we just pass down empty string
 	updateDockerSocket(dockerSock)
 
+	if cfg.ProfilingEnabled {
+		if err := enableProfiling(cfg); err != nil {
+			log.Warnf("failed to enable profiling: %s", err)
+		} else {
+			log.Info("start profiling process-agent")
+		}
+		defer profiling.Stop()
+	}
+
 	log.Debug("Running process-agent with DEBUG logging enabled")
 	if opts.check != "" {
 		err := debugCheckResults(cfg, opts.check)
@@ -264,4 +275,21 @@ func cleanupAndExit(status int) {
 	}
 
 	os.Exit(status)
+}
+
+func enableProfiling(cfg *config.AgentConfig) error {
+	// allow full url override for development use
+	s := ddconfig.DefaultSite
+	if cfg.ProfilingSite != "" {
+		s = cfg.ProfilingSite
+	}
+
+	site := fmt.Sprintf(profiling.ProfileURLTemplate, s)
+	if cfg.ProfilingURL != "" {
+		site = cfg.ProfilingURL
+	}
+
+	v, _ := version.Agent()
+
+	return profiling.Start(cfg.ProfilingAPIKey, site, cfg.ProfilingEnvironment, "process-agent", fmt.Sprintf("version:%v", v))
 }
