@@ -35,8 +35,6 @@ SYSCALL_KRETPROBE(umount) {
         return 0;
 
     struct umount_event_t event = {
-        .event.type = EVENT_UMOUNT,
-        .event.timestamp = bpf_ktime_get_ns(),
         .syscall .retval = PT_REGS_RC(ctx),
         .mount_id = get_vfsmount_mount_id(syscall->umount.vfs),
     };
@@ -44,7 +42,7 @@ SYSCALL_KRETPROBE(umount) {
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
 
-    send_mountpoints_events(ctx, event);
+    send_event(ctx, EVENT_UMOUNT, event);
 
     return 0;
 }

@@ -442,7 +442,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("kubernetes_map_services_on_ip", false) // temporary opt-out of the new mapping logic
 	config.BindEnvAndSetDefault("kubernetes_apiserver_use_protobuf", false)
 
-	config.SetKnown("prometheus_scrape.checks") // defines any extra prometheus/openmetrics check configurations to be handled by the prometheus config provider
+	config.BindEnvAndSetDefault("prometheus_scrape.enabled", false)           // Enables the prometheus config provider
+	config.SetKnown("prometheus_scrape.checks")                               // Defines any extra prometheus/openmetrics check configurations to be handled by the prometheus config provider
+	config.BindEnvAndSetDefault("prometheus_scrape.service_endpoints", false) // Enables Service Endpoints checks in the prometheus config provider
 
 	// SNMP
 	config.SetKnown("snmp_listener.discovery_interval")
@@ -707,6 +709,7 @@ func InitConfig(config Config) {
 	config.SetKnown("process_config.intervals.connections")
 	config.SetKnown("process_config.expvar_port")
 	config.SetKnown("process_config.log_file")
+	config.SetKnown("process_config.profiling.enabled")
 
 	// System probe
 	config.SetKnown("system_probe_config.enabled")

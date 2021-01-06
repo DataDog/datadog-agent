@@ -288,3 +288,52 @@ func buildURL(annotations map[string]string) string {
 
 	return openmetricsURLPrefix + port + path
 }
+
+// PrometheusAnnotations abstracts a map of prometheus annotations
+type PrometheusAnnotations map[string]string
+
+// GetPrometheusIncludeAnnotations returns the Prometheus AD include annotations based on the Prometheus config
+func GetPrometheusIncludeAnnotations() PrometheusAnnotations {
+	annotations := PrometheusAnnotations{}
+	checks, err := ReadPrometheusChecksConfig()
+	if err != nil {
+		log.Warnf("Couldn't get configurations from 'prometheus_scrape.checks': %v", err)
+		return annotations
+	}
+
+	if len(checks) == 0 {
+		annotations[PrometheusScrapeAnnotation] = "true"
+		return annotations
+	}
+
+	for _, check := range checks {
+		if err := check.Init(); err != nil {
+			log.Errorf("Couldn't init check configuration: %v", err)
+			continue
+		}
+		for k, v := range check.AD.GetIncludeAnnotations() {
+			annotations[k] = v
+		}
+	}
+	return annotations
+}
+
+// IsMatchingAnnotations returns whether annotations matches the AD include rules for Prometheus
+func (a PrometheusAnnotations) IsMatchingAnnotations(svcAnnotations map[string]string) bool {
+	for k, v := range a {
+		if svcAnnotations[k] == v {
+			return true
+		}
+	}
+	return false
+}
+
+// AnnotationsDiffer returns whether the Prometheus AD include annotations have changed
+func (a PrometheusAnnotations) AnnotationsDiffer(first, second map[string]string) bool {
+	for k := range a {
+		if first[k] != second[k] {
+			return true
+		}
+	}
+	return false
+}

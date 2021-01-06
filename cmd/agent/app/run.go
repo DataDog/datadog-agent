@@ -296,7 +296,12 @@ func StartAgent() error {
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
-	common.Forwarder = forwarder.NewDefaultForwarder(forwarder.NewOptions(keysPerDomain))
+
+	// Enable core agent specific features like persistence-to-disk
+	options := forwarder.NewOptions(keysPerDomain)
+	options.EnabledFeatures = forwarder.SetFeature(options.EnabledFeatures, forwarder.CoreFeatures)
+
+	common.Forwarder = forwarder.NewDefaultForwarder(options)
 	log.Debugf("Starting forwarder")
 	common.Forwarder.Start() //nolint:errcheck
 	log.Debugf("Forwarder started")
