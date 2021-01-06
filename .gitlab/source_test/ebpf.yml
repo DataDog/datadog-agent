@@ -30,9 +30,11 @@ tests_ebpf:
     # Compile runtime security stress tests to be executed in kitchen tests
     - inv -e security-agent.build-stress-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/stresssuite
     # Compile master version for comparison, uncomment following lines when merged
-    #- git checkout master
-    #- inv -e security-agent.build-stress-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/stresssuite-master
-    #- git checkout -
+    - git checkout master
+    - inv -e deps
+    - inv -e system-probe.build --bundle-ebpf --incremental-build
+    - inv -e security-agent.build-stress-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/stresssuite-master
+    - git checkout -
   after_script:
     - cd $SRC_PATH
     - cp ./pkg/ebpf/bytecode/build/tracer.o $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer.o
