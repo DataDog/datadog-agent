@@ -16,6 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	yaml "gopkg.in/yaml.v2"
 )
 
 var (
@@ -23,6 +25,14 @@ var (
 	errorStats     = newCollectorErrors()
 	checkScheduler *CheckScheduler
 )
+
+type commonInitConfig struct {
+	LoaderName string `yaml:"loader"`
+}
+
+type commonInstanceConfig struct {
+	LoaderName string `yaml:"loader"`
+}
 
 func init() {
 	schedulerErrs = expvar.NewMap("CheckScheduler")
@@ -134,10 +144,39 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 	checks := []check.Check{}
 	numLoaders := len(s.loaders)
 
+	initConfig := commonInitConfig{}
+	err := yaml.Unmarshal(config.InitConfig, &initConfig)
+	if err != nil {
+		return nil, err
+	}
+	selectedLoader := initConfig.LoaderName
+
 	for _, instance := range config.Instances {
 		errors := []string{}
+		selectedInstanceLoader := selectedLoader
+		instanceConfig := commonInstanceConfig{}
+
+		err := yaml.Unmarshal(instance, &instanceConfig)
+		if err != nil {
+			log.Warnf("Unable to parse instance config for check `%s`: %v", config.Name, instance)
+			continue
+		}
+
+		if instanceConfig.LoaderName != "" {
+			selectedInstanceLoader = instanceConfig.LoaderName
+		}
+		if selectedInstanceLoader != "" {
+			log.Debugf("Loading check instance for check '%s' using loader %s (init_config loader: %s, instance loader: %s)", config.Name, selectedInstanceLoader, initConfig.LoaderName, instanceConfig.LoaderName)
+		} else {
+			log.Debugf("Loading check instance for check '%s' using default loaders", config.Name)
+		}
 
 		for _, loader := range s.loaders {
+			// the loader is skipped if the loader name is set and does not match
+			if (selectedInstanceLoader != "") && (selectedInstanceLoader != loader.Name()) {
+				log.Debugf("Loader name %v does not match, skip loader %v for check %v", selectedInstanceLoader, loader.Name(), config.Name)
+				continue
+			}
 			c, err := loader.Load(config, instance)
 			if err == nil {
 				log.Debugf("%v: successfully loaded check '%s'", loader, config.Name)

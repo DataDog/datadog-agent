@@ -100,6 +100,10 @@ struct syscall_cache_t {
             const char *name;
             u64 real_inode;
         } setxattr;
+
+        struct {
+            u8 is_thread;
+        } clone;
     };
 };
 

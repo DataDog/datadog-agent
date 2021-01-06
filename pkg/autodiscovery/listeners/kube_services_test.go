@@ -12,9 +12,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
@@ -65,7 +63,7 @@ func TestProcessService(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []ContainerPort{{123, "test1"}, {126, "test2"}}, ports)
 
-	tags, err := svc.GetTags()
+	tags, _, err := svc.GetTags()
 	assert.NoError(t, err)
 	expectedTags := []string{
 		"kube_service:myservice",
@@ -349,102 +347,6 @@ func TestServicesDiffer(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			assert.Equal(t, tc.result, servicesDiffer(tc.first, tc.second))
-		})
-	}
-}
-
-func TestGetPrometheusInclAnnotations(t *testing.T) {
-	tests := []struct {
-		name   string
-		config []*common.PrometheusCheck
-		want   map[string]string
-	}{
-		{
-			name:   "empty config, default",
-			config: []*common.PrometheusCheck{},
-			want:   map[string]string{"prometheus.io/scrape": "true"},
-		},
-		{
-			name:   "custom config",
-			config: []*common.PrometheusCheck{{AD: &common.ADConfig{KubeAnnotations: &common.InclExcl{Incl: map[string]string{"include": "true"}}}}},
-			want:   map[string]string{"include": "true"},
-		},
-		{
-			name: "multiple configs",
-			config: []*common.PrometheusCheck{
-				{
-					AD: &common.ADConfig{KubeAnnotations: &common.InclExcl{Incl: map[string]string{"foo": "bar"}}},
-				},
-				{
-					AD: &common.ADConfig{KubeAnnotations: &common.InclExcl{Incl: map[string]string{"baz": "tar"}}},
-				},
-			},
-			want: map[string]string{"foo": "bar", "baz": "tar"},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			config.Datadog.Set("prometheus_scrape.checks", tt.config)
-			assert.EqualValues(t, tt.want, getPrometheusInclAnnotations())
-		})
-	}
-}
-
-func TestIsPrometheusService(t *testing.T) {
-	tests := []struct {
-		name           string
-		promInclAnnot  map[string]string
-		svcAnnotations map[string]string
-		want           bool
-	}{
-		{
-			name:           "is prom service",
-			promInclAnnot:  map[string]string{"prometheus.io/scrape": "true"},
-			svcAnnotations: map[string]string{"prometheus.io/scrape": "true", "foo": "bar"},
-			want:           true,
-		},
-		{
-			name:           "is not prom service",
-			promInclAnnot:  map[string]string{"prometheus.io/scrape": "true"},
-			svcAnnotations: map[string]string{"foo": "bar"},
-			want:           false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			l := &KubeServiceListener{promInclAnnot: tt.promInclAnnot}
-			assert.Equal(t, tt.want, l.isPrometheusService(tt.svcAnnotations))
-		})
-	}
-}
-
-func TestPrometheusAnnotDiffer(t *testing.T) {
-	tests := []struct {
-		name          string
-		promInclAnnot map[string]string
-		first         map[string]string
-		second        map[string]string
-		want          bool
-	}{
-		{
-			name:          "differ",
-			promInclAnnot: map[string]string{"prometheus.io/scrape": "true"},
-			first:         map[string]string{"prometheus.io/scrape": "true", "foo": "bar"},
-			second:        map[string]string{"prometheus.io/scrape": "false", "foo": "bar"},
-			want:          true,
-		},
-		{
-			name:          "no differ",
-			promInclAnnot: map[string]string{"prometheus.io/scrape": "true"},
-			first:         map[string]string{"prometheus.io/scrape": "true", "foo": "bar"},
-			second:        map[string]string{"prometheus.io/scrape": "true", "baz": "tar"},
-			want:          false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			l := &KubeServiceListener{promInclAnnot: tt.promInclAnnot}
-			assert.Equal(t, tt.want, l.prometheusAnnotDiffer(tt.first, tt.second))
 		})
 	}
 }

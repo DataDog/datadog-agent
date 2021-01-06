@@ -96,7 +96,6 @@ type LabelJoinsConfig struct {
 
 // ADConfig contains the autodiscovery configuration data for a PrometheusCheck
 type ADConfig struct {
-	ExcludeAutoconf    *bool     `mapstructure:"exclude_autoconfig_files"`
 	KubeAnnotations    *InclExcl `mapstructure:"kubernetes_annotations"`
 	KubeContainerNames []string  `mapstructure:"kubernetes_container_names"`
 	ContainersRe       *regexp.Regexp
@@ -209,11 +208,6 @@ func (ad *ADConfig) GetExcludeAnnotations() map[string]string {
 
 // defaultAD defaults the values of the autodiscovery structure
 func (ad *ADConfig) defaultAD() {
-	if ad.ExcludeAutoconf == nil {
-		// TODO: Implement OOTB autoconf exclusion
-		ad.ExcludeAutoconf = boolPointer(true)
-	}
-
 	if ad.KubeContainerNames == nil {
 		ad.KubeContainerNames = []string{}
 	}
@@ -271,7 +265,6 @@ var DefaultPrometheusCheck = &PrometheusCheck{
 		},
 	},
 	AD: &ADConfig{
-		ExcludeAutoconf: boolPointer(true),
 		KubeAnnotations: &InclExcl{
 			Excl: map[string]string{PrometheusScrapeAnnotation: "false"},
 			Incl: map[string]string{PrometheusScrapeAnnotation: "true"},
@@ -296,6 +289,51 @@ func buildURL(annotations map[string]string) string {
 	return openmetricsURLPrefix + port + path
 }
 
-func boolPointer(b bool) *bool {
-	return &b
+// PrometheusAnnotations abstracts a map of prometheus annotations
+type PrometheusAnnotations map[string]string
+
+// GetPrometheusIncludeAnnotations returns the Prometheus AD include annotations based on the Prometheus config
+func GetPrometheusIncludeAnnotations() PrometheusAnnotations {
+	annotations := PrometheusAnnotations{}
+	checks, err := ReadPrometheusChecksConfig()
+	if err != nil {
+		log.Warnf("Couldn't get configurations from 'prometheus_scrape.checks': %v", err)
+		return annotations
+	}
+
+	if len(checks) == 0 {
+		annotations[PrometheusScrapeAnnotation] = "true"
+		return annotations
+	}
+
+	for _, check := range checks {
+		if err := check.Init(); err != nil {
+			log.Errorf("Couldn't init check configuration: %v", err)
+			continue
+		}
+		for k, v := range check.AD.GetIncludeAnnotations() {
+			annotations[k] = v
+		}
+	}
+	return annotations
+}
+
+// IsMatchingAnnotations returns whether annotations matches the AD include rules for Prometheus
+func (a PrometheusAnnotations) IsMatchingAnnotations(svcAnnotations map[string]string) bool {
+	for k, v := range a {
+		if svcAnnotations[k] == v {
+			return true
+		}
+	}
+	return false
+}
+
+// AnnotationsDiffer returns whether the Prometheus AD include annotations have changed
+func (a PrometheusAnnotations) AnnotationsDiffer(first, second map[string]string) bool {
+	for k := range a {
+		if first[k] != second[k] {
+			return true
+		}
+	}
+	return false
 }

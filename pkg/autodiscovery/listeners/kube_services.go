@@ -34,7 +34,7 @@ const (
 type KubeServiceListener struct {
 	informer      infov1.ServiceInformer
 	services      map[types.UID]Service
-	promInclAnnot map[string]string
+	promInclAnnot common.PrometheusAnnotations
 	newService    chan<- Service
 	delService    chan<- Service
 	m             sync.RWMutex
@@ -70,7 +70,7 @@ func NewKubeServiceListener() (ServiceListener, error) {
 	return &KubeServiceListener{
 		services:      make(map[types.UID]Service),
 		informer:      servicesInformer,
-		promInclAnnot: getPrometheusInclAnnotations(),
+		promInclAnnot: common.GetPrometheusIncludeAnnotations(),
 	}, nil
 }
 
@@ -132,7 +132,7 @@ func (l *KubeServiceListener) updated(old, obj interface{}) {
 		l.createService(castedObj, false)
 		return
 	}
-	if servicesDiffer(castedObj, castedOld) || l.prometheusAnnotDiffer(castedObj.GetAnnotations(), castedOld.GetAnnotations()) {
+	if servicesDiffer(castedObj, castedOld) || l.promInclAnnot.AnnotationsDiffer(castedObj.GetAnnotations(), castedOld.GetAnnotations()) {
 		l.removeService(castedObj)
 		l.createService(castedObj, false)
 	}
@@ -179,7 +179,7 @@ func (l *KubeServiceListener) createService(ksvc *v1.Service, firstRun bool) {
 		return
 	}
 
-	if !isServiceAnnotated(ksvc, kubeServiceAnnotationFormat) && !l.isPrometheusService(ksvc.GetAnnotations()) {
+	if !isServiceAnnotated(ksvc, kubeServiceAnnotationFormat) && !l.promInclAnnot.IsMatchingAnnotations(ksvc.GetAnnotations()) {
 		// Ignore services with no AD or Prometheus AD include annotation
 		return
 	}
@@ -250,53 +250,6 @@ func (l *KubeServiceListener) removeService(ksvc *v1.Service) {
 	}
 }
 
-// isPrometheusService returns whether a service matches the AD include rules for Prometheus
-func (l *KubeServiceListener) isPrometheusService(svcAnnotations map[string]string) bool {
-	for k, v := range l.promInclAnnot {
-		if svcAnnotations[k] == v {
-			return true
-		}
-	}
-	return false
-}
-
-// prometheusAnnotDiffer returns whether the Prometheus AD include annotations have changed
-func (l *KubeServiceListener) prometheusAnnotDiffer(first, second map[string]string) bool {
-	for k := range l.promInclAnnot {
-		if first[k] != second[k] {
-			return true
-		}
-	}
-	return false
-}
-
-// getPrometheusInclAnnotations returns the Prometheus AD include annotations based on the Prometheus config
-func getPrometheusInclAnnotations() map[string]string {
-	annotations := map[string]string{}
-	checks, err := common.ReadPrometheusChecksConfig()
-	if err != nil {
-		log.Warnf("Couldn't get configurations from 'prometheus_scrape.checks': %v", err)
-		return annotations
-	}
-
-	if len(checks) == 0 {
-		annotations[common.PrometheusScrapeAnnotation] = "true"
-		return annotations
-	}
-
-	for _, check := range checks {
-		if err := check.Init(); err != nil {
-			log.Errorf("Couldn't init check configuration: %v", err)
-			continue
-		}
-		for k, v := range check.AD.GetIncludeAnnotations() {
-			annotations[k] = v
-		}
-	}
-
-	return annotations
-}
-
 // GetEntity returns the unique entity name linked to that service
 func (s *KubeServiceService) GetEntity() string {
 	return s.entity
@@ -329,8 +282,8 @@ func (s *KubeServiceService) GetPorts() ([]ContainerPort, error) {
 }
 
 // GetTags retrieves tags
-func (s *KubeServiceService) GetTags() ([]string, error) {
-	return s.tags, nil
+func (s *KubeServiceService) GetTags() ([]string, string, error) {
+	return s.tags, "", nil
 }
 
 // GetHostname returns nil and an error because port is not supported in Kubelet

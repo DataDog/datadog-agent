@@ -21,6 +21,8 @@ import (
 var (
 	// KERNEL_VERSION(a,b,c) = (a << 16) + (b << 8) + (c)
 	kernel4_13 = kernel.VersionCode(4, 13, 0) //nolint:deadcode,unused
+	// KERNEL_VERSION(a,b,c) = (a << 16) + (b << 8) + (c)
+	kernel5_3 = kernel.VersionCode(5, 3, 0) //nolint:deadcode,unused
 )
 
 // EventType describes the type of an event sent from the kernel
@@ -375,7 +377,7 @@ func initConstants() {
 	initUnlinkConstanst()
 }
 
-func bitmaskToString(bitmask int, intToStrMap map[int]string) string {
+func bitmaskToStringArray(bitmask int, intToStrMap map[int]string) []string {
 	var strs []string
 	var result int
 
@@ -395,8 +397,11 @@ func bitmaskToString(bitmask int, intToStrMap map[int]string) string {
 	}
 
 	sort.Strings(strs)
+	return strs
+}
 
-	return strings.Join(strs, " | ")
+func bitmaskToString(bitmask int, intToStrMap map[int]string) string {
+	return strings.Join(bitmaskToStringArray(bitmask, intToStrMap), " | ")
 }
 
 // OpenFlags represents an open flags bitmask value
@@ -407,6 +412,14 @@ func (f OpenFlags) String() string {
 		return openFlagsStrings[syscall.O_RDONLY]
 	}
 	return bitmaskToString(int(f), openFlagsStrings)
+}
+
+// StringArray returns the open flags as an array of string
+func (f OpenFlags) StringArray() []string {
+	if int(f) == syscall.O_RDONLY {
+		return []string{openFlagsStrings[syscall.O_RDONLY]}
+	}
+	return bitmaskToStringArray(int(f), openFlagsStrings)
 }
 
 // ChmodMode represent a chmod mode bitmask value
@@ -421,6 +434,11 @@ type UnlinkFlags int
 
 func (f UnlinkFlags) String() string {
 	return bitmaskToString(int(f), unlinkFlagsStrings)
+}
+
+// StringArray returns the unlink flags as an array of string
+func (f UnlinkFlags) StringArray() []string {
+	return bitmaskToStringArray(int(f), unlinkFlagsStrings)
 }
 
 // RetValError represents a syscall return error value

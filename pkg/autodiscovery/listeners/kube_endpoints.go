@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -37,6 +38,7 @@ type KubeEndpointsListener struct {
 	serviceInformer   infov1.ServiceInformer
 	serviceLister     listv1.ServiceLister
 	endpoints         map[types.UID][]*KubeEndpointService
+	promInclAnnot     common.PrometheusAnnotations
 	newService        chan<- Service
 	delService        chan<- Service
 	m                 sync.RWMutex
@@ -80,6 +82,7 @@ func NewKubeEndpointsListener() (ServiceListener, error) {
 		endpointsLister:   endpointsInformer.Lister(),
 		serviceInformer:   serviceInformer,
 		serviceLister:     serviceInformer.Lister(),
+		promInclAnnot:     common.GetPrometheusIncludeAnnotations(),
 	}, nil
 }
 
@@ -250,7 +253,7 @@ func (l *KubeEndpointsListener) isEndpointsAnnotated(kep *v1.Endpoints) bool {
 	if err != nil {
 		log.Tracef("Cannot get Kubernetes service: %s", err)
 	}
-	return isServiceAnnotated(ksvc, kubeEndpointsAnnotationFormat)
+	return isServiceAnnotated(ksvc, kubeEndpointsAnnotationFormat) || l.promInclAnnot.IsMatchingAnnotations(ksvc.GetAnnotations())
 }
 
 func (l *KubeEndpointsListener) createService(kep *v1.Endpoints, alreadyExistingService, checkServiceAnnotations bool) {
@@ -394,11 +397,11 @@ func (s *KubeEndpointService) GetPorts() ([]ContainerPort, error) {
 }
 
 // GetTags retrieves tags
-func (s *KubeEndpointService) GetTags() ([]string, error) {
+func (s *KubeEndpointService) GetTags() ([]string, string, error) {
 	if s.tags == nil {
-		return []string{}, nil
+		return []string{}, "", nil
 	}
-	return s.tags, nil
+	return s.tags, "", nil
 }
 
 // GetHostname returns nil and an error because port is not supported in Kubelet

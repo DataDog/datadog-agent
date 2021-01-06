@@ -43,7 +43,6 @@ type ECSService struct {
 	runtime         string
 	ADIdentifiers   []string
 	hosts           map[string]string
-	tags            []string
 	clusterName     string
 	taskFamily      string
 	taskVersion     string
@@ -130,6 +129,11 @@ func (l *ECSListener) refreshServices(firstRun bool) {
 	}
 
 	for _, c := range meta.Containers {
+		// Skip containers for which ECS failed to retrieve metadata
+		if c.DockerID == "" {
+			log.Debugf("Skipping a container for which ECS is reporting an empty ID: name %q, docker name: %q, image %q, image id: %q", c.Name, c.DockerName, c.Image, c.ImageID)
+			continue
+		}
 		if _, found := l.services[c.DockerID]; found {
 			delete(notSeen, c.DockerID)
 			continue
@@ -140,7 +144,11 @@ func (l *ECSListener) refreshServices(firstRun bool) {
 		}
 		// Detect AD exclusion
 		if l.filters.IsExcluded(containers.GlobalFilter, c.DockerName, c.Image, "") {
-			log.Debugf("container %s filtered out: name %q image %q", c.DockerID[:12], c.DockerName, c.Image)
+			dockerID := c.DockerID
+			if len(c.DockerID) >= 12 {
+				dockerID = c.DockerID[:12]
+			}
+			log.Debugf("container %s filtered out: name %q image %q", dockerID, c.DockerName, c.Image)
 			continue
 		}
 		s, err := l.createService(c, firstRun)
@@ -201,13 +209,6 @@ func (l *ECSListener) createService(c v2.Container, firstRun bool) (ECSService, 
 	}
 	svc.hosts = ips
 
-	// Tags
-	tags, err := tagger.Tag(svc.GetTaggerEntity(), tagger.ChecksCardinality)
-	if err != nil {
-		log.Errorf("Failed to extract tags for container %s - %s", c.DockerID[:12], err)
-	}
-	svc.tags = tags
-
 	// Detect metrics or logs exclusion
 	svc.metricsExcluded = l.filters.IsExcluded(containers.MetricsFilter, c.DockerName, c.Image, "")
 	svc.logsExcluded = l.filters.IsExcluded(containers.LogsFilter, c.DockerName, c.Image, "")
@@ -251,8 +252,8 @@ func (s *ECSService) GetPorts() ([]ContainerPort, error) {
 }
 
 // GetTags retrieves a container's tags
-func (s *ECSService) GetTags() ([]string, error) {
-	return s.tags, nil
+func (s *ECSService) GetTags() ([]string, string, error) {
+	return tagger.TagWithHash(s.GetTaggerEntity(), tagger.ChecksCardinality)
 }
 
 // GetPid inspect the container and return its pid

@@ -48,12 +48,11 @@ void __attribute__((always_inline)) invalidate_inode(struct pt_regs *ctx, u32 mo
     if (send_invalidate_event) {
         // invalidate dentry
         struct invalidate_dentry_event_t event = {
-            .event.type = EVENT_INVALIDATE_DENTRY,
             .inode = inode,
             .mount_id = mount_id,
         };
 
-        send_event(ctx, event);
+        send_event(ctx, EVENT_INVALIDATE_DENTRY, event);
     }
 }
 

@@ -120,8 +120,6 @@ int __attribute__((always_inline)) trace__sys_setxattr_ret(struct pt_regs *ctx, 
     }
 
     struct setxattr_event_t event = {
-        .event.type = type,
-        .event.timestamp = bpf_ktime_get_ns(),
         .syscall.retval = retval,
         .file = {
             .inode = inode,
@@ -137,7 +135,7 @@ int __attribute__((always_inline)) trace__sys_setxattr_ret(struct pt_regs *ctx, 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
 
-    send_event(ctx, event);
+    send_event(ctx, type, event);
 
     return 0;
 }

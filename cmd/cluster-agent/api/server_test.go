@@ -47,6 +47,11 @@ func TestValidateTokenMiddleware(t *testing.T) {
 			http.StatusOK,
 		},
 		{
+			"/api/v1/cluster/id",
+			"abc123",
+			http.StatusOK,
+		},
+		{
 			"/version",
 			"bandit!",
 			http.StatusForbidden,

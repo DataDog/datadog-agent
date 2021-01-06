@@ -32,7 +32,7 @@ func NewOffsetManager() *manager.Manager {
 	}
 }
 
-func NewManager(closedHandler *ebpf.PerfHandler) *manager.Manager {
+func NewManager(closedHandler, httpHandler *ebpf.PerfHandler) *manager.Manager {
 	return &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: string(probes.ConnMap)},
@@ -45,6 +45,9 @@ func NewManager(closedHandler *ebpf.PerfHandler) *manager.Manager {
 			{Name: "pending_bind"},
 			{Name: "unbound_sockets"},
 			{Name: string(probes.TelemetryMap)},
+			{Name: string(probes.HttpInFlightMap)},
+			{Name: string(probes.HttpBatchesMap)},
+			{Name: string(probes.HttpBatchStateMap)},
 		},
 		PerfMaps: []*manager.PerfMap{
 			{
@@ -54,6 +57,15 @@ func NewManager(closedHandler *ebpf.PerfHandler) *manager.Manager {
 					Watermark:          1,
 					DataHandler:        closedHandler.DataHandler,
 					LostHandler:        closedHandler.LostHandler,
+				},
+			},
+			{
+				Map: manager.Map{Name: string(probes.HttpNotificationsMap)},
+				PerfMapOptions: manager.PerfMapOptions{
+					PerfRingBufferSize: 8 * os.Getpagesize(),
+					Watermark:          1,
+					DataHandler:        httpHandler.DataHandler,
+					LostHandler:        httpHandler.LostHandler,
 				},
 			},
 		},
@@ -85,6 +97,7 @@ func NewManager(closedHandler *ebpf.PerfHandler) *manager.Manager {
 			{Section: string(probes.SysSocketRet), SyscallFuncName: "socket", KProbeMaxActive: maxActive},
 			{Section: string(probes.TraceSysSocketExit)},
 			{Section: string(probes.SocketDnsFilter)},
+			{Section: string(probes.SocketHTTPFilter)},
 		},
 	}
 }

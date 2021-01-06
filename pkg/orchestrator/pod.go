@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build orchestrator
-
 package orchestrator
 
 import (
@@ -15,6 +13,8 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -28,13 +28,12 @@ import (
 )
 
 const (
-	redactedValue = "********"
 	// from https://github.com/kubernetes/kubernetes/blob/abe6321296123aaba8e83978f7d17951ab1b64fd/pkg/util/node/node.go#L43
 	nodeUnreachablePodReason = "NodeLost"
 )
 
 // ProcessPodList processes a pod list into process messages
-func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterName string, clusterID string, withScrubbing bool, maxPerMessage int, scrubber *DataScrubber, extraTags []string) ([]model.MessageBody, error) {
+func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID string, cfg *config.OrchestratorConfig) ([]model.MessageBody, error) {
 	start := time.Now()
 	podMsgs := make([]*model.Pod, 0, len(podList))
 
@@ -45,7 +44,7 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterNa
 		// static pods "uid" are actually not unique across nodes.
 		// we differ from the k8 uuid format in purpose to differentiate those static pods.
 		if pod.IsStaticPod(podList[p]) {
-			newUID := generateUniqueStaticPodHash(hostName, podList[p].Name, podList[p].Namespace, clusterName)
+			newUID := generateUniqueStaticPodHash(hostName, podList[p].Name, podList[p].Namespace, cfg.KubeClusterName)
 			// modify it in the original pod for the YAML and in our model
 			podList[p].UID = types.UID(newUID)
 			podModel.Metadata.Uid = newUID
@@ -67,12 +66,12 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterNa
 		podModel.Tags = append(tags, fmt.Sprintf("pod_status:%s", strings.ToLower(podModel.Status)))
 
 		// scrub & generate YAML
-		if withScrubbing {
+		if cfg.IsScrubbingEnabled {
 			for c := 0; c < len(podList[p].Spec.Containers); c++ {
-				ScrubContainer(&podList[p].Spec.Containers[c], scrubber)
+				redact.ScrubContainer(&podList[p].Spec.Containers[c], cfg.Scrubber)
 			}
 			for c := 0; c < len(podList[p].Spec.InitContainers); c++ {
-				ScrubContainer(&podList[p].Spec.InitContainers[c], scrubber)
+				redact.ScrubContainer(&podList[p].Spec.InitContainers[c], cfg.Scrubber)
 			}
 		}
 
@@ -88,65 +87,26 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterNa
 		podMsgs = append(podMsgs, podModel)
 	}
 
-	groupSize := len(podMsgs) / maxPerMessage
-	if len(podMsgs)%maxPerMessage != 0 {
+	groupSize := len(podMsgs) / cfg.MaxPerMessage
+	if len(podMsgs)%cfg.MaxPerMessage != 0 {
 		groupSize++
 	}
-	chunked := chunkPods(podMsgs, groupSize, maxPerMessage)
+	chunked := chunkPods(podMsgs, groupSize, cfg.MaxPerMessage)
 	messages := make([]model.MessageBody, 0, groupSize)
 	for i := 0; i < groupSize; i++ {
 		messages = append(messages, &model.CollectorPod{
 			HostName:    hostName,
-			ClusterName: clusterName,
+			ClusterName: cfg.KubeClusterName,
 			Pods:        chunked[i],
 			GroupId:     groupID,
 			GroupSize:   int32(groupSize),
 			ClusterId:   clusterID,
-			Tags:        extraTags,
+			Tags:        cfg.ExtraTags,
 		})
 	}
 
 	log.Debugf("Collected & enriched %d out of %d pods in %s", len(podMsgs), len(podList), time.Now().Sub(start))
 	return messages, nil
-}
-
-// ScrubContainer scrubs sensitive information in the command line & env vars
-func ScrubContainer(c *v1.Container, scrubber *DataScrubber) {
-	// scrub env vars
-	for e := 0; e < len(c.Env); e++ {
-		if scrubber.ContainsSensitiveWord(c.Env[e].Name) {
-			c.Env[e].Value = redactedValue
-		}
-	}
-
-	defer func() {
-		if r := recover(); r != nil {
-			log.Errorf("Failed to parse cmd from pod, obscuring whole command")
-			// we still want to obscure to be safe
-			c.Command = []string{redactedValue}
-		}
-	}()
-
-	// scrub args and commands
-	merged := append(c.Command, c.Args...)
-	words := 0
-	for _, cmd := range c.Command {
-		words += len(strings.Split(cmd, " "))
-	}
-
-	scrubbedMergedCommand, changed := scrubber.ScrubSimpleCommand(merged) // return value is split if has been changed
-	if !changed {
-		return // no change has happened, no need to go further down the line
-	}
-
-	// if part of the merged command got scrubbed the updated value will be split, even for e.g. c.Args only if the c.Command got scrubbed
-	if len(c.Command) > 0 {
-		c.Command = scrubbedMergedCommand[:words]
-	}
-	if len(c.Args) > 0 {
-		c.Args = scrubbedMergedCommand[words:]
-	}
-
 }
 
 // chunkPods formats and chunks the pods into a slice of chunks using a specific number of chunks.
