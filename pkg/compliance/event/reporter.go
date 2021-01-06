@@ -7,6 +7,7 @@ package event
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -42,6 +43,6 @@ func (r *reporter) Report(event *Event) {
 }
 
 func (r *reporter) ReportRaw(content []byte) {
-	msg := message.NewMessageWithSource(content, message.StatusInfo, r.logSource)
+	msg := message.NewMessageWithSource(content, message.StatusInfo, r.logSource, time.Now().UnixNano())
 	r.logChan <- msg
 }

@@ -1,0 +1,20 @@
+---
+.if_not_version_7: &if_not_version_7
+  if: $RELEASE_VERSION_7 == ""
+
+.if_deploy: &if_deploy
+  if: $DEPLOY_AGENT == "true"
+
+deploy_cluster_agent_cloudfoundry:
+  rules:
+    - <<: *if_not_version_7
+      when: never
+    - <<: *if_deploy
+  stage: deploy7
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  tags: ["runner:main", "size:large"]
+  dependencies: ["cluster_agent_cloudfoundry-build_amd64"]
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  script:
+    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-cluster-agent-cloudfoundry-*.tar.xz" $OMNIBUS_PACKAGE_DIR $S3_DSD6_URI/linux/cluster-agent-cloudfoundry/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
