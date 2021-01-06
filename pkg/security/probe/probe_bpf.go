@@ -10,6 +10,8 @@ package probe
 import (
 	"context"
 	"fmt"
+	"math"
+	"math/rand"
 	"runtime"
 	"strings"
 	"sync/atomic"
@@ -35,6 +37,9 @@ import (
 const (
 	// MetricPrefix is the prefix of the metrics sent by the runtime security agent
 	MetricPrefix = "datadog.runtime_security"
+
+	// discarderRevisionSize array size used to store discarder revisions
+	discarderRevisionSize = 4096
 )
 
 // EventHandler represents an handler for the events sent by the probe
@@ -66,6 +71,8 @@ type Probe struct {
 	resolvers          *Resolvers
 	pidDiscarders      *lib.Map
 	inodeDiscarders    *lib.Map
+	revisionCache      [discarderRevisionSize]uint32
+	discarderRevisions *lib.Map
 	invalidDiscarders  map[eval.Field]map[interface{}]bool
 	regexCache         *simplelru.LRU
 	flushingDiscarders int64
@@ -155,6 +162,10 @@ func (p *Probe) Init() error {
 	}
 
 	if p.inodeDiscarders, err = p.Map("inode_discarders"); err != nil {
+		return err
+	}
+
+	if p.discarderRevisions, err = p.Map("discarder_revisions"); err != nil {
 		return err
 	}
 
@@ -265,8 +276,33 @@ func (p *Probe) GetEventsStats() EventsStats {
 	return p.eventsStats
 }
 
+func (p *Probe) getDiscarderRevision(mountID uint32) uint32 {
+	key := mountID % discarderRevisionSize
+	return p.revisionCache[key]
+}
+
+func (p *Probe) setDiscarderRevision(mountID uint32, revision uint32) {
+	key := mountID % discarderRevisionSize
+	p.revisionCache[key] = revision
+}
+
+func (p *Probe) initDiscarderRevision(mountEvent *MountEvent) {
+	var revision uint32
+
+	if mountEvent.IsOverlayFS() {
+		revision = uint32(rand.Intn(math.MaxUint16) + 1)
+	}
+
+	key := mountEvent.MountID % discarderRevisionSize
+	p.revisionCache[key] = revision
+
+	if err := p.discarderRevisions.Put(ebpf.Uint32MapItem(key), ebpf.Uint32MapItem(revision)); err != nil {
+		log.Errorf("unable to initialize discarder revisions: %s", err)
+	}
+}
+
 func (p *Probe) handleLostEvents(CPU int, count uint64, perfMap *manager.PerfMap, manager *manager.Manager) {
-	log.Tracef("lost %d events\n", count)
+	log.Tracef("lost %d events", count)
 	p.eventsStats.CountLost(int64(count))
 }
 
@@ -284,6 +320,24 @@ func (p *Probe) unmarshalProcessContainer(data []byte, event *Event) (int, error
 	}
 
 	return read, nil
+}
+
+func (p *Probe) invalidateDentry(mountID uint32, inode uint64, revision uint32) {
+	if p.resolvers.MountResolver.IsOverlayFS(mountID) {
+		log.Tracef("remove all dentry entries for mount id %d", mountID)
+		p.resolvers.DentryResolver.DelCacheEntries(mountID)
+
+		p.setDiscarderRevision(mountID, revision)
+	} else {
+		log.Tracef("remove dentry cache entry for inode %d", inode)
+		p.resolvers.DentryResolver.DelCacheEntry(mountID, inode)
+
+		// If a temporary file is created and deleted in a row a discarder can be added
+		// after the in-kernel discarder cleanup and thus a discarder will be pushed for a deleted file.
+		// If the inode is reused this can be a problem.
+		// Call a user space remove function to ensure the discarder will be removed.
+		p.removeDiscarderInode(mountID, inode)
+	}
 }
 
 func (p *Probe) handleEvent(CPU uint64, data []byte) {
@@ -315,15 +369,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			return
 		}
 
-		log.Tracef("remove dentry cache entry for inode %d", event.InvalidateDentry.Inode)
-
-		p.resolvers.DentryResolver.DelCacheEntry(event.InvalidateDentry.MountID, event.InvalidateDentry.Inode)
-
-		// If a temporary file is created and deleted in a row a discarder can be added
-		// after the in-kernel discarder cleanup and thus a discarder will be pushed for a deleted file.
-		// If the inode is reused this can be a problem.
-		// Call a user space remove function to ensure the discarder will be removed.
-		p.removeDiscarderInode(event.InvalidateDentry.MountID, event.InvalidateDentry.Inode)
+		p.invalidateDentry(event.InvalidateDentry.MountID, event.InvalidateDentry.Inode, event.InvalidateDentry.DiscarderRevision)
 
 		// no need to dispatch
 		return
@@ -357,6 +403,10 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		// Remove all dentry entries belonging to the mountID
 		p.resolvers.DentryResolver.DelCacheEntries(event.Umount.MountID)
 
+		if p.resolvers.MountResolver.IsOverlayFS(event.Umount.MountID) {
+			p.setDiscarderRevision(event.Umount.MountID, event.Umount.DiscarderRevision)
+		}
+
 		// Delete new mount point from cache
 		if err := p.resolvers.MountResolver.Delete(event.Umount.MountID); err != nil {
 			log.Errorf("failed to delete mount point %d from cache: %s", event.Umount.MountID, err)
@@ -377,31 +427,23 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			return
 		}
 
-		log.Tracef("remove dentry cache entry for inode %d", event.Rmdir.Inode)
-
 		// defer it do ensure that it will be done after the dispatch that could re-add it
-		defer p.resolvers.DentryResolver.DelCacheEntry(event.Rmdir.MountID, event.Rmdir.Inode)
+		defer p.invalidateDentry(event.Rmdir.MountID, event.Rmdir.Inode, event.Rmdir.DiscarderRevision)
 	case FileUnlinkEventType:
 		if _, err := event.Unlink.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode unlink event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 
-		log.Tracef("remove dentry cache entry for inode %d", event.Unlink.Inode)
-
 		// defer it do ensure that it will be done after the dispatch that could re-add it
-		defer p.resolvers.DentryResolver.DelCacheEntry(event.Unlink.MountID, event.Unlink.Inode)
+		defer p.invalidateDentry(event.Unlink.MountID, event.Unlink.Inode, event.Unlink.DiscarderRevision)
 	case FileRenameEventType:
 		if _, err := event.Rename.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode rename event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 
-		log.Tracef("remove dentry cache entry for inode %d", event.Rename.New.Inode)
-
-		// use the new.inode as the old one is a fake one generated from the probe. See RenameEvent.MarshalJSON
-		// defer it do ensure that it will be done after the dispatch that could re-add it
-		defer p.resolvers.DentryResolver.DelCacheEntry(event.Rename.New.MountID, event.Rename.New.Inode)
+		defer p.invalidateDentry(event.Rename.New.MountID, event.Rename.New.Inode, event.Rename.DiscarderRevision)
 	case FileChmodEventType:
 		if _, err := event.Chmod.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode chmod event: %s (offset %d, len %d)", err, offset, len(data))
@@ -739,7 +781,6 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		cancelFnc:         cancel,
 		statsdClient:      client,
 	}
-
 	p.detectKernelVersion()
 
 	if !p.config.EnableKernelFilters {
@@ -756,6 +797,10 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		manager.ConstantEditor{
 			Name:  "do_fork_input",
 			Value: getDoForkInput(p),
+		},
+		manager.ConstantEditor{
+			Name:  "mount_id_offset",
+			Value: getMountIDOffset(p),
 		},
 	)
 

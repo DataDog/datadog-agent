@@ -28,6 +28,7 @@ import (
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
@@ -169,7 +170,9 @@ func setTestConfig(dir string, opts testOpts) error {
 
 	buffer := new(bytes.Buffer)
 	if err := tmpl.Execute(buffer, map[string]interface{}{
-		"TestPoliciesDir": dir,
+		"TestPoliciesDir":   dir,
+		"DisableApprovers":  opts.disableApprovers,
+		"DisableDiscarders": opts.disableDiscarders,
 	}); err != nil {
 		return err
 	}
@@ -250,14 +253,6 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 	defer os.Remove(cfgFilename)
 
 	if useReload && testMod != nil {
-		if opts.disableApprovers == testMod.opts.disableApprovers &&
-			opts.disableDiscarders == testMod.opts.disableDiscarders &&
-			opts.disableFilters == testMod.opts.disableFilters {
-			testMod.reset()
-			testMod.st = st
-			return testMod, testMod.reloadConfiguration()
-		}
-
 		testMod.cleanup()
 	}
 
@@ -270,6 +265,14 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 	mod, err := module.NewModule(config)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create module")
+	}
+
+	if opts.disableApprovers {
+		config.EnableApprovers = false
+	}
+
+	if opts.disableDiscarders {
+		config.EnableDiscarders = false
 	}
 
 	testMod = &testModule{
@@ -537,6 +540,28 @@ func testContainerPath(t *testing.T, event *sprobe.Event, fieldPath string) {
 
 	if !strings.Contains(path.(string), "docker") {
 		t.Errorf("incorrect container_path, should contain `docker`: %s", path)
+	}
+}
+
+func waitForOpenProbeEvent(test *testModule, filename string) (*probe.Event, error) {
+	timeout := time.After(3 * time.Second)
+	exhaust := time.After(time.Second)
+
+	var event *probe.Event
+	for {
+		select {
+		case e := <-test.probeHandler.events:
+			if value, _ := e.GetFieldValue("open.filename"); value == filename {
+				event = e
+			}
+		case <-test.discarders:
+		case <-exhaust:
+			if event != nil {
+				return event, nil
+			}
+		case <-timeout:
+			return nil, errors.New("timeout")
+		}
 	}
 }
 
