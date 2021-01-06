@@ -109,7 +109,11 @@ func (m *Monitor) Start() error {
 				}
 
 				m.process(nil, errLostBatch)
-			case reply := <-m.pollRequests:
+			case reply, ok := <-m.pollRequests:
+				if !ok {
+					return
+				}
+
 				transactions := m.batchManager.GetPendingTransactions()
 				m.process(transactions, nil)
 				reply <- struct{}{}
