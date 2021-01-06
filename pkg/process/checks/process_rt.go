@@ -1,7 +1,6 @@
 package checks
 
 import (
-	"fmt"
 	"time"
 
 	model "github.com/DataDog/agent-payload/process"
@@ -14,7 +13,7 @@ import (
 )
 
 // RTProcess is a singleton RTProcessCheck.
-var RTProcess = &RTProcessCheck{}
+var RTProcess = &RTProcessCheck{probe: procutil.NewProcessProbe()}
 
 // RTProcessCheck collects numeric statistics about the live processes.
 // The instance stores state between checks for calculation of rates and CPU.
@@ -26,15 +25,11 @@ type RTProcessCheck struct {
 	lastRun      time.Time
 
 	probe *procutil.Probe
-	// RTProcessCheck needs to know the PIDs that ProcessCheck collected,
-	// so we will keep a reference for the check in order to get PIDs
-	processCheck *ProcessCheck
 }
 
 // Init initializes a new RTProcessCheck instance.
 func (r *RTProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
 	r.sysInfo = info
-	r.probe = procutil.NewProcessProbe()
 }
 
 // Name returns the name of the RTProcessCheck.
@@ -42,11 +37,6 @@ func (r *RTProcessCheck) Name() string { return "rtprocess" }
 
 // RealTime indicates if this check only runs in real-time mode.
 func (r *RTProcessCheck) RealTime() bool { return true }
-
-// AssignProcessCheck stores a processCheck instance as reference
-func (r *RTProcessCheck) AssignProcessCheck(c *ProcessCheck) {
-	r.processCheck = c
-}
 
 // Run runs the RTProcessCheck to collect statistics about the running processes.
 // On most POSIX systems these statistics are collected from procfs. The bulk
@@ -63,11 +53,8 @@ func (r *RTProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 		return nil, errEmptyCPUTime
 	}
 
-	if r.processCheck == nil {
-		return nil, fmt.Errorf("cannot run rtprocess check if processCheck is not initialized")
-	}
 	// if processCheck haven't fetched any PIDs, return early
-	lastPIDs := r.processCheck.GetLastPIDs()
+	lastPIDs := Process.GetLastPIDs()
 	if len(lastPIDs) == 0 {
 		return nil, nil
 	}

@@ -21,7 +21,7 @@ import (
 const emptyCtrID = ""
 
 // Process is a singleton ProcessCheck.
-var Process = &ProcessCheck{}
+var Process = &ProcessCheck{probe: procutil.NewProcessProbe()}
 
 var errEmptyCPUTime = errors.New("empty CPU time information returned")
 
@@ -55,7 +55,6 @@ func (p *ProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
 		log.Infof("no network ID detected: %s", err)
 	}
 	p.networkID = networkID
-	p.probe = procutil.NewProcessProbe()
 }
 
 // Name returns the name of the ProcessCheck.
