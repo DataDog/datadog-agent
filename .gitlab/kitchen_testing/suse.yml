@@ -1,0 +1,108 @@
+---
+# FIXME: our current Gitlab version doesn't support importing a file more than once
+# For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
+# See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
+# include:
+#   - /.gitlab/kitchen_common/testing.yml
+
+.if_deploy_6: &if_deploy_6
+  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_6 != ""
+
+.if_deploy_7: &if_deploy_7
+  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_7 != ""
+
+# Kitchen: OSes
+# -------------
+
+.kitchen_os_suse:
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export TEST_PLATFORMS="sles-12,urn,SUSE:sles-12-sp5-byos:gen1:2020.09.21"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|sles-15,urn,SUSE:sles-15-sp2-byos:gen1:2020.09.21"
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
+
+# Kitchen: scenarios (os * agent)
+# -------------------------------
+
+.kitchen_scenario_suse_a6:
+  extends:
+    - .kitchen_os_suse
+    - .kitchen_agent_a6
+  needs: ["deploy_suse_rpm_testing-a6"]
+
+.kitchen_scenario_suse_a7:
+  extends:
+    - .kitchen_os_suse
+    - .kitchen_agent_a7
+  needs: ["deploy_suse_rpm_testing-a7"]
+
+# Kitchen: final test matrix (tests * scenarios)
+# ----------------------------------------------
+
+kitchen_suse_install_script_agent-a6:
+  extends:
+    - .kitchen_scenario_suse_a6
+    - .kitchen_test_install_script_agent
+
+kitchen_suse_install_script_agent-a7:
+  extends:
+    - .kitchen_scenario_suse_a7
+    - .kitchen_test_install_script_agent
+
+kitchen_suse_install_script_iot_agent-a7:
+  extends:
+    - .kitchen_scenario_suse_a7
+    - .kitchen_test_install_script_iot_agent
+
+kitchen_suse_install_script_dogstatsd-a7:
+  extends:
+    - .kitchen_scenario_suse_a7
+    - .kitchen_test_install_script_dogstatsd
+
+# We only want to run step-by-step tests on deploy pipelines,
+# which is why they have a different rule (if_deploy_6/7)
+
+kitchen_suse_step_by_step_agent-a6:
+  extends:
+    - .kitchen_scenario_suse_a6
+    - .kitchen_test_step_by_step_agent
+  rules:
+    - <<: *if_deploy_6
+
+kitchen_suse_step_by_step_agent-a7:
+  extends:
+    - .kitchen_scenario_suse_a7
+    - .kitchen_test_step_by_step_agent
+  rules:
+    - <<: *if_deploy_7
+
+kitchen_suse_upgrade5_agent-a6:
+  extends:
+    - .kitchen_scenario_suse_a6
+    - .kitchen_test_upgrade5_agent
+
+kitchen_suse_upgrade5_agent-a7:
+  extends:
+    - .kitchen_scenario_suse_a7
+    - .kitchen_test_upgrade5_agent
+
+kitchen_suse_upgrade6_agent-a6:
+  extends:
+    - .kitchen_scenario_suse_a6
+    - .kitchen_test_upgrade6_agent
+
+kitchen_suse_upgrade6_agent-a7:
+  extends:
+    - .kitchen_scenario_suse_a7
+    - .kitchen_test_upgrade6_agent
+
+kitchen_suse_upgrade7_agent-a7:
+  extends:
+    - .kitchen_scenario_suse_a7
+    - .kitchen_test_upgrade7_agent
+
+kitchen_suse_upgrade7_iot_agent-a7:
+  extends:
+    - .kitchen_scenario_suse_a7
+    - .kitchen_test_upgrade7_iot_agent

@@ -27,6 +27,9 @@ func (s *streamStrategy) Flush(inputChan chan *message.Message, outputChan chan 
 // Send sends one message at a time and forwards them to the next stage of the pipeline.
 func (s *streamStrategy) Send(inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error, mu *sync.Mutex) {
 	for message := range inputChan {
+		if message.Origin != nil {
+			message.Origin.LogSource.LatencyStats.Add(message.GetLatency())
+		}
 		err := send(message.Content)
 		if err != nil {
 			if shouldStopSending(err) {

@@ -17,16 +17,6 @@
 
 #define FAKE_INODE_MSW 0xdeadc001UL
 
-// temporary fix before constant edition
-struct bpf_map_def SEC("maps/mount_id_offset") mount_id_offset = {
-    .type = BPF_MAP_TYPE_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(u32),
-    .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
-};
-
 struct path_leaf_t {
   struct path_key_t parent;
   // TODO: reduce the amount of allocated structs during the resolution so that we can take this buffer to its max
@@ -70,19 +60,15 @@ dev_t __attribute__((always_inline)) get_dentry_dev(struct dentry *dentry) {
 }
 
 u32 __attribute__((always_inline)) get_mount_offset_of_mount_id(void) {
-    u32 key = 0;
-    // this will be done by constant edition in the future
-    u32 *offset = bpf_map_lookup_elem(&mount_id_offset, &key);
-    if (offset && *offset) {
-        return *offset;
-    }
-    return 284; // offsetof(struct mount, mnt_id)
+    u64 offset;
+    LOAD_CONSTANT("mount_id_offset", offset);
+    return offset ? offset : 284; // offsetof(struct mount, mnt_id)
 }
 
 int __attribute__((always_inline)) get_vfsmount_mount_id(struct vfsmount *mnt) {
     int mount_id;
-    // bpf_probe_read(&mount_id, sizeof(mount_id), (void *)mnt + offsetof(struct mount, mnt_id) - offsetof(struct mount, mnt));
-    bpf_probe_read(&mount_id, sizeof(mount_id), (void *)mnt + get_mount_offset_of_mount_id() - MNT_OFFSETOF_MNT);
+    // bpf_probe_read(&mount_id, sizeof(mount_id), (char *)mnt + offsetof(struct mount, mnt_id) - offsetof(struct mount, mnt));
+    bpf_probe_read(&mount_id, sizeof(mount_id), (char *)mnt + get_mount_offset_of_mount_id() - MNT_OFFSETOF_MNT);
     return mount_id;
 }
 
@@ -102,21 +88,21 @@ int __attribute__((always_inline)) get_file_mount_id(struct file *file) {
 int __attribute__((always_inline)) get_mount_mount_id(void *mnt) {
     int mount_id;
 
-    // bpf_probe_read(&mount_id, sizeof(mount_id), (void *)mnt + offsetof(struct mount, mnt_id));
-    bpf_probe_read(&mount_id, sizeof(mount_id), (void *)mnt + get_mount_offset_of_mount_id());
+    // bpf_probe_read(&mount_id, sizeof(mount_id), (char *)mnt + offsetof(struct mount, mnt_id));
+    bpf_probe_read(&mount_id, sizeof(mount_id), (char *)mnt + get_mount_offset_of_mount_id());
     return mount_id;
 }
 
 int __attribute__((always_inline)) get_mount_peer_group_id(void *mnt) {
     int mount_id;
 
-    // bpf_probe_read(&mount_id, sizeof(mount_id), (void *)mnt + offsetof(struct mount, mnt_group_id));
-    bpf_probe_read(&mount_id, sizeof(mount_id), (void *)mnt + get_mount_offset_of_mount_id() + 4);
+    // bpf_probe_read(&mount_id, sizeof(mount_id), (char *)mnt + offsetof(struct mount, mnt_group_id));
+    bpf_probe_read(&mount_id, sizeof(mount_id), (char *)mnt + get_mount_offset_of_mount_id() + 4);
     return mount_id;
 }
 
 struct vfsmount * __attribute__((always_inline)) get_mount_vfsmount(void *mnt) {
-    return (struct vfsmount *)((void *)mnt + 32);
+    return (struct vfsmount *)(mnt + 32);
 }
 
 struct dentry * __attribute__((always_inline)) get_vfsmount_dentry(struct vfsmount *mnt) {
@@ -140,8 +126,8 @@ dev_t __attribute__((always_inline)) get_sb_dev(struct super_block *sb) {
 struct dentry * __attribute__((always_inline)) get_mountpoint_dentry(void *mntpoint) {
     struct dentry *dentry;
 
-    // bpf_probe_read(&dentry, sizeof(dentry), (void *)mntpoint + offsetof(struct mountpoint, m_dentry));
-    bpf_probe_read(&dentry, sizeof(dentry), (void *)mntpoint + 16);
+    // bpf_probe_read(&dentry, sizeof(dentry), (char *)mntpoint + offsetof(struct mountpoint, m_dentry));
+    bpf_probe_read(&dentry, sizeof(dentry), (char *)mntpoint + 16);
     return dentry;
 }
 
@@ -205,22 +191,11 @@ void __attribute__((always_inline)) get_dentry_name(struct dentry *dentry, void 
 #define get_dentry_key_path(dentry, path) (struct path_key_t) { .ino = get_dentry_ino(dentry), .mount_id = get_path_mount_id(path) }
 #define get_inode_key_path(inode, path) (struct path_key_t) { .ino = get_inode_ino(inode), .mount_id = get_path_mount_id(path) }
 
-static __attribute__((always_inline)) void link_dentry_inode(struct path_key_t key, u64 inode) {
-    // avoid a infinite loop, parent a child have the same inode
-    if (key.ino == inode) {
-        return;
+static __attribute__((always_inline)) void set_path_key_inode(struct dentry *dentry, struct path_key_t *path_key, int invalidate) {
+    path_key->path_id = get_path_id(invalidate);
+    if (!path_key->ino) {
+        path_key->ino = get_dentry_ino(dentry);
     }
-
-    struct path_key_t new_key = {
-        .mount_id = key.mount_id,
-        .ino = inode,
-        .path_id = key.path_id,
-    };
-    struct path_leaf_t map_value = {
-        .parent = key
-    };
-
-    bpf_map_update_elem(&pathnames, &new_key, &map_value, BPF_ANY);
 }
 
 static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, struct path_key_t key, u64 event_type) {
