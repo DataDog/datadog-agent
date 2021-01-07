@@ -3021,7 +3021,7 @@ docker_trigger_internal_amd64:
   stage: image_deploy
   rules:
     - <<: *if_deploy_on_tag_7
-      when: on_success
+      when: manual
   needs:
     - job: docker_build_agent7_jmx
       artifacts: false
