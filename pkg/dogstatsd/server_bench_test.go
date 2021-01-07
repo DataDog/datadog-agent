@@ -97,7 +97,7 @@ func BenchmarkParseMetricMessage(b *testing.B) {
 	config.SetupLogger("", "off", "", "", false, true, false)
 
 	agg := mockAggregator()
-	s, _ := NewServer(agg)
+	s, _ := NewServer(agg, nil)
 	defer s.Stop()
 
 	done := make(chan struct{})
