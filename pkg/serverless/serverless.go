@@ -89,7 +89,7 @@ func Register() (ID, error) {
 	var request *http.Request
 	var response *http.Response
 
-	if request, err = http.NewRequest(http.MethodPost, buildUrl(routeRegister), payload); err != nil {
+	if request, err = http.NewRequest(http.MethodPost, buildURL(routeRegister), payload); err != nil {
 		return "", fmt.Errorf("Register: can't create the POST register request: %v", err)
 	}
 	request.Header.Set(headerExtName, extensionName)
@@ -163,7 +163,7 @@ func SubscribeLogs(id ID, httpAddr string, logsType []string) error {
 		return fmt.Errorf("SubscribeLogs: can't marshal subscribe JSON: %s", err)
 	}
 
-	if request, err = http.NewRequest(http.MethodPut, buildUrl(routeSubscribeLogs), bytes.NewBuffer(jsonBytes)); err != nil {
+	if request, err = http.NewRequest(http.MethodPut, buildURL(routeSubscribeLogs), bytes.NewBuffer(jsonBytes)); err != nil {
 		return fmt.Errorf("SubscribeLogs: can't create the PUT request: %v", err)
 	}
 	request.Header.Set(headerExtID, id.String())
@@ -197,7 +197,7 @@ func ReportInitError(id ID, errorEnum ErrorEnum) error {
 		return fmt.Errorf("ReportInitError: can't write the payload: %s", err)
 	}
 
-	if request, err = http.NewRequest(http.MethodPost, buildUrl(routeInitError), bytes.NewBuffer(content)); err != nil {
+	if request, err = http.NewRequest(http.MethodPost, buildURL(routeInitError), bytes.NewBuffer(content)); err != nil {
 		return fmt.Errorf("ReportInitError: can't create the POST request: %s", err)
 	}
 
@@ -231,7 +231,7 @@ func WaitForNextInvocation(stopCh chan struct{}, statsdServer *dogstatsd.Server,
 	var request *http.Request
 	var response *http.Response
 
-	if request, err = http.NewRequest(http.MethodGet, buildUrl(routeEventNext), nil); err != nil {
+	if request, err = http.NewRequest(http.MethodGet, buildURL(routeEventNext), nil); err != nil {
 		return fmt.Errorf("WaitForNextInvocation: can't create the GET request: %v", err)
 	}
 	request.Header.Set(headerExtID, id.String())
@@ -276,7 +276,7 @@ func WaitForNextInvocation(stopCh chan struct{}, statsdServer *dogstatsd.Server,
 	return nil
 }
 
-func buildUrl(route string) string {
+func buildURL(route string) string {
 	prefix := os.Getenv("AWS_LAMBDA_RUNTIME_API")
 	if len(prefix) == 0 {
 		return fmt.Sprintf("http://localhost:9001%s", route)

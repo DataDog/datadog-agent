@@ -471,7 +471,7 @@ func TestE2EParsing(t *testing.T) {
 
 	agg := mockAggregator()
 	metricOut, _, _ := agg.GetBufferedChannels()
-	s, err := NewServer(agg)
+	s, err := NewServer(agg, nil)
 	require.NoError(t, err, "cannot start DSD")
 
 	url := fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_port"))
@@ -496,7 +496,7 @@ func TestE2EParsing(t *testing.T) {
 
 	agg = mockAggregator()
 	metricOut, _, _ = agg.GetBufferedChannels()
-	s, err = NewServer(agg)
+	s, err = NewServer(agg, nil)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
