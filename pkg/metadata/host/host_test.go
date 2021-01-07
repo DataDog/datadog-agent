@@ -170,11 +170,11 @@ install_methodlol:
 
 func TestGetProxyMeta(t *testing.T) {
 
-	config.Datadog.Set("proxy.no_proxy_nonexact_match", false)
+	config.Datadog.Set("no_proxy_nonexact_match", false)
 	meta := getProxyMeta()
 	assert.Equal(t, meta.NoProxyNonexactMatch, false)
 
-	config.Datadog.Set("proxy.no_proxy_nonexact_match", true)
+	config.Datadog.Set("no_proxy_nonexact_match", true)
 	meta = getProxyMeta()
 	assert.Equal(t, meta.NoProxyNonexactMatch, true)
 	assert.Equal(t, meta.ProxyBehaviorChanged, false)

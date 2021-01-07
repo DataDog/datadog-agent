@@ -75,7 +75,7 @@ func GetProxyTransportFunc(p *config.Proxy) func(*http.Request) (*url.URL, error
 		NoProxy:    strings.Join(p.NoProxy, ","),
 	}
 
-	if config.Datadog.GetBool("proxy.no_proxy_nonexact_match") {
+	if config.Datadog.GetBool("no_proxy_nonexact_match") {
 		return func(r *http.Request) (*url.URL, error) {
 			return proxyConfig.ProxyFunc()(r.URL)
 		}
@@ -133,7 +133,7 @@ func GetProxyTransportFunc(p *config.Proxy) func(*http.Request) (*url.URL, error
 			if _, ok := NoProxyWarningMap[urlString]; !ok {
 				NoProxyWarningMap[SanitizeURL(r.URL.String())] = true
 				logSafeURL := r.URL.Scheme + "://" + r.URL.Host
-				log.Warnf("Deprecation warning: the HTTP request to %s uses proxy %s but will ignore the proxy when the Agent configuration option proxy.no_proxy_nonexact_match defaults to true in a future agent version. Please adapt the Agent’s proxy configuration accordingly", logSafeURL, url.String())
+				log.Warnf("Deprecation warning: the HTTP request to %s uses proxy %s but will ignore the proxy when the Agent configuration option no_proxy_nonexact_match defaults to true in a future agent version. Please adapt the Agent’s proxy configuration accordingly", logSafeURL, url.String())
 			}
 			NoProxyWarningMapMutex.Unlock()
 		}

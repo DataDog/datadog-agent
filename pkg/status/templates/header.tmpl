@@ -90,7 +90,7 @@ NOTE: Changes made to this template should be reflected on the following templat
   Transport Proxy Warnings
   ========================
     The following URLs used a proxy - but will ignore the proxy in future agent versions via the no_proxy setting. 
-    Enable the new behavior now with the proxy setting no_proxy_nonexact_match: true
+    Enable the new behavior now with no_proxy_nonexact_match: true
     {{- range $key, $value := .TransportWarnings }}
       {{ $key }}
     {{- end }}

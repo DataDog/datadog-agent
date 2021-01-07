@@ -73,7 +73,7 @@ func GetStatus() (map[string]interface{}, error) {
 		stats["systemProbeStats"] = GetSystemProbeStats(config.Datadog.GetString("system_probe_config.sysprobe_socket"))
 	}
 
-	if !config.Datadog.GetBool("proxy.no_proxy_nonexact_match") {
+	if !config.Datadog.GetBool("no_proxy_nonexact_match") {
 		httputils.NoProxyWarningMapMutex.Lock()
 		stats["TransportWarnings"] = httputils.NoProxyWarningMap
 		httputils.NoProxyWarningMapMutex.Unlock()

@@ -71,7 +71,7 @@ func TestNoProxy(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, "https://user:pass@proxy_https.com:3128", proxyURL.String())
 
-	// Validate the old behavior (when proxy.no_proxy_nonexact_match is false)
+	// Validate the old behavior (when no_proxy_nonexact_match is false)
 	proxyURL, err = proxyFunc(r4)
 	assert.Nil(t, err)
 	assert.Equal(t, "https://user:pass@proxy.com:3128", proxyURL.String())
@@ -85,7 +85,7 @@ func TestNoProxyNonexactMatch(t *testing.T) {
 	r5, _ := http.NewRequest("GET", "http://no_proxy2.com/api/v1?arg=21", nil)
 	r6, _ := http.NewRequest("GET", "http://sub.no_proxy2.com/api/v1?arg=21", nil)
 
-	config.Datadog.Set("proxy.no_proxy_nonexact_match", true)
+	config.Datadog.Set("no_proxy_nonexact_match", true)
 
 	// Testing some nonexact matching cases as documented here: https://github.com/golang/net/blob/master/http/httpproxy/proxy.go#L38
 	proxies := &config.Proxy{

@@ -8,7 +8,7 @@
 ---
 features:
   - |
-    Added no_proxy_nonexact_match as a flag under proxy settings which 
+    Added no_proxy_nonexact_match as a configuration setting which 
     allows non-exact URL and IP address matching. The new behavior uses 
     the go http proxy function documented here 
     https://godoc.org/golang.org/x/net/http/httpproxy#Config 
