@@ -42,7 +42,7 @@ extern "C" UINT __stdcall PreStopServices(MSIHANDLE hInstall) {
     ExitOnFailure(hr, "Failed to initialize");
     
     WcaLog(LOGMSG_STANDARD, "Initialized.");
-    DoStopSvc(agentService);
+    DoStopAllServices();
     WcaLog(LOGMSG_STANDARD, "Waiting for prestop to complete");
     Sleep(10000);
     WcaLog(LOGMSG_STANDARD, "Prestop complete");
@@ -115,7 +115,7 @@ extern "C" UINT __stdcall DoRollback(MSIHANDLE hInstall) {
     initializeStringsFromStringTable();
     // we'll need to stop the services manually if we got far enough to start
     // them before installation failed.
-    DoStopSvc(agentService);
+    DoStopAllServices();
     er = doUninstallAs(UNINSTALL_ROLLBACK);
     if (er != 0) {
         hr = -1;

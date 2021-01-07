@@ -39,14 +39,6 @@ func NewFile(path string, source *config.LogSource, isWildcardPath bool) *File {
 	}
 }
 
-// getSourceIdentifier returns the source config identifier
-func (t *File) getSourceIdentifier() string {
-	if t.Source != nil && t.Source.Config != nil {
-		return t.Source.Config.Identifier
-	}
-	return ""
-}
-
 // GetScanKey returns a key used by the scanner to index the scanned file.
 // If it is a file scanned for a container, it will use the format: <filepath>/<container_id>
 // Otherwise, it will simply use the format: <filepath>

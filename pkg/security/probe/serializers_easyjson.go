@@ -162,6 +162,8 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(in *jle
 			}
 		case "pid":
 			out.Pid = uint32(in.Uint32())
+		case "ppid":
+			out.PPid = uint32(in.Uint32())
 		case "tid":
 			out.Tid = uint32(in.Uint32())
 		case "uid":
@@ -267,6 +269,11 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(out *jw
 		const prefix string = ",\"pid\":"
 		out.RawString(prefix)
 		out.Uint32(uint32(in.Pid))
+	}
+	{
+		const prefix string = ",\"ppid\":"
+		out.RawString(prefix)
+		out.Uint32(uint32(in.PPid))
 	}
 	{
 		const prefix string = ",\"tid\":"
@@ -385,6 +392,8 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe2(in *jle
 		switch key {
 		case "pid":
 			out.Pid = uint32(in.Uint32())
+		case "ppid":
+			out.PPid = uint32(in.Uint32())
 		case "tid":
 			out.Tid = uint32(in.Uint32())
 		case "uid":
@@ -461,6 +470,11 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe2(out *jw
 		const prefix string = ",\"pid\":"
 		out.RawString(prefix[1:])
 		out.Uint32(uint32(in.Pid))
+	}
+	{
+		const prefix string = ",\"ppid\":"
+		out.RawString(prefix)
+		out.Uint32(uint32(in.PPid))
 	}
 	{
 		const prefix string = ",\"tid\":"

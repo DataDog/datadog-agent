@@ -14,8 +14,11 @@ import (
 	"time"
 )
 
-// FIMCategory holds the event category for JSON serialization
-const FIMCategory = "File Activity"
+// Event categories for JSON serialization
+const (
+	FIMCategory     = "File Activity"
+	ProcessActivity = "Process Activity"
+)
 
 // FileSerializer serializes a file to JSON
 // easyjson:json
@@ -48,6 +51,7 @@ type UserContextSerializer struct {
 type ProcessCacheEntrySerializer struct {
 	UserContextSerializer
 	Pid           uint32     `json:"pid"`
+	PPid          uint32     `json:"ppid"`
 	Tid           uint32     `json:"tid"`
 	UID           uint32     `json:"uid"`
 	GID           uint32     `json:"gid"`
@@ -146,11 +150,12 @@ func getTimeIfNotZero(t time.Time) *time.Time {
 }
 
 func newProcessCacheEntrySerializer(pce *ProcessCacheEntry, e *Event, useEvent bool) *ProcessCacheEntrySerializer {
-	var pid, tid, uid, gid uint32
+	var pid, ppid, tid, uid, gid uint32
 	var user, group string
 
 	if useEvent {
 		pid = e.Process.Pid
+		ppid = e.Process.PPid
 		tid = e.Process.Tid
 		uid = e.Process.UID
 		gid = e.Process.GID
@@ -158,6 +163,7 @@ func newProcessCacheEntrySerializer(pce *ProcessCacheEntry, e *Event, useEvent b
 		group = e.Process.ResolveGroup(e)
 	} else {
 		pid = pce.Pid
+		ppid = pce.PPid
 		tid = pce.Tid
 		uid = pce.UID
 		gid = pce.GID
@@ -171,6 +177,7 @@ func newProcessCacheEntrySerializer(pce *ProcessCacheEntry, e *Event, useEvent b
 			Group: group,
 		},
 		Pid:      pid,
+		PPid:     ppid,
 		Tid:      tid,
 		UID:      uid,
 		GID:      gid,
@@ -253,7 +260,7 @@ func newEventSerializer(event *Event) (*EventSerializer, error) {
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Chown.Retval)
 	case FileLinkEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.Chown.FileEvent, event),
+			FileSerializer: *newFileSerializer(&event.Link.Source, event),
 			Destination:    newFileSerializer(&event.Link.Target, event),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Link.Retval)
@@ -291,15 +298,15 @@ func newEventSerializer(event *Event) (*EventSerializer, error) {
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.RemoveXAttr.FileEvent, event),
 		}
-		s.FileSerializer.XAttrName = event.RemoveXAttr.Name
-		s.FileSerializer.XAttrName = event.RemoveXAttr.Namespace
+		s.FileSerializer.XAttrName = event.RemoveXAttr.GetName(event)
+		s.FileSerializer.XAttrNamespace = event.RemoveXAttr.GetNamespace(event)
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.RemoveXAttr.Retval)
 	case FileSetXAttrEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.SetXAttr.FileEvent, event),
 		}
-		s.FileSerializer.XAttrName = event.SetXAttr.Name
-		s.FileSerializer.XAttrName = event.SetXAttr.Namespace
+		s.FileSerializer.XAttrName = event.SetXAttr.GetName(event)
+		s.FileSerializer.XAttrNamespace = event.SetXAttr.GetNamespace(event)
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.SetXAttr.Retval)
 	case FileUtimeEventType:
 		s.FileEventSerializer = &FileEventSerializer{
@@ -340,6 +347,7 @@ func newEventSerializer(event *Event) (*EventSerializer, error) {
 			FileSerializer: *newFileSerializer(&event.processCacheEntry.FileEvent, event),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
+		s.Category = ProcessActivity
 	}
 
 	return s, nil

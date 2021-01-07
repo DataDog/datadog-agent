@@ -62,8 +62,8 @@ bool generatePassword(wchar_t* passbuf, int passbuflen) {
             usedClasses[chartype]++;
         }
         times++;
-    } while ((usedClasses[CHARTYPE_LOWER] < 2 || usedClasses[CHARTYPE_UPPER] < 2 ||
-        usedClasses[CHARTYPE_NUMBER] < 2 || usedClasses[CHARTYPE_SPECIAL] < 2) ||
+    } while ((usedClasses[CHARTYPE_LOWER] < MIN_NUM_LOWER_CHARS || usedClasses[CHARTYPE_UPPER] < MIN_NUM_UPPER_CHARS ||
+        usedClasses[CHARTYPE_NUMBER] < MIN_NUM_NUMBER_CHARS || usedClasses[CHARTYPE_SPECIAL] < MIN_NUM_SPECIAL_CHARS) ||
         ((usedClasses[CHARTYPE_LOWER] + usedClasses[CHARTYPE_UPPER]) <
         (usedClasses[CHARTYPE_NUMBER] + usedClasses[CHARTYPE_SPECIAL])));
 

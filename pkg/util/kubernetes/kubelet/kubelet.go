@@ -183,15 +183,15 @@ func (ku *KubeUtil) GetLocalPodList() ([]*Pod, error) {
 
 	data, code, err := ku.QueryKubelet(kubeletPodPath)
 	if err != nil {
-		return nil, fmt.Errorf("error performing kubelet query %s%s: %s", ku.kubeletClient.kubeletURL, kubeletPodPath, err)
+		return nil, errors.NewRetriable("podlist", fmt.Errorf("error performing kubelet query %s%s: %w", ku.kubeletClient.kubeletURL, kubeletPodPath, err))
 	}
 	if code != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.kubeletClient.kubeletURL, kubeletPodPath, string(data))
+		return nil, errors.NewRetriable("podlist", fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.kubeletClient.kubeletURL, kubeletPodPath, string(data)))
 	}
 
 	err = ku.podUnmarshaller.unmarshal(data, &pods)
 	if err != nil {
-		return nil, fmt.Errorf("unable to unmarshal podlist, invalid or null: %s", err)
+		return nil, errors.NewRetriable("podlist", fmt.Errorf("unable to unmarshal podlist, invalid or null: %w", err))
 	}
 
 	// ensure we dont have nil pods
@@ -301,7 +301,7 @@ func (ku *KubeUtil) GetStatusForContainerID(pod *Pod, containerID string) (Conta
 			return container, nil
 		}
 	}
-	return ContainerStatus{}, fmt.Errorf("Container %v not found", containerID)
+	return ContainerStatus{}, errors.NewNotFound(fmt.Sprintf("container %s in pod", containerID))
 }
 
 // GetSpecForContainerName returns the container spec from the pod given a name
@@ -312,7 +312,7 @@ func (ku *KubeUtil) GetSpecForContainerName(pod *Pod, containerName string) (Con
 			return containerSpec, nil
 		}
 	}
-	return ContainerSpec{}, fmt.Errorf("Container %v not found", containerName)
+	return ContainerSpec{}, errors.NewNotFound(fmt.Sprintf("container %s in pod", containerName))
 }
 
 func (ku *KubeUtil) GetPodFromUID(podUID string) (*Pod, error) {
@@ -339,7 +339,7 @@ func (ku *KubeUtil) GetPodFromUID(podUID string) (*Pod, error) {
 			return pod, nil
 		}
 	}
-	return nil, fmt.Errorf("uid %s not found in pod list", podUID)
+	return nil, errors.NewNotFound(fmt.Sprintf("pod %s in podlist", podUID))
 }
 
 // GetPodForEntityID returns a pointer to the pod that corresponds to an entity ID.

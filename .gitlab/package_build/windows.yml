@@ -1,0 +1,129 @@
+---
+.if_version_6: &if_version_6
+  if: $RELEASE_VERSION_6 != ""
+
+.if_not_version_6: &if_not_version_6
+  if: $RELEASE_VERSION_6 == ""
+
+.if_version_7: &if_version_7
+  if: $RELEASE_VERSION_7 != ""
+
+.if_not_version_7: &if_not_version_7
+  if: $RELEASE_VERSION_7 == ""
+
+.if_deploy: &if_deploy
+  if: $DEPLOY_AGENT == "true"
+
+.windows_msi_base:
+  stage: package_build
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  needs: ["go_mod_tidy_check"]
+  script:
+    - if (Test-Path .omnibus) { remove-item -recurse -force .omnibus }
+    - if (Test-Path build-out) { remove-item -recurse -force build-out }
+    - mkdir .omnibus\pkg
+    - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e CI_JOB_ID=${CI_JOB_ID} -e OMNIBUS_TARGET=${OMNIBUS_TARGET} -e WINDOWS_BUILDER=true -e RELEASE_VERSION="$RELEASE_VERSION" -e MAJOR_VERSION="$AGENT_MAJOR_VERSION" -e PY_RUNTIMES="$PYTHON_RUNTIMES" -e AWS_NETWORKING=true -e SIGN_WINDOWS=true -e TARGET_ARCH="$ARCH" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}:${Env:DATADOG_AGENT_WINBUILDIMAGES} c:\mnt\tasks\winbuildscripts\buildwin.bat
+    - copy build-out\${CI_JOB_ID}\*.msi .omnibus\pkg
+    - if (Test-Path build-out\${CI_JOB_ID}\*.zip) { copy build-out\${CI_JOB_ID}\*.zip .omnibus\pkg }
+    - remove-item -recurse -force build-out\${CI_JOB_ID}
+    - get-childitem build-out
+    - get-childitem .omnibus\pkg
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - .omnibus/pkg
+
+.windows_main_agent_base:
+  extends: .windows_msi_base
+  variables:
+    OMNIBUS_TARGET: main
+
+windows_msi_and_bosh_zip_x64-a7:
+  extends: .windows_main_agent_base
+  rules:
+    - <<: *if_version_7
+  variables:
+    ARCH: "x64"
+    AGENT_MAJOR_VERSION: 7
+    PYTHON_RUNTIMES: '3'
+  before_script:
+    - set RELEASE_VERSION $RELEASE_VERSION_7
+
+windows_msi_x86-a7:
+  extends: .windows_main_agent_base
+  rules:
+    - <<: *if_not_version_7
+      when: never
+    - <<: *if_deploy
+      when: never
+    - when: on_success
+  allow_failure: true
+  variables:
+    ARCH: "x86"
+    AGENT_MAJOR_VERSION: 7
+    PYTHON_RUNTIMES: '3'
+  before_script:
+    - set RELEASE_VERSION $RELEASE_VERSION_7
+
+windows_msi_x64-a6:
+  extends: .windows_main_agent_base
+  rules:
+    - <<: *if_version_6
+  variables:
+    ARCH: "x64"
+    AGENT_MAJOR_VERSION: 6
+    PYTHON_RUNTIMES: '2,3'
+  before_script:
+    - set RELEASE_VERSION $RELEASE_VERSION_6
+
+windows_msi_x86-a6:
+  extends: .windows_main_agent_base
+  rules:
+    - <<: *if_not_version_6
+      when: never
+    - <<: *if_deploy
+      when: never
+    - when: on_success
+  allow_failure: true
+  variables:
+    ARCH: "x86"
+    AGENT_MAJOR_VERSION: 6
+    PYTHON_RUNTIMES: '2,3'
+  before_script:
+    - set RELEASE_VERSION $RELEASE_VERSION_6
+
+windows_dsd_msi_x64-a7:
+  extends: .windows_msi_base
+  rules:
+    - <<: *if_version_7
+  variables:
+    ARCH: "x64"
+    PYTHON_RUNTIMES: ""
+    AGENT_MAJOR_VERSION: '7'
+    OMNIBUS_TARGET: dogstatsd
+  before_script:
+    - set RELEASE_VERSION $RELEASE_VERSION_7
+
+# cloudfoundry IoT build for Windows
+windows_zip_agent_binaries_x64-a7:
+  rules:
+    - <<: *if_version_7
+  stage: package_build
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  needs: ["go_mod_tidy_check"]
+  variables:
+    ARCH: "x64"
+    AGENT_MAJOR_VERSION: 7
+    OMNIBUS_TARGET: agent_binaries
+  before_script:
+    - set RELEASE_VERSION $RELEASE_VERSION_7
+  script:
+    - if (Test-Path .omnibus) { remove-item -recurse -force .omnibus }
+    - if (Test-Path build-out) { remove-item -recurse -force build-out }
+    - mkdir .omnibus\pkg
+    - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e OMNIBUS_TARGET=${OMNIBUS_TARGET} -e WINDOWS_BUILDER=true -e RELEASE_VERSION="$RELEASE_VERSION" -e MAJOR_VERSION="$AGENT_MAJOR_VERSION" -e PY_RUNTIMES="$PYTHON_RUNTIMES" -e AWS_NETWORKING=true -e SIGN_WINDOWS=true 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}:${Env:DATADOG_AGENT_WINBUILDIMAGES} c:\mnt\tasks\winbuildscripts\buildwin.bat
+    - copy build-out\*.zip .omnibus\pkg
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - .omnibus/pkg

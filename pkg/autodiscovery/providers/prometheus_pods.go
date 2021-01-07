@@ -8,6 +8,7 @@
 package providers
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -17,15 +18,23 @@ import (
 // PrometheusPodsConfigProvider implements the ConfigProvider interface for prometheus pods.
 type PrometheusPodsConfigProvider struct {
 	kubelet kubelet.KubeUtilInterface
-	PrometheusConfigProvider
+
+	checks []*common.PrometheusCheck
 }
 
 // NewPrometheusPodsConfigProvider returns a new Prometheus ConfigProvider connected to kubelet.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
 func NewPrometheusPodsConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
-	p := &PrometheusPodsConfigProvider{}
-	err := p.setupConfigs()
-	return p, err
+	configProvider := &PrometheusConfigProvider{}
+	err := configProvider.setupConfigs()
+	if err != nil {
+		return nil, err
+	}
+
+	p := &PrometheusPodsConfigProvider{
+		checks: configProvider.checks,
+	}
+	return p, nil
 }
 
 // String returns a string representation of the PrometheusPodsConfigProvider

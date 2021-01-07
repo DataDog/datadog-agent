@@ -29,7 +29,7 @@ func NewDefaultOptions() manager.Options {
 		DefaultPerfRingBufferSize: 4096 * os.Getpagesize(),
 
 		// DefaultProbeAttach is the default number of attach / detach retries on error
-		DefaultProbeRetry:      3,
+		DefaultProbeRetry:      1,
 		DefaultProbeRetryDelay: time.Second,
 
 		VerifierOptions: ebpf.CollectionOptions{
