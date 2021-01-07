@@ -196,7 +196,7 @@ func runAgent(exit chan struct{}) {
 		}
 		err := http.ListenAndServe(fmt.Sprintf("localhost:%d", cfg.ProcessExpVarPort), nil)
 		if err != nil && err != http.ErrServerClosed {
-			log.Errorf("Error creating expvar server on port %v: %v", port, err)
+			log.Errorf("Error creating expvar server on port %v: %v", cfg.ProcessExpVarPort, err)
 		}
 	}()
 
