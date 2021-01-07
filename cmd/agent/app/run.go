@@ -238,7 +238,7 @@ func StartAgent() error {
 	go func() {
 		err := http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux)
 		if err != nil && err != http.ErrServerClosed {
-			log.Errorf("Error creating expvar server: %v", err)
+			log.Errorf("Error creating expvar server on port %v: %v", port, err)
 		}
 	}()
 

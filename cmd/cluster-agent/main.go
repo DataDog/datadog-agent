@@ -39,7 +39,7 @@ func main() {
 		port := config.Datadog.GetInt("metrics_port")
 		err := http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", port), nil)
 		if err != nil && err != http.ErrServerClosed {
-			log.Errorf("Error creating expvar server: %v", err)
+			log.Errorf("Error creating expvar server on port %v: %v", port, err)
 		}
 	}()
 
