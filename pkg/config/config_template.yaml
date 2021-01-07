@@ -287,6 +287,12 @@ api_key:
 #   - "sensitive_key_1"
 #   - "sensitive_key_2"
 
+## @param use_proxy_for_cloud_metadata - boolean - optional - default: false
+## By default cloud provider IP's are added to the transport's `no_proxy` list.
+## Use this parameter to remove them from the `no_proxy` list.
+#
+# use_proxy_for_cloud_metadata: false
+
 {{ end }}
 {{- if .Agent }}
 {{- if .Python }}
