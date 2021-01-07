@@ -50,6 +50,11 @@ func TestSerialization(t *testing.T) {
 						DNSCountByRcode:      map[uint32]uint32{0: 1},
 					},
 				},
+				Via: &network.Via{
+					Subnet: network.Subnet{
+						Alias: "subnet-foo",
+					},
+				},
 			},
 		},
 		DNS: map[util.Address][]string{
@@ -89,12 +94,21 @@ func TestSerialization(t *testing.T) {
 						DnsCountByRcode:      map[uint32]uint32{0: 1},
 					},
 				},
+
+				RouteIdx: 0,
 			},
 		},
 		Dns: map[string]*model.DNSEntry{
 			"172.217.12.145": {Names: []string{"golang.org"}},
 		},
 		Domains: []string{"foo.com"},
+		Routes: []*model.Route{
+			&model.Route{
+				Subnet: &model.Subnet{
+					Alias: "subnet-foo",
+				},
+			},
+		},
 	}
 
 	t.Run("requesting application/json serialization", func(t *testing.T) {

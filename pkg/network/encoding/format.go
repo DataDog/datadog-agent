@@ -1,6 +1,7 @@
 package encoding
 
 import (
+	"math"
 	"sync"
 
 	model "github.com/DataDog/agent-payload/process"
@@ -20,8 +21,13 @@ var connPool = sync.Pool{
 	},
 }
 
+type RouteIdx struct {
+	Idx   int32
+	Route model.Route
+}
+
 // FormatConnection converts a ConnectionStats into an model.Connection
-func FormatConnection(conn network.ConnectionStats, domainSet map[string]int) *model.Connection {
+func FormatConnection(conn network.ConnectionStats, domainSet map[string]int, routes map[string]RouteIdx) *model.Connection {
 	c := connPool.Get().(*model.Connection)
 	c.Pid = int32(conn.Pid)
 	c.Laddr = formatAddr(conn.Source, conn.SPort)
@@ -48,7 +54,7 @@ func FormatConnection(conn network.ConnectionStats, domainSet map[string]int) *m
 	c.LastTcpEstablished = conn.LastTCPEstablished
 	c.LastTcpClosed = conn.LastTCPClosed
 	c.DnsStatsByDomain = formatDNSStatsByDomain(conn.DNSStatsByDomain, domainSet)
-	c.Via = formatVia(conn.Via)
+	c.RouteIdx = formatRouteIdx(conn.Via, routes)
 	return c
 }
 
@@ -191,14 +197,32 @@ func formatIPTranslation(ct *network.IPTranslation) *model.IPTranslation {
 	}
 }
 
-func formatVia(ct *network.Via) *model.Via {
-	if ct == nil {
-		return nil
+func formatRouteIdx(v *network.Via, routes map[string]RouteIdx) int32 {
+	if v == nil || routes == nil {
+		return -1
 	}
 
-	return &model.Via{
-		Subnet: &model.Subnet{
-			Alias: ct.Subnet.Alias,
-		},
+	if len(routes) == math.MaxInt32+1 {
+		return -1
 	}
+
+	k := routeKey(v)
+	if len(k) == 0 {
+		return -1
+	}
+
+	if idx, ok := routes[k]; ok {
+		return idx.Idx
+	}
+
+	routes[k] = RouteIdx{
+		Idx:   int32(len(routes)),
+		Route: model.Route{Subnet: &model.Subnet{Alias: v.Subnet.Alias}},
+	}
+
+	return int32(len(routes)) - 1
+}
+
+func routeKey(v *network.Via) string {
+	return v.Subnet.Alias
 }
