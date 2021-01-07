@@ -30,13 +30,13 @@ func TestGrain(t *testing.T) {
 func TestGrainWithExtraTags(t *testing.T) {
 	assert := assert.New(t)
 
-	s := pb.Span{Service: "thing", Name: "other", Resource: "yo", Meta: map[string]string{tagHostname: "host-id", tagVersion: "v0", tagStatusCode: "418"}}
+	s := pb.Span{Service: "thing", Name: "other", Resource: "yo", Meta: map[string]string{tagHostname: "host-id", tagVersion: "v0", tagStatusCode: "418", tagOrigin: "synthetics-browser"}}
 	aggr := NewAggregationFromSpan(&s, "default")
 
 	b := strings.Builder{}
 	aggr.WriteKey(&b)
-	assert.Equal("env:default,resource:yo,service:thing,_dd.hostname:host-id,http.status_code:418,version:v0", b.String())
-	assert.Equal(TagSet{Tag{"env", "default"}, Tag{"resource", "yo"}, Tag{"service", "thing"}, Tag{"_dd.hostname", "host-id"}, Tag{"http.status_code", "418"}, Tag{"version", "v0"}}, aggr.ToTagSet())
+	assert.Equal("env:default,resource:yo,service:thing,_dd.hostname:host-id,http.status_code:418,version:v0,synthetics:true", b.String())
+	assert.Equal(TagSet{Tag{"env", "default"}, Tag{"resource", "yo"}, Tag{"service", "thing"}, Tag{"_dd.hostname", "host-id"}, Tag{"http.status_code", "418"}, Tag{"version", "v0"}, Tag{"synthetics", "true"}}, aggr.ToTagSet())
 }
 
 func TestHandleSpanSkipStats(t *testing.T) {

@@ -294,7 +294,7 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang string) {
 				Distributions:    make(map[string]stats.Distribution),
 				ErrDistributions: make(map[string]stats.Distribution),
 			}
-			aggr := stats.NewAggregation(out.Env, b.Resource, b.Service, "", statusCode, in.Version)
+			aggr := stats.NewAggregation(out.Env, b.Resource, b.Service, "", statusCode, in.Version, false)
 			tagset := aggr.ToTagSet()
 			key := stats.GrainKey(b.Name, stats.HITS, aggr)
 			newb.Counts[key] = stats.Count{
