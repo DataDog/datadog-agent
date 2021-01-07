@@ -11,9 +11,7 @@ if [[ ! -e /etc/datadog-agent/datadog.yaml ]]; then
            /etc/datadog-agent/datadog.yaml
 fi
 
-# Remove all default cheks & enable fargate check
+# Remove all default checks, AD will automatically enable fargate check
 if [[ ! -e /etc/datadog-agent/conf.d/ecs_fargate.d/conf.yaml.default ]]; then
     find /etc/datadog-agent/conf.d/ -iname "*.yaml.default" -delete
-    mv /etc/datadog-agent/conf.d/ecs_fargate.d/conf.yaml.example \
-    /etc/datadog-agent/conf.d/ecs_fargate.d/conf.yaml.default
 fi
