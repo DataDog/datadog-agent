@@ -235,7 +235,12 @@ func StartAgent() error {
 	if config.Datadog.GetBool("telemetry.enabled") {
 		http.Handle("/telemetry", telemetry.Handler())
 	}
-	go http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux) //nolint:errcheck
+	go func() {
+		err := http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux)
+		if err != nil && err != http.ErrServerClosed {
+			log.Errorf("Error creating expvar server on port %v: %v", port, err)
+		}
+	}()
 
 	// Setup healthcheck port
 	var healthPort = config.Datadog.GetInt("health_port")

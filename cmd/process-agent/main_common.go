@@ -194,7 +194,10 @@ func runAgent(exit chan struct{}) {
 		if ddconfig.Datadog.GetBool("telemetry.enabled") {
 			http.Handle("/telemetry", telemetry.Handler())
 		}
-		http.ListenAndServe(fmt.Sprintf("localhost:%d", cfg.ProcessExpVarPort), nil) //nolint:errcheck
+		err := http.ListenAndServe(fmt.Sprintf("localhost:%d", cfg.ProcessExpVarPort), nil)
+		if err != nil && err != http.ErrServerClosed {
+			log.Errorf("Error creating expvar server on port %v: %v", port, err)
+		}
 	}()
 
 	cl, err := NewCollector(cfg)
