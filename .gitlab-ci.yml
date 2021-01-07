@@ -3020,9 +3020,7 @@ docker_build_dogstatsd_amd64:
 docker_trigger_internal_amd64:
   stage: image_deploy
   rules:
-    - <<: *if_version_7
-      when: on_success
-    - <<: *if_deploy_7
+    - <<: *if_deploy_on_tag_7
       when: on_success
   needs:
     - job: docker_build_agent7_jmx
@@ -3032,7 +3030,7 @@ docker_trigger_internal_amd64:
     branch: master
     strategy: depend
   variables:
-    IMAGE_VERSION: tmpl-v1
+    IMAGE_VERSION: tmpl-v2
     IMAGE_NAME: datadog-agent
     RELEASE_TAG: ${CI_COMMIT_REF_SLUG}-jmx
     BUILD_TAG: ${CI_COMMIT_REF_SLUG}-jmx
