@@ -2,6 +2,9 @@
 ## environment variables to set up the connection to the server.
 ## See https://docs.docker.com/engine/reference/commandline/cli/#environment-variables
 
+ad_identifiers:
+  - _docker
+
 init_config:
 
 instances:
