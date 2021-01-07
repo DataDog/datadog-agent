@@ -282,7 +282,7 @@ func (t *Tailer) forwardMessages() {
 			t.setLastSince(output.Timestamp)
 			origin.Identifier = t.Identifier()
 			origin.SetTags(t.tagProvider.GetTags())
-			t.outputChan <- message.NewMessage(output.Content, origin, output.Status)
+			t.outputChan <- message.NewMessage(output.Content, origin, output.Status, output.IngestionTimestamp)
 		}
 	}
 }

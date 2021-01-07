@@ -105,13 +105,7 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 
 		// exec probes
 		&manager.OneOf{Selectors: []manager.ProbesSelector{
-			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kretprobe/ovl_d_real"}},
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kretprobe/ovl_dentry_upper"}},
-			}},
-			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/do_dentry_open"}},
-			}},
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/do_dentry_open"}},
 		}},
 	},
 

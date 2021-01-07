@@ -99,16 +99,20 @@ func SetCheckMetadata(checkID, key string, value interface{}) {
 }
 
 func createCheckInstanceMetadata(checkID, configProvider string) *CheckInstanceMetadata {
+	const transientFields = 3
 
 	var checkInstanceMetadata CheckInstanceMetadata
-	lastUpdated := agentStartupTime
+	var lastUpdated time.Time
 
-	entry, found := checkMetadataCache[checkID]
-	if found {
-		checkInstanceMetadata = entry.CheckInstanceMetadata
+	if entry, found := checkMetadataCache[checkID]; found {
+		checkInstanceMetadata = make(CheckInstanceMetadata, len(entry.CheckInstanceMetadata)+transientFields)
+		for k, v := range entry.CheckInstanceMetadata {
+			checkInstanceMetadata[k] = v
+		}
 		lastUpdated = entry.LastUpdated
 	} else {
-		checkInstanceMetadata = make(CheckInstanceMetadata)
+		checkInstanceMetadata = make(CheckInstanceMetadata, transientFields)
+		lastUpdated = agentStartupTime
 	}
 
 	checkInstanceMetadata["last_updated"] = lastUpdated.UnixNano()

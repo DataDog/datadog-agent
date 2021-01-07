@@ -1,0 +1,84 @@
+---
+# e2e stage
+# Contains jobs which runs e2e tests on our Docker images.
+
+.if_master_branch: &if_master_branch
+  if: $CI_COMMIT_BRANCH == "master"
+
+.if_tagged_commit: &if_tagged_commit
+  if: $CI_COMMIT_TAG != null
+
+.if_deploy_on_tag_6: &if_deploy_on_tag_6
+  # no  RELEASE_VERSION means a nightly build for omnibus
+  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_6 != "nightly" && $RELEASE_VERSION_6 != ""
+
+.if_deploy_on_tag_7: &if_deploy_on_tag_7
+  # no  RELEASE_VERSION means a nightly build for omnibus
+  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_7 != "nightly-a7" && $RELEASE_VERSION_7 != ""
+
+.pupernetes_template:
+  stage: e2e
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  tags: ["runner:main", "size:large"]
+  dependencies: []
+  before_script:
+    - cd $SRC_PATH
+    - python3.6 -m pip install --user -r requirements.txt
+    - export DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
+    - export DOCKER_REGISTRY_PWD=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
+    - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key --with-decryption --query "Parameter.Value" --out text)
+
+pupernetes-dev:
+  extends: .pupernetes_template
+  rules:
+    - <<: *if_master_branch
+      when: never
+    - <<: *if_tagged_commit
+      when: never
+    - when: manual
+      allow_failure: true
+  # Note: pupernetes-dev requires the below jobs to work. However,
+  # we can't explicitly define the dependencies because a job cannot depend on other manual jobs.
+  # Adding the following lines would result in pipelines remaining in a "Running" state forever,
+  # as the pupernetes-dev job waits for manual jobs that may never be triggered.
+  # needs:
+  #   - dev_branch_docker_hub-a6
+  #   - dev_branch_docker_hub-a7
+  # We still want to make the job available as soon as possible. In this case, since it's manual
+  # and requires other manual jobs, it's reasonable make it available from the beginning and let
+  # engineers trigger the correct sequence of jobs when needed.
+  needs: []
+  script:
+    - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG}
+    - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG}
+
+pupernetes-master:
+  extends: .pupernetes_template
+  rules:
+    - <<: *if_master_branch
+  needs: ["dev_master_docker_hub-a6", "dev_master_docker_hub-a7"]
+  script:
+    - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py2 --dca-image=datadog/cluster-agent-dev:master
+    - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py3 --dca-image=datadog/cluster-agent-dev:master
+
+pupernetes-tags-6:
+  extends: .pupernetes_template
+  rules:
+    - <<: *if_deploy_on_tag_6
+      when: manual
+      allow_failure: true
+  script:
+    - AGENT_VERSION=$(inv -e agent.version --major-version 6)
+    - DCA_VERSION=$(inv -e cluster-agent.version)
+    - inv -e e2e-tests --agent-image=datadog/agent:${AGENT_VERSION} --dca-image=datadog/cluster-agent:${DCA_VERSION}
+
+pupernetes-tags-7:
+  extends: .pupernetes_template
+  rules:
+    - <<: *if_deploy_on_tag_7
+      when: manual
+      allow_failure: true
+  script:
+    - AGENT_VERSION=$(inv -e agent.version --major-version 7)
+    - DCA_VERSION=$(inv -e cluster-agent.version)
+    - inv -e e2e-tests --agent-image=datadog/agent:${AGENT_VERSION} --dca-image=datadog/cluster-agent:${DCA_VERSION}
