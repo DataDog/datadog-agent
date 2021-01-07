@@ -15,6 +15,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
+var (
+	defaultFlags = []string{
+		"-DCONFIG_64BIT",
+		"-D__BPF_TRACING__",
+		`-DKBUILD_MODNAME='"ddsysprobe"'`,
+		"-Wno-unused-value",
+		"-Wno-pointer-sign",
+		"-Wno-compare-distinct-pointer-types",
+		"-Wunused",
+		"-Wall",
+		"-Werror",
+	}
+)
+
 type CompiledOutput interface {
 	io.Reader
 	io.ReaderAt
@@ -72,10 +86,16 @@ func (a *RuntimeAsset) Compile(config *Config, cflags []string) (CompiledOutput,
 	if err := os.MkdirAll(config.RuntimeCompilerOutputDir, 0755); err != nil {
 		return nil, fmt.Errorf("unable to create compiler output directory %s: %w", config.RuntimeCompilerOutputDir, err)
 	}
-	// filename includes kernel version and input file hash
+
+	flags := make([]string, len(defaultFlags)+len(cflags))
+	copy(flags, defaultFlags)
+	copy(flags[len(defaultFlags):], cflags)
+	flagHash := hashFlags(flags)
+
+	// filename includes kernel version, input file hash, and cflags hash
 	// this ensures we re-compile when either of the input changes
 	baseName := strings.TrimSuffix(a.filename, filepath.Ext(a.filename))
-	outputFile := filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("%s-%d-%s.o", baseName, kv, hash))
+	outputFile := filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("%s-%d-%s-%s.o", baseName, kv, hash, flagHash))
 	if _, err := os.Stat(outputFile); err != nil {
 		if !os.IsNotExist(err) {
 			return nil, fmt.Errorf("error stat-ing output file %s: %w", outputFile, err)
@@ -86,9 +106,17 @@ func (a *RuntimeAsset) Compile(config *Config, cflags []string) (CompiledOutput,
 		}
 		defer comp.Close()
 
-		if err := comp.CompileToObjectFile(inputReader, outputFile, cflags); err != nil {
+		if err := comp.CompileToObjectFile(inputReader, outputFile, flags); err != nil {
 			return nil, fmt.Errorf("failed to compile runtime version of %s: %s", a.filename, err)
 		}
 	}
 	return os.Open(outputFile)
+}
+
+func hashFlags(flags []string) string {
+	h := sha256.New()
+	for _, f := range flags {
+		h.Write([]byte(f))
+	}
+	return fmt.Sprintf("%x", h.Sum(nil))
 }

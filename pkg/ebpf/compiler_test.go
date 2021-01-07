@@ -31,11 +31,13 @@ func TestCompilerMatch(t *testing.T) {
 	require.NoError(t, err)
 	defer c.Close()
 
-	cflags := []string{
+	cflags := make([]string, len(defaultFlags))
+	copy(cflags, defaultFlags)
+	cflags = append(cflags,
 		"-I./c",
 		"-I../network/ebpf/c",
 		"-includeasm_goto_workaround.h",
-	}
+	)
 	tmpObjFile, err := ioutil.TempFile("", "offset-guess-static-*.o")
 	require.NoError(t, err)
 	defer os.Remove(tmpObjFile.Name())

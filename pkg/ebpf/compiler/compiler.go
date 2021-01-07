@@ -29,25 +29,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-var (
-	defaultFlags = []string{
-		"-DCONFIG_64BIT",
-		"-D__BPF_TRACING__",
-		`-DKBUILD_MODNAME='"ddsysprobe"'`,
-		"-Wno-unused-value",
-		"-Wno-pointer-sign",
-		"-Wno-compare-distinct-pointer-types",
-		"-Wunused",
-		"-Wall",
-		"-Werror",
-	}
-)
-
 type EBPFCompiler struct {
 	compiler *C.struct_bpf_compiler
 
-	verbose       bool
-	defaultCflags []string
+	verbose      bool
+	kernelCflags []string
 }
 
 func (e *EBPFCompiler) CompileFileToObjectFile(inputFile, outputFile string, cflags []string) error {
@@ -71,12 +57,12 @@ func (e *EBPFCompiler) compile(inputC *C.char, outputFile string, cflags []strin
 	outputC := C.CString(outputFile)
 	defer C.free(unsafe.Pointer(outputC))
 
-	cflagsC := make([]*C.char, len(e.defaultCflags)+len(cflags)+1)
-	for i, cflag := range e.defaultCflags {
+	cflagsC := make([]*C.char, len(e.kernelCflags)+len(cflags)+1)
+	for i, cflag := range e.kernelCflags {
 		cflagsC[i] = C.CString(cflag)
 	}
 	for i, cflag := range cflags {
-		cflagsC[len(e.defaultCflags)+i] = C.CString(cflag)
+		cflagsC[len(e.kernelCflags)+i] = C.CString(cflag)
 	}
 	cflagsC[len(cflagsC)-1] = nil
 
@@ -134,9 +120,6 @@ func NewEBPFCompiler(headerDirs []string, verbose bool) (*EBPFCompiler, error) {
 		e.Close()
 	})
 
-	cflags := make([]string, len(defaultFlags))
-	copy(cflags, defaultFlags)
-
 	var err error
 	var dirs []string
 	if len(headerDirs) > 0 {
@@ -172,6 +155,7 @@ func NewEBPFCompiler(headerDirs []string, verbose bool) (*EBPFCompiler, error) {
 		return nil, fmt.Errorf("unable to get kernel arch for %s", runtime.GOARCH)
 	}
 
+	var cflags []string
 	for _, d := range dirs {
 		cflags = append(cflags,
 			fmt.Sprintf("-isystem%s/arch/%s/include", d, arch),
@@ -183,7 +167,7 @@ func NewEBPFCompiler(headerDirs []string, verbose bool) (*EBPFCompiler, error) {
 			fmt.Sprintf("-isystem%s/include/generated/uapi", d),
 		)
 	}
-	ebpfCompiler.defaultCflags = cflags
+	ebpfCompiler.kernelCflags = cflags
 
 	return ebpfCompiler, nil
 }
