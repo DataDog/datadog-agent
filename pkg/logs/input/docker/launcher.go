@@ -232,7 +232,9 @@ func (l *Launcher) getFileSource(container *Container, source *config.LogSource)
 	source.UpdateInfo(containerID, fmt.Sprintf("Container ID: %s, Image: %s, Created: %s, Tailing from file: %s", ShortContainerID(containerID), shortName, container.container.Created, l.getPath(containerID)))
 
 	var serviceName string
-	if standardService != "" {
+	if source.Name != config.ContainerCollectAll && source.Config.Service != "" {
+		serviceName = source.Config.Service
+	} else if standardService != "" {
 		serviceName = standardService
 	} else {
 		serviceName = shortName
@@ -301,6 +303,9 @@ func (l *Launcher) scheduleFileSource(container *Container, source *config.LogSo
 
 func (l *Launcher) unscheduleFileSource(containerID string) {
 	if fileSource, exists := l.fileSourcesByContainer[containerID]; exists {
+		if fileSource.ParentSource != nil {
+			fileSource.ParentSource.RemoveInfo(containerID)
+		}
 		delete(l.fileSourcesByContainer, containerID)
 		l.sources.RemoveSource(fileSource)
 	}
