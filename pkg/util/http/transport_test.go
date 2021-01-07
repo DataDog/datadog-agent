@@ -118,6 +118,8 @@ func TestNoProxyNonexactMatch(t *testing.T) {
 	proxyURL, err = proxyFunc(r6)
 	assert.Nil(t, err)
 	assert.Nil(t, proxyURL)
+
+	config.Datadog.Set("no_proxy_nonexact_match", false)
 }
 
 func TestErrorParse(t *testing.T) {
