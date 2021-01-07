@@ -230,7 +230,7 @@ func NewOptions(keysPerDomain map[string][]string) *Options {
 			log.Warnf("'%v' is set, but as this setting is deprecated, '%v' is used instead.", forwarderRetryQueueMaxSizeKey, forwarderRetryQueuePayloadsMaxSizeKey)
 		} else {
 			forwarderRetryQueueMaxSize := config.Datadog.GetInt(forwarderRetryQueueMaxSizeKey)
-			option.SetRetryQueuePayloadsTotalMaxSizeFromQueueMax(forwarderRetryQueueMaxSize)
+			option.setRetryQueuePayloadsTotalMaxSizeFromQueueMax(forwarderRetryQueueMaxSize)
 			log.Warnf("'%v = %v' is used, but this setting is deprecated. '%v = %v' (%v * 2MB) is used instead as the maximum payload size is 2MB.",
 				forwarderRetryQueueMaxSizeKey,
 				forwarderRetryQueueMaxSize,
@@ -243,9 +243,9 @@ func NewOptions(keysPerDomain map[string][]string) *Options {
 	return option
 }
 
-// SetRetryQueuePayloadsTotalMaxSizeFromQueueMax set `RetryQueuePayloadsTotalMaxSize` from the value
+// setRetryQueuePayloadsTotalMaxSizeFromQueueMax set `RetryQueuePayloadsTotalMaxSize` from the value
 // of the deprecated settings `forwarder_retry_queue_max_size`
-func (o *Options) SetRetryQueuePayloadsTotalMaxSizeFromQueueMax(v int) {
+func (o *Options) setRetryQueuePayloadsTotalMaxSizeFromQueueMax(v int) {
 	maxPayloadSize := 2 * 1024 * 1024
 	o.RetryQueuePayloadsTotalMaxSize = v * maxPayloadSize
 }
