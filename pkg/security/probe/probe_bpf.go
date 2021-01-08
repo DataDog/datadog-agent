@@ -582,31 +582,32 @@ func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers
 func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 	var activatedProbes []manager.ProbesSelector
 
-	var selectedIDs []manager.ProbeIdentificationPair
 	for eventType, selectors := range probes.SelectorsPerEventType {
 		if eventType == "*" || rs.HasRulesForEventType(eventType) {
 			activatedProbes = append(activatedProbes, selectors...)
-
-			// Extract unique IDs for logging purposes only
-			for _, selector := range selectors {
-				for _, id := range selector.GetProbesIdentificationPairList() {
-					var exists bool
-					for _, selectedID := range selectedIDs {
-						if selectedID.Matches(id) {
-							exists = true
-						}
-					}
-					if !exists {
-						selectedIDs = append(selectedIDs, id)
-					}
-				}
-			}
 		}
 	}
 
+	// Add syscall monitor probes
+	if p.config.SyscallMonitor {
+		activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
+	}
+
 	// Print the list of unique probe identification IDs that are registered
-	for _, id := range selectedIDs {
-		log.Tracef("probe %s selected", id)
+	var selectedIDs []manager.ProbeIdentificationPair
+	for _, selector := range activatedProbes {
+		for _, id := range selector.GetProbesIdentificationPairList() {
+			var exists bool
+			for _, selectedID := range selectedIDs {
+				if selectedID.Matches(id) {
+					exists = true
+				}
+			}
+			if !exists {
+				selectedIDs = append(selectedIDs, id)
+				log.Tracef("probe %s selected", id)
+			}
+		}
 	}
 
 	enabledEventsMap, err := p.Map("enabled_events")

@@ -131,7 +131,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 			s := serializer.NewSerializer(common.Forwarder)
 			// Initializing the aggregator with a flush interval of 0 (which disable the flush goroutine)
 			agg := aggregator.InitAggregatorWithFlushInterval(s, hostname, 0)
-			common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
+			common.LoadComponents(config.Datadog.GetString("confd_path"))
 
 			if config.Datadog.GetBool("inventories_enabled") {
 				metadata.SetupInventoriesExpvar(common.AC, common.Coll)

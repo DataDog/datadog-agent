@@ -554,6 +554,7 @@ core,"golang.org/x/net/bpf",NewBSD
 core,"golang.org/x/net/context",NewBSD
 core,"golang.org/x/net/context/ctxhttp",NewBSD
 core,"golang.org/x/net/http/httpguts",NewBSD
+core,"golang.org/x/net/http/httpproxy",NewBSD
 core,"golang.org/x/net/http2",NewBSD
 core,"golang.org/x/net/http2/hpack",NewBSD
 core,"golang.org/x/net/idna",NewBSD

@@ -151,7 +151,6 @@ func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 			Ppid:    statInfo.ppid,                             // /proc/[pid]/stat
 			Cmdline: cmdline,                                   // /proc/[pid]/cmdline
 			Name:    statusInfo.name,                           // /proc/[pid]/status
-			Status:  statusInfo.status,                         // /proc/[pid]/status
 			Uids:    statusInfo.uids,                           // /proc/[pid]/status
 			Gids:    statusInfo.gids,                           // /proc/[pid]/status
 			Cwd:     p.getLinkWithAuthCheck(pathForPID, "cwd"), // /proc/[pid]/cwd, requires permission checks
@@ -159,6 +158,7 @@ func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 			NsPid:   statusInfo.nspid,                          // /proc/[pid]/status
 			Stats: &Stats{
 				CreateTime:  statInfo.createTime,      // /proc/[pid]/stat
+				Status:      statusInfo.status,        // /proc/[pid]/status
 				Nice:        statInfo.nice,            // /proc/[pid]/stat
 				OpenFdCount: p.getFDCount(pathForPID), // /proc/[pid]/fd, requires permission checks
 				CPUTime:     statInfo.cpuStat,         // /proc/[pid]/stat
