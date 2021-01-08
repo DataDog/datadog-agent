@@ -21,6 +21,7 @@ var connPool = sync.Pool{
 	},
 }
 
+// RouteIdx stores the route and the index into the route collection for a route
 type RouteIdx struct {
 	Idx   int32
 	Route model.Route
