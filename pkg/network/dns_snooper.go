@@ -140,7 +140,7 @@ func (s *SocketFilterSnooper) Close() {
 // The *translation is recycled and re-used in subsequent calls and it should not be accessed concurrently.
 // The second parameter `ts` is the time when the packet was captured off the wire. This is used for latency calculation
 // and much more reliable than calling time.Now() at the user layer.
-func (s *SocketFilterSnooper) processPacket(data []byte, ts time.Time) {
+func (s *SocketFilterSnooper) processPacket(data []byte, ts time.Time) error {
 	t := s.getCachedTranslation()
 	pktInfo := dnsPacketInfo{}
 
@@ -153,7 +153,7 @@ func (s *SocketFilterSnooper) processPacket(data []byte, ts time.Time) {
 			atomic.AddInt64(&s.decodingErrors, 1)
 			log.Tracef("error decoding DNS payload: %v", err)
 		}
-		return
+		return nil
 	}
 
 	if s.statKeeper != nil && (s.collectLocalDNS || !pktInfo.key.serverIP.IsLoopback()) {
@@ -168,14 +168,13 @@ func (s *SocketFilterSnooper) processPacket(data []byte, ts time.Time) {
 	} else {
 		atomic.AddInt64(&s.queries, 1)
 	}
+
+	return nil
 }
 
 func (s *SocketFilterSnooper) pollPackets() {
 	for {
-		err := s.source.VisitPackets(func(data []byte, timestamp time.Time) error {
-			s.processPacket(data, timestamp)
-			return nil
-		})
+		err := s.source.VisitPackets(s.processPacket)
 
 		if err != nil {
 			log.Warnf("error reading packet: %s", err)
