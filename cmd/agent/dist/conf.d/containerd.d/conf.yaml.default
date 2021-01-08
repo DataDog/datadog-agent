@@ -1,3 +1,5 @@
+ad_identifiers:
+  - _containerd
 init_config:
 instances:
   -

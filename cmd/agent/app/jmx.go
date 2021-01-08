@@ -153,7 +153,7 @@ func runJmxCommandConsole(command string) error {
 		return fmt.Errorf("Unable to set up JMX logger: %v", err)
 	}
 
-	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
+	common.LoadComponents(config.Datadog.GetString("confd_path"))
 
 	err = standalone.ExecJMXCommandConsole(command, cliSelectedChecks, logLevel)
 

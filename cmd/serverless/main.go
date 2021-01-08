@@ -111,9 +111,13 @@ func main() {
 	flavor.SetFlavor(flavor.ServerlessAgent)
 
 	// go_expvar server // TODO(remy): shouldn't we remove that for the serverless agent?
-	go http.ListenAndServe( //nolint:errcheck
-		fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_stats_port")),
-		http.DefaultServeMux)
+	go func() {
+		port := config.Datadog.GetInt("dogstatsd_stats_port")
+		err := http.ListenAndServe(fmt.Sprintf("127.0.0.1:%d", port), http.DefaultServeMux)
+		if err != nil && err != http.ErrServerClosed {
+			log.Errorf("Error creating expvar server on port %v: %v", port, err)
+		}
+	}()
 
 	// if not command has been provided, run the agent
 	if len(os.Args) == 1 {
