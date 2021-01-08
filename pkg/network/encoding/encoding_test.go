@@ -103,7 +103,7 @@ func TestSerialization(t *testing.T) {
 		},
 		Domains: []string{"foo.com"},
 		Routes: []*model.Route{
-			&model.Route{
+			{
 				Subnet: &model.Subnet{
 					Alias: "subnet-foo",
 				},
