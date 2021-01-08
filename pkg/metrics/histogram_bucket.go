@@ -29,7 +29,10 @@ func (m *HistogramBucket) GetHost() string {
 	return m.Host
 }
 
-// GetTags returns the bucket tags
-func (m *HistogramBucket) GetTags() []string {
+// GetTags returns the bucket tags.
+func (m *HistogramBucket) GetTags([]string) []string {
+	// Other 'GetTags' methods for metrics support origin detections. Since
+	// HistogramBucket only come, for now, from checks we can simply return
+	// tags.
 	return m.Tags
 }

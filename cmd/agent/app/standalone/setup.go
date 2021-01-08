@@ -26,7 +26,7 @@ func SetupCLI(loggerName config.LoggerName, confFilePath, configName string, cli
 		config.AddOverrides(overrides)
 		resolvedLogLevel = cliLogLevel
 	} else {
-		resolvedLogLevel = config.GetEnv("DD_LOG_LEVEL", defaultLogLevel)
+		resolvedLogLevel = config.GetEnvDefault("DD_LOG_LEVEL", defaultLogLevel)
 	}
 
 	overrides := make(map[string]interface{})

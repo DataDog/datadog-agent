@@ -50,6 +50,9 @@ func (s *batchStrategy) Send(inputChan chan *message.Message, outputChan chan *m
 				s.sendBuffer(outputChan, send)
 				return
 			}
+			if message.Origin != nil {
+				message.Origin.LogSource.LatencyStats.Add(message.GetLatency())
+			}
 			added := s.buffer.AddMessage(message)
 			if !added || s.buffer.IsFull() {
 				// message buffer is full, either reaching max batch size or max content size,

@@ -59,12 +59,11 @@ const (
 	DefaultRuntimePoliciesDir = "/etc/datadog-agent/runtime-security.d"
 )
 
-var overrideVars = make(map[string]interface{})
-
 // Datadog is the global configuration object
 var (
-	Datadog Config
-	proxies *Proxy
+	Datadog       Config
+	proxies       *Proxy
+	overrideFuncs = make([]func(Config), 0)
 )
 
 // Variables to initialize at build time
@@ -114,17 +113,17 @@ type Proxy struct {
 
 // MappingProfile represent a group of mappings
 type MappingProfile struct {
-	Name     string          `mapstructure:"name"`
-	Prefix   string          `mapstructure:"prefix"`
-	Mappings []MetricMapping `mapstructure:"mappings"`
+	Name     string          `mapstructure:"name" json:"name"`
+	Prefix   string          `mapstructure:"prefix" json:"prefix"`
+	Mappings []MetricMapping `mapstructure:"mappings" json:"mappings"`
 }
 
 // MetricMapping represent one mapping rule
 type MetricMapping struct {
-	Match     string            `mapstructure:"match"`
-	MatchType string            `mapstructure:"match_type"`
-	Name      string            `mapstructure:"name"`
-	Tags      map[string]string `mapstructure:"tags"`
+	Match     string            `mapstructure:"match" json:"match"`
+	MatchType string            `mapstructure:"match_type" json:"match_type"`
+	Name      string            `mapstructure:"name" json:"name"`
+	Tags      map[string]string `mapstructure:"tags" json:"tags"`
 }
 
 // Warnings represent the warnings in the config
@@ -138,6 +137,7 @@ func init() {
 	Datadog = NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	// Configuration defaults
 	InitConfig(Datadog)
+	detectFeatures()
 }
 
 // InitConfig initializes the config defaults on a config
@@ -186,6 +186,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("python_version", DefaultPython)
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
+	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
 
 	// overridden in IoT Agent main
 	config.BindEnvAndSetDefault("iot_host", false)
@@ -398,6 +399,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("extra_listeners", []string{})
 	config.BindEnvAndSetDefault("extra_config_providers", []string{})
 	config.BindEnvAndSetDefault("ignore_autoconf", []string{})
+	config.BindEnvAndSetDefault("autoconf_from_environment", true)
 
 	// Docker
 	config.BindEnvAndSetDefault("docker_query_timeout", int64(5))
@@ -542,7 +544,7 @@ func InitConfig(config Config) {
 	// it can be set from file, but not from env. Override it with value from DD_PROCESS_AGENT_ENABLED.
 	ddProcessAgentEnabled, found := os.LookupEnv("DD_PROCESS_AGENT_ENABLED")
 	if found {
-		overrideVars["process_config.enabled"] = ddProcessAgentEnabled
+		AddOverride("process_config.enabled", ddProcessAgentEnabled)
 	}
 
 	config.BindEnv("process_config.process_dd_url", "") //nolint:errcheck
@@ -871,6 +873,11 @@ func loadProxyFromEnv(config Config) {
 		config.Set("proxy.no_proxy", p.NoProxy)
 		proxies = p
 	}
+
+	if !config.GetBool("use_proxy_for_cloud_metadata") {
+		p.NoProxy = append(p.NoProxy, "169.254.169.254") // Azure, EC2, GCE
+		p.NoProxy = append(p.NoProxy, "100.100.100.200") // Alibaba
+	}
 }
 
 // Load reads configs files and initializes the config module
@@ -931,20 +938,17 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 	// If this variable is set to true, we'll use DefaultPython for the Python version,
 	// ignoring the python_version configuration value.
 	if ForceDefaultPython == "true" {
-		override := make(map[string]interface{})
-		override["python_version"] = DefaultPython
-
 		pv := config.GetString("python_version")
 		if pv != DefaultPython {
 			log.Warnf("Python version has been forced to %s", DefaultPython)
 		}
 
-		AddOverrides(override)
+		AddOverride("python_version", DefaultPython)
 	}
 
 	loadProxyFromEnv(config)
 	SanitizeAPIKeyConfig(config, "api_key")
-	applyOverrides(config)
+	applyOverrideFuncs(config)
 	// setTracemallocEnabled *must* be called before setNumWorkers
 	warnings.TraceMallocEnabledWithPy2 = setTracemallocEnabled(config)
 	setNumWorkers(config)
@@ -1156,11 +1160,6 @@ func IsCloudProviderEnabled(cloudProviderName string) bool {
 	return false
 }
 
-// IsContainerized returns whether the Agent is running on a Docker container
-func IsContainerized() bool {
-	return os.Getenv("DOCKER_DD_AGENT") != ""
-}
-
 // FileUsedDir returns the absolute path to the folder containing the config
 // file used to populate the registry
 func FileUsedDir() string {
@@ -1192,49 +1191,10 @@ func GetIPCAddress() (string, error) {
 	return "", fmt.Errorf("ipc_address was set to a non-loopback IP address: %s", address)
 }
 
-// GetEnv retrieves the value of the environment variable named by the key,
-// or def if the environment variable was not set.
-func GetEnv(key, def string) string {
-	value, found := os.LookupEnv(key)
-	if !found {
-		return def
-	}
-	return value
-}
-
-// IsKubernetes returns whether the Agent is running on a kubernetes cluster
-func IsKubernetes() bool {
-	// Injected by Kubernetes itself
-	if os.Getenv("KUBERNETES_SERVICE_PORT") != "" {
-		return true
-	}
-	// support of Datadog environment variable for Kubernetes
-	if os.Getenv("KUBERNETES") != "" {
-		return true
-	}
-	return false
-}
-
 // pathExists returns true if the given path exists
 func pathExists(path string) bool {
 	_, err := os.Stat(path)
 	return !os.IsNotExist(err)
-}
-
-// AddOverrides provides an externally accessible method for
-// overriding config variables.
-// This method must be called before Load() to be effective.
-func AddOverrides(vars map[string]interface{}) {
-	for k, v := range vars {
-		overrideVars[k] = v
-	}
-}
-
-// applyOverrides overrides config variables.
-func applyOverrides(config Config) {
-	for k, v := range overrideVars {
-		config.Set(k, v)
-	}
 }
 
 // setTracemallocEnabled is a helper to get the effective tracemalloc
