@@ -413,6 +413,48 @@ func (tm *testModule) Create(filename string) (string, unsafe.Pointer, error) {
 	return testFile, testPtr, err
 }
 
+type tracePipeLogger struct {
+	*TracePipe
+	stop chan struct{}
+}
+
+func (l *tracePipeLogger) Start() {
+	channelEvents, channelErrors := l.Channel()
+
+	go func() {
+		for {
+			select {
+			case <-l.stop:
+				return
+			case event := <-channelEvents:
+				log.Debug(event.Raw)
+			case err := <-channelErrors:
+				log.Error(err)
+			}
+		}
+	}()
+}
+
+func (l *tracePipeLogger) Stop() {
+	l.stop <- struct{}{}
+	l.Close()
+}
+
+func (tm *testModule) startTracing() (*tracePipeLogger, error) {
+	tracePipe, err := NewTracePipe()
+	if err != nil {
+		return nil, err
+	}
+
+	logger := &tracePipeLogger{
+		TracePipe: tracePipe,
+		stop:      make(chan struct{}),
+	}
+	logger.Start()
+
+	return logger, nil
+}
+
 func (tm *testModule) cleanup() {
 	tm.st.Close()
 	tm.module.Close()
