@@ -50,6 +50,7 @@
     BUILD_CONTEXT: Dockerfiles/agent
     BUILD_ARG: --build-arg BASE_IMAGE=mcr.microsoft.com/powershell:nanoserver-${VARIANT} --build-arg WITH_JMX=${WITH_JMX}
   script:
+    - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
     - $ErrorActionPreference = "Stop"
     - $TARGET_TAG = "${IMAGE}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}${TAG_SUFFIX}-win${VARIANT}-amd64"
     - cp ${OMNIBUS_PACKAGE_DIR}/datadog-agent-7*-x86_64.zip ${BUILD_CONTEXT}/datadog-agent-7-latest.amd64.zip
