@@ -106,6 +106,7 @@ func (p *Probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, err
 
 		statsByPID[pid] = &Stats{
 			CreateTime:  statInfo.createTime,      // /proc/[pid]/stat
+			Status:      statusInfo.status,        // /proc/[pid]/status
 			Nice:        statInfo.nice,            // /proc/[pid]/stat
 			OpenFdCount: p.getFDCount(pathForPID), // /proc/[pid]/fd, requires permission checks
 			CPUTime:     statInfo.cpuStat,         // /proc/[pid]/stat
