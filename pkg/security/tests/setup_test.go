@@ -10,6 +10,7 @@ package tests
 import (
 	"bytes"
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"os"
@@ -85,8 +86,11 @@ rules:
 {{end}}
 `
 
-var testEnvironment string
-var useReload bool
+var (
+	testEnvironment string
+	useReload       bool
+	logLevelStr     string
+)
 
 const (
 	HostEnvironment   = "host"
@@ -104,7 +108,6 @@ type testOpts struct {
 	disableApprovers  bool
 	disableDiscarders bool
 	wantProbeEvents   bool
-	logLevel          seelog.LogLevel
 }
 
 type testModule struct {
@@ -240,13 +243,9 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 		}
 	}()
 
-	var logLevel seelog.LogLevel = seelog.InfoLvl
-	if testing.Verbose() {
-		logLevel = seelog.TraceLvl
-	}
-
-	if opts.logLevel != seelog.TraceLvl {
-		logLevel = opts.logLevel
+	logLevel, found := seelog.LogLevelFromString(logLevelStr)
+	if !found {
+		return nil, fmt.Errorf("invalid log level '%s'", logLevel)
 	}
 
 	st, err := newSimpleTest(macros, rules, opts.testDir, logLevel)
@@ -592,4 +591,5 @@ func init() {
 	os.Setenv("RUNTIME_SECURITY_TESTSUITE", "true")
 	flag.StringVar(&testEnvironment, "env", HostEnvironment, "environment used to run the test suite: ex: host, docker")
 	flag.BoolVar(&useReload, "reload", true, "reload rules instead of stopping/starting the agent for every test")
+	flag.StringVar(&logLevelStr, "loglevel", seelog.WarnStr, "log level")
 }
