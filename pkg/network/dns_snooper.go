@@ -43,11 +43,11 @@ type SocketFilterSnooper struct {
 
 // PacketSource reads raw packet data
 type PacketSource interface {
-	// VisitPacket reads a new raw packet if available, and then calls the given callback with that packet.
+	// VisitPackets reads all new raw packets that are available, invoking the given callback for each packet.
 	// If no packet is available, VisitPacket returns immediately.
 	// The format of the packet is dependent on the implementation of PacketSource -- i.e. it may be an ethernet frame, or a IP frame.
 	// The data buffer is reused between invocations of VisitPacket and thus should not be pointed to.
-	VisitPacket(visitor func(data []byte, timestamp time.Time) error) error
+	VisitPackets(visitor func(data []byte, timestamp time.Time) error) error
 
 	// Stats returns a map of counters, meant to be reported as telemetry
 	Stats() map[string]int64
@@ -172,7 +172,7 @@ func (s *SocketFilterSnooper) processPacket(data []byte, ts time.Time) {
 
 func (s *SocketFilterSnooper) pollPackets() {
 	for {
-		err := s.source.VisitPacket(func(data []byte, timestamp time.Time) error {
+		err := s.source.VisitPackets(func(data []byte, timestamp time.Time) error {
 			s.processPacket(data, timestamp)
 			return nil
 		})

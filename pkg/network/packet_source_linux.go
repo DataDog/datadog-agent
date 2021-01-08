@@ -73,17 +73,12 @@ func (p *packetSource) Stats() map[string]int64 {
 	}
 }
 
-func (p *packetSource) VisitPacket(visit func([]byte, time.Time) error) error {
+func (p *packetSource) VisitPackets(visit func([]byte, time.Time) error) error {
 	for {
 		data, stats, err := p.ZeroCopyReadPacketData()
 
 		// Immediately retry for EAGAIN
-		if err == syscall.EAGAIN {
-			continue
-		}
-
-		// this means there is no packet available to read, which is an (expected) no-op
-		if err == afpacket.ErrTimeout {
+		if err == syscall.EAGAIN || err == afpacket.ErrTimeout {
 			return nil
 		}
 
@@ -91,7 +86,9 @@ func (p *packetSource) VisitPacket(visit func([]byte, time.Time) error) error {
 			return err
 		}
 
-		return visit(data, stats.Timestamp)
+		if err := visit(data, stats.Timestamp); err != nil {
+			return err
+		}
 	}
 }
 
