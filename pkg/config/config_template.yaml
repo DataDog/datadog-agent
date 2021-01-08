@@ -287,6 +287,12 @@ api_key:
 #   - "sensitive_key_1"
 #   - "sensitive_key_2"
 
+## @param no_proxy_nonexact_match - boolean - optional - default: false
+## Enable more flexible no_proxy matching. See https://godoc.org/golang.org/x/net/http/httpproxy#Config 
+## for more information on accepted matching criteria.
+#
+# no_proxy_nonexact_match: false
+
 ## @param use_proxy_for_cloud_metadata - boolean - optional - default: false
 ## By default cloud provider IP's are added to the transport's `no_proxy` list.
 ## Use this parameter to remove them from the `no_proxy` list.
