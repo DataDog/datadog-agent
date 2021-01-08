@@ -41,7 +41,7 @@ func runParseMetricBenchmark(b *testing.B, multipleValues bool) {
 					continue
 				}
 
-				benchSamples = enrichMetricSample(samples, parsed, "", namespaceBlacklist, "default-hostname", returnEmptyTags, true, false)
+				benchSamples = enrichMetricSample(samples, parsed, "", namespaceBlacklist, "default-hostname", "", true, false)
 			}
 		})
 	}

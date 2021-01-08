@@ -186,6 +186,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("python_version", DefaultPython)
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
+	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
 
 	// overridden in IoT Agent main
 	config.BindEnvAndSetDefault("iot_host", false)
@@ -873,6 +874,11 @@ func loadProxyFromEnv(config Config) {
 		config.Set("proxy.https", p.HTTPS)
 		config.Set("proxy.no_proxy", p.NoProxy)
 		proxies = p
+	}
+
+	if !config.GetBool("use_proxy_for_cloud_metadata") {
+		p.NoProxy = append(p.NoProxy, "169.254.169.254") // Azure, EC2, GCE
+		p.NoProxy = append(p.NoProxy, "100.100.100.200") // Alibaba
 	}
 }
 
