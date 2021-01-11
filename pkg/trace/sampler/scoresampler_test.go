@@ -65,12 +65,14 @@ func TestErrorSampleThresholdTo1(t *testing.T) {
 	s := getTestScoreEngine()
 	for i := 0; i < 1e2; i++ {
 		trace, root := getTestTrace()
-		_, rate := s.Sample(trace, root, env)
+		s.Sample(trace, root, env)
+		rate, _ := root.Metrics["_dd.errors_sr"]
 		assert.Equal(1.0, rate)
 	}
 	for i := 0; i < 1e3; i++ {
 		trace, root := getTestTrace()
-		_, rate := s.Sample(trace, root, env)
+		s.Sample(trace, root, env)
+		rate, _ := root.Metrics["_dd.errors_sr"]
 		if rate < 1 {
 			assert.True(rate < errorSamplingRateThresholdTo1)
 		}
@@ -101,7 +103,7 @@ func TestMaxTPS(t *testing.T) {
 		s.Sampler.Backend.(*MemoryBackend).decayScore()
 		for i := 0; i < int(tracesPerPeriod); i++ {
 			trace, root := getTestTrace()
-			sampled, _ := s.Sample(trace, root, defaultEnv)
+			sampled := s.Sample(trace, root, defaultEnv)
 			// Once we got into the "supposed-to-be" stable "regime", count the samples
 			if period > initPeriods && sampled {
 				sampledCount++
