@@ -1,0 +1,10 @@
+---
+# image_build stage
+# Contains jobs to deploy Docker images of the Agent, both internal and external
+# (in the datadog/agent-dev | datadog/dogstatsd-dev Dockerhub repos).
+
+include:
+  - /.gitlab/image_deploy/docker_linux.yml
+  - /.gitlab/image_deploy/docker_windows.yml
+  - /.gitlab/image_deploy/internal_trigger.yml
+  - /.gitlab/image_deploy/twistlock.yml

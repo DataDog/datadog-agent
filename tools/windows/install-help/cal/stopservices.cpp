@@ -1,7 +1,19 @@
 #include "stdafx.h"
 
 static BOOL StopDependentServices(SC_HANDLE hScManager, SC_HANDLE hService);
+static VOID  DoStopSvc(const wchar_t*);
+VOID DoStopAllServices()
+{
+    /*
+     * temporary, clunky workaround to account for subservices running when main
+     * agent is not
+     */
+    DoStopSvc(L"datadog-system-probe");
+    DoStopSvc(L"datadog-process-agent");
+    DoStopSvc(L"datadog-trace-agent");
+    DoStopSvc(L"datadogagent");
 
+}
 int doesServiceExist(std::wstring& svcName)
 {
     SC_HANDLE hScManager = NULL;
@@ -61,7 +73,7 @@ int doesServiceExist(std::wstring& svcName)
 // Return value:
 //   None
 //
-VOID  DoStopSvc(std::wstring &svcName)
+VOID  DoStopSvc(const wchar_t* inSvcName)
 {
     SERVICE_STATUS_PROCESS ssp;
     DWORD dwStartTime = GetTickCount();
@@ -70,6 +82,7 @@ VOID  DoStopSvc(std::wstring &svcName)
     DWORD dwWaitTime;
     SC_HANDLE hScManager = NULL;
     SC_HANDLE hService = NULL;
+    std::wstring svcName = inSvcName;
 
     // Get a handle to the SCM database. 
     WcaLog(LOGMSG_STANDARD, "Stopping service %S", svcName.c_str());

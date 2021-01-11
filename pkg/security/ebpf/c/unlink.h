@@ -11,7 +11,7 @@ struct unlink_event_t {
     struct syscall_t syscall;
     struct file_t file;
     u32 flags;
-    u32 padding;
+    u32 discarder_revision;
 };
 
 int __attribute__((always_inline)) trace__sys_unlink(int flags) {
@@ -41,29 +41,18 @@ int kprobe__vfs_unlink(struct pt_regs *ctx) {
     if (!syscall)
         return 0;
 
-    // we resolve all the information before the file is actually removed
-    struct dentry *dentry = (struct dentry *) PT_REGS_PARM2(ctx);
-
-    u64 inode = get_dentry_ino(dentry);
-
-    // ensure that we invalidate all the layers
-    invalidate_inode(ctx, syscall->unlink.path_key.mount_id, inode, 1);
-
-    // if second pass, ex: overlayfs, just cache the inode that will be used in ret
     if (syscall->unlink.path_key.ino) {
-        syscall->unlink.real_inode = inode;
         return 0;
     }
 
-    syscall->unlink.path_key.ino = inode;
-    syscall->unlink.overlay_numlower = get_overlay_numlower(dentry);
+    // we resolve all the information before the file is actually removed
+    struct dentry *dentry = (struct dentry *) PT_REGS_PARM2(ctx);
+    set_path_key_inode(dentry, &syscall->unlink.path_key, 1);
 
-    if (!syscall->unlink.path_key.path_id)
-        syscall->unlink.path_key.path_id = get_path_id(1);
+    syscall->unlink.overlay_numlower = get_overlay_numlower(dentry);
 
     if (discarded_by_process(syscall->policy.mode, EVENT_UNLINK)) {
         pop_syscall(SYSCALL_UNLINK);
-
         return 0;
     }
 
@@ -86,13 +75,6 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
         return 0;
     }
 
-    // add an real entry to reach the first dentry with the proper inode
-    u64 inode = syscall->unlink.path_key.ino;
-    if (syscall->unlink.real_inode) {
-        inode = syscall->unlink.real_inode;
-        link_dentry_inode(syscall->unlink.path_key, inode);
-    }
-
     u64 enabled_events = get_enabled_events();
     int enabled = mask_has_event(enabled_events, EVENT_UNLINK) ||
                   mask_has_event(enabled_events, EVENT_RMDIR);
@@ -101,11 +83,12 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
             .syscall.retval = retval,
             .file = {
                 .mount_id = syscall->unlink.path_key.mount_id,
-                .inode = inode,
+                .inode = syscall->unlink.path_key.ino,
                 .overlay_numlower = syscall->unlink.overlay_numlower,
                 .path_id = syscall->unlink.path_key.path_id,
             },
             .flags = syscall->unlink.flags,
+            .discarder_revision = bump_discarder_revision(syscall->unlink.path_key.mount_id),
         };
 
         struct proc_cache_t *entry = fill_process_context(&event.process);
@@ -114,7 +97,7 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
         send_event(ctx, syscall->unlink.flags&AT_REMOVEDIR ? EVENT_RMDIR : EVENT_UNLINK, event);
     }
 
-    invalidate_inode(ctx, syscall->unlink.path_key.mount_id, inode, !enabled);
+    invalidate_inode(ctx, syscall->unlink.path_key.mount_id, syscall->unlink.path_key.ino, !enabled);
 
     return 0;
 }

@@ -27,13 +27,13 @@ func TestStreamStrategy(t *testing.T) {
 	go StreamStrategy.Send(input, output, success)
 
 	content = []byte("a")
-	message1 := message.NewMessage(content, nil, "")
+	message1 := message.NewMessage(content, nil, "", 0)
 	input <- message1
 
 	assert.Equal(t, message1, <-output)
 
 	content = []byte("b")
-	message2 := message.NewMessage(content, nil, "")
+	message2 := message.NewMessage(content, nil, "", 0)
 	input <- message2
 
 	assert.Equal(t, message2, <-output)
@@ -48,7 +48,7 @@ func TestStreamStrategyShouldNotBlockWhenForceStopping(t *testing.T) {
 		return context.Canceled
 	}
 
-	message := message.NewMessage(content, nil, "")
+	message := message.NewMessage(content, nil, "", 0)
 	go func() {
 		input <- message
 		close(input)
@@ -66,7 +66,7 @@ func TestStreamStrategyShouldNotBlockWhenStoppingGracefully(t *testing.T) {
 		return nil
 	}
 
-	message := message.NewMessage(content, nil, "")
+	message := message.NewMessage(content, nil, "", 0)
 	go func() {
 		input <- message
 		close(input)

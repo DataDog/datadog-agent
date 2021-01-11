@@ -131,7 +131,7 @@ func (l *reOrdererList) dequeue(handler func(cpu uint64, data []byte)) {
 // ReOrdererOpts options to pass when creating a new instance of ReOrderer
 type ReOrdererOpts struct {
 	QueueSize  uint64        // size of the chan where the perf data are pushed
-	WindowSize uint64        // number of element to keep for orderering
+	WindowSize uint64        // number of element to keep for ordering
 	Delay      time.Duration // delay to wait before handling an element outside of the window in millisecond
 	Rate       time.Duration // delay between two time based iterations
 }

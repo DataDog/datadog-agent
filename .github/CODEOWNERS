@@ -31,6 +31,45 @@
 /.circleci/                             @DataDog/agent-platform
 /.github/                               @DataDog/agent-platform
 
+# Gitlab files
+# Files containing job contents are owned by teams in charge of the jobs + agent-platform
+# Files that only describe structure (eg. includes, rules) are owned by agent-platform
+
+/.gitlab/                                            @DataDog/agent-platform
+
+/.gitlab/binary_build/cluster_agent_cloudfoundry.yml @DataDog/integrations-tools-and-libraries @DataDog/agent-platform
+/.gitlab/binary_build/cluster_agent.yml              @DataDog/container-integrations @DataDog/agent-platform
+/.gitlab/binary_build/system_probe.yml               @DataDog/networks @DataDog/agent-platform
+
+/.gitlab/deploy_6/docker.yml                         @DataDog/container-integrations @DataDog/agent-platform
+
+/.gitlab/deploy_7/cluster_agent_cloudfoundry.yml     @DataDog/integrations-tools-and-libraries @DataDog/agent-platform
+/.gitlab/deploy_7/docker.yml                         @DataDog/container-integrations @DataDog/agent-platform
+/.gitlab/deploy_7/windows_cloudfoundry.yml           @DataDog/integrations-tools-and-libraries @DataDog/agent-platform
+
+/.gitlab/deps_build.yml                              @DataDog/networks @DataDog/agent-platform
+
+/.gitlab/docker_common/                              @DataDog/container-integrations @DataDog/agent-platform
+
+/.gitlab/e2e.yml                                     @DataDog/container-integrations @DataDog/agent-platform
+
+/.gitlab/functional_test/security_agent.yml          @DataDog/agent-security @DataDog/agent-platform
+/.gitlab/functional_test/system_probe.yml            @DataDog/networks @DataDog/agent-platform
+/.gitlab/functional_test_cleanup.yml                 @DataDog/agent-security @DataDog/networks @DataDog/agent-platform
+
+/.gitlab/image_build/                                @DataDog/container-integrations @DataDog/agent-platform
+
+/.gitlab/image_deploy/                               @DataDog/container-integrations @DataDog/agent-platform
+
+/.gitlab/image_scan.yml                              @DataDog/container-integrations @DataDog/agent-platform
+
+/.gitlab/internal_deploy.yml                         @DataDog/container-integrations @DataDog/agent-platform
+
+/.gitlab/maintenance_jobs/docker.yml                 @DataDog/container-integrations @DataDog/agent-platform
+
+/.gitlab/source_test/ebpf.yml                        @DataDog/networks @DataDog/agent-platform
+
+
 /chocolatey/                            @DataDog/agent-platform
 
 /cmd/                                   @DataDog/agent-core
@@ -152,6 +191,7 @@
 
 /test/                                  @DataDog/agent-platform
 /test/benchmarks/                       @DataDog/agent-core
+/test/benchmarks/kubernetes_state/      @DataDog/container-integrations
 /test/e2e/                              @DataDog/container-integrations
 /test/integration/                      @DataDog/container-integrations
 /test/kitchen/                          @DataDog/agent-platform

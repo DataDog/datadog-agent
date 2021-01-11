@@ -5,7 +5,6 @@ package tracer
 import (
 	"bufio"
 	"bytes"
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -943,9 +942,19 @@ func TestShouldSkipExcludedConnection(t *testing.T) {
 
 	// Make sure we're not picking up 127.0.0.1:80
 	for _, c := range getConnections(t, tr).Conns {
-		assert.False(t, c.Source.String() == "127.0.0.1" && c.SPort == 80)
-		assert.True(t, c.Dest.String() == "127.0.0.1" && c.DPort == 80)
+		assert.False(t, c.Source.String() == "127.0.0.1" && c.SPort == 80, "connection %s should be excluded", c)
+		assert.False(t, c.Dest.String() == "127.0.0.1" && c.DPort == 80 && c.Type == network.TCP, "connection %s should be excluded", c)
 	}
+
+	// ensure one of the connections is UDP to 127.0.0.1:80
+	assert.Condition(t, func() bool {
+		for _, c := range getConnections(t, tr).Conns {
+			if c.Dest.String() == "127.0.0.1" && c.DPort == 80 && c.Type == network.UDP {
+				return true
+			}
+		}
+		return false
+	}, "Unable to find UDP connection to 127.0.0.1:80")
 }
 
 func TestTooSmallBPFMap(t *testing.T) {
@@ -1200,8 +1209,8 @@ func removeConnection(t *testing.T, tr *Tracer, c *network.ConnectionStats) {
 	tuple := []*ConnTuple{
 		{
 			pid:      _Ctype_uint(c.Pid),
-			saddr_l:  _Ctype_ulonglong(binary.LittleEndian.Uint32(c.Source.Bytes())),
-			daddr_l:  _Ctype_ulonglong(binary.LittleEndian.Uint32(c.Dest.Bytes())),
+			saddr_l:  _Ctype_ulonglong(nativeEndian.Uint32(c.Source.Bytes())),
+			daddr_l:  _Ctype_ulonglong(nativeEndian.Uint32(c.Dest.Bytes())),
 			sport:    _Ctype_ushort(c.SPort),
 			dport:    _Ctype_ushort(c.DPort),
 			netns:    _Ctype_uint(c.NetNS),
