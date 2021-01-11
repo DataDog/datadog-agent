@@ -47,7 +47,8 @@ type PacketSource interface {
 	// If no packet is available, VisitPacket returns immediately.
 	// The format of the packet is dependent on the implementation of PacketSource -- i.e. it may be an ethernet frame, or a IP frame.
 	// The data buffer is reused between invocations of VisitPacket and thus should not be pointed to.
-	VisitPackets(visitor func(data []byte, timestamp time.Time) error) error
+	// If the cancel channel is closed, VisitPackets will stop reading.
+	VisitPackets(cancel <-chan struct{}, visitor func(data []byte, timestamp time.Time) error) error
 
 	// Stats returns a map of counters, meant to be reported as telemetry
 	Stats() map[string]int64
@@ -174,7 +175,7 @@ func (s *SocketFilterSnooper) processPacket(data []byte, ts time.Time) error {
 
 func (s *SocketFilterSnooper) pollPackets() {
 	for {
-		err := s.source.VisitPackets(s.processPacket)
+		err := s.source.VisitPackets(s.exit, s.processPacket)
 
 		if err != nil {
 			log.Warnf("error reading packet: %s", err)

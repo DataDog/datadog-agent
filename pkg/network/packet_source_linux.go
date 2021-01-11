@@ -73,7 +73,7 @@ func (p *packetSource) Stats() map[string]int64 {
 	}
 }
 
-func (p *packetSource) VisitPackets(visit func([]byte, time.Time) error) error {
+func (p *packetSource) VisitPackets(exit <-chan struct{}, visit func([]byte, time.Time) error) error {
 	for {
 		data, stats, err := p.ZeroCopyReadPacketData()
 
@@ -88,6 +88,13 @@ func (p *packetSource) VisitPackets(visit func([]byte, time.Time) error) error {
 
 		if err := visit(data, stats.Timestamp); err != nil {
 			return err
+		}
+
+		// allow the read loop to be prematurely interrupted
+		select {
+		case <-exit:
+			return nil
+		default:
 		}
 	}
 }
