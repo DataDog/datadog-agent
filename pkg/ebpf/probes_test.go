@@ -31,16 +31,25 @@ func TestChooseSyscall(t *testing.T) {
 	tp, err := c.ChooseSyscallProbe("tracepoint/syscalls/sys_enter_bind", "kprobe/sys_bind/x64", "kprobe/sys_bind")
 	require.NoError(t, err)
 
-	if runtime.GOARCH == "386" {
-		assert.Equal(t, "kprobe/sys_bind", tp)
-	} else {
-		fnName, err := manager.GetSyscallFnName("sys_bind")
-		require.NoError(t, err)
-		if strings.HasPrefix(fnName, x64SyscallPrefix) {
+	fnName, err := manager.GetSyscallFnName("sys_bind")
+	require.NoError(t, err)
+
+	// intentionally leaving amd64/arm64 explicit to ensure they are included in the prefix map
+	switch runtime.GOARCH {
+	case "amd64":
+		if strings.HasPrefix(fnName, indirectSyscallPrefixes[runtime.GOARCH]) {
 			assert.Equal(t, "kprobe/sys_bind/x64", tp)
 		} else {
 			assert.Equal(t, "kprobe/sys_bind", tp)
 		}
+	case "arm64":
+		if strings.HasPrefix(fnName, indirectSyscallPrefixes[runtime.GOARCH]) {
+			assert.Equal(t, "kprobe/sys_bind/x64", tp)
+		} else {
+			assert.Equal(t, "kprobe/sys_bind", tp)
+		}
+	default:
+		assert.Equal(t, "kprobe/sys_bind", tp)
 	}
 
 	c.EnableTracepoints = true
