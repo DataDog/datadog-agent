@@ -109,6 +109,11 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 		&manager.OneOf{Selectors: []manager.ProbesSelector{
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/do_dentry_open"}},
 		}},
+
+		// ioctl probes
+		&manager.AllOf{Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/do_vfs_ioctl"}},
+		}},
 	},
 
 	// List of probes to activate to capture chmod events
@@ -187,13 +192,6 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "mkdirat"}, EntryAndExit),
 		},
-	},
-
-	// List of probes to activate to capture mkdir events
-	"ioctl": {
-		&manager.AllOf{Selectors: []manager.ProbesSelector{
-			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/do_vfs_ioctl"}},
-		}},
 	},
 
 	// List of probes to activate to capture open events

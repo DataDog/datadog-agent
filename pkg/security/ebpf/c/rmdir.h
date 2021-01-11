@@ -88,7 +88,7 @@ int kprobe__security_inode_rmdir(struct pt_regs *ctx) {
             break;
     }
 
-    if (discarded_by_process(syscall->policy.mode, event_type)) {
+    if (is_discarded_by_process(syscall->policy.mode, event_type)) {
         return mark_as_discarded(syscall);
     }
 

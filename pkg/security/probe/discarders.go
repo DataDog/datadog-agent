@@ -17,7 +17,6 @@ import (
 	"strings"
 
 	lib "github.com/DataDog/ebpf"
-	libebpf "github.com/DataDog/ebpf"
 	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/pkg/errors"
 
@@ -31,6 +30,9 @@ import (
 const (
 	// discarderRevisionSize array size used to store discarder revisions
 	discarderRevisionSize = 4096
+
+	DiscardInodeOp = 1
+	DiscardPidOp
 )
 
 // Discarder represents a discarder which is basically the field that we know for sure
@@ -78,8 +80,16 @@ var InvalidDiscarders = map[eval.Field][]interface{}{
 	"removexattr.filename": dentryInvalidDiscarder,
 }
 
+func discardMarshalHeader(req *ERPCRequest, eventType model.EventType, timeout uint64) int {
+	ebpf.ByteOrder.PutUint64(req.Data[0:8], uint64(eventType))
+	ebpf.ByteOrder.PutUint64(req.Data[8:16], uint64(timeout))
+
+	return 16
+}
+
 type pidDiscarders struct {
 	*lib.Map
+	erpc *ERPC
 }
 
 type pidDiscarderParameters struct {
@@ -88,33 +98,30 @@ type pidDiscarderParameters struct {
 }
 
 func (p *pidDiscarders) discard(eventType model.EventType, pid uint32) error {
-	var params pidDiscarderParameters
+	req := ERPCRequest{
 
-	updateFlags := libebpf.UpdateExist
-	if err := p.Lookup(pid, &params); err != nil {
-		updateFlags = libebpf.UpdateAny
+		OP: DiscardPidOp,
 	}
 
-	params.EventType |= 1 << (eventType - 1)
-	return p.Update(pid, &params, updateFlags)
+	offset := discardMarshalHeader(&req, eventType, 0)
+	ebpf.ByteOrder.PutUint32(req.Data[offset:offset+4], pid)
+
+	return p.erpc.Request(&req)
 }
 
 func (p *pidDiscarders) discardWithTimeout(eventType model.EventType, pid uint32, timeout int64) error {
-	var params pidDiscarderParameters
-
-	updateFlags := libebpf.UpdateExist
-	if err := p.Lookup(pid, &params); err != nil {
-		updateFlags = libebpf.UpdateAny
+	req := ERPCRequest{
+		OP: DiscardPidOp,
 	}
 
-	params.EventType |= 1 << (eventType - 1)
-	params.Timestamps[eventType] = uint64(timeout)
+	offset := discardMarshalHeader(&req, eventType, uint64(timeout))
+	ebpf.ByteOrder.PutUint32(req.Data[offset:offset+4], pid)
 
-	return p.Update(pid, &params, updateFlags)
+	return p.erpc.Request(&req)
 }
 
-func newPidDiscarders(m *lib.Map) *pidDiscarders {
-	return &pidDiscarders{Map: m}
+func newPidDiscarders(m *lib.Map, erpc *ERPC) *pidDiscarders {
+	return &pidDiscarders{Map: m, erpc: erpc}
 }
 
 type inodeDiscarder struct {
@@ -130,13 +137,14 @@ type inodeDiscarderParameters struct {
 
 type inodeDiscarders struct {
 	*lib.Map
+	erpc           *ERPC
 	revisions      *lib.Map
 	revisionCache  [discarderRevisionSize]uint32
 	dentryResolver *DentryResolver
 	regexCache     *simplelru.LRU
 }
 
-func newInodeDiscarders(inodesMap, revisionsMap *lib.Map, dentryResolver *DentryResolver) (*inodeDiscarders, error) {
+func newInodeDiscarders(inodesMap, revisionsMap *lib.Map, erpc *ERPC, dentryResolver *DentryResolver) (*inodeDiscarders, error) {
 	regexCache, err := simplelru.NewLRU(64, nil)
 	if err != nil {
 		return nil, err
@@ -144,6 +152,7 @@ func newInodeDiscarders(inodesMap, revisionsMap *lib.Map, dentryResolver *Dentry
 
 	return &inodeDiscarders{
 		Map:            inodesMap,
+		erpc:           erpc,
 		revisions:      revisionsMap,
 		dentryResolver: dentryResolver,
 		regexCache:     regexCache,
@@ -161,27 +170,21 @@ func (id *inodeDiscarders) removeInode(mountID uint32, inode uint64) {
 }
 
 func (id *inodeDiscarders) discardInode(eventType model.EventType, mountID uint32, inode uint64, isLeaf bool) error {
-	var params inodeDiscarderParameters
-	key := inodeDiscarder{
-		PathKey: PathKey{
-			MountID: mountID,
-			Inode:   inode,
-		},
-		Revision: id.getRevision(mountID),
+	req := ERPCRequest{
+		OP: DiscardInodeOp,
 	}
 
-	updateFlags := libebpf.UpdateExist
-	if err := id.Lookup(key, &params); err != nil {
-		updateFlags = libebpf.UpdateAny
-	}
-
+	var isLeafInt uint32
 	if isLeaf {
-		params.LeafMask |= 1 << (eventType - 1)
-	} else {
-		params.ParentMask |= 1 << (eventType - 1)
+		isLeafInt = 1
 	}
 
-	return id.Update(&key, &params, updateFlags)
+	offset := discardMarshalHeader(&req, eventType, 0)
+	ebpf.ByteOrder.PutUint64(req.Data[offset:offset+8], inode)
+	ebpf.ByteOrder.PutUint32(req.Data[offset+8:offset+12], mountID)
+	ebpf.ByteOrder.PutUint32(req.Data[offset+12:offset+16], isLeafInt)
+
+	return id.erpc.Request(&req)
 }
 
 func (id *inodeDiscarders) getRevision(mountID uint32) uint32 {

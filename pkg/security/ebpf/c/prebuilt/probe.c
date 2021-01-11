@@ -34,6 +34,8 @@
 #include "raw_syscalls.h"
 #include "procfs.h"
 #include "setxattr.h"
+#include "erpc.h"
+#include "ioctl.h"
 
 struct invalidate_dentry_event_t {
     struct kevent_t event;

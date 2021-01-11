@@ -51,7 +51,6 @@ type Probe struct {
 	_              uint32 // padding for goarch=386
 	ctx            context.Context
 	cancelFnc      context.CancelFunc
-
 	// Events section
 	handler   EventHandler
 	monitor   *Monitor
@@ -61,6 +60,7 @@ type Probe struct {
 	reOrderer *ReOrderer
 
 	// Approvers / discarders section
+	erpc               *ERPC
 	pidDiscarders      *pidDiscarders
 	inodeDiscarders    *inodeDiscarders
 	flushingDiscarders int64
@@ -164,7 +164,7 @@ func (p *Probe) Init(client *statsd.Client) error {
 	if err != nil {
 		return err
 	}
-	p.pidDiscarders = newPidDiscarders(pidDiscardersMap)
+	p.pidDiscarders = newPidDiscarders(pidDiscardersMap, p.erpc)
 
 	inodeDiscardersMap, err := p.Map("inode_discarders")
 	if err != nil {
@@ -176,7 +176,7 @@ func (p *Probe) Init(client *statsd.Client) error {
 		return err
 	}
 
-	if p.inodeDiscarders, err = newInodeDiscarders(inodeDiscardersMap, discarderRevisionsMap, p.resolvers.DentryResolver); err != nil {
+	if p.inodeDiscarders, err = newInodeDiscarders(inodeDiscardersMap, discarderRevisionsMap, p.erpc, p.resolvers.DentryResolver); err != nil {
 		return err
 	}
 
@@ -278,12 +278,6 @@ func (p *Probe) invalidateDentry(mountID uint32, inode uint64, revision uint32) 
 	} else {
 		log.Tracef("remove dentry cache entry for inode %d", inode)
 		p.resolvers.DentryResolver.DelCacheEntry(mountID, inode)
-
-		// If a temporary file is created and deleted in a row a discarder can be added
-		// after the in-kernel discarder cleanup and thus a discarder will be pushed for a deleted file.
-		// If the inode is reused this can be a problem.
-		// Call a user space remove function to ensure the discarder will be removed.
-		p.inodeDiscarders.removeInode(mountID, inode)
 	}
 }
 
@@ -704,6 +698,11 @@ func (p *Probe) NewRuleSet(opts *rules.Opts) *rules.RuleSet {
 func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
+	erpc, err := NewERPC()
+	if err != nil {
+		return nil, err
+	}
+
 	p := &Probe{
 		config:         config,
 		approvers:      make(map[eval.EventType]activeApprovers),
@@ -711,6 +710,7 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		ctx:            ctx,
 		cancelFnc:      cancel,
 		statsdClient:   client,
+		erpc:           erpc,
 	}
 	p.detectKernelVersion()
 
