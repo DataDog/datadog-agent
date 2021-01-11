@@ -44,5 +44,5 @@ func streamRequest(url string, onChunk func([]byte)) error {
 		return e
 	}
 
-	return util.DoGetChunked(c, url)
+	return util.DoGetChunked(c, url, onChunk)
 }
