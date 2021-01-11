@@ -114,7 +114,7 @@ func ConvertToFilledProcess(p *Process) *process.FilledProcess {
 		Nice:        p.Stats.Nice,
 		CreateTime:  p.Stats.CreateTime,
 		OpenFdCount: p.Stats.OpenFdCount,
-		Name:        "",
+		Name:        p.Name,
 		Status:      p.Stats.Status,
 		Uids:        p.Uids,
 		Gids:        p.Gids,
