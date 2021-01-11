@@ -166,6 +166,43 @@ func (suite *YamlConfigTestSuite) TestOnlyEnvConfigArgsScrubbing() {
 	}
 }
 
+func (suite *YamlConfigTestSuite) TestOnlyEnvContainsConfigArgsScrubbing() {
+
+	os.Setenv("DD_ORCHESTRATOR_CUSTOM_SENSITIVE_WORDS", "token,consul")
+	defer os.Unsetenv("DD_ORCHESTRATOR_CUSTOM_SENSITIVE_WORDS")
+
+	orchestratorCfg := NewDefaultOrchestratorConfig()
+	err := orchestratorCfg.LoadYamlConfig("")
+	suite.NoError(err)
+
+	cases := []struct {
+		word     string
+		expected bool
+	}{
+		{
+			"spidly",
+			false,
+		},
+		{
+			"gitlab_token",
+			true,
+		},
+		{
+			"GITLAB_TOKEn",
+			true,
+		},
+		{
+			"consul_word",
+			true,
+		},
+	}
+
+	for i := range cases {
+		hasWord := orchestratorCfg.Scrubber.ContainsSensitiveWord(cases[i].word)
+		suite.Equal(hasWord, cases[i].expected)
+	}
+}
+
 func TestYamlConfigTestSuite(t *testing.T) {
 	suite.Run(t, new(YamlConfigTestSuite))
 }
