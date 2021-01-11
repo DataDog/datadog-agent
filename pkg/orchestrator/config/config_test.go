@@ -7,6 +7,7 @@ package config
 
 import (
 	"net/url"
+	"os"
 	"testing"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -115,6 +116,53 @@ func (suite *YamlConfigTestSuite) TestExtractOrchestratorEndpointsPrecedence() {
 	suite.NoError(err)
 	for _, actual := range actualEndpoints {
 		suite.Equal(expected[actual.APIKey], actual.Endpoint.Hostname())
+	}
+}
+
+func (suite *YamlConfigTestSuite) TestNoEnvConfigArgsScrubbing() {
+
+	orchestratorCfg := NewDefaultOrchestratorConfig()
+	err := orchestratorCfg.LoadYamlConfig("")
+	suite.NoError(err)
+
+	cases := []struct {
+		cmdline       []string
+		parsedCmdline []string
+	}{
+		{
+			[]string{"spidly", "--token=123", "consul", "123", "--dd_api_key=1234"},
+			[]string{"spidly", "--token=123", "consul", "123", "--dd_api_key=********"},
+		},
+	}
+
+	for i := range cases {
+		a, _ := orchestratorCfg.Scrubber.ScrubSimpleCommand(cases[i].cmdline)
+		suite.Equal(a, cases[i].parsedCmdline)
+	}
+}
+
+func (suite *YamlConfigTestSuite) TestOnlyEnvConfigArgsScrubbing() {
+
+	os.Setenv("DD_ORCHESTRATOR_CUSTOM_SENSITIVE_WORDS", "token,consul")
+	defer os.Unsetenv("DD_ORCHESTRATOR_CUSTOM_SENSITIVE_WORDS")
+
+	orchestratorCfg := NewDefaultOrchestratorConfig()
+	err := orchestratorCfg.LoadYamlConfig("")
+	suite.NoError(err)
+
+	cases := []struct {
+		cmdline       []string
+		parsedCmdline []string
+	}{
+		{
+			[]string{"spidly", "--gitlab_token=123", "consul_thing", "123", "--dd_api_key=1234"},
+			[]string{"spidly", "--gitlab_token=********", "consul_thing", "********", "--dd_api_key=********"},
+		},
+	}
+
+	for i := range cases {
+		a, _ := orchestratorCfg.Scrubber.ScrubSimpleCommand(cases[i].cmdline)
+		suite.Equal(a, cases[i].parsedCmdline)
 	}
 }
 
