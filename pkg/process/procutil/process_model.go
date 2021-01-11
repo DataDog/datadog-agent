@@ -2,22 +2,13 @@ package procutil
 
 // Process holds all relevant metadata and metrics for a process
 type Process struct {
-	Pid   int32
-	Ppid  int32
-	NsPid int32 // process namespaced PID
-
-	// Status returns the process status.
-	// Return value could be one of these.
-	// R: Running S: Sleep T: Stop I: Idle
-	// Z: Zombie W: Wait L: Lock
-	// The character is same within all supported platforms.
-	Status string
-
-	Name    string
-	Cwd     string
-	Exe     string
-	Cmdline []string
-
+	Pid      int32
+	Ppid     int32
+	NsPid    int32 // process namespaced PID
+	Name     string
+	Cwd      string
+	Exe      string
+	Cmdline  []string
 	Username string // (Windows only)
 	Uids     []int32
 	Gids     []int32
@@ -28,11 +19,15 @@ type Process struct {
 // Stats holds all relevant stats metrics of a process
 type Stats struct {
 	CreateTime int64
-
+	// Status returns the process status.
+	// Return value could be one of these.
+	// R: Running S: Sleep T: Stop I: Idle
+	// Z: Zombie W: Wait L: Lock
+	// The character is the same within all supported platforms.
+	Status      string
 	Nice        int32
 	OpenFdCount int32
 	NumThreads  int32
-
 	CPUTime     *CPUTimesStat
 	MemInfo     *MemoryInfoStat
 	MemInfoEx   *MemoryInfoExStat
