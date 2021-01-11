@@ -1,8 +1,9 @@
 // ReSharper disable StringLiteralTypo
-#include "stdafx.h"
 #include "CustomActionDataTest.h"
+#include "stdafx.h"
 
-TEST_F(CustomActionDataTest, Handle_Username) {
+TEST_F(CustomActionDataTest, Handle_Username)
+{
     CustomActionData customActionCtx;
     customActionCtx.init(L"DDAGENTUSER_NAME=TEST\\username");
     EXPECT_EQ(customActionCtx.Username(), L"TEST\\username");
