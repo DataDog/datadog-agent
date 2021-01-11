@@ -51,7 +51,7 @@ func DoGet(c *http.Client, url string) (body []byte, e error) {
 
 }
 
-func DoGetChunked(c *http.Client, url string) error {
+func DoGetChunked(c *http.Client, url string, onChunk func([]byte)) error {
 	req, e := http.NewRequest("GET", url, nil)
 	if e != nil {
 		return e
@@ -62,13 +62,13 @@ func DoGetChunked(c *http.Client, url string) error {
 	r, e := c.Do(req)
 
 	for {
-		buf := make([]byte, 4)
+		buf := make([]byte, 128)
 		m, e := r.Body.Read(buf)
 		if m < 0 {
 			panic("ERRRRRR")
 		}
 
-		fmt.Print(string(buf))
+		onChunk(buf)
 
 		if e == io.EOF {
 			return nil // e is EOF, so return nil explicitly

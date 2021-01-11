@@ -34,7 +34,7 @@ func makeRequest(url string) ([]byte, error) {
 
 }
 
-func streamRequest(url string, onChunk func(byte[]) string) {
+func streamRequest(url string, onChunk func([]byte)) error {
 	var e error
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
