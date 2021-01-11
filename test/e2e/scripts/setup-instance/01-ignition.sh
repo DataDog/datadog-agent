@@ -100,6 +100,10 @@ systemd:
         [Install]
         WantedBy=multi-user.target
 storage:
+  links:
+    - path: /etc/crypto-policies/back-ends/opensshserver.config
+      target: /usr/share/crypto-policies/LEGACY/opensshserver.txt
+      overwrite: true
   files:
     - path: /usr/local/bin/setup-pupernetes
       mode: 0500
