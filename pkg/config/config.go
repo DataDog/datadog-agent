@@ -680,6 +680,7 @@ func InitConfig(config Config) {
 	// enabling/disabling the environment variables & command scrubbing from the container specs
 	// this option will potentially impact the CPU usage of the agent
 	config.BindEnvAndSetDefault("orchestrator_explorer.container_scrubbing.enabled", true)
+	config.SetKnown("orchestrator_explorer.custom_sensitive_words")
 
 	// Orchestrator Explorer - process agent
 	config.BindEnv("orchestrator_explorer.orchestrator_dd_url", "") //nolint:errcheck
