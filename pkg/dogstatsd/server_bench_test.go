@@ -114,13 +114,12 @@ func BenchmarkParseMetricMessage(b *testing.B) {
 	defer close(done)
 
 	parser := newParser(newFloat64ListPool())
-	originTagger := originTags{}
 	message := []byte("daemon:666|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2")
 
 	b.RunParallel(func(pb *testing.PB) {
 		samplesBench = make([]metrics.MetricSample, 0, 512)
 		for pb.Next() {
-			s.parseMetricMessage(samplesBench, parser, message, originTagger.getTags)
+			s.parseMetricMessage(samplesBench, parser, message, "")
 			samplesBench = samplesBench[0:0]
 		}
 	})

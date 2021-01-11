@@ -4,28 +4,16 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-type tagRetriever func(entity string, cardinality collectors.TagCardinality) ([]string, error)
 
 var (
 	hostTagPrefix       = "host:"
 	entityIDTagPrefix   = "dd.internal.entity_id:"
 	entityIDIgnoreValue = "none"
-
-	getTags tagRetriever = tagger.Tag
-
-	tlmUDPOriginDetectionError = telemetry.NewCounter("dogstatsd", "udp_origin_detection_error",
-		nil, "Dogstatsd UDP origin detection error count")
 )
 
-func enrichTags(tags []string, defaultHostname string, originTagsFunc func() []string, entityIDPrecedenceEnabled bool) ([]string, string) {
-	var originTags, entityTags []string
+func extractTagsMetadata(tags []string, defaultHostname string, originTags string, entityIDPrecedenceEnabled bool) ([]string, string, string, string) {
 	host := defaultHostname
 
 	n := 0
@@ -42,37 +30,25 @@ func enrichTags(tags []string, defaultHostname string, originTagsFunc func() []s
 	}
 	tags = tags[:n]
 
+	origin := ""
+	// We use the UDS socket origin if no origin ID was specify in the tags
+	// or 'dogstatsd_entity_id_precedence' is set to False (default false).
 	if entityIDValue == "" || !entityIDPrecedenceEnabled {
 		// Add origin tags only if the entity id tags is not provided
-		originTags = originTagsFunc()
+		origin = originTags
 	}
+
+	k8sOrigin := ""
+	// We set k8sOriginID if the metrics contain a 'dd.internal.entity_id' tag different from 'none'.
 	if entityIDValue != "" && entityIDValue != entityIDIgnoreValue {
 		// Check if the value is not "none" in order to avoid calling
 		// the tagger for entity that doesn't exist.
 
 		// currently only supported for pods
-		entity := kubelet.KubePodTaggerEntityPrefix + entityIDValue
-		var err error
-		entityTags, err = getTags(entity, tagger.DogstatsdCardinality)
-		if err != nil {
-			log.Tracef("Cannot get tags for entity %s: %s", entity, err)
-			tlmUDPOriginDetectionError.Inc()
-		}
+		k8sOrigin = kubelet.KubePodTaggerEntityPrefix + entityIDValue
 	}
 
-	var finalTags []string
-	if cap(tags) >= len(tags)+len(originTags)+len(entityTags) {
-		tags = append(tags, originTags...)
-		tags = append(tags, entityTags...)
-		finalTags = tags
-	} else {
-		finalTags = make([]string, 0, len(tags)+len(originTags)+len(entityTags))
-		finalTags = append(finalTags, tags...)
-		finalTags = append(finalTags, originTags...)
-		finalTags = append(finalTags, entityTags...)
-	}
-
-	return finalTags, host
+	return tags, host, origin, k8sOrigin
 }
 
 func enrichMetricType(dogstatsdMetricType metricType) metrics.MetricType {
@@ -105,16 +81,16 @@ func isBlacklisted(metricName, namespace string, namespaceBlacklist []string) bo
 }
 
 func enrichMetricSample(metricSamples []metrics.MetricSample, ddSample dogstatsdMetricSample, namespace string, namespaceBlacklist []string,
-	defaultHostname string, originTagsFunc func() []string, entityIDPrecedenceEnabled bool, serverlessMode bool) []metrics.MetricSample {
+	defaultHostname string, origin string, entityIDPrecedenceEnabled bool, serverlessMode bool) []metrics.MetricSample {
 	metricName := ddSample.name
-	tags, hostname := enrichTags(ddSample.tags, defaultHostname, originTagsFunc, entityIDPrecedenceEnabled)
+	tags, hostnameFromTags, originID, k8sOriginID := extractTagsMetadata(ddSample.tags, defaultHostname, origin, entityIDPrecedenceEnabled)
 
 	if !isBlacklisted(metricName, namespace, namespaceBlacklist) {
 		metricName = namespace + metricName
 	}
 
 	if serverlessMode { // we don't want to set the host while running in serverless mode
-		hostname = ""
+		hostnameFromTags = ""
 	}
 
 	mtype := enrichMetricType(ddSample.metricType)
@@ -126,13 +102,15 @@ func enrichMetricSample(metricSamples []metrics.MetricSample, ddSample dogstatsd
 		for idx := range ddSample.values {
 			metricSamples = append(metricSamples,
 				metrics.MetricSample{
-					Host:       hostname,
-					Name:       metricName,
-					Tags:       tags,
-					Mtype:      mtype,
-					Value:      ddSample.values[idx],
-					SampleRate: ddSample.sampleRate,
-					RawValue:   ddSample.setValue,
+					Host:        hostnameFromTags,
+					Name:        metricName,
+					Tags:        tags,
+					Mtype:       mtype,
+					Value:       ddSample.values[idx],
+					SampleRate:  ddSample.sampleRate,
+					RawValue:    ddSample.setValue,
+					OriginID:    originID,
+					K8sOriginID: k8sOriginID,
 				})
 		}
 		return metricSamples
@@ -140,13 +118,15 @@ func enrichMetricSample(metricSamples []metrics.MetricSample, ddSample dogstatsd
 
 	// only one value contained, simple append it
 	return append(metricSamples, metrics.MetricSample{
-		Host:       hostname,
-		Name:       metricName,
-		Tags:       tags,
-		Mtype:      mtype,
-		Value:      ddSample.value,
-		SampleRate: ddSample.sampleRate,
-		RawValue:   ddSample.setValue,
+		Host:        hostnameFromTags,
+		Name:        metricName,
+		Tags:        tags,
+		Mtype:       mtype,
+		Value:       ddSample.value,
+		SampleRate:  ddSample.sampleRate,
+		RawValue:    ddSample.setValue,
+		OriginID:    originID,
+		K8sOriginID: k8sOriginID,
 	})
 }
 
@@ -174,8 +154,8 @@ func enrichEventAlertType(dogstatsdAlertType alertType) metrics.EventAlertType {
 	return metrics.EventAlertTypeSuccess
 }
 
-func enrichEvent(event dogstatsdEvent, defaultHostname string, originTagsFunc func() []string, entityIDPrecedenceEnabled bool) *metrics.Event {
-	tags, hostFromTags := enrichTags(event.tags, defaultHostname, originTagsFunc, entityIDPrecedenceEnabled)
+func enrichEvent(event dogstatsdEvent, defaultHostname string, origin string, entityIDPrecedenceEnabled bool) *metrics.Event {
+	tags, hostnameFromTags, originID, k8sOriginID := extractTagsMetadata(event.tags, defaultHostname, origin, entityIDPrecedenceEnabled)
 
 	enrichedEvent := &metrics.Event{
 		Title:          event.title,
@@ -186,12 +166,14 @@ func enrichEvent(event dogstatsdEvent, defaultHostname string, originTagsFunc fu
 		AlertType:      enrichEventAlertType(event.alertType),
 		AggregationKey: event.aggregationKey,
 		SourceTypeName: event.sourceType,
+		OriginID:       originID,
+		K8sOriginID:    k8sOriginID,
 	}
 
 	if len(event.hostname) != 0 {
 		enrichedEvent.Host = event.hostname
 	} else {
-		enrichedEvent.Host = hostFromTags
+		enrichedEvent.Host = hostnameFromTags
 	}
 	return enrichedEvent
 }
@@ -210,21 +192,23 @@ func enrichServiceCheckStatus(status serviceCheckStatus) metrics.ServiceCheckSta
 	return metrics.ServiceCheckUnknown
 }
 
-func enrichServiceCheck(serviceCheck dogstatsdServiceCheck, defaultHostname string, originTagsFunc func() []string, entityIDPrecedenceEnabled bool) *metrics.ServiceCheck {
-	tags, hostFromTags := enrichTags(serviceCheck.tags, defaultHostname, originTagsFunc, entityIDPrecedenceEnabled)
+func enrichServiceCheck(serviceCheck dogstatsdServiceCheck, defaultHostname string, origin string, entityIDPrecedenceEnabled bool) *metrics.ServiceCheck {
+	tags, hostnameFromTags, originID, k8sOriginID := extractTagsMetadata(serviceCheck.tags, defaultHostname, origin, entityIDPrecedenceEnabled)
 
 	enrichedServiceCheck := &metrics.ServiceCheck{
-		CheckName: serviceCheck.name,
-		Ts:        serviceCheck.timestamp,
-		Status:    enrichServiceCheckStatus(serviceCheck.status),
-		Message:   serviceCheck.message,
-		Tags:      tags,
+		CheckName:   serviceCheck.name,
+		Ts:          serviceCheck.timestamp,
+		Status:      enrichServiceCheckStatus(serviceCheck.status),
+		Message:     serviceCheck.message,
+		Tags:        tags,
+		OriginID:    originID,
+		K8sOriginID: k8sOriginID,
 	}
 
 	if len(serviceCheck.hostname) != 0 {
 		enrichedServiceCheck.Host = serviceCheck.hostname
 	} else {
-		enrichedServiceCheck.Host = hostFromTags
+		enrichedServiceCheck.Host = hostnameFromTags
 	}
 	return enrichedServiceCheck
 }

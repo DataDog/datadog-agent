@@ -69,9 +69,13 @@ func main() {
 	config.Datadog.AddConfigPath(DefaultConfPath)
 
 	// go_expvar server
-	go http.ListenAndServe(
-		fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_stats_port")),
-		http.DefaultServeMux)
+	go func() {
+		port := config.Datadog.GetInt("dogstatsd_stats_port")
+		err := http.ListenAndServe(fmt.Sprintf("127.0.0.1:%d", port), http.DefaultServeMux)
+		if err != nil && err != http.ErrServerClosed {
+			log.Errorf("Error creating expvar server on port %v: %v", port, err)
+		}
+	}()
 
 	isIntSess, err := svc.IsAnInteractiveSession()
 	if err != nil {

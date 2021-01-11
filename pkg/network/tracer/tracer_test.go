@@ -5,7 +5,6 @@ package tracer
 import (
 	"bufio"
 	"bytes"
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -1210,8 +1209,8 @@ func removeConnection(t *testing.T, tr *Tracer, c *network.ConnectionStats) {
 	tuple := []*ConnTuple{
 		{
 			pid:      _Ctype_uint(c.Pid),
-			saddr_l:  _Ctype_ulonglong(binary.LittleEndian.Uint32(c.Source.Bytes())),
-			daddr_l:  _Ctype_ulonglong(binary.LittleEndian.Uint32(c.Dest.Bytes())),
+			saddr_l:  _Ctype_ulonglong(nativeEndian.Uint32(c.Source.Bytes())),
+			daddr_l:  _Ctype_ulonglong(nativeEndian.Uint32(c.Dest.Bytes())),
 			sport:    _Ctype_ushort(c.SPort),
 			dport:    _Ctype_ushort(c.DPort),
 			netns:    _Ctype_uint(c.NetNS),

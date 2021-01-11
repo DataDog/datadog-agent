@@ -1,3 +1,5 @@
+ad_identifiers:
+  - _cri
 init_config:
 
 instances:
