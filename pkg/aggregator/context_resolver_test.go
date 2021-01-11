@@ -7,6 +7,7 @@ package aggregator
 
 import (
 	// stdlib
+	"sort"
 	"testing"
 
 	// 3p
@@ -75,12 +76,15 @@ func TestTrackContext(t *testing.T) {
 
 	// When we look up the 2 keys, they return the correct contexts
 	context1 := contextResolver.contextsByKey[contextKey1]
+	sort.Strings(expectedContext1.Tags) // context tags are sorted
 	assert.Equal(t, expectedContext1, *context1)
 
 	context2 := contextResolver.contextsByKey[contextKey2]
+	sort.Strings(expectedContext2.Tags) // context tags are sorted
 	assert.Equal(t, expectedContext2, *context2)
 
 	context3 := contextResolver.contextsByKey[contextKey3]
+	sort.Strings(expectedContext3.Tags) // context tags are sorted
 	assert.Equal(t, expectedContext3, *context3)
 
 	unknownContextKey := ckey.ContextKey(0xffffffffffffffff)
