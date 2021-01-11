@@ -1,5 +1,11 @@
 # StackState Agent v2 releases
 
+## 2.10.0 (???)
+
+**Bugfix**
+- Integrations:
+  - Agent Integrations are not tagged with Check instance tags [(STAC-11453)](https://stackstate.atlassian.net/browse/STAC-11453)
+
 ## 2.9.0 (2020-12-18)
 
 **Features**
