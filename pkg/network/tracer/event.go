@@ -159,6 +159,10 @@ func (t *ConnTuple) isTCP() bool {
 	return connType(uint(t.metadata)) == network.TCP
 }
 
+func (t *ConnTuple) isUDP() bool {
+	return connType(uint(t.metadata)) == network.UDP
+}
+
 func (t *ConnTuple) isIPv4() bool {
 	return connFamily(uint(t.metadata)) == network.AFINET
 }
