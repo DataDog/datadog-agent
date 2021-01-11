@@ -6,14 +6,10 @@
 package app
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/status"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -81,7 +77,7 @@ var troubleshootLogsCmd = &cobra.Command{
 // }
 
 func requestLogTroubleshoot() error {
-	var s string
+	// var s string
 
 	if !prettyPrintJSON && !jsonStatus {
 		fmt.Printf("Getting the status from the agent.\n\n")
@@ -90,41 +86,41 @@ func requestLogTroubleshoot() error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("https://%v:%v/agent/status", ipcAddress, config.Datadog.GetInt("cmd_port"))
-	urlstr := fmt.Sprintf("https://%v:%v/agent/status", ipcAddress, config.Datadog.GetInt("cmd_port"))
-	r, err := makeRequest(urlstr)
+	fmt.Printf("https://%v:%v/agent/streamLogs", ipcAddress, config.Datadog.GetInt("cmd_port"))
+	urlstr := fmt.Sprintf("https://%v:%v/agent/streamLogs", ipcAddress, config.Datadog.GetInt("cmd_port"))
+	err = streamRequest(urlstr)
 	if err != nil {
 		return err
 	}
-	// attach trace-agent status, if obtainable
-	temp := make(map[string]interface{})
-	if err := json.Unmarshal(r, &temp); err == nil {
-		// temp["apmStats"] = getAPMStatus()
-		if newr, err := json.Marshal(temp); err == nil {
-			r = newr
-		}
-	}
+	// // attach trace-agent status, if obtainable
+	// temp := make(map[string]interface{})
+	// if err := json.Unmarshal(r, &temp); err == nil {
+	// 	// temp["apmStats"] = getAPMStatus()
+	// 	if newr, err := json.Marshal(temp); err == nil {
+	// 		r = newr
+	// 	}
+	// }
 
-	// The rendering is done in the client so that the agent has less work to do
-	if prettyPrintJSON {
-		var prettyJSON bytes.Buffer
-		json.Indent(&prettyJSON, r, "", "  ") //nolint:errcheck
-		s = prettyJSON.String()
-	} else if jsonStatus {
-		s = string(r)
-	} else {
-		formattedStatus, err := status.FormatStatus(r)
-		if err != nil {
-			return err
-		}
-		s = formattedStatus
-	}
+	// // The rendering is done in the client so that the agent has less work to do
+	// if prettyPrintJSON {
+	// 	var prettyJSON bytes.Buffer
+	// 	json.Indent(&prettyJSON, r, "", "  ") //nolint:errcheck
+	// 	s = prettyJSON.String()
+	// } else if jsonStatus {
+	// 	s = string(r)
+	// } else {
+	// 	formattedStatus, err := status.FormatStatus(r)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	s = formattedStatus
+	// }
 
-	if statusFilePath != "" {
-		ioutil.WriteFile(statusFilePath, []byte(s), 0644) //nolint:errcheck
-	} else {
-		fmt.Println(s)
-	}
+	// if statusFilePath != "" {
+	// 	ioutil.WriteFile(statusFilePath, []byte(s), 0644) //nolint:errcheck
+	// } else {
+	// 	fmt.Println(s)
+	// }
 
 	return nil
 }

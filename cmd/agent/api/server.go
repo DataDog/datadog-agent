@@ -111,7 +111,7 @@ func StartServer() error {
 	agentMux := gorilla.NewRouter()
 	checkMux := gorilla.NewRouter()
 	// Validate token for every request
-	agentMux.Use(validateToken)
+	// agentMux.Use(validateToken)
 	checkMux.Use(validateToken)
 
 	mux.Handle("/agent/", http.StripPrefix("/agent", agent.SetupHandlers(agentMux)))

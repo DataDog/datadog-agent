@@ -51,6 +51,35 @@ func DoGet(c *http.Client, url string) (body []byte, e error) {
 
 }
 
+func DoGetChunked(c *http.Client, url string) error {
+	req, e := http.NewRequest("GET", url, nil)
+	if e != nil {
+		return e
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+GetAuthToken())
+
+	r, e := c.Do(req)
+
+	for {
+		buf := make([]byte, 4)
+		m, e := r.Body.Read(buf)
+		if m < 0 {
+			panic("ERRRRRR")
+		}
+
+		fmt.Print(string(buf))
+
+		if e == io.EOF {
+			return nil // e is EOF, so return nil explicitly
+		}
+		if e != nil {
+			return e
+		}
+	}
+
+}
+
 // DoPost is a wrapper around performing HTTP POST requests
 func DoPost(c *http.Client, url string, contentType string, body io.Reader) (resp []byte, e error) {
 	req, e := http.NewRequest("POST", url, body)

@@ -15,6 +15,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"sort"
+	"time"
 
 	"github.com/gorilla/mux"
 
@@ -45,6 +46,7 @@ func SetupHandlers(r *mux.Router) *mux.Router {
 	r.HandleFunc("/flare", makeFlare).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", getStatus).Methods("GET")
+	r.HandleFunc("/streamLogs", streamLogs).Methods("GET")
 	r.HandleFunc("/dogstatsd-stats", getDogstatsdStats).Methods("GET")
 	r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
@@ -177,6 +179,20 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write(jsonStats)
+}
+
+func streamLogs(w http.ResponseWriter, r *http.Request) {
+	log.Info("Got a request for stream logs.")
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		panic("expected http.ResponseWriter to be an http.Flusher")
+	}
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	for i := 1; i <= 100; i++ {
+		fmt.Fprintf(w, "Chunk #%d\n", i)
+		flusher.Flush() // Trigger "chunked" encoding and send a chunk...
+		time.Sleep(500 * time.Millisecond)
+	}
 }
 
 func getDogstatsdStats(w http.ResponseWriter, r *http.Request) {

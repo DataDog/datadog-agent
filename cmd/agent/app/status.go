@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
 
@@ -186,29 +185,29 @@ func componentStatus(component string) error {
 	return nil
 }
 
-func makeRequest(url string) ([]byte, error) {
-	var e error
-	c := util.GetClient(false) // FIX: get certificates right then make this true
+// func makeRequest(url string) ([]byte, error) {
+// 	var e error
+// 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
-	// Set session token
-	e = util.SetAuthToken()
-	if e != nil {
-		return nil, e
-	}
+// 	// Set session token
+// 	e = util.SetAuthToken()
+// 	if e != nil {
+// 		return nil, e
+// 	}
 
-	r, e := util.DoGet(c, url)
-	if e != nil {
-		var errMap = make(map[string]string)
-		json.Unmarshal(r, &errMap) //nolint:errcheck
-		// If the error has been marshalled into a json object, check it and return it properly
-		if err, found := errMap["error"]; found {
-			e = fmt.Errorf(err)
-		}
+// 	r, e := util.DoGet(c, url)
+// 	if e != nil {
+// 		var errMap = make(map[string]string)
+// 		json.Unmarshal(r, &errMap) //nolint:errcheck
+// 		// If the error has been marshalled into a json object, check it and return it properly
+// 		if err, found := errMap["error"]; found {
+// 			e = fmt.Errorf(err)
+// 		}
 
-		fmt.Printf("Could not reach agent: %v \nMake sure the agent is running before requesting the status and contact support if you continue having issues. \n", e)
-		return nil, e
-	}
+// 		fmt.Printf("Could not reach agent: %v \nMake sure the agent is running before requesting the status and contact support if you continue having issues. \n", e)
+// 		return nil, e
+// 	}
 
-	return r, nil
+// 	return r, nil
 
-}
+// }

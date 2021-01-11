@@ -33,3 +33,16 @@ func makeRequest(url string) ([]byte, error) {
 	return r, nil
 
 }
+
+func streamRequest(url string, onChunk func(byte[]) string) {
+	var e error
+	c := util.GetClient(false) // FIX: get certificates right then make this true
+
+	// Set session token
+	e = util.SetAuthToken()
+	if e != nil {
+		return e
+	}
+
+	return util.DoGetChunked(c, url)
+}
