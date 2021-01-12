@@ -9,7 +9,6 @@ package probe
 
 import (
 	"fmt"
-	"math"
 	"runtime"
 	"sync/atomic"
 
@@ -28,9 +27,6 @@ type PerfMapStats struct {
 	Bytes uint64
 	Count uint64
 	Lost  uint64
-
-	Usage   int64
-	InQueue int64
 }
 
 // UnmarshalBinary parses a map entry and populates the current PerfMapStats instance
@@ -214,16 +210,6 @@ func (e *EventsStats) getEventBytes(eventType EventType, perfMap string, cpu int
 	return atomic.LoadUint64(&e.stats[perfMap][cpu][eventType].Bytes)
 }
 
-// getEventUsage is an internal function, it can segfault if its parameters are incorrect.
-func (e *EventsStats) getEventUsage(eventType EventType, perfMap string, cpu int) int64 {
-	return atomic.LoadInt64(&e.stats[perfMap][cpu][eventType].Usage)
-}
-
-// getEventInQueue is an internal function, it can segfault if its parameters are incorrect.
-func (e *EventsStats) getEventInQueue(eventType EventType, perfMap string, cpu int) int64 {
-	return atomic.LoadInt64(&e.stats[perfMap][cpu][eventType].InQueue)
-}
-
 // GetEventStats returns the number of received events of the specified type and resets the counter
 func (e *EventsStats) GetEventStats(eventType EventType, perfMap string, cpu int) PerfMapStats {
 	var stats PerfMapStats
@@ -250,8 +236,6 @@ func (e *EventsStats) GetEventStats(eventType EventType, perfMap string, cpu int
 			for i := range e.stats[m] {
 				stats.Count += e.getEventCount(eventType, perfMap, i)
 				stats.Bytes += e.getEventBytes(eventType, perfMap, i)
-				stats.Usage += e.getEventUsage(eventType, perfMap, i)
-				stats.InQueue += e.getEventInQueue(eventType, perfMap, i)
 			}
 			break
 		case cpu >= 0:
@@ -260,8 +244,6 @@ func (e *EventsStats) GetEventStats(eventType EventType, perfMap string, cpu int
 			}
 			stats.Count += e.getEventCount(eventType, perfMap, cpu)
 			stats.Bytes += e.getEventBytes(eventType, perfMap, cpu)
-			stats.Usage += e.getEventUsage(eventType, perfMap, cpu)
-			stats.InQueue += e.getEventInQueue(eventType, perfMap, cpu)
 		}
 
 	}
@@ -276,16 +258,6 @@ func (e *EventsStats) getAndResetEventCount(eventType EventType, perfMap string,
 // getAndResetEventBytes is an internal function, it can segfault if its parameters are incorrect.
 func (e *EventsStats) getAndResetEventBytes(eventType EventType, perfMap string, cpu int) uint64 {
 	return atomic.SwapUint64(&e.stats[perfMap][cpu][eventType].Bytes, 0)
-}
-
-// getAndResetEventUsage is an internal function, it can segfault if its parameters are incorrect.
-func (e *EventsStats) getAndResetEventUsage(eventType EventType, perfMap string, cpu int) int64 {
-	return atomic.SwapInt64(&e.stats[perfMap][cpu][eventType].Usage, 0)
-}
-
-// getAndResetEventInQueue is an internal function, it can segfault if its parameters are incorrect.
-func (e *EventsStats) getAndResetEventInQueue(eventType EventType, perfMap string, cpu int) int64 {
-	return atomic.SwapInt64(&e.stats[perfMap][cpu][eventType].InQueue, 0)
 }
 
 // GetAndResetEventStats returns the number of received events of the specified type and resets the counter
@@ -314,8 +286,6 @@ func (e *EventsStats) GetAndResetEventStats(eventType EventType, perfMap string,
 			for i := range e.stats[m] {
 				stats.Count += e.getAndResetEventCount(eventType, perfMap, i)
 				stats.Bytes += e.getAndResetEventBytes(eventType, perfMap, i)
-				stats.Usage += e.getAndResetEventUsage(eventType, perfMap, i)
-				stats.InQueue += e.getAndResetEventInQueue(eventType, perfMap, i)
 			}
 			break
 		case cpu >= 0:
@@ -324,8 +294,6 @@ func (e *EventsStats) GetAndResetEventStats(eventType EventType, perfMap string,
 			}
 			stats.Count += e.getAndResetEventCount(eventType, perfMap, cpu)
 			stats.Bytes += e.getAndResetEventBytes(eventType, perfMap, cpu)
-			stats.Usage += e.getAndResetEventUsage(eventType, perfMap, cpu)
-			stats.InQueue += e.getAndResetEventInQueue(eventType, perfMap, cpu)
 		}
 
 	}
@@ -350,9 +318,6 @@ func (e *EventsStats) CountEvent(eventType EventType, count uint64, size uint64,
 
 	atomic.AddUint64(&e.stats[m.Name][cpu][eventType].Count, count)
 	atomic.AddUint64(&e.stats[m.Name][cpu][eventType].Bytes, size)
-
-	atomic.AddInt64(&e.stats[m.Name][cpu][eventType].Usage, -int64(size))
-	atomic.AddInt64(&e.stats[m.Name][cpu][eventType].InQueue, -int64(count))
 }
 
 func (e *EventsStats) sendEventsAndBytesReadStats(client *statsd.Client) error {
@@ -464,31 +429,6 @@ func (e *EventsStats) sendKernelStats(client *statsd.Client, stats PerfMapStats,
 	metric = MetricPrefix + ".perf_buffer.lost_events.write"
 	if err := client.Count(metric, int64(stats.Lost), tags, 1.0); err != nil {
 		return err
-	}
-
-	// update usage metric
-	newUsage := atomic.AddInt64(&e.stats[perfMapName][cpu][evtType].Usage, int64(stats.Bytes))
-	newInQueue := atomic.AddInt64(&e.stats[perfMapName][cpu][evtType].InQueue, int64(stats.Count))
-
-	if evtType == FileOpenEventType && perfMapName == "events" {
-		metric = MetricPrefix + ".perf_buffer.usage"
-		// There is a race condition when the system is under pressure: between the time we read the perf buffer stats map
-		// and the time we reach this point, the kernel might have written more events in the perf map, and those events
-		// might have already been read in user space. In that case, usage will yield a negative value. In that case, set
-		// the map usage to 0 as it makes more sense than a negative value.
-		usage := math.Max(float64(newUsage)/e.perfBufferSize[perfMapName], 0)
-		if err := client.Gauge(metric, usage*100, tags, 1.0); err != nil {
-			return err
-		}
-
-		metric = MetricPrefix + ".perf_buffer.in_queue"
-		// There is a race condition when the system is under pressure: between the time we read the perf buffer stats map
-		// and the time we reach this point, the kernel might have written more events in the perf map, and those events
-		// might have already been read in user space. In that case, usage will yield a negative value. In that case, set
-		// the amount of queued events to 0 as it makes more sens than a negative value.
-		if err := client.Count(metric, int64(math.Max(float64(newInQueue), 0)), tags, 1.0); err != nil {
-			return err
-		}
 	}
 	return nil
 }
