@@ -114,7 +114,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 	serializer := serializer.NewSerializer(common.Forwarder)
 	agg := aggregator.InitAggregator(serializer, "")
-	common.DSD, err = dogstatsd.NewServer(agg)
+	common.DSD, err = dogstatsd.NewServer(agg, nil)
 	require.Nil(t, err)
 
 	cleanRuntimeSetting()

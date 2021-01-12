@@ -8,17 +8,20 @@ package config
 import (
 	"fmt"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
 )
 
 // Logs source types
 const (
-	TCPType          = "tcp"
-	UDPType          = "udp"
-	FileType         = "file"
-	DockerType       = "docker"
-	JournaldType     = "journald"
-	WindowsEventType = "windows_event"
-	SnmpTrapsType    = "snmp_traps"
+	TCPType           = "tcp"
+	UDPType           = "udp"
+	FileType          = "file"
+	DockerType        = "docker"
+	JournaldType      = "journald"
+	WindowsEventType  = "windows_event"
+	SnmpTrapsType     = "snmp_traps"
+	StringChannelType = "string_channel"
 
 	// UTF16BE for UTF-16 Big endian encoding
 	UTF16BE string = "utf-16-be"
@@ -51,6 +54,12 @@ type LogsConfig struct {
 
 	ChannelPath string `mapstructure:"channel_path" json:"channel_path"` // Windows Event
 	Query       string // Windows Event
+
+	// used as input only by the Channel tailer.
+	// could have been unidirectional but the tailer could not close it in this case.
+	// TODO(remy): strongly typed to an AWS Lambda LogMessage, we should probably use
+	// a more generic type here.
+	Channel chan aws.LogMessage
 
 	Service         string
 	Source          string
