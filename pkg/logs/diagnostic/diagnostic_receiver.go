@@ -6,6 +6,8 @@
 package diagnostic
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -16,16 +18,16 @@ type DiagnosticReceiver struct {
 
 func New() *DiagnosticReceiver {
 	return &DiagnosticReceiver{
-		inputChan: make(chan message.Message, 1),
+		inputChan: make(chan message.Message, 10),
 		done:      make(chan struct{}),
 	}
 }
 
-// func (d *DiagnosticReceiver) Start() chan string {
-// 	outputChan := make(chan string)
-// 	go d.run(outputChan)
-// 	return outputChan
-// }
+func (d *DiagnosticReceiver) Start() chan string {
+	outputChan := make(chan string, 100)
+	// go d.run(outputChan)
+	return outputChan
+}
 
 func (d *DiagnosticReceiver) Stop() {
 	d.done <- struct{}{}
@@ -35,11 +37,11 @@ func (d *DiagnosticReceiver) Close() {
 	close(d.inputChan)
 }
 
-// // run starts the processing of the inputChan
+// run starts the processing of the inputChan
 // func (d *DiagnosticReceiver) run(outputChan chan string) {
 // 	for {
 // 		select {
-// 		case <-d.done:
+// 		case <-d.done:o
 // 			break
 // 		case msg := <-d.inputChan:
 // 			outputChan <- string(msg.Content)
@@ -49,6 +51,16 @@ func (d *DiagnosticReceiver) Close() {
 // 	// 	fmt.Println(string(msg.Content))
 // 	// }
 // }
+
+func (d *DiagnosticReceiver) Clear() {
+	fmt.Println("brian: Clear " + string(len(d.inputChan)))
+	for i := 0; i < len(d.inputChan); i++ {
+		select {
+		case <-d.inputChan:
+		default:
+		}
+	}
+}
 
 func (d *DiagnosticReceiver) Next() (line string, ok bool) {
 	// msg := <-d.inputChan

@@ -65,8 +65,9 @@ func (p *Processor) run() {
 
 			select {
 			case p.diagnosticChan <- *msg:
-				fmt.Println("write")
+				fmt.Println("brian: write")
 			default:
+				fmt.Println("brian: miss")
 			}
 
 			// Encode the message to its final format

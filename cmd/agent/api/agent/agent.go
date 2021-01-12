@@ -194,7 +194,26 @@ func streamLogs(w http.ResponseWriter, r *http.Request) {
 	logDiagnosticReceiver := logs.GetDiagnosticReceiver()
 
 	// Throw away the first message (if there is one) since it was buffered long ago
-	_, _ = logDiagnosticReceiver.Next()
+	logDiagnosticReceiver.Clear()
+
+	// lineChan := logDiagnosticReceiver.Start()
+	// defer logDiagnosticReceiver.Stop()
+	// for {
+	// 	select {
+	// 	case <-w.(http.CloseNotifier).CloseNotify():
+	// 		return
+	// 	case <-r.Context().Done():
+	// 		return
+	// 	case line := <-lineChan:
+	// 		fmt.Fprintln(w, line)
+	// 	default:
+	// 		flusher.Flush()
+	// 	}
+	// 	// if line, ok := logDiagnosticReceiver.Next(); ok {
+	// 	// 	fmt.Fprintln(w, line)
+	// 	// 	flusher.Flush()
+	// 	// }
+	// }
 
 	for {
 		select {
@@ -203,27 +222,13 @@ func streamLogs(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done():
 			return
 		default:
+			flusher.Flush()
 		}
 		if line, ok := logDiagnosticReceiver.Next(); ok {
 			fmt.Fprintln(w, line)
-			flusher.Flush()
 		}
 	}
 
-	// for i := 1; i <= 100; i++ {
-	// 	select {
-	// 	case <-w.(http.CloseNotifier).CloseNotify():
-	// 		fmt.Println("Done")
-	// 	case <-r.Context().Done():
-	// 		fmt.Println("Done")
-	// 	default:
-	// 	}
-
-	// 	fmt.Fprintf(w, "Chunk #%d\n", i)
-	// 	flusher.Flush() // Trigger "chunked" encoding and send a chunk...
-	// 	time.Sleep(500 * time.Millisecond)
-	// }
-	// fmt.Println("Done2")
 }
 
 func getDogstatsdStats(w http.ResponseWriter, r *http.Request) {
