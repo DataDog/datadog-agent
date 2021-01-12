@@ -481,11 +481,11 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.flushIdle <- done
 	<-done
 
-	conns := t.state.Connections(clientID, latestTime, latestConns, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
+	conns, httpStatsDelta := t.state.Connections(clientID, latestTime, latestConns, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
 	names := t.reverseDNS.Resolve(conns)
 	tm := t.getConnTelemetry(len(latestConns))
 
-	return &network.Connections{Conns: conns, DNS: names, Telemetry: tm}, nil
+	return &network.Connections{Conns: conns, DNS: names, HTTP: httpStatsDelta, Telemetry: tm}, nil
 }
 
 func (t *Tracer) getConnTelemetry(mapSize int) *network.ConnectionsTelemetry {

@@ -9,10 +9,9 @@ import (
 )
 
 type Key struct {
-	SourceIP   util.Address
-	DestIP     util.Address
-	SourcePort uint16
-	DestPort   uint16
+	SourceIP util.Address
+	DestIP   util.Address
+	DestPort uint16
 }
 
 type httpStatKeeper struct {
@@ -32,12 +31,11 @@ func (h *httpStatKeeper) Process(transactions []httpTX) {
 
 	for _, tx := range transactions {
 		key := Key{
-			SourceIP:   tx.SourceIP(),
-			DestIP:     tx.DestIP(),
-			SourcePort: tx.SourcePort(),
-			DestPort:   tx.DestPort(),
+			SourceIP: tx.SourceIP(),
+			DestIP:   tx.DestIP(),
+			DestPort: tx.DestPort(),
 		}
-		path := tx.Path()
+		path := cleanPath(tx.Path())
 		statusClass := tx.StatusClass()
 		latency := tx.RequestLatency()
 
@@ -60,3 +58,9 @@ func (h *httpStatKeeper) GetAndResetAllStats() map[Key]map[string]RequestStats {
 }
 
 func (h *httpStatKeeper) Close() {}
+
+func cleanPath(path string) string {
+	// TODO: remove query variables / redact sensitive information from the request path
+	// add a flag for aggregation
+	return path
+}

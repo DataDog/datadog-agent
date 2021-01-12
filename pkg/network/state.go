@@ -36,8 +36,8 @@ type State interface {
 		latestTime uint64,
 		latestConns []ConnectionStats,
 		dns map[dnsKey]map[string]dnsStats,
-		http map[http.Key]map[string]http.RequestStats,
-	) []ConnectionStats
+		newHTTPStats map[http.Key]map[string]http.RequestStats,
+	) ([]ConnectionStats, map[http.Key]map[string]http.RequestStats)
 
 	// StoreClosedConnection stores a new closed connection
 	StoreClosedConnection(conn *ConnectionStats)
@@ -83,7 +83,7 @@ type client struct {
 	closedConnections map[string]ConnectionStats
 	stats             map[string]*stats
 	dnsStats          map[dnsKey]map[string]dnsStats
-	httpStats         map[http.Key]map[string]http.RequestStats
+	httpStatsDelta    map[http.Key]map[string]http.RequestStats
 }
 
 type networkState struct {
@@ -138,8 +138,8 @@ func (ns *networkState) Connections(
 	latestTime uint64,
 	latestConns []ConnectionStats,
 	dnsStats map[dnsKey]map[string]dnsStats,
-	httpStats map[http.Key]map[string]http.RequestStats,
-) []ConnectionStats {
+	newHTTPStats map[http.Key]map[string]http.RequestStats,
+) ([]ConnectionStats, map[http.Key]map[string]http.RequestStats) {
 	ns.Lock()
 	defer ns.Unlock()
 
@@ -168,14 +168,15 @@ func (ns *networkState) Connections(
 			ns.storeDNSStats(dnsStats)
 			ns.addDNSStats(id, latestConns)
 		}
-		if len(httpStats) > 0 {
-			ns.storeHTTPStats(httpStats)
-			ns.addHTTPStats(id, latestConns)
+		if len(newHTTPStats) > 0 {
+			ns.storeHTTPStats(newHTTPStats)
 		}
+		httpStats := ns.addHTTPStats(id, latestConns)
+
 		// copy to ensure return value doesn't get clobbered
 		conns := make([]ConnectionStats, len(latestConns))
 		copy(conns, latestConns)
-		return conns
+		return conns, httpStats
 	}
 
 	// Update all connections with relevant up-to-date stats for client
@@ -199,11 +200,11 @@ func (ns *networkState) Connections(
 		ns.storeDNSStats(dnsStats)
 		ns.addDNSStats(id, latestConns)
 	}
-	if len(httpStats) > 0 {
-		ns.storeHTTPStats(httpStats)
-		ns.addHTTPStats(id, conns)
+	if len(newHTTPStats) > 0 {
+		ns.storeHTTPStats(newHTTPStats)
 	}
-	return conns
+	httpStatsDelta := ns.addHTTPStats(id, conns)
+	return conns, httpStatsDelta
 }
 
 func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
@@ -266,29 +267,28 @@ func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
 }
 
 // addHTTPStats fills in the HTTP stats for each connection
-func (ns *networkState) addHTTPStats(id string, conns []ConnectionStats) {
+func (ns *networkState) addHTTPStats(id string, conns []ConnectionStats) map[http.Key]map[string]http.RequestStats {
+	// flush the HTTP stats from client state
+	httpStatsDelta := make(map[http.Key]map[string]http.RequestStats)
+	for k, v := range ns.clients[id].httpStatsDelta {
+		httpStatsDelta[k] = v
+	}
+	ns.clients[id].httpStatsDelta = make(map[http.Key]map[string]http.RequestStats)
+
 	for i := range conns {
 		conn := &conns[i]
 		key := http.Key{
-			SourceIP:   conn.Source,
-			DestIP:     conn.Dest,
-			SourcePort: conn.SPort,
-			DestPort:   conn.DPort,
+			SourceIP: conn.Source,
+			DestIP:   conn.Dest,
+			DestPort: conn.DPort,
 		}
 
-		if statsByPath, ok := ns.clients[id].httpStats[key]; ok {
-			if conn.HTTPStatsByPath == nil {
-				conn.HTTPStatsByPath = make(map[string]http.RequestStats)
-			}
-
-			for path, stats := range statsByPath {
-				conn.HTTPStatsByPath[path] = stats
-			}
+		if _, ok := httpStatsDelta[key]; ok {
+			conn.HTTPKey = key
 		}
 	}
 
-	// flush the HTTP stats
-	ns.clients[id].httpStats = make(map[http.Key]map[string]http.RequestStats)
+	return httpStatsDelta
 }
 
 // getConnsByKey returns a mapping of byte-key -> connection for easier access + manipulation
@@ -379,13 +379,13 @@ func (ns *networkState) storeHTTPStats(stats map[http.Key]map[string]http.Reques
 	for key, statsByPath := range stats {
 		for _, client := range ns.clients {
 			// If we've seen HTTP stats for this key already, let's combine the two
-			if prevStatsByPath, ok := client.httpStats[key]; ok {
-				client.httpStats[key] = combineHTTPStats(prevStatsByPath, statsByPath)
-			} else if len(client.httpStats) >= ns.maxHTTPStats {
+			if prevStatsByPath, ok := client.httpStatsDelta[key]; ok {
+				client.httpStatsDelta[key] = combineHTTPStats(prevStatsByPath, statsByPath)
+			} else if len(client.httpStatsDelta) >= ns.maxHTTPStats {
 				ns.telemetry.httpStatsDropped++
 				continue
 			} else {
-				client.httpStats[key] = statsByPath
+				client.httpStatsDelta[key] = statsByPath
 			}
 		}
 	}
@@ -415,7 +415,7 @@ func (ns *networkState) newClient(clientID string) (*client, bool) {
 		stats:             map[string]*stats{},
 		closedConnections: map[string]ConnectionStats{},
 		dnsStats:          map[dnsKey]map[string]dnsStats{},
-		httpStats:         map[http.Key]map[string]http.RequestStats{},
+		httpStatsDelta:    map[http.Key]map[string]http.RequestStats{},
 	}
 	ns.clients[clientID] = c
 	return c, false

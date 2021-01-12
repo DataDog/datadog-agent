@@ -22,7 +22,7 @@ var connPool = sync.Pool{
 }
 
 // FormatConnection converts a ConnectionStats into an model.Connection
-func FormatConnection(conn network.ConnectionStats, domainSet map[string]int) *model.Connection {
+func FormatConnection(conn network.ConnectionStats, domainSet map[string]int, httpKeysSet map[http.Key]int) *model.Connection {
 	c := connPool.Get().(*model.Connection)
 	c.Pid = int32(conn.Pid)
 	c.Laddr = formatAddr(conn.Source, conn.SPort)
@@ -49,7 +49,7 @@ func FormatConnection(conn network.ConnectionStats, domainSet map[string]int) *m
 	c.LastTcpEstablished = conn.LastTCPEstablished
 	c.LastTcpClosed = conn.LastTCPClosed
 	c.DnsStatsByDomain = formatDNSStatsByDomain(conn.DNSStatsByDomain, domainSet)
-	c.HttpStatsByPath = formatHTTPStatsByPath(conn.HTTPStatsByPath)
+	c.HttpKey = formatHTTPKey(httpKeysSet, conn.HTTPKey)
 	return c
 }
 
@@ -79,6 +79,64 @@ var telemetryPool = sync.Pool{
 	New: func() interface{} {
 		return new(model.ConnectionsTelemetry)
 	},
+}
+
+// FormatHTTP converts a map[http.Key]map[string]http.RequestStats to a map[int32]*model.HTTPStatsByPath
+func FormatHTTP(httpData map[http.Key]map[string]http.RequestStats, httpKeySet map[http.Key]int) map[int32]*model.HTTPStatsByPath {
+	m := make(map[int32]*model.HTTPStatsByPath)
+	for key, statsByPath := range httpData {
+		formattedStatsByPath := &model.HTTPStatsByPath{
+			Stats: make(map[string]*model.HTTPStats),
+		}
+
+		for path, stats := range statsByPath {
+			var ms model.HTTPStats
+			ms.StatsByResponseStatus = make([]*model.HTTPStats_Data, 5)
+
+			for i := 0; i < 5; i++ {
+				status := model.HTTPResponseStatus(i)
+				count := uint32(stats.Count(status))
+
+				var formattedLatencies *model.DDSketch
+				if latencies := stats.Latencies(status); latencies != nil {
+					sketch := latencies.ToProto()
+					mapping := &model.IndexMapping{
+						Gamma:         sketch.Mapping.Gamma,
+						IndexOffset:   sketch.Mapping.IndexOffset,
+						Interpolation: model.IndexMapping_Interpolation(sketch.Mapping.Interpolation),
+					}
+					posVals := &model.Store{
+						BinCounts:                sketch.PositiveValues.BinCounts,
+						ContiguousBinCounts:      sketch.PositiveValues.ContiguousBinCounts,
+						ContiguousBinIndexOffset: sketch.PositiveValues.ContiguousBinIndexOffset,
+					}
+					negVals := &model.Store{
+						BinCounts:                sketch.NegativeValues.BinCounts,
+						ContiguousBinCounts:      sketch.NegativeValues.ContiguousBinCounts,
+						ContiguousBinIndexOffset: sketch.NegativeValues.ContiguousBinIndexOffset,
+					}
+
+					formattedLatencies = &model.DDSketch{
+						Mapping:        mapping,
+						PositiveValues: posVals,
+						NegativeValues: negVals,
+						ZeroCount:      sketch.ZeroCount,
+					}
+				}
+
+				ms.StatsByResponseStatus[status] = &model.HTTPStats_Data{
+					Count:     count,
+					Latencies: formattedLatencies,
+				}
+			}
+
+			formattedStatsByPath.Stats[path] = &ms
+		}
+
+		k := int32(httpKeySet[key])
+		m[k] = formattedStatsByPath
+	}
+	return m
 }
 
 // FormatTelemetry converts telemetry from its internal representation to a protobuf message
@@ -192,50 +250,9 @@ func formatIPTranslation(ct *network.IPTranslation) *model.IPTranslation {
 	}
 }
 
-func formatHTTPStatsByPath(statsByPath map[string]http.RequestStats) map[string]*model.HTTPStats {
-	m := make(map[string]*model.HTTPStats)
-	for path, stats := range statsByPath {
-		var ms model.HTTPStats
-		ms.StatsByResponseStatus = make([]*model.HTTPStats_Data, 5)
-
-		for i := 0; i < 5; i++ {
-			status := model.HTTPResponseStatus(i)
-			count := uint32(stats.Count(status))
-
-			var formattedLatencies *model.DDSketch
-			if latencies := stats.Latencies(status); latencies != nil {
-				sketch := latencies.ToProto()
-				mapping := &model.IndexMapping{
-					Gamma:         sketch.Mapping.Gamma,
-					IndexOffset:   sketch.Mapping.IndexOffset,
-					Interpolation: model.IndexMapping_Interpolation(sketch.Mapping.Interpolation),
-				}
-				posVals := &model.Store{
-					BinCounts:                sketch.PositiveValues.BinCounts,
-					ContiguousBinCounts:      sketch.PositiveValues.ContiguousBinCounts,
-					ContiguousBinIndexOffset: sketch.PositiveValues.ContiguousBinIndexOffset,
-				}
-				negVals := &model.Store{
-					BinCounts:                sketch.NegativeValues.BinCounts,
-					ContiguousBinCounts:      sketch.NegativeValues.ContiguousBinCounts,
-					ContiguousBinIndexOffset: sketch.NegativeValues.ContiguousBinIndexOffset,
-				}
-
-				formattedLatencies = &model.DDSketch{
-					Mapping:        mapping,
-					PositiveValues: posVals,
-					NegativeValues: negVals,
-					ZeroCount:      sketch.ZeroCount,
-				}
-			}
-
-			ms.StatsByResponseStatus[status] = &model.HTTPStats_Data{
-				Count:     count,
-				Latencies: formattedLatencies,
-			}
-		}
-
-		m[path] = &ms
+func formatHTTPKey(httpKeysSet map[http.Key]int, key http.Key) int32 {
+	if k, ok := httpKeysSet[key]; ok {
+		return int32(k)
 	}
-	return m
+	return -1
 }
