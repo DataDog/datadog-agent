@@ -7,7 +7,6 @@ package config
 
 import (
 	"net/url"
-	"os"
 	"testing"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -136,15 +135,14 @@ func (suite *YamlConfigTestSuite) TestNoEnvConfigArgsScrubbing() {
 	}
 
 	for i := range cases {
-		a, _ := orchestratorCfg.Scrubber.ScrubSimpleCommand(cases[i].cmdline)
-		suite.Equal(a, cases[i].parsedCmdline)
+		actual, _ := orchestratorCfg.Scrubber.ScrubSimpleCommand(cases[i].cmdline)
+		suite.Equal(cases[i].parsedCmdline, actual)
 	}
 }
 
 func (suite *YamlConfigTestSuite) TestOnlyEnvConfigArgsScrubbing() {
 
-	os.Setenv("DD_ORCHESTRATOR_CUSTOM_SENSITIVE_WORDS", "token,consul")
-	defer os.Unsetenv("DD_ORCHESTRATOR_CUSTOM_SENSITIVE_WORDS")
+	suite.config.Set("orchestrator_explorer.custom_sensitive_words", `["token","consul"]`)
 
 	orchestratorCfg := NewDefaultOrchestratorConfig()
 	err := orchestratorCfg.LoadYamlConfig("")
@@ -161,15 +159,14 @@ func (suite *YamlConfigTestSuite) TestOnlyEnvConfigArgsScrubbing() {
 	}
 
 	for i := range cases {
-		a, _ := orchestratorCfg.Scrubber.ScrubSimpleCommand(cases[i].cmdline)
-		suite.Equal(a, cases[i].parsedCmdline)
+		actual, _ := orchestratorCfg.Scrubber.ScrubSimpleCommand(cases[i].cmdline)
+		suite.Equal(cases[i].parsedCmdline, actual)
 	}
 }
 
 func (suite *YamlConfigTestSuite) TestOnlyEnvContainsConfigArgsScrubbing() {
 
-	os.Setenv("DD_ORCHESTRATOR_CUSTOM_SENSITIVE_WORDS", "token,consul")
-	defer os.Unsetenv("DD_ORCHESTRATOR_CUSTOM_SENSITIVE_WORDS")
+	suite.config.Set("orchestrator_explorer.custom_sensitive_words", `["token","consul"]`)
 
 	orchestratorCfg := NewDefaultOrchestratorConfig()
 	err := orchestratorCfg.LoadYamlConfig("")
@@ -198,8 +195,8 @@ func (suite *YamlConfigTestSuite) TestOnlyEnvContainsConfigArgsScrubbing() {
 	}
 
 	for i := range cases {
-		hasWord := orchestratorCfg.Scrubber.ContainsSensitiveWord(cases[i].word)
-		suite.Equal(hasWord, cases[i].expected)
+		actual := orchestratorCfg.Scrubber.ContainsSensitiveWord(cases[i].word)
+		suite.Equal(cases[i].expected, actual)
 	}
 }
 
