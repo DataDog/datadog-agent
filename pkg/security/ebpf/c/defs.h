@@ -303,10 +303,6 @@ static __attribute__((always_inline)) u32 is_flushing_discarders(void) {
     return prev_id != NULL && *prev_id;
 }
 
-// STATS_MAX_CPU_COUNT represents the maximum number of CPUs that the perf buffer monitoring will sample. Reduce this number
-// to monitor less CPUs and therefore reduce the in-kernel overhead.
-#define STATS_MAX_CPU_COUNT 64
-
 struct perf_map_stats_t {
     u64 bytes;
     u64 count;
@@ -322,20 +318,11 @@ struct bpf_map_def SEC("maps/events") events = {
     .namespace = "",
 };
 
-struct bpf_map_def SEC("maps/events_stats_fb") events_stats_fb = {
-    .type = BPF_MAP_TYPE_ARRAY,
+struct bpf_map_def SEC("maps/events_stats") events_stats = {
+    .type = BPF_MAP_TYPE_PERCPU_ARRAY,
     .key_size = sizeof(u32),
     .value_size = sizeof(struct perf_map_stats_t),
-    .max_entries = EVENT_MAX * STATS_MAX_CPU_COUNT,
-    .pinning = 0,
-    .namespace = "",
-};
-
-struct bpf_map_def SEC("maps/events_stats_bb") events_stats_bb = {
-    .type = BPF_MAP_TYPE_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(struct perf_map_stats_t),
-    .max_entries = EVENT_MAX * STATS_MAX_CPU_COUNT,
+    .max_entries = EVENT_MAX,
     .pinning = 0,
     .namespace = "",
 };
@@ -348,18 +335,14 @@ struct bpf_map_def SEC("maps/events_stats_bb") events_stats_bb = {
     u64 size = sizeof(kernel_event);                                                                                   \
     int perf_ret = bpf_perf_event_output(ctx, &events, kernel_event.event.cpu, &kernel_event, size);                   \
                                                                                                                        \
-    if ((kernel_event.event.cpu < STATS_MAX_CPU_COUNT) && (kernel_event.event.type < EVENT_MAX)) {                     \
-        struct bpf_map_def *stats_buffer = select_buffer(&events_stats_fb, &events_stats_bb, PERF_BUFFER_MONITOR_KEY); \
-        if (stats_buffer != NULL) {                                                                                    \
-            u32 stats_key = kernel_event.event.type + kernel_event.event.cpu * EVENT_MAX;                              \
-            struct perf_map_stats_t *stats = bpf_map_lookup_elem(stats_buffer, &stats_key);                            \
-            if (stats != NULL) {                                                                                       \
-                if (!perf_ret) {                                                                                       \
-                    __sync_fetch_and_add(&stats->bytes, size + 4);                                                     \
-                    __sync_fetch_and_add(&stats->count, 1);                                                            \
-                } else {                                                                                               \
-                    __sync_fetch_and_add(&stats->lost, 1);                                                             \
-                }                                                                                                      \
+    if (kernel_event.event.type < EVENT_MAX) {                                                                         \
+        struct perf_map_stats_t *stats = bpf_map_lookup_elem(&events_stats, &kernel_event.event.type);                 \
+        if (stats != NULL) {                                                                                           \
+            if (!perf_ret) {                                                                                           \
+                __sync_fetch_and_add(&stats->bytes, size + 4);                                                         \
+                __sync_fetch_and_add(&stats->count, 1);                                                                \
+            } else {                                                                                                   \
+                __sync_fetch_and_add(&stats->lost, 1);                                                                 \
             }                                                                                                          \
         }                                                                                                              \
     }                                                                                                                  \

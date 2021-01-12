@@ -40,15 +40,6 @@ func (s *PerfMapStats) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-// MarshalBinary encodes the relevant fields of the current PerfMapStats instance into a byte array
-func (s *PerfMapStats) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 24)
-	ebpf.ByteOrder.PutUint64(b, s.Bytes)
-	ebpf.ByteOrder.PutUint64(b, s.Count)
-	ebpf.ByteOrder.PutUint64(b, s.Lost)
-	return b, nil
-}
-
 // EventsStats holds statistics about the number of lost and received events
 //nolint:structcheck,unused
 type EventsStats struct {
@@ -57,12 +48,12 @@ type EventsStats struct {
 	// cpuCount holds the current count of CPU
 	cpuCount int
 	// perfBufferStatsMaps holds the pointers to the statistics kernel maps
-	perfBufferStatsMaps map[string][2]*lib.Map
+	perfBufferStatsMaps map[string]*lib.Map
 	// perfBufferSize holds the size of each perf buffer, indexed by the name of the perf buffer
 	perfBufferSize map[string]float64
 
 	// perfBufferMapNameToStatsMapsName maps a perf buffer to its statistics maps
-	perfBufferMapNameToStatsMapsName map[string][2]string
+	perfBufferMapNameToStatsMapsName map[string]string
 	// statsMapsNamePerfBufferMapName maps a statistic map to its perf buffer
 	statsMapsNameToPerfBufferMapName map[string]string
 
@@ -71,8 +62,10 @@ type EventsStats struct {
 	// activeMapIndex is the index of the statistic maps we are currently collecting data from
 	activeMapIndex uint32
 
-	// stats holds the collected metrics
+	// stats holds the collected user space metrics
 	stats map[string][][maxEventType]PerfMapStats
+	// kernelStats holds the aggregated kernel space metrics
+	kernelStats map[string][][maxEventType]PerfMapStats
 	// readLostEvents is the count of lost events, collected by reading the perf buffer
 	readLostEvents map[string][]uint64
 }
@@ -82,52 +75,50 @@ func NewEventsStats(ebpfManager *manager.Manager, options manager.Options, confi
 	es := EventsStats{
 		config:              config,
 		cpuCount:            runtime.NumCPU(),
-		perfBufferStatsMaps: make(map[string][2]*lib.Map),
+		perfBufferStatsMaps: make(map[string]*lib.Map),
 		perfBufferSize:      make(map[string]float64),
 
 		perfBufferMapNameToStatsMapsName: probes.GetPerfBufferStatisticsMaps(),
 		statsMapsNameToPerfBufferMapName: make(map[string]string),
 
 		stats:          make(map[string][][maxEventType]PerfMapStats),
+		kernelStats:    make(map[string][][maxEventType]PerfMapStats),
 		readLostEvents: make(map[string][]uint64),
 	}
 
 	// compute statsMapPerfMap
-	for perfMap, statsMaps := range es.perfBufferMapNameToStatsMapsName {
-		for _, statsMap := range statsMaps {
-			es.statsMapsNameToPerfBufferMapName[statsMap] = perfMap
-		}
+	for perfMap, statsMap := range es.perfBufferMapNameToStatsMapsName {
+		es.statsMapsNameToPerfBufferMapName[statsMap] = perfMap
 	}
 
 	// Select perf buffer statistics maps
-	for perfMapName, statsMapsNames := range es.perfBufferMapNameToStatsMapsName {
-		var maps [2]*lib.Map
-		for i, statsMapName := range statsMapsNames {
-			stats, ok, err := ebpfManager.GetMap(statsMapName)
-			if !ok {
-				return nil, errors.Errorf("map %s not found", statsMapName)
-			}
-			if err != nil {
-				return nil, err
-			}
-			maps[i] = stats
+	for perfMapName, statsMapName := range es.perfBufferMapNameToStatsMapsName {
+		stats, ok, err := ebpfManager.GetMap(statsMapName)
+		if !ok {
+			return nil, errors.Errorf("map %s not found", statsMapName)
 		}
-		es.perfBufferStatsMaps[perfMapName] = maps
+		if err != nil {
+			return nil, err
+		}
+
+		es.perfBufferStatsMaps[perfMapName] = stats
 		// set default perf buffer size, it will be readjusted in the next loop if needed
 		es.perfBufferSize[perfMapName] = float64(options.DefaultPerfRingBufferSize)
 	}
 
 	// Prepare user space counters
 	for _, m := range ebpfManager.PerfMaps {
-		var stats [][maxEventType]PerfMapStats
+		var stats, kernelStats [][maxEventType]PerfMapStats
 		var usrLostEvents []uint64
 
 		for i := 0; i < es.cpuCount; i++ {
 			stats = append(stats, [maxEventType]PerfMapStats{})
+			kernelStats = append(kernelStats, [maxEventType]PerfMapStats{})
 			usrLostEvents = append(usrLostEvents, 0)
 		}
 
 		es.stats[m.Name] = stats
+		es.kernelStats[m.Name] = kernelStats
 		es.readLostEvents[m.Name] = usrLostEvents
 
 		// update perf buffer size if needed
@@ -148,27 +139,59 @@ func NewEventsStats(ebpfManager *manager.Manager, options manager.Options, confi
 	return &es, nil
 }
 
-// getReadLostCount is an internal function, it can segfault if its parameters are incorrect.
-func (e *EventsStats) getReadLostCount(perfMap string, cpu int) uint64 {
+// getLostCount is an internal function, it can segfault if its parameters are incorrect.
+func (e *EventsStats) getLostCount(perfMap string, cpu int) uint64 {
 	return atomic.LoadUint64(&e.readLostEvents[perfMap][cpu])
 }
 
-// GetReadLostCount returns the number of lost events for a given map and cpu. If a cpu of -1 is provided, the function will
+// GetLostCount returns the number of lost events for a given map and cpu. If a cpu of -1 is provided, the function will
 // return the sum of all the lost events of all the cpus.
-func (e *EventsStats) GetReadLostCount(perfMap string, cpu int) uint64 {
+func (e *EventsStats) GetLostCount(perfMap string, cpu int) uint64 {
 	var total uint64
 
 	switch {
 	case cpu == -1:
 		for i := range e.readLostEvents[perfMap] {
-			total += e.getReadLostCount(perfMap, i)
+			total += e.getLostCount(perfMap, i)
 		}
 		break
-	case cpu >= 0:
-		if e.cpuCount <= cpu {
-			break
+	case cpu >= 0 && e.cpuCount > cpu:
+		total += e.getLostCount(perfMap, cpu)
+	}
+
+	return total
+}
+
+// getKernelLostCount is an internal function, it can segfault if its parameters are incorrect.
+func (e *EventsStats) getKernelLostCount(eventType EventType, perfMap string, cpu int) uint64 {
+	return atomic.LoadUint64(&e.kernelStats[perfMap][cpu][eventType].Lost)
+}
+
+// GetAndResetKernelLostCount returns the number of lost events for a given map and cpu. If a cpu of -1 is provided, the function will
+// return the sum of all the lost events of all the cpus.
+func (e *EventsStats) GetAndResetKernelLostCount(perfMap string, cpu int, evtTypes ...EventType) uint64 {
+	var total uint64
+	var shouldCount bool
+
+	// query the kernel maps
+	_ = e.collectAndSendKernelStats(nil)
+
+	for cpuID := range e.kernelStats[perfMap] {
+		if cpu == -1 || cpu == cpuID {
+			for kernelEvtType := range e.kernelStats[perfMap][cpuID] {
+				shouldCount = len(evtTypes) == 0
+				if !shouldCount {
+					for evtType := range evtTypes {
+						if evtType == kernelEvtType {
+							shouldCount = true
+						}
+					}
+				}
+				if shouldCount {
+					total += e.getKernelLostCount(EventType(kernelEvtType), perfMap, cpu)
+				}
+			}
 		}
-		total += e.getReadLostCount(perfMap, cpu)
 	}
 
 	return total
@@ -179,10 +202,10 @@ func (e *EventsStats) getAndResetReadLostCount(perfMap string, cpu int) uint64 {
 	return atomic.SwapUint64(&e.readLostEvents[perfMap][cpu], 0)
 }
 
-// GetAndResetReadLostCount returns the number of lost events and resets the counter for a given map and cpu. If a cpu of -1 is
+// GetAndResetLostCount returns the number of lost events and resets the counter for a given map and cpu. If a cpu of -1 is
 // provided, the function will reset the counters of all the cpus for the provided map, and return the sum of all the
 // lost events of all the cpus of the provided map.
-func (e *EventsStats) GetAndResetReadLostCount(perfMap string, cpu int) uint64 {
+func (e *EventsStats) GetAndResetLostCount(perfMap string, cpu int) uint64 {
 	var total uint64
 
 	switch {
@@ -191,10 +214,7 @@ func (e *EventsStats) GetAndResetReadLostCount(perfMap string, cpu int) uint64 {
 			total += e.getAndResetReadLostCount(perfMap, i)
 		}
 		break
-	case cpu >= 0:
-		if e.cpuCount <= cpu {
-			break
-		}
+	case cpu >= 0 && e.cpuCount > cpu:
 		total += e.getAndResetReadLostCount(perfMap, cpu)
 	}
 	return total
@@ -208,6 +228,21 @@ func (e *EventsStats) getEventCount(eventType EventType, perfMap string, cpu int
 // getEventBytes is an internal function, it can segfault if its parameters are incorrect.
 func (e *EventsStats) getEventBytes(eventType EventType, perfMap string, cpu int) uint64 {
 	return atomic.LoadUint64(&e.stats[perfMap][cpu][eventType].Bytes)
+}
+
+// getKernelEventCount is an internal function, it can segfault if its parameters are incorrect.
+func (e *EventsStats) swapKernelEventCount(eventType EventType, perfMap string, cpu int, value uint64) uint64 {
+	return atomic.SwapUint64(&e.kernelStats[perfMap][cpu][eventType].Count, value)
+}
+
+// getKernelEventBytes is an internal function, it can segfault if its parameters are incorrect.
+func (e *EventsStats) swapKernelEventBytes(eventType EventType, perfMap string, cpu int, value uint64) uint64 {
+	return atomic.SwapUint64(&e.kernelStats[perfMap][cpu][eventType].Bytes, value)
+}
+
+// getKernelLostCount is an internal function, it can segfault if its parameters are incorrect.
+func (e *EventsStats) swapKernelLostCount(eventType EventType, perfMap string, cpu int, value uint64) uint64 {
+	return atomic.SwapUint64(&e.kernelStats[perfMap][cpu][eventType].Lost, value)
 }
 
 // GetEventStats returns the number of received events of the specified type and resets the counter
@@ -238,10 +273,7 @@ func (e *EventsStats) GetEventStats(eventType EventType, perfMap string, cpu int
 				stats.Bytes += e.getEventBytes(eventType, perfMap, i)
 			}
 			break
-		case cpu >= 0:
-			if e.cpuCount <= cpu {
-				break
-			}
+		case cpu >= 0 && e.cpuCount > cpu:
 			stats.Count += e.getEventCount(eventType, perfMap, cpu)
 			stats.Bytes += e.getEventBytes(eventType, perfMap, cpu)
 		}
@@ -288,10 +320,7 @@ func (e *EventsStats) GetAndResetEventStats(eventType EventType, perfMap string,
 				stats.Bytes += e.getAndResetEventBytes(eventType, perfMap, i)
 			}
 			break
-		case cpu >= 0:
-			if e.cpuCount <= cpu {
-				break
-			}
+		case cpu >= 0 && e.cpuCount > cpu:
 			stats.Count += e.getAndResetEventCount(eventType, perfMap, cpu)
 			stats.Bytes += e.getAndResetEventBytes(eventType, perfMap, cpu)
 		}
@@ -366,47 +395,56 @@ func (e *EventsStats) sendLostEventsReadStats(client *statsd.Client) error {
 
 func (e *EventsStats) collectAndSendKernelStats(client *statsd.Client) error {
 	var (
-		id          uint32
-		stats, zero PerfMapStats
-		iterator    *lib.MapIterator
-		tags        []string
+		id       uint32
+		iterator *lib.MapIterator
+		tags     []string
+		tmpCount uint64
 	)
+	cpuStats := make([]PerfMapStats, runtime.NumCPU())
 
 	// loop through the statistics buffers of each perf map
-	for perfMapName, statsMaps := range e.perfBufferStatsMaps {
-		// select the current statistics buffer in use
-		statsMap := statsMaps[1-e.activeMapIndex]
-
+	for perfMapName, statsMap := range e.perfBufferStatsMaps {
 		// loop through all the values of the active buffer
 		iterator = statsMap.Iterate()
-		for iterator.Next(&id, &stats) {
-			// compute cpu and event type from id
-			cpu := int(id / uint32(maxEventType))
+		for iterator.Next(&id, &cpuStats) {
+			// retrieve event type from key
 			evtType := EventType(id % uint32(maxEventType))
 
-			// sanity checks:
-			//   - check if the computed cpu id is below the current cpu count
-			//   - check if we collect some data on the provided perf map
-			//   - check if the computed event id is below the current max event id
-			if (e.stats[perfMapName] == nil) || (len(e.stats[perfMapName]) <= cpu) || (len(e.stats[perfMapName][cpu]) <= int(evtType)) {
-				continue
+			// loop over each cpu entry
+			for cpu, stats := range cpuStats {
+				// sanity checks:
+				//   - check if the computed cpu id is below the current cpu count
+				//   - check if we collect some data on the provided perf map
+				//   - check if the computed event id is below the current max event id
+				if (e.stats[perfMapName] == nil) || (len(e.stats[perfMapName]) <= cpu) || (len(e.stats[perfMapName][cpu]) <= int(evtType)) {
+					return nil
+				}
+
+				// prepare metrics tags
+				tags = []string{
+					fmt.Sprintf("map:%s", perfMapName),
+					fmt.Sprintf("cpu:%d", cpu),
+					fmt.Sprintf("event_type:%s", evtType),
+				}
+
+				// Update stats to avoid sending twice the same data points
+				if tmpCount = e.swapKernelEventBytes(evtType, perfMapName, cpu, stats.Bytes); tmpCount <= stats.Bytes {
+					stats.Bytes -= tmpCount
+				}
+				if tmpCount = e.swapKernelEventCount(evtType, perfMapName, cpu, stats.Count); tmpCount <= stats.Count {
+					stats.Count -= tmpCount
+				}
+				if tmpCount = e.swapKernelLostCount(evtType, perfMapName, cpu, stats.Lost); tmpCount <= stats.Lost {
+					stats.Lost -= tmpCount
+				}
+
+				if client != nil {
+					if err := e.sendKernelStats(client, stats, tags); err != nil {
+						return err
+					}
+				}
 			}
 
-			// remove the entry from the kernel
-			if err := statsMap.Put(&id, &zero); err != nil {
-				return err
-			}
-
-			// prepare metrics tags
-			tags = []string{
-				fmt.Sprintf("map:%s", perfMapName),
-				fmt.Sprintf("cpu:%d", cpu),
-				fmt.Sprintf("event_type:%s", evtType),
-			}
-
-			if err := e.sendKernelStats(client, stats, tags, perfMapName, cpu, evtType); err != nil {
-				return err
-			}
 		}
 		if iterator.Err() != nil {
 			return errors.Wrapf(iterator.Err(), "failed to dump statistics buffer %d of map %s", 1-e.activeMapIndex, perfMapName)
@@ -415,7 +453,7 @@ func (e *EventsStats) collectAndSendKernelStats(client *statsd.Client) error {
 	return nil
 }
 
-func (e *EventsStats) sendKernelStats(client *statsd.Client, stats PerfMapStats, tags []string, perfMapName string, cpu int, evtType EventType) error {
+func (e *EventsStats) sendKernelStats(client *statsd.Client, stats PerfMapStats, tags []string) error {
 	metric := MetricPrefix + ".perf_buffer.events.write"
 	if err := client.Count(metric, int64(stats.Count), tags, 1.0); err != nil {
 		return err

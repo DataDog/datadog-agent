@@ -93,8 +93,8 @@ func AllPerfMaps() []*manager.PerfMap {
 }
 
 // GetPerfBufferStatisticsMaps returns the list of maps used to monitor the performances of each perf buffers
-func GetPerfBufferStatisticsMaps() map[string][2]string {
-	return map[string][2]string{
-		"events": {"events_stats_fb", "events_stats_bb"},
+func GetPerfBufferStatisticsMaps() map[string]string {
+	return map[string]string{
+		"events": "events_stats",
 	}
 }
