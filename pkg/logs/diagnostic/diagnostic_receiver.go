@@ -6,35 +6,60 @@
 package diagnostic
 
 import (
-	"fmt"
-
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 type DiagnosticReceiver struct {
 	inputChan chan message.Message
+	done      chan struct{}
 }
 
 func New() *DiagnosticReceiver {
 	return &DiagnosticReceiver{
-		inputChan: make(chan message.Message, config.ChanSize),
+		inputChan: make(chan message.Message, 1),
+		done:      make(chan struct{}),
 	}
 }
 
-func (d *DiagnosticReceiver) Start() {
-	go d.run()
-}
+// func (d *DiagnosticReceiver) Start() chan string {
+// 	outputChan := make(chan string)
+// 	go d.run(outputChan)
+// 	return outputChan
+// }
 
 func (d *DiagnosticReceiver) Stop() {
+	d.done <- struct{}{}
+}
+
+func (d *DiagnosticReceiver) Close() {
 	close(d.inputChan)
 }
 
-// run starts the processing of the inputChan
-func (d *DiagnosticReceiver) run() {
-	for msg := range d.inputChan {
-		fmt.Println(string(msg.Content))
+// // run starts the processing of the inputChan
+// func (d *DiagnosticReceiver) run(outputChan chan string) {
+// 	for {
+// 		select {
+// 		case <-d.done:
+// 			break
+// 		case msg := <-d.inputChan:
+// 			outputChan <- string(msg.Content)
+// 		}
+// 	}
+// 	// for msg := range d.inputChan {
+// 	// 	fmt.Println(string(msg.Content))
+// 	// }
+// }
+
+func (d *DiagnosticReceiver) Next() (line string, ok bool) {
+	// msg := <-d.inputChan
+	// return string(msg.Content), true
+	select {
+	case msg := <-d.inputChan:
+		return string(msg.Content), true
+	default:
+		return "", false
 	}
+
 }
 
 func (d *DiagnosticReceiver) Channel() chan message.Message {

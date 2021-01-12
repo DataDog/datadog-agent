@@ -55,7 +55,6 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 	auditor := auditor.New(coreConfig.Datadog.GetString("logs_config.run_path"), auditor.DefaultRegistryFilename, auditorTTL, health)
 	destinationsCtx := client.NewDestinationsContext()
 	diagnosticReceiver := diagnostic.New()
-	diagnosticReceiver.Start()
 
 	// setup the pipeline provider that provides pairs of processor and sender
 	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, diagnosticReceiver, processingRules, endpoints, destinationsCtx)
@@ -75,11 +74,12 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 	}
 
 	return &Agent{
-		auditor:          auditor,
-		destinationsCtx:  destinationsCtx,
-		pipelineProvider: pipelineProvider,
-		inputs:           inputs,
-		health:           health,
+		auditor:            auditor,
+		destinationsCtx:    destinationsCtx,
+		pipelineProvider:   pipelineProvider,
+		inputs:             inputs,
+		health:             health,
+		diagnosticReceiver: diagnosticReceiver,
 	}
 }
 

@@ -6,6 +6,8 @@
 package processor
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -63,6 +65,7 @@ func (p *Processor) run() {
 
 			select {
 			case p.diagnosticChan <- *msg:
+				fmt.Println("write")
 			default:
 			}
 

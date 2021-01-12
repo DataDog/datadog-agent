@@ -71,7 +71,7 @@ func DoGetChunked(c *http.Client, url string, onChunk func([]byte)) error {
 		onChunk(buf)
 
 		if e == io.EOF {
-			return nil // e is EOF, so return nil explicitly
+			return nil
 		}
 		if e != nil {
 			return e

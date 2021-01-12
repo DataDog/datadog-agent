@@ -15,7 +15,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"sort"
-	"time"
 
 	"github.com/gorilla/mux"
 
@@ -30,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
+	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -187,12 +187,43 @@ func streamLogs(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		panic("expected http.ResponseWriter to be an http.Flusher")
 	}
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	for i := 1; i <= 100; i++ {
-		fmt.Fprintf(w, "Chunk #%d\n", i)
-		flusher.Flush() // Trigger "chunked" encoding and send a chunk...
-		time.Sleep(500 * time.Millisecond)
+	w.Header().Set("Transfer-Encoding", "chunked")
+
+	defer fmt.Println("Done")
+
+	logDiagnosticReceiver := logs.GetDiagnosticReceiver()
+
+	// Throw away the first message (if there is one) since it was buffered long ago
+	_, _ = logDiagnosticReceiver.Next()
+
+	for {
+		select {
+		case <-w.(http.CloseNotifier).CloseNotify():
+			return
+		case <-r.Context().Done():
+			return
+		default:
+		}
+		if line, ok := logDiagnosticReceiver.Next(); ok {
+			fmt.Fprintln(w, line)
+			flusher.Flush()
+		}
 	}
+
+	// for i := 1; i <= 100; i++ {
+	// 	select {
+	// 	case <-w.(http.CloseNotifier).CloseNotify():
+	// 		fmt.Println("Done")
+	// 	case <-r.Context().Done():
+	// 		fmt.Println("Done")
+	// 	default:
+	// 	}
+
+	// 	fmt.Fprintf(w, "Chunk #%d\n", i)
+	// 	flusher.Flush() // Trigger "chunked" encoding and send a chunk...
+	// 	time.Sleep(500 * time.Millisecond)
+	// }
+	// fmt.Println("Done2")
 }
 
 func getDogstatsdStats(w http.ResponseWriter, r *http.Request) {
