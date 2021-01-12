@@ -351,10 +351,8 @@ func (e *EventsStats) CountEvent(eventType EventType, count uint64, size uint64,
 	atomic.AddUint64(&e.stats[m.Name][cpu][eventType].Count, count)
 	atomic.AddUint64(&e.stats[m.Name][cpu][eventType].Bytes, size)
 
-	if e.config.PerfBufferMonitor {
-		atomic.AddInt64(&e.stats[m.Name][cpu][eventType].Usage, -int64(size))
-		atomic.AddInt64(&e.stats[m.Name][cpu][eventType].InQueue, -int64(count))
-	}
+	atomic.AddInt64(&e.stats[m.Name][cpu][eventType].Usage, -int64(size))
+	atomic.AddInt64(&e.stats[m.Name][cpu][eventType].InQueue, -int64(count))
 }
 
 func (e *EventsStats) sendEventsAndBytesReadStats(client *statsd.Client) error {
@@ -497,10 +495,8 @@ func (e *EventsStats) sendKernelStats(client *statsd.Client, stats PerfMapStats,
 
 // SendStats send event stats using the provided statsd client
 func (e *EventsStats) SendStats(client *statsd.Client) error {
-	if e.config.PerfBufferMonitor {
-		if err := e.collectAndSendKernelStats(client); err != nil {
-			return err
-		}
+	if err := e.collectAndSendKernelStats(client); err != nil {
+		return err
 	}
 
 	if err := e.sendEventsAndBytesReadStats(client); err != nil {

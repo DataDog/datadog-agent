@@ -162,14 +162,6 @@ func (p *Probe) Init() error {
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, selectors...)
 	}
 
-	// activate perf buffer monitor
-	if p.config.PerfBufferMonitor {
-		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, manager.ConstantEditor{
-			Name:  "perf_monitor_enabled",
-			Value: uint64(1),
-		})
-	}
-
 	if err := p.manager.InitWithOptions(bytecodeReader, p.managerOptions); err != nil {
 		return errors.Wrap(err, "failed to init manager")
 	}
