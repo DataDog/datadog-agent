@@ -33,7 +33,9 @@ func Health(loggerName config.LoggerName, confPath string, flagNoColor bool) *co
 				config.Datadog.SetConfigName("datadog-cluster")
 			}
 
-			err := common.SetupConfig(confPath)
+			// Set up config without secrets so that running the health command (e.g. from container
+			// liveness probe script) does not trigger a secret backend command call.
+			err := common.SetupConfigWithoutSecrets(confPath, "")
 			if err != nil {
 				return fmt.Errorf("unable to set up global agent configuration: %v", err)
 			}
