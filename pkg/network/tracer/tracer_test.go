@@ -115,8 +115,8 @@ func TestTracerExpvar(t *testing.T) {
 			"PTcpSendmsgMisses",
 			"PTcpSetStateHits",
 			"PTcpSetStateMisses",
-			"PTcpVDestroySockHits",
-			"PTcpVDestroySockMisses",
+			"PTcpV4DestroySockHits",
+			"PTcpV4DestroySockMisses",
 			"PUdpDestroySockHits",
 			"PUdpDestroySockMisses",
 			"PUdpRecvmsgHits",
@@ -135,14 +135,14 @@ func TestTracerExpvar(t *testing.T) {
 	}
 
 	archSpecificKprobes := [][]string{
-		{"PSySBindHits", "PXSysBindHits"},
-		{"PSySBindMisses", "PXSysBindMisses"},
-		{"PSySSocketHits", "PXSysSocketHits"},
-		{"PSySSocketMisses", "PXSysSocketMisses"},
-		{"RSySBindHits", "RXSysBindHits"},
-		{"RSySBindMisses", "RXSysBindMisses"},
-		{"RSySSocketHits", "RXSysSocketHits"},
-		{"RSySSocketMisses", "RXSysSocketMisses"},
+		{"PSysBindHits", "PX64SysBindHits"},
+		{"PSysBindMisses", "PX64SysBindMisses"},
+		{"PSysSocketHits", "PX64SysSocketHits"},
+		{"PSysSocketMisses", "PX64SysSocketMisses"},
+		{"RSysBindHits", "RX64SysBindHits"},
+		{"RSysBindMisses", "RX64SysBindMisses"},
+		{"RSysSocketHits", "RX64SysSocketHits"},
+		{"RSysSocketMisses", "RX64SysSocketMisses"},
 	}
 
 	for _, et := range expvarTypes {
