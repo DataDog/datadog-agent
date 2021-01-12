@@ -55,12 +55,7 @@ pupernetes-dev:
 pupernetes-master:
   extends: .pupernetes_template
   rules:
-    # The job is currently failing with timeouts. In order to not have all pipelines
-    # automatically fail, this job is therefore temporarily allowed to fail.
-    # TODO: Remove "allow_failure: true" once the job is fixed.
     - <<: *if_master_branch
-      when: on_success
-      allow_failure: true
   needs: ["dev_master_docker_hub-a6", "dev_master_docker_hub-a7"]
   script:
     - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py2 --dca-image=datadog/cluster-agent-dev:master
