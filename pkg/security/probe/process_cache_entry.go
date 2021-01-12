@@ -17,9 +17,13 @@ func (pc *ProcessCacheEntry) Copy() *ProcessCacheEntry {
 
 	// reset pointers
 	dup.Parent = nil
-	dup.ProcessContext.Parent = nil
 	dup.Children = make(map[uint32]*ProcessCacheEntry)
 	return &dup
+}
+
+// IsEqual return whether entries are equals
+func (pc *ProcessCacheEntry) IsEqual(e *ProcessCacheEntry) bool {
+	return e != nil && e.Pid == pc.Pid && e.ForkTimestamp == pc.ForkTimestamp
 }
 
 func (pc *ProcessCacheEntry) String() string {

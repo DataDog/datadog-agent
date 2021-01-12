@@ -46,16 +46,23 @@ var (
 		dir string
 	}{}
 
+	dumpCmd = &cobra.Command{
+		Use:   "dump",
+		Short: "Dump security module information",
+	}
+
 	dumpProcessCacheCmd = &cobra.Command{
-		Use:   "dump-process-cache",
-		Short: "Dump process cache",
+		Use:   "process-cache",
+		Short: "process cache",
 		RunE:  dumpProcessCache,
 	}
 )
 
 func init() {
+	dumpCmd.AddCommand(dumpProcessCacheCmd)
+	runtimeCmd.AddCommand(dumpCmd)
+
 	runtimeCmd.AddCommand(checkPoliciesCmd)
-	runtimeCmd.AddCommand(dumpProcessCacheCmd)
 	checkPoliciesCmd.Flags().StringVar(&checkPoliciesArgs.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
 }
 

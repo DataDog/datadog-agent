@@ -145,6 +145,7 @@ func (p *ProcessResolver) enrichEventFromProc(entry *ProcessCacheEntry, proc *pr
 	entry.FileEvent.ResolveContainerPathWithResolvers(p.resolvers)
 
 	entry.ExecTimestamp = time.Unix(0, filledProc.CreateTime*int64(time.Millisecond))
+	entry.ForkTimestamp = entry.ExecTimestamp
 	entry.Comm = filledProc.Name
 	entry.PPid = uint32(filledProc.Ppid)
 	entry.TTYName = utils.PidTTY(filledProc.Pid)
@@ -229,11 +230,19 @@ func (p *ProcessResolver) insertEntry(pid uint32, entry *ProcessCacheEntry) *Pro
 			p.entryCache[entry.PPid] = parent
 
 			atomic.AddInt64(&p.cacheSize, 1)
+			_ = p.client.Count(MetricPrefix+".process_resolver.added", 1, []string{}, 1.0)
 		}
 	}
 
-	if _, ok := p.entryCache[pid]; !ok {
+	if prev, ok := p.entryCache[pid]; !ok {
 		atomic.AddInt64(&p.cacheSize, 1)
+		_ = p.client.Count(MetricPrefix+".process_resolver.added", 1, []string{}, 1.0)
+	} else if prev.PPid == entry.PPid {
+		atomic.AddInt64(&p.cacheSize, 1)
+		_ = p.client.Count(MetricPrefix+".process_resolver.added", 1, []string{}, 1.0)
+
+		prev.ExitTimestamp = entry.ForkTimestamp
+		parent = prev
 	}
 
 	entry.Parent = parent
@@ -260,16 +269,16 @@ func (p *ProcessResolver) DeleteEntry(pid uint32, exitTime time.Time) {
 
 // recursiveDelete deletes an entry and its parent recursively, if the process can be deleted
 func (p *ProcessResolver) recursiveDelete(entry *ProcessCacheEntry) {
-	// We cannot delete the entry if the process is still alive
-	if entry.ExitTimestamp.IsZero() {
+	if e := p.entryCache[entry.Pid]; entry.IsEqual(e) {
+		delete(p.entryCache, entry.Pid)
+	}
+
+	if len(entry.Children) > 0 {
 		return
 	}
 
-	// Delete the entry
-	if e, exists := p.entryCache[entry.Pid]; exists && e == entry {
-		delete(p.entryCache, entry.Pid)
-		atomic.AddInt64(&p.cacheSize, -1)
-	}
+	atomic.AddInt64(&p.cacheSize, -1)
+	_ = p.client.Count(MetricPrefix+".process_resolver.deleted", 1, []string{}, 1.0)
 
 	// There is nothing left to do if the entry does not have a parent
 	if entry.Parent == nil {
@@ -277,12 +286,14 @@ func (p *ProcessResolver) recursiveDelete(entry *ProcessCacheEntry) {
 	}
 
 	// Delete the reference to the entry from its parent
-	if e, exists := entry.Parent.Children[entry.Pid]; exists && e == entry {
+	if e := entry.Parent.Children[entry.Pid]; entry.IsEqual(e) {
 		delete(entry.Parent.Children, entry.Pid)
-		atomic.AddInt64(&p.cacheSize, -1)
 	}
 
-	// Check recursively if the parent entry can be deleted
+	// Parent not exited, do not need to delete it
+	if entry.Parent.ExitTimestamp.IsZero() {
+		return
+	}
 	p.recursiveDelete(entry.Parent)
 }
 
@@ -310,6 +321,7 @@ func (p *ProcessResolver) Resolve(pid uint32) *ProcessCacheEntry {
 	}
 
 	_ = p.client.Count(MetricPrefix+".process_resolver.cache_miss", 1, []string{}, 1.0)
+
 	return nil
 }
 
@@ -439,7 +451,12 @@ func (p *ProcessResolver) syncCache(proc *process.Process) (*ProcessCacheEntry, 
 
 func (p *ProcessResolver) dumpChild(writer io.Writer, entry *ProcessCacheEntry, already map[uint32]bool) {
 	if _, exists := already[entry.Pid]; !exists {
-		fmt.Fprintf(writer, `%d [label="%s:%d"];`, entry.Pid, entry.Comm, entry.Pid)
+		label := fmt.Sprintf("%s:%d", entry.Comm, entry.Pid)
+		if !entry.ExitTimestamp.IsZero() {
+			label = "[" + label + "]"
+		}
+
+		fmt.Fprintf(writer, `%d [label="%s"];`, entry.Pid, label)
 		fmt.Fprintln(writer)
 	}
 	already[entry.Pid] = true

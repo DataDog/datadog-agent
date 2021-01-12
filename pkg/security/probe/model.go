@@ -852,8 +852,7 @@ type ProcessCacheEntry struct {
 	ContainerContext
 	ProcessContext
 
-	Parent   *ProcessCacheEntry
-	Children map[uint32]*ProcessCacheEntry
+	Children map[uint32]*ProcessCacheEntry `field:"-"`
 }
 
 // NewProcessCacheEntry returns an empty instance of ProcessCacheEntry
@@ -886,6 +885,7 @@ func (it *ProcessAncestorsIterator) Front(ctx *eval.Context) unsafe.Pointer {
 		it.prev = front
 		return unsafe.Pointer(front)
 	}
+
 	return nil
 }
 
@@ -895,6 +895,7 @@ func (it *ProcessAncestorsIterator) Next() unsafe.Pointer {
 		it.prev = next
 		return unsafe.Pointer(next)
 	}
+
 	return nil
 }
 
