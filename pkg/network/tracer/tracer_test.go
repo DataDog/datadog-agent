@@ -774,8 +774,8 @@ func TestUDPSendAndReceive(t *testing.T) {
 	defer tr.Stop()
 
 	cmd := exec.Command("../testdata/simulate_udp.sh")
-	if err := cmd.Run(); err != nil {
-		require.NoError(t, err)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Errorf("simulate_udp command output: %s", string(out))
 	}
 
 	defer func() {
