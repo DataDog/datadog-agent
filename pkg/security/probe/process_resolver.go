@@ -9,8 +9,11 @@ package probe
 
 import (
 	"fmt"
+	"io"
+	"io/ioutil"
 	"os"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -74,6 +77,7 @@ type ProcessResolver struct {
 	pidCookieMap   *lib.Map
 
 	entryCache map[uint32]*ProcessCacheEntry
+	cacheSize  int64
 }
 
 // GetProbes returns the probes required by the snapshot
@@ -86,14 +90,6 @@ func (p *ProcessResolver) AddEntry(pid uint32, entry *ProcessCacheEntry) *Proces
 	p.Lock()
 	defer p.Unlock()
 	return p.insertEntry(pid, entry)
-}
-
-// DumpCache prints the process cache to the console
-func (p *ProcessResolver) DumpCache() {
-	fmt.Println("Dumping process cache ...")
-	for _, entry := range p.entryCache {
-		fmt.Printf("%s\n", entry)
-	}
 }
 
 // enrichEventFromProc uses /proc to enrich a ProcessCacheEntry with additional metadata
@@ -231,13 +227,16 @@ func (p *ProcessResolver) insertEntry(pid uint32, entry *ProcessCacheEntry) *Pro
 			// update lineage
 			parent.Children[entry.Pid] = entry
 			p.entryCache[entry.PPid] = parent
-			_ = p.client.Count(MetricPrefix+".process_resolver.added", 1, []string{}, 1.0)
+
+			atomic.AddInt64(&p.cacheSize, 1)
 		}
 	}
-	entry.Parent = parent
+
 	if _, ok := p.entryCache[pid]; !ok {
-		_ = p.client.Count(MetricPrefix+".process_resolver.added", 1, []string{}, 1.0)
+		atomic.AddInt64(&p.cacheSize, 1)
 	}
+
+	entry.Parent = parent
 	p.entryCache[pid] = entry
 
 	return entry
@@ -266,14 +265,11 @@ func (p *ProcessResolver) recursiveDelete(entry *ProcessCacheEntry) {
 		return
 	}
 
-	// We cannot delete the entry if it still has children
-	if len(entry.Children) > 0 {
-		return
-	}
-
 	// Delete the entry
-	_ = p.client.Count(MetricPrefix+".process_resolver.deleted", 1, []string{}, 1.0)
-	delete(p.entryCache, entry.Pid)
+	if e, exists := p.entryCache[entry.Pid]; exists && e == entry {
+		delete(p.entryCache, entry.Pid)
+		atomic.AddInt64(&p.cacheSize, -1)
+	}
 
 	// There is nothing left to do if the entry does not have a parent
 	if entry.Parent == nil {
@@ -281,7 +277,10 @@ func (p *ProcessResolver) recursiveDelete(entry *ProcessCacheEntry) {
 	}
 
 	// Delete the reference to the entry from its parent
-	delete(entry.Parent.Children, entry.Pid)
+	if e, exists := entry.Parent.Children[entry.Pid]; exists && e == entry {
+		delete(entry.Parent.Children, entry.Pid)
+		atomic.AddInt64(&p.cacheSize, -1)
+	}
 
 	// Check recursively if the parent entry can be deleted
 	p.recursiveDelete(entry.Parent)
@@ -363,11 +362,7 @@ func (p *ProcessResolver) resolveWithProcfs(pid uint32) *ProcessCacheEntry {
 func (p *ProcessResolver) Get(pid uint32) *ProcessCacheEntry {
 	p.RLock()
 	defer p.RUnlock()
-	entry, exists := p.entryCache[pid]
-	if exists {
-		return entry
-	}
-	return nil
+	return p.entryCache[pid]
 }
 
 // Start starts the resolver
@@ -442,11 +437,55 @@ func (p *ProcessResolver) syncCache(proc *process.Process) (*ProcessCacheEntry, 
 	return entry, true
 }
 
+func (p *ProcessResolver) dumpChild(writer io.Writer, entry *ProcessCacheEntry, already map[uint32]bool) {
+	if _, exists := already[entry.Pid]; !exists {
+		fmt.Fprintf(writer, `%d [label="%s:%d"];`, entry.Pid, entry.Comm, entry.Pid)
+		fmt.Fprintln(writer)
+	}
+	already[entry.Pid] = true
+
+	for _, child := range entry.Children {
+		fmt.Fprintf(writer, `%d -> %d;`, entry.Pid, child.Pid)
+		fmt.Fprintln(writer)
+
+		p.dumpChild(writer, child, already)
+	}
+}
+
+// Dump create a temp file and dump the cache
+func (p *ProcessResolver) Dump() (string, error) {
+	dump, err := ioutil.TempFile("/tmp", "process-cache-dump-")
+	if err != nil {
+		return "", err
+	}
+	defer dump.Close()
+
+	if err := os.Chmod(dump.Name(), 0400); err != nil {
+		return "", err
+	}
+
+	p.RLock()
+	defer p.RUnlock()
+
+	fmt.Fprintf(dump, "digraph ProcessTree {\n")
+
+	already := make(map[uint32]bool)
+	for _, entry := range p.entryCache {
+		if entry.Parent == nil {
+			p.dumpChild(dump, entry, already)
+		}
+	}
+
+	fmt.Fprintf(dump, `}`)
+
+	return dump.Name(), err
+}
+
 // GetCacheSize returns the cache size of the process resolver
 func (p *ProcessResolver) GetCacheSize() float64 {
-	p.resolvers.ProcessResolver.RLock()
-	defer p.resolvers.ProcessResolver.RUnlock()
-	return float64(len(p.resolvers.ProcessResolver.entryCache))
+	p.RLock()
+	defer p.RUnlock()
+	return float64(atomic.LoadInt64(&p.cacheSize))
 }
 
 // NewProcessResolver returns a new process resolver

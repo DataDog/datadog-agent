@@ -41,7 +41,7 @@ type Module struct {
 	ruleSets       [2]*rules.RuleSet
 	currentRuleSet uint64
 	reloading      uint64
-	eventServer    *EventServer
+	apiServer      *ApiServer
 	grpcServer     *grpc.Server
 	listener       net.Listener
 	rateLimiter    *RateLimiter
@@ -138,7 +138,7 @@ func (m *Module) Reload() error {
 	ruleSet.AddListener(m)
 	ruleIDs := ruleSet.ListRuleIDs()
 
-	m.eventServer.Apply(ruleIDs)
+	m.apiServer.Apply(ruleIDs)
 	m.rateLimiter.Apply(ruleIDs)
 
 	atomic.StoreUint64(&m.currentRuleSet, 1-m.currentRuleSet)
@@ -168,7 +168,7 @@ func (m *Module) Close() {
 // RuleMatch is called by the ruleset when a rule matches
 func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
 	if m.rateLimiter.Allow(rule.ID) {
-		m.eventServer.SendEvent(rule, event)
+		m.apiServer.SendEvent(rule, event)
 	} else {
 		log.Tracef("Event on rule %s was dropped due to rate limiting", rule.ID)
 	}
@@ -208,7 +208,7 @@ func (m *Module) statsMonitor(ctx context.Context) {
 			if err := m.rateLimiter.SendStats(); err != nil {
 				log.Debug(err)
 			}
-			if err := m.eventServer.SendStats(); err != nil {
+			if err := m.apiServer.SendStats(); err != nil {
 				log.Debug(err)
 			}
 		case <-ctx.Done():
@@ -265,14 +265,14 @@ func NewModule(cfg *config.Config) (api.Module, error) {
 	m := &Module{
 		config:         cfg,
 		probe:          probe,
-		eventServer:    NewEventServer(cfg, statsdClient),
+		apiServer:      NewApiServer(cfg, probe, statsdClient),
 		grpcServer:     grpc.NewServer(),
 		rateLimiter:    NewRateLimiter(statsdClient),
 		sigupChan:      make(chan os.Signal, 1),
 		currentRuleSet: 1,
 	}
 
-	sapi.RegisterSecurityModuleServer(m.grpcServer, m.eventServer)
+	sapi.RegisterSecurityModuleServer(m.grpcServer, m.apiServer)
 
 	return m, nil
 }
