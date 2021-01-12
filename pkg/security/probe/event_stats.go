@@ -57,11 +57,6 @@ type EventsStats struct {
 	// statsMapsNamePerfBufferMapName maps a statistic map to its perf buffer
 	statsMapsNameToPerfBufferMapName map[string]string
 
-	// bufferSelector is the kernel map used to select the active buffer ID
-	bufferSelector *lib.Map
-	// activeMapIndex is the index of the statistic maps we are currently collecting data from
-	activeMapIndex uint32
-
 	// stats holds the collected user space metrics
 	stats map[string][][maxEventType]PerfMapStats
 	// kernelStats holds the aggregated kernel space metrics
@@ -126,16 +121,6 @@ func NewEventsStats(ebpfManager *manager.Manager, options manager.Options, confi
 			es.perfBufferSize[m.Name] = float64(m.PerfRingBufferSize)
 		}
 	}
-
-	// select the buffer selector map
-	bufferSelector, ok, err := ebpfManager.GetMap("buffer_selector")
-	if !ok {
-		return nil, errors.Errorf("map buffer_selector not found")
-	}
-	if err != nil {
-		return nil, err
-	}
-	es.bufferSelector = bufferSelector
 	return &es, nil
 }
 
@@ -188,7 +173,7 @@ func (e *EventsStats) GetAndResetKernelLostCount(perfMap string, cpu int, evtTyp
 					}
 				}
 				if shouldCount {
-					total += e.getKernelLostCount(EventType(kernelEvtType), perfMap, cpu)
+					total += e.getKernelLostCount(EventType(kernelEvtType), perfMap, cpuID)
 				}
 			}
 		}
@@ -290,43 +275,6 @@ func (e *EventsStats) getAndResetEventCount(eventType EventType, perfMap string,
 // getAndResetEventBytes is an internal function, it can segfault if its parameters are incorrect.
 func (e *EventsStats) getAndResetEventBytes(eventType EventType, perfMap string, cpu int) uint64 {
 	return atomic.SwapUint64(&e.stats[perfMap][cpu][eventType].Bytes, 0)
-}
-
-// GetAndResetEventStats returns the number of received events of the specified type and resets the counter
-func (e *EventsStats) GetAndResetEventStats(eventType EventType, perfMap string, cpu int) PerfMapStats {
-	var stats PerfMapStats
-	var maps []string
-
-	if eventType >= maxEventType {
-		return stats
-	}
-
-	switch {
-	case len(perfMap) == 0:
-		for m := range e.stats {
-			maps = append(maps, m)
-		}
-		break
-	case e.stats[perfMap] != nil:
-		maps = append(maps, perfMap)
-	}
-
-	for _, m := range maps {
-
-		switch {
-		case cpu == -1:
-			for i := range e.stats[m] {
-				stats.Count += e.getAndResetEventCount(eventType, perfMap, i)
-				stats.Bytes += e.getAndResetEventBytes(eventType, perfMap, i)
-			}
-			break
-		case cpu >= 0 && e.cpuCount > cpu:
-			stats.Count += e.getAndResetEventCount(eventType, perfMap, cpu)
-			stats.Bytes += e.getAndResetEventBytes(eventType, perfMap, cpu)
-		}
-
-	}
-	return stats
 }
 
 // CountLostEvent adds `count` to the counter of lost events
@@ -447,7 +395,7 @@ func (e *EventsStats) collectAndSendKernelStats(client *statsd.Client) error {
 
 		}
 		if iterator.Err() != nil {
-			return errors.Wrapf(iterator.Err(), "failed to dump statistics buffer %d of map %s", 1-e.activeMapIndex, perfMapName)
+			return errors.Wrapf(iterator.Err(), "failed to dump the statistics buffer of map %s", perfMapName)
 		}
 	}
 	return nil
@@ -484,11 +432,5 @@ func (e *EventsStats) SendStats(client *statsd.Client) error {
 	if err := e.sendLostEventsReadStats(client); err != nil {
 		return err
 	}
-
-	// Update the active statistics map id
-	if err := e.bufferSelector.Put(ebpf.BufferSelectorPerfBufferMonitorKey, 1-e.activeMapIndex); err != nil {
-		return err
-	}
-	atomic.SwapUint32(&e.activeMapIndex, 1-e.activeMapIndex)
 	return nil
 }

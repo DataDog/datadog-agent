@@ -85,6 +85,4 @@ var (
 var (
 	// BufferSelectorSyscallMonitorKey is the key used to select the active syscall monitor buffer key
 	BufferSelectorSyscallMonitorKey = ZeroUint32MapItem
-	// BufferSelectorPerfBufferMonitorKey is the key used to select the active perf buffer monitoring key
-	BufferSelectorPerfBufferMonitorKey = Uint32MapItem(1)
 )
