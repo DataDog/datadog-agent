@@ -23,7 +23,7 @@ type Pipeline struct {
 }
 
 // NewPipeline returns a new Pipeline
-func NewPipeline(outputChan chan *message.Message, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) *Pipeline {
+func NewPipeline(outputChan chan *message.Message, diagnosticChan chan message.Message, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) *Pipeline {
 	var destinations *client.Destinations
 	if endpoints.UseHTTP {
 		main := http.NewDestination(endpoints.Main, http.JSONContentType, destinationsContext)
@@ -61,7 +61,7 @@ func NewPipeline(outputChan chan *message.Message, processingRules []*config.Pro
 	}
 
 	inputChan := make(chan *message.Message, config.ChanSize)
-	processor := processor.New(inputChan, senderChan, processingRules, encoder)
+	processor := processor.New(inputChan, senderChan, diagnosticChan, processingRules, encoder)
 
 	return &Pipeline{
 		InputChan: inputChan,

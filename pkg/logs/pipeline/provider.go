@@ -8,6 +8,8 @@ package pipeline
 import (
 	"sync/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -24,11 +26,12 @@ type Provider interface {
 
 // provider implements providing logic
 type provider struct {
-	numberOfPipelines int
-	auditor           *auditor.Auditor
-	outputChan        chan *message.Message
-	processingRules   []*config.ProcessingRule
-	endpoints         *config.Endpoints
+	numberOfPipelines  int
+	auditor            *auditor.Auditor
+	diagnosticReceiver *diagnostic.DiagnosticReceiver
+	outputChan         chan *message.Message
+	processingRules    []*config.ProcessingRule
+	endpoints          *config.Endpoints
 
 	pipelines            []*Pipeline
 	currentPipelineIndex int32
@@ -36,10 +39,11 @@ type provider struct {
 }
 
 // NewProvider returns a new Provider
-func NewProvider(numberOfPipelines int, auditor *auditor.Auditor, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) Provider {
+func NewProvider(numberOfPipelines int, auditor *auditor.Auditor, diagnosticReceiver *diagnostic.DiagnosticReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) Provider {
 	return &provider{
 		numberOfPipelines:   numberOfPipelines,
 		auditor:             auditor,
+		diagnosticReceiver:  diagnosticReceiver,
 		processingRules:     processingRules,
 		endpoints:           endpoints,
 		pipelines:           []*Pipeline{},
@@ -53,7 +57,7 @@ func (p *provider) Start() {
 	p.outputChan = p.auditor.Channel()
 
 	for i := 0; i < p.numberOfPipelines; i++ {
-		pipeline := NewPipeline(p.outputChan, p.processingRules, p.endpoints, p.destinationsContext)
+		pipeline := NewPipeline(p.outputChan, p.diagnosticReceiver.Channel(), p.processingRules, p.endpoints, p.destinationsContext)
 		pipeline.Start()
 		p.pipelines = append(p.pipelines, pipeline)
 	}

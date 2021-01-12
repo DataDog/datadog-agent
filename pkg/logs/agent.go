@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/container"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/journald"
@@ -35,11 +36,12 @@ import (
 // |                                                        |
 // + ------------------------------------------------------ +
 type Agent struct {
-	auditor          *auditor.Auditor
-	destinationsCtx  *client.DestinationsContext
-	pipelineProvider pipeline.Provider
-	inputs           []restart.Restartable
-	health           *health.Handle
+	auditor            *auditor.Auditor
+	destinationsCtx    *client.DestinationsContext
+	pipelineProvider   pipeline.Provider
+	inputs             []restart.Restartable
+	health             *health.Handle
+	diagnosticReceiver *diagnostic.DiagnosticReceiver
 }
 
 // NewAgent returns a new Logs Agent
@@ -52,9 +54,11 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 	auditorTTL := time.Duration(coreConfig.Datadog.GetInt("logs_config.auditor_ttl")) * time.Hour
 	auditor := auditor.New(coreConfig.Datadog.GetString("logs_config.run_path"), auditor.DefaultRegistryFilename, auditorTTL, health)
 	destinationsCtx := client.NewDestinationsContext()
+	diagnosticReceiver := diagnostic.New()
+	diagnosticReceiver.Start()
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, processingRules, endpoints, destinationsCtx)
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, diagnosticReceiver, processingRules, endpoints, destinationsCtx)
 
 	// setup the inputs
 	inputs := []restart.Restartable{

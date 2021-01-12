@@ -18,16 +18,18 @@ import (
 type Processor struct {
 	inputChan       chan *message.Message
 	outputChan      chan *message.Message
+	diagnosticChan  chan message.Message
 	processingRules []*config.ProcessingRule
 	encoder         Encoder
 	done            chan struct{}
 }
 
 // New returns an initialized Processor.
-func New(inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule, encoder Encoder) *Processor {
+func New(inputChan, outputChan chan *message.Message, diagnosticChan chan message.Message, processingRules []*config.ProcessingRule, encoder Encoder) *Processor {
 	return &Processor{
 		inputChan:       inputChan,
 		outputChan:      outputChan,
+		diagnosticChan:  diagnosticChan,
 		processingRules: processingRules,
 		encoder:         encoder,
 		done:            make(chan struct{}),
@@ -43,6 +45,7 @@ func (p *Processor) Start() {
 // this call blocks until inputChan is flushed
 func (p *Processor) Stop() {
 	close(p.inputChan)
+	// close diagnose channel
 	<-p.done
 }
 
@@ -57,6 +60,11 @@ func (p *Processor) run() {
 		if shouldProcess, redactedMsg := p.applyRedactingRules(msg); shouldProcess {
 			metrics.LogsProcessed.Add(1)
 			metrics.TlmLogsProcessed.Inc()
+
+			select {
+			case p.diagnosticChan <- *msg:
+			default:
+			}
 
 			// Encode the message to its final format
 			content, err := p.encoder.Encode(msg, redactedMsg)
