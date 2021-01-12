@@ -62,33 +62,21 @@ const (
 	// InetCskAcceptReturn traces the return value for the inet_csk_accept syscall
 	InetCskAcceptReturn ProbeName = "kretprobe/inet_csk_accept"
 
-	// SysSocket traces calls to the socket kprobe
-	SysSocket    ProbeName = "kprobe/sys_socket"
-	SysSocketX64 ProbeName = "kprobe/sys_socket/x64"
+	// InetBind is the kprobe of the bind() syscall for IPv4
+	InetBind ProbeName = "kprobe/inet_bind"
+	// Inet6Bind is the kprobe of the bind() syscall for IPv6
+	Inet6Bind ProbeName = "kprobe/inet6_bind"
 
-	// SysSocketRet is the kretprobe for SysSocket
-	SysSocketRet ProbeName = "kretprobe/sys_socket"
-
-	// SysBind is the kprobe the bind() syscall.
-	SysBind    ProbeName = "kprobe/sys_bind"
-	SysBindX64 ProbeName = "kprobe/sys_bind/x64"
-
-	// SysBindRet is the kretprobe for bind().
-	SysBindRet ProbeName = "kretprobe/sys_bind"
+	// InetBind is the kretprobe of the bind() syscall for IPv4
+	InetBindRet ProbeName = "kretprobe/inet_bind"
+	// Inet6Bind is the kretprobe of the bind() syscall for IPv6
+	Inet6BindRet ProbeName = "kretprobe/inet6_bind"
 
 	// SocketDnsFilter is the socket probe for dns
 	SocketDnsFilter ProbeName = "socket/dns_filter"
 
 	// SocketHTTPFilter is the socket probe for HTTP
 	SocketHTTPFilter ProbeName = "socket/http_filter"
-)
-
-const (
-	TraceSysBindEnter ProbeName = "tracepoint/syscalls/sys_enter_bind"
-	TraceSysBindExit  ProbeName = "tracepoint/syscalls/sys_exit_bind"
-
-	TraceSysSocketEnter ProbeName = "tracepoint/syscalls/sys_enter_socket"
-	TraceSysSocketExit  ProbeName = "tracepoint/syscalls/sys_exit_socket"
 )
 
 // BPFMapName stores the name of the BPF maps storing statistics and other info
