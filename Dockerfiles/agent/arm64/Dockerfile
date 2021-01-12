@@ -100,7 +100,8 @@ RUN apt update \
   # Install iproute2 package for the ss utility that is used by the network check.
   # When the network check will have switched from using ss to directly parsing /proc/net/tcp,
   # this can be removed
-  && apt install -y iproute2 \
+  # Install libssl-dev as it's required by some Python checks and we rely on system version
+  && apt install -y iproute2 libssl-dev \
   # https://security-tracker.debian.org/tracker/CVE-2016-2779
   && rm -f /usr/sbin/runuser \
   # https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-6954

@@ -33,11 +33,11 @@ var configCommand = &cobra.Command{
 		}
 
 		// Read configuration files received from the command line arguments '-c'
-		err := common.MergeConfigurationFiles("datadog", confPathArray)
+		err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed)
 		if err != nil {
 			return err
 		}
-		err = config.SetupLogger(loggerName, config.GetEnv("DD_LOG_LEVEL", "off"), "", "", false, true, false)
+		err = config.SetupLogger(loggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
 		if err != nil {
 			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
 			return err

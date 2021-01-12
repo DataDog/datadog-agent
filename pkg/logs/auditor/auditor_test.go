@@ -27,7 +27,7 @@ type AuditorTestSuite struct {
 	testDir  string
 	testPath string
 
-	a      *Auditor
+	a      *RegistryAuditor
 	source *config.LogSource
 }
 
@@ -42,7 +42,7 @@ func (suite *AuditorTestSuite) SetupTest() {
 	_, err = os.Create(suite.testPath)
 	suite.Nil(err)
 
-	suite.a = New("", DefaultRegistryFilename, health.RegisterLiveness("fake"))
+	suite.a = New("", DefaultRegistryFilename, time.Hour, health.RegisterLiveness("fake"))
 	suite.a.registryPath = suite.testPath
 	suite.source = config.NewLogSource("", &config.LogsConfig{Path: testpath})
 }

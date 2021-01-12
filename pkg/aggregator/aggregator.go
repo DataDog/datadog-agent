@@ -183,6 +183,7 @@ func StopDefaultAggregator() {
 // BufferedAggregator aggregates metrics in buckets for dogstatsd Metrics
 type BufferedAggregator struct {
 	bufferedMetricIn       chan []metrics.MetricSample
+	bufferedMetricInWithTs chan []metrics.MetricSample
 	bufferedServiceCheckIn chan []*metrics.ServiceCheck
 	bufferedEventIn        chan []*metrics.Event
 
@@ -233,6 +234,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, hostname string, flush
 
 	aggregator := &BufferedAggregator{
 		bufferedMetricIn:       make(chan []metrics.MetricSample, bufferSize),
+		bufferedMetricInWithTs: make(chan []metrics.MetricSample, bufferSize),
 		bufferedServiceCheckIn: make(chan []*metrics.ServiceCheck, bufferSize),
 		bufferedEventIn:        make(chan []*metrics.Event, bufferSize),
 
@@ -288,6 +290,11 @@ func (agg *BufferedAggregator) GetBufferedChannels() (chan []metrics.MetricSampl
 	return agg.bufferedMetricIn, agg.bufferedEventIn, agg.bufferedServiceCheckIn
 }
 
+// GetBufferedMetricsWithTsChannel returns the channel to send MetricSamples containing their timestamp.
+func (agg *BufferedAggregator) GetBufferedMetricsWithTsChannel() chan []metrics.MetricSample {
+	return agg.bufferedMetricInWithTs
+}
+
 // SetHostname sets the hostname that the aggregator uses by default on all the data it sends
 // Blocks until the main aggregator goroutine has finished handling the update
 func (agg *BufferedAggregator) SetHostname(hostname string) {
@@ -322,6 +329,7 @@ func (agg *BufferedAggregator) AddAgentStartupTelemetry(agentVersion string) {
 func (agg *BufferedAggregator) registerSender(id check.ID) error {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
+
 	if _, ok := agg.checkSamplers[id]; ok {
 		return fmt.Errorf("Sender with ID '%s' has already been registered, will use existing sampler", id)
 	}
@@ -368,7 +376,7 @@ func (agg *BufferedAggregator) addServiceCheck(sc metrics.ServiceCheck) {
 	if sc.Ts == 0 {
 		sc.Ts = time.Now().Unix()
 	}
-	sc.Tags = util.SortUniqInPlace(sc.Tags)
+	sc.Tags = metrics.EnrichTags(sc.Tags, sc.OriginID, sc.K8sOriginID)
 
 	agg.serviceChecks = append(agg.serviceChecks, &sc)
 }
@@ -378,14 +386,13 @@ func (agg *BufferedAggregator) addEvent(e metrics.Event) {
 	if e.Ts == 0 {
 		e.Ts = time.Now().Unix()
 	}
-	e.Tags = util.SortUniqInPlace(e.Tags)
+	e.Tags = metrics.EnrichTags(e.Tags, e.OriginID, e.K8sOriginID)
 
 	agg.events = append(agg.events, &e)
 }
 
 // addSample adds the metric sample
 func (agg *BufferedAggregator) addSample(metricSample *metrics.MetricSample, timestamp float64) {
-	metricSample.Tags = util.SortUniqInPlace(metricSample.Tags)
 	agg.statsdSampler.addSample(metricSample, timestamp)
 }
 
@@ -394,13 +401,14 @@ func (agg *BufferedAggregator) addSample(metricSample *metrics.MetricSample, tim
 // from the time sampler. Metrics and sketches before this timestamp should be returned.
 func (agg *BufferedAggregator) GetSeriesAndSketches(before time.Time) (metrics.Series, metrics.SketchSeriesList) {
 	agg.mu.Lock()
+	defer agg.mu.Unlock()
+
 	series, sketches := agg.statsdSampler.flush(float64(before.UnixNano()) / float64(time.Second))
 	for _, checkSampler := range agg.checkSamplers {
 		s, sk := checkSampler.flush()
 		series = append(series, s...)
 		sketches = append(sketches, sk...)
 	}
-	agg.mu.Unlock()
 	return series, sketches
 }
 
@@ -692,6 +700,13 @@ func (agg *BufferedAggregator) run() {
 			aggregatorServiceCheck.Add(1)
 			tlmProcessed.Inc("service_checks")
 			agg.addServiceCheck(serviceCheck)
+		case ms := <-agg.bufferedMetricInWithTs:
+			aggregatorDogstatsdMetricSample.Add(int64(len(ms)))
+			tlmProcessed.Add(float64(len(ms)), "dogstatsd_metrics")
+			for i := 0; i < len(ms); i++ {
+				agg.addSample(&ms[i], ms[i].Timestamp/float64(time.Second))
+			}
+			agg.MetricSamplePool.PutBatch(ms)
 		case ms := <-agg.bufferedMetricIn:
 			aggregatorDogstatsdMetricSample.Add(int64(len(ms)))
 			tlmProcessed.Add(float64(len(ms)), "dogstatsd_metrics")

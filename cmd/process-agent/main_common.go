@@ -10,15 +10,19 @@ import (
 	"time"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/heartbeat"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/profiling"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const loggerName ddconfig.LoggerName = "PROCESS"
@@ -101,13 +105,8 @@ func runAgent(exit chan struct{}) {
 	}
 
 	// Now that the logger is configured log host info
-	platform, err := util.GetPlatform()
-	if err != nil {
-		log.Debugf("error retrieving platform: %s", err)
-	} else {
-		log.Infof("running on platform: %s", platform)
-	}
-
+	hostInfo := host.GetStatusInformation()
+	log.Infof("running on platform: %s", hostInfo.Platform)
 	log.Infof("running version: %s", versionString(", "))
 
 	// Tagger must be initialized after agent config has been setup
@@ -126,7 +125,7 @@ func runAgent(exit chan struct{}) {
 
 	// Initialize system-probe heartbeats
 	sysprobeMonitor, err := heartbeat.NewModuleMonitor(heartbeat.Options{
-		KeysPerDomain:      keysPerDomains(cfg.APIEndpoints),
+		KeysPerDomain:      api.KeysPerDomains(cfg.APIEndpoints),
 		SysprobeSocketPath: cfg.SystemProbeAddress,
 		HostName:           cfg.HostName,
 		TagVersion:         Version,
@@ -160,6 +159,15 @@ func runAgent(exit chan struct{}) {
 	// we just pass down empty string
 	updateDockerSocket(dockerSock)
 
+	if cfg.ProfilingEnabled {
+		if err := enableProfiling(cfg); err != nil {
+			log.Warnf("failed to enable profiling: %s", err)
+		} else {
+			log.Info("start profiling process-agent")
+		}
+		defer profiling.Stop()
+	}
+
 	log.Debug("Running process-agent with DEBUG logging enabled")
 	if opts.check != "" {
 		err := debugCheckResults(cfg, opts.check)
@@ -186,7 +194,10 @@ func runAgent(exit chan struct{}) {
 		if ddconfig.Datadog.GetBool("telemetry.enabled") {
 			http.Handle("/telemetry", telemetry.Handler())
 		}
-		http.ListenAndServe(fmt.Sprintf("localhost:%d", cfg.ProcessExpVarPort), nil) //nolint:errcheck
+		err := http.ListenAndServe(fmt.Sprintf("localhost:%d", cfg.ProcessExpVarPort), nil)
+		if err != nil && err != http.ErrServerClosed {
+			log.Errorf("Error creating expvar server on port %v: %v", cfg.ProcessExpVarPort, err)
+		}
 	}()
 
 	cl, err := NewCollector(cfg)
@@ -267,4 +278,21 @@ func cleanupAndExit(status int) {
 	}
 
 	os.Exit(status)
+}
+
+func enableProfiling(cfg *config.AgentConfig) error {
+	// allow full url override for development use
+	s := ddconfig.DefaultSite
+	if cfg.ProfilingSite != "" {
+		s = cfg.ProfilingSite
+	}
+
+	site := fmt.Sprintf(profiling.ProfileURLTemplate, s)
+	if cfg.ProfilingURL != "" {
+		site = cfg.ProfilingURL
+	}
+
+	v, _ := version.Agent()
+
+	return profiling.Start(cfg.ProfilingAPIKey, site, cfg.ProfilingEnvironment, "process-agent", fmt.Sprintf("version:%v", v))
 }

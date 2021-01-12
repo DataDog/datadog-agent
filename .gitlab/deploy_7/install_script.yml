@@ -1,0 +1,33 @@
+---
+.if_not_master_branch: &if_not_master_branch
+  if: $CI_COMMIT_BRANCH != "master"
+
+.if_kitchen_deploy: &if_kitchen_deploy
+  if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_TAG != null || $DEPLOY_AGENT == "true" || $CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api"
+
+promote_install_script:
+  rules:
+    - <<: *if_not_master_branch
+      when: never
+    - <<: *if_kitchen_deploy
+      when: manual
+      allow_failure: true
+  stage: deploy7
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  tags: ["runner:main", "size:large"]
+  dependencies:
+    - kitchen_centos_install_script_agent-a6
+    - kitchen_centos_install_script_agent-a7
+    - kitchen_centos_install_script_iot_agent-a7
+    - kitchen_debian_install_script_agent-a6
+    - kitchen_debian_install_script_agent-a7
+    - kitchen_debian_install_script_iot_agent-a7
+    - kitchen_suse_install_script_agent-a6
+    - kitchen_suse_install_script_agent-a7
+    - kitchen_suse_install_script_iot_agent-a7
+    - kitchen_ubuntu_install_script_agent-a6
+    - kitchen_ubuntu_install_script_agent-a7
+    - kitchen_ubuntu_install_script_iot_agent-a7
+  script:
+    - $S3_CP_CMD ./cmd/agent/install_script.sh s3://dd-agent/scripts/install_script.sh --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - $S3_CP_CMD ./cmd/agent/install_mac_os.sh s3://dd-agent/scripts/install_mac_os.sh --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732

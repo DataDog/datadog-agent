@@ -49,10 +49,12 @@ AGENT_TAGS = set(
         "ec2",
         "etcd",
         "gce",
+        "jetson",
         "jmx",
         "kubeapiserver",
         "kubelet",
         "netcgo",
+        "orchestrator",
         "process",
         "python",
         "secrets",
@@ -75,7 +77,7 @@ CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = set(["clusterchecks", "secrets",])
 DOGSTATSD_TAGS = set(["docker", "kubelet", "secrets", "zlib",])
 
 # IOT_AGENT_TAGS lists the tags needed when building the IoT agent
-IOT_AGENT_TAGS = set(["systemd", "zlib",])
+IOT_AGENT_TAGS = set(["jetson", "systemd", "zlib",])
 
 # PROCESS_AGENT_TAGS lists the tags necessary to build the process-agent
 PROCESS_AGENT_TAGS = AGENT_TAGS.union(set(["clusterchecks", "fargateprocess", "orchestrator",]))

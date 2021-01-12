@@ -68,19 +68,10 @@ int __attribute__((always_inline)) trace__sys_chown_ret(struct pt_regs *ctx) {
     if (IS_UNHANDLED_ERROR(retval))
         return 0;
 
-    // add an real entry to reach the first dentry with the proper inode
-    u64 inode = syscall->setattr.path_key.ino;
-    if (syscall->setattr.real_inode) {
-        inode = syscall->setattr.real_inode;
-        link_dentry_inode(syscall->setattr.path_key, inode);
-    }
-
     struct chown_event_t event = {
-        .event.type = EVENT_CHOWN,
-        .event.timestamp = bpf_ktime_get_ns(),
         .syscall.retval = retval,
         .file = {
-            .inode = inode,
+            .inode = syscall->setattr.path_key.ino,
             .mount_id = syscall->setattr.path_key.mount_id,
             .overlay_numlower = get_overlay_numlower(syscall->setattr.dentry),
             .path_id = syscall->setattr.path_key.path_id,
@@ -89,12 +80,12 @@ int __attribute__((always_inline)) trace__sys_chown_ret(struct pt_regs *ctx) {
         .group = syscall->setattr.group,
     };
 
-    struct proc_cache_t *entry = fill_process_data(&event.process);
-    fill_container_data(entry, &event.container);
+    struct proc_cache_t *entry = fill_process_context(&event.process);
+    fill_container_context(entry, &event.container);
 
     // dentry resolution in setattr.h
 
-    send_event(ctx, event);
+    send_event(ctx, EVENT_CHOWN, event);
 
     return 0;
 }

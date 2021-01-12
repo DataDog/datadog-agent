@@ -204,7 +204,7 @@ func runAgent(ctx context.Context) (err error) {
 
 	aggregatorInstance := aggregator.InitAggregator(s, hname)
 
-	statsd, err = dogstatsd.NewServer(aggregatorInstance)
+	statsd, err = dogstatsd.NewServer(aggregatorInstance, nil)
 	if err != nil {
 		log.Criticalf("Unable to start dogstatsd: %s", err)
 		return

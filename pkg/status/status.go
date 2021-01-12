@@ -28,6 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 var startTime = time.Now()
@@ -69,6 +71,12 @@ func GetStatus() (map[string]interface{}, error) {
 
 	if config.Datadog.GetBool("system_probe_config.enabled") {
 		stats["systemProbeStats"] = GetSystemProbeStats(config.Datadog.GetString("system_probe_config.sysprobe_socket"))
+	}
+
+	if !config.Datadog.GetBool("no_proxy_nonexact_match") {
+		httputils.NoProxyWarningMapMutex.Lock()
+		stats["TransportWarnings"] = httputils.NoProxyWarningMap
+		httputils.NoProxyWarningMapMutex.Unlock()
 	}
 
 	return stats, nil

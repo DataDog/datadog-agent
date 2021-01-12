@@ -8,15 +8,17 @@
 package python
 
 import (
+	"sync"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
+	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -188,14 +190,41 @@ func ReadPersistentCache(key *C.char) *C.char {
 	return TrackedCString(data)
 }
 
-var obfuscator = obfuscate.NewObfuscator(nil)
+var (
+	// one obfuscator instance is shared across all python checks. It is not threadsafe but that is ok because
+	// the GIL is always locked when calling c code from python which means that the exported functions in this file
+	// will only ever be called by one goroutine at a time
+	obfuscator       *obfuscate.Obfuscator
+	obfuscatorLoader sync.Once
+)
+
+// lazyInitObfuscator initializes the obfuscator the first time it is used. We can't initialize during the package init
+// because the obfuscator depends on config.Datadog and it isn't guaranteed to be initialized during package init, but
+// will definitely be initialized by the time one of the python checks runs
+func lazyInitObfuscator() *obfuscate.Obfuscator {
+	obfuscatorLoader.Do(func() {
+		var cfg traceconfig.ObfuscationConfig
+		if err := config.Datadog.UnmarshalKey("apm_config.obfuscation", &cfg); err != nil {
+			log.Errorf("Failed to unmarshal apm_config.obfuscation: %s", err.Error())
+			cfg = traceconfig.ObfuscationConfig{}
+		}
+		if !cfg.SQLExecPlan.Enabled {
+			cfg.SQLExecPlan = defaultSQLPlanObfuscateSettings
+		}
+		if !cfg.SQLExecPlanNormalize.Enabled {
+			cfg.SQLExecPlanNormalize = defaultSQLPlanNormalizeSettings
+		}
+		obfuscator = obfuscate.NewObfuscator(&cfg)
+	})
+	return obfuscator
+}
 
 // ObfuscateSQL obfuscates & normalizes the provided SQL query, writing the error into errResult if the operation
 // fails
 //export ObfuscateSQL
 func ObfuscateSQL(rawQuery *C.char, errResult **C.char) *C.char {
 	s := C.GoString(rawQuery)
-	obfuscatedQuery, err := obfuscator.ObfuscateSQLString(s)
+	obfuscatedQuery, err := lazyInitObfuscator().ObfuscateSQLString(s)
 	if err != nil {
 		// memory will be freed by caller
 		*errResult = TrackedCString(err.Error())
@@ -203,4 +232,88 @@ func ObfuscateSQL(rawQuery *C.char, errResult **C.char) *C.char {
 	}
 	// memory will be freed by caller
 	return TrackedCString(obfuscatedQuery.Query)
+}
+
+// ObfuscateSQLExecPlan obfuscates the provided json query execution plan, writing the error into errResult if the
+// operation fails
+//export ObfuscateSQLExecPlan
+func ObfuscateSQLExecPlan(jsonPlan *C.char, normalize C.bool, errResult **C.char) *C.char {
+	obfuscatedJSONPlan, err := lazyInitObfuscator().ObfuscateSQLExecPlan(
+		C.GoString(jsonPlan),
+		bool(normalize),
+	)
+	if err != nil {
+		// memory will be freed by caller
+		*errResult = TrackedCString(err.Error())
+		return nil
+	}
+	// memory will be freed by caller
+	return TrackedCString(obfuscatedJSONPlan)
+}
+
+// defaultSQLPlanNormalizeSettings are the default JSON obfuscator settings for both obfuscating and normalizing SQL
+// execution plans
+var defaultSQLPlanNormalizeSettings = traceconfig.JSONObfuscationConfig{
+	Enabled: true,
+	ObfuscateSQLValues: []string{
+		// mysql
+		"attached_condition",
+		// postgres
+		"Hash Cond",
+		"Join Filter",
+		"Merge Cond",
+		"Recheck Cond",
+	},
+	KeepValues: []string{
+		// mysql
+		"access_type",
+		"backward_index_scan",
+		"cacheable",
+		"delete",
+		"dependent",
+		"first_match",
+		"key",
+		"key_length",
+		"possible_keys",
+		"ref",
+		"select_id",
+		"table_name",
+		"update",
+		"used_columns",
+		"used_key_parts",
+		"using_MRR",
+		"using_filesort",
+		"using_index",
+		"using_join_buffer",
+		"using_temporary_table",
+		// postgres
+		"Alias",
+		"Index Name",
+		"Node Type",
+		"Parallel Aware",
+		"Parent Relationship",
+		"Relation Name",
+		"Scan Direction",
+		"Sort Key",
+	},
+}
+
+// defaultSQLPlanObfuscateSettings builds upon sqlPlanNormalizeSettings by including cost & row estimates in the keep
+// list
+var defaultSQLPlanObfuscateSettings = traceconfig.JSONObfuscationConfig{
+	Enabled: true,
+	KeepValues: append([]string{
+		// mysql
+		"cost_info",
+		"filtered",
+		"rows_examined_per_join",
+		"rows_examined_per_scan",
+		"rows_produced_per_join",
+		// postgres
+		"Plan Rows",
+		"Plan Width",
+		"Startup Cost",
+		"Total Cost",
+	}, defaultSQLPlanNormalizeSettings.KeepValues...),
+	ObfuscateSQLValues: defaultSQLPlanNormalizeSettings.ObfuscateSQLValues,
 }

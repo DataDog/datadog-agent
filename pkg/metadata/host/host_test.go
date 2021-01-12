@@ -13,10 +13,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/shirou/gopsutil/cpu"
 	"github.com/shirou/gopsutil/host"
 	"github.com/stretchr/testify/assert"
@@ -164,4 +166,20 @@ install_methodlol:
 	require.Equal(t, "undefined", installMethod.ToolVersion)
 	assert.Nil(t, installMethod.Tool)
 	assert.Nil(t, installMethod.InstallerVersion)
+}
+
+func TestGetProxyMeta(t *testing.T) {
+
+	config.Datadog.Set("no_proxy_nonexact_match", false)
+	meta := getProxyMeta()
+	assert.Equal(t, meta.NoProxyNonexactMatch, false)
+
+	config.Datadog.Set("no_proxy_nonexact_match", true)
+	meta = getProxyMeta()
+	assert.Equal(t, meta.NoProxyNonexactMatch, true)
+	assert.Equal(t, meta.ProxyBehaviorChanged, false)
+
+	httputils.NoProxyWarningMap["http://someUrl.com"] = true
+	meta = getProxyMeta()
+	assert.Equal(t, meta.ProxyBehaviorChanged, true)
 }

@@ -4,6 +4,7 @@
 // (https://www.datadoghq.com/).
 // Copyright 2019-2020 Datadog, Inc.
 
+#include <memory>
 #include "Service.h"
 #include "Win32Exception.h"
 

@@ -287,6 +287,18 @@ api_key:
 #   - "sensitive_key_1"
 #   - "sensitive_key_2"
 
+## @param no_proxy_nonexact_match - boolean - optional - default: false
+## Enable more flexible no_proxy matching. See https://godoc.org/golang.org/x/net/http/httpproxy#Config 
+## for more information on accepted matching criteria.
+#
+# no_proxy_nonexact_match: false
+
+## @param use_proxy_for_cloud_metadata - boolean - optional - default: false
+## By default cloud provider IP's are added to the transport's `no_proxy` list.
+## Use this parameter to remove them from the `no_proxy` list.
+#
+# use_proxy_for_cloud_metadata: false
+
 {{ end }}
 {{- if .Agent }}
 {{- if .Python }}
@@ -876,6 +888,24 @@ api_key:
   #   - 'sql*'
   #   - '*pass*d*'
 
+{{- if .Profiling -}}
+  ## @param profiling - custom object - optional
+  ## Enter specific configurations for profiling.
+  ## Uncomment this parameter and the one below to enable profiling.
+  ## See https://docs.datadoghq.com/tracing/profiling/
+  #
+  ## NOTE: If you enable this option, it may impact your billing or
+  ##       other features (e.g. process-agent profiles showing with your
+  ##       services).
+  #
+  # profiling:
+  #
+  ## @param enabled - boolean - optional - default: false
+  ## Enable profiling for the Process Agent process.
+  #
+  # enabled: false
+
+{{ end }}
 {{ end -}}
 {{- if .Compliance }}
 #############################################
@@ -919,6 +949,25 @@ api_key:
   ## The full path to the file where system-probe logs are written.
   #
   # log_file: /var/log/datadog/system-probe.log
+
+{{- if .Profiling -}}
+  ## @param profiling - custom object - optional
+  ## Enter specific configurations for profiling.
+  ## Uncomment this parameter and the one below to enable profiling.
+  ## See https://docs.datadoghq.com/tracing/profiling/
+  #
+  ## NOTE: If enabled this option may incur billing charges or other
+  ##       unexpected side-effects (ie. system probe profiles showing with your
+  ##       services).
+  #
+  # profiling:
+  #
+    ## @param enabled - boolean - optional - default: false
+    ## Enable profiling for the System Probe process.
+    #
+    # enabled: false
+
+{{ end }}
 
 {{- if .NetworkModule }}
 
@@ -1597,6 +1646,11 @@ api_key:
 ## ECS Agent for tasks scheduled with the EC2 launch type.
 #
 # ecs_collect_resource_tags_ec2: false
+
+## @param ecs_metadata_timeout - integer - optional - default: 500
+## Timeout in milliseconds on calls to the AWS ECS metadata endpoints.
+#
+# ecs_metadata_timeout: 500
 
 {{ end -}}
 {{- if .CRI }}

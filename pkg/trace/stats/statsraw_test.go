@@ -6,6 +6,7 @@
 package stats
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -15,31 +16,54 @@ import (
 )
 
 func TestGrain(t *testing.T) {
-	srb := NewRawBucket(0, 1e9)
 	assert := assert.New(t)
 
 	s := pb.Span{Service: "thing", Name: "other", Resource: "yo"}
-	aggr, tgs := assembleGrain(&srb.keyBuf, "default", s.Resource, s.Service, nil)
+	aggr := NewAggregationFromSpan(&s, "default")
 
-	assert.Equal("env:default,resource:yo,service:thing", aggr)
-	assert.Equal(TagSet{Tag{"env", "default"}, Tag{"resource", "yo"}, Tag{"service", "thing"}}, tgs)
+	b := strings.Builder{}
+	aggr.WriteKey(&b)
+	assert.Equal("env:default,resource:yo,service:thing", b.String())
+	assert.Equal(TagSet{Tag{"env", "default"}, Tag{"resource", "yo"}, Tag{"service", "thing"}}, aggr.ToTagSet())
 }
 
 func TestGrainWithExtraTags(t *testing.T) {
-	srb := NewRawBucket(0, 1e9)
 	assert := assert.New(t)
 
-	s := pb.Span{Service: "thing", Name: "other", Resource: "yo", Meta: map[string]string{"meta2": "two", "meta1": "ONE"}}
-	aggr, tgs := assembleGrain(&srb.keyBuf, "default", s.Resource, s.Service, s.Meta)
+	s := pb.Span{Service: "thing", Name: "other", Resource: "yo", Meta: map[string]string{tagHostname: "host-id", tagVersion: "v0", tagStatusCode: "418"}}
+	aggr := NewAggregationFromSpan(&s, "default")
 
-	assert.Equal("env:default,resource:yo,service:thing,meta1:ONE,meta2:two", aggr)
-	assert.Equal(TagSet{Tag{"env", "default"}, Tag{"resource", "yo"}, Tag{"service", "thing"}, Tag{"meta1", "ONE"}, Tag{"meta2", "two"}}, tgs)
+	b := strings.Builder{}
+	aggr.WriteKey(&b)
+	assert.Equal("env:default,resource:yo,service:thing,_dd.hostname:host-id,http.status_code:418,version:v0", b.String())
+	assert.Equal(TagSet{Tag{"env", "default"}, Tag{"resource", "yo"}, Tag{"service", "thing"}, Tag{"_dd.hostname", "host-id"}, Tag{"http.status_code", "418"}, Tag{"version", "v0"}}, aggr.ToTagSet())
+}
+
+func TestHandleSpanSkipStats(t *testing.T) {
+	span := &WeightedSpan{Span: traceutil.GetRoot(benchTrace)}
+	subdata := []SublayerValue{{"a", Tag{"x", "y"}, 0.5}}
+
+	t.Run("on", func(t *testing.T) {
+		sb := NewRawBucket(0, 1e9)
+		sb.HandleSpan(span, "env", subdata, false)
+		assert.Len(t, sb.data, 1)
+		for _, v := range sb.data {
+			assert.False(t, v.IsSublayersOnly())
+		}
+	})
+
+	t.Run("off", func(t *testing.T) {
+		sb := NewRawBucket(0, 1e9)
+		sb.HandleSpan(span, "env", subdata, true)
+		assert.Len(t, sb.data, 1)
+		for _, v := range sb.data {
+			assert.True(t, v.IsSublayersOnly())
+		}
+	})
 }
 
 func BenchmarkHandleSpanRandom(b *testing.B) {
 	sb := NewRawBucket(0, 1e9)
-	aggr := []string{}
-
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
@@ -47,7 +71,7 @@ func BenchmarkHandleSpanRandom(b *testing.B) {
 		traceutil.ComputeTopLevel(benchTrace)
 		wt := NewWeightedTrace(benchTrace, root)
 		for _, span := range wt {
-			sb.HandleSpan(span, "dev", aggr, nil)
+			sb.HandleSpan(span, "dev", nil, false)
 		}
 	}
 }

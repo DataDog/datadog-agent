@@ -32,7 +32,7 @@ func TestMain(m *testing.M) {
 	// prepare JSON obfuscator tests
 	suite, err := loadTests()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Failed to load JSON obfuscator tests: %s", err.Error())
 	}
 	if len(suite) == 0 {
 		log.Fatal("no tests in suite")
@@ -85,6 +85,60 @@ func TestCompactWhitespaces(t *testing.T) {
 
 	for _, testCase := range resultsToExpect {
 		assert.Equal(testCase.after, compactWhitespaces(testCase.before))
+	}
+}
+
+func TestReplaceDigits(t *testing.T) {
+	assert := assert.New(t)
+
+	for _, tt := range []struct {
+		in       []byte
+		expected []byte
+	}{
+		{
+			[]byte("table123"),
+			[]byte("table?"),
+		},
+		{
+			[]byte(""),
+			[]byte(""),
+		},
+		{
+			[]byte("2020-table"),
+			[]byte("?-table"),
+		},
+		{
+			[]byte("sales_2019_07_01"),
+			[]byte("sales_?_?_?"),
+		},
+		{
+			[]byte("45"),
+			[]byte("?"),
+		},
+	} {
+		assert.Equal(tt.expected, replaceDigits(tt.in))
+	}
+}
+
+func TestObfuscateStatsGroup(t *testing.T) {
+	statsGroup := func(typ, resource string) *pb.ClientGroupedStats {
+		return &pb.ClientGroupedStats{
+			Type:     typ,
+			Resource: resource,
+		}
+	}
+	o := NewObfuscator(nil)
+	for _, tt := range []struct {
+		in  *pb.ClientGroupedStats // input stats
+		out string                 // output obfuscated resource
+	}{
+		{statsGroup("sql", "SELECT 1 FROM db"), "SELECT ? FROM db"},
+		{statsGroup("sql", "SELECT 1\nFROM Blogs AS [b\nORDER BY [b]"), nonParsableResource},
+		{statsGroup("redis", "ADD 1, 2"), "ADD"},
+		{statsGroup("other", "ADD 1, 2"), "ADD 1, 2"},
+	} {
+		o.ObfuscateStatsGroup(tt.in)
+		assert.Equal(t, tt.in.Resource, tt.out)
 	}
 }
 
@@ -242,5 +296,12 @@ func BenchmarkCompactWhitespaces(b *testing.B) {
 	str := "a b       cde     fg       hi                     j  jk   lk lkjfdsalfd     afsd sfdafsd f"
 	for i := 0; i < b.N; i++ {
 		compactWhitespaces(str)
+	}
+}
+
+func BenchmarkReplaceDigits(b *testing.B) {
+	tbl := []byte("sales_2019_07_01_orders")
+	for i := 0; i < b.N; i++ {
+		replaceDigits(tbl)
 	}
 }

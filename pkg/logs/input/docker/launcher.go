@@ -8,6 +8,7 @@
 package docker
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -178,11 +179,13 @@ func (l *Launcher) overrideSource(container *Container, source *config.LogSource
 	}
 
 	shortName, err := container.getShortImageName()
+	containerID := container.service.Identifier
 	if err != nil {
-		containerID := container.service.Identifier
 		log.Warnf("Could not get short image name for container %v: %v", ShortContainerID(containerID), err)
 		return source
 	}
+
+	source.UpdateInfo(containerID, fmt.Sprintf("Container ID: %s, Image: %s, Created: %s", ShortContainerID(containerID), shortName, container.container.Created))
 
 	newSource := newOverridenSource(standardService, shortName, source.Status)
 	newSource.ParentSource = source
@@ -248,6 +251,7 @@ func (l *Launcher) stopTailer(containerID string) {
 		// No-op if the tailer source came from AD
 		if l.collectAllSource != nil {
 			l.collectAllSource.RemoveInput(containerID)
+			l.collectAllSource.RemoveInfo(containerID)
 		}
 		go tailer.Stop()
 		l.removeTailer(containerID)
@@ -263,6 +267,7 @@ func (l *Launcher) restartTailer(containerID string) {
 		source = oldTailer.source
 		if l.collectAllSource != nil {
 			l.collectAllSource.RemoveInput(containerID)
+			l.collectAllSource.RemoveInfo(containerID)
 		}
 		oldTailer.Stop()
 		l.removeTailer(containerID)

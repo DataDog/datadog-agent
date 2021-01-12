@@ -1,0 +1,32 @@
+---
+.if_version_7: &if_version_7
+  if: $RELEASE_VERSION_7 != ""
+
+.retrieve_linux_go_deps: &retrieve_linux_go_deps |
+  mkdir -p $GOPATH/bin && tar xzf go-bin.tar.gz -C $GOPATH/bin
+  mkdir -p $GOPATH/pkg && tar xzf go-pkg.tar.gz -C $GOPATH/pkg
+  mkdir vendor && tar xzf vendor.tar.gz -C vendor
+  rm -f go-bin.tar.gz go-pkg.tar.gz vendor.tar.gz
+
+cluster_agent_cloudfoundry-build_amd64:
+  rules:
+    - <<: *if_version_7
+  stage: binary_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main", "size:large"]
+  needs: ["go_mod_tidy_check", "linux_x64_go_deps"]
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR
+  variables:
+    ARCH: amd64
+  before_script:
+    - *retrieve_linux_go_deps
+    - source /root/.bashrc && conda activate ddpy3
+  script:
+    - inv -e cluster-agent-cloudfoundry.build
+    - cd $SRC_PATH/$CLUSTER_AGENT_CLOUDFOUNDRY_BINARIES_DIR
+    - mkdir -p $OMNIBUS_PACKAGE_DIR
+    - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7)
+    - tar cf $OMNIBUS_PACKAGE_DIR/datadog-cluster-agent-cloudfoundry-$PACKAGE_VERSION-$ARCH.tar.xz datadog-cluster-agent-cloudfoundry

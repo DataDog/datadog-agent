@@ -37,7 +37,7 @@ use.
 ### agent:\<version\>
 
 This variant doesn't embed a Java runtime. If you don't plan on using
-JMX-based checks, you probably want to pick that one since it is noticeably
+JMX-based checks, you probably want to pick this one since it is noticeably
 slimmer.
 
 ## Documentation

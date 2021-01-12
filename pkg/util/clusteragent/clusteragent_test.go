@@ -86,7 +86,8 @@ func newDummyClusterAgent() (*dummyClusterAgent, error) {
 			},
 		},
 		rawResponses: map[string]string{
-			"/version": `{"Major":0, "Minor":0, "Patch":0, "Pre":"test", "Meta":"test", "Commit":"1337"}`,
+			"/version":           `{"Major":0, "Minor":0, "Patch":0, "Pre":"test", "Meta":"test", "Commit":"1337"}`,
+			"/api/v1/cluster/id": `"94e43011-177b-11ea-a4fe-42010a8401d2"`,
 		},
 		token:    config.Datadog.GetString("cluster_agent.auth_token"),
 		requests: make(chan *http.Request, 100),
@@ -630,6 +631,24 @@ func (suite *clusterAgentSuite) TestGetPodsMetadataForNode() {
 			}
 		})
 	}
+}
+
+func (suite *clusterAgentSuite) TestGetKubernetesClusterID() {
+	dca, err := newDummyClusterAgent()
+	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+
+	ts, p, err := dca.StartTLS()
+	defer ts.Close()
+	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+
+	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
+
+	ca, err := GetClusterAgentClient()
+	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+
+	clusterID, err := ca.GetKubernetesClusterID()
+	require.Nil(suite.T(), err)
+	require.Equal(suite.T(), "94e43011-177b-11ea-a4fe-42010a8401d2", clusterID)
 }
 
 func TestClusterAgentSuite(t *testing.T) {

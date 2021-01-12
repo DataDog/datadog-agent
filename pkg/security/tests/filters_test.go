@@ -9,6 +9,7 @@ package tests
 
 import (
 	"os"
+	"path"
 	"path/filepath"
 	"syscall"
 	"testing"
@@ -20,7 +21,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func openTestFile(test *testProbe, filename string, flags int) (int, string, error) {
+func openTestFile(test *testModule, filename string, flags int) (int, string, error) {
 	testFile, testFilePtr, err := test.Path(filename)
 	if err != nil {
 		return 0, "", err
@@ -40,38 +41,15 @@ func openTestFile(test *testProbe, filename string, flags int) (int, string, err
 	return int(fd), testFile, nil
 }
 
-func waitForOpenEvent(test *testProbe, filename string) (*probe.Event, error) {
-	timeout := time.After(3 * time.Second)
-	exhaust := time.After(time.Second)
-
-	var event *probe.Event
-	for {
-		select {
-		case e := <-test.events:
-			if value, _ := e.GetFieldValue("open.filename"); value == filename {
-				event = e
-			}
-		case <-test.discarders:
-		case <-exhaust:
-			if event != nil {
-				return event, nil
-			}
-		case <-timeout:
-			return nil, errors.New("timeout")
-		}
-	}
-}
-
-func waitForOpenDiscarder(test *testProbe, filename string) (*probe.Event, error) {
+func waitForOpenDiscarder(test *testModule, filename string) (*probe.Event, error) {
 	timeout := time.After(5 * time.Second)
 	exhaust := time.After(time.Second)
 
 	var event *probe.Event
 	for {
 		select {
-		case <-test.events:
+		case <-test.probeHandler.events:
 		case discarder := <-test.discarders:
-			test.probe.OnNewDiscarder(test.rs, discarder.event.(*sprobe.Event), discarder.field, discarder.eventType)
 			if value, _ := discarder.event.GetFieldValue("open.filename"); value == filename {
 				event = discarder.event.(*sprobe.Event)
 			}
@@ -91,7 +69,7 @@ func TestOpenBasenameApproverFilter(t *testing.T) {
 		Expression: `open.filename == "{{.Root}}/test-oba-1"`,
 	}
 
-	test, err := newTestProbe(nil, []*rules.RuleDefinition{rule}, testOpts{enableFilters: true})
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{wantProbeEvents: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,10 +79,10 @@ func TestOpenBasenameApproverFilter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer syscall.Close(fd1)
 	defer os.Remove(testFile1)
+	defer syscall.Close(fd1)
 
-	if _, err := waitForOpenEvent(test, testFile1); err != nil {
+	if _, err := waitForOpenProbeEvent(test, testFile1); err != nil {
 		t.Fatal(err)
 	}
 
@@ -112,10 +90,10 @@ func TestOpenBasenameApproverFilter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer syscall.Close(fd2)
 	defer os.Remove(testFile2)
+	defer syscall.Close(fd2)
 
-	if event, err := waitForOpenEvent(test, testFile2); err == nil {
+	if event, err := waitForOpenProbeEvent(test, testFile2); err == nil {
 		t.Fatalf("shouldn't get an event: %+v", event)
 	}
 }
@@ -126,7 +104,7 @@ func TestOpenParentDiscarderFilter(t *testing.T) {
 		Expression: `open.filename =~ "/usr/bin" && open.flags & (O_CREAT | O_SYNC) > 0`,
 	}
 
-	test, err := newTestProbe(nil, []*rules.RuleDefinition{rule}, testOpts{enableFilters: true})
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{wantProbeEvents: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +118,10 @@ func TestOpenParentDiscarderFilter(t *testing.T) {
 	defer os.Remove(testFile1)
 
 	if _, err := waitForOpenDiscarder(test, testFile1); err != nil {
-		t.Fatal(err)
+		inode := getInode(t, testFile1)
+		parentInode := getInode(t, path.Dir(testFile1))
+
+		t.Fatalf("not able to get the expected event inode: %d, parent inode: %d", inode, parentInode)
 	}
 
 	fd2, testFile2, err := openTestFile(test, "test-obd-2", syscall.O_CREAT|syscall.O_SYNC)
@@ -150,7 +131,7 @@ func TestOpenParentDiscarderFilter(t *testing.T) {
 	defer syscall.Close(fd2)
 	defer os.Remove(testFile2)
 
-	if event, err := waitForOpenEvent(test, testFile2); err == nil {
+	if event, err := waitForOpenProbeEvent(test, testFile2); err == nil {
 		t.Fatalf("shouldn't get an event: %+v", event)
 	}
 }
@@ -161,7 +142,7 @@ func TestOpenFlagsApproverFilter(t *testing.T) {
 		Expression: `open.flags & (O_SYNC | O_NOCTTY) > 0`,
 	}
 
-	test, err := newTestProbe(nil, []*rules.RuleDefinition{rule}, testOpts{enableFilters: true})
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{wantProbeEvents: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,7 +155,7 @@ func TestOpenFlagsApproverFilter(t *testing.T) {
 	defer syscall.Close(fd1)
 	defer os.Remove(testFile1)
 
-	if _, err := waitForOpenEvent(test, testFile1); err != nil {
+	if _, err := waitForOpenProbeEvent(test, testFile1); err != nil {
 		t.Fatal(err)
 	}
 
@@ -184,7 +165,7 @@ func TestOpenFlagsApproverFilter(t *testing.T) {
 	}
 	defer syscall.Close(fd2)
 
-	if _, err := waitForOpenEvent(test, testFile2); err != nil {
+	if _, err := waitForOpenProbeEvent(test, testFile2); err != nil {
 		t.Fatal(err)
 	}
 
@@ -194,7 +175,7 @@ func TestOpenFlagsApproverFilter(t *testing.T) {
 	}
 	defer syscall.Close(fd3)
 
-	if event, err := waitForOpenEvent(test, testFile3); err == nil {
+	if event, err := waitForOpenProbeEvent(test, testFile3); err == nil {
 		t.Fatalf("shouldn't get an event: %+v", event)
 	}
 }
@@ -205,7 +186,7 @@ func TestOpenProcessPidDiscarder(t *testing.T) {
 		Expression: `open.filename =="{{.Root}}/test-oba-1" && process.filename == "/bin/cat"`,
 	}
 
-	test, err := newTestProbe(nil, []*rules.RuleDefinition{rule}, testOpts{enableFilters: true})
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{wantProbeEvents: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -229,7 +210,45 @@ func TestOpenProcessPidDiscarder(t *testing.T) {
 	defer syscall.Close(fd2)
 	defer os.Remove(testFile2)
 
-	if event, err := waitForOpenEvent(test, testFile2); err == nil {
+	if event, err := waitForOpenProbeEvent(test, testFile2); err == nil {
+		t.Fatalf("shouldn't get an event: %+v", event)
+	}
+}
+
+func TestInvalidDiscarderFilter(t *testing.T) {
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `open.filename =~ "/usr/bin" && open.flags & (O_CREAT | O_SYNC) > 0`,
+	}
+
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{wantProbeEvents: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	fd1, testFile1, err := openTestFile(test, "test-obd-2", syscall.O_CREAT|syscall.O_SYNC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer syscall.Close(fd1)
+	defer os.Remove(testFile1)
+
+	if _, err := waitForOpenDiscarder(test, testFile1); err != nil {
+		inode := getInode(t, testFile1)
+		parentInode := getInode(t, path.Dir(testFile1))
+
+		t.Fatalf("not able to get the expected event inode: %d, parent inode: %d", inode, parentInode)
+	}
+
+	fd2, testFile2, err := openTestFile(test, "test-obd-2", syscall.O_CREAT|syscall.O_SYNC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer syscall.Close(fd2)
+	defer os.Remove(testFile2)
+
+	if event, err := waitForOpenProbeEvent(test, testFile2); err == nil {
 		t.Fatalf("shouldn't get an event: %+v", event)
 	}
 }

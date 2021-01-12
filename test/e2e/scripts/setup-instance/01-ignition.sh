@@ -100,6 +100,10 @@ systemd:
         [Install]
         WantedBy=multi-user.target
 storage:
+  links:
+    - path: /etc/crypto-policies/back-ends/opensshserver.config
+      target: /usr/share/crypto-policies/LEGACY/opensshserver.txt
+      overwrite: true
   files:
     - path: /usr/local/bin/setup-pupernetes
       mode: 0500
@@ -112,5 +116,5 @@ storage:
     - path: /etc/ssh/sshd_config.d/99-datadog.conf
       mode: 0400
       contents:
-        source: "data:,AcceptEnv%20DATADOG%5F%2AAGENT%5FIMAGE%0A"
+        source: "data:,AcceptEnv%20DOCKER%5FREGISTRY%5F%2A%20DATADOG%5F%2AAGENT%5FIMAGE%0A"
 EOF

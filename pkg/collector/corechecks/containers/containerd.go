@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -264,6 +265,9 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 }
 
 func isExcluded(ctn containers.Container, fil *ddContainers.Filter) bool {
+	if config.Datadog.GetBool("exclude_pause_container") && ddContainers.IsPauseContainer(ctn.Labels) {
+		return true
+	}
 	// The container name is not available in Containerd, we only rely on image name and kube namespace based exclusion
 	return fil.IsExcluded("", ctn.Image, ctn.Labels["io.kubernetes.pod.namespace"])
 }

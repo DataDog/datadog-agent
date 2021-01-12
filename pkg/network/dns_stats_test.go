@@ -33,9 +33,10 @@ func testLatency(
 	expectedFailureLatency uint64,
 	expectedTimeouts uint32,
 ) {
+	var d = "abc.com"
 	sk := newDNSStatkeeper(DNSTimeoutSecs * time.Second)
 	key := getSampleDNSKey()
-	qPkt := dnsPacketInfo{transactionID: 1, pktType: Query, key: key}
+	qPkt := dnsPacketInfo{transactionID: 1, pktType: Query, key: key, question: d}
 	then := time.Now()
 	sk.ProcessPacketInfo(qPkt, then)
 	stats := sk.GetAndResetAllStats()
@@ -47,10 +48,11 @@ func testLatency(
 	sk.ProcessPacketInfo(rPkt, now)
 	stats = sk.GetAndResetAllStats()
 	require.Contains(t, stats, key)
+	require.Contains(t, stats[key], d)
 
-	assert.Equal(t, expectedSuccessLatency, stats[key].successLatencySum)
-	assert.Equal(t, expectedFailureLatency, stats[key].failureLatencySum)
-	assert.Equal(t, expectedTimeouts, stats[key].timeouts)
+	assert.Equal(t, expectedSuccessLatency, stats[key][d].successLatencySum)
+	assert.Equal(t, expectedFailureLatency, stats[key][d].failureLatencySum)
+	assert.Equal(t, expectedTimeouts, stats[key][d].timeouts)
 }
 
 func TestSuccessLatency(t *testing.T) {
@@ -71,10 +73,11 @@ func TestTimeout(t *testing.T) {
 func TestExpiredStateRemoval(t *testing.T) {
 	sk := newDNSStatkeeper(DNSTimeoutSecs * time.Second)
 	key := getSampleDNSKey()
-	qPkt1 := dnsPacketInfo{transactionID: 1, pktType: Query, key: key}
+	var d = "abc.com"
+	qPkt1 := dnsPacketInfo{transactionID: 1, pktType: Query, key: key, question: d}
 	rPkt1 := dnsPacketInfo{transactionID: 1, key: key, pktType: SuccessfulResponse}
-	qPkt2 := dnsPacketInfo{transactionID: 2, pktType: Query, key: key}
-	qPkt3 := dnsPacketInfo{transactionID: 3, pktType: Query, key: key}
+	qPkt2 := dnsPacketInfo{transactionID: 2, pktType: Query, key: key, question: d}
+	qPkt3 := dnsPacketInfo{transactionID: 3, pktType: Query, key: key, question: d}
 	rPkt3 := dnsPacketInfo{transactionID: 3, key: key, pktType: SuccessfulResponse}
 
 	sk.ProcessPacketInfo(qPkt1, time.Now())
@@ -88,10 +91,11 @@ func TestExpiredStateRemoval(t *testing.T) {
 
 	stats := sk.GetAndResetAllStats()
 	require.Contains(t, stats, key)
+	require.Contains(t, stats[key], d)
 
-	require.Contains(t, stats[key].countByRcode, uint8(0))
-	assert.Equal(t, uint32(2), stats[key].countByRcode[0])
-	assert.Equal(t, uint32(1), stats[key].timeouts)
+	require.Contains(t, stats[key][d].countByRcode, uint8(0))
+	assert.Equal(t, uint32(2), stats[key][d].countByRcode[0])
+	assert.Equal(t, uint32(1), stats[key][d].timeouts)
 }
 
 func BenchmarkStats(b *testing.B) {

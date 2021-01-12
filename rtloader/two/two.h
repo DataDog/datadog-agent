@@ -103,6 +103,7 @@ public:
     void setWritePersistentCacheCb(cb_write_persistent_cache_t);
     void setReadPersistentCacheCb(cb_read_persistent_cache_t);
     void setObfuscateSqlCb(cb_obfuscate_sql_t);
+    void setObfuscateSqlExecPlanCb(cb_obfuscate_sql_exec_plan_t);
 
     // _util API
     virtual void setSubprocessOutputCb(cb_get_subprocess_output_t);

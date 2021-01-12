@@ -6,8 +6,6 @@
 package stats
 
 import (
-	"bytes"
-	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -23,14 +21,22 @@ import (
 
 const defaultEnv = "default"
 
-func testWeightedSpans() WeightedTrace {
+func testWeightedSpans(withVersion bool) WeightedTrace {
+	var version13 map[string]string
+	if withVersion {
+		version13 = map[string]string{"version": "1.3"}
+	}
+	var version14 map[string]string
+	if withVersion {
+		version14 = map[string]string{"version": "1.4"}
+	}
 	spans := []pb.Span{
 		{Service: "A", Name: "A.foo", Resource: "α", Duration: 1},
 		{Service: "A", Name: "A.foo", Resource: "β", Duration: 2, Error: 1},
 		{Service: "B", Name: "B.foo", Resource: "γ", Duration: 3},
 		{Service: "B", Name: "B.foo", Resource: "ε", Duration: 4, Error: 404},
-		{Service: "B", Name: "B.foo", Resource: "ζ", Duration: 5, Meta: map[string]string{"version": "1.3"}},
-		{Service: "B", Name: "sql.query", Resource: "ζ", Duration: 6, Meta: map[string]string{"version": "1.4"}},
+		{Service: "B", Name: "B.foo", Resource: "ζ", Duration: 5, Meta: version13},
+		{Service: "B", Name: "sql.query", Resource: "ζ", Duration: 6, Meta: version14},
 		{Service: "C", Name: "sql.query", Resource: "δ", Duration: 7},
 		{Service: "C", Name: "sql.query", Resource: "δ", Duration: 8},
 	}
@@ -97,8 +103,8 @@ func testTraceTopLevel() pb.Trace {
 
 func TestGrainKey(t *testing.T) {
 	assert := assert.New(t)
-	gk := GrainKey("serve", "duration", "service:webserver")
-	assert.Equal("serve|duration|service:webserver", gk)
+	gk := GrainKey("serve", "duration", Aggregation{Service: "webserver", Env: "prod", Resource: "api_route"})
+	assert.Equal("serve|duration|env:prod,resource:api_route,service:webserver", gk)
 }
 
 type expectedCount struct {
@@ -116,11 +122,10 @@ func TestBucketDefault(t *testing.T) {
 
 	srb := NewRawBucket(0, 1e9)
 
-	// No custom aggregators only the defaults
-	aggr := []string{}
-	for _, s := range testWeightedSpans() {
+	// Without version tag
+	for _, s := range testWeightedSpans(false) {
 		t.Logf("weight: %f, topLevel: %v", s.Weight, s.TopLevel)
-		srb.HandleSpan(s, defaultEnv, aggr, nil)
+		srb.HandleSpan(s, defaultEnv, nil, false)
 	}
 	sb := srb.Export()
 
@@ -224,10 +229,9 @@ func TestBucketExtraAggregators(t *testing.T) {
 
 	srb := NewRawBucket(0, 1e9)
 
-	// one custom aggregator
-	aggr := []string{"version"}
-	for _, s := range testWeightedSpans() {
-		srb.HandleSpan(s, defaultEnv, aggr, nil)
+	// with version tag
+	for _, s := range testWeightedSpans(true) {
+		srb.HandleSpan(s, defaultEnv, nil, false)
 	}
 	sb := srb.Export()
 
@@ -286,12 +290,11 @@ func TestBucketMany(t *testing.T) {
 	srb := NewRawBucket(0, 1e9)
 
 	// No custom aggregators only the defaults
-	aggr := []string{}
 	for i := 0; i < n; i++ {
 		s := templateSpan
 		s.Resource = "α" + strconv.Itoa(i)
 		srbCopy := *srb
-		srbCopy.HandleSpan(s, defaultEnv, aggr, nil)
+		srbCopy.HandleSpan(s, defaultEnv, nil, false)
 	}
 	sb := srb.Export()
 
@@ -324,9 +327,8 @@ func TestBucketSublayers(t *testing.T) {
 	srb := NewRawBucket(0, 1e9)
 
 	// No custom aggregators only the defaults
-	aggr := []string{}
 	for _, s := range wt {
-		srb.HandleSpan(s, defaultEnv, aggr, sublayers)
+		srb.HandleSpan(s, defaultEnv, sublayers, false)
 	}
 	sb := srb.Export()
 
@@ -422,9 +424,8 @@ func TestBucketSublayersTopLevel(t *testing.T) {
 	srb := NewRawBucket(0, 1e9)
 
 	// No custom aggregators only the defaults
-	aggr := []string{}
 	for _, s := range wt {
-		srb.HandleSpan(s, defaultEnv, aggr, sublayers)
+		srb.HandleSpan(s, defaultEnv, sublayers, false)
 	}
 	sb := srb.Export()
 
@@ -525,23 +526,20 @@ func TestTsRounding(t *testing.T) {
 }
 
 func BenchmarkHandleSpan(b *testing.B) {
-
 	srb := NewRawBucket(0, 1e9)
-	aggr := []string{}
+	wt := testWeightedSpans(false)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		for _, s := range testWeightedSpans() {
-			srb.HandleSpan(s, defaultEnv, aggr, nil)
+		for _, s := range wt {
+			srb.HandleSpan(s, defaultEnv, nil, false)
 		}
 	}
 }
 
 func BenchmarkHandleSpanSublayers(b *testing.B) {
 	srb := NewRawBucket(0, 1e9)
-	aggr := []string{}
-
 	tr := testTrace()
 	sublayers := NewSublayerCalculator().ComputeSublayers(tr)
 	root := traceutil.GetRoot(tr)
@@ -553,7 +551,7 @@ func BenchmarkHandleSpanSublayers(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		for _, s := range wt {
-			srb.HandleSpan(s, defaultEnv, aggr, sublayers)
+			srb.HandleSpan(s, defaultEnv, sublayers, false)
 		}
 	}
 }
@@ -562,7 +560,7 @@ func BenchmarkHandleSpanSublayers(b *testing.B) {
 // else compiler performs compile-time optimization when using + with strings
 var grainName = "mysql.query"
 var grainMeasure = "duration"
-var grainAggr = "resource:SELECT * FROM stuff,service:mysql"
+var grainAggr = Aggregation{Resource: "SELECT * FROM stuff", Service: "mysql"}
 
 // testing out various way of doing string ops, to check which one is most efficient
 func BenchmarkGrainKey(b *testing.B) {
@@ -570,75 +568,5 @@ func BenchmarkGrainKey(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		_ = GrainKey(grainName, grainMeasure, grainAggr)
-	}
-}
-
-func BenchmarkStringPlus(b *testing.B) {
-	if testing.Short() {
-		return
-	}
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		_ = grainName + "|" + grainMeasure + "|" + grainAggr
-	}
-}
-
-func BenchmarkSprintf(b *testing.B) {
-	if testing.Short() {
-		return
-	}
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		_ = fmt.Sprintf("%s|%s|%s", grainName, grainMeasure, grainAggr)
-	}
-}
-
-func BenchmarkBufferWriteByte(b *testing.B) {
-	if testing.Short() {
-		return
-	}
-	var buf bytes.Buffer
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		buf.Reset()
-		buf.WriteString(grainName)
-		buf.WriteByte('|')
-		buf.WriteString(grainMeasure)
-		buf.WriteByte('|')
-		buf.WriteString(grainAggr)
-		_ = buf.String()
-	}
-}
-
-func BenchmarkBufferWriteRune(b *testing.B) {
-	if testing.Short() {
-		return
-	}
-	var buf bytes.Buffer
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		buf.Reset()
-		buf.WriteString(grainName)
-		buf.WriteRune('|')
-		buf.WriteString(grainMeasure)
-		buf.WriteRune('|')
-		buf.WriteString(grainAggr)
-		_ = buf.String()
-	}
-}
-
-func BenchmarkStringsJoin(b *testing.B) {
-	if testing.Short() {
-		return
-	}
-	a := []string{grainName, grainMeasure, grainAggr}
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		_ = strings.Join(a, "|")
 	}
 }

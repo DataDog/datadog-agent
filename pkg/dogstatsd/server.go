@@ -6,7 +6,6 @@
 package dogstatsd
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
 	"expvar"
@@ -26,8 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/mapper"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -35,14 +32,15 @@ import (
 )
 
 var (
-	dogstatsdExpvars                 = expvar.NewMap("dogstatsd")
-	dogstatsdServiceCheckParseErrors = expvar.Int{}
-	dogstatsdServiceCheckPackets     = expvar.Int{}
-	dogstatsdEventParseErrors        = expvar.Int{}
-	dogstatsdEventPackets            = expvar.Int{}
-	dogstatsdMetricParseErrors       = expvar.Int{}
-	dogstatsdMetricPackets           = expvar.Int{}
-	dogstatsdPacketsLastSec          = expvar.Int{}
+	dogstatsdExpvars                  = expvar.NewMap("dogstatsd")
+	dogstatsdServiceCheckParseErrors  = expvar.Int{}
+	dogstatsdServiceCheckPackets      = expvar.Int{}
+	dogstatsdEventParseErrors         = expvar.Int{}
+	dogstatsdEventPackets             = expvar.Int{}
+	dogstatsdMetricParseErrors        = expvar.Int{}
+	dogstatsdMetricPackets            = expvar.Int{}
+	dogstatsdPacketsLastSec           = expvar.Int{}
+	dogstatsdUnterminatedMetricErrors = expvar.Int{}
 
 	tlmProcessed = telemetry.NewCounter("dogstatsd", "processed",
 		[]string{"message_type", "state"}, "Count of service checks/events/metrics processed by dogstatsd")
@@ -57,6 +55,7 @@ func init() {
 	dogstatsdExpvars.Set("EventPackets", &dogstatsdEventPackets)
 	dogstatsdExpvars.Set("MetricParseErrors", &dogstatsdMetricParseErrors)
 	dogstatsdExpvars.Set("MetricPackets", &dogstatsdMetricPackets)
+	dogstatsdExpvars.Set("UnterminatedMetricErrors", &dogstatsdUnterminatedMetricErrors)
 }
 
 // Server represent a Dogstatsd server
@@ -72,6 +71,7 @@ type Server struct {
 
 	packetsIn                 chan listeners.Packets
 	sharedPacketPool          *listeners.PacketPool
+	sharedFloat64List         *float64ListPool
 	Statistics                *util.Stats
 	Started                   bool
 	stopChan                  chan bool
@@ -84,6 +84,7 @@ type Server struct {
 	extraTags                 []string
 	Debug                     *dsdServerDebug
 	mapper                    *mapper.MetricMapper
+	eolTerminationEnabled     bool
 	telemetryEnabled          bool
 	entityIDPrecedenceEnabled bool
 	// disableVerboseLogs is a feature flag to disable the logs capable
@@ -127,8 +128,9 @@ type metricsCountBuckets struct {
 	closeChan  chan struct{}
 }
 
-// NewServer returns a running DogStatsD server
-func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
+// NewServer returns a running DogStatsD server.
+// If extraTags is nil, they will be read from DD_DOGSTATSD_TAGS if set.
+func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*Server, error) {
 	var stats *util.Stats
 	if config.Datadog.GetBool("dogstatsd_stats_enable") == true {
 		buff := config.Datadog.GetInt("dogstatsd_stats_buffer")
@@ -174,7 +176,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 		}
 	}
 
-	pipeName := config.Datadog.GetString("dogstatsd_windows_pipe_name")
+	pipeName := config.Datadog.GetString("dogstatsd_pipe_name")
 	if len(pipeName) > 0 {
 		namedPipeListener, err := listeners.NewNamedPipeListener(pipeName, packetsChannel, sharedPacketPool)
 		if err != nil {
@@ -203,7 +205,9 @@ func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 	histToDist := config.Datadog.GetBool("histogram_copy_to_distribution")
 	histToDistPrefix := config.Datadog.GetString("histogram_copy_to_distribution_prefix")
 
-	extraTags := config.Datadog.GetStringSlice("dogstatsd_tags")
+	if extraTags == nil {
+		extraTags = config.Datadog.GetStringSlice("dogstatsd_tags")
+	}
 
 	entityIDPrecedenceEnabled := config.Datadog.GetBool("dogstatsd_entity_id_precedence")
 
@@ -212,6 +216,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 		Statistics:                stats,
 		packetsIn:                 packetsChannel,
 		sharedPacketPool:          sharedPacketPool,
+		sharedFloat64List:         newFloat64ListPool(),
 		aggregator:                aggregator,
 		listeners:                 tmpListeners,
 		stopChan:                  make(chan bool),
@@ -222,6 +227,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 		histToDist:                histToDist,
 		histToDistPrefix:          histToDistPrefix,
 		extraTags:                 extraTags,
+		eolTerminationEnabled:     config.Datadog.GetBool("dogstatsd_eol_required"),
 		telemetryEnabled:          telemetry_utils.IsEnabled(),
 		entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
 		disableVerboseLogs:        config.Datadog.GetBool("dogstatsd_disable_verbose_logs"),
@@ -339,13 +345,44 @@ func (s *Server) Flush(waitForSerializer bool) {
 	s.aggregator.Flush(time.Now().Add(time.Second*10), true)
 }
 
-func nextMessage(packet *[]byte) (message []byte) {
+// dropCR drops a terminal \r from the data.
+func dropCR(data []byte) []byte {
+	if len(data) > 0 && data[len(data)-1] == '\r' {
+		return data[0 : len(data)-1]
+	}
+	return data
+}
+
+// ScanLines is an almost identical reimplementation of bufio.ScanLines, but also
+// reports if the returned line is newline-terminated
+func ScanLines(data []byte, atEOF bool) (advance int, token []byte, eol bool, err error) {
+	if atEOF && len(data) == 0 {
+		return 0, nil, false, nil
+	}
+	if i := bytes.IndexByte(data, '\n'); i >= 0 {
+		// We have a full newline-terminated line.
+		return i + 1, dropCR(data[0:i]), true, nil
+	}
+	// If we're at EOF, we have a final, non-terminated line. Return it.
+	if atEOF {
+		return len(data), dropCR(data), false, nil
+	}
+	// Request more data.
+	return 0, nil, false, nil
+}
+
+func nextMessage(packet *[]byte, eolTermination bool) (message []byte) {
 	if len(*packet) == 0 {
 		return nil
 	}
 
-	advance, message, err := bufio.ScanLines(*packet, true)
+	advance, message, eol, err := ScanLines(*packet, true)
 	if err != nil {
+		return nil
+	}
+
+	if eolTermination && !eol {
+		dogstatsdUnterminatedMetricErrors.Add(1)
 		return nil
 	}
 
@@ -353,12 +390,11 @@ func nextMessage(packet *[]byte) (message []byte) {
 	return message
 }
 
-func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*listeners.Packet) {
+func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*listeners.Packet, samples []metrics.MetricSample) []metrics.MetricSample {
 	for _, packet := range packets {
-		originTagger := originTags{origin: packet.Origin}
 		log.Tracef("Dogstatsd receive: %q", packet.Contents)
 		for {
-			message := nextMessage(&packet.Contents)
+			message := nextMessage(&packet.Contents, s.eolTerminationEnabled)
 			if message == nil {
 				break
 			}
@@ -372,55 +408,46 @@ func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*liste
 
 			switch messageType {
 			case serviceCheckType:
-				serviceCheck, err := s.parseServiceCheckMessage(parser, message, originTagger.getTags)
+				serviceCheck, err := s.parseServiceCheckMessage(parser, message, packet.Origin)
 				if err != nil {
-					originTags := originTagger.getTags()
-					if len(originTags) > 0 {
-						s.errLog("Dogstatsd: error parsing service check '%q' origin tags %v: %s", message, originTags, err)
-					} else {
-						s.errLog("Dogstatsd: error parsing service check '%q': %s", message, err)
-					}
+					s.errLog("Dogstatsd: error parsing service check '%q': %s", message, err)
 					continue
 				}
 				batcher.appendServiceCheck(serviceCheck)
 			case eventType:
-				event, err := s.parseEventMessage(parser, message, originTagger.getTags)
+				event, err := s.parseEventMessage(parser, message, packet.Origin)
 				if err != nil {
-					originTags := originTagger.getTags()
-					if len(originTags) > 0 {
-						s.errLog("Dogstatsd: error parsing event '%q' origin tags %v: %s", message, originTags, err)
-					} else {
-						s.errLog("Dogstatsd: error parsing event '%q': %s", message, err)
-					}
+					s.errLog("Dogstatsd: error parsing event '%q': %s", message, err)
 					continue
 				}
 				batcher.appendEvent(event)
 			case metricSampleType:
-				sample, err := s.parseMetricMessage(parser, message, originTagger.getTags)
+				var err error
+				samples = samples[0:0]
+
+				samples, err = s.parseMetricMessage(samples, parser, message, packet.Origin)
 				if err != nil {
-					originTags := originTagger.getTags()
-					if len(originTags) > 0 {
-						s.errLog("Dogstatsd: error parsing metric message '%q' origin tags %v: %s", message, originTags, err)
-					} else {
-						s.errLog("Dogstatsd: error parsing metric message '%q': %s", message, err)
-					}
+					s.errLog("Dogstatsd: error parsing metric message '%q': %s", message, err)
 					continue
 				}
-				if atomic.LoadUint64(&s.Debug.Enabled) == 1 {
-					s.storeMetricStats(sample)
-				}
-				batcher.appendSample(sample)
-				if s.histToDist && sample.Mtype == metrics.HistogramType {
-					distSample := sample.Copy()
-					distSample.Name = s.histToDistPrefix + distSample.Name
-					distSample.Mtype = metrics.DistributionType
-					batcher.appendSample(*distSample)
+				for idx := range samples {
+					if atomic.LoadUint64(&s.Debug.Enabled) == 1 {
+						s.storeMetricStats(samples[idx])
+					}
+					batcher.appendSample(samples[idx])
+					if s.histToDist && samples[idx].Mtype == metrics.HistogramType {
+						distSample := samples[idx].Copy()
+						distSample.Name = s.histToDistPrefix + distSample.Name
+						distSample.Mtype = metrics.DistributionType
+						batcher.appendSample(*distSample)
+					}
 				}
 			}
 		}
 		s.sharedPacketPool.Put(packet)
 	}
 	batcher.flush()
+	return samples
 }
 
 func (s *Server) errLog(format string, params ...interface{}) {
@@ -431,12 +458,12 @@ func (s *Server) errLog(format string, params ...interface{}) {
 	}
 }
 
-func (s *Server) parseMetricMessage(parser *parser, message []byte, originTagsFunc func() []string) (metrics.MetricSample, error) {
+func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string) ([]metrics.MetricSample, error) {
 	sample, err := parser.parseMetricSample(message)
 	if err != nil {
 		dogstatsdMetricParseErrors.Add(1)
 		tlmProcessed.IncWithTags(tlmProcessedErrorTags)
-		return metrics.MetricSample{}, err
+		return metricSamples, err
 	}
 	if s.mapper != nil {
 		mapResult := s.mapper.Map(sample.name)
@@ -446,36 +473,48 @@ func (s *Server) parseMetricMessage(parser *parser, message []byte, originTagsFu
 			sample.tags = append(sample.tags, mapResult.Tags...)
 		}
 	}
-	metricSample := enrichMetricSample(sample, s.metricPrefix, s.metricPrefixBlacklist, s.defaultHostname, originTagsFunc, s.entityIDPrecedenceEnabled, s.ServerlessMode)
-	metricSample.Tags = append(metricSample.Tags, s.extraTags...)
+	metricSamples = enrichMetricSample(metricSamples, sample, s.metricPrefix, s.metricPrefixBlacklist, s.defaultHostname, origin, s.entityIDPrecedenceEnabled, s.ServerlessMode)
 
-	dogstatsdMetricPackets.Add(1)
-	tlmProcessed.IncWithTags(tlmProcessedOkTags)
-	return metricSample, nil
+	if len(sample.values) > 0 {
+		s.sharedFloat64List.put(sample.values)
+	}
+
+	for idx := range metricSamples {
+		// All metricSamples already share the same Tags slice. We can
+		// extends the first one and reuse it for the rest.
+		if idx == 0 {
+			metricSamples[idx].Tags = append(metricSamples[idx].Tags, s.extraTags...)
+		} else {
+			metricSamples[idx].Tags = metricSamples[0].Tags
+		}
+		dogstatsdMetricPackets.Add(1)
+		tlmProcessed.IncWithTags(tlmProcessedOkTags)
+	}
+	return metricSamples, nil
 }
 
-func (s *Server) parseEventMessage(parser *parser, message []byte, originTagsFunc func() []string) (*metrics.Event, error) {
+func (s *Server) parseEventMessage(parser *parser, message []byte, origin string) (*metrics.Event, error) {
 	sample, err := parser.parseEvent(message)
 	if err != nil {
 		dogstatsdEventParseErrors.Add(1)
 		tlmProcessed.Inc("events", "error")
 		return nil, err
 	}
-	event := enrichEvent(sample, s.defaultHostname, originTagsFunc, s.entityIDPrecedenceEnabled)
+	event := enrichEvent(sample, s.defaultHostname, origin, s.entityIDPrecedenceEnabled)
 	event.Tags = append(event.Tags, s.extraTags...)
 	tlmProcessed.Inc("events", "ok")
 	dogstatsdEventPackets.Add(1)
 	return event, nil
 }
 
-func (s *Server) parseServiceCheckMessage(parser *parser, message []byte, originTagsFunc func() []string) (*metrics.ServiceCheck, error) {
+func (s *Server) parseServiceCheckMessage(parser *parser, message []byte, origin string) (*metrics.ServiceCheck, error) {
 	sample, err := parser.parseServiceCheck(message)
 	if err != nil {
 		dogstatsdServiceCheckParseErrors.Add(1)
 		tlmProcessed.Inc("service_checks", "error")
 		return nil, err
 	}
-	serviceCheck := enrichServiceCheck(sample, s.defaultHostname, originTagsFunc, s.entityIDPrecedenceEnabled)
+	serviceCheck := enrichServiceCheck(sample, s.defaultHostname, origin, s.entityIDPrecedenceEnabled)
 	serviceCheck.Tags = append(serviceCheck.Tags, s.extraTags...)
 	dogstatsdServiceCheckPackets.Add(1)
 	tlmProcessed.Inc("service_checks", "ok")
@@ -637,42 +676,4 @@ func FormatDebugStats(stats []byte) (string, error) {
 	}
 
 	return buf.String(), nil
-}
-
-func findOriginTags(origin string) []string {
-	var tags []string
-	if origin != listeners.NoOrigin {
-		originTags, err := tagger.Tag(origin, tagger.DogstatsdCardinality)
-		if err != nil {
-			log.Errorf(err.Error())
-		} else {
-			tags = append(tags, originTags...)
-		}
-	}
-
-	// Include orchestrator scope tags if the cardinality is set to orchestrator
-	if tagger.DogstatsdCardinality == collectors.OrchestratorCardinality {
-		orchestratorScopeTags, err := tagger.OrchestratorScopeTag()
-		if err != nil {
-			log.Error(err.Error())
-		} else {
-			tags = append(tags, orchestratorScopeTags...)
-		}
-	}
-	return tags
-}
-
-type originTags struct {
-	origin string
-	tags   []string
-	// we don't use "sync.Once" here because we know only on one goroutine can call the function `getTags()`
-	alreadyRun bool
-}
-
-func (o *originTags) getTags() []string {
-	if !o.alreadyRun {
-		o.tags = findOriginTags(o.origin)
-		o.alreadyRun = true
-	}
-	return o.tags
 }

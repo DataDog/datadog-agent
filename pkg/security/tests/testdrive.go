@@ -15,7 +15,6 @@ import (
 	"path"
 	"strings"
 	"syscall"
-	"time"
 	"unsafe"
 
 	"github.com/freddierice/go-losetup"
@@ -63,7 +62,7 @@ func newTestDriveWithMountPoint(fsType string, mountOpts []string, mountPoint st
 		}
 	}
 
-	if err := os.Truncate(backingFile.Name(), 1*1024*1024); err != nil {
+	if err := os.Truncate(backingFile.Name(), 20*1024*1024); err != nil {
 		os.Remove(backingFile.Name())
 		os.RemoveAll(mountPoint)
 
@@ -81,16 +80,15 @@ func newTestDriveWithMountPoint(fsType string, mountOpts []string, mountPoint st
 		mountOpts = append(mountOpts, "auto")
 	}
 
-	mkfsCmd := exec.Command("mkfs."+fsType, dev.Path())
+	mkfsCmd := exec.Command("/sbin/mkfs."+fsType, dev.Path())
 	if err := mkfsCmd.Run(); err != nil {
 		_ = dev.Detach()
 		os.Remove(backingFile.Name())
 		os.RemoveAll(mountPoint)
-		return nil, errors.Wrap(err, "failed to create testdrive ext4 filesystem")
+		return nil, errors.Wrapf(err, "failed to create testdrive %s filesystem", fsType)
 	}
 
 	mountCmd := exec.Command("mount", "-o", strings.Join(mountOpts, ","), dev.Path(), mountPoint)
-	fmt.Printf("CMD %s\n", mountCmd.String())
 
 	if err := mountCmd.Run(); err != nil {
 		_ = dev.Detach()
@@ -109,24 +107,24 @@ func newTestDriveWithMountPoint(fsType string, mountOpts []string, mountPoint st
 func (td *testDrive) Unmount() error {
 	unmountCmd := exec.Command("umount", "-f", td.mountPoint)
 	if err := unmountCmd.Run(); err != nil {
-		return errors.Wrap(err, "failed to unmount filesystem")
+		lsofCmd := exec.Command("lsof", td.mountPoint)
+		output, _ := lsofCmd.CombinedOutput()
+		return errors.Wrapf(err, "failed to unmount filesystem (%s)", string(output))
 	}
 
 	return nil
 }
 
 func (td *testDrive) Close() {
-	os.RemoveAll(td.mountPoint)
 	if err := td.Unmount(); err != nil {
 		fmt.Print(err)
 	}
-	os.Remove(td.file.Name())
-	os.Remove(td.mountPoint)
-	time.Sleep(time.Second)
 	if err := td.dev.Detach(); err != nil {
 		fmt.Print(err)
 	}
 	if err := td.dev.Remove(); err != nil {
 		fmt.Print(err)
 	}
+	os.Remove(td.file.Name())
+	os.Remove(td.mountPoint)
 }

@@ -88,7 +88,7 @@ func (s *Scanner) cleanup() {
 	stopper := restart.NewParallelStopper()
 	for _, tailer := range s.tailers {
 		stopper.Add(tailer)
-		delete(s.tailers, buildTailerKey(tailer))
+		delete(s.tailers, tailer.file.GetScanKey())
 	}
 	stopper.Stop()
 }
@@ -115,7 +115,7 @@ func (s *Scanner) scan() {
 		// It is a hack to let two tailers tail the same file (it's happening
 		// when a tailer for a dead container is still tailing the file, and another
 		// tailer is tailing the file for the new container).
-		tailerKey := buildTailerKey(file)
+		tailerKey := file.GetScanKey()
 		tailer, isTailed := s.tailers[tailerKey]
 		if isTailed && atomic.LoadInt32(&tailer.shouldStop) != 0 {
 			// skip this tailer as it must be stopped
@@ -138,7 +138,7 @@ func (s *Scanner) scan() {
 			continue
 		}
 
-		didRotate, err := DidRotate(tailer.file, tailer.GetReadOffset())
+		didRotate, err := DidRotate(tailer.osFile, tailer.GetReadOffset())
 		if err != nil {
 			continue
 		}
@@ -156,7 +156,7 @@ func (s *Scanner) scan() {
 
 	for _, tailer := range s.tailers {
 		// stop all tailers which have not been selected
-		_, shouldTail := filesTailed[buildTailerKey(tailer)]
+		_, shouldTail := filesTailed[tailer.file.GetScanKey()]
 		if !shouldTail {
 			s.stopTailer(tailer)
 		}
@@ -192,7 +192,7 @@ func (s *Scanner) launchTailers(source *config.LogSource) {
 		if len(s.tailers) >= s.tailingLimit {
 			return
 		}
-		if _, isTailed := s.tailers[buildTailerKey(file)]; isTailed {
+		if _, isTailed := s.tailers[file.GetScanKey()]; isTailed {
 			continue
 		}
 
@@ -222,7 +222,7 @@ func (s *Scanner) startNewTailer(file *File, m config.TailingMode) bool {
 		log.Warnf("Could not recover offset for file with path %v: %v", file.Path, err)
 	}
 
-	log.Infof("Starting a new tailer for: %s (offset: %d, whence: %d) for tailer key %s", file.Path, offset, whence, buildTailerKey(file))
+	log.Infof("Starting a new tailer for: %s (offset: %d, whence: %d) for tailer key %s", file.Path, offset, whence, file.GetScanKey())
 
 	err = tailer.Start(offset, whence)
 	if err != nil {
@@ -230,7 +230,7 @@ func (s *Scanner) startNewTailer(file *File, m config.TailingMode) bool {
 		return false
 	}
 
-	s.tailers[buildTailerKey(file)] = tailer
+	s.tailers[tailer.file.GetScanKey()] = tailer
 	return true
 }
 
@@ -259,13 +259,13 @@ func (s *Scanner) handleTailingModeChange(tailerID string, currentTailingMode co
 // stopTailer stops the tailer
 func (s *Scanner) stopTailer(tailer *Tailer) {
 	go tailer.Stop()
-	delete(s.tailers, buildTailerKey(tailer))
+	delete(s.tailers, tailer.file.GetScanKey())
 }
 
 // restartTailer safely stops tailer and starts a new one
 // returns true if the new tailer is up and running, false if an error occurred
 func (s *Scanner) restartTailerAfterFileRotation(tailer *Tailer, file *File) bool {
-	log.Info("Log rotation happened to ", tailer.path)
+	log.Info("Log rotation happened to ", file.Path)
 	tailer.StopAfterFileRotation()
 	tailer = s.createTailer(file, tailer.outputChan)
 	// force reading file from beginning since it has been log-rotated
@@ -274,11 +274,11 @@ func (s *Scanner) restartTailerAfterFileRotation(tailer *Tailer, file *File) boo
 		log.Warn(err)
 		return false
 	}
-	s.tailers[buildTailerKey(file)] = tailer
+	s.tailers[file.GetScanKey()] = tailer
 	return true
 }
 
 // createTailer returns a new initialized tailer
 func (s *Scanner) createTailer(file *File, outputChan chan *message.Message) *Tailer {
-	return NewTailer(outputChan, file.Source, file.Path, s.tailerSleepDuration, file.IsWildcardPath)
+	return NewTailer(outputChan, file, s.tailerSleepDuration)
 }

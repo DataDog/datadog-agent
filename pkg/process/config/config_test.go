@@ -188,6 +188,34 @@ func TestDisablingDNSInspection(t *testing.T) {
 	})
 }
 
+func TestEnableHTTPMonitoring(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+		defer restoreGlobalConfig()
+
+		cfg, err := NewAgentConfig(
+			"test",
+			"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableHTTP.yaml",
+			"",
+		)
+
+		assert.Nil(t, err)
+		assert.True(t, cfg.EnableHTTPMonitoring)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+		defer restoreGlobalConfig()
+
+		os.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "true")
+		defer os.Unsetenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING")
+		cfg, err := NewAgentConfig("test", "", "")
+
+		assert.Nil(t, err)
+		assert.True(t, cfg.EnableHTTPMonitoring)
+	})
+}
+
 func TestGetHostname(t *testing.T) {
 	cfg := NewDefaultAgentConfig(false)
 	h, err := getHostname(cfg.DDAgentBin)
@@ -431,7 +459,7 @@ func TestEnvOrchestratorAdditionalEndpoints(t *testing.T) {
 	)
 	assert.NoError(err)
 
-	for _, actual := range agentConfig.OrchestratorEndpoints {
+	for _, actual := range agentConfig.Orchestrator.OrchestratorEndpoints {
 		assert.Equal(expected[actual.APIKey], actual.Endpoint.Hostname(), actual)
 	}
 }
@@ -549,5 +577,35 @@ func TestEnablingDNSStatsCollection(t *testing.T) {
 		cfg, err = NewAgentConfig("test", "", "")
 		assert.Nil(t, err)
 		assert.True(t, cfg.CollectDNSStats)
+	})
+}
+
+func TestEnablingDNSDomainCollection(t *testing.T) {
+	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	defer restoreGlobalConfig()
+
+	t.Run("via YAML", func(t *testing.T) {
+		cfg, err := NewAgentConfig(
+			"test",
+			"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableDNSDomains.yaml",
+			"",
+		)
+
+		assert.Nil(t, err)
+		assert.True(t, cfg.CollectDNSDomains)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		defer os.Unsetenv("DD_COLLECT_DNS_DOMAINS")
+
+		os.Setenv("DD_COLLECT_DNS_DOMAINS", "false")
+		cfg, err := NewAgentConfig("test", "", "")
+		assert.Nil(t, err)
+		assert.False(t, cfg.CollectDNSDomains) // default value should be false
+
+		os.Setenv("DD_COLLECT_DNS_DOMAINS", "true")
+		cfg, err = NewAgentConfig("test", "", "")
+		assert.Nil(t, err)
+		assert.True(t, cfg.CollectDNSDomains)
 	})
 }

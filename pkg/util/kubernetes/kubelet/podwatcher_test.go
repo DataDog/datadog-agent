@@ -575,6 +575,40 @@ func (suite *PodwatcherTestSuite) TestPodWatcherAnnotationsValueChange() {
 	require.Len(suite.T(), changes, 2)
 }
 
+func (suite *PodwatcherTestSuite) TestPodWatcherContainerCreating() {
+	sourcePods, err := loadPodsFixture("./testdata/podlist_container_creating.json")
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), sourcePods, 1)
+
+	watcher := &PodWatcher{
+		lastSeen:       make(map[string]time.Time),
+		lastSeenReady:  make(map[string]time.Time),
+		expiryDuration: 5 * time.Minute,
+	}
+
+	changes, err := watcher.computeChanges(sourcePods)
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), changes, 0)
+}
+
+func (suite *PodwatcherTestSuite) TestPodWatcherContainerCreatingTags() {
+	sourcePods, err := loadPodsFixture("./testdata/podlist_container_creating.json")
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), sourcePods, 1)
+
+	watcher := &PodWatcher{
+		lastSeen:       make(map[string]time.Time),
+		lastSeenReady:  make(map[string]time.Time),
+		tagsDigest:     make(map[string]string),
+		oldPhase:       make(map[string]string),
+		expiryDuration: 5 * time.Minute,
+	}
+
+	changes, err := watcher.computeChanges(sourcePods)
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), changes, 1)
+}
+
 func TestPodwatcherTestSuite(t *testing.T) {
 	suite.Run(t, new(PodwatcherTestSuite))
 }

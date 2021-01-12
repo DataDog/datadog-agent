@@ -6,7 +6,9 @@
 package autodiscovery
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -383,4 +385,100 @@ func TestCheckOverride(t *testing.T) {
 		CheckNames:    []string{"tcp_check"},
 	})
 	assert.Len(t, ac.resolveTemplate(tpl), 1)
+}
+
+type MockSecretDecrypt struct {
+	t         *testing.T
+	scenarios []struct {
+		expectedData   []byte
+		expectedOrigin string
+		returnedData   []byte
+		returnedError  error
+		called         int
+	}
+}
+
+func (m *MockSecretDecrypt) getDecryptFunc() func([]byte, string) ([]byte, error) {
+	return func(data []byte, origin string) ([]byte, error) {
+		for n, scenario := range m.scenarios {
+			if bytes.Compare(data, scenario.expectedData) == 0 && origin == scenario.expectedOrigin {
+				m.scenarios[n].called++
+				return scenario.returnedData, scenario.returnedError
+			}
+		}
+		m.t.Errorf("Decrypt called with unexpected arguments: data=%s, origin=%s", data, origin)
+		return nil, fmt.Errorf("Decrypt called with unexpected arguments: data=%s, origin=%s", data, origin)
+	}
+}
+
+func (m *MockSecretDecrypt) haveAllScenariosBeenCalled() bool {
+	for _, scenario := range m.scenarios {
+		if scenario.called == 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func TestSecretDecrypt(t *testing.T) {
+	/// resolveTemplate
+	ac := NewAutoConfig(scheduler.NewMetaScheduler())
+	tpl := integration.Config{
+		Name:          "cpu",
+		ADIdentifiers: []string{"redis"},
+		InitConfig:    []byte("param1: ENC[foo]"),
+		Instances: []integration.Data{
+			[]byte("param2: ENC[bar]"),
+		},
+	}
+
+	mockDecrypt := MockSecretDecrypt{
+		t: t,
+		scenarios: []struct {
+			expectedData   []byte
+			expectedOrigin string
+			returnedData   []byte
+			returnedError  error
+			called         int
+		}{
+			{
+				expectedData:   []byte{},
+				expectedOrigin: "cpu",
+				returnedData:   []byte{},
+				returnedError:  nil,
+			},
+			{
+				expectedData:   []byte("param1: ENC[foo]"),
+				expectedOrigin: "cpu",
+				returnedData:   []byte("param1: foo"),
+				returnedError:  nil,
+			},
+			{
+				expectedData:   []byte("param2: ENC[bar]"),
+				expectedOrigin: "cpu",
+				returnedData:   []byte("param2: bar"),
+				returnedError:  nil,
+			},
+		},
+	}
+
+	originalSecretsDecrypt := secretsDecrypt
+	secretsDecrypt = mockDecrypt.getDecryptFunc()
+	defer func() { secretsDecrypt = originalSecretsDecrypt }()
+
+	// no services
+	res := ac.resolveTemplate(tpl)
+	assert.Len(t, res, 0)
+
+	service := dummyService{
+		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
+		ADIdentifiers: []string{"redis"},
+	}
+	ac.processNewService(&service)
+
+	// there are no template vars but it's ok
+	res = ac.resolveTemplate(tpl)
+	assert.Len(t, res, 1)
+
+	assert.True(t, mockDecrypt.haveAllScenariosBeenCalled())
 }

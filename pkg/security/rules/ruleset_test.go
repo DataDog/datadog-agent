@@ -21,7 +21,7 @@ type testHandler struct {
 	filters map[string]testFieldValues
 }
 
-func (f *testHandler) RuleMatch(rule *eval.Rule, event eval.Event) {
+func (f *testHandler) RuleMatch(rule *Rule, event eval.Event) {
 }
 
 func (f *testHandler) EventDiscarderFound(rs *RuleSet, event eval.Event, field string, eventType eval.EventType) {
@@ -35,7 +35,7 @@ func (f *testHandler) EventDiscarderFound(rs *RuleSet, event eval.Event, field s
 	if !ok {
 		discarders = []interface{}{}
 	}
-	evaluator, _ := f.model.GetEvaluator(field)
+	evaluator, _ := f.model.GetEvaluator(field, "")
 
 	ctx := &eval.Context{}
 	ctx.SetObject(event.GetPointer())
