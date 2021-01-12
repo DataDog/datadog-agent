@@ -76,6 +76,18 @@ func GetLocalIPv4() ([]string, error) {
 	return []string{ip}, nil
 }
 
+// GetPublicIPv4 gets the public IPv4 for the currently running host using the EC2 metadata API.
+func GetPublicIPv4() (string, error) {
+	if !config.IsCloudProviderEnabled(CloudProviderName) {
+		return "", fmt.Errorf("cloud provider is disabled by configuration")
+	}
+	ip, err := getMetadataItem("/public-ipv4")
+	if err != nil {
+		return "", err
+	}
+	return ip, nil
+}
+
 // IsRunningOn returns true if the agent is running on AWS
 func IsRunningOn() bool {
 	if _, err := GetHostname(); err == nil {

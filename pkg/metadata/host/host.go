@@ -152,12 +152,23 @@ func getHostAliases() []string {
 	return aliases
 }
 
+// try to get the public IPv4 address using AWS and GCE
+func getPublicIPv4() (string, error) {
+	publicIPv4, err := ec2.GetPublicIPv4()
+	if err != nil {
+		publicIPv4, err = gce.GetPublicIPv4()
+	}
+	return publicIPv4, err
+}
+
 // getMeta grabs the information and refreshes the cache
 func getMeta(hostnameData util.HostnameData) *Meta {
 	hostname, _ := os.Hostname()
 	tzname, _ := time.Now().Zone()
 	ec2Hostname, _ := ec2.GetHostname()
 	instanceID, _ := ec2.GetInstanceID()
+	publicIPv4, _ := getPublicIPv4()
+	log.Infof("ron.hay: public IP = %s\n", publicIPv4)
 
 	var agentHostname string
 
@@ -174,6 +185,7 @@ func getMeta(hostnameData util.HostnameData) *Meta {
 		HostAliases:    getHostAliases(),
 		InstanceID:     instanceID,
 		AgentHostname:  agentHostname,
+		PublicIPv4:     publicIPv4,
 	}
 
 	// Cache the metadata for use in other payload

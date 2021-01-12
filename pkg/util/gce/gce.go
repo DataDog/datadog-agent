@@ -83,6 +83,19 @@ func GetClusterName() (string, error) {
 	return clusterName, nil
 }
 
+// GetPublicIPv4 returns the public IPv4 address of the current GCE instance
+func GetPublicIPv4() (string, error) {
+	if !config.IsCloudProviderEnabled(CloudProviderName) {
+		return "", fmt.Errorf("cloud provider is disabled by configuration")
+	}
+	clusterName, err := getResponseWithMaxLength(metadataURL+"/instance/network-interfaces/0/access-configs/0/external-ip",
+		config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
+	if err != nil {
+		return "", fmt.Errorf("unable to retrieve public IPv4 from GCE: %s", err)
+	}
+	return clusterName, nil
+}
+
 // GetNetworkID retrieves the network ID using the metadata endpoint. For
 // GCE instances, the the network ID is the VPC ID, if the instance is found to
 // be a part of exactly one VPC.
