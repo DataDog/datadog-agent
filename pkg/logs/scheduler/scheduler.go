@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
+	providerNames "github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -216,8 +217,8 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 		if service != nil {
 			// a config defined in a docker label or a pod annotation does not always contain a type,
 			// override it here to ensure that the config won't be dropped at validation.
-			if cfg.Type == logsConfig.FileType && service.Type == "docker" {
-				// cfg.Type is not overwritten as tailing a file from a docker AD configuration
+			if cfg.Type == logsConfig.FileType && (config.Provider == providerNames.Kubernetes || config.Provider == providerNames.Docker) {
+				// cfg.Type is not overwritten as tailing a file from a Docker or Kubernetes AD configuration
 				// is explicitly supported
 				cfg.Identifier = service.Identifier
 			} else {
