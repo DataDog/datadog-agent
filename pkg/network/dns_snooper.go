@@ -101,14 +101,13 @@ func (s *SocketFilterSnooper) Resolve(connections []ConnectionStats) map[util.Ad
 	return s.cache.Get(connections, time.Now())
 }
 
-func (s *SocketFilterSnooper) getDNSStats() map[dnsKey]map[string]dnsStats {
+func (s *SocketFilterSnooper) GetDNSStats() map[dnsKey]map[string]dnsStats {
 	if s.statKeeper == nil {
 		return nil
 	}
 	return s.statKeeper.GetAndResetAllStats()
 }
 
-// GetStats returns a map of stats about the SocketFilterSnooper, meant to be reported as telemetry
 func (s *SocketFilterSnooper) GetStats() map[string]int64 {
 	stats := s.cache.Stats()
 
