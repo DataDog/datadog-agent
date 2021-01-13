@@ -135,7 +135,6 @@ func checkContainsTag(tags []string, tagToFind string) bool {
 			return true
 		}
 	}
-	log.Warnf("missing tag %s in %v", tagToFind, tags)
 	return false
 }
 
