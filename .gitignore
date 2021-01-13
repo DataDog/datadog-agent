@@ -121,6 +121,8 @@ tools/windows/install-help/cal/packages/
 
 # ebpf object files
 pkg/ebpf/bytecode/build/
+pkg/ebpf/bytecode/bindata/
+!pkg/ebpf/bytecode/bindata/bindata.go
 
 # windows container build output
 build.out/
