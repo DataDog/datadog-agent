@@ -33,6 +33,8 @@ const (
 	PayloadTypeService = "service"
 	// PayloadTypeNode is the name of the node payload type
 	PayloadTypeNode = "node"
+	// PayloadTypeManifest is the name of the manifest payload type
+	PayloadTypeManifest = "manifest"
 )
 
 var (
@@ -42,6 +44,7 @@ var (
 	transactionsIntakeReplicaSet = expvar.Int{}
 	transactionsIntakeService    = expvar.Int{}
 	transactionsIntakeNode       = expvar.Int{}
+	transactionsIntakeManifest   = expvar.Int{}
 
 	v1SeriesEndpoint       = endpoint{"/api/v1/series", "series_v1"}
 	v1CheckRunsEndpoint    = endpoint{"/api/v1/check_run", "check_run_v1"}
@@ -91,6 +94,7 @@ func initOrchestratorExpVars() {
 	transactionsExpvars.Set("ReplicaSets", &transactionsIntakeReplicaSet)
 	transactionsExpvars.Set("Services", &transactionsIntakeService)
 	transactionsExpvars.Set("Nodes", &transactionsIntakeNode)
+	transactionsExpvars.Set("Manifests", &transactionsIntakeNode)
 }
 
 const (
@@ -600,6 +604,8 @@ func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http
 		transactionsIntakeService.Add(1)
 	case PayloadTypeNode:
 		transactionsIntakeNode.Add(1)
+	case PayloadTypeManifest:
+		transactionsIntakeManifest.Add(1)
 	}
 
 	return f.submitProcessLikePayload(orchestratorEndpoint, payload, extra, true)

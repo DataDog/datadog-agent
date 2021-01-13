@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	model "github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
@@ -224,6 +225,10 @@ func (l *Collector) run(exit chan struct{}) error {
 	podForwarderOpts.DisableAPIKeyChecking = true
 	podForwarderOpts.RetryQueueSize = l.cfg.QueueSize // Allow more in-flight requests than the default
 	podForwarder := forwarder.NewDefaultForwarder(podForwarderOpts)
+
+	// start orchestrator manifest collector
+	orchestrator.InitManifestCollector(l.cfg.Orchestrator, l.cfg.HostName)
+	go orchestrator.Collector.Start(exit)
 
 	if err := processForwarder.Start(); err != nil {
 		return fmt.Errorf("error starting forwarder: %s", err)

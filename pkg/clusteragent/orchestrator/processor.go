@@ -27,6 +27,7 @@ import (
 func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *config.OrchestratorConfig, clusterID string) ([]model.MessageBody, error) {
 	start := time.Now()
 	deployMsgs := make([]*model.Deployment, 0, len(deploymentList))
+	manifestMsgs := make([]*model.Manifest, 0, len(deploymentList))
 
 	for d := 0; d < len(deploymentList); d++ {
 		depl := deploymentList[d]
@@ -54,8 +55,18 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 		}
 		deployModel.Yaml = jsonDeploy
 
+		manifestMsgs = append(manifestMsgs, &model.Manifest{
+			Orchestrator: "k8s",
+			Type:         "deployment",
+			Uid:          deployModel.Metadata.Uid,
+			Content:      jsonDeploy,
+			ContentType:  "json",
+		})
+
 		deployMsgs = append(deployMsgs, deployModel)
 	}
+
+	orchestrator.Collector.BufferManifest(manifestMsgs)
 
 	groupSize := len(deployMsgs) / cfg.MaxPerMessage
 	if len(deployMsgs)%cfg.MaxPerMessage != 0 {
@@ -100,6 +111,7 @@ func chunkDeployments(deploys []*model.Deployment, chunkCount, chunkSize int) []
 func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.OrchestratorConfig, clusterID string) ([]model.MessageBody, error) {
 	start := time.Now()
 	rsMsgs := make([]*model.ReplicaSet, 0, len(rsList))
+	manifestMsgs := make([]*model.Manifest, 0, len(rsList))
 
 	for rs := 0; rs < len(rsList); rs++ {
 		r := rsList[rs]
@@ -129,8 +141,18 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.O
 		}
 		rsModel.Yaml = jsonRS
 
+		manifestMsgs = append(manifestMsgs, &model.Manifest{
+			Orchestrator: "k8s",
+			Type:         "replicaset",
+			Uid:          rsModel.Metadata.Uid,
+			Content:      jsonRS,
+			ContentType:  "json",
+		})
+
 		rsMsgs = append(rsMsgs, rsModel)
 	}
+
+	orchestrator.Collector.BufferManifest(manifestMsgs)
 
 	groupSize := len(rsMsgs) / cfg.MaxPerMessage
 	if len(rsMsgs)%cfg.MaxPerMessage != 0 {
@@ -176,6 +198,7 @@ func chunkReplicaSets(replicaSets []*model.ReplicaSet, chunkCount, chunkSize int
 func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *config.OrchestratorConfig, clusterID string) ([]model.MessageBody, error) {
 	start := time.Now()
 	serviceMsgs := make([]*model.Service, 0, len(serviceList))
+	manifestMsgs := make([]*model.Manifest, 0, len(serviceList))
 
 	for s := 0; s < len(serviceList); s++ {
 		svc := serviceList[s]
@@ -194,8 +217,18 @@ func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *confi
 		}
 		serviceModel.Yaml = jsonSvc
 
+		manifestMsgs = append(manifestMsgs, &model.Manifest{
+			Orchestrator: "k8s",
+			Type:         "replicaset",
+			Uid:          serviceModel.Metadata.Uid,
+			Content:      jsonSvc,
+			ContentType:  "json",
+		})
+
 		serviceMsgs = append(serviceMsgs, serviceModel)
 	}
+
+	orchestrator.Collector.BufferManifest(manifestMsgs)
 
 	groupSize := len(serviceMsgs) / cfg.MaxPerMessage
 	if len(serviceMsgs)%cfg.MaxPerMessage > 0 {
@@ -244,6 +277,7 @@ func chunkServices(services []*model.Service, chunkCount, chunkSize int) [][]*mo
 func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.OrchestratorConfig, clusterID string) ([]model.MessageBody, error) {
 	start := time.Now()
 	nodeMsgs := make([]*model.Node, 0, len(nodesList))
+	manifestMsgs := make([]*model.Manifest, 0, len(nodesList))
 
 	for s := 0; s < len(nodesList); s++ {
 		node := nodesList[s]
@@ -261,6 +295,14 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Orche
 		}
 		nodeModel.Yaml = jsonNode
 
+		manifestMsgs = append(manifestMsgs, &model.Manifest{
+			Orchestrator: "k8s",
+			Type:         "replicaset",
+			Uid:          nodeModel.Metadata.Uid,
+			Content:      jsonNode,
+			ContentType:  "json",
+		})
+
 		// additional tags
 		for _, tag := range convertNodeStatusToTags(nodeModel.Status.Status) {
 			nodeModel.Tags = append(nodeModel.Tags, tag)
@@ -272,6 +314,8 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Orche
 
 		nodeMsgs = append(nodeMsgs, nodeModel)
 	}
+
+	orchestrator.Collector.BufferManifest(manifestMsgs)
 
 	groupSize := len(nodeMsgs) / cfg.MaxPerMessage
 	if len(nodeMsgs)%cfg.MaxPerMessage > 0 {
