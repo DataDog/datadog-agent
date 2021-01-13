@@ -151,6 +151,6 @@ func GetStatus() status.Status {
 	return status.Get()
 }
 
-func GetDiagnosticReceiver() *diagnostic.DiagnosticReceiver {
-	return agent.diagnosticReceiver
+func GetMessageReceiver() *diagnostic.MessageReceiver {
+	return agent.diagnosticMessageReceiver
 }

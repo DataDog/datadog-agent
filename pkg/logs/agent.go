@@ -41,7 +41,7 @@ type Agent struct {
 	pipelineProvider   pipeline.Provider
 	inputs             []restart.Restartable
 	health             *health.Handle
-	diagnosticReceiver *diagnostic.DiagnosticReceiver
+	diagnosticMessageReceiver *diagnostic.MessageReceiver
 }
 
 // NewAgent returns a new Logs Agent
@@ -54,10 +54,10 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 	auditorTTL := time.Duration(coreConfig.Datadog.GetInt("logs_config.auditor_ttl")) * time.Hour
 	auditor := auditor.New(coreConfig.Datadog.GetString("logs_config.run_path"), auditor.DefaultRegistryFilename, auditorTTL, health)
 	destinationsCtx := client.NewDestinationsContext()
-	diagnosticReceiver := diagnostic.New()
+	diagnosticMessageReceiver := diagnostic.New()
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, diagnosticReceiver, processingRules, endpoints, destinationsCtx)
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsCtx)
 
 	// setup the inputs
 	inputs := []restart.Restartable{
@@ -79,7 +79,7 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 		pipelineProvider:   pipelineProvider,
 		inputs:             inputs,
 		health:             health,
-		diagnosticReceiver: diagnosticReceiver,
+		diagnosticMessageReceiver: diagnosticMessageReceiver,
 	}
 }
 
@@ -105,7 +105,7 @@ func (a *Agent) Stop() {
 		a.pipelineProvider,
 		a.auditor,
 		a.destinationsCtx,
-		a.diagnosticReceiver,
+		a.diagnosticMessageReceiver,
 	)
 
 	// This will try to stop everything in order, including the potentially blocking

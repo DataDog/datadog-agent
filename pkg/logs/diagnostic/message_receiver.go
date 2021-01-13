@@ -11,30 +11,34 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-type DiagnosticReceiver struct {
+// MessageReceiver handles in coming log messages and makes them available for diagnostics
+type MessageReceiver struct {
 	inputChan chan message.Message
 	done      chan struct{}
 }
 
-func New() *DiagnosticReceiver {
-	return &DiagnosticReceiver{
+// New creates a new MessageReceiver
+func New() *MessageReceiver {
+	return &MessageReceiver{
 		inputChan: make(chan message.Message, 100),
 	}
 }
 
-func (d *DiagnosticReceiver) Stop() {
+// Stop closes open channels
+func (d *MessageReceiver) Stop() {
 	close(d.inputChan)
 }
 
-func (d *DiagnosticReceiver) Clear() {
-	fmt.Println("brian: Clear " + string(len(d.inputChan)))
+// Clear empties buffered messages
+func (d *MessageReceiver) Clear() {
 	l := len(d.inputChan)
 	for i := 0; i < l; i++ {
 		<-d.inputChan
 	}
 }
 
-func (d *DiagnosticReceiver) Next() (line string, ok bool) {
+// Next pops the next buffered event off the input channel formatted as a string
+func (d *MessageReceiver) Next() (line string, ok bool) {
 	select {
 	case msg := <-d.inputChan:
 		return formatMessage(&msg), true
@@ -43,7 +47,8 @@ func (d *DiagnosticReceiver) Next() (line string, ok bool) {
 	}
 }
 
-func (d *DiagnosticReceiver) Channel() chan message.Message {
+// Channel gets the input channel
+func (d *MessageReceiver) Channel() chan message.Message {
 	return d.inputChan
 }
 

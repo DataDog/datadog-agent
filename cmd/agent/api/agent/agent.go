@@ -200,8 +200,8 @@ func streamLogs(w http.ResponseWriter, r *http.Request) {
 	conn.SetDeadline(time.Time{})
 	conn.SetWriteDeadline(time.Time{})
 
-	logDiagnosticReceiver := logs.GetDiagnosticReceiver()
-	logDiagnosticReceiver.Clear()
+	logMessageReceiver := logs.GetMessageReceiver()
+	logMessageReceiver.Clear()
 
 	for {
 		select {
@@ -211,7 +211,7 @@ func streamLogs(w http.ResponseWriter, r *http.Request) {
 			return
 		default:
 		}
-		if line, ok := logDiagnosticReceiver.Next(); ok {
+		if line, ok := logMessageReceiver.Next(); ok {
 			fmt.Fprintln(w, line)
 		} else {
 			// The buffer will flush on its own most of the time, but when we run out of logs flush so the client is up to date.
