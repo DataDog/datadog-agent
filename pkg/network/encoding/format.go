@@ -3,6 +3,7 @@ package encoding
 import (
 	"sync"
 
+	sketchmodel "github.com/DataDog/agent-payload/ddsketch"
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
@@ -97,26 +98,26 @@ func FormatHTTP(httpData map[http.Key]map[string]http.RequestStats, httpKeySet m
 				status := model.HTTPResponseStatus(i)
 				count := uint32(stats.Count(status))
 
-				var formattedLatencies *model.DDSketch
+				var formattedLatencies *sketchmodel.DDSketch
 				if latencies := stats.Latencies(status); latencies != nil {
 					sketch := latencies.ToProto()
-					mapping := &model.IndexMapping{
+					mapping := &sketchmodel.IndexMapping{
 						Gamma:         sketch.Mapping.Gamma,
 						IndexOffset:   sketch.Mapping.IndexOffset,
-						Interpolation: model.IndexMapping_Interpolation(sketch.Mapping.Interpolation),
+						Interpolation: sketchmodel.IndexMapping_Interpolation(sketch.Mapping.Interpolation),
 					}
-					posVals := &model.Store{
+					posVals := &sketchmodel.Store{
 						BinCounts:                sketch.PositiveValues.BinCounts,
 						ContiguousBinCounts:      sketch.PositiveValues.ContiguousBinCounts,
 						ContiguousBinIndexOffset: sketch.PositiveValues.ContiguousBinIndexOffset,
 					}
-					negVals := &model.Store{
+					negVals := &sketchmodel.Store{
 						BinCounts:                sketch.NegativeValues.BinCounts,
 						ContiguousBinCounts:      sketch.NegativeValues.ContiguousBinCounts,
 						ContiguousBinIndexOffset: sketch.NegativeValues.ContiguousBinIndexOffset,
 					}
 
-					formattedLatencies = &model.DDSketch{
+					formattedLatencies = &sketchmodel.DDSketch{
 						Mapping:        mapping,
 						PositiveValues: posVals,
 						NegativeValues: negVals,
