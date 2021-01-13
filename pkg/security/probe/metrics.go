@@ -75,12 +75,28 @@ var (
 	// MetricPerfBufferBytesRead is the name of the metric used to count the number of bytes read from a perf buffer
 	// Tags: map, cpu
 	MetricPerfBufferBytesRead = newRuntimeSecurityMetric(".perf_buffer.bytes.read")
+	// MetricPerfBufferSortingError is the name of the metric used to report events reordering issues.
+	// Tags: map, cpu, event_type
+	MetricPerfBufferSortingError = newRuntimeSecurityMetric(".perf_buffer.sorting_error")
 
 	// Process Resolver metrics
 
-	// MetricPrefixProcessResolverCacheSize is the name of the metric used to report the size of the user space
+	// MetricProcessResolverCacheSize is the name of the metric used to report the size of the user space
 	// process cache
-	MetricPrefixProcessResolverCacheSize = newRuntimeSecurityMetric(".process_resolver.cache_size")
+	// Tags: -
+	MetricProcessResolverCacheSize = newRuntimeSecurityMetric(".process_resolver.cache_size")
+	// MetricProcessResolverCacheMiss is the name of the metric used to report process resolver cache misses
+	// Tags: -
+	MetricProcessResolverCacheMiss = newRuntimeSecurityMetric(".process_resolver.cache_miss")
+	// MetricProcessResolverCacheHits is the name of the metric used to report the process resolver cache hits
+	// Tags: type
+	MetricProcessResolverCacheHits = newRuntimeSecurityMetric(".process_resolver.hits")
+	// MetricProcessResolverAdded is the name of the metric used to report the number of entries added in the cache
+	// Tags: -
+	MetricProcessResolverAdded = newRuntimeSecurityMetric(".process_resolver.added")
+	// MetricProcessResolverDeleted is the name of the metric used to report the number of entries deleted from the cache
+	// Tags: -
+	MetricProcessResolverDeleted = newRuntimeSecurityMetric(".process_resolver.deleted")
 
 	// Custom events
 

@@ -44,7 +44,7 @@ func NewMonitor(p *Probe, client *statsd.Client) (*Monitor, error) {
 	}
 
 	// instantiate a new event statistics monitor
-	m.perfBufferMonitor, err = NewPerfBufferMonitor(p)
+	m.perfBufferMonitor, err = NewPerfBufferMonitor(p, client)
 	if err != nil {
 		return nil, errors.Wrap(err, "couldn't create the events statistics monitor")
 	}
@@ -78,11 +78,11 @@ func (m *Monitor) SendStats() error {
 		}
 	}
 
-	if err := m.client.Gauge(MetricPrefixProcessResolverCacheSize, m.probe.resolvers.ProcessResolver.GetCacheSize(), []string{}, 1.0); err != nil {
+	if err := m.client.Gauge(MetricProcessResolverCacheSize, m.probe.resolvers.ProcessResolver.GetCacheSize(), []string{}, 1.0); err != nil {
 		return errors.Wrap(err, "failed to send process_resolver cache_size metric")
 	}
 
-	if err := m.perfBufferMonitor.SendStats(m.client); err != nil {
+	if err := m.perfBufferMonitor.SendStats(); err != nil {
 		return errors.Wrap(err, "failed to send events stats")
 	}
 

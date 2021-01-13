@@ -212,7 +212,7 @@ func (m *Module) statsMonitor(ctx context.Context) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	ticker := time.NewTicker(m.config.EventsStatsPollingInterval)
+	ticker := time.NewTicker(m.config.StatsPollingInterval)
 	defer ticker.Stop()
 
 	for {

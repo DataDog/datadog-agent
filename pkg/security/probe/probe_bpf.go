@@ -75,13 +75,12 @@ type Probe struct {
 	cancelFnc      context.CancelFunc
 
 	// Events section
-	handler       EventHandler
-	monitor       *Monitor
-	resolvers     *Resolvers
-	event         *Event
-	perfMap       *manager.PerfMap
-	reOrderer     *ReOrderer
-	lastTimestamp uint64
+	handler   EventHandler
+	monitor   *Monitor
+	resolvers *Resolvers
+	event     *Event
+	perfMap   *manager.PerfMap
+	reOrderer *ReOrderer
 
 	// Approvers / discarders section
 	discarderRevisions *lib.Map
@@ -322,15 +321,8 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	}
 	offset += read
 
-	// check event order
-	if event.TimestampRaw < p.lastTimestamp && p.lastTimestamp != 0 {
-		_ = p.statsdClient.Count(MetricPrefix+".events.sorting_error", 1, []string{}, 1.0)
-	} else {
-		p.lastTimestamp = event.TimestampRaw
-	}
-
 	eventType := EventType(event.Type)
-	p.monitor.perfBufferMonitor.CountEvent(eventType, 1, dataLen, p.perfMap, int(CPU))
+	p.monitor.perfBufferMonitor.CountEvent(eventType, event.TimestampRaw, 1, dataLen, p.perfMap, int(CPU))
 
 	log.Tracef("Decoding event %s(%d)", eventType, event.Type)
 

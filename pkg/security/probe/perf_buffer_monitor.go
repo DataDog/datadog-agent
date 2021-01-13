@@ -45,6 +45,8 @@ func (s *PerfMapStats) UnmarshalBinary(data []byte) error {
 type PerfBufferMonitor struct {
 	// probe is a pointer to the Probe
 	probe *Probe
+	// statsdClient is a pointer to the statsdClient used to report the metrics of the perf buffer monitor
+	statsdClient *statsd.Client
 	// cpuCount holds the current count of CPU
 	cpuCount int
 	// perfBufferStatsMaps holds the pointers to the statistics kernel maps
@@ -63,12 +65,16 @@ type PerfBufferMonitor struct {
 	kernelStats map[string][][maxEventType]PerfMapStats
 	// readLostEvents is the count of lost events, collected by reading the perf buffer
 	readLostEvents map[string][]uint64
+
+	// lastTimestamp is used to track the timestamp of the last event retrieved from the perf map
+	lastTimestamp uint64
 }
 
 // NewPerfBufferMonitor instantiates a new event statistics counter
-func NewPerfBufferMonitor(p *Probe) (*PerfBufferMonitor, error) {
+func NewPerfBufferMonitor(p *Probe, client *statsd.Client) (*PerfBufferMonitor, error) {
 	es := PerfBufferMonitor{
 		probe:               p,
+		statsdClient:        client,
 		cpuCount:            runtime.NumCPU(),
 		perfBufferStatsMaps: make(map[string]*lib.Map),
 		perfBufferSize:      make(map[string]float64),
@@ -287,7 +293,19 @@ func (pbm *PerfBufferMonitor) CountLostEvent(count uint64, m *manager.PerfMap, c
 }
 
 // CountEvent adds `count` to the counter of received events of the specified type
-func (pbm *PerfBufferMonitor) CountEvent(eventType EventType, count uint64, size uint64, m *manager.PerfMap, cpu int) {
+func (pbm *PerfBufferMonitor) CountEvent(eventType EventType, timestamp uint64, count uint64, size uint64, m *manager.PerfMap, cpu int) {
+	// check event order
+	if timestamp < pbm.lastTimestamp && pbm.lastTimestamp != 0 {
+		tags := []string{
+			fmt.Sprintf("map:%s", m.Name),
+			fmt.Sprintf("cpu:%d", cpu),
+			fmt.Sprintf("event_type:%s", eventType),
+		}
+		_ = pbm.statsdClient.Count(MetricPerfBufferSortingError, 1, tags, 1.0)
+	} else {
+		pbm.lastTimestamp = timestamp
+	}
+
 	// sanity check
 	if (pbm.stats[m.Name] == nil) || (len(pbm.stats[m.Name]) <= cpu) || (len(pbm.stats[m.Name][cpu]) <= int(eventType)) {
 		return
@@ -439,16 +457,16 @@ func (pbm *PerfBufferMonitor) sendKernelStats(client *statsd.Client, stats PerfM
 }
 
 // SendStats send event stats using the provided statsd client
-func (pbm *PerfBufferMonitor) SendStats(client *statsd.Client) error {
-	if err := pbm.collectAndSendKernelStats(client); err != nil {
+func (pbm *PerfBufferMonitor) SendStats() error {
+	if err := pbm.collectAndSendKernelStats(pbm.statsdClient); err != nil {
 		return err
 	}
 
-	if err := pbm.sendEventsAndBytesReadStats(client); err != nil {
+	if err := pbm.sendEventsAndBytesReadStats(pbm.statsdClient); err != nil {
 		return err
 	}
 
-	if err := pbm.sendLostEventsReadStats(client); err != nil {
+	if err := pbm.sendLostEventsReadStats(pbm.statsdClient); err != nil {
 		return err
 	}
 	return nil
