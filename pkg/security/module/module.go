@@ -41,7 +41,7 @@ type Module struct {
 	ruleSets       [2]*rules.RuleSet
 	currentRuleSet uint64
 	reloading      uint64
-	apiServer      *ApiServer
+	apiServer      *APIServer
 	grpcServer     *grpc.Server
 	listener       net.Listener
 	rateLimiter    *RateLimiter
@@ -265,7 +265,7 @@ func NewModule(cfg *config.Config) (api.Module, error) {
 	m := &Module{
 		config:         cfg,
 		probe:          probe,
-		apiServer:      NewApiServer(cfg, probe, statsdClient),
+		apiServer:      NewAPIServer(cfg, probe, statsdClient),
 		grpcServer:     grpc.NewServer(),
 		rateLimiter:    NewRateLimiter(statsdClient),
 		sigupChan:      make(chan os.Signal, 1),
