@@ -460,7 +460,6 @@ def build_object_files(ctx, bundle_ebpf=False):
 
         bindata_files.extend([obj_file, debug_obj_file])
 
-    # Build security runtime programs
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
     security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
     security_c_file = os.path.join(security_agent_prebuilt_dir, "probe.c")
