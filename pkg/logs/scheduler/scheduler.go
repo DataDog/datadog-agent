@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
-	providerNames "github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -217,10 +216,14 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 		if service != nil {
 			// a config defined in a docker label or a pod annotation does not always contain a type,
 			// override it here to ensure that the config won't be dropped at validation.
-			if cfg.Type == logsConfig.FileType && (config.Provider == providerNames.Kubernetes || config.Provider == providerNames.Docker) {
+			if cfg.Type == logsConfig.FileType && (config.Provider == names.Kubernetes || config.Provider == names.Docker) {
 				// cfg.Type is not overwritten as tailing a file from a Docker or Kubernetes AD configuration
-				// is explicitly supported
+				// is explicitly supported (other combination may be supported later)
 				cfg.Identifier = service.Identifier
+			} else if config.Provider == names.Kubernetes && (cfg.Type == "" || containerType(cfg.Type)) {
+				// Containers coming from the k8s provider are tailed based on a service and not a source,
+				// hence the configuration for tailing a container is ignored here
+				continue
 			} else {
 				cfg.Type = service.Type
 				cfg.Identifier = service.Identifier // used for matching a source with a service
@@ -237,6 +240,14 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 	}
 
 	return sources, nil
+}
+
+func containerType(t string) bool {
+	switch t {
+	case containers.RuntimeNameDocker, containers.RuntimeNameContainerd, containers.RuntimeNameCRIO:
+		return true
+	}
+	return false
 }
 
 // toService creates a new service for an integrationConfig.

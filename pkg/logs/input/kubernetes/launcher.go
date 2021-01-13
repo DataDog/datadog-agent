@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/input"
@@ -158,8 +159,24 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 		if err != nil || len(configs) == 0 {
 			return nil, fmt.Errorf("could not parse kubernetes annotation %v", annotation)
 		}
-		cfg = configs[0]
-	} else {
+		// We may have more than one log configuration in the annotation, ignore those
+		// unrelated to containers
+		containerType := ""
+		if tokens := strings.Split(container.ID, containers.EntitySeparator); len(tokens) == 2 {
+			containerType = tokens[0]
+		}
+		for _, c := range configs {
+			if c.Type == "" || c.Type == containerType {
+				cfg = c
+				break
+			}
+		}
+		if cfg == nil {
+			log.Debugf("annotation found: %v, for pod %v, container %v, but no config was usable for container log collection", annotation, pod.Metadata.Name, container.Name)
+		}
+	}
+
+	if cfg == nil {
 		if !l.collectAll {
 			return nil, errCollectAllDisabled
 		}
