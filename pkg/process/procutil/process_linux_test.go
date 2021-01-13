@@ -863,6 +863,28 @@ func TestGetFDCountLocalFS(t *testing.T) {
 	}
 }
 
+func TestGetFDCountLocalFSV2(t *testing.T) {
+	// maySkipLocalTest(t)
+	probe := NewProcessProbe()
+	defer probe.Close()
+
+	pids, err := probe.getActivePIDs()
+	assert.NoError(t, err)
+
+	for _, pid := range pids {
+		pathForPID := filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid)))
+		fdCount := probe.getFDCountV2(pathForPID)
+		expProc, err := process.NewProcess(pid)
+		assert.NoError(t, err)
+		// skip the ones that have permission issues
+		if expFdCount, err := expProc.NumFDs(); err == nil {
+			assert.Equal(t, expFdCount, fdCount)
+		} else {
+			assert.Equal(t, int32(-1), fdCount)
+		}
+	}
+}
+
 func BenchmarkGetCmdGopsutilTestFS(b *testing.B) {
 	os.Setenv("HOST_PROC", "resources/test_procfs/proc")
 	defer os.Unsetenv("HOST_PROC")
