@@ -5,7 +5,6 @@ package tracer
 import (
 	"bufio"
 	"bytes"
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -116,8 +115,8 @@ func TestTracerExpvar(t *testing.T) {
 			"PTcpSendmsgMisses",
 			"PTcpSetStateHits",
 			"PTcpSetStateMisses",
-			"PTcpVDestroySockHits",
-			"PTcpVDestroySockMisses",
+			"PTcpV4DestroySockHits",
+			"PTcpV4DestroySockMisses",
 			"PUdpDestroySockHits",
 			"PUdpDestroySockMisses",
 			"PUdpRecvmsgHits",
@@ -136,14 +135,14 @@ func TestTracerExpvar(t *testing.T) {
 	}
 
 	archSpecificKprobes := [][]string{
-		{"PSySBindHits", "PXSysBindHits"},
-		{"PSySBindMisses", "PXSysBindMisses"},
-		{"PSySSocketHits", "PXSysSocketHits"},
-		{"PSySSocketMisses", "PXSysSocketMisses"},
-		{"RSySBindHits", "RXSysBindHits"},
-		{"RSySBindMisses", "RXSysBindMisses"},
-		{"RSySSocketHits", "RXSysSocketHits"},
-		{"RSySSocketMisses", "RXSysSocketMisses"},
+		{"PSysBindHits", "PX64SysBindHits"},
+		{"PSysBindMisses", "PX64SysBindMisses"},
+		{"PSysSocketHits", "PX64SysSocketHits"},
+		{"PSysSocketMisses", "PX64SysSocketMisses"},
+		{"RSysBindHits", "RX64SysBindHits"},
+		{"RSysBindMisses", "RX64SysBindMisses"},
+		{"RSysSocketHits", "RX64SysSocketHits"},
+		{"RSysSocketMisses", "RX64SysSocketMisses"},
 	}
 
 	for _, et := range expvarTypes {
@@ -1210,8 +1209,8 @@ func removeConnection(t *testing.T, tr *Tracer, c *network.ConnectionStats) {
 	tuple := []*ConnTuple{
 		{
 			pid:      _Ctype_uint(c.Pid),
-			saddr_l:  _Ctype_ulonglong(binary.LittleEndian.Uint32(c.Source.Bytes())),
-			daddr_l:  _Ctype_ulonglong(binary.LittleEndian.Uint32(c.Dest.Bytes())),
+			saddr_l:  _Ctype_ulonglong(nativeEndian.Uint32(c.Source.Bytes())),
+			daddr_l:  _Ctype_ulonglong(nativeEndian.Uint32(c.Dest.Bytes())),
 			sport:    _Ctype_ushort(c.SPort),
 			dport:    _Ctype_ushort(c.DPort),
 			netns:    _Ctype_uint(c.NetNS),

@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/input/channel"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/container"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/journald"
@@ -35,7 +36,7 @@ import (
 // |                                                        |
 // + ------------------------------------------------------ +
 type Agent struct {
-	auditor          *auditor.Auditor
+	auditor          auditor.Auditor
 	destinationsCtx  *client.DestinationsContext
 	pipelineProvider pipeline.Provider
 	inputs           []restart.Restartable
@@ -79,6 +80,33 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 	}
 }
 
+// NewServerless returns a Logs Agent instance to run in a serverless environment.
+// The Serverless Logs Agent has only one input being the channel to receive the logs to process.
+// It is using a NullAuditor because we've nothing to do after having sent the logs to the intake.
+func NewServerless(sources *config.LogSources, services *service.Services, processingRules []*config.ProcessingRule, endpoints *config.Endpoints) *Agent {
+	health := health.RegisterLiveness("logs-agent")
+
+	// setup the a null auditor, not tracking data in any registry
+	auditor := auditor.NewNullAuditor()
+	destinationsCtx := client.NewDestinationsContext()
+
+	// setup the pipeline provider that provides pairs of processor and sender
+	pipelineProvider := pipeline.NewServerlessProvider(config.NumberOfPipelines, auditor, processingRules, endpoints, destinationsCtx)
+
+	// setup the inputs
+	inputs := []restart.Restartable{
+		channel.NewLauncher(sources, pipelineProvider),
+	}
+
+	return &Agent{
+		auditor:          auditor,
+		destinationsCtx:  destinationsCtx,
+		pipelineProvider: pipelineProvider,
+		inputs:           inputs,
+		health:           health,
+	}
+}
+
 // Start starts all the elements of the data pipeline
 // in the right order to prevent data loss
 func (a *Agent) Start() {
@@ -87,6 +115,11 @@ func (a *Agent) Start() {
 		starter.Add(input)
 	}
 	starter.Start()
+}
+
+// Flush flushes synchronously the pipelines managed by the Logs Agent.
+func (a *Agent) Flush() {
+	a.pipelineProvider.Flush()
 }
 
 // Stop stops all the elements of the data pipeline

@@ -139,14 +139,14 @@ type Forwarder interface {
 	Start() error
 	Stop()
 	SubmitV1Series(payload Payloads, extra http.Header) error
-	SubmitV1Intake(payload Payloads, extra http.Header, priority TransactionPriority) error
+	SubmitV1Intake(payload Payloads, extra http.Header) error
 	SubmitV1CheckRuns(payload Payloads, extra http.Header) error
 	SubmitSeries(payload Payloads, extra http.Header) error
 	SubmitEvents(payload Payloads, extra http.Header) error
 	SubmitServiceChecks(payload Payloads, extra http.Header) error
 	SubmitSketchSeries(payload Payloads, extra http.Header) error
 	SubmitHostMetadata(payload Payloads, extra http.Header) error
-	SubmitMetadata(payload Payloads, extra http.Header, priority TransactionPriority) error
+	SubmitMetadata(payload Payloads, extra http.Header) error
 	SubmitProcessChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitRTProcessChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitContainerChecks(payload Payloads, extra http.Header) (chan Response, error)
@@ -443,10 +443,10 @@ func (f *DefaultForwarder) State() uint32 {
 	return f.internalState
 }
 func (f *DefaultForwarder) createHTTPTransactions(endpoint endpoint, payloads Payloads, apiKeyInQueryString bool, extra http.Header) []*HTTPTransaction {
-	return f.createPriorityHTTPTransactions(endpoint, payloads, apiKeyInQueryString, extra, TransactionPriorityNormal)
+	return f.createAdvancedHTTPTransactions(endpoint, payloads, apiKeyInQueryString, extra, TransactionPriorityNormal)
 }
 
-func (f *DefaultForwarder) createPriorityHTTPTransactions(endpoint endpoint, payloads Payloads, apiKeyInQueryString bool, extra http.Header, priority TransactionPriority) []*HTTPTransaction {
+func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint endpoint, payloads Payloads, apiKeyInQueryString bool, extra http.Header, priority TransactionPriority) []*HTTPTransaction {
 	transactions := make([]*HTTPTransaction, 0, len(payloads)*len(f.keysPerDomains))
 	allowArbitraryTags := config.Datadog.GetBool("allow_arbitrary_tags")
 
@@ -526,14 +526,15 @@ func (f *DefaultForwarder) SubmitSketchSeries(payload Payloads, extra http.Heade
 
 // SubmitHostMetadata will send a host_metadata tag type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitHostMetadata(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(hostMetadataEndpoint, payload, false, extra)
-	return f.sendHTTPTransactions(transactions)
+	return f.submitV1IntakeWithTransactionsFactory(payload, extra,
+		func(endpoint endpoint, payloads Payloads, apiKeyInQueryString bool, extra http.Header) []*HTTPTransaction {
+			return f.createAdvancedHTTPTransactions(endpoint, payloads, apiKeyInQueryString, extra, TransactionPriorityHigh)
+		})
 }
 
 // SubmitMetadata will send a metadata type payload to Datadog backend.
-func (f *DefaultForwarder) SubmitMetadata(payload Payloads, extra http.Header, priority TransactionPriority) error {
-	transactions := f.createPriorityHTTPTransactions(metadataEndpoint, payload, false, extra, priority)
-	return f.sendHTTPTransactions(transactions)
+func (f *DefaultForwarder) SubmitMetadata(payload Payloads, extra http.Header) error {
+	return f.submitV1IntakeWithTransactionsFactory(payload, extra, f.createHTTPTransactions)
 }
 
 // SubmitV1Series will send timeserie to v1 endpoint (this will be remove once
@@ -551,8 +552,15 @@ func (f *DefaultForwarder) SubmitV1CheckRuns(payload Payloads, extra http.Header
 }
 
 // SubmitV1Intake will send payloads to the universal `/intake/` endpoint used by Agent v.5
-func (f *DefaultForwarder) SubmitV1Intake(payload Payloads, extra http.Header, priority TransactionPriority) error {
-	transactions := f.createPriorityHTTPTransactions(v1IntakeEndpoint, payload, true, extra, priority)
+func (f *DefaultForwarder) SubmitV1Intake(payload Payloads, extra http.Header) error {
+	return f.submitV1IntakeWithTransactionsFactory(payload, extra, f.createHTTPTransactions)
+}
+
+func (f *DefaultForwarder) submitV1IntakeWithTransactionsFactory(
+	payload Payloads,
+	extra http.Header,
+	createHTTPTransactions func(endpoint endpoint, payload Payloads, apiKeyInQueryString bool, extra http.Header) []*HTTPTransaction) error {
+	transactions := createHTTPTransactions(v1IntakeEndpoint, payload, true, extra)
 
 	// the intake endpoint requires the Content-Type header to be set
 	for _, t := range transactions {

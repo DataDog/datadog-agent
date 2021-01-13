@@ -7,7 +7,7 @@ func snakeToCapInitialCamel(s string) string {
 	n := ""
 	capNext := true
 	for _, v := range s {
-		if v >= 'A' && v <= 'Z' {
+		if (v >= 'A' && v <= 'Z') || (v >= '0' && v <= '9') {
 			n += string(v)
 		}
 		if v >= 'a' && v <= 'z' {

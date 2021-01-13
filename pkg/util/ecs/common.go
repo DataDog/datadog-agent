@@ -19,6 +19,13 @@ import (
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
 )
 
+const (
+	// cpuKey represents the cpu key used in the resource limits map returned by the ECS API
+	cpuKey = "CPU"
+	// memoryKey represents the memory key used in the resource limits map returned by the ECS API
+	memoryKey = "Memory"
+)
+
 // ListContainersInCurrentTask returns internal container representations (with
 // their metrics) for the current task by collecting that information from the
 // ECS metadata v2 API.
@@ -45,7 +52,7 @@ func ListContainersInCurrentTask() ([]*containers.Container, error) {
 	for _, c := range task.Containers {
 		// Not using c.DockerName as it's generated with ecs task name, thus probably not easy to match
 		if filter == nil || !filter.IsExcluded(c.Name, c.Image, "") {
-			cList = append(cList, convertMetaV2Container(c))
+			cList = append(cList, convertMetaV2Container(c, task.Limits))
 		}
 	}
 
@@ -86,7 +93,7 @@ func UpdateContainerMetrics(cList []*containers.Container) error {
 
 // convertMetaV2Container returns an internal container representation from an
 // ECS metadata v2 container object.
-func convertMetaV2Container(c v2.Container) *containers.Container {
+func convertMetaV2Container(c v2.Container, taskLimits map[string]float64) *containers.Container {
 	container := &containers.Container{
 		Type:        "ECS",
 		ID:          c.DockerID,
@@ -110,16 +117,38 @@ func convertMetaV2Container(c v2.Container) *containers.Container {
 		container.StartedAt = startedAt.Unix()
 	}
 
-	if l, found := c.Limits["cpu"]; found && l > 0 {
-		container.Limits.CPULimit = float64(l)
+	if l, found := c.Limits[cpuKey]; found && l > 0 {
+		container.Limits.CPULimit = formatContainerCPULimit(float64(l))
+	} else if l, found := taskLimits[cpuKey]; found && l > 0 {
+		container.Limits.CPULimit = formatTaskCPULimit(l)
 	} else {
 		container.Limits.CPULimit = 100
 	}
-	if l, found := c.Limits["memory"]; found && l > 0 {
-		container.Limits.MemLimit = l
+
+	if l, found := c.Limits[memoryKey]; found && l > 0 {
+		container.Limits.MemLimit = formatMemoryLimit(l)
+	} else if l, found := taskLimits[memoryKey]; found && l > 0 {
+		container.Limits.MemLimit = formatMemoryLimit(uint64(l))
 	}
 
 	return container
+}
+
+func formatContainerCPULimit(val float64) float64 {
+	// The ECS API exposes the container CPU limit in CPU units
+	// Value is reported in Hz
+	return val / 1024 * 100
+}
+
+func formatTaskCPULimit(val float64) float64 {
+	// The ECS API exposes the task CPU limit with the format: 0.25, 0.5, 1, 2, 4
+	// Value is reported in Hz
+	return val * 100
+}
+
+func formatMemoryLimit(val uint64) uint64 {
+	// The ECS API exposes the memory limit is in MB
+	return val * 1000000
 }
 
 // convertMetaV2Container returns internal metrics representations from an ECS
