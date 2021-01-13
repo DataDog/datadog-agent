@@ -147,7 +147,7 @@ func (c *NetworkCheck) Run() error {
 
 	rowTags := []string{"mytag1", "mytag2", "mytag3"}
 	rowTags = append(rowTags, "abc")
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 1000; i++ {
 		sendMetric(sender, rowTags)
 	}
 	return nil
