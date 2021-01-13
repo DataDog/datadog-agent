@@ -10,8 +10,11 @@ package journald
 import (
 	"github.com/coreos/go-systemd/sdjournal"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/tagger/local"
+	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -42,5 +45,12 @@ func (t *Tailer) getContainerTags(containerID string) []string {
 
 // initializeTagger initializes the tag collector.
 func (t *Tailer) initializeTagger() {
+	var taggerInstance tagger.Tagger
+	if config.Datadog.GetBool("logs_config.remote_tagger") {
+		taggerInstance = remote.NewTagger()
+	} else {
+		taggerInstance = local.NewTagger(collectors.DefaultCatalog)
+	}
+	tagger.SetDefaultTagger(taggerInstance)
 	tagger.Init()
 }

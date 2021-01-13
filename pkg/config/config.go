@@ -598,7 +598,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.stop_grace_period", 30)
 	config.BindEnvAndSetDefault("logs_config.close_timeout", 60)
 	config.BindEnvAndSetDefault("logs_config.auditor_ttl", DefaultAuditorTTL) // in hours
-	config.BindEnv("logs_config.additional_endpoints")                        //nolint:errcheck
+	config.BindEnvAndSetDefault("logs_config.remote_tagger", false)
+	config.BindEnv("logs_config.additional_endpoints") //nolint:errcheck
 
 	// The cardinality of tags to send for checks and dogstatsd respectively.
 	// Choices are: low, orchestrator, high.
@@ -714,6 +715,7 @@ func InitConfig(config Config) {
 	config.SetKnown("process_config.expvar_port")
 	config.SetKnown("process_config.log_file")
 	config.SetKnown("process_config.profiling.enabled")
+	config.BindEnvAndSetDefault("process_config.remote_tagger", false)
 
 	// System probe
 	config.SetKnown("system_probe_config.enabled")
