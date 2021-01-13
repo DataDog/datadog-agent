@@ -129,8 +129,9 @@ func StartServer() error {
 		ErrorLog: stdLog.New(&config.ErrorLogWriter{
 			AdditionalDepth: 5, // Use a stack depth of 5 on top of the default one to get a relevant filename in the stdlib
 		}, "Error from the agent http API server: ", 0), // log errors to seelog,
-		WriteTimeout: 30 * time.Second,
+		WriteTimeout: config.Datadog.GetDuration("server_timeout") * time.Second,
 		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
+			// Store the connection in the context so requests can reference it if needed
 			return context.WithValue(ctx, agent.ConnContextKey, c)
 		},
 	}

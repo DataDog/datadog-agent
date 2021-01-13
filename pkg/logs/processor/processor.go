@@ -65,7 +65,6 @@ func (p *Processor) run() {
 
 			select {
 			case p.diagnosticChan <- *msg:
-				fmt.Println("brian: write")
 			default:
 				fmt.Println("brian: miss")
 			}

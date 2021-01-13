@@ -51,6 +51,7 @@ func DoGet(c *http.Client, url string) (body []byte, e error) {
 
 }
 
+// DoGetChunked is a wrapper around performing HTTP GET requests that stream chunked data
 func DoGetChunked(c *http.Client, url string, onChunk func([]byte)) error {
 	req, e := http.NewRequest("GET", url, nil)
 	if e != nil {
@@ -59,25 +60,24 @@ func DoGetChunked(c *http.Client, url string, onChunk func([]byte)) error {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+GetAuthToken())
 
-	r, e := c.Do(req)
+	r, err := c.Do(req)
+	if err != nil {
+		return err
+	}
 
 	for {
 		buf := make([]byte, 128)
 		m, e := r.Body.Read(buf)
-		if m < 0 {
-			panic("ERRRRRR")
+		if m < 0 || e != nil {
+			break
 		}
-
 		onChunk(buf)
-
-		if e == io.EOF {
-			return nil
-		}
-		if e != nil {
-			return e
-		}
 	}
 
+	if r.StatusCode == 200 {
+		return nil
+	}
+	return err
 }
 
 // DoPost is a wrapper around performing HTTP POST requests

@@ -105,6 +105,7 @@ func (a *Agent) Stop() {
 		a.pipelineProvider,
 		a.auditor,
 		a.destinationsCtx,
+		a.diagnosticReceiver,
 	)
 
 	// This will try to stop everything in order, including the potentially blocking

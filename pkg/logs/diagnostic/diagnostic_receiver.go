@@ -18,62 +18,35 @@ type DiagnosticReceiver struct {
 
 func New() *DiagnosticReceiver {
 	return &DiagnosticReceiver{
-		inputChan: make(chan message.Message, 10),
-		done:      make(chan struct{}),
+		inputChan: make(chan message.Message, 100),
 	}
 }
 
-func (d *DiagnosticReceiver) Start() chan string {
-	outputChan := make(chan string, 100)
-	// go d.run(outputChan)
-	return outputChan
-}
-
 func (d *DiagnosticReceiver) Stop() {
-	d.done <- struct{}{}
-}
-
-func (d *DiagnosticReceiver) Close() {
 	close(d.inputChan)
 }
 
-// run starts the processing of the inputChan
-// func (d *DiagnosticReceiver) run(outputChan chan string) {
-// 	for {
-// 		select {
-// 		case <-d.done:o
-// 			break
-// 		case msg := <-d.inputChan:
-// 			outputChan <- string(msg.Content)
-// 		}
-// 	}
-// 	// for msg := range d.inputChan {
-// 	// 	fmt.Println(string(msg.Content))
-// 	// }
-// }
-
 func (d *DiagnosticReceiver) Clear() {
 	fmt.Println("brian: Clear " + string(len(d.inputChan)))
-	for i := 0; i < len(d.inputChan); i++ {
-		select {
-		case <-d.inputChan:
-		default:
-		}
+	l := len(d.inputChan)
+	for i := 0; i < l; i++ {
+		<-d.inputChan
 	}
 }
 
 func (d *DiagnosticReceiver) Next() (line string, ok bool) {
-	// msg := <-d.inputChan
-	// return string(msg.Content), true
 	select {
 	case msg := <-d.inputChan:
-		return string(msg.Content), true
+		return formatMessage(&msg), true
 	default:
 		return "", false
 	}
-
 }
 
 func (d *DiagnosticReceiver) Channel() chan message.Message {
 	return d.inputChan
+}
+
+func formatMessage(m *message.Message) string {
+	return fmt.Sprintf("%s | %s | %s", m.Origin.Source(), m.Origin.LogSource.Config.Type, string(m.Content))
 }

@@ -41,6 +41,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+type contextKey struct {
+	key string
+}
+
+// ConnContextKey key to reference the http connection from the request context
+var ConnContextKey = &contextKey{"http-connection"}
+
 // SetupHandlers adds the specific handlers for /agent endpoints
 func SetupHandlers(r *mux.Router) *mux.Router {
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
@@ -183,75 +190,34 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonStats)
 }
 
-type contextKey struct {
-	key string
-}
-
-var ConnContextKey = &contextKey{"http-conn"}
-
 func streamLogs(w http.ResponseWriter, r *http.Request) {
-
 	log.Info("Got a request for stream logs.")
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		panic("expected http.ResponseWriter to be an http.Flusher")
-	}
 	w.Header().Set("Transfer-Encoding", "chunked")
 
-	conn := r.Context().Value(ConnContextKey).(net.Conn)
+	conn := GetConnection(r)
 
-	// conn, writer, _ := w.(http.Hijacker).Hijack()
+	// Override the default server timeouts so the connection never times out
 	conn.SetDeadline(time.Time{})
 	conn.SetWriteDeadline(time.Time{})
 
-	// cw := httputil.NewChunkedWriter(writer)
-	// log.Info("Got a request for stream logs.")
-	// flusher, ok := writer.(http.Flusher)
-	// if !ok {
-	// 	panic("expected http.ResponseWriter to be an http.Flusher")
-	// }
-	// w.Header().Set("Transfer-Encoding", "chunked")
-
-	defer fmt.Println("Done")
-
 	logDiagnosticReceiver := logs.GetDiagnosticReceiver()
-
-	// Throw away the first message (if there is one) since it was buffered long ago
 	logDiagnosticReceiver.Clear()
-
-	// lineChan := logDiagnosticReceiver.Start()
-	// defer logDiagnosticReceiver.Stop()
-	// for {
-	// 	select {
-	// 	case <-w.(http.CloseNotifier).CloseNotify():
-	// 		return
-	// 	case <-r.Context().Done():
-	// 		return
-	// 	case line := <-lineChan:
-	// 		fmt.Fprintln(w, line)
-	// 	default:
-	// 		flusher.Flush()
-	// 	}
-	// 	// if line, ok := logDiagnosticReceiver.Next(); ok {
-	// 	// 	fmt.Fprintln(w, line)
-	// 	// 	flusher.Flush()
-	// 	// }
-	// }
 
 	for {
 		select {
-		// case <-w.(http.CloseNotifier).CloseNotify():
-		// 	return
+		case <-w.(http.CloseNotifier).CloseNotify():
+			return
 		case <-r.Context().Done():
 			return
 		default:
-			flusher.Flush()
 		}
 		if line, ok := logDiagnosticReceiver.Next(); ok {
 			fmt.Fprintln(w, line)
+		} else {
+			// The buffer will flush on its own most of the time, but when we run out of logs flush so the client is up to date.
+			w.(http.Flusher).Flush()
 		}
 	}
-
 }
 
 func getDogstatsdStats(w http.ResponseWriter, r *http.Request) {
@@ -492,4 +458,8 @@ func max(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func GetConnection(r *http.Request) net.Conn {
+	return r.Context().Value(ConnContextKey).(net.Conn)
 }

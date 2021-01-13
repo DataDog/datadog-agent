@@ -9,17 +9,12 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
-
-// var (
-// 	jsonStatus      bool
-// 	prettyPrintJSON bool
-// 	statusFilePath  string
-// )
 
 func init() {
 	AgentCmd.AddCommand(troubleshootLogsCmd)
@@ -32,9 +27,9 @@ func init() {
 }
 
 var troubleshootLogsCmd = &cobra.Command{
-	Use:   "troubleshootLogs",
-	Short: "TODO",
-	Long:  ``,
+	Use:   "stream-logs",
+	Short: "stream the logs being ",
+	Long:  `Stream the actively ingested logs of a running agent`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 
 		if flagNoColor {
@@ -52,42 +47,17 @@ var troubleshootLogsCmd = &cobra.Command{
 			return err
 		}
 
-		return requestLogTroubleshoot()
+		return connectAndStream()
 	},
 }
 
-// var componentCmd = &cobra.Command{
-// 	Use:   "component",
-// 	Short: "Print the component status",
-// 	Long:  ``,
-// 	RunE: func(cmd *cobra.Command, args []string) error {
-// 		err := common.SetupConfigWithoutSecrets(confFilePath, "")
-// 		if err != nil {
-// 			return fmt.Errorf("unable to set up global agent configuration: %v", err)
-// 		}
-// 		if flagNoColor {
-// 			color.NoColor = true
-// 		}
-
-// 		if len(args) != 1 {
-// 			return fmt.Errorf("a component name must be specified")
-// 		}
-// 		return componentStatus(args[0])
-// 	},
-// }
-
-func requestLogTroubleshoot() error {
-
-	if !prettyPrintJSON && !jsonStatus {
-		fmt.Printf("Getting the status from the agent.\n\n")
-	}
+func connectAndStream() error {
 	ipcAddress, err := config.GetIPCAddress()
 	if err != nil {
 		return err
 	}
-	fmt.Println("https://%v:%v/agent/streamLogs", ipcAddress, config.Datadog.GetInt("cmd_port"))
-	urlstr := fmt.Sprintf("https://%v:%v/agent/streamLogs", ipcAddress, config.Datadog.GetInt("cmd_port"))
 
+	urlstr := fmt.Sprintf("https://%v:%v/agent/streamLogs", ipcAddress, config.Datadog.GetInt("cmd_port"))
 	err = streamRequest(urlstr, func(chunk []byte) {
 		fmt.Print(string(chunk))
 	})
@@ -97,4 +67,21 @@ func requestLogTroubleshoot() error {
 	}
 
 	return nil
+}
+
+func streamRequest(url string, onChunk func([]byte)) error {
+	var e error
+	c := util.GetClient(false) // FIX: get certificates right then make this true
+
+	// Set session token
+	e = util.SetAuthToken()
+	if e != nil {
+		return e
+	}
+
+	e = util.DoGetChunked(c, url, onChunk)
+	if e != nil {
+		fmt.Printf("Could not reach agent: %v \nMake sure the agent is running before requesting the logs and contact support if you continue having issues. \n", e)
+	}
+	return e
 }
