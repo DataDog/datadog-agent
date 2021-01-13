@@ -63,8 +63,11 @@ func TestEventError(t *testing.T) {
 	_, err = parseEvent([]byte("_e{10,10}:title|text"))
 	assert.Error(t, err)
 
-	// zero length
+	// zero length title
 	_, err = parseEvent([]byte("_e{0,0}:a|a"))
+	assert.Error(t, err)
+
+	_, err = parseEvent([]byte("_e{0,4}:text"))
 	assert.Error(t, err)
 
 	// missing title or text length
@@ -96,6 +99,18 @@ func TestEventError(t *testing.T) {
 	assert.Error(t, err)
 
 	_, err = parseEvent([]byte("_e:|text"))
+	assert.Error(t, err)
+
+	// invalid title length
+	_, err = parseEvent([]byte("_e{-123,-987}:"))
+	assert.Error(t, err)
+
+	// invalid text length
+	_, err = parseEvent([]byte("_e{5,-987}:title"))
+	assert.Error(t, err)
+
+	// malformed message
+	_, err = parseEvent([]byte("_e{0001,-9876"))
 	assert.Error(t, err)
 
 	// invalid timestamp
