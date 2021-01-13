@@ -12,5 +12,5 @@ import (
 )
 
 func init() {
-	ClusterAgentCmd.AddCommand(commands.Health(loggerName, confPath, flagNoColor))
+	ClusterAgentCmd.AddCommand(commands.Health(loggerName, &confPath, &flagNoColor))
 }
