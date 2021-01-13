@@ -150,7 +150,6 @@ func (c *NetworkCheck) Run() error {
 	for i := 0; i < 1000; i++ {
 		sendMetric(sender, rowTags)
 	}
-	return nil
 
 	ioByInterface, err := c.net.IOCounters(true)
 	if err != nil {
