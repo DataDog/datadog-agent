@@ -92,6 +92,8 @@ func (t *Tagger) Init() error {
 		return err
 	}
 
+	log.Info("remote tagger initialized successfully")
+
 	go t.run()
 
 	return nil
