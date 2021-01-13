@@ -6,8 +6,6 @@
 package processor
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -47,7 +45,6 @@ func (p *Processor) Start() {
 // this call blocks until inputChan is flushed
 func (p *Processor) Stop() {
 	close(p.inputChan)
-	// close diagnose channel
 	<-p.done
 }
 
@@ -66,7 +63,6 @@ func (p *Processor) run() {
 			select {
 			case p.diagnosticChan <- *msg:
 			default:
-				fmt.Println("brian: miss")
 			}
 
 			// Encode the message to its final format

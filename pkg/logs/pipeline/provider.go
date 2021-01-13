@@ -26,12 +26,12 @@ type Provider interface {
 
 // provider implements providing logic
 type provider struct {
-	numberOfPipelines  int
-	auditor            *auditor.Auditor
+	numberOfPipelines         int
+	auditor                   *auditor.Auditor
 	diagnosticMessageReceiver *diagnostic.MessageReceiver
-	outputChan         chan *message.Message
-	processingRules    []*config.ProcessingRule
-	endpoints          *config.Endpoints
+	outputChan                chan *message.Message
+	processingRules           []*config.ProcessingRule
+	endpoints                 *config.Endpoints
 
 	pipelines            []*Pipeline
 	currentPipelineIndex int32
@@ -41,13 +41,13 @@ type provider struct {
 // NewProvider returns a new Provider
 func NewProvider(numberOfPipelines int, auditor *auditor.Auditor, diagnosticMessageReceiver *diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) Provider {
 	return &provider{
-		numberOfPipelines:   numberOfPipelines,
-		auditor:             auditor,
-		diagnosticMessageReceiver:  diagnosticMessageReceiver,
-		processingRules:     processingRules,
-		endpoints:           endpoints,
-		pipelines:           []*Pipeline{},
-		destinationsContext: destinationsContext,
+		numberOfPipelines:         numberOfPipelines,
+		auditor:                   auditor,
+		diagnosticMessageReceiver: diagnosticMessageReceiver,
+		processingRules:           processingRules,
+		endpoints:                 endpoints,
+		pipelines:                 []*Pipeline{},
+		destinationsContext:       destinationsContext,
 	}
 }
 
