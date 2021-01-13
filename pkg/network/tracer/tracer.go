@@ -359,15 +359,15 @@ func (t *Tracer) populateExpvarStats() error {
 
 // initPerfPolling starts the listening on perf buffer events to grab closed connections
 func (t *Tracer) initPerfPolling(perf *ddebpf.PerfHandler) (*manager.PerfMap, *PerfBatchManager, error) {
-	pm, found := t.m.GetPerfMap(string(probes.TcpCloseEventMap))
+	pm, found := t.m.GetPerfMap(string(probes.ConnCloseEventMap))
 	if !found {
-		return nil, nil, fmt.Errorf("unable to find perf map %s", probes.TcpCloseEventMap)
+		return nil, nil, fmt.Errorf("unable to find perf map %s", probes.ConnCloseEventMap)
 	}
 
-	tcpCloseEventMap, _ := t.getMap(probes.TcpCloseEventMap)
-	tcpCloseMap, _ := t.getMap(probes.TcpCloseBatchMap)
-	numCPUs := int(tcpCloseEventMap.ABI().MaxEntries)
-	batchManager, err := NewPerfBatchManager(tcpCloseMap, t.config.TCPClosedTimeout, numCPUs)
+	connCloseEventMap, _ := t.getMap(probes.ConnCloseEventMap)
+	connCloseMap, _ := t.getMap(probes.ConnCloseBatchMap)
+	numCPUs := int(connCloseEventMap.ABI().MaxEntries)
+	batchManager, err := NewPerfBatchManager(connCloseMap, 30*time.Second, numCPUs)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -724,6 +724,7 @@ func (t *Tracer) getEbpfTelemetry() map[string]int64 {
 	return map[string]int64{
 		"tcp_sent_miscounts":  int64(telemetry.tcp_sent_miscounts),
 		"missed_tcp_close":    int64(telemetry.missed_tcp_close),
+		"missed_udp_close":    int64(telemetry.missed_udp_close),
 		"udp_sends_processed": int64(telemetry.udp_sends_processed),
 		"udp_sends_missed":    int64(telemetry.udp_sends_missed),
 	}

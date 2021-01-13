@@ -37,7 +37,7 @@ func NewManager(closedHandler, httpHandler *ebpf.PerfHandler) *manager.Manager {
 		Maps: []*manager.Map{
 			{Name: string(probes.ConnMap)},
 			{Name: string(probes.TcpStatsMap)},
-			{Name: string(probes.TcpCloseBatchMap)},
+			{Name: string(probes.ConnCloseBatchMap)},
 			{Name: "udp_recv_sock"},
 			{Name: string(probes.PortBindingsMap)},
 			{Name: string(probes.UdpPortBindingsMap)},
@@ -51,7 +51,7 @@ func NewManager(closedHandler, httpHandler *ebpf.PerfHandler) *manager.Manager {
 		},
 		PerfMaps: []*manager.PerfMap{
 			{
-				Map: manager.Map{Name: string(probes.TcpCloseEventMap)},
+				Map: manager.Map{Name: string(probes.ConnCloseEventMap)},
 				PerfMapOptions: manager.PerfMapOptions{
 					PerfRingBufferSize: 8 * os.Getpagesize(),
 					Watermark:          1,
@@ -86,6 +86,7 @@ func NewManager(closedHandler, httpHandler *ebpf.PerfHandler) *manager.Manager {
 			{Section: string(probes.InetCskAcceptReturn), KProbeMaxActive: maxActive},
 			{Section: string(probes.TCPv4DestroySock)},
 			{Section: string(probes.UDPDestroySock)},
+			{Section: string(probes.UDPDestroySockReturn), KProbeMaxActive: maxActive},
 			{Section: string(probes.SysBind), SyscallFuncName: "bind"},
 			{Section: string(probes.SysBindX64), SyscallFuncName: "bind"},
 			{Section: string(probes.TraceSysBindEnter)},
