@@ -115,12 +115,43 @@ func (n defaultNetworkStats) NetstatTCPExtCounters() (map[string]int64, error) {
 	return netstatTCPExtCounters()
 }
 
+func sendMetric(sender aggregator.Sender, tags []string) {
+	if !checkContainsTag(tags, "mytag1") {
+		log.Errorf("missing tag %s in %v", "mytag1", tags)
+	}
+	if !checkContainsTag(tags, "mytag2") {
+		log.Errorf("missing tag %s in %v", "mytag2", tags)
+	}
+	if !checkContainsTag(tags, "mytag3") {
+		log.Errorf("missing tag %s in %v", "mytag3", tags)
+	}
+
+	sender.Gauge("metric.name", 1.0, "", tags)
+}
+
+func checkContainsTag(tags []string, tagToFind string) bool {
+	for _, tag := range tags {
+		if tag == tagToFind {
+			return true
+		}
+	}
+	log.Warnf("missing tag %s in %v", tagToFind, tags)
+	return false
+}
+
 // Run executes the check
 func (c *NetworkCheck) Run() error {
 	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
 		return err
 	}
+
+	rowTags := []string{"mytag1", "mytag2", "mytag3"}
+	rowTags = append(rowTags, "abc")
+	for i := 0; i < 10; i++ {
+		sendMetric(sender, rowTags)
+	}
+	return nil
 
 	ioByInterface, err := c.net.IOCounters(true)
 	if err != nil {
