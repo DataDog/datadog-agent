@@ -353,14 +353,27 @@ def build_object_files(ctx, bundle_ebpf=False):
     ctx.run("which clang")
     print("found clang")
 
+    os_info = os.uname()
     centos_headers_dir = "/usr/src/kernels"
     debian_headers_dir = "/usr/src"
+    linux_headers = []
     if os.path.isdir(centos_headers_dir):
-        linux_headers = [os.path.join(centos_headers_dir, d) for d in os.listdir(centos_headers_dir)]
+        for d in os.listdir(centos_headers_dir):
+            if os_info.release in d:
+                linux_headers.append(os.path.join(centos_headers_dir, d))
     else:
-        linux_headers = [
-            os.path.join(debian_headers_dir, d) for d in os.listdir(debian_headers_dir) if d.startswith("linux-")
-        ]
+        for d in os.listdir(debian_headers_dir):
+            if d.startswith("linux-") and os_info.release in d:
+                linux_headers.append(os.path.join(debian_headers_dir, d))
+
+    # fallback to non-filtered version for Docker where `uname -r` is not correct
+    if len(linux_headers) == 0:
+        if os.path.isdir(centos_headers_dir):
+            linux_headers = [os.path.join(centos_headers_dir, d) for d in os.listdir(centos_headers_dir)]
+        else:
+            linux_headers = [
+                os.path.join(debian_headers_dir, d) for d in os.listdir(debian_headers_dir) if d.startswith("linux-")
+            ]
 
     bpf_dir = os.path.join(".", "pkg", "ebpf")
     build_dir = os.path.join(bpf_dir, "bytecode", "build")
