@@ -218,12 +218,8 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 			// override it here to ensure that the config won't be dropped at validation.
 			if cfg.Type == logsConfig.FileType && (config.Provider == names.Kubernetes || config.Provider == names.Docker) {
 				// cfg.Type is not overwritten as tailing a file from a Docker or Kubernetes AD configuration
-				// is explicitly supported (other combination may be supported later)
+				// is explicitly supported (other combinations may be supported later)
 				cfg.Identifier = service.Identifier
-			} else if config.Provider == names.Kubernetes && (cfg.Type == "" || containerType(cfg.Type)) {
-				// Containers coming from the k8s provider are tailed based on a service and not a source,
-				// hence the configuration for tailing a container is ignored here
-				continue
 			} else {
 				cfg.Type = service.Type
 				cfg.Identifier = service.Identifier // used for matching a source with a service
