@@ -143,8 +143,8 @@ struct bpf_map_def SEC("maps/pending_bind") pending_bind = {
 };
 
 /*
- * Used to store the connection tuple for a udp_destroy_sock call, for final processing
- * during kretprobe/udp_destroy_sock.
+ * Used to store the index of the closed udp connection in the closed connection
+ * batch.
  *
  * Key is pid/tid and value is the index of the connection in a conn_closed batch
  */
@@ -1101,9 +1101,13 @@ int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
     conn_tuple_t tup = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
     if (read_conn_tuple(&tup, sk, pid_tgid, CONN_TYPE_UDP)) {
-        // have to put this in a map here to process in the kretprobe
-        // to clean up the connection. Clean up cannot be done here
-        // since udp_destroy_sock will flush any remaining frames
+        // have to put the udp connection in the batch here
+        // without deleting it from the conn_stats map. udp_destroy_sock
+        // will flush any pending frames, so we have to wait
+        // to delete from conn_stats map in kretprobe/udp_destroy_sock.
+        //
+        // we could have also done the full cleanup in the kretprobe,
+        // but we overrun the ebpf stack size limits
         __u16 pos = pending_udp_cleanup_conn(&tup);
         log_debug("kprobe/udp_destroy_sock: batch pos=%d\n", pos);
         if (pos < CONN_CLOSED_BATCH_SIZE) {
