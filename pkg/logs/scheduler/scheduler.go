@@ -238,14 +238,6 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 	return sources, nil
 }
 
-func containerType(t string) bool {
-	switch t {
-	case containers.RuntimeNameDocker, containers.RuntimeNameContainerd, containers.RuntimeNameCRIO:
-		return true
-	}
-	return false
-}
-
 // toService creates a new service for an integrationConfig.
 func (s *Scheduler) toService(config integration.Config) (*service.Service, error) {
 	provider, identifier, err := s.parseEntity(config.Entity)
