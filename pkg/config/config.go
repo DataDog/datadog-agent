@@ -714,6 +714,7 @@ func InitConfig(config Config) {
 	config.SetKnown("process_config.expvar_port")
 	config.SetKnown("process_config.log_file")
 	config.SetKnown("process_config.profiling.enabled")
+	config.SetKnown("process_config.remote_tagger")
 
 	// System probe
 	config.SetKnown("system_probe_config.enabled")
