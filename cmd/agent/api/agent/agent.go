@@ -13,8 +13,10 @@ import (
 	"fmt"
 	"html"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"sort"
+	"time"
 
 	"github.com/gorilla/mux"
 
@@ -181,13 +183,34 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonStats)
 }
 
+type contextKey struct {
+	key string
+}
+
+var ConnContextKey = &contextKey{"http-conn"}
+
 func streamLogs(w http.ResponseWriter, r *http.Request) {
+
 	log.Info("Got a request for stream logs.")
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		panic("expected http.ResponseWriter to be an http.Flusher")
 	}
 	w.Header().Set("Transfer-Encoding", "chunked")
+
+	conn := r.Context().Value(ConnContextKey).(net.Conn)
+
+	// conn, writer, _ := w.(http.Hijacker).Hijack()
+	conn.SetDeadline(time.Time{})
+	conn.SetWriteDeadline(time.Time{})
+
+	// cw := httputil.NewChunkedWriter(writer)
+	// log.Info("Got a request for stream logs.")
+	// flusher, ok := writer.(http.Flusher)
+	// if !ok {
+	// 	panic("expected http.ResponseWriter to be an http.Flusher")
+	// }
+	// w.Header().Set("Transfer-Encoding", "chunked")
 
 	defer fmt.Println("Done")
 
@@ -217,8 +240,8 @@ func streamLogs(w http.ResponseWriter, r *http.Request) {
 
 	for {
 		select {
-		case <-w.(http.CloseNotifier).CloseNotify():
-			return
+		// case <-w.(http.CloseNotifier).CloseNotify():
+		// 	return
 		case <-r.Context().Done():
 			return
 		default:

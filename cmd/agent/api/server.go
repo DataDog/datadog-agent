@@ -130,6 +130,9 @@ func StartServer() error {
 			AdditionalDepth: 5, // Use a stack depth of 5 on top of the default one to get a relevant filename in the stdlib
 		}, "Error from the agent http API server: ", 0), // log errors to seelog,
 		WriteTimeout: 30 * time.Second,
+		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
+			return context.WithValue(ctx, agent.ConnContextKey, c)
+		},
 	}
 
 	tlsListener := tls.NewListener(listener, srv.TLSConfig)
