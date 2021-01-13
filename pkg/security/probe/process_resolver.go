@@ -19,22 +19,13 @@ import (
 
 	"github.com/DataDog/datadog-go/statsd"
 	lib "github.com/DataDog/ebpf"
-	"github.com/DataDog/ebpf/manager"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/gopsutil/process"
 )
-
-var snapshotProbeIDs = []manager.ProbeIdentificationPair{
-	{
-		UID:     probes.SecurityAgentUID,
-		Section: "kretprobe/get_task_exe_file",
-	},
-}
 
 const (
 	doForkListInput uint64 = iota
@@ -68,21 +59,15 @@ func (i *InodeInfo) UnmarshalBinary(data []byte) (int, error) {
 // ProcessResolver resolved process context
 type ProcessResolver struct {
 	sync.RWMutex
-	probe          *Probe
-	resolvers      *Resolvers
-	client         *statsd.Client
-	snapshotProbes []*manager.Probe
-	inodeInfoMap   *lib.Map
-	procCacheMap   *lib.Map
-	pidCookieMap   *lib.Map
+	probe        *Probe
+	resolvers    *Resolvers
+	client       *statsd.Client
+	inodeInfoMap *lib.Map
+	procCacheMap *lib.Map
+	pidCookieMap *lib.Map
 
 	entryCache map[uint32]*ProcessCacheEntry
 	cacheSize  int64
-}
-
-// GetProbes returns the probes required by the snapshot
-func (p *ProcessResolver) GetProbes() []*manager.Probe {
-	return p.snapshotProbes
 }
 
 // AddEntry adds an entry to the local cache and returns the newly created entry
@@ -379,15 +364,6 @@ func (p *ProcessResolver) Get(pid uint32) *ProcessCacheEntry {
 
 // Start starts the resolver
 func (p *ProcessResolver) Start() error {
-	// initializes the list of snapshot probes
-	for _, id := range snapshotProbeIDs {
-		probe, ok := p.probe.manager.GetProbe(id)
-		if !ok {
-			return errors.Errorf("couldn't find probe %s", id)
-		}
-		p.snapshotProbes = append(p.snapshotProbes, probe)
-	}
-
 	var err error
 	if p.inodeInfoMap, err = p.probe.Map("inode_info_cache"); err != nil {
 		return err

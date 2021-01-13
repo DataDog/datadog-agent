@@ -76,52 +76,11 @@ func (r *Resolvers) Start() error {
 
 // Snapshot collects data on the current state of the system to populate user space and kernel space caches.
 func (r *Resolvers) Snapshot() error {
-	// start the snapshot probes
-	err := r.startSnapshotProbes()
-	if err != nil {
-		return err
-	}
-
-	// Deregister probes
-	defer r.stopSnapshotProbes()
-
 	if err := retry.Do(r.snapshot, retry.Delay(0), retry.Attempts(5)); err != nil {
 		return errors.Wrap(err, "unable to snapshot processes")
 	}
 
 	return nil
-}
-
-// startSnapshotProbes starts the probes required for the snapshot to complete
-func (r *Resolvers) startSnapshotProbes() error {
-	// We only have process probes for now
-	for _, sp := range r.ProcessResolver.GetProbes() {
-		// enable and start the probe
-		sp.Enabled = true
-		if err := sp.Init(r.probe.manager); err != nil {
-			return errors.Wrapf(err, "couldn't init probe %s", sp.GetIdentificationPair())
-		}
-		if err := sp.Attach(); err != nil {
-			return errors.Wrapf(err, "couldn't start probe %s", sp.GetIdentificationPair())
-		}
-		log.Debugf("probe %s registered", sp.GetIdentificationPair())
-	}
-	return nil
-}
-
-// stopSnapshotProbes stops the snapshot probes
-func (r *Resolvers) stopSnapshotProbes() {
-	// We only have process probes for now
-	for _, sp := range r.ProcessResolver.GetProbes() {
-		// Stop snapshot probes
-		if err := sp.Stop(); err != nil {
-			log.Debugf("couldn't stop probe %s: %v", sp.GetIdentificationPair(), err)
-		}
-		// the probes selectors mechanism of the manager will re-enable this probe if needed
-		sp.Enabled = false
-		log.Debugf("probe %s stopped", sp.GetIdentificationPair())
-	}
-	return
 }
 
 // snapshot internal version of Snapshot. Calls the relevant resolvers to sync their caches.
