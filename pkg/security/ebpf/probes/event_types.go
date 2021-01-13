@@ -206,6 +206,9 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "openat"}, EntryAndExit, true),
 		},
 		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
+			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "openat2"}, EntryAndExit),
+		},
+		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "open_by_handle_at"}, EntryAndExit, true),
 		},
 	},
