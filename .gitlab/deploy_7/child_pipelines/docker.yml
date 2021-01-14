@@ -1,5 +1,5 @@
 ---
-# Child pipeline to run dockerhub tag release jobs
+# Child pipeline to run Agent 7 docker release jobs
 
 include:
   - /.gitlab/docker_common/tag_job_templates.yml
