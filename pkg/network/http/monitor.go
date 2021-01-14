@@ -12,6 +12,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/ebpf/manager"
 )
 
@@ -36,7 +37,18 @@ type Monitor struct {
 }
 
 // NewMonitor returns a new Monitor instance
-func NewMonitor(mgr *manager.Manager, h *ddebpf.PerfHandler, closeFilterFn func()) (*Monitor, error) {
+// func NewMonitor(mgr *manager.Manager, h *ddebpf.PerfHandler, closeFilterFn func()) (*Monitor, error) {
+func NewMonitor(procRoot string, mgr *manager.Manager, h *ddebpf.PerfHandler) (*Monitor, error) {
+	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{Section: string(probes.SocketHTTPFilter)})
+	if filter == nil {
+		return nil, fmt.Errorf("error retrieving socket filter")
+	}
+
+	closeFilterFn, err := filterpkg.HeadlessSocketFilter(procRoot, filter)
+	if err != nil {
+		return nil, fmt.Errorf("error enabling HTTP traffic inspection: %s", err)
+	}
+
 	batchMap, _, err := mgr.GetMap(string(probes.HttpBatchesMap))
 	if err != nil {
 		return nil, err

@@ -892,19 +892,7 @@ func newHTTPMonitor(supported bool, c *config.Config, m *manager.Manager, h *dde
 		return nil
 	}
 
-	filter, _ := m.GetProbe(manager.ProbeIdentificationPair{Section: string(probes.SocketHTTPFilter)})
-	if filter == nil {
-		log.Errorf("could not enable http monitoring: error retrieving socket filter")
-		return nil
-	}
-
-	closeFilterFn, err := network.HeadlessSocketFilter(c.ProcRoot, filter)
-	if err != nil {
-		log.Errorf("could not enable http monitoring: error enabling HTTP traffic inspection: %s", err)
-		return nil
-	}
-
-	monitor, err := http.NewMonitor(m, h, closeFilterFn)
+	monitor, err := http.NewMonitor(c.ProcRoot, m, h)
 	if err != nil {
 		log.Errorf("could not enable http monitoring: %s", err)
 		return nil

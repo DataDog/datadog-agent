@@ -1,6 +1,6 @@
 // +build linux_bpf
 
-package network
+package filter
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -13,12 +13,12 @@ import (
 // TODO: After the proof-of-concept we might want to replace the SOCKET_FILTER program by a TC classifier
 func HeadlessSocketFilter(rootPath string, filter *manager.Probe) (closeFn func(), err error) {
 	var (
-		packetSrc *packetSource
+		packetSrc *PacketSource
 		srcErr    error
 	)
 
 	err = util.WithRootNS(rootPath, func() error {
-		packetSrc, srcErr = newPacketSource(filter)
+		packetSrc, srcErr = NewPacketSource(filter)
 		return srcErr
 	})
 	if err != nil {
