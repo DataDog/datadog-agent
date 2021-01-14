@@ -783,7 +783,29 @@ func TestGetFDCountLocalFS(t *testing.T) {
 		fdCount := probe.getFDCount(pathForPID)
 		expProc, err := process.NewProcess(pid)
 		assert.NoError(t, err)
-		// skip the ones that have permission issues
+		// test both with and without permission issues
+		if expFdCount, err := expProc.NumFDs(); err == nil {
+			assert.Equal(t, expFdCount, fdCount)
+		} else {
+			assert.Equal(t, int32(-1), fdCount)
+		}
+	}
+}
+
+func TestGetFDCountLocalFSImproved(t *testing.T) {
+	maySkipLocalTest(t)
+	probe := NewProcessProbe()
+	defer probe.Close()
+
+	pids, err := probe.getActivePIDs()
+	assert.NoError(t, err)
+
+	for _, pid := range pids {
+		pathForPID := filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid)))
+		fdCount := probe.getFDCountImproved(pathForPID)
+		expProc, err := process.NewProcess(pid)
+		assert.NoError(t, err)
+		// test both with and without permission issues
 		if expFdCount, err := expProc.NumFDs(); err == nil {
 			assert.Equal(t, expFdCount, fdCount)
 		} else {

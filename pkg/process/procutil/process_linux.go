@@ -105,16 +105,16 @@ func (p *Probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, err
 		memInfoEx := p.parseStatm(pathForPID)
 
 		statsByPID[pid] = &Stats{
-			CreateTime:  statInfo.createTime,      // /proc/[pid]/stat
-			Status:      statusInfo.status,        // /proc/[pid]/status
-			Nice:        statInfo.nice,            // /proc/[pid]/stat
-			OpenFdCount: p.getFDCount(pathForPID), // /proc/[pid]/fd, requires permission checks
-			CPUTime:     statInfo.cpuStat,         // /proc/[pid]/stat
-			MemInfo:     statusInfo.memInfo,       // /proc/[pid]/status
-			MemInfoEx:   memInfoEx,                // /proc/[pid]/statm
-			CtxSwitches: statusInfo.ctxSwitches,   // /proc/[pid]/status
-			NumThreads:  statusInfo.numThreads,    // /proc/[pid]/status
-			IOStat:      ioInfo,                   // /proc/[pid]/io, requires permission checks
+			CreateTime:  statInfo.createTime,              // /proc/[pid]/stat
+			Status:      statusInfo.status,                // /proc/[pid]/status
+			Nice:        statInfo.nice,                    // /proc/[pid]/stat
+			OpenFdCount: p.getFDCountImproved(pathForPID), // /proc/[pid]/fd, requires permission checks
+			CPUTime:     statInfo.cpuStat,                 // /proc/[pid]/stat
+			MemInfo:     statusInfo.memInfo,               // /proc/[pid]/status
+			MemInfoEx:   memInfoEx,                        // /proc/[pid]/statm
+			CtxSwitches: statusInfo.ctxSwitches,           // /proc/[pid]/status
+			NumThreads:  statusInfo.numThreads,            // /proc/[pid]/status
+			IOStat:      ioInfo,                           // /proc/[pid]/io, requires permission checks
 		}
 	}
 	return statsByPID, nil
@@ -158,16 +158,16 @@ func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 			Exe:     p.getLinkWithAuthCheck(pathForPID, "exe"), // /proc/[pid]/exe, requires permission checks
 			NsPid:   statusInfo.nspid,                          // /proc/[pid]/status
 			Stats: &Stats{
-				CreateTime:  statInfo.createTime,      // /proc/[pid]/stat
-				Status:      statusInfo.status,        // /proc/[pid]/status
-				Nice:        statInfo.nice,            // /proc/[pid]/stat
-				OpenFdCount: p.getFDCount(pathForPID), // /proc/[pid]/fd, requires permission checks
-				CPUTime:     statInfo.cpuStat,         // /proc/[pid]/stat
-				MemInfo:     statusInfo.memInfo,       // /proc/[pid]/status
-				MemInfoEx:   memInfoEx,                // /proc/[pid]/statm
-				CtxSwitches: statusInfo.ctxSwitches,   // /proc/[pid]/status
-				NumThreads:  statusInfo.numThreads,    // /proc/[pid]/status
-				IOStat:      ioInfo,                   // /proc/[pid]/io, requires permission checks
+				CreateTime:  statInfo.createTime,              // /proc/[pid]/stat
+				Status:      statusInfo.status,                // /proc/[pid]/status
+				Nice:        statInfo.nice,                    // /proc/[pid]/stat
+				OpenFdCount: p.getFDCountImproved(pathForPID), // /proc/[pid]/fd, requires permission checks
+				CPUTime:     statInfo.cpuStat,                 // /proc/[pid]/stat
+				MemInfo:     statusInfo.memInfo,               // /proc/[pid]/status
+				MemInfoEx:   memInfoEx,                        // /proc/[pid]/statm
+				CtxSwitches: statusInfo.ctxSwitches,           // /proc/[pid]/status
+				NumThreads:  statusInfo.numThreads,            // /proc/[pid]/status
+				IOStat:      ioInfo,                           // /proc/[pid]/io, requires permission checks
 			},
 		}
 	}
@@ -581,6 +581,40 @@ func (p *Probe) getFDCount(pidPath string) int32 {
 		return -1
 	}
 	return int32(len(names))
+}
+
+// getFDCountImproved gets num_fds from /proc/(pid)/fd WITHOUT using the native Readdirnames(),
+// this will skip the step of returning all file names(we don't need) in a dir which takes a lot of memory
+func (p *Probe) getFDCountImproved(pidPath string) int32 {
+	path := filepath.Join(pidPath, "fd")
+
+	if err := p.ensurePathReadable(path); err != nil {
+		return -1
+	}
+
+	d, err := os.Open(path)
+	if err != nil {
+		return -1
+	}
+	defer d.Close()
+
+	b := make([]byte, 8192)
+	count := 0
+
+	for i := 0; ; i++ {
+		n, err := syscall.ReadDirent(int(d.Fd()), b)
+		if err != nil {
+			return -1
+		}
+		if n <= 0 {
+			break
+		}
+
+		_, numDirs := countDirent(b[:n])
+		count += numDirs
+	}
+
+	return int32(count)
 }
 
 // ensurePathReadable ensures that the current user is able to read the path before opening it.
