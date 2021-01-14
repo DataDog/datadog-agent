@@ -50,7 +50,7 @@ func (c *Config) ChooseSyscallProbe(tracepoint string, indirectProbe string, fal
 	}
 
 	if id, err := manager.GetTracepointID(category, tpName); c.EnableTracepoints && err == nil && id != -1 {
-		log.Info("Using a tracepoint to probe bind syscall")
+		log.Infof("Using a tracepoint to probe %s syscall", syscall)
 		return tracepoint, nil
 	}
 
