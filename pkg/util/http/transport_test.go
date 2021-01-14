@@ -50,6 +50,7 @@ func TestNoProxy(t *testing.T) {
 	r1, _ := http.NewRequest("GET", "http://test_no_proxy.com/api/v1?arg=21", nil)
 	r2, _ := http.NewRequest("GET", "http://test_http.com/api/v1?arg=21", nil)
 	r3, _ := http.NewRequest("GET", "https://test_https.com/api/v1?arg=21", nil)
+	r4, _ := http.NewRequest("GET", "http://sub.test_no_proxy.com/api/v1?arg=21", nil)
 
 	proxies := &config.Proxy{
 		HTTP:    "https://user:pass@proxy.com:3128",
@@ -69,6 +70,56 @@ func TestNoProxy(t *testing.T) {
 	proxyURL, err = proxyFunc(r3)
 	assert.Nil(t, err)
 	assert.Equal(t, "https://user:pass@proxy_https.com:3128", proxyURL.String())
+
+	// Validate the old behavior (when no_proxy_nonexact_match is false)
+	proxyURL, err = proxyFunc(r4)
+	assert.Nil(t, err)
+	assert.Equal(t, "https://user:pass@proxy.com:3128", proxyURL.String())
+}
+
+func TestNoProxyNonexactMatch(t *testing.T) {
+	r1, _ := http.NewRequest("GET", "http://test_no_proxy.com/api/v1?arg=21", nil)
+	r2, _ := http.NewRequest("GET", "http://test_http.com/api/v1?arg=21", nil)
+	r3, _ := http.NewRequest("GET", "https://test_https.com/api/v1?arg=21", nil)
+	r4, _ := http.NewRequest("GET", "http://sub.test_no_proxy.com/api/v1?arg=21", nil)
+	r5, _ := http.NewRequest("GET", "http://no_proxy2.com/api/v1?arg=21", nil)
+	r6, _ := http.NewRequest("GET", "http://sub.no_proxy2.com/api/v1?arg=21", nil)
+
+	config.Datadog.Set("no_proxy_nonexact_match", true)
+
+	// Testing some nonexact matching cases as documented here: https://github.com/golang/net/blob/master/http/httpproxy/proxy.go#L38
+	proxies := &config.Proxy{
+		HTTP:    "https://user:pass@proxy.com:3128",
+		HTTPS:   "https://user:pass@proxy_https.com:3128",
+		NoProxy: []string{"test_no_proxy.com", "test.org", ".no_proxy2.com"},
+	}
+	proxyFunc := GetProxyTransportFunc(proxies)
+
+	proxyURL, err := proxyFunc(r1)
+	assert.Nil(t, err)
+	assert.Nil(t, proxyURL)
+
+	proxyURL, err = proxyFunc(r2)
+	assert.Nil(t, err)
+	assert.Equal(t, "https://user:pass@proxy.com:3128", proxyURL.String())
+
+	proxyURL, err = proxyFunc(r3)
+	assert.Nil(t, err)
+	assert.Equal(t, "https://user:pass@proxy_https.com:3128", proxyURL.String())
+
+	proxyURL, err = proxyFunc(r4)
+	assert.Nil(t, err)
+	assert.Nil(t, proxyURL)
+
+	proxyURL, err = proxyFunc(r5)
+	assert.Nil(t, err)
+	assert.Equal(t, "https://user:pass@proxy.com:3128", proxyURL.String())
+
+	proxyURL, err = proxyFunc(r6)
+	assert.Nil(t, err)
+	assert.Nil(t, proxyURL)
+
+	config.Datadog.Set("no_proxy_nonexact_match", false)
 }
 
 func TestErrorParse(t *testing.T) {

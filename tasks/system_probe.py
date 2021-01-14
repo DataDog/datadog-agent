@@ -39,6 +39,8 @@ KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-system-pr
 TEST_PACKAGES_LIST = ["./pkg/ebpf/...", "./pkg/network/..."]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
 
+is_windows = sys.platform == "win32"
+
 
 @task
 def build(
@@ -50,7 +52,7 @@ def build(
     python_runtimes='3',
     with_bcc=True,
     go_mod="vendor",
-    windows=False,
+    windows=is_windows,
     arch="x64",
     embedded_path=DATADOG_AGENT_EMBEDDED_PATH,
     bundle_ebpf=False,
@@ -351,14 +353,27 @@ def build_object_files(ctx, bundle_ebpf=False):
     ctx.run("which clang")
     print("found clang")
 
+    os_info = os.uname()
     centos_headers_dir = "/usr/src/kernels"
     debian_headers_dir = "/usr/src"
+    linux_headers = []
     if os.path.isdir(centos_headers_dir):
-        linux_headers = [os.path.join(centos_headers_dir, d) for d in os.listdir(centos_headers_dir)]
+        for d in os.listdir(centos_headers_dir):
+            if os_info.release in d:
+                linux_headers.append(os.path.join(centos_headers_dir, d))
     else:
-        linux_headers = [
-            os.path.join(debian_headers_dir, d) for d in os.listdir(debian_headers_dir) if d.startswith("linux-")
-        ]
+        for d in os.listdir(debian_headers_dir):
+            if d.startswith("linux-") and os_info.release in d:
+                linux_headers.append(os.path.join(debian_headers_dir, d))
+
+    # fallback to non-filtered version for Docker where `uname -r` is not correct
+    if len(linux_headers) == 0:
+        if os.path.isdir(centos_headers_dir):
+            linux_headers = [os.path.join(centos_headers_dir, d) for d in os.listdir(centos_headers_dir)]
+        else:
+            linux_headers = [
+                os.path.join(debian_headers_dir, d) for d in os.listdir(debian_headers_dir) if d.startswith("linux-")
+            ]
 
     bpf_dir = os.path.join(".", "pkg", "ebpf")
     build_dir = os.path.join(bpf_dir, "bytecode", "build")
@@ -458,7 +473,6 @@ def build_object_files(ctx, bundle_ebpf=False):
 
         bindata_files.extend([obj_file, debug_obj_file])
 
-    # Build security runtime programs
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
     security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
     security_c_file = os.path.join(security_agent_prebuilt_dir, "probe.c")

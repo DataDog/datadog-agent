@@ -3,7 +3,6 @@
 package tracer
 
 import (
-	"encoding/binary"
 	"fmt"
 	"net"
 	"strconv"
@@ -97,16 +96,16 @@ func connTupleFromConn(conn net.Conn, pid uint32) (*ConnTuple, error) {
 		dbytes := dhost.To4()
 		ct.metadata |= C.CONN_V4
 		ct.saddr_h = 0
-		ct.saddr_l = C.__u64(binary.LittleEndian.Uint32(sbytes))
+		ct.saddr_l = C.__u64(nativeEndian.Uint32(sbytes))
 		ct.daddr_h = 0
-		ct.daddr_l = C.__u64(binary.LittleEndian.Uint32(dbytes))
+		ct.daddr_l = C.__u64(nativeEndian.Uint32(dbytes))
 	} else if sbytes := shost.To16(); sbytes != nil {
 		dbytes := dhost.To16()
 		ct.metadata |= C.CONN_V6
-		ct.saddr_h = C.__u64(binary.LittleEndian.Uint64(sbytes[:8]))
-		ct.saddr_l = C.__u64(binary.LittleEndian.Uint64(sbytes[8:]))
-		ct.daddr_h = C.__u64(binary.LittleEndian.Uint64(dbytes[:8]))
-		ct.daddr_l = C.__u64(binary.LittleEndian.Uint64(dbytes[8:]))
+		ct.saddr_h = C.__u64(nativeEndian.Uint64(sbytes[:8]))
+		ct.saddr_l = C.__u64(nativeEndian.Uint64(sbytes[8:]))
+		ct.daddr_h = C.__u64(nativeEndian.Uint64(dbytes[:8]))
+		ct.daddr_l = C.__u64(nativeEndian.Uint64(dbytes[8:]))
 	} else {
 		return nil, fmt.Errorf("invalid source/dest address")
 	}
@@ -133,15 +132,15 @@ func newConnTuple(pid int, netns uint64, saddr, daddr util.Address, sport, dport
 	if len(sbytes) == 4 {
 		ct.metadata |= C.CONN_V4
 		ct.saddr_h = 0
-		ct.saddr_l = C.__u64(binary.LittleEndian.Uint32(sbytes))
+		ct.saddr_l = C.__u64(nativeEndian.Uint32(sbytes))
 		ct.daddr_h = 0
-		ct.daddr_l = C.__u64(binary.LittleEndian.Uint32(dbytes))
+		ct.daddr_l = C.__u64(nativeEndian.Uint32(dbytes))
 	} else if len(sbytes) == 16 {
 		ct.metadata |= C.CONN_V6
-		ct.saddr_h = C.__u64(binary.LittleEndian.Uint64(sbytes[:8]))
-		ct.saddr_l = C.__u64(binary.LittleEndian.Uint64(sbytes[8:]))
-		ct.daddr_h = C.__u64(binary.LittleEndian.Uint64(dbytes[:8]))
-		ct.daddr_l = C.__u64(binary.LittleEndian.Uint64(dbytes[8:]))
+		ct.saddr_h = C.__u64(nativeEndian.Uint64(sbytes[:8]))
+		ct.saddr_l = C.__u64(nativeEndian.Uint64(sbytes[8:]))
+		ct.daddr_h = C.__u64(nativeEndian.Uint64(dbytes[:8]))
+		ct.daddr_l = C.__u64(nativeEndian.Uint64(dbytes[8:]))
 	} else {
 		return nil
 	}
@@ -158,6 +157,10 @@ func newConnTuple(pid int, netns uint64, saddr, daddr util.Address, sport, dport
 
 func (t *ConnTuple) isTCP() bool {
 	return connType(uint(t.metadata)) == network.TCP
+}
+
+func (t *ConnTuple) isUDP() bool {
+	return connType(uint(t.metadata)) == network.UDP
 }
 
 func (t *ConnTuple) isIPv4() bool {

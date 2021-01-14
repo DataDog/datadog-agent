@@ -202,7 +202,6 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 			if ratelimiter := a.Receiver.RateLimiter; ratelimiter.Active() {
 				rate := ratelimiter.RealRate()
 				sampler.SetPreSampleRate(root, rate)
-				sampler.AddGlobalRate(root, rate)
 			}
 			if p.ContainerTags != "" {
 				traceutil.SetMeta(root, tagContainersTags, p.ContainerTags)
@@ -294,7 +293,7 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang string) {
 				Distributions:    make(map[string]stats.Distribution),
 				ErrDistributions: make(map[string]stats.Distribution),
 			}
-			aggr := stats.NewAggregation(out.Env, b.Resource, b.Service, "", statusCode, in.Version)
+			aggr := stats.NewAggregation(out.Env, b.Resource, b.Service, "", statusCode, in.Version, false)
 			tagset := aggr.ToTagSet()
 			key := stats.GrainKey(b.Name, stats.HITS, aggr)
 			newb.Counts[key] = stats.Count{
@@ -369,10 +368,7 @@ func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace) (events []*pb.Span,
 		return nil, false
 	}
 
-	sampled, rate := a.runSamplers(pt, hasPriority)
-	if sampled {
-		sampler.AddGlobalRate(pt.Root, rate)
-	}
+	sampled := a.runSamplers(pt, hasPriority)
 
 	events, numExtracted := a.EventProcessor.Process(pt.Root, pt.Trace)
 
@@ -384,7 +380,7 @@ func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace) (events []*pb.Span,
 
 // runSamplers runs all the agent's samplers on pt and returns the sampling decision
 // along with the sampling rate.
-func (a *Agent) runSamplers(pt ProcessedTrace, hasPriority bool) (bool, float64) {
+func (a *Agent) runSamplers(pt ProcessedTrace, hasPriority bool) bool {
 	if hasPriority {
 		return a.samplePriorityTrace(pt)
 	}
@@ -394,21 +390,19 @@ func (a *Agent) runSamplers(pt ProcessedTrace, hasPriority bool) (bool, float64)
 // samplePriorityTrace samples traces with priority set on them. PrioritySampler and
 // ErrorSampler are run in parallel. The ExceptionSampler catches traces with rare top-level
 // or measured spans that are not caught by PrioritySampler and ErrorSampler.
-func (a *Agent) samplePriorityTrace(pt ProcessedTrace) (sampled bool, rate float64) {
-	sampledPriority, ratePriority := a.PrioritySampler.Add(pt)
+func (a *Agent) samplePriorityTrace(pt ProcessedTrace) bool {
+	if a.PrioritySampler.Add(pt) {
+		return true
+	}
 	if traceContainsError(pt.Trace) {
-		sampledError, rateError := a.ErrorsScoreSampler.Add(pt)
-		return sampledError || sampledPriority, sampler.CombineRates(ratePriority, rateError)
+		return a.ErrorsScoreSampler.Add(pt)
 	}
-	if sampled := a.ExceptionSampler.Add(pt.Env, pt.Root, pt.Trace); sampled {
-		return sampled, 1
-	}
-	return sampledPriority, ratePriority
+	return a.ExceptionSampler.Add(pt.Env, pt.Root, pt.Trace)
 }
 
 // sampleNoPriorityTrace samples traces with no priority set on them. The traces
 // get sampled by either the score sampler or the error sampler if they have an error.
-func (a *Agent) sampleNoPriorityTrace(pt ProcessedTrace) (sampled bool, rate float64) {
+func (a *Agent) sampleNoPriorityTrace(pt ProcessedTrace) bool {
 	if traceContainsError(pt.Trace) {
 		return a.ErrorsScoreSampler.Add(pt)
 	}

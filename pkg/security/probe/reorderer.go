@@ -50,6 +50,7 @@ type reOrdererList struct {
 }
 
 type reOrdererNode struct {
+	cpu       uint64
 	timestamp uint64
 	data      []byte
 	next      *reOrdererNode
@@ -57,10 +58,11 @@ type reOrdererNode struct {
 	nextFree  *reOrdererNode
 }
 
-func (l *reOrdererList) enqueue(data []byte, tm uint64) {
+func (l *reOrdererList) enqueue(cpu uint64, data []byte, tm uint64) {
 	node := l.pool.alloc()
 	node.timestamp = tm
 	node.data = data
+	node.cpu = cpu
 
 	// if no data consider the node as a placeholder
 	if len(data) == 0 {
@@ -102,11 +104,11 @@ func (l *reOrdererList) enqueue(data []byte, tm uint64) {
 	l.head = node
 }
 
-func (l *reOrdererList) dequeue(handler func(data []byte)) {
+func (l *reOrdererList) dequeue(handler func(cpu uint64, data []byte)) {
 	curr := l.head
 	for curr != nil && l.size > l.windowSize {
 		if len(curr.data) != 0 {
-			handler(curr.data)
+			handler(curr.cpu, curr.data)
 			l.size--
 		} else {
 			l.size -= l.placeholderSize
@@ -129,18 +131,18 @@ func (l *reOrdererList) dequeue(handler func(data []byte)) {
 // ReOrdererOpts options to pass when creating a new instance of ReOrderer
 type ReOrdererOpts struct {
 	QueueSize  uint64        // size of the chan where the perf data are pushed
-	WindowSize uint64        // number of element to keep for orderering
+	WindowSize uint64        // number of element to keep for ordering
 	Delay      time.Duration // delay to wait before handling an element outside of the window in millisecond
 	Rate       time.Duration // delay between two time based iterations
 }
 
 // ReOrderer defines an event re-orderer
 type ReOrderer struct {
-	queue           chan []byte
-	handler         func(data []byte)
-	list            *reOrdererList
-	timestampGetter func(data []byte) (uint64, error)
-	opts            ReOrdererOpts
+	queue       chan []byte
+	handler     func(cpu uint64, data []byte)
+	list        *reOrdererList
+	extractInfo func(data []byte) (uint64, uint64, error) // cpu, timestamp
+	opts        ReOrdererOpts
 }
 
 // Start event handler loop
@@ -148,14 +150,14 @@ func (r *ReOrderer) Start(ctx context.Context) {
 	ticker := time.NewTicker(r.opts.Rate)
 	defer ticker.Stop()
 
-	var lastTm, tm uint64
+	var lastTm, tm, cpu uint64
 	var err error
 
 	for {
 		select {
 		case data := <-r.queue:
 			if len(data) > 0 {
-				if tm, err = r.timestampGetter(data); err != nil {
+				if cpu, tm, err = r.extractInfo(data); err != nil {
 					continue
 				}
 			} else {
@@ -167,7 +169,7 @@ func (r *ReOrderer) Start(ctx context.Context) {
 			}
 			lastTm = tm
 
-			r.list.enqueue(data, tm)
+			r.list.enqueue(cpu, data, tm)
 			r.list.dequeue(r.handler)
 		case <-ticker.C:
 			if tail := r.list.tail; tail == nil {
@@ -191,7 +193,7 @@ func (r *ReOrderer) HandleEvent(CPU int, data []byte, perfMap *manager.PerfMap, 
 }
 
 // NewReOrderer returns a new ReOrderer
-func NewReOrderer(handler func([]byte), tsg func(data []byte) (uint64, error), opts ReOrdererOpts) *ReOrderer {
+func NewReOrderer(handler func(cpu uint64, data []byte), extractInfo func(data []byte) (uint64, uint64, error), opts ReOrdererOpts) *ReOrderer {
 	return &ReOrderer{
 		queue:   make(chan []byte, opts.QueueSize),
 		handler: handler,
@@ -200,7 +202,7 @@ func NewReOrderer(handler func([]byte), tsg func(data []byte) (uint64, error), o
 			windowSize:      opts.WindowSize,
 			pool:            &reOrdererNodePool{},
 		},
-		timestampGetter: tsg,
-		opts:            opts,
+		extractInfo: extractInfo,
+		opts:        opts,
 	}
 }

@@ -1,0 +1,45 @@
+---
+.if_not_version_7: &if_not_version_7
+  if: $RELEASE_VERSION_7 == ""
+
+.if_deploy: &if_deploy
+  if: $DEPLOY_AGENT == "true"
+
+agent_android_apk:
+  rules:
+    - <<: *if_not_version_7
+      when: never
+    - <<: *if_deploy
+      when: never
+    - when: on_success
+  stage: package_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/android_builder:$DATADOG_AGENT_BUILDERS
+  tags: ["runner:main", "size:large"]
+  variables:
+    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+  before_script:
+    - echo running android before_script
+    - cd $SRC_PATH
+    - python3 -m pip install -r requirements.txt
+    # HACK: empty the build directory cache (that can come from previous runs)
+    #       to not have remainders of previous runs, which can make our deps bootstrapping logic fail.
+    # TODO: remove this once we switch to k8s runners, they won't have this problem
+    - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -depth  # -delete implies -depth
+    - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -delete || true  # Allow failure, we can't remove parent folders of datadog-agent
+    - inv -e deps --android
+    # Some Android license has changed, we have to accept the new version.
+    # But on top of that, there is a bug in sdkmanager not updating correctly
+    # the existing license, so, we have to manually accept the new license.
+    # https://issuetracker.google.com/issues/123054726
+    # The real fix will be to change the builders
+    - echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > "$ANDROID_HOME/licenses/android-sdk-license"
+  script:
+    # remove artifacts from previous pipelines that may come from the cache
+    - rm -rf $OMNIBUS_PACKAGE_DIR/*
+    - inv -e android.build --major-version 7
+    - mkdir -p $OMNIBUS_PACKAGE_DIR
+    - cp ./bin/agent/ddagent-*-unsigned.apk $OMNIBUS_PACKAGE_DIR
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR

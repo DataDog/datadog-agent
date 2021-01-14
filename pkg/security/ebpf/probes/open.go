@@ -19,14 +19,6 @@ var openProbes = []*manager.Probe{
 	},
 	{
 		UID:     SecurityAgentUID,
-		Section: "kretprobe/ovl_d_real",
-	},
-	{
-		UID:     SecurityAgentUID,
-		Section: "kretprobe/ovl_dentry_upper",
-	},
-	{
-		UID:     SecurityAgentUID,
 		Section: "kprobe/do_dentry_open",
 	},
 }
@@ -52,5 +44,9 @@ func getOpenProbes() []*manager.Probe {
 		UID:             SecurityAgentUID,
 		SyscallFuncName: "openat",
 	}, EntryAndExit, true)...)
+	openProbes = append(openProbes, ExpandSyscallProbes(&manager.Probe{
+		UID:             SecurityAgentUID,
+		SyscallFuncName: "openat2",
+	}, EntryAndExit)...)
 	return openProbes
 }

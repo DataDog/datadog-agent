@@ -13,6 +13,28 @@ struct _tracepoint_raw_syscalls_sys_enter
   unsigned long args[6];
 };
 
+struct bpf_map_def SEC("maps/concurrent_syscalls") concurrent_syscalls = {
+    .type = BPF_MAP_TYPE_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(long),
+    .max_entries = 1,
+    .pinning = 0,
+    .namespace = "",
+};
+
+#define CONCURRENT_SYSCALLS_COUNTER 0
+
+struct _tracepoint_raw_syscalls_sys_exit
+{
+    unsigned short common_type;
+    unsigned char common_flags;
+    unsigned char common_preempt_count;
+    int common_pid;
+
+    long id;
+    long ret;
+};
+
 struct process_syscall_t {
     char comm[TASK_COMM_LEN];
     int pid;
@@ -44,7 +66,7 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
     bpf_probe_read(&syscall.id, sizeof(syscall.id), &args->id);
     bpf_get_current_comm(&syscall.comm, sizeof(syscall.comm));
 
-    struct bpf_map_def *noisy_processes = select_buffer(&noisy_processes_fb, &noisy_processes_bb);
+    struct bpf_map_def *noisy_processes = select_buffer(&noisy_processes_fb, &noisy_processes_bb, SYSCALL_MONITOR_KEY);
     if (noisy_processes == NULL)
         return 0;
 
@@ -55,6 +77,28 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
     }
 
     __sync_fetch_and_add(count, 1);
+
+    u32 key = CONCURRENT_SYSCALLS_COUNTER;
+    long *concurrent_syscalls_counter = bpf_map_lookup_elem(&concurrent_syscalls, &key);
+    if (concurrent_syscalls_counter == NULL)
+        return 0;
+
+    __sync_fetch_and_add(concurrent_syscalls_counter, 1);
+
+    return 0;
+}
+
+SEC("tracepoint/raw_syscalls/sys_exit")
+int sys_exit(struct _tracepoint_raw_syscalls_sys_exit *args) {
+    u32 key = CONCURRENT_SYSCALLS_COUNTER;
+    long *concurrent_syscalls_counter = bpf_map_lookup_elem(&concurrent_syscalls, &key);
+    if (concurrent_syscalls_counter == NULL)
+        return 0;
+
+    __sync_fetch_and_add(concurrent_syscalls_counter, -1);
+    if (*concurrent_syscalls_counter < 0) {
+        __sync_fetch_and_add(concurrent_syscalls_counter, 1);
+    }
 
     return 0;
 }
@@ -104,7 +148,7 @@ int sched_process_exec(struct _tracepoint_sched_sched_process_exec *ctx) {
     struct exec_path key = {};
     bpf_probe_read_str(&key.filename, MAX_PATH_LEN, filename);
 
-    struct bpf_map_def *exec_count = select_buffer(&exec_count_fb, &exec_count_bb);
+    struct bpf_map_def *exec_count = select_buffer(&exec_count_fb, &exec_count_bb, SYSCALL_MONITOR_KEY);
     if (exec_count == NULL)
         return 0;
 

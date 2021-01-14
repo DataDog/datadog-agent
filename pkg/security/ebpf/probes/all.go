@@ -38,6 +38,10 @@ func AllProbes() []*manager.Probe {
 		},
 		&manager.Probe{
 			UID:     SecurityAgentUID,
+			Section: "tracepoint/raw_syscalls/sys_exit",
+		},
+		&manager.Probe{
+			UID:     SecurityAgentUID,
 			Section: "tracepoint/sched/sched_process_exec",
 		},
 		// Snapshot probe
@@ -57,6 +61,7 @@ func AllMaps() []*manager.Map {
 		{Name: "filter_policy"},
 		{Name: "inode_discarders"},
 		{Name: "pid_discarders"},
+		{Name: "discarder_revisions"},
 		// Dentry resolver table
 		{Name: "pathnames"},
 		// Snapshot table
@@ -67,8 +72,6 @@ func AllMaps() []*manager.Map {
 		// Exec tables
 		{Name: "proc_cache"},
 		{Name: "pid_cache"},
-		// Mount tables
-		{Name: "mount_id_offset"},
 		// Syscall monitor tables
 		{Name: "buffer_selector"},
 		{Name: "noisy_processes_fb"},
@@ -86,5 +89,12 @@ func AllPerfMaps() []*manager.PerfMap {
 		{
 			Map: manager.Map{Name: "events"},
 		},
+	}
+}
+
+// GetPerfBufferStatisticsMaps returns the list of maps used to monitor the performances of each perf buffers
+func GetPerfBufferStatisticsMaps() map[string]string {
+	return map[string]string{
+		"events": "events_stats",
 	}
 }

@@ -118,6 +118,88 @@ func (suite *YamlConfigTestSuite) TestExtractOrchestratorEndpointsPrecedence() {
 	}
 }
 
+func (suite *YamlConfigTestSuite) TestNoEnvConfigArgsScrubbing() {
+
+	orchestratorCfg := NewDefaultOrchestratorConfig()
+	err := orchestratorCfg.LoadYamlConfig("")
+	suite.NoError(err)
+
+	cases := []struct {
+		cmdline       []string
+		parsedCmdline []string
+	}{
+		{
+			[]string{"spidly", "--token=123", "consul", "123", "--dd_api_key=1234"},
+			[]string{"spidly", "--token=123", "consul", "123", "--dd_api_key=********"},
+		},
+	}
+
+	for i := range cases {
+		actual, _ := orchestratorCfg.Scrubber.ScrubSimpleCommand(cases[i].cmdline)
+		suite.Equal(cases[i].parsedCmdline, actual)
+	}
+}
+
+func (suite *YamlConfigTestSuite) TestOnlyEnvConfigArgsScrubbing() {
+
+	suite.config.Set("orchestrator_explorer.custom_sensitive_words", `["token","consul"]`)
+
+	orchestratorCfg := NewDefaultOrchestratorConfig()
+	err := orchestratorCfg.LoadYamlConfig("")
+	suite.NoError(err)
+
+	cases := []struct {
+		cmdline       []string
+		parsedCmdline []string
+	}{
+		{
+			[]string{"spidly", "--gitlab_token=123", "consul_thing", "123", "--dd_api_key=1234"},
+			[]string{"spidly", "--gitlab_token=********", "consul_thing", "********", "--dd_api_key=********"},
+		},
+	}
+
+	for i := range cases {
+		actual, _ := orchestratorCfg.Scrubber.ScrubSimpleCommand(cases[i].cmdline)
+		suite.Equal(cases[i].parsedCmdline, actual)
+	}
+}
+
+func (suite *YamlConfigTestSuite) TestOnlyEnvContainsConfigArgsScrubbing() {
+
+	suite.config.Set("orchestrator_explorer.custom_sensitive_words", `["token","consul"]`)
+
+	orchestratorCfg := NewDefaultOrchestratorConfig()
+	err := orchestratorCfg.LoadYamlConfig("")
+	suite.NoError(err)
+
+	cases := []struct {
+		word     string
+		expected bool
+	}{
+		{
+			"spidly",
+			false,
+		},
+		{
+			"gitlab_token",
+			true,
+		},
+		{
+			"GITLAB_TOKEn",
+			true,
+		},
+		{
+			"consul_word",
+			true,
+		},
+	}
+
+	for i := range cases {
+		actual := orchestratorCfg.Scrubber.ContainsSensitiveWord(cases[i].word)
+		suite.Equal(cases[i].expected, actual)
+	}
+}
+
 func TestYamlConfigTestSuite(t *testing.T) {
 	suite.Run(t, new(YamlConfigTestSuite))
 }

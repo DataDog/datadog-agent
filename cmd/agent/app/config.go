@@ -66,7 +66,7 @@ func setupConfig() error {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
 
-	err = config.SetupLogger(loggerName, config.GetEnv("DD_LOG_LEVEL", "off"), "", "", false, true, false)
+	err = config.SetupLogger(loggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
 	if err != nil {
 		fmt.Printf("Cannot setup logger, exiting: %v\n", err)
 		return err

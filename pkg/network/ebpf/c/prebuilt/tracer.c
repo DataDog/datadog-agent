@@ -130,7 +130,7 @@ struct bpf_map_def SEC("maps/pending_sockets") pending_sockets = {
 
 /* Similar to pending_sockets this is used for capturing state between the call and return of the bind() system call.
  *
- * Keys: the PId returned by bpf_get_current_pid_tgid()
+ * Keys: the PID returned by bpf_get_current_pid_tgid()
  * Values: the args of the bind call  being instrumented.
  */
 struct bpf_map_def SEC("maps/pending_bind") pending_bind = {
@@ -1103,6 +1103,8 @@ static __always_inline int sys_exit_bind(__s64 ret) {
         log_debug("sys_exit_bind: was not a UDP bind, will not process\n");
         return 0;
     }
+
+    bpf_map_delete_elem(&pending_bind, &tid);
 
     if (ret != 0) {
         return 0;
