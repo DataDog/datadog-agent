@@ -28,5 +28,6 @@ type APICollectorClient interface {
 	GetServices() ([]coreV1.Service, error)
 	GetIngresses() ([]extensionsV1B.Ingress, error)
 	GetConfigMaps() ([]coreV1.ConfigMap, error)
+	GetNamespaces() ([]coreV1.Namespace, error)
 	GetPersistentVolumes() ([]coreV1.PersistentVolume, error)
 }

@@ -4,9 +4,10 @@ package topologycollectors
 
 import (
 	"fmt"
+
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 )
 
 // PodCollector implements the ClusterTopologyCollector interface.
@@ -56,30 +57,41 @@ func (pc *PodCollector) CollectorFunction() error {
 		// creates and publishes StackState pod component with relations
 		component = pc.podToStackStateComponent(pod)
 		pc.ComponentChan <- component
+
 		// pod could not be scheduled for some reason
 		if pod.Spec.NodeName != "" {
 			pc.RelationChan <- pc.podToNodeStackStateRelation(pod)
 		}
 
+		managed := false
 		// check to see if this pod is "managed" by a kubernetes controller
 		for _, ref := range pod.OwnerReferences {
 			switch kind := ref.Kind; kind {
 			case DaemonSet:
 				controllerExternalID = pc.buildDaemonSetExternalID(pod.Namespace, ref.Name)
 				pc.RelationChan <- pc.controllerWorkloadToPodStackStateRelation(controllerExternalID, component.ExternalID)
+				managed = true
 			case Deployment:
 				controllerExternalID = pc.buildDeploymentExternalID(pod.Namespace, ref.Name)
 				pc.RelationChan <- pc.controllerWorkloadToPodStackStateRelation(controllerExternalID, component.ExternalID)
+				managed = true
 			case ReplicaSet:
 				controllerExternalID = pc.buildReplicaSetExternalID(pod.Namespace, ref.Name)
 				pc.RelationChan <- pc.controllerWorkloadToPodStackStateRelation(controllerExternalID, component.ExternalID)
+				managed = true
 			case StatefulSet:
 				controllerExternalID = pc.buildStatefulSetExternalID(pod.Namespace, ref.Name)
 				pc.RelationChan <- pc.controllerWorkloadToPodStackStateRelation(controllerExternalID, component.ExternalID)
+				managed = true
 			case Job:
 				controllerExternalID = pc.buildJobExternalID(pod.Namespace, ref.Name)
 				pc.RelationChan <- pc.controllerWorkloadToPodStackStateRelation(controllerExternalID, component.ExternalID)
+				managed = true
 			}
+		}
+
+		if !managed {
+			pc.RelationChan <- pc.namespaceToPodStackStateRelation(pc.buildNamespaceExternalID(pod.Namespace), component.ExternalID)
 		}
 
 		// map the volume components and relation to this pod
@@ -114,7 +126,7 @@ func (pc *PodCollector) CollectorFunction() error {
 		// send the containers to be correlated
 		if len(pod.Status.ContainerStatuses) > 0 {
 			containerCorrelation := &ContainerCorrelation{
-				Pod:               ContainerPod{ExternalID: component.ExternalID, Name: pod.Name, Labels: pod.Labels, PodIP: pod.Status.PodIP, Namespace: pod.Namespace, NodeName: pod.Spec.NodeName, Phase: string(pod.Status.Phase)},
+				Pod:               ContainerPod{ExternalID: component.ExternalID, Name: pod.Name, Labels: pc.podTags(pod), PodIP: pod.Status.PodIP, Namespace: pod.Namespace, NodeName: pod.Spec.NodeName, Phase: string(pod.Status.Phase)},
 				Containers:        pod.Spec.Containers,
 				ContainerStatuses: pod.Status.ContainerStatuses,
 			}
@@ -132,12 +144,12 @@ func (pc *PodCollector) CollectorFunction() error {
 // Checks to see if the volume is a persistent volume
 func (pc *PodCollector) isPersistentVolume(volume v1.Volume) bool {
 	if volume.EmptyDir != nil || volume.Secret != nil || volume.ConfigMap != nil || volume.DownwardAPI != nil ||
-		volume.Projected != nil {
+		volume.Projected != nil || volume.HostPath != nil {
 		return false
 	}
 
 	// persistent volume types
-	if volume.HostPath != nil || volume.GCEPersistentDisk != nil || volume.AWSElasticBlockStore != nil ||
+	if volume.GCEPersistentDisk != nil || volume.AWSElasticBlockStore != nil ||
 		volume.NFS != nil || volume.ISCSI != nil || volume.Glusterfs != nil ||
 		volume.RBD != nil || volume.FlexVolume != nil || volume.Cinder != nil || volume.CephFS != nil ||
 		volume.Flocker != nil || volume.DownwardAPI != nil || volume.FC != nil || volume.AzureFile != nil ||
@@ -176,11 +188,7 @@ func (pc *PodCollector) podToStackStateComponent(pod v1.Pod) *topology.Component
 	podStatus.InitContainerStatuses = make([]v1.ContainerStatus, 0)
 	podStatus.ContainerStatuses = make([]v1.ContainerStatus, 0)
 
-	tags := pc.initTags(pod.ObjectMeta)
-	// add service account as a label to filter on
-	if pod.Spec.ServiceAccountName != "" {
-		tags["service-account"] = pod.Spec.ServiceAccountName
-	}
+	tags := pc.podTags(pod)
 
 	component := &topology.Component{
 		ExternalID: podExternalID,
@@ -202,6 +210,16 @@ func (pc *PodCollector) podToStackStateComponent(pod v1.Pod) *topology.Component
 	log.Tracef("Created StackState pod component %s: %v", podExternalID, component.JSONString())
 
 	return component
+}
+
+// podTags creates the tags for a pod
+func (pc *PodCollector) podTags(pod v1.Pod) map[string]string {
+	tags := pc.initTags(pod.ObjectMeta)
+	// add service account as a label to filter on
+	if pod.Spec.ServiceAccountName != "" {
+		tags["service-account"] = pod.Spec.ServiceAccountName
+	}
+	return tags
 }
 
 // Creates a StackState relation from a Kubernetes / OpenShift Pod to Node relation
@@ -240,6 +258,17 @@ func (pc *PodCollector) podToConfigMapStackStateRelation(podExternalID, configMa
 	return relation
 }
 
+// Creates a StackState relation from a Kubernetes / OpenShift Pod to Namespace relation
+func (pc *PodCollector) namespaceToPodStackStateRelation(namespaceExternalID, podExternalID string) *topology.Relation {
+	log.Tracef("Mapping kubernetes namespace to pod relation: %s -> %s", namespaceExternalID, podExternalID)
+
+	relation := pc.CreateRelation(namespaceExternalID, podExternalID, "encloses")
+
+	log.Tracef("Created StackState namespace -> pod relation %s->%s", relation.SourceID, relation.TargetID)
+
+	return relation
+}
+
 // Creates a StackState relation from a Kubernetes / OpenShift Pod to ConfigMap variable relation
 func (pc *PodCollector) podToConfigMapVarStackStateRelation(podExternalID, configMapExternalID string) *topology.Relation {
 	log.Tracef("Mapping kubernetes pod to config map var relation: %s -> %s", podExternalID, configMapExternalID)
@@ -260,6 +289,9 @@ func (pc *PodCollector) volumeToStackStateComponent(pod v1.Pod, volume v1.Volume
 
 	identifiers := make([]string, 0)
 	if volume.EmptyDir != nil {
+		identifiers = append(identifiers, fmt.Sprintf("urn:/%s:%s:volume:%s:%s", pc.GetInstance().URL, pc.GetInstance().Type, pod.Spec.NodeName, volume.Name))
+	}
+	if volume.HostPath != nil {
 		identifiers = append(identifiers, fmt.Sprintf("urn:/%s:%s:volume:%s:%s", pc.GetInstance().URL, pc.GetInstance().Type, pod.Spec.NodeName, volume.Name))
 	}
 	if volume.Secret != nil {

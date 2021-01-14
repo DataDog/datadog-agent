@@ -9,9 +9,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"errors"
-	// [sts]
-	featuresconfig "github.com/StackVista/stackstate-agent/pkg/features/config"
-	interpreterconfig "github.com/StackVista/stackstate-agent/pkg/trace/interpreter/config"
+	interpreterconfig "github.com/StackVista/stackstate-agent/pkg/trace/interpreter/config" //sts
 	// /[sts]
 	"net"
 	"net/http"
@@ -124,9 +122,6 @@ type AgentConfig struct {
 
 	// InterpreterConfig contains span interpreter config. [sts]
 	InterpreterConfig *interpreterconfig.Config
-
-	// Features [sts]
-	FeaturesConfig featuresconfig.FeaturesConfig
 }
 
 // New returns a configuration with the default values.
@@ -168,8 +163,6 @@ func New() *AgentConfig {
 
 		// [sts] interpreter config
 		InterpreterConfig: interpreterconfig.DefaultInterpreterConfig(),
-
-		DDAgentBin: defaultDDAgentBin,
 	}
 }
 

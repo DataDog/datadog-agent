@@ -15,7 +15,7 @@ const ServiceInstanceTypeName = "service-instance"
 
 // SourceInterpreter provides the interface for the different source interpreters
 type SourceInterpreter interface {
-	Interpret(span *pb.Span) *pb.Span
+	Interpret(span []*pb.Span) []*pb.Span
 }
 
 // TypeInterpreter provides the interface for the different type interpreters

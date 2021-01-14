@@ -36,7 +36,7 @@
             "type": "go"
         },
         "github.com/gordonklaus/ineffassign": {
-            "version": "master",
+            "version": "e36bfde3bb78d229b1564c1d34b292ba39bbb542",
             "type": "go"
         },
         "github.com/client9/misspell/cmd/misspell": {

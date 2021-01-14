@@ -22,6 +22,16 @@ func (c *APIClient) GetConfigMaps() ([]coreV1.ConfigMap, error) {
 	return cmList.Items, nil
 }
 
+// GetNamespaces() retrieves all the ConfigMaps in the Kubernetes / OpenShift cluster across all namespaces.
+func (c *APIClient) GetNamespaces() ([]coreV1.Namespace, error) {
+	cmList, err := c.Cl.CoreV1().Namespaces().List(metaV1.ListOptions{})
+	if err != nil {
+		return []coreV1.Namespace{}, err
+	}
+
+	return cmList.Items, nil
+}
+
 // GetPersistentVolumes() retrieves all the PersistentVolumes in the Kubernetes / OpenShift cluster across all namespaces.
 func (c *APIClient) GetPersistentVolumes() ([]coreV1.PersistentVolume, error) {
 	pvList, err := c.Cl.CoreV1().PersistentVolumes().List(metaV1.ListOptions{})

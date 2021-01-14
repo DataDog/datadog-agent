@@ -9,6 +9,7 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
+	interpreterconfig "github.com/StackVista/stackstate-agent/pkg/trace/interpreter/config"
 	"net/url"
 	"regexp"
 	"strings"
@@ -248,6 +249,8 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		}
 	}
 
+	c.InterpreterConfig = readInterpreterConfigYaml()
+
 	// undocumented
 	if config.Datadog.IsSet("apm_config.max_cpu_percent") {
 		c.MaxCPU = config.Datadog.GetFloat64("apm_config.max_cpu_percent") / 100
@@ -366,6 +369,20 @@ func (c *AgentConfig) addReplaceRule(tag, pattern, repl string) {
 		Re:      re,
 		Repl:    repl,
 	})
+}
+
+func readInterpreterConfigYaml() *interpreterconfig.Config {
+	ini := interpreterconfig.Config{}
+	conf := interpreterconfig.DefaultInterpreterConfig()
+
+	err := config.Datadog.UnmarshalKey("apm_config.span_interpreter", &ini)
+	if err == nil {
+		if ini.ServiceIdentifiers != nil {
+			conf.ServiceIdentifiers = ini.ServiceIdentifiers
+		}
+	}
+
+	return conf
 }
 
 // compileReplaceRules compiles the regular expressions found in the replace rules.

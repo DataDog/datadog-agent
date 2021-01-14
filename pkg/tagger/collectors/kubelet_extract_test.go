@@ -242,6 +242,7 @@ func TestParsePods(t *testing.T) {
 				Entity: dockerEntityID,
 				LowCardTags: []string{
 					"kube_namespace:default",
+					"kube_cluster_name:test-cluster",
 					"kube_container_name:dd-agent",
 					"kube_daemon_set:dd-agent-rc",
 					"image_tag:latest5",

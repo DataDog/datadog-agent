@@ -1,5 +1,91 @@
 # StackState Agent v2 releases
 
+## 2.10.0 (???)
+
+**Bugfix**
+- Integrations:
+  - Agent Integrations are not tagged with Check instance tags [(STAC-11453)](https://stackstate.atlassian.net/browse/STAC-11453)
+
+## 2.9.0 (2020-12-18)
+
+**Features**
+
+- DynaTrace Topology Integration:
+  - Create the topology in StackState from Dynatrace smartscape topology [(STAC-10499)](https://stackstate.atlassian.net/browse/STAC-10499)
+- Added support for integrations to send events that can be linked to topology in StackState using Event Context [(STAC-10660)](https://stackstate.atlassian.net/browse/STAC-10660)
+- ServiceNow Integration:
+  - ServiceNow Change Request are monitored in StackState with all updates to the Change Request state reflected as external events in StackState, such that potential failures can be related to a change in ServiceNow [(STAC-10665)](https://stackstate.atlassian.net/browse/STAC-10665)
+  - Added support for filtering ServiceNow CI's using a custom `sysparm_query` [(STAC-11357)](https://stackstate.atlassian.net/browse/STAC-11357)
+  - Support for custom cmdb_ci field that acts as Configuration Item identifier [(STAC-11517)](https://stackstate.atlassian.net/browse/STAC-11517)
+- Integrations:
+  - Added local persistent state that can be used by integrations to persist a JSON object per check instance to disk [(STAC-11296)](https://stackstate.atlassian.net/browse/STAC-11296)
+  - Support dynamic identifier building from check configuration using `identifier_mappings` [(STAC-11144)](https://stackstate.atlassian.net/browse/STAC-11144)
+- Kubernetes Integration:
+  - Map Kubernetes events to Kubernetes components in StackState as events [(STAC-11322)](https://stackstate.atlassian.net/browse/STAC-11322)
+  - Add extra topology component for ExternalName K8s services, that can merge with the actual service in use [(STAC-11523)](https://stackstate.atlassian.net/browse/STAC-11523)
+  - Add namespace as components [(STAC-11326)](https://stackstate.atlassian.net/browse/STAC-11326) and create relations to Agent for Kubernetes different resource types(Stateful, DaemonSet and etc) [(STAC-11387)](https://stackstate.atlassian.net/browse/STAC-11387)
+
+**Improvements**
+
+- ServiceNow Integration:
+  - Added support for batch queries. This can be set with new parameter `batch_size` in check configuration file [(STAC-10855)](https://stackstate.atlassian.net/browse/STAC-10855)
+- Integrations:
+  - Kubernetes, Kubelet, Kubernetes State and OpenMetrics integrations are monitored by StackState [(STAC-11453)](https://stackstate.atlassian.net/browse/STAC-11453)
+  - Check API supports auto snapshots when setting `with_snapshots` to True in the TopologyInstance [(STAC-10885)](https://stackstate.atlassian.net/browse/STAC-10885)
+  - Sanitize events and topology data in the base check, encoding unicode to string, before propagating data upstream [(STAC-11298)](https://stackstate.atlassian.net/browse/STAC-11298)
+  - Added functionality to the Identifiers utility to provide lower-cased identifiers for all StackState-related identifiers [(STAC-11541)](https://stackstate.atlassian.net/browse/STAC-11541)
+- Trace agent:
+  - Interpret Traefik traces so that the Traefik component is not the parent of a service-instance [(STAC-10847)](https://stackstate.atlassian.net/browse/STAC-10847)
+
+**Bugfix**
+
+- VSphere Integration:
+  - Reconnect on an authentication session timeout [(STAC-11097)](https://stackstate.atlassian.net/browse/STAC-11097)
+  - Metric collection for components in Vsphere are now limited to the configured `config.vpxd.stats.maxQueryMetrics` value [(STAC-11313)](https://stackstate.atlassian.net/browse/STAC-11313)
+- Integrations:
+  - Fixed python2 utf-8 string encoding in data produced by all integrations [(STAC-11294)](https://stackstate.atlassian.net/browse/STAC-11294)
+  - Fixed spurious updates of Agent Integrations components in StackState [(STAC-11453)](https://stackstate.atlassian.net/browse/STAC-11453)
+  - Fixed a memory leak in the integrations caused by `yaml.safe_load` when loading large objects [(STAC-11363)](https://stackstate.atlassian.net/browse/STAC-11363)
+- Nagios Integration:
+  - Fixes service name not visible in check details [(STAC-11119)](https://stackstate.atlassian.net/browse/STAC-11119)
+- Remove reference of `datadog` in the log for core `ntp` check [(STAC-11017)](https://stackstate.atlassian.net/browse/STAC-11017)
+- Network Tracer:
+  - Fix loopback address detection [(STAC-8617)](https://stackstate.atlassian.net/browse/STAC-8617)
+  - Treat inability to start network tracing as a breaking error [(STAC-11445)](https://stackstate.atlassian.net/browse/STAC-11445)
+- Kubernetes Integration:
+  - Make HostPath volumes be treated as volumes rather than persistent volumes [(STAC-11515)](https://stackstate.atlassian.net/browse/STAC-11515)
+
+## 2.8.0 (2020-09-27)
+
+**Features**
+
+- Nagios integration: adds support for Nagios ITRS OP5 [(STAC-8598)](https://stackstate.atlassian.net/browse/STAC-8598)
+- SAP integration: support tags, domain and environment coming from instance config [(STAC-10659)](https://stackstate.atlassian.net/browse/STAC-10659)
+- Zabbix integration: support for maintenance mode [(STAC-10430)](https://stackstate.atlassian.net/browse/STAC-10430)
+- SAP integration: Simplify and remove querying SAPHostAgent (Dennis Loos - CTAC)
+- Agent integrations [(STAC-9816)](https://stackstate.atlassian.net/browse/STAC-9816)
+  - Adds the AgentIntegrationInstance which is a type of TopologyInstance that is synchronized by the Agent StackPack.
+  - Allows mapping streams and health checks onto Agent Integration components.
+  - Publish Agent Integration components for all running integrations in an agent on which the service checks produced by the integration is mapped and monitored.
+  - Added the utility function that allow you to create identifiers in the format that is used in StackState for merging topology.
+- Ensure that cluster name tag is present when running on kubernetes [(STAC-10046)](https://stackstate.atlassian.net/browse/STAC-10046)
+
+**Bugfix**
+
+- Nagios integration: adds missing data to events generated from Nagios log [(STAC-10614)](https://stackstate.atlassian.net/browse/STAC-10614)
+
+## 2.7.0 (2020-07-27)
+
+**Features**
+
+- Adds OpenMetrics integration [(STAC-9940)](https://stackstate.atlassian.net/browse/STAC-9940)
+- ServiceNow reports and filters certain resource types and relations on the basis of configuration defined. Identifiers added for merging with other integrations. ServiceNow Integration reports all resource types by default. [(STAC-9512)](https://stackstate.atlassian.net/browse/STAC-9512)
+- Migrated Nagios Integration to Agent V2. Nagios check gathers topology and metrics from your Nagios instance. [(STAC-8556)](https://stackstate.atlassian.net/browse/STAC-8556)
+
+**Bugfix**
+
+- vSphere integration should continue even if metadata is not present or throws an exception. [(STAC-9373)](https://stackstate.atlassian.net/browse/STAC-9373)
+
 ## 2.6.0 (2020-07-02)
 
 **Features**

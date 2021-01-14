@@ -40,13 +40,19 @@ func (rsc *ReplicaSetCollector) CollectorFunction() error {
 		component := rsc.replicaSetToStackStateComponent(rs)
 		rsc.ComponentChan <- component
 
+		controlled := false
 		// check to see if this pod is "controlled" by a deployment
 		for _, ref := range rs.OwnerReferences {
 			switch kind := ref.Kind; kind {
 			case Deployment:
 				dmExternalID := rsc.buildDeploymentExternalID(rs.Namespace, ref.Name)
 				rsc.RelationChan <- rsc.deploymentToReplicaSetStackStateRelation(dmExternalID, component.ExternalID)
+				controlled = true
 			}
+		}
+
+		if !controlled {
+			rsc.RelationChan <- rsc.namespaceToReplicaSetStackStateRelation(rsc.buildNamespaceExternalID(rs.Namespace), component.ExternalID)
 		}
 
 	}
@@ -81,13 +87,24 @@ func (rsc *ReplicaSetCollector) replicaSetToStackStateComponent(replicaSet v1.Re
 	return component
 }
 
-// Creates a StackState relation from a Kubernetes / OpenShift Controller Workload to Pod relation
+// Creates a StackState relation from a Kubernetes / OpenShift Deployment to ReplicaSet relation
 func (rsc *ReplicaSetCollector) deploymentToReplicaSetStackStateRelation(deploymentExternalID, replicaSetExternalID string) *topology.Relation {
 	log.Tracef("Mapping kubernetes deployment to replica set relation: %s -> %s", deploymentExternalID, replicaSetExternalID)
 
 	relation := rsc.CreateRelation(deploymentExternalID, replicaSetExternalID, "controls")
 
 	log.Tracef("Created StackState deployment -> replica set relation %s->%s", relation.SourceID, relation.TargetID)
+
+	return relation
+}
+
+// Creates a StackState relation from a Kubernetes / OpenShift Namespace to Pod relation
+func (rsc *ReplicaSetCollector) namespaceToReplicaSetStackStateRelation(namespaceExternalID, replicaSetExternalID string) *topology.Relation {
+	log.Tracef("Mapping kubernetes namespace to replica set relation: %s -> %s", namespaceExternalID, replicaSetExternalID)
+
+	relation := rsc.CreateRelation(namespaceExternalID, replicaSetExternalID, "encloses")
+
+	log.Tracef("Created StackState namespace -> replica set relation %s->%s", relation.SourceID, relation.TargetID)
 
 	return relation
 }

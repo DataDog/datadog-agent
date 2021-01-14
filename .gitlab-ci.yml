@@ -246,8 +246,10 @@ filename_linting:
 #    - deps_deb
 #  variables:
 #      DOCKER_DRIVER: overlay
+#      DOCKER_HOST: tcp://docker:2375
+#      DOCKER_TLS_CERTDIR: ""
 #  services:
-#    - docker:dind
+#    - docker:18.09-dind
 #  script:
 #    - inv -e docker.integration-tests
 #  tags:
@@ -264,7 +266,7 @@ build_binaries:
     - cd $SRC_PATH
     - inv -e agent.build --major-version 2
   tags:
-    - sts-aws
+    - sts-k8s-m-runner
 
 #[VS] todo: obosolete in agent7?
 #build_puppy:
@@ -319,10 +321,7 @@ build_deb:
   needs:
     - deps_deb
   tags:
-    # We put the deb build on sts-aws because it runs long and we do want to have it run fast.
-    # It also cuts into our pipeline quotum
-    - sts-aws
-    #- slavko_shell
+    - sts-k8s-xl-no-docker-runner
   cache:
     key: "build-deb-$CI_COMMIT_REF_SLUG"
     paths:
@@ -372,9 +371,7 @@ build_rpm:
   needs:
     - deps_rpm
   tags:
-    # We put the deb build on sts-aws because it runs long and we do want to have it run fast.
-    # It also cuts into our pipeline quotum
-    - sts-aws
+    - sts-k8s-xl-no-docker-runner
   cache:
     key: "build-rpm-$CI_COMMIT_REF_SLUG"
     paths:
@@ -433,7 +430,7 @@ build_win:
     - *configure_windows_ps1_environment
     - Import-VisualStudioVars 2017 -Architecture amd64
     - ridk enable
-  script: 
+  script:
     - inv -e agent.omnibus-build --skip-sign --log-level debug --major-version 2
   after_script:
     - cmd.exe /c "copy %GOPATH%\src\github.com\StackVista\stackstate-agent\omnibus\pkg\*.msi"
@@ -530,13 +527,15 @@ pre_release_image:
     DOCKER_HOST: tcp://docker:2375
     DOCKER_TLS_CERTDIR: ""
   services:
-    - docker:dind
+    - docker:18.09-dind
   before_script: []
   script:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
     - cp ./outcomes/pkg/stackstate-agent_2*.deb ./Dockerfiles/agent
     - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO $CI_PROJECT_DIR/Dockerfiles/agent
+  tags:
+    - sts-k8s-m-runner
 
 pre_release_trace_agent_image:
   stage: pre_release
@@ -548,13 +547,15 @@ pre_release_trace_agent_image:
     DOCKER_HOST: tcp://docker:2375
     DOCKER_TLS_CERTDIR: ""
   services:
-    - docker:dind
+    - docker:18.09-dind
   before_script: []
   script:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
     - cp ./outcomes/binary/trace-agent Dockerfiles/trace-agent
     - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO_TRACE $CI_PROJECT_DIR/Dockerfiles/trace-agent
+  tags:
+    - sts-k8s-m-runner
 
 pre_release_cluster_agent_image:
   stage: pre_release
@@ -566,12 +567,24 @@ pre_release_cluster_agent_image:
     DOCKER_HOST: tcp://docker:2375
     DOCKER_TLS_CERTDIR: ""
   services:
-    - docker:dind
+    - docker:18.09-dind
   before_script: []
   script:
     - cd $CI_PROJECT_DIR
     - cp -r ./bin/stackstate-cluster-agent* ./Dockerfiles/cluster-agent
     - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO_CLUSTER $CI_PROJECT_DIR/Dockerfiles/cluster-agent
+  tags:
+    - sts-k8s-m-runner
+
+
+.molecule_base: &molecule_base
+  image: python:2.7.17
+  before_script:
+    - export AWS_ACCESS_KEY_ID=${MOLECULE_AWS_ACCESS_KEY_ID}
+    - export AWS_SECRET_ACCESS_KEY=${MOLECULE_AWS_SECRET_ACCESS_KEY}
+    - export MOLECULE_RUN_ID=${CI_JOB_ID}
+    - export LC_CTYPE=en_US.UTF-8
+    - export LANG=en_US.UTF-8
 
 molecule_tests_vms:
   stage: acceptance
@@ -580,11 +593,8 @@ molecule_tests_vms:
     - pre_release_rpm
     - pre_release_win
   dependencies: []
-  before_script: []
+  <<: *molecule_base
   script:
-    - export AWS_ACCESS_KEY_ID=${MOLECULE_AWS_ACCESS_KEY_ID}
-    - export AWS_SECRET_ACCESS_KEY=${MOLECULE_AWS_SECRET_ACCESS_KEY}
-    - export MOLECULE_RUN_ID=${CI_JOB_ID}
     - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s vms
   artifacts:
     when: always
@@ -599,10 +609,8 @@ molecule_tests_compose:
     - pre_release_image
   dependencies: []
   before_script: []
+  <<: *molecule_base
   script:
-    - export AWS_ACCESS_KEY_ID=${MOLECULE_AWS_ACCESS_KEY_ID}
-    - export AWS_SECRET_ACCESS_KEY=${MOLECULE_AWS_SECRET_ACCESS_KEY}
-    - export MOLECULE_RUN_ID=${CI_JOB_ID}
     - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s compose
   artifacts:
     when: always
@@ -617,16 +625,13 @@ molecule_tests_local_install:
     - pre_release_deb
     - pre_release_rpm
   dependencies: []
-  before_script: []
+  <<: *molecule_base
   script:
-   - export AWS_ACCESS_KEY_ID=${MOLECULE_AWS_ACCESS_KEY_ID}
-   - export AWS_SECRET_ACCESS_KEY=${MOLECULE_AWS_SECRET_ACCESS_KEY}
-   - export MOLECULE_RUN_ID=${CI_JOB_ID}
    - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s localinstall
   only:
     - master
     - tags
-    - STAC-5977-local-install
+    - STAC-10025-local-install-bis
 
 molecule_tests_kubernetes:
   stage: acceptance
@@ -634,11 +639,8 @@ molecule_tests_kubernetes:
     - pre_release_cluster_agent_image
     - pre_release_image
   dependencies: []
-  before_script: []
+  <<: *molecule_base
   script:
-    - export AWS_ACCESS_KEY_ID=${MOLECULE_AWS_ACCESS_KEY_ID}
-    - export AWS_SECRET_ACCESS_KEY=${MOLECULE_AWS_SECRET_ACCESS_KEY}
-    - export MOLECULE_RUN_ID=${CI_JOB_ID}
     - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s kubernetes
   artifacts:
     when: always
@@ -652,11 +654,8 @@ molecule_tests_secrets:
   needs:
     - pre_release_deb
   dependencies: []
-  before_script: []
+  <<: *molecule_base
   script:
-    - export AWS_ACCESS_KEY_ID=${MOLECULE_AWS_ACCESS_KEY_ID}
-    - export AWS_SECRET_ACCESS_KEY=${MOLECULE_AWS_SECRET_ACCESS_KEY}
-    - export MOLECULE_RUN_ID=${CI_JOB_ID}
     - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s secrets
   only:
     - master
@@ -666,6 +665,20 @@ molecule_tests_secrets:
     when: always
     paths:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/secrets/*.log
+    expire_in: 1 week
+
+molecule_tests_integrations:
+  stage: acceptance
+  needs:
+    - pre_release_image
+  dependencies: []
+  <<: *molecule_base
+  script:
+    - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s integrations
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/topic-*.json
     expire_in: 1 week
 
 release_deb:
@@ -735,7 +748,7 @@ release_image:
     DOCKER_HOST: tcp://docker:2375
     DOCKER_TLS_CERTDIR: ""
   services:
-    - docker:dind
+    - docker:18.09-dind
   before_script: []
   script:
     - cd $CI_PROJECT_DIR
@@ -747,6 +760,8 @@ release_image:
   only:
     - tags
     - triggers
+  tags:
+    - sts-k8s-m-runner
 
 release_trace_agent_image:
   stage: release
@@ -758,7 +773,7 @@ release_trace_agent_image:
     DOCKER_HOST: tcp://docker:2375
     DOCKER_TLS_CERTDIR: ""
   services:
-    - docker:dind
+    - docker:18.09-dind
   before_script: []
   script:
     - cd $CI_PROJECT_DIR
@@ -770,6 +785,8 @@ release_trace_agent_image:
   only:
     - tags
     - trigger
+  tags:
+    - sts-k8s-m-runner
 
 release_cluster_agent_image:
   stage: release
@@ -781,7 +798,7 @@ release_cluster_agent_image:
     DOCKER_HOST: tcp://docker:2375
     DOCKER_TLS_CERTDIR: ""
   services:
-    - docker:dind
+    - docker:18.09-dind
   before_script: []
   script:
     - cd $CI_PROJECT_DIR
@@ -793,3 +810,6 @@ release_cluster_agent_image:
   only:
     - tags
     - trigger
+  tags:
+    - sts-k8s-m-runner
+

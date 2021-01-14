@@ -4,7 +4,7 @@
             "type": "amazon-ebs",
             "region": "eu-west-1",
             "instance_type": "m3.medium",
-            "source_ami": "ami-0da760e590e7de0e8",
+            "source_ami": "ami-00c25f7948e360133",
             "ami_name": "molecule-receiver-{{timestamp}}",
             "communicator": "ssh",
             "ssh_username": "ubuntu",

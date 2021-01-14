@@ -115,6 +115,43 @@ func TestBatchNoDataNoComplete(t *testing.T) {
 	batcher.Shutdown()
 }
 
+func TestBatchMultipleTopologies(t *testing.T) {
+	serializer := serializer2.NewAgentV1MockSerializer()
+	batcher := newAsynchronousBatcher(serializer, testHost, testAgent, 100)
+
+	batcher.SubmitStartSnapshot(testID, testInstance)
+	batcher.SubmitComponent(testID, testInstance, testComponent)
+	batcher.SubmitComponent(testID2, testInstance, testComponent)
+	batcher.SubmitComponent(testID2, testInstance, testComponent)
+	batcher.SubmitComponent(testID2, testInstance, testComponent)
+	batcher.SubmitStopSnapshot(testID, testInstance)
+
+	message := serializer.GetJSONToV1IntakeMessage()
+
+	assert.Equal(t,
+		map[string]interface{}{
+			"internalHostname": "myhost",
+			"topologies": []topology.Topology{
+				{
+					StartSnapshot: true,
+					StopSnapshot:  true,
+					Instance:      testInstance,
+					Components:    []topology.Component{testComponent},
+					Relations:     []topology.Relation{},
+				},
+				{
+					StartSnapshot: false,
+					StopSnapshot:  false,
+					Instance:      testInstance,
+					Components:    []topology.Component{testComponent, testComponent, testComponent},
+					Relations:     []topology.Relation{},
+				},
+			},
+		}, message)
+
+	batcher.Shutdown()
+}
+
 func TestBatchFlushOnMaxElements(t *testing.T) {
 	serializer := serializer2.NewAgentV1MockSerializer()
 	batcher := newAsynchronousBatcher(serializer, testHost, testAgent, 2)

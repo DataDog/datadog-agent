@@ -56,6 +56,7 @@ func (m *MockSender) DisableDefaultHostname(d bool) {
 
 //Event enables the event mock call.
 func (m *MockSender) Event(e metrics.Event) {
+	m.SentEvents = append(m.SentEvents, &e)
 	m.Called(e)
 }
 

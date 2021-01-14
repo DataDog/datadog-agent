@@ -6,6 +6,7 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - namespaces
   - services
   - events
   - endpoints

@@ -1777,3 +1777,8 @@ network_tracer_config:
   # key_file: ""
 
 {{ end -}}
+
+## features retrieves the features supported by the StackState backend so that we can toggle agent functionality
+#features:
+#  retry_interval_millis: 5000
+#  max_retries: 10

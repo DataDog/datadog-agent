@@ -54,6 +54,12 @@
           set_fact:
             custom_installer: /tmp/current.rpm
       when: ansible_distribution != "Ubuntu"
+
+    - name: Install stackstate-agent (wait for lock)
+      shell: "while fuser /var/lib/dpkg/lock >/dev/null 2>&1; do sleep 10; done;"
+      become: yes
+      when: ansible_distribution == "Ubuntu"
+
     - name: Install stackstate-agent
       shell: "/tmp/install_script.sh {{ custom_installer }}"
       environment:
@@ -63,3 +69,6 @@
         CODE_NAME: "{{ agent_current_branch }}"
         SKIP_SSL_VALIDATION: "true"
         STS_INSTALL_NO_REPO: "true"
+      register: install_agent_result
+      until: install_agent_result is not failed
+      retries: 5

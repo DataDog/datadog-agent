@@ -13,3 +13,6 @@ rules:
     level: error
   line-length: disable
   truthy: disable
+
+ignore: |
+  conf.yaml

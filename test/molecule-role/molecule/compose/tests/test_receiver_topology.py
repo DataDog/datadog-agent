@@ -217,15 +217,9 @@ def test_java_traces(host):
             },
             # traefik -> books
             {
-                "assertion": "Should find the 'calls' relation between traefik and the stackstate books app",
-                "type": "trace_call",
-                "external_id": lambda e_id: e_id == "urn:service:/traefik->urn:service:/stackstate-books-app",
-            },
-            {
                 "assertion": "Should find the callback 'calls' relation between the stackstate books app and traefik",
                 "type": "trace_call",
-                "external_id": lambda e_id: e_id == "urn:service:/stackstate-books-app->urn:service"
-                                                    ":/traefik",
+                "external_id": lambda e_id: e_id == "urn:service:/stackstate-books-app->urn:service:/traefik",
             },
             {
                 "assertion": "Should find the 'calls' relation between the stackstate books app and postgresql",
@@ -240,11 +234,6 @@ def test_java_traces(host):
                 ).findall(e_id),
             },
             # # traefik -> authors
-            {
-                "assertion": "Should find the 'calls' relation between traefik and the stackstate authors app",
-                "type": "trace_call",
-                "external_id": lambda e_id: e_id == "urn:service:/traefik->urn:service:/stackstate-authors-app",
-            },
             {
                 "assertion": "Should find the 'calls' relation between the stackstate authors app and a stackstate "
                              "authors app instance",
@@ -293,21 +282,4 @@ def test_java_traces(host):
                 external_id_assert_fn=r["external_id"],
             ) is not None
 
-        #         calls               calls        has                  is module of
-        # traefik  -->  traefik:books  -->  books  -->  books-instance     -->        books-process
-        #       calls
-        # books  -->  postgres
-        #                calls
-        # books-instance  -->  postgres
-
-        #        ?          calls                 calls          has                    is module of
-        # books -> traefik  -->   traefik:authors  -->  authors  -->  authors-instance     -->        authors-process
-        #                   calls
-        #             books  -->  traefik:authors
-        #         calls
-        # authors  -->  postgres
-        #                  calls
-        # authors-instance  -->  postgres
-
-        #                 calls                          calls
-        # traefik:authors  -->  traefik -> traefik:books  -->  traefik
+    util.wait_until(assert_topology, 10, 3)
