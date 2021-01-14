@@ -2,7 +2,7 @@
     "nightly": {
         "INTEGRATIONS_CORE_VERSION": "master",
         "OMNIBUS_SOFTWARE_VERSION": "master",
-        "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
+        "OMNIBUS_RUBY_VERSION": "slavek.kabrda/deb-signing",
         "JMXFETCH_VERSION": "0.41.0",
         "JMXFETCH_HASH": "a0b545bdd38308d4d55b49e2c986c4d32fe1388d9bb265f16c1ea4fc545731e3",
         "MACOS_BUILD_VERSION": "master",
@@ -13,7 +13,7 @@
     "nightly-a7": {
         "INTEGRATIONS_CORE_VERSION": "master",
         "OMNIBUS_SOFTWARE_VERSION": "master",
-        "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
+        "OMNIBUS_RUBY_VERSION": "slavek.kabrda/deb-signing",
         "JMXFETCH_VERSION": "0.41.0",
         "JMXFETCH_HASH": "a0b545bdd38308d4d55b49e2c986c4d32fe1388d9bb265f16c1ea4fc545731e3",
         "MACOS_BUILD_VERSION": "master",
