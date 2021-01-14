@@ -142,21 +142,6 @@ struct bpf_map_def SEC("maps/pending_bind") pending_bind = {
     .namespace = "",
 };
 
-/*
- * Used to store the index of the closed udp connection in the closed connection
- * batch.
- *
- * Key is pid/tid and value is the index of the connection in a conn_closed batch
- */
-struct bpf_map_def SEC("maps/pending_udp_destroy_sock") pending_udp_destroy_sock = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(__u64),
-    .value_size = sizeof(__u16),
-    .max_entries = 8192,
-    .pinning = 0,
-    .namespace = "",
-};
-
 /* This is written to in the kretprobe for sys_socket to keep track of
  * sockets that were created, but have not yet been bound to a port with
  * sys_bind.
@@ -535,31 +520,35 @@ static __always_inline void increment_telemetry_count(enum telemetry_counter cou
     return;
 }
 
-static __always_inline void cleanup_tcp_conn(struct pt_regs* __attribute__((unused)) ctx, conn_tuple_t* tup) {
+static __always_inline void cleanup_conn(conn_tuple_t* tup) {
     u32 cpu = bpf_get_smp_processor_id();
 
     // Will hold the full connection data to send through the perf buffer
-    conn_t conn = {};
-    bpf_probe_read(&(conn.tup), sizeof(conn_tuple_t), tup);
-    tcp_stats_t* tst;
-    conn_stats_ts_t* cst;
+    conn_t conn = { .tup = *tup };
+    tcp_stats_t* tst = NULL;
+    conn_stats_ts_t* cst = NULL;
+    bool is_tcp = get_proto(&conn.tup);
+    bool is_udp = get_proto(&conn.tup);
 
     // TCP stats don't have the PID
-    conn.tup.pid = 0;
-    tst = bpf_map_lookup_elem(&tcp_stats, &(conn.tup));
-    bpf_map_delete_elem(&tcp_stats, &(conn.tup));
-    conn.tup.pid = tup->pid;
+    if (is_tcp) {
+        conn.tup.pid = 0;
+        tst = bpf_map_lookup_elem(&tcp_stats, &(conn.tup));
+        bpf_map_delete_elem(&tcp_stats, &(conn.tup));
+        conn.tup.pid = tup->pid;
+
+        if (tst) {
+            conn.tcp_stats = *tst;
+        }
+
+        conn.tcp_stats.state_transitions |= (1 << TCP_CLOSE);
+    }
 
     cst = bpf_map_lookup_elem(&conn_stats, &(conn.tup));
     // Delete this connection from our stats map
     bpf_map_delete_elem(&conn_stats, &(conn.tup));
 
-    if (tst != NULL) {
-        conn.tcp_stats = *tst;
-    }
-    conn.tcp_stats.state_transitions |= (1 << TCP_CLOSE);
-
-    if (cst != NULL) {
+    if (cst) {
         cst->timestamp = bpf_ktime_get_ns();
         conn.conn_stats = *cst;
     }
@@ -598,100 +587,9 @@ static __always_inline void cleanup_tcp_conn(struct pt_regs* __attribute__((unus
 
     // If we hit this section it means we had one or more interleaved tcp_close calls.
     // This could result in a missed tcp_close event, so we track it using our telemetry map.
-    increment_telemetry_count(missed_tcp_close);
+    if (is_tcp) increment_telemetry_count(missed_tcp_close);
+    if (is_udp) increment_telemetry_count(missed_udp_close);
 }
-
-static __always_inline int pending_udp_cleanup_conn(conn_tuple_t* tup) {
-    u32 cpu = bpf_get_smp_processor_id();
-    conn_stats_ts_t* cst = bpf_map_lookup_elem(&conn_stats, tup);
-    if (!cst) {
-        return CONN_CLOSED_BATCH_SIZE;
-    }
-
-    // Will hold the full connection data to send through the perf buffer
-    conn_t conn = {};
-    bpf_probe_read(&(conn.tup), sizeof(conn_tuple_t), tup);
-
-    // Batch TCP closed connections before generating a perf event
-    batch_t* batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);
-    if (batch_ptr == NULL) {
-        return CONN_CLOSED_BATCH_SIZE;
-    }
-
-    // TODO: Can we turn this into a macro based on CONN_CLOSED_BATCH_SIZE?
-    switch (batch_ptr->pos) {
-    case 0:
-        batch_ptr->c0 = conn;
-        batch_ptr->pos++;
-        return 0;
-    case 1:
-        batch_ptr->c1 = conn;
-        batch_ptr->pos++;
-        return 1;
-    case 2:
-        batch_ptr->c2 = conn;
-        batch_ptr->pos++;
-        return 2;
-    case 3:
-        batch_ptr->c3 = conn;
-        batch_ptr->pos++;
-        return 3;
-    case 4:
-        // In this case the batch is ready to be flushed, which we defer to kretprobe/tcp_close or
-        // kretprobe/udp_destroy_sock in order to cope with the eBPF stack limitation of 512 bytes.
-        batch_ptr->c4 = conn;
-        batch_ptr->pos++;
-        return 4;
-    }
-
-    // If we hit this section it means we had one or more interleaved udp_destroy_sock calls.
-    // This could result in a missed udp_destroy_sock event, so we track it using our telemetry map.
-    increment_telemetry_count(missed_udp_close);
-
-    return CONN_CLOSED_BATCH_SIZE;
-}
-
-static __always_inline void update_udp_closed_batch(__u16 pos) {
-    u32 cpu = bpf_get_smp_processor_id();
-    batch_t* batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);
-    if (batch_ptr == NULL || pos >= batch_ptr->pos) {
-        return;
-    }
-
-    conn_t *conn = NULL;
-    switch (pos) {
-    case 0:
-        conn = &batch_ptr->c0;
-        break;
-    case 1:
-        conn = &batch_ptr->c1;
-        break;
-    case 2:
-        conn = &batch_ptr->c2;
-        break;
-    case 3:
-        conn = &batch_ptr->c3;
-        break;
-    case 4:
-        conn = &batch_ptr->c4;
-        break;
-    }
-
-    if (!conn) {
-        log_debug("ERR: update_udp_closed_batch: could not get batch for pos %d\n", pos);
-        return;
-    }
-
-    conn_stats_ts_t* cst = bpf_map_lookup_elem(&conn_stats, &conn->tup);
-    if (!cst) {
-        log_debug("ERR: update_udp_closed_batch: not stats for connection in batch\n");
-        return;
-    }
-    cst->timestamp = bpf_ktime_get_ns();
-    conn->conn_stats = *cst;
-    bpf_map_delete_elem(&conn_stats, &conn->tup);
-}
-
 
 static __always_inline int handle_message(conn_tuple_t* t, size_t sent_bytes, size_t recv_bytes) {
     u64 ts = bpf_ktime_get_ns();
@@ -840,7 +738,7 @@ int kprobe__tcp_close(struct pt_regs* ctx) {
         return 0;
     }
 
-    cleanup_tcp_conn(ctx, &t);
+    cleanup_conn(&t);
     return 0;
 }
 
@@ -1101,18 +999,7 @@ int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
     conn_tuple_t tup = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
     if (read_conn_tuple(&tup, sk, pid_tgid, CONN_TYPE_UDP)) {
-        // have to put the udp connection in the batch here
-        // without deleting it from the conn_stats map. udp_destroy_sock
-        // will flush any pending frames, so we have to wait
-        // to delete from conn_stats map in kretprobe/udp_destroy_sock.
-        //
-        // we could have also done the full cleanup in the kretprobe,
-        // but we overrun the ebpf stack size limits
-        __u16 pos = pending_udp_cleanup_conn(&tup);
-        log_debug("kprobe/udp_destroy_sock: batch pos=%d\n", pos);
-        if (pos < CONN_CLOSED_BATCH_SIZE) {
-            bpf_map_update_elem(&pending_udp_destroy_sock, &pid_tgid, &pos, BPF_ANY);
-        }
+        cleanup_conn(&tup);
     }
 
     // get the port for the current sock
@@ -1150,20 +1037,7 @@ int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
 
 SEC("kretprobe/udp_destroy_sock")
 int kretprobe__udp_destroy_sock(struct pt_regs * ctx) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    __u16 * pos = bpf_map_lookup_elem(&pending_udp_destroy_sock, &pid_tgid);
-    if (!pos) {
-        log_debug("kretprobe/udp_destroy_sock: no batch pos for udp connection\n");
-        return 0;
-    }
-
-    log_debug("kretprobe/udp_destroy_sock: pid/tid=%d pos=%d\n", pid_tgid, *pos);
-
-    update_udp_closed_batch(*pos);
     flush_conn_close_batch(ctx);
-
-    bpf_map_delete_elem(&pending_udp_destroy_sock, &pid_tgid);
-
     return 0;
 }
 
