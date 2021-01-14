@@ -28,7 +28,7 @@ type Provider interface {
 type provider struct {
 	numberOfPipelines         int
 	auditor                   *auditor.Auditor
-	diagnosticMessageReceiver *diagnostic.MessageReceiver
+	diagnosticMessageReceiver diagnostic.MessageReceiver
 	outputChan                chan *message.Message
 	processingRules           []*config.ProcessingRule
 	endpoints                 *config.Endpoints
@@ -39,7 +39,7 @@ type provider struct {
 }
 
 // NewProvider returns a new Provider
-func NewProvider(numberOfPipelines int, auditor *auditor.Auditor, diagnosticMessageReceiver *diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) Provider {
+func NewProvider(numberOfPipelines int, auditor *auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) Provider {
 	return &provider{
 		numberOfPipelines:         numberOfPipelines,
 		auditor:                   auditor,
@@ -57,7 +57,7 @@ func (p *provider) Start() {
 	p.outputChan = p.auditor.Channel()
 
 	for i := 0; i < p.numberOfPipelines; i++ {
-		pipeline := NewPipeline(p.outputChan, p.diagnosticMessageReceiver.Channel(), p.processingRules, p.endpoints, p.destinationsContext)
+		pipeline := NewPipeline(p.outputChan, p.processingRules, p.endpoints, p.destinationsContext, p.diagnosticMessageReceiver)
 		pipeline.Start()
 		p.pipelines = append(p.pipelines, pipeline)
 	}

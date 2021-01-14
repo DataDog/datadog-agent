@@ -7,49 +7,68 @@ package diagnostic
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-// MessageReceiver handles in coming log messages and makes them available for diagnostics
-type MessageReceiver struct {
+type MessageReceiver interface {
+	HandleMessage(message.Message)
+}
+
+// BufferedMessageReceiver handles in coming log messages and makes them available for diagnostics
+type BufferedMessageReceiver struct {
 	inputChan chan message.Message
-	done      chan struct{}
+	enabled   bool
+	m         sync.RWMutex
 }
 
 // New creates a new MessageReceiver
-func New() *MessageReceiver {
-	return &MessageReceiver{
+func New() *BufferedMessageReceiver {
+	return &BufferedMessageReceiver{
 		inputChan: make(chan message.Message, 100),
 	}
 }
 
 // Stop closes open channels
-func (d *MessageReceiver) Stop() {
+func (d *BufferedMessageReceiver) Stop() {
 	close(d.inputChan)
 }
 
 // Clear empties buffered messages
-func (d *MessageReceiver) Clear() {
+func (d *BufferedMessageReceiver) clear() {
 	l := len(d.inputChan)
 	for i := 0; i < l; i++ {
 		<-d.inputChan
 	}
 }
 
+func (b *BufferedMessageReceiver) SetEnabled(e bool) {
+	b.m.Lock()
+	defer b.m.Unlock()
+	if !e {
+		b.clear()
+	}
+	b.enabled = e
+}
+
+func (b *BufferedMessageReceiver) HandleMessage(m message.Message) {
+	b.m.RLock()
+	if !b.enabled {
+		return
+	}
+	b.m.RUnlock()
+	b.inputChan <- m
+}
+
 // Next pops the next buffered event off the input channel formatted as a string
-func (d *MessageReceiver) Next() (line string, ok bool) {
+func (d *BufferedMessageReceiver) Next() (line string, ok bool) {
 	select {
 	case msg := <-d.inputChan:
 		return formatMessage(&msg), true
 	default:
 		return "", false
 	}
-}
-
-// Channel gets the input channel
-func (d *MessageReceiver) Channel() chan message.Message {
-	return d.inputChan
 }
 
 func formatMessage(m *message.Message) string {

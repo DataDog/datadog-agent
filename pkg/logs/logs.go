@@ -151,6 +151,6 @@ func GetStatus() status.Status {
 	return status.Get()
 }
 
-func GetMessageReceiver() *diagnostic.MessageReceiver {
+func GetMessageReceiver() *diagnostic.BufferedMessageReceiver {
 	return agent.diagnosticMessageReceiver
 }

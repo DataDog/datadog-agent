@@ -36,12 +36,12 @@ import (
 // |                                                        |
 // + ------------------------------------------------------ +
 type Agent struct {
-	auditor            *auditor.Auditor
-	destinationsCtx    *client.DestinationsContext
-	pipelineProvider   pipeline.Provider
-	inputs             []restart.Restartable
-	health             *health.Handle
-	diagnosticMessageReceiver *diagnostic.MessageReceiver
+	auditor                   *auditor.Auditor
+	destinationsCtx           *client.DestinationsContext
+	pipelineProvider          pipeline.Provider
+	inputs                    []restart.Restartable
+	health                    *health.Handle
+	diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver
 }
 
 // NewAgent returns a new Logs Agent
@@ -74,11 +74,11 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 	}
 
 	return &Agent{
-		auditor:            auditor,
-		destinationsCtx:    destinationsCtx,
-		pipelineProvider:   pipelineProvider,
-		inputs:             inputs,
-		health:             health,
+		auditor:                   auditor,
+		destinationsCtx:           destinationsCtx,
+		pipelineProvider:          pipelineProvider,
+		inputs:                    inputs,
+		health:                    health,
 		diagnosticMessageReceiver: diagnosticMessageReceiver,
 	}
 }

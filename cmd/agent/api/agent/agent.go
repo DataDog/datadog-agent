@@ -201,7 +201,8 @@ func streamLogs(w http.ResponseWriter, r *http.Request) {
 	conn.SetWriteDeadline(time.Time{})
 
 	logMessageReceiver := logs.GetMessageReceiver()
-	logMessageReceiver.Clear()
+	logMessageReceiver.SetEnabled(true)
+	defer logMessageReceiver.SetEnabled(false)
 
 	for {
 		select {
