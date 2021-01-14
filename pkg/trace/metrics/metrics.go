@@ -13,14 +13,28 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+
 	"github.com/DataDog/datadog-go/statsd"
+	"github.com/Microsoft/go-winio"
 )
 
 // Configure creates a statsd client for the given agent's configuration, using the specified global tags.
 func Configure(conf *config.AgentConfig, tags []string) error {
-	client, err := statsd.New(fmt.Sprintf("%s:%d", conf.StatsdHost, conf.StatsdPort), statsd.WithTags(tags))
-	if err != nil {
-		return err
+	var client *statsd.Client
+	if conf.StatsdWindowsPipe != "" {
+		pipe, err := winio.DialPipe(conf.StatsdWindowsPipe, nil)
+		if err != nil {
+			return err
+		}
+		client, err = statsd.NewWithWriter(pipe, statsd.WithTags(tags))
+		if err != nil {
+			return err
+		}
+	} else {
+		client, err := statsd.New(fmt.Sprintf("%s:%d", conf.StatsdHost, conf.StatsdPort), statsd.WithTags(tags))
+		if err != nil {
+			return err
+		}
 	}
 	Client = client
 	return nil

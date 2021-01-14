@@ -181,6 +181,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("check_runners", int64(4))
 	config.BindEnvAndSetDefault("auth_token_file_path", "")
 	config.BindEnvAndSetDefault("bind_host", "localhost")
+	config.BindEnvAndSetDefault("dogstatsd_windows_pipe_name", "")
 	config.BindEnvAndSetDefault("ipc_address", "localhost")
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)

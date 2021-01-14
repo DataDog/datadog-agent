@@ -238,6 +238,9 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		}
 	}
 
+	if config.Datadog.IsSet("dogstatsd_windows_pipe_name") {
+		c.StatsdWindowsPipe = config.Datadog.GetString("dogstatsd_windows_pipe_name")
+	}
 	if config.Datadog.IsSet("bind_host") {
 		host := config.Datadog.GetString("bind_host")
 		c.StatsdHost = host

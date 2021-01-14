@@ -83,8 +83,9 @@ type AgentConfig struct {
 	ConnectionResetInterval time.Duration // frequency at which outgoing connections are reset. 0 means no reset is performed
 
 	// internal telemetry
-	StatsdHost string
-	StatsdPort int
+	StatsdWindowsPipe string
+	StatsdHost        string
+	StatsdPort        int
 
 	// logging
 	LogLevel      string
