@@ -11,6 +11,7 @@ import (
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -32,7 +33,6 @@ type provider struct {
 	taggerWarmupDuration time.Duration
 	expectedTagsDuration time.Duration
 	submitExpectedTags   bool
-	expectedTags         []string
 	sync.Once
 	sync.RWMutex
 }
@@ -47,7 +47,6 @@ func NewProvider(entityID string) Provider {
 	if config.IsExpectedTagsSet() {
 		p.submitExpectedTags = true
 		p.expectedTagsDuration = time.Duration(coreConfig.Datadog.GetInt("logs_config.expected_tags_duration")) * time.Minute
-		p.expectedTags = config.GetExpectedTags()
 	}
 
 	return p
@@ -81,7 +80,8 @@ func (p *provider) GetTags() []string {
 	p.RLock()
 	defer p.RUnlock()
 	if p.submitExpectedTags {
-		tags = append(tags, p.expectedTags...)
+		hostTags := host.GetHostTags(true)
+		tags = append(tags, hostTags.System...)
 	}
 
 	return tags

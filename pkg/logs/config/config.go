@@ -115,9 +115,9 @@ func BuildEndpoints(httpConnectivity HTTPConnectivity) (*Endpoints, error) {
 	return buildTCPEndpoints()
 }
 
-// IsExpectedTagsSet returns boolean showing if expected tags have been set.
+// IsExpectedTagsSet returns boolean showing if expected tags feature is enabled.
 func IsExpectedTagsSet() bool {
-	return len(coreConfig.Datadog.GetStringSlice("logs_config.expected_tags")) > 0
+	return coreConfig.Datadog.GetInt("logs_config.expected_tags_duration") > 0
 }
 
 func isSocks5ProxySet() bool {
@@ -134,25 +134,6 @@ func isForceHTTPUse() bool {
 
 func hasAdditionalEndpoints() bool {
 	return len(getAdditionalEndpoints()) > 0
-}
-
-// GetExpectedTags returns slice of string with deduplicated expected tags.
-func GetExpectedTags() []string {
-	if !IsExpectedTagsSet() {
-		return nil
-	}
-
-	dedupMap := map[string]struct{}{}
-	for _, tag := range coreConfig.Datadog.GetStringSlice("logs_config.expected_tags") {
-		dedupMap[tag] = struct{}{}
-	}
-
-	tags := make([]string, 0, len(dedupMap))
-	for k := range dedupMap {
-		tags = append(tags, k)
-	}
-
-	return tags
 }
 
 func buildTCPEndpoints() (*Endpoints, error) {

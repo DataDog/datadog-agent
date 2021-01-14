@@ -646,18 +646,10 @@ api_key:
   #
   # logs_no_ssl: false
 
-  ## @param expected_tags - list of strings - optional
-  ## Defines a list of tags that are eventually expected to be available in the backend.
-  ## These tags will be submitted with log events for  a configurable `expected_tags_duration` minutes
-  ## after which the tags are expected to be available in our backend services.
-  #
-  # expected_tags:
-  #   - foo:bar
-  #   - baz:qux
-
   ## @param expected_tags_duration - int - optional - default: 15
-  ## Defines the time in minutes we expect for the expected tags to be available on the backend,
-  ## after this duration the tags defined above in `expected_tags` will no longer be submitted.
+  ## Defines the time in minutes we expect for the host tags to be available on backend services,
+  ## after this duration, host tags will no longer be submitted with log events.
+  ## A value of 0 disables the feature.
   #
   # expected_tags_duration: 15
 
