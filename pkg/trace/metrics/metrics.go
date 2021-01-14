@@ -30,7 +30,7 @@ func Configure(conf *config.AgentConfig, tags []string) error {
 			return err
 		}
 	} else {
-		client, err := statsd.New(fmt.Sprintf("%s:%d", conf.StatsdHost, conf.StatsdPort), statsd.WithTags(tags))
+		client, err = statsd.New(fmt.Sprintf("%s:%d", conf.StatsdHost, conf.StatsdPort), statsd.WithTags(tags))
 		if err != nil {
 			return err
 		}
