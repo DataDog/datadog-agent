@@ -34,7 +34,7 @@ type provider struct {
 	submitExpectedTags   bool
 	expectedTags         []string
 	sync.Once
-	sync.Mutex
+	sync.RWMutex
 }
 
 // NewProvider returns a new Provider.
@@ -78,6 +78,8 @@ func (p *provider) GetTags() []string {
 		return []string{}
 	}
 
+	p.RLock()
+	defer p.RUnlock()
 	if p.submitExpectedTags {
 		tags = append(tags, p.expectedTags...)
 	}
