@@ -19,6 +19,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/kms"
+	"github.com/aws/aws-sdk-go/service/secretsmanager"
+	"github.com/spf13/cobra"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
@@ -33,10 +38,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/kms"
-	"github.com/aws/aws-sdk-go/service/secretsmanager"
-	"github.com/spf13/cobra"
 )
 
 const defaultLogFile = "/var/log/datadog/serverless-agent.log"
@@ -346,6 +347,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	// the invocation route, we can't report init errors anymore.
 	go func() {
 		for {
+			// TODO(remy): shouldn't we wait for the logs agent to finish? + dogstatsd server before listening again?
 			if err := serverless.WaitForNextInvocation(stopCh, statsdServer, ta, serverlessID); err != nil {
 				log.Error(err)
 			}
@@ -453,6 +455,7 @@ func readAPIKeyFromSSM() (string, error) {
 	log.Warn("SSM returned something but there seems to be no data available;")
 	return "", nil
 }
+
 func stopCallback(cancel context.CancelFunc) {
 	// gracefully shut down any component
 	cancel()

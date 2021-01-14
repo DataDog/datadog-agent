@@ -169,7 +169,6 @@ func (a *Agent) loop() {
 				log.Error(err)
 			}
 			a.Concentrator.Stop()
-
 			a.TraceWriter.Stop()
 			a.StatsWriter.Stop()
 			a.ScoreSampler.Stop()
