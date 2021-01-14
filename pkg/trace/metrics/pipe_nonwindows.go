@@ -8,6 +8,6 @@ import (
 	"time"
 )
 
-func DialPipe(path string, timeout *time.Duration) (*statsWriter, error) {
+func dialPipe(path string, timeout *time.Duration) (*statsWriter, error) {
 	return nil, fmt.Errorf("Windows Pipe not available on %s", runtime.GOOS)
 }

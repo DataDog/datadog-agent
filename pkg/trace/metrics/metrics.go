@@ -24,7 +24,7 @@ func Configure(conf *config.AgentConfig, tags []string) error {
 		err    error
 	)
 	if conf.StatsdWindowsPipe != "" {
-		pipe, err := DialPipe(conf.StatsdWindowsPipe, nil)
+		pipe, err := dialPipe(conf.StatsdWindowsPipe, nil)
 		if err != nil {
 			return err
 		}
