@@ -1,4 +1,4 @@
 ---
 enhancements:
   - |
-    APM : Ensured start-up errors are logged to the log file
+    APM: Ensured start-up errors are logged to the log file
