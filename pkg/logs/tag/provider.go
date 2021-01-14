@@ -62,8 +62,7 @@ func (p *provider) GetTags() []string {
 
 		// start timer if necessary
 		go func() {
-			t := time.NewTimer(p.expectedTagsDuration)
-			<-t.C
+			<-time.After(p.expectedTagsDuration)
 
 			p.Lock()
 			defer p.Unlock()
