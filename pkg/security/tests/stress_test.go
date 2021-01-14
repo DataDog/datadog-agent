@@ -97,7 +97,7 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 	}
 
 	opts := StressOpts{
-		Duration:    time.Duration(30) * time.Second,
+		Duration:    time.Duration(duration) * time.Second,
 		KeepProfile: keepProfile,
 		DiffBase:    diffBase,
 		TopFrom:     "probe",
