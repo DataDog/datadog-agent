@@ -108,8 +108,8 @@ func newTestBatchManager(t *testing.T, idleTime time.Duration) (manager *PerfBat
 	tr, err := NewTracer(config.NewDefaultConfig())
 	require.NoError(t, err)
 
-	tcpCloseMap, _ := tr.getMap(probes.TcpCloseBatchMap)
-	manager, err = NewPerfBatchManager(tcpCloseMap, idleTime, numTestBatches)
+	connCloseMap, _ := tr.getMap(probes.ConnCloseBatchMap)
+	manager, err = NewPerfBatchManager(connCloseMap, idleTime, numTestBatches)
 	require.NoError(t, err)
 
 	doneFn = func() { tr.Stop() }
