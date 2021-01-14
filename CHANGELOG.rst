@@ -12,7 +12,7 @@ Release Notes
 Prelude
 -------
 
-Release on: 2021-01-12
+Release on: 2021-01-14
 
 - Please refer to the `7.25.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7250>`_ for the list of changes on the Core Checks
 
@@ -37,7 +37,7 @@ New Features
 - APM: Improve Oracle SQL obfuscation support.
 
 - APM: Added support for Windows pipes. To enable it, set the pipe path using
-  DD_APM_WINDOWS_PIPE_NAME. For more details check https://github.com/DataDog/datadog-agent/pull/6615
+  DD_APM_WINDOWS_PIPE_NAME. For more details check `PR #6615 <https://github.com/DataDog/datadog-agent/pull/6615>`_
 
 - Pause containers are now detected and auto excluded based on the `io.kubernetes` container labels.
 
@@ -170,7 +170,7 @@ Other Notes
 - The Agent, Logs Agent and the system-probe are now compiled with Go ``1.14.12``
 
 - Upgrade embedded ``libkrb5`` Kerberos library to v1.18.3. This version drops support for
-  the encryption types marked as "weak" in the `docs of the library <https://web.mit.edu/kerberos/krb5-1.17/doc/admin/conf_files/kdc_conf.html#encryption-types>_`
+  the encryption types marked as "weak" in the `docs of the library <https://web.mit.edu/kerberos/krb5-1.17/doc/admin/conf_files/kdc_conf.html#encryption-types>`_
 
 
 .. _Release Notes_7.24.1:
