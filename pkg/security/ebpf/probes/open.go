@@ -44,5 +44,9 @@ func getOpenProbes() []*manager.Probe {
 		UID:             SecurityAgentUID,
 		SyscallFuncName: "openat",
 	}, EntryAndExit, true)...)
+	openProbes = append(openProbes, ExpandSyscallProbes(&manager.Probe{
+		UID:             SecurityAgentUID,
+		SyscallFuncName: "openat2",
+	}, EntryAndExit)...)
 	return openProbes
 }

@@ -47,7 +47,7 @@ func benchParsePackets(b *testing.B, rawPacket []byte) {
 	config.SetupLogger("", "off", "", "", false, true, false)
 
 	agg := mockAggregator()
-	s, _ := NewServer(agg)
+	s, _ := NewServer(agg, nil)
 	defer s.Stop()
 
 	done := make(chan struct{})
@@ -97,7 +97,7 @@ func BenchmarkParseMetricMessage(b *testing.B) {
 	config.SetupLogger("", "off", "", "", false, true, false)
 
 	agg := mockAggregator()
-	s, _ := NewServer(agg)
+	s, _ := NewServer(agg, nil)
 	defer s.Stop()
 
 	done := make(chan struct{})
@@ -158,7 +158,7 @@ func BenchmarkMapperControl(b *testing.B) {
 	config.SetupLogger("", "off", "", "", false, true, false)
 
 	agg := mockAggregator()
-	s, _ := NewServer(agg)
+	s, _ := NewServer(agg, nil)
 	defer s.Stop()
 
 	done := make(chan struct{})

@@ -54,7 +54,9 @@ type Config struct {
 	// LoadControllerControlPeriod defines the period at which the load controller will empty the user space counter used
 	// to evaluate the amount of events brought back to user space
 	LoadControllerControlPeriod time.Duration
-	// StatsAddr defines the statsd address
+	// EventsStatsPollingInterval determines how often metrics should be polled
+	EventsStatsPollingInterval time.Duration
+	// StatsdAddr defines the statsd address
 	StatsdAddr string
 }
 
@@ -75,6 +77,7 @@ func NewConfig(cfg *config.AgentConfig) (*Config, error) {
 		LoadControllerEventsCountThreshold: int64(aconfig.Datadog.GetInt("runtime_security_config.load_controller.events_count_threshold")),
 		LoadControllerDiscarderTimeout:     time.Duration(aconfig.Datadog.GetInt("runtime_security_config.load_controller.discarder_timeout")) * time.Second,
 		LoadControllerControlPeriod:        time.Duration(aconfig.Datadog.GetInt("runtime_security_config.load_controller.control_period")) * time.Second,
+		EventsStatsPollingInterval:         time.Duration(aconfig.Datadog.GetInt("runtime_security_config.events_stats.polling_interval")) * time.Second,
 		StatsdAddr:                         fmt.Sprintf("%s:%d", cfg.StatsdHost, cfg.StatsdPort),
 	}
 

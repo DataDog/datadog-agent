@@ -1,5 +1,5 @@
-#include "stdafx.h"
 #include "TargetMachine.h"
+#include "stdafx.h"
 
 UINT doFinalizeInstall(CustomActionData &data)
 {
@@ -10,7 +10,7 @@ UINT doFinalizeInstall(CustomActionData &data)
     int ddServiceExists = 0;
     int passbuflen = 0;
     wchar_t *passbuf = NULL;
-    const wchar_t * passToUse = NULL;
+    const wchar_t *passToUse = NULL;
     std::wstring providedPassword;
     LSA_HANDLE hLsa = NULL;
     std::wstring propval;
@@ -26,7 +26,8 @@ UINT doFinalizeInstall(CustomActionData &data)
 
     // check to see if the service is already installed
     WcaLog(LOGMSG_STANDARD, "checking to see if the service is installed");
-    if ((ddServiceExists = doesServiceExist(agentService)) == -1) {
+    if ((ddServiceExists = doesServiceExist(agentService)) == -1)
+    {
         er = ERROR_INSTALL_FAILURE;
         goto LExit;
     }
@@ -35,7 +36,8 @@ UINT doFinalizeInstall(CustomActionData &data)
     // new installation or an upgrade, and what steps need to be taken
     ddUserExists = data.DoesUserExist();
 
-    if (!canInstall(data.GetTargetMachine().IsDomainController(), ddUserExists, ddServiceExists, data, bResetPassword)) {
+    if (!canInstall(data.GetTargetMachine().IsDomainController(), ddUserExists, ddServiceExists, data, bResetPassword))
+    {
         er = ERROR_INSTALL_FAILURE;
         goto LExit;
     }
@@ -43,34 +45,42 @@ UINT doFinalizeInstall(CustomActionData &data)
     // ok.  If we get here, we should be in a sane state (all installation conditions met)
     WcaLog(LOGMSG_STANDARD, "custom action initialization complete.  Processing");
     // first, let's decide if we need to create the dd-agent-user
-    if (!ddUserExists || bResetPassword) {
+    if (!ddUserExists || bResetPassword)
+    {
         // that was easy.  Need to create the user.  See if we have a password, or need to
         // generate one
         passbuflen = MAX_PASS_LEN + 2;
 
-        if (data.value(propertyDDAgentUserPassword, providedPassword)) {
+        if (data.value(propertyDDAgentUserPassword, providedPassword))
+        {
             passToUse = providedPassword.c_str();
         }
-        else {
+        else
+        {
             passbuf = new wchar_t[passbuflen];
-            if (!generatePassword(passbuf, passbuflen)) {
+            if (!generatePassword(passbuf, passbuflen))
+            {
                 WcaLog(LOGMSG_STANDARD, "failed to generate password");
                 er = ERROR_INSTALL_FAILURE;
                 goto LExit;
             }
             passToUse = passbuf;
         }
-        if (bResetPassword) {
+        if (bResetPassword)
+        {
             DWORD ret = doSetUserPassword(data.UnqualifiedUsername(), passToUse);
-            if (ret != 0) {
+            if (ret != 0)
+            {
                 WcaLog(LOGMSG_STANDARD, "Failed to set DD user password");
                 er = ERROR_INSTALL_FAILURE;
                 goto LExit;
             }
         }
-        else {
+        else
+        {
             DWORD ret = doCreateUser(data.UnqualifiedUsername(), ddAgentUserDescription, passToUse);
-            if (ret != 0) {
+            if (ret != 0)
+            {
                 WcaLog(LOGMSG_STANDARD, "Failed to create DD user");
                 er = ERROR_INSTALL_FAILURE;
                 goto LExit;
@@ -89,7 +99,8 @@ UINT doFinalizeInstall(CustomActionData &data)
             // delete on rollback/uninstall
             keyRollback.setStringValue(installCreatedDDUser.c_str(), data.Username().c_str());
             keyInstall.setStringValue(installCreatedDDUser.c_str(), data.Username().c_str());
-            if (data.isUserDomainUser()) {
+            if (data.isUserDomainUser())
+            {
                 keyRollback.setStringValue(installCreatedDDDomain.c_str(), data.Domain().c_str());
                 keyInstall.setStringValue(installCreatedDDDomain.c_str(), data.Domain().c_str());
             }
@@ -98,48 +109,59 @@ UINT doFinalizeInstall(CustomActionData &data)
 
     // add all the rights we want to the user (either existing or newly created)
     // set the account privileges regardless; if they're already set the OS will silently
-    // ignore the request.    
+    // ignore the request.
     hr = -1;
-    if ((hLsa = GetPolicyHandle()) == NULL) {
+    if ((hLsa = GetPolicyHandle()) == NULL)
+    {
         WcaLog(LOGMSG_STANDARD, "Failed to get policy handle for %S", data.Username().c_str());
         goto LExit;
     }
-    if (!AddPrivileges(data.Sid(), hLsa, SE_DENY_INTERACTIVE_LOGON_NAME)) {
+    if (!AddPrivileges(data.Sid(), hLsa, SE_DENY_INTERACTIVE_LOGON_NAME))
+    {
         WcaLog(LOGMSG_STANDARD, "failed to add deny interactive login right");
         goto LExit;
     }
 
-    if (!AddPrivileges(data.Sid(), hLsa, SE_DENY_NETWORK_LOGON_NAME)) {
+    if (!AddPrivileges(data.Sid(), hLsa, SE_DENY_NETWORK_LOGON_NAME))
+    {
         WcaLog(LOGMSG_STANDARD, "failed to add deny network login right");
         goto LExit;
     }
-    if (!AddPrivileges(data.Sid(), hLsa, SE_DENY_REMOTE_INTERACTIVE_LOGON_NAME)) {
+    if (!AddPrivileges(data.Sid(), hLsa, SE_DENY_REMOTE_INTERACTIVE_LOGON_NAME))
+    {
         WcaLog(LOGMSG_STANDARD, "failed to add deny remote interactive login right");
         goto LExit;
     }
-    if (!AddPrivileges(data.Sid(), hLsa, SE_SERVICE_LOGON_NAME)) {
+    if (!AddPrivileges(data.Sid(), hLsa, SE_SERVICE_LOGON_NAME))
+    {
         WcaLog(LOGMSG_STANDARD, "failed to add service login right");
         goto LExit;
     }
     hr = 0;
 
-    if (!data.GetTargetMachine().IsReadOnlyDomainController()) {
+    if (!data.GetTargetMachine().IsReadOnlyDomainController())
+    {
         er = AddUserToGroup(data.Sid(), L"S-1-5-32-558", L"Performance Monitor Users");
-        if (er != NERR_Success) {
+        if (er != NERR_Success)
+        {
             WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", er);
             goto LExit;
         }
         er = AddUserToGroup(data.Sid(), L"S-1-5-32-573", L"Event Log Readers");
-        if (er != NERR_Success) {
+        if (er != NERR_Success)
+        {
             WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", er);
             goto LExit;
         }
     }
 
-    if (!ddServiceExists) {
+    if (!ddServiceExists)
+    {
         WcaLog(LOGMSG_STANDARD, "attempting to install services");
-        if (!passToUse) {
-            if (!data.value(propertyDDAgentUserPassword, providedPassword)) {
+        if (!passToUse)
+        {
+            if (!data.value(propertyDDAgentUserPassword, providedPassword))
+            {
                 // given all the error conditions checked above, this should *never*
                 // happen.  But we'll check anyway
                 WcaLog(LOGMSG_STANDARD, "Don't have password to register service");
@@ -150,7 +172,8 @@ UINT doFinalizeInstall(CustomActionData &data)
         }
         int ret = installServices(data, data.Sid(), passToUse);
 
-        if (ret != 0) {
+        if (ret != 0)
+        {
             WcaLog(LOGMSG_STANDARD, "Failed to create install services");
             er = ERROR_INSTALL_FAILURE;
             goto LExit;
@@ -158,10 +181,12 @@ UINT doFinalizeInstall(CustomActionData &data)
         keyRollback.setStringValue(installInstalledServices.c_str(), L"true");
         keyInstall.setStringValue(installInstalledServices.c_str(), L"true");
     }
-    else {
+    else
+    {
         WcaLog(LOGMSG_STANDARD, "updating existing service record");
         int ret = verifyServices(data);
-        if (ret != 0) {
+        if (ret != 0)
+        {
             WcaLog(LOGMSG_STANDARD, "Failed to updated existing services");
             er = ERROR_INSTALL_FAILURE;
             goto LExit;
@@ -184,10 +209,12 @@ UINT doFinalizeInstall(CustomActionData &data)
     er = addDdUserPermsToFile(data.Sid(), logdir);
     WcaLog(LOGMSG_STANDARD, "%d setting log dir perms", er);
 
-    if (0 == changeRegistryAcls(data.Sid(), datadog_acl_key_datadog.c_str())) {
+    if (0 == changeRegistryAcls(data.Sid(), datadog_acl_key_datadog.c_str()))
+    {
         WcaLog(LOGMSG_STANDARD, "registry perms updated");
     }
-    else {
+    else
+    {
         WcaLog(LOGMSG_STANDARD, "registry perm update failed");
         er = ERROR_INSTALL_FAILURE;
     }
@@ -210,17 +237,19 @@ UINT doFinalizeInstall(CustomActionData &data)
     }
 
     // write out the username & domain we used.  Even write it out if we didn't create it,
-    // it's needed on xDCs where we may not have created the user -and- is necessary on upgrade 
+    // it's needed on xDCs where we may not have created the user -and- is necessary on upgrade
     // from previous install that didn't write this key
     regkeybase.setStringValue(keyInstalledUser.c_str(), data.UnqualifiedUsername().c_str());
     regkeybase.setStringValue(keyInstalledDomain.c_str(), data.Domain().c_str());
 
 LExit:
-    if (passbuf) {
+    if (passbuf)
+    {
         memset(passbuf, 0, sizeof(wchar_t) * passbuflen);
         delete[] passbuf;
     }
-    if (er == ERROR_SUCCESS) {
+    if (er == ERROR_SUCCESS)
+    {
         er = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;
     }
     return er;

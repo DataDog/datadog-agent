@@ -70,6 +70,7 @@ type Probe struct {
 	config             *config.Config
 	handler            EventHandler
 	resolvers          *Resolvers
+	perfMap            *manager.PerfMap
 	pidDiscarders      *lib.Map
 	inodeDiscarders    *lib.Map
 	revisionCache      [discarderRevisionSize]uint32
@@ -82,7 +83,7 @@ type Probe struct {
 	loadController     *LoadController
 	kernelVersion      kernel.Version
 	_                  uint32 // padding for goarch=386
-	eventsStats        EventsStats
+	eventsStats        *EventsStats
 	startTime          time.Time
 	event              *Event
 	reOrderer          *ReOrderer
@@ -177,6 +178,16 @@ func (p *Probe) Init() error {
 		return err
 	}
 
+	var ok bool
+	if p.perfMap, ok = p.manager.GetPerfMap("events"); !ok {
+		return errors.New("couldn't find events perf map")
+	}
+
+	p.eventsStats, err = NewEventsStats(p.manager, p.managerOptions, p.config)
+	if err != nil {
+		return errors.Wrap(err, "couldn't create events statistics monitor")
+	}
+
 	if err := p.resolvers.Start(); err != nil {
 		return err
 	}
@@ -224,63 +235,15 @@ func (p *Probe) SendStats() error {
 		}
 	}
 
-	if err := p.statsdClient.Count(MetricPrefix+".events.lost", p.eventsStats.GetAndResetLost(), nil, 1.0); err != nil {
-		return errors.Wrap(err, "failed to send events.lost metric")
-	}
-
-	receivedEvents := MetricPrefix + ".events.received"
-	for i := range p.eventsStats.PerEventType {
-		if i == 0 {
-			continue
-		}
-
-		eventType := EventType(i)
-		tags := []string{fmt.Sprintf("event_type:%s", eventType.String())}
-		if value := p.eventsStats.GetAndResetEventCount(eventType); value > 0 {
-			if err := p.statsdClient.Count(receivedEvents, value, tags, 1.0); err != nil {
-				return errors.Wrap(err, "failed to send events.received metric")
-			}
-		}
-	}
-
 	if err := p.statsdClient.Gauge(MetricPrefix+".process_resolver.cache_size", p.resolvers.ProcessResolver.GetCacheSize(), []string{}, 1.0); err != nil {
 		return errors.Wrap(err, "failed to send process_resolver cache_size metric")
 	}
-	return nil
-}
 
-// GetStats returns Stats according to the system-probe module format
-func (p *Probe) GetStats() (map[string]interface{}, error) {
-	stats := make(map[string]interface{})
-
-	var syscalls *SyscallStats
-	var err error
-
-	if p.syscallMonitor != nil {
-		syscalls, err = p.syscallMonitor.GetStats()
-	}
-
-	stats["events"] = map[string]interface{}{
-		"lost":     p.eventsStats.GetLost(),
-		"syscalls": syscalls,
-	}
-
-	perEventType := make(map[string]int64)
-	stats["per_event_type"] = perEventType
-	for i := range p.eventsStats.PerEventType {
-		if i == 0 {
-			continue
-		}
-
-		eventType := EventType(i)
-		perEventType[eventType.String()] = p.eventsStats.GetEventCount(eventType)
-	}
-
-	return stats, err
+	return p.eventsStats.SendStats(p.statsdClient)
 }
 
 // GetEventsStats returns statistics about the events received by the probe
-func (p *Probe) GetEventsStats() EventsStats {
+func (p *Probe) GetEventsStats() *EventsStats {
 	return p.eventsStats
 }
 
@@ -311,7 +274,7 @@ func (p *Probe) initDiscarderRevision(mountEvent *MountEvent) {
 
 func (p *Probe) handleLostEvents(CPU int, count uint64, perfMap *manager.PerfMap, manager *manager.Manager) {
 	log.Tracef("lost %d events", count)
-	p.eventsStats.CountLost(int64(count))
+	p.eventsStats.CountLostEvent(count, perfMap, CPU)
 }
 
 var eventZero Event
@@ -367,7 +330,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	}
 
 	eventType := EventType(event.Type)
-	p.eventsStats.CountEventType(eventType, 1)
+	p.eventsStats.CountEvent(eventType, 1, uint64(len(data)), p.perfMap, int(CPU))
 
 	log.Tracef("Decoding event %s(%d)", eventType, event.Type)
 
@@ -769,6 +732,15 @@ func getInvalidDiscarders() map[eval.Field]map[interface{}]bool {
 	}
 
 	return invalidDiscarders
+}
+
+// GetDebugStats returns the debug stats
+func (p *Probe) GetDebugStats() map[string]interface{} {
+	debug := map[string]interface{}{
+		"start_time": p.startTime.String(),
+	}
+	// TODO(Will): add manager state
+	return debug
 }
 
 // NewProbe instantiates a new runtime security agent probe

@@ -48,7 +48,7 @@ type Engine interface {
 	// Stop the sampler.
 	Stop()
 	// Sample a trace.
-	Sample(trace pb.Trace, root *pb.Span, env string) (sampled bool, samplingRate float64)
+	Sample(trace pb.Trace, root *pb.Span, env string) bool
 	// GetState returns information about the sampler.
 	GetState() interface{}
 	// GetType returns the type of the sampler.
@@ -165,13 +165,4 @@ func (s *Sampler) GetMaxTPSSampleRate() float64 {
 
 func (s *Sampler) setRateThresholdTo1(r float64) {
 	s.rateThresholdTo1 = r
-}
-
-// CombineRates merges two rates from Sampler1, Sampler2. Both samplers law are independent,
-// and {sampled} = {sampled by Sampler1} or {sampled by Sampler2}
-func CombineRates(rate1 float64, rate2 float64) float64 {
-	if rate1 >= 1 || rate2 >= 1 {
-		return 1
-	}
-	return rate1 + rate2 - rate1*rate2
 }

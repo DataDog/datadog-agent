@@ -1,29 +1,28 @@
 #include "stdafx.h"
 
 CustomActionData::CustomActionData()
-: domainUser(false)
-, doInstallSysprobe(false)
-, userParamMismatch(false)
+    : domainUser(false)
+    , doInstallSysprobe(false)
+    , userParamMismatch(false)
 {
-
 }
 
 CustomActionData::~CustomActionData()
 {
-
 }
 
-bool CustomActionData::init(MSIHANDLE hi) 
+bool CustomActionData::init(MSIHANDLE hi)
 {
     this->hInstall = hi;
     std::wstring data;
-    if (!loadPropertyString(this->hInstall, propertyCustomActionData.c_str(), data)) {
+    if (!loadPropertyString(this->hInstall, propertyCustomActionData.c_str(), data))
+    {
         return false;
     }
     return init(data);
 }
 
-bool CustomActionData::init(const std::wstring& data)
+bool CustomActionData::init(const std::wstring &data)
 {
     DWORD errCode = machine.Detect();
     if (errCode != ERROR_SUCCESS)
@@ -36,31 +35,36 @@ bool CustomActionData::init(const std::wstring& data)
     // first split into key/value pairs
     std::wstringstream ss(data);
     std::wstring token;
-    while (std::getline(ss, token, L';')) {
+    while (std::getline(ss, token, L';'))
+    {
         // now 'token'  has the key=val; do the same thing for the key=value
         bool boolval = false;
         std::wstringstream instream(token);
         std::wstring key, val;
-        if (std::getline(instream, key, L'=')) {
+        if (std::getline(instream, key, L'='))
+        {
             std::getline(instream, val);
         }
 
-        if (val.length() > 0) {
+        if (val.length() > 0)
+        {
             this->values[key] = val;
         }
     }
 
-    return parseUsernameData()
-        && parseSysprobeData();
+    return parseUsernameData() && parseSysprobeData();
 }
 
-bool CustomActionData::present(const std::wstring& key) const {
+bool CustomActionData::present(const std::wstring &key) const
+{
     return this->values.count(key) != 0 ? true : false;
 }
 
-bool CustomActionData::value(const std::wstring& key, std::wstring &val) const {
+bool CustomActionData::value(const std::wstring &key, std::wstring &val) const
+{
     const auto kvp = values.find(key);
-    if (kvp == values.end()) {
+    if (kvp == values.end())
+    {
         return false;
     }
     val = kvp->second;
@@ -82,17 +86,17 @@ bool CustomActionData::DoesUserExist() const
     return _ddUserExists;
 }
 
-const std::wstring& CustomActionData::UnqualifiedUsername() const
+const std::wstring &CustomActionData::UnqualifiedUsername() const
 {
     return _unqualifiedUsername;
 }
 
-const std::wstring& CustomActionData::Username() const
+const std::wstring &CustomActionData::Username() const
 {
     return _fqUsername;
 }
 
-const std::wstring& CustomActionData::Domain() const
+const std::wstring &CustomActionData::Domain() const
 {
     return _domain;
 }
@@ -102,7 +106,7 @@ PSID CustomActionData::Sid() const
     return _sid.get();
 }
 
-void CustomActionData::Sid(sid_ptr& sid)
+void CustomActionData::Sid(sid_ptr &sid)
 {
     _sid = std::move(sid);
 }
@@ -112,7 +116,7 @@ bool CustomActionData::installSysprobe() const
     return doInstallSysprobe;
 }
 
-const TargetMachine& CustomActionData::GetTargetMachine() const
+const TargetMachine &CustomActionData::GetTargetMachine() const
 {
     return machine;
 }
@@ -126,19 +130,20 @@ bool CustomActionData::parseSysprobeData()
     std::wstring sysprobePresent;
     std::wstring addlocal;
     this->doInstallSysprobe = false;
-    if(!this->value(L"SYSPROBE_PRESENT", sysprobePresent))
+    if (!this->value(L"SYSPROBE_PRESENT", sysprobePresent))
     {
-        // key isn't even there. 
+        // key isn't even there.
         WcaLog(LOGMSG_STANDARD, "SYSPROBE_PRESENT not present");
         return true;
     }
     WcaLog(LOGMSG_STANDARD, "SYSPROBE_PRESENT is %S", sysprobePresent.c_str());
-    if(sysprobePresent.compare(L"true") != 0) {
+    if (sysprobePresent.compare(L"true") != 0)
+    {
         // explicitly disabled
         WcaLog(LOGMSG_STANDARD, "SYSPROBE_PRESENT explicitly disabled %S", sysprobePresent.c_str());
         return true;
     }
-    if(!this->value(L"ADDLOCAL", addlocal))
+    if (!this->value(L"ADDLOCAL", addlocal))
     {
         // should never happen.  But if the addlocalkey isn't there,
         // don't bother trying
@@ -147,11 +152,14 @@ bool CustomActionData::parseSysprobeData()
         return true;
     }
     WcaLog(LOGMSG_STANDARD, "ADDLOCAL is (%S)", addlocal.c_str());
-    if(_wcsicmp(addlocal.c_str(), L"ALL")== 0){
+    if (_wcsicmp(addlocal.c_str(), L"ALL") == 0)
+    {
         // installing all components, do it
         this->doInstallSysprobe = true;
         WcaLog(LOGMSG_STANDARD, "ADDLOCAL is ALL");
-    } else if (addlocal.find(L"WindowsNP") != std::wstring::npos) {
+    }
+    else if (addlocal.find(L"WindowsNP") != std::wstring::npos)
+    {
         WcaLog(LOGMSG_STANDARD, "ADDLOCAL contains WindowsNP %S", addlocal.c_str());
         this->doInstallSysprobe = true;
     }
@@ -163,21 +171,22 @@ bool CustomActionData::findPreviousUserInfo()
     ddRegKey regkeybase;
     bool previousInstall = false;
     if (!regkeybase.getStringValue(keyInstalledUser.c_str(), pvsUser) ||
-        !regkeybase.getStringValue(keyInstalledDomain.c_str(), pvsDomain) ||
-        pvsUser.length() == 0 ||
+        !regkeybase.getStringValue(keyInstalledDomain.c_str(), pvsDomain) || pvsUser.length() == 0 ||
         pvsDomain.length() == 0)
     {
         WcaLog(LOGMSG_STANDARD, "previous user registration not found in registry");
         previousInstall = false;
     }
-    else {
+    else
+    {
         WcaLog(LOGMSG_STANDARD, "found previous user (%S) registration in registry", pvsUser.c_str());
         previousInstall = true;
     }
     return previousInstall;
 }
 
-void CustomActionData::checkForUserMismatch(bool previousInstall, bool userSupplied, std::wstring& computed_domain, std::wstring& computed_user)
+void CustomActionData::checkForUserMismatch(bool previousInstall, bool userSupplied, std::wstring &computed_domain,
+                                            std::wstring &computed_user)
 {
     if (!previousInstall && userSupplied)
     {
@@ -208,7 +217,8 @@ void CustomActionData::checkForUserMismatch(bool previousInstall, bool userSuppl
     }
 }
 
-void CustomActionData::findSuppliedUserInfo(std::wstring& input, std::wstring& computed_domain, std::wstring& computed_user)
+void CustomActionData::findSuppliedUserInfo(std::wstring &input, std::wstring &computed_domain,
+                                            std::wstring &computed_user)
 {
     std::wistringstream asStream(input);
     // username is going to be of the form <domain>\<username>
@@ -231,12 +241,14 @@ void CustomActionData::findSuppliedUserInfo(std::wstring& input, std::wstring& c
         }
         else if (0 == _wcsicmp(computed_domain.c_str(), machine.DnsDomainName().c_str()))
         {
-            WcaLog(LOGMSG_STANDARD, "Supplied domain name %S %S", computed_domain.c_str(), machine.DnsDomainName().c_str());
+            WcaLog(LOGMSG_STANDARD, "Supplied domain name %S %S", computed_domain.c_str(),
+                   machine.DnsDomainName().c_str());
             domainUser = true;
         }
         else
         {
-            WcaLog(LOGMSG_STANDARD, "Warning: Supplied user in different domain (%S != %S)", computed_domain.c_str(), machine.DnsDomainName().c_str());
+            WcaLog(LOGMSG_STANDARD, "Warning: Supplied user in different domain (%S != %S)", computed_domain.c_str(),
+                   machine.DnsDomainName().c_str());
             domainUser = true;
         }
     }
@@ -248,14 +260,19 @@ bool CustomActionData::parseUsernameData()
     bool previousInstall = findPreviousUserInfo();
     bool userSupplied = false;
 
-    if (this->value(propertyDDAgentUserName, tmpName)) {
-        if (tmpName.length() == 0) {
+    if (this->value(propertyDDAgentUserName, tmpName))
+    {
+        if (tmpName.length() == 0)
+        {
             tmpName = ddAgentUserName;
-        } else {
+        }
+        else
+        {
             userSupplied = true;
         }
     }
-    if (std::wstring::npos == tmpName.find(L'\\')) {
+    if (std::wstring::npos == tmpName.find(L'\\'))
+    {
         WcaLog(LOGMSG_STANDARD, "loaded username doesn't have domain specifier, assuming local");
         tmpName = L".\\" + tmpName;
     }
@@ -271,7 +288,8 @@ bool CustomActionData::parseUsernameData()
         computed_user = pvsUser;
         WcaLog(LOGMSG_STANDARD, "Using username from previous install");
     }
-    else {
+    else
+    {
         findSuppliedUserInfo(tmpName, computed_domain, computed_user);
         checkForUserMismatch(previousInstall, userSupplied, computed_domain, computed_user);
     }
@@ -289,8 +307,7 @@ bool CustomActionData::parseUsernameData()
     }
     else
     {
-        if (sidResult.Result == ERROR_SUCCESS &&
-            sidResult.Sid != nullptr)
+        if (sidResult.Result == ERROR_SUCCESS && sidResult.Sid != nullptr)
         {
             WcaLog(LOGMSG_STANDARD, "Found SID for \"%S\" in \"%S\"", _fqUsername.c_str(), sidResult.Domain.c_str());
             _ddUserExists = true;
@@ -305,7 +322,8 @@ bool CustomActionData::parseUsernameData()
         }
         else
         {
-            WcaLog(LOGMSG_STANDARD, "Looking up SID for \"%S\": %S", tmpName.c_str(), FormatErrorMessage(sidResult.Result).c_str());
+            WcaLog(LOGMSG_STANDARD, "Looking up SID for \"%S\": %S", tmpName.c_str(),
+                   FormatErrorMessage(sidResult.Result).c_str());
             return false;
         }
     }

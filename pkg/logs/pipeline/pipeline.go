@@ -23,7 +23,7 @@ type Pipeline struct {
 }
 
 // NewPipeline returns a new Pipeline
-func NewPipeline(outputChan chan *message.Message, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) *Pipeline {
+func NewPipeline(outputChan chan *message.Message, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, serverless bool) *Pipeline {
 	var destinations *client.Destinations
 	if endpoints.UseHTTP {
 		main := http.NewDestination(endpoints.Main, http.JSONContentType, destinationsContext)
@@ -44,7 +44,7 @@ func NewPipeline(outputChan chan *message.Message, processingRules []*config.Pro
 	senderChan := make(chan *message.Message, config.ChanSize)
 
 	var strategy sender.Strategy
-	if endpoints.UseHTTP {
+	if endpoints.UseHTTP || serverless {
 		strategy = sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait)
 	} else {
 		strategy = sender.StreamStrategy
@@ -52,7 +52,9 @@ func NewPipeline(outputChan chan *message.Message, processingRules []*config.Pro
 	sender := sender.NewSender(senderChan, outputChan, destinations, strategy)
 
 	var encoder processor.Encoder
-	if endpoints.UseHTTP {
+	if serverless {
+		encoder = processor.JSONServerlessEncoder
+	} else if endpoints.UseHTTP {
 		encoder = processor.JSONEncoder
 	} else if endpoints.UseProto {
 		encoder = processor.ProtoEncoder
@@ -80,4 +82,10 @@ func (p *Pipeline) Start() {
 func (p *Pipeline) Stop() {
 	p.processor.Stop()
 	p.sender.Stop()
+}
+
+// Flush flushes synchronously the processor and sender managed by this pipeline.
+func (p *Pipeline) Flush() {
+	p.processor.Flush() // flush messages in the processor into the sender
+	p.sender.Flush()    // flush the sender
 }

@@ -66,7 +66,7 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
     bpf_probe_read(&syscall.id, sizeof(syscall.id), &args->id);
     bpf_get_current_comm(&syscall.comm, sizeof(syscall.comm));
 
-    struct bpf_map_def *noisy_processes = select_buffer(&noisy_processes_fb, &noisy_processes_bb);
+    struct bpf_map_def *noisy_processes = select_buffer(&noisy_processes_fb, &noisy_processes_bb, SYSCALL_MONITOR_KEY);
     if (noisy_processes == NULL)
         return 0;
 
@@ -148,7 +148,7 @@ int sched_process_exec(struct _tracepoint_sched_sched_process_exec *ctx) {
     struct exec_path key = {};
     bpf_probe_read_str(&key.filename, MAX_PATH_LEN, filename);
 
-    struct bpf_map_def *exec_count = select_buffer(&exec_count_fb, &exec_count_bb);
+    struct bpf_map_def *exec_count = select_buffer(&exec_count_fb, &exec_count_bb, SYSCALL_MONITOR_KEY);
     if (exec_count == NULL)
         return 0;
 
