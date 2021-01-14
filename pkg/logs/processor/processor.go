@@ -25,7 +25,7 @@ type Processor struct {
 	encoder                   Encoder
 	done                      chan struct{}
 	diagnosticMessageReceiver diagnostic.MessageReceiver
-	mu              		  sync.Mutex
+	mu                        sync.Mutex
 }
 
 // New returns an initialized Processor.
@@ -77,18 +77,6 @@ func (p *Processor) run() {
 	}
 }
 
-<<<<<<< HEAD
-			p.diagnosticMessageReceiver.HandleMessage(*msg)
-
-			// Encode the message to its final format
-			content, err := p.encoder.Encode(msg, redactedMsg)
-			if err != nil {
-				log.Error("unable to encode msg ", err)
-				continue
-			}
-			msg.Content = content
-			p.outputChan <- msg
-=======
 func (p *Processor) processMessage(msg *message.Message) {
 	metrics.LogsDecoded.Add(1)
 	metrics.TlmLogsDecoded.Inc()
@@ -96,12 +84,13 @@ func (p *Processor) processMessage(msg *message.Message) {
 		metrics.LogsProcessed.Add(1)
 		metrics.TlmLogsProcessed.Inc()
 
+		p.diagnosticMessageReceiver.HandleMessage(*msg)
+
 		// Encode the message to its final format
 		content, err := p.encoder.Encode(msg, redactedMsg)
 		if err != nil {
 			log.Error("unable to encode msg ", err)
 			return
->>>>>>> master
 		}
 		msg.Content = content
 		p.outputChan <- msg
