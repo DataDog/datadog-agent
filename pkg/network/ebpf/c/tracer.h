@@ -101,8 +101,8 @@ typedef struct {
     // this is useful for detecting race conditions that result in a batch being overrriden
     // before it gets consumed from userspace
     __u64 idx;
-    // pos indicates the current batch slot that should be written to
-    __u8 pos;
+    // idx_to_notify is used to track which batch completions were notified to userspace
+    __u64 idx_to_notify;
 } http_batch_state_t;
 
 // This struct is used in the map lookup that returns the active batch for a certain CPU core
@@ -123,7 +123,8 @@ typedef struct {
 } http_transaction_t;
 
 typedef struct {
-    http_batch_state_t state;
+    __u64 idx;
+    __u8 pos;
     http_transaction_t txs[HTTP_BATCH_SIZE];
 } http_batch_t;
 
