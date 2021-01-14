@@ -1,14 +1,16 @@
-// +build !windows
-
 package metrics
 
 import (
-	"fmt"
+	"errors"
 	"net"
-	"runtime"
 	"time"
 )
 
-func DialPipe(path string, timeout *time.Duration) (net.Conn, error) {
-	return nil, fmt.Errorf("Windows Pipe not available on %s", runtime.GOOS)
+type statsWriter struct {
+	net.Conn
+}
+
+// SetWriteTimeout is not available for Windows Pipes. returns error
+func (w *statsWriter) SetWriteTimeout(d time.Duration) error {
+	return errors.New("SetWriteTimeout: not supported for Windows Pipe connections")
 }
