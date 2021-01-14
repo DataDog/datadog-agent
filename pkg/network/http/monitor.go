@@ -22,6 +22,8 @@ import (
 // * Querying these batches by doing a map lookup;
 // * Aggregating and emitting metrics based on the received HTTP transactions;
 type Monitor struct {
+	handler func([]httpTX)
+
 	batchManager *batchManager
 	perfMap      *manager.PerfMap
 	perfHandler  *ddebpf.PerfHandler
@@ -67,14 +69,23 @@ func NewMonitor(procRoot string, mgr *manager.Manager, h *ddebpf.PerfHandler) (*
 		return nil, fmt.Errorf("unable to find perf map %s", probes.HttpNotificationsMap)
 	}
 
+	statkeeper := newHTTPStatkeeper()
+
+	handler := func(transactions []httpTX) {
+		if statkeeper != nil {
+			statkeeper.Process(transactions)
+		}
+	}
+
 	return &Monitor{
+		handler:       handler,
 		batchManager:  newBatchManager(batchMap, batchStateMap, numCPUs),
 		perfMap:       pm,
 		perfHandler:   h,
 		telemetry:     newTelemetry(),
 		pollRequests:  make(chan chan struct{}),
 		closeFilterFn: closeFilterFn,
-		statkeeper:    newHTTPStatkeeper(),
+		statkeeper:    statkeeper,
 	}, nil
 }
 
@@ -195,7 +206,7 @@ func (m *Monitor) Stop() {
 func (m *Monitor) process(transactions []httpTX, err error) {
 	m.telemetry.aggregate(transactions, err)
 
-	if m.statkeeper != nil && len(transactions) > 0 {
-		m.statkeeper.Process(transactions)
+	if m.handler != nil && len(transactions) > 0 {
+		m.handler(transactions)
 	}
 }
