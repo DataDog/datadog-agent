@@ -217,7 +217,7 @@ func (l *Launcher) overrideSource(container *Container, source *config.LogSource
 func (l *Launcher) getFileSource(container *Container, source *config.LogSource) *config.LogSource {
 	containerID := container.service.Identifier
 
-	// Just in case
+	// Populate the collectAllSource if we don't have it yet
 	if source.Name == config.ContainerCollectAll && l.collectAllSource == nil {
 		l.collectAllSource = source
 	}
@@ -295,7 +295,7 @@ func (l *Launcher) scheduleFileSource(container *Container, source *config.LogSo
 		log.Warnf("Can't tail twice the same container: %v", ShortContainerID(containerID))
 		return
 	}
-	// overridenSource == source if the containerCollectAll option is not activated or the container has AD labels
+	// fileSource is a new source using the original source as its parent
 	fileSource := l.getFileSource(container, source)
 	// Keep source for later unscheduling
 	l.fileSourcesByContainer[containerID] = fileSource

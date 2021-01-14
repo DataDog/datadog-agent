@@ -22,7 +22,10 @@ import (
 // NewLauncher returns a new container launcher depending on the environment.
 // By default returns a docker launcher if the docker socket is mounted and fallback to
 // a kubernetes launcher if '/var/log/pods' is mounted ; this behaviour is reversed when
-// collectFromFiles is enabled.
+// kubernetesCollectFromFiles is enabled.
+// If dockerCollectFromFiles is enabled the docker launcher will first attempt to tail
+// containers from file instead of the docker socket if '/var/lib/docker/containers'
+// is mounted.
 // If none of those volumes are mounted, returns a lazy docker launcher with a retrier to handle the cases
 // where docker is started after the agent.
 // dockerReadTimeout is a configurable read timeout for the docker client.
