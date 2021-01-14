@@ -152,6 +152,22 @@ func (w *StatsSyncWriter) addStats(s []stats.Bucket) {
 	}
 }
 
+// SendPayload sends a stats payload to the Datadog backend.
+func (w *StatsSyncWriter) SendPayload(p *stats.Payload) {
+	req := newPayload(map[string]string{
+		headerLanguages:    strings.Join(info.Languages(), "|"),
+		"Content-Type":     "application/json",
+		"Content-Encoding": "gzip",
+	})
+	if err := stats.EncodePayload(req.body, p); err != nil {
+		log.Errorf("Stats encoding error: %v", err)
+		return
+	}
+	atomic.AddInt64(&w.stats.Bytes, int64(req.body.Len()))
+
+	sendPayloads(w.senders, req)
+}
+
 var _ eventRecorder = (*StatsWriter)(nil)
 
 func (w *StatsSyncWriter) report() {

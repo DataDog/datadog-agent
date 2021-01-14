@@ -34,10 +34,17 @@ const (
 	tagContainersTags = "_dd.tags.container"
 )
 
-type Writer interface {
+type TraceWriter interface {
 	Run()
 	Stop()
 	SyncFlush()
+}
+
+type StatsWriter interface {
+	Run()
+	Stop()
+	SyncFlush()
+	SendPayload(p *stats.Payload)
 }
 
 // Agent struct holds all the sub-routines structs and make the data flow between them
@@ -51,14 +58,16 @@ type Agent struct {
 	ExceptionSampler   *sampler.ExceptionSampler
 	PrioritySampler    *Sampler
 	EventProcessor     *event.Processor
-	Writers            []Writer
+	TraceWriter        TraceWriter
+	StatsWriter        StatsWriter
 
 	// obfuscator is used to obfuscate sensitive data from various span
 	// tags based on their type.
 	obfuscator *obfuscate.Obfuscator
 
 	// In takes incoming payloads to be processed by the agent.
-	In chan *api.Payload
+	In            chan *api.Payload
+	TraceWriterIn chan *writer.SampledSpans
 
 	// config
 	conf *config.AgentConfig
@@ -72,19 +81,18 @@ type Agent struct {
 func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	dynConf := sampler.NewDynamicConfig(conf.DefaultEnv)
 	in := make(chan *api.Payload, 1000)
+	out := make(chan *writer.SampledSpans, 1000)
+
 	statsChan := make(chan []stats.Bucket, 100)
 
-	writers := []Writer{}
+	var traceWriter TraceWriter
+	var statsWriter StatsWriter
 	if conf.SynchronousFlushing {
-		writers = []Writer{
-			writer.NewTraceSyncWriter(conf, out),
-			writer.NewStatsSyncWriter(conf, statsChan),
-		}
+		traceWriter = writer.NewTraceSyncWriter(conf, out)
+		statsWriter = writer.NewStatsSyncWriter(conf, statsChan)
 	} else {
-		writers = []Writer{
-			writer.NewTraceWriter(conf, out),
-			writer.NewStatsWriter(conf, statsChan),
-		}
+		traceWriter = writer.NewTraceWriter(conf, out)
+		statsWriter = writer.NewStatsWriter(conf, statsChan)
 	}
 
 	agnt := &Agent{
@@ -96,9 +104,11 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		ErrorsScoreSampler: NewErrorsSampler(conf),
 		PrioritySampler:    NewPrioritySampler(conf, dynConf),
 		EventProcessor:     newEventProcessor(conf),
-		Writers:            writers,
+		TraceWriter:        traceWriter,
+		StatsWriter:        statsWriter,
 		obfuscator:         obfuscate.NewObfuscator(conf.Obfuscation),
 		In:                 in,
+		TraceWriterIn:      out,
 		conf:               conf,
 		ctx:                ctx,
 	}
@@ -119,9 +129,8 @@ func (a *Agent) Run() {
 		starter.Start()
 	}
 
-	for _, writer := range a.Writers {
-		go writer.Run()
-	}
+	go a.TraceWriter.Run()
+	go a.StatsWriter.Run()
 
 	for i := 0; i < runtime.NumCPU(); i++ {
 		go a.work()
@@ -133,9 +142,8 @@ func (a *Agent) Run() {
 // Flush traces sychronously. This method only works when the agent is configured in synchronous flushing
 // mode.
 func (a *Agent) Flush() {
-	for _, writer := range a.Writers {
-		writer.SyncFlush()
-	}
+	a.StatsWriter.SyncFlush()
+	a.TraceWriter.SyncFlush()
 }
 
 func (a *Agent) work() {
@@ -162,10 +170,8 @@ func (a *Agent) loop() {
 			}
 			a.Concentrator.Stop()
 
-			for _, writer := range a.Writers {
-				go writer.Stop()
-			}
-
+			a.TraceWriter.Stop()
+			a.StatsWriter.Stop()
 			a.ScoreSampler.Stop()
 			a.ExceptionSampler.Stop()
 			a.ErrorsScoreSampler.Stop()
@@ -282,12 +288,12 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 			ss.Size += pb.Trace(events).Msgsize()
 		}
 		if ss.Size > writer.MaxPayloadSize {
-			a.TraceWriter.In <- ss
+			a.TraceWriterIn <- ss
 			ss = new(writer.SampledSpans)
 		}
 	}
 	if ss.Size > 0 {
-		a.TraceWriter.In <- ss
+		a.TraceWriterIn <- ss
 	}
 	if len(sinputs) > 0 {
 		a.Concentrator.In <- sinputs

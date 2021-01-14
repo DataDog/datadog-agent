@@ -1,14 +1,13 @@
 package serverless
 
 import (
-"encoding/json"
-"fmt"
-"io/ioutil"
-"net/http"
-"sync"
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"net/http"
+	"sync"
 
 	traceAgent "github.com/DataDog/datadog-agent/pkg/trace/agent"
-
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
@@ -17,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
 // httpServerPort will be the default port used to run the HTTP server listening
 // to calls from the client libraries and to logs from the AWS environment.
 const httpServerPort int = 8124
@@ -26,7 +26,7 @@ const httpLogsCollectionRoute string = "/lambda/logs"
 // Daemon is the communcation server for between the runtime and the serverless Agent.
 // The name "daemon" is just in order to avoid serverless.StartServer ...
 type Daemon struct {
-	httpServer   *http.Server
+	httpServer *http.Server
 	mux        *http.ServeMux
 
 	statsdServer *dogstatsd.Server
@@ -34,7 +34,7 @@ type Daemon struct {
 
 	// aggregator used by the statsd server
 	aggregator *aggregator.BufferedAggregator
-	stopCh       chan struct{}
+	stopCh     chan struct{}
 
 	// Wait on this WaitGroup in controllers to be sure that the Daemon is ready.
 	// (i.e. that the DogStatsD server is properly instanciated)
@@ -235,7 +235,8 @@ func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		logs.Flush()
 		wg.Done()
-	}
+	}()
+
 	wg.Wait()
 
 	log.Debug("Sync flush done")

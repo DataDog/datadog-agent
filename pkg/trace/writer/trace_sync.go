@@ -29,7 +29,7 @@ const maxPendingTracePayloads = 100
 // TraceSyncWriter buffers traces and APM events, flushing them only when the Flush method
 // is manually called.
 type TraceSyncWriter struct {
-	in <-chan *SampledSpans
+	In <-chan *SampledSpans
 
 	hostname string
 	env      string
@@ -47,7 +47,7 @@ type TraceSyncWriter struct {
 // will accept incoming spans via the in channel.
 func NewTraceSyncWriter(cfg *config.AgentConfig, in <-chan *SampledSpans) *TraceSyncWriter {
 	tw := &TraceSyncWriter{
-		in:       in,
+		In:       in,
 		hostname: cfg.Hostname,
 		env:      cfg.DefaultEnv,
 		stats:    &info.TraceWriterInfo{},
@@ -89,7 +89,7 @@ func (w *TraceSyncWriter) Run() {
 	defer close(w.stop)
 	for {
 		select {
-		case pkg := <-w.in:
+		case pkg := <-w.In:
 			go w.processPayload(pkg)
 		case <-w.stop:
 			return

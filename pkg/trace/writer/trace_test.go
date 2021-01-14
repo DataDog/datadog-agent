@@ -41,8 +41,8 @@ func TestTraceWriter(t *testing.T) {
 		// Use a flush threshold that allows the first two entries to not overflow,
 		// but overflow on the third.
 		defer useFlushThreshold(testSpans[0].Size + testSpans[1].Size + 10)()
-		tw := NewTraceWriter(cfg)
-		tw.In = make(chan *SampledSpans)
+		in := make(chan *SampledSpans)
+		tw := NewTraceWriter(cfg, in)
 		go tw.Run()
 		for _, ss := range testSpans {
 			tw.In <- ss
@@ -82,8 +82,8 @@ func TestTraceWriterMultipleEndpointsConcurrent(t *testing.T) {
 		randomSampledSpans(10, 0),
 		randomSampledSpans(40, 5),
 	}
-	tw := NewTraceWriter(cfg)
-	tw.In = make(chan *SampledSpans, 100)
+	in := make(chan *SampledSpans, 100)
+	tw := NewTraceWriter(cfg, in)
 	go tw.Run()
 
 	var wg sync.WaitGroup

@@ -42,14 +42,10 @@ func (w *worker) run() {
 			return
 		case <-w.server.health.C:
 		case packets := <-w.server.packetsIn:
-<<<<<<< HEAD
-			w.server.parsePackets(w.batcher, w.parser, packets)
-=======
 			w.samples = w.samples[0:0]
 			// we return the samples in case the slice was extended
 			// when parsing the packets
 			w.samples = w.server.parsePackets(w.batcher, w.parser, packets, w.samples)
->>>>>>> master
 		}
 	}
 }

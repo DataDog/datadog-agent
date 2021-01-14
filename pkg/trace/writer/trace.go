@@ -66,9 +66,9 @@ type TraceWriter struct {
 
 // NewTraceWriter returns a new TraceWriter. It is created for the given agent configuration and
 // will accept incoming spans via the in channel.
-func NewTraceWriter(cfg *config.AgentConfig) *TraceWriter {
+func NewTraceWriter(cfg *config.AgentConfig, in chan *SampledSpans) *TraceWriter {
 	tw := &TraceWriter{
-		In:       make(chan *SampledSpans, 1000),
+		In:       in,
 		hostname: cfg.Hostname,
 		env:      cfg.DefaultEnv,
 		stats:    &info.TraceWriterInfo{},
