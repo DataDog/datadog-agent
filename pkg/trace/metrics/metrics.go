@@ -19,7 +19,10 @@ import (
 
 // Configure creates a statsd client for the given agent's configuration, using the specified global tags.
 func Configure(conf *config.AgentConfig, tags []string) error {
-	var client *statsd.Client
+	var (
+		client *statsd.Client
+		err    error
+	)
 	if conf.StatsdWindowsPipe != "" {
 		pipe, err := DialPipe(conf.StatsdWindowsPipe, nil)
 		if err != nil {
