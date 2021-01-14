@@ -16,6 +16,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"text/template"
@@ -38,6 +39,7 @@ import (
 
 var (
 	eventChanLength     = 10000
+	handlerChanLength   = 20000
 	discarderChanLength = 10000
 	logger              seelog.LoggerInterface
 )
@@ -55,7 +57,8 @@ runtime_security_config:
   socket: /tmp/test-security-probe.sock
   flush_discarder_window: 0
   load_controller:
-    events_count_threshold: 10000
+    events_count_threshold: {{ .EventsCountThreshold }}
+    fork_bomb_threshold: {{ .ForkBombThreshold }}
 {{if .DisableFilters}}
   enable_kernel_filters: false
 {{end}}
@@ -103,11 +106,24 @@ type testEvent struct {
 }
 
 type testOpts struct {
-	testDir           string
-	disableFilters    bool
-	disableApprovers  bool
-	disableDiscarders bool
-	wantProbeEvents   bool
+	testDir              string
+	disableFilters       bool
+	disableApprovers     bool
+	disableDiscarders    bool
+	wantProbeEvents      bool
+	eventsCountThreshold int
+	forkBombThreshold    int
+	reuseProbeHandler    bool
+}
+
+func (to testOpts) Equal(opts testOpts) bool {
+	return to.testDir == opts.testDir &&
+		to.disableApprovers == opts.disableApprovers &&
+		to.disableDiscarders == opts.disableDiscarders &&
+		to.disableFilters == opts.disableFilters &&
+		to.eventsCountThreshold == opts.eventsCountThreshold &&
+		to.forkBombThreshold == opts.forkBombThreshold &&
+		to.reuseProbeHandler == opts.reuseProbeHandler
 }
 
 type testModule struct {
@@ -139,15 +155,30 @@ type testProbe struct {
 }
 
 type testEventHandler struct {
-	events       chan *sprobe.Event
-	customEvents chan *module.RuleEvent
+	events       [2]chan *sprobe.Event
+	customEvents [2]chan *module.RuleEvent
+	activeChan   uint64
+}
+
+func (h *testEventHandler) GetActiveEventsChan() chan *sprobe.Event {
+	return h.events[atomic.LoadUint64(&h.activeChan)]
+}
+
+func (h *testEventHandler) GetActiveCustomEventsChan() chan *module.RuleEvent {
+	return h.customEvents[atomic.LoadUint64(&h.activeChan)]
+}
+
+func (h *testEventHandler) ClearEventsChannels() {
+	oldIndex := atomic.SwapUint64(&h.activeChan, 1-atomic.LoadUint64(&h.activeChan))
+	h.events[oldIndex] = make(chan *sprobe.Event, handlerChanLength)
+	h.customEvents[oldIndex] = make(chan *module.RuleEvent, handlerChanLength)
 }
 
 func (h *testEventHandler) HandleEvent(event *sprobe.Event) {
 	testMod.module.HandleEvent(event)
 	e := event.Clone()
 	select {
-	case h.events <- &e:
+	case h.GetActiveEventsChan() <- &e:
 		break
 	default:
 		log.Tracef("dropped probe event %+v", event)
@@ -161,7 +192,7 @@ func (h *testEventHandler) HandleCustomEvent(rule *rules.Rule, event *sprobe.Cus
 		Event:  &e,
 	}
 	select {
-	case h.customEvents <- &re:
+	case h.GetActiveCustomEventsChan() <- &re:
 		break
 	default:
 		log.Tracef("dropped probe custom event %+v")
@@ -188,11 +219,20 @@ func setTestConfig(dir string, opts testOpts) error {
 		return err
 	}
 
+	if opts.eventsCountThreshold == 0 {
+		opts.eventsCountThreshold = 100000000
+	}
+	if opts.forkBombThreshold == 0 {
+		opts.forkBombThreshold = 2000
+	}
+
 	buffer := new(bytes.Buffer)
 	if err := tmpl.Execute(buffer, map[string]interface{}{
-		"TestPoliciesDir":   dir,
-		"DisableApprovers":  opts.disableApprovers,
-		"DisableDiscarders": opts.disableDiscarders,
+		"TestPoliciesDir":      dir,
+		"DisableApprovers":     opts.disableApprovers,
+		"DisableDiscarders":    opts.disableDiscarders,
+		"EventsCountThreshold": opts.eventsCountThreshold,
+		"ForkBombThreshold":    opts.forkBombThreshold,
 	}); err != nil {
 		return err
 	}
@@ -259,23 +299,11 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 	defer os.Remove(cfgFilename)
 
 	if useReload && testMod != nil {
-		if opts.disableApprovers == testMod.opts.disableApprovers &&
-			opts.disableDiscarders == testMod.opts.disableDiscarders &&
-			opts.disableFilters == testMod.opts.disableFilters {
-
-			if opts.disableApprovers {
-				testMod.config.EnableApprovers = false
-			}
-
-			if opts.disableDiscarders {
-				testMod.config.EnableDiscarders = false
-			}
-
+		if opts.Equal(testMod.opts) {
 			testMod.reset()
 			testMod.st = st
 			return testMod, testMod.reloadConfiguration()
 		}
-
 		testMod.cleanup()
 	}
 
@@ -307,8 +335,8 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 		events:     make(chan testEvent, eventChanLength),
 		discarders: make(chan *testDiscarder, discarderChanLength),
 		probeHandler: &testEventHandler{
-			events:       make(chan *sprobe.Event, 16384),
-			customEvents: make(chan *module.RuleEvent, 16384),
+			events:       [2]chan *sprobe.Event{make(chan *sprobe.Event, handlerChanLength), make(chan *sprobe.Event, handlerChanLength)},
+			customEvents: [2]chan *module.RuleEvent{make(chan *module.RuleEvent, handlerChanLength), make(chan *module.RuleEvent, handlerChanLength)},
 		},
 	}
 
@@ -325,6 +353,7 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 }
 
 func (tm *testModule) reset() {
+	tm.probeHandler.ClearEventsChannels()
 	tm.events = make(chan testEvent, eventChanLength)
 	tm.discarders = make(chan *testDiscarder, discarderChanLength)
 }
@@ -395,7 +424,7 @@ func (tm *testModule) GetProbeCustomEvent(timeout time.Duration, eventType ...ev
 
 	for {
 		select {
-		case ruleEvent := <-tm.probeHandler.customEvents:
+		case ruleEvent := <-tm.probeHandler.GetActiveCustomEventsChan():
 			if len(eventType) > 0 {
 				if ruleEvent.Event.GetType() == eventType[0] {
 					return ruleEvent, nil
@@ -418,7 +447,7 @@ func (tm *testModule) GetProbeEvent(timeout time.Duration, eventType ...eval.Eve
 
 	for {
 		select {
-		case event := <-tm.probeHandler.events:
+		case event := <-tm.probeHandler.GetActiveEventsChan():
 			if len(eventType) > 0 {
 				if event.GetType() == eventType[0] {
 					return event, nil
@@ -510,7 +539,6 @@ func (tm *testModule) Close() {
 type simpleTest struct {
 	root     string
 	toRemove bool
-	logLevel seelog.LogLevel
 }
 
 func (t *simpleTest) Close() {
@@ -577,14 +605,13 @@ func (t *simpleTest) swapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, er
 
 		logger, err = seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stdout, seelog.TraceLvl, logFormat)
 		if err != nil {
-			return t.logLevel, err
+			return 0, err
 		}
 	}
 	log.SetupLogger(logger, logLevel.String())
 
-	prevLevel := t.logLevel
-	t.logLevel = logLevel
-
+	prevLevel, _ := seelog.LogLevelFromString(logLevelStr)
+	logLevelStr = logLevel.String()
 	return prevLevel, nil
 }
 
@@ -643,7 +670,7 @@ func waitForOpenProbeEvent(test *testModule, filename string) (*probe.Event, err
 	var event *probe.Event
 	for {
 		select {
-		case e := <-test.probeHandler.events:
+		case e := <-test.probeHandler.GetActiveEventsChan():
 			if value, _ := e.GetFieldValue("open.filename"); value == filename {
 				event = e
 			}

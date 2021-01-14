@@ -35,7 +35,8 @@ func TestProbeMonitor(t *testing.T) {
 		Expression: `open.filename =~ "*a/test-open" && open.flags & O_CREAT != 0`,
 	}
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
+	probeMonitorOpts := testOpts{forkBombThreshold: 300}
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, probeMonitorOpts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,18 +53,18 @@ func TestProbeMonitor(t *testing.T) {
 
 	t.Run("ruleset_loaded", func(t *testing.T) {
 		test.Close()
-		test, err = newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
+		test, err = newTestModule(nil, []*rules.RuleDefinition{rule}, probeMonitorOpts)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer test.Close()
 
-		ruleEvent, err := test.GetProbeCustomEvent(1*time.Second, probe.RuleSetLoadedRuleID)
+		ruleEvent, err := test.GetProbeCustomEvent(1*time.Second, probe.CustomRulesetLoadedEventType.String())
 		if err != nil {
 			t.Error(err)
 		} else {
-			if ruleEvent.RuleID != probe.RuleSetLoadedRuleID {
-				t.Errorf("expected %s rule, got %s", probe.RuleSetLoadedRuleID, ruleEvent.RuleID)
+			if ruleEvent.RuleID != probe.RulesetLoadedRuleID {
+				t.Errorf("expected %s rule, got %s", probe.RulesetLoadedRuleID, ruleEvent.RuleID)
 			}
 		}
 	})
@@ -79,7 +80,7 @@ func TestProbeMonitor(t *testing.T) {
 		defer os.Remove(truncatedSegmentFile)
 		defer syscall.Close(int(fd))
 
-		ruleEvent, err := test.GetProbeCustomEvent(3*time.Second, probe.ErrTruncatedSegment{}.Error())
+		ruleEvent, err := test.GetProbeCustomEvent(3*time.Second, probe.CustomTruncatedSegmentEventType.String())
 		if err != nil {
 			t.Error(err)
 		} else {
@@ -100,7 +101,7 @@ func TestProbeMonitor(t *testing.T) {
 		defer os.Remove(truncatedParentsFile)
 		defer syscall.Close(int(fd))
 
-		ruleEvent, err := test.GetProbeCustomEvent(3*time.Second, probe.ErrTruncatedParents{}.Error())
+		ruleEvent, err := test.GetProbeCustomEvent(3*time.Second, probe.CustomTruncatedParentsEventType.String())
 		if err != nil {
 			t.Error(err)
 		} else {
@@ -110,12 +111,12 @@ func TestProbeMonitor(t *testing.T) {
 		}
 	})
 
-	t.Run("fork_bomb", func(t *testing.T) {
-		prevLevel, err := test.st.swapLogLevel(seelog.DebugLvl)
-		if err != nil {
-			t.Error(err)
-		}
+	prevLevel, err := test.st.swapLogLevel(seelog.WarnLvl)
+	if err != nil {
+		t.Error(err)
+	}
 
+	t.Run("fork_bomb", func(t *testing.T) {
 		executable := "/usr/bin/touch"
 		if resolved, err := os.Readlink(executable); err == nil {
 			executable = resolved
@@ -126,7 +127,7 @@ func TestProbeMonitor(t *testing.T) {
 		}
 
 		go func() {
-			for i := int64(0); i < testMod.config.LoadControllerForkBombThreshold*12/10; i++ {
+			for i := int64(0); i < testMod.config.LoadControllerForkBombThreshold*2; i++ {
 				args := []string{"touch", "/dev/null"}
 				_, err := syscall.ForkExec(executable, args, nil)
 				if err != nil {
@@ -135,7 +136,7 @@ func TestProbeMonitor(t *testing.T) {
 			}
 		}()
 
-		ruleEvent, err := test.GetProbeCustomEvent(3*time.Second, probe.ForkBombRuleID)
+		ruleEvent, err := test.GetProbeCustomEvent(3*time.Second, probe.CustomForkBombEventType.String())
 		if err != nil {
 			t.Error(err)
 		} else {
@@ -146,10 +147,11 @@ func TestProbeMonitor(t *testing.T) {
 
 		time.Sleep(3 * time.Second)
 
-		if _, err := test.st.swapLogLevel(prevLevel); err != nil {
-			t.Error(err)
-		}
 	})
+
+	if _, err := test.st.swapLogLevel(prevLevel); err != nil {
+		t.Error(err)
+	}
 }
 
 func TestNoisyProcess(t *testing.T) {
@@ -158,7 +160,7 @@ func TestNoisyProcess(t *testing.T) {
 		Expression: `open.filename =~ "*do-not-match/test-open" && open.flags & O_CREAT != 0`,
 	}
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{disableDiscarders: true})
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{disableDiscarders: true, eventsCountThreshold: 1000})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -168,14 +170,14 @@ func TestNoisyProcess(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	prevLevel, err := test.st.swapLogLevel(seelog.DebugLvl)
+	prevLevel, err := test.st.swapLogLevel(seelog.WarnLvl)
 	if err != nil {
 		t.Error(err)
 	}
 
 	t.Run("noisy_process", func(t *testing.T) {
 		// generate load
-		for i := int64(0); i < testMod.config.LoadControllerEventsCountThreshold*12/10; i++ {
+		for i := int64(0); i < testMod.config.LoadControllerEventsCountThreshold*2; i++ {
 			fd, _, errno := syscall.Syscall(syscall.SYS_OPEN, uintptr(filePtr), syscall.O_CREAT, 0755)
 			if errno != 0 {
 				t.Fatal(error(errno))
@@ -184,7 +186,7 @@ func TestNoisyProcess(t *testing.T) {
 			_ = os.Remove(file)
 		}
 
-		ruleEvent, err := test.GetProbeCustomEvent(1*time.Second, probe.NoisyProcessRuleID)
+		ruleEvent, err := test.GetProbeCustomEvent(1*time.Second, probe.CustomNoisyProcessEventType.String())
 		if err != nil {
 			t.Error(err)
 		} else {

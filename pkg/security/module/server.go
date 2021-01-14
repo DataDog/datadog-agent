@@ -130,7 +130,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event Event) {
 	msg := &api.SecurityEventMessage{
 		RuleID: rule.Definition.ID,
 		Data:   data,
-		Tags:   append(rule.Tags, "rule_id:"+rule.Definition.ID),
+		Tags:   append(rule.Tags, append(event.GetTags(), "rule_id:"+rule.Definition.ID)...),
 	}
 
 	select {

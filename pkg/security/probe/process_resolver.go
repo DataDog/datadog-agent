@@ -61,6 +61,7 @@ func (i *InodeInfo) UnmarshalBinary(data []byte) (int, error) {
 // ProcessResolverOpts options of resolver
 type ProcessResolverOpts struct {
 	DebugCacheSize bool
+	PIDCacheSize   int
 }
 
 // ProcessResolver resolved process context
@@ -68,17 +69,30 @@ type ProcessResolver struct {
 	sync.RWMutex
 	probe                 *Probe
 	resolvers             *Resolvers
-	client         *statsd.Client
+	client                *statsd.Client
 	inodeInfoMap          *lib.Map
 	procCacheMap          *lib.Map
 	pidCacheMap           *lib.Map
 	bestEffortPidCacheMap *lib.Map
 	bestEffortCookiesMap  *lib.Map
-	cacheSize    int64
-	opts         ProcessResolverOpts
+	cacheSize             int64
+	opts                  ProcessResolverOpts
 
 	entryCache  map[uint32]*ProcessCacheEntry
 	cookieCache *simplelru.LRU
+}
+
+// SendStats sends process resolver metrics
+func (p *ProcessResolver) SendStats() error {
+	if err := p.client.Gauge(MetricProcessResolverCacheSize, p.GetCacheSize(), []string{}, 1.0); err != nil {
+		return errors.Wrap(err, "failed to send process_resolver cache_size metric")
+	}
+
+	if err := p.client.Gauge(MetricProcessResolverReferenceCount, p.GetEntryCacheSize(), []string{}, 1.0); err != nil {
+		return errors.Wrap(err, "failed to send process_resolver reference_count metric")
+	}
+
+	return nil
 }
 
 // AddForkEntry adds an entry to the local cache and returns the newly created entry
@@ -203,7 +217,7 @@ func (p *ProcessResolver) insertForkEntry(pid uint32, entry *ProcessCacheEntry) 
 	}
 	p.entryCache[pid] = entry
 
-	_ = p.client.Count(MetricPrefix+".process_resolver.added", 1, []string{}, 1.0)
+	_ = p.client.Count(MetricProcessResolverAdded, 1, []string{}, 1.0)
 
 	if p.opts.DebugCacheSize {
 		atomic.AddInt64(&p.cacheSize, 1)
@@ -223,7 +237,7 @@ func (p *ProcessResolver) insertExecEntry(pid uint32, entry *ProcessCacheEntry) 
 
 	p.entryCache[pid] = entry
 
-	_ = p.client.Count(MetricPrefix+".process_resolver.added", 1, []string{}, 1.0)
+	_ = p.client.Count(MetricProcessResolverAdded, 1, []string{}, 1.0)
 
 	if p.opts.DebugCacheSize {
 		atomic.AddInt64(&p.cacheSize, 1)
@@ -486,44 +500,16 @@ func (p *ProcessResolver) MarkCookieAsBestEffort(cookie uint32) {
 		return
 	}
 
-	var pid, toDelete uint32
-	// 32 is the size of pid_cache_t
-	var entry [32]byte
-	var mapCookie uint32
-
 	// mark cookie as best effort
 	if err := p.bestEffortCookiesMap.Put(&cookie, ebpf.BytesMapItem([]byte{1})); err != nil {
+		log.Tracef("failed to mark cookie %d as best effort", cookie)
 		return
-	}
-
-	iter := p.pidCacheMap.Iterate()
-	for iter.Next(&pid, &entry) {
-		// Next must be called before a key is deleted otherwise the iteration will restart from the beginning
-		// after every delete. Defer deletion to the next iteration by setting the pid in toDelete.
-		if toDelete > 0 {
-			_ = p.pidCacheMap.Delete(&toDelete)
-			toDelete = 0
-		}
-
-		// check if the cookies match
-		mapCookie = ebpf.ByteOrder.Uint32(entry[0:4])
-		if mapCookie == cookie {
-
-			// move entry to the best effort map
-			_ = p.bestEffortPidCacheMap.Put(&pid, &entry)
-
-			// delete entry in the normal pid cache map
-			toDelete = pid
-		}
-	}
-	if toDelete > 0 {
-		_ = p.pidCacheMap.Delete(&toDelete)
 	}
 }
 
 // NewProcessResolver returns a new process resolver
 func NewProcessResolver(probe *Probe, resolvers *Resolvers, client *statsd.Client, opts ProcessResolverOpts) (*ProcessResolver, error) {
-	cookieLRU, err := simplelru.NewLRU(probe.config.PIDCacheSize, nil)
+	cookieLRU, err := simplelru.NewLRU(opts.PIDCacheSize, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -533,6 +519,14 @@ func NewProcessResolver(probe *Probe, resolvers *Resolvers, client *statsd.Clien
 		client:      client,
 		entryCache:  make(map[uint32]*ProcessCacheEntry),
 		cookieCache: cookieLRU,
-		opts:       opts,
+		opts:        opts,
 	}, nil
+}
+
+// NewProcessResolverOpts returns a new set of process resolver options
+func NewProcessResolverOpts(debug bool, pidCacheSize int) ProcessResolverOpts {
+	return ProcessResolverOpts{
+		DebugCacheSize: debug,
+		PIDCacheSize:   pidCacheSize,
+	}
 }

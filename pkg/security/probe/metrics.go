@@ -42,16 +42,10 @@ var (
 	// Tags: process
 	MetricExec = newRuntimeSecurityMetric(".exec")
 	// MetricConcurrentSyscall is the name of the metric used to count concurrent syscalls
+	// Tags: -
 	MetricConcurrentSyscall = newRuntimeSecurityMetric(".concurrent_syscalls")
 
 	// Perf buffer metrics
-
-	// MetricPerfBufferInQueue is the name of the metric used to count the number of events currently in a perf buffer
-	// Tags: map, cpu, event_type
-	MetricPerfBufferInQueue = newRuntimeSecurityMetric(".perf_buffer.in_queue")
-	// MetricPerfBufferUsage is the name of the metric used to report the usage of a perf buffer
-	// Tags: map, cpu, event_type
-	MetricPerfBufferUsage = newRuntimeSecurityMetric(".perf_buffer.usage")
 
 	// MetricPerfBufferLostWrite is the name of the metric used to count the number of lost events, as reported by a
 	// dedicated count in kernel space
@@ -85,6 +79,10 @@ var (
 	// process cache
 	// Tags: -
 	MetricProcessResolverCacheSize = newRuntimeSecurityMetric(".process_resolver.cache_size")
+	// MetricProcessResolverReferenceCount is the name of the metric used to report the number of entry cache still
+	// referenced in the process tree
+	// Tags: -
+	MetricProcessResolverReferenceCount = newRuntimeSecurityMetric(".process_resolver.reference_count")
 	// MetricProcessResolverCacheMiss is the name of the metric used to report process resolver cache misses
 	// Tags: -
 	MetricProcessResolverCacheMiss = newRuntimeSecurityMetric(".process_resolver.cache_miss")

@@ -48,7 +48,7 @@ func waitForOpenDiscarder(test *testModule, filename string) (*probe.Event, erro
 	var event *probe.Event
 	for {
 		select {
-		case <-test.probeHandler.events:
+		case <-test.probeHandler.GetActiveEventsChan():
 		case discarder := <-test.discarders:
 			if value, _ := discarder.event.GetFieldValue("open.filename"); value == filename {
 				event = discarder.event.(*sprobe.Event)

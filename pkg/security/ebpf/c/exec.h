@@ -232,7 +232,7 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
         }
 
         if (!best_effort_cookie) {
-            // the best_effort_pid_cache switch is racy, double check that the provided cookie was not marked as best effort
+            // check if the provided cookie was not marked as best effort
             u8 *is_best_effort = (u8 *) bpf_map_lookup_elem(&best_effort_cookies, &event.pid_entry.cookie);
             if (is_best_effort) {
                 best_effort_cookie = 1;

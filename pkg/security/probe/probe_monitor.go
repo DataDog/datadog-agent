@@ -78,8 +78,10 @@ func (m *Monitor) SendStats() error {
 		}
 	}
 
-	if err := m.client.Gauge(MetricProcessResolverCacheSize, m.probe.resolvers.ProcessResolver.GetCacheSize(), []string{}, 1.0); err != nil {
-		return errors.Wrap(err, "failed to send process_resolver cache_size metric")
+	if resolvers := m.probe.GetResolvers(); resolvers != nil {
+		if err := resolvers.ProcessResolver.SendStats(); err != nil {
+			return errors.Wrap(err, "failed to send process_resolver stats")
+		}
 	}
 
 	if err := m.perfBufferMonitor.SendStats(); err != nil {
@@ -114,7 +116,7 @@ func (m *Monitor) ProcessEvent(event *Event, size uint64, CPU int, perfMap *mana
 	// Look for an unresolved path
 	if err := event.GetPathResolutionError(); err != nil {
 		m.probe.DispatchCustomEvent(
-			NewAbnormalPathEvent(event, time.Now(), err),
+			NewAbnormalPathEvent(event, err),
 		)
 	}
 }
@@ -132,6 +134,6 @@ func (m *Monitor) ReportRuleSetLoaded(ruleSet *rules.RuleSet, timestamp time.Tim
 	}
 
 	m.probe.DispatchCustomEvent(
-		NewRuleSetLoadedEvent(ruleSet.ListPolicies(), ruleSet.ListRuleIDs(), ruleSet.ListMacroIDs(), timestamp),
+		NewRuleSetLoadedEvent(ruleSet.ListPolicies(), ruleSet.ListRuleIDs(), ruleSet.ListMacroIDs()),
 	)
 }

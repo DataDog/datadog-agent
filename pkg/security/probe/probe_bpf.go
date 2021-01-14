@@ -10,6 +10,7 @@ package probe
 import (
 	"context"
 	"fmt"
+	"github.com/cihub/seelog"
 	"math"
 	"math/rand"
 	"os"
@@ -21,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 	lib "github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
-	"github.com/cihub/seelog"
 	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/pkg/errors"
 
@@ -216,19 +216,25 @@ func (p *Probe) SetEventHandler(handler EventHandler) {
 
 // DispatchEvent sends an event to the probe event handler
 func (p *Probe) DispatchEvent(event *Event, size uint64, CPU int, perfMap *manager.PerfMap) {
-	log.Tracef("Dispatching event %+v\n", event)
+	if logLevel, err := log.GetLogLevel(); err != nil || logLevel == seelog.TraceLvl {
+		prettyEvent := event.String()
+		log.Tracef("Dispatching event %s\n", prettyEvent)
+	}
 
 	if p.handler != nil {
 		p.handler.HandleEvent(event)
 	}
 
-	// Process after evaluation because some monitors need the DentryResolver to have been called.
+	// Process after evaluation because some monitors need the DentryResolver to have been called first.
 	p.monitor.ProcessEvent(event, size, CPU, perfMap)
 }
 
 // DispatchCustomEvent sends a custom event to the probe event handler
 func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *CustomEvent) {
-	log.Tracef("Dispatching custom event %+v\n", event)
+	if logLevel, err := log.GetLogLevel(); err != nil || logLevel == seelog.TraceLvl {
+		prettyEvent := event.String()
+		log.Tracef("Dispatching custom event %s\n", prettyEvent)
+	}
 
 	if p.handler != nil && p.config.AgentMonitoringEvents {
 		p.handler.HandleCustomEvent(rule, event)
@@ -307,6 +313,7 @@ func (p *Probe) invalidateDentry(mountID uint32, inode uint64, revision uint32) 
 		// Call a user space remove function to ensure the discarder will be removed.
 		p.removeDiscarderInode(mountID, inode)
 	}
+	_ = p.monitor.loadController.ResetForkCount(mountID, inode)
 }
 
 func (p *Probe) handleEvent(CPU uint64, data []byte) {
@@ -321,7 +328,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	}
 	offset += read
 
-	eventType := EventType(event.Type)
+	eventType := event.GetEventType()
 	p.monitor.perfBufferMonitor.CountEvent(eventType, event.TimestampRaw, 1, dataLen, p.perfMap, int(CPU))
 
 	log.Tracef("Decoding event %s(%d)", eventType, event.Type)
@@ -459,11 +466,6 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	// resolve event context
 	if eventType != ExitEventType {
 		event.ResolveProcessCacheEntry()
-	}
-
-	if logLevel, err := log.GetLogLevel(); err != nil || logLevel == seelog.TraceLvl {
-		prettyEvent := event.String()
-		log.Tracef("Dispatching event %s\n", prettyEvent)
 	}
 
 	p.DispatchEvent(event, dataLen, int(CPU), p.perfMap)

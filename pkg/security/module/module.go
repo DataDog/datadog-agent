@@ -10,6 +10,7 @@ package module
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -138,7 +139,14 @@ func (m *Module) Reload() error {
 
 	ruleSet.AddListener(m)
 	ruleIDs := ruleSet.ListRuleIDs()
-	ruleIDs = append(ruleIDs, sprobe.AllCustomRuleIDs()...)
+	for _, customRuleID := range sprobe.AllCustomRuleIDs() {
+		for _, ruleID := range ruleIDs {
+			if ruleID == customRuleID {
+				return fmt.Errorf("rule ID '%s' conflicts with a custom rule ID", ruleID)
+			}
+		}
+		ruleIDs = append(ruleIDs, customRuleID)
+	}
 
 	m.apiServer.Apply(ruleIDs)
 	m.rateLimiter.Apply(ruleIDs)
