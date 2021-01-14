@@ -94,13 +94,14 @@ func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services
 
 // Start starts the Launcher
 func (l *Launcher) Start() {
-	log.Info("Starting Docker socket launcher")
+	log.Info("Starting Docker launcher")
 	go l.run()
 }
 
 // Stop stops the Launcher and its tailers in parallel,
 // this call returns only when all the tailers are stopped.
 func (l *Launcher) Stop() {
+	log.Info("Stopping Docker launcher")
 	l.stop <- struct{}{}
 	stopper := restart.NewParallelStopper()
 	l.lock.Lock()
