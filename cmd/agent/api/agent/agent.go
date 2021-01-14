@@ -193,6 +193,13 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 func streamLogs(w http.ResponseWriter, r *http.Request) {
 	log.Info("Got a request for stream logs.")
 	w.Header().Set("Transfer-Encoding", "chunked")
+	logMessageReceiver := logs.GetMessageReceiver()
+
+	if logMessageReceiver.IsEnabled() {
+		http.Error(w, "Another client is already streaming logs.", 500)
+		log.Info("Logs are already streaming. Dropping connection.")
+		return
+	}
 
 	conn := GetConnection(r)
 
@@ -200,11 +207,11 @@ func streamLogs(w http.ResponseWriter, r *http.Request) {
 	conn.SetDeadline(time.Time{})
 	conn.SetWriteDeadline(time.Time{})
 
-	logMessageReceiver := logs.GetMessageReceiver()
 	logMessageReceiver.SetEnabled(true)
 	defer logMessageReceiver.SetEnabled(false)
 
 	for {
+		// Handlers for detecting a closed connection (from either the server or client)
 		select {
 		case <-w.(http.CloseNotifier).CloseNotify():
 			return
@@ -213,7 +220,7 @@ func streamLogs(w http.ResponseWriter, r *http.Request) {
 		default:
 		}
 		if line, ok := logMessageReceiver.Next(); ok {
-			fmt.Fprintln(w, line)
+			fmt.Fprint(w, line)
 		} else {
 			// The buffer will flush on its own most of the time, but when we run out of logs flush so the client is up to date.
 			w.(http.Flusher).Flush()

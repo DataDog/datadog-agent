@@ -9,9 +9,11 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
+// MessageReceiver interface to handle messages for diagnostics
 type MessageReceiver interface {
 	HandleMessage(message.Message)
 }
@@ -26,23 +28,24 @@ type BufferedMessageReceiver struct {
 // New creates a new MessageReceiver
 func New() *BufferedMessageReceiver {
 	return &BufferedMessageReceiver{
-		inputChan: make(chan message.Message, 100),
+		inputChan: make(chan message.Message, config.ChanSize),
 	}
 }
 
 // Stop closes open channels
-func (d *BufferedMessageReceiver) Stop() {
-	close(d.inputChan)
+func (b *BufferedMessageReceiver) Stop() {
+	close(b.inputChan)
 }
 
 // Clear empties buffered messages
-func (d *BufferedMessageReceiver) clear() {
-	l := len(d.inputChan)
+func (b *BufferedMessageReceiver) clear() {
+	l := len(b.inputChan)
 	for i := 0; i < l; i++ {
-		<-d.inputChan
+		<-b.inputChan
 	}
 }
 
+// SetEnabled start collecting log messages for diagnostics
 func (b *BufferedMessageReceiver) SetEnabled(e bool) {
 	b.m.Lock()
 	defer b.m.Unlock()
@@ -52,19 +55,25 @@ func (b *BufferedMessageReceiver) SetEnabled(e bool) {
 	b.enabled = e
 }
 
-func (b *BufferedMessageReceiver) HandleMessage(m message.Message) {
+// IsEnabled returns the enabled state of the message receiver
+func (b *BufferedMessageReceiver) IsEnabled() bool {
 	b.m.RLock()
-	if !b.enabled {
+	defer b.m.RUnlock()
+	return b.enabled
+}
+
+// HandleMessage buffers a message for diagnostic processing
+func (b *BufferedMessageReceiver) HandleMessage(m message.Message) {
+	if !b.IsEnabled() {
 		return
 	}
-	b.m.RUnlock()
 	b.inputChan <- m
 }
 
 // Next pops the next buffered event off the input channel formatted as a string
-func (d *BufferedMessageReceiver) Next() (line string, ok bool) {
+func (b *BufferedMessageReceiver) Next() (line string, ok bool) {
 	select {
-	case msg := <-d.inputChan:
+	case msg := <-b.inputChan:
 		return formatMessage(&msg), true
 	default:
 		return "", false
@@ -72,5 +81,9 @@ func (d *BufferedMessageReceiver) Next() (line string, ok bool) {
 }
 
 func formatMessage(m *message.Message) string {
-	return fmt.Sprintf("%s | %s | %s", m.Origin.Source(), m.Origin.LogSource.Config.Type, string(m.Content))
+	return fmt.Sprintf("%s | %s | %s",
+		m.GetStatus(),
+		m.Origin.Source(),
+		m.Origin.LogSource.Config.Type,
+		string(m.Content))
 }
