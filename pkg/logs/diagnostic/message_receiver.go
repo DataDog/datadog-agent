@@ -31,14 +31,19 @@ type Filters struct {
 	Source string `json:"source"`
 }
 
-// New creates a new MessageReceiver
+// NewBufferedMessageReceiver creates a new MessageReceiver
 func NewBufferedMessageReceiver() *BufferedMessageReceiver {
 	return &BufferedMessageReceiver{
 		inputChan: make(chan message.Message, config.ChanSize),
 	}
 }
 
-// Stop closes open channels
+// Start opens new input channel
+func (b *BufferedMessageReceiver) Start() {
+	b.inputChan = make(chan message.Message, config.ChanSize)
+}
+
+// Stop closes the input channel
 func (b *BufferedMessageReceiver) Stop() {
 	close(b.inputChan)
 }

@@ -89,14 +89,13 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 // It is using a NullAuditor because we've nothing to do after having sent the logs to the intake.
 func NewServerless(sources *config.LogSources, services *service.Services, processingRules []*config.ProcessingRule, endpoints *config.Endpoints) *Agent {
 	health := health.RegisterLiveness("logs-agent")
-	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver()
 
 	// setup the a null auditor, not tracking data in any registry
 	auditor := auditor.NewNullAuditor()
 	destinationsCtx := client.NewDestinationsContext()
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewServerlessProvider(config.NumberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsCtx)
+	pipelineProvider := pipeline.NewServerlessProvider(config.NumberOfPipelines, auditor, processingRules, endpoints, destinationsCtx)
 
 	// setup the inputs
 	inputs := []restart.Restartable{
@@ -115,7 +114,7 @@ func NewServerless(sources *config.LogSources, services *service.Services, proce
 // Start starts all the elements of the data pipeline
 // in the right order to prevent data loss
 func (a *Agent) Start() {
-	starter := restart.NewStarter(a.destinationsCtx, a.auditor, a.pipelineProvider)
+	starter := restart.NewStarter(a.destinationsCtx, a.auditor, a.pipelineProvider, a.diagnosticMessageReceiver)
 	for _, input := range a.inputs {
 		starter.Add(input)
 	}

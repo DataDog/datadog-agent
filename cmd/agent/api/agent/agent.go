@@ -221,8 +221,8 @@ func streamLogs(w http.ResponseWriter, r *http.Request) {
 	conn := GetConnection(r)
 
 	// Override the default server timeouts so the connection never times out
-	conn.SetDeadline(time.Time{})
-	conn.SetWriteDeadline(time.Time{})
+	_ = conn.SetDeadline(time.Time{})
+	_ = conn.SetWriteDeadline(time.Time{})
 
 	logMessageReceiver.SetEnabled(true)
 	defer logMessageReceiver.SetEnabled(false)
@@ -485,6 +485,7 @@ func max(a, b int) int {
 	return b
 }
 
+// GetConnection returns the connection for the request
 func GetConnection(r *http.Request) net.Conn {
 	return r.Context().Value(ConnContextKey).(net.Conn)
 }
