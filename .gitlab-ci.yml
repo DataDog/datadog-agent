@@ -59,6 +59,7 @@ variables: &globalvariables
   mkdir -p /go/src/github.com/StackVista
   rm -rf /go/src/github.com/StackVista/stackstate-agent || true
   ln -s $CI_PROJECT_DIR /go/src/github.com/StackVista/stackstate-agent
+  source /usr/local/rvm/scripts/rvm
   eval $(gimme)
 
 
@@ -67,6 +68,7 @@ variables: &globalvariables
   conda activate ddpy3
   mkdir -p /go/src/github.com/StackVista
   rm -rf /go/src/github.com/StackVista/stackstate-agent || true
+  source /usr/local/rvm/scripts/rvm
   ln -s $CI_PROJECT_DIR /go/src/github.com/StackVista/stackstate-agent
 
 .configure_windows_ps1_environment: &configure_windows_ps1_environment |
