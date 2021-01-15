@@ -1,6 +1,8 @@
 #include "tracer.h"
+
 #include "bpf_helpers.h"
 #include "syscalls.h"
+
 #include <linux/kconfig.h>
 #include <net/inet_sock.h>
 #include <net/net_namespace.h>
@@ -20,6 +22,11 @@
                                       : "=r"(var))
 
 enum telemetry_counter{tcp_sent_miscounts, missed_tcp_close, missed_udp_close, udp_send_processed, udp_send_missed};
+
+typedef struct {
+    struct sock * sk;
+    struct msghdr * msg;
+} udp_recv_sock_t;
 
 /* This is a key/value store with the keys being a conn_tuple_t for send & recv calls
  * and the values being conn_stats_ts_t *.
@@ -73,12 +80,12 @@ struct bpf_map_def SEC("maps/conn_close_batch") conn_close_batch = {
 
 /* This map is used to match the kprobe & kretprobe of udp_recvmsg */
 /* This is a key/value store with the keys being a pid
- * and the values being a struct sock *.
+ * and the values being a udp_recv_sock_t
  */
 struct bpf_map_def SEC("maps/udp_recv_sock") udp_recv_sock = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(__u64),
-    .value_size = sizeof(void*),
+    .value_size = sizeof(udp_recv_sock_t),
     .max_entries = 1024,
     .pinning = 0,
     .namespace = "",
@@ -367,7 +374,32 @@ static __always_inline int get_proto(conn_tuple_t * t) {
     return (t->metadata & CONN_TYPE_TCP) ? CONN_TYPE_TCP : CONN_TYPE_UDP;
 }
 
-static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type) {
+static __always_inline void sockaddr_to_addr(struct sockaddr * sa, u64 * addr_h, u64 * addr_l, u16 * port) {
+    if (!sa) return;
+
+    u16 family;
+    bpf_probe_read(&family, sizeof(family), &sa->sa_family);
+
+    struct sockaddr_in * sin;
+    struct sockaddr_in6 * sin6;
+    switch (family) {
+    case AF_INET:
+        bpf_probe_read(&sin, sizeof(sin), &sa);
+        if (addr_l) bpf_probe_read(addr_l, sizeof(u32), &(sin->sin_addr.s_addr));
+        if (port) bpf_probe_read(port, sizeof(u16), &sin->sin_port);
+        break;
+    case AF_INET6:
+        bpf_probe_read(&sin6, sizeof(sin6), &sa);
+        if (addr_l && addr_h) {
+            bpf_probe_read(addr_h, sizeof(u64), &(sin6->sin6_addr.s6_addr));
+            bpf_probe_read(addr_l, sizeof(u64), &(sin6->sin6_addr.s6_addr[8]));
+        }
+        if (port) bpf_probe_read(port, sizeof(u16), &sin6->sin6_port);
+        break;
+    }
+}
+
+static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sockaddr * src_addr, struct sockaddr * dest_addr, struct sock* skp, u64 pid_tgid, metadata_mask_t type) {
     t->saddr_h = 0;
     t->saddr_l = 0;
     t->daddr_h = 0;
@@ -381,32 +413,35 @@ static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u6
     // sends
     t->netns = get_netns_from_sock(skp);
 
+    sockaddr_to_addr(src_addr, &t->saddr_h, &t->saddr_l, &t->sport);
+    sockaddr_to_addr(dest_addr, &t->daddr_h, &t->daddr_l, &t->dport);
+
     // Retrieve addresses
     if (check_family(skp, AF_INET)) {
         t->metadata |= CONN_V4;
-        bpf_probe_read(&t->saddr_l, sizeof(u32), ((char*)skp) + offset_saddr());
-        bpf_probe_read(&t->daddr_l, sizeof(u32), ((char*)skp) + offset_daddr());
+        if (t->saddr_l == 0) bpf_probe_read(&t->saddr_l, sizeof(u32), ((char*)skp) + offset_saddr());
+        if (t->daddr_l == 0) bpf_probe_read(&t->daddr_l, sizeof(u32), ((char*)skp) + offset_daddr());
 
         if (!t->saddr_l || !t->daddr_l) {
-            log_debug("ERR(read_conn_tuple.v4): src/dst addr not set src:%d,dst:%d\n", t->saddr_l, t->daddr_l);
+            log_debug("ERR(read_conn_tuple.v4): src or dst addr not set src=%d, dst=%d\n", t->saddr_l, t->daddr_l);
             return 0;
         }
     } else if (is_ipv6_enabled() && check_family(skp, AF_INET6)) {
-        bpf_probe_read(&t->saddr_h, sizeof(t->saddr_h), ((char*)skp) + offset_daddr_ipv6() + 2 * sizeof(u64));
-        bpf_probe_read(&t->saddr_l, sizeof(t->saddr_l), ((char*)skp) + offset_daddr_ipv6() + 3 * sizeof(u64));
-        bpf_probe_read(&t->daddr_h, sizeof(t->daddr_h), ((char*)skp) + offset_daddr_ipv6());
-        bpf_probe_read(&t->daddr_l, sizeof(t->daddr_l), ((char*)skp) + offset_daddr_ipv6() + sizeof(u64));
+        if (t->saddr_h == 0) bpf_probe_read(&t->saddr_h, sizeof(t->saddr_h), ((char*)skp) + offset_daddr_ipv6() + 2 * sizeof(u64));
+        if (t->saddr_l == 0) bpf_probe_read(&t->saddr_l, sizeof(t->saddr_l), ((char*)skp) + offset_daddr_ipv6() + 3 * sizeof(u64));
+        if (t->daddr_h == 0) bpf_probe_read(&t->daddr_h, sizeof(t->daddr_h), ((char*)skp) + offset_daddr_ipv6());
+        if (t->daddr_l == 0) bpf_probe_read(&t->daddr_l, sizeof(t->daddr_l), ((char*)skp) + offset_daddr_ipv6() + sizeof(u64));
 
         // We can only pass 4 args to bpf_trace_printk
         // so split those 2 statements to be able to log everything
         if (!(t->saddr_h || t->saddr_l)) {
-            log_debug("ERR(read_conn_tuple.v6): src addr not set: src_l:%d,src_h:%d\n",
+            log_debug("ERR(read_conn_tuple.v6): src addr not set: saddr_l=%d, saddr_h=%d\n",
                 t->saddr_l, t->saddr_h);
             return 0;
         }
 
         if (!(t->daddr_h || t->daddr_l)) {
-            log_debug("ERR(read_conn_tuple.v6): dst addr not set: dst_l:%d,dst_h:%d\n",
+            log_debug("ERR(read_conn_tuple.v6): dst addr not set: daddr_l=%d, daddr_h=%d\n",
                 t->daddr_l, t->daddr_h);
             return 0;
         }
@@ -424,8 +459,8 @@ static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u6
     }
 
     // Retrieve ports
-    bpf_probe_read(&t->sport, sizeof(t->sport), ((char*)skp) + offset_sport());
-    bpf_probe_read(&t->dport, sizeof(t->dport), ((char*)skp) + offset_dport());
+    if (t->sport == 0) bpf_probe_read(&t->sport, sizeof(t->sport), ((char*)skp) + offset_sport());
+    if (t->dport == 0) bpf_probe_read(&t->dport, sizeof(t->dport), ((char*)skp) + offset_dport());
 
     if (t->sport == 0 || t->dport == 0) {
         log_debug("ERR(read_conn_tuple.v4): src/dst port not set: src:%d, dst:%d\n", t->sport, t->dport);
@@ -603,7 +638,7 @@ static __always_inline int handle_retransmit(struct sock* sk) {
     conn_tuple_t t = {};
     u64 zero = 0;
 
-    if (!read_conn_tuple(&t, sk, zero, CONN_TYPE_TCP)) {
+    if (!read_conn_tuple(&t, NULL, NULL, sk, zero, CONN_TYPE_TCP)) {
         return 0;
     }
 
@@ -630,7 +665,7 @@ int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
     log_debug("kprobe/tcp_sendmsg: pid_tgid: %d, size: %d\n", pid_tgid, size);
 
     conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+    if (!read_conn_tuple(&t, NULL, NULL, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
 
@@ -646,7 +681,7 @@ int kprobe__tcp_sendmsg__pre_4_1_0(struct pt_regs* ctx) {
     log_debug("kprobe/tcp_sendmsg/pre_4_1_0: pid_tgid: %d, size: %d\n", pid_tgid, size);
 
     conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+    if (!read_conn_tuple(&t, NULL, NULL, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
 
@@ -713,7 +748,7 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs* ctx) {
     log_debug("kprobe/tcp_cleanup_rbuf: pid_tgid: %d, copied: %d\n", pid_tgid, copied);
 
     conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+    if (!read_conn_tuple(&t, NULL, NULL, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
 
@@ -734,7 +769,7 @@ int kprobe__tcp_close(struct pt_regs* ctx) {
 
     log_debug("kprobe/tcp_close: pid_tgid: %d, ns: %d\n", pid_tgid, net_ns_inum);
 
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+    if (!read_conn_tuple(&t, NULL, NULL, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
 
@@ -775,7 +810,7 @@ int kprobe__ip6_make_skb(struct pt_regs* ctx) {
     size = size - sizeof(struct udphdr);
 
     conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
+    if (!read_conn_tuple(&t, NULL, NULL, sk, pid_tgid, CONN_TYPE_UDP)) {
         increment_telemetry_count(udp_send_missed);
         return 0;
     }
@@ -797,7 +832,7 @@ int kprobe__ip_make_skb(struct pt_regs* ctx) {
     size = size - sizeof(struct udphdr);
 
     conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
+    if (!read_conn_tuple(&t, NULL, NULL, sk, pid_tgid, CONN_TYPE_UDP)) {
         if (!are_fl4_offsets_known()) {
             log_debug("ERR: src/dst addr not set src:%d,dst:%d. fl4 offsets are not known\n", t.saddr_l, t.daddr_l);
             increment_telemetry_count(udp_send_missed);
@@ -844,10 +879,14 @@ int kprobe__ip_make_skb(struct pt_regs* ctx) {
 SEC("kprobe/udp_recvmsg")
 int kprobe__udp_recvmsg(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
+    struct msghdr* msg = (struct msghdr*) PT_REGS_PARM2(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    udp_recv_sock_t t = { .sk = NULL, .msg = NULL };
+    if (sk) bpf_probe_read(&t.sk, sizeof(t.sk), &sk);
+    if (msg) bpf_probe_read(&t.msg, sizeof(t.msg), &msg);
 
     // Store pointer to the socket using the pid/tgid
-    bpf_map_update_elem(&udp_recv_sock, &pid_tgid, &sk, BPF_ANY);
+    bpf_map_update_elem(&udp_recv_sock, &pid_tgid, &t, BPF_ANY);
     log_debug("kprobe/udp_recvmsg: pid_tgid: %d\n", pid_tgid);
 
     return 0;
@@ -856,10 +895,14 @@ int kprobe__udp_recvmsg(struct pt_regs* ctx) {
 SEC("kprobe/udp_recvmsg/pre_4_1_0")
 int kprobe__udp_recvmsg_pre_4_1_0(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM2(ctx);
+    struct msghdr* msg = (struct msghdr*) PT_REGS_PARM2(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    udp_recv_sock_t t = { .sk = NULL, .msg = NULL };
+    if (sk) bpf_probe_read(&t.sk, sizeof(t.sk), &sk);
+    if (msg) bpf_probe_read(&t.msg, sizeof(t.msg), &msg);
 
     // Store pointer to the socket using the pid/tgid
-    bpf_map_update_elem(&udp_recv_sock, &pid_tgid, &sk, BPF_ANY);
+    bpf_map_update_elem(&udp_recv_sock, &pid_tgid, &t, BPF_ANY);
     log_debug("kprobe/udp_recvmsg/pre_4_1_0: pid_tgid: %d\n", pid_tgid);
 
     return 0;
@@ -870,22 +913,27 @@ int kretprobe__udp_recvmsg(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
     // Retrieve socket pointer from kprobe via pid/tgid
-    struct sock** skpp = bpf_map_lookup_elem(&udp_recv_sock, &pid_tgid);
-    if (skpp == 0) { // Missed entry
+    udp_recv_sock_t* st = bpf_map_lookup_elem(&udp_recv_sock, &pid_tgid);
+    if (!st) { // Missed entry
         return 0;
     }
-    struct sock* sk = *skpp;
 
-    // Make sure we clean up that pointer reference
+    // Make sure we clean up the key
     bpf_map_delete_elem(&udp_recv_sock, &pid_tgid);
 
     int copied = (int)PT_REGS_RC(ctx);
-    if (copied < 0) { // Non-zero values are errors (e.g -EINVAL)
+    if (copied < 0) { // Non-zero values are errors (or a peek) (e.g -EINVAL)
+        log_debug("kretprobe/udp_recvmsg: ret=%d < 0, pid_tgid=%d\n", copied, pid_tgid);
         return 0;
     }
 
+    log_debug("kretprobe/udp_recvmsg: ret=%d\n", copied);
+
     conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
+    struct sockaddr * sa = NULL;
+    if (st->msg) bpf_probe_read(&sa, sizeof(sa), &(st->msg->msg_name));
+    if (!read_conn_tuple(&t, NULL, sa, st->sk, pid_tgid, CONN_TYPE_UDP)) {
+        log_debug("ERR(kretprobe/udp_recvmsg): error reading conn tuple, pid_tgid=%d\n", pid_tgid);
         return 0;
     }
 
@@ -915,7 +963,7 @@ int kprobe__tcp_set_state(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
     conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+    if (!read_conn_tuple(&t, NULL, NULL, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
 
@@ -998,7 +1046,7 @@ int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
 
     conn_tuple_t tup = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    if (read_conn_tuple(&tup, sk, pid_tgid, CONN_TYPE_UDP)) {
+    if (read_conn_tuple(&tup, NULL, NULL, sk, pid_tgid, CONN_TYPE_UDP)) {
         cleanup_conn(&tup);
     }
 
