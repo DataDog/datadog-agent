@@ -177,14 +177,10 @@ def build_in_docker(
 
 
 @task
-def test(
-    ctx, packages=TEST_PACKAGES, skip_object_files=False, only_check_bpf_bytes=False, bundle_ebpf=True, output_path=None
-):
+def test(ctx, packages=TEST_PACKAGES, skip_object_files=False, bundle_ebpf=True, output_path=None):
     """
     Run tests on eBPF parts
     If skip_object_files is set to True, this won't rebuild object files
-    If only_check_bpf_bytes is set to True this will only check that the assets bundled are
-    matching the currently generated object files
     If output_path is set, we run `go test` with the flags `-c -o output_path`, which *compiles* the test suite
     into a single binary. This artifact is meant to be used in conjunction with kitchen tests.
     """
@@ -199,15 +195,11 @@ def test(
     bpf_tag = BPF_TAG
     # temporary measure until we have a good default for BPFDir for testing
     bpf_tag += ",ebpf_bindata"
-    if only_check_bpf_bytes:
-        # bpf_tag += ",ebpf_bindata"
-        cmd += " -run=TestEbpfBytesCorrect"
-    else:
-        if os.getenv("GOPATH") is None:
-            print(
-                "GOPATH is not set, if you are running tests with sudo, you may need to use the -E option to preserve your environment"
-            )
-            raise Exit(code=1)
+    if os.getenv("GOPATH") is None:
+        print(
+            "GOPATH is not set, if you are running tests with sudo, you may need to use the -E option to preserve your environment"
+        )
+        raise Exit(code=1)
 
     args = {
         "path": os.environ['PATH'],
@@ -254,7 +246,6 @@ def kitchen_prepare(ctx):
             ctx,
             packages=pkg,
             skip_object_files=(i != 0),
-            only_check_bpf_bytes=False,
             bundle_ebpf=False,
             output_path=os.path.join(target_path, "testsuite"),
         )
