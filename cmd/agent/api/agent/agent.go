@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/logs"
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -55,7 +56,7 @@ func SetupHandlers(r *mux.Router) *mux.Router {
 	r.HandleFunc("/flare", makeFlare).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", getStatus).Methods("GET")
-	r.HandleFunc("/streamLogs", streamLogs).Methods("GET")
+	r.HandleFunc("/streamLogs", streamLogs).Methods("POST")
 	r.HandleFunc("/dogstatsd-stats", getDogstatsdStats).Methods("GET")
 	r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
@@ -197,8 +198,24 @@ func streamLogs(w http.ResponseWriter, r *http.Request) {
 
 	if logMessageReceiver.IsEnabled() {
 		http.Error(w, "Another client is already streaming logs.", 500)
+		w.(http.Flusher).Flush()
 		log.Info("Logs are already streaming. Dropping connection.")
 		return
+	}
+
+	var filters diagnostic.Filters
+
+	if r.Body != http.NoBody {
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, log.Errorf("Error while reading HTTP request body: %s", err).Error(), 500)
+			return
+		}
+
+		if err := json.Unmarshal(body, &filters); err != nil {
+			http.Error(w, log.Errorf("Error while unmarshaling JSON from request body: %s", err).Error(), 500)
+			return
+		}
 	}
 
 	conn := GetConnection(r)
@@ -219,7 +236,7 @@ func streamLogs(w http.ResponseWriter, r *http.Request) {
 			return
 		default:
 		}
-		if line, ok := logMessageReceiver.Next(); ok {
+		if line, ok := logMessageReceiver.Next(&filters); ok {
 			fmt.Fprint(w, line)
 		} else {
 			// The buffer will flush on its own most of the time, but when we run out of logs flush so the client is up to date.

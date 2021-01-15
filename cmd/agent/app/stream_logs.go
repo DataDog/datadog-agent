@@ -6,24 +6,28 @@
 package app
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
+var (
+	typeFilter   string
+	sourceFilter string
+)
+
 func init() {
 	AgentCmd.AddCommand(troubleshootLogsCmd)
-	// statusCmd.Flags().BoolVarP(&jsonStatus, "json", "j", false, "print out raw json")
-	// statusCmd.Flags().BoolVarP(&prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
-	// statusCmd.Flags().StringVarP(&statusFilePath, "file", "o", "", "Output the status command to a file")
-	// statusCmd.AddCommand(componentCmd)
-	// componentCmd.Flags().BoolVarP(&prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
-	// componentCmd.Flags().StringVarP(&statusFilePath, "file", "o", "", "Output the status command to a file")
+	troubleshootLogsCmd.Flags().StringVarP(&typeFilter, "type", "t", "", "Filter by type")
+	troubleshootLogsCmd.Flags().StringVarP(&sourceFilter, "source", "s", "", "Filter by source")
 }
 
 var troubleshootLogsCmd = &cobra.Command{
@@ -57,8 +61,18 @@ func connectAndStream() error {
 		return err
 	}
 
+	filters := &diagnostic.Filters{
+		Type:   typeFilter,
+		Source: sourceFilter,
+	}
+	body, err := json.Marshal(filters)
+
+	if err != nil {
+		return err
+	}
+
 	urlstr := fmt.Sprintf("https://%v:%v/agent/streamLogs", ipcAddress, config.Datadog.GetInt("cmd_port"))
-	err = streamRequest(urlstr, func(chunk []byte) {
+	err = streamRequest(urlstr, body, func(chunk []byte) {
 		fmt.Print(string(chunk))
 	})
 
@@ -69,7 +83,7 @@ func connectAndStream() error {
 	return nil
 }
 
-func streamRequest(url string, onChunk func([]byte)) error {
+func streamRequest(url string, body []byte, onChunk func([]byte)) error {
 	var e error
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
@@ -79,7 +93,7 @@ func streamRequest(url string, onChunk func([]byte)) error {
 		return e
 	}
 
-	e = util.DoGetChunked(c, url, onChunk)
+	e = util.DoPostChunked(c, url, "application/json", bytes.NewBuffer(body), onChunk)
 	if e != nil {
 		fmt.Printf("Could not reach agent: %v \nMake sure the agent is running before requesting the logs and contact support if you continue having issues. \n", e)
 	}

@@ -25,6 +25,12 @@ type BufferedMessageReceiver struct {
 	m         sync.RWMutex
 }
 
+// Filters for processing log messages
+type Filters struct {
+	Type   string `json:"type"`
+	Source string `json:"source"`
+}
+
 // New creates a new MessageReceiver
 func New() *BufferedMessageReceiver {
 	return &BufferedMessageReceiver{
@@ -71,19 +77,52 @@ func (b *BufferedMessageReceiver) HandleMessage(m message.Message) {
 }
 
 // Next pops the next buffered event off the input channel formatted as a string
-func (b *BufferedMessageReceiver) Next() (line string, ok bool) {
-	select {
-	case msg := <-b.inputChan:
-		return formatMessage(&msg), true
-	default:
-		return "", false
+func (b *BufferedMessageReceiver) Next(filters *Filters) (line string, ok bool) {
+	// Read messages until one is handled or none are left
+	for {
+		select {
+		case msg := <-b.inputChan:
+			if shouldHandleMessage(&msg, filters) {
+				return formatMessage(&msg), true
+			}
+			continue
+		default:
+			return "", false
+		}
 	}
 }
 
+func shouldHandleMessage(m *message.Message, filters *Filters) bool {
+	// No filters
+	if filters.Type == "" && filters.Source == "" {
+		return true
+	}
+
+	// Filter by Type and Source
+	if filters.Type != "" && filters.Source != "" {
+		if m.Origin.LogSource.Config.Type == filters.Type && filters.Source == m.Origin.Source() {
+			return true
+		}
+		return false
+	}
+
+	// Filter by Type or Source
+	if filters.Type != "" && m.Origin.LogSource.Config.Type == filters.Type {
+		return true
+	}
+	if filters.Source != "" && filters.Source == m.Origin.Source() {
+		return true
+	}
+	return false
+}
+
 func formatMessage(m *message.Message) string {
-	return fmt.Sprintf("%s | %s | %s",
-		m.GetStatus(),
-		m.Origin.Source(),
+	return fmt.Sprintf("Type: %s | Status: %s | Timestamp: %s | Service: %s | Source: %s | Tags: %s | Message: %s\n",
 		m.Origin.LogSource.Config.Type,
+		m.GetStatus(),
+		m.Timestamp,
+		m.Origin.Service(),
+		m.Origin.Source(),
+		m.Origin.TagsToString(),
 		string(m.Content))
 }
