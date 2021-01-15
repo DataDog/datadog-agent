@@ -3,6 +3,7 @@
 package http
 
 import (
+	"strings"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -61,6 +62,12 @@ func (h *httpStatKeeper) Close() {}
 
 func cleanPath(path string) string {
 	// TODO: remove query variables / redact sensitive information from the request path
-	// add a flag for aggregation
+
+	// For now, we'll simply remove queries from the path by stripping anything after a ?
+	i := strings.Index(path, "?")
+	if i > -1 {
+		path = path[:i]
+	}
+
 	return path
 }
