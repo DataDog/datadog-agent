@@ -60,6 +60,7 @@ variables: &globalvariables
   rm -rf /go/src/github.com/StackVista/stackstate-agent || true
   ln -s $CI_PROJECT_DIR /go/src/github.com/StackVista/stackstate-agent
   . /usr/local/rvm/scripts/rvm
+  export PATH=/go/bin:/usr/local/go/bin:$PATH
   eval $(gimme)
 
 
