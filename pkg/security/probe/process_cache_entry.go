@@ -11,14 +11,25 @@ import (
 	"fmt"
 )
 
-// Copy returns a copy of the current ProcessCacheEntry
-func (pc *ProcessCacheEntry) Copy() *ProcessCacheEntry {
-	dup := *pc
+// Fork returns a copy of the current ProcessCacheEntry
+func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
+	pid := childEntry.Pid
+	*childEntry = *pc
+	childEntry.Pid = pid
+	childEntry.PPid = pc.Pid
+	childEntry.Parent = pc
+	childEntry.Children = make(map[uint32]*ProcessCacheEntry)
+	pc.Children[pid] = childEntry
 
-	// reset pointers
-	dup.Parent = nil
-	dup.Children = make(map[uint32]*ProcessCacheEntry)
-	return &dup
+	// inherit the container ID from the parent if necessary. If a container is already running when system-probe
+	// starts, the in-kernel process cache will have out of sync container ID values for the processes of that
+	// container (the snapshot doesn't update the in-kernel cache with the container IDs). This can also happen if
+	// the proc_cache LRU ejects an entry.
+	// WARNING: this is why the user space cache should not be used to detect container breakouts. Dedicated
+	// in-kernel probes will need to be added.
+	if len(pc.ContainerContext.ID) > 0 && len(childEntry.ContainerContext.ID) == 0 {
+		childEntry.ContainerContext.ID = pc.ContainerContext.ID
+	}
 }
 
 // IsEqual return whether entries are equals

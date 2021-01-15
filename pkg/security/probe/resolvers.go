@@ -9,6 +9,7 @@ package probe
 
 import (
 	"os"
+	"sort"
 
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/DataDog/gopsutil/process"
@@ -90,6 +91,30 @@ func (r *Resolvers) snapshot() error {
 	if err != nil {
 		return err
 	}
+
+	// make to insert them in the creation time order
+	sort.Slice(processes, func(i, j int) bool {
+		procA, err := process.NewProcess(processes[i])
+		if err != nil {
+			return processes[i] < processes[j]
+		}
+		procB, err := process.NewProcess(processes[j])
+		if err != nil {
+			return processes[i] < processes[j]
+		}
+
+		createA, err := procA.CreateTime()
+		if err != nil {
+			return processes[i] < processes[j]
+		}
+
+		createB, err := procB.CreateTime()
+		if err != nil {
+			return processes[i] < processes[j]
+		}
+
+		return createA < createB
+	})
 
 	cacheModified := false
 
