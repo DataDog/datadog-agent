@@ -23,6 +23,13 @@ func init() {
 		log.Infof("runtime: final GOMAXPROCS value is: %d", runtime.GOMAXPROCS(0))
 	}()
 
+	SetMaxProcs()
+
+}
+
+// SetMaxProcs sets the GOMAXPROCS for the go runtime to a sane value
+func SetMaxProcs() {
+
 	if max, exists := os.LookupEnv(gomaxprocsKey); exists {
 		if max == "" {
 			log.Errorf("runtime: GOMAXPROCS value was empty string")
