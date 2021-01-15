@@ -87,30 +87,34 @@ func (r *Resolvers) Snapshot() error {
 // snapshot internal version of Snapshot. Calls the relevant resolvers to sync their caches.
 func (r *Resolvers) snapshot() error {
 	// List all processes, to trigger the process and mount snapshots
-	processes, err := process.Pids()
+	pids, err := process.Pids()
 	if err != nil {
 		return err
 	}
 
+	var processes []*process.Process
+	for _, pid := range pids {
+		proc, err := process.NewProcess(pid)
+		if err != nil {
+			// the process does not exist anymore, continue
+			continue
+		}
+		processes = append(processes, proc)
+	}
+
 	// make to insert them in the creation time order
 	sort.Slice(processes, func(i, j int) bool {
-		procA, err := process.NewProcess(processes[i])
-		if err != nil {
-			return processes[i] < processes[j]
-		}
-		procB, err := process.NewProcess(processes[j])
-		if err != nil {
-			return processes[i] < processes[j]
-		}
+		procA := processes[i]
+		procB := processes[j]
 
 		createA, err := procA.CreateTime()
 		if err != nil {
-			return processes[i] < processes[j]
+			return processes[i].Pid < processes[j].Pid
 		}
 
 		createB, err := procB.CreateTime()
 		if err != nil {
-			return processes[i] < processes[j]
+			return processes[i].Pid < processes[j].Pid
 		}
 
 		return createA < createB
@@ -118,13 +122,7 @@ func (r *Resolvers) snapshot() error {
 
 	cacheModified := false
 
-	for _, pid := range processes {
-		proc, err := process.NewProcess(pid)
-		if err != nil {
-			// the process does not exist anymore, continue
-			continue
-		}
-
+	for _, proc := range processes {
 		// Start with the mount resolver because the process resolver might need it to resolve paths
 		if err := r.MountResolver.SyncCache(proc); err != nil {
 			if !os.IsNotExist(err) {
