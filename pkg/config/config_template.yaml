@@ -647,7 +647,7 @@ api_key:
   # logs_no_ssl: false
 
   ## @param expected_tags_duration - int - optional - default: 15
-  ## Defines the time in minutes we expect for the host tags to be available on backend services,
+  ## Define the time in minutes of the expected availability for the host tags on backend services.
   ## after this duration, host tags will no longer be submitted with log events.
   ## A value of 0 disables the feature.
   #

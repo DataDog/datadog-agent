@@ -1,7 +1,7 @@
-# Each section from every release note are combined when the
-# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# Each section from every release note is combined when the
+# CHANGELOG.rst is rendered. Therefore, the text should be worded so
 # it does not depend on any information only available in another
-# section. This may mean repeating some details, but each section
+# section. You may need to repeat some details, but each section
 # must be readable independently of the other.
 #
 # Each section note must be formatted as reStructuredText.
