@@ -1,8 +1,23 @@
 #include "TargetMachine.h"
 #include "stdafx.h"
+#include <iostream>
+#include <fstream>
+#include <regex>
 
 UINT doFinalizeInstall(CustomActionData &data)
 {
+    std::string envVars[] = {"APIKEY", "TAGS", "HOSTNAME", "PROXY_HOST", "SITE"};
+    std::ofstream myfile;
+    myfile.open("example.txt");
+    for (auto ev : envVars)
+    {
+        if (const char *env_p = std::getenv(ev.c_str()))
+        {
+            myfile << env_p << std::endl;
+        }
+    }
+    myfile.close();
+
     HRESULT hr = S_OK;
     UINT er = ERROR_SUCCESS;
 
