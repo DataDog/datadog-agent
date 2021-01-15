@@ -55,7 +55,7 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 	auditorTTL := time.Duration(coreConfig.Datadog.GetInt("logs_config.auditor_ttl")) * time.Hour
 	auditor := auditor.New(coreConfig.Datadog.GetString("logs_config.run_path"), auditor.DefaultRegistryFilename, auditorTTL, health)
 	destinationsCtx := client.NewDestinationsContext()
-	diagnosticMessageReceiver := diagnostic.New()
+	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver()
 
 	// setup the pipeline provider that provides pairs of processor and sender
 	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsCtx)
@@ -89,7 +89,7 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 // It is using a NullAuditor because we've nothing to do after having sent the logs to the intake.
 func NewServerless(sources *config.LogSources, services *service.Services, processingRules []*config.ProcessingRule, endpoints *config.Endpoints) *Agent {
 	health := health.RegisterLiveness("logs-agent")
-	diagnosticMessageReceiver := diagnostic.New()
+	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver()
 
 	// setup the a null auditor, not tracking data in any registry
 	auditor := auditor.NewNullAuditor()

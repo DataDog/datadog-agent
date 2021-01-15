@@ -32,7 +32,7 @@ type Filters struct {
 }
 
 // New creates a new MessageReceiver
-func New() *BufferedMessageReceiver {
+func NewBufferedMessageReceiver() *BufferedMessageReceiver {
 	return &BufferedMessageReceiver{
 		inputChan: make(chan message.Message, config.ChanSize),
 	}
@@ -94,7 +94,7 @@ func (b *BufferedMessageReceiver) Next(filters *Filters) (line string, ok bool) 
 
 func shouldHandleMessage(m *message.Message, filters *Filters) bool {
 	// No filters
-	if filters.Type == "" && filters.Source == "" {
+	if filters == nil || (filters.Type == "" && filters.Source == "") {
 		return true
 	}
 
