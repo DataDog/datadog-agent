@@ -20,6 +20,16 @@ var _ ReverseDNS = &SocketFilterSnooper{}
 
 // SocketFilterSnooper is a DNS traffic snooper built on top of an eBPF SOCKET_FILTER
 type SocketFilterSnooper struct {
+	// Telemetry is at the beginning of the struct to keep all fields 64-bit aligned.
+	// see https://staticcheck.io/docs/checks#SA1027
+	decodingErrors int64
+	truncatedPkts  int64
+
+	// DNS telemetry, values calculated *till* the last tick in pollStats
+	queries   int64
+	successes int64
+	errors    int64
+
 	source          PacketSource
 	parser          *dnsParser
 	cache           *reverseDNSCache
@@ -30,15 +40,6 @@ type SocketFilterSnooper struct {
 
 	// cache translation object to avoid allocations
 	translation *translation
-
-	// packet telemetry
-	decodingErrors int64
-	truncatedPkts  int64
-
-	// DNS telemetry, values calculated *till* the last tick in pollStats
-	queries   int64
-	successes int64
-	errors    int64
 }
 
 // PacketSource reads raw packet data
