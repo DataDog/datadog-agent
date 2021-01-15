@@ -235,7 +235,7 @@ func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
 					conn.DNSSuccessLatencySum += dnsStats.DNSSuccessLatencySum
 					conn.DNSFailureLatencySum += dnsStats.DNSFailureLatencySum
 					for rcode, count := range dnsStats.DNSCountByRcode {
-						conn.DNSCountByRcode[uint32(rcode)] += count
+						conn.DNSCountByRcode[rcode] += count
 						total += count
 					}
 				}
