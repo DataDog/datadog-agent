@@ -32,8 +32,8 @@ func init() {
 
 var troubleshootLogsCmd = &cobra.Command{
 	Use:   "stream-logs",
-	Short: "stream the logs being ",
-	Long:  `Stream the actively ingested logs of a running agent`,
+	Short: "Stream the logs being processed by a running agent",
+	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
 
 		if flagNoColor {
