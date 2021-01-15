@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Add a command to the security-agent command line to trigger a process cache dump.
+fixes:
+  - |
+    Fixes a memory leak in the process entries cache in the runtime-security module..
