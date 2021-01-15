@@ -94,13 +94,13 @@ func (m *batchManager) GetPendingTransactions() []httpTX {
 
 			err := m.batchMap.Lookup(unsafe.Pointer(batchKey), unsafe.Pointer(batch))
 			if err != nil {
-				continue
+				break
 			}
 
 			krnStateIDX := int(batch.idx)
 			krnStatePos := int(batch.pos)
 			if krnStateIDX != usrState.idx || krnStatePos <= usrState.pos {
-				continue
+				break
 			}
 
 			all := batch.Transactions()
