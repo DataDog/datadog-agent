@@ -134,6 +134,36 @@ static __always_inline __u64 offset_dport_fl4() {
      return val;
 }
 
+static __always_inline bool are_fl6_offsets_known() {
+    __u64 val = 0;
+    LOAD_CONSTANT("fl6_offsets", val);
+    return val == ENABLED;
+}
+
+static __always_inline __u64 offset_saddr_fl6() {
+    __u64 val = 0;
+    LOAD_CONSTANT("offset_saddr_fl6", val);
+    return val;
+}
+
+static __always_inline __u64 offset_daddr_fl6() {
+     __u64 val = 0;
+     LOAD_CONSTANT("offset_daddr_fl6", val);
+     return val;
+}
+
+static __always_inline __u64 offset_sport_fl6() {
+    __u64 val = 0;
+    LOAD_CONSTANT("offset_sport_fl6", val);
+    return val;
+}
+
+static __always_inline __u64 offset_dport_fl6() {
+     __u64 val = 0;
+     LOAD_CONSTANT("offset_dport_fl6", val);
+     return val;
+}
+
 static __always_inline __u32 get_netns_from_sock(struct sock* sk) {
     possible_net_t* skc_net = NULL;
     __u32 net_ns_inum = 0;
@@ -349,8 +379,51 @@ int kprobe__ip6_make_skb(struct pt_regs* ctx) {
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
-        increment_telemetry_count(udp_send_missed);
-        return 0;
+        if (!are_fl6_offsets_known()) {
+            log_debug("ERR: src/dst addr not set, fl6 offsets are not known\n");
+            increment_telemetry_count(udp_send_missed);
+            return 0;
+        }
+
+        struct flowi6* fl6 = (struct flowi6*)PT_REGS_PARM7(ctx);
+        bpf_probe_read(&t.saddr_h, sizeof(u64), ((char*)fl6) + offset_saddr_fl6());
+        bpf_probe_read(&t.saddr_l, sizeof(u64), ((char*)fl6) + offset_saddr_fl6() + sizeof(u64));
+        bpf_probe_read(&t.daddr_h, sizeof(u64), ((char*)fl6) + offset_daddr_fl6());
+        bpf_probe_read(&t.daddr_l, sizeof(u64), ((char*)fl6) + offset_daddr_fl6() + sizeof(u64));
+
+        if (!(t.saddr_h || t.saddr_l)) {
+            log_debug("ERR(fl6): src addr not set src_l:%d,src_h:%d\n", t.saddr_l, t.saddr_h);
+            increment_telemetry_count(udp_send_missed);
+            return 0;
+        }
+        if (!(t.daddr_h || t.daddr_l)) {
+            log_debug("ERR(fl6): dst addr not set dst_l:%d,dst_h:%d\n", t.daddr_l, t.daddr_h);
+            increment_telemetry_count(udp_send_missed);
+            return 0;
+        }
+
+        // Check if we can map IPv6 to IPv4
+        if (is_ipv4_mapped_ipv6(t.saddr_h, t.saddr_l, t.daddr_h, t.daddr_l)) {
+            t.metadata |= CONN_V4;
+            t.saddr_h = 0;
+            t.daddr_h = 0;
+            t.saddr_l = (u32)(t.saddr_l >> 32);
+            t.daddr_l = (u32)(t.daddr_l >> 32);
+        } else {
+            t.metadata |= CONN_V6;
+        }
+
+        bpf_probe_read(&t.sport, sizeof(t.sport), ((char*)fl6) + offset_sport_fl6());
+        bpf_probe_read(&t.dport, sizeof(t.dport), ((char*)fl6) + offset_dport_fl6());
+
+        if (t.sport == 0 || t.dport == 0) {
+            log_debug("ERR(fl6): src/dst port not set: src:%d, dst:%d\n", t.sport, t.dport);
+            increment_telemetry_count(udp_send_missed);
+            return 0;
+        }
+
+        t.sport = ntohs(t.sport);
+        t.dport = ntohs(t.dport);
     }
 
     log_debug("kprobe/ip6_make_skb: pid_tgid: %d, size: %d\n", pid_tgid, size);
