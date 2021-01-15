@@ -251,8 +251,8 @@ func getKey(
 	qPort int,
 	sIP string,
 	protocol ConnectionType,
-) dnsKey {
-	return dnsKey{
+) DNSKey {
+	return DNSKey{
 		clientIP:   util.AddressFromString(qIP),
 		clientPort: uint16(qPort),
 		serverIP:   util.AddressFromString(sIP),
@@ -263,7 +263,7 @@ func getKey(
 func getStats(
 	snooper *SocketFilterSnooper,
 	expectedCount int,
-) map[dnsKey]map[string]dnsStats {
+) map[DNSKey]map[string]dnsStats {
 	// DNS timeout is set to 1 second for the tests.
 	// So a 3-second timeout here should provide enough time for an unanswered DNS query to be considered as a timeout.
 	timeout := time.After(3 * time.Second)

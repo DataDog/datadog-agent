@@ -101,7 +101,7 @@ func (s *SocketFilterSnooper) Resolve(connections []ConnectionStats) map[util.Ad
 	return s.cache.Get(connections, time.Now())
 }
 
-func (s *SocketFilterSnooper) GetDNSStats() map[dnsKey]map[string]dnsStats {
+func (s *SocketFilterSnooper) GetDNSStats() map[DNSKey]map[string]dnsStats {
 	if s.statKeeper == nil {
 		return nil
 	}

@@ -14,7 +14,7 @@ type dnsStats struct {
 	countByRcode      map[uint8]uint32
 }
 
-type dnsKey struct {
+type DNSKey struct {
 	serverIP   util.Address
 	clientIP   util.Address
 	clientPort uint16
@@ -42,14 +42,14 @@ const (
 
 type dnsPacketInfo struct {
 	transactionID uint16
-	key           dnsKey
+	key           DNSKey
 	pktType       DNSPacketType
 	rCode         uint8  // responseCode
 	question      string // only relevant for query packets
 }
 
 type stateKey struct {
-	key dnsKey
+	key DNSKey
 	id  uint16
 }
 
@@ -60,7 +60,7 @@ type stateValue struct {
 
 type dnsStatKeeper struct {
 	mux              sync.Mutex
-	stats            map[dnsKey]map[string]dnsStats
+	stats            map[DNSKey]map[string]dnsStats
 	state            map[stateKey]stateValue
 	expirationPeriod time.Duration
 	exit             chan struct{}
@@ -70,7 +70,7 @@ type dnsStatKeeper struct {
 
 func newDNSStatkeeper(timeout time.Duration) *dnsStatKeeper {
 	statsKeeper := &dnsStatKeeper{
-		stats:            make(map[dnsKey]map[string]dnsStats),
+		stats:            make(map[DNSKey]map[string]dnsStats),
 		state:            make(map[stateKey]stateValue),
 		expirationPeriod: timeout,
 		exit:             make(chan struct{}),
@@ -149,11 +149,11 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 	d.stats[info.key] = allStats
 }
 
-func (d *dnsStatKeeper) GetAndResetAllStats() map[dnsKey]map[string]dnsStats {
+func (d *dnsStatKeeper) GetAndResetAllStats() map[DNSKey]map[string]dnsStats {
 	d.mux.Lock()
 	defer d.mux.Unlock()
 	ret := d.stats // No deep copy needed since `d.stats` gets reset
-	d.stats = make(map[dnsKey]map[string]dnsStats)
+	d.stats = make(map[DNSKey]map[string]dnsStats)
 	return ret
 }
 

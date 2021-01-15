@@ -1144,11 +1144,11 @@ func TestDNSStatsWithMultipleClients(t *testing.T) {
 		DPort:  53,
 	}
 
-	dKey := dnsKey{clientIP: c.Source, clientPort: c.SPort, serverIP: c.Dest, protocol: c.Type}
+	dKey := DNSKey{clientIP: c.Source, clientPort: c.SPort, serverIP: c.Dest, protocol: c.Type}
 
-	getStats := func() map[dnsKey]map[string]dnsStats {
+	getStats := func() map[DNSKey]map[string]dnsStats {
 		var d = "foo.com"
-		statsByDomain := make(map[dnsKey]map[string]dnsStats)
+		statsByDomain := make(map[DNSKey]map[string]dnsStats)
 		stats := make(map[string]dnsStats)
 		countByRcode := make(map[uint8]uint32)
 		countByRcode[uint8(DNSResponseCodeNoError)] = 1
@@ -1196,10 +1196,10 @@ func TestDNSStatsWithMultipleClientsWithDomainCollectionEnabled(t *testing.T) {
 		DPort:  53,
 	}
 
-	dKey := dnsKey{clientIP: c.Source, clientPort: c.SPort, serverIP: c.Dest, protocol: c.Type}
+	dKey := DNSKey{clientIP: c.Source, clientPort: c.SPort, serverIP: c.Dest, protocol: c.Type}
 	var d = "foo.com"
-	getStats := func() map[dnsKey]map[string]dnsStats {
-		statsByDomain := make(map[dnsKey]map[string]dnsStats)
+	getStats := func() map[DNSKey]map[string]dnsStats {
+		statsByDomain := make(map[DNSKey]map[string]dnsStats)
 		stats := make(map[string]dnsStats)
 		countByRcode := make(map[uint8]uint32)
 		countByRcode[uint8(DNSResponseCodeNoError)] = 1
@@ -1254,8 +1254,8 @@ func TestDNSStatsPIDCollisions(t *testing.T) {
 	}
 
 	var d = "foo.com"
-	dKey := dnsKey{clientIP: c.Source, clientPort: c.SPort, serverIP: c.Dest, protocol: c.Type}
-	statsByDomain := make(map[dnsKey]map[string]dnsStats)
+	dKey := DNSKey{clientIP: c.Source, clientPort: c.SPort, serverIP: c.Dest, protocol: c.Type}
+	statsByDomain := make(map[DNSKey]map[string]dnsStats)
 	stats := make(map[string]dnsStats)
 	countByRcode := make(map[uint8]uint32)
 	countByRcode[DNSResponseCodeNoError] = 1
@@ -1271,7 +1271,7 @@ func TestDNSStatsPIDCollisions(t *testing.T) {
 	c.LastUpdateEpoch = latestEpochTime()
 	state.StoreClosedConnection(&c)
 
-	// Store another connection with same dnsKey but different PID
+	// Store another connection with same DNSKey but different PID
 	c.Pid++
 	state.StoreClosedConnection(&c)
 

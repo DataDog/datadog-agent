@@ -16,8 +16,8 @@ const (
 	DNSTimeoutSecs = 10
 )
 
-func getSampleDNSKey() dnsKey {
-	return dnsKey{
+func getSampleDNSKey() DNSKey {
+	return DNSKey{
 		serverIP:   util.AddressFromString("8.8.8.8"),
 		clientIP:   util.AddressFromString("1.1.1.1"),
 		clientPort: 1000,
