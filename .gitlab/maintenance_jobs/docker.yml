@@ -171,3 +171,31 @@ delete_docker_tag:
     - if [[ -z "$IMAGE" ]]; then echo "Need an image"; exit 1; fi
     - if [[ -z "$TAG" ]]; then echo "Need a tag to delete"; exit 1; fi
     - inv -e docker.delete ${ORGANIZATION} ${IMAGE} ${TAG} ${DOCKER_TOKEN} &>/dev/null
+
+rules_test-a6:
+  stage: maintenance_jobs
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:v2718650-9ce6565-0.6.1-py3
+  tags: ["runner:docker", "size:large"]
+  dependencies: []
+  variables:
+    REPOSITORY: "datadog/agent"
+  script:
+    - |
+      if [[ "$DEPLOY_AGENT" != "true" ]] || [[ "$RELEASE_VERSION_6" == "nightly" ]] || [[ "$RELEASE_VERSION_6" == "" ]]; then
+        REPOSITORY="${REPOSITORY}-dev"
+      fi
+    - echo $REPOSITORY
+
+rules_test-a7:
+  stage: maintenance_jobs
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:v2718650-9ce6565-0.6.1-py3
+  tags: ["runner:docker", "size:large"]
+  dependencies: []
+  variables:
+    REPOSITORY: "datadog/agent"
+  script:
+    - |
+      if [[ "$DEPLOY_AGENT" != "true" ]] || [[ "$RELEASE_VERSION_7" == "nightly" ]] || [[ "$RELEASE_VERSION_7" == "" ]]; then
+        REPOSITORY="${REPOSITORY}-dev"
+      fi
+    - echo $REPOSITORY
