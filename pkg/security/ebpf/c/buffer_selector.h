@@ -14,8 +14,8 @@ struct bpf_map_def SEC("maps/buffer_selector") buffer_selector = {
 
 static __attribute__((always_inline))
 struct bpf_map_def *select_buffer(struct bpf_map_def *front_buffer,
-                                  struct bpf_map_def *back_buffer) {
-    u32 selector_key = SYSCALL_MONITOR_KEY;
+                                  struct bpf_map_def *back_buffer,
+                                  u32 selector_key) {
     u32 *buffer_id = bpf_map_lookup_elem(&buffer_selector, &selector_key);
     if (buffer_id == NULL)
         return NULL;

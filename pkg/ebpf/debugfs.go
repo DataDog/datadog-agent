@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -17,6 +18,9 @@ type KprobeStats struct {
 	Hits   int64
 	Misses int64
 }
+
+// event name format is p|r_<funcname>_<uid>_<pid>
+var eventRegexp = regexp.MustCompile(`^((?:p|r)_.+?)(_[^_]*)(_[^_]*)$`)
 
 // KprobeProfile is the default path to the kprobe_profile file
 const KprobeProfile = "/sys/kernel/debug/tracing/kprobe_profile"
@@ -31,6 +35,12 @@ func GetProbeStats() map[string]int64 {
 
 	res := make(map[string]int64, 2*len(m))
 	for event, st := range m {
+		parts := eventRegexp.FindStringSubmatch(event)
+		if len(parts) > 2 {
+			// strip UID and PID from name
+			event = parts[1]
+		}
+		event = strings.ToLower(event)
 		res[fmt.Sprintf("%s_hits", event)] = st.Hits
 		res[fmt.Sprintf("%s_misses", event)] = st.Misses
 	}

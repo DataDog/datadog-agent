@@ -54,7 +54,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	err = config.SetupLogger(loggerName, config.GetEnv("DD_LOG_LEVEL", "off"), "", "", false, true, false)
+	err = config.SetupLogger(loggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
 	if err != nil {
 		return log.Errorf("Cannot setup logger, exiting: %v", err)
 	}

@@ -606,6 +606,14 @@ func TestGetConditionMessage(t *testing.T) {
 				},
 			},
 			message: "bar",
+		}, {
+			pod: &v1.Pod{
+				Status: v1.PodStatus{
+					Conditions: []v1.PodCondition{},
+					Message:    "Pod The node was low on resource: [DiskPressure]",
+				},
+			},
+			message: "Pod The node was low on resource: [DiskPressure]",
 		},
 	} {
 		t.Run(fmt.Sprintf("case %d", nb), func(t *testing.T) {

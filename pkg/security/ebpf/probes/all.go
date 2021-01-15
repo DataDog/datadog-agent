@@ -38,6 +38,10 @@ func AllProbes() []*manager.Probe {
 		},
 		&manager.Probe{
 			UID:     SecurityAgentUID,
+			Section: "tracepoint/raw_syscalls/sys_exit",
+		},
+		&manager.Probe{
+			UID:     SecurityAgentUID,
 			Section: "tracepoint/sched/sched_process_exec",
 		},
 		// Snapshot probe
@@ -85,5 +89,12 @@ func AllPerfMaps() []*manager.PerfMap {
 		{
 			Map: manager.Map{Name: "events"},
 		},
+	}
+}
+
+// GetPerfBufferStatisticsMaps returns the list of maps used to monitor the performances of each perf buffers
+func GetPerfBufferStatisticsMaps() map[string]string {
+	return map[string]string{
+		"events": "events_stats",
 	}
 }

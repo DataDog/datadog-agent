@@ -33,14 +33,14 @@ func (c *Config) ChooseSyscallProbe(tracepoint string, x64probe string, fallback
 	if len(fparts) != 2 {
 		return "", fmt.Errorf("invalid fallback probe name")
 	}
-	syscall := fparts[1]
+	syscall := strings.TrimPrefix(fparts[1], "sys_")
 
 	if x64probe != "" {
 		xparts := strings.Split(x64probe, "/")
 		if len(xparts) < 2 {
 			return "", fmt.Errorf("invalid x64 probe name")
 		}
-		if xparts[1] != syscall {
+		if strings.TrimPrefix(xparts[1], "sys_") != syscall {
 			return "", fmt.Errorf("x64 and fallback probe syscalls do not match")
 		}
 	}

@@ -13,17 +13,16 @@ import (
 // MockEngine mocks a sampler engine
 type MockEngine struct {
 	wantSampled bool
-	wantRate    float64
 }
 
 // NewMockEngine returns a MockEngine for tests
-func NewMockEngine(wantSampled bool, wantRate float64) *MockEngine {
-	return &MockEngine{wantSampled: wantSampled, wantRate: wantRate}
+func NewMockEngine(wantSampled bool) *MockEngine {
+	return &MockEngine{wantSampled: wantSampled}
 }
 
 // Sample returns a constant rate
-func (e *MockEngine) Sample(_ pb.Trace, _ *pb.Span, _ string) (bool, float64) {
-	return e.wantSampled, e.wantRate
+func (e *MockEngine) Sample(_ pb.Trace, _ *pb.Span, _ string) bool {
+	return e.wantSampled
 }
 
 // Run mocks Engine.Run()

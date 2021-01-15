@@ -205,10 +205,13 @@ func (l *Collector) run(exit chan struct{}) error {
 				updateQueueBytes(processResults.Weight(), podResults.Weight())
 				updateQueueSize(processResults.Len(), podResults.Len())
 			case <-queueLogTicker.C:
-				log.Infof(
-					"Delivery queues: process[size=%d, weight=%d], pod[size=%d, weight=%d]",
-					processResults.Len(), processResults.Weight(), podResults.Len(), podResults.Weight(),
-				)
+				processSize, podSize := processResults.Len(), podResults.Len()
+				if processSize > 0 || podSize > 0 {
+					log.Infof(
+						"Delivery queues: process[size=%d, weight=%d], pod[size=%d, weight=%d]",
+						processSize, processResults.Weight(), podSize, podResults.Weight(),
+					)
+				}
 			case <-exit:
 				return
 			}

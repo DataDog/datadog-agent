@@ -5,7 +5,7 @@
 
 class CustomActionDataTest : public testing::Test
 {
-protected:
+  protected:
     void SetUp() override
     {
         propertyDDAgentUserName = L"DDAGENTUSER_NAME";
