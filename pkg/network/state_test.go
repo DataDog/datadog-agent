@@ -1146,13 +1146,13 @@ func TestDNSStatsWithMultipleClients(t *testing.T) {
 
 	dKey := DNSKey{clientIP: c.Source, clientPort: c.SPort, serverIP: c.Dest, protocol: c.Type}
 
-	getStats := func() map[DNSKey]map[string]dnsStats {
+	getStats := func() map[DNSKey]map[string]DNSStats {
 		var d = "foo.com"
-		statsByDomain := make(map[DNSKey]map[string]dnsStats)
-		stats := make(map[string]dnsStats)
-		countByRcode := make(map[uint8]uint32)
-		countByRcode[uint8(DNSResponseCodeNoError)] = 1
-		stats[d] = dnsStats{countByRcode: countByRcode}
+		statsByDomain := make(map[DNSKey]map[string]DNSStats)
+		stats := make(map[string]DNSStats)
+		countByRcode := make(map[uint32]uint32)
+		countByRcode[uint32(DNSResponseCodeNoError)] = 1
+		stats[d] = DNSStats{DNSCountByRcode: countByRcode}
 		statsByDomain[dKey] = stats
 		return statsByDomain
 	}
@@ -1198,12 +1198,12 @@ func TestDNSStatsWithMultipleClientsWithDomainCollectionEnabled(t *testing.T) {
 
 	dKey := DNSKey{clientIP: c.Source, clientPort: c.SPort, serverIP: c.Dest, protocol: c.Type}
 	var d = "foo.com"
-	getStats := func() map[DNSKey]map[string]dnsStats {
-		statsByDomain := make(map[DNSKey]map[string]dnsStats)
-		stats := make(map[string]dnsStats)
-		countByRcode := make(map[uint8]uint32)
-		countByRcode[uint8(DNSResponseCodeNoError)] = 1
-		stats[d] = dnsStats{countByRcode: countByRcode}
+	getStats := func() map[DNSKey]map[string]DNSStats {
+		statsByDomain := make(map[DNSKey]map[string]DNSStats)
+		stats := make(map[string]DNSStats)
+		countByRcode := make(map[uint32]uint32)
+		countByRcode[uint32(DNSResponseCodeNoError)] = 1
+		stats[d] = DNSStats{DNSCountByRcode: countByRcode}
 		statsByDomain[dKey] = stats
 		return statsByDomain
 	}
@@ -1255,11 +1255,11 @@ func TestDNSStatsPIDCollisions(t *testing.T) {
 
 	var d = "foo.com"
 	dKey := DNSKey{clientIP: c.Source, clientPort: c.SPort, serverIP: c.Dest, protocol: c.Type}
-	statsByDomain := make(map[DNSKey]map[string]dnsStats)
-	stats := make(map[string]dnsStats)
-	countByRcode := make(map[uint8]uint32)
+	statsByDomain := make(map[DNSKey]map[string]DNSStats)
+	stats := make(map[string]DNSStats)
+	countByRcode := make(map[uint32]uint32)
 	countByRcode[DNSResponseCodeNoError] = 1
-	stats[d] = dnsStats{countByRcode: countByRcode}
+	stats[d] = DNSStats{DNSCountByRcode: countByRcode}
 	statsByDomain[dKey] = stats
 
 	client := "client"

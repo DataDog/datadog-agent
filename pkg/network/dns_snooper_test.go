@@ -85,6 +85,9 @@ func getSnooper(
 	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{Section: string(probes.SocketDnsFilter)})
 	require.NotNil(t, filter)
 
+	packetSrc, err := NewPacketSource(filter)
+	require.NoError(t, err)
+
 	reverseDNS, err := NewSocketFilterSnooper(
 		&config.Config{
 			Config: ddebpf.Config{
@@ -95,7 +98,7 @@ func getSnooper(
 			DNSTimeout:        dnsTimeout,
 			CollectDNSDomains: collectDNSDomains,
 		},
-		filter,
+		packetSrc,
 	)
 	require.NoError(t, err)
 	return mgr, reverseDNS
