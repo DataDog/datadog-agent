@@ -18,7 +18,7 @@ import "C"
 
 var errLostBatch = errors.New("http batch lost (not consumed fast enough)")
 
-const maxLookups = 2
+const maxLookupsPerCPU = 2
 
 type batchState struct {
 	idx, pos int
@@ -84,7 +84,7 @@ func (m *batchManager) GetTransactionsFrom(notification httpNotification) ([]htt
 func (m *batchManager) GetPendingTransactions() []httpTX {
 	transactions := make([]httpTX, 0, HTTPBatchSize*HTTPBatchPages/2)
 	for i := 0; i < m.numCPUs; i++ {
-		for lookup := 0; lookup < maxLookups; lookup++ {
+		for lookup := 0; lookup < maxLookupsPerCPU; lookup++ {
 			var (
 				usrState = &m.stateByCPU[i]
 				pageNum  = usrState.idx % HTTPBatchPages
