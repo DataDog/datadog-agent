@@ -232,6 +232,13 @@
   vars_files:
     - common_vars.yml
   tasks:
+    - name: "Remove process_sts_url to test configuration fallback in Process Agent"
+      become: true
+      lineinfile:
+        path: "/etc/stackstate-agent/stackstate.yaml"
+        regexp: '^\s\sprocess_sts_url:.*'
+        line: |2
+            process_sts_url:
     - name: "Set process_config.filters.short_lived_processes and process_config.filters.short_lived_network_relations to get deterministic behaviour in the short-lived filtering tests"
       become: true
       lineinfile:

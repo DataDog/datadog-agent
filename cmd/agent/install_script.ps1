@@ -11,7 +11,7 @@ new-module -name StsAgentInstaller -scriptblock {
 
             [Parameter(Mandatory = $true)]
             [ValidateNotNullOrEmpty()]
-            [string]$stsUrl,
+            [string]$stsUrl = "http://localhost/stsAgent",
 
             [string]$hostname = $env:computername,
             [string]$hostTags = "",

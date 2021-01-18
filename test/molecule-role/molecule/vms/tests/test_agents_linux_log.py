@@ -58,6 +58,8 @@ def test_stackstate_process_agent_no_log_errors(host, hostname):
         assert re.search("Finished check #1", process_agent_log)
         if hostname != "agent-centos":
             assert re.search("starting network tracer locally", process_agent_log)
+        if hostname == "agent-ubuntu":
+            assert re.search("Setting process api endpoint from config using `sts_url`", process_agent_log)
 
     util.wait_until(wait_for_check_successes, 30, 3)
 

@@ -70,6 +70,7 @@ if [ -n "$STS_SITE" ]; then
     site="$STS_SITE"
 fi
 
+sts_url="http://localhost/stsAgent"
 if [ -n "$STS_URL" ]; then
     sts_url=$STS_URL
 fi
