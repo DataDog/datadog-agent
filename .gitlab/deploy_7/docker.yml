@@ -21,7 +21,10 @@
   dependencies: []
   script:
     - VERSION=$(inv -e agent.version --major-version 7 --url-safe)
-    - REPOSITORY="${REPOSITORY}-dev"
+    - | # If we're not deploying on tag 7, target the dev repo instead
+      if [[ "$DEPLOY_AGENT" != "true" ]] || [[ "$RELEASE_VERSION_7" == "nightly-a7" ]] || [[ "$RELEASE_VERSION_7" == "" ]]; then
+        REPOSITORY="${REPOSITORY}-dev"
+      fi
     - inv -e docker.publish-bulk ${SIGNING_ARGS} --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-ARCH      --dst-template ${REPOSITORY}-ARCH:${VERSION}
     - inv -e docker.publish-bulk ${SIGNING_ARGS} --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-jmx-ARCH  --dst-template ${REPOSITORY}-ARCH:${VERSION}-jmx
 
@@ -72,7 +75,10 @@ deploy_google_container_registry_linux-a7:
   dependencies: []
   script:
     - VERSION=$(inv -e agent.version --major-version 7 --url-safe)
-    - REPOSITORY="${REPOSITORY}-dev"
+    - | # If we're not deploying on tag 7, target the dev repo instead
+      if [[ "$DEPLOY_AGENT" != "true" ]] || [[ "$RELEASE_VERSION_7" == "nightly-a7" ]] || [[ "$RELEASE_VERSION_7" == "" ]]; then
+        REPOSITORY="${REPOSITORY}-dev"
+      fi
     - inv -e docker.publish ${SIGNING_ARGS} ${SRC_DSD}:${SRC_TAG}-amd64 ${REPOSITORY}:${VERSION}
 
 deploy_docker_hub-dogstatsd:
@@ -98,7 +104,7 @@ deploy_docker_hub-dogstatsd:
 
 deploy_google_container_registry-dogstatsd:
   extends: 
-    - .docker_tag_job_definition
+    - .google_container_registry_tag_windows_job_definition
     - .deploy_docker-dogstatsd
   rules:
     - <<: *if_not_version_7
@@ -128,7 +134,10 @@ deploy_google_container_registry-dogstatsd:
     VARIANT: 2004
   script:
     - $ErrorActionPreference = "Stop"
-    - $REPOSITORY = "${REPOSITORY}-dev"
+    - | # If we're not deploying on tag 7, target the dev repo instead
+      if (("$DEPLOY_AGENT" -ne "true") -or ("$RELEASE_VERSION_7" -eq "nightly-a7") -or ("$RELEASE_VERSION_7" -eq "")) {
+        $REPOSITORY = "${REPOSITORY}-dev"
+      }
     - |
       @"
       `$VERSION = inv -e agent.version --major-version 7 --url-safe
@@ -144,9 +153,9 @@ deploy_google_container_registry-dogstatsd:
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       inv -e docker.publish-bulk ${SIGNING_ARGS} --platform windows/amd64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-jmx-win2004-ARCH --dst-template ${REPOSITORY}-ARCH:`${VERSION}-jmx-win2004
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
-      "@ | Add-Content ci-scripts/docker-publish.ps1
-    - cat ci-scripts/docker-publish.ps1
-    - docker run --rm -w C:\mnt -e AWS_NETWORKING=true -e SIGN_WINDOWS=true -v "$(Get-Location):C:\mnt" -v \\.\pipe\docker_engine:\\.\pipe\docker_engine 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_${Env:VARIANT}_x64:${Env:DATADOG_AGENT_WINBUILDIMAGES} powershell -C C:\mnt\ci-scripts\docker-publish.ps1
+      "@ | Add-Content ci-scripts/publish.ps1
+    - cat ci-scripts/publish.ps1
+    - docker run --rm -w C:\mnt -e AWS_NETWORKING=true -e SIGN_WINDOWS=true -v "$(Get-Location):C:\mnt" -v \\.\pipe\docker_engine:\\.\pipe\docker_engine 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_${Env:VARIANT}_x64:${Env:DATADOG_AGENT_WINBUILDIMAGES} powershell -C C:\mnt\ci-scripts\publish.ps1
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
 
 
@@ -202,7 +211,10 @@ deploy_google_container_registry_windows-a7:
   dependencies: []
   script:
     - VERSION=$(inv -e agent.version --major-version 7 --url-safe)
-    - REPOSITORY="${REPOSITORY}-dev"
+    - | # If we're not deploying on tag 7, target the dev repo instead
+      if [[ "$DEPLOY_AGENT" != "true" ]] || [[ "$RELEASE_VERSION_7" == "nightly-a7" ]] || [[ "$RELEASE_VERSION_7" == "" ]]; then
+        REPOSITORY="${REPOSITORY}-dev"
+      fi
     - inv -e docker.publish-manifest ${SIGNING_ARGS} --name ${REPOSITORY} --tag ${VERSION}
       --image ${REPOSITORY}-amd64:${VERSION},linux/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-win1809,windows/amd64
@@ -285,7 +297,10 @@ deploy_manifests_google_container_registry-a7:
   dependencies: []
   script:
     - VERSION=$(inv -e agent.version --major-version 7 --url-safe)
-    - REPOSITORY="${REPOSITORY}-dev"
+    - | # If we're not deploying on tag 7, target the dev repo instead
+      if [[ "$DEPLOY_AGENT" != "true" ]] || [[ "$RELEASE_VERSION_7" == "nightly-a7" ]] || [[ "$RELEASE_VERSION_7" == "" ]]; then
+        REPOSITORY="${REPOSITORY}-dev"
+      fi
     # Manifests
     - inv -e docker.publish-manifest ${SIGNING_ARGS} --name ${REPOSITORY} --tag latest
       --image ${REPOSITORY}-amd64:${VERSION},linux/amd64
@@ -340,6 +355,10 @@ deploy_latest_manifests_google_container_registry-a7:
   stage: deploy7
   dependencies: []
   script:
+    - | # If we're not deploying on tag 7, target the dev repo instead
+      if [[ "$DEPLOY_AGENT" != "true" ]] || [[ "$RELEASE_VERSION_7" == "nightly-a7" ]] || [[ "$RELEASE_VERSION_7" == "" ]]; then
+        REPOSITORY="${REPOSITORY}-dev"
+      fi
     - inv -e docker.publish ${SIGNING_ARGS} ${SRC_DSD}:${SRC_TAG}-amd64 ${REPOSITORY}:latest
     - inv -e docker.publish ${SIGNING_ARGS} ${SRC_DSD}:${SRC_TAG}-amd64 ${REPOSITORY}:7
 

@@ -21,8 +21,10 @@
   dependencies: []
   script:
     - VERSION=$(inv -e agent.version --major-version 6 --url-safe)
-    - REPOSITORY="$REPOSITORY-dev"
-
+    - | # If we're not deploying on tag 6, target the dev repo instead
+      if [[ "$DEPLOY_AGENT" != "true" ]] || [[ "$RELEASE_VERSION_6" == "nightly" ]] || [[ "$RELEASE_VERSION_6" == "" ]]; then
+        REPOSITORY="${REPOSITORY}-dev"
+      fi
     # Platform-specific agent images
     - inv -e docker.publish-bulk --signed-push --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-6-ARCH      --dst-template ${REPOSITORY}-ARCH:${VERSION}
     - inv -e docker.publish-bulk --signed-push --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-6-jmx-ARCH  --dst-template ${REPOSITORY}-ARCH:${VERSION}-jmx
@@ -76,7 +78,10 @@ deploy_google_container_registry-a6:
   dependencies: []
   script:
     - VERSION=$(inv -e agent.version --major-version 6 --url-safe)
-    - REPOSITORY="${REPOSITORY}-dev"
+    - | # If we're not deploying on tag 6, target the dev repo instead
+      if [[ "$DEPLOY_AGENT" != "true" ]] || [[ "$RELEASE_VERSION_6" == "nightly" ]] || [[ "$RELEASE_VERSION_6" == "" ]]; then
+        REPOSITORY="${REPOSITORY}-dev"
+      fi
     - inv -e docker.publish-manifest --signed-push --name ${REPOSITORY} --tag latest-py2 --image ${REPOSITORY}-amd64:${VERSION},linux/amd64 --image ${REPOSITORY}-arm64:${VERSION},linux/arm64
     - inv -e docker.publish-manifest --signed-push --name ${REPOSITORY} --tag latest-py2-jmx --image ${REPOSITORY}-amd64:${VERSION}-jmx,linux/amd64 --image ${REPOSITORY}-arm64:${VERSION}-jmx,linux/arm64
     - inv -e docker.publish-manifest --signed-push --name ${REPOSITORY} --tag 6 --image ${REPOSITORY}-amd64:${VERSION},linux/amd64 --image ${REPOSITORY}-arm64:${VERSION},linux/arm64
