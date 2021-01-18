@@ -12,6 +12,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/errors"
@@ -499,11 +500,18 @@ func TestRetry(t *testing.T) {
 		shouldRetry: false,
 	}
 
+	mu := sync.Mutex{}
+	mu.Lock()
+	defer mu.Unlock()
 	go func() {
 		l.addSource(ops.service)
+		mu.Unlock()
 	}()
 
 	source := <-sourceOutputChan
+	// Ensure l.addSource is completely done
+	mu.Lock()
+
 	assert.Equal(t, 1, len(l.sourcesByContainer))
 
 	assert.Equal(t, containerID, source.Config.Identifier)
