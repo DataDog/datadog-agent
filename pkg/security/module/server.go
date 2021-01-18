@@ -71,7 +71,6 @@ LOOP:
 func (e *EventServer) SendEvent(rule *rules.Rule, event eval.Event) {
 	agentContext := &AgentContext{
 		RuleID: rule.Definition.ID,
-		Tags:   append(rule.Tags, "rule_id:"+rule.Definition.ID),
 	}
 
 	ruleEvent := &Signal{
@@ -104,6 +103,7 @@ func (e *EventServer) SendEvent(rule *rules.Rule, event eval.Event) {
 	msg := &api.SecurityEventMessage{
 		RuleID: rule.Definition.ID,
 		Data:   data,
+		Tags:   append(rule.Tags, "rule_id:"+rule.Definition.ID),
 	}
 
 	select {
