@@ -131,7 +131,7 @@ func (l *Launcher) scheduleServiceForRetry(svc *service.Service) {
 			backoff:          b,
 			removalScheduled: false,
 		}
-		l.pendingRetries[svc.GetEntityID()] = ops
+		l.pendingRetries[containerID] = ops
 	}
 	l.delayRetry(ops)
 }
