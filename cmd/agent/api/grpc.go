@@ -69,17 +69,22 @@ func (s *serverSecure) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.Age
 	defer t.Unsubscribe(eventCh)
 
 	for events := range eventCh {
+		responseEvents := make([]*pb.StreamTagsEvent, 0, len(events))
 		for _, event := range events {
-			response, err := tagger2pbEntityEvent(event)
+			e, err := tagger2pbEntityEvent(event)
 			if err != nil {
 				log.Warnf("can't convert tagger entity to protobuf: %s", err)
 				continue
 			}
 
-			err = out.Send(response)
-			if err != nil {
-				return err
-			}
+			responseEvents = append(responseEvents, e)
+		}
+
+		err = out.Send(&pb.StreamTagsResponse{
+			Events: responseEvents,
+		})
+		if err != nil {
+			return err
 		}
 	}
 
@@ -122,7 +127,7 @@ func tagger2pbEntityID(entityID string) (*pb.EntityId, error) {
 	}, nil
 }
 
-func tagger2pbEntityEvent(event types.EntityEvent) (*pb.StreamTagsResponse, error) {
+func tagger2pbEntityEvent(event types.EntityEvent) (*pb.StreamTagsEvent, error) {
 	entity := event.Entity
 	entityID, err := tagger2pbEntityID(entity.ID)
 	if err != nil {
@@ -141,7 +146,7 @@ func tagger2pbEntityEvent(event types.EntityEvent) (*pb.StreamTagsResponse, erro
 		return nil, fmt.Errorf("invalid event type %q", event.EventType)
 	}
 
-	return &pb.StreamTagsResponse{
+	return &pb.StreamTagsEvent{
 		Type: eventType,
 		Entity: &pb.Entity{
 			Id:                          entityID,

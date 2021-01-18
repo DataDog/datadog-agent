@@ -31,28 +31,35 @@ func newTagStore() *tagStore {
 	}
 }
 
-func (s *tagStore) processEvent(event types.EntityEvent) error {
+func (s *tagStore) processEvents(events []types.EntityEvent, replace bool) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	prefix, _ := containers.SplitEntityName(event.Entity.ID)
-
-	switch event.EventType {
-	case types.EventTypeAdded:
-		telemetry.StoredEntities.Inc(remoteSource, prefix)
-		telemetry.UpdatedEntities.Inc()
-		s.store[event.Entity.ID] = &event.Entity
-
-	case types.EventTypeModified:
-		telemetry.UpdatedEntities.Inc()
-		s.store[event.Entity.ID] = &event.Entity
-
-	case types.EventTypeDeleted:
-		telemetry.StoredEntities.Dec(remoteSource, prefix)
-		delete(s.store, event.Entity.ID)
+	if replace {
+		s.reset()
 	}
 
-	s.notifySubscribers([]types.EntityEvent{event})
+	for _, event := range events {
+		entity := event.Entity
+		prefix, _ := containers.SplitEntityName(entity.ID)
+
+		switch event.EventType {
+		case types.EventTypeAdded:
+			telemetry.StoredEntities.Inc(remoteSource, prefix)
+			telemetry.UpdatedEntities.Inc()
+			s.store[event.Entity.ID] = &entity
+
+		case types.EventTypeModified:
+			telemetry.UpdatedEntities.Inc()
+			s.store[event.Entity.ID] = &entity
+
+		case types.EventTypeDeleted:
+			telemetry.StoredEntities.Dec(remoteSource, prefix)
+			delete(s.store, event.Entity.ID)
+		}
+	}
+
+	s.notifySubscribers(events)
 
 	return nil
 }
@@ -67,7 +74,6 @@ func (s *tagStore) getEntity(entityID string) (*types.Entity, error) {
 func (s *tagStore) listEntities() []*types.Entity {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
-
 	entities := make([]*types.Entity, 0, len(s.store))
 
 	for _, e := range s.store {
@@ -105,16 +111,22 @@ func (s *tagStore) notifySubscribers(events []types.EntityEvent) {
 // stream coming from the remote source. It also notifies all subscribers that
 // entities have been deleted before re-adding them. In practice, a remote
 // tagger is not expected to have subscribers though.
+// NOTE: caller must ensure that it holds s.mutex's lock, as this func does not
+// do it on its own.
 func (s *tagStore) reset() {
-	s.mutex.RLock()
-	defer s.mutex.RUnlock()
+	if len(s.store) == 0 {
+		return
+	}
 
 	events := make([]types.EntityEvent, 0, len(s.store))
 
 	for _, e := range s.store {
+		prefix, _ := containers.SplitEntityName(e.ID)
+		telemetry.StoredEntities.Dec(remoteSource, prefix)
+
 		events = append(events, types.EntityEvent{
 			EventType: types.EventTypeDeleted,
-			Entity:    *e,
+			Entity:    types.Entity{ID: e.ID},
 		})
 	}
 
