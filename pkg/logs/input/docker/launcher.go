@@ -9,7 +9,6 @@ package docker
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -27,7 +26,6 @@ import (
 const (
 	backoffInitialDuration = 1 * time.Second
 	backoffMaxDuration     = 60 * time.Second
-	basePath               = "/var/lib/docker/containers"
 )
 
 // A Launcher starts and stops new tailers for every new containers discovered by autodiscovery.
@@ -77,8 +75,8 @@ func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services
 	}
 
 	if tailFromFile {
-		if _, err := os.Stat(basePath); err != nil {
-			log.Errorf("%s not found, falling back on tailing from Docker socket", basePath)
+		if err := checkReadAccess(); err != nil {
+			log.Errorf("Error accessing %s, %v, falling back on tailing from Docker socket", basePath, err)
 			launcher.tailFromFile = false
 		}
 	}
