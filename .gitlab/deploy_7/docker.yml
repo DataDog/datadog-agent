@@ -242,7 +242,7 @@ deploy_google_container_registry-dogstatsd:
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win2004,windows/amd64
       --image ${REPOSITORY}-arm64:${VERSION}-jmx,linux/arm64
 
-deploy_manifests_docker_hub-a7:
+deploy_docker_hub_manifests-a7:
   extends:
     - .docker_tag_job_definition
     - .deploy_manifests-a7
@@ -274,7 +274,7 @@ deploy_manifests_docker_hub-a7:
   #   - deploy_docker_hub_linux-a7
   #   - deploy_docker_hub_windows-a7
 
-deploy_manifests_google_container_registry-a7:
+deploy_google_container_registry_manifests-a7:
   extends:
     - .google_container_registry_tag_job_definition
     - .deploy_manifests-a7
