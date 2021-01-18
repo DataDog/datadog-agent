@@ -7,3 +7,7 @@ docker-squash==1.0.8
 requests==2.23.0
 PyYAML==5.4
 toml==0.9.4
+flake8~=3.8.3
+flake8-bugbear~=20.1.4
+black~=19.10b0
+isort~=5.2.2
