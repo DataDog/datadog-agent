@@ -6,13 +6,15 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	// "github.com/stretchr/testify/require"
 )
 
 func TestAutoMaxProcs(t *testing.T) {
 
-	assert.Equal(t, runtime.NumCPU(), runtime.GOMAXPROCS(0))
 	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(0))
+
+	// let's change at runtime to 2 threads
+	runtime.GOMAXPROCS(2)
+	assert.Equal(t, 2, runtime.GOMAXPROCS(0))
 
 	os.Setenv("GOMAXPROCS", "1000m")
 	// set new limit
