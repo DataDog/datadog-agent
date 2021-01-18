@@ -117,6 +117,10 @@ func (r *Resolvers) snapshot() error {
 			return processes[i].Pid < processes[j].Pid
 		}
 
+		if createA == createB {
+			return processes[i].Pid < processes[j].Pid
+		}
+
 		return createA < createB
 	})
 

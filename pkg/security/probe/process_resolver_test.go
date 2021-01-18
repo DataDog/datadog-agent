@@ -205,8 +205,9 @@ func TestOrphanExec(t *testing.T) {
 	resolver.AddExecEntry(exec.Pid, exec)
 	assert.Equal(t, resolver.entryCache[exec.Pid], exec)
 	assert.Equal(t, len(resolver.entryCache), 1)
-	assert.Equal(t, exec.Parent, child)
-	assert.Equal(t, exec.Parent.Parent, parent)
+	assert.Equal(t, exec.Origin, child)
+	assert.Equal(t, exec.Parent, parent)
+	assert.Equal(t, exec.Origin.Parent, parent)
 	assert.Equal(t, resolver.GetCacheSize(), 3.0)
 
 	// nothing
@@ -268,8 +269,9 @@ func TestForkExecExec(t *testing.T) {
 	resolver.AddExecEntry(exec1.Pid, exec1)
 	assert.Equal(t, resolver.entryCache[exec1.Pid], exec1)
 	assert.Equal(t, len(resolver.entryCache), 1)
-	assert.Equal(t, exec1.Parent, child)
-	assert.Equal(t, exec1.Parent.Parent, parent)
+	assert.Equal(t, exec1.Origin, child)
+	assert.Equal(t, exec1.Parent, parent)
+	assert.Equal(t, exec1.Origin.Parent, parent)
 	assert.Equal(t, resolver.GetCacheSize(), 3.0)
 
 	// [parent]
@@ -277,9 +279,11 @@ func TestForkExecExec(t *testing.T) {
 	resolver.AddExecEntry(exec2.Pid, exec2)
 	assert.Equal(t, resolver.entryCache[exec2.Pid], exec2)
 	assert.Equal(t, len(resolver.entryCache), 1)
-	assert.Equal(t, exec2.Parent, exec1)
-	assert.Equal(t, exec2.Parent.Parent, child)
-	assert.Equal(t, exec2.Parent.Parent.Parent, parent)
+	assert.Equal(t, exec2.Origin, exec1)
+	assert.Equal(t, exec2.Origin.Origin, child)
+	assert.Equal(t, exec2.Parent, parent)
+	assert.Equal(t, exec2.Origin.Parent, parent)
+	assert.Equal(t, exec2.Origin.Origin.Parent, parent)
 	assert.Equal(t, resolver.GetCacheSize(), 4.0)
 
 	// nothing
@@ -345,8 +349,8 @@ func TestForkReuse(t *testing.T) {
 	resolver.AddExecEntry(exec1.Pid, exec1)
 	assert.Equal(t, resolver.entryCache[exec1.Pid], exec1)
 	assert.Equal(t, len(resolver.entryCache), 1)
-	assert.Equal(t, exec1.Parent, child1)
-	assert.Equal(t, exec1.Parent.Parent, parent1)
+	assert.Equal(t, exec1.Origin, child1)
+	assert.Equal(t, exec1.Origin.Parent, parent1)
 	assert.Equal(t, resolver.GetCacheSize(), 3.0)
 
 	// [parent1:pid1]
@@ -450,8 +454,9 @@ func TestForkForkExec(t *testing.T) {
 	resolver.AddExecEntry(childExec.Pid, childExec)
 	assert.Equal(t, resolver.entryCache[childExec.Pid], childExec)
 	assert.Equal(t, len(resolver.entryCache), 3)
-	assert.Equal(t, childExec.Parent, child)
-	assert.Equal(t, childExec.Parent.Parent, parent)
+	assert.Equal(t, childExec.Origin, child)
+	assert.Equal(t, childExec.Origin.Parent, parent)
+	assert.Equal(t, childExec.Parent, parent)
 	assert.Equal(t, resolver.GetCacheSize(), 4.0)
 
 	// [parent]

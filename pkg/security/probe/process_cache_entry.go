@@ -11,14 +11,26 @@ import (
 	"fmt"
 )
 
+var zeroProcessCacheEntry ProcessCacheEntry
+
 // Fork returns a copy of the current ProcessCacheEntry
 func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	pid := childEntry.Pid
-	*childEntry = *pc
+	tid := childEntry.Tid
+
+	*childEntry = zeroProcessCacheEntry
 	childEntry.Pid = pid
+	childEntry.Tid = tid
 	childEntry.PPid = pc.Pid
-	childEntry.Parent = pc
+
+	childEntry.UID = pc.UID
+	childEntry.User = pc.User
+	childEntry.GID = pc.GID
+	childEntry.Group = pc.Group
+	childEntry.ForkTimestamp = pc.ForkTimestamp
 	childEntry.Children = make(map[uint32]*ProcessCacheEntry)
+	childEntry.Parent = pc
+
 	pc.Children[pid] = childEntry
 
 	// inherit the container ID from the parent if necessary. If a container is already running when system-probe

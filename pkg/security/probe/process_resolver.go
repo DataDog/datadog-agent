@@ -209,7 +209,10 @@ func (p *ProcessResolver) insertExecEntry(pid uint32, entry *ProcessCacheEntry) 
 		prev.ExitTimestamp = entry.ExecTimestamp
 	}
 
-	entry.Parent = prev
+	entry.Origin = prev
+	entry.Parent = prev.Parent
+	entry.Parent.Children[pid] = entry
+
 	p.entryCache[pid] = entry
 
 	atomic.AddInt64(&p.cacheSize, 1)
@@ -243,7 +246,16 @@ func (p *ProcessResolver) recursiveDelete(entry *ProcessCacheEntry) {
 		return
 	}
 
-	atomic.AddInt64(&p.cacheSize, -1)
+	decrease := int64(-1)
+
+	for origin := entry.Origin; origin != nil; origin = origin.Origin {
+		if len(origin.Children) > 0 {
+			break
+		}
+		decrease--
+	}
+
+	atomic.AddInt64(&p.cacheSize, decrease)
 
 	// There is nothing left to do if the entry does not have a parent
 	if entry.Parent == nil {
@@ -393,7 +405,9 @@ func (p *ProcessResolver) syncCache(proc *process.Process) (*ProcessCacheEntry, 
 		return nil, false
 	}
 
-	entry = p.insertForkEntry(pid, entry)
+	if entry = p.insertForkEntry(pid, entry); entry == nil {
+		return nil, false
+	}
 
 	log.Tracef("New process cache entry added: %s %s %d/%d", entry.Comm, entry.PathnameStr, pid, entry.Inode)
 

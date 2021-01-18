@@ -871,6 +871,7 @@ type ProcessContext struct {
 	UID uint32 `field:"uid"`
 	GID uint32 `field:"gid"`
 
+	Origin *ProcessCacheEntry `field:"-"`
 	Parent *ProcessCacheEntry `field:"ancestors" iterator:"ProcessAncestorsIterator"`
 }
 
@@ -891,6 +892,10 @@ func (it *ProcessAncestorsIterator) Front(ctx *eval.Context) unsafe.Pointer {
 
 // Next returns the next element
 func (it *ProcessAncestorsIterator) Next() unsafe.Pointer {
+	if next := it.prev.Origin; next != nil {
+		it.prev = next
+		return unsafe.Pointer(next)
+	}
 	if next := it.prev.Parent; next != nil {
 		it.prev = next
 		return unsafe.Pointer(next)
