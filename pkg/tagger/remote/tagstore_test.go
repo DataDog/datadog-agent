@@ -40,10 +40,7 @@ func TestProcessEvent_AddAndModify(t *testing.T) {
 	}
 
 	store := newTagStore()
-
-	for _, e := range events {
-		store.processEvent(e)
-	}
+	store.processEvents(events, false)
 
 	entity, err := store.getEntity(entityID)
 	if err != nil {
@@ -81,10 +78,45 @@ func TestProcessEvent_AddAndDelete(t *testing.T) {
 	}
 
 	store := newTagStore()
+	store.processEvents(events, false)
 
-	for _, e := range events {
-		store.processEvent(e)
+	entity, err := store.getEntity(entityID)
+	if err != nil {
+		t.Fatalf("got unexpected error: %s", err)
 	}
+
+	assert.Nil(t, entity)
+
+	entity, err = store.getEntity(anotherEntityID)
+	if err != nil {
+		t.Fatalf("got unexpected error: %s", err)
+	}
+
+	assert.NotNil(t, entity)
+}
+
+func TestProcessEvent_Replace(t *testing.T) {
+	store := newTagStore()
+
+	store.processEvents([]types.EntityEvent{
+		{
+			EventType: types.EventTypeAdded,
+			Entity: types.Entity{
+				ID:                 entityID,
+				LowCardinalityTags: []string{"foo"},
+			},
+		},
+	}, false)
+
+	store.processEvents([]types.EntityEvent{
+		{
+			EventType: types.EventTypeAdded,
+			Entity: types.Entity{
+				ID:                 anotherEntityID,
+				LowCardinalityTags: []string{"foo"},
+			},
+		},
+	}, true)
 
 	entity, err := store.getEntity(entityID)
 	if err != nil {

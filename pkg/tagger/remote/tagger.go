@@ -27,10 +27,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	defaultTimeout = 5 * time.Minute
+	noTimeout      = 0 * time.Minute
+)
+
 // Tagger holds a connection to a remote tagger, processes incoming events from
 // it, and manages the storage of entities to allow querying.
 type Tagger struct {
 	store *tagStore
+	ready bool
 
 	conn   *grpc.ClientConn
 	client pb.AgentSecureClient
@@ -87,7 +93,7 @@ func (t *Tagger) Init() error {
 
 	t.client = pb.NewAgentSecureClient(t.conn)
 
-	err = t.startTaggerStream(5 * time.Minute)
+	err = t.startTaggerStream(defaultTimeout)
 	if err != nil {
 		return err
 	}
@@ -177,41 +183,67 @@ func (t *Tagger) run() {
 
 		response, err := t.stream.Recv()
 		if err != nil {
+			// when Recv() returns an error, the stream is aborted
+			// and the contents of our store are considered out of
+			// sync and therefore no longer valid, so the tagger
+			// can no longer be considered ready
+			t.ready = false
+
 			log.Warnf("error received from remote tagger: %s", err)
 
-			// NOTE: when Recv() returns an error, the stream is
-			// aborted and needs to be re-established, so we do
-			// that here. also, startTaggerStream(0) will never
-			// return unless a stream can be established, or the
-			// tagger has been stopped, which means the error
-			// handling here is just a sanity check.
-			if err := t.startTaggerStream(0); err != nil {
+			// startTaggerStream(noTimeout) will never return
+			// unless a stream can be established, or the tagger
+			// has been stopped, which means the error handling
+			// here is just a sanity check.
+			if err := t.startTaggerStream(noTimeout); err != nil {
 				log.Warnf("error received trying to start stream: %s", err)
 			}
 			continue
 		}
 
-		eventType, err := convertEventType(response.Type)
-		if err != nil {
-			log.Warnf("error processing event received from remote tagger: %s", err)
-			continue
-		}
-
-		err = t.store.processEvent(types.EntityEvent{
-			EventType: eventType,
-			Entity: types.Entity{
-				ID:                          convertEntityID(response.Entity.Id),
-				HighCardinalityTags:         response.Entity.HighCardinalityTags,
-				OrchestratorCardinalityTags: response.Entity.OrchestratorCardinalityTags,
-				LowCardinalityTags:          response.Entity.LowCardinalityTags,
-				StandardTags:                response.Entity.StandardTags,
-			},
-		})
+		err = t.processResponse(response)
 		if err != nil {
 			log.Warnf("error processing event received from remote tagger: %s", err)
 			continue
 		}
 	}
+}
+
+func (t *Tagger) processResponse(response *pb.StreamTagsResponse) error {
+	events := make([]types.EntityEvent, 0, len(response.Events))
+	for _, ev := range response.Events {
+		eventType, err := convertEventType(ev.Type)
+		if err != nil {
+			log.Warnf("error processing event received from remote tagger: %s", err)
+			continue
+		}
+
+		entity := ev.Entity
+		events = append(events, types.EntityEvent{
+			EventType: eventType,
+			Entity: types.Entity{
+				ID:                          convertEntityID(entity.Id),
+				HighCardinalityTags:         entity.HighCardinalityTags,
+				OrchestratorCardinalityTags: entity.OrchestratorCardinalityTags,
+				LowCardinalityTags:          entity.LowCardinalityTags,
+				StandardTags:                entity.StandardTags,
+			},
+		})
+	}
+
+	// if the tagger was not ready by this point, it means an error
+	// occurred and the contents of the store are no longer valid and need
+	// to be replaced by the batch coming from the current response
+	replaceStoreContents := !t.ready
+
+	err := t.store.processEvents(events, replaceStoreContents)
+	if err != nil {
+		return err
+	}
+
+	t.ready = true
+
+	return nil
 }
 
 // startTaggerStream tries to establish a stream with the remote gRPC endpoint.
@@ -240,13 +272,6 @@ func (t *Tagger) startTaggerStream(maxElapsed time.Duration) error {
 			log.Infof("unable to establish stream, will possibly retry: %s", err)
 			return err
 		}
-
-		// when the stream is aborted, the store needs to be reset as
-		// its contents can no longer be relied to be up to date, and
-		// the new stream is responsible for re-adding all the still
-		// existing entities back. for the time in between, this can
-		// cause queries to the tagger to return nothing.
-		t.store.reset()
 
 		return nil
 	}, expBackoff)
