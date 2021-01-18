@@ -12,7 +12,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	_ "go.uber.org/automaxprocs"
+	// runtime init routines
+	_ "github.com/DataDog/datadog-agent/pkg/runtime"
 )
 
 // handleSignal closes a channel to exit cleanly from routines

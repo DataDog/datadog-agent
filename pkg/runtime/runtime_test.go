@@ -12,6 +12,7 @@ import (
 func TestAutoMaxProcs(t *testing.T) {
 
 	assert.Equal(t, runtime.NumCPU(), runtime.GOMAXPROCS(0))
+	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(0))
 
 	os.Setenv("GOMAXPROCS", "1000m")
 	// set new limit
