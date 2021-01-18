@@ -1,5 +1,5 @@
-#include "stdafx.h"
 #include "PropertyReplacer.h"
+#include "stdafx.h"
 
 IPropertyReplacer::~IPropertyReplacer()
 {
@@ -8,8 +8,8 @@ IPropertyReplacer::~IPropertyReplacer()
 RegexPropertyReplacer::RegexPropertyReplacer(std::wstring wixPropertyName, std::wstring propertyName,
                                              std::wstring const &regex)
     : _wixPropertyName(std::move(wixPropertyName))
-      , _propertyName(std::move(propertyName))
-      , _regex(std::wregex(regex))
+    , _propertyName(std::move(propertyName))
+    , _regex(std::wregex(regex))
 {
 }
 
@@ -56,8 +56,8 @@ void ProxyPropertyReplacer::Replace(std::wstring &input, std::map<std::wstring, 
         }
         std::wstringstream newValue;
         newValue << L"proxy:" << std::endl
-            << L"\thttps: " << proxy.str() << std::endl
-            << L"\thttp: " << proxy.str() << std::endl;
+                 << L"\thttps: " << proxy.str() << std::endl
+                 << L"\thttp: " << proxy.str() << std::endl;
         input = std::regex_replace(input, _regex, newValue.str());
     }
 }

@@ -1,7 +1,7 @@
 #pragma once
-#include <string>
 #include <map>
 #include <regex>
+#include <string>
 
 class IPropertyReplacer
 {

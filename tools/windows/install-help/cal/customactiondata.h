@@ -11,7 +11,7 @@ class CustomActionData
     ~CustomActionData();
 
     bool init(MSIHANDLE hInstall);
-    
+
     bool init(const std::wstring &initstring);
 
     bool present(const std::wstring &key) const;

@@ -1,20 +1,18 @@
-#include "stdafx.h"
-#include <iostream>
-#include <fstream>
-#include <utility>
 #include "PropertyReplacer.h"
+#include "stdafx.h"
+#include <fstream>
+#include <iostream>
+#include <utility>
 
 CustomActionData::CustomActionData()
     : domainUser(false)
     , doInstallSysprobe(true)
     , userParamMismatch(false)
 {
-
 }
 
 CustomActionData::~CustomActionData()
 {
-
 }
 
 bool CustomActionData::init(MSIHANDLE hi)
