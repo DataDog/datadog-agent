@@ -80,6 +80,10 @@ func (p *ProcessResolver) AddEntry(pid uint32, entry *ProcessCacheEntry) *Proces
 // enrichEventFromProc uses /proc to enrich a ProcessCacheEntry with additional metadata
 func (p *ProcessResolver) enrichEventFromProc(entry *ProcessCacheEntry, proc *process.Process) error {
 	filledProc := utils.GetFilledProcess(proc)
+	if filledProc == nil {
+		return errors.Errorf("snapshot failed for %d: binary was deleted", proc.Pid)
+	}
+
 	pid := uint32(proc.Pid)
 	// the provided process is a kernel process if its virtual memory size is null
 	isKernelProcess := filledProc.MemInfo.VMS == 0

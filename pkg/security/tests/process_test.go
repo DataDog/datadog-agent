@@ -125,7 +125,7 @@ func TestProcessContext(t *testing.T) {
 			t.Error(err)
 		} else {
 			if filename, _ := event.GetFieldValue("process.filename"); filename.(string) != executable {
-				t.Errorf("not able to find the proper process filename `%v` vs `%s`", filename, executable)
+				t.Errorf("not able to find the proper process filename `%v` vs `%s`: %v", filename, executable, event)
 			}
 
 			if inode := getInode(t, executable); inode != event.Process.Inode {
