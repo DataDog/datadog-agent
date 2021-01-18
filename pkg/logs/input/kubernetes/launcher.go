@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/input"
@@ -161,10 +160,7 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 		}
 		// We may have more than one log configuration in the annotation, ignore those
 		// unrelated to containers
-		containerType := ""
-		if tokens := strings.Split(container.ID, containers.EntitySeparator); len(tokens) == 2 {
-			containerType = tokens[0]
-		}
+		containerType, _ := containers.SplitEntityName(container.ID)
 		for _, c := range configs {
 			if c.Type == "" || c.Type == containerType {
 				cfg = c
