@@ -160,6 +160,7 @@
     <ClCompile Include="doUninstall.cpp" />
     <ClCompile Include="Error.cpp" />
     <ClCompile Include="FinalizeInstall.cpp" />
+    <ClCompile Include="PropertyReplacer.cpp" />
     <ClCompile Include="rollback.cpp" />
     <ClCompile Include="TargetMachine.cpp" />
     <ClCompile Include="stdafx.cpp">
@@ -183,6 +184,7 @@
     <ClInclude Include="ddreg.h" />
     <ClInclude Include="Error.h" />
     <ClInclude Include="lmerr_str.h" />
+    <ClInclude Include="PropertyReplacer.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="SID.h" />
     <ClInclude Include="stdafx.h" />

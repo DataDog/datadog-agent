@@ -1,14 +1,20 @@
 #include "stdafx.h"
+#include <iostream>
+#include <fstream>
+#include <utility>
+#include "PropertyReplacer.h"
 
 CustomActionData::CustomActionData()
     : domainUser(false)
     , doInstallSysprobe(true)
     , userParamMismatch(false)
 {
+
 }
 
 CustomActionData::~CustomActionData()
 {
+
 }
 
 bool CustomActionData::init(MSIHANDLE hi)
@@ -52,7 +58,7 @@ bool CustomActionData::init(const std::wstring &data)
         }
     }
 
-    return parseUsernameData() && parseSysprobeData();
+    return parseUsernameData() && parseSysprobeData() && updateYamlConfig();
 }
 
 bool CustomActionData::present(const std::wstring &key) const
@@ -144,6 +150,39 @@ bool CustomActionData::parseSysprobeData()
         return true;
     }
     this->doInstallSysprobe = true;
+    return true;
+}
+
+bool CustomActionData::updateYamlConfig()
+{
+    // Read config in memory. The config should be small enough
+    // and we control its source - so it's fine to allocate up front.
+    std::wifstream inputConfigStream(datadogyamlfile);
+    std::wstring inputConfig;
+
+    inputConfigStream.seekg(0, std::ios::end);
+    size_t fileSize = inputConfigStream.tellg();
+    if (fileSize <= 0)
+    {
+        WcaLog(LOGMSG_STANDARD, "ERROR: datadog.yaml file empty !");
+        return false;
+    }
+    inputConfig.reserve(fileSize);
+    inputConfigStream.seekg(0, std::ios::beg);
+
+    inputConfig.assign(std::istreambuf_iterator<wchar_t>(inputConfigStream), std::istreambuf_iterator<wchar_t>());
+
+    std::vector<std::unique_ptr<IPropertyReplacer>> replacers;
+    replacers.push_back(std::make_unique<RegexPropertyReplacer>(L"APIKEY", L"api_key", L"^[ \t#]*api_key:.*"));
+    replacers.push_back(std::make_unique<RegexPropertyReplacer>(L"SITE", L"site", L"^[ \t#]*site:.*"));
+    replacers.push_back(std::make_unique<RegexPropertyReplacer>(L"HOSTNAME", L"hostname", L"^[ \t#]*hostname:.*"));
+    replacers.push_back(std::make_unique<RegexPropertyReplacer>(L"DD_URL", L"dd_url", L"^[ \t#]*dd_url:.*"));
+    replacers.push_back(std::make_unique<ProxyPropertyReplacer>());
+    for (auto &replacer : replacers)
+    {
+        replacer->Replace(inputConfig, values);
+    }
+
     return true;
 }
 
