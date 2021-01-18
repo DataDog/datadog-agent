@@ -9,29 +9,30 @@ package probe
 
 import (
 	"fmt"
+	"time"
 )
 
-var zeroProcessCacheEntry ProcessCacheEntry
+// Exit a process
+func (pc *ProcessCacheEntry) Exit(exitTime time.Time) {
+	pc.ExitTimestamp = exitTime
+}
+
+// Exec replace a process
+func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
+	entry.Ancestor = pc
+
+	// empty and mark as exit previous entry
+	pc.ExitTimestamp = entry.ExecTimestamp
+}
 
 // Fork returns a copy of the current ProcessCacheEntry
 func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
-	pid := childEntry.Pid
-	tid := childEntry.Tid
-
-	*childEntry = zeroProcessCacheEntry
-	childEntry.Pid = pid
-	childEntry.Tid = tid
 	childEntry.PPid = pc.Pid
-
 	childEntry.UID = pc.UID
 	childEntry.User = pc.User
 	childEntry.GID = pc.GID
 	childEntry.Group = pc.Group
-	childEntry.ForkTimestamp = pc.ForkTimestamp
-	childEntry.Children = make(map[uint32]*ProcessCacheEntry)
-	childEntry.Parent = pc
-
-	pc.Children[pid] = childEntry
+	childEntry.Ancestor = pc
 
 	// inherit the container ID from the parent if necessary. If a container is already running when system-probe
 	// starts, the in-kernel process cache will have out of sync container ID values for the processes of that
@@ -46,18 +47,18 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 
 // IsEqual return whether entries are equals
 func (pc *ProcessCacheEntry) IsEqual(e *ProcessCacheEntry) bool {
-	return e != nil && e.Pid == pc.Pid && e.ForkTimestamp == pc.ForkTimestamp
+	return e != nil && e.Pid == pc.Pid && e.ForkTimestamp == pc.ForkTimestamp && e.ExecTimestamp == pc.ExecTimestamp
 }
 
 func (pc *ProcessCacheEntry) String() string {
-	s := fmt.Sprintf("filename: %s pid:%d ppid:%d\n", pc.FileEvent.PathnameStr, pc.Pid, pc.PPid)
-	parent := pc.Parent
-	for i := 0; parent != nil; i++ {
+	s := fmt.Sprintf("filename: %s[%s] pid:%d ppid:%d\n", pc.PathnameStr, pc.Comm, pc.Pid, pc.PPid)
+	ancestor := pc.Ancestor
+	for i := 0; ancestor != nil; i++ {
 		for j := 0; j <= i; j++ {
 			s += "\t"
 		}
-		s += fmt.Sprintf("filename: %s pid:%d ppid:%d\n", parent.FileEvent.PathnameStr, parent.Pid, parent.PPid)
-		parent = parent.Parent
+		s += fmt.Sprintf("filename: %s[%s] pid:%d ppid:%d\n", ancestor.PathnameStr, ancestor.Comm, ancestor.Pid, ancestor.PPid)
+		ancestor = ancestor.Ancestor
 	}
 	return s
 }

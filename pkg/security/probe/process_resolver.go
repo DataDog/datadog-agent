@@ -12,6 +12,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -56,6 +57,11 @@ func (i *InodeInfo) UnmarshalBinary(data []byte) (int, error) {
 	return 8, nil
 }
 
+// ProcessResolverOpts options of resolver
+type ProcessResolverOpts struct {
+	DebugCacheSize bool
+}
+
 // ProcessResolver resolved process context
 type ProcessResolver struct {
 	sync.RWMutex
@@ -65,9 +71,9 @@ type ProcessResolver struct {
 	inodeInfoMap *lib.Map
 	procCacheMap *lib.Map
 	pidCookieMap *lib.Map
-
-	entryCache map[uint32]*ProcessCacheEntry
-	cacheSize  int64
+	entryCache   map[uint32]*ProcessCacheEntry
+	cacheSize    int64
+	opts         ProcessResolverOpts
 }
 
 // AddForkEntry adds an entry to the local cache and returns the newly created entry
@@ -189,11 +195,15 @@ func (p *ProcessResolver) insertForkEntry(pid uint32, entry *ProcessCacheEntry) 
 	if parent != nil {
 		parent.Fork(entry)
 	}
-
-	entry.Parent = parent
 	p.entryCache[pid] = entry
 
-	atomic.AddInt64(&p.cacheSize, 1)
+	if p.opts.DebugCacheSize {
+		atomic.AddInt64(&p.cacheSize, 1)
+
+		runtime.SetFinalizer(entry, func(obj interface{}) {
+			atomic.AddInt64(&p.cacheSize, -1)
+		})
+	}
 
 	return entry
 }
@@ -203,19 +213,17 @@ func (p *ProcessResolver) insertExecEntry(pid uint32, entry *ProcessCacheEntry) 
 	if prev == nil {
 		return nil
 	}
-
-	prev.ExitTimestamp = entry.ForkTimestamp
-	if prev.ExitTimestamp.IsZero() {
-		prev.ExitTimestamp = entry.ExecTimestamp
-	}
-
-	entry.Origin = prev
-	entry.Parent = prev.Parent
-	entry.Parent.Children[pid] = entry
+	prev.Exec(entry)
 
 	p.entryCache[pid] = entry
 
-	atomic.AddInt64(&p.cacheSize, 1)
+	if p.opts.DebugCacheSize {
+		atomic.AddInt64(&p.cacheSize, 1)
+
+		runtime.SetFinalizer(entry, func(obj interface{}) {
+			atomic.AddInt64(&p.cacheSize, -1)
+		})
+	}
 
 	return entry
 }
@@ -230,48 +238,9 @@ func (p *ProcessResolver) DeleteEntry(pid uint32, exitTime time.Time) {
 	if !ok {
 		return
 	}
-	entry.ExitTimestamp = exitTime
+	entry.Exit(exitTime)
 
-	// delete the entry and clean up its parents if necessary
-	p.recursiveDelete(entry)
-}
-
-// recursiveDelete deletes an entry and its parent recursively, if the process can be deleted
-func (p *ProcessResolver) recursiveDelete(entry *ProcessCacheEntry) {
-	if e := p.entryCache[entry.Pid]; entry.IsEqual(e) {
-		delete(p.entryCache, entry.Pid)
-	}
-
-	if len(entry.Children) > 0 {
-		return
-	}
-
-	decrease := int64(-1)
-
-	for origin := entry.Origin; origin != nil; origin = origin.Origin {
-		if len(origin.Children) > 0 {
-			break
-		}
-		decrease--
-	}
-
-	atomic.AddInt64(&p.cacheSize, decrease)
-
-	// There is nothing left to do if the entry does not have a parent
-	if entry.Parent == nil {
-		return
-	}
-
-	// Delete the reference to the entry from its parent
-	if e := entry.Parent.Children[entry.Pid]; entry.IsEqual(e) {
-		delete(entry.Parent.Children, entry.Pid)
-	}
-
-	// Parent not exited, do not need to delete it
-	if entry.Parent.ExitTimestamp.IsZero() {
-		return
-	}
-	p.recursiveDelete(entry.Parent)
+	delete(p.entryCache, entry.Pid)
 }
 
 // Resolve returns the cache entry for the given pid
@@ -411,35 +380,33 @@ func (p *ProcessResolver) syncCache(proc *process.Process) (*ProcessCacheEntry, 
 
 	log.Tracef("New process cache entry added: %s %s %d/%d", entry.Comm, entry.PathnameStr, pid, entry.Inode)
 
-	// loop through the children of the newly inserted process to propagate the container ID if necessary
-	if len(entry.ID) > 0 {
-		for _, child := range entry.Children {
-			if len(child.ID) == 0 {
-				child.ID = entry.ID
-			}
-		}
-	}
-
 	return entry, true
 }
 
-func (p *ProcessResolver) dumpChild(writer io.Writer, entry *ProcessCacheEntry, already map[uint32]bool) {
-	if _, exists := already[entry.Pid]; !exists {
+func (p *ProcessResolver) dumpEntry(writer io.Writer, entry *ProcessCacheEntry, already map[string]bool) {
+	for entry != nil {
 		label := fmt.Sprintf("%s:%d", entry.Comm, entry.Pid)
-		if !entry.ExitTimestamp.IsZero() {
-			label = "[" + label + "]"
+		if _, exists := already[label]; !exists {
+			if !entry.ExitTimestamp.IsZero() {
+				label = "[" + label + "]"
+			}
+
+			fmt.Fprintf(writer, `"%d:%s" [label="%s"];`, entry.Pid, entry.Comm, label)
+			fmt.Fprintln(writer)
+
+			already[label] = true
 		}
 
-		fmt.Fprintf(writer, `%d [label="%s"];`, entry.Pid, label)
-		fmt.Fprintln(writer)
-	}
-	already[entry.Pid] = true
+		if entry.Ancestor != nil {
+			relation := fmt.Sprintf(`"%d:%s" -> "%d:%s";`, entry.Ancestor.Pid, entry.Ancestor.Comm, entry.Pid, entry.Comm)
+			if _, exists := already[relation]; !exists {
+				fmt.Fprintln(writer, relation)
 
-	for _, child := range entry.Children {
-		fmt.Fprintf(writer, `%d -> %d;`, entry.Pid, child.Pid)
-		fmt.Fprintln(writer)
+				already[relation] = true
+			}
+		}
 
-		p.dumpChild(writer, child, already)
+		entry = entry.Ancestor
 	}
 }
 
@@ -460,11 +427,9 @@ func (p *ProcessResolver) Dump() (string, error) {
 
 	fmt.Fprintf(dump, "digraph ProcessTree {\n")
 
-	already := make(map[uint32]bool)
+	already := make(map[string]bool)
 	for _, entry := range p.entryCache {
-		if entry.Parent == nil {
-			p.dumpChild(dump, entry, already)
-		}
+		p.dumpEntry(dump, entry, already)
 	}
 
 	fmt.Fprintf(dump, `}`)
@@ -476,15 +441,16 @@ func (p *ProcessResolver) Dump() (string, error) {
 func (p *ProcessResolver) GetCacheSize() float64 {
 	p.RLock()
 	defer p.RUnlock()
-	return float64(atomic.LoadInt64(&p.cacheSize))
+	return float64(len(p.entryCache))
 }
 
 // NewProcessResolver returns a new process resolver
-func NewProcessResolver(probe *Probe, resolvers *Resolvers, client *statsd.Client) (*ProcessResolver, error) {
+func NewProcessResolver(probe *Probe, resolvers *Resolvers, client *statsd.Client, opts ProcessResolverOpts) (*ProcessResolver, error) {
 	return &ProcessResolver{
 		probe:      probe,
 		resolvers:  resolvers,
 		client:     client,
 		entryCache: make(map[uint32]*ProcessCacheEntry),
+		opts:       opts,
 	}, nil
 }

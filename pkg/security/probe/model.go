@@ -851,15 +851,11 @@ func (e *InvalidateDentryEvent) UnmarshalBinary(data []byte) (int, error) {
 type ProcessCacheEntry struct {
 	ContainerContext
 	ProcessContext
-
-	Children map[uint32]*ProcessCacheEntry `field:"-"`
 }
 
 // NewProcessCacheEntry returns an empty instance of ProcessCacheEntry
 func NewProcessCacheEntry() *ProcessCacheEntry {
-	return &ProcessCacheEntry{
-		Children: make(map[uint32]*ProcessCacheEntry),
-	}
+	return &ProcessCacheEntry{}
 }
 
 // ProcessContext holds the process context of an event
@@ -871,8 +867,7 @@ type ProcessContext struct {
 	UID uint32 `field:"uid"`
 	GID uint32 `field:"gid"`
 
-	Origin *ProcessCacheEntry `field:"-"`
-	Parent *ProcessCacheEntry `field:"ancestors" iterator:"ProcessAncestorsIterator"`
+	Ancestor *ProcessCacheEntry `field:"ancestors" iterator:"ProcessAncestorsIterator"`
 }
 
 // ProcessAncestorsIterator defines an iterator of ancestors
@@ -882,7 +877,7 @@ type ProcessAncestorsIterator struct {
 
 // Front returns the first element
 func (it *ProcessAncestorsIterator) Front(ctx *eval.Context) unsafe.Pointer {
-	if front := (*Event)(ctx.Object).Process.Parent; front != nil {
+	if front := (*Event)(ctx.Object).Process.Ancestor; front != nil {
 		it.prev = front
 		return unsafe.Pointer(front)
 	}
@@ -892,11 +887,7 @@ func (it *ProcessAncestorsIterator) Front(ctx *eval.Context) unsafe.Pointer {
 
 // Next returns the next element
 func (it *ProcessAncestorsIterator) Next() unsafe.Pointer {
-	if next := it.prev.Origin; next != nil {
-		it.prev = next
-		return unsafe.Pointer(next)
-	}
-	if next := it.prev.Parent; next != nil {
+	if next := it.prev.Ancestor; next != nil {
 		it.prev = next
 		return unsafe.Pointer(next)
 	}
@@ -1050,14 +1041,14 @@ func (e *Event) ResolveProcessCacheEntry() *ProcessCacheEntry {
 			e.processCacheEntry = &ProcessCacheEntry{}
 		}
 	}
-	e.updateProcessCachePointer(e.processCacheEntry)
+	e.Process.Ancestor = e.processCacheEntry.Ancestor
 	return e.processCacheEntry
 }
 
 // updateProcessCachePointer updates the internal pointers of the event structure to the ProcessCacheEntry of the event
 func (e *Event) updateProcessCachePointer(event *ProcessCacheEntry) {
 	e.processCacheEntry = event
-	e.Process.Parent = event.Parent
+	e.Process.Ancestor = event.Ancestor
 }
 
 // Clone returns a copy on the event
