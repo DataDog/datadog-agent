@@ -8,9 +8,7 @@
 ---
 upgrade:
   - |
-    ``forwarder_retry_queue_max_size`` is deprecated in favor of 
-    ``forwarder_retry_queue_payloads_max_size`` and 
-    ``forwarder_retry_queue_payloads_max_size`` takes precedence over 
+    ``forwarder_retry_queue_payloads_max_size`` takes precedence over the deprecated
     ``forwarder_retry_queue_max_size``. If ``forwarder_retry_queue_max_size`` 
     is not set, you are not affected by this change. If 
     ``forwarder_retry_queue_max_size`` is set, but 
