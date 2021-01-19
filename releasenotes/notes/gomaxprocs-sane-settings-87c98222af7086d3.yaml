@@ -10,4 +10,4 @@ enhancements:
   - |
     GOMAXPROCS is now set automatically to match the allocated CPU cgroup quota.
     GOMAXPROCS can now also be manually specified and overridden in millicore units.
-    If no quota or GOMAXPROC value is set it will default to the original behavior.
+    If no quota or GOMAXPROCS value is set it will default to the original behavior.
