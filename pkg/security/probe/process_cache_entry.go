@@ -17,12 +17,28 @@ func (pc *ProcessCacheEntry) Exit(exitTime time.Time) {
 	pc.ExitTimestamp = exitTime
 }
 
+func copyProcessContext(parent, child *ProcessCacheEntry) {
+	// inherit the container ID from the parent if necessary. If a container is already running when system-probe
+	// starts, the in-kernel process cache will have out of sync container ID values for the processes of that
+	// container (the snapshot doesn't update the in-kernel cache with the container IDs). This can also happen if
+	// the proc_cache LRU ejects an entry.
+	// WARNING: this is why the user space cache should not be used to detect container breakouts. Dedicated
+	// in-kernel probes will need to be added.
+	if len(parent.ContainerContext.ID) > 0 && len(child.ContainerContext.ID) == 0 {
+		child.ContainerContext.ID = parent.ContainerContext.ID
+		child.ContainerPath = parent.ContainerPath
+	}
+}
+
 // Exec replace a process
 func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 	entry.Ancestor = pc
 
 	// empty and mark as exit previous entry
 	pc.ExitTimestamp = entry.ExecTimestamp
+
+	// keep some context
+	copyProcessContext(pc, entry)
 }
 
 // Fork returns a copy of the current ProcessCacheEntry
@@ -34,15 +50,8 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.Group = pc.Group
 	childEntry.Ancestor = pc
 
-	// inherit the container ID from the parent if necessary. If a container is already running when system-probe
-	// starts, the in-kernel process cache will have out of sync container ID values for the processes of that
-	// container (the snapshot doesn't update the in-kernel cache with the container IDs). This can also happen if
-	// the proc_cache LRU ejects an entry.
-	// WARNING: this is why the user space cache should not be used to detect container breakouts. Dedicated
-	// in-kernel probes will need to be added.
-	if len(pc.ContainerContext.ID) > 0 && len(childEntry.ContainerContext.ID) == 0 {
-		childEntry.ContainerContext.ID = pc.ContainerContext.ID
-	}
+	// keep some context
+	copyProcessContext(pc, childEntry)
 }
 
 // IsEqual return whether entries are equals
