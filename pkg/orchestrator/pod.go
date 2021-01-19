@@ -36,6 +36,7 @@ const (
 func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID string, cfg *config.OrchestratorConfig) ([]model.MessageBody, error) {
 	start := time.Now()
 	podMsgs := make([]*model.Pod, 0, len(podList))
+	manifestMsgs := make([]*model.Manifest, 0, len(podList))
 
 	for p := 0; p < len(podList); p++ {
 		// extract pod info
@@ -84,17 +85,27 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID
 		}
 		podModel.Yaml = jsonPod
 
+		manifestMsgs = append(manifestMsgs, &model.Manifest{
+			Orchestrator: "k8s",
+			Type:         "pod",
+			Uid:          podModel.Metadata.Uid,
+			Content:      jsonPod,
+			ContentType:  "json",
+		})
+
 		podMsgs = append(podMsgs, podModel)
 	}
+
+	Collector.BufferManifest(manifestMsgs)
 
 	groupSize := len(podMsgs) / cfg.MaxPerMessage
 	if len(podMsgs)%cfg.MaxPerMessage != 0 {
 		groupSize++
 	}
 	chunked := chunkPods(podMsgs, groupSize, cfg.MaxPerMessage)
-	messages := make([]model.MessageBody, 0, groupSize)
+	podMessages := make([]model.MessageBody, 0, groupSize)
 	for i := 0; i < groupSize; i++ {
-		messages = append(messages, &model.CollectorPod{
+		podMessages = append(podMessages, &model.CollectorPod{
 			HostName:    hostName,
 			ClusterName: cfg.KubeClusterName,
 			Pods:        chunked[i],
@@ -106,7 +117,7 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID
 	}
 
 	log.Debugf("Collected & enriched %d out of %d pods in %s", len(podMsgs), len(podList), time.Now().Sub(start))
-	return messages, nil
+	return podMessages, nil
 }
 
 // chunkPods formats and chunks the pods into a slice of chunks using a specific number of chunks.

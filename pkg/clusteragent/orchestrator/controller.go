@@ -9,17 +9,13 @@ package orchestrator
 
 import (
 	"math/rand"
-	"net/http"
-	"strconv"
 	"sync/atomic"
 	"time"
 
-	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
@@ -62,7 +58,7 @@ type Controller struct {
 	hostName                string
 	clusterName             string
 	clusterID               string
-	forwarder               forwarder.Forwarder
+	sender                  *orchestrator.Sender
 	orchestratorConfig      *orchcfg.OrchestratorConfig
 	isLeaderFunc            func() bool
 }
@@ -89,6 +85,7 @@ func StartController(ctx ControllerContext) error {
 	}
 
 	go orchestratorController.Run(ctx.StopCh)
+	go orchestrator.Collector.Start(ctx.StopCh)
 
 	ctx.UnassignedPodInformerFactory.Start(ctx.StopCh)
 	ctx.InformerFactory.Start(ctx.StopCh)
@@ -119,9 +116,7 @@ func newController(ctx ControllerContext) (*Controller, error) {
 		log.Errorf("Error loading the orchestrator config: %s", err)
 	}
 
-	keysPerDomain := api.KeysPerDomains(orchestratorCfg.OrchestratorEndpoints)
-	podForwarderOpts := forwarder.NewOptions(keysPerDomain)
-	podForwarderOpts.DisableAPIKeyChecking = true
+	orchestrator.InitManifestCollector(orchestratorCfg, ctx.Hostname)
 
 	oc := &Controller{
 		unassignedPodLister:     podInformer.Lister(),
@@ -139,7 +134,7 @@ func newController(ctx ControllerContext) (*Controller, error) {
 		clusterName:             ctx.ClusterName,
 		clusterID:               clusterID,
 		orchestratorConfig:      orchestratorCfg,
-		forwarder:               forwarder.NewDefaultForwarder(podForwarderOpts),
+		sender:                  orchestrator.NewSender(orchestratorCfg, ctx.Hostname),
 		isLeaderFunc:            ctx.IsLeaderFunc,
 	}
 
@@ -156,10 +151,11 @@ func (o *Controller) Run(stopCh <-chan struct{}) {
 		return
 	}
 
-	if err := o.forwarder.Start(); err != nil {
-		log.Errorf("Error starting pod forwarder: %s", err)
+	if err := o.sender.Start(); err != nil {
+		log.Errorf("Error starting orchestrator forwarder: %s", err)
 		return
 	}
+	defer o.sender.Stop()
 
 	if !cache.WaitForCacheSync(stopCh, o.unassignedPodListerSync, o.deployListerSync, o.rsListerSync, o.serviceListerSync, o.nodesListerSync) {
 		return
@@ -176,8 +172,6 @@ func (o *Controller) Run(stopCh <-chan struct{}) {
 	spreadProcessors(processors, 2*time.Second, 10*time.Second, stopCh)
 
 	<-stopCh
-
-	o.forwarder.Stop()
 }
 
 func (o *Controller) processDeploys() {
@@ -205,7 +199,7 @@ func (o *Controller) processDeploys() {
 
 	orchestrator.KubernetesResourceCache.Set(BuildStatsKey(orchestrator.K8sDeployment), stats, orchestrator.NoExpiration)
 
-	o.sendMessages(msg, forwarder.PayloadTypeDeployment)
+	o.sender.SendMessages(msg, forwarder.PayloadTypeDeployment)
 }
 
 func (o *Controller) processReplicaSets() {
@@ -233,7 +227,7 @@ func (o *Controller) processReplicaSets() {
 
 	orchestrator.KubernetesResourceCache.Set(BuildStatsKey(orchestrator.K8sReplicaSet), stats, orchestrator.NoExpiration)
 
-	o.sendMessages(msg, forwarder.PayloadTypeReplicaSet)
+	o.sender.SendMessages(msg, forwarder.PayloadTypeReplicaSet)
 }
 
 func (o *Controller) processPods() {
@@ -248,21 +242,21 @@ func (o *Controller) processPods() {
 	}
 
 	// we send an empty hostname for unassigned pods
-	msg, err := orchestrator.ProcessPodList(podList, atomic.AddInt32(&o.groupID, 1), "", o.clusterID, o.orchestratorConfig)
+	podMsgs, err := orchestrator.ProcessPodList(podList, atomic.AddInt32(&o.groupID, 1), "", o.clusterID, o.orchestratorConfig)
 	if err != nil {
 		log.Errorf("Unable to process pod list: %v", err)
 		return
 	}
 
 	stats := CheckStats{
-		CacheHits: len(podList) - len(msg),
-		CacheMiss: len(msg),
+		CacheHits: len(podList) - len(podMsgs),
+		CacheMiss: len(podMsgs),
 		NodeType:  orchestrator.K8sPod,
 	}
 
 	orchestrator.KubernetesResourceCache.Set(BuildStatsKey(orchestrator.K8sPod), stats, orchestrator.NoExpiration)
 
-	o.sendMessages(msg, forwarder.PayloadTypePod)
+	o.sender.SendMessages(podMsgs, forwarder.PayloadTypePod)
 }
 
 func (o *Controller) processServices() {
@@ -290,7 +284,7 @@ func (o *Controller) processServices() {
 
 	orchestrator.KubernetesResourceCache.Set(BuildStatsKey(orchestrator.K8sService), stats, orchestrator.NoExpiration)
 
-	o.sendMessages(messages, forwarder.PayloadTypeService)
+	o.sender.SendMessages(messages, forwarder.PayloadTypeService)
 }
 
 func (o *Controller) processNodes() {
@@ -318,35 +312,7 @@ func (o *Controller) processNodes() {
 
 	orchestrator.KubernetesResourceCache.Set(BuildStatsKey(orchestrator.K8sNode), stats, orchestrator.NoExpiration)
 
-	o.sendMessages(messages, forwarder.PayloadTypeNode)
-}
-
-func (o *Controller) sendMessages(msg []model.MessageBody, payloadType string) {
-	for _, m := range msg {
-		extraHeaders := make(http.Header)
-		extraHeaders.Set(api.HostHeader, o.hostName)
-		extraHeaders.Set(api.ClusterIDHeader, o.clusterID)
-		extraHeaders.Set(api.TimestampHeader, strconv.Itoa(int(time.Now().Unix())))
-
-		body, err := api.EncodePayload(m)
-		if err != nil {
-			log.Errorf("Unable to encode message: %s", err)
-			continue
-		}
-
-		payloads := forwarder.Payloads{&body}
-		responses, err := o.forwarder.SubmitOrchestratorChecks(payloads, extraHeaders, payloadType)
-		if err != nil {
-			log.Errorf("Unable to submit payload: %s", err)
-			continue
-		}
-
-		// Consume the responses so that writers to the channel do not become blocked
-		// we don't need the bodies here though
-		for range responses {
-
-		}
-	}
+	o.sender.SendMessages(messages, forwarder.PayloadTypeNode)
 }
 
 func (o *Controller) runLeaderElection() error {
