@@ -12,6 +12,8 @@ package probe
 import (
 	"syscall"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
 // Event categories for JSON serialization
@@ -205,14 +207,24 @@ func newProcessContextSerializer(pc *ProcessContext, e *Event) *ProcessContextSe
 		ProcessCacheEntrySerializer: newProcessCacheEntrySerializer(entry, e, true),
 	}
 
-	ancestor := entry.Parent
-	for i := 0; ancestor != nil && len(ancestor.PathnameStr) > 0; i++ {
+	ctx := eval.Context{}
+	ctx.SetObject(e.GetPointer())
+
+	it := &ProcessAncestorsIterator{}
+	ptr := it.Front(&ctx)
+
+	first := true
+	for ptr != nil {
+		ancestor := (*ProcessCacheEntry)(ptr)
 		s := newProcessCacheEntrySerializer(ancestor, e, false)
 		ps.Ancestors = append(ps.Ancestors, s)
-		if i == 0 {
+
+		if first {
 			ps.Parent = s
 		}
-		ancestor = ancestor.Parent
+		first = false
+
+		ptr = it.Next()
 	}
 
 	return ps
