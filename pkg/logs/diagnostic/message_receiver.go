@@ -27,6 +27,7 @@ type BufferedMessageReceiver struct {
 
 // Filters for processing log messages
 type Filters struct {
+	Name   string `json:"name"`
 	Type   string `json:"type"`
 	Source string `json:"source"`
 }
@@ -98,31 +99,30 @@ func (b *BufferedMessageReceiver) Next(filters *Filters) (line string, ok bool) 
 }
 
 func shouldHandleMessage(m *message.Message, filters *Filters) bool {
-	// No filters
-	if filters == nil || (filters.Type == "" && filters.Source == "") {
+	if filters == nil {
 		return true
 	}
 
-	// Filter by Type and Source
-	if filters.Type != "" && filters.Source != "" {
-		if m.Origin.LogSource.Config.Type == filters.Type && filters.Source == m.Origin.Source() {
-			return true
-		}
-		return false
+	shouldHandle := true
+
+	if filters.Name != "" {
+		shouldHandle = shouldHandle && m.Origin.LogSource.Name == filters.Name
 	}
 
-	// Filter by Type or Source
-	if filters.Type != "" && m.Origin.LogSource.Config.Type == filters.Type {
-		return true
+	if filters.Type != "" {
+		shouldHandle = shouldHandle && m.Origin.LogSource.Config.Type == filters.Type
 	}
-	if filters.Source != "" && filters.Source == m.Origin.Source() {
-		return true
+
+	if filters.Source != "" {
+		shouldHandle = shouldHandle && filters.Source == m.Origin.Source()
 	}
-	return false
+
+	return shouldHandle
 }
 
 func formatMessage(m *message.Message) string {
-	return fmt.Sprintf("Type: %s | Status: %s | Timestamp: %s | Service: %s | Source: %s | Tags: %s | Message: %s\n",
+	return fmt.Sprintf("Name: %s | Type: %s | Status: %s | Timestamp: %s | Service: %s | Source: %s | Tags: %s | Message: %s\n",
+		m.Origin.LogSource.Name,
 		m.Origin.LogSource.Config.Type,
 		m.GetStatus(),
 		m.Timestamp,

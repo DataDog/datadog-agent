@@ -20,14 +20,14 @@ import (
 )
 
 var (
-	typeFilter   string
-	sourceFilter string
+	filters diagnostic.Filters
 )
 
 func init() {
 	AgentCmd.AddCommand(troubleshootLogsCmd)
-	troubleshootLogsCmd.Flags().StringVarP(&typeFilter, "type", "t", "", "Filter by type")
-	troubleshootLogsCmd.Flags().StringVarP(&sourceFilter, "source", "s", "", "Filter by source")
+	troubleshootLogsCmd.Flags().StringVar(&filters.Name, "name", "", "Filter by name")
+	troubleshootLogsCmd.Flags().StringVar(&filters.Type, "type", "", "Filter by type")
+	troubleshootLogsCmd.Flags().StringVar(&filters.Source, "source", "", "Filter by source")
 }
 
 var troubleshootLogsCmd = &cobra.Command{
@@ -61,11 +61,7 @@ func connectAndStream() error {
 		return err
 	}
 
-	filters := &diagnostic.Filters{
-		Type:   typeFilter,
-		Source: sourceFilter,
-	}
-	body, err := json.Marshal(filters)
+	body, err := json.Marshal(&filters)
 
 	if err != nil {
 		return err
