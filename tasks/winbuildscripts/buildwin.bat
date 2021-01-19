@@ -12,7 +12,7 @@ REM after copying files in from the host, execute the build
 REM using `dobuild.bat`
 REM
 call %~p0dobuild.bat %* 
-if %ERRORLEVEL% -ne 0 exit /b %ERRORLEVEL%
+if not %ERRORLEVEL% == 0 exit /b %ERRORLEVEL%
 
 REM show output directories (for debugging)
 dir \omnibus\pkg
