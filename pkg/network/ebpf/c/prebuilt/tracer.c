@@ -435,14 +435,14 @@ static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sockaddr * sr
         // We can only pass 4 args to bpf_trace_printk
         // so split those 2 statements to be able to log everything
         if (!(t->saddr_h || t->saddr_l)) {
-            log_debug("ERR(read_conn_tuple.v6): src addr not set: saddr_l=%d, saddr_h=%d\n",
-                t->saddr_l, t->saddr_h);
+            log_debug("ERR(read_conn_tuple.v6): src addr not set: type=%d, saddr_l=%d, saddr_h=%d\n",
+                      type, t->saddr_l, t->saddr_h);
             return 0;
         }
 
         if (!(t->daddr_h || t->daddr_l)) {
-            log_debug("ERR(read_conn_tuple.v6): dst addr not set: daddr_l=%d, daddr_h=%d\n",
-                t->daddr_l, t->daddr_h);
+            log_debug("ERR(read_conn_tuple.v6): dst addr not set: type=%d, daddr_l=%d, daddr_h=%d\n",
+                      type, t->daddr_l, t->daddr_h);
             return 0;
         }
 
