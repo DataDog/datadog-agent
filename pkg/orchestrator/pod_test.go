@@ -98,6 +98,7 @@ func TestExtractPodMessage(t *testing.T) {
 							UID:  types.UID("1234567890"),
 						},
 					},
+					ResourceVersion: "1234",
 				},
 				Spec: v1.PodSpec{
 					NodeName:   "node",
@@ -118,6 +119,7 @@ func TestExtractPodMessage(t *testing.T) {
 							Uid:  "1234567890",
 						},
 					},
+					ResourceVersion: "1234",
 				},
 				Phase:             "Running",
 				NominatedNodeName: "nominated",

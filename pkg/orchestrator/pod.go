@@ -392,5 +392,7 @@ func ExtractMetadata(m *metav1.ObjectMeta) *model.Metadata {
 		meta.OwnerReferences = append(meta.OwnerReferences, &owner)
 	}
 
+	meta.ResourceVersion = m.ResourceVersion
+
 	return &meta
 }
