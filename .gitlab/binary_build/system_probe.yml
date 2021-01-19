@@ -19,7 +19,6 @@
     - tar -xvf /tmp/clang.tar.xz -C $DATADOG_AGENT_EMBEDDED_PATH
   script:
     - inv -e system-probe.build --go-version=$SYSTEM_PROBE_GO_VERSION --embedded-path=$DATADOG_AGENT_EMBEDDED_PATH
-    - inv -e system-probe.test --only-check-bpf-bytes
     - $S3_CP_CMD $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe $S3_ARTIFACTS_URI/system-probe.$ARCH
     - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/tracer.o $S3_ARTIFACTS_URI/tracer.o.$ARCH
     - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/tracer-debug.o $S3_ARTIFACTS_URI/tracer-debug.o.$ARCH

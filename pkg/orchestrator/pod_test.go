@@ -78,6 +78,7 @@ func TestExtractPodMessage(t *testing.T) {
 							},
 						},
 					},
+					QOSClass: v1.PodQOSGuaranteed,
 				},
 				ObjectMeta: metav1.ObjectMeta{
 					UID:               types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6"),
@@ -97,6 +98,7 @@ func TestExtractPodMessage(t *testing.T) {
 							UID:  types.UID("1234567890"),
 						},
 					},
+					ResourceVersion: "1234",
 				},
 				Spec: v1.PodSpec{
 					NodeName:   "node",
@@ -117,12 +119,14 @@ func TestExtractPodMessage(t *testing.T) {
 							Uid:  "1234567890",
 						},
 					},
+					ResourceVersion: "1234",
 				},
 				Phase:             "Running",
 				NominatedNodeName: "nominated",
 				NodeName:          "node",
 				RestartCount:      42,
 				Status:            "chillin",
+				QOSClass:          "Guaranteed",
 				ContainerStatuses: []*model.ContainerStatus{
 					{
 						State:        "Running",
@@ -179,6 +183,7 @@ func TestExtractPodMessage(t *testing.T) {
 							Name: "bazName",
 						},
 					},
+					QOSClass: v1.PodQOSBurstable,
 				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "pod",
@@ -201,6 +206,7 @@ func TestExtractPodMessage(t *testing.T) {
 				},
 				RestartCount: 10,
 				Status:       "chillin",
+				QOSClass:     "Burstable",
 				ContainerStatuses: []*model.ContainerStatus{
 					{
 						Name:        "fooName",
@@ -261,6 +267,7 @@ func TestExtractPodMessage(t *testing.T) {
 							Name: "bazName",
 						},
 					},
+					QOSClass: v1.PodQOSBestEffort,
 				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "pod",
@@ -307,6 +314,7 @@ func TestExtractPodMessage(t *testing.T) {
 						Name: "bazName",
 					},
 				},
+				QOSClass: "BestEffort",
 			},
 		},
 		"partial pod with resourceRequirements": {

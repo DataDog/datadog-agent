@@ -63,15 +63,14 @@ func NewUDPListener(packetOut chan Packets, sharedPacketPool *PacketPool) (*UDPL
 		return nil, fmt.Errorf("could not resolve udp addr: %s", err)
 	}
 	conn, err := net.ListenUDP("udp", addr)
+	if err != nil {
+		return nil, fmt.Errorf("can't listen: %s", err)
+	}
 
 	if rcvbuf := config.Datadog.GetInt("dogstatsd_so_rcvbuf"); rcvbuf != 0 {
 		if err := conn.SetReadBuffer(rcvbuf); err != nil {
 			return nil, fmt.Errorf("could not set socket rcvbuf: %s", err)
 		}
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("can't listen: %s", err)
 	}
 
 	bufferSize := config.Datadog.GetInt("dogstatsd_buffer_size")

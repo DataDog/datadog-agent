@@ -26,16 +26,16 @@ There are 3 main directories:
     Custom container images needed within the workflows
 
 - [scripts](./scripts)
-    * setup-instance
-        Entrypoint and scripts dedicated for environments (locally, AWS dev, AWS gitlab)
-    * run-instance
-        Scripts executed in the argo-machine (locally, AWS instance)
+    - [`setup-instance`](./scripts/setup-instance)
+      Entrypoint and scripts dedicated for environments (locally, AWS dev, AWS gitlab)
+    - [`run-instance`](./scripts/run-instance)
+      Scripts executed in the argo-machine (locally, AWS instance)
 
-## setup-instance
+## `setup-instance`
 
 <img src="docs/setup-instance.svg" width="350">
 
-## run-instance
+## `run-instance`
 
 You need [pupernetes](https://github.com/DataDog/pupernetes):
 ```bash
@@ -121,10 +121,10 @@ But, keep in mind this become an additional piece of software to maintain.
 
 This section helps you to upgrade any part of the end to end testing.
 
-The current end to end testing pipeline relies on
-* [pupernetes](https://github.com/DataDog/pupernetes)
-* [argo](https://github.com/argoproj/argo)
-* [kinvolk flatcar](https://www.flatcar-linux.org)
+The current end to end testing pipeline relies on:
+* [Pupernetes](https://github.com/DataDog/pupernetes)
+* [Argo](https://github.com/argoproj/argo)
+* [Kinvolk Flatcar](https://www.flatcar-linux.org)
 
 ## Bump hyperkube version
 
@@ -198,16 +198,16 @@ If needed, use the [ignition-linter](https://coreos.com/validate/) to validate a
 
 ## Bump argo
 
-* change the binary version in [the argo setup script](./scripts/run-instance/21-argo-setup.sh)
-* the content of [the sha512sum](./scripts/run-instance/argo.sha512sum)
+* Change the binary version in [the argo setup script](./scripts/run-instance/21-argo-setup.sh)
+* The content of [the sha512sum](./scripts/run-instance/argo.sha512sum)
 
 ## Bump CoreOS Container Linux - Kinvolk Flatcar
 
-* change the value of the AMIs:
+* Change the value of the AMIs:
     * [dev](./scripts/setup-instance/00-entrypoint-dev.sh)
     * [gitlab](./scripts/setup-instance/00-entrypoint-gitlab.sh)
 
 
 Select any HVM AMIs from:
-* [kinvolk Flatcar](https://alpha.release.flatcar-linux.net/amd64-usr/)
+* [Kinvolk Flatcar](https://alpha.release.flatcar-linux.net/amd64-usr/)
 * CoreOS Container linux
