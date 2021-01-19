@@ -146,7 +146,7 @@ type Forwarder interface {
 	SubmitServiceChecks(payload Payloads, extra http.Header) error
 	SubmitSketchSeries(payload Payloads, extra http.Header) error
 	SubmitHostMetadata(payload Payloads, extra http.Header) error
-	SubmitAgentchecksMetadata(payload Payloads, extra http.Header) error
+	SubmitAgentChecksMetadata(payload Payloads, extra http.Header) error
 	SubmitMetadata(payload Payloads, extra http.Header) error
 	SubmitProcessChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitRTProcessChecks(payload Payloads, extra http.Header) (chan Response, error)
@@ -538,8 +538,8 @@ func (f *DefaultForwarder) SubmitHostMetadata(payload Payloads, extra http.Heade
 		})
 }
 
-// SubmitAgentchecksMetadata will send a agentchecks_metadata tag type payload to Datadog backend.
-func (f *DefaultForwarder) SubmitAgentchecksMetadata(payload Payloads, extra http.Header) error {
+// SubmitAgentChecksMetadata will send a agentchecks_metadata tag type payload to Datadog backend.
+func (f *DefaultForwarder) SubmitAgentChecksMetadata(payload Payloads, extra http.Header) error {
 	return f.submitV1IntakeWithTransactionsFactory(payload, extra,
 		func(endpoint endpoint, payloads Payloads, apiKeyInQueryString bool, extra http.Header) []*HTTPTransaction {
 			// Agentchecks metadata contains the API KEY and should not be stored on disk.

@@ -5,8 +5,8 @@
 
 package common
 
-// StringSliceMap returns a new slice `s` where s[i] = fct(values[i])
-func StringSliceMap(values []string, fct func(string) string) []string {
+// StringSliceTransform returns a new slice `s` where s[i] = fct(values[i])
+func StringSliceTransform(values []string, fct func(string) string) []string {
 	s := make([]string, len(values))
 	for i := 0; i < len(values); i++ {
 		s[i] = fct(values[i])

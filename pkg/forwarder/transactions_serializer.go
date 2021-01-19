@@ -116,7 +116,7 @@ func (s *TransactionsSerializer) Deserialize(bytes []byte) ([]Transaction, int, 
 		}
 
 		if err != nil {
-			log.Error(err)
+			log.Errorf("Error when deserializing a transaction: %v", err)
 			errorCount++
 			continue
 		}
@@ -180,7 +180,7 @@ func fromTransactionPriorityProto(priority TransactionPriorityProto) (Transactio
 func (s *TransactionsSerializer) toHeaderProto(headers http.Header) map[string]*HeaderValuesProto {
 	headersProto := make(map[string]*HeaderValuesProto)
 	for key, headerValues := range headers {
-		headerValuesProto := HeaderValuesProto{Values: common.StringSliceMap(headerValues, s.replaceAPIKeys)}
+		headerValuesProto := HeaderValuesProto{Values: common.StringSliceTransform(headerValues, s.replaceAPIKeys)}
 		headersProto[key] = &headerValuesProto
 	}
 	return headersProto
