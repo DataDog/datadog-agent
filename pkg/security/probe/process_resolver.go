@@ -8,6 +8,9 @@
 package probe
 
 import (
+	"fmt"
+	"io"
+	"io/ioutil"
 	"os"
 	"runtime"
 	"sync"
@@ -382,6 +385,60 @@ func (p *ProcessResolver) syncCache(proc *process.Process) (*ProcessCacheEntry, 
 	log.Tracef("New process cache entry added: %s %s %d/%d", entry.Comm, entry.PathnameStr, pid, entry.Inode)
 
 	return entry, true
+}
+
+func (p *ProcessResolver) dumpEntry(writer io.Writer, entry *ProcessCacheEntry, already map[string]bool) {
+	for entry != nil {
+		label := fmt.Sprintf("%s:%d", entry.Comm, entry.Pid)
+		if _, exists := already[label]; !exists {
+			if !entry.ExitTimestamp.IsZero() {
+				label = "[" + label + "]"
+			}
+
+			fmt.Fprintf(writer, `"%d:%s" [label="%s"];`, entry.Pid, entry.Comm, label)
+			fmt.Fprintln(writer)
+
+			already[label] = true
+		}
+
+		if entry.Ancestor != nil {
+			relation := fmt.Sprintf(`"%d:%s" -> "%d:%s";`, entry.Ancestor.Pid, entry.Ancestor.Comm, entry.Pid, entry.Comm)
+			if _, exists := already[relation]; !exists {
+				fmt.Fprintln(writer, relation)
+
+				already[relation] = true
+			}
+		}
+
+		entry = entry.Ancestor
+	}
+}
+
+// Dump create a temp file and dump the cache
+func (p *ProcessResolver) Dump() (string, error) {
+	dump, err := ioutil.TempFile("/tmp", "process-cache-dump-")
+	if err != nil {
+		return "", err
+	}
+	defer dump.Close()
+
+	if err := os.Chmod(dump.Name(), 0400); err != nil {
+		return "", err
+	}
+
+	p.RLock()
+	defer p.RUnlock()
+
+	fmt.Fprintf(dump, "digraph ProcessTree {\n")
+
+	already := make(map[string]bool)
+	for _, entry := range p.entryCache {
+		p.dumpEntry(dump, entry, already)
+	}
+
+	fmt.Fprintf(dump, `}`)
+
+	return dump.Name(), err
 }
 
 // GetCacheSize returns the cache size of the process resolver

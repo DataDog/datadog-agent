@@ -271,7 +271,6 @@ def docker_functional_tests(
 ):
     build_functional_tests(
         ctx,
-        verbose=verbose,
         go_version=go_version,
         arch=arch,
         major_version=major_version,

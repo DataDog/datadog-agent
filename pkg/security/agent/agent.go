@@ -75,7 +75,7 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 
 	rsa.running.Store(true)
 	for rsa.running.Load() == true {
-		stream, err := apiClient.GetEvents(context.Background(), &api.GetParams{})
+		stream, err := apiClient.GetEvents(context.Background(), &api.GetEventParams{})
 		if err != nil {
 			rsa.connected.Store(false)
 
