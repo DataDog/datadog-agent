@@ -93,7 +93,7 @@ func TestExtractDeployment(t *testing.T) {
 					CreationTimestamp: 1389744000,
 					Labels:            []string{"label:foo"},
 					Annotations:       []string{"annotation:bar"},
-					ResourceVersion: "1234",
+					ResourceVersion:   "1234",
 				},
 				ReplicasDesired:    2,
 				DeploymentStrategy: "RollingUpdate",
@@ -244,7 +244,7 @@ func TestExtractReplicaSet(t *testing.T) {
 					CreationTimestamp: 1389744000,
 					Labels:            []string{"label:foo"},
 					Annotations:       []string{"annotation:bar"},
-					ResourceVersion: "1234",
+					ResourceVersion:   "1234",
 				},
 				Selectors: []*model.LabelSelectorRequirement{
 					{
@@ -310,8 +310,8 @@ func TestExtractService(t *testing.T) {
 					Labels: map[string]string{
 						"app": "app-1",
 					},
-					Name:      "cluster-ip-service",
-					Namespace: "project",
+					Name:            "cluster-ip-service",
+					Namespace:       "project",
 					ResourceVersion: "1234",
 				},
 				Spec: corev1.ServiceSpec{
@@ -339,7 +339,7 @@ func TestExtractService(t *testing.T) {
 					Name:              "cluster-ip-service",
 					Namespace:         "project",
 					Uid:               "002631fc-4c10-11ea-8f60-02ad5c77d02b",
-					ResourceVersion: "1234",
+					ResourceVersion:   "1234",
 				},
 				Spec: &model.ServiceSpec{
 					ClusterIP: "10.0.0.1",
@@ -645,7 +645,7 @@ func TestExtractNode(t *testing.T) {
 					CreationTimestamp: 1389744000,
 					Labels:            []string{"kubernetes.io/role:data"},
 					Annotations:       []string{"annotation:bar"},
-					ResourceVersion: "1234",
+					ResourceVersion:   "1234",
 				},
 				Status: &model.NodeStatus{
 					Capacity: map[string]int64{

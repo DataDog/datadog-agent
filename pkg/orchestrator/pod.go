@@ -357,9 +357,10 @@ func generateUniqueStaticPodHash(host, podName, namespace, clusterName string) s
 // ExtractMetadata extracts standard metadata into the model
 func ExtractMetadata(m *metav1.ObjectMeta) *model.Metadata {
 	meta := model.Metadata{
-		Name:      m.Name,
-		Namespace: m.Namespace,
-		Uid:       string(m.UID),
+		Name:            m.Name,
+		Namespace:       m.Namespace,
+		Uid:             string(m.UID),
+		ResourceVersion: m.ResourceVersion,
 	}
 	if !m.CreationTimestamp.IsZero() {
 		meta.CreationTimestamp = m.CreationTimestamp.Unix()
@@ -391,8 +392,6 @@ func ExtractMetadata(m *metav1.ObjectMeta) *model.Metadata {
 		}
 		meta.OwnerReferences = append(meta.OwnerReferences, &owner)
 	}
-
-	meta.ResourceVersion = m.ResourceVersion
 
 	return &meta
 }
