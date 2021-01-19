@@ -12,6 +12,9 @@
 .if_deploy_7: &if_deploy_7
   if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_7 != ""
 
+.if_not_master_branch: &if_not_master_branch
+  if: $CI_COMMIT_BRANCH != "master"
+
 #
 # Image tagging
 #
@@ -357,11 +360,18 @@ deploy_latest_manifests_docker_hub-a7:
     #   allow_failure: true
     #   variables:
     #     REPOSITORY: datadog/agent
+    # - <<: *if_not_master_branch
+    #   when: never
     # - <<: *if_deploy_7
     #   when: manual
     #   allow_failure: true
     #   variables:
     #     REPOSITORY: datadog/agent-dev
+    - <<: *if_deploy_on_tag_7
+      when: manual
+      allow_failure: true
+    - <<: *if_not_master_branch
+      when: never
     - <<: *if_deploy_7
       when: manual
       allow_failure: true
@@ -380,11 +390,18 @@ deploy_latest_manifests_google_container_registry-a7:
     #   allow_failure: true
     #   variables:
     #     REPOSITORY: gcr.io/datadoghq/agent
+    # - <<: *if_not_master_branch
+    #   when: never
     # - <<: *if_deploy_7
     #   when: manual
     #   allow_failure: true
     #   variables:
     #     REPOSITORY: gcr.io/datadoghq/agent-dev
+    - <<: *if_deploy_on_tag_7
+      when: manual
+      allow_failure: true
+    - <<: *if_not_master_branch
+      when: never
     - <<: *if_deploy_7
       when: manual
       allow_failure: true
@@ -414,12 +431,19 @@ deploy_latest_docker_hub-dogstatsd:
     #   when: manual
     #   allow_failure: true
     #   variables:
-    #     REPOSITORY: datadog/agent
+    #     REPOSITORY: datadog/dogstatsd
+    # - <<: *if_not_master_branch
+    #   when: never
     # - <<: *if_deploy_7
     #   when: manual
     #   allow_failure: true
     #   variables:
-    #     REPOSITORY: datadog/agent-dev
+    #     REPOSITORY: datadog/dogstatsd-dev
+    - <<: *if_deploy_on_tag_7
+      when: manual
+      allow_failure: true
+    - <<: *if_not_master_branch
+      when: never
     - <<: *if_deploy_7
       when: manual
       allow_failure: true
@@ -438,11 +462,18 @@ deploy_latest_google_container_registry-dogstatsd:
     #   allow_failure: true
     #   variables:
     #     REPOSITORY: gcr.io/datadoghq/dogstatsd
+    # - <<: *if_not_master_branch
+    #   when: never
     # - <<: *if_deploy_7
     #   when: manual
     #   allow_failure: true
     #   variables:
     #     REPOSITORY: gcr.io/datadoghq/dogstatsd-dev
+    - <<: *if_deploy_on_tag_7
+      when: manual
+      allow_failure: true
+    - <<: *if_not_master_branch
+      when: never
     - <<: *if_deploy_7
       when: manual
       allow_failure: true
