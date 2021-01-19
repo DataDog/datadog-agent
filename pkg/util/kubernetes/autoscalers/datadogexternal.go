@@ -55,9 +55,10 @@ type Point struct {
 }
 
 const (
-	value         = 1
-	timestamp     = 0
-	queryEndpoint = "/api/v1/query"
+	value                 = 1
+	timestamp             = 0
+	queryEndpoint         = "/api/v1/query"
+	metricsEndpointPrefix = "https://api."
 )
 
 // queryDatadogExternal converts the metric name and labels from the Ref format into a Datadog metric.
@@ -184,17 +185,19 @@ func (p *Processor) updateRateLimitingMetrics() error {
 func NewDatadogClient() (*datadog.Client, error) {
 	apiKey := config.Datadog.GetString("api_key")
 	appKey := config.Datadog.GetString("app_key")
+	endpoint := config.GetMainEndpoint(metricsEndpointPrefix, "external_metrics_provider.endpoint")
 
 	if appKey == "" || apiKey == "" {
 		return nil, errors.New("missing the api/app key pair to query Datadog")
 	}
 
-	log.Infof("Initialized the Datadog Client for HPA")
+	log.Infof("Initialized the Datadog Client for HPA with endpoint %q", endpoint)
 
 	client := datadog.NewClient(apiKey, appKey)
 	client.HttpClient.Transport = httputils.CreateHTTPTransport()
 	client.RetryTimeout = 3 * time.Second
 	client.ExtraHeader["User-Agent"] = "Datadog-Cluster-Agent"
+	client.SetBaseUrl(endpoint)
 
 	return client, nil
 }

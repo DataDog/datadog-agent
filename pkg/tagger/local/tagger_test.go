@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-package tagger
+package local
 
 import (
 	"fmt"
@@ -77,8 +77,8 @@ func TestInit(t *testing.T) {
 	}
 	assert.Equal(t, 3, len(catalog))
 
-	tagger := newTagger()
-	tagger.Init(catalog)
+	tagger := NewTagger(catalog)
+	tagger.Init()
 	defer tagger.Stop()
 
 	assert.Equal(t, 3, len(tagger.fetchers))
@@ -100,8 +100,8 @@ func TestInit(t *testing.T) {
 
 func TestFetchAllMiss(t *testing.T) {
 	catalog := collectors.Catalog{"stream": NewDummyStreamer, "pull": NewDummyPuller}
-	tagger := newTagger()
-	tagger.Init(catalog)
+	tagger := NewTagger(catalog)
+	tagger.Init()
 	defer tagger.Stop()
 
 	streamer := tagger.streamers["stream"].(*DummyCollector)
@@ -123,11 +123,11 @@ func TestFetchAllMiss(t *testing.T) {
 
 func TestFetchAllCached(t *testing.T) {
 	catalog := collectors.Catalog{"stream": NewDummyStreamer, "pull": NewDummyPuller}
-	tagger := newTagger()
-	tagger.Init(catalog)
+	tagger := NewTagger(catalog)
+	tagger.Init()
 	defer tagger.Stop()
 
-	tagger.tagStore.processTagInfo([]*collectors.TagInfo{
+	tagger.store.processTagInfo([]*collectors.TagInfo{
 		{
 			Entity:       "entity_name",
 			Source:       "stream",
@@ -170,11 +170,11 @@ func TestFetchOneCached(t *testing.T) {
 		"pull":    NewDummyPuller,
 		"fetcher": NewDummyFetcher,
 	}
-	tagger := newTagger()
-	tagger.Init(catalog)
+	tagger := NewTagger(catalog)
+	tagger.Init()
 	defer tagger.Stop()
 
-	tagger.tagStore.processTagInfo([]*collectors.TagInfo{
+	tagger.store.processTagInfo([]*collectors.TagInfo{
 		{
 			Entity:      "entity_name",
 			Source:      "stream",
@@ -207,11 +207,11 @@ func TestEmptyEntity(t *testing.T) {
 	catalog := collectors.Catalog{
 		"fetcher": NewDummyFetcher,
 	}
-	tagger := newTagger()
-	tagger.Init(catalog)
+	tagger := NewTagger(catalog)
+	tagger.Init()
 	defer tagger.Stop()
 
-	tagger.tagStore.processTagInfo([]*collectors.TagInfo{
+	tagger.store.processTagInfo([]*collectors.TagInfo{
 		{
 			Entity:      "entity_name",
 			Source:      "stream",
@@ -237,8 +237,8 @@ func TestRetryCollector(t *testing.T) {
 	catalog := collectors.Catalog{
 		"fetcher": func() collectors.Collector { return c },
 	}
-	tagger := newTagger()
-	tagger.Init(catalog)
+	tagger := NewTagger(catalog)
+	tagger.Init()
 	defer tagger.Stop()
 
 	assert.Len(t, tagger.candidates, 1)
@@ -274,8 +274,8 @@ func TestErrNotFound(t *testing.T) {
 	catalog := collectors.Catalog{
 		"fetcher": func() collectors.Collector { return c },
 	}
-	tagger := newTagger()
-	tagger.Init(catalog)
+	tagger := NewTagger(catalog)
+	tagger.Init()
 	defer tagger.Stop()
 
 	// Result should not be cached
@@ -299,11 +299,11 @@ func TestErrNotFound(t *testing.T) {
 
 func TestSafeCache(t *testing.T) {
 	catalog := collectors.Catalog{"pull": NewDummyPuller}
-	tagger := newTagger()
-	tagger.Init(catalog)
+	tagger := NewTagger(catalog)
+	tagger.Init()
 	defer tagger.Stop()
 
-	tagger.tagStore.processTagInfo([]*collectors.TagInfo{
+	tagger.store.processTagInfo([]*collectors.TagInfo{
 		{
 			Entity:      "entity_name",
 			Source:      "pull",
