@@ -13,5 +13,4 @@ if NOT DEFINED CI_JOB_ID set CI_JOB_ID=1
 if NOT DEFINED TARGET_ARCH set TARGET_ARCH=x64
 
 call %~dp0dobuild.bat
-if not %ERRORLEVEL% == 0 exit /b %ERRORLEVEL%
-
+if not %ERRORLEVEL% == 0 @echo "Build failed %ERRORLEVEL%"
