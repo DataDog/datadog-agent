@@ -7,6 +7,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/gce"
@@ -49,7 +50,17 @@ func appendAndSplitTags(target []string, tags []string, splits map[string]string
 	return target
 }
 
-func getHostTags() *tags {
+// GetHostTags get the host tags, optionally looking in the cache
+func GetHostTags(cached bool) *Tags {
+
+	key := buildKey("hostTags")
+	if cached {
+		if x, found := cache.Cache.Get(key); found {
+			tags := x.(*Tags)
+			return tags
+		}
+	}
+
 	splits := config.Datadog.GetStringMapString("tag_value_split_separator")
 	appendToHostTags := func(old, new []string) []string {
 		return appendAndSplitTags(old, new, splits)
@@ -133,8 +144,12 @@ func getHostTags() *tags {
 		time.Sleep(retrySleepTime)
 	}
 
-	return &tags{
+	t := &Tags{
 		System:              hostTags,
 		GoogleCloudPlatform: gceTags,
 	}
+
+	cache.Cache.Set(key, t, cache.NoExpiration)
+	return t
+
 }
