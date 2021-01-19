@@ -14,5 +14,5 @@ const (
 )
 
 func checkReadAccess() error {
-	return unix.Access(basePath, unix.R_OK)
+	return unix.Access(basePath, unix.X_OK)
 }
