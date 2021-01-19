@@ -367,6 +367,8 @@ deploy_latest_manifests_docker_hub-a7:
     #   allow_failure: true
     #   variables:
     #     REPOSITORY: datadog/agent-dev
+    # Allow running the latest job on tagged deploys (RCs, final artifacts) and on other deploy pipelines
+    # if they run on master
     - <<: *if_deploy_on_tag_7
       when: manual
       allow_failure: true
@@ -397,6 +399,8 @@ deploy_latest_manifests_google_container_registry-a7:
     #   allow_failure: true
     #   variables:
     #     REPOSITORY: gcr.io/datadoghq/agent-dev
+    # Allow running the latest job on tagged deploys (RCs, final artifacts) and on other deploy pipelines
+    # if they run on master
     - <<: *if_deploy_on_tag_7
       when: manual
       allow_failure: true
@@ -439,6 +443,8 @@ deploy_latest_docker_hub-dogstatsd:
     #   allow_failure: true
     #   variables:
     #     REPOSITORY: datadog/dogstatsd-dev
+    # Allow running the latest job on tagged deploys (RCs, final artifacts) and on other deploy pipelines
+    # if they run on master
     - <<: *if_deploy_on_tag_7
       when: manual
       allow_failure: true
@@ -469,6 +475,8 @@ deploy_latest_google_container_registry-dogstatsd:
     #   allow_failure: true
     #   variables:
     #     REPOSITORY: gcr.io/datadoghq/dogstatsd-dev
+    # Allow running the latest job on tagged deploys (RCs, final artifacts) and on other deploy pipelines
+    # if they run on master
     - <<: *if_deploy_on_tag_7
       when: manual
       allow_failure: true
