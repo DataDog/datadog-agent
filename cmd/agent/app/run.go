@@ -235,7 +235,12 @@ func StartAgent() error {
 	if config.Datadog.GetBool("telemetry.enabled") {
 		http.Handle("/telemetry", telemetry.Handler())
 	}
-	go http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux) //nolint:errcheck
+	go func() {
+		err := http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux)
+		if err != nil && err != http.ErrServerClosed {
+			log.Errorf("Error creating expvar server on port %v: %v", port, err)
+		}
+	}()
 
 	// Setup healthcheck port
 	var healthPort = config.Datadog.GetInt("health_port")
@@ -314,7 +319,7 @@ func StartAgent() error {
 	// start dogstatsd
 	if config.Datadog.GetBool("use_dogstatsd") {
 		var err error
-		common.DSD, err = dogstatsd.NewServer(agg)
+		common.DSD, err = dogstatsd.NewServer(agg, nil)
 		if err != nil {
 			log.Errorf("Could not start dogstatsd: %s", err)
 		}
@@ -359,7 +364,7 @@ func StartAgent() error {
 	util.LogVersionHistory()
 
 	// create and setup the Autoconfig instance
-	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
+	common.LoadComponents(config.Datadog.GetString("confd_path"))
 	// start the autoconfig, this will immediately run any configured check
 	common.StartAutoConfig()
 
@@ -379,7 +384,8 @@ func StartAgent() error {
 	}
 
 	// start dependent services
-	startDependentServices()
+	go startDependentServices()
+
 	return nil
 }
 

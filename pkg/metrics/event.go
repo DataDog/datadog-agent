@@ -92,6 +92,8 @@ type Event struct {
 	AggregationKey string         `json:"aggregation_key,omitempty"`
 	SourceTypeName string         `json:"source_type_name,omitempty"`
 	EventType      string         `json:"event_type,omitempty"`
+	OriginID       string         `json:"-"`
+	K8sOriginID    string         `json:"-"`
 }
 
 // Return a JSON string or "" in case of error during the Marshaling

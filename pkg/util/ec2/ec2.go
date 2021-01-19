@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -208,7 +209,8 @@ func extractClusterName(tags []string) (string, error) {
 
 func doHTTPRequest(url string, method string, headers map[string]string, useToken bool) (*http.Response, error) {
 	client := http.Client{
-		Timeout: time.Duration(config.Datadog.GetInt("ec2_metadata_timeout")) * time.Millisecond,
+		Transport: httputils.CreateHTTPTransport(),
+		Timeout:   time.Duration(config.Datadog.GetInt("ec2_metadata_timeout")) * time.Millisecond,
 	}
 
 	req, err := http.NewRequest(method, url, nil)
@@ -256,7 +258,8 @@ func getToken() (string, error) {
 	}
 
 	client := http.Client{
-		Timeout: time.Duration(config.Datadog.GetInt("ec2_metadata_timeout")) * time.Millisecond,
+		Transport: httputils.CreateHTTPTransport(),
+		Timeout:   time.Duration(config.Datadog.GetInt("ec2_metadata_timeout")) * time.Millisecond,
 	}
 
 	req, err := http.NewRequest(http.MethodPut, tokenURL, nil)

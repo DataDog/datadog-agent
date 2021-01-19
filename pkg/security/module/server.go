@@ -33,6 +33,7 @@ type EventServer struct {
 	msgs          chan *api.SecurityEventMessage
 	expiredEvents map[rules.RuleID]*int64
 	rate          *Limiter
+	statsdClient  *statsd.Client
 }
 
 // GetEvents waits for security events
@@ -70,7 +71,6 @@ LOOP:
 func (e *EventServer) SendEvent(rule *rules.Rule, event eval.Event) {
 	agentContext := &AgentContext{
 		RuleID: rule.Definition.ID,
-		Tags:   append(rule.Tags, "rule_id:"+rule.Definition.ID),
 	}
 
 	ruleEvent := &Signal{
@@ -103,6 +103,7 @@ func (e *EventServer) SendEvent(rule *rules.Rule, event eval.Event) {
 	msg := &api.SecurityEventMessage{
 		RuleID: rule.Definition.ID,
 		Data:   data,
+		Tags:   append(rule.Tags, "rule_id:"+rule.Definition.ID),
 	}
 
 	select {
@@ -152,11 +153,11 @@ func (e *EventServer) GetStats() map[string]int64 {
 }
 
 // SendStats sends statistics about the number of dropped events
-func (e *EventServer) SendStats(client *statsd.Client) error {
+func (e *EventServer) SendStats() error {
 	for ruleID, val := range e.GetStats() {
 		tags := []string{fmt.Sprintf("rule_id:%s", ruleID)}
 		if val > 0 {
-			if err := client.Count(sprobe.MetricPrefix+".rules.event_server.expired", val, tags, 1.0); err != nil {
+			if err := e.statsdClient.Count(sprobe.MetricPrefix+".rules.event_server.expired", val, tags, 1.0); err != nil {
 				return err
 			}
 		}
@@ -176,11 +177,12 @@ func (e *EventServer) Apply(ruleIDs []rules.RuleID) {
 }
 
 // NewEventServer returns a new gRPC event server
-func NewEventServer(cfg *config.Config) *EventServer {
+func NewEventServer(cfg *config.Config, client *statsd.Client) *EventServer {
 	es := &EventServer{
 		msgs:          make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
 		expiredEvents: make(map[rules.RuleID]*int64),
 		rate:          NewLimiter(rate.Limit(cfg.EventServerRate), cfg.EventServerBurst),
+		statsdClient:  client,
 	}
 	return es
 }

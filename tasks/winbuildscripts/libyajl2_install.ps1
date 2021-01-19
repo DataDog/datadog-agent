@@ -1,3 +1,7 @@
+pushd .
+New-Item -Force -Path c:\tmp -ItemType Directory
+cd \tmp
+
 # Clone the repo; recursive is needed to pick up the submodule inside
 git clone --depth 1 --branch 1.2.0 --recursive https://github.com/DataDog/libyajl2-gem libyajl2 
 cd libyajl2
@@ -13,5 +17,5 @@ gem build ./libyajl2.gemspec
 gem install ./libyajl2-1.2.0.gem
 
 # Cleanup
-cd ..
-Remove-Item -Recurse -Force libyajl2
+popd
+Remove-Item -Recurse -Force c:\tmp\libyajl2

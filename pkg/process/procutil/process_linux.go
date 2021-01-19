@@ -89,6 +89,37 @@ func (p *Probe) Close() {
 	}
 }
 
+// StatsForPIDs returns a map of stats info indexed by PID using the given PIDs
+func (p *Probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, error) {
+	statsByPID := make(map[int32]*Stats, len(pids))
+	for _, pid := range pids {
+		pathForPID := filepath.Join(p.procRootLoc, strconv.Itoa(int(pid)))
+		if !util.PathExists(pathForPID) {
+			log.Debugf("Unable to create new process %d, dir %s doesn't exist", pid, pathForPID)
+			continue
+		}
+
+		statusInfo := p.parseStatus(pathForPID)
+		ioInfo := p.parseIO(pathForPID)
+		statInfo := p.parseStat(pathForPID, pid, now)
+		memInfoEx := p.parseStatm(pathForPID)
+
+		statsByPID[pid] = &Stats{
+			CreateTime:  statInfo.createTime,      // /proc/[pid]/stat
+			Status:      statusInfo.status,        // /proc/[pid]/status
+			Nice:        statInfo.nice,            // /proc/[pid]/stat
+			OpenFdCount: p.getFDCount(pathForPID), // /proc/[pid]/fd, requires permission checks
+			CPUTime:     statInfo.cpuStat,         // /proc/[pid]/stat
+			MemInfo:     statusInfo.memInfo,       // /proc/[pid]/status
+			MemInfoEx:   memInfoEx,                // /proc/[pid]/statm
+			CtxSwitches: statusInfo.ctxSwitches,   // /proc/[pid]/status
+			NumThreads:  statusInfo.numThreads,    // /proc/[pid]/status
+			IOStat:      ioInfo,                   // /proc/[pid]/io, requires permission checks
+		}
+	}
+	return statsByPID, nil
+}
+
 // ProcessesByPID returns a map of process info indexed by PID
 func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 	pids, err := p.getActivePIDs()
@@ -117,25 +148,26 @@ func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 		memInfoEx := p.parseStatm(pathForPID)
 
 		procsByPID[pid] = &Process{
-			Pid:     pid,                                       // /proc/{pid}
-			Ppid:    statInfo.ppid,                             // /proc/{pid}/{stat}
-			Cmdline: cmdline,                                   // /proc/{pid}/cmdline
-			Name:    statusInfo.name,                           // /proc/{pid}/status
-			Status:  statusInfo.status,                         // /proc/{pid}/status
-			Uids:    statusInfo.uids,                           // /proc/{pid}/status
-			Gids:    statusInfo.gids,                           // /proc/{pid}/status
-			Cwd:     p.getLinkWithAuthCheck(pathForPID, "cwd"), // /proc/{pid}/cwd, requires permission checks
-			Exe:     p.getLinkWithAuthCheck(pathForPID, "exe"), // /proc/{pid}/exe, requires permission checks
-			NsPid:   statusInfo.nspid,                          // /proc/{pid}/status
+			Pid:     pid,                                       // /proc/[pid]
+			Ppid:    statInfo.ppid,                             // /proc/[pid]/stat
+			Cmdline: cmdline,                                   // /proc/[pid]/cmdline
+			Name:    statusInfo.name,                           // /proc/[pid]/status
+			Uids:    statusInfo.uids,                           // /proc/[pid]/status
+			Gids:    statusInfo.gids,                           // /proc/[pid]/status
+			Cwd:     p.getLinkWithAuthCheck(pathForPID, "cwd"), // /proc/[pid]/cwd, requires permission checks
+			Exe:     p.getLinkWithAuthCheck(pathForPID, "exe"), // /proc/[pid]/exe, requires permission checks
+			NsPid:   statusInfo.nspid,                          // /proc/[pid]/status
 			Stats: &Stats{
-				CreateTime:  statInfo.createTime,    // /proc/{pid}/{stat}
-				Nice:        statInfo.nice,          // /proc/{pid}/{stat}
-				CPUTime:     statInfo.cpuStat,       // /proc/{pid}/{stat}
-				MemInfo:     statusInfo.memInfo,     // /proc/{pid}/status
-				MemInfoEx:   memInfoEx,              // /proc/{pid}/statm
-				CtxSwitches: statusInfo.ctxSwitches, // /proc/{pid}/status
-				NumThreads:  statusInfo.numThreads,  // /proc/{pid}/status
-				IOStat:      ioInfo,                 // /proc/{pid}/io, requires permission checks
+				CreateTime:  statInfo.createTime,      // /proc/[pid]/stat
+				Status:      statusInfo.status,        // /proc/[pid]/status
+				Nice:        statInfo.nice,            // /proc/[pid]/stat
+				OpenFdCount: p.getFDCount(pathForPID), // /proc/[pid]/fd, requires permission checks
+				CPUTime:     statInfo.cpuStat,         // /proc/[pid]/stat
+				MemInfo:     statusInfo.memInfo,       // /proc/[pid]/status
+				MemInfoEx:   memInfoEx,                // /proc/[pid]/statm
+				CtxSwitches: statusInfo.ctxSwitches,   // /proc/[pid]/status
+				NumThreads:  statusInfo.numThreads,    // /proc/[pid]/status
+				IOStat:      ioInfo,                   // /proc/[pid]/io, requires permission checks
 			},
 		}
 	}
@@ -528,6 +560,27 @@ func (p *Probe) getLinkWithAuthCheck(pidPath string, file string) string {
 		return ""
 	}
 	return str
+}
+
+// getFDCount gets num_fds from /proc/(pid)/fd
+func (p *Probe) getFDCount(pidPath string) int32 {
+	path := filepath.Join(pidPath, "fd")
+
+	if err := p.ensurePathReadable(path); err != nil {
+		return -1
+	}
+
+	d, err := os.Open(path)
+	if err != nil {
+		return -1
+	}
+	defer d.Close()
+
+	names, err := d.Readdirnames(-1)
+	if err != nil {
+		return -1
+	}
+	return int32(len(names))
 }
 
 // ensurePathReadable ensures that the current user is able to read the path before opening it.

@@ -44,7 +44,6 @@ type Module struct {
 	eventServer    *EventServer
 	grpcServer     *grpc.Server
 	listener       net.Listener
-	statsdClient   *statsd.Client
 	rateLimiter    *RateLimiter
 	sigupChan      chan os.Signal
 }
@@ -70,8 +69,6 @@ func (m *Module) Register(httpMux *http.ServeMux) error {
 		}
 	}()
 
-	go m.statsMonitor(context.Background())
-
 	// initialize the eBPF manager and load the programs and maps in the kernel. At this stage, the probes are not
 	// running yet.
 	if err := m.probe.Init(); err != nil {
@@ -95,6 +92,8 @@ func (m *Module) Register(httpMux *http.ServeMux) error {
 
 	m.probe.SetEventHandler(m)
 
+	go m.statsMonitor(context.Background())
+
 	signal.Notify(m.sigupChan, syscall.SIGHUP)
 
 	go func() {
@@ -111,8 +110,8 @@ func (m *Module) Register(httpMux *http.ServeMux) error {
 }
 
 func (m *Module) displayReport(report *probe.Report) {
-	content, _ := json.MarshalIndent(report, "", "\t")
-	log.Debug(string(content))
+	content, _ := json.Marshal(report)
+	log.Debugf("Policy report: %s", content)
 }
 
 // Reload the rule set
@@ -197,19 +196,19 @@ func (m *Module) statsMonitor(ctx context.Context) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	ticker := time.NewTicker(20 * time.Second)
+	ticker := time.NewTicker(m.config.EventsStatsPollingInterval)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.C:
-			if err := m.probe.SendStats(m.statsdClient); err != nil {
+			if err := m.probe.SendStats(); err != nil {
 				log.Debug(err)
 			}
-			if err := m.rateLimiter.SendStats(m.statsdClient); err != nil {
+			if err := m.rateLimiter.SendStats(); err != nil {
 				log.Debug(err)
 			}
-			if err := m.eventServer.SendStats(m.statsdClient); err != nil {
+			if err := m.eventServer.SendStats(); err != nil {
 				log.Debug(err)
 			}
 		case <-ctx.Done():
@@ -220,14 +219,15 @@ func (m *Module) statsMonitor(ctx context.Context) {
 
 // GetStats returns statistics about the module
 func (m *Module) GetStats() map[string]interface{} {
-	probeStats, err := m.probe.GetStats()
-	if err != nil {
-		return nil
+	debug := map[string]interface{}{}
+
+	if m.probe != nil {
+		debug["probe"] = m.probe.GetDebugStats()
+	} else {
+		debug["probe"] = "not_running"
 	}
 
-	return map[string]interface{}{
-		"probe": probeStats,
-	}
+	return debug
 }
 
 // GetProbe returns the module's probe
@@ -265,10 +265,9 @@ func NewModule(cfg *config.Config) (api.Module, error) {
 	m := &Module{
 		config:         cfg,
 		probe:          probe,
-		eventServer:    NewEventServer(cfg),
+		eventServer:    NewEventServer(cfg, statsdClient),
 		grpcServer:     grpc.NewServer(),
-		statsdClient:   statsdClient,
-		rateLimiter:    NewRateLimiter(),
+		rateLimiter:    NewRateLimiter(statsdClient),
 		sigupChan:      make(chan os.Signal, 1),
 		currentRuleSet: 1,
 	}

@@ -24,33 +24,45 @@ type ContextResolver struct {
 	contextsByKey map[ckey.ContextKey]*Context
 	lastSeenByKey map[ckey.ContextKey]float64
 	keyGenerator  *ckey.KeyGenerator
+	// buffer slice allocated once per ContextResolver to combine and sort
+	// tags, origin detection tags and k8s tags.
+	tagsSliceBuffer []string
 }
 
 // generateContextKey generates the contextKey associated with the context of the metricSample
-func (cr *ContextResolver) generateContextKey(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
-	return cr.keyGenerator.Generate(metricSampleContext.GetName(), metricSampleContext.GetHost(), metricSampleContext.GetTags())
+func (cr *ContextResolver) generateContextKey(metricSampleContext metrics.MetricSampleContext, tags []string) ckey.ContextKey {
+	return cr.keyGenerator.Generate(metricSampleContext.GetName(), metricSampleContext.GetHost(), tags)
 }
 
 func newContextResolver() *ContextResolver {
 	return &ContextResolver{
-		contextsByKey: make(map[ckey.ContextKey]*Context),
-		lastSeenByKey: make(map[ckey.ContextKey]float64),
-		keyGenerator:  ckey.NewKeyGenerator(),
+		contextsByKey:   make(map[ckey.ContextKey]*Context),
+		lastSeenByKey:   make(map[ckey.ContextKey]float64),
+		keyGenerator:    ckey.NewKeyGenerator(),
+		tagsSliceBuffer: make([]string, 0, 128),
 	}
 }
 
 // trackContext returns the contextKey associated with the context of the metricSample and tracks that context
 func (cr *ContextResolver) trackContext(metricSampleContext metrics.MetricSampleContext, currentTimestamp float64) ckey.ContextKey {
-	contextKey := cr.generateContextKey(metricSampleContext)
+	cr.tagsSliceBuffer = metricSampleContext.GetTags(cr.tagsSliceBuffer)
+	contextKey := cr.generateContextKey(metricSampleContext, cr.tagsSliceBuffer)
+
 	if _, ok := cr.contextsByKey[contextKey]; !ok {
+		// making a copy of tags for the context since tagsSliceBuffer
+		// will be reused later. This allow us to allocate one slice
+		// per context instead of one per sample.
+		contextTags := append(make([]string, 0, len(cr.tagsSliceBuffer)), cr.tagsSliceBuffer...)
+
 		cr.contextsByKey[contextKey] = &Context{
 			Name: metricSampleContext.GetName(),
-			Tags: metricSampleContext.GetTags(),
+			Tags: contextTags,
 			Host: metricSampleContext.GetHost(),
 		}
 	}
 	cr.lastSeenByKey[contextKey] = currentTimestamp
 
+	cr.tagsSliceBuffer = cr.tagsSliceBuffer[0:0] // reset tags buffer
 	return contextKey
 }
 

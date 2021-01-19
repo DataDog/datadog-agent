@@ -14,36 +14,107 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
+
 	"github.com/stretchr/testify/assert"
 )
 
 func TestConvertMetaV2Container(t *testing.T) {
-	container := v2.Container{
-		CreatedAt:  "2018-02-01T20:55:10.554941919Z",
-		DockerID:   "43481a6ce4842eec8fe72fc28500c6b52edcc0917f105b83379f88cac1ff3946",
-		DockerName: "ecs-nginx-5-nginx-curl-ccccb9f49db0dfe0d901",
-		Image:      "nrdlngr/nginx-curl",
-		ImageID:    "sha256:2e00ae64383cfc865ba0a2ba37f61b50a120d2d9378559dcd458dc0de47bc165",
-		StartedAt:  "2018-02-01T20:55:11.064236631Z",
-		Limits: map[string]uint64{
-			"cpu":    0,
-			"memory": 0,
+	tests := []struct {
+		name       string
+		c          v2.Container
+		taskLimits map[string]float64
+		want       *containers.Container
+	}{
+		{
+			name: "nominal case",
+			c: v2.Container{
+				CreatedAt:  "2018-02-01T20:55:10.554941919Z",
+				DockerID:   "43481a6ce4842eec8fe72fc28500c6b52edcc0917f105b83379f88cac1ff3946",
+				DockerName: "ecs-nginx-5-nginx-curl-ccccb9f49db0dfe0d901",
+				Image:      "nrdlngr/nginx-curl",
+				ImageID:    "sha256:2e00ae64383cfc865ba0a2ba37f61b50a120d2d9378559dcd458dc0de47bc165",
+				StartedAt:  "2018-02-01T20:55:11.064236631Z",
+				Limits: map[string]uint64{
+					"CPU":    0,
+					"Memory": 0,
+				},
+			},
+			taskLimits: map[string]float64{},
+			want: &containers.Container{
+				Created:     1517518510,
+				EntityID:    "container_id://43481a6ce4842eec8fe72fc28500c6b52edcc0917f105b83379f88cac1ff3946",
+				ID:          "43481a6ce4842eec8fe72fc28500c6b52edcc0917f105b83379f88cac1ff3946",
+				Image:       "nrdlngr/nginx-curl",
+				ImageID:     "sha256:2e00ae64383cfc865ba0a2ba37f61b50a120d2d9378559dcd458dc0de47bc165",
+				Name:        "ecs-nginx-5-nginx-curl-ccccb9f49db0dfe0d901",
+				StartedAt:   1517518511,
+				Type:        "ECS",
+				AddressList: []containers.NetworkAddress{},
+				Limits:      metrics.ContainerLimits{CPULimit: 100},
+			},
+		},
+		{
+			name: "container limits",
+			c: v2.Container{
+				CreatedAt:  "2018-02-01T20:55:10.554941919Z",
+				DockerID:   "43481a6ce4842eec8fe72fc28500c6b52edcc0917f105b83379f88cac1ff3946",
+				DockerName: "ecs-nginx-5-nginx-curl-ccccb9f49db0dfe0d901",
+				Image:      "nrdlngr/nginx-curl",
+				ImageID:    "sha256:2e00ae64383cfc865ba0a2ba37f61b50a120d2d9378559dcd458dc0de47bc165",
+				StartedAt:  "2018-02-01T20:55:11.064236631Z",
+				Limits: map[string]uint64{
+					"CPU":    512,
+					"Memory": 1024,
+				},
+			},
+			taskLimits: map[string]float64{"CPU": 1, "Memory": 2048},
+			want: &containers.Container{
+				Created:     1517518510,
+				EntityID:    "container_id://43481a6ce4842eec8fe72fc28500c6b52edcc0917f105b83379f88cac1ff3946",
+				ID:          "43481a6ce4842eec8fe72fc28500c6b52edcc0917f105b83379f88cac1ff3946",
+				Image:       "nrdlngr/nginx-curl",
+				ImageID:     "sha256:2e00ae64383cfc865ba0a2ba37f61b50a120d2d9378559dcd458dc0de47bc165",
+				Name:        "ecs-nginx-5-nginx-curl-ccccb9f49db0dfe0d901",
+				StartedAt:   1517518511,
+				Type:        "ECS",
+				AddressList: []containers.NetworkAddress{},
+				Limits:      metrics.ContainerLimits{CPULimit: 50, MemLimit: 1024000000},
+			},
+		},
+		{
+			name: "task limits",
+			c: v2.Container{
+				CreatedAt:  "2018-02-01T20:55:10.554941919Z",
+				DockerID:   "43481a6ce4842eec8fe72fc28500c6b52edcc0917f105b83379f88cac1ff3946",
+				DockerName: "ecs-nginx-5-nginx-curl-ccccb9f49db0dfe0d901",
+				Image:      "nrdlngr/nginx-curl",
+				ImageID:    "sha256:2e00ae64383cfc865ba0a2ba37f61b50a120d2d9378559dcd458dc0de47bc165",
+				StartedAt:  "2018-02-01T20:55:11.064236631Z",
+				Limits: map[string]uint64{
+					"CPU":    0,
+					"Memory": 0,
+				},
+			},
+			taskLimits: map[string]float64{"CPU": 0.5, "Memory": 1024},
+			want: &containers.Container{
+				Created:     1517518510,
+				EntityID:    "container_id://43481a6ce4842eec8fe72fc28500c6b52edcc0917f105b83379f88cac1ff3946",
+				ID:          "43481a6ce4842eec8fe72fc28500c6b52edcc0917f105b83379f88cac1ff3946",
+				Image:       "nrdlngr/nginx-curl",
+				ImageID:     "sha256:2e00ae64383cfc865ba0a2ba37f61b50a120d2d9378559dcd458dc0de47bc165",
+				Name:        "ecs-nginx-5-nginx-curl-ccccb9f49db0dfe0d901",
+				StartedAt:   1517518511,
+				Type:        "ECS",
+				AddressList: []containers.NetworkAddress{},
+				Limits:      metrics.ContainerLimits{CPULimit: 50, MemLimit: 1024000000},
+			},
 		},
 	}
-	expected := &containers.Container{
-		Created:     1517518510,
-		EntityID:    "container_id://43481a6ce4842eec8fe72fc28500c6b52edcc0917f105b83379f88cac1ff3946",
-		ID:          "43481a6ce4842eec8fe72fc28500c6b52edcc0917f105b83379f88cac1ff3946",
-		Image:       "nrdlngr/nginx-curl",
-		ImageID:     "sha256:2e00ae64383cfc865ba0a2ba37f61b50a120d2d9378559dcd458dc0de47bc165",
-		Name:        "ecs-nginx-5-nginx-curl-ccccb9f49db0dfe0d901",
-		StartedAt:   1517518511,
-		Type:        "ECS",
-		AddressList: []containers.NetworkAddress{},
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, convertMetaV2Container(tt.c, tt.taskLimits))
+		})
 	}
-	expected.Limits.CPULimit = 100
-
-	assert.Equal(t, expected, convertMetaV2Container(container))
 }
 
 func TestConvertMetaV2ContainerStats(t *testing.T) {

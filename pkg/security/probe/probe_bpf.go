@@ -10,6 +10,9 @@ package probe
 import (
 	"context"
 	"fmt"
+	"math"
+	"math/rand"
+	"os"
 	"runtime"
 	"strings"
 	"sync/atomic"
@@ -35,6 +38,9 @@ import (
 const (
 	// MetricPrefix is the prefix of the metrics sent by the runtime security agent
 	MetricPrefix = "datadog.runtime_security"
+
+	// discarderRevisionSize array size used to store discarder revisions
+	discarderRevisionSize = 4096
 )
 
 // EventHandler represents an handler for the events sent by the probe
@@ -64,8 +70,11 @@ type Probe struct {
 	config             *config.Config
 	handler            EventHandler
 	resolvers          *Resolvers
+	perfMap            *manager.PerfMap
 	pidDiscarders      *lib.Map
 	inodeDiscarders    *lib.Map
+	revisionCache      [discarderRevisionSize]uint32
+	discarderRevisions *lib.Map
 	invalidDiscarders  map[eval.Field]map[interface{}]bool
 	regexCache         *simplelru.LRU
 	flushingDiscarders int64
@@ -74,12 +83,14 @@ type Probe struct {
 	loadController     *LoadController
 	kernelVersion      kernel.Version
 	_                  uint32 // padding for goarch=386
-	eventsStats        EventsStats
+	eventsStats        *EventsStats
 	startTime          time.Time
 	event              *Event
 	reOrderer          *ReOrderer
+	lastTimestamp      uint64
 	ctx                context.Context
 	cancelFnc          context.CancelFunc
+	statsdClient       *statsd.Client
 }
 
 // GetResolvers returns the resolvers of Probe
@@ -140,6 +151,13 @@ func (p *Probe) Init() error {
 		}
 	}
 
+	if os.Getenv("RUNTIME_SECURITY_TESTSUITE") != "true" {
+		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, manager.ConstantEditor{
+			Name:  "system_probe_pid",
+			Value: uint64(os.Getpid()),
+		})
+	}
+
 	if selectors, exists := probes.SelectorsPerEventType["*"]; exists {
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, selectors...)
 	}
@@ -154,6 +172,20 @@ func (p *Probe) Init() error {
 
 	if p.inodeDiscarders, err = p.Map("inode_discarders"); err != nil {
 		return err
+	}
+
+	if p.discarderRevisions, err = p.Map("discarder_revisions"); err != nil {
+		return err
+	}
+
+	var ok bool
+	if p.perfMap, ok = p.manager.GetPerfMap("events"); !ok {
+		return errors.New("couldn't find events perf map")
+	}
+
+	p.eventsStats, err = NewEventsStats(p.manager, p.managerOptions, p.config)
+	if err != nil {
+		return errors.Wrap(err, "couldn't create events statistics monitor")
 	}
 
 	if err := p.resolvers.Start(); err != nil {
@@ -196,76 +228,53 @@ func (p *Probe) DispatchEvent(event *Event) {
 }
 
 // SendStats sends statistics about the probe to Datadog
-func (p *Probe) SendStats(statsdClient *statsd.Client) error {
+func (p *Probe) SendStats() error {
 	if p.syscallMonitor != nil {
-		if err := p.syscallMonitor.SendStats(statsdClient); err != nil {
+		if err := p.syscallMonitor.SendStats(p.statsdClient); err != nil {
 			return errors.Wrap(err, "failed to send syscall monitor stats")
 		}
 	}
 
-	if err := statsdClient.Count(MetricPrefix+".events.lost", p.eventsStats.GetAndResetLost(), nil, 1.0); err != nil {
-		return errors.Wrap(err, "failed to send events.lost metric")
-	}
-
-	receivedEvents := MetricPrefix + ".events.received"
-	for i := range p.eventsStats.PerEventType {
-		if i == 0 {
-			continue
-		}
-
-		eventType := EventType(i)
-		tags := []string{fmt.Sprintf("event_type:%s", eventType.String())}
-		if value := p.eventsStats.GetAndResetEventCount(eventType); value > 0 {
-			if err := statsdClient.Count(receivedEvents, value, tags, 1.0); err != nil {
-				return errors.Wrap(err, "failed to send events.received metric")
-			}
-		}
-	}
-
-	if err := statsdClient.Gauge(MetricPrefix+".process_resolver.cache_size", p.resolvers.ProcessResolver.GetCacheSize(), []string{}, 1.0); err != nil {
+	if err := p.statsdClient.Gauge(MetricPrefix+".process_resolver.cache_size", p.resolvers.ProcessResolver.GetCacheSize(), []string{}, 1.0); err != nil {
 		return errors.Wrap(err, "failed to send process_resolver cache_size metric")
 	}
-	return nil
-}
 
-// GetStats returns Stats according to the system-probe module format
-func (p *Probe) GetStats() (map[string]interface{}, error) {
-	stats := make(map[string]interface{})
-
-	var syscalls *SyscallStats
-	var err error
-
-	if p.syscallMonitor != nil {
-		syscalls, err = p.syscallMonitor.GetStats()
-	}
-
-	stats["events"] = map[string]interface{}{
-		"lost":     p.eventsStats.GetLost(),
-		"syscalls": syscalls,
-	}
-
-	perEventType := make(map[string]int64)
-	stats["per_event_type"] = perEventType
-	for i := range p.eventsStats.PerEventType {
-		if i == 0 {
-			continue
-		}
-
-		eventType := EventType(i)
-		perEventType[eventType.String()] = p.eventsStats.GetEventCount(eventType)
-	}
-
-	return stats, err
+	return p.eventsStats.SendStats(p.statsdClient)
 }
 
 // GetEventsStats returns statistics about the events received by the probe
-func (p *Probe) GetEventsStats() EventsStats {
+func (p *Probe) GetEventsStats() *EventsStats {
 	return p.eventsStats
 }
 
+func (p *Probe) getDiscarderRevision(mountID uint32) uint32 {
+	key := mountID % discarderRevisionSize
+	return p.revisionCache[key]
+}
+
+func (p *Probe) setDiscarderRevision(mountID uint32, revision uint32) {
+	key := mountID % discarderRevisionSize
+	p.revisionCache[key] = revision
+}
+
+func (p *Probe) initDiscarderRevision(mountEvent *MountEvent) {
+	var revision uint32
+
+	if mountEvent.IsOverlayFS() {
+		revision = uint32(rand.Intn(math.MaxUint16) + 1)
+	}
+
+	key := mountEvent.MountID % discarderRevisionSize
+	p.revisionCache[key] = revision
+
+	if err := p.discarderRevisions.Put(ebpf.Uint32MapItem(key), ebpf.Uint32MapItem(revision)); err != nil {
+		log.Errorf("unable to initialize discarder revisions: %s", err)
+	}
+}
+
 func (p *Probe) handleLostEvents(CPU int, count uint64, perfMap *manager.PerfMap, manager *manager.Manager) {
-	log.Tracef("lost %d events\n", count)
-	p.eventsStats.CountLost(int64(count))
+	log.Tracef("lost %d events", count)
+	p.eventsStats.CountLostEvent(count, perfMap, CPU)
 }
 
 var eventZero Event
@@ -284,7 +293,25 @@ func (p *Probe) unmarshalProcessContainer(data []byte, event *Event) (int, error
 	return read, nil
 }
 
-func (p *Probe) handleEvent(data []byte) {
+func (p *Probe) invalidateDentry(mountID uint32, inode uint64, revision uint32) {
+	if p.resolvers.MountResolver.IsOverlayFS(mountID) {
+		log.Tracef("remove all dentry entries for mount id %d", mountID)
+		p.resolvers.DentryResolver.DelCacheEntries(mountID)
+
+		p.setDiscarderRevision(mountID, revision)
+	} else {
+		log.Tracef("remove dentry cache entry for inode %d", inode)
+		p.resolvers.DentryResolver.DelCacheEntry(mountID, inode)
+
+		// If a temporary file is created and deleted in a row a discarder can be added
+		// after the in-kernel discarder cleanup and thus a discarder will be pushed for a deleted file.
+		// If the inode is reused this can be a problem.
+		// Call a user space remove function to ensure the discarder will be removed.
+		p.removeDiscarderInode(mountID, inode)
+	}
+}
+
+func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	offset := 0
 	event := p.zeroEvent()
 
@@ -295,8 +322,15 @@ func (p *Probe) handleEvent(data []byte) {
 	}
 	offset += read
 
+	// check event order
+	if event.TimestampRaw < p.lastTimestamp && p.lastTimestamp != 0 {
+		_ = p.statsdClient.Count(MetricPrefix+".events.sorting_error", 1, []string{}, 1.0)
+	} else {
+		p.lastTimestamp = event.TimestampRaw
+	}
+
 	eventType := EventType(event.Type)
-	p.eventsStats.CountEventType(eventType, 1)
+	p.eventsStats.CountEvent(eventType, 1, uint64(len(data)), p.perfMap, int(CPU))
 
 	log.Tracef("Decoding event %s(%d)", eventType, event.Type)
 
@@ -306,15 +340,7 @@ func (p *Probe) handleEvent(data []byte) {
 			return
 		}
 
-		log.Tracef("remove dentry cache entry for inode %d", event.InvalidateDentry.Inode)
-
-		p.resolvers.DentryResolver.DelCacheEntry(event.InvalidateDentry.MountID, event.InvalidateDentry.Inode)
-
-		// If a temporary file is created and deleted in a row a discarder can be added
-		// after the in-kernel discarder cleanup and thus a discarder will be pushed for a deleted file.
-		// If the inode is reused this can be a problem.
-		// Call a user space remove function to ensure the discarder will be removed.
-		p.removeDiscarderInode(event.InvalidateDentry.MountID, event.InvalidateDentry.Inode)
+		p.invalidateDentry(event.InvalidateDentry.MountID, event.InvalidateDentry.Inode, event.InvalidateDentry.DiscarderRevision)
 
 		// no need to dispatch
 		return
@@ -348,6 +374,10 @@ func (p *Probe) handleEvent(data []byte) {
 		// Remove all dentry entries belonging to the mountID
 		p.resolvers.DentryResolver.DelCacheEntries(event.Umount.MountID)
 
+		if p.resolvers.MountResolver.IsOverlayFS(event.Umount.MountID) {
+			p.setDiscarderRevision(event.Umount.MountID, event.Umount.DiscarderRevision)
+		}
+
 		// Delete new mount point from cache
 		if err := p.resolvers.MountResolver.Delete(event.Umount.MountID); err != nil {
 			log.Errorf("failed to delete mount point %d from cache: %s", event.Umount.MountID, err)
@@ -368,31 +398,23 @@ func (p *Probe) handleEvent(data []byte) {
 			return
 		}
 
-		log.Tracef("remove dentry cache entry for inode %d", event.Rmdir.Inode)
-
 		// defer it do ensure that it will be done after the dispatch that could re-add it
-		defer p.resolvers.DentryResolver.DelCacheEntry(event.Rmdir.MountID, event.Rmdir.Inode)
+		defer p.invalidateDentry(event.Rmdir.MountID, event.Rmdir.Inode, event.Rmdir.DiscarderRevision)
 	case FileUnlinkEventType:
 		if _, err := event.Unlink.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode unlink event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 
-		log.Tracef("remove dentry cache entry for inode %d", event.Unlink.Inode)
-
 		// defer it do ensure that it will be done after the dispatch that could re-add it
-		defer p.resolvers.DentryResolver.DelCacheEntry(event.Unlink.MountID, event.Unlink.Inode)
+		defer p.invalidateDentry(event.Unlink.MountID, event.Unlink.Inode, event.Unlink.DiscarderRevision)
 	case FileRenameEventType:
 		if _, err := event.Rename.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode rename event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 
-		log.Tracef("remove dentry cache entry for inode %d", event.Rename.New.Inode)
-
-		// use the new.inode as the old one is a fake one generated from the probe. See RenameEvent.MarshalJSON
-		// defer it do ensure that it will be done after the dispatch that could re-add it
-		defer p.resolvers.DentryResolver.DelCacheEntry(event.Rename.New.MountID, event.Rename.New.Inode)
+		defer p.invalidateDentry(event.Rename.New.MountID, event.Rename.New.Inode, event.Rename.DiscarderRevision)
 	case FileChmodEventType:
 		if _, err := event.Chmod.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode chmod event: %s (offset %d, len %d)", err, offset, len(data))
@@ -531,31 +553,32 @@ func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers
 func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 	var activatedProbes []manager.ProbesSelector
 
-	var selectedIDs []manager.ProbeIdentificationPair
 	for eventType, selectors := range probes.SelectorsPerEventType {
 		if eventType == "*" || rs.HasRulesForEventType(eventType) {
 			activatedProbes = append(activatedProbes, selectors...)
-
-			// Extract unique IDs for logging purposes only
-			for _, selector := range selectors {
-				for _, id := range selector.GetProbesIdentificationPairList() {
-					var exists bool
-					for _, selectedID := range selectedIDs {
-						if selectedID.Matches(id) {
-							exists = true
-						}
-					}
-					if !exists {
-						selectedIDs = append(selectedIDs, id)
-					}
-				}
-			}
 		}
 	}
 
+	// Add syscall monitor probes
+	if p.config.SyscallMonitor {
+		activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
+	}
+
 	// Print the list of unique probe identification IDs that are registered
-	for _, id := range selectedIDs {
-		log.Tracef("probe %s selected", id)
+	var selectedIDs []manager.ProbeIdentificationPair
+	for _, selector := range activatedProbes {
+		for _, id := range selector.GetProbesIdentificationPairList() {
+			var exists bool
+			for _, selectedID := range selectedIDs {
+				if selectedID.Matches(id) {
+					exists = true
+				}
+			}
+			if !exists {
+				selectedIDs = append(selectedIDs, id)
+				log.Tracef("probe %s selected", id)
+			}
+		}
 	}
 
 	enabledEventsMap, err := p.Map("enabled_events")
@@ -711,6 +734,15 @@ func getInvalidDiscarders() map[eval.Field]map[interface{}]bool {
 	return invalidDiscarders
 }
 
+// GetDebugStats returns the debug stats
+func (p *Probe) GetDebugStats() map[string]interface{} {
+	debug := map[string]interface{}{
+		"start_time": p.startTime.String(),
+	}
+	// TODO(Will): add manager state
+	return debug
+}
+
 // NewProbe instantiates a new runtime security agent probe
 func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	regexCache, err := simplelru.NewLRU(64, nil)
@@ -728,8 +760,8 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		regexCache:        regexCache,
 		ctx:               ctx,
 		cancelFnc:         cancel,
+		statsdClient:      client,
 	}
-
 	p.detectKernelVersion()
 
 	if !p.config.EnableKernelFilters {
@@ -747,6 +779,10 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 			Name:  "do_fork_input",
 			Value: getDoForkInput(p),
 		},
+		manager.ConstantEditor{
+			Name:  "mount_id_offset",
+			Value: getMountIDOffset(p),
+		},
 	)
 
 	resolvers, err := NewResolvers(p, client)
@@ -761,17 +797,17 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		return nil, err
 	}
 
-	windowSize := uint64(10 * runtime.NumCPU())
-	if windowSize < 50 {
-		windowSize = 50
+	windowSize := uint64(15 * runtime.NumCPU())
+	if windowSize < 60 {
+		windowSize = 60
 	}
 
 	p.reOrderer = NewReOrderer(p.handleEvent,
-		TimestampFromEventData,
-		resolvers.TimeResolver.ResolveMonotonicTimestamp, ReOrdererOpts{
+		ExtractEventInfo,
+		ReOrdererOpts{
 			QueueSize:  100000,
 			WindowSize: windowSize,
-			Delay:      20 * time.Millisecond,
+			Delay:      100 * time.Millisecond,
 			Rate:       100 * time.Millisecond,
 		})
 

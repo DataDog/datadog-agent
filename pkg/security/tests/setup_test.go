@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-//+build functionaltests
+//+build functionaltests stresstests
 
 package tests
 
 import (
 	"bytes"
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"os"
@@ -28,6 +29,7 @@ import (
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
@@ -52,6 +54,8 @@ runtime_security_config:
   enabled: true
   socket: /tmp/test-security-probe.sock
   flush_discarder_window: 0
+  load_controller:
+    events_count_threshold: 100000000
 {{if .DisableFilters}}
   enable_kernel_filters: false
 {{end}}
@@ -82,8 +86,11 @@ rules:
 {{end}}
 `
 
-var testEnvironment string
-var useReload bool
+var (
+	testEnvironment string
+	useReload       bool
+	logLevelStr     string
+)
 
 const (
 	HostEnvironment   = "host"
@@ -169,7 +176,9 @@ func setTestConfig(dir string, opts testOpts) error {
 
 	buffer := new(bytes.Buffer)
 	if err := tmpl.Execute(buffer, map[string]interface{}{
-		"TestPoliciesDir": dir,
+		"TestPoliciesDir":   dir,
+		"DisableApprovers":  opts.disableApprovers,
+		"DisableDiscarders": opts.disableDiscarders,
 	}); err != nil {
 		return err
 	}
@@ -234,7 +243,12 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 		}
 	}()
 
-	st, err := newSimpleTest(macros, rules, opts.testDir)
+	logLevel, found := seelog.LogLevelFromString(logLevelStr)
+	if !found {
+		return nil, fmt.Errorf("invalid log level '%s'", logLevel)
+	}
+
+	st, err := newSimpleTest(macros, rules, opts.testDir, logLevel)
 	if err != nil {
 		return nil, err
 	}
@@ -250,14 +264,6 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 	defer os.Remove(cfgFilename)
 
 	if useReload && testMod != nil {
-		if opts.disableApprovers == testMod.opts.disableApprovers &&
-			opts.disableDiscarders == testMod.opts.disableDiscarders &&
-			opts.disableFilters == testMod.opts.disableFilters {
-			testMod.reset()
-			testMod.st = st
-			return testMod, testMod.reloadConfiguration()
-		}
-
 		testMod.cleanup()
 	}
 
@@ -270,6 +276,14 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 	mod, err := module.NewModule(config)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create module")
+	}
+
+	if opts.disableApprovers {
+		config.EnableApprovers = false
+	}
+
+	if opts.disableDiscarders {
+		config.EnableDiscarders = false
 	}
 
 	testMod = &testModule{
@@ -312,6 +326,10 @@ func (tm *testModule) reloadConfiguration() error {
 
 func (tm *testModule) Root() string {
 	return tm.st.root
+}
+
+func (tm *testModule) SwapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, error) {
+	return tm.st.swapLogLevel(logLevel)
 }
 
 func (tm *testModule) RuleMatch(rule *rules.Rule, event eval.Event) {
@@ -395,6 +413,48 @@ func (tm *testModule) Create(filename string) (string, unsafe.Pointer, error) {
 	return testFile, testPtr, err
 }
 
+type tracePipeLogger struct {
+	*TracePipe
+	stop chan struct{}
+}
+
+func (l *tracePipeLogger) Start() {
+	channelEvents, channelErrors := l.Channel()
+
+	go func() {
+		for {
+			select {
+			case <-l.stop:
+				return
+			case event := <-channelEvents:
+				log.Debug(event.Raw)
+			case err := <-channelErrors:
+				log.Error(err)
+			}
+		}
+	}()
+}
+
+func (l *tracePipeLogger) Stop() {
+	l.stop <- struct{}{}
+	l.Close()
+}
+
+func (tm *testModule) startTracing() (*tracePipeLogger, error) {
+	tracePipe, err := NewTracePipe()
+	if err != nil {
+		return nil, err
+	}
+
+	logger := &tracePipeLogger{
+		TracePipe: tracePipe,
+		stop:      make(chan struct{}),
+	}
+	logger.Start()
+
+	return logger, nil
+}
+
 func (tm *testModule) cleanup() {
 	tm.st.Close()
 	tm.module.Close()
@@ -409,6 +469,7 @@ func (tm *testModule) Close() {
 type simpleTest struct {
 	root     string
 	toRemove bool
+	logLevel seelog.LogLevel
 }
 
 func (t *simpleTest) Close() {
@@ -467,47 +528,38 @@ func (t *simpleTest) load(macros []*rules.MacroDefinition, rules []*rules.RuleDe
 
 var logInitilialized bool
 
-func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, testDir string) (*simpleTest, error) {
-	var err error
+func (t *simpleTest) swapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, error) {
+	if logger == nil {
+		logFormat := "%Ns [%LEVEL] %Func:%Line %Msg\n"
 
-	if !logInitilialized {
-		var logLevel seelog.LogLevel = seelog.InfoLvl
-		if testing.Verbose() {
-			logLevel = seelog.TraceLvl
-		}
+		var err error
 
-		constraints, err := seelog.NewMinMaxConstraints(logLevel, seelog.CriticalLvl)
+		logger, err = seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stdout, seelog.TraceLvl, logFormat)
 		if err != nil {
-			return nil, err
+			return t.logLevel, err
 		}
-
-		formatter, err := seelog.NewFormatter("%Ns [%LEVEL] %Func %Line %Msg\n")
-		if err != nil {
-			return nil, err
-		}
-
-		dispatcher, err := seelog.NewSplitDispatcher(formatter, []interface{}{os.Stderr})
-		if err != nil {
-			return nil, err
-		}
-
-		specificConstraints, _ := seelog.NewListConstraints([]seelog.LogLevel{})
-		ex, _ := seelog.NewLogLevelException("*.Snapshot", "*", specificConstraints)
-		exceptions := []*seelog.LogLevelException{ex}
-
-		logger := seelog.NewAsyncLoopLogger(seelog.NewLoggerConfig(constraints, exceptions, dispatcher))
-
-		err = seelog.ReplaceLogger(logger)
-		if err != nil {
-			return nil, err
-		}
-		log.SetupLogger(logger, logLevel.String())
-
-		logInitilialized = true
 	}
+	log.SetupLogger(logger, logLevel.String())
+
+	prevLevel := t.logLevel
+	t.logLevel = logLevel
+
+	return prevLevel, nil
+}
+
+func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, testDir string, logLevel seelog.LogLevel) (*simpleTest, error) {
+	var err error
 
 	t := &simpleTest{
 		root: testDir,
+	}
+
+	if !logInitilialized {
+		if _, err := t.swapLogLevel(logLevel); err != nil {
+			return nil, err
+		}
+
+		logInitilialized = true
 	}
 
 	if testDir == "" {
@@ -540,6 +592,28 @@ func testContainerPath(t *testing.T, event *sprobe.Event, fieldPath string) {
 	}
 }
 
+func waitForOpenProbeEvent(test *testModule, filename string) (*probe.Event, error) {
+	timeout := time.After(3 * time.Second)
+	exhaust := time.After(time.Second)
+
+	var event *probe.Event
+	for {
+		select {
+		case e := <-test.probeHandler.events:
+			if value, _ := e.GetFieldValue("open.filename"); value == filename {
+				event = e
+			}
+		case <-test.discarders:
+		case <-exhaust:
+			if event != nil {
+				return event, nil
+			}
+		case <-timeout:
+			return nil, errors.New("timeout")
+		}
+	}
+}
+
 func TestEnv(t *testing.T) {
 	if testEnvironment != "" && testEnvironment != HostEnvironment && testEnvironment != DockerEnvironment {
 		t.Fatal("invalid environment")
@@ -556,6 +630,8 @@ func TestMain(m *testing.M) {
 }
 
 func init() {
+	os.Setenv("RUNTIME_SECURITY_TESTSUITE", "true")
 	flag.StringVar(&testEnvironment, "env", HostEnvironment, "environment used to run the test suite: ex: host, docker")
 	flag.BoolVar(&useReload, "reload", true, "reload rules instead of stopping/starting the agent for every test")
+	flag.StringVar(&logLevelStr, "loglevel", seelog.WarnStr, "log level")
 }

@@ -12,4 +12,4 @@ Anything else we should know when reviewing?
 
 ### Describe your test plan
 
-Write there any instructions and details you may have to test your PR.
+Write there any instructions and details that should be tested during the QA.

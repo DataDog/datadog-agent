@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -77,12 +78,16 @@ func LoadPolicy(r io.Reader, name string) (*Policy, error) {
 
 // LoadPolicies loads the policies listed in the configuration and apply them to the given ruleset
 func LoadPolicies(config *config.Config, ruleSet *RuleSet) error {
-	var result *multierror.Error
+	var (
+		result *multierror.Error
+		rules  []*RuleDefinition
+	)
 
 	policyFiles, err := ioutil.ReadDir(config.PoliciesDir)
 	if err != nil {
 		return err
 	}
+	sort.Slice(policyFiles, func(i, j int) bool { return policyFiles[i].Name() < policyFiles[j].Name() })
 
 	// Load and parse policies
 	for _, policyPath := range policyFiles {
@@ -97,7 +102,7 @@ func LoadPolicies(config *config.Config, ruleSet *RuleSet) error {
 		// Open policy path
 		f, err := os.Open(filepath.Join(config.PoliciesDir, filename))
 		if err != nil {
-			result = multierror.Append(result, errors.Wrapf(err, "failed to load policy `%s`", policyPath))
+			result = multierror.Append(result, errors.Wrapf(err, "failed to load policy `%s`", policyPath.Name()))
 			continue
 		}
 		defer f.Close()
@@ -105,7 +110,7 @@ func LoadPolicies(config *config.Config, ruleSet *RuleSet) error {
 		// Parse policy file
 		policy, err := LoadPolicy(f, filepath.Base(filename))
 		if err != nil {
-			result = multierror.Append(result, errors.Wrapf(err, "failed to load policy `%s`", policyPath))
+			result = multierror.Append(result, errors.Wrapf(err, "failed to load policy `%s`", policyPath.Name()))
 			continue
 		}
 
@@ -114,10 +119,12 @@ func LoadPolicies(config *config.Config, ruleSet *RuleSet) error {
 			result = multierror.Append(result, err)
 		}
 
-		// Add rules to the ruleset and generate rules evaluators
-		if err := ruleSet.AddRules(policy.Rules); err != nil {
-			result = multierror.Append(result, err)
-		}
+		rules = append(rules, policy.Rules...)
+	}
+
+	// Add rules to the ruleset and generate rules evaluators
+	if err := ruleSet.AddRules(rules); err != nil {
+		result = multierror.Append(result, err)
 	}
 
 	return result.ErrorOrNil()

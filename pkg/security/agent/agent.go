@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"google.golang.org/grpc"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -109,15 +108,10 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 	}
 }
 
-// SendSecurityEvent sends a security event with the provided status
-func (rsa *RuntimeSecurityAgent) SendSecurityEvent(evt *api.SecurityEventMessage, status string) {
-	rsa.reporter.ReportRaw(evt.GetData())
-}
-
 // DispatchEvent dispatches a security event message to the subsytems of the runtime security agent
 func (rsa *RuntimeSecurityAgent) DispatchEvent(evt *api.SecurityEventMessage) {
 	// For now simply log to Datadog
-	rsa.SendSecurityEvent(evt, message.StatusAlert)
+	rsa.reporter.ReportRaw(evt.GetData(), evt.GetTags()...)
 }
 
 // GetStatus returns the current status on the agent

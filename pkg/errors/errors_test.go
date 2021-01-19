@@ -6,6 +6,7 @@
 package errors
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
@@ -22,4 +23,17 @@ func TestNotFound(t *testing.T) {
 	require.True(t, IsNotFound(err))
 	require.False(t, IsNotFound(fmt.Errorf("fake")))
 	require.False(t, IsNotFound(fmt.Errorf(`"foo" not found`)))
+}
+
+func TestRetriable(t *testing.T) {
+	// New
+	err := NewRetriable("foo", errors.New("bar"))
+	require.Error(t, err)
+	require.Equal(t, `couldn't fetch "foo": bar`, err.Error())
+
+	// Is
+	var errFunc func() error = func() error { return NewRetriable("foo", errors.New("bar")) }
+	require.True(t, IsRetriable(errFunc()))
+	require.False(t, IsRetriable(fmt.Errorf("fake")))
+	require.False(t, IsRetriable(fmt.Errorf(`couldn't fetch "foo": bar`)))
 }

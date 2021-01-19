@@ -1,0 +1,21 @@
+ad_identifiers:
+  - _cri
+init_config:
+
+instances:
+
+    -
+
+    ## @param collect_disk - boolean - optional - default: true
+    ## Specify if the check should collect disk metrics (unsupported by CRI-O for now)
+    #
+    # collect_disk: true
+
+    ## @param tags - list of strings following the pattern: "key:value" - optional
+    ## List of tags to attach to every metric, event, and service check emitted by this integration.
+    ##
+    ## Learn more about tagging: https://docs.datadoghq.com/tagging/
+    #
+    # tags:
+    #   - <KEY_1>:<VALUE_1>
+    #   - <KEY_2>:<VALUE_2>

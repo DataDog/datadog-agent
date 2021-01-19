@@ -375,6 +375,16 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		}
 	}
 
+	// use `profiling.enabled` field in `process_config` section to enable/disable profiling for process-agent,
+	// but use the configuration from main agent to fill the settings
+	if config.Datadog.IsSet(key(ns, "profiling.enabled")) {
+		a.ProfilingEnabled = config.Datadog.GetBool(key(ns, "profiling.enabled"))
+		a.ProfilingSite = config.Datadog.GetString("site")
+		a.ProfilingURL = config.Datadog.GetString("profiling.profile_dd_url")
+		a.ProfilingAPIKey = config.Datadog.GetString("api_key")
+		a.ProfilingEnvironment = config.Datadog.GetString("env")
+	}
+
 	// Used to override container source auto-detection
 	// and to enable multiple collector sources if needed.
 	// "docker", "ecs_fargate", "kubelet", "kubelet docker", etc.
