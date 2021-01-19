@@ -144,7 +144,7 @@ func TestRemoveConnections(t *testing.T) {
 		IntraHost:            true,
 	}
 
-	var buf [ConnectionByteKeyMaxLen]byte
+	buf := make([]byte, ConnectionByteKeyMaxLen)
 	key, err := conn.ByteKey(buf)
 	require.NoError(t, err)
 
