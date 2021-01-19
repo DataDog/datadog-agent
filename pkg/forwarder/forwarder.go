@@ -530,7 +530,7 @@ func (f *DefaultForwarder) SubmitSketchSeries(payload Payloads, extra http.Heade
 
 // SubmitHostMetadata will send a host_metadata tag type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitHostMetadata(payload Payloads, extra http.Header) error {
-	return f.submitV1Intake(payload, extra,
+	return f.submitV1IntakeWithTransactionsFactory(payload, extra,
 		func(endpoint endpoint, payloads Payloads, apiKeyInQueryString bool, extra http.Header) []*HTTPTransaction {
 			// Host metadata contains the API KEY and should not be stored on disk.
 			storableOnDisk := false
@@ -540,7 +540,7 @@ func (f *DefaultForwarder) SubmitHostMetadata(payload Payloads, extra http.Heade
 
 // SubmitAgentchecksMetadata will send a agentchecks_metadata tag type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitAgentchecksMetadata(payload Payloads, extra http.Header) error {
-	return f.submitV1Intake(payload, extra,
+	return f.submitV1IntakeWithTransactionsFactory(payload, extra,
 		func(endpoint endpoint, payloads Payloads, apiKeyInQueryString bool, extra http.Header) []*HTTPTransaction {
 			// Agentchecks metadata contains the API KEY and should not be stored on disk.
 			storableOnDisk := false
