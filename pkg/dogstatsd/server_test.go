@@ -309,8 +309,14 @@ func TestUDPReceive(t *testing.T) {
 		assert.FailNow(t, "Timeout on receive channel")
 	}
 
-	// Test erroneous Event
-	conn.Write([]byte("_e{0,9}:|test text\n_e{11,10}:test title2|test\\ntext|t:warning|d:12345|p:low|h:some.host|k:aggKey|s:source test|#tag1,tag2:test"))
+	// Test erroneous Events
+	conn.Write(
+		[]byte("_e{0,9}:|test text\n" +
+			"_e{-5,2}:abc\n" +
+			"_e{11,10}:test title2|test\\ntext|" +
+			"t:warning|d:12345|p:low|h:some.host|k:aggKey|s:source test|#tag1,tag2:test",
+		),
+	)
 	select {
 	case res := <-eventOut:
 		assert.Equal(t, 1, len(res))

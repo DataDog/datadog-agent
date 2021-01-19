@@ -14,6 +14,8 @@ import (
 )
 
 // GetClient is a convenience function returning an http client
+// `GetClient(false)` must be used only for HTTP requests whose destination is
+// localhost (ie, for Agent commands).
 func GetClient(verify bool) *http.Client {
 	if verify {
 		return &http.Client{}

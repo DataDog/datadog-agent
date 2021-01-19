@@ -69,8 +69,6 @@ func (m *Module) Register(httpMux *http.ServeMux) error {
 		}
 	}()
 
-	go m.statsMonitor(context.Background())
-
 	// initialize the eBPF manager and load the programs and maps in the kernel. At this stage, the probes are not
 	// running yet.
 	if err := m.probe.Init(); err != nil {
@@ -93,6 +91,8 @@ func (m *Module) Register(httpMux *http.ServeMux) error {
 	}
 
 	m.probe.SetEventHandler(m)
+
+	go m.statsMonitor(context.Background())
 
 	signal.Notify(m.sigupChan, syscall.SIGHUP)
 
