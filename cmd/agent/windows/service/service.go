@@ -28,7 +28,7 @@ type agentWindowsService struct{}
 func (m *agentWindowsService) Execute(args []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (ssec bool, errno uint32) {
 	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown
 	changes <- svc.Status{State: svc.StartPending}
-	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
+
 	if err := common.ImportRegistryConfig(); err != nil {
 		elog.Warning(0x80000001, err.Error())
 		// continue running agent with existing config
@@ -45,7 +45,7 @@ func (m *agentWindowsService) Execute(args []string, r <-chan svc.ChangeRequest,
 		return
 	}
 	elog.Info(0x40000003, config.ServiceName)
-
+	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 loop:
 	for {
 		select {

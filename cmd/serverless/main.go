@@ -257,7 +257,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		//             user don't care about the platform logs, the Agent will still want
 		//             to receive them in order to generate the enhanced metrics.
 		if envLogsType, exists := os.LookupEnv(logsLogsTypeSubscribed); exists {
-			parts := strings.Split(strings.TrimSpace(envLogsType), ",")
+			parts := strings.Split(strings.TrimSpace(envLogsType), " ")
 			for _, part := range parts {
 				part = strings.ToLower(strings.TrimSpace(part))
 				switch part {
