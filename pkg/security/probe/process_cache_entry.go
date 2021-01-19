@@ -54,11 +54,6 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	copyProcessContext(pc, childEntry)
 }
 
-// IsEqual return whether entries are equals
-func (pc *ProcessCacheEntry) IsEqual(e *ProcessCacheEntry) bool {
-	return e != nil && e.Pid == pc.Pid && e.ForkTimestamp == pc.ForkTimestamp && e.ExecTimestamp == pc.ExecTimestamp
-}
-
 func (pc *ProcessCacheEntry) String() string {
 	s := fmt.Sprintf("filename: %s[%s] pid:%d ppid:%d\n", pc.PathnameStr, pc.Comm, pc.Pid, pc.PPid)
 	ancestor := pc.Ancestor

@@ -197,6 +197,8 @@ func (p *ProcessResolver) insertForkEntry(pid uint32, entry *ProcessCacheEntry) 
 	}
 	p.entryCache[pid] = entry
 
+	_ = p.client.Count(MetricPrefix+".process_resolver.added", 1, []string{}, 1.0)
+
 	if p.opts.DebugCacheSize {
 		atomic.AddInt64(&p.cacheSize, 1)
 
@@ -216,6 +218,8 @@ func (p *ProcessResolver) insertExecEntry(pid uint32, entry *ProcessCacheEntry) 
 	prev.Exec(entry)
 
 	p.entryCache[pid] = entry
+
+	_ = p.client.Count(MetricPrefix+".process_resolver.added", 1, []string{}, 1.0)
 
 	if p.opts.DebugCacheSize {
 		atomic.AddInt64(&p.cacheSize, 1)
