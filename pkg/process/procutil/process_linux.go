@@ -25,6 +25,9 @@ const (
 	// DefaultClockTicks is the default number of clock ticks per second
 	// C.sysconf(C._SC_CLK_TCK)
 	DefaultClockTicks = float64(100)
+
+	// More than 5760 to work around https://golang.org/issue/24015.
+	blockSize = 8192
 )
 
 var (
@@ -598,7 +601,7 @@ func (p *Probe) getFDCountImproved(pidPath string) int32 {
 	}
 	defer d.Close()
 
-	b := make([]byte, 8192)
+	b := make([]byte, blockSize)
 	count := 0
 
 	for i := 0; ; i++ {
