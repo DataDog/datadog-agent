@@ -39,7 +39,6 @@ type Monitor struct {
 }
 
 // NewMonitor returns a new Monitor instance
-// func NewMonitor(mgr *manager.Manager, h *ddebpf.PerfHandler, closeFilterFn func()) (*Monitor, error) {
 func NewMonitor(procRoot string, mgr *manager.Manager, h *ddebpf.PerfHandler) (*Monitor, error) {
 	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{Section: string(probes.SocketHTTPFilter)})
 	if filter == nil {

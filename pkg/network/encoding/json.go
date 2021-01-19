@@ -21,9 +21,11 @@ func (j jsonSerializer) Marshal(conns *network.Connections) ([]byte, error) {
 	domainSet := make(map[string]int)
 
 	httpKeySet := make(map[http.Key]int)
+	httpConns := make([]*model.HTTPConnection, len(conns.HTTP))
 	i := 0
-	for key := range conns.HTTP {
+	for key, statsByPath := range conns.HTTP {
 		httpKeySet[key] = i
+		httpConns[i] = FormatHTTPConnection(key, statsByPath)
 		i++
 	}
 
@@ -36,20 +38,11 @@ func (j jsonSerializer) Marshal(conns *network.Connections) ([]byte, error) {
 		domains[v] = k
 	}
 
-	httpKeys := make([]*model.HTTPKey, len(httpKeySet))
-	for k, v := range httpKeySet {
-		httpKeys[v] = &model.HTTPKey{
-			Source: &model.Addr{Ip: k.SourceIP.String()},
-			Dest:   &model.Addr{Ip: k.DestIP.String(), Port: int32(k.DestPort)},
-		}
-	}
-
 	payload := connsPool.Get().(*model.Connections)
 	payload.Conns = agentConns
 	payload.Domains = domains
 	payload.Dns = FormatDNS(conns.DNS)
-	payload.HttpKeys = httpKeys
-	payload.Http = FormatHTTP(conns.HTTP, httpKeySet)
+	payload.Http = httpConns
 	payload.Telemetry = FormatTelemetry(conns.Telemetry)
 
 	writer := new(bytes.Buffer)

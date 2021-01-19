@@ -104,6 +104,8 @@ github.com/DataDog/agent-payload v4.53.1-0.20210114152954-be676bf33059+incompati
 github.com/DataDog/agent-payload v4.53.1-0.20210114152954-be676bf33059+incompatible/go.mod h1:/2RW4IC/2z54jtB6RLgq5UtVI1TsX0joDRjKbkLT+mk=
 github.com/DataDog/agent-payload v4.53.1-0.20210114154107-05ad7aa9158d+incompatible h1:K62xDSk0vuDe64XpB1UdGJlT0X4YfrYyyBVYflqWnUM=
 github.com/DataDog/agent-payload v4.53.1-0.20210114154107-05ad7aa9158d+incompatible/go.mod h1:/2RW4IC/2z54jtB6RLgq5UtVI1TsX0joDRjKbkLT+mk=
+github.com/DataDog/agent-payload v4.53.1-0.20210115194313-8f75240a818f+incompatible h1:Gl7er0ugTJFAzq7ZGT4HtlXI+NazPd2tVKaApdfiX0w=
+github.com/DataDog/agent-payload v4.53.1-0.20210115194313-8f75240a818f+incompatible/go.mod h1:/2RW4IC/2z54jtB6RLgq5UtVI1TsX0joDRjKbkLT+mk=
 github.com/DataDog/cast v1.3.1-0.20190301154711-1ee8c8bd14a3 h1:SobA9WYm4K/MUtWlbKaomWTmnuYp1KhIm8Wlx3vmpsg=
 github.com/DataDog/cast v1.3.1-0.20190301154711-1ee8c8bd14a3/go.mod h1:Qx5cxh0v+4UWYiBimWS+eyWzqEqokIECu5etghLkUJE=
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
