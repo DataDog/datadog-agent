@@ -6,12 +6,17 @@
 
 class PropertyReplacer
 {
+  public:
+    typedef std::function<std::wstring(std::wstring const &)> formatter_t;
+
 private:
     std::wstring &_input;
     std::vector<std::wregex> _matches;
     PropertyReplacer(std::wstring &input, std::wstring const &match);
+    formatter_t _formatter;
   public:
     bool replace_with(std::wstring const &replacement);
+    RegexPropertyReplacer(std::wstring wixPropertyName, std::wstring const &regex, formatter_t const &formatter);
 
     PropertyReplacer &then(std::wstring const &match);
 
