@@ -1,15 +1,21 @@
-#include "PropertyReplacer.h"
 #include "stdafx.h"
+#include "PropertyReplacer.h"
 
 IPropertyReplacer::~IPropertyReplacer()
 {
 }
 
+RegexPropertyReplacer::RegexPropertyReplacer(std::wstring wixPropertyName, std::wstring const &regex,
+                                             formatter_t const &formatter)
+    : _wixPropertyName(std::move(wixPropertyName))
+    , _regex(std::wregex(regex))
+    , _formatter(formatter)
+{
+}
+
 RegexPropertyReplacer::RegexPropertyReplacer(std::wstring wixPropertyName, std::wstring propertyName,
                                              std::wstring const &regex)
-    : _wixPropertyName(std::move(wixPropertyName))
-    , _propertyName(std::move(propertyName))
-    , _regex(std::wregex(regex))
+    : RegexPropertyReplacer(wixPropertyName, regex, [propertyName](auto const &v) { return propertyName + L": " + v; })
 {
 }
 
@@ -18,7 +24,7 @@ void RegexPropertyReplacer::Replace(std::wstring &input, std::map<std::wstring, 
     const auto &value = values.find(_wixPropertyName);
     if (value != values.end())
     {
-        input = std::regex_replace(input, _regex, _propertyName + L": " + value->second);
+        input = std::regex_replace(input, _regex, _formatter(value->second), std::regex_constants::format_first_only);
     }
 }
 
@@ -26,8 +32,13 @@ RegexPropertyReplacer::~RegexPropertyReplacer()
 {
 }
 
+const std::wstring proxySection =
+    L"# proxy:\n#   https: http://<USERNAME>:<PASSWORD>@<PROXY_SERVER_FOR_HTTPS>:<PORT>\n#   http: "
+    L"http://<USERNAME>:<PASSWORD>@<PROXY_SERVER_FOR_HTTP>:<PORT>\n#   no_proxy:\n#     - <HOSTNAME-1>\n#     - "
+    L"<HOSTNAME-2>";
+
 ProxyPropertyReplacer::ProxyPropertyReplacer()
-    : _regex(std::wregex(L"^[ \t#]*proxy:"))
+    : _regex(std::wregex(proxySection))
 {
 }
 

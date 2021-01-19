@@ -1,5 +1,5 @@
-#include "PropertyReplacer.h"
 #include "stdafx.h"
+#include "PropertyReplacer.h"
 #include <fstream>
 #include <iostream>
 #include <utility>
@@ -153,6 +153,24 @@ bool CustomActionData::parseSysprobeData()
 
 bool CustomActionData::updateYamlConfig()
 {
+    values = {
+        {L"APIKEY", L"1234567890"},
+        {L"SITE", L"datadoghq.eu"},
+        {L"HOSTNAME", L"raspberrypi"},
+        {L"LOGS_ENABLED", L"true"},
+        {L"CMD_PORT", L"8000"},
+        {L"DD_URL", L"http://example.org:8999"},
+        {L"LOGS_DD_URL", L"https://logs.example.org"},
+        {L"TRACE_DD_URL", L"https://trace.example.org:5858"},
+        {L"PROCESS_ENABLED", L"true"},
+        {L"APM_ENABLED", L"true"},
+        {L"TAGS", L"region=eastus2,aws_org=2"},
+        {L"PROXY_HOST", L"172.14.0.1"},
+        {L"PROXY_PORT", L"4242"},
+        {L"PROXY_USER", L"pUser"},
+        {L"PROXY_PASSWORD", L"pPass"},
+    };
+
     // Read config in memory. The config should be small enough
     // and we control its source - so it's fine to allocate up front.
     std::wifstream inputConfigStream(datadogyamlfile);
@@ -170,12 +188,82 @@ bool CustomActionData::updateYamlConfig()
 
     inputConfig.assign(std::istreambuf_iterator<wchar_t>(inputConfigStream), std::istreambuf_iterator<wchar_t>());
 
-    std::vector<std::unique_ptr<IPropertyReplacer>> replacers;
-    replacers.push_back(std::make_unique<RegexPropertyReplacer>(L"APIKEY", L"api_key", L"^[ \t#]*api_key:.*"));
-    replacers.push_back(std::make_unique<RegexPropertyReplacer>(L"SITE", L"site", L"^[ \t#]*site:.*"));
-    replacers.push_back(std::make_unique<RegexPropertyReplacer>(L"HOSTNAME", L"hostname", L"^[ \t#]*hostname:.*"));
-    replacers.push_back(std::make_unique<RegexPropertyReplacer>(L"DD_URL", L"dd_url", L"^[ \t#]*dd_url:.*"));
-    replacers.push_back(std::make_unique<ProxyPropertyReplacer>());
+    std::vector<IPropertyReplacer*> replacers = {
+        new ProxyPropertyReplacer(),
+        new RegexPropertyReplacer(L"APIKEY", L"api_key", L"^[ #]*api_key:.*"),
+        new RegexPropertyReplacer(L"SITE", L"site", L"^[ #]*site:.*"),
+        new RegexPropertyReplacer(L"HOSTNAME", L"hostname", L"^[ #]*hostname:.*"),
+        new RegexPropertyReplacer(L"LOGS_ENABLED", L"logs_enabled", L"^[ #]*logs_enabled:.*"),
+        new RegexPropertyReplacer(L"CMD_PORT", L"cmd_port", L"^[ #]*cmd_port:.*"),
+        new RegexPropertyReplacer(L"DD_URL", L"dd_url", L"^[ #]*dd_url:.*"),
+        // This replacer will uncomment the logs_config section if LOGS_DD_URL is specified, regardless of its value
+        new RegexPropertyReplacer(L"LOGS_DD_URL", L"^[ #]*logs_config:.*",
+                                                [](const auto &v) { return L"logs_config:"; }),
+        // logs_dd_url and apm_dd_url are indented so override default formatter to specify correct indentation
+        new RegexPropertyReplacer(L"LOGS_DD_URL", L"^[ #]*logs_dd_url:.*",
+                                                [](auto const &v) { return L"  logs_dd_url: " + v; }),
+        new RegexPropertyReplacer(L"TRACE_DD_URL", L"^[ #]*apm_dd_url:.*",
+                                                [](auto const &v) { return L"  apm_dd_url: " + v; }),
+
+        new RegexPropertyReplacer(L"PROCESS_ENABLED", LR"(
+# process_config:
+
+  ## @param enabled - string - optional - default: "false"
+  ##  A string indicating the enabled state of the Process Agent:
+  ##    * "false"    : The Agent collects only containers information.
+  ##    * "true"     : The Agent collects containers and processes information.
+  ##    * "disabled" : The Agent process collection is disabled.
+  #
+  # enabled: "true"
+)",
+                                                [](const auto &v) {
+                                                    return LR"(
+process_config:
+
+  ## @param enabled - string - optional - default: "false"
+  ##  A string indicating the enabled state of the Process Agent:
+  ##    * "false"    : The Agent collects only containers information.
+  ##    * "true"     : The Agent collects containers and processes information.
+  ##    * "disabled" : The Agent process collection is disabled.
+  #
+  enabled: ")" + v + L"\"";
+                                                }),
+
+        new RegexPropertyReplacer(L"APM_ENABLED", LR"(
+# apm_config:
+
+  ## @param enabled - boolean - optional - default: true
+  ## Set to true to enable the APM Agent.
+  #
+  # enabled: true
+)",
+                                                [](const auto &v) {
+                                                    return LR"(
+apm_config:
+
+  ## @param enabled - boolean - optional - default: true
+  ## Set to true to enable the APM Agent.
+  #
+  enabled: )" + v + L"\n";
+                                                }),
+
+        new RegexPropertyReplacer(L"TAGS", LR"(
+# tags:
+#   - environment:dev
+#   - <TAG_KEY>:<TAG_VALUE>
+)",
+                                                [](const auto &v) {
+                                                    std::wistringstream valueStream(v);
+                                                    std::wstringstream result;
+                                                    std::wstring token;
+                                                    result << std::endl << L"tags: " << std::endl;
+                                                    while (std::getline(valueStream, token, wchar_t(',')))
+                                                    {
+                                                        result << L"  - " << token << std::endl;
+                                                    }
+                                                    return result.str();
+                                                })};
+
     for (auto &replacer : replacers)
     {
         replacer->Replace(inputConfig, values);
