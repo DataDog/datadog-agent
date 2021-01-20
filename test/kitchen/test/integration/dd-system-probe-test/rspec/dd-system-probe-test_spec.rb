@@ -3,7 +3,7 @@ require 'open3'
 
 GOLANG_TEST_FAILURE = /FAIL:/
 
-def check_output(output)
+def check_output(output, wait_thr)
   test_failures = []
 
   output.each_line do |line|
@@ -27,7 +27,7 @@ Dir.glob('/tmp/system-probe-tests/**/testsuite').each do |f|
     it 'prebuilt - successfully runs' do
       Dir.chdir(File.dirname(f)) do
         Open3.popen2e("sudo", f, "-test.v") do |_, output, wait_thr|
-          test_failures = check_output(output)
+          test_failures = check_output(output, wait_thr)
           expect(test_failures).to be_empty, test_failures.join("\n")
         end
       end
@@ -36,7 +36,7 @@ Dir.glob('/tmp/system-probe-tests/**/testsuite').each do |f|
     it 'runtime compiled - successfully runs' do
       Dir.chdir(File.dirname(f)) do
         Open3.popen2e({"DD_TESTS_RUNTIME_COMPILED"=>"1"}, "sudo", "-E", f, "-test.v") do |_, output, wait_thr|
-          test_failures = check_output(output)
+          test_failures = check_output(output, wait_thr)
           expect(test_failures).to be_empty, test_failures.join("\n")
         end
       end
