@@ -7,12 +7,16 @@
 
 package docker
 
-import "fmt"
+import (
+	"io/ioutil"
+)
 
 const (
 	basePath = "c:\\programdata\\docker\\containers"
 )
 
 func checkReadAccess() error {
-	return fmt.Errorf("Docker tailing from file is not supported on Windows")
+	// We need read access to the docker folder
+	_, err := ioutil.ReadDir(basePath)
+	return err
 }
