@@ -36,6 +36,9 @@ type Config struct {
 
 	// RuntimeCompilerOutputDir is the directory where the runtime compiler will store compiled programs
 	RuntimeCompilerOutputDir string
+
+	// AllowPrecompiledFallback indicates whether we are allowed to fallback to the prebuilt probes if runtime compilation fails.
+	AllowPrecompiledFallback bool
 }
 
 // curDir is used for testing purposes only
@@ -94,6 +97,7 @@ func NewDefaultConfig() *Config {
 		ProcRoot:                 "/proc",
 		EnableRuntimeCompiler:    false,
 		RuntimeCompilerOutputDir: "/var/tmp/datadog-agent/system-probe/build",
+		AllowPrecompiledFallback: true,
 	}
 }
 

@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/stretchr/testify/require"
 )
@@ -102,7 +101,7 @@ func RunEBPFBenchmark(b *testing.B, fn func(*testing.B)) {
 	defer setBPFStatsCollection(b, false)
 
 	// Enable BPF-based system probe
-	t, err := NewTracer(config.NewDefaultConfig())
+	t, err := NewTracer(testConfig())
 	if err != nil {
 		b.Fatal(err)
 	}

@@ -177,7 +177,9 @@ def build_in_docker(
 
 
 @task
-def test(ctx, packages=TEST_PACKAGES, skip_object_files=False, bundle_ebpf=True, output_path=None):
+def test(
+    ctx, packages=TEST_PACKAGES, skip_object_files=False, bundle_ebpf=True, output_path=None, runtime_compiled=False
+):
     """
     Run tests on eBPF parts
     If skip_object_files is set to True, this won't rebuild object files
@@ -209,6 +211,8 @@ def test(ctx, packages=TEST_PACKAGES, skip_object_files=False, bundle_ebpf=True,
     }
 
     env = {'CGO_LDFLAGS_ALLOW': "-Wl,--wrap=.*"}
+    if runtime_compiled:
+        env['DD_TESTS_RUNTIME_COMPILED'] = "1"
 
     ctx.run(cmd.format(**args), env=env)
 
