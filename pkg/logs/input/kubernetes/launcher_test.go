@@ -8,12 +8,16 @@
 package kubernetes
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 
 	"github.com/stretchr/testify/assert"
@@ -460,6 +464,105 @@ func TestGetShortImageName(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRetry(t *testing.T) {
+	containerName := "fooName"
+	containerType := "docker"
+	containerID := "123456789abcdefoo"
+	imageName := "fooImage"
+	serviceName := "fooService"
+
+	l := &Launcher{
+		collectAll:         true,
+		kubeutil:           dummyKubeUtil{shouldRetry: true},
+		pendingRetries:     make(map[string]*retryOps),
+		retryOperations:    make(chan *retryOps),
+		serviceNameFunc:    func(n, e string) string { return serviceName },
+		sources:            config.NewLogSources(),
+		sourcesByContainer: make(map[string]*config.LogSource),
+	}
+
+	sourceOutputChan := l.sources.GetAddedForType(config.FileType)
+
+	service := service.NewService(containerType, containerID, service.After)
+	l.addSource(service)
+
+	ops := <-l.retryOperations
+
+	assert.Equal(t, containerType, ops.service.Type)
+	assert.Equal(t, containerID, ops.service.Identifier)
+
+	l.kubeutil = dummyKubeUtil{
+		name:        containerName,
+		id:          containerID,
+		image:       imageName,
+		shouldRetry: false,
+	}
+
+	mu := sync.Mutex{}
+	mu.Lock()
+	defer mu.Unlock()
+	go func() {
+		l.addSource(ops.service)
+		mu.Unlock()
+	}()
+
+	source := <-sourceOutputChan
+	// Ensure l.addSource is completely done
+	mu.Lock()
+
+	assert.Equal(t, 1, len(l.sourcesByContainer))
+
+	assert.Equal(t, containerID, source.Config.Identifier)
+	assert.Equal(t, serviceName, source.Config.Service)
+	assert.Equal(t, imageName, source.Config.Source)
+
+	assert.Equal(t, 0, len(l.pendingRetries))
+	assert.Equal(t, 1, len(l.sourcesByContainer))
+}
+
+type dummyKubeUtil struct {
+	kubelet.KubeUtilInterface
+	name        string
+	image       string
+	id          string
+	shouldRetry bool
+}
+
+func (d dummyKubeUtil) GetStatusForContainerID(pod *kubelet.Pod, containerID string) (kubelet.ContainerStatus, error) {
+	status := kubelet.ContainerStatus{
+		Name:  d.name,
+		Image: d.image,
+		ID:    d.id,
+		Ready: true,
+		State: kubelet.ContainerState{},
+	}
+	return status, nil
+}
+
+func (d dummyKubeUtil) GetSpecForContainerName(pod *kubelet.Pod, containerName string) (kubelet.ContainerSpec, error) {
+	spec := kubelet.ContainerSpec{
+		Name:  d.name,
+		Image: d.image,
+	}
+	return spec, nil
+}
+
+func (d dummyKubeUtil) GetPodForEntityID(entityID string) (*kubelet.Pod, error) {
+	if d.shouldRetry {
+		return nil, errors.NewRetriable("dummy error", fmt.Errorf("retriable error"))
+	}
+	pod := &kubelet.Pod{
+		Metadata: kubelet.PodMetadata{},
+		Spec: kubelet.Spec{
+			Containers: []kubelet.ContainerSpec{{
+				Name:  d.name,
+				Image: d.image,
+			}},
+		},
+	}
+	return pod, nil
 }
 
 func getLauncher(collectAll bool) *Launcher {
