@@ -28,7 +28,6 @@ import (
 
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
-	"github.com/tinylib/msgp/msgp"
 	vmsgp "github.com/vmihailenco/msgpack/v4"
 )
 
@@ -543,6 +542,7 @@ func TestHandleStats(t *testing.T) {
 					Hits:     2,
 					Errors:   440,
 					Duration: 123,
+					Tags:     [][]string{{"k1", "v1"}, {"k2", "v2"}},
 				},
 			},
 		}
@@ -570,11 +570,11 @@ func TestHandleStats(t *testing.T) {
 		mux := rcv.buildMux()
 		server := httptest.NewServer(mux)
 
-		var buf bytes.Buffer
-		if err := msgp.Encode(&buf, &p); err != nil {
+		b, err := p.MarshalMsg([]byte{})
+		if err != nil {
 			t.Fatal(err)
 		}
-		req, _ := http.NewRequest("POST", server.URL+"/v0.5/stats", &buf)
+		req, _ := http.NewRequest("POST", server.URL+"/v0.5/stats", bytes.NewBuffer(b))
 		req.Header.Set("Content-Type", "application/msgpack")
 		req.Header.Set(headerLang, "lang1")
 		resp, err := http.DefaultClient.Do(req)

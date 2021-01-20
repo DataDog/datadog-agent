@@ -56,8 +56,8 @@ func NewAggregation(env string, resource string, service string, hostname string
 }
 
 // ToTagSet creates a TagSet with the fields of the aggregation
-func (aggr *Aggregation) ToTagSet() TagSet {
-	tagSet := make(TagSet, 3, 7)
+func (aggr *Aggregation) ToTagSet(otherTags [][]string) TagSet {
+	tagSet := make(TagSet, 3, 7+len(otherTags))
 	tagSet[0] = Tag{"env", aggr.Env}
 	tagSet[1] = Tag{"resource", aggr.Resource}
 	tagSet[2] = Tag{"service", aggr.Service}
@@ -72,6 +72,9 @@ func (aggr *Aggregation) ToTagSet() TagSet {
 	}
 	if aggr.Synthetics {
 		tagSet = append(tagSet, Tag{tagSynthetics, "true"})
+	}
+	for _, tag := range otherTags {
+		tagSet = append(tagSet, Tag{tag[0], tag[1]})
 	}
 	return tagSet
 }

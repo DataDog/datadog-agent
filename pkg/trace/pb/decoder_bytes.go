@@ -38,6 +38,11 @@ func repairUTF8(s string) string {
 // parseStringBytes reads the next type in the msgpack payload and
 // converts the BinType or the StrType in a valid string.
 func parseStringBytes(bts []byte) (string, []byte, error) {
+	if msgp.IsNil(bts) {
+		bts, err := msgp.ReadNilBytes(bts)
+		return "", bts, err
+	}
+
 	// read the generic representation type without decoding
 	t := msgp.NextType(bts)
 

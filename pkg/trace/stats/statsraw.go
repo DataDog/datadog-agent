@@ -83,8 +83,8 @@ func NewRawBucket(ts, d int64) *RawBucket {
 func (sb *RawBucket) Export() Bucket {
 	ret := NewBucket(sb.start, sb.duration)
 	for k, v := range sb.data {
-		hitsKey := GrainKey(k.name, HITS, k.aggr)
-		tagSet := k.aggr.ToTagSet()
+		hitsKey := GrainKey(k.name, HITS, k.aggr, nil)
+		tagSet := k.aggr.ToTagSet(nil)
 		if !v.IsSublayersOnly() {
 			ret.Counts[hitsKey] = Count{
 				Key:      hitsKey,
@@ -94,7 +94,7 @@ func (sb *RawBucket) Export() Bucket {
 				TopLevel: v.topLevel,
 				Value:    float64(v.hits),
 			}
-			errorsKey := GrainKey(k.name, ERRORS, k.aggr)
+			errorsKey := GrainKey(k.name, ERRORS, k.aggr, nil)
 			ret.Counts[errorsKey] = Count{
 				Key:      errorsKey,
 				Name:     k.name,
@@ -103,7 +103,7 @@ func (sb *RawBucket) Export() Bucket {
 				TopLevel: v.topLevel,
 				Value:    float64(v.errors),
 			}
-			durationKey := GrainKey(k.name, DURATION, k.aggr)
+			durationKey := GrainKey(k.name, DURATION, k.aggr, nil)
 			ret.Counts[durationKey] = Count{
 				Key:      durationKey,
 				Name:     k.name,
@@ -130,8 +130,8 @@ func (sb *RawBucket) Export() Bucket {
 			}
 		}
 		for sk, sv := range v.sublayerStats {
-			key := GrainKey(k.name, sk.Metric, k.aggr) + "," + sk.Tag.Name + ":" + sk.Tag.Value
-			tagSet := append(k.aggr.ToTagSet(), sk.Tag)
+			key := GrainKey(k.name, sk.Metric, k.aggr, nil) + "," + sk.Tag.Name + ":" + sk.Tag.Value
+			tagSet := append(k.aggr.ToTagSet(nil), sk.Tag)
 			ret.Counts[key] = Count{
 				Key:      key,
 				Name:     k.name,

@@ -92,12 +92,12 @@ func TestReplacer(t *testing.T) {
 					{"*", "123abc", "[REDACTED]"},
 				},
 				got: pb.ClientGroupedStats{
-					Resource:       "this is 123abc on prod",
-					HTTPStatusCode: 400,
+					Resource: "this is 123abc on prod",
+					Tags:     [][]string{{"http.status_code", "400"}},
 				},
 				want: pb.ClientGroupedStats{
-					Resource:       "this is [REDACTED] on stage",
-					HTTPStatusCode: 200,
+					Resource: "this is [REDACTED] on stage",
+					Tags:     [][]string{{"http.status_code", "200"}},
 				},
 			},
 			{
@@ -105,12 +105,12 @@ func TestReplacer(t *testing.T) {
 					{"*", "200", "202"},
 				},
 				got: pb.ClientGroupedStats{
-					Resource:       "/code/200/profile",
-					HTTPStatusCode: 200,
+					Resource: "/code/200/profile",
+					Tags:     [][]string{{"http.status_code", "200"}},
 				},
 				want: pb.ClientGroupedStats{
-					Resource:       "/code/202/profile",
-					HTTPStatusCode: 202,
+					Resource: "/code/202/profile",
+					Tags:     [][]string{{"http.status_code", "202"}},
 				},
 			},
 		} {

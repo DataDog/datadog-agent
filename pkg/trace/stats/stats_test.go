@@ -103,7 +103,7 @@ func testTraceTopLevel() pb.Trace {
 
 func TestGrainKey(t *testing.T) {
 	assert := assert.New(t)
-	gk := GrainKey("serve", "duration", Aggregation{Service: "webserver", Env: "prod", Resource: "api_route"})
+	gk := GrainKey("serve", "duration", Aggregation{Service: "webserver", Env: "prod", Resource: "api_route"}, nil)
 	assert.Equal("serve|duration|env:prod,resource:api_route,service:webserver", gk)
 }
 
@@ -567,6 +567,6 @@ func BenchmarkGrainKey(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_ = GrainKey(grainName, grainMeasure, grainAggr)
+		_ = GrainKey(grainName, grainMeasure, grainAggr, nil)
 	}
 }

@@ -32,7 +32,11 @@ func TestClientStats(t *testing.T) {
 			}
 			defer r.KillAgent()
 
-			if err := r.PostMsgpack("/v0.5/stats", &tt.In); err != nil {
+			msg, err := tt.In.MarshalMsg(nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := r.PostMsgpack("/v0.5/stats", msg); err != nil {
 				t.Fatal(err)
 			}
 			timeout := time.After(3 * time.Second)
@@ -63,9 +67,14 @@ func TestClientStats(t *testing.T) {
 		}
 		defer r.KillAgent()
 
-		err := r.PostMsgpack("/v0.5/stats", &pb.ClientStatsPayload{})
+		var cp pb.ClientGroupedStats
+		msg, err := cp.MarshalMsg(nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = r.PostMsgpack("/v0.5/stats", msg)
 		if err == nil {
-			t.Fatal()
+			t.Fatal(err)
 		}
 		if !strings.Contains(err.Error(), "404") {
 			t.Fatal()

@@ -425,8 +425,16 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	ts := r.tagStats(v05, req)
 	rd := NewLimitedReader(req.Body, r.conf.MaxRequestBytes)
 	req.Header.Set("Accept", "application/msgpack")
+	buf := getBuffer()
+	_, err := io.Copy(buf, req.Body)
+	if err != nil {
+		httpDecodingError(err, []string{"handler:stats", "codec:msgpack", "v:v0.5"}, w)
+		return
+	}
 	var in pb.ClientStatsPayload
-	if err := msgp.Decode(rd, &in); err != nil {
+	_, err = in.UnmarshalMsg(buf.Bytes())
+	putBuffer(buf)
+	if err != nil {
 		httpDecodingError(err, []string{"handler:stats", "codec:msgpack", "v:v0.5"}, w)
 		return
 	}

@@ -8,7 +8,6 @@ package agent
 import (
 	"context"
 	"runtime"
-	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -282,10 +281,6 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang string) {
 			a.obfuscator.ObfuscateStatsGroup(&b)
 			a.Replacer.ReplaceStatsGroup(&b)
 
-			statusCode := ""
-			if b.HTTPStatusCode != 0 {
-				statusCode = strconv.Itoa(int(b.HTTPStatusCode))
-			}
 			newb := stats.Bucket{
 				Start:            int64(group.Start),
 				Duration:         int64(group.Duration),
@@ -293,9 +288,9 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang string) {
 				Distributions:    make(map[string]stats.Distribution),
 				ErrDistributions: make(map[string]stats.Distribution),
 			}
-			aggr := stats.NewAggregation(out.Env, b.Resource, b.Service, "", statusCode, in.Version, false)
-			tagset := aggr.ToTagSet()
-			key := stats.GrainKey(b.Name, stats.HITS, aggr)
+			aggr := stats.NewAggregation(out.Env, b.Resource, b.Service, "", "", in.Version, false)
+			tagset := aggr.ToTagSet(b.Tags)
+			key := stats.GrainKey(b.Name, stats.HITS, aggr, b.Tags)
 			newb.Counts[key] = stats.Count{
 				Key:     key,
 				Name:    b.Name,
@@ -303,7 +298,7 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang string) {
 				TagSet:  tagset,
 				Value:   float64(b.Hits),
 			}
-			key = stats.GrainKey(b.Name, stats.ERRORS, aggr)
+			key = stats.GrainKey(b.Name, stats.ERRORS, aggr, b.Tags)
 			newb.Counts[key] = stats.Count{
 				Key:     key,
 				Name:    b.Name,
@@ -311,7 +306,7 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang string) {
 				TagSet:  tagset,
 				Value:   float64(b.Errors),
 			}
-			key = stats.GrainKey(b.Name, stats.DURATION, aggr)
+			key = stats.GrainKey(b.Name, stats.DURATION, aggr, b.Tags)
 			newb.Counts[key] = stats.Count{
 				Key:     key,
 				Name:    b.Name,

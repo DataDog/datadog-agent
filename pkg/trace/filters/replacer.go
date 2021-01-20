@@ -6,8 +6,6 @@
 package filters
 
 import (
-	"strconv"
-
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
@@ -60,9 +58,10 @@ func (f Replacer) ReplaceStatsGroup(b *pb.ClientGroupedStats) {
 			b.Resource = re.ReplaceAllString(b.Resource, str)
 			fallthrough
 		case "http.status_code":
-			strcode := re.ReplaceAllString(strconv.Itoa(int(b.HTTPStatusCode)), str)
-			if code, err := strconv.Atoi(strcode); err == nil {
-				b.HTTPStatusCode = uint32(code)
+			for _, t := range b.Tags {
+				if t[0] == "http.status_code" {
+					t[1] = re.ReplaceAllString(t[1], str)
+				}
 			}
 		}
 	}

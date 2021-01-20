@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/tinylib/msgp/msgp"
 )
 
 // ErrNotStarted is returned when attempting to operate an unstarted Runner.
@@ -103,24 +102,20 @@ func (s *Runner) Out() <-chan interface{} {
 // must be started using RunAgent.
 //
 // Example: r.PostMsgpack("/v0.5/stats", pb.ClientStatsPayload{})
-func (s *Runner) PostMsgpack(path string, data msgp.Encodable) error {
+func (s *Runner) PostMsgpack(path string, b []byte) error {
 	if s.agent == nil {
 		return ErrNotStarted
 	}
 	if s.agent.PID() == 0 {
 		return errors.New("post: trace-agent not running")
 	}
-	var buf bytes.Buffer
-	if err := msgp.Encode(&buf, data); err != nil {
-		return err
-	}
 	addr := fmt.Sprintf("http://%s%s", s.agent.Addr(), path)
-	req, err := http.NewRequest("POST", addr, &buf)
+	req, err := http.NewRequest("POST", addr, bytes.NewBuffer(b))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/msgpack")
-	req.Header.Set("Content-Length", strconv.Itoa(buf.Len()))
+	req.Header.Set("Content-Length", strconv.Itoa(len(b)))
 
 	return s.doRequest(req)
 }
