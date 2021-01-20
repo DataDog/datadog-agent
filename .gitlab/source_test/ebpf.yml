@@ -1,9 +1,7 @@
 ---
 .retrieve_linux_go_deps: &retrieve_linux_go_deps |
-  mkdir -p $GOPATH/bin && tar xzf go-bin.tar.gz -C $GOPATH/bin
-  mkdir -p $GOPATH/pkg && tar xzf go-pkg.tar.gz -C $GOPATH/pkg
   mkdir vendor && tar xzf vendor.tar.gz -C vendor
-  rm -f go-bin.tar.gz go-pkg.tar.gz vendor.tar.gz
+  rm -f vendor.tar.gz
 
 # Run tests for eBPF code
 tests_ebpf:

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-//go:generate go-bindata -pkg status -prefix templates -o ./templates.go templates/...
+//go:generate go run github.com/shuLhan/go-bindata/cmd/go-bindata -pkg status -prefix templates -o ./templates.go templates/...
 //go:generate go fmt ./templates.go
 
 package status

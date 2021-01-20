@@ -7,20 +7,11 @@
   stage: deps_fetch
   needs: []
   script:
-    # HACK: empty the build directory cache (that can come from previous runs)
-    #       to not have remainders of previous runs, which can make our deps bootstrapping logic fail.
-    # TODO: remove this once we switch to k8s runners, they won't have this problem
-    - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -depth  # -delete implies -depth
-    - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -delete || true  # Allow failure, we can't remove parent folders of datadog-agent
     - inv -e deps --verbose
-    - cd $GOPATH/pkg && tar czf $CI_PROJECT_DIR/go-pkg.tar.gz .
-    - cd $GOPATH/bin && tar czf $CI_PROJECT_DIR/go-bin.tar.gz .
     - cd $CI_PROJECT_DIR/vendor && tar czf $CI_PROJECT_DIR/vendor.tar.gz .
   artifacts:
     expire_in: 1 day
     paths:
-      - $CI_PROJECT_DIR/go-pkg.tar.gz
-      - $CI_PROJECT_DIR/go-bin.tar.gz
       - $CI_PROJECT_DIR/vendor.tar.gz
 
 linux_x64_go_deps:

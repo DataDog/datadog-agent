@@ -165,6 +165,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("log_level", "info")
 	config.BindEnvAndSetDefault("log_to_syslog", false)
 	config.BindEnvAndSetDefault("log_to_console", true)
+	config.BindEnvAndSetDefault("log_format_rfc3339", false)
 	config.BindEnvAndSetDefault("logging_frequency", int64(500))
 	config.BindEnvAndSetDefault("disable_file_logging", false)
 	config.BindEnvAndSetDefault("syslog_uri", "")
@@ -314,8 +315,8 @@ func InitConfig(config Config) {
 	// Forwarder
 	config.BindEnvAndSetDefault("additional_endpoints", map[string][]string{})
 	config.BindEnvAndSetDefault("forwarder_timeout", 20)
-	config.BindEnvAndSetDefault("forwarder_retry_queue_max_size", 0)
-	config.BindEnvAndSetDefault("forwarder_retry_queue_payloads_max_size", 15*megaByte)
+	_ = config.BindEnv("forwarder_retry_queue_max_size")                                                 // Deprecated in favor of `forwarder_retry_queue_payloads_max_size`
+	_ = config.BindEnv("forwarder_retry_queue_payloads_max_size")                                        // Default value is defined inside `NewOptions` in pkg/forwarder/forwarder.go
 	config.BindEnvAndSetDefault("forwarder_connection_reset_interval", 0)                                // in seconds, 0 means disabled
 	config.BindEnvAndSetDefault("forwarder_apikey_validation_interval", DefaultAPIKeyValidationInterval) // in minutes
 	config.BindEnvAndSetDefault("forwarder_num_workers", 1)
@@ -564,6 +565,9 @@ func InitConfig(config Config) {
 	// specific logs-agent api-key
 	config.BindEnv("logs_config.api_key") //nolint:errcheck
 	config.BindEnvAndSetDefault("logs_config.logs_no_ssl", false)
+
+	// Duration in minutes during which the host tags will be submitted with log events.
+	config.BindEnvAndSetDefault("logs_config.expected_tags_duration", 0) // in minutes
 	// send the logs to the port 443 of the logs-backend via TCP:
 	config.BindEnvAndSetDefault("logs_config.use_port_443", false)
 	// increase the read buffer size of the UDP sockets:

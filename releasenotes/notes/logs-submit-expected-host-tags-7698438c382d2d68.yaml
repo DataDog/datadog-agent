@@ -1,0 +1,13 @@
+# Each section from every release note is combined when the
+# CHANGELOG.rst is rendered. Therefore, the text should be worded so
+# it does not depend on any information only available in another
+# section. You may need to repeat some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Submit host tags with log events for a configurable time duration
+    to avoid potential race conditions where some tags might not be
+    available to all backend services on freshly provisioned instances.
