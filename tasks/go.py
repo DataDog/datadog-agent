@@ -307,9 +307,7 @@ def deps(
             print("set ANDROID_NDK_HOME to build android")
             raise Exit(code=1)
 
-        cmd = "gomobile init -ndk {}".format(ndkhome)
-        print("gomobile command {}".format(cmd))
-        ctx.run(cmd)
+        ctx.run("gomobile init")
 
     if not no_dep_ensure:
         # source level deps
