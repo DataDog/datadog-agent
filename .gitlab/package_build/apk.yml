@@ -6,10 +6,8 @@
   if: $DEPLOY_AGENT == "true"
 
 .retrieve_linux_go_deps: &retrieve_linux_go_deps |
-  mkdir -p $GOPATH/bin && tar xzf go-bin.tar.gz -C $GOPATH/bin
-  mkdir -p $GOPATH/pkg && tar xzf go-pkg.tar.gz -C $GOPATH/pkg
   mkdir vendor && tar xzf vendor.tar.gz -C vendor
-  rm -f go-bin.tar.gz go-pkg.tar.gz vendor.tar.gz
+  rm -f vendor.tar.gz
 
 agent_android_apk:
   rules:
@@ -19,22 +17,15 @@ agent_android_apk:
       when: never
     - when: on_success
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/android_builder:v3715617-76ed3eb
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/android_builder:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main", "size:large"]
   needs: ["linux_x64_go_deps"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   before_script:
     - *retrieve_linux_go_deps
-    - echo running android before_script
     - cd $SRC_PATH
     - python3 -m pip install -r requirements.txt
-    # HACK: empty the build directory cache (that can come from previous runs)
-    #       to not have remainders of previous runs, which can make our deps bootstrapping logic fail.
-    # TODO: remove this once we switch to k8s runners, they won't have this problem
-    - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -depth  # -delete implies -depth
-    - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -delete || true  # Allow failure, we can't remove parent folders of datadog-agent
-    - inv -e deps --android
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
