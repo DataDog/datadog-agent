@@ -2,7 +2,7 @@
 
 class TargetMachine
 {
-private:
+  private:
     DWORD _serverType;
     DWORD _dcFlags;
     std::wstring _machineName;
@@ -11,11 +11,12 @@ private:
     std::wstring _dnsDomainName;
 
     DWORD DetectMachineType();
-    bool DetectComputerName(COMPUTER_NAME_FORMAT fmt, std::wstring& result);
+    bool DetectComputerName(COMPUTER_NAME_FORMAT fmt, std::wstring &result);
     DWORD DetectDomainInformation();
-public:
+
+  public:
     TargetMachine();
-    TargetMachine(const TargetMachine&) = default;
+    TargetMachine(const TargetMachine &) = default;
     ~TargetMachine();
 
     DWORD Detect();

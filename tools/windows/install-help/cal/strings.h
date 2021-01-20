@@ -49,13 +49,11 @@ extern std::wstring installInstalledServices;
 extern std::wstring keyInstalledUser;
 extern std::wstring keyInstalledDomain;
 
-
 void initializeStringsFromStringTable();
 
-
 bool loadDdAgentUserName(MSIHANDLE hInstall, LPCWSTR propertyName = NULL);
-bool loadPropertyString(MSIHANDLE hInstall, LPCWSTR propertyName, std::wstring& dst);
+bool loadPropertyString(MSIHANDLE hInstall, LPCWSTR propertyName, std::wstring &dst);
 bool loadPropertyString(MSIHANDLE hInstall, LPCWSTR propertyName, wchar_t **dst, DWORD *len);
 bool loadDdAgentPassword(MSIHANDLE hInstall, wchar_t **dst, DWORD *len);
 
-#define MAX_CUSTOM_PROPERTY_SIZE        128
+#define MAX_CUSTOM_PROPERTY_SIZE 128

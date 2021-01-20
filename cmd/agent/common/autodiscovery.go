@@ -10,6 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	confad "github.com/DataDog/datadog-agent/pkg/config/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -21,8 +22,12 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 	var discoveredProviders []config.ConfigurationProviders
 	var discoveredListeners []config.Listeners
 	if config.Datadog.GetBool("autoconf_from_environment") {
-		discoveredProviders, discoveredListeners = config.DiscoverAutodiscoveryComponents()
+		discoveredProviders, discoveredListeners = confad.DiscoverComponentsFromEnv()
 	}
+
+	providersFromConfig, listenersFromConfig := confad.DiscoverComponentsFromConfig()
+	discoveredProviders = append(discoveredProviders, providersFromConfig...)
+	discoveredListeners = append(discoveredListeners, listenersFromConfig...)
 
 	// Register additional configuration providers
 	var configProviders []config.ConfigurationProviders
@@ -49,6 +54,7 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 				uniqueConfigProviders[provider.Name] = provider
 			}
 		}
+
 	} else {
 		log.Errorf("Error while reading 'config_providers' settings: %v", err)
 	}

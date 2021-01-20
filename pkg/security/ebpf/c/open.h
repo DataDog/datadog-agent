@@ -77,6 +77,18 @@ SYSCALL_COMPAT_KPROBE4(openat, int, dirfd, const char*, filename, int, flags, um
     return trace__sys_openat(flags, mode);
 }
 
+struct openat2_open_how {
+    u64 flags;
+    u64 mode;
+    u64 resolve;
+};
+
+SYSCALL_KPROBE4(openat2, int, dirfd, const char*, filename, struct openat2_open_how*, phow, size_t, size) {
+    struct openat2_open_how how;
+    bpf_probe_read(&how, sizeof(struct openat2_open_how), phow);
+    return trace__sys_openat(how.flags, how.mode);
+}
+
 int __attribute__((always_inline)) approve_by_basename(struct syscall_cache_t *syscall) {
     struct open_basename_t basename = {};
     get_dentry_name(syscall->open.dentry, &basename, sizeof(basename));
@@ -233,6 +245,10 @@ SYSCALL_COMPAT_KRETPROBE(open) {
 }
 
 SYSCALL_COMPAT_KRETPROBE(openat) {
+    return trace__sys_open_ret(ctx);
+}
+
+SYSCALL_KRETPROBE(openat2) {
     return trace__sys_open_ret(ctx);
 }
 

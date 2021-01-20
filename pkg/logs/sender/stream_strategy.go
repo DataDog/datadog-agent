@@ -6,6 +6,8 @@
 package sender
 
 import (
+	"sync"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -18,8 +20,12 @@ var StreamStrategy Strategy = &streamStrategy{}
 // streamStrategy contains all the logic to send one log at a time.
 type streamStrategy struct{}
 
+func (s *streamStrategy) Flush(inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error, mu *sync.Mutex) {
+	// nothing to do
+}
+
 // Send sends one message at a time and forwards them to the next stage of the pipeline.
-func (s *streamStrategy) Send(inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error) {
+func (s *streamStrategy) Send(inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error, mu *sync.Mutex) {
 	for message := range inputChan {
 		if message.Origin != nil {
 			message.Origin.LogSource.LatencyStats.Add(message.GetLatency())

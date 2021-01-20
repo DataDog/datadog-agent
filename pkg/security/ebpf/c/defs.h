@@ -198,11 +198,9 @@ enum event_type
     EVENT_EXEC,
     EVENT_EXIT,
     EVENT_INVALIDATE_DENTRY,
-    EVENT_MAX, // has to be the last one and a power of two
+    EVENT_MAX, // has to be the last one
+    EVENT_MAX_ROUNDED_UP = 32, // closest power of 2 that is bigger than EVENT_MAX
 };
-
-// closest power of 2 that is bigger than EVENT_MAX
-#define EVENT_MAX_ROUNDED_UP 32
 
 enum syscall_type
 {
@@ -305,6 +303,12 @@ static __attribute__((always_inline)) u32 is_flushing_discarders(void) {
     return prev_id != NULL && *prev_id;
 }
 
+struct perf_map_stats_t {
+    u64 bytes;
+    u64 count;
+    u64 lost;
+};
+
 struct bpf_map_def SEC("maps/events") events = {
     .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
     .key_size = sizeof(__u32),
@@ -314,11 +318,34 @@ struct bpf_map_def SEC("maps/events") events = {
     .namespace = "",
 };
 
-#define send_event(ctx, event_type, event) \
-    event.event.type = event_type; \
-    event.event.cpu = bpf_get_smp_processor_id(); \
-    event.event.timestamp = bpf_ktime_get_ns(); \
-    bpf_perf_event_output(ctx, &events, event.event.cpu, &event, sizeof(event))
+struct bpf_map_def SEC("maps/events_stats") events_stats = {
+    .type = BPF_MAP_TYPE_PERCPU_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(struct perf_map_stats_t),
+    .max_entries = EVENT_MAX,
+    .pinning = 0,
+    .namespace = "",
+};
+
+#define send_event(ctx, event_type, kernel_event)                                                                      \
+    kernel_event.event.type = event_type;                                                                              \
+    kernel_event.event.cpu = bpf_get_smp_processor_id();                                                               \
+    kernel_event.event.timestamp = bpf_ktime_get_ns();                                                                 \
+                                                                                                                       \
+    u64 size = sizeof(kernel_event);                                                                                   \
+    int perf_ret = bpf_perf_event_output(ctx, &events, kernel_event.event.cpu, &kernel_event, size);                   \
+                                                                                                                       \
+    if (kernel_event.event.type < EVENT_MAX) {                                                                         \
+        struct perf_map_stats_t *stats = bpf_map_lookup_elem(&events_stats, &kernel_event.event.type);                 \
+        if (stats != NULL) {                                                                                           \
+            if (!perf_ret) {                                                                                           \
+                __sync_fetch_and_add(&stats->bytes, size + 4);                                                         \
+                __sync_fetch_and_add(&stats->count, 1);                                                                \
+            } else {                                                                                                   \
+                __sync_fetch_and_add(&stats->lost, 1);                                                                 \
+            }                                                                                                          \
+        }                                                                                                              \
+    }                                                                                                                  \
 
 static __attribute__((always_inline)) u32 ord(u8 c) {
     if (c >= 49 && c <= 57) {

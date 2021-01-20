@@ -140,6 +140,7 @@ func extractPodMessage(p *v1.Pod) *model.Pod {
 	podModel.NominatedNodeName = p.Status.NominatedNodeName
 	podModel.IP = p.Status.PodIP
 	podModel.RestartCount = 0
+	podModel.QOSClass = string(p.Status.QOSClass)
 	for _, cs := range p.Status.ContainerStatuses {
 		podModel.RestartCount += cs.RestartCount
 		cStatus := convertContainerStatus(cs)
@@ -319,6 +320,12 @@ func GetConditionMessage(p *v1.Pod) string {
 		v1.PodReady,
 	}
 
+	// in some cases (eg evicted) we don't have conditions
+	// in these cases fall back to status message directly
+	if len(p.Status.Conditions) == 0 {
+		return p.Status.Message
+	}
+
 	// populate messageMap with messages for non-passing conditions
 	for _, c := range p.Status.Conditions {
 		if c.Status == v1.ConditionFalse && c.Message != "" {
@@ -350,9 +357,10 @@ func generateUniqueStaticPodHash(host, podName, namespace, clusterName string) s
 // ExtractMetadata extracts standard metadata into the model
 func ExtractMetadata(m *metav1.ObjectMeta) *model.Metadata {
 	meta := model.Metadata{
-		Name:      m.Name,
-		Namespace: m.Namespace,
-		Uid:       string(m.UID),
+		Name:            m.Name,
+		Namespace:       m.Namespace,
+		Uid:             string(m.UID),
+		ResourceVersion: m.ResourceVersion,
 	}
 	if !m.CreationTimestamp.IsZero() {
 		meta.CreationTimestamp = m.CreationTimestamp.Unix()

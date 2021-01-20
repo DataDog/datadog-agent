@@ -82,6 +82,10 @@ message StreamTagsRequest {
 }
 
 message StreamTagsResponse {
+    repeated StreamTagsEvent events = 1;
+}
+
+message StreamTagsEvent {
     EventType type = 1;
     Entity entity = 2;
 }

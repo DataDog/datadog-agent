@@ -221,7 +221,7 @@ func (sm *SyscallMonitor) CollectStats(collector SyscallStatsCollector) error {
 	}
 
 	sm.activeKernelBuffer = 1 - sm.activeKernelBuffer
-	return sm.bufferSelector.Put(ebpf.ZeroUint32MapItem, sm.activeKernelBuffer)
+	return sm.bufferSelector.Put(ebpf.BufferSelectorSyscallMonitorKey, sm.activeKernelBuffer)
 }
 
 // NewSyscallMonitor instantiates a new syscall monitor
