@@ -1,6 +1,7 @@
 package serverless
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -52,6 +53,13 @@ func (d *Daemon) SetStatsdServer(statsdServer *dogstatsd.Server) {
 // directly to the aggregator, with caution.
 func (d *Daemon) SetAggregator(aggregator *aggregator.BufferedAggregator) {
 	d.aggregator = aggregator
+}
+
+// TriggerFlush triggers a flush of the aggregated metrics and of the logs.
+func (d *Daemon) TriggerFlush(ctx context.Context) {
+	logs.Flush(ctx) // ctx timeout
+	d.statsdServer.Flush()
+	log.Debug("Flush done")
 }
 
 // StartDaemon starts an HTTP server to receive messages from the runtime.

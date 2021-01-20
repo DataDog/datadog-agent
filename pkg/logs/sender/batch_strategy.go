@@ -6,6 +6,7 @@
 package sender
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -36,25 +37,30 @@ func NewBatchStrategy(serializer Serializer, batchWait time.Duration) Strategy {
 	}
 }
 
-func (s *batchStrategy) Flush(inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error, mu *sync.Mutex) {
+func (s *batchStrategy) Flush(ctx context.Context, inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error, mu *sync.Mutex) {
 	mu.Lock()
+	defer mu.Unlock()
 	for {
-		if len(inputChan) == 0 {
-			break
-		}
-		message := <-inputChan
-		added := s.buffer.AddMessage(message)
-		if !added || s.buffer.IsFull() {
-			s.sendBuffer(outputChan, send)
-		}
-		if !added {
-			// it's possible that the message could not be added because the buffer was full
-			// so we need to retry once again
-			s.buffer.AddMessage(message)
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			if len(inputChan) == 0 {
+				s.sendBuffer(outputChan, send)
+				return
+			}
+			message := <-inputChan
+			added := s.buffer.AddMessage(message)
+			if !added || s.buffer.IsFull() {
+				s.sendBuffer(outputChan, send)
+			}
+			if !added {
+				// it's possible that the message could not be added because the buffer was full
+				// so we need to retry once again
+				s.buffer.AddMessage(message)
+			}
 		}
 	}
-	s.sendBuffer(outputChan, send)
-	mu.Unlock()
 }
 
 // Send accumulates messages to a buffer and sends them when the buffer is full or outdated.

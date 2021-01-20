@@ -6,6 +6,7 @@
 package logs
 
 import (
+	"context"
 	"time"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -118,8 +119,8 @@ func (a *Agent) Start() {
 }
 
 // Flush flushes synchronously the pipelines managed by the Logs Agent.
-func (a *Agent) Flush() {
-	a.pipelineProvider.Flush()
+func (a *Agent) Flush(ctx context.Context) {
+	a.pipelineProvider.Flush(ctx)
 }
 
 // Stop stops all the elements of the data pipeline

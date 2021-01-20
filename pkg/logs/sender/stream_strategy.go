@@ -6,6 +6,7 @@
 package sender
 
 import (
+	"context"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -20,7 +21,7 @@ var StreamStrategy Strategy = &streamStrategy{}
 // streamStrategy contains all the logic to send one log at a time.
 type streamStrategy struct{}
 
-func (s *streamStrategy) Flush(inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error, mu *sync.Mutex) {
+func (s *streamStrategy) Flush(ctx context.Context, inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error, mu *sync.Mutex) {
 	// nothing to do
 }
 
