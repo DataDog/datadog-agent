@@ -72,7 +72,9 @@ func NewConntracker(procRoot string, maxStateSize, targetRateLimit int, listenAl
 	done := make(chan struct{})
 
 	go func() {
+		start := time.Now()
 		conntracker, err = newConntrackerOnce(procRoot, maxStateSize, targetRateLimit, listenAllNamespaces)
+		log.Infof("conntrack initialization took %s", time.Now().Sub(start))
 		done <- struct{}{}
 	}()
 
@@ -184,7 +186,6 @@ func (ctr *realConntracker) DeleteTranslation(c network.ConnectionStats) {
 
 	delete(ctr.state, k)
 	delete(ctr.state, ipTranslationToConnKey(k.transport, t))
-	log.Tracef("deleted %+v from conntrack", k)
 	atomic.AddInt64(&ctr.stats.unregisters, 1)
 }
 
