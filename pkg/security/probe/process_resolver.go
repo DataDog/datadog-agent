@@ -8,6 +8,7 @@
 package probe
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -254,11 +255,7 @@ func (p *ProcessResolver) insertExecEntry(pid uint32, entry *ProcessCacheEntry) 
 	return entry
 }
 
-// DeleteEntry tries to delete an entry in the process cache
-func (p *ProcessResolver) DeleteEntry(pid uint32, exitTime time.Time) {
-	p.Lock()
-	defer p.Unlock()
-
+func (p *ProcessResolver) deleteEntry(pid uint32, exitTime time.Time) {
 	// Start by updating the exit timestamp of the pid cache entry
 	entry, ok := p.entryCache[pid]
 	if !ok {
@@ -266,6 +263,14 @@ func (p *ProcessResolver) DeleteEntry(pid uint32, exitTime time.Time) {
 	}
 	entry.Exit(exitTime)
 	delete(p.entryCache, entry.Pid)
+}
+
+// DeleteEntry tries to delete an entry in the process cache
+func (p *ProcessResolver) DeleteEntry(pid uint32, exitTime time.Time) {
+	p.Lock()
+	defer p.Unlock()
+
+	p.deleteEntry(pid, exitTime)
 }
 
 // Resolve returns the cache entry for the given pid
@@ -363,7 +368,7 @@ func (p *ProcessResolver) Get(pid uint32) *ProcessCacheEntry {
 }
 
 // Start starts the resolver
-func (p *ProcessResolver) Start() error {
+func (p *ProcessResolver) Start(ctx context.Context) error {
 	var err error
 	if p.inodeInfoMap, err = p.probe.Map("inode_info_cache"); err != nil {
 		return err
@@ -385,7 +390,46 @@ func (p *ProcessResolver) Start() error {
 		return err
 	}
 
+	go p.cacheFlusher(ctx)
+
 	return nil
+}
+
+func (p *ProcessResolver) cacheFlusher(ctx context.Context) {
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case now := <-ticker.C:
+			var pids []uint32
+
+			p.RLock()
+			for pid := range p.entryCache {
+				pids = append(pids, pid)
+			}
+			p.RUnlock()
+
+			// flush slowly
+			for _, pid := range pids {
+				if _, err := process.NewProcess(int32(pid)); err != nil {
+					// check start time to ensure to not delete a recent pid
+					p.Lock()
+					if entry := p.entryCache[pid]; entry != nil {
+						if tm := entry.ExecTimestamp; !tm.IsZero() && tm.Add(time.Minute).Before(now) {
+							p.deleteEntry(pid, now)
+						} else if tm := entry.ForkTimestamp; !tm.IsZero() && tm.Add(time.Minute).Before(now) {
+							p.deleteEntry(pid, now)
+						}
+					}
+					p.Unlock()
+				}
+				time.Sleep(50 * time.Millisecond)
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 // SyncCache snapshots /proc for the provided pid. This method returns true if it updated the process cache.
