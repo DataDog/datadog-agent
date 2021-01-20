@@ -130,6 +130,10 @@ func TestTracerExpvar(t *testing.T) {
 			"PUdpRecvmsgMisses",
 			"PIpMakeSkbHits",
 			"PIpMakeSkbMisses",
+			"PInetBindHits",
+			"PInetBindMisses",
+			"PInet6BindHits",
+			"PInet6BindMisses",
 			"RInetCskAcceptHits",
 			"RInetCskAcceptMisses",
 			"RTcpCloseHits",
@@ -138,19 +142,14 @@ func TestTracerExpvar(t *testing.T) {
 			"RUdpRecvmsgMisses",
 			"RTcpSendmsgHits",
 			"RTcpSendmsgMisses",
+			"RInetBindHits",
+			"RInetBindMisses",
+			"RInet6BindHits",
+			"RInet6BindMisses",
 		},
 	}
 
-	archSpecificKprobes := [][]string{
-		{"PSysBindHits", "PX64SysBindHits"},
-		{"PSysBindMisses", "PX64SysBindMisses"},
-		{"PSysSocketHits", "PX64SysSocketHits"},
-		{"PSysSocketMisses", "PX64SysSocketMisses"},
-		{"RSysBindHits", "RX64SysBindHits"},
-		{"RSysBindMisses", "RX64SysBindMisses"},
-		{"RSysSocketHits", "RX64SysSocketHits"},
-		{"RSysSocketMisses", "RX64SysSocketMisses"},
-	}
+	archSpecificKprobes := [][]string{}
 
 	for _, et := range expvarTypes {
 		if et == "dns" && pre410Kernel {
