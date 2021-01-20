@@ -435,14 +435,19 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *tracerStatus, expected *f
 			break
 		}
 	case guessDportFl4:
+		nextStep := guessSaddrFl6
+		if status.ipv6_enabled == disabled {
+			nextStep = guessNetns
+		}
+
 		if status.dport_fl4 == C.__u16(htons(expected.dportFl4)) {
-			logAndAdvance(status, status.offset_dport_fl4, guessSaddrFl6)
+			logAndAdvance(status, status.offset_dport_fl4, C.__u64(nextStep))
 			status.fl4_offsets = enabled
 			break
 		}
 		status.offset_dport_fl4++
 		if uint64(status.offset_dport_fl4) == threshold {
-			logAndAdvance(status, notApplicable, guessSaddrFl6)
+			logAndAdvance(status, notApplicable, C.__u64(nextStep))
 			status.fl4_offsets = disabled
 			break
 		}
@@ -453,7 +458,7 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *tracerStatus, expected *f
 		}
 		status.offset_saddr_fl6++
 		if uint64(status.offset_saddr_fl6) == threshold {
-			// Let's skip all other flowi4 fields
+			// Let's skip all other flowi6 fields
 			logAndAdvance(status, notApplicable, guessNetns)
 			status.fl6_offsets = disabled
 			break
