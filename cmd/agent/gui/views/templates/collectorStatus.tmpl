@@ -32,8 +32,8 @@
                 Events: {{humanize .Events}}, Total: {{humanize .TotalEvents}}<br>
                 Service Checks: {{humanize .ServiceChecks}}, Total: {{humanize .TotalServiceChecks}}<br>
                 Average Execution Time : {{humanizeDuration .AverageExecutionTime "ms"}}<br>
-                Last Execution Date : {{formatUnixTime .UpdateTimestamp}}<br>
-                Last Successful Execution Date : {{ if .LastSuccessDate }}{{formatUnixTime .LastSuccessDate}}{{ else }}Never{{ end }}<br>
+                Last Execution Date : {{formatUnixTime .UpdateTimestamp false}}<br>
+                Last Successful Execution Date : {{ if .LastSuccessDate }}{{formatUnixTime .LastSuccessDate false}}{{ else }}Never{{ end }}<br>
                 {{- if index $.Stats.inventories .CheckID }}
                 Metadata:<br>
                 <span class="stat_subdata">

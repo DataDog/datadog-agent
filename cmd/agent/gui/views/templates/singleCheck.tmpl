@@ -8,8 +8,8 @@
         Metric Samples: {{humanize .MetricSamples}}, Total: {{humanize .TotalMetricSamples}}<br>
         Events: {{humanize .Events}}, Total: {{humanize .TotalEvents}}<br>
         Service Checks: {{humanize .ServiceChecks}}, Total: {{humanize .TotalServiceChecks}}<br>
-        Last Execution Date : {{formatUnixTime .UpdateTimestamp}}<br>
-        Last Successful Execution Date : {{ if .LastSuccessDate }}{{formatUnixTime .LastSuccessDate}}{{ else }}Never{{ end }}<br>
+        Last Execution Date : {{formatUnixTime .UpdateTimestamp false}}<br>
+        Last Successful Execution Date : {{ if .LastSuccessDate }}{{formatUnixTime .LastSuccessDate false}}{{ else }}Never{{ end }}<br>
       {{- if .LastError}}
         <span class="error">Error</span>: {{lastErrorMessage .LastError}}<br>
               {{lastErrorTraceback .LastError -}}

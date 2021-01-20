@@ -44,7 +44,7 @@
         {{- if ne $type "hostname" -}}
           {{- if ne $type "hostid" -}}
             {{if $value}}
-              {{formatTitle $type}}: {{if eq $type "bootTime" -}}{{- formatUnixTime $value -}}
+              {{formatTitle $type}}: {{if eq $type "bootTime" -}}{{- formatUnixTime $value false -}}
                               {{- else -}}{{- if eq $type "uptime" -}}{{- humanizeDuration $value "s" -}}
                               {{- else -}}{{- $value -}}
                               {{- end -}}{{- end -}}<br>
@@ -124,7 +124,7 @@
       <span class="stat_subtitle">JMX startup errors</span>
         <span class="stat_subdata">
           Error: {{ .JMXStartupError.LastError }} <br>
-          Date: {{ formatUnixTime .JMXStartupError.Timestamp }}
+          Date: {{ formatUnixTime .JMXStartupError.Timestamp false}}
         </span>
       {{ end -}}
       {{- with .JMXStatus -}}
