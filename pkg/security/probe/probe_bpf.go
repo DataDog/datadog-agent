@@ -239,6 +239,10 @@ func (p *Probe) SendStats() error {
 		return errors.Wrap(err, "failed to send process_resolver cache_size metric")
 	}
 
+	if err := p.statsdClient.Gauge(MetricPrefix+".process_resolver.entry_cache_size", p.resolvers.ProcessResolver.GetEntryCacheSize(), []string{}, 1.0); err != nil {
+		return errors.Wrap(err, "failed to send process_resolver cache_size metric")
+	}
+
 	return p.eventsStats.SendStats(p.statsdClient)
 }
 

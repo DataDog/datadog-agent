@@ -187,8 +187,9 @@ func (p *ProcessResolver) retrieveInodeInfo(inode uint64) (*InodeInfo, error) {
 }
 
 func (p *ProcessResolver) insertForkEntry(pid uint32, entry *ProcessCacheEntry) *ProcessCacheEntry {
-	if _, exists := p.entryCache[pid]; exists {
-		return nil
+	if prev := p.entryCache[pid]; prev != nil {
+		// this shouldn't happen but it is better to exit the prev and let the new one replace it
+		prev.Exit(entry.ForkTimestamp)
 	}
 
 	parent := p.entryCache[entry.PPid]
@@ -211,11 +212,9 @@ func (p *ProcessResolver) insertForkEntry(pid uint32, entry *ProcessCacheEntry) 
 }
 
 func (p *ProcessResolver) insertExecEntry(pid uint32, entry *ProcessCacheEntry) *ProcessCacheEntry {
-	prev := p.entryCache[pid]
-	if prev == nil {
-		return nil
+	if prev := p.entryCache[pid]; prev != nil {
+		prev.Exec(entry)
 	}
-	prev.Exec(entry)
 
 	p.entryCache[pid] = entry
 
@@ -446,6 +445,11 @@ func (p *ProcessResolver) GetCacheSize() float64 {
 	p.RLock()
 	defer p.RUnlock()
 	return float64(len(p.entryCache))
+}
+
+// GetEntryCacheSize returns the cache size of the process resolver
+func (p *ProcessResolver) GetEntryCacheSize() float64 {
+	return float64(atomic.LoadInt64(&p.cacheSize))
 }
 
 // NewProcessResolver returns a new process resolver
