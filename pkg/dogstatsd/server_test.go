@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -48,7 +49,7 @@ func TestNewServer(t *testing.T) {
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	s, err := NewServer(mockAggregator())
+	s, err := NewServer(mockAggregator(), nil)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 	assert.NotNil(t, s)
@@ -60,7 +61,7 @@ func TestStopServer(t *testing.T) {
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	s, err := NewServer(mockAggregator())
+	s, err := NewServer(mockAggregator(), nil)
 	require.NoError(t, err, "cannot start DSD")
 	s.Stop()
 
@@ -86,7 +87,7 @@ func TestUDPReceive(t *testing.T) {
 
 	agg := mockAggregator()
 	metricOut, eventOut, serviceOut := agg.GetBufferedChannels()
-	s, err := NewServer(agg)
+	s, err := NewServer(agg, nil)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
@@ -308,8 +309,14 @@ func TestUDPReceive(t *testing.T) {
 		assert.FailNow(t, "Timeout on receive channel")
 	}
 
-	// Test erroneous Event
-	conn.Write([]byte("_e{0,9}:|test text\n_e{11,10}:test title2|test\\ntext|t:warning|d:12345|p:low|h:some.host|k:aggKey|s:source test|#tag1,tag2:test"))
+	// Test erroneous Events
+	conn.Write(
+		[]byte("_e{0,9}:|test text\n" +
+			"_e{-5,2}:abc\n" +
+			"_e{11,10}:test title2|test\\ntext|" +
+			"t:warning|d:12345|p:low|h:some.host|k:aggKey|s:source test|#tag1,tag2:test",
+		),
+	)
 	select {
 	case res := <-eventOut:
 		assert.Equal(t, 1, len(res))
@@ -341,7 +348,7 @@ func TestUDPForward(t *testing.T) {
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
 	agg := mockAggregator()
-	s, err := NewServer(agg)
+	s, err := NewServer(agg, nil)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
@@ -377,7 +384,7 @@ func TestHistToDist(t *testing.T) {
 
 	agg := mockAggregator()
 	metricOut, _, _ := agg.GetBufferedChannels()
-	s, err := NewServer(agg)
+	s, err := NewServer(agg, nil)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
@@ -470,7 +477,7 @@ func TestE2EParsing(t *testing.T) {
 
 	agg := mockAggregator()
 	metricOut, _, _ := agg.GetBufferedChannels()
-	s, err := NewServer(agg)
+	s, err := NewServer(agg, nil)
 	require.NoError(t, err, "cannot start DSD")
 
 	url := fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_port"))
@@ -495,7 +502,7 @@ func TestE2EParsing(t *testing.T) {
 
 	agg = mockAggregator()
 	metricOut, _, _ = agg.GetBufferedChannels()
-	s, err = NewServer(agg)
+	s, err = NewServer(agg, nil)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
@@ -518,7 +525,7 @@ func TestExtraTags(t *testing.T) {
 
 	agg := mockAggregator()
 	metricOut, _, _ := agg.GetBufferedChannels()
-	s, err := NewServer(agg)
+	s, err := NewServer(agg, nil)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
@@ -546,7 +553,7 @@ func TestExtraTags(t *testing.T) {
 func TestDebugStatsSpike(t *testing.T) {
 	assert := assert.New(t)
 	agg := mockAggregator()
-	s, err := NewServer(agg)
+	s, err := NewServer(agg, nil)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
@@ -587,7 +594,7 @@ func TestDebugStatsSpike(t *testing.T) {
 
 func TestDebugStats(t *testing.T) {
 	agg := mockAggregator()
-	s, err := NewServer(agg)
+	s, err := NewServer(agg, nil)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
@@ -669,7 +676,7 @@ func TestNoMappingsConfig(t *testing.T) {
 	err = config.Datadog.ReadConfig(strings.NewReader(datadogYaml))
 	require.NoError(t, err)
 
-	s, err := NewServer(mockAggregator())
+	s, err := NewServer(mockAggregator(), nil)
 	require.NoError(t, err, "cannot start DSD")
 
 	assert.Nil(t, s.mapper)
@@ -781,7 +788,7 @@ dogstatsd_mapper_profiles:
 			require.NoError(t, err, "Case `%s` failed. getAvailableUDPPort should not return error %v", scenario.name, err)
 			config.Datadog.SetDefault("dogstatsd_port", port)
 
-			s, err := NewServer(mockAggregator())
+			s, err := NewServer(mockAggregator(), nil)
 			require.NoError(t, err, "Case `%s` failed. NewServer should not return error %v", scenario.name, err)
 
 			assert.Equal(t, config.Datadog.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize, "Case `%s` failed. cache_size `%s` should be `%s`", scenario.name, config.Datadog.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize)
@@ -805,4 +812,42 @@ dogstatsd_mapper_profiles:
 			s.Stop()
 		})
 	}
+}
+
+func TestNewServerExtraTags(t *testing.T) {
+	require := require.New(t)
+	port, err := getAvailableUDPPort()
+	require.NoError(err)
+	config.Datadog.SetDefault("dogstatsd_port", port)
+
+	s, err := NewServer(mockAggregator(), nil)
+	require.NoError(err, "starting the DogStatsD server shouldn't fail")
+	require.Len(s.extraTags, 0, "no tags should have been read")
+	s.Stop()
+
+	// when the extraTags parameter isn't used, the DogStatsD server is not reading this env var
+	os.Setenv("DD_TAGS", "hello:world")
+	s, err = NewServer(mockAggregator(), nil)
+	require.NoError(err, "starting the DogStatsD server shouldn't fail")
+	require.Len(s.extraTags, 0, "no tags should have been read")
+	s.Stop()
+
+	// when the extraTags parameter isn't used, the DogStatsD server is automatically reading this env var for extra tags
+	os.Setenv("DD_DOGSTATSD_TAGS", "hello:world extra:tags")
+	s, err = NewServer(mockAggregator(), nil)
+	require.NoError(err, "starting the DogStatsD server shouldn't fail")
+	require.Len(s.extraTags, 2, "two tags should have been read")
+	require.Equal(s.extraTags[0], "hello:world", "the tag hello:world should be set")
+	require.Equal(s.extraTags[1], "extra:tags", "the tag extra:tags should be set")
+	s.Stop()
+
+	// when the extraTags parameter is used, it should be used as the extraTags for the server
+	// and the DD_DOGSTATSD_TAGS environment var should be ignored.
+	os.Setenv("DD_DOGSTATSD_TAGS", "hello:world") // this should be ignored
+	s, err = NewServer(mockAggregator(), []string{"extra:tags", "new:constructor"})
+	require.NoError(err, "starting the DogStatsD server shouldn't fail")
+	require.Len(s.extraTags, 2, "two tags should have been read")
+	require.Equal(s.extraTags[0], "extra:tags", "the tag extra:tags should be set")
+	require.Equal(s.extraTags[1], "new:constructor", "the tag new:constructor should be set")
+	s.Stop()
 }

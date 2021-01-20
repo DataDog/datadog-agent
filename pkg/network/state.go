@@ -89,7 +89,7 @@ type networkState struct {
 	clients   map[string]*client
 	telemetry telemetry
 
-	buf             [ConnectionByteKeyMaxLen]byte // Shared buffer
+	buf             []byte // Shared buffer
 	latestTimeEpoch uint64
 
 	// Network state configuration
@@ -110,6 +110,7 @@ func NewState(clientExpiry time.Duration, maxClosedConns, maxClientStats int, ma
 		maxClientStats:    maxClientStats,
 		maxDNSStats:       maxDNSStats,
 		collectDNSDomains: collectDNSDomains,
+		buf:               make([]byte, ConnectionByteKeyMaxLen),
 	}
 }
 
@@ -252,7 +253,7 @@ func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
 }
 
 // getConnsByKey returns a mapping of byte-key -> connection for easier access + manipulation
-func getConnsByKey(conns []ConnectionStats, buf [ConnectionByteKeyMaxLen]byte) map[string]*ConnectionStats {
+func getConnsByKey(conns []ConnectionStats, buf []byte) map[string]*ConnectionStats {
 	connsByKey := make(map[string]*ConnectionStats, len(conns))
 	for i, c := range conns {
 		key, err := c.ByteKey(buf)

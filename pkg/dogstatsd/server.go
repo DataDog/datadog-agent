@@ -128,8 +128,9 @@ type metricsCountBuckets struct {
 	closeChan  chan struct{}
 }
 
-// NewServer returns a running DogStatsD server
-func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
+// NewServer returns a running DogStatsD server.
+// If extraTags is nil, they will be read from DD_DOGSTATSD_TAGS if set.
+func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*Server, error) {
 	var stats *util.Stats
 	if config.Datadog.GetBool("dogstatsd_stats_enable") == true {
 		buff := config.Datadog.GetInt("dogstatsd_stats_buffer")
@@ -204,7 +205,9 @@ func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 	histToDist := config.Datadog.GetBool("histogram_copy_to_distribution")
 	histToDistPrefix := config.Datadog.GetString("histogram_copy_to_distribution_prefix")
 
-	extraTags := config.Datadog.GetStringSlice("dogstatsd_tags")
+	if extraTags == nil {
+		extraTags = config.Datadog.GetStringSlice("dogstatsd_tags")
+	}
 
 	entityIDPrecedenceEnabled := config.Datadog.GetBool("dogstatsd_entity_id_precedence")
 

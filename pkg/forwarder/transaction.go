@@ -197,8 +197,10 @@ type HTTPTransaction struct {
 	retryable bool
 
 	// attemptHandler will be called with a transaction before the attempting to send the request
+	// This field is not restored when a transaction is deserialized from the disk (the default value is used).
 	attemptHandler HTTPAttemptHandler
 	// completionHandler will be called with a transaction after it has been successfully sent
+	// This field is not restored when a transaction is deserialized from the disk (the default value is used).
 	completionHandler HTTPCompletionHandler
 
 	priority TransactionPriority

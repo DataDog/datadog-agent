@@ -42,6 +42,12 @@ struct inode_discarder_t {
     u32 padding;
 };
 
+static __always_inline u32 get_system_probe_pid() {
+    u64 val = 0;
+    LOAD_CONSTANT("system_probe_pid", val);
+    return val;
+}
+
 struct bpf_map_def SEC("maps/inode_discarders") inode_discarders = {
     .type = BPF_MAP_TYPE_LRU_HASH,
     .key_size = sizeof(struct inode_discarder_t),
@@ -140,6 +146,11 @@ struct bpf_map_def SEC("maps/pid_discarders") pid_discarders = { \
 };
 
 int __attribute__((always_inline)) discarded_by_pid(u64 event_type, u32 tgid) {
+    u32 system_probe_pid = get_system_probe_pid();
+    if (system_probe_pid && system_probe_pid == tgid) {
+        return 1;
+    }
+
     struct pid_discarder_t key = {
         .tgid = tgid,
     };

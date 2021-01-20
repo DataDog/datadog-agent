@@ -17,6 +17,18 @@ type Message struct {
 	Origin             *Origin
 	status             string
 	IngestionTimestamp int64
+	// Optional. Must be UTC. If not provided, time.Now().UTC() will be used
+	// Used in the Serverless Agent
+	Timestamp time.Time
+	// Optional.
+	// Used in the Serverless Agent
+	Lambda *Lambda
+}
+
+// Lambda is a struct storing information about the Lambda function and function execution.
+type Lambda struct {
+	ARN       string
+	RequestID string
 }
 
 // NewMessageWithSource constructs message with content, status and log source.
@@ -24,13 +36,27 @@ func NewMessageWithSource(content []byte, status string, source *config.LogSourc
 	return NewMessage(content, NewOrigin(source), status, ingestionTimestamp)
 }
 
-// NewMessage constructs message with full information.
+// NewMessage constructs message with content, status, origin and the ingestion timestamp.
 func NewMessage(content []byte, origin *Origin, status string, ingestionTimestamp int64) *Message {
 	return &Message{
 		Content:            content,
 		Origin:             origin,
 		status:             status,
 		IngestionTimestamp: ingestionTimestamp,
+	}
+}
+
+// NewMessageFromLambda construts a message with content, status, origin and with the given timestamp and Lambda metadata
+func NewMessageFromLambda(content []byte, origin *Origin, status string, utcTime time.Time, ARN, reqID string) *Message {
+	return &Message{
+		Content:   content,
+		Origin:    origin,
+		status:    status,
+		Timestamp: utcTime,
+		Lambda: &Lambda{
+			ARN:       ARN,
+			RequestID: reqID,
+		},
 	}
 }
 

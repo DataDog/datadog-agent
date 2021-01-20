@@ -85,7 +85,7 @@ func expandSyscallSections(syscallName string, flag int, compat ...bool) []strin
 	sections := expandKprobe(getSyscallFnName(syscallName), flag)
 
 	if RuntimeArch == "x64" {
-		if len(compat) > 0 && syscallPrefix != "sys_" {
+		if len(compat) > 0 && compat[0] && syscallPrefix != "sys_" {
 			sections = append(sections, expandKprobe(getCompatSyscallFnName(syscallName), flag)...)
 		} else {
 			sections = append(sections, expandKprobe(getIA32SyscallFnName(syscallName), flag)...)

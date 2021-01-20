@@ -124,9 +124,9 @@ func TestSubmitIfStopped(t *testing.T) {
 	assert.NotNil(t, forwarder.SubmitServiceChecks(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitSketchSeries(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitHostMetadata(nil, make(http.Header)))
-	assert.NotNil(t, forwarder.SubmitMetadata(nil, make(http.Header), TransactionPriorityNormal))
+	assert.NotNil(t, forwarder.SubmitMetadata(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitV1Series(nil, make(http.Header)))
-	assert.NotNil(t, forwarder.SubmitV1Intake(nil, make(http.Header), TransactionPriorityNormal))
+	assert.NotNil(t, forwarder.SubmitV1Intake(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitV1CheckRuns(nil, make(http.Header)))
 }
 
@@ -250,7 +250,7 @@ func TestSubmitV1Intake(t *testing.T) {
 	defer func() { df.highPrio = bk }()
 
 	p := []byte("test")
-	assert.Nil(t, forwarder.SubmitV1Intake(Payloads{&p}, make(http.Header), TransactionPriorityNormal))
+	assert.Nil(t, forwarder.SubmitV1Intake(Payloads{&p}, make(http.Header)))
 
 	select {
 	case tr := <-df.highPrio:
@@ -295,14 +295,14 @@ func TestForwarderEndtoEnd(t *testing.T) {
 	headers.Set("key", "value")
 
 	assert.Nil(t, f.SubmitV1Series(payload, headers))
-	assert.Nil(t, f.SubmitV1Intake(payload, headers, TransactionPriorityNormal))
+	assert.Nil(t, f.SubmitV1Intake(payload, headers))
 	assert.Nil(t, f.SubmitV1CheckRuns(payload, headers))
 	assert.Nil(t, f.SubmitSeries(payload, headers))
 	assert.Nil(t, f.SubmitEvents(payload, headers))
 	assert.Nil(t, f.SubmitServiceChecks(payload, headers))
 	assert.Nil(t, f.SubmitSketchSeries(payload, headers))
 	assert.Nil(t, f.SubmitHostMetadata(payload, headers))
-	assert.Nil(t, f.SubmitMetadata(payload, headers, TransactionPriorityNormal))
+	assert.Nil(t, f.SubmitMetadata(payload, headers))
 
 	// let's wait a second for every channel communication to trigger
 	<-time.After(1 * time.Second)
@@ -545,9 +545,6 @@ func TestHighPriorityTransaction(t *testing.T) {
 	config.Datadog.Set("forwarder_backoff_max", 0.5)
 	defer config.Datadog.Set("forwarder_backoff_max", nil)
 
-	config.Datadog.Set("forwarder_retry_queue_max_size", 1)
-	defer config.Datadog.Set("forwarder_retry_queue_max_size", nil)
-
 	oldFlushInterval := flushInterval
 	flushInterval = 500 * time.Millisecond
 	defer func() { flushInterval = oldFlushInterval }()
@@ -565,12 +562,14 @@ func TestHighPriorityTransaction(t *testing.T) {
 	headers := http.Header{}
 	headers.Set("key", "value")
 
-	assert.Nil(t, f.SubmitMetadata(Payloads{&data1}, headers, TransactionPriorityNormal))
+	assert.Nil(t, f.SubmitMetadata(Payloads{&data1}, headers))
 	// Wait so that GetCreatedAt returns a different value for each HTTPTransaction
 	time.Sleep(10 * time.Millisecond)
-	assert.Nil(t, f.SubmitMetadata(Payloads{&dataHighPrio}, headers, TransactionPriorityHigh))
+
+	// SubmitHostMetadata send the transactions as TransactionPriorityHigh
+	assert.Nil(t, f.SubmitHostMetadata(Payloads{&dataHighPrio}, headers))
 	time.Sleep(10 * time.Millisecond)
-	assert.Nil(t, f.SubmitMetadata(Payloads{&data2}, headers, TransactionPriorityNormal))
+	assert.Nil(t, f.SubmitMetadata(Payloads{&data2}, headers))
 
 	assert.Equal(t, string(dataHighPrio), <-requestChan)
 	assert.Equal(t, string(data2), <-requestChan)

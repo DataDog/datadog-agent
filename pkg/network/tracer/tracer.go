@@ -83,7 +83,7 @@ type Tracer struct {
 	bufferLock sync.Mutex
 
 	// Internal buffer used to compute bytekeys
-	buf [network.ConnectionByteKeyMaxLen]byte
+	buf []byte
 
 	// Connections for the tracer to blacklist
 	sourceExcludes []*network.ConnectionFilter
@@ -258,6 +258,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		perfHandler:    perfHandlerTCP,
 		flushIdle:      make(chan chan struct{}),
 		stop:           make(chan struct{}),
+		buf:            make([]byte, network.ConnectionByteKeyMaxLen),
 	}
 
 	tr.perfMap, tr.batchManager, err = tr.initPerfPolling(perfHandlerTCP)
@@ -407,7 +408,7 @@ func (t *Tracer) initPerfPolling(perf *ddebpf.PerfHandler) (*manager.PerfMap, *P
 				batch := toBatch(batchData)
 				conns := t.batchManager.Extract(batch, time.Now())
 				for _, c := range conns {
-					t.storeClosedConn(c)
+					t.storeClosedConn(&c)
 				}
 			case lostCount, ok := <-perf.LostChannel:
 				if !ok {
@@ -420,7 +421,7 @@ func (t *Tracer) initPerfPolling(perf *ddebpf.PerfHandler) (*manager.PerfMap, *P
 				}
 				idleConns := t.batchManager.GetIdleConns(time.Now())
 				for _, c := range idleConns {
-					t.storeClosedConn(c)
+					t.storeClosedConn(&c)
 				}
 				close(done)
 			case <-ticker.C:
@@ -450,18 +451,18 @@ func (t *Tracer) shouldSkipConnection(conn *network.ConnectionStats) bool {
 	return false
 }
 
-func (t *Tracer) storeClosedConn(cs network.ConnectionStats) {
-	cs.Direction = t.determineConnectionDirection(&cs)
-	if t.shouldSkipConnection(&cs) {
+func (t *Tracer) storeClosedConn(cs *network.ConnectionStats) {
+	cs.Direction = t.determineConnectionDirection(cs)
+	if t.shouldSkipConnection(cs) {
 		atomic.AddInt64(&t.skippedConns, 1)
 		return
 	}
 
 	atomic.AddInt64(&t.closedConns, 1)
-	cs.IPTranslation = t.conntracker.GetTranslationForConn(cs)
-	t.state.StoreClosedConnection(&cs)
+	cs.IPTranslation = t.conntracker.GetTranslationForConn(*cs)
+	t.state.StoreClosedConnection(cs)
 	if cs.IPTranslation != nil {
-		t.conntracker.DeleteTranslation(cs)
+		t.conntracker.DeleteTranslation(*cs)
 	}
 }
 
@@ -591,7 +592,12 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 	var expired []*ConnTuple
 	entries := mp.IterateFrom(unsafe.Pointer(&ConnTuple{}))
 	for entries.Next(unsafe.Pointer(key), unsafe.Pointer(stats)) {
-		if stats.isExpired(latestTime, t.timeoutForConn(key)) && !t.conntrackExists(cachedConntrack, key) {
+
+		// expiry is handled differently for UDP and TCP. For TCP where conntrack TTL is very long, we use a short expiry for userspace tracking
+		// but use conntrack as a source of truth to keep long lived idle TCP conns in the userspace state, while evicting closed TCP connections.
+		// for UDP, the conntrack TTL is lower (two minutes), so the userspace and conntrack expiry are synced to avoid touching conntrack for
+		// UDP expiries
+		if stats.isExpired(latestTime, t.timeoutForConn(key)) && (key.isUDP() || !t.conntrackExists(cachedConntrack, key)) {
 			expired = append(expired, key.copy())
 			if key.isTCP() {
 				atomic.AddInt64(&t.expiredTCPConns, 1)

@@ -97,25 +97,9 @@ struct bpf_map_def SEC("maps/udp_port_bindings") udp_port_bindings = {
     .namespace = "",
 };
 
-/* This is used purely for capturing state between the call and return of the socket() system call.
- * When a sys_socket kprobe fires, we only have access to the params, which can tell us if the socket is using
- * SOCK_DGRAM or not. The kretprobe will only tell us the returned file descriptor.
- *
- * Keys: the PID returned by bpf_get_current_pid_tgid().
- * Value: 1 if the PID is mid-call to socket() and the call is creating a UDP socket, else there will be no entry.
- */
-struct bpf_map_def SEC("maps/pending_sockets") pending_sockets = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(__u64),
-    .value_size = sizeof(__u8),
-    .max_entries = 8192,
-    .pinning = 0,
-    .namespace = "",
-};
-
 /* Similar to pending_sockets this is used for capturing state between the call and return of the bind() system call.
  *
- * Keys: the PId returned by bpf_get_current_pid_tgid()
+ * Keys: the PID returned by bpf_get_current_pid_tgid()
  * Values: the args of the bind call  being instrumented.
  */
 struct bpf_map_def SEC("maps/pending_bind") pending_bind = {
@@ -123,24 +107,6 @@ struct bpf_map_def SEC("maps/pending_bind") pending_bind = {
     .key_size = sizeof(__u64),
     .value_size = sizeof(bind_syscall_args_t),
     .max_entries = 8192,
-    .pinning = 0,
-    .namespace = "",
-};
-
-/* This is written to in the kretprobe for sys_socket to keep track of
- * sockets that were created, but have not yet been bound to a port with
- * sys_bind.
- *
- * Key: a __u64 where the upper 32 bits are the PID of the process which created the socket, and the lower
- * 32 bits are the file descriptor as returned by socket().
- * Value: the values are not relevant. It's only relevant that there is or isn't an entry.
- *
- */
-struct bpf_map_def SEC("maps/unbound_sockets") unbound_sockets = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(__u64),
-    .value_size = sizeof(__u8),
-    .max_entries = 1024,
     .pinning = 0,
     .namespace = "",
 };

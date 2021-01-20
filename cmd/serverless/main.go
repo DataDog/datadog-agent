@@ -24,10 +24,13 @@ import (
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/spf13/cobra"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -73,6 +76,8 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 	apiKeyEnvVar    = "DD_API_KEY"
 
 	logLevelEnvVar = "DD_LOG_LEVEL"
+
+	logsLogsTypeSubscribed = "DD_LOGS_CONFIG_LAMBDA_LOGS_TYPE"
 )
 
 const (
@@ -222,6 +227,12 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		log.Warn("A configuration file has been found, which should not happen in this mode.")
 	}
 
+	// extra tags to append to all logs / metrics
+	extraTags := config.Datadog.GetStringSlice("tags")
+	if dsdTags := config.Datadog.GetStringSlice("dogstatsd_tags"); len(dsdTags) > 0 {
+		extraTags = append(extraTags, dsdTags...)
+	}
+
 	// validate that an apikey has been set, either by the env var, read from KMS or SSM.
 	// ---------------------------
 
@@ -231,6 +242,53 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		// of reporting non-critical init errors.
 		// serverless.ReportInitError(serverlessID, serverless.FatalNoAPIKey)
 		log.Error("No API key configured, exiting")
+	}
+
+	// starts logs collection if enabled
+	// ---------------------------------
+
+	if config.Datadog.GetBool("logs_enabled") {
+
+		// type of logs we are subscribing to
+		var logsType []string
+		// TODO(remy): there is two different things that we may have to differentiate:
+		//             the user may want to send these logs to the intake, and the Agent
+		//             may want to fetch more than what he want sent. For instance, if the
+		//             user don't care about the platform logs, the Agent will still want
+		//             to receive them in order to generate the enhanced metrics.
+		if envLogsType, exists := os.LookupEnv(logsLogsTypeSubscribed); exists {
+			parts := strings.Split(strings.TrimSpace(envLogsType), " ")
+			for _, part := range parts {
+				part = strings.ToLower(strings.TrimSpace(part))
+				switch part {
+				case "function", "platform", "extension":
+					logsType = append(logsType, part)
+				default:
+					log.Warn("While subscribing to logs, unknown log type", part)
+				}
+			}
+		} else {
+			logsType = append(logsType, "platform", "function")
+		}
+
+		log.Debug("Enabling logs collection HTTP route")
+		if httpAddr, logsChan, err := daemon.EnableLogsCollection(); err != nil {
+			log.Error("While starting the HTTP Logs Server:", err)
+		} else {
+			// subscribe to the logs on the platform
+			if err := serverless.SubscribeLogs(serverlessID, httpAddr, logsType); err != nil {
+				log.Error("Can't subscribe to logs:", err)
+			} else {
+				// we subscribed to the logs collection on the platform, let's instantiate
+				// a logs agent to collect/process/flush the logs.
+				if err := logs.StartServerless(
+					func() *autodiscovery.AutoConfig { return common.AC },
+					logsChan, extraTags,
+				); err != nil {
+					log.Error("Could not start an instance of the Logs Agent:", err)
+				}
+			}
+		}
 	}
 
 	// setup the forwarder, serializer and aggregator
@@ -254,7 +312,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	// initializes the DogStatsD server
 	// --------------------------------
 
-	statsdServer, err = dogstatsd.NewServer(aggregatorInstance)
+	statsdServer, err = dogstatsd.NewServer(aggregatorInstance, extraTags)
 	if err != nil {
 		// we're not reporting the error to AWS because we don't want the function
 		// execution to be stopped. TODO(remy): discuss with AWS if there is way
@@ -269,6 +327,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	// the invocation route, we can't report init errors anymore.
 	go func() {
 		for {
+			// TODO(remy): shouldn't we wait for the logs agent to finish? + dogstatsd server before listening again?
 			if err := serverless.WaitForNextInvocation(stopCh, statsdServer, serverlessID); err != nil {
 				log.Error(err)
 			}
@@ -277,6 +336,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 
 	// DogStatsD daemon ready.
 	daemon.SetStatsdServer(statsdServer)
+	daemon.SetAggregator(aggregatorInstance)
 	daemon.ReadyWg.Done()
 
 	log.Debugf("serverless agent ready in %v", time.Since(startTime))
@@ -374,6 +434,7 @@ func readAPIKeyFromSSM() (string, error) {
 	log.Warn("SSM returned something but there seems to be no data available;")
 	return "", nil
 }
+
 func stopCallback(cancel context.CancelFunc) {
 	// gracefully shut down any component
 	cancel()

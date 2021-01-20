@@ -28,6 +28,9 @@ func (p *mockProvider) Start() {}
 // Stop does nothing
 func (p *mockProvider) Stop() {}
 
+// Flush does nothing
+func (p *mockProvider) Flush() {}
+
 // NextPipelineChan returns the next pipeline
 func (p *mockProvider) NextPipelineChan() chan *message.Message {
 	return p.msgChan

@@ -115,14 +115,18 @@ func TestTracerExpvar(t *testing.T) {
 			"PTcpSendmsgMisses",
 			"PTcpSetStateHits",
 			"PTcpSetStateMisses",
-			"PTcpVDestroySockHits",
-			"PTcpVDestroySockMisses",
+			"PTcpV4DestroySockHits",
+			"PTcpV4DestroySockMisses",
 			"PUdpDestroySockHits",
 			"PUdpDestroySockMisses",
 			"PUdpRecvmsgHits",
 			"PUdpRecvmsgMisses",
 			"PIpMakeSkbHits",
 			"PIpMakeSkbMisses",
+			"PInetBindHits",
+			"PInetBindMisses",
+			"PInet6BindHits",
+			"PInet6BindMisses",
 			"RInetCskAcceptHits",
 			"RInetCskAcceptMisses",
 			"RTcpCloseHits",
@@ -131,19 +135,14 @@ func TestTracerExpvar(t *testing.T) {
 			"RUdpRecvmsgMisses",
 			"RTcpSendmsgHits",
 			"RTcpSendmsgMisses",
+			"RInetBindHits",
+			"RInetBindMisses",
+			"RInet6BindHits",
+			"RInet6BindMisses",
 		},
 	}
 
-	archSpecificKprobes := [][]string{
-		{"PSySBindHits", "PXSysBindHits"},
-		{"PSySBindMisses", "PXSysBindMisses"},
-		{"PSySSocketHits", "PXSysSocketHits"},
-		{"PSySSocketMisses", "PXSysSocketMisses"},
-		{"RSySBindHits", "RXSysBindHits"},
-		{"RSySBindMisses", "RXSysBindMisses"},
-		{"RSySSocketHits", "RXSysSocketHits"},
-		{"RSySSocketMisses", "RXSysSocketMisses"},
-	}
+	archSpecificKprobes := [][]string{}
 
 	for _, et := range expvarTypes {
 		if et == "dns" && pre410Kernel {
@@ -774,8 +773,8 @@ func TestUDPSendAndReceive(t *testing.T) {
 	defer tr.Stop()
 
 	cmd := exec.Command("../testdata/simulate_udp.sh")
-	if err := cmd.Run(); err != nil {
-		require.NoError(t, err)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Errorf("simulate_udp command output: %s", string(out))
 	}
 
 	defer func() {
