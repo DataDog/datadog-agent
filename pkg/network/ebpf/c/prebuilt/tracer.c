@@ -52,7 +52,7 @@ struct bpf_map_def SEC("maps/tcp_stats") tcp_stats = {
     .namespace = "",
 };
 
-/* Will hold the tcp close events
+/* Will hold the tcp/udp close events
  * The keys are the cpu number and the values a perf file descriptor for a perf event
  */
 struct bpf_map_def SEC("maps/conn_close_event") conn_close_event = {
@@ -64,7 +64,7 @@ struct bpf_map_def SEC("maps/conn_close_event") conn_close_event = {
     .namespace = "",
 };
 
-/* We use this map as a container for batching closed tcp connections
+/* We use this map as a container for batching closed tcp/udp connections
  * The key represents the CPU core. Ideally we should use a BPF_MAP_TYPE_PERCPU_HASH map
  * or BPF_MAP_TYPE_PERCPU_ARRAY, but they are not available in
  * some of the Kernels we support (4.4 ~ 4.6)
@@ -562,8 +562,8 @@ static __always_inline void cleanup_conn(conn_tuple_t* tup) {
     conn_t conn = { .tup = *tup };
     tcp_stats_t* tst = NULL;
     conn_stats_ts_t* cst = NULL;
-    bool is_tcp = get_proto(&conn.tup);
-    bool is_udp = get_proto(&conn.tup);
+    bool is_tcp = get_proto(&conn.tup) == CONN_TYPE_TCP;
+    bool is_udp = get_proto(&conn.tup) == CONN_TYPE_UDP;
 
     // TCP stats don't have the PID
     if (is_tcp) {
@@ -777,7 +777,7 @@ int kprobe__tcp_close(struct pt_regs* ctx) {
     return 0;
 }
 
-static __always_inline void flush_conn_close_batch(struct pt_regs * ctx) {
+static __always_inline void flush_conn_close_if_full(struct pt_regs * ctx) {
     u32 cpu = bpf_get_smp_processor_id();
     batch_t * batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);
     if (!batch_ptr) {
@@ -797,7 +797,7 @@ static __always_inline void flush_conn_close_batch(struct pt_regs * ctx) {
 
 SEC("kretprobe/tcp_close")
 int kretprobe__tcp_close(struct pt_regs* ctx) {
-    flush_conn_close_batch(ctx);
+    flush_conn_close_if_full(ctx);
     return 0;
 }
 
@@ -1085,7 +1085,7 @@ int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
 
 SEC("kretprobe/udp_destroy_sock")
 int kretprobe__udp_destroy_sock(struct pt_regs * ctx) {
-    flush_conn_close_batch(ctx);
+    flush_conn_close_if_full(ctx);
     return 0;
 }
 
