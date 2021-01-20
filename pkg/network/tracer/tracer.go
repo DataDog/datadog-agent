@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf"
@@ -277,7 +278,21 @@ func newReverseDNS(cfg *config.Config, m *manager.Manager, pre410Kernel bool) (n
 		return nil, fmt.Errorf("error retrieving socket filter")
 	}
 
-	return network.NewSocketFilterSnooper(cfg, filter)
+	// Create the RAW_SOCKET inside the root network namespace
+	var (
+		packetSrc network.PacketSource
+		srcErr    error
+	)
+	err := util.WithRootNS(cfg.ProcRoot, func() error {
+		packetSrc, srcErr = network.NewPacketSource(filter)
+		return srcErr
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return network.NewSocketFilterSnooper(cfg, packetSrc)
 }
 
 func runOffsetGuessing(config *config.Config, buf bytecode.AssetReader) ([]manager.ConstantEditor, error) {
