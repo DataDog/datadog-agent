@@ -5,7 +5,6 @@ import (
 
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/gogo/protobuf/jsonpb"
 )
 
@@ -20,17 +19,8 @@ func (j jsonSerializer) Marshal(conns *network.Connections) ([]byte, error) {
 	agentConns := make([]*model.Connection, len(conns.Conns))
 	domainSet := make(map[string]int)
 
-	httpKeySet := make(map[http.Key]int)
-	httpConns := make([]*model.HTTPConnection, len(conns.HTTP))
-	i := 0
-	for key, statsByPath := range conns.HTTP {
-		httpKeySet[key] = i
-		httpConns[i] = FormatHTTPConnection(key, statsByPath)
-		i++
-	}
-
 	for i, conn := range conns.Conns {
-		agentConns[i] = FormatConnection(conn, domainSet, httpKeySet)
+		agentConns[i] = FormatConnection(conn, domainSet)
 	}
 
 	domains := make([]string, len(domainSet))
@@ -42,7 +32,6 @@ func (j jsonSerializer) Marshal(conns *network.Connections) ([]byte, error) {
 	payload.Conns = agentConns
 	payload.Domains = domains
 	payload.Dns = FormatDNS(conns.DNS)
-	payload.Http = httpConns
 	payload.Telemetry = FormatTelemetry(conns.Telemetry)
 
 	writer := new(bytes.Buffer)

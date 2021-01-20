@@ -36,8 +36,8 @@ type State interface {
 		latestTime uint64,
 		latestConns []ConnectionStats,
 		dns map[dnsKey]map[string]dnsStats,
-		newHTTPStats map[http.Key]map[string]http.RequestStats,
-	) ([]ConnectionStats, map[http.Key]map[string]http.RequestStats)
+		http map[http.Key]map[string]http.RequestStats,
+	) []ConnectionStats
 
 	// StoreClosedConnection stores a new closed connection
 	StoreClosedConnection(conn *ConnectionStats)
@@ -138,8 +138,8 @@ func (ns *networkState) Connections(
 	latestTime uint64,
 	latestConns []ConnectionStats,
 	dnsStats map[dnsKey]map[string]dnsStats,
-	newHTTPStats map[http.Key]map[string]http.RequestStats,
-) ([]ConnectionStats, map[http.Key]map[string]http.RequestStats) {
+	httpStats map[http.Key]map[string]http.RequestStats,
+) []ConnectionStats {
 	ns.Lock()
 	defer ns.Unlock()
 
@@ -168,15 +168,15 @@ func (ns *networkState) Connections(
 			ns.storeDNSStats(dnsStats)
 			ns.addDNSStats(id, latestConns)
 		}
-		if len(newHTTPStats) > 0 {
-			ns.storeHTTPStats(newHTTPStats)
+		if len(httpStats) > 0 {
+			ns.storeHTTPStats(httpStats)
 		}
-		httpStats := ns.addHTTPStats(id, latestConns)
+		ns.addHTTPStats(id, latestConns)
 
 		// copy to ensure return value doesn't get clobbered
 		conns := make([]ConnectionStats, len(latestConns))
 		copy(conns, latestConns)
-		return conns, httpStats
+		return conns
 	}
 
 	// Update all connections with relevant up-to-date stats for client
@@ -200,11 +200,12 @@ func (ns *networkState) Connections(
 		ns.storeDNSStats(dnsStats)
 		ns.addDNSStats(id, latestConns)
 	}
-	if len(newHTTPStats) > 0 {
-		ns.storeHTTPStats(newHTTPStats)
+	if len(httpStats) > 0 {
+		ns.storeHTTPStats(httpStats)
 	}
-	httpStatsDelta := ns.addHTTPStats(id, conns)
-	return conns, httpStatsDelta
+	ns.addHTTPStats(id, conns)
+
+	return conns
 }
 
 func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
@@ -267,28 +268,23 @@ func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
 }
 
 // addHTTPStats fills in the HTTP stats for each connection
-func (ns *networkState) addHTTPStats(id string, conns []ConnectionStats) map[http.Key]map[string]http.RequestStats {
-	// flush the HTTP stats from client state
-	httpStatsDelta := make(map[http.Key]map[string]http.RequestStats)
-	for k, v := range ns.clients[id].httpStatsDelta {
-		httpStatsDelta[k] = v
-	}
-	ns.clients[id].httpStatsDelta = make(map[http.Key]map[string]http.RequestStats)
-
+func (ns *networkState) addHTTPStats(id string, conns []ConnectionStats) {
 	for i := range conns {
 		conn := &conns[i]
 		key := http.Key{
-			SourceIP: conn.Source,
-			DestIP:   conn.Dest,
-			DestPort: conn.DPort,
+			SourceIP:   conn.Source,
+			DestIP:     conn.Dest,
+			SourcePort: conn.SPort,
+			DestPort:   conn.DPort,
 		}
 
-		if _, ok := httpStatsDelta[key]; ok {
-			conn.HTTPKey = key
+		if _, ok := ns.clients[id].httpStatsDelta[key]; ok {
+			conn.HTTPStatsByPath = ns.clients[id].httpStatsDelta[key]
 		}
 	}
 
-	return httpStatsDelta
+	// flush the HTTP stats from client state
+	ns.clients[id].httpStatsDelta = make(map[http.Key]map[string]http.RequestStats)
 }
 
 // getConnsByKey returns a mapping of byte-key -> connection for easier access + manipulation

@@ -80,7 +80,6 @@ func (d ConnectionDirection) String() string {
 // Connections wraps a collection of ConnectionStats
 type Connections struct {
 	DNS       map[util.Address][]string
-	HTTP      map[http.Key]map[string]http.RequestStats
 	Conns     []ConnectionStats
 	Telemetry *ConnectionsTelemetry
 }
@@ -148,7 +147,7 @@ type ConnectionStats struct {
 	DNSFailureLatencySum   uint64
 	DNSCountByRcode        map[uint32]uint32
 	DNSStatsByDomain       map[string]DNSStats
-	HTTPKey                http.Key
+	HTTPStatsByPath        map[string]http.RequestStats
 }
 
 // IPTranslation can be associated with a connection to show the connection is NAT'd
