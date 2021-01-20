@@ -41,8 +41,10 @@
 /.gitlab/binary_build/cluster_agent.yml              @DataDog/container-integrations @DataDog/agent-platform
 /.gitlab/binary_build/system_probe.yml               @DataDog/networks @DataDog/agent-platform
 
+/.gitlab/deploy_6/child_pipelines/docker.yml         @DataDog/container-integrations @DataDog/agent-platform
 /.gitlab/deploy_6/docker.yml                         @DataDog/container-integrations @DataDog/agent-platform
 
+/.gitlab/deploy_7/child_pipelines/docker.yml         @DataDog/container-integrations @DataDog/agent-platform
 /.gitlab/deploy_7/cluster_agent_cloudfoundry.yml     @DataDog/integrations-tools-and-libraries @DataDog/agent-platform
 /.gitlab/deploy_7/docker.yml                         @DataDog/container-integrations @DataDog/agent-platform
 /.gitlab/deploy_7/windows_cloudfoundry.yml           @DataDog/integrations-tools-and-libraries @DataDog/agent-platform
