@@ -12,6 +12,7 @@ normal exit 0
 # to log panics/crashes to /var/log/upstart/datadog-agent.log
 console log
 env DD_LOG_TO_CONSOLE=false
+env GOTRACEBACK=crash
 
 # mount debugfs before start
 pre-start script

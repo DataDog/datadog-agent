@@ -16,7 +16,7 @@ script
   #
   # setuid is not available in versions of upstart before 1.4. CentOS/RHEL6 use an earlier version of upstart.
   # This is the best way to set the user in the absence of setuid.
-  exec su -s /bin/sh -c 'DD_LOG_TO_CONSOLE=false exec "$0" "$@"' dd-agent -- <%= install_dir %>/embedded/bin/process-agent --config=<%= etc_dir %>/datadog.yaml --sysprobe-config=<%= etc_dir %>/system-probe.yaml --pid=<%= install_dir %>/run/process-agent.pid &>> /var/log/datadog/process-errors.log
+  exec su -s /bin/sh -c 'DD_LOG_TO_CONSOLE=false GOTRACEBACK=crash exec "$0" "$@"' dd-agent -- <%= install_dir %>/embedded/bin/process-agent --config=<%= etc_dir %>/datadog.yaml --sysprobe-config=<%= etc_dir %>/system-probe.yaml --pid=<%= install_dir %>/run/process-agent.pid &>> /var/log/datadog/process-errors.log
 end script
 
 pre-start script
