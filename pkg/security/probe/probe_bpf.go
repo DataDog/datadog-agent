@@ -615,6 +615,9 @@ func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 		}
 	}
 
+	p.perfMap.Pause()
+	defer p.perfMap.Resume()
+
 	if err := enabledEventsMap.Put(ebpf.ZeroUint32MapItem, enabledEvents); err != nil {
 		return errors.Wrap(err, "failed to set enabled events")
 	}
