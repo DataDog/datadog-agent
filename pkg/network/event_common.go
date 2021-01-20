@@ -166,7 +166,7 @@ func (c ConnectionStats) String() string {
 //     4B      2B      2B     .5B     .5B      4/16B        4/16B   = 17/41B
 //    32b     16b     16b      4b      4b     32/128b      32/128b
 // |  PID  | SPORT | DPORT | Family | Type |  SrcAddr  |  DestAddr
-func (c ConnectionStats) ByteKey(buf [ConnectionByteKeyMaxLen]byte) ([]byte, error) {
+func (c ConnectionStats) ByteKey(buf []byte) ([]byte, error) {
 	n := 0
 	// Byte-packing to improve creation speed
 	// PID (32 bits) + SPort (16 bits) + DPort (16 bits) = 64 bits
@@ -178,8 +178,8 @@ func (c ConnectionStats) ByteKey(buf [ConnectionByteKeyMaxLen]byte) ([]byte, err
 	buf[n] = uint8(c.Family)<<4 | uint8(c.Type)
 	n++
 
-	n += copy(buf[n:], c.Source.Bytes()) // 4 or 16 bytes
-	n += copy(buf[n:], c.Dest.Bytes())   // 4 or 16 bytes
+	n += c.Source.WriteTo(buf[n:]) // 4 or 16 bytes
+	n += c.Dest.WriteTo(buf[n:])   // 4 or 16 bytes
 	return buf[:n], nil
 }
 

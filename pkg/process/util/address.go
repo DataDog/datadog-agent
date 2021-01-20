@@ -8,6 +8,7 @@ import (
 // Address is an IP abstraction that is family (v4/v6) agnostic
 type Address interface {
 	Bytes() []byte
+	WriteTo([]byte) int
 	String() string
 	IsLoopback() bool
 }
@@ -59,6 +60,11 @@ func (a v4Address) Bytes() []byte {
 	return a[:]
 }
 
+// WriteTo writes the address byte representation into the supplied buffer
+func (a v4Address) WriteTo(b []byte) int {
+	return copy(b, a[:])
+}
+
 // String returns the human readable string representation of an IP
 func (a v4Address) String() string {
 	return net.IPv4(a[0], a[1], a[2], a[3]).String()
@@ -89,6 +95,11 @@ func V6AddressFromBytes(buf []byte) Address {
 // Bytes returns a byte array of the underlying array
 func (a v6Address) Bytes() []byte {
 	return a[:]
+}
+
+// WriteTo writes the address byte representation into the supplied buffer
+func (a v6Address) WriteTo(b []byte) int {
+	return copy(b, a[:])
 }
 
 // String returns the human readable string representation of an IP
