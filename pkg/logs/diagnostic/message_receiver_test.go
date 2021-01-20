@@ -14,7 +14,8 @@ import (
 
 func TestEnableDisable(t *testing.T) {
 	b := NewBufferedMessageReceiver()
-	b.SetEnabled(true)
+	assert.True(t, b.SetEnabled(true))
+	assert.False(t, b.SetEnabled(true))
 
 	for i := 0; i < 10; i++ {
 		b.HandleMessage(newMessage("", "", ""))

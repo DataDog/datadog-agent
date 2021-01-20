@@ -86,10 +86,11 @@ func DoPostChunked(c *http.Client, url string, contentType string, body io.Reade
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Authorization", "Bearer "+GetAuthToken())
 
-	r, err := c.Do(req)
-	if err != nil {
-		return err
+	r, e := c.Do(req)
+	if e != nil {
+		return e
 	}
+	defer r.Body.Close()
 
 	for {
 		buf := make([]byte, 128)
@@ -103,5 +104,5 @@ func DoPostChunked(c *http.Client, url string, contentType string, body io.Reade
 	if r.StatusCode == 200 {
 		return nil
 	}
-	return err
+	return e
 }

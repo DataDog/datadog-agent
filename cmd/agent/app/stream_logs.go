@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-2021 Datadog, Inc.
 
 package app
 
@@ -68,20 +68,14 @@ func connectAndStream() error {
 	}
 
 	urlstr := fmt.Sprintf("https://%v:%v/agent/streamLogs", ipcAddress, config.Datadog.GetInt("cmd_port"))
-	err = streamRequest(urlstr, body, func(chunk []byte) {
+	return streamRequest(urlstr, body, func(chunk []byte) {
 		fmt.Print(string(chunk))
 	})
-
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func streamRequest(url string, body []byte, onChunk func([]byte)) error {
 	var e error
-	c := util.GetClient(false) // FIX: get certificates right then make this true
+	c := util.GetClient(false)
 
 	// Set session token
 	e = util.SetAuthToken()

@@ -195,5 +195,8 @@ func GetStatus() status.Status {
 
 // GetMessageReceiver returns the diagnostic message receiver
 func GetMessageReceiver() *diagnostic.BufferedMessageReceiver {
+	if agent == nil {
+		return nil
+	}
 	return agent.diagnosticMessageReceiver
 }

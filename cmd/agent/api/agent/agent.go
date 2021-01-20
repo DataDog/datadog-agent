@@ -195,13 +195,19 @@ func streamLogs(w http.ResponseWriter, r *http.Request) {
 	log.Info("Got a request for stream logs.")
 	w.Header().Set("Transfer-Encoding", "chunked")
 	logMessageReceiver := logs.GetMessageReceiver()
+	if logMessageReceiver == nil {
+		http.Error(w, "The logs agent is not running", 500)
+		w.(http.Flusher).Flush()
+		log.Info("Logs agent is not running - can't stream logs")
+	}
 
-	if logMessageReceiver.IsEnabled() {
-		http.Error(w, "Another client is already streaming logs.", 500)
+	if !logMessageReceiver.SetEnabled(true) {
+		http.Error(w, "Another client is already streaming logs.", 405)
 		w.(http.Flusher).Flush()
 		log.Info("Logs are already streaming. Dropping connection.")
 		return
 	}
+	defer logMessageReceiver.SetEnabled(false)
 
 	var filters diagnostic.Filters
 
@@ -223,9 +229,6 @@ func streamLogs(w http.ResponseWriter, r *http.Request) {
 	// Override the default server timeouts so the connection never times out
 	_ = conn.SetDeadline(time.Time{})
 	_ = conn.SetWriteDeadline(time.Time{})
-
-	logMessageReceiver.SetEnabled(true)
-	defer logMessageReceiver.SetEnabled(false)
 
 	for {
 		// Handlers for detecting a closed connection (from either the server or client)

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-2021 Datadog, Inc.
 
 package diagnostic
 
@@ -57,14 +57,20 @@ func (b *BufferedMessageReceiver) clear() {
 	}
 }
 
-// SetEnabled start collecting log messages for diagnostics
-func (b *BufferedMessageReceiver) SetEnabled(e bool) {
+// SetEnabled start collecting log messages for diagnostics. Returns true if state was successfully changed
+func (b *BufferedMessageReceiver) SetEnabled(e bool) bool {
 	b.m.Lock()
 	defer b.m.Unlock()
+
+	if b.enabled == e {
+		return false
+	}
+
+	b.enabled = e
 	if !e {
 		b.clear()
 	}
-	b.enabled = e
+	return true
 }
 
 // IsEnabled returns the enabled state of the message receiver
