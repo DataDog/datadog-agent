@@ -72,9 +72,7 @@ func NewConntracker(procRoot string, maxStateSize, targetRateLimit int, listenAl
 	done := make(chan struct{})
 
 	go func() {
-		start := time.Now()
 		conntracker, err = newConntrackerOnce(procRoot, maxStateSize, targetRateLimit, listenAllNamespaces)
-		log.Infof("conntrack initialization took %s", time.Now().Sub(start))
 		done <- struct{}{}
 	}()
 
