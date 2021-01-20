@@ -51,11 +51,6 @@ overwrite it with the environment variable like:
 STS_API_KEY=12345678990 ./bin/agent/agent -c bin/agent/dist/stackstate.yaml
 ```
 
-## Contributing code
-
-You'll find information and help on how to contribute code to this project under
-[the `docs/dev` directory](docs/dev) of the present repo.
-
 ## Install
 
 Installation instructions are available on the [StackState docs site](https://docs.stackstate.com/stackpacks/integrations/agent).
