@@ -9,8 +9,7 @@ The present repository contains the source code of the StackState Agent version 
 
 ## Documentation
 
-The general documentation of the project, including instructions for installation
-and development, is located under [the docs directory](docs) of the present repo.
+The general documentation of the project is located under [the docs directory](docs) of the present repo.
 
 ## Getting started
 
@@ -59,66 +58,4 @@ You'll find information and help on how to contribute code to this project under
 
 ## Install
 
-### Linux
-
-##### Official
-
-To install the official release:
-
-    $ curl -o- https://stackstate-agent-2.s3.amazonaws.com/install.sh | STS_API_KEY="xxx" STS_URL="yyy" bash
-     or
-    $ wget -qO- https://stackstate-agent-2.s3.amazonaws.com/install.sh | STS_API_KEY="xxx" STS_URL="yyy" bash
-
-##### Test
-
-If you wanna install a branch version use the test repository:
-
-    $ curl -o- https://stackstate-agent-2-test.s3.amazonaws.com/install.sh | STS_API_KEY="xxx" STS_URL="yyy" CODE_NAME="PR_NAME" bash
-     or
-    $ wget -qO- https://stackstate-agent-2-test.s3.amazonaws.com/install.sh | STS_API_KEY="xxx" STS_URL="yyy" CODE_NAME="PR_NAME" bash
-
-and replace `PR_NAME` with the branch name (e.g. `master`, `STAC-xxxx`).
-
-### Docker
-
-##### Official
-
-    $ docker pull docker.io/stackstate/stackstate-agent-2:latest
-
-##### Test
-
-    $ docker pull docker.io/stackstate/stackstate-agent-2-test:latest
-
-### Windows
-
-##### Official
-
-To install the official release:
-
-    $ . { iwr -useb https://stackstate-agent-2.s3.amazonaws.com/install.ps1 } | iex; install -stsApiKey "xxx" -stsUrl "yyy"
-
-##### Test
-
-If you wanna install a branch version use the test repository:
-
-    $ . { iwr -useb https://stackstate-agent-2-test.s3.amazonaws.com/install.ps1 } | iex; install -stsApiKey "xxx" -stsUrl "yyy" -codeName "PR_NAME"
-
-and replace `PR_NAME` with the branch name (e.g. `master`, `STAC-xxxx`).
-
-#### Arguments
-
-Other arguments can be passed to the installation command.
-
-Linux arguments:
-
-- `STS_HOSTNAME` = Instance hostname
-- `$HOST_TAGS` = Agent host tags to use for all topology component (by default `os:linux` will be added)
-- `SKIP_SSL_VALIDATION` = Skip ssl certificates validation when talking to the backend (defaults to `false`)
-- `STS_INSTALL_ONLY` = Agent won't be automatically started after installation
-
-Windows arguments:
-
-- `hostname` = Instance hostname
-- `tags` = Agent host tags to use for all topology component (by default `os:windows` will be added)
-- `skipSSLValidation` = Skip ssl certificates validation when talking to the backend (defaults to `false`)
-- `agentVersion` = Version of the Agent to be installed (defaults to `latest`)
+Installation instructions are available on the [StackState docs site](https://docs.stackstate.com/stackpacks/integrations/agent).
