@@ -38,7 +38,6 @@ To start working on the Agent, you can build the `master` branch:
    Make sure that `$GOPATH/bin` is in your `$PATH` otherwise this step might fail.
 4. build the whole project with `invoke agent.build --build-exclude=snmp,systemd` (with `--use-venv` to use a python virtualenv)
 
-Please refer to the [Agent Developer Guide](docs/dev/README.md) for more details.
 
 ## Run
 
