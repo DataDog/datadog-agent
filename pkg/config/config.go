@@ -564,6 +564,9 @@ func InitConfig(config Config) {
 	// specific logs-agent api-key
 	config.BindEnv("logs_config.api_key") //nolint:errcheck
 	config.BindEnvAndSetDefault("logs_config.logs_no_ssl", false)
+
+	// Duration in minutes during which the host tags will be submitted with log events.
+	config.BindEnvAndSetDefault("logs_config.expected_tags_duration", 0) // in minutes
 	// send the logs to the port 443 of the logs-backend via TCP:
 	config.BindEnvAndSetDefault("logs_config.use_port_443", false)
 	// increase the read buffer size of the UDP sockets:
@@ -615,9 +618,10 @@ func InitConfig(config Config) {
 
 	config.BindEnvAndSetDefault("hpa_watcher_polling_freq", 10)
 	config.BindEnvAndSetDefault("hpa_watcher_gc_period", 60*5) // 5 minutes
+	config.BindEnvAndSetDefault("hpa_configmap_name", "datadog-custom-metrics")
 	config.BindEnvAndSetDefault("external_metrics_provider.enabled", false)
 	config.BindEnvAndSetDefault("external_metrics_provider.port", 443)
-	config.BindEnvAndSetDefault("hpa_configmap_name", "datadog-custom-metrics")
+	config.BindEnvAndSetDefault("external_metrics_provider.endpoint", "")                 // Override the Datadog API endpoint to query external metrics from
 	config.BindEnvAndSetDefault("external_metrics_provider.refresh_period", 30)           // value in seconds. Frequency of calls to Datadog to refresh metric values
 	config.BindEnvAndSetDefault("external_metrics_provider.batch_window", 10)             // value in seconds. Batch the events from the Autoscalers informer to push updates to the ConfigMap (GlobalStore)
 	config.BindEnvAndSetDefault("external_metrics_provider.max_age", 120)                 // value in seconds. 4 cycles from the Autoscaler controller (up to Kubernetes 1.11) is enough to consider a metric stale
