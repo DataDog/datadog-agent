@@ -29,6 +29,7 @@ tests_ebpf:
     - inv -e security-agent.build-stress-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/stresssuite
     # Compile master version for comparison, uncomment following lines when merged
     - git checkout master
+    - git pull
     - inv -e deps
     - inv -e system-probe.build --bundle-ebpf --incremental-build
     - inv -e security-agent.build-stress-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/stresssuite-master

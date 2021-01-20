@@ -255,6 +255,15 @@ func printAddress(address util.Address, names []string) string {
 	return strings.Join(names, ",")
 }
 
+// DNSKey is an identifier for a set of DNS connections
+type DNSKey struct {
+	serverIP   util.Address
+	clientIP   util.Address
+	clientPort uint16
+	// ConnectionType will be either TCP or UDP
+	protocol ConnectionType
+}
+
 // DNSStats holds statistics corresponding to a particular domain
 type DNSStats struct {
 	DNSTimeouts          uint32
