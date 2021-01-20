@@ -296,6 +296,28 @@ func TestGetLocalIPv4(t *testing.T) {
 	assert.Equal(t, []string{ip}, ips)
 }
 
+func TestGetPublicIPv4(t *testing.T) {
+	ip := "10.0.0.2"
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		switch r.RequestURI {
+		case "/public-ipv4":
+			io.WriteString(w, ip)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+
+	defer ts.Close()
+	metadataURL = ts.URL
+	config.Datadog.Set("ec2_metadata_timeout", 1000)
+	defer resetPackageVars()
+
+	ips, err := GetPublicIPv4()
+	require.NoError(t, err)
+	assert.Equal(t, []string{ip}, ips)
+}
+
 func TestGetToken(t *testing.T) {
 	originalToken := "AQAAAFKw7LyqwVmmBMkqXHpDBuDWw2GnfGswTHi2yiIOGvzD7OMaWw=="
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
