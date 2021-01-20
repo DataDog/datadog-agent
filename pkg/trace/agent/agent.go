@@ -228,12 +228,16 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 
 		events, keep := a.sample(ts, pt)
 
-		subtraces := stats.ExtractSubtraces(t, root)
-		for _, subtrace := range subtraces {
-			subtraceSublayers := sublayerCalculator.ComputeSublayers(subtrace.Trace)
-			pt.Sublayers[subtrace.Root] = subtraceSublayers
-			if keep {
-				stats.SetSublayersOnSpan(subtrace.Root, subtraceSublayers)
+		if sublayerCalculator.ShouldCompute(keep) {
+			subtraces := stats.ExtractSubtraces(t, root)
+			for _, subtrace := range subtraces {
+				subtraceSublayers := sublayerCalculator.ComputeSublayers(subtrace.Trace)
+				if sublayerCalculator.WithStats() {
+					pt.Sublayers[subtrace.Root] = subtraceSublayers
+				}
+				if keep {
+					stats.SetSublayersOnSpan(subtrace.Root, subtraceSublayers)
+				}
 			}
 		}
 		sinputs = append(sinputs, stats.Input{
