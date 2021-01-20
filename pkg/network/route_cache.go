@@ -13,7 +13,7 @@ import (
 )
 
 type routeKey struct {
-	source, dest [16]byte
+	source, dest util.Address
 	netns        uint32
 	connFamily   ConnectionFamily
 }
@@ -88,8 +88,8 @@ func (c *routeCache) Get(source, dest util.Address, netns uint32) (Route, bool) 
 func newRouteKey(source, dest util.Address, netns uint32) routeKey {
 	k := routeKey{netns: netns}
 
-	copy(k.source[:], source.Bytes())
-	copy(k.dest[:], dest.Bytes())
+	k.source = source.Clone()
+	k.dest = source.Clone()
 
 	switch len(dest.Bytes()) {
 	case 4:

@@ -10,6 +10,7 @@ type Address interface {
 	Bytes() []byte
 	String() string
 	IsLoopback() bool
+	Clone() Address
 }
 
 // AddressFromNetIP returns an Address from a provided net.IP
@@ -69,6 +70,11 @@ func (a v4Address) IsLoopback() bool {
 	return net.IP(a[:]).IsLoopback()
 }
 
+// Clone copies the address
+func (a v4Address) Clone() Address {
+	return V4AddressFromBytes(a.Bytes())
+}
+
 type v6Address [16]byte
 
 // V6Address creates an Address using the uint128 representation of an v6 IP
@@ -99,4 +105,9 @@ func (a v6Address) String() string {
 // IsLoopback returns true if this address is the loopback address
 func (a v6Address) IsLoopback() bool {
 	return net.IP(a[:]).IsLoopback()
+}
+
+// Clone copies the address
+func (a v6Address) Clone() Address {
+	return V6AddressFromBytes(a.Bytes())
 }
