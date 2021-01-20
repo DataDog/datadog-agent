@@ -175,7 +175,6 @@ const (
 // Options contain the configuration options for the DefaultForwarder
 type Options struct {
 	NumberOfWorkers                int
-	RetryQueueSize                 int
 	RetryQueuePayloadsTotalMaxSize int
 	DisableAPIKeyChecking          bool
 	EnabledFeatures                Features
@@ -208,25 +207,47 @@ func NewOptions(keysPerDomain map[string][]string) *Options {
 		)
 		validationInterval = config.DefaultAPIKeyValidationInterval
 	}
+
 	const forwarderRetryQueueMaxSizeKey = "forwarder_retry_queue_max_size"
 	const forwarderRetryQueuePayloadsMaxSizeKey = "forwarder_retry_queue_payloads_max_size"
-	retryQueueSize := config.Datadog.GetInt(forwarderRetryQueueMaxSizeKey)
-	retryQueuePayloadsTotalMaxSize := config.Datadog.GetInt(forwarderRetryQueuePayloadsMaxSizeKey)
 
-	if retryQueueSize > 0 {
-		log.Warnf("'%s' is deprecated. It is recommended to use '%s' as it takes the payload sizes into account.", forwarderRetryQueueMaxSizeKey, forwarderRetryQueuePayloadsMaxSizeKey)
-		retryQueuePayloadsTotalMaxSize = 0
+	retryQueuePayloadsTotalMaxSize := 15 * 1024 * 1024
+	if config.Datadog.IsSet(forwarderRetryQueuePayloadsMaxSizeKey) {
+		retryQueuePayloadsTotalMaxSize = config.Datadog.GetInt(forwarderRetryQueuePayloadsMaxSizeKey)
 	}
 
-	return &Options{
+	option := &Options{
 		NumberOfWorkers:                config.Datadog.GetInt("forwarder_num_workers"),
-		RetryQueueSize:                 retryQueueSize,
-		RetryQueuePayloadsTotalMaxSize: retryQueuePayloadsTotalMaxSize,
 		DisableAPIKeyChecking:          false,
+		RetryQueuePayloadsTotalMaxSize: retryQueuePayloadsTotalMaxSize,
 		APIKeyValidationInterval:       time.Duration(validationInterval) * time.Minute,
 		KeysPerDomain:                  keysPerDomain,
 		ConnectionResetInterval:        time.Duration(config.Datadog.GetInt("forwarder_connection_reset_interval")) * time.Second,
 	}
+
+	if config.Datadog.IsSet(forwarderRetryQueueMaxSizeKey) {
+		if config.Datadog.IsSet(forwarderRetryQueuePayloadsMaxSizeKey) {
+			log.Warnf("'%v' is set, but as this setting is deprecated, '%v' is used instead.", forwarderRetryQueueMaxSizeKey, forwarderRetryQueuePayloadsMaxSizeKey)
+		} else {
+			forwarderRetryQueueMaxSize := config.Datadog.GetInt(forwarderRetryQueueMaxSizeKey)
+			option.setRetryQueuePayloadsTotalMaxSizeFromQueueMax(forwarderRetryQueueMaxSize)
+			log.Warnf("'%v = %v' is used, but this setting is deprecated. '%v = %v' (%v * 2MB) is used instead as the maximum payload size is 2MB.",
+				forwarderRetryQueueMaxSizeKey,
+				forwarderRetryQueueMaxSize,
+				forwarderRetryQueuePayloadsMaxSizeKey,
+				option.RetryQueuePayloadsTotalMaxSize,
+				forwarderRetryQueueMaxSize)
+		}
+	}
+
+	return option
+}
+
+// setRetryQueuePayloadsTotalMaxSizeFromQueueMax set `RetryQueuePayloadsTotalMaxSize` from the value
+// of the deprecated settings `forwarder_retry_queue_max_size`
+func (o *Options) setRetryQueuePayloadsTotalMaxSizeFromQueueMax(v int) {
+	maxPayloadSize := 2 * 1024 * 1024
+	o.RetryQueuePayloadsTotalMaxSize = v * maxPayloadSize
 }
 
 // DefaultForwarder is the default implementation of the Forwarder.
@@ -324,22 +345,18 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 				}
 			}
 
-			optionalTransactionContainer, err := tryNewTransactionContainer(
+			transactionContainer := buildTransactionContainer(
 				options.RetryQueuePayloadsTotalMaxSize,
 				flushToDiskMemRatio,
 				domainFolderPath,
 				storageMaxSize,
 				transactionContainerSort)
-			if err != nil {
-				log.Errorf("Retry queue storage on disk disabled: %v", err)
-			}
 
 			f.keysPerDomains[domain] = keys
 			f.domainForwarders[domain] = newDomainForwarder(
 				domain,
-				optionalTransactionContainer,
+				transactionContainer,
 				options.NumberOfWorkers,
-				options.RetryQueueSize,
 				options.ConnectionResetInterval,
 				domainForwarderSort)
 		}
