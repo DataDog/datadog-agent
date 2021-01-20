@@ -9,21 +9,21 @@ import (
 	"math"
 )
 
-// AdjustScoring modifies sampler coefficients to fit better the `maxTPS` condition
+// AdjustScoring modifies sampler coefficients to fit better the `targetTPS` condition
 func (s *Sampler) AdjustScoring() {
 	currentTPS := s.Backend.GetSampledScore()
 	totalTPS := s.Backend.GetTotalScore()
 	offset := s.signatureScoreOffset.Load()
 	cardinality := float64(s.Backend.GetCardinality())
 
-	newOffset, newSlope := adjustCoefficients(currentTPS, totalTPS, s.maxTPS, offset, cardinality)
+	newOffset, newSlope := adjustCoefficients(currentTPS, totalTPS, s.targetTPS, offset, cardinality)
 
 	s.SetSignatureCoefficients(newOffset, newSlope)
 }
 
-func adjustCoefficients(currentTPS, totalTPS, maxTPS, offset, cardinality float64) (newOffset, newSlope float64) {
-	// See how far we are from our maxTPS limit and make signature sampler harder/softer accordingly
-	TPSratio := currentTPS / maxTPS
+func adjustCoefficients(currentTPS, totalTPS, targetTPS, offset, cardinality float64) (newOffset, newSlope float64) {
+	// See how far we are from our targetTPS limit and make signature sampler harder/softer accordingly
+	TPSratio := currentTPS / targetTPS
 
 	// Compute how much we should change the offset
 	coefficient := 1.0
@@ -39,8 +39,8 @@ func adjustCoefficients(currentTPS, totalTPS, maxTPS, offset, cardinality float6
 		// If below, increase the offset
 		// Don't do it if:
 		//  - we already keep all traces (with a 1% margin because of stats imprecision)
-		//  - offset above maxTPS
-		if currentTPS < 0.99*totalTPS && offset < maxTPS {
+		//  - offset above targetTPS
+		if currentTPS < 0.99*totalTPS && offset < targetTPS {
 			coefficient = 1.1
 			if TPSratio < 0.5 {
 				coefficient = 1.3
@@ -61,7 +61,7 @@ func adjustCoefficients(currentTPS, totalTPS, maxTPS, offset, cardinality float6
 	// Compute the slope based on the signature count distribution
 	// TODO: explain this formula
 	if offset < totalTPS {
-		newSlope = math.Pow(10, math.Log10(cardinality*totalTPS/maxTPS)/math.Log10(totalTPS/minSignatureScoreOffset))
+		newSlope = math.Pow(10, math.Log10(cardinality*totalTPS/targetTPS)/math.Log10(totalTPS/minSignatureScoreOffset))
 		// That's the max value we should allow. When slope == 10, we basically keep only `offset` traces per signature
 		if newSlope > 10 {
 			newSlope = 10
