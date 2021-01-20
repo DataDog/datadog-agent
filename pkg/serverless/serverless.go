@@ -243,6 +243,7 @@ func WaitForNextInvocation(stopCh chan struct{}, statsdServer *dogstatsd.Server,
 	}
 
 	// we received a response, meaning we've been invoked
+	daemon.StoreInvocationTime(time.Now())
 
 	var body []byte
 	if body, err = ioutil.ReadAll(response.Body); err != nil {

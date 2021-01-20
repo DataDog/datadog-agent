@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
@@ -29,6 +30,9 @@ type Daemon struct {
 
 	statsdServer *dogstatsd.Server
 
+	// lastInvocations stores last invocations time to be able to compute the
+	// frequency of invocation of the function.
+	lastInvocations []time.Time
 	// aggregator used by the statsd server
 	aggregator *aggregator.BufferedAggregator
 	stopCh     chan struct{}
@@ -60,11 +64,12 @@ func StartDaemon(stopCh chan struct{}) *Daemon {
 	mux := http.NewServeMux()
 
 	daemon := &Daemon{
-		statsdServer: nil,
-		httpServer:   &http.Server{Addr: fmt.Sprintf(":%d", httpServerPort), Handler: mux},
-		mux:          mux,
-		stopCh:       stopCh,
-		ReadyWg:      &sync.WaitGroup{},
+		statsdServer:    nil,
+		httpServer:      &http.Server{Addr: fmt.Sprintf(":%d", httpServerPort), Handler: mux},
+		mux:             mux,
+		stopCh:          stopCh,
+		ReadyWg:         &sync.WaitGroup{},
+		lastInvocations: make([]time.Time, 0),
 	}
 
 	mux.Handle("/lambda/hello", &Hello{daemon})
