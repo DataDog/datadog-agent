@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
+	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -34,6 +35,11 @@ type Daemon struct {
 	// lastInvocations stores last invocations time to be able to compute the
 	// frequency of invocation of the function.
 	lastInvocations []time.Time
+	// flushStrategy is the currently selected flush strategy, defaulting to the
+	// the "flush at the end" naive strategy.
+	// FIXME(remy): configuration override
+	flushStrategy flush.Strategy
+
 	// aggregator used by the statsd server
 	aggregator *aggregator.BufferedAggregator
 	stopCh     chan struct{}
@@ -53,6 +59,11 @@ func (d *Daemon) SetStatsdServer(statsdServer *dogstatsd.Server) {
 // directly to the aggregator, with caution.
 func (d *Daemon) SetAggregator(aggregator *aggregator.BufferedAggregator) {
 	d.aggregator = aggregator
+}
+
+// SetFlushStrategy sets the flush strategy to use.
+func (d *Daemon) SetFlushStrategy(strategy flush.Strategy) {
+	d.flushStrategy = strategy
 }
 
 // TriggerFlush triggers a flush of the aggregated metrics and of the logs.
@@ -78,6 +89,7 @@ func StartDaemon(stopCh chan struct{}) *Daemon {
 		stopCh:          stopCh,
 		ReadyWg:         &sync.WaitGroup{},
 		lastInvocations: make([]time.Time, 0),
+		flushStrategy:   &flush.AtTheEnd{},
 	}
 
 	mux.Handle("/lambda/hello", &Hello{daemon})
@@ -207,9 +219,13 @@ type Flush struct {
 func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.Flush route.")
 
+	if !f.daemon.flushStrategy.ShouldFlush(flush.Stopping, time.Now()) {
+		log.Debug("The flush strategy", f.daemon.flushStrategy, " has decided to not flush in moment:", flush.Stopping)
+		return
+	}
+
 	// if the DogStatsD daemon isn't ready, wait for it.
 	f.daemon.ReadyWg.Wait()
-
 	if f.daemon.statsdServer == nil {
 		w.WriteHeader(503)
 		w.Write([]byte("DogStatsD server not ready"))
@@ -220,8 +236,14 @@ func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// FIXME(remy): could the enhanced metrics be generated at this point? if not
 	//              and they're already generated when REPORT is received on the http server,
 	//              we could make this run in parallel with the statsd flush
-	logs.Flush()
-	// synchronous flush
-	f.daemon.statsdServer.Flush(true)
-	log.Debug("Sync flush done")
+	// FIXME(remy): note that I am not using the request context because I think that we don't
+	//              want the flush to be canceled if the client is closing the request.
+	f.daemon.TriggerFlush(context.Background())
+
+	// we've just flushed, we can maybe try to change the flush strategy?
+	newStrat := f.daemon.AutoSelectStrategy()
+	if newStrat.String() != f.daemon.flushStrategy.String() {
+		log.Debug("Switching to flush strategy:", newStrat)
+		f.daemon.flushStrategy = newStrat
+	}
 }
