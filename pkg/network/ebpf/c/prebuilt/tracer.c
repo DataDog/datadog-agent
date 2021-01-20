@@ -112,22 +112,6 @@ struct bpf_map_def SEC("maps/udp_port_bindings") udp_port_bindings = {
     .namespace = "",
 };
 
-/* This is used purely for capturing state between the call and return of the socket() system call.
- * When a sys_socket kprobe fires, we only have access to the params, which can tell us if the socket is using
- * SOCK_DGRAM or not. The kretprobe will only tell us the returned file descriptor.
- *
- * Keys: the PID returned by bpf_get_current_pid_tgid().
- * Value: 1 if the PID is mid-call to socket() and the call is creating a UDP socket, else there will be no entry.
- */
-struct bpf_map_def SEC("maps/pending_sockets") pending_sockets = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(__u64),
-    .value_size = sizeof(__u8),
-    .max_entries = 8192,
-    .pinning = 0,
-    .namespace = "",
-};
-
 /* Similar to pending_sockets this is used for capturing state between the call and return of the bind() system call.
  *
  * Keys: the PID returned by bpf_get_current_pid_tgid()
@@ -138,24 +122,6 @@ struct bpf_map_def SEC("maps/pending_bind") pending_bind = {
     .key_size = sizeof(__u64),
     .value_size = sizeof(bind_syscall_args_t),
     .max_entries = 8192,
-    .pinning = 0,
-    .namespace = "",
-};
-
-/* This is written to in the kretprobe for sys_socket to keep track of
- * sockets that were created, but have not yet been bound to a port with
- * sys_bind.
- *
- * Key: a __u64 where the upper 32 bits are the PID of the process which created the socket, and the lower
- * 32 bits are the file descriptor as returned by socket().
- * Value: the values are not relevant. It's only relevant that there is or isn't an entry.
- *
- */
-struct bpf_map_def SEC("maps/unbound_sockets") unbound_sockets = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(__u64),
-    .value_size = sizeof(__u8),
-    .max_entries = 1024,
     .pinning = 0,
     .namespace = "",
 };
@@ -1017,20 +983,17 @@ int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
 
 //region sys_enter_bind
 
-static __always_inline int sys_enter_bind(__u64 fd, struct sockaddr* addr) {
+static __always_inline int sys_enter_bind(struct socket* sock, struct sockaddr* addr) {
     __u64 tid = bpf_get_current_pid_tgid();
 
-    // determine if the fd for this process is an unbound UDP socket
-    __u64 fd_and_tid = (tid << 32) | fd;
-    __u64* u = bpf_map_lookup_elem(&unbound_sockets, &fd_and_tid);
-
-    if (u == NULL) {
-        log_debug("sys_enter_bind: bind happened, but not on a UDP socket, fd=%u, tid=%u\n", fd, tid);
+    __u16 type = 0;
+    bpf_probe_read(&type, sizeof(__u16), &sock->type);
+    if ((type & SOCK_DGRAM) == 0) {
         return 0;
     }
 
     if (addr == NULL) {
-        log_debug("sys_enter_bind: could not read sockaddr, fd=%u, tid=%u\n", fd, tid);
+        log_debug("sys_enter_bind: could not read sockaddr, sock=%llx, tid=%u\n", sock, tid);
         return 0;
     }
 
@@ -1051,39 +1014,28 @@ static __always_inline int sys_enter_bind(__u64 fd, struct sockaddr* addr) {
 
     // write to pending_binds so the retprobe knows we can mark this as binding.
     bind_syscall_args_t args = {};
-    args.fd = fd;
     args.port = sin_port;
 
     bpf_map_update_elem(&pending_bind, &tid, &args, BPF_ANY);
-    log_debug("sys_enter_bind: started a bind on UDP port=%d fd=%u tid=%u\n", sin_port, fd, tid);
+    log_debug("sys_enter_bind: started a bind on UDP port=%d sock=%llx tid=%u\n", sin_port, sock, tid);
 
     return 0;
 }
 
-SEC("tracepoint/syscalls/sys_enter_bind")
-int tracepoint__sys_enter_bind(struct syscalls_enter_bind_args* ctx) {
-    log_debug("tp/sys_enter_bind: fd=%u, umyaddr=%x\n", ctx->fd, ctx->umyaddr);
-    return sys_enter_bind(ctx->fd, ctx->umyaddr);
-}
-
-SEC("kprobe/sys_bind/x64")
-int kprobe__sys_bind_x64(struct pt_regs* ctx) {
-    struct pt_regs* _ctx = (struct pt_regs*)PT_REGS_PARM1(ctx);
-
-    __u64 fd;
-    struct sockaddr* addr;
-    bpf_probe_read(&fd, sizeof(fd), &(PT_REGS_PARM1(_ctx)));
-    bpf_probe_read(&addr, sizeof(struct sockaddr*), &(PT_REGS_PARM2(_ctx)));
-    log_debug("kprobe/sys_bind/x64: fd=%u, umyaddr=%x\n", fd, addr);
-    return sys_enter_bind(fd, addr);
-}
-
-SEC("kprobe/sys_bind")
-int kprobe__sys_bind(struct pt_regs* ctx) {
-    __u64 fd = PT_REGS_PARM1(ctx);
+SEC("kprobe/inet_bind")
+int kprobe__inet_bind(struct pt_regs* ctx) {
+    struct socket *sock = (struct socket*)PT_REGS_PARM1(ctx);
     struct sockaddr* addr = (struct sockaddr*)PT_REGS_PARM2(ctx);
-    log_debug("kprobe/sys_bind: fd=%u, umyaddr=%x\n", fd, addr);
-    return sys_enter_bind(fd, addr);
+    log_debug("kprobe/inet_bind: sock=%llx, umyaddr=%x\n", sock, addr);
+    return sys_enter_bind(sock, addr);
+}
+
+SEC("kprobe/inet6_bind")
+int kprobe__inet6_bind(struct pt_regs* ctx) {
+    struct socket *sock = (struct socket*)PT_REGS_PARM1(ctx);
+    struct sockaddr* addr = (struct sockaddr*)PT_REGS_PARM2(ctx);
+    log_debug("kprobe/inet6_bind: sock=%llx, umyaddr=%x\n", sock, addr);
+    return sys_enter_bind(sock, addr);
 }
 
 //endregion
@@ -1121,125 +1073,18 @@ static __always_inline int sys_exit_bind(__s64 ret) {
     return 0;
 }
 
-SEC("tracepoint/syscalls/sys_exit_bind")
-int tracepoint__sys_exit_bind(struct syscalls_exit_args* ctx) {
-    log_debug("tp/sys_exit_bind: ret=%d\n", ctx->ret);
-    return sys_exit_bind(ctx->ret);
-}
-
-SEC("kretprobe/sys_bind")
-int kretprobe__sys_bind(struct pt_regs* ctx) {
+SEC("kretprobe/inet_bind")
+int kretprobe__inet_bind(struct pt_regs* ctx) {
     __s64 ret = PT_REGS_RC(ctx);
-    log_debug("kretprobe/sys_bind: ret=%d\n", ret);
+    log_debug("kretprobe/inet_bind: ret=%d\n", ret);
     return sys_exit_bind(ret);
 }
 
-//endregion
-
-//region sys_enter_socket
-
-// used for capturing UDP sockets that are bound
-static __always_inline int sys_enter_socket(__u64 family, __u64 type) {
-    __u64 tid = bpf_get_current_pid_tgid();
-    log_debug("sys_enter_socket: tid=%u, family=%u, type=%u\n", tid, family, type);
-
-    // figuring out if the socket being constructed is UDP. We will call
-    // a socket UDP if it is in the AF_INET or AF_INET6 domain. And
-    // the type is SOCK_DGRAM.
-    __u8 pending_udp = 0;
-    if ((family & (AF_INET | AF_INET6)) > 0 && (type & SOCK_DGRAM) > 0) {
-        pending_udp = 1;
-    }
-
-    if (pending_udp == 0) {
-        log_debug("sys_enter_socket: got a socket() call, but was not for UDP with tid=%u, family=%u, type=%u\n", tid, family, type);
-        return 0;
-    }
-
-    log_debug("sys_enter_socket: started a UDP socket for tid=%u\n", tid);
-    __u8 x = 1;
-    bpf_map_update_elem(&pending_sockets, &tid, &x, BPF_ANY);
-
-    return 0;
-}
-
-SEC("tracepoint/syscalls/sys_enter_socket")
-int tracepoint__sys_enter_socket(struct syscalls_enter_socket_args* ctx) {
-    log_debug("tp/sys_enter_socket: family=%u, type=%u\n", ctx->family, ctx->type);
-    return sys_enter_socket(ctx->family, ctx->type);
-}
-
-SEC("kprobe/sys_socket/x64")
-int kprobe__sys_socket_x64(struct pt_regs* ctx) {
-    struct pt_regs* _ctx = (struct pt_regs*)PT_REGS_PARM1(ctx);
-
-    __u64 family;
-    __u64 type;
-    bpf_probe_read(&family, sizeof(family), &(PT_REGS_PARM1(_ctx)));
-    bpf_probe_read(&type, sizeof(type), &(PT_REGS_PARM2(_ctx)));
-    log_debug("kprobe/sys_socket/x64: family=%u, type=%u\n", family, type);
-    return sys_enter_socket(family, type);
-}
-
-SEC("kprobe/sys_socket")
-int kprobe__sys_socket(struct pt_regs* ctx) {
-    __u64 family = PT_REGS_PARM1(ctx);
-    __u64 type = PT_REGS_PARM2(ctx);
-    log_debug("kprobe/sys_socket: family=%u, type=%u\n", family, type);
-    return sys_enter_socket(family, type);
-}
-
-//endregion
-
-//region sys_exit_socket
-
-// used in combination with the kprobe for sys_socket to find file descriptors for UDP sockets that have not
-// yet been "binded".
-static __always_inline int sys_exit_socket(__s64 fd) {
-    __u64 tid = bpf_get_current_pid_tgid();
-    __u8* udp_pending = bpf_map_lookup_elem(&pending_sockets, &tid);
-
-    // move the socket to "unbound"
-    __u64 fd_and_tid = (tid << 32) | fd;
-
-    if (udp_pending == NULL) {
-        // in most cases this will be a no-op, but
-        // in the case that this is a non-UDP socket call,
-        // and an older process with the same TID created a UDP
-        // socket with the same FD, we want to prevent
-        // subsequent calls to bind() from having an effect.
-        bpf_map_delete_elem(&unbound_sockets, &fd_and_tid);
-        log_debug("sys_exit_socket: socket() call finished but was not UDP, fd=%d, tid=%u\n", fd, tid);
-        return 0;
-    }
-
-    if (fd == -1) {
-        // if the socket() call has failed, don't keep track of the returned
-        // file descriptor (which will be negative one)
-        bpf_map_delete_elem(&unbound_sockets, &fd_and_tid);
-        log_debug("sys_exit_socket: socket() call failed, fd=%d, tid=%u\n", fd, tid);
-    }
-
-    bpf_map_delete_elem(&pending_sockets, &tid);
-
-    log_debug("sys_exit_socket: socket() call for UDP socket terminated, fd (%d) is now unbound tid=%u\n", fd, tid);
-
-    __u64 v = 1;
-    bpf_map_update_elem(&unbound_sockets, &fd_and_tid, &v, BPF_ANY);
-    return 0;
-}
-
-SEC("tracepoint/syscalls/sys_exit_socket")
-int tracepoint__sys_exit_socket(struct syscalls_exit_args* ctx) {
-    log_debug("tp/sys_exit_socket: fd=%d\n", ctx->ret);
-    return sys_exit_socket(ctx->ret);
-}
-
-SEC("kretprobe/sys_socket")
-int kretprobe__sys_socket(struct pt_regs* ctx) {
-    __s64 fd = PT_REGS_RC(ctx);
-    log_debug("kretprobe/sys_socket: fd=%d\n", fd);
-    return sys_exit_socket(fd);
+SEC("kretprobe/inet6_bind")
+int kretprobe__inet6_bind(struct pt_regs* ctx) {
+    __s64 ret = PT_REGS_RC(ctx);
+    log_debug("kretprobe/inet6_bind: ret=%d\n", ret);
+    return sys_exit_bind(ret);
 }
 
 //endregion

@@ -171,7 +171,6 @@ typedef struct {
 
 typedef struct {
     __u16 port;
-    __u64 fd;
 } bind_syscall_args_t;
 
 typedef struct {
