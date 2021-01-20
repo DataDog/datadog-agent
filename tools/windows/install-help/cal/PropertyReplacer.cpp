@@ -1,78 +1,44 @@
 #include "stdafx.h"
 #include "PropertyReplacer.h"
 
-IPropertyReplacer::~IPropertyReplacer()
+PropertyReplacer::PropertyReplacer(std::wstring &input, std::wstring const &match)
+    : _input(input)
 {
+    _matches.push_back(std::wregex(match));
 }
 
-RegexPropertyReplacer::RegexPropertyReplacer(std::wstring wixPropertyName, std::wstring const &regex,
-                                             formatter_t const &formatter)
-    : _wixPropertyName(std::move(wixPropertyName))
-    , _regex(std::wregex(regex))
-    , _formatter(formatter)
+bool PropertyReplacer::replace_with(std::wstring const &replacement)
 {
-}
-
-RegexPropertyReplacer::RegexPropertyReplacer(std::wstring wixPropertyName, std::wstring propertyName,
-                                             std::wstring const &regex)
-    : RegexPropertyReplacer(wixPropertyName, regex, [propertyName](auto const &v) { return propertyName + L": " + v; })
-{
-}
-
-void RegexPropertyReplacer::Replace(std::wstring &input, std::map<std::wstring, std::wstring> const &values)
-{
-    const auto &value = values.find(_wixPropertyName);
-    if (value != values.end())
+    auto start = _input.begin();
+    auto end = _input.end();
+    std::size_t offset = 0;
+    for (auto matchIt = _matches.begin(); matchIt != _matches.end();)
     {
-        input = std::regex_replace(input, _regex, _formatter(value->second), std::regex_constants::format_first_only);
-    }
-}
-
-RegexPropertyReplacer::~RegexPropertyReplacer()
-{
-}
-
-const std::wstring proxySection =
-    L"# proxy:\n#   https: http://<USERNAME>:<PASSWORD>@<PROXY_SERVER_FOR_HTTPS>:<PORT>\n#   http: "
-    L"http://<USERNAME>:<PASSWORD>@<PROXY_SERVER_FOR_HTTP>:<PORT>\n#   no_proxy:\n#     - <HOSTNAME-1>\n#     - "
-    L"<HOSTNAME-2>";
-
-ProxyPropertyReplacer::ProxyPropertyReplacer()
-    : _regex(std::wregex(proxySection))
-{
-}
-
-void ProxyPropertyReplacer::Replace(std::wstring &input, std::map<std::wstring, std::wstring> const &values)
-{
-    const auto &proxyHost = values.find(L"PROXY_HOST");
-    if (proxyHost != values.end())
-    {
-        const auto &proxyUser = values.find(L"PROXY_USER");
-        const auto &proxyPassword = values.find(L"PROXY_PASSWORD");
-        const auto &proxyPort = values.find(L"PROXY_PORT");
-        std::wstringstream proxy;
-        if (proxyUser != values.end())
+        std::match_results<decltype(start)> results;
+        if (!std::regex_search(start + offset, end, results, *matchIt, std::regex_constants::format_first_only))
         {
-            proxy << proxyUser->second;
-            if (proxyPassword != values.end())
-            {
-                proxy << L":" << proxyPassword->second;
-            }
-            proxy << L"@";
+            return false;
         }
-        proxy << proxyHost->second;
-        if (proxyPort != values.end())
+        if (++matchIt == _matches.end())
         {
-            proxy << L":" << proxyPort->second;
+            _input.erase(offset + results.position(), results.length());
+            _input.insert(offset + results.position(), replacement);
         }
-        std::wstringstream newValue;
-        newValue << L"proxy:" << std::endl
-                 << L"\thttps: " << proxy.str() << std::endl
-                 << L"\thttp: " << proxy.str() << std::endl;
-        input = std::regex_replace(input, _regex, newValue.str());
+        else
+        {
+            offset += results.position();
+        }
     }
+    return true;
 }
 
-ProxyPropertyReplacer::~ProxyPropertyReplacer()
+PropertyReplacer &PropertyReplacer::then(std::wstring const &match)
 {
+    _matches.push_back(std::wregex(match));
+    return *this;
+}
+
+PropertyReplacer match(std::wstring &input, std::wstring const &match)
+{
+    return PropertyReplacer(input, match);
 }
