@@ -11,6 +11,7 @@ Type=simple
 PIDFile=<%= install_dir %>/run/system-probe.pid
 Restart=on-failure
 ExecStart=<%= install_dir %>/embedded/bin/system-probe --config=<%= etc_dir %>/system-probe.yaml --pid=<%= install_dir %>/run/system-probe.pid
+Environment=GOTRACEBACK=crash
 # Since systemd 229, should be in [Unit] but in order to support systemd <229,
 # it is also supported to have it here.
 StartLimitInterval=10

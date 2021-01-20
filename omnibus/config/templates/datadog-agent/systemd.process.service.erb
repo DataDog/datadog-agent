@@ -9,6 +9,7 @@ PIDFile=<%= install_dir %>/run/process-agent.pid
 User=dd-agent
 Restart=on-failure
 ExecStart=<%= install_dir %>/embedded/bin/process-agent --config=<%= etc_dir %>/datadog.yaml --sysprobe-config=<%= etc_dir %>/system-probe.yaml --pid=<%= install_dir %>/run/process-agent.pid
+Environment=GOTRACEBACK=crash
 # Since systemd 229, should be in [Unit] but in order to support systemd <229,
 # it is also supported to have it here.
 StartLimitInterval=10
