@@ -75,10 +75,21 @@ func (p *packetSource) Stats() map[string]int64 {
 
 func (p *packetSource) VisitPackets(exit <-chan struct{}, visit func([]byte, time.Time) error) error {
 	for {
+		// allow the read loop to be prematurely interrupted
+		select {
+		case <-exit:
+			return nil
+		default:
+		}
+
 		data, stats, err := p.ZeroCopyReadPacketData()
 
 		// Immediately retry for EAGAIN
-		if err == syscall.EAGAIN || err == afpacket.ErrTimeout {
+		if err == syscall.EAGAIN {
+			continue
+		}
+
+		if err == afpacket.ErrTimeout {
 			return nil
 		}
 
@@ -88,13 +99,6 @@ func (p *packetSource) VisitPackets(exit <-chan struct{}, visit func([]byte, tim
 
 		if err := visit(data, stats.Timestamp); err != nil {
 			return err
-		}
-
-		// allow the read loop to be prematurely interrupted
-		select {
-		case <-exit:
-			return nil
-		default:
 		}
 	}
 }
