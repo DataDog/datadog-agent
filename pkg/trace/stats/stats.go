@@ -65,13 +65,13 @@ type Distribution struct {
 // GrainKey generates the key used to aggregate counts and distributions
 // which is of the form: name|measure|aggr
 // for example: serve|duration|service:webserver
-func GrainKey(name, measure string, aggr Aggregation, otherTags [][]string) string {
+func GrainKey(name, measure string, aggr Aggregation, tags [][]string) string {
 	b := strings.Builder{}
 	// +2 for "|" separators
 	size := len(name) + 1 + len(measure) + 1
 	size += aggr.KeyLen()
-	if len(otherTags) > 0 {
-		size += len(otherTags[0]) * len(otherTags)
+	for _, tag := range tags {
+		size += 2 + len(tag[0]) + len(tag[1])
 	}
 	b.Grow(size)
 
@@ -81,7 +81,7 @@ func GrainKey(name, measure string, aggr Aggregation, otherTags [][]string) stri
 	b.WriteRune('|')
 
 	aggr.WriteKey(&b)
-	for _, tag := range otherTags {
+	for _, tag := range tags {
 		b.WriteString(",")
 		b.WriteString(tag[0])
 		b.WriteString(":")
