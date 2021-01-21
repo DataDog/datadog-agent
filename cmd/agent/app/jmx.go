@@ -9,10 +9,10 @@ package app
 
 import (
 	"fmt"
+	"path/filepath"
 	"runtime"
-    "strings"
-    "time"
-    "path/filepath"
+	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -92,7 +92,7 @@ var (
 
 	cliSelectedChecks = []string{}
 	jmxLogLevel       string
-    saveFlare         bool
+	saveFlare         bool
 )
 
 func init() {
@@ -106,9 +106,9 @@ func init() {
 	jmxListCmd.AddCommand(jmxListEverythingCmd, jmxListMatchingCmd, jmxListLimitedCmd, jmxListCollectedCmd, jmxListNotMatchingCmd, jmxListWithMetricsCmd, jmxListWithRateMetricsCmd)
 
 	jmxListCmd.PersistentFlags().StringSliceVar(&cliSelectedChecks, "checks", []string{}, "JMX checks (ex: jmx,tomcat)")
-    jmxListCmd.PersistentFlags().BoolVarP(&saveFlare, "flare", "", false, "save jmx list results to the log dir so it may be reported in a flare")
+	jmxListCmd.PersistentFlags().BoolVarP(&saveFlare, "flare", "", false, "save jmx list results to the log dir so it may be reported in a flare")
 	jmxCollectCmd.PersistentFlags().StringSliceVar(&cliSelectedChecks, "checks", []string{}, "JMX checks (ex: jmx,tomcat)")
-    jmxCollectCmd.PersistentFlags().BoolVarP(&saveFlare, "flare", "", false, "save jmx list results to the log dir so it may be reported in a flare")
+	jmxCollectCmd.PersistentFlags().BoolVarP(&saveFlare, "flare", "", false, "save jmx list results to the log dir so it may be reported in a flare")
 
 	// attach the command to the root
 	AgentCmd.AddCommand(jmxCmd)
@@ -155,12 +155,12 @@ func runJmxCommandConsole(command string) error {
 		return err
 	}
 
-    logFile := ""
-    if saveFlare {
-        // Windows cannot accept ":" in file names
-        filenameSafeTimeStamp := strings.ReplaceAll(time.Now().UTC().Format(time.RFC3339), ":", "-")
-        logFile = filepath.Join(common.DefaultJMXFlareDirectory, "jmx_"+command+"_"+filenameSafeTimeStamp+".log")
-    }
+	logFile := ""
+	if saveFlare {
+		// Windows cannot accept ":" in file names
+		filenameSafeTimeStamp := strings.ReplaceAll(time.Now().UTC().Format(time.RFC3339), ":", "-")
+		logFile = filepath.Join(common.DefaultJMXFlareDirectory, "jmx_"+command+"_"+filenameSafeTimeStamp+".log")
+	}
 
 	err = config.SetupJMXLogger(jmxLoggerName, logLevel, logFile, "", false, true, false)
 	if err != nil {
