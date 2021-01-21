@@ -35,6 +35,7 @@
   <ItemGroup>
     <ClCompile Include="test-customactiondata.cpp" />
     <ClCompile Include="test-caninstall.cpp" />
+    <ClCompile Include="test-updateYamlConfig.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\customaction.vcxproj">
