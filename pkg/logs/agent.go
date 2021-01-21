@@ -63,6 +63,7 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 		container.NewLauncher(
 			coreConfig.Datadog.GetBool("logs_config.container_collect_all"),
 			coreConfig.Datadog.GetBool("logs_config.k8s_container_use_file"),
+			coreConfig.Datadog.GetBool("logs_config.docker_container_use_file"),
 			time.Duration(coreConfig.Datadog.GetInt("logs_config.docker_client_read_timeout"))*time.Second,
 			sources, services, pipelineProvider, auditor),
 		listener.NewLauncher(sources, coreConfig.Datadog.GetInt("logs_config.frame_size"), pipelineProvider),

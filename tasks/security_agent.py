@@ -161,6 +161,7 @@ def build_functional_tests(
     if arch == "x86":
         env["GOARCH"] = "386"
 
+    build_tags = "linux_bpf," + build_tags
     if bundle_ebpf:
         build_tags = "ebpf_bindata," + build_tags
 
@@ -271,7 +272,6 @@ def docker_functional_tests(
 ):
     build_functional_tests(
         ctx,
-        verbose=verbose,
         go_version=go_version,
         arch=arch,
         major_version=major_version,

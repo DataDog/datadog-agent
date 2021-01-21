@@ -66,7 +66,7 @@ type AgentConfig struct {
 
 	// Sampler configuration
 	ExtraSampleRate float64
-	MaxTPS          float64
+	TargetTPS       float64
 	MaxEPS          float64
 
 	// Receiver
@@ -128,7 +128,7 @@ func New() *AgentConfig {
 		BucketInterval: time.Duration(10) * time.Second,
 
 		ExtraSampleRate: 1.0,
-		MaxTPS:          10,
+		TargetTPS:       10,
 		MaxEPS:          200,
 
 		ReceiverHost:    "localhost",
