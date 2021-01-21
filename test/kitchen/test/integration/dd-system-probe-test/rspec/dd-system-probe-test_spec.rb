@@ -23,8 +23,8 @@ print `uname -a`
 
 Dir.glob('/tmp/system-probe-tests/**/testsuite').each do |f|
   pkg = f.delete_prefix('/tmp/system-probe-tests').delete_suffix('/testsuite')
-  describe "system-probe tests for #{pkg}" do
-    it 'prebuilt - successfully runs' do
+  describe "prebuilt system-probe tests for #{pkg}" do
+    it 'successfully runs' do
       Dir.chdir(File.dirname(f)) do
         Open3.popen2e("sudo", f, "-test.v") do |_, output, wait_thr|
           test_failures = check_output(output, wait_thr)
@@ -32,8 +32,10 @@ Dir.glob('/tmp/system-probe-tests/**/testsuite').each do |f|
         end
       end
     end
+  end
 
-    it 'runtime compiled - successfully runs' do
+  describe "runtime compiled system-probe tests for #{pkg}" do
+    it 'successfully runs' do
       Dir.chdir(File.dirname(f)) do
         Open3.popen2e({"DD_TESTS_RUNTIME_COMPILED"=>"1"}, "sudo", "-E", f, "-test.v") do |_, output, wait_thr|
           test_failures = check_output(output, wait_thr)

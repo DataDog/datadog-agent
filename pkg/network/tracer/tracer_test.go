@@ -46,6 +46,14 @@ var (
 // runtimeCompilationEnvVar forces use of the runtime compiler for ebpf functionality
 const runtimeCompilationEnvVar = "DD_TESTS_RUNTIME_COMPILED"
 
+func TestMain(m *testing.M) {
+	cfg := testConfig()
+	if cfg.EnableRuntimeCompiler {
+		fmt.Println("RUNTIME COMPILER ENABLED")
+	}
+	os.Exit(m.Run())
+}
+
 func TestTracerExpvar(t *testing.T) {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
