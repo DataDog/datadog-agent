@@ -45,11 +45,42 @@ var (
 	checkPoliciesArgs = struct {
 		dir string
 	}{}
+
+	dumpCmd = &cobra.Command{
+		Use:   "dump",
+		Short: "Dump security module information",
+	}
+
+	dumpProcessCacheCmd = &cobra.Command{
+		Use:   "process-cache",
+		Short: "process cache",
+		RunE:  dumpProcessCache,
+	}
 )
 
 func init() {
+	dumpCmd.AddCommand(dumpProcessCacheCmd)
+	runtimeCmd.AddCommand(dumpCmd)
+
 	runtimeCmd.AddCommand(checkPoliciesCmd)
 	checkPoliciesCmd.Flags().StringVar(&checkPoliciesArgs.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+}
+
+func dumpProcessCache(cmd *cobra.Command, args []string) error {
+	client, err := secagent.NewRuntimeSecurityClient()
+	if err != nil {
+		return errors.Wrap(err, "unable to create a runtime security client instance")
+	}
+	defer client.Close()
+
+	filename, err := client.DumpProcessCache()
+	if err != nil {
+		return errors.Wrap(err, "unable to get a process cache dump")
+	}
+
+	fmt.Printf("Dump written: %s\n", filename)
+
+	return nil
 }
 
 func checkPolicies(cmd *cobra.Command, args []string) error {

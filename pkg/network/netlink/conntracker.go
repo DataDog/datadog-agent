@@ -168,42 +168,23 @@ func (ctr *realConntracker) DeleteTranslation(c network.ConnectionStats) {
 	ctr.Lock()
 	defer ctr.Unlock()
 
-	keys := []connKey{
-		{
-			srcIP:     c.Source,
-			srcPort:   c.SPort,
-			dstIP:     c.Dest,
-			dstPort:   c.DPort,
-			transport: c.Type,
-		},
-		{
-			srcIP:     c.Dest,
-			srcPort:   c.DPort,
-			dstIP:     c.Source,
-			dstPort:   c.SPort,
-			transport: c.Type,
-		},
+	k := connKey{
+		srcIP:     c.Source,
+		srcPort:   c.SPort,
+		dstIP:     c.Dest,
+		dstPort:   c.DPort,
+		transport: c.Type,
 	}
 
-	deleteTrans := func(k connKey) bool {
-		t, ok := ctr.state[k]
-		if !ok {
-			log.Tracef("not deleting %+v from conntrack", k)
-			return false
-		}
-
-		delete(ctr.state, k)
-		delete(ctr.state, ipTranslationToConnKey(k.transport, t))
-		log.Tracef("deleted %+v from conntrack", k)
-		return true
+	t, ok := ctr.state[k]
+	if !ok {
+		log.Tracef("not deleting %+v from conntrack", k)
+		return
 	}
 
-	for _, k := range keys {
-		if ok := deleteTrans(k); ok {
-			atomic.AddInt64(&ctr.stats.unregisters, 1)
-			break
-		}
-	}
+	delete(ctr.state, k)
+	delete(ctr.state, ipTranslationToConnKey(k.transport, t))
+	atomic.AddInt64(&ctr.stats.unregisters, 1)
 }
 
 func (ctr *realConntracker) Close() {

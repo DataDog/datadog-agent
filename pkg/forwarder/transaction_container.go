@@ -35,16 +35,16 @@ type transactionContainer struct {
 	mutex                      sync.RWMutex
 }
 
-func tryNewTransactionContainer(
+func buildTransactionContainer(
 	maxMemSizeInBytes int,
 	flushToStorageRatio float64,
 	optionalDomainFolderPath string,
 	storageMaxSize int64,
 	dropPrioritySorter transactionPrioritySorter,
 	domain string,
-	apiKeys []string) (*transactionContainer, error) {
+	apiKeys []string) *transactionContainer {
 	if maxMemSizeInBytes <= 0 {
-		return nil, nil
+		return nil
 	}
 	var storage transactionStorage
 	var err error
@@ -60,7 +60,7 @@ func tryNewTransactionContainer(
 		}
 	}
 
-	return newTransactionContainer(dropPrioritySorter, storage, maxMemSizeInBytes, flushToStorageRatio, transactionContainerTelemetry{}), nil
+	return newTransactionContainer(dropPrioritySorter, storage, maxMemSizeInBytes, flushToStorageRatio, transactionContainerTelemetry{})
 }
 
 func newTransactionContainer(

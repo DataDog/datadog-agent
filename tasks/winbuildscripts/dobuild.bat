@@ -39,13 +39,13 @@ if "%TARGET_ARCH%" == "x86" (
     Powershell -C "ridk enable; cd omnibus; bundle install"
 )
 
-if not exist \dev\go\src\github.com\DataDog\datadog-agent exit /b 1
-cd \dev\go\src\github.com\DataDog\datadog-agent || exit /b 2
+if not exist \dev\go\src\github.com\DataDog\datadog-agent exit /b 100
+cd \dev\go\src\github.com\DataDog\datadog-agent || exit /b 101
 
 
-pip3 install -r requirements.txt || exit /b 4
+pip3 install -r requirements.txt || exit /b 102
 
-inv -e deps --verbose || exit /b 5
+inv -e deps --verbose || exit /b 103
 
 @echo "inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION% --release-version %RELEASE_VERSION%"
-inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION% --release-version %RELEASE_VERSION% || exit /b 6
+inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION% --release-version %RELEASE_VERSION% || exit /b 104

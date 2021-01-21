@@ -27,10 +27,10 @@ func getTestPriorityEngine() *PriorityEngine {
 
 	// No extra fixed sampling, no maximum TPS
 	extraRate := 1.0
-	maxTPS := 0.0
+	targetTPS := 0.0
 
 	rateByService := RateByService{}
-	return NewPriorityEngine(extraRate, maxTPS, &rateByService)
+	return NewPriorityEngine(extraRate, targetTPS, &rateByService)
 }
 
 func getTestTraceWithService(t *testing.T, service string, s *PriorityEngine) (pb.Trace, *pb.Span) {
@@ -144,27 +144,27 @@ func TestPrioritySampleThresholdTo1(t *testing.T) {
 	}
 }
 
-func TestMaxTPSByService(t *testing.T) {
+func TestTargetTPSByService(t *testing.T) {
 	rand.Seed(1)
-	// Test the "effectiveness" of the maxTPS option.
+	// Test the "effectiveness" of the targetTPS option.
 	assert := assert.New(t)
 	s := getTestPriorityEngine()
 
 	type testCase struct {
-		maxTPS        float64
+		targetTPS     float64
 		tps           float64
 		relativeError float64
 	}
 	testCases := []testCase{
-		{maxTPS: 10.0, tps: 20.0, relativeError: 0.2},
+		{targetTPS: 10.0, tps: 20.0, relativeError: 0.2},
 	}
 	if !testing.Short() {
 		testCases = append(testCases,
-			testCase{maxTPS: 5.0, tps: 50.0, relativeError: 0.2},
-			testCase{maxTPS: 3.0, tps: 200.0, relativeError: 0.2},
-			testCase{maxTPS: 1.0, tps: 1000.0, relativeError: 0.2},
-			testCase{maxTPS: 10.0, tps: 10.0, relativeError: 0.001},
-			testCase{maxTPS: 10.0, tps: 3.0, relativeError: 0.001})
+			testCase{targetTPS: 5.0, tps: 50.0, relativeError: 0.2},
+			testCase{targetTPS: 3.0, tps: 200.0, relativeError: 0.2},
+			testCase{targetTPS: 1.0, tps: 1000.0, relativeError: 0.2},
+			testCase{targetTPS: 10.0, tps: 10.0, relativeError: 0.001},
+			testCase{targetTPS: 10.0, tps: 3.0, relativeError: 0.001})
 	}
 
 	// To avoid the edge effects from an non-initialized sampler, wait a bit before counting samples.
@@ -175,8 +175,8 @@ func TestMaxTPSByService(t *testing.T) {
 
 	s.Sampler.rateThresholdTo1 = 1
 	for _, tc := range testCases {
-		t.Logf("testing maxTPS=%0.1f tps=%0.1f", tc.maxTPS, tc.tps)
-		s.Sampler.maxTPS = tc.maxTPS
+		t.Logf("testing targetTPS=%0.1f tps=%0.1f", tc.targetTPS, tc.tps)
+		s.Sampler.targetTPS = tc.targetTPS
 		periodSeconds := defaultDecayPeriod.Seconds()
 		tracesPerPeriod := tc.tps * periodSeconds
 		// Set signature score offset high enough not to kick in during the test.
@@ -202,25 +202,25 @@ func TestMaxTPSByService(t *testing.T) {
 			}
 		}
 
-		// When tps is lower than maxTPS it means that we are actually not sampling
-		// anything, so the target is the original tps, and not maxTPS.
+		// When tps is lower than targetTPS it means that we are actually not sampling
+		// anything, so the target is the original tps, and not targetTPS.
 		// Also, in that case, results should be more precise.
-		targetTPS := tc.maxTPS
+		targetTPS := tc.targetTPS
 		relativeError := 0.01
-		if tc.maxTPS > tc.tps {
+		if tc.targetTPS > tc.tps {
 			targetTPS = tc.tps
 		} else {
 			relativeError = 0.1 + defaultDecayFactor - 1
 		}
 
-		// Check that the sampled score is roughly equal to maxTPS. This is different from
-		// the score sampler test as here we run adjustscoring on a regular basis so the converges to maxTPS.
+		// Check that the sampled score is roughly equal to targetTPS. This is different from
+		// the score sampler test as here we run adjustscoring on a regular basis so the converges to targetTPS.
 		assert.InEpsilon(targetTPS, s.Sampler.Backend.GetSampledScore(), relativeError)
 
 		// We should have keep the right percentage of traces
 		assert.InEpsilon(targetTPS/tc.tps, float64(sampledCount)/float64(handledCount), relativeError)
 
-		// We should have a throughput of sampled traces around maxTPS
+		// We should have a throughput of sampled traces around targetTPS
 		// Check for 1% epsilon, but the precision also depends on the backend imprecision (error factor = decayFactor).
 		// Combine error rates with L1-norm instead of L2-norm by laziness, still good enough for tests.
 		assert.InEpsilon(targetTPS, float64(sampledCount)/(float64(periods)*periodSeconds), relativeError)

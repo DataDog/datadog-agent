@@ -56,7 +56,7 @@ func GetPayload(hostnameData util.HostnameData) *Payload {
 		PythonVersion: GetPythonVersion(),
 		SystemStats:   getSystemStats(),
 		Meta:          meta,
-		HostTags:      getHostTags(),
+		HostTags:      GetHostTags(false),
 		ContainerMeta: getContainerMeta(1 * time.Second),
 		NetworkMeta:   getNetworkMeta(),
 		LogsMeta:      getLogsMeta(),

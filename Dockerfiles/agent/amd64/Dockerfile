@@ -169,7 +169,7 @@ HEALTHCHECK --interval=30s --timeout=5s --retries=2 \
   CMD ["/probe.sh"]
 
 # Leave following directories RW to allow use of kubernetes readonlyrootfs flag
-VOLUME ["/var/run/s6", "/etc/datadog-agent", "/var/log/datadog", "/tmp"]
+VOLUME ["/var/run/s6", "/var/log/datadog"]
 
 CMD ["/init"]
 

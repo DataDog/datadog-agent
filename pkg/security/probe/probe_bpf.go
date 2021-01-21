@@ -239,6 +239,10 @@ func (p *Probe) SendStats() error {
 		return errors.Wrap(err, "failed to send process_resolver cache_size metric")
 	}
 
+	if err := p.statsdClient.Gauge(MetricPrefix+".process_resolver.entry_cache_size", p.resolvers.ProcessResolver.GetEntryCacheSize(), []string{}, 1.0); err != nil {
+		return errors.Wrap(err, "failed to send process_resolver cache_size metric")
+	}
+
 	return p.eventsStats.SendStats(p.statsdClient)
 }
 
@@ -445,14 +449,18 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			log.Errorf("failed to decode removexattr event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-	case ExecEventType, ForkEventType:
+	case ForkEventType:
 		if _, err := event.Exec.UnmarshalEvent(data[offset:], event); err != nil {
 			log.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-
-		// update the process resolver cache
-		event.updateProcessCachePointer(p.resolvers.ProcessResolver.AddEntry(event.Process.Pid, event.processCacheEntry))
+		event.updateProcessCachePointer(p.resolvers.ProcessResolver.AddForkEntry(event.Process.Pid, event.processCacheEntry))
+	case ExecEventType:
+		if _, err := event.Exec.UnmarshalEvent(data[offset:], event); err != nil {
+			log.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+		event.updateProcessCachePointer(p.resolvers.ProcessResolver.AddExecEntry(event.Process.Pid, event.processCacheEntry))
 	case ExitEventType:
 		defer p.resolvers.ProcessResolver.DeleteEntry(event.Process.Pid, event.ResolveEventTimestamp())
 	default:

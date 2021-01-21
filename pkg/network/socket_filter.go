@@ -18,7 +18,7 @@ func HeadlessSocketFilter(rootPath string, filter *manager.Probe) (closeFn func(
 	)
 
 	err = util.WithRootNS(rootPath, func() error {
-		packetSrc, srcErr = newPacketSource(filter)
+		packetSrc, srcErr = NewPacketSource(filter)
 		return srcErr
 	})
 	if err != nil {

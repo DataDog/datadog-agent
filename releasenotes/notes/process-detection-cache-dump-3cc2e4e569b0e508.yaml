@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Runtime-security new command line allowing to trigger a process cache dump..
