@@ -21,7 +21,7 @@ import (
 var (
 	jmxCmd = &cobra.Command{
 		Use:   "jmx",
-		Short: "",
+		Short: "Run troubleshooting commands on JMXFetch integrations",
 		Long:  ``,
 	}
 
