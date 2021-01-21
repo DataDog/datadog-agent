@@ -127,8 +127,7 @@ func formatUnixTime(unixTime float64, isNanoSeconds bool) string {
 	_, tzoffset := t.Zone()
 	result := t.Format(timeFormat)
 	if tzoffset != 0 {
-		tUtc := t.UTC()
-		result += " / " + tUtc.Format(timeFormat)
+		result += " / " + t.UTC().Format(timeFormat)
 	}
 	msec := t.UnixNano() / int64(time.Millisecond)
 	result += " (" + strconv.Itoa(int(msec)) + ")"
