@@ -38,6 +38,10 @@ func repairUTF8(s string) string {
 // parseStringBytes reads the next type in the msgpack payload and
 // converts the BinType or the StrType in a valid string.
 func parseStringBytes(bts []byte) (string, []byte, error) {
+	if msgp.IsNil(bts) {
+		bts, err := msgp.ReadNilBytes(bts)
+		return "", bts, err
+	}
 	// read the generic representation type without decoding
 	t := msgp.NextType(bts)
 
@@ -66,6 +70,10 @@ func parseStringBytes(bts []byte) (string, []byte, error) {
 // this is required because the encoding library could remove bytes from the encoded
 // payload to reduce the size, if they're not needed.
 func parseFloat64Bytes(bts []byte) (float64, []byte, error) {
+	if msgp.IsNil(bts) {
+		bts, err := msgp.ReadNilBytes(bts)
+		return 0, bts, err
+	}
 	// read the generic representation type without decoding
 	t := msgp.NextType(bts)
 
@@ -116,6 +124,10 @@ func castInt64(v uint64) (int64, bool) {
 // this is required because the encoding library could remove bytes from the encoded
 // payload to reduce the size, if they're not needed.
 func parseInt64Bytes(bts []byte) (int64, []byte, error) {
+	if msgp.IsNil(bts) {
+		bts, err := msgp.ReadNilBytes(bts)
+		return 0, bts, err
+	}
 	// read the generic representation type without decoding
 	t := msgp.NextType(bts)
 
@@ -154,6 +166,10 @@ func parseInt64Bytes(bts []byte) (int64, []byte, error) {
 // (and so JRuby interpreter) that encodes uint64 as int64:
 // http://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html
 func parseUint64Bytes(bts []byte) (uint64, []byte, error) {
+	if msgp.IsNil(bts) {
+		bts, err := msgp.ReadNilBytes(bts)
+		return 0, bts, err
+	}
 	// read the generic representation type without decoding
 	t := msgp.NextType(bts)
 
@@ -196,6 +212,10 @@ func castInt32(v uint32) (int32, bool) {
 // this is required because the encoding library could remove bytes from the encoded
 // payload to reduce the size, if they're not needed.
 func parseInt32Bytes(bts []byte) (int32, []byte, error) {
+	if msgp.IsNil(bts) {
+		bts, err := msgp.ReadNilBytes(bts)
+		return 0, bts, err
+	}
 	// read the generic representation type without decoding
 	t := msgp.NextType(bts)
 
