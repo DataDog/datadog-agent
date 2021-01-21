@@ -1,17 +1,6 @@
 module github.com/DataDog/datadog-agent
 
-go 1.13
-
-// Fix tooling version
-replace (
-	github.com/benesch/cgosymbolizer => github.com/benesch/cgosymbolizer v0.0.0-20190515212042-bec6fe6e597b
-	github.com/fzipp/gocyclo => github.com/fzipp/gocyclo v0.0.0-20150627053110-6acd4345c835 // indirect
-	github.com/golangci/golangci-lint => github.com/golangci/golangci-lint v1.27.0
-	github.com/gordonklaus/ineffassign => github.com/gordonklaus/ineffassign v0.0.0-20200309095847-7953dde2c7bf // indirect
-	// next line until pr https://github.com/ianlancetaylor/cgosymbolizer/pull/8 is merged
-	github.com/ianlancetaylor/cgosymbolizer => github.com/ianlancetaylor/cgosymbolizer v0.0.0-20170921033129-f5072df9c550
-	github.com/shuLhan/go-bindata => github.com/shuLhan/go-bindata v3.6.1+incompatible // indirect
-)
+go 1.14
 
 // Internal deps fix version
 replace (
@@ -69,12 +58,13 @@ require (
 	github.com/avast/retry-go v2.7.0+incompatible
 	github.com/aws/aws-sdk-go v1.30.5
 	github.com/beevik/ntp v0.3.0
-	github.com/benesch/cgosymbolizer v0.0.0
+	github.com/benesch/cgosymbolizer v0.0.0-20190515212042-bec6fe6e597b
 	github.com/bhmj/jsonslice v0.0.0-20200323023432-92c3edaad8e2
 	github.com/blabber/go-freebsd-sysctl v0.0.0-20201130114544-503969f39d8f
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/clbanning/mxj v1.8.4
+	github.com/client9/misspell v0.3.4
 	github.com/cobaugh/osrelease v0.0.0-20181218015638-a93a0a55a249
 	github.com/containerd/cgroups v0.0.0-20190919134610-bf292b21730f
 	github.com/containerd/containerd v1.3.2
@@ -90,10 +80,11 @@ require (
 	github.com/docker/go-events v0.0.0-20190806004212-e31b211e4f1c // indirect
 	github.com/dustin/go-humanize v1.0.0
 	github.com/elastic/go-libaudit v0.4.0
-	github.com/emicklei/go-restful v2.9.6+incompatible // indirect
 	github.com/fatih/color v1.9.0
 	github.com/florianl/go-conntrack v0.1.1-0.20191002182014-06743d3a59db
+	github.com/frapposelli/wwhrd v0.2.4
 	github.com/freddierice/go-losetup v0.0.0-20170407175016-fc9adea44124
+	github.com/fzipp/gocyclo v0.3.1
 	github.com/go-ini/ini v1.55.0
 	github.com/go-ole/go-ole v1.2.4
 	github.com/go-openapi/spec v0.19.8 // indirect
@@ -105,21 +96,24 @@ require (
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e
 	github.com/golang/mock v1.4.4
 	github.com/golang/protobuf v1.4.3
+	github.com/golangci/golangci-lint v1.27.0
 	github.com/google/gopacket v1.1.17
 	github.com/google/pprof v0.0.0-20201117184057-ae444373da19
+	github.com/gordonklaus/ineffassign v0.0.0-20210103220932-664217a59c00
 	github.com/gorilla/mux v1.7.4
+	github.com/goware/modvendor v0.3.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.0
 	github.com/grpc-ecosystem/grpc-gateway v1.14.1
 	github.com/hashicorp/consul/api v1.4.0
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95
-	github.com/ianlancetaylor/cgosymbolizer v0.0.0-00010101000000-000000000000 // indirect
+	github.com/ianlancetaylor/cgosymbolizer v0.0.0-20201204192058-7acc97e53614 // indirect
 	github.com/iovisor/gobpf v0.0.0-20200329161226-8b2cce9dac28
 	github.com/itchyny/gojq v0.10.2
 	github.com/json-iterator/go v1.1.9
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
-	github.com/kubernetes-incubator/custom-metrics-apiserver v0.0.0-00010101000000-000000000000
+	github.com/kubernetes-incubator/custom-metrics-apiserver v0.0.0-20190918110929-3d9be26a50eb // Pinned to kubernetes-1.16.2
 	github.com/lxn/walk v0.0.0-20191128110447-55ccb3a9f5c1
 	github.com/lxn/win v0.0.0-20191128105842-2da648fda5b4
 	github.com/mailru/easyjson v0.0.0-20190626092158-b2ccc519800e
@@ -162,16 +156,16 @@ require (
 	go.etcd.io/etcd v0.0.0-20191023171146-3cf2f69b5738
 	go.uber.org/automaxprocs v1.2.0
 	golang.org/x/crypto v0.0.0-20201117144127-c1f2f97bffc9 // indirect
-	golang.org/x/lint v0.0.0-20200302205851-738671d3881b // indirect
-	golang.org/x/mobile v0.0.0-20190719004257-d2bd2a29d028
+	golang.org/x/lint v0.0.0-20200302205851-738671d3881b
+	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/mod v0.3.1-0.20200828183125-ce943fd02449 // indirect
 	golang.org/x/net v0.0.0-20201110031124-69a78807bb2b
-	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
+	golang.org/x/perf v0.0.0-20200918155509-d949658356f9
+	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
 	golang.org/x/sys v0.0.0-20201119102817-f84b799fce68
 	golang.org/x/text v0.3.4
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
-	golang.org/x/tools v0.0.0-20200327195553-82bb89366a1e
-	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
+	golang.org/x/tools v0.0.0-20210114065538-d78b04bdf963
 	gomodules.xyz/jsonpatch/v3 v3.0.1
 	google.golang.org/genproto v0.0.0-20200526211855-cb27e3aa2013
 	google.golang.org/grpc v1.27.1
@@ -180,13 +174,15 @@ require (
 	gopkg.in/ini.v1 v1.55.0 // indirect
 	gopkg.in/yaml.v2 v2.2.8
 	gopkg.in/zorkian/go-datadog-api.v2 v2.29.0
+	gotest.tools/gotestsum v0.5.3
+	honnef.co/go/tools v0.0.1-2020.1.5
 	k8s.io/api v0.17.4
 	k8s.io/apimachinery v0.17.4
 	k8s.io/apiserver v0.17.4 // indirect
 	k8s.io/autoscaler/vertical-pod-autoscaler v0.0.0-20200123122250-fa95810cfc1e
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/cri-api v0.0.0
-	k8s.io/klog v1.0.0
+	k8s.io/klog v1.0.1-0.20200310124935-4ad0115ba9e4 // Min version that includes fix for Windows Nano
 	k8s.io/kube-state-metrics v1.8.1-0.20200108124505-369470d6ead8
 	k8s.io/kubernetes v1.16.2
 	k8s.io/metrics v0.17.3
@@ -222,8 +218,5 @@ replace (
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.0.0-20191016112829-06bb3c9d77c9
 )
 
-// Pinned so it includes fix for Windows Nano
-replace k8s.io/klog => k8s.io/klog v1.0.1-0.20200310124935-4ad0115ba9e4
-
-// bitbucket.org/ww/goautoneg has disappeard
+// bitbucket.org/ww/goautoneg has disappeared. Remove this when we bump the watermarkpodautoscaler dependency to 2.0.0+
 replace bitbucket.org/ww/goautoneg => github.com/munnerz/goautoneg v0.0.0-20190414153302-2ae31c8b6b30

@@ -131,29 +131,6 @@ func easyjsonF642ad3eDecodeGithubComDataDogDatadogAgentPkgSecurityModule1(in *jl
 		switch key {
 		case "rule_id":
 			out.RuleID = string(in.String())
-		case "tags":
-			if in.IsNull() {
-				in.Skip()
-				out.Tags = nil
-			} else {
-				in.Delim('[')
-				if out.Tags == nil {
-					if !in.IsDelim(']') {
-						out.Tags = make([]string, 0, 4)
-					} else {
-						out.Tags = []string{}
-					}
-				} else {
-					out.Tags = (out.Tags)[:0]
-				}
-				for !in.IsDelim(']') {
-					var v1 string
-					v1 = string(in.String())
-					out.Tags = append(out.Tags, v1)
-					in.WantComma()
-				}
-				in.Delim(']')
-			}
 		case "policy_name":
 			out.PolicyName = string(in.String())
 		case "policy_version":
@@ -176,22 +153,6 @@ func easyjsonF642ad3eEncodeGithubComDataDogDatadogAgentPkgSecurityModule1(out *j
 		const prefix string = ",\"rule_id\":"
 		out.RawString(prefix[1:])
 		out.String(string(in.RuleID))
-	}
-	{
-		const prefix string = ",\"tags\":"
-		out.RawString(prefix)
-		if in.Tags == nil && (out.Flags&jwriter.NilSliceAsEmpty) == 0 {
-			out.RawString("null")
-		} else {
-			out.RawByte('[')
-			for v2, v3 := range in.Tags {
-				if v2 > 0 {
-					out.RawByte(',')
-				}
-				out.String(string(v3))
-			}
-			out.RawByte(']')
-		}
 	}
 	{
 		const prefix string = ",\"policy_name\":"

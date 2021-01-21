@@ -173,6 +173,6 @@ func (r *runCheckReporter) Report(event *event.Event) {
 	r.ReportRaw(buf.Bytes())
 }
 
-func (r *runCheckReporter) ReportRaw(content []byte) {
+func (r *runCheckReporter) ReportRaw(content []byte, tags ...string) {
 	fmt.Println(string(content))
 }

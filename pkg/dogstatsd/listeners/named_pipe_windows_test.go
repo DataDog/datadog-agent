@@ -39,6 +39,10 @@ func TestNamedPipeSeveralClients(t *testing.T) {
 		client := createNamedPipeClient(t)
 		_, err := client.Write([]byte(fmt.Sprintf("client %d\n", i)))
 		assert.NoError(t, err)
+
+		// `Close` does not flush the previous write.
+		// Wait to make sure the write is flushed before closing.
+		time.Sleep(100 * time.Millisecond)
 		client.Close()
 	}
 

@@ -35,7 +35,7 @@ type Sampler struct {
 // NewScoreSampler creates a new empty sampler ready to be started
 func NewScoreSampler(conf *config.AgentConfig) *Sampler {
 	return &Sampler{
-		engine: sampler.NewScoreEngine(conf.ExtraSampleRate, conf.MaxTPS),
+		engine: sampler.NewScoreEngine(conf.ExtraSampleRate, conf.TargetTPS),
 		exit:   make(chan struct{}),
 	}
 }
@@ -45,7 +45,7 @@ func NewScoreSampler(conf *config.AgentConfig) *Sampler {
 // ScoreSampler except that its statistics are reported under a different name.
 func NewErrorsSampler(conf *config.AgentConfig) *Sampler {
 	return &Sampler{
-		engine: sampler.NewErrorsEngine(conf.ExtraSampleRate, conf.MaxTPS),
+		engine: sampler.NewErrorsEngine(conf.ExtraSampleRate, conf.TargetTPS),
 		exit:   make(chan struct{}),
 	}
 }
@@ -53,7 +53,7 @@ func NewErrorsSampler(conf *config.AgentConfig) *Sampler {
 // NewPrioritySampler creates a new empty distributed sampler ready to be started
 func NewPrioritySampler(conf *config.AgentConfig, dynConf *sampler.DynamicConfig) *Sampler {
 	return &Sampler{
-		engine: sampler.NewPriorityEngine(conf.ExtraSampleRate, conf.MaxTPS, &dynConf.RateByService),
+		engine: sampler.NewPriorityEngine(conf.ExtraSampleRate, conf.TargetTPS, &dynConf.RateByService),
 		exit:   make(chan struct{}),
 	}
 }
@@ -119,8 +119,8 @@ func (s *Sampler) logStats() {
 
 			switch state := state.(type) {
 			case sampler.InternalState:
-				log.Tracef("%s: inTPS: %f, outTPS: %f, maxTPS: %f, offset: %f, slope: %f, cardinality: %d",
-					engineType, state.InTPS, state.OutTPS, state.MaxTPS, state.Offset, state.Slope, state.Cardinality)
+				log.Tracef("%s: inTPS: %f, outTPS: %f, targetTPS: %f, offset: %f, slope: %f, cardinality: %d",
+					engineType, state.InTPS, state.OutTPS, state.TargetTPS, state.Offset, state.Slope, state.Cardinality)
 
 				// publish through expvar
 				// TODO: avoid type switch, prefer engine method

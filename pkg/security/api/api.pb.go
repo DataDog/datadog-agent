@@ -24,40 +24,41 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
-type GetParams struct {
+type GetEventParams struct {
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *GetParams) Reset()         { *m = GetParams{} }
-func (m *GetParams) String() string { return proto.CompactTextString(m) }
-func (*GetParams) ProtoMessage()    {}
-func (*GetParams) Descriptor() ([]byte, []int) {
+func (m *GetEventParams) Reset()         { *m = GetEventParams{} }
+func (m *GetEventParams) String() string { return proto.CompactTextString(m) }
+func (*GetEventParams) ProtoMessage()    {}
+func (*GetEventParams) Descriptor() ([]byte, []int) {
 	return fileDescriptor_ce049ba84fb5261a, []int{0}
 }
 
-func (m *GetParams) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_GetParams.Unmarshal(m, b)
+func (m *GetEventParams) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_GetEventParams.Unmarshal(m, b)
 }
-func (m *GetParams) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_GetParams.Marshal(b, m, deterministic)
+func (m *GetEventParams) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_GetEventParams.Marshal(b, m, deterministic)
 }
-func (m *GetParams) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_GetParams.Merge(m, src)
+func (m *GetEventParams) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetEventParams.Merge(m, src)
 }
-func (m *GetParams) XXX_Size() int {
-	return xxx_messageInfo_GetParams.Size(m)
+func (m *GetEventParams) XXX_Size() int {
+	return xxx_messageInfo_GetEventParams.Size(m)
 }
-func (m *GetParams) XXX_DiscardUnknown() {
-	xxx_messageInfo_GetParams.DiscardUnknown(m)
+func (m *GetEventParams) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetEventParams.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_GetParams proto.InternalMessageInfo
+var xxx_messageInfo_GetEventParams proto.InternalMessageInfo
 
 type SecurityEventMessage struct {
 	RuleID               string   `protobuf:"bytes,1,opt,name=RuleID,proto3" json:"RuleID,omitempty"`
 	Data                 []byte   `protobuf:"bytes,2,opt,name=Data,proto3" json:"Data,omitempty"`
+	Tags                 []string `protobuf:"bytes,3,rep,name=Tags,proto3" json:"Tags,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -102,26 +103,111 @@ func (m *SecurityEventMessage) GetData() []byte {
 	return nil
 }
 
+func (m *SecurityEventMessage) GetTags() []string {
+	if m != nil {
+		return m.Tags
+	}
+	return nil
+}
+
+type DumpProcessCacheParams struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *DumpProcessCacheParams) Reset()         { *m = DumpProcessCacheParams{} }
+func (m *DumpProcessCacheParams) String() string { return proto.CompactTextString(m) }
+func (*DumpProcessCacheParams) ProtoMessage()    {}
+func (*DumpProcessCacheParams) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{2}
+}
+
+func (m *DumpProcessCacheParams) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_DumpProcessCacheParams.Unmarshal(m, b)
+}
+func (m *DumpProcessCacheParams) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_DumpProcessCacheParams.Marshal(b, m, deterministic)
+}
+func (m *DumpProcessCacheParams) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DumpProcessCacheParams.Merge(m, src)
+}
+func (m *DumpProcessCacheParams) XXX_Size() int {
+	return xxx_messageInfo_DumpProcessCacheParams.Size(m)
+}
+func (m *DumpProcessCacheParams) XXX_DiscardUnknown() {
+	xxx_messageInfo_DumpProcessCacheParams.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DumpProcessCacheParams proto.InternalMessageInfo
+
+type SecurityDumpProcessCacheMessage struct {
+	Filename             string   `protobuf:"bytes,1,opt,name=Filename,proto3" json:"Filename,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *SecurityDumpProcessCacheMessage) Reset()         { *m = SecurityDumpProcessCacheMessage{} }
+func (m *SecurityDumpProcessCacheMessage) String() string { return proto.CompactTextString(m) }
+func (*SecurityDumpProcessCacheMessage) ProtoMessage()    {}
+func (*SecurityDumpProcessCacheMessage) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{3}
+}
+
+func (m *SecurityDumpProcessCacheMessage) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_SecurityDumpProcessCacheMessage.Unmarshal(m, b)
+}
+func (m *SecurityDumpProcessCacheMessage) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_SecurityDumpProcessCacheMessage.Marshal(b, m, deterministic)
+}
+func (m *SecurityDumpProcessCacheMessage) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SecurityDumpProcessCacheMessage.Merge(m, src)
+}
+func (m *SecurityDumpProcessCacheMessage) XXX_Size() int {
+	return xxx_messageInfo_SecurityDumpProcessCacheMessage.Size(m)
+}
+func (m *SecurityDumpProcessCacheMessage) XXX_DiscardUnknown() {
+	xxx_messageInfo_SecurityDumpProcessCacheMessage.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_SecurityDumpProcessCacheMessage proto.InternalMessageInfo
+
+func (m *SecurityDumpProcessCacheMessage) GetFilename() string {
+	if m != nil {
+		return m.Filename
+	}
+	return ""
+}
+
 func init() {
-	proto.RegisterType((*GetParams)(nil), "api.GetParams")
+	proto.RegisterType((*GetEventParams)(nil), "api.GetEventParams")
 	proto.RegisterType((*SecurityEventMessage)(nil), "api.SecurityEventMessage")
+	proto.RegisterType((*DumpProcessCacheParams)(nil), "api.DumpProcessCacheParams")
+	proto.RegisterType((*SecurityDumpProcessCacheMessage)(nil), "api.SecurityDumpProcessCacheMessage")
 }
 
 func init() { proto.RegisterFile("pkg/security/api/api.proto", fileDescriptor_ce049ba84fb5261a) }
 
 var fileDescriptor_ce049ba84fb5261a = []byte{
-	// 164 bytes of a gzipped FileDescriptorProto
+	// 257 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0x92, 0x2a, 0xc8, 0x4e, 0xd7,
 	0x2f, 0x4e, 0x4d, 0x2e, 0x2d, 0xca, 0x2c, 0xa9, 0xd4, 0x4f, 0x2c, 0xc8, 0x04, 0x61, 0xbd, 0x82,
-	0xa2, 0xfc, 0x92, 0x7c, 0x21, 0xe6, 0xc4, 0x82, 0x4c, 0x25, 0x6e, 0x2e, 0x4e, 0xf7, 0xd4, 0x92,
-	0x80, 0xc4, 0xa2, 0xc4, 0xdc, 0x62, 0x25, 0x27, 0x2e, 0x91, 0x60, 0xa8, 0x5a, 0xd7, 0xb2, 0xd4,
-	0xbc, 0x12, 0xdf, 0xd4, 0xe2, 0xe2, 0xc4, 0xf4, 0x54, 0x21, 0x31, 0x2e, 0xb6, 0xa0, 0xd2, 0x9c,
-	0x54, 0x4f, 0x17, 0x09, 0x46, 0x05, 0x46, 0x0d, 0xce, 0x20, 0x28, 0x4f, 0x48, 0x88, 0x8b, 0xc5,
-	0x25, 0xb1, 0x24, 0x51, 0x82, 0x49, 0x81, 0x51, 0x83, 0x27, 0x08, 0xcc, 0x36, 0xf2, 0xe1, 0xe2,
-	0x83, 0x99, 0xe1, 0x9b, 0x9f, 0x52, 0x9a, 0x93, 0x2a, 0x64, 0x05, 0xb6, 0x02, 0x6c, 0x60, 0xb1,
-	0x10, 0x9f, 0x1e, 0xc8, 0x01, 0x70, 0x2b, 0xa5, 0x24, 0xc1, 0x7c, 0x6c, 0xb6, 0x2a, 0x31, 0x18,
-	0x30, 0x26, 0xb1, 0x81, 0x9d, 0x6a, 0x0c, 0x08, 0x00, 0x00, 0xff, 0xff, 0xbf, 0xc4, 0x49, 0x1b,
-	0xc8, 0x00, 0x00, 0x00,
+	0xa2, 0xfc, 0x92, 0x7c, 0x21, 0xe6, 0xc4, 0x82, 0x4c, 0x25, 0x01, 0x2e, 0x3e, 0xf7, 0xd4, 0x12,
+	0xd7, 0xb2, 0xd4, 0xbc, 0x92, 0x80, 0xc4, 0xa2, 0xc4, 0xdc, 0x62, 0xa5, 0x30, 0x2e, 0x91, 0x60,
+	0xa8, 0x06, 0xb0, 0xb0, 0x6f, 0x6a, 0x71, 0x71, 0x62, 0x7a, 0xaa, 0x90, 0x18, 0x17, 0x5b, 0x50,
+	0x69, 0x4e, 0xaa, 0xa7, 0x8b, 0x04, 0xa3, 0x02, 0xa3, 0x06, 0x67, 0x10, 0x94, 0x27, 0x24, 0xc4,
+	0xc5, 0xe2, 0x92, 0x58, 0x92, 0x28, 0xc1, 0xa4, 0xc0, 0xa8, 0xc1, 0x13, 0x04, 0x66, 0x83, 0xc4,
+	0x42, 0x12, 0xd3, 0x8b, 0x25, 0x98, 0x15, 0x98, 0x35, 0x38, 0x83, 0xc0, 0x6c, 0x25, 0x09, 0x2e,
+	0x31, 0x97, 0xd2, 0xdc, 0x82, 0x80, 0xa2, 0xfc, 0xe4, 0xd4, 0xe2, 0x62, 0xe7, 0xc4, 0xe4, 0x8c,
+	0x54, 0xa8, 0x8d, 0xb6, 0x5c, 0xf2, 0x30, 0x1b, 0xd1, 0x55, 0xc0, 0x2c, 0x97, 0xe2, 0xe2, 0x70,
+	0xcb, 0xcc, 0x49, 0xcd, 0x4b, 0xcc, 0x4d, 0x85, 0x5a, 0x0f, 0xe7, 0x1b, 0xad, 0x62, 0xe4, 0xe2,
+	0x83, 0xe9, 0xf7, 0xcd, 0x4f, 0x29, 0xcd, 0x49, 0x15, 0xb2, 0xe7, 0xe2, 0x84, 0xf9, 0xaa, 0x58,
+	0x48, 0x58, 0x0f, 0xe4, 0x67, 0x54, 0x5f, 0x4a, 0x49, 0x82, 0x05, 0xb1, 0x79, 0x54, 0x89, 0xc1,
+	0x80, 0x51, 0x28, 0x9c, 0x4b, 0x00, 0xdd, 0x29, 0x42, 0xd2, 0x60, 0x2d, 0xd8, 0xfd, 0x20, 0xa5,
+	0x82, 0x62, 0x1e, 0x0e, 0x6f, 0x28, 0x31, 0x38, 0x09, 0x45, 0x09, 0xa0, 0x47, 0x49, 0x12, 0x1b,
+	0x38, 0x3e, 0x8c, 0x01, 0x01, 0x00, 0x00, 0xff, 0xff, 0x76, 0xa5, 0xea, 0x01, 0xad, 0x01, 0x00,
+	0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -136,7 +222,8 @@ const _ = grpc.SupportPackageIsVersion4
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type SecurityModuleClient interface {
-	GetEvents(ctx context.Context, in *GetParams, opts ...grpc.CallOption) (SecurityModule_GetEventsClient, error)
+	GetEvents(ctx context.Context, in *GetEventParams, opts ...grpc.CallOption) (SecurityModule_GetEventsClient, error)
+	DumpProcessCache(ctx context.Context, in *DumpProcessCacheParams, opts ...grpc.CallOption) (*SecurityDumpProcessCacheMessage, error)
 }
 
 type securityModuleClient struct {
@@ -147,7 +234,7 @@ func NewSecurityModuleClient(cc *grpc.ClientConn) SecurityModuleClient {
 	return &securityModuleClient{cc}
 }
 
-func (c *securityModuleClient) GetEvents(ctx context.Context, in *GetParams, opts ...grpc.CallOption) (SecurityModule_GetEventsClient, error) {
+func (c *securityModuleClient) GetEvents(ctx context.Context, in *GetEventParams, opts ...grpc.CallOption) (SecurityModule_GetEventsClient, error) {
 	stream, err := c.cc.NewStream(ctx, &_SecurityModule_serviceDesc.Streams[0], "/api.SecurityModule/GetEvents", opts...)
 	if err != nil {
 		return nil, err
@@ -179,17 +266,30 @@ func (x *securityModuleGetEventsClient) Recv() (*SecurityEventMessage, error) {
 	return m, nil
 }
 
+func (c *securityModuleClient) DumpProcessCache(ctx context.Context, in *DumpProcessCacheParams, opts ...grpc.CallOption) (*SecurityDumpProcessCacheMessage, error) {
+	out := new(SecurityDumpProcessCacheMessage)
+	err := c.cc.Invoke(ctx, "/api.SecurityModule/DumpProcessCache", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SecurityModuleServer is the server API for SecurityModule service.
 type SecurityModuleServer interface {
-	GetEvents(*GetParams, SecurityModule_GetEventsServer) error
+	GetEvents(*GetEventParams, SecurityModule_GetEventsServer) error
+	DumpProcessCache(context.Context, *DumpProcessCacheParams) (*SecurityDumpProcessCacheMessage, error)
 }
 
 // UnimplementedSecurityModuleServer can be embedded to have forward compatible implementations.
 type UnimplementedSecurityModuleServer struct {
 }
 
-func (*UnimplementedSecurityModuleServer) GetEvents(req *GetParams, srv SecurityModule_GetEventsServer) error {
+func (*UnimplementedSecurityModuleServer) GetEvents(req *GetEventParams, srv SecurityModule_GetEventsServer) error {
 	return status.Errorf(codes.Unimplemented, "method GetEvents not implemented")
+}
+func (*UnimplementedSecurityModuleServer) DumpProcessCache(ctx context.Context, req *DumpProcessCacheParams) (*SecurityDumpProcessCacheMessage, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DumpProcessCache not implemented")
 }
 
 func RegisterSecurityModuleServer(s *grpc.Server, srv SecurityModuleServer) {
@@ -197,7 +297,7 @@ func RegisterSecurityModuleServer(s *grpc.Server, srv SecurityModuleServer) {
 }
 
 func _SecurityModule_GetEvents_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(GetParams)
+	m := new(GetEventParams)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
@@ -217,10 +317,33 @@ func (x *securityModuleGetEventsServer) Send(m *SecurityEventMessage) error {
 	return x.ServerStream.SendMsg(m)
 }
 
+func _SecurityModule_DumpProcessCache_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DumpProcessCacheParams)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SecurityModuleServer).DumpProcessCache(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.SecurityModule/DumpProcessCache",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SecurityModuleServer).DumpProcessCache(ctx, req.(*DumpProcessCacheParams))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 var _SecurityModule_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "api.SecurityModule",
 	HandlerType: (*SecurityModuleServer)(nil),
-	Methods:     []grpc.MethodDesc{},
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "DumpProcessCache",
+			Handler:    _SecurityModule_DumpProcessCache_Handler,
+		},
+	},
 	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "GetEvents",

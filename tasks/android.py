@@ -62,8 +62,23 @@ def build(
 
     build_tags = get_default_build_tags(build="android")
 
-    cmd = "gomobile bind -target android {race_opt} {build_type} -tags \"{go_build_tags}\" "
+    # Even though gomobile supports modules, I didn't manage to make `gomobile bind` work.
+    # There are two problems: First, it calls `go list -m all` to parse the repo dependencies,
+    # which doesn't work if using vendoring. This can be solved by using go modules not vendored.
+    # The second problem is that it tries to import our repo as a module from generated code and
+    # our repo is not importable due to the dependency on k8s.io/kubernetes. A workaround is to
+    # remove the k8s dependencies from go.mod before doing the build (since they are not needed
+    # for Android), but given all these problems I decided to just disable go modules.
+    env["GO111MODULE"] = "off"
+    # Install gomobile on the GOPATH instead of as a module
+    ctx.run('go get golang.org/x/mobile/cmd/gomobile', env=env)
+    # Pin its version to what's indicated in go.mod
+    ctx.run(
+        'VERSION=$(grep golang.org/x/mobile go.mod | rev | cut -d - -f 1 | rev); cd /go/src/golang.org/x/mobile; git checkout $VERSION'
+    )
 
+    ctx.run('go run golang.org/x/mobile/cmd/gomobile init', env=env)
+    cmd = "go run golang.org/x/mobile/cmd/gomobile bind -target android {race_opt} {build_type} -tags \"{go_build_tags}\" "
     cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/agent/android"
     args = {
         "race_opt": "-race" if race else "",
@@ -74,9 +89,6 @@ def build(
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
     }
-    # gomobile is not supporting go modules
-    # https://go-review.googlesource.com/c/mobile/+/167659/
-    env["GO111MODULE"] = "off"
     ctx.run(cmd.format(**args), env=env)
 
     pwd = os.getcwd()

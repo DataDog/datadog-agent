@@ -216,9 +216,9 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 		if service != nil {
 			// a config defined in a docker label or a pod annotation does not always contain a type,
 			// override it here to ensure that the config won't be dropped at validation.
-			if cfg.Type == logsConfig.FileType && service.Type == "docker" {
-				// cfg.Type is not overwritten as tailing a file from a docker AD configuration
-				// is explicitly supported
+			if cfg.Type == logsConfig.FileType && (config.Provider == names.Kubernetes || config.Provider == names.Docker) {
+				// cfg.Type is not overwritten as tailing a file from a Docker or Kubernetes AD configuration
+				// is explicitly supported (other combinations may be supported later)
 				cfg.Identifier = service.Identifier
 			} else {
 				cfg.Type = service.Type

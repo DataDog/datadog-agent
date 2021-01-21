@@ -11,13 +11,16 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/input"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/cenkalti/backoff"
 )
 
 const (
@@ -28,6 +31,12 @@ const (
 
 var errCollectAllDisabled = fmt.Errorf("%s disabled", config.ContainerCollectAll)
 
+type retryOps struct {
+	service          *service.Service
+	backoff          backoff.BackOff
+	removalScheduled bool
+}
+
 // Launcher looks for new and deleted pods to create or delete one logs-source per container.
 type Launcher struct {
 	sources            *config.LogSources
@@ -36,7 +45,9 @@ type Launcher struct {
 	kubeutil           kubelet.KubeUtilInterface
 	addedServices      chan *service.Service
 	removedServices    chan *service.Service
+	retryOperations    chan *retryOps
 	collectAll         bool
+	pendingRetries     map[string]*retryOps
 	serviceNameFunc    func(string, string) string // serviceNameFunc gets the service name from the tagger, it is in a separate field for testing purpose
 }
 
@@ -55,6 +66,8 @@ func NewLauncher(sources *config.LogSources, services *service.Services, collect
 		stopped:            make(chan struct{}),
 		kubeutil:           kubeutil,
 		collectAll:         collectAll,
+		pendingRetries:     make(map[string]*retryOps),
+		retryOperations:    make(chan *retryOps),
 		serviceNameFunc:    input.ServiceNameFromTags,
 	}
 	launcher.addedServices = services.GetAllAddedServices()
@@ -91,11 +104,49 @@ func (l *Launcher) run() {
 			l.addSource(service)
 		case service := <-l.removedServices:
 			l.removeSource(service)
+		case ops := <-l.retryOperations:
+			l.addSource(ops.service)
 		case <-l.stopped:
 			log.Info("Kubernetes launcher stopped")
 			return
 		}
 	}
+}
+
+func (l *Launcher) scheduleServiceForRetry(svc *service.Service) {
+	containerID := svc.GetEntityID()
+	ops, exists := l.pendingRetries[containerID]
+	if !exists {
+		b := &backoff.ExponentialBackOff{
+			InitialInterval:     500 * time.Millisecond,
+			RandomizationFactor: 0,
+			Multiplier:          2,
+			MaxInterval:         5 * time.Second,
+			MaxElapsedTime:      30 * time.Second,
+			Clock:               backoff.SystemClock,
+		}
+		b.Reset()
+		ops = &retryOps{
+			service:          svc,
+			backoff:          b,
+			removalScheduled: false,
+		}
+		l.pendingRetries[containerID] = ops
+	}
+	l.delayRetry(ops)
+}
+
+func (l *Launcher) delayRetry(ops *retryOps) {
+	delay := ops.backoff.NextBackOff()
+	if delay == backoff.Stop {
+		log.Warnf("Unable to add source for container %v", ops.service.GetEntityID())
+		delete(l.pendingRetries, ops.service.GetEntityID())
+		return
+	}
+	go func() {
+		<-time.After(delay)
+		l.retryOperations <- ops
+	}()
 }
 
 // addSource creates a new log-source from a service by resolving the
@@ -110,6 +161,12 @@ func (l *Launcher) addSource(svc *service.Service) {
 
 	pod, err := l.kubeutil.GetPodForEntityID(svc.GetEntityID())
 	if err != nil {
+		if errors.IsRetriable(err) {
+			// Attempt to reschedule the source later
+			log.Debugf("Failed to fetch pod info for container %v, will retry: %v", svc.Identifier, err)
+			l.scheduleServiceForRetry(svc)
+			return
+		}
 		log.Warnf("Could not add source for container %v: %v", svc.Identifier, err)
 		return
 	}
@@ -135,11 +192,25 @@ func (l *Launcher) addSource(svc *service.Service) {
 
 	l.sourcesByContainer[svc.GetEntityID()] = source
 	l.sources.AddSource(source)
+
+	// Clean-up retry logic
+	if ops, exists := l.pendingRetries[svc.GetEntityID()]; exists {
+		if ops.removalScheduled {
+			// A removal was emitted while addSource was being retried
+			l.removeSource(ops.service)
+		}
+		delete(l.pendingRetries, svc.GetEntityID())
+	}
 }
 
 // removeSource removes a new log-source from a service
 func (l *Launcher) removeSource(service *service.Service) {
 	containerID := service.GetEntityID()
+	if ops, exists := l.pendingRetries[containerID]; exists {
+		// Service was added unsuccessfully and is being retried
+		ops.removalScheduled = true
+		return
+	}
 	if source, exists := l.sourcesByContainer[containerID]; exists {
 		delete(l.sourcesByContainer, containerID)
 		l.sources.RemoveSource(source)
@@ -158,8 +229,21 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 		if err != nil || len(configs) == 0 {
 			return nil, fmt.Errorf("could not parse kubernetes annotation %v", annotation)
 		}
-		cfg = configs[0]
-	} else {
+		// We may have more than one log configuration in the annotation, ignore those
+		// unrelated to containers
+		containerType, _ := containers.SplitEntityName(container.ID)
+		for _, c := range configs {
+			if c.Type == "" || c.Type == containerType {
+				cfg = c
+				break
+			}
+		}
+		if cfg == nil {
+			log.Debugf("annotation found: %v, for pod %v, container %v, but no config was usable for container log collection", annotation, pod.Metadata.Name, container.Name)
+		}
+	}
+
+	if cfg == nil {
 		if !l.collectAll {
 			return nil, errCollectAllDisabled
 		}

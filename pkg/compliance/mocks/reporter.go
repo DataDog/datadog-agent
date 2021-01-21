@@ -18,6 +18,6 @@ func (_m *Reporter) Report(_a0 *event.Event) {
 }
 
 // ReportRaw provides a mock function with given fields: _a0
-func (_m *Reporter) ReportRaw(_a0 []byte) {
+func (_m *Reporter) ReportRaw(_a0 []byte, tags ...string) {
 	_m.Called(_a0)
 }

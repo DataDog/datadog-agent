@@ -18,6 +18,8 @@ const (
 	DefaultDCALogFile = "/var/log/datadog/cluster-agent.log"
 	//DefaultJmxLogFile points to the jmx fetch log file that will be used if not configured
 	DefaultJmxLogFile = "/var/log/datadog/jmxfetch.log"
+	// DefaultJMXFlareDirectory a flare friendly location for jmx command logs to be written
+	DefaultJMXFlareDirectory = "/var/log/datadog/jmxinfo/"
 )
 
 var (

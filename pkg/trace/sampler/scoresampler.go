@@ -23,9 +23,9 @@ type ScoreEngine struct {
 }
 
 // NewScoreEngine returns an initialized Sampler
-func NewScoreEngine(extraRate float64, maxTPS float64) *ScoreEngine {
+func NewScoreEngine(extraRate float64, targetTPS float64) *ScoreEngine {
 	s := &ScoreEngine{
-		Sampler:    newSampler(extraRate, maxTPS),
+		Sampler:    newSampler(extraRate, targetTPS),
 		engineType: NormalScoreEngineType,
 	}
 
@@ -35,9 +35,9 @@ func NewScoreEngine(extraRate float64, maxTPS float64) *ScoreEngine {
 // NewErrorsEngine returns an initialized Sampler dedicate to errors. It behaves
 // just like the the normal ScoreEngine except for its GetType method (useful
 // for reporting).
-func NewErrorsEngine(extraRate float64, maxTPS float64) *ScoreEngine {
+func NewErrorsEngine(extraRate float64, targetTPS float64) *ScoreEngine {
 	s := &ScoreEngine{
-		Sampler:    newSampler(extraRate, maxTPS),
+		Sampler:    newSampler(extraRate, targetTPS),
 		engineType: ErrorsScoreEngineType,
 	}
 	s.Sampler.setRateThresholdTo1(errorSamplingRateThresholdTo1)
@@ -87,15 +87,15 @@ func (s *ScoreEngine) Sample(trace pb.Trace, root *pb.Span, env string) bool {
 	sampled := s.applySampleRate(root, rate)
 
 	if sampled {
-		// Count the trace to allow us to check for the maxTPS limit.
-		// It has to happen before the maxTPS sampling.
+		// Count the trace to allow us to check for the targetTPS limit.
+		// It has to happen before the targetTPS sampling.
 		s.Sampler.Backend.CountSample()
 
-		// Check for the maxTPS limit, and if we require an extra sampling.
+		// Check for the targetTPS limit, and if we require an extra sampling.
 		// No need to check if we already decided not to keep the trace.
-		maxTPSrate := s.Sampler.GetMaxTPSSampleRate()
-		if maxTPSrate < 1 {
-			sampled = s.applySampleRate(root, maxTPSrate)
+		targetTPSrate := s.Sampler.GetTargetTPSSampleRate()
+		if targetTPSrate < 1 {
+			sampled = s.applySampleRate(root, targetTPSrate)
 		}
 	}
 
