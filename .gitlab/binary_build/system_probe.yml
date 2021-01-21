@@ -19,6 +19,8 @@
     - tar -xvf /tmp/clang.tar.xz -C $DATADOG_AGENT_EMBEDDED_PATH
   script:
     - inv -e system-probe.build --go-version=$SYSTEM_PROBE_GO_VERSION --embedded-path=$DATADOG_AGENT_EMBEDDED_PATH
+    # fail if references to glibc >= 2.18
+    - objdump -p $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])' && exit 1
     - $S3_CP_CMD $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe $S3_ARTIFACTS_URI/system-probe.$ARCH
     - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/tracer.o $S3_ARTIFACTS_URI/tracer.o.$ARCH
     - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/tracer-debug.o $S3_ARTIFACTS_URI/tracer-debug.o.$ARCH

@@ -3,8 +3,9 @@
 
 #include <linux/types.h>
 
-static const __u64 DISABLED = 0;
-static const __u64 ENABLED = 1;
+#define bool _Bool
+#define true 1
+#define false 0
 
 typedef struct {
     __u64 sent_bytes;

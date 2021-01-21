@@ -124,18 +124,39 @@ func (p *Probe) detectKernelVersion() {
 func (p *Probe) Init() error {
 	p.startTime = time.Now()
 
-	asset := "runtime-security"
+	var err error
+	var bytecodeReader bytecode.AssetReader
+
+	useSyscallWrapper := false
 	openSyscall, err := manager.GetSyscallFnName("open")
 	if err != nil {
 		return err
 	}
 	if !strings.HasPrefix(openSyscall, "SyS_") && !strings.HasPrefix(openSyscall, "sys_") {
-		asset += "-syscall-wrapper"
+		useSyscallWrapper = true
 	}
 
-	bytecodeReader, err := bytecode.GetReader(p.config.BPFDir, asset+".o")
-	if err != nil {
-		return err
+	if p.config.EnableRuntimeCompiler {
+		bytecodeReader, err = getRuntimeCompiledProbe(p.config, useSyscallWrapper)
+		if err != nil {
+			log.Warnf("error compiling runtime-security probe, falling back to pre-compiled: %s", err)
+		} else {
+			defer bytecodeReader.Close()
+		}
+	}
+
+	// fallback to pre-compiled version
+	if bytecodeReader == nil {
+		asset := "runtime-security"
+		if useSyscallWrapper {
+			asset += "-syscall-wrapper"
+		}
+
+		bytecodeReader, err = bytecode.GetReader(p.config.BPFDir, asset+".o")
+		if err != nil {
+			return err
+		}
+		defer bytecodeReader.Close()
 	}
 
 	p.manager = ebpf.NewRuntimeSecurityManager()
