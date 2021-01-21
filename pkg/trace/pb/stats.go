@@ -31,12 +31,18 @@ type ClientGroupedStats struct {
 	Resource     string
 	Type         string
 	DBType       string
-	Tags         [][]string
+	Tags         []Tag
 	Hits         uint64
 	Errors       uint64
 	Duration     uint64
 	OkSummary    []byte
 	ErrorSummary []byte
+}
+
+// Tag is extracted from the client Tags made of a map[string]Any and turned into pair of strings
+type Tag struct {
+	Name string
+	Val  string
 }
 
 // MarshalMsg implements msgp.Marshaler
@@ -61,9 +67,8 @@ func (z *ClientGroupedStats) MarshalMsg(b []byte) (o []byte, err error) {
 	o = append(o, 0xa4, 0x54, 0x61, 0x67, 0x73)
 	o = msgp.AppendMapHeader(o, uint32(len(z.Tags)))
 	for _, tag := range z.Tags {
-		for _, v := range tag {
-			o = msgp.AppendString(o, v)
-		}
+		o = msgp.AppendString(o, tag.Name)
+		o = msgp.AppendString(o, tag.Val)
 	}
 	// string "Hits"
 	o = append(o, 0xa4, 0x48, 0x69, 0x74, 0x73)
@@ -143,12 +148,12 @@ func (z *ClientGroupedStats) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Tags")
 				return
 			}
-			z.Tags = make([][]string, 0, sz)
+			z.Tags = make([]Tag, 0, sz)
 			for sz > 0 {
 				sz--
-				var key string
+				var name string
 				var val string
-				key, bts, err = parseStringBytes(bts)
+				name, bts, err = parseStringBytes(bts)
 				if err != nil {
 					err = msgp.WrapError(err, "Tags")
 					return
@@ -164,7 +169,7 @@ func (z *ClientGroupedStats) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					var i bool
 					i, bts, err = msgp.ReadBoolBytes(bts)
 					if err != nil {
-						err = msgp.WrapError(err, "Tags", key)
+						err = msgp.WrapError(err, "Tags", name)
 						return
 					}
 					val = strconv.FormatBool(i)
@@ -172,7 +177,7 @@ func (z *ClientGroupedStats) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					var i int64
 					i, bts, err = msgp.ReadInt64Bytes(bts)
 					if err != nil {
-						err = msgp.WrapError(err, "Tags", key)
+						err = msgp.WrapError(err, "Tags", name)
 						return
 					}
 					val = strconv.FormatInt(i, 10)
@@ -180,7 +185,7 @@ func (z *ClientGroupedStats) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					var i uint64
 					i, bts, err = msgp.ReadUint64Bytes(bts)
 					if err != nil {
-						err = msgp.WrapError(err, "Tags", key)
+						err = msgp.WrapError(err, "Tags", name)
 						return
 					}
 					val = strconv.FormatUint(i, 10)
@@ -188,7 +193,7 @@ func (z *ClientGroupedStats) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					var i float64
 					i, bts, err = msgp.ReadFloat64Bytes(bts)
 					if err != nil {
-						err = msgp.WrapError(err, "Tags", key)
+						err = msgp.WrapError(err, "Tags", name)
 						return
 					}
 					val = strconv.FormatFloat(i, 'f', 5, 64)
@@ -196,27 +201,27 @@ func (z *ClientGroupedStats) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					var i float32
 					i, bts, err = msgp.ReadFloat32Bytes(bts)
 					if err != nil {
-						err = msgp.WrapError(err, "Tags", key)
+						err = msgp.WrapError(err, "Tags", name)
 						return
 					}
 					val = strconv.FormatFloat(float64(i), 'f', 5, 32)
 				case msgp.StrType, msgp.BinType:
 					val, bts, err = parseStringBytes(bts)
 					if err != nil {
-						err = msgp.WrapError(err, "Tags", key)
+						err = msgp.WrapError(err, "Tags", name)
 						return
 					}
 				default:
 					var i interface{}
 					i, bts, err = msgp.ReadIntBytes(bts)
 					if err != nil {
-						err = msgp.WrapError(err, "Tags", key)
+						err = msgp.WrapError(err, "Tags", name)
 						return
 					}
 					val = fmt.Sprintf("%v", i)
 				}
-				if val != "" && key != "" {
-					z.Tags = append(z.Tags, []string{key, val})
+				if val != "" && name != "" {
+					z.Tags = append(z.Tags, Tag{name, val})
 				}
 			}
 		case "Hits":

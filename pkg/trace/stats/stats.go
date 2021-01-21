@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats/quantile"
 )
 
@@ -65,13 +66,13 @@ type Distribution struct {
 // GrainKey generates the key used to aggregate counts and distributions
 // which is of the form: name|measure|aggr
 // for example: serve|duration|service:webserver
-func GrainKey(name, measure string, aggr Aggregation, tags [][]string) string {
+func GrainKey(name, measure string, aggr Aggregation, tags []pb.Tag) string {
 	b := strings.Builder{}
 	// +2 for "|" separators
 	size := len(name) + 1 + len(measure) + 1
 	size += aggr.KeyLen()
 	for _, tag := range tags {
-		size += 2 + len(tag[0]) + len(tag[1])
+		size += 2 + len(tag.Name) + len(tag.Val)
 	}
 	b.Grow(size)
 
@@ -83,9 +84,9 @@ func GrainKey(name, measure string, aggr Aggregation, tags [][]string) string {
 	aggr.WriteKey(&b)
 	for _, tag := range tags {
 		b.WriteString(",")
-		b.WriteString(tag[0])
+		b.WriteString(tag.Name)
 		b.WriteString(":")
-		b.WriteString(tag[1])
+		b.WriteString(tag.Val)
 	}
 	return b.String()
 }

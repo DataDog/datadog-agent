@@ -73,7 +73,7 @@ func TestMarshalUnmarshalTags(t *testing.T) {
 	if len(left) > 0 {
 		t.Errorf("%d bytes left over after Skip(): %q", len(left), left)
 	}
-	assert.Equal(t, v.Tags, [][]string{{"bool", "true"}, {"int", "100"}, {"uint", "550"}, {"string", "bim"}, {"bytes", "byteString"}, {"bytes", "bytes"}, {"float64", "5.00000"}, {"float32", "71.37000"}})
+	assert.Equal(t, v.Tags, []Tag{{"bool", "true"}, {"int", "100"}, {"uint", "550"}, {"string", "bim"}, {"bytes", "byteString"}, {"bytes", "bytes"}, {"float64", "5.00000"}, {"float32", "71.37000"}})
 }
 
 func TestMarshalUnmarshalClientGroupedStats(t *testing.T) {

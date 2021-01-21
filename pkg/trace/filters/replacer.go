@@ -59,8 +59,8 @@ func (f Replacer) ReplaceStatsGroup(b *pb.ClientGroupedStats) {
 			fallthrough
 		case "http.status_code":
 			for _, t := range b.Tags {
-				if t[0] == "http.status_code" {
-					t[1] = re.ReplaceAllString(t[1], str)
+				if t.Name == "http.status_code" {
+					t.Val = re.ReplaceAllString(t.Val, str)
 				}
 			}
 		}
