@@ -8,6 +8,11 @@ import (
 	"github.com/DataDog/sketches-go/ddsketch"
 )
 
+// DDSketch uses a relative error guarantee, meaning that quantiles in the sketch are accurate to within
+// RelativeAccuracy percent (ie if the actual value at p50 is 100, with a relative accuracy of 0.01 the
+// value calculated will be between 99 and 101)
+const RelativeAccuracy = 0.01
+
 // RequestStats stores stats for HTTP requests to a particular path, organized by the class
 // of the response code (1XX, 2XX, 3XX, 4XX, 5XX)
 type RequestStats [5]struct {
@@ -20,9 +25,8 @@ func (r *RequestStats) addRequest(statusClass int, latency float64) {
 	r[i].count++
 
 	if r[i].latencies == nil {
-		relativeAccuracy := 0.01
 		var err error
-		r[i].latencies, err = ddsketch.NewDefaultDDSketch(relativeAccuracy)
+		r[i].latencies, err = ddsketch.NewDefaultDDSketch(RelativeAccuracy)
 		if err != nil {
 			log.Debugf("Error recording HTTP transaction latency: could not create new ddsketch: %v", err)
 			return

@@ -159,15 +159,11 @@ func (m *Monitor) Sync() {
 // GetHTTPStats returns a map of HTTP stats stored in the following format:
 // [source, dest tuple] -> [request path] -> RequestStats object
 func (m *Monitor) GetHTTPStats() map[Key]map[string]RequestStats {
-	if m == nil {
+	if m == nil || m.statkeeper == nil {
 		return nil
 	}
 
 	m.Sync()
-
-	if m.statkeeper == nil {
-		return nil
-	}
 	return m.statkeeper.GetAndResetAllStats()
 }
 
