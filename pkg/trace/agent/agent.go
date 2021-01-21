@@ -223,12 +223,12 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 			WeightedTrace: stats.NewWeightedTrace(t, root),
 			Root:          root,
 			Env:           env,
-			Sublayers:     make(map[*pb.Span][]stats.SublayerValue),
 		}
 
 		events, keep := a.sample(ts, pt)
 
 		if sublayerCalculator.ShouldCompute(keep) {
+			pt.Sublayers = make(map[*pb.Span][]stats.SublayerValue)
 			subtraces := stats.ExtractSubtraces(t, root)
 			for _, subtrace := range subtraces {
 				subtraceSublayers := sublayerCalculator.ComputeSublayers(subtrace.Trace)
