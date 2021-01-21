@@ -10,6 +10,7 @@ import (
 	"math"
 	"sort"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
@@ -78,12 +79,17 @@ type SublayerCalculator struct {
 	// It is indexed by the span index in the trace (for eg, spanState[0].open == true means that the first span of the trace is open)
 	spanStates []spanState
 	// timestamps are the sorted timestamps (starts and ends of each span) of a trace
-	timestamps []timestamp
+	timestamps    []timestamp
+	sublayerSpans bool
+	sublayerStats bool
 }
 
 // NewSublayerCalculator returns a new SublayerCalculator.
 func NewSublayerCalculator() *SublayerCalculator {
-	s := &SublayerCalculator{}
+	s := &SublayerCalculator{
+		sublayerSpans: !config.HasFeature("disable_sublayer_spans"),
+		sublayerStats: !config.HasFeature("disable_sublayer_stats"),
+	}
 	s.reset(defaultCalculatorSpanCapacity)
 	return s
 }
@@ -201,6 +207,16 @@ func (s *SublayerCalculator) computeExecDurations(trace pb.Trace) {
 	}
 }
 
+// ShouldCompute returns true if sublayers need to be computed for that trace.
+func (s *SublayerCalculator) ShouldCompute(sampledTrace bool) bool {
+	return (s.sublayerSpans && sampledTrace) || s.sublayerStats
+}
+
+// WithStats returns true if sublayers stats are enabled.
+func (s *SublayerCalculator) WithStats() bool {
+	return s.sublayerStats
+}
+
 // ComputeSublayers extracts sublayer values by type and service for a trace
 //
 // Description of the algorithm, with the following trace as an example:
@@ -255,9 +271,12 @@ func (s *SublayerCalculator) ComputeSublayers(trace pb.Trace) []SublayerValue {
 	durationsByService := s.computeDurationByAttr(
 		trace, func(s *pb.Span) string { return s.Service },
 	)
-	durationsByType := s.computeDurationByAttr(
-		trace, func(s *pb.Span) string { return s.Type },
-	)
+	var durationsByType map[string]float64
+	if s.WithStats() {
+		durationsByType = s.computeDurationByAttr(
+			trace, func(s *pb.Span) string { return s.Type },
+		)
+	}
 
 	// Generate sublayers values
 	values := make([]SublayerValue, 0,
@@ -272,12 +291,14 @@ func (s *SublayerCalculator) ComputeSublayers(trace pb.Trace) []SublayerValue {
 		})
 	}
 
-	for spanType, duration := range durationsByType {
-		values = append(values, SublayerValue{
-			Metric: "_sublayers.duration.by_type",
-			Tag:    Tag{"sublayer_type", spanType},
-			Value:  math.Round(duration),
-		})
+	if s.WithStats() {
+		for spanType, duration := range durationsByType {
+			values = append(values, SublayerValue{
+				Metric: "_sublayers.duration.by_type",
+				Tag:    Tag{"sublayer_type", spanType},
+				Value:  math.Round(duration),
+			})
+		}
 	}
 
 	values = append(values, SublayerValue{

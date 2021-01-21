@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"github.com/bhmj/jsonslice"
 )
 

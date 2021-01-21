@@ -101,15 +101,6 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		return nil, fmt.Errorf("%s: %s", "system-probe unsupported", err)
 	}
 
-	buf, err := netebpf.ReadBPFModule(config.BPFDir, config.BPFDebug)
-	if err != nil {
-		return nil, fmt.Errorf("could not read bpf module: %s", err)
-	}
-	offsetBuf, err := netebpf.ReadOffsetBPFModule(config.BPFDir, config.BPFDebug)
-	if err != nil {
-		return nil, fmt.Errorf("could not read offset bpf module: %s", err)
-	}
-
 	// check if current platform is using old kernel API because it affects what kprobe are we going to enable
 	currKernelVersion, err := kernel.HostVersion()
 	if err != nil {
@@ -121,6 +112,21 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	pre410Kernel := currKernelVersion < kernel.VersionCode(4, 1, 0)
 	if pre410Kernel {
 		log.Infof("detected platform %s, switch to use kprobes from kernel version < 4.1.0", currKernelVersion)
+	}
+
+	// Use the config to determine what kernel probes should be enabled
+	enabledProbes, err := config.EnabledProbes(pre410Kernel)
+	if err != nil {
+		return nil, fmt.Errorf("invalid probe configuration: %v", err)
+	}
+
+	enableSocketFilter := config.DNSInspection && !pre410Kernel
+	if enableSocketFilter {
+		enabledProbes[probes.SocketDnsFilter] = struct{}{}
+	}
+
+	if config.EnableHTTPMonitoring && !pre410Kernel {
+		enabledProbes[probes.SocketHTTPFilter] = struct{}{}
 	}
 
 	mgrOptions := manager.Options{
@@ -142,9 +148,44 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 			string(probes.HttpInFlightMap):    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 		},
 	}
-	mgrOptions.ConstantEditors, err = runOffsetGuessing(config, offsetBuf)
-	if err != nil {
-		return nil, fmt.Errorf("error guessing offsets: %s", err)
+
+	var buf bytecode.AssetReader
+	if config.EnableRuntimeCompiler {
+		buf, err = getRuntimeCompiledTracer(config)
+		if err != nil {
+			if !config.AllowPrecompiledFallback {
+				return nil, fmt.Errorf("error compiling network tracer: %s", err)
+			}
+			log.Warnf("error compiling network tracer, falling back to pre-compiled: %s", err)
+		} else {
+			defer buf.Close()
+		}
+	}
+
+	if buf == nil {
+		buf, err = netebpf.ReadBPFModule(config.BPFDir, config.BPFDebug)
+		if err != nil {
+			return nil, fmt.Errorf("could not read bpf module: %s", err)
+		}
+		defer buf.Close()
+
+		offsetBuf, err := netebpf.ReadOffsetBPFModule(config.BPFDir, config.BPFDebug)
+		if err != nil {
+			return nil, fmt.Errorf("could not read offset bpf module: %s", err)
+		}
+		defer offsetBuf.Close()
+
+		mgrOptions.ConstantEditors, err = runOffsetGuessing(config, offsetBuf)
+		if err != nil {
+			return nil, fmt.Errorf("error guessing offsets: %s", err)
+		}
+
+		if enableSocketFilter && config.CollectDNSStats {
+			mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors, manager.ConstantEditor{
+				Name:  "dns_stats_enabled",
+				Value: uint64(1),
+			})
+		}
 	}
 
 	closedChannelSize := defaultClosedChannelSize
@@ -154,27 +195,6 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	perfHandlerTCP := ddebpf.NewPerfHandler(closedChannelSize)
 	perfHandlerHTTP := ddebpf.NewPerfHandler(closedChannelSize)
 	m := netebpf.NewManager(perfHandlerTCP, perfHandlerHTTP)
-
-	// Use the config to determine what kernel probes should be enabled
-	enabledProbes, err := config.EnabledProbes(pre410Kernel)
-	if err != nil {
-		return nil, fmt.Errorf("invalid probe configuration: %v", err)
-	}
-
-	enableSocketFilter := config.DNSInspection && !pre410Kernel
-	if enableSocketFilter {
-		enabledProbes[probes.SocketDnsFilter] = struct{}{}
-		if config.CollectDNSStats {
-			mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors, manager.ConstantEditor{
-				Name:  "dns_stats_enabled",
-				Value: uint64(1),
-			})
-		}
-	}
-
-	if config.EnableHTTPMonitoring && !pre410Kernel {
-		enabledProbes[probes.SocketHTTPFilter] = struct{}{}
-	}
 
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
 	for _, p := range m.Probes {

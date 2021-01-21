@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -103,9 +104,10 @@ func standardTagsDigest(labels map[string]string) string {
 		return ""
 	}
 	h := fnv.New64()
-	h.Write([]byte(labels[kubernetes.EnvTagLabelKey]))     //nolint:errcheck
-	h.Write([]byte(labels[kubernetes.VersionTagLabelKey])) //nolint:errcheck
-	h.Write([]byte(labels[kubernetes.ServiceTagLabelKey])) //nolint:errcheck
+	// the implementation of h.Write never returns a non-nil error
+	_, _ = h.Write([]byte(labels[kubernetes.EnvTagLabelKey]))
+	_, _ = h.Write([]byte(labels[kubernetes.VersionTagLabelKey]))
+	_, _ = h.Write([]byte(labels[kubernetes.ServiceTagLabelKey]))
 	return strconv.FormatUint(h.Sum64(), 16)
 }
 

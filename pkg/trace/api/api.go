@@ -118,9 +118,7 @@ func (r *HTTPReceiver) buildMux() *http.ServeMux {
 	mux.HandleFunc("/v0.4/traces", r.handleWithVersion(v04, r.handleTraces))
 	mux.HandleFunc("/v0.4/services", r.handleWithVersion(v04, r.handleServices))
 	mux.HandleFunc("/v0.5/traces", r.handleWithVersion(v05, r.handleTraces))
-	if config.HasFeature("client_stats") {
-		mux.HandleFunc("/v0.5/stats", r.handleStats)
-	}
+	mux.HandleFunc("/v0.5/stats", r.handleStats)
 	mux.Handle("/profiling/v1/input", r.profileProxyHandler())
 
 	return mux

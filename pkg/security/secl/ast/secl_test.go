@@ -150,11 +150,30 @@ func TestMultiline(t *testing.T) {
 	}
 
 	expr = `process.filename == "/usr/bin/vipw" && (
-	process.filename == "/usr/bin/test" ||
+	process.filename == "/usr/bin/test" || # blah blah
+	# blah blah
 	process.filename == "/ust/bin/false"
 	)`
 
 	if _, err := ParseRule(expr); err != nil {
 		t.Error(err)
 	}
+}
+
+func TestPattern(t *testing.T) {
+	rule, err := ParseRule(`process.name == ~"/usr/bin/ls"`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	print(t, rule)
+}
+
+func TestArrayPattern(t *testing.T) {
+	rule, err := ParseRule(`process.name in [~"/usr/bin/ls", "/usr/sbin/ls"]`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	print(t, rule)
 }

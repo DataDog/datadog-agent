@@ -1962,6 +1962,7 @@ gopkg.in/zorkian/go-datadog-api.v2 v2.29.0/go.mod h1:kx0CSMRpzEZfx/nFH62GLU4stZj
 gotest.tools v2.1.0+incompatible/go.mod h1:DsYFclhRJ6vuDpmuTbkuFWG+y2sxOXAzmJt81HFBacw=
 gotest.tools v2.2.0+incompatible h1:VsBPFP1AI068pPrMxtb/S8Zkgf9xEmTLJjfM+P5UIEo=
 gotest.tools v2.2.0+incompatible/go.mod h1:DsYFclhRJ6vuDpmuTbkuFWG+y2sxOXAzmJt81HFBacw=
+gotest.tools/gotestsum v0.3.5 h1:VePOWRsuWFYpfp/G8mbmOZKxO5T3501SEGQRUdvq7h0=
 gotest.tools/gotestsum v0.3.5/go.mod h1:Mnf3e5FUzXbkCfynWBGOwLssY7gTQgCHObK9tMpAriY=
 gotest.tools/gotestsum v0.5.3 h1:9SkwB5ou8GYUqSgbCCYCMk9BVXueDmzwk5WjaZeZW2o=
 gotest.tools/gotestsum v0.5.3/go.mod h1:hC9TQserDVTWcJuARh76Ydp3ZwuE+pIIWpt2BzDLD6M=
