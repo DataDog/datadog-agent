@@ -56,7 +56,7 @@ func NewResolvers(probe *Probe, client *statsd.Client) (*Resolvers, error) {
 		UserGroupResolver: userGroupResolver,
 	}
 
-	processResolver, err := NewProcessResolver(probe, resolvers, client, ProcessResolverOpts{})
+	processResolver, err := NewProcessResolver(probe, resolvers, client, ProcessResolverOpts{DebugCacheSize: true})
 	if err != nil {
 		return nil, err
 	}

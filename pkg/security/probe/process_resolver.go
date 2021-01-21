@@ -8,6 +8,9 @@
 package probe
 
 import (
+	"fmt"
+	"io"
+	"io/ioutil"
 	"os"
 	"runtime"
 	"sync"
@@ -184,8 +187,9 @@ func (p *ProcessResolver) retrieveInodeInfo(inode uint64) (*InodeInfo, error) {
 }
 
 func (p *ProcessResolver) insertForkEntry(pid uint32, entry *ProcessCacheEntry) *ProcessCacheEntry {
-	if _, exists := p.entryCache[pid]; exists {
-		return nil
+	if prev := p.entryCache[pid]; prev != nil {
+		// this shouldn't happen but it is better to exit the prev and let the new one replace it
+		prev.Exit(entry.ForkTimestamp)
 	}
 
 	parent := p.entryCache[entry.PPid]
@@ -208,11 +212,9 @@ func (p *ProcessResolver) insertForkEntry(pid uint32, entry *ProcessCacheEntry) 
 }
 
 func (p *ProcessResolver) insertExecEntry(pid uint32, entry *ProcessCacheEntry) *ProcessCacheEntry {
-	prev := p.entryCache[pid]
-	if prev == nil {
-		return nil
+	if prev := p.entryCache[pid]; prev != nil {
+		prev.Exec(entry)
 	}
-	prev.Exec(entry)
 
 	p.entryCache[pid] = entry
 
@@ -384,11 +386,70 @@ func (p *ProcessResolver) syncCache(proc *process.Process) (*ProcessCacheEntry, 
 	return entry, true
 }
 
+func (p *ProcessResolver) dumpEntry(writer io.Writer, entry *ProcessCacheEntry, already map[string]bool) {
+	for entry != nil {
+		label := fmt.Sprintf("%s:%d", entry.Comm, entry.Pid)
+		if _, exists := already[label]; !exists {
+			if !entry.ExitTimestamp.IsZero() {
+				label = "[" + label + "]"
+			}
+
+			fmt.Fprintf(writer, `"%d:%s" [label="%s"];`, entry.Pid, entry.Comm, label)
+			fmt.Fprintln(writer)
+
+			already[label] = true
+		}
+
+		if entry.Ancestor != nil {
+			relation := fmt.Sprintf(`"%d:%s" -> "%d:%s";`, entry.Ancestor.Pid, entry.Ancestor.Comm, entry.Pid, entry.Comm)
+			if _, exists := already[relation]; !exists {
+				fmt.Fprintln(writer, relation)
+
+				already[relation] = true
+			}
+		}
+
+		entry = entry.Ancestor
+	}
+}
+
+// Dump create a temp file and dump the cache
+func (p *ProcessResolver) Dump() (string, error) {
+	dump, err := ioutil.TempFile("/tmp", "process-cache-dump-")
+	if err != nil {
+		return "", err
+	}
+	defer dump.Close()
+
+	if err := os.Chmod(dump.Name(), 0400); err != nil {
+		return "", err
+	}
+
+	p.RLock()
+	defer p.RUnlock()
+
+	fmt.Fprintf(dump, "digraph ProcessTree {\n")
+
+	already := make(map[string]bool)
+	for _, entry := range p.entryCache {
+		p.dumpEntry(dump, entry, already)
+	}
+
+	fmt.Fprintf(dump, `}`)
+
+	return dump.Name(), err
+}
+
 // GetCacheSize returns the cache size of the process resolver
 func (p *ProcessResolver) GetCacheSize() float64 {
 	p.RLock()
 	defer p.RUnlock()
 	return float64(len(p.entryCache))
+}
+
+// GetEntryCacheSize returns the cache size of the process resolver
+func (p *ProcessResolver) GetEntryCacheSize() float64 {
+	return float64(atomic.LoadInt64(&p.cacheSize))
 }
 
 // NewProcessResolver returns a new process resolver
