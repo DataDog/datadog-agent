@@ -56,7 +56,7 @@ func SetupHandlers(r *mux.Router) *mux.Router {
 	r.HandleFunc("/flare", makeFlare).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", getStatus).Methods("GET")
-	r.HandleFunc("/streamLogs", streamLogs).Methods("POST")
+	r.HandleFunc("/stream-logs", streamLogs).Methods("POST")
 	r.HandleFunc("/dogstatsd-stats", getDogstatsdStats).Methods("GET")
 	r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
@@ -194,17 +194,25 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 func streamLogs(w http.ResponseWriter, r *http.Request) {
 	log.Info("Got a request for stream logs.")
 	w.Header().Set("Transfer-Encoding", "chunked")
+
 	logMessageReceiver := logs.GetMessageReceiver()
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		log.Errorf("Expected a Flusher type, got: %v", w)
+		return
+	}
+
 	if logMessageReceiver == nil {
 		http.Error(w, "The logs agent is not running", 405)
-		w.(http.Flusher).Flush()
+		flusher.Flush()
 		log.Info("Logs agent is not running - can't stream logs")
 		return
 	}
 
 	if !logMessageReceiver.SetEnabled(true) {
 		http.Error(w, "Another client is already streaming logs.", 405)
-		w.(http.Flusher).Flush()
+		flusher.Flush()
 		log.Info("Logs are already streaming. Dropping connection.")
 		return
 	}
@@ -244,7 +252,7 @@ func streamLogs(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprint(w, line)
 		} else {
 			// The buffer will flush on its own most of the time, but when we run out of logs flush so the client is up to date.
-			w.(http.Flusher).Flush()
+			flusher.Flush()
 		}
 	}
 }

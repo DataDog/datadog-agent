@@ -68,7 +68,7 @@ func connectAndStream() error {
 		return err
 	}
 
-	urlstr := fmt.Sprintf("https://%v:%v/agent/streamLogs", ipcAddress, config.Datadog.GetInt("cmd_port"))
+	urlstr := fmt.Sprintf("https://%v:%v/agent/stream-logs", ipcAddress, config.Datadog.GetInt("cmd_port"))
 	return streamRequest(urlstr, body, func(chunk []byte) {
 		fmt.Print(string(chunk))
 	})
