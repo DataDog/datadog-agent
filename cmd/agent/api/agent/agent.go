@@ -196,9 +196,10 @@ func streamLogs(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Transfer-Encoding", "chunked")
 	logMessageReceiver := logs.GetMessageReceiver()
 	if logMessageReceiver == nil {
-		http.Error(w, "The logs agent is not running", 500)
+		http.Error(w, "The logs agent is not running", 405)
 		w.(http.Flusher).Flush()
 		log.Info("Logs agent is not running - can't stream logs")
+		return
 	}
 
 	if !logMessageReceiver.SetEnabled(true) {

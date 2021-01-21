@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -84,6 +85,10 @@ func streamRequest(url string, body []byte, onChunk func([]byte)) error {
 	}
 
 	e = util.DoPostChunked(c, url, "application/json", bytes.NewBuffer(body), onChunk)
+
+	if e == io.EOF {
+		return nil
+	}
 	if e != nil {
 		fmt.Printf("Could not reach agent: %v \nMake sure the agent is running before requesting the logs and contact support if you continue having issues. \n", e)
 	}
