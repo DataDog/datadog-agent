@@ -46,9 +46,9 @@ type PriorityEngine struct {
 }
 
 // NewPriorityEngine returns an initialized Sampler
-func NewPriorityEngine(extraRate float64, maxTPS float64, rateByService *RateByService) *PriorityEngine {
+func NewPriorityEngine(extraRate float64, targetTPS float64, rateByService *RateByService) *PriorityEngine {
 	s := &PriorityEngine{
-		Sampler:       newSampler(extraRate, maxTPS),
+		Sampler:       newSampler(extraRate, targetTPS),
 		rateByService: rateByService,
 		catalog:       newServiceLookup(),
 		exit:          make(chan struct{}),
