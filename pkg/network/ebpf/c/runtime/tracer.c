@@ -203,18 +203,20 @@ static __always_inline void increment_telemetry_count(enum telemetry_counter cou
         return;
     }
     switch (counter_name) {
-        case tcp_sent_miscounts:
-            __sync_fetch_and_add(&val->tcp_sent_miscounts, 1);
-            break;
-        case missed_tcp_close:
-            __sync_fetch_and_add(&val->missed_tcp_close, 1);
-            break;
-        case udp_send_processed:
-            __sync_fetch_and_add(&val->udp_sends_processed, 1);
-            break;
-        case udp_send_missed:
-            __sync_fetch_and_add(&val->udp_sends_missed, 1);
-            break;
+    case tcp_sent_miscounts:
+        __sync_fetch_and_add(&val->tcp_sent_miscounts, 1);
+        break;
+    case missed_tcp_close:
+        __sync_fetch_and_add(&val->missed_tcp_close, 1);
+        break;
+    case missed_udp_close:
+        __sync_fetch_and_add(&val->missed_udp_close, 1);
+    case udp_send_processed:
+        __sync_fetch_and_add(&val->udp_sends_processed, 1);
+        break;
+    case udp_send_missed:
+        __sync_fetch_and_add(&val->udp_sends_missed, 1);
+        break;
     }
     return;
 }
@@ -223,7 +225,7 @@ static __always_inline void cleanup_tcp_conn(struct pt_regs* __attribute__((unus
     u32 cpu = bpf_get_smp_processor_id();
 
     // Will hold the full connection data to send through the perf buffer
-    tcp_conn_t conn = {};
+    conn_t conn = {};
     bpf_probe_read(&(conn.tup), sizeof(conn_tuple_t), tup);
     tcp_stats_t* tst;
     conn_stats_ts_t* cst;
@@ -249,12 +251,12 @@ static __always_inline void cleanup_tcp_conn(struct pt_regs* __attribute__((unus
     }
 
     // Batch TCP closed connections before generating a perf event
-    batch_t* batch_ptr = bpf_map_lookup_elem(&tcp_close_batch, &cpu);
+    batch_t* batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);
     if (batch_ptr == NULL) {
         return;
     }
 
-    // TODO: Can we turn this into a macro based on TCP_CLOSED_BATCH_SIZE?
+    // TODO: Can we turn this into a macro based on CONN_CLOSED_BATCH_SIZE?
     switch (batch_ptr->pos) {
     case 0:
         batch_ptr->c0 = conn;
@@ -404,18 +406,18 @@ int kprobe__tcp_close(struct pt_regs* ctx) {
 SEC("kretprobe/tcp_close")
 int kretprobe__tcp_close(struct pt_regs* ctx) {
     u32 cpu = bpf_get_smp_processor_id();
-    batch_t* batch_ptr = bpf_map_lookup_elem(&tcp_close_batch, &cpu);
+    batch_t* batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);
     if (batch_ptr == NULL) {
         return 0;
     }
 
-    if (batch_ptr->pos >= TCP_CLOSED_BATCH_SIZE) {
+    if (batch_ptr->pos >= CONN_CLOSED_BATCH_SIZE) {
         // Here we copy the batch data to a variable allocated in the eBPF stack
         // This is necessary for older Kernel versions only (we validated this behavior on 4.4.0),
         // since you can't directly write a map entry to the perf buffer.
         batch_t batch_copy = {};
         __builtin_memcpy(&batch_copy, batch_ptr, sizeof(batch_copy));
-        bpf_perf_event_output(ctx, &tcp_close_event, cpu, &batch_copy, sizeof(batch_copy));
+        bpf_perf_event_output(ctx, &conn_close_event, cpu, &batch_copy, sizeof(batch_copy));
         batch_ptr->pos = 0;
     }
 
