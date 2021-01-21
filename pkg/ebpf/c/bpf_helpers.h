@@ -104,10 +104,7 @@ struct bpf_map_def {
 #define PT_REGS_PARM7(x)                                            \
 ({                                                                  \
     unsigned long p = 0;                                            \
-    unsigned long *addr = regs_get_kernel_stack_nth_addr(x, 1);     \
-    if (addr != NULL) {                                             \
-        bpf_probe_read(&p, sizeof(p), addr);                        \
-    }                                                               \
+    bpf_probe_read(&p, sizeof(p), ((unsigned long *)x->sp) + 1);    \
     p;                                                              \
 })
 #define PT_REGS_RET(x) ((x)->sp)
