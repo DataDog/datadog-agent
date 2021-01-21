@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -31,7 +30,7 @@ type SocketFilterSnooper struct {
 	successes int64
 	errors    int64
 
-	source          *filterpkg.PacketSource
+	source          PacketSource
 	parser          *dnsParser
 	cache           *reverseDNSCache
 	statKeeper      *dnsStatKeeper
@@ -60,7 +59,7 @@ type PacketSource interface {
 }
 
 // NewSocketFilterSnooper returns a new SocketFilterSnooper
-func NewSocketFilterSnooper(cfg *config.Config, source *filterpkg.PacketSource) (*SocketFilterSnooper, error) {
+func NewSocketFilterSnooper(cfg *config.Config, source PacketSource) (*SocketFilterSnooper, error) {
 	cache := newReverseDNSCache(dnsCacheSize, dnsCacheTTL, dnsCacheExpirationPeriod)
 	var statKeeper *dnsStatKeeper
 	if cfg.CollectDNSStats {

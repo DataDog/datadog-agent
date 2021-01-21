@@ -282,7 +282,7 @@ func newReverseDNS(cfg *config.Config, m *manager.Manager, pre410Kernel bool) (n
 
 	// Create the RAW_SOCKET inside the root network namespace
 	var (
-		packetSrc *filterpkg.PacketSource
+		packetSrc *filterpkg.AFPacketSource
 		srcErr    error
 	)
 	err := util.WithRootNS(cfg.ProcRoot, func() error {

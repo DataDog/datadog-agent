@@ -199,7 +199,7 @@ func (ns *networkState) Connections(
 	ns.determineConnectionIntraHost(conns)
 	if len(dnsStats) > 0 {
 		ns.storeDNSStats(dnsStats)
-		ns.addDNSStats(id, latestConns)
+		ns.addDNSStats(id, conns)
 	}
 	if len(httpStats) > 0 {
 		ns.storeHTTPStats(httpStats)

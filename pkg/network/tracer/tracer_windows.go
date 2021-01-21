@@ -149,7 +149,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 
 	// check for expired clients in the state
 	t.state.RemoveExpiredClients(time.Now())
-	conns := t.state.Connections(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats())
+	conns := t.state.Connections(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), nil)
 	return &network.Connections{Conns: conns}, nil
 }
 

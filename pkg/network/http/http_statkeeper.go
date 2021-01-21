@@ -1,19 +1,12 @@
+// +build linux_bpf
+
 package http
 
 import (
 	"C"
 	"strings"
 	"sync"
-
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
-
-type Key struct {
-	SourceIP   util.Address
-	DestIP     util.Address
-	SourcePort uint16
-	DestPort   uint16
-}
 
 type httpStatKeeper struct {
 	mux   sync.Mutex

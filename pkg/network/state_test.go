@@ -1384,7 +1384,7 @@ func TestHTTPStatsWithMultipleClients(t *testing.T) {
 	assert.Len(t, conns[0].HTTPStatsByPath, 2)
 
 	// Verify that the third client also accumulated both new HTTP stats
-	conns = state.Connections(client2, latestEpochTime(), nil, nil, nil)
+	conns = state.Connections(client3, latestEpochTime(), nil, nil, nil)
 	require.Len(t, conns, 1)
 	assert.Len(t, conns[0].HTTPStatsByPath, 2)
 }

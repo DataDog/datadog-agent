@@ -13,7 +13,7 @@ import (
 // TODO: After the proof-of-concept we might want to replace the SOCKET_FILTER program by a TC classifier
 func HeadlessSocketFilter(rootPath string, filter *manager.Probe) (closeFn func(), err error) {
 	var (
-		packetSrc *PacketSource
+		packetSrc *AFPacketSource
 		srcErr    error
 	)
 
