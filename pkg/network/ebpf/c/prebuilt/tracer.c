@@ -1248,6 +1248,7 @@ static __always_inline void http_end_response(http_transaction_t *http) {
     batch->pos++;
 
     // If we have filled the batch we move to the next one
+    // Notice that we don't flush it directly because we can't do so from socket filter programs.
     if (batch->pos == HTTP_BATCH_SIZE) {
         batch_state->idx++;
     }

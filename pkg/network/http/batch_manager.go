@@ -20,20 +20,20 @@ var errLostBatch = errors.New("http batch lost (not consumed fast enough)")
 
 const maxLookupsPerCPU = 2
 
-type batchState struct {
+type usrBatchState struct {
 	idx, pos int
 }
 
 type batchManager struct {
 	batchMap   *ebpf.Map
-	stateByCPU []batchState
+	stateByCPU []usrBatchState
 	numCPUs    int
 }
 
 func newBatchManager(batchMap, batchStateMap *ebpf.Map, numCPUs int) *batchManager {
 	batch := new(httpBatch)
 	state := new(C.http_batch_state_t)
-	stateByCPU := make([]batchState, numCPUs)
+	stateByCPU := make([]usrBatchState, numCPUs)
 
 	for i := 0; i < numCPUs; i++ {
 		// Initialize eBPF maps

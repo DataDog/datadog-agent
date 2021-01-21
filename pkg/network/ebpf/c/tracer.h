@@ -102,6 +102,9 @@ typedef struct {
     // before it gets consumed from userspace
     __u64 idx;
     // idx_to_notify is used to track which batch completions were notified to userspace
+    // * if idx_to_notify == idx, the current index is still being appended to;
+    // * if idx_to_notify < idx, the batch at idx_to_notify needs to be sent to userspace;
+    // (note that idx will never be less than idx_to_notify);
     __u64 idx_to_notify;
 } http_batch_state_t;
 
