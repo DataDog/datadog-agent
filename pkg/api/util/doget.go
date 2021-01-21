@@ -77,7 +77,7 @@ func DoPost(c *http.Client, url string, contentType string, body io.Reader) (res
 	return resp, nil
 }
 
-// DoPostChunked is a wrapper around performing HTTP GET requests that stream chunked data
+// DoPostChunked is a wrapper around performing HTTP POST requests that stream chunked data
 func DoPostChunked(c *http.Client, url string, contentType string, body io.Reader, onChunk func([]byte)) error {
 	req, e := http.NewRequest("POST", url, body)
 	if e != nil {
@@ -93,7 +93,7 @@ func DoPostChunked(c *http.Client, url string, contentType string, body io.Reade
 	defer r.Body.Close()
 
 	var m int
-	buf := make([]byte, 128)
+	buf := make([]byte, 4096)
 	for {
 		m, e = r.Body.Read(buf)
 		if m < 0 || e != nil {
