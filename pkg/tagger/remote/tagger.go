@@ -63,16 +63,6 @@ func (t *Tagger) Init() error {
 
 	t.ctx, t.cancel = context.WithCancel(context.Background())
 
-	token, err := security.FetchAuthToken()
-	if err != nil {
-		return fmt.Errorf("unable to fetch authentication token: %w", err)
-	}
-
-	md := metadata.MD{
-		"authorization": []string{fmt.Sprintf("Bearer %s", token)},
-	}
-	t.ctx = metadata.NewOutgoingContext(t.ctx, md)
-
 	// NOTE: we're using InsecureSkipVerify because the gRPC server only
 	// persists its TLS certs in memory, and we currently have no
 	// infrastructure to make them available to clients. This is NOT
@@ -82,6 +72,7 @@ func (t *Tagger) Init() error {
 		InsecureSkipVerify: true,
 	})
 
+	var err error
 	t.conn, err = grpc.DialContext(
 		t.ctx,
 		fmt.Sprintf(":%v", config.Datadog.GetInt("cmd_port")),
@@ -265,8 +256,16 @@ func (t *Tagger) startTaggerStream(maxElapsed time.Duration) error {
 		default:
 		}
 
-		var err error
-		t.stream, err = t.client.TaggerStreamEntities(t.ctx, &pb.StreamTagsRequest{
+		token, err := security.FetchAuthToken()
+		if err != nil {
+			return fmt.Errorf("unable to fetch authentication token: %w", err)
+		}
+
+		ctx := metadata.NewOutgoingContext(t.ctx, metadata.MD{
+			"authorization": []string{fmt.Sprintf("Bearer %s", token)},
+		})
+
+		t.stream, err = t.client.TaggerStreamEntities(ctx, &pb.StreamTagsRequest{
 			Cardinality: pb.TagCardinality_HIGH,
 		})
 
