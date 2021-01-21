@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
 )
 
@@ -38,6 +39,7 @@ func (s *Subscriber) Subscribe(cardinality collectors.TagCardinality, events []t
 
 	s.Lock()
 	s.subscribers[ch] = cardinality
+	telemetry.Subscribers.Inc()
 	s.Unlock()
 
 	if events != nil && len(events) > 0 {
@@ -51,6 +53,7 @@ func (s *Subscriber) Subscribe(cardinality collectors.TagCardinality, events []t
 func (s *Subscriber) Unsubscribe(ch chan []types.EntityEvent) {
 	s.Lock()
 	defer s.Unlock()
+	defer telemetry.Subscribers.Dec()
 
 	delete(s.subscribers, ch)
 	close(ch)
@@ -67,9 +70,6 @@ func (s *Subscriber) Notify(events []types.EntityEvent) {
 	defer s.RUnlock()
 
 	for ch, cardinality := range s.subscribers {
-		// NOTE: we need to add some telemetry on the amount of
-		// subscribers and notifications being sent, and at which
-		// cardinality
 		notify(ch, events, cardinality)
 	}
 }
@@ -92,6 +92,9 @@ func notify(ch chan []types.EntityEvent, events []types.EntityEvent, cardinality
 			Entity:    entity,
 		})
 	}
+
+	telemetry.Notifications.Inc()
+	telemetry.Events.Add(float64(len(events)), collectors.TagCardinalityToString(cardinality))
 
 	ch <- subscriberEvents
 }
