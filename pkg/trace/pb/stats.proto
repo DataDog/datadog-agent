@@ -34,4 +34,5 @@ message ClientGroupedStats {
 	uint64 duration = 9;
 	bytes okSummary = 10;
 	bytes errorSummary = 11;
+	bool synthetics = 12;
 }
