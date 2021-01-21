@@ -4,6 +4,7 @@ package http
 
 import (
 	model "github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/sketches-go/ddsketch"
 )
 
@@ -23,12 +24,13 @@ func (r *RequestStats) addRequest(statusClass int, latency float64) {
 		var err error
 		r[i].latencies, err = ddsketch.NewDefaultDDSketch(relativeAccuracy)
 		if err != nil {
-			// todo print
+			log.Debugf("Error recording HTTP transaction latency: could not create new ddsketch: %v", err)
 			return
 		}
 	}
 
-	r[i].latencies.Add(latency)
+	err := r[i].latencies.Add(latency)
+	log.Debugf("Error recording HTTP transaction latency: could not add latency to ddsketch: %v", err)
 }
 
 // CombineWith merges the data in 2 RequestStats objects
