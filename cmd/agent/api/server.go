@@ -129,6 +129,10 @@ func StartServer() error {
 		// seconds, need to find a solution for that before
 		// re-enabling.
 		// WriteTimeout: config.Datadog.GetDuration("server_timeout") * time.Second,
+		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
+			// Store the connection in the context so requests can reference it if needed
+			return context.WithValue(ctx, agent.ConnContextKey, c)
+		},
 	}
 
 	tlsListener := tls.NewListener(listener, srv.TLSConfig)
