@@ -3,7 +3,6 @@
 package http
 
 import (
-	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -116,8 +115,9 @@ func (tx *httpTX) DestPort() uint16 {
 	return uint16(tx.tup.dport)
 }
 
-func (tx *httpTX) RequestLatency() time.Duration {
-	return time.Duration(int64((tx.response_last_seen-tx.request_started)/(1000000))) * time.Millisecond
+// RequestLatency returns the latency of the request in ms
+func (tx *httpTX) RequestLatency() float64 {
+	return float64((tx.response_last_seen - tx.request_started) / (1000000))
 }
 
 // IsDirty detects whether the batch page we're supposed to read from is still

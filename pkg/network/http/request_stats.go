@@ -3,8 +3,6 @@
 package http
 
 import (
-	"time"
-
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/sketches-go/ddsketch"
 )
@@ -16,7 +14,7 @@ type RequestStats [5]struct {
 	latencies *ddsketch.DDSketch
 }
 
-func (r *RequestStats) addRequest(statusClass int, latency time.Duration) {
+func (r *RequestStats) addRequest(statusClass int, latency float64) {
 	i := statusClass/100 - 1
 	r[i].count++
 
@@ -29,7 +27,8 @@ func (r *RequestStats) addRequest(statusClass int, latency time.Duration) {
 			return
 		}
 	}
-	r[i].latencies.Add(float64(latency))
+
+	r[i].latencies.Add(latency)
 }
 
 // CombineWith merges the data in 2 RequestStats objects

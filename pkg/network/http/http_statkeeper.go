@@ -3,6 +3,7 @@
 package http
 
 import (
+	"C"
 	"strings"
 	"sync"
 
@@ -10,9 +11,10 @@ import (
 )
 
 type Key struct {
-	SourceIP util.Address
-	DestIP   util.Address
-	DestPort uint16
+	SourceIP   util.Address
+	DestIP     util.Address
+	SourcePort uint16
+	DestPort   uint16
 }
 
 type httpStatKeeper struct {
@@ -32,9 +34,10 @@ func (h *httpStatKeeper) Process(transactions []httpTX) {
 
 	for _, tx := range transactions {
 		key := Key{
-			SourceIP: tx.SourceIP(),
-			DestIP:   tx.DestIP(),
-			DestPort: tx.DestPort(),
+			SourceIP:   tx.SourceIP(),
+			DestIP:     tx.DestIP(),
+			SourcePort: tx.SourcePort(),
+			DestPort:   tx.DestPort(),
 		}
 		path := cleanPath(tx.Path())
 		statusClass := tx.StatusClass()
@@ -70,4 +73,15 @@ func cleanPath(path string) string {
 	}
 
 	return path
+}
+
+// for testing (needs to be here because cgo cannot be imported into test files)
+func makeRequestFragment(path string) [25]C.char {
+	fragment := "GET " + path + " HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0"
+
+	var ret [25]C.char
+	for i := 0; i < 25; i++ {
+		ret[i] = C.char(fragment[i])
+	}
+	return ret
 }

@@ -6,12 +6,14 @@ import (
 
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestSerialization(t *testing.T) {
+	var httpReqStats http.RequestStats
 	in := &network.Connections{
 		Conns: []network.ConnectionStats{
 			{
@@ -50,6 +52,10 @@ func TestSerialization(t *testing.T) {
 						DNSCountByRcode:      map[uint32]uint32{0: 1},
 					},
 				},
+
+				HTTPStatsByPath: map[string]http.RequestStats{
+					"/testpath": httpReqStats,
+				},
 			},
 		},
 		DNS: map[util.Address][]string{
@@ -87,6 +93,33 @@ func TestSerialization(t *testing.T) {
 						DnsSuccessLatencySum: 0,
 						DnsFailureLatencySum: 0,
 						DnsCountByRcode:      map[uint32]uint32{0: 1},
+					},
+				},
+
+				HttpStatsByPath: map[string]*model.HTTPStats{
+					"/testpath": {
+						StatsByResponseStatus: []*model.HTTPStats_Data{
+							{
+								Count:     0,
+								Latencies: nil,
+							},
+							{
+								Count:     0,
+								Latencies: nil,
+							},
+							{
+								Count:     0,
+								Latencies: nil,
+							},
+							{
+								Count:     0,
+								Latencies: nil,
+							},
+							{
+								Count:     0,
+								Latencies: nil,
+							},
+						},
 					},
 				},
 			},
