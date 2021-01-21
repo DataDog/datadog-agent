@@ -152,6 +152,11 @@ func runAgent(ctx context.Context) (err error) {
 		return
 	}
 
+	// set core limits as soon as possible
+	if err := util.SetCoreLimit(); err != nil {
+		log.Infof("Can't set core size limit: %v, core dumps might not be available after a crash", err)
+	}
+
 	if !config.Datadog.IsSet("api_key") {
 		err = log.Critical("no API key configured, exiting")
 		return

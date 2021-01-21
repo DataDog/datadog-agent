@@ -182,6 +182,11 @@ func start(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	// set core limits as soon as possible
+	if err := util.SetCoreLimit(); err != nil {
+		log.Infof("Can't set core size limit: %v, core dumps might not be available after a crash", err)
+	}
+
 	if pidfilePath != "" {
 		err = pidfile.WritePID(pidfilePath)
 		if err != nil {

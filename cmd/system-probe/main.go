@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -58,6 +59,11 @@ func runAgent(exit <-chan struct{}) {
 	if opts.version {
 		fmt.Println(versionString("\n"))
 		cleanupAndExit(0)
+	}
+
+	// set core limits as soon as possible
+	if err := util.SetCoreLimit(); err != nil {
+		log.Infof("Can't set core size limit: %v, core dumps might not be available after a crash", err)
 	}
 
 	// --pid
