@@ -28,6 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const dockerCheckName = "docker"
+
 type containerPerImage struct {
 	tags    []string
 	running int64

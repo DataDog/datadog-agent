@@ -10,7 +10,6 @@ package containers
 import "gopkg.in/yaml.v2"
 
 const (
-	dockerCheckName = "docker"
 	DockerServiceUp = "docker.service_up"
 	DockerExit      = "docker.exit"
 )
