@@ -93,13 +93,13 @@ func DoPostChunked(c *http.Client, url string, contentType string, body io.Reade
 	defer r.Body.Close()
 
 	var m int
+	buf := make([]byte, 128)
 	for {
-		buf := make([]byte, 128)
 		m, e = r.Body.Read(buf)
 		if m < 0 || e != nil {
 			break
 		}
-		onChunk(buf)
+		onChunk(buf[:m])
 	}
 
 	if r.StatusCode == 200 {
