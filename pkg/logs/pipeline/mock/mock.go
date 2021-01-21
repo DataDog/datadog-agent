@@ -6,6 +6,8 @@
 package mock
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
@@ -29,7 +31,7 @@ func (p *mockProvider) Start() {}
 func (p *mockProvider) Stop() {}
 
 // Flush does nothing
-func (p *mockProvider) Flush() {}
+func (p *mockProvider) Flush(ctx context.Context) {}
 
 // NextPipelineChan returns the next pipeline
 func (p *mockProvider) NextPipelineChan() chan *message.Message {

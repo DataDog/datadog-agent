@@ -7,24 +7,24 @@ import (
 // Strategy is deciding whether the data should be flushed or not at the given moment.
 type Strategy interface {
 	String() string
-	ShouldFlush(moment FlushMoment, t time.Time) bool
+	ShouldFlush(moment Moment, t time.Time) bool
 }
 
-// FlushMoment represents at which moment we're asking the flush Strategy if we
+// Moment represents at which moment we're asking the flush Strategy if we
 // should flush or not.
 // Note that there is no entry for the shutdown of the environment because we always
 // flush in this situation.
-type FlushMoment string
+type Moment string
 
 const (
 	// Starting is used to represent the moment the function is starting because
 	// it has been invoked.
-	Starting FlushMoment = "starting"
+	Starting Moment = "starting"
 	// Stopping is used to represent the moment right after the function has finished
 	// its execution.
-	Stopping FlushMoment = "stopping"
+	Stopping Moment = "stopping"
 	// Running is used to indicate that the function is still running.
-	// Running FlushMoment = "running"
+	// Running Moment = "running"
 )
 
 // -----
@@ -35,7 +35,8 @@ type AtTheEnd struct{}
 
 func (s *AtTheEnd) String() string { return "end" }
 
-func (s *AtTheEnd) ShouldFlush(moment FlushMoment, t time.Time) bool {
+// ShouldFlush returns true if this strategy want to flush at the given moment.
+func (s *AtTheEnd) ShouldFlush(moment Moment, t time.Time) bool {
 	return moment == Stopping
 }
 
@@ -47,7 +48,8 @@ type AtTheStart struct{}
 
 func (s *AtTheStart) String() string { return "start" }
 
-func (s *AtTheStart) ShouldFlush(moment FlushMoment, t time.Time) bool {
+// ShouldFlush returns true if this strategy want to flush at the given moment.
+func (s *AtTheStart) ShouldFlush(moment Moment, t time.Time) bool {
 	return moment == Starting
 }
 
@@ -64,7 +66,8 @@ type AtLeast struct {
 
 func (s *AtLeast) String() string { return "at least" }
 
-func (s *AtLeast) ShouldFlush(moment FlushMoment, t time.Time) bool {
+// ShouldFlush returns true if this strategy want to flush at the given moment.
+func (s *AtLeast) ShouldFlush(moment Moment, t time.Time) bool {
 	if moment == Starting {
 		now := time.Now()
 		if s.lastFlush.Add(s.N).Before(now) {
@@ -88,9 +91,10 @@ type EveryNInvoke struct {
 
 func (s *EveryNInvoke) String() string { return "every n invoke" }
 
-func (s *EveryNInvoke) ShouldFlush(moment FlushMoment, t time.Time) bool {
+// ShouldFlush returns true if this strategy want to flush at the given moment.
+func (s *EveryNInvoke) ShouldFlush(moment Moment, t time.Time) bool {
 	if moment == Starting {
-		s.cnt += 1
+		s.cnt++
 		if s.cnt%s.N == 0 {
 			s.cnt = 0
 			return true

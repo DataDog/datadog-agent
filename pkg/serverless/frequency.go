@@ -47,7 +47,7 @@ func (d *Daemon) InvocationFrequency() time.Duration {
 
 // AutoSelectStrategy uses the invocation frequency of the function to select the
 // best flush strategy.
-// This function doesn't mind if the flush strategy has been overriden through
+// This function doesn't mind if the flush strategy has been overridden through
 // configuration / environment var, the caller is responsible of that.
 func (d *Daemon) AutoSelectStrategy() flush.Strategy {
 	freq := d.InvocationFrequency()
