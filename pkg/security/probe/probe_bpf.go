@@ -615,8 +615,16 @@ func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 		}
 	}
 
-	p.perfMap.Pause()
-	defer p.perfMap.Resume()
+	// We might end up missing events during the snapshot. Ultimately we might want to stop the rules evaluation but
+	// not the perf map entirely. For now this will do though :)
+	if err := p.perfMap.Pause(); err != nil {
+		return err
+	}
+	defer func() {
+		if err := p.perfMap.Resume(); err != nil {
+			log.Errorf("failed to resume perf map: %s", err)
+		}
+	}()
 
 	if err := enabledEventsMap.Put(ebpf.ZeroUint32MapItem, enabledEvents); err != nil {
 		return errors.Wrap(err, "failed to set enabled events")
