@@ -544,8 +544,6 @@
         <ComponentRef Id="MSVCRUNTIME" />
       <?endif ?>
     <?if $(var.IncludeSysprobe) = true ?>
-      <!-- don't install by default (indicated by level 100)  Only things with level
-           <= INSTALLLEVEL (1 by default) will be installed.  Can be changed via gui or command line params to optionally install -->
         <ComponentRef Id="DATADOGSYSPROBESERVICE" />
         <MergeRef Id="ddnpminstall"/>
         <ComponentRef Id="system_probe.yaml.example" />
