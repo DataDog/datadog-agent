@@ -96,6 +96,8 @@ public:
     void setHeadersCb(cb_headers_t);
     void setGetHostnameCb(cb_get_hostname_t);
     void setGetClusternameCb(cb_get_clustername_t);
+    void setGetPidCb(cb_get_pid_t);
+    void setGetCreateTimeCb(cb_get_create_time_t);
     void setGetTracemallocEnabledCb(cb_tracemalloc_enabled_t);
     void setLogCb(cb_log_t);
     void setSetCheckMetadataCb(cb_set_check_metadata_t);

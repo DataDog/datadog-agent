@@ -411,6 +411,16 @@ void set_get_clustername_cb(rtloader_t *rtloader, cb_get_clustername_t cb)
     AS_TYPE(RtLoader, rtloader)->setGetClusternameCb(cb);
 }
 
+void set_get_pid_cb(rtloader_t *rtloader, cb_get_pid_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setGetPidCb(cb);
+}
+
+void set_get_create_time_cb(rtloader_t *rtloader, cb_get_create_time_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setGetCreateTimeCb(cb);
+}
+
 void set_tracemalloc_enabled_cb(rtloader_t *rtloader, cb_tracemalloc_enabled_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setGetTracemallocEnabledCb(cb);

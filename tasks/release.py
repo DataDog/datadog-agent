@@ -177,7 +177,7 @@ def _stringify_version(version_dict):
     return version
 
 
-def _get_highest_repo_version(auth, repo, new_rc_version, version_re):
+def _get_highest_repo_version(auth, repo, new_rc_version, version_re, vendor="DataDog"):
     import urllib.request
 
     password_mgr = urllib.request.HTTPPasswordMgrWithDefaultRealm()
@@ -185,10 +185,10 @@ def _get_highest_repo_version(auth, repo, new_rc_version, version_re):
     opener = urllib.request.build_opener(urllib.request.HTTPBasicAuthHandler(password_mgr))
     if new_rc_version is not None:
         response = opener.open(
-            "https://api.github.com/repos/DataDog/{}/git/matching-refs/tags/{}".format(repo, new_rc_version["major"])
+            "https://api.github.com/repos/{}/{}/git/matching-refs/tags/{}".format(vendor, repo, new_rc_version["major"])
         )
     else:
-        response = opener.open("https://api.github.com/repos/DataDog/{}/git/matching-refs/tags/".format(repo))
+        response = opener.open("https://api.github.com/repos/{}/{}/git/matching-refs/tags/".format(vendor, repo))
     tags = json.load(response)
     highest_version = None
     for tag in tags:
@@ -337,7 +337,10 @@ def finish(
     highest_version["rc"] = None
 
     if not integration_version:
-        integration_version = _get_highest_repo_version(github_token, "integrations-core", highest_version, version_re)
+        # sts
+        integration_version = _get_highest_repo_version(github_token, "stackstate-agent-integrations", highest_version,
+         version_re, "StackVista")
+        # sts
         if integration_version is None:
             print("ERROR: No version found for integrations-core - did you create the tag?")
             return Exit(code=1)

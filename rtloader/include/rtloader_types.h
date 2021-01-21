@@ -113,6 +113,10 @@ typedef void (*cb_headers_t)(char **);
 typedef void (*cb_get_hostname_t)(char **);
 // (clustername)
 typedef void (*cb_get_clustername_t)(char **);
+// (pid)
+typedef void (*cb_get_pid_t)(char **);
+// (create_time)
+typedef void (*cb_get_create_time_t)(char **);
 // (tracemalloc_enabled)
 typedef bool (*cb_tracemalloc_enabled_t)(void);
 // (message, level)

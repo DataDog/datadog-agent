@@ -831,6 +831,16 @@ void Three::setGetClusternameCb(cb_get_clustername_t cb)
     _set_get_clustername_cb(cb);
 }
 
+void Three::setGetPidCb(cb_get_pid_t cb)
+{
+    _set_get_pid_cb(cb);
+}
+
+void Three::setGetCreateTimeCb(cb_get_create_time_t cb)
+{
+    _set_get_create_time_cb(cb);
+}
+
 void Three::setGetTracemallocEnabledCb(cb_tracemalloc_enabled_t cb)
 {
     _set_tracemalloc_enabled_cb(cb);

@@ -66,6 +66,22 @@
 
     The callback is expected to be provided by the rtloader caller - in go-context: CGO.
 */
+/*! \fn void _set_get_pid_cb(cb_get_pid_t)
+    \brief Sets a callback to be used by rtloader to collect the agent process id from the
+    agent.
+    \param object A function pointer with cb_get_pid_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+/*! \fn void _set_get_create_time_cb(cb_get_create_time_t)
+    \brief Sets a callback to be used by rtloader to collect the agent process create time from the
+    agent.
+    \param object A function pointer with cb_get_create_time_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
 /*! \fn void _set_log_cb(cb_log_t)
     \brief Sets a callback to be used by rtloader to allow using the agent's go-native
     logging facilities to log messages.
@@ -138,6 +154,8 @@ void Py2_init_datadog_agent();
 void _set_get_clustername_cb(cb_get_clustername_t);
 void _set_get_config_cb(cb_get_config_t);
 void _set_get_hostname_cb(cb_get_hostname_t);
+void _set_get_pid_cb(cb_get_pid_t);
+void _set_get_create_time_cb(cb_get_create_time_t);
 void _set_tracemalloc_enabled_cb(cb_tracemalloc_enabled_t);
 void _set_get_version_cb(cb_get_version_t);
 void _set_headers_cb(cb_headers_t);

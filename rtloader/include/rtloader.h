@@ -329,6 +329,24 @@ public:
     */
     virtual void setGetClusternameCb(cb_get_clustername_t) = 0;
 
+    //! setGetPidCb member.
+    /*!
+      \param A cb_get_pid_t function pointer to the CGO callback.
+
+      This allows us to set the CGO callback that will provide the agent process id from
+      the agent.
+    */
+    virtual void setGetPidCb(cb_get_pid_t) = 0;
+
+    //! setGetCreateTimeCb member.
+    /*!
+      \param A cb_get_create_time_t function pointer to the CGO callback.
+
+      This allows us to set the CGO callback that will provide the process create time from
+      the agent.
+    */
+    virtual void setGetCreateTimeCb(cb_get_create_time_t) = 0;
+
     //! setLogCb member.
     /*!
       \param A cb_log_t function pointer to the CGO callback.

@@ -13,6 +13,8 @@
 static cb_get_clustername_t cb_get_clustername = NULL;
 static cb_get_config_t cb_get_config = NULL;
 static cb_get_hostname_t cb_get_hostname = NULL;
+static cb_get_pid_t cb_get_pid = NULL;
+static cb_get_create_time_t cb_get_create_time = NULL;
 static cb_tracemalloc_enabled_t cb_tracemalloc_enabled = NULL;
 static cb_get_version_t cb_get_version = NULL;
 static cb_headers_t cb_headers = NULL;
@@ -26,6 +28,8 @@ static cb_obfuscate_sql_t cb_obfuscate_sql = NULL;
 static PyObject *get_clustername(PyObject *self, PyObject *args);
 static PyObject *get_config(PyObject *self, PyObject *args);
 static PyObject *get_hostname(PyObject *self, PyObject *args);
+static PyObject *get_pid(PyObject *self, PyObject *args);
+static PyObject *get_create_time(PyObject *self, PyObject *args);
 static PyObject *tracemalloc_enabled(PyObject *self, PyObject *args);
 static PyObject *get_version(PyObject *self, PyObject *args);
 static PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs);
@@ -40,6 +44,8 @@ static PyMethodDef methods[] = {
     { "get_clustername", get_clustername, METH_NOARGS, "Get the cluster name." },
     { "get_config", get_config, METH_VARARGS, "Get an Agent config item." },
     { "get_hostname", get_hostname, METH_NOARGS, "Get the hostname." },
+    {"get_pid", get_pid, METH_NOARGS, "Get the agent pid."},
+    {"get_create_time", get_create_time, METH_NOARGS, "Get the agent create time."},
     { "tracemalloc_enabled", tracemalloc_enabled, METH_VARARGS, "Gets if tracemalloc is enabled." },
     { "get_version", get_version, METH_NOARGS, "Get Agent version." },
     { "headers", (PyCFunction)headers, METH_VARARGS | METH_KEYWORDS, "Get standard set of HTTP headers." },
@@ -92,6 +98,16 @@ void _set_get_hostname_cb(cb_get_hostname_t cb)
 void _set_get_clustername_cb(cb_get_clustername_t cb)
 {
     cb_get_clustername = cb;
+}
+
+void _set_get_pid_cb(cb_get_pid_t cb)
+{
+    cb_get_pid = cb;
+}
+
+void _set_get_create_time_cb(cb_get_create_time_t cb)
+{
+    cb_get_create_time = cb;
 }
 
 void _set_set_check_metadata_cb(cb_set_check_metadata_t cb)
@@ -320,6 +336,66 @@ PyObject *get_clustername(PyObject *self, PyObject *args)
 
     char *v = NULL;
     cb_get_clustername(&v);
+
+    if (v != NULL) {
+        PyObject *retval = PyStringFromCString(v);
+        cgo_free(v);
+        return retval;
+    }
+    Py_RETURN_NONE;
+}
+
+/*! \fn PyObject *get_pid(PyObject *self, PyObject *args)
+    \brief This function implements the `datadog-agent.get_pid` method, collecting
+    the current process id from the agent.
+    \param self A PyObject* pointer to the `datadog_agent` module.
+    \param args A PyObject* pointer to any empty tuple, as no input args are taken.
+    \return a PyObject * pointer to a python string with the agent process id. Or
+    `None` if the callback is unavailable.
+
+    This function is callable as the `datadog_agent.get_pid` python method, it uses
+    the `cb_get_pid()` callback to retrieve the value from the agent with CGO. If
+    the callback has not been set `None` will be returned.
+*/
+PyObject *get_pid(PyObject *self, PyObject *args)
+{
+    // callback must be set
+    if (cb_get_pid == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    char *v = NULL;
+    cb_get_pid(&v);
+
+    if (v != NULL) {
+        PyObject *retval = PyStringFromCString(v);
+        cgo_free(v);
+        return retval;
+    }
+    Py_RETURN_NONE;
+}
+
+/*! \fn PyObject *get_create_time(PyObject *self, PyObject *args)
+    \brief This function implements the `datadog-agent.get_create_time` method, collecting
+    the current process create time from the agent.
+    \param self A PyObject* pointer to the `datadog_agent` module.
+    \param args A PyObject* pointer to any empty tuple, as no input args are taken.
+    \return a PyObject * pointer to a python string with the agent process create time. Or
+    `None` if the callback is unavailable.
+
+    This function is callable as the `datadog_agent.get_create_time` python method, it uses
+    the `cb_get_create_time()` callback to retrieve the value from the agent with CGO. If
+    the callback has not been set `None` will be returned.
+*/
+PyObject *get_create_time(PyObject *self, PyObject *args)
+{
+    // callback must be set
+    if (cb_get_create_time == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    char *v = NULL;
+    cb_get_create_time(&v);
 
     if (v != NULL) {
         PyObject *retval = PyStringFromCString(v);

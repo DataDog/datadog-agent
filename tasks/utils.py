@@ -117,6 +117,8 @@ def get_build_flags(
         rtloader_headers, rtloader_common_headers
     )
 
+    print(env)
+
     # if `static` was passed ignore setting rpath, even if `embedded_path` was passed as well
     if static:
         ldflags += "-s -w -linkmode=external '-extldflags=-static' "

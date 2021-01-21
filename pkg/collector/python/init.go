@@ -80,6 +80,8 @@ void GetClusterName(char **);
 void GetConfig(char*, char **);
 void GetHostname(char **);
 void GetVersion(char **);
+void GetPid(char **);
+void GetCreateTime(char **);
 void Headers(char **);
 void ReadPersistentCache(char *);
 void SetCheckMetadata(char *, char *, char *);
@@ -93,6 +95,8 @@ void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_get_config_cb(rtloader, GetConfig);
 	set_get_hostname_cb(rtloader, GetHostname);
 	set_get_version_cb(rtloader, GetVersion);
+	set_get_pid_cb(rtloader, GetPid);
+	set_get_create_time_cb(rtloader, GetCreateTime);
 	set_headers_cb(rtloader, Headers);
 	set_set_check_metadata_cb(rtloader, SetCheckMetadata);
 	set_set_external_tags_cb(rtloader, SetExternalTags);
