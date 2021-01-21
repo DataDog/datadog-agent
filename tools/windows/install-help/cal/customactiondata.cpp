@@ -204,26 +204,6 @@ bool CustomActionData::parseSysprobeData()
 
 bool CustomActionData::updateYamlConfig()
 {
-    values = {
-        {L"APIKEY", L"1234567890"},
-        {L"SITE", L"datadoghq.eu"},
-        {L"HOSTNAME", L"raspberrypi"},
-        {L"LOGS_ENABLED", L"true"},
-        {L"CMD_PORT", L"8000"},
-        {L"DD_URL", L"http://example.org:8999"},
-        {L"LOGS_DD_URL", L"https://logs.example.org"},
-        {L"TRACE_DD_URL", L"https://trace.example.org:5858"},
-        {L"PROCESS_DD_URL", L"https://proc.example.org"},
-        {L"PROCESS_ENABLED", L"true"},
-        {L"APM_ENABLED", L"true"},
-        {L"TAGS", L"region=eastus2,aws_org=2"},
-        {L"PROXY_HOST", L"172.14.0.1"},
-        {L"PROXY_PORT", L"4242"},
-        {L"PROXY_USER", L"pUser"},
-        {L"PROXY_PASSWORD", L"pPass"},
-        {L"HOSTNAME_FQDN_ENABLED", L"true"}
-    };
-
     // Read config in memory. The config should be small enough
     // and we control its source - so it's fine to allocate up front.
     std::wifstream inputConfigStream(datadogyamlfile);
