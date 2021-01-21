@@ -362,6 +362,7 @@ core,"github.com/googleapis/gnostic/OpenAPIv2",Apache-2.0
 core,"github.com/googleapis/gnostic/compiler",Apache-2.0
 core,"github.com/googleapis/gnostic/extensions",Apache-2.0
 core,"github.com/gorilla/mux",NewBSD
+core,"github.com/gosnmp/gosnmp",NewBSD
 core,"github.com/grpc-ecosystem/go-grpc-middleware",Apache-2.0
 core,"github.com/grpc-ecosystem/go-grpc-middleware/auth",Apache-2.0
 core,"github.com/grpc-ecosystem/go-grpc-middleware/util/metautils",Apache-2.0

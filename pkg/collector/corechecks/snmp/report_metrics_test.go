@@ -1,0 +1,304 @@
+package snmp
+
+import (
+	"bufio"
+	"bytes"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/cihub/seelog"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"strings"
+	"testing"
+)
+
+func TestSendMetric(t *testing.T) {
+	tests := []struct {
+		caseName           string
+		metricName         string
+		value              snmpValueType
+		tags               []string
+		forcedType         string
+		options            metricsConfigOption
+		expectedMethod     string
+		expectedMetricName string
+		expectedValue      float64
+		expectedTags       []string
+		expectedSubMetrics int
+	}{
+		{
+			caseName:           "Gauge metric case",
+			metricName:         "gauge.metric",
+			value:              snmpValueType{value: float64(10)},
+			tags:               []string{},
+			expectedMethod:     "Gauge",
+			expectedMetricName: "snmp.gauge.metric",
+			expectedValue:      float64(10),
+			expectedTags:       []string{},
+			expectedSubMetrics: 1,
+		},
+		{
+			caseName:           "Counter32 metric case",
+			metricName:         "counter.metric",
+			value:              snmpValueType{submissionType: metrics.RateType, value: float64(10)},
+			tags:               []string{},
+			expectedMethod:     "Rate",
+			expectedMetricName: "snmp.counter.metric",
+			expectedValue:      float64(10),
+			expectedTags:       []string{},
+			expectedSubMetrics: 1,
+		},
+		{
+			caseName:           "Forced gauge metric case",
+			metricName:         "my.metric",
+			value:              snmpValueType{submissionType: metrics.RateType, value: float64(10)},
+			tags:               []string{},
+			forcedType:         "gauge",
+			expectedMethod:     "Gauge",
+			expectedMetricName: "snmp.my.metric",
+			expectedValue:      float64(10),
+			expectedTags:       []string{},
+			expectedSubMetrics: 1,
+		},
+		{
+			caseName:           "Forced counter metric case",
+			metricName:         "my.metric",
+			value:              snmpValueType{submissionType: metrics.RateType, value: float64(10)},
+			tags:               []string{},
+			forcedType:         "counter",
+			options:            metricsConfigOption{},
+			expectedMethod:     "Rate",
+			expectedMetricName: "snmp.my.metric",
+			expectedValue:      float64(10),
+			expectedTags:       []string{},
+			expectedSubMetrics: 1,
+		},
+		{
+			caseName:           "Forced monotonic_count metric case",
+			metricName:         "my.metric",
+			value:              snmpValueType{submissionType: metrics.RateType, value: float64(10)},
+			tags:               []string{},
+			forcedType:         "monotonic_count",
+			options:            metricsConfigOption{},
+			expectedMethod:     "MonotonicCount",
+			expectedMetricName: "snmp.my.metric",
+			expectedValue:      float64(10),
+			expectedTags:       []string{},
+			expectedSubMetrics: 1,
+		},
+		{
+			caseName:           "Forced monotonic_count_and_rate metric case: MonotonicCount called",
+			metricName:         "my.metric",
+			value:              snmpValueType{submissionType: metrics.RateType, value: float64(10)},
+			tags:               []string{},
+			forcedType:         "monotonic_count_and_rate",
+			options:            metricsConfigOption{},
+			expectedMethod:     "MonotonicCount",
+			expectedMetricName: "snmp.my.metric",
+			expectedValue:      float64(10),
+			expectedTags:       []string{},
+			expectedSubMetrics: 2,
+		},
+		{
+			caseName:           "Forced monotonic_count_and_rate metric case: Rate called",
+			metricName:         "my.metric",
+			value:              snmpValueType{submissionType: metrics.RateType, value: float64(10)},
+			tags:               []string{},
+			forcedType:         "monotonic_count_and_rate",
+			options:            metricsConfigOption{},
+			expectedMethod:     "Rate",
+			expectedMetricName: "snmp.my.metric.rate",
+			expectedValue:      float64(10),
+			expectedTags:       []string{},
+			expectedSubMetrics: 2,
+		},
+		{
+			caseName:           "Forced percent metric case: Rate called",
+			metricName:         "rate.metric",
+			value:              snmpValueType{value: 0.5},
+			tags:               []string{},
+			forcedType:         "percent",
+			options:            metricsConfigOption{},
+			expectedMethod:     "Rate",
+			expectedMetricName: "snmp.rate.metric",
+			expectedValue:      50.0,
+			expectedTags:       []string{},
+			expectedSubMetrics: 1,
+		},
+		{
+			caseName:           "Forced flag_stream case 1",
+			metricName:         "metric",
+			value:              snmpValueType{value: "1010"},
+			tags:               []string{},
+			forcedType:         "flag_stream",
+			options:            metricsConfigOption{Placement: 1, MetricSuffix: "foo"},
+			expectedMethod:     "Gauge",
+			expectedMetricName: "snmp.metric.foo",
+			expectedValue:      1.0,
+			expectedTags:       []string{},
+			expectedSubMetrics: 1,
+		},
+		{
+			caseName:           "Forced flag_stream case 2",
+			metricName:         "metric",
+			value:              snmpValueType{value: "1010"},
+			tags:               []string{},
+			forcedType:         "flag_stream",
+			options:            metricsConfigOption{Placement: 2, MetricSuffix: "foo"},
+			expectedMethod:     "Gauge",
+			expectedMetricName: "snmp.metric.foo",
+			expectedValue:      0.0,
+			expectedTags:       []string{},
+			expectedSubMetrics: 1,
+		},
+		{
+			caseName:           "Forced flag_stream invalid index",
+			metricName:         "metric",
+			value:              snmpValueType{value: "1010"},
+			tags:               []string{},
+			forcedType:         "flag_stream",
+			options:            metricsConfigOption{Placement: 10, MetricSuffix: "foo"},
+			expectedMethod:     "",
+			expectedMetricName: "",
+			expectedValue:      0.0,
+			expectedTags:       []string{},
+			expectedSubMetrics: 0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.caseName, func(t *testing.T) {
+			mockSender := mocksender.NewMockSender("foo")
+			metricSender := metricSender{sender: mockSender}
+			mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+			mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+			metricSender.sendMetric(tt.metricName, tt.value, tt.tags, tt.forcedType, tt.options)
+			assert.Equal(t, tt.expectedSubMetrics, metricSender.submittedMetrics)
+			if tt.expectedMethod != "" {
+				mockSender.AssertCalled(t, tt.expectedMethod, tt.expectedMetricName, tt.expectedValue, "", tt.expectedTags)
+			}
+		})
+	}
+}
+
+func Test_metricSender_reportMetrics(t *testing.T) {
+	type logCount struct {
+		log   string
+		count int
+	}
+	tests := []struct {
+		name         string
+		metrics      []metricsConfig
+		values       *resultValueStore
+		tags         []string
+		expectedLogs []logCount
+	}{
+		{
+			name: "report scalar error",
+			metrics: []metricsConfig{
+				{Symbol: symbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
+			},
+			values: &resultValueStore{},
+			expectedLogs: []logCount{
+				{"[WARN] reportScalarMetrics: report scalar: error getting scalar value: value for Scalar OID `1.2.3.4.5` not found in `map[]`", 1},
+			},
+		},
+		{
+			name: "report column error",
+			metrics: []metricsConfig{
+				{
+					Table:      symbolConfig{OID: "1.3.6.1.2.1.2.2", Name: "ifTable"},
+					ForcedType: "monotonic_count",
+					Symbols: []symbolConfig{
+						{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors"},
+						{OID: "1.3.6.1.2.1.2.2.1.13", Name: "ifInDiscards"},
+					},
+					MetricTags: []metricTagConfig{
+						{Tag: "interface", Column: symbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
+						{Tag: "interface_alias", Column: symbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.18", Name: "ifAlias"}},
+					},
+				},
+			},
+			values: &resultValueStore{},
+			expectedLogs: []logCount{
+				{"[WARN] reportColumnMetrics: report column: error getting column value: value for Column OID `1.3.6.1.2.1.2.2.1.13` not found in `map[]`", 1},
+				{"[WARN] reportColumnMetrics: report column: error getting column value: value for Column OID `1.3.6.1.2.1.2.2.1.14` not found in `map[]`", 1},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var b bytes.Buffer
+			w := bufio.NewWriter(&b)
+
+			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+			assert.Nil(t, err)
+			log.SetupLogger(l, "debug")
+
+			mockSender := mocksender.NewMockSender("foo")
+			metricSender := metricSender{sender: mockSender}
+
+			metricSender.reportMetrics(tt.metrics, tt.values, tt.tags)
+
+			w.Flush()
+			logs := b.String()
+
+			for _, aLogCount := range tt.expectedLogs {
+				assert.Equal(t, strings.Count(logs, aLogCount.log), aLogCount.count, logs)
+			}
+		})
+	}
+}
+
+func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
+	type logCount struct {
+		log   string
+		count int
+	}
+	tests := []struct {
+		name         string
+		metricsTags  []metricTagConfig
+		values       *resultValueStore
+		expectedTags []string
+		expectedLogs []logCount
+	}{
+		{
+			name: "report scalar error",
+			metricsTags: []metricTagConfig{
+				{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol"},
+				{Tag: "snmp_host", OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
+			},
+			values: &resultValueStore{},
+			expectedLogs: []logCount{
+				{"[WARN] getCheckInstanceMetricTags: metric tags: error getting scalar value: value for Scalar OID `1.2.3` not found in `map[]`", 1},
+				{"[WARN] getCheckInstanceMetricTags: metric tags: error getting scalar value: value for Scalar OID `1.3.6.1.2.1.1.5.0` not found in `map[]`", 1},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var b bytes.Buffer
+			w := bufio.NewWriter(&b)
+
+			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+			assert.Nil(t, err)
+			log.SetupLogger(l, "debug")
+
+			mockSender := mocksender.NewMockSender("foo")
+			metricSender := metricSender{sender: mockSender}
+
+			tags := metricSender.getCheckInstanceMetricTags(tt.metricsTags, tt.values)
+
+			assert.ElementsMatch(t, tt.expectedTags, tags)
+
+			w.Flush()
+			logs := b.String()
+
+			for _, aLogCount := range tt.expectedLogs {
+				assert.Equal(t, strings.Count(logs, aLogCount.log), aLogCount.count, logs)
+			}
+		})
+	}
+}

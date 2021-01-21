@@ -101,6 +101,7 @@ require (
 	github.com/google/pprof v0.0.0-20201117184057-ae444373da19
 	github.com/gordonklaus/ineffassign v0.0.0-20210103220932-664217a59c00
 	github.com/gorilla/mux v1.7.4
+	github.com/gosnmp/gosnmp v1.29.0
 	github.com/goware/modvendor v0.3.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.0
 	github.com/grpc-ecosystem/grpc-gateway v1.14.1
