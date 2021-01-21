@@ -57,7 +57,7 @@ func (l profilingRuntimeSetting) Set(v interface{}) error {
 
 		v, _ := version.Agent()
 		err := profiling.Start(
-			config.Datadog.GetString("api_key"),
+			config.SanitizeAPIKey(config.Datadog.GetString("api_key")),
 			site,
 			config.Datadog.GetString("env"),
 			profiling.ProfileCoreService,

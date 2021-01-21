@@ -128,7 +128,7 @@ func analyzeResponse(r *http.Response, err error) (string, error) {
 		return response, err
 	}
 	if r.StatusCode == http.StatusForbidden {
-		apiKey := config.Datadog.GetString("api_key")
+		apiKey := config.SanitizeAPIKey(config.Datadog.GetString("api_key"))
 		var errStr string
 
 		if len(apiKey) == 0 {
@@ -177,6 +177,6 @@ func mkURL(caseID string) string {
 	if caseID != "" {
 		url += "/" + caseID
 	}
-	url += "?api_key=" + config.Datadog.GetString("api_key")
+	url += "?api_key=" + config.SanitizeAPIKey(config.Datadog.GetString("api_key"))
 	return url
 }

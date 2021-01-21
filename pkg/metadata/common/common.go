@@ -37,5 +37,5 @@ func getAPIKey() string {
 		apiKey = strings.Split(config.Datadog.GetString("api_key"), ",")[0]
 	}
 
-	return apiKey
+	return config.SanitizeAPIKey(apiKey)
 }
