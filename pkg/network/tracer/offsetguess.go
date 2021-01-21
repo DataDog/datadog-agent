@@ -408,7 +408,7 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *tracerStatus, expected *f
 		status.offset_saddr_fl4++
 		if uint64(status.offset_saddr_fl4) == threshold {
 			// Let's skip all other flowi4 fields
-			logAndAdvance(status, notApplicable, guessSaddrFl6)
+			logAndAdvance(status, notApplicable, flowi6EntryState(status))
 			status.fl4_offsets = disabled
 			break
 		}
@@ -419,7 +419,7 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *tracerStatus, expected *f
 		}
 		status.offset_daddr_fl4++
 		if uint64(status.offset_daddr_fl4) == threshold {
-			logAndAdvance(status, notApplicable, guessSaddrFl6)
+			logAndAdvance(status, notApplicable, flowi6EntryState(status))
 			status.fl4_offsets = disabled
 			break
 		}
@@ -430,24 +430,19 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *tracerStatus, expected *f
 		}
 		status.offset_sport_fl4++
 		if uint64(status.offset_sport_fl4) == threshold {
-			logAndAdvance(status, notApplicable, guessSaddrFl6)
+			logAndAdvance(status, notApplicable, flowi6EntryState(status))
 			status.fl4_offsets = disabled
 			break
 		}
 	case guessDportFl4:
-		nextStep := guessSaddrFl6
-		if status.ipv6_enabled == disabled {
-			nextStep = guessNetns
-		}
-
 		if status.dport_fl4 == C.__u16(htons(expected.dportFl4)) {
-			logAndAdvance(status, status.offset_dport_fl4, C.__u64(nextStep))
+			logAndAdvance(status, status.offset_dport_fl4, flowi6EntryState(status))
 			status.fl4_offsets = enabled
 			break
 		}
 		status.offset_dport_fl4++
 		if uint64(status.offset_dport_fl4) == threshold {
-			logAndAdvance(status, notApplicable, C.__u64(nextStep))
+			logAndAdvance(status, notApplicable, flowi6EntryState(status))
 			status.fl4_offsets = disabled
 			break
 		}
@@ -554,6 +549,13 @@ func setReadyState(mp *ebpf.Map, status *tracerStatus) error {
 		return fmt.Errorf("error updating tracer_status: %v", err)
 	}
 	return nil
+}
+
+func flowi6EntryState(status *tracerStatus) C.__u64 {
+	if status.ipv6_enabled == disabled {
+		return C.__u64(guessNetns)
+	}
+	return C.__u64(guessSaddrFl6)
 }
 
 // guessOffsets expects manager.Manager to contain a map named tracer_status and helps initialize the
