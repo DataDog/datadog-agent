@@ -908,8 +908,8 @@ func TestDentryOverlay(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if event, err := waitForOpenProbeEvent(test, testFile); err != nil {
-			t.Fatalf("should get an event: %+v", event)
+		if event, err := waitForOpenDiscarder(test, testFile); err != nil {
+			t.Fatalf("should get a discarder: %+v", event)
 		}
 
 		// should be now discarderd

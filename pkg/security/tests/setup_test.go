@@ -661,7 +661,7 @@ func testContainerPath(t *testing.T, event *sprobe.Event, fieldPath string) {
 }
 
 // waitForOpenProbeEvent returns the first open event with the provided filename.
-// WARNING: this function may yield a "fatal error: concurrent map writes" error the ruleset of testModule does not
+// WARNING: this function may yield a "fatal error: concurrent map writes" error if the ruleset of testModule does not
 // contain a rule on "open.filename"
 func waitForOpenProbeEvent(test *testModule, filename string) (*probe.Event, error) {
 	timeout := time.After(3 * time.Second)
