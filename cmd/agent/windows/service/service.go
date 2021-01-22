@@ -29,10 +29,6 @@ func (m *agentWindowsService) Execute(args []string, r <-chan svc.ChangeRequest,
 	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown
 	changes <- svc.Status{State: svc.StartPending}
 
-	if err := common.ImportRegistryConfig(); err != nil {
-		elog.Warning(0x80000001, err.Error())
-		// continue running agent with existing config
-	}
 	if err := common.CheckAndUpgradeConfig(); err != nil {
 		elog.Warning(0x80000002, err.Error())
 		// continue running with what we have.
