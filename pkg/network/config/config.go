@@ -66,6 +66,10 @@ type Config struct {
 	// get flushed on every client request (default 30s check interval)
 	MaxDNSStatsBufferred int
 
+	// MaxHTTPStatsBuffered represents the maximum number of HTTP stats we'll buffer in memory. These stats
+	// get flushed on every client request (default 30s check interval)
+	MaxHTTPStatsBuffered int
+
 	// MaxConnectionsStateBuffered represents the maximum number of state objects that we'll store in memory. These state objects store
 	// the stats for a connection so we can accurately determine traffic change between client requests.
 	MaxConnectionsStateBuffered int
@@ -128,6 +132,7 @@ func NewDefaultConfig() *Config {
 		MaxClosedConnectionsBuffered: 50000,
 		MaxConnectionsStateBuffered:  75000,
 		MaxDNSStatsBufferred:         75000,
+		MaxHTTPStatsBuffered:         75000,
 		ClientStateExpiry:            2 * time.Minute,
 		ClosedChannelSize:            500,
 		// DNS Stats related configurations
