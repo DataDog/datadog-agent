@@ -101,23 +101,23 @@ func TestSerialization(t *testing.T) {
 						StatsByResponseStatus: []*model.HTTPStats_Data{
 							{
 								Count:     0,
-								Latencies: nil,
+								Latencies: [][]byte{},
 							},
 							{
 								Count:     0,
-								Latencies: nil,
+								Latencies: [][]byte{},
 							},
 							{
 								Count:     0,
-								Latencies: nil,
+								Latencies: [][]byte{},
 							},
 							{
 								Count:     0,
-								Latencies: nil,
+								Latencies: [][]byte{},
 							},
 							{
 								Count:     0,
-								Latencies: nil,
+								Latencies: [][]byte{},
 							},
 						},
 					},
@@ -154,20 +154,6 @@ func TestSerialization(t *testing.T) {
 		require.NoError(t, err)
 
 		unmarshaler := GetUnmarshaler("")
-		result, err := unmarshaler.Unmarshal(blob)
-		require.NoError(t, err)
-		assert.Equal(out, result)
-	})
-
-	t.Run("requesting application/protobuf serialization", func(t *testing.T) {
-		assert := assert.New(t)
-		marshaler := GetMarshaler("application/protobuf")
-		assert.Equal("application/protobuf", marshaler.ContentType())
-
-		blob, err := marshaler.Marshal(in)
-		require.NoError(t, err)
-
-		unmarshaler := GetUnmarshaler("application/protobuf")
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
 		assert.Equal(out, result)
@@ -211,5 +197,45 @@ func TestSerialization(t *testing.T) {
 		} {
 			assert.Contains(res.Conns[0], field)
 		}
+	})
+
+	// protobuf encodes a [][]byte{} as [][]byte(nil)
+	out.Conns[0].HttpStatsByPath["/testpath"] = &model.HTTPStats{
+		StatsByResponseStatus: []*model.HTTPStats_Data{
+			{
+				Count:     0,
+				Latencies: [][]byte(nil),
+			},
+			{
+				Count:     0,
+				Latencies: [][]byte(nil),
+			},
+			{
+				Count:     0,
+				Latencies: [][]byte(nil),
+			},
+			{
+				Count:     0,
+				Latencies: [][]byte(nil),
+			},
+			{
+				Count:     0,
+				Latencies: [][]byte(nil),
+			},
+		},
+	}
+
+	t.Run("requesting application/protobuf serialization", func(t *testing.T) {
+		assert := assert.New(t)
+		marshaler := GetMarshaler("application/protobuf")
+		assert.Equal("application/protobuf", marshaler.ContentType())
+
+		blob, err := marshaler.Marshal(in)
+		require.NoError(t, err)
+
+		unmarshaler := GetUnmarshaler("application/protobuf")
+		result, err := unmarshaler.Unmarshal(blob)
+		require.NoError(t, err)
+		assert.Equal(out, result)
 	})
 }
