@@ -8,10 +8,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	// Imported for side-effects only. This import will cause GOMAXPROCS to be set to the number of vCPUs
-	// allocated to the process if the process is running in a Linux environment (including when its running
-	// in a docker / K8s setup).
-	_ "go.uber.org/automaxprocs"
+	"go.uber.org/automaxprocs/maxprocs"
 )
 
 const (
@@ -30,13 +27,20 @@ func init() {
 // SetMaxProcs sets the GOMAXPROCS for the go runtime to a sane value
 func SetMaxProcs() {
 
+	// This call will cause GOMAXPROCS to be set to the number of vCPUs allocated to the process
+	// if the process is running in a Linux environment (including when its running in a docker / K8s setup).
+	_, err := maxprocs.Set(maxprocs.Logger(log.Debugf))
+	if err != nil {
+		log.Errorf("runtime: error auto-setting maxprocs: %v ", err)
+	}
+
 	if max, exists := os.LookupEnv(gomaxprocsKey); exists {
 		if max == "" {
 			log.Errorf("runtime: GOMAXPROCS value was empty string")
 			return
 		}
 
-		_, err := strconv.Atoi(max)
+		_, err = strconv.Atoi(max)
 		if err == nil {
 			// Go runtime will already have parsed the integer and set it properly.
 			return
