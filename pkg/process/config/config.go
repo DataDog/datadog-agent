@@ -2,6 +2,8 @@ package config
 
 import (
 	"bytes"
+	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -15,12 +17,17 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/datadog-agent/cmd/agent/api/pb"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/backoff"
+	"google.golang.org/grpc/credentials"
 )
 
 const (
@@ -357,6 +364,17 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 		cfg.LogLevel = "warn"
 	}
 
+	// get the hostname from the datadog agent
+	if ddAgentClient, err := getDDAgentClient(); err == nil {
+		if hostname, err := getHostnameFromAgent(ddAgentClient); err == nil {
+			cfg.HostName = hostname
+		} else {
+			log.Errorf("Cannot get hostname from datadog agent: %v", err)
+		}
+	} else {
+		log.Errorf("Cannot connect to datadog agent: %v", err)
+	}
+
 	if cfg.HostName == "" {
 		if fargate.IsFargateInstance() {
 			if hostname, err := fargate.GetFargateHost(); err == nil {
@@ -579,6 +597,18 @@ func getHostname(ddAgentBin string) (string, error) {
 	return hostname, err
 }
 
+func getHostnameFromAgent(ddAgentClient pb.AgentClient) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	reply, err := ddAgentClient.GetHostname(ctx, &pb.HostnameRequest{})
+
+	if err != nil {
+		return "", err
+	}
+
+	return reply.Hostname, err
+}
+
 // proxyFromEnv parses out the proxy configuration from the ENV variables in a
 // similar way to getProxySettings and, if enough values are available, returns
 // a new proxy URL value. If the environment is not set for this then the
@@ -656,4 +686,38 @@ func setupLogger(loggerName config.LoggerName, logFile string, cfg *AgentConfig)
 		config.Datadog.GetBool("log_to_console"),
 		config.Datadog.GetBool("log_format_json"),
 	)
+}
+
+func getDDAgentClient() (pb.AgentClient, error) {
+	tlsConf := tls.Config{InsecureSkipVerify: true}
+
+	opts := []grpc.DialOption{
+		grpc.WithConnectParams(grpc.ConnectParams{Backoff: backoff.DefaultConfig}),
+		grpc.WithBlock(),
+		grpc.WithTransportCredentials(credentials.NewTLS(&tlsConf)),
+	}
+
+	target, err := getIPCHost()
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	conn, err := grpc.DialContext(ctx, target, opts...)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return pb.NewAgentClient(conn), nil
+}
+
+func getIPCHost() (string, error) {
+	ipcAddress, err := config.GetIPCAddress()
+	if err != nil {
+		return "", err
+	}
+	host := fmt.Sprintf("%v:%v", ipcAddress, config.Datadog.GetInt("cmd_port"))
+	return host, nil
 }
