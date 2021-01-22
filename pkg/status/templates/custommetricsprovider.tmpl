@@ -15,7 +15,7 @@ Custom Metrics Server
     - {{$k}}: {{$v}}
     {{- end }}
     Value: {{ humanize $metric.value}}
-    Timestamp: {{ formatUnixTime $metric.ts}}
+    Timestamp: {{ formatUnixTime $metric.ts false 1}}
     Valid: {{$metric.valid}}
     {{- end }}
     {{- end -}}

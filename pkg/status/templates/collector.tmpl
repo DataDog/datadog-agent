@@ -35,8 +35,8 @@ Collector
       Events: Last Run: {{humanize .Events}}, Total: {{humanize .TotalEvents}}
       Service Checks: Last Run: {{humanize .ServiceChecks}}, Total: {{humanize .TotalServiceChecks}}
       Average Execution Time : {{humanizeDuration .AverageExecutionTime "ms"}}
-      Last Execution Date : {{formatUnixTime .UpdateTimestamp false}}
-      Last Successful Execution Date : {{ if .LastSuccessDate }}{{formatUnixTime .LastSuccessDate false}}{{ else }}Never{{ end }}
+      Last Execution Date : {{formatUnixTime .UpdateTimestamp false 1}}
+      Last Successful Execution Date : {{ if .LastSuccessDate }}{{formatUnixTime .LastSuccessDate false 1}}{{ else }}Never{{ end }}
       {{- if $.CheckMetadata }}
       {{- if index $.CheckMetadata .CheckID }}
       metadata:

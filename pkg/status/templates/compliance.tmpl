@@ -24,8 +24,8 @@ Compliance Checks
     {{- range $checkInstances }}
     Total Runs: {{humanize .TotalRuns}}
     Average Execution Time : {{humanizeDuration .AverageExecutionTime "ms"}}
-    Last Execution Date : {{formatUnixTime .UpdateTimestamp}}
-    Last Successful Execution Date : {{ if .LastSuccessDate }}{{formatUnixTime .LastSuccessDate}}{{ else }}Never{{ end }}
+    Last Execution Date : {{formatUnixTime .UpdateTimestamp 1}}
+    Last Successful Execution Date : {{ if .LastSuccessDate }}{{formatUnixTime .LastSuccessDate 1}}{{ else }}Never{{ end }}
       {{- if $.CheckMetadata }}
       {{- if index $.CheckMetadata .CheckID }}
       metadata:
