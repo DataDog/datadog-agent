@@ -8,14 +8,15 @@
 package probe
 
 import (
+	"context"
 	"os"
 	"sort"
 
 	"github.com/DataDog/datadog-go/statsd"
-	"github.com/DataDog/gopsutil/process"
 	"github.com/avast/retry-go"
 	"github.com/pkg/errors"
 
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -67,8 +68,8 @@ func NewResolvers(probe *Probe, client *statsd.Client) (*Resolvers, error) {
 }
 
 // Start the resolvers
-func (r *Resolvers) Start() error {
-	if err := r.ProcessResolver.Start(); err != nil {
+func (r *Resolvers) Start(ctx context.Context) error {
+	if err := r.ProcessResolver.Start(ctx); err != nil {
 		return err
 	}
 
@@ -87,22 +88,12 @@ func (r *Resolvers) Snapshot() error {
 // snapshot internal version of Snapshot. Calls the relevant resolvers to sync their caches.
 func (r *Resolvers) snapshot() error {
 	// List all processes, to trigger the process and mount snapshots
-	pids, err := process.Pids()
+	processes, err := utils.GetProcesses()
 	if err != nil {
 		return err
 	}
 
-	var processes []*process.Process
-	for _, pid := range pids {
-		proc, err := process.NewProcess(pid)
-		if err != nil {
-			// the process does not exist anymore, continue
-			continue
-		}
-		processes = append(processes, proc)
-	}
-
-	// make to insert them in the creation time order
+	// make sure to insert them in the creation time order
 	sort.Slice(processes, func(i, j int) bool {
 		procA := processes[i]
 		procB := processes[j]

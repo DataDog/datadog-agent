@@ -10,7 +10,6 @@ package probe
 import (
 	"context"
 	"fmt"
-	"github.com/cihub/seelog"
 	"math"
 	"math/rand"
 	"os"
@@ -18,6 +17,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-go/statsd"
 	lib "github.com/DataDog/ebpf"
@@ -204,7 +205,7 @@ func (p *Probe) Init(client *statsd.Client) error {
 		return errors.New("couldn't find events perf map")
 	}
 
-	if err := p.resolvers.Start(); err != nil {
+	if err := p.resolvers.Start(p.ctx); err != nil {
 		return err
 	}
 
@@ -467,7 +468,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		}
 	case ForkEventType:
 		if _, err := event.Exec.UnmarshalEvent(data[offset:], event); err != nil {
-			log.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, dataLen)
+			log.Errorf("failed to decode fork event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 		event.updateProcessCachePointer(p.resolvers.ProcessResolver.AddForkEntry(event.Process.Pid, event.processCacheEntry))
