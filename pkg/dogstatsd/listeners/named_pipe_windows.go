@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/Microsoft/go-winio"
@@ -27,26 +28,29 @@ const pipeNamePrefix = `\\.\pipe\`
 // It listens to a given pipe name and sends back packets ready to be processed.
 // Origin detection is not implemented for named pipe.
 type NamedPipeListener struct {
-	pipe          net.Listener
-	packetManager *packetManager
-	connections   *namedPipeConnections
+	pipe           net.Listener
+	packetManager  *packets.packetManager
+	connections    *namedPipeConnections
+	trafficCapture *debug.TrafficCapture // Currently ignored
 }
 
 // NewNamedPipeListener returns an named pipe Statsd listener
-func NewNamedPipeListener(pipeName string, packetOut chan Packets, sharedPacketPool *PacketPool) (*NamedPipeListener, error) {
+func NewNamedPipeListener(pipeName string, packetOut chan packets.Packets,
+	sharedPacketPoolManager *packets.PoolManager, capture *debug.TrafficCapture) (*NamedPipeListener, error) {
+
 	bufferSize := config.Datadog.GetInt("dogstatsd_buffer_size")
 	return newNamedPipeListener(
 		pipeName,
 		bufferSize,
-		newPacketManagerFromConfig(
-			packetOut,
-			sharedPacketPool))
+		packets.newPacketManagerFromConfig(packetOut, sharedPacketPoolManager),
+		capture)
 }
 
 func newNamedPipeListener(
 	pipeName string,
 	bufferSize int,
-	packetManager *packetManager) (*NamedPipeListener, error) {
+	packetManager *packets.packetManager,
+	capture *debug.TrafficCapture) (*NamedPipeListener, error) {
 
 	config := winio.PipeConfig{
 		InputBufferSize:  int32(bufferSize),
@@ -69,6 +73,7 @@ func newNamedPipeListener(
 			allConnsClosed:  make(chan struct{}),
 			activeConnCount: 0,
 		},
+		trafficCapture: capture,
 	}
 
 	log.Debugf("dogstatsd-named-pipes: %s successfully initialized", pipe.Addr())

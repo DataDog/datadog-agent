@@ -47,7 +47,7 @@ service AgentSecure {
     //   $ curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
     //      -XPOST -k -H "Content-Type: application/json" \
     //      --data '{"id":{"prefix":"kubernetes_pod_uid","uid":"d575fb58-82dc-418e-bfb1-aececc9bc507"}}' \
-    //      https://localhost:5001/v1/grpc/tagger/fetch_entity 
+    //      https://localhost:5001/v1/grpc/tagger/fetch_entity
     //   {
     //    "id": {
     //        "prefix": "kubernetes_pod_uid",
@@ -66,14 +66,41 @@ service AgentSecure {
             body: "*"
         };
     };
+
+    // Trigger a dogstatsd capture. Only one capture can be triggered at a time.
+    // Can be called through the HTTP gateway, and entity will be returned as JSON:
+    //      TODO: add the curl code here
+    rpc DogstatsdCaptureTrigger(CaptureTriggerRequest) returns (CaptureTriggerResponse) {
+        option (google.api.http) = {
+            post: "/v1/grpc/dogstatsd/capture/trigger"
+            body: "*"
+        };
+    };
 }
 
+// Hostname types
+
 message HostnameRequest {}
+
 
 // The response message containing the requested hostname
 message HostnameReply {
     string hostname = 1;
 }
+
+
+// Dogstatsd capture types
+
+message CaptureTriggerRequest {
+    string duration = 1;
+}
+
+message CaptureTriggerResponse {
+    string path = 1;
+}
+
+
+// Tagger types
 
 message StreamTagsRequest {
     TagCardinality cardinality = 1;

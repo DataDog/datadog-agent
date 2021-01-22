@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package listeners
+package packets
 
 import (
 	"sync"
@@ -21,9 +21,9 @@ var (
 		nil, "Number of packets in the packets channel")
 )
 
-// packetsBuffer is a buffer of packets that will automatically flush to the given
+// PacketsBuffer is a buffer of packets that will automatically flush to the given
 // output channel when it is full or after a configurable duration.
-type packetsBuffer struct {
+type PacketsBuffer struct {
 	packets       Packets
 	flushTimer    *time.Ticker
 	bufferSize    uint
@@ -32,8 +32,8 @@ type packetsBuffer struct {
 	m             sync.Mutex
 }
 
-func newPacketsBuffer(bufferSize uint, flushTimer time.Duration, outputChannel chan Packets) *packetsBuffer {
-	pb := &packetsBuffer{
+func NewPacketsBuffer(bufferSize uint, flushTimer time.Duration, outputChannel chan Packets) *PacketsBuffer {
+	pb := &PacketsBuffer{
 		bufferSize:    bufferSize,
 		flushTimer:    time.NewTicker(flushTimer),
 		outputChannel: outputChannel,
@@ -44,7 +44,7 @@ func newPacketsBuffer(bufferSize uint, flushTimer time.Duration, outputChannel c
 	return pb
 }
 
-func (pb *packetsBuffer) flushLoop() {
+func (pb *PacketsBuffer) flushLoop() {
 	for {
 		select {
 		case <-pb.flushTimer.C:
@@ -58,7 +58,7 @@ func (pb *packetsBuffer) flushLoop() {
 	}
 }
 
-func (pb *packetsBuffer) append(packet *Packet) {
+func (pb *PacketsBuffer) Append(packet *Packet) {
 	pb.m.Lock()
 	defer pb.m.Unlock()
 	pb.packets = append(pb.packets, packet)
@@ -68,7 +68,7 @@ func (pb *packetsBuffer) append(packet *Packet) {
 	}
 }
 
-func (pb *packetsBuffer) flush() {
+func (pb *PacketsBuffer) flush() {
 	if len(pb.packets) > 0 {
 		pb.outputChannel <- pb.packets
 		tlmPacketsChannelSize.Set(float64(len(pb.outputChannel)))
@@ -76,6 +76,6 @@ func (pb *packetsBuffer) flush() {
 	}
 }
 
-func (pb *packetsBuffer) close() {
+func (pb *PacketsBuffer) Close() {
 	close(pb.closeChannel)
 }

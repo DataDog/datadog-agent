@@ -6,7 +6,7 @@
 package metrics
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -106,7 +106,7 @@ func (m *MetricSample) GetHost() string {
 }
 
 func findOriginTags(origin string, cardinality collectors.TagCardinality, tb *util.TagsBuilder) {
-	if origin != listeners.NoOrigin {
+	if origin != packets.NoOrigin {
 		if err := tagger.TagBuilder(origin, cardinality, tb); err != nil {
 			log.Errorf(err.Error())
 		}

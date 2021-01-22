@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 /*
 Package api implements the agent IPC api. Using HTTP
@@ -21,6 +21,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	pb "github.com/DataDog/datadog-agent/cmd/agent/api/pb"
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
@@ -56,6 +57,30 @@ func (s *server) GetHostname(ctx context.Context, in *pb.HostnameRequest) (*pb.H
 // see: https://godoc.org/github.com/grpc-ecosystem/go-grpc-middleware/auth#ServiceAuthFuncOverride
 func (s *server) AuthFuncOverride(ctx context.Context, fullMethodName string) (context.Context, error) {
 	return ctx, nil
+}
+
+func (s *serverSecure) DogstatsdCaptureTrigger(ctx context.Context, req *pb.CaptureTriggerRequest) (*pb.CaptureTriggerResponse, error) {
+	d, err := time.ParseDuration(req.GetDuration())
+	if err != nil {
+		return &pb.CaptureTriggerResponse{}, err
+	}
+
+	err = common.DSD.Capture(d)
+	if err != nil {
+		return &pb.CaptureTriggerResponse{}, err
+	}
+
+	// wait for the capture to start
+	for !common.DSD.TCapture.IsOngoing() {
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	p, err := common.DSD.TCapture.Path()
+	if err != nil {
+		return &pb.CaptureTriggerResponse{}, err
+	}
+
+	return &pb.CaptureTriggerResponse{Path: p}, nil
 }
 
 // StreamTags subscribes to added, removed, or changed entities in the Tagger

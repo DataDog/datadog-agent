@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package listeners
+package packets
 
 import (
 	"sync"
@@ -43,10 +43,10 @@ func NewPacketPool(bufferSize int) *PacketPool {
 		pool: sync.Pool{
 			New: func() interface{} {
 				packet := &Packet{
-					buffer: make([]byte, bufferSize),
+					Buffer: make([]byte, bufferSize),
 					Origin: NoOrigin,
 				}
-				packet.Contents = packet.buffer[0:0]
+				packet.Contents = packet.Buffer[0:0]
 				return packet
 			},
 		},
@@ -56,17 +56,22 @@ func NewPacketPool(bufferSize int) *PacketPool {
 }
 
 // Get gets a Packet object read for use.
-func (p *PacketPool) Get() *Packet {
+func (p *PacketPool) Get() interface{} {
 	if p.tlmEnabled {
 		tlmPacketPoolGet.Inc()
 		tlmPacketPool.Inc()
 	}
-	return p.pool.Get().(*Packet)
+	return p.pool.Get()
 }
 
 // Put resets the Packet origin and puts it back in the pool.
-func (p *PacketPool) Put(packet *Packet) {
-	if packet.Origin != NoOrigin {
+func (p *PacketPool) Put(x interface{}) {
+	if p == nil {
+		return
+	}
+
+	packet, ok := x.(*Packet)
+	if ok && packet.Origin != NoOrigin {
 		packet.Origin = NoOrigin
 	}
 	if p.tlmEnabled {

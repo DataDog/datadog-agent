@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package pb;
+
+
+// The message contains the payload and the ancillary info
+message UnixDogstatsdMsg {
+    uint64 timestamp = 1;
+    bytes payload = 2;
+    bytes ancillary = 3;
+}
