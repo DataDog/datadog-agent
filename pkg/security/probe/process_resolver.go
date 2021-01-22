@@ -263,6 +263,8 @@ func (p *ProcessResolver) deleteEntry(pid uint32, exitTime time.Time) {
 	}
 	entry.Exit(exitTime)
 	delete(p.entryCache, entry.Pid)
+
+	p.cookieCache.Remove(entry.Cookie)
 }
 
 // DeleteEntry tries to delete an entry in the process cache

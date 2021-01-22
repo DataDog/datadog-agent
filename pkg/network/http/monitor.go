@@ -7,14 +7,14 @@ import (
 
 	"C"
 
+	"sync"
 	"time"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/ebpf/manager"
 )
-import "sync"
 
 // Monitor is responsible for:
 // * Creating a raw socket and attaching an eBPF filter to it;
@@ -29,6 +29,7 @@ type Monitor struct {
 	perfHandler  *ddebpf.PerfHandler
 	telemetry    *telemetry
 	pollRequests chan chan struct{}
+	statkeeper   *httpStatKeeper
 
 	// termination
 	mux           sync.Mutex
@@ -44,7 +45,7 @@ func NewMonitor(procRoot string, mgr *manager.Manager, h *ddebpf.PerfHandler) (*
 		return nil, fmt.Errorf("error retrieving socket filter")
 	}
 
-	closeFilterFn, err := network.HeadlessSocketFilter(procRoot, filter)
+	closeFilterFn, err := filterpkg.HeadlessSocketFilter(procRoot, filter)
 	if err != nil {
 		return nil, fmt.Errorf("error enabling HTTP traffic inspection: %s", err)
 	}
@@ -67,13 +68,23 @@ func NewMonitor(procRoot string, mgr *manager.Manager, h *ddebpf.PerfHandler) (*
 		return nil, fmt.Errorf("unable to find perf map %s", probes.HttpNotificationsMap)
 	}
 
+	statkeeper := newHTTPStatkeeper()
+
+	handler := func(transactions []httpTX) {
+		if statkeeper != nil {
+			statkeeper.Process(transactions)
+		}
+	}
+
 	return &Monitor{
+		handler:       handler,
 		batchManager:  newBatchManager(batchMap, batchStateMap, numCPUs),
 		perfMap:       pm,
 		perfHandler:   h,
 		telemetry:     newTelemetry(),
 		pollRequests:  make(chan chan struct{}),
 		closeFilterFn: closeFilterFn,
+		statkeeper:    statkeeper,
 	}, nil
 }
 
@@ -120,7 +131,6 @@ func (m *Monitor) Start() error {
 			case <-report.C:
 				transactions := m.batchManager.GetPendingTransactions()
 				m.process(transactions, nil)
-				m.telemetry.report()
 			}
 		}
 	}()
@@ -146,6 +156,25 @@ func (m *Monitor) Sync() {
 	<-reply
 }
 
+// GetHTTPStats returns a map of HTTP stats stored in the following format:
+// [source, dest tuple] -> [request path] -> RequestStats object
+func (m *Monitor) GetHTTPStats() map[Key]map[string]RequestStats {
+	if m == nil || m.statkeeper == nil {
+		return nil
+	}
+
+	m.Sync()
+	return m.statkeeper.GetAndResetAllStats()
+}
+
+func (m *Monitor) GetStats() map[string]interface{} {
+	currentTime, telemetryData := m.telemetry.getStats()
+	return map[string]interface{}{
+		"current_time": currentTime,
+		"telemetry":    telemetryData,
+	}
+}
+
 // Stop HTTP monitoring
 func (m *Monitor) Stop() {
 	if m == nil {
@@ -163,6 +192,9 @@ func (m *Monitor) Stop() {
 	m.perfHandler.Stop()
 	close(m.pollRequests)
 	m.eventLoopWG.Wait()
+	if m.statkeeper != nil {
+		m.statkeeper.Close()
+	}
 	m.stopped = true
 }
 

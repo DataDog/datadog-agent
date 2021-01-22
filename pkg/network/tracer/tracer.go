@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -29,7 +30,7 @@ import (
 
 var (
 	expvarEndpoints map[string]*expvar.Map
-	expvarTypes     = []string{"conntrack", "state", "tracer", "ebpf", "kprobes", "dns"}
+	expvarTypes     = []string{"conntrack", "state", "tracer", "ebpf", "kprobes", "dns", "http"}
 )
 
 func init() {
@@ -244,6 +245,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		config.MaxClosedConnectionsBuffered,
 		config.MaxConnectionsStateBuffered,
 		config.MaxDNSStatsBufferred,
+		config.MaxHTTPStatsBuffered,
 		config.CollectDNSDomains,
 	)
 
@@ -300,11 +302,11 @@ func newReverseDNS(cfg *config.Config, m *manager.Manager, pre410Kernel bool) (n
 
 	// Create the RAW_SOCKET inside the root network namespace
 	var (
-		packetSrc network.PacketSource
+		packetSrc *filterpkg.AFPacketSource
 		srcErr    error
 	)
 	err := util.WithRootNS(cfg.ProcRoot, func() error {
-		packetSrc, srcErr = network.NewPacketSource(filter)
+		packetSrc, srcErr = filterpkg.NewPacketSource(filter)
 		return srcErr
 	})
 
@@ -516,7 +518,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.flushIdle <- done
 	<-done
 
-	conns := t.state.Connections(clientID, latestTime, latestConns, t.reverseDNS.GetDNSStats())
+	conns := t.state.Connections(clientID, latestTime, latestConns, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
 	names := t.reverseDNS.Resolve(conns)
 	tm := t.getConnTelemetry(len(latestConns))
 
@@ -792,6 +794,11 @@ func (t *Tracer) getTelemetry() (map[string]interface{}, error) {
 			stats["state"] = telemetry
 		}
 	}
+	if states, ok := stats["http"]; ok {
+		if telemetry, ok := states.(map[string]interface{})["telemetry"]; ok {
+			stats["http"] = telemetry
+		}
+	}
 	return stats, nil
 }
 
@@ -810,7 +817,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 	stateStats := t.state.GetStats()
 	conntrackStats := t.conntracker.GetStats()
 
-	return map[string]interface{}{
+	ret := map[string]interface{}{
 		"conntrack": conntrackStats,
 		"state":     stateStats,
 		"tracer": map[string]int64{
@@ -823,7 +830,13 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 		"ebpf":    t.getEbpfTelemetry(),
 		"kprobes": ddebpf.GetProbeStats(),
 		"dns":     t.reverseDNS.GetStats(),
-	}, nil
+	}
+
+	if t.httpMonitor != nil {
+		ret["http"] = t.httpMonitor.GetStats()
+	}
+
+	return ret, nil
 }
 
 // DebugNetworkState returns a map with the current tracer's internal state, for debugging
