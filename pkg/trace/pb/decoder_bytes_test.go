@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/tinylib/msgp/msgp"
 )
 
 func TestParseFloat64Bytes(t *testing.T) {
@@ -83,23 +82,4 @@ func TestDecodeInvalidUTF8Bytes(t *testing.T) {
 		t.Fatal(err)
 	}
 	assert.ElementsMatch(t, accept, got)
-}
-
-func TestDecodeNilStringInMap(t *testing.T) {
-	var o []byte
-	o = msgp.AppendMapHeader(o, uint32(1))
-	// append meta
-	o = append(o, 0xa4, 0x6d, 0x65, 0x74, 0x61)
-	o = msgp.AppendMapHeader(o, 3)
-	o = msgp.AppendNil(o)
-	o = msgp.AppendString(o, "val1")
-	o = msgp.AppendString(o, "key2")
-	o = msgp.AppendNil(o)
-	o = msgp.AppendString(o, "val3")
-	o = msgp.AppendString(o, "key3")
-
-	var s Span
-	_, err := s.UnmarshalMsg(o)
-	assert.Nil(t, err)
-	assert.Equal(t, s.Meta, map[string]string{"": "val1", "key2": "", "val3": "key3"})
 }
