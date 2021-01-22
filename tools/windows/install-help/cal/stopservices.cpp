@@ -936,7 +936,7 @@ int verifyServices(CustomActionData &data)
 
                 // since we just created this service, we need to allow the datadog
                 // agent core service to start/stop it
-                retval = EnableServiceForUser(data, services[i].getServiceName());
+                retval = EnableServiceForUser(data.Sid(), services[i].getServiceName());
             }
             WcaLog(LOGMSG_STANDARD, "Failed to verify service %d %d 0x%x, rolling back", i, retval, retval);
             break;
