@@ -7,6 +7,4 @@
 # Each section note must be formatted as reStructuredText.
 ---
 enhancements:
-  - Include UTC time in status logs unless already in UTC+0
-  - Include timestamp in milliseconds
-  - Use UTC time in resulting flare file
+  - Includes UTC time (unless already in UTC+0) and millisecond timestamp in status logs. Flare archive filename now timestamped in UTC.
