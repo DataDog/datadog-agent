@@ -64,7 +64,11 @@ static __always_inline __u16 read_sport(struct sock* skp) {
     return sport;
 }
 
-static __always_inline int read_conn_tuple_uninit(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type) {
+/**
+ * Reads values into a `conn_tuple_t` from a `sock`. Any values that are already set in conn_tuple_t
+ * are not overwritten. Returns 1 success, 0 otherwise.
+ */
+static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type) {
     t->pid = pid_tgid >> 32;
     t->metadata = type;
 
@@ -140,9 +144,12 @@ static __always_inline int read_conn_tuple_uninit(conn_tuple_t* t, struct sock* 
     return 1;
 }
 
+/**
+ * Reads values into a `conn_tuple_t` from a `sock`. Initializes all values in conn_tuple_t to `0`. Returns 1 success, 0 otherwise.
+ */
 static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type) {
     __builtin_memset(t, 0, sizeof(conn_tuple_t));
-    return read_conn_tuple_uninit(t, skp, pid_tgid, type);
+    return read_conn_tuple_partial(t, skp, pid_tgid, type);
 }
 
 static __always_inline void update_conn_stats(conn_tuple_t* t, size_t sent_bytes, size_t recv_bytes, u64 ts) {
@@ -462,7 +469,7 @@ int kretprobe__udp_recvmsg(struct pt_regs* ctx) {
     __builtin_memset(&t, 0, sizeof(conn_tuple_t));
     sockaddr_to_addr(sa, &t.daddr_h, &t.daddr_l, &t.dport);
 
-    if (!read_conn_tuple_uninit(&t, st->sk, pid_tgid, CONN_TYPE_UDP)) {
+    if (!read_conn_tuple_partial(&t, st->sk, pid_tgid, CONN_TYPE_UDP)) {
         log_debug("ERR(kretprobe/udp_recvmsg): error reading conn tuple, pid_tgid=%d\n", pid_tgid);
         return 0;
     }
