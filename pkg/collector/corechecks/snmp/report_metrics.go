@@ -31,7 +31,7 @@ func (ms *metricSender) getCheckInstanceMetricTags(metricTags []metricTagConfig,
 			log.Warnf("metric tags: error getting scalar value: %v", err)
 			continue
 		}
-		globalTags = append(globalTags, metricTag.Tag+":"+value.toString())
+		globalTags = append(globalTags, metricTag.getTags(value.toString())...)
 	}
 	return globalTags
 }

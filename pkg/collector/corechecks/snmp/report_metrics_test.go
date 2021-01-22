@@ -276,6 +276,24 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 				{"[WARN] getCheckInstanceMetricTags: metric tags: error getting scalar value: value for Scalar OID `1.3.6.1.2.1.1.5.0` not found in `map[]`", 1},
 			},
 		},
+		{
+			name: "report scalar tags with regex",
+			metricsTags: []metricTagConfig{
+				{OID: "1.2.3", Name: "mySymbol", Match: "^([a-zA-Z]+)([0-9]+)$", Tags: map[string]string{
+					"word":   "\\1",
+					"number": "\\2",
+				}},
+			},
+			values: &resultValueStore{
+				scalarValues: scalarResultValuesType{
+					"1.2.3": snmpValueType{
+						value: "hello123",
+					},
+				},
+			},
+			expectedTags: []string{"word:hello", "number:123"},
+			expectedLogs: []logCount{},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
