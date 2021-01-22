@@ -29,7 +29,10 @@ func SetMaxProcs() {
 
 	// This call will cause GOMAXPROCS to be set to the number of vCPUs allocated to the process
 	// if the process is running in a Linux environment (including when its running in a docker / K8s setup).
-	maxprocs.Set(maxprocs.Logger(log.Debugf))
+	_, err := maxprocs.Set(maxprocs.Logger(log.Debugf))
+	if err != nil {
+		log.Errorf("runtime: error auto-setting maxprocs: %v ", err)
+	}
 
 	if max, exists := os.LookupEnv(gomaxprocsKey); exists {
 		if max == "" {
@@ -37,7 +40,7 @@ func SetMaxProcs() {
 			return
 		}
 
-		_, err := strconv.Atoi(max)
+		_, err = strconv.Atoi(max)
 		if err == nil {
 			// Go runtime will already have parsed the integer and set it properly.
 			return
