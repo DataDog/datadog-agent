@@ -5,6 +5,7 @@ package tracer
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"net"
+	nethttp "net/http"
 	"net/url"
 	"os"
 	"os/exec"
@@ -1905,6 +1907,77 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
 	defer tr.Stop()
+}
+
+func TestHTTPStats(t *testing.T) {
+	currKernelVersion, err := kernel.HostVersion()
+	require.NoError(t, err)
+	pre410Kernel := currKernelVersion < kernel.VersionCode(4, 1, 0)
+	if pre410Kernel {
+		t.Skip("HTTP monitoring feature not available on pre 4.1.0 kernels")
+		return
+	}
+
+	cfg := config.NewDefaultConfig()
+	cfg.EnableHTTPMonitoring = true
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	// Warm-up tracer state
+	_ = getConnections(t, tr)
+
+	// Start an HTTP server on localhost:8080
+	serverAddr := "127.0.0.1:8080"
+	srv := &nethttp.Server{
+		Addr: serverAddr,
+		Handler: nethttp.HandlerFunc(func(w nethttp.ResponseWriter, req *nethttp.Request) {
+			io.Copy(ioutil.Discard, req.Body)
+			w.WriteHeader(200)
+		}),
+		ReadTimeout:  time.Second,
+		WriteTimeout: time.Second,
+	}
+	go func() {
+		_ = srv.ListenAndServe()
+	}()
+	defer srv.Shutdown(context.Background())
+
+	// Allow the HTTP server time to get set up
+	time.Sleep(time.Millisecond * 500)
+
+	// Send a series of HTTP requests to the test server
+	client := new(nethttp.Client)
+	req, err := nethttp.NewRequest("GET", "http://"+serverAddr+"/test", nil)
+	require.NoError(t, err)
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	resp.Body.Close()
+
+	// Allow the HTTP transactions to be processed in the monitor
+	time.Sleep(time.Second)
+
+	// Iterate through active connections until we find connection created above
+	conns := getConnections(t, tr)
+	matchingConns := searchConnections(conns, func(cs network.ConnectionStats) bool {
+		ip := cs.Dest.String()
+		port := strconv.Itoa(int(cs.DPort))
+		return ip+":"+port == serverAddr
+	})
+	require.Len(t, matchingConns, 1)
+
+	// Verify HTTP stats
+	conn := matchingConns[0]
+	assert.Len(t, conn.HTTPStatsByPath, 1)
+
+	httpReqStats, ok := conn.HTTPStatsByPath["/test"]
+	assert.Equal(t, true, ok)
+	assert.Equal(t, 0, httpReqStats.Count(0)) // number of requests with response status 100
+	assert.Equal(t, 1, httpReqStats.Count(1)) // 200
+	assert.Equal(t, 0, httpReqStats.Count(2)) // 300
+	assert.Equal(t, 0, httpReqStats.Count(3)) // 400
+	assert.Equal(t, 0, httpReqStats.Count(4)) // 500
 }
 
 func setupDNAT(t *testing.T) {

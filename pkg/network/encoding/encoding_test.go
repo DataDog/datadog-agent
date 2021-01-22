@@ -251,8 +251,7 @@ func TestFormatHTTPStatsByPath(t *testing.T) {
 	verifyQuantile(t, sketch, 0.5, 3.5)
 
 	serializedLatencies = statsByResponseStatus[model.HTTPResponseStatus_Success].Latencies
-	sketch = unmarshalSketch(t, serializedLatencies)
-	assert.Equal(t, 0.0, sketch.GetCount())
+	assert.Nil(t, serializedLatencies)
 }
 
 func unmarshalSketch(t *testing.T, bytes []byte) *ddsketch.DDSketch {
