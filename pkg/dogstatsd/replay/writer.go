@@ -107,8 +107,8 @@ func (tc *TrafficCaptureWriter) Capture(d time.Duration) {
 	err = tc.WriteHeader()
 	if err != nil {
 		log.Errorf("There was an issue writing the capture file header: %v ", err)
-
 		tc.Unlock()
+
 		return
 	}
 

@@ -8,7 +8,17 @@ package packets
 import (
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
+)
+
+var (
+	tlmPoolGet = telemetry.NewCounter("dogstatsd", "packet_pool_get",
+		nil, "Count of get done in the packet pool")
+	tlmPoolPut = telemetry.NewCounter("dogstatsd", "packet_pool_put",
+		nil, "Count of put done in the packet pool")
+	tlmPool = telemetry.NewGauge("dogstatsd", "packet_pool",
+		nil, "Usage of the packet pool in dogstatsd")
 )
 
 // Pool wraps the sync.Pool class for *Packet type.

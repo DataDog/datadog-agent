@@ -53,6 +53,7 @@ func (p *PoolManager) Put(x interface{}) {
 	p.RLock()
 
 	// TODO: use LoadAndDelete when go 1.15 is introduced
+
 	_, loaded := p.refs.Load(x)
 	if loaded {
 		// reference exists, put back.
@@ -107,5 +108,4 @@ func (p *PoolManager) Flush() {
 		p.refs.Delete(k)
 		return true
 	})
-
 }

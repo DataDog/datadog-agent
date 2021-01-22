@@ -8,6 +8,17 @@ package packets
 import (
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+)
+
+var (
+	tlmBufferFlushedTimer = telemetry.NewCounter("dogstatsd", "packets_buffer_flush_timer",
+		nil, "Count of packets buffer flush triggered by the timer")
+	tlmBufferFlushedFull = telemetry.NewCounter("dogstatsd", "packets_buffer_flush_full",
+		nil, "Count of packets buffer flush triggered because the buffer is full")
+	tlmPacketsChannelSize = telemetry.NewGauge("dogstatsd", "packets_channel_size",
+		nil, "Number of packets in the packets channel")
 )
 
 // Buffer is a buffer of packets that will automatically flush to the given
