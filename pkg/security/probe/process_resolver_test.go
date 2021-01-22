@@ -42,7 +42,7 @@ func TestFork1st(t *testing.T) {
 	child.PPid = parent.Pid
 	child.ForkTimestamp = time.Now()
 
-	resolver, err := NewProcessResolver(nil, nil, nil, ProcessResolverOpts{DebugCacheSize: true})
+	resolver, err := NewProcessResolver(nil, nil, nil, NewProcessResolverOpts(true, 10000))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +83,7 @@ func TestFork2nd(t *testing.T) {
 	child.PPid = parent.Pid
 	child.ForkTimestamp = time.Now()
 
-	resolver, err := NewProcessResolver(nil, nil, nil, ProcessResolverOpts{DebugCacheSize: true})
+	resolver, err := NewProcessResolver(nil, nil, nil, NewProcessResolverOpts(true, 10000))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +131,7 @@ func TestForkExec(t *testing.T) {
 	exec.PPid = child.PPid
 	exec.ExecTimestamp = time.Now()
 
-	resolver, err := NewProcessResolver(nil, nil, nil, ProcessResolverOpts{DebugCacheSize: true})
+	resolver, err := NewProcessResolver(nil, nil, nil, NewProcessResolverOpts(true, 10000))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,7 +189,7 @@ func TestOrphanExec(t *testing.T) {
 	exec.PPid = child.PPid
 	exec.ExecTimestamp = time.Now()
 
-	resolver, err := NewProcessResolver(nil, nil, nil, ProcessResolverOpts{DebugCacheSize: true})
+	resolver, err := NewProcessResolver(nil, nil, nil, NewProcessResolverOpts(true, 10000))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -251,7 +251,7 @@ func TestForkExecExec(t *testing.T) {
 	exec2.PPid = child.PPid
 	exec2.ExecTimestamp = time.Now()
 
-	resolver, err := NewProcessResolver(nil, nil, nil, ProcessResolverOpts{DebugCacheSize: true})
+	resolver, err := NewProcessResolver(nil, nil, nil, NewProcessResolverOpts(true, 10000))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -327,7 +327,7 @@ func TestForkReuse(t *testing.T) {
 	child2.PPid = parent2.Pid
 	child2.ForkTimestamp = time.Now()
 
-	resolver, err := NewProcessResolver(nil, nil, nil, ProcessResolverOpts{DebugCacheSize: true})
+	resolver, err := NewProcessResolver(nil, nil, nil, NewProcessResolverOpts(true, 10000))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -422,7 +422,7 @@ func TestForkForkExec(t *testing.T) {
 	childExec.PPid = child.PPid
 	childExec.ExecTimestamp = time.Now()
 
-	resolver, err := NewProcessResolver(nil, nil, nil, ProcessResolverOpts{DebugCacheSize: true})
+	resolver, err := NewProcessResolver(nil, nil, nil, NewProcessResolverOpts(true, 10000))
 	if err != nil {
 		t.Fatal(err)
 	}
