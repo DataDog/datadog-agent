@@ -11,7 +11,7 @@ import (
 	// Imported for side-effects only. This import will cause GOMAXPROCS to be set to the number of vCPUs
 	// allocated to the process if the process is running in a Linux environment (including when its running
 	// in a docker / K8s setup).
-	_ "go.uber.org/automaxprocs"
+	"go.uber.org/automaxprocs/maxprocs"
 )
 
 const (
@@ -29,6 +29,8 @@ func init() {
 
 // SetMaxProcs sets the GOMAXPROCS for the go runtime to a sane value
 func SetMaxProcs() {
+
+	maxprocs.Set(maxprocs.Logger(log.Debugf))
 
 	if max, exists := os.LookupEnv(gomaxprocsKey); exists {
 		if max == "" {
