@@ -38,7 +38,7 @@ func (h *httpStatKeeper) Process(transactions []httpTX) {
 			h.stats[key] = make(map[string]RequestStats)
 		}
 		stats := h.stats[key][path]
-		stats.addRequest(statusClass, latency)
+		stats.AddRequest(statusClass, latency)
 		h.stats[key][path] = stats
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/gogo/protobuf/proto"
 )
 
 var connsPool = sync.Pool{
@@ -203,9 +204,9 @@ func formatHTTPStatsByPath(statsByPath map[string]http.RequestStats) map[string]
 			status := model.HTTPResponseStatus(i)
 			count := uint32(stats.Count(status))
 
-			var latencyBytes [][]byte
+			var latencyBytes []byte
 			if latencies := stats.Latencies(status); latencies != nil {
-				latencyBytes, _ = latencies.ToBytes()
+				latencyBytes, _ = proto.Marshal(latencies.ToProto())
 			}
 
 			ms.StatsByResponseStatus[status] = &model.HTTPStats_Data{

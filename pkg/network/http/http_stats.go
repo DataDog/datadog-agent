@@ -57,8 +57,8 @@ func (r *RequestStats) Latencies(s model.HTTPResponseStatus) *ddsketch.DDSketch 
 	return r[s].latencies
 }
 
-// nolint:staticcheck (ignore "function is unused" error)
-func (r *RequestStats) addRequest(statusClass int, latency float64) {
+// AddRequest takes information about a HTTP transaction and adds it to the request stats
+func (r *RequestStats) AddRequest(statusClass int, latency float64) {
 	i := statusClass/100 - 1
 	r[i].count++
 

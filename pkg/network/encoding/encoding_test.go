@@ -8,6 +8,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/sketches-go/ddsketch"
+	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
+	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -101,23 +104,23 @@ func TestSerialization(t *testing.T) {
 						StatsByResponseStatus: []*model.HTTPStats_Data{
 							{
 								Count:     0,
-								Latencies: [][]byte{},
+								Latencies: nil,
 							},
 							{
 								Count:     0,
-								Latencies: [][]byte{},
+								Latencies: nil,
 							},
 							{
 								Count:     0,
-								Latencies: [][]byte{},
+								Latencies: nil,
 							},
 							{
 								Count:     0,
-								Latencies: [][]byte{},
+								Latencies: nil,
 							},
 							{
 								Count:     0,
-								Latencies: [][]byte{},
+								Latencies: nil,
 							},
 						},
 					},
@@ -154,6 +157,20 @@ func TestSerialization(t *testing.T) {
 		require.NoError(t, err)
 
 		unmarshaler := GetUnmarshaler("")
+		result, err := unmarshaler.Unmarshal(blob)
+		require.NoError(t, err)
+		assert.Equal(out, result)
+	})
+
+	t.Run("requesting application/protobuf serialization", func(t *testing.T) {
+		assert := assert.New(t)
+		marshaler := GetMarshaler("application/protobuf")
+		assert.Equal("application/protobuf", marshaler.ContentType())
+
+		blob, err := marshaler.Marshal(in)
+		require.NoError(t, err)
+
+		unmarshaler := GetUnmarshaler("application/protobuf")
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
 		assert.Equal(out, result)
@@ -198,44 +215,63 @@ func TestSerialization(t *testing.T) {
 			assert.Contains(res.Conns[0], field)
 		}
 	})
+}
 
-	// protobuf encodes a [][]byte{} as [][]byte(nil)
-	out.Conns[0].HttpStatsByPath["/testpath"] = &model.HTTPStats{
-		StatsByResponseStatus: []*model.HTTPStats_Data{
-			{
-				Count:     0,
-				Latencies: [][]byte(nil),
-			},
-			{
-				Count:     0,
-				Latencies: [][]byte(nil),
-			},
-			{
-				Count:     0,
-				Latencies: [][]byte(nil),
-			},
-			{
-				Count:     0,
-				Latencies: [][]byte(nil),
-			},
-			{
-				Count:     0,
-				Latencies: [][]byte(nil),
-			},
-		},
+func TestFormatHTTPStatsByPath(t *testing.T) {
+	var httpReqStats http.RequestStats
+	httpReqStats.AddRequest(100, 12.5)
+	httpReqStats.AddRequest(405, 3.5)
+
+	// Verify the latency data is correct prior to serialization
+	latencies := httpReqStats.Latencies(model.HTTPResponseStatus_Info)
+	assert.Equal(t, 1.0, latencies.GetCount())
+	verifyQuantile(t, latencies, 0.5, 12.5)
+
+	latencies = httpReqStats.Latencies(model.HTTPResponseStatus_ClientErr)
+	assert.Equal(t, 1.0, latencies.GetCount())
+	verifyQuantile(t, latencies, 0.5, 3.5)
+
+	statsByPath := map[string]http.RequestStats{
+		"/testpath": httpReqStats,
 	}
+	formattedStats := formatHTTPStatsByPath(statsByPath)
 
-	t.Run("requesting application/protobuf serialization", func(t *testing.T) {
-		assert := assert.New(t)
-		marshaler := GetMarshaler("application/protobuf")
-		assert.Equal("application/protobuf", marshaler.ContentType())
+	// Deserialize the encoded latency information & confirm it is correct
+	statsByResponseStatus := formattedStats["/testpath"].StatsByResponseStatus
+	assert.Len(t, statsByResponseStatus, 5)
 
-		blob, err := marshaler.Marshal(in)
-		require.NoError(t, err)
+	serializedLatencies := statsByResponseStatus[model.HTTPResponseStatus_Info].Latencies
+	sketch := unmarshalSketch(t, serializedLatencies)
+	assert.Equal(t, 1.0, sketch.GetCount())
+	verifyQuantile(t, sketch, 0.5, 12.5)
 
-		unmarshaler := GetUnmarshaler("application/protobuf")
-		result, err := unmarshaler.Unmarshal(blob)
-		require.NoError(t, err)
-		assert.Equal(out, result)
-	})
+	serializedLatencies = statsByResponseStatus[model.HTTPResponseStatus_ClientErr].Latencies
+	sketch = unmarshalSketch(t, serializedLatencies)
+	assert.Equal(t, 1.0, sketch.GetCount())
+	verifyQuantile(t, sketch, 0.5, 3.5)
+
+	serializedLatencies = statsByResponseStatus[model.HTTPResponseStatus_Success].Latencies
+	sketch = unmarshalSketch(t, serializedLatencies)
+	assert.Equal(t, 0.0, sketch.GetCount())
+}
+
+func unmarshalSketch(t *testing.T, bytes []byte) *ddsketch.DDSketch {
+	var sketchPb sketchpb.DDSketch
+	err := proto.Unmarshal(bytes, &sketchPb)
+	assert.Nil(t, err)
+
+	var sketch *ddsketch.DDSketch
+	ret, err := sketch.FromProto(&sketchPb)
+	assert.Nil(t, err)
+
+	return ret
+}
+
+func verifyQuantile(t *testing.T, sketch *ddsketch.DDSketch, q float64, expectedValue float64) {
+	val, err := sketch.GetValueAtQuantile(q)
+	assert.Nil(t, err)
+
+	acceptableError := expectedValue * http.RelativeAccuracy
+	assert.True(t, val >= expectedValue-acceptableError)
+	assert.True(t, val <= expectedValue+acceptableError)
 }
