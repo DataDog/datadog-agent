@@ -40,12 +40,17 @@ func buildTransactionContainer(
 	flushToStorageRatio float64,
 	optionalDomainFolderPath string,
 	storageMaxSize int64,
-	dropPrioritySorter transactionPrioritySorter) *transactionContainer {
+	dropPrioritySorter transactionPrioritySorter,
+	domain string,
+	apiKeys []string) *transactionContainer {
+	if maxMemSizeInBytes <= 0 {
+		return nil
+	}
 	var storage transactionStorage
 	var err error
 
 	if optionalDomainFolderPath != "" && storageMaxSize > 0 {
-		serializer := NewTransactionsSerializer()
+		serializer := NewTransactionsSerializer(domain, apiKeys)
 		storage, err = newTransactionsFileStorage(serializer, optionalDomainFolderPath, storageMaxSize, transactionsFileStorageTelemetry{})
 
 		// If the storage on disk cannot be used, log the error and continue.

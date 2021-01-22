@@ -196,6 +196,9 @@ type HTTPTransaction struct {
 	// retryable indicates whether this transaction can be retried
 	retryable bool
 
+	// storableOnDisk indicates whether this transaction can be stored on disk
+	storableOnDisk bool
+
 	// attemptHandler will be called with a transaction before the attempting to send the request
 	// This field is not restored when a transaction is deserialized from the disk (the default value is used).
 	attemptHandler HTTPAttemptHandler
@@ -225,10 +228,11 @@ type Transaction interface {
 // NewHTTPTransaction returns a new HTTPTransaction.
 func NewHTTPTransaction() *HTTPTransaction {
 	tr := &HTTPTransaction{
-		createdAt:  time.Now(),
-		ErrorCount: 0,
-		retryable:  true,
-		Headers:    make(http.Header),
+		createdAt:      time.Now(),
+		ErrorCount:     0,
+		retryable:      true,
+		storableOnDisk: true,
+		Headers:        make(http.Header),
 	}
 	tr.setDefaultHandlers()
 	return tr
@@ -383,5 +387,9 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 
 // SerializeTo serializes the transaction using TransactionsSerializer
 func (t *HTTPTransaction) SerializeTo(serializer *TransactionsSerializer) error {
-	return serializer.Add(t)
+	if t.storableOnDisk {
+		return serializer.Add(t)
+	}
+	log.Trace("The transaction is not stored on disk because `storableOnDisk` is false.")
+	return nil
 }
