@@ -384,8 +384,13 @@ int kprobe__ip6_make_skb(struct pt_regs* ctx) {
             increment_telemetry_count(udp_send_missed);
             return 0;
         }
-
+// commit: https://github.com/torvalds/linux/commit/26879da58711aa604a1b866cbeedd7e0f78f90ad
+// changed the arguments to ip6_make_skb and introduced the struct ipcm6_cookie
+#if __is_identifier(ipcm6_cookie)
         struct flowi6* fl6 = (struct flowi6*)PT_REGS_PARM7(ctx);
+#else
+        struct flowi6* fl6 = (struct flowi6*)PT_REGS_PARM9(ctx);
+#endif
         bpf_probe_read(&t.saddr_h, sizeof(u64), ((char*)fl6) + offset_saddr_fl6());
         bpf_probe_read(&t.saddr_l, sizeof(u64), ((char*)fl6) + offset_saddr_fl6() + sizeof(u64));
         bpf_probe_read(&t.daddr_h, sizeof(u64), ((char*)fl6) + offset_daddr_fl6());

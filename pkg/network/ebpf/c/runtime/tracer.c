@@ -238,7 +238,13 @@ int kprobe__ip6_make_skb(struct pt_regs* ctx) {
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
+// commit: https://github.com/torvalds/linux/commit/26879da58711aa604a1b866cbeedd7e0f78f90ad
+// changed the arguments to ip6_make_skb and introduced the struct ipcm6_cookie
+#if __is_identifier(ipcm6_cookie)
         struct flowi6* fl6 = (struct flowi6*)PT_REGS_PARM7(ctx);
+#else
+        struct flowi6* fl6 = (struct flowi6*)PT_REGS_PARM9(ctx);
+#endif
         read_in6_addr(&t.saddr_h, &t.saddr_l, &fl6->saddr);
         read_in6_addr(&t.daddr_h, &t.daddr_l, &fl6->daddr);
 
