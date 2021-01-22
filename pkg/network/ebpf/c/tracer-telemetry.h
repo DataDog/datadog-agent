@@ -1,7 +1,9 @@
-#ifndef __TRACER_COMMON_H
-#define __TRACER_COMMON_H
+#ifndef __TRACER_TELEMETRY_H
+#define __TRACER_TELEMETRY_H
 
 #include "tracer-maps.h"
+
+enum telemetry_counter{tcp_sent_miscounts, missed_tcp_close, missed_udp_close, udp_send_processed, udp_send_missed};
 
 static __always_inline int get_proto(conn_tuple_t * t) {
     return (t->metadata & CONN_TYPE_TCP) ? CONN_TYPE_TCP : CONN_TYPE_UDP;
@@ -158,4 +160,4 @@ static __always_inline void flush_conn_close_if_full(struct pt_regs * ctx) {
     }
 }
 
-#endif // __TRACER_COMMON_H
+#endif // __TRACER_TELEMETRY_H

@@ -5,7 +5,7 @@
 #include "syscalls.h"
 #include "http.h"
 #include "ip.h"
-#include "tracer-common.h"
+#include "tracer-telemetry.h"
 
 #ifdef FEATURE_IPV6_ENABLED
 #include "ipv6.h"

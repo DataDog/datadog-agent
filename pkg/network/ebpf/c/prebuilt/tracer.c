@@ -6,7 +6,7 @@
 #include "ip.h"
 #include "ipv6.h"
 #include "http.h"
-#include "tracer-common.h"
+#include "tracer-telemetry.h"
 
 #include <linux/kconfig.h>
 #include <net/inet_sock.h>

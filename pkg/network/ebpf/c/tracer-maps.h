@@ -4,8 +4,6 @@
 #include "tracer.h"
 #include "bpf_helpers.h"
 
-enum telemetry_counter{tcp_sent_miscounts, missed_tcp_close, missed_udp_close, udp_send_processed, udp_send_missed};
-
 typedef struct {
     struct sock * sk;
     struct msghdr * msg;
