@@ -1,11 +1,13 @@
 #include "tracer.h"
+
+#include "tracer-events.h"
 #include "tracer-maps.h"
+#include "tracer-telemetry.h"
 #include "bpf_helpers.h"
 #include "bpf_endian.h"
 #include "syscalls.h"
 #include "http.h"
 #include "ip.h"
-#include "tracer-telemetry.h"
 
 #ifdef FEATURE_IPV6_ENABLED
 #include "ipv6.h"
