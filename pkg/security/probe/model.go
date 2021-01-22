@@ -666,7 +666,8 @@ type ExecEvent struct {
 	FileEvent
 	ExecTimestamp time.Time `field:"-"`
 	TTYName       string    `field:"tty_name" handler:"ResolveTTY,string"`
-	Comm          string    `field:"name" handler:"ResolveComm,string"`
+	Name          string    `field:"name" handler:"ResolveName,string"`
+	Comm          string    `field:"-" handler:"ResolveComm,string"`
 
 	// pid_cache_t
 	ForkTimestamp time.Time `field:"-"`
@@ -815,6 +816,11 @@ func (e *ExecEvent) ResolveComm(event *Event) string {
 		}
 	}
 	return e.Comm
+}
+
+// ResolveName resolves the basename of the process executable
+func (e *ExecEvent) ResolveName(event *Event) string {
+	return e.ResolveBasename(event)
 }
 
 // ResolveUID resolves the user id of the process

@@ -62,6 +62,7 @@ type ProcessCacheEntrySerializer struct {
 	ContainerPath       string     `json:"executable_container_path,omitempty"`
 	Path                string     `json:"executable_path,omitempty"`
 	PathResolutionError string     `json:"path_resolution_error,omitempty"`
+	Comm                string     `json:"comm,omitempty"`
 	Inode               uint64     `json:"executable_inode,omitempty"`
 	MountID             uint32     `json:"executable_mount_id,omitempty"`
 	TTY                 string     `json:"tty,omitempty"`
@@ -187,9 +188,11 @@ func newProcessCacheEntrySerializer(pce *ProcessCacheEntry, e *Event, r *Resolve
 		Tid:                 tid,
 		UID:                 uid,
 		GID:                 gid,
-		Name:                pce.Comm,
+		Name:                pce.ResolveName(e),
 		Path:                pce.ResolveInodeWithResolvers(r),
 		PathResolutionError: pce.GetPathResolutionError(),
+		ContainerPath:       pce.ResolveContainerPath(e),
+		Comm:                pce.ResolveComm(e),
 		Inode:               pce.Inode,
 		MountID:             pce.MountID,
 		TTY:                 pce.ResolveTTY(e),
