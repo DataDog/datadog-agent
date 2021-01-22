@@ -92,9 +92,9 @@ var (
 	// MetricProcessResolverAdded is the name of the metric used to report the number of entries added in the cache
 	// Tags: -
 	MetricProcessResolverAdded = newRuntimeSecurityMetric(".process_resolver.added")
-	// MetricProcessResolverDeleted is the name of the metric used to report the number of entries deleted from the cache
+	// MetricProcessResolverFlushed is the name of the metric used to report the number cache flush
 	// Tags: -
-	MetricProcessResolverDeleted = newRuntimeSecurityMetric(".process_resolver.deleted")
+	MetricProcessResolverFlushed = newRuntimeSecurityMetric(".process_resolver.flushed")
 
 	// Custom events
 
