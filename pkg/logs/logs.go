@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
@@ -190,4 +191,12 @@ func IsAgentRunning() bool {
 // GetStatus returns logs-agent status
 func GetStatus() status.Status {
 	return status.Get()
+}
+
+// GetMessageReceiver returns the diagnostic message receiver
+func GetMessageReceiver() *diagnostic.BufferedMessageReceiver {
+	if agent == nil {
+		return nil
+	}
+	return agent.diagnosticMessageReceiver
 }

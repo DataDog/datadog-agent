@@ -8,6 +8,7 @@
 package probe
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -20,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-go/statsd"
 	lib "github.com/DataDog/ebpf"
+	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
@@ -60,20 +62,38 @@ func (i *InodeInfo) UnmarshalBinary(data []byte) (int, error) {
 // ProcessResolverOpts options of resolver
 type ProcessResolverOpts struct {
 	DebugCacheSize bool
+	PIDCacheSize   int
 }
 
 // ProcessResolver resolved process context
 type ProcessResolver struct {
 	sync.RWMutex
-	probe        *Probe
-	resolvers    *Resolvers
-	client       *statsd.Client
-	inodeInfoMap *lib.Map
-	procCacheMap *lib.Map
-	pidCookieMap *lib.Map
-	entryCache   map[uint32]*ProcessCacheEntry
-	cacheSize    int64
-	opts         ProcessResolverOpts
+	probe                 *Probe
+	resolvers             *Resolvers
+	client                *statsd.Client
+	inodeInfoMap          *lib.Map
+	procCacheMap          *lib.Map
+	pidCacheMap           *lib.Map
+	bestEffortPidCacheMap *lib.Map
+	bestEffortCookiesMap  *lib.Map
+	cacheSize             int64
+	opts                  ProcessResolverOpts
+
+	entryCache  map[uint32]*ProcessCacheEntry
+	cookieCache *simplelru.LRU
+}
+
+// SendStats sends process resolver metrics
+func (p *ProcessResolver) SendStats() error {
+	if err := p.client.Gauge(MetricProcessResolverCacheSize, p.GetCacheSize(), []string{}, 1.0); err != nil {
+		return errors.Wrap(err, "failed to send process_resolver cache_size metric")
+	}
+
+	if err := p.client.Gauge(MetricProcessResolverReferenceCount, p.GetEntryCacheSize(), []string{}, 1.0); err != nil {
+		return errors.Wrap(err, "failed to send process_resolver reference_count metric")
+	}
+
+	return nil
 }
 
 // AddForkEntry adds an entry to the local cache and returns the newly created entry
@@ -198,7 +218,7 @@ func (p *ProcessResolver) insertForkEntry(pid uint32, entry *ProcessCacheEntry) 
 	}
 	p.entryCache[pid] = entry
 
-	_ = p.client.Count(MetricPrefix+".process_resolver.added", 1, []string{}, 1.0)
+	_ = p.client.Count(MetricProcessResolverAdded, 1, []string{}, 1.0)
 
 	if p.opts.DebugCacheSize {
 		atomic.AddInt64(&p.cacheSize, 1)
@@ -218,7 +238,7 @@ func (p *ProcessResolver) insertExecEntry(pid uint32, entry *ProcessCacheEntry) 
 
 	p.entryCache[pid] = entry
 
-	_ = p.client.Count(MetricPrefix+".process_resolver.added", 1, []string{}, 1.0)
+	_ = p.client.Count(MetricProcessResolverAdded, 1, []string{}, 1.0)
 
 	if p.opts.DebugCacheSize {
 		atomic.AddInt64(&p.cacheSize, 1)
@@ -228,7 +248,21 @@ func (p *ProcessResolver) insertExecEntry(pid uint32, entry *ProcessCacheEntry) 
 		})
 	}
 
+	if entry.Cookie != 0 {
+		p.cookieCache.Add(entry.Cookie, entry)
+	}
+
 	return entry
+}
+
+func (p *ProcessResolver) deleteEntry(pid uint32, exitTime time.Time) {
+	// Start by updating the exit timestamp of the pid cache entry
+	entry, ok := p.entryCache[pid]
+	if !ok {
+		return
+	}
+	entry.Exit(exitTime)
+	delete(p.entryCache, entry.Pid)
 }
 
 // DeleteEntry tries to delete an entry in the process cache
@@ -236,41 +270,41 @@ func (p *ProcessResolver) DeleteEntry(pid uint32, exitTime time.Time) {
 	p.Lock()
 	defer p.Unlock()
 
-	// Start by updating the exit timestamp of the pid cache entry
-	entry, ok := p.entryCache[pid]
-	if !ok {
-		return
-	}
-	entry.Exit(exitTime)
-
-	delete(p.entryCache, entry.Pid)
+	p.deleteEntry(pid, exitTime)
 }
 
 // Resolve returns the cache entry for the given pid
-func (p *ProcessResolver) Resolve(pid uint32) *ProcessCacheEntry {
+func (p *ProcessResolver) Resolve(pid uint32, cookie uint32) *ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
 
 	entry, exists := p.entryCache[pid]
 	if exists {
-		_ = p.client.Count(MetricPrefix+".process_resolver.hits", 1, []string{"type:cache"}, 1.0)
+		_ = p.client.Count(MetricProcessResolverCacheHits, 1, []string{"type:cache"}, 1.0)
 		return entry
+	}
+
+	// fallback to the cookie selection
+	if cookie > 0 {
+		entryP, exists := p.cookieCache.Get(cookie)
+		if exists {
+			return entryP.(*ProcessCacheEntry)
+		}
 	}
 
 	// fallback to the kernel maps directly, the perf event may be delayed / may have been lost
 	if entry = p.resolveWithKernelMaps(pid); entry != nil {
-		_ = p.client.Count(MetricPrefix+".process_resolver.hits", 1, []string{"type:kernel_maps"}, 1.0)
+		_ = p.client.Count(MetricProcessResolverCacheHits, 1, []string{"type:kernel_maps"}, 1.0)
 		return entry
 	}
 
 	// fallback to /proc, the in-kernel LRU may have deleted the entry
 	if entry = p.resolveWithProcfs(pid); entry != nil {
-		_ = p.client.Count(MetricPrefix+".process_resolver.hits", 1, []string{"type:procfs"}, 1.0)
+		_ = p.client.Count(MetricProcessResolverCacheHits, 1, []string{"type:procfs"}, 1.0)
 		return entry
 	}
 
-	_ = p.client.Count(MetricPrefix+".process_resolver.cache_miss", 1, []string{}, 1.0)
-
+	_ = p.client.Count(MetricProcessResolverCacheMiss, 1, []string{}, 1.0)
 	return nil
 }
 
@@ -278,9 +312,12 @@ func (p *ProcessResolver) resolveWithKernelMaps(pid uint32) *ProcessCacheEntry {
 	pidb := make([]byte, 4)
 	ebpf.ByteOrder.PutUint32(pidb, pid)
 
-	cookieb, err := p.pidCookieMap.LookupBytes(pidb)
+	cookieb, err := p.pidCacheMap.LookupBytes(pidb)
 	if err != nil || cookieb == nil {
-		return nil
+		cookieb, err = p.bestEffortPidCacheMap.LookupBytes(pidb)
+		if err != nil || cookieb == nil {
+			return nil
+		}
 	}
 
 	// first 4 bytes are the actual cookie
@@ -331,7 +368,7 @@ func (p *ProcessResolver) Get(pid uint32) *ProcessCacheEntry {
 }
 
 // Start starts the resolver
-func (p *ProcessResolver) Start() error {
+func (p *ProcessResolver) Start(ctx context.Context) error {
 	var err error
 	if p.inodeInfoMap, err = p.probe.Map("inode_info_cache"); err != nil {
 		return err
@@ -341,11 +378,63 @@ func (p *ProcessResolver) Start() error {
 		return err
 	}
 
-	if p.pidCookieMap, err = p.probe.Map("pid_cache"); err != nil {
+	if p.pidCacheMap, err = p.probe.Map("pid_cache"); err != nil {
 		return err
 	}
 
+	if p.bestEffortPidCacheMap, err = p.probe.Map("best_effort_pid_cache"); err != nil {
+		return err
+	}
+
+	if p.bestEffortCookiesMap, err = p.probe.Map("best_effort_cookies"); err != nil {
+		return err
+	}
+
+	go p.cacheFlush(ctx)
+
 	return nil
+}
+
+func (p *ProcessResolver) cacheFlush(ctx context.Context) {
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case now := <-ticker.C:
+			var pids []uint32
+
+			p.RLock()
+			for pid := range p.entryCache {
+				pids = append(pids, pid)
+			}
+			p.RUnlock()
+
+			delEntry := func(pid uint32, exitTime time.Time) {
+				p.deleteEntry(pid, now)
+				_ = p.client.Count(MetricProcessResolverFlushed, 1, []string{}, 1.0)
+			}
+
+			// flush slowly
+			for _, pid := range pids {
+				if _, err := process.NewProcess(int32(pid)); err != nil {
+					// check start time to ensure to not delete a recent pid
+					p.Lock()
+					if entry := p.entryCache[pid]; entry != nil {
+						if tm := entry.ExecTimestamp; !tm.IsZero() && tm.Add(time.Minute).Before(now) {
+							delEntry(pid, now)
+						} else if tm := entry.ForkTimestamp; !tm.IsZero() && tm.Add(time.Minute).Before(now) {
+							delEntry(pid, now)
+						}
+					}
+					p.Unlock()
+				}
+				time.Sleep(50 * time.Millisecond)
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 // SyncCache snapshots /proc for the provided pid. This method returns true if it updated the process cache.
@@ -363,13 +452,12 @@ func (p *ProcessResolver) syncCache(proc *process.Process) (*ProcessCacheEntry, 
 	pid := uint32(proc.Pid)
 
 	// Check if an entry is already in cache for the given pid.
-	entry, inCache := p.entryCache[pid]
-	if inCache && !entry.ExecTimestamp.IsZero() {
+	entry := p.entryCache[pid]
+	if entry != nil {
 		return nil, false
 	}
-	if !inCache {
-		entry = NewProcessCacheEntry()
-	}
+
+	entry = NewProcessCacheEntry()
 
 	// update the cache entry
 	if err := p.enrichEventFromProc(entry, proc); err != nil {
@@ -452,13 +540,41 @@ func (p *ProcessResolver) GetEntryCacheSize() float64 {
 	return float64(atomic.LoadInt64(&p.cacheSize))
 }
 
+// MarkCookieAsBestEffort switches the pid_cache entries with the provided cookie to the best_effort_pid_cache map.
+// This will prevent fork events with the provided cookie from being sent over the perf map.
+func (p *ProcessResolver) MarkCookieAsBestEffort(cookie uint32) {
+	if cookie == 0 {
+		// nothing to do
+		return
+	}
+
+	// mark cookie as best effort
+	if err := p.bestEffortCookiesMap.Put(&cookie, ebpf.BytesMapItem([]byte{1})); err != nil {
+		log.Tracef("failed to mark cookie %d as best effort", cookie)
+		return
+	}
+}
+
 // NewProcessResolver returns a new process resolver
 func NewProcessResolver(probe *Probe, resolvers *Resolvers, client *statsd.Client, opts ProcessResolverOpts) (*ProcessResolver, error) {
+	cookieLRU, err := simplelru.NewLRU(opts.PIDCacheSize, nil)
+	if err != nil {
+		return nil, err
+	}
 	return &ProcessResolver{
-		probe:      probe,
-		resolvers:  resolvers,
-		client:     client,
-		entryCache: make(map[uint32]*ProcessCacheEntry),
-		opts:       opts,
+		probe:       probe,
+		resolvers:   resolvers,
+		client:      client,
+		entryCache:  make(map[uint32]*ProcessCacheEntry),
+		cookieCache: cookieLRU,
+		opts:        opts,
 	}, nil
+}
+
+// NewProcessResolverOpts returns a new set of process resolver options
+func NewProcessResolverOpts(debug bool, pidCacheSize int) ProcessResolverOpts {
+	return ProcessResolverOpts{
+		DebugCacheSize: debug,
+		PIDCacheSize:   pidCacheSize,
+	}
 }

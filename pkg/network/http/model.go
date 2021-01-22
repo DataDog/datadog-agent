@@ -22,7 +22,6 @@ type httpTX C.http_transaction_t
 type httpNotification C.http_batch_notification_t
 type httpBatch C.http_batch_t
 type httpBatchKey C.http_batch_key_t
-type httpBatchState C.http_batch_state_t
 
 const (
 	CONN_V4 uint = 0 << 0
@@ -125,7 +124,7 @@ func (tx *httpTX) RequestLatency() float64 {
 // http_notification_t message was sent to userspace and the time we performed
 // the batch lookup the page was overridden.
 func (batch *httpBatch) IsDirty(notification httpNotification) bool {
-	return batch.state.idx != notification.batch_idx
+	return batch.idx != notification.batch_idx
 }
 
 // Transactions returns the slice of HTTP transactions embedded in the batch

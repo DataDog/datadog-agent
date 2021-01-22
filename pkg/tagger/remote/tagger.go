@@ -183,6 +183,8 @@ func (t *Tagger) run() {
 
 		response, err := t.stream.Recv()
 		if err != nil {
+			telemetry.StreamErrors.Inc()
+
 			// when Recv() returns an error, the stream is aborted
 			// and the contents of our store are considered out of
 			// sync and therefore no longer valid, so the tagger

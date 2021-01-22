@@ -46,6 +46,9 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 
+	// runtime init routines
+	_ "github.com/DataDog/datadog-agent/pkg/runtime"
+
 	// register core checks
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers"

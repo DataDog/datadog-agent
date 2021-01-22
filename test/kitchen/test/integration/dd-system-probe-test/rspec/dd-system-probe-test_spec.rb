@@ -1,27 +1,44 @@
 require 'spec_helper'
 require 'open3'
 
+GOLANG_TEST_FAILURE = /FAIL:/
+
+def check_output(output, wait_thr)
+  test_failures = []
+
+  output.each_line do |line|
+    puts line
+    test_failures << line.strip if line =~ GOLANG_TEST_FAILURE
+  end
+
+  if test_failures.empty? && !wait_thr.value.success?
+    test_failures << "Test command exited with status (#{wait_thr.value.exitstatus}) but no failures were captured."
+  end
+
+  test_failures
+end
+
 print `cat /etc/os-release`
 print `uname -a`
 
-GOLANG_TEST_FAILURE = /FAIL:/
-
 Dir.glob('/tmp/system-probe-tests/**/testsuite').each do |f|
-  describe "system-probe tests for #{f}" do
-    it 'succesfully runs' do
+  pkg = f.delete_prefix('/tmp/system-probe-tests').delete_suffix('/testsuite')
+  describe "prebuilt system-probe tests for #{pkg}" do
+    it 'successfully runs' do
       Dir.chdir(File.dirname(f)) do
         Open3.popen2e("sudo", f, "-test.v") do |_, output, wait_thr|
-          test_failures = []
+          test_failures = check_output(output, wait_thr)
+          expect(test_failures).to be_empty, test_failures.join("\n")
+        end
+      end
+    end
+  end
 
-          output.each_line do |line|
-            puts line
-            test_failures << line.strip if line =~ GOLANG_TEST_FAILURE
-          end
-
-          if test_failures.empty? && !wait_thr.value.success?
-            test_failures << "Test command exited with status (#{wait_thr.value.exitstatus}) but no failures were captured."
-          end
-
+  describe "runtime compiled system-probe tests for #{pkg}" do
+    it 'successfully runs' do
+      Dir.chdir(File.dirname(f)) do
+        Open3.popen2e({"DD_TESTS_RUNTIME_COMPILED"=>"1"}, "sudo", "-E", f, "-test.v") do |_, output, wait_thr|
+          test_failures = check_output(output, wait_thr)
           expect(test_failures).to be_empty, test_failures.join("\n")
         end
       end

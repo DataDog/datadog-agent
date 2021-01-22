@@ -137,8 +137,10 @@ Loop:
 }
 
 func TestDNSOverUDPSnooping(t *testing.T) {
-	buf, err := netebpf.ReadBPFModule("build", false)
+	cfg := config.NewDefaultConfig()
+	buf, err := netebpf.ReadBPFModule(cfg.BPFDir, false)
 	require.NoError(t, err)
+	defer buf.Close()
 
 	m, reverseDNS := getSnooper(t, buf, false, false, 15*time.Second, false)
 	defer m.Stop(manager.CleanAll)
@@ -197,8 +199,10 @@ func initDNSTestsWithDomainCollection(t *testing.T, localDNS bool) (*manager.Man
 }
 
 func initDNSTests(t *testing.T, localDNS bool, collectDomain bool) (*manager.Manager, *SocketFilterSnooper) {
-	buf, err := netebpf.ReadBPFModule("build", false)
+	cfg := config.NewDefaultConfig()
+	buf, err := netebpf.ReadBPFModule(cfg.BPFDir, false)
 	require.NoError(t, err)
+	defer buf.Close()
 	return getSnooper(t, buf, true, localDNS, 1*time.Second, collectDomain)
 }
 
@@ -462,8 +466,10 @@ func TestDNSOverUDPTimeoutCountWithoutDomain(t *testing.T) {
 }
 
 func TestParsingError(t *testing.T) {
-	buf, err := netebpf.ReadBPFModule("build", false)
+	cfg := config.NewDefaultConfig()
+	buf, err := netebpf.ReadBPFModule(cfg.BPFDir, false)
 	require.NoError(t, err)
+	defer buf.Close()
 
 	m, reverseDNS := getSnooper(t, buf, false, false, 15*time.Second, false)
 	defer m.Stop(manager.CleanAll)

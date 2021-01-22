@@ -29,7 +29,7 @@ kitchen_centos_sysprobe:
   extends: .kitchen_test_system_probe
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
-    - export TEST_PLATFORMS="centos-77,urn,OpenLogic:CentOS:7.7:7.7.201912090"
+    - export TEST_PLATFORMS="centos-76,urn,OpenLogic:CentOS:7.6:7.6.201909120"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|rhel-81,urn,RedHat:RHEL:8.1:8.1.2020020415"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh

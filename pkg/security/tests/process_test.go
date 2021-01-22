@@ -300,9 +300,12 @@ func TestProcessLineage(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			testProcessLineageExec(t, event)
+			if err := testProcessLineageExec(t, event); err != nil {
+				t.Error(err)
+			} else {
+				execPid = int(event.Process.Pid)
+			}
 		}
-		execPid = int(event.Process.Pid)
 	})
 
 	t.Run("exit", func(t *testing.T) {
@@ -328,15 +331,15 @@ func TestProcessLineage(t *testing.T) {
 	})
 }
 
-func testProcessLineageExec(t *testing.T, event *probe.Event) {
+func testProcessLineageExec(t *testing.T, event *probe.Event) error {
 	// check for the new process context
 	cacheEntry := event.ResolveProcessCacheEntry()
 	if cacheEntry == nil {
-		t.Errorf("expected a process cache entry, got nil")
+		return errors.New("expected a process cache entry, got nil")
 	} else {
 		// make sure the container ID was properly inherited from the parent
 		if cacheEntry.Ancestor == nil {
-			t.Errorf("expected a parent, got nil")
+			return errors.New("expected a parent, got nil")
 		} else {
 			if cacheEntry.ID != cacheEntry.Ancestor.ID {
 				t.Errorf("expected container ID %s, got %s", cacheEntry.Ancestor.ID, cacheEntry.ID)
@@ -345,6 +348,7 @@ func testProcessLineageExec(t *testing.T, event *probe.Event) {
 	}
 
 	testContainerPath(t, event, "process.container_path")
+	return nil
 }
 
 func testProcessLineageFork(t *testing.T, event *probe.Event) {

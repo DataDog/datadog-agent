@@ -27,6 +27,8 @@ type Event interface {
 	GetFieldType(field Field) (reflect.Kind, error)
 	// GetPointer returns an unsafe.Pointer of this object
 	GetPointer() unsafe.Pointer
+	// GetTags returns a list of tags
+	GetTags() []string
 }
 
 // Iterator interface of a field iterator

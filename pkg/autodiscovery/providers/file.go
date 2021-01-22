@@ -14,13 +14,12 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/configresolver"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"gopkg.in/yaml.v2"
-
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type configFormat struct {

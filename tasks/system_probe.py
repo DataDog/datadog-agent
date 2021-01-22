@@ -177,7 +177,9 @@ def build_in_docker(
 
 
 @task
-def test(ctx, packages=TEST_PACKAGES, skip_object_files=False, bundle_ebpf=True, output_path=None):
+def test(
+    ctx, packages=TEST_PACKAGES, skip_object_files=False, bundle_ebpf=True, output_path=None, runtime_compiled=False
+):
     """
     Run tests on eBPF parts
     If skip_object_files is set to True, this won't rebuild object files
@@ -208,7 +210,11 @@ def test(ctx, packages=TEST_PACKAGES, skip_object_files=False, bundle_ebpf=True,
         "pkgs": packages,
     }
 
-    ctx.run(cmd.format(**args))
+    env = {'CGO_LDFLAGS_ALLOW': "-Wl,--wrap=.*"}
+    if runtime_compiled:
+        env['DD_TESTS_RUNTIME_COMPILED'] = "1"
+
+    ctx.run(cmd.format(**args), env=env)
 
 
 @task
@@ -343,6 +349,7 @@ def build_object_files(ctx, bundle_ebpf=False):
     print("checking for clang executable...")
     ctx.run("which clang")
     print("found clang")
+    ctx.run("clang -v")
 
     os_info = os.uname()
     centos_headers_dir = "/usr/src/kernels"
@@ -368,6 +375,7 @@ def build_object_files(ctx, bundle_ebpf=False):
 
     bpf_dir = os.path.join(".", "pkg", "ebpf")
     build_dir = os.path.join(bpf_dir, "bytecode", "build")
+    build_runtime_dir = os.path.join(build_dir, "runtime")
     c_dir = os.path.join(bpf_dir, "c")
 
     network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
@@ -378,7 +386,7 @@ def build_object_files(ctx, bundle_ebpf=False):
         '-D__KERNEL__',
         '-DCONFIG_64BIT',
         '-D__BPF_TRACING__',
-        '-DKBUILD_MODNAME="\\"foo\\""',
+        '-DKBUILD_MODNAME=\'"ddsysprobe"\'',
         '-Wno-unused-value',
         '-Wno-pointer-sign',
         '-Wno-compare-distinct-pointer-types',
@@ -390,6 +398,9 @@ def build_object_files(ctx, bundle_ebpf=False):
         '-emit-llvm',
         # Some linux distributions enable stack protector by default which is not available on eBPF
         '-fno-stack-protector',
+        '-fno-color-diagnostics',
+        '-fno-unwind-tables',
+        '-fno-asynchronous-unwind-tables',
         "-I{}".format(c_dir),
     ]
 
@@ -425,13 +436,12 @@ def build_object_files(ctx, bundle_ebpf=False):
     cmd = "clang {flags} -c '{c_file}' -o '{bc_file}'"
     llc_cmd = "llc -march=bpf -filetype=obj -o '{obj_file}' '{bc_file}'"
 
-    commands = ["mkdir -p {build_dir}".format(build_dir=build_dir)]
+    commands = [
+        "mkdir -p {build_dir}".format(build_dir=build_dir),
+        "mkdir -p {build_runtime_dir}".format(build_runtime_dir=build_runtime_dir),
+    ]
     bindata_files = []
 
-    compiled_programs = [
-        "tracer",
-        "offset-guess",
-    ]
     corechecks_c_dir = os.path.join(".", "pkg", "collector", "corechecks", "ebpf", "c")
     corechecks_bcc_dir = os.path.join(corechecks_c_dir, "bcc")
     bcc_files = [
@@ -445,6 +455,10 @@ def build_object_files(ctx, bundle_ebpf=False):
         commands.append("cp {file} {dest}".format(file=f, dest=build_dir))
         bindata_files.append(os.path.join(build_dir, os.path.basename(f)))
 
+    compiled_programs = [
+        "tracer",
+        "offset-guess",
+    ]
     network_flags = list(flags)
     network_flags.append("-I{}".format(network_c_dir))
     for p in compiled_programs:
@@ -500,6 +514,13 @@ def build_object_files(ctx, bundle_ebpf=False):
         )
     )
     bindata_files.extend([security_agent_obj_file, security_agent_syscall_wrapper_obj_file])
+
+    runtime_compiler_files = [
+        "./pkg/network/tracer/compile.go",
+        "./pkg/security/probe/compile.go",
+    ]
+    for f in runtime_compiler_files:
+        commands.append("go generate -mod=vendor -tags linux_bpf {}".format(f))
 
     for cmd in commands:
         ctx.run(cmd)

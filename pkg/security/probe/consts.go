@@ -29,48 +29,63 @@ var (
 type EventType uint64
 
 const (
-	// UnknownEventType - unknow event
+	// UnknownEventType unknow event
 	UnknownEventType EventType = iota
-	// FileOpenEventType - File open event
+	// FileOpenEventType File open event
 	FileOpenEventType
-	// FileMkdirEventType - Folder creation event
+	// FileMkdirEventType Folder creation event
 	FileMkdirEventType
-	// FileLinkEventType - Hard link creation event
+	// FileLinkEventType Hard link creation event
 	FileLinkEventType
-	// FileRenameEventType - File or folder rename event
+	// FileRenameEventType File or folder rename event
 	FileRenameEventType
-	// FileUnlinkEventType - Unlink event
+	// FileUnlinkEventType Unlink event
 	FileUnlinkEventType
-	// FileRmdirEventType - Rmdir event
+	// FileRmdirEventType Rmdir event
 	FileRmdirEventType
-	// FileChmodEventType - Chmod event
+	// FileChmodEventType Chmod event
 	FileChmodEventType
-	// FileChownEventType - Chown event
+	// FileChownEventType Chown event
 	FileChownEventType
-	// FileUtimeEventType - Utime event
+	// FileUtimeEventType Utime event
 	FileUtimeEventType
-	// FileMountEventType - Mount event
+	// FileMountEventType Mount event
 	FileMountEventType
-	// FileUmountEventType - Umount event
+	// FileUmountEventType Umount event
 	FileUmountEventType
-	// FileSetXAttrEventType - Setxattr event
+	// FileSetXAttrEventType Setxattr event
 	FileSetXAttrEventType
-	// FileRemoveXAttrEventType - Removexattr event
+	// FileRemoveXAttrEventType Removexattr event
 	FileRemoveXAttrEventType
-	// ForkEventType - Fork event
+	// ForkEventType Fork event
 	ForkEventType
-	// ExecEventType - Exec event
+	// ExecEventType Exec event
 	ExecEventType
-	// ExitEventType - Exit event
+	// ExitEventType Exit event
 	ExitEventType
-	// InvalidateDentryEventType - Dentry invalidated event
+	// InvalidateDentryEventType Dentry invalidated event
 	InvalidateDentryEventType
-	// internalEventType - used internally to get the maximum number of event. Has to be the last one
-	maxEventType //nolint:deadcode,unused
+	// maxEventType is used internally to get the maximum number of kernel events.
+	maxEventType
+
+	// CustomLostReadEventType is the custom event used to report lost events detected in user space
+	CustomLostReadEventType
+	// CustomLostWriteEventType is the custom event used to report lost events detected in kernel space
+	CustomLostWriteEventType
+	// CustomRulesetLoadedEventType is the custom event used to report that a new ruleset was loaded
+	CustomRulesetLoadedEventType
+	// CustomNoisyProcessEventType is the custom event used to report the detection of a noisy process
+	CustomNoisyProcessEventType
+	// CustomForkBombEventType is the custom event used to report the detection of a fork bomb
+	CustomForkBombEventType
+	// CustomTruncatedParentsEventType is the custom event used to report that the parents of a path were truncated
+	CustomTruncatedParentsEventType
+	// CustomTruncatedSegmentEventType is the custom event used to report that a segment of a path was truncated
+	CustomTruncatedSegmentEventType
 )
 
 // maxEventRoundedUp is the closest power of 2 that is bigger than maxEventType
-const maxEventRoundedUp = 32 //nolint:deadcode,unused
+const maxEventRoundedUp = 32
 
 func (t EventType) String() string {
 	switch t {
@@ -108,12 +123,28 @@ func (t EventType) String() string {
 		return "exit"
 	case InvalidateDentryEventType:
 		return "invalidate_dentry"
+
+	case CustomLostReadEventType:
+		return "lost_events_read"
+	case CustomLostWriteEventType:
+		return "lost_events_write"
+	case CustomRulesetLoadedEventType:
+		return "ruleset_loaded"
+	case CustomNoisyProcessEventType:
+		return "noisy_process"
+	case CustomForkBombEventType:
+		return "fork_bomb"
+	case CustomTruncatedParentsEventType:
+		return "truncated_parents"
+	case CustomTruncatedSegmentEventType:
+		return "truncated_segment"
+	default:
+		return "unknown"
 	}
-	return "unknown"
 }
 
 // parseEvalEventType convert a eval.EventType (string) to its uint64 representation
-// the current algorithm is not efficient but allow us to only keep few conversion implementations
+// the current algorithm is not efficient but allows us to reduce the number of conversion functions
 //nolint:deadcode,unused
 func parseEvalEventType(eventType eval.EventType) EventType {
 	for i := uint64(0); i != uint64(maxEventType); i++ {
@@ -124,6 +155,12 @@ func parseEvalEventType(eventType eval.EventType) EventType {
 
 	return UnknownEventType
 }
+
+// MaxSegmentLength defines the maximum length of each segment of a path
+const MaxSegmentLength = 127
+
+// MaxPathDepth defines the maximum depth of a path
+const MaxPathDepth = 15
 
 var (
 	errorConstants = map[string]int{

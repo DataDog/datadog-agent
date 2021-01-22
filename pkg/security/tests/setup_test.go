@@ -16,6 +16,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"text/template"
@@ -38,6 +39,7 @@ import (
 
 var (
 	eventChanLength     = 10000
+	handlerChanLength   = 20000
 	discarderChanLength = 10000
 	logger              seelog.LoggerInterface
 )
@@ -55,7 +57,8 @@ runtime_security_config:
   socket: /tmp/test-security-probe.sock
   flush_discarder_window: 0
   load_controller:
-    events_count_threshold: 100000000
+    events_count_threshold: {{ .EventsCountThreshold }}
+    fork_bomb_threshold: {{ .ForkBombThreshold }}
 {{if .DisableFilters}}
   enable_kernel_filters: false
 {{end}}
@@ -103,11 +106,24 @@ type testEvent struct {
 }
 
 type testOpts struct {
-	testDir           string
-	disableFilters    bool
-	disableApprovers  bool
-	disableDiscarders bool
-	wantProbeEvents   bool
+	testDir              string
+	disableFilters       bool
+	disableApprovers     bool
+	disableDiscarders    bool
+	wantProbeEvents      bool
+	eventsCountThreshold int
+	forkBombThreshold    int
+	reuseProbeHandler    bool
+}
+
+func (to testOpts) Equal(opts testOpts) bool {
+	return to.testDir == opts.testDir &&
+		to.disableApprovers == opts.disableApprovers &&
+		to.disableDiscarders == opts.disableDiscarders &&
+		to.disableFilters == opts.disableFilters &&
+		to.eventsCountThreshold == opts.eventsCountThreshold &&
+		to.forkBombThreshold == opts.forkBombThreshold &&
+		to.reuseProbeHandler == opts.reuseProbeHandler
 }
 
 type testModule struct {
@@ -139,19 +155,48 @@ type testProbe struct {
 }
 
 type testEventHandler struct {
-	ruleSet *rules.RuleSet
-	events  chan *sprobe.Event
+	events       [2]chan *sprobe.Event
+	customEvents [2]chan *module.RuleEvent
+	activeChan   uint64
+}
+
+func (h *testEventHandler) GetActiveEventsChan() chan *sprobe.Event {
+	return h.events[atomic.LoadUint64(&h.activeChan)]
+}
+
+func (h *testEventHandler) GetActiveCustomEventsChan() chan *module.RuleEvent {
+	return h.customEvents[atomic.LoadUint64(&h.activeChan)]
+}
+
+func (h *testEventHandler) ClearEventsChannels() {
+	oldIndex := atomic.SwapUint64(&h.activeChan, 1-atomic.LoadUint64(&h.activeChan))
+	h.events[oldIndex] = make(chan *sprobe.Event, handlerChanLength)
+	h.customEvents[oldIndex] = make(chan *module.RuleEvent, handlerChanLength)
 }
 
 func (h *testEventHandler) HandleEvent(event *sprobe.Event) {
+	testMod.module.HandleEvent(event)
 	e := event.Clone()
 	select {
-	case h.events <- &e:
+	case h.GetActiveEventsChan() <- &e:
 		break
 	default:
-		log.Debugf("dropped probe event %+v")
+		log.Tracef("dropped probe event %+v", event)
 	}
-	h.ruleSet.Evaluate(event)
+}
+
+func (h *testEventHandler) HandleCustomEvent(rule *rules.Rule, event *sprobe.CustomEvent) {
+	e := event.Clone()
+	re := module.RuleEvent{
+		RuleID: rule.ID,
+		Event:  &e,
+	}
+	select {
+	case h.GetActiveCustomEventsChan() <- &re:
+		break
+	default:
+		log.Tracef("dropped probe custom event %+v")
+	}
 }
 
 func getInode(t *testing.T, path string) uint64 {
@@ -174,11 +219,20 @@ func setTestConfig(dir string, opts testOpts) error {
 		return err
 	}
 
+	if opts.eventsCountThreshold == 0 {
+		opts.eventsCountThreshold = 100000000
+	}
+	if opts.forkBombThreshold == 0 {
+		opts.forkBombThreshold = 2000
+	}
+
 	buffer := new(bytes.Buffer)
 	if err := tmpl.Execute(buffer, map[string]interface{}{
-		"TestPoliciesDir":   dir,
-		"DisableApprovers":  opts.disableApprovers,
-		"DisableDiscarders": opts.disableDiscarders,
+		"TestPoliciesDir":      dir,
+		"DisableApprovers":     opts.disableApprovers,
+		"DisableDiscarders":    opts.disableDiscarders,
+		"EventsCountThreshold": opts.eventsCountThreshold,
+		"ForkBombThreshold":    opts.forkBombThreshold,
 	}); err != nil {
 		return err
 	}
@@ -224,25 +278,6 @@ func setTestPolicy(dir string, macros []*rules.MacroDefinition, rules []*rules.R
 }
 
 func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, opts testOpts) (*testModule, error) {
-	defer func() {
-		if testMod == nil {
-			return
-		}
-
-		if opts.wantProbeEvents {
-			ruleSet := testMod.module.GetRuleSet()
-			handler := &testEventHandler{
-				events:  make(chan *sprobe.Event, 16384),
-				ruleSet: ruleSet,
-			}
-			testMod.probeHandler = handler
-			testMod.probe.SetEventHandler(handler)
-		} else {
-			testMod.probeHandler = nil
-			testMod.probe.SetEventHandler(testMod.module)
-		}
-	}()
-
 	logLevel, found := seelog.LogLevelFromString(logLevelStr)
 	if !found {
 		return nil, fmt.Errorf("invalid log level '%s'", logLevel)
@@ -264,6 +299,11 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 	defer os.Remove(cfgFilename)
 
 	if useReload && testMod != nil {
+		if opts.Equal(testMod.opts) {
+			testMod.reset()
+			testMod.st = st
+			return testMod, testMod.reloadConfiguration()
+		}
 		testMod.cleanup()
 	}
 
@@ -294,6 +334,10 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 		probe:      mod.(*module.Module).GetProbe(),
 		events:     make(chan testEvent, eventChanLength),
 		discarders: make(chan *testDiscarder, discarderChanLength),
+		probeHandler: &testEventHandler{
+			events:       [2]chan *sprobe.Event{make(chan *sprobe.Event, handlerChanLength), make(chan *sprobe.Event, handlerChanLength)},
+			customEvents: [2]chan *module.RuleEvent{make(chan *module.RuleEvent, handlerChanLength), make(chan *module.RuleEvent, handlerChanLength)},
+		},
 	}
 
 	if err := mod.Register(nil); err != nil {
@@ -303,10 +347,13 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 	rs := mod.(*module.Module).GetRuleSet()
 	rs.AddListener(testMod)
 
+	testMod.probe.SetEventHandler(testMod.probeHandler)
+
 	return testMod, nil
 }
 
 func (tm *testModule) reset() {
+	tm.probeHandler.ClearEventsChannels()
 	tm.events = make(chan testEvent, eventChanLength)
 	tm.discarders = make(chan *testDiscarder, discarderChanLength)
 }
@@ -348,7 +395,7 @@ func (tm *testModule) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, f
 	select {
 	case tm.discarders <- discarder:
 	default:
-		log.Warnf("Discarding discarder %+v", discarder)
+		log.Tracef("Discarding discarder %+v", discarder)
 	}
 }
 
@@ -368,6 +415,29 @@ func (tm *testModule) GetEvent() (*sprobe.Event, *eval.Rule, error) {
 	}
 }
 
+func (tm *testModule) GetProbeCustomEvent(timeout time.Duration, eventType ...eval.EventType) (*module.RuleEvent, error) {
+	if tm.probeHandler == nil {
+		return nil, errors.New("could not get the probe events without using the `wantProbeEvents` test option")
+	}
+
+	t := time.After(timeout)
+
+	for {
+		select {
+		case ruleEvent := <-tm.probeHandler.GetActiveCustomEventsChan():
+			if len(eventType) > 0 {
+				if ruleEvent.Event.GetType() == eventType[0] {
+					return ruleEvent, nil
+				}
+			} else {
+				return ruleEvent, nil
+			}
+		case <-t:
+			return nil, errors.New("timeout")
+		}
+	}
+}
+
 func (tm *testModule) GetProbeEvent(timeout time.Duration, eventType ...eval.EventType) (*sprobe.Event, error) {
 	if tm.probeHandler == nil {
 		return nil, errors.New("could not get probe events without using the 'wantProbeEvents' test option")
@@ -377,7 +447,7 @@ func (tm *testModule) GetProbeEvent(timeout time.Duration, eventType ...eval.Eve
 
 	for {
 		select {
-		case event := <-tm.probeHandler.events:
+		case event := <-tm.probeHandler.GetActiveEventsChan():
 			if len(eventType) > 0 {
 				if event.GetType() == eventType[0] {
 					return event, nil
@@ -469,7 +539,6 @@ func (tm *testModule) Close() {
 type simpleTest struct {
 	root     string
 	toRemove bool
-	logLevel seelog.LogLevel
 }
 
 func (t *simpleTest) Close() {
@@ -536,14 +605,13 @@ func (t *simpleTest) swapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, er
 
 		logger, err = seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stdout, seelog.TraceLvl, logFormat)
 		if err != nil {
-			return t.logLevel, err
+			return 0, err
 		}
 	}
 	log.SetupLogger(logger, logLevel.String())
 
-	prevLevel := t.logLevel
-	t.logLevel = logLevel
-
+	prevLevel, _ := seelog.LogLevelFromString(logLevelStr)
+	logLevelStr = logLevel.String()
 	return prevLevel, nil
 }
 
@@ -592,6 +660,9 @@ func testContainerPath(t *testing.T, event *sprobe.Event, fieldPath string) {
 	}
 }
 
+// waitForOpenProbeEvent returns the first open event with the provided filename.
+// WARNING: this function may yield a "fatal error: concurrent map writes" error if the ruleset of testModule does not
+// contain a rule on "open.filename"
 func waitForOpenProbeEvent(test *testModule, filename string) (*probe.Event, error) {
 	timeout := time.After(3 * time.Second)
 	exhaust := time.After(time.Second)
@@ -599,7 +670,7 @@ func waitForOpenProbeEvent(test *testModule, filename string) (*probe.Event, err
 	var event *probe.Event
 	for {
 		select {
-		case e := <-test.probeHandler.events:
+		case e := <-test.probeHandler.GetActiveEventsChan():
 			if value, _ := e.GetFieldValue("open.filename"); value == filename {
 				event = e
 			}
