@@ -46,6 +46,7 @@ add_library(datadog-agent-three SHARED
     ../common/builtins/tagger.c
     ../common/builtins/kubeutil.c
     ../common/builtins/containers.c
+    ../common/builtins/topology.c
 )
 
 if(WIN32)

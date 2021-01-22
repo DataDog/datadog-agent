@@ -605,6 +605,47 @@ DATADOG_AGENT_RTLOADER_API void set_read_persistent_cache_cb(rtloader_t *, cb_re
 */
 DATADOG_AGENT_RTLOADER_API void set_obfuscate_sql_cb(rtloader_t *, cb_obfuscate_sql_t);
 
+/*! \fn void set_submit_component_cb(rtloader_t *, cb_submit_component_t)
+    \brief Sets a callback to be used by rtloader to submit a component to StackState via the Batcher.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param object A function pointer with cb_submit_component_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_submit_component_cb(rtloader_t *, cb_submit_component_t);
+
+/*! \fn void set_submit_relation_cb(rtloader_t *, cb_obfuscate_sql_t)
+    \brief Sets a callback to be used by rtloader to submit a component to StackState via the Batcher..
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param object A function pointer with cb_obfuscate_sql_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_submit_relation_cb(rtloader_t *, cb_submit_relation_t);
+
+/*! \fn void set_submit_start_snapshot_cb(rtloader_t *, cb_submit_start_snapshot_t)
+    \brief Sets a callback to be used by rtloader to signal the start of a topology snapshot.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param object A function pointer with cb_submit_start_snapshot_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_submit_start_snapshot_cb(rtloader_t *, cb_submit_start_snapshot_t);
+
+/*! \fn void set_submit_stop_snapshot_cb(rtloader_t *, cb_submit_stop_snapshot_t)
+    \brief Sets a callback to be used by rtloader to signal the stop of a topology snapshot.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param object A function pointer with cb_submit_stop_snapshot_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_submit_stop_snapshot_cb(rtloader_t *, cb_submit_stop_snapshot_t);
+
+
 #ifdef __cplusplus
 }
 #endif

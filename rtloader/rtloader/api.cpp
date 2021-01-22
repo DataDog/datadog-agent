@@ -505,3 +505,23 @@ void set_is_excluded_cb(rtloader_t *rtloader, cb_is_excluded_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setIsExcludedCb(cb);
 }
+
+/*
+ * topology API
+ */
+void set_submit_component_cb(rtloader_t *rtloader, cb_submit_component_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setSubmitComponentCb(cb);
+}
+void set_submit_relation_cb(rtloader_t *rtloader, cb_submit_relation_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setSubmitRelationCb(cb);
+}
+void set_submit_start_snapshot_cb(rtloader_t *rtloader, cb_submit_start_snapshot_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setSubmitStartSnapshotCb(cb);
+}
+void set_submit_stop_snapshot_cb(rtloader_t *rtloader, cb_submit_stop_snapshot_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setSubmitStopSnapshotCb(cb);
+}

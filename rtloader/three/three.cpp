@@ -17,6 +17,7 @@
 #include "stringutils.h"
 #include "tagger.h"
 #include "util.h"
+#include "topology.h"
 
 #include <algorithm>
 #include <sstream>
@@ -900,6 +901,30 @@ void Three::setObfuscateSqlCb(cb_obfuscate_sql_t cb)
 {
     _set_obfuscate_sql_cb(cb);
 }
+
+
+// topology
+void Three::setSubmitComponentCb(cb_submit_component_t cb)
+{
+    _set_submit_component_cb(cb);
+}
+
+void Three::setSubmitRelationCb(cb_submit_relation_t cb)
+{
+    _set_submit_relation_cb(cb);
+}
+
+void Three::setSubmitStartSnapshotCb(cb_submit_start_snapshot_t cb)
+{
+    _set_submit_start_snapshot_cb(cb);
+}
+
+void Three::setSubmitStopSnapshotCb(cb_submit_stop_snapshot_t cb)
+{
+    _set_submit_stop_snapshot_cb(cb);
+}
+//
+
 
 // Python Helpers
 

@@ -121,6 +121,12 @@ public:
     // containers
     void setIsExcludedCb(cb_is_excluded_t);
 
+    // topology
+    void setSubmitComponentCb(cb_submit_component_t);
+    void setSubmitRelationCb(cb_submit_relation_t);
+    void setSubmitStartSnapshotCb(cb_submit_start_snapshot_t);
+    void setSubmitStopSnapshotCb(cb_submit_stop_snapshot_t);
+
 private:
     //! initPythonHome member.
     /*!

@@ -161,6 +161,23 @@ void GetKubeletConnectionInfo(char *);
 void initkubeutilModule(rtloader_t *rtloader) {
 	set_get_connection_info_cb(rtloader, GetKubeletConnectionInfo);
 }
+
+//
+// topology module
+//
+
+void SubmitComponent(char *, component_t *);
+void SubmitRelation(char *, relation_t *);
+void SubmitStartSnapshot(char *, instance_key_t *);
+void SubmitStopSnapshot(char *, instance_key_t *);
+
+void initTopologyModule(rtloader_t *rtloader) {
+	set_submit_component_cb(rtloader, SubmitComponent);
+	set_submit_relation_cb(rtloader, SubmitRelation);
+	set_submit_start_snapshot_cb(rtloader, SubmitStartSnapshot);
+	set_submit_stop_snapshot_cb(rtloader, SubmitStopSnapshot);
+}
+
 */
 import "C"
 
@@ -341,6 +358,7 @@ func Initialize(paths ...string) error {
 	initContainerFilter() // special init for the container go code
 	C.initContainersModule(rtloader)
 	C.initkubeutilModule(rtloader)
+	C.initTopologyModule(rtloader)
 
 	// Init RtLoader machinery
 	if C.init(rtloader) == 0 {

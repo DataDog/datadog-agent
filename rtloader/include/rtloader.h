@@ -454,6 +454,38 @@ public:
     */
     virtual void setObfuscateSqlCb(cb_obfuscate_sql_t) = 0;
 
+    //! setSubmitComponentCb member.
+    /*!
+      \param A cb_submit_component_t function pointer to the CGO callback.
+
+      Actual topology components are submitted from go-land, this allows us to set the CGO callback.
+    */
+    virtual void setSubmitComponentCb(cb_submit_component_t) = 0;
+
+    //! setSubmitRelationCb member.
+    /*!
+      \param A cb_submit_relation_t function pointer to the CGO callback.
+
+      Actual topology relations are submitted from go-land, this allows us to set the CGO callback.
+    */
+    virtual void setSubmitRelationCb(cb_submit_relation_t) = 0;
+
+    //! setSubmitStartSnapshotCb member.
+    /*!
+      \param A cb_submit_start_snapshot_t function pointer to the CGO callback.
+
+      Actual start topology snapshot is submitted from go-land, this allows us to set the CGO callback.
+    */
+    virtual void setSubmitStartSnapshotCb(cb_submit_start_snapshot_t) = 0;
+
+    //! setSubmitStopSnapshotCb member.
+    /*!
+      \param A cb_submit_stop_snapshot_t function pointer to the CGO callback.
+
+      Actual stop topology snapshot is submitted from go-land, this allows us to set the CGO callback.
+    */
+    virtual void setSubmitStopSnapshotCb(cb_submit_stop_snapshot_t) = 0;
+
 private:
     mutable std::string _error; /*!< string containing a RtLoader error */
     mutable bool _errorFlag; /*!< boolean indicating whether an error was set on RtLoader */
