@@ -689,6 +689,7 @@ func setupLogger(loggerName config.LoggerName, logFile string, cfg *AgentConfig)
 }
 
 func getDDAgentClient() (pb.AgentClient, error) {
+	// This is needed as the server hangs when using "grpc.WithInsecure()"
 	tlsConf := tls.Config{InsecureSkipVerify: true}
 
 	opts := []grpc.DialOption{
@@ -718,6 +719,5 @@ func getIPCHost() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	host := fmt.Sprintf("%v:%v", ipcAddress, config.Datadog.GetInt("cmd_port"))
-	return host, nil
+	return fmt.Sprintf("%v:%v", ipcAddress, config.Datadog.GetInt("cmd_port")), nil
 }

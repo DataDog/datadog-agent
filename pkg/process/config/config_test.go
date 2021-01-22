@@ -12,8 +12,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/api/pb"
+	"github.com/DataDog/datadog-agent/cmd/agent/api/pb/mocks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/gopsutil/process"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -608,4 +611,20 @@ func TestEnablingDNSDomainCollection(t *testing.T) {
 		assert.Nil(t, err)
 		assert.True(t, cfg.CollectDNSDomains)
 	})
+}
+
+func TestGetHostnameFromAgent(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient := mocks.NewMockAgentClient(ctrl)
+
+	mockClient.EXPECT().GetHostname(
+		gomock.Any(),
+		&pb.HostnameRequest{},
+	).Return(&pb.HostnameReply{Hostname: "unit-test-hostname"}, nil)
+
+	hostname, err := getHostnameFromAgent(mockClient)
+	require.NoError(t, err)
+	assert.Equal(t, "unit-test-hostname", hostname)
 }
