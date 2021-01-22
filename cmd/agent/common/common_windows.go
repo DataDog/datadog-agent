@@ -154,10 +154,9 @@ func CheckAndUpgradeConfig() error {
 // will be ignored.
 //
 // Lack of an API key is interpreted as a new install.  Take any/all of the options supplied
-// on the command line and apply them to the config, and then write the configuration file
-// back out so the command line options persist, and there is a single source of truth
-// for the configuration (the yaml file).   Finally, delete the registry entries so there's
-// no confusion.
+// on the command line and apply them to the config, and overwrite the configuration file
+// to persist the command line options. The yaml configuration file is the single source of truth,
+// and thus the registry entries created by the installer are deleted to avoid confusion.
 //
 // Applying command line config options is handled this way as it seems preferable to use the
 // existing configuration library to read/write the config, rather than have the installer
