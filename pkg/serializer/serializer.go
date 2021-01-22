@@ -337,6 +337,11 @@ func (s *Serializer) SendHostMetadata(m marshaler.Marshaler) error {
 	return s.sendMetadata(m, s.Forwarder.SubmitHostMetadata)
 }
 
+// SendAgentchecksMetadata serializes a metadata payload and sends it to the forwarder
+func (s *Serializer) SendAgentchecksMetadata(m marshaler.Marshaler) error {
+	return s.sendMetadata(m, s.Forwarder.SubmitAgentChecksMetadata)
+}
+
 func (s *Serializer) sendMetadata(m marshaler.Marshaler, submit func(payload forwarder.Payloads, extra http.Header) error) error {
 	mustSplit, compressedPayload, payload, err := split.CheckSizeAndSerialize(m, true, split.MarshalJSON)
 	if err != nil {

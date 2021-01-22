@@ -53,9 +53,9 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 		t.Fatal(err)
 	}
 
-	eventsStats := test.probe.GetEventsStats()
-	eventsStats.GetAndResetLostCount("events", -1)
-	eventsStats.GetAndResetKernelLostCount("events", -1)
+	perfBufferMonitor := test.probe.GetMonitor().GetPerfBufferMonitor()
+	perfBufferMonitor.GetAndResetLostCount("events", -1)
+	perfBufferMonitor.GetAndResetKernelLostCount("events", -1)
 
 	events := 0
 	go func() {
@@ -109,8 +109,8 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 		t.Fatal(err)
 	}
 
-	report.AddMetric("lost", float64(eventsStats.GetLostCount("events", -1)), "lost")
-	report.AddMetric("kernel_lost", float64(eventsStats.GetAndResetKernelLostCount("events", -1)), "lost")
+	report.AddMetric("lost", float64(perfBufferMonitor.GetLostCount("events", -1)), "lost")
+	report.AddMetric("kernel_lost", float64(perfBufferMonitor.GetAndResetKernelLostCount("events", -1)), "lost")
 	report.AddMetric("events", float64(events), "events")
 	report.AddMetric("events/sec", float64(events)/report.Duration.Seconds(), "event/s")
 
@@ -210,9 +210,9 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 		t.Fatal(err)
 	}
 
-	eventsStats := test.probe.GetEventsStats()
-	eventsStats.GetAndResetLostCount("events", -1)
-	eventsStats.GetAndResetKernelLostCount("events", -1)
+	perfBufferMonitor := test.probe.GetMonitor().GetPerfBufferMonitor()
+	perfBufferMonitor.GetAndResetLostCount("events", -1)
+	perfBufferMonitor.GetAndResetKernelLostCount("events", -1)
 
 	events := 0
 	go func() {
@@ -257,8 +257,8 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 
 	time.Sleep(2 * time.Second)
 
-	report.AddMetric("lost", float64(eventsStats.GetLostCount("events", -1)), "lost")
-	report.AddMetric("kernel_lost", float64(eventsStats.GetAndResetKernelLostCount("events", -1)), "lost")
+	report.AddMetric("lost", float64(perfBufferMonitor.GetLostCount("events", -1)), "lost")
+	report.AddMetric("kernel_lost", float64(perfBufferMonitor.GetAndResetKernelLostCount("events", -1)), "lost")
 	report.AddMetric("events", float64(events), "events")
 	report.AddMetric("events/sec", float64(events)/report.Duration.Seconds(), "event/s")
 

@@ -26,7 +26,11 @@ import (
 )
 
 func TestHTTPMonitorIntegration(t *testing.T) {
-	t.Skip("skipping flaky test for now.")
+	currKernelVersion, err := kernel.HostVersion()
+	require.NoError(t, err)
+	if currKernelVersion < kernel.VersionCode(4, 1, 0) {
+		t.Skip("HTTP feature not available on pre 4.1.0 kernels")
+	}
 
 	srvDoneFn := serverSetup(t)
 	defer srvDoneFn()
@@ -47,6 +51,7 @@ func TestHTTPMonitorIntegration(t *testing.T) {
 	}
 
 	// Ensure all captured transactions get sent to user-space
+	time.Sleep(10 * time.Millisecond)
 	monitor.Sync()
 
 	// Assert all requests made were correctly captured by the monitor

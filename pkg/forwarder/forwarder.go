@@ -146,6 +146,7 @@ type Forwarder interface {
 	SubmitServiceChecks(payload Payloads, extra http.Header) error
 	SubmitSketchSeries(payload Payloads, extra http.Header) error
 	SubmitHostMetadata(payload Payloads, extra http.Header) error
+	SubmitAgentChecksMetadata(payload Payloads, extra http.Header) error
 	SubmitMetadata(payload Payloads, extra http.Header) error
 	SubmitProcessChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitRTProcessChecks(payload Payloads, extra http.Header) (chan Response, error)
@@ -350,7 +351,9 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 				flushToDiskMemRatio,
 				domainFolderPath,
 				storageMaxSize,
-				transactionContainerSort)
+				transactionContainerSort,
+				domain,
+				keys)
 
 			f.keysPerDomains[domain] = keys
 			f.domainForwarders[domain] = newDomainForwarder(
@@ -460,10 +463,10 @@ func (f *DefaultForwarder) State() uint32 {
 	return f.internalState
 }
 func (f *DefaultForwarder) createHTTPTransactions(endpoint endpoint, payloads Payloads, apiKeyInQueryString bool, extra http.Header) []*HTTPTransaction {
-	return f.createAdvancedHTTPTransactions(endpoint, payloads, apiKeyInQueryString, extra, TransactionPriorityNormal)
+	return f.createAdvancedHTTPTransactions(endpoint, payloads, apiKeyInQueryString, extra, TransactionPriorityNormal, true)
 }
 
-func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint endpoint, payloads Payloads, apiKeyInQueryString bool, extra http.Header, priority TransactionPriority) []*HTTPTransaction {
+func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint endpoint, payloads Payloads, apiKeyInQueryString bool, extra http.Header, priority TransactionPriority, storableOnDisk bool) []*HTTPTransaction {
 	transactions := make([]*HTTPTransaction, 0, len(payloads)*len(f.keysPerDomains))
 	allowArbitraryTags := config.Datadog.GetBool("allow_arbitrary_tags")
 
@@ -478,6 +481,7 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint endpoint, pay
 				}
 				t.Payload = payload
 				t.priority = priority
+				t.storableOnDisk = storableOnDisk
 				t.Headers.Set(apiHTTPHeaderKey, apiKey)
 				t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
 				t.Headers.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
@@ -545,7 +549,19 @@ func (f *DefaultForwarder) SubmitSketchSeries(payload Payloads, extra http.Heade
 func (f *DefaultForwarder) SubmitHostMetadata(payload Payloads, extra http.Header) error {
 	return f.submitV1IntakeWithTransactionsFactory(payload, extra,
 		func(endpoint endpoint, payloads Payloads, apiKeyInQueryString bool, extra http.Header) []*HTTPTransaction {
-			return f.createAdvancedHTTPTransactions(endpoint, payloads, apiKeyInQueryString, extra, TransactionPriorityHigh)
+			// Host metadata contains the API KEY and should not be stored on disk.
+			storableOnDisk := false
+			return f.createAdvancedHTTPTransactions(endpoint, payloads, apiKeyInQueryString, extra, TransactionPriorityHigh, storableOnDisk)
+		})
+}
+
+// SubmitAgentChecksMetadata will send a agentchecks_metadata tag type payload to Datadog backend.
+func (f *DefaultForwarder) SubmitAgentChecksMetadata(payload Payloads, extra http.Header) error {
+	return f.submitV1IntakeWithTransactionsFactory(payload, extra,
+		func(endpoint endpoint, payloads Payloads, apiKeyInQueryString bool, extra http.Header) []*HTTPTransaction {
+			// Agentchecks metadata contains the API KEY and should not be stored on disk.
+			storableOnDisk := false
+			return f.createAdvancedHTTPTransactions(endpoint, payloads, apiKeyInQueryString, extra, TransactionPriorityNormal, storableOnDisk)
 		})
 }
 

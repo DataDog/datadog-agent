@@ -140,3 +140,43 @@ spec:
           until curl -f http://fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local/_/reset -XPOST --max-time 1; do
             sleep 3
           done
+
+    - name: list-metrics
+      inputs:
+        parameters:
+          - name: namespace
+      activeDeadlineSeconds: 200
+      script:
+        image: mongo:4.4.1
+        command: [mongo, "fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local/datadog"]
+        source: |
+          db.series.distinct("metric")
+
+    - name: list-metrics-tags
+      inputs:
+        parameters:
+          - name: namespace
+      activeDeadlineSeconds: 200
+      script:
+        image: mongo:4.4.1
+        command: [mongo, "fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local/datadog"]
+        source: |
+          db.series.aggregate([{$group: {_id: {metric: "$metric", tags: "$tags"}}}, {$sort: {"_id": 1}}])
+
+    - name: diagnose
+      inputs:
+        parameters:
+          - name: namespace
+      steps:
+        - - name: list-metrics
+            template: list-metrics
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+          - name: list-metrics-tags
+            template: list-metrics-tags
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"

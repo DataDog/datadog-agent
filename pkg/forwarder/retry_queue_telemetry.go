@@ -20,14 +20,16 @@ var (
 	transactionsDroppedCountExpvar = expvar.Int{}
 	errorsCountExpvar              = expvar.Int{}
 
-	fileStorageExpvar             = expvar.Map{}
-	serializeCountExpvar          = expvar.Int{}
-	deserializeCountExpvar        = expvar.Int{}
-	fileSizeExpvar                = expvar.Int{}
-	currentSizeInBytesExpvar      = expvar.Int{}
-	filesCountExpvar              = expvar.Int{}
-	reloadedRetryFilesCountExpvar = expvar.Int{}
-	filesRemovedCountExpvar       = expvar.Int{}
+	fileStorageExpvar                  = expvar.Map{}
+	serializeCountExpvar               = expvar.Int{}
+	deserializeCountExpvar             = expvar.Int{}
+	fileSizeExpvar                     = expvar.Int{}
+	currentSizeInBytesExpvar           = expvar.Int{}
+	filesCountExpvar                   = expvar.Int{}
+	reloadedRetryFilesCountExpvar      = expvar.Int{}
+	filesRemovedCountExpvar            = expvar.Int{}
+	deserializeErrorsCountExpvar       = expvar.Int{}
+	deserializeTransactionsCountExpvar = expvar.Int{}
 )
 
 func init() {
@@ -51,6 +53,8 @@ func init() {
 	fileStorageExpvar.Set("FilesCount", &filesCountExpvar)
 	fileStorageExpvar.Set("ReloadedRetryFilesCount", &reloadedRetryFilesCountExpvar)
 	fileStorageExpvar.Set("FilesRemovedCount", &filesRemovedCountExpvar)
+	fileStorageExpvar.Set("DeserializeErrorsCount", &deserializeErrorsCountExpvar)
+	fileStorageExpvar.Set("DeserializeTransactionsCount", &deserializeTransactionsCountExpvar)
 }
 
 type failedTransactionRemovalPolicyTelemetry struct{}
@@ -115,4 +119,12 @@ func (transactionsFileStorageTelemetry) addReloadedRetryFilesCount(count int) {
 
 func (transactionsFileStorageTelemetry) addFilesRemovedCount() {
 	filesRemovedCountExpvar.Add(1)
+}
+
+func (transactionsFileStorageTelemetry) addDeserializeErrorsCount(count int) {
+	deserializeErrorsCountExpvar.Add(int64(count))
+}
+
+func (transactionsFileStorageTelemetry) addDeserializeTransactionsCount(count int) {
+	deserializeTransactionsCountExpvar.Add(int64(count))
 }
