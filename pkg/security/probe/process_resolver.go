@@ -390,12 +390,12 @@ func (p *ProcessResolver) Start(ctx context.Context) error {
 		return err
 	}
 
-	go p.cacheFlusher(ctx)
+	go p.cacheFlush(ctx)
 
 	return nil
 }
 
-func (p *ProcessResolver) cacheFlusher(ctx context.Context) {
+func (p *ProcessResolver) cacheFlush(ctx context.Context) {
 	ticker := time.NewTicker(10 * time.Minute)
 	defer ticker.Stop()
 
@@ -410,6 +410,11 @@ func (p *ProcessResolver) cacheFlusher(ctx context.Context) {
 			}
 			p.RUnlock()
 
+			delEntry := func(pid uint32, exitTime time.Time) {
+				p.deleteEntry(pid, now)
+				_ = p.client.Count(MetricProcessResolverFlushed, 1, []string{}, 1.0)
+			}
+
 			// flush slowly
 			for _, pid := range pids {
 				if _, err := process.NewProcess(int32(pid)); err != nil {
@@ -417,9 +422,9 @@ func (p *ProcessResolver) cacheFlusher(ctx context.Context) {
 					p.Lock()
 					if entry := p.entryCache[pid]; entry != nil {
 						if tm := entry.ExecTimestamp; !tm.IsZero() && tm.Add(time.Minute).Before(now) {
-							p.deleteEntry(pid, now)
+							delEntry(pid, now)
 						} else if tm := entry.ForkTimestamp; !tm.IsZero() && tm.Add(time.Minute).Before(now) {
-							p.deleteEntry(pid, now)
+							delEntry(pid, now)
 						}
 					}
 					p.Unlock()
@@ -447,13 +452,12 @@ func (p *ProcessResolver) syncCache(proc *process.Process) (*ProcessCacheEntry, 
 	pid := uint32(proc.Pid)
 
 	// Check if an entry is already in cache for the given pid.
-	entry, inCache := p.entryCache[pid]
-	if inCache && !entry.ExecTimestamp.IsZero() {
+	entry := p.entryCache[pid]
+	if entry != nil {
 		return nil, false
 	}
-	if !inCache {
-		entry = NewProcessCacheEntry()
-	}
+
+	entry = NewProcessCacheEntry()
 
 	// update the cache entry
 	if err := p.enrichEventFromProc(entry, proc); err != nil {
