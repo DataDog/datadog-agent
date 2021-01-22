@@ -185,6 +185,16 @@ DATADOG_AGENT_RTLOADER_API int get_check_deprecated(rtloader_t *rtloader, rtload
 */
 DATADOG_AGENT_RTLOADER_API char *run_check(rtloader_t *, rtloader_pyobject_t *check);
 
+/*! \fn char *cancel_check(rtloader_t *, rtloader_pyobject_t *check)
+    \brief Cancels a check instance. This allow check to be notified when
+    they're unscheduled and can free any remaining resources.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param check A rtloader_pyobject_t * pointer to the check instance we wish to cancel.
+    \return A C-string with the check summary.
+    \sa rtloader_pyobject_t, rtloader_t
+*/
+DATADOG_AGENT_RTLOADER_API void cancel_check(rtloader_t *, rtloader_pyobject_t *check);
+
 /*! \fn char **get_checks_warnings(rtloader_t *, rtloader_pyobject_t *check)
     \brief Get all warnings, if any, for a check instance.
     \param rtloader_t A rtloader_t * pointer to the RtLoader instance.

@@ -67,6 +67,7 @@ public:
                   RtLoaderPyObject *&check);
 
     char *runCheck(RtLoaderPyObject *check);
+    void cancelCheck(RtLoaderPyObject *check);
     char **getCheckWarnings(RtLoaderPyObject *check);
     void decref(RtLoaderPyObject *obj);
     void incref(RtLoaderPyObject *obj);
