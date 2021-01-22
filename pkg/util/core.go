@@ -8,6 +8,8 @@
 package util
 
 import (
+	"runtime/debug"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"golang.org/x/sys/unix"
 )
@@ -15,6 +17,11 @@ import (
 // SetCoreLimit sets the core dump size limit based on configuration
 func SetCoreLimit() error {
 	coreSize := uint64(config.Datadog.GetInt("go_core_size"))
+
+	if coreSize > 0 {
+		// enable core dump
+		debug.SetTraceback("crash")
+	}
 
 	err := unix.Setrlimit(unix.RLIMIT_CORE, &unix.Rlimit{
 		Cur: coreSize,
