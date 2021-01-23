@@ -81,8 +81,8 @@ static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u6
     // Retrieve addresses
     if (family == AF_INET) {
         t->metadata |= CONN_V4;
-        bpf_probe_read(&t->saddr_l, sizeof(t->saddr_l), &skp->__sk_common.skc_rcv_saddr);
-        bpf_probe_read(&t->daddr_l, sizeof(t->daddr_l), &skp->__sk_common.skc_daddr);
+        bpf_probe_read(&t->saddr_l, sizeof(__be32), &skp->__sk_common.skc_rcv_saddr);
+        bpf_probe_read(&t->daddr_l, sizeof(__be32), &skp->__sk_common.skc_daddr);
 
         if (!t->saddr_l || !t->daddr_l) {
             log_debug("ERR(read_conn_tuple.v4): src/dst addr not set src:%d,dst:%d\n", t->saddr_l, t->daddr_l);
@@ -454,8 +454,8 @@ int kprobe__ip_make_skb(struct pt_regs* ctx) {
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
         struct flowi4* fl4 = (struct flowi4*)PT_REGS_PARM2(ctx);
-        bpf_probe_read(&t.saddr_l, sizeof(t.saddr_l), &fl4->saddr);
-        bpf_probe_read(&t.daddr_l, sizeof(t.daddr_l), &fl4->daddr);
+        bpf_probe_read(&t.saddr_l, sizeof(__be32), &fl4->saddr);
+        bpf_probe_read(&t.daddr_l, sizeof(__be32), &fl4->daddr);
         if (!t.saddr_l || !t.daddr_l) {
             log_debug("ERR(fl4): src/dst addr not set src:%d,dst:%d\n", t.saddr_l, t.daddr_l);
             increment_telemetry_count(udp_send_missed);
