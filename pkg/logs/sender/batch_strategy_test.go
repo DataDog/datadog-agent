@@ -7,6 +7,7 @@ package sender
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -28,20 +29,22 @@ func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Message)
 
+	var mu sync.Mutex
+
 	var content []byte
 	success := func(payload []byte) error {
 		assert.Equal(t, content, payload)
 		return nil
 	}
 
-	go newBatchStrategyWithLimits(LineSerializer, 2, 2, 100*time.Millisecond).Send(input, output, success)
+	go newBatchStrategyWithLimits(LineSerializer, 2, 2, 100*time.Millisecond).Send(input, output, success, &mu)
 
 	content = []byte("a\nb")
 
-	message1 := message.NewMessage([]byte("a"), nil, "")
+	message1 := message.NewMessage([]byte("a"), nil, "", 0)
 	input <- message1
 
-	message2 := message.NewMessage([]byte("b"), nil, "")
+	message2 := message.NewMessage([]byte("b"), nil, "", 0)
 	input <- message2
 
 	// expect payload to be sent because buffer is full
@@ -90,17 +93,19 @@ func TestBatchStrategySendsPayloadWhenClosingInput(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Message)
 
+	var mu sync.Mutex
+
 	var content []byte
 	success := func(payload []byte) error {
 		assert.Equal(t, content, payload)
 		return nil
 	}
 
-	go newBatchStrategyWithLimits(LineSerializer, 2, 2, 100*time.Millisecond).Send(input, output, success)
+	go newBatchStrategyWithLimits(LineSerializer, 2, 2, 100*time.Millisecond).Send(input, output, success, &mu)
 
 	content = []byte("a")
 
-	message := message.NewMessage(content, nil, "")
+	message := message.NewMessage(content, nil, "", 0)
 	input <- message
 
 	start := time.Now()
@@ -117,35 +122,39 @@ func TestBatchStrategyShouldNotBlockWhenForceStopping(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Message)
 
+	var mu sync.Mutex
+
 	var content []byte
 	success := func(payload []byte) error {
 		return context.Canceled
 	}
 
-	message := message.NewMessage(content, nil, "")
+	message := message.NewMessage(content, nil, "", 0)
 	go func() {
 		input <- message
 		close(input)
 	}()
 
-	newBatchStrategyWithLimits(LineSerializer, 2, 2, 100*time.Millisecond).Send(input, output, success)
+	newBatchStrategyWithLimits(LineSerializer, 2, 2, 100*time.Millisecond).Send(input, output, success, &mu)
 }
 
 func TestBatchStrategyShouldNotBlockWhenStoppingGracefully(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Message)
 
+	var mu sync.Mutex
+
 	var content []byte
 	success := func(payload []byte) error {
 		return nil
 	}
 
-	message := message.NewMessage(content, nil, "")
+	message := message.NewMessage(content, nil, "", 0)
 	go func() {
 		input <- message
 		close(input)
 		assert.Equal(t, message, <-output)
 	}()
 
-	newBatchStrategyWithLimits(LineSerializer, 2, 2, 100*time.Millisecond).Send(input, output, success)
+	newBatchStrategyWithLimits(LineSerializer, 2, 2, 100*time.Millisecond).Send(input, output, success, &mu)
 }

@@ -10,6 +10,7 @@ package autoscalers
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -55,9 +56,11 @@ type Point struct {
 }
 
 const (
-	value         = 1
-	timestamp     = 0
-	queryEndpoint = "/api/v1/query"
+	value                 = 1
+	timestamp             = 0
+	queryEndpoint         = "/api/v1/query"
+	metricsEndpointPrefix = "https://api."
+	metricsEndpointConfig = "external_metrics_provider.endpoint"
 )
 
 // queryDatadogExternal converts the metric name and labels from the Ref format into a Datadog metric.
@@ -185,16 +188,28 @@ func NewDatadogClient() (*datadog.Client, error) {
 	apiKey := config.Datadog.GetString("api_key")
 	appKey := config.Datadog.GetString("app_key")
 
+	// DATADOG_HOST used to be the only way to set the external metrics
+	// endpoint, so we need to keep backwards compatibility. In order of
+	// priority, we use:
+	//   - DD_EXTERNAL_METRICS_PROVIDER_ENDPOINT
+	//   - DATADOG_HOST
+	//   - DD_SITE
+	endpoint := os.Getenv("DATADOG_HOST")
+	if config.Datadog.GetString(metricsEndpointConfig) != "" || endpoint == "" {
+		endpoint = config.GetMainEndpoint(metricsEndpointPrefix, metricsEndpointConfig)
+	}
+
 	if appKey == "" || apiKey == "" {
 		return nil, errors.New("missing the api/app key pair to query Datadog")
 	}
 
-	log.Infof("Initialized the Datadog Client for HPA")
+	log.Infof("Initialized the Datadog Client for HPA with endpoint %q", endpoint)
 
 	client := datadog.NewClient(apiKey, appKey)
 	client.HttpClient.Transport = httputils.CreateHTTPTransport()
 	client.RetryTimeout = 3 * time.Second
 	client.ExtraHeader["User-Agent"] = "Datadog-Cluster-Agent"
+	client.SetBaseUrl(endpoint)
 
 	return client, nil
 }

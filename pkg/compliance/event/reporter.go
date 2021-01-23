@@ -7,6 +7,7 @@ package event
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -16,7 +17,7 @@ import (
 // Reporter defines an interface for reporting rule events
 type Reporter interface {
 	Report(event *Event)
-	ReportRaw(content []byte)
+	ReportRaw(content []byte, tags ...string)
 }
 
 type reporter struct {
@@ -41,7 +42,9 @@ func (r *reporter) Report(event *Event) {
 	r.ReportRaw(buf)
 }
 
-func (r *reporter) ReportRaw(content []byte) {
-	msg := message.NewMessageWithSource(content, message.StatusInfo, r.logSource)
+func (r *reporter) ReportRaw(content []byte, tags ...string) {
+	origin := message.NewOrigin(r.logSource)
+	origin.SetTags(tags)
+	msg := message.NewMessage(content, origin, message.StatusInfo, time.Now().UnixNano())
 	r.logChan <- msg
 }

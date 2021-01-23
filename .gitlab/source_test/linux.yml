@@ -1,0 +1,84 @@
+---
+.if_master_branch: &if_master_branch
+  if: $CI_COMMIT_BRANCH == "master"
+
+.retrieve_linux_go_deps: &retrieve_linux_go_deps |
+  mkdir vendor && tar xzf vendor.tar.gz -C vendor
+  rm -f vendor.tar.gz
+
+.linux_tests_preparation:
+  needs: ["linux_x64_go_deps"]
+  before_script:
+    - *retrieve_linux_go_deps
+    - source /root/.bashrc && conda activate $CONDA_ENV
+    - python3 -m pip install wheel
+    - python3 -m pip install -r requirements.txt
+    - inv -e rtloader.make --install-prefix=$SRC_PATH/dev --python-runtimes "$PYTHON_RUNTIMES"
+    - inv -e rtloader.install
+    - inv -e rtloader.format --raise-if-changed
+    - inv -e rtloader.test
+
+tests_deb-x64-py2:
+  extends: .linux_tests_preparation
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main", "size:2xlarge"]
+  variables:
+    PYTHON_RUNTIMES: '2'
+    CONDA_ENV: ddpy2
+  script:
+    - inv -e test --race --profile --python-runtimes "$PYTHON_RUNTIMES" --cpus 4
+
+tests_deb-x64-py3:
+  extends: .linux_tests_preparation
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main", "size:2xlarge"]
+  variables:
+    PYTHON_RUNTIMES: '3'
+    CONDA_ENV: ddpy3
+  script:
+    - inv -e test --race --profile --python-runtimes "$PYTHON_RUNTIMES" --cpus 4
+
+tests_rpm-x64-py2:
+  extends: .linux_tests_preparation
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main", "size:2xlarge"]
+  variables:
+    PYTHON_RUNTIMES: '2'
+    CONDA_ENV: ddpy2
+  script:
+    # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
+    # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
+    # This is OK because the test on systemd still runs on the debian image above
+    - inv -e test --race --profile --python-runtimes "$PYTHON_RUNTIMES" --cpus 4 --build-exclude=systemd
+
+tests_rpm-x64-py3:
+  extends: .linux_tests_preparation
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main", "size:2xlarge"]
+  variables:
+    PYTHON_RUNTIMES: '3'
+    CONDA_ENV: ddpy3
+  script:
+    # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
+    # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
+    # This is OK because the test on systemd still runs on the debian image above
+    - inv -e test --race --profile --python-runtimes "$PYTHON_RUNTIMES" --cpus 4 --build-exclude=systemd
+
+# Check consistency of go.mod file with project imports
+go_mod_tidy_check:
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main", "size:large"]
+  needs: ["linux_x64_go_deps"]
+  before_script:
+    - *retrieve_linux_go_deps
+    - python3 -m pip install --upgrade --ignore-installed pip setuptools
+    - python3 -m pip install -r requirements.txt
+  script:
+    # Print a message and fail if "go mod tidy" modifies go.mod
+    - go mod tidy
+    - git diff-files --exit-code go.mod || (echo "go.mod is out of sync with project imports. Please run 'inv deps' and commit the changes on go.mod/go.sum." && false)

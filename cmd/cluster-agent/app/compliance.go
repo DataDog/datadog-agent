@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -60,12 +61,12 @@ func startCompliance(stopper restart.Stopper, apiCl *apiserver.APIClient, isLead
 	health := health.RegisterLiveness("compliance")
 
 	// setup the auditor
-	auditor := auditor.New(coreconfig.Datadog.GetString("compliance_config.run_path"), "compliance-cluster-registry.json", health)
+	auditor := auditor.New(coreconfig.Datadog.GetString("compliance_config.run_path"), "compliance-cluster-registry.json", coreconfig.DefaultAuditorTTL, health)
 	auditor.Start()
 	stopper.Add(auditor)
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, nil, endpoints, destinationsCtx)
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, destinationsCtx)
 	pipelineProvider.Start()
 	stopper.Add(pipelineProvider)
 

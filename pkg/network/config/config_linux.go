@@ -34,37 +34,20 @@ func (c *Config) EnabledProbes(pre410Kernel bool) (map[probes.ProbeName]struct{}
 		enabled[probes.UDPRecvMsgReturn] = struct{}{}
 		enabled[probes.UDPDestroySock] = struct{}{}
 		enabled[probes.IPMakeSkb] = struct{}{}
-		enabled[probes.IP6MakeSkb] = struct{}{}
+		enabled[probes.InetBind] = struct{}{}
+		enabled[probes.InetBindRet] = struct{}{}
+
+		if c.CollectIPv6Conns {
+			enabled[probes.IP6MakeSkb] = struct{}{}
+			enabled[probes.Inet6Bind] = struct{}{}
+			enabled[probes.Inet6BindRet] = struct{}{}
+		}
 
 		if pre410Kernel {
 			enabled[probes.UDPRecvMsgPre410] = struct{}{}
 		} else {
 			enabled[probes.UDPRecvMsg] = struct{}{}
 		}
-
-		tp, err := c.ChooseSyscallProbe(string(probes.TraceSysBindEnter), string(probes.SysBindX64), string(probes.SysBind))
-		if err != nil {
-			return nil, err
-		}
-		enabled[probes.ProbeName(tp)] = struct{}{}
-
-		tp, err = c.ChooseSyscallProbeExit(string(probes.TraceSysBindExit), string(probes.SysBindRet))
-		if err != nil {
-			return nil, err
-		}
-		enabled[probes.ProbeName(tp)] = struct{}{}
-
-		tp, err = c.ChooseSyscallProbe(string(probes.TraceSysSocketEnter), string(probes.SysSocketX64), string(probes.SysSocket))
-		if err != nil {
-			return nil, err
-		}
-		enabled[probes.ProbeName(tp)] = struct{}{}
-
-		tp, err = c.ChooseSyscallProbeExit(string(probes.TraceSysSocketExit), string(probes.SysSocketRet))
-		if err != nil {
-			return nil, err
-		}
-		enabled[probes.ProbeName(tp)] = struct{}{}
 	}
 
 	return enabled, nil

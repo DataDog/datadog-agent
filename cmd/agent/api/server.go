@@ -18,7 +18,6 @@ import (
 	"net"
 	"net/http"
 	"strings"
-	"time"
 
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
@@ -30,7 +29,6 @@ import (
 	pb "github.com/DataDog/datadog-agent/cmd/agent/api/pb"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
 	gorilla "github.com/gorilla/mux"
 )
 
@@ -81,9 +79,7 @@ func StartServer() error {
 
 	s := grpc.NewServer(opts...)
 	pb.RegisterAgentServer(s, &server{})
-	pb.RegisterAgentSecureServer(s, &serverSecure{
-		tagger: tagger.GetDefaultTagger(),
-	})
+	pb.RegisterAgentSecureServer(s, &serverSecure{})
 
 	dcreds := credentials.NewTLS(&tls.Config{
 		ServerName: tlsAddr,
@@ -129,7 +125,14 @@ func StartServer() error {
 		ErrorLog: stdLog.New(&config.ErrorLogWriter{
 			AdditionalDepth: 5, // Use a stack depth of 5 on top of the default one to get a relevant filename in the stdlib
 		}, "Error from the agent http API server: ", 0), // log errors to seelog,
-		WriteTimeout: config.Datadog.GetDuration("server_timeout") * time.Second,
+		// TODO: WriteTimeout closes gRPC streams every $server_timeout
+		// seconds, need to find a solution for that before
+		// re-enabling.
+		// WriteTimeout: config.Datadog.GetDuration("server_timeout") * time.Second,
+		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
+			// Store the connection in the context so requests can reference it if needed
+			return context.WithValue(ctx, agent.ConnContextKey, c)
+		},
 	}
 
 	tlsListener := tls.NewListener(listener, srv.TLSConfig)

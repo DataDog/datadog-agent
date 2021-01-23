@@ -26,6 +26,8 @@ const (
 	DefaultJmxLogFile = "/var/log/datadog/jmxfetch.log"
 	// DefaultCheckFlareDirectory a flare friendly location for checks to be written
 	DefaultCheckFlareDirectory = "/var/log/datadog/checks/"
+	// DefaultJMXFlareDirectory a flare friendly location for jmx command logs to be written
+	DefaultJMXFlareDirectory = "/var/log/datadog/jmxinfo/"
 )
 
 var (

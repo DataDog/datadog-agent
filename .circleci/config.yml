@@ -89,8 +89,6 @@ jobs:
           paths:
             - /go/src/github.com/DataDog/datadog-agent/vendor
             - /go/src/github.com/DataDog/datadog-agent/dev
-            - /go/pkg
-            - /go/bin
             - /usr/local/lib/python3.6/dist-packages
             - /usr/local/bin
 

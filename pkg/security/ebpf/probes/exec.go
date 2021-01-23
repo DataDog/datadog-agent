@@ -23,6 +23,18 @@ var execProbes = []*manager.Probe{
 	},
 	{
 		UID:     SecurityAgentUID,
+		Section: "kprobe/do_fork",
+	},
+	{
+		UID:     SecurityAgentUID,
+		Section: "kprobe/_do_fork",
+	},
+	{
+		UID:     SecurityAgentUID,
+		Section: "kprobe/kernel_clone",
+	},
+	{
+		UID:     SecurityAgentUID,
 		Section: "kprobe/cgroup_procs_write",
 	},
 	{

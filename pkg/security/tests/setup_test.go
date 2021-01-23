@@ -3,18 +3,20 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-//+build functionaltests
+//+build functionaltests stresstests
 
 package tests
 
 import (
 	"bytes"
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"os"
 	"path"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"text/template"
@@ -28,6 +30,7 @@ import (
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
@@ -36,6 +39,7 @@ import (
 
 var (
 	eventChanLength     = 10000
+	handlerChanLength   = 20000
 	discarderChanLength = 10000
 	logger              seelog.LoggerInterface
 )
@@ -52,6 +56,9 @@ runtime_security_config:
   enabled: true
   socket: /tmp/test-security-probe.sock
   flush_discarder_window: 0
+  load_controller:
+    events_count_threshold: {{ .EventsCountThreshold }}
+    fork_bomb_threshold: {{ .ForkBombThreshold }}
 {{if .DisableFilters}}
   enable_kernel_filters: false
 {{end}}
@@ -82,8 +89,11 @@ rules:
 {{end}}
 `
 
-var testEnvironment string
-var useReload bool
+var (
+	testEnvironment string
+	useReload       bool
+	logLevelStr     string
+)
 
 const (
 	HostEnvironment   = "host"
@@ -96,11 +106,24 @@ type testEvent struct {
 }
 
 type testOpts struct {
-	testDir           string
-	disableFilters    bool
-	disableApprovers  bool
-	disableDiscarders bool
-	wantProbeEvents   bool
+	testDir              string
+	disableFilters       bool
+	disableApprovers     bool
+	disableDiscarders    bool
+	wantProbeEvents      bool
+	eventsCountThreshold int
+	forkBombThreshold    int
+	reuseProbeHandler    bool
+}
+
+func (to testOpts) Equal(opts testOpts) bool {
+	return to.testDir == opts.testDir &&
+		to.disableApprovers == opts.disableApprovers &&
+		to.disableDiscarders == opts.disableDiscarders &&
+		to.disableFilters == opts.disableFilters &&
+		to.eventsCountThreshold == opts.eventsCountThreshold &&
+		to.forkBombThreshold == opts.forkBombThreshold &&
+		to.reuseProbeHandler == opts.reuseProbeHandler
 }
 
 type testModule struct {
@@ -132,19 +155,48 @@ type testProbe struct {
 }
 
 type testEventHandler struct {
-	ruleSet *rules.RuleSet
-	events  chan *sprobe.Event
+	events       [2]chan *sprobe.Event
+	customEvents [2]chan *module.RuleEvent
+	activeChan   uint64
+}
+
+func (h *testEventHandler) GetActiveEventsChan() chan *sprobe.Event {
+	return h.events[atomic.LoadUint64(&h.activeChan)]
+}
+
+func (h *testEventHandler) GetActiveCustomEventsChan() chan *module.RuleEvent {
+	return h.customEvents[atomic.LoadUint64(&h.activeChan)]
+}
+
+func (h *testEventHandler) ClearEventsChannels() {
+	oldIndex := atomic.SwapUint64(&h.activeChan, 1-atomic.LoadUint64(&h.activeChan))
+	h.events[oldIndex] = make(chan *sprobe.Event, handlerChanLength)
+	h.customEvents[oldIndex] = make(chan *module.RuleEvent, handlerChanLength)
 }
 
 func (h *testEventHandler) HandleEvent(event *sprobe.Event) {
+	testMod.module.HandleEvent(event)
 	e := event.Clone()
 	select {
-	case h.events <- &e:
+	case h.GetActiveEventsChan() <- &e:
 		break
 	default:
-		log.Debugf("dropped probe event %+v")
+		log.Tracef("dropped probe event %+v", event)
 	}
-	h.ruleSet.Evaluate(event)
+}
+
+func (h *testEventHandler) HandleCustomEvent(rule *rules.Rule, event *sprobe.CustomEvent) {
+	e := event.Clone()
+	re := module.RuleEvent{
+		RuleID: rule.ID,
+		Event:  &e,
+	}
+	select {
+	case h.GetActiveCustomEventsChan() <- &re:
+		break
+	default:
+		log.Tracef("dropped probe custom event %+v")
+	}
 }
 
 func getInode(t *testing.T, path string) uint64 {
@@ -167,9 +219,20 @@ func setTestConfig(dir string, opts testOpts) error {
 		return err
 	}
 
+	if opts.eventsCountThreshold == 0 {
+		opts.eventsCountThreshold = 100000000
+	}
+	if opts.forkBombThreshold == 0 {
+		opts.forkBombThreshold = 2000
+	}
+
 	buffer := new(bytes.Buffer)
 	if err := tmpl.Execute(buffer, map[string]interface{}{
-		"TestPoliciesDir": dir,
+		"TestPoliciesDir":      dir,
+		"DisableApprovers":     opts.disableApprovers,
+		"DisableDiscarders":    opts.disableDiscarders,
+		"EventsCountThreshold": opts.eventsCountThreshold,
+		"ForkBombThreshold":    opts.forkBombThreshold,
 	}); err != nil {
 		return err
 	}
@@ -215,26 +278,12 @@ func setTestPolicy(dir string, macros []*rules.MacroDefinition, rules []*rules.R
 }
 
 func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, opts testOpts) (*testModule, error) {
-	defer func() {
-		if testMod == nil {
-			return
-		}
+	logLevel, found := seelog.LogLevelFromString(logLevelStr)
+	if !found {
+		return nil, fmt.Errorf("invalid log level '%s'", logLevel)
+	}
 
-		if opts.wantProbeEvents {
-			ruleSet := testMod.module.GetRuleSet()
-			handler := &testEventHandler{
-				events:  make(chan *sprobe.Event, 16384),
-				ruleSet: ruleSet,
-			}
-			testMod.probeHandler = handler
-			testMod.probe.SetEventHandler(handler)
-		} else {
-			testMod.probeHandler = nil
-			testMod.probe.SetEventHandler(testMod.module)
-		}
-	}()
-
-	st, err := newSimpleTest(macros, rules, opts.testDir)
+	st, err := newSimpleTest(macros, rules, opts.testDir, logLevel)
 	if err != nil {
 		return nil, err
 	}
@@ -250,14 +299,11 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 	defer os.Remove(cfgFilename)
 
 	if useReload && testMod != nil {
-		if opts.disableApprovers == testMod.opts.disableApprovers &&
-			opts.disableDiscarders == testMod.opts.disableDiscarders &&
-			opts.disableFilters == testMod.opts.disableFilters {
+		if opts.Equal(testMod.opts) {
 			testMod.reset()
 			testMod.st = st
 			return testMod, testMod.reloadConfiguration()
 		}
-
 		testMod.cleanup()
 	}
 
@@ -272,6 +318,14 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 		return nil, errors.Wrap(err, "failed to create module")
 	}
 
+	if opts.disableApprovers {
+		config.EnableApprovers = false
+	}
+
+	if opts.disableDiscarders {
+		config.EnableDiscarders = false
+	}
+
 	testMod = &testModule{
 		config:     config,
 		opts:       opts,
@@ -280,6 +334,10 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 		probe:      mod.(*module.Module).GetProbe(),
 		events:     make(chan testEvent, eventChanLength),
 		discarders: make(chan *testDiscarder, discarderChanLength),
+		probeHandler: &testEventHandler{
+			events:       [2]chan *sprobe.Event{make(chan *sprobe.Event, handlerChanLength), make(chan *sprobe.Event, handlerChanLength)},
+			customEvents: [2]chan *module.RuleEvent{make(chan *module.RuleEvent, handlerChanLength), make(chan *module.RuleEvent, handlerChanLength)},
+		},
 	}
 
 	if err := mod.Register(nil); err != nil {
@@ -289,10 +347,13 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 	rs := mod.(*module.Module).GetRuleSet()
 	rs.AddListener(testMod)
 
+	testMod.probe.SetEventHandler(testMod.probeHandler)
+
 	return testMod, nil
 }
 
 func (tm *testModule) reset() {
+	tm.probeHandler.ClearEventsChannels()
 	tm.events = make(chan testEvent, eventChanLength)
 	tm.discarders = make(chan *testDiscarder, discarderChanLength)
 }
@@ -314,6 +375,10 @@ func (tm *testModule) Root() string {
 	return tm.st.root
 }
 
+func (tm *testModule) SwapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, error) {
+	return tm.st.swapLogLevel(logLevel)
+}
+
 func (tm *testModule) RuleMatch(rule *rules.Rule, event eval.Event) {
 	e := event.(*sprobe.Event).Clone()
 	te := testEvent{Event: &e, rule: rule.Rule}
@@ -330,7 +395,7 @@ func (tm *testModule) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, f
 	select {
 	case tm.discarders <- discarder:
 	default:
-		log.Warnf("Discarding discarder %+v", discarder)
+		log.Tracef("Discarding discarder %+v", discarder)
 	}
 }
 
@@ -350,6 +415,29 @@ func (tm *testModule) GetEvent() (*sprobe.Event, *eval.Rule, error) {
 	}
 }
 
+func (tm *testModule) GetProbeCustomEvent(timeout time.Duration, eventType ...eval.EventType) (*module.RuleEvent, error) {
+	if tm.probeHandler == nil {
+		return nil, errors.New("could not get the probe events without using the `wantProbeEvents` test option")
+	}
+
+	t := time.After(timeout)
+
+	for {
+		select {
+		case ruleEvent := <-tm.probeHandler.GetActiveCustomEventsChan():
+			if len(eventType) > 0 {
+				if ruleEvent.Event.GetType() == eventType[0] {
+					return ruleEvent, nil
+				}
+			} else {
+				return ruleEvent, nil
+			}
+		case <-t:
+			return nil, errors.New("timeout")
+		}
+	}
+}
+
 func (tm *testModule) GetProbeEvent(timeout time.Duration, eventType ...eval.EventType) (*sprobe.Event, error) {
 	if tm.probeHandler == nil {
 		return nil, errors.New("could not get probe events without using the 'wantProbeEvents' test option")
@@ -359,7 +447,7 @@ func (tm *testModule) GetProbeEvent(timeout time.Duration, eventType ...eval.Eve
 
 	for {
 		select {
-		case event := <-tm.probeHandler.events:
+		case event := <-tm.probeHandler.GetActiveEventsChan():
 			if len(eventType) > 0 {
 				if event.GetType() == eventType[0] {
 					return event, nil
@@ -393,6 +481,48 @@ func (tm *testModule) Create(filename string) (string, unsafe.Pointer, error) {
 	}
 
 	return testFile, testPtr, err
+}
+
+type tracePipeLogger struct {
+	*TracePipe
+	stop chan struct{}
+}
+
+func (l *tracePipeLogger) Start() {
+	channelEvents, channelErrors := l.Channel()
+
+	go func() {
+		for {
+			select {
+			case <-l.stop:
+				return
+			case event := <-channelEvents:
+				log.Debug(event.Raw)
+			case err := <-channelErrors:
+				log.Error(err)
+			}
+		}
+	}()
+}
+
+func (l *tracePipeLogger) Stop() {
+	l.stop <- struct{}{}
+	l.Close()
+}
+
+func (tm *testModule) startTracing() (*tracePipeLogger, error) {
+	tracePipe, err := NewTracePipe()
+	if err != nil {
+		return nil, err
+	}
+
+	logger := &tracePipeLogger{
+		TracePipe: tracePipe,
+		stop:      make(chan struct{}),
+	}
+	logger.Start()
+
+	return logger, nil
 }
 
 func (tm *testModule) cleanup() {
@@ -467,47 +597,37 @@ func (t *simpleTest) load(macros []*rules.MacroDefinition, rules []*rules.RuleDe
 
 var logInitilialized bool
 
-func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, testDir string) (*simpleTest, error) {
-	var err error
+func (t *simpleTest) swapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, error) {
+	if logger == nil {
+		logFormat := "%Ns [%LEVEL] %Func:%Line %Msg\n"
 
-	if !logInitilialized {
-		var logLevel seelog.LogLevel = seelog.InfoLvl
-		if testing.Verbose() {
-			logLevel = seelog.TraceLvl
-		}
+		var err error
 
-		constraints, err := seelog.NewMinMaxConstraints(logLevel, seelog.CriticalLvl)
+		logger, err = seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stdout, seelog.TraceLvl, logFormat)
 		if err != nil {
-			return nil, err
+			return 0, err
 		}
-
-		formatter, err := seelog.NewFormatter("%Ns [%LEVEL] %Func %Line %Msg\n")
-		if err != nil {
-			return nil, err
-		}
-
-		dispatcher, err := seelog.NewSplitDispatcher(formatter, []interface{}{os.Stderr})
-		if err != nil {
-			return nil, err
-		}
-
-		specificConstraints, _ := seelog.NewListConstraints([]seelog.LogLevel{})
-		ex, _ := seelog.NewLogLevelException("*.Snapshot", "*", specificConstraints)
-		exceptions := []*seelog.LogLevelException{ex}
-
-		logger := seelog.NewAsyncLoopLogger(seelog.NewLoggerConfig(constraints, exceptions, dispatcher))
-
-		err = seelog.ReplaceLogger(logger)
-		if err != nil {
-			return nil, err
-		}
-		log.SetupLogger(logger, logLevel.String())
-
-		logInitilialized = true
 	}
+	log.SetupLogger(logger, logLevel.String())
+
+	prevLevel, _ := seelog.LogLevelFromString(logLevelStr)
+	logLevelStr = logLevel.String()
+	return prevLevel, nil
+}
+
+func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, testDir string, logLevel seelog.LogLevel) (*simpleTest, error) {
+	var err error
 
 	t := &simpleTest{
 		root: testDir,
+	}
+
+	if !logInitilialized {
+		if _, err := t.swapLogLevel(logLevel); err != nil {
+			return nil, err
+		}
+
+		logInitilialized = true
 	}
 
 	if testDir == "" {
@@ -540,6 +660,31 @@ func testContainerPath(t *testing.T, event *sprobe.Event, fieldPath string) {
 	}
 }
 
+// waitForOpenProbeEvent returns the first open event with the provided filename.
+// WARNING: this function may yield a "fatal error: concurrent map writes" error if the ruleset of testModule does not
+// contain a rule on "open.filename"
+func waitForOpenProbeEvent(test *testModule, filename string) (*probe.Event, error) {
+	timeout := time.After(3 * time.Second)
+	exhaust := time.After(time.Second)
+
+	var event *probe.Event
+	for {
+		select {
+		case e := <-test.probeHandler.GetActiveEventsChan():
+			if value, _ := e.GetFieldValue("open.filename"); value == filename {
+				event = e
+			}
+		case <-test.discarders:
+		case <-exhaust:
+			if event != nil {
+				return event, nil
+			}
+		case <-timeout:
+			return nil, errors.New("timeout")
+		}
+	}
+}
+
 func TestEnv(t *testing.T) {
 	if testEnvironment != "" && testEnvironment != HostEnvironment && testEnvironment != DockerEnvironment {
 		t.Fatal("invalid environment")
@@ -556,6 +701,8 @@ func TestMain(m *testing.M) {
 }
 
 func init() {
+	os.Setenv("RUNTIME_SECURITY_TESTSUITE", "true")
 	flag.StringVar(&testEnvironment, "env", HostEnvironment, "environment used to run the test suite: ex: host, docker")
 	flag.BoolVar(&useReload, "reload", true, "reload rules instead of stopping/starting the agent for every test")
+	flag.StringVar(&logLevelStr, "loglevel", seelog.WarnStr, "log level")
 }

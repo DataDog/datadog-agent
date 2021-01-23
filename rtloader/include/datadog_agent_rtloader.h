@@ -182,8 +182,6 @@ DATADOG_AGENT_RTLOADER_API int get_check_deprecated(rtloader_t *rtloader, rtload
     \param check A rtloader_pyobject_t * pointer to the check instance we wish to run.
     \return A C-string with the check summary.
     \sa rtloader_pyobject_t, rtloader_t
-
-    This function is deprecated in favor of `get_check()`.
 */
 DATADOG_AGENT_RTLOADER_API char *run_check(rtloader_t *, rtloader_pyobject_t *check);
 
@@ -195,8 +193,6 @@ DATADOG_AGENT_RTLOADER_API char *run_check(rtloader_t *, rtloader_pyobject_t *ch
     \return An array of C-strings with found warnings for the instance, or NULL if none or
     an error occurred.
     \sa rtloader_pyobject_t, rtloader_t
-
-    This function is deprecated in favor of `get_check()`.
 */
 DATADOG_AGENT_RTLOADER_API char **get_checks_warnings(rtloader_t *, rtloader_pyobject_t *check);
 

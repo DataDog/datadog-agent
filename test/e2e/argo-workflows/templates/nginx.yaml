@@ -387,3 +387,29 @@ spec:
             prevNb = nb;
             sleep(30000);
           }
+
+    - name: describe-hpa
+      inputs:
+        parameters:
+          - name: namespace
+      activeDeadlineSeconds: 200
+      script:
+        image: argoproj/argoexec:latest
+        command: [bash]
+        source: |
+          set -euo pipefail
+          set -x
+
+          kubectl --namespace {{inputs.parameters.namespace}} describe hpa nginxext
+
+    - name: diagnose
+      inputs:
+        parameters:
+          - name: namespace
+      steps:
+        - - name: describe-hpa
+            template: describe-hpa
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"

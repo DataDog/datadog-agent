@@ -36,8 +36,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func newMockSampler(wantSampled bool, wantRate float64) *Sampler {
-	return &Sampler{engine: testutil.NewMockEngine(wantSampled, wantRate)}
+func newMockSampler(wantSampled bool) *Sampler {
+	return &Sampler{engine: testutil.NewMockEngine(wantSampled)}
 }
 
 // Test to make sure that the joined effort of the quantizer and truncator, in that order, produce the
@@ -548,21 +548,9 @@ func TestSampling(t *testing.T) {
 		// scoreSampled, scoreErrorSampled, prioritySampled are the sample decisions of the mock samplers
 		scoreSampled, scoreErrorSampled, prioritySampled bool
 
-		// wantRate and wantSampled are the expected result
-		wantRate    float64
+		// wantSampled is the expected result
 		wantSampled bool
 	}{
-		"score-rate": {
-			scoreRate: 0.5,
-			wantRate:  0.5,
-		},
-		"error-priority": {
-			hasErrors:      true,
-			hasPriority:    true,
-			scoreErrorRate: 0.8,
-			priorityRate:   0.2,
-			wantRate:       sampler.CombineRates(0.8, 0.2),
-		},
 		"score-unsampled": {
 			scoreSampled: false,
 			wantSampled:  false,
@@ -635,9 +623,9 @@ func TestSampling(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			a := &Agent{
-				ScoreSampler:       newMockSampler(tt.scoreSampled, tt.scoreRate),
-				ErrorsScoreSampler: newMockSampler(tt.scoreErrorSampled, tt.scoreErrorRate),
-				PrioritySampler:    newMockSampler(tt.prioritySampled, tt.priorityRate),
+				ScoreSampler:       newMockSampler(tt.scoreSampled),
+				ErrorsScoreSampler: newMockSampler(tt.scoreErrorSampled),
+				PrioritySampler:    newMockSampler(tt.prioritySampled),
 			}
 			root := &pb.Span{
 				Service:  "serv1",
@@ -654,8 +642,7 @@ func TestSampling(t *testing.T) {
 				sampler.SetSamplingPriority(pt.Root, 1)
 			}
 
-			sampled, rate := a.runSamplers(pt, tt.hasPriority)
-			assert.EqualValues(t, tt.wantRate, rate)
+			sampled := a.runSamplers(pt, tt.hasPriority)
 			assert.EqualValues(t, tt.wantSampled, sampled)
 		})
 	}

@@ -29,10 +29,13 @@ struct bpf_map_def SEC("maps/tracer_status") tracer_status = {
 };
 
 static __always_inline bool proc_t_comm_equals(proc_t a, proc_t b) {
-    int i;
-    for (i = 0; i < TASK_COMM_LEN; i++) {
+    for (int i = 0; i < TASK_COMM_LEN; i++) {
         if (a.comm[i] != b.comm[i]) {
             return false;
+        }
+        // if chars equal but a NUL terminator, both strings equal
+        if (!a.comm[i]) {
+            break;
         }
     }
     return true;

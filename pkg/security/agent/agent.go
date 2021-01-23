@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"google.golang.org/grpc"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -76,7 +75,7 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 
 	rsa.running.Store(true)
 	for rsa.running.Load() == true {
-		stream, err := apiClient.GetEvents(context.Background(), &api.GetParams{})
+		stream, err := apiClient.GetEvents(context.Background(), &api.GetEventParams{})
 		if err != nil {
 			rsa.connected.Store(false)
 
@@ -99,7 +98,7 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 			if err == io.EOF || in == nil {
 				break
 			}
-			log.Infof("Got message from rule `%s` for event `%s`", in.RuleID, string(in.Data))
+			log.Tracef("Got message from rule `%s` for event `%s`", in.RuleID, string(in.Data))
 
 			atomic.AddUint64(&rsa.eventReceived, 1)
 
@@ -109,15 +108,10 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 	}
 }
 
-// SendSecurityEvent sends a security event with the provided status
-func (rsa *RuntimeSecurityAgent) SendSecurityEvent(evt *api.SecurityEventMessage, status string) {
-	rsa.reporter.ReportRaw(evt.GetData())
-}
-
 // DispatchEvent dispatches a security event message to the subsytems of the runtime security agent
 func (rsa *RuntimeSecurityAgent) DispatchEvent(evt *api.SecurityEventMessage) {
 	// For now simply log to Datadog
-	rsa.SendSecurityEvent(evt, message.StatusAlert)
+	rsa.reporter.ReportRaw(evt.GetData(), evt.GetTags()...)
 }
 
 // GetStatus returns the current status on the agent

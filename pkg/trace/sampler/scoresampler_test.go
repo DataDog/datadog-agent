@@ -24,9 +24,9 @@ func getTestScoreEngine() *ScoreEngine {
 
 	// No extra fixed sampling, no maximum TPS
 	extraRate := 1.0
-	maxTPS := 0.0
+	targetTPS := 0.0
 
-	return NewErrorsEngine(extraRate, maxTPS)
+	return NewErrorsEngine(extraRate, targetTPS)
 }
 
 func getTestTrace() (pb.Trace, *pb.Span) {
@@ -65,30 +65,32 @@ func TestErrorSampleThresholdTo1(t *testing.T) {
 	s := getTestScoreEngine()
 	for i := 0; i < 1e2; i++ {
 		trace, root := getTestTrace()
-		_, rate := s.Sample(trace, root, env)
+		s.Sample(trace, root, env)
+		rate, _ := root.Metrics["_dd.errors_sr"]
 		assert.Equal(1.0, rate)
 	}
 	for i := 0; i < 1e3; i++ {
 		trace, root := getTestTrace()
-		_, rate := s.Sample(trace, root, env)
+		s.Sample(trace, root, env)
+		rate, _ := root.Metrics["_dd.errors_sr"]
 		if rate < 1 {
 			assert.True(rate < errorSamplingRateThresholdTo1)
 		}
 	}
 }
 
-func TestMaxTPS(t *testing.T) {
-	// Test the "effectiveness" of the maxTPS option.
+func TestTargetTPS(t *testing.T) {
+	// Test the "effectiveness" of the targetTPS option.
 	assert := assert.New(t)
 	s := getTestScoreEngine()
 
-	maxTPS := 5.0
+	targetTPS := 5.0
 	tps := 100.0
 	// To avoid the edge effects from an non-initialized sampler, wait a bit before counting samples.
 	initPeriods := 20
 	periods := 50
 
-	s.Sampler.maxTPS = maxTPS
+	s.Sampler.targetTPS = targetTPS
 	periodSeconds := defaultDecayPeriod.Seconds()
 	tracesPerPeriod := tps * periodSeconds
 	// Set signature score offset high enough not to kick in during the test.
@@ -101,7 +103,7 @@ func TestMaxTPS(t *testing.T) {
 		s.Sampler.Backend.(*MemoryBackend).decayScore()
 		for i := 0; i < int(tracesPerPeriod); i++ {
 			trace, root := getTestTrace()
-			sampled, _ := s.Sample(trace, root, defaultEnv)
+			sampled := s.Sample(trace, root, defaultEnv)
 			// Once we got into the "supposed-to-be" stable "regime", count the samples
 			if period > initPeriods && sampled {
 				sampledCount++
@@ -109,16 +111,16 @@ func TestMaxTPS(t *testing.T) {
 		}
 	}
 
-	// Check that the sampled score pre-maxTPS is equals to the incoming number of traces per second
+	// Check that the sampled score pre-targetTPS is equals to the incoming number of traces per second
 	assert.InEpsilon(tps, s.Sampler.Backend.GetSampledScore(), 0.01)
 
-	// We should have kept less traces per second than maxTPS
-	assert.True(s.Sampler.maxTPS >= float64(sampledCount)/(float64(periods)*periodSeconds))
+	// We should have kept less traces per second than targetTPS
+	assert.True(s.Sampler.targetTPS >= float64(sampledCount)/(float64(periods)*periodSeconds))
 
-	// We should have a throughput of sampled traces around maxTPS
+	// We should have a throughput of sampled traces around targetTPS
 	// Check for 1% epsilon, but the precision also depends on the backend imprecision (error factor = decayFactor).
 	// Combine error rates with L1-norm instead of L2-norm by laziness, still good enough for tests.
-	assert.InEpsilon(s.Sampler.maxTPS, float64(sampledCount)/(float64(periods)*periodSeconds),
+	assert.InEpsilon(s.Sampler.targetTPS, float64(sampledCount)/(float64(periods)*periodSeconds),
 		0.01+defaultDecayFactor-1)
 }
 

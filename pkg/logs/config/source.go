@@ -8,6 +8,9 @@ package config
 import (
 	"expvar"
 	"sync"
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
 // SourceType used for log line parsing logic.
@@ -42,19 +45,21 @@ type LogSource struct {
 	info       map[string]string
 	// In the case that the source is overridden, keep a reference to the parent for bubbling up information about the child
 	ParentSource *LogSource
+	LatencyStats *util.StatsTracker
 }
 
 // NewLogSource creates a new log source.
 func NewLogSource(name string, config *LogsConfig) *LogSource {
 	return &LogSource{
-		Name:      name,
-		Config:    config,
-		Status:    NewLogStatus(),
-		inputs:    make(map[string]bool),
-		lock:      &sync.Mutex{},
-		Messages:  NewMessages(),
-		BytesRead: expvar.Int{},
-		info:      make(map[string]string),
+		Name:         name,
+		Config:       config,
+		Status:       NewLogStatus(),
+		inputs:       make(map[string]bool),
+		lock:         &sync.Mutex{},
+		Messages:     NewMessages(),
+		BytesRead:    expvar.Int{},
+		info:         make(map[string]string),
+		LatencyStats: util.NewStatsTracker(time.Hour*24, time.Hour),
 	}
 }
 

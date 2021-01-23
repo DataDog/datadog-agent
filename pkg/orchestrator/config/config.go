@@ -8,7 +8,6 @@ package config
 import (
 	"fmt"
 	"net/url"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -63,7 +62,6 @@ func key(pieces ...string) string {
 
 // LoadYamlConfig load orchestrator-specific configuration
 func (oc *OrchestratorConfig) LoadYamlConfig(path string) error {
-	loadEnvVariables()
 	// Resolve any secrets
 	if err := config.ResolveSecrets(config.Datadog, filepath.Base(path)); err != nil {
 		return err
@@ -118,12 +116,6 @@ func (oc *OrchestratorConfig) LoadYamlConfig(path string) error {
 	oc.ExtraTags = config.Datadog.GetStringSlice("orchestrator_explorer.extra_tags")
 
 	return nil
-}
-
-func loadEnvVariables() {
-	if v := os.Getenv("DD_ORCHESTRATOR_CUSTOM_SENSITIVE_WORDS"); v != "" {
-		config.Datadog.Set(key(orchestratorNS, "custom_sensitive_words"), strings.Split(v, ","))
-	}
 }
 
 func extractOrchestratorAdditionalEndpoints(URL *url.URL, orchestratorEndpoints *[]api.Endpoint) error {

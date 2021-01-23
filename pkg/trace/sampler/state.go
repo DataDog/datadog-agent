@@ -12,7 +12,7 @@ type InternalState struct {
 	Cardinality int64
 	InTPS       float64
 	OutTPS      float64
-	MaxTPS      float64
+	TargetTPS   float64
 }
 
 // GetState collects and return internal statistics and coefficients for indication purposes
@@ -23,6 +23,6 @@ func (s *Sampler) GetState() InternalState {
 		Cardinality: s.Backend.GetCardinality(),
 		InTPS:       s.Backend.GetTotalScore(),
 		OutTPS:      s.Backend.GetSampledScore(),
-		MaxTPS:      s.maxTPS,
+		TargetTPS:   s.targetTPS,
 	}
 }

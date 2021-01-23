@@ -85,6 +85,9 @@ def get_build_flags(
 
     if sys.platform == 'win32':
         env["CGO_LDFLAGS_ALLOW"] = "-Wl,--allow-multiple-definition"
+    else:
+        # for pkg/ebpf/compiler on linux
+        env['CGO_LDFLAGS_ALLOW'] = "-Wl,--wrap=.*"
 
     if embedded_path is None:
         # fall back to local dev path

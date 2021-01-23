@@ -38,9 +38,17 @@ struct bpf_map_def SEC("maps/filter_policy") filter_policy = {
 
 struct inode_discarder_t {
     struct path_key_t path_key;
+    u32 revision;
+    u32 padding;
 };
 
-struct bpf_map_def SEC("maps/inode_discarders") inode_discarders = { \
+static __always_inline u32 get_system_probe_pid() {
+    u64 val = 0;
+    LOAD_CONSTANT("system_probe_pid", val);
+    return val;
+}
+
+struct bpf_map_def SEC("maps/inode_discarders") inode_discarders = {
     .type = BPF_MAP_TYPE_LRU_HASH,
     .key_size = sizeof(struct inode_discarder_t),
     .value_size = sizeof(struct filter_t),
@@ -49,12 +57,51 @@ struct bpf_map_def SEC("maps/inode_discarders") inode_discarders = { \
     .namespace = "",
 };
 
+#define REVISION_ARRAY_SIZE 4096
+
+struct bpf_map_def SEC("maps/discarder_revisions") discarder_revisions = {
+    .type = BPF_MAP_TYPE_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u32),
+    .max_entries = REVISION_ARRAY_SIZE,
+    .pinning = 0,
+    .namespace = "",
+};
+
+int __attribute__((always_inline)) get_discarder_revision(u32 mount_id) {
+    u32 i = mount_id % REVISION_ARRAY_SIZE;
+    u32 *revision = bpf_map_lookup_elem(&discarder_revisions, &i);
+
+    return revision ? *revision : 0;
+}
+
+int __attribute__((always_inline)) bump_discarder_revision(u32 mount_id) {
+    u32 i = mount_id % REVISION_ARRAY_SIZE;
+    u32 *revision = bpf_map_lookup_elem(&discarder_revisions, &i);
+    if (!revision) {
+        return 0;
+    }
+
+    // bump only already > 0 meaning that the user space decided that for this mount_id
+    // all the discarders will be invalidated
+    if (*revision > 0) {
+        if (*revision + 1 == 0) {
+            __sync_fetch_and_add(revision, 2); // handle overflow
+        } else {
+            __sync_fetch_and_add(revision, 1);
+        }
+    }
+
+    return *revision;
+}
+
 int __attribute__((always_inline)) discarded_by_inode(u64 event_type, u32 mount_id, u64 inode) {
     struct inode_discarder_t key = {
         .path_key = {
             .ino = inode,
             .mount_id = mount_id,
-        }
+        },
+        .revision = get_discarder_revision(mount_id),
     };
 
     struct filter_t *filter = bpf_map_lookup_elem(&inode_discarders, &key);
@@ -73,7 +120,8 @@ void __attribute__((always_inline)) remove_inode_discarder(u32 mount_id, u64 ino
         .path_key = {
             .ino = inode,
             .mount_id = mount_id,
-        }
+        },
+        .revision = get_discarder_revision(mount_id),
     };
 
     bpf_map_delete_elem(&inode_discarders, &key);
@@ -98,6 +146,11 @@ struct bpf_map_def SEC("maps/pid_discarders") pid_discarders = { \
 };
 
 int __attribute__((always_inline)) discarded_by_pid(u64 event_type, u32 tgid) {
+    u32 system_probe_pid = get_system_probe_pid();
+    if (system_probe_pid && system_probe_pid == tgid) {
+        return 1;
+    }
+
     struct pid_discarder_t key = {
         .tgid = tgid,
     };

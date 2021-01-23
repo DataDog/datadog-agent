@@ -8,6 +8,8 @@ package pipeline
 import (
 	"sync/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -20,30 +22,46 @@ type Provider interface {
 	Start()
 	Stop()
 	NextPipelineChan() chan *message.Message
+	// Flush flushes all pipeline contained in this Provider
+	Flush()
 }
 
 // provider implements providing logic
 type provider struct {
-	numberOfPipelines int
-	auditor           *auditor.Auditor
-	outputChan        chan *message.Message
-	processingRules   []*config.ProcessingRule
-	endpoints         *config.Endpoints
+	numberOfPipelines         int
+	auditor                   auditor.Auditor
+	diagnosticMessageReceiver diagnostic.MessageReceiver
+	outputChan                chan *message.Message
+	processingRules           []*config.ProcessingRule
+	endpoints                 *config.Endpoints
 
 	pipelines            []*Pipeline
 	currentPipelineIndex int32
 	destinationsContext  *client.DestinationsContext
+
+	serverless bool
 }
 
 // NewProvider returns a new Provider
-func NewProvider(numberOfPipelines int, auditor *auditor.Auditor, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) Provider {
+func NewProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) Provider {
+	return newProvider(numberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsContext, false)
+}
+
+// NewServerlessProvider returns a new Provider in serverless mode
+func NewServerlessProvider(numberOfPipelines int, auditor auditor.Auditor, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) Provider {
+	return newProvider(numberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, processingRules, endpoints, destinationsContext, true)
+}
+
+func newProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, serverless bool) Provider {
 	return &provider{
-		numberOfPipelines:   numberOfPipelines,
-		auditor:             auditor,
-		processingRules:     processingRules,
-		endpoints:           endpoints,
-		pipelines:           []*Pipeline{},
-		destinationsContext: destinationsContext,
+		numberOfPipelines:         numberOfPipelines,
+		auditor:                   auditor,
+		diagnosticMessageReceiver: diagnosticMessageReceiver,
+		processingRules:           processingRules,
+		endpoints:                 endpoints,
+		pipelines:                 []*Pipeline{},
+		destinationsContext:       destinationsContext,
+		serverless:                serverless,
 	}
 }
 
@@ -53,7 +71,7 @@ func (p *provider) Start() {
 	p.outputChan = p.auditor.Channel()
 
 	for i := 0; i < p.numberOfPipelines; i++ {
-		pipeline := NewPipeline(p.outputChan, p.processingRules, p.endpoints, p.destinationsContext)
+		pipeline := NewPipeline(p.outputChan, p.processingRules, p.endpoints, p.destinationsContext, p.diagnosticMessageReceiver, p.serverless)
 		pipeline.Start()
 		p.pipelines = append(p.pipelines, pipeline)
 	}
@@ -81,4 +99,11 @@ func (p *provider) NextPipelineChan() chan *message.Message {
 	defer atomic.StoreInt32(&p.currentPipelineIndex, int32(index))
 	nextPipeline := p.pipelines[index]
 	return nextPipeline.InputChan
+}
+
+// Flush flushes synchronously all the contained pipeline of this provider.
+func (p *provider) Flush() {
+	for _, p := range p.pipelines {
+		p.Flush()
+	}
 }

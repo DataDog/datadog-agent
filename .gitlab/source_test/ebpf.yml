@@ -1,0 +1,47 @@
+---
+.retrieve_linux_go_deps: &retrieve_linux_go_deps |
+  mkdir vendor && tar xzf vendor.tar.gz -C vendor
+  rm -f vendor.tar.gz
+
+# Run tests for eBPF code
+tests_ebpf:
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["runner:main", "size:large"]
+  needs: ["build_libbcc_x64", "linux_x64_go_deps"]
+  before_script:
+    - *retrieve_linux_go_deps
+    - mkdir -p $CI_PROJECT_DIR/.tmp/binary-ebpf
+    - cd $SRC_PATH
+    - python3 -m pip install -r requirements.txt
+    # Retrieve libbcc from S3
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/libbcc-amd64.tar.xz /tmp/libbcc.tar.xz
+    - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/clang-amd64-11.0.0.tar.xz /tmp/clang.tar.xz
+    - mkdir -p $DATADOG_AGENT_EMBEDDED_PATH
+    - tar -xvf /tmp/libbcc.tar.xz -C $DATADOG_AGENT_EMBEDDED_PATH
+    - tar -xvf /tmp/clang.tar.xz -C $DATADOG_AGENT_EMBEDDED_PATH
+  script:
+    - inv -e system-probe.object-files
+    - inv -e system-probe.kitchen-prepare
+    - cp $SRC_PATH/pkg/ebpf/bytecode/build/tracer.o $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer.o
+    - cp $SRC_PATH/pkg/ebpf/bytecode/build/tracer-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer-debug.o
+    - cp $SRC_PATH/pkg/ebpf/bytecode/build/offset-guess.o $CI_PROJECT_DIR/.tmp/binary-ebpf/offset-guess.o
+    - cp $SRC_PATH/pkg/ebpf/bytecode/build/offset-guess-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/offset-guess-debug.o
+    # Compile runtime security functional tests to be executed in kitchen tests
+    - inv -e security-agent.build-functional-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/testsuite
+    # Compile runtime security stress tests to be executed in kitchen tests
+    - inv -e security-agent.build-stress-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/stresssuite
+    # Compile master version for comparison, uncomment following lines when merged
+    - git checkout master
+    - git pull
+    - inv -e deps
+    - inv -e system-probe.build --bundle-ebpf --incremental-build
+    - inv -e security-agent.build-stress-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/stresssuite-master
+    - git reset --hard
+    - git checkout -
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/.tmp/binary-ebpf
+      - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files
+      - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files

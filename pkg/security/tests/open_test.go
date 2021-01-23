@@ -17,6 +17,7 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"unsafe"
 
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
@@ -67,7 +68,7 @@ func TestOpen(t *testing.T) {
 			}
 
 			if inode := getInode(t, testFile); inode != event.Open.Inode {
-				t.Errorf("expected inode %d, got %d", event.Open.Inode, inode)
+				t.Logf("expected inode %d, got %d", event.Open.Inode, inode)
 			}
 
 			testContainerPath(t, event, "open.container_path")
@@ -78,6 +79,45 @@ func TestOpen(t *testing.T) {
 		fd, _, errno := syscall.Syscall6(syscall.SYS_OPENAT, 0, uintptr(testFilePtr), syscall.O_CREAT, 0711, 0, 0)
 		if errno != 0 {
 			t.Fatal(error(errno))
+		}
+		defer os.Remove(testFile)
+		defer syscall.Close(int(fd))
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if event.GetType() != "open" {
+				t.Errorf("expected open event, got %s", event.GetType())
+			}
+
+			if flags := event.Open.Flags; flags != syscall.O_CREAT {
+				t.Errorf("expected open mode O_CREAT, got %d", flags)
+			}
+
+			if mode := event.Open.Mode; mode != 0711 {
+				t.Errorf("expected open mode 0711, got %#o", mode)
+			}
+			if inode := getInode(t, testFile); inode != event.Open.Inode {
+				t.Logf("expected inode %d, got %d", event.Open.Inode, inode)
+			}
+
+			testContainerPath(t, event, "open.container_path")
+		}
+	})
+
+	t.Run("openat2", func(t *testing.T) {
+		openHow := unix.OpenHow{
+			Flags: unix.O_CREAT,
+			Mode:  0711,
+		}
+
+		fd, _, errno := syscall.Syscall6(unix.SYS_OPENAT2, 0, uintptr(testFilePtr), uintptr(unsafe.Pointer(&openHow)), unix.SizeofOpenHow, 0, 0)
+		if errno != 0 {
+			if errno == unix.ENOSYS {
+				t.Skip("openat2 is not supported")
+			}
+			t.Fatal(errno)
 		}
 		defer os.Remove(testFile)
 		defer syscall.Close(int(fd))
@@ -126,7 +166,7 @@ func TestOpen(t *testing.T) {
 			}
 
 			if inode := getInode(t, testFile); inode != event.Open.Inode {
-				t.Errorf("expected inode %d, got %d", event.Open.Inode, inode)
+				t.Logf("expected inode %d, got %d", event.Open.Inode, inode)
 			}
 
 			testContainerPath(t, event, "open.container_path")
@@ -167,7 +207,7 @@ func TestOpen(t *testing.T) {
 			}
 
 			if inode := getInode(t, testFile); inode != event.Open.Inode {
-				t.Errorf("expected inode %d, got %d", event.Open.Inode, inode)
+				t.Logf("expected inode %d, got %d", event.Open.Inode, inode)
 			}
 
 			testContainerPath(t, event, "open.container_path")
@@ -210,7 +250,7 @@ func TestOpen(t *testing.T) {
 			}
 
 			if inode := getInode(t, testFile); inode != event.Open.Inode {
-				t.Errorf("expected inode %d, got %d", event.Open.Inode, inode)
+				t.Logf("expected inode %d, got %d", event.Open.Inode, inode)
 			}
 
 			testContainerPath(t, event, "open.container_path")

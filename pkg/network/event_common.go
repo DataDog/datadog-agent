@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/dustin/go-humanize"
 )
@@ -146,6 +147,7 @@ type ConnectionStats struct {
 	DNSFailureLatencySum   uint64
 	DNSCountByRcode        map[uint32]uint32
 	DNSStatsByDomain       map[string]DNSStats
+	HTTPStatsByPath        map[string]http.RequestStats
 }
 
 // IPTranslation can be associated with a connection to show the connection is NAT'd
@@ -166,7 +168,7 @@ func (c ConnectionStats) String() string {
 //     4B      2B      2B     .5B     .5B      4/16B        4/16B   = 17/41B
 //    32b     16b     16b      4b      4b     32/128b      32/128b
 // |  PID  | SPORT | DPORT | Family | Type |  SrcAddr  |  DestAddr
-func (c ConnectionStats) ByteKey(buf [ConnectionByteKeyMaxLen]byte) ([]byte, error) {
+func (c ConnectionStats) ByteKey(buf []byte) ([]byte, error) {
 	n := 0
 	// Byte-packing to improve creation speed
 	// PID (32 bits) + SPort (16 bits) + DPort (16 bits) = 64 bits
@@ -178,8 +180,8 @@ func (c ConnectionStats) ByteKey(buf [ConnectionByteKeyMaxLen]byte) ([]byte, err
 	buf[n] = uint8(c.Family)<<4 | uint8(c.Type)
 	n++
 
-	n += copy(buf[n:], c.Source.Bytes()) // 4 or 16 bytes
-	n += copy(buf[n:], c.Dest.Bytes())   // 4 or 16 bytes
+	n += c.Source.WriteTo(buf[n:]) // 4 or 16 bytes
+	n += c.Dest.WriteTo(buf[n:])   // 4 or 16 bytes
 	return buf[:n], nil
 }
 
@@ -253,6 +255,15 @@ func printAddress(address util.Address, names []string) string {
 	}
 
 	return strings.Join(names, ",")
+}
+
+// DNSKey is an identifier for a set of DNS connections
+type DNSKey struct {
+	serverIP   util.Address
+	clientIP   util.Address
+	clientPort uint16
+	// ConnectionType will be either TCP or UDP
+	protocol ConnectionType
 }
 
 // DNSStats holds statistics corresponding to a particular domain

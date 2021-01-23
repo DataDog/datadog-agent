@@ -26,10 +26,10 @@ import (
 )
 
 const (
-	// SamplingPriorityRateKey is the metrics key holding the sampling rate at which this trace
-	// was sampled.
-	SamplingPriorityRateKey = "_sampling_priority_rate_v1"
-	syncPeriod              = 3 * time.Second
+	deprecatedRateKey = "_sampling_priority_rate_v1"
+	agentRateKey      = "_dd.agent_psr"
+	ruleRateKey       = "_dd.rule_psr"
+	syncPeriod        = 3 * time.Second
 	// prioritySamplingRateThresholdTo1 defines the maximum allowed sampling rate below 1.
 	// If this is surpassed, the rate is set to 1.
 	prioritySamplingRateThresholdTo1 = 0.3
@@ -46,9 +46,9 @@ type PriorityEngine struct {
 }
 
 // NewPriorityEngine returns an initialized Sampler
-func NewPriorityEngine(extraRate float64, maxTPS float64, rateByService *RateByService) *PriorityEngine {
+func NewPriorityEngine(extraRate float64, targetTPS float64, rateByService *RateByService) *PriorityEngine {
 	s := &PriorityEngine{
-		Sampler:       newSampler(extraRate, maxTPS),
+		Sampler:       newSampler(extraRate, targetTPS),
 		rateByService: rateByService,
 		catalog:       newServiceLookup(),
 		exit:          make(chan struct{}),
@@ -93,10 +93,10 @@ func (s *PriorityEngine) Stop() {
 }
 
 // Sample counts an incoming trace and returns the trace sampling decision and the applied sampling rate
-func (s *PriorityEngine) Sample(trace pb.Trace, root *pb.Span, env string) (sampled bool, rate float64) {
+func (s *PriorityEngine) Sample(trace pb.Trace, root *pb.Span, env string) bool {
 	// Extra safety, just in case one trace is empty
 	if len(trace) == 0 {
-		return false, 0
+		return false
 	}
 
 	samplingPriority, _ := GetSamplingPriority(root)
@@ -104,16 +104,16 @@ func (s *PriorityEngine) Sample(trace pb.Trace, root *pb.Span, env string) (samp
 	// Regardless of rates, sampling here is based on the metadata set
 	// by the client library. Which, is turn, is based on agent hints,
 	// but the rule of thumb is: respect client choice.
-	sampled = samplingPriority > 0
+	sampled := samplingPriority > 0
 
 	// Short-circuit and return without counting the trace in the sampling rate logic
 	// if its value has not been set automaticallt by the client lib.
 	// The feedback loop should be scoped to the values it can act upon.
 	if samplingPriority < 0 {
-		return sampled, 0
+		return sampled
 	}
 	if samplingPriority > 1 {
-		return sampled, 1
+		return sampled
 	}
 
 	signature := s.catalog.register(ServiceSignature{root.Service, env})
@@ -121,20 +121,37 @@ func (s *PriorityEngine) Sample(trace pb.Trace, root *pb.Span, env string) (samp
 	// Update sampler state by counting this trace
 	s.Sampler.Backend.CountSignature(signature)
 
-	// fetching applied sample rate
-	var ok bool
-	rate, ok = root.Metrics[SamplingPriorityRateKey]
-	if !ok || rate > prioritySamplingRateThresholdTo1 {
-		rate = s.Sampler.GetSignatureSampleRate(signature)
-		root.Metrics[SamplingPriorityRateKey] = rate
-	}
-
 	if sampled {
-		// Count the trace to allow us to check for the maxTPS limit.
-		// It has to happen before the maxTPS sampling.
+		s.applyRate(sampled, root, signature)
 		s.Sampler.Backend.CountSample()
 	}
-	return sampled, rate
+	return sampled
+}
+
+func (s *PriorityEngine) applyRate(sampled bool, root *pb.Span, signature Signature) {
+	if root.ParentID != 0 {
+		return
+	}
+	// recent tracers annotate roots with applied priority rate
+	// agentRateKey is set when the agent computed rate is applied
+	if _, ok := getMetric(root, agentRateKey); ok {
+		return
+	}
+	// ruleRateKey is set when a tracer rule rate is applied
+	if _, ok := getMetric(root, ruleRateKey); ok {
+		return
+	}
+
+	// slow path used by older tracer versions
+	// dd-trace-go used to set the rate in deprecatedRateKey
+	if _, ok := getMetric(root, deprecatedRateKey); !ok {
+		// if it's not set add next rate
+		rate := s.Sampler.GetSignatureSampleRate(signature)
+		if rate > prioritySamplingRateThresholdTo1 {
+			rate = 1
+		}
+		setMetric(root, deprecatedRateKey, rate)
+	}
 }
 
 // GetState collects and return internal statistics and coefficients for indication purposes

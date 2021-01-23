@@ -535,6 +535,8 @@ func TestLoadProxyConfOnly(t *testing.T) {
 	// check value loaded before aren't overwrite when no env variables are set
 	p := &Proxy{HTTP: "test", HTTPS: "test2", NoProxy: []string{"a", "b", "c"}}
 	config.Set("proxy", p)
+	// Don't include cloud metadata URL's in no_proxy
+	config.Set("use_proxy_for_cloud_metadata", true)
 
 	// circleCI set some proxy setting
 	ciValue := os.Getenv("NO_PROXY")
@@ -548,6 +550,9 @@ func TestLoadProxyConfOnly(t *testing.T) {
 
 func TestLoadProxyStdEnvOnly(t *testing.T) {
 	config := setupConf()
+
+	// Don't include cloud metadata URL's in no_proxy
+	config.Set("use_proxy_for_cloud_metadata", true)
 
 	// uppercase
 	os.Setenv("HTTP_PROXY", "http_url")
@@ -590,6 +595,8 @@ func TestLoadProxyStdEnvOnly(t *testing.T) {
 
 func TestLoadProxyDDSpecificEnvOnly(t *testing.T) {
 	config := setupConf()
+	// Don't include cloud metadata URL's in no_proxy
+	config.Set("use_proxy_for_cloud_metadata", true)
 
 	os.Setenv("DD_PROXY_HTTP", "http_url")
 	os.Setenv("DD_PROXY_HTTPS", "https_url")
@@ -612,6 +619,8 @@ func TestLoadProxyDDSpecificEnvOnly(t *testing.T) {
 
 func TestLoadProxyDDSpecificEnvPrecedenceOverStdEnv(t *testing.T) {
 	config := setupConf()
+	// Don't include cloud metadata URL's in no_proxy
+	config.Set("use_proxy_for_cloud_metadata", true)
 
 	os.Setenv("DD_PROXY_HTTP", "dd_http_url")
 	os.Setenv("DD_PROXY_HTTPS", "dd_https_url")
@@ -640,6 +649,8 @@ func TestLoadProxyDDSpecificEnvPrecedenceOverStdEnv(t *testing.T) {
 
 func TestLoadProxyStdEnvAndConf(t *testing.T) {
 	config := setupConf()
+	// Don't include cloud metadata URL's in no_proxy
+	config.Set("use_proxy_for_cloud_metadata", true)
 
 	os.Setenv("HTTP_PROXY", "http_env")
 	config.Set("proxy.no_proxy", []string{"d", "e", "f"})
@@ -658,6 +669,8 @@ func TestLoadProxyStdEnvAndConf(t *testing.T) {
 
 func TestLoadProxyDDSpecificEnvAndConf(t *testing.T) {
 	config := setupConf()
+	// Don't include cloud metadata URL's in no_proxy
+	config.Set("use_proxy_for_cloud_metadata", true)
 
 	os.Setenv("DD_PROXY_HTTP", "http_env")
 	config.Set("proxy.no_proxy", []string{"d", "e", "f"})
@@ -676,6 +689,8 @@ func TestLoadProxyDDSpecificEnvAndConf(t *testing.T) {
 
 func TestLoadProxyEmptyValuePrecedence(t *testing.T) {
 	config := setupConf()
+	// Don't include cloud metadata URL's in no_proxy
+	config.Set("use_proxy_for_cloud_metadata", true)
 
 	os.Setenv("DD_PROXY_HTTP", "")
 	os.Setenv("DD_PROXY_NO_PROXY", "a b c")
@@ -784,7 +799,7 @@ external_config:
 	})
 
 	config := setupConfFromYAML(datadogYaml)
-	applyOverrides(config)
+	applyOverrideFuncs(config)
 
 	assert.Equal(config.GetString("api_key"), "overrided", "the api key should have been overrided")
 	assert.Equal(config.GetString("dd_url"), "https://app.datadoghq.eu", "this shouldn't be overrided")
@@ -792,7 +807,7 @@ external_config:
 	AddOverrides(map[string]interface{}{
 		"dd_url": "http://localhost",
 	})
-	applyOverrides(config)
+	applyOverrideFuncs(config)
 
 	assert.Equal(config.GetString("api_key"), "overrided", "the api key should have been overrided")
 	assert.Equal(config.GetString("dd_url"), "http://localhost", "this dd_url should have been overrided")
@@ -804,8 +819,9 @@ dogstatsd_mapper_profiles:
   - name: "airflow"
     prefix: "airflow."
     mappings:
-      - match: "airflow.job.duration_sec.*.*"
+      - match: 'airflow\.job\.duration_sec\.(.*)'
         name: "airflow.job.duration"
+        match_type: "regex"
         tags:
           job_type: "$1"
           job_name: "$2"
@@ -832,9 +848,10 @@ dogstatsd_mapper_profiles:
 			Prefix: "airflow.",
 			Mappings: []MetricMapping{
 				{
-					Match: "airflow.job.duration_sec.*.*",
-					Name:  "airflow.job.duration",
-					Tags:  map[string]string{"job_type": "$1", "job_name": "$2"},
+					Match:     "airflow\\.job\\.duration_sec\\.(.*)",
+					MatchType: "regex",
+					Name:      "airflow.job.duration",
+					Tags:      map[string]string{"job_type": "$1", "job_name": "$2"},
 				},
 				{
 					Match: "airflow.job.size.*.*",
@@ -890,12 +907,12 @@ dogstatsd_mapper_profiles:
 
 func TestDogstatsdMappingProfilesEnv(t *testing.T) {
 	env := "DD_DOGSTATSD_MAPPER_PROFILES"
-	err := os.Setenv(env, `[{"name":"another_profile","prefix":"abcd","mappings":[{"match":"foo.bar.*.*","name":"foo","tags":{"a":"$1","b":"$2"}}]},{"name":"some_other_profile","prefix":"some_other_profile.","mappings":[{"match":"some_other_profile.*","name":"some_other_profile.abc","tags":{"a":"$1"}}]}]`)
+	err := os.Setenv(env, `[{"name":"another_profile","prefix":"abcd","mappings":[{"match":"airflow\\.dag_processing\\.last_runtime\\.(.*)","match_type":"regex","name":"foo","tags":{"a":"$1","b":"$2"}}]},{"name":"some_other_profile","prefix":"some_other_profile.","mappings":[{"match":"some_other_profile.*","name":"some_other_profile.abc","tags":{"a":"$1"}}]}]`)
 	assert.Nil(t, err)
 	defer os.Unsetenv(env)
 	expected := []MappingProfile{
 		{Name: "another_profile", Prefix: "abcd", Mappings: []MetricMapping{
-			{Match: "foo.bar.*.*", Name: "foo", Tags: map[string]string{"a": "$1", "b": "$2"}},
+			{Match: "airflow\\.dag_processing\\.last_runtime\\.(.*)", MatchType: "regex", Name: "foo", Tags: map[string]string{"a": "$1", "b": "$2"}},
 		}},
 		{Name: "some_other_profile", Prefix: "some_other_profile.", Mappings: []MetricMapping{
 			{Match: "some_other_profile.*", Name: "some_other_profile.abc", Tags: map[string]string{"a": "$1"}},

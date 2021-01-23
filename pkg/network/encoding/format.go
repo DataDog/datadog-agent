@@ -5,7 +5,9 @@ import (
 
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/gogo/protobuf/proto"
 )
 
 var connsPool = sync.Pool{
@@ -48,6 +50,7 @@ func FormatConnection(conn network.ConnectionStats, domainSet map[string]int) *m
 	c.LastTcpEstablished = conn.LastTCPEstablished
 	c.LastTcpClosed = conn.LastTCPClosed
 	c.DnsStatsByDomain = formatDNSStatsByDomain(conn.DNSStatsByDomain, domainSet)
+	c.HttpStatsByPath = formatHTTPStatsByPath(conn.HTTPStatsByPath)
 	return c
 }
 
@@ -188,4 +191,31 @@ func formatIPTranslation(ct *network.IPTranslation) *model.IPTranslation {
 		ReplSrcPort: int32(ct.ReplSrcPort),
 		ReplDstPort: int32(ct.ReplDstPort),
 	}
+}
+
+func formatHTTPStatsByPath(statsByPath map[string]http.RequestStats) map[string]*model.HTTPStats {
+	formattedStatsByPath := make(map[string]*model.HTTPStats)
+
+	for path, stats := range statsByPath {
+		var ms model.HTTPStats
+		ms.StatsByResponseStatus = make([]*model.HTTPStats_Data, 5)
+
+		for i := 0; i < 5; i++ {
+			status := model.HTTPResponseStatus(i)
+			count := uint32(stats.Count(status))
+
+			var latencyBytes []byte
+			if latencies := stats.Latencies(status); latencies != nil {
+				latencyBytes, _ = proto.Marshal(latencies.ToProto())
+			}
+
+			ms.StatsByResponseStatus[status] = &model.HTTPStats_Data{
+				Count:     count,
+				Latencies: latencyBytes,
+			}
+		}
+		formattedStatsByPath[path] = &ms
+	}
+
+	return formattedStatsByPath
 }

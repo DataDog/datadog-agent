@@ -14,6 +14,8 @@ import (
 )
 
 // GetClient is a convenience function returning an http client
+// `GetClient(false)` must be used only for HTTP requests whose destination is
+// localhost (ie, for Agent commands).
 func GetClient(verify bool) *http.Client {
 	if verify {
 		return &http.Client{}
@@ -73,4 +75,35 @@ func DoPost(c *http.Client, url string, contentType string, body io.Reader) (res
 		return resp, fmt.Errorf("%s", resp)
 	}
 	return resp, nil
+}
+
+// DoPostChunked is a wrapper around performing HTTP POST requests that stream chunked data
+func DoPostChunked(c *http.Client, url string, contentType string, body io.Reader, onChunk func([]byte)) error {
+	req, e := http.NewRequest("POST", url, body)
+	if e != nil {
+		return e
+	}
+	req.Header.Set("Content-Type", contentType)
+	req.Header.Set("Authorization", "Bearer "+GetAuthToken())
+
+	r, e := c.Do(req)
+	if e != nil {
+		return e
+	}
+	defer r.Body.Close()
+
+	var m int
+	buf := make([]byte, 4096)
+	for {
+		m, e = r.Body.Read(buf)
+		if m < 0 || e != nil {
+			break
+		}
+		onChunk(buf[:m])
+	}
+
+	if r.StatusCode == 200 {
+		return nil
+	}
+	return e
 }

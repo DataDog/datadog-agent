@@ -203,12 +203,20 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.Enabled = true
 	}
 
-	if config.Datadog.IsSet(key(spNS, "profiling_enabled")) {
+	if config.Datadog.IsSet(key(spNS, "profiling.enabled")) {
 		a.ProfilingEnabled = config.Datadog.GetBool(key(spNS, "profiling.enabled"))
 		a.ProfilingSite = config.Datadog.GetString(key(spNS, "profiling.site"))
 		a.ProfilingURL = config.Datadog.GetString(key(spNS, "profiling.profile_dd_url"))
 		a.ProfilingAPIKey = config.Datadog.GetString(key(spNS, "profiling.api_key"))
 		a.ProfilingEnvironment = config.Datadog.GetString(key(spNS, "profiling.env"))
+	}
+	a.EnableRuntimeCompiler = config.Datadog.GetBool(key(spNS, "enable_runtime_compiler"))
+	if config.Datadog.IsSet(key(spNS, "kernel_header_dirs")) {
+		a.KernelHeadersDirs = config.Datadog.GetStringSlice(key(spNS, "kernel_header_dirs"))
+	}
+
+	if config.Datadog.IsSet(key(spNS, "runtime_compiler_output_dir")) {
+		a.RuntimeCompilerOutputDir = config.Datadog.GetString(key(spNS, "runtime_compiler_output_dir"))
 	}
 
 	return nil
@@ -373,6 +381,16 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 				})
 			}
 		}
+	}
+
+	// use `profiling.enabled` field in `process_config` section to enable/disable profiling for process-agent,
+	// but use the configuration from main agent to fill the settings
+	if config.Datadog.IsSet(key(ns, "profiling.enabled")) {
+		a.ProfilingEnabled = config.Datadog.GetBool(key(ns, "profiling.enabled"))
+		a.ProfilingSite = config.Datadog.GetString("site")
+		a.ProfilingURL = config.Datadog.GetString("profiling.profile_dd_url")
+		a.ProfilingAPIKey = config.Datadog.GetString("api_key")
+		a.ProfilingEnvironment = config.Datadog.GetString("env")
 	}
 
 	// Used to override container source auto-detection

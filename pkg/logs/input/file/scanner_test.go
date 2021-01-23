@@ -244,9 +244,6 @@ func TestScannerScanStartNewTailer(t *testing.T) {
 		assert.Equal(t, "hello", string(msg.Content))
 		msg = <-tailer.outputChan
 		assert.Equal(t, "world", string(msg.Content))
-
-		// Ensure registry has the correct ID
-		assert.Equal(t, configID, registry.GetConfigID())
 	}
 }
 
@@ -293,17 +290,9 @@ func TestScannerWithConcurrentContainerTailer(t *testing.T) {
 	msg = <-tailer.outputChan
 	assert.Equal(t, "Time", string(msg.Content))
 
-	// Ensure registry has the correct ID
-	assert.Equal(t, firstSource.Config.Identifier, registry.GetConfigID())
-	assert.Equal(t, "file:"+path, registry.GetIdentifier())
-
 	// Add a second source, same file, different container ID, tailing twice the same file is supported in that case
 	scanner.addSource(secondSource)
 	assert.Equal(t, 2, len(scanner.tailers))
-
-	// Ensure registry has been updated
-	assert.Equal(t, secondSource.Config.Identifier, registry.GetConfigID())
-	assert.Equal(t, "file:"+path, registry.GetIdentifier())
 }
 
 func TestScannerTailFromTheBeginning(t *testing.T) {
@@ -352,9 +341,6 @@ func TestScannerTailFromTheBeginning(t *testing.T) {
 		assert.Equal(t, "A", string(msg.Content))
 		msg = <-tailer.outputChan
 		assert.Equal(t, "Time", string(msg.Content))
-
-		// Ensure registry has the correct ID
-		assert.Equal(t, source.Config.Identifier, registry.GetConfigID())
 	}
 }
 

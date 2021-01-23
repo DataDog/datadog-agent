@@ -17,6 +17,7 @@ import (
 	cache "github.com/patrickmn/go-cache"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	v1 "k8s.io/api/core/v1"
@@ -89,7 +90,11 @@ func (b *kubernetesEventBundle) formatEvents(clusterName string, providerIDCache
 		return metrics.Event{}, errors.New("no event to export")
 	}
 
-	tags := []string{fmt.Sprintf("source_component:%s", b.component), fmt.Sprintf("kubernetes_kind:%s", b.kind), fmt.Sprintf("name:%s", b.name), addKindRelatedTag(b.kind, b.name)}
+	tags := []string{fmt.Sprintf("source_component:%s", b.component), fmt.Sprintf("kubernetes_kind:%s", b.kind), fmt.Sprintf("name:%s", b.name)}
+
+	if kindTag := getKindTag(b.kind, b.name); kindTag != "" {
+		tags = append(tags, kindTag)
+	}
 
 	hostname := b.nodename
 	if b.nodename != "" {
@@ -132,21 +137,14 @@ func (b *kubernetesEventBundle) formatEvents(clusterName string, providerIDCache
 	return output, nil
 }
 
-func addKindRelatedTag(kind, name string) string {
-	var tags string
-	switch kind {
-	case "Pod":
-		tags = fmt.Sprintf("pod_name:%s", name)
-	case "Deployment":
-		tags = fmt.Sprintf("kube_deployment:%s", name)
-	case "ReplicaSet":
-		tags = fmt.Sprintf("kube_replica_set:%s", name)
-	case "ReplicationController":
-		tags = fmt.Sprintf("kube_replication_controller:%s", name)
-	case "StatefulSet":
-		tags = fmt.Sprintf("kube_stateful_set:%s", name)
+// getKindTag returns the kube_<kind>:<name> tag.
+// The exact same tag names and object kinds are supported by the tagger.
+// It returns an empty string if the kind doesn't correspond to a known/supported kind tag.
+func getKindTag(kind, name string) string {
+	if tagName, found := kubernetes.KindToTagName[kind]; found {
+		return fmt.Sprintf("%s:%s", tagName, name)
 	}
-	return tags
+	return ""
 }
 
 func getHostProviderID(nodename string) string {

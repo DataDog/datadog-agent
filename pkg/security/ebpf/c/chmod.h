@@ -51,20 +51,11 @@ int __attribute__((always_inline)) trace__sys_chmod_ret(struct pt_regs *ctx) {
     if (IS_UNHANDLED_ERROR(retval))
         return 0;
 
-    // add an real entry to reach the first dentry with the proper inode
-    u64 inode = syscall->setattr.path_key.ino;
-    if (syscall->setattr.real_inode) {
-        inode = syscall->setattr.real_inode;
-        link_dentry_inode(syscall->setattr.path_key, inode);
-    }
-
     struct chmod_event_t event = {
-        .event.type = EVENT_CHMOD,
-        .event.timestamp = bpf_ktime_get_ns(),
         .syscall.retval = retval,
         .file = {
             .mount_id = syscall->setattr.path_key.mount_id,
-            .inode = inode,
+            .inode = syscall->setattr.path_key.ino,
             .overlay_numlower = get_overlay_numlower(syscall->setattr.dentry),
             .path_id = syscall->setattr.path_key.path_id,
         },
@@ -77,7 +68,7 @@ int __attribute__((always_inline)) trace__sys_chmod_ret(struct pt_regs *ctx) {
 
     // dentry resolution in setattr.h
 
-    send_event(ctx, event);
+    send_event(ctx, EVENT_CHMOD, event);
 
     return 0;
 }

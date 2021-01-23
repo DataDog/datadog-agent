@@ -162,6 +162,8 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(in *jle
 			}
 		case "pid":
 			out.Pid = uint32(in.Uint32())
+		case "ppid":
+			out.PPid = uint32(in.Uint32())
 		case "tid":
 			out.Tid = uint32(in.Uint32())
 		case "uid":
@@ -174,6 +176,8 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(in *jle
 			out.ContainerPath = string(in.String())
 		case "executable_path":
 			out.Path = string(in.String())
+		case "path_resolution_error":
+			out.PathResolutionError = string(in.String())
 		case "executable_inode":
 			out.Inode = uint64(in.Uint64())
 		case "executable_mount_id":
@@ -269,6 +273,11 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(out *jw
 		out.Uint32(uint32(in.Pid))
 	}
 	{
+		const prefix string = ",\"ppid\":"
+		out.RawString(prefix)
+		out.Uint32(uint32(in.PPid))
+	}
+	{
 		const prefix string = ",\"tid\":"
 		out.RawString(prefix)
 		out.Uint32(uint32(in.Tid))
@@ -297,6 +306,11 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(out *jw
 		const prefix string = ",\"executable_path\":"
 		out.RawString(prefix)
 		out.String(string(in.Path))
+	}
+	{
+		const prefix string = ",\"path_resolution_error\":"
+		out.RawString(prefix)
+		out.String(string(in.PathResolutionError))
 	}
 	{
 		const prefix string = ",\"executable_inode\":"
@@ -385,6 +399,8 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe2(in *jle
 		switch key {
 		case "pid":
 			out.Pid = uint32(in.Uint32())
+		case "ppid":
+			out.PPid = uint32(in.Uint32())
 		case "tid":
 			out.Tid = uint32(in.Uint32())
 		case "uid":
@@ -397,6 +413,8 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe2(in *jle
 			out.ContainerPath = string(in.String())
 		case "executable_path":
 			out.Path = string(in.String())
+		case "path_resolution_error":
+			out.PathResolutionError = string(in.String())
 		case "executable_inode":
 			out.Inode = uint64(in.Uint64())
 		case "executable_mount_id":
@@ -463,6 +481,11 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe2(out *jw
 		out.Uint32(uint32(in.Pid))
 	}
 	{
+		const prefix string = ",\"ppid\":"
+		out.RawString(prefix)
+		out.Uint32(uint32(in.PPid))
+	}
+	{
 		const prefix string = ",\"tid\":"
 		out.RawString(prefix)
 		out.Uint32(uint32(in.Tid))
@@ -491,6 +514,11 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe2(out *jw
 		const prefix string = ",\"executable_path\":"
 		out.RawString(prefix)
 		out.String(string(in.Path))
+	}
+	{
+		const prefix string = ",\"path_resolution_error\":"
+		out.RawString(prefix)
+		out.String(string(in.PathResolutionError))
 	}
 	{
 		const prefix string = ",\"executable_inode\":"
@@ -583,6 +611,8 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe3(in *jle
 			out.Name = string(in.String())
 		case "container_path":
 			out.ContainerPath = string(in.String())
+		case "path_resolution_error":
+			out.PathResolutionError = string(in.String())
 		case "inode":
 			if in.IsNull() {
 				in.Skip()
@@ -734,6 +764,16 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe3(out *jw
 		}
 		out.String(string(in.ContainerPath))
 	}
+	if in.PathResolutionError != "" {
+		const prefix string = ",\"path_resolution_error\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.PathResolutionError))
+	}
 	if in.Inode != nil {
 		const prefix string = ",\"inode\":"
 		if first {
@@ -764,7 +804,7 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe3(out *jw
 		}
 		out.Int32(int32(*in.OverlayNumLower))
 	}
-	{
+	if in.MountID != nil {
 		const prefix string = ",\"mount_id\":"
 		if first {
 			first = false
@@ -772,35 +812,56 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe3(out *jw
 		} else {
 			out.RawString(prefix)
 		}
-		if in.MountID == nil {
-			out.RawString("null")
-		} else {
-			out.Uint32(uint32(*in.MountID))
-		}
+		out.Uint32(uint32(*in.MountID))
 	}
 	if in.UID != nil {
 		const prefix string = ",\"uid\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.Int32(int32(*in.UID))
 	}
 	if in.GID != nil {
 		const prefix string = ",\"gid\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.Int32(int32(*in.GID))
 	}
 	if in.XAttrName != "" {
 		const prefix string = ",\"attribute_name\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.String(string(in.XAttrName))
 	}
 	if in.XAttrNamespace != "" {
 		const prefix string = ",\"attribute_namespace\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.String(string(in.XAttrNamespace))
 	}
 	if len(in.Flags) != 0 {
 		const prefix string = ",\"flags\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		{
 			out.RawByte('[')
 			for v5, v6 := range in.Flags {
@@ -814,12 +875,22 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe3(out *jw
 	}
 	if in.Atime != nil {
 		const prefix string = ",\"access_time\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.Raw((*in.Atime).MarshalJSON())
 	}
 	if in.Mtime != nil {
 		const prefix string = ",\"modification_time\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.Raw((*in.Mtime).MarshalJSON())
 	}
 	out.RawByte('}')
@@ -877,8 +948,8 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe4(in *jle
 				}
 				(*out.Destination).UnmarshalEasyJSON(in)
 			}
-		case "mount_id":
-			out.MountID = uint32(in.Uint32())
+		case "new_mount_id":
+			out.NewMountID = uint32(in.Uint32())
 		case "group_id":
 			out.GroupID = uint32(in.Uint32())
 		case "device":
@@ -891,6 +962,8 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe4(in *jle
 			out.Name = string(in.String())
 		case "container_path":
 			out.ContainerPath = string(in.String())
+		case "path_resolution_error":
+			out.PathResolutionError = string(in.String())
 		case "inode":
 			if in.IsNull() {
 				in.Skip()
@@ -920,6 +993,16 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe4(in *jle
 					out.OverlayNumLower = new(int32)
 				}
 				*out.OverlayNumLower = int32(in.Int32())
+			}
+		case "mount_id":
+			if in.IsNull() {
+				in.Skip()
+				out.MountID = nil
+			} else {
+				if out.MountID == nil {
+					out.MountID = new(uint32)
+				}
+				*out.MountID = uint32(in.Uint32())
 			}
 		case "uid":
 			if in.IsNull() {
@@ -1012,15 +1095,15 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe4(out *jw
 		out.RawString(prefix[1:])
 		(*in.Destination).MarshalEasyJSON(out)
 	}
-	if in.MountID != 0 {
-		const prefix string = ",\"mount_id\":"
+	if in.NewMountID != 0 {
+		const prefix string = ",\"new_mount_id\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
 		} else {
 			out.RawString(prefix)
 		}
-		out.Uint32(uint32(in.MountID))
+		out.Uint32(uint32(in.NewMountID))
 	}
 	if in.GroupID != 0 {
 		const prefix string = ",\"group_id\":"
@@ -1082,6 +1165,16 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe4(out *jw
 		}
 		out.String(string(in.ContainerPath))
 	}
+	if in.PathResolutionError != "" {
+		const prefix string = ",\"path_resolution_error\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.PathResolutionError))
+	}
 	if in.Inode != nil {
 		const prefix string = ",\"inode\":"
 		if first {
@@ -1111,6 +1204,16 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe4(out *jw
 			out.RawString(prefix)
 		}
 		out.Int32(int32(*in.OverlayNumLower))
+	}
+	if in.MountID != nil {
+		const prefix string = ",\"mount_id\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.Uint32(uint32(*in.MountID))
 	}
 	if in.UID != nil {
 		const prefix string = ",\"uid\":"
@@ -1280,6 +1383,10 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe5(in *jle
 				}
 				(*out.ContainerContextSerializer).UnmarshalEasyJSON(in)
 			}
+		case "date":
+			if data := in.Raw(); in.Ok() {
+				in.AddError((out.Date).UnmarshalJSON(data))
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -1326,6 +1433,11 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe5(out *jw
 		const prefix string = ",\"container\":"
 		out.RawString(prefix)
 		(*in.ContainerContextSerializer).MarshalEasyJSON(out)
+	}
+	{
+		const prefix string = ",\"date\":"
+		out.RawString(prefix)
+		out.Raw((in.Date).MarshalJSON())
 	}
 	out.RawByte('}')
 }

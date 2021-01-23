@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/hashicorp/go-multierror"
 )
 
@@ -34,27 +35,32 @@ type transactionContainer struct {
 	mutex                      sync.RWMutex
 }
 
-func tryNewTransactionContainer(
+func buildTransactionContainer(
 	maxMemSizeInBytes int,
 	flushToStorageRatio float64,
 	optionalDomainFolderPath string,
 	storageMaxSize int64,
-	dropPrioritySorter transactionPrioritySorter) (*transactionContainer, error) {
+	dropPrioritySorter transactionPrioritySorter,
+	domain string,
+	apiKeys []string) *transactionContainer {
 	if maxMemSizeInBytes <= 0 {
-		return nil, nil
+		return nil
 	}
 	var storage transactionStorage
 	var err error
 
 	if optionalDomainFolderPath != "" && storageMaxSize > 0 {
-		serializer := NewTransactionsSerializer()
+		serializer := NewTransactionsSerializer(domain, apiKeys)
 		storage, err = newTransactionsFileStorage(serializer, optionalDomainFolderPath, storageMaxSize, transactionsFileStorageTelemetry{})
+
+		// If the storage on disk cannot be used, log the error and continue.
+		// Returning `nil, err` would mean not using `TransactionContainer` and so not using `forwarder_retry_queue_payloads_max_size` config.
 		if err != nil {
-			return nil, fmt.Errorf("Error when creating the file storage: %v", err)
+			log.Errorf("Error when creating the file storage: %v", err)
 		}
 	}
 
-	return newTransactionContainer(dropPrioritySorter, storage, maxMemSizeInBytes, flushToStorageRatio, transactionContainerTelemetry{}), nil
+	return newTransactionContainer(dropPrioritySorter, storage, maxMemSizeInBytes, flushToStorageRatio, transactionContainerTelemetry{})
 }
 
 func newTransactionContainer(

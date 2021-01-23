@@ -427,7 +427,7 @@ shared_examples_for "an installed Agent" do
       end
       is_signed = is_file_signed(msi_path)
       expect(is_signed).to be_truthy
-      
+
       verify_signature_files = [
         "#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent\\process-agent.exe",
         "#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent\\trace-agent.exe",
@@ -746,7 +746,10 @@ shared_examples_for 'an Agent that is removed' do
             'C:/Windows/ServiceProfiles/NetworkService/AppData/Local/Microsoft/Windows/DeliveryOptimization/Cache/',
             'C:/Windows/SoftwareDistribution/DataStore/Logs/',
             'C:/Windows/System32/wbem/Performance/',
-            'c:/windows/System32/LogFiles/'
+            'c:/windows/System32/LogFiles/',
+            'c:/windows/SoftwareDistribution/',
+            'c:/windows/ServiceProfiles/NetworkService/AppData/',
+            'c:/windows/System32/Tasks/Microsoft/Windows/UpdateOrchestrator/'
       ].each { |e| e.downcase! }
 
       # We don't really need to create this file since we consume it right afterwards, but it's useful for debugging

@@ -22,7 +22,9 @@ import (
 
 func generateContextKey(sample metrics.MetricSampleContext) ckey.ContextKey {
 	k := ckey.NewKeyGenerator()
-	return k.Generate(sample.GetName(), sample.GetHost(), sample.GetTags())
+	tagsBuffer := []string{}
+	tagsBuffer = sample.GetTags(tagsBuffer)
+	return k.Generate(sample.GetName(), sample.GetHost(), tagsBuffer)
 }
 
 func TestCheckGaugeSampling(t *testing.T) {

@@ -5,8 +5,8 @@
 
 package pb
 
-//go:generate msgp -file=span.pb.go -o span_gen.go -io=false
-//go:generate msgp -io=false
+//go:generate go run github.com/tinylib/msgp -file=span.pb.go -o span_gen.go -io=false
+//go:generate go run github.com/tinylib/msgp -io=false
 
 // Trace is a collection of spans with the same trace ID
 type Trace []*Span

@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/gce"
 	kubelet "github.com/DataDog/datadog-agent/pkg/util/hostname/kubelet"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 
 	"io/ioutil"
 
@@ -55,11 +56,12 @@ func GetPayload(hostnameData util.HostnameData) *Payload {
 		PythonVersion: GetPythonVersion(),
 		SystemStats:   getSystemStats(),
 		Meta:          meta,
-		HostTags:      getHostTags(),
+		HostTags:      GetHostTags(false),
 		ContainerMeta: getContainerMeta(1 * time.Second),
 		NetworkMeta:   getNetworkMeta(),
 		LogsMeta:      getLogsMeta(),
 		InstallMethod: getInstallMethod(getInstallInfoPath()),
+		ProxyMeta:     getProxyMeta(),
 	}
 
 	// Cache the metadata for use in other payloads
@@ -235,6 +237,16 @@ func getContainerMeta(timeout time.Duration) map[string]string {
 
 func getLogsMeta() *LogsMeta {
 	return &LogsMeta{Transport: string(status.CurrentTransport)}
+}
+
+func getProxyMeta() *ProxyMeta {
+	httputils.NoProxyWarningMapMutex.Lock()
+	defer httputils.NoProxyWarningMapMutex.Unlock()
+
+	return &ProxyMeta{
+		NoProxyNonexactMatch: config.Datadog.GetBool("no_proxy_nonexact_match"),
+		ProxyBehaviorChanged: len(httputils.NoProxyWarningMap) > 0,
+	}
 }
 
 func buildKey(key string) string {

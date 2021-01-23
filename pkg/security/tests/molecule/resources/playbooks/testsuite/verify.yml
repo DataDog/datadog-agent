@@ -1,0 +1,14 @@
+---
+- name: Verify
+  hosts: all
+  tasks:
+  - debug:
+      msg: "sudo /tmp/testsuite -test.v -test.run {{ lookup('env', 'TEST_PATTERN') | default('^.*$', True) }}"
+
+  - shell: "/tmp/testsuite -test.v -test.run {{ lookup('env', 'TEST_PATTERN') | default('^.*$', True) }} &> /tmp/logs"
+    become: true
+
+  - fetch:
+      dest: ../../../../testsuite.log
+      src: /tmp/logs
+      flat: true

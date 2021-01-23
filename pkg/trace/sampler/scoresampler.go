@@ -11,6 +11,8 @@ const (
 	// errorSamplingRateThresholdTo1 defines the maximum allowed sampling rate below 1.
 	// If this is surpassed, the rate is set to 1.
 	errorSamplingRateThresholdTo1 = 0.1
+	errorsRateKey                 = "_dd.errors_sr"
+	scoreRateKey                  = "_dd.score_sr"
 )
 
 // ScoreEngine is the main component of the sampling logic
@@ -21,9 +23,9 @@ type ScoreEngine struct {
 }
 
 // NewScoreEngine returns an initialized Sampler
-func NewScoreEngine(extraRate float64, maxTPS float64) *ScoreEngine {
+func NewScoreEngine(extraRate float64, targetTPS float64) *ScoreEngine {
 	s := &ScoreEngine{
-		Sampler:    newSampler(extraRate, maxTPS),
+		Sampler:    newSampler(extraRate, targetTPS),
 		engineType: NormalScoreEngineType,
 	}
 
@@ -33,9 +35,9 @@ func NewScoreEngine(extraRate float64, maxTPS float64) *ScoreEngine {
 // NewErrorsEngine returns an initialized Sampler dedicate to errors. It behaves
 // just like the the normal ScoreEngine except for its GetType method (useful
 // for reporting).
-func NewErrorsEngine(extraRate float64, maxTPS float64) *ScoreEngine {
+func NewErrorsEngine(extraRate float64, targetTPS float64) *ScoreEngine {
 	s := &ScoreEngine{
-		Sampler:    newSampler(extraRate, maxTPS),
+		Sampler:    newSampler(extraRate, targetTPS),
 		engineType: ErrorsScoreEngineType,
 	}
 	s.Sampler.setRateThresholdTo1(errorSamplingRateThresholdTo1)
@@ -53,18 +55,26 @@ func (s *ScoreEngine) Stop() {
 	s.Sampler.Stop()
 }
 
-func applySampleRate(root *pb.Span, rate float64) bool {
+func (s *ScoreEngine) applySampleRate(root *pb.Span, rate float64) bool {
 	initialRate := GetGlobalRate(root)
 	newRate := initialRate * rate
 	traceID := root.TraceID
-	return SampleByRate(traceID, newRate)
+	sampled := SampleByRate(traceID, newRate)
+	if sampled {
+		if s.engineType == ErrorsScoreEngineType {
+			setMetric(root, errorsRateKey, rate)
+		} else {
+			setMetric(root, scoreRateKey, rate)
+		}
+	}
+	return sampled
 }
 
 // Sample counts an incoming trace and tells if it is a sample which has to be kept
-func (s *ScoreEngine) Sample(trace pb.Trace, root *pb.Span, env string) (sampled bool, rate float64) {
+func (s *ScoreEngine) Sample(trace pb.Trace, root *pb.Span, env string) bool {
 	// Extra safety, just in case one trace is empty
 	if len(trace) == 0 {
-		return false, 0
+		return false
 	}
 
 	signature := computeSignatureWithRootAndEnv(trace, root, env)
@@ -72,24 +82,24 @@ func (s *ScoreEngine) Sample(trace pb.Trace, root *pb.Span, env string) (sampled
 	// Update sampler state by counting this trace
 	s.Sampler.Backend.CountSignature(signature)
 
-	rate = s.Sampler.GetSampleRate(trace, root, signature)
+	rate := s.Sampler.GetSampleRate(trace, root, signature)
 
-	sampled = applySampleRate(root, rate)
+	sampled := s.applySampleRate(root, rate)
 
 	if sampled {
-		// Count the trace to allow us to check for the maxTPS limit.
-		// It has to happen before the maxTPS sampling.
+		// Count the trace to allow us to check for the targetTPS limit.
+		// It has to happen before the targetTPS sampling.
 		s.Sampler.Backend.CountSample()
 
-		// Check for the maxTPS limit, and if we require an extra sampling.
+		// Check for the targetTPS limit, and if we require an extra sampling.
 		// No need to check if we already decided not to keep the trace.
-		maxTPSrate := s.Sampler.GetMaxTPSSampleRate()
-		if maxTPSrate < 1 {
-			sampled = applySampleRate(root, maxTPSrate)
+		targetTPSrate := s.Sampler.GetTargetTPSSampleRate()
+		if targetTPSrate < 1 {
+			sampled = s.applySampleRate(root, targetTPSrate)
 		}
 	}
 
-	return sampled, rate
+	return sampled
 }
 
 // GetState collects and return internal statistics and coefficients for indication purposes

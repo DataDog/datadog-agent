@@ -6,6 +6,7 @@
 package sender
 
 import (
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -35,8 +36,29 @@ func NewBatchStrategy(serializer Serializer, batchWait time.Duration) Strategy {
 	}
 }
 
+func (s *batchStrategy) Flush(inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error, mu *sync.Mutex) {
+	mu.Lock()
+	for {
+		if len(inputChan) == 0 {
+			break
+		}
+		message := <-inputChan
+		added := s.buffer.AddMessage(message)
+		if !added || s.buffer.IsFull() {
+			s.sendBuffer(outputChan, send)
+		}
+		if !added {
+			// it's possible that the message could not be added because the buffer was full
+			// so we need to retry once again
+			s.buffer.AddMessage(message)
+		}
+	}
+	s.sendBuffer(outputChan, send)
+	mu.Unlock()
+}
+
 // Send accumulates messages to a buffer and sends them when the buffer is full or outdated.
-func (s *batchStrategy) Send(inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error) {
+func (s *batchStrategy) Send(inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error, mu *sync.Mutex) {
 	flushTimer := time.NewTimer(s.batchWait)
 	defer func() {
 		flushTimer.Stop()
@@ -49,6 +71,9 @@ func (s *batchStrategy) Send(inputChan chan *message.Message, outputChan chan *m
 				// inputChan has been closed, no more payload are expected
 				s.sendBuffer(outputChan, send)
 				return
+			}
+			if message.Origin != nil {
+				message.Origin.LogSource.LatencyStats.Add(message.GetLatency())
 			}
 			added := s.buffer.AddMessage(message)
 			if !added || s.buffer.IsFull() {
@@ -75,6 +100,8 @@ func (s *batchStrategy) Send(inputChan chan *message.Message, outputChan chan *m
 			s.sendBuffer(outputChan, send)
 			flushTimer.Reset(s.batchWait)
 		}
+		mu.Lock() // block here if we're synchronously sending
+		mu.Unlock()
 	}
 }
 

@@ -32,6 +32,10 @@ if node['platform_family'] != 'windows'
       apt_update
 
       package 'gnupg'
+
+      package 'unattended-upgrades' do
+        action :remove
+      end
     end
 
     if ['ubuntu', 'debian', 'centos'].include?(node[:platform])

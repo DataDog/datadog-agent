@@ -1,0 +1,168 @@
+---
+# FIXME: our current Gitlab version doesn't support importing a file more than once
+# For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
+# See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
+# include:
+#   - /.gitlab/docker_common/tag_job_templates.yml
+
+.if_deploy_on_tag_6: &if_deploy_on_tag_6
+  # no RELEASE_VERSION means a nightly build for omnibus
+  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_6 != "nightly" && $RELEASE_VERSION_6 != ""
+
+.if_deploy_6: &if_deploy_6
+  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_6 != ""
+
+.if_not_master_branch: &if_not_master_branch
+  if: $CI_COMMIT_BRANCH != "master"
+
+#
+# Image tagging & manifest publication
+#
+
+.deploy_docker-a6:
+  stage: deploy6
+  dependencies: []
+  script:
+    - VERSION=$(inv -e agent.version --major-version 6 --url-safe)
+    - | # If we're not deploying on tag 6, target the dev repo instead
+      if [[ "$DEPLOY_AGENT" != "true" ]] || [[ "$RELEASE_VERSION_6" == "nightly" ]] || [[ "$RELEASE_VERSION_6" == "" ]]; then
+        REPOSITORY="${REPOSITORY}-dev"
+      fi
+    - echo "Working on repsoitory ${REPOSITORY}"
+    # Platform-specific agent images
+    - inv -e docker.publish-bulk ${SIGNING_ARGS} --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-6-ARCH      --dst-template ${REPOSITORY}-ARCH:${VERSION}
+    - inv -e docker.publish-bulk ${SIGNING_ARGS} --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-6-jmx-ARCH  --dst-template ${REPOSITORY}-ARCH:${VERSION}-jmx
+
+    # Manifests
+    - inv -e docker.publish-manifest ${SIGNING_ARGS} --name ${REPOSITORY} --tag ${VERSION} --image ${REPOSITORY}-amd64:${VERSION},linux/amd64 --image ${REPOSITORY}-arm64:${VERSION},linux/arm64
+    - inv -e docker.publish-manifest ${SIGNING_ARGS} --name ${REPOSITORY} --tag ${VERSION}-jmx  --image ${REPOSITORY}-amd64:${VERSION}-jmx,linux/amd64 --image ${REPOSITORY}-arm64:${VERSION}-jmx,linux/arm64
+
+deploy_docker_hub-a6:
+  extends: 
+    - .docker_tag_job_definition
+    - .deploy_docker-a6
+  rules:
+    # TODO: Use in-rule variables instead of a condition in script once we reach Gitlab 13.8
+    # - <<: *if_deploy_on_tag_6
+    #   when: manual
+    #   allow_failure: true
+    #   variables:
+    #     REPOSITORY: datadog/agent
+    # - <<: *if_deploy_6
+    #   when: manual
+    #   allow_failure: true
+    #   variables:
+    #     REPOSITORY: datadog/agent-dev
+    - <<: *if_deploy_6
+      when: manual
+      allow_failure: true
+  variables:
+    REPOSITORY: datadog/agent
+    SIGNING_ARGS: --signed-push
+
+deploy_google_container_registry-a6:
+  extends: 
+    - .google_container_registry_tag_job_definition
+    - .deploy_docker-a6
+  rules:
+    # TODO: Use in-rule variables instead of a condition in script once we reach Gitlab 13.8
+    # - <<: *if_deploy_on_tag_6
+    #   when: manual
+    #   allow_failure: true
+    #   variables:
+    #     REPOSITORY: gcr.io/datadoghq/agent
+    # - <<: *if_deploy_6
+    #   when: manual
+    #   allow_failure: true
+    #   variables:
+    #     REPOSITORY: gcr.io/datadoghq/agent-dev
+    - <<: *if_deploy_6
+      when: manual
+      allow_failure: true
+  variables:
+    REPOSITORY: gcr.io/datadoghq/agent
+    SIGNING_ARGS: ""
+
+
+#
+# Latest publication
+#
+
+.deploy_latest-a6:
+  stage: deploy6
+  dependencies: []
+  script:
+    - VERSION=$(inv -e agent.version --major-version 6 --url-safe)
+    - | # If we're not deploying on tag 6, target the dev repo instead
+      if [[ "$DEPLOY_AGENT" != "true" ]] || [[ "$RELEASE_VERSION_6" == "nightly" ]] || [[ "$RELEASE_VERSION_6" == "" ]]; then
+        REPOSITORY="${REPOSITORY}-dev"
+      fi
+    - echo "Working on repsoitory ${REPOSITORY}"
+    - inv -e docker.publish-manifest ${SIGNING_ARGS} --name ${REPOSITORY} --tag latest-py2 --image ${REPOSITORY}-amd64:${VERSION},linux/amd64 --image ${REPOSITORY}-arm64:${VERSION},linux/arm64
+    - inv -e docker.publish-manifest ${SIGNING_ARGS} --name ${REPOSITORY} --tag latest-py2-jmx --image ${REPOSITORY}-amd64:${VERSION}-jmx,linux/amd64 --image ${REPOSITORY}-arm64:${VERSION}-jmx,linux/arm64
+    - inv -e docker.publish-manifest ${SIGNING_ARGS} --name ${REPOSITORY} --tag 6 --image ${REPOSITORY}-amd64:${VERSION},linux/amd64 --image ${REPOSITORY}-arm64:${VERSION},linux/arm64
+    - inv -e docker.publish-manifest ${SIGNING_ARGS} --name ${REPOSITORY} --tag 6-jmx --image ${REPOSITORY}-amd64:${VERSION}-jmx,linux/amd64 --image ${REPOSITORY}-arm64:${VERSION}-jmx,linux/arm64
+
+deploy_latest_docker_hub-a6:
+  extends:
+    - .docker_tag_job_definition
+    - .deploy_latest-a6
+  rules:
+    # TODO: Use in-rule variables instead of a condition in script once we reach Gitlab 13.8
+    # - <<: *if_deploy_on_tag_6
+    #   when: manual
+    #   allow_failure: true
+    #   variables:
+    #     REPOSITORY: datadog/agent
+    # - <<: *if_not_master_branch
+    #   when: never
+    # - <<: *if_deploy_6
+    #   when: manual
+    #   allow_failure: true
+    #   variables:
+    #     REPOSITORY: datadog/agent-dev
+    # Allow running the latest job on tagged deploys (RCs, final artifacts) and on other deploy pipelines
+    # if they run on master
+    - <<: *if_deploy_on_tag_6
+      when: manual
+      allow_failure: true
+    - <<: *if_not_master_branch
+      when: never
+    - <<: *if_deploy_6
+      when: manual
+      allow_failure: true
+  variables:
+    REPOSITORY: datadog/agent
+    SIGNING_ARGS: --signed-push
+
+deploy_latest_google_container_registry-a6:
+  extends:
+    - .google_container_registry_tag_job_definition
+    - .deploy_latest-a6
+  rules:
+    # TODO: Use in-rule variables instead of a condition in script once we reach Gitlab 13.8
+    # - <<: *if_deploy_on_tag_6
+    #   when: manual
+    #   allow_failure: true
+    #   variables:
+    #     REPOSITORY: gcr.io/datadoghq/agent
+    # - <<: *if_not_master_branch
+    #   when: never
+    # - <<: *if_deploy_6
+    #   when: manual
+    #   allow_failure: true
+    #   variables:
+    #     REPOSITORY: gcr.io/datadoghq/agent-dev
+    # Allow running the latest job on tagged deploys (RCs, final artifacts) and on other deploy pipelines
+    # if they run on master
+    - <<: *if_deploy_on_tag_6
+      when: manual
+      allow_failure: true
+    - <<: *if_not_master_branch
+      when: never
+    - <<: *if_deploy_6
+      when: manual
+      allow_failure: true
+  variables:
+    REPOSITORY: gcr.io/datadoghq/agent
+    SIGNING_ARGS: ""

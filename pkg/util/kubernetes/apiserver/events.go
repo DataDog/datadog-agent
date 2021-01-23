@@ -86,6 +86,14 @@ func (c *APIClient) RunEventCollection(resVer string, lastListTime time.Time, ev
 				}
 			}
 
+			if rcv.Type == watch.Deleted {
+				// The events informer sends the state of an object immediately before deletion.
+				// We're not interested in re-processing these events because they should be processed already when they were added.
+				// This happens when an event reaches the events TTL, an apiserver config (default 1 hour).
+				// Ignoring this type of informer events will prevent from sending duplicated datadog events.
+				continue
+			}
+
 			ev, ok := rcv.Object.(*v1.Event)
 			if !ok {
 				// Could not cast the ev, might as well drop this event, and continue.

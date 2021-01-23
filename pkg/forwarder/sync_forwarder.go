@@ -55,8 +55,8 @@ func (f *SyncForwarder) SubmitV1Series(payload Payloads, extra http.Header) erro
 }
 
 // SubmitV1Intake will send payloads to the universal `/intake/` endpoint used by Agent v.5
-func (f *SyncForwarder) SubmitV1Intake(payload Payloads, extra http.Header, priority TransactionPriority) error {
-	transactions := f.defaultForwarder.createPriorityHTTPTransactions(v1IntakeEndpoint, payload, true, extra, priority)
+func (f *SyncForwarder) SubmitV1Intake(payload Payloads, extra http.Header) error {
+	transactions := f.defaultForwarder.createHTTPTransactions(v1IntakeEndpoint, payload, true, extra)
 	// the intake endpoint requires the Content-Type header to be set
 	for _, t := range transactions {
 		t.Headers.Set("Content-Type", "application/json")
@@ -97,14 +97,17 @@ func (f *SyncForwarder) SubmitSketchSeries(payload Payloads, extra http.Header) 
 
 // SubmitHostMetadata will send a host_metadata tag type payload to Datadog backend.
 func (f *SyncForwarder) SubmitHostMetadata(payload Payloads, extra http.Header) error {
-	transactions := f.defaultForwarder.createHTTPTransactions(hostMetadataEndpoint, payload, false, extra)
-	return f.sendHTTPTransactions(transactions)
+	return f.SubmitV1Intake(payload, extra)
 }
 
 // SubmitMetadata will send a metadata type payload to Datadog backend.
-func (f *SyncForwarder) SubmitMetadata(payload Payloads, extra http.Header, priority TransactionPriority) error {
-	transactions := f.defaultForwarder.createPriorityHTTPTransactions(metadataEndpoint, payload, false, extra, priority)
-	return f.sendHTTPTransactions(transactions)
+func (f *SyncForwarder) SubmitMetadata(payload Payloads, extra http.Header) error {
+	return f.SubmitV1Intake(payload, extra)
+}
+
+// SubmitAgentChecksMetadata will send a agentchecks_metadata tag type payload to Datadog backend.
+func (f *SyncForwarder) SubmitAgentChecksMetadata(payload Payloads, extra http.Header) error {
+	return f.SubmitV1Intake(payload, extra)
 }
 
 // SubmitProcessChecks sends process checks

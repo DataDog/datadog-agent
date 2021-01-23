@@ -4,6 +4,8 @@ package http
 
 import (
 	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 /*
@@ -20,7 +22,11 @@ type httpTX C.http_transaction_t
 type httpNotification C.http_batch_notification_t
 type httpBatch C.http_batch_t
 type httpBatchKey C.http_batch_key_t
-type httpBatchState C.http_batch_state_t
+
+const (
+	CONN_V4 uint = 0 << 0
+	CONN_V6 uint = 1 << 1
+)
 
 func toHTTPNotification(data []byte) httpNotification {
 	return *(*httpNotification)(unsafe.Pointer(&data[0]))
@@ -60,6 +66,59 @@ func (tx *httpTX) StatusClass() int {
 	return (int(tx.response_status_code) / 100) * 100
 }
 
+// Method returns a string representing the HTTP method of the request
+func (tx *httpTX) Method() string {
+	switch tx.request_method {
+	case C.HTTP_GET:
+		return "GET"
+	case C.HTTP_POST:
+		return "POST"
+	case C.HTTP_PUT:
+		return "PUT"
+	case C.HTTP_HEAD:
+		return "HEAD"
+	case C.HTTP_DELETE:
+		return "DELETE"
+	case C.HTTP_OPTIONS:
+		return "OPTIONS"
+	case C.HTTP_PATCH:
+		return "PATCH"
+	default:
+		return ""
+	}
+}
+
+func (tx *httpTX) SourceIP() util.Address {
+	// Second bit of metadata indicates if the connection is V6 (1) or V4 (0)
+	metadata := uint(tx.tup.metadata)
+	if metadata&CONN_V6 == 1 {
+		return util.V6Address(uint64(tx.tup.saddr_l), uint64(tx.tup.saddr_h))
+	}
+	return util.V4Address(uint32(tx.tup.saddr_l))
+}
+
+func (tx *httpTX) DestIP() util.Address {
+	// Second bit of metadata indicates if the connection is V6 (1) or V4 (0)
+	metadata := uint(tx.tup.metadata)
+	if metadata&CONN_V6 == 1 {
+		return util.V6Address(uint64(tx.tup.daddr_l), uint64(tx.tup.daddr_h))
+	}
+	return util.V4Address(uint32(tx.tup.daddr_l))
+}
+
+func (tx *httpTX) SourcePort() uint16 {
+	return uint16(tx.tup.sport)
+}
+
+func (tx *httpTX) DestPort() uint16 {
+	return uint16(tx.tup.dport)
+}
+
+// RequestLatency returns the latency of the request in ms
+func (tx *httpTX) RequestLatency() float64 {
+	return float64((tx.response_last_seen - tx.request_started) / (1000000))
+}
+
 // IsDirty detects whether the batch page we're supposed to read from is still
 // valid.  A "dirty" page here means that between the time the
 // http_notification_t message was sent to userspace and the time we performed
@@ -68,8 +127,7 @@ func (batch *httpBatch) IsDirty(notification httpNotification) bool {
 	return batch.idx != notification.batch_idx
 }
 
-// GetTransactions extracts the HTTP transactions from the batch according to the
-// httpNotification received from the Kernel.
-func (batch *httpBatch) GetTransactions(notif httpNotification) *[HTTPBatchSize]httpTX {
-	return (*[HTTPBatchSize]httpTX)(unsafe.Pointer(&batch.txs))
+// Transactions returns the slice of HTTP transactions embedded in the batch
+func (batch *httpBatch) Transactions() []httpTX {
+	return (*(*[HTTPBatchSize]httpTX)(unsafe.Pointer(&batch.txs)))[:]
 }

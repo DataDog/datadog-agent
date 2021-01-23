@@ -268,7 +268,11 @@ func TestProcessMetrics(t *testing.T) {
 		mocked.SetupAcceptAll()
 
 		metricTransformers = test.metricTransformers
-		kubeStateMetricsSCheck.processMetrics(mocked, test.metricsToProcess, test.metricsToGet)
+		labelJoiner := newLabelJoiner(test.config.LabelJoins)
+		for _, metricFam := range test.metricsToGet {
+			labelJoiner.insertFamily(metricFam)
+		}
+		kubeStateMetricsSCheck.processMetrics(mocked, test.metricsToProcess, labelJoiner)
 		t.Run(test.name, func(t *testing.T) {
 			for _, expectMetric := range test.expected {
 				mocked.AssertMetric(t, "Gauge", expectMetric.name, expectMetric.val, expectMetric.hostname, expectMetric.tags)
@@ -537,45 +541,6 @@ func TestSendTelemetry(t *testing.T) {
 	}
 }
 
-func Test_isMatching(t *testing.T) {
-	type args struct {
-		config     *JoinsConfig
-		destLabels map[string]string
-		srcLabels  map[string]string
-	}
-	tests := []struct {
-		name string
-		args args
-		want bool
-	}{
-		{
-			name: "match",
-			args: args{
-				config:     &JoinsConfig{LabelsToMatch: []string{"foo"}},
-				destLabels: map[string]string{"foo": "bar", "baz": "bar"},
-				srcLabels:  map[string]string{"foo": "bar"},
-			},
-			want: true,
-		},
-		{
-			name: "no match",
-			args: args{
-				config:     &JoinsConfig{LabelsToMatch: []string{"foo"}},
-				destLabels: map[string]string{"foo": "bar", "baz": "bar"},
-				srcLabels:  map[string]string{"baz": "bar"},
-			},
-			want: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := isMatching(tt.args.config, tt.args.srcLabels, tt.args.destLabels); got != tt.want {
-				t.Errorf("isMatching() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestKSMCheck_hostnameAndTags(t *testing.T) {
 	type args struct {
 		labels       map[string]string
@@ -725,7 +690,7 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 					},
 				},
 			},
-			wantTags:     []string{"foo_label:foo_value", "foo_label:foo_value", "bar_label:bar_value", "baz_label:baz_value"},
+			wantTags:     []string{"foo_label:foo_value", "bar_label:bar_value", "baz_label:baz_value"},
 			wantHostname: "",
 		},
 		{
@@ -774,7 +739,12 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), tt.config)
-			hostname, tags := kubeStateMetricsSCheck.hostnameAndTags(tt.args.labels, tt.args.metricsToGet)
+			labelJoiner := newLabelJoiner(tt.config.LabelJoins)
+			for _, metricFam := range tt.args.metricsToGet {
+				labelJoiner.insertFamily(metricFam)
+			}
+
+			hostname, tags := kubeStateMetricsSCheck.hostnameAndTags(tt.args.labels, labelJoiner)
 			assert.ElementsMatch(t, tt.wantTags, tags)
 			assert.Equal(t, tt.wantHostname, hostname)
 		})
