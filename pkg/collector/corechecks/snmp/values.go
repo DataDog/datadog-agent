@@ -9,9 +9,9 @@ type resultValueStore struct {
 	columnValues columnResultValuesType
 }
 
-// getScalarValues look for oid in resultValueStore and returns the value and boolean
+// getScalarValue look for oid in resultValueStore and returns the value and boolean
 // weather valid value has been found
-func (v *resultValueStore) getScalarValues(oid string) (snmpValueType, error) {
+func (v *resultValueStore) getScalarValue(oid string) (snmpValueType, error) {
 	value, ok := v.scalarValues[oid]
 	if !ok {
 		return snmpValueType{}, fmt.Errorf("value for Scalar OID `%s` not found in `%v`", oid, v.scalarValues)

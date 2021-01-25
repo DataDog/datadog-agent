@@ -26,7 +26,7 @@ func (ms *metricSender) getCheckInstanceMetricTags(metricTags []metricTagConfig,
 	var globalTags []string
 
 	for _, metricTag := range metricTags {
-		value, err := values.getScalarValues(metricTag.OID)
+		value, err := values.getScalarValue(metricTag.OID)
 		if err != nil {
 			log.Warnf("metric tags: error getting scalar value: %v", err)
 			continue
@@ -37,7 +37,7 @@ func (ms *metricSender) getCheckInstanceMetricTags(metricTags []metricTagConfig,
 }
 
 func (ms *metricSender) reportScalarMetrics(metric metricsConfig, values *resultValueStore, tags []string) {
-	value, err := values.getScalarValues(metric.Symbol.OID)
+	value, err := values.getScalarValue(metric.Symbol.OID)
 	if err != nil {
 		log.Warnf("report scalar: error getting scalar value: %v", err)
 		return
