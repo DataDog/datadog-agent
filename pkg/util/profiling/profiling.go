@@ -23,6 +23,8 @@ const (
 	ProfileURLTemplate = "https://intake.profile.%s/v1/input"
 	// ProfileCoreService default service for the core agent profiler.
 	ProfileCoreService = "datadog-agent"
+	// ProfilingLocalURL is the constant used to compute the URL of the local trace agent
+	ProfilingLocalURL = "http://%v/profiling/v1/input"
 )
 
 // Active returns a boolean indicating whether profiling is active or not;

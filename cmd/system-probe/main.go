@@ -158,18 +158,25 @@ func runAgent(exit <-chan struct{}) {
 }
 
 func enableProfiling(cfg *config.AgentConfig) error {
-	// allow full url override for development use
-	s := ddconfig.DefaultSite
-	if cfg.ProfilingSite != "" {
-		s = cfg.ProfilingSite
-	}
-
-	site := fmt.Sprintf(profiling.ProfileURLTemplate, s)
-	if cfg.ProfilingURL != "" {
-		site = cfg.ProfilingURL
-	}
-
+	var site string
 	v, _ := version.Agent()
+
+	// check if TRACE_AGENT_URL is set, in which case, forward the profiles to the trace agent
+	if traceAgentURL := os.Getenv("TRACE_AGENT_URL"); len(traceAgentURL) > 0 {
+		site = fmt.Sprintf(profiling.ProfilingLocalURL, traceAgentURL)
+	} else {
+		// allow full url override for development use
+		s := ddconfig.DefaultSite
+		if cfg.ProfilingSite != "" {
+			s = cfg.ProfilingSite
+		}
+
+		site = fmt.Sprintf(profiling.ProfileURLTemplate, s)
+		if cfg.ProfilingURL != "" {
+			site = cfg.ProfilingURL
+		}
+	}
+
 	return profiling.Start(
 		cfg.ProfilingAPIKey,
 		site,
