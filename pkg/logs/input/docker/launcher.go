@@ -53,7 +53,7 @@ type Launcher struct {
 }
 
 // NewLauncher returns a new launcher
-func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry, shouldRetry, tailFromFile bool) (*Launcher, error) {
+func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry, shouldRetry, tailFromFile, forceTailingFromFile bool) (*Launcher, error) {
 	if !shouldRetry {
 		if _, err := dockerutil.GetDockerUtil(); err != nil {
 			return nil, err
@@ -71,6 +71,7 @@ func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services
 		readTimeout:            readTimeout,
 		serviceNameFunc:        input.ServiceNameFromTags,
 		sources:                sources,
+		forceTailingFromFile:   forceTailingFromFile,
 		tailFromFile:           tailFromFile,
 		fileSourcesByContainer: make(map[string]*config.LogSource),
 	}
@@ -292,6 +293,7 @@ func (l *Launcher) shouldTailFromFile(container *Container) bool {
 	if !l.tailFromFile {
 		return false
 	}
+	// Unsure this one is really useful, user could be instructed to clean up the registry
 	if l.forceTailingFromFile {
 		return true
 	}
