@@ -166,7 +166,7 @@ func getPublicIPv4() (string, error) {
 		return publicIPv4, err
 	}
 
-	log.Debugf("No public IPv4 address found")
+	log.Infof("No public IPv4 address found")
 	return "", err
 }
 
