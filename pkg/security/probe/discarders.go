@@ -8,11 +8,14 @@
 package probe
 
 import (
-	"time"
+	"math"
+	"math/rand"
 
+	lib "github.com/DataDog/ebpf"
 	libebpf "github.com/DataDog/ebpf"
 	"github.com/pkg/errors"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
@@ -80,35 +83,43 @@ func getInvalidDiscarders() map[eval.Field]map[interface{}]bool {
 	return invalidDiscarders
 }
 
+type pidDiscarders struct {
+	*lib.Map
+}
+
 type pidDiscarderParameters struct {
 	EventType  model.EventType
 	Timestamps [model.MaxEventRoundedUp]uint64
 }
 
-func (p *Probe) discardPID(eventType model.EventType, pid uint32) error {
+func (p *pidDiscarders) discard(eventType model.EventType, pid uint32) error {
 	var params pidDiscarderParameters
 
 	updateFlags := libebpf.UpdateExist
-	if err := p.pidDiscarders.Lookup(pid, &params); err != nil {
+	if err := p.Lookup(pid, &params); err != nil {
 		updateFlags = libebpf.UpdateAny
 	}
 
 	params.EventType |= 1 << (eventType - 1)
-	return p.pidDiscarders.Update(pid, &params, updateFlags)
+	return p.Update(pid, &params, updateFlags)
 }
 
-func (p *Probe) discardPIDWithTimeout(eventType model.EventType, pid uint32, timeout time.Duration) error {
+func (p *pidDiscarders) discardWithTimeout(eventType model.EventType, pid uint32, timeout int64) error {
 	var params pidDiscarderParameters
 
 	updateFlags := libebpf.UpdateExist
-	if err := p.pidDiscarders.Lookup(pid, &params); err != nil {
+	if err := p.Lookup(pid, &params); err != nil {
 		updateFlags = libebpf.UpdateAny
 	}
 
 	params.EventType |= 1 << (eventType - 1)
-	params.Timestamps[eventType] = uint64(p.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Now().Add(timeout)))
+	params.Timestamps[eventType] = uint64(timeout)
 
-	return p.pidDiscarders.Update(pid, &params, updateFlags)
+	return p.Update(pid, &params, updateFlags)
+}
+
+func newPidDiscarders(m *lib.Map) *pidDiscarders {
+	return &pidDiscarders{Map: m}
 }
 
 type inodeDiscarder struct {
@@ -122,28 +133,41 @@ type inodeDiscarderParameters struct {
 	LeafMask   model.EventType
 }
 
-func (p *Probe) removeDiscarderInode(mountID uint32, inode uint64) {
+type inodeDiscarders struct {
+	*lib.Map
+	revisions     *lib.Map
+	revisionCache [discarderRevisionSize]uint32
+}
+
+func newInodeDiscarders(inodesMap, revisionsMap *lib.Map) *inodeDiscarders {
+	return &inodeDiscarders{
+		Map:       inodesMap,
+		revisions: revisionsMap,
+	}
+}
+
+func (id *inodeDiscarders) removeInode(mountID uint32, inode uint64) {
 	key := inodeDiscarder{
 		PathKey: PathKey{
 			MountID: mountID,
 			Inode:   inode,
 		},
 	}
-	_ = p.inodeDiscarders.Delete(&key)
+	_ = id.Delete(&key)
 }
 
-func (p *Probe) discardInode(eventType model.EventType, mountID uint32, inode uint64, isLeaf bool) error {
+func (id *inodeDiscarders) discardInode(eventType model.EventType, mountID uint32, inode uint64, isLeaf bool) error {
 	var params inodeDiscarderParameters
 	key := inodeDiscarder{
 		PathKey: PathKey{
 			MountID: mountID,
 			Inode:   inode,
 		},
-		Revision: p.getDiscarderRevision(mountID),
+		Revision: id.getRevision(mountID),
 	}
 
 	updateFlags := libebpf.UpdateExist
-	if err := p.inodeDiscarders.Lookup(key, &params); err != nil {
+	if err := id.Lookup(key, &params); err != nil {
 		updateFlags = libebpf.UpdateAny
 	}
 
@@ -153,7 +177,32 @@ func (p *Probe) discardInode(eventType model.EventType, mountID uint32, inode ui
 		params.ParentMask |= 1 << (eventType - 1)
 	}
 
-	return p.inodeDiscarders.Update(&key, &params, updateFlags)
+	return id.Update(&key, &params, updateFlags)
+}
+
+func (id *inodeDiscarders) getRevision(mountID uint32) uint32 {
+	key := mountID % discarderRevisionSize
+	return id.revisionCache[key]
+}
+
+func (id *inodeDiscarders) setRevision(mountID uint32, revision uint32) {
+	key := mountID % discarderRevisionSize
+	id.revisionCache[key] = revision
+}
+
+func (id *inodeDiscarders) initRevision(mountEvent *model.MountEvent) {
+	var revision uint32
+
+	if mountEvent.IsOverlayFS() {
+		revision = uint32(rand.Intn(math.MaxUint16) + 1)
+	}
+
+	key := mountEvent.MountID % discarderRevisionSize
+	id.revisionCache[key] = revision
+
+	if err := id.revisions.Put(ebpf.Uint32MapItem(key), ebpf.Uint32MapItem(revision)); err != nil {
+		log.Errorf("unable to initialize discarder revisions: %s", err)
+	}
 }
 
 func (p *Probe) discardParentInode(rs *rules.RuleSet, eventType model.EventType, field eval.Field, filename string, mountID uint32, inode uint64, pathID uint32) (bool, uint32, uint64, error) {
@@ -167,7 +216,7 @@ func (p *Probe) discardParentInode(rs *rules.RuleSet, eventType model.EventType,
 		return false, 0, 0, err
 	}
 
-	if err := p.discardInode(eventType, parentMountID, parentInode, false); err != nil {
+	if err := p.inodeDiscarders.discardInode(eventType, parentMountID, parentInode, false); err != nil {
 		return false, 0, 0, err
 	}
 
@@ -202,7 +251,7 @@ func filenameDiscarderWrapper(eventType model.EventType, handler onDiscarderHand
 					log.Tracef("Apply `%s.filename` inode discarder for event `%s`, inode: %d", eventType, eventType, inode)
 
 					// not able to discard the parent then only discard the filename
-					err = probe.discardInode(eventType, mountID, inode, false)
+					err = probe.inodeDiscarders.discardInode(eventType, mountID, inode, false)
 				}
 			} else {
 				log.Tracef("Apply `%s.filename` parent inode discarder for event `%s` with value `%s`", eventType, eventType, filename)
@@ -229,11 +278,11 @@ func processDiscarderWrapper(eventType model.EventType, fnc onDiscarderHandler) 
 			log.Tracef("Apply process.filename discarder for event `%s`, inode: %d", eventType, event.Process.Inode)
 
 			// discard by PID for long running process
-			if err := probe.discardPID(eventType, event.Process.Pid); err != nil {
+			if err := probe.pidDiscarders.discard(eventType, event.Process.Pid); err != nil {
 				return err
 			}
 
-			return probe.discardInode(eventType, event.Process.MountID, event.Process.Inode, true)
+			return probe.inodeDiscarders.discardInode(eventType, event.Process.MountID, event.Process.Inode, true)
 		}
 
 		if fnc != nil {
