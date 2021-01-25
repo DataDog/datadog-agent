@@ -11,9 +11,6 @@ import (
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	// runtime init routines
-	_ "github.com/DataDog/datadog-agent/pkg/runtime"
 )
 
 // handleSignal closes a channel to exit cleanly from routines
