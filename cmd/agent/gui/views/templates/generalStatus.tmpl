@@ -8,7 +8,7 @@
       {{- if .runnerStats.Workers}}
         <br>Check Workers: {{.runnerStats.Workers}}
       {{end}}
-      <br>Agent start: {{ formatUnixTime .agent_start_nano true 1}}
+      <br>Agent start: {{ formatUnixTime .agent_start_nano true}}
       {{- if .config.log_file}}
         <br>Log File: {{.config.log_file}}
       {{end}}
@@ -24,7 +24,7 @@
   <div class="stat">
     <span class="stat_title">System Info</span>
     <span class="stat_data">
-      System time: {{ formatUnixTime .time_nano true 1}}
+      System time: {{ formatUnixTime .time_nano true }}
       {{- if .ntpOffset}}
         <br>NTP Offset: {{ humanizeDuration .ntpOffset "s"}}
         {{- if ntpWarning .ntpOffset}}
@@ -44,7 +44,7 @@
         {{- if ne $type "hostname" -}}
           {{- if ne $type "hostid" -}}
             {{if $value}}
-              {{formatTitle $type}}: {{if eq $type "bootTime" -}}{{- formatUnixTime $value false 1 -}}
+              {{formatTitle $type}}: {{if eq $type "bootTime" -}}{{- formatUnixTime $value -}}
                               {{- else -}}{{- if eq $type "uptime" -}}{{- humanizeDuration $value "s" -}}
                               {{- else -}}{{- $value -}}
                               {{- end -}}{{- end -}}<br>
@@ -124,7 +124,7 @@
       <span class="stat_subtitle">JMX startup errors</span>
         <span class="stat_subdata">
           Error: {{ .JMXStartupError.LastError }} <br>
-          Date: {{ formatUnixTime .JMXStartupError.Timestamp false 1}}
+          Date: {{ formatUnixTime .JMXStartupError.Timestamp }}
         </span>
       {{ end -}}
       {{- with .JMXStatus -}}

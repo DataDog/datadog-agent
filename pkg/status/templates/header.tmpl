@@ -5,8 +5,8 @@ NOTE: Changes made to this template should be reflected on the following templat
 {{.title}}
 {{printDashes .title "="}}
 
-  Status date: {{ formatUnixTime .time_nano true 1}}
-  Agent start: {{ formatUnixTime .agent_start_nano true 1}}
+  Status date: {{ formatUnixTime .time_nano true }}
+  Agent start: {{ formatUnixTime .agent_start_nano true}}
   Pid: {{.pid}}
   Go Version: {{.go_version}}
   {{- if .python_version }}
@@ -38,7 +38,7 @@ NOTE: Changes made to this template should be reflected on the following templat
     {{yellowText "NTP offset is high. Datadog may ignore metrics sent by this Agent."}}
     {{- end }}
     {{- end }}
-    System time: {{ formatUnixTime .time_nano true 1}}
+    System time: {{ formatUnixTime .time_nano true }}
 
 {{- if .hostinfo }}
 
@@ -46,7 +46,7 @@ NOTE: Changes made to this template should be reflected on the following templat
   =========
   {{- range $name, $value := .hostinfo -}}
     {{- if and (ne $name "hostname") (ne $name "hostid") ($value) }}
-    {{$name}}: {{if eq $name "bootTime" }}{{ formatUnixTime $value false 1}}{{ else }}{{if eq $name "uptime" }}{{ humanizeDuration $value "s"}}{{ else }}{{ $value }}{{ end }}{{ end }}
+    {{$name}}: {{if eq $name "bootTime" }}{{ formatUnixTime $value }}{{ else }}{{if eq $name "uptime" }}{{ humanizeDuration $value "s"}}{{ else }}{{ $value }}{{ end }}{{ end }}
     {{- end }}
   {{- end }}
 {{- end }}
@@ -144,7 +144,7 @@ Custom Metrics Server
     - {{$k}}: {{$v}}
     {{- end }}
     Value: {{ humanize $metric.value}}
-    Timestamp: {{ formatUnixTime $metric.ts false 1}}
+    Timestamp: {{ formatUnixTime $metric.ts}}
     Valid: {{$metric.valid}}
     {{- end }}
     {{- end }}

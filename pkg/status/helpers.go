@@ -106,38 +106,12 @@ func lastErrorMessage(value string) string {
 	return value
 }
 
-// formatUnixTime formats the unix time in seconds
-// (or nanoseconds if isNanoSeconds=true) to make it more readable
-func formatUnixTime(unixTime float64, isNanoSeconds bool, option int) string {
-	/*
-		option:
-		0 - local time only
-			E.g. 2021-01-04 10:14:51.000 AEDT
-
-		1 - include both UTC (if applicable) and and millisecond timestamp
-			E.g. 2021-01-04 10:14:51.000 AEDT / 2021-01-03 23:14:51.000 UTC (1609715691000)
-
-		2 - include UTC only (if applicable)
-			E.g. 2021-01-04 10:14:51.000 AEDT / 2021-01-03 23:14:51.000 UTC
-
-		3 - millisecond timestamp only
-			E.g. 2021-01-04 10:14:51.000 AEDT (1609715691000)
-	*/
+// formatUnixTime formats the unix time to make it more readable
+func formatUnixTime(unixTime float64, isNanoSeconds bool) string {
 	var (
-		sec        int64
-		nsec       int64
-		includeUTC bool
-		includeTS  bool
+		sec  int64
+		nsec int64
 	)
-	switch option {
-	case 1:
-		includeUTC = true
-		includeTS = true
-	case 2:
-		includeUTC = true
-	case 3:
-		includeTS = true
-	}
 
 	if isNanoSeconds {
 		nsec = int64(unixTime)
@@ -150,22 +124,13 @@ func formatUnixTime(unixTime float64, isNanoSeconds bool, option int) string {
 		}
 	}
 	t := time.Unix(sec, nsec)
+	_, tzoffset := t.Zone()
 	result := t.Format(timeFormat)
-
-	if includeUTC {
-		// Appends UTC time when applicable
-		_, tzoffset := t.Zone()
-		if tzoffset != 0 {
-			result += " / " + t.UTC().Format(timeFormat)
-		}
+	if tzoffset != 0 {
+		result += " / " + t.UTC().Format(timeFormat)
 	}
-
-	if includeTS {
-		// Include timestamp in milliseconds
-		msec := t.UnixNano() / int64(time.Millisecond)
-		result += " (" + strconv.Itoa(int(msec)) + ")"
-	}
-
+	msec := t.UnixNano() / int64(time.Millisecond)
+	result += " (" + strconv.Itoa(int(msec)) + ")"
 	return result
 }
 

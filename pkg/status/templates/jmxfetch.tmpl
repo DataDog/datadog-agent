@@ -8,7 +8,7 @@ JMXFetch
   JMX startup errors
   ==================
     Error: {{ .JMXStartupError.LastError }}
-    Date: {{ formatUnixTime .JMXStartupError.Timestamp false 1}}
+    Date: {{ formatUnixTime .JMXStartupError.Timestamp }}
 {{ end -}}
 {{ with .JMXStatus }}
   Information
