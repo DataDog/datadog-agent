@@ -294,17 +294,17 @@ func TestSplitPayloadsSketches(t *testing.T) {
 }
 
 func testSplitPayloadsSketches(t *testing.T, numPoints int, compress bool) {
-	testSketchSeries := make(metrics.SketchSeriesList, numPoints)
+	testSketchSeries := make([]metrics.SketchSeries, numPoints)
 	for i := 0; i < numPoints; i++ {
 		testSketchSeries[i] = metrics.Makeseries(i)
 	}
 
-	payloads, err := Payloads(testSketchSeries, compress, MarshalJSON)
+	payloads, err := Payloads(metrics.NewSketchSeriesList(testSketchSeries), compress, MarshalJSON)
 	require.Nil(t, err)
 
-	var splitSketches = []metrics.SketchSeriesList{}
+	var splitSketches = [][]metrics.SketchSeries{}
 	for _, payload := range payloads {
-		var s = map[string]metrics.SketchSeriesList{}
+		var s = map[string][]metrics.SketchSeries{}
 
 		if compress {
 			*payload, err = compression.Decompress(nil, *payload)

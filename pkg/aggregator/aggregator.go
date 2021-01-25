@@ -399,7 +399,7 @@ func (agg *BufferedAggregator) addSample(metricSample *metrics.MetricSample, tim
 // GetSeriesAndSketches grabs all the series & sketches from the queue and clears the queue
 // The parameter `before` is used as an end interval while retrieving series and sketches
 // from the time sampler. Metrics and sketches before this timestamp should be returned.
-func (agg *BufferedAggregator) GetSeriesAndSketches(before time.Time) (metrics.Series, metrics.SketchSeriesList) {
+func (agg *BufferedAggregator) GetSeriesAndSketches(before time.Time) (metrics.Series, []metrics.SketchSeries) {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 
@@ -412,9 +412,10 @@ func (agg *BufferedAggregator) GetSeriesAndSketches(before time.Time) (metrics.S
 	return series, sketches
 }
 
-func (agg *BufferedAggregator) pushSketches(start time.Time, sketches metrics.SketchSeriesList) {
+func (agg *BufferedAggregator) pushSketches(start time.Time, sketches []metrics.SketchSeries) {
 	log.Debugf("Flushing %d sketches to the forwarder", len(sketches))
-	err := agg.serializer.SendSketch(sketches)
+	sl := metrics.NewSketchSeriesList(sketches)
+	err := agg.serializer.SendSketch(sl)
 	state := stateOk
 	if err != nil {
 		log.Warnf("Error flushing sketch: %v", err)
@@ -512,7 +513,7 @@ func (agg *BufferedAggregator) sendSeries(start time.Time, series metrics.Series
 	}
 }
 
-func (agg *BufferedAggregator) sendSketches(start time.Time, sketches metrics.SketchSeriesList, waitForSerializer bool) {
+func (agg *BufferedAggregator) sendSketches(start time.Time, sketches []metrics.SketchSeries, waitForSerializer bool) {
 	// Serialize and forward sketches in a separate goroutine
 	addFlushCount("Sketches", int64(len(sketches)))
 	if len(sketches) != 0 {
