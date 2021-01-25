@@ -22,8 +22,10 @@ import (
 
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
+	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
+	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
@@ -172,11 +174,12 @@ func (m *Module) Close() {
 	}
 
 	if m.listener != nil {
-		m.listener.Close()
-		os.Remove(m.config.SocketPath)
+		_ = m.listener.Close()
+		_ = os.Remove(m.config.SocketPath)
 	}
 
-	m.probe.Close()
+	_ = m.probe.Close()
+	profiler.Stop()
 }
 
 // EventDiscarderFound is called by the ruleset when a new discarder discovered
@@ -266,8 +269,22 @@ func (m *Module) GetRuleSet() *rules.RuleSet {
 
 // NewModule instantiates a runtime security system-probe module
 func NewModule(cfg *config.Config) (api.Module, error) {
+	// start profiler
+	err := profiler.Start(
+		profiler.WithService("system-probe"),
+		profiler.WithAPIKey(aconfig.Datadog.GetString("api_key")),
+		profiler.WithTags("source:runtime-security-module"),
+		profiler.WithProfileTypes(
+			profiler.HeapProfile,
+			profiler.CPUProfile,
+			profiler.BlockProfile,
+			profiler.MutexProfile),
+	)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to start the profiler")
+	}
+
 	var statsdClient *statsd.Client
-	var err error
 	if cfg != nil {
 		statsdAddr := os.Getenv("STATSD_URL")
 		if statsdAddr == "" {

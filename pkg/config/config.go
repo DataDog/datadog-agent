@@ -802,6 +802,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.load_controller.control_period", 2)
 	config.BindEnvAndSetDefault("runtime_security_config.pid_cache_size", 10000)
 	config.BindEnvAndSetDefault("runtime_security_config.agent_monitoring_events", true)
+	config.BindEnvAndSetDefault("runtime_security_config.enable_profiling", false)
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")

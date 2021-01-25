@@ -64,6 +64,8 @@ type Config struct {
 	StatsdAddr string
 	// AgentMonitoringEvents determines if the monitoring events of the agent should be sent to Datadog
 	AgentMonitoringEvents bool
+	// EnableProfiling enables Datadog Profiling on system-probe
+	EnableProfiling bool
 }
 
 // NewConfig returns a new Config object
@@ -88,6 +90,7 @@ func NewConfig(cfg *config.AgentConfig) (*Config, error) {
 		StatsPollingInterval:               time.Duration(aconfig.Datadog.GetInt("runtime_security_config.events_stats.polling_interval")) * time.Second,
 		StatsdAddr:                         fmt.Sprintf("%s:%d", cfg.StatsdHost, cfg.StatsdPort),
 		AgentMonitoringEvents:              aconfig.Datadog.GetBool("runtime_security_config.agent_monitoring_events"),
+		EnableProfiling:                    aconfig.Datadog.GetBool("runtime_security_config.enable_profiling"),
 	}
 
 	if !c.Enabled {
