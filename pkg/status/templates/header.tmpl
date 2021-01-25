@@ -5,8 +5,8 @@ NOTE: Changes made to this template should be reflected on the following templat
 {{.title}}
 {{printDashes .title "="}}
 
-  Status date: {{ formatUnixTime .time_nano true }}
-  Agent start: {{ formatUnixTime .agent_start_nano true}}
+  Status date: {{ formatUnixTime .time_nano }}
+  Agent start: {{ formatUnixTime .agent_start_nano }}
   Pid: {{.pid}}
   Go Version: {{.go_version}}
   {{- if .python_version }}
@@ -38,7 +38,7 @@ NOTE: Changes made to this template should be reflected on the following templat
     {{yellowText "NTP offset is high. Datadog may ignore metrics sent by this Agent."}}
     {{- end }}
     {{- end }}
-    System time: {{ formatUnixTime .time_nano true }}
+    System time: {{ formatUnixTime .time_nano }}
 
 {{- if .hostinfo }}
 
