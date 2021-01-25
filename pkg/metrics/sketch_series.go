@@ -134,12 +134,12 @@ func (sl SketchSeriesList) Marshal() ([]byte, error) {
 			Dogsketches: dsl,
 		})
 	}
-	if pb.Size() > cap(sl.buf) {
+	if pb.Size() > cap(*sl.buf) {
 		//sl.buf = make([]byte, pb.Size())
-		sl.buf = append(sl.buf, make([]byte, pb.Size()-cap(sl.buf))...)
+		*sl.buf = append(*sl.buf, make([]byte, pb.Size()-cap(*sl.buf))...)
 	}
-	n, err := pb.MarshalTo(sl.buf)
-	return sl.buf[:n], err
+	n, err := pb.MarshalTo(*sl.buf)
+	return (*sl.buf)[:n], err
 
 	// if pb.Size() > cap(buf) {
 	// 	buf = make([]byte, pb.Size())
