@@ -313,9 +313,9 @@ func TestGetPublicIPv4(t *testing.T) {
 	config.Datadog.Set("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
-	ip, err := GetPublicIPv4()
+	val, err := GetPublicIPv4()
 	require.NoError(t, err)
-	assert.Equal(t, ip, ip)
+	assert.Equal(t, ip, val)
 }
 
 func TestGetToken(t *testing.T) {
