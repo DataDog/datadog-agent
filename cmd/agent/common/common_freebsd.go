@@ -19,7 +19,7 @@ const (
 	//DefaultJmxLogFile points to the jmx fetch log file that will be used if not configured
 	DefaultJmxLogFile = "/var/log/datadog/jmxfetch.log"
 	// DefaultCheckFlareDirectory a flare friendly location for checks to be written
-	DefaultCheckFlareDirectory = "/var/log/datadog/checks/"	
+	DefaultCheckFlareDirectory = "/var/log/datadog/checks/"
 	// DefaultJMXFlareDirectory a flare friendly location for jmx command logs to be written
 	DefaultJMXFlareDirectory = "/var/log/datadog/jmxinfo/"
 )
