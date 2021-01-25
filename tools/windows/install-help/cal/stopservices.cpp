@@ -933,13 +933,35 @@ int verifyServices(CustomActionData &data)
                 // than ddagentuser; otherwise, we wouldn't have the password at this
                 // point and this wouldn't work.
                 retval = services[i].create(hScManager);
+                if(0 != retval)
+                {
+                    // if we can't create it, don't fail the upgrade,just log and
+                    // continue on.  The existing services can/should still function
+                    WcaLog(LOGMSG_STANDARD, "Failed to create new service during upgrade %S %d %d 0x%x", services[i].getServiceName(), i, retval, retval);
+                    WcaLog(LOGMSG_STANDARD, "Allowing upgrade to proceed");
+                    // since we're allowing the upgrade to continue, reset the error code to zero
+                    // in case this is the last one. Don't want to fail the upgrade by mistake
+                    retval = 0;
+                    continue;
+                }
+                // else
 
                 // since we just created this service, we need to allow the datadog
                 // agent core service to start/stop it
                 retval = EnableServiceForUser(data.Sid(), services[i].getServiceName());
+                if(0 != retval)
+                {
+                    WcaLog(LOGMSG_STANDARD, "Failed to modify service permissions for %S", services[i].getServiceName());
+                    // since we're allowing the upgrade to continue, reset the error code to zero
+                    // in case this is the last one. Don't want to fail the upgrade by mistake
+                    retval = 0;
+                    continue;
+                }
+            } else 
+            {
+                WcaLog(LOGMSG_STANDARD, "Failed to verify service %d %d 0x%x, rolling back", i, retval, retval);
+                break;
             }
-            WcaLog(LOGMSG_STANDARD, "Failed to verify service %d %d 0x%x, rolling back", i, retval, retval);
-            break;
         }
     }
 #ifdef __REGISTER_ALL_SERVICES
