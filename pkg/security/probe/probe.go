@@ -29,7 +29,6 @@ import (
 	lib "github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
 	"github.com/cihub/seelog"
-	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/pkg/errors"
 )
 
@@ -64,8 +63,6 @@ type Probe struct {
 	// Approvers / discarders section
 	pidDiscarders      *pidDiscarders
 	inodeDiscarders    *inodeDiscarders
-	invalidDiscarders  map[eval.Field]map[interface{}]bool
-	regexCache         *simplelru.LRU
 	flushingDiscarders int64
 	approvers          map[eval.EventType]activeApprovers
 }
@@ -179,7 +176,9 @@ func (p *Probe) Init(client *statsd.Client) error {
 		return err
 	}
 
-	p.inodeDiscarders = newInodeDiscarders(inodeDiscardersMap, discarderRevisionsMap)
+	if p.inodeDiscarders, err = newInodeDiscarders(inodeDiscardersMap, discarderRevisionsMap, p.resolvers.DentryResolver); err != nil {
+		return err
+	}
 
 	if err := p.resolvers.Start(p.ctx); err != nil {
 		return err
@@ -682,16 +681,6 @@ func (p *Probe) Close() error {
 	return p.manager.Stop(manager.CleanAll)
 }
 
-// IsInvalidDiscarder returns whether the given value is a valid discarder for the given field
-func (p *Probe) IsInvalidDiscarder(field eval.Field, value interface{}) bool {
-	values, exists := p.invalidDiscarders[field]
-	if !exists {
-		return false
-	}
-
-	return values[value]
-}
-
 // GetDebugStats returns the debug stats
 func (p *Probe) GetDebugStats() map[string]interface{} {
 	debug := map[string]interface{}{
@@ -713,22 +702,15 @@ func (p *Probe) NewRuleSet(opts *rules.Opts) *rules.RuleSet {
 
 // NewProbe instantiates a new runtime security agent probe
 func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
-	regexCache, err := simplelru.NewLRU(64, nil)
-	if err != nil {
-		return nil, err
-	}
-
 	ctx, cancel := context.WithCancel(context.Background())
 
 	p := &Probe{
-		config:            config,
-		invalidDiscarders: getInvalidDiscarders(),
-		approvers:         make(map[eval.EventType]activeApprovers),
-		managerOptions:    ebpf.NewDefaultOptions(),
-		regexCache:        regexCache,
-		ctx:               ctx,
-		cancelFnc:         cancel,
-		statsdClient:      client,
+		config:         config,
+		approvers:      make(map[eval.EventType]activeApprovers),
+		managerOptions: ebpf.NewDefaultOptions(),
+		ctx:            ctx,
+		cancelFnc:      cancel,
+		statsdClient:   client,
 	}
 	p.detectKernelVersion()
 
