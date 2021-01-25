@@ -339,11 +339,10 @@ func resizeDriverBuffer(compareSize int, buffer []uint8) []uint8 {
 
 // GetDNS returns a raw IP packet that wraps a DNS packet
 func (di *DriverInterface) ReadDNSPacket(visit func([]byte, time.Time) error) (didRead bool, err error) {
-
 	var bytesRead uint32
 	var key uint32 // returned by GetQueuedCompletionStatus, then ignored
 	var ol *windows.Overlapped
-	err = windows.GetQueuedCompletionStatus(di.dnsIOCP, &bytesRead, &key, &ol, 0) // TODO: handle error if no read available
+	err = windows.GetQueuedCompletionStatus(di.dnsIOCP, &bytesRead, &key, &ol, 0) 
 	if err != nil {
 		if err == syscall.Errno(syscall.WAIT_TIMEOUT) {
 			// this indicates that there was no queued completion status, this is fine
@@ -353,10 +352,6 @@ func (di *DriverInterface) ReadDNSPacket(visit func([]byte, time.Time) error) (d
 		return false, errors.Wrap(err, "could not get queued complation status")
 	}
 
-
-
-	log.Infof("read %d bytes", bytesRead)
-
 	var buf *_readbuffer
 	buf = (*_readbuffer)(unsafe.Pointer(ol))
 
@@ -364,6 +359,8 @@ func (di *DriverInterface) ReadDNSPacket(visit func([]byte, time.Time) error) (d
 
 	start := C.sizeof_struct_filterPacketHeader
 	captureTime := time.Now() // TODO: this should read out of the packet header once the driver supports it
+
+	// TODO: is it possible to get more than one packet in a single read?
 	if err := visit(buf.data[start:], captureTime); err != nil {
 		return false, err
 	}
@@ -375,31 +372,6 @@ func (di *DriverInterface) ReadDNSPacket(visit func([]byte, time.Time) error) (d
 	}
 
 	return true, nil
-
-
-	// buffer := make([]byte, 2048)
-	// var bytesRead uint32
-
-	// _ = windows.ReadFile(di.driverDNSHandle.handle, buffer, &bytesRead, nil)
-
-	// if bytesRead == 0 {
-	// 	log.Errorf("read nothing")
-	// 	return nil
-	// }
-
-	// // TODO: check if err is windows.ERROR_MORE_DATA
-
-	// // read a filter packet header
-	// // fph := (*C.struct_filterPacketHeader)(unsafe.Pointer(&(buffer[0])))
-
-	// // read an ip packet header
-	// start := C.sizeof_struct_filterPacketHeader
-	// //] var iph ipv4.Header
-	// // if err := iph.Parse(buffer[start:]); err != nil {
-	// // 	log.Errorf("error parsing ip header: %v", err)
-	// // }
-
-	// return buffer[start:
 }
 
 // DriverHandle struct stores the windows handle for the driver as well as information about what type of filter is set
@@ -592,7 +564,6 @@ func newDDAPIFilter(direction, layer C.uint64_t, ifaceIndex int, isIPV4 bool) C.
 // danger: even though all reads will reference the returned iocp, buffers must be in-scope as long
 // as reads are happening. Otherwise, the memory the kernel is writing to will be written to memory reclaimed
 // by the GC 
-// TODO: h must be created with the overlapped flag
 func  prepareCompletionBuffers(h windows.Handle, count int) (iocp windows.Handle, buffers []_readbuffer, err error) {
 	iocp, err = windows.CreateIoCompletionPort(h, windows.Handle(0), 0, 0)
 	if err != nil {
