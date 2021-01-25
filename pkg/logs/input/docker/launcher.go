@@ -46,6 +46,7 @@ type Launcher struct {
 	readTimeout        time.Duration               // client read timeout to set on the created tailer
 	serviceNameFunc    func(string, string) string // serviceNameFunc gets the service name from the tagger, it is in a separate field for testing purpose
 
+	forceTailingFromFile   bool                         // will ignore known offset and always tail from file
 	tailFromFile           bool                         // If true docker will be tailed from the corresponding log file
 	fileSourcesByContainer map[string]*config.LogSource // Keep track of locally generated sources
 	sources                *config.LogSources           // To schedule file source when taileing container from file
@@ -280,11 +281,25 @@ func newOverridenSource(standardService, shortName string, status *config.LogSta
 
 // startTailer starts a new tailer for the container matching with the source.
 func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
-	if l.tailFromFile {
+	if l.shouldTailFromFile(container) {
 		l.scheduleFileSource(container, source)
 	} else {
 		l.startSocketTailer(container, source)
 	}
+}
+
+func (l *Launcher) shouldTailFromFile(container *Container) bool {
+	if !l.tailFromFile {
+		return false
+	}
+	if l.forceTailingFromFile {
+		return true
+	}
+	// Check if there is a known offset for that container, if so keep tailing
+	// the container from the docker socket
+	registryID := fmt.Sprintf("docker:%s", container.service.Identifier)
+	offset := l.registry.GetOffset(registryID)
+	return offset == ""
 }
 
 func (l *Launcher) scheduleFileSource(container *Container, source *config.LogSource) {
