@@ -131,21 +131,33 @@ func (mtc metricTagConfig) getTags(value string) []string {
 	if mtc.Tag != "" {
 		tags = append(tags, mtc.Tag+":"+value)
 	} else if mtc.Match != "" {
-		re, err := regexp.Compile(mtc.Match) // TODO: [VALIDATION] may fail, compile in config validation
+		pattern, err := regexp.Compile(mtc.Match) // TODO: [VALIDATION] may fail, compile in config validation
 		if err != nil {
 			log.Warnf("failed to compile `%v` from metric tag config `%v`", mtc.Match, mtc)
 			return tags
 		}
-		if re.MatchString(value) {
+		if pattern.MatchString(value) {
 			for key, val := range mtc.Tags {
-				normalizedVal := normalizeRegexReplaceValue(val)
-				replacedVal := re.ReplaceAllString(value, normalizedVal)
+				normalizedTemplate := normalizeRegexReplaceValue(val)
+				replacedVal := regexReplaceValue(value, pattern, normalizedTemplate)
+				if replacedVal == "" {
+					log.Debugf("pattern `%v` failed to match `%v` with template `%v`", value, normalizedTemplate)
+					continue
+				}
 				tags = append(tags, key+":"+replacedVal)
 			}
 		}
 	}
 	// TODO: [VALIDATION] Handle error case in config validation
 	return tags
+}
+
+func regexReplaceValue(value string, pattern *regexp.Regexp, normalizedTemplate string) string {
+	result := []byte{}
+	for _, submatches := range pattern.FindAllStringSubmatchIndex(value, 1) {
+		result = pattern.ExpandString(result, normalizedTemplate, value, submatches)
+	}
+	return string(result)
 }
 
 // normalizeRegexReplaceValue normalize regex value to keep compatibility with Python

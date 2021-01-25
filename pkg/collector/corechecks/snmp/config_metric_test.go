@@ -158,6 +158,37 @@ metric_tags:
 			[]string{"prefix:e", "suffix:th0"},
 		},
 		{
+			"regex match only once",
+			[]byte(`
+table:
+  OID:  1.2.3.4.5
+  name: cpiPduBranchTable
+symbols:
+  - OID: 1.2.3.4.5.1.2
+    name: cpiPduBranchCurrent
+metric_tags:
+  - column:
+      OID:  1.2.3.4.8.1.2
+      name: cpiPduName
+    table: cpiPduTable
+    match: '([A-z0-9]*)-([A-z]*[-A-z]*)-([A-z0-9]*)'
+    tags:
+      tag1: '${1}'
+      tag2: '\1'
+`),
+			"1.2.3.4.5.6.7.8",
+			&resultValueStore{
+				columnValues: map[string]map[string]snmpValueType{
+					"1.2.3.4.8.1.2": {
+						"1.2.3.4.5.6.7.8": snmpValueType{
+							value: "f5-vm-aa.c.datadog-integrations-lab.internal",
+						},
+					},
+				},
+			},
+			[]string{"tag1:f5", "tag2:f5"},
+		},
+		{
 			"regex does not match",
 			[]byte(`
 table:
