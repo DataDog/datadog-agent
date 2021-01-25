@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Add public IPv4 for EC2/GCE instances to host metadata.
