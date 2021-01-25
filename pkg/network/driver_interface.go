@@ -18,6 +18,8 @@ import (
 	"net"
 	"sync"
 	"sync/atomic"
+	"time"
+	"syscall"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -50,11 +52,22 @@ var (
 // DriverExpvar is the name of a top-level driver expvar returned from GetStats
 type DriverExpvar string
 
+// This is the type that an overlapped read returns -- the overlapped object, which must be passed back to the kernel after reading
+// followed by a predictably sized chunk of bytes
+type _readbuffer struct {
+	ol   windows.Overlapped
+	data [65536]byte // TODO: this is copied from sample code, is the size built into the driver?
+}
+
 const (
 	totalFlowStats  DriverExpvar = "driver_total_flow_stats"
 	flowHandleStats              = "driver_flow_handle_stats"
 	flowStats                    = "flows"
 	driverStats                  = "driver"
+)
+
+const (
+	dnsReadBufferCount = 10 // TODO: make this configurable
 )
 
 // DriverExpvarNames is a list of all the DriverExpvar names returned from GetStats
@@ -80,6 +93,13 @@ type DriverInterface struct {
 
 	driverFlowHandle  *DriverHandle
 	driverStatsHandle *DriverHandle
+	driverDNSHandle   *DriverHandle
+
+
+	dnsReadBuffers []_readbuffer
+	dnsIOCP windows.Handle
+
+
 
 	path                  string
 	enableMonotonicCounts bool
@@ -107,6 +127,11 @@ func NewDriverInterface(enableMonotonicCounts bool, bufferSize int) (*DriverInte
 		return nil, errors.Wrap(err, "Error creating stats handle")
 	}
 
+	err = dc.setupDNSHandle()
+	if err != nil {
+		return nil, errors.Wrap(err, "Error creating DNS handle")
+	}
+
 	return dc, nil
 }
 
@@ -124,7 +149,7 @@ func (di *DriverInterface) Close() error {
 // setupFlowHandle generates a windows Driver Handle, and creates a DriverHandle struct to pull flows from the driver
 // by setting the necessary filters
 func (di *DriverInterface) setupFlowHandle() error {
-	h, err := di.generateDriverHandle()
+	h, err := di.generateDriverHandle(0)
 	if err != nil {
 		return err
 	}
@@ -150,7 +175,7 @@ func (di *DriverInterface) setupFlowHandle() error {
 
 // setupStatsHandle generates a windows Driver Handle, and creates a DriverHandle struct
 func (di *DriverInterface) setupStatsHandle() error {
-	h, err := di.generateDriverHandle()
+	h, err := di.generateDriverHandle(0)
 	if err != nil {
 		return err
 	}
@@ -165,8 +190,41 @@ func (di *DriverInterface) setupStatsHandle() error {
 
 }
 
+func (di *DriverInterface) setupDNSHandle() error {
+	h, err := di.generateDriverHandle(windows.FILE_FLAG_OVERLAPPED)
+	if err != nil {
+		return err
+	}
+
+	dh, err := NewDriverHandle(h, DataHandle)
+	if err != nil {
+		return err
+	}
+
+	filters, err := createDNSFilters()
+	if err != nil {
+		return err
+	}
+
+	if err := dh.setDataFilters(filters); err != nil {
+		return err
+	}
+
+	iocp, buffers, err := prepareCompletionBuffers(dh.handle, dnsReadBufferCount)
+	if err != nil {
+		return err
+	}
+
+
+	di.dnsIOCP = iocp
+	di.dnsReadBuffers = buffers
+	di.driverDNSHandle = dh
+	return nil
+
+}
+
 // generateDriverHandle creates a new windows handle attached to the driver
-func (di *DriverInterface) generateDriverHandle() (windows.Handle, error) {
+func (di *DriverInterface) generateDriverHandle(flags uint32) (windows.Handle, error) {
 	p, err := windows.UTF16PtrFromString(di.path)
 	if err != nil {
 		return windows.InvalidHandle, err
@@ -177,7 +235,7 @@ func (di *DriverInterface) generateDriverHandle() (windows.Handle, error) {
 		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE,
 		nil,
 		windows.OPEN_EXISTING,
-		0,
+		flags,
 		windows.Handle(0))
 	if err != nil {
 		return windows.InvalidHandle, err
@@ -279,6 +337,71 @@ func resizeDriverBuffer(compareSize int, buffer []uint8) []uint8 {
 	return buffer
 }
 
+// GetDNS returns a raw IP packet that wraps a DNS packet
+func (di *DriverInterface) ReadDNSPacket(visit func([]byte, time.Time) error) (didRead bool, err error) {
+
+	var bytesRead uint32
+	var key uint32 // returned by GetQueuedCompletionStatus, then ignored
+	var ol *windows.Overlapped
+	err = windows.GetQueuedCompletionStatus(di.dnsIOCP, &bytesRead, &key, &ol, 0) // TODO: handle error if no read available
+	if err != nil {
+		if err == syscall.Errno(syscall.WAIT_TIMEOUT) {
+			// this indicates that there was no queued completion status, this is fine
+			return false, nil
+		}
+
+		return false, errors.Wrap(err, "could not get queued complation status")
+	}
+
+
+
+	log.Infof("read %d bytes", bytesRead)
+
+	var buf *_readbuffer
+	buf = (*_readbuffer)(unsafe.Pointer(ol))
+
+	// fph := (*C.struct_filterPacketHeader)(unsafe.Pointer(&buf.data[0]))
+
+	start := C.sizeof_struct_filterPacketHeader
+	captureTime := time.Now() // TODO: this should read out of the packet header once the driver supports it
+	if err := visit(buf.data[start:], captureTime); err != nil {
+		return false, err
+	}
+
+	// kick off another read
+	if err := windows.ReadFile(di.driverDNSHandle.handle, buf.data[:], nil, &(buf.ol)); err != nil && err != windows.ERROR_IO_PENDING {
+		log.Errorf("%s", errors.Wrap(err, "cannot restart async"))
+		return false, err
+	}
+
+	return true, nil
+
+
+	// buffer := make([]byte, 2048)
+	// var bytesRead uint32
+
+	// _ = windows.ReadFile(di.driverDNSHandle.handle, buffer, &bytesRead, nil)
+
+	// if bytesRead == 0 {
+	// 	log.Errorf("read nothing")
+	// 	return nil
+	// }
+
+	// // TODO: check if err is windows.ERROR_MORE_DATA
+
+	// // read a filter packet header
+	// // fph := (*C.struct_filterPacketHeader)(unsafe.Pointer(&(buffer[0])))
+
+	// // read an ip packet header
+	// start := C.sizeof_struct_filterPacketHeader
+	// //] var iph ipv4.Header
+	// // if err := iph.Parse(buffer[start:]); err != nil {
+	// // 	log.Errorf("error parsing ip header: %v", err)
+	// // }
+
+	// return buffer[start:
+}
+
 // DriverHandle struct stores the windows handle for the driver as well as information about what type of filter is set
 type DriverHandle struct {
 	handle     windows.Handle
@@ -295,6 +418,22 @@ func (dh *DriverHandle) setFilters(filters []C.struct__filterDefinition) error {
 	for _, filter := range filters {
 		err := windows.DeviceIoControl(dh.handle,
 			C.DDNPMDRIVER_IOCTL_SET_FLOW_FILTER,
+			(*byte)(unsafe.Pointer(&filter)),
+			uint32(unsafe.Sizeof(filter)),
+			(*byte)(unsafe.Pointer(&id)),
+			uint32(unsafe.Sizeof(id)), nil, nil)
+		if err != nil {
+			return fmt.Errorf("failed to set filter: %v", err)
+		}
+	}
+	return nil
+}
+
+func (dh *DriverHandle) setDataFilters(filters []C.struct__filterDefinition) error {
+	var id int64
+	for _, filter := range filters {
+		err := windows.DeviceIoControl(dh.handle,
+			C.DDNPMDRIVER_IOCTL_SET_DATA_FILTER,
 			(*byte)(unsafe.Pointer(&filter)),
 			uint32(unsafe.Sizeof(filter)),
 			(*byte)(unsafe.Pointer(&id)),
@@ -399,6 +538,34 @@ func createFlowHandleFilters() (filters []C.struct__filterDefinition, err error)
 	return filters, nil
 }
 
+func createDNSFilters() ([]C.struct__filterDefinition, error) {
+
+	var filters []C.struct__filterDefinition
+
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, iface := range ifaces {
+		filters = append(filters, C.struct__filterDefinition{
+
+			filterVersion:    C.DD_NPMDRIVER_SIGNATURE,
+			size:             C.sizeof_struct__filterDefinition,
+			filterLayer:      C.FILTER_LAYER_TRANSPORT,
+			af:               windows.AF_INET,
+			remotePort:       53,
+			v4InterfaceIndex: (C.ulonglong)(iface.Index),
+			// direction
+			// port
+			// udp
+			// ipv4
+		})
+	}
+
+	return filters, nil
+}
+
 // NewDDAPIFilter returns a filter we can apply to the driver
 func newDDAPIFilter(direction, layer C.uint64_t, ifaceIndex int, isIPV4 bool) C.struct__filterDefinition {
 	var fd C.struct__filterDefinition
@@ -417,4 +584,30 @@ func newDDAPIFilter(direction, layer C.uint64_t, ifaceIndex int, isIPV4 bool) C.
 	}
 
 	return fd
+}
+
+
+// prepare N read buffers
+// and return the IoCompletionPort that will be used to coordinate reads.
+// danger: even though all reads will reference the returned iocp, buffers must be in-scope as long
+// as reads are happening. Otherwise, the memory the kernel is writing to will be written to memory reclaimed
+// by the GC 
+// TODO: h must be created with the overlapped flag
+func  prepareCompletionBuffers(h windows.Handle, count int) (iocp windows.Handle, buffers []_readbuffer, err error) {
+	iocp, err = windows.CreateIoCompletionPort(h, windows.Handle(0), 0, 0)
+	if err != nil {
+		return windows.Handle(0), nil, errors.Wrap(err, "error creating IO completion port")
+	}
+
+	buffers = make([]_readbuffer, count)
+	for i := 0; i < count ; i ++ {
+		buf := buffers[i]
+		err := windows.ReadFile(h, buf.data[:], nil, &(buf.ol))
+		if err != nil && err != windows.ERROR_IO_PENDING  {
+			windows.CloseHandle(iocp)
+			return windows.Handle(0), nil, errors.Wrap(err, "failed to initiate readfile")
+		}
+	}
+
+	return iocp, buffers, nil
 }

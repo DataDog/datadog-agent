@@ -101,6 +101,11 @@ func (p *AFPacketSource) VisitPackets(exit <-chan struct{}, visit func([]byte, t
 	}
 }
 
+
+func (p *AFPacketSource) PacketType() gopacket.LayerType {
+	return layers.LayerTypeEthernet
+}
+
 func (p *AFPacketSource) Close() {
 	close(p.exit)
 	if err := p.socketFilter.Detach(); err != nil {
