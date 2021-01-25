@@ -119,7 +119,7 @@ func (lc *LoadController) CountFork(event *Event) {
 		lc.probe.DispatchCustomEvent(NewForkBombEvent(event))
 
 		// drop fork events with the given cookie in kernel space
-		lc.probe.resolvers.ProcessResolver.MarkCookieAsBestEffort(uint32(event.Process.ResolveCookie(event)))
+		lc.probe.resolvers.ProcessResolver.MarkCookieAsBestEffort(uint32(event.Process.ResolveCookie(event)), event.ResolveProcessCacheEntry())
 	}
 }
 

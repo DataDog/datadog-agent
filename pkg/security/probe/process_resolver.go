@@ -61,8 +61,8 @@ func (i *InodeInfo) UnmarshalBinary(data []byte) (int, error) {
 
 // ProcessResolverOpts options of resolver
 type ProcessResolverOpts struct {
-	DebugCacheSize bool
-	PIDCacheSize   int
+	DebugCacheSize  bool
+	CookieCacheSize int
 }
 
 // ProcessResolver resolved process context
@@ -247,11 +247,6 @@ func (p *ProcessResolver) insertExecEntry(pid uint32, entry *ProcessCacheEntry) 
 			atomic.AddInt64(&p.cacheSize, -1)
 		})
 	}
-
-	if entry.Cookie != 0 {
-		p.cookieCache.Add(entry.Cookie, entry)
-	}
-
 	return entry
 }
 
@@ -263,8 +258,6 @@ func (p *ProcessResolver) deleteEntry(pid uint32, exitTime time.Time) {
 	}
 	entry.Exit(exitTime)
 	delete(p.entryCache, entry.Pid)
-
-	p.cookieCache.Remove(entry.Cookie)
 }
 
 // DeleteEntry tries to delete an entry in the process cache
@@ -290,6 +283,7 @@ func (p *ProcessResolver) Resolve(pid uint32, cookie uint32) *ProcessCacheEntry 
 	if cookie > 0 {
 		entryP, exists := p.cookieCache.Get(cookie)
 		if exists {
+			_ = p.client.Count(MetricProcessResolverCacheHits, 1, []string{"type:cookie_cache"}, 1.0)
 			return entryP.(*ProcessCacheEntry)
 		}
 	}
@@ -544,10 +538,15 @@ func (p *ProcessResolver) GetEntryCacheSize() float64 {
 
 // MarkCookieAsBestEffort switches the pid_cache entries with the provided cookie to the best_effort_pid_cache map.
 // This will prevent fork events with the provided cookie from being sent over the perf map.
-func (p *ProcessResolver) MarkCookieAsBestEffort(cookie uint32) {
+func (p *ProcessResolver) MarkCookieAsBestEffort(cookie uint32, entry *ProcessCacheEntry) {
 	if cookie == 0 {
 		// nothing to do
 		return
+	}
+
+	if entry != nil {
+		// add cookie in cookie cache
+		p.cookieCache.Add(cookie, entry)
 	}
 
 	// mark cookie as best effort
@@ -559,7 +558,7 @@ func (p *ProcessResolver) MarkCookieAsBestEffort(cookie uint32) {
 
 // NewProcessResolver returns a new process resolver
 func NewProcessResolver(probe *Probe, resolvers *Resolvers, client *statsd.Client, opts ProcessResolverOpts) (*ProcessResolver, error) {
-	cookieLRU, err := simplelru.NewLRU(opts.PIDCacheSize, nil)
+	cookieLRU, err := simplelru.NewLRU(opts.CookieCacheSize, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -574,9 +573,9 @@ func NewProcessResolver(probe *Probe, resolvers *Resolvers, client *statsd.Clien
 }
 
 // NewProcessResolverOpts returns a new set of process resolver options
-func NewProcessResolverOpts(debug bool, pidCacheSize int) ProcessResolverOpts {
+func NewProcessResolverOpts(debug bool, cookieCacheSize int) ProcessResolverOpts {
 	return ProcessResolverOpts{
-		DebugCacheSize: debug,
-		PIDCacheSize:   pidCacheSize,
+		DebugCacheSize:  debug,
+		CookieCacheSize: cookieCacheSize,
 	}
 }

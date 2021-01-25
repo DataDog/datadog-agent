@@ -48,6 +48,8 @@ type Config struct {
 	EventServerRate int
 	// PIDCacheSize is the size of the user space PID caches
 	PIDCacheSize int
+	// CookieCacheSize is the size of the cookie cache used to cache process context
+	CookieCacheSize int
 	// LoadControllerEventsCountThreshold defines the amount of events past which we will trigger the in-kernel circuit breaker
 	LoadControllerEventsCountThreshold int64
 	// LoadControllerForkBombThreshold defines the amount fork events triggered by the same process binary past which
@@ -81,6 +83,7 @@ func NewConfig(cfg *config.AgentConfig) (*Config, error) {
 		EventServerBurst:                   aconfig.Datadog.GetInt("runtime_security_config.event_server.burst"),
 		EventServerRate:                    aconfig.Datadog.GetInt("runtime_security_config.event_server.rate"),
 		PIDCacheSize:                       aconfig.Datadog.GetInt("runtime_security_config.pid_cache_size"),
+		CookieCacheSize:                    aconfig.Datadog.GetInt("runtime_security_config.cookie_cache_size"),
 		LoadControllerEventsCountThreshold: int64(aconfig.Datadog.GetInt("runtime_security_config.load_controller.events_count_threshold")),
 		LoadControllerForkBombThreshold:    int64(aconfig.Datadog.GetInt("runtime_security_config.load_controller.fork_bomb_threshold")),
 		LoadControllerDiscarderTimeout:     time.Duration(aconfig.Datadog.GetInt("runtime_security_config.load_controller.discarder_timeout")) * time.Second,
