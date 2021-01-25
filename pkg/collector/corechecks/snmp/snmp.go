@@ -46,8 +46,8 @@ func (c *Check) Run() error {
 	c.sender.gauge("snmp.devices_monitored", float64(1), "", tags)
 
 	// SNMP Performance metrics
-	c.sender.monotonicCount("datadog.snmp.check_interval", float64(start.UnixNano())/1e9, "", tags)
-	c.sender.gauge("datadog.snmp.check_duration", float64(time.Since(start))/1e9, "", tags)
+	c.sender.monotonicCount("datadog.snmp.check_interval", time.Duration(start.UnixNano()).Seconds(), "", tags)
+	c.sender.gauge("datadog.snmp.check_duration", time.Since(start).Seconds(), "", tags)
 	c.sender.gauge("datadog.snmp.submitted_metrics", float64(c.sender.submittedMetrics), "", tags)
 
 	// Commit
