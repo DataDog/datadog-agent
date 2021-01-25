@@ -39,7 +39,7 @@
             "type": "go"
         },
         "github.com/fzipp/gocyclo": {
-            "version": "master",
+            "version": "main",
             "type": "go"
         },
         "github.com/gordonklaus/ineffassign": {
