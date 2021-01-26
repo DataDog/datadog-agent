@@ -43,6 +43,9 @@ func (s *snmpSession) Configure(config snmpConfig) error {
 
 		msgFlags := gosnmp.NoAuthNoPriv
 		if privProtocol != gosnmp.NoPriv {
+			// Auth is needed if privacy is used.
+			// "The User-based Security Model also prescribes that a message needs to be authenticated if privacy is in use."
+			// https://tools.ietf.org/html/rfc3414#section-1.4.3
 			msgFlags = gosnmp.AuthPriv
 		} else if authProtocol != gosnmp.NoAuth {
 			msgFlags = gosnmp.AuthNoPriv
