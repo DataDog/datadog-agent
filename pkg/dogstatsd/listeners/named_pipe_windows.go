@@ -10,6 +10,8 @@ import (
 	"bytes"
 	"io"
 	"net"
+	"os"
+	"path/filepath"
 	"sync/atomic"
 	"time"
 
@@ -52,10 +54,25 @@ func newNamedPipeListener(
 		InputBufferSize:  int32(bufferSize),
 		OutputBufferSize: 0,
 	}
+	err2 := filepath.Walk(pipeNamePrefix, func(path string, info os.FileInfo, err error) error {
+		log.Infof("filepath.Walk: %v %v %v\n", path, info.Name(), info)
+		return nil
+	})
+
+	log.Infof("filepath.Walk err: %v\n ", err2)
+
 	pipePath := pipeNamePrefix + pipeName
 	pipe, err := winio.ListenPipe(pipePath, &config)
 
 	if err != nil {
+		config.SecurityDescriptor = "D:AI(A;;GA;;;WD)"
+		pipe, err = winio.ListenPipe(pipePath, &config)
+		if err != nil {
+			log.Infof("ListenPipe: D:AI(A;;GA;;;WD) does not work")
+			return nil, err
+		}
+		log.Infof("ListenPipe: D:AI(A;;GA;;;WD) works")
+
 		return nil, err
 	}
 
