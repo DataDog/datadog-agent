@@ -62,7 +62,8 @@ func (p *provider) GetTags() []string {
 
 		// start timer if necessary
 		go func() {
-			<-time.After(p.expectedTagsDuration)
+			deadline := coreConfig.StartTime.Add(p.expectedTagsDuration)
+			<-time.After(time.Until(deadline))
 
 			p.Lock()
 			defer p.Unlock()
