@@ -34,15 +34,15 @@ func fetchScalarOids(session sessionAPI, oids []string) (scalarResultValuesType,
 		return nil, err
 	}
 	values := resultToScalarValues(packet)
-	retryScalarOids(session, packet, values)
+	retryFailedScalarOids(session, packet, values)
 	return values, nil
 }
 
-// retryScalarOids retries on NoSuchObject or NoSuchInstance for scalar oids not ending with `.0`.
+// retryFailedScalarOids retries on NoSuchObject or NoSuchInstance for scalar oids not ending with `.0`.
 // This helps keeping compatibility with python implementation.
 // This is not need in normal circumstances where scalar OIDs end with `.0`.
 // If the oid does not end with `.0`, we will retry by appending `.0` to it.
-func retryScalarOids(session sessionAPI, results *gosnmp.SnmpPacket, valuesToUpdate scalarResultValuesType) {
+func retryFailedScalarOids(session sessionAPI, results *gosnmp.SnmpPacket, valuesToUpdate scalarResultValuesType) {
 	retryOids := make(map[string]string)
 	for _, variable := range results.Variables {
 		oid := strings.TrimLeft(variable.Name, ".")
