@@ -204,7 +204,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 				oidBatchSize:    100,
 			},
 			expectedVersion: gosnmp.Version1,
-			expectedError:   fmt.Errorf("config oidBatchSize (100) cannot higher than gosnmp.MaxOids: 60"),
+			expectedError:   fmt.Errorf("config oidBatchSize (100) cannot be higher than gosnmp.MaxOids: 60"),
 		},
 	}
 	for _, tt := range tests {
