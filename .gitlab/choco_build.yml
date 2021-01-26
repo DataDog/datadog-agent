@@ -20,6 +20,8 @@ windows_choco_offline_7_x64:
   needs: ["windows_msi_and_bosh_zip_x64-a7"]
   variables:
     ARCH: "x64"
+  before_script:
+    - $env:chocolateyUseWindowsCompression = 'true'; Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
   script:
     - $ErrorActionPreference = "Stop"
     - Get-ChildItem .omnibus\pkg
@@ -42,6 +44,8 @@ windows_choco_online_7_x64:
   needs: ["deploy_staging_windows_tags-a7"]
   variables:
     ARCH: "x64"
+  before_script:
+    - $env:chocolateyUseWindowsCompression = 'true'; Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
   script:
     - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
     - $ErrorActionPreference = "Stop"
