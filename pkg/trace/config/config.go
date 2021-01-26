@@ -103,6 +103,9 @@ type AgentConfig struct {
 	// filtering
 	Ignore map[string][]string
 
+	// RequiredTags for filtering tags
+	RequiredTags []string
+
 	// ReplaceTags is used to filter out sensitive information from tag values.
 	// It maps tag keys to a set of replacements. Only supported in A6.
 	ReplaceTags []*ReplaceRule
