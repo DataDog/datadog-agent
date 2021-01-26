@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+const sysObjectIDOid = "1.3.6.1.2.1.1.2.0"
+
 type sessionAPI interface {
 	Configure(config snmpConfig) error
 	Connect() error
@@ -94,7 +96,7 @@ func (s *snmpSession) GetBulk(oids []string) (result *gosnmp.SnmpPacket, err err
 }
 
 func fetchSysObjectID(session sessionAPI) (string, error) {
-	result, err := session.Get([]string{"1.3.6.1.2.1.1.2.0"})
+	result, err := session.Get([]string{sysObjectIDOid})
 	if err != nil {
 		return "", fmt.Errorf("cannot get sysobjectid: %s", err)
 	}
