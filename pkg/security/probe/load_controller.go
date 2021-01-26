@@ -119,7 +119,7 @@ func (lc *LoadController) CountFork(event *Event) {
 		lc.probe.DispatchCustomEvent(NewForkBombEvent(event))
 
 		// drop fork events with the given cookie in kernel space
-		lc.probe.resolvers.ProcessResolver.MarkCookieAsBestEffort(uint32(event.Process.ResolveCookie(event)))
+		lc.probe.resolvers.ProcessResolver.MarkCookieAsBestEffort(uint32(event.Process.ResolveCookie(event)), event.ResolveProcessCacheEntry())
 	}
 }
 
@@ -190,6 +190,10 @@ func (lc *LoadController) discardNoisiestProcess() {
 
 		// fetch noisy process metadata
 		process := lc.probe.resolvers.ProcessResolver.Resolve(maxKey.Pid, maxKey.Cookie)
+		if process == nil {
+			log.Warnf("Unable to resolver process with pid: %d", maxKey.Pid)
+			return
+		}
 
 		ts := time.Now()
 		lc.probe.DispatchCustomEvent(

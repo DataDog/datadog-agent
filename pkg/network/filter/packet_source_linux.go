@@ -1,6 +1,6 @@
 // +build linux_bpf
 
-package network
+package filter
 
 import (
 	"fmt"
@@ -14,10 +14,8 @@ import (
 	"github.com/google/gopacket/afpacket"
 )
 
-var _ PacketSource = &packetSource{}
-
-// packetSource provides a RAW_SOCKET attached to an eBPF SOCKET_FILTER
-type packetSource struct {
+// AFPacketSource provides a RAW_SOCKET attached to an eBPF SOCKET_FILTER
+type AFPacketSource struct {
 	*afpacket.TPacket
 	socketFilter *manager.Probe
 	socketFD     int
@@ -31,7 +29,7 @@ type packetSource struct {
 	dropped   int64
 }
 
-func NewPacketSource(filter *manager.Probe) (*packetSource, error) {
+func NewPacketSource(filter *manager.Probe) (*AFPacketSource, error) {
 	rawSocket, err := afpacket.NewTPacket(
 		afpacket.OptPollTimeout(1*time.Second),
 		// This setup will require ~4Mb that is mmap'd into the process virtual space
@@ -53,7 +51,7 @@ func NewPacketSource(filter *manager.Probe) (*packetSource, error) {
 		return nil, fmt.Errorf("error attaching filter to socket: %s", err)
 	}
 
-	ps := &packetSource{
+	ps := &AFPacketSource{
 		TPacket:      rawSocket,
 		socketFilter: filter,
 		socketFD:     socketFD,
@@ -64,7 +62,7 @@ func NewPacketSource(filter *manager.Probe) (*packetSource, error) {
 	return ps, nil
 }
 
-func (p *packetSource) Stats() map[string]int64 {
+func (p *AFPacketSource) Stats() map[string]int64 {
 	return map[string]int64{
 		"socket_polls":      atomic.LoadInt64(&p.polls),
 		"packets_processed": atomic.LoadInt64(&p.processed),
@@ -73,7 +71,7 @@ func (p *packetSource) Stats() map[string]int64 {
 	}
 }
 
-func (p *packetSource) VisitPackets(exit <-chan struct{}, visit func([]byte, time.Time) error) error {
+func (p *AFPacketSource) VisitPackets(exit <-chan struct{}, visit func([]byte, time.Time) error) error {
 	for {
 		// allow the read loop to be prematurely interrupted
 		select {
@@ -103,7 +101,7 @@ func (p *packetSource) VisitPackets(exit <-chan struct{}, visit func([]byte, tim
 	}
 }
 
-func (p *packetSource) Close() {
+func (p *AFPacketSource) Close() {
 	close(p.exit)
 	if err := p.socketFilter.Detach(); err != nil {
 		log.Errorf("error detaching socket filter: %s", err)
@@ -112,7 +110,7 @@ func (p *packetSource) Close() {
 	p.TPacket.Close()
 }
 
-func (p *packetSource) pollStats() {
+func (p *AFPacketSource) pollStats() {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 

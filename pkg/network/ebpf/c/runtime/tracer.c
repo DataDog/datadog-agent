@@ -81,8 +81,8 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock*
     // Retrieve addresses
     if (family == AF_INET) {
         t->metadata |= CONN_V4;
-        if (t->saddr_l == 0) bpf_probe_read(&t->saddr_l, sizeof(__u32), &skp->sk_rcv_saddr);
-        if (t->daddr_l == 0) bpf_probe_read(&t->daddr_l, sizeof(__u32), &skp->sk_daddr);
+        if (t->saddr_l == 0) bpf_probe_read(&t->saddr_l, sizeof(__be32), &skp->sk_rcv_saddr);
+        if (t->daddr_l == 0) bpf_probe_read(&t->daddr_l, sizeof(__be32), &skp->sk_daddr);
 
         if (!t->saddr_l || !t->daddr_l) {
             log_debug("ERR(read_conn_tuple.v4): src/dst addr not set src:%d,dst:%d\n", t->saddr_l, t->daddr_l);

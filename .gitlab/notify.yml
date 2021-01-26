@@ -45,8 +45,7 @@ notify-on-tagged-success:
     - <<: *if_deploy_on_tag_7
   script: |
     MESSAGE_TEXT=":host-green: Tagged build <$CI_PIPELINE_URL|$CI_PIPELINE_ID> succeeded.
-    *$CI_COMMIT_REF_NAME* is available in the staging repositories.
-    Don't forget to run the \`tag_release_*\` jobs to publish the docker images."
+    *$CI_COMMIT_REF_NAME* is available in the staging repositories."
     postmessage "#agent-release-sync" "$MESSAGE_TEXT"
 
 notify-on-failure:
