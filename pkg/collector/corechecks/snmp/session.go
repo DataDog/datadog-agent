@@ -19,9 +19,8 @@ type snmpSession struct {
 }
 
 func (s *snmpSession) Configure(config snmpConfig) error {
-	maxOids := gosnmp.MaxOids
 	if config.oidBatchSize > gosnmp.MaxOids {
-		return fmt.Errorf("config oidBatchSize (%d) cannot higher than gosnmp.MaxOids: %d", config.oidBatchSize, maxOids)
+		return fmt.Errorf("config oidBatchSize (%d) cannot higher than gosnmp.MaxOids: %d", config.oidBatchSize, gosnmp.MaxOids)
 	}
 	snmpVersion, err := parseVersion(config.snmpVersion)
 	if err != nil {
@@ -66,7 +65,6 @@ func (s *snmpSession) Configure(config snmpConfig) error {
 	s.gosnmpInst.Version = snmpVersion
 	s.gosnmpInst.Timeout = time.Duration(config.timeout) * time.Second
 	s.gosnmpInst.Retries = config.retries
-	s.gosnmpInst.MaxOids = maxOids
 
 	// Uncomment following line for debugging
 	// s.gosnmpInst.Logger:  defaultLog.New(os.Stdout, "", 0),
