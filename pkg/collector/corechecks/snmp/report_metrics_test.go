@@ -227,6 +227,46 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 				{"[WARN] reportColumnMetrics: report column: error getting column value: value for Column OID `1.3.6.1.2.1.2.2.1.14` not found in `map[]`", 1},
 			},
 		},
+		{
+			name: "report column cache",
+			metrics: []metricsConfig{
+				{
+					Table:      symbolConfig{OID: "1.3.6.1.2.1.2.2", Name: "ifTable"},
+					ForcedType: "monotonic_count",
+					Symbols: []symbolConfig{
+						{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors"},
+						{OID: "1.3.6.1.2.1.2.2.1.13", Name: "ifInDiscards"},
+					},
+					MetricTags: []metricTagConfig{
+						{Tag: "interface", Column: symbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
+					},
+				},
+			},
+			values: &resultValueStore{
+				columnValues: columnResultValuesType{
+					"1.3.6.1.2.1.2.2.1.14": map[string]snmpValueType{
+						"10": {
+							metrics.GaugeType,
+							10,
+						},
+					},
+					"1.3.6.1.2.1.2.2.1.13": map[string]snmpValueType{
+						"10": {
+							metrics.GaugeType,
+							10,
+						},
+					},
+					"1.3.6.1.2.1.31.1.1.1.1": map[string]snmpValueType{
+						"10": {
+							value: "myIfName",
+						},
+					},
+				},
+			},
+			expectedLogs: []logCount{
+				{"[DEBUG] reportColumnMetrics: report column: caching tags `[interface:myIfName]` for fullIndex `10`", 1},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -238,6 +278,8 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 			log.SetupLogger(l, "debug")
 
 			mockSender := mocksender.NewMockSender("foo")
+			mockSender.SetupAcceptAll()
+
 			metricSender := metricSender{sender: mockSender}
 
 			metricSender.reportMetrics(tt.metrics, tt.values, tt.tags)
@@ -246,7 +288,7 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 			logs := b.String()
 
 			for _, aLogCount := range tt.expectedLogs {
-				assert.Equal(t, strings.Count(logs, aLogCount.log), aLogCount.count, logs)
+				assert.Equal(t, aLogCount.count, strings.Count(logs, aLogCount.log), logs)
 			}
 		})
 	}

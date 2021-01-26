@@ -49,6 +49,7 @@ func (ms *metricSender) reportScalarMetrics(metric metricsConfig, values *result
 }
 
 func (ms *metricSender) reportColumnMetrics(metricConfig metricsConfig, values *resultValueStore, tags []string) {
+	rowTagsCache := make(map[string][]string)
 	for _, symbol := range metricConfig.Symbols {
 		metricValues, err := values.getColumnValues(symbol.OID)
 		if err != nil {
@@ -56,8 +57,12 @@ func (ms *metricSender) reportColumnMetrics(metricConfig metricsConfig, values *
 			continue
 		}
 		for fullIndex, value := range metricValues {
-			rowTags := copyStrings(tags)
-			rowTags = append(rowTags, metricConfig.getTags(fullIndex, values)...)
+			// cache row tags by fullIndex to avoid rebuilding it for every column rows
+			if _, ok := rowTagsCache[fullIndex]; !ok {
+				rowTagsCache[fullIndex] = append(copyStrings(tags), metricConfig.getTags(fullIndex, values)...)
+				log.Debugf("report column: caching tags `%v` for fullIndex `%s`", rowTagsCache[fullIndex], fullIndex)
+			}
+			rowTags := rowTagsCache[fullIndex]
 			ms.sendMetric(symbol.Name, value, rowTags, metricConfig.ForcedType, metricConfig.Options)
 			ms.trySendBandwidthUsageMetric(symbol, fullIndex, values, rowTags)
 		}
