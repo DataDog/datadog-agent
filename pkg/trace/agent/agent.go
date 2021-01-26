@@ -39,6 +39,7 @@ type Agent struct {
 	Receiver           *api.HTTPReceiver
 	Concentrator       *stats.Concentrator
 	Blacklister        *filters.Blacklister
+	Validator          *filters.Validator
 	Replacer           *filters.Replacer
 	ScoreSampler       *Sampler
 	ErrorsScoreSampler *Sampler
@@ -72,6 +73,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	agnt := &Agent{
 		Concentrator:       stats.NewConcentrator(conf.BucketInterval.Nanoseconds(), statsChan),
 		Blacklister:        filters.NewBlacklister(conf.Ignore["resource"]),
+		Validator:          filters.NewValidator(conf.RequiredTags),
 		Replacer:           filters.NewReplacer(conf.ReplaceTags),
 		ScoreSampler:       NewScoreSampler(conf),
 		ExceptionSampler:   sampler.NewExceptionSampler(),
@@ -179,6 +181,17 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 
 		if !a.Blacklister.Allows(root) {
 			log.Debugf("Trace rejected by blacklister. root: %v", root)
+			atomic.AddInt64(&ts.TracesFiltered, 1)
+			atomic.AddInt64(&ts.SpansFiltered, tracen)
+			continue
+		}
+
+		// filter by tags
+		// check the keys of traces and see if they match required keys
+		// list of forbidden tags which will match tags of spans that should be dropped
+		// check if keys are present in tag of spans
+		if !a.Validator.Validates(root) {
+			log.Debugf("Trace discarded due to missing required keys. root: %v", root)
 			atomic.AddInt64(&ts.TracesFiltered, 1)
 			atomic.AddInt64(&ts.SpansFiltered, tracen)
 			continue
