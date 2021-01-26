@@ -34,6 +34,8 @@ bool CustomActionData::init(const std::wstring &data)
         return false;
     }
 
+    WcaLog(LOGMSG_STANDARD, "Initializing CustomAction with %S\n", data.c_str());
+
     // first, the string is KEY=VAL;KEY=VAL....
     // first split into key/value pairs
     std::wstringstream ss(data);
@@ -195,7 +197,16 @@ bool CustomActionData::updateYamlConfig()
 
         inputConfig.assign(std::istreambuf_iterator<wchar_t>(inputConfigStream), std::istreambuf_iterator<wchar_t>());
     }
-    inputConfig = replace_yaml_properties(inputConfig, values);
+    inputConfig = replace_yaml_properties(inputConfig, [this](std::wstring const &propertyName) -> std::optional<std::wstring>
+    {
+        std::wstring propertyValue;
+        auto found = loadPropertyString(hInstall, propertyName.c_str(), propertyValue);
+        if (found)
+        {
+            return propertyValue;
+        }
+        return std::nullopt;
+    });
     {
         std::wofstream inputConfigStream(datadogyamlfile);
         inputConfigStream << inputConfig;
