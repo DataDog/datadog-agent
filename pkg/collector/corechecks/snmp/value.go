@@ -23,7 +23,7 @@ func (sv *snmpValueType) toFloat64() float64 {
 		}
 		retValue = float64(val)
 	}
-	// only float64/string are expected for now
+	// only float64/string are expected
 
 	return retValue
 }
@@ -37,7 +37,7 @@ func (sv snmpValueType) toString() string {
 	case string:
 		retValue = sv.value.(string)
 	}
-	// only float64/string are expected for now
+	// only float64/string are expected
 
 	return retValue
 }
