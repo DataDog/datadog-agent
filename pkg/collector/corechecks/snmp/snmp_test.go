@@ -674,7 +674,7 @@ func TestCheck_Run(t *testing.T) {
 		},
 		{
 			name:        "unexpected values count",
-			expectedErr: "failed to fetching sysobjectid: expected 1 value, but for 0: variables=[]",
+			expectedErr: "failed to fetching sysobjectid: expected 1 value, but got 0: variables=[]",
 		},
 		{
 			name:              "failed to fetching sysobjectid with invalid value",

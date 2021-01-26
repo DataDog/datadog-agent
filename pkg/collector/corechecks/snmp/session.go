@@ -96,7 +96,7 @@ func fetchSysObjectID(session sessionAPI) (string, error) {
 		return "", fmt.Errorf("cannot get sysobjectid: %s", err)
 	}
 	if len(result.Variables) != 1 {
-		return "", fmt.Errorf("expected 1 value, but for %d: variables=%v", len(result.Variables), result.Variables)
+		return "", fmt.Errorf("expected 1 value, but got %d: variables=%v", len(result.Variables), result.Variables)
 	}
 	pduVar := result.Variables[0]
 	_, value, err := getValueFromPDU(pduVar)
