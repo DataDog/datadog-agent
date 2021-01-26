@@ -56,7 +56,7 @@ type DriverExpvar string
 // followed by a predictably sized chunk of bytes
 type _readbuffer struct {
 	ol   windows.Overlapped
-	data [65536]byte // TODO: this is copied from sample code, is the size built into the driver?
+	data [4096]byte // TODO: 65K is what we use in the example, how big should this be?
 }
 
 const (
