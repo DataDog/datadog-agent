@@ -1844,75 +1844,85 @@ func TestConnectionClobber(t *testing.T) {
 	defer tr.Stop()
 
 	// Create TCP Server which, for every line, sends back a message with size=serverMessageSize
+	var serverConns []net.Conn
 	srvRecvBuf := make([]byte, 4)
 	server := NewTCPServer(func(c net.Conn) {
+		serverConns = append(serverConns, c)
 		_, _ = io.ReadFull(c, srvRecvBuf)
 		_, _ = c.Write(srvRecvBuf)
 	})
 	doneChan := make(chan struct{})
 	server.Run(doneChan)
+	defer close(doneChan)
 
 	// we only need 1/4 since both send and recv sides will be registered
-	sendCount := (cap(tr.buffer) / 4) + 1
-	sendAndRecv := func(closeCh chan struct{}) *sync.WaitGroup {
-		sendWg := sync.WaitGroup{}
-		doneWg := sync.WaitGroup{}
-		sendBuf := make([]byte, 4)
-		recvBuf := make([]byte, 4)
+	sendCount := cap(tr.buffer)/4 + 1
+	sendAndRecv := func() []net.Conn {
+		connsCh := make(chan net.Conn, sendCount)
+		var conns []net.Conn
+		go func() {
+			for c := range connsCh {
+				conns = append(conns, c)
+			}
+		}()
+
+		workers := sync.WaitGroup{}
 		for i := 0; i < sendCount; i++ {
-			senderNum := i
-			sendWg.Add(1)
-			doneWg.Add(1)
+			workers.Add(1)
 			go func() {
-				defer doneWg.Done()
+				defer workers.Done()
 
 				c, err := net.DialTimeout("tcp", server.address, 5*time.Second)
-				if err != nil {
-					t.Logf("dial error %d: %s\n", senderNum, err)
-					return
-				}
-				defer c.Close()
+				require.NoError(t, err)
+				connsCh <- c
 
-				if _, err = c.Write(sendBuf); err != nil {
-					t.Fatal(err)
-				}
-				_, _ = io.ReadFull(c, recvBuf)
-				sendWg.Done()
-				<-closeCh
+				buf := make([]byte, 4)
+				_, err = c.Write(buf)
+				require.NoError(t, err)
+
+				_, err = io.ReadFull(c, buf[:0])
+				require.NoError(t, err)
 			}()
 		}
-		sendWg.Wait()
-		return &doneWg
+
+		workers.Wait()
+		close(connsCh)
+
+		return conns
 	}
 
-	closeCh := make(chan struct{})
-	dg := sendAndRecv(closeCh)
+	conns := sendAndRecv()
+
+	// wait for tracer to pick up all connections
+	//
+	// there is not good way do this other than a sleep since we
+	// can't call getConnections in a require.Eventually call
+	// to the get the number of connections as that could
+	// affect the tr.buffer length
+	time.Sleep(2 * time.Second)
 
 	preCap := cap(tr.buffer)
-	firstConnections := getConnections(t, tr)
+	connections := getConnections(t, tr)
+	src := connections.Conns[0].SPort
+	dst := connections.Conns[0].DPort
+	t.Logf("got %d connections", len(connections.Conns))
 	// ensure we didn't grow or shrink the buffer
 	require.Equal(t, preCap, cap(tr.buffer))
-	src := firstConnections.Conns[0].SPort
-	dst := firstConnections.Conns[0].DPort
-	t.Logf("before src: %d dst: %d\n", src, dst)
-
-	close(closeCh)
-	dg.Wait()
 
 	// send second batch so that underlying array gets clobbered
-	closeCh = make(chan struct{})
-	dg = sendAndRecv(closeCh)
-	_ = getConnections(t, tr)
+	conns = append(conns, sendAndRecv()...)
+	defer func() {
+		for _, c := range append(conns, serverConns...) {
+			c.Close()
+		}
+	}()
+
+	time.Sleep(2 * time.Second)
+
+	t.Logf("got %d connections", len(getConnections(t, tr).Conns))
+	require.Equal(t, src, connections.Conns[0].SPort, "source port should not change")
+	require.Equal(t, dst, connections.Conns[0].DPort, "dest port should not change")
 	require.Equal(t, preCap, cap(tr.buffer))
-
-	t.Logf("after src: %d dst: %d\n", firstConnections.Conns[0].SPort, firstConnections.Conns[0].DPort)
-	assert.EqualValues(t, int(src), int(firstConnections.Conns[0].SPort), "source port should not change")
-	assert.EqualValues(t, int(dst), int(firstConnections.Conns[0].DPort), "dest port should not change")
-
-	close(closeCh)
-	dg.Wait()
-
-	doneChan <- struct{}{}
 }
 
 func TestEnableHTTPMonitoring(t *testing.T) {

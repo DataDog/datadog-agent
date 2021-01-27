@@ -495,7 +495,7 @@ int kprobe__udp_recvmsg(struct pt_regs* ctx) {
 SEC("kprobe/udp_recvmsg/pre_4_1_0")
 int kprobe__udp_recvmsg_pre_4_1_0(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM2(ctx);
-    struct msghdr* msg = (struct msghdr*) PT_REGS_PARM2(ctx);
+    struct msghdr* msg = (struct msghdr*) PT_REGS_PARM3(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
     udp_recv_sock_t t = { .sk = NULL, .msg = NULL };
     if (sk) bpf_probe_read(&t.sk, sizeof(t.sk), &sk);
