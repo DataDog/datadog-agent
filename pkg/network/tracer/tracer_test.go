@@ -638,14 +638,11 @@ func TestTCPShortlived(t *testing.T) {
 
 	// Connect to server
 	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	// Write clientMessageSize to server, and read response
-	if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
-		t.Fatal(err)
-	}
+	_, err = c.Write(genPayload(clientMessageSize))
+	require.NoError(t, err)
 	r := bufio.NewReader(c)
 	r.ReadBytes(byte('\n'))
 
@@ -657,7 +654,7 @@ func TestTCPShortlived(t *testing.T) {
 		var ok bool
 		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
 		return ok
-	}, 2*time.Second, 500*time.Millisecond, "connection not found")
+	}, 3*time.Second, time.Second, "connection not found")
 
 	assert.Equal(t, clientMessageSize, int(conn.MonotonicSentBytes))
 	assert.Equal(t, serverMessageSize, int(conn.MonotonicRecvBytes))
