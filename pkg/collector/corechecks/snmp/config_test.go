@@ -179,6 +179,7 @@ func TestDefaultConfigurations(t *testing.T) {
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
+community_string: abc
 `)
 	// language=yaml
 	rawInitConfig := []byte(``)
@@ -205,6 +206,7 @@ func TestPortConfiguration(t *testing.T) {
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
+community_string: abc
 `)
 	err := check.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
@@ -216,6 +218,7 @@ ip_address: 1.2.3.4
 	rawInstanceConfig = []byte(`
 ip_address: 1.2.3.4
 port: 1234
+community_string: abc
 `)
 	err = check.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
@@ -229,6 +232,7 @@ func TestGlobalMetricsConfigurations(t *testing.T) {
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
+community_string: abc
 metrics:
 - symbol:
     OID: 1.3.6.1.2.1.2.1
@@ -258,6 +262,7 @@ func TestUseGlobalMetricsFalse(t *testing.T) {
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
+community_string: abc
 metrics:
 - symbol:
     OID: 1.3.6.1.2.1.2.1

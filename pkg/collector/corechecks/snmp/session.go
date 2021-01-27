@@ -24,15 +24,15 @@ func (s *snmpSession) Configure(config snmpConfig) error {
 	if config.oidBatchSize > gosnmp.MaxOids {
 		return fmt.Errorf("config oidBatchSize (%d) cannot be higher than gosnmp.MaxOids: %d", config.oidBatchSize, gosnmp.MaxOids)
 	}
-	snmpVersion, err := parseVersion(config.snmpVersion)
-	if err != nil {
-		return err
-	}
 
-	switch snmpVersion {
-	case gosnmp.Version2c, gosnmp.Version1:
+	if config.communityString != "" {
+		if config.snmpVersion == "1" {
+			s.gosnmpInst.Version = gosnmp.Version1
+		} else {
+			s.gosnmpInst.Version = gosnmp.Version2c
+		}
 		s.gosnmpInst.Community = config.communityString
-	case gosnmp.Version3:
+	} else if config.user != "" {
 		authProtocol, err := getAuthProtocol(config.authProtocol)
 		if err != nil {
 			return err
@@ -53,6 +53,7 @@ func (s *snmpSession) Configure(config snmpConfig) error {
 			msgFlags = gosnmp.AuthNoPriv
 		}
 
+		s.gosnmpInst.Version = gosnmp.Version3
 		s.gosnmpInst.MsgFlags = msgFlags
 		s.gosnmpInst.ContextName = config.contextName
 		s.gosnmpInst.SecurityModel = gosnmp.UserSecurityModel
@@ -63,11 +64,12 @@ func (s *snmpSession) Configure(config snmpConfig) error {
 			PrivacyProtocol:          privProtocol,
 			PrivacyPassphrase:        config.privKey,
 		}
+	} else {
+		return fmt.Errorf("an authentication method needs to be provided")
 	}
 
 	s.gosnmpInst.Target = config.ipAddress
 	s.gosnmpInst.Port = config.port
-	s.gosnmpInst.Version = snmpVersion
 	s.gosnmpInst.Timeout = time.Duration(config.timeout) * time.Second
 	s.gosnmpInst.Retries = config.retries
 

@@ -22,17 +22,12 @@ func Test_snmpSession_Configure(t *testing.T) {
 		expectedSecurityParameters gosnmp.SnmpV3SecurityParameters
 	}{
 		{
-			name: "invalid version",
+			name: "no auth method",
 			config: snmpConfig{
-				ipAddress:       "1.2.3.4",
-				port:            uint16(1234),
-				snmpVersion:     "x",
-				timeout:         4,
-				retries:         3,
-				communityString: "abc",
+				ipAddress: "1.2.3.4",
+				port:      uint16(1234),
 			},
-			expectedVersion: gosnmp.Version1,
-			expectedError:   fmt.Errorf("invalid snmp version `x`. Valid versions are: 1, 2, 2c, 3"),
+			expectedError: fmt.Errorf("an authentication method needs to be provided"),
 		},
 		{
 			name: "valid v1 config",
@@ -56,7 +51,6 @@ func Test_snmpSession_Configure(t *testing.T) {
 			config: snmpConfig{
 				ipAddress:       "1.2.3.4",
 				port:            uint16(1234),
-				snmpVersion:     "",
 				timeout:         4,
 				retries:         3,
 				communityString: "abc",
@@ -73,7 +67,6 @@ func Test_snmpSession_Configure(t *testing.T) {
 			config: snmpConfig{
 				ipAddress:       "1.2.3.4",
 				port:            uint16(1234),
-				snmpVersion:     "2",
 				timeout:         4,
 				retries:         3,
 				communityString: "abc",
@@ -90,7 +83,6 @@ func Test_snmpSession_Configure(t *testing.T) {
 			config: snmpConfig{
 				ipAddress:       "1.2.3.4",
 				port:            uint16(1234),
-				snmpVersion:     "2c",
 				timeout:         4,
 				retries:         3,
 				communityString: "abc",
@@ -107,7 +99,6 @@ func Test_snmpSession_Configure(t *testing.T) {
 			config: snmpConfig{
 				ipAddress:    "1.2.3.4",
 				port:         uint16(1234),
-				snmpVersion:  "3",
 				timeout:      4,
 				retries:      3,
 				contextName:  "myContext",
@@ -137,7 +128,6 @@ func Test_snmpSession_Configure(t *testing.T) {
 			config: snmpConfig{
 				ipAddress:    "1.2.3.4",
 				port:         uint16(1234),
-				snmpVersion:  "3",
 				timeout:      4,
 				retries:      3,
 				user:         "myUser",
@@ -163,7 +153,6 @@ func Test_snmpSession_Configure(t *testing.T) {
 			config: snmpConfig{
 				ipAddress:    "1.2.3.4",
 				port:         uint16(1234),
-				snmpVersion:  "3",
 				timeout:      4,
 				retries:      3,
 				user:         "myUser",
@@ -179,7 +168,6 @@ func Test_snmpSession_Configure(t *testing.T) {
 			config: snmpConfig{
 				ipAddress:    "1.2.3.4",
 				port:         uint16(1234),
-				snmpVersion:  "3",
 				timeout:      4,
 				retries:      3,
 				user:         "myUser",
@@ -197,7 +185,6 @@ func Test_snmpSession_Configure(t *testing.T) {
 			config: snmpConfig{
 				ipAddress:       "1.2.3.4",
 				port:            uint16(1234),
-				snmpVersion:     "2",
 				timeout:         4,
 				retries:         3,
 				communityString: "abc",

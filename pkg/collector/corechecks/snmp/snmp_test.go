@@ -584,10 +584,12 @@ func TestCheckID(t *testing.T) {
 	// language=yaml
 	rawInstanceConfig1 := []byte(`
 ip_address: 1.1.1.1
+community_string: abc
 `)
 	// language=yaml
 	rawInstanceConfig2 := []byte(`
 ip_address: 2.2.2.2
+community_string: abc
 `)
 
 	err := check1.Configure(rawInstanceConfig1, []byte(``), "test")
@@ -596,8 +598,8 @@ ip_address: 2.2.2.2
 	err = check2.Configure(rawInstanceConfig2, []byte(``), "test")
 	assert.Nil(t, err)
 
-	assert.Equal(t, check.ID("snmp:efc9e7e750047b05"), check1.ID())
-	assert.Equal(t, check.ID("snmp:f22c3d8b3858f07d"), check2.ID())
+	assert.Equal(t, check.ID("snmp:ed97702503abb6ec"), check1.ID())
+	assert.Equal(t, check.ID("snmp:e4bdb13416d918f4"), check2.ID())
 	assert.NotEqual(t, check1.ID(), check2.ID())
 }
 
