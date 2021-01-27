@@ -73,9 +73,9 @@ func retryFailedScalarOids(session sessionAPI, results *gosnmp.SnmpPacket, value
 func doFetchScalarOids(session sessionAPI, oids []string) (*gosnmp.SnmpPacket, error) {
 	log.Debugf("fetch scalar: request oids: %v", oids)
 	results, err := session.Get(oids)
-	log.Debugf("fetch scalar: results: %v", results)
 	if err != nil {
 		return nil, fmt.Errorf("error getting oids: %s", err.Error())
 	}
+	log.Debugf("fetch scalar: results Variables: %v", results.Variables)
 	return results, nil
 }
