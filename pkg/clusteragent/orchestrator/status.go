@@ -57,7 +57,7 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 	if err == nil {
 		// obfuscate the api keys
 		for _, endpoint := range orchestratorCfg.OrchestratorEndpoints {
-			endpointStr = endpoint.Endpoint.String()
+			endpointStr := endpoint.Endpoint.String()
 			if len(endpoint.APIKey) > 5 {
 				endpoints[endpointStr] = append(endpoints[endpointStr], endpoint.APIKey[len(endpoint.APIKey)-5:])
 			}
