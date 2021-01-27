@@ -50,7 +50,7 @@ var flareCmd = &cobra.Command{
 
 		err := common.SetupConfig(confFilePath)
 		if err != nil {
-			fmt.Errorf("unable to set up global agent configuration: %v", err)
+			return fmt.Errorf("unable to set up global agent configuration: %v", err)
 		}
 
 		// The flare command should not log anything, all errors should be reported directly to the console without the log format
