@@ -70,14 +70,15 @@ func detectContainerFeatures() {
 	if _, dockerHostSet := os.LookupEnv("DOCKER_HOST"); dockerHostSet {
 		detectedFeatures[Docker] = struct{}{}
 	} else {
-		defaultDockerSocketPath := getDefaultDockerPath()
-		_, err := os.Stat(defaultDockerSocketPath)
-		if err == nil {
-			detectedFeatures[Docker] = struct{}{}
-			// Even though it does not modify configuration, using the OverrideFunc mechanism for uniformity
-			AddOverrideFunc(func(Config) {
-				os.Setenv("DOCKER_HOST", "unix://"+defaultDockerSocketPath)
-			})
+		for _, defaultDockerSocketPath := range getDefaultDockerPaths() {
+			if _, err := os.Stat(defaultDockerSocketPath); err == nil {
+				detectedFeatures[Docker] = struct{}{}
+				// Even though it does not modify configuration, using the OverrideFunc mechanism for uniformity
+				AddOverrideFunc(func(Config) {
+					os.Setenv("DOCKER_HOST", "unix://"+defaultDockerSocketPath)
+				})
+				break
+			}
 		}
 	}
 
@@ -115,20 +116,29 @@ func detectContainerFeatures() {
 	}
 }
 
-func getHostMountPrefix() string {
+func getHostMountPrefixes() []string {
 	if IsContainerized() {
-		return defaultHostMountPrefix
+		return []string{"", defaultHostMountPrefix}
 	}
-	return ""
+	return []string{""}
 }
 
-func getDefaultDockerPath() string {
+func getDefaultDockerPaths() []string {
 	if runtime.GOOS == "windows" {
-		return defaultWindowsDockerSocketPath
+		return []string{defaultWindowsDockerSocketPath}
 	}
-	return path.Join(getHostMountPrefix(), defaultLinuxDockerSocket)
+
+	paths := []string{}
+	for _, prefix := range getHostMountPrefixes() {
+		paths = append(paths, path.Join(prefix, defaultLinuxDockerSocket))
+	}
+	return paths
 }
 
 func getDefaultCriPaths() []string {
-	return []string{path.Join(getHostMountPrefix(), defaultLinuxContainerdSocket), path.Join(getHostMountPrefix(), defaultLinuxCrioSocket)}
+	paths := []string{}
+	for _, prefix := range getHostMountPrefixes() {
+		paths = append(paths, path.Join(prefix, defaultLinuxContainerdSocket), path.Join(prefix, defaultLinuxCrioSocket))
+	}
+	return paths
 }
