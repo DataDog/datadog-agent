@@ -652,12 +652,13 @@ func TestTCPShortlived(t *testing.T) {
 	// Explicitly close this TCP connection
 	c.Close()
 
-	// Wait for the message to be sent from the perf buffer
-	time.Sleep(2 * cfg.TCPClosedTimeout)
+	var conn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		var ok bool
+		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
+		return ok
+	}, 2*time.Second, 500*time.Millisecond, "connection not found")
 
-	connections := getConnections(t, tr)
-	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-	require.True(t, ok)
 	assert.Equal(t, clientMessageSize, int(conn.MonotonicSentBytes))
 	assert.Equal(t, serverMessageSize, int(conn.MonotonicRecvBytes))
 	assert.Equal(t, 0, int(conn.MonotonicRetransmits))
@@ -670,10 +671,7 @@ func TestTCPShortlived(t *testing.T) {
 	assert.Equal(t, uint32(1), conn.MonotonicTCPEstablished)
 	assert.Equal(t, uint32(1), conn.MonotonicTCPClosed)
 
-	// Confirm that the connection has been cleaned up since the last get
-	connections = getConnections(t, tr)
-
-	conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+	_, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
 	assert.False(t, ok)
 }
 
@@ -1972,31 +1970,25 @@ func TestHTTPStats(t *testing.T) {
 
 	// Send a series of HTTP requests to the test server
 	client := new(nethttp.Client)
-	req, err := nethttp.NewRequest("GET", "http://"+serverAddr+"/test", nil)
-	require.NoError(t, err)
-
-	resp, err := client.Do(req)
+	resp, err := client.Get("http://" + serverAddr + "/test")
 	require.NoError(t, err)
 	resp.Body.Close()
 
-	// Allow the HTTP transactions to be processed in the monitor
-	time.Sleep(time.Second)
-
 	// Iterate through active connections until we find connection created above
-	conns := getConnections(t, tr)
-	matchingConns := searchConnections(conns, func(cs network.ConnectionStats) bool {
-		ip := cs.Dest.String()
-		port := strconv.Itoa(int(cs.DPort))
-		return ip+":"+port == serverAddr
-	})
-	require.Len(t, matchingConns, 1)
+	var matchingConns []network.ConnectionStats
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+		matchingConns = searchConnections(conns, func(cs network.ConnectionStats) bool {
+			return fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == serverAddr && len(cs.HTTPStatsByPath) == 1
+		})
+
+		return len(matchingConns) == 1
+	}, 2*time.Second, 500*time.Millisecond, "connection not found")
 
 	// Verify HTTP stats
 	conn := matchingConns[0]
-	assert.Len(t, conn.HTTPStatsByPath, 1)
-
 	httpReqStats, ok := conn.HTTPStatsByPath["/test"]
-	assert.Equal(t, true, ok)
+	assert.True(t, ok)
 	assert.Equal(t, 0, httpReqStats.Count(0)) // number of requests with response status 100
 	assert.Equal(t, 1, httpReqStats.Count(1)) // 200
 	assert.Equal(t, 0, httpReqStats.Count(2)) // 300
