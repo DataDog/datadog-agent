@@ -2093,6 +2093,6 @@ func TestSelfConnect(t *testing.T) {
 
 		t.Logf("connections: %v", conns)
 		return len(conns) == 1
-	}, 3*time.Second, time.Second, "could not find expected tcp connections, expected: 1")
+	}, 5*time.Second, time.Second, "could not find expected tcp connections, expected: 1")
 
 }
