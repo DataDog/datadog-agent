@@ -20,7 +20,8 @@ func TestProviderExpectedTags(t *testing.T) {
 	tags := []string{"tag1:value1", "tag2", "tag3"}
 
 	mockConfig.Set("tags", tags)
-	mockConfig.Set("logs_config.expected_tags_duration", 15)
+	// Setting a test-friendly value for the deadline
+	mockConfig.Set("logs_config.expected_tags_duration", "5s")
 	defer mockConfig.Set("tags", nil)
 	defer mockConfig.Set("expected_tags_duration", 0)
 
@@ -28,18 +29,21 @@ func TestProviderExpectedTags(t *testing.T) {
 	pp := p.(*provider)
 
 	// Is provider expected?
-	assert.Equal(t, time.Duration(mockConfig.GetInt("logs_config.expected_tags_duration"))*time.Minute, pp.expectedTagsDuration)
+	d := mockConfig.GetDuration("logs_config.expected_tags_duration")
+	assert.InDelta(t, time.Now().Add(d).Unix(), pp.expectedTagsDeadline.Unix(), 1)
 	assert.True(t, pp.submitExpectedTags)
-
-	// A more test-friendly value for tagging
-	pp.expectedTagsDuration = time.Second
 
 	tt := pp.GetTags()
 	sort.Strings(tags)
 	sort.Strings(tt)
 	assert.Equal(t, tags, tt)
 
-	time.Sleep(time.Duration(2) * (time.Second + pp.taggerWarmupDuration))
+	// let the deadline expire + a little grace period
+	<-time.After(time.Until(pp.expectedTagsDeadline.Add(2 * time.Second)))
+
+	pp.Lock()
+	assert.False(t, pp.submitExpectedTags)
+	pp.Unlock()
 	assert.Equal(t, []string{}, pp.GetTags())
 
 }
