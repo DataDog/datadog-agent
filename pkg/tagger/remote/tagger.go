@@ -122,7 +122,11 @@ func (t *Tagger) Tag(entityID string, cardinality collectors.TagCardinality) ([]
 		return nil, err
 	}
 
-	return entity.GetTags(cardinality), nil
+	if entity != nil {
+		return entity.GetTags(cardinality), nil
+	}
+
+	return []string{}, nil
 }
 
 // Standard returns the standard tags for a given entity.
