@@ -28,18 +28,22 @@ func TestProviderExpectedTags(t *testing.T) {
 	pp := p.(*provider)
 
 	// Is provider expected?
-	assert.Equal(t, time.Duration(mockConfig.GetInt("logs_config.expected_tags_duration"))*time.Minute, pp.expectedTagsDuration)
+	d := time.Duration(mockConfig.GetInt("logs_config.expected_tags_duration"))
+	assert.Equal(t, time.Now().Add(d*time.Minute).Unix(), pp.expectedTagsDeadline.Unix())
 	assert.True(t, pp.submitExpectedTags)
 
-	// A more test-friendly value for tagging
-	pp.expectedTagsDuration = time.Second
+	// A more test-friendly value for the deadline
+	pp.expectedTagsDeadline = time.Now().Add(time.Second)
 
 	tt := pp.GetTags()
 	sort.Strings(tags)
 	sort.Strings(tt)
 	assert.Equal(t, tags, tt)
 
-	time.Sleep(time.Duration(2) * (time.Second + pp.taggerWarmupDuration))
+	// let the deadline expire
+	<-time.After(time.Until(pp.expectedTagsDeadline))
+
+	assert.False(t, pp.submitExpectedTags)
 	assert.Equal(t, []string{}, pp.GetTags())
 
 }
