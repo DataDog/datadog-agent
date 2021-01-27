@@ -147,7 +147,7 @@ func StartAgent() error {
 	common.MainCtx, common.MainCtxCancel = context.WithCancel(context.Background())
 
 	// Global Agent configuration
-	err_start := common.SetupConfig(confFilePath)
+	errStart := common.SetupConfig(confFilePath)
 
 	// Setup logger
 	if runtime.GOOS != "android" {
@@ -219,7 +219,7 @@ func StartAgent() error {
 		return fmt.Errorf("Error while setting up logging, exiting: %v", err)
 	}
 
-	if err_start != nil {
+	if errStart != nil {
 		log.Errorf("Failed to setup config %v", err)
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
