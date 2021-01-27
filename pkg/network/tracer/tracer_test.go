@@ -2046,3 +2046,53 @@ func testConfig() *config.Config {
 	}
 	return cfg
 }
+
+func TestSelfConnect(t *testing.T) {
+	// Enable BPF-based system probe
+	cfg := testConfig()
+	cfg.BPFDebug = true
+	cfg.TCPConnTimeout = 3 * time.Second
+	tr, err := NewTracer(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tr.Stop()
+
+	getConnections(t, tr)
+
+	started := make(chan struct{})
+	cmd := exec.Command("testdata/fork.py")
+	go func() {
+		var b bytes.Buffer
+		cmd.Stderr = &b
+		require.NoError(t, cmd.Start())
+		close(started)
+		if err := cmd.Wait(); err != nil {
+			status := cmd.ProcessState.Sys().(syscall.WaitStatus)
+			require.Equal(t, syscall.SIGKILL, status.Signal(), "fork.py output: %s", b.String())
+		}
+	}()
+
+	<-started
+
+	defer cmd.Process.Kill()
+
+	require.Eventually(t, func() bool {
+		conns := searchConnections(getConnections(t, tr), func(cs network.ConnectionStats) bool {
+			return cs.SPort == 33333 && cs.DPort == 33333 && cs.Source.IsLoopback() && cs.Dest.IsLoopback()
+		})
+
+		t.Logf("connections: %v", conns)
+		return len(conns) == 2
+	}, 5*time.Second, time.Second, "could not find expected tcp connections, expected: 2")
+
+	require.Eventually(t, func() bool {
+		conns := searchConnections(getConnections(t, tr), func(cs network.ConnectionStats) bool {
+			return cs.SPort == 33333 && cs.DPort == 33333 && cs.Source.IsLoopback() && cs.Dest.IsLoopback()
+		})
+
+		t.Logf("connections: %v", conns)
+		return len(conns) == 1
+	}, 3*time.Second, time.Second, "could not find expected tcp connections, expected: 1")
+
+}

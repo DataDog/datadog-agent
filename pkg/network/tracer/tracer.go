@@ -617,7 +617,7 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 		// but use conntrack as a source of truth to keep long lived idle TCP conns in the userspace state, while evicting closed TCP connections.
 		// for UDP, the conntrack TTL is lower (two minutes), so the userspace and conntrack expiry are synced to avoid touching conntrack for
 		// UDP expiries
-		if stats.isExpired(latestTime, t.timeoutForConn(key)) && (key.isUDP() || !t.conntrackExists(cachedConntrack, key)) {
+		if stats.isExpired(latestTime, t.timeoutForConn(key)) && (!util.ProcessExists(int(key.Pid())) || key.isUDP() || !t.conntrackExists(cachedConntrack, key)) {
 			expired = append(expired, key.copy())
 			if key.isTCP() {
 				atomic.AddInt64(&t.expiredTCPConns, 1)
