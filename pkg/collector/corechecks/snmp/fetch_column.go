@@ -60,11 +60,11 @@ func fetchColumnOids(session sessionAPI, oids map[string]string) (columnResultVa
 		sort.Strings(bulkOids)
 
 		results, err := session.GetBulk(bulkOids)
-		log.Debugf("fetch column: results: %v", results)
 		if err != nil {
 			return nil, fmt.Errorf("GetBulk failed: %s", err)
 		}
 
+		log.Debugf("fetch column: results Variables: %v", results.Variables)
 		newValues, nextOids := resultToColumnValues(columnOids, results)
 		updateColumnResultValues(returnValues, newValues)
 		curOids = nextOids
