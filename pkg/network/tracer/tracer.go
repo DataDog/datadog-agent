@@ -612,12 +612,7 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 	var expired []*ConnTuple
 	entries := mp.IterateFrom(unsafe.Pointer(&ConnTuple{}))
 	for entries.Next(unsafe.Pointer(key), unsafe.Pointer(stats)) {
-
-		// expiry is handled differently for UDP and TCP. For TCP where conntrack TTL is very long, we use a short expiry for userspace tracking
-		// but use conntrack as a source of truth to keep long lived idle TCP conns in the userspace state, while evicting closed TCP connections.
-		// for UDP, the conntrack TTL is lower (two minutes), so the userspace and conntrack expiry are synced to avoid touching conntrack for
-		// UDP expiries
-		if stats.isExpired(latestTime, t.timeoutForConn(key)) && (!util.ProcessExists(int(key.Pid())) || key.isUDP() || !t.conntrackExists(cachedConntrack, key)) {
+		if t.connectionExpired(key, latestTime, stats, cachedConntrack) {
 			expired = append(expired, key.copy())
 			if key.isTCP() {
 				atomic.AddInt64(&t.expiredTCPConns, 1)
@@ -910,13 +905,29 @@ func (t *Tracer) getProbeProgramIDs() (map[string]uint32, error) {
 	return fds, nil
 }
 
-func (t *Tracer) conntrackExists(ctr *cachedConntrack, conn *ConnTuple) bool {
+// connectionExpired returns true if the passed in connection has expired
+//
+// expiry is handled differently for UDP and TCP. For TCP where conntrack TTL is very long, we use a short expiry for userspace tracking
+// but use conntrack as a source of truth to keep long lived idle TCP conns in the userspace state, while evicting closed TCP connections.
+// for UDP, the conntrack TTL is lower (two minutes), so the userspace and conntrack expiry are synced to avoid touching conntrack for
+// UDP expiries
+func (t *Tracer) connectionExpired(conn *ConnTuple, latestTime uint64, stats *ConnStatsWithTimestamp, ctr *cachedConntrack) bool {
+	if !stats.isExpired(latestTime, t.timeoutForConn(conn)) {
+		return false
+	}
+
+	// skip connection check for udp connections or if
+	// the pid for the conneciton is dead
+	if conn.isUDP() || !util.ProcessExists(int(conn.Pid())) {
+		return true
+	}
+
 	ok, err := ctr.Exists(conn)
 	if err != nil {
 		log.Errorf("error checking conntrack for connection %+v", *conn)
 	}
 
-	return ok
+	return !ok
 }
 
 func newHTTPMonitor(supported bool, c *config.Config, m *manager.Manager, h *ddebpf.PerfHandler) *http.Monitor {
