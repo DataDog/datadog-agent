@@ -72,7 +72,7 @@ func (s *snmpSession) Configure(config snmpConfig) error {
 	s.gosnmpInst.Retries = config.retries
 
 	// Uncomment following line for debugging
-	// s.gosnmpInst.Logger:  defaultLog.New(os.Stdout, "", 0),
+	// s.gosnmpInst.Logger =  log.New(os.Stdout, "", 0)
 	return nil
 }
 
