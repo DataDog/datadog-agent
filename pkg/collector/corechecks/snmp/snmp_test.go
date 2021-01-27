@@ -29,6 +29,7 @@ type mockSession struct {
 	mock.Mock
 	connectErr error
 	closeErr   error
+	version    gosnmp.SnmpVersion
 }
 
 func (s *mockSession) Configure(config snmpConfig) error {
@@ -53,6 +54,21 @@ func (s *mockSession) GetBulk(oids []string) (result *gosnmp.SnmpPacket, err err
 	return args.Get(0).(*gosnmp.SnmpPacket), args.Error(1)
 }
 
+func (s *mockSession) GetNext(oids []string) (result *gosnmp.SnmpPacket, err error) {
+	args := s.Mock.Called(oids)
+	return args.Get(0).(*gosnmp.SnmpPacket), args.Error(1)
+}
+
+func (s *mockSession) GetVersion() gosnmp.SnmpVersion {
+	return s.version
+}
+
+func createMockSession() *mockSession {
+	session := &mockSession{}
+	session.version = gosnmp.Version2c
+	return session
+}
+
 func setConfdPath() {
 	file, _ := filepath.Abs(filepath.Join(".", "test", "conf.d"))
 	config.Datadog.Set("confd_path", file)
@@ -60,7 +76,7 @@ func setConfdPath() {
 
 func TestBasicSample(t *testing.T) {
 	setConfdPath()
-	session := &mockSession{}
+	session := createMockSession()
 	check := Check{session: session}
 	aggregator.InitAggregatorWithFlushInterval(nil, "", 1*time.Hour)
 
@@ -211,7 +227,7 @@ tags:
 
 func TestSupportedMetricTypes(t *testing.T) {
 	setConfdPath()
-	session := &mockSession{}
+	session := createMockSession()
 	check := Check{session: session}
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -278,7 +294,7 @@ metrics:
 
 func TestProfile(t *testing.T) {
 	setConfdPath()
-	session := &mockSession{}
+	session := createMockSession()
 	check := Check{session: session}
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -409,7 +425,7 @@ profiles:
 
 func TestProfileWithSysObjectIdDetection(t *testing.T) {
 	setConfdPath()
-	session := &mockSession{}
+	session := createMockSession()
 	check := Check{session: session}
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -548,7 +564,7 @@ profiles:
 
 func TestServiceCheckFailures(t *testing.T) {
 	setConfdPath()
-	session := &mockSession{}
+	session := createMockSession()
 	session.connectErr = fmt.Errorf("can't connect")
 	check := Check{session: session}
 
@@ -699,7 +715,7 @@ func TestCheck_Run(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			setConfdPath()
-			session := &mockSession{}
+			session := createMockSession()
 			session.connectErr = tt.sessionConnError
 			check := Check{session: session}
 
@@ -752,7 +768,7 @@ func TestCheck_Run_sessionCloseError(t *testing.T) {
 	assert.Nil(t, err)
 	log.SetupLogger(l, "debug")
 
-	session := &mockSession{}
+	session := createMockSession()
 	session.closeErr = fmt.Errorf("close error")
 	check := Check{session: session}
 

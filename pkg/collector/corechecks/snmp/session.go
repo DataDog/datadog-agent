@@ -14,6 +14,8 @@ type sessionAPI interface {
 	Close() error
 	Get(oids []string) (result *gosnmp.SnmpPacket, err error)
 	GetBulk(oids []string) (result *gosnmp.SnmpPacket, err error)
+	GetNext(oids []string) (result *gosnmp.SnmpPacket, err error)
+	GetVersion() gosnmp.SnmpVersion
 }
 
 type snmpSession struct {
@@ -74,7 +76,7 @@ func (s *snmpSession) Configure(config snmpConfig) error {
 	s.gosnmpInst.Retries = config.retries
 
 	// Uncomment following line for debugging
-	// s.gosnmpInst.Logger =  log.New(os.Stdout, "", 0)
+	// s.gosnmpInst.Logger = log.New(os.Stdout, "", 0)
 	return nil
 }
 
@@ -91,10 +93,15 @@ func (s *snmpSession) Get(oids []string) (result *gosnmp.SnmpPacket, err error) 
 }
 
 func (s *snmpSession) GetBulk(oids []string) (result *gosnmp.SnmpPacket, err error) {
-	if len(oids) == 0 {
-		return &gosnmp.SnmpPacket{}, nil
-	}
 	return s.gosnmpInst.GetBulk(oids, 0, 10)
+}
+
+func (s *snmpSession) GetNext(oids []string) (result *gosnmp.SnmpPacket, err error) {
+	return s.gosnmpInst.GetNext(oids)
+}
+
+func (s *snmpSession) GetVersion() gosnmp.SnmpVersion {
+	return s.gosnmpInst.Version
 }
 
 func fetchSysObjectID(session sessionAPI) (string, error) {

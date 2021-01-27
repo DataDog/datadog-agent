@@ -3,6 +3,7 @@ package snmp
 import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/gosnmp/gosnmp"
 	"sort"
 )
 
@@ -10,6 +11,7 @@ func fetchColumnOidsWithBatching(session sessionAPI, oids map[string]string, oid
 	retValues := make(columnResultValuesType, len(oids))
 
 	columnOids := getOidsMapKeys(oids)
+	sort.Strings(columnOids) // sorting columnOids to make them deterministic for testing purpose
 	batches, err := createStringBatches(columnOids, oidBatchSize)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create column oid batches: %s", err)
@@ -50,26 +52,45 @@ func fetchColumnOids(session sessionAPI, oids map[string]string) (columnResultVa
 		if len(curOids) == 0 {
 			break
 		}
-		var columnOids, bulkOids []string
+		var columnOids, requestOids []string
 		for k, v := range curOids {
 			columnOids = append(columnOids, k)
-			bulkOids = append(bulkOids, v)
+			requestOids = append(requestOids, v)
 		}
-		// sorting columnOids and bulkOids to make them deterministic for testing purpose
+		// sorting columnOids and requestOids to make them deterministic for testing purpose
 		sort.Strings(columnOids)
-		sort.Strings(bulkOids)
+		sort.Strings(requestOids)
 
-		results, err := session.GetBulk(bulkOids)
+		results, err := getResults(session, requestOids)
 		if err != nil {
-			return nil, fmt.Errorf("GetBulk failed: %s", err)
+			return nil, err
 		}
-
-		log.Debugf("fetch column: results Variables: %v", results.Variables)
 		newValues, nextOids := resultToColumnValues(columnOids, results)
 		updateColumnResultValues(returnValues, newValues)
 		curOids = nextOids
 	}
 	return returnValues, nil
+}
+
+func getResults(session sessionAPI, requestOids []string) (*gosnmp.SnmpPacket, error) {
+	var results *gosnmp.SnmpPacket
+	if session.GetVersion() == gosnmp.Version1 {
+		// snmp v1 doesn't support GetBulk
+		getNextResults, err := session.GetNext(requestOids)
+		if err != nil {
+			return nil, fmt.Errorf("GetNext failed: %s", err)
+		}
+		results = getNextResults
+		log.Debugf("fetch column: GetNext results Variables: %v", results.Variables)
+	} else {
+		getBulkResults, err := session.GetBulk(requestOids)
+		if err != nil {
+			return nil, fmt.Errorf("GetBulk failed: %s", err)
+		}
+		results = getBulkResults
+		log.Debugf("fetch column: GetBulk results Variables: %v", results.Variables)
+	}
+	return results, nil
 }
 
 func updateColumnResultValues(valuesToUpdate columnResultValuesType, extraValues columnResultValuesType) {
