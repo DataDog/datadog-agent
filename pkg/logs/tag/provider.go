@@ -46,8 +46,7 @@ func NewProvider(entityID string) Provider {
 
 	if config.IsExpectedTagsSet() {
 		p.submitExpectedTags = true
-		p.expectedTagsDeadline = coreConfig.StartTime.Add(
-			time.Duration(coreConfig.Datadog.GetInt("logs_config.expected_tags_duration")) * time.Minute)
+		p.expectedTagsDeadline = coreConfig.StartTime.Add(coreConfig.Datadog.GetDuration("logs_config.expected_tags_duration"))
 
 		// reset submitExpectedTags after deadline elapsed
 		go func() {
