@@ -141,15 +141,10 @@ func run(cmd *cobra.Command, args []string) error {
 
 // StartAgent Initializes the agent process
 func StartAgent() error {
+	var err error
+
 	// Main context passed to components
 	common.MainCtx, common.MainCtxCancel = context.WithCancel(context.Background())
-
-	// Global Agent configuration
-	err := common.SetupConfig(confFilePath)
-	if err != nil {
-		log.Errorf("Failed to setup config %v", err)
-		return fmt.Errorf("unable to set up global agent configuration: %v", err)
-	}
 
 	// Setup logger
 	if runtime.GOOS != "android" {
@@ -219,6 +214,13 @@ func StartAgent() error {
 	}
 	if err != nil {
 		return fmt.Errorf("Error while setting up logging, exiting: %v", err)
+	}
+
+	// Global Agent configuration
+	err = common.SetupConfig(confFilePath)
+	if err != nil {
+		log.Errorf("Failed to setup config %v", err)
+		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
 
 	log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
