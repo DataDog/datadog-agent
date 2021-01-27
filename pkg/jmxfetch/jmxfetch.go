@@ -205,7 +205,7 @@ func (j *JMXFetch) Start(manage bool) error {
 		if common.DSD != nil && common.DSD.UdsListenerRunning {
 			reporter = fmt.Sprintf("statsd:unix://%s", config.Datadog.GetString("dogstatsd_socket"))
 		} else {
-			bindHost := config.Datadog.GetString("bind_host")
+			bindHost := config.GetBindHost()
 			if bindHost == "" || bindHost == "0.0.0.0" {
 				bindHost = "localhost"
 			}

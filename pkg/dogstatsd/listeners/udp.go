@@ -55,7 +55,7 @@ func NewUDPListener(packetOut chan Packets, sharedPacketPool *PacketPool) (*UDPL
 		// Listen to all network interfaces
 		url = fmt.Sprintf(":%d", config.Datadog.GetInt("dogstatsd_port"))
 	} else {
-		url = net.JoinHostPort(config.Datadog.GetString("bind_host"), config.Datadog.GetString("dogstatsd_port"))
+		url = net.JoinHostPort(config.GetBindHost(), config.Datadog.GetString("dogstatsd_port"))
 	}
 
 	addr, err := net.ResolveUDPAddr("udp", url)
