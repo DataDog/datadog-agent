@@ -52,6 +52,15 @@ var (
 	// Tags: -
 	MetricConcurrentSyscall = newRuntimeMetric(".concurrent_syscalls")
 
+	// Dentry Resolver metrics
+
+	// MetricDentryResolverHits is the counter of successful dentry resolution
+	// Tags: cache, kernel_maps
+	MetricDentryResolverHits = newRuntimeMetric(".dentry_resolver.hits")
+	// MetricDentryResolverMiss is the counter of unsuccessful dentry resolution
+	// Tags: cache, kernel_maps
+	MetricDentryResolverMiss = newRuntimeMetric(".dentry_resolver.miss")
+
 	// Perf buffer metrics
 
 	// MetricPerfBufferLostWrite is the name of the metric used to count the number of lost events, as reported by a
@@ -134,6 +143,24 @@ var (
 func SetTagsWithCardinality(cardinality string, tags ...string) []string {
 	return append(tags, fmt.Sprintf("%s:%s", dogstatsd.CardinalityTagPrefix, cardinality))
 }
+
+var (
+	// CacheTag is assigned to metrics related to userspace cache
+	CacheTag = "type:cache"
+	// KernelMapsTag is assigned to metrics related to eBPF kernel maps
+	KernelMapsTag = "type:kernel_maps"
+	// ProcFSTag is assigned to metrics related to /proc fallbacks
+	ProcFSTag = "type:procfs"
+	// ERPCTag is assigned to metrics related to eRPC
+	ERPCTag = "type:erpc"
+
+	// SegmentResolutionTag is assigned to metrics related to the resolution of a segment
+	SegmentResolutionTag = "resolution:segment"
+	// ParentResolutionTag is assigned to metrics related to the resolution of a parent
+	ParentResolutionTag = "resolution:parent"
+	// PathResolutionTag is assigned to metrics related to the resolution of a path
+	PathResolutionTag = "resolution:path"
+)
 
 func newRuntimeMetric(name string) string {
 	return MetricRuntimePrefix + name
