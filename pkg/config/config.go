@@ -29,6 +29,7 @@ import (
 )
 
 const (
+
 	// DefaultSite is the default site the Agent sends data to.
 	DefaultSite    = "datadoghq.com"
 	infraURLPrefix = "https://app."
@@ -74,6 +75,12 @@ var (
 	// the Python version set in the configuration and use `DefaultPython` instead.
 	// We use this to force Python 3 in the Agent 7 as it's the only one available.
 	ForceDefaultPython string
+)
+
+// Variables to initialize at start time
+var (
+	// StartTime is the agent startup time
+	StartTime = time.Now()
 )
 
 // MetadataProviders helps unmarshalling `metadata_providers` config param

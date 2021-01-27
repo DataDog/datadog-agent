@@ -84,8 +84,8 @@ static struct proc_cache_t * __attribute__((always_inline)) fill_process_context
 
     // UID & GID
     u64 userid = bpf_get_current_uid_gid();
-    data->uid = userid >> 32;
-    data->gid = userid;
+    data->uid = userid & 0xffffffff;
+    data->gid = userid >> 32;
 
     return get_proc_cache(tgid);
 }
