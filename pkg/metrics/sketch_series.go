@@ -155,6 +155,8 @@ func (sl SketchSeriesList) SmartMarshal() ([]byte, []byte) {
 		n, _ := sketch.MarshalTo(protobufTmp)
 		compressor.AddItem(protobufTmp[:n])
 	}
+	compressor.AddItem([]byte{0x12})
+	compressor.AddItem(EncodeVarint(0))
 	payload, _ := compressor.Close()
 	// compressor.AddItem([]byte{0x12})
 	// compressor.AddItem(EncodeVarint(uint64(sketch.Size())))

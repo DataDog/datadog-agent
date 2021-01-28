@@ -118,30 +118,28 @@ func TestSketchSeriesSmartMarshal(t *testing.T) {
 	_ = decompressed
 	_ = noncompressed
 
-	// pl := new(gogen.SketchPayload)
-	// if err := pl.Unmarshal(b); err != nil {
-	// 	t.Fatal(err)
-	// }
+	assert.Equal(t, decompressed, payload)
 
-	// require.Len(t, pl.Sketches, len(sl.SketchSeries))
+	pl := new(gogen.SketchPayload)
+	if err := pl.Unmarshal(decompressed); err != nil {
+		t.Fatal(err)
+	}
 
-	// for i, pb := range pl.Sketches {
-	// 	in := sl.SketchSeries[i]
-	// 	require.Equal(t, Makeseries(i), in, "make sure we don't modify input")
+	require.Len(t, pl.Sketches, len(sl.SketchSeries))
 
-	// 	assert.Equal(t, in.Host, pb.Host)
-	// 	assert.Equal(t, in.Name, pb.Metric)
-	// 	assert.Equal(t, in.Tags, pb.Tags)
-	// 	assert.Len(t, pb.Distributions, 0)
+	for i, pb := range pl.Sketches {
+		in := sl.SketchSeries[i]
+		require.Equal(t, Makeseries(i), in, "make sure we don't modify input")
 
-	// 	require.Len(t, pb.Dogsketches, len(in.Points))
-	// 	for j, pointPb := range pb.Dogsketches {
+		assert.Equal(t, in.Host, pb.Host)
+		assert.Equal(t, in.Name, pb.Metric)
+		assert.Equal(t, in.Tags, pb.Tags)
+		assert.Len(t, pb.Distributions, 0)
 
-	// 		check(t, in.Points[j], pointPb)
-	// 		// require.Equal(t, pointIn.Ts, pointPb.Ts)
-	// 		// require.Equal(t, pointIn.Ts, pointPb.Ts)
+		require.Len(t, pb.Dogsketches, len(in.Points))
+		for j, pointPb := range pb.Dogsketches {
 
-	// 		// fmt.Printf("%#v %#v\n", pin, s)
-	// 	}
-	// }
+			check(t, in.Points[j], pointPb)
+		}
+	}
 }
