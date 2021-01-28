@@ -254,13 +254,6 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		config.CollectDNSDomains,
 	)
 
-	var router network.Router
-	if config.EnableRuntimeCompiler {
-		router = newEbpfRouter(m)
-	} else {
-		router = network.NewNetlinkRouter(config.ProcRoot)
-	}
-
 	tr := &Tracer{
 		m:              m,
 		config:         config,
@@ -276,7 +269,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		perfHandler:    perfHandlerTCP,
 		flushIdle:      make(chan chan struct{}),
 		stop:           make(chan struct{}),
-		routeCache:     network.NewRouteCache(512, router),
+		routeCache:     newRouteCache(config, m),
 		subnetCache:    make(map[int]network.Subnet),
 		buf:            make([]byte, network.ConnectionByteKeyMaxLen),
 	}
@@ -937,6 +930,10 @@ func (t *Tracer) conntrackExists(ctr *cachedConntrack, conn *ConnTuple) bool {
 }
 
 func (t *Tracer) connVia(cs *network.ConnectionStats) {
+	if t.routeCache == nil {
+		return // gateway lookup is not enabled
+	}
+
 	r, ok := t.routeCache.Get(cs.Source, cs.Dest, cs.NetNS)
 	if !ok {
 		return
@@ -1018,4 +1015,19 @@ func newHTTPMonitor(supported bool, c *config.Config, m *manager.Manager, h *dde
 
 	log.Info("http monitoring enabled")
 	return monitor
+}
+
+func newRouteCache(config *config.Config, m *manager.Manager) network.RouteCache {
+	if !config.EnableGatewayLookup {
+		return nil
+	}
+
+	var router network.Router
+	if config.EnableRuntimeCompiler {
+		router = newEbpfRouter(m)
+	} else {
+		router = network.NewNetlinkRouter(config.ProcRoot)
+	}
+
+	return network.NewRouteCache(512, router)
 }

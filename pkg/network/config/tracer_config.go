@@ -85,6 +85,8 @@ func TracerConfigFromConfig(cfg *config.AgentConfig) *Config {
 
 	tracerConfig.UDPConnTimeout = getUDPConnTimeout()
 
+	tracerConfig.EnableGatewayLookup = cfg.EnableGatewayLookup
+
 	return tracerConfig
 }
 
