@@ -52,6 +52,18 @@ dev_branch_docker_hub-dogstatsd:
   script:
     - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG}-amd64                 datadog/dogstatsd-dev:${CI_COMMIT_REF_SLUG}
 
+dbm_beta_docker_hub-a7:
+  extends: .docker_tag_job_definition
+  rules:
+    - <<: *if_version_7
+      when: manual
+      allow_failure: true
+  needs: ["docker_build_agent7", "docker_build_agent7_jmx"]
+  script:
+    - export TARGET_DEPLOY_DOCKER_TAG=${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA}
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-amd64             datadog/agent-dev:${TARGET_DEPLOY_DOCKER_TAG}-py3
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-amd64         datadog/agent-dev:${TARGET_DEPLOY_DOCKER_TAG}-py3-jmx
+
 dev_branch_docker_hub-a7:
   extends: .docker_tag_job_definition
   rules:
