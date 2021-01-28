@@ -13,8 +13,10 @@ import (
 	"fmt"
 	"html"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"sort"
+	"time"
 
 	"github.com/gorilla/mux"
 
@@ -29,6 +31,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
+	"github.com/DataDog/datadog-agent/pkg/logs"
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -38,6 +42,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+type contextKey struct {
+	key string
+}
+
+// ConnContextKey key to reference the http connection from the request context
+var ConnContextKey = &contextKey{"http-connection"}
+
 // SetupHandlers adds the specific handlers for /agent endpoints
 func SetupHandlers(r *mux.Router) *mux.Router {
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
@@ -45,6 +56,7 @@ func SetupHandlers(r *mux.Router) *mux.Router {
 	r.HandleFunc("/flare", makeFlare).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", getStatus).Methods("GET")
+	r.HandleFunc("/stream-logs", streamLogs).Methods("POST")
 	r.HandleFunc("/dogstatsd-stats", getDogstatsdStats).Methods("GET")
 	r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
@@ -177,6 +189,72 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write(jsonStats)
+}
+
+func streamLogs(w http.ResponseWriter, r *http.Request) {
+	log.Info("Got a request for stream logs.")
+	w.Header().Set("Transfer-Encoding", "chunked")
+
+	logMessageReceiver := logs.GetMessageReceiver()
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		log.Errorf("Expected a Flusher type, got: %v", w)
+		return
+	}
+
+	if logMessageReceiver == nil {
+		http.Error(w, "The logs agent is not running", 405)
+		flusher.Flush()
+		log.Info("Logs agent is not running - can't stream logs")
+		return
+	}
+
+	if !logMessageReceiver.SetEnabled(true) {
+		http.Error(w, "Another client is already streaming logs.", 405)
+		flusher.Flush()
+		log.Info("Logs are already streaming. Dropping connection.")
+		return
+	}
+	defer logMessageReceiver.SetEnabled(false)
+
+	var filters diagnostic.Filters
+
+	if r.Body != http.NoBody {
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, log.Errorf("Error while reading HTTP request body: %s", err).Error(), 500)
+			return
+		}
+
+		if err := json.Unmarshal(body, &filters); err != nil {
+			http.Error(w, log.Errorf("Error while unmarshaling JSON from request body: %s", err).Error(), 500)
+			return
+		}
+	}
+
+	conn := GetConnection(r)
+
+	// Override the default server timeouts so the connection never times out
+	_ = conn.SetDeadline(time.Time{})
+	_ = conn.SetWriteDeadline(time.Time{})
+
+	for {
+		// Handlers for detecting a closed connection (from either the server or client)
+		select {
+		case <-w.(http.CloseNotifier).CloseNotify():
+			return
+		case <-r.Context().Done():
+			return
+		default:
+		}
+		if line, ok := logMessageReceiver.Next(&filters); ok {
+			fmt.Fprint(w, line)
+		} else {
+			// The buffer will flush on its own most of the time, but when we run out of logs flush so the client is up to date.
+			flusher.Flush()
+		}
+	}
 }
 
 func getDogstatsdStats(w http.ResponseWriter, r *http.Request) {
@@ -417,4 +495,9 @@ func max(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// GetConnection returns the connection for the request
+func GetConnection(r *http.Request) net.Conn {
+	return r.Context().Value(ConnContextKey).(net.Conn)
 }

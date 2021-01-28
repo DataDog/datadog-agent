@@ -281,7 +281,7 @@ func TestLoadEnv(t *testing.T) {
 			defer os.Unsetenv(envKey)
 			cfg, err := Load("./testdata/full.yaml")
 			assert.NoError(err)
-			assert.Equal(6., cfg.MaxTPS)
+			assert.Equal(6., cfg.TargetTPS)
 		})
 	}
 

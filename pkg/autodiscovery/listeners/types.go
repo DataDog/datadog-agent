@@ -13,9 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ID is the representation of the unique ID of a Service
-type ID string
-
 // ContainerPort represents a network port in a Service.
 type ContainerPort struct {
 	Port int

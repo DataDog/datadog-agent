@@ -1,6 +1,7 @@
 #ifndef __BPF_HELPERS_H
 #define __BPF_HELPERS_H
 
+#include <linux/version.h>
 #include <uapi/linux/bpf.h>
 
 /* Macro to output debug logs to /sys/kernel/debug/tracing/trace_pipe
@@ -26,6 +27,9 @@
  */
 #define SEC(NAME) __attribute__((section(NAME), used))
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-variable"
+
 /* helper functions called from eBPF programs written in C */
 static void* (*bpf_map_lookup_elem)(void* map, void* key) = (void*)BPF_FUNC_map_lookup_elem;
 static int (*bpf_map_update_elem)(void* map, void* key, void* value,
@@ -33,7 +37,6 @@ static int (*bpf_map_update_elem)(void* map, void* key, void* value,
     = (void*)BPF_FUNC_map_update_elem;
 static int (*bpf_map_delete_elem)(void* map, void* key) = (void*)BPF_FUNC_map_delete_elem;
 static int (*bpf_probe_read)(void* dst, int size, void* unsafe_ptr) = (void*)BPF_FUNC_probe_read;
-static int (*bpf_probe_read_str)(void* dst, int size, void* unsafe_ptr) = (void*)BPF_FUNC_probe_read_str;
 static unsigned long long (*bpf_ktime_get_ns)(void) = (void*)BPF_FUNC_ktime_get_ns;
 static int (*bpf_trace_printk)(const char* fmt, int fmt_size, ...) = (void*)BPF_FUNC_trace_printk;
 static unsigned long long (*bpf_get_smp_processor_id)(void) = (void*)BPF_FUNC_get_smp_processor_id;
@@ -50,7 +53,19 @@ static int (*bpf_perf_event_output)(void* ctx, void* map,
 static int (*bpf_skb_get_tunnel_key)(void* ctx, void* key, int size, int flags) = (void*)BPF_FUNC_skb_get_tunnel_key;
 static int (*bpf_skb_set_tunnel_key)(void* ctx, void* key, int size, int flags) = (void*)BPF_FUNC_skb_set_tunnel_key;
 static unsigned long long (*bpf_get_prandom_u32)(void) = (void*)BPF_FUNC_get_prandom_u32;
-static u64 (*bpf_get_current_task)(void) = (void *) BPF_FUNC_get_current_task;
+static int (*bpf_skb_store_bytes)(void* ctx, int off, void* from, int len, int flags) = (void*)BPF_FUNC_skb_store_bytes;
+static int (*bpf_l3_csum_replace)(void* ctx, int off, int from, int to, int flags) = (void*)BPF_FUNC_l3_csum_replace;
+static int (*bpf_l4_csum_replace)(void* ctx, int off, int from, int to, int flags) = (void*)BPF_FUNC_l4_csum_replace;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0)
+static u64 (*bpf_get_current_task)(void) = (void*)BPF_FUNC_get_current_task;
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+static int (*bpf_probe_read_str)(void* dst, int size, void* unsafe_ptr) = (void*)BPF_FUNC_probe_read_str;
+#endif
+
+#pragma clang diagnostic pop
 
 /* llvm builtin functions that eBPF C program may use to
  * emit BPF_LD_ABS and BPF_LD_IND instructions
@@ -77,10 +92,6 @@ struct bpf_map_def {
     unsigned int pinning;
     char namespace[BUF_SIZE_MAP_NS];
 };
-
-static int (*bpf_skb_store_bytes)(void* ctx, int off, void* from, int len, int flags) = (void*)BPF_FUNC_skb_store_bytes;
-static int (*bpf_l3_csum_replace)(void* ctx, int off, int from, int to, int flags) = (void*)BPF_FUNC_l3_csum_replace;
-static int (*bpf_l4_csum_replace)(void* ctx, int off, int from, int to, int flags) = (void*)BPF_FUNC_l4_csum_replace;
 
 #if defined(__x86_64__)
 

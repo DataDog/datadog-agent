@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -31,7 +32,7 @@ import (
 
 var (
 	expvarEndpoints map[string]*expvar.Map
-	expvarTypes     = []string{"conntrack", "state", "tracer", "ebpf", "kprobes", "dns"}
+	expvarTypes     = []string{"conntrack", "state", "tracer", "ebpf", "kprobes", "dns", "http"}
 )
 
 func init() {
@@ -86,7 +87,7 @@ type Tracer struct {
 	bufferLock sync.Mutex
 
 	// Internal buffer used to compute bytekeys
-	buf [network.ConnectionByteKeyMaxLen]byte
+	buf []byte
 
 	// Connections for the tracer to blacklist
 	sourceExcludes []*network.ConnectionFilter
@@ -106,15 +107,6 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		return nil, fmt.Errorf("%s: %s", "system-probe unsupported", err)
 	}
 
-	buf, err := netebpf.ReadBPFModule(config.BPFDir, config.BPFDebug)
-	if err != nil {
-		return nil, fmt.Errorf("could not read bpf module: %s", err)
-	}
-	offsetBuf, err := netebpf.ReadOffsetBPFModule(config.BPFDir, config.BPFDebug)
-	if err != nil {
-		return nil, fmt.Errorf("could not read offset bpf module: %s", err)
-	}
-
 	// check if current platform is using old kernel API because it affects what kprobe are we going to enable
 	currKernelVersion, err := kernel.HostVersion()
 	if err != nil {
@@ -126,6 +118,21 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	pre410Kernel := currKernelVersion < kernel.VersionCode(4, 1, 0)
 	if pre410Kernel {
 		log.Infof("detected platform %s, switch to use kprobes from kernel version < 4.1.0", currKernelVersion)
+	}
+
+	// Use the config to determine what kernel probes should be enabled
+	enabledProbes, err := config.EnabledProbes(pre410Kernel)
+	if err != nil {
+		return nil, fmt.Errorf("invalid probe configuration: %v", err)
+	}
+
+	enableSocketFilter := config.DNSInspection && !pre410Kernel
+	if enableSocketFilter {
+		enabledProbes[probes.SocketDnsFilter] = struct{}{}
+	}
+
+	if config.EnableHTTPMonitoring && !pre410Kernel {
+		enabledProbes[probes.SocketHTTPFilter] = struct{}{}
 	}
 
 	mgrOptions := manager.Options{
@@ -147,9 +154,44 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 			string(probes.HttpInFlightMap):    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 		},
 	}
-	mgrOptions.ConstantEditors, err = runOffsetGuessing(config, offsetBuf)
-	if err != nil {
-		return nil, fmt.Errorf("error guessing offsets: %s", err)
+
+	var buf bytecode.AssetReader
+	if config.EnableRuntimeCompiler {
+		buf, err = getRuntimeCompiledTracer(config)
+		if err != nil {
+			if !config.AllowPrecompiledFallback {
+				return nil, fmt.Errorf("error compiling network tracer: %s", err)
+			}
+			log.Warnf("error compiling network tracer, falling back to pre-compiled: %s", err)
+		} else {
+			defer buf.Close()
+		}
+	}
+
+	if buf == nil {
+		buf, err = netebpf.ReadBPFModule(config.BPFDir, config.BPFDebug)
+		if err != nil {
+			return nil, fmt.Errorf("could not read bpf module: %s", err)
+		}
+		defer buf.Close()
+
+		offsetBuf, err := netebpf.ReadOffsetBPFModule(config.BPFDir, config.BPFDebug)
+		if err != nil {
+			return nil, fmt.Errorf("could not read offset bpf module: %s", err)
+		}
+		defer offsetBuf.Close()
+
+		mgrOptions.ConstantEditors, err = runOffsetGuessing(config, offsetBuf)
+		if err != nil {
+			return nil, fmt.Errorf("error guessing offsets: %s", err)
+		}
+
+		if enableSocketFilter && config.CollectDNSStats {
+			mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors, manager.ConstantEditor{
+				Name:  "dns_stats_enabled",
+				Value: uint64(1),
+			})
+		}
 	}
 
 	closedChannelSize := defaultClosedChannelSize
@@ -159,27 +201,6 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	perfHandlerTCP := ddebpf.NewPerfHandler(closedChannelSize)
 	perfHandlerHTTP := ddebpf.NewPerfHandler(closedChannelSize)
 	m := netebpf.NewManager(perfHandlerTCP, perfHandlerHTTP)
-
-	// Use the config to determine what kernel probes should be enabled
-	enabledProbes, err := config.EnabledProbes(pre410Kernel)
-	if err != nil {
-		return nil, fmt.Errorf("invalid probe configuration: %v", err)
-	}
-
-	enableSocketFilter := config.DNSInspection && !pre410Kernel
-	if enableSocketFilter {
-		enabledProbes[probes.SocketDnsFilter] = struct{}{}
-		if config.CollectDNSStats {
-			mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors, manager.ConstantEditor{
-				Name:  "dns_stats_enabled",
-				Value: uint64(1),
-			})
-		}
-	}
-
-	if config.EnableHTTPMonitoring && !pre410Kernel {
-		enabledProbes[probes.SocketHTTPFilter] = struct{}{}
-	}
 
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
 	for _, p := range m.Probes {
@@ -229,6 +250,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		config.MaxClosedConnectionsBuffered,
 		config.MaxConnectionsStateBuffered,
 		config.MaxDNSStatsBufferred,
+		config.MaxHTTPStatsBuffered,
 		config.CollectDNSDomains,
 	)
 
@@ -249,6 +271,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		stop:           make(chan struct{}),
 		routeCache:     network.NewRouteCache(512, network.NewNetlinkRouter(config.ProcRoot)),
 		subnetCache:    make(map[int]network.Subnet),
+		buf:            make([]byte, network.ConnectionByteKeyMaxLen),
 	}
 
 	tr.perfMap, tr.batchManager, err = tr.initPerfPolling(perfHandlerTCP)
@@ -284,7 +307,21 @@ func newReverseDNS(cfg *config.Config, m *manager.Manager, pre410Kernel bool) (n
 		return nil, fmt.Errorf("error retrieving socket filter")
 	}
 
-	return network.NewSocketFilterSnooper(cfg, filter)
+	// Create the RAW_SOCKET inside the root network namespace
+	var (
+		packetSrc *filterpkg.AFPacketSource
+		srcErr    error
+	)
+	err := util.WithRootNS(cfg.ProcRoot, func() error {
+		packetSrc, srcErr = filterpkg.NewPacketSource(filter)
+		return srcErr
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return network.NewSocketFilterSnooper(cfg, packetSrc)
 }
 
 func runOffsetGuessing(config *config.Config, buf bytecode.AssetReader) ([]manager.ConstantEditor, error) {
@@ -398,7 +435,7 @@ func (t *Tracer) initPerfPolling(perf *ddebpf.PerfHandler) (*manager.PerfMap, *P
 				batch := toBatch(batchData)
 				conns := t.batchManager.Extract(batch, time.Now())
 				for _, c := range conns {
-					t.storeClosedConn(c)
+					t.storeClosedConn(&c)
 				}
 			case lostCount, ok := <-perf.LostChannel:
 				if !ok {
@@ -411,7 +448,7 @@ func (t *Tracer) initPerfPolling(perf *ddebpf.PerfHandler) (*manager.PerfMap, *P
 				}
 				idleConns := t.batchManager.GetIdleConns(time.Now())
 				for _, c := range idleConns {
-					t.storeClosedConn(c)
+					t.storeClosedConn(&c)
 				}
 				close(done)
 			case <-ticker.C:
@@ -451,10 +488,10 @@ func (t *Tracer) storeClosedConn(cs network.ConnectionStats) {
 	}
 
 	atomic.AddInt64(&t.closedConns, 1)
-	cs.IPTranslation = t.conntracker.GetTranslationForConn(cs)
-	t.state.StoreClosedConnection(&cs)
+	cs.IPTranslation = t.conntracker.GetTranslationForConn(*cs)
+	t.state.StoreClosedConnection(cs)
 	if cs.IPTranslation != nil {
-		t.conntracker.DeleteTranslation(cs)
+		t.conntracker.DeleteTranslation(*cs)
 	}
 }
 
@@ -490,7 +527,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.flushIdle <- done
 	<-done
 
-	conns := t.state.Connections(clientID, latestTime, latestConns, t.reverseDNS.GetDNSStats())
+	conns := t.state.Connections(clientID, latestTime, latestConns, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
 	names := t.reverseDNS.Resolve(conns)
 	tm := t.getConnTelemetry(len(latestConns))
 
@@ -767,6 +804,11 @@ func (t *Tracer) getTelemetry() (map[string]interface{}, error) {
 			stats["state"] = telemetry
 		}
 	}
+	if states, ok := stats["http"]; ok {
+		if telemetry, ok := states.(map[string]interface{})["telemetry"]; ok {
+			stats["http"] = telemetry
+		}
+	}
 	return stats, nil
 }
 
@@ -785,7 +827,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 	stateStats := t.state.GetStats()
 	conntrackStats := t.conntracker.GetStats()
 
-	return map[string]interface{}{
+	ret := map[string]interface{}{
 		"conntrack": conntrackStats,
 		"state":     stateStats,
 		"tracer": map[string]int64{
@@ -798,7 +840,13 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 		"ebpf":    t.getEbpfTelemetry(),
 		"kprobes": ddebpf.GetProbeStats(),
 		"dns":     t.reverseDNS.GetStats(),
-	}, nil
+	}
+
+	if t.httpMonitor != nil {
+		ret["http"] = t.httpMonitor.GetStats()
+	}
+
+	return ret, nil
 }
 
 // DebugNetworkState returns a map with the current tracer's internal state, for debugging

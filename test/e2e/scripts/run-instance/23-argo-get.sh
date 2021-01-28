@@ -7,47 +7,28 @@ set -x
 cd "$(dirname "$0")"
 
 # Wait for any Running workflow
-until [[ -z $(./argo list -l workflows.argoproj.io/phase=Running -o name) ]]; do
+until [[ "$(./argo list --running -o name)" == "No workflows found" ]]; do
     sleep 10
 done
 
-if [[ -z $(./argo list -o name) ]]; then
+if [[ "$(./argo list -o name)" == "No workflows found" ]]; then
     echo "No workflow found"
     exit 1
 fi
 
 set +x
 
-# `argo get` command outputs some utf-8 characters that are breaking GitLab
-# The below hack can be removed once the following PR is merged and released:
-# https://github.com/argoproj/argo/pull/4449
-function filter_argo_output() {
-    if locale -k LC_CTYPE | grep -qi 'charmap="utf-\+8"'; then
-        cat
-    else
-        oldstate=$(set +o)
-        set +x
-        sed 's/◷/Pending  /g;
-             s/●/Running  /g;
-             s/✔/Succeeded/g;
-             s/○/Skipped  /g;
-             s/✖/Failed   /g;
-             s/⚠/Error    /g;
-             s/ǁ/Suspend  /g;
-             s/·/+/g;
-             s/└/`/g;
-             s/├/|/g;'
-        eval "$oldstate"
-    fi
-}
+if ! locale -k LC_CTYPE | grep -qi 'charmap="utf-\+8"'; then
+    no_utf8_opt='--no-utf8'
+fi
 
-for workflow in $(./argo list -l workflows.argoproj.io/phase=Succeeded -o name); do
-    ./argo get "$workflow" | filter_argo_output
+for workflow in $(./argo list --status Succeeded -o name | grep -v 'No workflows found'); do
+    ./argo get ${no_utf8_opt:-} "$workflow"
 done
 
 EXIT_CODE=0
-for workflow in $(./argo list -l workflows.argoproj.io/phase=Failed -o name); do
-    ./argo get "$workflow" | filter_argo_output
+for workflow in $(./argo list --status Failed -o name | grep -v 'No workflows found'); do
+    ./argo get ${no_utf8_opt:-} "$workflow"
     EXIT_CODE=2
 done
 

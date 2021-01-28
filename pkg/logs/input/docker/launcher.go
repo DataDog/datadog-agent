@@ -9,6 +9,7 @@ package docker
 
 import (
 	"fmt"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -44,26 +45,42 @@ type Launcher struct {
 	collectAllSource   *config.LogSource
 	readTimeout        time.Duration               // client read timeout to set on the created tailer
 	serviceNameFunc    func(string, string) string // serviceNameFunc gets the service name from the tagger, it is in a separate field for testing purpose
+
+	tailFromFile           bool                         // If true docker will be tailed from the corresponding log file
+	fileSourcesByContainer map[string]*config.LogSource // Keep track of locally generated sources
+	sources                *config.LogSources           // To schedule file source when taileing container from file
 }
 
 // NewLauncher returns a new launcher
-func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry, shouldRetry bool) (*Launcher, error) {
+func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry, shouldRetry, tailFromFile bool) (*Launcher, error) {
 	if !shouldRetry {
 		if _, err := dockerutil.GetDockerUtil(); err != nil {
 			return nil, err
 		}
 	}
+
 	launcher := &Launcher{
-		pipelineProvider:   pipelineProvider,
-		tailers:            make(map[string]*Tailer),
-		pendingContainers:  make(map[string]*Container),
-		registry:           registry,
-		stop:               make(chan struct{}),
-		erroredContainerID: make(chan string),
-		lock:               &sync.Mutex{},
-		readTimeout:        readTimeout,
-		serviceNameFunc:    input.ServiceNameFromTags,
+		pipelineProvider:       pipelineProvider,
+		tailers:                make(map[string]*Tailer),
+		pendingContainers:      make(map[string]*Container),
+		registry:               registry,
+		stop:                   make(chan struct{}),
+		erroredContainerID:     make(chan string),
+		lock:                   &sync.Mutex{},
+		readTimeout:            readTimeout,
+		serviceNameFunc:        input.ServiceNameFromTags,
+		sources:                sources,
+		tailFromFile:           tailFromFile,
+		fileSourcesByContainer: make(map[string]*config.LogSource),
 	}
+
+	if tailFromFile {
+		if err := checkReadAccess(); err != nil {
+			log.Errorf("Error accessing %s, %v, falling back on tailing from Docker socket", basePath, err)
+			launcher.tailFromFile = false
+		}
+	}
+
 	// FIXME(achntrl): Find a better way of choosing the right launcher
 	// between Docker and Kubernetes
 	launcher.addedSources = sources.GetAddedForType(config.DockerType)
@@ -75,12 +92,14 @@ func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services
 
 // Start starts the Launcher
 func (l *Launcher) Start() {
+	log.Info("Starting Docker launcher")
 	go l.run()
 }
 
 // Stop stops the Launcher and its tailers in parallel,
 // this call returns only when all the tailers are stopped.
 func (l *Launcher) Stop() {
+	log.Info("Stopping Docker launcher")
 	l.stop <- struct{}{}
 	stopper := restart.NewParallelStopper()
 	l.lock.Lock()
@@ -185,11 +204,60 @@ func (l *Launcher) overrideSource(container *Container, source *config.LogSource
 		return source
 	}
 
-	source.UpdateInfo(containerID, fmt.Sprintf("Container ID: %s, Image: %s, Created: %s", ShortContainerID(containerID), shortName, container.container.Created))
+	source.UpdateInfo(containerID, fmt.Sprintf("Container ID: %s, Image: %s, Created: %s, Tailing from the Docker socket", ShortContainerID(containerID), shortName, container.container.Created))
 
 	newSource := newOverridenSource(standardService, shortName, source.Status)
 	newSource.ParentSource = source
 	return newSource
+}
+
+// getFileSource create a new file source with the image short name if the source is ContainerCollectAll
+func (l *Launcher) getFileSource(container *Container, source *config.LogSource) *config.LogSource {
+	containerID := container.service.Identifier
+
+	// Populate the collectAllSource if we don't have it yet
+	if source.Name == config.ContainerCollectAll && l.collectAllSource == nil {
+		l.collectAllSource = source
+	}
+
+	standardService := l.serviceNameFunc(container.container.Name, dockerutil.ContainerIDToTaggerEntityName(containerID))
+	shortName, err := container.getShortImageName()
+
+	if err != nil {
+		log.Warnf("Could not get short image name for container %v: %v", ShortContainerID(containerID), err)
+	}
+
+	// Update parent source with additional information
+	source.UpdateInfo(containerID, fmt.Sprintf("Container ID: %s, Image: %s, Created: %s, Tailing from file: %s", ShortContainerID(containerID), shortName, container.container.Created, l.getPath(containerID)))
+
+	var serviceName string
+	if source.Name != config.ContainerCollectAll && source.Config.Service != "" {
+		serviceName = source.Config.Service
+	} else if standardService != "" {
+		serviceName = standardService
+	} else {
+		serviceName = shortName
+	}
+
+	// New file source
+	fileSource := config.NewLogSource(source.Name, &config.LogsConfig{
+		Identifier: containerID,
+		Path:       l.getPath(containerID),
+		Service:    serviceName,
+		Source:     shortName,
+		Type:       config.FileType,
+	})
+	fileSource.SetSourceType(config.DockerSourceType)
+	fileSource.Status = source.Status
+	fileSource.ParentSource = source
+	return fileSource
+}
+
+// getPath returns the file path of the container log to tail.
+// The pattern looks like /var/lib/docker/containers/{container-id}/{container-id}-json.log
+func (l *Launcher) getPath(id string) string {
+	filename := fmt.Sprintf("%s-json.log", id)
+	return filepath.Join(basePath, id, filename)
 }
 
 // newOverridenSource is separated from overrideSource for testing purpose
@@ -212,19 +280,49 @@ func newOverridenSource(standardService, shortName string, status *config.LogSta
 
 // startTailer starts a new tailer for the container matching with the source.
 func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
+	if l.tailFromFile {
+		l.scheduleFileSource(container, source)
+	} else {
+		l.startSocketTailer(container, source)
+	}
+}
+
+func (l *Launcher) scheduleFileSource(container *Container, source *config.LogSource) {
+	containerID := container.service.Identifier
+	if _, isTailed := l.fileSourcesByContainer[containerID]; isTailed {
+		log.Warnf("Can't tail twice the same container: %v", ShortContainerID(containerID))
+		return
+	}
+	// fileSource is a new source using the original source as its parent
+	fileSource := l.getFileSource(container, source)
+	// Keep source for later unscheduling
+	l.fileSourcesByContainer[containerID] = fileSource
+	l.sources.AddSource(fileSource)
+}
+
+func (l *Launcher) unscheduleFileSource(containerID string) {
+	if fileSource, exists := l.fileSourcesByContainer[containerID]; exists {
+		if fileSource.ParentSource != nil {
+			fileSource.ParentSource.RemoveInfo(containerID)
+		}
+		delete(l.fileSourcesByContainer, containerID)
+		l.sources.RemoveSource(fileSource)
+	}
+}
+
+func (l *Launcher) startSocketTailer(container *Container, source *config.LogSource) {
 	containerID := container.service.Identifier
 	if _, isTailed := l.getTailer(containerID); isTailed {
 		log.Warnf("Can't tail twice the same container: %v", ShortContainerID(containerID))
 		return
 	}
-
-	// overridenSource == source if the containerCollectAll option is not activated or the container has AD labels
-	overridenSource := l.overrideSource(container, source)
 	dockerutil, err := dockerutil.GetDockerUtil()
 	if err != nil {
 		log.Warnf("Could not use docker client, logs for container %s won’t be collected: %v", containerID, err)
 		return
 	}
+	// overridenSource == source if the containerCollectAll option is not activated or the container has AD labels
+	overridenSource := l.overrideSource(container, source)
 	tailer := NewTailer(dockerutil, containerID, overridenSource, l.pipelineProvider.NextPipelineChan(), l.erroredContainerID, l.readTimeout)
 
 	// compute the offset to prevent from missing or duplicating logs
@@ -247,6 +345,14 @@ func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
 
 // stopTailer stops the tailer matching the containerID.
 func (l *Launcher) stopTailer(containerID string) {
+	if l.tailFromFile {
+		l.unscheduleFileSource(containerID)
+	} else {
+		l.stopSocketTailer(containerID)
+	}
+}
+
+func (l *Launcher) stopSocketTailer(containerID string) {
 	if tailer, isTailed := l.getTailer(containerID); isTailed {
 		// No-op if the tailer source came from AD
 		if l.collectAllSource != nil {
@@ -259,6 +365,10 @@ func (l *Launcher) stopTailer(containerID string) {
 }
 
 func (l *Launcher) restartTailer(containerID string) {
+	// It should never happen
+	if l.tailFromFile {
+		return
+	}
 	backoffDuration := backoffInitialDuration
 	cumulatedBackoff := 0 * time.Second
 	var source *config.LogSource

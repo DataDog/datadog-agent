@@ -7,12 +7,13 @@ package listeners
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"strconv"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
+
 	"github.com/stretchr/testify/assert"
 )
 

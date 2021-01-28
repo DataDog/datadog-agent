@@ -223,6 +223,28 @@ func TestMetaMapDeserialization(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, map[string]string{"key": "op��"}, s.Meta)
 	})
+
+	t.Run("Nil_key", func(t *testing.T) {
+		b := newEmptyMessage()
+		b = msgp.AppendString(b, "meta")
+		b = msgp.AppendMapHeader(b, 1)
+		b = msgp.AppendNil(b)
+		b = msgp.AppendString(b, "val")
+		s, err := decodeBytes(b)
+		assert.Nil(t, err)
+		assert.Equal(t, map[string]string{"": "val"}, s.Meta)
+	})
+
+	t.Run("Nil_val", func(t *testing.T) {
+		b := newEmptyMessage()
+		b = msgp.AppendString(b, "meta")
+		b = msgp.AppendMapHeader(b, 1)
+		b = msgp.AppendString(b, "key")
+		b = msgp.AppendNil(b)
+		s, err := decodeBytes(b)
+		assert.Nil(t, err)
+		assert.Equal(t, map[string]string{"key": ""}, s.Meta)
+	})
 }
 
 func TestMetricsMapDeserialization(t *testing.T) {
@@ -308,6 +330,28 @@ func TestMetricsMapDeserialization(t *testing.T) {
 		s, err := decodeBytes(b)
 		assert.Nil(t, err)
 		assert.Equal(t, map[string]float64{"key": 42}, s.Metrics)
+	})
+
+	t.Run("Nil_key", func(t *testing.T) {
+		b := newEmptyMessage()
+		b = msgp.AppendString(b, "metrics")
+		b = msgp.AppendMapHeader(b, 1)
+		b = msgp.AppendNil(b)
+		b = msgp.AppendInt64(b, 42)
+		s, err := decodeBytes(b)
+		assert.Nil(t, err)
+		assert.Equal(t, map[string]float64{"": 42}, s.Metrics)
+	})
+
+	t.Run("Nil_val", func(t *testing.T) {
+		b := newEmptyMessage()
+		b = msgp.AppendString(b, "metrics")
+		b = msgp.AppendMapHeader(b, 1)
+		b = msgp.AppendString(b, "key")
+		b = msgp.AppendNil(b)
+		s, err := decodeBytes(b)
+		assert.Nil(t, err)
+		assert.Equal(t, map[string]float64{"key": 0}, s.Metrics)
 	})
 }
 

@@ -75,6 +75,26 @@ func ParseMountInfoFile(pid int32) ([]*mountinfo.Info, error) {
 	return mountinfo.GetMountsFromReader(f, nil)
 }
 
+// GetProcesses returns list of active processes
+func GetProcesses() ([]*process.Process, error) {
+	pids, err := process.Pids()
+	if err != nil {
+		return nil, err
+	}
+
+	var processes []*process.Process
+	for _, pid := range pids {
+		proc, err := process.NewProcess(pid)
+		if err != nil {
+			// the process does not exist anymore, continue
+			continue
+		}
+		processes = append(processes, proc)
+	}
+
+	return processes, nil
+}
+
 // GetFilledProcess returns a FilledProcess from a Process input
 // TODO: make a PR to export a similar function in Datadog/gopsutil. We only populate the fields we need for now.
 func GetFilledProcess(p *process.Process) *process.FilledProcess {

@@ -19,9 +19,9 @@ func getTestSampler() *Sampler {
 
 	// No extra fixed sampling, no maximum TPS
 	extraRate := 1.0
-	maxTPS := 0.0
+	targetTPS := 0.0
 
-	return newSampler(extraRate, maxTPS)
+	return newSampler(extraRate, targetTPS)
 }
 
 func TestSamplerAccessRace(t *testing.T) {

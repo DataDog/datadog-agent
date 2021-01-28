@@ -115,6 +115,11 @@ func BuildEndpoints(httpConnectivity HTTPConnectivity) (*Endpoints, error) {
 	return buildTCPEndpoints()
 }
 
+// IsExpectedTagsSet returns boolean showing if expected tags feature is enabled.
+func IsExpectedTagsSet() bool {
+	return coreConfig.Datadog.GetDuration("logs_config.expected_tags_duration") > 0
+}
+
 func isSocks5ProxySet() bool {
 	return len(coreConfig.Datadog.GetString("logs_config.socks5_proxy_address")) > 0
 }

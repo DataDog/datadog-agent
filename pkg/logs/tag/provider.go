@@ -9,7 +9,9 @@ import (
 	"sync"
 	"time"
 
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -20,22 +22,43 @@ type Provider interface {
 	GetTags() []string
 }
 
-// NoopProvider does nothing
-var NoopProvider Provider = &noopProvider{}
+var (
+	// NoopProvider does nothing
+	NoopProvider Provider = &noopProvider{}
+)
 
 // provider provides a list of up-to-date tags for a given entity by calling the tagger.
 type provider struct {
 	entityID             string
 	taggerWarmupDuration time.Duration
+	expectedTagsDeadline time.Time
+	submitExpectedTags   bool
 	sync.Once
+	sync.RWMutex
 }
 
 // NewProvider returns a new Provider.
 func NewProvider(entityID string) Provider {
-	return &provider{
+	p := &provider{
 		entityID:             entityID,
 		taggerWarmupDuration: config.TaggerWarmupDuration(),
 	}
+
+	if config.IsExpectedTagsSet() {
+		p.submitExpectedTags = true
+		p.expectedTagsDeadline = coreConfig.StartTime.Add(coreConfig.Datadog.GetDuration("logs_config.expected_tags_duration"))
+
+		// reset submitExpectedTags after deadline elapsed
+		go func() {
+			<-time.After(time.Until(p.expectedTagsDeadline))
+
+			p.Lock()
+			defer p.Unlock()
+			p.submitExpectedTags = false
+		}()
+	}
+
+	return p
 }
 
 // GetTags returns the list of up-to-date tags.
@@ -45,11 +68,21 @@ func (p *provider) GetTags() []string {
 		// Make sure the tagger collects all the service tags
 		// TODO: remove this once AD and Tagger use the same PodWatcher instance
 		<-time.After(p.taggerWarmupDuration)
+
 	})
+
 	tags, err := tagger.Tag(p.entityID, collectors.HighCardinality)
 	if err != nil {
 		log.Warnf("Cannot tag container %s: %v", p.entityID, err)
 		return []string{}
 	}
+
+	p.RLock()
+	defer p.RUnlock()
+	if p.submitExpectedTags {
+		hostTags := host.GetHostTags(true)
+		tags = append(tags, hostTags.System...)
+	}
+
 	return tags
 }

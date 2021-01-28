@@ -49,8 +49,6 @@ build_libbcc_arm64:
     - mkdir clang && tar xf clang.src.tar.xz --strip-components=1 --no-same-owner -C clang
     - mkdir llvm && tar xf llvm.src.tar.xz --strip-components=1 --no-same-owner -C llvm
     - mkdir build && cd build
-    # Note: on ARM, this may fail (process gets killed), indicating an OOM error.
-    # In that case, reduce this job's parallelism (eg. with -DLLVM_PARALLEL_COMPILE_JOBS=2 -DLLVM_PARALLEL_LINK_JOBS=2)
     - |
       cmake -DLLVM_ENABLE_PROJECTS=clang \
       -DLLVM_TARGETS_TO_BUILD="BPF" \
@@ -58,6 +56,7 @@ build_libbcc_arm64:
       -G "Ninja" \
       -DCMAKE_BUILD_TYPE=MinSizeRel \
       -DLLVM_BUILD_TOOLS=OFF \
+      -DLLVM_ENABLE_TERMINFO=OFF \
       -DLLVM_INCLUDE_EXAMPLES=OFF \
       -DLLVM_INCLUDE_TESTS=OFF \
       -DLLVM_INCLUDE_BENCHMARKS=OFF \
@@ -69,9 +68,14 @@ build_libbcc_arm64:
     - cmake --build . --target install
     - cd $DATADOG_AGENT_EMBEDDED_PATH
     - rm -rf bin share libexec lib/clang lib/cmake lib/*.so*
-    - tar cvaf /tmp/clang.tar.xz .
-    - $S3_CP_CMD /tmp/clang.tar.xz $S3_PERMANENT_ARTIFACTS_URI/clang-$ARCH-11.0.0.tar.xz
+    - mkdir -p $CI_PROJECT_DIR/.tmp
+    - tar cvaf $CI_PROJECT_DIR/.tmp/clang-$ARCH-11.0.0.tar.xz .
+    - $S3_CP_CMD $CI_PROJECT_DIR/.tmp/clang-$ARCH-11.0.0.tar.xz $S3_PERMANENT_ARTIFACTS_URI/clang-$ARCH-11.0.0.tar.xz
   timeout: 2h 00m
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $CI_PROJECT_DIR/.tmp/clang-$ARCH-11.0.0.tar.xz
 
 build_clang_x64:
   extends: .build_clang_common

@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/ebpf"
@@ -85,6 +86,9 @@ func getSnooper(
 	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{Section: string(probes.SocketDnsFilter)})
 	require.NotNil(t, filter)
 
+	packetSrc, err := filterpkg.NewPacketSource(filter)
+	require.NoError(t, err)
+
 	reverseDNS, err := NewSocketFilterSnooper(
 		&config.Config{
 			Config: ddebpf.Config{
@@ -95,7 +99,7 @@ func getSnooper(
 			DNSTimeout:        dnsTimeout,
 			CollectDNSDomains: collectDNSDomains,
 		},
-		filter,
+		packetSrc,
 	)
 	require.NoError(t, err)
 	return mgr, reverseDNS
@@ -133,8 +137,10 @@ Loop:
 }
 
 func TestDNSOverUDPSnooping(t *testing.T) {
-	buf, err := netebpf.ReadBPFModule("build", false)
+	cfg := config.NewDefaultConfig()
+	buf, err := netebpf.ReadBPFModule(cfg.BPFDir, false)
 	require.NoError(t, err)
+	defer buf.Close()
 
 	m, reverseDNS := getSnooper(t, buf, false, false, 15*time.Second, false)
 	defer m.Stop(manager.CleanAll)
@@ -193,8 +199,10 @@ func initDNSTestsWithDomainCollection(t *testing.T, localDNS bool) (*manager.Man
 }
 
 func initDNSTests(t *testing.T, localDNS bool, collectDomain bool) (*manager.Manager, *SocketFilterSnooper) {
-	buf, err := netebpf.ReadBPFModule("build", false)
+	cfg := config.NewDefaultConfig()
+	buf, err := netebpf.ReadBPFModule(cfg.BPFDir, false)
 	require.NoError(t, err)
+	defer buf.Close()
 	return getSnooper(t, buf, true, localDNS, 1*time.Second, collectDomain)
 }
 
@@ -251,8 +259,8 @@ func getKey(
 	qPort int,
 	sIP string,
 	protocol ConnectionType,
-) dnsKey {
-	return dnsKey{
+) DNSKey {
+	return DNSKey{
 		clientIP:   util.AddressFromString(qIP),
 		clientPort: uint16(qPort),
 		serverIP:   util.AddressFromString(sIP),
@@ -263,7 +271,7 @@ func getKey(
 func getStats(
 	snooper *SocketFilterSnooper,
 	expectedCount int,
-) map[dnsKey]map[string]dnsStats {
+) map[DNSKey]map[string]DNSStats {
 	// DNS timeout is set to 1 second for the tests.
 	// So a 3-second timeout here should provide enough time for an unanswered DNS query to be considered as a timeout.
 	timeout := time.After(3 * time.Second)
@@ -311,11 +319,11 @@ func TestDNSOverTCPSuccessfulResponseCountWithoutDomain(t *testing.T) {
 
 	// Exactly one rcode (0, success) is expected
 	stats := allStatsByDomain[key][""]
-	require.Equal(t, 1, len(stats.countByRcode))
-	assert.Equal(t, uint32(3), stats.countByRcode[uint8(layers.DNSResponseCodeNoErr)])
-	assert.True(t, stats.successLatencySum >= uint64(1))
-	assert.Equal(t, uint32(0), stats.timeouts)
-	assert.Equal(t, uint64(0), stats.failureLatencySum)
+	require.Equal(t, 1, len(stats.DNSCountByRcode))
+	assert.Equal(t, uint32(3), stats.DNSCountByRcode[uint32(layers.DNSResponseCodeNoErr)])
+	assert.True(t, stats.DNSSuccessLatencySum >= uint64(1))
+	assert.Equal(t, uint32(0), stats.DNSTimeouts)
+	assert.Equal(t, uint64(0), stats.DNSFailureLatencySum)
 }
 
 func TestDNSOverTCPSuccessfulResponseCount(t *testing.T) {
@@ -345,11 +353,11 @@ func TestDNSOverTCPSuccessfulResponseCount(t *testing.T) {
 	// Exactly one rcode (0, success) is expected
 	for _, d := range domains {
 		stats := allStatsByDomain[key][d]
-		require.Equal(t, 1, len(stats.countByRcode))
-		assert.Equal(t, uint32(1), stats.countByRcode[uint8(layers.DNSResponseCodeNoErr)])
-		assert.True(t, stats.successLatencySum >= uint64(1))
-		assert.Equal(t, uint32(0), stats.timeouts)
-		assert.Equal(t, uint64(0), stats.failureLatencySum)
+		require.Equal(t, 1, len(stats.DNSCountByRcode))
+		assert.Equal(t, uint32(1), stats.DNSCountByRcode[uint32(layers.DNSResponseCodeNoErr)])
+		assert.True(t, stats.DNSSuccessLatencySum >= uint64(1))
+		assert.Equal(t, uint32(0), stats.DNSTimeouts)
+		assert.Equal(t, uint64(0), stats.DNSFailureLatencySum)
 	}
 }
 
@@ -402,16 +410,16 @@ func TestDNSFailedResponseCount(t *testing.T) {
 	// First check the one sent over TCP. Expected error type: NXDomain
 	assert.Equal(t, len(domains), len(allStats[key1]))
 	for _, d := range domains {
-		require.Equal(t, 1, len(allStats[key1][d].countByRcode))
-		assert.Equal(t, uint32(1), allStats[key1][d].countByRcode[uint8(layers.DNSResponseCodeNXDomain)])
+		require.Equal(t, 1, len(allStats[key1][d].DNSCountByRcode))
+		assert.Equal(t, uint32(1), allStats[key1][d].DNSCountByRcode[uint32(layers.DNSResponseCodeNXDomain)])
 	}
 
 	// Next check the one sent over UDP. Expected error type: ServFail
 	key2 := getKey(queryIP, queryPort, localhost, UDP)
 	assert.Equal(t, len(domains), len(allStats[key2]))
 	for _, d := range domains {
-		require.Equal(t, 1, len(allStats[key2][d].countByRcode))
-		assert.Equal(t, uint32(1), allStats[key2][d].countByRcode[uint8(layers.DNSResponseCodeServFail)])
+		require.Equal(t, 1, len(allStats[key2][d].DNSCountByRcode))
+		assert.Equal(t, uint32(1), allStats[key2][d].DNSCountByRcode[uint32(layers.DNSResponseCodeServFail)])
 	}
 }
 
@@ -430,10 +438,10 @@ func TestDNSOverUDPTimeoutCount(t *testing.T) {
 	allStats := getStats(reverseDNS, 1)
 	key := getKey(queryIP, queryPort, invalidServerIP, UDP)
 	require.Equal(t, 1, len(allStats))
-	assert.Equal(t, 0, len(allStats[key][domainQueried].countByRcode))
-	assert.Equal(t, uint32(1), allStats[key][domainQueried].timeouts)
-	assert.Equal(t, uint64(0), allStats[key][domainQueried].successLatencySum)
-	assert.Equal(t, uint64(0), allStats[key][domainQueried].failureLatencySum)
+	assert.Equal(t, 0, len(allStats[key][domainQueried].DNSCountByRcode))
+	assert.Equal(t, uint32(1), allStats[key][domainQueried].DNSTimeouts)
+	assert.Equal(t, uint64(0), allStats[key][domainQueried].DNSSuccessLatencySum)
+	assert.Equal(t, uint64(0), allStats[key][domainQueried].DNSFailureLatencySum)
 }
 
 func TestDNSOverUDPTimeoutCountWithoutDomain(t *testing.T) {
@@ -451,15 +459,17 @@ func TestDNSOverUDPTimeoutCountWithoutDomain(t *testing.T) {
 	allStats := getStats(reverseDNS, 1)
 	key := getKey(queryIP, queryPort, invalidServerIP, UDP)
 	require.Equal(t, 1, len(allStats))
-	assert.Equal(t, 0, len(allStats[key][""].countByRcode))
-	assert.Equal(t, uint32(1), allStats[key][""].timeouts)
-	assert.Equal(t, uint64(0), allStats[key][""].successLatencySum)
-	assert.Equal(t, uint64(0), allStats[key][""].failureLatencySum)
+	assert.Equal(t, 0, len(allStats[key][""].DNSCountByRcode))
+	assert.Equal(t, uint32(1), allStats[key][""].DNSTimeouts)
+	assert.Equal(t, uint64(0), allStats[key][""].DNSSuccessLatencySum)
+	assert.Equal(t, uint64(0), allStats[key][""].DNSFailureLatencySum)
 }
 
 func TestParsingError(t *testing.T) {
-	buf, err := netebpf.ReadBPFModule("build", false)
+	cfg := config.NewDefaultConfig()
+	buf, err := netebpf.ReadBPFModule(cfg.BPFDir, false)
 	require.NoError(t, err)
+	defer buf.Close()
 
 	m, reverseDNS := getSnooper(t, buf, false, false, 15*time.Second, false)
 	defer m.Stop(manager.CleanAll)
@@ -490,8 +500,8 @@ func TestDNSOverIPv6(t *testing.T) {
 	require.Contains(t, allStats, key)
 
 	stats := allStats[key]["nxdomain-123.com"]
-	assert.Equal(t, 1, len(stats.countByRcode))
-	assert.Equal(t, uint32(1), stats.countByRcode[uint8(layers.DNSResponseCodeNXDomain)])
+	assert.Equal(t, 1, len(stats.DNSCountByRcode))
+	assert.Equal(t, uint32(1), stats.DNSCountByRcode[uint32(layers.DNSResponseCodeNXDomain)])
 }
 
 func newTestServer(t *testing.T, ip string, protocol ConnectionType, handler dns.HandlerFunc) func() {

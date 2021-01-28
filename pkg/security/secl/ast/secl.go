@@ -7,6 +7,7 @@ package ast
 
 import (
 	"bytes"
+	"strconv"
 
 	"github.com/alecthomas/participle"
 	"github.com/alecthomas/participle/lexer"
@@ -15,8 +16,10 @@ import (
 
 var (
 	seclLexer = lexer.Must(ebnf.New(`
+Comment = ("#" | "//") { "\u0000"…"\uffff"-"\n" } .
 Ident = (alpha | "_") { "_" | alpha | digit | "." | "[" | "]" } .
 String = "\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
+Pattern = "~\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
 Int = [ "-" | "+" ] digit { digit } .
 Punct = "!"…"/" | ":"…"@" | "["…` + "\"`\"" + ` | "{"…"~" .
 Whitespace = ( " " | "\t" | "\n" ) { " " | "\t" | "\n" } .
@@ -26,12 +29,28 @@ any = "\u0000"…"\uffff" .
 `))
 )
 
+func unquotePattern(t lexer.Token) (lexer.Token, error) {
+	unquoted, err := strconv.Unquote(t.Value[1:])
+	if err != nil {
+		return t, participle.Errorf(t.Pos, "invalid pattern string %q: %s", t.Value, err)
+	}
+	t.Value = unquoted
+
+	return t, nil
+}
+
+func buildParser(obj interface{}) (*participle.Parser, error) {
+	return participle.Build(obj,
+		participle.Lexer(seclLexer),
+		participle.Elide("Whitespace", "Comment"),
+		participle.Unquote("String"),
+		participle.Map(unquotePattern, "Pattern"),
+	)
+}
+
 // ParseRule parses a SECL rule.
 func ParseRule(expr string) (*Rule, error) {
-	parser, err := participle.Build(&Rule{},
-		participle.Lexer(seclLexer),
-		participle.Elide("Whitespace"),
-		participle.Unquote("String"))
+	parser, err := buildParser(&Rule{})
 	if err != nil {
 		return nil, err
 	}
@@ -57,10 +76,7 @@ type Rule struct {
 
 // ParseMacro parses a SECL macro
 func ParseMacro(expr string) (*Macro, error) {
-	parser, err := participle.Build(&Macro{},
-		participle.Lexer(seclLexer),
-		participle.Elide("Whitespace"),
-		participle.Unquote("String"))
+	parser, err := buildParser(&Macro{})
 	if err != nil {
 		return nil, err
 	}
@@ -151,14 +167,23 @@ type Primary struct {
 	Ident         *string     `parser:"@Ident"`
 	Number        *int        `parser:"| @Int"`
 	String        *string     `parser:"| @String"`
+	Pattern       *string     `parser:"| @Pattern"`
 	SubExpression *Expression `parser:"| \"(\" @@ \")\""`
+}
+
+// StringMember describes a String based array member
+type StringMember struct {
+	Pos lexer.Position
+
+	String  *string `parser:"@String"`
+	Pattern *string `parser:"| @Pattern"`
 }
 
 // Array describes an array of values
 type Array struct {
 	Pos lexer.Position
 
-	Strings []string `parser:"\"[\" @String { \",\" @String } \"]\""`
-	Numbers []int    `parser:"| \"[\" @Int { \",\" @Int } \"]\""`
-	Ident   *string  `parser:"| @Ident"`
+	StringMembers []StringMember `parser:"\"[\" @@ { \",\" @@ } \"]\""`
+	Numbers       []int          `parser:"| \"[\" @Int { \",\" @Int } \"]\""`
+	Ident         *string        `parser:"| @Ident"`
 }

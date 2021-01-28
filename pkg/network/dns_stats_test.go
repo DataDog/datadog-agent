@@ -16,8 +16,8 @@ const (
 	DNSTimeoutSecs = 10
 )
 
-func getSampleDNSKey() dnsKey {
-	return dnsKey{
+func getSampleDNSKey() DNSKey {
+	return DNSKey{
 		serverIP:   util.AddressFromString("8.8.8.8"),
 		clientIP:   util.AddressFromString("1.1.1.1"),
 		clientPort: 1000,
@@ -50,9 +50,9 @@ func testLatency(
 	require.Contains(t, stats, key)
 	require.Contains(t, stats[key], d)
 
-	assert.Equal(t, expectedSuccessLatency, stats[key][d].successLatencySum)
-	assert.Equal(t, expectedFailureLatency, stats[key][d].failureLatencySum)
-	assert.Equal(t, expectedTimeouts, stats[key][d].timeouts)
+	assert.Equal(t, expectedSuccessLatency, stats[key][d].DNSSuccessLatencySum)
+	assert.Equal(t, expectedFailureLatency, stats[key][d].DNSFailureLatencySum)
+	assert.Equal(t, expectedTimeouts, stats[key][d].DNSTimeouts)
 }
 
 func TestSuccessLatency(t *testing.T) {
@@ -93,9 +93,9 @@ func TestExpiredStateRemoval(t *testing.T) {
 	require.Contains(t, stats, key)
 	require.Contains(t, stats[key], d)
 
-	require.Contains(t, stats[key][d].countByRcode, uint8(0))
-	assert.Equal(t, uint32(2), stats[key][d].countByRcode[0])
-	assert.Equal(t, uint32(1), stats[key][d].timeouts)
+	require.Contains(t, stats[key][d].DNSCountByRcode, uint32(0))
+	assert.Equal(t, uint32(2), stats[key][d].DNSCountByRcode[0])
+	assert.Equal(t, uint32(1), stats[key][d].DNSTimeouts)
 }
 
 func BenchmarkStats(b *testing.B) {

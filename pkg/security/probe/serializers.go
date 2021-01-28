@@ -12,6 +12,8 @@ package probe
 import (
 	"syscall"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
 // Event categories for JSON serialization
@@ -23,20 +25,21 @@ const (
 // FileSerializer serializes a file to JSON
 // easyjson:json
 type FileSerializer struct {
-	Path            string     `json:"path,omitempty"`
-	Name            string     `json:"name,omitempty"`
-	ContainerPath   string     `json:"container_path,omitempty"`
-	Inode           *uint64    `json:"inode,omitempty"`
-	Mode            *uint32    `json:"mode,omitempty"`
-	OverlayNumLower *int32     `json:"overlay_numlower,omitempty"`
-	MountID         *uint32    `json:"mount_id,omitempty"`
-	UID             *int32     `json:"uid,omitempty"`
-	GID             *int32     `json:"gid,omitempty"`
-	XAttrName       string     `json:"attribute_name,omitempty"`
-	XAttrNamespace  string     `json:"attribute_namespace,omitempty"`
-	Flags           []string   `json:"flags,omitempty"`
-	Atime           *time.Time `json:"access_time,omitempty"`
-	Mtime           *time.Time `json:"modification_time,omitempty"`
+	Path                string     `json:"path,omitempty"`
+	Name                string     `json:"name,omitempty"`
+	ContainerPath       string     `json:"container_path,omitempty"`
+	PathResolutionError string     `json:"path_resolution_error,omitempty"`
+	Inode               *uint64    `json:"inode,omitempty"`
+	Mode                *uint32    `json:"mode,omitempty"`
+	OverlayNumLower     *int32     `json:"overlay_numlower,omitempty"`
+	MountID             *uint32    `json:"mount_id,omitempty"`
+	UID                 *int32     `json:"uid,omitempty"`
+	GID                 *int32     `json:"gid,omitempty"`
+	XAttrName           string     `json:"attribute_name,omitempty"`
+	XAttrNamespace      string     `json:"attribute_namespace,omitempty"`
+	Flags               []string   `json:"flags,omitempty"`
+	Atime               *time.Time `json:"access_time,omitempty"`
+	Mtime               *time.Time `json:"modification_time,omitempty"`
 }
 
 // UserContextSerializer serializes a user context to JSON
@@ -50,20 +53,22 @@ type UserContextSerializer struct {
 // easyjson:json
 type ProcessCacheEntrySerializer struct {
 	UserContextSerializer
-	Pid           uint32     `json:"pid"`
-	PPid          uint32     `json:"ppid"`
-	Tid           uint32     `json:"tid"`
-	UID           uint32     `json:"uid"`
-	GID           uint32     `json:"gid"`
-	Name          string     `json:"name"`
-	ContainerPath string     `json:"executable_container_path,omitempty"`
-	Path          string     `json:"executable_path"`
-	Inode         uint64     `json:"executable_inode"`
-	MountID       uint32     `json:"executable_mount_id"`
-	TTY           string     `json:"tty,omitempty"`
-	ForkTime      *time.Time `json:"fork_time,omitempty"`
-	ExecTime      *time.Time `json:"exec_time,omitempty"`
-	ExitTime      *time.Time `json:"exit_time,omitempty"`
+	Pid                 uint32     `json:"pid,omitempty"`
+	PPid                uint32     `json:"ppid,omitempty"`
+	Tid                 uint32     `json:"tid,omitempty"`
+	UID                 uint32     `json:"uid,omitempty"`
+	GID                 uint32     `json:"gid,omitempty"`
+	Name                string     `json:"name,omitempty"`
+	ContainerPath       string     `json:"executable_container_path,omitempty"`
+	Path                string     `json:"executable_path,omitempty"`
+	PathResolutionError string     `json:"path_resolution_error,omitempty"`
+	Comm                string     `json:"comm,omitempty"`
+	Inode               uint64     `json:"executable_inode,omitempty"`
+	MountID             uint32     `json:"executable_mount_id,omitempty"`
+	TTY                 string     `json:"tty,omitempty"`
+	ForkTime            *time.Time `json:"fork_time,omitempty"`
+	ExecTime            *time.Time `json:"exec_time,omitempty"`
+	ExitTime            *time.Time `json:"exit_time,omitempty"`
 }
 
 // ContainerContextSerializer serializes a container context to JSON
@@ -88,36 +93,38 @@ type FileEventSerializer struct {
 // EventContextSerializer serializes an event context to JSON
 // easyjson:json
 type EventContextSerializer struct {
-	Name     string `json:"name"`
-	Category string `json:"category"`
-	Outcome  string `json:"outcome"`
+	Name     string `json:"name,omitempty"`
+	Category string `json:"category,omitempty"`
+	Outcome  string `json:"outcome,omitempty"`
 }
 
 // ProcessContextSerializer serializes a process context to JSON
 // easyjson:json
 type ProcessContextSerializer struct {
 	*ProcessCacheEntrySerializer
-	Parent    *ProcessCacheEntrySerializer   `json:"parent"`
-	Ancestors []*ProcessCacheEntrySerializer `json:"ancestors"`
+	Parent    *ProcessCacheEntrySerializer   `json:"parent,omitempty"`
+	Ancestors []*ProcessCacheEntrySerializer `json:"ancestors,omitempty"`
 }
 
 // EventSerializer serializes an event to JSON
 // easyjson:json
 type EventSerializer struct {
-	*EventContextSerializer    `json:"evt"`
+	*EventContextSerializer    `json:"evt,omitempty"`
 	*FileEventSerializer       `json:"file,omitempty"`
-	UserContextSerializer      UserContextSerializer       `json:"usr"`
-	ProcessContextSerializer   *ProcessContextSerializer   `json:"process"`
+	UserContextSerializer      UserContextSerializer       `json:"usr,omitempty"`
+	ProcessContextSerializer   *ProcessContextSerializer   `json:"process,omitempty"`
 	ContainerContextSerializer *ContainerContextSerializer `json:"container,omitempty"`
+	Date                       time.Time                   `json:"date,omitempty"`
 }
 
 func newFileSerializer(fe *FileEvent, e *Event) *FileSerializer {
 	return &FileSerializer{
-		Path:            fe.ResolveInode(e),
-		ContainerPath:   fe.ResolveContainerPath(e),
-		Inode:           getUint64Pointer(&fe.Inode),
-		MountID:         getUint32Pointer(&fe.MountID),
-		OverlayNumLower: getInt32Pointer(&fe.OverlayNumLower),
+		Path:                fe.ResolveInode(e),
+		PathResolutionError: fe.GetPathResolutionError(),
+		ContainerPath:       fe.ResolveContainerPath(e),
+		Inode:               getUint64Pointer(&fe.Inode),
+		MountID:             getUint32Pointer(&fe.MountID),
+		OverlayNumLower:     getInt32Pointer(&fe.OverlayNumLower),
 	}
 }
 
@@ -149,11 +156,11 @@ func getTimeIfNotZero(t time.Time) *time.Time {
 	return &t
 }
 
-func newProcessCacheEntrySerializer(pce *ProcessCacheEntry, e *Event, useEvent bool) *ProcessCacheEntrySerializer {
+func newProcessCacheEntrySerializer(pce *ProcessCacheEntry, e *Event, r *Resolvers, useEvent bool) *ProcessCacheEntrySerializer {
 	var pid, ppid, tid, uid, gid uint32
 	var user, group string
 
-	if useEvent {
+	if useEvent && e != nil {
 		pid = e.Process.Pid
 		ppid = e.Process.PPid
 		tid = e.Process.Tid
@@ -167,8 +174,8 @@ func newProcessCacheEntrySerializer(pce *ProcessCacheEntry, e *Event, useEvent b
 		tid = pce.Tid
 		uid = pce.UID
 		gid = pce.GID
-		user = pce.ResolveUser(e)
-		group = pce.ResolveGroup(e)
+		user = pce.ResolveUserWithResolvers(r)
+		group = pce.ResolveGroupWithResolvers(r)
 	}
 
 	return &ProcessCacheEntrySerializer{
@@ -176,19 +183,22 @@ func newProcessCacheEntrySerializer(pce *ProcessCacheEntry, e *Event, useEvent b
 			User:  user,
 			Group: group,
 		},
-		Pid:      pid,
-		PPid:     ppid,
-		Tid:      tid,
-		UID:      uid,
-		GID:      gid,
-		Name:     pce.Comm,
-		Path:     pce.ResolveInode(e),
-		Inode:    pce.Inode,
-		MountID:  pce.MountID,
-		TTY:      pce.ResolveTTY(e),
-		ForkTime: getTimeIfNotZero(pce.ForkTimestamp),
-		ExecTime: getTimeIfNotZero(pce.ExecTimestamp),
-		ExitTime: getTimeIfNotZero(pce.ExitTimestamp),
+		Pid:                 pid,
+		PPid:                ppid,
+		Tid:                 tid,
+		UID:                 uid,
+		GID:                 gid,
+		Name:                pce.ResolveName(e),
+		Path:                pce.ResolveInodeWithResolvers(r),
+		PathResolutionError: pce.GetPathResolutionError(),
+		ContainerPath:       pce.ResolveContainerPath(e),
+		Comm:                pce.ResolveComm(e),
+		Inode:               pce.Inode,
+		MountID:             pce.MountID,
+		TTY:                 pce.ResolveTTY(e),
+		ForkTime:            getTimeIfNotZero(pce.ForkTimestamp),
+		ExecTime:            getTimeIfNotZero(pce.ExecTimestamp),
+		ExitTime:            getTimeIfNotZero(pce.ExitTimestamp),
 	}
 }
 
@@ -198,21 +208,37 @@ func newContainerContextSerializer(cc *ContainerContext, e *Event) *ContainerCon
 	}
 }
 
-func newProcessContextSerializer(pc *ProcessContext, e *Event) *ProcessContextSerializer {
-	entry := e.ResolveProcessCacheEntry()
-
+func newProcessContextSerializer(entry *ProcessCacheEntry, e *Event, r *Resolvers) *ProcessContextSerializer {
 	ps := &ProcessContextSerializer{
-		ProcessCacheEntrySerializer: newProcessCacheEntrySerializer(entry, e, true),
+		ProcessCacheEntrySerializer: newProcessCacheEntrySerializer(entry, e, r, true),
 	}
 
-	ancestor := entry.Parent
-	for i := 0; ancestor != nil && len(ancestor.PathnameStr) > 0; i++ {
-		s := newProcessCacheEntrySerializer(ancestor, e, false)
+	if e == nil {
+		// custom events call newProcessContextSerializer with an empty Event
+		e = NewEvent(r)
+		e.Process = ProcessContext{
+			Ancestor: entry,
+		}
+	}
+
+	ctx := eval.Context{}
+	ctx.SetObject(e.GetPointer())
+
+	it := &ProcessAncestorsIterator{}
+	ptr := it.Front(&ctx)
+
+	first := true
+	for ptr != nil {
+		ancestor := (*ProcessCacheEntry)(ptr)
+		s := newProcessCacheEntrySerializer(ancestor, e, r, false)
 		ps.Ancestors = append(ps.Ancestors, s)
-		if i == 0 {
+
+		if first {
 			ps.Parent = s
 		}
-		ancestor = ancestor.Parent
+		first = false
+
+		ptr = it.Next()
 	}
 
 	return ps
@@ -229,13 +255,14 @@ func serializeSyscallRetval(retval int64) string {
 	}
 }
 
-func newEventSerializer(event *Event) (*EventSerializer, error) {
+func newEventSerializer(event *Event) *EventSerializer {
 	s := &EventSerializer{
 		EventContextSerializer: &EventContextSerializer{
 			Name:     EventType(event.Type).String(),
 			Category: FIMCategory,
 		},
-		ProcessContextSerializer: newProcessContextSerializer(&event.Process, event),
+		ProcessContextSerializer: newProcessContextSerializer(event.ResolveProcessCacheEntry(), event, event.resolvers),
+		Date:                     event.ResolveEventTimestamp(),
 	}
 
 	if event.Container.ID != "" {
@@ -318,14 +345,16 @@ func newEventSerializer(event *Event) (*EventSerializer, error) {
 	case FileMountEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: FileSerializer{
-				Path:    event.Mount.ResolveRoot(event),
-				MountID: &event.Mount.RootMountID,
-				Inode:   &event.Mount.RootInode,
+				Path:                event.Mount.ResolveRoot(event),
+				PathResolutionError: event.Mount.GetRootPathResolutionError(),
+				MountID:             &event.Mount.RootMountID,
+				Inode:               &event.Mount.RootInode,
 			},
 			Destination: &FileSerializer{
-				Path:    event.Mount.ResolveMountPoint(event),
-				MountID: &event.Mount.ParentMountID,
-				Inode:   &event.Mount.ParentInode,
+				Path:                event.Mount.ResolveMountPoint(event),
+				PathResolutionError: event.Mount.GetMountPointPathResolutionError(),
+				MountID:             &event.Mount.ParentMountID,
+				Inode:               &event.Mount.ParentInode,
 			},
 			NewMountID: event.Mount.MountID,
 			GroupID:    event.Mount.GroupID,
@@ -350,5 +379,5 @@ func newEventSerializer(event *Event) (*EventSerializer, error) {
 		s.Category = ProcessActivity
 	}
 
-	return s, nil
+	return s
 }

@@ -75,7 +75,7 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 
 	rsa.running.Store(true)
 	for rsa.running.Load() == true {
-		stream, err := apiClient.GetEvents(context.Background(), &api.GetParams{})
+		stream, err := apiClient.GetEvents(context.Background(), &api.GetEventParams{})
 		if err != nil {
 			rsa.connected.Store(false)
 
@@ -98,7 +98,7 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 			if err == io.EOF || in == nil {
 				break
 			}
-			log.Infof("Got message from rule `%s` for event `%s`", in.RuleID, string(in.Data))
+			log.Tracef("Got message from rule `%s` for event `%s`", in.RuleID, string(in.Data))
 
 			atomic.AddUint64(&rsa.eventReceived, 1)
 

@@ -19,6 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
 
@@ -97,6 +99,7 @@ func setup() error {
 	}
 
 	// Setup tagger
+	tagger.SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
 	tagger.Init()
 
 	// Start compose recipes

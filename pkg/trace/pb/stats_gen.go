@@ -91,6 +91,12 @@ func (z *ClientGroupedStats) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "ErrorSummary")
 				return
 			}
+		case "Synthetics":
+			z.Synthetics, err = dc.ReadBool()
+			if err != nil {
+				err = msgp.WrapError(err, "Synthetics")
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -104,9 +110,9 @@ func (z *ClientGroupedStats) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *ClientGroupedStats) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 11
+	// map header, size 12
 	// write "Service"
-	err = en.Append(0x8b, 0xa7, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65)
+	err = en.Append(0x8c, 0xa7, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65)
 	if err != nil {
 		return
 	}
@@ -215,15 +221,25 @@ func (z *ClientGroupedStats) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "ErrorSummary")
 		return
 	}
+	// write "Synthetics"
+	err = en.Append(0xaa, 0x53, 0x79, 0x6e, 0x74, 0x68, 0x65, 0x74, 0x69, 0x63, 0x73)
+	if err != nil {
+		return
+	}
+	err = en.WriteBool(z.Synthetics)
+	if err != nil {
+		err = msgp.WrapError(err, "Synthetics")
+		return
+	}
 	return
 }
 
 // MarshalMsg implements msgp.Marshaler
 func (z *ClientGroupedStats) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 11
+	// map header, size 12
 	// string "Service"
-	o = append(o, 0x8b, 0xa7, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65)
+	o = append(o, 0x8c, 0xa7, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65)
 	o = msgp.AppendString(o, z.Service)
 	// string "Name"
 	o = append(o, 0xa4, 0x4e, 0x61, 0x6d, 0x65)
@@ -255,6 +271,9 @@ func (z *ClientGroupedStats) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "ErrorSummary"
 	o = append(o, 0xac, 0x45, 0x72, 0x72, 0x6f, 0x72, 0x53, 0x75, 0x6d, 0x6d, 0x61, 0x72, 0x79)
 	o = msgp.AppendBytes(o, z.ErrorSummary)
+	// string "Synthetics"
+	o = append(o, 0xaa, 0x53, 0x79, 0x6e, 0x74, 0x68, 0x65, 0x74, 0x69, 0x63, 0x73)
+	o = msgp.AppendBool(o, z.Synthetics)
 	return
 }
 
@@ -342,6 +361,12 @@ func (z *ClientGroupedStats) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "ErrorSummary")
 				return
 			}
+		case "Synthetics":
+			z.Synthetics, bts, err = msgp.ReadBoolBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Synthetics")
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -356,7 +381,7 @@ func (z *ClientGroupedStats) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *ClientGroupedStats) Msgsize() (s int) {
-	s = 1 + 8 + msgp.StringPrefixSize + len(z.Service) + 5 + msgp.StringPrefixSize + len(z.Name) + 9 + msgp.StringPrefixSize + len(z.Resource) + 15 + msgp.Uint32Size + 5 + msgp.StringPrefixSize + len(z.Type) + 7 + msgp.StringPrefixSize + len(z.DBType) + 5 + msgp.Uint64Size + 7 + msgp.Uint64Size + 9 + msgp.Uint64Size + 10 + msgp.BytesPrefixSize + len(z.OkSummary) + 13 + msgp.BytesPrefixSize + len(z.ErrorSummary)
+	s = 1 + 8 + msgp.StringPrefixSize + len(z.Service) + 5 + msgp.StringPrefixSize + len(z.Name) + 9 + msgp.StringPrefixSize + len(z.Resource) + 15 + msgp.Uint32Size + 5 + msgp.StringPrefixSize + len(z.Type) + 7 + msgp.StringPrefixSize + len(z.DBType) + 5 + msgp.Uint64Size + 7 + msgp.Uint64Size + 9 + msgp.Uint64Size + 10 + msgp.BytesPrefixSize + len(z.OkSummary) + 13 + msgp.BytesPrefixSize + len(z.ErrorSummary) + 11 + msgp.BoolSize
 	return
 }
 

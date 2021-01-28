@@ -66,6 +66,8 @@ func (m *Model) ValidateField(key string, field eval.FieldValue) error {
 	if strings.HasSuffix(key, "filename") || strings.HasSuffix(key, "_path") {
 		if value, ok := field.Value.(string); ok {
 			errAbs := fmt.Errorf("invalid path `%s`, all the path have to be absolute", value)
+			errDepth := fmt.Errorf("invalid path `%s`, path depths have to be shorter than %d", value, MaxPathDepth)
+			errSegment := fmt.Errorf("invalid path `%s`, each segment of a path must be shorter than %d", value, MaxSegmentLength)
 
 			if value != path.Clean(value) {
 				return errAbs
@@ -77,6 +79,17 @@ func (m *Model) ValidateField(key string, field eval.FieldValue) error {
 
 			if matched, err := regexp.Match(`^~`, []byte(value)); err != nil || matched {
 				return errAbs
+			}
+
+			// check resolution limitations
+			segments := strings.Split(value, "/")
+			if len(segments) > MaxPathDepth {
+				return errDepth
+			}
+			for _, segment := range segments {
+				if len(segment) > MaxSegmentLength {
+					return errSegment
+				}
 			}
 		}
 	}
@@ -120,19 +133,43 @@ type FileEvent struct {
 	PathnameStr     string `field:"filename" handler:"ResolveInode,string"`
 	ContainerPath   string `field:"container_path" handler:"ResolveContainerPath,string"`
 	BasenameStr     string `field:"basename" handler:"ResolveBasename,string"`
+
+	pathResolutionError error `field:"-"`
+}
+
+// GetPathResolutionError returns the path resolution error as a string if there is one
+func (e *FileEvent) GetPathResolutionError() string {
+	if e.pathResolutionError != nil {
+		return e.pathResolutionError.Error()
+	}
+	return ""
 }
 
 // ResolveInode resolves the inode to a full path
 func (e *FileEvent) ResolveInode(event *Event) string {
-	return e.ResolveInodeWithResolvers(event.resolvers)
+	path, err := e.resolveInode(event.resolvers)
+	if err != nil {
+		if _, ok := err.(ErrTruncatedSegment); ok {
+			event.SetPathResolutionError(err)
+		} else if _, ok := err.(ErrTruncatedParents); ok {
+			event.SetPathResolutionError(err)
+		}
+	}
+	return path
 }
 
-// ResolveInodeWithResolvers resolves the inode to a full path
+// ResolveInodeWithResolvers resolves the inode to a full path. Returns the path and true if it was entirely resolved
 func (e *FileEvent) ResolveInodeWithResolvers(resolvers *Resolvers) string {
+	path, _ := e.resolveInode(resolvers)
+	return path
+}
+
+// resolveInode resolves the inode to a full path. Returns the path and true if it was entirely resolved
+func (e *FileEvent) resolveInode(resolvers *Resolvers) (string, error) {
 	if len(e.PathnameStr) == 0 {
-		e.PathnameStr = resolvers.DentryResolver.Resolve(e.MountID, e.Inode, e.PathID)
+		e.PathnameStr, e.pathResolutionError = resolvers.DentryResolver.Resolve(e.MountID, e.Inode, e.PathID)
 		if e.PathnameStr == dentryPathKeyNotFound {
-			return e.PathnameStr
+			return e.PathnameStr, e.pathResolutionError
 		}
 
 		_, mountPath, rootPath, err := resolvers.MountResolver.GetMountPath(e.MountID)
@@ -144,7 +181,7 @@ func (e *FileEvent) ResolveInodeWithResolvers(resolvers *Resolvers) string {
 		}
 	}
 
-	return e.PathnameStr
+	return e.PathnameStr, e.pathResolutionError
 }
 
 // ResolveContainerPath resolves the inode to a path relative to the container
@@ -161,7 +198,7 @@ func (e *FileEvent) ResolveContainerPathWithResolvers(resolvers *Resolvers) stri
 		}
 		if len(containerPath) == 0 && len(e.PathnameStr) == 0 {
 			// The container path might be included in the pathname. The container path will be set there.
-			e.ResolveInodeWithResolvers(resolvers)
+			_ = e.ResolveInodeWithResolvers(resolvers)
 		}
 	}
 	return e.ContainerPath
@@ -478,18 +515,36 @@ func (e *LinkEvent) UnmarshalBinary(data []byte) (int, error) {
 // MountEvent represents a mount event
 type MountEvent struct {
 	SyscallEvent
-	MountID       uint32
-	GroupID       uint32
-	Device        uint32
-	ParentMountID uint32
-	ParentInode   uint64
-	FSType        string
-	MountPointStr string
-	RootMountID   uint32
-	RootInode     uint64
-	RootStr       string
+	MountID                       uint32
+	GroupID                       uint32
+	Device                        uint32
+	ParentMountID                 uint32
+	ParentInode                   uint64
+	FSType                        string
+	MountPointStr                 string
+	MountPointPathResolutionError error
+	RootMountID                   uint32
+	RootInode                     uint64
+	RootStr                       string
+	RootPathResolutionError       error
 
 	FSTypeRaw [16]byte
+}
+
+// GetRootPathResolutionError returns the root path resolution error as a string if there is one
+func (e *MountEvent) GetRootPathResolutionError() string {
+	if e.RootPathResolutionError != nil {
+		return e.RootPathResolutionError.Error()
+	}
+	return ""
+}
+
+// GetMountPointPathResolutionError returns the mount point path resolution error as a string if there is one
+func (e *MountEvent) GetMountPointPathResolutionError() string {
+	if e.MountPointPathResolutionError != nil {
+		return e.MountPointPathResolutionError.Error()
+	}
+	return ""
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -522,7 +577,7 @@ func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
 // ResolveMountPoint resolves the mountpoint to a full path
 func (e *MountEvent) ResolveMountPoint(event *Event) string {
 	if len(e.MountPointStr) == 0 {
-		e.MountPointStr = event.resolvers.DentryResolver.Resolve(e.ParentMountID, e.ParentInode, 0)
+		e.MountPointStr, e.MountPointPathResolutionError = event.resolvers.DentryResolver.Resolve(e.ParentMountID, e.ParentInode, 0)
 	}
 	return e.MountPointStr
 }
@@ -530,7 +585,7 @@ func (e *MountEvent) ResolveMountPoint(event *Event) string {
 // ResolveRoot resolves the mountpoint to a full path
 func (e *MountEvent) ResolveRoot(event *Event) string {
 	if len(e.RootStr) == 0 {
-		e.RootStr = event.resolvers.DentryResolver.Resolve(e.RootMountID, e.RootInode, 0)
+		e.RootStr, e.RootPathResolutionError = event.resolvers.DentryResolver.Resolve(e.RootMountID, e.RootInode, 0)
 	}
 	return e.RootStr
 }
@@ -611,7 +666,8 @@ type ExecEvent struct {
 	FileEvent
 	ExecTimestamp time.Time `field:"-"`
 	TTYName       string    `field:"tty_name" handler:"ResolveTTY,string"`
-	Comm          string    `field:"name" handler:"ResolveComm,string"`
+	Name          string    `field:"name" handler:"ResolveName,string"`
+	Comm          string    `field:"-" handler:"ResolveComm,string"`
 
 	// pid_cache_t
 	ForkTimestamp time.Time `field:"-"`
@@ -657,9 +713,10 @@ func (e *ExecEvent) UnmarshalBinary(data []byte, resolvers *Resolvers) (int, err
 	e.ForkTimestamp = resolvers.TimeResolver.ResolveMonotonicTimestamp(ebpf.ByteOrder.Uint64(data[read+8 : read+16]))
 	e.ExitTimestamp = resolvers.TimeResolver.ResolveMonotonicTimestamp(ebpf.ByteOrder.Uint64(data[read+16 : read+24]))
 
-	// resolve FileEvent now so that the dentry cache is up to date
+	// resolve FileEvent now so that the dentry cache is up to date. Fork events might send a null inode if the parent
+	// wasn't in the kernel cache, so only resolve if necessary
 	if e.FileEvent.Inode != 0 && e.FileEvent.MountID != 0 {
-		e.FileEvent.ResolveInodeWithResolvers(resolvers)
+		_ = e.FileEvent.ResolveInodeWithResolvers(resolvers)
 		e.FileEvent.ResolveContainerPathWithResolvers(resolvers)
 	}
 
@@ -691,7 +748,7 @@ func (e *ExecEvent) UnmarshalEvent(data []byte, event *Event) (int, error) {
 
 // ResolvePPID resolves the parent process ID
 func (e *ExecEvent) ResolvePPID(event *Event) int {
-	if e.PPid == 0 {
+	if e.PPid == 0 && event != nil {
 		if entry := event.ResolveProcessCacheEntry(); entry != nil {
 			e.PPid = entry.PPid
 		}
@@ -701,7 +758,7 @@ func (e *ExecEvent) ResolvePPID(event *Event) int {
 
 // ResolveInode resolves the inode to a full path
 func (e *ExecEvent) ResolveInode(event *Event) string {
-	if len(e.PathnameStr) == 0 {
+	if len(e.PathnameStr) == 0 && event != nil {
 		if entry := event.ResolveProcessCacheEntry(); entry != nil {
 			e.PathnameStr = entry.PathnameStr
 		}
@@ -711,7 +768,7 @@ func (e *ExecEvent) ResolveInode(event *Event) string {
 
 // ResolveContainerPath resolves the inode to a path relative to the container
 func (e *ExecEvent) ResolveContainerPath(event *Event) string {
-	if len(e.ContainerPath) == 0 {
+	if len(e.ContainerPath) == 0 && event != nil {
 		if entry := event.ResolveProcessCacheEntry(); entry != nil {
 			e.ContainerPath = entry.ContainerPath
 		}
@@ -733,7 +790,7 @@ func (e *ExecEvent) ResolveBasename(event *Event) string {
 
 // ResolveCookie resolves the cookie of the process
 func (e *ExecEvent) ResolveCookie(event *Event) int {
-	if e.Cookie == 0 {
+	if e.Cookie == 0 && event != nil {
 		if entry := event.ResolveProcessCacheEntry(); entry != nil {
 			e.Cookie = entry.Cookie
 		}
@@ -743,7 +800,7 @@ func (e *ExecEvent) ResolveCookie(event *Event) int {
 
 // ResolveTTY resolves the name of the process tty
 func (e *ExecEvent) ResolveTTY(event *Event) string {
-	if e.TTYName == "" {
+	if e.TTYName == "" && event != nil {
 		if entry := event.ResolveProcessCacheEntry(); entry != nil {
 			e.TTYName = entry.TTYName
 		}
@@ -753,7 +810,7 @@ func (e *ExecEvent) ResolveTTY(event *Event) string {
 
 // ResolveComm resolves the comm of the process
 func (e *ExecEvent) ResolveComm(event *Event) string {
-	if len(e.Comm) == 0 {
+	if len(e.Comm) == 0 && event != nil {
 		if entry := event.ResolveProcessCacheEntry(); entry != nil {
 			e.Comm = entry.Comm
 		}
@@ -761,9 +818,14 @@ func (e *ExecEvent) ResolveComm(event *Event) string {
 	return e.Comm
 }
 
+// ResolveName resolves the basename of the process executable
+func (e *ExecEvent) ResolveName(event *Event) string {
+	return e.ResolveBasename(event)
+}
+
 // ResolveUID resolves the user id of the process
 func (e *ExecEvent) ResolveUID(event *Event) int {
-	if e.UID == 0 {
+	if e.UID == 0 && event != nil {
 		if entry := event.ResolveProcessCacheEntry(); entry != nil {
 			e.UID = entry.UID
 		}
@@ -773,7 +835,7 @@ func (e *ExecEvent) ResolveUID(event *Event) int {
 
 // ResolveGID resolves the group id of the process
 func (e *ExecEvent) ResolveGID(event *Event) int {
-	if e.GID == 0 {
+	if e.GID == 0 && event != nil {
 		if entry := event.ResolveProcessCacheEntry(); entry != nil {
 			e.GID = entry.GID
 		}
@@ -783,7 +845,7 @@ func (e *ExecEvent) ResolveGID(event *Event) int {
 
 // ResolveUser resolves the user id of the process to a username
 func (e *ExecEvent) ResolveUser(event *Event) string {
-	if len(e.User) == 0 {
+	if len(e.User) == 0 && event != nil {
 		e.User, _ = event.resolvers.UserGroupResolver.ResolveUser(int(event.Process.UID))
 	}
 	return e.User
@@ -791,7 +853,7 @@ func (e *ExecEvent) ResolveUser(event *Event) string {
 
 // ResolveGroup resolves the group id of the process to a group name
 func (e *ExecEvent) ResolveGroup(event *Event) string {
-	if len(e.Group) == 0 {
+	if len(e.Group) == 0 && event != nil {
 		e.Group, _ = event.resolvers.UserGroupResolver.ResolveGroup(int(event.Process.GID))
 	}
 	return e.Group
@@ -851,16 +913,11 @@ func (e *InvalidateDentryEvent) UnmarshalBinary(data []byte) (int, error) {
 type ProcessCacheEntry struct {
 	ContainerContext
 	ProcessContext
-
-	Parent   *ProcessCacheEntry
-	Children map[uint32]*ProcessCacheEntry
 }
 
 // NewProcessCacheEntry returns an empty instance of ProcessCacheEntry
 func NewProcessCacheEntry() *ProcessCacheEntry {
-	return &ProcessCacheEntry{
-		Children: make(map[uint32]*ProcessCacheEntry),
-	}
+	return &ProcessCacheEntry{}
 }
 
 // ProcessContext holds the process context of an event
@@ -872,7 +929,7 @@ type ProcessContext struct {
 	UID uint32 `field:"uid"`
 	GID uint32 `field:"gid"`
 
-	Parent *ProcessCacheEntry `field:"ancestors" iterator:"ProcessAncestorsIterator"`
+	Ancestor *ProcessCacheEntry `field:"ancestors" iterator:"ProcessAncestorsIterator"`
 }
 
 // ProcessAncestorsIterator defines an iterator of ancestors
@@ -882,19 +939,21 @@ type ProcessAncestorsIterator struct {
 
 // Front returns the first element
 func (it *ProcessAncestorsIterator) Front(ctx *eval.Context) unsafe.Pointer {
-	if front := (*Event)(ctx.Object).Process.Parent; front != nil {
+	if front := (*Event)(ctx.Object).Process.Ancestor; front != nil {
 		it.prev = front
 		return unsafe.Pointer(front)
 	}
+
 	return nil
 }
 
 // Next returns the next element
 func (it *ProcessAncestorsIterator) Next() unsafe.Pointer {
-	if next := it.prev.Parent; next != nil {
+	if next := it.prev.Ancestor; next != nil {
 		it.prev = next
 		return unsafe.Pointer(next)
 	}
+
 	return nil
 }
 
@@ -966,8 +1025,9 @@ type Event struct {
 	Umount           UmountEvent           `field:"-"`
 	InvalidateDentry InvalidateDentryEvent `field:"-"`
 
-	resolvers         *Resolvers         `field:"-"`
-	processCacheEntry *ProcessCacheEntry `field:"-"`
+	resolvers           *Resolvers         `field:"-"`
+	processCacheEntry   *ProcessCacheEntry `field:"-"`
+	pathResolutionError error              `field:"-"`
 }
 
 func (e *Event) String() string {
@@ -978,19 +1038,30 @@ func (e *Event) String() string {
 	return string(d)
 }
 
+// SetPathResolutionError sets the Event.pathResolutionError
+func (e *Event) SetPathResolutionError(err error) {
+	e.pathResolutionError = err
+}
+
+// GetPathResolutionError returns the path resolution error
+func (e *Event) GetPathResolutionError() error {
+	return e.pathResolutionError
+}
+
 // MarshalJSON returns the JSON encoding of the event
 func (e *Event) MarshalJSON() ([]byte, error) {
-	s, err := newEventSerializer(e)
-	if err != nil {
-		return nil, err
-	}
-
+	s := newEventSerializer(e)
 	return json.Marshal(s)
 }
 
 // GetType returns the event type
 func (e *Event) GetType() string {
 	return EventType(e.Type).String()
+}
+
+// GetEventType returns the event type of the event
+func (e *Event) GetEventType() EventType {
+	return EventType(e.Type)
 }
 
 // GetTags returns the list of tags specific to this event
@@ -1039,19 +1110,19 @@ func (e *Event) ResolveEventTimestamp() time.Time {
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessCacheEntry of the event
 func (e *Event) ResolveProcessCacheEntry() *ProcessCacheEntry {
 	if e.processCacheEntry == nil {
-		e.processCacheEntry = e.resolvers.ProcessResolver.Resolve(e.Process.Pid)
+		e.processCacheEntry = e.resolvers.ProcessResolver.Resolve(e.Process.Pid, e.Process.Cookie)
 		if e.processCacheEntry == nil {
 			e.processCacheEntry = &ProcessCacheEntry{}
 		}
 	}
-	e.updateProcessCachePointer(e.processCacheEntry)
+	e.Process.Ancestor = e.processCacheEntry.Ancestor
 	return e.processCacheEntry
 }
 
 // updateProcessCachePointer updates the internal pointers of the event structure to the ProcessCacheEntry of the event
 func (e *Event) updateProcessCachePointer(event *ProcessCacheEntry) {
 	e.processCacheEntry = event
-	e.Process.Parent = event.Parent
+	e.Process.Ancestor = event.Ancestor
 }
 
 // Clone returns a copy on the event

@@ -184,7 +184,6 @@ func (ctr *realConntracker) DeleteTranslation(c network.ConnectionStats) {
 
 	delete(ctr.state, k)
 	delete(ctr.state, ipTranslationToConnKey(k.transport, t))
-	log.Tracef("deleted %+v from conntrack", k)
 	atomic.AddInt64(&ctr.stats.unregisters, 1)
 }
 
