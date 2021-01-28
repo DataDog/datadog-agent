@@ -92,12 +92,9 @@ func TestSQLResourceWithError(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		// copy test cases as Quantize mutates
-		testSpan := tc.span
-
 		NewObfuscator(nil).Obfuscate(&tc.span)
 		assert.Equal("Non-parsable SQL query", tc.span.Resource)
-		assert.Equal(testSpan.Resource, tc.span.Meta["sql.query"])
+		assert.Equal("Non-parsable SQL query", tc.span.Meta["sql.query"])
 	}
 }
 
