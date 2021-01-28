@@ -78,14 +78,16 @@ func getResults(session sessionAPI, requestOids []string) (*gosnmp.SnmpPacket, e
 		// snmp v1 doesn't support GetBulk
 		getNextResults, err := session.GetNext(requestOids)
 		if err != nil {
-			return nil, fmt.Errorf("GetNext failed: %s", err)
+			log.Debugf("fetch column: failed getting oids `%v` using GetNext: %s", requestOids, err)
+			return nil, fmt.Errorf("fetch column: failed getting oids `%v` using GetNext: %s", requestOids, err)
 		}
 		results = getNextResults
 		log.Debugf("fetch column: GetNext results Variables: %v", results.Variables)
 	} else {
 		getBulkResults, err := session.GetBulk(requestOids)
 		if err != nil {
-			return nil, fmt.Errorf("GetBulk failed: %s", err)
+			log.Debugf("fetch column: failed getting oids `%v` using GetBulk: %s", requestOids, err)
+			return nil, fmt.Errorf("fetch column: failed getting oids `%v` using GetBulk: %s", requestOids, err)
 		}
 		results = getBulkResults
 		log.Debugf("fetch column: GetBulk results Variables: %v", results.Variables)

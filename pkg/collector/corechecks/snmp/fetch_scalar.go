@@ -71,11 +71,44 @@ func retryFailedScalarOids(session sessionAPI, results *gosnmp.SnmpPacket, value
 }
 
 func doFetchScalarOids(session sessionAPI, oids []string) (*gosnmp.SnmpPacket, error) {
+	var results *gosnmp.SnmpPacket
+	if session.GetVersion() == gosnmp.Version1 {
+		// When using snmp v1, if one of the oids return a NoSuchName, all oids will have value of Null.
+		// The response will contain Error=NoSuchName and ErrorIndex with index of the erroneous oid.
+		// If that happen, we remove the erroneous oid and try again until we succeed or until there is no oid anymore.
+		for {
+			scalarOids, err := doDoFetchScalarOids(session, oids)
+			if err != nil {
+				return nil, err
+			}
+			if scalarOids.Error == gosnmp.NoSuchName {
+				zeroBaseIndex := int(scalarOids.ErrorIndex) - 1 // scalarOids.ErrorIndex is 1-based
+				if (zeroBaseIndex < 0) || (zeroBaseIndex > len(oids)-1) {
+					return nil, fmt.Errorf("invalid ErrorIndex `%d` when fetching oids `%v`", scalarOids.ErrorIndex, oids)
+				}
+				oids = append(oids[:zeroBaseIndex], oids[zeroBaseIndex+1:]...)
+				continue
+			}
+			results = scalarOids
+			break
+		}
+	} else {
+		scalarOids, err := doDoFetchScalarOids(session, oids)
+		if err != nil {
+			return nil, err
+		}
+		results = scalarOids
+	}
+	return results, nil
+}
+
+func doDoFetchScalarOids(session sessionAPI, oids []string) (*gosnmp.SnmpPacket, error) {
 	log.Debugf("fetch scalar: request oids: %v", oids)
 	results, err := session.Get(oids)
 	if err != nil {
-		return nil, fmt.Errorf("error getting oids: %s", err.Error())
+		log.Debugf("fetch scalar: error getting oids `%v`: %v", oids, err)
+		return nil, fmt.Errorf("fetch scalar: error getting oids `%v`: %v", oids, err)
 	}
-	log.Debugf("fetch scalar: results Variables: %v", results.Variables)
+	log.Debugf("fetch scalar: results: Variables=%v, Error=%v, ErrorIndex=%v", results.Variables, results.Error, results.ErrorIndex)
 	return results, nil
 }

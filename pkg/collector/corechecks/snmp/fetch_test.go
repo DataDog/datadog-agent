@@ -365,7 +365,7 @@ func Test_fetchOidBatchSize_fetchError(t *testing.T) {
 	oids := []string{"1.1.1.1.0", "1.1.1.2.0", "1.1.1.3.0", "1.1.1.4.0", "1.1.1.5.0", "1.1.1.6.0"}
 	columnValues, err := fetchScalarOidsWithBatching(session, oids, 2)
 
-	assert.EqualError(t, err, "failed to fetch scalar oids: error getting oids: my error")
+	assert.EqualError(t, err, "failed to fetch scalar oids: fetch scalar: error getting oids `[1.1.1.1.0 1.1.1.2.0]`: my error")
 	assert.Nil(t, columnValues)
 }
 
@@ -427,6 +427,139 @@ func Test_fetchScalarOids_retry(t *testing.T) {
 	assert.Equal(t, expectedColumnValues, columnValues)
 }
 
+func Test_fetchScalarOids_v1NoSuchName(t *testing.T) {
+	session := createMockSession()
+	session.version = gosnmp.Version1
+
+	getPacket := gosnmp.SnmpPacket{
+		Error:      gosnmp.NoSuchName,
+		ErrorIndex: 2,
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name: "1.1.1.1.0",
+				Type: gosnmp.Null,
+			},
+			{
+				Name: "1.1.1.2.0",
+				Type: gosnmp.Null,
+			},
+			{
+				Name: "1.1.1.3.0",
+				Type: gosnmp.Null,
+			},
+			{
+				Name: "1.1.1.4.0",
+				Type: gosnmp.Null,
+			},
+		},
+	}
+
+	getPacket2 := gosnmp.SnmpPacket{
+		Error:      gosnmp.NoSuchName,
+		ErrorIndex: 3,
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name: "1.1.1.1.0",
+				Type: gosnmp.Null,
+			},
+			{
+				Name: "1.1.1.3.0",
+				Type: gosnmp.Null,
+			},
+			{
+				Name: "1.1.1.4.0",
+				Type: gosnmp.Null,
+			},
+		},
+	}
+
+	getPacket3 := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.1.1.1.0",
+				Type:  gosnmp.Gauge32,
+				Value: 10,
+			},
+			{
+				Name:  "1.1.1.3.0",
+				Type:  gosnmp.Gauge32,
+				Value: 30,
+			},
+		},
+	}
+
+	session.On("Get", []string{"1.1.1.1.0", "1.1.1.2", "1.1.1.3", "1.1.1.4.0"}).Return(&getPacket, nil)
+	session.On("Get", []string{"1.1.1.1.0", "1.1.1.3", "1.1.1.4.0"}).Return(&getPacket2, nil)
+	session.On("Get", []string{"1.1.1.1.0", "1.1.1.3"}).Return(&getPacket3, nil)
+
+	oids := []string{"1.1.1.1.0", "1.1.1.2", "1.1.1.3", "1.1.1.4.0"}
+
+	columnValues, err := fetchScalarOids(session, oids)
+	assert.Nil(t, err)
+
+	expectedColumnValues := scalarResultValuesType{
+		"1.1.1.1.0": {value: float64(10)},
+		"1.1.1.3.0": {value: float64(30)},
+	}
+	assert.Equal(t, expectedColumnValues, columnValues)
+}
+
+func Test_fetchScalarOids_v1NoSuchName_errorIndexTooHigh(t *testing.T) {
+	session := createMockSession()
+	session.version = gosnmp.Version1
+
+	getPacket := gosnmp.SnmpPacket{
+		Error:      gosnmp.NoSuchName,
+		ErrorIndex: 3,
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name: "1.1.1.1.0",
+				Type: gosnmp.Null,
+			},
+			{
+				Name: "1.1.1.2.0",
+				Type: gosnmp.Null,
+			},
+		},
+	}
+
+	session.On("Get", []string{"1.1.1.1.0", "1.1.1.2"}).Return(&getPacket, nil)
+
+	oids := []string{"1.1.1.1.0", "1.1.1.2"}
+
+	columnValues, err := fetchScalarOids(session, oids)
+	assert.EqualError(t, err, "invalid ErrorIndex `3` when fetching oids `[1.1.1.1.0 1.1.1.2]`")
+	assert.Nil(t, columnValues)
+}
+
+func Test_fetchScalarOids_v1NoSuchName_errorIndexTooLow(t *testing.T) {
+	session := createMockSession()
+	session.version = gosnmp.Version1
+
+	getPacket := gosnmp.SnmpPacket{
+		Error:      gosnmp.NoSuchName,
+		ErrorIndex: 0,
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name: "1.1.1.1.0",
+				Type: gosnmp.Null,
+			},
+			{
+				Name: "1.1.1.2.0",
+				Type: gosnmp.Null,
+			},
+		},
+	}
+
+	session.On("Get", []string{"1.1.1.1.0", "1.1.1.2"}).Return(&getPacket, nil)
+
+	oids := []string{"1.1.1.1.0", "1.1.1.2"}
+
+	columnValues, err := fetchScalarOids(session, oids)
+	assert.EqualError(t, err, "invalid ErrorIndex `0` when fetching oids `[1.1.1.1.0 1.1.1.2]`")
+	assert.Nil(t, columnValues)
+}
+
 func Test_fetchValues_errors(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -451,7 +584,7 @@ func Test_fetchValues_errors(t *testing.T) {
 					scalarOids: []string{"1.1", "2.2"},
 				},
 			},
-			expectedError: fmt.Errorf("failed to fetch scalar oids with batching: failed to fetch scalar oids: error getting oids: get error"),
+			expectedError: fmt.Errorf("failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.1 2.2]`: get error"),
 		},
 		{
 			name: "bulk fetch error",
@@ -462,7 +595,7 @@ func Test_fetchValues_errors(t *testing.T) {
 					columnOids: []string{"1.1", "2.2"},
 				},
 			},
-			expectedError: fmt.Errorf("failed to fetch oids with batching: failed to fetch column oids: GetBulk failed: bulk error"),
+			expectedError: fmt.Errorf("failed to fetch oids with batching: failed to fetch column oids: fetch column: failed getting oids `[1.1 2.2]` using GetBulk: bulk error"),
 		},
 	}
 	for _, tt := range tests {
