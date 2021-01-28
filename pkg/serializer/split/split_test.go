@@ -299,7 +299,7 @@ func testSplitPayloadsSketches(t *testing.T, numPoints int, compress bool) {
 		testSketchSeries[i] = metrics.Makeseries(i)
 	}
 
-	payloads, err := Payloads(metrics.NewSketchSeriesList(testSketchSeries), compress, MarshalJSON)
+	payloads, err := Payloads(testSketchSeries, compress, MarshalJSON)
 	require.Nil(t, err)
 
 	var splitSketches = []metrics.SketchSeriesList{}

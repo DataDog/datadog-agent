@@ -19,9 +19,9 @@ func benchmarkSplitPayloadsSketchesSplit(b *testing.B, numPoints int) {
 	// defer func() { maxPayloadSizeCompressed = prevMaxPayloadSizeCompressed }()
 
 	// testSketchSeries := make(metrics.SketchSeriesList, numPoints)
-	testSketchSeries := metrics.NewSketchSeriesList(make(metrics.SketchSeriesList, numPoints))
+	testSketchSeries := make(metrics.SketchSeriesList, numPoints)
 	for i := 0; i < numPoints; i++ {
-		testSketchSeries.SketchSeries[i] = metrics.Makeseries(200)
+		testSketchSeries[i] = metrics.Makeseries(200)
 	}
 
 	b.ResetTimer()
@@ -38,9 +38,9 @@ func benchmarkSplitPayloadsSketchesNew(b *testing.B, numPoints int) {
 	// maxPayloadSizeCompressed = 1024
 	// defer func() { maxPayloadSizeCompressed = prevMaxPayloadSizeCompressed }()
 
-	testSketchSeries := metrics.NewSketchSeriesList(make(metrics.SketchSeriesList, numPoints))
+	testSketchSeries := make(metrics.SketchSeriesList, numPoints)
 	for i := 0; i < numPoints; i++ {
-		testSketchSeries.SketchSeries[i] = metrics.Makeseries(200)
+		testSketchSeries[i] = metrics.Makeseries(200)
 	}
 
 	b.ResetTimer()
