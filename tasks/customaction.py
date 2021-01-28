@@ -65,9 +65,12 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
     srcdll = None
     if arch is not None and arch == "x86":
         srcdll = "{}\\cal\\{}\\customaction.dll".format(CUSTOM_ACTION_ROOT_DIR, configuration)
+        pdb = "{}\\cal\\{}\\customaction.pdb".format(CUSTOM_ACTION_ROOT_DIR, configuration)
     else:
         srcdll = "{}\\cal\\x64\\{}\\customaction.dll".format(CUSTOM_ACTION_ROOT_DIR, configuration)
+        pdb = "{}\\cal\\x64\\{}\\customaction.pdb".format(CUSTOM_ACTION_ROOT_DIR, configuration)
     shutil.copy2(srcdll, BIN_PATH)
+    shutil.copy2(pdb, BIN_PATH)
 
 
 @task
