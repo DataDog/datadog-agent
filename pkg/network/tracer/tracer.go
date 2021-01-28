@@ -20,6 +20,7 @@ import (
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -918,7 +919,7 @@ func (t *Tracer) connectionExpired(conn *ConnTuple, latestTime uint64, stats *Co
 
 	// skip connection check for udp connections or if
 	// the pid for the conneciton is dead
-	if conn.isUDP() || !util.ProcessExists(int(conn.Pid())) {
+	if conn.isUDP() || !procutil.PidExists(int(conn.Pid())) {
 		return true
 	}
 

@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -136,13 +135,4 @@ func WithAllProcs(procRoot string, fn func(int) error) error {
 	}
 
 	return nil
-}
-
-// ProcessExists checks if the given pid still exists
-func ProcessExists(pid int) bool {
-	if err := syscall.Kill(pid, 0); err != nil && err == syscall.ESRCH {
-		return false
-	}
-
-	return true
 }
