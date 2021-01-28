@@ -38,7 +38,7 @@ Orchestrator Explorer
       - {{ . }}
   {{- end}}
   {{else}}
-  {{$key}} - API Key ending with: {{$value}}
+  {{$key}} - API Key ending with: {{index $values 0}}
   {{- end}}
   {{- end}}
 
