@@ -1,6 +1,6 @@
 // +build linux_bpf
 
-package ebpf
+package runtime
 
 import (
 	"bytes"
@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/compiler"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -72,7 +73,7 @@ func (a *RuntimeAsset) Verify(dir string) (io.Reader, string, error) {
 }
 
 // Compile compiles the runtime asset if necessary and returns the resulting file.
-func (a *RuntimeAsset) Compile(config *Config, cflags []string) (CompiledOutput, error) {
+func (a *RuntimeAsset) Compile(config *ebpf.Config, cflags []string) (CompiledOutput, error) {
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return nil, fmt.Errorf("unable to get kernel version: %w", err)
