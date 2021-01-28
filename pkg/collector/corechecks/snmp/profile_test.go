@@ -37,7 +37,8 @@ func mockProfilesDefinitions() profileDefinitionMap {
 
 func Test_getDefaultProfilesDefinitionFiles(t *testing.T) {
 	setConfdPath()
-	actualProfileConfig := getDefaultProfilesDefinitionFiles()
+	actualProfileConfig, err := getDefaultProfilesDefinitionFiles()
+	assert.Nil(t, err)
 
 	confdPath := config.Datadog.GetString("confd_path")
 	expectedProfileConfig := profileConfigMap{
@@ -52,7 +53,8 @@ func Test_getDefaultProfilesDefinitionFiles(t *testing.T) {
 func Test_loadProfiles(t *testing.T) {
 	defaultTestConfdPath, _ := filepath.Abs(filepath.Join(".", "test", "conf.d"))
 	config.Datadog.Set("confd_path", defaultTestConfdPath)
-	defaultProfilesDef := getDefaultProfilesDefinitionFiles()
+	defaultProfilesDef, err := getDefaultProfilesDefinitionFiles()
+	assert.Nil(t, err)
 
 	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join(".", "test", "invalid_ext_conf.d"))
 	invalidCyclicConfdPath, _ := filepath.Abs(filepath.Join(".", "test", "invalid_cyclic_conf.d"))
@@ -230,4 +232,35 @@ func Test_resolveProfileDefinitionPath(t *testing.T) {
 			assert.Equal(t, tt.expectedPath, path)
 		})
 	}
+}
+
+func Test_loadDefaultProfiles(t *testing.T) {
+	setConfdPath()
+	globalProfileConfigMap = nil
+	defaultProfiles, err := loadDefaultProfiles()
+	assert.Nil(t, err)
+	defaultProfiles2, err := loadDefaultProfiles()
+	assert.Nil(t, err)
+
+	assert.Equal(t, fmt.Sprintf("%p", defaultProfiles), fmt.Sprintf("%p", defaultProfiles2))
+}
+
+func Test_loadDefaultProfiles_invalidDir(t *testing.T) {
+	invalidPath, _ := filepath.Abs(filepath.Join(".", "tmp", "invalidPath"))
+	config.Datadog.Set("confd_path", invalidPath)
+	globalProfileConfigMap = nil
+
+	defaultProfiles, err := loadDefaultProfiles()
+	assert.Contains(t, err.Error(), "failed to get default profile definitions: failed to read dir")
+	assert.Nil(t, defaultProfiles)
+}
+
+func Test_loadDefaultProfiles_invalidProfile(t *testing.T) {
+	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join(".", "test", "invalid_ext_conf.d"))
+	config.Datadog.Set("confd_path", profilesWithInvalidExtendConfdPath)
+	globalProfileConfigMap = nil
+
+	defaultProfiles, err := loadDefaultProfiles()
+	assert.Contains(t, err.Error(), "failed to expand profile `f5-big-ip`")
+	assert.Nil(t, defaultProfiles)
 }

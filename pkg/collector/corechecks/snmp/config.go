@@ -170,18 +170,23 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	c.oidConfig.columnOids = parseColumnOids(c.metrics)
 
 	// Profile Configs
-	// TODO: [PERFORMANCE] Load default profiles once for all integrations
-	//   That should reduce memory usage.
-	var pConfig profileConfigMap
+	var profiles profileDefinitionMap
 	if len(initConfig.Profiles) > 0 {
-		pConfig = initConfig.Profiles
+		// TODO: [PERFORMANCE] Load init config custom profiles once for all integrations
+		//   There are possibly multiple init configs
+		customProfiles, err := loadProfiles(initConfig.Profiles)
+		if err != nil {
+			return snmpConfig{}, fmt.Errorf("failed to load custom profiles: %s", err)
+		}
+		profiles = customProfiles
 	} else {
-		pConfig = getDefaultProfilesDefinitionFiles()
+		defaultProfiles, err := loadDefaultProfiles()
+		if err != nil {
+			return snmpConfig{}, fmt.Errorf("failed to load default profiles: %s", err)
+		}
+		profiles = defaultProfiles
 	}
-	profiles, err := loadProfiles(pConfig)
-	if err != nil {
-		return snmpConfig{}, fmt.Errorf("failed to load profiles: %s", err)
-	}
+
 	for _, profileDef := range profiles {
 		normalizeMetrics(profileDef.Metrics)
 	}

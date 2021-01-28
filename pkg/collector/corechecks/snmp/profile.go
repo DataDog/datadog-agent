@@ -3,12 +3,13 @@ package snmp
 import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
-	"log"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 type profileDefinitionMap map[string]profileDefinition
@@ -25,11 +26,36 @@ type profileDefinition struct {
 	SysObjectIds StringArray       `yaml:"sysobjectid"`
 }
 
-func getDefaultProfilesDefinitionFiles() profileConfigMap {
+var defaultProfilesMu = &sync.Mutex{}
+var globalProfileConfigMap profileDefinitionMap
+
+func loadDefaultProfiles() (profileDefinitionMap, error) {
+	defaultProfilesMu.Lock()
+	defer defaultProfilesMu.Unlock()
+
+	if globalProfileConfigMap != nil {
+		log.Debugf("loader default profiles from cache")
+		return globalProfileConfigMap, nil
+	}
+	log.Debugf("build default profiles")
+
+	pConfig, err := getDefaultProfilesDefinitionFiles()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get default profile definitions: %s", err)
+	}
+	profiles, err := loadProfiles(pConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load default profiles: %s", err)
+	}
+	globalProfileConfigMap = profiles
+	return profiles, nil
+}
+
+func getDefaultProfilesDefinitionFiles() (profileConfigMap, error) {
 	profilesRoot := getProfileConfdRoot()
 	files, err := ioutil.ReadDir(profilesRoot)
 	if err != nil {
-		log.Fatal(err)
+		return nil, fmt.Errorf("failed to read dir `%s`: %v", profilesRoot, err)
 	}
 
 	profiles := make(profileConfigMap)
@@ -46,7 +72,7 @@ func getDefaultProfilesDefinitionFiles() profileConfigMap {
 		profileName := fName[:len(fName)-len(".yaml")]
 		profiles[profileName] = profileConfig{filepath.Join(profilesRoot, fName)}
 	}
-	return profiles
+	return profiles, nil
 }
 
 func loadProfiles(pConfig profileConfigMap) (profileDefinitionMap, error) {
