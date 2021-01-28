@@ -98,7 +98,7 @@ func (sl SketchSeriesList) MarshalJSON() ([]byte, error) {
 	return reqBody.Bytes(), err
 }
 
-func (sl SketchSeriesList) SmartMarshal() (forwarder.Payloads, []byte) {
+func (sl SketchSeriesList) SmartMarshal() forwarder.Payloads {
 	// func (sl SketchSeriesList) SmartMarshal() (forwarder.Payloads, http.Header, error) {
 
 	input := bytes.NewBuffer(make([]byte, 0, 1024))
@@ -109,15 +109,10 @@ func (sl SketchSeriesList) SmartMarshal() (forwarder.Payloads, []byte) {
 	compressor, _ := jsonstream.NewCompressor(input, output, header.Bytes(), footer.Bytes(), func() []byte { return []byte{} })
 	payloads := forwarder.Payloads{}
 
-	// pb := &gogen.SketchPayload{
-	// 	Sketches: make([]gogen.SketchPayload_Sketch, 0, len(sl.SketchSeries)),
-	// }
-
-	nonCompressed := make([]byte, 1024)
-	k := 0
-
 	protobufTmp := make([]byte, 1024)
+	count := 0
 	for _, ss := range sl.SketchSeries {
+		count++
 		dsl := make([]gogen.SketchPayload_Sketch_Dogsketch, 0, len(ss.Points))
 
 		for _, p := range ss.Points {
@@ -141,15 +136,6 @@ func (sl SketchSeriesList) SmartMarshal() (forwarder.Payloads, []byte) {
 			Tags:        ss.Tags,
 			Dogsketches: dsl,
 		}
-		// NONCOMPRESS
-		nonCompressed[k] = 0xa
-		k++
-		a := EncodeVarint(uint64(sketch.Size()))
-		copy(nonCompressed[k:], a)
-		k += len(a)
-		v, _ := sketch.MarshalTo(nonCompressed[k:])
-		k += v
-		//----------
 
 		// Pack the protobuf metadata
 		index := 0
@@ -161,6 +147,7 @@ func (sl SketchSeriesList) SmartMarshal() (forwarder.Payloads, []byte) {
 		totalItemSize := sketch.Size() + index
 		if totalItemSize > cap(protobufTmp) {
 			protobufTmp = append(protobufTmp, make([]byte, totalItemSize)...)
+			protobufTmp = protobufTmp[:cap(protobufTmp)]
 		}
 
 		// marshal the sketch to the precompression buffer
@@ -169,29 +156,27 @@ func (sl SketchSeriesList) SmartMarshal() (forwarder.Payloads, []byte) {
 		// Compress
 		switch compressor.AddItem(protobufTmp[:n+index]) {
 		case jsonstream.ErrItemTooBig, jsonstream.ErrPayloadFull:
-			payload := AddFooter(compressor)
+			payload := addFooter(compressor)
 			payloads = append(payloads, &payload)
 			input.Reset()
 			output.Reset()
 			compressor, _ = jsonstream.NewCompressor(input, output, header.Bytes(), footer.Bytes(), func() []byte { return []byte{} })
+
+			// Add it to the new buffer (TODO handle error?)
+			compressor.AddItem(protobufTmp[:n+index])
 		default:
 			continue
 		}
 	}
 
-	payload := AddFooter(compressor)
+	payload := addFooter(compressor)
 	payloads = append(payloads, &payload)
 
-	// compressor.AddItem([]byte{0x12})
-	// compressor.AddItem(EncodeVarint(uint64(sketch.Size())))
-
-	// payloads = append(payloads, &payload)
-
-	return payloads, nonCompressed
-	// return payloads
+	// return payloads, nonCompressed
+	return payloads
 }
 
-func AddFooter(compressor *jsonstream.Compressor) []byte {
+func addFooter(compressor *jsonstream.Compressor) []byte {
 	// TODO-Brian: Check size if zip buffer is exactly full
 	compressor.AddItem([]byte{0x12})
 	compressor.AddItem(EncodeVarint(0))

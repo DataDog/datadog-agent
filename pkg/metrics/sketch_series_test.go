@@ -104,8 +104,9 @@ func TestSketchSeriesSmartMarshal(t *testing.T) {
 		sl.SketchSeries[i] = Makeseries(i)
 	}
 
-	payload, _ := sl.Marshal()                   // old way
-	payloads, noncompressed := sl.SmartMarshal() // new compressed
+	payload, _ := sl.Marshal() // old way
+	// payloads, noncompressed := sl.SmartMarshal() // new compressed
+	payloads := sl.SmartMarshal() // new compressed
 
 	reader := bytes.NewReader(*payloads[0])
 	r, e := zlib.NewReader(reader)
@@ -116,7 +117,7 @@ func TestSketchSeriesSmartMarshal(t *testing.T) {
 	_ = ee
 	_ = payload
 	_ = decompressed
-	_ = noncompressed
+	// _ = noncompressed
 
 	assert.Equal(t, decompressed, payload)
 
@@ -140,6 +141,59 @@ func TestSketchSeriesSmartMarshal(t *testing.T) {
 		for j, pointPb := range pb.Dogsketches {
 
 			check(t, in.Points[j], pointPb)
+		}
+	}
+}
+
+func TestSketchSeriesSmartMarshalSplit(t *testing.T) {
+	sketches := make([]SketchSeries, 200)
+	sl := &SketchSeriesList{
+		SketchSeries: sketches,
+	}
+
+	for i := range sl.SketchSeries {
+		sl.SketchSeries[i] = Makeseries(i)
+	}
+
+	// payload, _ := sl.Marshal()
+	payloads := sl.SmartMarshal()
+
+	// decompressed := []byte{}
+	recoveredSketches := []gogen.SketchPayload{}
+	recoveredCount := 0
+	for _, pld := range payloads {
+		reader := bytes.NewReader(*pld)
+		r, _ := zlib.NewReader(reader)
+		decompressed, _ := ioutil.ReadAll(r)
+		r.Close()
+
+		pl := new(gogen.SketchPayload)
+		if err := pl.Unmarshal(decompressed); err != nil {
+			t.Fatal(err)
+		}
+		recoveredSketches = append(recoveredSketches, *pl)
+		recoveredCount += len(pl.Sketches)
+	}
+
+	assert.Equal(t, recoveredCount, len(sketches))
+
+	i := 0
+	for _, pl := range recoveredSketches {
+		for _, pb := range pl.Sketches {
+			in := sl.SketchSeries[i]
+			require.Equal(t, Makeseries(i), in, "make sure we don't modify input")
+
+			assert.Equal(t, in.Host, pb.Host)
+			assert.Equal(t, in.Name, pb.Metric)
+			assert.Equal(t, in.Tags, pb.Tags)
+			assert.Len(t, pb.Distributions, 0)
+
+			require.Len(t, pb.Dogsketches, len(in.Points))
+			for j, pointPb := range pb.Dogsketches {
+
+				check(t, in.Points[j], pointPb)
+			}
+			i++
 		}
 	}
 }
