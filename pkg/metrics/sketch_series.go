@@ -110,15 +110,20 @@ func (sl SketchSeriesList) SmartMarshal() forwarder.Payloads {
 	payloads := forwarder.Payloads{}
 
 	protobufTmp := make([]byte, 1024)
+
 	count := 0
+	dsl := make([]gogen.SketchPayload_Sketch_Dogsketch, 1)
 	for _, ss := range sl.SketchSeries {
 		count++
-		dsl := make([]gogen.SketchPayload_Sketch_Dogsketch, 0, len(ss.Points))
+		if len(ss.Points) > cap(dsl) {
+			dsl = append(dsl, make([]gogen.SketchPayload_Sketch_Dogsketch, len(ss.Points)-cap(dsl))...)
+			dsl = dsl[:cap(dsl)]
+		}
 
-		for _, p := range ss.Points {
+		for i, p := range ss.Points {
 			b := p.Sketch.Basic
 			k, n := p.Sketch.Cols()
-			dsl = append(dsl, gogen.SketchPayload_Sketch_Dogsketch{
+			dsl[i] = gogen.SketchPayload_Sketch_Dogsketch{
 				Ts:  p.Ts,
 				Cnt: b.Cnt,
 				Min: b.Min,
@@ -127,14 +132,14 @@ func (sl SketchSeriesList) SmartMarshal() forwarder.Payloads {
 				Sum: b.Sum,
 				K:   k,
 				N:   n,
-			})
+			}
 		}
 
 		sketch := gogen.SketchPayload_Sketch{
 			Metric:      ss.Name,
 			Host:        ss.Host,
 			Tags:        ss.Tags,
-			Dogsketches: dsl,
+			Dogsketches: dsl[:len(ss.Points)],
 		}
 
 		// Pack the protobuf metadata
@@ -146,7 +151,7 @@ func (sl SketchSeriesList) SmartMarshal() forwarder.Payloads {
 		// Resize the pre-compression buffer if needed
 		totalItemSize := sketch.Size() + index
 		if totalItemSize > cap(protobufTmp) {
-			protobufTmp = append(protobufTmp, make([]byte, totalItemSize)...)
+			protobufTmp = append(protobufTmp, make([]byte, totalItemSize-cap(protobufTmp))...)
 			protobufTmp = protobufTmp[:cap(protobufTmp)]
 		}
 

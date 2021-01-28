@@ -19,6 +19,7 @@ func check(t *testing.T, in SketchPoint, pb gogen.SketchPayload_Sketch_Dogsketch
 	require.Equal(t, in.Ts, pb.Ts)
 
 	// sketch
+	// k, n := s.Cols(make([]int32, s.Bins()), make([]uint32, s.Bins()))
 	k, n := s.Cols()
 	require.Equal(t, k, pb.K)
 	require.Equal(t, n, pb.N)
@@ -119,6 +120,7 @@ func TestSketchSeriesSmartMarshal(t *testing.T) {
 	_ = decompressed
 	// _ = noncompressed
 
+	// Check that we encoded the protobuf correctly
 	assert.Equal(t, decompressed, payload)
 
 	pl := new(gogen.SketchPayload)
@@ -155,10 +157,8 @@ func TestSketchSeriesSmartMarshalSplit(t *testing.T) {
 		sl.SketchSeries[i] = Makeseries(i)
 	}
 
-	// payload, _ := sl.Marshal()
 	payloads := sl.SmartMarshal()
 
-	// decompressed := []byte{}
 	recoveredSketches := []gogen.SketchPayload{}
 	recoveredCount := 0
 	for _, pld := range payloads {
