@@ -3,6 +3,7 @@
 package tracer
 
 import (
+	"encoding/binary"
 	"fmt"
 	"net"
 	"strconv"

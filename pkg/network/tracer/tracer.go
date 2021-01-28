@@ -254,6 +254,13 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		config.CollectDNSDomains,
 	)
 
+	var router network.Router
+	if config.EnableRuntimeCompiler {
+		router = newEbpfRouter(m)
+	} else {
+		router = network.NewNetlinkRouter(config.ProcRoot)
+	}
+
 	tr := &Tracer{
 		m:              m,
 		config:         config,
@@ -269,7 +276,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		perfHandler:    perfHandlerTCP,
 		flushIdle:      make(chan chan struct{}),
 		stop:           make(chan struct{}),
-		routeCache:     network.NewRouteCache(512, network.NewNetlinkRouter(config.ProcRoot)),
+		routeCache:     network.NewRouteCache(512, router),
 		subnetCache:    make(map[int]network.Subnet),
 		buf:            make([]byte, network.ConnectionByteKeyMaxLen),
 	}
@@ -435,7 +442,7 @@ func (t *Tracer) initPerfPolling(perf *ddebpf.PerfHandler) (*manager.PerfMap, *P
 				batch := toBatch(batchData)
 				conns := t.batchManager.Extract(batch, time.Now())
 				for _, c := range conns {
-					t.storeClosedConn(&c)
+					t.storeClosedConn(c)
 				}
 			case lostCount, ok := <-perf.LostChannel:
 				if !ok {
@@ -448,7 +455,7 @@ func (t *Tracer) initPerfPolling(perf *ddebpf.PerfHandler) (*manager.PerfMap, *P
 				}
 				idleConns := t.batchManager.GetIdleConns(time.Now())
 				for _, c := range idleConns {
-					t.storeClosedConn(&c)
+					t.storeClosedConn(c)
 				}
 				close(done)
 			case <-ticker.C:
@@ -488,10 +495,10 @@ func (t *Tracer) storeClosedConn(cs network.ConnectionStats) {
 	}
 
 	atomic.AddInt64(&t.closedConns, 1)
-	cs.IPTranslation = t.conntracker.GetTranslationForConn(*cs)
-	t.state.StoreClosedConnection(cs)
+	cs.IPTranslation = t.conntracker.GetTranslationForConn(cs)
+	t.state.StoreClosedConnection(&cs)
 	if cs.IPTranslation != nil {
-		t.conntracker.DeleteTranslation(*cs)
+		t.conntracker.DeleteTranslation(cs)
 	}
 }
 

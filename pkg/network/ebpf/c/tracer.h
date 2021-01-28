@@ -205,6 +205,4 @@ typedef struct {
     __u32 ifindex;
 } gw_tuple_t;
 
-#define ROUTE_LOOKUP_USE_EBPF 0
-
 #endif
