@@ -35,6 +35,12 @@ type Stats struct {
 	CtxSwitches *NumCtxSwitchesStat
 }
 
+// StatsWithPerm is a collection of stats that require escalated permission to collect in linux
+type StatsWithPerm struct {
+	OpenFdCount int32
+	IOStat      *IOCountersStat
+}
+
 // CPUTimesStat holds CPU stat metrics of a process
 type CPUTimesStat struct {
 	User      float64

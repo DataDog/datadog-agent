@@ -175,6 +175,29 @@ func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 	return procsByPID, nil
 }
 
+// StatsWithPermByPID returns the stats that require extra permission to collect for each process
+func (p *Probe) StatsWithPermByPID() (map[int32]*StatsWithPerm, error) {
+	pids, err := p.getActivePIDs()
+	if err != nil {
+		return nil, err
+	}
+
+	statsByPID := make(map[int32]*StatsWithPerm, len(pids))
+	for _, pid := range pids {
+		pathForPID := filepath.Join(p.procRootLoc, strconv.Itoa(int(pid)))
+		if !util.PathExists(pathForPID) {
+			log.Debugf("Unable to create new process %d, dir %s doesn't exist", pid, pathForPID)
+			continue
+		}
+
+		statsByPID[pid] = &StatsWithPerm{
+			OpenFdCount: p.getFDCount(pathForPID),
+			IOStat:      p.parseIO(pathForPID),
+		}
+	}
+	return statsByPID, nil
+}
+
 func (p *Probe) getRootProcFile() (*os.File, error) {
 	if p.procRootFile != nil {
 		return p.procRootFile, nil
