@@ -107,7 +107,7 @@ func TestSketchSeriesSmartMarshal(t *testing.T) {
 	payload, _ := sl.Marshal()                   // old way
 	payloads, noncompressed := sl.SmartMarshal() // new compressed
 
-	reader := bytes.NewReader(payloads)
+	reader := bytes.NewReader(*payloads[0])
 	r, e := zlib.NewReader(reader)
 	decompressed, ee := ioutil.ReadAll(r)
 	r.Close()

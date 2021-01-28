@@ -7,6 +7,7 @@ import (
 	"github.com/DataDog/agent-payload/gogen"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/datadog-agent/pkg/serializer/jsonstream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -97,7 +98,7 @@ func (sl SketchSeriesList) MarshalJSON() ([]byte, error) {
 	return reqBody.Bytes(), err
 }
 
-func (sl SketchSeriesList) SmartMarshal() ([]byte, []byte) {
+func (sl SketchSeriesList) SmartMarshal() (forwarder.Payloads, []byte) {
 	// func (sl SketchSeriesList) SmartMarshal() (forwarder.Payloads, http.Header, error) {
 
 	input := bytes.NewBuffer(make([]byte, 0, 1024))
@@ -106,7 +107,7 @@ func (sl SketchSeriesList) SmartMarshal() ([]byte, []byte) {
 	var header, footer bytes.Buffer
 
 	compressor, _ := jsonstream.NewCompressor(input, output, header.Bytes(), footer.Bytes(), func() []byte { return []byte{} })
-	// payloads := forwarder.Payloads{}
+	payloads := forwarder.Payloads{}
 
 	// pb := &gogen.SketchPayload{
 	// 	Sketches: make([]gogen.SketchPayload_Sketch, 0, len(sl.SketchSeries)),
@@ -150,21 +151,52 @@ func (sl SketchSeriesList) SmartMarshal() ([]byte, []byte) {
 		k += v
 		//----------
 
-		compressor.AddItem([]byte{0xa})
-		compressor.AddItem(EncodeVarint(uint64(sketch.Size())))
-		n, _ := sketch.MarshalTo(protobufTmp)
-		compressor.AddItem(protobufTmp[:n])
+		// Pack the protobuf metadata
+		index := 0
+		protobufTmp[index] = 0xa
+		index++
+		index = encodeVarintAgentPayload(protobufTmp, index, uint64(sketch.Size()))
+
+		// Resize the pre-compression buffer if needed
+		totalItemSize := sketch.Size() + index
+		if totalItemSize > cap(protobufTmp) {
+			protobufTmp = append(protobufTmp, make([]byte, totalItemSize)...)
+		}
+
+		// marshal the sketch to the precompression buffer
+		n, _ := sketch.MarshalTo(protobufTmp[index:])
+
+		// Compress
+		switch compressor.AddItem(protobufTmp[:n+index]) {
+		case jsonstream.ErrItemTooBig, jsonstream.ErrPayloadFull:
+			payload := AddFooter(compressor)
+			payloads = append(payloads, &payload)
+			input.Reset()
+			output.Reset()
+			compressor, _ = jsonstream.NewCompressor(input, output, header.Bytes(), footer.Bytes(), func() []byte { return []byte{} })
+		default:
+			continue
+		}
 	}
-	compressor.AddItem([]byte{0x12})
-	compressor.AddItem(EncodeVarint(0))
-	payload, _ := compressor.Close()
+
+	payload := AddFooter(compressor)
+	payloads = append(payloads, &payload)
+
 	// compressor.AddItem([]byte{0x12})
 	// compressor.AddItem(EncodeVarint(uint64(sketch.Size())))
 
 	// payloads = append(payloads, &payload)
 
-	return payload, nonCompressed
+	return payloads, nonCompressed
 	// return payloads
+}
+
+func AddFooter(compressor *jsonstream.Compressor) []byte {
+	// TODO-Brian: Check size if zip buffer is exactly full
+	compressor.AddItem([]byte{0x12})
+	compressor.AddItem(EncodeVarint(0))
+	payload, _ := compressor.Close()
+	return payload
 }
 
 func EncodeVarint(x uint64) []byte {

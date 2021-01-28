@@ -102,7 +102,7 @@ func (b *PayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 		}
 
 		switch compressor.AddItem(jsonStream.Buffer()) {
-		case errPayloadFull:
+		case ErrPayloadFull:
 			expvarsPayloadFulls.Add(1)
 			tlmPayloadFull.Inc()
 			// payload is full, we need to create a new one
