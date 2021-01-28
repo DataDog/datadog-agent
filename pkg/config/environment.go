@@ -24,6 +24,17 @@ func IsContainerized() bool {
 	return os.Getenv("DOCKER_DD_AGENT") != ""
 }
 
+// IsDockerRuntime returns true if we are to find the /.dockerenv file
+// which is typically only set by Docker
+func IsDockerRuntime() bool {
+	_, err := os.Stat("/.dockerenv")
+	if err == nil {
+		return true
+	}
+
+	return false
+}
+
 // IsKubernetes returns whether the Agent is running on a kubernetes cluster
 func IsKubernetes() bool {
 	// Injected by Kubernetes itself
