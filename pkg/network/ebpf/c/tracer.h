@@ -185,8 +185,7 @@ typedef struct {
 
 typedef struct {
     __u32 net_ns;
-    void * fl;
-    void * sk;
+    struct flowi4 * fl;
 } ip_route_flow_t;
 
 typedef struct {

@@ -821,13 +821,11 @@ SEC("kprobe/ip_route_output_flow")
 int kprobe__ip_route_output_flow(struct pt_regs* ctx) {
     struct net *net = (struct net*) PT_REGS_PARM1(ctx);
     struct flowi4* fl4 = (struct flowi4*) PT_REGS_PARM2(ctx);
-    struct sock* sk = (struct sock*) PT_REGS_PARM3(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
     ip_route_flow_t flow = {};
-    flow.sk = sk;
     flow.fl = fl4;
-    bpf_probe_read(&flow.net_ns, sizeof(flow.net_ns), net->ns.inum;
+    bpf_probe_read(&flow.net_ns, sizeof(flow.net_ns), net->ns.inum);
     bpf_map_update_elem(&ip_route_output_flows, &pid_tgid, &flow, BPF_ANY);
     log_debug("kprobe/ip_route_output_flow: pid_tgid: %d\n", pid_tgid);
 
@@ -853,13 +851,11 @@ int kretprobe__ip_route_output_flow(struct pt_regs* ctx) {
         return 0;
     }
 
-    struct flowi4 *fl4 = (struct flowi4*) flow->fl;
-
     dest_tuple_t dest = {};
     dest.saddr_h = 0;
     dest.daddr_h = 0;
-    bpf_probe_read(&dest.saddr_l, sizeof(__be32), fl4->saddr);
-    bpf_probe_read(&dest.daddr_l, sizeof(__be32), fl4->daddr);
+    bpf_probe_read(&dest.saddr_l, sizeof(__be32), flow->fl->saddr);
+    bpf_probe_read(&dest.daddr_l, sizeof(__be32), flow->fl->daddr);
     if (!dest.daddr_l) {
         log_debug("ERR(kretprobe/ip_route_output_flow): dst address not set pid_tgid=%d", pid_tgid);
         return 0;
