@@ -79,8 +79,6 @@ var (
 	ErrItemTooBig = errors.New("item alone exceeds maximum payload size")
 )
 
-var jsonSeparator = []byte(",")
-
 // compressor is in charge of compressing items for a single payload
 type compressor struct {
 	input               *bytes.Buffer // temporary buffer for data that has not been compressed yet
@@ -95,9 +93,10 @@ type compressor struct {
 	maxZippedItemSize   int
 	maxPayloadSize      int
 	maxUncompressedSize int
+	separatorFunc       func() []byte
 }
 
-func newCompressor(input, output *bytes.Buffer, header, footer []byte) (*compressor, error) {
+func NewCompressor(input, output *bytes.Buffer, header, footer []byte, separator func() []byte) (*compressor, error) {
 	// the backend accepts payloads up to 3MB compressed / 50MB uncompressed but
 	// prefers small uncompressed payloads of ~4MB
 	maxPayloadSize := config.Datadog.GetInt("serializer_max_payload_size")
@@ -112,6 +111,7 @@ func newCompressor(input, output *bytes.Buffer, header, footer []byte) (*compres
 		maxUncompressedSize: maxUncompressedSize,
 		maxUnzippedItemSize: maxPayloadSize - len(footer) - len(header),
 		maxZippedItemSize:   maxUncompressedSize - compression.CompressBound(len(footer)+len(header)),
+		separatorFunc:       separator,
 	}
 
 	c.zipper = zlib.NewWriter(c.compressed)
@@ -133,7 +133,7 @@ func (c *compressor) checkItemSize(data []byte) bool {
 func (c *compressor) hasRoomForItem(item []byte) bool {
 	uncompressedDataSize := c.input.Len() + len(item)
 	if !c.firstItem {
-		uncompressedDataSize += len(jsonSeparator)
+		uncompressedDataSize += len(c.separatorFunc())
 	}
 	return compression.CompressBound(uncompressedDataSize) <= c.remainingSpace() && c.uncompressedWritten+uncompressedDataSize <= c.maxUncompressedSize
 }
@@ -153,7 +153,7 @@ func (c *compressor) pack() error {
 }
 
 // addItem will try to add the given item
-func (c *compressor) addItem(data []byte) error {
+func (c *compressor) AddItem(data []byte) error {
 	// check item size sanity
 	if !c.checkItemSize(data) {
 		return ErrItemTooBig
@@ -181,14 +181,14 @@ func (c *compressor) addItem(data []byte) error {
 	if c.firstItem {
 		c.firstItem = false
 	} else {
-		c.input.Write(jsonSeparator)
+		c.input.Write(c.separatorFunc())
 	}
 
 	c.input.Write(data)
 	return nil
 }
 
-func (c *compressor) close() ([]byte, error) {
+func (c *compressor) Close() ([]byte, error) {
 	// Flush remaining uncompressed data
 	if c.input.Len() > 0 {
 		n, err := c.input.WriteTo(c.zipper)

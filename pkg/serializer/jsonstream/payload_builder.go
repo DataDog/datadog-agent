@@ -83,7 +83,7 @@ func (b *PayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 		return nil, err
 	}
 
-	compressor, err := newCompressor(input, output, header.Bytes(), footer.Bytes())
+	compressor, err := NewCompressor(input, output, header.Bytes(), footer.Bytes(), func() []byte { return []byte(",") })
 	if err != nil {
 		return nil, err
 	}
@@ -101,19 +101,19 @@ func (b *PayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 			continue
 		}
 
-		switch compressor.addItem(jsonStream.Buffer()) {
+		switch compressor.AddItem(jsonStream.Buffer()) {
 		case errPayloadFull:
 			expvarsPayloadFulls.Add(1)
 			tlmPayloadFull.Inc()
 			// payload is full, we need to create a new one
-			payload, err := compressor.close()
+			payload, err := compressor.Close()
 			if err != nil {
 				return payloads, err
 			}
 			payloads = append(payloads, &payload)
 			input.Reset()
 			output.Reset()
-			compressor, err = newCompressor(input, output, header.Bytes(), footer.Bytes())
+			compressor, err = NewCompressor(input, output, header.Bytes(), footer.Bytes(), func() []byte { return []byte(",") })
 			if err != nil {
 				return nil, err
 			}
@@ -139,7 +139,7 @@ func (b *PayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	}
 
 	// Close last payload
-	payload, err := compressor.close()
+	payload, err := compressor.Close()
 	if err != nil {
 		return payloads, err
 	}

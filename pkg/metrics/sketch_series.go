@@ -8,6 +8,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
+	"github.com/DataDog/datadog-agent/pkg/serializer/jsonstream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 )
@@ -96,15 +97,98 @@ func (sl SketchSeriesList) MarshalJSON() ([]byte, error) {
 	return reqBody.Bytes(), err
 }
 
-// Marshal encodes this series list.
-func (sl SketchSeriesList) Marshal() ([]byte, error) {
-	// if len(sl) > cap(playloadBuf) {
-	// 	playloadBuf = make([]gogen.SketchPayload_Sketch, 0, len(sl))
-	// }
+func (sl SketchSeriesList) SmartMarshal() ([]byte, []byte) {
+	// func (sl SketchSeriesList) SmartMarshal() (forwarder.Payloads, http.Header, error) {
+
+	input := bytes.NewBuffer(make([]byte, 0, 1024))
+	output := bytes.NewBuffer(make([]byte, 0, 1024))
+
+	var header, footer bytes.Buffer
+
+	compressor, _ := jsonstream.NewCompressor(input, output, header.Bytes(), footer.Bytes(), func() []byte { return []byte{} })
+	// payloads := forwarder.Payloads{}
+
 	// pb := &gogen.SketchPayload{
-	// 	Sketches: playloadBuf,
+	// 	Sketches: make([]gogen.SketchPayload_Sketch, 0, len(sl.SketchSeries)),
 	// }
 
+	nonCompressed := make([]byte, 1024)
+	k := 0
+
+	protobufTmp := make([]byte, 1024)
+	for _, ss := range sl.SketchSeries {
+		dsl := make([]gogen.SketchPayload_Sketch_Dogsketch, 0, len(ss.Points))
+
+		for _, p := range ss.Points {
+			b := p.Sketch.Basic
+			k, n := p.Sketch.Cols()
+			dsl = append(dsl, gogen.SketchPayload_Sketch_Dogsketch{
+				Ts:  p.Ts,
+				Cnt: b.Cnt,
+				Min: b.Min,
+				Max: b.Max,
+				Avg: b.Avg,
+				Sum: b.Sum,
+				K:   k,
+				N:   n,
+			})
+		}
+
+		sketch := gogen.SketchPayload_Sketch{
+			Metric:      ss.Name,
+			Host:        ss.Host,
+			Tags:        ss.Tags,
+			Dogsketches: dsl,
+		}
+		// NONCOMPRESS
+		nonCompressed[k] = 0xa
+		k++
+		a := EncodeVarint(uint64(sketch.Size()))
+		copy(nonCompressed[k:], a)
+		k += len(a)
+		v, _ := sketch.MarshalTo(nonCompressed[k:])
+		k += v
+		//----------
+
+		compressor.AddItem([]byte{0xa})
+		compressor.AddItem(EncodeVarint(uint64(sketch.Size())))
+		n, _ := sketch.MarshalTo(protobufTmp)
+		compressor.AddItem(protobufTmp[:n])
+	}
+	payload, _ := compressor.Close()
+	// compressor.AddItem([]byte{0x12})
+	// compressor.AddItem(EncodeVarint(uint64(sketch.Size())))
+
+	// payloads = append(payloads, &payload)
+
+	return payload, nonCompressed
+	// return payloads
+}
+
+func EncodeVarint(x uint64) []byte {
+	var buf [10]byte
+	var n int
+	for n = 0; x > 127; n++ {
+		buf[n] = 0x80 | uint8(x&0x7F)
+		x >>= 7
+	}
+	buf[n] = uint8(x)
+	n++
+	return buf[0:n]
+}
+
+func encodeVarintAgentPayload(dAtA []byte, offset int, v uint64) int {
+	for v >= 1<<7 {
+		dAtA[offset] = uint8(v&0x7f | 0x80)
+		v >>= 7
+		offset++
+	}
+	dAtA[offset] = uint8(v)
+	return offset + 1
+}
+
+// Marshal encodes this series list.
+func (sl SketchSeriesList) Marshal() ([]byte, error) {
 	pb := &gogen.SketchPayload{
 		Sketches: make([]gogen.SketchPayload_Sketch, 0, len(sl.SketchSeries)),
 	}
@@ -134,12 +218,12 @@ func (sl SketchSeriesList) Marshal() ([]byte, error) {
 			Dogsketches: dsl,
 		})
 	}
-	if pb.Size() > cap(*sl.buf) {
-		//sl.buf = make([]byte, pb.Size())
-		*sl.buf = append(*sl.buf, make([]byte, pb.Size()-cap(*sl.buf))...)
-	}
-	n, err := pb.MarshalTo(*sl.buf)
-	return (*sl.buf)[:n], err
+	// if pb.Size() > cap(*sl.buf) {
+	// 	//sl.buf = make([]byte, pb.Size())
+	// 	*sl.buf = append(*sl.buf, make([]byte, pb.Size()-cap(*sl.buf))...)
+	// }
+	// n, err := pb.MarshalTo(*sl.buf)
+	// return (*sl.buf)[:n], err
 
 	// if pb.Size() > cap(buf) {
 	// 	buf = make([]byte, pb.Size())
@@ -147,7 +231,7 @@ func (sl SketchSeriesList) Marshal() ([]byte, error) {
 	// n, err := pb.MarshalTo(buf)
 	// return buf[:n], err
 
-	// return pb.Marshal()
+	return pb.Marshal()
 }
 
 // SplitPayload breaks the payload into times number of pieces

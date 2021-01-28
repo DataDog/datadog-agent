@@ -1,6 +1,9 @@
 package metrics
 
 import (
+	"bytes"
+	"compress/zlib"
+	"io/ioutil"
 	"testing"
 
 	"github.com/DataDog/agent-payload/gogen"
@@ -29,10 +32,13 @@ func check(t *testing.T, in SketchPoint, pb gogen.SketchPayload_Sketch_Dogsketch
 }
 
 func TestSketchSeriesListMarshal(t *testing.T) {
-	sl := make(SketchSeriesList, 2)
+	sketches := make([]SketchSeries, 2)
+	sl := &SketchSeriesList{
+		SketchSeries: sketches,
+	}
 
-	for i := range sl {
-		sl[i] = Makeseries(i)
+	for i := range sl.SketchSeries {
+		sl.SketchSeries[i] = Makeseries(i)
 	}
 
 	b, err := sl.Marshal()
@@ -45,10 +51,10 @@ func TestSketchSeriesListMarshal(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	require.Len(t, pl.Sketches, len(sl))
+	require.Len(t, pl.Sketches, len(sl.SketchSeries))
 
 	for i, pb := range pl.Sketches {
-		in := sl[i]
+		in := sl.SketchSeries[i]
 		require.Equal(t, Makeseries(i), in, "make sure we don't modify input")
 
 		assert.Equal(t, in.Host, pb.Host)
@@ -69,10 +75,13 @@ func TestSketchSeriesListMarshal(t *testing.T) {
 }
 
 func TestSketchSeriesListJSONMarshal(t *testing.T) {
-	sl := make(SketchSeriesList, 2)
+	sketches := make([]SketchSeries, 2)
+	sl := &SketchSeriesList{
+		SketchSeries: sketches,
+	}
 
-	for i := range sl {
-		sl[i] = Makeseries(i)
+	for i := range sl.SketchSeries {
+		sl.SketchSeries[i] = Makeseries(i)
 	}
 
 	json, err := sl.MarshalJSON()
@@ -83,4 +92,56 @@ func TestSketchSeriesListJSONMarshal(t *testing.T) {
 	json, err = sl.MarshalJSON()
 	assert.NoError(t, err)
 	assert.JSONEq(t, string(json), `{"sketches":[{"host":"host.0","interval":0,"metric":"name.0","points":[{"bins":"","binsCount":0,"sketch":{"summary":{"Avg":0,"Cnt":0,"Max":0,"Min":0,"Sum":0}},"ts":0},{"bins":"0:1","binsCount":1,"sketch":{"summary":{"Avg":0,"Cnt":1,"Max":0,"Min":0,"Sum":0}},"ts":10},{"bins":"0:1 1338:1","binsCount":2,"sketch":{"summary":{"Avg":0.5,"Cnt":2,"Max":1,"Min":0,"Sum":1}},"ts":20},{"bins":"0:1 1338:1 1383:1","binsCount":3,"sketch":{"summary":{"Avg":1,"Cnt":3,"Max":2,"Min":0,"Sum":3}},"ts":30},{"bins":"0:1 1338:1 1383:1 1409:1","binsCount":4,"sketch":{"summary":{"Avg":1.5,"Cnt":4,"Max":3,"Min":0,"Sum":6}},"ts":40}],"tags":["a:0","b:0"]},{"host":"host.1","interval":1,"metric":"name.1","points":[{"bins":"","binsCount":0,"sketch":{"summary":{"Avg":0,"Cnt":0,"Max":0,"Min":0,"Sum":0}},"ts":0},{"bins":"0:1","binsCount":1,"sketch":{"summary":{"Avg":0,"Cnt":1,"Max":0,"Min":0,"Sum":0}},"ts":10},{"bins":"0:1 1338:1","binsCount":2,"sketch":{"summary":{"Avg":0.5,"Cnt":2,"Max":1,"Min":0,"Sum":1}},"ts":20},{"bins":"0:1 1338:1 1383:1","binsCount":3,"sketch":{"summary":{"Avg":1,"Cnt":3,"Max":2,"Min":0,"Sum":3}},"ts":30},{"bins":"0:1 1338:1 1383:1 1409:1","binsCount":4,"sketch":{"summary":{"Avg":1.5,"Cnt":4,"Max":3,"Min":0,"Sum":6}},"ts":40},{"bins":"0:1 1338:1 1383:1 1409:1 1427:1","binsCount":5,"sketch":{"summary":{"Avg":2,"Cnt":5,"Max":4,"Min":0,"Sum":10}},"ts":50}],"tags":["a:1","b:1"]}]}`)
+}
+
+func TestSketchSeriesSmartMarshal(t *testing.T) {
+	sketches := make([]SketchSeries, 2)
+	sl := &SketchSeriesList{
+		SketchSeries: sketches,
+	}
+
+	for i := range sl.SketchSeries {
+		sl.SketchSeries[i] = Makeseries(i)
+	}
+
+	payload, _ := sl.Marshal()                   // old way
+	payloads, noncompressed := sl.SmartMarshal() // new compressed
+
+	reader := bytes.NewReader(payloads)
+	r, e := zlib.NewReader(reader)
+	decompressed, ee := ioutil.ReadAll(r)
+	r.Close()
+
+	_ = e
+	_ = ee
+	_ = payload
+	_ = decompressed
+	_ = noncompressed
+
+	// pl := new(gogen.SketchPayload)
+	// if err := pl.Unmarshal(b); err != nil {
+	// 	t.Fatal(err)
+	// }
+
+	// require.Len(t, pl.Sketches, len(sl.SketchSeries))
+
+	// for i, pb := range pl.Sketches {
+	// 	in := sl.SketchSeries[i]
+	// 	require.Equal(t, Makeseries(i), in, "make sure we don't modify input")
+
+	// 	assert.Equal(t, in.Host, pb.Host)
+	// 	assert.Equal(t, in.Name, pb.Metric)
+	// 	assert.Equal(t, in.Tags, pb.Tags)
+	// 	assert.Len(t, pb.Distributions, 0)
+
+	// 	require.Len(t, pb.Dogsketches, len(in.Points))
+	// 	for j, pointPb := range pb.Dogsketches {
+
+	// 		check(t, in.Points[j], pointPb)
+	// 		// require.Equal(t, pointIn.Ts, pointPb.Ts)
+	// 		// require.Equal(t, pointIn.Ts, pointPb.Ts)
+
+	// 		// fmt.Printf("%#v %#v\n", pin, s)
+	// 	}
+	// }
 }
