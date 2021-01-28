@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
@@ -94,7 +95,7 @@ type MetricSerializer interface {
 	SendEvents(e EventsStreamJSONMarshaler) error
 	SendServiceChecks(sc marshaler.StreamJSONMarshaler) error
 	SendSeries(series marshaler.StreamJSONMarshaler) error
-	SendSketch(sketches marshaler.Marshaler) error
+	SendSketch(sketches metrics.SketchSeriesList) error
 	SendMetadata(m marshaler.Marshaler) error
 	SendHostMetadata(m marshaler.Marshaler) error
 	SendJSONToV1Intake(data interface{}) error
@@ -311,11 +312,20 @@ func (s *Serializer) SendSeries(series marshaler.StreamJSONMarshaler) error {
 }
 
 // SendSketch serializes a list of SketSeriesList and sends the payload to the forwarder
-func (s *Serializer) SendSketch(sketches marshaler.Marshaler) error {
+func (s *Serializer) SendSketch(sketches metrics.SketchSeriesList) error {
 	if !s.enableSketches {
 		log.Debug("sketches payloads are disabled: dropping it")
 		return nil
 	}
+
+	var extraHeaders http.Header
+
+	payloads, err := sketches.StreamCompressPayloads()
+	if err != nil {
+		return s.Forwarder.SubmitSketchSeries(payloads, protobufExtraHeadersWithCompression)
+	}
+
+	log.Errorf("Error: %v trying to stream compress SketchSeriesList - falling back to split/compress method", err)
 
 	compress := true
 	useV1API := false // Sketches only have a v2 endpoint
