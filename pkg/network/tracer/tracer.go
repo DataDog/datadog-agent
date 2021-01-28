@@ -918,7 +918,7 @@ func (t *Tracer) connectionExpired(conn *ConnTuple, latestTime uint64, stats *Co
 	}
 
 	// skip connection check for udp connections or if
-	// the pid for the conneciton is dead
+	// the pid for the connection is dead
 	if conn.isUDP() || !procutil.PidExists(int(conn.Pid())) {
 		return true
 	}
