@@ -160,9 +160,9 @@ func (s *TimeSampler) flushSeries(cutoffTime int64) metrics.Series {
 	return series
 }
 
-func (s TimeSampler) flushSketches(cutoffTime int64) []metrics.SketchSeries {
+func (s TimeSampler) flushSketches(cutoffTime int64) metrics.SketchSeriesList {
 	pointsByCtx := make(map[ckey.ContextKey][]metrics.SketchPoint)
-	sketches := make([]metrics.SketchSeries, 0, len(pointsByCtx))
+	sketches := make(metrics.SketchSeriesList, 0, len(pointsByCtx))
 
 	s.sketchMap.flushBefore(cutoffTime, func(ck ckey.ContextKey, p metrics.SketchPoint) {
 		if p.Sketch == nil {
@@ -177,7 +177,7 @@ func (s TimeSampler) flushSketches(cutoffTime int64) []metrics.SketchSeries {
 	return sketches
 }
 
-func (s *TimeSampler) flush(timestamp float64) (metrics.Series, []metrics.SketchSeries) {
+func (s *TimeSampler) flush(timestamp float64) (metrics.Series, metrics.SketchSeriesList) {
 	// Compute a limit timestamp
 	cutoffTime := s.calculateBucketStart(timestamp)
 

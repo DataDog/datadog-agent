@@ -33,13 +33,10 @@ func check(t *testing.T, in SketchPoint, pb gogen.SketchPayload_Sketch_Dogsketch
 }
 
 func TestSketchSeriesListMarshal(t *testing.T) {
-	sketches := make([]SketchSeries, 2)
-	sl := &SketchSeriesList{
-		SketchSeries: sketches,
-	}
+	sl := make(SketchSeriesList, 2)
 
-	for i := range sl.SketchSeries {
-		sl.SketchSeries[i] = Makeseries(i)
+	for i := range sl {
+		sl[i] = Makeseries(i)
 	}
 
 	b, err := sl.Marshal()
@@ -52,10 +49,10 @@ func TestSketchSeriesListMarshal(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	require.Len(t, pl.Sketches, len(sl.SketchSeries))
+	require.Len(t, pl.Sketches, len(sl))
 
 	for i, pb := range pl.Sketches {
-		in := sl.SketchSeries[i]
+		in := sl[i]
 		require.Equal(t, Makeseries(i), in, "make sure we don't modify input")
 
 		assert.Equal(t, in.Host, pb.Host)
@@ -76,13 +73,10 @@ func TestSketchSeriesListMarshal(t *testing.T) {
 }
 
 func TestSketchSeriesListJSONMarshal(t *testing.T) {
-	sketches := make([]SketchSeries, 2)
-	sl := &SketchSeriesList{
-		SketchSeries: sketches,
-	}
+	sl := make(SketchSeriesList, 2)
 
-	for i := range sl.SketchSeries {
-		sl.SketchSeries[i] = Makeseries(i)
+	for i := range sl {
+		sl[i] = Makeseries(i)
 	}
 
 	json, err := sl.MarshalJSON()
@@ -96,13 +90,10 @@ func TestSketchSeriesListJSONMarshal(t *testing.T) {
 }
 
 func TestSketchSeriesSmartMarshal(t *testing.T) {
-	sketches := make([]SketchSeries, 2)
-	sl := &SketchSeriesList{
-		SketchSeries: sketches,
-	}
+	sl := make(SketchSeriesList, 2)
 
-	for i := range sl.SketchSeries {
-		sl.SketchSeries[i] = Makeseries(i)
+	for i := range sl {
+		sl[i] = Makeseries(i)
 	}
 
 	payload, _ := sl.Marshal() // old way
@@ -128,10 +119,10 @@ func TestSketchSeriesSmartMarshal(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	require.Len(t, pl.Sketches, len(sl.SketchSeries))
+	require.Len(t, pl.Sketches, len(sl))
 
 	for i, pb := range pl.Sketches {
-		in := sl.SketchSeries[i]
+		in := sl[i]
 		require.Equal(t, Makeseries(i), in, "make sure we don't modify input")
 
 		assert.Equal(t, in.Host, pb.Host)
@@ -148,13 +139,10 @@ func TestSketchSeriesSmartMarshal(t *testing.T) {
 }
 
 func TestSketchSeriesSmartMarshalSplit(t *testing.T) {
-	sketches := make([]SketchSeries, 200)
-	sl := &SketchSeriesList{
-		SketchSeries: sketches,
-	}
+	sl := make(SketchSeriesList, 200)
 
-	for i := range sl.SketchSeries {
-		sl.SketchSeries[i] = Makeseries(i)
+	for i := range sl {
+		sl[i] = Makeseries(i)
 	}
 
 	payloads := sl.SmartMarshal()
@@ -175,12 +163,12 @@ func TestSketchSeriesSmartMarshalSplit(t *testing.T) {
 		recoveredCount += len(pl.Sketches)
 	}
 
-	assert.Equal(t, recoveredCount, len(sketches))
+	assert.Equal(t, recoveredCount, len(sl))
 
 	i := 0
 	for _, pl := range recoveredSketches {
 		for _, pb := range pl.Sketches {
-			in := sl.SketchSeries[i]
+			in := sl[i]
 			require.Equal(t, Makeseries(i), in, "make sure we don't modify input")
 
 			assert.Equal(t, in.Host, pb.Host)

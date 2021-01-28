@@ -19,7 +19,7 @@ const checksSourceTypeName = "System"
 // CheckSampler aggregates metrics from one Check instance
 type CheckSampler struct {
 	series          []*metrics.Serie
-	sketches        []metrics.SketchSeries
+	sketches        metrics.SketchSeriesList
 	contextResolver *ContextResolver
 	metrics         metrics.ContextMetrics
 	sketchMap       sketchMap
@@ -32,7 +32,7 @@ type CheckSampler struct {
 func newCheckSampler() *CheckSampler {
 	return &CheckSampler{
 		series:          make([]*metrics.Serie, 0),
-		sketches:        make([]metrics.SketchSeries, 0),
+		sketches:        make(metrics.SketchSeriesList, 0),
 		contextResolver: newContextResolver(),
 		metrics:         metrics.MakeContextMetrics(),
 		sketchMap:       make(sketchMap),
@@ -165,14 +165,14 @@ func (cs *CheckSampler) commit(timestamp float64) {
 	cs.contextResolver.expireContexts(timestamp - defaultExpiry)
 }
 
-func (cs *CheckSampler) flush() (metrics.Series, []metrics.SketchSeries) {
+func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {
 	// series
 	series := cs.series
 	cs.series = make([]*metrics.Serie, 0)
 
 	// sketches
 	sketches := cs.sketches
-	cs.sketches = make([]metrics.SketchSeries, 0)
+	cs.sketches = make(metrics.SketchSeriesList, 0)
 
 	// garbage collect unused bucket deltas
 	now := time.Now()
