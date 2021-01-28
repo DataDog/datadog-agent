@@ -30,6 +30,8 @@ import (
 // HandleType represents what type of data the windows handle created on the driver is intended to return. It implicitly implies if there are filters set for a handle
 type HandleType string
 
+
+
 const (
 	// deviceName identifies the name and location of the windows driver
 	deviceName = `\\.\ddnpm`

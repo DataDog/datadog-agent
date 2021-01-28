@@ -1,0 +1,55 @@
+package network
+
+import (
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
+)
+
+var _ PacketSource = &windowsPacketSource{}
+
+type windowsPacketSource struct {
+	di *DriverInterface
+}
+
+func NewWindowsPacketSource(di *DriverInterface) PacketSource {
+	return &windowsPacketSource{di: di}
+}
+
+func (p *windowsPacketSource) VisitPackets(exit <-chan struct{}, visit func([]byte, time.Time) error) error {
+	for {
+		didReadPacket, err := p.di.ReadDNSPacket(visit)
+		if err != nil {
+			return err
+		}
+
+		if !didReadPacket {
+			return nil
+		}
+
+		log.Infof("read a DNS packet")
+
+		// break out of loop if exit is closed
+		select{
+		case <-exit:
+			return nil
+		default:
+		}
+		
+	}
+}
+
+func (p *windowsPacketSource) PacketType() gopacket.LayerType {
+	return layers.LayerTypeIPv4
+}
+
+func (p *windowsPacketSource) Stats() map[string]int64 {
+	// TODO: explain why this is a no-op
+	return map[string]int64{}
+}
+
+func (p *windowsPacketSource) Close() {
+	// TODO: explain why this is a no-op
+}
