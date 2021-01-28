@@ -4,7 +4,7 @@ package procutil
 
 import "syscall"
 
-// PidExists returns a true if the pid is still alive
+// PidExists returns true if the pid is still alive
 func PidExists(pid int) bool {
 	// the kill syscall will check for the existence of a process
 	// if the signal is 0. See
