@@ -3,7 +3,6 @@ package config
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -24,10 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/backoff"
-	"google.golang.org/grpc/credentials"
 )
 
 const (
@@ -40,6 +35,8 @@ const (
 
 	// defaultRuntimeCompilerOutputDir is the default path for output from the system-probe runtime compiler
 	defaultRuntimeCompilerOutputDir = "/var/tmp/datadog-agent/system-probe/build"
+
+	grpcAgentTimeout = 2 * time.Second
 )
 
 var (
@@ -365,8 +362,10 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	}
 
 	// get the hostname from the datadog agent
-	if ddAgentClient, err := getDDAgentClient(); err == nil {
-		if hostname, err := getHostnameFromAgent(ddAgentClient); err == nil {
+	ctx, cancel := context.WithTimeout(context.Background(), grpcAgentTimeout)
+	defer cancel()
+	if ddAgentClient, err := util.GetDDAgentClient(ctx); err == nil {
+		if hostname, err := getHostnameFromGRPC(ddAgentClient); err == nil {
 			cfg.HostName = hostname
 		} else {
 			log.Errorf("Cannot get hostname from datadog agent: %v", err)
@@ -597,8 +596,8 @@ func getHostname(ddAgentBin string) (string, error) {
 	return hostname, err
 }
 
-func getHostnameFromAgent(ddAgentClient pb.AgentClient) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+func getHostnameFromGRPC(ddAgentClient pb.AgentClient) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), grpcAgentTimeout)
 	defer cancel()
 	reply, err := ddAgentClient.GetHostname(ctx, &pb.HostnameRequest{})
 
@@ -686,38 +685,4 @@ func setupLogger(loggerName config.LoggerName, logFile string, cfg *AgentConfig)
 		config.Datadog.GetBool("log_to_console"),
 		config.Datadog.GetBool("log_format_json"),
 	)
-}
-
-func getDDAgentClient() (pb.AgentClient, error) {
-	// This is needed as the server hangs when using "grpc.WithInsecure()"
-	tlsConf := tls.Config{InsecureSkipVerify: true}
-
-	opts := []grpc.DialOption{
-		grpc.WithConnectParams(grpc.ConnectParams{Backoff: backoff.DefaultConfig}),
-		grpc.WithBlock(),
-		grpc.WithTransportCredentials(credentials.NewTLS(&tlsConf)),
-	}
-
-	target, err := getIPCHost()
-	if err != nil {
-		return nil, err
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	conn, err := grpc.DialContext(ctx, target, opts...)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return pb.NewAgentClient(conn), nil
-}
-
-func getIPCHost() (string, error) {
-	ipcAddress, err := config.GetIPCAddress()
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("%v:%v", ipcAddress, config.Datadog.GetInt("cmd_port")), nil
 }
