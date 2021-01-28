@@ -5,14 +5,10 @@
 
 //+build !zlib
 
-package jsonstream
+package stream
 
 import (
 	"errors"
-	"fmt"
-
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
-	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
 const (
@@ -24,8 +20,3 @@ var (
 	// ErrItemTooBig is returned when a item alone exceeds maximum payload size
 	ErrItemTooBig = errors.New("item alone exceeds maximum payload size")
 )
-
-// Payloads serializes a metadata payload and sends it to the forwarder
-func Payloads(m marshaler.StreamJSONMarshaler) (forwarder.Payloads, error) {
-	return nil, fmt.Errorf("jsonstream is not supported on this agent")
-}

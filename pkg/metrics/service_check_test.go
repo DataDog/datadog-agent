@@ -18,9 +18,9 @@ import (
 
 	agentpayload "github.com/DataDog/agent-payload/gogen"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/serializer/jsonstream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
+	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
 )
 
 func TestMarshalServiceChecks(t *testing.T) {
@@ -103,7 +103,7 @@ func createServiceCheck(checkName string) *ServiceCheck {
 }
 
 func buildPayload(t *testing.T, m marshaler.StreamJSONMarshaler) [][]byte {
-	builder := jsonstream.NewPayloadBuilder()
+	builder := stream.NewJsonPayloadBuilder()
 	payloads, err := builder.Build(m)
 	assert.NoError(t, err)
 	var uncompressedPayloads [][]byte
@@ -178,8 +178,8 @@ func createServiceChecks(numberOfItem int) ServiceChecks {
 	return ServiceChecks(serviceCheckCollections)
 }
 
-func benchmarkPayloadBuilderServiceCheck(b *testing.B, numberOfItem int) {
-	payloadBuilder := jsonstream.NewPayloadBuilder()
+func benchmarkJsonPayloadBuilderServiceCheck(b *testing.B, numberOfItem int) {
+	payloadBuilder := stream.NewJsonPayloadBuilder()
 	serviceChecks := createServiceChecks(numberOfItem)
 
 	b.ResetTimer()
@@ -189,25 +189,29 @@ func benchmarkPayloadBuilderServiceCheck(b *testing.B, numberOfItem int) {
 	}
 }
 
-func BenchmarkPayloadBuilderServiceCheck1(b *testing.B)  { benchmarkPayloadBuilderServiceCheck(b, 1) }
-func BenchmarkPayloadBuilderServiceCheck10(b *testing.B) { benchmarkPayloadBuilderServiceCheck(b, 10) }
-func BenchmarkPayloadBuilderServiceCheck100(b *testing.B) {
-	benchmarkPayloadBuilderServiceCheck(b, 100)
+func BenchmarkJsonPayloadBuilderServiceCheck1(b *testing.B) {
+	benchmarkJsonPayloadBuilderServiceCheck(b, 1)
 }
-func BenchmarkPayloadBuilderServiceCheck1000(b *testing.B) {
-	benchmarkPayloadBuilderServiceCheck(b, 1000)
+func BenchmarkJsonPayloadBuilderServiceCheck10(b *testing.B) {
+	benchmarkJsonPayloadBuilderServiceCheck(b, 10)
 }
-func BenchmarkPayloadBuilderServiceCheck10000(b *testing.B) {
-	benchmarkPayloadBuilderServiceCheck(b, 10000)
+func BenchmarkJsonPayloadBuilderServiceCheck100(b *testing.B) {
+	benchmarkJsonPayloadBuilderServiceCheck(b, 100)
 }
-func BenchmarkPayloadBuilderServiceCheck100000(b *testing.B) {
-	benchmarkPayloadBuilderServiceCheck(b, 100000)
+func BenchmarkJsonPayloadBuilderServiceCheck1000(b *testing.B) {
+	benchmarkJsonPayloadBuilderServiceCheck(b, 1000)
 }
-func BenchmarkPayloadBuilderServiceCheck1000000(b *testing.B) {
-	benchmarkPayloadBuilderServiceCheck(b, 1000000)
+func BenchmarkJsonPayloadBuilderServiceCheck10000(b *testing.B) {
+	benchmarkJsonPayloadBuilderServiceCheck(b, 10000)
 }
-func BenchmarkPayloadBuilderServiceCheck10000000(b *testing.B) {
-	benchmarkPayloadBuilderServiceCheck(b, 10000000)
+func BenchmarkJsonPayloadBuilderServiceCheck100000(b *testing.B) {
+	benchmarkJsonPayloadBuilderServiceCheck(b, 100000)
+}
+func BenchmarkJsonPayloadBuilderServiceCheck1000000(b *testing.B) {
+	benchmarkJsonPayloadBuilderServiceCheck(b, 1000000)
+}
+func BenchmarkJsonPayloadBuilderServiceCheck10000000(b *testing.B) {
+	benchmarkJsonPayloadBuilderServiceCheck(b, 10000000)
 }
 
 func benchmarkPayloadsServiceCheck(b *testing.B, numberOfItem int) {

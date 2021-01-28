@@ -5,7 +5,7 @@
 
 //+build zlib
 
-package jsonstream
+package stream
 
 import (
 	"bytes"
@@ -22,16 +22,16 @@ var jsonConfig = jsoniter.Config{
 	ObjectFieldMustBeSimpleString: true,
 }.Froze()
 
-// PayloadBuilder is used to build payloads. PayloadBuilder allocates memory based
+// JsonPayloadBuilder is used to build payloads. JsonPayloadBuilder allocates memory based
 // on what was previously need to serialize payloads. Keep that in mind and
-// use multiple PayloadBuilders for different sources.
-type PayloadBuilder struct {
+// use multiple JsonPayloadBuilders for different sources.
+type JsonPayloadBuilder struct {
 	inputSizeHint, outputSizeHint int
 }
 
-// NewPayloadBuilder creates a new PayloadBuilder with default values.
-func NewPayloadBuilder() *PayloadBuilder {
-	return &PayloadBuilder{
+// NewJsonPayloadBuilder creates a new JsonPayloadBuilder with default values.
+func NewJsonPayloadBuilder() *JsonPayloadBuilder {
+	return &JsonPayloadBuilder{
 		inputSizeHint:  4096,
 		outputSizeHint: 4096,
 	}
@@ -49,12 +49,12 @@ const (
 )
 
 // Build serializes a metadata payload and sends it to the forwarder
-func (b *PayloadBuilder) Build(m marshaler.StreamJSONMarshaler) (forwarder.Payloads, error) {
+func (b *JsonPayloadBuilder) Build(m marshaler.StreamJSONMarshaler) (forwarder.Payloads, error) {
 	return b.BuildWithOnErrItemTooBigPolicy(m, DropItemOnErrItemTooBig)
 }
 
 // BuildWithOnErrItemTooBigPolicy serializes a metadata payload and sends it to the forwarder
-func (b *PayloadBuilder) BuildWithOnErrItemTooBigPolicy(
+func (b *JsonPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	m marshaler.StreamJSONMarshaler,
 	policy OnErrItemTooBigPolicy) (forwarder.Payloads, error) {
 
@@ -83,7 +83,7 @@ func (b *PayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 		return nil, err
 	}
 
-	compressor, err := NewCompressor(input, output, header.Bytes(), footer.Bytes(), func() []byte { return []byte(",") })
+	compressor, err := NewCompressor(input, output, header.Bytes(), footer.Bytes(), []byte(","))
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +113,7 @@ func (b *PayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 			payloads = append(payloads, &payload)
 			input.Reset()
 			output.Reset()
-			compressor, err = NewCompressor(input, output, header.Bytes(), footer.Bytes(), func() []byte { return []byte(",") })
+			compressor, err = NewCompressor(input, output, header.Bytes(), footer.Bytes(), []byte(","))
 			if err != nil {
 				return nil, err
 			}

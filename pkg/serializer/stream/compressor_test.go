@@ -5,7 +5,7 @@
 
 //+build zlib
 
-package jsonstream
+package stream
 
 import (
 	"bytes"
@@ -119,7 +119,7 @@ func TestOnePayloadSimple(t *testing.T) {
 		footer: "]}",
 	}
 
-	builder := NewPayloadBuilder()
+	builder := NewJsonPayloadBuilder()
 	payloads, err := builder.Build(m)
 	require.NoError(t, err)
 	require.Len(t, payloads, 1)
@@ -136,7 +136,7 @@ func TestMaxCompressedSizePayload(t *testing.T) {
 	config.Datadog.SetDefault("serializer_max_payload_size", 22)
 	defer resetDefaults()
 
-	builder := NewPayloadBuilder()
+	builder := NewJsonPayloadBuilder()
 	payloads, err := builder.Build(m)
 	require.NoError(t, err)
 	require.Len(t, payloads, 1)
@@ -153,7 +153,7 @@ func TestTwoPayload(t *testing.T) {
 	config.Datadog.SetDefault("serializer_max_payload_size", 22)
 	defer resetDefaults()
 
-	builder := NewPayloadBuilder()
+	builder := NewJsonPayloadBuilder()
 	payloads, err := builder.Build(m)
 	require.NoError(t, err)
 	require.Len(t, payloads, 2)

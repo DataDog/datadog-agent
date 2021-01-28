@@ -14,8 +14,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/serializer/jsonstream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
+	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
 )
 
 func buildSeries(numberOfSeries int) metrics.Series {
@@ -58,7 +58,7 @@ var results forwarder.Payloads
 
 func benchmarkJSONStream(b *testing.B, numberOfSeries int) {
 	series := buildSeries(numberOfSeries)
-	payloadBuilder := jsonstream.NewPayloadBuilder()
+	payloadBuilder := stream.NewJsonPayloadBuilder()
 	b.ResetTimer()
 
 	for n := 0; n < b.N; n++ {

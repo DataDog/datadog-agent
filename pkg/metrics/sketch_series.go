@@ -9,8 +9,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
-	"github.com/DataDog/datadog-agent/pkg/serializer/jsonstream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 )
 
@@ -79,23 +79,21 @@ func (sl SketchSeriesList) MarshalJSON() ([]byte, error) {
 	return reqBody.Bytes(), err
 }
 
-func (sl SketchSeriesList) SmartMarshal() forwarder.Payloads {
-	// func (sl SketchSeriesList) SmartMarshal() (forwarder.Payloads, http.Header, error) {
-
+// StreamCompressPayloads uses the stream compressor to marshal and compress sketch series in constant space.
+// If a payload is larger than the max, a new payload will be generated.
+func (sl SketchSeriesList) StreamCompressPayloads() (forwarder.Payloads, error) {
 	input := bytes.NewBuffer(make([]byte, 0, 1024))
 	output := bytes.NewBuffer(make([]byte, 0, 1024))
 
-	var header, footer bytes.Buffer
+	// The Metadata field of SketchPayload is never written to - so pack an empty metadata as the footer
+	footer := []byte{0x12, 0}
 
-	compressor, _ := jsonstream.NewCompressor(input, output, header.Bytes(), footer.Bytes(), func() []byte { return []byte{} })
+	compressor, _ := stream.NewCompressor(input, output, []byte{}, footer, []byte{})
 	payloads := forwarder.Payloads{}
-
 	protobufTmp := make([]byte, 1024)
 
-	count := 0
 	dsl := make([]gogen.SketchPayload_Sketch_Dogsketch, 1)
 	for _, ss := range sl {
-		count++
 		if len(ss.Points) > cap(dsl) {
 			dsl = append(dsl, make([]gogen.SketchPayload_Sketch_Dogsketch, len(ss.Points)-cap(dsl))...)
 			dsl = dsl[:cap(dsl)]
@@ -124,64 +122,50 @@ func (sl SketchSeriesList) SmartMarshal() forwarder.Payloads {
 		}
 
 		// Pack the protobuf metadata
-		index := 0
-		protobufTmp[index] = 0xa
-		index++
-		index = encodeVarintAgentPayload(protobufTmp, index, uint64(sketch.Size()))
+		i := 0
+		protobufTmp[i] = 0xa
+		i++
+		i = encodeVarintAgentPayload(protobufTmp, i, uint64(sketch.Size()))
 
 		// Resize the pre-compression buffer if needed
-		totalItemSize := sketch.Size() + index
+		totalItemSize := sketch.Size() + i
 		if totalItemSize > cap(protobufTmp) {
 			protobufTmp = append(protobufTmp, make([]byte, totalItemSize-cap(protobufTmp))...)
 			protobufTmp = protobufTmp[:cap(protobufTmp)]
 		}
 
-		// marshal the sketch to the precompression buffer
-		n, _ := sketch.MarshalTo(protobufTmp[index:])
+		// Marshal the sketch to the precompression buffer
+		n, _ := sketch.MarshalTo(protobufTmp[i:])
 
-		// Compress
-		switch compressor.AddItem(protobufTmp[:n+index]) {
-		case jsonstream.ErrItemTooBig, jsonstream.ErrPayloadFull:
-			payload := addFooter(compressor)
+		// Compress the protobuf metadata and the marshaled sketch
+		switch compressor.AddItem(protobufTmp[:n+i]) {
+		case stream.ErrItemTooBig, stream.ErrPayloadFull:
+			// Since the compression buffer is full - flush it and rotate
+			payload, e := compressor.Close()
+			if e != nil {
+				return nil, e
+			}
 			payloads = append(payloads, &payload)
 			input.Reset()
 			output.Reset()
-			compressor, _ = jsonstream.NewCompressor(input, output, header.Bytes(), footer.Bytes(), func() []byte { return []byte{} })
+			compressor, _ = stream.NewCompressor(input, output, []byte{}, footer, []byte{})
 
-			// Add it to the new buffer (TODO handle error?)
-			compressor.AddItem(protobufTmp[:n+index])
-		default:
-			continue
+			// Add it to the new compression buffer - since this is a new compressor it should never overflow.
+			e = compressor.AddItem(protobufTmp[:n+i])
+			if e != nil {
+				return nil, e
+			}
 		}
 	}
 
-	payload := addFooter(compressor)
+	payload, _ := compressor.Close()
 	payloads = append(payloads, &payload)
 
 	// return payloads, nonCompressed
-	return payloads
+	return payloads, nil
 }
 
-func addFooter(compressor *jsonstream.Compressor) []byte {
-	// TODO-Brian: Check size if zip buffer is exactly full
-	compressor.AddItem([]byte{0x12})
-	compressor.AddItem(EncodeVarint(0))
-	payload, _ := compressor.Close()
-	return payload
-}
-
-func EncodeVarint(x uint64) []byte {
-	var buf [10]byte
-	var n int
-	for n = 0; x > 127; n++ {
-		buf[n] = 0x80 | uint8(x&0x7F)
-		x >>= 7
-	}
-	buf[n] = uint8(x)
-	n++
-	return buf[0:n]
-}
-
+// taken from agent_payload.pb.go
 func encodeVarintAgentPayload(dAtA []byte, offset int, v uint64) int {
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)

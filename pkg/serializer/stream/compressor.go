@@ -5,7 +5,7 @@
 
 //+build zlib
 
-package jsonstream
+package stream
 
 import (
 	"bytes"
@@ -93,10 +93,10 @@ type Compressor struct {
 	maxZippedItemSize   int
 	maxPayloadSize      int
 	maxUncompressedSize int
-	separatorFunc       func() []byte
+	separator           []byte
 }
 
-func NewCompressor(input, output *bytes.Buffer, header, footer []byte, separator func() []byte) (*Compressor, error) {
+func NewCompressor(input, output *bytes.Buffer, header, footer []byte, separator []byte) (*Compressor, error) {
 	// the backend accepts payloads up to 3MB compressed / 50MB uncompressed but
 	// prefers small uncompressed payloads of ~4MB
 	maxPayloadSize := config.Datadog.GetInt("serializer_max_payload_size")
@@ -111,7 +111,7 @@ func NewCompressor(input, output *bytes.Buffer, header, footer []byte, separator
 		maxUncompressedSize: maxUncompressedSize,
 		maxUnzippedItemSize: maxPayloadSize - len(footer) - len(header),
 		maxZippedItemSize:   maxUncompressedSize - compression.CompressBound(len(footer)+len(header)),
-		separatorFunc:       separator,
+		separator:           separator,
 	}
 
 	c.zipper = zlib.NewWriter(c.compressed)
@@ -133,7 +133,7 @@ func (c *Compressor) checkItemSize(data []byte) bool {
 func (c *Compressor) hasRoomForItem(item []byte) bool {
 	uncompressedDataSize := c.input.Len() + len(item)
 	if !c.firstItem {
-		uncompressedDataSize += len(c.separatorFunc())
+		uncompressedDataSize += len(c.separator)
 	}
 	return compression.CompressBound(uncompressedDataSize) <= c.remainingSpace() && c.uncompressedWritten+uncompressedDataSize <= c.maxUncompressedSize
 }
@@ -181,7 +181,7 @@ func (c *Compressor) AddItem(data []byte) error {
 	if c.firstItem {
 		c.firstItem = false
 	} else {
-		c.input.Write(c.separatorFunc())
+		c.input.Write(c.separator)
 	}
 
 	c.input.Write(data)
