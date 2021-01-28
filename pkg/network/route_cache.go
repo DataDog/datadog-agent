@@ -88,8 +88,8 @@ func (c *routeCache) Get(source, dest util.Address, netns uint32) (Route, bool) 
 func newRouteKey(source, dest util.Address, netns uint32) routeKey {
 	k := routeKey{netns: netns}
 
-	k.source = source.Clone()
-	k.dest = source.Clone()
+	k.source = source
+	k.dest = dest
 
 	switch len(dest.Bytes()) {
 	case 4:
