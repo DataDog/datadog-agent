@@ -63,9 +63,6 @@ func CheckSizeAndSerialize(m marshaler.Marshaler, compress bool, mType MarshalTy
 		return false, nil, nil, err
 	}
 
-	ratio := float64(len(payload)) / float64(len(compressedPayload))
-	_ = ratio
-
 	mustBeSplit := tooBigCompressed(compressedPayload) || tooBigUnCompressed(payload)
 
 	return mustBeSplit, compressedPayload, payload, nil

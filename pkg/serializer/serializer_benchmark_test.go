@@ -36,24 +36,6 @@ func buildSeries(numberOfSeries int) metrics.Series {
 	return testSeries
 }
 
-func buildSketchSeries(numberOfSeries int) metrics.Series {
-	testSeries := metrics.Series{}
-	for i := 0; i < numberOfSeries; i++ {
-		point := metrics.Serie{
-			Points: []metrics.Point{
-				{Ts: float64(time.Now().UnixNano()), Value: 1.2 * float64(i)},
-			},
-			MType:    metrics.APIGaugeType,
-			Name:     fmt.Sprintf("test.metrics%d", i),
-			Interval: 1,
-			Host:     "localHost",
-			Tags:     []string{"tag1", "tag2:yes"},
-		}
-		testSeries = append(testSeries, &point)
-	}
-	return testSeries
-}
-
 var results forwarder.Payloads
 
 func benchmarkJSONStream(b *testing.B, numberOfSeries int) {
