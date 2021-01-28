@@ -212,13 +212,13 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, in
 			}
 
 			switch *obj.Op {
-			case "||":
+			case "||", "or":
 				boolEvaluator, err := Or(cmpBool, nextBool, opts, state)
 				if err != nil {
 					return nil, nil, obj.Pos, err
 				}
 				return boolEvaluator, nil, obj.Pos, nil
-			case "&&":
+			case "&&", "and":
 				boolEvaluator, err := And(cmpBool, nextBool, opts, state)
 				if err != nil {
 					return nil, nil, obj.Pos, err

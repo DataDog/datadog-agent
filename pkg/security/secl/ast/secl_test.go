@@ -80,8 +80,17 @@ func TestRegister(t *testing.T) {
 	print(t, rule)
 }
 
-func TestBoolAnd(t *testing.T) {
+func TestIntAnd(t *testing.T) {
 	rule, err := ParseRule(`3 & 3`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	print(t, rule)
+}
+
+func TestBoolAnd(t *testing.T) {
+	rule, err := ParseRule(`true and true`)
 	if err != nil {
 		t.Error(err)
 	}

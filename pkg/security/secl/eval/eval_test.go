@@ -164,6 +164,7 @@ func TestSimpleBool(t *testing.T) {
 		Expected bool
 	}{
 		{Expr: `(444 == 444) && ("test" == "test")`, Expected: true},
+		{Expr: `(444 == 444) and ("test" == "test")`, Expected: true},
 		{Expr: `(444 != 444) && ("test" == "test")`, Expected: false},
 		{Expr: `(444 != 555) && ("test" == "test")`, Expected: true},
 		{Expr: `(444 != 555) && ("test" != "aaaa")`, Expected: true},
@@ -196,6 +197,7 @@ func TestPrecedence(t *testing.T) {
 	}{
 		{Expr: `false || (true != true)`, Expected: false},
 		{Expr: `false || true`, Expected: true},
+		{Expr: `false or true`, Expected: true},
 		{Expr: `1 == 1 & 1`, Expected: true},
 	}
 

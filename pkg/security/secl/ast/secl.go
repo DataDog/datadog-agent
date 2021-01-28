@@ -112,7 +112,7 @@ type Expression struct {
 	Pos lexer.Position
 
 	Comparison *Comparison        `parser:"@@"`
-	Op         *string            `parser:"[ @( \"|\" \"|\" | \"&\" \"&\" )"`
+	Op         *string            `parser:"[ @( \"|\" \"|\" | \"or\" | \"&\" \"&\" | \"and\" )"`
 	Next       *BooleanExpression `parser:"@@ ]"`
 }
 
