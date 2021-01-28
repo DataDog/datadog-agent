@@ -199,6 +199,8 @@ func TestPrecedence(t *testing.T) {
 		{Expr: `false || true`, Expected: true},
 		{Expr: `false or true`, Expected: true},
 		{Expr: `1 == 1 & 1`, Expected: true},
+		{Expr: `not true && false`, Expected: false},
+		{Expr: `not (true && false)`, Expected: true},
 	}
 
 	for _, test := range tests {

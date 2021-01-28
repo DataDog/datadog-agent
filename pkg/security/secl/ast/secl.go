@@ -154,7 +154,7 @@ type BitOperation struct {
 type Unary struct {
 	Pos lexer.Position
 
-	Op      *string  `parser:"( @( \"!\" | \"-\" | \"^\" )"`
+	Op      *string  `parser:"( @( \"!\" | \"not\" | \"-\" | \"^\" )"`
 	Unary   *Unary   `parser:"@@ )"`
 	Primary *Primary `parser:"| @@"`
 }

@@ -453,7 +453,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, in
 			}
 
 			switch *obj.Op {
-			case "!":
+			case "!", "not":
 				unaryBool, ok := unary.(*BoolEvaluator)
 				if !ok {
 					return nil, nil, pos, NewTypeError(pos, reflect.Bool)
