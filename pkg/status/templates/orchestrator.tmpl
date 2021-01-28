@@ -32,12 +32,12 @@ Orchestrator Explorer
   Orchestrator Endpoints
   ======================
   {{- range $key, $values := .OrchestratorEndpoints}}
-  {{- if gt (len $values) 1 -}}
+  {{- if gt (len $values) 1}}
   {{$key}} - API Keys ending with:
   {{- range $values }}
       - {{ . }}
   {{- end}}
-  {{else}}
+  {{- else}}
   {{$key}} - API Key ending with: {{index $values 0}}
   {{- end}}
   {{- end}}
