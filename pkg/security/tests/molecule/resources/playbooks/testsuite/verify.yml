@@ -5,10 +5,11 @@
   - debug:
       msg: "sudo /tmp/testsuite -test.v -test.run {{ lookup('env', 'TEST_PATTERN') | default('^.*$', True) }}"
 
-  - shell: "/tmp/testsuite -test.v -test.run {{ lookup('env', 'TEST_PATTERN') | default('^.*$', True) }} &> /tmp/logs"
+  - shell: "/tmp/testsuite {{ lookup('env', 'TEST_FLAGS') }} -test.v -test.run {{ lookup('env', 'TEST_PATTERN') | default('^.*$', True) }} 2>&1 > /tmp/logs"
     become: true
+    ignore_errors: yes
 
   - fetch:
-      dest: ../../../../testsuite.log
+      dest: "../../../../testsuite-{{ ansible_facts['nodename'] }}.log"
       src: /tmp/logs
       flat: true
