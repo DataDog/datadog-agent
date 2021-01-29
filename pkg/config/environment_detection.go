@@ -38,6 +38,8 @@ const (
 	defaultLinuxContainerdSocket   = "/var/run/containerd/containerd.sock"
 	defaultLinuxCrioSocket         = "/var/run/crio/crio.sock"
 	defaultHostMountPrefix         = "/host"
+	unixSocketPrefix               = "unix://"
+	winNamedPipePrefix             = "npipe://"
 )
 
 // FeatureMap represents all detected features
@@ -61,7 +63,7 @@ func IsFeaturePresent(feature Feature) bool {
 func detectFeatures() {
 	if Datadog.GetBool("autoconf_from_environment") {
 		detectContainerFeatures()
-		log.Debugf("Features detected from environment: %v", detectedFeatures)
+		log.Infof("Features detected from environment: %v", detectedFeatures)
 	}
 }
 
@@ -71,22 +73,24 @@ func detectContainerFeatures() {
 		detectedFeatures[Docker] = struct{}{}
 	} else {
 		for _, defaultDockerSocketPath := range getDefaultDockerPaths() {
-			if _, err := os.Stat(defaultDockerSocketPath); err == nil {
+			if checkSocketExists(defaultDockerSocketPath) {
 				detectedFeatures[Docker] = struct{}{}
+
 				// Even though it does not modify configuration, using the OverrideFunc mechanism for uniformity
 				AddOverrideFunc(func(Config) {
-					os.Setenv("DOCKER_HOST", "unix://"+defaultDockerSocketPath)
+					os.Setenv("DOCKER_HOST", getDefaultDockerSocketType()+defaultDockerSocketPath)
 				})
 				break
 			}
 		}
 	}
 
-	// CRI Socket - Do not automatically default socket path if Docker is running as Docker is now wrapping containerd
+	// CRI Socket - Do not automatically default socket path if the Agent runs in Docker
+	// as we'll very likely discover the containerd instance wrapped by Docker.
 	criSocket := Datadog.GetString("cri_socket_path")
-	if len(criSocket) == 0 {
+	if criSocket == "" && !IsDockerRuntime() {
 		for _, defaultCriPath := range getDefaultCriPaths() {
-			if _, err := os.Stat(defaultCriPath); err == nil {
+			if checkSocketExists(defaultCriPath) {
 				criSocket = defaultCriPath
 				AddOverride("cri_socket_path", defaultCriPath)
 				// Currently we do not support multiple CRI paths
@@ -116,11 +120,37 @@ func detectContainerFeatures() {
 	}
 }
 
+func checkSocketExists(path string) bool {
+	f, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+
+	// On Windows, we cannot easily verify that a path is a named pipe
+	if runtime.GOOS == "windows" {
+		return true
+	}
+
+	if f.Mode()&os.ModeSocket != 0 {
+		return true
+	}
+
+	return false
+}
+
 func getHostMountPrefixes() []string {
 	if IsContainerized() {
 		return []string{"", defaultHostMountPrefix}
 	}
 	return []string{""}
+}
+
+func getDefaultDockerSocketType() string {
+	if runtime.GOOS == "windows" {
+		return winNamedPipePrefix
+	}
+
+	return unixSocketPrefix
 }
 
 func getDefaultDockerPaths() []string {
