@@ -176,7 +176,9 @@ func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 }
 
 // StatsWithPermByPID returns the stats that require extra permission to collect for each process
-func (p *Probe) StatsWithPermByPID() (map[int32]*StatsWithPerm, error) {
+// the parameter `returnZeroVals` controls whether to include all zero stats or not in the return map,
+// not returning all zero stats would help process-agent to deserialize less data
+func (p *Probe) StatsWithPermByPID(returnZeroVals bool) (map[int32]*StatsWithPerm, error) {
 	pids, err := p.getActivePIDs()
 	if err != nil {
 		return nil, err
@@ -190,9 +192,16 @@ func (p *Probe) StatsWithPermByPID() (map[int32]*StatsWithPerm, error) {
 			continue
 		}
 
+		fds := p.getFDCount(pathForPID)
+		io := p.parseIO(pathForPID)
+
+		if !returnZeroVals && fds == 0 && io.IsZeroValue() {
+			continue
+		}
+
 		statsByPID[pid] = &StatsWithPerm{
-			OpenFdCount: p.getFDCount(pathForPID),
-			IOStat:      p.parseIO(pathForPID),
+			OpenFdCount: fds,
+			IOStat:      io,
 		}
 	}
 	return statsByPID, nil

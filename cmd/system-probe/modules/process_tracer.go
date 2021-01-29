@@ -18,6 +18,10 @@ import (
 // ErrProcessTracerUnsupported is an error type indicating that the process_tracer is not support in the running environment
 var ErrProcessTracerUnsupported = errors.New("process_tracer module unsupported")
 
+// ReturnZeroStats controls whether process_tracer returns stats that are all zeros.
+// Currently it's set to false to reduce the deserialization work process-agent has to do
+var ReturnZeroStats = false
+
 // ProcessTracer is a module that fetches process level data
 var ProcessTracer = api.Factory{
 	Name: "process_tracer",
@@ -47,7 +51,7 @@ func (t *processTracer) Register(httpMux *http.ServeMux) error {
 	var runCounter uint64
 	httpMux.HandleFunc("/proc/stats", func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
-		stats, err := t.probe.StatsWithPermByPID()
+		stats, err := t.probe.StatsWithPermByPID(ReturnZeroStats)
 		if err != nil {
 			log.Errorf("unable to retrieve stats using process_tracer: %s", err)
 			w.WriteHeader(500)

@@ -89,6 +89,11 @@ type IOCountersStat struct {
 	WriteBytes uint64
 }
 
+// IsZeroValue checks whether all fields are 0 in value for IOCountersStat
+func (i *IOCountersStat) IsZeroValue() bool {
+	return i.ReadCount == 0 && i.WriteCount == 0 && i.ReadBytes == 0 && i.WriteBytes == 0
+}
+
 // NumCtxSwitchesStat holds context switch metrics for a process
 type NumCtxSwitchesStat struct {
 	Voluntary   int64
