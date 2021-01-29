@@ -32,7 +32,7 @@ type CPUCheck struct {
 }
 
 // Run executes the check
-func (c *CPUCheck) Run() error {
+func (c *CPUCheck) Run( error {
 	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
 		return err
