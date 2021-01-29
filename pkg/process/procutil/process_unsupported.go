@@ -29,6 +29,6 @@ func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 }
 
 // StatsWithPermByPID is currently not implemented in non-linux environments
-func (p *Probe) StatsWithPermByPID() (map[int32]*StatsWithPerm, error) {
+func (p *Probe) StatsWithPermByPID(returnZeroVals bool) (map[int32]*StatsWithPerm, error) {
 	return nil, fmt.Errorf("StatsWithPermByPID is not implemented in non-linux environment")
 }
