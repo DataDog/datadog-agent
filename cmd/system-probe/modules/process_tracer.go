@@ -26,6 +26,11 @@ var ReturnZeroStats = false
 var ProcessTracer = api.Factory{
 	Name: "process_tracer",
 	Fn: func(agentConfig *config.AgentConfig) (api.Module, error) {
+		if !agentConfig.CheckIsEnabled("Process Tracer") {
+			log.Infof("Process tracer disabled")
+			return nil, api.ErrNotEnabled
+		}
+
 		log.Infof("Creating process_tracer for: %s", filepath.Base(os.Args[0]))
 
 		p := procutil.NewProcessProbe()
