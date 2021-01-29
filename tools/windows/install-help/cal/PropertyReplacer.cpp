@@ -137,10 +137,11 @@ std::wstring replace_yaml_properties(std::wstring input, const property_retrieve
         {L"HOSTNAME_FQDN_ENABLED", L"^[ #]*hostname_fqdn:.*", format_simple_value(L"hostname_fqdn:") },
     })
     {
-        auto propValue = propertyRetriever(std::get<WxsKey>(prop));
+        auto propKey = std::get<WxsKey>(prop);
+        auto propValue = propertyRetriever(propKey);
         if (propValue)
         {
-            WcaLog(LOGMSG_STANDARD, "Found %S=%S in MSI install database\n", std::get<WxsKey>(prop).c_str(), *propValue->c_str());
+            WcaLog(LOGMSG_STANDARD, "Found %S=%S in MSI install database\n", propKey.c_str(), propValue->c_str());
             PropertyReplacer::match(input, std::get<Regex>(prop)).replace_with(std::get<Replacement>(prop)(*propValue, propertyRetriever));
         }
     }
