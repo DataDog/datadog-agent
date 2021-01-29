@@ -969,47 +969,6 @@ func TestShouldSkipExcludedConnection(t *testing.T) {
 	}, "Unable to find UDP connection to 127.0.0.1:80")
 }
 
-func TestTooSmallBPFMap(t *testing.T) {
-	// Enable BPF-based system probe with BPF maps size = 1
-	config := testConfig()
-	config.MaxTrackedConnections = 1
-
-	tr, err := NewTracer(config)
-	require.NoError(t, err)
-	defer tr.Stop()
-
-	// Create TCP Server which sends back serverMessageSize bytes
-	server := NewTCPServer(func(c net.Conn) {
-		r := bufio.NewReader(c)
-		r.ReadBytes(byte('\n'))
-		c.Write(genPayload(serverMessageSize))
-		c.Close()
-	})
-	doneChan := make(chan struct{})
-	err = server.Run(doneChan)
-	require.NoError(t, err)
-	defer close(doneChan)
-
-	// Connect to server two times
-	// Write clientMessageSize to server
-	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
-	require.NoError(t, err)
-	defer c.Close()
-	_, err = c.Write(genPayload(clientMessageSize))
-	require.NoError(t, err)
-
-	// Second time
-	c2, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
-	require.NoError(t, err)
-	defer c2.Close()
-	_, err = c2.Write(genPayload(clientMessageSize))
-	require.NoError(t, err)
-
-	connections := getConnections(t, tr)
-	// we should only have one connection returned
-	assert.Len(t, connections.Conns, 1)
-}
-
 func TestIsExpired(t *testing.T) {
 	// 10mn
 	var timeout uint64 = 600000000000
