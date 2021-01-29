@@ -328,19 +328,19 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	statsdServer.ServerlessMode = true // we're running in a serverless environment (will removed host field from samples)
 	// initializes the trace agent
 	// --------------------------------
-	tc, err := traceConfig.Load(datadogConfigPath)
-	for _, ep := range tc.Endpoints {
-		ep.APIKey = apiKey
+	var ta *traceAgent.Agent
+	if config.Datadog.GetBool("apm_config.enabled") {
+		tc, confErr := traceConfig.Load(datadogConfigPath)
+		tc.SynchronousFlushing = true
+		if confErr != nil {
+			log.Errorf("Unable to load trace agent config: %s", confErr)
+			return
+		}
+		ta = traceAgent.NewAgent(ctx, tc)
+		go func() {
+			ta.Run()
+		}()
 	}
-	tc.SynchronousFlushing = true
-	if err != nil {
-		log.Errorf("Unable to load trace agent config: %s", err)
-		return
-	}
-	ta := traceAgent.NewAgent(ctx, tc)
-	go func() {
-		ta.Run()
-	}()
 
 	// run the invocation loop in a routine
 	// we don't want to start this mainloop before because once we're waiting on
