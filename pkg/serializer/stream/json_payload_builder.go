@@ -22,16 +22,16 @@ var jsonConfig = jsoniter.Config{
 	ObjectFieldMustBeSimpleString: true,
 }.Froze()
 
-// JsonPayloadBuilder is used to build payloads. JsonPayloadBuilder allocates memory based
+// JSONPayloadBuilder is used to build payloads. JSONPayloadBuilder allocates memory based
 // on what was previously need to serialize payloads. Keep that in mind and
-// use multiple JsonPayloadBuilders for different sources.
-type JsonPayloadBuilder struct {
+// use multiple JSONPayloadBuilders for different sources.
+type JSONPayloadBuilder struct {
 	inputSizeHint, outputSizeHint int
 }
 
-// NewJsonPayloadBuilder creates a new JsonPayloadBuilder with default values.
-func NewJsonPayloadBuilder() *JsonPayloadBuilder {
-	return &JsonPayloadBuilder{
+// NewJSONPayloadBuilder creates a new JSONPayloadBuilder with default values.
+func NewJSONPayloadBuilder() *JSONPayloadBuilder {
+	return &JSONPayloadBuilder{
 		inputSizeHint:  4096,
 		outputSizeHint: 4096,
 	}
@@ -49,12 +49,12 @@ const (
 )
 
 // Build serializes a metadata payload and sends it to the forwarder
-func (b *JsonPayloadBuilder) Build(m marshaler.StreamJSONMarshaler) (forwarder.Payloads, error) {
+func (b *JSONPayloadBuilder) Build(m marshaler.StreamJSONMarshaler) (forwarder.Payloads, error) {
 	return b.BuildWithOnErrItemTooBigPolicy(m, DropItemOnErrItemTooBig)
 }
 
 // BuildWithOnErrItemTooBigPolicy serializes a metadata payload and sends it to the forwarder
-func (b *JsonPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
+func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	m marshaler.StreamJSONMarshaler,
 	policy OnErrItemTooBigPolicy) (forwarder.Payloads, error) {
 

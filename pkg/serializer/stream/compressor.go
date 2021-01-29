@@ -73,6 +73,7 @@ var (
 )
 
 var (
+	// ErrPayloadFull is returned when the payload buffer is full
 	ErrPayloadFull = errors.New("reached maximum payload size")
 
 	// ErrItemTooBig is returned when a item alone exceeds maximum payload size

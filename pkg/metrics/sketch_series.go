@@ -7,7 +7,6 @@ import (
 	"github.com/DataDog/agent-payload/gogen"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
@@ -80,18 +79,22 @@ func (sl SketchSeriesList) MarshalJSON() ([]byte, error) {
 	return reqBody.Bytes(), err
 }
 
-// StreamCompressPayloads uses the stream compressor to marshal and compress sketch series in constant space.
+// MarshalSplitCompress uses the stream compressor to marshal and compress sketch series in constant space.
 // If a payload is larger than the max, a new payload will be generated.
-func (sl SketchSeriesList) StreamCompressPayloads() (forwarder.Payloads, error) {
+func (sl SketchSeriesList) MarshalSplitCompress() ([]*[]byte, error) {
+	// func (sl SketchSeriesList) MarshalSplitCompress() (forwarder.Payloads, error) {
 	input := bytes.NewBuffer(make([]byte, 0, 1024))
 	output := bytes.NewBuffer(make([]byte, 0, 1024))
 
 	// The Metadata field of SketchPayload is never written to - so pack an empty metadata as the footer
 	footer := []byte{0x12, 0}
 
-	compressor, _ := stream.NewCompressor(input, output, []byte{}, footer, []byte{})
-	payloads := forwarder.Payloads{}
-	protobufTmp := make([]byte, 1024)
+	compressor, e := stream.NewCompressor(input, output, []byte{}, footer, []byte{})
+	if e != nil {
+		return nil, e
+	}
+	payloads := []*[]byte{}
+	precompressionBuf := make([]byte, 1024)
 
 	dsl := make([]gogen.SketchPayload_Sketch_Dogsketch, 1)
 	for _, ss := range sl {
@@ -124,22 +127,25 @@ func (sl SketchSeriesList) StreamCompressPayloads() (forwarder.Payloads, error) 
 
 		// Pack the protobuf metadata
 		i := 0
-		protobufTmp[i] = 0xa
+		precompressionBuf[i] = 0xa
 		i++
-		i = encodeVarintAgentPayload(protobufTmp, i, uint64(sketch.Size()))
+		i = encodeVarintAgentPayload(precompressionBuf, i, uint64(sketch.Size()))
 
 		// Resize the pre-compression buffer if needed
 		totalItemSize := sketch.Size() + i
-		if totalItemSize > cap(protobufTmp) {
-			protobufTmp = append(protobufTmp, make([]byte, totalItemSize-cap(protobufTmp))...)
-			protobufTmp = protobufTmp[:cap(protobufTmp)]
+		if totalItemSize > cap(precompressionBuf) {
+			precompressionBuf = append(precompressionBuf, make([]byte, totalItemSize-cap(precompressionBuf))...)
+			precompressionBuf = precompressionBuf[:cap(precompressionBuf)]
 		}
 
 		// Marshal the sketch to the precompression buffer
-		n, _ := sketch.MarshalTo(protobufTmp[i:])
+		n, e := sketch.MarshalTo(precompressionBuf[i:])
+		if e != nil {
+			return nil, e
+		}
 
 		// Compress the protobuf metadata and the marshaled sketch
-		switch compressor.AddItem(protobufTmp[:n+i]) {
+		switch compressor.AddItem(precompressionBuf[:i+n]) {
 		case stream.ErrItemTooBig, stream.ErrPayloadFull:
 			// Since the compression buffer is full - flush it and rotate
 			payload, e := compressor.Close()
@@ -149,17 +155,23 @@ func (sl SketchSeriesList) StreamCompressPayloads() (forwarder.Payloads, error) 
 			payloads = append(payloads, &payload)
 			input.Reset()
 			output.Reset()
-			compressor, _ = stream.NewCompressor(input, output, []byte{}, footer, []byte{})
+			compressor, e = stream.NewCompressor(input, output, []byte{}, footer, []byte{})
+			if e != nil {
+				return nil, e
+			}
 
 			// Add it to the new compression buffer - since this is a new compressor it should never overflow.
-			e = compressor.AddItem(protobufTmp[:n+i])
+			e = compressor.AddItem(precompressionBuf[:n+i])
 			if e != nil {
 				return nil, e
 			}
 		}
 	}
 
-	payload, _ := compressor.Close()
+	payload, e := compressor.Close()
+	if e != nil {
+		return nil, e
+	}
 	payloads = append(payloads, &payload)
 
 	// return payloads, nonCompressed

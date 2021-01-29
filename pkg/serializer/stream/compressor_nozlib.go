@@ -8,7 +8,9 @@
 package stream
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 )
 
 const (
@@ -17,6 +19,27 @@ const (
 )
 
 var (
+	// ErrPayloadFull is returned when the payload buffer is full
+	ErrPayloadFull = errors.New("reached maximum payload size")
+
 	// ErrItemTooBig is returned when a item alone exceeds maximum payload size
 	ErrItemTooBig = errors.New("item alone exceeds maximum payload size")
 )
+
+// Compressor is not implemented
+type Compressor struct{}
+
+// NewCompressor not implemented
+func NewCompressor(input, output *bytes.Buffer, header, footer []byte, separator []byte) (*Compressor, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+// AddItem not implemented
+func (c *Compressor) AddItem(data []byte) error {
+	return fmt.Errorf("not implemented")
+}
+
+// Close not implemented
+func (c *Compressor) Close() ([]byte, error) {
+	return nil, fmt.Errorf("not implemented")
+}

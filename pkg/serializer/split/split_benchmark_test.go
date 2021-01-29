@@ -46,7 +46,7 @@ func benchmarkSplitPayloadsSketchesNew(b *testing.B, numPoints int) {
 	b.ResetTimer()
 
 	for n := 0; n < b.N; n++ {
-		testSketchSeries.StreamCompressPayloads()
+		testSketchSeries.MarshalSplitCompress()
 	}
 }
 

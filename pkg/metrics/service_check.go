@@ -189,6 +189,11 @@ func (sc ServiceChecks) SplitPayload(times int) ([]marshaler.Marshaler, error) {
 	return splitPayloads, nil
 }
 
+// MarshalSplitCompress not implemented
+func (sc ServiceChecks) MarshalSplitCompress() ([]*[]byte, error) {
+	return nil, fmt.Errorf("ServiceChecks MarshalSplitCompress is not implemented")
+}
+
 func (sc ServiceCheck) String() string {
 	s, err := json.Marshal(sc)
 	if err != nil {

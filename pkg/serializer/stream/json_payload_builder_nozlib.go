@@ -25,16 +25,16 @@ const (
 	FailOnErrItemTooBig
 )
 
-// JsonPayloadBuilder is not implemented when zlib is not available.
-type JsonPayloadBuilder struct {
+// JSONPayloadBuilder is not implemented when zlib is not available.
+type JSONPayloadBuilder struct {
 }
 
-// NewJsonPayloadBuilder is not implemented when zlib is not available.
-func NewJsonPayloadBuilder() *JsonPayloadBuilder {
+// NewJSONPayloadBuilder is not implemented when zlib is not available.
+func NewJSONPayloadBuilder() *JSONPayloadBuilder {
 	return nil
 }
 
 // BuildWithOnErrItemTooBigPolicy is not implemented when zlib is not available.
-func (b *JsonPayloadBuilder) BuildWithOnErrItemTooBigPolicy(marshaler.StreamJSONMarshaler, OnErrItemTooBigPolicy) (forwarder.Payloads, error) {
+func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(marshaler.StreamJSONMarshaler, OnErrItemTooBigPolicy) (forwarder.Payloads, error) {
 	return nil, fmt.Errorf("not implemented")
 }

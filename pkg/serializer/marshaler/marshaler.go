@@ -12,6 +12,7 @@ type Marshaler interface {
 	MarshalJSON() ([]byte, error)
 	Marshal() ([]byte, error)
 	SplitPayload(int) ([]Marshaler, error)
+	MarshalSplitCompress() ([]*[]byte, error)
 }
 
 // StreamJSONMarshaler is an interface for metrics that are able to serialize themselves in a stream
