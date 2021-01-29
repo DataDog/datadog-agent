@@ -450,6 +450,10 @@ def omnibus_build(
                 env['SIGN_PFX'] = "{}".format(pfxfile)
                 env['SIGN_PFX_PW'] = "{}".format(pfxpass)
 
+            if sys.platform == 'win32' and (release_version == 'nightly' or release_version == 'nightly-a7'):
+                # Produce debug installer on Windows for nightlies
+                env["DEBUG_CUSTOMACTION"] = 'true'
+
             if sys.platform == 'darwin':
                 # Target MacOS 10.12
                 env['MACOSX_DEPLOYMENT_TARGET'] = '10.12'
