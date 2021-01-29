@@ -177,6 +177,13 @@
                       Name="ConfigRoot" />
     </Property>
 
+    <Property Id="DD_FILTER_INSTALLED">
+      <RegistrySearch Key="SYSTEM\CurrentControlSet\Services\ddnpm"
+                      Root="HKLM"
+                      Type="raw"
+                      Id="DDFILTERINSTALLED_REGSEARCH"
+                      Name="Start" />
+    </Property>
     <DirectoryRef Id="PROJECTLOCATION">
       <Component Id="CleanupMainApplicationFolder" Guid="096249cf-3fe7-4342-a80f-77101ceed5fe">
         <!-- We need to use APPLICATIONROOTDIRECTORY variable here or RemoveFolderEx
@@ -560,7 +567,7 @@
                >
         <MergeRef Id="ddnpminstall"/>
         
-        <Condition Level="1"><![CDATA[NPM OR NPMPVS="true"]]></Condition>
+        <Condition Level="1"><![CDATA[NPM OR (DD_FILTER_INSTALLED and (not WixUI_InstallMode = "Change"))]]></Condition>
         
       </Feature>
     <?endif ?>
