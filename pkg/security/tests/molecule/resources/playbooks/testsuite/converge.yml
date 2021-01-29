@@ -2,6 +2,36 @@
 - name: Converge
   hosts: all
   tasks:
+  - name: Add microchip8 repository for xfsprogs
+    community.general.zypper_repository:
+      repo: 'https://download.opensuse.org/repositories/home:microchip8/SLE_12_SP5/home:microchip8.repo'
+      state: present
+      disable_gpg_check: true
+    become: true
+    when: ansible_distribution == "SLES" and ansible_distribution_major_version == "12"
+    ignore_errors: true
+
+  - name: Refresh all repos
+    community.general.zypper_repository:
+      repo: '*'
+      runrefresh: yes
+    become: true
+    when: ansible_distribution == "SLES" and ansible_distribution_major_version == "12"
+
+  - name: Add the xfs module
+    community.general.modprobe:
+      name: xfs
+      state: present
+      params: 'allow_unsupported=1'
+    become: true
+    when: ansible_distribution == "SLES" and ansible_distribution_major_version == "12"
+
+  - name: Install xfsprogs
+    package:
+      name: xfsprogs
+      state: present
+    become: true
+
   - name: Copy testsuite
     copy:
       src: ../../../../testsuite
