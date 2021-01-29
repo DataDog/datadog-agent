@@ -20,6 +20,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"gotest.tools/assert"
 )
 
 func TestDentryRename(t *testing.T) {
@@ -456,9 +457,8 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode = getInode(t, testFile); inode != event.Open.Inode {
-				t.Logf("expected inode not found %d(real) != %d\n", inode, event.Open.Inode)
-			}
+			inode = getInode(t, testFile)
+			assert.Equal(t, event.Open.Inode, inode, "wrong open inode")
 		}
 
 		if err := os.Remove(testFile); err != nil {
@@ -469,9 +469,7 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode != event.Unlink.Inode {
-				t.Logf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
-			}
+			assert.Equal(t, event.Unlink.Inode, inode, "wrong unlink inode")
 		}
 	})
 
@@ -495,11 +493,8 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode = getInode(t, testFile); inode != event.Open.Inode {
-				t.Logf("expected inode not found %d(real) != %d\n", inode, event.Open.Inode)
-			}
-
-			inode = event.Open.Inode
+			inode = getInode(t, testFile)
+			assert.Equal(t, inode, event.Open.Inode, "wrong open inode")
 		}
 
 		if err := os.Remove(testFile); err != nil {
@@ -510,9 +505,7 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode != event.Unlink.Inode {
-				t.Logf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
-			}
+			assert.Equal(t, event.Unlink.Inode, inode, "wrong unlink inode")
 		}
 	})
 
@@ -536,11 +529,8 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode = getInode(t, testFile); inode != event.Open.Inode {
-				t.Logf("expected inode not found %d(real) != %d\n", inode, event.Open.Inode)
-			}
-
-			inode = event.Open.Inode
+			inode = getInode(t, testFile)
+			assert.Equal(t, event.Open.Inode, inode, "wrong open inode")
 		}
 
 		if err := os.Remove(testFile); err != nil {
@@ -551,9 +541,7 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode != event.Unlink.Inode {
-				t.Logf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
-			}
+			assert.Equal(t, event.Unlink.Inode, inode, "wrong unlink inode")
 		}
 	})
 
@@ -582,11 +570,8 @@ func TestDentryOverlay(t *testing.T) {
 				t.Errorf("expected filename not found %s != %s", value.(string), oldFile)
 			}
 
-			if inode = getInode(t, newFile); inode != event.Rename.New.Inode {
-				t.Logf("expected inode not found %d(real) != %d\n", inode, event.Rename.New.Inode)
-			}
-
-			inode = event.Rename.New.Inode
+			inode = getInode(t, newFile)
+			assert.Equal(t, event.Rename.New.Inode, inode, "wrong rename inode")
 		}
 
 		if err := os.Remove(newFile); err != nil {
@@ -597,9 +582,7 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode != event.Unlink.Inode {
-				t.Logf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
-			}
+			assert.Equal(t, event.Unlink.Inode, inode, "wrong unlink inode")
 		}
 	})
 
@@ -619,9 +602,7 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode != event.Rmdir.Inode {
-				t.Logf("expected inode not found %d(real) != %d\n", inode, event.Rename.New.Inode)
-			}
+			assert.Equal(t, event.Rmdir.Inode, inode, "wrong rmdir inode")
 		}
 	})
 
@@ -641,11 +622,8 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode = getInode(t, testFile); inode != event.Chmod.Inode {
-				t.Logf("expected inode not found %d(real) != %d\n", inode, event.Chmod.Inode)
-			}
-
-			inode = event.Chmod.Inode
+			inode = getInode(t, testFile)
+			assert.Equal(t, event.Chmod.Inode, inode, "wrong chmod inode")
 		}
 
 		if err := os.Remove(testFile); err != nil {
@@ -656,9 +634,7 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode != event.Unlink.Inode {
-				t.Logf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
-			}
+			assert.Equal(t, event.Unlink.Inode, inode, "wrong unlink inode")
 		}
 	})
 
@@ -676,9 +652,8 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode := getInode(t, testFile); inode != event.Mkdir.Inode {
-				t.Logf("expected inode not found %d(real) != %d\n", inode, event.Mkdir.Inode)
-			}
+			inode := getInode(t, testFile)
+			assert.Equal(t, event.Mkdir.Inode, inode, "wrong mkdir inode")
 		}
 	})
 
@@ -698,11 +673,8 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode = getInode(t, testFile); inode != event.Utimes.Inode {
-				t.Logf("expected inode not found %d(real) != %d\n", inode, event.Utimes.Inode)
-			}
-
-			inode = event.Utimes.Inode
+			inode = getInode(t, testFile)
+			assert.Equal(t, event.Utimes.Inode, inode, "wrong utimes inode")
 		}
 
 		if err := os.Remove(testFile); err != nil {
@@ -713,9 +685,7 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode != event.Unlink.Inode {
-				t.Logf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
-			}
+			assert.Equal(t, event.Unlink.Inode, inode, "wrong unlink inode")
 		}
 	})
 
@@ -735,11 +705,8 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode = getInode(t, testFile); inode != event.Chown.Inode {
-				t.Logf("expected inode not found %d(real) != %d\n", inode, event.Chown.Inode)
-			}
-
-			inode = event.Chown.Inode
+			inode = getInode(t, testFile)
+			assert.Equal(t, event.Chown.Inode, inode, "wrong chown inode")
 		}
 
 		if err := os.Remove(testFile); err != nil {
@@ -750,9 +717,7 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode != event.Unlink.Inode {
-				t.Logf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
-			}
+			assert.Equal(t, event.Unlink.Inode, inode, "wrong unlink inode")
 		}
 	})
 
@@ -780,11 +745,8 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode = getInode(t, testFile); inode != event.SetXAttr.Inode {
-				t.Logf("expected inode not found %d(real) != %d\n", inode, event.SetXAttr.Inode)
-			}
-
-			inode = event.SetXAttr.Inode
+			inode = getInode(t, testFile)
+			assert.Equal(t, event.SetXAttr.Inode, inode, "wrong setxattr inode")
 		}
 
 		if err := os.Remove(testFile); err != nil {
@@ -795,9 +757,7 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode != event.Unlink.Inode {
-				t.Logf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
-			}
+			assert.Equal(t, event.Unlink.Inode, inode, "wrong unlink inode")
 		}
 	})
 
@@ -817,11 +777,8 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode = getInode(t, testFile); inode != event.Open.Inode {
-				t.Logf("expected inode not found %d(real) != %d\n", inode, event.Open.Inode)
-			}
-
-			inode = event.Open.Inode
+			inode = getInode(t, testFile)
+			assert.Equal(t, event.Open.Inode, inode, "wrong open inode")
 		}
 
 		if err := os.Remove(testFile); err != nil {
@@ -832,9 +789,7 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode != event.Unlink.Inode {
-				t.Logf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
-			}
+			assert.Equal(t, event.Unlink.Inode, inode, "wrong unlink inode")
 		}
 	})
 
@@ -859,11 +814,8 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode = getInode(t, testSrc); inode != event.Link.Source.Inode {
-				t.Logf("expected inode not found %d(real) != %d\n", inode, event.Link.Source.Inode)
-			}
-
-			inode = event.Link.Source.Inode
+			inode = getInode(t, testSrc)
+			assert.Equal(t, event.Link.Source.Inode, inode, "wrong link inode")
 		}
 
 		if err := os.Remove(testSrc); err != nil {
@@ -874,9 +826,7 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode != event.Unlink.Inode {
-				t.Logf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
-			}
+			assert.Equal(t, event.Unlink.Inode, inode, "wrong unlink inode")
 		}
 
 		if err := os.Remove(testTarget); err != nil {
@@ -887,9 +837,7 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode != event.Unlink.Inode {
-				t.Logf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
-			}
+			assert.Equal(t, event.Unlink.Inode, inode, "wrong unlink inode")
 		}
 	})
 
