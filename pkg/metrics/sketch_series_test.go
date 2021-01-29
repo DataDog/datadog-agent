@@ -96,22 +96,15 @@ func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 		sl[i] = Makeseries(i)
 	}
 
-	payload, _ := sl.Marshal() // old way
-	// payloads, noncompressed := sl.MarshalSplitCompress() // new compressed
-	payloads, err := sl.MarshalSplitCompress() // new compressed
+	payload, _ := sl.Marshal()
+	payloads, err := sl.MarshalSplitCompress()
 
 	assert.Nil(t, err)
 
 	reader := bytes.NewReader(*payloads[0])
-	r, e := zlib.NewReader(reader)
-	decompressed, ee := ioutil.ReadAll(r)
+	r, _ := zlib.NewReader(reader)
+	decompressed, _ := ioutil.ReadAll(r)
 	r.Close()
-
-	_ = e
-	_ = ee
-	_ = payload
-	_ = decompressed
-	// _ = noncompressed
 
 	// Check that we encoded the protobuf correctly
 	assert.Equal(t, decompressed, payload)
@@ -167,6 +160,7 @@ func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 	}
 
 	assert.Equal(t, recoveredCount, len(sl))
+	assert.Greater(t, len(recoveredSketches), 1)
 
 	i := 0
 	for _, pl := range recoveredSketches {
