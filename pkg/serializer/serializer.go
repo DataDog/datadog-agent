@@ -321,7 +321,7 @@ func (s *Serializer) SendSketch(sketches metrics.SketchSeriesList) error {
 	var extraHeaders http.Header
 
 	payloads, err := sketches.StreamCompressPayloads()
-	if err != nil {
+	if err == nil {
 		return s.Forwarder.SubmitSketchSeries(payloads, protobufExtraHeadersWithCompression)
 	}
 
