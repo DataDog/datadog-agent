@@ -195,7 +195,7 @@ func (p *Probe) StatsWithPermByPID(returnZeroVals bool) (map[int32]*StatsWithPer
 		fds := p.getFDCount(pathForPID)
 		io := p.parseIO(pathForPID)
 
-		if !returnZeroVals && fds == 0 && io.IsZeroValue() {
+		if !returnZeroVals && fds <= 0 && io.IsZeroValue() {
 			continue
 		}
 

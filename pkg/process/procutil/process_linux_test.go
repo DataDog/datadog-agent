@@ -792,6 +792,24 @@ func TestGetFDCountLocalFS(t *testing.T) {
 	}
 }
 
+func TestStatsWithPermByPID(t *testing.T) {
+	os.Setenv("HOST_PROC", "resources/zero_io")
+	defer os.Unsetenv("HOST_PROC")
+
+	probe := NewProcessProbe()
+	defer probe.Close()
+	stats, err := probe.StatsWithPermByPID(false)
+	require.NoError(t, err)
+	assert.Empty(t, stats)
+
+	pid := int32(3)
+	stats, err = probe.StatsWithPermByPID(true)
+	require.NoError(t, err)
+	require.Contains(t, stats, pid)
+	assert.True(t, stats[pid].IOStat.IsZeroValue())
+	assert.Equal(t, int32(-1), stats[pid].OpenFdCount)
+}
+
 func BenchmarkGetCmdGopsutilTestFS(b *testing.B) {
 	os.Setenv("HOST_PROC", "resources/test_procfs/proc")
 	defer os.Unsetenv("HOST_PROC")
