@@ -15,6 +15,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -482,6 +483,12 @@ type tracePipeLogger struct {
 	stop chan struct{}
 }
 
+func (l *tracePipeLogger) handleEvent(event *TraceEvent) {
+	if event.PID == strconv.Itoa(os.Getpid()) {
+		log.Debug(event.Raw)
+	}
+}
+
 func (l *tracePipeLogger) Start() {
 	channelEvents, channelErrors := l.Channel()
 
@@ -489,9 +496,12 @@ func (l *tracePipeLogger) Start() {
 		for {
 			select {
 			case <-l.stop:
+				for len(channelEvents) > 0 {
+					l.handleEvent(<-channelEvents)
+				}
 				return
 			case event := <-channelEvents:
-				log.Debug(event.Raw)
+				l.handleEvent(event)
 			case err := <-channelErrors:
 				log.Error(err)
 			}
@@ -500,6 +510,8 @@ func (l *tracePipeLogger) Start() {
 }
 
 func (l *tracePipeLogger) Stop() {
+	time.Sleep(time.Millisecond * 200)
+
 	l.stop <- struct{}{}
 	l.Close()
 }
@@ -515,6 +527,8 @@ func (tm *testModule) startTracing() (*tracePipeLogger, error) {
 		stop:      make(chan struct{}),
 	}
 	logger.Start()
+
+	time.Sleep(time.Millisecond * 200)
 
 	return logger, nil
 }
