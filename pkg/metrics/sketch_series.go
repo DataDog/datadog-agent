@@ -139,13 +139,13 @@ func (sl SketchSeriesList) MarshalSplitCompress() ([]*[]byte, error) {
 		}
 
 		// Marshal the sketch to the precompression buffer
-		n, e := sketch.MarshalTo(precompressionBuf[i:])
+		_, e := sketch.MarshalTo(precompressionBuf[i:])
 		if e != nil {
 			return nil, e
 		}
 
 		// Compress the protobuf metadata and the marshaled sketch
-		switch compressor.AddItem(precompressionBuf[:i+n]) {
+		switch compressor.AddItem(precompressionBuf[:totalItemSize]) {
 		case stream.ErrItemTooBig, stream.ErrPayloadFull:
 			// Since the compression buffer is full - flush it and rotate
 			payload, e := compressor.Close()
@@ -161,7 +161,7 @@ func (sl SketchSeriesList) MarshalSplitCompress() ([]*[]byte, error) {
 			}
 
 			// Add it to the new compression buffer - since this is a new compressor it should never overflow.
-			e = compressor.AddItem(precompressionBuf[:n+i])
+			e = compressor.AddItem(precompressionBuf[:totalItemSize])
 			if e != nil {
 				return nil, e
 			}
