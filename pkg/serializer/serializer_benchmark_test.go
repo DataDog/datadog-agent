@@ -40,7 +40,7 @@ var results forwarder.Payloads
 
 func benchmarkJSONStream(b *testing.B, numberOfSeries int) {
 	series := buildSeries(numberOfSeries)
-	payloadBuilder := stream.NewJsonPayloadBuilder()
+	payloadBuilder := stream.NewJSONPayloadBuilder()
 	b.ResetTimer()
 
 	for n := 0; n < b.N; n++ {
