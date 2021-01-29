@@ -62,18 +62,38 @@ metric_tags:
 }
 
 func Test_Number_UnmarshalYAML(t *testing.T) {
-	myStruct := MyNumber{}
-	expected := MyNumber{SomeNum: 99}
-
-	yaml.Unmarshal([]byte(`
+	tests := []struct {
+		name   string
+		data   []byte
+		result MyNumber
+	}{
+		{
+			name: "integer number",
+			data: []byte(`
 my_field: 99
-`), &myStruct)
-
-	assert.Equal(t, expected, myStruct)
-
-	yaml.Unmarshal([]byte(`
-my_field: "99"
-`), &myStruct)
-
-	assert.Equal(t, expected, myStruct)
+`),
+			result: MyNumber{SomeNum: 99},
+		},
+		{
+			name: "string number",
+			data: []byte(`
+my_field: "88"
+`),
+			result: MyNumber{SomeNum: 88},
+		},
+		{
+			name: "empty string",
+			data: []byte(`
+my_field: ""
+`),
+			result: MyNumber{SomeNum: 0},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			myStruct := MyNumber{}
+			yaml.Unmarshal(tt.data, &myStruct)
+			assert.Equal(t, tt.result, myStruct)
+		})
+	}
 }
