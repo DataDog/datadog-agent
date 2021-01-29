@@ -611,7 +611,7 @@ func (t *simpleTest) swapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, er
 
 		var err error
 
-		logger, err = seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stdout, seelog.TraceLvl, logFormat)
+		logger, err = seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stdout, logLevel, logFormat)
 		if err != nil {
 			return 0, err
 		}
