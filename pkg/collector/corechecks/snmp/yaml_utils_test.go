@@ -9,6 +9,9 @@ import (
 type MyStringArray struct {
 	SomeIds StringArray `yaml:"my_field"`
 }
+type MyNumber struct {
+	SomeNum Number `yaml:"my_field"`
+}
 
 func TestStringArray_UnmarshalYAML_array(t *testing.T) {
 	myStruct := MyStringArray{}
@@ -53,6 +56,23 @@ func Test_metricTagConfig_onlyTags(t *testing.T) {
 	yaml.Unmarshal([]byte(`
 metric_tags:
 - aaa
+`), &myStruct)
+
+	assert.Equal(t, expected, myStruct)
+}
+
+func Test_Number_UnmarshalYAML(t *testing.T) {
+	myStruct := MyNumber{}
+	expected := MyNumber{SomeNum: 99}
+
+	yaml.Unmarshal([]byte(`
+my_field: 99
+`), &myStruct)
+
+	assert.Equal(t, expected, myStruct)
+
+	yaml.Unmarshal([]byte(`
+my_field: "99"
 `), &myStruct)
 
 	assert.Equal(t, expected, myStruct)

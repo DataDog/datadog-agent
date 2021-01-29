@@ -20,11 +20,11 @@ type snmpInitConfig struct {
 
 type snmpInstanceConfig struct {
 	IPAddress        string            `yaml:"ip_address"`
-	Port             uint16            `yaml:"port"`
+	Port             Number            `yaml:"port"`
 	CommunityString  string            `yaml:"community_string"`
 	SnmpVersion      string            `yaml:"snmp_version"`
-	Timeout          int               `yaml:"timeout"`
-	Retries          int               `yaml:"retries"`
+	Timeout          Number            `yaml:"timeout"`
+	Retries          Number            `yaml:"retries"`
 	User             string            `yaml:"user"`
 	AuthProtocol     string            `yaml:"authProtocol"`
 	AuthKey          string            `yaml:"authKey"`
@@ -124,24 +124,22 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 
 	c.snmpVersion = instance.SnmpVersion
 	c.ipAddress = instance.IPAddress
-	c.port = instance.Port
+	c.port = uint16(instance.Port)
 
-	if instance.Port == 0 {
+	if c.port == 0 {
 		c.port = defaultPort
-	} else {
-		c.port = instance.Port
 	}
 
 	if instance.Retries == 0 {
 		c.retries = defaultRetries
 	} else {
-		c.retries = instance.Retries
+		c.retries = int(instance.Retries)
 	}
 
 	if instance.Timeout == 0 {
 		c.timeout = defaultTimeout
 	} else {
-		c.timeout = instance.Timeout
+		c.timeout = int(instance.Timeout)
 	}
 
 	// SNMP connection configs
