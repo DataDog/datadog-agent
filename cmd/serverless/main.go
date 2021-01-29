@@ -41,7 +41,6 @@ import (
 )
 
 const defaultLogFile = "/var/log/datadog/serverless-agent.log"
-const datadogConfigPath = "/var/pkg/datadog.yaml"
 
 var (
 	// serverlessAgentCmd is the root command
@@ -83,6 +82,8 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 	logLevelEnvVar = "DD_LOG_LEVEL"
 
 	logsLogsTypeSubscribed = "DD_LOGS_CONFIG_LAMBDA_LOGS_TYPE"
+
+	datadogConfigPath = "datadog.yaml"
 )
 
 const (
