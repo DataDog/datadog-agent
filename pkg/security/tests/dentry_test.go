@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -20,6 +21,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/cobaugh/osrelease"
 	"gotest.tools/assert"
 )
 
@@ -337,7 +339,13 @@ func createOverlayLayers(t *testing.T, test *testModule) (string, string, string
 }
 
 func TestDentryOverlay(t *testing.T) {
-	if testEnvironment == DockerEnvironment {
+	sles12 := false
+	osrelease, err := osrelease.Read()
+	if err == nil {
+		sles12 = osrelease["NAME"] == "SLES" && strings.HasPrefix(osrelease["VERSION_ID"], "12")
+	}
+
+	if testEnvironment == DockerEnvironment || sles12 {
 		t.Skip()
 	}
 
