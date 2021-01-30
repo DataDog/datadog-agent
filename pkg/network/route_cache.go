@@ -33,6 +33,7 @@ type routeCache struct {
 	sync.Mutex
 	cache  *lru.Cache
 	router Router
+	ttl    time.Duration
 }
 
 const defaultTTL = 2 * time.Minute
@@ -49,9 +50,15 @@ type Router interface {
 
 // NewRouteCache creates a new RouteCache
 func NewRouteCache(size int, router Router) RouteCache {
+	return newRouteCache(size, router, defaultTTL)
+}
+
+// newRouteCache is a private method used primarily for testing
+func newRouteCache(size int, router Router, ttl time.Duration) *routeCache {
 	return &routeCache{
 		cache:  lru.New(size),
 		router: router,
+		ttl:    ttl,
 	}
 }
 
@@ -70,7 +77,7 @@ func (c *routeCache) Get(source, dest util.Address, netns uint32) (Route, bool) 
 		var r Route
 		if r, ok = c.router.Route(source, dest, netns); ok {
 			entry = &routeTTL{
-				eta:   time.Now().Add(defaultTTL).Unix(),
+				eta:   time.Now().Add(c.ttl).Unix(),
 				entry: r,
 			}
 
