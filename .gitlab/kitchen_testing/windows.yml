@@ -39,12 +39,30 @@
   script:
     - bash -l tasks/run-test-kitchen.sh windows-install-test $AGENT_MAJOR_VERSION
 
+.kitchen_test_windows_npm_installer:
+  before_script:  # Use only 2016 and 2019 for NPM (for now)
+    - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
+    - rsync -azr --delete ./ $SRC_PATH
+    - export TEST_PLATFORMS="win2016,urn,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:2016.127.20190416"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2019,urn,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:2019.0.20190410"
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
+  script:
+    - bash -l tasks/run-test-kitchen.sh windows-npm-install-test $AGENT_MAJOR_VERSION
+
+
 # Kitchen: Test types (test suite * agent flavor + azure location)
 # -------------------------------
 
 .kitchen_test_windows_installer_agent:
   extends:
     - .kitchen_test_windows_installer
+    - .kitchen_datadog_agent_flavor
+    - .kitchen_azure_location_north_central_us
+
+.kitchen_test_windows_installer_npm:
+  extends:
+    - .kitchen_test_windows_npm_installer
     - .kitchen_datadog_agent_flavor
     - .kitchen_azure_location_north_central_us
 
@@ -65,6 +83,13 @@
 
 # Kitchen: final test matrix (test types * scenarios)
 # ----------------------------------------------
+
+kitchen_windows_installer_npm-a7:
+  extends:
+    - .kitchen_scenario_windows_a7
+    - .kitchen_test_windows_installer_npm
+  allow_failure: true
+  retry: 0
 
 kitchen_windows_installer_agent-a6:
   extends:
