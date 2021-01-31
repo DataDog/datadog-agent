@@ -1,14 +1,14 @@
 #
-# Cookbook Name:: dd-agent-upgrade
+# Cookbook Name:: dd-agent-reinstall
 # Recipe:: default
 #
-# Copyright (C) 2013-present Datadog
+# Copyright (C) 2013 Datadog
 #
 # All rights reserved - Do Not Redistribute
 #
 require 'uri'
 
-if node['dd-agent-upgrade']['add_new_repo']
+if node['dd-agent-reinstall']['add_new_repo']
   case node['platform_family']
   when 'debian'
     include_recipe 'apt'
@@ -16,9 +16,9 @@ if node['dd-agent-upgrade']['add_new_repo']
     apt_repository 'datadog-update' do
       keyserver 'keyserver.ubuntu.com'
       key 'A2923DFF56EDA6E76E55E492D3A80E30382E94DE'
-      uri node['dd-agent-upgrade']['aptrepo']
-      distribution node['dd-agent-upgrade']['aptrepo_dist']
-      components [node['dd-agent-upgrade']['agent_major_version']]
+      uri node['dd-agent-reinstall']['aptrepo']
+      distribution node['dd-agent-reinstall']['aptrepo_dist']
+      components [node['dd-agent-reinstall']['agent_major_version']]
       action :add
     end
 
@@ -28,7 +28,7 @@ if node['dd-agent-upgrade']['add_new_repo']
     yum_repository 'datadog-update' do
       name 'datadog-update'
       description 'datadog-update'
-      url node['dd-agent-upgrade']['yumrepo']
+      url node['dd-agent-reinstall']['yumrepo']
       action :add
       make_cache true
       # Older versions of yum embed M2Crypto with SSL that doesn't support TLS1.2
@@ -54,7 +54,7 @@ if node['dd-agent-upgrade']['add_new_repo']
     zypper_repository 'datadog-update' do
       name 'datadog-update'
       description 'datadog-update'
-      baseurl node['dd-agent-upgrade']['yumrepo_suse']
+      baseurl node['dd-agent-reinstall']['yumrepo_suse']
       action :add
       gpgcheck false
       # Older versions of yum embed M2Crypto with SSL that doesn't support TLS1.2
@@ -66,27 +66,27 @@ if node['dd-agent-upgrade']['add_new_repo']
 end
 
 if node['platform_family'] != 'windows'
-  package node['dd-agent-upgrade']['package_name'] do
+  package node['dd-agent-reinstall']['package_name'] do
     action :upgrade
-    version node['dd-agent-upgrade']['version']
+    version node['dd-agent-reinstall']['version']
   end
   # the :upgrade method seems broken for sles: https://github.com/chef/chef/issues/4863
   if node['platform_family'] == 'suse'
-    package node['dd-agent-upgrade']['package_name'] do
+    package node['dd-agent-reinstall']['package_name'] do
       action :remove
     end
-    package node['dd-agent-upgrade']['package_name'] do
+    package node['dd-agent-reinstall']['package_name'] do
       action :install
-      version node['dd-agent-upgrade']['version']
+      version node['dd-agent-reinstall']['version']
     end
   end
 end
 
 if node['platform_family'] == 'windows'
-  package_retries = node['dd-agent-upgrade']['agent_package_retries']
-  package_retry_delay = node['dd-agent-upgrade']['agent_package_retry_delay']
-  dd_agent_version = node['dd-agent-upgrade']['windows_version']
-  dd_agent_filename = node['dd-agent-upgrade']['windows_agent_filename']
+  package_retries = node['dd-agent-reinstall']['agent_package_retries']
+  package_retry_delay = node['dd-agent-reinstall']['agent_package_retry_delay']
+  dd_agent_version = node['dd-agent-reinstall']['windows_version']
+  dd_agent_filename = node['dd-agent-reinstall']['windows_agent_filename']
 
   if dd_agent_filename
     dd_agent_installer_basename = dd_agent_filename
@@ -104,12 +104,12 @@ if node['platform_family'] == 'windows'
   temp_file = "#{temp_file_basename}.msi"
   installer_type = :msi
   # Agent >= 5.12.0 installs per-machine by default, but specifying ALLUSERS=1 shouldn't affect the install
-  agent_install_options = node['dd-agent-upgrade']['agent_install_options']
+  agent_install_options = node['dd-agent-reinstall']['agent_install_options']
   install_options = "/norestart ALLUSERS=1  #{agent_install_options}"
 
   use_windows_package_resource = true
 
-  source_url = node['dd-agent-upgrade']['windows_agent_url']
+  source_url = node['dd-agent-reinstall']['windows_agent_url']
   if !source_url.end_with? '/'
     source_url += '/'
   end
@@ -118,15 +118,15 @@ if node['platform_family'] == 'windows'
     # Download the installer to a temp location
   remote_file temp_file do
     source source_url
-    checksum node['dd-agent-upgrade']['windows_agent_checksum'] if node['dd-agent-upgrade']['windows_agent_checksum']
+    checksum node['dd-agent-reinstall']['windows_agent_checksum'] if node['dd-agent-reinstall']['windows_agent_checksum']
     retries package_retries unless package_retries.nil?
     retry_delay package_retry_delay unless package_retry_delay.nil?
   end
 
-  execute "install-agent" do
+  execute "reinstall-agent" do
     command "start /wait msiexec /log upgrade.log /q /i #{temp_file} #{install_options}"
     action :run
-    notifies :restart, 'service[datadog-agent]'
+    #notifies :restart, 'service[datadog-agent]'
   end
 
 end
