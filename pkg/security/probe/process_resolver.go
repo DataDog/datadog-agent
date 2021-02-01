@@ -407,7 +407,7 @@ func (p *ProcessResolver) cacheFlush(ctx context.Context) {
 			p.RUnlock()
 
 			delEntry := func(pid uint32, exitTime time.Time) {
-				p.deleteEntry(pid, now)
+				p.deleteEntry(pid, exitTime)
 				_ = p.client.Count(MetricProcessResolverFlushed, 1, []string{}, 1.0)
 			}
 
@@ -420,6 +420,8 @@ func (p *ProcessResolver) cacheFlush(ctx context.Context) {
 						if tm := entry.ExecTimestamp; !tm.IsZero() && tm.Add(time.Minute).Before(now) {
 							delEntry(pid, now)
 						} else if tm := entry.ForkTimestamp; !tm.IsZero() && tm.Add(time.Minute).Before(now) {
+							delEntry(pid, now)
+						} else if entry.ForkTimestamp.IsZero() && entry.ExecTimestamp.IsZero() {
 							delEntry(pid, now)
 						}
 					}
