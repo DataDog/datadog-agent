@@ -100,7 +100,7 @@ func (h *SingleLineHandler) process(message *Message) {
 
 // defaultFlushTimeout represents the time after which a multiline
 // will be be considered as complete.
-const defaultFlushTimeout = 1000 * time.Millisecond
+// const defaultFlushTimeout = 1000 * time.Millisecond
 
 // MultiLineHandler makes sure that multiple lines from a same content
 // are properly put together.

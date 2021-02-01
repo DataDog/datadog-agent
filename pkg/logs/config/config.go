@@ -322,3 +322,8 @@ func batchWaitFromKey(config coreConfig.Config, batchWaitKey string) time.Durati
 func TaggerWarmupDuration() time.Duration {
 	return coreConfig.Datadog.GetDuration("logs_config.tagger_warmup_duration") * time.Second
 }
+
+// AggregationTimeout is used when performing aggregation operations
+func AggregationTimeout() time.Duration {
+	return coreConfig.Datadog.GetDuration("logs_config.aggregation_timeout") * time.Millisecond
+}
