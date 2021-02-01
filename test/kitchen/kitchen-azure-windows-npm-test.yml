@@ -26,7 +26,7 @@ suites:
       agent_flavor: <%= ENV['AGENT_FLAVOR'] || "datadog-agent" %>
       skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
 
-- name: dd-agent-win-npm-with-npm-option
+- name: dd-agent-win-with-npm-option
   run_list:
     - "recipe[dd-agent-install]"
   attributes:
