@@ -5,7 +5,7 @@
 
 // +build linux
 
-package probe
+package model
 
 import (
 	"fmt"
@@ -14,147 +14,8 @@ import (
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"golang.org/x/sys/unix"
 )
-
-var (
-	// KERNEL_VERSION(a,b,c) = (a << 16) + (b << 8) + (c)
-	kernel4_13 = kernel.VersionCode(4, 13, 0) //nolint:deadcode,unused
-	kernel4_16 = kernel.VersionCode(4, 16, 0) //nolint:deadcode,unused
-	kernel5_3  = kernel.VersionCode(5, 3, 0)  //nolint:deadcode,unused
-)
-
-// EventType describes the type of an event sent from the kernel
-type EventType uint64
-
-const (
-	// UnknownEventType unknow event
-	UnknownEventType EventType = iota
-	// FileOpenEventType File open event
-	FileOpenEventType
-	// FileMkdirEventType Folder creation event
-	FileMkdirEventType
-	// FileLinkEventType Hard link creation event
-	FileLinkEventType
-	// FileRenameEventType File or folder rename event
-	FileRenameEventType
-	// FileUnlinkEventType Unlink event
-	FileUnlinkEventType
-	// FileRmdirEventType Rmdir event
-	FileRmdirEventType
-	// FileChmodEventType Chmod event
-	FileChmodEventType
-	// FileChownEventType Chown event
-	FileChownEventType
-	// FileUtimeEventType Utime event
-	FileUtimeEventType
-	// FileMountEventType Mount event
-	FileMountEventType
-	// FileUmountEventType Umount event
-	FileUmountEventType
-	// FileSetXAttrEventType Setxattr event
-	FileSetXAttrEventType
-	// FileRemoveXAttrEventType Removexattr event
-	FileRemoveXAttrEventType
-	// ForkEventType Fork event
-	ForkEventType
-	// ExecEventType Exec event
-	ExecEventType
-	// ExitEventType Exit event
-	ExitEventType
-	// InvalidateDentryEventType Dentry invalidated event
-	InvalidateDentryEventType
-	// maxEventType is used internally to get the maximum number of kernel events.
-	maxEventType
-
-	// CustomLostReadEventType is the custom event used to report lost events detected in user space
-	CustomLostReadEventType
-	// CustomLostWriteEventType is the custom event used to report lost events detected in kernel space
-	CustomLostWriteEventType
-	// CustomRulesetLoadedEventType is the custom event used to report that a new ruleset was loaded
-	CustomRulesetLoadedEventType
-	// CustomNoisyProcessEventType is the custom event used to report the detection of a noisy process
-	CustomNoisyProcessEventType
-	// CustomForkBombEventType is the custom event used to report the detection of a fork bomb
-	CustomForkBombEventType
-	// CustomTruncatedParentsEventType is the custom event used to report that the parents of a path were truncated
-	CustomTruncatedParentsEventType
-	// CustomTruncatedSegmentEventType is the custom event used to report that a segment of a path was truncated
-	CustomTruncatedSegmentEventType
-)
-
-// maxEventRoundedUp is the closest power of 2 that is bigger than maxEventType
-const maxEventRoundedUp = 32
-
-func (t EventType) String() string {
-	switch t {
-	case FileOpenEventType:
-		return "open"
-	case FileMkdirEventType:
-		return "mkdir"
-	case FileLinkEventType:
-		return "link"
-	case FileRenameEventType:
-		return "rename"
-	case FileUnlinkEventType:
-		return "unlink"
-	case FileRmdirEventType:
-		return "rmdir"
-	case FileChmodEventType:
-		return "chmod"
-	case FileChownEventType:
-		return "chown"
-	case FileUtimeEventType:
-		return "utimes"
-	case FileMountEventType:
-		return "mount"
-	case FileUmountEventType:
-		return "umount"
-	case FileSetXAttrEventType:
-		return "setxattr"
-	case FileRemoveXAttrEventType:
-		return "removexattr"
-	case ForkEventType:
-		return "fork"
-	case ExecEventType:
-		return "exec"
-	case ExitEventType:
-		return "exit"
-	case InvalidateDentryEventType:
-		return "invalidate_dentry"
-
-	case CustomLostReadEventType:
-		return "lost_events_read"
-	case CustomLostWriteEventType:
-		return "lost_events_write"
-	case CustomRulesetLoadedEventType:
-		return "ruleset_loaded"
-	case CustomNoisyProcessEventType:
-		return "noisy_process"
-	case CustomForkBombEventType:
-		return "fork_bomb"
-	case CustomTruncatedParentsEventType:
-		return "truncated_parents"
-	case CustomTruncatedSegmentEventType:
-		return "truncated_segment"
-	default:
-		return "unknown"
-	}
-}
-
-// parseEvalEventType convert a eval.EventType (string) to its uint64 representation
-// the current algorithm is not efficient but allows us to reduce the number of conversion functions
-//nolint:deadcode,unused
-func parseEvalEventType(eventType eval.EventType) EventType {
-	for i := uint64(0); i != uint64(maxEventType); i++ {
-		if EventType(i).String() == eventType {
-			return EventType(i)
-		}
-	}
-
-	return UnknownEventType
-}
 
 // MaxSegmentLength defines the maximum length of each segment of a path
 const MaxSegmentLength = 127

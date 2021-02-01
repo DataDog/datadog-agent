@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/model"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -93,12 +94,10 @@ func checkPolicies(cmd *cobra.Command, args []string) error {
 		PIDCacheSize:        1,
 	}
 
-	probe, err := sprobe.NewProbe(cfg, nil)
-	if err != nil {
-		return err
-	}
+	opts := rules.NewOptsWithParams(model.SECLConstants, sprobe.SupportedDiscarders)
+	model := &sprobe.Model{}
+	ruleSet := rules.NewRuleSet(model, model.NewEvent, opts)
 
-	ruleSet := probe.NewRuleSet(rules.NewOptsWithParams(sprobe.SECLConstants, sprobe.SupportedDiscarders))
 	if err := rules.LoadPolicies(cfg, ruleSet); err != nil {
 		return err
 	}

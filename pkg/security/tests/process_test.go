@@ -129,7 +129,7 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			if inode := getInode(t, executable); inode != event.Process.Inode {
-				t.Logf("expected inode %d, got %d", event.Process.Inode, inode)
+				t.Logf("expected inode %d, got %d", inode, event.Process.Inode)
 			}
 
 			testContainerPath(t, event, "process.container_path")
@@ -200,7 +200,7 @@ func TestProcessContext(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if filename := event.Process.ResolveInode(event); filename != executable {
+			if filename := event.ResolveExecInode(&event.Exec); filename != executable {
 				t.Errorf("expected process filename `%s`, got `%s`: %v", executable, filename, event)
 			}
 
