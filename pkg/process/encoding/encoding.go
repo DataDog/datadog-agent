@@ -2,6 +2,7 @@ package encoding
 
 import (
 	"strings"
+	"sync"
 
 	"github.com/gogo/protobuf/jsonpb"
 
@@ -45,4 +46,16 @@ func GetUnmarshaler(ctype string) Unmarshaler {
 	}
 
 	return jSerializer
+}
+
+var statPool = sync.Pool{
+	New: func() interface{} {
+		return new(model.ProcStatsWithPerm)
+	},
+}
+
+func returnToPool(stats map[int32]*model.ProcStatsWithPerm) {
+	for _, s := range stats {
+		statPool.Put(s)
+	}
 }
