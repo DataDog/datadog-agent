@@ -8,6 +8,7 @@
 set -e
 install_script_version=1.1.0
 logfile="ddagent-install.log"
+support_email=support@datadoghq.com
 
 LEGACY_ETCDIR="/etc/dd-agent"
 LEGACY_CONF="$LEGACY_ETCDIR/datadog.conf"
@@ -36,6 +37,27 @@ exec 1>&-
 exec 1>$npipe 2>&1
 trap 'rm -f $npipe' EXIT
 
+function fallback_msg(){
+  printf "
+If you are still having problems, please send an email to $support_email
+with the contents of $logfile and any information you think would be
+useful and we will do our very best to help you solve your problem.\n"
+}
+
+function report(){
+  if curl -f -s \
+    --data-urlencode "os=${OS}" \
+    --data-urlencode "version=${agent_major_version}" \
+    --data-urlencode "log=$(cat $logfile)" \
+    --data-urlencode "email=${email}" \
+    --data-urlencode "apikey=${apikey}" \
+    "$report_failure_url"; then
+   printf "A notification has been sent to Datadog with the contents of $logfile\n"
+  else
+    printf "Unable to send the notification (curl v7.18 or newer is required)"
+    fallback_msg
+  fi
+}
 
 function on_error() {
     printf "\033[31m$ERROR_MESSAGE
@@ -43,11 +65,23 @@ It looks like you hit an issue when trying to install the Agent.
 
 Troubleshooting and basic usage information for the Agent are available at:
 
-    https://docs.datadoghq.com/agent/basic_agent_usage/
+    https://docs.datadoghq.com/agent/basic_agent_usage/\n\033[0m\n"
 
-If you're still having problems, please send an email to support@datadoghq.com
-with the contents of ddagent-install.log and we'll do our very best to help you
-solve your problem.\n\033[0m\n"
+    while true; do
+        read -p  "Do you want to send a failure report to Datadog (including $logfile)? (y/n) " -r yn
+        case $yn in
+          [Yy]* )
+            read -p "Enter an email address so we can follow up: " -r email
+            report
+            break;;
+          [Nn]* )
+            fallback_msg
+            break;;
+          * )
+            printf "Please answer yes or no.\n"
+            ;;
+        esac
+    done
 }
 trap on_error ERR
 
@@ -143,6 +177,11 @@ backup_keyserver="hkp://pool.sks-keyservers.net:80"
 # hkp://p80.pool.sks-keyservers.net:80 for example.
 if [ -n "$DD_KEYSERVER" ]; then
   keyserver="$DD_KEYSERVER"
+fi
+
+report_failure_url="http://api.datadoghq.com/agent_stats/report_failure"
+if [ -n "$TESTING_REPORT_URL" ]; then
+  report_failure_url=$TESTING_REPORT_URL
 fi
 
 if [ ! "$apikey" ]; then
