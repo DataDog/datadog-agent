@@ -46,6 +46,8 @@ type metricsConfigOption struct {
 }
 
 type metricsConfig struct {
+	MIB string `yaml:"MIB"`
+
 	// Symbol configs
 	Symbol symbolConfig `yaml:"symbol"`
 
