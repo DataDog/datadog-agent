@@ -558,7 +558,7 @@ func TestTCPRetransmitSharedSocket(t *testing.T) {
 	assert.Equal(t, 1, connsWithRetransmits)
 
 	// Test if telemetry measuring PID collisions is correct
-	assert.Equal(t, int64(numProcesses-1), atomic.LoadInt64(&tr.pidCollisions))
+	assert.GreaterOrEqual(t, int64(numProcesses-1), atomic.LoadInt64(&tr.pidCollisions))
 }
 
 func TestTCPRTT(t *testing.T) {
