@@ -16,7 +16,7 @@ func (ms *metricSender) reportMetrics(metrics []metricsConfig, values *resultVal
 	for _, metric := range metrics {
 		if metric.Symbol.OID != "" {
 			ms.reportScalarMetrics(metric, values, tags)
-		} else if metric.Table.OID != "" {
+		} else if len(metric.Symbols) > 0 {
 			ms.reportColumnMetrics(metric, values, tags)
 		}
 	}

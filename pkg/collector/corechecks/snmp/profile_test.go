@@ -13,7 +13,6 @@ func mockProfilesDefinitions() profileDefinitionMap {
 		{Symbol: symbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal"}, ForcedType: "gauge"},
 		{Symbol: symbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", Name: "oldSyntax"}},
 		{
-			Table:      symbolConfig{OID: "1.3.6.1.2.1.2.2", Name: "ifTable"},
 			ForcedType: "monotonic_count",
 			Symbols: []symbolConfig{
 				{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors"},

@@ -6,32 +6,16 @@ import (
 	"testing"
 )
 
-func Test_validateMetrics(t *testing.T) {
+func Test_validateEnrichMetrics(t *testing.T) {
 	tests := []struct {
 		name    string
 		metrics []metricsConfig
 		errors  []string
 	}{
 		{
-			name: "MIB must be provided",
-			metrics: []metricsConfig{
-				{
-					Symbol: symbolConfig{
-						OID:  "1.2",
-						Name: "abc",
-					},
-				},
-			},
-			errors: []string{
-				"MIB must be provided",
-			},
-		},
-		{
 			name: "either table symbol or scalar symbol must be provided",
 			metrics: []metricsConfig{
-				{
-					MIB: "MY-MIB",
-				},
+				{},
 			},
 			errors: []string{
 				"either a table symbol or a scalar symbol must be provided",
@@ -41,14 +25,15 @@ func Test_validateMetrics(t *testing.T) {
 			name: "table column symbols and scalar symbol cannot be both provided",
 			metrics: []metricsConfig{
 				{
-					MIB: "MY-MIB",
 					Symbol: symbolConfig{
 						OID:  "1.2",
 						Name: "abc",
 					},
-					Table: symbolConfig{
-						OID:  "1.2",
-						Name: "abc",
+					Symbols: []symbolConfig{
+						{
+							OID:  "1.2",
+							Name: "abc",
+						},
 					},
 					MetricTags: metricTagConfigList{
 						metricTagConfig{},
@@ -57,22 +42,14 @@ func Test_validateMetrics(t *testing.T) {
 			},
 			errors: []string{
 				"table symbol and scalar symbol cannot be both provided",
-				"when using table, a list of column symbols must be provided",
 			},
 		},
 		{
 			name: "multiple errors",
 			metrics: []metricsConfig{
+				{},
 				{
-					MIB: "MY-MIB",
-				},
-				{
-					MIB: "MY-MIB",
 					Symbol: symbolConfig{
-						OID:  "1.2",
-						Name: "abc",
-					},
-					Table: symbolConfig{
 						OID:  "1.2",
 						Name: "abc",
 					},
@@ -96,7 +73,6 @@ func Test_validateMetrics(t *testing.T) {
 			name: "missing symbol name",
 			metrics: []metricsConfig{
 				{
-					MIB: "MY-MIB",
 					Symbol: symbolConfig{
 						OID: "1.2.3",
 					},
@@ -110,11 +86,6 @@ func Test_validateMetrics(t *testing.T) {
 			name: "table column symbol name missing",
 			metrics: []metricsConfig{
 				{
-					MIB: "mib",
-					Table: symbolConfig{
-						OID:  "1.2",
-						Name: "abc",
-					},
 					Symbols: []symbolConfig{
 						{
 							OID: "1.2",
@@ -137,11 +108,6 @@ func Test_validateMetrics(t *testing.T) {
 			name: "table external metric column tag symbol error",
 			metrics: []metricsConfig{
 				{
-					MIB: "mib",
-					Table: symbolConfig{
-						OID:  "1.2",
-						Name: "abc",
-					},
 					Symbols: []symbolConfig{
 						{
 							OID:  "1.2",
@@ -171,11 +137,6 @@ func Test_validateMetrics(t *testing.T) {
 			name: "table external metric column tag MIB error",
 			metrics: []metricsConfig{
 				{
-					MIB: "mib",
-					Table: symbolConfig{
-						OID:  "1.2",
-						Name: "abc",
-					},
 					Symbols: []symbolConfig{
 						{
 							OID:  "1.2",
@@ -201,10 +162,94 @@ func Test_validateMetrics(t *testing.T) {
 				"symbol oid missing: name=`abc` oid=``",
 			},
 		},
+		{
+			name: "missing match tags",
+			metrics: []metricsConfig{
+				{
+					Symbols: []symbolConfig{
+						{
+							OID:  "1.2",
+							Name: "abc",
+						},
+					},
+					MetricTags: metricTagConfigList{
+						metricTagConfig{
+							Column: symbolConfig{
+								OID:  "1.2.3",
+								Name: "abc",
+							},
+							Match: "([a-z])",
+						},
+					},
+				},
+			},
+			errors: []string{
+				"`tags` mapping must be provided if `match` (`([a-z])`) is defined",
+			},
+		},
+		{
+			name: "match cannot compile regex",
+			metrics: []metricsConfig{
+				{
+					Symbols: []symbolConfig{
+						{
+							OID:  "1.2",
+							Name: "abc",
+						},
+					},
+					MetricTags: metricTagConfigList{
+						metricTagConfig{
+							Column: symbolConfig{
+								OID:  "1.2.3",
+								Name: "abc",
+							},
+							Match: "([a-z)",
+							Tags: map[string]string{
+								"foo": "bar",
+							},
+						},
+					},
+				},
+			},
+			errors: []string{
+				"cannot compile `match` (`([a-z)`)",
+			},
+		},
+		{
+			name: "match cannot compile regex",
+			metrics: []metricsConfig{
+				{
+					Symbols: []symbolConfig{
+						{
+							OID:  "1.2",
+							Name: "abc",
+						},
+					},
+					MetricTags: metricTagConfigList{
+						metricTagConfig{
+							Column: symbolConfig{
+								OID:  "1.2.3",
+								Name: "abc",
+							},
+							Tag: "hello",
+							IndexTransform: []metricIndexTransform{
+								{
+									Start: 2,
+									End:   1,
+								},
+							},
+						},
+					},
+				},
+			},
+			errors: []string{
+				"transform rule end should be greater than start. Invalid rule",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errors := validateMetrics(tt.metrics)
+			errors := validateEnrichMetrics(tt.metrics)
 			assert.Equal(t, len(tt.errors), len(errors), fmt.Sprintf("ERRORS: %v", errors))
 			for i := range errors {
 				assert.Contains(t, errors[i].Error(), tt.errors[i])

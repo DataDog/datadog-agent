@@ -209,7 +209,6 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 			name: "report column error",
 			metrics: []metricsConfig{
 				{
-					Table:      symbolConfig{OID: "1.3.6.1.2.1.2.2", Name: "ifTable"},
 					ForcedType: "monotonic_count",
 					Symbols: []symbolConfig{
 						{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors"},
@@ -231,7 +230,6 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 			name: "report column cache",
 			metrics: []metricsConfig{
 				{
-					Table:      symbolConfig{OID: "1.3.6.1.2.1.2.2", Name: "ifTable"},
 					ForcedType: "monotonic_count",
 					Symbols: []symbolConfig{
 						{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors"},
@@ -349,6 +347,7 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 			mockSender := mocksender.NewMockSender("foo")
 			metricSender := metricSender{sender: mockSender}
 
+			validateEnrichMetricTags(tt.metricsTags)
 			tags := metricSender.getCheckInstanceMetricTags(tt.metricsTags, tt.values)
 
 			assert.ElementsMatch(t, tt.expectedTags, tags)

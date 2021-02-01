@@ -369,6 +369,7 @@ metric_tags:
 			m := metricsConfig{}
 			yaml.Unmarshal(tt.rawMetricConfig, &m)
 
+			validateEnrichMetrics([]metricsConfig{m})
 			tags := m.getTags(tt.fullIndex, tt.values)
 
 			assert.ElementsMatch(t, tt.expectedTags, tags)

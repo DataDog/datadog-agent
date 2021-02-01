@@ -31,6 +31,7 @@ type metricTagConfig struct {
 	Tags  map[string]string `yaml:"tags"`
 
 	symbolTag string
+	pattern   *regexp.Regexp
 }
 
 type metricTagConfigList []metricTagConfig
@@ -46,8 +47,6 @@ type metricsConfigOption struct {
 }
 
 type metricsConfig struct {
-	MIB string `yaml:"MIB"`
-
 	// Symbol configs
 	Symbol symbolConfig `yaml:"symbol"`
 
@@ -56,15 +55,12 @@ type metricsConfig struct {
 	Name string `yaml:"name"`
 
 	// Table configs
-	Table   symbolConfig   `yaml:"table"`
 	Symbols []symbolConfig `yaml:"symbols"`
 
 	MetricTags metricTagConfigList `yaml:"metric_tags"`
 
 	ForcedType string              `yaml:"forced_type"`
 	Options    metricsConfigOption `yaml:"options"`
-
-	// TODO: [VALIDATION] Validate Symbol and Table are not both used
 }
 
 // getTags retrieve tags using the metric config and values
@@ -128,20 +124,19 @@ func (m *metricsConfig) getSymbolTags() []string {
 	return symbolTags
 }
 
-func (mtc metricTagConfig) getTags(value string) []string {
+func (mtc *metricTagConfig) getTags(value string) []string {
 	var tags []string
 	if mtc.Tag != "" {
 		tags = append(tags, mtc.Tag+":"+value)
 	} else if mtc.Match != "" {
-		pattern, err := regexp.Compile(mtc.Match) // TODO: [VALIDATION] may fail, compile in config validation
-		if err != nil {
-			log.Warnf("failed to compile `%v` from metric tag config `%v`", mtc.Match, mtc)
+		if mtc.pattern == nil {
+			log.Warnf("match pattern must be present: match=%s", mtc.Match)
 			return tags
 		}
-		if pattern.MatchString(value) {
+		if mtc.pattern.MatchString(value) {
 			for key, val := range mtc.Tags {
 				normalizedTemplate := normalizeRegexReplaceValue(val)
-				replacedVal := regexReplaceValue(value, pattern, normalizedTemplate)
+				replacedVal := regexReplaceValue(value, mtc.pattern, normalizedTemplate)
 				if replacedVal == "" {
 					log.Debugf("pattern `%v` failed to match `%v` with template `%v`", value, normalizedTemplate)
 					continue
@@ -150,7 +145,6 @@ func (mtc metricTagConfig) getTags(value string) []string {
 			}
 		}
 	}
-	// TODO: [VALIDATION] Handle error case in config validation
 	return tags
 }
 

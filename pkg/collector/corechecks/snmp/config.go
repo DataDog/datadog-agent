@@ -198,17 +198,8 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 			return snmpConfig{}, fmt.Errorf("failed to refresh with profile `%s`: %s", profile, err)
 		}
 	}
-	validateMetrics(c.metrics)
-
-	// TODO: [VALIDATION] Add missing error handling by looking at
-	//   https://github.com/DataDog/integrations-core/blob/e64e2d18529c6c106f02435c5fdf2621667c16ad/snmp/datadog_checks/snmp/config.py
-
-	// TODO: [VALIDATION] Validate metrics
-	//  - metrics
-	//  - metricTags
-	//  Cases:
-	//   - index transform:
-	//     https://github.com/DataDog/integrations-core/blob/d31d3532e16cf8418a8b112f47359f14be5ecae1/snmp/datadog_checks/snmp/parsing/metrics.py#L523-L537
+	validateEnrichMetrics(c.metrics)
+	validateEnrichMetricTags(c.metricTags)
 	return c, err
 }
 
@@ -220,12 +211,12 @@ func getUptimeMetricConfig() metricsConfig {
 func parseScalarOids(metrics []metricsConfig, metricTags []metricTagConfig) []string {
 	var oids []string
 	for _, metric := range metrics {
-		if metric.Symbol.OID != "" { // TODO: [VALIDATION] need validation
+		if metric.Symbol.OID != "" {
 			oids = append(oids, metric.Symbol.OID)
 		}
 	}
 	for _, metricTag := range metricTags {
-		if metricTag.OID != "" { // TODO: [VALIDATION] need validation
+		if metricTag.OID != "" {
 			oids = append(oids, metricTag.OID)
 		}
 	}
@@ -235,14 +226,12 @@ func parseScalarOids(metrics []metricsConfig, metricTags []metricTagConfig) []st
 func parseColumnOids(metrics []metricsConfig) []string {
 	var oids []string
 	for _, metric := range metrics {
-		if metric.Table.OID != "" { // TODO: [VALIDATION] need validation
-			for _, symbol := range metric.Symbols {
-				oids = append(oids, symbol.OID)
-			}
-			for _, metricTag := range metric.MetricTags {
-				if metricTag.Column.OID != "" {
-					oids = append(oids, metricTag.Column.OID)
-				}
+		for _, symbol := range metric.Symbols {
+			oids = append(oids, symbol.OID)
+		}
+		for _, metricTag := range metric.MetricTags {
+			if metricTag.Column.OID != "" {
+				oids = append(oids, metricTag.Column.OID)
 			}
 		}
 	}

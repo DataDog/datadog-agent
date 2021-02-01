@@ -7,6 +7,7 @@ package snmp
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -85,6 +86,12 @@ metric_tags:
   - OID: 1.2.3
     symbol: mySymbol
     tag: my_symbol
+  - OID: 1.2.3
+    symbol: mySymbol
+    match: '(\w)(\w+)'
+    tags:
+      prefix: '\1'
+      suffix: '\2'
 profile: f5-big-ip
 `)
 	// language=yaml
@@ -119,7 +126,6 @@ global_metrics:
 		}},
 		{Symbol: symbolConfig{OID: "1.3.6.1.4.1.318.1.1.1.11.1.1.0", Name: "upsBasicStateOutputState"}, ForcedType: "flag_stream", Options: metricsConfigOption{Placement: 5, MetricSuffix: "ReplaceBattery"}},
 		{
-			Table: symbolConfig{OID: "1.3.6.1.2.1.2.2", Name: "ifTable"},
 			Symbols: []symbolConfig{
 				{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors"},
 				{OID: "1.3.6.1.2.1.2.2.1.20", Name: "ifOutErrors"},
@@ -151,7 +157,8 @@ global_metrics:
 						Name: "cpiPduName",
 						OID:  "1.2.3.4.8.1.2",
 					},
-					Match: "(\\w)(\\w+)",
+					Match:   "(\\w)(\\w+)",
+					pattern: regexp.MustCompile("(\\w)(\\w+)"),
 					Tags: map[string]string{
 						"prefix": "\\1",
 						"suffix": "\\2",
@@ -164,6 +171,16 @@ global_metrics:
 
 	metricsTags := []metricTagConfig{
 		{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol"},
+		{
+			OID:     "1.2.3",
+			Name:    "mySymbol",
+			Match:   "(\\w)(\\w+)",
+			pattern: regexp.MustCompile("(\\w)(\\w+)"),
+			Tags: map[string]string{
+				"prefix": "\\1",
+				"suffix": "\\2",
+			},
+		},
 		{Tag: "snmp_host", OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
 	}
 
