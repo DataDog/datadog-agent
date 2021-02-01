@@ -5,7 +5,7 @@
 
 package util
 
-// SetCoreLimit sets the core dump size limit based on configuration
+// SetCoreLimit enables core dumps and sets the core dump size limit based on configuration
 func SetCoreLimit() error {
 	return nil
 }
