@@ -14,30 +14,37 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic/dynamicinformer"
+	"k8s.io/client-go/dynamic/fake"
+	kscheme "k8s.io/client-go/kubernetes/scheme"
 	core "k8s.io/client-go/testing"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics/model"
-	datadoghq "github.com/DataDog/datadog-operator/pkg/apis/datadoghq/v1alpha1"
-	dd_fake_clientset "github.com/DataDog/datadog-operator/pkg/generated/clientset/versioned/fake"
-	dd_informers "github.com/DataDog/datadog-operator/pkg/generated/informers/externalversions"
+	datadoghq "github.com/DataDog/datadog-operator/api/v1alpha1"
 
 	"github.com/stretchr/testify/assert"
 )
 
 var (
+	scheme             = kscheme.Scheme
 	alwaysReady        = func() bool { return true }
 	noResyncPeriodFunc = func() time.Duration { return 0 }
 )
+
+func init() {
+	datadoghq.AddToScheme(scheme)
+}
 
 // Test fixture
 type fixture struct {
 	t *testing.T
 
-	client *dd_fake_clientset.Clientset
+	client *fake.FakeDynamicClient
 	// Objects to put in the store.
-	datadogMetricLister []*datadoghq.DatadogMetric
+	datadogMetricLister []*unstructured.Unstructured
 	// Actions expected to happen on the client.
 	actions []core.Action
 	// Objects from here preloaded into Fake client.
@@ -54,9 +61,9 @@ func newFixture(t *testing.T) *fixture {
 	}
 }
 
-func (f *fixture) newController(leader bool) (*DatadogMetricController, dd_informers.SharedInformerFactory) {
-	f.client = dd_fake_clientset.NewSimpleClientset(f.objects...)
-	informer := dd_informers.NewSharedInformerFactory(f.client, noResyncPeriodFunc())
+func (f *fixture) newController(leader bool) (*DatadogMetricController, dynamicinformer.DynamicSharedInformerFactory) {
+	f.client = fake.NewSimpleDynamicClient(scheme, f.objects...)
+	informer := dynamicinformer.NewDynamicSharedInformerFactory(f.client, noResyncPeriodFunc())
 
 	c, err := NewDatadogMetricController(f.client, informer, getIsLeaderFunction(leader), &f.store)
 	if err != nil {
@@ -65,7 +72,7 @@ func (f *fixture) newController(leader bool) (*DatadogMetricController, dd_infor
 	c.synced = alwaysReady
 
 	for _, metric := range f.datadogMetricLister {
-		informer.Datadoghq().V1alpha1().DatadogMetrics().Informer().GetIndexer().Add(metric)
+		informer.ForResource(*gvrDDM).Informer().GetIndexer().Add(metric)
 	}
 
 	return c, informer
@@ -96,8 +103,8 @@ func (f *fixture) runControllerSync(leader bool, datadogMetricID string, expecte
 	}
 }
 
-func (f *fixture) expectCreateDatadogMetricAction(datadogMetric *datadoghq.DatadogMetric) {
-	action := core.NewCreateAction(schema.GroupVersionResource{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadogmetrics"}, datadogMetric.Namespace, datadogMetric)
+func (f *fixture) expectCreateDatadogMetricAction(datadogMetric *unstructured.Unstructured) {
+	action := core.NewCreateAction(schema.GroupVersionResource{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadogmetrics"}, datadogMetric.GetNamespace(), datadogMetric)
 	f.actions = append(f.actions, action)
 }
 
@@ -106,13 +113,18 @@ func (f *fixture) expectDeleteDatadogMetricAction(ns, name string) {
 	f.actions = append(f.actions, action)
 }
 
-func (f *fixture) expectUpdateDatadogMetricStatusAction(datadogMetric *datadoghq.DatadogMetric) {
-	action := core.NewUpdateSubresourceAction(schema.GroupVersionResource{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadogmetrics"}, "status", datadogMetric.Namespace, datadogMetric)
+func (f *fixture) expectUpdateDatadogMetricStatusAction(datadogMetric *unstructured.Unstructured) {
+	action := core.NewUpdateSubresourceAction(schema.GroupVersionResource{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadogmetrics"}, "status", datadogMetric.GetNamespace(), datadogMetric)
 	f.actions = append(f.actions, action)
 }
 
-func newFakeDatadogMetric(ns, name, query string, status datadoghq.DatadogMetricStatus) *datadoghq.DatadogMetric {
-	return &datadoghq.DatadogMetric{
+func newFakeDatadogMetric(ns, name, query string, status datadoghq.DatadogMetricStatus) (obj *unstructured.Unstructured) {
+	obj = &unstructured.Unstructured{}
+	ddm := &datadoghq.DatadogMetric{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "datadogmetric",
+			APIVersion: "datadoghq.com/v1alhpa1",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: ns,
@@ -122,6 +134,12 @@ func newFakeDatadogMetric(ns, name, query string, status datadoghq.DatadogMetric
 		},
 		Status: status,
 	}
+
+	if err := StructureFromDDM(ddm, obj); err != nil {
+		panic("Failed to construct unstructured DDM")
+	}
+
+	return
 }
 
 // Scenario: user creates a new DatadogMetric `dd-metric-0`
@@ -456,7 +474,7 @@ func TestCreateDatadogMetric(t *testing.T) {
 			},
 		},
 	})
-	expectedDatadogMetric.Spec.ExternalMetricName = "name1"
+	unstructured.SetNestedField(expectedDatadogMetric.Object, "name1", "spec", "externalMetricName")
 	f.expectCreateDatadogMetricAction(expectedDatadogMetric)
 	f.runControllerSync(true, "default/dd-metric-0", nil)
 
@@ -667,7 +685,7 @@ func TestFollower(t *testing.T) {
 			},
 		},
 	})
-	metric1.Spec.ExternalMetricName = "dd-metric-1"
+	unstructured.SetNestedField(metric1.Object, "dd-metric-1", "spec", "externalMetricName")
 
 	updateTime := time.Now()
 	f.datadogMetricLister = append(f.datadogMetricLister, metric0, metric1)

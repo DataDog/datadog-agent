@@ -15,7 +15,11 @@ import (
 	"sort"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/DataDog/datadog-operator/api/v1alpha1"
 )
 
 const (
@@ -95,4 +99,21 @@ func buildDatadogQueryForExternalMetric(metricName string, labels map[string]str
 func setQueryConfigValues(aggregator string, rollup int) {
 	queryConfigAggregator = aggregator
 	queryConfigRollup = rollup
+}
+
+func StructureIntoDDM(obj interface{}, structDest *v1alpha1.DatadogMetric) error {
+	unstrObj, ok := obj.(*unstructured.Unstructured)
+	if !ok {
+		return fmt.Errorf("Could not cast Unstructured object: %v", obj)
+	}
+	return runtime.DefaultUnstructuredConverter.FromUnstructured(unstrObj.UnstructuredContent(), structDest)
+}
+
+func StructureFromDDM(structIn *v1alpha1.DatadogMetric, unstructOut *unstructured.Unstructured) error {
+	content, err := runtime.DefaultUnstructuredConverter.ToUnstructured(structIn)
+	if err != nil {
+		return fmt.Errorf("Unable to convert DatadogMetric %v: %w", structIn, err)
+	}
+	unstructOut.SetUnstructuredContent(content)
+	return nil
 }

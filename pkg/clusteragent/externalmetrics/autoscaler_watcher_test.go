@@ -22,7 +22,13 @@ import (
 	kube_fake "k8s.io/client-go/kubernetes/fake"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics/model"
+	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 )
+
+func init() {
+	autoscaler.AddToScheme(scheme)
+	v1alpha1.AddToScheme(scheme)
+}
 
 // Test fixture
 type autoscalerFixture struct {
@@ -57,7 +63,7 @@ func (f *autoscalerFixture) newAutoscalerWatcher() (*AutoscalerWatcher, kube_inf
 	for _, wpa := range f.wpaLister {
 		f.wpaObjects = append(f.wpaObjects, wpa)
 	}
-	wpaClient := fake.NewSimpleDynamicClient(runtime.NewScheme(), f.wpaObjects...)
+	wpaClient := fake.NewSimpleDynamicClient(scheme, f.wpaObjects...)
 	wpaInformer := dynamic_informer.NewDynamicSharedInformerFactory(wpaClient, noResyncPeriodFunc())
 
 	autoscalerWatcher, err := NewAutoscalerWatcher(0, 1, "default", kubeInformer, wpaInformer, getIsLeaderFunction(true), &f.store)

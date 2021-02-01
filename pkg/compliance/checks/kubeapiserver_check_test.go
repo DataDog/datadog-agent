@@ -14,10 +14,51 @@ import (
 
 	assert "github.com/stretchr/testify/require"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic/fake"
+	kscheme "k8s.io/client-go/kubernetes/scheme"
 )
+
+var scheme = kscheme.Scheme
+
+type MyObj struct {
+	metav1.TypeMeta
+	metav1.ObjectMeta
+}
+
+type MyObjList struct {
+	metav1.TypeMeta
+	metav1.ListMeta
+	Items []MyObj
+}
+
+func (in *MyObj) DeepCopy() *MyObj {
+	panic("NOT IMPLEMENTED")
+}
+
+func (in *MyObj) DeepCopyObject() runtime.Object {
+	panic("NOT IMPLEMENTED")
+}
+
+func (in *MyObjList) DeepCopyObject() runtime.Object {
+	panic("NOT IMPLEMENTED")
+}
+
+func addKnownTypes(scheme *runtime.Scheme) error {
+	scheme.AddKnownTypes(schema.GroupVersion{Group: "mygroup.com", Version: "v1"},
+		&MyObj{},
+		&MyObjList{},
+	)
+	return nil
+}
+
+func init() {
+	schemeBuilder := runtime.NewSchemeBuilder(addKnownTypes)
+	schemeBuilder.AddToScheme(scheme)
+}
 
 type kubeApiserverFixture struct {
 	name         string
@@ -62,7 +103,7 @@ func (f *kubeApiserverFixture) run(t *testing.T) {
 	env := &mocks.Env{}
 	defer env.AssertExpectations(t)
 
-	kubeClient := fake.NewSimpleDynamicClient(runtime.NewScheme(), f.objects...)
+	kubeClient := fake.NewSimpleDynamicClient(scheme, f.objects...)
 	env.On("KubeClient").Return(kubeClient)
 
 	kubeCheck, err := newResourceCheck(env, "rule-id", f.resource)

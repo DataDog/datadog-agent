@@ -40,7 +40,7 @@ const (
 	crdCheckMaxElapsedTime  = 0
 )
 
-var gvr = &schema.GroupVersionResource{
+var gvrWPA = &schema.GroupVersionResource{
 	Group:    "datadoghq.com",
 	Version:  "v1alpha1",
 	Resource: "watermarkpodautoscalers",
@@ -107,7 +107,7 @@ func isWPACRDNotFoundError(err error) bool {
 
 func checkWPACRD(wpaClient dynamic_client.Interface) backoff.Operation {
 	check := func() error {
-		_, err := wpaClient.Resource(*gvr).List(context.TODO(), v1.ListOptions{})
+		_, err := wpaClient.Resource(*gvrWPA).List(context.TODO(), v1.ListOptions{})
 		return err
 	}
 	return func() error {
@@ -132,7 +132,7 @@ func waitForWPACRD(wpaClient dynamic_client.Interface) {
 func (h *AutoscalersController) enableWPA(wpaInformerFactory dynamic_informer.DynamicSharedInformerFactory) {
 	log.Info("Enabling WPA controller")
 
-	genericInformer := wpaInformerFactory.ForResource(*gvr)
+	genericInformer := wpaInformerFactory.ForResource(*gvrWPA)
 
 	h.WPAqueue = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter(), "wpa-autoscalers")
 	h.wpaLister = genericInformer.Lister()

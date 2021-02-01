@@ -28,8 +28,8 @@ import (
 
 	"gopkg.in/yaml.v2"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/kube-state-metrics/pkg/allowdenylist"
-	"k8s.io/kube-state-metrics/pkg/options"
+	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
+	"k8s.io/kube-state-metrics/v2/pkg/options"
 )
 
 const (

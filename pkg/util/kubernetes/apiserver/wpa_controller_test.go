@@ -268,7 +268,7 @@ func TestWPAController(t *testing.T) {
 		map[string]interface{}{"foo": "bar"},
 	)
 
-	res, err := wpaClient.Resource(*gvr).Namespace(namespace).Create(context.TODO(), mockedWPA, v1.CreateOptions{})
+	res, err := wpaClient.Resource(*gvrWPA).Namespace(namespace).Create(context.TODO(), mockedWPA, v1.CreateOptions{})
 	require.NoError(t, err)
 
 	wpaDecoded := &v1alpha1.WatermarkPodAutoscaler{}
@@ -315,7 +315,7 @@ func TestWPAController(t *testing.T) {
 	})
 
 	retrier := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		resWPA, errWPA := wpaClient.Resource(*gvr).Namespace(namespace).Get(context.TODO(), wpaName, v1.GetOptions{})
+		resWPA, errWPA := wpaClient.Resource(*gvrWPA).Namespace(namespace).Get(context.TODO(), wpaName, v1.GetOptions{})
 		require.NoError(t, errWPA)
 
 		metrics, found, err := unstructured.NestedSlice(resWPA.Object, "spec", "metrics")
@@ -345,7 +345,7 @@ func TestWPAController(t *testing.T) {
 		err = unstructured.SetNestedField(resWPA.Object, annotations["kubectl.kubernetes.io/last-applied-configuration"], "metadata", "annotations", "kubectl.kubernetes.io/last-applied-configuration")
 		require.NoError(t, err)
 
-		res, updateErr := wpaClient.Resource(*gvr).Namespace(namespace).Update(context.TODO(), resWPA, v1.UpdateOptions{})
+		res, updateErr := wpaClient.Resource(*gvrWPA).Namespace(namespace).Update(context.TODO(), resWPA, v1.UpdateOptions{})
 		err = StructureIntoWPA(res, wpaDecoded)
 		require.NoError(t, err)
 
@@ -411,7 +411,7 @@ func TestWPAController(t *testing.T) {
 	})
 
 	// Verify that a Delete removes the Data from the Global Store
-	err = wpaClient.Resource(*gvr).Namespace(namespace).Delete(context.TODO(), wpaName, v1.DeleteOptions{})
+	err = wpaClient.Resource(*gvrWPA).Namespace(namespace).Delete(context.TODO(), wpaName, v1.DeleteOptions{})
 	require.NoError(t, err)
 	testutil.RequireTrueBeforeTimeout(t, frequency, timeout, func() bool {
 		storedExternal, err := store.ListAllExternalMetricValues()
@@ -441,7 +441,7 @@ func TestWPASync(t *testing.T) {
 		map[string]interface{}{"foo": "bar"},
 	)
 
-	err := inf.ForResource(*gvr).Informer().GetStore().Add(obj)
+	err := inf.ForResource(*gvrWPA).Informer().GetStore().Add(obj)
 	require.NoError(t, err)
 	key := "default/wpa_1"
 	err = hctrl.syncWPA(key)
@@ -533,7 +533,7 @@ func TestWPAGC(t *testing.T) {
 			hctrl.store = store
 
 			if testCase.wpa != nil {
-				err := inf.ForResource(*gvr).
+				err := inf.ForResource(*gvrWPA).
 					Informer().
 					GetStore().
 					Add(testCase.wpa)

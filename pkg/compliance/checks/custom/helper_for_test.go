@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/dynamic/fake"
+	"k8s.io/client-go/kubernetes/scheme"
 )
 
 func newUnstructured(apiVersion, kind, namespace, name string, spec map[string]interface{}) *unstructured.Unstructured {
@@ -47,7 +48,7 @@ func (f *kubeApiserverFixture) run(t *testing.T) {
 	env := &mocks.Env{}
 	defer env.AssertExpectations(t)
 
-	kubeClient := fake.NewSimpleDynamicClient(runtime.NewScheme(), f.objects...)
+	kubeClient := fake.NewSimpleDynamicClient(scheme.Scheme, f.objects...)
 	env.On("KubeClient").Return(kubeClient)
 
 	resource := compliance.Resource{
