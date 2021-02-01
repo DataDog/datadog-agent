@@ -1,0 +1,52 @@
+package encoding
+
+import (
+	"bytes"
+
+	"github.com/gogo/protobuf/jsonpb"
+
+	model "github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+)
+
+// ContentTypeJSON holds the HTML content-type of a JSON payload
+const ContentTypeJSON = "application/json"
+
+type jsonSerializer struct {
+	marshaller jsonpb.Marshaler
+}
+
+func (j jsonSerializer) Marshal(stats map[int32]*procutil.StatsWithPerm) ([]byte, error) {
+	writer := new(bytes.Buffer)
+	payload := statsPool.Get().(*model.ProcStatsWithPermByPID)
+	for pid, s := range stats {
+		stat := statPool.Get().(*model.ProcStatsWithPerm)
+		stat.OpenFDCount = s.OpenFdCount
+		stat.ReadCount = s.IOStat.ReadCount
+		stat.WriteCount = s.IOStat.WriteCount
+		stat.ReadBytes = s.IOStat.ReadBytes
+		stat.WriteBytes = s.IOStat.WriteBytes
+		payload.StatsByPID[pid] = stat
+	}
+
+	err := j.marshaller.Marshal(writer, payload)
+	returnToPool(payload)
+	return writer.Bytes(), err
+}
+
+func (jsonSerializer) Unmarshal(blob []byte) (*model.ProcStatsWithPermByPID, error) {
+	stats := new(model.ProcStatsWithPermByPID)
+	reader := bytes.NewReader(blob)
+	if err := jsonpb.Unmarshal(reader, stats); err != nil {
+		return nil, err
+	}
+	return stats, nil
+
+}
+
+func (j jsonSerializer) ContentType() string {
+	return ContentTypeJSON
+}
+
+var _ Marshaler = jsonSerializer{}
+var _ Unmarshaler = jsonSerializer{}
