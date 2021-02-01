@@ -851,7 +851,7 @@ func processDiscarderWrapper(eventType EventType, fnc onDiscarderHandler) onDisc
 				return err
 			}
 
-			return probe.discardInode(eventType, event.Process.MountID, event.Process.Inode)
+			return probe.discardInode(eventType, event.Process.MountID, event.Process.Inode, true)
 		}
 
 		if fnc != nil {
@@ -890,7 +890,7 @@ func filenameDiscarderWrapper(eventType EventType, handler onDiscarderHandler, g
 					log.Tracef("Apply `%s.filename` inode discarder for event `%s`, inode: %d", eventType, eventType, inode)
 
 					// not able to discard the parent then only discard the filename
-					err = probe.discardInode(eventType, mountID, inode)
+					err = probe.discardInode(eventType, mountID, inode, true)
 				}
 			} else {
 				log.Tracef("Apply `%s.filename` parent inode discarder for event `%s` with value `%s`", eventType, eventType, filename)
