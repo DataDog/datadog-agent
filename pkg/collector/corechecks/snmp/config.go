@@ -6,6 +6,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/yaml.v2"
 	"path/filepath"
+	"strings"
 )
 
 var defaultOidBatchSize = 60
@@ -198,8 +199,11 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 			return snmpConfig{}, fmt.Errorf("failed to refresh with profile `%s`: %s", profile, err)
 		}
 	}
-	validateEnrichMetrics(c.metrics)
-	validateEnrichMetricTags(c.metricTags)
+	errors := validateEnrichMetrics(c.metrics)
+	errors = append(errors, validateEnrichMetricTags(c.metricTags)...)
+	if len(errors) > 0 {
+		return snmpConfig{}, fmt.Errorf("validation errors: %s", strings.Join(errors, "\n"))
+	}
 	return c, err
 }
 

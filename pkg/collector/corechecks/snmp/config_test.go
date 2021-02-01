@@ -354,7 +354,7 @@ func Test_buildConfig(t *testing.T) {
 		name              string
 		rawInstanceConfig []byte
 		rawInitConfig     []byte
-		expectedErr       string
+		expectedErrors    []string
 	}{
 		{
 			name: "unknown profile",
@@ -369,13 +369,35 @@ profiles:
   f5-big-ip:
     definition_file: f5-big-ip.yaml
 `),
-			expectedErr: "failed to refresh with profile `does-not-exist`: unknown profile `does-not-exist`",
+			expectedErrors: []string{
+				"failed to refresh with profile `does-not-exist`: unknown profile `does-not-exist`",
+			},
+		},
+		{
+			name: "validation errors",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+metrics:
+- symbol:
+    OID: 1.2.3
+-
+`),
+			// language=yaml
+			rawInitConfig: []byte(`
+`),
+			expectedErrors: []string{
+				"validation errors: symbol name missing: name=`` oid=`1.2.3`",
+				"either a table symbol or a scalar symbol must be provided",
+			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := buildConfig(tt.rawInstanceConfig, tt.rawInitConfig)
-			assert.EqualError(t, err, tt.expectedErr)
+			for _, errStr := range tt.expectedErrors {
+				assert.Contains(t, err.Error(), errStr)
+			}
 		})
 	}
 }

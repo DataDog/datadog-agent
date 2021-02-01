@@ -269,7 +269,7 @@ func Test_validateEnrichMetrics(t *testing.T) {
 			errors := validateEnrichMetrics(tt.metrics)
 			assert.Equal(t, len(tt.errors), len(errors), fmt.Sprintf("ERRORS: %v", errors))
 			for i := range errors {
-				assert.Contains(t, errors[i].Error(), tt.errors[i])
+				assert.Contains(t, errors[i], tt.errors[i])
 			}
 		})
 	}
