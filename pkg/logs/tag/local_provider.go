@@ -12,7 +12,6 @@ import (
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type localProvider struct {
@@ -29,10 +28,8 @@ func NewLocalProvider(t []string) Provider {
 	}
 
 	if config.IsExpectedTagsSet() {
-		log.Debugf("EXPECTED TAGS IS SET")
 		p.expectedTags = append(p.tags, host.GetHostTags(true).System...)
 		p.expectedTagsDeadline = coreConfig.StartTime.Add(coreConfig.Datadog.GetDuration("logs_config.expected_tags_duration"))
-		log.Debugf("DEADLINE SET AT: %v", p.expectedTagsDeadline)
 
 		// reset submitExpectedTags after deadline elapsed
 		go func() {
@@ -42,8 +39,6 @@ func NewLocalProvider(t []string) Provider {
 			defer p.Unlock()
 			p.expectedTags = p.tags
 		}()
-	} else {
-		log.Debugf("EXPECTED TAGS IS NOT SET")
 	}
 
 	return p
