@@ -199,9 +199,6 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 		}
 	}
 
-	// TODO: [VALIDATION] Check for duplicate profile sysobjectid
-	//   https://github.com/DataDog/integrations-core/blob/df2bc0d17af490491651d7578e67d9928941df62/snmp/datadog_checks/snmp/snmp.py#L142-L144
-
 	// TODO: [VALIDATION] Add missing error handling by looking at
 	//   https://github.com/DataDog/integrations-core/blob/e64e2d18529c6c106f02435c5fdf2621667c16ad/snmp/datadog_checks/snmp/config.py
 
@@ -262,10 +259,14 @@ func getProfileForSysObjectID(profiles profileDefinitionMap, sysObjectID string)
 				log.Debugf("pattern error: %s", err)
 				continue
 			}
-			if found {
-				tmpSysOidToProfile[oidPattern] = profile
-				matchedOids = append(matchedOids, oidPattern)
+			if !found {
+				continue
 			}
+			if matchedProfile, ok := tmpSysOidToProfile[oidPattern]; ok {
+				return "", fmt.Errorf("profile %s has the same sysObjectID (%s) as %s", profile, oidPattern, matchedProfile)
+			}
+			tmpSysOidToProfile[oidPattern] = profile
+			matchedOids = append(matchedOids, oidPattern)
 		}
 	}
 	oid, err := getMostSpecificOid(matchedOids)

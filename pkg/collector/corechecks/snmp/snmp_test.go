@@ -99,7 +99,6 @@ metrics:
   - OID: 1.3.6.1.2.1.2.2.1.20
     name: ifOutErrors
 
-  # TODO: Create separate test for index metric_tags
   metric_tags:
   - tag: if_index
     index: 1

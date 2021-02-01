@@ -400,6 +400,26 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 			SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3.[.*"},
 		},
 	}
+	mockProfilesWithDuplicateSysobjectid := profileDefinitionMap{
+		"profile1": profileDefinition{
+			Metrics: []metricsConfig{
+				{Symbol: symbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
+			},
+			SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3"},
+		},
+		"profile2": profileDefinition{
+			Metrics: []metricsConfig{
+				{Symbol: symbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
+			},
+			SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3"},
+		},
+		"profile3": profileDefinition{
+			Metrics: []metricsConfig{
+				{Symbol: symbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
+			},
+			SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.4"},
+		},
+	}
 	tests := []struct {
 		name            string
 		profiles        profileDefinitionMap
@@ -441,6 +461,20 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 			sysObjectID:     "1.3.6.1.4.1.3375.2.1.3.4.5.11",
 			expectedProfile: "",
 			expectedError:   fmt.Errorf("failed to get most specific profile for sysObjectID `1.3.6.1.4.1.3375.2.1.3.4.5.11`, for matched oids []: cannot get most specific oid from empty list of oids"),
+		},
+		{
+			name:            "duplicate sysobjectid",
+			profiles:        mockProfilesWithDuplicateSysobjectid,
+			sysObjectID:     "1.3.6.1.4.1.3375.2.1.3",
+			expectedProfile: "",
+			expectedError:   fmt.Errorf("profile profile2 has the same sysObjectID (1.3.6.1.4.1.3375.2.1.3) as profile1"),
+		},
+		{
+			name:            "unrelated duplicate sysobjectid should not raise error",
+			profiles:        mockProfilesWithDuplicateSysobjectid,
+			sysObjectID:     "1.3.6.1.4.1.3375.2.1.4",
+			expectedProfile: "profile3",
+			expectedError:   nil,
 		},
 	}
 	for _, tt := range tests {
