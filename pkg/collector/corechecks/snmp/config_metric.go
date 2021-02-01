@@ -124,6 +124,14 @@ func (m *metricsConfig) getSymbolTags() []string {
 	return symbolTags
 }
 
+func (m *metricsConfig) isColumn() bool {
+	return len(m.Symbols) > 0
+}
+
+func (m *metricsConfig) isScalar() bool {
+	return m.Symbol.OID != "" && m.Symbol.Name != ""
+}
+
 func (mtc *metricTagConfig) getTags(value string) []string {
 	var tags []string
 	if mtc.Tag != "" {

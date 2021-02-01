@@ -14,9 +14,9 @@ type metricSender struct {
 
 func (ms *metricSender) reportMetrics(metrics []metricsConfig, values *resultValueStore, tags []string) {
 	for _, metric := range metrics {
-		if metric.Symbol.OID != "" {
+		if metric.isScalar() {
 			ms.reportScalarMetrics(metric, values, tags)
-		} else if len(metric.Symbols) > 0 {
+		} else if metric.isColumn() {
 			ms.reportColumnMetrics(metric, values, tags)
 		}
 	}
