@@ -1908,6 +1908,7 @@ func TestHTTPStats(t *testing.T) {
 		ReadTimeout:  time.Second,
 		WriteTimeout: time.Second,
 	}
+	srv.SetKeepAlivesEnabled(false)
 	go func() {
 		_ = srv.ListenAndServe()
 	}()
@@ -1925,17 +1926,17 @@ func TestHTTPStats(t *testing.T) {
 	require.NoError(t, err)
 	resp.Body.Close()
 
-	// Allow the HTTP transactions to be processed in the monitor
-	time.Sleep(time.Second)
-
 	// Iterate through active connections until we find connection created above
-	conns := getConnections(t, tr)
-	matchingConns := searchConnections(conns, func(cs network.ConnectionStats) bool {
-		ip := cs.Dest.String()
-		port := strconv.Itoa(int(cs.DPort))
-		return ip+":"+port == serverAddr
-	})
-	require.Len(t, matchingConns, 1)
+	var matchingConns []network.ConnectionStats
+	require.Eventuallyf(t, func() bool {
+		matchingConns = searchConnections(getConnections(t, tr), func(cs network.ConnectionStats) bool {
+			ip := cs.Dest.String()
+			port := strconv.Itoa(int(cs.DPort))
+			return ip+":"+port == serverAddr
+		})
+
+		return len(matchingConns) == 1
+	}, 3*time.Second, 10*time.Millisecond, "couldn't find http connection matching: %s", serverAddr)
 
 	// Verify HTTP stats
 	conn := matchingConns[0]
