@@ -5,24 +5,34 @@
 
 package filters
 
-import "github.com/DataDog/datadog-agent/pkg/trace/pb"
+import (
+	"errors"
 
-// Validator holds a list of required tags.
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+)
+
+// Validator holds lists of required and rejected tags.
 type Validator struct {
-	reqTags []string
+	reqTags    []string
+	rejectTags []string
 }
 
-// Validates returns true if root span contains all required tags from Validator.
-func (v *Validator) Validates(span *pb.Span) bool {
+// Validates returns an error if root span does not contain all required tags and/or contains rejected tags from Validator.
+func (v *Validator) Validates(span *pb.Span) error {
 	for _, tag := range v.reqTags {
 		if _, ok := span.Meta[tag]; !ok {
-			return false
+			return errors.New("required tag(s) missing")
 		}
 	}
-	return true
+	for _, tag := range v.rejectTags {
+		if _, ok := span.Meta[tag]; ok {
+			return errors.New("invalid tag(s) found")
+		}
+	}
+	return nil
 }
 
-// NewValidator creates new Validator based on given list of required tags.
-func NewValidator(reqTags []string) *Validator {
-	return &Validator{reqTags: reqTags}
+// NewValidator creates new Validator based on given list of required and rejected tags.
+func NewValidator(reqTags []string, rejectTags []string) *Validator {
+	return &Validator{reqTags: reqTags, rejectTags: rejectTags}
 }

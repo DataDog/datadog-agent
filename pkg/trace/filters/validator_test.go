@@ -14,12 +14,14 @@ import (
 
 func TestValidator(t *testing.T) {
 	tests := []struct {
-		reqTags   []string
-		traceMeta map[string]string
-		isValid   bool
+		reqTags    []string
+		rejectTags []string
+		traceMeta  map[string]string
+		isValid    bool
 	}{
 		{
 			[]string{"important1", "important2"},
+			[]string{},
 			map[string]string{
 				"important1": "test-value",
 				"important2": "test-value-2",
@@ -28,6 +30,7 @@ func TestValidator(t *testing.T) {
 		},
 		{
 			[]string{"important1", "important2"},
+			[]string{},
 			map[string]string{
 				"important1": "test-value",
 				"important2": "another-test-value",
@@ -37,6 +40,7 @@ func TestValidator(t *testing.T) {
 		},
 		{
 			[]string{"important1", "important2"},
+			[]string{},
 			map[string]string{
 				"important1": "test-value",
 				"blah":       "blah",
@@ -45,6 +49,7 @@ func TestValidator(t *testing.T) {
 		},
 		{
 			[]string{},
+			[]string{"reject1"},
 			map[string]string{
 				"somekey": "12345",
 				"blah":    "blah",
@@ -53,15 +58,29 @@ func TestValidator(t *testing.T) {
 		},
 		{
 			[]string{},
-			map[string]string{},
-			true,
+			[]string{"reject1"},
+			map[string]string{
+				"somekey": "12345",
+				"reject1": "bad",
+			},
+			false,
+		},
+		{
+			[]string{"important1"},
+			[]string{"reject1", "reject2"},
+			map[string]string{
+				"important1": "test-value",
+				"reject1":    "bad",
+				"reject2":    "also-bad",
+			},
+			false,
 		},
 	}
 
 	for _, test := range tests {
 		span := testutil.RandomSpan()
 		span.Meta = test.traceMeta
-		filter := NewValidator(test.reqTags)
+		filter := NewValidator(test.reqTags, test.rejectTags)
 
 		assert.Equal(t, test.isValid, filter.Validates(span))
 	}
