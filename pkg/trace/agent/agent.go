@@ -7,6 +7,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"runtime"
 	"strconv"
 	"sync/atomic"
@@ -39,7 +40,6 @@ type Agent struct {
 	Receiver           *api.HTTPReceiver
 	Concentrator       *stats.Concentrator
 	Blacklister        *filters.Blacklister
-	Validator          *filters.Validator
 	Replacer           *filters.Replacer
 	ScoreSampler       *Sampler
 	ErrorsScoreSampler *Sampler
@@ -73,7 +73,6 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	agnt := &Agent{
 		Concentrator:       stats.NewConcentrator(conf.BucketInterval.Nanoseconds(), statsChan),
 		Blacklister:        filters.NewBlacklister(conf.Ignore["resource"]),
-		Validator:          filters.NewValidator(conf.RequiredTags, conf.RejectedTags),
 		Replacer:           filters.NewReplacer(conf.ReplaceTags),
 		ScoreSampler:       NewScoreSampler(conf),
 		ExceptionSampler:   sampler.NewExceptionSampler(),
@@ -186,7 +185,7 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 			continue
 		}
 
-		if e := a.Validator.Validates(root); e != nil {
+		if e := a.validTags(root); e != nil {
 			log.Debugf("Trace discarded: %s. root: %v", e, root)
 			atomic.AddInt64(&ts.TracesFiltered, 1)
 			atomic.AddInt64(&ts.SpansFiltered, tracen)
@@ -420,6 +419,22 @@ func (a *Agent) sampleNoPriorityTrace(pt ProcessedTrace) bool {
 		return a.ErrorsScoreSampler.Add(pt)
 	}
 	return a.ScoreSampler.Add(pt)
+}
+
+// validTags reports whether the given span passes validation by ensuring that
+// it's not missing any of the required tags and has none of the rejected ones.
+func (a *Agent) validTags(span *pb.Span) error {
+	for _, tag := range a.conf.RequiredTags {
+		if _, ok := span.Meta[tag]; !ok {
+			return errors.New("required tag(s) missing")
+		}
+	}
+	for _, tag := range a.conf.RejectedTags {
+		if _, ok := span.Meta[tag]; ok {
+			return errors.New("invalid tag(s) found")
+		}
+	}
+	return nil
 }
 
 func traceContainsError(trace pb.Trace) bool {

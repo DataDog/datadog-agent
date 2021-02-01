@@ -404,6 +404,101 @@ func TestProcess(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("filtering", func(t *testing.T) {
+		tests := []struct {
+			reqTags        []string
+			rejectTags     []string
+			traceMeta      map[string]string
+			tracesFiltered int64
+			spansFiltered  int64
+		}{
+			{
+				[]string{"important1", "important2"},
+				[]string{},
+				map[string]string{
+					"important1": "test-value",
+					"important2": "test-value-2",
+				},
+				0,
+				0,
+			},
+			{
+				[]string{"important1", "important2"},
+				[]string{},
+				map[string]string{
+					"important1": "test-value",
+					"important2": "another-test-value",
+					"blah":       "blah",
+				},
+				0,
+				0,
+			},
+			{
+				[]string{"important1", "important2"},
+				[]string{},
+				map[string]string{
+					"important1": "test-value",
+					"blah":       "blah",
+				},
+				1,
+				1,
+			},
+			{
+				[]string{},
+				[]string{"reject1"},
+				map[string]string{
+					"somekey": "12345",
+					"blah":    "blah",
+				},
+				0,
+				0,
+			},
+			{
+				[]string{},
+				[]string{"reject1"},
+				map[string]string{
+					"somekey": "12345",
+					"reject1": "bad",
+				},
+				1,
+				1,
+			},
+			{
+				[]string{"important1"},
+				[]string{"reject1", "reject2"},
+				map[string]string{
+					"important1": "test-value",
+					"reject1":    "bad",
+					"reject2":    "also-bad",
+				},
+				1,
+				1,
+			},
+		}
+
+		for _, test := range tests {
+			cfg := config.New()
+			cfg.Endpoints[0].APIKey = "test"
+			cfg.RequiredTags = test.reqTags
+			cfg.RejectedTags = test.rejectTags
+			ctx, cancel := context.WithCancel(context.Background())
+			agnt := NewAgent(ctx, cfg)
+			defer cancel()
+
+			assert := assert.New(t)
+			want := agnt.Receiver.Stats.GetTagStats(info.Tags{})
+			span := testutil.RandomSpan()
+			span.Meta = test.traceMeta
+
+			agnt.Process(&api.Payload{
+				Traces: pb.Traces{{span}},
+				Source: want,
+			}, stats.NewSublayerCalculator())
+			assert.EqualValues(test.tracesFiltered, want.TracesFiltered)
+			assert.EqualValues(test.spansFiltered, want.SpansFiltered)
+		}
+	})
 }
 
 func TestClientComputedTopLevel(t *testing.T) {
