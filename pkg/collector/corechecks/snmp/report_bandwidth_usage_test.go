@@ -241,6 +241,70 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			[]Metric{},
 			fmt.Errorf("bandwidth usage: missing value for `ifHighSpeed`, skipping this row. fullIndex=9"),
 		},
+		{
+			"cannot convert ifHighSpeed to float",
+			symbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
+			"9",
+			&resultValueStore{
+				columnValues: columnResultValuesType{
+					// ifHCInOctets
+					"1.3.6.1.2.1.31.1.1.1.6": map[string]snmpValueType{
+						"9": {
+							metrics.GaugeType,
+							5000000.0,
+						},
+					},
+					// ifHCOutOctets
+					"1.3.6.1.2.1.31.1.1.1.10": map[string]snmpValueType{
+						"9": {
+							metrics.GaugeType,
+							1000000.0,
+						},
+					},
+					// ifHighSpeed
+					"1.3.6.1.2.1.31.1.1.1.15": map[string]snmpValueType{
+						"9": {
+							metrics.GaugeType,
+							"abc",
+						},
+					},
+				},
+			},
+			[]Metric{},
+			fmt.Errorf("failed to convert ifHighSpeedValue to float64: failed to parse `abc`: strconv.ParseInt: parsing \"abc\": invalid syntax"),
+		},
+		{
+			"cannot convert ifHCInOctets to float",
+			symbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
+			"9",
+			&resultValueStore{
+				columnValues: columnResultValuesType{
+					// ifHCInOctets
+					"1.3.6.1.2.1.31.1.1.1.6": map[string]snmpValueType{
+						"9": {
+							metrics.GaugeType,
+							"abc",
+						},
+					},
+					// ifHCOutOctets
+					"1.3.6.1.2.1.31.1.1.1.10": map[string]snmpValueType{
+						"9": {
+							metrics.GaugeType,
+							1000000.0,
+						},
+					},
+					// ifHighSpeed
+					"1.3.6.1.2.1.31.1.1.1.15": map[string]snmpValueType{
+						"9": {
+							metrics.GaugeType,
+							80.0,
+						},
+					},
+				},
+			},
+			[]Metric{},
+			fmt.Errorf("failed to convert octetsValue to float64: failed to parse `abc`: strconv.ParseInt: parsing \"abc\": invalid syntax"),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

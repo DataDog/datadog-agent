@@ -165,6 +165,17 @@ func TestSendMetric(t *testing.T) {
 			expectedTags:       []string{},
 			expectedSubMetrics: 0,
 		},
+		{
+			caseName:           "Cannot convert value to float",
+			metricName:         "gauge.metric",
+			value:              snmpValueType{value: "abc"},
+			tags:               []string{},
+			expectedMethod:     "",
+			expectedMetricName: "",
+			expectedValue:      0,
+			expectedTags:       []string{},
+			expectedSubMetrics: 0,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.caseName, func(t *testing.T) {

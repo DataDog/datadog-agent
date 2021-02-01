@@ -1,6 +1,7 @@
 package snmp
 
 import (
+	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"strconv"
 )
@@ -10,34 +11,26 @@ type snmpValueType struct {
 	value          interface{}        // might be a `string` or `float64` type
 }
 
-func (sv *snmpValueType) toFloat64() float64 {
-	var retValue float64
-
+func (sv *snmpValueType) toFloat64() (float64, error) {
 	switch sv.value.(type) {
 	case float64:
-		retValue = sv.value.(float64)
+		return sv.value.(float64), nil
 	case string:
 		val, err := strconv.ParseInt(sv.value.(string), 10, 64)
 		if err != nil {
-			return float64(0)
+			return 0, fmt.Errorf("failed to parse `%s`: %s", sv.value, err.Error())
 		}
-		retValue = float64(val)
+		return float64(val), nil
 	}
-	// only float64/string are expected
-
-	return retValue
+	return 0, fmt.Errorf("invalid type %T for value %#v", sv.value, sv.value)
 }
 
-func (sv snmpValueType) toString() string {
-	var retValue string
-
+func (sv snmpValueType) toString() (string, error) {
 	switch sv.value.(type) {
 	case float64:
-		retValue = strconv.Itoa(int(sv.value.(float64)))
+		return strconv.Itoa(int(sv.value.(float64))), nil
 	case string:
-		retValue = sv.value.(string)
+		return sv.value.(string), nil
 	}
-	// only float64/string are expected
-
-	return retValue
+	return "", fmt.Errorf("invalid type %T for value %#v", sv.value, sv.value)
 }

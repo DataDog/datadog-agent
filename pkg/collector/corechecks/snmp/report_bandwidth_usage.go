@@ -63,11 +63,18 @@ func (ms *metricSender) sendBandwidthUsageMetric(symbol symbolConfig, fullIndex 
 		return fmt.Errorf("bandwidth usage: missing value for `ifHighSpeed`, skipping this row. fullIndex=%s", fullIndex)
 	}
 
-	ifHighSpeedFloatValue := ifHighSpeedValue.toFloat64()
+	ifHighSpeedFloatValue, err := ifHighSpeedValue.toFloat64()
+	if err != nil {
+		return fmt.Errorf("failed to convert ifHighSpeedValue to float64: %s", err)
+	}
 	if ifHighSpeedFloatValue == 0.0 {
 		return fmt.Errorf("bandwidth usage: zero or invalid value for ifHighSpeed, skipping this row. fullIndex=%s, ifHighSpeedValue=%#v", fullIndex, ifHighSpeedValue)
 	}
-	usageValue := ((octetsValue.toFloat64() * 8) / (ifHighSpeedFloatValue * (1e6))) * 100.0
+	octetsFloatValue, err := octetsValue.toFloat64()
+	if err != nil {
+		return fmt.Errorf("failed to convert octetsValue to float64: %s", err)
+	}
+	usageValue := ((octetsFloatValue * 8) / (ifHighSpeedFloatValue * (1e6))) * 100.0
 
 	ms.sendMetric(usageName+".rate", snmpValueType{metrics.RateType, usageValue}, tags, "counter", metricsConfigOption{})
 	return nil

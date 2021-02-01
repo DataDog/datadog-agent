@@ -31,7 +31,13 @@ func (ms *metricSender) getCheckInstanceMetricTags(metricTags []metricTagConfig,
 			log.Warnf("metric tags: error getting scalar value: %v", err)
 			continue
 		}
-		globalTags = append(globalTags, metricTag.getTags(value.toString())...)
+		strValue, err := value.toString()
+		if err != nil {
+			// TODO: Test me
+			log.Warnf("error converting value (%#v) to string : %v", value, err)
+			continue
+		}
+		globalTags = append(globalTags, metricTag.getTags(strValue)...)
 	}
 	return globalTags
 }
@@ -71,47 +77,57 @@ func (ms *metricSender) reportColumnMetrics(metricConfig metricsConfig, values *
 
 func (ms *metricSender) sendMetric(metricName string, value snmpValueType, tags []string, forcedType string, options metricsConfigOption) {
 	metricFullName := "snmp." + metricName
-
-	// we need copy tags before using sender due to https://github.com/DataDog/datadog-agent/issues/7159
-	if forcedType != "" {
-		switch forcedType {
-		case "gauge":
-			ms.gauge(metricFullName, value.toFloat64(), "", tags)
-			ms.submittedMetrics++
-		case "counter":
-			ms.rate(metricFullName, value.toFloat64(), "", tags)
-			ms.submittedMetrics++
-		case "percent":
-			ms.rate(metricFullName, value.toFloat64()*100, "", tags)
-			ms.submittedMetrics++
-		case "monotonic_count":
-			ms.monotonicCount(metricFullName, value.toFloat64(), "", tags)
-			ms.submittedMetrics++
-		case "monotonic_count_and_rate":
-			ms.monotonicCount(metricFullName, value.toFloat64(), "", tags)
-			ms.rate(metricFullName+".rate", value.toFloat64(), "", tags)
-			ms.submittedMetrics += 2
-		case "flag_stream":
-			floatValue, err := getFlagStreamValue(options.Placement, value.toString())
-			if err != nil {
-				log.Debugf("metric `%s`: failed to get flag stream value: %s", metricFullName, err)
-				return
-			}
-			ms.gauge(metricFullName+"."+options.MetricSuffix, floatValue, "", tags)
-			ms.submittedMetrics++
-		default:
-			log.Debugf("metric `%s`: unsupported forcedType: %s", metricFullName, forcedType)
-			return
-		}
-	} else {
+	if forcedType == "" {
 		switch value.submissionType {
 		case metrics.RateType:
-			ms.rate(metricFullName, value.toFloat64(), "", tags)
-			ms.submittedMetrics++
+			// snmp counter type correspond to datadog rate type
+			forcedType = "counter"
 		default:
-			ms.gauge(metricFullName, value.toFloat64(), "", tags)
-			ms.submittedMetrics++
+			forcedType = "gauge"
 		}
+	} else if forcedType == "flag_stream" {
+		strValue, err := value.toString()
+		if err != nil {
+			// TODO: Test me
+			log.Debugf("error converting value (%#v) to string : %v", value, err)
+			return
+		}
+		floatValue, err := getFlagStreamValue(options.Placement, strValue)
+		if err != nil {
+			log.Debugf("metric `%s`: failed to get flag stream value: %s", metricFullName, err)
+			return
+		}
+		metricFullName = metricFullName + "." + options.MetricSuffix
+		value = snmpValueType{value: floatValue}
+		forcedType = "gauge"
+	}
+
+	floatValue, err := value.toFloat64()
+	if err != nil {
+		log.Debugf("metric `%s`: failed to convert to float64: %s", metricFullName, err)
+		return
+	}
+
+	switch forcedType {
+	case "gauge":
+		ms.gauge(metricFullName, floatValue, "", tags)
+		ms.submittedMetrics++
+	case "counter":
+		ms.rate(metricFullName, floatValue, "", tags)
+		ms.submittedMetrics++
+	case "percent":
+		ms.rate(metricFullName, floatValue*100, "", tags)
+		ms.submittedMetrics++
+	case "monotonic_count":
+		ms.monotonicCount(metricFullName, floatValue, "", tags)
+		ms.submittedMetrics++
+	case "monotonic_count_and_rate":
+		ms.monotonicCount(metricFullName, floatValue, "", tags)
+		ms.rate(metricFullName+".rate", floatValue, "", tags)
+		ms.submittedMetrics += 2
+	default:
+		log.Debugf("metric `%s`: unsupported forcedType: %s", metricFullName, forcedType)
+		return
 	}
 }
 

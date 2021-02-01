@@ -6,7 +6,6 @@
 package snmp
 
 import (
-	"fmt"
 	"regexp"
 	"testing"
 
@@ -464,62 +463,66 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 		profiles        profileDefinitionMap
 		sysObjectID     string
 		expectedProfile string
-		expectedError   error
+		expectedError   string
 	}{
 		{
 			name:            "found matching profile",
 			profiles:        mockProfiles,
 			sysObjectID:     "1.3.6.1.4.1.3375.2.1.3.4.1",
 			expectedProfile: "profile1",
-			expectedError:   nil,
+			expectedError:   "",
 		},
 		{
 			name:            "found more precise matching profile",
 			profiles:        mockProfiles,
 			sysObjectID:     "1.3.6.1.4.1.3375.2.1.3.4.10",
 			expectedProfile: "profile2",
-			expectedError:   nil,
+			expectedError:   "",
 		},
 		{
 			name:            "found even more precise matching profile",
 			profiles:        mockProfiles,
 			sysObjectID:     "1.3.6.1.4.1.3375.2.1.3.4.5.11",
 			expectedProfile: "profile3",
-			expectedError:   nil,
+			expectedError:   "",
 		},
 		{
 			name:            "failed to get most specific profile for sysObjectID",
 			profiles:        mockProfilesWithPatternError,
 			sysObjectID:     "1.3.6.1.4.1.3375.2.1.3.4.5.11",
 			expectedProfile: "",
-			expectedError:   fmt.Errorf("failed to get most specific profile for sysObjectID `1.3.6.1.4.1.3375.2.1.3.4.5.11`, for matched oids [1.3.6.1.4.1.3375.2.1.3.***.*]: error parsing part `***` for pattern `1.3.6.1.4.1.3375.2.1.3.***.*`: strconv.Atoi: parsing \"***\": invalid syntax"),
+			expectedError:   "failed to get most specific profile for sysObjectID `1.3.6.1.4.1.3375.2.1.3.4.5.11`, for matched oids [1.3.6.1.4.1.3375.2.1.3.***.*]: error parsing part `***` for pattern `1.3.6.1.4.1.3375.2.1.3.***.*`: strconv.Atoi: parsing \"***\": invalid syntax",
 		},
 		{
 			name:            "invalid pattern", // profiles with invalid patterns are skipped, leading to: cannot get most specific oid from empty list of oids
 			profiles:        mockProfilesWithInvalidPatternError,
 			sysObjectID:     "1.3.6.1.4.1.3375.2.1.3.4.5.11",
 			expectedProfile: "",
-			expectedError:   fmt.Errorf("failed to get most specific profile for sysObjectID `1.3.6.1.4.1.3375.2.1.3.4.5.11`, for matched oids []: cannot get most specific oid from empty list of oids"),
+			expectedError:   "failed to get most specific profile for sysObjectID `1.3.6.1.4.1.3375.2.1.3.4.5.11`, for matched oids []: cannot get most specific oid from empty list of oids",
 		},
 		{
 			name:            "duplicate sysobjectid",
 			profiles:        mockProfilesWithDuplicateSysobjectid,
 			sysObjectID:     "1.3.6.1.4.1.3375.2.1.3",
 			expectedProfile: "",
-			expectedError:   fmt.Errorf("profile profile2 has the same sysObjectID (1.3.6.1.4.1.3375.2.1.3) as profile1"),
+			expectedError:   "has the same sysObjectID (1.3.6.1.4.1.3375.2.1.3) as",
 		},
 		{
 			name:            "unrelated duplicate sysobjectid should not raise error",
 			profiles:        mockProfilesWithDuplicateSysobjectid,
 			sysObjectID:     "1.3.6.1.4.1.3375.2.1.4",
 			expectedProfile: "profile3",
-			expectedError:   nil,
+			expectedError:   "",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			profile, err := getProfileForSysObjectID(tt.profiles, tt.sysObjectID)
-			assert.Equal(t, err, tt.expectedError)
+			if tt.expectedError == "" {
+				assert.Nil(t, err)
+			} else {
+				assert.Contains(t, err.Error(), tt.expectedError)
+			}
 			assert.Equal(t, tt.expectedProfile, profile)
 		})
 	}

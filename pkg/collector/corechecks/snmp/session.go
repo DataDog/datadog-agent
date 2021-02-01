@@ -117,5 +117,10 @@ func fetchSysObjectID(session sessionAPI) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("error getting value from pdu: %s", err)
 	}
-	return value.toString(), err
+	strValue, err := value.toString()
+	if err != nil {
+		// TODO: Test me
+		return "", fmt.Errorf("error converting value (%#v) to string : %v", value, err)
+	}
+	return strValue, err
 }

@@ -90,8 +90,7 @@ func (m *metricsConfig) getTags(fullIndex string, values *resultValueStore) []st
 		}
 		// get tag using another column value
 		if metricTag.Column.OID != "" {
-			//tagValueOid := metricTag.Column.OID + "." + fullIndex
-			stringValues, err := values.getColumnValues(metricTag.Column.OID)
+			columnValues, err := values.getColumnValues(metricTag.Column.OID)
 			if err != nil {
 				log.Debugf("error getting column value: %v", err)
 				continue
@@ -105,11 +104,17 @@ func (m *metricsConfig) getTags(fullIndex string, values *resultValueStore) []st
 			}
 			newFullIndex := strings.Join(newIndexes, ".")
 
-			tagValue, ok := stringValues[newFullIndex]
+			tagValue, ok := columnValues[newFullIndex]
 			if !ok {
 				log.Debugf("index not found for column value: tag=%v, index=%v", metricTag.Tag, newFullIndex)
 			} else {
-				rowTags = append(rowTags, metricTag.getTags(tagValue.toString())...)
+				strValue, err := tagValue.toString()
+				if err != nil {
+					// TODO: Test me
+					log.Debugf("error converting tagValue (%#v) to string : %v", tagValue, err)
+					continue
+				}
+				rowTags = append(rowTags, metricTag.getTags(strValue)...)
 			}
 		}
 	}
