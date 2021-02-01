@@ -13,12 +13,15 @@ import (
 const ContentTypeJSON = "application/json"
 
 type jsonSerializer struct {
-	marshaller jsonpb.Marshaler
+	marshaler jsonpb.Marshaler
 }
 
 func (j jsonSerializer) Marshal(stats map[int32]*procutil.StatsWithPerm) ([]byte, error) {
 	writer := new(bytes.Buffer)
-	payload := statsPool.Get().(*model.ProcStatsWithPermByPID)
+	payload := &model.ProcStatsWithPermByPID{
+		StatsByPID: make(map[int32]*model.ProcStatsWithPerm),
+	}
+
 	for pid, s := range stats {
 		stat := statPool.Get().(*model.ProcStatsWithPerm)
 		stat.OpenFDCount = s.OpenFdCount
@@ -29,8 +32,8 @@ func (j jsonSerializer) Marshal(stats map[int32]*procutil.StatsWithPerm) ([]byte
 		payload.StatsByPID[pid] = stat
 	}
 
-	err := j.marshaller.Marshal(writer, payload)
-	returnToPool(payload)
+	err := j.marshaler.Marshal(writer, payload)
+	returnToPool(payload.StatsByPID)
 	return writer.Bytes(), err
 }
 
@@ -41,7 +44,6 @@ func (jsonSerializer) Unmarshal(blob []byte) (*model.ProcStatsWithPermByPID, err
 		return nil, err
 	}
 	return stats, nil
-
 }
 
 func (j jsonSerializer) ContentType() string {

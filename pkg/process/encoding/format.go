@@ -20,12 +20,8 @@ var statsPool = sync.Pool{
 	},
 }
 
-func returnToPool(stats *model.ProcStatsWithPermByPID) {
-	if stats.StatsByPID != nil {
-		for _, s := range stats.StatsByPID {
-			statPool.Put(s)
-		}
+func returnToPool(stats map[int32]*model.ProcStatsWithPerm) {
+	for _, s := range stats {
+		statPool.Put(s)
 	}
-
-	statsPool.Put(stats)
 }

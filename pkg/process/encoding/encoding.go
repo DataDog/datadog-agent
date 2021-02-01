@@ -12,7 +12,7 @@ import (
 var (
 	pSerializer = protoSerializer{}
 	jSerializer = jsonSerializer{
-		marshaller: jsonpb.Marshaler{
+		marshaler: jsonpb.Marshaler{
 			EmitDefaults: true,
 		},
 	}

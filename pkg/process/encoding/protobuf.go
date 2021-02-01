@@ -14,7 +14,9 @@ type protoSerializer struct{}
 
 // Marshal serializes stats by PID into bytes
 func (protoSerializer) Marshal(stats map[int32]*procutil.StatsWithPerm) ([]byte, error) {
-	payload := statsPool.Get().(*model.ProcStatsWithPermByPID)
+	payload := &model.ProcStatsWithPermByPID{
+		StatsByPID: make(map[int32]*model.ProcStatsWithPerm),
+	}
 	for pid, s := range stats {
 		stat := statPool.Get().(*model.ProcStatsWithPerm)
 		stat.OpenFDCount = s.OpenFdCount
@@ -26,7 +28,7 @@ func (protoSerializer) Marshal(stats map[int32]*procutil.StatsWithPerm) ([]byte,
 	}
 
 	buf, err := proto.Marshal(payload)
-	returnToPool(payload)
+	returnToPool(payload.StatsByPID)
 	return buf, err
 }
 
