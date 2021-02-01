@@ -3,7 +3,8 @@ index 0da6a8a..9df4fb5 100644
 --- a/setup.py
 +++ b/setup.py
 @@ -188,8 +188,8 @@ setup(
-         'pytz<2021.1',
+-        'pytz<2021.0',
++        'pytz<2021.1',
          'pycryptodomex>=3.2,!=3.5.0,<4.0.0',
          'pyOpenSSL>=16.2.0,<21.0.0',
 -        'cffi>=1.9,<1.14',
