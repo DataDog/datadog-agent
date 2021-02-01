@@ -134,6 +134,23 @@ func Test_validateEnrichMetrics(t *testing.T) {
 			},
 		},
 		{
+			name: "missing MetricTags",
+			metrics: []metricsConfig{
+				{
+					Symbols: []symbolConfig{
+						{
+							OID:  "1.2",
+							Name: "abc",
+						},
+					},
+					MetricTags: metricTagConfigList{},
+				},
+			},
+			errors: []string{
+				"column symbols [{1.2 abc}] doesn't have a 'metric_tags' section",
+			},
+		},
+		{
 			name: "table external metric column tag MIB error",
 			metrics: []metricsConfig{
 				{
