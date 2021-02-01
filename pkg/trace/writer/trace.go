@@ -49,32 +49,39 @@ type TraceWriter struct {
 	// Channel should only be received from when testing.
 	In chan *SampledSpans
 
-	hostname string
-	env      string
-	senders  []*sender
-	stop     chan struct{}
-	stats    *info.TraceWriterInfo
-	wg       sync.WaitGroup // waits for gzippers
-	tick     time.Duration  // flush frequency
+	hostname  string
+	env       string
+	senders   []*sender
+	stop      chan struct{}
+	flushChan chan struct{}
+	stats     *info.TraceWriterInfo
+	wg        sync.WaitGroup // waits for gzippers
+	tick      time.Duration  // flush frequency
 
-	traces       []*pb.APITrace // traces buffered
-	events       []*pb.Span     // events buffered
-	bufferedSize int            // estimated buffer size
+	traces           []*pb.APITrace // traces buffered
+	events           []*pb.Span     // events buffered
+	bufferedSize     int            // estimated buffer size
+	flushSyncEnabled bool           // when enabled, traces are only sent when Flush is called
 
 	easylog *logutil.ThrottledLogger
 }
 
 // NewTraceWriter returns a new TraceWriter. It is created for the given agent configuration and
 // will accept incoming spans via the in channel.
-func NewTraceWriter(cfg *config.AgentConfig, in chan *SampledSpans) *TraceWriter {
+func NewTraceWriter(cfg *config.AgentConfig) *TraceWriter {
+
+	in := make(chan *SampledSpans, 1000)
+
 	tw := &TraceWriter{
-		In:       in,
-		hostname: cfg.Hostname,
-		env:      cfg.DefaultEnv,
-		stats:    &info.TraceWriterInfo{},
-		stop:     make(chan struct{}),
-		tick:     5 * time.Second,
-		easylog:  logutil.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
+		In:               in,
+		hostname:         cfg.Hostname,
+		env:              cfg.DefaultEnv,
+		stats:            &info.TraceWriterInfo{},
+		stop:             make(chan struct{}),
+		flushChan:        make(chan struct{}),
+		flushSyncEnabled: cfg.SynchronousFlushing,
+		tick:             5 * time.Second,
+		easylog:          logutil.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
 	}
 	climit := cfg.TraceWriter.ConnectionLimit
 	if climit == 0 {
@@ -112,6 +119,14 @@ func (w *TraceWriter) Stop() {
 
 // Run starts the TraceWriter.
 func (w *TraceWriter) Run() {
+	if w.flushSyncEnabled {
+		w.runSync()
+	} else {
+		w.runAsync()
+	}
+}
+
+func (w *TraceWriter) runAsync() {
 	t := time.NewTicker(w.tick)
 	defer t.Stop()
 	defer close(w.stop)
@@ -120,17 +135,7 @@ func (w *TraceWriter) Run() {
 		case pkg := <-w.In:
 			w.addSpans(pkg)
 		case <-w.stop:
-			// drain the input channel before stopping
-		outer:
-			for {
-				select {
-				case pkg := <-w.In:
-					w.addSpans(pkg)
-				default:
-					break outer
-				}
-			}
-			w.flush()
+			w.processPendingSpans()
 			return
 		case <-t.C:
 			w.report()
@@ -139,9 +144,48 @@ func (w *TraceWriter) Run() {
 	}
 }
 
-// SyncFlush is a no-op for TraceWriter
-func (w *TraceWriter) SyncFlush() {
-	log.Warn("SyncFlush called on TraceWriter, which is a no-op")
+func (w *TraceWriter) runSync() {
+	defer close(w.stop)
+	defer close(w.flushChan)
+	for {
+		select {
+		case pkg := <-w.In:
+			w.addSpans(pkg)
+		case <-w.flushChan:
+			// Make sure all pending spans have been buffered
+			w.processPendingSpans()
+			w.wg.Done()
+		case <-w.stop:
+			w.processPendingSpans()
+			return
+		}
+	}
+}
+
+// FlushSync blocks and sends pending payloads when flushSyncEnabled is true
+func (w *TraceWriter) FlushSync() error {
+	if !w.flushSyncEnabled {
+		return log.Errorf("FlushSync called on TraceWriter when in async mode")
+	}
+	defer w.report()
+
+	w.wg.Add(1) // Add will be completed in sync loop
+	w.flushChan <- struct{}{}
+	// Wait for all payloads to be submitted to the sender
+	w.wg.Wait()
+
+	// Wait for all the senders to finish
+	wg := sync.WaitGroup{}
+	for _, sender := range w.senders {
+		s := sender
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			s.waitForInflight()
+		}()
+	}
+	wg.Wait()
+	return nil
 }
 
 func (w *TraceWriter) addSpans(pkg *SampledSpans) {
@@ -163,6 +207,19 @@ func (w *TraceWriter) addSpans(pkg *SampledSpans) {
 		w.events = append(w.events, pkg.Events...)
 	}
 	w.bufferedSize += size
+}
+
+func (w *TraceWriter) processPendingSpans() {
+outer:
+	for {
+		select {
+		case pkg := <-w.In:
+			w.addSpans(pkg)
+		default:
+			break outer
+		}
+	}
+	w.flush()
 }
 
 func (w *TraceWriter) resetBuffer() {

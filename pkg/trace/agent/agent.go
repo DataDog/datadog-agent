@@ -34,12 +34,6 @@ const (
 	tagContainersTags = "_dd.tags.container"
 )
 
-type TraceWriter interface {
-	Run()
-	Stop()
-	SyncFlush()
-}
-
 type StatsWriter interface {
 	Run()
 	Stop()
@@ -58,7 +52,7 @@ type Agent struct {
 	ExceptionSampler   *sampler.ExceptionSampler
 	PrioritySampler    *Sampler
 	EventProcessor     *event.Processor
-	TraceWriter        TraceWriter
+	TraceWriter        *writer.TraceWriter
 	StatsWriter        StatsWriter
 
 	// obfuscator is used to obfuscate sensitive data from various span
@@ -66,8 +60,7 @@ type Agent struct {
 	obfuscator *obfuscate.Obfuscator
 
 	// In takes incoming payloads to be processed by the agent.
-	In            chan *api.Payload
-	TraceWriterIn chan *writer.SampledSpans
+	In chan *api.Payload
 
 	// config
 	conf *config.AgentConfig
@@ -81,17 +74,14 @@ type Agent struct {
 func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	dynConf := sampler.NewDynamicConfig(conf.DefaultEnv)
 	in := make(chan *api.Payload, 1000)
-	out := make(chan *writer.SampledSpans, 1000)
 
 	statsChan := make(chan []stats.Bucket, 100)
 
-	var traceWriter TraceWriter
 	var statsWriter StatsWriter
+	traceWriter := writer.NewTraceWriter(conf)
 	if conf.SynchronousFlushing {
-		traceWriter = writer.NewTraceSyncWriter(conf, out)
 		statsWriter = writer.NewStatsSyncWriter(conf, statsChan)
 	} else {
-		traceWriter = writer.NewTraceWriter(conf, out)
 		statsWriter = writer.NewStatsWriter(conf, statsChan)
 	}
 
@@ -108,7 +98,6 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		StatsWriter:        statsWriter,
 		obfuscator:         obfuscate.NewObfuscator(conf.Obfuscation),
 		In:                 in,
-		TraceWriterIn:      out,
 		conf:               conf,
 		ctx:                ctx,
 	}
@@ -143,7 +132,7 @@ func (a *Agent) Run() {
 // mode.
 func (a *Agent) Flush() {
 	a.StatsWriter.SyncFlush()
-	a.TraceWriter.SyncFlush()
+	a.TraceWriter.FlushSync()
 }
 
 func (a *Agent) work() {
@@ -287,12 +276,12 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 			ss.Size += pb.Trace(events).Msgsize()
 		}
 		if ss.Size > writer.MaxPayloadSize {
-			a.TraceWriterIn <- ss
+			a.TraceWriter.In <- ss
 			ss = new(writer.SampledSpans)
 		}
 	}
 	if ss.Size > 0 {
-		a.TraceWriterIn <- ss
+		a.TraceWriter.In <- ss
 	}
 	if len(sinputs) > 0 {
 		a.Concentrator.In <- sinputs
