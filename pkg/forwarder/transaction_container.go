@@ -43,9 +43,6 @@ func buildTransactionContainer(
 	dropPrioritySorter transactionPrioritySorter,
 	domain string,
 	apiKeys []string) *transactionContainer {
-	if maxMemSizeInBytes <= 0 {
-		return nil
-	}
 	var storage transactionStorage
 	var err error
 
@@ -181,6 +178,11 @@ func (tc *transactionContainer) extractTransactionsForDisk(payloadSize int) [][]
 		// Flush the N first transactions whose payload size sum is greater than `sizeInBytesToFlush`
 		transactions := tc.extractTransactionsFromMemory(sizeInBytesToFlush)
 
+		if len(transactions) == 0 {
+			// Happens when `sizeInBytesToFlush == 0`
+			// Avoid infinite loop
+			break
+		}
 		payloadsGroupToFlush = append(payloadsGroupToFlush, transactions)
 	}
 

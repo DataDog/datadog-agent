@@ -188,7 +188,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("enable_gohai", true)
 	config.BindEnvAndSetDefault("check_runners", int64(4))
 	config.BindEnvAndSetDefault("auth_token_file_path", "")
-	config.BindEnvAndSetDefault("bind_host", "localhost")
+	_ = config.BindEnv("bind_host")
 	config.BindEnvAndSetDefault("ipc_address", "localhost")
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
@@ -805,7 +805,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.event_server.burst", 40)
 	config.BindEnvAndSetDefault("runtime_security_config.event_server.rate", 10)
 	config.BindEnvAndSetDefault("runtime_security_config.load_controller.events_count_threshold", 20000)
-	config.BindEnvAndSetDefault("runtime_security_config.load_controller.fork_bomb_threshold", 500)
 	config.BindEnvAndSetDefault("runtime_security_config.load_controller.discarder_timeout", 10)
 	config.BindEnvAndSetDefault("runtime_security_config.load_controller.control_period", 2)
 	config.BindEnvAndSetDefault("runtime_security_config.pid_cache_size", 10000)
@@ -1289,4 +1288,15 @@ func IsCLCRunner() bool {
 		}
 	}
 	return false
+}
+
+// GetBindHost returns `bind_host` variable or default value
+// Not using `config.BindEnvAndSetDefault` as some processes need to know
+// if value was default one or not (e.g. trace-agent)
+func GetBindHost() string {
+	if Datadog.IsSet("bind_host") {
+		return Datadog.GetString("bind_host")
+	}
+
+	return "localhost"
 }

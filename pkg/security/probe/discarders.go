@@ -54,7 +54,8 @@ type inodeDiscarder struct {
 }
 
 type inodeDiscarderParameters struct {
-	EventType EventType
+	ParentMask EventType
+	LeafMask   EventType
 }
 
 func (p *Probe) removeDiscarderInode(mountID uint32, inode uint64) {
@@ -67,7 +68,7 @@ func (p *Probe) removeDiscarderInode(mountID uint32, inode uint64) {
 	_ = p.inodeDiscarders.Delete(&key)
 }
 
-func (p *Probe) discardInode(eventType EventType, mountID uint32, inode uint64) error {
+func (p *Probe) discardInode(eventType EventType, mountID uint32, inode uint64, isLeaf bool) error {
 	var params inodeDiscarderParameters
 	key := inodeDiscarder{
 		PathKey: PathKey{
@@ -82,7 +83,12 @@ func (p *Probe) discardInode(eventType EventType, mountID uint32, inode uint64) 
 		updateFlags = libebpf.UpdateAny
 	}
 
-	params.EventType |= 1 << (eventType - 1)
+	if isLeaf {
+		params.LeafMask |= 1 << (eventType - 1)
+	} else {
+		params.ParentMask |= 1 << (eventType - 1)
+	}
+
 	return p.inodeDiscarders.Update(&key, &params, updateFlags)
 }
 
@@ -97,7 +103,7 @@ func (p *Probe) discardParentInode(rs *rules.RuleSet, eventType EventType, field
 		return false, 0, 0, err
 	}
 
-	if err := p.discardInode(eventType, parentMountID, parentInode); err != nil {
+	if err := p.discardInode(eventType, parentMountID, parentInode, false); err != nil {
 		return false, 0, 0, err
 	}
 

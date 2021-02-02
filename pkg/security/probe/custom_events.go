@@ -26,8 +26,6 @@ const (
 	NoisyProcessRuleID = "noisy_process"
 	// AbnormalPathRuleID is the rule ID for the abnormal_path events
 	AbnormalPathRuleID = "abnormal_path"
-	// ForkBombRuleID is the rule ID for the fork_bomb events
-	ForkBombRuleID = "fork_bomb"
 )
 
 // AllCustomRuleIDs returns the list of custom rule IDs
@@ -37,7 +35,6 @@ func AllCustomRuleIDs() []string {
 		RulesetLoadedRuleID,
 		NoisyProcessRuleID,
 		AbnormalPathRuleID,
-		ForkBombRuleID,
 	}
 }
 
@@ -220,22 +217,5 @@ func NewAbnormalPathEvent(event *Event, pathResolutionError error) (*rules.Rule,
 			Timestamp:           event.ResolveEventTimestamp(),
 			Event:               newEventSerializer(event),
 			PathResolutionError: pathResolutionError.Error(),
-		}.MarshalJSON)
-}
-
-// ForkBombEvent is used to report the detection of a fork bomb
-// easyjson:json
-type ForkBombEvent struct {
-	Timestamp time.Time        `json:"date"`
-	Event     *EventSerializer `json:"triggering_event"`
-}
-
-// NewForkBombEvent returns the rule and a populated custom event for a fork_bomb event
-func NewForkBombEvent(event *Event) (*rules.Rule, *CustomEvent) {
-	return newRule(&rules.RuleDefinition{
-			ID: ForkBombRuleID,
-		}), newCustomEvent(CustomForkBombEventType, ForkBombEvent{
-			Timestamp: event.ResolveEventTimestamp(),
-			Event:     newEventSerializer(event),
 		}.MarshalJSON)
 }

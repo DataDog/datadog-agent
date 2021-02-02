@@ -52,9 +52,6 @@ type Config struct {
 	CookieCacheSize int
 	// LoadControllerEventsCountThreshold defines the amount of events past which we will trigger the in-kernel circuit breaker
 	LoadControllerEventsCountThreshold int64
-	// LoadControllerForkBombThreshold defines the amount fork events triggered by the same process binary past which
-	// we will report a fork bomb alert
-	LoadControllerForkBombThreshold int64
 	// LoadControllerDiscarderTimeout defines the amount of time discarders set by the load controller should last
 	LoadControllerDiscarderTimeout time.Duration
 	// LoadControllerControlPeriod defines the period at which the load controller will empty the user space counter used
@@ -85,7 +82,6 @@ func NewConfig(cfg *config.AgentConfig) (*Config, error) {
 		PIDCacheSize:                       aconfig.Datadog.GetInt("runtime_security_config.pid_cache_size"),
 		CookieCacheSize:                    aconfig.Datadog.GetInt("runtime_security_config.cookie_cache_size"),
 		LoadControllerEventsCountThreshold: int64(aconfig.Datadog.GetInt("runtime_security_config.load_controller.events_count_threshold")),
-		LoadControllerForkBombThreshold:    int64(aconfig.Datadog.GetInt("runtime_security_config.load_controller.fork_bomb_threshold")),
 		LoadControllerDiscarderTimeout:     time.Duration(aconfig.Datadog.GetInt("runtime_security_config.load_controller.discarder_timeout")) * time.Second,
 		LoadControllerControlPeriod:        time.Duration(aconfig.Datadog.GetInt("runtime_security_config.load_controller.control_period")) * time.Second,
 		StatsPollingInterval:               time.Duration(aconfig.Datadog.GetInt("runtime_security_config.events_stats.polling_interval")) * time.Second,

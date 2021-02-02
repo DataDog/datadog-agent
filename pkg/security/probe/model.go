@@ -1110,7 +1110,7 @@ func (e *Event) ResolveEventTimestamp() time.Time {
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessCacheEntry of the event
 func (e *Event) ResolveProcessCacheEntry() *ProcessCacheEntry {
 	if e.processCacheEntry == nil {
-		e.processCacheEntry = e.resolvers.ProcessResolver.Resolve(e.Process.Pid, e.Process.Cookie)
+		e.processCacheEntry = e.resolvers.ProcessResolver.Resolve(e.Process.Pid)
 		if e.processCacheEntry == nil {
 			e.processCacheEntry = &ProcessCacheEntry{}
 		}
