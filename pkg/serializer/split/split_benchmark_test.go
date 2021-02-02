@@ -12,13 +12,6 @@ import (
 )
 
 func benchmarkSplitPayloadsSketchesSplit(b *testing.B, numPoints int) {
-
-	// Uncomment for testing smaller payloads
-	// prevMaxPayloadSizeCompressed := maxPayloadSizeCompressed
-	// maxPayloadSizeCompressed = 1024
-	// defer func() { maxPayloadSizeCompressed = prevMaxPayloadSizeCompressed }()
-
-	// testSketchSeries := make(metrics.SketchSeriesList, numPoints)
 	testSketchSeries := make(metrics.SketchSeriesList, numPoints)
 	for i := 0; i < numPoints; i++ {
 		testSketchSeries[i] = metrics.Makeseries(200)
@@ -32,12 +25,6 @@ func benchmarkSplitPayloadsSketchesSplit(b *testing.B, numPoints int) {
 }
 
 func benchmarkSplitPayloadsSketchesNew(b *testing.B, numPoints int) {
-
-	// Uncomment for testing smaller payloads
-	// prevMaxPayloadSizeCompressed := maxPayloadSizeCompressed
-	// maxPayloadSizeCompressed = 1024
-	// defer func() { maxPayloadSizeCompressed = prevMaxPayloadSizeCompressed }()
-
 	testSketchSeries := make(metrics.SketchSeriesList, numPoints)
 	for i := 0; i < numPoints; i++ {
 		testSketchSeries[i] = metrics.Makeseries(200)
@@ -50,10 +37,14 @@ func benchmarkSplitPayloadsSketchesNew(b *testing.B, numPoints int) {
 	}
 }
 
-func BenchmarkSplitPayloadsSketches1(b *testing.B) { benchmarkSplitPayloadsSketchesSplit(b, 30000) }
+func BenchmarkSplitPayloadsSketches1(b *testing.B)     { benchmarkSplitPayloadsSketchesSplit(b, 1) }
+func BenchmarkSplitPayloadsSketches10(b *testing.B)    { benchmarkSplitPayloadsSketchesSplit(b, 10) }
+func BenchmarkSplitPayloadsSketches100(b *testing.B)   { benchmarkSplitPayloadsSketchesSplit(b, 100) }
+func BenchmarkSplitPayloadsSketches1000(b *testing.B)  { benchmarkSplitPayloadsSketchesSplit(b, 1000) }
+func BenchmarkSplitPayloadsSketches10000(b *testing.B) { benchmarkSplitPayloadsSketchesSplit(b, 10000) }
 
-func BenchmarkSplitPayloadsSketches2(b *testing.B) { benchmarkSplitPayloadsSketchesSplit(b, 300) }
-
-func BenchmarkSplitPayloadsSketchesNew1(b *testing.B) { benchmarkSplitPayloadsSketchesNew(b, 30000) }
-
-func BenchmarkSplitPayloadsSketchesNew2(b *testing.B) { benchmarkSplitPayloadsSketchesNew(b, 300) }
+func BenchmarkMarshalSplitCompress1(b *testing.B)     { benchmarkSplitPayloadsSketchesNew(b, 1) }
+func BenchmarkMarshalSplitCompress10(b *testing.B)    { benchmarkSplitPayloadsSketchesNew(b, 10) }
+func BenchmarkMarshalSplitCompress100(b *testing.B)   { benchmarkSplitPayloadsSketchesNew(b, 100) }
+func BenchmarkMarshalSplitCompress1000(b *testing.B)  { benchmarkSplitPayloadsSketchesNew(b, 1000) }
+func BenchmarkMarshalSplitCompress10000(b *testing.B) { benchmarkSplitPayloadsSketchesNew(b, 10000) }
