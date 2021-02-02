@@ -7,7 +7,6 @@ package agent
 
 import (
 	"context"
-	"errors"
 	"runtime"
 	"strconv"
 	"sync/atomic"
@@ -40,6 +39,7 @@ type Agent struct {
 	Receiver           *api.HTTPReceiver
 	Concentrator       *stats.Concentrator
 	Blacklister        *filters.Blacklister
+	TagValidator       *filters.TagValidator
 	Replacer           *filters.Replacer
 	ScoreSampler       *Sampler
 	ErrorsScoreSampler *Sampler
@@ -73,6 +73,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	agnt := &Agent{
 		Concentrator:       stats.NewConcentrator(conf.BucketInterval.Nanoseconds(), statsChan),
 		Blacklister:        filters.NewBlacklister(conf.Ignore["resource"]),
+		TagValidator:       filters.NewTagValidator(conf.RequiredTags, conf.RejectedTags),
 		Replacer:           filters.NewReplacer(conf.ReplaceTags),
 		ScoreSampler:       NewScoreSampler(conf),
 		ExceptionSampler:   sampler.NewExceptionSampler(),
@@ -185,8 +186,8 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 			continue
 		}
 
-		if e := a.validTags(root); e != nil {
-			log.Debugf("Trace discarded: %s. root: %v", e, root)
+		if e := a.TagValidator.Validates(root); e != nil {
+			// check the keys of traces and see if they match required keys
 			atomic.AddInt64(&ts.TracesFiltered, 1)
 			atomic.AddInt64(&ts.SpansFiltered, tracen)
 			continue
@@ -419,22 +420,6 @@ func (a *Agent) sampleNoPriorityTrace(pt ProcessedTrace) bool {
 		return a.ErrorsScoreSampler.Add(pt)
 	}
 	return a.ScoreSampler.Add(pt)
-}
-
-// validTags reports whether the given span passes validation by ensuring that
-// it's not missing any of the required tags and has none of the rejected ones.
-func (a *Agent) validTags(span *pb.Span) error {
-	for _, tag := range a.conf.RequiredTags {
-		if _, ok := span.Meta[tag]; !ok {
-			return errors.New("required tag(s) missing")
-		}
-	}
-	for _, tag := range a.conf.RejectedTags {
-		if _, ok := span.Meta[tag]; ok {
-			return errors.New("invalid tag(s) found")
-		}
-	}
-	return nil
 }
 
 func traceContainsError(trace pb.Trace) bool {

@@ -407,15 +407,18 @@ func TestProcess(t *testing.T) {
 
 	t.Run("filtering", func(t *testing.T) {
 		tests := []struct {
-			reqTags        []string
-			rejectTags     []string
+			reqTags        map[string]string
+			rejectTags     map[string]string
 			traceMeta      map[string]string
 			tracesFiltered int64
 			spansFiltered  int64
 		}{
 			{
-				[]string{"important1", "important2"},
-				[]string{},
+				map[string]string{
+					"important1": "value",
+					"important2": "value-2",
+				},
+				map[string]string{},
 				map[string]string{
 					"important1": "test-value",
 					"important2": "test-value-2",
@@ -424,8 +427,11 @@ func TestProcess(t *testing.T) {
 				0,
 			},
 			{
-				[]string{"important1", "important2"},
-				[]string{},
+				map[string]string{
+					"important1": "test-value",
+					"important2": "another-test-value",
+				},
+				map[string]string{},
 				map[string]string{
 					"important1": "test-value",
 					"important2": "another-test-value",
@@ -435,8 +441,11 @@ func TestProcess(t *testing.T) {
 				0,
 			},
 			{
-				[]string{"important1", "important2"},
-				[]string{},
+				map[string]string{
+					"important1": "test-value",
+					"important2": "test-value",
+				},
+				map[string]string{},
 				map[string]string{
 					"important1": "test-value",
 					"blah":       "blah",
@@ -445,8 +454,10 @@ func TestProcess(t *testing.T) {
 				1,
 			},
 			{
-				[]string{},
-				[]string{"reject1"},
+				map[string]string{},
+				map[string]string{
+					"reject1": "bad-value",
+				},
 				map[string]string{
 					"somekey": "12345",
 					"blah":    "blah",
@@ -455,8 +466,10 @@ func TestProcess(t *testing.T) {
 				0,
 			},
 			{
-				[]string{},
-				[]string{"reject1"},
+				map[string]string{},
+				map[string]string{
+					"reject1": "bad-value",
+				},
 				map[string]string{
 					"somekey": "12345",
 					"reject1": "bad",
@@ -465,8 +478,13 @@ func TestProcess(t *testing.T) {
 				1,
 			},
 			{
-				[]string{"important1"},
-				[]string{"reject1", "reject2"},
+				map[string]string{
+					"important1": "value",
+				},
+				map[string]string{
+					"reject1": "bad",
+					"reject2": "also-bad",
+				},
 				map[string]string{
 					"important1": "test-value",
 					"reject1":    "bad",
