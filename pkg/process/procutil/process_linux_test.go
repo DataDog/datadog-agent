@@ -140,7 +140,7 @@ func testProcessesByPID(t *testing.T) {
 	pids, err := probe.getActivePIDs()
 	assert.NoError(t, err)
 
-	procByPID, err := probe.ProcessesByPID(time.Now())
+	procByPID, err := probe.ProcessesByPID(time.Now(), true)
 	assert.NoError(t, err)
 
 	// make sure the process that has no command line doesn't get included in the output
@@ -170,13 +170,13 @@ func testStatsForPIDs(t *testing.T) {
 	probe := NewProcessProbe()
 	defer probe.Close()
 
-	result, err := probe.ProcessesByPID(time.Now())
+	result, err := probe.ProcessesByPID(time.Now(), true)
 	require.NoError(t, err)
 
 	pids := make([]int32, 0, len(result))
 
 	// empty PIDs should yield empty stats
-	stats, err := probe.StatsForPIDs(pids, time.Now())
+	stats, err := probe.StatsForPIDs(pids, time.Now(), true)
 	require.NoError(t, err)
 	require.Empty(t, stats)
 
@@ -184,7 +184,7 @@ func testStatsForPIDs(t *testing.T) {
 		pids = append(pids, p)
 	}
 
-	stats, err = probe.StatsForPIDs(pids, time.Now())
+	stats, err = probe.StatsForPIDs(pids, time.Now(), true)
 	require.NoError(t, err)
 	assert.NotEmpty(t, stats)
 	assert.Len(t, stats, len(pids))
@@ -205,14 +205,14 @@ func TestMultipleProbes(t *testing.T) {
 
 	now := time.Now()
 
-	procByPID1, err := probe1.ProcessesByPID(now)
+	procByPID1, err := probe1.ProcessesByPID(now, true)
 	assert.NoError(t, err)
-	procByPID2, err := probe2.ProcessesByPID(now)
+	procByPID2, err := probe2.ProcessesByPID(now, true)
 	assert.NoError(t, err)
 	for i := 0; i < 10; i++ {
-		currProcByPID1, err := probe1.ProcessesByPID(now)
+		currProcByPID1, err := probe1.ProcessesByPID(now, true)
 		assert.NoError(t, err)
-		currProcByPID2, err := probe2.ProcessesByPID(now)
+		currProcByPID2, err := probe2.ProcessesByPID(now, true)
 		assert.NoError(t, err)
 		assert.EqualValues(t, currProcByPID1, currProcByPID2)
 		assert.EqualValues(t, currProcByPID1, procByPID1)
@@ -231,7 +231,7 @@ func TestProcfsChange(t *testing.T) {
 
 	now := time.Now()
 
-	procByPID, err := probe.ProcessesByPID(now)
+	procByPID, err := probe.ProcessesByPID(now, true)
 	assert.NoError(t, err)
 
 	// update the procfs file structure to add a pid, make sure next time it reads in the updates
@@ -241,7 +241,7 @@ func TestProcfsChange(t *testing.T) {
 		err = os.Rename("resources/test_procfs/proc/10389", "resources/10389")
 		assert.NoError(t, err)
 	}()
-	newProcByPID1, err := probe.ProcessesByPID(now)
+	newProcByPID1, err := probe.ProcessesByPID(now, true)
 	assert.NoError(t, err)
 	assert.Contains(t, newProcByPID1, int32(10389))
 	assert.NotContains(t, procByPID, int32(10389))
@@ -253,7 +253,7 @@ func TestProcfsChange(t *testing.T) {
 		err = os.Rename("resources/29613", "resources/test_procfs/proc/29613")
 		assert.NoError(t, err)
 	}()
-	newProcByPID2, err := probe.ProcessesByPID(now)
+	newProcByPID2, err := probe.ProcessesByPID(now, true)
 	assert.NoError(t, err)
 	assert.NotContains(t, newProcByPID2, int32(29613))
 	assert.Contains(t, procByPID, int32(29613))
@@ -810,6 +810,42 @@ func TestStatsWithPermByPID(t *testing.T) {
 	assert.Equal(t, int32(-1), stats[pid].OpenFdCount)
 }
 
+func TestStatsForPIDsAndPerm(t *testing.T) {
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc")
+	defer os.Unsetenv("HOST_PROC")
+
+	probe := NewProcessProbe()
+	defer probe.Close()
+	stats, err := probe.StatsForPIDsWithPerm([]int32{1}, time.Now())
+	require.NoError(t, err)
+	require.Contains(t, stats, int32(1))
+	assert.False(t, stats[1].IOStat.IsZeroValue())
+
+	stats, err = probe.StatsForPIDsWithoutPerm([]int32{1}, time.Now())
+	require.NoError(t, err)
+	require.Contains(t, stats, int32(1))
+	assert.True(t, stats[1].IOStat.IsZeroValue())
+}
+
+func TestProcessesByPIDsAndPerm(t *testing.T) {
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc")
+	defer os.Unsetenv("HOST_PROC")
+
+	probe := NewProcessProbe()
+	defer probe.Close()
+	procs, err := probe.ProcessesByPIDWithPerm(time.Now())
+	require.NoError(t, err)
+	for _, p := range procs {
+		assert.False(t, p.Stats.IOStat.IsZeroValue())
+	}
+
+	procs, err = probe.ProcessesByPIDWithoutPerm(time.Now())
+	require.NoError(t, err)
+	for _, p := range procs {
+		assert.True(t, p.Stats.IOStat.IsZeroValue())
+	}
+}
+
 func BenchmarkGetCmdGopsutilTestFS(b *testing.B) {
 	os.Setenv("HOST_PROC", "resources/test_procfs/proc")
 	defer os.Unsetenv("HOST_PROC")
@@ -1028,7 +1064,7 @@ func benchmarkGetProcsProcutil(b *testing.B) {
 	now := time.Now()
 	for i := 0; i < b.N; i++ {
 		// ignore errors for benchmarking
-		_, _ = probe.ProcessesByPID(now)
+		_, _ = probe.ProcessesByPID(now, true)
 	}
 }
 
