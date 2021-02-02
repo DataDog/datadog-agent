@@ -29,6 +29,7 @@ import (
 )
 
 const (
+
 	// DefaultSite is the default site the Agent sends data to.
 	DefaultSite    = "datadoghq.com"
 	infraURLPrefix = "https://app."
@@ -74,6 +75,12 @@ var (
 	// the Python version set in the configuration and use `DefaultPython` instead.
 	// We use this to force Python 3 in the Agent 7 as it's the only one available.
 	ForceDefaultPython string
+)
+
+// Variables to initialize at start time
+var (
+	// StartTime is the agent startup time
+	StartTime = time.Now()
 )
 
 // MetadataProviders helps unmarshalling `metadata_providers` config param
@@ -181,7 +188,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("enable_gohai", true)
 	config.BindEnvAndSetDefault("check_runners", int64(4))
 	config.BindEnvAndSetDefault("auth_token_file_path", "")
-	config.BindEnvAndSetDefault("bind_host", "localhost")
+	_ = config.BindEnv("bind_host")
 	config.BindEnvAndSetDefault("ipc_address", "localhost")
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
@@ -578,6 +585,8 @@ func InitConfig(config Config) {
 	config.BindEnv("logs_config.processing_rules") //nolint:errcheck
 	// enforce the agent to use files to collect container logs on kubernetes environment
 	config.BindEnvAndSetDefault("logs_config.k8s_container_use_file", false)
+	// enforce the agent to use files to collect container logs on standalone docker environment
+	config.BindEnvAndSetDefault("logs_config.docker_container_use_file", false)
 	// additional config to ensure initial logs are tagged with kubelet tags
 	// wait (seconds) for tagger before start fetching tags of new AD services
 	config.BindEnvAndSetDefault("logs_config.tagger_warmup_duration", 0) // Disabled by default (0 seconds)
@@ -718,6 +727,7 @@ func InitConfig(config Config) {
 	config.SetKnown("process_config.expvar_port")
 	config.SetKnown("process_config.log_file")
 	config.SetKnown("process_config.profiling.enabled")
+	config.SetKnown("process_config.remote_tagger")
 
 	// System probe
 	config.SetKnown("system_probe_config.enabled")
@@ -750,6 +760,9 @@ func InitConfig(config Config) {
 	config.SetKnown("system_probe_config.enable_tcp_queue_length")
 	config.SetKnown("system_probe_config.enable_oom_kill")
 	config.SetKnown("system_probe_config.enable_tracepoints")
+	config.SetKnown("system_probe_config.enable_runtime_compiler")
+	config.SetKnown("system_probe_config.kernel_header_dirs")
+	config.SetKnown("system_probe_config.runtime_compiler_output_dir")
 	config.SetKnown("system_probe_config.profiling.enabled")
 	config.SetKnown("system_probe_config.profiling.site")
 	config.SetKnown("system_probe_config.profiling.profile_dd_url")
@@ -791,9 +804,12 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.event_server.burst", 40)
 	config.BindEnvAndSetDefault("runtime_security_config.event_server.rate", 10)
 	config.BindEnvAndSetDefault("runtime_security_config.load_controller.events_count_threshold", 20000)
+	config.BindEnvAndSetDefault("runtime_security_config.load_controller.fork_bomb_threshold", 500)
 	config.BindEnvAndSetDefault("runtime_security_config.load_controller.discarder_timeout", 10)
 	config.BindEnvAndSetDefault("runtime_security_config.load_controller.control_period", 2)
 	config.BindEnvAndSetDefault("runtime_security_config.pid_cache_size", 10000)
+	config.BindEnvAndSetDefault("runtime_security_config.cookie_cache_size", 100)
+	config.BindEnvAndSetDefault("runtime_security_config.agent_monitoring_events", true)
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
@@ -1272,4 +1288,15 @@ func IsCLCRunner() bool {
 		}
 	}
 	return false
+}
+
+// GetBindHost returns `bind_host` variable or default value
+// Not using `config.BindEnvAndSetDefault` as some processes need to know
+// if value was default one or not (e.g. trace-agent)
+func GetBindHost() string {
+	if Datadog.IsSet("bind_host") {
+		return Datadog.GetString("bind_host")
+	}
+
+	return "localhost"
 }

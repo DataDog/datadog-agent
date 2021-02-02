@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/ebpf"
@@ -85,7 +86,7 @@ func getSnooper(
 	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{Section: string(probes.SocketDnsFilter)})
 	require.NotNil(t, filter)
 
-	packetSrc, err := NewPacketSource(filter)
+	packetSrc, err := filterpkg.NewPacketSource(filter)
 	require.NoError(t, err)
 
 	reverseDNS, err := NewSocketFilterSnooper(
@@ -136,8 +137,10 @@ Loop:
 }
 
 func TestDNSOverUDPSnooping(t *testing.T) {
-	buf, err := netebpf.ReadBPFModule("build", false)
+	cfg := config.NewDefaultConfig()
+	buf, err := netebpf.ReadBPFModule(cfg.BPFDir, false)
 	require.NoError(t, err)
+	defer buf.Close()
 
 	m, reverseDNS := getSnooper(t, buf, false, false, 15*time.Second, false)
 	defer m.Stop(manager.CleanAll)
@@ -196,8 +199,10 @@ func initDNSTestsWithDomainCollection(t *testing.T, localDNS bool) (*manager.Man
 }
 
 func initDNSTests(t *testing.T, localDNS bool, collectDomain bool) (*manager.Manager, *SocketFilterSnooper) {
-	buf, err := netebpf.ReadBPFModule("build", false)
+	cfg := config.NewDefaultConfig()
+	buf, err := netebpf.ReadBPFModule(cfg.BPFDir, false)
 	require.NoError(t, err)
+	defer buf.Close()
 	return getSnooper(t, buf, true, localDNS, 1*time.Second, collectDomain)
 }
 
@@ -461,8 +466,10 @@ func TestDNSOverUDPTimeoutCountWithoutDomain(t *testing.T) {
 }
 
 func TestParsingError(t *testing.T) {
-	buf, err := netebpf.ReadBPFModule("build", false)
+	cfg := config.NewDefaultConfig()
+	buf, err := netebpf.ReadBPFModule(cfg.BPFDir, false)
 	require.NoError(t, err)
+	defer buf.Close()
 
 	m, reverseDNS := getSnooper(t, buf, false, false, 15*time.Second, false)
 	defer m.Stop(manager.CleanAll)

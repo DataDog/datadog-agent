@@ -571,7 +571,6 @@ core,"go.opencensus.io/trace",Apache-2.0
 core,"go.opencensus.io/trace/internal",Apache-2.0
 core,"go.opencensus.io/trace/tracestate",Apache-2.0
 core,"go.uber.org/atomic",MIT
-core,"go.uber.org/automaxprocs",MIT
 core,"go.uber.org/automaxprocs/internal/cgroups",MIT
 core,"go.uber.org/automaxprocs/internal/runtime",MIT
 core,"go.uber.org/automaxprocs/maxprocs",MIT

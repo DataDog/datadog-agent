@@ -11,8 +11,6 @@ import (
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	_ "go.uber.org/automaxprocs"
 )
 
 // handleSignal closes a channel to exit cleanly from routines

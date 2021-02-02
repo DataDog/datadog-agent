@@ -10,7 +10,7 @@ func TestTransactionContainerAdd(t *testing.T) {
 	a := assert.New(t)
 	path, clean := createTmpFolder(a)
 	defer clean()
-	s, err := newTransactionsFileStorage(NewTransactionsSerializer(), path, 1000, transactionsFileStorageTelemetry{})
+	s, err := newTransactionsFileStorage(NewTransactionsSerializer("", nil), path, 1000, transactionsFileStorageTelemetry{})
 	a.NoError(err)
 	container := newTransactionContainer(createDropPrioritySorter(), s, 100, 0.6, transactionContainerTelemetry{})
 
@@ -39,7 +39,7 @@ func TestTransactionContainerSeveralFlushToDisk(t *testing.T) {
 	a := assert.New(t)
 	path, clean := createTmpFolder(a)
 	defer clean()
-	s, err := newTransactionsFileStorage(NewTransactionsSerializer(), path, 1000, transactionsFileStorageTelemetry{})
+	s, err := newTransactionsFileStorage(NewTransactionsSerializer("", nil), path, 1000, transactionsFileStorageTelemetry{})
 	a.NoError(err)
 	container := newTransactionContainer(createDropPrioritySorter(), s, 50, 0.1, transactionContainerTelemetry{})
 

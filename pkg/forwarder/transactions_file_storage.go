@@ -116,11 +116,12 @@ func (s *transactionsFileStorage) Deserialize() ([]Transaction, error) {
 		return nil, err
 	}
 
-	transactions, err := s.serializer.Deserialize(bytes)
+	transactions, errorsCount, err := s.serializer.Deserialize(bytes)
 	if err != nil {
 		return nil, err
 	}
-
+	s.telemetry.addDeserializeErrorsCount(errorsCount)
+	s.telemetry.addDeserializeTransactionsCount(len(transactions))
 	s.telemetry.setCurrentSizeInBytes(s.getCurrentSizeInBytes())
 	s.telemetry.setFilesCount(s.getFilesCount())
 	return transactions, err

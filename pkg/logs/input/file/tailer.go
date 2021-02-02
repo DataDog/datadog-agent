@@ -90,7 +90,7 @@ func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.
 	if file.Source.Config.Identifier != "" {
 		tagProvider = tag.NewProvider(containers.BuildTaggerEntityName(file.Source.Config.Identifier))
 	} else {
-		tagProvider = tag.NoopProvider
+		tagProvider = tag.NewLocalProvider([]string{})
 	}
 
 	forwardContext, stopForward := context.WithCancel(context.Background())
@@ -148,6 +148,9 @@ func (t *Tailer) readForever() {
 			return
 		}
 		t.file.Source.BytesRead.Add(int64(n))
+		if t.file.Source.ParentSource != nil {
+			t.file.Source.ParentSource.BytesRead.Add(int64(n))
+		}
 
 		select {
 		case <-t.stop:

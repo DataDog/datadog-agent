@@ -1,7 +1,7 @@
 require "rspec/core/formatters/base_text_formatter"
 
 class CustomFormatter
-  RSpec::Core::Formatters.register self, :example_passed, :example_failed, :dump_summary, :dump_failures
+  RSpec::Core::Formatters.register self, :example_passed, :example_failed, :dump_summary, :dump_failures, :example_group_started, :example_group_finished
 
   def initialize(output)
     @output = output
@@ -13,6 +13,14 @@ class CustomFormatter
 
   # Remove "F"'s from the test execution output
   def example_failed(_)
+  end
+
+  def example_group_started(notification)
+    @output << "\nstarted #{notification.group.description}\n"
+  end
+
+  def example_group_finished(notification)
+    @output << "finished #{notification.group.description}\n\n"
   end
 
   def dump_summary(notification)

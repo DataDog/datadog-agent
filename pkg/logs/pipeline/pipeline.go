@@ -10,6 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
@@ -23,7 +24,7 @@ type Pipeline struct {
 }
 
 // NewPipeline returns a new Pipeline
-func NewPipeline(outputChan chan *message.Message, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, serverless bool) *Pipeline {
+func NewPipeline(outputChan chan *message.Message, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, diagnosticMessageReceiver diagnostic.MessageReceiver, serverless bool) *Pipeline {
 	var destinations *client.Destinations
 	if endpoints.UseHTTP {
 		main := http.NewDestination(endpoints.Main, http.JSONContentType, destinationsContext)
@@ -63,7 +64,7 @@ func NewPipeline(outputChan chan *message.Message, processingRules []*config.Pro
 	}
 
 	inputChan := make(chan *message.Message, config.ChanSize)
-	processor := processor.New(inputChan, senderChan, processingRules, encoder)
+	processor := processor.New(inputChan, senderChan, processingRules, encoder, diagnosticMessageReceiver)
 
 	return &Pipeline{
 		InputChan: inputChan,

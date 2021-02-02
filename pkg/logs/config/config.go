@@ -115,9 +115,14 @@ func BuildEndpoints(httpConnectivity HTTPConnectivity) (*Endpoints, error) {
 	return buildTCPEndpoints()
 }
 
+// ExpectedTagsDuration returns a duration of the time expected tags will be submitted for.
+func ExpectedTagsDuration() time.Duration {
+	return coreConfig.Datadog.GetDuration("logs_config.expected_tags_duration")
+}
+
 // IsExpectedTagsSet returns boolean showing if expected tags feature is enabled.
 func IsExpectedTagsSet() bool {
-	return coreConfig.Datadog.GetInt("logs_config.expected_tags_duration") > 0
+	return ExpectedTagsDuration() > 0
 }
 
 func isSocks5ProxySet() bool {

@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
@@ -18,22 +19,24 @@ import (
 // A Processor updates messages from an inputChan and pushes
 // in an outputChan.
 type Processor struct {
-	inputChan       chan *message.Message
-	outputChan      chan *message.Message
-	processingRules []*config.ProcessingRule
-	encoder         Encoder
-	done            chan struct{}
-	mu              sync.Mutex
+	inputChan                 chan *message.Message
+	outputChan                chan *message.Message
+	processingRules           []*config.ProcessingRule
+	encoder                   Encoder
+	done                      chan struct{}
+	diagnosticMessageReceiver diagnostic.MessageReceiver
+	mu                        sync.Mutex
 }
 
 // New returns an initialized Processor.
-func New(inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule, encoder Encoder) *Processor {
+func New(inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule, encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver) *Processor {
 	return &Processor{
-		inputChan:       inputChan,
-		outputChan:      outputChan,
-		processingRules: processingRules,
-		encoder:         encoder,
-		done:            make(chan struct{}),
+		inputChan:                 inputChan,
+		outputChan:                outputChan,
+		processingRules:           processingRules,
+		encoder:                   encoder,
+		done:                      make(chan struct{}),
+		diagnosticMessageReceiver: diagnosticMessageReceiver,
 	}
 }
 
@@ -80,6 +83,8 @@ func (p *Processor) processMessage(msg *message.Message) {
 	if shouldProcess, redactedMsg := p.applyRedactingRules(msg); shouldProcess {
 		metrics.LogsProcessed.Add(1)
 		metrics.TlmLogsProcessed.Inc()
+
+		p.diagnosticMessageReceiver.HandleMessage(*msg)
 
 		// Encode the message to its final format
 		content, err := p.encoder.Encode(msg, redactedMsg)

@@ -13,6 +13,11 @@ import (
 	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
 )
 
+const (
+	runCheckFailureTag = "fail"
+	runCheckSuccessTag = "ok"
+)
+
 var (
 	tlmRuns = telemetry.NewCounter("checks", "runs",
 		[]string{"check_name", "state"}, "Check runs")
@@ -56,13 +61,22 @@ type Stats struct {
 
 // NewStats returns a new check stats instance
 func NewStats(c Check) *Stats {
-	return &Stats{
+	stats := Stats{
 		CheckID:           c.ID(),
 		CheckName:         c.String(),
 		CheckVersion:      c.Version(),
 		CheckConfigSource: c.ConfigSource(),
 		telemetry:         telemetry_utils.IsCheckEnabled(c.String()),
 	}
+
+	// We are interested in a check's run state values even when they are 0 so we
+	// initialize them here explicitly
+	if stats.telemetry && telemetry_utils.IsEnabled() {
+		tlmRuns.Initialize(stats.CheckName, runCheckFailureTag)
+		tlmRuns.Initialize(stats.CheckName, runCheckSuccessTag)
+	}
+
+	return &stats
 }
 
 // Add tracks a new execution time
@@ -90,12 +104,12 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats m
 	if err != nil {
 		cs.TotalErrors++
 		if cs.telemetry {
-			tlmRuns.Inc(cs.CheckName, "fail")
+			tlmRuns.Inc(cs.CheckName, runCheckFailureTag)
 		}
 		cs.LastError = err.Error()
 	} else {
 		if cs.telemetry {
-			tlmRuns.Inc(cs.CheckName, "ok")
+			tlmRuns.Inc(cs.CheckName, runCheckSuccessTag)
 		}
 		cs.LastError = ""
 		cs.LastSuccessDate = time.Now().Unix()

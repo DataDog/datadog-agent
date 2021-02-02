@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var (
+const (
 	// defaultProxyPort is the default port used for proxies.
 	// This mirrors the configuration for the infrastructure agent.
 	defaultProxyPort = 3128
@@ -31,6 +31,11 @@ var (
 	// defaultSystemProbeBPFDir is the default path for eBPF programs
 	defaultSystemProbeBPFDir = "/opt/datadog-agent/embedded/share/system-probe/ebpf"
 
+	// defaultRuntimeCompilerOutputDir is the default path for output from the system-probe runtime compiler
+	defaultRuntimeCompilerOutputDir = "/var/tmp/datadog-agent/system-probe/build"
+)
+
+var (
 	processChecks   = []string{"process", "rtprocess"}
 	containerChecks = []string{"container", "rtcontainer"}
 )
@@ -108,6 +113,9 @@ type AgentConfig struct {
 	MaxConnectionsStateBuffered    int
 	OffsetGuessThreshold           uint64
 	EnableTracepoints              bool
+	EnableRuntimeCompiler          bool
+	KernelHeadersDirs              []string
+	RuntimeCompilerOutputDir       string
 
 	// Orchestrator config
 	Orchestrator *oconfig.OrchestratorConfig
@@ -224,6 +232,8 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		EnableTracepoints:            false,
 		CollectDNSStats:              true,
 		CollectDNSDomains:            false,
+		EnableRuntimeCompiler:        false,
+		RuntimeCompilerOutputDir:     defaultRuntimeCompilerOutputDir,
 
 		// Orchestrator config
 		Orchestrator: oconfig.NewDefaultOrchestratorConfig(),
@@ -434,6 +444,7 @@ func loadEnvVariables() {
 		{"DD_STRIP_PROCESS_ARGS", "process_config.strip_proc_arguments"},
 		{"DD_PROCESS_AGENT_URL", "process_config.process_dd_url"},
 		{"DD_PROCESS_AGENT_PROFILING_ENABLED", "process_config.profiling.enabled"},
+		{"DD_PROCESS_AGENT_REMOTE_TAGGER", "process_config.remote_tagger"},
 		{"DD_ORCHESTRATOR_URL", "orchestrator_explorer.orchestrator_dd_url"},
 		{"DD_HOSTNAME", "hostname"},
 		{"DD_DOGSTATSD_PORT", "dogstatsd_port"},
@@ -509,10 +520,12 @@ func loadSysProbeEnvVariables() {
 		{"DD_API_KEY", "system_probe_config.profiling.api_key"},
 		{"DD_ENV", "system_probe_config.profiling.env"},
 		{"DD_COLLECT_DNS_DOMAINS", "system_probe_config.collect_dns_domains"},
+		{"DD_ENABLE_RUNTIME_COMPILER", "system_probe_config.enable_runtime_compiler"},
+		{"DD_KERNEL_HEADER_DIRS", "system_probe_config.kernel_header_dirs"},
+		{"DD_RUNTIME_COMPILER_OUTPUT_DIR", "system_probe_config.runtime_compiler_output_dir"},
 	} {
 		if v, ok := os.LookupEnv(variable.env); ok {
 			config.Datadog.Set(variable.cfg, v)
-
 		}
 	}
 }

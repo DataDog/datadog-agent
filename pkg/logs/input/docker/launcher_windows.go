@@ -3,13 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-package tag
+// +build docker,windows
 
-type noopProvider struct {
-	tags []string
-}
+package docker
 
-// GetTags returns an empty list of tags.
-func (p *noopProvider) GetTags() []string {
-	return p.tags
+import "fmt"
+
+const (
+	basePath = "c:\\programdata\\docker\\containers"
+)
+
+func checkReadAccess() error {
+	return fmt.Errorf("Docker tailing from file is not supported on Windows")
 }

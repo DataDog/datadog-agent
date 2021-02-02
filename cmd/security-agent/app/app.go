@@ -244,7 +244,7 @@ func start(cmd *cobra.Command, args []string) error {
 	defer stopper.Stop()
 
 	// Retrieve statsd host and port from the datadog agent configuration file
-	statsdHost := coreconfig.Datadog.GetString("bind_host")
+	statsdHost := coreconfig.GetBindHost()
 	statsdPort := coreconfig.Datadog.GetInt("dogstatsd_port")
 
 	// Create a statsd Client

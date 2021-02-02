@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-2021 Datadog, Inc.
 
 package tag
 
@@ -17,29 +17,38 @@ import (
 func TestProviderExpectedTags(t *testing.T) {
 	mockConfig := config.Mock()
 
+	startTime := config.StartTime
+	config.StartTime = time.Now()
+	defer func() {
+		config.StartTime = startTime
+	}()
+
 	tags := []string{"tag1:value1", "tag2", "tag3"}
 
 	mockConfig.Set("tags", tags)
-	mockConfig.Set("logs_config.expected_tags_duration", 15)
 	defer mockConfig.Set("tags", nil)
-	defer mockConfig.Set("expected_tags_duration", 0)
+
+	// Setting a test-friendly value for the deadline
+	mockConfig.Set("logs_config.expected_tags_duration", "5s")
+	defer mockConfig.Set("logs_config.expected_tags_duration", 0)
 
 	p := NewProvider("foo")
 	pp := p.(*provider)
 
 	// Is provider expected?
-	assert.Equal(t, time.Duration(mockConfig.GetInt("logs_config.expected_tags_duration"))*time.Minute, pp.expectedTagsDuration)
-	assert.True(t, pp.submitExpectedTags)
+	d := mockConfig.GetDuration("logs_config.expected_tags_duration")
+	l := pp.localTagProvider
+	ll := l.(*localProvider)
 
-	// A more test-friendly value for tagging
-	pp.expectedTagsDuration = time.Second
+	assert.InDelta(t, config.StartTime.Add(d).Unix(), ll.expectedTagsDeadline.Unix(), 1)
 
 	tt := pp.GetTags()
 	sort.Strings(tags)
 	sort.Strings(tt)
 	assert.Equal(t, tags, tt)
 
-	time.Sleep(time.Duration(2) * (time.Second + pp.taggerWarmupDuration))
-	assert.Equal(t, []string{}, pp.GetTags())
+	// let the deadline expire + a little grace period
+	<-time.After(time.Until(ll.expectedTagsDeadline.Add(2 * time.Second)))
 
+	assert.Equal(t, []string{}, pp.GetTags())
 }

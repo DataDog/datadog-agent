@@ -3,14 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-package tag
+// +build docker,!windows
 
-import (
-	"testing"
+package docker
 
-	"github.com/stretchr/testify/assert"
+import "golang.org/x/sys/unix"
+
+const (
+	basePath = "/var/lib/docker/containers"
 )
 
-func TestNoopProviderShouldReturnEmptyList(t *testing.T) {
-	assert.Equal(t, 0, len(NoopProvider.GetTags()))
+func checkReadAccess() error {
+	return unix.Access(basePath, unix.X_OK)
 }

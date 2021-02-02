@@ -8,6 +8,7 @@
 package module
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -22,34 +23,34 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// EventServer represents a gRPC server in charge of receiving events sent by
+// APIServer represents a gRPC server in charge of receiving events sent by
 // the runtime security system-probe module and forwards them to Datadog
-type EventServer struct {
+type APIServer struct {
 	sync.RWMutex
 	msgs          chan *api.SecurityEventMessage
 	expiredEvents map[rules.RuleID]*int64
 	rate          *Limiter
 	statsdClient  *statsd.Client
+	probe         *sprobe.Probe
 }
 
 // GetEvents waits for security events
-func (e *EventServer) GetEvents(params *api.GetParams, stream api.SecurityModule_GetEventsServer) error {
+func (a *APIServer) GetEvents(params *api.GetEventParams, stream api.SecurityModule_GetEventsServer) error {
 	// Read 10 security events per call
 	msgs := 10
 LOOP:
 	for {
 		// Check that the limit is not reached
-		if !e.rate.limiter.Allow() {
+		if !a.rate.limiter.Allow() {
 			return nil
 		}
 
 		// Read on message
 		select {
-		case msg := <-e.msgs:
+		case msg := <-a.msgs:
 			if err := stream.Send(msg); err != nil {
 				return err
 			}
@@ -67,8 +68,34 @@ LOOP:
 	return nil
 }
 
+// Event is the interface that an event must implement to be sent to the backend
+type Event interface {
+	GetTags() []string
+	GetType() string
+}
+
+// RuleEvent is a wrapper used to send an event to the backend
+type RuleEvent struct {
+	RuleID string `json:"rule_id"`
+	Event  Event  `json:"event"`
+}
+
+// DumpProcessCache handle process dump cache requests
+func (a *APIServer) DumpProcessCache(ctx context.Context, params *api.DumpProcessCacheParams) (*api.SecurityDumpProcessCacheMessage, error) {
+	resolvers := a.probe.GetResolvers()
+
+	filename, err := resolvers.ProcessResolver.Dump()
+	if err != nil {
+		return nil, err
+	}
+
+	return &api.SecurityDumpProcessCacheMessage{
+		Filename: filename,
+	}, nil
+}
+
 // SendEvent forwards events sent by the runtime security module to Datadog
-func (e *EventServer) SendEvent(rule *rules.Rule, event eval.Event) {
+func (a *APIServer) SendEvent(rule *rules.Rule, event Event) {
 	agentContext := &AgentContext{
 		RuleID: rule.Definition.ID,
 	}
@@ -103,36 +130,36 @@ func (e *EventServer) SendEvent(rule *rules.Rule, event eval.Event) {
 	msg := &api.SecurityEventMessage{
 		RuleID: rule.Definition.ID,
 		Data:   data,
-		Tags:   append(rule.Tags, "rule_id:"+rule.Definition.ID),
+		Tags:   append(rule.Tags, append(event.GetTags(), "rule_id:"+rule.Definition.ID)...),
 	}
 
 	select {
-	case e.msgs <- msg:
+	case a.msgs <- msg:
 		break
 	default:
 		// The channel is full, consume the oldest event
-		oldestMsg := <-e.msgs
+		oldestMsg := <-a.msgs
 		// Try to send the event again
 		select {
-		case e.msgs <- msg:
+		case a.msgs <- msg:
 			break
 		default:
 			// Looks like the channel is full again, expire the current message too
-			e.expireEvent(msg)
+			a.expireEvent(msg)
 			break
 		}
-		e.expireEvent(oldestMsg)
+		a.expireEvent(oldestMsg)
 		break
 	}
 }
 
 // expireEvent updates the count of expired messages for the appropriate rule
-func (e *EventServer) expireEvent(msg *api.SecurityEventMessage) {
-	e.RLock()
-	defer e.RUnlock()
+func (a *APIServer) expireEvent(msg *api.SecurityEventMessage) {
+	a.RLock()
+	defer a.RUnlock()
 
 	// Update metric
-	count, ok := e.expiredEvents[msg.RuleID]
+	count, ok := a.expiredEvents[msg.RuleID]
 	if ok {
 		atomic.AddInt64(count, 1)
 	}
@@ -141,23 +168,23 @@ func (e *EventServer) expireEvent(msg *api.SecurityEventMessage) {
 
 // GetStats returns a map indexed by ruleIDs that describes the amount of events
 // that were expired or rate limited before reaching
-func (e *EventServer) GetStats() map[string]int64 {
-	e.RLock()
-	defer e.RUnlock()
+func (a *APIServer) GetStats() map[string]int64 {
+	a.RLock()
+	defer a.RUnlock()
 
 	stats := make(map[string]int64)
-	for ruleID, val := range e.expiredEvents {
+	for ruleID, val := range a.expiredEvents {
 		stats[ruleID] = atomic.SwapInt64(val, 0)
 	}
 	return stats
 }
 
 // SendStats sends statistics about the number of dropped events
-func (e *EventServer) SendStats() error {
-	for ruleID, val := range e.GetStats() {
+func (a *APIServer) SendStats() error {
+	for ruleID, val := range a.GetStats() {
 		tags := []string{fmt.Sprintf("rule_id:%s", ruleID)}
 		if val > 0 {
-			if err := e.statsdClient.Count(sprobe.MetricPrefix+".rules.event_server.expired", val, tags, 1.0); err != nil {
+			if err := a.statsdClient.Count(sprobe.MetricEventServerExpired, val, tags, 1.0); err != nil {
 				return err
 			}
 		}
@@ -166,23 +193,24 @@ func (e *EventServer) SendStats() error {
 }
 
 // Apply a rule set
-func (e *EventServer) Apply(ruleIDs []rules.RuleID) {
-	e.Lock()
-	defer e.Unlock()
+func (a *APIServer) Apply(ruleIDs []rules.RuleID) {
+	a.Lock()
+	defer a.Unlock()
 
-	e.expiredEvents = make(map[rules.RuleID]*int64)
+	a.expiredEvents = make(map[rules.RuleID]*int64)
 	for _, id := range ruleIDs {
-		e.expiredEvents[id] = new(int64)
+		a.expiredEvents[id] = new(int64)
 	}
 }
 
-// NewEventServer returns a new gRPC event server
-func NewEventServer(cfg *config.Config, client *statsd.Client) *EventServer {
-	es := &EventServer{
+// NewAPIServer returns a new gRPC event server
+func NewAPIServer(cfg *config.Config, probe *sprobe.Probe, client *statsd.Client) *APIServer {
+	es := &APIServer{
 		msgs:          make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
 		expiredEvents: make(map[rules.RuleID]*int64),
 		rate:          NewLimiter(rate.Limit(cfg.EventServerRate), cfg.EventServerBurst),
 		statsdClient:  client,
+		probe:         probe,
 	}
 	return es
 }

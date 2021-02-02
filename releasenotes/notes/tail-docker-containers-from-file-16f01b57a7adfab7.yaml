@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Docker container, when not running in a Kubernetes
+    environment may now be tailed from their log file.
+    The Agent must have read access to /var/lib/docker/containers
+    and Docker containers must use the JSON logging driver.
+    This new option can be activated using the new configuration
+    flag ``logs_config.docker_container_use_file``.

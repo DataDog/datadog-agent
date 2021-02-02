@@ -4,6 +4,8 @@ package http
 
 import (
 	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 /*
@@ -20,7 +22,11 @@ type httpTX C.http_transaction_t
 type httpNotification C.http_batch_notification_t
 type httpBatch C.http_batch_t
 type httpBatchKey C.http_batch_key_t
-type httpBatchState C.http_batch_state_t
+
+const (
+	CONN_V4 uint = 0 << 0
+	CONN_V6 uint = 1 << 1
+)
 
 func toHTTPNotification(data []byte) httpNotification {
 	return *(*httpNotification)(unsafe.Pointer(&data[0]))
@@ -82,12 +88,43 @@ func (tx *httpTX) Method() string {
 	}
 }
 
+func (tx *httpTX) SourceIP() util.Address {
+	// Second bit of metadata indicates if the connection is V6 (1) or V4 (0)
+	metadata := uint(tx.tup.metadata)
+	if metadata&CONN_V6 == 1 {
+		return util.V6Address(uint64(tx.tup.saddr_l), uint64(tx.tup.saddr_h))
+	}
+	return util.V4Address(uint32(tx.tup.saddr_l))
+}
+
+func (tx *httpTX) DestIP() util.Address {
+	// Second bit of metadata indicates if the connection is V6 (1) or V4 (0)
+	metadata := uint(tx.tup.metadata)
+	if metadata&CONN_V6 == 1 {
+		return util.V6Address(uint64(tx.tup.daddr_l), uint64(tx.tup.daddr_h))
+	}
+	return util.V4Address(uint32(tx.tup.daddr_l))
+}
+
+func (tx *httpTX) SourcePort() uint16 {
+	return uint16(tx.tup.sport)
+}
+
+func (tx *httpTX) DestPort() uint16 {
+	return uint16(tx.tup.dport)
+}
+
+// RequestLatency returns the latency of the request in ms
+func (tx *httpTX) RequestLatency() float64 {
+	return float64((tx.response_last_seen - tx.request_started) / (1000000))
+}
+
 // IsDirty detects whether the batch page we're supposed to read from is still
 // valid.  A "dirty" page here means that between the time the
 // http_notification_t message was sent to userspace and the time we performed
 // the batch lookup the page was overridden.
 func (batch *httpBatch) IsDirty(notification httpNotification) bool {
-	return batch.state.idx != notification.batch_idx
+	return batch.idx != notification.batch_idx
 }
 
 // Transactions returns the slice of HTTP transactions embedded in the batch
