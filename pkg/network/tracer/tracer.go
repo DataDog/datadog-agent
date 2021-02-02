@@ -200,8 +200,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	perfHandlerHTTP := ddebpf.NewPerfHandler(closedChannelSize)
 	m := netebpf.NewManager(perfHandlerTCP, perfHandlerHTTP)
 
-	gwLookupEnabled := gwLookupEnabled(config)
-	if gwLookupEnabled && runtimeCompilerEnabled {
+	if gwLookupEnabled(config) && runtimeCompilerEnabled {
 		enabledProbes[probes.IPRouteOutputFlow] = struct{}{}
 		enabledProbes[probes.IPRouteOutputFlowReturn] = struct{}{}
 	}

@@ -109,8 +109,8 @@ func newEbpfRouter(m *manager.Manager) network.Router {
 }
 
 func (b *ebpfRouter) Route(source, dest util.Address, netns uint32) (network.Route, bool) {
-	d := newDestTuple(source, dest, netns)
-	gw := &gatewayTuple{}
+	d := newIPRuoteDest(source, dest, netns)
+	gw := &ipRouteGateway{}
 	if err := b.gwMp.Lookup(unsafe.Pointer(d), unsafe.Pointer(gw)); err != nil || gw.ifIndex() == 0 {
 		return network.Route{}, false
 	}

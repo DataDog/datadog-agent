@@ -100,7 +100,7 @@ const (
 	HttpBatchesMap       BPFMapName = "http_batches"
 	HttpBatchStateMap    BPFMapName = "http_batch_state"
 	HttpNotificationsMap BPFMapName = "http_notifications"
-	GatewayMap           BPFMapName = "dest_gateways"
+	GatewayMap           BPFMapName = "ip_route_dest_gateways"
 )
 
 // SectionName returns the SectionName for the given BPF map

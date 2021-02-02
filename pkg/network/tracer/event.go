@@ -57,21 +57,21 @@ __u16 port;
 */
 type portBindingTuple C.port_binding_t
 
-/* gw_tuple_t
+/* ip_route_gateway_t
 __u64 gw_h;
 __u64 gw_l;
 __u16 family;
 __u32 ifindex;
 */
-type gatewayTuple C.gw_tuple_t
+type ipRouteGateway C.ip_route_gateway_t
 
-/* dest_tuple_t
+/* ip_route_dest_t
 __u64 daddr_h;
 __u64 daddr_l;
 __u32 netns;
 __u16 family;
 */
-type destTuple C.dest_tuple_t
+type ipRouteDest C.ip_route_dest_t
 
 func (t *ConnTuple) copy() *ConnTuple {
 	return &ConnTuple{
@@ -342,8 +342,8 @@ func isPortClosed(state uint8) bool {
 	return state == C.PORT_CLOSED
 }
 
-func newDestTuple(source, dest util.Address, netns uint32) *destTuple {
-	d := &destTuple{netns: C.__u32(netns), daddr_l: 0, daddr_h: 0}
+func newIPRuoteDest(source, dest util.Address, netns uint32) *ipRouteDest {
+	d := &ipRouteDest{netns: C.__u32(netns), daddr_l: 0, daddr_h: 0}
 	sbytes := source.Bytes()
 	dbytes := dest.Bytes()
 	switch len(dbytes) {
@@ -362,7 +362,7 @@ func newDestTuple(source, dest util.Address, netns uint32) *destTuple {
 	return d
 }
 
-func (g *gatewayTuple) gateway() util.Address {
+func (g *ipRouteGateway) gateway() util.Address {
 	switch g.family {
 	case C.CONN_V4:
 		return util.V4Address(uint32(g.gw_l))
@@ -373,6 +373,6 @@ func (g *gatewayTuple) gateway() util.Address {
 	return nil
 }
 
-func (g *gatewayTuple) ifIndex() int {
+func (g *ipRouteGateway) ifIndex() int {
 	return int(g.ifindex)
 }

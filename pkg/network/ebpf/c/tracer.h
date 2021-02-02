@@ -195,13 +195,13 @@ typedef struct {
     __u64 daddr_l;
     __u32 netns;
     __u16 family;
-} dest_tuple_t;
+} ip_route_dest_t;
 
 typedef struct {
     __u64 gw_h;
     __u64 gw_l;
     __u16 family;
     __u32 ifindex;
-} gw_tuple_t;
+} ip_route_gateway_t;
 
 #endif

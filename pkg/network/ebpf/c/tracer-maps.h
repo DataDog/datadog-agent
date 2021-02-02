@@ -179,10 +179,14 @@ struct bpf_map_def SEC("maps/ip_route_output_flows") ip_route_output_flows = {
     .namespace = "",
 };
 
-struct bpf_map_def SEC("maps/dest_gateways") dest_gateways = {
+/**
+ * This map holds gateway information for destinations. Key is a
+ * `ip_route_dest_t`; value is a `ip_route_gateway_t`
+*/
+struct bpf_map_def SEC("maps/ip_route_dest_gateways") ip_route_dest_gateways = {
     .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(dest_tuple_t),
-    .value_size = sizeof(gw_tuple_t),
+    .key_size = sizeof(ip_route_dest_t),
+    .value_size = sizeof(ip_route_gateway_t),
     .max_entries = 1024,
     .pinning = 0,
     .namespace = "",

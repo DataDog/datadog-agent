@@ -869,7 +869,7 @@ int kretprobe__ip_route_output_flow(struct pt_regs* ctx) {
         return 0;
     }
 
-    dest_tuple_t dest = {};
+    ip_route_dest_t dest = {};
     dest.saddr_h = 0;
     dest.daddr_h = 0;
     bpf_probe_read(&dest.saddr_l, sizeof(__be32), &flow->fl->saddr);
@@ -881,7 +881,7 @@ int kretprobe__ip_route_output_flow(struct pt_regs* ctx) {
     dest.netns = flow->net_ns;
     dest.family = CONN_V4;
 
-    gw_tuple_t gw = {};
+    ip_route_gateway_t gw = {};
     gw.gw_h = 0;
     gw.family = CONN_V4;
     gw.gw_l = rt_nexthop_bpf(rt);
@@ -891,7 +891,7 @@ int kretprobe__ip_route_output_flow(struct pt_regs* ctx) {
         bpf_probe_read(&gw.ifindex, sizeof(__u32), &(dst.dev->ifindex));
     }
 
-    bpf_map_update_elem(&dest_gateways, &dest, &gw, BPF_ANY);
+    bpf_map_update_elem(&ip_route_dest_gateways, &dest, &gw, BPF_ANY);
     return 0;
 }
 
