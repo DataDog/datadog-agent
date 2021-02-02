@@ -23,6 +23,10 @@ tests_ebpf:
   script:
     - inv -e system-probe.object-files
     - inv -e system-probe.kitchen-prepare
+    - cp $SRC_PATH/pkg/ebpf/bytecode/build/tracer.o $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer.o
+    - cp $SRC_PATH/pkg/ebpf/bytecode/build/tracer-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer-debug.o
+    - cp $SRC_PATH/pkg/ebpf/bytecode/build/offset-guess.o $CI_PROJECT_DIR/.tmp/binary-ebpf/offset-guess.o
+    - cp $SRC_PATH/pkg/ebpf/bytecode/build/offset-guess-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/offset-guess-debug.o
     # Compile runtime security functional tests to be executed in kitchen tests
     - inv -e security-agent.build-functional-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/testsuite
     # Compile runtime security stress tests to be executed in kitchen tests
@@ -33,13 +37,8 @@ tests_ebpf:
     - inv -e deps
     - inv -e system-probe.build --bundle-ebpf --incremental-build
     - inv -e security-agent.build-stress-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/stresssuite-master
+    - git reset --hard
     - git checkout -
-  after_script:
-    - cd $SRC_PATH
-    - cp ./pkg/ebpf/bytecode/build/tracer.o $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer.o
-    - cp ./pkg/ebpf/bytecode/build/tracer-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer-debug.o
-    - cp ./pkg/ebpf/bytecode/build/offset-guess.o $CI_PROJECT_DIR/.tmp/binary-ebpf/offset-guess.o
-    - cp ./pkg/ebpf/bytecode/build/offset-guess-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/offset-guess-debug.o
   artifacts:
     when: always
     paths:

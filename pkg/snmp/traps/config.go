@@ -8,6 +8,7 @@ package traps
 import (
 	"errors"
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/soniah/gosnmp"
 )
@@ -45,7 +46,7 @@ func ReadConfig() (*Config, error) {
 	}
 	if c.BindHost == "" {
 		// Default to global bind_host option.
-		c.BindHost = config.Datadog.GetString("bind_host")
+		c.BindHost = config.GetBindHost()
 	}
 	if c.StopTimeout == 0 {
 		c.StopTimeout = defaultStopTimeout

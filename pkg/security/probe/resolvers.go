@@ -57,7 +57,7 @@ func NewResolvers(probe *Probe, client *statsd.Client) (*Resolvers, error) {
 		UserGroupResolver: userGroupResolver,
 	}
 
-	processResolver, err := NewProcessResolver(probe, resolvers, client, NewProcessResolverOpts(true, probe.config.PIDCacheSize))
+	processResolver, err := NewProcessResolver(probe, resolvers, client, NewProcessResolverOpts(true, probe.config.CookieCacheSize))
 	if err != nil {
 		return nil, err
 	}

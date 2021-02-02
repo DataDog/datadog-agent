@@ -8,6 +8,9 @@ Param(
 $ErrorActionPreference = 'Stop';
 Set-Location c:\mnt
 
+# Install chocolatey binary
+$env:chocolateyUseWindowsCompression = 'true'; Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
+
 # Install dev tools, including invoke
 pip3 install -r requirements.txt
 

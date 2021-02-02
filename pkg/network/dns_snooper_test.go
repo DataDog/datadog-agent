@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/ebpf"
@@ -85,7 +86,7 @@ func getSnooper(
 	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{Section: string(probes.SocketDnsFilter)})
 	require.NotNil(t, filter)
 
-	packetSrc, err := NewPacketSource(filter)
+	packetSrc, err := filterpkg.NewPacketSource(filter)
 	require.NoError(t, err)
 
 	reverseDNS, err := NewSocketFilterSnooper(

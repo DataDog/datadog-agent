@@ -638,13 +638,6 @@ api_key:
   #
   # logs_no_ssl: false
 
-  ## @param expected_tags_duration - int - optional - default: 15
-  ## Define the time in minutes of the expected availability for the host tags on backend services.
-  ## After this duration, host tags are no longer submitted with log events.
-  ## A value of 0 disables the feature.
-  #
-  # expected_tags_duration: 15
-
   ## @param processing_rules - list of custom objects - optional
   ## Global processing rules that are applied to all logs. The available rules are
   ## "exclude_at_match", "include_at_match" and "mask_sequences". More information in Datadog documentation:
