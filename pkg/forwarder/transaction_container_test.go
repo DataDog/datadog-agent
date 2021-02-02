@@ -78,6 +78,26 @@ func TestTransactionContainerNoTransactionStorage(t *testing.T) {
 	assertPayloadSizeFromExtractTransactions(a, container, []int{11, 30})
 }
 
+func TestTransactionContainerZeroMaxMemSizeInBytes(t *testing.T) {
+	a := assert.New(t)
+	path, clean := createTmpFolder(a)
+	defer clean()
+	s, err := newTransactionsFileStorage(NewTransactionsSerializer("", nil), path, 1000, transactionsFileStorageTelemetry{})
+	a.NoError(err)
+
+	maxMemSizeInBytes := 0
+	container := newTransactionContainer(createDropPrioritySorter(), s, maxMemSizeInBytes, 0.1, transactionContainerTelemetry{})
+
+	inMemTrDropped, err := container.add(createTransactionWithPayloadSize(10))
+	a.NoError(err)
+	a.Equal(0, inMemTrDropped)
+
+	// `extractTransactionsForDisk` does not behave the same when there is a existing transaction.
+	inMemTrDropped, err = container.add(createTransactionWithPayloadSize(10))
+	a.NoError(err)
+	a.Equal(1, inMemTrDropped)
+}
+
 func createTransactionWithPayloadSize(payloadSize int) *HTTPTransaction {
 	tr := NewHTTPTransaction()
 	payload := make([]byte, payloadSize)
