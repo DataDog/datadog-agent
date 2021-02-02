@@ -106,7 +106,13 @@ type testPayload struct{}
 func (p *testPayload) MarshalJSON() ([]byte, error) { return jsonString, nil }
 func (p *testPayload) Marshal() ([]byte, error)     { return protobufString, nil }
 func (p *testPayload) MarshalSplitCompress() ([]*[]byte, error) {
-	return []*[]byte{&protobufString}, nil
+	payloads := forwarder.Payloads{}
+	payload, err := compression.Compress(nil, protobufString)
+	if err != nil {
+		return nil, err
+	}
+	payloads = append(payloads, &payload)
+	return payloads, nil
 }
 func (p *testPayload) SplitPayload(int) ([]marshaler.Marshaler, error) {
 	return []marshaler.Marshaler{}, nil
@@ -343,22 +349,22 @@ func TestSendSeries(t *testing.T) {
 	require.NotNil(t, err)
 }
 
-// func TestSendSketch(t *testing.T) {
-// 	f := &forwarder.MockedForwarder{}
-// 	payloads, _ := mkPayloads(protobufString, true)
-// 	f.On("SubmitSketchSeries", payloads, protobufExtraHeadersWithCompression).Return(nil).Times(1)
+func TestSendSketch(t *testing.T) {
+	f := &forwarder.MockedForwarder{}
+	payloads, _ := mkPayloads(protobufString, true)
+	f.On("SubmitSketchSeries", payloads, protobufExtraHeadersWithCompression).Return(nil).Times(1)
 
-// 	s := NewSerializer(f)
+	s := NewSerializer(f)
 
-// 	payload := &metrics.SketchSeriesList{}
-// 	err := s.SendSketch(payload)
-// 	require.Nil(t, err)
-// 	f.AssertExpectations(t)
+	payload := &testPayload{}
+	err := s.SendSketch(payload)
+	require.Nil(t, err)
+	f.AssertExpectations(t)
 
-// 	errPayload := &testErrorPayload{}
-// 	err = s.SendSketch(errPayload)
-// 	require.NotNil(t, err)
-// }
+	errPayload := &testErrorPayload{}
+	err = s.SendSketch(errPayload)
+	require.NotNil(t, err)
+}
 
 func TestSendMetadata(t *testing.T) {
 	f := &forwarder.MockedForwarder{}

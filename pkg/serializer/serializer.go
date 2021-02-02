@@ -324,7 +324,7 @@ func (s *Serializer) SendSketch(sketches marshaler.Marshaler) error {
 		return s.Forwarder.SubmitSketchSeries(payloads, protobufExtraHeadersWithCompression)
 	}
 
-	log.Errorf("Error: %v trying to stream compress SketchSeriesList - falling back to split/compress method", err)
+	log.Warnf("Error: %v trying to stream compress SketchSeriesList - falling back to split/compress method", err)
 
 	compress := true
 	useV1API := false // Sketches only have a v2 endpoint
