@@ -28,13 +28,12 @@ func (ms *metricSender) getCheckInstanceMetricTags(metricTags []metricTagConfig,
 	for _, metricTag := range metricTags {
 		value, err := values.getScalarValue(metricTag.OID)
 		if err != nil {
-			log.Warnf("metric tags: error getting scalar value: %v", err)
+			log.Debugf("metric tags: error getting scalar value: %v", err)
 			continue
 		}
 		strValue, err := value.toString()
 		if err != nil {
-			// TODO: Test me
-			log.Warnf("error converting value (%#v) to string : %v", value, err)
+			log.Debugf("error converting value (%#v) to string : %v", value, err)
 			continue
 		}
 		globalTags = append(globalTags, metricTag.getTags(strValue)...)
@@ -45,7 +44,7 @@ func (ms *metricSender) getCheckInstanceMetricTags(metricTags []metricTagConfig,
 func (ms *metricSender) reportScalarMetrics(metric metricsConfig, values *resultValueStore, tags []string) {
 	value, err := values.getScalarValue(metric.Symbol.OID)
 	if err != nil {
-		log.Warnf("report scalar: error getting scalar value: %v", err)
+		log.Debugf("report scalar: error getting scalar value: %v", err)
 		return
 	}
 
@@ -59,7 +58,7 @@ func (ms *metricSender) reportColumnMetrics(metricConfig metricsConfig, values *
 	for _, symbol := range metricConfig.Symbols {
 		metricValues, err := values.getColumnValues(symbol.OID)
 		if err != nil {
-			log.Warnf("report column: error getting column value: %v", err)
+			log.Debugf("report column: error getting column value: %v", err)
 			continue
 		}
 		for fullIndex, value := range metricValues {
@@ -88,7 +87,6 @@ func (ms *metricSender) sendMetric(metricName string, value snmpValueType, tags 
 	} else if forcedType == "flag_stream" {
 		strValue, err := value.toString()
 		if err != nil {
-			// TODO: Test me
 			log.Debugf("error converting value (%#v) to string : %v", value, err)
 			return
 		}

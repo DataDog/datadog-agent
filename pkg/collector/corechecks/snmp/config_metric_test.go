@@ -1,8 +1,13 @@
 package snmp
 
 import (
+	"bufio"
+	"bytes"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v2"
+	"strings"
 	"testing"
 )
 
@@ -62,16 +67,22 @@ func Test_transformIndex(t *testing.T) {
 }
 
 func Test_metricsConfig_getTags(t *testing.T) {
+	type logCount struct {
+		log   string
+		count int
+	}
 	tests := []struct {
 		name            string
 		rawMetricConfig []byte
 		fullIndex       string
 		values          *resultValueStore
 		expectedTags    []string
+		expectedLogs    []logCount
 	}{
 		{
-			"index transform",
-			[]byte(`
+			name: "index transform",
+			// language=yaml
+			rawMetricConfig: []byte(`
 table:
   OID:  1.2.3.4.5
   name: cpiPduBranchTable
@@ -90,8 +101,8 @@ metric_tags:
         end: 7
     tag: pdu_name
 `),
-			"1.2.3.4.5.6.7.8",
-			&resultValueStore{
+			fullIndex: "1.2.3.4.5.6.7.8",
+			values: &resultValueStore{
 				columnValues: map[string]map[string]snmpValueType{
 					"1.2.3.4.8.1.2": {
 						"2.3.7.8": snmpValueType{
@@ -100,11 +111,12 @@ metric_tags:
 					},
 				},
 			},
-			[]string{"pdu_name:myval"},
+			expectedTags: []string{"pdu_name:myval"},
 		},
 		{
-			"index mapping",
-			[]byte(`
+			name: "index mapping",
+			// language=yaml
+			rawMetricConfig: []byte(`
 table:
   OID: 1.3.6.1.2.1.4.31.3
   name: ipIfStatsTable
@@ -122,13 +134,14 @@ metric_tags:
       4: ipv6z
       16: dns
 `),
-			"3",
-			&resultValueStore{},
-			[]string{"ipversion:ipv4z"},
+			fullIndex:    "3",
+			values:       &resultValueStore{},
+			expectedTags: []string{"ipversion:ipv4z"},
 		},
 		{
-			"regex match",
-			[]byte(`
+			name: "regex match",
+			// language=yaml
+			rawMetricConfig: []byte(`
 table:
   OID:  1.2.3.4.5
   name: cpiPduBranchTable
@@ -145,8 +158,8 @@ metric_tags:
       prefix: '$1'
       suffix: '$2'
 `),
-			"1.2.3.4.5.6.7.8",
-			&resultValueStore{
+			fullIndex: "1.2.3.4.5.6.7.8",
+			values: &resultValueStore{
 				columnValues: map[string]map[string]snmpValueType{
 					"1.2.3.4.8.1.2": {
 						"1.2.3.4.5.6.7.8": snmpValueType{
@@ -155,11 +168,12 @@ metric_tags:
 					},
 				},
 			},
-			[]string{"prefix:e", "suffix:th0"},
+			expectedTags: []string{"prefix:e", "suffix:th0"},
 		},
 		{
-			"regex match only once",
-			[]byte(`
+			name: "regex match only once",
+			// language=yaml
+			rawMetricConfig: []byte(`
 table:
   OID:  1.2.3.4.5
   name: cpiPduBranchTable
@@ -176,8 +190,8 @@ metric_tags:
       tag1: '${1}'
       tag2: '\1'
 `),
-			"1.2.3.4.5.6.7.8",
-			&resultValueStore{
+			fullIndex: "1.2.3.4.5.6.7.8",
+			values: &resultValueStore{
 				columnValues: map[string]map[string]snmpValueType{
 					"1.2.3.4.8.1.2": {
 						"1.2.3.4.5.6.7.8": snmpValueType{
@@ -186,11 +200,12 @@ metric_tags:
 					},
 				},
 			},
-			[]string{"tag1:f5", "tag2:f5"},
+			expectedTags: []string{"tag1:f5", "tag2:f5"},
 		},
 		{
-			"regex does not match",
-			[]byte(`
+			name: "regex does not match",
+			// language=yaml
+			rawMetricConfig: []byte(`
 table:
   OID:  1.2.3.4.5
   name: cpiPduBranchTable
@@ -207,8 +222,8 @@ metric_tags:
       prefix: '$1'
       suffix: '$2'
 `),
-			"1.2.3.4.5.6.7.8",
-			&resultValueStore{
+			fullIndex: "1.2.3.4.5.6.7.8",
+			values: &resultValueStore{
 				columnValues: map[string]map[string]snmpValueType{
 					"1.2.3.4.8.1.2": {
 						"1.2.3.4.5.6.7.8": snmpValueType{
@@ -217,11 +232,12 @@ metric_tags:
 					},
 				},
 			},
-			[]string(nil),
+			expectedTags: []string(nil),
 		},
 		{
-			"regex does not match exact",
-			[]byte(`
+			name: "regex does not match exact",
+			// language=yaml
+			rawMetricConfig: []byte(`
 table:
   OID:  1.2.3.4.5
   name: cpiPduBranchTable
@@ -238,8 +254,8 @@ metric_tags:
       prefix: '$1'
       suffix: '$2'
 `),
-			"1.2.3.4.5.6.7.8",
-			&resultValueStore{
+			fullIndex: "1.2.3.4.5.6.7.8",
+			values: &resultValueStore{
 				columnValues: map[string]map[string]snmpValueType{
 					"1.2.3.4.8.1.2": {
 						"1.2.3.4.5.6.7.8": snmpValueType{
@@ -248,11 +264,12 @@ metric_tags:
 					},
 				},
 			},
-			[]string(nil),
+			expectedTags: []string(nil),
 		},
 		{
-			"missing index value",
-			[]byte(`
+			name: "missing index value",
+			// language=yaml
+			rawMetricConfig: []byte(`
 table:
   OID:  1.2.3.4.5
   name: cpiPduBranchTable
@@ -266,8 +283,8 @@ metric_tags:
     table: cpiPduTable
     tag: abc
 `),
-			"1.2.3.4.5.6.7.8",
-			&resultValueStore{
+			fullIndex: "1.2.3.4.5.6.7.8",
+			values: &resultValueStore{
 				columnValues: map[string]map[string]snmpValueType{
 					"1.2.3.4.8.1.2": {
 						"999": snmpValueType{
@@ -276,11 +293,15 @@ metric_tags:
 					},
 				},
 			},
-			[]string(nil),
+			expectedTags: []string(nil),
+			expectedLogs: []logCount{
+				{"[DEBUG] getTags: index not found for column value: tag=abc, index=1.2.3.4.5.6.7.8", 1},
+			},
 		},
 		{
-			"missing column value",
-			[]byte(`
+			name: "error converting tag value",
+			// language=yaml
+			rawMetricConfig: []byte(`
 table:
   OID:  1.2.3.4.5
   name: cpiPduBranchTable
@@ -294,8 +315,40 @@ metric_tags:
     table: cpiPduTable
     tag: abc
 `),
-			"1.2.3.4.5.6.7.8",
-			&resultValueStore{
+			fullIndex: "1.2.3.4.5.6.7.8",
+			values: &resultValueStore{
+				columnValues: map[string]map[string]snmpValueType{
+					"1.2.3.4.8.1.2": {
+						"1.2.3.4.5.6.7.8": snmpValueType{
+							value: snmpValueType{},
+						},
+					},
+				},
+			},
+			expectedTags: []string(nil),
+			expectedLogs: []logCount{
+				{"[DEBUG] getTags: error converting tagValue", 1},
+			},
+		},
+		{
+			name: "missing column value",
+			// language=yaml
+			rawMetricConfig: []byte(`
+table:
+  OID:  1.2.3.4.5
+  name: cpiPduBranchTable
+symbols:
+  - OID: 1.2.3.4.5.1.2
+    name: cpiPduBranchCurrent
+metric_tags:
+  - column:
+      OID:  1.2.3.4.8.1.2
+      name: cpiPduName
+    table: cpiPduTable
+    tag: abc
+`),
+			fullIndex: "1.2.3.4.5.6.7.8",
+			values: &resultValueStore{
 				columnValues: map[string]map[string]snmpValueType{
 					"999": {
 						"1.2.3.4.5.6.7.8": snmpValueType{
@@ -304,11 +357,15 @@ metric_tags:
 					},
 				},
 			},
-			[]string(nil),
+			expectedTags: []string(nil),
+			expectedLogs: []logCount{
+				{"[DEBUG] getTags: error getting column value: value for Column OID `1.2.3.4.8.1.2`", 1},
+			},
 		},
 		{
-			"mapping does not exist",
-			[]byte(`
+			name: "mapping does not exist",
+			// language=yaml
+			rawMetricConfig: []byte(`
 table:
   OID:  1.2.3.4.5
   name: cpiPduBranchTable
@@ -326,8 +383,8 @@ metric_tags:
       4: ipv6z
       16: dns
 `),
-			"20",
-			&resultValueStore{
+			fullIndex: "20",
+			values: &resultValueStore{
 				columnValues: map[string]map[string]snmpValueType{
 					"1.2.3.4.8.1.2": {
 						"20": snmpValueType{
@@ -336,11 +393,15 @@ metric_tags:
 					},
 				},
 			},
-			[]string(nil),
+			expectedTags: []string(nil),
+			expectedLogs: []logCount{
+				{"[DEBUG] getTags: error getting tags. mapping for `20` does not exist.", 1},
+			},
 		},
 		{
-			"index not found",
-			[]byte(`
+			name: "index not found",
+			// language=yaml
+			rawMetricConfig: []byte(`
 table:
   OID:  1.2.3.4.5
   name: cpiPduBranchTable
@@ -351,8 +412,8 @@ metric_tags:
   - index: 100
     tag: abc
 `),
-			"1",
-			&resultValueStore{
+			fullIndex: "1",
+			values: &resultValueStore{
 				columnValues: map[string]map[string]snmpValueType{
 					"1.2.3.4.8.1.2": {
 						"1": snmpValueType{
@@ -361,11 +422,21 @@ metric_tags:
 					},
 				},
 			},
-			[]string(nil),
+			expectedTags: []string(nil),
+			expectedLogs: []logCount{
+				{"[DEBUG] getTags: error getting tags. index `100` not found in indexes `[1]`", 1},
+			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			var b bytes.Buffer
+			w := bufio.NewWriter(&b)
+
+			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+			assert.Nil(t, err)
+			log.SetupLogger(l, "debug")
+
 			m := metricsConfig{}
 			yaml.Unmarshal(tt.rawMetricConfig, &m)
 
@@ -373,6 +444,13 @@ metric_tags:
 			tags := m.getTags(tt.fullIndex, tt.values)
 
 			assert.ElementsMatch(t, tt.expectedTags, tags)
+
+			w.Flush()
+			logs := b.String()
+
+			for _, aLogCount := range tt.expectedLogs {
+				assert.Equal(t, aLogCount.count, strings.Count(logs, aLogCount.log), logs)
+			}
 		})
 	}
 }

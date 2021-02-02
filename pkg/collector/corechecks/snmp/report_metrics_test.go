@@ -14,6 +14,10 @@ import (
 )
 
 func TestSendMetric(t *testing.T) {
+	type logCount struct {
+		log   string
+		count int
+	}
 	tests := []struct {
 		caseName           string
 		metricName         string
@@ -26,6 +30,7 @@ func TestSendMetric(t *testing.T) {
 		expectedValue      float64
 		expectedTags       []string
 		expectedSubMetrics int
+		expectedLogs       []logCount
 	}{
 		{
 			caseName:           "Gauge metric case",
@@ -164,6 +169,25 @@ func TestSendMetric(t *testing.T) {
 			expectedValue:      0.0,
 			expectedTags:       []string{},
 			expectedSubMetrics: 0,
+			expectedLogs: []logCount{
+				{"[DEBUG] sendMetric: metric `snmp.metric`: failed to get flag stream value: flag stream index `9` not found in `1010`", 1},
+			},
+		},
+		{
+			caseName:           "Error converting value",
+			metricName:         "metric",
+			value:              snmpValueType{value: snmpValueType{}},
+			tags:               []string{},
+			forcedType:         "flag_stream",
+			options:            metricsConfigOption{Placement: 10, MetricSuffix: "foo"},
+			expectedMethod:     "",
+			expectedMetricName: "",
+			expectedValue:      0.0,
+			expectedTags:       []string{},
+			expectedSubMetrics: 0,
+			expectedLogs: []logCount{
+				{"[DEBUG] sendMetric: error converting value", 1},
+			},
 		},
 		{
 			caseName:           "Cannot convert value to float",
@@ -175,10 +199,35 @@ func TestSendMetric(t *testing.T) {
 			expectedValue:      0,
 			expectedTags:       []string{},
 			expectedSubMetrics: 0,
+			expectedLogs: []logCount{
+				{"[DEBUG] sendMetric: metric `snmp.gauge.metric`: failed to convert to float64", 1},
+			},
+		},
+		{
+			caseName:           "Unsupported type",
+			metricName:         "gauge.metric",
+			value:              snmpValueType{value: "1"},
+			tags:               []string{},
+			forcedType:         "invalidForceType",
+			expectedMethod:     "",
+			expectedMetricName: "",
+			expectedValue:      0,
+			expectedTags:       []string{},
+			expectedSubMetrics: 0,
+			expectedLogs: []logCount{
+				{"[DEBUG] sendMetric: metric `snmp.gauge.metric`: unsupported forcedType: invalidForceType", 1},
+			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.caseName, func(t *testing.T) {
+			var b bytes.Buffer
+			w := bufio.NewWriter(&b)
+
+			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+			assert.Nil(t, err)
+			log.SetupLogger(l, "debug")
+
 			mockSender := mocksender.NewMockSender("foo")
 			metricSender := metricSender{sender: mockSender}
 			mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -189,6 +238,13 @@ func TestSendMetric(t *testing.T) {
 			assert.Equal(t, tt.expectedSubMetrics, metricSender.submittedMetrics)
 			if tt.expectedMethod != "" {
 				mockSender.AssertCalled(t, tt.expectedMethod, tt.expectedMetricName, tt.expectedValue, "", tt.expectedTags)
+			}
+
+			w.Flush()
+			logs := b.String()
+
+			for _, aLogCount := range tt.expectedLogs {
+				assert.Equal(t, aLogCount.count, strings.Count(logs, aLogCount.log), logs)
 			}
 		})
 	}
@@ -213,7 +269,7 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 			},
 			values: &resultValueStore{},
 			expectedLogs: []logCount{
-				{"[WARN] reportScalarMetrics: report scalar: error getting scalar value: value for Scalar OID `1.2.3.4.5` not found in `map[]`", 1},
+				{"[DEBUG] reportScalarMetrics: report scalar: error getting scalar value: value for Scalar OID `1.2.3.4.5` not found in `map[]`", 1},
 			},
 		},
 		{
@@ -233,8 +289,8 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 			},
 			values: &resultValueStore{},
 			expectedLogs: []logCount{
-				{"[WARN] reportColumnMetrics: report column: error getting column value: value for Column OID `1.3.6.1.2.1.2.2.1.13` not found in `map[]`", 1},
-				{"[WARN] reportColumnMetrics: report column: error getting column value: value for Column OID `1.3.6.1.2.1.2.2.1.14` not found in `map[]`", 1},
+				{"[DEBUG] reportColumnMetrics: report column: error getting column value: value for Column OID `1.3.6.1.2.1.2.2.1.13` not found in `map[]`", 1},
+				{"[DEBUG] reportColumnMetrics: report column: error getting column value: value for Column OID `1.3.6.1.2.1.2.2.1.14` not found in `map[]`", 1},
 			},
 		},
 		{
@@ -323,8 +379,8 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 			},
 			values: &resultValueStore{},
 			expectedLogs: []logCount{
-				{"[WARN] getCheckInstanceMetricTags: metric tags: error getting scalar value: value for Scalar OID `1.2.3` not found in `map[]`", 1},
-				{"[WARN] getCheckInstanceMetricTags: metric tags: error getting scalar value: value for Scalar OID `1.3.6.1.2.1.1.5.0` not found in `map[]`", 1},
+				{"[DEBUG] getCheckInstanceMetricTags: metric tags: error getting scalar value: value for Scalar OID `1.2.3` not found in `map[]`", 1},
+				{"[DEBUG] getCheckInstanceMetricTags: metric tags: error getting scalar value: value for Scalar OID `1.3.6.1.2.1.1.5.0` not found in `map[]`", 1},
 			},
 		},
 		{
@@ -344,6 +400,22 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 			},
 			expectedTags: []string{"word:hello", "number:123"},
 			expectedLogs: []logCount{},
+		},
+		{
+			name: "error converting tag value",
+			metricsTags: []metricTagConfig{
+				{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol"},
+			},
+			values: &resultValueStore{
+				scalarValues: scalarResultValuesType{
+					"1.2.3": snmpValueType{
+						value: snmpValueType{},
+					},
+				},
+			},
+			expectedLogs: []logCount{
+				{"error converting value", 1},
+			},
 		},
 	}
 	for _, tt := range tests {

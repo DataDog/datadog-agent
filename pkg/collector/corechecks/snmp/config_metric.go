@@ -107,15 +107,14 @@ func (m *metricsConfig) getTags(fullIndex string, values *resultValueStore) []st
 			tagValue, ok := columnValues[newFullIndex]
 			if !ok {
 				log.Debugf("index not found for column value: tag=%v, index=%v", metricTag.Tag, newFullIndex)
-			} else {
-				strValue, err := tagValue.toString()
-				if err != nil {
-					// TODO: Test me
-					log.Debugf("error converting tagValue (%#v) to string : %v", tagValue, err)
-					continue
-				}
-				rowTags = append(rowTags, metricTag.getTags(strValue)...)
+				continue
 			}
+			strValue, err := tagValue.toString()
+			if err != nil {
+				log.Debugf("error converting tagValue (%#v) to string : %v", tagValue, err)
+				continue
+			}
+			rowTags = append(rowTags, metricTag.getTags(strValue)...)
 		}
 	}
 	return rowTags

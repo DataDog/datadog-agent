@@ -119,7 +119,6 @@ func fetchSysObjectID(session sessionAPI) (string, error) {
 	}
 	strValue, err := value.toString()
 	if err != nil {
-		// TODO: Test me
 		return "", fmt.Errorf("error converting value (%#v) to string : %v", value, err)
 	}
 	return strValue, err
