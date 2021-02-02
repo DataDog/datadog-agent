@@ -11,6 +11,8 @@ import (
 	"github.com/gogo/protobuf/proto"
 )
 
+const maxRoutes = math.MaxInt32
+
 var connsPool = sync.Pool{
 	New: func() interface{} {
 		return new(model.Connections)
@@ -206,7 +208,7 @@ func formatRouteIdx(v *network.Via, routes map[string]RouteIdx) int32 {
 		return -1
 	}
 
-	if len(routes) == math.MaxInt32+1 {
+	if len(routes) == maxRoutes {
 		return -1
 	}
 
