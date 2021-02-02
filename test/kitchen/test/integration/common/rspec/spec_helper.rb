@@ -836,7 +836,7 @@ shared_examples_for 'an Agent with process enabled' do
   end
 end
 
-shared_examples_for 'an upgraded agent with expected version' do
+shared_examples_for 'an upgraded Agent with the expected version' do
   # We retrieve the value defined in kitchen.yml because there is no simple way
   # to set env variables on the target machine or via parameters in Kitchen/Busser
   # See https://github.com/test-kitchen/test-kitchen/issues/662 for reference

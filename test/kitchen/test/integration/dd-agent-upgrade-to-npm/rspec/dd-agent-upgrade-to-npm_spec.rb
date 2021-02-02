@@ -7,5 +7,5 @@ describe 'an agent upgraded with NPM added' do
   it_behaves_like 'a Windows Agent with NPM driver installed'
   it_behaves_like 'a Windows Agent with NPM driver that can start'
   it_behaves_like 'a Windows Agent with NPM running'
-  it_behaves_like 'an upgraded agent with expected version'
+  it_behaves_like 'an upgraded Agent with the expected version'
 end
