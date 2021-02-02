@@ -25,7 +25,10 @@ type Replacer struct {
 
 var commentRegex = regexp.MustCompile(`^\s*#.*$`)
 var blankRegex = regexp.MustCompile(`^\s*$`)
-var singleLineReplacers, multiLineReplacers []Replacer
+var multiLineReplacers []Replacer
+
+// SingleLineReplacers used to scrub single line data and also used in SanitizeURL
+var SingleLineReplacers []Replacer
 
 func init() {
 	apiKeyReplacer := Replacer{
@@ -62,7 +65,7 @@ func init() {
 		Hints: []string{"BEGIN"},
 		Repl:  []byte(`********`),
 	}
-	singleLineReplacers = []Replacer{apiKeyReplacer, appKeyReplacer, uriPasswordReplacer, passwordReplacer, tokenReplacer, snmpReplacer}
+	SingleLineReplacers = []Replacer{apiKeyReplacer, appKeyReplacer, uriPasswordReplacer, passwordReplacer, tokenReplacer, snmpReplacer}
 	multiLineReplacers = []Replacer{certReplacer}
 }
 
@@ -99,7 +102,7 @@ func AddStrippedKeys(strippedKeys []string) {
 			Hints: strippedKeys,
 			Repl:  []byte(`$1 ********`),
 		}
-		singleLineReplacers = append(singleLineReplacers, configReplacer)
+		SingleLineReplacers = append(SingleLineReplacers, configReplacer)
 	}
 }
 
@@ -130,7 +133,7 @@ func credentialsCleaner(file io.Reader) ([]byte, error) {
 	for scanner.Scan() {
 		b := scanner.Bytes()
 		if !commentRegex.Match(b) && !blankRegex.Match(b) && string(b) != "" {
-			for _, repl := range singleLineReplacers {
+			for _, repl := range SingleLineReplacers {
 				containsHint := false
 				for _, hint := range repl.Hints {
 					if strings.Contains(string(b), hint) {
