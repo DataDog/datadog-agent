@@ -242,7 +242,7 @@ func (w *TraceWriter) recordEvent(t eventType, data *eventData) {
 	}
 	switch t {
 	case eventTypeRetry:
-		log.Warnf("Retrying to flush trace payload; error: %s", data.err)
+		log.Debugf("Retrying to flush trace payload; error: %s", data.err)
 		atomic.AddInt64(&w.stats.Retries, 1)
 
 	case eventTypeSent:
