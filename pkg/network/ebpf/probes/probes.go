@@ -77,6 +77,11 @@ const (
 
 	// SocketHTTPFilter is the socket probe for HTTP
 	SocketHTTPFilter ProbeName = "socket/http_filter"
+
+	// IPRouteOutputFlow is the kprobe of a ip_route_output_flow call
+	IPRouteOutputFlow ProbeName = "kprobe/ip_route_output_flow"
+	// IPRouteOutputFlow is the kretprobe of a ip_route_output_flow call
+	IPRouteOutputFlowReturn ProbeName = "kretprobe/ip_route_output_flow"
 )
 
 // BPFMapName stores the name of the BPF maps storing statistics and other info

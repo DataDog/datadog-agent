@@ -343,7 +343,7 @@ func isPortClosed(state uint8) bool {
 }
 
 func newDestTuple(source, dest util.Address, netns uint32) *destTuple {
-	d := &destTuple{netns: C.__u32(netns)}
+	d := &destTuple{netns: C.__u32(netns), daddr_l: 0, daddr_h: 0}
 	sbytes := source.Bytes()
 	dbytes := dest.Bytes()
 	switch len(dbytes) {

@@ -6,7 +6,6 @@ import (
 	"expvar"
 	"fmt"
 	"math"
-	"net"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -22,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf"
@@ -93,8 +91,7 @@ type Tracer struct {
 	sourceExcludes []*network.ConnectionFilter
 	destExcludes   []*network.ConnectionFilter
 
-	routeCache  network.RouteCache
-	subnetCache map[int]network.Subnet
+	gwLookup *gatewayLookup
 }
 
 const (
@@ -168,6 +165,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		}
 	}
 
+	runtimeCompilerEnabled := buf != nil
 	if buf == nil {
 		buf, err = netebpf.ReadBPFModule(config.BPFDir, config.BPFDebug)
 		if err != nil {
@@ -201,6 +199,12 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	perfHandlerTCP := ddebpf.NewPerfHandler(closedChannelSize)
 	perfHandlerHTTP := ddebpf.NewPerfHandler(closedChannelSize)
 	m := netebpf.NewManager(perfHandlerTCP, perfHandlerHTTP)
+
+	gwLookupEnabled := gwLookupEnabled(config)
+	if gwLookupEnabled && runtimeCompilerEnabled {
+		enabledProbes[probes.IPRouteOutputFlow] = struct{}{}
+		enabledProbes[probes.IPRouteOutputFlowReturn] = struct{}{}
+	}
 
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
 	for _, p := range m.Probes {
@@ -269,9 +273,8 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		perfHandler:    perfHandlerTCP,
 		flushIdle:      make(chan chan struct{}),
 		stop:           make(chan struct{}),
-		routeCache:     newRouteCache(config, m),
-		subnetCache:    make(map[int]network.Subnet),
 		buf:            make([]byte, network.ConnectionByteKeyMaxLen),
+		gwLookup:       newGatewayLookup(config, runtimeCompilerEnabled, m),
 	}
 
 	tr.perfMap, tr.batchManager, err = tr.initPerfPolling(perfHandlerTCP)
@@ -435,7 +438,7 @@ func (t *Tracer) initPerfPolling(perf *ddebpf.PerfHandler) (*manager.PerfMap, *P
 				batch := toBatch(batchData)
 				conns := t.batchManager.Extract(batch, time.Now())
 				for _, c := range conns {
-					t.storeClosedConn(c)
+					t.storeClosedConn(&c)
 				}
 			case lostCount, ok := <-perf.LostChannel:
 				if !ok {
@@ -448,7 +451,7 @@ func (t *Tracer) initPerfPolling(perf *ddebpf.PerfHandler) (*manager.PerfMap, *P
 				}
 				idleConns := t.batchManager.GetIdleConns(time.Now())
 				for _, c := range idleConns {
-					t.storeClosedConn(c)
+					t.storeClosedConn(&c)
 				}
 				close(done)
 			case <-ticker.C:
@@ -478,20 +481,20 @@ func (t *Tracer) shouldSkipConnection(conn *network.ConnectionStats) bool {
 	return false
 }
 
-func (t *Tracer) storeClosedConn(cs network.ConnectionStats) {
-	t.connVia(&cs)
+func (t *Tracer) storeClosedConn(cs *network.ConnectionStats) {
+	t.connVia(cs)
 
-	cs.Direction = t.determineConnectionDirection(&cs)
-	if t.shouldSkipConnection(&cs) {
+	cs.Direction = t.determineConnectionDirection(cs)
+	if t.shouldSkipConnection(cs) {
 		atomic.AddInt64(&t.skippedConns, 1)
 		return
 	}
 
 	atomic.AddInt64(&t.closedConns, 1)
-	cs.IPTranslation = t.conntracker.GetTranslationForConn(cs)
-	t.state.StoreClosedConnection(&cs)
+	cs.IPTranslation = t.conntracker.GetTranslationForConn(*cs)
+	t.state.StoreClosedConnection(cs)
 	if cs.IPTranslation != nil {
-		t.conntracker.DeleteTranslation(cs)
+		t.conntracker.DeleteTranslation(*cs)
 	}
 }
 
@@ -930,71 +933,11 @@ func (t *Tracer) conntrackExists(ctr *cachedConntrack, conn *ConnTuple) bool {
 }
 
 func (t *Tracer) connVia(cs *network.ConnectionStats) {
-	if t.routeCache == nil {
+	if t.gwLookup == nil {
 		return // gateway lookup is not enabled
 	}
 
-	r, ok := t.routeCache.Get(cs.Source, cs.Dest, cs.NetNS)
-	if !ok {
-		return
-	}
-
-	// if there is no gateway, we don't need to add subnet info
-	// for gateway resolution in the backend
-	if util.NetIPFromAddress(r.Gw).IsUnspecified() {
-		return
-	}
-
-	s, ok := t.subnetCache[r.IfIndex]
-	if !ok {
-		ifi, err := net.InterfaceByIndex(r.IfIndex)
-		if err != nil {
-			log.Errorf("error getting index for interface index %d: %s", r.IfIndex, err)
-			return
-		}
-
-		if len(ifi.HardwareAddr) == 0 {
-			// can happen for loopback
-			return
-		}
-
-		snet, err := ec2.GetSubnetForHardwareAddr(ifi.HardwareAddr)
-		if err != nil {
-			log.Errorf("error getting subnet info for interface index %d: %s", r.IfIndex, err)
-			return
-		}
-
-		s.Alias = snet.ID
-		t.subnetCache[r.IfIndex] = s
-	}
-
-	cs.Via = &network.Via{
-		Subnet: s,
-	}
-}
-
-type ebpfRouter struct {
-	gwMp *ebpf.Map
-}
-
-func newEbpfRouter(m *manager.Manager) network.Router {
-	mp, ok, err := m.GetMap(string(probes.GatewayMap))
-	if err != nil || !ok {
-		return nil
-	}
-	return &ebpfRouter{
-		gwMp: mp,
-	}
-}
-
-func (b *ebpfRouter) Route(source, dest util.Address, netns uint32) (network.Route, bool) {
-	d := newDestTuple(source, dest, netns)
-	gw := &gatewayTuple{}
-	if err := b.gwMp.Lookup(unsafe.Pointer(d), unsafe.Pointer(gw)); err != nil || gw.ifIndex() == 0 {
-		return network.Route{}, false
-	}
-
-	return network.Route{Gw: gw.gateway(), IfIndex: gw.ifIndex()}, true
+	t.gwLookup.Lookup(cs)
 }
 
 func newHTTPMonitor(supported bool, c *config.Config, m *manager.Manager, h *ddebpf.PerfHandler) *http.Monitor {
@@ -1015,19 +958,4 @@ func newHTTPMonitor(supported bool, c *config.Config, m *manager.Manager, h *dde
 
 	log.Info("http monitoring enabled")
 	return monitor
-}
-
-func newRouteCache(config *config.Config, m *manager.Manager) network.RouteCache {
-	if !config.EnableGatewayLookup {
-		return nil
-	}
-
-	var router network.Router
-	if config.EnableRuntimeCompiler {
-		router = newEbpfRouter(m)
-	} else {
-		router = network.NewNetlinkRouter(config.ProcRoot)
-	}
-
-	return network.NewRouteCache(512, router)
 }

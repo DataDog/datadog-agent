@@ -14,6 +14,7 @@
 #include <linux/version.h>
 #include <net/inet_sock.h>
 #include <net/net_namespace.h>
+#include <net/route.h>
 #include <net/tcp_states.h>
 #include <uapi/linux/ip.h>
 #include <uapi/linux/ipv6.h>
@@ -25,30 +26,47 @@
 # error "kernel version not included?"
 #endif
 
-static __always_inline __u32 get_netns_from_sock(struct sock* skp) {
+static __always_inline __be32 rt_nexthop_bpf(struct rtable *rt) {
+    if (!rt) return 0;
+    __be32 hop = 0;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
+    bpf_probe_read(&hop, sizeof(hop), &rt->rt_gateway);
+#else
+    u8 family;
+    bpf_probe_read(&family, sizeof(family), &rt->rt_gw_family);
+    if (family == AF_INET) {
+        bpf_probe_read(&hop, sizeof(hop), &rt->rt_gw4);
+    }
+#endif
+    return hop;
+}
+
+static __always_inline __u32 get_netns_inum(struct net* ns) {
+    if (!ns) return 0;
     __u32 net_ns_inum = 0;
 #ifdef CONFIG_NET_NS
-    #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
-        struct net *skc_net = NULL;
-        bpf_probe_read(&skc_net, sizeof(skc_net), &skp->__sk_common.skc_net);
-        if (!skc_net) {
-            return 0;
-        }
-        #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
-            bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), &skc_net->proc_inum);
-        #else
-            bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), &skc_net->ns.inum);
-        #endif
-    #else
-        struct net *skc_net = NULL;
-        bpf_probe_read(&skc_net, sizeof(skc_net), &skp->__sk_common.skc_net.net);
-        if (!skc_net) {
-            return 0;
-        }
-        bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), &skc_net->ns.inum);
-    #endif
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
+    bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), &ns->proc_inum);
+#else
+    bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), &ns->ns.inum);
 #endif
+#endif // CONFIG_NET_NS
     return net_ns_inum;
+}
+
+static __always_inline __u32 get_netns_from_sock(struct sock* skp) {
+#ifdef CONFIG_NET_NS
+    struct net *skc_net = NULL;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
+    bpf_probe_read(&skc_net, sizeof(skc_net), &skp->__sk_common.skc_net);
+#else
+    bpf_probe_read(&skc_net, sizeof(skc_net), &skp->__sk_common.skc_net.net);
+#endif
+    if (!skc_net) {
+        return 0;
+    }
+#endif
+    return get_netns_inum(skc_net);
 }
 
 static __always_inline __u16 read_sport(struct sock* skp) {
@@ -825,7 +843,7 @@ int kprobe__ip_route_output_flow(struct pt_regs* ctx) {
 
     ip_route_flow_t flow = {};
     flow.fl = fl4;
-    bpf_probe_read(&flow.net_ns, sizeof(flow.net_ns), net->ns.inum);
+    flow.net_ns = get_netns_inum(net);
     bpf_map_update_elem(&ip_route_output_flows, &pid_tgid, &flow, BPF_ANY);
     log_debug("kprobe/ip_route_output_flow: pid_tgid: %d\n", pid_tgid);
 
@@ -854,8 +872,8 @@ int kretprobe__ip_route_output_flow(struct pt_regs* ctx) {
     dest_tuple_t dest = {};
     dest.saddr_h = 0;
     dest.daddr_h = 0;
-    bpf_probe_read(&dest.saddr_l, sizeof(__be32), flow->fl->saddr);
-    bpf_probe_read(&dest.daddr_l, sizeof(__be32), flow->fl->daddr);
+    bpf_probe_read(&dest.saddr_l, sizeof(__be32), &flow->fl->saddr);
+    bpf_probe_read(&dest.daddr_l, sizeof(__be32), &flow->fl->daddr);
     if (!dest.daddr_l) {
         log_debug("ERR(kretprobe/ip_route_output_flow): dst address not set pid_tgid=%d", pid_tgid);
         return 0;
@@ -866,7 +884,7 @@ int kretprobe__ip_route_output_flow(struct pt_regs* ctx) {
     gw_tuple_t gw = {};
     gw.gw_h = 0;
     gw.family = CONN_V4;
-    bpf_probe_read(&gw.gw_l, sizeof(__u32), &rt->rt_gw4);
+    gw.gw_l = rt_nexthop_bpf(rt);
     struct dst_entry dst = {};
     bpf_probe_read(&dst, sizeof(struct dst_entry), &(rt->dst));
     if (dst.dev) {
