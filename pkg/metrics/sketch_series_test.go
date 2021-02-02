@@ -89,6 +89,23 @@ func TestSketchSeriesListJSONMarshal(t *testing.T) {
 	assert.JSONEq(t, string(json), `{"sketches":[{"host":"host.0","interval":0,"metric":"name.0","points":[{"bins":"","binsCount":0,"sketch":{"summary":{"Avg":0,"Cnt":0,"Max":0,"Min":0,"Sum":0}},"ts":0},{"bins":"0:1","binsCount":1,"sketch":{"summary":{"Avg":0,"Cnt":1,"Max":0,"Min":0,"Sum":0}},"ts":10},{"bins":"0:1 1338:1","binsCount":2,"sketch":{"summary":{"Avg":0.5,"Cnt":2,"Max":1,"Min":0,"Sum":1}},"ts":20},{"bins":"0:1 1338:1 1383:1","binsCount":3,"sketch":{"summary":{"Avg":1,"Cnt":3,"Max":2,"Min":0,"Sum":3}},"ts":30},{"bins":"0:1 1338:1 1383:1 1409:1","binsCount":4,"sketch":{"summary":{"Avg":1.5,"Cnt":4,"Max":3,"Min":0,"Sum":6}},"ts":40}],"tags":["a:0","b:0"]},{"host":"host.1","interval":1,"metric":"name.1","points":[{"bins":"","binsCount":0,"sketch":{"summary":{"Avg":0,"Cnt":0,"Max":0,"Min":0,"Sum":0}},"ts":0},{"bins":"0:1","binsCount":1,"sketch":{"summary":{"Avg":0,"Cnt":1,"Max":0,"Min":0,"Sum":0}},"ts":10},{"bins":"0:1 1338:1","binsCount":2,"sketch":{"summary":{"Avg":0.5,"Cnt":2,"Max":1,"Min":0,"Sum":1}},"ts":20},{"bins":"0:1 1338:1 1383:1","binsCount":3,"sketch":{"summary":{"Avg":1,"Cnt":3,"Max":2,"Min":0,"Sum":3}},"ts":30},{"bins":"0:1 1338:1 1383:1 1409:1","binsCount":4,"sketch":{"summary":{"Avg":1.5,"Cnt":4,"Max":3,"Min":0,"Sum":6}},"ts":40},{"bins":"0:1 1338:1 1383:1 1409:1 1427:1","binsCount":5,"sketch":{"summary":{"Avg":2,"Cnt":5,"Max":4,"Min":0,"Sum":10}},"ts":50}],"tags":["a:1","b:1"]}]}`)
 }
 
+func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {
+
+	sl := SketchSeriesList{}
+	payload, _ := sl.Marshal()
+	payloads, err := sl.MarshalSplitCompress()
+
+	assert.Nil(t, err)
+
+	reader := bytes.NewReader(*payloads[0])
+	r, _ := zlib.NewReader(reader)
+	decompressed, _ := ioutil.ReadAll(r)
+	r.Close()
+
+	// Check that we encoded the protobuf correctly
+	assert.Equal(t, decompressed, payload)
+}
+
 func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 	sl := make(SketchSeriesList, 2)
 
