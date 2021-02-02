@@ -8,6 +8,4 @@
 ---
 fixes:
   - |
-    APM: When SQL query obfuscation fails, the "sql.query" tag no longer contains the original query,
-    risking the exposure of sensitive data.
-
+    APM: When SQL query obfuscation fails, the "sql.query" tag no longer contains the original query.
