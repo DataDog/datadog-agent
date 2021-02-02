@@ -104,7 +104,7 @@ if node['platform_family'] == 'windows'
   temp_file = "#{temp_file_basename}.msi"
   installer_type = :msi
   # Agent >= 5.12.0 installs per-machine by default, but specifying ALLUSERS=1 shouldn't affect the install
-  agent_install_options = node['dd-agent-install']['agent_install_options']
+  agent_install_options = node['dd-agent-reinstall']['agent_install_options']
   install_options = "/norestart ALLUSERS=1  #{agent_install_options}"
 
   use_windows_package_resource = true
@@ -123,10 +123,10 @@ if node['platform_family'] == 'windows'
     retry_delay package_retry_delay unless package_retry_delay.nil?
   end
 
-  execute "install-agent" do
+  execute "reinstall-agent" do
     command "start /wait msiexec /log upgrade.log /q /i #{temp_file} #{install_options}"
     action :run
-    notifies :restart, 'service[datadog-agent]'
+    #notifies :restart, 'service[datadog-agent]'
   end
 
 end
