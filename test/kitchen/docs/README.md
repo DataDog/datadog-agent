@@ -203,7 +203,7 @@ Each test suite runs one or more chef recipes (usually to install the agent in v
 **Note:** When creating kitchen resources on Azure, the kitchen Azure driver creates one resource group for each suite + test platform combination. Its name is computed as follows:
 `kitchen-<suite_name>-<platform_name>-<timestamp>pl<pipeline n°>-<suffix>`, with:
 - `suite_name`: the kitchen test suite name, defined in `kitchen-azure-<suite_name>-test.yml`.
-- `short_vm_name`: the short name of the test platform, defined in the `TEST_PLATFORMS`.
+- `platform_name`: the short name of the test platform, defined in the `TEST_PLATFORMS`.
 - `timestamp`: a `YYYYMMDDThhmmss` timestamp (15 chars),
 - `pipeline n°`: the pipeline number (7-8 chars for the foreseeable future).
 - `suffix`: `a6` or `a7` (2 chars).
