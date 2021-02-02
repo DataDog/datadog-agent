@@ -54,7 +54,10 @@ func GetHostAlias() (string, error) {
 	instanceName, err := getResponseWithMaxLength(metadataURL+"/instance/name",
 		config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
 	if err != nil {
-		// If the endpoint is not reachable, fallback on the old way to get the alias
+		// If the endpoint is not reachable, fallback on the old way to get the alias.
+		// For instance, it happens in GKE, where the metadata server is only a subset
+		// of the Compute Engine metadata server.
+		// See https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity#gke_mds
 		hostname, hostErr := GetHostname()
 		if hostErr != nil {
 			return "", fmt.Errorf("unable to retrieve instance name and hostname from GCE: %s", err)
