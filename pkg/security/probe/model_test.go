@@ -8,6 +8,7 @@
 package probe
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
@@ -35,5 +36,29 @@ func TestAbsolutePath(t *testing.T) {
 	}
 	if err := model.ValidateField("open.filename", eval.FieldValue{Value: "f59226f52267c120c1accfe3d158aa2f201ff02f45692a1c574da29c07fb985ef59226f52267c120c1accfe3d158aa2f201ff02f45692a1c574da29c07fb985e"}); err == nil {
 		t.Fatal("should return an error")
+	}
+}
+
+func TestSetFieldValue(t *testing.T) {
+	event := &Event{}
+
+	for _, field := range event.GetFields() {
+		kind, err := event.GetFieldType(field)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		switch kind {
+		case reflect.String:
+			if err = event.SetFieldValue(field, "aaa"); err != nil {
+				t.Fatal(err)
+			}
+		case reflect.Int:
+			if err = event.SetFieldValue(field, 123); err != nil {
+				t.Fatal(err)
+			}
+		default:
+			t.Fatalf("type unknown: %v", kind)
+		}
 	}
 }
