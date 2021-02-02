@@ -836,32 +836,6 @@ shared_examples_for 'an Agent with process enabled' do
   end
 end
 
-shared_examples_for 'a Windows Agent with NPM driver installed' do
-  it 'has system probe service installed' do
-    expect(is_windows_service_installed("datadog-system-probe")).to be_truthy
-  end
-  it 'has Windows NPM driver installed' do
-    expect(is_windows_service_installed("ddnpm")).to be_truthy
-  end
-  it 'has Windws NPM driver files installed' do
-    expect(File).to exist("#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.cat")
-    expect(File).to exist("#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.sys")
-    expect(File).to exist("#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.inf")
-  end
-end
-
-shared_examples_for 'a Windows Agent with no NPM driver installed' do
-  it 'does not have the Windows NPM driver installed' do
-    expect(is_windows_service_installed("ddnpm")).to be_falsey
-  end
-  it 'does not have the Windows NPM driver files installed' do
-    expect(File).not_to exist("#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.cat")
-    expect(File).not_to exist("#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.sys")
-    expect(File).not_to exist("#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.inf")
-  end
-end
-
-
 def get_user_sid(uname)
   output = `powershell -command "(New-Object System.Security.Principal.NTAccount('#{uname}')).Translate([System.Security.Principal.SecurityIdentifier]).value"`.strip
   output

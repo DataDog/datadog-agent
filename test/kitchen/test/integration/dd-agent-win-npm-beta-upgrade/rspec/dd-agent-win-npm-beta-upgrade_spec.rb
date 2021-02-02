@@ -1,4 +1,5 @@
 require 'spec_helper'
+require 'windows_npm_spec_helper'
 
 describe 'the agent upgraded from npm beta' do
   it_behaves_like 'an installed Agent'
