@@ -99,8 +99,7 @@ func (sl SketchSeriesList) MarshalSplitCompress() ([]*[]byte, error) {
 	dsl := make([]gogen.SketchPayload_Sketch_Dogsketch, 1)
 	for _, ss := range sl {
 		if len(ss.Points) > cap(dsl) {
-			dsl = append(dsl, make([]gogen.SketchPayload_Sketch_Dogsketch, len(ss.Points)-cap(dsl))...)
-			dsl = dsl[:cap(dsl)]
+			dsl = make([]gogen.SketchPayload_Sketch_Dogsketch, len(ss.Points))
 		}
 
 		for i, p := range ss.Points {
