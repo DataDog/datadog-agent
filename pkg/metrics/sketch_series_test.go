@@ -19,7 +19,6 @@ func check(t *testing.T, in SketchPoint, pb gogen.SketchPayload_Sketch_Dogsketch
 	require.Equal(t, in.Ts, pb.Ts)
 
 	// sketch
-	// k, n := s.Cols(make([]int32, s.Bins()), make([]uint32, s.Bins()))
 	k, n := s.Cols()
 	require.Equal(t, k, pb.K)
 	require.Equal(t, n, pb.N)
