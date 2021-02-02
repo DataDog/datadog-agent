@@ -10,6 +10,7 @@ suites:
       <% if ENV['AGENT_FLAVOR'] == 'datadog-iot-agent' %>
       agent_flavor: 'datadog-iot-agent'
       <% end %>
+      enable_process_agent: true
     dd-agent-install:
       agent_major_version: 7
       agent6: true
