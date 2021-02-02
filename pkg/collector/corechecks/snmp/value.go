@@ -2,13 +2,12 @@ package snmp
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"strconv"
 )
 
 type snmpValueType struct {
-	submissionType metrics.MetricType // used when sending the metric
-	value          interface{}        // might be a `string` or `float64` type
+	submissionType string      // used when sending the metric
+	value          interface{} // might be a `string` or `float64` type
 }
 
 func (sv *snmpValueType) toFloat64() (float64, error) {

@@ -3,7 +3,6 @@ package snmp
 import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"testing"
@@ -31,22 +30,19 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 					// ifHCInOctets
 					"1.3.6.1.2.1.31.1.1.1.6": map[string]snmpValueType{
 						"9": {
-							metrics.GaugeType,
-							5000000.0,
+							value: 5000000.0,
 						},
 					},
 					// ifHCOutOctets
 					"1.3.6.1.2.1.31.1.1.1.10": map[string]snmpValueType{
 						"9": {
-							metrics.GaugeType,
-							1000000.0,
+							value: 1000000.0,
 						},
 					},
 					// ifHighSpeed
 					"1.3.6.1.2.1.31.1.1.1.15": map[string]snmpValueType{
 						"9": {
-							metrics.GaugeType,
-							80.0,
+							value: 80.0,
 						},
 					},
 				},
@@ -66,22 +62,19 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 					// ifHCInOctets
 					"1.3.6.1.2.1.31.1.1.1.6": map[string]snmpValueType{
 						"9": {
-							metrics.GaugeType,
-							5000000.0,
+							value: 5000000.0,
 						},
 					},
 					// ifHCOutOctets
 					"1.3.6.1.2.1.31.1.1.1.10": map[string]snmpValueType{
 						"9": {
-							metrics.GaugeType,
-							1000000.0,
+							value: 1000000.0,
 						},
 					},
 					// ifHighSpeed
 					"1.3.6.1.2.1.31.1.1.1.15": map[string]snmpValueType{
 						"9": {
-							metrics.GaugeType,
-							80.0,
+							value: 80.0,
 						},
 					},
 				},
@@ -111,15 +104,13 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 					// ifHCInOctets
 					"1.3.6.1.2.1.31.1.1.1.6": map[string]snmpValueType{
 						"9": {
-							metrics.GaugeType,
-							5000000.0,
+							value: 5000000.0,
 						},
 					},
 					// ifHCOutOctets
 					"1.3.6.1.2.1.31.1.1.1.10": map[string]snmpValueType{
 						"9": {
-							metrics.GaugeType,
-							1000000.0,
+							value: 1000000.0,
 						},
 					},
 				},
@@ -136,15 +127,13 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 					// ifHCOutOctets
 					"1.3.6.1.2.1.31.1.1.1.10": map[string]snmpValueType{
 						"9": {
-							metrics.GaugeType,
-							1000000.0,
+							value: 1000000.0,
 						},
 					},
 					// ifHighSpeed
 					"1.3.6.1.2.1.31.1.1.1.15": map[string]snmpValueType{
 						"9": {
-							metrics.GaugeType,
-							80.0,
+							value: 80.0,
 						},
 					},
 				},
@@ -161,15 +150,13 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 					// ifHCOutOctets
 					"1.3.6.1.2.1.31.1.1.1.10": map[string]snmpValueType{
 						"9": {
-							metrics.GaugeType,
-							1000000.0,
+							value: 1000000.0,
 						},
 					},
 					// ifHighSpeed
 					"1.3.6.1.2.1.31.1.1.1.15": map[string]snmpValueType{
 						"9": {
-							metrics.GaugeType,
-							80.0,
+							value: 80.0,
 						},
 					},
 				},
@@ -186,22 +173,19 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 					// ifHCInOctets
 					"1.3.6.1.2.1.31.1.1.1.6": map[string]snmpValueType{
 						"9999": {
-							metrics.GaugeType,
-							5000000.0,
+							value: 5000000.0,
 						},
 					},
 					// ifHCOutOctets
 					"1.3.6.1.2.1.31.1.1.1.10": map[string]snmpValueType{
 						"9": {
-							metrics.GaugeType,
-							1000000.0,
+							value: 1000000.0,
 						},
 					},
 					// ifHighSpeed
 					"1.3.6.1.2.1.31.1.1.1.15": map[string]snmpValueType{
 						"9": {
-							metrics.GaugeType,
-							80.0,
+							value: 80.0,
 						},
 					},
 				},
@@ -218,22 +202,19 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 					// ifHCInOctets
 					"1.3.6.1.2.1.31.1.1.1.6": map[string]snmpValueType{
 						"9": {
-							metrics.GaugeType,
-							5000000.0,
+							value: 5000000.0,
 						},
 					},
 					// ifHCOutOctets
 					"1.3.6.1.2.1.31.1.1.1.10": map[string]snmpValueType{
 						"9": {
-							metrics.GaugeType,
-							1000000.0,
+							value: 1000000.0,
 						},
 					},
 					// ifHighSpeed
 					"1.3.6.1.2.1.31.1.1.1.15": map[string]snmpValueType{
 						"999": {
-							metrics.GaugeType,
-							80.0,
+							value: 80.0,
 						},
 					},
 				},
@@ -250,22 +231,19 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 					// ifHCInOctets
 					"1.3.6.1.2.1.31.1.1.1.6": map[string]snmpValueType{
 						"9": {
-							metrics.GaugeType,
-							5000000.0,
+							value: 5000000.0,
 						},
 					},
 					// ifHCOutOctets
 					"1.3.6.1.2.1.31.1.1.1.10": map[string]snmpValueType{
 						"9": {
-							metrics.GaugeType,
-							1000000.0,
+							value: 1000000.0,
 						},
 					},
 					// ifHighSpeed
 					"1.3.6.1.2.1.31.1.1.1.15": map[string]snmpValueType{
 						"9": {
-							metrics.GaugeType,
-							"abc",
+							value: "abc",
 						},
 					},
 				},
@@ -282,22 +260,19 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 					// ifHCInOctets
 					"1.3.6.1.2.1.31.1.1.1.6": map[string]snmpValueType{
 						"9": {
-							metrics.GaugeType,
-							"abc",
+							value: "abc",
 						},
 					},
 					// ifHCOutOctets
 					"1.3.6.1.2.1.31.1.1.1.10": map[string]snmpValueType{
 						"9": {
-							metrics.GaugeType,
-							1000000.0,
+							value: 1000000.0,
 						},
 					},
 					// ifHighSpeed
 					"1.3.6.1.2.1.31.1.1.1.15": map[string]snmpValueType{
 						"9": {
-							metrics.GaugeType,
-							80.0,
+							value: 80.0,
 						},
 					},
 				},
@@ -345,22 +320,19 @@ func Test_metricSender_trySendBandwidthUsageMetric(t *testing.T) {
 					// ifHCInOctets
 					"1.3.6.1.2.1.31.1.1.1.6": map[string]snmpValueType{
 						"9": {
-							metrics.GaugeType,
-							5000000.0,
+							value: 5000000.0,
 						},
 					},
 					// ifHCOutOctets
 					"1.3.6.1.2.1.31.1.1.1.10": map[string]snmpValueType{
 						"9": {
-							metrics.GaugeType,
-							1000000.0,
+							value: 1000000.0,
 						},
 					},
 					// ifHighSpeed
 					"1.3.6.1.2.1.31.1.1.1.15": map[string]snmpValueType{
 						"9": {
-							metrics.GaugeType,
-							80.0,
+							value: 80.0,
 						},
 					},
 				},
@@ -379,22 +351,19 @@ func Test_metricSender_trySendBandwidthUsageMetric(t *testing.T) {
 					// ifHCInOctets
 					"1.3.6.1.2.1.31.1.1.1.6": map[string]snmpValueType{
 						"9": {
-							metrics.GaugeType,
-							5000000.0,
+							value: 5000000.0,
 						},
 					},
 					// ifHCOutOctets
 					"1.3.6.1.2.1.31.1.1.1.10": map[string]snmpValueType{
 						"9": {
-							metrics.GaugeType,
-							1000000.0,
+							value: 1000000.0,
 						},
 					},
 					// ifHighSpeed
 					"1.3.6.1.2.1.31.1.1.1.15": map[string]snmpValueType{
 						"999": {
-							metrics.GaugeType,
-							80.0,
+							value: 80.0,
 						},
 					},
 				},

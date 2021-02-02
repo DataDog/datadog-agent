@@ -77,11 +77,9 @@ func (ms *metricSender) reportColumnMetrics(metricConfig metricsConfig, values *
 func (ms *metricSender) sendMetric(metricName string, value snmpValueType, tags []string, forcedType string, options metricsConfigOption) {
 	metricFullName := "snmp." + metricName
 	if forcedType == "" {
-		switch value.submissionType {
-		case metrics.RateType:
-			// snmp counter type correspond to datadog rate type
-			forcedType = "counter"
-		default:
+		if value.submissionType != "" {
+			forcedType = value.submissionType
+		} else {
 			forcedType = "gauge"
 		}
 	} else if forcedType == "flag_stream" {

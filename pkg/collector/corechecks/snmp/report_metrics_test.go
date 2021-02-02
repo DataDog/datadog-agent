@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
@@ -35,7 +34,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Gauge metric case",
 			metricName:         "gauge.metric",
-			value:              snmpValueType{value: float64(10)},
+			value:              snmpValueType{submissionType: "gauge", value: float64(10)},
 			tags:               []string{},
 			expectedMethod:     "Gauge",
 			expectedMetricName: "snmp.gauge.metric",
@@ -46,7 +45,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Counter32 metric case",
 			metricName:         "counter.metric",
-			value:              snmpValueType{submissionType: metrics.RateType, value: float64(10)},
+			value:              snmpValueType{submissionType: "counter", value: float64(10)},
 			tags:               []string{},
 			expectedMethod:     "Rate",
 			expectedMetricName: "snmp.counter.metric",
@@ -57,7 +56,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Forced gauge metric case",
 			metricName:         "my.metric",
-			value:              snmpValueType{submissionType: metrics.RateType, value: float64(10)},
+			value:              snmpValueType{submissionType: "counter", value: float64(10)},
 			tags:               []string{},
 			forcedType:         "gauge",
 			expectedMethod:     "Gauge",
@@ -69,7 +68,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Forced counter metric case",
 			metricName:         "my.metric",
-			value:              snmpValueType{submissionType: metrics.RateType, value: float64(10)},
+			value:              snmpValueType{submissionType: "counter", value: float64(10)},
 			tags:               []string{},
 			forcedType:         "counter",
 			options:            metricsConfigOption{},
@@ -82,7 +81,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Forced monotonic_count metric case",
 			metricName:         "my.metric",
-			value:              snmpValueType{submissionType: metrics.RateType, value: float64(10)},
+			value:              snmpValueType{submissionType: "counter", value: float64(10)},
 			tags:               []string{},
 			forcedType:         "monotonic_count",
 			options:            metricsConfigOption{},
@@ -95,7 +94,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Forced monotonic_count_and_rate metric case: MonotonicCount called",
 			metricName:         "my.metric",
-			value:              snmpValueType{submissionType: metrics.RateType, value: float64(10)},
+			value:              snmpValueType{submissionType: "counter", value: float64(10)},
 			tags:               []string{},
 			forcedType:         "monotonic_count_and_rate",
 			options:            metricsConfigOption{},
@@ -108,7 +107,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Forced monotonic_count_and_rate metric case: Rate called",
 			metricName:         "my.metric",
-			value:              snmpValueType{submissionType: metrics.RateType, value: float64(10)},
+			value:              snmpValueType{submissionType: "counter", value: float64(10)},
 			tags:               []string{},
 			forcedType:         "monotonic_count_and_rate",
 			options:            metricsConfigOption{},
@@ -311,13 +310,13 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 				columnValues: columnResultValuesType{
 					"1.3.6.1.2.1.2.2.1.14": map[string]snmpValueType{
 						"10": {
-							metrics.GaugeType,
+							"gauge",
 							10,
 						},
 					},
 					"1.3.6.1.2.1.2.2.1.13": map[string]snmpValueType{
 						"10": {
-							metrics.GaugeType,
+							"gauge",
 							10,
 						},
 					},

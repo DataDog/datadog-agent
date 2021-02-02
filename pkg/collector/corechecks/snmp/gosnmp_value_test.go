@@ -2,7 +2,6 @@ package snmp
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"testing"
@@ -134,7 +133,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: uint(10),
 			},
 			"1.2.3",
-			snmpValueType{submissionType: metrics.RateType, value: float64(10)},
+			snmpValueType{submissionType: "counter", value: float64(10)},
 			nil,
 		},
 		{
@@ -167,7 +166,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: uint64(10),
 			},
 			"1.2.3",
-			snmpValueType{submissionType: metrics.RateType, value: float64(10)},
+			snmpValueType{submissionType: "counter", value: float64(10)},
 			nil,
 		},
 		{
@@ -458,11 +457,10 @@ func Test_resultToScalarValues(t *testing.T) {
 			},
 			scalarResultValuesType{
 				"1.3.6.1.2.1.2.2.1.14.1": {
-					submissionType: metrics.GaugeType,
-					value:          float64(142),
+					value: float64(142),
 				},
 				"1.3.6.1.2.1.2.2.1.14.2": {
-					submissionType: metrics.RateType,
+					submissionType: "counter",
 					value:          float64(142),
 				},
 			},

@@ -2,7 +2,6 @@ package snmp
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -76,6 +75,6 @@ func (ms *metricSender) sendBandwidthUsageMetric(symbol symbolConfig, fullIndex 
 	}
 	usageValue := ((octetsFloatValue * 8) / (ifHighSpeedFloatValue * (1e6))) * 100.0
 
-	ms.sendMetric(usageName+".rate", snmpValueType{metrics.RateType, usageValue}, tags, "counter", metricsConfigOption{})
+	ms.sendMetric(usageName+".rate", snmpValueType{"counter", usageValue}, tags, "counter", metricsConfigOption{})
 	return nil
 }
