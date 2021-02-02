@@ -21,7 +21,6 @@ import (
 
 	"github.com/DataDog/datadog-go/statsd"
 	lib "github.com/DataDog/ebpf"
-	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
@@ -61,26 +60,22 @@ func (i *InodeInfo) UnmarshalBinary(data []byte) (int, error) {
 
 // ProcessResolverOpts options of resolver
 type ProcessResolverOpts struct {
-	DebugCacheSize  bool
-	CookieCacheSize int
+	DebugCacheSize bool
 }
 
 // ProcessResolver resolved process context
 type ProcessResolver struct {
 	sync.RWMutex
-	probe                 *Probe
-	resolvers             *Resolvers
-	client                *statsd.Client
-	inodeInfoMap          *lib.Map
-	procCacheMap          *lib.Map
-	pidCacheMap           *lib.Map
-	bestEffortPidCacheMap *lib.Map
-	bestEffortCookiesMap  *lib.Map
-	cacheSize             int64
-	opts                  ProcessResolverOpts
+	probe        *Probe
+	resolvers    *Resolvers
+	client       *statsd.Client
+	inodeInfoMap *lib.Map
+	procCacheMap *lib.Map
+	pidCacheMap  *lib.Map
+	cacheSize    int64
+	opts         ProcessResolverOpts
 
-	entryCache  map[uint32]*ProcessCacheEntry
-	cookieCache *simplelru.LRU
+	entryCache map[uint32]*ProcessCacheEntry
 }
 
 // SendStats sends process resolver metrics
@@ -269,7 +264,7 @@ func (p *ProcessResolver) DeleteEntry(pid uint32, exitTime time.Time) {
 }
 
 // Resolve returns the cache entry for the given pid
-func (p *ProcessResolver) Resolve(pid uint32, cookie uint32) *ProcessCacheEntry {
+func (p *ProcessResolver) Resolve(pid uint32) *ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
 
@@ -277,15 +272,6 @@ func (p *ProcessResolver) Resolve(pid uint32, cookie uint32) *ProcessCacheEntry 
 	if exists {
 		_ = p.client.Count(MetricProcessResolverCacheHits, 1, []string{"type:cache"}, 1.0)
 		return entry
-	}
-
-	// fallback to the cookie selection
-	if cookie > 0 {
-		entryP, exists := p.cookieCache.Get(cookie)
-		if exists {
-			_ = p.client.Count(MetricProcessResolverCacheHits, 1, []string{"type:cookie_cache"}, 1.0)
-			return entryP.(*ProcessCacheEntry)
-		}
 	}
 
 	// fallback to the kernel maps directly, the perf event may be delayed / may have been lost
@@ -310,10 +296,7 @@ func (p *ProcessResolver) resolveWithKernelMaps(pid uint32) *ProcessCacheEntry {
 
 	cookieb, err := p.pidCacheMap.LookupBytes(pidb)
 	if err != nil || cookieb == nil {
-		cookieb, err = p.bestEffortPidCacheMap.LookupBytes(pidb)
-		if err != nil || cookieb == nil {
-			return nil
-		}
+		return nil
 	}
 
 	// first 4 bytes are the actual cookie
@@ -375,14 +358,6 @@ func (p *ProcessResolver) Start(ctx context.Context) error {
 	}
 
 	if p.pidCacheMap, err = p.probe.Map("pid_cache"); err != nil {
-		return err
-	}
-
-	if p.bestEffortPidCacheMap, err = p.probe.Map("best_effort_pid_cache"); err != nil {
-		return err
-	}
-
-	if p.bestEffortCookiesMap, err = p.probe.Map("best_effort_cookies"); err != nil {
 		return err
 	}
 
@@ -538,46 +513,20 @@ func (p *ProcessResolver) GetEntryCacheSize() float64 {
 	return float64(atomic.LoadInt64(&p.cacheSize))
 }
 
-// MarkCookieAsBestEffort switches the pid_cache entries with the provided cookie to the best_effort_pid_cache map.
-// This will prevent fork events with the provided cookie from being sent over the perf map.
-func (p *ProcessResolver) MarkCookieAsBestEffort(cookie uint32, entry *ProcessCacheEntry) {
-	if cookie == 0 {
-		// nothing to do
-		return
-	}
-
-	if entry != nil {
-		// add cookie in cookie cache
-		p.cookieCache.Add(cookie, entry)
-	}
-
-	// mark cookie as best effort
-	if err := p.bestEffortCookiesMap.Put(&cookie, ebpf.BytesMapItem([]byte{1})); err != nil {
-		log.Tracef("failed to mark cookie %d as best effort", cookie)
-		return
-	}
-}
-
 // NewProcessResolver returns a new process resolver
 func NewProcessResolver(probe *Probe, resolvers *Resolvers, client *statsd.Client, opts ProcessResolverOpts) (*ProcessResolver, error) {
-	cookieLRU, err := simplelru.NewLRU(opts.CookieCacheSize, nil)
-	if err != nil {
-		return nil, err
-	}
 	return &ProcessResolver{
-		probe:       probe,
-		resolvers:   resolvers,
-		client:      client,
-		entryCache:  make(map[uint32]*ProcessCacheEntry),
-		cookieCache: cookieLRU,
-		opts:        opts,
+		probe:      probe,
+		resolvers:  resolvers,
+		client:     client,
+		entryCache: make(map[uint32]*ProcessCacheEntry),
+		opts:       opts,
 	}, nil
 }
 
 // NewProcessResolverOpts returns a new set of process resolver options
 func NewProcessResolverOpts(debug bool, cookieCacheSize int) ProcessResolverOpts {
 	return ProcessResolverOpts{
-		DebugCacheSize:  debug,
-		CookieCacheSize: cookieCacheSize,
+		DebugCacheSize: debug,
 	}
 }

@@ -35,7 +35,7 @@ func TestProbeMonitor(t *testing.T) {
 		Expression: `open.filename =~ "*a/test-open" && open.flags & O_CREAT != 0`,
 	}
 
-	probeMonitorOpts := testOpts{forkBombThreshold: 300}
+	probeMonitorOpts := testOpts{}
 	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, probeMonitorOpts)
 	if err != nil {
 		t.Fatal(err)
@@ -110,48 +110,6 @@ func TestProbeMonitor(t *testing.T) {
 			}
 		}
 	})
-
-	prevLevel, err := test.st.swapLogLevel(seelog.WarnLvl)
-	if err != nil {
-		t.Error(err)
-	}
-
-	t.Run("fork_bomb", func(t *testing.T) {
-		executable := "/usr/bin/touch"
-		if resolved, err := os.Readlink(executable); err == nil {
-			executable = resolved
-		} else {
-			if os.IsNotExist(err) {
-				executable = "/bin/touch"
-			}
-		}
-
-		go func() {
-			for i := int64(0); i < testMod.config.LoadControllerForkBombThreshold*2; i++ {
-				args := []string{"touch", "/dev/null"}
-				_, err := syscall.ForkExec(executable, args, nil)
-				if err != nil {
-					t.Error(err)
-				}
-			}
-		}()
-
-		ruleEvent, err := test.GetProbeCustomEvent(3*time.Second, probe.CustomForkBombEventType.String())
-		if err != nil {
-			t.Error(err)
-		} else {
-			if ruleEvent.RuleID != probe.ForkBombRuleID {
-				t.Errorf("expected %s rule, got %s", probe.ForkBombRuleID, ruleEvent.RuleID)
-			}
-		}
-
-		time.Sleep(3 * time.Second)
-
-	})
-
-	if _, err := test.st.swapLogLevel(prevLevel); err != nil {
-		t.Error(err)
-	}
 }
 
 func TestNoisyProcess(t *testing.T) {

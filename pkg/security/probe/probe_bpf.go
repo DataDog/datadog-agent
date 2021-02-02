@@ -335,7 +335,6 @@ func (p *Probe) invalidateDentry(mountID uint32, inode uint64, revision uint32) 
 		// Call a user space remove function to ensure the discarder will be removed.
 		p.removeDiscarderInode(mountID, inode)
 	}
-	_ = p.monitor.loadController.ResetForkCount(mountID, inode)
 }
 
 func (p *Probe) handleEvent(CPU uint64, data []byte) {
