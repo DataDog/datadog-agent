@@ -8,31 +8,33 @@ package filters
 import (
 	"errors"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
-// TagValidator holds lists of required and rejected tags and values.
+// TagValidator holds lists of regular expressions required and rejected tags and values.
 type TagValidator struct {
-	reqTags    map[string]string
-	rejectTags map[string]string
+	list       []*config.TagRules
+	reqTags    []string
+	rejectTags []string
+}
+
+// NewTagValidator creates new Validator based on given lists of regular expressions, required and rejected tags.
+func NewTagValidator(list []*config.TagRules, reqTags []string, rejectTags []string) *TagValidator {
+	return &TagValidator{list: list, reqTags: reqTags, rejectTags: rejectTags}
 }
 
 // Validates returns an error if root span does not contain all required tags and/or contains rejected tags.
 func (tv *TagValidator) Validates(span *pb.Span) error {
-	for tag := range tv.reqTags {
+	for _, tag := range tv.reqTags {
 		if _, ok := span.Meta[tag]; !ok {
 			return errors.New("required tag(s) missing")
 		}
 	}
-	for tag, v := range tv.rejectTags {
+	for _, tag := range tv.rejectTags {
 		if v == span.Meta[tag] {
 			return errors.New("invalid tag(s) found")
 		}
 	}
 	return nil
-}
-
-// NewTagValidator creates new Validator based on given list of required and rejected tags.
-func NewTagValidator(reqTags map[string]string, rejectTags map[string]string) *TagValidator {
-	return &TagValidator{reqTags: reqTags, rejectTags: rejectTags}
 }

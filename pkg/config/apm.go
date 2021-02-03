@@ -71,6 +71,7 @@ func setupAPM(config Config) {
 	config.BindEnv("apm_config.profiling_additional_endpoints", "DD_APM_PROFILING_ADDITIONAL_ENDPOINTS") //nolint:errcheck
 	config.BindEnv("apm_config.additional_endpoints", "DD_APM_ADDITIONAL_ENDPOINTS")                     //nolint:errcheck
 	config.BindEnv("apm_config.replace_tags", "DD_APM_REPLACE_TAGS")                                     //nolint:errcheck
+	config.BindEnv("apm_config.filter_tags", "DD_APM_FILTER_TAGS")                                       //nolint:errcheck
 	config.BindEnv("apm_config.analyzed_spans", "DD_APM_ANALYZED_SPANS")                                 //nolint:errcheck
 	config.BindEnv("apm_config.ignore_resources", "DD_APM_IGNORE_RESOURCES", "DD_IGNORE_RESOURCE")       //nolint:errcheck
 	config.BindEnv("apm_config.receiver_socket", "DD_APM_RECEIVER_SOCKET")                               //nolint:errcheck
@@ -89,6 +90,14 @@ func setupAPM(config Config) {
 		var out []map[string]string
 		if err := json.Unmarshal([]byte(in), &out); err != nil {
 			log.Warnf(`"apm_config.replace_tags" can not be parsed: %v`, err)
+		}
+		return out
+	})
+
+	config.SetEnvKeyTransformer("apm_config.filter_tags", func(in string) interface{} {
+		var out []map[string]string
+		if err := json.Unmarshal([]byte(in), &out); err != nil {
+			log.Warnf(`"apm_config.filter_tags" can not be parsed: %v`, err)
 		}
 		return out
 	})

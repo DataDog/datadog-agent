@@ -73,7 +73,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	agnt := &Agent{
 		Concentrator:       stats.NewConcentrator(conf.BucketInterval.Nanoseconds(), statsChan),
 		Blacklister:        filters.NewBlacklister(conf.Ignore["resource"]),
-		TagValidator:       filters.NewTagValidator(conf.RequiredTags, conf.RejectedTags),
+		TagValidator:       filters.NewTagValidator(conf.FilterTags, conf.RequiredTags, conf.RejectedTags),
 		Replacer:           filters.NewReplacer(conf.ReplaceTags),
 		ScoreSampler:       NewScoreSampler(conf),
 		ExceptionSampler:   sampler.NewExceptionSampler(),

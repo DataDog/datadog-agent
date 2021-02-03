@@ -15,28 +15,28 @@ import (
 
 func TestValidator(t *testing.T) {
 	tests := []struct {
-		reqTags     map[string]string
-		rejectTags  map[string]string
+		reqTags     []string
+		rejectTags  []string
 		traceMeta   map[string]string
 		expectError error
 	}{
 		{
-			reqTags: map[string]string{
-				"important1": "value",
-				"important2": "value-2",
+			reqTags: []string{
+				"important1",
+				"important2",
 			},
-			rejectTags: map[string]string{},
+			rejectTags: []string{},
 			traceMeta: map[string]string{
 				"important1": "test-value",
 				"important2": "test-value-2",
 			},
 		},
 		{
-			reqTags: map[string]string{
-				"important1": "test-value",
-				"important2": "another-test-value",
+			reqTags: []string{
+				"important1",
+				"important2",
 			},
-			rejectTags: map[string]string{},
+			rejectTags: []string{},
 			traceMeta: map[string]string{
 				"important1": "test-value",
 				"important2": "another-test-value",
@@ -44,11 +44,11 @@ func TestValidator(t *testing.T) {
 			},
 		},
 		{
-			reqTags: map[string]string{
-				"important1": "test-value",
-				"important2": "test-value",
+			reqTags: []string{
+				"important1",
+				"important2",
 			},
-			rejectTags: map[string]string{},
+			rejectTags: []string{},
 			traceMeta: map[string]string{
 				"important1": "test-value",
 				"blah":       "blah",
@@ -56,9 +56,9 @@ func TestValidator(t *testing.T) {
 			expectError: errors.New(`required tag(s) missing`),
 		},
 		{
-			reqTags: map[string]string{},
-			rejectTags: map[string]string{
-				"reject1": "bad-value",
+			reqTags: []string{},
+			rejectTags: []string{
+				"reject1",
 			},
 			traceMeta: map[string]string{
 				"somekey": "12345",
@@ -66,9 +66,9 @@ func TestValidator(t *testing.T) {
 			},
 		},
 		{
-			reqTags: map[string]string{},
-			rejectTags: map[string]string{
-				"reject1": "bad-value",
+			reqTags: []string{},
+			rejectTags: []string{
+				"reject1",
 			},
 			traceMeta: map[string]string{
 				"somekey": "12345",
@@ -76,12 +76,12 @@ func TestValidator(t *testing.T) {
 			},
 		},
 		{
-			reqTags: map[string]string{
-				"important1": "value",
+			reqTags: []string{
+				"important1",
 			},
-			rejectTags: map[string]string{
-				"reject1": "bad",
-				"reject2": "also-bad",
+			rejectTags: []string{
+				"reject1",
+				"reject2",
 			},
 			traceMeta: map[string]string{
 				"important1": "test-value",

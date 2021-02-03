@@ -253,6 +253,28 @@ func TestLoadEnv(t *testing.T) {
 		assert.Contains(cfg.ReplaceTags, rule2)
 	})
 
+	env = "DD_APM_FILTER_TAGS"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		err := os.Setenv(env, `[{"name":"name1", "pattern":"pattern1"}, {"name":"name2","pattern":"pattern2"}]`)
+		assert.NoError(err)
+		defer os.Unsetenv(env)
+		cfg, err := Load("./testdata/full.yaml")
+		assert.NoError(err)
+		rule1 := &TagRules{
+			Name:    "name1",
+			Pattern: "pattern1",
+		}
+		rule2 := &TagRules{
+			Name:    "name2",
+			Pattern: "pattern2",
+		}
+		compileTagRules([]*TagRules{rule1, rule2})
+		assert.Contains(cfg.FilterTags, rule1)
+		assert.Contains(cfg.FilterTags, rule2)
+	})
+
 	for _, envKey := range []string{
 		"DD_CONNECTION_LIMIT", // deprecated
 		"DD_APM_CONNECTION_LIMIT",

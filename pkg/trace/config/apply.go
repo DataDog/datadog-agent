@@ -102,6 +102,18 @@ type ReplaceRule struct {
 	Repl string `mapstructure:"repl"`
 }
 
+// TagRules specifies a filter rule.
+type TagRules struct {
+	// Name specifies the name of the tag that the filter rule addresses. However,
+	// some exceptions apply such as:
+	// • "resource.name" will target the resource
+	// • "*" will target all tags and the resource
+	Name string `mapstructure:"name"`
+
+	// Pattern specifies the regexp pattern to be used when filtering. It must compile.
+	Pattern string `mapstructure:"pattern"`
+}
+
 // WriterConfig specifies configuration for an API writer.
 type WriterConfig struct {
 	// ConnectionLimit specifies the maximum number of concurrent outgoing
@@ -235,6 +247,18 @@ func (c *AgentConfig) applyDatadogConfig() error {
 				osutil.Exitf("replace_tags: %s", err)
 			}
 			c.ReplaceTags = rt
+		}
+	}
+	if k := "apm_config.filter_tags"; config.Datadog.IsSet(k) {
+		ft := make([]*TagRules, 0)
+		if err := config.Datadog.UnmarshalKey(k, &ft); err != nil {
+			log.Errorf("Bad format for %q it should be of the form '[{\"name\": \"tag_name\",\"pattern\":\"pattern\"}]', error: %v", "apm_config.filter_tags", err)
+		} else {
+			err := compileTagRules(ft)
+			if err != nil {
+				osutil.Exitf("filter_tags: %s", err)
+			}
+			c.FilterTags = ft
 		}
 	}
 
@@ -392,6 +416,24 @@ func compileReplaceRules(rules []*ReplaceRule) error {
 			return fmt.Errorf("key %q: %s", r.Name, err)
 		}
 		r.Re = re
+	}
+	return nil
+}
+
+// compileTagRules compiles the regular expressions found in the filter rules.
+// If it fails it returns the first error.
+func compileTagRules(rules []*TagRules) error {
+	for _, t := range rules {
+		if t.Name == "" {
+			return errors.New(`all rules must have a "name property (use "*" to target all)`)
+		}
+		if t.Pattern == "" {
+			return errors.New(`all rules must have a "pattern"`)
+		}
+		_, err := regexp.Compile(t.Pattern)
+		if err != nil {
+			return fmt.Errorf("key %q: %s", t.Name, err)
+		}
 	}
 	return nil
 }
