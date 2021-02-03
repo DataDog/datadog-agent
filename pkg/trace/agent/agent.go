@@ -34,13 +34,6 @@ const (
 	tagContainersTags = "_dd.tags.container"
 )
 
-type StatsWriter interface {
-	Run()
-	Stop()
-	SyncFlush()
-	SendPayload(p *stats.Payload)
-}
-
 // Agent struct holds all the sub-routines structs and make the data flow between them
 type Agent struct {
 	Receiver           *api.HTTPReceiver
@@ -53,7 +46,7 @@ type Agent struct {
 	PrioritySampler    *Sampler
 	EventProcessor     *event.Processor
 	TraceWriter        *writer.TraceWriter
-	StatsWriter        StatsWriter
+	StatsWriter        *writer.StatsWriter
 
 	// obfuscator is used to obfuscate sensitive data from various span
 	// tags based on their type.
@@ -77,14 +70,6 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 
 	statsChan := make(chan []stats.Bucket, 100)
 
-	var statsWriter StatsWriter
-	traceWriter := writer.NewTraceWriter(conf)
-	if conf.SynchronousFlushing {
-		statsWriter = writer.NewStatsSyncWriter(conf, statsChan)
-	} else {
-		statsWriter = writer.NewStatsWriter(conf, statsChan)
-	}
-
 	agnt := &Agent{
 		Concentrator:       stats.NewConcentrator(conf.BucketInterval.Nanoseconds(), statsChan),
 		Blacklister:        filters.NewBlacklister(conf.Ignore["resource"]),
@@ -94,8 +79,8 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		ErrorsScoreSampler: NewErrorsSampler(conf),
 		PrioritySampler:    NewPrioritySampler(conf, dynConf),
 		EventProcessor:     newEventProcessor(conf),
-		TraceWriter:        traceWriter,
-		StatsWriter:        statsWriter,
+		TraceWriter:        writer.NewTraceWriter(conf),
+		StatsWriter:        writer.NewStatsWriter(conf, statsChan),
 		obfuscator:         obfuscate.NewObfuscator(conf.Obfuscation),
 		In:                 in,
 		conf:               conf,
@@ -131,7 +116,7 @@ func (a *Agent) Run() {
 // Flush traces sychronously. This method only works when the agent is configured in synchronous flushing
 // mode.
 func (a *Agent) Flush() {
-	a.StatsWriter.SyncFlush()
+	a.StatsWriter.FlushSync()
 	a.TraceWriter.FlushSync()
 }
 
