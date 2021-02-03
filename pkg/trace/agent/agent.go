@@ -67,7 +67,6 @@ type Agent struct {
 func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	dynConf := sampler.NewDynamicConfig(conf.DefaultEnv)
 	in := make(chan *api.Payload, 1000)
-
 	statsChan := make(chan []stats.Bucket, 100)
 
 	agnt := &Agent{
