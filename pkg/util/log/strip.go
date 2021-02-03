@@ -176,7 +176,6 @@ func ScrubCredentials(data []byte, replacers []Replacer) []byte {
 				data = repl.Regex.ReplaceAll(data, repl.Repl)
 			}
 		}
-		// break
 	}
 	return data
 }
