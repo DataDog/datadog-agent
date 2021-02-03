@@ -58,10 +58,10 @@ type TraceWriter struct {
 	wg        sync.WaitGroup // waits for gzippers
 	tick      time.Duration  // flush frequency
 
-	traces           []*pb.APITrace // traces buffered
-	events           []*pb.Span     // events buffered
-	bufferedSize     int            // estimated buffer size
-	flushSyncEnabled bool           // when enabled, traces are only sent when Flush is called
+	traces       []*pb.APITrace // traces buffered
+	events       []*pb.Span     // events buffered
+	bufferedSize int            // estimated buffer size
+	syncMode     bool           // when enabled, traces are only sent when Flush is called
 
 	easylog *logutil.ThrottledLogger
 }
@@ -73,15 +73,15 @@ func NewTraceWriter(cfg *config.AgentConfig) *TraceWriter {
 	in := make(chan *SampledSpans, 1000)
 
 	tw := &TraceWriter{
-		In:               in,
-		hostname:         cfg.Hostname,
-		env:              cfg.DefaultEnv,
-		stats:            &info.TraceWriterInfo{},
-		stop:             make(chan struct{}),
-		flushChan:        make(chan struct{}),
-		flushSyncEnabled: cfg.SynchronousFlushing,
-		tick:             5 * time.Second,
-		easylog:          logutil.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
+		In:        in,
+		hostname:  cfg.Hostname,
+		env:       cfg.DefaultEnv,
+		stats:     &info.TraceWriterInfo{},
+		stop:      make(chan struct{}),
+		flushChan: make(chan struct{}),
+		syncMode:  cfg.SynchronousFlushing,
+		tick:      5 * time.Second,
+		easylog:   logutil.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
 	}
 	climit := cfg.TraceWriter.ConnectionLimit
 	if climit == 0 {
@@ -119,7 +119,7 @@ func (w *TraceWriter) Stop() {
 
 // Run starts the TraceWriter.
 func (w *TraceWriter) Run() {
-	if w.flushSyncEnabled {
+	if w.syncMode {
 		w.runSync()
 	} else {
 		w.runAsync()
@@ -135,7 +135,7 @@ func (w *TraceWriter) runAsync() {
 		case pkg := <-w.In:
 			w.addSpans(pkg)
 		case <-w.stop:
-			w.processPendingSpans()
+			w.drainAndFlush()
 			return
 		case <-t.C:
 			w.report()
@@ -153,18 +153,18 @@ func (w *TraceWriter) runSync() {
 			w.addSpans(pkg)
 		case <-w.flushChan:
 			// Make sure all pending spans have been buffered
-			w.processPendingSpans()
+			w.drainAndFlush()
 			w.wg.Done()
 		case <-w.stop:
-			w.processPendingSpans()
+			w.drainAndFlush()
 			return
 		}
 	}
 }
 
-// FlushSync blocks and sends pending payloads when flushSyncEnabled is true
+// FlushSync blocks and sends pending payloads when syncMode is true
 func (w *TraceWriter) FlushSync() error {
-	if !w.flushSyncEnabled {
+	if !w.syncMode {
 		return log.Errorf("FlushSync called on TraceWriter when in async mode")
 	}
 	defer w.report()
@@ -174,16 +174,15 @@ func (w *TraceWriter) FlushSync() error {
 	// Wait for all payloads to be submitted to the sender
 	w.wg.Wait()
 
-	// Wait for all the senders to finish
-	wg := sync.WaitGroup{}
+	var wg sync.WaitGroup
 	for _, sender := range w.senders {
-		s := sender
 		wg.Add(1)
-		go func() {
+		go func(s *sender) {
 			defer wg.Done()
 			s.waitForInflight()
-		}()
+		}(sender)
 	}
+	// Wait for all the senders to finish inflight requests
 	wg.Wait()
 	return nil
 }
@@ -209,7 +208,7 @@ func (w *TraceWriter) addSpans(pkg *SampledSpans) {
 	w.bufferedSize += size
 }
 
-func (w *TraceWriter) processPendingSpans() {
+func (w *TraceWriter) drainAndFlush() {
 outer:
 	for {
 		select {

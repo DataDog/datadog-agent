@@ -112,9 +112,9 @@ func (a *Agent) Run() {
 	a.loop()
 }
 
-// Flush traces sychronously. This method only works when the agent is configured in synchronous flushing
+// FlushSync flushes traces sychronously. This method only works when the agent is configured in synchronous flushing
 // mode.
-func (a *Agent) Flush() {
+func (a *Agent) FlushSync() {
 	a.StatsWriter.FlushSync()
 	a.TraceWriter.FlushSync()
 }

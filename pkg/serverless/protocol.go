@@ -224,7 +224,7 @@ func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}()
 	go func() {
 		if f.daemon.traceAgent != nil {
-			f.daemon.traceAgent.Flush()
+			f.daemon.traceAgent.FlushSync()
 		}
 		wg.Done()
 	}()

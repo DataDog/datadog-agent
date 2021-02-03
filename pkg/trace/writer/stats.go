@@ -37,16 +37,16 @@ const (
 
 // StatsWriter ingests stats buckets and flushes them to the API.
 type StatsWriter struct {
-	in               <-chan []stats.Bucket
-	hostname         string
-	env              string
-	senders          []*sender
-	stop             chan struct{}
-	flushChan        chan struct{}
-	wg               sync.WaitGroup
-	stats            *info.StatsWriterInfo
-	payloads         []*stats.Payload // payloads buffered for sync mode
-	flushSyncEnabled bool
+	in        <-chan []stats.Bucket
+	hostname  string
+	env       string
+	senders   []*sender
+	stop      chan struct{}
+	flushChan chan struct{}
+	wg        sync.WaitGroup
+	stats     *info.StatsWriterInfo
+	payloads  []*stats.Payload // payloads buffered for sync mode
+	syncMode  bool
 
 	easylog *logutil.ThrottledLogger
 }
@@ -54,15 +54,14 @@ type StatsWriter struct {
 // NewStatsWriter returns a new StatsWriter. It must be started using Run.
 func NewStatsWriter(cfg *config.AgentConfig, in <-chan []stats.Bucket) *StatsWriter {
 	sw := &StatsWriter{
-		in:               in,
-		hostname:         cfg.Hostname,
-		env:              cfg.DefaultEnv,
-		stats:            &info.StatsWriterInfo{},
-		stop:             make(chan struct{}),
-		flushChan:        make(chan struct{}),
-		wg:               sync.WaitGroup{},
-		flushSyncEnabled: cfg.SynchronousFlushing,
-		easylog:          logutil.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
+		in:        in,
+		hostname:  cfg.Hostname,
+		env:       cfg.DefaultEnv,
+		stats:     &info.StatsWriterInfo{},
+		stop:      make(chan struct{}),
+		flushChan: make(chan struct{}),
+		syncMode:  cfg.SynchronousFlushing,
+		easylog:   logutil.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
 	}
 	climit := cfg.StatsWriter.ConnectionLimit
 	if climit == 0 {
@@ -95,10 +94,11 @@ func (w *StatsWriter) Run() {
 		select {
 		case stats := <-w.in:
 			w.addStats(stats)
-			if !w.flushSyncEnabled {
+			if !w.syncMode {
 				w.sendPayloads()
 			}
 		case <-w.flushChan:
+			w.sendPayloads()
 			w.wg.Done()
 		case <-t.C:
 			w.report()
@@ -110,8 +110,8 @@ func (w *StatsWriter) Run() {
 
 // FlushSync is a no-op for TraceWriter
 func (w *StatsWriter) FlushSync() error {
-	if !w.flushSyncEnabled {
-		log.Error("SyncFlush called on StatsWriter, which is a no-op")
+	if !w.syncMode {
+		return log.Error("SyncFlush called on StatsWriter, which is a no-op")
 	}
 
 	defer w.report()
@@ -120,7 +120,7 @@ func (w *StatsWriter) FlushSync() error {
 	w.wg.Wait()
 
 	// Wait for all the senders to finish
-	wg := sync.WaitGroup{}
+	var wg sync.WaitGroup
 	for _, sender := range w.senders {
 		s := sender
 		wg.Add(1)
@@ -176,7 +176,7 @@ func (w *StatsWriter) sendPayloads() {
 	for _, p := range w.payloads {
 		w.SendPayload(p)
 	}
-	w.payloads = []*stats.Payload{}
+	w.payloads = w.payloads[:0]
 }
 
 // buildPayloads returns a set of payload to send out, each paylods guaranteed

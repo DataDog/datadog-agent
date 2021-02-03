@@ -41,6 +41,7 @@ func setupAPM(config Config) {
 	config.SetKnown("apm_config.log_throttling")
 	config.SetKnown("apm_config.bucket_size_seconds")
 	config.SetKnown("apm_config.watchdog_check_delay")
+	config.SetKnown("apm_config.sync_flushing")
 
 	if runtime.GOARCH == "386" && runtime.GOOS == "windows" {
 		// on Windows-32 bit, the trace agent isn't installed.  Set the default to disabled
