@@ -182,4 +182,3 @@ func scrubCredentials(data []byte, replacers []Replacer) []byte {
 func SanitizeURL(message string) string {
 	return string(scrubCredentials([]byte(message), singleLineReplacers))
 }
-
