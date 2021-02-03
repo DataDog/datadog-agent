@@ -187,7 +187,7 @@ struct bpf_map_def SEC("maps/ip_route_dest_gateways") ip_route_dest_gateways = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(ip_route_dest_t),
     .value_size = sizeof(ip_route_gateway_t),
-    .max_entries = 65536,
+    .max_entries = 1, // This will get overridden at runtime
     .pinning = 0,
     .namespace = "",
 };

@@ -17,6 +17,8 @@ import (
 	"github.com/DataDog/ebpf/manager"
 )
 
+const maxRouteCacheSize = int(^uint(0) >> 1) // max int
+
 type gatewayLookup struct {
 	routeCache          network.RouteCache
 	subnetCache         map[int]network.Subnet // interface index to subnet map
@@ -40,9 +42,16 @@ func newGatewayLookup(config *config.Config, runtimeCompilerEnabled bool, m *man
 		router = network.NewNetlinkRouter(config.ProcRoot)
 	}
 
+	routeCacheSize := maxRouteCacheSize
+	if config.MaxTrackedConnections <= uint(maxRouteCacheSize) {
+		routeCacheSize = int(config.MaxTrackedConnections)
+	} else {
+		log.Warnf("using truncated route cache size of %d instead of %d", routeCacheSize, config.MaxTrackedConnections)
+	}
+
 	return &gatewayLookup{
 		subnetCache:         make(map[int]network.Subnet),
-		routeCache:          network.NewRouteCache(65536, router),
+		routeCache:          network.NewRouteCache(routeCacheSize, router),
 		subnetForHwAddrFunc: ec2SubnetForHardwareAddr,
 	}
 }

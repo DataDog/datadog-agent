@@ -203,6 +203,8 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	if gwLookupEnabled(config) && runtimeCompilerEnabled {
 		enabledProbes[probes.IPRouteOutputFlow] = struct{}{}
 		enabledProbes[probes.IPRouteOutputFlowReturn] = struct{}{}
+
+		mgrOptions.MapSpecEditors[string(probes.GatewayMap)] = manager.MapSpecEditor{Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries}
 	}
 
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
