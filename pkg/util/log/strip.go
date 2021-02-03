@@ -31,6 +31,12 @@ var multiLineReplacers []Replacer
 var SingleLineReplacers []Replacer
 
 func init() {
+	hintedKeyReplacer := Replacer{
+		// If hinted, mask the value regardless if it doesn't match 32/40-char hexadecimal string
+		Regex: regexp.MustCompile(`(ap[ip]_key=)\b[a-zA-Z0-9]+([a-zA-Z0-9]{5})\b`),
+		Hints: []string{"api_key", "app_key"},
+		Repl:  []byte(`$1***************************$2`),
+	}
 	apiKeyReplacer := Replacer{
 		Regex: regexp.MustCompile(`\b[a-fA-F0-9]{27}([a-fA-F0-9]{5})\b`),
 		Repl:  []byte(`***************************$1`),
@@ -65,7 +71,7 @@ func init() {
 		Hints: []string{"BEGIN"},
 		Repl:  []byte(`********`),
 	}
-	SingleLineReplacers = []Replacer{apiKeyReplacer, appKeyReplacer, uriPasswordReplacer, passwordReplacer, tokenReplacer, snmpReplacer}
+	SingleLineReplacers = []Replacer{hintedKeyReplacer, apiKeyReplacer, appKeyReplacer, uriPasswordReplacer, passwordReplacer, tokenReplacer, snmpReplacer}
 	multiLineReplacers = []Replacer{certReplacer}
 }
 
