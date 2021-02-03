@@ -10,7 +10,6 @@ package module
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -128,9 +127,11 @@ func (m *Module) Reload() error {
 
 	rsa := sprobe.NewRuleSetApplier(m.config, m.probe)
 
-	ruleSet := m.probe.NewRuleSet(rules.NewOptsWithParams(model.SECLConstants, sprobe.SupportedDiscarders, agentLogger.DatadogAgentLogger{}))
-	if err := rules.LoadPolicies(m.config.PoliciesDir, ruleSet); err != nil {
-		return err
+	ruleSet := m.probe.NewRuleSet(rules.NewOptsWithParams(model.SECLConstants, sprobe.SupportedDiscarders, sprobe.AllCustomRuleIDs(), agentLogger.DatadogAgentLogger{}))
+
+	loadErr := rules.LoadPolicies(m.config.PoliciesDir, ruleSet)
+	if loadErr.ErrorOrNil() != nil {
+		log.Errorf("error while loading policies: %+v", loadErr.Error())
 	}
 
 	// analyze the ruleset, push default policies in the kernel and generate the policy report
@@ -140,15 +141,11 @@ func (m *Module) Reload() error {
 	}
 
 	ruleSet.AddListener(m)
-	ruleIDs := ruleSet.ListRuleIDs()
-	for _, customRuleID := range sprobe.AllCustomRuleIDs() {
-		for _, ruleID := range ruleIDs {
-			if ruleID == customRuleID {
-				return fmt.Errorf("rule ID '%s' conflicts with a custom rule ID", ruleID)
-			}
-		}
-		ruleIDs = append(ruleIDs, customRuleID)
-	}
+
+	// full list of IDs, user rules + custom
+	var ruleIDs []rules.RuleID
+	ruleIDs = append(ruleIDs, ruleSet.ListRuleIDs()...)
+	ruleIDs = append(ruleIDs, sprobe.AllCustomRuleIDs()...)
 
 	m.apiServer.Apply(ruleIDs)
 	m.rateLimiter.Apply(ruleIDs)
@@ -160,7 +157,7 @@ func (m *Module) Reload() error {
 
 	// report that a new policy was loaded
 	monitor := m.probe.GetMonitor()
-	monitor.ReportRuleSetLoaded(ruleSet, time.Now())
+	monitor.ReportRuleSetLoaded(ruleSet, loadErr)
 
 	return nil
 }

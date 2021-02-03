@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/hashicorp/go-multierror"
 )
 
 const (
@@ -136,24 +137,110 @@ func NewEventLostWriteEvent(mapName string, perEventPerCPU map[string]map[int]ui
 		}.MarshalJSON)
 }
 
+// RulesIgnored holds the errors
+type RulesIgnored struct {
+	Errors *multierror.Error
+}
+
+func (r *RulesIgnored) MarshalJSON() ([]byte, error) {
+	var errs []interface{}
+
+	for _, err := range r.Errors.Errors {
+		if rerr, ok := err.(*rules.ErrRuleLoad); ok {
+			errs = append(errs,
+				struct {
+					ID     string `json:id`
+					Reason string `json:reason`
+				}{
+					ID:     rerr.Definition.ID,
+					Reason: rerr.Err.Error(),
+				})
+		}
+	}
+
+	return json.Marshal(errs)
+}
+
+func (r *RulesIgnored) UnmarshalJSON(data []byte) error {
+	return nil
+}
+
+// RulesIgnored holds the errors
+type PoliciesIgnored struct {
+	Errors *multierror.Error
+}
+
+func (r *PoliciesIgnored) MarshalJSON() ([]byte, error) {
+	var errs []interface{}
+
+	for _, err := range r.Errors.Errors {
+		if perr, ok := err.(*rules.ErrPolicyLoad); ok {
+			errs = append(errs,
+				struct {
+					Name   string `json:name`
+					Reason string `json:reason`
+				}{
+					Name:   perr.Name,
+					Reason: perr.Err.Error(),
+				})
+		}
+	}
+
+	return json.Marshal(errs)
+}
+
+func (r *PoliciesIgnored) UnmarshalJSON(data []byte) error {
+	return nil
+}
+
+// RuleSetLoaded holds the rules
+type RuleSetLoaded struct {
+	Rules map[eval.RuleID]*eval.Rule
+}
+
+func (r *RuleSetLoaded) MarshalJSON() ([]byte, error) {
+	var loaded []interface{}
+
+	for id, rule := range r.Rules {
+		loaded = append(loaded,
+			struct {
+				ID         string `json:id`
+				Expression string `json:expression`
+			}{
+				ID:         id,
+				Expression: rule.Expression,
+			})
+	}
+
+	return json.Marshal(loaded)
+}
+
+func (r *RuleSetLoaded) UnmarshalJSON(data []byte) error {
+	return nil
+}
+
 // RulesetLoadedEvent is used to report that a new ruleset was loaded
 // easyjson:json
 type RulesetLoadedEvent struct {
-	Timestamp time.Time         `json:"date"`
-	Policies  map[string]string `json:"policies"`
-	Rules     []rules.RuleID    `json:"rules"`
-	Macros    []rules.MacroID   `json:"macros"`
+	Timestamp       time.Time         `json:"date"`
+	Policies        map[string]string `json:"policies"`
+	PoliciesIgnored *PoliciesIgnored  `json:"policies_ignored,omitempty"`
+	Macros          []rules.MacroID   `json:"macros_loaded"`
+	Rules           *RuleSetLoaded    `json:"rules_loaded"`
+	RulesIgnored    *RulesIgnored     `json:"rules_ignored,omitempty"`
 }
 
 // NewRuleSetLoadedEvent returns the rule and a populated custom event for a new_rules_loaded event
-func NewRuleSetLoadedEvent(loadedPolicies map[string]string, loadedRules []rules.RuleID, loadedMacros []rules.MacroID) (*rules.Rule, *CustomEvent) {
+func NewRuleSetLoadedEvent(rs *rules.RuleSet, err *multierror.Error) (*rules.Rule, *CustomEvent) {
 	return newRule(&rules.RuleDefinition{
 			ID: RulesetLoadedRuleID,
 		}), newCustomEvent(model.CustomRulesetLoadedEventType, RulesetLoadedEvent{
-			Timestamp: time.Now(),
-			Policies:  loadedPolicies,
-			Rules:     loadedRules,
-			Macros:    loadedMacros,
+			Timestamp:       time.Now(),
+			Policies:        rs.ListPolicies(),
+			PoliciesIgnored: &PoliciesIgnored{Errors: err},
+			Rules:           &RuleSetLoaded{Rules: rs.GetRules()},
+			Macros:          rs.ListMacroIDs(),
+			RulesIgnored:    &RulesIgnored{Errors: err},
 		}.MarshalJSON)
 }
 
