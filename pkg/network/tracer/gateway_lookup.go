@@ -19,7 +19,7 @@ import (
 
 type gatewayLookup struct {
 	routeCache          network.RouteCache
-	subnetCache         map[int]network.Subnet
+	subnetCache         map[int]network.Subnet // interface index to subnet map
 	subnetForHwAddrFunc func(net.HardwareAddr) (network.Subnet, error)
 }
 
@@ -42,7 +42,7 @@ func newGatewayLookup(config *config.Config, runtimeCompilerEnabled bool, m *man
 
 	return &gatewayLookup{
 		subnetCache:         make(map[int]network.Subnet),
-		routeCache:          network.NewRouteCache(512, router),
+		routeCache:          network.NewRouteCache(65536, router),
 		subnetForHwAddrFunc: ec2SubnetForHardwareAddr,
 	}
 }
