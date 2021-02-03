@@ -268,7 +268,7 @@ func WaitForNextInvocation(stopCh chan struct{}, statsdServer *dogstatsd.Server,
 			statsdServer.Flush(true)
 		}
 		if traceAgent != nil {
-			traceAgent.Flush()
+			traceAgent.FlushSync()
 		}
 		if logs.IsAgentRunning() {
 			logs.Stop()
