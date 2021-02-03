@@ -237,3 +237,52 @@ func TestIgnoreConfigIfLogsExcluded(t *testing.T) {
 		break
 	}
 }
+
+func TestScheduleFileAndContainerSources(t *testing.T) {
+	logSources := config.NewLogSources()
+	services := service.NewServices()
+	CreateScheduler(logSources, services)
+
+	dockerSourcesStream := logSources.GetAddedForType(config.DockerType)
+	fileSourcesStream := logSources.GetAddedForType(config.FileType)
+
+	configSource := integration.Config{
+		LogsConfig:    []byte(`[{"service":"foo","source":"bar"},{"type":"file","path":"/foo/bar.log"},{"type":"file","path":"/foo/bar/baz.log","source":"FOO","service":"BAR"}]`),
+		ADIdentifiers: []string{"docker://9ca8c379e86601b878d78934cc9687f052fc881c4f27b0b62075976ed88d9d34"},
+		Provider:      names.Kubernetes,
+		TaggerEntity:  "container_id://9ca8c379e86601b878d78934cc9687f052fc881c4f27b0b62075976ed88d9d34",
+		Entity:        "docker://9ca8c379e86601b878d78934cc9687f052fc881c4f27b0b62075976ed88d9d34",
+		ClusterCheck:  false,
+		CreationTime:  0,
+	}
+
+	go adScheduler.Schedule([]integration.Config{configSource})
+	logSource := <-dockerSourcesStream
+	assert.Equal(t, config.DockerType, logSource.Name)
+	// We use the docker socket, not sourceType here
+	assert.Equal(t, config.SourceType(""), logSource.GetSourceType())
+	assert.Equal(t, "foo", logSource.Config.Service)
+	assert.Equal(t, "bar", logSource.Config.Source)
+	assert.Equal(t, config.DockerType, logSource.Config.Type)
+	assert.Equal(t, "9ca8c379e86601b878d78934cc9687f052fc881c4f27b0b62075976ed88d9d34", logSource.Config.Identifier)
+
+	logSource = <-fileSourcesStream
+	assert.Equal(t, config.DockerType, logSource.Name)
+	assert.Equal(t, config.SourceType(""), logSource.GetSourceType())
+	// Service & Source must have been copied from the container source as they were empty for this source
+	assert.Equal(t, "foo", logSource.Config.Service)
+	assert.Equal(t, "bar", logSource.Config.Source)
+	assert.Equal(t, config.FileType, logSource.Config.Type)
+	assert.Equal(t, "/foo/bar.log", logSource.Config.Path)
+	assert.Equal(t, "9ca8c379e86601b878d78934cc9687f052fc881c4f27b0b62075976ed88d9d34", logSource.Config.Identifier)
+
+	logSource = <-fileSourcesStream
+	assert.Equal(t, config.DockerType, logSource.Name)
+	assert.Equal(t, config.SourceType(""), logSource.GetSourceType())
+	// Service & Source have been overridden in the annotation for this particular source
+	assert.Equal(t, "BAR", logSource.Config.Service)
+	assert.Equal(t, "FOO", logSource.Config.Source)
+	assert.Equal(t, config.FileType, logSource.Config.Type)
+	assert.Equal(t, "/foo/bar/baz.log", logSource.Config.Path)
+	assert.Equal(t, "9ca8c379e86601b878d78934cc9687f052fc881c4f27b0b62075976ed88d9d34", logSource.Config.Identifier)
+}
