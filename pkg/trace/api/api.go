@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"os"
+	"reflect"
 	"runtime"
 	"sort"
 	"strconv"
@@ -121,7 +122,35 @@ func (r *HTTPReceiver) buildMux() *http.ServeMux {
 	mux.HandleFunc("/v0.5/stats", r.handleStats)
 	mux.Handle("/profiling/v1/input", r.profileProxyHandler())
 
+	r.attachDiscoveryHandler(mux)
 	return mux
+}
+
+func (r *HTTPReceiver) attachDiscoveryHandler(mux *http.ServeMux) {
+	refPatterns := reflect.ValueOf(mux).Elem().FieldByName("m").MapKeys()
+	patterns := make([]string, 0, len(refPatterns))
+	for _, pt := range refPatterns {
+		patterns = append(patterns, pt.String())
+	}
+	mux.HandleFunc("/v0.5/discovery_endpoint", func(w http.ResponseWriter, r *http.Request) {
+		disc := DiscoveryEndpointJSON{
+			AgentVersion:       "v0",
+			SupportedEndpoints: patterns,
+			ClientDropping:     false,
+		}
+		res, err := json.Marshal(disc)
+		if err != nil {
+			fmt.Println(err)
+		}
+		w.Write(res)
+		w.Header().Set("Content-Type", "application/json")
+	})
+}
+
+type DiscoveryEndpointJSON struct {
+	AgentVersion       string   `json:"agent_version"`
+	SupportedEndpoints []string `json:"supported_endpoints"`
+	ClientDropping     bool     `json:"client_dropping"`
 }
 
 // Start starts doing the HTTP server and is ready to receive traces
