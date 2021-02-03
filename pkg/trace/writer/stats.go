@@ -121,13 +121,12 @@ func (w *StatsWriter) FlushSync() error {
 
 	// Wait for all the senders to finish
 	var wg sync.WaitGroup
-	for _, sender := range w.senders {
-		s := sender
+	for _, s := range w.senders {
 		wg.Add(1)
-		go func() {
+		go func(s *sender) {
 			defer wg.Done()
 			s.waitForInflight()
-		}()
+		}(s)
 	}
 	wg.Wait()
 	return nil

@@ -175,12 +175,12 @@ func (w *TraceWriter) FlushSync() error {
 	w.wg.Wait()
 
 	var wg sync.WaitGroup
-	for _, sender := range w.senders {
+	for _, s := range w.senders {
 		wg.Add(1)
 		go func(s *sender) {
 			defer wg.Done()
 			s.waitForInflight()
-		}(sender)
+		}(s)
 	}
 	// Wait for all the senders to finish inflight requests
 	wg.Wait()
