@@ -25,10 +25,7 @@ type Replacer struct {
 
 var commentRegex = regexp.MustCompile(`^\s*#.*$`)
 var blankRegex = regexp.MustCompile(`^\s*$`)
-var multiLineReplacers []Replacer
-
-// SingleLineReplacers used to scrub single line data and also used in SanitizeURL
-var SingleLineReplacers []Replacer
+var singleLineReplacers, multiLineReplacers []Replacer
 
 func init() {
 	hintedKeyReplacer := Replacer{
@@ -71,7 +68,7 @@ func init() {
 		Hints: []string{"BEGIN"},
 		Repl:  []byte(`********`),
 	}
-	SingleLineReplacers = []Replacer{hintedKeyReplacer, apiKeyReplacer, appKeyReplacer, uriPasswordReplacer, passwordReplacer, tokenReplacer, snmpReplacer}
+	singleLineReplacers = []Replacer{hintedKeyReplacer, apiKeyReplacer, appKeyReplacer, uriPasswordReplacer, passwordReplacer, tokenReplacer, snmpReplacer}
 	multiLineReplacers = []Replacer{certReplacer}
 }
 
@@ -108,7 +105,7 @@ func AddStrippedKeys(strippedKeys []string) {
 			Hints: strippedKeys,
 			Repl:  []byte(`$1 ********`),
 		}
-		SingleLineReplacers = append(SingleLineReplacers, configReplacer)
+		singleLineReplacers = append(singleLineReplacers, configReplacer)
 	}
 }
 
@@ -139,7 +136,7 @@ func credentialsCleaner(file io.Reader) ([]byte, error) {
 	for scanner.Scan() {
 		b := scanner.Bytes()
 		if !commentRegex.Match(b) && !blankRegex.Match(b) && string(b) != "" {
-			b = ScrubCredentials(b, SingleLineReplacers)
+			b = scrubCredentials(b, singleLineReplacers)
 			if !first {
 				cleanedFile = append(cleanedFile, byte('\n'))
 			}
@@ -154,13 +151,13 @@ func credentialsCleaner(file io.Reader) ([]byte, error) {
 	}
 
 	// Then we apply multiline replacers on the cleaned file
-	cleanedFile = ScrubCredentials(cleanedFile, multiLineReplacers)
+	cleanedFile = scrubCredentials(cleanedFile, multiLineReplacers)
 
 	return cleanedFile, nil
 }
 
-// ScrubCredentials obfuscate sensitive information based on Replacer Regex
-func ScrubCredentials(data []byte, replacers []Replacer) []byte {
+// scrubCredentials obfuscate sensitive information based on Replacer Regex
+func scrubCredentials(data []byte, replacers []Replacer) []byte {
 	for _, repl := range replacers {
 		containsHint := false
 		for _, hint := range repl.Hints {
@@ -179,3 +176,10 @@ func ScrubCredentials(data []byte, replacers []Replacer) []byte {
 	}
 	return data
 }
+
+// SanitizeURL sanitizes credentials from a message containing a URL, and returns
+// a string that can be logged safely.
+func SanitizeURL(message string) string {
+	return string(scrubCredentials([]byte(message), singleLineReplacers))
+}
+

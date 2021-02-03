@@ -13,12 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// SanitizeURL sanitizes credentials from a message containing a URL, and returns
-// a string that can be logged safely.
-func SanitizeURL(message string) string {
-	return string(log.ScrubCredentials([]byte(message), log.SingleLineReplacers))
-}
-
 // ResetClient wraps (http.Client).Do and resets the underlying connections at the
 // configured interval
 type ResetClient struct {
