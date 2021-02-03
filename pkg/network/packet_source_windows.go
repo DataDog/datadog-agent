@@ -3,7 +3,6 @@ package network
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 )
@@ -29,8 +28,6 @@ func (p *windowsPacketSource) VisitPackets(exit <-chan struct{}, visit func([]by
 			return nil
 		}
 
-		log.Infof("read a DNS packet")
-
 		// break out of loop if exit is closed
 		select{
 		case <-exit:
@@ -46,10 +43,10 @@ func (p *windowsPacketSource) PacketType() gopacket.LayerType {
 }
 
 func (p *windowsPacketSource) Stats() map[string]int64 {
-	// TODO: explain why this is a no-op
+	// TODO: this is a no-op because all the stats are handled by driver_interface.go
 	return map[string]int64{}
 }
 
 func (p *windowsPacketSource) Close() {
-	// TODO: explain why this is a no-op
+	// TODO: this is a no-op because all the lifecycles are handled by driver_interface.go
 }
