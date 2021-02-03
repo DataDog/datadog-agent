@@ -11,7 +11,15 @@ typedef struct {
     __u64 sent_bytes;
     __u64 recv_bytes;
     __u64 timestamp;
+    __u32 flags;
 } conn_stats_ts_t;
+
+// Connection flags
+typedef enum {
+    CONN_L_INIT  = 1 << 0,
+    CONN_R_INIT  = 1 << 1,
+    CONN_ASSURED = 1 << 2
+} conn_flags_t;
 
 // Metadata bit masks
 // 0 << x is only for readability

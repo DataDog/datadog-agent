@@ -224,6 +224,7 @@ func (t *ConnTuple) String() string {
 __u64 sent_bytes;
 __u64 recv_bytes;
 __u64 timestamp;
+__u32 flags;
 */
 type ConnStatsWithTimestamp C.conn_stats_ts_t
 
@@ -243,6 +244,10 @@ const TCPCloseBatchSize = int(C.TCP_CLOSED_BATCH_SIZE)
 
 func (cs *ConnStatsWithTimestamp) isExpired(latestTime uint64, timeout uint64) bool {
 	return latestTime > timeout+uint64(cs.timestamp)
+}
+
+func (cs *ConnStatsWithTimestamp) isAssured() bool {
+	return uint(cs.flags)&C.CONN_ASSURED > 0
 }
 
 func toBatch(data []byte) *batch {

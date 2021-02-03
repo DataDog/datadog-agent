@@ -617,7 +617,7 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 		// but use conntrack as a source of truth to keep long lived idle TCP conns in the userspace state, while evicting closed TCP connections.
 		// for UDP, the conntrack TTL is lower (two minutes), so the userspace and conntrack expiry are synced to avoid touching conntrack for
 		// UDP expiries
-		if stats.isExpired(latestTime, t.timeoutForConn(key)) && (key.isUDP() || !t.conntrackExists(cachedConntrack, key)) {
+		if stats.isExpired(latestTime, t.timeoutForConn(key, stats.isAssured())) && (key.isUDP() || !t.conntrackExists(cachedConntrack, key)) {
 			expired = append(expired, key.copy())
 			if key.isTCP() {
 				atomic.AddInt64(&t.expiredTCPConns, 1)
@@ -775,10 +775,15 @@ func (t *Tracer) getMap(name probes.BPFMapName) (*ebpf.Map, error) {
 	return mp, nil
 }
 
-func (t *Tracer) timeoutForConn(c *ConnTuple) uint64 {
+func (t *Tracer) timeoutForConn(c *ConnTuple, isAssured bool) uint64 {
 	if c.isTCP() {
 		return uint64(t.config.TCPConnTimeout.Nanoseconds())
 	}
+
+	if isAssured {
+		return uint64(t.config.UDPStreamTimeout.Nanoseconds())
+	}
+
 	return uint64(t.config.UDPConnTimeout.Nanoseconds())
 }
 
@@ -913,7 +918,7 @@ func (t *Tracer) getProbeProgramIDs() (map[string]uint32, error) {
 func (t *Tracer) conntrackExists(ctr *cachedConntrack, conn *ConnTuple) bool {
 	ok, err := ctr.Exists(conn)
 	if err != nil {
-		log.Errorf("error checking conntrack for connection %+v", *conn)
+		log.Errorf("error checking conntrack for connection %s: %s", *conn, err)
 	}
 
 	return ok

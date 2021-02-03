@@ -27,12 +27,13 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
-
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf"
+	"github.com/cihub/seelog"
 	"github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -49,6 +50,8 @@ var (
 const runtimeCompilationEnvVar = "DD_TESTS_RUNTIME_COMPILED"
 
 func TestMain(m *testing.M) {
+	log.SetupLogger(seelog.Default, "trace")
+
 	cfg := testConfig()
 	if cfg.EnableRuntimeCompiler {
 		fmt.Println("RUNTIME COMPILER ENABLED")
@@ -2045,4 +2048,93 @@ func testConfig() *config.Config {
 		cfg.AllowPrecompiledFallback = false
 	}
 	return cfg
+}
+
+func TestConnectionAssured(t *testing.T) {
+
+	cfg := testConfig()
+	cfg.BPFDebug = true
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	require.NotNil(t, tr)
+
+	// register test as client
+	getConnections(t, tr)
+
+	server := NewUDPServer(func(b []byte, n int) []byte {
+		return genPayload(serverMessageSize)
+	})
+
+	done := make(chan struct{})
+	server.Run(done, clientMessageSize)
+	defer close(done)
+
+	c, err := net.DialTimeout("udp", server.address, time.Second)
+	require.NoError(t, err)
+	defer c.Close()
+
+	// do two exchanges to make the connection "assured"
+	for i := 0; i < 2; i++ {
+		_, err = c.Write(genPayload(clientMessageSize))
+		require.NoError(t, err)
+
+		buf := make([]byte, serverMessageSize)
+		_, err = c.Read(buf)
+		require.NoError(t, err)
+	}
+
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		return ok && conn.MonotonicSentBytes > 0 && conn.MonotonicRecvBytes > 0
+	}, 3*time.Second, time.Second, "could not find udp connection")
+
+	tr.config.UDPStreamTimeout = 0
+
+	require.Eventually(t, func() bool {
+		_, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
+		return !ok
+	}, 3*time.Second, time.Second, "assured udp connection did not expire")
+
+}
+
+func TestConnectionNotAssured(t *testing.T) {
+
+	cfg := testConfig()
+	cfg.BPFDebug = true
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	require.NotNil(t, tr)
+
+	// register test as client
+	getConnections(t, tr)
+
+	server := NewUDPServer(func(b []byte, n int) []byte {
+		return nil
+	})
+
+	done := make(chan struct{})
+	server.Run(done, clientMessageSize)
+	defer close(done)
+
+	c, err := net.DialTimeout("udp", server.address, time.Second)
+	require.NoError(t, err)
+	defer c.Close()
+
+	_, err = c.Write(genPayload(clientMessageSize))
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		return ok && conn.MonotonicSentBytes > 0 && conn.MonotonicRecvBytes == 0
+	}, 3*time.Second, time.Second, "could not find udp connection")
+
+	tr.config.UDPConnTimeout = 0
+
+	require.Eventually(t, func() bool {
+		_, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
+		return !ok
+	}, 3*time.Second, time.Second, "non-assured udp connection did not expire")
+
 }

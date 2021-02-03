@@ -214,6 +214,28 @@ static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u6
     return 1;
 }
 
+static __always_inline void update_conn_state(conn_tuple_t* t, conn_stats_ts_t *stats, size_t sent_bytes, size_t recv_bytes) {
+    if (t->metadata&CONN_TYPE_TCP || stats->flags&CONN_ASSURED) {
+        return;
+    }
+
+    if (stats->recv_bytes == 0 && sent_bytes > 0) {
+        stats->flags |= CONN_L_INIT;
+        return;
+    }
+
+    if (stats->sent_bytes == 0 && recv_bytes > 0) {
+        stats->flags |= CONN_R_INIT;
+        return;
+    }
+
+    // If a three-way "handshake" was established, we mark the connection as assured
+    if ((stats->flags&CONN_L_INIT && stats->recv_bytes > 0 && sent_bytes > 0)
+        || (stats->flags&CONN_R_INIT && stats->sent_bytes > 0 && recv_bytes > 0)) {
+        stats->flags |= CONN_ASSURED;
+    }
+}
+
 static __always_inline void update_conn_stats(conn_tuple_t* t, size_t sent_bytes, size_t recv_bytes, u64 ts) {
     conn_stats_ts_t* val;
 
@@ -222,16 +244,17 @@ static __always_inline void update_conn_stats(conn_tuple_t* t, size_t sent_bytes
     bpf_map_update_elem(&conn_stats, t, &empty, BPF_NOEXIST);
     val = bpf_map_lookup_elem(&conn_stats, t);
 
+    if (!val) return;
+
     // If already in our map, increment size in-place
-    if (val != NULL) {
-        if (sent_bytes) {
-            __sync_fetch_and_add(&val->sent_bytes, sent_bytes);
-        }
-        if (recv_bytes) {
-            __sync_fetch_and_add(&val->recv_bytes, recv_bytes);
-        }
-        val->timestamp = ts;
+    update_conn_state(t, val, sent_bytes, recv_bytes);
+    if (sent_bytes) {
+        __sync_fetch_and_add(&val->sent_bytes, sent_bytes);
     }
+    if (recv_bytes) {
+        __sync_fetch_and_add(&val->recv_bytes, recv_bytes);
+    }
+    val->timestamp = ts;
 }
 
 static __always_inline void update_tcp_stats(conn_tuple_t* t, tcp_stats_t stats) {
