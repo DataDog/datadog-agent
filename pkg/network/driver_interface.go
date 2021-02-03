@@ -30,8 +30,6 @@ import (
 // HandleType represents what type of data the windows handle created on the driver is intended to return. It implicitly implies if there are filters set for a handle
 type HandleType string
 
-
-
 const (
 	// deviceName identifies the name and location of the windows driver
 	deviceName = `\\.\ddnpm`
@@ -143,6 +141,19 @@ func (di *DriverInterface) Close() error {
 	if err := windows.CloseHandle(di.driverStatsHandle.handle); err != nil {
 		return errors.Wrap(err, "error closing stat file handle")
 	}
+
+	// destroy io completion port, and file
+	if err := windows.CancelIoEx(di.driverDNSHandle.handle, nil); err != nil {
+		return errors.Wrap(err, "error cancelling DNS io completion")
+	}
+	if err := windows.CloseHandle(di.driverDNSHandle.handle); err != nil {
+		return errors.Wrap(err, "error closing driver DNS handle")
+	}
+
+	for _, buf := range di.dnsReadBuffers {
+		C.free(unsafe.Pointer(buf))
+	}
+
 	return nil
 }
 
@@ -570,11 +581,11 @@ func  prepareCompletionBuffers(h windows.Handle, count int) (iocp windows.Handle
 		return windows.Handle(0), nil, errors.Wrap(err, "error creating IO completion port")
 	}
 
-	rb := _readbuffer{}
 
+	sizeOfReadBuffer := unsafe.Sizeof(_readbuffer{})	
 	buffers = make([]*_readbuffer, count)
 	for i := 0; i < count ; i ++ {
-		buffers[i] = (*_readbuffer)(C.malloc(C.ulonglong(unsafe.Sizeof(rb)))) // TODO: call free
+		buffers[i] = (*_readbuffer)(C.malloc(C.ulonglong(sizeOfReadBuffer)))
 		buf := buffers[i]
 		err := windows.ReadFile(h, buf.data[:], nil, &(buf.ol))
 		if err != nil && err != windows.ERROR_IO_PENDING  {
