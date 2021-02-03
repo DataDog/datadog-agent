@@ -98,10 +98,8 @@ type DriverInterface struct {
 	driverDNSHandle   *DriverHandle
 
 
-	dnsReadBuffers []_readbuffer
+	dnsReadBuffers []*_readbuffer
 	dnsIOCP windows.Handle
-
-
 
 	path                  string
 	enableMonotonicCounts bool
@@ -566,14 +564,17 @@ func newDDAPIFilter(direction, layer C.uint64_t, ifaceIndex int, isIPV4 bool) C.
 // danger: even though all reads will reference the returned iocp, buffers must be in-scope as long
 // as reads are happening. Otherwise, the memory the kernel is writing to will be written to memory reclaimed
 // by the GC 
-func  prepareCompletionBuffers(h windows.Handle, count int) (iocp windows.Handle, buffers []_readbuffer, err error) {
+func  prepareCompletionBuffers(h windows.Handle, count int) (iocp windows.Handle, buffers []*_readbuffer, err error) {
 	iocp, err = windows.CreateIoCompletionPort(h, windows.Handle(0), 0, 0)
 	if err != nil {
 		return windows.Handle(0), nil, errors.Wrap(err, "error creating IO completion port")
 	}
 
-	buffers = make([]_readbuffer, count)
+	rb := _readbuffer{}
+
+	buffers = make([]*_readbuffer, count)
 	for i := 0; i < count ; i ++ {
+		buffers[i] = (*_readbuffer)(C.malloc(C.ulonglong(unsafe.Sizeof(rb)))) // TODO: call free
 		buf := buffers[i]
 		err := windows.ReadFile(h, buf.data[:], nil, &(buf.ol))
 		if err != nil && err != windows.ERROR_IO_PENDING  {
