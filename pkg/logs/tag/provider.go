@@ -31,7 +31,7 @@ var (
 type provider struct {
 	entityID             string
 	taggerWarmupDuration time.Duration
-	expectedTagsDuration time.Duration
+	expectedTagsDeadline time.Time
 	submitExpectedTags   bool
 	sync.Once
 	sync.RWMutex
@@ -46,7 +46,16 @@ func NewProvider(entityID string) Provider {
 
 	if config.IsExpectedTagsSet() {
 		p.submitExpectedTags = true
-		p.expectedTagsDuration = time.Duration(coreConfig.Datadog.GetInt("logs_config.expected_tags_duration")) * time.Minute
+		p.expectedTagsDeadline = coreConfig.StartTime.Add(coreConfig.Datadog.GetDuration("logs_config.expected_tags_duration"))
+
+		// reset submitExpectedTags after deadline elapsed
+		go func() {
+			<-time.After(time.Until(p.expectedTagsDeadline))
+
+			p.Lock()
+			defer p.Unlock()
+			p.submitExpectedTags = false
+		}()
 	}
 
 	return p
@@ -60,14 +69,6 @@ func (p *provider) GetTags() []string {
 		// TODO: remove this once AD and Tagger use the same PodWatcher instance
 		<-time.After(p.taggerWarmupDuration)
 
-		// start timer if necessary
-		go func() {
-			<-time.After(p.expectedTagsDuration)
-
-			p.Lock()
-			defer p.Unlock()
-			p.submitExpectedTags = false
-		}()
 	})
 
 	tags, err := tagger.Tag(p.entityID, collectors.HighCardinality)
