@@ -139,22 +139,7 @@ func credentialsCleaner(file io.Reader) ([]byte, error) {
 	for scanner.Scan() {
 		b := scanner.Bytes()
 		if !commentRegex.Match(b) && !blankRegex.Match(b) && string(b) != "" {
-			for _, repl := range SingleLineReplacers {
-				containsHint := false
-				for _, hint := range repl.Hints {
-					if strings.Contains(string(b), hint) {
-						containsHint = true
-						break
-					}
-				}
-				if len(repl.Hints) == 0 || containsHint {
-					if repl.ReplFunc != nil {
-						b = repl.Regex.ReplaceAllFunc(b, repl.ReplFunc)
-					} else {
-						b = repl.Regex.ReplaceAll(b, repl.Repl)
-					}
-				}
-			}
+			b = ScrubCredentials(b, SingleLineReplacers)
 			if !first {
 				cleanedFile = append(cleanedFile, byte('\n'))
 			}
@@ -169,22 +154,29 @@ func credentialsCleaner(file io.Reader) ([]byte, error) {
 	}
 
 	// Then we apply multiline replacers on the cleaned file
-	for _, repl := range multiLineReplacers {
+	cleanedFile = ScrubCredentials(cleanedFile, multiLineReplacers)
+
+	return cleanedFile, nil
+}
+
+// ScrubCredentials obfuscate sensitive information based on Replacer Regex
+func ScrubCredentials(data []byte, replacers []Replacer) []byte {
+	for _, repl := range replacers {
 		containsHint := false
 		for _, hint := range repl.Hints {
-			if strings.Contains(string(cleanedFile), hint) {
+			if strings.Contains(string(data), hint) {
 				containsHint = true
 				break
 			}
 		}
 		if len(repl.Hints) == 0 || containsHint {
 			if repl.ReplFunc != nil {
-				cleanedFile = repl.Regex.ReplaceAllFunc(cleanedFile, repl.ReplFunc)
+				data = repl.Regex.ReplaceAllFunc(data, repl.ReplFunc)
 			} else {
-				cleanedFile = repl.Regex.ReplaceAll(cleanedFile, repl.Repl)
+				data = repl.Regex.ReplaceAll(data, repl.Repl)
 			}
 		}
+		// break
 	}
-
-	return cleanedFile, nil
+	return data
 }

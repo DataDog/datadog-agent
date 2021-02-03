@@ -7,7 +7,6 @@ package http
 
 import (
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -16,32 +15,8 @@ import (
 
 // SanitizeURL sanitizes credentials from a message containing a URL, and returns
 // a string that can be logged safely.
-// For now, it obfuscates the API key.
 func SanitizeURL(message string) string {
-	var result []byte
-
-	messageBytes := []byte(message)
-	singleLineReplacers := log.SingleLineReplacers
-
-	for _, repl := range singleLineReplacers {
-		containsHint := false
-		for _, hint := range repl.Hints {
-			if strings.Contains(message, hint) {
-				containsHint = true
-				break
-			}
-		}
-		if len(repl.Hints) == 0 || containsHint {
-			if repl.ReplFunc != nil {
-				result = repl.Regex.ReplaceAllFunc(messageBytes, repl.ReplFunc)
-			} else {
-				result = repl.Regex.ReplaceAll(messageBytes, repl.Repl)
-			}
-			break
-		}
-	}
-
-	return string(result)
+	return string(log.ScrubCredentials([]byte(message), log.SingleLineReplacers))
 }
 
 // ResetClient wraps (http.Client).Do and resets the underlying connections at the
