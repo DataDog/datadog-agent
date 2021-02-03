@@ -268,3 +268,12 @@ func prepareConfig(path string) (*AgentConfig, error) {
 func HasFeature(f string) bool {
 	return strings.Contains(os.Getenv("DD_APM_FEATURES"), f)
 }
+
+// Features returns a list of all the features configured by means of DD_APM_FEATURES.
+func Features() []string {
+	var all []string
+	for _, f := range strings.Split(os.Getenv("DD_APM_FEATURES"), ",") {
+		all = append(all, strings.TrimSpace(f))
+	}
+	return all
+}
