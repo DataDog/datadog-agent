@@ -257,20 +257,22 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
 		assert := assert.New(t)
-		err := os.Setenv(env, `[{"name":"name1", "pattern":"pattern1"}, {"name":"name2","pattern":"pattern2"}]`)
+		err := os.Setenv(env, `[{"require": ["important1", "important2"], "reject": ["bad1", "bad2"]]`)
 		assert.NoError(err)
 		defer os.Unsetenv(env)
 		cfg, err := Load("./testdata/full.yaml")
 		assert.NoError(err)
-		rule1 := &TagRules{
-			Name:    "name1",
-			Pattern: "pattern1",
+		rule1 := &TagRule{
+			Type:  0,
+			Name:  "name1",
+			Value: "pattern1",
 		}
-		rule2 := &TagRules{
-			Name:    "name2",
-			Pattern: "pattern2",
+		rule2 := &TagRule{
+			Type:  1,
+			Name:  "name2",
+			Value: "pattern2",
 		}
-		compileTagRules([]*TagRules{rule1, rule2})
+		compileTagRules([]string{"important1:value", "important2"}, []string{"bad1", "bad2:value:bad"})
 		assert.Contains(cfg.FilterTags, rule1)
 		assert.Contains(cfg.FilterTags, rule2)
 	})

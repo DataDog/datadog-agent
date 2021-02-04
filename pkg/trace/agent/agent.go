@@ -73,7 +73,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	agnt := &Agent{
 		Concentrator:       stats.NewConcentrator(conf.BucketInterval.Nanoseconds(), statsChan),
 		Blacklister:        filters.NewBlacklister(conf.Ignore["resource"]),
-		TagValidator:       filters.NewTagValidator(conf.FilterTags, conf.RequiredTags, conf.RejectedTags),
+		TagValidator:       filters.NewTagValidator(conf.FilterTags),
 		Replacer:           filters.NewReplacer(conf.ReplaceTags),
 		ScoreSampler:       NewScoreSampler(conf),
 		ExceptionSampler:   sampler.NewExceptionSampler(),
@@ -187,7 +187,7 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 		}
 
 		if e := a.TagValidator.Validates(root); e != nil {
-			// check the keys of traces and see if they match required keys
+			log.Debugf("Trace rejected by tag validator: %v, root: %v", e, root)
 			atomic.AddInt64(&ts.TracesFiltered, 1)
 			atomic.AddInt64(&ts.SpansFiltered, tracen)
 			continue

@@ -103,12 +103,8 @@ type AgentConfig struct {
 	// filtering
 	Ignore map[string][]string
 
-	// lists of mandatory tags/values that each root span must have and not have for a valid trace
-	RequiredTags []string
-	RejectedTags []string
-
-	// FilterTags is used to filter tags based on provided regular expressions.
-	FilterTags []*TagRules
+	// FilterTags is used to filter tags based on provided tag type, key, and values.
+	FilterTags []*TagRule
 
 	// ReplaceTags is used to filter out sensitive information from tag values.
 	// It maps tag keys to a set of replacements. Only supported in A6.

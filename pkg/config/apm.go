@@ -95,7 +95,7 @@ func setupAPM(config Config) {
 	})
 
 	config.SetEnvKeyTransformer("apm_config.filter_tags", func(in string) interface{} {
-		var out []map[string]string
+		var out map[string][]string
 		if err := json.Unmarshal([]byte(in), &out); err != nil {
 			log.Warnf(`"apm_config.filter_tags" can not be parsed: %v`, err)
 		}

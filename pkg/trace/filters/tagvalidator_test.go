@@ -9,46 +9,54 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestValidator(t *testing.T) {
 	tests := []struct {
-		reqTags     []string
-		rejectTags  []string
+		tagRules    []*config.TagRule
 		traceMeta   map[string]string
 		expectError error
 	}{
 		{
-			reqTags: []string{
-				"important1",
-				"important2",
+			tagRules: []*config.TagRule{
+				{Type: 1, Name: "important1"},
+				{Type: 1, Name: "important2"},
 			},
-			rejectTags: []string{},
 			traceMeta: map[string]string{
 				"important1": "test-value",
 				"important2": "test-value-2",
 			},
 		},
 		{
-			reqTags: []string{
-				"important1",
-				"important2",
+			tagRules: []*config.TagRule{
+				{Type: 1, Name: "important1", Value: "value:subvalue"},
+				{Type: 1, Name: "important2"},
 			},
-			rejectTags: []string{},
 			traceMeta: map[string]string{
-				"important1": "test-value",
-				"important2": "another-test-value",
-				"blah":       "blah",
+				"important1": "value:subvalue",
+				"important2": "test-value-2",
 			},
 		},
 		{
-			reqTags: []string{
-				"important1",
-				"important2",
+			tagRules: []*config.TagRule{
+				{Type: 1, Name: "test1", Value: "test-value"},
+				{Type: 1, Name: "test2", Value: "another-test-value"},
+				{Type: 1, Name: "blah"},
 			},
-			rejectTags: []string{},
+			traceMeta: map[string]string{
+				"test1": "test-value",
+				"test2": "another-test-value",
+				"blah":  "blah",
+			},
+		},
+		{
+			tagRules: []*config.TagRule{
+				{Type: 1, Name: "important1"},
+				{Type: 1, Name: "important2"},
+			},
 			traceMeta: map[string]string{
 				"important1": "test-value",
 				"blah":       "blah",
@@ -56,9 +64,8 @@ func TestValidator(t *testing.T) {
 			expectError: errors.New(`required tag(s) missing`),
 		},
 		{
-			reqTags: []string{},
-			rejectTags: []string{
-				"reject1",
+			tagRules: []*config.TagRule{
+				{Type: 0, Name: "reject1"},
 			},
 			traceMeta: map[string]string{
 				"somekey": "12345",
@@ -66,22 +73,34 @@ func TestValidator(t *testing.T) {
 			},
 		},
 		{
-			reqTags: []string{},
-			rejectTags: []string{
-				"reject1",
+			tagRules: []*config.TagRule{
+				{Type: 1, Name: "important1"},
+				{Type: 0, Name: "reject1"},
 			},
 			traceMeta: map[string]string{
-				"somekey": "12345",
-				"reject1": "bad",
+				"important1": "test-value",
+				"reject1":    "bad",
+				"reject2":    "also-bad",
 			},
+			expectError: errors.New(`invalid tag(s) found`),
 		},
 		{
-			reqTags: []string{
-				"important1",
+			tagRules: []*config.TagRule{
+				{Type: 1, Name: "important1", Value: "this-value-only"},
+				{Type: 0, Name: "reject1"},
 			},
-			rejectTags: []string{
-				"reject1",
-				"reject2",
+			traceMeta: map[string]string{
+				"important1": "test-value",
+				"reject1":    "bad",
+				"reject2":    "also-bad",
+			},
+			expectError: errors.New(`required tag(s) missing`),
+		},
+		{
+			tagRules: []*config.TagRule{
+				{Type: 1, Name: "important1", Value: "test-value"},
+				{Type: 0, Name: "reject1", Value: "bad"},
+				{Type: 0, Name: "reject2"},
 			},
 			traceMeta: map[string]string{
 				"important1": "test-value",
@@ -95,7 +114,7 @@ func TestValidator(t *testing.T) {
 	for _, test := range tests {
 		span := testutil.RandomSpan()
 		span.Meta = test.traceMeta
-		filter := NewTagValidator(test.reqTags, test.rejectTags)
+		filter := NewTagValidator(test.tagRules)
 
 		err := filter.Validates(span)
 		if test.expectError != nil {

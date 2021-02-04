@@ -44,6 +44,10 @@ apm_config:
       pattern: "\\?.*$"
       repl: "!"
 
+  filter_tags:
+    - require: ["http.method", "env:staging"]
+    - reject: ["http.url"]
+
   obfuscation:
     elasticsearch:
       enabled: true

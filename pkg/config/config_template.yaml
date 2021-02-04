@@ -778,6 +778,19 @@ api_key:
   #     pattern: "<REGEX_PATTERN>"
   #     repl: "<PATTERN_TO_INLINE>"
 
+  ## @param filter_tags - list of objects - optional
+  ## Defines a list of tags that are required or to be rejected for a root trace.
+  ## Each rules can contain:
+  ##  * require - list of key:value strings - The list of tags, with their key and value, that are required for a valid trace.
+  ##  * reject - list of key:value strings - The list of tags, with their key and value, that are rejected for a valid trace.
+  ##
+  ## See https://docs.datadoghq.com/tracing/guide/security/#replace-rules
+  ##
+  #
+  # filter_tags:
+  #   - require: "<LIST_OF_KEY_VALUE_STRINGS>"
+  #     reject: "<LIST_OF_KEY_VALUE_STRINGS>"
+
   ## @param ignore_resources - list of strings - optional
   ## A blacklist of regular expressions can be provided to disable certain traces based on their resource name
   ## all entries must be surrounded by double quotes and separated by commas.

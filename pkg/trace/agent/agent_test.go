@@ -407,103 +407,55 @@ func TestProcess(t *testing.T) {
 
 	t.Run("filtering", func(t *testing.T) {
 		tests := []struct {
-			reqTags        map[string]string
-			rejectTags     map[string]string
+			tagRules       []*config.TagRule
 			traceMeta      map[string]string
 			tracesFiltered int64
-			spansFiltered  int64
 		}{
 			{
-				map[string]string{
-					"important1": "value",
-					"important2": "value-2",
+				tagRules: []*config.TagRule{
+					{Type: 1, Name: "important1"},
+					{Type: 1, Name: "important2"},
 				},
-				map[string]string{},
-				map[string]string{
+				traceMeta: map[string]string{
 					"important1": "test-value",
 					"important2": "test-value-2",
 				},
-				0,
-				0,
+				tracesFiltered: 0,
 			},
 			{
-				map[string]string{
-					"important1": "test-value",
-					"important2": "another-test-value",
+				tagRules: []*config.TagRule{
+					{Type: 1, Name: "important1"},
+					{Type: 0, Name: "reject1"},
 				},
-				map[string]string{},
-				map[string]string{
-					"important1": "test-value",
-					"important2": "another-test-value",
-					"blah":       "blah",
-				},
-				0,
-				0,
-			},
-			{
-				map[string]string{
-					"important1": "test-value",
-					"important2": "test-value",
-				},
-				map[string]string{},
-				map[string]string{
-					"important1": "test-value",
-					"blah":       "blah",
-				},
-				1,
-				1,
-			},
-			{
-				map[string]string{},
-				map[string]string{
-					"reject1": "bad-value",
-				},
-				map[string]string{
-					"somekey": "12345",
-					"blah":    "blah",
-				},
-				0,
-				0,
-			},
-			{
-				map[string]string{},
-				map[string]string{
-					"reject1": "bad-value",
-				},
-				map[string]string{
-					"somekey": "12345",
-					"reject1": "bad",
-				},
-				1,
-				1,
-			},
-			{
-				map[string]string{
-					"important1": "value",
-				},
-				map[string]string{
-					"reject1": "bad",
-					"reject2": "also-bad",
-				},
-				map[string]string{
+				traceMeta: map[string]string{
 					"important1": "test-value",
 					"reject1":    "bad",
 					"reject2":    "also-bad",
 				},
-				1,
-				1,
+				tracesFiltered: 1,
+			},
+			{
+				tagRules: []*config.TagRule{
+					{Type: 1, Name: "important1", Value: "test-value"},
+					{Type: 0, Name: "reject1", Value: "bad"},
+					{Type: 0, Name: "reject2"},
+				},
+				traceMeta: map[string]string{
+					"important1": "test-value",
+					"reject1":    "bad",
+					"reject2":    "also-bad",
+				},
+				tracesFiltered: 1,
 			},
 		}
 
 		for _, test := range tests {
 			cfg := config.New()
 			cfg.Endpoints[0].APIKey = "test"
-			cfg.RequiredTags = test.reqTags
-			cfg.RejectedTags = test.rejectTags
+			cfg.FilterTags = test.tagRules
 			ctx, cancel := context.WithCancel(context.Background())
 			agnt := NewAgent(ctx, cfg)
 			defer cancel()
-
 			assert := assert.New(t)
 			want := agnt.Receiver.Stats.GetTagStats(info.Tags{})
 			span := testutil.RandomSpan()
@@ -514,7 +466,6 @@ func TestProcess(t *testing.T) {
 				Source: want,
 			}, stats.NewSublayerCalculator())
 			assert.EqualValues(test.tracesFiltered, want.TracesFiltered)
-			assert.EqualValues(test.spansFiltered, want.SpansFiltered)
 		}
 	})
 }

@@ -102,16 +102,25 @@ type ReplaceRule struct {
 	Repl string `mapstructure:"repl"`
 }
 
-// TagRules specifies a filter rule.
-type TagRules struct {
+// TagRuleType represents a tag's type as an integer as either REJECT (0) or REQUIRE (1).
+type TagRuleType int
+
+// TagRule specifies a rule for a specific tag that is either required or to be rejected.
+type TagRule struct {
+	// Type identifies the type of tag, which is one of either REQUIRE or REJECT.
+	Type TagRuleType `mapstructure:"tag_type"`
+
 	// Name specifies the name of the tag that the filter rule addresses. However,
 	// some exceptions apply such as:
 	// • "resource.name" will target the resource
 	// • "*" will target all tags and the resource
 	Name string `mapstructure:"name"`
 
-	// Pattern specifies the regexp pattern to be used when filtering. It must compile.
-	Pattern string `mapstructure:"pattern"`
+	// Value specifies the value of the tag.
+	Value string `mapstructure:"value"`
+
+	// Re holds the compiled Pattern and is only used internally.
+	Re *regexp.Regexp `mapstructure:"-"`
 }
 
 // WriterConfig specifies configuration for an API writer.
@@ -250,16 +259,7 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		}
 	}
 	if k := "apm_config.filter_tags"; config.Datadog.IsSet(k) {
-		ft := make([]*TagRules, 0)
-		if err := config.Datadog.UnmarshalKey(k, &ft); err != nil {
-			log.Errorf("Bad format for %q it should be of the form '[{\"name\": \"tag_name\",\"pattern\":\"pattern\"}]', error: %v", "apm_config.filter_tags", err)
-		} else {
-			err := compileTagRules(ft)
-			if err != nil {
-				osutil.Exitf("filter_tags: %s", err)
-			}
-			c.FilterTags = ft
-		}
+		c.FilterTags = compileTagRules(config.Datadog.GetStringSlice("require"), config.Datadog.GetStringSlice("reject"))
 	}
 
 	if config.Datadog.IsSet("bind_host") || config.Datadog.IsSet("apm_config.apm_non_local_traffic") {
@@ -420,22 +420,30 @@ func compileReplaceRules(rules []*ReplaceRule) error {
 	return nil
 }
 
-// compileTagRules compiles the regular expressions found in the filter rules.
-// If it fails it returns the first error.
-func compileTagRules(rules []*TagRules) error {
-	for _, t := range rules {
-		if t.Name == "" {
-			return errors.New(`all rules must have a "name property (use "*" to target all)`)
-		}
-		if t.Pattern == "" {
-			return errors.New(`all rules must have a "pattern"`)
-		}
-		_, err := regexp.Compile(t.Pattern)
-		if err != nil {
-			return fmt.Errorf("key %q: %s", t.Name, err)
-		}
+// parseTag parses a tag to split into an array of key and value and construct a TagRule object.
+func parseTag(tagType TagRuleType, r string) *TagRule {
+	s := strings.SplitN(r, ":", 2)
+	var tag *TagRule
+	if len(s) == 2 {
+		tag = &TagRule{Type: tagType, Name: s[0], Value: s[0]}
+	} else {
+		tag = &TagRule{Type: tagType, Name: s[0]}
 	}
-	return nil
+	return tag
+}
+
+// compileTagRules compiles the regular expressions found in the filter rules.
+func compileTagRules(req []string, rej []string) []*TagRule {
+	ft := make([]*TagRule, 0)
+	for _, r := range req {
+		tag := parseTag(1, r)
+		ft = append(ft, tag)
+	}
+	for _, r := range rej {
+		tag := parseTag(0, r)
+		ft = append(ft, tag)
+	}
+	return ft
 }
 
 // getDuration returns the duration of the provided value in seconds
