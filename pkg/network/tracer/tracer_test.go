@@ -2064,14 +2064,16 @@ func TestSelfConnect(t *testing.T) {
 
 	started := make(chan struct{})
 	cmd := exec.Command("testdata/fork.py")
+	stdOutReader, stdOutWriter := io.Pipe()
 	go func() {
-		var b bytes.Buffer
-		cmd.Stderr = &b
+		var stderr bytes.Buffer
+		cmd.Stderr = &stderr
+		cmd.Stdout = stdOutWriter
 		require.NoError(t, cmd.Start())
 		close(started)
 		if err := cmd.Wait(); err != nil {
 			status := cmd.ProcessState.Sys().(syscall.WaitStatus)
-			require.Equal(t, syscall.SIGKILL, status.Signal(), "fork.py output: %s", b.String())
+			require.Equal(t, syscall.SIGKILL, status.Signal(), "fork.py output: %s", stderr.String())
 		}
 	}()
 
@@ -2079,22 +2081,32 @@ func TestSelfConnect(t *testing.T) {
 
 	defer cmd.Process.Kill()
 
+	portStr, err := bufio.NewReader(stdOutReader).ReadString('\n')
+	require.NoError(t, err, "error reading port from fork.py")
+	stdOutReader.Close()
+
+	port, err := strconv.ParseUint(strings.TrimSpace(portStr), 10, 16)
+	require.NoError(t, err, "could not convert %s to integer port", portStr)
+
+	t.Logf("port is %d", port)
+
 	require.Eventually(t, func() bool {
 		conns := searchConnections(getConnections(t, tr), func(cs network.ConnectionStats) bool {
-			return cs.SPort == 33333 && cs.DPort == 33333 && cs.Source.IsLoopback() && cs.Dest.IsLoopback()
+			return cs.SPort == uint16(port) && cs.DPort == uint16(port) && cs.Source.IsLoopback() && cs.Dest.IsLoopback()
 		})
 
 		t.Logf("connections: %v", conns)
 		return len(conns) == 2
-	}, 5*time.Second, time.Second, "could not find expected tcp connections, expected: 2")
+	}, 5*time.Second, time.Second, "could not find expected number of tcp connections, expected: 2")
 
+	// forked child should have exited, and only the parent should remain
 	require.Eventually(t, func() bool {
 		conns := searchConnections(getConnections(t, tr), func(cs network.ConnectionStats) bool {
-			return cs.SPort == 33333 && cs.DPort == 33333 && cs.Source.IsLoopback() && cs.Dest.IsLoopback()
+			return cs.SPort == uint16(port) && cs.DPort == uint16(port) && cs.Source.IsLoopback() && cs.Dest.IsLoopback()
 		})
 
 		t.Logf("connections: %v", conns)
 		return len(conns) == 1
-	}, 5*time.Second, time.Second, "could not find expected tcp connections, expected: 1")
+	}, 5*time.Second, time.Second, "could not find expected number of tcp connections, expected: 1")
 
 }

@@ -5,8 +5,10 @@ import signal
 import socket
 
 s = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
-s.bind(("localhost", 33333))
-s.connect(("localhost", 33333))
+s.bind(("localhost", 0))
+addr = s.getsockname()
+print(addr[1])
+s.connect(addr)
 
 pid = os.fork()
 if pid == 0:
@@ -16,6 +18,6 @@ else:
     # parent
     s.recv(256)
     os.wait()
-    signal.sigwait([signal.SIGKILL, signal.SIGINT, signal.SIGSTOP])
+    signal.pause()
 
 s.close()
