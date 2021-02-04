@@ -207,8 +207,6 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 
 	configName := s.configName(config)
 	var sources []*logsConfig.LogSource
-	// Used to fill empty source/service in some cases when iterating over the configs slice
-	serviceName, sourceName := s.extractMainSourceAndService(configs)
 	for _, cfg := range configs {
 		// if no service is set fall back to the global one
 		if cfg.Service == "" && globalServiceDefined {
@@ -222,14 +220,6 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 				// cfg.Type is not overwritten as tailing a file from a Docker or Kubernetes AD configuration
 				// is explicitly supported (other combinations may be supported later)
 				cfg.Identifier = service.Identifier
-				// We copy service and source name from the parent container if they were not set for this config
-				// in the docker label or pod annotation
-				if cfg.Service == "" {
-					cfg.Service = serviceName
-				}
-				if cfg.Source == "" {
-					cfg.Source = sourceName
-				}
 			} else {
 				cfg.Type = service.Type
 				cfg.Identifier = service.Identifier // used for matching a source with a service
@@ -255,16 +245,6 @@ func (s *Scheduler) toService(config integration.Config) (*service.Service, erro
 		return nil, err
 	}
 	return service.NewService(provider, identifier, s.getCreationTime(config)), nil
-}
-
-// extractMainSourceAndService extracts the source & service attached to the container config
-func (s *Scheduler) extractMainSourceAndService(configs []*logsConfig.LogsConfig) (string, string) {
-	for _, c := range configs {
-		if c.Type == "" || c.Type == containers.RuntimeNameCRIO || c.Type == containers.RuntimeNameContainerd || c.Type == containers.RuntimeNameDocker {
-			return c.Service, c.Source
-		}
-	}
-	return "", ""
 }
 
 // parseEntity breaks down an entity into a service provider and a service identifier.
