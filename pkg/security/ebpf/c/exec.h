@@ -7,11 +7,45 @@
 #include "syscalls.h"
 #include "container.h"
 
+#define MAX_ARGS_PERF_LEN 128
+#define MAX_ARGS_LEN (1 << 15)
+#define MAX_ARGS 16
+#define MAX_ARG_SIZE 4096
+
+struct first_args_value_t {
+    u32 id;
+    u32 truncated;
+    char args[MAX_ARGS_PERF_LEN];
+};
+
+struct args_value_t {
+    char args[MAX_ARGS_LEN];
+};
+
+struct bpf_map_def SEC("maps/exec_args") exec_args = {
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(struct args_value_t),
+    .max_entries = 255,
+    .pinning = 0,
+    .namespace = "",
+};
+
+struct bpf_map_def SEC("maps/exec_args_value") exec_args_value = {
+    .type = BPF_MAP_TYPE_PERCPU_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(struct args_value_t),
+    .max_entries = 1,
+    .pinning = 0,
+    .namespace = "",
+};
+
 struct exec_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct proc_cache_t proc_entry;
     struct pid_cache_t pid_entry;
+    struct first_args_value_t args;
 };
 
 struct exit_event_t {
@@ -33,24 +67,65 @@ struct _tracepoint_sched_process_fork
     pid_t child_pid;
 };
 
-int __attribute__((always_inline)) trace__sys_execveat() {
+void __attribute__((always_inline)) extract_args(struct syscall_cache_t *syscall, const char **argv) {
+    syscall->exec.args_id = bpf_get_prandom_u32();
+
+    u32 key = 0;
+    struct args_value_t *args = bpf_map_lookup_elem(&exec_args_value, &key);
+    if (!args) {
+        return;
+    }
+
+    u32 offset = 0;
+    u32 a = 1;
+    u16 len = 0;
+
+    const char *str;
+    bpf_probe_read(&str, sizeof(str), (void *)&argv[a]);
+
+#pragma unroll
+    for (int i = 0; i < MAX_ARGS; i++) {
+        int n = bpf_probe_read_str(&(args->args[(offset + sizeof(len)) & (MAX_ARGS_LEN - MAX_ARG_SIZE - 1)]), MAX_ARG_SIZE, (void *)str);
+        if (n > 0) {
+            len = n;
+            bpf_probe_read(&(args->args[offset&(MAX_ARGS_LEN - MAX_ARG_SIZE - 1)]), sizeof(len), &len);
+
+            bpf_probe_read(&str, sizeof(str), (void *)&argv[++a]);
+
+            offset += n + sizeof(len);
+        } else {
+            bpf_map_update_elem(&exec_args, &syscall->exec.args_id, args, BPF_ANY);
+            return;
+        }
+    }
+
+    syscall->exec.args_truncated = 1;
+}
+
+int __attribute__((always_inline)) trace__sys_execveat(const char **argv, const char **env) {
     struct syscall_cache_t syscall = {
         .type = SYSCALL_EXEC,
     };
+    extract_args(&syscall, argv);
 
     cache_syscall(&syscall);
     return 0;
 }
 
-SYSCALL_KPROBE0(execve) {
-    return trace__sys_execveat();
+SYSCALL_KPROBE3(execve, const char *, filename, const char **, argv, const char **, env) {
+    return trace__sys_execveat(argv, env);
 }
 
-SYSCALL_KPROBE0(execveat) {
-    return trace__sys_execveat();
+SYSCALL_KPROBE4(execveat, int, fd, const char *, filename, const char **, argv, const char **, env) {
+    return trace__sys_execveat(argv, env);
 }
 
 int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct syscall_cache_t *syscall) {
+    if (syscall->exec.is_parsed) {
+        return 0;
+    }
+    syscall->exec.is_parsed = 1;
+
     struct file *file = (struct file *)PT_REGS_PARM1(ctx);
     struct inode *inode = (struct inode *)PT_REGS_PARM2(ctx);
     struct path *path = &file->f_path;
@@ -106,8 +181,6 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
         };
         bpf_map_update_elem(&pid_cache, &tgid, &new_pid_entry, BPF_ANY);
     }
-
-    pop_syscall(SYSCALL_EXEC);
 
     return 0;
 }
@@ -257,8 +330,23 @@ int kprobe_exit_itimers(struct pt_regs *ctx) {
     return 0;
 }
 
+void __attribute__((always_inline)) fill_args(struct exec_event_t *event, struct syscall_cache_t *syscall) {
+    struct args_value_t *args = bpf_map_lookup_elem(&exec_args, &syscall->exec.args_id);
+    if (args) {
+        bpf_probe_read(&event->args.args, MAX_ARGS_PERF_LEN, args->args);
+        event->args.id = syscall->exec.args_id;
+        event->args.truncated = syscall->exec.args_truncated;
+    }
+}
+
 SEC("kprobe/security_bprm_committed_creds")
 int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = pop_syscall(SYSCALL_EXEC);
+    if (!syscall) {
+        return 0;
+    }
+
+    // check if this is a thread first
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
 
@@ -277,13 +365,12 @@ int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
 
             // add pid / tid context
             fill_process_context(&event.process);
+            fill_args(&event, syscall);
 
             // send the entry to maintain userspace cache
             send_event(ctx, EVENT_EXEC, event);
         }
     }
-
-    pop_syscall(SYSCALL_EXEC);
 
     return 0;
 }

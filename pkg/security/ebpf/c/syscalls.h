@@ -100,6 +100,12 @@ struct syscall_cache_t {
         struct {
             u8 is_thread;
         } clone;
+
+        struct {
+            u32 args_id;
+            u8 args_truncated;
+            u8 is_parsed;
+        } exec;
     };
 };
 
