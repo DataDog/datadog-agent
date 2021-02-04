@@ -926,7 +926,7 @@ func (t *Tracer) connectionExpired(conn *ConnTuple, latestTime uint64, stats *Co
 
 	ok, err := ctr.Exists(conn)
 	if err != nil {
-		log.Errorf("error checking conntrack for connection %+v", *conn)
+		log.Warnf("error checking conntrack for connection %s: %s", *conn, err)
 	}
 
 	return !ok
