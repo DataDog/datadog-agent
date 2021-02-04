@@ -54,8 +54,8 @@ deploy_staging_rpm-6:
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
-    - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "$DEB_RPM_BUCKET_BRANCH/6/x86_64/" -a "x86_64" $OMNIBUS_PACKAGE_DIR/*-6.*x86_64.rpm
-    - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "$DEB_RPM_BUCKET_BRANCH/6/aarch64/" -a "aarch64" $OMNIBUS_PACKAGE_DIR/*-6.*aarch64.rpm
+    - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "$DEB_RPM_BUCKET_BRANCH/6/x86_64/" -a "x86_64" --sign --metadata-signing-key $RPM_GPG_KEY_ID $OMNIBUS_PACKAGE_DIR/*-6.*x86_64.rpm
+    - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "$DEB_RPM_BUCKET_BRANCH/6/aarch64/" -a "aarch64" --sign --metadata-signing-key $RPM_GPG_KEY_ID $OMNIBUS_PACKAGE_DIR/*-6.*aarch64.rpm
 
 # NOTE: no SuSE ARM builds currently.
 deploy_staging_suse_rpm-6:
@@ -71,7 +71,7 @@ deploy_staging_suse_rpm-6:
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
   script:
-    - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "suse/$DEB_RPM_BUCKET_BRANCH/6/x86_64/" -a "x86_64" $OMNIBUS_PACKAGE_DIR_SUSE/*-6.*x86_64.rpm
+    - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "suse/$DEB_RPM_BUCKET_BRANCH/6/x86_64/" -a "x86_64" --sign --metadata-signing-key $RPM_GPG_KEY_ID --repodata-store-public-key $OMNIBUS_PACKAGE_DIR_SUSE/*-6.*x86_64.rpm
 
 # Deploy MacOS dmg builds
 deploy_staging_dmg-a6:

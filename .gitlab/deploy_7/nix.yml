@@ -66,9 +66,9 @@ deploy_staging_rpm-7:
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
-    - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "$DEB_RPM_BUCKET_BRANCH/7/x86_64/" -a "x86_64" $OMNIBUS_PACKAGE_DIR/*-7.*x86_64.rpm
-    - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "$DEB_RPM_BUCKET_BRANCH/7/aarch64/" -a "aarch64" $OMNIBUS_PACKAGE_DIR/*-7.*aarch64.rpm
-    - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "$DEB_RPM_BUCKET_BRANCH/7/armv7hl/" -a "armv7hl" $OMNIBUS_PACKAGE_DIR/*-7.*armv7hl.rpm
+    - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "$DEB_RPM_BUCKET_BRANCH/7/x86_64/" -a "x86_64" --sign --metadata-signing-key $RPM_GPG_KEY_ID $OMNIBUS_PACKAGE_DIR/*-7.*x86_64.rpm
+    - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "$DEB_RPM_BUCKET_BRANCH/7/aarch64/" -a "aarch64" --sign --metadata-signing-key $RPM_GPG_KEY_ID $OMNIBUS_PACKAGE_DIR/*-7.*aarch64.rpm
+    - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "$DEB_RPM_BUCKET_BRANCH/7/armv7hl/" -a "armv7hl" --sign --metadata-signing-key $RPM_GPG_KEY_ID $OMNIBUS_PACKAGE_DIR/*-7.*armv7hl.rpm
 
 deploy_staging_suse_rpm-7:
   rules:
@@ -86,7 +86,7 @@ deploy_staging_suse_rpm-7:
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
   script:
-    - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "suse/$DEB_RPM_BUCKET_BRANCH/7/x86_64/" -a "x86_64" $OMNIBUS_PACKAGE_DIR_SUSE/*-7.*x86_64.rpm
+    - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "suse/$DEB_RPM_BUCKET_BRANCH/7/x86_64/" -a "x86_64" --sign --metadata-signing-key $RPM_GPG_KEY_ID --repodata-store-public-key $OMNIBUS_PACKAGE_DIR_SUSE/*-7.*x86_64.rpm
 
 deploy_staging_dmg-a7:
   allow_failure: true
