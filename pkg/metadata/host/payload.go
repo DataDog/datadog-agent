@@ -41,7 +41,7 @@ type LogsMeta struct {
 
 // Tags contains the detected host tags
 type Tags struct {
-	System              []string `json:"system,omitempty"`
+	System              []string `json:"system"`
 	GoogleCloudPlatform []string `json:"google cloud platform,omitempty"`
 }
 
