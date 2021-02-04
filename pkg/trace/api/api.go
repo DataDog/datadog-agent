@@ -109,7 +109,7 @@ func (r *HTTPReceiver) buildMux() *http.ServeMux {
 	for _, e := range endpoints {
 		mux.Handle(e.Name, e.Handler(r))
 	}
-	mux.HandleFunc("/hello", r.handleHello)
+	mux.HandleFunc("/hello", r.makeHelloHandler())
 
 	return mux
 }
@@ -407,12 +407,38 @@ type StatsProcessor interface {
 }
 
 // handleHello handles the discovery endpoint
-func (r *HTTPReceiver) handleHello(w http.ResponseWriter, req *http.Request) {
+func (r *HTTPReceiver) makeHelloHandler() http.HandlerFunc {
 	var all []string
 	for _, e := range endpoints {
-		all = append(all, e.Name)
+		if !e.Hidden {
+			all = append(all, e.Name)
+		}
 	}
-	fmt.Fprintf(w, "%#v\n\n%v", all, config.Features())
+	txt, err := json.MarshalIndent(struct {
+		Version   string
+		GitCommit string
+		GitBranch string
+		BuildDate string
+		GoVersion string
+		Endpoints []string
+		Features  []string
+		Config    *config.AgentConfig
+	}{
+		Version:   info.Version,
+		GitCommit: info.GitCommit,
+		GitBranch: info.GitBranch,
+		BuildDate: info.BuildDate,
+		GoVersion: info.GoVersion,
+		Endpoints: all,
+		Features:  config.Features(),
+		Config:    r.conf,
+	}, "", "\t")
+	if err != nil {
+		panic(fmt.Errorf("Error making /hello handler: %v", err))
+	}
+	return func(w http.ResponseWriter, req *http.Request) {
+		fmt.Fprintf(w, "%s", txt)
+	}
 }
 
 // handleStats handles incoming stats payloads.
