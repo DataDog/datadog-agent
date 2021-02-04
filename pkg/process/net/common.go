@@ -80,6 +80,7 @@ func GetRemoteSystemProbeUtil() (*RemoteSysProbeUtil, error) {
 	return globalUtil, nil
 }
 
+// GetProcStats returns a set of process stats by querying system-probe
 func (r *RemoteSysProbeUtil) GetProcStats() (*model.ProcStatsWithPermByPID, error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s", procStatsURL), nil)
 	if err != nil {
