@@ -919,7 +919,7 @@ func (t *Tracer) getProbeProgramIDs() (map[string]uint32, error) {
 func (t *Tracer) conntrackExists(ctr *cachedConntrack, conn *ConnTuple) bool {
 	ok, err := ctr.Exists(conn)
 	if err != nil {
-		log.Errorf("error checking conntrack for connection %s: %s", *conn, err)
+		log.Warnf("error checking conntrack for connection %s: %s", *conn, err)
 	}
 
 	return ok
