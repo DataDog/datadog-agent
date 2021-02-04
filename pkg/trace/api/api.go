@@ -415,23 +415,23 @@ func (r *HTTPReceiver) makeHelloHandler() http.HandlerFunc {
 		}
 	}
 	txt, err := json.MarshalIndent(struct {
-		Version   string
-		GitCommit string
-		GitBranch string
-		BuildDate string
-		GoVersion string
-		Endpoints []string
-		Features  []string
-		Config    *config.AgentConfig
+		Version      string
+		GitCommit    string
+		GitBranch    string
+		BuildDate    string
+		GoVersion    string
+		Endpoints    []string
+		FeatureFlags []string `json:",omitempty"`
+		Config       *config.AgentConfig
 	}{
-		Version:   info.Version,
-		GitCommit: info.GitCommit,
-		GitBranch: info.GitBranch,
-		BuildDate: info.BuildDate,
-		GoVersion: info.GoVersion,
-		Endpoints: all,
-		Features:  config.Features(),
-		Config:    r.conf,
+		Version:      info.Version,
+		GitCommit:    info.GitCommit,
+		GitBranch:    info.GitBranch,
+		BuildDate:    info.BuildDate,
+		GoVersion:    info.GoVersion,
+		Endpoints:    all,
+		FeatureFlags: config.Features(),
+		Config:       r.conf,
 	}, "", "\t")
 	if err != nil {
 		panic(fmt.Errorf("Error making /hello handler: %v", err))
