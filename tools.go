@@ -30,4 +30,5 @@ import (
 	_ "golang.org/x/tools/go/gcexportdata"
 	_ "gotest.tools/gotestsum"
 	_ "honnef.co/go/tools/cmd/staticcheck"
+	_ "github.com/mailru/easyjson/easyjson"
 )
