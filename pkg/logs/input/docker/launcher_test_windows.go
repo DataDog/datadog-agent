@@ -17,7 +17,7 @@ import (
 	"github.com/docker/docker/api/types"
 )
 
-func TestGetFileSource(t *testing.T) {
+func TestGetFileSourceOnWindows(t *testing.T) {
 	tests := []struct {
 		name            string
 		sFunc           func(string, string) string
