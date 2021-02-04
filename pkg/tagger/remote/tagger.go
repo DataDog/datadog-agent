@@ -262,7 +262,9 @@ func (t *Tagger) startTaggerStream(maxElapsed time.Duration) error {
 
 		token, err := security.FetchAuthToken()
 		if err != nil {
-			return fmt.Errorf("unable to fetch authentication token: %w", err)
+			err = fmt.Errorf("unable to fetch authentication token: %w", err)
+			log.Infof("unable to establish stream, will possibly retry: %s", err)
+			return err
 		}
 
 		ctx := metadata.NewOutgoingContext(t.ctx, metadata.MD{
