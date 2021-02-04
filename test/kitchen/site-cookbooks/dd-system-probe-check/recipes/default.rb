@@ -18,7 +18,7 @@ package 'kernel headers' do
   end
 end
 
-package 'python'
+package 'python3'
 
 package 'conntrack'
 
