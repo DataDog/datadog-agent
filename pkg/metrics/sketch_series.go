@@ -79,9 +79,11 @@ func (sl SketchSeriesList) MarshalJSON() ([]byte, error) {
 	return reqBody.Bytes(), err
 }
 
-// MarshalSplitCompress uses the stream compressor to marshal and compress sketch series in constant space.
-// If a payload is larger than the max, a new payload will be generated. This method returns a slice of
-// compressed protobuf marshaled gogen.SketchPayload objects.
+// MarshalSplitCompress uses the stream compressor to marshal and compress sketch series payloads.
+// If a compressed payload is larger than the max, a new payload will be generated. This method returns a slice of
+// compressed protobuf marshaled gogen.SketchPayload objects. gogen.SketchPayload is not directly marshaled - instead
+// it's contents are marshaled individually, packed with the appropriate protobuf metadata, and compressed in stream.
+// The resulting payloads (when decompressed) are binary equal to the result of marshaling the whole object at once.
 func (sl SketchSeriesList) MarshalSplitCompress() ([]*[]byte, error) {
 	input := bytes.NewBuffer(make([]byte, 0, 1024))
 	output := bytes.NewBuffer(make([]byte, 0, 1024))
