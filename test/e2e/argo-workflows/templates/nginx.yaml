@@ -303,8 +303,8 @@ spec:
           set -euo pipefail
           set -x
 
-          # Verify the DCA has written in the configmap
-          until [[ -n $(kubectl --namespace {{inputs.parameters.namespace}} get cm datadog-custom-metrics -o jsonpath='{.data}') ]]; do
+          # Verify the DCA has written in the DatadogMetric
+          until kubectl --namespace {{inputs.parameters.namespace}} get datadogmetrics.datadoghq.com -o jsonpath='{range .items[*]}{.spec.externalMetricName}{"\n"}{end}' | grep nginx.net.request_per_s; do
            sleep 1
           done
 
@@ -387,3 +387,29 @@ spec:
             prevNb = nb;
             sleep(30000);
           }
+
+    - name: describe-hpa
+      inputs:
+        parameters:
+          - name: namespace
+      activeDeadlineSeconds: 200
+      script:
+        image: argoproj/argoexec:latest
+        command: [bash]
+        source: |
+          set -euo pipefail
+          set -x
+
+          kubectl --namespace {{inputs.parameters.namespace}} describe hpa nginxext
+
+    - name: diagnose
+      inputs:
+        parameters:
+          - name: namespace
+      steps:
+        - - name: describe-hpa
+            template: describe-hpa
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"

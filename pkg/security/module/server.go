@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -69,6 +68,18 @@ LOOP:
 	return nil
 }
 
+// Event is the interface that an event must implement to be sent to the backend
+type Event interface {
+	GetTags() []string
+	GetType() string
+}
+
+// RuleEvent is a wrapper used to send an event to the backend
+type RuleEvent struct {
+	RuleID string `json:"rule_id"`
+	Event  Event  `json:"event"`
+}
+
 // DumpProcessCache handle process dump cache requests
 func (a *APIServer) DumpProcessCache(ctx context.Context, params *api.DumpProcessCacheParams) (*api.SecurityDumpProcessCacheMessage, error) {
 	resolvers := a.probe.GetResolvers()
@@ -84,7 +95,7 @@ func (a *APIServer) DumpProcessCache(ctx context.Context, params *api.DumpProces
 }
 
 // SendEvent forwards events sent by the runtime security module to Datadog
-func (a *APIServer) SendEvent(rule *rules.Rule, event eval.Event) {
+func (a *APIServer) SendEvent(rule *rules.Rule, event Event) {
 	agentContext := &AgentContext{
 		RuleID: rule.Definition.ID,
 	}
@@ -119,7 +130,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event eval.Event) {
 	msg := &api.SecurityEventMessage{
 		RuleID: rule.Definition.ID,
 		Data:   data,
-		Tags:   append(rule.Tags, "rule_id:"+rule.Definition.ID),
+		Tags:   append(rule.Tags, append(event.GetTags(), "rule_id:"+rule.Definition.ID)...),
 	}
 
 	select {
@@ -173,7 +184,7 @@ func (a *APIServer) SendStats() error {
 	for ruleID, val := range a.GetStats() {
 		tags := []string{fmt.Sprintf("rule_id:%s", ruleID)}
 		if val > 0 {
-			if err := a.statsdClient.Count(sprobe.MetricPrefix+".rules.event_server.expired", val, tags, 1.0); err != nil {
+			if err := a.statsdClient.Count(sprobe.MetricEventServerExpired, val, tags, 1.0); err != nil {
 				return err
 			}
 		}

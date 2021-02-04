@@ -48,6 +48,10 @@ func (e *testEvent) GetType() string {
 	return e.kind
 }
 
+func (e *testEvent) GetTags() []string {
+	return nil
+}
+
 func (e *testEvent) GetPointer() unsafe.Pointer {
 	return unsafe.Pointer(e)
 }

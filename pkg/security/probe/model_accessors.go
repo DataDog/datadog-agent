@@ -229,6 +229,18 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
+	case "exec.comm":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Exec.ResolveComm((*Event)(ctx.Object))
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
 	case "exec.container_path":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -305,7 +317,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).Exec.ResolveComm((*Event)(ctx.Object))
+				return (*Event)(ctx.Object).Exec.ResolveName((*Event)(ctx.Object))
 
 			},
 			Field: field,
@@ -707,6 +719,28 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.IteratorWeight,
 		}, nil
 
+	case "process.ancestors.comm":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				var result string
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
+
+					result = element.ResolveComm((*Event)(ctx.Object))
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
 	case "process.ancestors.container_path":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -871,7 +905,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if reg.Value != nil {
 					element := (*ProcessCacheEntry)(reg.Value)
 
-					result = element.ResolveComm((*Event)(ctx.Object))
+					result = element.ResolveName((*Event)(ctx.Object))
 
 				}
 
@@ -1049,6 +1083,18 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
+	case "process.comm":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Process.ResolveComm((*Event)(ctx.Object))
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
 	case "process.container_path":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -1125,7 +1171,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).Process.ResolveComm((*Event)(ctx.Object))
+				return (*Event)(ctx.Object).Process.ResolveName((*Event)(ctx.Object))
 
 			},
 			Field: field,
@@ -1845,6 +1891,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.Exec.ResolveBasename(e), nil
 
+	case "exec.comm":
+
+		return e.Exec.ResolveComm(e), nil
+
 	case "exec.container_path":
 
 		return e.Exec.ResolveContainerPath(e), nil
@@ -1871,7 +1921,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "exec.name":
 
-		return e.Exec.ResolveComm(e), nil
+		return e.Exec.ResolveName(e), nil
 
 	case "exec.overlay_numlower":
 
@@ -2011,6 +2061,28 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := element.ResolveBasename((*Event)(ctx.Object))
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.comm":
+
+		var values []string
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ResolveComm((*Event)(ctx.Object))
 
 			values = append(values, result)
 
@@ -2186,7 +2258,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := element.ResolveComm((*Event)(ctx.Object))
+			result := element.ResolveName((*Event)(ctx.Object))
 
 			values = append(values, result)
 
@@ -2353,6 +2425,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.Process.ResolveBasename(e), nil
 
+	case "process.comm":
+
+		return e.Process.ResolveComm(e), nil
+
 	case "process.container_path":
 
 		return e.Process.ResolveContainerPath(e), nil
@@ -2379,7 +2455,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "process.name":
 
-		return e.Process.ResolveComm(e), nil
+		return e.Process.ResolveName(e), nil
 
 	case "process.overlay_numlower":
 
@@ -2652,6 +2728,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "exec.basename":
 		return "exec", nil
 
+	case "exec.comm":
+		return "exec", nil
+
 	case "exec.container_path":
 		return "exec", nil
 
@@ -2769,6 +2848,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.ancestors.basename":
 		return "*", nil
 
+	case "process.ancestors.comm":
+		return "*", nil
+
 	case "process.ancestors.container_path":
 		return "*", nil
 
@@ -2815,6 +2897,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 
 	case "process.basename":
+		return "*", nil
+
+	case "process.comm":
 		return "*", nil
 
 	case "process.container_path":
@@ -3073,6 +3158,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
+	case "exec.comm":
+
+		return reflect.String, nil
+
 	case "exec.container_path":
 
 		return reflect.String, nil
@@ -3229,6 +3318,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Slice, nil
 
+	case "process.ancestors.comm":
+
+		return reflect.Slice, nil
+
 	case "process.ancestors.container_path":
 
 		return reflect.Slice, nil
@@ -3290,6 +3383,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Slice, nil
 
 	case "process.basename":
+
+		return reflect.String, nil
+
+	case "process.comm":
 
 		return reflect.String, nil
 
@@ -3679,6 +3776,13 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 
+	case "exec.comm":
+
+		if e.Exec.Comm, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Comm"}
+		}
+		return nil
+
 	case "exec.container_path":
 
 		if e.Exec.ContainerPath, ok = value.(string); !ok {
@@ -3729,8 +3833,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 	case "exec.name":
 
-		if e.Exec.Comm, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Exec.Comm"}
+		if e.Exec.Name, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Name"}
 		}
 		return nil
 
@@ -3992,6 +4096,13 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 
+	case "process.comm":
+
+		if e.Process.Comm, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Comm"}
+		}
+		return nil
+
 	case "process.container_path":
 
 		if e.Process.ContainerPath, ok = value.(string); !ok {
@@ -4042,8 +4153,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 	case "process.name":
 
-		if e.Process.Comm, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Process.Comm"}
+		if e.Process.Name, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Name"}
 		}
 		return nil
 

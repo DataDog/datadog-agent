@@ -48,6 +48,8 @@ type Config struct {
 	EventServerRate int
 	// PIDCacheSize is the size of the user space PID caches
 	PIDCacheSize int
+	// CookieCacheSize is the size of the cookie cache used to cache process context
+	CookieCacheSize int
 	// LoadControllerEventsCountThreshold defines the amount of events past which we will trigger the in-kernel circuit breaker
 	LoadControllerEventsCountThreshold int64
 	// LoadControllerDiscarderTimeout defines the amount of time discarders set by the load controller should last
@@ -55,10 +57,12 @@ type Config struct {
 	// LoadControllerControlPeriod defines the period at which the load controller will empty the user space counter used
 	// to evaluate the amount of events brought back to user space
 	LoadControllerControlPeriod time.Duration
-	// EventsStatsPollingInterval determines how often metrics should be polled
-	EventsStatsPollingInterval time.Duration
+	// StatsPollingInterval determines how often metrics should be polled
+	StatsPollingInterval time.Duration
 	// StatsdAddr defines the statsd address
 	StatsdAddr string
+	// AgentMonitoringEvents determines if the monitoring events of the agent should be sent to Datadog
+	AgentMonitoringEvents bool
 }
 
 // NewConfig returns a new Config object
@@ -76,11 +80,13 @@ func NewConfig(cfg *config.AgentConfig) (*Config, error) {
 		EventServerBurst:                   aconfig.Datadog.GetInt("runtime_security_config.event_server.burst"),
 		EventServerRate:                    aconfig.Datadog.GetInt("runtime_security_config.event_server.rate"),
 		PIDCacheSize:                       aconfig.Datadog.GetInt("runtime_security_config.pid_cache_size"),
+		CookieCacheSize:                    aconfig.Datadog.GetInt("runtime_security_config.cookie_cache_size"),
 		LoadControllerEventsCountThreshold: int64(aconfig.Datadog.GetInt("runtime_security_config.load_controller.events_count_threshold")),
 		LoadControllerDiscarderTimeout:     time.Duration(aconfig.Datadog.GetInt("runtime_security_config.load_controller.discarder_timeout")) * time.Second,
 		LoadControllerControlPeriod:        time.Duration(aconfig.Datadog.GetInt("runtime_security_config.load_controller.control_period")) * time.Second,
-		EventsStatsPollingInterval:         time.Duration(aconfig.Datadog.GetInt("runtime_security_config.events_stats.polling_interval")) * time.Second,
+		StatsPollingInterval:               time.Duration(aconfig.Datadog.GetInt("runtime_security_config.events_stats.polling_interval")) * time.Second,
 		StatsdAddr:                         fmt.Sprintf("%s:%d", cfg.StatsdHost, cfg.StatsdPort),
+		AgentMonitoringEvents:              aconfig.Datadog.GetBool("runtime_security_config.agent_monitoring_events"),
 	}
 
 	if !c.Enabled {

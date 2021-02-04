@@ -63,16 +63,6 @@ func (t *Tagger) Init() error {
 
 	t.ctx, t.cancel = context.WithCancel(context.Background())
 
-	token, err := security.FetchAuthToken()
-	if err != nil {
-		return fmt.Errorf("unable to fetch authentication token: %w", err)
-	}
-
-	md := metadata.MD{
-		"authorization": []string{fmt.Sprintf("Bearer %s", token)},
-	}
-	t.ctx = metadata.NewOutgoingContext(t.ctx, md)
-
 	// NOTE: we're using InsecureSkipVerify because the gRPC server only
 	// persists its TLS certs in memory, and we currently have no
 	// infrastructure to make them available to clients. This is NOT
@@ -82,6 +72,7 @@ func (t *Tagger) Init() error {
 		InsecureSkipVerify: true,
 	})
 
+	var err error
 	t.conn, err = grpc.DialContext(
 		t.ctx,
 		fmt.Sprintf(":%v", config.Datadog.GetInt("cmd_port")),
@@ -131,7 +122,11 @@ func (t *Tagger) Tag(entityID string, cardinality collectors.TagCardinality) ([]
 		return nil, err
 	}
 
-	return entity.GetTags(cardinality), nil
+	if entity != nil {
+		return entity.GetTags(cardinality), nil
+	}
+
+	return []string{}, nil
 }
 
 // Standard returns the standard tags for a given entity.
@@ -183,6 +178,8 @@ func (t *Tagger) run() {
 
 		response, err := t.stream.Recv()
 		if err != nil {
+			telemetry.StreamErrors.Inc()
+
 			// when Recv() returns an error, the stream is aborted
 			// and the contents of our store are considered out of
 			// sync and therefore no longer valid, so the tagger
@@ -263,8 +260,16 @@ func (t *Tagger) startTaggerStream(maxElapsed time.Duration) error {
 		default:
 		}
 
-		var err error
-		t.stream, err = t.client.TaggerStreamEntities(t.ctx, &pb.StreamTagsRequest{
+		token, err := security.FetchAuthToken()
+		if err != nil {
+			return fmt.Errorf("unable to fetch authentication token: %w", err)
+		}
+
+		ctx := metadata.NewOutgoingContext(t.ctx, metadata.MD{
+			"authorization": []string{fmt.Sprintf("Bearer %s", token)},
+		})
+
+		t.stream, err = t.client.TaggerStreamEntities(ctx, &pb.StreamTagsRequest{
 			Cardinality: pb.TagCardinality_HIGH,
 		})
 

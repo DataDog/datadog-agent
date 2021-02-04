@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/dustin/go-humanize"
 )
@@ -146,6 +147,7 @@ type ConnectionStats struct {
 	DNSFailureLatencySum   uint64
 	DNSCountByRcode        map[uint32]uint32
 	DNSStatsByDomain       map[string]DNSStats
+	HTTPStatsByPath        map[string]http.RequestStats
 }
 
 // IPTranslation can be associated with a connection to show the connection is NAT'd

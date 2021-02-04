@@ -105,6 +105,11 @@ func (f *SyncForwarder) SubmitMetadata(payload Payloads, extra http.Header) erro
 	return f.SubmitV1Intake(payload, extra)
 }
 
+// SubmitAgentChecksMetadata will send a agentchecks_metadata tag type payload to Datadog backend.
+func (f *SyncForwarder) SubmitAgentChecksMetadata(payload Payloads, extra http.Header) error {
+	return f.SubmitV1Intake(payload, extra)
+}
+
 // SubmitProcessChecks sends process checks
 func (f *SyncForwarder) SubmitProcessChecks(payload Payloads, extra http.Header) (chan Response, error) {
 	return f.defaultForwarder.submitProcessLikePayload(processesEndpoint, payload, extra, true)

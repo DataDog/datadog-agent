@@ -176,6 +176,10 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(in *jle
 			out.ContainerPath = string(in.String())
 		case "executable_path":
 			out.Path = string(in.String())
+		case "path_resolution_error":
+			out.PathResolutionError = string(in.String())
+		case "comm":
+			out.Comm = string(in.String())
 		case "executable_inode":
 			out.Inode = uint64(in.Uint64())
 		case "executable_mount_id":
@@ -236,21 +240,21 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(out *jw
 	out.RawByte('{')
 	first := true
 	_ = first
-	{
+	if in.Parent != nil {
 		const prefix string = ",\"parent\":"
+		first = false
 		out.RawString(prefix[1:])
-		if in.Parent == nil {
-			out.RawString("null")
-		} else {
-			(*in.Parent).MarshalEasyJSON(out)
-		}
+		(*in.Parent).MarshalEasyJSON(out)
 	}
-	{
+	if len(in.Ancestors) != 0 {
 		const prefix string = ",\"ancestors\":"
-		out.RawString(prefix)
-		if in.Ancestors == nil && (out.Flags&jwriter.NilSliceAsEmpty) == 0 {
-			out.RawString("null")
+		if first {
+			first = false
+			out.RawString(prefix[1:])
 		} else {
+			out.RawString(prefix)
+		}
+		{
 			out.RawByte('[')
 			for v2, v3 := range in.Ancestors {
 				if v2 > 0 {
@@ -265,84 +269,184 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(out *jw
 			out.RawByte(']')
 		}
 	}
-	{
+	if in.Pid != 0 {
 		const prefix string = ",\"pid\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.Uint32(uint32(in.Pid))
 	}
-	{
+	if in.PPid != 0 {
 		const prefix string = ",\"ppid\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.Uint32(uint32(in.PPid))
 	}
-	{
+	if in.Tid != 0 {
 		const prefix string = ",\"tid\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.Uint32(uint32(in.Tid))
 	}
-	{
+	if in.UID != 0 {
 		const prefix string = ",\"uid\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.Uint32(uint32(in.UID))
 	}
-	{
+	if in.GID != 0 {
 		const prefix string = ",\"gid\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.Uint32(uint32(in.GID))
 	}
-	{
+	if in.Name != "" {
 		const prefix string = ",\"name\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.String(string(in.Name))
 	}
 	if in.ContainerPath != "" {
 		const prefix string = ",\"executable_container_path\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.String(string(in.ContainerPath))
 	}
-	{
+	if in.Path != "" {
 		const prefix string = ",\"executable_path\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.String(string(in.Path))
 	}
-	{
+	if in.PathResolutionError != "" {
+		const prefix string = ",\"path_resolution_error\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.PathResolutionError))
+	}
+	if in.Comm != "" {
+		const prefix string = ",\"comm\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.Comm))
+	}
+	if in.Inode != 0 {
 		const prefix string = ",\"executable_inode\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.Uint64(uint64(in.Inode))
 	}
-	{
+	if in.MountID != 0 {
 		const prefix string = ",\"executable_mount_id\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.Uint32(uint32(in.MountID))
 	}
 	if in.TTY != "" {
 		const prefix string = ",\"tty\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.String(string(in.TTY))
 	}
 	if in.ForkTime != nil {
 		const prefix string = ",\"fork_time\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.Raw((*in.ForkTime).MarshalJSON())
 	}
 	if in.ExecTime != nil {
 		const prefix string = ",\"exec_time\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.Raw((*in.ExecTime).MarshalJSON())
 	}
 	if in.ExitTime != nil {
 		const prefix string = ",\"exit_time\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.Raw((*in.ExitTime).MarshalJSON())
 	}
 	if in.User != "" {
 		const prefix string = ",\"user\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.String(string(in.User))
 	}
 	if in.Group != "" {
 		const prefix string = ",\"group\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.String(string(in.Group))
 	}
 	out.RawByte('}')
@@ -406,6 +510,10 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe2(in *jle
 			out.ContainerPath = string(in.String())
 		case "executable_path":
 			out.Path = string(in.String())
+		case "path_resolution_error":
+			out.PathResolutionError = string(in.String())
+		case "comm":
+			out.Comm = string(in.String())
 		case "executable_inode":
 			out.Inode = uint64(in.Uint64())
 		case "executable_mount_id":
@@ -466,84 +574,180 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe2(out *jw
 	out.RawByte('{')
 	first := true
 	_ = first
-	{
+	if in.Pid != 0 {
 		const prefix string = ",\"pid\":"
+		first = false
 		out.RawString(prefix[1:])
 		out.Uint32(uint32(in.Pid))
 	}
-	{
+	if in.PPid != 0 {
 		const prefix string = ",\"ppid\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.Uint32(uint32(in.PPid))
 	}
-	{
+	if in.Tid != 0 {
 		const prefix string = ",\"tid\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.Uint32(uint32(in.Tid))
 	}
-	{
+	if in.UID != 0 {
 		const prefix string = ",\"uid\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.Uint32(uint32(in.UID))
 	}
-	{
+	if in.GID != 0 {
 		const prefix string = ",\"gid\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.Uint32(uint32(in.GID))
 	}
-	{
+	if in.Name != "" {
 		const prefix string = ",\"name\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.String(string(in.Name))
 	}
 	if in.ContainerPath != "" {
 		const prefix string = ",\"executable_container_path\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.String(string(in.ContainerPath))
 	}
-	{
+	if in.Path != "" {
 		const prefix string = ",\"executable_path\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.String(string(in.Path))
 	}
-	{
+	if in.PathResolutionError != "" {
+		const prefix string = ",\"path_resolution_error\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.PathResolutionError))
+	}
+	if in.Comm != "" {
+		const prefix string = ",\"comm\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.Comm))
+	}
+	if in.Inode != 0 {
 		const prefix string = ",\"executable_inode\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.Uint64(uint64(in.Inode))
 	}
-	{
+	if in.MountID != 0 {
 		const prefix string = ",\"executable_mount_id\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.Uint32(uint32(in.MountID))
 	}
 	if in.TTY != "" {
 		const prefix string = ",\"tty\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.String(string(in.TTY))
 	}
 	if in.ForkTime != nil {
 		const prefix string = ",\"fork_time\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.Raw((*in.ForkTime).MarshalJSON())
 	}
 	if in.ExecTime != nil {
 		const prefix string = ",\"exec_time\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.Raw((*in.ExecTime).MarshalJSON())
 	}
 	if in.ExitTime != nil {
 		const prefix string = ",\"exit_time\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.Raw((*in.ExitTime).MarshalJSON())
 	}
 	if in.User != "" {
 		const prefix string = ",\"user\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.String(string(in.User))
 	}
 	if in.Group != "" {
 		const prefix string = ",\"group\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.String(string(in.Group))
 	}
 	out.RawByte('}')
@@ -597,6 +801,8 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe3(in *jle
 			out.Name = string(in.String())
 		case "container_path":
 			out.ContainerPath = string(in.String())
+		case "path_resolution_error":
+			out.PathResolutionError = string(in.String())
 		case "inode":
 			if in.IsNull() {
 				in.Skip()
@@ -747,6 +953,16 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe3(out *jw
 			out.RawString(prefix)
 		}
 		out.String(string(in.ContainerPath))
+	}
+	if in.PathResolutionError != "" {
+		const prefix string = ",\"path_resolution_error\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.PathResolutionError))
 	}
 	if in.Inode != nil {
 		const prefix string = ",\"inode\":"
@@ -936,6 +1152,8 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe4(in *jle
 			out.Name = string(in.String())
 		case "container_path":
 			out.ContainerPath = string(in.String())
+		case "path_resolution_error":
+			out.PathResolutionError = string(in.String())
 		case "inode":
 			if in.IsNull() {
 				in.Skip()
@@ -1136,6 +1354,16 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe4(out *jw
 			out.RawString(prefix)
 		}
 		out.String(string(in.ContainerPath))
+	}
+	if in.PathResolutionError != "" {
+		const prefix string = ",\"path_resolution_error\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.PathResolutionError))
 	}
 	if in.Inode != nil {
 		const prefix string = ",\"inode\":"
@@ -1345,6 +1573,10 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe5(in *jle
 				}
 				(*out.ContainerContextSerializer).UnmarshalEasyJSON(in)
 			}
+		case "date":
+			if data := in.Raw(); in.Ok() {
+				in.AddError((out.Date).UnmarshalJSON(data))
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -1359,38 +1591,61 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe5(out *jw
 	out.RawByte('{')
 	first := true
 	_ = first
-	{
+	if in.EventContextSerializer != nil {
 		const prefix string = ",\"evt\":"
+		first = false
 		out.RawString(prefix[1:])
-		if in.EventContextSerializer == nil {
-			out.RawString("null")
-		} else {
-			(*in.EventContextSerializer).MarshalEasyJSON(out)
-		}
+		(*in.EventContextSerializer).MarshalEasyJSON(out)
 	}
 	if in.FileEventSerializer != nil {
 		const prefix string = ",\"file\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		(*in.FileEventSerializer).MarshalEasyJSON(out)
 	}
-	{
+	if true {
 		const prefix string = ",\"usr\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		(in.UserContextSerializer).MarshalEasyJSON(out)
 	}
-	{
+	if in.ProcessContextSerializer != nil {
 		const prefix string = ",\"process\":"
-		out.RawString(prefix)
-		if in.ProcessContextSerializer == nil {
-			out.RawString("null")
+		if first {
+			first = false
+			out.RawString(prefix[1:])
 		} else {
-			(*in.ProcessContextSerializer).MarshalEasyJSON(out)
+			out.RawString(prefix)
 		}
+		(*in.ProcessContextSerializer).MarshalEasyJSON(out)
 	}
 	if in.ContainerContextSerializer != nil {
 		const prefix string = ",\"container\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		(*in.ContainerContextSerializer).MarshalEasyJSON(out)
+	}
+	if true {
+		const prefix string = ",\"date\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.Raw((in.Date).MarshalJSON())
 	}
 	out.RawByte('}')
 }
@@ -1457,19 +1712,30 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe6(out *jw
 	out.RawByte('{')
 	first := true
 	_ = first
-	{
+	if in.Name != "" {
 		const prefix string = ",\"name\":"
+		first = false
 		out.RawString(prefix[1:])
 		out.String(string(in.Name))
 	}
-	{
+	if in.Category != "" {
 		const prefix string = ",\"category\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.String(string(in.Category))
 	}
-	{
+	if in.Outcome != "" {
 		const prefix string = ",\"outcome\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.String(string(in.Outcome))
 	}
 	out.RawByte('}')

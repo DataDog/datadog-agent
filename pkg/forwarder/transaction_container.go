@@ -40,12 +40,14 @@ func buildTransactionContainer(
 	flushToStorageRatio float64,
 	optionalDomainFolderPath string,
 	storageMaxSize int64,
-	dropPrioritySorter transactionPrioritySorter) *transactionContainer {
+	dropPrioritySorter transactionPrioritySorter,
+	domain string,
+	apiKeys []string) *transactionContainer {
 	var storage transactionStorage
 	var err error
 
 	if optionalDomainFolderPath != "" && storageMaxSize > 0 {
-		serializer := NewTransactionsSerializer()
+		serializer := NewTransactionsSerializer(domain, apiKeys)
 		storage, err = newTransactionsFileStorage(serializer, optionalDomainFolderPath, storageMaxSize, transactionsFileStorageTelemetry{})
 
 		// If the storage on disk cannot be used, log the error and continue.
@@ -176,6 +178,11 @@ func (tc *transactionContainer) extractTransactionsForDisk(payloadSize int) [][]
 		// Flush the N first transactions whose payload size sum is greater than `sizeInBytesToFlush`
 		transactions := tc.extractTransactionsFromMemory(sizeInBytesToFlush)
 
+		if len(transactions) == 0 {
+			// Happens when `sizeInBytesToFlush == 0`
+			// Avoid infinite loop
+			break
+		}
 		payloadsGroupToFlush = append(payloadsGroupToFlush, transactions)
 	}
 

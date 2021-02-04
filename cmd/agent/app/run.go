@@ -46,6 +46,9 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 
+	// runtime init routines
+	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
+
 	// register core checks
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers"
@@ -89,6 +92,9 @@ func run(cmd *cobra.Command, args []string) error {
 	defer func() {
 		StopAgent()
 	}()
+
+	// prepare go runtime
+	ddruntime.SetMaxProcs()
 
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
