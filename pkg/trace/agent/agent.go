@@ -115,8 +115,16 @@ func (a *Agent) Run() {
 // FlushSync flushes traces sychronously. This method only works when the agent is configured in synchronous flushing
 // mode.
 func (a *Agent) FlushSync() {
-	a.StatsWriter.FlushSync()
-	a.TraceWriter.FlushSync()
+	err := a.StatsWriter.FlushSync()
+	if err != nil {
+		log.Errorf("Error flushing trace agent: %s", err.Error())
+		return
+	}
+	err = a.TraceWriter.FlushSync()
+	if err != nil {
+		log.Errorf("Error flushing trace agent: %s", err.Error())
+		return
+	}
 }
 
 func (a *Agent) work() {

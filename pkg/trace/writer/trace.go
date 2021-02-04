@@ -7,6 +7,7 @@ package writer
 
 import (
 	"compress/gzip"
+	"errors"
 	"math"
 	"strings"
 	"sync"
@@ -53,7 +54,7 @@ type TraceWriter struct {
 	env       string
 	senders   []*sender
 	stop      chan struct{}
-	flushChan chan struct{}
+	flushChan chan chan struct{}
 	stats     *info.TraceWriterInfo
 	wg        sync.WaitGroup // waits for gzippers
 	tick      time.Duration  // flush frequency
@@ -78,7 +79,7 @@ func NewTraceWriter(cfg *config.AgentConfig) *TraceWriter {
 		env:       cfg.DefaultEnv,
 		stats:     &info.TraceWriterInfo{},
 		stop:      make(chan struct{}),
-		flushChan: make(chan struct{}),
+		flushChan: make(chan chan struct{}),
 		syncMode:  cfg.SynchronousFlushing,
 		tick:      5 * time.Second,
 		easylog:   logutil.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
@@ -151,10 +152,12 @@ func (w *TraceWriter) runSync() {
 		select {
 		case pkg := <-w.In:
 			w.addSpans(pkg)
-		case <-w.flushChan:
-			// Make sure all pending spans have been buffered
+		case notify := <-w.flushChan:
 			w.drainAndFlush()
-			w.wg.Done()
+			// Wait for encoding/compression to complete on each payload,
+			// and submission to senders
+			w.wg.Wait()
+			notify <- struct{}{}
 		case <-w.stop:
 			w.drainAndFlush()
 			return
@@ -165,14 +168,13 @@ func (w *TraceWriter) runSync() {
 // FlushSync blocks and sends pending payloads when syncMode is true
 func (w *TraceWriter) FlushSync() error {
 	if !w.syncMode {
-		return log.Errorf("FlushSync called on TraceWriter when in async mode")
+		return errors.New("FlushSync called on TraceWriter when in async mode")
 	}
 	defer w.report()
 
-	w.wg.Add(1) // Add will be completed in sync loop
-	w.flushChan <- struct{}{}
-	// Wait for all payloads to be submitted to the sender
-	w.wg.Wait()
+	notify := make(chan struct{}, 1)
+	w.flushChan <- notify
+	<-notify
 
 	var wg sync.WaitGroup
 	for _, s := range w.senders {
@@ -182,7 +184,6 @@ func (w *TraceWriter) FlushSync() error {
 			s.waitForInflight()
 		}(s)
 	}
-	// Wait for all the senders to finish inflight requests
 	wg.Wait()
 	return nil
 }

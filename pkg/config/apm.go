@@ -75,6 +75,7 @@ func setupAPM(config Config) {
 	config.BindEnv("apm_config.ignore_resources", "DD_APM_IGNORE_RESOURCES", "DD_IGNORE_RESOURCE")       //nolint:errcheck
 	config.BindEnv("apm_config.receiver_socket", "DD_APM_RECEIVER_SOCKET")                               //nolint:errcheck
 	config.BindEnv("apm_config.windows_pipe_name", "DD_APM_WINDOWS_PIPE_NAME")                           //nolint:errcheck
+	config.BindEnv("apm_config.sync_flushing", "DD_APM_SYNC_FLUSHING")
 
 	config.SetEnvKeyTransformer("apm_config.ignore_resources", func(in string) interface{} {
 		r, err := splitCSVString(in, ',')

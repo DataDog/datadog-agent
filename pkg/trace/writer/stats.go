@@ -6,6 +6,7 @@
 package writer
 
 import (
+	"errors"
 	"math"
 	"strings"
 	"sync"
@@ -42,11 +43,11 @@ type StatsWriter struct {
 	env       string
 	senders   []*sender
 	stop      chan struct{}
-	flushChan chan struct{}
-	wg        sync.WaitGroup
+	flushChan chan chan struct{}
 	stats     *info.StatsWriterInfo
-	payloads  []*stats.Payload // payloads buffered for sync mode
-	syncMode  bool
+
+	syncMode bool
+	payloads []*stats.Payload // payloads buffered for sync mode
 
 	easylog *logutil.ThrottledLogger
 }
@@ -59,7 +60,7 @@ func NewStatsWriter(cfg *config.AgentConfig, in <-chan []stats.Bucket) *StatsWri
 		env:       cfg.DefaultEnv,
 		stats:     &info.StatsWriterInfo{},
 		stop:      make(chan struct{}),
-		flushChan: make(chan struct{}),
+		flushChan: make(chan chan struct{}),
 		syncMode:  cfg.SynchronousFlushing,
 		easylog:   logutil.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
 	}
@@ -97,9 +98,9 @@ func (w *StatsWriter) Run() {
 			if !w.syncMode {
 				w.sendPayloads()
 			}
-		case <-w.flushChan:
+		case notify := <-w.flushChan:
 			w.sendPayloads()
-			w.wg.Done()
+			notify <- struct{}{}
 		case <-t.C:
 			w.report()
 		case <-w.stop:
@@ -111,13 +112,13 @@ func (w *StatsWriter) Run() {
 // FlushSync is a no-op for TraceWriter
 func (w *StatsWriter) FlushSync() error {
 	if !w.syncMode {
-		return log.Error("SyncFlush called on StatsWriter, which is a no-op")
+		return errors.New("SyncFlush called on StatsWriter, which is a no-op")
 	}
 
 	defer w.report()
-	w.wg.Add(1)
-	w.flushChan <- struct{}{}
-	w.wg.Wait()
+	notify := make(chan struct{}, 1)
+	w.flushChan <- notify
+	<-notify
 
 	// Wait for all the senders to finish
 	var wg sync.WaitGroup
