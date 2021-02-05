@@ -18,12 +18,12 @@ import (
 */
 import "C"
 
-/* tcp_conn_t
+/* conn_t
 conn_tuple_t tup;
 conn_stats_ts_t conn_stats;
 tcp_stats_t tcp_stats;
 */
-type TCPConn C.tcp_conn_t
+type Conn C.conn_t
 
 /* conn_tuple_t
 __u64 saddr_h;
@@ -39,11 +39,11 @@ __u32 metadata;
 type ConnTuple C.conn_tuple_t
 
 /* batch_t
-tcp_conn_t c0;
-tcp_conn_t c1;
-tcp_conn_t c2;
-tcp_conn_t c3;
-tcp_conn_t c4;
+conn_t c0;
+conn_t c1;
+conn_t c2;
+conn_t c3;
+conn_t c4;
 __u16 pos;
 __u16 cpu;
 */
@@ -239,7 +239,7 @@ __u32 tcp_sent_miscounts;
 */
 type kernelTelemetry C.telemetry_t
 
-const TCPCloseBatchSize = int(C.TCP_CLOSED_BATCH_SIZE)
+const ConnCloseBatchSize = int(C.CONN_CLOSED_BATCH_SIZE)
 
 func (cs *ConnStatsWithTimestamp) isExpired(latestTime uint64, timeout uint64) bool {
 	return latestTime > timeout+uint64(cs.timestamp)
@@ -252,20 +252,20 @@ func toBatch(data []byte) *batch {
 // ExtractBatchInto extract network.ConnectionStats objects from the given `batch` into the supplied `buffer`.
 // The `start` (inclusive) and `end` (exclusive) arguments represent the offsets of the connections we're interested in.
 func ExtractBatchInto(buffer []network.ConnectionStats, b *batch, start, end int) []network.ConnectionStats {
-	if start >= end || end > TCPCloseBatchSize {
+	if start >= end || end > ConnCloseBatchSize {
 		return nil
 	}
 
-	current := uintptr(unsafe.Pointer(b)) + uintptr(start)*C.sizeof_tcp_conn_t
+	current := uintptr(unsafe.Pointer(b)) + uintptr(start)*C.sizeof_conn_t
 	for i := start; i < end; i++ {
-		ct := TCPConn(*(*C.tcp_conn_t)(unsafe.Pointer(current)))
+		ct := Conn(*(*C.conn_t)(unsafe.Pointer(current)))
 
 		tup := ConnTuple(ct.tup)
 		cst := ConnStatsWithTimestamp(ct.conn_stats)
 		tst := TCPStats(ct.tcp_stats)
 
 		buffer = append(buffer, connStats(&tup, &cst, &tst))
-		current += C.sizeof_tcp_conn_t
+		current += C.sizeof_conn_t
 	}
 
 	return buffer
@@ -284,24 +284,29 @@ func connStats(t *ConnTuple, s *ConnStatsWithTimestamp, tcpStats *TCPStats) netw
 		dest = util.V6Address(uint64(t.daddr_l), uint64(t.daddr_h))
 	}
 
-	return network.ConnectionStats{
-		Pid:                     uint32(t.pid),
-		Type:                    connType(metadata),
-		Family:                  family,
-		NetNS:                   uint32(t.netns),
-		Source:                  source,
-		Dest:                    dest,
-		SPort:                   uint16(t.sport),
-		DPort:                   uint16(t.dport),
-		MonotonicSentBytes:      uint64(s.sent_bytes),
-		MonotonicRecvBytes:      uint64(s.recv_bytes),
-		MonotonicRetransmits:    uint32(tcpStats.retransmits),
-		MonotonicTCPEstablished: uint32(tcpStats.state_transitions >> C.TCP_ESTABLISHED & 1),
-		MonotonicTCPClosed:      uint32(tcpStats.state_transitions >> C.TCP_CLOSE & 1),
-		RTT:                     uint32(tcpStats.rtt),
-		RTTVar:                  uint32(tcpStats.rtt_var),
-		LastUpdateEpoch:         uint64(s.timestamp),
+	stats := network.ConnectionStats{
+		Pid:                uint32(t.pid),
+		Type:               connType(metadata),
+		Family:             family,
+		NetNS:              uint32(t.netns),
+		Source:             source,
+		Dest:               dest,
+		SPort:              uint16(t.sport),
+		DPort:              uint16(t.dport),
+		MonotonicSentBytes: uint64(s.sent_bytes),
+		MonotonicRecvBytes: uint64(s.recv_bytes),
+		LastUpdateEpoch:    uint64(s.timestamp),
 	}
+
+	if connType(metadata) == network.TCP {
+		stats.MonotonicRetransmits = uint32(tcpStats.retransmits)
+		stats.MonotonicTCPEstablished = uint32(tcpStats.state_transitions >> C.TCP_ESTABLISHED & 1)
+		stats.MonotonicTCPClosed = uint32(tcpStats.state_transitions >> C.TCP_CLOSE & 1)
+		stats.RTT = uint32(tcpStats.rtt)
+		stats.RTTVar = uint32(tcpStats.rtt_var)
+	}
+
+	return stats
 }
 
 func connType(m uint) network.ConnectionType {

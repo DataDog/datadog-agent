@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 /*
 Package api implements the agent IPC api. Using HTTP
@@ -129,6 +129,10 @@ func StartServer() error {
 		// seconds, need to find a solution for that before
 		// re-enabling.
 		// WriteTimeout: config.Datadog.GetDuration("server_timeout") * time.Second,
+		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
+			// Store the connection in the context so requests can reference it if needed
+			return context.WithValue(ctx, agent.ConnContextKey, c)
+		},
 	}
 
 	tlsListener := tls.NewListener(listener, srv.TLSConfig)

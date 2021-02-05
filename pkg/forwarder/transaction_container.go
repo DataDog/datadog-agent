@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package forwarder
 
@@ -35,20 +35,19 @@ type transactionContainer struct {
 	mutex                      sync.RWMutex
 }
 
-func tryNewTransactionContainer(
+func buildTransactionContainer(
 	maxMemSizeInBytes int,
 	flushToStorageRatio float64,
 	optionalDomainFolderPath string,
 	storageMaxSize int64,
-	dropPrioritySorter transactionPrioritySorter) (*transactionContainer, error) {
-	if maxMemSizeInBytes <= 0 {
-		return nil, nil
-	}
+	dropPrioritySorter transactionPrioritySorter,
+	domain string,
+	apiKeys []string) *transactionContainer {
 	var storage transactionStorage
 	var err error
 
 	if optionalDomainFolderPath != "" && storageMaxSize > 0 {
-		serializer := NewTransactionsSerializer()
+		serializer := NewTransactionsSerializer(domain, apiKeys)
 		storage, err = newTransactionsFileStorage(serializer, optionalDomainFolderPath, storageMaxSize, transactionsFileStorageTelemetry{})
 
 		// If the storage on disk cannot be used, log the error and continue.
@@ -58,7 +57,7 @@ func tryNewTransactionContainer(
 		}
 	}
 
-	return newTransactionContainer(dropPrioritySorter, storage, maxMemSizeInBytes, flushToStorageRatio, transactionContainerTelemetry{}), nil
+	return newTransactionContainer(dropPrioritySorter, storage, maxMemSizeInBytes, flushToStorageRatio, transactionContainerTelemetry{})
 }
 
 func newTransactionContainer(
@@ -179,6 +178,11 @@ func (tc *transactionContainer) extractTransactionsForDisk(payloadSize int) [][]
 		// Flush the N first transactions whose payload size sum is greater than `sizeInBytesToFlush`
 		transactions := tc.extractTransactionsFromMemory(sizeInBytesToFlush)
 
+		if len(transactions) == 0 {
+			// Happens when `sizeInBytesToFlush == 0`
+			// Avoid infinite loop
+			break
+		}
 		payloadsGroupToFlush = append(payloadsGroupToFlush, transactions)
 	}
 

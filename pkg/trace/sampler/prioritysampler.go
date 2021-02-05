@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // Package sampler contains all the logic of the agent-side trace sampling
 //
@@ -46,9 +46,9 @@ type PriorityEngine struct {
 }
 
 // NewPriorityEngine returns an initialized Sampler
-func NewPriorityEngine(extraRate float64, maxTPS float64, rateByService *RateByService) *PriorityEngine {
+func NewPriorityEngine(extraRate float64, targetTPS float64, rateByService *RateByService) *PriorityEngine {
 	s := &PriorityEngine{
-		Sampler:       newSampler(extraRate, maxTPS),
+		Sampler:       newSampler(extraRate, targetTPS),
 		rateByService: rateByService,
 		catalog:       newServiceLookup(),
 		exit:          make(chan struct{}),

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package host
 
@@ -39,7 +39,8 @@ type LogsMeta struct {
 	Transport string `json:"transport"`
 }
 
-type tags struct {
+// Tags contains the detected host tags
+type Tags struct {
 	System              []string `json:"system,omitempty"`
 	GoogleCloudPlatform []string `json:"google cloud platform,omitempty"`
 }
@@ -64,7 +65,7 @@ type Payload struct {
 	PythonVersion string            `json:"python"`
 	SystemStats   *systemStats      `json:"systemStats"`
 	Meta          *Meta             `json:"meta"`
-	HostTags      *tags             `json:"host-tags"`
+	HostTags      *Tags             `json:"host-tags"`
 	ContainerMeta map[string]string `json:"container-meta,omitempty"`
 	NetworkMeta   *NetworkMeta      `json:"network"`
 	LogsMeta      *LogsMeta         `json:"logs"`

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package providers
 
@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestSetupConfigs(t *testing.T) {
+func TestGetPrometheusConfigs(t *testing.T) {
 	tests := []struct {
 		name       string
 		config     []*common.PrometheusCheck
@@ -156,7 +156,7 @@ func TestSetupConfigs(t *testing.T) {
 					},
 				},
 			},
-			wantChecks: nil,
+			wantChecks: []*common.PrometheusCheck{},
 			wantErr:    false,
 		},
 		{
@@ -196,12 +196,12 @@ func TestSetupConfigs(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := &PrometheusConfigProvider{}
 			config.Datadog.Set("prometheus_scrape.checks", tt.config)
-			if err := p.setupConfigs(); (err != nil) != tt.wantErr {
-				t.Errorf("PrometheusConfigProvider.setupConfigs() error = %v, wantErr %v", err, tt.wantErr)
+			checks, err := getPrometheusConfigs()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("getPrometheusConfigs() error = %v, wantErr %v", err, tt.wantErr)
 			}
-			assert.EqualValues(t, tt.wantChecks, p.checks)
+			assert.EqualValues(t, tt.wantChecks, checks)
 		})
 	}
 }

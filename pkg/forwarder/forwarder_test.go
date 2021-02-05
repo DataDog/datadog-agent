@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package forwarder
 
@@ -544,9 +544,6 @@ func TestHighPriorityTransaction(t *testing.T) {
 
 	config.Datadog.Set("forwarder_backoff_max", 0.5)
 	defer config.Datadog.Set("forwarder_backoff_max", nil)
-
-	config.Datadog.Set("forwarder_retry_queue_max_size", 1)
-	defer config.Datadog.Set("forwarder_retry_queue_max_size", nil)
 
 	oldFlushInterval := flushInterval
 	flushInterval = 500 * time.Millisecond

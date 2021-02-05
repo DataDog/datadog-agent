@@ -19,6 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/tagger/local"
+	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
@@ -110,6 +113,13 @@ func runAgent(exit chan struct{}) {
 	log.Infof("running version: %s", versionString(", "))
 
 	// Tagger must be initialized after agent config has been setup
+	var t tagger.Tagger
+	if ddconfig.Datadog.GetBool("process_config.remote_tagger") {
+		t = remote.NewTagger()
+	} else {
+		t = local.NewTagger(collectors.DefaultCatalog)
+	}
+	tagger.SetDefaultTagger(t)
 	tagger.Init()
 	defer tagger.Stop() //nolint:errcheck
 
@@ -223,8 +233,9 @@ func debugCheckResults(cfg *config.AgentConfig, check string) error {
 		return err
 	}
 
-	if check == checks.Connections.Name() {
-		// Connections check requires process-check to have occurred first (for process creation ts)
+	// Connections check requires process-check to have occurred first (for process creation ts),
+	// RTProcess check requires process check to gather PIDs first
+	if check == checks.Connections.Name() || check == checks.RTProcess.Name() {
 		checks.Process.Init(cfg, sysInfo)
 		checks.Process.Run(cfg, 0) //nolint:errcheck
 	}

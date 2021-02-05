@@ -3,8 +3,9 @@
 
 #include <linux/types.h>
 
-static const __u64 DISABLED = 0;
-static const __u64 ENABLED = 1;
+#define bool _Bool
+#define true 1
+#define false 0
 
 typedef struct {
     __u64 sent_bytes;
@@ -54,7 +55,7 @@ typedef struct {
     conn_tuple_t tup;
     conn_stats_ts_t conn_stats;
     tcp_stats_t tcp_stats;
-} tcp_conn_t;
+} conn_t;
 
 // From include/net/tcp.h
 // tcp_flag_byte(th) (((u_int8_t *)th)[13])
@@ -101,8 +102,11 @@ typedef struct {
     // this is useful for detecting race conditions that result in a batch being overrriden
     // before it gets consumed from userspace
     __u64 idx;
-    // pos indicates the current batch slot that should be written to
-    __u8 pos;
+    // idx_to_notify is used to track which batch completions were notified to userspace
+    // * if idx_to_notify == idx, the current index is still being appended to;
+    // * if idx_to_notify < idx, the batch at idx_to_notify needs to be sent to userspace;
+    // (note that idx will never be less than idx_to_notify);
+    __u64 idx_to_notify;
 } http_batch_state_t;
 
 // This struct is used in the map lookup that returns the active batch for a certain CPU core
@@ -123,7 +127,8 @@ typedef struct {
 } http_transaction_t;
 
 typedef struct {
-    http_batch_state_t state;
+    __u64 idx;
+    __u8 pos;
     http_transaction_t txs[HTTP_BATCH_SIZE];
 } http_batch_t;
 
@@ -140,20 +145,20 @@ typedef struct {
     __u64 batch_idx;
 } http_batch_notification_t;
 
-// Must match the number of tcp_conn_t objects embedded in the batch_t struct
-#ifndef TCP_CLOSED_BATCH_SIZE
-#define TCP_CLOSED_BATCH_SIZE 5
+// Must match the number of conn_t objects embedded in the batch_t struct
+#ifndef CONN_CLOSED_BATCH_SIZE
+#define CONN_CLOSED_BATCH_SIZE 5
 #endif
 
 // This struct is meant to be used as a container for batching
 // writes to the perf buffer. Ideally we should have an array of tcp_conn_t objects
 // but apparently eBPF verifier doesn't allow arbitrary index access during runtime.
 typedef struct {
-    tcp_conn_t c0;
-    tcp_conn_t c1;
-    tcp_conn_t c2;
-    tcp_conn_t c3;
-    tcp_conn_t c4;
+    conn_t c0;
+    conn_t c1;
+    conn_t c2;
+    conn_t c3;
+    conn_t c4;
     __u16 pos;
     __u16 cpu;
 } batch_t;
@@ -162,6 +167,7 @@ typedef struct {
 typedef struct {
     __u64 tcp_sent_miscounts;
     __u64 missed_tcp_close;
+    __u64 missed_udp_close;
     __u64 udp_sends_processed;
     __u64 udp_sends_missed;
 } telemetry_t;
@@ -171,7 +177,6 @@ typedef struct {
 
 typedef struct {
     __u16 port;
-    __u64 fd;
 } bind_syscall_args_t;
 
 typedef struct {

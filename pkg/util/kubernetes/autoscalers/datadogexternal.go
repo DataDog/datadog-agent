@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017-2020 Datadog, Inc.
+// Copyright 2017-present Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -10,6 +10,7 @@ package autoscalers
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -59,6 +60,7 @@ const (
 	timestamp             = 0
 	queryEndpoint         = "/api/v1/query"
 	metricsEndpointPrefix = "https://api."
+	metricsEndpointConfig = "external_metrics_provider.endpoint"
 )
 
 // queryDatadogExternal converts the metric name and labels from the Ref format into a Datadog metric.
@@ -185,7 +187,17 @@ func (p *Processor) updateRateLimitingMetrics() error {
 func NewDatadogClient() (*datadog.Client, error) {
 	apiKey := config.Datadog.GetString("api_key")
 	appKey := config.Datadog.GetString("app_key")
-	endpoint := config.GetMainEndpoint(metricsEndpointPrefix, "external_metrics_provider.endpoint")
+
+	// DATADOG_HOST used to be the only way to set the external metrics
+	// endpoint, so we need to keep backwards compatibility. In order of
+	// priority, we use:
+	//   - DD_EXTERNAL_METRICS_PROVIDER_ENDPOINT
+	//   - DATADOG_HOST
+	//   - DD_SITE
+	endpoint := os.Getenv("DATADOG_HOST")
+	if config.Datadog.GetString(metricsEndpointConfig) != "" || endpoint == "" {
+		endpoint = config.GetMainEndpoint(metricsEndpointPrefix, metricsEndpointConfig)
+	}
 
 	if appKey == "" || apiKey == "" {
 		return nil, errors.New("missing the api/app key pair to query Datadog")

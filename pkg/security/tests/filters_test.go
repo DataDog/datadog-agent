@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build functionaltests
 
@@ -48,7 +48,7 @@ func waitForOpenDiscarder(test *testModule, filename string) (*probe.Event, erro
 	var event *probe.Event
 	for {
 		select {
-		case <-test.probeHandler.events:
+		case <-test.probeHandler.GetActiveEventsChan():
 		case discarder := <-test.discarders:
 			if value, _ := discarder.event.GetFieldValue("open.filename"); value == filename {
 				event = discarder.event.(*sprobe.Event)

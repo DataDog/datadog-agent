@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package config
 
@@ -281,7 +281,7 @@ func TestLoadEnv(t *testing.T) {
 			defer os.Unsetenv(envKey)
 			cfg, err := Load("./testdata/full.yaml")
 			assert.NoError(err)
-			assert.Equal(6., cfg.MaxTPS)
+			assert.Equal(6., cfg.TargetTPS)
 		})
 	}
 

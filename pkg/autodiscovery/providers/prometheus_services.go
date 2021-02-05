@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build clusterchecks
 // +build kubeapiserver
@@ -90,14 +90,12 @@ func NewPrometheusServicesConfigProvider(configProviders config.ConfigurationPro
 		endpointsLister: endpointsLister,
 	}
 
-	// TODO: refactor PrometheusConfigProvider to be an init once helper
-	configProvider := &PrometheusConfigProvider{}
-	err = configProvider.setupConfigs()
+	checks, err := getPrometheusConfigs()
 	if err != nil {
 		return nil, err
 	}
 
-	p := newPromServicesProvider(configProvider.checks, api, collectEndpoints)
+	p := newPromServicesProvider(checks, api, collectEndpoints)
 
 	servicesInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    p.invalidate,

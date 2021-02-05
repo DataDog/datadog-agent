@@ -163,18 +163,10 @@ api_key:
 #
 # forwarder_timeout: 20
 
-## @param forwarder_retry_queue_max_size - integer - optional - default: 0
-## The forwarder retries failed requests. Use this setting to change the
-## maximum length of the forwarder's retry queue (each request in the queue
-## takes no more than 2MB in memory)
-#
-# forwarder_retry_queue_max_size: 30
-
 ## @param forwarder_retry_queue_payloads_max_size - integer - optional - default: 15728640 (15MB)
 ## It defines the maximum size in bytes of all the payloads in the forwarder's retry queue.
 ## The actual memory used is greater than the payloads size as there are extra fields like HTTP headers,
 ## but no more than 2.5 times the payload size.
-## If "forwarder_retry_queue_max_size" is greater than 0, this parameter is ignored.
 #
 # forwarder_retry_queue_payloads_max_size: 15728640
 
@@ -288,7 +280,7 @@ api_key:
 #   - "sensitive_key_2"
 
 ## @param no_proxy_nonexact_match - boolean - optional - default: false
-## Enable more flexible no_proxy matching. See https://godoc.org/golang.org/x/net/http/httpproxy#Config 
+## Enable more flexible no_proxy matching. See https://godoc.org/golang.org/x/net/http/httpproxy#Config
 ## for more information on accepted matching criteria.
 #
 # no_proxy_nonexact_match: false

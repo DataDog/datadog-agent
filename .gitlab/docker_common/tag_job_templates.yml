@@ -71,7 +71,7 @@
       Remove-Item `$PWD\docker.key
       ridk enable # This is only needed because invoke docker.publish-manifest calls "cat" which doesn't exist on Windows
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
-      "@ | out-file ci-scripts/docker-publish.ps1
+      "@ | out-file ci-scripts/publish.ps1
 
 .google_container_registry_tag_job_definition:
   stage: image_deploy
@@ -93,6 +93,7 @@
   variables:
     <<: *google_container_registry_variables
   before_script:
+    - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
     - $ErrorActionPreference = "Stop"
     - $SRC_TAG = "v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
     - mkdir ci-scripts
@@ -119,4 +120,4 @@
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       ridk enable # This is only needed because invoke docker.publish-manifest calls "cat" which doesn't exist on Windows
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
-      "@ | out-file ci-scripts/gcr-publish.ps1
+      "@ | out-file ci-scripts/publish.ps1

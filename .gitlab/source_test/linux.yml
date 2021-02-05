@@ -3,10 +3,8 @@
   if: $CI_COMMIT_BRANCH == "master"
 
 .retrieve_linux_go_deps: &retrieve_linux_go_deps |
-  mkdir -p $GOPATH/bin && tar xzf go-bin.tar.gz -C $GOPATH/bin
-  mkdir -p $GOPATH/pkg && tar xzf go-pkg.tar.gz -C $GOPATH/pkg
   mkdir vendor && tar xzf vendor.tar.gz -C vendor
-  rm -f go-bin.tar.gz go-pkg.tar.gz vendor.tar.gz
+  rm -f vendor.tar.gz
 
 .linux_tests_preparation:
   needs: ["linux_x64_go_deps"]
@@ -15,8 +13,6 @@
     - source /root/.bashrc && conda activate $CONDA_ENV
     - python3 -m pip install wheel
     - python3 -m pip install -r requirements.txt
-    - GO111MODULE=off go get gopkg.in/yaml.v2
-    - GO111MODULE=off go get github.com/stretchr/testify
     - inv -e rtloader.make --install-prefix=$SRC_PATH/dev --python-runtimes "$PYTHON_RUNTIMES"
     - inv -e rtloader.install
     - inv -e rtloader.format --raise-if-changed

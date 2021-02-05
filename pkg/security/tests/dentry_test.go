@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build functionaltests
 
@@ -17,8 +17,9 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
 func TestDentryRename(t *testing.T) {
@@ -907,8 +908,8 @@ func TestDentryOverlay(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if event, err := waitForOpenProbeEvent(test, testFile); err != nil {
-			t.Fatalf("should get an event: %+v", event)
+		if event, err := waitForOpenDiscarder(test, testFile); err != nil {
+			t.Fatalf("should get a discarder: %+v", event)
 		}
 
 		// should be now discarderd

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package forwarder
 
@@ -116,11 +116,12 @@ func (s *transactionsFileStorage) Deserialize() ([]Transaction, error) {
 		return nil, err
 	}
 
-	transactions, err := s.serializer.Deserialize(bytes)
+	transactions, errorsCount, err := s.serializer.Deserialize(bytes)
 	if err != nil {
 		return nil, err
 	}
-
+	s.telemetry.addDeserializeErrorsCount(errorsCount)
+	s.telemetry.addDeserializeTransactionsCount(len(transactions))
 	s.telemetry.setCurrentSizeInBytes(s.getCurrentSizeInBytes())
 	s.telemetry.setFilesCount(s.getFilesCount())
 	return transactions, err

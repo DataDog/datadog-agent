@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package serializer
 
@@ -335,6 +335,11 @@ func (s *Serializer) SendMetadata(m marshaler.Marshaler) error {
 // SendHostMetadata serializes a metadata payload and sends it to the forwarder
 func (s *Serializer) SendHostMetadata(m marshaler.Marshaler) error {
 	return s.sendMetadata(m, s.Forwarder.SubmitHostMetadata)
+}
+
+// SendAgentchecksMetadata serializes a metadata payload and sends it to the forwarder
+func (s *Serializer) SendAgentchecksMetadata(m marshaler.Marshaler) error {
+	return s.sendMetadata(m, s.Forwarder.SubmitAgentChecksMetadata)
 }
 
 func (s *Serializer) sendMetadata(m marshaler.Marshaler, submit func(payload forwarder.Payloads, extra http.Header) error) error {

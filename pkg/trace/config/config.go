@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package config
 
@@ -66,7 +66,7 @@ type AgentConfig struct {
 
 	// Sampler configuration
 	ExtraSampleRate float64
-	MaxTPS          float64
+	TargetTPS       float64
 	MaxEPS          float64
 
 	// Receiver
@@ -128,7 +128,7 @@ func New() *AgentConfig {
 		BucketInterval: time.Duration(10) * time.Second,
 
 		ExtraSampleRate: 1.0,
-		MaxTPS:          10,
+		TargetTPS:       10,
 		MaxEPS:          200,
 
 		ReceiverHost:    "localhost",
