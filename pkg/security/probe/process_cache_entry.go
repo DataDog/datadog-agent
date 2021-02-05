@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build linux
 
@@ -44,14 +44,18 @@ func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 // Fork returns a copy of the current ProcessCacheEntry
 func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.PPid = pc.Pid
-	childEntry.UID = pc.UID
-	childEntry.User = pc.User
-	childEntry.GID = pc.GID
-	childEntry.Group = pc.Group
 	childEntry.Ancestor = pc
 
-	// keep some context
-	copyProcessContext(pc, childEntry)
+	// keep some context if not present in the ebpf event
+	if childEntry.ExecTimestamp.IsZero() {
+		childEntry.TTYName = pc.TTYName
+		childEntry.Comm = pc.Comm
+		childEntry.FileEvent = pc.FileEvent
+		childEntry.ExecTimestamp = pc.ExecTimestamp
+		childEntry.Cookie = pc.Cookie
+
+		copyProcessContext(pc, childEntry)
+	}
 }
 
 func (pc *ProcessCacheEntry) String() string {

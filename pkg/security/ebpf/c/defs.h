@@ -403,8 +403,8 @@ static __attribute__((always_inline)) u64 get_enabled_events(void) {
     return 0;
 }
 
-static __attribute__((always_inline)) int mask_has_event(u64 event_mask, enum event_type event) {
-    return event_mask & (1 << (event-1));
+static __attribute__((always_inline)) int mask_has_event(u64 mask, enum event_type event) {
+    return mask & (1 << (event-1));
 }
 
 static __attribute__((always_inline)) int is_event_enabled(enum event_type event) {

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 //+build functionaltests stresstests
 
@@ -112,7 +112,6 @@ type testOpts struct {
 	disableDiscarders    bool
 	wantProbeEvents      bool
 	eventsCountThreshold int
-	forkBombThreshold    int
 	reuseProbeHandler    bool
 }
 
@@ -122,7 +121,6 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.disableDiscarders == opts.disableDiscarders &&
 		to.disableFilters == opts.disableFilters &&
 		to.eventsCountThreshold == opts.eventsCountThreshold &&
-		to.forkBombThreshold == opts.forkBombThreshold &&
 		to.reuseProbeHandler == opts.reuseProbeHandler
 }
 
@@ -222,9 +220,6 @@ func setTestConfig(dir string, opts testOpts) error {
 	if opts.eventsCountThreshold == 0 {
 		opts.eventsCountThreshold = 100000000
 	}
-	if opts.forkBombThreshold == 0 {
-		opts.forkBombThreshold = 2000
-	}
 
 	buffer := new(bytes.Buffer)
 	if err := tmpl.Execute(buffer, map[string]interface{}{
@@ -232,7 +227,6 @@ func setTestConfig(dir string, opts testOpts) error {
 		"DisableApprovers":     opts.disableApprovers,
 		"DisableDiscarders":    opts.disableDiscarders,
 		"EventsCountThreshold": opts.eventsCountThreshold,
-		"ForkBombThreshold":    opts.forkBombThreshold,
 	}); err != nil {
 		return err
 	}

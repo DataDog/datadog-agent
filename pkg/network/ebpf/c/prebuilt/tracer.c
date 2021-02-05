@@ -1,11 +1,16 @@
 #include "tracer.h"
+
+#include "tracer-events.h"
 #include "tracer-maps.h"
+#include "tracer-telemetry.h"
+
 #include "bpf_helpers.h"
 #include "bpf_endian.h"
 #include "syscalls.h"
 #include "ip.h"
 #include "ipv6.h"
 #include "http.h"
+
 #include <linux/kconfig.h>
 #include <net/inet_sock.h>
 #include <net/net_namespace.h>
@@ -142,13 +147,11 @@ static __always_inline bool check_family(struct sock* sk, u16 expected_family) {
     return family == expected_family;
 }
 
-static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type) {
-    t->saddr_h = 0;
-    t->saddr_l = 0;
-    t->daddr_h = 0;
-    t->daddr_l = 0;
-    t->sport = 0;
-    t->dport = 0;
+/**
+ * Reads values into a `conn_tuple_t` from a `sock`. Any values that are already set in conn_tuple_t
+ * are not overwritten. Returns 1 success, 0 otherwise.
+ */
+static __always_inline int read_conn_tuple_partial(conn_tuple_t * t, struct sock* skp, u64 pid_tgid, metadata_mask_t type) {
     t->pid = pid_tgid >> 32;
     t->metadata = type;
 
@@ -159,30 +162,30 @@ static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u6
     // Retrieve addresses
     if (check_family(skp, AF_INET)) {
         t->metadata |= CONN_V4;
-        bpf_probe_read(&t->saddr_l, sizeof(__u32), ((char*)skp) + offset_saddr());
-        bpf_probe_read(&t->daddr_l, sizeof(__u32), ((char*)skp) + offset_daddr());
+        if (t->saddr_l == 0) bpf_probe_read(&t->saddr_l, sizeof(u32), ((char*)skp) + offset_saddr());
+        if (t->daddr_l == 0) bpf_probe_read(&t->daddr_l, sizeof(u32), ((char*)skp) + offset_daddr());
 
         if (!t->saddr_l || !t->daddr_l) {
-            log_debug("ERR(read_conn_tuple.v4): src/dst addr not set src:%d,dst:%d\n", t->saddr_l, t->daddr_l);
+            log_debug("ERR(read_conn_tuple.v4): src or dst addr not set src=%d, dst=%d\n", t->saddr_l, t->daddr_l);
             return 0;
         }
     } else if (is_ipv6_enabled() && check_family(skp, AF_INET6)) {
-        bpf_probe_read(&t->saddr_h, sizeof(t->saddr_h), ((char*)skp) + offset_daddr_ipv6() + 2 * sizeof(u64));
-        bpf_probe_read(&t->saddr_l, sizeof(t->saddr_l), ((char*)skp) + offset_daddr_ipv6() + 3 * sizeof(u64));
-        bpf_probe_read(&t->daddr_h, sizeof(t->daddr_h), ((char*)skp) + offset_daddr_ipv6());
-        bpf_probe_read(&t->daddr_l, sizeof(t->daddr_l), ((char*)skp) + offset_daddr_ipv6() + sizeof(u64));
+        if (t->saddr_h == 0) bpf_probe_read(&t->saddr_h, sizeof(t->saddr_h), ((char*)skp) + offset_daddr_ipv6() + 2 * sizeof(u64));
+        if (t->saddr_l == 0) bpf_probe_read(&t->saddr_l, sizeof(t->saddr_l), ((char*)skp) + offset_daddr_ipv6() + 3 * sizeof(u64));
+        if (t->daddr_h == 0) bpf_probe_read(&t->daddr_h, sizeof(t->daddr_h), ((char*)skp) + offset_daddr_ipv6());
+        if (t->daddr_l == 0) bpf_probe_read(&t->daddr_l, sizeof(t->daddr_l), ((char*)skp) + offset_daddr_ipv6() + sizeof(u64));
 
         // We can only pass 4 args to bpf_trace_printk
         // so split those 2 statements to be able to log everything
         if (!(t->saddr_h || t->saddr_l)) {
-            log_debug("ERR(read_conn_tuple.v6): src addr not set: src_l:%d,src_h:%d\n",
-                t->saddr_l, t->saddr_h);
+            log_debug("ERR(read_conn_tuple.v6): src addr not set: type=%d, saddr_l=%d, saddr_h=%d\n",
+                      type, t->saddr_l, t->saddr_h);
             return 0;
         }
 
         if (!(t->daddr_h || t->daddr_l)) {
-            log_debug("ERR(read_conn_tuple.v6): dst addr not set: dst_l:%d,dst_h:%d\n",
-                t->daddr_l, t->daddr_h);
+            log_debug("ERR(read_conn_tuple.v6): dst addr not set: type=%d, daddr_l=%d, daddr_h=%d\n",
+                      type, t->daddr_l, t->daddr_h);
             return 0;
         }
 
@@ -199,19 +202,29 @@ static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u6
     }
 
     // Retrieve ports
-    bpf_probe_read(&t->sport, sizeof(t->sport), ((char*)skp) + offset_sport());
-    bpf_probe_read(&t->dport, sizeof(t->dport), ((char*)skp) + offset_dport());
+    if (t->sport == 0) {
+        bpf_probe_read(&t->sport, sizeof(t->sport), ((char*)skp) + offset_sport());
+        t->sport = bpf_ntohs(t->sport);
+    }
+    if (t->dport == 0) {
+        bpf_probe_read(&t->dport, sizeof(t->dport), ((char*)skp) + offset_dport());
+        t->dport = bpf_ntohs(t->dport);
+    }
 
     if (t->sport == 0 || t->dport == 0) {
         log_debug("ERR(read_conn_tuple.v4): src/dst port not set: src:%d, dst:%d\n", t->sport, t->dport);
         return 0;
     }
 
-    // Making ports human-readable
-    t->sport = ntohs(t->sport);
-    t->dport = ntohs(t->dport);
-
     return 1;
+}
+
+/**
+ * Reads values into a `conn_tuple_t` from a `sock`. Initializes all values in conn_tuple_t to `0`. Returns 1 success, 0 otherwise.
+ */
+static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type) {
+    __builtin_memset(t, 0, sizeof(conn_tuple_t));
+    return read_conn_tuple_partial(t, skp, pid_tgid, type);
 }
 
 static __always_inline void update_conn_stats(conn_tuple_t* t, size_t sent_bytes, size_t recv_bytes, u64 ts) {
@@ -263,99 +276,6 @@ static __always_inline void update_tcp_stats(conn_tuple_t* t, tcp_stats_t stats)
     if (stats.state_transitions > 0) {
         val->state_transitions |= stats.state_transitions;
     }
-}
-
-static __always_inline void increment_telemetry_count(enum telemetry_counter counter_name) {
-    __u64 key = 0;
-    telemetry_t empty = {};
-    telemetry_t* val;
-    bpf_map_update_elem(&telemetry, &key, &empty, BPF_NOEXIST);
-    val = bpf_map_lookup_elem(&telemetry, &key);
-
-    if (val == NULL) {
-        return;
-    }
-    switch (counter_name) {
-        case tcp_sent_miscounts:
-            __sync_fetch_and_add(&val->tcp_sent_miscounts, 1);
-            break;
-        case missed_tcp_close:
-            __sync_fetch_and_add(&val->missed_tcp_close, 1);
-            break;
-        case udp_send_processed:
-            __sync_fetch_and_add(&val->udp_sends_processed, 1);
-            break;
-        case udp_send_missed:
-            __sync_fetch_and_add(&val->udp_sends_missed, 1);
-            break;
-    }
-    return;
-}
-
-static __always_inline void cleanup_tcp_conn(struct pt_regs* __attribute__((unused)) ctx, conn_tuple_t* tup) {
-    u32 cpu = bpf_get_smp_processor_id();
-
-    // Will hold the full connection data to send through the perf buffer
-    tcp_conn_t conn = {};
-    bpf_probe_read(&(conn.tup), sizeof(conn_tuple_t), tup);
-    tcp_stats_t* tst;
-    conn_stats_ts_t* cst;
-
-    // TCP stats don't have the PID
-    conn.tup.pid = 0;
-    tst = bpf_map_lookup_elem(&tcp_stats, &(conn.tup));
-    bpf_map_delete_elem(&tcp_stats, &(conn.tup));
-    conn.tup.pid = tup->pid;
-
-    cst = bpf_map_lookup_elem(&conn_stats, &(conn.tup));
-    // Delete this connection from our stats map
-    bpf_map_delete_elem(&conn_stats, &(conn.tup));
-
-    if (tst != NULL) {
-        conn.tcp_stats = *tst;
-    }
-    conn.tcp_stats.state_transitions |= (1 << TCP_CLOSE);
-
-    if (cst != NULL) {
-        cst->timestamp = bpf_ktime_get_ns();
-        conn.conn_stats = *cst;
-    }
-
-    // Batch TCP closed connections before generating a perf event
-    batch_t* batch_ptr = bpf_map_lookup_elem(&tcp_close_batch, &cpu);
-    if (batch_ptr == NULL) {
-        return;
-    }
-
-    // TODO: Can we turn this into a macro based on TCP_CLOSED_BATCH_SIZE?
-    switch (batch_ptr->pos) {
-    case 0:
-        batch_ptr->c0 = conn;
-        batch_ptr->pos++;
-        return;
-    case 1:
-        batch_ptr->c1 = conn;
-        batch_ptr->pos++;
-        return;
-    case 2:
-        batch_ptr->c2 = conn;
-        batch_ptr->pos++;
-        return;
-    case 3:
-        batch_ptr->c3 = conn;
-        batch_ptr->pos++;
-        return;
-    case 4:
-        // In this case the batch is ready to be flushed, which we defer to kretprobe/tcp_close
-        // in order to cope with the eBPF stack limitation of 512 bytes.
-        batch_ptr->c4 = conn;
-        batch_ptr->pos++;
-        return;
-    }
-
-    // If we hit this section it means we had one or more interleaved tcp_close calls.
-    // This could result in a missed tcp_close event, so we track it using our telemetry map.
-    increment_telemetry_count(missed_tcp_close);
 }
 
 static __always_inline int handle_message(conn_tuple_t* t, size_t sent_bytes, size_t recv_bytes) {
@@ -471,28 +391,13 @@ int kprobe__tcp_close(struct pt_regs* ctx) {
         return 0;
     }
 
-    cleanup_tcp_conn(ctx, &t);
+    cleanup_conn(&t);
     return 0;
 }
 
 SEC("kretprobe/tcp_close")
 int kretprobe__tcp_close(struct pt_regs* ctx) {
-    u32 cpu = bpf_get_smp_processor_id();
-    batch_t* batch_ptr = bpf_map_lookup_elem(&tcp_close_batch, &cpu);
-    if (batch_ptr == NULL) {
-        return 0;
-    }
-
-    if (batch_ptr->pos >= TCP_CLOSED_BATCH_SIZE) {
-        // Here we copy the batch data to a variable allocated in the eBPF stack
-        // This is necessary for older Kernel versions only (we validated this behavior on 4.4.0),
-        // since you can't directly write a map entry to the perf buffer.
-        batch_t batch_copy = {};
-        __builtin_memcpy(&batch_copy, batch_ptr, sizeof(batch_copy));
-        bpf_perf_event_output(ctx, &tcp_close_event, cpu, &batch_copy, sizeof(batch_copy));
-        batch_ptr->pos = 0;
-    }
-
+    flush_conn_close_if_full(ctx);
     return 0;
 }
 
@@ -506,7 +411,6 @@ int kprobe__ip6_make_skb(struct pt_regs* ctx) {
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
-
         increment_telemetry_count(udp_send_missed);
         return 0;
     }
@@ -575,10 +479,14 @@ int kprobe__ip_make_skb(struct pt_regs* ctx) {
 SEC("kprobe/udp_recvmsg")
 int kprobe__udp_recvmsg(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
+    struct msghdr* msg = (struct msghdr*) PT_REGS_PARM2(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    udp_recv_sock_t t = { .sk = NULL, .msg = NULL };
+    if (sk) bpf_probe_read(&t.sk, sizeof(t.sk), &sk);
+    if (msg) bpf_probe_read(&t.msg, sizeof(t.msg), &msg);
 
     // Store pointer to the socket using the pid/tgid
-    bpf_map_update_elem(&udp_recv_sock, &pid_tgid, &sk, BPF_ANY);
+    bpf_map_update_elem(&udp_recv_sock, &pid_tgid, &t, BPF_ANY);
     log_debug("kprobe/udp_recvmsg: pid_tgid: %d\n", pid_tgid);
 
     return 0;
@@ -587,10 +495,14 @@ int kprobe__udp_recvmsg(struct pt_regs* ctx) {
 SEC("kprobe/udp_recvmsg/pre_4_1_0")
 int kprobe__udp_recvmsg_pre_4_1_0(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM2(ctx);
+    struct msghdr* msg = (struct msghdr*) PT_REGS_PARM3(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    udp_recv_sock_t t = { .sk = NULL, .msg = NULL };
+    if (sk) bpf_probe_read(&t.sk, sizeof(t.sk), &sk);
+    if (msg) bpf_probe_read(&t.msg, sizeof(t.msg), &msg);
 
     // Store pointer to the socket using the pid/tgid
-    bpf_map_update_elem(&udp_recv_sock, &pid_tgid, &sk, BPF_ANY);
+    bpf_map_update_elem(&udp_recv_sock, &pid_tgid, &t, BPF_ANY);
     log_debug("kprobe/udp_recvmsg/pre_4_1_0: pid_tgid: %d\n", pid_tgid);
 
     return 0;
@@ -601,22 +513,33 @@ int kretprobe__udp_recvmsg(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
     // Retrieve socket pointer from kprobe via pid/tgid
-    struct sock** skpp = bpf_map_lookup_elem(&udp_recv_sock, &pid_tgid);
-    if (skpp == 0) { // Missed entry
+    udp_recv_sock_t* st = bpf_map_lookup_elem(&udp_recv_sock, &pid_tgid);
+    if (!st) { // Missed entry
         return 0;
     }
-    struct sock* sk = *skpp;
 
-    // Make sure we clean up that pointer reference
+    // Make sure we clean up the key
     bpf_map_delete_elem(&udp_recv_sock, &pid_tgid);
 
     int copied = (int)PT_REGS_RC(ctx);
-    if (copied < 0) { // Non-zero values are errors (e.g -EINVAL)
+    if (copied < 0) { // Non-zero values are errors (or a peek) (e.g -EINVAL)
+        log_debug("kretprobe/udp_recvmsg: ret=%d < 0, pid_tgid=%d\n", copied, pid_tgid);
         return 0;
     }
 
+    log_debug("kretprobe/udp_recvmsg: ret=%d\n", copied);
+
+    struct sockaddr * sa = NULL;
+    if (st->msg) {
+        bpf_probe_read(&sa, sizeof(sa), &(st->msg->msg_name));
+    }
+
     conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
+    __builtin_memset(&t, 0, sizeof(conn_tuple_t));
+    sockaddr_to_addr(sa, &t.daddr_h, &t.daddr_l, &t.dport);
+
+    if (!read_conn_tuple_partial(&t, st->sk, pid_tgid, CONN_TYPE_UDP)) {
+        log_debug("ERR(kretprobe/udp_recvmsg): error reading conn tuple, pid_tgid=%d\n", pid_tgid);
         return 0;
     }
 
@@ -727,6 +650,12 @@ int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
         return 0;
     }
 
+    conn_tuple_t tup = {};
+     u64 pid_tgid = bpf_get_current_pid_tgid();
+    if (read_conn_tuple(&tup, sk, pid_tgid, CONN_TYPE_UDP)) {
+        cleanup_conn(&tup);
+    }
+
     // get the port for the current sock
     __u16 lport = 0;
     bpf_probe_read(&lport, sizeof(lport), ((char*)sk) + offset_sport());
@@ -757,6 +686,12 @@ int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
 
     log_debug("kprobe/udp_destroy_sock: port %d marked as closed\n", lport);
 
+    return 0;
+}
+
+SEC("kretprobe/udp_destroy_sock")
+int kretprobe__udp_destroy_sock(struct pt_regs * ctx) {
+    flush_conn_close_if_full(ctx);
     return 0;
 }
 

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package remote
 
@@ -262,7 +262,9 @@ func (t *Tagger) startTaggerStream(maxElapsed time.Duration) error {
 
 		token, err := security.FetchAuthToken()
 		if err != nil {
-			return fmt.Errorf("unable to fetch authentication token: %w", err)
+			err = fmt.Errorf("unable to fetch authentication token: %w", err)
+			log.Infof("unable to establish stream, will possibly retry: %s", err)
+			return err
 		}
 
 		ctx := metadata.NewOutgoingContext(t.ctx, metadata.MD{

@@ -3,7 +3,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build linux
 
@@ -26,8 +26,6 @@ const (
 	NoisyProcessRuleID = "noisy_process"
 	// AbnormalPathRuleID is the rule ID for the abnormal_path events
 	AbnormalPathRuleID = "abnormal_path"
-	// ForkBombRuleID is the rule ID for the fork_bomb events
-	ForkBombRuleID = "fork_bomb"
 )
 
 // AllCustomRuleIDs returns the list of custom rule IDs
@@ -37,7 +35,6 @@ func AllCustomRuleIDs() []string {
 		RulesetLoadedRuleID,
 		NoisyProcessRuleID,
 		AbnormalPathRuleID,
-		ForkBombRuleID,
 	}
 }
 
@@ -220,22 +217,5 @@ func NewAbnormalPathEvent(event *Event, pathResolutionError error) (*rules.Rule,
 			Timestamp:           event.ResolveEventTimestamp(),
 			Event:               newEventSerializer(event),
 			PathResolutionError: pathResolutionError.Error(),
-		}.MarshalJSON)
-}
-
-// ForkBombEvent is used to report the detection of a fork bomb
-// easyjson:json
-type ForkBombEvent struct {
-	Timestamp time.Time        `json:"date"`
-	Event     *EventSerializer `json:"triggering_event"`
-}
-
-// NewForkBombEvent returns the rule and a populated custom event for a fork_bomb event
-func NewForkBombEvent(event *Event) (*rules.Rule, *CustomEvent) {
-	return newRule(&rules.RuleDefinition{
-			ID: ForkBombRuleID,
-		}), newCustomEvent(CustomForkBombEventType, ForkBombEvent{
-			Timestamp: event.ResolveEventTimestamp(),
-			Event:     newEventSerializer(event),
 		}.MarshalJSON)
 }
