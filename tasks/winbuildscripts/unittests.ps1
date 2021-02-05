@@ -18,6 +18,7 @@ $archflag = "x64"
 if ($Env:TARGET_ARCH -eq "x86") {
     $archflag = "x86"
 }
+
 & inv -e deps --verbose
 
 & inv -e rtloader.make --python-runtimes="$Env:PY_RUNTIMES" --install-prefix=$Env:BUILD_ROOT\dev --cmake-options='-G \"Unix Makefiles\"' --arch $archflag
@@ -62,6 +63,7 @@ if($err -ne 0){
     [Environment]::Exit($err)
 }
 
+mkdir  .\bin\agent
 & inv -e customaction.build --arch=$archflag
 
 & $Env:BUILD_ROOT\bin\agent\customaction-tests.exe

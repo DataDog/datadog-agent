@@ -50,11 +50,11 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
         if arch == "x86":
             batchfile = "vcvars32.bat"
         vs_env_bat = '{}\\VC\\Auxiliary\\Build\\{}'.format(vsroot, batchfile)
-        cmd = 'call \"{}\" && msbuild {}\\cal\\customaction.vcxproj /p:Configuration={} /p:Platform={}'.format(
+        cmd = 'call \"{}\" && cd {}\\cal && msbuild -t:restore -p:RestorePackagesConfig=true && msbuild /p:Configuration={} /p:Platform={}'.format(
             vs_env_bat, CUSTOM_ACTION_ROOT_DIR, configuration, arch
         )
     else:
-        cmd = 'msbuild {}\\cal\\customaction.vcxproj /p:Configuration={} /p:Platform={}'.format(
+        cmd = 'cd {}\\cal && msbuild -t:restore -p:RestorePackagesConfig=true && msbuild /p:Configuration={} /p:Platform={}'.format(
             CUSTOM_ACTION_ROOT_DIR, configuration, arch
         )
 
