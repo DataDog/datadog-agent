@@ -7,51 +7,58 @@ import (
 )
 
 const (
-	tagHostname   = "_dd.hostname"
-	tagStatusCode = "http.status_code"
-	tagVersion    = "version"
-	tagOrigin     = "_dd.origin"
-	tagSynthetics = "synthetics"
+	tagHostname       = "_dd.hostname"
+	tagHTTPStatusCode = "http.status_code"
+	tagGRPCStatusCode = "grpc_code"
+	tagVersion        = "version"
+	tagOrigin         = "_dd.origin"
+	tagSynthetics     = "synthetics"
+	tagStatusCode = "status_code"
 )
 
 // Aggregation contains all the dimension on which we aggregate statistics
 // when adding or removing fields to Aggregation the methods ToTagSet, KeyLen and
 // WriteKey should always be updated accordingly
 type Aggregation struct {
-	Env        string
-	Resource   string
-	Service    string
-	Hostname   string
+	Env            string
+	Resource       string
+	Service        string
+	Hostname       string
+	HTTPStatusCode string
 	StatusCode string
-	Version    string
-	Synthetics bool
+	Version        string
+	Synthetics     bool
 }
 
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
 func NewAggregationFromSpan(s *pb.Span, env string) Aggregation {
 	synthetics := strings.HasPrefix(s.Meta[tagOrigin], "synthetics")
-
+	statusCode := s.Meta[tagHTTPStatusCode]
+	if statusCode == "" {
+		statusCode = s.Meta[tagGRPCStatusCode]
+	}
 	return Aggregation{
-		Env:        env,
-		Resource:   s.Resource,
-		Service:    s.Service,
-		Hostname:   s.Meta[tagHostname],
-		StatusCode: s.Meta[tagStatusCode],
-		Version:    s.Meta[tagVersion],
-		Synthetics: synthetics,
+		Env:            env,
+		Resource:       s.Resource,
+		Service:        s.Service,
+		Hostname:       s.Meta[tagHostname],
+		HTTPStatusCode: s.Meta[tagHTTPStatusCode],
+		StatusCode:     statusCode,
+		Version:        s.Meta[tagVersion],
+		Synthetics:     synthetics,
 	}
 }
 
 // NewAggregation creates a new aggregation from the provided fields
 func NewAggregation(env string, resource string, service string, hostname string, statusCode string, version string, synthetics bool) Aggregation {
 	return Aggregation{
-		Env:        env,
-		Resource:   resource,
-		Service:    service,
-		Hostname:   hostname,
-		StatusCode: statusCode,
-		Version:    version,
-		Synthetics: synthetics,
+		Env:            env,
+		Resource:       resource,
+		Service:        service,
+		Hostname:       hostname,
+		HTTPStatusCode: statusCode,
+		Version:        version,
+		Synthetics:     synthetics,
 	}
 }
 
@@ -63,6 +70,9 @@ func (aggr *Aggregation) ToTagSet() TagSet {
 	tagSet[2] = Tag{"service", aggr.Service}
 	if len(aggr.Hostname) > 0 {
 		tagSet = append(tagSet, Tag{tagHostname, aggr.Hostname})
+	}
+	if len(aggr.HTTPStatusCode) > 0 {
+		tagSet = append(tagSet, Tag{tagHTTPStatusCode, aggr.HTTPStatusCode})
 	}
 	if len(aggr.StatusCode) > 0 {
 		tagSet = append(tagSet, Tag{tagStatusCode, aggr.StatusCode})
@@ -82,6 +92,10 @@ func (aggr *Aggregation) KeyLen() int {
 	if len(aggr.Hostname) > 0 {
 		// +2 for "," and ":" separator
 		length += 1 + len(tagHostname) + 1 + len(aggr.Hostname)
+	}
+	if len(aggr.HTTPStatusCode) > 0 {
+		// +2 for "," and ":" separator
+		length += 1 + len(tagHTTPStatusCode) + 1 + len(aggr.HTTPStatusCode)
 	}
 	if len(aggr.StatusCode) > 0 {
 		// +2 for "," and ":" separator
@@ -111,6 +125,10 @@ func (aggr *Aggregation) WriteKey(b *strings.Builder) {
 	if len(aggr.Hostname) > 0 {
 		b.WriteString("," + tagHostname + ":")
 		b.WriteString(aggr.Hostname)
+	}
+	if len(aggr.HTTPStatusCode) > 0 {
+		b.WriteString("," + tagHTTPStatusCode + ":")
+		b.WriteString(aggr.HTTPStatusCode)
 	}
 	if len(aggr.StatusCode) > 0 {
 		b.WriteString("," + tagStatusCode + ":")
