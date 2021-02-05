@@ -179,7 +179,7 @@ if [ -n "$DD_KEYSERVER" ]; then
   keyserver="$DD_KEYSERVER"
 fi
 
-report_failure_url="http://api.datadoghq.com/agent_stats/report_failure"
+report_failure_url="https://api.datadoghq.com/agent_stats/report_failure"
 if [ -n "$TESTING_REPORT_URL" ]; then
   report_failure_url=$TESTING_REPORT_URL
 fi
