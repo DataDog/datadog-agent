@@ -2,7 +2,7 @@
 # Cookbook Name:: dd-system-probe-check
 # Recipe:: default
 #
-# Copyright (C) 2020 Datadog
+# Copyright (C) 2020-present Datadog
 #
 if platform?('centos')
   include_recipe 'yum-centos::vault'
