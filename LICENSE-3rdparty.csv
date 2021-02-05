@@ -413,6 +413,7 @@ core,"github.com/jessevdk/go-flags",NewBSD
 core,"github.com/jingyugao/rowserrcheck/passes/rowserr",MIT
 core,"github.com/jmespath/go-jmespath",Apache-2.0
 core,"github.com/jonboulle/clockwork",Apache-2.0
+core,"github.com/josharian/intern",MIT
 core,"github.com/json-iterator/go",MIT
 core,"github.com/kardianos/osext",NewBSD
 core,"github.com/kisielk/gotool/internal/load",MIT
@@ -439,9 +440,13 @@ core,"github.com/lxn/walk",FreeBSD
 core,"github.com/lxn/win",FreeBSD
 core,"github.com/magiconair/properties",FreeBSD
 core,"github.com/mailru/easyjson",MIT
+core,"github.com/mailru/easyjson/bootstrap",MIT
 core,"github.com/mailru/easyjson/buffer",MIT
+core,"github.com/mailru/easyjson/easyjson",MIT
+core,"github.com/mailru/easyjson/gen",MIT
 core,"github.com/mailru/easyjson/jlexer",MIT
 core,"github.com/mailru/easyjson/jwriter",MIT
+core,"github.com/mailru/easyjson/parser",MIT
 core,"github.com/mattn/go-colorable",MIT
 core,"github.com/mattn/go-isatty",MIT
 core,"github.com/mattn/go-runewidth",MIT

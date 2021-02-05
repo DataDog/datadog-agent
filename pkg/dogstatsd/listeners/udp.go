@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package listeners
 
@@ -55,7 +55,7 @@ func NewUDPListener(packetOut chan Packets, sharedPacketPool *PacketPool) (*UDPL
 		// Listen to all network interfaces
 		url = fmt.Sprintf(":%d", config.Datadog.GetInt("dogstatsd_port"))
 	} else {
-		url = net.JoinHostPort(config.Datadog.GetString("bind_host"), config.Datadog.GetString("dogstatsd_port"))
+		url = net.JoinHostPort(config.GetBindHost(), config.Datadog.GetString("dogstatsd_port"))
 	}
 
 	addr, err := net.ResolveUDPAddr("udp", url)

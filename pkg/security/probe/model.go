@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build linux
 
@@ -1110,7 +1110,7 @@ func (e *Event) ResolveEventTimestamp() time.Time {
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessCacheEntry of the event
 func (e *Event) ResolveProcessCacheEntry() *ProcessCacheEntry {
 	if e.processCacheEntry == nil {
-		e.processCacheEntry = e.resolvers.ProcessResolver.Resolve(e.Process.Pid, e.Process.Cookie)
+		e.processCacheEntry = e.resolvers.ProcessResolver.Resolve(e.Process.Pid)
 		if e.processCacheEntry == nil {
 			e.processCacheEntry = &ProcessCacheEntry{}
 		}

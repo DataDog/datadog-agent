@@ -135,43 +135,56 @@ func TestProcessChunking(t *testing.T) {
 	cfg := config.NewDefaultAgentConfig(false)
 
 	for i, tc := range []struct {
-		cur, last      []*process.FilledProcess
-		maxSize        int
-		blacklist      []string
-		expectedTotal  int
-		expectedChunks int
+		cur, last          []*process.FilledProcess
+		maxSize            int
+		blacklist          []string
+		expectedProcTotal  int
+		expectedProcChunks int
+		// stats might have different numbers than full Process because stats don't collect command line,
+		// thus doesn't have the ability to filter by blacklist. This is not a real problem as when process-agent runs,
+		// RTProcess will rely on the PIDs that ProcessCheck collected, which already skipped blacklist processes
+		expectedStatTotal  int
+		expectedStatChunks int
 	}{
 		{
-			cur:            []*process.FilledProcess{p[0], p[1], p[2]},
-			last:           []*process.FilledProcess{p[0], p[1], p[2]},
-			maxSize:        1,
-			blacklist:      []string{},
-			expectedTotal:  3,
-			expectedChunks: 3,
+			cur:                []*process.FilledProcess{p[0], p[1], p[2]},
+			last:               []*process.FilledProcess{p[0], p[1], p[2]},
+			maxSize:            1,
+			blacklist:          []string{},
+			expectedProcTotal:  3,
+			expectedProcChunks: 3,
+			expectedStatTotal:  3,
+			expectedStatChunks: 3,
 		},
 		{
-			cur:            []*process.FilledProcess{p[0], p[1], p[2]},
-			last:           []*process.FilledProcess{p[0], p[2]},
-			maxSize:        1,
-			blacklist:      []string{},
-			expectedTotal:  2,
-			expectedChunks: 2,
+			cur:                []*process.FilledProcess{p[0], p[1], p[2]},
+			last:               []*process.FilledProcess{p[0], p[2]},
+			maxSize:            1,
+			blacklist:          []string{},
+			expectedProcTotal:  2,
+			expectedProcChunks: 2,
+			expectedStatTotal:  2,
+			expectedStatChunks: 2,
 		},
 		{
-			cur:            []*process.FilledProcess{p[0], p[1], p[2], p[3]},
-			last:           []*process.FilledProcess{p[0], p[1], p[2], p[3]},
-			maxSize:        10,
-			blacklist:      []string{"git", "datadog"},
-			expectedTotal:  2,
-			expectedChunks: 1,
+			cur:                []*process.FilledProcess{p[0], p[1], p[2], p[3]},
+			last:               []*process.FilledProcess{p[0], p[1], p[2], p[3]},
+			maxSize:            10,
+			blacklist:          []string{"git", "datadog"},
+			expectedProcTotal:  2,
+			expectedProcChunks: 1,
+			expectedStatTotal:  4,
+			expectedStatChunks: 1,
 		},
 		{
-			cur:            []*process.FilledProcess{p[0], p[1], p[2], p[3]},
-			last:           []*process.FilledProcess{p[0], p[1], p[2], p[3]},
-			maxSize:        10,
-			blacklist:      []string{"git", "datadog", "foo", "mine"},
-			expectedTotal:  0,
-			expectedChunks: 0,
+			cur:                []*process.FilledProcess{p[0], p[1], p[2], p[3]},
+			last:               []*process.FilledProcess{p[0], p[1], p[2], p[3]},
+			maxSize:            10,
+			blacklist:          []string{"git", "datadog", "foo", "mine"},
+			expectedProcTotal:  0,
+			expectedProcChunks: 0,
+			expectedStatTotal:  4,
+			expectedStatChunks: 1,
 		},
 	} {
 		bl := make([]*regexp.Regexp, 0, len(tc.blacklist))
@@ -192,20 +205,20 @@ func TestProcessChunking(t *testing.T) {
 		procs := fmtProcesses(cfg, cur, last, containersByPid(containers), syst2, syst1, lastRun)
 		// only deal with non-container processes
 		chunked := chunkProcesses(procs[emptyCtrID], cfg.MaxPerMessage)
-		assert.Len(t, chunked, tc.expectedChunks, "len %d", i)
+		assert.Len(t, chunked, tc.expectedProcChunks, "len %d", i)
 		total := 0
 		for _, c := range chunked {
 			total += len(c)
 		}
-		assert.Equal(t, tc.expectedTotal, total, "total test %d", i)
+		assert.Equal(t, tc.expectedProcTotal, total, "total test %d", i)
 
 		chunkedStat := fmtProcessStats(cfg, cur, last, containers, syst2, syst1, lastRun)
-		assert.Len(t, chunkedStat, tc.expectedChunks, "len stat %d", i)
+		assert.Len(t, chunkedStat, tc.expectedStatChunks, "len stat %d", i)
 		total = 0
 		for _, c := range chunkedStat {
 			total += len(c)
 		}
-		assert.Equal(t, tc.expectedTotal, total, "total stat test %d", i)
+		assert.Equal(t, tc.expectedStatTotal, total, "total stat test %d", i)
 	}
 }
 

@@ -1,12 +1,13 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://wwt.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package channel
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -65,6 +66,6 @@ func (t *Tailer) run() {
 			tags = append(tags, t.source.Config.Tags...)
 		}
 		origin.SetTags(tags)
-		t.outputChan <- message.NewMessageFromLambda([]byte(logline.StringRecord), origin, message.StatusInfo, logline.Time, aws.GetARN(), aws.GetRequestID())
+		t.outputChan <- message.NewMessageFromLambda([]byte(logline.StringRecord), origin, message.StatusInfo, logline.Time, aws.GetARN(), aws.GetRequestID(), time.Now().UnixNano())
 	}
 }
