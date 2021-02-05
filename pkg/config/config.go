@@ -407,7 +407,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("extra_listeners", []string{})
 	config.BindEnvAndSetDefault("extra_config_providers", []string{})
 	config.BindEnvAndSetDefault("ignore_autoconf", []string{})
-	config.BindEnvAndSetDefault("autoconf_from_environment", true)
 
 	// Docker
 	config.BindEnvAndSetDefault("docker_query_timeout", int64(5))

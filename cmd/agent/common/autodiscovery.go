@@ -14,20 +14,28 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// This is due to an AD limitation that does not allow several listeners to work in parallel
+// if they can provide for the same objects.
+// When this is solved, we can remove this check and simplify code below
+var (
+	incompatibleListeners = map[string]map[string]struct{}{
+		"kubelet": {"docker": struct{}{}},
+		"docker":  {"kubelet": struct{}{}},
+	}
+)
+
 func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaScheduler) *autodiscovery.AutoConfig {
 	ad := autodiscovery.NewAutoConfig(metaScheduler)
 	ad.AddConfigProvider(providers.NewFileConfigProvider(confSearchPaths), false, 0)
 
 	// Autodiscovery cannot easily use config.RegisterOverrideFunc() due to Unmarshalling
-	var discoveredProviders []config.ConfigurationProviders
-	var discoveredListeners []config.Listeners
-	if config.Datadog.GetBool("autoconf_from_environment") {
-		discoveredProviders, discoveredListeners = confad.DiscoverComponentsFromEnv()
-	}
+	extraConfigProviders, extraConfigListeners := confad.DiscoverComponentsFromConfig()
 
-	providersFromConfig, listenersFromConfig := confad.DiscoverComponentsFromConfig()
-	discoveredProviders = append(discoveredProviders, providersFromConfig...)
-	discoveredListeners = append(discoveredListeners, listenersFromConfig...)
+	var extraEnvProviders []config.ConfigurationProviders
+	var extraEnvListeners []config.Listeners
+	if config.IsAutoconfigEnabled() && !config.IsCLCRunner() {
+		extraEnvProviders, extraEnvListeners = confad.DiscoverComponentsFromEnv()
+	}
 
 	// Register additional configuration providers
 	var configProviders []config.ConfigurationProviders
@@ -35,7 +43,7 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 	err := config.Datadog.UnmarshalKey("config_providers", &configProviders)
 
 	if err == nil {
-		uniqueConfigProviders = make(map[string]config.ConfigurationProviders, len(configProviders)+len(discoveredProviders))
+		uniqueConfigProviders = make(map[string]config.ConfigurationProviders, len(configProviders)+len(extraEnvProviders)+len(configProviders))
 		for _, provider := range configProviders {
 			uniqueConfigProviders[provider.Name] = provider
 		}
@@ -49,7 +57,13 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 			}
 		}
 
-		for _, provider := range discoveredProviders {
+		for _, provider := range extraConfigProviders {
+			if _, found := uniqueConfigProviders[provider.Name]; !found {
+				uniqueConfigProviders[provider.Name] = provider
+			}
+		}
+
+		for _, provider := range extraEnvProviders {
 			if _, found := uniqueConfigProviders[provider.Name]; !found {
 				uniqueConfigProviders[provider.Name] = provider
 			}
@@ -89,7 +103,7 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 			listeners = append(listeners, config.Listeners{Name: name})
 		}
 
-		for _, listener := range discoveredListeners {
+		for _, listener := range extraConfigListeners {
 			alreadyPresent := false
 			for _, existingListener := range listeners {
 				if listener.Name == existingListener.Name {
@@ -99,6 +113,28 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 			}
 
 			if !alreadyPresent {
+				listeners = append(listeners, listener)
+			}
+		}
+
+		// For extraEnvListeners, we need to check incompatibleListeners to avoid generation of duplicate checks
+		for _, listener := range extraEnvListeners {
+			skipListener := false
+			incomp := incompatibleListeners[listener.Name]
+
+			for _, existingListener := range listeners {
+				if listener.Name == existingListener.Name {
+					skipListener = true
+					break
+				}
+
+				if _, found := incomp[existingListener.Name]; found {
+					log.Debugf("Discarding discovered listener: %s as incompatible with listener from config: %s", listener.Name, existingListener.Name)
+					break
+				}
+			}
+
+			if !skipListener {
 				listeners = append(listeners, listener)
 			}
 		}
