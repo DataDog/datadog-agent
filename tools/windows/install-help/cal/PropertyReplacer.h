@@ -16,7 +16,6 @@ private:
     formatter_t _formatter;
   public:
     bool replace_with(std::wstring const &replacement);
-    RegexPropertyReplacer(std::wstring wixPropertyName, std::wstring const &regex, formatter_t const &formatter);
 
     PropertyReplacer &then(std::wstring const &match);
 

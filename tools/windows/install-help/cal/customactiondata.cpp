@@ -36,25 +36,14 @@ bool CustomActionData::init(const std::wstring &data)
 
     WcaLog(LOGMSG_STANDARD, "Initializing CustomAction with %S\n", data.c_str());
 
-    // first, the string is KEY=VAL;KEY=VAL....
-    // first split into key/value pairs
-    std::wstringstream ss(data);
-    std::wstring token;
-    while (std::getline(ss, token, L';'))
+    auto start = data.begin();
+    auto end = data.end();
+    std::wregex re(L"((\\w+)=(.+?);\r\n)");
+    std::match_results<decltype(start)> results;
+    while (std::regex_search(start, end, results, re))
     {
-        // now 'token'  has the key=val; do the same thing for the key=value
-        bool boolval = false;
-        std::wstringstream instream(token);
-        std::wstring key, val;
-        if (std::getline(instream, key, L'='))
-        {
-            std::getline(instream, val);
-        }
-
-        if (val.length() > 0)
-        {
-            this->values[key] = val;
-        }
+        values[results[2]] = results[3];
+        start += results.position() + results.length();
     }
 
     return parseUsernameData() && parseSysprobeData() && updateYamlConfig();
@@ -199,11 +188,10 @@ bool CustomActionData::updateYamlConfig()
     }
     inputConfig = replace_yaml_properties(inputConfig, [this](std::wstring const &propertyName) -> std::optional<std::wstring>
     {
-        std::wstring propertyValue;
-        auto found = loadPropertyString(hInstall, propertyName.c_str(), propertyValue);
-        if (found)
+        auto it = values.find(propertyName);
+        if (it != values.end())
         {
-            return propertyValue;
+            return it->second;
         }
         return std::nullopt;
     });
