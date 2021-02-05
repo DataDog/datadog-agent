@@ -116,7 +116,7 @@ require (
 	github.com/kubernetes-incubator/custom-metrics-apiserver v0.0.0-20190918110929-3d9be26a50eb // Pinned to kubernetes-1.16.2
 	github.com/lxn/walk v0.0.0-20191128110447-55ccb3a9f5c1
 	github.com/lxn/win v0.0.0-20191128105842-2da648fda5b4
-	github.com/mailru/easyjson v0.0.0-20190626092158-b2ccc519800e
+	github.com/mailru/easyjson v0.7.6
 	github.com/mdlayher/netlink v1.1.0
 	github.com/mholt/archiver v3.1.1+incompatible
 	github.com/mholt/archiver/v3 v3.5.0

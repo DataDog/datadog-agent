@@ -55,6 +55,8 @@ const (
 
 	// UDPDestroySock traces the udp_destroy_sock() function
 	UDPDestroySock ProbeName = "kprobe/udp_destroy_sock"
+	// UDPDestroySockrReturn traces the return of the udp_destroy_sock() system call
+	UDPDestroySockReturn ProbeName = "kretprobe/udp_destroy_sock"
 
 	// TCPRetransmit traces the return value for the tcp_retransmit_skb() system call
 	TCPRetransmit ProbeName = "kprobe/tcp_retransmit_skb"
@@ -85,12 +87,12 @@ type BPFMapName string
 const (
 	ConnMap              BPFMapName = "conn_stats"
 	TcpStatsMap          BPFMapName = "tcp_stats"
-	TcpCloseEventMap     BPFMapName = "tcp_close_event"
+	ConnCloseEventMap    BPFMapName = "conn_close_event"
 	TracerStatusMap      BPFMapName = "tracer_status"
 	PortBindingsMap      BPFMapName = "port_bindings"
 	UdpPortBindingsMap   BPFMapName = "udp_port_bindings"
 	TelemetryMap         BPFMapName = "telemetry"
-	TcpCloseBatchMap     BPFMapName = "tcp_close_batch"
+	ConnCloseBatchMap    BPFMapName = "conn_close_batch"
 	HttpInFlightMap      BPFMapName = "http_in_flight"
 	HttpBatchesMap       BPFMapName = "http_batches"
 	HttpBatchStateMap    BPFMapName = "http_batch_state"
