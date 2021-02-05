@@ -248,8 +248,8 @@ func (s *sender) sendPayload(p *payload) {
 		}
 		atomic.AddInt32(&s.attempt, 1)
 
-		if r := atomic.AddInt32(&p.retry, 1); shouldWarnRetry(r) {
-			log.Warnf("Retried payload %d times, got error: %s", r, err.Error())
+		if r := atomic.AddInt32(&p.retries, 1); shouldWarnRetry(r) {
+			log.Warnf("Retried payload %d times: %s", r, err.Error())
 		}
 		select {
 		case s.queue <- p:
@@ -277,9 +277,9 @@ func (s *sender) sendPayload(p *payload) {
 }
 
 // shouldWarnRetry determines whether a warning should be emitted
-// with the given count of retries to avoid spam
-func shouldWarnRetry(r int32) bool {
-	if (r != 0) && (r != 2) && ((r & (r - 1)) == 0) {
+// after it has been retried n times.
+func shouldWarnRetry(n int32) bool {
+	if (n != 0) && (n != 2) && ((n & (n - 1)) == 0) {
 		return true
 	}
 	return false
@@ -352,7 +352,7 @@ func (s *sender) do(req *http.Request) error {
 type payload struct {
 	body    *bytes.Buffer     // request body
 	headers map[string]string // request headers
-	retry   int32
+	retries int32             // number of retries sending this payload
 }
 
 // ppool is a pool of payloads.

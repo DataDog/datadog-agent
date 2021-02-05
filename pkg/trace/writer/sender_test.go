@@ -346,8 +346,7 @@ func TestShouldWarnRetry(t *testing.T) {
 	} {
 		actual := shouldWarnRetry(test.retries)
 		if actual != test.shouldWarn {
-			t.Fail()
-			t.Logf("expected: %t, actual: %t", test.shouldWarn, actual)
+			t.Fatalf("expected: %t, actual: %t", test.shouldWarn, actual)
 		}
 	}
 }
