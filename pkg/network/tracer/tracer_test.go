@@ -2069,8 +2069,9 @@ func TestSelfConnect(t *testing.T) {
 		var stderr bytes.Buffer
 		cmd.Stderr = &stderr
 		cmd.Stdout = stdOutWriter
-		require.NoError(t, cmd.Start())
+		err := cmd.Start()
 		close(started)
+		require.NoError(t, err)
 		if err := cmd.Wait(); err != nil {
 			status := cmd.ProcessState.Sys().(syscall.WaitStatus)
 			require.Equal(t, syscall.SIGKILL, status.Signal(), "fork.py output: %s", stderr.String())
