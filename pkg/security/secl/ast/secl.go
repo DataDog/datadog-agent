@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package ast
 
@@ -112,7 +112,7 @@ type Expression struct {
 	Pos lexer.Position
 
 	Comparison *Comparison        `parser:"@@"`
-	Op         *string            `parser:"[ @( \"|\" \"|\" | \"&\" \"&\" )"`
+	Op         *string            `parser:"[ @( \"|\" \"|\" | \"or\" | \"&\" \"&\" | \"and\" )"`
 	Next       *BooleanExpression `parser:"@@ ]"`
 }
 
@@ -154,7 +154,7 @@ type BitOperation struct {
 type Unary struct {
 	Pos lexer.Position
 
-	Op      *string  `parser:"( @( \"!\" | \"-\" | \"^\" )"`
+	Op      *string  `parser:"( @( \"!\" | \"not\" | \"-\" | \"^\" )"`
 	Unary   *Unary   `parser:"@@ )"`
 	Primary *Primary `parser:"| @@"`
 }
