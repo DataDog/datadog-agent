@@ -18,7 +18,7 @@ func TestEnableDisable(t *testing.T) {
 	assert.False(t, b.SetEnabled(true))
 
 	for i := 0; i < 10; i++ {
-		b.HandleMessage(newMessage("", "", ""))
+		b.HandleMessage(newMessage("", "", ""), []byte("a"))
 	}
 
 	msg, ok := b.Next(nil)
@@ -33,7 +33,7 @@ func TestEnableDisable(t *testing.T) {
 	assert.Equal(t, "", msg)
 
 	for i := 0; i < 10; i++ {
-		b.HandleMessage(newMessage("", "", ""))
+		b.HandleMessage(newMessage("", "", ""), []byte("a"))
 	}
 
 	// disabled, no messages should have been buffered
@@ -48,9 +48,9 @@ func TestFilterAll(t *testing.T) {
 	b.SetEnabled(true)
 
 	for i := 0; i < 5; i++ {
-		b.HandleMessage(newMessage("test1", "a", "b"))
-		b.HandleMessage(newMessage("test1", "1", "2"))
-		b.HandleMessage(newMessage("test2", "a", "b"))
+		b.HandleMessage(newMessage("test1", "a", "b"), []byte("a"))
+		b.HandleMessage(newMessage("test1", "1", "2"), []byte("a"))
+		b.HandleMessage(newMessage("test2", "a", "b"), []byte("a"))
 	}
 
 	filters := Filters{
@@ -76,8 +76,8 @@ func TestFilterTypeAndSource(t *testing.T) {
 	b.SetEnabled(true)
 
 	for i := 0; i < 5; i++ {
-		b.HandleMessage(newMessage("test", "a", "b"))
-		b.HandleMessage(newMessage("test", "1", "2"))
+		b.HandleMessage(newMessage("test", "a", "b"), []byte("a"))
+		b.HandleMessage(newMessage("test", "1", "2"), []byte("a"))
 	}
 
 	filters := Filters{
@@ -102,9 +102,9 @@ func TestFilterName(t *testing.T) {
 	b.SetEnabled(true)
 
 	for i := 0; i < 5; i++ {
-		b.HandleMessage(newMessage("test1", "a", "b"))
-		b.HandleMessage(newMessage("test2", "a", "2"))
-		b.HandleMessage(newMessage("test2", "b", "2"))
+		b.HandleMessage(newMessage("test1", "a", "b"), []byte("a"))
+		b.HandleMessage(newMessage("test2", "a", "2"), []byte("a"))
+		b.HandleMessage(newMessage("test2", "b", "2"), []byte("a"))
 	}
 
 	filters := Filters{
@@ -128,9 +128,9 @@ func TestFilterSource(t *testing.T) {
 	b.SetEnabled(true)
 
 	for i := 0; i < 5; i++ {
-		b.HandleMessage(newMessage("test", "a", "b"))
-		b.HandleMessage(newMessage("test", "a", "2"))
-		b.HandleMessage(newMessage("test", "b", "2"))
+		b.HandleMessage(newMessage("test", "a", "b"), []byte("a"))
+		b.HandleMessage(newMessage("test", "a", "2"), []byte("a"))
+		b.HandleMessage(newMessage("test", "b", "2"), []byte("a"))
 	}
 
 	filters := Filters{
@@ -154,9 +154,9 @@ func TestFilterType(t *testing.T) {
 	b.SetEnabled(true)
 
 	for i := 0; i < 5; i++ {
-		b.HandleMessage(newMessage("test", "a", "b"))
-		b.HandleMessage(newMessage("test", "a", "2"))
-		b.HandleMessage(newMessage("test", "b", "2"))
+		b.HandleMessage(newMessage("test", "a", "b"), []byte("a"))
+		b.HandleMessage(newMessage("test", "a", "2"), []byte("a"))
+		b.HandleMessage(newMessage("test", "b", "2"), []byte("a"))
 	}
 
 	filters := Filters{
@@ -180,9 +180,9 @@ func TestNoFilters(t *testing.T) {
 	b.SetEnabled(true)
 
 	for i := 0; i < 5; i++ {
-		b.HandleMessage(newMessage("test", "a", "b"))
-		b.HandleMessage(newMessage("test", "a", "2"))
-		b.HandleMessage(newMessage("test", "b", "2"))
+		b.HandleMessage(newMessage("test", "a", "b"), []byte("a"))
+		b.HandleMessage(newMessage("test", "a", "2"), []byte("a"))
+		b.HandleMessage(newMessage("test", "b", "2"), []byte("a"))
 	}
 
 	filters := Filters{
