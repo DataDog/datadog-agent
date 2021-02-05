@@ -45,6 +45,8 @@ type LogSource struct {
 	info       map[string]string
 	// In the case that the source is overridden, keep a reference to the parent for bubbling up information about the child
 	ParentSource *LogSource
+	// LatencyStats tracks internal stats on the time spent by messages from this source in a processing pipeline, i.e.
+	// the duration between when a message is decoded by the tailer/listener/decoder and when the message is handled by a sender
 	LatencyStats *util.StatsTracker
 }
 
