@@ -46,6 +46,7 @@ var (
 	subServices = map[string]string{"logs_enabled": "logs_enabled",
 		"apm_enabled":     "apm_config.enabled",
 		"process_enabled": "process_config.enabled"}
+	ec2UseWinPrefixDetectionKey = "ec2_use_windows_prefix_detection"
 )
 
 func init() {
@@ -324,6 +325,15 @@ func importRegistryConfig() error {
 		overrides["hostname_fqdn"] = val
 		log.Debugf("Setting hostname_fqdn to %s", val)
 	}
+	if val, _, err = k.GetStringValue(ec2UseWinPrefixDetectionKey); err == nil && val != "" {
+		val = strings.ToLower(val)
+		if enabled, ok := enabledVals[val]; ok {
+			overrides[ec2UseWinPrefixDetectionKey] = enabled
+			log.Debugf("Setting %s to %s", ec2UseWinPrefixDetectionKey, val)
+		} else {
+			log.Warnf("Unparsable boolean value for %s: %s", ec2UseWinPrefixDetectionKey, val)
+		}
+	}
 
 	// apply overrides to the config
 	config.AddOverrides(overrides)
@@ -347,8 +357,17 @@ func importRegistryConfig() error {
 		return fmt.Errorf("unable to unmarshal config to %s: %v", datadogYamlPath, err)
 	}
 
-	valuenames := []string{"api_key", "tags", "hostname",
-		"proxy_host", "proxy_port", "proxy_user", "proxy_password", "cmd_port"}
+	valuenames := []string{
+		"api_key",
+		"tags",
+		"hostname",
+		"proxy_host",
+		"proxy_port",
+		"proxy_user",
+		"proxy_password",
+		"cmd_port",
+		ec2UseWinPrefixDetectionKey,
+	}
 	for _, valuename := range valuenames {
 		k.DeleteValue(valuename)
 	}

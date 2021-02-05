@@ -37,6 +37,7 @@ var (
 	subServices = map[string]string{"logs_enabled": "logs_enabled",
 		"apm_enabled":     "apm_config.enabled",
 		"process_enabled": "process_config.enabled"}
+	ec2UseWinPrefixDetectionKey = "ec2_use_windows_prefix_detection"
 )
 
 var (
@@ -329,10 +330,21 @@ func ImportRegistryConfig() error {
 		log.Debugf("Setting hostname_fqdn to %s", val)
 		commandLineSettingFound = true
 	}
+	if val, _, err = k.GetStringValue(ec2UseWinPrefixDetectionKey); err == nil && val != "" {
+		val = strings.ToLower(val)
+		if enabled, ok := enabledVals[val]; ok {
+			overrides[ec2UseWinPrefixDetectionKey] = enabled
+			log.Debugf("Setting %s to %s", ec2UseWinPrefixDetectionKey, val)
+			commandLineSettingFound = true
+		} else {
+			log.Warnf("Unparsable boolean value for %s: %s", ec2UseWinPrefixDetectionKey, val)
+		}
+	}
 
 	// we've read in the config from the registry; remove the registry keys so it's
 	// not repeated on next startup
-	valuenames := []string{"api_key",
+	valuenames := []string{
+		"api_key",
 		"tags",
 		"site",
 		"dd_url",
@@ -346,7 +358,9 @@ func ImportRegistryConfig() error {
 		"proxy_port",
 		"proxy_user",
 		"proxy_password",
-		"cmd_port"}
+		"cmd_port",
+		ec2UseWinPrefixDetectionKey,
+	}
 	for _, valuename := range valuenames {
 		k.DeleteValue(valuename)
 	}
