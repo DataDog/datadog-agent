@@ -7,6 +7,7 @@ package channel
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -65,6 +66,6 @@ func (t *Tailer) run() {
 			tags = append(tags, t.source.Config.Tags...)
 		}
 		origin.SetTags(tags)
-		t.outputChan <- message.NewMessageFromLambda([]byte(logline.StringRecord), origin, message.StatusInfo, logline.Time, aws.GetARN(), aws.GetRequestID())
+		t.outputChan <- message.NewMessageFromLambda([]byte(logline.StringRecord), origin, message.StatusInfo, logline.Time, aws.GetARN(), aws.GetRequestID(), time.Now().UnixNano())
 	}
 }
