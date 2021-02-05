@@ -56,7 +56,10 @@ type DriverExpvar string
 // followed by a predictably sized chunk of bytes
 type _readbuffer struct {
 	ol   windows.Overlapped
-	data [4096]byte // TODO: 65K is what we use in the example, how big should this be?
+
+	// This is the MTU of IPv6, which effectively governs the maximum DNS packet size over IPv6
+	// see https://tools.ietf.org/id/draft-madi-dnsop-udp4dns-00.html
+	data [1280]byte  
 }
 
 const (
@@ -67,7 +70,7 @@ const (
 )
 
 const (
-	dnsReadBufferCount = 10 // TODO: make this configurable
+	dnsReadBufferCount = 100  // TODO: how to tune this?
 )
 
 // DriverExpvarNames is a list of all the DriverExpvar names returned from GetStats
@@ -371,7 +374,6 @@ func (di *DriverInterface) ReadDNSPacket(visit func([]byte, time.Time) error) (d
 	start := C.sizeof_struct_filterPacketHeader
 	captureTime := time.Now() // TODO: this should read out of the packet header once the driver supports it
 
-	// TODO: is it possible to get more than one packet in a single read?
 	if err := visit(buf.data[start:], captureTime); err != nil {
 		return false, err
 	}
