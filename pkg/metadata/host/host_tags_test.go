@@ -63,7 +63,7 @@ func TestGetHostTagsWithEnv(t *testing.T) {
 	assert.Equal(t, []string{"tag1:value1", "tag2", "tag3", "env:prod", "env:preprod"}, hostTags.System)
 }
 
-func TestHostTagsIsEmpty(t *testing.T) {
+func TestMarshalEmptyHostTags(t *testing.T) {
 	tags := &Tags{
 		System:              []string{},
 		GoogleCloudPlatform: []string{},
