@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build functionaltests
 
@@ -200,17 +200,15 @@ func TestProcessContext(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if filename, _ := event.GetFieldValue("process.filename"); filename.(string) != executable {
+			if filename := event.Process.ResolveInode(event); filename != executable {
 				t.Errorf("expected process filename `%s`, got `%s`: %v", executable, filename, event)
 			}
 
 			if rule.ID != "test_rule_ancestors" {
 				t.Error("Wrong rule triggered")
 			}
-
-			values, _ := event.GetFieldValue("process.ancestors.name")
-			if names := values.([]string); names[0] != "sh" {
-				t.Errorf("ancestor `sh` expected, got %s, event:%v", names[0], event)
+			if comm := event.Process.Ancestor.Comm; comm != "sh" {
+				t.Errorf("ancestor `sh` expected, got %s, event:%v", comm, event)
 			}
 		}
 	})

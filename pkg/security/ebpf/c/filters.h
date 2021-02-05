@@ -24,7 +24,8 @@ struct policy_t {
 };
 
 struct filter_t {
-    u64 event_mask;
+    u64 parent_mask;
+    u64 leaf_mask;
 };
 
 struct bpf_map_def SEC("maps/filter_policy") filter_policy = {
@@ -95,7 +96,7 @@ int __attribute__((always_inline)) bump_discarder_revision(u32 mount_id) {
     return *revision;
 }
 
-int __attribute__((always_inline)) discarded_by_inode(u64 event_type, u32 mount_id, u64 inode) {
+int __attribute__((always_inline)) discarded_by_inode(u64 event_type, u32 mount_id, u64 inode, u64 depth) {
     struct inode_discarder_t key = {
         .path_key = {
             .ino = inode,
@@ -105,13 +106,19 @@ int __attribute__((always_inline)) discarded_by_inode(u64 event_type, u32 mount_
     };
 
     struct filter_t *filter = bpf_map_lookup_elem(&inode_discarders, &key);
+    if (!filter) {
+        return 0;
+    }
 
-    if (filter && mask_has_event(filter->event_mask, event_type)) {
-#ifdef DEBUG
-        bpf_printk("file with inode %d discarded\n", inode);
-#endif
+    // this a filter for leaf only
+    if (depth == 0 && mask_has_event(filter->leaf_mask, event_type)) {
         return 1;
     }
+
+    if (depth > 0 && mask_has_event(filter->parent_mask, event_type)) {
+        return 1;
+    }
+
     return 0;
 }
 
@@ -178,7 +185,7 @@ int __attribute__((always_inline)) discarded_by_process(const char mode, u64 eve
             return 1;
 
         struct proc_cache_t *entry = get_proc_cache(tgid);
-        if (entry && discarded_by_inode(event_type, entry->executable.mount_id, entry->executable.inode)) {
+        if (entry && discarded_by_inode(event_type, entry->executable.mount_id, entry->executable.inode, 0)) {
             return 1;
         }
     }
