@@ -12,7 +12,7 @@ import (
 // getAllProcesses uses a probe to fetch processes using procutil library,
 // then convert them into FilledProcesses for compatibility
 func getAllProcesses(probe *procutil.Probe) (map[int32]*process.FilledProcess, error) {
-	procs, err := probe.ProcessesByPID(time.Now())
+	procs, err := probe.ProcessesByPID(time.Now(), true)
 	if err != nil {
 		return nil, err
 	}
@@ -20,7 +20,7 @@ func getAllProcesses(probe *procutil.Probe) (map[int32]*process.FilledProcess, e
 }
 
 func getAllProcStats(probe *procutil.Probe, pids []int32) (map[int32]*process.FilledProcess, error) {
-	stats, err := probe.StatsForPIDs(pids, time.Now())
+	stats, err := probe.StatsForPIDs(pids, time.Now(), true)
 	if err != nil {
 		return nil, err
 	}
