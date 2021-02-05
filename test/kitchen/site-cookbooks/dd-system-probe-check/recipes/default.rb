@@ -18,6 +18,8 @@ package 'kernel headers' do
   end
 end
 
+package 'python3'
+
 package 'conntrack'
 
 package 'netcat' do
@@ -48,6 +50,12 @@ end
 # mode options don't work) so we make the test files executable
 execute 'chmod test files' do
   command "chmod -R 755 /tmp/system-probe-tests"
+  user "root"
+  action :run
+end
+
+execute 'ensure conntrack is enabled' do
+  command "iptables -I INPUT 1 -m conntrack --ctstate NEW,RELATED,ESTABLISHED -j ACCEPT"
   user "root"
   action :run
 end
