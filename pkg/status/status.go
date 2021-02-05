@@ -253,8 +253,8 @@ func getEndpointsInfos() (map[string]interface{}, error) {
 	// obfuscate the api keys
 	for endpoint, keys := range endpoints {
 		for i, key := range keys {
-	        scrubbedKey, _ := log.CredentialsCleanerBytes([]byte(key))
-	        keys[i] = string(scrubbedKey)
+			scrubbedKey, _ := log.CredentialsCleanerBytes([]byte(key))
+			keys[i] = string(scrubbedKey)
 		}
 		endpointsInfos[endpoint] = keys
 	}
