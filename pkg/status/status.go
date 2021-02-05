@@ -32,7 +32,7 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
-var timeFormat = "2006-01-02 15:04:05.000000 MST"
+var timeFormat = "2006-01-02 15:04:05.999 MST"
 
 // GetStatus grabs the status from expvar and puts it into a map
 func GetStatus() (map[string]interface{}, error) {
@@ -286,10 +286,10 @@ func getCommonStatus() (map[string]interface{}, error) {
 	stats["conf_file"] = config.Datadog.ConfigFileUsed()
 	stats["pid"] = os.Getpid()
 	stats["go_version"] = runtime.Version()
-	stats["agent_start"] = config.StartTime.Format(timeFormat)
+	stats["agent_start_nano"] = config.StartTime.UnixNano()
 	stats["build_arch"] = runtime.GOARCH
 	now := time.Now()
-	stats["time"] = now.Format(timeFormat)
+	stats["time_nano"] = now.UnixNano()
 
 	return stats, nil
 }
