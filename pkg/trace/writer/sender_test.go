@@ -330,3 +330,24 @@ func (r *mockRecorder) recordEvent(t eventType, data *eventData) {
 		r.rejected = append(r.rejected, data)
 	}
 }
+
+func TestShouldWarnRetry(t *testing.T) {
+	for _, test := range []struct {
+		retries    int32
+		shouldWarn bool
+	}{{0, false},
+		{1, true},
+		{2, false},
+		{3, false},
+		{4, true},
+		{5, false},
+		{6, false},
+		{8, true},
+	} {
+		actual := shouldWarnRetry(test.retries)
+		if actual != test.shouldWarn {
+			t.Fail()
+			t.Logf("expected: %t, actual: %t", test.shouldWarn, actual)
+		}
+	}
+}

@@ -62,9 +62,6 @@ type eventRecorder interface {
 	recordEvent(t eventType, data *eventData)
 }
 
-//maxRetries specifies max number of failed sends per a sender
-const maxRetries = 5
-
 // eventType specifies an event which occurred in the sender.
 type eventType int
 
@@ -251,8 +248,8 @@ func (s *sender) sendPayload(p *payload) {
 		}
 		atomic.AddInt32(&s.attempt, 1)
 
-		if atomic.LoadInt32(&s.attempt) >= maxRetries {
-			log.Warnf("Reached maximum number of retries; error: %s", err.Error())
+		if r := atomic.AddInt32(&p.retry, 1); shouldWarnRetry(r) {
+			log.Warnf("Retried payload %d times, got error: %s", r, err.Error())
 		}
 		select {
 		case s.queue <- p:
@@ -277,6 +274,15 @@ func (s *sender) sendPayload(p *payload) {
 		// this is a fatal error, we have to drop this payload
 		s.releasePayload(p, eventTypeRejected, stats)
 	}
+}
+
+// shouldWarnRetry determines whether a warning should be emitted
+// with the given count of retries to avoid spam
+func shouldWarnRetry(r int32) bool {
+	if (r != 0) && (r != 2) && ((r & (r - 1)) == 0) {
+		return true
+	}
+	return false
 }
 
 // releasePayload releases the payload p and records the specified event. The payload
@@ -346,6 +352,7 @@ func (s *sender) do(req *http.Request) error {
 type payload struct {
 	body    *bytes.Buffer     // request body
 	headers map[string]string // request headers
+	retry   int32
 }
 
 // ppool is a pool of payloads.
