@@ -166,8 +166,8 @@ void initkubeutilModule(rtloader_t *rtloader) {
 // topology module
 //
 
-void SubmitComponent(char *, component_t *);
-void SubmitRelation(char *, relation_t *);
+void SubmitComponent(char *, instance_key_t *, char *, char *, char *);
+void SubmitRelation(char *, instance_key_t *, char *, char *, char *, char *);
 void SubmitStartSnapshot(char *, instance_key_t *);
 void SubmitStopSnapshot(char *, instance_key_t *);
 

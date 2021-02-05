@@ -161,14 +161,14 @@ typedef int (*cb_is_excluded_t)(char *, char *, char *);
 // topology
 //
 typedef struct instance_key_s {
-    char *type;
+    char *type_;  //type is a reserved keyword in Go
     char *url;
 } instance_key_t;
 
 // (check_id, instance_key, component_id, component_type, data)
-typedef void (*cb_submit_component_t)(char *, instance_key_t *, char *, char *, char **);
+typedef void (*cb_submit_component_t)(char *, instance_key_t *, char *, char *, char *);
 // (check_id, instance_key, source_id, target_id, relation_type, data)
-typedef void (*cb_submit_relation_t)(char *, instance_key_t *, char *, char *, char *, char **);
+typedef void (*cb_submit_relation_t)(char *, instance_key_t *, char *, char *, char *, char *);
 // (check_id, instance_key)
 typedef void (*cb_submit_start_snapshot_t)(char *, instance_key_t *);
 // (check_id, instance_key)

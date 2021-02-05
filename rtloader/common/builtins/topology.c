@@ -112,10 +112,10 @@ static PyObject *submit_component(PyObject *self, PyObject *args) {
     }
 
     // notice: PyDict_GetItemString returns a borrowed ref or NULL if key was not found
-    instance_key->type = as_string(PyDict_GetItemString(instance_key_dict, "type"));
+    instance_key->type_ = as_string(PyDict_GetItemString(instance_key_dict, "type"));
     instance_key->url = as_string(PyDict_GetItemString(instance_key_dict, "url"));
 
-    cb_submit_component(check_id, instance_key, component_id, component_type, data_dict);
+    cb_submit_component(check_id, instance_key, component_id, component_type, as_yaml(data_dict));
 
     PyGILState_Release(gstate);
     Py_RETURN_NONE;
@@ -172,10 +172,10 @@ static PyObject *submit_relation(PyObject *self, PyObject *args) {
     }
 
     // notice: PyDict_GetItemString returns a borrowed ref or NULL if key was not found
-    instance_key->type = as_string(PyDict_GetItemString(instance_key_dict, "type"));
+    instance_key->type_ = as_string(PyDict_GetItemString(instance_key_dict, "type"));
     instance_key->url = as_string(PyDict_GetItemString(instance_key_dict, "url"));
 
-    cb_submit_relation(check_id, instance_key, source_id, target_id, relation_type, data_dict);
+    cb_submit_relation(check_id, instance_key, source_id, target_id, relation_type, as_yaml(data_dict));
 
     PyGILState_Release(gstate);
     Py_RETURN_NONE;
@@ -223,7 +223,7 @@ static PyObject *submit_start_snapshot(PyObject *self, PyObject *args) {
     }
 
     // notice: PyDict_GetItemString returns a borrowed ref or NULL if key was not found
-    instance_key->type = as_string(PyDict_GetItemString(instance_key_dict, "type"));
+    instance_key->type_ = as_string(PyDict_GetItemString(instance_key_dict, "type"));
     instance_key->url = as_string(PyDict_GetItemString(instance_key_dict, "url"));
 
     cb_submit_start_snapshot(check_id, instance_key);
@@ -274,7 +274,7 @@ static PyObject *submit_stop_snapshot(PyObject *self, PyObject *args) {
     }
 
     // notice: PyDict_GetItemString returns a borrowed ref or NULL if key was not found
-    instance_key->type = as_string(PyDict_GetItemString(instance_key_dict, "type"));
+    instance_key->type_ = as_string(PyDict_GetItemString(instance_key_dict, "type"));
     instance_key->url = as_string(PyDict_GetItemString(instance_key_dict, "url"));
 
     cb_submit_stop_snapshot(check_id, instance_key);

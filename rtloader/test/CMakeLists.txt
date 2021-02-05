@@ -11,6 +11,7 @@ set(PKGS
 	"../../test/tagger/..."
 	"../../test/kubeutil/..."
 	"../../test/containers/..."
+	"../../test/topology/..."
 )
 
 if (WIN32)

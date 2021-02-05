@@ -562,14 +562,8 @@ def build(
         "flavor": "iot-agent" if iot else "agent",
     }
     if sys.platform.startswith('win'):
-        print ("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~contextdir:")
         ctx.run("echo %cd%", env=env)
-    print ("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~cmd:")
-    print(cmd.format(**args))
-    print("~~~~~~")
-    print("~~~ldflags:")
-    print(ldflags)
-    print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+    print("cmd: %s" % cmd.format(**args))
     ctx.run(cmd.format(**args), env=env)
     # Remove cross-compiling bits to render config
     env.update(
