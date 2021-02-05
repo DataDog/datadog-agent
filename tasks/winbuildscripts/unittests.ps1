@@ -74,6 +74,7 @@ if($err -ne 0){
     [Environment]::Exit($err)
 }
 
+mkdir  .\bin\agent
 & inv -e customaction.build --arch=$archflag
 
 & $Env:BUILD_ROOT\bin\agent\customaction-tests.exe
