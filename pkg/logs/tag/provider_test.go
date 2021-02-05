@@ -14,29 +14,36 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestProviderExpectedTags(t *testing.T) {
+func setupConfig(tags []string) (*config.MockConfig, time.Time) {
 	mockConfig := config.Mock()
 
 	startTime := config.StartTime
 	config.StartTime = time.Now()
-	defer func() {
-		config.StartTime = startTime
-	}()
-
-	tags := []string{"tag1:value1", "tag2", "tag3"}
 
 	mockConfig.Set("tags", tags)
-	defer mockConfig.Set("tags", nil)
+
+	return mockConfig, startTime
+}
+
+func TestProviderExpectedTags(t *testing.T) {
+
+	tags := []string{"tag1:value1", "tag2", "tag3"}
+	m, start := setupConfig(tags)
+	defer func() {
+		config.StartTime = start
+	}()
+
+	defer m.Set("tags", nil)
 
 	// Setting a test-friendly value for the deadline
-	mockConfig.Set("logs_config.expected_tags_duration", "5s")
-	defer mockConfig.Set("logs_config.expected_tags_duration", 0)
+	m.Set("logs_config.expected_tags_duration", "5s")
+	defer m.Set("logs_config.expected_tags_duration", 0)
 
 	p := NewProvider("foo")
 	pp := p.(*provider)
 
 	// Is provider expected?
-	d := mockConfig.GetDuration("logs_config.expected_tags_duration")
+	d := m.GetDuration("logs_config.expected_tags_duration")
 	l := pp.localTagProvider
 	ll := l.(*localProvider)
 

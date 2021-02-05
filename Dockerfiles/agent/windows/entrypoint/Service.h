@@ -23,7 +23,7 @@ public:
     ~Service();
 
     DWORD PID();
-    void Start(std::chrono::milliseconds timeout = std::chrono::seconds(30));
+    void Start(std::chrono::milliseconds timeout = std::chrono::seconds(60));
     void Stop(std::chrono::milliseconds timeout = std::chrono::seconds(30));
 };
 
