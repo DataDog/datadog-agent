@@ -380,7 +380,7 @@ func getFullRuntimeConfig(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, string(body), 500)
 		return
 	}
-	
+
 	if err := config.ResolveSecrets(config.Datadog, "datadog.yaml"); err != nil {
 		log.Warnf("Failed to resolve secrets: %s", err)
 	}
