@@ -535,7 +535,7 @@ func writeCheckToFile(checkName string, checkFileOutput *bytes.Buffer) {
 	_ = os.Mkdir(common.DefaultCheckFlareDirectory, os.ModeDir)
 
 	// Windows cannot accept ":" in file names
-	filenameSafeTimeStamp := strings.ReplaceAll(time.Now().Format(time.RFC3339), ":", "_")
+	filenameSafeTimeStamp := strings.ReplaceAll(time.Now().UTC().Format(time.RFC3339), ":", "-")
 	flarePath := filepath.Join(common.DefaultCheckFlareDirectory, "check_"+checkName+"_"+filenameSafeTimeStamp+".log")
 
 	w, err := flare.NewRedactingWriter(flarePath, os.ModePerm, true)
