@@ -374,12 +374,15 @@ func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 
 func getFullRuntimeConfig(w http.ResponseWriter, r *http.Request) {
 	runtimeConfig, err := yaml.Marshal(config.Datadog.AllSettings())
-	config.ResolveSecrets(config.Datadog, "datadog.yaml")
 	if err != nil {
 		log.Errorf("Unable to marshal runtime config response: %s", err)
 		body, _ := json.Marshal(map[string]string{"error": err.Error()})
 		http.Error(w, string(body), 500)
 		return
+	}
+	
+	if err := config.ResolveSecrets(config.Datadog, "datadog.yaml"); err != nil {
+		log.Warnf("Failed to resolve secrets: %s", err)
 	}
 
 	scrubbed, err := log.CredentialsCleanerBytes(runtimeConfig)
