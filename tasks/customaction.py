@@ -65,6 +65,7 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
     artefacts = [
         "customaction.dll",
         "customaction.pdb",
+        "customaction-tests.exe"
     ]
     for artefact in artefacts:
         if arch is not None and arch == "x86":
