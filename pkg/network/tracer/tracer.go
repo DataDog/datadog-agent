@@ -20,6 +20,7 @@ import (
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -408,15 +409,15 @@ func (t *Tracer) populateExpvarStats() error {
 
 // initPerfPolling starts the listening on perf buffer events to grab closed connections
 func (t *Tracer) initPerfPolling(perf *ddebpf.PerfHandler) (*manager.PerfMap, *PerfBatchManager, error) {
-	pm, found := t.m.GetPerfMap(string(probes.TcpCloseEventMap))
+	pm, found := t.m.GetPerfMap(string(probes.ConnCloseEventMap))
 	if !found {
-		return nil, nil, fmt.Errorf("unable to find perf map %s", probes.TcpCloseEventMap)
+		return nil, nil, fmt.Errorf("unable to find perf map %s", probes.ConnCloseEventMap)
 	}
 
-	tcpCloseEventMap, _ := t.getMap(probes.TcpCloseEventMap)
-	tcpCloseMap, _ := t.getMap(probes.TcpCloseBatchMap)
-	numCPUs := int(tcpCloseEventMap.ABI().MaxEntries)
-	batchManager, err := NewPerfBatchManager(tcpCloseMap, t.config.TCPClosedTimeout, numCPUs)
+	connCloseEventMap, _ := t.getMap(probes.ConnCloseEventMap)
+	connCloseMap, _ := t.getMap(probes.ConnCloseBatchMap)
+	numCPUs := int(connCloseEventMap.ABI().MaxEntries)
+	batchManager, err := NewPerfBatchManager(connCloseMap, 30*time.Second, numCPUs)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -625,12 +626,7 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 	var expired []*ConnTuple
 	entries := mp.IterateFrom(unsafe.Pointer(&ConnTuple{}))
 	for entries.Next(unsafe.Pointer(key), unsafe.Pointer(stats)) {
-
-		// expiry is handled differently for UDP and TCP. For TCP where conntrack TTL is very long, we use a short expiry for userspace tracking
-		// but use conntrack as a source of truth to keep long lived idle TCP conns in the userspace state, while evicting closed TCP connections.
-		// for UDP, the conntrack TTL is lower (two minutes), so the userspace and conntrack expiry are synced to avoid touching conntrack for
-		// UDP expiries
-		if stats.isExpired(latestTime, t.timeoutForConn(key)) && (key.isUDP() || !t.conntrackExists(cachedConntrack, key)) {
+		if t.connectionExpired(key, latestTime, stats, cachedConntrack) {
 			expired = append(expired, key.copy())
 			if key.isTCP() {
 				atomic.AddInt64(&t.expiredTCPConns, 1)
@@ -776,6 +772,7 @@ func (t *Tracer) getEbpfTelemetry() map[string]int64 {
 	return map[string]int64{
 		"tcp_sent_miscounts":  int64(telemetry.tcp_sent_miscounts),
 		"missed_tcp_close":    int64(telemetry.missed_tcp_close),
+		"missed_udp_close":    int64(telemetry.missed_udp_close),
 		"udp_sends_processed": int64(telemetry.udp_sends_processed),
 		"udp_sends_missed":    int64(telemetry.udp_sends_missed),
 	}
@@ -924,13 +921,29 @@ func (t *Tracer) getProbeProgramIDs() (map[string]uint32, error) {
 	return fds, nil
 }
 
-func (t *Tracer) conntrackExists(ctr *cachedConntrack, conn *ConnTuple) bool {
-	ok, err := ctr.Exists(conn)
-	if err != nil {
-		log.Errorf("error checking conntrack for connection %+v", *conn)
+// connectionExpired returns true if the passed in connection has expired
+//
+// expiry is handled differently for UDP and TCP. For TCP where conntrack TTL is very long, we use a short expiry for userspace tracking
+// but use conntrack as a source of truth to keep long lived idle TCP conns in the userspace state, while evicting closed TCP connections.
+// for UDP, the conntrack TTL is lower (two minutes), so the userspace and conntrack expiry are synced to avoid touching conntrack for
+// UDP expiries
+func (t *Tracer) connectionExpired(conn *ConnTuple, latestTime uint64, stats *ConnStatsWithTimestamp, ctr *cachedConntrack) bool {
+	if !stats.isExpired(latestTime, t.timeoutForConn(conn)) {
+		return false
 	}
 
-	return ok
+	// skip connection check for udp connections or if
+	// the pid for the connection is dead
+	if conn.isUDP() || !procutil.PidExists(int(conn.Pid())) {
+		return true
+	}
+
+	ok, err := ctr.Exists(conn)
+	if err != nil {
+		log.Warnf("error checking conntrack for connection %s: %s", *conn, err)
+	}
+
+	return !ok
 }
 
 func (t *Tracer) connVia(cs *network.ConnectionStats) {

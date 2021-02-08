@@ -33,6 +33,7 @@ func (c *Config) EnabledProbes(pre410Kernel bool) (map[probes.ProbeName]struct{}
 	if c.CollectUDPConns {
 		enabled[probes.UDPRecvMsgReturn] = struct{}{}
 		enabled[probes.UDPDestroySock] = struct{}{}
+		enabled[probes.UDPDestroySockReturn] = struct{}{}
 		enabled[probes.IPMakeSkb] = struct{}{}
 		enabled[probes.InetBind] = struct{}{}
 		enabled[probes.InetBindRet] = struct{}{}

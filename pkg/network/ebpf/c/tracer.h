@@ -55,7 +55,7 @@ typedef struct {
     conn_tuple_t tup;
     conn_stats_ts_t conn_stats;
     tcp_stats_t tcp_stats;
-} tcp_conn_t;
+} conn_t;
 
 // From include/net/tcp.h
 // tcp_flag_byte(th) (((u_int8_t *)th)[13])
@@ -145,20 +145,20 @@ typedef struct {
     __u64 batch_idx;
 } http_batch_notification_t;
 
-// Must match the number of tcp_conn_t objects embedded in the batch_t struct
-#ifndef TCP_CLOSED_BATCH_SIZE
-#define TCP_CLOSED_BATCH_SIZE 5
+// Must match the number of conn_t objects embedded in the batch_t struct
+#ifndef CONN_CLOSED_BATCH_SIZE
+#define CONN_CLOSED_BATCH_SIZE 5
 #endif
 
 // This struct is meant to be used as a container for batching
 // writes to the perf buffer. Ideally we should have an array of tcp_conn_t objects
 // but apparently eBPF verifier doesn't allow arbitrary index access during runtime.
 typedef struct {
-    tcp_conn_t c0;
-    tcp_conn_t c1;
-    tcp_conn_t c2;
-    tcp_conn_t c3;
-    tcp_conn_t c4;
+    conn_t c0;
+    conn_t c1;
+    conn_t c2;
+    conn_t c3;
+    conn_t c4;
     __u16 pos;
     __u16 cpu;
 } batch_t;
@@ -167,6 +167,7 @@ typedef struct {
 typedef struct {
     __u64 tcp_sent_miscounts;
     __u64 missed_tcp_close;
+    __u64 missed_udp_close;
     __u64 udp_sends_processed;
     __u64 udp_sends_missed;
 } telemetry_t;

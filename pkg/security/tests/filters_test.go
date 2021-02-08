@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build functionaltests
 
@@ -13,10 +13,7 @@ import (
 	"path/filepath"
 	"syscall"
 	"testing"
-	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/pkg/errors"
 )
@@ -39,28 +36,6 @@ func openTestFile(test *testModule, filename string, flags int) (int, string, er
 	}
 
 	return int(fd), testFile, nil
-}
-
-func waitForOpenDiscarder(test *testModule, filename string) (*probe.Event, error) {
-	timeout := time.After(5 * time.Second)
-	exhaust := time.After(time.Second)
-
-	var event *probe.Event
-	for {
-		select {
-		case <-test.probeHandler.GetActiveEventsChan():
-		case discarder := <-test.discarders:
-			if value, _ := discarder.event.GetFieldValue("open.filename"); value == filename {
-				event = discarder.event.(*sprobe.Event)
-			}
-		case <-exhaust:
-			if event != nil {
-				return event, nil
-			}
-		case <-timeout:
-			return nil, errors.New("timeout")
-		}
-	}
 }
 
 func TestOpenBasenameApproverFilter(t *testing.T) {

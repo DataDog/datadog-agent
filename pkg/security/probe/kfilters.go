@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build linux
 
@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -42,7 +43,7 @@ func (f *FilterPolicy) Bytes() ([]byte, error) {
 
 // Important should always be called after having checked that the file is not a discarder itself otherwise it can report incorrect
 // parent discarder
-func isParentPathDiscarder(rs *rules.RuleSet, regexCache *simplelru.LRU, eventType EventType, filenameField eval.Field, filename string) (bool, error) {
+func isParentPathDiscarder(rs *rules.RuleSet, regexCache *simplelru.LRU, eventType model.EventType, filenameField eval.Field, filename string) (bool, error) {
 	dirname := filepath.Dir(filename)
 
 	bucket := rs.GetBucket(eventType.String())

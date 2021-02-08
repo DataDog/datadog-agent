@@ -4,7 +4,10 @@
 #include "tracer.h"
 #include "bpf_helpers.h"
 
-enum telemetry_counter{tcp_sent_miscounts, missed_tcp_close, udp_send_processed, udp_send_missed};
+typedef struct {
+    struct sock * sk;
+    struct msghdr * msg;
+} udp_recv_sock_t;
 
 /* This is a key/value store with the keys being a conn_tuple_t for send & recv calls
  * and the values being conn_stats_ts_t *.
@@ -30,10 +33,10 @@ struct bpf_map_def SEC("maps/tcp_stats") tcp_stats = {
     .namespace = "",
 };
 
-/* Will hold the tcp close events
+/* Will hold the tcp/udp close events
  * The keys are the cpu number and the values a perf file descriptor for a perf event
  */
-struct bpf_map_def SEC("maps/tcp_close_event") tcp_close_event = {
+struct bpf_map_def SEC("maps/conn_close_event") conn_close_event = {
     .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
     .key_size = sizeof(__u32),
     .value_size = sizeof(__u32),
@@ -42,12 +45,12 @@ struct bpf_map_def SEC("maps/tcp_close_event") tcp_close_event = {
     .namespace = "",
 };
 
-/* We use this map as a container for batching closed tcp connections
+/* We use this map as a container for batching closed tcp/udp connections
  * The key represents the CPU core. Ideally we should use a BPF_MAP_TYPE_PERCPU_HASH map
  * or BPF_MAP_TYPE_PERCPU_ARRAY, but they are not available in
  * some of the Kernels we support (4.4 ~ 4.6)
  */
-struct bpf_map_def SEC("maps/tcp_close_batch") tcp_close_batch = {
+struct bpf_map_def SEC("maps/conn_close_batch") conn_close_batch = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(__u32),
     .value_size = sizeof(batch_t),
@@ -58,12 +61,12 @@ struct bpf_map_def SEC("maps/tcp_close_batch") tcp_close_batch = {
 
 /* This map is used to match the kprobe & kretprobe of udp_recvmsg */
 /* This is a key/value store with the keys being a pid
- * and the values being a struct sock *.
+ * and the values being a udp_recv_sock_t
  */
 struct bpf_map_def SEC("maps/udp_recv_sock") udp_recv_sock = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(__u64),
-    .value_size = sizeof(void*),
+    .value_size = sizeof(udp_recv_sock_t),
     .max_entries = 1024,
     .pinning = 0,
     .namespace = "",
