@@ -586,6 +586,11 @@ func TestHandleStats(t *testing.T) {
 	})
 }
 
+func TestHelloHandler(t *testing.T) {
+	// TODO(gbbr): Make sure to hard-code all JSON keys in the test to ensure that if
+	// any agent.Config struct fields ever change, the JSON output will stay the same.
+}
+
 func TestClientComputedStatsHeader(t *testing.T) {
 	conf := newTestReceiverConfig()
 	rcv := newTestReceiverFromConfig(conf)
