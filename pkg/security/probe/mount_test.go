@@ -10,6 +10,7 @@ package probe
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -22,8 +23,8 @@ func TestMountResolver(t *testing.T) {
 		expectedError         error
 	}
 	type event struct {
-		mount  *MountEvent
-		umount *UmountEvent
+		mount  *model.MountEvent
+		umount *model.UmountEvent
 	}
 	type args struct {
 		events []event
@@ -38,8 +39,8 @@ func TestMountResolver(t *testing.T) {
 			args{
 				[]event{
 					{
-						mount: &MountEvent{
-							SyscallEvent:  SyscallEvent{},
+						mount: &model.MountEvent{
+							SyscallEvent:  model.SyscallEvent{},
 							MountID:       127,
 							GroupID:       71,
 							Device:        52,
@@ -81,8 +82,8 @@ func TestMountResolver(t *testing.T) {
 			args{
 				[]event{
 					{
-						umount: &UmountEvent{
-							SyscallEvent: SyscallEvent{},
+						umount: &model.UmountEvent{
+							SyscallEvent: model.SyscallEvent{},
 							MountID:      127,
 						},
 					},
@@ -102,8 +103,8 @@ func TestMountResolver(t *testing.T) {
 			args{
 				[]event{
 					{
-						mount: &MountEvent{
-							SyscallEvent:  SyscallEvent{},
+						mount: &model.MountEvent{
+							SyscallEvent:  model.SyscallEvent{},
 							MountID:       27,
 							GroupID:       0,
 							Device:        1,
@@ -118,8 +119,8 @@ func TestMountResolver(t *testing.T) {
 						},
 					},
 					{
-						mount: &MountEvent{
-							SyscallEvent:  SyscallEvent{},
+						mount: &model.MountEvent{
+							SyscallEvent:  model.SyscallEvent{},
 							MountID:       22,
 							GroupID:       0,
 							Device:        21,
@@ -134,8 +135,8 @@ func TestMountResolver(t *testing.T) {
 						},
 					},
 					{
-						mount: &MountEvent{
-							SyscallEvent:  SyscallEvent{},
+						mount: &model.MountEvent{
+							SyscallEvent:  model.SyscallEvent{},
 							MountID:       31,
 							GroupID:       0,
 							Device:        26,
@@ -177,8 +178,8 @@ func TestMountResolver(t *testing.T) {
 			args{
 				[]event{
 					{
-						umount: &UmountEvent{
-							SyscallEvent: SyscallEvent{},
+						umount: &model.UmountEvent{
+							SyscallEvent: model.SyscallEvent{},
 							MountID:      27,
 						},
 					},
@@ -210,8 +211,8 @@ func TestMountResolver(t *testing.T) {
 			args{
 				[]event{
 					{
-						mount: &MountEvent{
-							SyscallEvent:  SyscallEvent{},
+						mount: &model.MountEvent{
+							SyscallEvent:  model.SyscallEvent{},
 							MountID:       27,
 							GroupID:       0,
 							Device:        1,
@@ -226,8 +227,8 @@ func TestMountResolver(t *testing.T) {
 						},
 					},
 					{
-						mount: &MountEvent{
-							SyscallEvent:  SyscallEvent{},
+						mount: &model.MountEvent{
+							SyscallEvent:  model.SyscallEvent{},
 							MountID:       176,
 							GroupID:       71,
 							Device:        52,
@@ -242,8 +243,8 @@ func TestMountResolver(t *testing.T) {
 						},
 					},
 					{
-						mount: &MountEvent{
-							SyscallEvent:  SyscallEvent{},
+						mount: &model.MountEvent{
+							SyscallEvent:  model.SyscallEvent{},
 							MountID:       638,
 							GroupID:       71,
 							Device:        52,
@@ -258,8 +259,8 @@ func TestMountResolver(t *testing.T) {
 						},
 					},
 					{
-						mount: &MountEvent{
-							SyscallEvent:  SyscallEvent{},
+						mount: &model.MountEvent{
+							SyscallEvent:  model.SyscallEvent{},
 							MountID:       639,
 							GroupID:       0,
 							Device:        54,
@@ -289,8 +290,8 @@ func TestMountResolver(t *testing.T) {
 			args{
 				[]event{
 					{
-						umount: &UmountEvent{
-							SyscallEvent: SyscallEvent{},
+						umount: &model.UmountEvent{
+							SyscallEvent: model.SyscallEvent{},
 							MountID:      176,
 						},
 					},

@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
@@ -38,7 +39,7 @@ func AllCustomRuleIDs() []string {
 	}
 }
 
-func newCustomEvent(eventType EventType, marshalFunc func() ([]byte, error)) *CustomEvent {
+func newCustomEvent(eventType model.EventType, marshalFunc func() ([]byte, error)) *CustomEvent {
 	return &CustomEvent{
 		eventType:   eventType,
 		marshalFunc: marshalFunc,
@@ -47,7 +48,7 @@ func newCustomEvent(eventType EventType, marshalFunc func() ([]byte, error)) *Cu
 
 // CustomEvent is used to send custom security events to Datadog
 type CustomEvent struct {
-	eventType   EventType
+	eventType   model.EventType
 	tags        []string
 	marshalFunc func() ([]byte, error)
 }
@@ -72,7 +73,7 @@ func (ce *CustomEvent) GetType() string {
 }
 
 // GetEventType returns the event type
-func (ce *CustomEvent) GetEventType() EventType {
+func (ce *CustomEvent) GetEventType() model.EventType {
 	return ce.eventType
 }
 
@@ -109,7 +110,7 @@ type EventLostRead struct {
 func NewEventLostReadEvent(mapName string, perCPU map[int]int64) (*rules.Rule, *CustomEvent) {
 	return newRule(&rules.RuleDefinition{
 			ID: LostEventsRuleID,
-		}), newCustomEvent(CustomLostReadEventType, EventLostRead{
+		}), newCustomEvent(model.CustomLostReadEventType, EventLostRead{
 			Name:      mapName,
 			Lost:      perCPU,
 			Timestamp: time.Now(),
@@ -128,7 +129,7 @@ type EventLostWrite struct {
 func NewEventLostWriteEvent(mapName string, perEventPerCPU map[string]map[int]uint64) (*rules.Rule, *CustomEvent) {
 	return newRule(&rules.RuleDefinition{
 			ID: LostEventsRuleID,
-		}), newCustomEvent(CustomLostWriteEventType, EventLostWrite{
+		}), newCustomEvent(model.CustomLostWriteEventType, EventLostWrite{
 			Name:      mapName,
 			Lost:      perEventPerCPU,
 			Timestamp: time.Now(),
@@ -148,7 +149,7 @@ type RulesetLoadedEvent struct {
 func NewRuleSetLoadedEvent(loadedPolicies map[string]string, loadedRules []rules.RuleID, loadedMacros []rules.MacroID) (*rules.Rule, *CustomEvent) {
 	return newRule(&rules.RuleDefinition{
 			ID: RulesetLoadedRuleID,
-		}), newCustomEvent(CustomRulesetLoadedEventType, RulesetLoadedEvent{
+		}), newCustomEvent(model.CustomRulesetLoadedEventType, RulesetLoadedEvent{
 			Timestamp: time.Now(),
 			Policies:  loadedPolicies,
 			Rules:     loadedRules,
@@ -169,17 +170,17 @@ type NoisyProcessEvent struct {
 }
 
 // NewNoisyProcessEvent returns the rule and a populated custom event for a noisy_process event
-func NewNoisyProcessEvent(eventType EventType,
+func NewNoisyProcessEvent(eventType model.EventType,
 	count uint64,
 	threshold int64,
 	controlPeriod time.Duration,
 	discardedUntil time.Time,
-	process *ProcessCacheEntry,
+	process *model.ProcessCacheEntry,
 	resolvers *Resolvers,
 	timestamp time.Time) (*rules.Rule, *CustomEvent) {
 	return newRule(&rules.RuleDefinition{
 			ID: NoisyProcessRuleID,
-		}), newCustomEvent(CustomNoisyProcessEventType, NoisyProcessEvent{
+		}), newCustomEvent(model.CustomNoisyProcessEventType, NoisyProcessEvent{
 			Timestamp:      timestamp,
 			Event:          eventType.String(),
 			Count:          count,
@@ -190,14 +191,14 @@ func NewNoisyProcessEvent(eventType EventType,
 		}.MarshalJSON)
 }
 
-func resolutionErrorToEventType(err error) EventType {
+func resolutionErrorToEventType(err error) model.EventType {
 	switch err.(type) {
 	case ErrTruncatedParents:
-		return CustomTruncatedParentsEventType
+		return model.CustomTruncatedParentsEventType
 	case ErrTruncatedSegment:
-		return CustomTruncatedSegmentEventType
+		return model.CustomTruncatedSegmentEventType
 	default:
-		return UnknownEventType
+		return model.UnknownEventType
 	}
 }
 

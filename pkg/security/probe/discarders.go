@@ -12,16 +12,39 @@ import (
 
 	libebpf "github.com/DataDog/ebpf"
 
+	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
-type pidDiscarderParameters struct {
-	EventType  EventType
-	Timestamps [maxEventRoundedUp]uint64
+var (
+	dentryInvalidDiscarder = []interface{}{dentryPathKeyNotFound}
+)
+
+// InvalidDiscarders exposes list of values that are not discarders
+var InvalidDiscarders = map[eval.Field][]interface{}{
+	"open.filename":        dentryInvalidDiscarder,
+	"unlink.filename":      dentryInvalidDiscarder,
+	"chmod.filename":       dentryInvalidDiscarder,
+	"chown.filename":       dentryInvalidDiscarder,
+	"mkdir.filename":       dentryInvalidDiscarder,
+	"rmdir.filename":       dentryInvalidDiscarder,
+	"rename.old.filename":  dentryInvalidDiscarder,
+	"rename.new.filename":  dentryInvalidDiscarder,
+	"utimes.filename":      dentryInvalidDiscarder,
+	"link.source.filename": dentryInvalidDiscarder,
+	"link.target.filename": dentryInvalidDiscarder,
+	"process.filename":     dentryInvalidDiscarder,
+	"setxattr.filename":    dentryInvalidDiscarder,
+	"removexattr.filename": dentryInvalidDiscarder,
 }
 
-func (p *Probe) discardPID(eventType EventType, pid uint32) error {
+type pidDiscarderParameters struct {
+	EventType  model.EventType
+	Timestamps [model.MaxEventRoundedUp]uint64
+}
+
+func (p *Probe) discardPID(eventType model.EventType, pid uint32) error {
 	var params pidDiscarderParameters
 
 	updateFlags := libebpf.UpdateExist
@@ -33,7 +56,7 @@ func (p *Probe) discardPID(eventType EventType, pid uint32) error {
 	return p.pidDiscarders.Update(pid, &params, updateFlags)
 }
 
-func (p *Probe) discardPIDWithTimeout(eventType EventType, pid uint32, timeout time.Duration) error {
+func (p *Probe) discardPIDWithTimeout(eventType model.EventType, pid uint32, timeout time.Duration) error {
 	var params pidDiscarderParameters
 
 	updateFlags := libebpf.UpdateExist
@@ -54,8 +77,8 @@ type inodeDiscarder struct {
 }
 
 type inodeDiscarderParameters struct {
-	ParentMask EventType
-	LeafMask   EventType
+	ParentMask model.EventType
+	LeafMask   model.EventType
 }
 
 func (p *Probe) removeDiscarderInode(mountID uint32, inode uint64) {
@@ -68,7 +91,7 @@ func (p *Probe) removeDiscarderInode(mountID uint32, inode uint64) {
 	_ = p.inodeDiscarders.Delete(&key)
 }
 
-func (p *Probe) discardInode(eventType EventType, mountID uint32, inode uint64, isLeaf bool) error {
+func (p *Probe) discardInode(eventType model.EventType, mountID uint32, inode uint64, isLeaf bool) error {
 	var params inodeDiscarderParameters
 	key := inodeDiscarder{
 		PathKey: PathKey{
@@ -92,7 +115,7 @@ func (p *Probe) discardInode(eventType EventType, mountID uint32, inode uint64, 
 	return p.inodeDiscarders.Update(&key, &params, updateFlags)
 }
 
-func (p *Probe) discardParentInode(rs *rules.RuleSet, eventType EventType, field eval.Field, filename string, mountID uint32, inode uint64, pathID uint32) (bool, uint32, uint64, error) {
+func (p *Probe) discardParentInode(rs *rules.RuleSet, eventType model.EventType, field eval.Field, filename string, mountID uint32, inode uint64, pathID uint32) (bool, uint32, uint64, error) {
 	isDiscarder, err := isParentPathDiscarder(rs, p.regexCache, eventType, field, filename)
 	if !isDiscarder {
 		return false, 0, 0, err
