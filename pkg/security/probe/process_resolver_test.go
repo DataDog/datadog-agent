@@ -35,12 +35,12 @@ func testCacheSize(t *testing.T, resolver *ProcessResolver) {
 func TestFork1st(t *testing.T) {
 	parent := NewProcessCacheEntry()
 	parent.Pid = 1
-	parent.ForkTimestamp = time.Now()
+	parent.ForkTime = time.Now()
 
 	child := NewProcessCacheEntry()
 	child.Pid = 2
 	child.PPid = parent.Pid
-	child.ForkTimestamp = time.Now()
+	child.ForkTime = time.Now()
 
 	resolver, err := NewProcessResolver(nil, nil, nil, NewProcessResolverOpts(true, 10000))
 	if err != nil {
@@ -76,12 +76,12 @@ func TestFork1st(t *testing.T) {
 func TestFork2nd(t *testing.T) {
 	parent := NewProcessCacheEntry()
 	parent.Pid = 1
-	parent.ForkTimestamp = time.Now()
+	parent.ForkTime = time.Now()
 
 	child := NewProcessCacheEntry()
 	child.Pid = 2
 	child.PPid = parent.Pid
-	child.ForkTimestamp = time.Now()
+	child.ForkTime = time.Now()
 
 	resolver, err := NewProcessResolver(nil, nil, nil, NewProcessResolverOpts(true, 10000))
 	if err != nil {
@@ -119,17 +119,17 @@ func TestFork2nd(t *testing.T) {
 func TestForkExec(t *testing.T) {
 	parent := NewProcessCacheEntry()
 	parent.Pid = 1
-	parent.ForkTimestamp = time.Now()
+	parent.ForkTime = time.Now()
 
 	child := NewProcessCacheEntry()
 	child.Pid = 2
 	child.PPid = parent.Pid
-	child.ForkTimestamp = time.Now()
+	child.ForkTime = time.Now()
 
 	exec := NewProcessCacheEntry()
 	exec.Pid = child.Pid
 	exec.PPid = child.PPid
-	exec.ExecTimestamp = time.Now()
+	exec.ExecTime = time.Now()
 
 	resolver, err := NewProcessResolver(nil, nil, nil, NewProcessResolverOpts(true, 10000))
 	if err != nil {
@@ -177,17 +177,17 @@ func TestForkExec(t *testing.T) {
 func TestOrphanExec(t *testing.T) {
 	parent := NewProcessCacheEntry()
 	parent.Pid = 1
-	parent.ForkTimestamp = time.Now()
+	parent.ForkTime = time.Now()
 
 	child := NewProcessCacheEntry()
 	child.Pid = 2
 	child.PPid = parent.Pid
-	child.ForkTimestamp = time.Now()
+	child.ForkTime = time.Now()
 
 	exec := NewProcessCacheEntry()
 	exec.Pid = child.Pid
 	exec.PPid = child.PPid
-	exec.ExecTimestamp = time.Now()
+	exec.ExecTime = time.Now()
 
 	resolver, err := NewProcessResolver(nil, nil, nil, NewProcessResolverOpts(true, 10000))
 	if err != nil {
@@ -234,22 +234,22 @@ func TestOrphanExec(t *testing.T) {
 func TestForkExecExec(t *testing.T) {
 	parent := NewProcessCacheEntry()
 	parent.Pid = 1
-	parent.ForkTimestamp = time.Now()
+	parent.ForkTime = time.Now()
 
 	child := NewProcessCacheEntry()
 	child.Pid = 2
 	child.PPid = parent.Pid
-	child.ForkTimestamp = time.Now()
+	child.ForkTime = time.Now()
 
 	exec1 := NewProcessCacheEntry()
 	exec1.Pid = child.Pid
 	exec1.PPid = child.PPid
-	exec1.ExecTimestamp = time.Now()
+	exec1.ExecTime = time.Now()
 
 	exec2 := NewProcessCacheEntry()
 	exec2.Pid = child.Pid
 	exec2.PPid = child.PPid
-	exec2.ExecTimestamp = time.Now()
+	exec2.ExecTime = time.Now()
 
 	resolver, err := NewProcessResolver(nil, nil, nil, NewProcessResolverOpts(true, 10000))
 	if err != nil {
@@ -306,26 +306,26 @@ func TestForkExecExec(t *testing.T) {
 func TestForkReuse(t *testing.T) {
 	parent1 := NewProcessCacheEntry()
 	parent1.Pid = 1
-	parent1.ForkTimestamp = time.Now()
+	parent1.ForkTime = time.Now()
 
 	child1 := NewProcessCacheEntry()
 	child1.Pid = 2
 	child1.PPid = parent1.Pid
-	child1.ForkTimestamp = time.Now()
+	child1.ForkTime = time.Now()
 
 	exec1 := NewProcessCacheEntry()
 	exec1.Pid = child1.Pid
 	exec1.PPid = child1.PPid
-	exec1.ExecTimestamp = time.Now()
+	exec1.ExecTime = time.Now()
 
 	parent2 := NewProcessCacheEntry()
 	parent2.Pid = 1
-	parent2.ForkTimestamp = time.Now()
+	parent2.ForkTime = time.Now()
 
 	child2 := NewProcessCacheEntry()
 	child2.Pid = 3
 	child2.PPid = parent2.Pid
-	child2.ForkTimestamp = time.Now()
+	child2.ForkTime = time.Now()
 
 	resolver, err := NewProcessResolver(nil, nil, nil, NewProcessResolverOpts(true, 10000))
 	if err != nil {
@@ -405,22 +405,22 @@ func TestForkReuse(t *testing.T) {
 func TestForkForkExec(t *testing.T) {
 	parent := NewProcessCacheEntry()
 	parent.Pid = 1
-	parent.ForkTimestamp = time.Now()
+	parent.ForkTime = time.Now()
 
 	child := NewProcessCacheEntry()
 	child.Pid = 2
 	child.PPid = parent.Pid
-	child.ForkTimestamp = time.Now()
+	child.ForkTime = time.Now()
 
 	grandChild := NewProcessCacheEntry()
 	grandChild.Pid = 3
 	grandChild.PPid = child.Pid
-	grandChild.ForkTimestamp = time.Now()
+	grandChild.ForkTime = time.Now()
 
 	childExec := NewProcessCacheEntry()
 	childExec.Pid = child.Pid
 	childExec.PPid = child.PPid
-	childExec.ExecTimestamp = time.Now()
+	childExec.ExecTime = time.Now()
 
 	resolver, err := NewProcessResolver(nil, nil, nil, NewProcessResolverOpts(true, 10000))
 	if err != nil {

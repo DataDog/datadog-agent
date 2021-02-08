@@ -10,12 +10,15 @@ package probe
 import (
 	"context"
 	"os"
+	"path"
 	"sort"
+	"strings"
 
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/avast/retry-go"
 	"github.com/pkg/errors"
 
+	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -65,6 +68,60 @@ func NewResolvers(probe *Probe, client *statsd.Client) (*Resolvers, error) {
 	resolvers.ProcessResolver = processResolver
 
 	return resolvers, nil
+}
+
+// resolveBasename resolves the inode to a filename
+func (r *Resolvers) resolveBasename(e *model.FileFields) string {
+	return r.DentryResolver.GetName(e.MountID, e.Inode, e.PathID)
+}
+
+// resolveContainerPath resolves the inode to a path relative to the container
+func (r *Resolvers) resolveContainerPath(e *model.FileFields) string {
+	containerPath, _, _, err := r.MountResolver.GetMountPath(e.MountID)
+	if err != nil {
+		return ""
+	}
+	return containerPath
+}
+
+// resolveInode resolves the inode to a full path. Returns the path and true if it was entirely resolved
+func (r *Resolvers) resolveInode(e *model.FileFields) (string, error) {
+	pathStr, err := r.DentryResolver.Resolve(e.MountID, e.Inode, e.PathID)
+	if pathStr == dentryPathKeyNotFound || err != nil {
+		return pathStr, err
+	}
+
+	_, mountPath, rootPath, err := r.MountResolver.GetMountPath(e.MountID)
+	if err == nil {
+		if strings.HasPrefix(pathStr, rootPath) && rootPath != "/" {
+			pathStr = strings.Replace(pathStr, rootPath, "", 1)
+		}
+		pathStr = path.Join(mountPath, pathStr)
+	}
+
+	return pathStr, err
+}
+
+// ResolveInode resolves the inode to a full path. Returns the path and true if it was entirely resolved
+func (r *Resolvers) ResolveInode(e *model.FileEvent) string {
+	path, _ := r.resolveInode(&e.FileFields)
+	return path
+}
+
+// ResolveProcessUser resolves the user id of the process to a username
+func (r *Resolvers) ResolveProcessUser(p *model.ProcessContext) string {
+	if len(p.User) == 0 {
+		p.User, _ = r.UserGroupResolver.ResolveUser(int(p.UID))
+	}
+	return p.User
+}
+
+// ResolveProcessGroup resolves the group id of the process to a group name
+func (r *Resolvers) ResolveProcessGroup(p *model.ProcessContext) string {
+	if len(p.Group) == 0 {
+		p.Group, _ = r.UserGroupResolver.ResolveGroup(int(p.GID))
+	}
+	return p.Group
 }
 
 // Start the resolvers

@@ -17,13 +17,14 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/hashicorp/golang-lru/simplelru"
 
+	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type eventCounterLRUKey struct {
 	Pid    uint32
 	Cookie uint32
-	Event  EventType
+	Event  model.EventType
 }
 
 // LoadController is used to monitor and control the pressure put on the host
@@ -63,7 +64,7 @@ func NewLoadController(probe *Probe, statsdClient *statsd.Client) (*LoadControll
 // Count processes the provided events and ensures the load of the provided event type is within the configured limits
 func (lc *LoadController) Count(event *Event) {
 	switch event.GetEventType() {
-	case ExitEventType, ExecEventType, InvalidateDentryEventType:
+	case model.ExitEventType, model.ExecEventType, model.InvalidateDentryEventType:
 	default:
 		lc.GenericCount(event)
 	}

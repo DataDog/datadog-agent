@@ -908,8 +908,9 @@ func TestDentryOverlay(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if event, err := waitForOpenDiscarder(test, testFile); err != nil {
-			t.Fatalf("should get a discarder: %+v", event)
+		event, err := waitForOpenDiscarder(test, testFile)
+		if err != nil {
+			t.Fatalf("should get a discarder: %+v", err)
 		}
 
 		// should be now discarderd
@@ -921,7 +922,7 @@ func TestDentryOverlay(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if event, err := waitForOpenProbeEvent(test, testFile); err == nil {
+		if event, err = waitForOpenProbeEvent(test, testFile); err == nil {
 			t.Fatalf("shouldn't get an event: %+v", event)
 		}
 
@@ -943,8 +944,8 @@ func TestDentryOverlay(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if event, err := waitForOpenProbeEvent(test, testFile); err != nil {
-			t.Fatalf("should get an event: %+v", event)
+		if _, err := waitForOpenProbeEvent(test, testFile); err != nil {
+			t.Fatalf("should get an event: %+v", err)
 		}
 	})
 }

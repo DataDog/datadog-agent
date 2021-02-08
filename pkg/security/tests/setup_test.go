@@ -593,7 +593,7 @@ var logInitilialized bool
 
 func (t *simpleTest) swapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, error) {
 	if logger == nil {
-		logFormat := "%Ns [%LEVEL] %Func:%Line %Msg\n"
+		logFormat := "[%Date(2006-01-02 15:04:05.000)] [%LEVEL] %Func:%Line %Msg\n"
 
 		var err error
 
@@ -654,29 +654,60 @@ func testContainerPath(t *testing.T, event *sprobe.Event, fieldPath string) {
 	}
 }
 
-// waitForOpenProbeEvent returns the first open event with the provided filename.
-// WARNING: this function may yield a "fatal error: concurrent map writes" error if the ruleset of testModule does not
-// contain a rule on "open.filename"
-func waitForOpenProbeEvent(test *testModule, filename string) (*probe.Event, error) {
-	timeout := time.After(3 * time.Second)
-	exhaust := time.After(time.Second)
-
-	var event *probe.Event
+func (tm *testModule) flushChannels(duration time.Duration) {
+	timeout := time.After(duration)
 	for {
 		select {
-		case e := <-test.probeHandler.GetActiveEventsChan():
-			if value, _ := e.GetFieldValue("open.filename"); value == filename {
-				event = e
-			}
-		case <-test.discarders:
-		case <-exhaust:
-			if event != nil {
-				return event, nil
+		case <-tm.discarders:
+		case <-tm.probeHandler.GetActiveEventsChan():
+		case <-timeout:
+			return
+		}
+	}
+}
+
+func waitForDiscarder(test *testModule, key string, value interface{}) (*probe.Event, error) {
+	timeout := time.After(5 * time.Second)
+
+	for {
+		select {
+		case discarder := <-test.discarders:
+			v, _ := discarder.event.GetFieldValue(key)
+			if v == value {
+				test.flushChannels(time.Second)
+				return discarder.event.(*sprobe.Event), nil
 			}
 		case <-timeout:
 			return nil, errors.New("timeout")
 		}
 	}
+}
+
+// waitForProbeEvent returns the first open event with the provided filename.
+// WARNING: this function may yield a "fatal error: concurrent map writes" error if the ruleset of testModule does not
+// contain a rule on "open.filename"
+func waitForProbeEvent(test *testModule, key string, value interface{}) (*probe.Event, error) {
+	timeout := time.After(3 * time.Second)
+
+	for {
+		select {
+		case e := <-test.probeHandler.GetActiveEventsChan():
+			if v, _ := e.GetFieldValue(key); v == value {
+				test.flushChannels(time.Second)
+				return e, nil
+			}
+		case <-timeout:
+			return nil, errors.New("timeout")
+		}
+	}
+}
+
+func waitForOpenDiscarder(test *testModule, filename string) (*probe.Event, error) {
+	return waitForDiscarder(test, "open.filename", filename)
+}
+
+func waitForOpenProbeEvent(test *testModule, filename string) (*probe.Event, error) {
+	return waitForProbeEvent(test, "open.filename", filename)
 }
 
 func TestEnv(t *testing.T) {
