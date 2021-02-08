@@ -28,6 +28,7 @@ func NewOffsetManager() *manager.Manager {
 			{Section: string(probes.TCPv6Connect)},
 			{Section: string(probes.IPMakeSkb)},
 			{Section: string(probes.IP6MakeSkb)},
+			{Section: string(probes.IP6MakeSkbPre470)},
 			{Section: string(probes.TCPv6ConnectReturn), KProbeMaxActive: maxActive},
 		},
 	}
