@@ -32,8 +32,8 @@ func NewOffsetManager() *manager.Manager {
 	}
 }
 
-func NewManager(closedHandler, httpHandler *ebpf.PerfHandler) *manager.Manager {
-	return &manager.Manager{
+func NewManager(closedHandler, httpHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Manager {
+	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: string(probes.ConnMap)},
 			{Name: string(probes.TcpStatsMap)},
@@ -93,4 +93,10 @@ func NewManager(closedHandler, httpHandler *ebpf.PerfHandler) *manager.Manager {
 			{Section: string(probes.SocketHTTPFilter)},
 		},
 	}
+
+	if !runtimeTracer {
+		mgr.Probes = append(mgr.Probes, &manager.Probe{Section: string(probes.TCPRetransmitPre470)})
+	}
+
+	return mgr
 }
