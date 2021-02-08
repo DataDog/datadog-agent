@@ -100,7 +100,7 @@ func TestTargetTPS(t *testing.T) {
 	sampledCount := 0
 
 	for period := 0; period < initPeriods+periods; period++ {
-		s.Sampler.Backend.(*MemoryBackend).decayScore()
+		s.Sampler.Backend.decayScore()
 		for i := 0; i < int(tracesPerPeriod); i++ {
 			trace, root := getTestTrace()
 			sampled := s.Sample(trace, root, defaultEnv)
