@@ -369,12 +369,8 @@ int kretprobe__tcp_close(struct pt_regs* ctx) {
     return 0;
 }
 
-SEC("kprobe/ip6_make_skb")
-int kprobe__ip6_make_skb(struct pt_regs* ctx) {
-    struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
-    size_t size = (size_t)PT_REGS_PARM4(ctx);
+static __always_inline int handle_ip6_skb(struct sock* sk, size_t size, struct flowi6* fl6) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-
     size = size - sizeof(struct udphdr);
 
     conn_tuple_t t = {};
@@ -384,17 +380,8 @@ int kprobe__ip6_make_skb(struct pt_regs* ctx) {
             increment_telemetry_count(udp_send_missed);
             return 0;
         }
-// commit: https://github.com/torvalds/linux/commit/26879da58711aa604a1b866cbeedd7e0f78f90ad
-// changed the arguments to ip6_make_skb and introduced the struct ipcm6_cookie
-#if __is_identifier(ipcm6_cookie)
-        struct flowi6* fl6 = (struct flowi6*)PT_REGS_PARM7(ctx);
-#else
-        struct flowi6* fl6 = (struct flowi6*)PT_REGS_PARM9(ctx);
-#endif
-        bpf_probe_read(&t.saddr_h, sizeof(u64), ((char*)fl6) + offset_saddr_fl6());
-        bpf_probe_read(&t.saddr_l, sizeof(u64), ((char*)fl6) + offset_saddr_fl6() + sizeof(u64));
-        bpf_probe_read(&t.daddr_h, sizeof(u64), ((char*)fl6) + offset_daddr_fl6());
-        bpf_probe_read(&t.daddr_l, sizeof(u64), ((char*)fl6) + offset_daddr_fl6() + sizeof(u64));
+        read_in6_addr(&t.saddr_h, &t.saddr_l, (struct in6_addr*)(((char*)fl6) + offset_saddr_fl6()));
+        read_in6_addr(&t.daddr_h, &t.daddr_l, (struct in6_addr*)(((char*)fl6) + offset_daddr_fl6()));
 
         if (!(t.saddr_h || t.saddr_l)) {
             log_debug("ERR(fl6): src addr not set src_l:%d,src_h:%d\n", t.saddr_l, t.saddr_h);
@@ -436,6 +423,26 @@ int kprobe__ip6_make_skb(struct pt_regs* ctx) {
     increment_telemetry_count(udp_send_processed);
 
     return 0;
+}
+
+// commit: https://github.com/torvalds/linux/commit/26879da58711aa604a1b866cbeedd7e0f78f90ad
+// changed the arguments to ip6_make_skb and introduced the struct ipcm6_cookie
+SEC("kprobe/ip6_make_skb/pre_4_7_0")
+int kprobe__ip6_make_skb__pre_4_7_0(struct pt_regs* ctx) {
+    struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
+    size_t size = (size_t)PT_REGS_PARM4(ctx);
+    struct flowi6* fl6 = (struct flowi6*)PT_REGS_PARM9(ctx);
+
+    return handle_ip6_skb(sk, size, fl6);
+}
+
+SEC("kprobe/ip6_make_skb")
+int kprobe__ip6_make_skb(struct pt_regs* ctx) {
+    struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
+    size_t size = (size_t)PT_REGS_PARM4(ctx);
+    struct flowi6* fl6 = (struct flowi6*)PT_REGS_PARM7(ctx);
+
+    return handle_ip6_skb(sk, size, fl6);
 }
 
 // Note: This is used only in the UDP send path.

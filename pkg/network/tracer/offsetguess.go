@@ -18,6 +18,8 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -249,7 +251,7 @@ func waitUntilStable(conn net.Conn, window time.Duration, attempts int) (*fieldV
 	return nil, errors.New("unstable TCP socket params")
 }
 
-func offsetGuessProbes(c *config.Config) map[probes.ProbeName]struct{} {
+func offsetGuessProbes(c *config.Config) (map[probes.ProbeName]struct{}, error) {
 	p := map[probes.ProbeName]struct{}{
 		probes.TCPGetSockOpt: {},
 		probes.IPMakeSkb:     {},
@@ -258,9 +260,20 @@ func offsetGuessProbes(c *config.Config) map[probes.ProbeName]struct{} {
 	if c.CollectIPv6Conns {
 		p[probes.TCPv6Connect] = struct{}{}
 		p[probes.TCPv6ConnectReturn] = struct{}{}
-		p[probes.IP6MakeSkb] = struct{}{}
+
+		kv, err := kernel.HostVersion()
+		if err != nil {
+			return nil, err
+		}
+
+		if kv < kernel.VersionCode(4, 7, 0) {
+			p[probes.IP6MakeSkbPre470] = struct{}{}
+		} else {
+			p[probes.IP6MakeSkb] = struct{}{}
+		}
+
 	}
-	return p
+	return p, nil
 }
 
 func compareIPv6(a [4]C.__u32, b [4]uint32) bool {

@@ -40,13 +40,6 @@ static __always_inline __u16 read_sport(struct sock* skp) {
     return sport;
 }
 
-#ifdef FEATURE_IPV6_ENABLED
-static __always_inline void read_in6_addr(__u64* addr_h, __u64* addr_l, struct in6_addr* in6) {
-    bpf_probe_read(addr_h, sizeof(__u64), &(in6->in6_u.u6_addr32[0]));
-    bpf_probe_read(addr_l, sizeof(__u64), &(in6->in6_u.u6_addr32[2]));
-}
-#endif
-
 /**
  * Reads values into a `conn_tuple_t` from a `sock`. Any values that are already set in conn_tuple_t
  * are not overwritten. Returns 1 success, 0 otherwise.
