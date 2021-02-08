@@ -28,7 +28,7 @@ func NewOffsetManager() *manager.Manager {
 			{Section: string(probes.TCPv6Connect)},
 			{Section: string(probes.IPMakeSkb)},
 			{Section: string(probes.IP6MakeSkb)},
-			{Section: string(probes.IP6MakeSkbPre470)},
+			{Section: string(probes.IP6MakeSkbPre470), MatchFuncName: "^ip6_make_skb$"},
 			{Section: string(probes.TCPv6ConnectReturn), KProbeMaxActive: maxActive},
 		},
 	}
@@ -101,7 +101,7 @@ func NewManager(closedHandler, httpHandler *ebpf.PerfHandler, runtimeTracer bool
 	// tracer.
 	if !runtimeTracer {
 		mgr.Probes = append(mgr.Probes, &manager.Probe{Section: string(probes.TCPRetransmitPre470), MatchFuncName: "^tcp_retransmit_skb$"})
-		mgr.Probes = append(mgr.Probes, &manager.Probe{Section: string(probes.IP6MakeSkbPre470)})
+		mgr.Probes = append(mgr.Probes, &manager.Probe{Section: string(probes.IP6MakeSkbPre470)}, MatchFuncName: "^ip6_make_skb$"})
 	}
 
 	return mgr
