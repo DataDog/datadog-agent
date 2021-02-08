@@ -71,7 +71,6 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
             shutil.copy2("{}\\cal\\{}\\{}".format(CUSTOM_ACTION_ROOT_DIR, configuration, artefact), BIN_PATH)
         else:
             shutil.copy2("{}\\cal\\x64\\{}\\{}".format(CUSTOM_ACTION_ROOT_DIR, configuration, artefact), BIN_PATH)
-    shutil.copy2(pdb, BIN_PATH)
 
 
 @task
