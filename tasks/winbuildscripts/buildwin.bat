@@ -11,7 +11,7 @@ REM
 REM after copying files in from the host, execute the build
 REM using `dobuild.bat`
 REM
-call %~p0dobuild.bat %* 
+call %~p0dobuild.bat %*
 if not %ERRORLEVEL% == 0 exit /b %ERRORLEVEL%
 
 REM show output directories (for debugging)
@@ -23,6 +23,7 @@ REM copy resulting packages to expected location for collection by gitlab.
 if not exist %PKG_OUTDIR% mkdir %PKG_OUTDIR% || exit /b 5
 if exist \omnibus-ruby\pkg\*.msi copy \omnibus-ruby\pkg\*.msi %PKG_OUTDIR% || exit /b 6
 if exist \omnibus-ruby\pkg\*.zip copy \omnibus-ruby\pkg\*.zip %PKG_OUTDIR% || exit /b 7
+if exist \omnibus-ruby\pkg\*.wixpdb copy \omnibus-ruby\pkg\*.wixpdb %PKG_OUTDIR% || exit /b 8
 
 goto :EOF
 
