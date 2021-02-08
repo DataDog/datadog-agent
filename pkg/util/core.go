@@ -15,8 +15,8 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// SetCoreLimit enables core dumps and sets the core dump size limit based on configuration
-func SetCoreLimit() error {
+// SetupCoreDump enables core dumps and sets the core dump size limit based on configuration
+func SetupCoreDump() error {
 	if config.Datadog.GetBool("go_core_dump") {
 		debug.SetTraceback("crash")
 

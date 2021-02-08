@@ -89,8 +89,8 @@ func runAgent(exit chan struct{}) {
 	}
 
 	// set core limits as soon as possible
-	if err := ddutil.SetCoreLimit(); err != nil {
-		log.Infof("Can't set core size limit: %v, core dumps might not be available after a crash", err)
+	if err := ddutil.SetupCoreDump(); err != nil {
+		log.Infof("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
 	if opts.check == "" && !opts.info && opts.pidfilePath != "" {
