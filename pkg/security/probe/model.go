@@ -820,7 +820,10 @@ func (e *ExecEvent) ResolveComm(event *Event) string {
 
 // ResolveName resolves the basename of the process executable
 func (e *ExecEvent) ResolveName(event *Event) string {
-	return e.ResolveBasename(event)
+	if e.Name == "" {
+		e.Name = e.ResolveBasename(event)
+	}
+	return e.Name
 }
 
 // ResolveUID resolves the user id of the process

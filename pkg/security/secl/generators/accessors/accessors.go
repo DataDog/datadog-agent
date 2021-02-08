@@ -446,6 +446,14 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	return nil, &eval.ErrFieldNotFound{Field: field}
 }
 
+func (e *Event) GetFields() []eval.Field {
+	return []eval.Field{
+		{{range $Name, $Field := .Fields}}
+			"{{$Name}}",{{else}}
+		{{end}}
+	}
+}
+
 func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	switch field {
 		{{range $Name, $Field := .Fields}}
@@ -518,9 +526,7 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		{{range $Name, $Field := .Fields}}
 
 		case "{{$Name}}":
-		{{if $Field.Iterator}}
-			return reflect.Slice, nil
-		{{else if eq $Field.ReturnType "string"}}
+		{{if eq $Field.ReturnType "string"}}
 			return reflect.String, nil
 		{{else if eq $Field.ReturnType "int"}}
 			return reflect.Int, nil
@@ -537,9 +543,13 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	var ok bool
 	switch field {
 		{{range $Name, $Field := .Fields}}
-		{{if not $Field.Iterator}}
 		{{$FieldName := $Field.Name | printf "e.%s"}}
 		case "{{$Name}}":
+		{{if $Field.Iterator}}
+			if e.{{$Field.Iterator.Name}} == nil {
+				e.{{$Field.Iterator.Name}} = &{{$Field.Iterator.OrigType}}{}
+			}
+		{{end}}
 		{{if eq $Field.OrigType "string"}}
 			if {{$FieldName}}, ok = value.(string); !ok {
 				return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
@@ -557,7 +567,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 				return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
 			}
 			return nil
-		{{end}}
 		{{end}}
 		{{end}}
 		}

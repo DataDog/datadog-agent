@@ -145,3 +145,22 @@ func TestIsParentDiscarder(t *testing.T) {
 		t.Error("shouldn't be a parent discarder")
 	}
 }
+
+func TestApproverAncestors(t *testing.T) {
+	rs := rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(SECLConstants, nil))
+	addRuleExpr(t, rs, `open.filename == "/etc/passwd" && process.ancestors.name == "vipw"`, `open.filename == "/etc/shadow" && process.ancestors.name == "vipw"`)
+
+	capabilities, exists := allCapabilities["open"]
+	if !exists {
+		t.Fatal("no capabilities for open")
+	}
+
+	approvers, err := rs.GetApprovers("open", capabilities.GetFieldCapabilities())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if values, exists := approvers["open.filename"]; !exists || len(values) != 2 {
+		t.Fatalf("expected approver not found: %v", values)
+	}
+}

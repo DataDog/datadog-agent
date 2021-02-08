@@ -1774,6 +1774,144 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	return nil, &eval.ErrFieldNotFound{Field: field}
 }
 
+func (e *Event) GetFields() []eval.Field {
+	return []eval.Field{
+
+		"chmod.basename",
+		"chmod.container_path",
+		"chmod.filename",
+		"chmod.inode",
+		"chmod.mode",
+		"chmod.overlay_numlower",
+		"chmod.retval",
+		"chown.basename",
+		"chown.container_path",
+		"chown.filename",
+		"chown.gid",
+		"chown.inode",
+		"chown.overlay_numlower",
+		"chown.retval",
+		"chown.uid",
+		"container.id",
+		"exec.basename",
+		"exec.container_path",
+		"exec.cookie",
+		"exec.filename",
+		"exec.gid",
+		"exec.group",
+		"exec.inode",
+		"exec.name",
+		"exec.overlay_numlower",
+		"exec.ppid",
+		"exec.tty_name",
+		"exec.uid",
+		"exec.user",
+		"link.retval",
+		"link.source.basename",
+		"link.source.container_path",
+		"link.source.filename",
+		"link.source.inode",
+		"link.source.overlay_numlower",
+		"link.target.basename",
+		"link.target.container_path",
+		"link.target.filename",
+		"link.target.inode",
+		"link.target.overlay_numlower",
+		"mkdir.basename",
+		"mkdir.container_path",
+		"mkdir.filename",
+		"mkdir.inode",
+		"mkdir.mode",
+		"mkdir.overlay_numlower",
+		"mkdir.retval",
+		"open.basename",
+		"open.container_path",
+		"open.filename",
+		"open.flags",
+		"open.inode",
+		"open.mode",
+		"open.overlay_numlower",
+		"open.retval",
+		"process.ancestors.basename",
+		"process.ancestors.container_path",
+		"process.ancestors.cookie",
+		"process.ancestors.filename",
+		"process.ancestors.gid",
+		"process.ancestors.group",
+		"process.ancestors.id",
+		"process.ancestors.inode",
+		"process.ancestors.name",
+		"process.ancestors.overlay_numlower",
+		"process.ancestors.pid",
+		"process.ancestors.ppid",
+		"process.ancestors.tid",
+		"process.ancestors.tty_name",
+		"process.ancestors.uid",
+		"process.ancestors.user",
+		"process.basename",
+		"process.container_path",
+		"process.cookie",
+		"process.filename",
+		"process.gid",
+		"process.group",
+		"process.inode",
+		"process.name",
+		"process.overlay_numlower",
+		"process.pid",
+		"process.ppid",
+		"process.tid",
+		"process.tty_name",
+		"process.uid",
+		"process.user",
+		"removexattr.basename",
+		"removexattr.container_path",
+		"removexattr.filename",
+		"removexattr.inode",
+		"removexattr.name",
+		"removexattr.namespace",
+		"removexattr.overlay_numlower",
+		"removexattr.retval",
+		"rename.new.basename",
+		"rename.new.container_path",
+		"rename.new.filename",
+		"rename.new.inode",
+		"rename.new.overlay_numlower",
+		"rename.old.basename",
+		"rename.old.container_path",
+		"rename.old.filename",
+		"rename.old.inode",
+		"rename.old.overlay_numlower",
+		"rename.retval",
+		"rmdir.basename",
+		"rmdir.container_path",
+		"rmdir.filename",
+		"rmdir.inode",
+		"rmdir.overlay_numlower",
+		"rmdir.retval",
+		"setxattr.basename",
+		"setxattr.container_path",
+		"setxattr.filename",
+		"setxattr.inode",
+		"setxattr.name",
+		"setxattr.namespace",
+		"setxattr.overlay_numlower",
+		"setxattr.retval",
+		"unlink.basename",
+		"unlink.container_path",
+		"unlink.filename",
+		"unlink.flags",
+		"unlink.inode",
+		"unlink.overlay_numlower",
+		"unlink.retval",
+		"utimes.basename",
+		"utimes.container_path",
+		"utimes.filename",
+		"utimes.inode",
+		"utimes.overlay_numlower",
+		"utimes.retval",
+	}
+}
+
 func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	switch field {
 
@@ -3227,67 +3365,67 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 	case "process.ancestors.basename":
 
-		return reflect.Slice, nil
+		return reflect.String, nil
 
 	case "process.ancestors.container_path":
 
-		return reflect.Slice, nil
+		return reflect.String, nil
 
 	case "process.ancestors.cookie":
 
-		return reflect.Slice, nil
+		return reflect.Int, nil
 
 	case "process.ancestors.filename":
 
-		return reflect.Slice, nil
+		return reflect.String, nil
 
 	case "process.ancestors.gid":
 
-		return reflect.Slice, nil
+		return reflect.Int, nil
 
 	case "process.ancestors.group":
 
-		return reflect.Slice, nil
+		return reflect.String, nil
 
 	case "process.ancestors.id":
 
-		return reflect.Slice, nil
+		return reflect.String, nil
 
 	case "process.ancestors.inode":
 
-		return reflect.Slice, nil
+		return reflect.Int, nil
 
 	case "process.ancestors.name":
 
-		return reflect.Slice, nil
+		return reflect.String, nil
 
 	case "process.ancestors.overlay_numlower":
 
-		return reflect.Slice, nil
+		return reflect.Int, nil
 
 	case "process.ancestors.pid":
 
-		return reflect.Slice, nil
+		return reflect.Int, nil
 
 	case "process.ancestors.ppid":
 
-		return reflect.Slice, nil
+		return reflect.Int, nil
 
 	case "process.ancestors.tid":
 
-		return reflect.Slice, nil
+		return reflect.Int, nil
 
 	case "process.ancestors.tty_name":
 
-		return reflect.Slice, nil
+		return reflect.String, nil
 
 	case "process.ancestors.uid":
 
-		return reflect.Slice, nil
+		return reflect.Int, nil
 
 	case "process.ancestors.user":
 
-		return reflect.Slice, nil
+		return reflect.String, nil
 
 	case "process.basename":
 
@@ -3983,6 +4121,198 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Open.Retval"}
 		}
 		e.Open.Retval = int64(v)
+		return nil
+
+	case "process.ancestors.basename":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &ProcessCacheEntry{}
+		}
+
+		if e.Process.Ancestor.BasenameStr, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.BasenameStr"}
+		}
+		return nil
+
+	case "process.ancestors.container_path":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &ProcessCacheEntry{}
+		}
+
+		if e.Process.Ancestor.ContainerPath, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ContainerPath"}
+		}
+		return nil
+
+	case "process.ancestors.cookie":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &ProcessCacheEntry{}
+		}
+
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.Cookie"}
+		}
+		e.Process.Ancestor.Cookie = uint32(v)
+		return nil
+
+	case "process.ancestors.filename":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &ProcessCacheEntry{}
+		}
+
+		if e.Process.Ancestor.PathnameStr, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.PathnameStr"}
+		}
+		return nil
+
+	case "process.ancestors.gid":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &ProcessCacheEntry{}
+		}
+
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.GID"}
+		}
+		e.Process.Ancestor.GID = uint32(v)
+		return nil
+
+	case "process.ancestors.group":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &ProcessCacheEntry{}
+		}
+
+		if e.Process.Ancestor.Group, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.Group"}
+		}
+		return nil
+
+	case "process.ancestors.id":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &ProcessCacheEntry{}
+		}
+
+		if e.Process.Ancestor.ID, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ID"}
+		}
+		return nil
+
+	case "process.ancestors.inode":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &ProcessCacheEntry{}
+		}
+
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.Inode"}
+		}
+		e.Process.Ancestor.Inode = uint64(v)
+		return nil
+
+	case "process.ancestors.name":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &ProcessCacheEntry{}
+		}
+
+		if e.Process.Ancestor.Name, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.Name"}
+		}
+		return nil
+
+	case "process.ancestors.overlay_numlower":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &ProcessCacheEntry{}
+		}
+
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.OverlayNumLower"}
+		}
+		e.Process.Ancestor.OverlayNumLower = int32(v)
+		return nil
+
+	case "process.ancestors.pid":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &ProcessCacheEntry{}
+		}
+
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.Pid"}
+		}
+		e.Process.Ancestor.Pid = uint32(v)
+		return nil
+
+	case "process.ancestors.ppid":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &ProcessCacheEntry{}
+		}
+
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.PPid"}
+		}
+		e.Process.Ancestor.PPid = uint32(v)
+		return nil
+
+	case "process.ancestors.tid":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &ProcessCacheEntry{}
+		}
+
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.Tid"}
+		}
+		e.Process.Ancestor.Tid = uint32(v)
+		return nil
+
+	case "process.ancestors.tty_name":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &ProcessCacheEntry{}
+		}
+
+		if e.Process.Ancestor.TTYName, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.TTYName"}
+		}
+		return nil
+
+	case "process.ancestors.uid":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &ProcessCacheEntry{}
+		}
+
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.UID"}
+		}
+		e.Process.Ancestor.UID = uint32(v)
+		return nil
+
+	case "process.ancestors.user":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &ProcessCacheEntry{}
+		}
+
+		if e.Process.Ancestor.User, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.User"}
+		}
 		return nil
 
 	case "process.basename":
