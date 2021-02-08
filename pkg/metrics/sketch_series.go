@@ -126,8 +126,9 @@ func (sl SketchSeriesList) MarshalSplitCompress() ([]*[]byte, error) {
 			Dogsketches: dsl[:len(ss.Points)],
 		}
 
-		// Pack the protobuf metadata
+		// Pack the protobuf metadata - see SketchPayload.MarshalTo in agent_payload.pb.go for reference.
 		i := 0
+		// Magic number that occurs before the varint encoding
 		precompressionBuf[i] = 0xa
 		i++
 		i = encodeVarintAgentPayload(precompressionBuf, i, uint64(sketch.Size()))
@@ -139,15 +140,15 @@ func (sl SketchSeriesList) MarshalSplitCompress() ([]*[]byte, error) {
 			precompressionBuf = precompressionBuf[:cap(precompressionBuf)]
 		}
 
-		// Marshal the sketch to the precompression buffer
+		// Marshal the sketch to the precompression buffer after the metadata
 		_, e := sketch.MarshalTo(precompressionBuf[i:])
 		if e != nil {
 			return nil, e
 		}
 
 		// Compress the protobuf metadata and the marshaled sketch
-		switch compressor.AddItem(precompressionBuf[:totalItemSize]) {
-		case stream.ErrItemTooBig, stream.ErrPayloadFull:
+		e = compressor.AddItem(precompressionBuf[:totalItemSize])
+		if e == stream.ErrItemTooBig || e == stream.ErrPayloadFull {
 			// Since the compression buffer is full - flush it and rotate
 			payload, e := compressor.Close()
 			if e != nil {
