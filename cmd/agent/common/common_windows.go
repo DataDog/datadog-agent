@@ -31,12 +31,34 @@ var (
 	PyChecksPath = filepath.Join(_here, "..", "checks.d")
 	distPath     string
 	// ViewsPath holds the path to the folder containing the GUI support files
-	viewsPath   string
-	enabledVals = map[string]bool{"yes": true, "true": true, "1": true,
-		"no": false, "false": false, "0": false}
-	subServices = map[string]string{"logs_enabled": "logs_enabled",
+	viewsPath string
+
+	enabledVals = map[string]bool{
+		"true":  true,
+		"yes":   true,
+		"1":     true,
+		"false": false,
+		"no":    false,
+		"0":     false,
+	}
+
+	// Maps which settings from the registry should be taken and placed into
+	// datadog.yaml keys
+	regSettings = map[string]string{
+		"dd_url":         "dd_url",
+		"hostname_fqdn":  "hostname_fqdn",
+		"logs_dd_url":    "logs_config.logs_dd_url",
+		"process_dd_url": "process_config.process_dd_url",
+		"py_version":     "python_version",
+		"site":           "site",
+		"trace_dd_url":   "apm_config.apm_dd_url",
+	}
+	subServices = map[string]string{
 		"apm_enabled":     "apm_config.enabled",
-		"process_enabled": "process_config.enabled"}
+		"logs_enabled":    "logs_enabled",
+		"process_enabled": "process_config.enabled",
+	}
+
 	ec2UseWinPrefixDetectionKey = "ec2_use_windows_prefix_detection"
 )
 
@@ -218,7 +240,7 @@ func ImportRegistryConfig() error {
 		commandLineSettingFound = true
 		log.Debugf("Setting hostname %s", val)
 	} else {
-		log.Debug("hostname not found in registry: using default value")
+		log.Debug("Hostname not found in registry: using default value")
 	}
 	if val, _, err = k.GetStringValue("cmd_port"); err == nil && val != "" {
 		cmdPortInt, err := strconv.Atoi(val)
@@ -295,41 +317,15 @@ func ImportRegistryConfig() error {
 	} else {
 		log.Debug("proxy key not found, not setting proxy config")
 	}
-	if val, _, err = k.GetStringValue("site"); err == nil && val != "" {
-		overrides["site"] = val
-		log.Debugf("Setting site to %s", val)
-		commandLineSettingFound = true
+
+	for winRegKey, yamlSettingKey := range regSettings {
+		if val, _, err = k.GetStringValue(winRegKey); err == nil && val != "" {
+			log.Debugf("Setting %s to %s", yamlSettingKey, val)
+			overrides[yamlSettingKey] = val
+			commandLineSettingFound = true
+		}
 	}
-	if val, _, err = k.GetStringValue("dd_url"); err == nil && val != "" {
-		overrides["dd_url"] = val
-		log.Debugf("Setting dd_url to %s", val)
-		commandLineSettingFound = true
-	}
-	if val, _, err = k.GetStringValue("logs_dd_url"); err == nil && val != "" {
-		overrides["logs_config.logs_dd_url"] = val
-		log.Debugf("Setting logs_config.dd_url to %s", val)
-		commandLineSettingFound = true
-	}
-	if val, _, err = k.GetStringValue("process_dd_url"); err == nil && val != "" {
-		overrides["process_config.process_dd_url"] = val
-		log.Debugf("Setting process_config.process_dd_url to %s", val)
-		commandLineSettingFound = true
-	}
-	if val, _, err = k.GetStringValue("trace_dd_url"); err == nil && val != "" {
-		overrides["apm_config.apm_dd_url"] = val
-		log.Debugf("Setting apm_config.apm_dd_url to %s", val)
-		commandLineSettingFound = true
-	}
-	if val, _, err = k.GetStringValue("py_version"); err == nil && val != "" {
-		overrides["python_version"] = val
-		log.Debugf("Setting python version to %s", val)
-		commandLineSettingFound = true
-	}
-	if val, _, err = k.GetStringValue("hostname_fqdn"); err == nil && val != "" {
-		overrides["hostname_fqdn"] = val
-		log.Debugf("Setting hostname_fqdn to %s", val)
-		commandLineSettingFound = true
-	}
+
 	if val, _, err = k.GetStringValue(ec2UseWinPrefixDetectionKey); err == nil && val != "" {
 		val = strings.ToLower(val)
 		if enabled, ok := enabledVals[val]; ok {
@@ -341,36 +337,35 @@ func ImportRegistryConfig() error {
 		}
 	}
 
-	// we've read in the config from the registry; remove the registry keys so it's
+	// We've read in the config from the registry; remove the registry keys so it's
 	// not repeated on next startup
+
 	valuenames := []string{
 		"api_key",
-		"tags",
-		"site",
-		"dd_url",
-		"logs_dd_url",
-		"process_dd_url",
-		"trace_dd_url",
-		"py_version",
-		"hostname_fqdn",
+		"cmd_port",
 		"hostname",
 		"proxy_host",
+		"proxy_password",
 		"proxy_port",
 		"proxy_user",
-		"proxy_password",
-		"cmd_port",
+		"tags",
 		ec2UseWinPrefixDetectionKey,
 	}
 	for _, valuename := range valuenames {
 		k.DeleteValue(valuename)
 	}
+	for valuename := range regSettings {
+		k.DeleteValue(valuename)
+	}
 	for valuename := range subServices {
 		k.DeleteValue(valuename)
 	}
+
 	if !commandLineSettingFound {
 		log.Debugf("No installation command line entries to update")
 		return nil
 	}
+
 	if validConfigFound {
 		// do this check after walking through all the registry keys.  Even though
 		// we aren't going to use the results, we can have a more accurate reason

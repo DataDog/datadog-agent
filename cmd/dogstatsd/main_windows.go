@@ -41,11 +41,33 @@ var (
 	// DefaultConfPath points to the folder containing datadog.yaml
 	DefaultConfPath = "c:\\programdata\\datadog"
 
-	enabledVals = map[string]bool{"yes": true, "true": true, "1": true,
-		"no": false, "false": false, "0": false}
-	subServices = map[string]string{"logs_enabled": "logs_enabled",
+	enabledVals = map[string]bool{
+		"true":  true,
+		"yes":   true,
+		"1":     true,
+		"false": false,
+		"no":    false,
+		"0":     false,
+	}
+
+	// Maps which settings from the registry should be taken and placed into
+	// datadog.yaml keys
+	regSettings = map[string]string{
+		"dd_url":         "dd_url",
+		"hostname_fqdn":  "hostname_fqdn",
+		"logs_dd_url":    "logs_config.logs_dd_url",
+		"process_dd_url": "process_config.process_dd_url",
+		"py_version":     "python_version",
+		"site":           "site",
+		"trace_dd_url":   "apm_config.apm_dd_url",
+	}
+
+	subServices = map[string]string{
 		"apm_enabled":     "apm_config.enabled",
-		"process_enabled": "process_config.enabled"}
+		"logs_enabled":    "logs_enabled",
+		"process_enabled": "process_config.enabled",
+	}
+
 	ec2UseWinPrefixDetectionKey = "ec2_use_windows_prefix_detection"
 )
 
@@ -223,7 +245,7 @@ func importRegistryConfig() error {
 		overrides["hostname"] = val
 		log.Debugf("Setting hostname %s", val)
 	} else {
-		log.Debug("hostname not found in registry: using default value")
+		log.Debug("Hostname not found in registry: using default value")
 	}
 	if val, _, err = k.GetStringValue("cmd_port"); err == nil && val != "" {
 		cmdPortInt, err := strconv.Atoi(val)
@@ -297,34 +319,14 @@ func importRegistryConfig() error {
 	} else {
 		log.Debug("proxy key not found, not setting proxy config")
 	}
-	if val, _, err = k.GetStringValue("site"); err == nil && val != "" {
-		overrides["site"] = val
-		log.Debugf("Setting site to %s", val)
+
+	for winRegKey, yamlSettingKey := range regSettings {
+		if val, _, err = k.GetStringValue(winRegKey); err == nil && val != "" {
+			log.Debugf("Setting %s to %s", yamlSettingKey, val)
+			overrides[yamlSettingKey] = val
+		}
 	}
-	if val, _, err = k.GetStringValue("dd_url"); err == nil && val != "" {
-		overrides["dd_url"] = val
-		log.Debugf("Setting dd_url to %s", val)
-	}
-	if val, _, err = k.GetStringValue("logs_dd_url"); err == nil && val != "" {
-		overrides["logs_config.logs_dd_url"] = val
-		log.Debugf("Setting logs_config.dd_url to %s", val)
-	}
-	if val, _, err = k.GetStringValue("process_dd_url"); err == nil && val != "" {
-		overrides["process_config.process_dd_url"] = val
-		log.Debugf("Setting process_config.process_dd_url to %s", val)
-	}
-	if val, _, err = k.GetStringValue("trace_dd_url"); err == nil && val != "" {
-		overrides["apm_config.apm_dd_url"] = val
-		log.Debugf("Setting apm_config.apm_dd_url to %s", val)
-	}
-	if val, _, err = k.GetStringValue("py_version"); err == nil && val != "" {
-		overrides["python_version"] = val
-		log.Debugf("Setting python version to %s", val)
-	}
-	if val, _, err = k.GetStringValue("hostname_fqdn"); err == nil && val != "" {
-		overrides["hostname_fqdn"] = val
-		log.Debugf("Setting hostname_fqdn to %s", val)
-	}
+
 	if val, _, err = k.GetStringValue(ec2UseWinPrefixDetectionKey); err == nil && val != "" {
 		val = strings.ToLower(val)
 		if enabled, ok := enabledVals[val]; ok {
@@ -357,23 +359,30 @@ func importRegistryConfig() error {
 		return fmt.Errorf("unable to unmarshal config to %s: %v", datadogYamlPath, err)
 	}
 
+	// We've read in the config from the registry; remove the registry keys so it's
+	// not repeated on next startup
+
 	valuenames := []string{
 		"api_key",
-		"tags",
+		"cmd_port",
 		"hostname",
 		"proxy_host",
+		"proxy_password",
 		"proxy_port",
 		"proxy_user",
-		"proxy_password",
-		"cmd_port",
+		"tags",
 		ec2UseWinPrefixDetectionKey,
 	}
 	for _, valuename := range valuenames {
 		k.DeleteValue(valuename)
 	}
+	for valuename := range regSettings {
+		k.DeleteValue(valuename)
+	}
 	for valuename := range subServices {
 		k.DeleteValue(valuename)
 	}
+
 	log.Debugf("Successfully wrote the config into %s\n", datadogYamlPath)
 
 	return nil
