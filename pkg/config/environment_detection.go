@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -33,6 +34,8 @@ const (
 )
 
 const (
+	autoconfEnvironmentVariable = "AUTCONFIG_FROM_ENVIRONMENT"
+
 	defaultLinuxDockerSocket       = "/var/run/docker.sock"
 	defaultWindowsDockerSocketPath = "//./pipe/docker_engine"
 	defaultLinuxContainerdSocket   = "/var/run/containerd/containerd.sock"
@@ -60,8 +63,24 @@ func IsFeaturePresent(feature Feature) bool {
 	return found
 }
 
+// IsAutoconfigEnabled returns if autoconfig from environment is activated or not
+// We cannot rely on Datadog config as this function may be called before configuration is read
+func IsAutoconfigEnabled() bool {
+	if autoconfStr, found := os.LookupEnv(autoconfEnvironmentVariable); found {
+		activateAutoconfFromEnv, err := strconv.ParseBool(autoconfStr)
+		if err != nil {
+			log.Errorf("Unable to parse Autoconf value: '%s', err: %v - autoconfig from environment will be deactivated", autoconfStr, err)
+			return false
+		}
+
+		return activateAutoconfFromEnv
+	}
+
+	return true
+}
+
 func detectFeatures() {
-	if Datadog.GetBool("autoconf_from_environment") {
+	if IsAutoconfigEnabled() {
 		detectContainerFeatures()
 		log.Infof("Features detected from environment: %v", detectedFeatures)
 	}
