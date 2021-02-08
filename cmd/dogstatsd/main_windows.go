@@ -53,13 +53,10 @@ var (
 	// Maps which settings from the registry should be taken and placed into
 	// datadog.yaml keys
 	regSettings = map[string]string{
-		"dd_url":         "dd_url",
-		"hostname_fqdn":  "hostname_fqdn",
-		"logs_dd_url":    "logs_config.logs_dd_url",
-		"process_dd_url": "process_config.process_dd_url",
-		"py_version":     "python_version",
-		"site":           "site",
-		"trace_dd_url":   "apm_config.apm_dd_url",
+		"dd_url":        "dd_url",
+		"hostname_fqdn": "hostname_fqdn",
+		"py_version":    "python_version",
+		"site":          "site",
 	}
 
 	subServices = map[string]string{
