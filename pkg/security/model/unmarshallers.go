@@ -13,6 +13,8 @@ import (
 	"unsafe"
 
 	"github.com/pkg/errors"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ErrNotEnoughData is returned when the buffer is too small to unmarshal the event
@@ -167,7 +169,48 @@ func (e *ExecEvent) UnmarshalBinary(data []byte) (int, error) {
 	read += 24
 
 	// Unmarshal the credentials contained in pid_cache_t
-	return UnmarshalBinary(data[read:], &e.Credentials)
+	read, err = UnmarshalBinary(data[read:], &e.Credentials)
+	if err != nil {
+		return 0, err
+	}
+
+	e.ArgsID = ByteOrder.Uint32(data[read : read+4])
+	e.ArgsTruncated = ByteOrder.Uint32(data[read+4:read+8]) == 1
+	SliceToArray(data[read+8:read+136], unsafe.Pointer(&e.ArgsRaw))
+
+	if err := e.UnmarshalArgs(); err != nil {
+		return read + 136, err
+	}
+
+	return read + 136, nil
+}
+
+// ResolveExecArgs resolves exec arguments
+func (e *ExecEvent) UnmarshalArgs() error {
+	var i uint32
+
+	for int(i) < len(e.ArgsRaw) {
+		// size of arg
+		n := ByteOrder.Uint32(e.ArgsRaw[i : i+4])
+		if n <= 0 {
+			return nil
+		}
+		i += 4
+
+		if int(i+n) > len(e.ArgsRaw) {
+			// TODO fallback, too big
+			return nil
+		}
+
+		arg := string(e.ArgsRaw[i : i+n])
+		i += n
+
+		e.Args = append(e.Args, arg)
+
+		log.Tracef("ARGGGGGGGGGGGGGGGG: %d %s\n", n, arg)
+	}
+
+	return nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself

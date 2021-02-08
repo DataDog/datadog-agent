@@ -30,9 +30,16 @@ func copyProcessContext(parent, child *ProcessCacheEntry) {
 	}
 }
 
+func (pc *ProcessCacheEntry) CompactArgs() {
+	// TODO: do not copy at the moment, need to handle memory usage properly
+	pc.Args = []string{}
+}
+
 // Exec replace a process
 func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 	entry.Ancestor = pc
+
+	pc.CompactArgs()
 
 	// empty and mark as exit previous entry
 	pc.ExitTime = entry.ExecTime
@@ -62,13 +69,13 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 }
 
 func (pc *ProcessCacheEntry) String() string {
-	s := fmt.Sprintf("filename: %s[%s] pid:%d ppid:%d\n", pc.PathnameStr, pc.Comm, pc.Pid, pc.PPid)
+	s := fmt.Sprintf("filename: %s[%s] pid:%d ppid:%d args:%v\n", pc.PathnameStr, pc.Comm, pc.Pid, pc.PPid, pc.Args)
 	ancestor := pc.Ancestor
 	for i := 0; ancestor != nil; i++ {
 		for j := 0; j <= i; j++ {
 			s += "\t"
 		}
-		s += fmt.Sprintf("filename: %s[%s] pid:%d ppid:%d\n", ancestor.PathnameStr, ancestor.Comm, ancestor.Pid, ancestor.PPid)
+		s += fmt.Sprintf("filename: %s[%s] pid:%d ppid:%d args:%v\n", ancestor.PathnameStr, ancestor.Comm, ancestor.Pid, ancestor.PPid, ancestor.Args)
 		ancestor = ancestor.Ancestor
 	}
 	return s

@@ -78,7 +78,7 @@ void __attribute__((always_inline)) extract_args(struct syscall_cache_t *syscall
 
     u32 offset = 0;
     u32 a = 1;
-    u16 len = 0;
+    u32 len = 0;
 
     const char *str;
     bpf_probe_read(&str, sizeof(str), (void *)&argv[a]);
@@ -87,7 +87,9 @@ void __attribute__((always_inline)) extract_args(struct syscall_cache_t *syscall
     for (int i = 0; i < MAX_ARGS; i++) {
         int n = bpf_probe_read_str(&(args->args[(offset + sizeof(len)) & (MAX_ARGS_LEN - MAX_ARG_SIZE - 1)]), MAX_ARG_SIZE, (void *)str);
         if (n > 0) {
-            len = n;
+            n--;// ignore trailing space 
+
+            len = n; 
             bpf_probe_read(&(args->args[offset&(MAX_ARGS_LEN - MAX_ARG_SIZE - 1)]), sizeof(len), &len);
 
             bpf_probe_read(&str, sizeof(str), (void *)&argv[++a]);

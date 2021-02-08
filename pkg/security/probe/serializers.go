@@ -131,6 +131,7 @@ type ProcessCacheEntrySerializer struct {
 	Credentials         *ProcessCredentialsSerializer `json:"credentials,omitempty"`
 	Executable          *FileSerializer               `json:"executable,omitempty"`
 	Container           *ContainerContextSerializer   `json:"container,omitempty"`
+	Args                []string                      `json:"args,omitempty"`
 }
 
 // ContainerContextSerializer serializes a container context to JSON
@@ -322,6 +323,7 @@ func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event, topL
 		Comm:          e.ResolveExecComm(&pce.ExecEvent),
 		TTY:           e.ResolveExecTTY(&pce.ExecEvent),
 		Executable:    newExecFileSerializer(&pce.ExecEvent, e),
+		Args:          []string{},
 	}
 
 	credsSerializer := newCredentialsSerializer(&pce.Credentials, e)

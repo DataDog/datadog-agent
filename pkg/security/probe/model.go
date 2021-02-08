@@ -518,14 +518,21 @@ func (ev *Event) ResolveProcessCacheEntry() *model.ProcessCacheEntry {
 			ev.processCacheEntry = &model.ProcessCacheEntry{}
 		}
 	}
+
+	// TODO safchain fix this insane indirection
 	ev.Process.Ancestor = ev.processCacheEntry.Ancestor
+	ev.Process.Args = ev.processCacheEntry.Args
+
 	return ev.processCacheEntry
 }
 
 // updateProcessCachePointer updates the internal pointers of the event structure to the ProcessCacheEntry of the event
 func (ev *Event) updateProcessCachePointer(entry *model.ProcessCacheEntry) {
-	ev.processCacheEntry = entry
+	// TODO safchain fix this insane indirection, it will force us to recopy everytime the process context things
 	ev.Process.Ancestor = entry.Ancestor
+	ev.Process.Args = entry.Args
+
+	ev.processCacheEntry = entry
 }
 
 // Clone returns a copy on the event

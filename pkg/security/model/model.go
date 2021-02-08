@@ -201,6 +201,33 @@ type Credentials struct {
 	CapPermitted uint64 `field:"cap_permitted" handler:"ResolveCredentialsCapPermitted,int"`
 }
 
+// ExecArgsIterator represents an exec args iterator
+type ExecArgsIterator struct {
+	args  []string
+	index int
+}
+
+// Front returns the first arg
+func (e *ExecArgsIterator) Front(ctx *eval.Context) unsafe.Pointer {
+	e.args = (*Event)(ctx.Object).Process.Args
+	if len(e.args) > 0 {
+		e.index = 0
+		return unsafe.Pointer(&e.args[0])
+	}
+	return nil
+}
+
+// Next returns the next arg
+func (e *ExecArgsIterator) Next() unsafe.Pointer {
+	if e.index < len(e.args) {
+		value := e.args[e.index]
+		e.index++
+		return unsafe.Pointer(&value)
+	}
+
+	return nil
+}
+
 // ExecEvent represents a exec event
 type ExecEvent struct {
 	// proc_cache_t
@@ -230,6 +257,12 @@ type ExecEvent struct {
 
 	// credentials_t section of pid_cache_t
 	Credentials
+
+	Args []string `field:"args" iterator:"ExecArgsIterator"`
+
+	ArgsID        uint32    `field:"-"`
+	ArgsTruncated bool      `field:"-"`
+	ArgsRaw       [128]byte `field:"-"`
 }
 
 // GetPathResolutionError returns the path resolution error as a string if there is one

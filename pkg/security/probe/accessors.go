@@ -20,8 +20,17 @@ var (
 func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 	switch field {
 
+	case "exec.args":
+		return &model.ExecArgsIterator{}, nil
+
 	case "process.ancestors":
 		return &model.ProcessAncestorsIterator{}, nil
+
+	case "process.ancestors.args":
+		return &model.ExecArgsIterator{}, nil
+
+	case "process.args":
+		return &model.ExecArgsIterator{}, nil
 
 	}
 
@@ -448,6 +457,30 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field: field,
 
 			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "exec.args":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				var result string
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+
+					elementPtr := (*string)(reg.Value)
+					element := *elementPtr
+
+					result = element
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "exec.cap_effective":
@@ -1398,6 +1431,30 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "process.ancestors.args":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				var result string
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+
+					elementPtr := (*string)(reg.Value)
+					element := *elementPtr
+
+					result = element
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
 	case "process.ancestors.cap_effective":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -1406,6 +1463,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				reg := ctx.Registers[regID]
 				if reg.Value != nil {
+
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
 					result = int((*Event)(ctx.Object).ResolveCredentialsCapEffective(&element.Credentials))
@@ -1428,6 +1486,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				reg := ctx.Registers[regID]
 				if reg.Value != nil {
+
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
 					result = int((*Event)(ctx.Object).ResolveCredentialsCapPermitted(&element.Credentials))
@@ -1450,6 +1509,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				reg := ctx.Registers[regID]
 				if reg.Value != nil {
+
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
 					result = (*Event)(ctx.Object).ResolveExecComm(&element.ExecEvent)
@@ -1472,6 +1532,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				reg := ctx.Registers[regID]
 				if reg.Value != nil {
+
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
 					result = int((*Event)(ctx.Object).ResolveExecCookie(&element.ExecEvent))
@@ -1494,6 +1555,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				reg := ctx.Registers[regID]
 				if reg.Value != nil {
+
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
 					result = int((*Event)(ctx.Object).ResolveCredentialsEGID(&element.Credentials))
@@ -1516,6 +1578,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				reg := ctx.Registers[regID]
 				if reg.Value != nil {
+
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
 					result = (*Event)(ctx.Object).ResolveCredentialsEGroup(&element.Credentials)
@@ -1538,6 +1601,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				reg := ctx.Registers[regID]
 				if reg.Value != nil {
+
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
 					result = int((*Event)(ctx.Object).ResolveCredentialsEUID(&element.Credentials))
@@ -1560,6 +1624,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				reg := ctx.Registers[regID]
 				if reg.Value != nil {
+
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
 					result = (*Event)(ctx.Object).ResolveCredentialsEUser(&element.Credentials)
@@ -1582,6 +1647,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				reg := ctx.Registers[regID]
 				if reg.Value != nil {
+
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
 					result = (*Event)(ctx.Object).ResolveExecContainerPath(&element.ExecEvent)
@@ -1604,6 +1670,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				reg := ctx.Registers[regID]
 				if reg.Value != nil {
+
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
 					result = int(element.ProcessContext.ExecEvent.FileFields.GID)
@@ -1626,6 +1693,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				reg := ctx.Registers[regID]
 				if reg.Value != nil {
+
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
 					result = (*Event)(ctx.Object).ResolveGroup(&element.FileFields)
@@ -1648,6 +1716,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				reg := ctx.Registers[regID]
 				if reg.Value != nil {
+
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
 					result = int(element.ProcessContext.ExecEvent.FileFields.Inode)
@@ -1670,6 +1739,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				reg := ctx.Registers[regID]
 				if reg.Value != nil {
+
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
 					result = int(element.ProcessContext.ExecEvent.FileFields.Mode)
@@ -1692,6 +1762,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				reg := ctx.Registers[regID]
 				if reg.Value != nil {
+
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
 					result = int(element.ProcessContext.ExecEvent.FileFields.MountID)
@@ -1714,6 +1785,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				reg := ctx.Registers[regID]
 				if reg.Value != nil {
+
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
 					result = (*Event)(ctx.Object).ResolveExecBasename(&element.ExecEvent)
@@ -1736,6 +1808,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				reg := ctx.Registers[regID]
 				if reg.Value != nil {
+
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
 					result = int(element.ProcessContext.ExecEvent.FileFields.OverlayNumLower)
@@ -1758,6 +1831,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				reg := ctx.Registers[regID]
 				if reg.Value != nil {
+
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
 					result = (*Event)(ctx.Object).ResolveExecInode(&element.ExecEvent)
@@ -1780,6 +1854,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				reg := ctx.Registers[regID]
 				if reg.Value != nil {
+
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
 					result = int(element.ProcessContext.ExecEvent.FileFields.UID)
@@ -1802,6 +1877,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				reg := ctx.Registers[regID]
 				if reg.Value != nil {
+
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
 					result = (*Event)(ctx.Object).ResolveUser(&element.FileFields)
@@ -1824,6 +1900,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				reg := ctx.Registers[regID]
 				if reg.Value != nil {
+
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
 					result = int((*Event)(ctx.Object).ResolveCredentialsFSGID(&element.Credentials))
@@ -1846,6 +1923,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				reg := ctx.Registers[regID]
 				if reg.Value != nil {
+
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
 					result = (*Event)(ctx.Object).ResolveCredentialsFSGroup(&element.Credentials)
@@ -1868,6 +1946,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				reg := ctx.Registers[regID]
 				if reg.Value != nil {
+
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
 					result = int((*Event)(ctx.Object).ResolveCredentialsFSUID(&element.Credentials))
@@ -1890,6 +1969,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				reg := ctx.Registers[regID]
 				if reg.Value != nil {
+
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
 					result = (*Event)(ctx.Object).ResolveCredentialsFSUser(&element.Credentials)
@@ -1912,6 +1992,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				reg := ctx.Registers[regID]
 				if reg.Value != nil {
+
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
 					result = int((*Event)(ctx.Object).ResolveCredentialsGID(&element.Credentials))
@@ -1934,6 +2015,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				reg := ctx.Registers[regID]
 				if reg.Value != nil {
+
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
 					result = (*Event)(ctx.Object).ResolveCredentialsGroup(&element.Credentials)
@@ -1956,6 +2038,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				reg := ctx.Registers[regID]
 				if reg.Value != nil {
+
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
 					result = (*Event)(ctx.Object).ResolveContainerID(&element.ContainerContext)
@@ -1978,6 +2061,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				reg := ctx.Registers[regID]
 				if reg.Value != nil {
+
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
 					result = int(element.ProcessContext.Pid)
@@ -2000,6 +2084,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				reg := ctx.Registers[regID]
 				if reg.Value != nil {
+
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
 					result = int((*Event)(ctx.Object).ResolveExecPPID(&element.ExecEvent))
@@ -2022,6 +2107,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				reg := ctx.Registers[regID]
 				if reg.Value != nil {
+
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
 					result = int(element.ProcessContext.Tid)
@@ -2044,6 +2130,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				reg := ctx.Registers[regID]
 				if reg.Value != nil {
+
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
 					result = (*Event)(ctx.Object).ResolveExecTTY(&element.ExecEvent)
@@ -2066,6 +2153,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				reg := ctx.Registers[regID]
 				if reg.Value != nil {
+
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
 					result = int((*Event)(ctx.Object).ResolveCredentialsUID(&element.Credentials))
@@ -2088,9 +2176,34 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				reg := ctx.Registers[regID]
 				if reg.Value != nil {
+
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
 					result = (*Event)(ctx.Object).ResolveCredentialsUser(&element.Credentials)
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.args":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				var result string
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+
+					elementPtr := (*string)(reg.Value)
+					element := *elementPtr
+
+					result = element
 
 				}
 
@@ -3734,6 +3847,8 @@ func (e *Event) GetFields() []eval.Field {
 
 		"container.id",
 
+		"exec.args",
+
 		"exec.cap_effective",
 
 		"exec.cap_permitted",
@@ -3892,6 +4007,8 @@ func (e *Event) GetFields() []eval.Field {
 
 		"open.retval",
 
+		"process.ancestors.args",
+
 		"process.ancestors.cap_effective",
 
 		"process.ancestors.cap_permitted",
@@ -3955,6 +4072,8 @@ func (e *Event) GetFields() []eval.Field {
 		"process.ancestors.uid",
 
 		"process.ancestors.user",
+
+		"process.args",
 
 		"process.cap_effective",
 
@@ -4349,6 +4468,30 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.ResolveContainerID(&e.Container), nil
 
+	case "exec.args":
+
+		var values []string
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &model.ExecArgsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			elementPtr := (*string)(ptr)
+			element := *elementPtr
+
+			result := element
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
 	case "exec.cap_effective":
 
 		return int(e.ResolveCredentialsCapEffective(&e.Exec.Credentials)), nil
@@ -4665,6 +4808,30 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.Open.SyscallEvent.Retval), nil
 
+	case "process.ancestors.args":
+
+		var values []string
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &model.ExecArgsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			elementPtr := (*string)(ptr)
+			element := *elementPtr
+
+			result := element
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
 	case "process.ancestors.cap_effective":
 
 		var values []int
@@ -4676,6 +4843,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
+
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := int((*Event)(ctx.Object).ResolveCredentialsCapEffective(&element.Credentials))
@@ -4698,6 +4866,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
+
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := int((*Event)(ctx.Object).ResolveCredentialsCapPermitted(&element.Credentials))
@@ -4720,6 +4889,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
+
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := (*Event)(ctx.Object).ResolveExecComm(&element.ExecEvent)
@@ -4742,6 +4912,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
+
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := int((*Event)(ctx.Object).ResolveExecCookie(&element.ExecEvent))
@@ -4764,6 +4935,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
+
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := int((*Event)(ctx.Object).ResolveCredentialsEGID(&element.Credentials))
@@ -4786,6 +4958,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
+
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := (*Event)(ctx.Object).ResolveCredentialsEGroup(&element.Credentials)
@@ -4808,6 +4981,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
+
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := int((*Event)(ctx.Object).ResolveCredentialsEUID(&element.Credentials))
@@ -4830,6 +5004,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
+
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := (*Event)(ctx.Object).ResolveCredentialsEUser(&element.Credentials)
@@ -4852,6 +5027,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
+
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := (*Event)(ctx.Object).ResolveExecContainerPath(&element.ExecEvent)
@@ -4874,6 +5050,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
+
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.ExecEvent.FileFields.GID)
@@ -4896,6 +5073,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
+
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := (*Event)(ctx.Object).ResolveGroup(&element.FileFields)
@@ -4918,6 +5096,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
+
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.ExecEvent.FileFields.Inode)
@@ -4940,6 +5119,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
+
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.ExecEvent.FileFields.Mode)
@@ -4962,6 +5142,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
+
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.ExecEvent.FileFields.MountID)
@@ -4984,6 +5165,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
+
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := (*Event)(ctx.Object).ResolveExecBasename(&element.ExecEvent)
@@ -5006,6 +5188,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
+
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.ExecEvent.FileFields.OverlayNumLower)
@@ -5028,6 +5211,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
+
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := (*Event)(ctx.Object).ResolveExecInode(&element.ExecEvent)
@@ -5050,6 +5234,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
+
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.ExecEvent.FileFields.UID)
@@ -5072,6 +5257,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
+
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := (*Event)(ctx.Object).ResolveUser(&element.FileFields)
@@ -5094,6 +5280,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
+
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := int((*Event)(ctx.Object).ResolveCredentialsFSGID(&element.Credentials))
@@ -5116,6 +5303,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
+
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := (*Event)(ctx.Object).ResolveCredentialsFSGroup(&element.Credentials)
@@ -5138,6 +5326,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
+
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := int((*Event)(ctx.Object).ResolveCredentialsFSUID(&element.Credentials))
@@ -5160,6 +5349,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
+
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := (*Event)(ctx.Object).ResolveCredentialsFSUser(&element.Credentials)
@@ -5182,6 +5372,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
+
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := int((*Event)(ctx.Object).ResolveCredentialsGID(&element.Credentials))
@@ -5204,6 +5395,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
+
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := (*Event)(ctx.Object).ResolveCredentialsGroup(&element.Credentials)
@@ -5226,6 +5418,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
+
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := (*Event)(ctx.Object).ResolveContainerID(&element.ContainerContext)
@@ -5248,6 +5441,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
+
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Pid)
@@ -5270,6 +5464,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
+
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := int((*Event)(ctx.Object).ResolveExecPPID(&element.ExecEvent))
@@ -5292,6 +5487,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
+
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Tid)
@@ -5314,6 +5510,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
+
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := (*Event)(ctx.Object).ResolveExecTTY(&element.ExecEvent)
@@ -5336,6 +5533,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
+
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := int((*Event)(ctx.Object).ResolveCredentialsUID(&element.Credentials))
@@ -5358,9 +5556,34 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 
 		for ptr != nil {
+
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := (*Event)(ctx.Object).ResolveCredentialsUser(&element.Credentials)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.args":
+
+		var values []string
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &model.ExecArgsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			elementPtr := (*string)(ptr)
+			element := *elementPtr
+
+			result := element
 
 			values = append(values, result)
 
@@ -5993,6 +6216,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "container.id":
 		return "*", nil
 
+	case "exec.args":
+		return "exec", nil
+
 	case "exec.cap_effective":
 		return "exec", nil
 
@@ -6230,6 +6456,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "open.retval":
 		return "open", nil
 
+	case "process.ancestors.args":
+		return "*", nil
+
 	case "process.ancestors.cap_effective":
 		return "*", nil
 
@@ -6324,6 +6553,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 
 	case "process.ancestors.user":
+		return "*", nil
+
+	case "process.args":
 		return "*", nil
 
 	case "process.cap_effective":
@@ -6852,6 +7084,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
+	case "exec.args":
+
+		return reflect.String, nil
+
 	case "exec.cap_effective":
 
 		return reflect.Int, nil
@@ -7168,6 +7404,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
+	case "process.ancestors.args":
+
+		return reflect.String, nil
+
 	case "process.ancestors.cap_effective":
 
 		return reflect.Int, nil
@@ -7293,6 +7533,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 
 	case "process.ancestors.user":
+
+		return reflect.String, nil
+
+	case "process.args":
 
 		return reflect.String, nil
 
@@ -7848,6 +8092,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Chmod.File.ContainerPath, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.ContainerPath"}
 		}
 		return nil
@@ -7876,6 +8121,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Chmod.File.FileFields.Group, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.FileFields.Group"}
 		}
 		return nil
@@ -7914,6 +8160,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Chmod.File.BasenameStr, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.BasenameStr"}
 		}
 		return nil
@@ -7932,6 +8179,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Chmod.File.PathnameStr, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.PathnameStr"}
 		}
 		return nil
@@ -7950,6 +8198,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Chmod.File.FileFields.User, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.FileFields.User"}
 		}
 		return nil
@@ -7968,6 +8217,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Chown.File.ContainerPath, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Chown.File.ContainerPath"}
 		}
 		return nil
@@ -7986,6 +8236,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Chown.Group, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Chown.Group"}
 		}
 		return nil
@@ -8004,6 +8255,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Chown.User, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Chown.User"}
 		}
 		return nil
@@ -8022,6 +8274,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Chown.File.FileFields.Group, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Chown.File.FileFields.Group"}
 		}
 		return nil
@@ -8060,6 +8313,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Chown.File.BasenameStr, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Chown.File.BasenameStr"}
 		}
 		return nil
@@ -8078,6 +8332,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Chown.File.PathnameStr, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Chown.File.PathnameStr"}
 		}
 		return nil
@@ -8096,6 +8351,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Chown.File.FileFields.User, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Chown.File.FileFields.User"}
 		}
 		return nil
@@ -8114,7 +8370,17 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Container.ID, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Container.ID"}
+		}
+		return nil
+
+	case "exec.args":
+
+		var ok bool
+		if e.Exec.Args, ok = value.([]string); !ok {
+
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Args"}
 		}
 		return nil
 
@@ -8142,6 +8408,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Exec.Comm, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Comm"}
 		}
 		return nil
@@ -8170,6 +8437,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Exec.Credentials.EGroup, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Credentials.EGroup"}
 		}
 		return nil
@@ -8188,6 +8456,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Exec.Credentials.EUser, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Credentials.EUser"}
 		}
 		return nil
@@ -8196,6 +8465,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Exec.ContainerPath, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Exec.ContainerPath"}
 		}
 		return nil
@@ -8214,6 +8484,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Exec.FileFields.Group, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Exec.FileFields.Group"}
 		}
 		return nil
@@ -8252,6 +8523,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Exec.BasenameStr, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Exec.BasenameStr"}
 		}
 		return nil
@@ -8270,6 +8542,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Exec.PathnameStr, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Exec.PathnameStr"}
 		}
 		return nil
@@ -8288,6 +8561,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Exec.FileFields.User, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Exec.FileFields.User"}
 		}
 		return nil
@@ -8306,6 +8580,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Exec.Credentials.FSGroup, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Credentials.FSGroup"}
 		}
 		return nil
@@ -8324,6 +8599,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Exec.Credentials.FSUser, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Credentials.FSUser"}
 		}
 		return nil
@@ -8342,6 +8618,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Exec.Credentials.Group, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Credentials.Group"}
 		}
 		return nil
@@ -8360,6 +8637,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Exec.TTYName, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Exec.TTYName"}
 		}
 		return nil
@@ -8378,6 +8656,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Exec.Credentials.User, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Credentials.User"}
 		}
 		return nil
@@ -8386,6 +8665,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Link.Source.ContainerPath, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Link.Source.ContainerPath"}
 		}
 		return nil
@@ -8394,6 +8674,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Link.Target.ContainerPath, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Link.Target.ContainerPath"}
 		}
 		return nil
@@ -8412,6 +8693,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Link.Target.FileFields.Group, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Link.Target.FileFields.Group"}
 		}
 		return nil
@@ -8450,6 +8732,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Link.Target.BasenameStr, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Link.Target.BasenameStr"}
 		}
 		return nil
@@ -8468,6 +8751,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Link.Target.PathnameStr, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Link.Target.PathnameStr"}
 		}
 		return nil
@@ -8486,6 +8770,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Link.Target.FileFields.User, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Link.Target.FileFields.User"}
 		}
 		return nil
@@ -8504,6 +8789,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Link.Source.FileFields.Group, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Link.Source.FileFields.Group"}
 		}
 		return nil
@@ -8542,6 +8828,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Link.Source.BasenameStr, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Link.Source.BasenameStr"}
 		}
 		return nil
@@ -8560,6 +8847,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Link.Source.PathnameStr, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Link.Source.PathnameStr"}
 		}
 		return nil
@@ -8578,6 +8866,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Link.Source.FileFields.User, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Link.Source.FileFields.User"}
 		}
 		return nil
@@ -8596,6 +8885,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Mkdir.File.ContainerPath, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.ContainerPath"}
 		}
 		return nil
@@ -8624,6 +8914,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Mkdir.File.FileFields.Group, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.FileFields.Group"}
 		}
 		return nil
@@ -8662,6 +8953,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Mkdir.File.BasenameStr, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.BasenameStr"}
 		}
 		return nil
@@ -8680,6 +8972,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Mkdir.File.PathnameStr, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.PathnameStr"}
 		}
 		return nil
@@ -8698,6 +8991,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Mkdir.File.FileFields.User, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.FileFields.User"}
 		}
 		return nil
@@ -8716,6 +9010,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Open.File.ContainerPath, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Open.File.ContainerPath"}
 		}
 		return nil
@@ -8744,6 +9039,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Open.File.FileFields.Group, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Open.File.FileFields.Group"}
 		}
 		return nil
@@ -8782,6 +9078,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Open.File.BasenameStr, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Open.File.BasenameStr"}
 		}
 		return nil
@@ -8800,6 +9097,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Open.File.PathnameStr, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Open.File.PathnameStr"}
 		}
 		return nil
@@ -8818,6 +9116,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Open.File.FileFields.User, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Open.File.FileFields.User"}
 		}
 		return nil
@@ -8840,6 +9139,15 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Open.SyscallEvent.Retval"}
 		}
 		e.Open.SyscallEvent.Retval = int64(v)
+		return nil
+
+	case "process.ancestors.args":
+
+		var ok bool
+		if e.Process.Ancestor.ProcessContext.ExecEvent.Args, ok = value.([]string); !ok {
+
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.Args"}
+		}
 		return nil
 
 	case "process.ancestors.cap_effective":
@@ -8878,6 +9186,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Process.Ancestor.ProcessContext.ExecEvent.Comm, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.Comm"}
 		}
 		return nil
@@ -8918,6 +9227,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Process.Ancestor.ProcessContext.ExecEvent.Credentials.EGroup, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.Credentials.EGroup"}
 		}
 		return nil
@@ -8944,6 +9254,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Process.Ancestor.ProcessContext.ExecEvent.Credentials.EUser, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.Credentials.EUser"}
 		}
 		return nil
@@ -8956,6 +9267,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Process.Ancestor.ProcessContext.ExecEvent.ContainerPath, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.ContainerPath"}
 		}
 		return nil
@@ -8982,6 +9294,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Process.Ancestor.ProcessContext.ExecEvent.FileFields.Group, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.FileFields.Group"}
 		}
 		return nil
@@ -9036,6 +9349,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Process.Ancestor.ProcessContext.ExecEvent.BasenameStr, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.BasenameStr"}
 		}
 		return nil
@@ -9062,6 +9376,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Process.Ancestor.ProcessContext.ExecEvent.PathnameStr, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.PathnameStr"}
 		}
 		return nil
@@ -9088,6 +9403,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Process.Ancestor.ProcessContext.ExecEvent.FileFields.User, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.FileFields.User"}
 		}
 		return nil
@@ -9114,6 +9430,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Process.Ancestor.ProcessContext.ExecEvent.Credentials.FSGroup, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.Credentials.FSGroup"}
 		}
 		return nil
@@ -9140,6 +9457,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Process.Ancestor.ProcessContext.ExecEvent.Credentials.FSUser, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.Credentials.FSUser"}
 		}
 		return nil
@@ -9166,6 +9484,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Process.Ancestor.ProcessContext.ExecEvent.Credentials.Group, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.Credentials.Group"}
 		}
 		return nil
@@ -9178,6 +9497,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Process.Ancestor.ContainerContext.ID, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ContainerContext.ID"}
 		}
 		return nil
@@ -9232,6 +9552,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Process.Ancestor.ProcessContext.ExecEvent.TTYName, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.TTYName"}
 		}
 		return nil
@@ -9258,7 +9579,17 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Process.Ancestor.ProcessContext.ExecEvent.Credentials.User, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.Credentials.User"}
+		}
+		return nil
+
+	case "process.args":
+
+		var ok bool
+		if e.Process.ExecEvent.Args, ok = value.([]string); !ok {
+
+			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.Args"}
 		}
 		return nil
 
@@ -9286,6 +9617,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Process.ExecEvent.Comm, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.Comm"}
 		}
 		return nil
@@ -9314,6 +9646,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Process.ExecEvent.Credentials.EGroup, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.Credentials.EGroup"}
 		}
 		return nil
@@ -9332,6 +9665,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Process.ExecEvent.Credentials.EUser, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.Credentials.EUser"}
 		}
 		return nil
@@ -9340,6 +9674,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Process.ExecEvent.ContainerPath, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.ContainerPath"}
 		}
 		return nil
@@ -9358,6 +9693,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Process.ExecEvent.FileFields.Group, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.FileFields.Group"}
 		}
 		return nil
@@ -9396,6 +9732,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Process.ExecEvent.BasenameStr, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.BasenameStr"}
 		}
 		return nil
@@ -9414,6 +9751,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Process.ExecEvent.PathnameStr, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.PathnameStr"}
 		}
 		return nil
@@ -9432,6 +9770,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Process.ExecEvent.FileFields.User, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.FileFields.User"}
 		}
 		return nil
@@ -9450,6 +9789,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Process.ExecEvent.Credentials.FSGroup, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.Credentials.FSGroup"}
 		}
 		return nil
@@ -9468,6 +9808,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Process.ExecEvent.Credentials.FSUser, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.Credentials.FSUser"}
 		}
 		return nil
@@ -9486,6 +9827,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Process.ExecEvent.Credentials.Group, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.Credentials.Group"}
 		}
 		return nil
@@ -9524,6 +9866,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Process.ExecEvent.TTYName, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.TTYName"}
 		}
 		return nil
@@ -9542,6 +9885,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Process.ExecEvent.Credentials.User, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.Credentials.User"}
 		}
 		return nil
@@ -9550,6 +9894,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.RemoveXAttr.File.ContainerPath, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.ContainerPath"}
 		}
 		return nil
@@ -9558,6 +9903,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.RemoveXAttr.Name, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.Name"}
 		}
 		return nil
@@ -9566,6 +9912,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.RemoveXAttr.Namespace, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.Namespace"}
 		}
 		return nil
@@ -9584,6 +9931,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.RemoveXAttr.File.FileFields.Group, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.FileFields.Group"}
 		}
 		return nil
@@ -9622,6 +9970,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.RemoveXAttr.File.BasenameStr, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.BasenameStr"}
 		}
 		return nil
@@ -9640,6 +9989,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.RemoveXAttr.File.PathnameStr, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.PathnameStr"}
 		}
 		return nil
@@ -9658,6 +10008,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.RemoveXAttr.File.FileFields.User, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.FileFields.User"}
 		}
 		return nil
@@ -9676,6 +10027,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Rename.Old.ContainerPath, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.ContainerPath"}
 		}
 		return nil
@@ -9684,6 +10036,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Rename.New.ContainerPath, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Rename.New.ContainerPath"}
 		}
 		return nil
@@ -9702,6 +10055,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Rename.New.FileFields.Group, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Rename.New.FileFields.Group"}
 		}
 		return nil
@@ -9740,6 +10094,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Rename.New.BasenameStr, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Rename.New.BasenameStr"}
 		}
 		return nil
@@ -9758,6 +10113,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Rename.New.PathnameStr, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Rename.New.PathnameStr"}
 		}
 		return nil
@@ -9776,6 +10132,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Rename.New.FileFields.User, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Rename.New.FileFields.User"}
 		}
 		return nil
@@ -9794,6 +10151,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Rename.Old.FileFields.Group, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.FileFields.Group"}
 		}
 		return nil
@@ -9832,6 +10190,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Rename.Old.BasenameStr, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.BasenameStr"}
 		}
 		return nil
@@ -9850,6 +10209,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Rename.Old.PathnameStr, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.PathnameStr"}
 		}
 		return nil
@@ -9868,6 +10228,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Rename.Old.FileFields.User, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.FileFields.User"}
 		}
 		return nil
@@ -9886,6 +10247,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Rmdir.File.ContainerPath, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.ContainerPath"}
 		}
 		return nil
@@ -9904,6 +10266,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Rmdir.File.FileFields.Group, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.FileFields.Group"}
 		}
 		return nil
@@ -9942,6 +10305,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Rmdir.File.BasenameStr, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.BasenameStr"}
 		}
 		return nil
@@ -9960,6 +10324,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Rmdir.File.PathnameStr, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.PathnameStr"}
 		}
 		return nil
@@ -9978,6 +10343,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Rmdir.File.FileFields.User, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.FileFields.User"}
 		}
 		return nil
@@ -10006,6 +10372,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.SetGID.EGroup, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "SetGID.EGroup"}
 		}
 		return nil
@@ -10024,6 +10391,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.SetGID.FSGroup, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "SetGID.FSGroup"}
 		}
 		return nil
@@ -10042,6 +10410,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.SetGID.Group, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "SetGID.Group"}
 		}
 		return nil
@@ -10060,6 +10429,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.SetUID.EUser, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "SetUID.EUser"}
 		}
 		return nil
@@ -10078,6 +10448,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.SetUID.FSUser, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "SetUID.FSUser"}
 		}
 		return nil
@@ -10096,6 +10467,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.SetUID.User, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "SetUID.User"}
 		}
 		return nil
@@ -10104,6 +10476,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.SetXAttr.File.ContainerPath, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.ContainerPath"}
 		}
 		return nil
@@ -10112,6 +10485,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.SetXAttr.Name, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.Name"}
 		}
 		return nil
@@ -10120,6 +10494,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.SetXAttr.Namespace, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.Namespace"}
 		}
 		return nil
@@ -10138,6 +10513,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.SetXAttr.File.FileFields.Group, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.FileFields.Group"}
 		}
 		return nil
@@ -10176,6 +10552,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.SetXAttr.File.BasenameStr, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.BasenameStr"}
 		}
 		return nil
@@ -10194,6 +10571,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.SetXAttr.File.PathnameStr, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.PathnameStr"}
 		}
 		return nil
@@ -10212,6 +10590,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.SetXAttr.File.FileFields.User, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.FileFields.User"}
 		}
 		return nil
@@ -10230,6 +10609,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Unlink.File.ContainerPath, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.ContainerPath"}
 		}
 		return nil
@@ -10248,6 +10628,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Unlink.File.FileFields.Group, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.FileFields.Group"}
 		}
 		return nil
@@ -10286,6 +10667,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Unlink.File.BasenameStr, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.BasenameStr"}
 		}
 		return nil
@@ -10304,6 +10686,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Unlink.File.PathnameStr, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.PathnameStr"}
 		}
 		return nil
@@ -10322,6 +10705,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Unlink.File.FileFields.User, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.FileFields.User"}
 		}
 		return nil
@@ -10340,6 +10724,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Utimes.File.ContainerPath, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.ContainerPath"}
 		}
 		return nil
@@ -10358,6 +10743,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Utimes.File.FileFields.Group, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.FileFields.Group"}
 		}
 		return nil
@@ -10396,6 +10782,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Utimes.File.BasenameStr, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.BasenameStr"}
 		}
 		return nil
@@ -10414,6 +10801,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Utimes.File.PathnameStr, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.PathnameStr"}
 		}
 		return nil
@@ -10432,6 +10820,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		var ok bool
 		if e.Utimes.File.FileFields.User, ok = value.(string); !ok {
+
 			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.FileFields.User"}
 		}
 		return nil
