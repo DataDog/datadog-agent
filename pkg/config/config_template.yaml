@@ -762,6 +762,14 @@ api_key:
   # obfuscation:
   #     <OBFUSCATION_CONFIGURATION>
 
+  ## @param filter_tags - object - optional
+  ## Defines rules by which to filter traces based on tags.
+  #
+  # filter_tags:
+  #     <FILTER_TAGS_CONFIGURATION>
+  #
+  # TODO(x): Find out how to do this and if we need a page on the official docs
+
   ## @param replace_tags - list of objects - optional
   ## Defines a set of rules to replace or remove certain resources, tags containing
   ## potentially sensitive information.

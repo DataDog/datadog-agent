@@ -184,6 +184,10 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 			continue
 		}
 
+		if filteredByTags(root, a.conf.RequireTags, a.conf.RejectTags) {
+			continue
+		}
+
 		// Extra sanitization steps of the trace.
 		for _, span := range t {
 			a.obfuscator.Obfuscate(span)
@@ -416,6 +420,24 @@ func (a *Agent) sampleNoPriorityTrace(pt ProcessedTrace) bool {
 func traceContainsError(trace pb.Trace) bool {
 	for _, span := range trace {
 		if span.Error != 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func filteredByTags(root *pb.Span, require, reject []config.Tag) bool {
+	for _, tag := range reject {
+		if v, ok := root.Meta[tag.K]; ok && v == tag.V {
+			return true
+		}
+	}
+	for _, tag := range require {
+		v, ok := root.Meta[tag.K]
+		if !ok {
+			return true
+		}
+		if v != tag.V {
 			return true
 		}
 	}
