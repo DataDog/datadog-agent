@@ -7,12 +7,18 @@ package serializer
 
 import (
 	"encoding/json"
+	"errors"
 	"expvar"
 	"fmt"
 	"net/http"
+	"regexp"
+	"strconv"
+	"time"
 
+	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	"github.com/DataDog/datadog-agent/pkg/serializer/jsonstream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
@@ -94,11 +100,13 @@ type MetricSerializer interface {
 	SendMetadata(m marshaler.Marshaler) error
 	SendHostMetadata(m marshaler.Marshaler) error
 	SendJSONToV1Intake(data interface{}) error
+	SendOrchestratorMetadata(msg []model.MessageBody, hostName, clusterID, payloadType string) error
 }
 
 // Serializer serializes metrics to the correct format and routes the payloads to the correct endpoint in the Forwarder
 type Serializer struct {
-	Forwarder forwarder.Forwarder
+	Forwarder             forwarder.Forwarder
+	orchestratorForwarder forwarder.Forwarder
 
 	seriesPayloadBuilder *jsonstream.PayloadBuilder
 
@@ -150,6 +158,11 @@ func NewSerializer(forwarder forwarder.Forwarder) *Serializer {
 	}
 
 	return s
+}
+
+// AttachOrchestratorForwarder sets a dedicated forwarder for orchestrator metadata payloads
+func (s *Serializer) AttachOrchestratorForwarder(forwarder forwarder.Forwarder) {
+	s.orchestratorForwarder = forwarder
 }
 
 func (s Serializer) serializePayload(payload marshaler.Marshaler, compress bool, useV1API bool) (forwarder.Payloads, http.Header, error) {
@@ -376,5 +389,36 @@ func (s *Serializer) SendJSONToV1Intake(data interface{}) error {
 
 	log.Infof("Sent processes metadata payload, size: %d bytes.", len(payload))
 	log.Debugf("Sent processes metadata payload, content: %v", string(payload))
+	return nil
+}
+
+// SendOrchestratorMetadata serializes & send orchestrator metadata payloads
+func (s *Serializer) SendOrchestratorMetadata(msg []model.MessageBody, hostName, clusterID, payloadType string) error {
+	if s.orchestratorForwarder == nil {
+		return errors.New("orchestrator forwarder is not setup")
+	}
+	for _, m := range msg {
+		extraHeaders := make(http.Header)
+		extraHeaders.Set(api.HostHeader, hostName)
+		extraHeaders.Set(api.ClusterIDHeader, clusterID)
+		extraHeaders.Set(api.TimestampHeader, strconv.Itoa(int(time.Now().Unix())))
+
+		body, err := api.EncodePayload(m)
+		if err != nil {
+			return log.Errorf("Unable to encode message: %s", err)
+		}
+
+		payloads := forwarder.Payloads{&body}
+		responses, err := s.orchestratorForwarder.SubmitOrchestratorChecks(payloads, extraHeaders, payloadType)
+		if err != nil {
+			return log.Errorf("Unable to submit payload: %s", err)
+		}
+
+		// Consume the responses so that writers to the channel do not become blocked
+		// we don't need the bodies here though
+		for range responses {
+
+		}
+	}
 	return nil
 }

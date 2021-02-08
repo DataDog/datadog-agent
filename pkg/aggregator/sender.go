@@ -11,10 +11,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
+	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var senderInstance *checkSender
@@ -40,6 +40,7 @@ type Sender interface {
 	SetCheckCustomTags(tags []string)
 	SetCheckService(service string)
 	FinalizeCheckServiceTag()
+	OrchestratorMetadata(msg []model.MessageBody, clusterID, payloadType string)
 }
 
 type metricStats struct {
@@ -68,6 +69,7 @@ type checkSender struct {
 	serviceCheckOut         chan<- metrics.ServiceCheck
 	eventOut                chan<- metrics.Event
 	histogramBucketOut      chan<- senderHistogramBucket
+	orchestratorOut         chan<- senderOrchestratorMetadata
 	checkTags               []string
 	service                 string
 }
@@ -83,6 +85,12 @@ type senderHistogramBucket struct {
 	bucket *metrics.HistogramBucket
 }
 
+type senderOrchestratorMetadata struct {
+	msgs        []model.MessageBody
+	clusterID   string
+	payloadType string
+}
+
 type checkSenderPool struct {
 	senders map[check.ID]Sender
 	m       sync.Mutex
@@ -94,13 +102,14 @@ func init() {
 	}
 }
 
-func newCheckSender(id check.ID, defaultHostname string, smsOut chan<- senderMetricSample, serviceCheckOut chan<- metrics.ServiceCheck, eventOut chan<- metrics.Event, bucketOut chan<- senderHistogramBucket) *checkSender {
+func newCheckSender(id check.ID, defaultHostname string, smsOut chan<- senderMetricSample, serviceCheckOut chan<- metrics.ServiceCheck, eventOut chan<- metrics.Event, bucketOut chan<- senderHistogramBucket, orchestratorOut chan<- senderOrchestratorMetadata) *checkSender {
 	return &checkSender{
 		id:                 id,
 		defaultHostname:    defaultHostname,
 		smsOut:             smsOut,
 		serviceCheckOut:    serviceCheckOut,
 		eventOut:           eventOut,
+		orchestratorOut:    orchestratorOut,
 		metricStats:        metricStats{},
 		priormetricStats:   metricStats{},
 		histogramBucketOut: bucketOut,
@@ -146,7 +155,7 @@ func GetDefaultSender() (Sender, error) {
 	senderInit.Do(func() {
 		var defaultCheckID check.ID                       // the default value is the zero value
 		aggregatorInstance.registerSender(defaultCheckID) //nolint:errcheck
-		senderInstance = newCheckSender(defaultCheckID, aggregatorInstance.hostname, aggregatorInstance.checkMetricIn, aggregatorInstance.serviceCheckIn, aggregatorInstance.eventIn, aggregatorInstance.checkHistogramBucketIn)
+		senderInstance = newCheckSender(defaultCheckID, aggregatorInstance.hostname, aggregatorInstance.checkMetricIn, aggregatorInstance.serviceCheckIn, aggregatorInstance.eventIn, aggregatorInstance.checkHistogramBucketIn, aggregatorInstance.orchestratorMetadataIn)
 	})
 
 	return senderInstance, nil
@@ -383,6 +392,16 @@ func (s *checkSender) Event(e metrics.Event) {
 	s.metricStats.Lock.Unlock()
 }
 
+//
+func (s *checkSender) OrchestratorMetadata(msgs []model.MessageBody, clusterID, payloadType string) {
+	om := senderOrchestratorMetadata{
+		msgs:        msgs,
+		clusterID:   clusterID,
+		payloadType: payloadType,
+	}
+	s.orchestratorOut <- om
+}
+
 // changeAllSendersDefaultHostname u
 func (sp *checkSenderPool) changeAllSendersDefaultHostname(hostname string) {
 	sp.m.Lock()
@@ -411,7 +430,7 @@ func (sp *checkSenderPool) mkSender(id check.ID) (Sender, error) {
 	defer sp.m.Unlock()
 
 	err := aggregatorInstance.registerSender(id)
-	sender := newCheckSender(id, aggregatorInstance.hostname, aggregatorInstance.checkMetricIn, aggregatorInstance.serviceCheckIn, aggregatorInstance.eventIn, aggregatorInstance.checkHistogramBucketIn)
+	sender := newCheckSender(id, aggregatorInstance.hostname, aggregatorInstance.checkMetricIn, aggregatorInstance.serviceCheckIn, aggregatorInstance.eventIn, aggregatorInstance.checkHistogramBucketIn, aggregatorInstance.orchestratorMetadataIn)
 	sp.senders[id] = sender
 	return sender, err
 }

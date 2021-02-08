@@ -105,6 +105,7 @@ var (
 	aggregatorServiceCheck                     = expvar.Int{}
 	aggregatorEvent                            = expvar.Int{}
 	aggregatorHostnameUpdate                   = expvar.Int{}
+	aggregatorOrchestratorMetadata             = expvar.Int{}
 
 	tlmFlush = telemetry.NewCounter("aggregator", "flush",
 		[]string{"data_type", "state"}, "Number of metrics/service checks/events flushed")
@@ -147,6 +148,7 @@ func init() {
 	aggregatorExpvars.Set("ServiceCheck", &aggregatorServiceCheck)
 	aggregatorExpvars.Set("Event", &aggregatorEvent)
 	aggregatorExpvars.Set("HostnameUpdate", &aggregatorHostnameUpdate)
+	aggregatorExpvars.Set("OrchestratorMetadata", &aggregatorOrchestratorMetadata)
 }
 
 // InitAggregator returns the Singleton instance
@@ -193,6 +195,7 @@ type BufferedAggregator struct {
 
 	checkMetricIn          chan senderMetricSample
 	checkHistogramBucketIn chan senderHistogramBucket
+	orchestratorMetadataIn chan senderOrchestratorMetadata
 
 	// metricSamplePool is a pool of slices of metric sample to avoid allocations.
 	// Used by the Dogstatsd Batcher.
@@ -244,6 +247,8 @@ func NewBufferedAggregator(s serializer.MetricSerializer, hostname string, flush
 
 		checkMetricIn:          make(chan senderMetricSample, bufferSize),
 		checkHistogramBucketIn: make(chan senderHistogramBucket, bufferSize),
+
+		orchestratorMetadataIn: make(chan senderOrchestratorMetadata, bufferSize),
 
 		MetricSamplePool: metrics.NewMetricSamplePool(MetricSamplePoolBatchSize),
 
@@ -736,7 +741,20 @@ func (agg *BufferedAggregator) run() {
 			agg.hostname = h
 			changeAllSendersDefaultHostname(h)
 			agg.hostnameUpdateDone <- struct{}{}
+		case orchestratorMetadata := <-agg.orchestratorMetadataIn:
+			aggregatorOrchestratorMetadata.Add(1)
+			// each resource has its own payload so we cannot aggregate
+			err := agg.serializer.SendOrchestratorMetadata(
+				orchestratorMetadata.msgs,
+				agg.hostname,
+				orchestratorMetadata.clusterID,
+				orchestratorMetadata.payloadType,
+			)
+			if err != nil {
+				log.Errorf("Error submitting orchestrator data: %s", err)
+			}
 		}
+
 	}
 }
 

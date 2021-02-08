@@ -35,7 +35,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
+	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
+	procapi "github.com/DataDog/datadog-agent/pkg/process/util/api"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -74,6 +76,10 @@ import (
 )
 
 var (
+	// flags variables
+	pidfilePath           string
+	orchestratorForwarder forwarder.Forwarder
+
 	runCmd = &cobra.Command{
 		Use:   "run",
 		Short: "Run the Agent",
@@ -82,13 +88,7 @@ var (
 	}
 )
 
-var (
-	// flags variables
-	pidfilePath string
-)
-
 func init() {
-
 	// attach the command to the root
 	AgentCmd.AddCommand(runCmd)
 
@@ -343,6 +343,20 @@ func StartAgent() error {
 	agg := aggregator.InitAggregator(s, hostname)
 	agg.AddAgentStartupTelemetry(version.AgentVersion)
 
+	// setup the orchestrator forwarder only on cluster check runners
+	if config.IsCLCRunner() && config.Datadog.GetBool("orchestrator_explorer.enabled") {
+		orchestratorCfg := orchcfg.NewDefaultOrchestratorConfig()
+		if err := orchestratorCfg.LoadYamlConfig(confFilePath); err != nil {
+			log.Errorf("Error loading the orchestrator config: %s", err)
+		}
+		keysPerDomain = procapi.KeysPerDomains(orchestratorCfg.OrchestratorEndpoints)
+		orchestratorForwarderOpts := forwarder.NewOptions(keysPerDomain)
+		orchestratorForwarderOpts.DisableAPIKeyChecking = true
+		orchestratorForwarder = forwarder.NewDefaultForwarder(orchestratorForwarderOpts)
+		orchestratorForwarder.Start()
+		s.AttachOrchestratorForwarder(orchestratorForwarder)
+	}
+
 	// start dogstatsd
 	if config.Datadog.GetBool("use_dogstatsd") {
 		var err error
@@ -446,6 +460,9 @@ func StopAgent() {
 	aggregator.StopDefaultAggregator()
 	if common.Forwarder != nil {
 		common.Forwarder.Stop()
+	}
+	if orchestratorForwarder != nil {
+		orchestratorForwarder.Stop()
 	}
 
 	logs.Stop()
