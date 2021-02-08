@@ -27,3 +27,36 @@ func TestParseRepaceRules(t *testing.T) {
 		assert.Equal(r.Pattern, r.Re.String())
 	}
 }
+
+// TestSplitTag tests the splitTag helper function.
+func TestSplitTag(t *testing.T) {
+	for _, tt := range []struct {
+		tag string
+		kv  *Tag
+	}{
+		{
+			tag: "",
+			kv:  &Tag{K: ""},
+		},
+		{
+			tag: "key:value",
+			kv:  &Tag{K: "key", V: "value"},
+		},
+		{
+			tag: "env:prod",
+			kv:  &Tag{K: "env", V: "prod"},
+		},
+		{
+			tag: "env:staging:east",
+			kv:  &Tag{K: "env", V: "staging:east"},
+		},
+		{
+			tag: "key",
+			kv:  &Tag{K: "key"},
+		},
+	} {
+		t.Run("", func(t *testing.T) {
+			assert.Equal(t, splitTag(tt.tag), tt.kv)
+		})
+	}
+}

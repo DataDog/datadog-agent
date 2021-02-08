@@ -181,6 +181,8 @@ func TestFullYamlConfig(t *testing.T) {
 		{Host: "https://my2.endpoint.eu", APIKey: "apikey5", NoProxy: noProxy},
 	}, c.Endpoints)
 
+	assert.ElementsMatch([]*Tag{{K: "env", V: "prod"}, {K: "db", V: "mongodb"}}, c.RequireTags)
+	assert.ElementsMatch([]*Tag{{K: "outcome", V: "success"}}, c.RejectTags)
 	assert.ElementsMatch([]*ReplaceRule{
 		{
 			Name:    "http.method",

@@ -764,11 +764,13 @@ api_key:
 
   ## @param filter_tags - object - optional
   ## Defines rules by which to filter traces based on tags.
+  ##  * require - list of key or key/value strings - traces must have those tags in order to be sent to Datadog
+  ##  * reject - list of key or key/value strings - traces with these tags are dropped by the Agent
+  ## Note: Rules take into account the intersection of tags defined.
   #
   # filter_tags:
-  #     <FILTER_TAGS_CONFIGURATION>
-  #
-  # TODO(x): Find out how to do this and if we need a page on the official docs
+  #     require: "<LIST_OF_KEY_VALUE_TAGS>"
+  #     reject: "<LIST_OF_KEY_VALUE_TAGS>"
 
   ## @param replace_tags - list of objects - optional
   ## Defines a set of rules to replace or remove certain resources, tags containing

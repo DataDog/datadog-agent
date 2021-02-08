@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/davecgh/go-spew/spew"
 )
 
 // apiEndpointPrefix is the URL prefix prepended to the default site value from YamlAgentConfig.
@@ -276,6 +277,7 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		tags := config.Datadog.GetStringSlice("apm_config.filter_tags.reject")
 		for _, tag := range tags {
 			c.RejectTags = append(c.RejectTags, splitTag(tag))
+			spew.Dump(c.RejectTags)
 		}
 	}
 
@@ -461,9 +463,9 @@ func toFloat64(val interface{}) (float64, error) {
 	}
 }
 
-func splitTag(tag string) Tag {
+func splitTag(tag string) *Tag {
 	parts := strings.SplitN(tag, ":", 2)
-	kv := Tag{
+	kv := &Tag{
 		K: strings.TrimSpace(parts[0]),
 	}
 	if len(parts) > 1 {

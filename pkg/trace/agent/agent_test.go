@@ -408,40 +408,70 @@ func TestProcess(t *testing.T) {
 
 func TestFilteredByTags(t *testing.T) {
 	for _, tt := range []struct {
-		require []config.Tag
-		reject  []config.Tag
+		require []*config.Tag
+		reject  []*config.Tag
 		span    pb.Span
 		drop    bool
 	}{
 		{
-			require: []config.Tag{{K: "key", V: "val"}},
+			require: []*config.Tag{{K: "key", V: "val"}},
 			span:    pb.Span{Meta: map[string]string{"key": "val"}},
 			drop:    false,
 		},
 		{
-			require: []config.Tag{{K: "key", V: "val"}},
-			span:    pb.Span{Meta: map[string]string{"key": "val2"}},
-			drop:    true,
-		},
-		{
-			require: []config.Tag{{K: "something", V: "else"}},
-			span:    pb.Span{Meta: map[string]string{"key": "val"}},
-			drop:    true,
-		},
-		{
-			reject: []config.Tag{{K: "key", V: "val"}},
-			span:   pb.Span{Meta: map[string]string{"key": "val"}},
-			drop:   true,
-		},
-		{
-			reject: []config.Tag{{K: "key", V: "val"}},
+			reject: []*config.Tag{{K: "key", V: "val"}},
 			span:   pb.Span{Meta: map[string]string{"key": "val4"}},
 			drop:   false,
 		},
 		{
-			reject: []config.Tag{{K: "something", V: "else"}},
+			reject: []*config.Tag{{K: "something", V: "else"}},
 			span:   pb.Span{Meta: map[string]string{"key": "val"}},
 			drop:   false,
+		},
+		{
+			require: []*config.Tag{{K: "something", V: "else"}},
+			reject:  []*config.Tag{{K: "bad-key", V: "bad-value"}},
+			span:    pb.Span{Meta: map[string]string{"something": "else", "bad-key": "other-value"}},
+			drop:    false,
+		},
+		{
+			require: []*config.Tag{{K: "key", V: "value"}, {K: "key-only"}},
+			reject:  []*config.Tag{{K: "bad-key", V: "bad-value"}},
+			span:    pb.Span{Meta: map[string]string{"key": "value", "key-only": "but-also-value", "bad-key": "not-bad-value"}},
+			drop:    false,
+		},
+		{
+			require: []*config.Tag{{K: "key", V: "val"}},
+			span:    pb.Span{Meta: map[string]string{"key": "val2"}},
+			drop:    true,
+		},
+		{
+			require: []*config.Tag{{K: "something", V: "else"}},
+			span:    pb.Span{Meta: map[string]string{"key": "val"}},
+			drop:    true,
+		},
+		{
+			require: []*config.Tag{{K: "valid"}, {K: "test"}},
+			reject:  []*config.Tag{{K: "test"}},
+			span:    pb.Span{Meta: map[string]string{"test": "random", "valid": "random"}},
+			drop:    true,
+		},
+		{
+			require: []*config.Tag{{K: "valid-key", V: "valid-value"}, {K: "test"}},
+			reject:  []*config.Tag{{K: "test"}},
+			span:    pb.Span{Meta: map[string]string{"test": "random", "valid-key": "wrong-value"}},
+			drop:    true,
+		},
+		{
+			reject: []*config.Tag{{K: "key", V: "val"}},
+			span:   pb.Span{Meta: map[string]string{"key": "val"}},
+			drop:   true,
+		},
+		{
+			require: []*config.Tag{{K: "something", V: "else"}, {K: "key-only"}},
+			reject:  []*config.Tag{{K: "bad-key", V: "bad-value"}, {K: "bad-key-only"}},
+			span:    pb.Span{Meta: map[string]string{"something": "else", "key-only": "but-also-value", "bad-key-only": "random"}},
+			drop:    true,
 		},
 	} {
 		t.Run("", func(t *testing.T) {

@@ -426,18 +426,15 @@ func traceContainsError(trace pb.Trace) bool {
 	return false
 }
 
-func filteredByTags(root *pb.Span, require, reject []config.Tag) bool {
+func filteredByTags(root *pb.Span, require, reject []*config.Tag) bool {
 	for _, tag := range reject {
-		if v, ok := root.Meta[tag.K]; ok && v == tag.V {
+		if v, ok := root.Meta[tag.K]; ok && (tag.V == "" || (v != "" && v == tag.V)) {
 			return true
 		}
 	}
 	for _, tag := range require {
 		v, ok := root.Meta[tag.K]
-		if !ok {
-			return true
-		}
-		if v != tag.V {
+		if !ok || (tag.V != "" && v != "" && v != tag.V) {
 			return true
 		}
 	}
