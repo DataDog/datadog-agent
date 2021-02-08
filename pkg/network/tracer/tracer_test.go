@@ -27,11 +27,13 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf"
 	"github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
@@ -49,6 +51,7 @@ var (
 const runtimeCompilationEnvVar = "DD_TESTS_RUNTIME_COMPILED"
 
 func TestMain(m *testing.M) {
+	log.SetupLogger(seelog.Default, "trace")
 	cfg := testConfig()
 	if cfg.EnableRuntimeCompiler {
 		fmt.Println("RUNTIME COMPILER ENABLED")
@@ -635,26 +638,24 @@ func TestTCPShortlived(t *testing.T) {
 
 	// Connect to server
 	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	// Write clientMessageSize to server, and read response
-	if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
-		t.Fatal(err)
-	}
+	_, err = c.Write(genPayload(clientMessageSize))
+	require.NoError(t, err)
 	r := bufio.NewReader(c)
 	r.ReadBytes(byte('\n'))
 
 	// Explicitly close this TCP connection
 	c.Close()
 
-	// Wait for the message to be sent from the perf buffer
-	time.Sleep(2 * cfg.TCPClosedTimeout)
+	var conn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		var ok bool
+		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
+		return ok
+	}, 3*time.Second, time.Second, "connection not found")
 
-	connections := getConnections(t, tr)
-	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-	require.True(t, ok)
 	assert.Equal(t, clientMessageSize, int(conn.MonotonicSentBytes))
 	assert.Equal(t, serverMessageSize, int(conn.MonotonicRecvBytes))
 	assert.Equal(t, 0, int(conn.MonotonicRetransmits))
@@ -667,10 +668,7 @@ func TestTCPShortlived(t *testing.T) {
 	assert.Equal(t, uint32(1), conn.MonotonicTCPEstablished)
 	assert.Equal(t, uint32(1), conn.MonotonicTCPClosed)
 
-	// Confirm that the connection has been cleaned up since the last get
-	connections = getConnections(t, tr)
-
-	conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+	_, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
 	assert.False(t, ok)
 }
 
@@ -781,44 +779,51 @@ func TestTCPCollectionDisabled(t *testing.T) {
 func TestUDPSendAndReceive(t *testing.T) {
 	// Enable BPF-based system probe
 	cfg := testConfig()
+	cfg.BPFDebug = true
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
 	defer tr.Stop()
 
-	cmd := exec.Command("../testdata/simulate_udp.sh")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Errorf("simulate_udp command output: %s", string(out))
-	}
+	server := NewUDPServerOnAddress("127.0.0.1:8001", func(buf []byte, n int) []byte {
+		return genPayload(serverMessageSize)
+	})
 
-	defer func() {
-		exec.Command("../testdata/teardown_simulate_udp.sh").Run()
-	}()
+	doneChan := make(chan struct{})
+	err = server.Run(doneChan, clientMessageSize)
+	require.NoError(t, err)
+	defer close(doneChan)
+
+	// Connect to server
+	c, err := net.DialTimeout("udp", server.address, 50*time.Millisecond)
+	require.NoError(t, err)
+	defer c.Close()
+
+	// Write clientMessageSize to server, and read response
+	_, err = c.Write(genPayload(clientMessageSize))
+	require.NoError(t, err)
+
+	_, err = c.Read(make([]byte, serverMessageSize))
+	require.NoError(t, err)
 
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections := getConnections(t, tr)
 
-	incoming := searchConnections(connections, func(cs network.ConnectionStats) bool {
-		return cs.SPort == 8081
-	})
-	require.Len(t, incoming, 1)
-	assert.Equal(t, network.INCOMING, incoming[0].Direction)
+	incoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+	require.True(t, ok)
+	require.Equal(t, network.INCOMING, incoming.Direction)
 
-	outgoing := searchConnections(connections, func(cs network.ConnectionStats) bool {
-		return cs.DPort == 8081
-	})
+	outgoing, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+	require.True(t, ok)
+	require.Equal(t, network.OUTGOING, outgoing.Direction)
 
-	require.Len(t, outgoing, 1)
-	assert.Equal(t, network.OUTGOING, outgoing[0].Direction)
-
-	// these values come from simulate_udp.sh
-	assert.Equal(t, 512, int(outgoing[0].MonotonicSentBytes))
-	assert.Equal(t, 256, int(outgoing[0].MonotonicRecvBytes))
-	assert.True(t, outgoing[0].IntraHost)
+	require.Equal(t, clientMessageSize, int(outgoing.MonotonicSentBytes))
+	require.Equal(t, serverMessageSize, int(outgoing.MonotonicRecvBytes))
+	require.True(t, outgoing.IntraHost)
 
 	// make sure the inverse values are seen for the other message
-	assert.Equal(t, 256, int(incoming[0].MonotonicSentBytes))
-	assert.Equal(t, 512, int(incoming[0].MonotonicRecvBytes))
-	assert.True(t, incoming[0].IntraHost)
+	require.Equal(t, serverMessageSize, int(incoming.MonotonicSentBytes))
+	require.Equal(t, clientMessageSize, int(incoming.MonotonicRecvBytes))
+	require.True(t, incoming.IntraHost)
 }
 
 func TestUDPDisabled(t *testing.T) {
@@ -1597,19 +1602,12 @@ func testDNSStats(t *testing.T, domain string, success int, failure int, timeout
 	queryMsg.SetQuestion(dns.Fqdn(domain), dns.TypeA)
 	queryMsg.RecursionDesired = true
 
-	// Get outbound IP
-	dummyConn, err := net.Dial("udp", "8.8.8.8:80")
+	dnsClient := new(dns.Client)
+	dnsConn, err := dnsClient.Dial(dnsServerAddr.String())
 	require.NoError(t, err)
-	dummyConn.Close()
-	localAddr := dummyConn.LocalAddr().(*net.UDPAddr)
-
-	dnsClientAddr := &net.UDPAddr{IP: localAddr.IP, Port: 7777}
-	localAddrDialer := &net.Dialer{
-		LocalAddr: dnsClientAddr,
-	}
-
-	dnsClient := dns.Client{Net: "udp", Dialer: localAddrDialer}
-	_, _, err = dnsClient.Exchange(queryMsg, dnsServerAddr.String())
+	defer dnsConn.Close()
+	dnsClientAddr := dnsConn.LocalAddr().(*net.UDPAddr)
+	_, _, err = dnsClient.ExchangeWithConn(queryMsg, dnsConn)
 
 	if err != nil && timeout == 0 {
 		t.Fatalf("Failed to get dns response %s\n", err.Error())
@@ -1841,75 +1839,85 @@ func TestConnectionClobber(t *testing.T) {
 	defer tr.Stop()
 
 	// Create TCP Server which, for every line, sends back a message with size=serverMessageSize
+	var serverConns []net.Conn
 	srvRecvBuf := make([]byte, 4)
 	server := NewTCPServer(func(c net.Conn) {
+		serverConns = append(serverConns, c)
 		_, _ = io.ReadFull(c, srvRecvBuf)
 		_, _ = c.Write(srvRecvBuf)
 	})
 	doneChan := make(chan struct{})
 	server.Run(doneChan)
+	defer close(doneChan)
 
 	// we only need 1/4 since both send and recv sides will be registered
-	sendCount := (cap(tr.buffer) / 4) + 1
-	sendAndRecv := func(closeCh chan struct{}) *sync.WaitGroup {
-		sendWg := sync.WaitGroup{}
-		doneWg := sync.WaitGroup{}
-		sendBuf := make([]byte, 4)
-		recvBuf := make([]byte, 4)
+	sendCount := cap(tr.buffer)/4 + 1
+	sendAndRecv := func() []net.Conn {
+		connsCh := make(chan net.Conn, sendCount)
+		var conns []net.Conn
+		go func() {
+			for c := range connsCh {
+				conns = append(conns, c)
+			}
+		}()
+
+		workers := sync.WaitGroup{}
 		for i := 0; i < sendCount; i++ {
-			senderNum := i
-			sendWg.Add(1)
-			doneWg.Add(1)
+			workers.Add(1)
 			go func() {
-				defer doneWg.Done()
+				defer workers.Done()
 
 				c, err := net.DialTimeout("tcp", server.address, 5*time.Second)
-				if err != nil {
-					t.Logf("dial error %d: %s\n", senderNum, err)
-					return
-				}
-				defer c.Close()
+				require.NoError(t, err)
+				connsCh <- c
 
-				if _, err = c.Write(sendBuf); err != nil {
-					t.Fatal(err)
-				}
-				_, _ = io.ReadFull(c, recvBuf)
-				sendWg.Done()
-				<-closeCh
+				buf := make([]byte, 4)
+				_, err = c.Write(buf)
+				require.NoError(t, err)
+
+				_, err = io.ReadFull(c, buf[:0])
+				require.NoError(t, err)
 			}()
 		}
-		sendWg.Wait()
-		return &doneWg
+
+		workers.Wait()
+		close(connsCh)
+
+		return conns
 	}
 
-	closeCh := make(chan struct{})
-	dg := sendAndRecv(closeCh)
+	conns := sendAndRecv()
+
+	// wait for tracer to pick up all connections
+	//
+	// there is not good way do this other than a sleep since we
+	// can't call getConnections in a require.Eventually call
+	// to the get the number of connections as that could
+	// affect the tr.buffer length
+	time.Sleep(2 * time.Second)
 
 	preCap := cap(tr.buffer)
-	firstConnections := getConnections(t, tr)
+	connections := getConnections(t, tr)
+	src := connections.Conns[0].SPort
+	dst := connections.Conns[0].DPort
+	t.Logf("got %d connections", len(connections.Conns))
 	// ensure we didn't grow or shrink the buffer
 	require.Equal(t, preCap, cap(tr.buffer))
-	src := firstConnections.Conns[0].SPort
-	dst := firstConnections.Conns[0].DPort
-	t.Logf("before src: %d dst: %d\n", src, dst)
-
-	close(closeCh)
-	dg.Wait()
 
 	// send second batch so that underlying array gets clobbered
-	closeCh = make(chan struct{})
-	dg = sendAndRecv(closeCh)
-	_ = getConnections(t, tr)
+	conns = append(conns, sendAndRecv()...)
+	defer func() {
+		for _, c := range append(conns, serverConns...) {
+			c.Close()
+		}
+	}()
+
+	time.Sleep(2 * time.Second)
+
+	t.Logf("got %d connections", len(getConnections(t, tr).Conns))
+	require.Equal(t, src, connections.Conns[0].SPort, "source port should not change")
+	require.Equal(t, dst, connections.Conns[0].DPort, "dest port should not change")
 	require.Equal(t, preCap, cap(tr.buffer))
-
-	t.Logf("after src: %d dst: %d\n", firstConnections.Conns[0].SPort, firstConnections.Conns[0].DPort)
-	assert.EqualValues(t, int(src), int(firstConnections.Conns[0].SPort), "source port should not change")
-	assert.EqualValues(t, int(dst), int(firstConnections.Conns[0].DPort), "dest port should not change")
-
-	close(closeCh)
-	dg.Wait()
-
-	doneChan <- struct{}{}
 }
 
 func TestEnableHTTPMonitoring(t *testing.T) {
@@ -1959,31 +1967,25 @@ func TestHTTPStats(t *testing.T) {
 
 	// Send a series of HTTP requests to the test server
 	client := new(nethttp.Client)
-	req, err := nethttp.NewRequest("GET", "http://"+serverAddr+"/test", nil)
-	require.NoError(t, err)
-
-	resp, err := client.Do(req)
+	resp, err := client.Get("http://" + serverAddr + "/test")
 	require.NoError(t, err)
 	resp.Body.Close()
 
-	// Allow the HTTP transactions to be processed in the monitor
-	time.Sleep(time.Second)
-
 	// Iterate through active connections until we find connection created above
-	conns := getConnections(t, tr)
-	matchingConns := searchConnections(conns, func(cs network.ConnectionStats) bool {
-		ip := cs.Dest.String()
-		port := strconv.Itoa(int(cs.DPort))
-		return ip+":"+port == serverAddr
-	})
-	require.Len(t, matchingConns, 1)
+	var matchingConns []network.ConnectionStats
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+		matchingConns = searchConnections(conns, func(cs network.ConnectionStats) bool {
+			return fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == serverAddr && len(cs.HTTPStatsByPath) == 1
+		})
+
+		return len(matchingConns) == 1
+	}, 2*time.Second, 500*time.Millisecond, "connection not found")
 
 	// Verify HTTP stats
 	conn := matchingConns[0]
-	assert.Len(t, conn.HTTPStatsByPath, 1)
-
 	httpReqStats, ok := conn.HTTPStatsByPath["/test"]
-	assert.Equal(t, true, ok)
+	assert.True(t, ok)
 	assert.Equal(t, 0, httpReqStats.Count(0)) // number of requests with response status 100
 	assert.Equal(t, 1, httpReqStats.Count(1)) // 200
 	assert.Equal(t, 0, httpReqStats.Count(2)) // 300
@@ -2045,4 +2047,67 @@ func testConfig() *config.Config {
 		cfg.AllowPrecompiledFallback = false
 	}
 	return cfg
+}
+
+func TestSelfConnect(t *testing.T) {
+	// Enable BPF-based system probe
+	cfg := testConfig()
+	cfg.BPFDebug = true
+	cfg.TCPConnTimeout = 3 * time.Second
+	tr, err := NewTracer(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tr.Stop()
+
+	getConnections(t, tr)
+
+	started := make(chan struct{})
+	cmd := exec.Command("testdata/fork.py")
+	stdOutReader, stdOutWriter := io.Pipe()
+	go func() {
+		var stderr bytes.Buffer
+		cmd.Stderr = &stderr
+		cmd.Stdout = stdOutWriter
+		err := cmd.Start()
+		close(started)
+		require.NoError(t, err)
+		if err := cmd.Wait(); err != nil {
+			status := cmd.ProcessState.Sys().(syscall.WaitStatus)
+			require.Equal(t, syscall.SIGKILL, status.Signal(), "fork.py output: %s", stderr.String())
+		}
+	}()
+
+	<-started
+
+	defer cmd.Process.Kill()
+
+	portStr, err := bufio.NewReader(stdOutReader).ReadString('\n')
+	require.NoError(t, err, "error reading port from fork.py")
+	stdOutReader.Close()
+
+	port, err := strconv.ParseUint(strings.TrimSpace(portStr), 10, 16)
+	require.NoError(t, err, "could not convert %s to integer port", portStr)
+
+	t.Logf("port is %d", port)
+
+	require.Eventually(t, func() bool {
+		conns := searchConnections(getConnections(t, tr), func(cs network.ConnectionStats) bool {
+			return cs.SPort == uint16(port) && cs.DPort == uint16(port) && cs.Source.IsLoopback() && cs.Dest.IsLoopback()
+		})
+
+		t.Logf("connections: %v", conns)
+		return len(conns) == 2
+	}, 5*time.Second, time.Second, "could not find expected number of tcp connections, expected: 2")
+
+	// forked child should have exited, and only the parent should remain
+	require.Eventually(t, func() bool {
+		conns := searchConnections(getConnections(t, tr), func(cs network.ConnectionStats) bool {
+			return cs.SPort == uint16(port) && cs.DPort == uint16(port) && cs.Source.IsLoopback() && cs.Dest.IsLoopback()
+		})
+
+		t.Logf("connections: %v", conns)
+		return len(conns) == 1
+	}, 5*time.Second, time.Second, "could not find expected number of tcp connections, expected: 1")
+
 }
