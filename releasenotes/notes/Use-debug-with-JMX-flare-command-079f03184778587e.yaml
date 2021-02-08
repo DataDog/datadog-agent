@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Automatically set debug log_level with JMX --flare command
+    Automatically set debug log_level when the '--flare' option is used with the  JMX command
