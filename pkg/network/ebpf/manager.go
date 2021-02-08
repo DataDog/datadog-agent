@@ -78,7 +78,6 @@ func NewManager(closedHandler, httpHandler *ebpf.PerfHandler, runtimeTracer bool
 			{Section: string(probes.TCPSetState)},
 			{Section: string(probes.IPMakeSkb)},
 			{Section: string(probes.IP6MakeSkb)},
-			{Section: string(probes.IP6MakeSkbPre470)},
 			{Section: string(probes.UDPRecvMsg)},
 			{Section: string(probes.UDPRecvMsgPre410), MatchFuncName: "^udp_recvmsg$"},
 			{Section: string(probes.UDPRecvMsgReturn), KProbeMaxActive: maxActive},
@@ -101,6 +100,7 @@ func NewManager(closedHandler, httpHandler *ebpf.PerfHandler, runtimeTracer bool
 	// tracer.
 	if !runtimeTracer {
 		mgr.Probes = append(mgr.Probes, &manager.Probe{Section: string(probes.TCPRetransmitPre470), MatchFuncName: "^tcp_retransmit_skb$"})
+		mgr.Probes = append(mgr.Probes, &manager.Probe{Section: string(probes.IP6MakeSkbPre470)})
 	}
 
 	return mgr
