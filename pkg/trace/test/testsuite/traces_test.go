@@ -89,7 +89,7 @@ func TestTraces(t *testing.T) {
 	})
 
 	t.Run("filter_tags", func(t *testing.T) {
-		if err := r.RunAgent([]byte("apm_config:\r\n  filter_tags:\r\n require: "["env:prod", db:mysql"]" \r\n"reject": ["outcome:"success"]}]")); err != nil {
+		if err := r.RunAgent([]byte("apm_config:\r\n  filter_tags.require: [env:prod, db:mysql]\r\n  filter_tags.reject: [outcome:success]")); err != nil {
 			t.Fatal(err)
 		}
 		defer r.KillAgent()

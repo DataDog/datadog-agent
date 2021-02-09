@@ -28,7 +28,6 @@ func TestParseRepaceRules(t *testing.T) {
 	}
 }
 
-// TestSplitTag tests the splitTag helper function.
 func TestSplitTag(t *testing.T) {
 	for _, tt := range []struct {
 		tag string

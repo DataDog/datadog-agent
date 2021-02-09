@@ -117,17 +117,16 @@ type AgentConfig struct {
 	// Obfuscation holds sensitive data obufscator's configuration.
 	Obfuscation *ObfuscationConfig
 
-	// RequireTags represents a list of tags required for a root span.
+	// RequireTags specifies a list of tags which must be present on the root span in order for a trace to be accepted.
 	RequireTags []*Tag
 
-	// RejectTags represents a list of tags that a root span must not have.
+	// RejectTags specifies a list of tags which must be absent on the root span in order for a trace to be accepted.
 	RejectTags []*Tag
 }
 
-// Tag represents a key/value pair for filterable tags.
+// Tag represents a key/value pair.
 type Tag struct {
-	K string
-	V string
+	K, V string
 }
 
 // New returns a configuration with the default values.
