@@ -45,13 +45,13 @@ type Concentrator struct {
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
-func NewConcentrator(bsize int64, out chan []Bucket) *Concentrator {
+func NewConcentrator(bsize int64, out chan []Bucket, now time.Time) *Concentrator {
 	c := Concentrator{
 		bsize:   bsize,
 		buckets: make(map[int64]*RawBucket),
 		// At start, only allow stats for the current time bucket. Ensure we don't
 		// override buckets which could have been sent before an Agent restart.
-		oldestTs: alignTs(time.Now().UnixNano(), bsize),
+		oldestTs: alignTs(now.UnixNano(), bsize),
 		// TODO: Move to configuration.
 		bufferLen: defaultBufferLen,
 

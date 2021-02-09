@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -42,7 +43,7 @@ func (f *FilterPolicy) Bytes() ([]byte, error) {
 
 // Important should always be called after having checked that the file is not a discarder itself otherwise it can report incorrect
 // parent discarder
-func isParentPathDiscarder(rs *rules.RuleSet, regexCache *simplelru.LRU, eventType EventType, filenameField eval.Field, filename string) (bool, error) {
+func isParentPathDiscarder(rs *rules.RuleSet, regexCache *simplelru.LRU, eventType model.EventType, filenameField eval.Field, filename string) (bool, error) {
 	dirname := filepath.Dir(filename)
 
 	bucket := rs.GetBucket(eventType.String())

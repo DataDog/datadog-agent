@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
@@ -45,19 +46,20 @@ type FileSerializer struct {
 // UserContextSerializer serializes a user context to JSON
 // easyjson:json
 type UserContextSerializer struct {
-	User  string `json:"user,omitempty"`
+	User  string `json:"id,omitempty"`
 	Group string `json:"group,omitempty"`
 }
 
 // ProcessCacheEntrySerializer serializes a process cache entry to JSON
 // easyjson:json
 type ProcessCacheEntrySerializer struct {
-	UserContextSerializer
 	Pid                 uint32     `json:"pid,omitempty"`
 	PPid                uint32     `json:"ppid,omitempty"`
 	Tid                 uint32     `json:"tid,omitempty"`
 	UID                 uint32     `json:"uid,omitempty"`
 	GID                 uint32     `json:"gid,omitempty"`
+	User                string     `json:"user,omitempty"`
+	Group               string     `json:"group,omitempty"`
 	Name                string     `json:"name,omitempty"`
 	ContainerPath       string     `json:"executable_container_path,omitempty"`
 	Path                string     `json:"executable_path,omitempty"`
@@ -117,14 +119,25 @@ type EventSerializer struct {
 	Date                       time.Time                   `json:"date,omitempty"`
 }
 
-func newFileSerializer(fe *FileEvent, e *Event) *FileSerializer {
+func newFileSerializer(fe *model.FileEvent, e *Event) *FileSerializer {
 	return &FileSerializer{
-		Path:                fe.ResolveInode(e),
+		Path:                e.ResolveFileInode(fe),
 		PathResolutionError: fe.GetPathResolutionError(),
-		ContainerPath:       fe.ResolveContainerPath(e),
+		ContainerPath:       e.ResolveFileContainerPath(fe),
 		Inode:               getUint64Pointer(&fe.Inode),
 		MountID:             getUint32Pointer(&fe.MountID),
 		OverlayNumLower:     getInt32Pointer(&fe.OverlayNumLower),
+	}
+}
+
+func newExecSerializer(exec *model.ExecEvent, e *Event) *FileSerializer {
+	return &FileSerializer{
+		Path:                e.ResolveExecInode(exec),
+		PathResolutionError: exec.GetPathResolutionError(),
+		ContainerPath:       e.ResolveExecContainerPath(exec),
+		Inode:               getUint64Pointer(&exec.Inode),
+		MountID:             getUint32Pointer(&exec.MountID),
+		OverlayNumLower:     getInt32Pointer(&exec.OverlayNumLower),
 	}
 }
 
@@ -156,7 +169,7 @@ func getTimeIfNotZero(t time.Time) *time.Time {
 	return &t
 }
 
-func newProcessCacheEntrySerializer(pce *ProcessCacheEntry, e *Event, r *Resolvers, useEvent bool) *ProcessCacheEntrySerializer {
+func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event, r *Resolvers, useEvent bool) *ProcessCacheEntrySerializer {
 	var pid, ppid, tid, uid, gid uint32
 	var user, group string
 
@@ -166,49 +179,47 @@ func newProcessCacheEntrySerializer(pce *ProcessCacheEntry, e *Event, r *Resolve
 		tid = e.Process.Tid
 		uid = e.Process.UID
 		gid = e.Process.GID
-		user = e.Process.ResolveUser(e)
-		group = e.Process.ResolveGroup(e)
+		user = e.ResolveProcessUser(&e.Process)
+		group = e.ResolveProcessGroup(&e.Process)
 	} else {
 		pid = pce.Pid
 		ppid = pce.PPid
 		tid = pce.Tid
 		uid = pce.UID
 		gid = pce.GID
-		user = pce.ResolveUserWithResolvers(r)
-		group = pce.ResolveGroupWithResolvers(r)
+		user = e.ResolveExecUser(&pce.ProcessContext.ExecEvent)
+		group = e.ResolveExecGroup(&pce.ProcessContext.ExecEvent)
 	}
 
 	return &ProcessCacheEntrySerializer{
-		UserContextSerializer: UserContextSerializer{
-			User:  user,
-			Group: group,
-		},
 		Pid:                 pid,
 		PPid:                ppid,
 		Tid:                 tid,
 		UID:                 uid,
 		GID:                 gid,
-		Name:                pce.ResolveName(e),
-		Path:                pce.ResolveInodeWithResolvers(r),
+		User:                user,
+		Group:               group,
+		Name:                e.ResolveExecBasename(&pce.ExecEvent),
+		Path:                e.ResolveExecInode(&pce.ExecEvent),
 		PathResolutionError: pce.GetPathResolutionError(),
-		ContainerPath:       pce.ResolveContainerPath(e),
-		Comm:                pce.ResolveComm(e),
+		ContainerPath:       e.ResolveExecContainerPath(&pce.ExecEvent),
+		Comm:                e.ResolveExecComm(&pce.ExecEvent),
 		Inode:               pce.Inode,
 		MountID:             pce.MountID,
-		TTY:                 pce.ResolveTTY(e),
-		ForkTime:            getTimeIfNotZero(pce.ForkTimestamp),
-		ExecTime:            getTimeIfNotZero(pce.ExecTimestamp),
-		ExitTime:            getTimeIfNotZero(pce.ExitTimestamp),
+		TTY:                 e.ResolveExecTTY(&pce.ExecEvent),
+		ForkTime:            getTimeIfNotZero(pce.ForkTime),
+		ExecTime:            getTimeIfNotZero(pce.ExecTime),
+		ExitTime:            getTimeIfNotZero(pce.ExitTime),
 	}
 }
 
-func newContainerContextSerializer(cc *ContainerContext, e *Event) *ContainerContextSerializer {
+func newContainerContextSerializer(cc *model.ContainerContext, e *Event) *ContainerContextSerializer {
 	return &ContainerContextSerializer{
-		ID: cc.ResolveContainerID(e),
+		ID: e.ResolveContainerID(cc),
 	}
 }
 
-func newProcessContextSerializer(entry *ProcessCacheEntry, e *Event, r *Resolvers) *ProcessContextSerializer {
+func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Resolvers) *ProcessContextSerializer {
 	ps := &ProcessContextSerializer{
 		ProcessCacheEntrySerializer: newProcessCacheEntrySerializer(entry, e, r, true),
 	}
@@ -216,7 +227,7 @@ func newProcessContextSerializer(entry *ProcessCacheEntry, e *Event, r *Resolver
 	if e == nil {
 		// custom events call newProcessContextSerializer with an empty Event
 		e = NewEvent(r)
-		e.Process = ProcessContext{
+		e.Process = model.ProcessContext{
 			Ancestor: entry,
 		}
 	}
@@ -224,12 +235,12 @@ func newProcessContextSerializer(entry *ProcessCacheEntry, e *Event, r *Resolver
 	ctx := eval.Context{}
 	ctx.SetObject(e.GetPointer())
 
-	it := &ProcessAncestorsIterator{}
+	it := &model.ProcessAncestorsIterator{}
 	ptr := it.Front(&ctx)
 
 	first := true
 	for ptr != nil {
-		ancestor := (*ProcessCacheEntry)(ptr)
+		ancestor := (*model.ProcessCacheEntry)(ptr)
 		s := newProcessCacheEntrySerializer(ancestor, e, r, false)
 		ps.Ancestors = append(ps.Ancestors, s)
 
@@ -258,7 +269,7 @@ func serializeSyscallRetval(retval int64) string {
 func newEventSerializer(event *Event) *EventSerializer {
 	s := &EventSerializer{
 		EventContextSerializer: &EventContextSerializer{
-			Name:     EventType(event.Type).String(),
+			Name:     model.EventType(event.Type).String(),
 			Category: FIMCategory,
 		},
 		ProcessContextSerializer: newProcessContextSerializer(event.ResolveProcessCacheEntry(), event, event.resolvers),
@@ -269,89 +280,90 @@ func newEventSerializer(event *Event) *EventSerializer {
 		s.ContainerContextSerializer = newContainerContextSerializer(&event.Container, event)
 	}
 
-	s.UserContextSerializer = s.ProcessContextSerializer.UserContextSerializer
+	s.UserContextSerializer.User = s.ProcessContextSerializer.User
+	s.UserContextSerializer.Group = s.ProcessContextSerializer.Group
 
-	switch EventType(event.Type) {
-	case FileChmodEventType:
+	switch model.EventType(event.Type) {
+	case model.FileChmodEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Chmod.FileEvent, event),
 		}
 		s.FileSerializer.Mode = &event.Chmod.Mode
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Chmod.Retval)
-	case FileChownEventType:
+	case model.FileChownEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Chown.FileEvent, event),
 		}
 		s.FileSerializer.UID = &event.Chown.UID
 		s.FileSerializer.GID = &event.Chown.GID
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Chown.Retval)
-	case FileLinkEventType:
+	case model.FileLinkEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Link.Source, event),
 			Destination:    newFileSerializer(&event.Link.Target, event),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Link.Retval)
-	case FileOpenEventType:
+	case model.FileOpenEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Open.FileEvent, event),
 		}
 		s.FileSerializer.Mode = &event.Open.Mode
-		s.FileSerializer.Flags = OpenFlags(event.Open.Flags).StringArray()
+		s.FileSerializer.Flags = model.OpenFlags(event.Open.Flags).StringArray()
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Open.Retval)
-	case FileMkdirEventType:
+	case model.FileMkdirEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Mkdir.FileEvent, event),
 		}
 		s.FileSerializer.Mode = &event.Mkdir.Mode
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Mkdir.Retval)
-	case FileRmdirEventType:
+	case model.FileRmdirEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Rmdir.FileEvent, event),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Rmdir.Retval)
-	case FileUnlinkEventType:
+	case model.FileUnlinkEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Unlink.FileEvent, event),
 		}
-		s.FileSerializer.Flags = UnlinkFlags(event.Unlink.Flags).StringArray()
+		s.FileSerializer.Flags = model.UnlinkFlags(event.Unlink.Flags).StringArray()
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Unlink.Retval)
-	case FileRenameEventType:
+	case model.FileRenameEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Rename.Old, event),
 			Destination:    newFileSerializer(&event.Rename.New, event),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Rename.Retval)
-	case FileRemoveXAttrEventType:
+	case model.FileRemoveXAttrEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.RemoveXAttr.FileEvent, event),
 		}
-		s.FileSerializer.XAttrName = event.RemoveXAttr.GetName(event)
-		s.FileSerializer.XAttrNamespace = event.RemoveXAttr.GetNamespace(event)
+		s.FileSerializer.XAttrName = event.GetXAttrName(&event.RemoveXAttr)
+		s.FileSerializer.XAttrNamespace = event.GetXAttrNamespace(&event.RemoveXAttr)
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.RemoveXAttr.Retval)
-	case FileSetXAttrEventType:
+	case model.FileSetXAttrEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.SetXAttr.FileEvent, event),
 		}
-		s.FileSerializer.XAttrName = event.SetXAttr.GetName(event)
-		s.FileSerializer.XAttrNamespace = event.SetXAttr.GetNamespace(event)
+		s.FileSerializer.XAttrName = event.GetXAttrName(&event.SetXAttr)
+		s.FileSerializer.XAttrNamespace = event.GetXAttrNamespace(&event.SetXAttr)
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.SetXAttr.Retval)
-	case FileUtimeEventType:
+	case model.FileUtimeEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Utimes.FileEvent, event),
 		}
 		s.FileSerializer.Atime = getTimeIfNotZero(event.Utimes.Atime)
 		s.FileSerializer.Mtime = getTimeIfNotZero(event.Utimes.Mtime)
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Utimes.Retval)
-	case FileMountEventType:
+	case model.FileMountEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: FileSerializer{
-				Path:                event.Mount.ResolveRoot(event),
+				Path:                event.ResolveMountRoot(&event.Mount),
 				PathResolutionError: event.Mount.GetRootPathResolutionError(),
 				MountID:             &event.Mount.RootMountID,
 				Inode:               &event.Mount.RootInode,
 			},
 			Destination: &FileSerializer{
-				Path:                event.Mount.ResolveMountPoint(event),
+				Path:                event.ResolveMountPoint(&event.Mount),
 				PathResolutionError: event.Mount.GetMountPointPathResolutionError(),
 				MountID:             &event.Mount.ParentMountID,
 				Inode:               &event.Mount.ParentInode,
@@ -362,18 +374,18 @@ func newEventSerializer(event *Event) *EventSerializer {
 			FSType:     event.Mount.GetFSType(),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Mount.Retval)
-	case FileUmountEventType:
+	case model.FileUmountEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			NewMountID: event.Umount.MountID,
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Umount.Retval)
-	case ForkEventType:
+	case model.ForkEventType:
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
-	case ExitEventType:
+	case model.ExitEventType:
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
-	case ExecEventType:
+	case model.ExecEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.processCacheEntry.FileEvent, event),
+			FileSerializer: *newExecSerializer(&event.processCacheEntry.ExecEvent, event),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
 		s.Category = ProcessActivity

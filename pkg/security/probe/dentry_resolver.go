@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 )
+import "github.com/DataDog/datadog-agent/pkg/security/model"
 
 const (
 	dentryPathKeyNotFound = "error: dentry path key not found"
@@ -78,7 +79,7 @@ func (p *PathKey) MarshalBinary() ([]byte, error) {
 // PathValue describes a value of an entry of the cache
 type PathValue struct {
 	Parent PathKey
-	Name   [MaxSegmentLength + 1]byte
+	Name   [model.MaxSegmentLength + 1]byte
 }
 
 // DelCacheEntry removes an entry from the cache
@@ -236,7 +237,7 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 		// Don't append dentry name if this is the root dentry (i.d. name == '/')
 		if path.Name[0] != '/' {
 			segment = C.GoString((*C.char)(unsafe.Pointer(&path.Name)))
-			if len(segment) >= (MaxSegmentLength) {
+			if len(segment) >= (model.MaxSegmentLength) {
 				resolutionErr = truncatedSegmentErr
 			}
 			filename = "/" + segment + filename

@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -283,7 +284,7 @@ func (p *Probe) setDiscarderRevision(mountID uint32, revision uint32) {
 	p.revisionCache[key] = revision
 }
 
-func (p *Probe) initDiscarderRevision(mountEvent *MountEvent) {
+func (p *Probe) initDiscarderRevision(mountEvent *model.MountEvent) {
 	var revision uint32
 
 	if mountEvent.IsOverlayFS() {
@@ -311,7 +312,7 @@ func (p *Probe) zeroEvent() *Event {
 }
 
 func (p *Probe) unmarshalProcessContainer(data []byte, event *Event) (int, error) {
-	read, err := unmarshalBinary(data, &event.Process, &event.Container)
+	read, err := model.UnmarshalBinary(data, &event.Process, &event.Container)
 	if err != nil {
 		return 0, err
 	}
@@ -352,9 +353,9 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	eventType := event.GetEventType()
 	p.monitor.perfBufferMonitor.CountEvent(eventType, event.TimestampRaw, 1, dataLen, p.perfMap, int(CPU))
 
-	log.Tracef("Decoding event %s(%d)", eventType, event.Type)
+	log.Debugf("Decoding event %s(%d)", eventType, event.Type)
 
-	if eventType == InvalidateDentryEventType {
+	if eventType == model.InvalidateDentryEventType {
 		if _, err := event.InvalidateDentry.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode invalidate dentry event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
@@ -374,19 +375,19 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	offset += read
 
 	switch eventType {
-	case FileMountEventType:
+	case model.FileMountEventType:
 		if _, err := event.Mount.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode mount event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 
 		// Resolve mount point
-		event.Mount.ResolveMountPoint(event)
+		event.ResolveMountPoint(&event.Mount)
 		// Resolve root
-		event.Mount.ResolveRoot(event)
+		event.ResolveMountRoot(&event.Mount)
 		// Insert new mount point in cache
 		p.resolvers.MountResolver.Insert(event.Mount)
-	case FileUmountEventType:
+	case model.FileUmountEventType:
 		if _, err := event.Umount.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode umount event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
@@ -402,17 +403,17 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		if err := p.resolvers.MountResolver.Delete(event.Umount.MountID); err != nil {
 			log.Errorf("failed to delete mount point %d from cache: %s", event.Umount.MountID, err)
 		}
-	case FileOpenEventType:
+	case model.FileOpenEventType:
 		if _, err := event.Open.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode open event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-	case FileMkdirEventType:
+	case model.FileMkdirEventType:
 		if _, err := event.Mkdir.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode mkdir event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-	case FileRmdirEventType:
+	case model.FileRmdirEventType:
 		if _, err := event.Rmdir.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode rmdir event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
@@ -420,7 +421,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 
 		// defer it do ensure that it will be done after the dispatch that could re-add it
 		defer p.invalidateDentry(event.Rmdir.MountID, event.Rmdir.Inode, event.Rmdir.DiscarderRevision)
-	case FileUnlinkEventType:
+	case model.FileUnlinkEventType:
 		if _, err := event.Unlink.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode unlink event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
@@ -428,56 +429,56 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 
 		// defer it do ensure that it will be done after the dispatch that could re-add it
 		defer p.invalidateDentry(event.Unlink.MountID, event.Unlink.Inode, event.Unlink.DiscarderRevision)
-	case FileRenameEventType:
+	case model.FileRenameEventType:
 		if _, err := event.Rename.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode rename event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 
 		defer p.invalidateDentry(event.Rename.New.MountID, event.Rename.New.Inode, event.Rename.DiscarderRevision)
-	case FileChmodEventType:
+	case model.FileChmodEventType:
 		if _, err := event.Chmod.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode chmod event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-	case FileChownEventType:
+	case model.FileChownEventType:
 		if _, err := event.Chown.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode chown event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-	case FileUtimeEventType:
+	case model.FileUtimeEventType:
 		if _, err := event.Utimes.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode utime event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-	case FileLinkEventType:
+	case model.FileLinkEventType:
 		if _, err := event.Link.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode link event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-	case FileSetXAttrEventType:
+	case model.FileSetXAttrEventType:
 		if _, err := event.SetXAttr.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode setxattr event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-	case FileRemoveXAttrEventType:
+	case model.FileRemoveXAttrEventType:
 		if _, err := event.RemoveXAttr.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode removexattr event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-	case ForkEventType:
-		if _, err := event.Exec.UnmarshalEvent(data[offset:], event); err != nil {
+	case model.ForkEventType:
+		if _, err := event.UnmarshalExecEvent(data[offset:]); err != nil {
 			log.Errorf("failed to decode fork event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 		event.updateProcessCachePointer(p.resolvers.ProcessResolver.AddForkEntry(event.Process.Pid, event.processCacheEntry))
-	case ExecEventType:
-		if _, err := event.Exec.UnmarshalEvent(data[offset:], event); err != nil {
+	case model.ExecEventType:
+		if _, err := event.UnmarshalExecEvent(data[offset:]); err != nil {
 			log.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 		event.updateProcessCachePointer(p.resolvers.ProcessResolver.AddExecEntry(event.Process.Pid, event.processCacheEntry))
-	case ExitEventType:
+	case model.ExitEventType:
 		defer p.resolvers.ProcessResolver.DeleteEntry(event.Process.Pid, event.ResolveEventTimestamp())
 	default:
 		log.Errorf("unsupported event type %d", eventType)
@@ -485,7 +486,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	}
 
 	// resolve event context
-	if eventType != ExitEventType {
+	if eventType != model.ExitEventType {
 		event.ResolveProcessCacheEntry()
 	}
 
@@ -520,8 +521,8 @@ func (p *Probe) ApplyFilterPolicy(eventType eval.EventType, mode PolicyMode, fla
 		return errors.Wrap(err, "unable to find policy table")
 	}
 
-	et := parseEvalEventType(eventType)
-	if et == UnknownEventType {
+	et := model.ParseEvalEventType(eventType)
+	if et == model.UnknownEventType {
 		return errors.New("unable to parse the eval event type")
 	}
 
@@ -607,8 +608,8 @@ func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 	enabledEvents := uint64(0)
 	for _, eventName := range rs.GetEventTypes() {
 		if eventName != "*" {
-			eventType := parseEvalEventType(eventName)
-			if eventType == UnknownEventType {
+			eventType := model.ParseEvalEventType(eventName)
+			if eventType == model.UnknownEventType {
 				return fmt.Errorf("unknown event type '%s'", eventName)
 			}
 			enabledEvents |= 1 << (eventType - 1)
@@ -840,7 +841,7 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	return p, nil
 }
 
-func processDiscarderWrapper(eventType EventType, fnc onDiscarderHandler) onDiscarderHandler {
+func processDiscarderWrapper(eventType model.EventType, fnc onDiscarderHandler) onDiscarderHandler {
 	return func(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) error {
 		if discarder.Field == "process.filename" {
 			log.Tracef("Apply process.filename discarder for event `%s`, inode: %d", eventType, event.Process.Inode)
@@ -864,7 +865,7 @@ func processDiscarderWrapper(eventType EventType, fnc onDiscarderHandler) onDisc
 // function used to retrieve discarder information, *.filename, mountID, inode, file deleted
 type inodeEventGetter = func(event *Event) (eval.Field, uint32, uint64, uint32, bool)
 
-func filenameDiscarderWrapper(eventType EventType, handler onDiscarderHandler, getter inodeEventGetter) onDiscarderHandler {
+func filenameDiscarderWrapper(eventType model.EventType, handler onDiscarderHandler, getter inodeEventGetter) onDiscarderHandler {
 	return func(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) error {
 		field, mountID, inode, pathID, isDeleted := getter(event)
 
@@ -917,68 +918,68 @@ func init() {
 	// discarders
 	SupportedDiscarders["process.filename"] = true
 
-	allDiscarderHandlers["open"] = processDiscarderWrapper(FileOpenEventType,
-		filenameDiscarderWrapper(FileOpenEventType, nil,
+	allDiscarderHandlers["open"] = processDiscarderWrapper(model.FileOpenEventType,
+		filenameDiscarderWrapper(model.FileOpenEventType, nil,
 			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
 				return "open.filename", event.Open.MountID, event.Open.Inode, event.Open.PathID, false
 			}))
 	SupportedDiscarders["open.filename"] = true
 
-	allDiscarderHandlers["mkdir"] = processDiscarderWrapper(FileMkdirEventType,
-		filenameDiscarderWrapper(FileMkdirEventType, nil,
+	allDiscarderHandlers["mkdir"] = processDiscarderWrapper(model.FileMkdirEventType,
+		filenameDiscarderWrapper(model.FileMkdirEventType, nil,
 			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
 				return "mkdir.filename", event.Mkdir.MountID, event.Mkdir.Inode, event.Mkdir.PathID, false
 			}))
 	SupportedDiscarders["mkdir.filename"] = true
 
-	allDiscarderHandlers["link"] = processDiscarderWrapper(FileLinkEventType, nil)
+	allDiscarderHandlers["link"] = processDiscarderWrapper(model.FileLinkEventType, nil)
 
-	allDiscarderHandlers["rename"] = processDiscarderWrapper(FileRenameEventType, nil)
+	allDiscarderHandlers["rename"] = processDiscarderWrapper(model.FileRenameEventType, nil)
 
-	allDiscarderHandlers["unlink"] = processDiscarderWrapper(FileUnlinkEventType,
-		filenameDiscarderWrapper(FileUnlinkEventType, nil,
+	allDiscarderHandlers["unlink"] = processDiscarderWrapper(model.FileUnlinkEventType,
+		filenameDiscarderWrapper(model.FileUnlinkEventType, nil,
 			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
 				return "unlink.filename", event.Unlink.MountID, event.Unlink.Inode, event.Unlink.PathID, true
 			}))
 	SupportedDiscarders["unlink.filename"] = true
 
-	allDiscarderHandlers["rmdir"] = processDiscarderWrapper(FileRmdirEventType,
-		filenameDiscarderWrapper(FileRmdirEventType, nil,
+	allDiscarderHandlers["rmdir"] = processDiscarderWrapper(model.FileRmdirEventType,
+		filenameDiscarderWrapper(model.FileRmdirEventType, nil,
 			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
 				return "rmdir.filename", event.Rmdir.MountID, event.Rmdir.Inode, event.Rmdir.PathID, false
 			}))
 	SupportedDiscarders["rmdir.filename"] = true
 
-	allDiscarderHandlers["chmod"] = processDiscarderWrapper(FileChmodEventType,
-		filenameDiscarderWrapper(FileChmodEventType, nil,
+	allDiscarderHandlers["chmod"] = processDiscarderWrapper(model.FileChmodEventType,
+		filenameDiscarderWrapper(model.FileChmodEventType, nil,
 			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
 				return "chmod.filename", event.Chmod.MountID, event.Chmod.Inode, event.Chmod.PathID, false
 			}))
 	SupportedDiscarders["chmod.filename"] = true
 
-	allDiscarderHandlers["chown"] = processDiscarderWrapper(FileChownEventType,
-		filenameDiscarderWrapper(FileChownEventType, nil,
+	allDiscarderHandlers["chown"] = processDiscarderWrapper(model.FileChownEventType,
+		filenameDiscarderWrapper(model.FileChownEventType, nil,
 			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
 				return "chown.filename", event.Chown.MountID, event.Chown.Inode, event.Chown.PathID, false
 			}))
 	SupportedDiscarders["chown.filename"] = true
 
-	allDiscarderHandlers["utimes"] = processDiscarderWrapper(FileUtimeEventType,
-		filenameDiscarderWrapper(FileUtimeEventType, nil,
+	allDiscarderHandlers["utimes"] = processDiscarderWrapper(model.FileUtimeEventType,
+		filenameDiscarderWrapper(model.FileUtimeEventType, nil,
 			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
 				return "utimes.filename", event.Utimes.MountID, event.Utimes.Inode, event.Utimes.PathID, false
 			}))
 	SupportedDiscarders["utimes.filename"] = true
 
-	allDiscarderHandlers["setxattr"] = processDiscarderWrapper(FileSetXAttrEventType,
-		filenameDiscarderWrapper(FileSetXAttrEventType, nil,
+	allDiscarderHandlers["setxattr"] = processDiscarderWrapper(model.FileSetXAttrEventType,
+		filenameDiscarderWrapper(model.FileSetXAttrEventType, nil,
 			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
 				return "setxattr.filename", event.SetXAttr.MountID, event.SetXAttr.Inode, event.SetXAttr.PathID, false
 			}))
 	SupportedDiscarders["setxattr.filename"] = true
 
-	allDiscarderHandlers["removexattr"] = processDiscarderWrapper(FileRemoveXAttrEventType,
-		filenameDiscarderWrapper(FileRemoveXAttrEventType, nil,
+	allDiscarderHandlers["removexattr"] = processDiscarderWrapper(model.FileRemoveXAttrEventType,
+		filenameDiscarderWrapper(model.FileRemoveXAttrEventType, nil,
 			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
 				return "removexattr.filename", event.RemoveXAttr.MountID, event.RemoveXAttr.Inode, event.RemoveXAttr.PathID, false
 			}))

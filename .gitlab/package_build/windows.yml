@@ -28,6 +28,7 @@
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - copy build-out\${CI_JOB_ID}\*.msi .omnibus\pkg
     - if (Test-Path build-out\${CI_JOB_ID}\*.zip) { copy build-out\${CI_JOB_ID}\*.zip .omnibus\pkg }
+    - if (Test-Path build-out\${CI_JOB_ID}\*.wixpdb) { copy build-out\${CI_JOB_ID}\*.wixpdb .omnibus\pkg }
     - remove-item -recurse -force build-out\${CI_JOB_ID}
     - get-childitem build-out
     - get-childitem .omnibus\pkg
