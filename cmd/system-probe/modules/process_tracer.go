@@ -34,7 +34,6 @@ var ProcessTracer = api.Factory{
 		log.Infof("Creating process_tracer for: %s", filepath.Base(os.Args[0]))
 
 		p := procutil.NewProcessProbe()
-		// currently this is true for all environments except linux
 		if p == nil {
 			return nil, ErrProcessTracerUnsupported
 		}
