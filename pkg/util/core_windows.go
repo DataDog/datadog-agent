@@ -5,9 +5,16 @@
 
 package util
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+)
 
 // SetupCoreDump enables core dumps and sets the core dump size limit based on configuration
 func SetupCoreDump() error {
-	return fmt.Errorf("Not supported on Windows")
+	if config.Datadog.GetBool("go_core_dump") {
+		return fmt.Errorf("Not supported on Windows")
+	}
+	return nil
 }
