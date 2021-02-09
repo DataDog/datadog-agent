@@ -27,12 +27,12 @@ type Meta struct {
 	HostAliases    []string `json:"host_aliases"`
 	InstanceID     string   `json:"instance-id"`
 	AgentHostname  string   `json:"agent-hostname,omitempty"`
-	PublicIPv4     string   `json:"public-ipv4,omitempty"`
 }
 
 // NetworkMeta is metadata about the host's network
 type NetworkMeta struct {
-	ID string `json:"network-id"`
+	ID         string `json:"network-id"`
+	PublicIPv4 string `json:"public-ipv4,omitempty"`
 }
 
 // LogsMeta is metadata about the host's logs agent

@@ -176,7 +176,6 @@ func getMeta(hostnameData util.HostnameData) *Meta {
 	tzname, _ := time.Now().Zone()
 	ec2Hostname, _ := ec2.GetHostname()
 	instanceID, _ := ec2.GetInstanceID()
-	publicIPv4, _ := getPublicIPv4()
 
 	var agentHostname string
 
@@ -193,7 +192,6 @@ func getMeta(hostnameData util.HostnameData) *Meta {
 		HostAliases:    getHostAliases(),
 		InstanceID:     instanceID,
 		AgentHostname:  agentHostname,
-		PublicIPv4:     publicIPv4,
 	}
 
 	// Cache the metadata for use in other payload
@@ -209,7 +207,16 @@ func getNetworkMeta() *NetworkMeta {
 		log.Infof("could not get network metadata: %s", err)
 		return nil
 	}
-	return &NetworkMeta{ID: nid}
+
+	networkMeta := &NetworkMeta{ID: nid}
+
+	publicIPv4, err := getPublicIPv4()
+	if err == nil {
+		log.Infof("Adding public IPv4 %s to network metadata", publicIPv4)
+		networkMeta.PublicIPv4 = publicIPv4
+	}
+
+	return networkMeta
 }
 
 func getContainerMeta(timeout time.Duration) map[string]string {
