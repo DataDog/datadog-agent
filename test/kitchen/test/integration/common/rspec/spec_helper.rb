@@ -80,7 +80,6 @@ def wait_until_service_stopped(service, timeout = 60)
       else
         break
       end
-    # break if !is_service_running?(service)
     sleep 1
   end
   # HACK: somewhere between 6.15.0 and 6.16.0, the delay between the
