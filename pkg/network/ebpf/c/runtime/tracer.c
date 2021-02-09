@@ -213,7 +213,7 @@ static __always_inline int handle_message(conn_tuple_t* t, size_t sent_bytes, si
     return 0;
 }
 
-static __always_inline int handle_retransmit(struct sock* sk) {
+static __always_inline int handle_retransmit(struct sock* sk, int segs) {
     conn_tuple_t t = {};
     u64 zero = 0;
 
@@ -221,7 +221,7 @@ static __always_inline int handle_retransmit(struct sock* sk) {
         return 0;
     }
 
-    tcp_stats_t stats = { .retransmits = 1, .rtt = 0, .rtt_var = 0 };
+    tcp_stats_t stats = { .retransmits = segs, .rtt = 0, .rtt_var = 0 };
     update_tcp_stats(&t, stats);
 
     return 0;
@@ -483,9 +483,15 @@ int kretprobe__udp_recvmsg(struct pt_regs* ctx) {
 SEC("kprobe/tcp_retransmit_skb")
 int kprobe__tcp_retransmit_skb(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
+    int segs = 1;
+#else
+    int segs = (int)PT_REGS_PARM3(ctx);
+#endif
     log_debug("kprobe/tcp_retransmit\n");
 
-    return handle_retransmit(sk);
+    return handle_retransmit(sk, segs);
 }
 
 SEC("kprobe/tcp_set_state")

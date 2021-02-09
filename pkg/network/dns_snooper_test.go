@@ -45,7 +45,7 @@ func getSnooper(
 		return nil, nil
 	}
 
-	mgr := netebpf.NewManager(ddebpf.NewPerfHandler(1), ddebpf.NewPerfHandler(1))
+	mgr := netebpf.NewManager(ddebpf.NewPerfHandler(1), ddebpf.NewPerfHandler(1), false)
 	mgrOptions := manager.Options{
 		MapSpecEditors: map[string]manager.MapSpecEditor{
 			// These maps are unrelated to DNS but are getting set because the eBPF library loads all of them
