@@ -156,15 +156,17 @@ func getHostAliases() []string {
 func getPublicIPv4() (string, error) {
 	publicIPv4, err := ec2.GetPublicIPv4()
 	if err == nil {
-		log.Infof("EC2 public IP = %s", publicIPv4)
+		log.Debugf("EC2 public IP = %s", publicIPv4)
 		return publicIPv4, err
 	}
+	log.Debugf("no EC2 public IPv4: %s", err)
 
 	publicIPv4, err = gce.GetPublicIPv4()
 	if err == nil {
-		log.Infof("GCE public IP = %s", publicIPv4)
+		log.Debugf("GCE public IP = %s", publicIPv4)
 		return publicIPv4, err
 	}
+	log.Debugf("no GCE public IPv4: %s", err)
 
 	log.Infof("No public IPv4 address found")
 	return "", err
