@@ -119,23 +119,31 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			fmt.Sprintf("function_arn:%s", functionARN),
 		}
 		for _, message := range messages {
+			log.Debug("Determining the message type of the following message:")
+			log.Debug(message)
 			switch message.Type {
 			case aws.LogTypePlatformStart:
+				log.Debug("It's a LogTypePlatformStart")
 				if len(message.ObjectRecord.RequestID) > 0 {
 					aws.SetRequestID(message.ObjectRecord.RequestID)
 				}
 				l.ch <- message
 			case aws.LogTypeFunction:
+				log.Debug("It's a LogTypeFunction")
 				if functionName != "" {
+					log.Debug("Generating enhanced metrics from function log...")
 					generateEnhancedMetricsFromFunctionLog(message, metricTags, metricsChan)
 				}
 				l.ch <- message
 			case aws.LogTypePlatformReport:
+				log.Debug("It's a LogTypePlatformReport")
 				if functionName != "" {
+					log.Debug("Generating enhanced metrics from report log...")
 					generateEnhancedMetricsFromReportLog(message, metricTags, metricsChan)
 				}
 				l.ch <- message
 			default:
+				log.Debug("It's something else")
 				l.ch <- message
 			}
 		}
