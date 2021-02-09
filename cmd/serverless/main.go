@@ -40,8 +40,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-const defaultLogFile = "/var/log/datadog/serverless-agent.log"
-
 var (
 	// serverlessAgentCmd is the root command
 	serverlessAgentCmd = &cobra.Command{
