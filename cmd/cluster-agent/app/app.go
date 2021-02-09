@@ -142,6 +142,11 @@ func start(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	// setup core dump as soon as possible
+	if err := util.SetupCoreDump(); err != nil {
+		log.Infof("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
+	}
+
 	if !config.Datadog.IsSet("api_key") {
 		log.Critical("no API key configured, exiting")
 		return nil
