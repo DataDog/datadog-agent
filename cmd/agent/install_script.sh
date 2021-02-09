@@ -363,15 +363,20 @@ elif [ "$OS" = "SUSE" ]; then
     fi
   fi
 
-  gpgkeys=''
-  separator='\n       '
-  for key_path in "${RPM_GPG_KEYS[@]}"; do
-    gpgkeys="${gpgkeys:+"${gpgkeys}${separator}"}https://${yum_url}/${key_path}"
-  done
-  if [ "$agent_major_version" -eq 6 ]; then
-    for key_path in "${RPM_GPG_KEYS_A6[@]}"; do
+  SUSE_VER=$( (cat /etc/SuSE-release 2>/dev/null; cat /etc/SUSE-brand 2>/dev/null) | grep VERSION | tr . = | cut -d = -f 2 | xargs echo)
+  if [ "$SUSE_VER" -ge 15 ]; then
+    gpgkeys=''
+    separator='\n       '
+    for key_path in "${RPM_GPG_KEYS[@]}"; do
       gpgkeys="${gpgkeys:+"${gpgkeys}${separator}"}https://${yum_url}/${key_path}"
     done
+    if [ "$agent_major_version" -eq 6 ]; then
+      for key_path in "${RPM_GPG_KEYS_A6[@]}"; do
+        gpgkeys="${gpgkeys:+"${gpgkeys}${separator}"}https://${yum_url}/${key_path}"
+      done
+    fi
+  else
+    gpgkeys="https://${yum_url}/DATADOG_RPM_KEY_CURRENT.public"
   fi
 
   echo -e "\033[34m\n* Installing YUM Repository for Datadog\n\033[0m"
