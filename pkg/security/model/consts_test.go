@@ -5,7 +5,7 @@
 
 // +build linux
 
-package probe
+package model
 
 import (
 	"fmt"

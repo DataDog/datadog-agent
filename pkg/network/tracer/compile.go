@@ -5,16 +5,15 @@ package tracer
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 //go:generate go run ../../ebpf/include_headers.go ../ebpf/c/runtime/tracer.c ../../ebpf/bytecode/build/runtime/tracer.c ../ebpf/c ../../ebpf/c
-//go:generate go run ../../ebpf/integrity.go ../../ebpf/bytecode/build/runtime/tracer.c ../../ebpf/bytecode/runtime/tracer.go runtime
+//go:generate go run ../../ebpf/bytecode/runtime/integrity.go ../../ebpf/bytecode/build/runtime/tracer.c ../../ebpf/bytecode/runtime/tracer.go runtime
 
-func getRuntimeCompiledTracer(config *config.Config) (ebpf.CompiledOutput, error) {
+func getRuntimeCompiledTracer(config *config.Config) (runtime.CompiledOutput, error) {
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return nil, fmt.Errorf("unable to get kernel version: %w", err)
