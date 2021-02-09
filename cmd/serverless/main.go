@@ -83,7 +83,9 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 
 	logsLogsTypeSubscribed = "DD_LOGS_CONFIG_LAMBDA_LOGS_TYPE"
 
-	datadogConfigPath = "datadog.yaml"
+	datadogConfigPath        = "datadog.yaml"
+	traceOriginMetadataKey   = "_dd.origin"
+	traceOriginMetadataValue = "lambda"
 )
 
 const (
@@ -332,6 +334,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	var ta *traceAgent.Agent
 	if config.Datadog.GetBool("apm_config.enabled") {
 		tc, confErr := traceConfig.Load(datadogConfigPath)
+		tc.AdditionalMetadata[traceOriginMetadataKey] = traceOriginMetadataValue
 		tc.SynchronousFlushing = true
 		if confErr != nil {
 			log.Errorf("Unable to load trace agent config: %s", confErr)

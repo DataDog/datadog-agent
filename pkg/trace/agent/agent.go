@@ -201,6 +201,9 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 
 		// Extra sanitization steps of the trace.
 		for _, span := range t {
+			for k, v := range a.conf.AdditionalMetadata {
+				traceutil.SetMeta(span, k, v)
+			}
 			a.obfuscator.Obfuscate(span)
 			Truncate(span)
 			if p.ClientComputedTopLevel {
