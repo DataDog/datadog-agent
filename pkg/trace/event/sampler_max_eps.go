@@ -121,7 +121,7 @@ type rateCounter interface {
 
 // samplerBackendRateCounter is a rateCounter backed by a maxEPSSampler.Backend.
 type samplerBackendRateCounter struct {
-	backend sampler.Backend
+	backend *sampler.MemoryBackend
 }
 
 // newSamplerBackendRateCounter creates a new samplerBackendRateCounter based on exponential decay counters.

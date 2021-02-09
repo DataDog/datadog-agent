@@ -1,6 +1,6 @@
 // +build linux_bpf
 
-package ebpf
+package runtime
 
 import (
 	"fmt"
@@ -8,6 +8,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/compiler"
 	"github.com/stretchr/testify/assert"
@@ -25,7 +26,7 @@ func TestCompilerMatch(t *testing.T) {
 		return
 	}
 
-	cfg := NewDefaultConfig()
+	cfg := ebpf.NewDefaultConfig()
 
 	c, err := compiler.NewEBPFCompiler(nil, false)
 	require.NoError(t, err)
