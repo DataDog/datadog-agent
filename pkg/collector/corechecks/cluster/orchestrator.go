@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	coreutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
@@ -40,6 +39,16 @@ const (
 	orchestratorCheckName = "orchestrator"
 )
 
+var (
+	defaultResources = []string{
+		"unassignedpods",
+		"deployments",
+		"replicasets",
+		"services",
+		"nodes",
+	}
+)
+
 func init() {
 	core.RegisterCheck(orchestratorCheckName, OrchestratorFactory)
 }
@@ -47,6 +56,12 @@ func init() {
 // OrchestratorInstance is the config of the orchestrator check instance.
 type OrchestratorInstance struct {
 	LeaderSkip bool `yaml:"skip_leader_election"`
+	// Collectors defines the resource type collectors.
+	// Example: Enable services and nodes collectors.
+	// collectors:
+	//   - nodes
+	//   - services
+	Collectors []string `yaml:"collectors"`
 }
 
 func (c *OrchestratorInstance) parse(data []byte) error {
@@ -61,7 +76,6 @@ type OrchestratorCheck struct {
 	cancel                  context.CancelFunc
 	stopCh                  chan struct{}
 	clusterID               string
-	hostname                string
 	groupID                 int32
 	unassignedPodLister     corelisters.PodLister
 	unassignedPodListerSync cache.InformerSynced
@@ -97,6 +111,7 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 	if !corecfg.Datadog.GetBool("orchestrator_explorer.enabled") {
 		return errors.New("orchestrator check is configured but the feature is disabled")
 	}
+
 	// check if cluster name is set
 	hostname, _ := coreutil.GetHostname()
 	if clusterName := clustername.GetClusterName(hostname); clusterName != "" {
@@ -110,6 +125,11 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 		return err
 	}
 
+	o.clusterID, err = clustername.GetClusterID()
+	if err != nil {
+		return err
+	}
+
 	// start informers
 	// reuse the common API Server client to share the cache
 	// TODO is it safe? or wait for client (same issue in KSMv2)
@@ -118,46 +138,52 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 		return err
 	}
 
-	podInformer := apiCl.UnassignedPodInformerFactory.Core().V1().Pods()
-	o.clusterID, err = clustername.GetClusterID()
-	if err != nil {
-		return err
+	// Prepare the collectors for the resources specified in the configuration file.
+	collectors := o.instance.Collectors
+
+	// Enable the KSM default collectors if the config collectors list is empty.
+	if len(collectors) == 0 {
+		collectors = defaultResources
 	}
 
-	o.hostname, err = util.GetHostname()
-	if err != nil {
-		return err
+	informersToSync := map[apiserver.InformerName]cache.SharedInformer{}
+
+	for _, v := range collectors {
+		switch v {
+		case "unassignedpods":
+			podInformer := apiCl.UnassignedPodInformerFactory.Core().V1().Pods()
+			o.unassignedPodLister = podInformer.Lister()
+			o.unassignedPodListerSync = podInformer.Informer().HasSynced
+			informersToSync[apiserver.PodsInformer] = podInformer.Informer()
+		case "deployments":
+			deployInformer := apiCl.InformerFactory.Apps().V1().Deployments()
+			o.deployLister = deployInformer.Lister()
+			o.deployListerSync = deployInformer.Informer().HasSynced
+			informersToSync[apiserver.DeploysInformer] = deployInformer.Informer()
+		case "replicasets":
+			rsInformer := apiCl.InformerFactory.Apps().V1().ReplicaSets()
+			o.rsLister = rsInformer.Lister()
+			o.rsListerSync = rsInformer.Informer().HasSynced
+			informersToSync[apiserver.ReplicaSetsInformer] = rsInformer.Informer()
+		case "services":
+			serviceInformer := apiCl.InformerFactory.Core().V1().Services()
+			o.serviceLister = serviceInformer.Lister()
+			o.serviceListerSync = serviceInformer.Informer().HasSynced
+			informersToSync[apiserver.ServicesInformer] = serviceInformer.Informer()
+		case "nodes":
+			nodesInformer := apiCl.InformerFactory.Core().V1().Nodes()
+			o.nodesLister = nodesInformer.Lister()
+			o.nodesListerSync = nodesInformer.Informer().HasSynced
+			informersToSync[apiserver.NodesInformer] = nodesInformer.Informer()
+		default:
+			log.Errorf("Unsupported collector: %s", v)
+		}
 	}
-
-	_, cancel := context.WithCancel(context.Background())
-	o.cancel = cancel
-
-	deployInformer := apiCl.InformerFactory.Apps().V1().Deployments()
-	rsInformer := apiCl.InformerFactory.Apps().V1().ReplicaSets()
-	serviceInformer := apiCl.InformerFactory.Core().V1().Services()
-	nodesInformer := apiCl.InformerFactory.Core().V1().Nodes()
-
-	o.unassignedPodLister = podInformer.Lister()
-	o.unassignedPodListerSync = podInformer.Informer().HasSynced
-	o.deployLister = deployInformer.Lister()
-	o.deployListerSync = deployInformer.Informer().HasSynced
-	o.rsLister = rsInformer.Lister()
-	o.rsListerSync = rsInformer.Informer().HasSynced
-	o.serviceLister = serviceInformer.Lister()
-	o.serviceListerSync = serviceInformer.Informer().HasSynced
-	o.nodesLister = nodesInformer.Lister()
-	o.nodesListerSync = nodesInformer.Informer().HasSynced
 
 	apiCl.UnassignedPodInformerFactory.Start(o.stopCh)
 	apiCl.InformerFactory.Start(o.stopCh)
 
-	return apiserver.SyncInformers(map[apiserver.InformerName]cache.SharedInformer{
-		apiserver.PodsInformer:        apiCl.UnassignedPodInformerFactory.Core().V1().Pods().Informer(),
-		apiserver.DeploysInformer:     apiCl.InformerFactory.Apps().V1().Deployments().Informer(),
-		apiserver.ReplicaSetsInformer: apiCl.InformerFactory.Apps().V1().ReplicaSets().Informer(),
-		apiserver.ServicesInformer:    apiCl.InformerFactory.Core().V1().Services().Informer(),
-		apiserver.NodesInformer:       apiCl.InformerFactory.Core().V1().Nodes().Informer(),
-	})
+	return apiserver.SyncInformers(informersToSync)
 }
 
 func (o *OrchestratorCheck) Run() error {
@@ -184,7 +210,8 @@ func (o *OrchestratorCheck) Run() error {
 		}
 	}
 
-	// TODO: check config to only send what we need to
+	// We launch processing on everything but the ones with no
+	// started informers are noop
 	o.processDeploys(sender)
 	o.processReplicaSets(sender)
 	o.processPods(sender)
@@ -195,6 +222,9 @@ func (o *OrchestratorCheck) Run() error {
 }
 
 func (o *OrchestratorCheck) processDeploys(sender aggregator.Sender) {
+	if o.deployLister == nil {
+		return
+	}
 	deployList, err := o.deployLister.List(labels.Everything())
 	if err != nil {
 		log.Errorf("Unable to list deployments: %s", err)
@@ -219,6 +249,9 @@ func (o *OrchestratorCheck) processDeploys(sender aggregator.Sender) {
 }
 
 func (o *OrchestratorCheck) processReplicaSets(sender aggregator.Sender) {
+	if o.rsLister == nil {
+		return
+	}
 	rsList, err := o.rsLister.List(labels.Everything())
 	if err != nil {
 		log.Errorf("Unable to list replica sets: %s", err)
@@ -243,6 +276,9 @@ func (o *OrchestratorCheck) processReplicaSets(sender aggregator.Sender) {
 }
 
 func (o *OrchestratorCheck) processServices(sender aggregator.Sender) {
+	if o.serviceLister == nil {
+		return
+	}
 	serviceList, err := o.serviceLister.List(labels.Everything())
 	if err != nil {
 		log.Errorf("Unable to list services: %s", err)
@@ -268,6 +304,9 @@ func (o *OrchestratorCheck) processServices(sender aggregator.Sender) {
 }
 
 func (o *OrchestratorCheck) processNodes(sender aggregator.Sender) {
+	if o.nodesLister == nil {
+		return
+	}
 	nodesList, err := o.nodesLister.List(labels.Everything())
 	if err != nil {
 		log.Errorf("Unable to list nodes: %s", err)
@@ -293,6 +332,9 @@ func (o *OrchestratorCheck) processNodes(sender aggregator.Sender) {
 }
 
 func (o *OrchestratorCheck) processPods(sender aggregator.Sender) {
+	if o.unassignedPodLister == nil {
+		return
+	}
 	podList, err := o.unassignedPodLister.List(labels.Everything())
 	if err != nil {
 		log.Errorf("Unable to list pods: %s", err)
