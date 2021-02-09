@@ -431,31 +431,7 @@
            installer is called twice; the existing (previously installed)
            installer is called with _UPGRADE, and then the new installer
            is called with _INSTALL -->
-      <Custom Action='SetPROJECTLOCATION'          Before='SetAPPLICATIONDATADIRECTORY'> <![CDATA[Installed="" ]]> </Custom>
-      <Custom Action='SetAPPLICATIONDATADIRECTORY' Before='SetDDAGENTUSER_NAME'> <![CDATA[Installed="" ]]> </Custom>
-      <Custom Action='SetDDAGENTUSER_NAME'         Before='SetDDAGENTUSER_PASSWORD'> <![CDATA[Installed="" ]]> </Custom>
-      <Custom Action='SetDDAGENTUSER_PASSWORD'     Before='SetSYSPROBE_PRESENT'> <![CDATA[Installed="" ]]> </Custom>
-      <Custom Action='SetSYSPROBE_PRESENT'         Before='SetADDLOCAL'> <![CDATA[Installed="" ]]> </Custom>
-      <Custom Action='SetADDLOCAL'                 Before='SetAPIKEY'> <![CDATA[Installed="" ]]> </Custom>
-      <Custom Action='SetAPIKEY'                   Before='SetTAGS'> <![CDATA[Installed="" ]]> </Custom>
-      <Custom Action='SetTAGS'                     Before='SetHOSTNAME'> <![CDATA[Installed="" ]]> </Custom>
-      <Custom Action='SetHOSTNAME'                 Before='SetPROXY_HOST'> <![CDATA[Installed="" ]]> </Custom>
-      <Custom Action='SetPROXY_HOST'               Before='SetPROXY_PORT'> <![CDATA[Installed="" ]]> </Custom>
-      <Custom Action='SetPROXY_PORT'               Before='SetPROXY_USER'> <![CDATA[Installed="" ]]> </Custom>
-      <Custom Action='SetPROXY_USER'               Before='SetPROXY_PASSWORD'> <![CDATA[Installed="" ]]> </Custom>
-      <Custom Action='SetPROXY_PASSWORD'           Before='SetLOGS_ENABLED'> <![CDATA[Installed="" ]]> </Custom>
-      <Custom Action='SetLOGS_ENABLED'             Before='SetAPM_ENABLED'> <![CDATA[Installed="" ]]> </Custom>
-      <Custom Action='SetAPM_ENABLED'              Before='SetPROCESS_ENABLED'> <![CDATA[Installed="" ]]> </Custom>
-      <Custom Action='SetPROCESS_ENABLED'          Before='SetCMD_PORT'> <![CDATA[Installed="" ]]> </Custom>
-      <Custom Action='SetCMD_PORT'                 Before='SetSITE'> <![CDATA[Installed="" ]]> </Custom>
-      <Custom Action='SetSITE'                     Before='SetDD_URL'> <![CDATA[Installed="" ]]> </Custom>
-      <Custom Action='SetDD_URL'                   Before='SetLOGS_DD_URL'> <![CDATA[Installed="" ]]> </Custom>
-      <Custom Action='SetLOGS_DD_URL'              Before='SetPROCESS_DD_URL'> <![CDATA[Installed="" ]]> </Custom>
-      <Custom Action='SetPROCESS_DD_URL'           Before='SetTRACE_DD_URL'> <![CDATA[Installed="" ]]> </Custom>
-      <Custom Action='SetTRACE_DD_URL'             Before='SetPYVER'> <![CDATA[Installed="" ]]> </Custom>
-      <Custom Action='SetPYVER'                    Before='SetHOSTNAME_FQDN_ENABLED'> <![CDATA[Installed="" ]]> </Custom>
-      <Custom Action='SetHOSTNAME_FQDN_ENABLED'    Before='FinalizeInstall'> <![CDATA[Installed="" ]]> </Custom>
-
+      <Custom Action='SetFinalizeProperty' Before='FinalizeInstall'> <![CDATA[Installed="" ]]> </Custom>
       <Custom Action='FinalizeInstall' After='InstallServices'>      <![CDATA[Installed="" ]]> </Custom>
 
       <!-- Same deal here -->
@@ -621,55 +597,33 @@
     <WixVariable Id="WixUIDialogBmp" Value="Resources\assets\dialog_background.bmp" />
     <WixVariable Id="WixUIBannerBmp" Value="Resources\assets\banner_background.bmp" />
 
-    <CustomAction Id='SetPROJECTLOCATION'          Return='check' Property='PROJECTLOCATION' Value='PROJECTLOCATION=[PROJECTLOCATION];
-    ' />
-    <CustomAction Id='SetAPPLICATIONDATADIRECTORY' Return='check' Property='APPLICATIONDATADIRECTORY' Value='[PROJECTLOCATION]APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY];
-    ' />
-    <CustomAction Id='SetDDAGENTUSER_NAME'         Return='check' Property='DDAGENTUSER_NAME' Value='[APPLICATIONDATADIRECTORY]DDAGENTUSER_NAME=[DDAGENTUSER_NAME];
-    ' />
-    <CustomAction Id='SetDDAGENTUSER_PASSWORD'     Return='check' Property='DDAGENTUSER_PASSWORD' Value='[DDAGENTUSER_NAME]DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD];
-    ' />
-    <CustomAction Id='SetSYSPROBE_PRESENT'         Return='check' Property='SYSPROBE_PRESENT' Value='[DDAGENTUSER_PASSWORD]SYSPROBE_PRESENT=[SYSPROBE_PRESENT];
-    ' />
-    <CustomAction Id='SetADDLOCAL'                 Return='check' Property='ADDLOCAL' Value='[SYSPROBE_PRESENT]ADDLOCAL=[ADDLOCAL];
-    ' />
-    <CustomAction Id='SetAPIKEY'                   Return='check' Property='APIKEY' Value='[ADDLOCAL]APIKEY=[APIKEY];
-    ' />
-    <CustomAction Id='SetTAGS'                     Return='check' Property='TAGS' Value='[APIKEY]TAGS=[TAGS];
-    ' />
-    <CustomAction Id='SetHOSTNAME'                 Return='check' Property='HOSTNAME' Value='[TAGS]HOSTNAME=[HOSTNAME];
-    ' />
-    <CustomAction Id='SetPROXY_HOST'               Return='check' Property='PROXY_HOST' Value='[HOSTNAME]PROXY_HOST=[PROXY_HOST];
-    ' />
-    <CustomAction Id='SetPROXY_PORT'               Return='check' Property='PROXY_PORT' Value='[PROXY_HOST]PROXY_PORT=[PROXY_PORT];
-    ' />
-    <CustomAction Id='SetPROXY_USER'               Return='check' Property='PROXY_USER' Value='[PROXY_PORT]PROXY_USER=[PROXY_USER];
-    ' />
-    <CustomAction Id='SetPROXY_PASSWORD'           Return='check' Property='PROXY_PASSWORD' Value='[PROXY_USER]PROXY_PASSWORD=[PROXY_PASSWORD];
-    ' />
-    <CustomAction Id='SetLOGS_ENABLED'             Return='check' Property='LOGS_ENABLED' Value='[PROXY_PASSWORD]LOGS_ENABLED=[LOGS_ENABLED];
-    ' />
-    <CustomAction Id='SetAPM_ENABLED'              Return='check' Property='APM_ENABLED' Value='[LOGS_ENABLED]APM_ENABLED=[APM_ENABLED];
-    ' />
-    <CustomAction Id='SetPROCESS_ENABLED'          Return='check' Property='PROCESS_ENABLED' Value='[APM_ENABLED]PROCESS_ENABLED=[PROCESS_ENABLED];
-    ' />
-    <CustomAction Id='SetCMD_PORT'                 Return='check' Property='CMD_PORT' Value='[PROCESS_ENABLED]CMD_PORT=[CMD_PORT];
-    ' />
-    <CustomAction Id='SetSITE'                     Return='check' Property='SITE' Value='[CMD_PORT]SITE=[SITE];
-    ' />
-    <CustomAction Id='SetDD_URL'                   Return='check' Property='DD_URL' Value='[SITE]DD_URL=[DD_URL];
-    ' />
-    <CustomAction Id='SetLOGS_DD_URL'              Return='check' Property='LOGS_DD_URL' Value='[DD_URL]LOGS_DD_URL=[LOGS_DD_URL];
-    ' />
-    <CustomAction Id='SetPROCESS_DD_URL'           Return='check' Property='PROCESS_DD_URL' Value='[LOGS_DD_URL]PROCESS_DD_URL=[PROCESS_DD_URL];
-    ' />
-    <CustomAction Id='SetTRACE_DD_URL'             Return='check' Property='TRACE_DD_URL' Value='[PROCESS_DD_URL]TRACE_DD_URL=[TRACE_DD_URL];
-    ' />
-    <CustomAction Id='SetPYVER'                    Return='check' Property='PYVER' Value='[TRACE_DD_URL]PYVER=[PYVER];
-    ' />
-    <CustomAction Id='SetHOSTNAME_FQDN_ENABLED'    Return='check' Property='FinalizeInstall' Value='[PYVER]HOSTNAME_FQDN_ENABLED=[HOSTNAME_FQDN_ENABLED];
-    ' />
-
+    <CustomAction Id='SetFinalizeProperty' Return='check' Property='FinalizeInstall'
+        Value='
+            PROJECTLOCATION=[PROJECTLOCATION];
+            APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY];
+            DDAGENTUSER_NAME=[DDAGENTUSER_NAME];
+            DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD];
+            SYSPROBE_PRESENT=[SYSPROBE_PRESENT];
+            ADDLOCAL=[ADDLOCAL];
+            APIKEY=[APIKEY];
+            TAGS=[TAGS];
+            HOSTNAME=[HOSTNAME];
+            PROXY_HOST=[PROXY_HOST];
+            PROXY_PORT=[PROXY_PORT];
+            PROXY_USER=[PROXY_USER];
+            PROXY_PASSWORD=[PROXY_PASSWORD];
+            LOGS_ENABLED=[LOGS_ENABLED];
+            APM_ENABLED=[APM_ENABLED];
+            PROCESS_ENABLED=[PROCESS_ENABLED];
+            CMD_PORT=[CMD_PORT];
+            SITE=[SITE];
+            DD_URL=[DD_URL];
+            LOGS_DD_URL=[LOGS_DD_URL];
+            PROCESS_DD_URL=[PROCESS_DD_URL];
+            TRACE_DD_URL=[TRACE_DD_URL];
+            PYVER=[PYVER];
+            HOSTNAME_FQDN_ENABLED=[HOSTNAME_FQDN_ENABLED]
+            ' />
     <CustomAction Id='FinalizeInstall' BinaryKey='wixcadll' DllEntry='FinalizeInstall' Execute='deferred' Return='check' Impersonate='no'/>
     <CustomAction Id='StopDDServices' BinaryKey='wixcadll' DllEntry='PreStopServices' Execute='deferred' Return='check' Impersonate='no'/>
     <CustomAction Id='StartDDServices' BinaryKey='wixcadll' DllEntry='PostStartServices' Execute='deferred' Return='ignore' Impersonate='no'/>
