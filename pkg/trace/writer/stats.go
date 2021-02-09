@@ -120,7 +120,6 @@ func (w *StatsWriter) FlushSync() error {
 	w.flushChan <- notify
 	<-notify
 
-	// Wait for all the senders to finish
 	var wg sync.WaitGroup
 	for _, s := range w.senders {
 		wg.Add(1)
