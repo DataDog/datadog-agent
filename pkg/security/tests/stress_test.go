@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build stresstests
 
@@ -53,8 +53,9 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 		t.Fatal(err)
 	}
 
-	eventsStats := test.probe.GetEventsStats()
-	eventsStats.GetAndResetLost()
+	perfBufferMonitor := test.probe.GetMonitor().GetPerfBufferMonitor()
+	perfBufferMonitor.GetAndResetLostCount("events", -1)
+	perfBufferMonitor.GetAndResetKernelLostCount("events", -1)
 
 	events := 0
 	go func() {
@@ -96,7 +97,7 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 	}
 
 	opts := StressOpts{
-		Duration:    time.Duration(30) * time.Second,
+		Duration:    time.Duration(duration) * time.Second,
 		KeepProfile: keepProfile,
 		DiffBase:    diffBase,
 		TopFrom:     "probe",
@@ -108,14 +109,21 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 		t.Fatal(err)
 	}
 
-	report.AddMetric("lost", float64(eventsStats.GetLost()), "lost")
+	report.AddMetric("lost", float64(perfBufferMonitor.GetLostCount("events", -1)), "lost")
+	report.AddMetric("kernel_lost", float64(perfBufferMonitor.GetAndResetKernelLostCount("events", -1)), "lost")
 	report.AddMetric("events", float64(events), "events")
 	report.AddMetric("events/sec", float64(events)/report.Duration.Seconds(), "event/s")
 
 	report.Print()
 
-	if report.Delta() < -0.10 {
+	if report.Delta() < -2.0 {
 		t.Error("unexpected performance degradation")
+
+		cmdOutput, _ := exec.Command("pstree").Output()
+		fmt.Println(string(cmdOutput))
+
+		cmdOutput, _ = exec.Command("ps", "aux").Output()
+		fmt.Println(string(cmdOutput))
 	}
 }
 
@@ -202,8 +210,9 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 		t.Fatal(err)
 	}
 
-	eventsStats := test.probe.GetEventsStats()
-	eventsStats.GetAndResetLost()
+	perfBufferMonitor := test.probe.GetMonitor().GetPerfBufferMonitor()
+	perfBufferMonitor.GetAndResetLostCount("events", -1)
+	perfBufferMonitor.GetAndResetKernelLostCount("events", -1)
 
 	events := 0
 	go func() {
@@ -248,14 +257,21 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 
 	time.Sleep(2 * time.Second)
 
-	report.AddMetric("lost", float64(eventsStats.GetLost()), "lost")
+	report.AddMetric("lost", float64(perfBufferMonitor.GetLostCount("events", -1)), "lost")
+	report.AddMetric("kernel_lost", float64(perfBufferMonitor.GetAndResetKernelLostCount("events", -1)), "lost")
 	report.AddMetric("events", float64(events), "events")
 	report.AddMetric("events/sec", float64(events)/report.Duration.Seconds(), "event/s")
 
 	report.Print()
 
-	if report.Delta() < -0.10 {
+	if report.Delta() < -2.0 {
 		t.Error("unexpected performance degradation")
+
+		cmdOutput, _ := exec.Command("pstree").Output()
+		fmt.Println(string(cmdOutput))
+
+		cmdOutput, _ = exec.Command("ps", "aux").Output()
+		fmt.Println(string(cmdOutput))
 	}
 }
 

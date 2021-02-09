@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package config
 
@@ -113,6 +113,16 @@ func BuildEndpoints(httpConnectivity HTTPConnectivity) (*Endpoints, error) {
 		"To benefit from increased reliability and better network performances, " +
 		"we strongly encourage switching over to compressed HTTPS which is now the default protocol.")
 	return buildTCPEndpoints()
+}
+
+// ExpectedTagsDuration returns a duration of the time expected tags will be submitted for.
+func ExpectedTagsDuration() time.Duration {
+	return coreConfig.Datadog.GetDuration("logs_config.expected_tags_duration")
+}
+
+// IsExpectedTagsSet returns boolean showing if expected tags feature is enabled.
+func IsExpectedTagsSet() bool {
+	return ExpectedTagsDuration() > 0
 }
 
 func isSocks5ProxySet() bool {

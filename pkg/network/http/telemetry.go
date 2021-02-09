@@ -4,8 +4,6 @@ package http
 
 import (
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type telemetry struct {
@@ -30,20 +28,25 @@ func (t *telemetry) aggregate(txs []httpTX, err error) {
 	}
 }
 
-func (t *telemetry) report() {
-	delta := float64(time.Now().Sub(t.then).Seconds())
-	log.Infof(
-		"http report: 100(%d reqs, %.2f/s) 200(%d reqs, %.2f/s) 300(%d reqs, %.2f/s), 400(%d reqs, %.2f/s) 500(%d reqs, %.2f/s), misses(%d reqs, %.2f/s)",
-		t.hits[100], float64(t.hits[100])/delta,
-		t.hits[200], float64(t.hits[200])/delta,
-		t.hits[300], float64(t.hits[300])/delta,
-		t.hits[400], float64(t.hits[400])/delta,
-		t.hits[500], float64(t.hits[500])/delta,
-		t.misses*HTTPBatchSize,
-		float64(t.misses*HTTPBatchSize)/delta,
-	)
-
+func (t *telemetry) getStats() (time.Time, map[string]int64) {
+	now := time.Now()
+	delta := float64(now.Sub(t.then).Seconds())
+	data := map[string]int64{
+		"1XX_request_count":     int64(t.hits[100]),
+		"2XX_request_count":     int64(t.hits[200]),
+		"3XX_request_count":     int64(t.hits[300]),
+		"4XX_request_count":     int64(t.hits[400]),
+		"5XX_request_count":     int64(t.hits[500]),
+		"1XX_request_rate":      int64(float64(t.hits[100]) / delta),
+		"2XX_request_rate":      int64(float64(t.hits[200]) / delta),
+		"3XX_request_rate":      int64(float64(t.hits[300]) / delta),
+		"4XX_request_rate":      int64(float64(t.hits[400]) / delta),
+		"5XX_request_rate":      int64(float64(t.hits[500]) / delta),
+		"requests_missed_count": int64(t.misses * HTTPBatchSize),
+		"requests_missed_rate":  int64(float64(t.misses*HTTPBatchSize) / delta),
+	}
 	t.reset()
+	return now, data
 }
 
 func (t *telemetry) reset() {

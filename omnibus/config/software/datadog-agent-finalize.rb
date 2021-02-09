@@ -1,7 +1,7 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
-# Copyright 2016-2020 Datadog, Inc.
+# Copyright 2016-present Datadog, Inc.
 
 # This software definition doesn"t build anything, it"s the place where we create
 # files outside the omnibus installation directory, so that we can add them to
@@ -82,7 +82,7 @@ build do
             # Fix pip after building on extended toolchain in CentOS builder
             if redhat?
               unless arm?
-                rhel_toolchain_root = "/opt/centos/devtoolset-1.1/root"
+                rhel_toolchain_root = "/opt/rh/devtoolset-1.1/root"
                 # lets be cautious - we first search for the expected toolchain path, if its not there, bail out
                 command "find #{install_dir} -type f -iname '*_sysconfigdata*.py' -exec grep -inH '#{rhel_toolchain_root}' {} \\; |  egrep '.*'"
                 # replace paths with expected target toolchain location

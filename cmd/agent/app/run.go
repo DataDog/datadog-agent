@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package app
 
@@ -46,6 +46,9 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 
+	// runtime init routines
+	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
+
 	// register core checks
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers"
@@ -89,6 +92,9 @@ func run(cmd *cobra.Command, args []string) error {
 	defer func() {
 		StopAgent()
 	}()
+
+	// prepare go runtime
+	ddruntime.SetMaxProcs()
 
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
@@ -135,15 +141,17 @@ func run(cmd *cobra.Command, args []string) error {
 
 // StartAgent Initializes the agent process
 func StartAgent() error {
+	var (
+		err            error
+		configSetupErr error
+		loggerSetupErr error
+	)
+
 	// Main context passed to components
 	common.MainCtx, common.MainCtxCancel = context.WithCancel(context.Background())
 
 	// Global Agent configuration
-	err := common.SetupConfig(confFilePath)
-	if err != nil {
-		log.Errorf("Failed to setup config %v", err)
-		return fmt.Errorf("unable to set up global agent configuration: %v", err)
-	}
+	configSetupErr = common.SetupConfig(confFilePath)
 
 	// Setup logger
 	if runtime.GOOS != "android" {
@@ -164,7 +172,7 @@ func StartAgent() error {
 			jmxLogFile = ""
 		}
 
-		err = config.SetupLogger(
+		loggerSetupErr = config.SetupLogger(
 			loggerName,
 			config.Datadog.GetString("log_level"),
 			logFile,
@@ -175,8 +183,8 @@ func StartAgent() error {
 		)
 
 		//Setup JMX logger
-		if err == nil {
-			err = config.SetupJMXLogger(
+		if loggerSetupErr == nil {
+			loggerSetupErr = config.SetupJMXLogger(
 				jmxLoggerName,
 				config.Datadog.GetString("log_level"),
 				jmxLogFile,
@@ -188,7 +196,7 @@ func StartAgent() error {
 		}
 
 	} else {
-		err = config.SetupLogger(
+		loggerSetupErr = config.SetupLogger(
 			loggerName,
 			config.Datadog.GetString("log_level"),
 			"", // no log file on android
@@ -199,8 +207,8 @@ func StartAgent() error {
 		)
 
 		//Setup JMX logger
-		if err == nil {
-			err = config.SetupJMXLogger(
+		if loggerSetupErr == nil {
+			loggerSetupErr = config.SetupJMXLogger(
 				jmxLoggerName,
 				config.Datadog.GetString("log_level"),
 				"", // no log file on android
@@ -211,8 +219,14 @@ func StartAgent() error {
 			)
 		}
 	}
-	if err != nil {
-		return fmt.Errorf("Error while setting up logging, exiting: %v", err)
+
+	if configSetupErr != nil {
+		log.Errorf("Failed to setup config %v", configSetupErr)
+		return fmt.Errorf("unable to set up global agent configuration: %v", configSetupErr)
+	}
+
+	if loggerSetupErr != nil {
+		return fmt.Errorf("Error while setting up logging, exiting: %v", loggerSetupErr)
 	}
 
 	log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
@@ -384,7 +398,8 @@ func StartAgent() error {
 	}
 
 	// start dependent services
-	startDependentServices()
+	go startDependentServices()
+
 	return nil
 }
 

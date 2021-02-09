@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package orchestrator
 
@@ -140,6 +140,7 @@ func extractPodMessage(p *v1.Pod) *model.Pod {
 	podModel.NominatedNodeName = p.Status.NominatedNodeName
 	podModel.IP = p.Status.PodIP
 	podModel.RestartCount = 0
+	podModel.QOSClass = string(p.Status.QOSClass)
 	for _, cs := range p.Status.ContainerStatuses {
 		podModel.RestartCount += cs.RestartCount
 		cStatus := convertContainerStatus(cs)
@@ -356,9 +357,10 @@ func generateUniqueStaticPodHash(host, podName, namespace, clusterName string) s
 // ExtractMetadata extracts standard metadata into the model
 func ExtractMetadata(m *metav1.ObjectMeta) *model.Metadata {
 	meta := model.Metadata{
-		Name:      m.Name,
-		Namespace: m.Namespace,
-		Uid:       string(m.UID),
+		Name:            m.Name,
+		Namespace:       m.Namespace,
+		Uid:             string(m.UID),
+		ResourceVersion: m.ResourceVersion,
 	}
 	if !m.CreationTimestamp.IsZero() {
 		meta.CreationTimestamp = m.CreationTimestamp.Unix()

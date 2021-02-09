@@ -7,7 +7,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 
 	"github.com/stretchr/testify/assert"
@@ -105,11 +104,11 @@ func TestGetIdleConns(t *testing.T) {
 }
 
 func newTestBatchManager(t *testing.T, idleTime time.Duration) (manager *PerfBatchManager, doneFn func()) {
-	tr, err := NewTracer(config.NewDefaultConfig())
+	tr, err := NewTracer(testConfig())
 	require.NoError(t, err)
 
-	tcpCloseMap, _ := tr.getMap(probes.TcpCloseBatchMap)
-	manager, err = NewPerfBatchManager(tcpCloseMap, idleTime, numTestBatches)
+	connCloseMap, _ := tr.getMap(probes.ConnCloseBatchMap)
+	manager, err = NewPerfBatchManager(connCloseMap, idleTime, numTestBatches)
 	require.NoError(t, err)
 
 	doneFn = func() { tr.Stop() }

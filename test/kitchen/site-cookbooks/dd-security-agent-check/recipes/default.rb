@@ -2,7 +2,7 @@
 # Cookbook Name:: dd-security-agent-check
 # Recipe:: default
 #
-# Copyright (C) 2020 Datadog
+# Copyright (C) 2020-present Datadog
 #
 
 if node['platform_family'] != 'windows'
@@ -15,18 +15,6 @@ if node['platform_family'] != 'windows'
   cookbook_file "#{wrk_dir}/testsuite" do
     source "testsuite"
     mode '755'
-  end
-
-  cookbook_file "#{wrk_dir}/stresssuite" do
-    source "stresssuite"
-    mode '755'
-  end
-
-  cookbook_file "#{wrk_dir}/stresssuite-master" do
-    source "stresssuite-master"
-    mode '755'
-    # the following line should be removed once PR merged
-    ignore_failure true
   end
 
   # To uncomment when gitlab runner are able to build with GOARCH=386
@@ -44,6 +32,10 @@ if node['platform_family'] != 'windows'
       apt_update
 
       package 'gnupg'
+
+      package 'unattended-upgrades' do
+        action :remove
+      end
     end
 
     if ['ubuntu', 'debian', 'centos'].include?(node[:platform])

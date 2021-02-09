@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build functionaltests
 
@@ -125,11 +125,11 @@ func TestProcessContext(t *testing.T) {
 			t.Error(err)
 		} else {
 			if filename, _ := event.GetFieldValue("process.filename"); filename.(string) != executable {
-				t.Errorf("not able to find the proper process filename `%v` vs `%s`", filename, executable)
+				t.Errorf("not able to find the proper process filename `%v` vs `%s`: %v", filename, executable, event)
 			}
 
 			if inode := getInode(t, executable); inode != event.Process.Inode {
-				t.Logf("expected inode %d, got %d", event.Process.Inode, inode)
+				t.Logf("expected inode %d, got %d", inode, event.Process.Inode)
 			}
 
 			testContainerPath(t, event, "process.container_path")
@@ -175,6 +175,12 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	t.Run("ancestors", func(t *testing.T) {
+		shell := "/usr/bin/sh"
+		if resolved, err := os.Readlink(shell); err == nil {
+			shell = resolved
+		}
+		shell = path.Base(shell)
+
 		executable := "/usr/bin/touch"
 		if resolved, err := os.Readlink(executable); err == nil {
 			executable = resolved
@@ -191,7 +197,7 @@ func TestProcessContext(t *testing.T) {
 
 		// Bash attempts to optimize away forks in the last command in a function body
 		// under appropriate circumstances (source: bash changelog)
-		cmd := exec.Command("sh", "-c", "$("+executable+" "+testFile+")")
+		cmd := exec.Command(shell, "-c", "$("+executable+" "+testFile+")")
 		if _, err := cmd.CombinedOutput(); err != nil {
 			t.Error(err)
 		}
@@ -200,17 +206,15 @@ func TestProcessContext(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if filename, _ := event.GetFieldValue("process.filename"); filename.(string) != executable {
+			if filename := event.ResolveExecInode(&event.Exec); filename != executable {
 				t.Errorf("expected process filename `%s`, got `%s`: %v", executable, filename, event)
 			}
 
 			if rule.ID != "test_rule_ancestors" {
 				t.Error("Wrong rule triggered")
 			}
-
-			values, _ := event.GetFieldValue("process.ancestors.name")
-			if names := values.([]string); names[0] != "sh" {
-				t.Errorf("ancestor `sh` expected, got %s, event:%v", names[0], event)
+			if comm := event.Process.Ancestor.Comm; comm != shell {
+				t.Errorf("ancestor `%s` expected, got %s, event:%v", shell, comm, event)
 			}
 		}
 	})
@@ -289,9 +293,7 @@ func TestProcessLineage(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if err := testProcessLineageFork(t, event); err != nil {
-				t.Error(err)
-			}
+			testProcessLineageFork(t, event)
 		}
 	})
 
@@ -304,9 +306,10 @@ func TestProcessLineage(t *testing.T) {
 		} else {
 			if err := testProcessLineageExec(t, event); err != nil {
 				t.Error(err)
+			} else {
+				execPid = int(event.Process.Pid)
 			}
 		}
-		execPid = int(event.Process.Pid)
 	})
 
 	t.Run("exit", func(t *testing.T) {
@@ -324,9 +327,7 @@ func TestProcessLineage(t *testing.T) {
 					continue
 				}
 				if int(event.Process.Pid) == execPid {
-					if err := testProcessLineageExit(t, event, test); err != nil {
-						t.Error(err)
-					}
+					testProcessLineageExit(t, event, test)
 					return
 				}
 			}
@@ -338,14 +339,14 @@ func testProcessLineageExec(t *testing.T, event *probe.Event) error {
 	// check for the new process context
 	cacheEntry := event.ResolveProcessCacheEntry()
 	if cacheEntry == nil {
-		t.Errorf("expected a process cache entry, got nil")
+		return errors.New("expected a process cache entry, got nil")
 	} else {
 		// make sure the container ID was properly inherited from the parent
-		if cacheEntry.Parent == nil {
-			t.Errorf("expected a parent, got nil")
+		if cacheEntry.Ancestor == nil {
+			return errors.New("expected a parent, got nil")
 		} else {
-			if cacheEntry.ID != cacheEntry.Parent.ID {
-				t.Errorf("expected container ID %s, got %s", cacheEntry.Parent.ID, cacheEntry.ID)
+			if cacheEntry.ID != cacheEntry.Ancestor.ID {
+				t.Errorf("expected container ID %s, got %s", cacheEntry.Ancestor.ID, cacheEntry.ID)
 			}
 		}
 	}
@@ -354,30 +355,31 @@ func testProcessLineageExec(t *testing.T, event *probe.Event) error {
 	return nil
 }
 
-func testProcessLineageFork(t *testing.T, event *probe.Event) error {
+func testProcessLineageFork(t *testing.T, event *probe.Event) {
 	// we need to make sure that the child entry if properly populated with its parent metadata
 	newEntry := event.ResolveProcessCacheEntry()
 	if newEntry == nil {
-		return errors.Errorf("expected a new process cache entry, got nil")
+		t.Errorf("expected a new process cache entry, got nil")
 	} else {
 		// fetch the parent of the new entry, it should the test binary itself
-		parentEntry := newEntry.Parent
+		parentEntry := newEntry.Ancestor
 
 		if parentEntry == nil {
-			return errors.Errorf("expected a parent cache entry, got nil")
+			t.Errorf("expected a parent cache entry, got nil")
 		} else {
 			// checking cookie and pathname str should be enough to make sure that the metadata were properly
 			// copied from kernel space (those 2 information are stored in 2 different maps)
 			if newEntry.Cookie != parentEntry.Cookie {
-				return errors.Errorf("expected cookie %d, %d", parentEntry.Cookie, newEntry.Cookie)
+				t.Errorf("expected cookie %d, %d", parentEntry.Cookie, newEntry.Cookie)
 			}
-			if newEntry.PathnameStr != parentEntry.PathnameStr {
-				return errors.Errorf("expected PathnameStr %s, got %s", parentEntry.PathnameStr, newEntry.PathnameStr)
+
+			if newEntry.PPid != parentEntry.Pid {
+				t.Errorf("expected PPid %d, got %d", parentEntry.Pid, newEntry.PPid)
 			}
 
 			// we also need to check the container ID lineage
 			if newEntry.ID != parentEntry.ID {
-				return errors.Errorf("expected container ID %s, got %s", parentEntry.ID, newEntry.ID)
+				t.Errorf("expected container ID %s, got %s", parentEntry.ID, newEntry.ID)
 			}
 
 			// We can't check that the new entry is in the list of the children of its parent because the exit event
@@ -387,17 +389,21 @@ func testProcessLineageFork(t *testing.T, event *probe.Event) error {
 
 		testContainerPath(t, event, "process.container_path")
 	}
-	return nil
 }
 
-func testProcessLineageExit(t *testing.T, event *probe.Event, test *testModule) error {
+func testProcessLineageExit(t *testing.T, event *probe.Event, test *testModule) {
 	// make sure that the process cache entry of the process was properly deleted from the cache
-	return retry.Do(func() error {
+	err := retry.Do(func() error {
 		resolvers := test.probe.GetResolvers()
 		entry := resolvers.ProcessResolver.Get(event.Process.Pid)
 		if entry != nil {
-			return errors.Errorf("the process cache entry was not deleted from the user space cache")
+			return fmt.Errorf("the process cache entry was not deleted from the user space cache")
 		}
+
 		return nil
 	})
+
+	if err != nil {
+		t.Error(err)
+	}
 }

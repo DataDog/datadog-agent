@@ -1,14 +1,24 @@
 syntax = "proto3";
 
+option go_package = "pkg/security/api";
+
 package api;
 
-message GetParams{}
+message GetEventParams{}
 
 message SecurityEventMessage {
     string RuleID = 1;
     bytes Data = 2;
+    repeated string Tags = 3;
+}
+
+message DumpProcessCacheParams{}
+
+message SecurityDumpProcessCacheMessage {
+    string Filename = 1;
 }
 
 service SecurityModule {
-    rpc GetEvents(GetParams) returns (stream SecurityEventMessage) {}
+    rpc GetEvents(GetEventParams) returns (stream SecurityEventMessage) {}
+    rpc DumpProcessCache(DumpProcessCacheParams) returns (SecurityDumpProcessCacheMessage) {}
 }

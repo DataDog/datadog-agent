@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package eval
 
@@ -164,9 +164,16 @@ func TestSimpleBool(t *testing.T) {
 		Expected bool
 	}{
 		{Expr: `(444 == 444) && ("test" == "test")`, Expected: true},
+		{Expr: `(444 == 444) and ("test" == "test")`, Expected: true},
 		{Expr: `(444 != 444) && ("test" == "test")`, Expected: false},
 		{Expr: `(444 != 555) && ("test" == "test")`, Expected: true},
 		{Expr: `(444 != 555) && ("test" != "aaaa")`, Expected: true},
+		{Expr: `(444 != 555) && # blah blah
+		# blah blah
+		("test" != "aaaa")`, Expected: true},
+		{Expr: `(444 != 555) && # blah blah
+		# blah blah
+		("test" == "aaaa")`, Expected: false},
 	}
 
 	for _, test := range tests {
@@ -190,7 +197,10 @@ func TestPrecedence(t *testing.T) {
 	}{
 		{Expr: `false || (true != true)`, Expected: false},
 		{Expr: `false || true`, Expected: true},
+		{Expr: `false or true`, Expected: true},
 		{Expr: `1 == 1 & 1`, Expected: true},
+		{Expr: `not true && false`, Expected: false},
+		{Expr: `not (true && false)`, Expected: true},
 	}
 
 	for _, test := range tests {
@@ -274,6 +284,9 @@ func TestRegexp(t *testing.T) {
 		{Expr: `process.name =~ "*/bin"`, Expected: false},
 		{Expr: `process.name =~ "/usr/*/c$t"`, Expected: true},
 		{Expr: `process.name =~ "/usr/*/bin/*"`, Expected: false},
+		{Expr: `process.name == ~"/usr/bin/*"`, Expected: true},
+		{Expr: `process.name == ~"/usr/sbin/*"`, Expected: false},
+		{Expr: `process.name =~ ~"/usr/bin/*"`, Expected: true},
 	}
 
 	for _, test := range tests {
@@ -291,7 +304,7 @@ func TestRegexp(t *testing.T) {
 func TestInArray(t *testing.T) {
 	event := &testEvent{
 		process: testProcess{
-			name: "a",
+			name: "aaa",
 			uid:  3,
 		},
 	}
@@ -301,12 +314,12 @@ func TestInArray(t *testing.T) {
 		Expected bool
 	}{
 		{Expr: `"a" in [ "a", "b", "c" ]`, Expected: true},
-		{Expr: `process.name in [ "c", "b", "a" ]`, Expected: true},
-		{Expr: `"d" in [ "a", "b", "c" ]`, Expected: false},
+		{Expr: `process.name in [ "c", "b", "aaa" ]`, Expected: true},
+		{Expr: `"d" in [ "aaa", "b", "c" ]`, Expected: false},
 		{Expr: `process.name in [ "c", "b", "z" ]`, Expected: false},
-		{Expr: `"a" not in [ "a", "b", "c" ]`, Expected: false},
-		{Expr: `process.name not in [ "c", "b", "a" ]`, Expected: false},
-		{Expr: `"d" not in [ "a", "b", "c" ]`, Expected: true},
+		{Expr: `"aaa" not in [ "aaa", "b", "c" ]`, Expected: false},
+		{Expr: `process.name not in [ "c", "b", "aaa" ]`, Expected: false},
+		{Expr: `"d" not in [ "aaa", "b", "c" ]`, Expected: true},
 		{Expr: `process.name not in [ "c", "b", "z" ]`, Expected: true},
 		{Expr: `3 in [ 1, 2, 3 ]`, Expected: true},
 		{Expr: `process.uid in [ 1, 2, 3 ]`, Expected: true},
@@ -316,6 +329,11 @@ func TestInArray(t *testing.T) {
 		{Expr: `3 not in [ 1, 2, 3 ]`, Expected: false},
 		{Expr: `4 not in [ 1, 2, 3 ]`, Expected: true},
 		{Expr: `4 not in [ 3, 2, 1 ]`, Expected: true},
+		{Expr: `process.name in [ ~"*a*" ]`, Expected: true},
+		{Expr: `process.name in [ ~"*d*" ]`, Expected: false},
+		{Expr: `process.name in [ ~"*d*", "aaa" ]`, Expected: true},
+		{Expr: `process.name in [ ~"*d*", "aa*" ]`, Expected: false},
+		{Expr: `process.name in [ ~"*d*", ~"aa*" ]`, Expected: true},
 	}
 
 	for _, test := range tests {

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package main
 
@@ -265,7 +265,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		//             user don't care about the platform logs, the Agent will still want
 		//             to receive them in order to generate the enhanced metrics.
 		if envLogsType, exists := os.LookupEnv(logsLogsTypeSubscribed); exists {
-			parts := strings.Split(strings.TrimSpace(envLogsType), ",")
+			parts := strings.Split(strings.TrimSpace(envLogsType), " ")
 			for _, part := range parts {
 				part = strings.ToLower(strings.TrimSpace(part))
 				switch part {

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2019-2020 Datadog, Inc.
+// Copyright 2019-present Datadog, Inc.
 #include "aggregator.h"
 #include "rtloader_mem.h"
 #include "stringutils.h"
@@ -192,7 +192,7 @@ static PyObject *submit_metric(PyObject *self, PyObject *args)
     bool flush_first_value = false;
 
     // Python call: aggregator.submit_metric(self, check_id, aggregator.metric_type.GAUGE, name, value, tags, hostname, flush_first_value)
-    if (!PyArg_ParseTuple(args, "OsisdOs|i", &check, &check_id, &mt, &name, &value, &py_tags, &hostname, &flush_first_value)) {
+    if (!PyArg_ParseTuple(args, "OsisdOs|b", &check, &check_id, &mt, &name, &value, &py_tags, &hostname, &flush_first_value)) {
         goto error;
     }
 

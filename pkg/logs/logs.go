@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package logs
 
@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
@@ -190,4 +191,12 @@ func IsAgentRunning() bool {
 // GetStatus returns logs-agent status
 func GetStatus() status.Status {
 	return status.Get()
+}
+
+// GetMessageReceiver returns the diagnostic message receiver
+func GetMessageReceiver() *diagnostic.BufferedMessageReceiver {
+	if agent == nil {
+		return nil
+	}
+	return agent.diagnosticMessageReceiver
 }

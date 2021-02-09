@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build linux
 
@@ -80,4 +80,9 @@ var (
 	ZeroUint8MapItem  = BytesMapItem([]byte{0})
 	ZeroUint32MapItem = BytesMapItem([]byte{0, 0, 0, 0})
 	ZeroUint64MapItem = BytesMapItem([]byte{0, 0, 0, 0, 0, 0, 0, 0})
+)
+
+var (
+	// BufferSelectorSyscallMonitorKey is the key used to select the active syscall monitor buffer key
+	BufferSelectorSyscallMonitorKey = ZeroUint32MapItem
 )

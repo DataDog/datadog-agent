@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package obfuscate
 
@@ -92,12 +92,9 @@ func TestSQLResourceWithError(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		// copy test cases as Quantize mutates
-		testSpan := tc.span
-
 		NewObfuscator(nil).Obfuscate(&tc.span)
 		assert.Equal("Non-parsable SQL query", tc.span.Resource)
-		assert.Equal(testSpan.Resource, tc.span.Meta["sql.query"])
+		assert.Equal("Non-parsable SQL query", tc.span.Meta["sql.query"])
 	}
 }
 

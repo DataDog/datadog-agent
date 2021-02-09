@@ -17,7 +17,7 @@ struct bpf_map_def SEC("maps/proc_cache") proc_cache = {
     .type = BPF_MAP_TYPE_LRU_HASH,
     .key_size = sizeof(u32),
     .value_size = sizeof(struct proc_cache_t),
-    .max_entries = 4095,
+    .max_entries = 4096,
     .pinning = 0,
     .namespace = "",
 };
@@ -35,7 +35,7 @@ struct bpf_map_def SEC("maps/pid_cache") pid_cache = {
     .type = BPF_MAP_TYPE_LRU_HASH,
     .key_size = sizeof(u32),
     .value_size = sizeof(struct pid_cache_t),
-    .max_entries = 4097,
+    .max_entries = 4096,
     .pinning = 0,
     .namespace = "",
 };
@@ -63,8 +63,8 @@ static struct proc_cache_t * __attribute__((always_inline)) fill_process_context
 
     // UID & GID
     u64 userid = bpf_get_current_uid_gid();
-    data->uid = userid >> 32;
-    data->gid = userid;
+    data->uid = userid & 0xffffffff;
+    data->gid = userid >> 32;
 
     return get_proc_cache(tgid);
 }

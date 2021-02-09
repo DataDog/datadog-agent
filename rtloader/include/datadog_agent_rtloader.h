@@ -2,7 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog
 // (https://www.datadoghq.com/).
-// Copyright 2019-2020 Datadog, Inc.
+// Copyright 2019-present Datadog, Inc.
 #ifndef DATADOG_AGENT_RTLOADER_H_INCLUDED
 #define DATADOG_AGENT_RTLOADER_H_INCLUDED
 
@@ -182,8 +182,6 @@ DATADOG_AGENT_RTLOADER_API int get_check_deprecated(rtloader_t *rtloader, rtload
     \param check A rtloader_pyobject_t * pointer to the check instance we wish to run.
     \return A C-string with the check summary.
     \sa rtloader_pyobject_t, rtloader_t
-
-    This function is deprecated in favor of `get_check()`.
 */
 DATADOG_AGENT_RTLOADER_API char *run_check(rtloader_t *, rtloader_pyobject_t *check);
 
@@ -195,8 +193,6 @@ DATADOG_AGENT_RTLOADER_API char *run_check(rtloader_t *, rtloader_pyobject_t *ch
     \return An array of C-strings with found warnings for the instance, or NULL if none or
     an error occurred.
     \sa rtloader_pyobject_t, rtloader_t
-
-    This function is deprecated in favor of `get_check()`.
 */
 DATADOG_AGENT_RTLOADER_API char **get_checks_warnings(rtloader_t *, rtloader_pyobject_t *check);
 

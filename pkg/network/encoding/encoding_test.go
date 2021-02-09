@@ -6,12 +6,17 @@ import (
 
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/sketches-go/ddsketch"
+	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
+	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestSerialization(t *testing.T) {
+	var httpReqStats http.RequestStats
 	in := &network.Connections{
 		Conns: []network.ConnectionStats{
 			{
@@ -50,6 +55,10 @@ func TestSerialization(t *testing.T) {
 						DNSCountByRcode:      map[uint32]uint32{0: 1},
 					},
 				},
+
+				HTTPStatsByPath: map[string]http.RequestStats{
+					"/testpath": httpReqStats,
+				},
 			},
 		},
 		DNS: map[util.Address][]string{
@@ -87,6 +96,33 @@ func TestSerialization(t *testing.T) {
 						DnsSuccessLatencySum: 0,
 						DnsFailureLatencySum: 0,
 						DnsCountByRcode:      map[uint32]uint32{0: 1},
+					},
+				},
+
+				HttpStatsByPath: map[string]*model.HTTPStats{
+					"/testpath": {
+						StatsByResponseStatus: []*model.HTTPStats_Data{
+							{
+								Count:     0,
+								Latencies: nil,
+							},
+							{
+								Count:     0,
+								Latencies: nil,
+							},
+							{
+								Count:     0,
+								Latencies: nil,
+							},
+							{
+								Count:     0,
+								Latencies: nil,
+							},
+							{
+								Count:     0,
+								Latencies: nil,
+							},
+						},
 					},
 				},
 			},
@@ -179,4 +215,62 @@ func TestSerialization(t *testing.T) {
 			assert.Contains(res.Conns[0], field)
 		}
 	})
+}
+
+func TestFormatHTTPStatsByPath(t *testing.T) {
+	var httpReqStats http.RequestStats
+	httpReqStats.AddRequest(100, 12.5)
+	httpReqStats.AddRequest(405, 3.5)
+
+	// Verify the latency data is correct prior to serialization
+	latencies := httpReqStats.Latencies(model.HTTPResponseStatus_Info)
+	assert.Equal(t, 1.0, latencies.GetCount())
+	verifyQuantile(t, latencies, 0.5, 12.5)
+
+	latencies = httpReqStats.Latencies(model.HTTPResponseStatus_ClientErr)
+	assert.Equal(t, 1.0, latencies.GetCount())
+	verifyQuantile(t, latencies, 0.5, 3.5)
+
+	statsByPath := map[string]http.RequestStats{
+		"/testpath": httpReqStats,
+	}
+	formattedStats := formatHTTPStatsByPath(statsByPath)
+
+	// Deserialize the encoded latency information & confirm it is correct
+	statsByResponseStatus := formattedStats["/testpath"].StatsByResponseStatus
+	assert.Len(t, statsByResponseStatus, 5)
+
+	serializedLatencies := statsByResponseStatus[model.HTTPResponseStatus_Info].Latencies
+	sketch := unmarshalSketch(t, serializedLatencies)
+	assert.Equal(t, 1.0, sketch.GetCount())
+	verifyQuantile(t, sketch, 0.5, 12.5)
+
+	serializedLatencies = statsByResponseStatus[model.HTTPResponseStatus_ClientErr].Latencies
+	sketch = unmarshalSketch(t, serializedLatencies)
+	assert.Equal(t, 1.0, sketch.GetCount())
+	verifyQuantile(t, sketch, 0.5, 3.5)
+
+	serializedLatencies = statsByResponseStatus[model.HTTPResponseStatus_Success].Latencies
+	assert.Nil(t, serializedLatencies)
+}
+
+func unmarshalSketch(t *testing.T, bytes []byte) *ddsketch.DDSketch {
+	var sketchPb sketchpb.DDSketch
+	err := proto.Unmarshal(bytes, &sketchPb)
+	assert.Nil(t, err)
+
+	var sketch *ddsketch.DDSketch
+	ret, err := sketch.FromProto(&sketchPb)
+	assert.Nil(t, err)
+
+	return ret
+}
+
+func verifyQuantile(t *testing.T, sketch *ddsketch.DDSketch, q float64, expectedValue float64) {
+	val, err := sketch.GetValueAtQuantile(q)
+	assert.Nil(t, err)
+
+	acceptableError := expectedValue * http.RelativeAccuracy
+	assert.True(t, val >= expectedValue-acceptableError)
+	assert.True(t, val <= expectedValue+acceptableError)
 }

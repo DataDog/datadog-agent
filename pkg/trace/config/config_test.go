@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package config
 
@@ -157,7 +157,7 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.Equal(123, c.ConnectionLimit)
 	assert.Equal(18126, c.ReceiverPort)
 	assert.Equal(0.5, c.ExtraSampleRate)
-	assert.Equal(5.0, c.MaxTPS)
+	assert.Equal(5.0, c.TargetTPS)
 	assert.Equal(50.0, c.MaxEPS)
 	assert.Equal(0.5, c.MaxCPU)
 	assert.EqualValues(123.4, c.MaxMemory)
@@ -234,7 +234,7 @@ func TestUndocumentedYamlConfig(t *testing.T) {
 	assert.Equal("thing", c.Hostname)
 	assert.Equal("apikey_12", c.Endpoints[0].APIKey)
 	assert.Equal(0.33, c.ExtraSampleRate)
-	assert.Equal(100.0, c.MaxTPS)
+	assert.Equal(100.0, c.TargetTPS)
 	assert.Equal(1000.0, c.MaxEPS)
 	assert.Equal(25, c.ReceiverPort)
 	assert.Equal(120*time.Second, c.ConnectionResetInterval)

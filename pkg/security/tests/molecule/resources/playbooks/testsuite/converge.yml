@@ -1,0 +1,9 @@
+---
+- name: Converge
+  hosts: all
+  tasks:
+  - name: Copy testsuite
+    copy:
+      src: ../../../../testsuite
+      dest: /tmp/testsuite
+      mode: 0755
