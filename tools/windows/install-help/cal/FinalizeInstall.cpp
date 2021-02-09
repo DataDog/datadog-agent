@@ -1,5 +1,6 @@
 #include "TargetMachine.h"
 #include "stdafx.h"
+#include <fstream>
 
 UINT doFinalizeInstall(CustomActionData &data)
 {
@@ -180,6 +181,14 @@ UINT doFinalizeInstall(CustomActionData &data)
         }
         keyRollback.setStringValue(installInstalledServices.c_str(), L"true");
         keyInstall.setStringValue(installInstalledServices.c_str(), L"true");
+
+        // This is a new install
+        if (!updateYamlConfig())
+        {
+            WcaLog(LOGMSG_STANDARD, "Failed to update datadog.yaml");
+            er = ERROR_INSTALL_FAILURE;
+            goto LExit;
+        }
     }
     else
     {
@@ -253,4 +262,41 @@ LExit:
         er = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;
     }
     return er;
+}
+
+bool updateYamlConfig()
+{
+    std::wstring inputConfig;
+
+    // Read config in memory. The config should be small enough
+    // and we control its source - so it's fine to allocate up front.
+    {
+        std::wifstream inputConfigStream(datadogyamlfile);
+
+        inputConfigStream.seekg(0, std::ios::end);
+        size_t fileSize = inputConfigStream.tellg();
+        if (fileSize <= 0)
+        {
+            WcaLog(LOGMSG_STANDARD, "ERROR: datadog.yaml file empty !");
+            return false;
+        }
+        inputConfig.reserve(fileSize);
+        inputConfigStream.seekg(0, std::ios::beg);
+
+        inputConfig.assign(std::istreambuf_iterator<wchar_t>(inputConfigStream), std::istreambuf_iterator<wchar_t>());
+    }
+    inputConfig = replace_yaml_properties(inputConfig, [this](std::wstring const &propertyName) -> std::optional<std::wstring>
+    {
+        auto it = values.find(propertyName);
+        if (it != values.end())
+        {
+            return it->second;
+        }
+        return std::nullopt;
+    });
+    {
+        std::wofstream inputConfigStream(datadogyamlfile);
+        inputConfigStream << inputConfig;
+    }
+    return true;
 }

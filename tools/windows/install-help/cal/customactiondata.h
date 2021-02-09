@@ -70,5 +70,4 @@ class CustomActionData : ICustomActionData
     void findSuppliedUserInfo(std::wstring &input, std::wstring &computed_domain, std::wstring &computed_user);
     bool parseUsernameData();
     bool parseSysprobeData();
-    bool updateYamlConfig();
 };

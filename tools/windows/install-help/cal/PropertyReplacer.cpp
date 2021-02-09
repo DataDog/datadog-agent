@@ -141,7 +141,6 @@ std::wstring replace_yaml_properties(std::wstring input, const property_retrieve
         auto propValue = propertyRetriever(propKey);
         if (propValue)
         {
-            WcaLog(LOGMSG_STANDARD, "Found %S=%S in MSI install database\n", propKey.c_str(), propValue->c_str());
             PropertyReplacer::match(input, std::get<Regex>(prop)).replace_with(std::get<Replacement>(prop)(*propValue, propertyRetriever));
         }
     }

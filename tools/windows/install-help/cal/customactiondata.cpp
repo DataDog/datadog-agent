@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "PropertyReplacer.h"
-#include <fstream>
 #include <utility>
 
 CustomActionData::CustomActionData()
@@ -34,8 +33,6 @@ bool CustomActionData::init(const std::wstring &data)
         return false;
     }
 
-    WcaLog(LOGMSG_STANDARD, "Initializing CustomAction with %S\n", data.c_str());
-
     auto start = data.begin();
     auto end = data.end();
     std::wregex re(L"((\\w+)=(.+?);\r\n)");
@@ -46,7 +43,7 @@ bool CustomActionData::init(const std::wstring &data)
         start += results.position() + results.length();
     }
 
-    return parseUsernameData() && parseSysprobeData() && updateYamlConfig();
+    return parseUsernameData() && parseSysprobeData();
 }
 
 bool CustomActionData::present(const std::wstring &key) const
@@ -143,43 +140,6 @@ bool CustomActionData::parseSysprobeData()
         return true;
     }
     this->doInstallSysprobe = true;
-    return true;
-}
-
-bool CustomActionData::updateYamlConfig()
-{
-    std::wstring inputConfig;
-
-    // Read config in memory. The config should be small enough
-    // and we control its source - so it's fine to allocate up front.
-    {
-        std::wifstream inputConfigStream(datadogyamlfile);
-
-        inputConfigStream.seekg(0, std::ios::end);
-        size_t fileSize = inputConfigStream.tellg();
-        if (fileSize <= 0)
-        {
-            WcaLog(LOGMSG_STANDARD, "ERROR: datadog.yaml file empty !");
-            return false;
-        }
-        inputConfig.reserve(fileSize);
-        inputConfigStream.seekg(0, std::ios::beg);
-
-        inputConfig.assign(std::istreambuf_iterator<wchar_t>(inputConfigStream), std::istreambuf_iterator<wchar_t>());
-    }
-    inputConfig = replace_yaml_properties(inputConfig, [this](std::wstring const &propertyName) -> std::optional<std::wstring>
-    {
-        auto it = values.find(propertyName);
-        if (it != values.end())
-        {
-            return it->second;
-        }
-        return std::nullopt;
-    });
-    {
-        std::wofstream inputConfigStream(datadogyamlfile);
-        inputConfigStream << inputConfig;
-    }
     return true;
 }
 
