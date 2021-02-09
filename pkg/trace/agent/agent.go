@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package agent
 
@@ -70,7 +70,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	statsChan := make(chan []stats.Bucket, 100)
 
 	agnt := &Agent{
-		Concentrator:       stats.NewConcentrator(conf.BucketInterval.Nanoseconds(), statsChan),
+		Concentrator:       stats.NewConcentrator(conf.BucketInterval.Nanoseconds(), statsChan, time.Now()),
 		Blacklister:        filters.NewBlacklister(conf.Ignore["resource"]),
 		Replacer:           filters.NewReplacer(conf.ReplaceTags),
 		ScoreSampler:       NewScoreSampler(conf),
