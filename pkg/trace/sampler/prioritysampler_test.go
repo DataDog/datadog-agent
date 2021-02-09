@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package sampler
 
@@ -187,7 +187,7 @@ func TestTargetTPSByService(t *testing.T) {
 		handledCount := 0
 
 		for period := 0; period < initPeriods+periods; period++ {
-			s.Sampler.Backend.(*MemoryBackend).decayScore()
+			s.Sampler.Backend.decayScore()
 			s.Sampler.AdjustScoring()
 			for i := 0; i < int(tracesPerPeriod); i++ {
 				trace, root := getTestTraceWithService(t, "service-a", s)

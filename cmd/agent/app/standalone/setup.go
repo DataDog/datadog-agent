@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package standalone
 
@@ -16,7 +16,7 @@ import (
 // - config, with defaults to avoid conflicting with an agent process running in parallel
 // - logger
 // and returns the log level resolved from cliLogLevel and defaultLogLevel
-func SetupCLI(loggerName config.LoggerName, confFilePath, configName string, cliLogLevel string, defaultLogLevel string) (string, *config.Warnings, error) {
+func SetupCLI(loggerName config.LoggerName, confFilePath, configName string, cliLogFile string, cliLogLevel string, defaultLogLevel string) (string, *config.Warnings, error) {
 	var resolvedLogLevel string
 
 	if cliLogLevel != "" {
@@ -38,7 +38,7 @@ func SetupCLI(loggerName config.LoggerName, confFilePath, configName string, cli
 		return resolvedLogLevel, warnings, fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
 
-	err = config.SetupLogger(loggerName, resolvedLogLevel, "", "", false, true, false)
+	err = config.SetupLogger(loggerName, resolvedLogLevel, cliLogFile, "", false, true, false)
 	if err != nil {
 		return resolvedLogLevel, warnings, fmt.Errorf("unable to set up logger: %v", err)
 	}
