@@ -7,7 +7,6 @@ package mocksender
 
 import (
 	model "github.com/DataDog/agent-payload/process"
-
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
@@ -97,6 +96,7 @@ func (m *MockSender) GetMetricStats() map[string]int64 {
 	return make(map[string]int64)
 }
 
-func (m *MockSender) OrchestratorMetadata(msg []model.MessageBody, clusterID, payloadType string) {
-	m.Called(msg, clusterID, payloadType)
+// OrchestratorMetadata submit orchestrator metadata messages
+func (m *MockSender) OrchestratorMetadata(msgs []model.MessageBody, clusterID, payloadType string) {
+	m.Called(msgs, clusterID, payloadType)
 }

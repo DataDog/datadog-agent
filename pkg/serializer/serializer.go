@@ -100,7 +100,7 @@ type MetricSerializer interface {
 	SendMetadata(m marshaler.Marshaler) error
 	SendHostMetadata(m marshaler.Marshaler) error
 	SendJSONToV1Intake(data interface{}) error
-	SendOrchestratorMetadata(msg []model.MessageBody, hostName, clusterID, payloadType string) error
+	SendOrchestratorMetadata(msgs []model.MessageBody, hostName, clusterID, payloadType string) error
 }
 
 // Serializer serializes metrics to the correct format and routes the payloads to the correct endpoint in the Forwarder
@@ -393,11 +393,11 @@ func (s *Serializer) SendJSONToV1Intake(data interface{}) error {
 }
 
 // SendOrchestratorMetadata serializes & send orchestrator metadata payloads
-func (s *Serializer) SendOrchestratorMetadata(msg []model.MessageBody, hostName, clusterID, payloadType string) error {
+func (s *Serializer) SendOrchestratorMetadata(msgs []model.MessageBody, hostName, clusterID, payloadType string) error {
 	if s.orchestratorForwarder == nil {
 		return errors.New("orchestrator forwarder is not setup")
 	}
-	for _, m := range msg {
+	for _, m := range msgs {
 		extraHeaders := make(http.Header)
 		extraHeaders.Set(api.HostHeader, hostName)
 		extraHeaders.Set(api.ClusterIDHeader, clusterID)

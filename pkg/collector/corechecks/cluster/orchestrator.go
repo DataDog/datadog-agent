@@ -8,7 +8,6 @@
 package cluster
 
 import (
-	"context"
 	"errors"
 	"math/rand"
 	"sync/atomic"
@@ -73,7 +72,6 @@ type OrchestratorCheck struct {
 	core.CheckBase
 	orchestratorConfig      *orchcfg.OrchestratorConfig
 	instance                *OrchestratorInstance
-	cancel                  context.CancelFunc
 	stopCh                  chan struct{}
 	clusterID               string
 	groupID                 int32
@@ -231,21 +229,21 @@ func (o *OrchestratorCheck) processDeploys(sender aggregator.Sender) {
 		return
 	}
 
-	msg, err := processDeploymentList(deployList, atomic.AddInt32(&o.groupID, 1), o.orchestratorConfig, o.clusterID)
+	messages, err := processDeploymentList(deployList, atomic.AddInt32(&o.groupID, 1), o.orchestratorConfig, o.clusterID)
 	if err != nil {
 		log.Errorf("Unable to process deployment list: %v", err)
 		return
 	}
 
-	stats := CheckStats{
-		CacheHits: len(deployList) - len(msg),
-		CacheMiss: len(msg),
+	stats := orchestrator.CheckStats{
+		CacheHits: len(deployList) - len(messages),
+		CacheMiss: len(messages),
 		NodeType:  orchestrator.K8sDeployment,
 	}
 
-	orchestrator.KubernetesResourceCache.Set(BuildStatsKey(orchestrator.K8sDeployment), stats, orchestrator.NoExpiration)
+	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sDeployment), stats, orchestrator.NoExpiration)
 
-	sender.OrchestratorMetadata(msg, o.clusterID, forwarder.PayloadTypeDeployment)
+	sender.OrchestratorMetadata(messages, o.clusterID, forwarder.PayloadTypeDeployment)
 }
 
 func (o *OrchestratorCheck) processReplicaSets(sender aggregator.Sender) {
@@ -258,21 +256,21 @@ func (o *OrchestratorCheck) processReplicaSets(sender aggregator.Sender) {
 		return
 	}
 
-	msg, err := processReplicaSetList(rsList, atomic.AddInt32(&o.groupID, 1), o.orchestratorConfig, o.clusterID)
+	messages, err := processReplicaSetList(rsList, atomic.AddInt32(&o.groupID, 1), o.orchestratorConfig, o.clusterID)
 	if err != nil {
 		log.Errorf("Unable to process replica set list: %v", err)
 		return
 	}
 
-	stats := CheckStats{
-		CacheHits: len(rsList) - len(msg),
-		CacheMiss: len(msg),
+	stats := orchestrator.CheckStats{
+		CacheHits: len(rsList) - len(messages),
+		CacheMiss: len(messages),
 		NodeType:  orchestrator.K8sReplicaSet,
 	}
 
-	orchestrator.KubernetesResourceCache.Set(BuildStatsKey(orchestrator.K8sReplicaSet), stats, orchestrator.NoExpiration)
+	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sReplicaSet), stats, orchestrator.NoExpiration)
 
-	sender.OrchestratorMetadata(msg, o.clusterID, forwarder.PayloadTypeReplicaSet)
+	sender.OrchestratorMetadata(messages, o.clusterID, forwarder.PayloadTypeReplicaSet)
 }
 
 func (o *OrchestratorCheck) processServices(sender aggregator.Sender) {
@@ -292,13 +290,13 @@ func (o *OrchestratorCheck) processServices(sender aggregator.Sender) {
 		return
 	}
 
-	stats := CheckStats{
+	stats := orchestrator.CheckStats{
 		CacheHits: len(serviceList) - len(messages),
 		CacheMiss: len(messages),
 		NodeType:  orchestrator.K8sService,
 	}
 
-	orchestrator.KubernetesResourceCache.Set(BuildStatsKey(orchestrator.K8sService), stats, orchestrator.NoExpiration)
+	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sService), stats, orchestrator.NoExpiration)
 
 	sender.OrchestratorMetadata(messages, o.clusterID, forwarder.PayloadTypeService)
 }
@@ -320,13 +318,13 @@ func (o *OrchestratorCheck) processNodes(sender aggregator.Sender) {
 		return
 	}
 
-	stats := CheckStats{
+	stats := orchestrator.CheckStats{
 		CacheHits: len(nodesList) - len(messages),
 		CacheMiss: len(messages),
 		NodeType:  orchestrator.K8sNode,
 	}
 
-	orchestrator.KubernetesResourceCache.Set(BuildStatsKey(orchestrator.K8sNode), stats, orchestrator.NoExpiration)
+	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sNode), stats, orchestrator.NoExpiration)
 
 	sender.OrchestratorMetadata(messages, o.clusterID, forwarder.PayloadTypeNode)
 }
@@ -342,21 +340,21 @@ func (o *OrchestratorCheck) processPods(sender aggregator.Sender) {
 	}
 
 	// we send an empty hostname for unassigned pods
-	msg, err := orchestrator.ProcessPodList(podList, atomic.AddInt32(&o.groupID, 1), "", o.clusterID, o.orchestratorConfig)
+	messages, err := orchestrator.ProcessPodList(podList, atomic.AddInt32(&o.groupID, 1), "", o.clusterID, o.orchestratorConfig)
 	if err != nil {
 		log.Errorf("Unable to process pod list: %v", err)
 		return
 	}
 
-	stats := CheckStats{
-		CacheHits: len(podList) - len(msg),
-		CacheMiss: len(msg),
+	stats := orchestrator.CheckStats{
+		CacheHits: len(podList) - len(messages),
+		CacheMiss: len(messages),
 		NodeType:  orchestrator.K8sPod,
 	}
 
-	orchestrator.KubernetesResourceCache.Set(BuildStatsKey(orchestrator.K8sPod), stats, orchestrator.NoExpiration)
+	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sPod), stats, orchestrator.NoExpiration)
 
-	sender.OrchestratorMetadata(msg, o.clusterID, forwarder.PayloadTypePod)
+	sender.OrchestratorMetadata(messages, o.clusterID, forwarder.PayloadTypePod)
 }
 
 func (o *OrchestratorCheck) Cancel() {

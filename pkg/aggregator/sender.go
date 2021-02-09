@@ -40,7 +40,7 @@ type Sender interface {
 	SetCheckCustomTags(tags []string)
 	SetCheckService(service string)
 	FinalizeCheckServiceTag()
-	OrchestratorMetadata(msg []model.MessageBody, clusterID, payloadType string)
+	OrchestratorMetadata(msgs []model.MessageBody, clusterID, payloadType string)
 }
 
 type metricStats struct {
@@ -109,10 +109,10 @@ func newCheckSender(id check.ID, defaultHostname string, smsOut chan<- senderMet
 		smsOut:             smsOut,
 		serviceCheckOut:    serviceCheckOut,
 		eventOut:           eventOut,
-		orchestratorOut:    orchestratorOut,
 		metricStats:        metricStats{},
 		priormetricStats:   metricStats{},
 		histogramBucketOut: bucketOut,
+		orchestratorOut:    orchestratorOut,
 	}
 }
 
@@ -392,7 +392,7 @@ func (s *checkSender) Event(e metrics.Event) {
 	s.metricStats.Lock.Unlock()
 }
 
-//
+// OrchestratorMetadata submit orchestrator metadata messages
 func (s *checkSender) OrchestratorMetadata(msgs []model.MessageBody, clusterID, payloadType string) {
 	om := senderOrchestratorMetadata{
 		msgs:        msgs,

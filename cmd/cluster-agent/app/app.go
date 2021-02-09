@@ -207,7 +207,7 @@ func start(cmd *cobra.Command, args []string) error {
 		orchestratorForwarderOpts := forwarder.NewOptions(keysPerDomain)
 		orchestratorForwarderOpts.DisableAPIKeyChecking = true
 		orchestratorForwarder = forwarder.NewDefaultForwarder(orchestratorForwarderOpts)
-		orchestratorForwarder.Start()
+		orchestratorForwarder.Start() //nolint:errcheck
 		s.AttachOrchestratorForwarder(orchestratorForwarder)
 	}
 
@@ -264,22 +264,6 @@ func start(cmd *cobra.Command, args []string) error {
 		if clusterName == "" {
 			log.Warn("Failed to auto-detect a Kubernetes cluster name. We recommend you set it manually via the cluster_name config option")
 		}
-
-		// TODO: move rest of the controllers out of the apiserver package
-		// orchestratorCtx := orchestrator.ControllerContext{
-		// 	IsLeaderFunc:                 le.IsLeader,
-		// 	UnassignedPodInformerFactory: apiCl.UnassignedPodInformerFactory,
-		// 	InformerFactory:              apiCl.InformerFactory,
-		// 	Client:                       apiCl.Cl,
-		// 	StopCh:                       stopCh,
-		// 	Hostname:                     hostname,
-		// 	ClusterName:                  clusterName,
-		// 	ConfigPath:                   confPath,
-		// }
-		// err = orchestrator.StartController(orchestratorCtx)
-		// if err != nil {
-		// 	log.Errorf("Could not start orchestrator controller: %v", err)
-		// }
 	} else {
 		log.Info("Orchestrator explorer is disabled")
 	}

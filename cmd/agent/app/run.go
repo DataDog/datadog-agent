@@ -77,7 +77,8 @@ import (
 
 var (
 	// flags variables
-	pidfilePath           string
+	pidfilePath string
+
 	orchestratorForwarder forwarder.Forwarder
 
 	runCmd = &cobra.Command{
@@ -353,7 +354,7 @@ func StartAgent() error {
 		orchestratorForwarderOpts := forwarder.NewOptions(keysPerDomain)
 		orchestratorForwarderOpts.DisableAPIKeyChecking = true
 		orchestratorForwarder = forwarder.NewDefaultForwarder(orchestratorForwarderOpts)
-		orchestratorForwarder.Start()
+		orchestratorForwarder.Start() //nolint:errcheck
 		s.AttachOrchestratorForwarder(orchestratorForwarder)
 	}
 
