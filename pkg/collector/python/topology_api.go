@@ -27,7 +27,7 @@ import "C"
 
 // SubmitComponent is the method exposed to Python scripts to submit topology component
 //export SubmitComponent
-func SubmitComponent(id *C.char, instanceKey *C.instance_key_t, externalId *C.char, componentType *C.char, data *C.char) {
+func SubmitComponent(id *C.char, instanceKey *C.instance_key_t, externalID *C.char, componentType *C.char, data *C.char) {
 	goCheckID := C.GoString(id)
 
 	_instance := topology.Instance{
@@ -35,7 +35,7 @@ func SubmitComponent(id *C.char, instanceKey *C.instance_key_t, externalId *C.ch
 		URL:  C.GoString(instanceKey.url),
 	}
 
-	_externalId := C.GoString(externalId)
+	_externalID := C.GoString(externalID)
 	_componentType := C.GoString(componentType)
 	_data := make(map[string]interface{})
 	err := yaml.Unmarshal([]byte(C.GoString(data)), _data)
@@ -47,7 +47,7 @@ func SubmitComponent(id *C.char, instanceKey *C.instance_key_t, externalId *C.ch
 	batcher.GetBatcher().SubmitComponent(check.ID(goCheckID),
 		_instance,
 		topology.Component{
-			ExternalID: _externalId,
+			ExternalID: _externalID,
 			Type:       topology.Type{Name: _componentType},
 			Data:       _data,
 		})
@@ -55,7 +55,7 @@ func SubmitComponent(id *C.char, instanceKey *C.instance_key_t, externalId *C.ch
 
 // SubmitRelation is the method exposed to Python scripts to submit topology relation
 //export SubmitRelation
-func SubmitRelation(id *C.char, instanceKey *C.instance_key_t, sourceId *C.char, targetId *C.char, relationType *C.char, data *C.char) {
+func SubmitRelation(id *C.char, instanceKey *C.instance_key_t, sourceID *C.char, targetID *C.char, relationType *C.char, data *C.char) {
 	goCheckID := C.GoString(id)
 
 	_instance := topology.Instance{
@@ -63,11 +63,11 @@ func SubmitRelation(id *C.char, instanceKey *C.instance_key_t, sourceId *C.char,
 		URL:  C.GoString(instanceKey.url),
 	}
 
-	_sourceId := C.GoString(sourceId)
-	_targetId := C.GoString(targetId)
+	_sourceID := C.GoString(sourceID)
+	_targetID := C.GoString(targetID)
 	_relationType := C.GoString(relationType)
 
-	_externalId := fmt.Sprintf("%s-%s-%s", _sourceId, _relationType, _targetId)
+	_externalID := fmt.Sprintf("%s-%s-%s", _sourceID, _relationType, _targetID)
 
 	_data := make(map[string]interface{})
 	err := yaml.Unmarshal([]byte(C.GoString(data)), _data)
@@ -79,9 +79,9 @@ func SubmitRelation(id *C.char, instanceKey *C.instance_key_t, sourceId *C.char,
 	batcher.GetBatcher().SubmitRelation(check.ID(goCheckID),
 		_instance,
 		topology.Relation{
-			ExternalID: _externalId,
-			SourceID:   _sourceId,
-			TargetID:   _targetId,
+			ExternalID: _externalID,
+			SourceID:   _sourceID,
+			TargetID:   _targetID,
 			Type:       topology.Type{Name: _relationType},
 			Data:       _data,
 		})
