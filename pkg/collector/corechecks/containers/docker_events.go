@@ -73,8 +73,8 @@ func (d *DockerCheck) reportExitCodes(events []*docker.ContainerEvent, sender ag
 	return nil
 }
 
-// report ContainerRestart as Service Check
-func (d *DockerCheck) reportContainerRestart(events []*docker.ContainerEvent, sender aggregator.Sender) error {
+// reportContainerRestart monitors events for container restart and sends Service Check
+func reportContainerRestart(events []*docker.ContainerEvent, sender aggregator.Sender) error {
 	for _, ev := range events {
         // Filtering
         if ev.Action == "restart" {
