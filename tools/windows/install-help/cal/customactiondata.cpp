@@ -35,7 +35,7 @@ bool CustomActionData::init(const std::wstring &data)
 
     auto start = data.begin();
     auto end = data.end();
-    std::wregex re(L"((\\w+)=(.+?);\r\n)");
+    std::wregex re(L"((\\w+)=(.+?);*\\s*\r?\n)");
     std::match_results<decltype(start)> results;
     while (std::regex_search(start, end, results, re))
     {
