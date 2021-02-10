@@ -195,3 +195,34 @@ func TestAggregateEvents(t *testing.T) {
 		})
 	}
 }
+
+func TestReportContainerRestart(t *testing.T) {
+	dockerCheck := &DockerCheck{
+		instance: &DockerConfig{},
+	}
+	mockSender := mocksender.NewMockSender(dockerCheck.ID())
+
+	var events []*docker.ContainerEvent
+
+	// Don't fail on empty event array
+	err := dockerCheck.reportContainerRestart(events, mockSender)
+	assert.Nil(t, err)
+	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 0)
+
+	// Reset event array
+	events = events[0:0]
+
+	// Valid restart event
+	events = append(events, &docker.ContainerEvent{
+		Action:        "restart",
+		ContainerID:   "fcc487ac70446287ae0dc79fb72368d824ff6198cd1166a405bc5a7fc111d3a8",
+		ContainerName: "book-app",
+	})
+	mockSender.On("ServiceCheck", "docker.restart", metrics.ServiceCheckWarning, "",
+		mock.AnythingOfType("[]string"), "Container book-app restarted")
+
+	err = dockerCheck.reportContainerRestart(events, mockSender)
+	assert.Nil(t, err)
+	mockSender.AssertExpectations(t)
+	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 1)
+}
