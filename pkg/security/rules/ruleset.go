@@ -7,12 +7,12 @@ package rules
 
 import (
 	"fmt"
-	"github.com/hashicorp/go-multierror"
-	"github.com/pkg/errors"
 	"strings"
 
+	"github.com/hashicorp/go-multierror"
+	"github.com/pkg/errors"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // MacroID represents the ID of a macro
@@ -89,6 +89,7 @@ type RuleSet struct {
 	listeners        []RuleSetListener
 	// fields holds the list of event field queries (like "process.uid") used by the entire set of rules
 	fields []string
+	logger Logger
 }
 
 // ListRuleIDs returns the list of RuleIDs from the ruleset
@@ -210,13 +211,13 @@ func (rs *RuleSet) AddRule(ruleDef *RuleDefinition) (*eval.Rule, error) {
 	}
 
 	if len(rule.GetEventTypes()) == 0 {
-		log.Errorf("rule without event specified: %s", ruleDef.Expression)
+		_ = rs.logger.Errorf("rule without event specified: %s", ruleDef.Expression)
 		return nil, ErrRuleWithoutEvent
 	}
 
 	// TODO: this contraints could be removed, but currently approver resolution can't handle multiple event type approver
 	if len(rule.GetEventTypes()) > 1 {
-		log.Errorf("multiple event types specified on the same rule: %s", ruleDef.Expression)
+		_ = rs.logger.Errorf("multiple event types specified on the same rule: %s", ruleDef.Expression)
 		return nil, ErrRuleWithMultipleEvents
 	}
 
@@ -324,11 +325,11 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	if !exists {
 		return result
 	}
-	log.Tracef("Evaluating event of type `%s` against set of %d rules", eventType, len(bucket.rules))
+	rs.logger.Tracef("Evaluating event of type `%s` against set of %d rules", eventType, len(bucket.rules))
 
 	for _, rule := range bucket.rules {
 		if rule.GetEvaluator().Eval(ctx) {
-			log.Tracef("Rule `%s` matches with event `%s`\n", rule.ID, event)
+			rs.logger.Tracef("Rule `%s` matches with event `%s`\n", rule.ID, event)
 
 			rs.NotifyRuleMatch(rule, event)
 			result = true
@@ -336,7 +337,7 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	}
 
 	if !result {
-		log.Tracef("Looking for discarders for event of type `%s`", eventType)
+		rs.logger.Tracef("Looking for discarders for event of type `%s`", eventType)
 
 		for _, field := range bucket.fields {
 			if rs.opts.SupportedDiscarders != nil {
@@ -405,7 +406,7 @@ func (rs *RuleSet) AddPolicyVersion(filename string, version string) {
 }
 
 // NewRuleSet returns a new ruleset for the specified data model
-func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts) *RuleSet {
+func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, logger Logger) *RuleSet {
 	return &RuleSet{
 		model:            model,
 		eventCtor:        eventCtor,
@@ -413,5 +414,6 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts) *Rule
 		eventRuleBuckets: make(map[eval.EventType]*RuleBucket),
 		rules:            make(map[eval.RuleID]*eval.Rule),
 		loadedPolicies:   make(map[string]string),
+		logger:           logger,
 	}
 }

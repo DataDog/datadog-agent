@@ -14,8 +14,6 @@ import (
 	"regexp"
 	"sort"
 
-	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v2"
@@ -77,13 +75,13 @@ func LoadPolicy(r io.Reader, name string) (*Policy, error) {
 }
 
 // LoadPolicies loads the policies listed in the configuration and apply them to the given ruleset
-func LoadPolicies(config *config.Config, ruleSet *RuleSet) error {
+func LoadPolicies(policiesDir string, ruleSet *RuleSet) error {
 	var (
 		result *multierror.Error
 		rules  []*RuleDefinition
 	)
 
-	policyFiles, err := ioutil.ReadDir(config.PoliciesDir)
+	policyFiles, err := ioutil.ReadDir(policiesDir)
 	if err != nil {
 		return err
 	}
@@ -95,12 +93,12 @@ func LoadPolicies(config *config.Config, ruleSet *RuleSet) error {
 
 		// policy path extension check
 		if filepath.Ext(filename) != ".policy" {
-			log.Debugf("ignoring file `%s` wrong extension `%s`", policyPath.Name(), filepath.Ext(filename))
+			ruleSet.logger.Debugf("ignoring file `%s` wrong extension `%s`", policyPath.Name(), filepath.Ext(filename))
 			continue
 		}
 
 		// Open policy path
-		f, err := os.Open(filepath.Join(config.PoliciesDir, filename))
+		f, err := os.Open(filepath.Join(policiesDir, filename))
 		if err != nil {
 			result = multierror.Append(result, errors.Wrapf(err, "failed to load policy `%s`", policyPath.Name()))
 			continue

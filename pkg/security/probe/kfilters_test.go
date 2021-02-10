@@ -9,6 +9,7 @@ package probe
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/security/log"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/security/model"
@@ -40,49 +41,49 @@ func TestIsParentDiscarder(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rs := rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil))
+	rs := rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil), log.DatadogAgentLogger{})
 	addRuleExpr(t, rs, `unlink.filename =~ "/var/log/*" && unlink.filename != "/var/log/datadog/system-probe.log"`)
 
 	if is, _ := isParentPathDiscarder(rs, regexCache, model.FileUnlinkEventType, "unlink.filename", "/var/log/datadog/system-probe.log"); is {
 		t.Error("shouldn't be a parent discarder")
 	}
 
-	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil))
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil), log.DatadogAgentLogger{})
 	addRuleExpr(t, rs, `unlink.filename =~ "/var/log/*" && unlink.filename != "/var/log/datadog/system-probe.log"`)
 
 	if is, _ := isParentPathDiscarder(rs, regexCache, model.FileUnlinkEventType, "unlink.filename", "/var/lib/datadog/system-probe.sock"); !is {
 		t.Error("should be a parent discarder")
 	}
 
-	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil))
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil), log.DatadogAgentLogger{})
 	addRuleExpr(t, rs, `unlink.filename == "/var/log/datadog/system-probe.log"`, `unlink.basename == "datadog"`)
 
 	if is, _ := isParentPathDiscarder(rs, regexCache, model.FileUnlinkEventType, "unlink.filename", "/var/log/datadog/datadog-agent.log"); is {
 		t.Error("shouldn't be a parent discarder")
 	}
 
-	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil))
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil), log.DatadogAgentLogger{})
 	addRuleExpr(t, rs, `unlink.filename =~ "/var/log/*" && unlink.basename =~ ".*"`)
 
 	if is, _ := isParentPathDiscarder(rs, regexCache, model.FileUnlinkEventType, "unlink.filename", "/var/lib/.runc/1234"); !is {
 		t.Error("should be a parent discarder")
 	}
 
-	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil))
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil), log.DatadogAgentLogger{})
 	addRuleExpr(t, rs, `unlink.filename == "/etc/conf.d/httpd.conf" || unlink.basename == "conf.d"`)
 
 	if is, _ := isParentPathDiscarder(rs, regexCache, model.FileUnlinkEventType, "unlink.filename", "/etc/conf.d/nginx.conf"); is {
 		t.Error("shouldn't be a parent discarder")
 	}
 
-	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil))
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil), log.DatadogAgentLogger{})
 	addRuleExpr(t, rs, `unlink.filename == "/etc/conf.d/httpd.conf" || unlink.basename == "sys.d"`)
 
 	if is, _ := isParentPathDiscarder(rs, regexCache, model.FileUnlinkEventType, "unlink.filename", "/etc/sys.d/nginx.conf"); is {
 		t.Error("shouldn't be a parent discarder")
 	}
 
-	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil))
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil), log.DatadogAgentLogger{})
 	addRuleExpr(t, rs, `unlink.basename == "conf.d"`)
 
 	if is, _ := isParentPathDiscarder(rs, regexCache, model.FileUnlinkEventType, "unlink.filename", "/etc/conf.d/nginx.conf"); is {
@@ -90,56 +91,56 @@ func TestIsParentDiscarder(t *testing.T) {
 	}
 
 	// field that doesn't exists shouldn't return any discarders
-	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil))
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil), log.DatadogAgentLogger{})
 	addRuleExpr(t, rs, `rename.old.filename == "/etc/conf.d/abc"`)
 
 	if is, _ := isParentPathDiscarder(rs, regexCache, model.FileRenameEventType, "rename.filename", "/etc/conf.d/nginx.conf"); is {
 		t.Error("shouldn't be a parent discarder")
 	}
 
-	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil))
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil), log.DatadogAgentLogger{})
 	addRuleExpr(t, rs, `rename.old.filename == "/etc/conf.d/abc"`)
 
 	if is, _ := isParentPathDiscarder(rs, regexCache, model.FileRenameEventType, "rename.old.filename", "/etc/nginx/nginx.conf"); !is {
 		t.Error("should be a parent discarder")
 	}
 
-	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil))
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil), log.DatadogAgentLogger{})
 	addRuleExpr(t, rs, `unlink.filename =~ "/etc/conf.d/*"`)
 
 	if is, _ := isParentPathDiscarder(rs, regexCache, model.FileUnlinkEventType, "unlink.filename", "/etc/sys.d/nginx.conf"); !is {
 		t.Error("should be a parent discarder")
 	}
 
-	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil))
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil), log.DatadogAgentLogger{})
 	addRuleExpr(t, rs, `unlink.filename =~ "*/conf.*"`)
 
 	if is, _ := isParentPathDiscarder(rs, regexCache, model.FileUnlinkEventType, "unlink.filename", "/etc/conf.d/abc"); is {
 		t.Error("shouldn't be a parent discarder")
 	}
 
-	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil))
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil), log.DatadogAgentLogger{})
 	addRuleExpr(t, rs, `unlink.filename =~ "/etc/conf.d/ab*"`)
 
 	if is, _ := isParentPathDiscarder(rs, regexCache, model.FileUnlinkEventType, "unlink.filename", "/etc/conf.d/abc"); is {
 		t.Error("shouldn't be a parent discarder")
 	}
 
-	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil))
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil), log.DatadogAgentLogger{})
 	addRuleExpr(t, rs, `unlink.filename =~ "*/conf.d/ab*"`)
 
 	if is, _ := isParentPathDiscarder(rs, regexCache, model.FileUnlinkEventType, "unlink.filename", "/etc/conf.d/abc"); is {
 		t.Error("shouldn't be a parent discarder")
 	}
 
-	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil))
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil), log.DatadogAgentLogger{})
 	addRuleExpr(t, rs, `unlink.filename =~ "*/conf.d"`)
 
 	if is, _ := isParentPathDiscarder(rs, regexCache, model.FileUnlinkEventType, "unlink.filename", "/etc/conf.d/abc"); is {
 		t.Error("shouldn't be a parent discarder")
 	}
 
-	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil))
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil), log.DatadogAgentLogger{})
 	addRuleExpr(t, rs, `unlink.filename =~ "/etc/*"`)
 
 	if is, _ := isParentPathDiscarder(rs, regexCache, model.FileUnlinkEventType, "unlink.filename", "/etc/cron.d/log"); is {
@@ -148,7 +149,7 @@ func TestIsParentDiscarder(t *testing.T) {
 }
 
 func TestApproverAncestors(t *testing.T) {
-	rs := rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil))
+	rs := rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil), log.DatadogAgentLogger{})
 	addRuleExpr(t, rs, `open.filename == "/etc/passwd" && process.ancestors.name == "vipw"`, `open.filename == "/etc/shadow" && process.ancestors.name == "vipw"`)
 
 	capabilities, exists := allCapabilities["open"]

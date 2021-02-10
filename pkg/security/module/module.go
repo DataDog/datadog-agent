@@ -128,7 +128,7 @@ func (m *Module) Reload() error {
 	rsa := sprobe.NewRuleSetApplier(m.config, m.probe)
 
 	ruleSet := m.probe.NewRuleSet(rules.NewOptsWithParams(model.SECLConstants, sprobe.SupportedDiscarders))
-	if err := rules.LoadPolicies(m.config, ruleSet); err != nil {
+	if err := rules.LoadPolicies(m.config.PoliciesDir, ruleSet); err != nil {
 		return err
 	}
 
