@@ -108,8 +108,8 @@ type AgentConfig struct {
 	ReplaceTags []*ReplaceRule `json:",omitempty"`
 
 	// transaction analytics
-	AnalyzedRateByServiceLegacy map[string]float64            `json:",omitempty"`
-	AnalyzedSpansByService      map[string]map[string]float64 `json:",omitempty"`
+	AnalyzedRateByServiceLegacy map[string]float64
+	AnalyzedSpansByService      map[string]map[string]float64
 
 	// infrastructure agent binary
 	DDAgentBin string
