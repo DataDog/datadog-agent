@@ -89,6 +89,9 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	if config.Datadog.IsSet(key(spNS, "conntrack_rate_limit")) {
 		a.ConntrackRateLimit = config.Datadog.GetInt(key(spNS, "conntrack_rate_limit"))
 	}
+	if config.Datadog.IsSet(key(spNS, "ignore_conntrack_init_failure")) {
+		a.IgnoreConntrackInitFailure = config.Datadog.GetBool(key(spNS, "ignore_conntrack_init_failure"))
+	}
 	if config.Datadog.IsSet(key(spNS, "enable_conntrack_all_namespaces")) {
 		a.EnableConntrackAllNamespaces = config.Datadog.GetBool(key(spNS, "enable_conntrack_all_namespaces"))
 	}

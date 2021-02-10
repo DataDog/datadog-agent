@@ -742,6 +742,7 @@ func InitConfig(config Config) {
 	config.SetKnown("system_probe_config.collect_local_dns")
 	config.SetKnown("system_probe_config.use_local_system_probe")
 	config.SetKnown("system_probe_config.enable_conntrack")
+	config.SetKnown("system_probe_config.ignore_conntrack_init_failure")
 	config.SetKnown("system_probe_config.sysprobe_socket")
 	config.SetKnown("system_probe_config.conntrack_rate_limit")
 	config.SetKnown("system_probe_config.enable_conntrack_all_namespaces")

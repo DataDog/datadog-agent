@@ -60,6 +60,7 @@ func TracerConfigFromConfig(cfg *config.AgentConfig) *Config {
 	tracerConfig.MaxTrackedConnections = cfg.MaxTrackedConnections
 	tracerConfig.EnableConntrack = cfg.EnableConntrack
 	tracerConfig.ConntrackMaxStateSize = cfg.ConntrackMaxStateSize
+	tracerConfig.IgnoreConntrackInitFailure = cfg.IgnoreConntrackInitFailure
 	tracerConfig.EnableConntrackAllNamespaces = cfg.EnableConntrackAllNamespaces
 	tracerConfig.DebugPort = cfg.SystemProbeDebugPort
 	tracerConfig.EnableHTTPMonitoring = cfg.EnableHTTPMonitoring
