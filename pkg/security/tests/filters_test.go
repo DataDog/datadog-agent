@@ -13,10 +13,7 @@ import (
 	"path/filepath"
 	"syscall"
 	"testing"
-	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/pkg/errors"
 )
@@ -39,28 +36,6 @@ func openTestFile(test *testModule, filename string, flags int) (int, string, er
 	}
 
 	return int(fd), testFile, nil
-}
-
-func waitForOpenDiscarder(test *testModule, filename string) (*probe.Event, error) {
-	timeout := time.After(5 * time.Second)
-	exhaust := time.After(time.Second)
-
-	var event *probe.Event
-	for {
-		select {
-		case <-test.probeHandler.GetActiveEventsChan():
-		case discarder := <-test.discarders:
-			if value, _ := discarder.event.GetFieldValue("open.filename"); value == filename {
-				event = discarder.event.(*sprobe.Event)
-			}
-		case <-exhaust:
-			if event != nil {
-				return event, nil
-			}
-		case <-timeout:
-			return nil, errors.New("timeout")
-		}
-	}
 }
 
 func TestOpenBasenameApproverFilter(t *testing.T) {

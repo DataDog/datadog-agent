@@ -21,11 +21,6 @@ var (
 	testBucketInterval = time.Duration(2 * time.Second).Nanoseconds()
 )
 
-func NewTestConcentrator() *Concentrator {
-	statsChan := make(chan []Bucket)
-	return NewConcentrator(time.Second.Nanoseconds(), statsChan)
-}
-
 // getTsInBucket gives a timestamp in ns which is `offset` buckets late
 func getTsInBucket(alignedNow int64, bsize int64, offset int64) int64 {
 	return alignedNow - offset*bsize + rand.Int63n(bsize)
@@ -137,7 +132,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 	assert := assert.New(t)
 	statsChan := make(chan []Bucket)
 
-	now := time.Now().UnixNano()
+	now := time.Now()
 
 	// Build that simply have spans spread over time windows.
 	trace := pb.Trace{
@@ -159,8 +154,8 @@ func TestConcentratorOldestTs(t *testing.T) {
 
 	t.Run("cold", func(t *testing.T) {
 		// Running cold, all spans in the past should end up in the current time bucket.
-		flushTime := now
-		c := NewConcentrator(testBucketInterval, statsChan)
+		flushTime := now.UnixNano()
+		c := NewConcentrator(testBucketInterval, statsChan, now)
 		c.addNow(testTrace)
 
 		for i := 0; i < c.bufferLen; i++ {
@@ -188,9 +183,9 @@ func TestConcentratorOldestTs(t *testing.T) {
 	})
 
 	t.Run("hot", func(t *testing.T) {
-		flushTime := now
-		c := NewConcentrator(testBucketInterval, statsChan)
-		c.oldestTs = alignTs(now, c.bsize) - int64(c.bufferLen-1)*c.bsize
+		flushTime := now.UnixNano()
+		c := NewConcentrator(testBucketInterval, statsChan, now)
+		c.oldestTs = alignTs(flushTime, c.bsize) - int64(c.bufferLen-1)*c.bsize
 		c.addNow(testTrace)
 
 		for i := 0; i < c.bufferLen-1; i++ {
@@ -236,10 +231,10 @@ func TestConcentratorOldestTs(t *testing.T) {
 func TestConcentratorStatsTotals(t *testing.T) {
 	assert := assert.New(t)
 	statsChan := make(chan []Bucket)
-	c := NewConcentrator(testBucketInterval, statsChan)
 
-	now := time.Now().UnixNano()
-	alignedNow := alignTs(now, c.bsize)
+	now := time.Now()
+	c := NewConcentrator(testBucketInterval, statsChan, now)
+	alignedNow := alignTs(now.UnixNano(), c.bsize)
 
 	// update oldestTs as it running for quite some time, to avoid the fact that at startup
 	// it only allows recent stats.
@@ -269,7 +264,7 @@ func TestConcentratorStatsTotals(t *testing.T) {
 		var hits float64
 		var errors float64
 
-		flushTime := now
+		flushTime := now.UnixNano()
 		for i := 0; i <= c.bufferLen; i++ {
 			stats := c.flushNow(flushTime)
 
@@ -304,7 +299,7 @@ func TestConcentratorStatsTotals(t *testing.T) {
 		}
 		c.addNow(testTrace)
 
-		flushTime := now
+		flushTime := now.UnixNano()
 		for i := 0; i <= c.bufferLen; i++ {
 			stats := c.flushNow(flushTime)
 			if len(stats) == 0 {
@@ -325,7 +320,7 @@ func TestConcentratorStatsTotals(t *testing.T) {
 		}
 		c.addNow(testTrace)
 
-		flushTime := now
+		flushTime := now.UnixNano()
 		for i := 0; i <= c.bufferLen; i++ {
 			stats := c.flushNow(flushTime)
 			if len(stats) == 0 {
@@ -343,10 +338,10 @@ func TestConcentratorStatsTotals(t *testing.T) {
 func TestConcentratorStatsCounts(t *testing.T) {
 	assert := assert.New(t)
 	statsChan := make(chan []Bucket)
-	c := NewConcentrator(testBucketInterval, statsChan)
 
-	now := time.Now().UnixNano()
-	alignedNow := alignTs(now, c.bsize)
+	now := time.Now()
+	c := NewConcentrator(testBucketInterval, statsChan, now)
+	alignedNow := alignTs(now.UnixNano(), c.bsize)
 
 	// update oldestTs as it running for quite some time, to avoid the fact that at startup
 	// it only allows recent stats.
@@ -422,7 +417,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 	c.addNow(testTrace)
 
 	// flush every testBucketInterval
-	flushTime := now
+	flushTime := now.UnixNano()
 	for i := 0; i <= c.bufferLen+2; i++ {
 		t.Run(fmt.Sprintf("flush-%d", i), func(t *testing.T) {
 			stats := c.flushNow(flushTime)
@@ -462,10 +457,10 @@ func TestConcentratorStatsCounts(t *testing.T) {
 func TestConcentratorSublayersStatsCounts(t *testing.T) {
 	assert := assert.New(t)
 	statsChan := make(chan []Bucket)
-	c := NewConcentrator(testBucketInterval, statsChan)
 
-	now := time.Now().UnixNano()
-	alignedNow := now - now%c.bsize
+	now := time.Now()
+	c := NewConcentrator(testBucketInterval, statsChan, now)
+	alignedNow := now.UnixNano() - now.UnixNano()%c.bsize
 
 	traces := []pb.Trace{
 		{
@@ -552,7 +547,7 @@ func TestConcentratorSublayersStatsCounts(t *testing.T) {
 
 // TestConcentratorAdd tests the count aggregation behavior of addNow.
 func TestConcentratorAdd(t *testing.T) {
-	now := time.Now().UnixNano()
+	now := time.Now()
 	for name, test := range map[string]struct {
 		in  pb.Trace
 		out map[string]float64
@@ -626,9 +621,9 @@ func TestConcentratorAdd(t *testing.T) {
 				sublayers[subtrace.Root] = subtraceSublayers
 			}
 			testTrace.Sublayers = sublayers
-			c := NewConcentrator(testBucketInterval, statsChan)
+			c := NewConcentrator(testBucketInterval, statsChan, now)
 			c.addNow(testTrace)
-			stats := c.flushNow(now + (int64(c.bufferLen) * testBucketInterval))
+			stats := c.flushNow(now.UnixNano() + (int64(c.bufferLen) * testBucketInterval))
 			countValsEq(t, test.out, stats[0].Counts)
 		})
 	}

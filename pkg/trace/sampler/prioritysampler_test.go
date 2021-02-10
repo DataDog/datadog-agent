@@ -187,7 +187,7 @@ func TestTargetTPSByService(t *testing.T) {
 		handledCount := 0
 
 		for period := 0; period < initPeriods+periods; period++ {
-			s.Sampler.Backend.(*MemoryBackend).decayScore()
+			s.Sampler.Backend.decayScore()
 			s.Sampler.AdjustScoring()
 			for i := 0; i < int(tracesPerPeriod); i++ {
 				trace, root := getTestTraceWithService(t, "service-a", s)

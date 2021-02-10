@@ -22,7 +22,7 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
@@ -203,7 +203,7 @@ func TestOpen(t *testing.T) {
 			}
 
 			if flags := event.Open.Flags; flags != syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC {
-				t.Errorf("expected open mode O_CREAT|O_WRONLY|O_TRUNC, got %s", probe.OpenFlags(flags))
+				t.Errorf("expected open mode O_CREAT|O_WRONLY|O_TRUNC, got %s", model.OpenFlags(flags))
 			}
 
 			if inode := getInode(t, testFile); inode != event.Open.Inode {

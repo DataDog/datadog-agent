@@ -58,7 +58,7 @@ type Engine interface {
 // Sampler is the main component of the sampling logic
 type Sampler struct {
 	// Storage of the state of the sampler
-	Backend Backend
+	Backend *MemoryBackend
 
 	// Extra sampling rate to combine to the existing sampling
 	extraRate float64
