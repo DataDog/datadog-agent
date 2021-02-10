@@ -41,9 +41,9 @@ namespace
 
     std::wstring format_proxy(const std::wstring &proxyHost, const property_retriever &propertyRetriever)
     {
-        const auto &proxyPort = propertyRetriever(L"PROXY_PORT");
-        const auto &proxyUser = propertyRetriever(L"PROXY_USER");
-        const auto &proxyPassword = propertyRetriever(L"PROXY_PASSWORD");
+        const auto proxyPort = propertyRetriever(L"PROXY_PORT");
+        const auto proxyUser = propertyRetriever(L"PROXY_USER");
+        const auto proxyPassword = propertyRetriever(L"PROXY_PASSWORD");
         std::wstringstream proxy;
         if (proxyUser)
         {
