@@ -107,7 +107,7 @@ func (r *HTTPReceiver) buildMux() *http.ServeMux {
 
 	r.attachDebugHandlers(mux)
 	for _, e := range endpoints {
-		mux.Handle(e.Name, e.Handler(r))
+		mux.Handle(e.Pattern, e.Handler(r))
 	}
 	mux.HandleFunc("/info", r.makeInfoHandler())
 
@@ -411,7 +411,7 @@ func (r *HTTPReceiver) makeInfoHandler() http.HandlerFunc {
 	var all []string
 	for _, e := range endpoints {
 		if !e.Hidden {
-			all = append(all, e.Name)
+			all = append(all, e.Pattern)
 		}
 	}
 	txt, err := json.MarshalIndent(struct {

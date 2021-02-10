@@ -2,69 +2,77 @@ package api
 
 import "net/http"
 
+// endpoint specifies an API endpoint definition.
 type endpoint struct {
-	Name    string
+	// Pattern specifies the API pattern, as registered by the HTTP handler.
+	Pattern string
+
+	// Handler specifies the http.Handler for this endpoint.
 	Handler func(*HTTPReceiver) http.Handler
-	Hidden  bool
+
+	// Hidden reports whether this endpoint should be hidden in the /info
+	// discovery endpoint.
+	Hidden bool
 }
 
+// endpoints specifies the list of endpoints registered for the trace-agent API.
 var endpoints = []endpoint{
 	{
-		Name:    "/spans",
+		Pattern: "/spans",
 		Handler: func(r *HTTPReceiver) http.Handler { return r.handleWithVersion(v01, r.handleTraces) },
 		Hidden:  true,
 	},
 	{
-		Name:    "/services",
+		Pattern: "/services",
 		Handler: func(r *HTTPReceiver) http.Handler { return r.handleWithVersion(v01, r.handleServices) },
 		Hidden:  true,
 	},
 	{
-		Name:    "/v0.1/spans",
+		Pattern: "/v0.1/spans",
 		Handler: func(r *HTTPReceiver) http.Handler { return r.handleWithVersion(v01, r.handleTraces) },
 		Hidden:  true,
 	},
 	{
-		Name:    "/v0.1/services",
+		Pattern: "/v0.1/services",
 		Handler: func(r *HTTPReceiver) http.Handler { return r.handleWithVersion(v01, r.handleServices) },
 		Hidden:  true,
 	},
 	{
-		Name:    "/v0.2/traces",
+		Pattern: "/v0.2/traces",
 		Handler: func(r *HTTPReceiver) http.Handler { return r.handleWithVersion(v02, r.handleTraces) },
 		Hidden:  true,
 	},
 	{
-		Name:    "/v0.2/services",
+		Pattern: "/v0.2/services",
 		Handler: func(r *HTTPReceiver) http.Handler { return r.handleWithVersion(v02, r.handleServices) },
 		Hidden:  true,
 	},
 	{
-		Name:    "/v0.3/traces",
+		Pattern: "/v0.3/traces",
 		Handler: func(r *HTTPReceiver) http.Handler { return r.handleWithVersion(v03, r.handleTraces) },
 	},
 	{
-		Name:    "/v0.3/services",
+		Pattern: "/v0.3/services",
 		Handler: func(r *HTTPReceiver) http.Handler { return r.handleWithVersion(v03, r.handleServices) },
 	},
 	{
-		Name:    "/v0.4/traces",
+		Pattern: "/v0.4/traces",
 		Handler: func(r *HTTPReceiver) http.Handler { return r.handleWithVersion(v04, r.handleTraces) },
 	},
 	{
-		Name:    "/v0.4/services",
+		Pattern: "/v0.4/services",
 		Handler: func(r *HTTPReceiver) http.Handler { return r.handleWithVersion(v04, r.handleServices) },
 	},
 	{
-		Name:    "/v0.5/traces",
+		Pattern: "/v0.5/traces",
 		Handler: func(r *HTTPReceiver) http.Handler { return r.handleWithVersion(v05, r.handleTraces) },
 	},
 	{
-		Name:    "/v0.5/stats",
+		Pattern: "/v0.5/stats",
 		Handler: func(r *HTTPReceiver) http.Handler { return http.HandlerFunc(r.handleStats) },
 	},
 	{
-		Name:    "/profiling/v1/input",
+		Pattern: "/profiling/v1/input",
 		Handler: func(r *HTTPReceiver) http.Handler { return r.profileProxyHandler() },
 	},
 }
