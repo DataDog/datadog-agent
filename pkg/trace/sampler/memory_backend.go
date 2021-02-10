@@ -17,6 +17,9 @@ import (
 // Its bias with steady counts is 1 * decayFactor.
 // The stored scores represent approximation of the real count values (with a countScaleFactor factor).
 type MemoryBackend struct {
+	// seen, kept are used for telemetry
+	seen int64
+	kept int64
 	// scores maps signatures to scores.
 	scores map[Signature]float64
 
@@ -45,10 +48,6 @@ type MemoryBackend struct {
 	// receive N times the same signature, its immediate count will be
 	// increased by N / countScaleFactor.
 	countScaleFactor float64
-
-	// seen, kept are used for telemetry
-	seen int64
-	kept int64
 }
 
 // NewMemoryBackend returns an initialized Backend.
