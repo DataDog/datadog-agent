@@ -376,7 +376,7 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 			}
 			for _, k := range apiKeys {
 				a.APIEndpoints = append(a.APIEndpoints, api.Endpoint{
-					APIKey:   k,
+					APIKey:   config.SanitizeAPIKey(k),
 					Endpoint: u,
 				})
 			}

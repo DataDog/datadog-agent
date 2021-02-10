@@ -139,7 +139,7 @@ func extractEndpoints(URL *url.URL, k string, endpoints *[]api.Endpoint) error {
 		}
 		for _, k := range apiKeys {
 			*endpoints = append(*endpoints, api.Endpoint{
-				APIKey:   k,
+				APIKey:   config.SanitizeAPIKey(k),
 				Endpoint: u,
 			})
 		}
