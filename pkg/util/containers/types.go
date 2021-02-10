@@ -65,7 +65,7 @@ type Container struct {
 	StartedAt      int64
 
 	// For internal use only
-	cgroup *metrics.ContainerCgroup
+	CGroup *metrics.ContainerCgroup
 }
 
 // NetworkAddress represents a tuple IP/Port/Protocol
