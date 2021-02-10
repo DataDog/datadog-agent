@@ -47,6 +47,7 @@ DEFAULT_BUILD_TAGS = [
 AGENT_CORECHECKS = [
     "cpu",
     "cri",
+    "docker",
     "file_handle",
     "go_expvar",
     "io",
