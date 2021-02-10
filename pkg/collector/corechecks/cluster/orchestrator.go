@@ -8,9 +8,11 @@
 package cluster
 
 import (
+	"context"
 	"errors"
 	"math/rand"
 	"sync/atomic"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -35,12 +37,14 @@ import (
 )
 
 const (
-	orchestratorCheckName = "orchestrator"
+	orchestratorCheckName   = "orchestrator"
+	maximumWaitForAPIServer = 10 * time.Second
+	collectionInterval      = 10 * time.Second
 )
 
 var (
 	defaultResources = []string{
-		"unassignedpods",
+		"pods", // unassigned pods
 		"deployments",
 		"replicasets",
 		"services",
@@ -97,6 +101,7 @@ func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance) *
 	}
 }
 
+// OrchestratorFactory returns the orchestrator check
 func OrchestratorFactory() check.Check {
 	return newOrchestratorCheck(
 		core.NewCheckBase(orchestratorCheckName),
@@ -104,13 +109,27 @@ func OrchestratorFactory() check.Check {
 	)
 }
 
+// Interval returns the scheduling time for the check.
+func (o *OrchestratorCheck) Interval() time.Duration {
+	return collectionInterval
+}
+
+// Configure configures the orchestrator check
 func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, source string) error {
 	o.BuildID(config, initConfig)
 
+	err := o.CommonConfigure(config, source)
+	if err != nil {
+		return err
+	}
+
 	// loading agent level config
-	if !corecfg.Datadog.GetBool("orchestrator_explorer.enabled") {
+	o.orchestratorConfig.OrchestrationCollectionEnabled = corecfg.Datadog.GetBool("orchestrator_explorer.enabled")
+	if !o.orchestratorConfig.OrchestrationCollectionEnabled {
 		return errors.New("orchestrator check is configured but the feature is disabled")
 	}
+	o.orchestratorConfig.IsScrubbingEnabled = corecfg.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled")
+	o.orchestratorConfig.ExtraTags = corecfg.Datadog.GetStringSlice("orchestrator_explorer.extra_tags")
 
 	// check if cluster name is set
 	hostname, _ := coreutil.GetHostname()
@@ -118,8 +137,8 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 		o.orchestratorConfig.KubeClusterName = clusterName
 	}
 
-	// load instance level config (TODO:migrate settings)
-	err := o.instance.parse(config)
+	// load instance level config
+	err = o.instance.parse(config)
 	if err != nil {
 		log.Error("could not parse the config for the API server")
 		return err
@@ -130,10 +149,13 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 		return err
 	}
 
-	// start informers
-	// reuse the common API Server client to share the cache
-	// TODO is it safe? or wait for client (same issue in KSMv2)
-	apiCl, err := apiserver.GetAPIClient()
+	// Reuse the common API Server client to share the cache
+	// Due to how init is done, we cannot use GetAPIClient in `Run()` method
+	// So we are waiting for a reasonable amount of time here in case.
+	// We cannot wait forever as there's no way to be notified of shutdown
+	apiCtx, apiCancel := context.WithTimeout(context.Background(), maximumWaitForAPIServer)
+	defer apiCancel()
+	apiCl, err := apiserver.WaitForAPIClient(apiCtx)
 	if err != nil {
 		return err
 	}
@@ -150,7 +172,7 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 
 	for _, v := range collectors {
 		switch v {
-		case "unassignedpods":
+		case "pods":
 			podInformer := apiCl.UnassignedPodInformerFactory.Core().V1().Pods()
 			o.unassignedPodLister = podInformer.Lister()
 			o.unassignedPodListerSync = podInformer.Informer().HasSynced
@@ -176,7 +198,7 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 			o.nodesListerSync = nodesInformer.Informer().HasSynced
 			informersToSync[apiserver.NodesInformer] = nodesInformer.Informer()
 		default:
-			log.Errorf("Unsupported collector: %s", v)
+			o.Warnf("Unsupported collector: %s", v) //nolint:errcheck
 		}
 	}
 
@@ -186,6 +208,7 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 	return apiserver.SyncInformers(informersToSync)
 }
 
+// Run runs the orchestrator check
 func (o *OrchestratorCheck) Run() error {
 	// access serializer
 	sender, err := aggregator.GetSender(o.ID())
@@ -198,7 +221,7 @@ func (o *OrchestratorCheck) Run() error {
 	if !o.instance.LeaderSkip {
 		// Only run if Leader Election is enabled.
 		if !config.Datadog.GetBool("leader_election") {
-			return log.Error("Leader Election not enabled. Not running Kubernetes API Server check or collecting Kubernetes Events.")
+			return log.Error("Leader Election not enabled. The cluster-agent will not run the check.")
 		}
 		errLeader := o.runLeaderElection()
 		if errLeader != nil {
@@ -227,13 +250,13 @@ func (o *OrchestratorCheck) processDeploys(sender aggregator.Sender) {
 	}
 	deployList, err := o.deployLister.List(labels.Everything())
 	if err != nil {
-		log.Errorf("Unable to list deployments: %s", err)
+		o.Warnf("Unable to list deployments: %s", err) //nolint:errcheck
 		return
 	}
 
 	messages, err := processDeploymentList(deployList, atomic.AddInt32(&o.groupID, 1), o.orchestratorConfig, o.clusterID)
 	if err != nil {
-		log.Errorf("Unable to process deployment list: %v", err)
+		o.Warnf("Unable to process deployment list: %v", err) //nolint:errcheck
 		return
 	}
 
@@ -254,13 +277,13 @@ func (o *OrchestratorCheck) processReplicaSets(sender aggregator.Sender) {
 	}
 	rsList, err := o.rsLister.List(labels.Everything())
 	if err != nil {
-		log.Errorf("Unable to list replica sets: %s", err)
+		o.Warnf("Unable to list replica sets: %s", err) //nolint:errcheck
 		return
 	}
 
 	messages, err := processReplicaSetList(rsList, atomic.AddInt32(&o.groupID, 1), o.orchestratorConfig, o.clusterID)
 	if err != nil {
-		log.Errorf("Unable to process replica set list: %v", err)
+		log.Errorf("Unable to process replica set list: %v", err) //nolint:errcheck
 		return
 	}
 
@@ -281,14 +304,14 @@ func (o *OrchestratorCheck) processServices(sender aggregator.Sender) {
 	}
 	serviceList, err := o.serviceLister.List(labels.Everything())
 	if err != nil {
-		log.Errorf("Unable to list services: %s", err)
+		o.Warnf("Unable to list services: %s", err) //nolint:errcheck
 		return
 	}
 	groupID := atomic.AddInt32(&o.groupID, 1)
 
 	messages, err := processServiceList(serviceList, groupID, o.orchestratorConfig, o.clusterID)
 	if err != nil {
-		log.Errorf("Unable to process service list: %s", err)
+		o.Warnf("Unable to process service list: %s", err) //nolint:errcheck
 		return
 	}
 
@@ -309,14 +332,14 @@ func (o *OrchestratorCheck) processNodes(sender aggregator.Sender) {
 	}
 	nodesList, err := o.nodesLister.List(labels.Everything())
 	if err != nil {
-		log.Errorf("Unable to list nodes: %s", err)
+		o.Warnf("Unable to list nodes: %s", err) //nolint:errcheck
 		return
 	}
 	groupID := atomic.AddInt32(&o.groupID, 1)
 
 	messages, err := processNodesList(nodesList, groupID, o.orchestratorConfig, o.clusterID)
 	if err != nil {
-		log.Errorf("Unable to process node list: %s", err)
+		o.Warnf("Unable to process node list: %s", err) //nolint:errcheck
 		return
 	}
 
@@ -337,14 +360,14 @@ func (o *OrchestratorCheck) processPods(sender aggregator.Sender) {
 	}
 	podList, err := o.unassignedPodLister.List(labels.Everything())
 	if err != nil {
-		log.Errorf("Unable to list pods: %s", err)
+		o.Warnf("Unable to list pods: %s", err) //nolint:errcheck
 		return
 	}
 
 	// we send an empty hostname for unassigned pods
 	messages, err := orchestrator.ProcessPodList(podList, atomic.AddInt32(&o.groupID, 1), "", o.clusterID, o.orchestratorConfig)
 	if err != nil {
-		log.Errorf("Unable to process pod list: %v", err)
+		o.Warnf("Unable to process pod list: %v", err) //nolint:errcheck
 		return
 	}
 
@@ -359,13 +382,11 @@ func (o *OrchestratorCheck) processPods(sender aggregator.Sender) {
 	sender.OrchestratorMetadata(messages, o.clusterID, forwarder.PayloadTypePod)
 }
 
+// Cancel cancels the orchestrator check
 func (o *OrchestratorCheck) Cancel() {
-	//TODO
+	log.Infof("Shutting down informers used by the check '%s'", o.ID())
 	close(o.stopCh)
-}
-
-func (o *OrchestratorCheck) Stop() {
-	//TODO
+	o.CommonCancel()
 }
 
 func (o *OrchestratorCheck) runLeaderElection() error {
