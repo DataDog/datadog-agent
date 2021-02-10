@@ -163,7 +163,7 @@ func enableProfiling(cfg *config.AgentConfig) error {
 
 	// check if TRACE_AGENT_URL is set, in which case, forward the profiles to the trace agent
 	if traceAgentURL := os.Getenv("TRACE_AGENT_URL"); len(traceAgentURL) > 0 {
-		site = fmt.Sprintf(profiling.ProfilingLocalURL, traceAgentURL)
+		site = fmt.Sprintf(profiling.ProfilingLocalURLTemplate, traceAgentURL)
 	} else {
 		// allow full url override for development use
 		s := ddconfig.DefaultSite
