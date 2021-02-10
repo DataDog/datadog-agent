@@ -615,8 +615,8 @@ func TestInfoHandler(t *testing.T) {
 			RemovePathDigits:  true,
 		},
 		RemoveStackTraces: false,
-		Redis:             config.Enablable{true},
-		Memcached:         config.Enablable{false},
+		Redis:             config.Enablable{Enabled: true},
+		Memcached:         config.Enablable{Enabled: false},
 	}
 	rcv := newTestReceiverFromConfig(&config.AgentConfig{
 		Enabled:    true,
