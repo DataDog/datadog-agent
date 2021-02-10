@@ -81,13 +81,13 @@ func (d *DockerCheck) reportEvents(events []*docker.ContainerEvent, sender aggre
     		if ev.Action == "restart" {
 				// Building and sending message
 				message := fmt.Sprintf("Container %s restarted", ev.ContainerName)
-				status := "RESTART"
+				status := metrics.ServiceCheckWarning
 				tags, err := tagger.Tag(ev.ContainerEntityName(), collectors.HighCardinality)
 				if err != nil {
 					log.Debugf("no tags for %s: %s", ev.ContainerID, err)
 				}
-				sender.Event(ev)
-				sender.ServiceCheck("docker.restart", status, "", tags, message)
+// 				sender.Event(ev)
+				sender.ServiceCheck(DockerRestart, status, "", tags, message)
     		}
     }
 

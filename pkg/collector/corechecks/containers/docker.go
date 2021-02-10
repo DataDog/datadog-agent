@@ -34,6 +34,7 @@ const (
 	dockerCheckName = "docker"
 	DockerServiceUp = "docker.service_up"
 	DockerExit      = "docker.exit"
+	DockerRestart   = "docker.restart"
 )
 
 type DockerConfig struct {
