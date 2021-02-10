@@ -88,7 +88,8 @@ func (d *DockerCheck) reportEvents(events []*docker.ContainerEvent, sender aggre
 				}
 				sender.Event(ev)
 				sender.ServiceCheck(DockerRestart, status, "", tags, message)
-    	}
+    		}
+    }
 
 	bundles := aggregateEvents(events, d.instance.FilteredEventType)
 
