@@ -164,10 +164,9 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.EnabledChecks = append(a.EnabledChecks, "TCP queue length")
 	}
 
-	if config.Datadog.GetBool(key(spNS, "process_tracer.enabled")) {
-		log.Info("system_probe_config.process_tracer.enabled detected, will enable system-probe with process_tracer")
+	if config.Datadog.GetBool(key(spNS, "process.enabled")) {
 		a.EnableSystemProbe = true
-		a.EnabledChecks = append(a.EnabledChecks, "Process Tracer")
+		a.EnabledChecks = append(a.EnabledChecks, "Process")
 	}
 
 	if config.Datadog.GetBool(key(spNS, "enable_oom_kill")) {

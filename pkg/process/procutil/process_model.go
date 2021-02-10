@@ -40,7 +40,7 @@ type Stats struct {
 	CtxSwitches *NumCtxSwitchesStat
 }
 
-// StatsWithPerm is a collection of stats that require escalated permission to collect in linux
+// StatsWithPerm is a collection of stats that require elevated permission to collect in linux
 type StatsWithPerm struct {
 	OpenFdCount int32
 	IOStat      *IOCountersStat
