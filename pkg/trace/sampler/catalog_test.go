@@ -59,7 +59,7 @@ func TestServiceKeyCatalogRegister(t *testing.T) {
 	assert := assert.New(t)
 
 	cat := newServiceLookup()
-	s := getTestPriorityEngine()
+	s := getTestPrioritySampler()
 
 	_, root1 := getTestTraceWithService(t, "service1", s)
 	sig1 := cat.register(ServiceSignature{root1.Service, defaultEnv})
@@ -85,7 +85,7 @@ func TestServiceKeyCatalogRatesByService(t *testing.T) {
 	assert := assert.New(t)
 
 	cat := newServiceLookup()
-	s := getTestPriorityEngine()
+	s := getTestPrioritySampler()
 
 	_, root1 := getTestTraceWithService(t, "service1", s)
 	sig1 := cat.register(ServiceSignature{root1.Service, defaultEnv})
