@@ -105,6 +105,8 @@ func OrchestratorFactory() check.Check {
 }
 
 func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, source string) error {
+	o.BuildID(config, initConfig)
+
 	// loading agent level config
 	if !corecfg.Datadog.GetBool("orchestrator_explorer.enabled") {
 		return errors.New("orchestrator check is configured but the feature is disabled")
