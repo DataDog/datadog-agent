@@ -659,10 +659,10 @@ func TestInfoHandler(t *testing.T) {
 		WatchdogInterval:            time.Minute,
 		ProxyURL:                    u,
 		SkipSSLValidation:           false,
-		Ignore:                      map[string][]string{"K": []string{"1", "2"}},
+		Ignore:                      map[string][]string{"K": {"1", "2"}},
 		ReplaceTags:                 []*config.ReplaceRule{{Name: "a", Pattern: "*", Repl: "b"}},
 		AnalyzedRateByServiceLegacy: map[string]float64{"X": 1.2},
-		AnalyzedSpansByService:      map[string]map[string]float64{"X": map[string]float64{"Y": 2.4}},
+		AnalyzedSpansByService:      map[string]map[string]float64{"X": {"Y": 2.4}},
 		DDAgentBin:                  "/path/to/core/agent",
 		Obfuscation:                 obfCfg,
 	})
