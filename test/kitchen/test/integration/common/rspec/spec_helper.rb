@@ -80,6 +80,7 @@ def wait_until_service_stopped(service, timeout = 60)
       else
         break
       end
+    end
     sleep 1
   end
   # HACK: somewhere between 6.15.0 and 6.16.0, the delay between the
@@ -112,6 +113,7 @@ def wait_until_service_started(service, timeout = 30)
       else
         break
       end
+    end
     sleep 1
   end
   # HACK: somewhere between 6.15.0 and 6.16.0, the delay between the
