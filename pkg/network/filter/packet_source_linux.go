@@ -101,7 +101,6 @@ func (p *AFPacketSource) VisitPackets(exit <-chan struct{}, visit func([]byte, t
 	}
 }
 
-
 func (p *AFPacketSource) PacketType() gopacket.LayerType {
 	return layers.LayerTypeEthernet
 }

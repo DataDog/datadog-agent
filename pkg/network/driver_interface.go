@@ -18,8 +18,8 @@ import (
 	"net"
 	"sync"
 	"sync/atomic"
-	"time"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -55,11 +55,11 @@ type DriverExpvar string
 // This is the type that an overlapped read returns -- the overlapped object, which must be passed back to the kernel after reading
 // followed by a predictably sized chunk of bytes
 type _readbuffer struct {
-	ol   windows.Overlapped
+	ol windows.Overlapped
 
 	// This is the MTU of IPv6, which effectively governs the maximum DNS packet size over IPv6
 	// see https://tools.ietf.org/id/draft-madi-dnsop-udp4dns-00.html
-	data [1280]byte  
+	data [1280]byte
 }
 
 const (
@@ -70,7 +70,7 @@ const (
 )
 
 const (
-	dnsReadBufferCount = 100  // TODO: how to tune this?
+	dnsReadBufferCount = 100 // TODO: how to tune this?
 )
 
 // DriverExpvarNames is a list of all the DriverExpvar names returned from GetStats
@@ -98,9 +98,8 @@ type DriverInterface struct {
 	driverStatsHandle *DriverHandle
 	driverDNSHandle   *DriverHandle
 
-
 	dnsReadBuffers []*_readbuffer
-	dnsIOCP windows.Handle
+	dnsIOCP        windows.Handle
 
 	path                  string
 	enableMonotonicCounts bool
@@ -229,7 +228,6 @@ func (di *DriverInterface) setupDNSHandle() error {
 		return err
 	}
 
-
 	di.dnsIOCP = iocp
 	di.dnsReadBuffers = buffers
 	di.driverDNSHandle = dh
@@ -356,7 +354,7 @@ func (di *DriverInterface) ReadDNSPacket(visit func([]byte, time.Time) error) (d
 	var bytesRead uint32
 	var key uint32 // returned by GetQueuedCompletionStatus, then ignored
 	var ol *windows.Overlapped
-	err = windows.GetQueuedCompletionStatus(di.dnsIOCP, &bytesRead, &key, &ol, 0) 
+	err = windows.GetQueuedCompletionStatus(di.dnsIOCP, &bytesRead, &key, &ol, 0)
 	if err != nil {
 		if err == syscall.Errno(syscall.WAIT_TIMEOUT) {
 			// this indicates that there was no queued completion status, this is fine
@@ -571,26 +569,24 @@ func newDDAPIFilter(direction, layer C.uint64_t, ifaceIndex int, isIPV4 bool) C.
 	return fd
 }
 
-
 // prepare N read buffers
 // and return the IoCompletionPort that will be used to coordinate reads.
 // danger: even though all reads will reference the returned iocp, buffers must be in-scope as long
 // as reads are happening. Otherwise, the memory the kernel is writing to will be written to memory reclaimed
-// by the GC 
-func  prepareCompletionBuffers(h windows.Handle, count int) (iocp windows.Handle, buffers []*_readbuffer, err error) {
+// by the GC
+func prepareCompletionBuffers(h windows.Handle, count int) (iocp windows.Handle, buffers []*_readbuffer, err error) {
 	iocp, err = windows.CreateIoCompletionPort(h, windows.Handle(0), 0, 0)
 	if err != nil {
 		return windows.Handle(0), nil, errors.Wrap(err, "error creating IO completion port")
 	}
 
-
-	sizeOfReadBuffer := unsafe.Sizeof(_readbuffer{})	
+	sizeOfReadBuffer := unsafe.Sizeof(_readbuffer{})
 	buffers = make([]*_readbuffer, count)
-	for i := 0; i < count ; i ++ {
+	for i := 0; i < count; i++ {
 		buffers[i] = (*_readbuffer)(C.malloc(C.ulonglong(sizeOfReadBuffer)))
 		buf := buffers[i]
 		err := windows.ReadFile(h, buf.data[:], nil, &(buf.ol))
-		if err != nil && err != windows.ERROR_IO_PENDING  {
+		if err != nil && err != windows.ERROR_IO_PENDING {
 			windows.CloseHandle(iocp)
 			return windows.Handle(0), nil, errors.Wrap(err, "failed to initiate readfile")
 		}

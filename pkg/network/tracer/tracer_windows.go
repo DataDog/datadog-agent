@@ -77,7 +77,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 
 	packetSrc := network.NewWindowsPacketSource(di)
 
-	reverseDNS, err :=  network.NewSocketFilterSnooper(config, packetSrc)
+	reverseDNS, err := network.NewSocketFilterSnooper(config, packetSrc)
 	if err != nil {
 		return nil, err
 	}

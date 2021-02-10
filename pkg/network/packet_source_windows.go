@@ -29,12 +29,12 @@ func (p *windowsPacketSource) VisitPackets(exit <-chan struct{}, visit func([]by
 		}
 
 		// break out of loop if exit is closed
-		select{
+		select {
 		case <-exit:
 			return nil
 		default:
 		}
-		
+
 	}
 }
 
