@@ -417,18 +417,14 @@ func (r *HTTPReceiver) makeInfoHandler() http.HandlerFunc {
 	txt, err := json.MarshalIndent(struct {
 		Version      string
 		GitCommit    string
-		GitBranch    string
 		BuildDate    string
-		GoVersion    string
 		Endpoints    []string
 		FeatureFlags []string `json:",omitempty"`
 		Config       *config.AgentConfig
 	}{
 		Version:      info.Version,
 		GitCommit:    info.GitCommit,
-		GitBranch:    info.GitBranch,
 		BuildDate:    info.BuildDate,
-		GoVersion:    info.GoVersion,
 		Endpoints:    all,
 		FeatureFlags: config.Features(),
 		Config:       r.conf,

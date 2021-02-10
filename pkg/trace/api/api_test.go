@@ -668,9 +668,7 @@ func TestInfoHandler(t *testing.T) {
 	})
 	defer func(old string) { info.Version = old }(info.Version)
 	defer func(old string) { info.GitCommit = old }(info.GitCommit)
-	defer func(old string) { info.GitBranch = old }(info.GitBranch)
 	defer func(old string) { info.BuildDate = old }(info.BuildDate)
-	defer func(old string) { info.GoVersion = old }(info.GoVersion)
 	ff, ok := os.LookupEnv("DD_APM_FEATURES")
 	if !ok {
 		defer os.Unsetenv("DD_APM_FEATURES")
@@ -680,9 +678,7 @@ func TestInfoHandler(t *testing.T) {
 	os.Setenv("DD_APM_FEATURES", "feature_flag")
 	info.Version = "0.99.0"
 	info.GitCommit = "fab047e10"
-	info.GitBranch = "master"
 	info.BuildDate = "2020-12-04 15:57:06.74187 +0200 EET m=+0.029001792"
-	info.GoVersion = "1.15.6"
 	h := rcv.makeInfoHandler()
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/info", nil)
@@ -690,9 +686,7 @@ func TestInfoHandler(t *testing.T) {
 	if rec.Body.String() != `{
 	"Version": "0.99.0",
 	"GitCommit": "fab047e10",
-	"GitBranch": "master",
 	"BuildDate": "2020-12-04 15:57:06.74187 +0200 EET m=+0.029001792",
-	"GoVersion": "1.15.6",
 	"Endpoints": [
 		"/v0.3/traces",
 		"/v0.3/services",
