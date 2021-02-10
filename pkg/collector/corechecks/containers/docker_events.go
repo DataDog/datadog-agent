@@ -87,7 +87,7 @@ func (d *DockerCheck) reportEvents(events []*docker.ContainerEvent, sender aggre
 					log.Debugf("no tags for %s: %s", ev.ContainerID, err)
 				}
 				sender.Event(ev)
-				sender.ServiceCheck(DockerRestart, status, "", tags, message)
+				sender.ServiceCheck("docker.restart", status, "", tags, message)
     		}
     }
 
