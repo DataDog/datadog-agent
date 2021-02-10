@@ -11,8 +11,10 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"reflect"
 	"strconv"
@@ -586,9 +588,269 @@ func TestHandleStats(t *testing.T) {
 	})
 }
 
-func TestHelloHandler(t *testing.T) {
-	// TODO(gbbr): Make sure to hard-code all JSON keys in the test to ensure that if
-	// any agent.Config struct fields ever change, the JSON output will stay the same.
+// TestInfoHandler ensures that the keys returned by the /info handler do not
+// change from one release to another to ensure consistency. Tracing clients
+// depend on these keys to be the same. The chances of them changing are quite
+// high if anyone ever modifies a field name in the (*AgentConfig).Config structure.
+//
+// * In case a field name gets modified, the `json:""` struct field tag
+// should be used to ensure the old key is marshalled for this endpoint.
+func TestInfoHandler(t *testing.T) {
+	u, err := url.Parse("http://localhost:8888/proxy")
+	if err != nil {
+		log.Fatal(err)
+	}
+	jsonObfCfg := config.JSONObfuscationConfig{
+		Enabled:            true,
+		KeepValues:         []string{"a", "b", "c"},
+		ObfuscateSQLValues: []string{"x", "y"},
+	}
+	obfCfg := &config.ObfuscationConfig{
+		ES:                   jsonObfCfg,
+		Mongo:                jsonObfCfg,
+		SQLExecPlan:          jsonObfCfg,
+		SQLExecPlanNormalize: jsonObfCfg,
+		HTTP: config.HTTPObfuscationConfig{
+			RemoveQueryString: true,
+			RemovePathDigits:  true,
+		},
+		RemoveStackTraces: false,
+		Redis:             config.Enablable{true},
+		Memcached:         config.Enablable{false},
+	}
+	rcv := newTestReceiverFromConfig(&config.AgentConfig{
+		Enabled:    true,
+		Hostname:   "test.host.name",
+		DefaultEnv: "prod",
+		ConfigPath: "/path/to/config",
+		Endpoints: []*config.Endpoint{{
+			APIKey:  "123",
+			Host:    "https://target-intake.datadoghq.com",
+			NoProxy: true,
+		}},
+		BucketInterval:   time.Second,
+		ExtraAggregators: []string{"agg:val"},
+		ExtraSampleRate:  2.4,
+		TargetTPS:        11,
+		MaxEPS:           12,
+		ReceiverHost:     "localhost",
+		ReceiverPort:     8111,
+		ReceiverSocket:   "/sock/path",
+		ConnectionLimit:  12,
+		ReceiverTimeout:  100,
+		MaxRequestBytes:  123,
+		StatsWriter: &config.WriterConfig{
+			ConnectionLimit:    20,
+			QueueSize:          12,
+			FlushPeriodSeconds: 14.4,
+		},
+		TraceWriter: &config.WriterConfig{
+			ConnectionLimit:    21,
+			QueueSize:          13,
+			FlushPeriodSeconds: 15.4,
+		},
+		StatsdHost:                  "stastd.localhost",
+		StatsdPort:                  123,
+		LogLevel:                    "WARN",
+		LogFilePath:                 "/path/to/logfile",
+		LogThrottling:               false,
+		MaxMemory:                   1000000,
+		MaxCPU:                      12345,
+		WatchdogInterval:            time.Minute,
+		ProxyURL:                    u,
+		SkipSSLValidation:           false,
+		Ignore:                      map[string][]string{"K": []string{"1", "2"}},
+		ReplaceTags:                 []*config.ReplaceRule{{Name: "a", Pattern: "*", Repl: "b"}},
+		AnalyzedRateByServiceLegacy: map[string]float64{"X": 1.2},
+		AnalyzedSpansByService:      map[string]map[string]float64{"X": map[string]float64{"Y": 2.4}},
+		DDAgentBin:                  "/path/to/core/agent",
+		Obfuscation:                 obfCfg,
+	})
+	defer func(old string) { info.Version = old }(info.Version)
+	defer func(old string) { info.GitCommit = old }(info.GitCommit)
+	defer func(old string) { info.GitBranch = old }(info.GitBranch)
+	defer func(old string) { info.BuildDate = old }(info.BuildDate)
+	defer func(old string) { info.GoVersion = old }(info.GoVersion)
+	ff, ok := os.LookupEnv("DD_APM_FEATURES")
+	if !ok {
+		defer os.Unsetenv("DD_APM_FEATURES")
+	} else {
+		defer func(old string) { os.Setenv("DD_APM_FEATURES", old) }(ff)
+	}
+	os.Setenv("DD_APM_FEATURES", "feature_flag")
+	info.Version = "0.99.0"
+	info.GitCommit = "fab047e10"
+	info.GitBranch = "master"
+	info.BuildDate = "2020-12-04 15:57:06.74187 +0200 EET m=+0.029001792"
+	info.GoVersion = "1.15.6"
+	h := rcv.makeInfoHandler()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/info", nil)
+	h.ServeHTTP(rec, req)
+	if rec.Body.String() != `{
+	"Version": "0.99.0",
+	"GitCommit": "fab047e10",
+	"GitBranch": "master",
+	"BuildDate": "2020-12-04 15:57:06.74187 +0200 EET m=+0.029001792",
+	"GoVersion": "1.15.6",
+	"Endpoints": [
+		"/v0.3/traces",
+		"/v0.3/services",
+		"/v0.4/traces",
+		"/v0.4/services",
+		"/v0.5/traces",
+		"/v0.5/stats",
+		"/profiling/v1/input"
+	],
+	"FeatureFlags": [
+		"feature_flag"
+	],
+	"Config": {
+		"Enabled": true,
+		"Hostname": "test.host.name",
+		"DefaultEnv": "prod",
+		"ConfigPath": "/path/to/config",
+		"Endpoints": [
+			{
+				"Host": "https://target-intake.datadoghq.com",
+				"NoProxy": true
+			}
+		],
+		"BucketInterval": 1000000000,
+		"ExtraAggregators": [
+			"agg:val"
+		],
+		"ExtraSampleRate": 2.4,
+		"TargetTPS": 11,
+		"MaxEPS": 12,
+		"ReceiverHost": "localhost",
+		"ReceiverPort": 8111,
+		"ReceiverSocket": "/sock/path",
+		"ConnectionLimit": 12,
+		"ReceiverTimeout": 100,
+		"MaxRequestBytes": 123,
+		"StatsWriter": {
+			"ConnectionLimit": 20,
+			"QueueSize": 12,
+			"FlushPeriodSeconds": 14.4
+		},
+		"TraceWriter": {
+			"ConnectionLimit": 21,
+			"QueueSize": 13,
+			"FlushPeriodSeconds": 15.4
+		},
+		"ConnectionResetInterval": 0,
+		"StatsdHost": "stastd.localhost",
+		"StatsdPort": 123,
+		"LogLevel": "WARN",
+		"LogFilePath": "/path/to/logfile",
+		"LogThrottling": false,
+		"MaxMemory": 1000000,
+		"MaxCPU": 12345,
+		"WatchdogInterval": 60000000000,
+		"ProxyURL": {
+			"Scheme": "http",
+			"Opaque": "",
+			"User": null,
+			"Host": "localhost:8888",
+			"Path": "/proxy",
+			"RawPath": "",
+			"ForceQuery": false,
+			"RawQuery": "",
+			"Fragment": "",
+			"RawFragment": ""
+		},
+		"SkipSSLValidation": false,
+		"Ignore": {
+			"K": [
+				"1",
+				"2"
+			]
+		},
+		"ReplaceTags": [
+			{
+				"Name": "a",
+				"Pattern": "*",
+				"Re": null,
+				"Repl": "b"
+			}
+		],
+		"AnalyzedRateByServiceLegacy": {
+			"X": 1.2
+		},
+		"AnalyzedSpansByService": {
+			"X": {
+				"Y": 2.4
+			}
+		},
+		"DDAgentBin": "/path/to/core/agent",
+		"Obfuscation": {
+			"ES": {
+				"Enabled": true,
+				"KeepValues": [
+					"a",
+					"b",
+					"c"
+				],
+				"ObfuscateSQLValues": [
+					"x",
+					"y"
+				]
+			},
+			"Mongo": {
+				"Enabled": true,
+				"KeepValues": [
+					"a",
+					"b",
+					"c"
+				],
+				"ObfuscateSQLValues": [
+					"x",
+					"y"
+				]
+			},
+			"SQLExecPlan": {
+				"Enabled": true,
+				"KeepValues": [
+					"a",
+					"b",
+					"c"
+				],
+				"ObfuscateSQLValues": [
+					"x",
+					"y"
+				]
+			},
+			"SQLExecPlanNormalize": {
+				"Enabled": true,
+				"KeepValues": [
+					"a",
+					"b",
+					"c"
+				],
+				"ObfuscateSQLValues": [
+					"x",
+					"y"
+				]
+			},
+			"HTTP": {
+				"RemoveQueryString": true,
+				"RemovePathDigits": true
+			},
+			"RemoveStackTraces": false,
+			"Redis": {
+				"Enabled": true
+			},
+			"Memcached": {
+				"Enabled": false
+			}
+		}
+	}
+}` {
+		t.Fatal("Output of /info has changed. Changing the keys " +
+			"is not allowed because the client rely on them and " +
+			"is considered a breaking change")
+	}
 }
 
 func TestClientComputedStatsHeader(t *testing.T) {

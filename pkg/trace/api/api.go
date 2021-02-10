@@ -109,7 +109,7 @@ func (r *HTTPReceiver) buildMux() *http.ServeMux {
 	for _, e := range endpoints {
 		mux.Handle(e.Name, e.Handler(r))
 	}
-	mux.HandleFunc("/hello", r.makeHelloHandler())
+	mux.HandleFunc("/info", r.makeInfoHandler())
 
 	return mux
 }
@@ -406,8 +406,8 @@ type StatsProcessor interface {
 	ProcessStats(p pb.ClientStatsPayload, lang string)
 }
 
-// handleHello handles the discovery endpoint
-func (r *HTTPReceiver) makeHelloHandler() http.HandlerFunc {
+// makeInfoHandler returns a new handler for handling the discovery endpoint.
+func (r *HTTPReceiver) makeInfoHandler() http.HandlerFunc {
 	var all []string
 	for _, e := range endpoints {
 		if !e.Hidden {
@@ -434,7 +434,7 @@ func (r *HTTPReceiver) makeHelloHandler() http.HandlerFunc {
 		Config:       r.conf,
 	}, "", "\t")
 	if err != nil {
-		panic(fmt.Errorf("Error making /hello handler: %v", err))
+		panic(fmt.Errorf("Error making /info handler: %v", err))
 	}
 	return func(w http.ResponseWriter, req *http.Request) {
 		fmt.Fprintf(w, "%s", txt)
