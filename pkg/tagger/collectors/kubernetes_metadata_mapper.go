@@ -19,6 +19,7 @@ import (
 	"github.com/hashicorp/golang-lru/simplelru"
 )
 
+// maxNamespacesInLRU limits the number of entries in the LRU cache for namespace labels on tags fetch
 const maxNamespacesInLRU = 100
 
 func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
