@@ -43,7 +43,7 @@ func (d *DockerCheck) retrieveEvents(du *docker.DockerUtil) ([]*docker.Container
 func (d *DockerCheck) reportExitCodes(events []*docker.ContainerEvent, sender aggregator.Sender) error {
 	for _, ev := range events {
 		// Filtering
-		if ev.Action != "die" && ev.Action != "restart" {
+		if ev.Action != "die" {
 			continue
 		}
 		exitCodeString, codeFound := ev.Attributes["exitCode"]
@@ -75,6 +75,21 @@ func (d *DockerCheck) reportExitCodes(events []*docker.ContainerEvent, sender ag
 
 // reportEvents aggregates and sends events to the Datadog event feed
 func (d *DockerCheck) reportEvents(events []*docker.ContainerEvent, sender aggregator.Sender) error {
+
+	for _, ev := range events {
+    		// Filtering
+    		if ev.Action == "restart" {
+				// Building and sending message
+				message := fmt.Sprintf("Container %s restarted", ev.ContainerName)
+				status := "RESTART"
+				tags, err := tagger.Tag(ev.ContainerEntityName(), collectors.HighCardinality)
+				if err != nil {
+					log.Debugf("no tags for %s: %s", ev.ContainerID, err)
+				}
+				sender.Event(ev)
+				sender.ServiceCheck(DockerRestart, status, "", tags, message)
+    	}
+
 	bundles := aggregateEvents(events, d.instance.FilteredEventType)
 
 	for _, bundle := range bundles {
