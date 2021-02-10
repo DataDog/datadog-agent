@@ -742,18 +742,6 @@ func TestInfoHandler(t *testing.T) {
 		"MaxMemory": 1000000,
 		"MaxCPU": 12345,
 		"WatchdogInterval": 60000000000,
-		"ProxyURL": {
-			"Scheme": "http",
-			"Opaque": "",
-			"User": null,
-			"Host": "localhost:8888",
-			"Path": "/proxy",
-			"RawPath": "",
-			"ForceQuery": false,
-			"RawQuery": "",
-			"Fragment": "",
-			"RawFragment": ""
-		},
 		"SkipSSLValidation": false,
 		"Ignore": {
 			"K": [
