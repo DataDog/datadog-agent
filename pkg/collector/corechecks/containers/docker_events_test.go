@@ -205,7 +205,7 @@ func TestReportContainerRestart(t *testing.T) {
 	var events []*docker.ContainerEvent
 
 	// Don't fail on empty event array
-	err := dockerCheck.reportContainerRestart(events, mockSender)
+	err := reportContainerRestart(events, mockSender)
 	assert.Nil(t, err)
 	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 0)
 
@@ -221,7 +221,7 @@ func TestReportContainerRestart(t *testing.T) {
 	mockSender.On("ServiceCheck", "docker.restart", metrics.ServiceCheckWarning, "",
 		mock.AnythingOfType("[]string"), "Container book-app restarted")
 
-	err = dockerCheck.reportContainerRestart(events, mockSender)
+	err = reportContainerRestart(events, mockSender)
 	assert.Nil(t, err)
 	mockSender.AssertExpectations(t)
 	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 1)
