@@ -64,12 +64,12 @@ type RuleSetListener interface {
 type Opts struct {
 	eval.Opts
 	SupportedDiscarders map[eval.Field]bool
-	ProctectedRuleID    []RuleID
+	ReservedRuleIDs     []RuleID
 	Logger              Logger
 }
 
 // NewOptsWithParams initializes a new Opts instance with Debug and Constants parameters
-func NewOptsWithParams(constants map[string]interface{}, supportedDiscarders map[eval.Field]bool, protectedRuleIDs []RuleID, logger ...Logger) *Opts {
+func NewOptsWithParams(constants map[string]interface{}, supportedDiscarders map[eval.Field]bool, reservedRuleIDs []RuleID, logger ...Logger) *Opts {
 	if len(logger) == 0 {
 		logger = []Logger{DefaultLogger{}}
 	}
@@ -79,7 +79,7 @@ func NewOptsWithParams(constants map[string]interface{}, supportedDiscarders map
 			Macros:    make(map[eval.MacroID]*eval.Macro),
 		},
 		SupportedDiscarders: supportedDiscarders,
-		ProctectedRuleID:    protectedRuleIDs,
+		ReservedRuleIDs:     reservedRuleIDs,
 		Logger:              logger[0],
 	}
 }
@@ -184,7 +184,7 @@ func (rs *RuleSet) AddRules(rules []*RuleDefinition) *multierror.Error {
 
 // AddRule creates the rule evaluator and adds it to the bucket of its events
 func (rs *RuleSet) AddRule(ruleDef *RuleDefinition) (*eval.Rule, error) {
-	for _, id := range rs.opts.ProctectedRuleID {
+	for _, id := range rs.opts.ReservedRuleIDs {
 		if id == ruleDef.ID {
 			return nil, &ErrRuleLoad{Definition: ruleDef, Err: errors.New("internal rule ID conflict")}
 		}

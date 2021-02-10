@@ -368,31 +368,17 @@ func easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe2(in *jle
 			}
 		case "map":
 			out.Name = string(in.String())
-		case "per_event_per_cpu":
+		case "per_event":
 			if in.IsNull() {
 				in.Skip()
 			} else {
 				in.Delim('{')
-				out.Lost = make(map[string]map[int]uint64)
+				out.Lost = make(map[string]uint64)
 				for !in.IsDelim('}') {
 					key := string(in.String())
 					in.WantColon()
-					var v6 map[int]uint64
-					if in.IsNull() {
-						in.Skip()
-					} else {
-						in.Delim('{')
-						v6 = make(map[int]uint64)
-						for !in.IsDelim('}') {
-							key := int(in.IntStr())
-							in.WantColon()
-							var v7 uint64
-							v7 = uint64(in.Uint64())
-							(v6)[key] = v7
-							in.WantComma()
-						}
-						in.Delim('}')
-					}
+					var v6 uint64
+					v6 = uint64(in.Uint64())
 					(out.Lost)[key] = v6
 					in.WantComma()
 				}
@@ -423,38 +409,22 @@ func easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe2(out *jw
 		out.String(string(in.Name))
 	}
 	{
-		const prefix string = ",\"per_event_per_cpu\":"
+		const prefix string = ",\"per_event\":"
 		out.RawString(prefix)
 		if in.Lost == nil && (out.Flags&jwriter.NilMapAsEmpty) == 0 {
 			out.RawString(`null`)
 		} else {
 			out.RawByte('{')
-			v8First := true
-			for v8Name, v8Value := range in.Lost {
-				if v8First {
-					v8First = false
+			v7First := true
+			for v7Name, v7Value := range in.Lost {
+				if v7First {
+					v7First = false
 				} else {
 					out.RawByte(',')
 				}
-				out.String(string(v8Name))
+				out.String(string(v7Name))
 				out.RawByte(':')
-				if v8Value == nil && (out.Flags&jwriter.NilMapAsEmpty) == 0 {
-					out.RawString(`null`)
-				} else {
-					out.RawByte('{')
-					v9First := true
-					for v9Name, v9Value := range v8Value {
-						if v9First {
-							v9First = false
-						} else {
-							out.RawByte(',')
-						}
-						out.IntStr(int(v9Name))
-						out.RawByte(':')
-						out.Uint64(uint64(v9Value))
-					}
-					out.RawByte('}')
-				}
+				out.Uint64(uint64(v7Value))
 			}
 			out.RawByte('}')
 		}
@@ -510,22 +480,8 @@ func easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe3(in *jle
 			}
 		case "map":
 			out.Name = string(in.String())
-		case "per_cpu":
-			if in.IsNull() {
-				in.Skip()
-			} else {
-				in.Delim('{')
-				out.Lost = make(map[int]int64)
-				for !in.IsDelim('}') {
-					key := int(in.IntStr())
-					in.WantColon()
-					var v10 int64
-					v10 = int64(in.Int64())
-					(out.Lost)[key] = v10
-					in.WantComma()
-				}
-				in.Delim('}')
-			}
+		case "lost":
+			out.Lost = int64(in.Int64())
 		default:
 			in.SkipRecursive()
 		}
@@ -551,25 +507,9 @@ func easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe3(out *jw
 		out.String(string(in.Name))
 	}
 	{
-		const prefix string = ",\"per_cpu\":"
+		const prefix string = ",\"lost\":"
 		out.RawString(prefix)
-		if in.Lost == nil && (out.Flags&jwriter.NilMapAsEmpty) == 0 {
-			out.RawString(`null`)
-		} else {
-			out.RawByte('{')
-			v11First := true
-			for v11Name, v11Value := range in.Lost {
-				if v11First {
-					v11First = false
-				} else {
-					out.RawByte(',')
-				}
-				out.IntStr(int(v11Name))
-				out.RawByte(':')
-				out.Int64(int64(v11Value))
-			}
-			out.RawByte('}')
-		}
+		out.Int64(int64(in.Lost))
 	}
 	out.RawByte('}')
 }

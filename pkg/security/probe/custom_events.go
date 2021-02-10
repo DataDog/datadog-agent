@@ -102,18 +102,18 @@ func newRule(ruleDef *rules.RuleDefinition) *rules.Rule {
 // EventLostRead is the event used to report lost events detected from user space
 // easyjson:json
 type EventLostRead struct {
-	Timestamp time.Time     `json:"date"`
-	Name      string        `json:"map"`
-	Lost      map[int]int64 `json:"per_cpu"`
+	Timestamp time.Time `json:"date"`
+	Name      string    `json:"map"`
+	Lost      int64     `json:"lost"`
 }
 
 // NewEventLostReadEvent returns the rule and a populated custom event for a lost_events_read event
-func NewEventLostReadEvent(mapName string, perCPU map[int]int64) (*rules.Rule, *CustomEvent) {
+func NewEventLostReadEvent(mapName string, lost int64) (*rules.Rule, *CustomEvent) {
 	return newRule(&rules.RuleDefinition{
 			ID: LostEventsRuleID,
 		}), newCustomEvent(model.CustomLostReadEventType, EventLostRead{
 			Name:      mapName,
-			Lost:      perCPU,
+			Lost:      lost,
 			Timestamp: time.Now(),
 		}.MarshalJSON)
 }
@@ -121,13 +121,13 @@ func NewEventLostReadEvent(mapName string, perCPU map[int]int64) (*rules.Rule, *
 // EventLostWrite is the event used to report lost events detected from kernel space
 // easyjson:json
 type EventLostWrite struct {
-	Timestamp time.Time                 `json:"date"`
-	Name      string                    `json:"map"`
-	Lost      map[string]map[int]uint64 `json:"per_event_per_cpu"`
+	Timestamp time.Time         `json:"date"`
+	Name      string            `json:"map"`
+	Lost      map[string]uint64 `json:"per_event"`
 }
 
 // NewEventLostWriteEvent returns the rule and a populated custom event for a lost_events_write event
-func NewEventLostWriteEvent(mapName string, perEventPerCPU map[string]map[int]uint64) (*rules.Rule, *CustomEvent) {
+func NewEventLostWriteEvent(mapName string, perEventPerCPU map[string]uint64) (*rules.Rule, *CustomEvent) {
 	return newRule(&rules.RuleDefinition{
 			ID: LostEventsRuleID,
 		}), newCustomEvent(model.CustomLostWriteEventType, EventLostWrite{
@@ -142,15 +142,20 @@ type RulesIgnored struct {
 	Errors *multierror.Error
 }
 
+// MarshalJSON custom marshaller
 func (r *RulesIgnored) MarshalJSON() ([]byte, error) {
+	if r.Errors == nil {
+		return nil, nil
+	}
+
 	var errs []interface{}
 
 	for _, err := range r.Errors.Errors {
 		if rerr, ok := err.(*rules.ErrRuleLoad); ok {
 			errs = append(errs,
 				struct {
-					ID     string `json:id`
-					Reason string `json:reason`
+					ID     string `json:"id"`
+					Reason string `json:"reason"`
 				}{
 					ID:     rerr.Definition.ID,
 					Reason: rerr.Err.Error(),
@@ -161,24 +166,30 @@ func (r *RulesIgnored) MarshalJSON() ([]byte, error) {
 	return json.Marshal(errs)
 }
 
+// UnmarshalJSON empty unmarshaller
 func (r *RulesIgnored) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// RulesIgnored holds the errors
+// PoliciesIgnored holds the errors
 type PoliciesIgnored struct {
 	Errors *multierror.Error
 }
 
+// MarshalJSON custom marshaller
 func (r *PoliciesIgnored) MarshalJSON() ([]byte, error) {
+	if r.Errors == nil {
+		return nil, nil
+	}
+
 	var errs []interface{}
 
 	for _, err := range r.Errors.Errors {
 		if perr, ok := err.(*rules.ErrPolicyLoad); ok {
 			errs = append(errs,
 				struct {
-					Name   string `json:name`
-					Reason string `json:reason`
+					Name   string `json:"name"`
+					Reason string `json:"reason"`
 				}{
 					Name:   perr.Name,
 					Reason: perr.Err.Error(),
@@ -189,6 +200,7 @@ func (r *PoliciesIgnored) MarshalJSON() ([]byte, error) {
 	return json.Marshal(errs)
 }
 
+// UnmarshalJSON empty unmarshaller
 func (r *PoliciesIgnored) UnmarshalJSON(data []byte) error {
 	return nil
 }
@@ -198,14 +210,15 @@ type RuleSetLoaded struct {
 	Rules map[eval.RuleID]*eval.Rule
 }
 
+// MarshalJSON custom marshaller
 func (r *RuleSetLoaded) MarshalJSON() ([]byte, error) {
 	var loaded []interface{}
 
 	for id, rule := range r.Rules {
 		loaded = append(loaded,
 			struct {
-				ID         string `json:id`
-				Expression string `json:expression`
+				ID         string `json:"id"`
+				Expression string `json:"expression"`
 			}{
 				ID:         id,
 				Expression: rule.Expression,
@@ -215,6 +228,7 @@ func (r *RuleSetLoaded) MarshalJSON() ([]byte, error) {
 	return json.Marshal(loaded)
 }
 
+// UnmarshalJSON empty unmarshaller
 func (r *RuleSetLoaded) UnmarshalJSON(data []byte) error {
 	return nil
 }
