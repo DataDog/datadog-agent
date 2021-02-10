@@ -744,15 +744,18 @@ func (agg *BufferedAggregator) run() {
 		case orchestratorMetadata := <-agg.orchestratorMetadataIn:
 			aggregatorOrchestratorMetadata.Add(1)
 			// each resource has its own payload so we cannot aggregate
-			err := agg.serializer.SendOrchestratorMetadata(
-				orchestratorMetadata.msgs,
-				agg.hostname,
-				orchestratorMetadata.clusterID,
-				orchestratorMetadata.payloadType,
-			)
-			if err != nil {
-				log.Errorf("Error submitting orchestrator data: %s", err)
-			}
+			// use a routine to avoid blocking the aggregator
+			go func(orchestratorMetadata senderOrchestratorMetadata) {
+				err := agg.serializer.SendOrchestratorMetadata(
+					orchestratorMetadata.msgs,
+					agg.hostname,
+					orchestratorMetadata.clusterID,
+					orchestratorMetadata.payloadType,
+				)
+				if err != nil {
+					log.Errorf("Error submitting orchestrator data: %s", err)
+				}
+			}(orchestratorMetadata)
 		}
 
 	}
