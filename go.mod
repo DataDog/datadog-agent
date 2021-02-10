@@ -174,6 +174,7 @@ require (
 	gopkg.in/ini.v1 v1.55.0 // indirect
 	gopkg.in/yaml.v2 v2.2.8
 	gopkg.in/zorkian/go-datadog-api.v2 v2.29.0
+	gotest.tools v2.2.0+incompatible
 	gotest.tools/gotestsum v0.5.3
 	honnef.co/go/tools v0.0.1-2020.1.5
 	k8s.io/api v0.17.4

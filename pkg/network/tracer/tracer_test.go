@@ -561,7 +561,7 @@ func TestTCPRetransmitSharedSocket(t *testing.T) {
 	assert.Equal(t, 1, connsWithRetransmits)
 
 	// Test if telemetry measuring PID collisions is correct
-	assert.Equal(t, int64(numProcesses-1), atomic.LoadInt64(&tr.pidCollisions))
+	assert.GreaterOrEqual(t, int64(numProcesses-1), atomic.LoadInt64(&tr.pidCollisions))
 }
 
 func TestTCPRTT(t *testing.T) {
@@ -972,47 +972,6 @@ func TestShouldSkipExcludedConnection(t *testing.T) {
 		}
 		return false
 	}, "Unable to find UDP connection to 127.0.0.1:80")
-}
-
-func TestTooSmallBPFMap(t *testing.T) {
-	// Enable BPF-based system probe with BPF maps size = 1
-	config := testConfig()
-	config.MaxTrackedConnections = 1
-
-	tr, err := NewTracer(config)
-	require.NoError(t, err)
-	defer tr.Stop()
-
-	// Create TCP Server which sends back serverMessageSize bytes
-	server := NewTCPServer(func(c net.Conn) {
-		r := bufio.NewReader(c)
-		r.ReadBytes(byte('\n'))
-		c.Write(genPayload(serverMessageSize))
-		c.Close()
-	})
-	doneChan := make(chan struct{})
-	err = server.Run(doneChan)
-	require.NoError(t, err)
-	defer close(doneChan)
-
-	// Connect to server two times
-	// Write clientMessageSize to server
-	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
-	require.NoError(t, err)
-	defer c.Close()
-	_, err = c.Write(genPayload(clientMessageSize))
-	require.NoError(t, err)
-
-	// Second time
-	c2, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
-	require.NoError(t, err)
-	defer c2.Close()
-	_, err = c2.Write(genPayload(clientMessageSize))
-	require.NoError(t, err)
-
-	connections := getConnections(t, tr)
-	// we should only have one connection returned
-	assert.Len(t, connections.Conns, 1)
 }
 
 func TestIsExpired(t *testing.T) {
@@ -1957,6 +1916,7 @@ func TestHTTPStats(t *testing.T) {
 		ReadTimeout:  time.Second,
 		WriteTimeout: time.Second,
 	}
+	srv.SetKeepAlivesEnabled(false)
 	go func() {
 		_ = srv.ListenAndServe()
 	}()
@@ -1973,14 +1933,14 @@ func TestHTTPStats(t *testing.T) {
 
 	// Iterate through active connections until we find connection created above
 	var matchingConns []network.ConnectionStats
-	require.Eventually(t, func() bool {
+	require.Eventuallyf(t, func() bool {
 		conns := getConnections(t, tr)
 		matchingConns = searchConnections(conns, func(cs network.ConnectionStats) bool {
 			return fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == serverAddr && len(cs.HTTPStatsByPath) == 1
 		})
 
 		return len(matchingConns) == 1
-	}, 2*time.Second, 500*time.Millisecond, "connection not found")
+	}, 3*time.Second, 10*time.Millisecond, "couldn't find http connection matching: %s", serverAddr)
 
 	// Verify HTTP stats
 	conn := matchingConns[0]
@@ -2047,4 +2007,67 @@ func testConfig() *config.Config {
 		cfg.AllowPrecompiledFallback = false
 	}
 	return cfg
+}
+
+func TestSelfConnect(t *testing.T) {
+	// Enable BPF-based system probe
+	cfg := testConfig()
+	cfg.BPFDebug = true
+	cfg.TCPConnTimeout = 3 * time.Second
+	tr, err := NewTracer(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tr.Stop()
+
+	getConnections(t, tr)
+
+	started := make(chan struct{})
+	cmd := exec.Command("testdata/fork.py")
+	stdOutReader, stdOutWriter := io.Pipe()
+	go func() {
+		var stderr bytes.Buffer
+		cmd.Stderr = &stderr
+		cmd.Stdout = stdOutWriter
+		err := cmd.Start()
+		close(started)
+		require.NoError(t, err)
+		if err := cmd.Wait(); err != nil {
+			status := cmd.ProcessState.Sys().(syscall.WaitStatus)
+			require.Equal(t, syscall.SIGKILL, status.Signal(), "fork.py output: %s", stderr.String())
+		}
+	}()
+
+	<-started
+
+	defer cmd.Process.Kill()
+
+	portStr, err := bufio.NewReader(stdOutReader).ReadString('\n')
+	require.NoError(t, err, "error reading port from fork.py")
+	stdOutReader.Close()
+
+	port, err := strconv.ParseUint(strings.TrimSpace(portStr), 10, 16)
+	require.NoError(t, err, "could not convert %s to integer port", portStr)
+
+	t.Logf("port is %d", port)
+
+	require.Eventually(t, func() bool {
+		conns := searchConnections(getConnections(t, tr), func(cs network.ConnectionStats) bool {
+			return cs.SPort == uint16(port) && cs.DPort == uint16(port) && cs.Source.IsLoopback() && cs.Dest.IsLoopback()
+		})
+
+		t.Logf("connections: %v", conns)
+		return len(conns) == 2
+	}, 5*time.Second, time.Second, "could not find expected number of tcp connections, expected: 2")
+
+	// forked child should have exited, and only the parent should remain
+	require.Eventually(t, func() bool {
+		conns := searchConnections(getConnections(t, tr), func(cs network.ConnectionStats) bool {
+			return cs.SPort == uint16(port) && cs.DPort == uint16(port) && cs.Source.IsLoopback() && cs.Dest.IsLoopback()
+		})
+
+		t.Logf("connections: %v", conns)
+		return len(conns) == 1
+	}, 5*time.Second, time.Second, "could not find expected number of tcp connections, expected: 1")
+
 }
