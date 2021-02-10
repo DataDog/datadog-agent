@@ -43,7 +43,7 @@ func (d *DockerCheck) retrieveEvents(du *docker.DockerUtil) ([]*docker.Container
 func (d *DockerCheck) reportExitCodes(events []*docker.ContainerEvent, sender aggregator.Sender) error {
 	for _, ev := range events {
 		// Filtering
-		if ev.Action != "die" {
+		if ev.Action != "die" && ev.Action != "restart" {
 			continue
 		}
 		exitCodeString, codeFound := ev.Attributes["exitCode"]
