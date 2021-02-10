@@ -11,6 +11,7 @@
   - shell: "/tmp/{{ lookup('env', 'SCRIPT') | basename }} {{ lookup('env', 'ARGS') }}"
     become: true
     register: scriptoutput
+    ignore_errors: yes
 
   - name: Display script output
     debug: msg="{{ scriptoutput.stdout }}"

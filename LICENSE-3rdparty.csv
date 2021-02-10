@@ -745,6 +745,11 @@ core,"gopkg.in/natefinch/lumberjack.v2",MIT
 core,"gopkg.in/yaml.v2",Apache-2.0
 core,"gopkg.in/yaml.v3",MIT
 core,"gopkg.in/zorkian/go-datadog-api.v2",NewBSD
+core,"gotest.tools/assert",Apache-2.0
+core,"gotest.tools/assert/cmp",Apache-2.0
+core,"gotest.tools/internal/difflib",FreeBSD
+core,"gotest.tools/internal/format",Apache-2.0
+core,"gotest.tools/internal/source",Apache-2.0
 core,"k8s.io/api/admission/v1",Apache-2.0
 core,"k8s.io/api/admission/v1beta1",Apache-2.0
 core,"k8s.io/api/admissionregistration/v1",Apache-2.0

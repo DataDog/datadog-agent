@@ -8,12 +8,13 @@
 package probe
 
 import (
-	"github.com/DataDog/gopsutil/process"
 	"os"
 	"path"
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/DataDog/gopsutil/process"
 
 	"github.com/cobaugh/osrelease"
 	"github.com/moby/sys/mountinfo"
@@ -292,6 +293,52 @@ func getMountIDOffset(probe *Probe) uint64 {
 	}
 
 	return offset
+}
+
+func getSizeOfStructInode(probe *Probe) uint64 {
+	var rh7Kernel bool
+	var rh8Kernel bool
+	var suse12Kernel bool
+
+	osrelease, err := osrelease.Read()
+	if err == nil {
+		rh7Kernel = (osrelease["ID"] == "centos" || osrelease["ID"] == "rhel") && osrelease["VERSION_ID"] == "7"
+		rh8Kernel = osrelease["PLATFORM_ID"] == "platform:el8"
+		suse12Kernel = ((osrelease["ID"] == "sles") || (osrelease["ID"] == "opensuse-leap")) && strings.HasPrefix(osrelease["VERSION_ID"], "12")
+	}
+
+	var sizeOf uint64
+	if rh7Kernel {
+		sizeOf = 584
+	} else if rh8Kernel {
+		sizeOf = 648
+	} else if suse12Kernel {
+		sizeOf = 560
+	} else if probe.kernelVersion != 0 && probe.kernelVersion < kernel4_16 {
+		sizeOf = 608
+	} else {
+		sizeOf = 600
+	}
+
+	return sizeOf
+}
+
+func getSuperBlockMagicOffset(probe *Probe) uint64 {
+	var rh7Kernel bool
+
+	osrelease, err := osrelease.Read()
+	if err == nil {
+		rh7Kernel = (osrelease["ID"] == "centos" || osrelease["ID"] == "rhel") && (osrelease["VERSION_ID"] == "7")
+	}
+
+	var sizeOf uint64
+	if rh7Kernel {
+		sizeOf = 88
+	} else {
+		sizeOf = 96
+	}
+
+	return sizeOf
 }
 
 // NewMountResolver instantiates a new mount resolver

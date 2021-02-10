@@ -163,15 +163,15 @@ func (p *Probe) Init(client *statsd.Client) error {
 
 	p.manager = ebpf.NewRuntimeSecurityManager()
 
+	var ok bool
+	if p.perfMap, ok = p.manager.GetPerfMap("events"); !ok {
+		return errors.New("couldn't find events perf map")
+	}
+
 	// Set data and lost handlers
-	for _, perfMap := range p.manager.PerfMaps {
-		switch perfMap.Name {
-		case "events":
-			perfMap.PerfMapOptions = manager.PerfMapOptions{
-				DataHandler: p.reOrderer.HandleEvent,
-				LostHandler: p.handleLostEvents,
-			}
-		}
+	p.perfMap.PerfMapOptions = manager.PerfMapOptions{
+		DataHandler: p.reOrderer.HandleEvent,
+		LostHandler: p.handleLostEvents,
 	}
 
 	if os.Getenv("RUNTIME_SECURITY_TESTSUITE") != "true" {
@@ -199,11 +199,6 @@ func (p *Probe) Init(client *statsd.Client) error {
 
 	if p.discarderRevisions, err = p.Map("discarder_revisions"); err != nil {
 		return err
-	}
-
-	var ok bool
-	if p.perfMap, ok = p.manager.GetPerfMap("events"); !ok {
-		return errors.New("couldn't find events perf map")
 	}
 
 	if err := p.resolvers.Start(p.ctx); err != nil {
@@ -812,6 +807,14 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		manager.ConstantEditor{
 			Name:  "mount_id_offset",
 			Value: getMountIDOffset(p),
+		},
+		manager.ConstantEditor{
+			Name:  "sizeof_inode",
+			Value: getSizeOfStructInode(p),
+		},
+		manager.ConstantEditor{
+			Name:  "sb_magic_offset",
+			Value: getSuperBlockMagicOffset(p),
 		},
 	)
 

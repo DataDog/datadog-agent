@@ -193,10 +193,17 @@ void __attribute__((always_inline)) get_dentry_name(struct dentry *dentry, void 
 #define get_dentry_key_path(dentry, path) (struct path_key_t) { .ino = get_dentry_ino(dentry), .mount_id = get_path_mount_id(path) }
 #define get_inode_key_path(inode, path) (struct path_key_t) { .ino = get_inode_ino(inode), .mount_id = get_path_mount_id(path) }
 
+static int is_overlayfs(struct dentry *dentry);
+static int get_overlayfs_ino(struct dentry *dentry, struct path_key_t *path);
+
 static __attribute__((always_inline)) void set_path_key_inode(struct dentry *dentry, struct path_key_t *path_key, int invalidate) {
     path_key->path_id = get_path_id(invalidate);
     if (!path_key->ino) {
         path_key->ino = get_dentry_ino(dentry);
+    }
+
+    if (is_overlayfs(dentry)) {
+        path_key->ino = get_overlayfs_ino(dentry, path_key);
     }
 }
 

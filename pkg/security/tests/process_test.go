@@ -213,8 +213,9 @@ func TestProcessContext(t *testing.T) {
 			if rule.ID != "test_rule_ancestors" {
 				t.Error("Wrong rule triggered")
 			}
-			if comm := event.Process.Ancestor.Comm; comm != shell {
-				t.Errorf("ancestor `%s` expected, got %s, event:%v", shell, comm, event)
+
+			if ancestor := event.Process.Ancestor; ancestor == nil || ancestor.Comm != shell {
+				t.Errorf("ancestor `%s` expected, got %v, event:%v", shell, ancestor, event)
 			}
 		}
 	})
