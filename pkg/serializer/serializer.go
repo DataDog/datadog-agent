@@ -11,7 +11,6 @@ import (
 	"expvar"
 	"fmt"
 	"net/http"
-	"regexp"
 	"strconv"
 	"time"
 
