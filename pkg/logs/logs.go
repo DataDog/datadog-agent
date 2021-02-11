@@ -182,6 +182,7 @@ func Flush(ctx context.Context) {
 			agent.Flush(ctx)
 		}
 	}
+	log.Debug("Flush in the logs-agent done.")
 }
 
 // IsAgentRunning returns true if the logs-agent is running.

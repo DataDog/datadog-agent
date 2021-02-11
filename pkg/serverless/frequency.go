@@ -52,7 +52,7 @@ func (d *Daemon) InvocationFrequency() time.Duration {
 func (d *Daemon) AutoSelectStrategy() flush.Strategy {
 	freq := d.InvocationFrequency()
 
-	// when not enough data's available, fallback on flush.AtTheEnd strategy
+	// when not enough data is available, fallback on flush.AtTheEnd strategy
 	if freq == time.Duration(0) {
 		return &flush.AtTheEnd{}
 	}

@@ -77,6 +77,8 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 
 	logLevelEnvVar = "DD_LOG_LEVEL"
 
+	disableAdaptiveFlushEnvVar = "DD_SERVERLESS_DISABLE_ADAPTIVE_FLUSH"
+
 	logsLogsTypeSubscribed = "DD_LOGS_CONFIG_LAMBDA_LOGS_TYPE"
 )
 
@@ -231,6 +233,11 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	extraTags := config.Datadog.GetStringSlice("tags")
 	if dsdTags := config.Datadog.GetStringSlice("dogstatsd_tags"); len(dsdTags) > 0 {
 		extraTags = append(extraTags, dsdTags...)
+	}
+
+	// is the adaptive flush disabled?
+	if _, exists := os.LookupEnv(disableAdaptiveFlushEnvVar); exists {
+		daemon.DisableAdaptiveFlush()
 	}
 
 	// validate that an apikey has been set, either by the env var, read from KMS or SSM.

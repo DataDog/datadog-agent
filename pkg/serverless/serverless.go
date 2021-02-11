@@ -272,13 +272,13 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, id ID) error {
 	// to avoid blocking for too long.
 	// This flushTimeout is re-using the forwarder_timeout value.
 	if daemon.flushStrategy.ShouldFlush(flush.Starting, time.Now()) {
-		log.Debugf("The flush strategy '%s' has decided to flush the data in the moment: %s", daemon.flushStrategy, flush.Starting)
+		log.Debugf("The flush strategy %s has decided to flush the data in the moment: %s", daemon.flushStrategy, flush.Starting)
 		flushTimeout := config.Datadog.GetDuration("forwarder_timeout") * time.Second
 		ctx, cancel := context.WithTimeout(context.Background(), flushTimeout)
 		daemon.TriggerFlush(ctx)
 		cancel() // free the resource of the context
 	} else {
-		log.Debugf("The flush strategy '%s' has decided to not flush in the moment: %s", daemon.flushStrategy, flush.Starting)
+		log.Debugf("The flush strategy %s has decided to not flush in the moment: %s", daemon.flushStrategy, flush.Starting)
 	}
 
 	if payload.EventType == "SHUTDOWN" {
