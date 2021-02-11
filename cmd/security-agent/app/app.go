@@ -182,9 +182,8 @@ func start(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// set core limits as soon as possible
 	if err := util.SetupCoreDump(); err != nil {
-		log.Infof("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
+		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
 	if pidfilePath != "" {

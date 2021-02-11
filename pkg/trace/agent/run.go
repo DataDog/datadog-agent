@@ -117,9 +117,8 @@ func Run(ctx context.Context) {
 		defer os.Remove(flags.PIDFilePath)
 	}
 
-	// set core limits as soon as possible
 	if err := util.SetupCoreDump(); err != nil {
-		log.Infof("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
+		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
 	err = metrics.Configure(cfg, []string{"version:" + info.Version})
