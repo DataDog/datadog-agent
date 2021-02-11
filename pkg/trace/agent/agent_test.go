@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package agent
 
@@ -35,10 +35,6 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 )
-
-func newMockSampler(wantSampled bool) *Sampler {
-	return &Sampler{engine: testutil.NewMockEngine(wantSampled)}
-}
 
 // Test to make sure that the joined effort of the quantizer and truncator, in that order, produce the
 // desired string
@@ -542,26 +538,22 @@ func TestSampling(t *testing.T) {
 		// hasPriority will be true if the input trace should have sampling priority set
 		hasErrors, hasPriority bool
 
-		// scoreRate, scoreErrorRate, priorityRate are the rates used by the mock samplers
-		scoreRate, scoreErrorRate, priorityRate float64
-
-		// scoreSampled, scoreErrorSampled, prioritySampled are the sample decisions of the mock samplers
-		scoreSampled, scoreErrorSampled, prioritySampled bool
+		// noPrioritySampled, errorsSampled, prioritySampled are the sample decisions of the mock samplers
+		noPrioritySampled, errorsSampled, prioritySampled bool
 
 		// wantSampled is the expected result
 		wantSampled bool
 	}{
-		"score-unsampled": {
-			scoreSampled: false,
-			wantSampled:  false,
+		"nopriority-unsampled": {
+			noPrioritySampled: false,
+			wantSampled:       false,
 		},
-		"score-sampled": {
-			scoreSampled: true,
-			wantSampled:  true,
+		"nopriority-sampled": {
+			noPrioritySampled: true,
+			wantSampled:       true,
 		},
 		"prio-unsampled": {
 			hasPriority:     true,
-			scoreSampled:    true,
 			prioritySampled: false,
 			wantSampled:     false,
 		},
@@ -570,63 +562,60 @@ func TestSampling(t *testing.T) {
 			prioritySampled: true,
 			wantSampled:     true,
 		},
-		"score-prio-sampled": {
+		"error-unsampled": {
+			hasErrors:     true,
+			errorsSampled: false,
+			wantSampled:   false,
+		},
+		"error-sampled": {
+			hasErrors:     true,
+			errorsSampled: true,
+			wantSampled:   true,
+		},
+		"error-sampled-prio-unsampled": {
+			hasErrors:       true,
 			hasPriority:     true,
-			scoreSampled:    true,
+			errorsSampled:   true,
+			prioritySampled: false,
+			wantSampled:     true,
+		},
+		"error-unsampled-prio-sampled": {
+			hasErrors:       true,
+			hasPriority:     true,
+			errorsSampled:   false,
 			prioritySampled: true,
 			wantSampled:     true,
 		},
-		"score-prio-unsampled": {
+		"error-prio-sampled": {
+			hasErrors:       true,
 			hasPriority:     true,
-			scoreSampled:    false,
+			errorsSampled:   true,
+			prioritySampled: true,
+			wantSampled:     true,
+		},
+		"error-prio-unsampled": {
+			hasErrors:       true,
+			hasPriority:     true,
+			errorsSampled:   false,
 			prioritySampled: false,
 			wantSampled:     false,
 		},
-		"error-unsampled": {
-			hasErrors:         true,
-			scoreErrorSampled: false,
-			wantSampled:       false,
-		},
-		"error-sampled": {
-			hasErrors:         true,
-			scoreErrorSampled: true,
-			wantSampled:       true,
-		},
-		"error-sampled-prio-unsampled": {
-			hasErrors:         true,
-			hasPriority:       true,
-			scoreErrorSampled: true,
-			prioritySampled:   false,
-			wantSampled:       true,
-		},
-		"error-unsampled-prio-sampled": {
-			hasErrors:         true,
-			hasPriority:       true,
-			scoreErrorSampled: false,
-			prioritySampled:   true,
-			wantSampled:       true,
-		},
-		"error-prio-sampled": {
-			hasErrors:         true,
-			hasPriority:       true,
-			scoreErrorSampled: true,
-			prioritySampled:   true,
-			wantSampled:       true,
-		},
-		"error-prio-unsampled": {
-			hasErrors:         true,
-			hasPriority:       true,
-			scoreErrorSampled: false,
-			prioritySampled:   false,
-			wantSampled:       false,
-		},
 	} {
 		t.Run(name, func(t *testing.T) {
+			cfg := &config.AgentConfig{}
+			sampledCfg := &config.AgentConfig{ExtraSampleRate: 1}
 			a := &Agent{
-				ScoreSampler:       newMockSampler(tt.scoreSampled),
-				ErrorsScoreSampler: newMockSampler(tt.scoreErrorSampled),
-				PrioritySampler:    newMockSampler(tt.prioritySampled),
+				NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
+				ErrorsSampler:     sampler.NewErrorsSampler(cfg),
+				PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
 			}
+			if tt.errorsSampled {
+				a.ErrorsSampler = sampler.NewErrorsSampler(sampledCfg)
+			}
+			if tt.noPrioritySampled {
+				a.NoPrioritySampler = sampler.NewNoPrioritySampler(sampledCfg)
+			}
+
 			root := &pb.Span{
 				Service:  "serv1",
 				Start:    time.Now().UnixNano(),
@@ -639,7 +628,11 @@ func TestSampling(t *testing.T) {
 			}
 			pt := ProcessedTrace{Trace: pb.Trace{root}, Root: root}
 			if tt.hasPriority {
-				sampler.SetSamplingPriority(pt.Root, 1)
+				if tt.prioritySampled {
+					sampler.SetSamplingPriority(pt.Root, 1)
+				} else {
+					sampler.SetSamplingPriority(pt.Root, 0)
+				}
 			}
 
 			sampled := a.runSamplers(pt, tt.hasPriority)
