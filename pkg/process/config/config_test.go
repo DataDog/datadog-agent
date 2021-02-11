@@ -235,8 +235,8 @@ func TestIgnoreConntrackInitFailure(t *testing.T) {
 		config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 		defer restoreGlobalConfig()
 
-		os.Setenv("DD_SYSTEM_PROBE_IGNORE_CONNTRACK_INIT_FAILURE", "true")
-		defer os.Unsetenv("DD_SYSTEM_PROBE_IGNORE_CONNTRACK_INIT_FAILURE")
+		os.Setenv("DD_SYSTEM_PROBE_NETWORK_IGNORE_CONNTRACK_INIT_FAILURE", "true")
+		defer os.Unsetenv("DD_SYSTEM_PROBE_NETWORK_IGNORE_CONNTRACK_INIT_FAILURE")
 		cfg, err := NewAgentConfig("test", "", "")
 
 		assert.Nil(t, err)

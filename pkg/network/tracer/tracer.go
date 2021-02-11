@@ -296,7 +296,7 @@ func newConntracker(cfg *config.Config, conntrackerCreator func(*config.Config) 
 		if cfg.IgnoreConntrackInitFailure {
 			log.Warnf("could not initialize conntrack, tracer will continue without NAT tracking: %s", err)
 		} else {
-			return nil, fmt.Errorf("could not initialize conntrack: %s", err)
+			return nil, fmt.Errorf("could not initialize conntrack: %s. set network_config.ignore_conntrack_init_failure to true to ignore conntrack failures on startup", err)
 		}
 	} else {
 		conntracker = c

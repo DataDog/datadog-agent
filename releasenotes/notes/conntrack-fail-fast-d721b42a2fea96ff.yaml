@@ -9,5 +9,5 @@
 other:
   - |
     Network monitor now fails to load if conntrack initialization fails on
-    system-probe startup. Set system_probe_config.ignore_conntrack_init_failure
+    system-probe startup. Set network_config.ignore_conntrack_init_failure
     to true to reverse this behavior.
