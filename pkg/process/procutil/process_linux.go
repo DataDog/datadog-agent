@@ -61,6 +61,14 @@ func WithReturnZeroPermStats(enabled bool) Option {
 	}
 }
 
+// WithPermission configures if process collection should fetch fields
+// that require elevated permission or not
+func WithPermission(enabled bool) Option {
+	return func(p *Probe) {
+		p.withPermission = enabled
+	}
+}
+
 // Probe is a service that fetches process related info on current host
 type Probe struct {
 	procRootLoc  string // ProcFS
@@ -70,6 +78,8 @@ type Probe struct {
 	clockTicks   float64
 	bootTime     uint64
 
+	// configurations
+	withPermission      bool
 	returnZeroPermStats bool
 }
 
@@ -101,18 +111,8 @@ func (p *Probe) Close() {
 	}
 }
 
-// StatsForPIDsWithPerm collects stats for processes that require extra permissions
-func (p *Probe) StatsForPIDsWithPerm(pids []int32, now time.Time) (map[int32]*Stats, error) {
-	return p.StatsForPIDs(pids, now, true)
-}
-
-// StatsForPIDsWithoutPerm collects stats for processes that don't require extra permissions
-func (p *Probe) StatsForPIDsWithoutPerm(pids []int32, now time.Time) (map[int32]*Stats, error) {
-	return p.StatsForPIDs(pids, now, false)
-}
-
 // StatsForPIDs returns a map of stats info indexed by PID using the given PIDs
-func (p *Probe) StatsForPIDs(pids []int32, now time.Time, withPerm bool) (map[int32]*Stats, error) {
+func (p *Probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, error) {
 	statsByPID := make(map[int32]*Stats, len(pids))
 	for _, pid := range pids {
 		pathForPID := filepath.Join(p.procRootLoc, strconv.Itoa(int(pid)))
@@ -122,7 +122,6 @@ func (p *Probe) StatsForPIDs(pids []int32, now time.Time, withPerm bool) (map[in
 		}
 
 		statusInfo := p.parseStatus(pathForPID)
-		ioInfo := p.parseIO(pathForPID)
 		statInfo := p.parseStat(pathForPID, pid, now)
 		memInfoEx := p.parseStatm(pathForPID)
 
@@ -136,9 +135,9 @@ func (p *Probe) StatsForPIDs(pids []int32, now time.Time, withPerm bool) (map[in
 			CtxSwitches: statusInfo.ctxSwitches, // /proc/[pid]/status
 			NumThreads:  statusInfo.numThreads,  // /proc/[pid]/status
 		}
-		if withPerm {
+		if p.withPermission {
 			stats.OpenFdCount = p.getFDCount(pathForPID) // /proc/[pid]/fd, requires permission checks
-			stats.IOStat = ioInfo                        // /proc/[pid]/io, requires permission checks
+			stats.IOStat = p.parseIO(pathForPID)         // /proc/[pid]/io, requires permission checks
 		} else {
 			stats.IOStat = &IOCountersStat{} // use default value
 		}
@@ -147,18 +146,8 @@ func (p *Probe) StatsForPIDs(pids []int32, now time.Time, withPerm bool) (map[in
 	return statsByPID, nil
 }
 
-// ProcessesByPIDWithPerm collects process info with fields that require extra permission
-func (p *Probe) ProcessesByPIDWithPerm(now time.Time) (map[int32]*Process, error) {
-	return p.ProcessesByPID(now, true)
-}
-
-// ProcessesByPIDWithoutPerm collects process info without fields that require extra permission
-func (p *Probe) ProcessesByPIDWithoutPerm(now time.Time) (map[int32]*Process, error) {
-	return p.ProcessesByPID(now, false)
-}
-
 // ProcessesByPID returns a map of process info indexed by PID
-func (p *Probe) ProcessesByPID(now time.Time, withPerm bool) (map[int32]*Process, error) {
+func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 	pids, err := p.getActivePIDs()
 	if err != nil {
 		return nil, err
@@ -204,10 +193,9 @@ func (p *Probe) ProcessesByPID(now time.Time, withPerm bool) (map[int32]*Process
 				NumThreads:  statusInfo.numThreads,  // /proc/[pid]/status
 			},
 		}
-		if withPerm {
+		if p.withPermission {
 			proc.Stats.OpenFdCount = p.getFDCount(pathForPID) // /proc/[pid]/fd, requires permission checks
-			ioInfo := p.parseIO(pathForPID)
-			proc.Stats.IOStat = ioInfo // /proc/[pid]/io, requires permission checks
+			proc.Stats.IOStat = p.parseIO(pathForPID)         // /proc/[pid]/io, requires permission checks
 		} else {
 			proc.Stats.IOStat = &IOCountersStat{} // use default values
 		}
