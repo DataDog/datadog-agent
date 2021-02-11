@@ -58,7 +58,7 @@ type AgentConfig struct {
 	// will be uploaded to. The first endpoint is the main configuration endpoint;
 	// any following ones are read from the 'additional_endpoints' parts of the
 	// configuration file, if present.
-	Endpoints []*Endpoint `json:",omitempty"`
+	Endpoints []*Endpoint
 
 	// Concentrator
 	BucketInterval   time.Duration // the size of our pre-aggregation per bucket
@@ -78,8 +78,8 @@ type AgentConfig struct {
 	MaxRequestBytes int64 // specifies the maximum allowed request size for incoming trace payloads
 
 	// Writers
-	StatsWriter             *WriterConfig `json:",omitempty"`
-	TraceWriter             *WriterConfig `json:",omitempty"`
+	StatsWriter             *WriterConfig
+	TraceWriter             *WriterConfig
 	ConnectionResetInterval time.Duration // frequency at which outgoing connections are reset. 0 means no reset is performed
 
 	// internal telemetry
@@ -97,7 +97,7 @@ type AgentConfig struct {
 	WatchdogInterval time.Duration // WatchdogInterval is the delay between 2 watchdog checks
 
 	// http/s proxying
-	ProxyURL          *url.URL `json:"-"`
+	ProxyURL          *url.URL
 	SkipSSLValidation bool
 
 	// filtering
@@ -105,7 +105,7 @@ type AgentConfig struct {
 
 	// ReplaceTags is used to filter out sensitive information from tag values.
 	// It maps tag keys to a set of replacements. Only supported in A6.
-	ReplaceTags []*ReplaceRule `json:",omitempty"`
+	ReplaceTags []*ReplaceRule
 
 	// transaction analytics
 	AnalyzedRateByServiceLegacy map[string]float64
@@ -115,7 +115,7 @@ type AgentConfig struct {
 	DDAgentBin string
 
 	// Obfuscation holds sensitive data obufscator's configuration.
-	Obfuscation *ObfuscationConfig `json:",omitempty"`
+	Obfuscation *ObfuscationConfig
 }
 
 // New returns a configuration with the default values.
