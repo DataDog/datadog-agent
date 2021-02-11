@@ -406,37 +406,6 @@ type StatsProcessor interface {
 	ProcessStats(p pb.ClientStatsPayload, lang string)
 }
 
-// makeInfoHandler returns a new handler for handling the discovery endpoint.
-func (r *HTTPReceiver) makeInfoHandler() http.HandlerFunc {
-	var all []string
-	for _, e := range endpoints {
-		if !e.Hidden {
-			all = append(all, e.Pattern)
-		}
-	}
-	txt, err := json.MarshalIndent(struct {
-		Version      string
-		GitCommit    string
-		BuildDate    string
-		Endpoints    []string
-		FeatureFlags []string `json:",omitempty"`
-		Config       *config.AgentConfig
-	}{
-		Version:      info.Version,
-		GitCommit:    info.GitCommit,
-		BuildDate:    info.BuildDate,
-		Endpoints:    all,
-		FeatureFlags: config.Features(),
-		Config:       r.conf,
-	}, "", "\t")
-	if err != nil {
-		panic(fmt.Errorf("Error making /info handler: %v", err))
-	}
-	return func(w http.ResponseWriter, req *http.Request) {
-		fmt.Fprintf(w, "%s", txt)
-	}
-}
-
 // handleStats handles incoming stats payloads.
 func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	defer timing.Since("datadog.trace_agent.receiver.stats_process_ms", time.Now())
