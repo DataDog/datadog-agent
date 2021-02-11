@@ -35,6 +35,7 @@ const (
 	defaultRuntimeCompilerOutputDir = "/var/tmp/datadog-agent/system-probe/build"
 
 	// TODO: define all check name constants here instead of hard-code strings everywhere to better track them
+	// ProcessModule is the process collection module ran by system-probe
 	ProcessModule = "process_module"
 )
 
