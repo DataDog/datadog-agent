@@ -11,8 +11,6 @@
 package main
 
 import (
-	"fmt"
-	"net/http"
 	"os"
 
 	_ "expvar"         // Blank import used because this isn't directly used in this file
@@ -21,8 +19,6 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -32,17 +28,6 @@ import (
 func main() {
 	// set the Agent flavor
 	flavor.SetFlavor(flavor.ClusterAgent)
-
-	// Expose the registered metrics via HTTP.
-	http.Handle("/metrics", telemetry.Handler())
-	go func() {
-		port := config.Datadog.GetInt("metrics_port")
-		err := http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", port), nil)
-		if err != nil && err != http.ErrServerClosed {
-			log.Errorf("Error creating expvar server on port %v: %v", port, err)
-		}
-	}()
-
 	if err := app.ClusterAgentCmd.Execute(); err != nil {
 		log.Error(err)
 		os.Exit(-1)
