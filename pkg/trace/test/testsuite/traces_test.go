@@ -89,26 +89,41 @@ func TestTraces(t *testing.T) {
 	})
 
 	t.Run("filter_tags", func(t *testing.T) {
-		if err := r.RunAgent([]byte("apm_config:\r\n  filter_tags.require: [env:prod, db:mysql]\r\n  filter_tags.reject: [outcome:success]")); err != nil {
+		if err := r.RunAgent([]byte(`apm_config:
+  filter_tags:
+    require: ["env:prod", "db:mysql"]
+    reject: ["outcome:success"]`)); err != nil {
 			t.Fatal(err)
 		}
 		defer r.KillAgent()
 
-		p := testutil.GeneratePayload(5, &testutil.TraceConfig{
-			MinSpans: 5,
+		p := testutil.GeneratePayload(4, &testutil.TraceConfig{
+			MinSpans: 4,
 			Keep:     true,
 		}, nil)
-		for _, span := range p[2] {
+		for _, span := range p[0] {
 			span.Meta = map[string]string{
 				"env": "prod",
 				"db":  "mysql",
+			}
+		}
+		for _, span := range p[1] {
+			span.Meta = map[string]string{
+				"env": "prod",
+				"db":  "mysql",
+			}
+		}
+		for _, span := range p[3] {
+			span.Meta = map[string]string{
+				"outcome": "success",
+				"db":      "mysql",
 			}
 		}
 		if err := r.Post(p); err != nil {
 			t.Fatal(err)
 		}
 		waitForTrace(t, &r, func(v pb.TracePayload) {
-			payloadsEqual(t, append(p[:2], p[3:]...), v)
+			payloadsEqual(t, p[:2], v)
 		})
 	})
 }

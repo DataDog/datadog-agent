@@ -185,6 +185,9 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 		}
 
 		if filteredByTags(root, a.conf.RequireTags, a.conf.RejectTags) {
+			log.Debugf("Trace rejected as it fails to meet tag requirements. root: %v", root)
+			atomic.AddInt64(&ts.TracesFiltered, 1)
+			atomic.AddInt64(&ts.SpansFiltered, tracen)
 			continue
 		}
 
