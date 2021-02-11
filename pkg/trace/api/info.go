@@ -47,6 +47,17 @@ func (r *HTTPReceiver) makeInfoHandler() http.HandlerFunc {
 		AnalyzedSpansByService      map[string]map[string]float64 `json:"analyzed_spans_by_service"`
 		Obfuscation                 reducedObfuscationConfig      `json:"obfuscation"`
 	}
+	var oconf reducedObfuscationConfig
+	if o := r.conf.Obfuscation; o != nil {
+		oconf.ElasticSearch = o.ES.Enabled
+		oconf.Mongo = o.Mongo.Enabled
+		oconf.SQLExecPlan = o.SQLExecPlan.Enabled
+		oconf.SQLExecPlanNormalize = o.SQLExecPlanNormalize.Enabled
+		oconf.HTTP = o.HTTP
+		oconf.RemoveStackTraces = o.RemoveStackTraces
+		oconf.Redis = o.Redis.Enabled
+		oconf.Memcached = o.Memcached.Enabled
+	}
 	txt, err := json.MarshalIndent(struct {
 		Version      string        `json:"version"`
 		GitCommit    string        `json:"git_commit"`
@@ -77,16 +88,7 @@ func (r *HTTPReceiver) makeInfoHandler() http.HandlerFunc {
 			MaxCPU:                      r.conf.MaxCPU,
 			AnalyzedRateByServiceLegacy: r.conf.AnalyzedRateByServiceLegacy,
 			AnalyzedSpansByService:      r.conf.AnalyzedSpansByService,
-			Obfuscation: reducedObfuscationConfig{
-				ElasticSearch:        r.conf.Obfuscation.ES.Enabled,
-				Mongo:                r.conf.Obfuscation.Mongo.Enabled,
-				SQLExecPlan:          r.conf.Obfuscation.SQLExecPlan.Enabled,
-				SQLExecPlanNormalize: r.conf.Obfuscation.SQLExecPlanNormalize.Enabled,
-				HTTP:                 r.conf.Obfuscation.HTTP,
-				RemoveStackTraces:    r.conf.Obfuscation.RemoveStackTraces,
-				Redis:                r.conf.Obfuscation.Redis.Enabled,
-				Memcached:            r.conf.Obfuscation.Memcached.Enabled,
-			},
+			Obfuscation:                 oconf,
 		},
 	}, "", "\t")
 	if err != nil {
