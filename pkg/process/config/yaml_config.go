@@ -166,7 +166,7 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 
 	if config.Datadog.GetBool(key(spNS, "process.enabled")) {
 		a.EnableSystemProbe = true
-		a.EnabledChecks = append(a.EnabledChecks, "Process")
+		a.EnabledChecks = append(a.EnabledChecks, ProcessModule)
 	}
 
 	if config.Datadog.GetBool(key(spNS, "enable_oom_kill")) {

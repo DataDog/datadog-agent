@@ -33,6 +33,9 @@ const (
 
 	// defaultRuntimeCompilerOutputDir is the default path for output from the system-probe runtime compiler
 	defaultRuntimeCompilerOutputDir = "/var/tmp/datadog-agent/system-probe/build"
+
+	// TODO: define all check name constants here instead of hard-code strings everywhere to better track them
+	ProcessModule = "process_module"
 )
 
 var (
