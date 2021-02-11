@@ -95,9 +95,9 @@ func checkPolicies(cmd *cobra.Command, args []string) error {
 		PIDCacheSize:        1,
 	}
 
-	opts := rules.NewOptsWithParams(model.SECLConstants, sprobe.SupportedDiscarders)
+	opts := rules.NewOptsWithParams(model.SECLConstants, sprobe.SupportedDiscarders, securityLogger.DatadogAgentLogger{})
 	model := &sprobe.Model{}
-	ruleSet := rules.NewRuleSet(model, model.NewEvent, opts, securityLogger.DatadogAgentLogger{})
+	ruleSet := rules.NewRuleSet(model, model.NewEvent, opts)
 
 	if err := rules.LoadPolicies(cfg.PoliciesDir, ruleSet); err != nil {
 		return err

@@ -64,16 +64,21 @@ type RuleSetListener interface {
 type Opts struct {
 	eval.Opts
 	SupportedDiscarders map[eval.Field]bool
+	Logger Logger
 }
 
 // NewOptsWithParams initializes a new Opts instance with Debug and Constants parameters
-func NewOptsWithParams(constants map[string]interface{}, supportedDiscarders map[eval.Field]bool) *Opts {
+func NewOptsWithParams(constants map[string]interface{}, supportedDiscarders map[eval.Field]bool, logger ...Logger) *Opts {
+	if len(logger) == 0 {
+		logger = []Logger{DefaultLogger{}}
+	}
 	return &Opts{
 		Opts: eval.Opts{
 			Constants: constants,
 			Macros:    make(map[eval.MacroID]*eval.Macro),
 		},
 		SupportedDiscarders: supportedDiscarders,
+		Logger: logger[0],
 	}
 }
 
@@ -406,7 +411,7 @@ func (rs *RuleSet) AddPolicyVersion(filename string, version string) {
 }
 
 // NewRuleSet returns a new ruleset for the specified data model
-func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, logger Logger) *RuleSet {
+func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts) *RuleSet {
 	return &RuleSet{
 		model:            model,
 		eventCtor:        eventCtor,
@@ -414,6 +419,6 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, logge
 		eventRuleBuckets: make(map[eval.EventType]*RuleBucket),
 		rules:            make(map[eval.RuleID]*eval.Rule),
 		loadedPolicies:   make(map[string]string),
-		logger:           logger,
+		logger:           opts.Logger,
 	}
 }

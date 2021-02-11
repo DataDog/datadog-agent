@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
 	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	agentLogger "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
@@ -127,7 +128,7 @@ func (m *Module) Reload() error {
 
 	rsa := sprobe.NewRuleSetApplier(m.config, m.probe)
 
-	ruleSet := m.probe.NewRuleSet(rules.NewOptsWithParams(model.SECLConstants, sprobe.SupportedDiscarders))
+	ruleSet := m.probe.NewRuleSet(rules.NewOptsWithParams(model.SECLConstants, sprobe.SupportedDiscarders, agentLogger.DatadogAgentLogger{}))
 	if err := rules.LoadPolicies(m.config.PoliciesDir, ruleSet); err != nil {
 		return err
 	}

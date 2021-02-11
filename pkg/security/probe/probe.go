@@ -21,6 +21,7 @@ func (p *Probe) NewRuleSet(opts *rules.Opts) *rules.RuleSet {
 	eventCtor := func() eval.Event {
 		return NewEvent(p.resolvers)
 	}
+	opts.Logger = log.DatadogAgentLogger{}
 
-	return rules.NewRuleSet(&Model{}, eventCtor, opts, log.DatadogAgentLogger{})
+	return rules.NewRuleSet(&Model{}, eventCtor, opts)
 }
