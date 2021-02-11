@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package sampler
 
@@ -59,7 +59,7 @@ func TestServiceKeyCatalogRegister(t *testing.T) {
 	assert := assert.New(t)
 
 	cat := newServiceLookup()
-	s := getTestPriorityEngine()
+	s := getTestPrioritySampler()
 
 	_, root1 := getTestTraceWithService(t, "service1", s)
 	sig1 := cat.register(ServiceSignature{root1.Service, defaultEnv})
@@ -85,7 +85,7 @@ func TestServiceKeyCatalogRatesByService(t *testing.T) {
 	assert := assert.New(t)
 
 	cat := newServiceLookup()
-	s := getTestPriorityEngine()
+	s := getTestPrioritySampler()
 
 	_, root1 := getTestTraceWithService(t, "service1", s)
 	sig1 := cat.register(ServiceSignature{root1.Service, defaultEnv})

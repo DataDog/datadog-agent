@@ -32,8 +32,8 @@ func NewOffsetManager() *manager.Manager {
 	}
 }
 
-func NewManager(closedHandler, httpHandler *ebpf.PerfHandler) *manager.Manager {
-	return &manager.Manager{
+func NewManager(closedHandler, httpHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Manager {
+	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: string(probes.ConnMap)},
 			{Name: string(probes.TcpStatsMap)},
@@ -93,4 +93,13 @@ func NewManager(closedHandler, httpHandler *ebpf.PerfHandler) *manager.Manager {
 			{Section: string(probes.SocketHTTPFilter)},
 		},
 	}
+
+	// the runtime compiled tracer has no need for separate probes targeting specific kernel versions, since it can
+	// do that with #ifdefs inline. Thus the following probes should only be declared as existing in the prebuilt
+	// tracer.
+	if !runtimeTracer {
+		mgr.Probes = append(mgr.Probes, &manager.Probe{Section: string(probes.TCPRetransmitPre470), MatchFuncName: "^tcp_retransmit_skb$"})
+	}
+
+	return mgr
 }

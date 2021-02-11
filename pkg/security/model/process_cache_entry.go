@@ -1,11 +1,11 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build linux
 
-package probe
+package model
 
 import (
 	"fmt"
@@ -14,7 +14,7 @@ import (
 
 // Exit a process
 func (pc *ProcessCacheEntry) Exit(exitTime time.Time) {
-	pc.ExitTimestamp = exitTime
+	pc.ExitTime = exitTime
 }
 
 func copyProcessContext(parent, child *ProcessCacheEntry) {
@@ -35,7 +35,7 @@ func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 	entry.Ancestor = pc
 
 	// empty and mark as exit previous entry
-	pc.ExitTimestamp = entry.ExecTimestamp
+	pc.ExitTime = entry.ExecTime
 
 	// keep some context
 	copyProcessContext(pc, entry)
@@ -44,14 +44,21 @@ func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 // Fork returns a copy of the current ProcessCacheEntry
 func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.PPid = pc.Pid
-	childEntry.UID = pc.UID
-	childEntry.User = pc.User
-	childEntry.GID = pc.GID
-	childEntry.Group = pc.Group
 	childEntry.Ancestor = pc
 
-	// keep some context
-	copyProcessContext(pc, childEntry)
+	// keep some context if not present in the ebpf event
+	if childEntry.ExecTime.IsZero() {
+		childEntry.TTYName = pc.TTYName
+		childEntry.Comm = pc.Comm
+		childEntry.FileFields = pc.FileFields
+		childEntry.PathnameStr = pc.PathnameStr
+		childEntry.BasenameStr = pc.BasenameStr
+		childEntry.ContainerPath = pc.ContainerPath
+		childEntry.ExecTimestamp = pc.ExecTimestamp
+		childEntry.Cookie = pc.Cookie
+
+		copyProcessContext(pc, childEntry)
+	}
 }
 
 func (pc *ProcessCacheEntry) String() string {
@@ -68,7 +75,7 @@ func (pc *ProcessCacheEntry) String() string {
 }
 
 // UnmarshalBinary reads the binary representation of itself
-func (pc *ProcessCacheEntry) UnmarshalBinary(data []byte, resolvers *Resolvers, unmarshalContext bool) (int, error) {
+func (pc *ProcessCacheEntry) UnmarshalBinary(data []byte, unmarshalContext bool) (int, error) {
 	var read int
 
 	if unmarshalContext {
@@ -76,7 +83,7 @@ func (pc *ProcessCacheEntry) UnmarshalBinary(data []byte, resolvers *Resolvers, 
 			return 0, ErrNotEnoughData
 		}
 
-		offset, err := unmarshalBinary(data, &pc.ContainerContext)
+		offset, err := UnmarshalBinary(data, &pc.ContainerContext)
 		if err != nil {
 			return 0, err
 		}
@@ -87,7 +94,7 @@ func (pc *ProcessCacheEntry) UnmarshalBinary(data []byte, resolvers *Resolvers, 
 		}
 	}
 
-	offset, err := pc.ExecEvent.UnmarshalBinary(data[read:], resolvers)
+	offset, err := pc.ExecEvent.UnmarshalBinary(data[read:])
 	if err != nil {
 		return 0, err
 	}

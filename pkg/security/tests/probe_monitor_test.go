@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build functionaltests
 
@@ -17,16 +17,17 @@ import (
 
 	"github.com/cihub/seelog"
 
+	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
 func TestProbeMonitor(t *testing.T) {
 	var truncatedParents, truncatedSegment string
-	for i := 0; i <= probe.MaxPathDepth; i++ {
+	for i := 0; i <= model.MaxPathDepth; i++ {
 		truncatedParents += "a/"
 	}
-	for i := 0; i <= probe.MaxSegmentLength+1; i++ {
+	for i := 0; i <= model.MaxSegmentLength+1; i++ {
 		truncatedSegment += "a"
 	}
 
@@ -35,7 +36,7 @@ func TestProbeMonitor(t *testing.T) {
 		Expression: `open.filename =~ "*a/test-open" && open.flags & O_CREAT != 0`,
 	}
 
-	probeMonitorOpts := testOpts{forkBombThreshold: 300}
+	probeMonitorOpts := testOpts{}
 	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, probeMonitorOpts)
 	if err != nil {
 		t.Fatal(err)
@@ -59,7 +60,7 @@ func TestProbeMonitor(t *testing.T) {
 		}
 		defer test.Close()
 
-		ruleEvent, err := test.GetProbeCustomEvent(1*time.Second, probe.CustomRulesetLoadedEventType.String())
+		ruleEvent, err := test.GetProbeCustomEvent(1*time.Second, model.CustomRulesetLoadedEventType.String())
 		if err != nil {
 			t.Error(err)
 		} else {
@@ -80,7 +81,7 @@ func TestProbeMonitor(t *testing.T) {
 		defer os.Remove(truncatedSegmentFile)
 		defer syscall.Close(int(fd))
 
-		ruleEvent, err := test.GetProbeCustomEvent(3*time.Second, probe.CustomTruncatedSegmentEventType.String())
+		ruleEvent, err := test.GetProbeCustomEvent(3*time.Second, model.CustomTruncatedSegmentEventType.String())
 		if err != nil {
 			t.Error(err)
 		} else {
@@ -101,7 +102,7 @@ func TestProbeMonitor(t *testing.T) {
 		defer os.Remove(truncatedParentsFile)
 		defer syscall.Close(int(fd))
 
-		ruleEvent, err := test.GetProbeCustomEvent(3*time.Second, probe.CustomTruncatedParentsEventType.String())
+		ruleEvent, err := test.GetProbeCustomEvent(3*time.Second, model.CustomTruncatedParentsEventType.String())
 		if err != nil {
 			t.Error(err)
 		} else {
@@ -110,48 +111,6 @@ func TestProbeMonitor(t *testing.T) {
 			}
 		}
 	})
-
-	prevLevel, err := test.st.swapLogLevel(seelog.WarnLvl)
-	if err != nil {
-		t.Error(err)
-	}
-
-	t.Run("fork_bomb", func(t *testing.T) {
-		executable := "/usr/bin/touch"
-		if resolved, err := os.Readlink(executable); err == nil {
-			executable = resolved
-		} else {
-			if os.IsNotExist(err) {
-				executable = "/bin/touch"
-			}
-		}
-
-		go func() {
-			for i := int64(0); i < testMod.config.LoadControllerForkBombThreshold*2; i++ {
-				args := []string{"touch", "/dev/null"}
-				_, err := syscall.ForkExec(executable, args, nil)
-				if err != nil {
-					t.Error(err)
-				}
-			}
-		}()
-
-		ruleEvent, err := test.GetProbeCustomEvent(3*time.Second, probe.CustomForkBombEventType.String())
-		if err != nil {
-			t.Error(err)
-		} else {
-			if ruleEvent.RuleID != probe.ForkBombRuleID {
-				t.Errorf("expected %s rule, got %s", probe.ForkBombRuleID, ruleEvent.RuleID)
-			}
-		}
-
-		time.Sleep(3 * time.Second)
-
-	})
-
-	if _, err := test.st.swapLogLevel(prevLevel); err != nil {
-		t.Error(err)
-	}
 }
 
 func TestNoisyProcess(t *testing.T) {
@@ -186,7 +145,7 @@ func TestNoisyProcess(t *testing.T) {
 			_ = os.Remove(file)
 		}
 
-		ruleEvent, err := test.GetProbeCustomEvent(1*time.Second, probe.CustomNoisyProcessEventType.String())
+		ruleEvent, err := test.GetProbeCustomEvent(1*time.Second, model.CustomNoisyProcessEventType.String())
 		if err != nil {
 			t.Error(err)
 		} else {

@@ -8,7 +8,7 @@
       {{- if .runnerStats.Workers}}
         <br>Check Workers: {{.runnerStats.Workers}}
       {{end}}
-      <br>Agent start: {{.agent_start}}
+      <br>Agent start: {{ formatUnixTime .agent_start_nano }}
       {{- if .config.log_file}}
         <br>Log File: {{.config.log_file}}
       {{end}}
@@ -24,7 +24,7 @@
   <div class="stat">
     <span class="stat_title">System Info</span>
     <span class="stat_data">
-      System UTC Time: {{.time}}
+      System time: {{ formatUnixTime .time_nano }}
       {{- if .ntpOffset}}
         <br>NTP Offset: {{ humanizeDuration .ntpOffset "s"}}
         {{- if ntpWarning .ntpOffset}}
@@ -319,7 +319,6 @@
             {{- end }}
             {{- if .inputs }}
             Inputs: {{ range $input := .inputs }}{{$input}} {{ end }}</br>
-            BytesRead: {{ .bytes_read }}</br>
             BytesRead: {{ .bytes_read }}</br>
             Average Latency (ms): {{ .all_time_avg_latency }}</br>
             24h Average Latency (ms): {{ .recent_avg_latency }}</br>

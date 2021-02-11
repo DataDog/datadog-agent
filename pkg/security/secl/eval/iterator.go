@@ -3,14 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-package tag
+package eval
 
-import (
-	"testing"
+import "unsafe"
 
-	"github.com/stretchr/testify/assert"
-)
-
-func TestNoopProviderShouldReturnEmptyList(t *testing.T) {
-	assert.Equal(t, 0, len(NoopProvider.GetTags()))
+// Iterator interface of a field iterator
+type Iterator interface {
+	Front(ctx *Context) unsafe.Pointer
+	Next() unsafe.Pointer
 }

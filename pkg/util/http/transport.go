@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package http
 
@@ -131,8 +131,8 @@ func GetProxyTransportFunc(p *config.Proxy) func(*http.Request) (*url.URL, error
 			urlString := r.URL.String()
 			NoProxyWarningMapMutex.Lock()
 			if _, ok := NoProxyWarningMap[urlString]; !ok {
+				NoProxyWarningMap[log.SanitizeURL(r.URL.String())] = true
 				logSafeURL := r.URL.Scheme + "://" + r.URL.Host
-				NoProxyWarningMap[logSafeURL] = true
 				log.Warnf("Deprecation warning: the HTTP request to %s uses proxy %s but will ignore the proxy when the Agent configuration option no_proxy_nonexact_match defaults to true in a future agent version. Please adapt the Agent’s proxy configuration accordingly", logSafeURL, url.String())
 			}
 			NoProxyWarningMapMutex.Unlock()
