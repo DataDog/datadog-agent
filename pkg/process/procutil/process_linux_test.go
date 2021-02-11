@@ -866,19 +866,23 @@ func TestGetFDCountLocalFS(t *testing.T) {
 func TestStatsWithPermByPID(t *testing.T) {
 	os.Setenv("HOST_PROC", "resources/zero_io")
 	defer os.Unsetenv("HOST_PROC")
+	// create a fd dir so that the FD collection doesn't return -1
+	os.Mkdir("resources/zero_io/3/fd", 0400)
+	defer os.Remove("resources/zero_io/3/fd")
 
 	probe := NewProcessProbe()
 	defer probe.Close()
-	stats, err := probe.StatsWithPermByPID(false)
+
+	stats, err := probe.StatsWithPermByPID()
 	require.NoError(t, err)
 	assert.Empty(t, stats)
 
+	WithReturnZeroPermStats(true)(probe)
 	pid := int32(3)
-	stats, err = probe.StatsWithPermByPID(true)
+	stats, err = probe.StatsWithPermByPID()
 	require.NoError(t, err)
 	require.Contains(t, stats, pid)
 	assert.True(t, stats[pid].IOStat.IsZeroValue())
-	assert.Equal(t, int32(-1), stats[pid].OpenFdCount)
 }
 
 func TestStatsForPIDsAndPerm(t *testing.T) {

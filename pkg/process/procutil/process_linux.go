@@ -33,13 +33,12 @@ var (
 )
 
 type statusInfo struct {
-	name       string
-	status     string
-	uids       []int32
-	gids       []int32
-	nspid      int32
-	numThreads int32
-
+	name        string
+	status      string
+	uids        []int32
+	gids        []int32
+	nspid       int32
+	numThreads  int32
 	memInfo     *MemoryInfoStat
 	ctxSwitches *NumCtxSwitchesStat
 }
@@ -48,26 +47,34 @@ type statInfo struct {
 	ppid       int32
 	createTime int64
 	nice       int32
+	cpuStat    *CPUTimesStat
+}
 
-	cpuStat *CPUTimesStat
+// Option is config options callback for system-probe
+type Option func(p *Probe)
+
+// WithReturnZeroPermStats configures whether StatsWithPermByPID() returns StatsWithPerm that
+// has zero values on all fields
+func WithReturnZeroPermStats(enabled bool) Option {
+	return func(p *Probe) {
+		p.returnZeroPermStats = enabled
+	}
 }
 
 // Probe is a service that fetches process related info on current host
 type Probe struct {
 	procRootLoc  string // ProcFS
 	procRootFile *os.File
+	uid          uint32 // UID
+	euid         uint32 // Effective UID
+	clockTicks   float64
+	bootTime     uint64
 
-	// uid and euid are cached to minimize system call when check file permission
-	uid  uint32 // UID
-	euid uint32 // Effective UID
-
-	clockTicks float64
-
-	bootTime uint64
+	returnZeroPermStats bool
 }
 
 // NewProcessProbe initializes a new Probe object
-func NewProcessProbe() *Probe {
+func NewProcessProbe(options ...Option) *Probe {
 	hostProc := util.HostProc()
 	bootTime, _ := bootTime(hostProc)
 
@@ -78,6 +85,11 @@ func NewProcessProbe() *Probe {
 		bootTime:    bootTime,
 		clockTicks:  getClockTicks(),
 	}
+
+	for _, o := range options {
+		o(p)
+	}
+
 	return p
 }
 
@@ -205,10 +217,8 @@ func (p *Probe) ProcessesByPID(now time.Time, withPerm bool) (map[int32]*Process
 	return procsByPID, nil
 }
 
-// StatsWithPermByPID returns the stats that require extra permission to collect for each process
-// the parameter `returnZeroVals` controls whether to include all zero stats or not in the return map,
-// not returning all zero stats would help process-agent to deserialize less data
-func (p *Probe) StatsWithPermByPID(returnZeroVals bool) (map[int32]*StatsWithPerm, error) {
+// StatsWithPermByPID returns the stats that require elevated permission to collect for each process
+func (p *Probe) StatsWithPermByPID() (map[int32]*StatsWithPerm, error) {
 	pids, err := p.getActivePIDs()
 	if err != nil {
 		return nil, err
@@ -225,7 +235,8 @@ func (p *Probe) StatsWithPermByPID(returnZeroVals bool) (map[int32]*StatsWithPer
 		fds := p.getFDCount(pathForPID)
 		io := p.parseIO(pathForPID)
 
-		if !returnZeroVals && fds <= 0 && io.IsZeroValue() {
+		// don't return entries with all zero values if returnZeroPermStats is disabled
+		if !p.returnZeroPermStats && fds == 0 && io.IsZeroValue() {
 			continue
 		}
 

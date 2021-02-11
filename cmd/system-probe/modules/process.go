@@ -15,48 +15,44 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ErrProcessTracerUnsupported is an error type indicating that the process_tracer is not support in the running environment
-var ErrProcessTracerUnsupported = errors.New("process_tracer module unsupported")
+// ErrProcessUnsupported is an error type indicating that the process module is not support in the running environment
+var ErrProcessUnsupported = errors.New("process module unsupported")
 
-// ReturnZeroStats controls whether process_tracer returns stats that are all zeros.
-// Currently it's set to false to reduce the deserialization work process-agent has to do
-var ReturnZeroStats = false
-
-// ProcessTracer is a module that fetches process level data
-var ProcessTracer = api.Factory{
-	Name: "process_tracer",
+// Process is a module that fetches process level data
+var Process = api.Factory{
+	Name: "process",
 	Fn: func(agentConfig *config.AgentConfig) (api.Module, error) {
-		if !agentConfig.CheckIsEnabled("Process Tracer") {
-			log.Infof("Process tracer disabled")
+		if !agentConfig.CheckIsEnabled(config.ProcessModule) {
+			log.Infof("Process module disabled")
 			return nil, api.ErrNotEnabled
 		}
 
-		log.Infof("Creating process_tracer for: %s", filepath.Base(os.Args[0]))
+		log.Infof("Creating process module for: %s", filepath.Base(os.Args[0]))
 
-		p := procutil.NewProcessProbe()
-		// currently this is true for all environments except linux
+		// we disable returning zero values for stats to reduce parsing work on process-agent side
+		p := procutil.NewProcessProbe(procutil.WithReturnZeroPermStats(false))
 		if p == nil {
-			return nil, ErrProcessTracerUnsupported
+			return nil, ErrProcessUnsupported
 		}
-		return &processTracer{probe: p}, nil
+		return &process{probe: p}, nil
 	},
 }
 
-var _ api.Module = &processTracer{}
+var _ api.Module = &process{}
 
-type processTracer struct{ probe *procutil.Probe }
+type process struct{ probe *procutil.Probe }
 
-// GetStats returns stats for the tracer
-func (t *processTracer) GetStats() map[string]interface{} {
+// GetStats returns stats for the module
+func (t *process) GetStats() map[string]interface{} {
 	return nil
 }
 
 // Register registers endpoints for the module to expose data
-func (t *processTracer) Register(httpMux *http.ServeMux) error {
+func (t *process) Register(httpMux *http.ServeMux) error {
 	var runCounter uint64
 	httpMux.HandleFunc("/proc/stats", func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
-		stats, err := t.probe.StatsWithPermByPID(ReturnZeroStats)
+		stats, err := t.probe.StatsWithPermByPID()
 		if err != nil {
 			log.Errorf("unable to retrieve stats using process_tracer: %s", err)
 			w.WriteHeader(500)
@@ -74,7 +70,7 @@ func (t *processTracer) Register(httpMux *http.ServeMux) error {
 }
 
 // Close cleans up the underlying probe object
-func (t *processTracer) Close() {
+func (t *process) Close() {
 	if t.probe != nil {
 		t.probe.Close()
 	}

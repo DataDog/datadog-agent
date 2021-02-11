@@ -7,13 +7,26 @@ import (
 	"time"
 )
 
+// Option is config options callback for system-probe
+type Option func(p *Probe)
+
+// WithReturnZeroPermStats configures whether StatsWithPermByPID() returns StatsWithPerm that
+// has zero values on all fields
+func WithReturnZeroPermStats(enabled bool) Option {
+	return func(p *Probe) {
+		p.returnZeroPermStats = enabled
+	}
+}
+
 // NewProcessProbe is currently not implemented in non-linux environments
-func NewProcessProbe() *Probe {
+func NewProcessProbe(options ...Option) *Probe {
 	return nil
 }
 
 // Probe is an empty struct for unsupported platforms
-type Probe struct{}
+type Probe struct {
+	returnZeroPermStats bool
+}
 
 // Close is currently not implemented in non-linux environments
 func (p *Probe) Close() {}
@@ -49,6 +62,6 @@ func (p *Probe) ProcessesByPID(now time.Time, withPerm bool) (map[int32]*Process
 }
 
 // StatsWithPermByPID is currently not implemented in non-linux environments
-func (p *Probe) StatsWithPermByPID(returnZeroVals bool) (map[int32]*StatsWithPerm, error) {
+func (p *Probe) StatsWithPermByPID() (map[int32]*StatsWithPerm, error) {
 	return nil, fmt.Errorf("StatsWithPermByPID is not implemented in non-linux environment")
 }
