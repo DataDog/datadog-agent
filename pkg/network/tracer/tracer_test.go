@@ -2015,6 +2015,7 @@ func TestConnectionAssured(t *testing.T) {
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
+	defer tr.Stop()
 
 	// register test as client
 	getConnections(t, tr)
@@ -2063,6 +2064,7 @@ func TestConnectionNotAssured(t *testing.T) {
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
+	defer tr.Stop()
 
 	// register test as client
 	getConnections(t, tr)
@@ -2102,9 +2104,7 @@ func TestSelfConnect(t *testing.T) {
 	cfg.BPFDebug = true
 	cfg.TCPConnTimeout = 3 * time.Second
 	tr, err := NewTracer(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer tr.Stop()
 
 	getConnections(t, tr)
