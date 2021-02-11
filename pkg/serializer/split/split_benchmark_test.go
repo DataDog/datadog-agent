@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
 func benchmarkSplitPayloadsSketchesSplit(b *testing.B, numPoints int) {
@@ -33,7 +34,7 @@ func benchmarkSplitPayloadsSketchesNew(b *testing.B, numPoints int) {
 	b.ResetTimer()
 
 	for n := 0; n < b.N; n++ {
-		testSketchSeries.MarshalSplitCompress()
+		testSketchSeries.MarshalSplitCompress(marshaler.DefaultBufferContext())
 	}
 }
 

@@ -105,7 +105,7 @@ type testPayload struct{}
 
 func (p *testPayload) MarshalJSON() ([]byte, error) { return jsonString, nil }
 func (p *testPayload) Marshal() ([]byte, error)     { return protobufString, nil }
-func (p *testPayload) MarshalSplitCompress() ([]*[]byte, error) {
+func (p *testPayload) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
 	payloads := forwarder.Payloads{}
 	payload, err := compression.Compress(nil, protobufString)
 	if err != nil {
@@ -140,7 +140,7 @@ func (p *testErrorPayload) Marshal() ([]byte, error)     { return nil, fmt.Error
 func (p *testErrorPayload) SplitPayload(int) ([]marshaler.Marshaler, error) {
 	return []marshaler.Marshaler{}, fmt.Errorf("some error")
 }
-func (p *testErrorPayload) MarshalSplitCompress() ([]*[]byte, error) {
+func (p *testErrorPayload) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
 	return nil, fmt.Errorf("some error")
 }
 

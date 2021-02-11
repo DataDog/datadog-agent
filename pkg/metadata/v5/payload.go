@@ -71,6 +71,6 @@ func (m *MarshalledGohaiPayload) UnmarshalJSON(bytes []byte) error {
 }
 
 // MarshalSplitCompress not implemented
-func (p *Payload) MarshalSplitCompress() ([]*[]byte, error) {
+func (p *Payload) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
 	return nil, fmt.Errorf("V5 Payload MarshalSplitCompress is not implemented")
 }

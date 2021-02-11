@@ -237,7 +237,7 @@ func (series Series) SplitPayload(times int) ([]marshaler.Marshaler, error) {
 }
 
 // MarshalSplitCompress not implemented
-func (series Series) MarshalSplitCompress() ([]*[]byte, error) {
+func (series Series) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
 	return nil, fmt.Errorf("Series MarshalSplitCompress is not implemented")
 }
 

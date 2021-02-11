@@ -319,7 +319,7 @@ func (s *Serializer) SendSketch(sketches marshaler.Marshaler) error {
 
 	var extraHeaders http.Header
 
-	payloads, err := sketches.MarshalSplitCompress()
+	payloads, err := sketches.MarshalSplitCompress(marshaler.DefaultBufferContext())
 	if err == nil {
 		return s.Forwarder.SubmitSketchSeries(payloads, protobufExtraHeadersWithCompression)
 	}

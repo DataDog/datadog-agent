@@ -197,7 +197,7 @@ func (events Events) SplitPayload(times int) ([]marshaler.Marshaler, error) {
 }
 
 // MarshalSplitCompress not implemented
-func (events Events) MarshalSplitCompress() ([]*[]byte, error) {
+func (events Events) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
 	return nil, fmt.Errorf("Events MarshalSplitCompress is not implemented")
 }
 

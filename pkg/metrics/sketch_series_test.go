@@ -8,6 +8,7 @@ import (
 
 	"github.com/DataDog/agent-payload/gogen"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -92,7 +93,7 @@ func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {
 
 	sl := SketchSeriesList{}
 	payload, _ := sl.Marshal()
-	payloads, err := sl.MarshalSplitCompress()
+	payloads, err := sl.MarshalSplitCompress(marshaler.DefaultBufferContext())
 
 	assert.Nil(t, err)
 
@@ -113,7 +114,7 @@ func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 	}
 
 	payload, _ := sl.Marshal()
-	payloads, err := sl.MarshalSplitCompress()
+	payloads, err := sl.MarshalSplitCompress(marshaler.DefaultBufferContext())
 
 	assert.Nil(t, err)
 
@@ -156,7 +157,7 @@ func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 		sl[i] = Makeseries(i)
 	}
 
-	payloads, err := sl.MarshalSplitCompress()
+	payloads, err := sl.MarshalSplitCompress(marshaler.DefaultBufferContext())
 	assert.Nil(t, err)
 
 	recoveredSketches := []gogen.SketchPayload{}

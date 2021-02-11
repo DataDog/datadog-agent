@@ -27,6 +27,6 @@ func (p *Payload) SplitPayload(times int) ([]marshaler.Marshaler, error) {
 	return nil, fmt.Errorf("V5 Payload splitting is not implemented")
 }
 
-func (p *Payload) MarshalSplitCompress() ([]*[]byte, error) {
+func (p *Payload) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
 	return nil, fmt.Errorf("V5 Payload MarshalSplitCompress is not implemented")
 }

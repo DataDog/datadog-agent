@@ -190,7 +190,7 @@ func (sc ServiceChecks) SplitPayload(times int) ([]marshaler.Marshaler, error) {
 }
 
 // MarshalSplitCompress not implemented
-func (sc ServiceChecks) MarshalSplitCompress() ([]*[]byte, error) {
+func (sc ServiceChecks) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
 	return nil, fmt.Errorf("ServiceChecks MarshalSplitCompress is not implemented")
 }
 

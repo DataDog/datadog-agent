@@ -84,19 +84,18 @@ func (sl SketchSeriesList) MarshalJSON() ([]byte, error) {
 // compressed protobuf marshaled gogen.SketchPayload objects. gogen.SketchPayload is not directly marshaled - instead
 // it's contents are marshaled individually, packed with the appropriate protobuf metadata, and compressed in stream.
 // The resulting payloads (when decompressed) are binary equal to the result of marshaling the whole object at once.
-func (sl SketchSeriesList) MarshalSplitCompress() ([]*[]byte, error) {
-	input := bytes.NewBuffer(make([]byte, 0, 1024))
-	output := bytes.NewBuffer(make([]byte, 0, 1024))
-
+func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
 	// The Metadata field of gogen.SketchPayload is never written to - so pack an empty metadata as the footer
 	footer := []byte{0x12, 0}
 
-	compressor, e := stream.NewCompressor(input, output, []byte{}, footer, []byte{})
+	bufferContext.CompressorInput.Reset()
+	bufferContext.CompressorOutput.Reset()
+
+	compressor, e := stream.NewCompressor(bufferContext.CompressorInput, bufferContext.CompressorOutput, []byte{}, footer, []byte{})
 	if e != nil {
 		return nil, e
 	}
 	payloads := []*[]byte{}
-	precompressionBuf := make([]byte, 1024)
 
 	dsl := make([]gogen.SketchPayload_Sketch_Dogsketch, 1)
 	for _, ss := range sl {
@@ -127,27 +126,27 @@ func (sl SketchSeriesList) MarshalSplitCompress() ([]*[]byte, error) {
 		}
 
 		// Pack the protobuf metadata - see SketchPayload.MarshalTo in agent_payload.pb.go for reference.
-		i := 0
+		metadataSize := 0
 		// Magic number that occurs before the varint encoding
-		precompressionBuf[i] = 0xa
-		i++
-		i = encodeVarintAgentPayload(precompressionBuf, i, uint64(sketch.Size()))
+		bufferContext.PrecompressionBuf[metadataSize] = 0xa
+		metadataSize++
+		metadataSize = encodeVarintAgentPayload(bufferContext.PrecompressionBuf, metadataSize, uint64(sketch.Size()))
 
 		// Resize the pre-compression buffer if needed
-		totalItemSize := sketch.Size() + i
-		if totalItemSize > cap(precompressionBuf) {
-			precompressionBuf = append(precompressionBuf, make([]byte, totalItemSize-cap(precompressionBuf))...)
-			precompressionBuf = precompressionBuf[:cap(precompressionBuf)]
+		totalItemSize := sketch.Size() + metadataSize
+		if totalItemSize > cap(bufferContext.PrecompressionBuf) {
+			bufferContext.PrecompressionBuf = append(bufferContext.PrecompressionBuf, make([]byte, totalItemSize-cap(bufferContext.PrecompressionBuf))...)
+			bufferContext.PrecompressionBuf = bufferContext.PrecompressionBuf[:cap(bufferContext.PrecompressionBuf)]
 		}
 
 		// Marshal the sketch to the precompression buffer after the metadata
-		_, e := sketch.MarshalTo(precompressionBuf[i:])
+		_, e := sketch.MarshalTo(bufferContext.PrecompressionBuf[metadataSize:])
 		if e != nil {
 			return nil, e
 		}
 
 		// Compress the protobuf metadata and the marshaled sketch
-		e = compressor.AddItem(precompressionBuf[:totalItemSize])
+		e = compressor.AddItem(bufferContext.PrecompressionBuf[:totalItemSize])
 		if e == stream.ErrItemTooBig || e == stream.ErrPayloadFull {
 			// Since the compression buffer is full - flush it and rotate
 			payload, e := compressor.Close()
@@ -155,15 +154,19 @@ func (sl SketchSeriesList) MarshalSplitCompress() ([]*[]byte, error) {
 				return nil, e
 			}
 			payloads = append(payloads, &payload)
-			input.Reset()
-			output.Reset()
-			compressor, e = stream.NewCompressor(input, output, []byte{}, footer, []byte{})
+			bufferContext.CompressorInput.Reset()
+			bufferContext.CompressorOutput.Reset()
+			compressor, e = stream.NewCompressor(bufferContext.CompressorInput, bufferContext.CompressorOutput, []byte{}, footer, []byte{})
 			if e != nil {
 				return nil, e
 			}
 
-			// Add it to the new compression buffer - since this is a new compressor it should never overflow.
-			e = compressor.AddItem(precompressionBuf[:totalItemSize])
+			// Add it to the new compression buffer
+			e = compressor.AddItem(bufferContext.PrecompressionBuf[:totalItemSize])
+			if e == stream.ErrItemTooBig {
+				// Drop this sketch since it can't fit
+				continue
+			}
 			if e != nil {
 				return nil, e
 			}

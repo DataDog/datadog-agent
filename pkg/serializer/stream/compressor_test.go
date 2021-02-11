@@ -77,7 +77,7 @@ func (d *dummyMarshaller) SplitPayload(int) ([]marshaler.Marshaler, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
-func (d *dummyMarshaller) MarshalSplitCompress() ([]*[]byte, error) {
+func (d *dummyMarshaller) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
