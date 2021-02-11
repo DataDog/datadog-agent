@@ -25,7 +25,9 @@ func SetupCoreDump() error {
 			Max: unix.RLIM_INFINITY,
 		})
 
-		return fmt.Errorf("Failed to set ulimit for core dumps: %s", err)
+		if err != nil {
+			return fmt.Errorf("Failed to set ulimit for core dumps: %s", err)
+		}
 	}
 
 	return nil
