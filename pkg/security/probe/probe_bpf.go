@@ -13,7 +13,6 @@ import (
 	"math"
 	"math/rand"
 	"os"
-	"runtime"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -826,18 +825,13 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	p.resolvers = resolvers
 	p.event = NewEvent(p.resolvers)
 
-	windowSize := uint64(15 * runtime.NumCPU())
-	if windowSize < 60 {
-		windowSize = 60
-	}
-
 	p.reOrderer = NewReOrderer(p.handleEvent,
 		ExtractEventInfo,
 		ReOrdererOpts{
-			QueueSize:  100000,
-			WindowSize: windowSize,
-			Delay:      100 * time.Millisecond,
-			Rate:       100 * time.Millisecond,
+			QueueSize:  10000,
+			Rate:       50 * time.Millisecond,
+			Retention:  5,
+			MetricRate: 5 * time.Second,
 		})
 
 	eventZero.resolvers = p.resolvers

@@ -291,9 +291,9 @@ func isSetAndNotEmpty(config coreConfig.Config, key string) bool {
 // getLogsAPIKey provides the dd api key used by the main logs agent sender.
 func getLogsAPIKey(config coreConfig.Config) string {
 	if isSetAndNotEmpty(config, "logs_config.api_key") {
-		return config.GetString("logs_config.api_key")
+		return coreConfig.SanitizeAPIKey(config.GetString("logs_config.api_key"))
 	}
-	return config.GetString("api_key")
+	return coreConfig.SanitizeAPIKey(config.GetString("api_key"))
 }
 
 // parseAddress returns the host and the port of the address.
