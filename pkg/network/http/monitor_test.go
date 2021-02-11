@@ -134,7 +134,7 @@ func eBPFSetup(t *testing.T) (*manager.Manager, *ddebpf.PerfHandler) {
 	}
 
 	httpPerfHandler := ddebpf.NewPerfHandler(10)
-	mgr := netebpf.NewManager(ddebpf.NewPerfHandler(1), httpPerfHandler)
+	mgr := netebpf.NewManager(ddebpf.NewPerfHandler(1), httpPerfHandler, false)
 	mgrOptions := manager.Options{
 		MapSpecEditors: map[string]manager.MapSpecEditor{
 			string(probes.HttpInFlightMap): {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},

@@ -48,6 +48,6 @@ kitchen_debian_sysprobe:
   extends: .kitchen_test_system_probe
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
-    - export TEST_PLATFORMS="debian-10,urn,Debian:debian-10:10:0.20200610.293"
+    - export TEST_PLATFORMS="debian-10,urn,Debian:debian-10:10:0.20210129.530"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh

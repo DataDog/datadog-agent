@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build functionaltests
 
@@ -129,7 +129,7 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			if inode := getInode(t, executable); inode != event.Process.Inode {
-				t.Logf("expected inode %d, got %d", event.Process.Inode, inode)
+				t.Logf("expected inode %d, got %d", inode, event.Process.Inode)
 			}
 
 			testContainerPath(t, event, "process.container_path")
@@ -175,6 +175,12 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	t.Run("ancestors", func(t *testing.T) {
+		shell := "/usr/bin/sh"
+		if resolved, err := os.Readlink(shell); err == nil {
+			shell = resolved
+		}
+		shell = path.Base(shell)
+
 		executable := "/usr/bin/touch"
 		if resolved, err := os.Readlink(executable); err == nil {
 			executable = resolved
@@ -191,7 +197,7 @@ func TestProcessContext(t *testing.T) {
 
 		// Bash attempts to optimize away forks in the last command in a function body
 		// under appropriate circumstances (source: bash changelog)
-		cmd := exec.Command("sh", "-c", "$("+executable+" "+testFile+")")
+		cmd := exec.Command(shell, "-c", "$("+executable+" "+testFile+")")
 		if _, err := cmd.CombinedOutput(); err != nil {
 			t.Error(err)
 		}
@@ -200,7 +206,7 @@ func TestProcessContext(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if filename, _ := event.GetFieldValue("process.filename"); filename.(string) != executable {
+			if filename := event.ResolveExecInode(&event.Exec); filename != executable {
 				t.Errorf("expected process filename `%s`, got `%s`: %v", executable, filename, event)
 			}
 
@@ -208,9 +214,8 @@ func TestProcessContext(t *testing.T) {
 				t.Error("Wrong rule triggered")
 			}
 
-			values, _ := event.GetFieldValue("process.ancestors.name")
-			if names := values.([]string); names[0] != "sh" {
-				t.Errorf("ancestor `sh` expected, got %s, event:%v", names[0], event)
+			if ancestor := event.Process.Ancestor; ancestor == nil || ancestor.Comm != shell {
+				t.Errorf("ancestor `%s` expected, got %v, event:%v", shell, ancestor, event)
 			}
 		}
 	})

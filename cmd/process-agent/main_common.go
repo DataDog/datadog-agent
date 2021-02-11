@@ -233,8 +233,9 @@ func debugCheckResults(cfg *config.AgentConfig, check string) error {
 		return err
 	}
 
-	if check == checks.Connections.Name() {
-		// Connections check requires process-check to have occurred first (for process creation ts)
+	// Connections check requires process-check to have occurred first (for process creation ts),
+	// RTProcess check requires process check to gather PIDs first
+	if check == checks.Connections.Name() || check == checks.RTProcess.Name() {
 		checks.Process.Init(cfg, sysInfo)
 		checks.Process.Run(cfg, 0) //nolint:errcheck
 	}

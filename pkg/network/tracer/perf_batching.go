@@ -64,8 +64,8 @@ func (p *PerfBatchManager) Extract(b *batch, now time.Time) []network.Connection
 	state.updated = now.UnixNano()
 	state.offset = 0
 
-	buffer := make([]network.ConnectionStats, 0, TCPCloseBatchSize)
-	return ExtractBatchInto(buffer, b, lastOffset, TCPCloseBatchSize)
+	buffer := make([]network.ConnectionStats, 0, ConnCloseBatchSize)
+	return ExtractBatchInto(buffer, b, lastOffset, ConnCloseBatchSize)
 }
 
 // GetIdleConns return all connections that have been "stuck" in idle batches

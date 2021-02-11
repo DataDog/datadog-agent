@@ -44,8 +44,8 @@ build_libbcc_arm64:
       allow_failure: true
   stage: deps_build
   script:
-    - wget https://github.com/llvm/llvm-project/releases/download/llvmorg-11.0.0/clang-11.0.0.src.tar.xz -O clang.src.tar.xz
-    - wget https://github.com/llvm/llvm-project/releases/download/llvmorg-11.0.0/llvm-11.0.0.src.tar.xz -O llvm.src.tar.xz
+    - wget https://github.com/llvm/llvm-project/releases/download/llvmorg-11.0.1/clang-11.0.1.src.tar.xz -O clang.src.tar.xz
+    - wget https://github.com/llvm/llvm-project/releases/download/llvmorg-11.0.1/llvm-11.0.1.src.tar.xz -O llvm.src.tar.xz
     - mkdir clang && tar xf clang.src.tar.xz --strip-components=1 --no-same-owner -C clang
     - mkdir llvm && tar xf llvm.src.tar.xz --strip-components=1 --no-same-owner -C llvm
     - mkdir build && cd build
@@ -69,13 +69,13 @@ build_libbcc_arm64:
     - cd $DATADOG_AGENT_EMBEDDED_PATH
     - rm -rf bin share libexec lib/clang lib/cmake lib/*.so*
     - mkdir -p $CI_PROJECT_DIR/.tmp
-    - tar cvaf $CI_PROJECT_DIR/.tmp/clang-$ARCH-11.0.0.tar.xz .
-    - $S3_CP_CMD $CI_PROJECT_DIR/.tmp/clang-$ARCH-11.0.0.tar.xz $S3_PERMANENT_ARTIFACTS_URI/clang-$ARCH-11.0.0.tar.xz
+    - tar cvaf $CI_PROJECT_DIR/.tmp/clang-$ARCH-11.0.1.tar.xz .
+    - $S3_CP_CMD $CI_PROJECT_DIR/.tmp/clang-$ARCH-11.0.1.tar.xz $S3_PERMANENT_ARTIFACTS_URI/clang-$ARCH-11.0.1.tar.xz
   timeout: 2h 00m
   artifacts:
     expire_in: 2 weeks
     paths:
-      - $CI_PROJECT_DIR/.tmp/clang-$ARCH-11.0.0.tar.xz
+      - $CI_PROJECT_DIR/.tmp/clang-$ARCH-11.0.1.tar.xz
 
 build_clang_x64:
   extends: .build_clang_common
