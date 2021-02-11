@@ -122,7 +122,7 @@ type rateCounter interface {
 
 // samplerBackendRateCounter is a rateCounter backed by a maxEPSSampler.Backend.
 type samplerBackendRateCounter struct {
-	*sampler.MemoryBackend
+	backend *sampler.MemoryBackend
 	exit    chan struct{}
 	stopped chan struct{}
 }
@@ -130,9 +130,9 @@ type samplerBackendRateCounter struct {
 // newSamplerBackendRateCounter creates a new samplerBackendRateCounter based on exponential decay counters.
 func newSamplerBackendRateCounter() *samplerBackendRateCounter {
 	return &samplerBackendRateCounter{
-		MemoryBackend: sampler.NewMemoryBackend(1*time.Second, 1.125),
-		exit:          make(chan struct{}),
-		stopped:       make(chan struct{}),
+		backend: sampler.NewMemoryBackend(1*time.Second, 1.125),
+		exit:    make(chan struct{}),
+		stopped: make(chan struct{}),
 	}
 }
 
@@ -140,12 +140,12 @@ func newSamplerBackendRateCounter() *samplerBackendRateCounter {
 func (s *samplerBackendRateCounter) Start() {
 	go func() {
 		defer watchdog.LogOnPanic()
-		decayTicker := time.NewTicker(s.DecayPeriod)
+		decayTicker := time.NewTicker(s.backend.DecayPeriod)
 		defer decayTicker.Stop()
 		for {
 			select {
 			case <-decayTicker.C:
-				s.DecayScore()
+				s.backend.DecayScore()
 			case <-s.exit:
 				close(s.stopped)
 				return
@@ -162,10 +162,10 @@ func (s *samplerBackendRateCounter) Stop() {
 
 // Count adds an event to the rate computation.
 func (s *samplerBackendRateCounter) Count() {
-	s.CountSample()
+	s.backend.CountSample()
 }
 
 // GetRate gets the current event rate.
 func (s *samplerBackendRateCounter) GetRate() float64 {
-	return s.GetUpperSampledScore()
+	return s.backend.GetUpperSampledScore()
 }
