@@ -64,7 +64,7 @@ type RuleSetListener interface {
 type Opts struct {
 	eval.Opts
 	SupportedDiscarders map[eval.Field]bool
-	Logger Logger
+	Logger              Logger
 }
 
 // NewOptsWithParams initializes a new Opts instance with Debug and Constants parameters
@@ -78,7 +78,7 @@ func NewOptsWithParams(constants map[string]interface{}, supportedDiscarders map
 			Macros:    make(map[eval.MacroID]*eval.Macro),
 		},
 		SupportedDiscarders: supportedDiscarders,
-		Logger: logger[0],
+		Logger:              logger[0],
 	}
 }
 
