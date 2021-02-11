@@ -223,7 +223,7 @@ func TestIgnoreConntrackInitFailure(t *testing.T) {
 
 		cfg, err := NewAgentConfig(
 			"test",
-			"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-IgnoreConntrackInitFailure.yaml",
+			"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-IgnoreCTInitFailure.yaml",
 			"",
 		)
 
