@@ -224,6 +224,7 @@ func (t *ConnTuple) String() string {
 __u64 sent_bytes;
 __u64 recv_bytes;
 __u64 timestamp;
+__u8  direction;
 */
 type ConnStatsWithTimestamp C.conn_stats_ts_t
 
@@ -263,6 +264,7 @@ func connStats(t *ConnTuple, s *ConnStatsWithTimestamp, tcpStats *TCPStats) netw
 	stats := network.ConnectionStats{
 		Pid:                uint32(t.pid),
 		Type:               connType(metadata),
+		Direction:          connDirection(uint8(s.direction)),
 		Family:             family,
 		NetNS:              uint32(t.netns),
 		Source:             source,
@@ -302,6 +304,13 @@ func connFamily(m uint) network.ConnectionFamily {
 	return network.AFINET6
 }
 
-func isPortClosed(state uint8) bool {
-	return state == C.PORT_CLOSED
+func connDirection(m uint8) network.ConnectionDirection {
+	switch m {
+	case C.CONN_DIRECTION_INCOMING:
+		return network.INCOMING
+	case C.CONN_DIRECTION_OUTGOING:
+		return network.OUTGOING
+	default:
+		return network.OUTGOING
+	}
 }
