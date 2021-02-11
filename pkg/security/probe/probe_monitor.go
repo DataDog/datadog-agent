@@ -9,11 +9,10 @@ package probe
 
 import (
 	"context"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/DataDog/ebpf/manager"
 	"github.com/pkg/errors"
@@ -27,6 +26,7 @@ type Monitor struct {
 	loadController    *LoadController
 	perfBufferMonitor *PerfBufferMonitor
 	syscallMonitor    *SyscallMonitor
+	reordererMonitor  *ReordererMonitor
 }
 
 // NewMonitor returns a new instance of a ProbeMonitor
@@ -49,6 +49,11 @@ func NewMonitor(p *Probe, client *statsd.Client) (*Monitor, error) {
 		return nil, errors.Wrap(err, "couldn't create the events statistics monitor")
 	}
 
+	m.reordererMonitor, err = NewReOrderMonitor(p, client)
+	if err != nil {
+		return nil, errors.Wrap(err, "couldn't create the reorder monitor")
+	}
+
 	// create a new syscall monitor if requested
 	if p.config.SyscallMonitor {
 		m.syscallMonitor, err = NewSyscallMonitor(p.manager)
@@ -67,6 +72,7 @@ func (m *Monitor) GetPerfBufferMonitor() *PerfBufferMonitor {
 // Start triggers the goroutine of all the underlying controllers and monitors of the Monitor
 func (m *Monitor) Start(ctx context.Context) error {
 	go m.loadController.Start(ctx)
+	go m.reordererMonitor.Start(ctx)
 	return nil
 }
 

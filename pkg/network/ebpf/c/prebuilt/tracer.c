@@ -480,9 +480,18 @@ int kretprobe__udp_recvmsg(struct pt_regs* ctx) {
 SEC("kprobe/tcp_retransmit_skb")
 int kprobe__tcp_retransmit_skb(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
+    int segs = (int)PT_REGS_PARM3(ctx);
     log_debug("kprobe/tcp_retransmit\n");
 
-    return handle_retransmit(sk);
+    return handle_retransmit(sk, segs);
+}
+
+SEC("kprobe/tcp_retransmit_skb/pre_4_7_0")
+int kprobe__tcp_retransmit_skb_pre_4_7_0(struct pt_regs* ctx) {
+    struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
+    log_debug("kprobe/tcp_retransmit/pre_4_7_0\n");
+
+    return handle_retransmit(sk, 1);
 }
 
 SEC("kprobe/tcp_set_state")

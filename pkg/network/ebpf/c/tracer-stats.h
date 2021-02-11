@@ -88,7 +88,7 @@ static __always_inline int handle_message(conn_tuple_t* t, size_t sent_bytes, si
     return 0;
 }
 
-static __always_inline int handle_retransmit(struct sock* sk) {
+static __always_inline int handle_retransmit(struct sock* sk, int segs) {
     conn_tuple_t t = {};
     u64 zero = 0;
 
@@ -96,7 +96,7 @@ static __always_inline int handle_retransmit(struct sock* sk) {
         return 0;
     }
 
-    tcp_stats_t stats = { .retransmits = 1, .rtt = 0, .rtt_var = 0 };
+    tcp_stats_t stats = { .retransmits = segs, .rtt = 0, .rtt_var = 0 };
     update_tcp_stats(&t, stats);
 
     return 0;

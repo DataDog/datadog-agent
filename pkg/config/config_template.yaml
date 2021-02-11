@@ -1613,6 +1613,14 @@ api_key:
 #   <ANNOTATION>: <TAG_KEY>
 #   <HIGH_CARDINALITY_ANNOTATION>: +<TAG_KEY>
 
+## @param kubernetes_namespace_labels_as_tags - map - optional
+## The Agent can extract namespace label values and set them as metric tags values associated to a <TAG_KEY>.
+## If you prefix your tag name with +, it will only be added to high cardinality metrics.
+#
+# kubernetes_namespace_labels_as_tags:
+#   <NAMESPACE_LABEL>: <TAG_KEY>
+#   <HIGH_CARDINALITY_NAMESPACE_LABEL_NAME>: +<TAG_KEY>
+
 {{ end -}}
 {{- if .ECS }}
 
