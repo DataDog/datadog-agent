@@ -24,6 +24,21 @@ bool updateYamlConfig(CustomActionData &customActionData)
 
         inputConfig.assign(std::istreambuf_iterator<wchar_t>(inputConfigStream), std::istreambuf_iterator<wchar_t>());
     }
+
+    std::wregex re(L"^[ #]*api_key:(.*)");
+    std::match_results<std::wstring::const_iterator> results;
+    if (std::regex_search(inputConfig, results, re))
+    {
+        auto api_key = results[1].str();
+        api_key.erase(api_key.begin(),
+                      std::find_if(api_key.begin(), api_key.end(), [](int ch) { return !std::isspace(ch); }));
+        if (api_key.length() > 0)
+        {
+            WcaLog(LOGMSG_STANDARD, "API key already present in configuration - not modifying it");
+            return true;
+        }
+    }
+
     inputConfig =
         replace_yaml_properties(inputConfig, [&customActionData](std::wstring const &propertyName) -> std::optional<std::wstring> {
             std::wstring propertyValue;
@@ -221,13 +236,6 @@ UINT doFinalizeInstall(CustomActionData &data)
         keyRollback.setStringValue(installInstalledServices.c_str(), L"true");
         keyInstall.setStringValue(installInstalledServices.c_str(), L"true");
 
-        // This is a new install
-        if (!updateYamlConfig(data))
-        {
-            WcaLog(LOGMSG_STANDARD, "Failed to update datadog.yaml");
-            er = ERROR_INSTALL_FAILURE;
-            goto LExit;
-        }
     }
     else
     {
@@ -240,6 +248,14 @@ UINT doFinalizeInstall(CustomActionData &data)
             goto LExit;
         }
     }
+
+    if (!updateYamlConfig(data))
+    {
+        WcaLog(LOGMSG_STANDARD, "Failed to update datadog.yaml");
+        er = ERROR_INSTALL_FAILURE;
+        goto LExit;
+    }
+
     er = addDdUserPermsToFile(data.Sid(), programdataroot);
     WcaLog(LOGMSG_STANDARD, "%d setting programdata dir perms", er);
     er = addDdUserPermsToFile(data.Sid(), embedded2Dir);
