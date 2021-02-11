@@ -246,9 +246,9 @@ func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !f.daemon.flushStrategy.ShouldFlush(flush.Stopping, time.Now()) {
 		log.Debug("The flush strategy", f.daemon.flushStrategy, " has decided to not flush in moment:", flush.Stopping)
 		return
-	} else {
-		log.Debug("The flush strategy", f.daemon.flushStrategy, " has decided to flush in moment:", flush.Stopping)
 	}
+
+	log.Debug("The flush strategy", f.daemon.flushStrategy, " has decided to flush in moment:", flush.Stopping)
 
 	// if the DogStatsD daemon isn't ready, wait for it.
 	f.daemon.ReadyWg.Wait()
