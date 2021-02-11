@@ -80,6 +80,16 @@ func (ev *Event) ResolveFileContainerPath(f *model.FileEvent) string {
 	return f.ContainerPath
 }
 
+// ResolveFileFilesystem resolves the filesystem a file resides in
+func (ev *Event) ResolveFileFilesystem(f *model.FileEvent) string {
+	return ev.resolvers.ResolveFilesystem(&f.FileFields)
+}
+
+// ResolveFileInUpperLayer resolves whether the file is in an upper layer
+func (ev *Event) ResolveFileInUpperLayer(f *model.FileEvent) bool {
+	return ev.resolvers.ResolveInUpperLayer(&f.FileFields)
+}
+
 // GetXAttrName returns the string representation of the extended attribute name
 func (ev *Event) GetXAttrName(e *model.SetXAttrEvent) string {
 	if len(e.Name) == 0 {
@@ -242,6 +252,16 @@ func (ev *Event) ResolveProcessTTY(e *model.Process) string {
 	return e.TTYName
 }
 
+// ResolveProcessFilesystem resolves the filesystem an executable resides in
+func (ev *Event) ResolveProcessFilesystem(e *model.Process) string {
+	if e.Filesystem == "" && ev != nil {
+		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
+			e.Filesystem = ev.resolvers.ResolveFilesystem(&entry.FileFields)
+		}
+	}
+	return e.Filesystem
+}
+
 // ResolveProcessComm resolves the comm of the process
 func (ev *Event) ResolveProcessComm(e *model.Process) string {
 	if len(e.Comm) == 0 && ev != nil {
@@ -362,7 +382,7 @@ func (ev *Event) ResolveCredentialsFSGroup(e *model.Credentials) string {
 
 // ResolveCredentialsCapEffective resolves the cap_effective kernel capability of the process
 func (ev *Event) ResolveCredentialsCapEffective(e *model.Credentials) int {
-	if e.CapEffective == 0 {
+	if e.CapEffective == 0 && ev != nil {
 		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
 			e.CapEffective = entry.CapEffective
 		}
@@ -372,7 +392,7 @@ func (ev *Event) ResolveCredentialsCapEffective(e *model.Credentials) int {
 
 // ResolveCredentialsCapPermitted resolves the cap_permitted kernel capability of the process
 func (ev *Event) ResolveCredentialsCapPermitted(e *model.Credentials) int {
-	if e.CapPermitted == 0 {
+	if e.CapPermitted == 0 && ev != nil {
 		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
 			e.CapPermitted = entry.CapPermitted
 		}
@@ -382,7 +402,7 @@ func (ev *Event) ResolveCredentialsCapPermitted(e *model.Credentials) int {
 
 // ResolveSetuidUser resolves the user of the Setuid event
 func (ev *Event) ResolveSetuidUser(e *model.SetuidEvent) string {
-	if len(e.User) == 0 {
+	if len(e.User) == 0 && ev != nil {
 		e.User, _ = ev.resolvers.UserGroupResolver.ResolveUser(int(e.UID))
 	}
 	return e.User
@@ -390,7 +410,7 @@ func (ev *Event) ResolveSetuidUser(e *model.SetuidEvent) string {
 
 // ResolveSetuidEUser resolves the effective user of the Setuid event
 func (ev *Event) ResolveSetuidEUser(e *model.SetuidEvent) string {
-	if len(e.EUser) == 0 {
+	if len(e.EUser) == 0 && ev != nil {
 		e.EUser, _ = ev.resolvers.UserGroupResolver.ResolveUser(int(e.EUID))
 	}
 	return e.EUser
@@ -398,7 +418,7 @@ func (ev *Event) ResolveSetuidEUser(e *model.SetuidEvent) string {
 
 // ResolveSetuidFSUser resolves the file-system user of the Setuid event
 func (ev *Event) ResolveSetuidFSUser(e *model.SetuidEvent) string {
-	if len(e.FSUser) == 0 {
+	if len(e.FSUser) == 0 && ev != nil {
 		e.FSUser, _ = ev.resolvers.UserGroupResolver.ResolveUser(int(e.FSUID))
 	}
 	return e.FSUser
@@ -406,7 +426,7 @@ func (ev *Event) ResolveSetuidFSUser(e *model.SetuidEvent) string {
 
 // ResolveSetgidGroup resolves the group of the Setgid event
 func (ev *Event) ResolveSetgidGroup(e *model.SetgidEvent) string {
-	if len(e.Group) == 0 {
+	if len(e.Group) == 0 && ev != nil {
 		e.Group, _ = ev.resolvers.UserGroupResolver.ResolveUser(int(e.GID))
 	}
 	return e.Group
@@ -414,7 +434,7 @@ func (ev *Event) ResolveSetgidGroup(e *model.SetgidEvent) string {
 
 // ResolveSetgidEGroup resolves the effective group of the Setgid event
 func (ev *Event) ResolveSetgidEGroup(e *model.SetgidEvent) string {
-	if len(e.EGroup) == 0 {
+	if len(e.EGroup) == 0 && ev != nil {
 		e.EGroup, _ = ev.resolvers.UserGroupResolver.ResolveUser(int(e.EGID))
 	}
 	return e.EGroup
@@ -422,7 +442,7 @@ func (ev *Event) ResolveSetgidEGroup(e *model.SetgidEvent) string {
 
 // ResolveSetgidFSGroup resolves the file-system group of the Setgid event
 func (ev *Event) ResolveSetgidFSGroup(e *model.SetgidEvent) string {
-	if len(e.FSGroup) == 0 {
+	if len(e.FSGroup) == 0 && ev != nil {
 		e.FSGroup, _ = ev.resolvers.UserGroupResolver.ResolveUser(int(e.FSGID))
 	}
 	return e.FSGroup

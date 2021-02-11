@@ -108,7 +108,7 @@ int __attribute__((always_inline)) open_approvers(struct syscall_cache_t *syscal
 }
 
 int __attribute__((always_inline)) handle_open_event(struct pt_regs *ctx, struct syscall_cache_t *syscall) {
-    if (syscall->open.path_key.ino) {
+    if (syscall->open.file.path_key.ino) {
         return 0;
     }
 
@@ -118,9 +118,9 @@ int __attribute__((always_inline)) handle_open_event(struct pt_regs *ctx, struct
     struct dentry *dentry = get_file_dentry(file);
 
     syscall->open.dentry = dentry;
-    syscall->open.path_key = get_inode_key_path(inode, &file->f_path);
+    syscall->open.file.path_key = get_inode_key_path(inode, &file->f_path);
 
-    set_path_key_inode(dentry, &syscall->open.path_key, 0);
+    set_file_inode(dentry, &syscall->open.file, 0);
 
     if (filter_syscall(syscall, open_approvers)) {
         return discard_syscall(syscall);
@@ -144,9 +144,9 @@ int kprobe__vfs_truncate(struct pt_regs *ctx) {
     struct dentry *dentry = get_path_dentry(path);
 
     syscall->open.dentry = dentry;
-    syscall->open.path_key = get_dentry_key_path(syscall->open.dentry, path);
+    syscall->open.file.path_key = get_dentry_key_path(syscall->open.dentry, path);
 
-    set_path_key_inode(dentry, &syscall->open.path_key, 0);
+    set_file_inode(dentry, &syscall->open.file, 0);
 
     if (filter_syscall(syscall, open_approvers)) {
         return discard_syscall(syscall);
@@ -182,18 +182,14 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
 
     struct open_event_t event = {
         .syscall.retval = retval,
-        .file = {
-            .inode = syscall->open.path_key.ino,
-            .mount_id = syscall->open.path_key.mount_id,
-            .overlay_numlower = get_overlay_numlower(syscall->open.dentry),
-            .path_id = syscall->open.path_key.path_id,
-        },
+        .file = syscall->open.file,
         .flags = syscall->open.flags,
         .mode = syscall->open.mode,
     };
 
     fill_file_metadata(syscall->open.dentry, &event.file.metadata);
-    int ret = resolve_dentry(syscall->open.dentry, syscall->open.path_key, syscall->policy.mode != NO_FILTER ? EVENT_OPEN : 0);
+
+    int ret = resolve_dentry(syscall->open.dentry, syscall->open.file.path_key, syscall->policy.mode != NO_FILTER ? EVENT_OPEN : 0);
     if (ret == DENTRY_DISCARDED || (ret == DENTRY_INVALID && !(IS_UNHANDLED_ERROR(retval)))) {
        return 0;
     }

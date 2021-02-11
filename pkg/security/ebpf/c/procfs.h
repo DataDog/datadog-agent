@@ -16,14 +16,19 @@ int kretprobe__get_task_exe_file(struct pt_regs *ctx) {
 
     struct dentry *dentry = get_file_dentry(file);
 
-    u64 inode = get_dentry_ino(dentry);
-    u32 overlay_numlower = get_overlay_numlower(dentry);
+    u32 flags = 0;
     u32 mount_id = get_file_mount_id(file);
+    u64 inode = get_dentry_ino(dentry);
+    if (is_overlayfs(dentry)) {
+        set_overlayfs_ino(dentry, &inode, &flags);
+    }
 
     struct file_t entry = {
-        .inode = inode,
-        .mount_id = mount_id,
-        .overlay_numlower = overlay_numlower,
+        .path_key = {
+            .ino = inode,
+            .mount_id = mount_id,
+        },
+        .flags = flags,
     };
     fill_file_metadata(dentry, &entry.metadata);
 

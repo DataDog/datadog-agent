@@ -157,6 +157,19 @@ func (mr *MountResolver) Delete(mountID uint32) error {
 	return nil
 }
 
+// GetFilesystem returns the name of the filesystem
+func (mr *MountResolver) GetFilesystem(mountID uint32) string {
+	mr.lock.RLock()
+	defer mr.lock.RUnlock()
+
+	mount, exists := mr.mounts[mountID]
+	if !exists {
+		return ""
+	}
+
+	return mount.GetFSType()
+}
+
 // IsOverlayFS returns the type of a mountID
 func (mr *MountResolver) IsOverlayFS(mountID uint32) bool {
 	mr.lock.RLock()
