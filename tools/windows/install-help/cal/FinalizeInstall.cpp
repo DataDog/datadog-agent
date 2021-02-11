@@ -39,6 +39,7 @@ bool updateYamlConfig(CustomActionData &customActionData)
         }
     }
 
+    std::vector<std::wstring> failedToReplace;
     inputConfig =
         replace_yaml_properties(inputConfig, [&customActionData](std::wstring const &propertyName) -> std::optional<std::wstring> {
             std::wstring propertyValue;
@@ -47,7 +48,14 @@ bool updateYamlConfig(CustomActionData &customActionData)
                 return propertyValue;
             }
             return std::nullopt;
-        });
+        },
+        &failedToReplace);
+
+    for (auto v : failedToReplace)
+    {
+        WcaLog(LOGMSG_STANDARD, "Failed to replace %S in datadog.yaml file", v.c_str());
+    }
+
     {
         std::wofstream inputConfigStream(datadogyamlfile);
         inputConfigStream << inputConfig;

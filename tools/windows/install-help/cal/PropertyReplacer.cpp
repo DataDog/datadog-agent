@@ -32,7 +32,7 @@ namespace
         std::wstringstream result;
         std::wstring token;
         result << L"tags: ";
-        while (std::getline(valueStream, token, wchar_t(',')))
+        while (std::getline(valueStream, token, static_cast<wchar_t>(',')))
         {
             result << std::endl << L"  - " << token;
         }
@@ -110,7 +110,10 @@ PropertyReplacer PropertyReplacer::match(std::wstring &input, std::wstring const
     return PropertyReplacer(input, match);
 }
 
-std::wstring replace_yaml_properties(std::wstring input, const property_retriever &propertyRetriever)
+std::wstring replace_yaml_properties(
+    std::wstring input,
+    const property_retriever &propertyRetriever,
+    std::vector<std::wstring> *failedToReplace)
 {
     enum PropId
     {
@@ -141,7 +144,13 @@ std::wstring replace_yaml_properties(std::wstring input, const property_retrieve
         auto propValue = propertyRetriever(propKey);
         if (propValue)
         {
-            PropertyReplacer::match(input, std::get<Regex>(prop)).replace_with(std::get<Replacement>(prop)(*propValue, propertyRetriever));
+            if (PropertyReplacer::match(input, std::get<Regex>(prop)).replace_with(std::get<Replacement>(prop)(*propValue, propertyRetriever)))
+            {
+                if (failedToReplace != nullptr)
+                {
+                    failedToReplace->push_back(propKey);
+                }
+            }
         }
     }
 
