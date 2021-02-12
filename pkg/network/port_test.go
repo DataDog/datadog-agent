@@ -120,21 +120,31 @@ func TestReadInitialUDPState(t *testing.T) {
 	require.NoError(t, err)
 	defer ns.Close()
 
-	_, err = util.GetInoForNs(ns)
+	nsIno, err := util.GetInoForNs(ns)
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
 		initialPorts, err := ReadInitialState("/proc", UDP, true)
 		require.NoError(t, err)
-		for _, p := range ports {
-			if _, ok := initialPorts[PortMapping{0, p}]; !ok {
-				t.Errorf("PortMapping(0, p) returned false for port %d", p)
+		for _, p := range ports[:2] {
+			if _, ok := initialPorts[PortMapping{testRootNs, p}]; !ok {
+				t.Errorf("PortMapping(testRootNs, p) returned false for port %d", p)
+				return false
+			}
+		}
+		for _, p := range ports[2:] {
+			if _, ok := initialPorts[PortMapping{nsIno, p}]; !ok {
+				t.Errorf("PortMapping(nsIno, p) returned false for port %d", p)
 				return false
 			}
 		}
 
-		if _, ok := initialPorts[PortMapping{0, 999}]; ok {
-			t.Errorf("expected IsListening(0, 999) to return false, but returned true")
+		if _, ok := initialPorts[PortMapping{testRootNs, 999}]; ok {
+			t.Errorf("expected IsListening(testRootNs, 999) to return false, but returned true")
+			return false
+		}
+		if _, ok := initialPorts[PortMapping{nsIno, 999}]; ok {
+			t.Errorf("expected IsListening(testRootNs, 999) to return false, but returned true")
 			return false
 		}
 
