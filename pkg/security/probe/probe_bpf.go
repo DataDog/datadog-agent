@@ -347,7 +347,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	eventType := event.GetEventType()
 	p.monitor.perfBufferMonitor.CountEvent(eventType, event.TimestampRaw, 1, dataLen, p.perfMap, int(CPU))
 
-	log.Debugf("Decoding event %s(%d)", eventType, event.Type)
+	log.Tracef("Decoding event %s(%d)", eventType, event.Type)
 
 	if eventType == model.InvalidateDentryEventType {
 		if _, err := event.InvalidateDentry.UnmarshalBinary(data[offset:]); err != nil {

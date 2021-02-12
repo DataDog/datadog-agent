@@ -36,17 +36,17 @@ const (
 
 // Agent struct holds all the sub-routines structs and make the data flow between them
 type Agent struct {
-	Receiver           *api.HTTPReceiver
-	Concentrator       *stats.Concentrator
-	Blacklister        *filters.Blacklister
-	Replacer           *filters.Replacer
-	ScoreSampler       *Sampler
-	ErrorsScoreSampler *Sampler
-	ExceptionSampler   *sampler.ExceptionSampler
-	PrioritySampler    *Sampler
-	EventProcessor     *event.Processor
-	TraceWriter        *writer.TraceWriter
-	StatsWriter        *writer.StatsWriter
+	Receiver          *api.HTTPReceiver
+	Concentrator      *stats.Concentrator
+	Blacklister       *filters.Blacklister
+	Replacer          *filters.Replacer
+	PrioritySampler   *sampler.PrioritySampler
+	ErrorsSampler     *sampler.ErrorsSampler
+	ExceptionSampler  *sampler.ExceptionSampler
+	NoPrioritySampler *sampler.NoPrioritySampler
+	EventProcessor    *event.Processor
+	TraceWriter       *writer.TraceWriter
+	StatsWriter       *writer.StatsWriter
 
 	// obfuscator is used to obfuscate sensitive data from various span
 	// tags based on their type.
@@ -70,20 +70,20 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	statsChan := make(chan []stats.Bucket, 100)
 
 	agnt := &Agent{
-		Concentrator:       stats.NewConcentrator(conf.BucketInterval.Nanoseconds(), statsChan, time.Now()),
-		Blacklister:        filters.NewBlacklister(conf.Ignore["resource"]),
-		Replacer:           filters.NewReplacer(conf.ReplaceTags),
-		ScoreSampler:       NewScoreSampler(conf),
-		ExceptionSampler:   sampler.NewExceptionSampler(),
-		ErrorsScoreSampler: NewErrorsSampler(conf),
-		PrioritySampler:    NewPrioritySampler(conf, dynConf),
-		EventProcessor:     newEventProcessor(conf),
-		TraceWriter:        writer.NewTraceWriter(conf),
-		StatsWriter:        writer.NewStatsWriter(conf, statsChan),
-		obfuscator:         obfuscate.NewObfuscator(conf.Obfuscation),
-		In:                 in,
-		conf:               conf,
-		ctx:                ctx,
+		Concentrator:      stats.NewConcentrator(conf.BucketInterval.Nanoseconds(), statsChan, time.Now()),
+		Blacklister:       filters.NewBlacklister(conf.Ignore["resource"]),
+		Replacer:          filters.NewReplacer(conf.ReplaceTags),
+		PrioritySampler:   sampler.NewPrioritySampler(conf, dynConf),
+		ErrorsSampler:     sampler.NewErrorsSampler(conf),
+		ExceptionSampler:  sampler.NewExceptionSampler(),
+		NoPrioritySampler: sampler.NewNoPrioritySampler(conf),
+		EventProcessor:    newEventProcessor(conf),
+		TraceWriter:       writer.NewTraceWriter(conf),
+		StatsWriter:       writer.NewStatsWriter(conf, statsChan),
+		obfuscator:        obfuscate.NewObfuscator(conf.Obfuscation),
+		In:                in,
+		conf:              conf,
+		ctx:               ctx,
 	}
 	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt)
 	return agnt
@@ -94,9 +94,9 @@ func (a *Agent) Run() {
 	for _, starter := range []interface{ Start() }{
 		a.Receiver,
 		a.Concentrator,
-		a.ScoreSampler,
-		a.ErrorsScoreSampler,
 		a.PrioritySampler,
+		a.ErrorsSampler,
+		a.NoPrioritySampler,
 		a.EventProcessor,
 	} {
 		starter.Start()
@@ -137,10 +137,10 @@ func (a *Agent) loop() {
 			a.Concentrator.Stop()
 			a.TraceWriter.Stop()
 			a.StatsWriter.Stop()
-			a.ScoreSampler.Stop()
-			a.ExceptionSampler.Stop()
-			a.ErrorsScoreSampler.Stop()
 			a.PrioritySampler.Stop()
+			a.ErrorsSampler.Stop()
+			a.NoPrioritySampler.Stop()
+			a.ExceptionSampler.Stop()
 			a.EventProcessor.Stop()
 			a.obfuscator.Stop()
 			return
@@ -395,22 +395,22 @@ func (a *Agent) runSamplers(pt ProcessedTrace, hasPriority bool) bool {
 // ErrorSampler are run in parallel. The ExceptionSampler catches traces with rare top-level
 // or measured spans that are not caught by PrioritySampler and ErrorSampler.
 func (a *Agent) samplePriorityTrace(pt ProcessedTrace) bool {
-	if a.PrioritySampler.Add(pt) {
+	if a.PrioritySampler.Sample(pt.Trace, pt.Root, pt.Env) {
 		return true
 	}
 	if traceContainsError(pt.Trace) {
-		return a.ErrorsScoreSampler.Add(pt)
+		return a.ErrorsSampler.Sample(pt.Trace, pt.Root, pt.Env)
 	}
-	return a.ExceptionSampler.Add(pt.Env, pt.Root, pt.Trace)
+	return a.ExceptionSampler.Sample(pt.Trace, pt.Root, pt.Env)
 }
 
 // sampleNoPriorityTrace samples traces with no priority set on them. The traces
 // get sampled by either the score sampler or the error sampler if they have an error.
 func (a *Agent) sampleNoPriorityTrace(pt ProcessedTrace) bool {
 	if traceContainsError(pt.Trace) {
-		return a.ErrorsScoreSampler.Add(pt)
+		return a.ErrorsSampler.Sample(pt.Trace, pt.Root, pt.Env)
 	}
-	return a.ScoreSampler.Add(pt)
+	return a.NoPrioritySampler.Sample(pt.Trace, pt.Root, pt.Env)
 }
 
 func traceContainsError(trace pb.Trace) bool {
