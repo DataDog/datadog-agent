@@ -28,7 +28,7 @@ def test_container_restart_events(host):
                 "image_tag": "1.14.2",
                 "docker_image": "nginx:1.14.2",
                 "status": "WARNING",
-                "container_name": "nginx-1",
+                "container_name": "nginx-1"
             }
         }
         assert util.event_data(container_event, json_data, hostname) is not None
