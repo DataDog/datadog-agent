@@ -19,24 +19,28 @@ const ksmMetricPrefix = "kubernetes_state."
 var (
 	// defaultLabelsMapper contains the default label to tag names mapping
 	defaultLabelsMapper = map[string]string{
-		"namespace":                        "kube_namespace",
-		"job_name":                         "kube_job",
-		"cronjob":                          "kube_cronjob",
-		"pod":                              "pod_name",
-		"phase":                            "pod_phase",
-		"daemonset":                        "kube_daemon_set",
-		"replicationcontroller":            "kube_replication_controller",
-		"replicaset":                       "kube_replica_set",
-		"statefulset ":                     "kube_stateful_set",
-		"deployment":                       "kube_deployment",
-		"service":                          "kube_service",
-		"endpoint":                         "kube_endpoint",
-		"container":                        "kube_container_name",
-		"container_id":                     "container_id",
-		"image":                            "image_name",
-		"label_tags_datadoghq_com_env":     "env",
-		"label_tags_datadoghq_com_service": "service",
-		"label_tags_datadoghq_com_version": "version",
+		"namespace":                           "kube_namespace",
+		"job_name":                            "kube_job",
+		"cronjob":                             "kube_cronjob",
+		"pod":                                 "pod_name",
+		"phase":                               "pod_phase",
+		"daemonset":                           "kube_daemon_set",
+		"replicationcontroller":               "kube_replication_controller",
+		"replicaset":                          "kube_replica_set",
+		"statefulset ":                        "kube_stateful_set",
+		"deployment":                          "kube_deployment",
+		"service":                             "kube_service",
+		"endpoint":                            "kube_endpoint",
+		"container":                           "kube_container_name",
+		"container_id":                        "container_id",
+		"image":                               "image_name",
+		"label_tags_datadoghq_com_env":        "env",
+		"label_tags_datadoghq_com_service":    "service",
+		"label_tags_datadoghq_com_version":    "version",
+		"label_topology_kubernetes_io_region": "kube_region",
+		"label_topology_kubernetes_io_zone":   "kube_zone",
+		"label_failure_domain_beta_kubernetes_io_region": "kube_region",
+		"label_failure_domain_beta_kubernetes_io_zone":   "kube_zone",
 	}
 
 	// metricNamesMapper translates KSM metric names to Datadog metric names
@@ -194,6 +198,15 @@ var (
 		"kube_cronjob_labels": {
 			LabelsToMatch: []string{"cronjob", "namespace"},
 			LabelsToGet:   defaultStandardLabels,
+		},
+		"kube_node_labels": {
+			LabelsToMatch: []string{"node"},
+			LabelsToGet: []string{
+				"label_topology_kubernetes_io_region",            // k8s v1.17+
+				"label_topology_kubernetes_io_zone",              // k8s v1.17+
+				"label_failure_domain_beta_kubernetes_io_region", // k8s < v1.17
+				"label_failure_domain_beta_kubernetes_io_zone",   // k8s < v1.17
+			},
 		},
 	}
 )
