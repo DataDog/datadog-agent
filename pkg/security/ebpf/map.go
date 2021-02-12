@@ -10,6 +10,7 @@ package ebpf
 import (
 	"bytes"
 	"encoding/binary"
+	"github.com/DataDog/datadog-agent/pkg/security/model"
 )
 
 // BytesMapItem describes a raw table key or value
@@ -34,7 +35,7 @@ type Uint32MapItem uint32
 // MarshalBinary returns the binary representation of a Uint32MapItem
 func (i Uint32MapItem) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 4)
-	GetHostByteOrder().PutUint32(b, uint32(i))
+	model.ByteOrder.PutUint32(b, uint32(i))
 	return b, nil
 }
 
@@ -44,7 +45,7 @@ type Uint64MapItem uint64
 // MarshalBinary returns the binary representation of a Uint64MapItem
 func (i Uint64MapItem) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 8)
-	GetHostByteOrder().PutUint64(b, uint64(i))
+	model.ByteOrder.PutUint64(b, uint64(i))
 	return b, nil
 }
 
@@ -62,7 +63,7 @@ func (i *StringMapItem) MarshalBinary() ([]byte, error) {
 	}
 
 	buffer := new(bytes.Buffer)
-	if err := binary.Write(buffer, GetHostByteOrder(), []byte(i.str)[0:n]); err != nil {
+	if err := binary.Write(buffer, model.ByteOrder, []byte(i.str)[0:n]); err != nil {
 		return nil, err
 	}
 	rep := make([]byte, i.size)
