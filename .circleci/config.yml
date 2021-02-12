@@ -285,12 +285,21 @@ workflows:
           requires:
             - dependencies
       - release_note:
+          filters:
+            branches:
+              ignore: master
           requires:
             - dependencies
       - team_label:
+          filters:
+            branches:
+              ignore: master
           requires:
             - dependencies
       - milestone:
+          filters:
+            branches:
+              ignore: master
           requires:
             - dependencies
       - filename_linting:

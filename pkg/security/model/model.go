@@ -5,7 +5,6 @@
 
 // +build linux
 
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/generators/accessors -mock -tags linux -output accessors.go
 //go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/generators/accessors -tags linux -output ../probe/accessors.go
 
 package model
@@ -20,8 +19,9 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/pkg/errors"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
 // Model describes the data model for the runtime security agent events

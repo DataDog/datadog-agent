@@ -8,6 +8,7 @@
 package probe
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
@@ -20,6 +21,7 @@ func (p *Probe) NewRuleSet(opts *rules.Opts) *rules.RuleSet {
 	eventCtor := func() eval.Event {
 		return NewEvent(p.resolvers)
 	}
+	opts.Logger = log.DatadogAgentLogger{}
 
 	return rules.NewRuleSet(&Model{}, eventCtor, opts)
 }

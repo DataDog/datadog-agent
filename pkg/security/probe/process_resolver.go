@@ -23,7 +23,6 @@ import (
 	lib "github.com/DataDog/ebpf"
 	"github.com/pkg/errors"
 
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -54,8 +53,8 @@ func (i *InodeInfo) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 8 {
 		return 0, model.ErrNotEnoughData
 	}
-	i.MountID = ebpf.ByteOrder.Uint32(data)
-	i.OverlayNumLower = int32(ebpf.ByteOrder.Uint32(data[4:]))
+	i.MountID = model.ByteOrder.Uint32(data)
+	i.OverlayNumLower = int32(model.ByteOrder.Uint32(data[4:]))
 	return 8, nil
 }
 
@@ -184,7 +183,7 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 func (p *ProcessResolver) retrieveInodeInfo(inode uint64) (*InodeInfo, error) {
 	inodeb := make([]byte, 8)
 
-	ebpf.ByteOrder.PutUint64(inodeb, inode)
+	model.ByteOrder.PutUint64(inodeb, inode)
 	data, err := p.inodeInfoMap.LookupBytes(inodeb)
 	if err != nil {
 		return nil, err
@@ -314,7 +313,7 @@ func (p *ProcessResolver) unmarshalProcessCacheEntry(entry *model.ProcessCacheEn
 
 func (p *ProcessResolver) resolveWithKernelMaps(pid uint32) *model.ProcessCacheEntry {
 	pidb := make([]byte, 4)
-	ebpf.ByteOrder.PutUint32(pidb, pid)
+	model.ByteOrder.PutUint32(pidb, pid)
 
 	cookieb, err := p.pidCacheMap.LookupBytes(pidb)
 	if err != nil || cookieb == nil {
@@ -339,8 +338,8 @@ func (p *ProcessResolver) resolveWithKernelMaps(pid uint32) *model.ProcessCacheE
 		return nil
 	}
 
-	entry.UID = ebpf.ByteOrder.Uint32(data[read : read+4])
-	entry.GID = ebpf.ByteOrder.Uint32(data[read+4 : read+8])
+	entry.UID = model.ByteOrder.Uint32(data[read : read+4])
+	entry.GID = model.ByteOrder.Uint32(data[read+4 : read+8])
 	entry.Pid = pid
 	entry.Tid = pid
 
