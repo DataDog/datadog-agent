@@ -190,7 +190,7 @@ def test(
     if not skip_object_files:
         build_object_files(ctx, bundle_ebpf=bundle_ebpf)
 
-    cmd = 'go test -mod=vendor -v -tags {bpf_tag} {output_params} {pkgs}'
+    cmd = 'go test -mod=mod -v -tags {bpf_tag} {output_params} {pkgs}'
     if not is_root():
         cmd = 'sudo -E PATH={path} ' + cmd
 
@@ -520,7 +520,7 @@ def build_object_files(ctx, bundle_ebpf=False):
         "./pkg/security/probe/compile.go",
     ]
     for f in runtime_compiler_files:
-        commands.append("go generate -mod=vendor -tags linux_bpf {}".format(f))
+        commands.append("go generate -mod=mod -tags linux_bpf {}".format(f))
 
     for cmd in commands:
         ctx.run(cmd)

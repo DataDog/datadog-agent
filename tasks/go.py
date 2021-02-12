@@ -420,5 +420,5 @@ def generate(ctx):
     """
     Run go generate required package
     """
-    ctx.run("go generate -mod=vendor " + " ".join(GO_GENERATE_TARGETS))
+    ctx.run("go generate -mod=mod " + " ".join(GO_GENERATE_TARGETS))
     print("go generate ran successfully")
