@@ -490,7 +490,7 @@ exit:
 }
 
 func (tkn *SQLTokenizer) scanString(delim rune, kind TokenKind) (TokenKind, []byte) {
-	buffer := &bytes.Buffer{}
+	filtered := bytes.NewBuffer(tkn.buf[:0])
 	for {
 		ch := tkn.lastChar
 		tkn.advance()
@@ -513,19 +513,18 @@ func (tkn *SQLTokenizer) scanString(delim rune, kind TokenKind) (TokenKind, []by
 		}
 		if ch == EndChar {
 			tkn.setErr("unexpected EOF in string")
-			return LexError, buffer.Bytes()
+			return LexError, filtered.Bytes()
 		}
-		buffer.WriteRune(ch)
+		filtered.WriteRune(ch)
 	}
-	buf := buffer.Bytes()
-	if kind == ID && len(buf) == 0 || bytes.IndexFunc(buf, func(r rune) bool { return !unicode.IsSpace(r) }) == -1 {
+	if kind == ID && filtered.Len() == 0 || bytes.IndexFunc(filtered.Bytes(), func(r rune) bool { return !unicode.IsSpace(r) }) == -1 {
 		// This string is an empty or white-space only identifier.
 		// We should keep the start and end delimiters in order to
 		// avoid creating invalid queries.
 		// See: https://github.com/DataDog/datadog-trace-agent/issues/316
 		return kind, append(runeBytes(delim), runeBytes(delim)...)
 	}
-	return kind, buf
+	return kind, filtered.Bytes()
 }
 
 func (tkn *SQLTokenizer) scanCommentType1(prefix string) (TokenKind, []byte) {
