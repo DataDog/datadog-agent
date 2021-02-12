@@ -141,6 +141,17 @@ static __always_inline __u32 get_netns_from_sock(struct sock* sk) {
     return net_ns_inum;
 }
 
+static __always_inline __u16 read_sport(struct sock* sk) {
+    __u16 sport = 0;
+    // try skc_num, then inet_sport
+    bpf_probe_read(&sport, sizeof(sport), ((char*)sk) + offset_dport() + sizeof(sport));
+    if (sport == 0) {
+        bpf_probe_read(&sport, sizeof(sport), ((char*)sk) + offset_sport());
+        sport = bpf_ntohs(sport);
+    }
+    return sport;
+}
+
 static __always_inline bool check_family(struct sock* sk, u16 expected_family) {
     u16 family = 0;
     bpf_probe_read(&family, sizeof(u16), ((char*)sk) + offset_family());
@@ -203,8 +214,7 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t * t, struct sock
 
     // Retrieve ports
     if (t->sport == 0) {
-        bpf_probe_read(&t->sport, sizeof(t->sport), ((char*)skp) + offset_sport());
-        t->sport = bpf_ntohs(t->sport);
+        t->sport = read_sport(skp);
     }
     if (t->dport == 0) {
         bpf_probe_read(&t->dport, sizeof(t->dport), ((char*)skp) + offset_dport());
@@ -637,10 +647,7 @@ int kprobe__tcp_v4_destroy_sock(struct pt_regs* ctx) {
         return 0;
     }
 
-    __u16 lport = 0;
-
-    bpf_probe_read(&lport, sizeof(lport), ((char*)sk) + offset_dport() + sizeof(lport));
-
+    __u16 lport = read_sport(sk);
     if (lport == 0) {
         log_debug("ERR(tcp_v4_destroy_sock): lport is 0 \n");
         return 0;
@@ -676,8 +683,7 @@ int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
         lport = tup.sport;
     } else {
         // get the port for the current sock
-        bpf_probe_read(&lport, sizeof(lport), ((char*)sk) + offset_sport());
-        lport = bpf_ntohs(lport);
+        lport = read_sport(sk);
     }
 
     if (lport == 0) {
