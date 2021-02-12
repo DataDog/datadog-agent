@@ -204,6 +204,7 @@ func InitConfig(config Config) {
 	// Debugging + C-land crash feature flags
 	config.BindEnvAndSetDefault("c_stacktrace_collection", false)
 	config.BindEnvAndSetDefault("c_core_dump", false)
+	config.BindEnvAndSetDefault("go_core_dump", false)
 	config.BindEnvAndSetDefault("memtrack_enabled", true)
 	config.BindEnvAndSetDefault("tracemalloc_debug", false)
 	config.BindEnvAndSetDefault("tracemalloc_include", "")

@@ -231,6 +231,10 @@ func StartAgent() error {
 
 	log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
 
+	if err := util.SetupCoreDump(); err != nil {
+		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
+	}
+
 	// init settings that can be changed at runtime
 	if err := settings.InitRuntimeSettings(); err != nil {
 		log.Warnf("Can't initiliaze the runtime settings: %v", err)
