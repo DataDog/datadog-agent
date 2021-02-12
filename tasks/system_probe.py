@@ -51,7 +51,7 @@ def build(
     major_version='7',
     python_runtimes='3',
     with_bcc=True,
-    go_mod="vendor",
+    go_mod="mod",
     windows=is_windows,
     arch="x64",
     embedded_path=DATADOG_AGENT_EMBEDDED_PATH,
@@ -275,7 +275,7 @@ def kitchen_test(ctx):
 
 
 @task
-def nettop(ctx, incremental_build=False, go_mod="vendor"):
+def nettop(ctx, incremental_build=False, go_mod="mod"):
     """
     Build and run the `nettop` utility for testing
     """

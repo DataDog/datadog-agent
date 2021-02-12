@@ -40,7 +40,7 @@ def build(
     build_exclude=None,
     major_version='7',
     arch="x64",
-    go_mod="vendor",
+    go_mod="mod",
 ):
     """
     Build Dogstatsd
@@ -148,7 +148,7 @@ def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None, 
 
 
 @task
-def system_tests(ctx, skip_build=False, go_mod="vendor", arch="x64"):
+def system_tests(ctx, skip_build=False, go_mod="mod", arch="x64"):
     """
     Run the system testsuite.
     """
@@ -237,7 +237,7 @@ def omnibus_build(
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="vendor", arch="x64"):
+def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="mod", arch="x64"):
     """
     Run integration tests for dogstatsd
     """

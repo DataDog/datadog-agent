@@ -21,7 +21,7 @@ def build(
     major_version='7',
     python_runtimes='3',
     arch="x64",
-    go_mod="vendor",
+    go_mod="mod",
 ):
     """
     Build the trace agent.
@@ -83,7 +83,7 @@ def build(
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="vendor"):
+def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="mod"):
     """
     Run integration tests for trace agent
     """
