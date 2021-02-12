@@ -24,7 +24,7 @@
         "SECURITY_AGENT_POLICIES_VERSION": "v0.6"
     },
     "dbm-beta-a7": {
-        "INTEGRATIONS_CORE_VERSION": "0d3b01c2e",
+        "INTEGRATIONS_CORE_VERSION": "9f4fc1292",
         "OMNIBUS_SOFTWARE_VERSION": "7.26.0-rc.1",
         "OMNIBUS_RUBY_VERSION": "7.26.0-rc.1",
         "JMXFETCH_VERSION": "0.42.0",
