@@ -323,22 +323,7 @@ int kprobe__tcp_close(struct pt_regs* ctx) {
 
 SEC("kretprobe/tcp_close")
 int kretprobe__tcp_close(struct pt_regs* ctx) {
-    u32 cpu = bpf_get_smp_processor_id();
-    batch_t* batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);
-    if (batch_ptr == NULL) {
-        return 0;
-    }
-
-    if (batch_ptr->pos >= CONN_CLOSED_BATCH_SIZE) {
-        // Here we copy the batch data to a variable allocated in the eBPF stack
-        // This is necessary for older Kernel versions only (we validated this behavior on 4.4.0),
-        // since you can't directly write a map entry to the perf buffer.
-        batch_t batch_copy = {};
-        __builtin_memcpy(&batch_copy, batch_ptr, sizeof(batch_copy));
-        bpf_perf_event_output(ctx, &conn_close_event, cpu, &batch_copy, sizeof(batch_copy));
-        batch_ptr->pos = 0;
-    }
-
+    flush_conn_close_if_full(ctx);
     return 0;
 }
 
