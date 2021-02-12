@@ -434,6 +434,41 @@ func TestPodCollector(t *testing.T) {
 				},
 			},
 		},
+		{
+			testCase: "Test Pod 7 - Pod Phase Succeeded - no Job relation created",
+			assertions: []func(){
+				func() {
+					component := <-componentChannel
+					expectedComponent := &topology.Component{
+						ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:pod/test-pod-7",
+						Type:       topology.Type{Name: "pod"},
+						Data: topology.Data{
+							"name":              "test-pod-7",
+							"creationTimestamp": creationTime,
+							"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
+							"uid":               types.UID("test-pod-7"),
+							"identifiers":       []string{"urn:ip:/test-cluster-name:10.0.0.1", "urn:ip:/test-cluster-name:test-namespace:test-pod-7:10.0.0.1"},
+							"restartPolicy":     coreV1.RestartPolicyAlways,
+							"status": coreV1.PodStatus{
+								Phase:                 coreV1.PodSucceeded,
+								Conditions:            []coreV1.PodCondition{},
+								InitContainerStatuses: []coreV1.ContainerStatus{},
+								ContainerStatuses:     []coreV1.ContainerStatus{},
+								StartTime:             &creationTime,
+								PodIP:                 "10.0.0.1",
+							},
+						},
+					}
+					assert.EqualValues(t, expectedComponent, component)
+				},
+				expectPodNodeRelation(t, relationChannel, "test-pod-7"),
+				expectNamespaceRelation(t, relationChannel, "test-pod-7"),
+				func() {
+					// there should be no relations created for skipped pod
+					assert.Empty(t, relationChannel)
+				},
+			},
+		},
 	} {
 		t.Run(tc.testCase, func(t *testing.T) {
 			for _, assertion := range tc.assertions {
@@ -449,7 +484,7 @@ type MockPodAPICollectorClient struct {
 
 func (m MockPodAPICollectorClient) GetPods() ([]coreV1.Pod, error) {
 	pods := make([]coreV1.Pod, 0)
-	for i := 1; i <= 6; i++ {
+	for i := 1; i <= 7; i++ {
 		pod := coreV1.Pod{
 			TypeMeta: v1.TypeMeta{
 				Kind: "",
@@ -545,13 +580,20 @@ func (m MockPodAPICollectorClient) GetPods() ([]coreV1.Pod, error) {
 			}
 		}
 
+		if i == 7 {
+			pod.Status.Phase = coreV1.PodSucceeded
+			pod.OwnerReferences = []v1.OwnerReference{
+				{Kind: "Job", Name: "test-job-7"},
+			}
+		}
+
 		pods = append(pods, pod)
 	}
 
 	return pods, nil
 }
 
-func expectNamespaceRelation(t *testing.T, ch chan (*topology.Relation), podName string) func() {
+func expectNamespaceRelation(t *testing.T, ch chan *topology.Relation, podName string) func() {
 	return func() {
 		relation := <-ch
 		expected := &topology.Relation{
@@ -566,7 +608,7 @@ func expectNamespaceRelation(t *testing.T, ch chan (*topology.Relation), podName
 	}
 }
 
-func expectPodNodeRelation(t *testing.T, ch chan (*topology.Relation), podName string) func() {
+func expectPodNodeRelation(t *testing.T, ch chan *topology.Relation, podName string) func() {
 	return func() {
 		relation := <-ch
 		expectedRelation := &topology.Relation{
