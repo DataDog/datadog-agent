@@ -3,7 +3,9 @@
 package network
 
 import (
+	"errors"
 	"fmt"
+	"os"
 	"path"
 	"strings"
 	"time"
@@ -46,7 +48,10 @@ func readState(procRoot string, paths []string, status int64) (map[PortMapping]s
 	err := util.WithAllProcs(procRoot, func(pid int) error {
 		nsIno, err := util.GetNetNsInoFromPid(procRoot, pid)
 		if err != nil {
-			return err
+			if !errors.Is(err, os.ErrNotExist) {
+				log.Errorf("error getting net ns for pid %d: %s", pid, err)
+			}
+			return nil
 		}
 
 		if _, ok := seen[nsIno]; ok {
