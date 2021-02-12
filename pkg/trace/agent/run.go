@@ -58,7 +58,6 @@ func Run(ctx context.Context) {
 		}
 		osutil.Exitf("%v", err)
 	}
-	fmt.Printf("%#v\n%#v", cfg.RequireTags, cfg.RejectTags)
 	err = info.InitInfo(cfg) // for expvar & -info option
 	if err != nil {
 		osutil.Exitf("%v", err)

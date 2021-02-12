@@ -769,8 +769,8 @@ api_key:
   ## Note: Rules take into account the intersection of tags defined.
   #
   # filter_tags:
-  #     require: "<LIST_OF_KEY_VALUE_TAGS>"
-  #     reject: "<LIST_OF_KEY_VALUE_TAGS>"
+  #     require: [<LIST_OF_KEY_VALUE_TAGS>]
+  #     reject: [<LIST_OF_KEY_VALUE_TAGS>]
 
   ## @param replace_tags - list of objects - optional
   ## Defines a set of rules to replace or remove certain resources, tags containing

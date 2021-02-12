@@ -183,6 +183,7 @@ func TestFullYamlConfig(t *testing.T) {
 
 	assert.ElementsMatch([]*Tag{{K: "env", V: "prod"}, {K: "db", V: "mongodb"}}, c.RequireTags)
 	assert.ElementsMatch([]*Tag{{K: "outcome", V: "success"}}, c.RejectTags)
+
 	assert.ElementsMatch([]*ReplaceRule{
 		{
 			Name:    "http.method",

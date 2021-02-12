@@ -271,7 +271,6 @@ func (c *AgentConfig) applyDatadogConfig() error {
 			c.RequireTags = append(c.RequireTags, splitTag(tag))
 		}
 	}
-
 	if config.Datadog.IsSet("apm_config.filter_tags.reject") {
 		tags := config.Datadog.GetStringSlice("apm_config.filter_tags.reject")
 		for _, tag := range tags {
@@ -461,6 +460,7 @@ func toFloat64(val interface{}) (float64, error) {
 	}
 }
 
+// splitTag splits a "k:v" formatted string and returns a Tag.
 func splitTag(tag string) *Tag {
 	parts := strings.SplitN(tag, ":", 2)
 	kv := &Tag{
