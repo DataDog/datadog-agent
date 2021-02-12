@@ -111,7 +111,7 @@ void __attribute__((always_inline)) remove_discarder(struct bpf_map_def *discard
 struct inode_discarder_t {
     struct path_key_t path_key;
     u32 revision;
-    u32 padding;
+    u32 is_leaf;
 };
 
 struct inode_filter_t {
@@ -132,13 +132,14 @@ struct bpf_map_def SEC("maps/inode_discarders") inode_discarders = {
     .namespace = "",
 };
 
-int __attribute__((always_inline)) discard_inode(u64 event_type, u32 mount_id, u64 inode, u64 timeout) {
+int __attribute__((always_inline)) discard_inode(u64 event_type, u32 mount_id, u64 inode, u64 timeout, u32 is_leaf) {
     struct inode_discarder_t key = {
         .path_key = {
             .ino = inode,
             .mount_id = mount_id,
         },
         .revision = get_discarder_revision(mount_id),
+        .is_leaf = is_leaf,
     };
 
     discard(&inode_discarders, &key, event_type, timeout);
@@ -146,25 +147,27 @@ int __attribute__((always_inline)) discard_inode(u64 event_type, u32 mount_id, u
     return 0;
 }
 
-int __attribute__((always_inline)) is_discarded_by_inode(u64 event_type, u32 mount_id, u64 inode, int depth) {
+int __attribute__((always_inline)) is_discarded_by_inode(u64 event_type, u32 mount_id, u64 inode, u32 is_leaf) {
     struct inode_discarder_t key = {
         .path_key = {
             .ino = inode,
             .mount_id = mount_id,
         },
         .revision = get_discarder_revision(mount_id),
+        .is_leaf = is_leaf,
     };
 
     return is_discarded(&inode_discarders, &key, event_type);
 }
 
-void __attribute__((always_inline)) remove_inode_discarder(u32 mount_id, u64 inode) {
+void __attribute__((always_inline)) remove_inode_discarder(u32 mount_id, u64 inode, u32 is_leaf) {
     struct inode_discarder_t key = {
         .path_key = {
             .ino = inode,
             .mount_id = mount_id,
         },
         .revision = get_discarder_revision(mount_id),
+        .is_leaf = is_leaf,
     };
 
     remove_discarder(&inode_discarders, &key);

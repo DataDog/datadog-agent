@@ -159,16 +159,6 @@ func newInodeDiscarders(inodesMap, revisionsMap *lib.Map, erpc *ERPC, dentryReso
 	}, nil
 }
 
-func (id *inodeDiscarders) removeInode(mountID uint32, inode uint64) {
-	key := inodeDiscarder{
-		PathKey: PathKey{
-			MountID: mountID,
-			Inode:   inode,
-		},
-	}
-	_ = id.Delete(&key)
-}
-
 func (id *inodeDiscarders) discardInode(eventType model.EventType, mountID uint32, inode uint64, isLeaf bool) error {
 	req := ERPCRequest{
 		OP: DiscardInodeOp,

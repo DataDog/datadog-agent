@@ -44,7 +44,7 @@ int __attribute__((always_inline)) handle_discard_inode(void *data) {
     struct discard_inode_t discarder;
     bpf_probe_read(&discarder, sizeof(discarder), data);
 
-    return discard_inode(discarder.req.event_type, discarder.mount_id, discarder.inode, discarder.req.timeout);
+    return discard_inode(discarder.req.event_type, discarder.mount_id, discarder.inode, discarder.req.timeout, discarder.is_leaf);
 }
 
 int __attribute__((always_inline)) handle_discard_pid(void *data) {
