@@ -202,15 +202,12 @@ func TestReportContainerRestart(t *testing.T) {
 	}
 	mockSender := mocksender.NewMockSender(dockerCheck.ID())
 
-	var events []*docker.ContainerEvent
+	events := make([]*docker.ContainerEvent, 0)
 
 	// Don't fail on empty event array
 	err := reportContainerRestart(events, mockSender)
 	assert.Nil(t, err)
 	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 0)
-
-	// Reset event array
-	events = events[0:0]
 
 	// Valid restart event
 	events = append(events, &docker.ContainerEvent{

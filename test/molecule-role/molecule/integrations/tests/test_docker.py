@@ -16,15 +16,21 @@ def test_container_restart_events(host):
         data = host.check_output("curl \"%s\"" % url)
         json_data = json.loads(data)
 
-        for message in json_data["messages"]:
-            p = message["message"]
-            if "GenericEvent" in p:
-                event = p["GenericEvent"]
-                if event["host"] == hostname and event["title"] == "docker.restart":
-                    assert event["eventType"] == "service-check"
-                    assert event["message"] == "Container nginx-1 restarted"
-                    assert event["tags"]["container_name"] == "nginx-1"
-                    assert event["tags"]["status"] == "WARNING"
-                    assert event["tags"]["docker_image"] == "nginx:1.14.2"
+        container_event = {
+            "host": hostname,
+            "title": "docker.restart",
+            "message": "Container nginx-1 restarted",
+            "eventType": "service-check",
+            "name": "service-check.service-check",
+            "tags": {
+                "short_image": "nginx",
+                "source_type_name": "service-check",
+                "image_tag": "1.14.2",
+                "docker_image": "nginx:1.14.2",
+                "status": "WARNING",
+                "container_name": "nginx-1",
+            },
+        }
+        assert util.event_data(container_event, json_data, hostname) is not None
 
     util.wait_until(wait_for_events, 180, 3)
