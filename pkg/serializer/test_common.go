@@ -10,7 +10,6 @@ package serializer
 import (
 	"github.com/stretchr/testify/mock"
 
-	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
@@ -56,6 +55,6 @@ func (s *MockSerializer) SendJSONToV1Intake(data interface{}) error {
 }
 
 // SendOrchestratorMetadata serializes & send orchestrator metadata payloads
-func (s *MockSerializer) SendOrchestratorMetadata(msgs []model.MessageBody, hostName, clusterID, payloadType string) error {
+func (s *MockSerializer) SendOrchestratorMetadata(msgs []ProcessMessageBody, hostName, clusterID, payloadType string) error {
 	return s.Called(msgs, hostName, clusterID, payloadType).Error(0)
 }

@@ -37,7 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
-	procapi "github.com/DataDog/datadog-agent/pkg/process/util/api"
+	procapicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -350,7 +350,7 @@ func StartAgent() error {
 		if err := orchestratorCfg.LoadYamlConfig(confFilePath); err != nil {
 			log.Errorf("Error loading the orchestrator config: %s", err)
 		}
-		keysPerDomain = procapi.KeysPerDomains(orchestratorCfg.OrchestratorEndpoints)
+		keysPerDomain = procapicfg.KeysPerDomains(orchestratorCfg.OrchestratorEndpoints)
 		orchestratorForwarderOpts := forwarder.NewOptions(keysPerDomain)
 		orchestratorForwarderOpts.DisableAPIKeyChecking = true
 		orchestratorForwarder = forwarder.NewDefaultForwarder(orchestratorForwarderOpts)

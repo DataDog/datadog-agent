@@ -14,10 +14,9 @@ import (
 	"strconv"
 	"time"
 
-	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
-	"github.com/DataDog/datadog-agent/pkg/process/util/api"
+	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	"github.com/DataDog/datadog-agent/pkg/serializer/jsonstream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
@@ -99,7 +98,7 @@ type MetricSerializer interface {
 	SendMetadata(m marshaler.Marshaler) error
 	SendHostMetadata(m marshaler.Marshaler) error
 	SendJSONToV1Intake(data interface{}) error
-	SendOrchestratorMetadata(msgs []model.MessageBody, hostName, clusterID, payloadType string) error
+	SendOrchestratorMetadata(msgs []ProcessMessageBody, hostName, clusterID, payloadType string) error
 }
 
 // Serializer serializes metrics to the correct format and routes the payloads to the correct endpoint in the Forwarder
@@ -392,17 +391,17 @@ func (s *Serializer) SendJSONToV1Intake(data interface{}) error {
 }
 
 // SendOrchestratorMetadata serializes & send orchestrator metadata payloads
-func (s *Serializer) SendOrchestratorMetadata(msgs []model.MessageBody, hostName, clusterID, payloadType string) error {
+func (s *Serializer) SendOrchestratorMetadata(msgs []ProcessMessageBody, hostName, clusterID, payloadType string) error {
 	if s.orchestratorForwarder == nil {
 		return errors.New("orchestrator forwarder is not setup")
 	}
 	for _, m := range msgs {
 		extraHeaders := make(http.Header)
-		extraHeaders.Set(api.HostHeader, hostName)
-		extraHeaders.Set(api.ClusterIDHeader, clusterID)
-		extraHeaders.Set(api.TimestampHeader, strconv.Itoa(int(time.Now().Unix())))
+		extraHeaders.Set(headers.HostHeader, hostName)
+		extraHeaders.Set(headers.ClusterIDHeader, clusterID)
+		extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(time.Now().Unix())))
 
-		body, err := api.EncodePayload(m)
+		body, err := processPayloadEncoder(m)
 		if err != nil {
 			return log.Errorf("Unable to encode message: %s", err)
 		}

@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
-	"github.com/DataDog/datadog-agent/pkg/process/util/api"
+	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	coreutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -33,7 +33,7 @@ type OrchestratorConfig struct {
 	KubeClusterName                string
 	IsScrubbingEnabled             bool
 	Scrubber                       *redact.DataScrubber
-	OrchestratorEndpoints          []api.Endpoint
+	OrchestratorEndpoints          []apicfg.Endpoint
 	MaxPerMessage                  int
 	PodQueueBytes                  int // The total number of bytes that can be enqueued for delivery to the orchestrator endpoint
 	ExtraTags                      []string
@@ -50,7 +50,7 @@ func NewDefaultOrchestratorConfig() *OrchestratorConfig {
 	oc := OrchestratorConfig{
 		Scrubber:              redact.NewDefaultDataScrubber(),
 		MaxPerMessage:         100,
-		OrchestratorEndpoints: []api.Endpoint{{Endpoint: orchestratorEndpoint}},
+		OrchestratorEndpoints: []apicfg.Endpoint{{Endpoint: orchestratorEndpoint}},
 		PodQueueBytes:         15 * 1000 * 1000,
 	}
 	return &oc
@@ -118,7 +118,7 @@ func (oc *OrchestratorConfig) LoadYamlConfig(path string) error {
 	return nil
 }
 
-func extractOrchestratorAdditionalEndpoints(URL *url.URL, orchestratorEndpoints *[]api.Endpoint) error {
+func extractOrchestratorAdditionalEndpoints(URL *url.URL, orchestratorEndpoints *[]apicfg.Endpoint) error {
 	if k := key(orchestratorNS, "orchestrator_additional_endpoints"); config.Datadog.IsSet(k) {
 		if err := extractEndpoints(URL, k, orchestratorEndpoints); err != nil {
 			return err
@@ -131,14 +131,14 @@ func extractOrchestratorAdditionalEndpoints(URL *url.URL, orchestratorEndpoints 
 	return nil
 }
 
-func extractEndpoints(URL *url.URL, k string, endpoints *[]api.Endpoint) error {
+func extractEndpoints(URL *url.URL, k string, endpoints *[]apicfg.Endpoint) error {
 	for endpointURL, apiKeys := range config.Datadog.GetStringMapStringSlice(k) {
 		u, err := URL.Parse(endpointURL)
 		if err != nil {
 			return fmt.Errorf("invalid additional endpoint url '%s': %s", endpointURL, err)
 		}
 		for _, k := range apiKeys {
-			*endpoints = append(*endpoints, api.Endpoint{
+			*endpoints = append(*endpoints, apicfg.Endpoint{
 				APIKey:   config.SanitizeAPIKey(k),
 				Endpoint: u,
 			})

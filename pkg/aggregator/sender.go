@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -40,7 +40,7 @@ type Sender interface {
 	SetCheckCustomTags(tags []string)
 	SetCheckService(service string)
 	FinalizeCheckServiceTag()
-	OrchestratorMetadata(msgs []model.MessageBody, clusterID, payloadType string)
+	OrchestratorMetadata(msgs []serializer.ProcessMessageBody, clusterID, payloadType string)
 }
 
 type metricStats struct {
@@ -86,7 +86,7 @@ type senderHistogramBucket struct {
 }
 
 type senderOrchestratorMetadata struct {
-	msgs        []model.MessageBody
+	msgs        []serializer.ProcessMessageBody
 	clusterID   string
 	payloadType string
 }
@@ -393,7 +393,7 @@ func (s *checkSender) Event(e metrics.Event) {
 }
 
 // OrchestratorMetadata submit orchestrator metadata messages
-func (s *checkSender) OrchestratorMetadata(msgs []model.MessageBody, clusterID, payloadType string) {
+func (s *checkSender) OrchestratorMetadata(msgs []serializer.ProcessMessageBody, clusterID, payloadType string) {
 	om := senderOrchestratorMetadata{
 		msgs:        msgs,
 		clusterID:   clusterID,

@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/process/util/api"
+	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -77,7 +77,7 @@ type WindowsConfig struct {
 type AgentConfig struct {
 	Enabled              bool
 	HostName             string
-	APIEndpoints         []api.Endpoint
+	APIEndpoints         []apicfg.Endpoint
 	LogFile              string
 	LogLevel             string
 	LogToConsole         bool
@@ -204,7 +204,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 
 	ac := &AgentConfig{
 		Enabled:      canAccessContainers, // We'll always run inside of a container.
-		APIEndpoints: []api.Endpoint{{Endpoint: processEndpoint}},
+		APIEndpoints: []apicfg.Endpoint{{Endpoint: processEndpoint}},
 		LogFile:      defaultLogFilePath,
 		LogLevel:     "info",
 		LogToConsole: false,
