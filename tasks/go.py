@@ -5,7 +5,7 @@ from __future__ import print_function
 
 import datetime
 import os
-import sys
+import shutil
 
 import yaml
 from invoke import task
@@ -272,6 +272,20 @@ def deps(ctx, verbose=False):
     Setup Go dependencies
     """
 
+    print("downloading dependencies")
+    start = datetime.datetime.now()
+    verbosity = ' -x' if verbose else ''
+    ctx.run("go mod download{}".format(verbosity))
+    dep_done = datetime.datetime.now()
+    print("go mod download, elapsed: {}".format(dep_done - start))
+
+
+@task
+def deps_vendored(ctx, verbose=False):
+    """
+    Vendor Go dependencies
+    """
+
     print("vendoring dependencies")
     start = datetime.datetime.now()
     verbosity = ' -v' if verbose else ''
@@ -285,17 +299,24 @@ def deps(ctx, verbose=False):
     # We won't need this if/when we change to non-vendored modules
     ctx.run('go run github.com/goware/modvendor -copy="**/*.c **/*.h **/*.proto **/*.java"{}'.format(verbosity))
 
-    # delete gopsutil on windows, it get vendored because it's necessary on other platforms
-    if sys.platform == 'win32':
-        print("Removing PSUTIL on Windows")
-        ctx.run("rd /s/q vendor\\github.com\\shirou\\gopsutil")
+    # If github.com/DataDog/datadog-agent gets vendored too - nuke it
+    #
+    # This may happen as a result of having to introduce DEPPROJECTROOT
+    # in our builders to get around a known-issue with go dep, and the
+    # strange GOPATH situation in our builders.
+    #
+    # This is only a workaround, we should eliminate the need to resort
+    # to DEPPROJECTROOT.
+    if os.path.exists('vendor/github.com/DataDog/datadog-agent'):
+        print("Removing vendored github.com/DataDog/datadog-agent")
+        shutil.rmtree('vendor/github.com/DataDog/datadog-agent')
 
     dep_done = datetime.datetime.now()
     print("go mod vendor, elapsed: {}".format(dep_done - start))
 
 
 @task
-def lint_licenses(ctx, verbose=False):
+def lint_licenses(ctx):
     """
     Checks that the LICENSE-3rdparty.csv file is up-to-date with contents of go.sum
     """
@@ -309,19 +330,6 @@ def lint_licenses(ctx, verbose=False):
             licenses.append(line.rstrip())
 
     new_licenses = get_licenses_list(ctx)
-
-    if sys.platform == 'win32':
-        # ignore some licenses because we remove
-        # the deps in a hack for windows
-        ignore_licenses = ['github.com/shirou/gopsutil']
-        to_removed = []
-        for ignore in ignore_licenses:
-            for license in licenses:
-                if ignore in license:
-                    if verbose:
-                        print("[hack-windows] ignore: {}".format(license))
-                    to_removed.append(license)
-        licenses = [x for x in licenses if x not in to_removed]
 
     removed_licenses = [ele for ele in new_licenses if ele not in licenses]
     for license in removed_licenses:
@@ -354,6 +362,9 @@ def generate_licenses(ctx, filename='LICENSE-3rdparty.csv', verbose=False):
 
 # FIXME: This doesn't include licenses for non-go dependencies, like the javascript libs we use for the web gui
 def get_licenses_list(ctx):
+    # FIXME: Remove when https://github.com/frapposelli/wwhrd/issues/39 is fixed
+    deps_vendored(ctx, verbose=True)
+
     # Read the list of packages to exclude from the list from wwhrd's
     exceptions_wildcard = []
     exceptions = []
@@ -394,6 +405,7 @@ def get_licenses_list(ctx):
                     else:
                         licenses.append("core,\"{}\",{}".format(package, license))
     licenses.sort()
+    ctx.run('rm -rf vendor/')
     return licenses
 
 
@@ -416,9 +428,9 @@ def reset(ctx):
 
 
 @task
-def generate(ctx):
+def generate(ctx, mod="mod"):
     """
     Run go generate required package
     """
-    ctx.run("go generate -mod=mod " + " ".join(GO_GENERATE_TARGETS))
+    ctx.run("go generate -mod={} ".format(mod) + " ".join(GO_GENERATE_TARGETS))
     print("go generate ran successfully")

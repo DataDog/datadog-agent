@@ -85,12 +85,18 @@ variables:
   # Directory in which we put the artifacts after the build
   # Must be in $CI_PROJECT_DIR
   OMNIBUS_PACKAGE_DIR: $CI_PROJECT_DIR/.omnibus/pkg/
+  # Directory where the source code is stored for Omnibus builds.
+  # This is used to figure out the Go modules cache for caching
+  OMNIBUS_SOURCE_DIR: $OMNIBUS_BASE_DIR/src
   # Directory in which we execute the omnibus build for SUSE
   # as we want to separate the RPM built for this distro.
   OMNIBUS_BASE_DIR_SUSE: /.omnibus/suse
   # Directory in which we put the artifacts after the build
   # Must be in $CI_PROJECT_DIR
   OMNIBUS_PACKAGE_DIR_SUSE: $CI_PROJECT_DIR/.omnibus/suse/pkg
+  # Directory where the source code is stored for Omnibus SUSE builds.
+  # This is used to figure out the Go modules cache for caching
+  OMNIBUS_SOURCE_DIR_SUSE: $OMNIBUS_BASE_DIR_SUSE/src
   OMNIBUS_BASE_DIR_WIN: c:\omni-base\$CI_RUNNER_ID
   OMNIBUS_BASE_DIR_WIN_OMNIBUS: c:/omni-base/$CI_RUNNER_ID
   DD_AGENT_TESTING_DIR: $CI_PROJECT_DIR/test/kitchen

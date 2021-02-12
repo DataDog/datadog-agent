@@ -58,7 +58,7 @@ def build(
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes=python_runtimes)
 
     # Generating go source from templates by running go generate on ./pkg/status
-    generate(ctx)
+    generate(ctx, mod="vendor")
 
     build_tags = get_default_build_tags(build="android")
 
