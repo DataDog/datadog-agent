@@ -82,11 +82,6 @@ func makeProcess(pid int32, cmdline string) *procutil.Process {
 		Pid:     pid,
 		Cmdline: strings.Split(cmdline, " "),
 		Stats: &procutil.Stats{
-			CreateTime:  0,
-			Status:      "",
-			Nice:        0,
-			OpenFdCount: 0,
-			NumThreads:  0,
 			CPUTime:     &procutil.CPUTimesStat{},
 			MemInfo:     &procutil.MemoryInfoStat{},
 			MemInfoEx:   &procutil.MemoryInfoExStat{},

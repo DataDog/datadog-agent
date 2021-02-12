@@ -173,8 +173,8 @@ func getAllProcesses(probe *procutil.Probe) (map[int32]*procutil.Process, error)
 					Timestamp: time.Now().UnixNano(),
 				},
 				MemInfo: &procutil.MemoryInfoStat{
-					RSS:  pmemcounter.WorkingSetSize,
-					VMS:  pmemcounter.QuotaPagedPoolUsage,
+					RSS:  uint64(pmemcounter.WorkingSetSize),
+					VMS:  uint64(pmemcounter.QuotaPagedPoolUsage),
 					Swap: 0,
 				},
 				IOStat: &procutil.IOCountersStat{
