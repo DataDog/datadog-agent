@@ -14,13 +14,15 @@ deploy_staging_deb-7:
   resource_group: deb_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main", "size:large"]
-  dependencies:
+  # TEMPORARY(dusan): enable this job to run earlier as soon as the dependencies are ready, and comment out everything
+  # except the main agent deb we use
+  needs:
     - agent_deb-x64-a7
-    - agent_deb-arm64-a7
-    - iot_agent_deb-x64
-    - iot_agent_deb-arm64
-    - iot_agent_deb-armhf
-    - dogstatsd_deb-x64
+#    - agent_deb-arm64-a7
+#    - iot_agent_deb-x64
+#    - iot_agent_deb-arm64
+#    - iot_agent_deb-armhf
+#    - dogstatsd_deb-x64
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
@@ -44,8 +46,8 @@ deploy_staging_deb-7:
     # Release the artifacts to the "7" component
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*amd64.deb
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*amd64.deb
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a arm64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*arm64.deb
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a armhf --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*armhf.deb
+#    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a arm64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*arm64.deb
+#    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a armhf --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*armhf.deb
 
 deploy_staging_rpm-7:
   rules:
