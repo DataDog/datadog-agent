@@ -39,7 +39,15 @@ bool CustomActionData::init(const std::wstring &data)
     std::match_results<decltype(start)> results;
     while (std::regex_search(start, end, results, re))
     {
-        values[results[2]] = results[3];
+        auto propertyValue = results[3].str();
+        propertyValue.erase(propertyValue.begin(), std::find_if(propertyValue.begin(), propertyValue.end(), [](int ch)
+        {
+            return !std::isspace(ch);
+        }));
+        if (propertyValue.length() > 0)
+        {
+            values[results[2]] = propertyValue;
+        }
         start += results.position() + results.length();
     }
 
