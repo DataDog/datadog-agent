@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/ebpf/manager"
 	"github.com/pkg/errors"
 
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 )
@@ -34,9 +33,9 @@ func (s *PerfMapStats) UnmarshalBinary(data []byte) error {
 	if len(data) < 24 {
 		return model.ErrNotEnoughData
 	}
-	s.Bytes = ebpf.ByteOrder.Uint64(data[0:8])
-	s.Count = ebpf.ByteOrder.Uint64(data[8:16])
-	s.Lost = ebpf.ByteOrder.Uint64(data[16:24])
+	s.Bytes = model.ByteOrder.Uint64(data[0:8])
+	s.Count = model.ByteOrder.Uint64(data[8:16])
+	s.Lost = model.ByteOrder.Uint64(data[16:24])
 	return nil
 }
 

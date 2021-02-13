@@ -1,19 +1,10 @@
 #ifndef _OPEN_H_
 #define _OPEN_H_
+
 #include "defs.h"
 #include "filters.h"
 #include "syscalls.h"
 #include "process.h"
-#include "open_filter.h"
-
-struct bpf_map_def SEC("maps/open_basename_approvers") open_basename_approvers = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = BASENAME_FILTER_SIZE,
-    .value_size = sizeof(u8),
-    .max_entries = 255,
-    .pinning = 0,
-    .namespace = "",
-};
 
 struct bpf_map_def SEC("maps/open_flags_approvers") open_flags_approvers = {
     .type = BPF_MAP_TYPE_ARRAY,
@@ -35,20 +26,21 @@ struct open_event_t {
 };
 
 int __attribute__((always_inline)) trace__sys_openat(int flags, umode_t mode) {
+    struct policy_t policy = fetch_policy(EVENT_OPEN);
+    if (discarded_by_process(policy.mode, EVENT_OPEN)) {
+        return 0;
+    }
+
     struct syscall_cache_t syscall = {
         .type = SYSCALL_OPEN,
-        .policy = {.mode = ACCEPT},
+        .policy = policy,
         .open = {
             .flags = flags,
             .mode = mode,
         }
     };
 
-    cache_syscall(&syscall, EVENT_OPEN);
-
-    if (discarded_by_process(syscall.policy.mode, EVENT_OPEN)) {
-        pop_syscall(SYSCALL_OPEN);
-    }
+    cache_syscall(&syscall);
 
     return 0;
 }
@@ -89,20 +81,6 @@ SYSCALL_KPROBE4(openat2, int, dirfd, const char*, filename, struct openat2_open_
     return trace__sys_openat(how.flags, how.mode);
 }
 
-int __attribute__((always_inline)) approve_by_basename(struct syscall_cache_t *syscall) {
-    struct open_basename_t basename = {};
-    get_dentry_name(syscall->open.dentry, &basename, sizeof(basename));
-
-    struct u8 *filter = bpf_map_lookup_elem(&open_basename_approvers, &basename);
-    if (filter) {
-#ifdef DEBUG
-        bpf_printk("open basename %s approved\n", basename.value);
-#endif
-        return 1;
-    }
-    return 0;
-}
-
 int __attribute__((always_inline)) approve_by_flags(struct syscall_cache_t *syscall) {
     u32 key = 0;
     u32 *flags = bpf_map_lookup_elem(&open_flags_approvers, &key);
@@ -115,27 +93,18 @@ int __attribute__((always_inline)) approve_by_flags(struct syscall_cache_t *sysc
     return 0;
 }
 
-int __attribute__((always_inline)) filter_open(struct syscall_cache_t *syscall) {
-    if (syscall->policy.mode == NO_FILTER)
-        return 0;
+int __attribute__((always_inline)) open_approvers(struct syscall_cache_t *syscall) {
+    int pass_to_userspace = 0;
 
-    char pass_to_userspace = syscall->policy.mode == ACCEPT ? 1 : 0;
-
-    if (syscall->policy.mode == DENY) {
-        if ((syscall->policy.flags & BASENAME) > 0) {
-            pass_to_userspace = approve_by_basename(syscall);
-        }
-
-        if (!pass_to_userspace && (syscall->policy.flags & FLAGS) > 0) {
-           pass_to_userspace = approve_by_flags(syscall);
-        }
+    if ((syscall->policy.flags & BASENAME) > 0) {
+        pass_to_userspace = approve_by_basename(syscall->open.dentry, EVENT_OPEN);
     }
 
-    if (!pass_to_userspace) {
-        pop_syscall(SYSCALL_OPEN);
+    if (!pass_to_userspace && (syscall->policy.flags & FLAGS) > 0) {
+        pass_to_userspace = approve_by_flags(syscall);
     }
 
-    return 0;
+    return pass_to_userspace;
 }
 
 int __attribute__((always_inline)) handle_open_event(struct pt_regs *ctx, struct syscall_cache_t *syscall) {
@@ -153,7 +122,11 @@ int __attribute__((always_inline)) handle_open_event(struct pt_regs *ctx, struct
 
     set_path_key_inode(dentry, &syscall->open.path_key, 0);
 
-    return filter_open(syscall);
+    if (filter_syscall(syscall, open_approvers)) {
+        return discard_syscall(syscall);
+    }
+
+    return 0;
 }
 
 SEC("kprobe/vfs_truncate")
@@ -175,7 +148,11 @@ int kprobe__vfs_truncate(struct pt_regs *ctx) {
 
     set_path_key_inode(dentry, &syscall->open.path_key, 0);
 
-    return filter_open(syscall);
+    if (filter_syscall(syscall, open_approvers)) {
+        return discard_syscall(syscall);
+    }
+
+    return 0;
 }
 
 SEC("kprobe/do_dentry_open")

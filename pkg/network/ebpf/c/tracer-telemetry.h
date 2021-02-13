@@ -67,7 +67,7 @@ static __always_inline void sockaddr_to_addr(struct sockaddr * sa, u64 * addr_h,
         }
         if (port) {
             bpf_probe_read(port, sizeof(u16), &sin6->sin6_port);
-            *port = ntohs(*port);
+            *port = bpf_ntohs(*port);
         }
         break;
     }

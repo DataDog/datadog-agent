@@ -20,7 +20,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -34,11 +34,11 @@ type ProcessSyscall struct {
 // UnmarshalBinary unmarshals a binary representation of a ProcessSyscall
 func (p *ProcessSyscall) UnmarshalBinary(data []byte) error {
 	var comm [16]byte
-	utils.SliceToArray(data[0:16], unsafe.Pointer(&comm))
+	model.SliceToArray(data[0:16], unsafe.Pointer(&comm))
 
 	p.Process = string(bytes.Trim(comm[:], "\x00"))
-	p.Pid = ebpf.ByteOrder.Uint32(data[16:20])
-	p.ID = ebpf.ByteOrder.Uint32(data[20:24])
+	p.Pid = model.ByteOrder.Uint32(data[16:20])
+	p.ID = model.ByteOrder.Uint32(data[20:24])
 	return nil
 }
 
@@ -63,7 +63,7 @@ func (p *ProcessPath) UnmarshalBinary(data []byte) error {
 	if len(data) == 0 {
 		return errors.New("path empty")
 	}
-	utils.SliceToArray(data[0:256], unsafe.Pointer(&p.PathRaw))
+	model.SliceToArray(data[0:256], unsafe.Pointer(&p.PathRaw))
 	p.Path = C.GoString((*C.char)(unsafe.Pointer(&p.PathRaw)))
 	return nil
 }
