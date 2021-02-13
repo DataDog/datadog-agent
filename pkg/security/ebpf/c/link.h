@@ -12,16 +12,23 @@ struct link_event_t {
     struct file_t target;
 };
 
+int __attribute__((always_inline)) link_approvers(struct syscall_cache_t *syscall) {
+    return basename_approver(syscall, syscall->link.src_dentry, EVENT_LINK) ||
+           basename_approver(syscall, syscall->link.target_dentry, EVENT_LINK);
+}
+
 int __attribute__((always_inline)) trace__sys_link() {
+    struct policy_t policy = fetch_policy(EVENT_LINK);
+    if (discarded_by_process(policy.mode, EVENT_LINK)) {
+        return 0;
+    }
+
     struct syscall_cache_t syscall = {
         .type = SYSCALL_LINK,
+        .policy = policy,
     };
 
-    cache_syscall(&syscall, EVENT_LINK);
-
-    if (discarded_by_process(syscall.policy.mode, EVENT_LINK)) {
-        pop_syscall(SYSCALL_LINK);
-    }
+    cache_syscall(&syscall);
 
     return 0;
 }
@@ -46,7 +53,12 @@ int kprobe__vfs_link(struct pt_regs *ctx) {
 
     struct dentry *src_dentry = (struct dentry *)PT_REGS_PARM1(ctx);
 
+    syscall->link.src_dentry = src_dentry;
     syscall->link.target_dentry = (struct dentry *)PT_REGS_PARM3(ctx);
+    if (filter_syscall(syscall, link_approvers)) {
+        return discard_syscall(syscall);
+    }
+
     syscall->link.src_overlay_numlower = get_overlay_numlower(src_dentry);
 
     // this is a hard link, source and target dentries are on the same filesystem & mount point
@@ -60,7 +72,7 @@ int kprobe__vfs_link(struct pt_regs *ctx) {
 
     int ret = resolve_dentry(src_dentry, syscall->link.src_key, syscall->policy.mode != NO_FILTER ? EVENT_LINK : 0);
     if (ret == DENTRY_DISCARDED) {
-        pop_syscall(SYSCALL_LINK);
+        return discard_syscall(syscall);
     }
 
     return 0;

@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
@@ -326,7 +325,7 @@ func ExtractEventInfo(data []byte) (uint64, uint64, error) {
 		return 0, 0, model.ErrNotEnoughData
 	}
 
-	return ebpf.ByteOrder.Uint64(data[0:8]), ebpf.ByteOrder.Uint64(data[8:16]), nil
+	return model.ByteOrder.Uint64(data[0:8]), model.ByteOrder.Uint64(data[8:16]), nil
 }
 
 // ResolveEventTimestamp resolves the monolitic kernel event timestamp to an absolute time
