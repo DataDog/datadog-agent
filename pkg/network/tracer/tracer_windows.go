@@ -4,9 +4,9 @@ package tracer
 
 import (
 	"expvar"
-	"syscall"
 	"fmt"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -61,7 +61,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 
 	if err != nil && errors.Cause(err) == syscall.Errno(syscall.ERROR_FILE_NOT_FOUND) {
 		log.Debugf("could not create driver interface: %v", err)
-		return nil, fmt.Errorf("The windows driver was not installed, reinstall the datadog with network performance monitoring enabled")	
+		return nil, fmt.Errorf("The Windows driver was not installed, reinstall the Datadog Agent with network performance monitoring enabled")
 	} else if err != nil {
 		return nil, fmt.Errorf("could not create windows driver controller: %v", err)
 	}
