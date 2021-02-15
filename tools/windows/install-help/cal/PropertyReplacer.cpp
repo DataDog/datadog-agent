@@ -10,6 +10,15 @@ namespace
         return it != m.end();
     }
 
+    bool to_bool(std::wstring str)
+    {
+        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+        std::wistringstream is(str);
+        bool b;
+        is >> std::boolalpha >> b;
+        return b;
+    }
+
     typedef std::function<std::wstring(std::wstring const &, const property_retriever &)> formatter_func;
 
     /// <summary>
@@ -142,6 +151,7 @@ std::wstring replace_yaml_properties(
     {
         auto propKey = std::get<WxsKey>(prop);
         auto propValue = propertyRetriever(propKey);
+        
         if (propValue)
         {
             if (PropertyReplacer::match(input, std::get<Regex>(prop)).replace_with(std::get<Replacement>(prop)(*propValue, propertyRetriever)))
@@ -155,9 +165,10 @@ std::wstring replace_yaml_properties(
     }
 
     // Special cases
-    auto processEnabled = propertyRetriever(L"PROCESS_ENABLED");
-    if (processEnabled)
+    auto processEnabledProp = propertyRetriever(L"PROCESS_ENABLED");
+    if (processEnabledProp)
     {
+        std::wstring processEnabled = to_bool(*processEnabledProp) ? L"true" : L"disabled";
         auto processDdUrl = propertyRetriever(L"PROCESS_DD_URL");
         if (processDdUrl)
         {
@@ -172,7 +183,7 @@ std::wstring replace_yaml_properties(
         PropertyReplacer::match(input, L"process_config:")
             .then(L"^[ #]*enabled:.*")
             // Note that this is a string, and should be between ""
-            .replace_with(L"  enabled: \"" + *processEnabled + L"\"");
+            .replace_with(L"  enabled: \"" + processEnabled + L"\"");
     }
 
     auto apmEnabled = propertyRetriever(L"APM_ENABLED");
