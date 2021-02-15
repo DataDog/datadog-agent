@@ -32,7 +32,7 @@ func findAddr(conf *config.AgentConfig) (string, error) {
 	sockname := mainconfig.Datadog.GetString("dogstatsd_socket")
 	if sockname != "" {
 		// Unix sockets can be used
-		return `unix://` + pipename, nil
+		return `unix://` + sockname, nil
 	}
 	return "", errors.New("dogstatsd_port is set to 0 and no alternative is available")
 }
