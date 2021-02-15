@@ -5,7 +5,7 @@
 
 // +build !windows
 
-package iostats
+package disk
 
 import (
 	"fmt"
