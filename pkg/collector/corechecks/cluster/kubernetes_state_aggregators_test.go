@@ -15,7 +15,8 @@ import (
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 )
 
-var _ metricAggregator = &counterAggregator{}
+var _ metricAggregator = &sumValuesAggregator{}
+var _ metricAggregator = &countObjectsAggregator{}
 
 func Test_counterAggregator(t *testing.T) {
 	tests := []struct {
@@ -174,7 +175,7 @@ func Test_counterAggregator(t *testing.T) {
 		s.SetupAcceptAll()
 
 		t.Run(tt.name, func(t *testing.T) {
-			agg := newCounterAggregator(tt.metricName, tt.allowedLabels)
+			agg := newSumValuesAggregator(tt.metricName, tt.allowedLabels)
 			for _, metric := range tt.metrics {
 				agg.accumulate(metric)
 			}

@@ -32,21 +32,50 @@ type counterAggregator struct {
 	accumulator map[[maxNumberOfAllowedLabels]string]float64
 }
 
-func newCounterAggregator(metricName string, allowedLabels []string) metricAggregator {
+type sumValuesAggregator struct {
+	counterAggregator
+}
+
+type countObjectsAggregator struct {
+	counterAggregator
+}
+
+func newSumValuesAggregator(metricName string, allowedLabels []string) metricAggregator {
 	if len(allowedLabels) > maxNumberOfAllowedLabels {
+		// `maxNumberOfAllowedLabels` is hardcoded to the maximum number of labels passed to this function from the metricsAggregators definition below.
+		// The only possibility to arrive here is to add a new aggregator in `metricAggregator` below and to forget to update `maxNumberOfAllowedLabels` accordingly.
 		log.Error("BUG in KSM metric aggregator")
 		return nil
 	}
 
-	return &counterAggregator{
-		metricName:    metricName,
-		allowedLabels: allowedLabels,
-		accumulator:   make(map[[maxNumberOfAllowedLabels]string]float64),
+	return &sumValuesAggregator{
+		counterAggregator{
+			metricName:    metricName,
+			allowedLabels: allowedLabels,
+			accumulator:   make(map[[maxNumberOfAllowedLabels]string]float64),
+		},
 	}
 }
 
-func (a *counterAggregator) accumulate(metric ksmstore.DDMetric) {
-	var labelValues [3]string
+func newCountObjectsAggregator(metricName string, allowedLabels []string) metricAggregator {
+	if len(allowedLabels) > maxNumberOfAllowedLabels {
+		// `maxNumberOfAllowedLabels` is hardcoded to the maximum number of labels passed to this function from the metricsAggregators definition below.
+		// The only possibility to arrive here is to add a new aggregator in `metricAggregator` below and to forget to update `maxNumberOfAllowedLabels` accordingly.
+		log.Error("BUG in KSM metric aggregator")
+		return nil
+	}
+
+	return &countObjectsAggregator{
+		counterAggregator{
+			metricName:    metricName,
+			allowedLabels: allowedLabels,
+			accumulator:   make(map[[maxNumberOfAllowedLabels]string]float64),
+		},
+	}
+}
+
+func (a *sumValuesAggregator) accumulate(metric ksmstore.DDMetric) {
+	var labelValues [maxNumberOfAllowedLabels]string
 
 	for i, allowedLabel := range a.allowedLabels {
 		if allowedLabel == "" {
@@ -57,6 +86,20 @@ func (a *counterAggregator) accumulate(metric ksmstore.DDMetric) {
 	}
 
 	a.accumulator[labelValues] += metric.Val
+}
+
+func (a *countObjectsAggregator) accumulate(metric ksmstore.DDMetric) {
+	var labelValues [maxNumberOfAllowedLabels]string
+
+	for i, allowedLabel := range a.allowedLabels {
+		if allowedLabel == "" {
+			break
+		}
+
+		labelValues[i] = metric.Labels[allowedLabel]
+	}
+
+	a.accumulator[labelValues]++
 }
 
 func (a *counterAggregator) flush(sender aggregator.Sender, k *KSMCheck, labelJoiner *labelJoiner) {
@@ -81,27 +124,27 @@ func (a *counterAggregator) flush(sender aggregator.Sender, k *KSMCheck, labelJo
 
 var (
 	metricAggregators = map[string]metricAggregator{
-		"kube_persistentvolume_status_phase": newCounterAggregator(
+		"kube_persistentvolume_status_phase": newSumValuesAggregator(
 			"persistentvolumes.by_phase",
 			[]string{"storageclass", "phase"},
 		),
-		"kube_service_spec_type": newCounterAggregator(
+		"kube_service_spec_type": newCountObjectsAggregator(
 			"service.count",
 			[]string{"namespace", "type"},
 		),
-		"kube_namespace_status_phase": newCounterAggregator(
+		"kube_namespace_status_phase": newSumValuesAggregator(
 			"namespace.count",
 			[]string{"phase"},
 		),
-		"kube_replicaset_owner": newCounterAggregator(
+		"kube_replicaset_owner": newCountObjectsAggregator(
 			"replicaset.count",
 			[]string{"namespace", "owner_name", "owner_kind"},
 		),
-		"kube_job_owner": newCounterAggregator(
+		"kube_job_owner": newCountObjectsAggregator(
 			"job.count",
 			[]string{"namespace", "owner_name", "owner_kind"},
 		),
-		"kube_deployment_status_observed_generation": newCounterAggregator(
+		"kube_deployment_status_observed_generation": newCountObjectsAggregator(
 			"deployment.count",
 			[]string{"namespace"},
 		),
