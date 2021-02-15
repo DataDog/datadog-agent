@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 // +build !windows
 
-package load
+package cpu
 
 import (
 	"testing"
