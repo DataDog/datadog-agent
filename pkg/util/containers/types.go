@@ -6,6 +6,7 @@
 package containers
 
 import (
+	"github.com/docker/docker/api/types"
 	"net"
 
 	"github.com/StackVista/stackstate-agent/pkg/util/containers/metrics"
@@ -63,6 +64,8 @@ type Container struct {
 	Network        metrics.ContainerNetStats
 	AddressList    []NetworkAddress
 	StartedAt      int64
+
+	Mounts          []types.MountPoint
 
 	// For internal use only
 	cgroup *metrics.ContainerCgroup
