@@ -48,8 +48,8 @@ type TimesStat struct {
 	Idle   float64
 }
 
-// CPUCheck doesn't need additional fields
-type CPUCheck struct {
+// Check doesn't need additional fields
+type Check struct {
 	core.CheckBase
 	nbCPU       float64
 	lastNbCycle float64
@@ -64,7 +64,7 @@ func (c TimesStat) Total() float64 {
 }
 
 // Run executes the check
-func (c *CPUCheck) Run() error {
+func (c *Check) Run() error {
 	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
 		return err
@@ -72,11 +72,11 @@ func (c *CPUCheck) Run() error {
 
 	cpuTimes, err := times()
 	if err != nil {
-		log.Errorf("system.CPUCheck: could not retrieve cpu stats: %s", err)
+		log.Errorf("cpu.Check: could not retrieve cpu stats: %s", err)
 		return err
 	} else if len(cpuTimes) < 1 {
 		errEmpty := fmt.Errorf("no cpu stats retrieve (empty results)")
-		log.Errorf("system.CPUCheck: %s", errEmpty)
+		log.Errorf("cpu.Check: %s", errEmpty)
 		return errEmpty
 	}
 	t := cpuTimes[0]
@@ -117,7 +117,7 @@ func (c *CPUCheck) Run() error {
 }
 
 // Configure the CPU check doesn't need configuration
-func (c *CPUCheck) Configure(data integration.Data, initConfig integration.Data, source string) error {
+func (c *Check) Configure(data integration.Data, initConfig integration.Data, source string) error {
 	if err := c.CommonConfigure(data, source); err != nil {
 		return err
 	}
@@ -125,20 +125,20 @@ func (c *CPUCheck) Configure(data integration.Data, initConfig integration.Data,
 	// do nothing
 	info, err := cpu.GetCpuInfo()
 	if err != nil {
-		return fmt.Errorf("system.CPUCheck: could not query CPU info")
+		return fmt.Errorf("cpu.Check: could not query CPU info")
 	}
 	cpucount, _ := strconv.ParseFloat(info["cpu_logical_processors"], 64)
 	c.nbCPU = cpucount
 
 	c.counter, err = pdhutil.GetMultiInstanceCounter("Processor", "% Interrupt Time", &[]string{"_Total"}, nil)
 	if err != nil {
-		return fmt.Errorf("system.CPUCheck could not establish interrupt time counter %v", err)
+		return fmt.Errorf("cpu.Check could not establish interrupt time counter %v", err)
 	}
 	return nil
 }
 
 func cpuFactory() check.Check {
-	return &CPUCheck{
+	return &Check{
 		CheckBase: core.NewCheckBase(cpuCheckName),
 	}
 }

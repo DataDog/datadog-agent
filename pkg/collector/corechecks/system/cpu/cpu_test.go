@@ -7,9 +7,10 @@
 package cpu
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"runtime"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/shirou/gopsutil/cpu"
@@ -77,7 +78,7 @@ func CPUInfo() ([]cpu.InfoStat, error) {
 func TestCPUCheckLinux(t *testing.T) {
 	times = CPUTimes
 	cpuInfo = CPUInfo
-	cpuCheck := new(CPUCheck)
+	cpuCheck := new(Check)
 	cpuCheck.Configure(nil, nil, "test")
 
 	m := mocksender.NewMockSender(cpuCheck.ID())

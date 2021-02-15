@@ -26,8 +26,8 @@ var swapMemory = winutil.SwapMemory
 var pageMemory = winutil.PagefileMemory
 var runtimeOS = runtime.GOOS
 
-// MemoryCheck doesn't need additional fields
-type MemoryCheck struct {
+// Check doesn't need additional fields
+type Check struct {
 	core.CheckBase
 	cacheBytes     *pdhutil.PdhSingleInstanceCounterSet
 	committedBytes *pdhutil.PdhSingleInstanceCounterSet
@@ -38,7 +38,7 @@ type MemoryCheck struct {
 const mbSize float64 = 1024 * 1024
 
 // Configure handles initial configuration/initialization of the check
-func (c *MemoryCheck) Configure(data integration.Data, initConfig integration.Data, source string) (err error) {
+func (c *Check) Configure(data integration.Data, initConfig integration.Data, source string) (err error) {
 	if err := c.CommonConfigure(data, source); err != nil {
 		return err
 	}
@@ -57,7 +57,7 @@ func (c *MemoryCheck) Configure(data integration.Data, initConfig integration.Da
 }
 
 // Run executes the check
-func (c *MemoryCheck) Run() error {
+func (c *Check) Run() error {
 	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
 		return err
@@ -107,7 +107,7 @@ func (c *MemoryCheck) Run() error {
 		sender.Gauge("system.mem.used", float64(v.Total-v.Available)/mbSize, "", nil)
 		sender.Gauge("system.mem.pct_usable", float64(100-v.UsedPercent)/100, "", nil)
 	} else {
-		log.Errorf("system.MemoryCheck: could not retrieve virtual memory stats: %s", errVirt)
+		log.Errorf("memory.Check: could not retrieve virtual memory stats: %s", errVirt)
 	}
 
 	s, errSwap := swapMemory()
@@ -117,7 +117,7 @@ func (c *MemoryCheck) Run() error {
 		sender.Gauge("system.swap.used", float64(s.Used)/mbSize, "", nil)
 		sender.Gauge("system.swap.pct_free", float64(100-s.UsedPercent)/100, "", nil)
 	} else {
-		log.Errorf("system.MemoryCheck: could not retrieve swap memory stats: %s", errSwap)
+		log.Errorf("memory.Check: could not retrieve swap memory stats: %s", errSwap)
 	}
 
 	p, errPage := pageMemory()
@@ -127,7 +127,7 @@ func (c *MemoryCheck) Run() error {
 		sender.Gauge("system.mem.pagefile.free", float64(p.Available)/mbSize, "", nil)
 		sender.Gauge("system.mem.pagefile.used", float64(p.Used)/mbSize, "", nil)
 	} else {
-		log.Errorf("system.MemoryCheck: could not retrieve swap memory stats: %s", errSwap)
+		log.Errorf("memory.Check: could not retrieve swap memory stats: %s", errSwap)
 	}
 
 	if errVirt != nil && errSwap != nil {

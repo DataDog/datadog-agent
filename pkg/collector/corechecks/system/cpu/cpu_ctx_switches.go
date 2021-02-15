@@ -8,7 +8,7 @@ package cpu
 
 import "github.com/DataDog/datadog-agent/pkg/aggregator"
 
-func (c *CPUCheck) collectCtxSwitches(sender aggregator.Sender) error {
+func (c *Check) collectCtxSwitches(sender aggregator.Sender) error {
 	// On non-linux systems, do nothing
 	return nil
 }

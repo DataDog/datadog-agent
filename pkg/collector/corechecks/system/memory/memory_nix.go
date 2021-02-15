@@ -23,15 +23,15 @@ var virtualMemory = mem.VirtualMemory
 var swapMemory = mem.SwapMemory
 var runtimeOS = runtime.GOOS
 
-// MemoryCheck doesn't need additional fields
-type MemoryCheck struct {
+// Check doesn't need additional fields
+type Check struct {
 	core.CheckBase
 }
 
 const mbSize float64 = 1024 * 1024
 
 // Run executes the check
-func (c *MemoryCheck) Run() error {
+func (c *Check) Run() error {
 	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
 		return err
@@ -58,7 +58,7 @@ func (c *MemoryCheck) Run() error {
 			}
 		}
 	} else {
-		log.Errorf("system.MemoryCheck: could not retrieve virtual memory stats: %s", errVirt)
+		log.Errorf("memory.Check: could not retrieve virtual memory stats: %s", errVirt)
 	}
 
 	s, errSwap := swapMemory()
@@ -68,7 +68,7 @@ func (c *MemoryCheck) Run() error {
 		sender.Gauge("system.swap.used", float64(s.Used)/mbSize, "", nil)
 		sender.Gauge("system.swap.pct_free", (100-s.UsedPercent)/100, "", nil)
 	} else {
-		log.Errorf("system.MemoryCheck: could not retrieve swap memory stats: %s", errSwap)
+		log.Errorf("memory.Check: could not retrieve swap memory stats: %s", errSwap)
 	}
 
 	if errVirt != nil && errSwap != nil {
@@ -79,7 +79,7 @@ func (c *MemoryCheck) Run() error {
 	return nil
 }
 
-func (c *MemoryCheck) linuxSpecificVirtualMemoryCheck(v *mem.VirtualMemoryStat) error {
+func (c *Check) linuxSpecificVirtualMemoryCheck(v *mem.VirtualMemoryStat) error {
 	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
 		return err
@@ -97,7 +97,7 @@ func (c *MemoryCheck) linuxSpecificVirtualMemoryCheck(v *mem.VirtualMemoryStat) 
 	return nil
 }
 
-func (c *MemoryCheck) freebsdSpecificVirtualMemoryCheck(v *mem.VirtualMemoryStat) error {
+func (c *Check) freebsdSpecificVirtualMemoryCheck(v *mem.VirtualMemoryStat) error {
 	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
 		return err

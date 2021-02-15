@@ -46,7 +46,7 @@ func TestMemoryCheckWindows(t *testing.T) {
 	virtualMemory = VirtualMemory
 	swapMemory = SwapMemory
 	pageMemory = PagefileMemory
-	memCheck := new(MemoryCheck)
+	memCheck := new(Check)
 
 	mock := mocksender.NewMockSender(memCheck.ID())
 

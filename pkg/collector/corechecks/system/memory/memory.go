@@ -13,7 +13,7 @@ import (
 const memCheckName = "memory"
 
 func memFactory() check.Check {
-	return &MemoryCheck{
+	return &Check{
 		CheckBase: core.NewCheckBase(memCheckName),
 	}
 }

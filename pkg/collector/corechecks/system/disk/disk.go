@@ -18,9 +18,9 @@ import (
 )
 
 const (
-	diskCheckName = "disk"
-	diskMetric    = "system.disk.%s"
-	inodeMetric   = "system.fs.inodes.%s"
+	checkName   = "disk"
+	diskMetric  = "system.disk.%s"
+	inodeMetric = "system.fs.inodes.%s"
 )
 
 type diskConfig struct {
@@ -34,7 +34,7 @@ type diskConfig struct {
 	deviceTagRe          map[*regexp.Regexp][]string
 }
 
-func (c *DiskCheck) excludeDisk(mountpoint, device, fstype string) bool {
+func (c *Check) excludeDisk(mountpoint, device, fstype string) bool {
 
 	// Hack for NFS secure mounts
 	// Secure mounts might look like this: '/mypath (deleted)', we should
@@ -78,7 +78,7 @@ func (c *DiskCheck) excludeDisk(mountpoint, device, fstype string) bool {
 	return false
 }
 
-func (c *DiskCheck) instanceConfigure(data integration.Data) error {
+func (c *Check) instanceConfigure(data integration.Data) error {
 	conf := make(map[interface{}]interface{})
 	c.cfg = &diskConfig{}
 	err := yaml.Unmarshal([]byte(data), &conf)
@@ -158,7 +158,7 @@ func stringSliceContain(slice []string, x string) bool {
 	return false
 }
 
-func (c *DiskCheck) applyDeviceTags(device, mountpoint string, tags []string) []string {
+func (c *Check) applyDeviceTags(device, mountpoint string, tags []string) []string {
 	// apply device/mountpoint specific tags
 	for re, deviceTags := range c.cfg.deviceTagRe {
 		if re == nil {
@@ -174,11 +174,11 @@ func (c *DiskCheck) applyDeviceTags(device, mountpoint string, tags []string) []
 }
 
 func diskFactory() check.Check {
-	return &DiskCheck{
-		CheckBase: core.NewCheckBase(diskCheckName),
+	return &Check{
+		CheckBase: core.NewCheckBase(checkName),
 	}
 }
 
 func init() {
-	core.RegisterCheck(diskCheckName, diskFactory)
+	core.RegisterCheck(checkName, diskFactory)
 }

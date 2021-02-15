@@ -8,6 +8,7 @@ package cpu
 
 import (
 	"fmt"
+
 	"github.com/shirou/gopsutil/cpu"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -17,14 +18,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const cpuCheckName = "cpu"
+const checkName = "cpu"
 
 // For testing purpose
 var times = cpu.Times
 var cpuInfo = cpu.Info
 
-// CPUCheck doesn't need additional fields
-type CPUCheck struct {
+// Check doesn't need additional fields
+type Check struct {
 	core.CheckBase
 	nbCPU       float64
 	lastNbCycle float64
@@ -32,7 +33,7 @@ type CPUCheck struct {
 }
 
 // Run executes the check
-func (c *CPUCheck) Run() error {
+func (c *Check) Run() error {
 	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
 		return err
@@ -40,18 +41,18 @@ func (c *CPUCheck) Run() error {
 
 	err = c.collectCtxSwitches(sender)
 	if err != nil {
-		log.Debugf("system.CPUCheck could not read context switches: %s", err.Error())
+		log.Debugf("cpu.Check could not read context switches: %s", err.Error())
 		// Don't return here, we still want to collect the CPU metrics even if we could not
 		// read the context switches
 	}
 
 	cpuTimes, err := times(false)
 	if err != nil {
-		log.Errorf("system.CPUCheck: could not retrieve cpu stats: %s", err)
+		log.Errorf("cpu.Check: could not retrieve cpu stats: %s", err)
 		return err
 	} else if len(cpuTimes) < 1 {
 		errEmpty := fmt.Errorf("no cpu stats retrieve (empty results)")
-		log.Errorf("system.CPUCheck: %s", errEmpty)
+		log.Errorf("cpu.Check: %s", errEmpty)
 		return errEmpty
 	}
 	t := cpuTimes[0]
@@ -86,7 +87,7 @@ func (c *CPUCheck) Run() error {
 }
 
 // Configure the CPU check
-func (c *CPUCheck) Configure(data integration.Data, initConfig integration.Data, source string) error {
+func (c *Check) Configure(data integration.Data, initConfig integration.Data, source string) error {
 	err := c.CommonConfigure(data, source)
 	if err != nil {
 		return err
@@ -98,7 +99,7 @@ func (c *CPUCheck) Configure(data integration.Data, initConfig integration.Data,
 	//       This will cause cpuInfo() to fail.
 	info, err := cpuInfo()
 	if err != nil {
-		return fmt.Errorf("system.CPUCheck: could not query CPU info")
+		return fmt.Errorf("cpu.Check: could not query CPU info")
 	}
 	for _, i := range info {
 		c.nbCPU += float64(i.Cores)
@@ -107,11 +108,11 @@ func (c *CPUCheck) Configure(data integration.Data, initConfig integration.Data,
 }
 
 func cpuFactory() check.Check {
-	return &CPUCheck{
-		CheckBase: core.NewCheckBase(cpuCheckName),
+	return &Check{
+		CheckBase: core.NewCheckBase(checkName),
 	}
 }
 
 func init() {
-	core.RegisterCheck(cpuCheckName, cpuFactory)
+	core.RegisterCheck(checkName, cpuFactory)
 }

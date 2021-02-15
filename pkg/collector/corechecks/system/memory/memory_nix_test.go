@@ -56,7 +56,7 @@ func SwapMemory() (*mem.SwapMemoryStat, error) {
 func TestMemoryCheckLinux(t *testing.T) {
 	virtualMemory = VirtualMemory
 	swapMemory = SwapMemory
-	memCheck := new(MemoryCheck)
+	memCheck := new(Check)
 
 	mock := mocksender.NewMockSender(memCheck.ID())
 
@@ -93,7 +93,7 @@ func TestMemoryCheckLinux(t *testing.T) {
 func TestMemoryCheckFreebsd(t *testing.T) {
 	virtualMemory = VirtualMemory
 	swapMemory = SwapMemory
-	memCheck := new(MemoryCheck)
+	memCheck := new(Check)
 
 	mock := mocksender.NewMockSender(memCheck.ID())
 
@@ -121,7 +121,7 @@ func TestMemoryCheckFreebsd(t *testing.T) {
 func TestMemoryCheckDarwin(t *testing.T) {
 	virtualMemory = VirtualMemory
 	swapMemory = SwapMemory
-	memCheck := new(MemoryCheck)
+	memCheck := new(Check)
 
 	mock := mocksender.NewMockSender(memCheck.ID())
 
@@ -148,7 +148,7 @@ func TestMemoryCheckDarwin(t *testing.T) {
 func TestMemoryError(t *testing.T) {
 	virtualMemory = func() (*mem.VirtualMemoryStat, error) { return nil, fmt.Errorf("some error") }
 	swapMemory = func() (*mem.SwapMemoryStat, error) { return nil, fmt.Errorf("some error") }
-	memCheck := new(MemoryCheck)
+	memCheck := new(Check)
 
 	mock := mocksender.NewMockSender(memCheck.ID())
 
@@ -165,7 +165,7 @@ func TestMemoryError(t *testing.T) {
 func TestSwapMemoryError(t *testing.T) {
 	virtualMemory = VirtualMemory
 	swapMemory = func() (*mem.SwapMemoryStat, error) { return nil, fmt.Errorf("some error") }
-	memCheck := new(MemoryCheck)
+	memCheck := new(Check)
 
 	mock := mocksender.NewMockSender(memCheck.ID())
 
@@ -197,7 +197,7 @@ func TestSwapMemoryError(t *testing.T) {
 func TestVirtualMemoryError(t *testing.T) {
 	virtualMemory = func() (*mem.VirtualMemoryStat, error) { return nil, fmt.Errorf("some error") }
 	swapMemory = SwapMemory
-	memCheck := new(MemoryCheck)
+	memCheck := new(Check)
 
 	mock := mocksender.NewMockSender(memCheck.ID())
 

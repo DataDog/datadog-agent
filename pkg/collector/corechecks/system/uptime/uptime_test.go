@@ -24,7 +24,7 @@ func TestUptimeCheckLinux(t *testing.T) {
 	mock.On("FinalizeCheckServiceTag").Return()
 
 	uptime = uptimeSampler
-	uptimeCheck := new(UptimeCheck)
+	uptimeCheck := new(Check)
 	uptimeCheck.Configure(nil, nil, "test")
 
 	// reset the check ID for the sake of correctness

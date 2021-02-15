@@ -12,15 +12,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const uptimeCheckName = "uptime"
+const checkName = "uptime"
 
-// UptimeCheck doesn't need additional fields
-type UptimeCheck struct {
+// Check doesn't need additional fields
+type Check struct {
 	core.CheckBase
 }
 
 // Run executes the check
-func (c *UptimeCheck) Run() error {
+func (c *Check) Run() error {
 	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
 		return err
@@ -28,7 +28,7 @@ func (c *UptimeCheck) Run() error {
 
 	t, err := uptime()
 	if err != nil {
-		log.Errorf("system.UptimeCheck: could not retrieve uptime: %s", err)
+		log.Errorf("uptime.Check: could not retrieve uptime: %s", err)
 		return err
 	}
 
@@ -39,11 +39,11 @@ func (c *UptimeCheck) Run() error {
 }
 
 func uptimeFactory() check.Check {
-	return &UptimeCheck{
-		CheckBase: core.NewCheckBase(uptimeCheckName),
+	return &Check{
+		CheckBase: core.NewCheckBase(checkName),
 	}
 }
 
 func init() {
-	core.RegisterCheck(uptimeCheckName, uptimeFactory)
+	core.RegisterCheck(checkName, uptimeFactory)
 }

@@ -25,14 +25,14 @@ var (
 	diskUsage      = disk.Usage
 )
 
-// DiskCheck stores disk-specific additional fields
-type DiskCheck struct {
+// Check stores disk-specific additional fields
+type Check struct {
 	core.CheckBase
 	cfg *diskConfig
 }
 
 // Run executes the check
-func (c *DiskCheck) Run() error {
+func (c *Check) Run() error {
 	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
 		return err
@@ -51,7 +51,7 @@ func (c *DiskCheck) Run() error {
 	return nil
 }
 
-func (c *DiskCheck) collectPartitionMetrics(sender aggregator.Sender) error {
+func (c *Check) collectPartitionMetrics(sender aggregator.Sender) error {
 	partitions, err := diskPartitions(true)
 	if err != nil {
 		return err
@@ -96,7 +96,7 @@ func (c *DiskCheck) collectPartitionMetrics(sender aggregator.Sender) error {
 	return nil
 }
 
-func (c *DiskCheck) collectDiskMetrics(sender aggregator.Sender) error {
+func (c *Check) collectDiskMetrics(sender aggregator.Sender) error {
 	iomap, err := ioCounters()
 	if err != nil {
 		return err
@@ -115,7 +115,7 @@ func (c *DiskCheck) collectDiskMetrics(sender aggregator.Sender) error {
 	return nil
 }
 
-func (c *DiskCheck) sendPartitionMetrics(sender aggregator.Sender, usage *disk.UsageStat, tags []string) {
+func (c *Check) sendPartitionMetrics(sender aggregator.Sender, usage *disk.UsageStat, tags []string) {
 	// Disk metrics
 	// For legacy reasons,  the standard unit it kB
 	sender.Gauge(fmt.Sprintf(diskMetric, "total"), float64(usage.Total)/1024, "", tags)
@@ -133,7 +133,7 @@ func (c *DiskCheck) sendPartitionMetrics(sender aggregator.Sender, usage *disk.U
 
 }
 
-func (c *DiskCheck) sendDiskMetrics(sender aggregator.Sender, ioCounter disk.IOCountersStat, tags []string) {
+func (c *Check) sendDiskMetrics(sender aggregator.Sender, ioCounter disk.IOCountersStat, tags []string) {
 
 	// /1000 as psutil returns the value in ms
 	// Rate computes a rate of change between to consecutive check run.
@@ -143,7 +143,7 @@ func (c *DiskCheck) sendDiskMetrics(sender aggregator.Sender, ioCounter disk.IOC
 }
 
 // Configure the disk check
-func (c *DiskCheck) Configure(data integration.Data, initConfig integration.Data, source string) error {
+func (c *Check) Configure(data integration.Data, initConfig integration.Data, source string) error {
 	err := c.CommonConfigure(data, source)
 	if err != nil {
 		return err
