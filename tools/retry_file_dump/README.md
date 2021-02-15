@@ -1,0 +1,21 @@
+# Retry file dump
+
+Dump the transactions stored in a `.retry` file into a JSON file.
+
+## Build
+
+Copy the protobuf file:
+```
+cp ../../pkg/forwarder/HttpTransactionProto.pb.go .
+```
+
+In `HttpTransactionProto.pb.go` replace `package forwarder` to `package main`
+
+Build with `go build`.
+
+## Usage
+
+The following command creates a JSON file (`.retry.json`) for each `.retry` file in `/opt/datadog-agent/run/transactions_to_retry/c47da40ac935c8fd5ca1441a5ee3d068/`:
+```
+./retry_file_dump --folder=/opt/datadog-agent/run/transactions_to_retry/c47da40ac935c8fd5ca1441a5ee3d068/
+```
