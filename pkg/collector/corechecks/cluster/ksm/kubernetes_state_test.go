@@ -287,7 +287,7 @@ func TestProcessMetrics(t *testing.T) {
 			metricTransformers: metricTransformers,
 			expected: []metricsExpected{
 				{
-					name:     "kubernetes_state.node.capacity",
+					name:     "kubernetes_state.node.cpu_capacity",
 					val:      4,
 					tags:     []string{"node:nodename", "resource:cpu", "unit:core", "kube_region:europe-west1", "kube_zone:europe-west1-b"},
 					hostname: "nodename",

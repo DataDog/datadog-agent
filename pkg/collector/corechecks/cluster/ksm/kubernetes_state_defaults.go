@@ -64,16 +64,12 @@ var (
 		"kube_endpoint_address_available":                                                          "endpoint.address_available",
 		"kube_endpoint_address_not_ready":                                                          "endpoint.address_not_ready",
 		"kube_node_info":                                                                           "node.count",
-		"kube_node_status_allocatable":                                                             "node.allocatable", // TODO: Investigate adding a transformer to generate one metric per resource?
-		"kube_node_status_capacity":                                                                "node.capacity",    // TODO: Investigate adding need a transformer to generate one metric per resource?
 		"kube_pod_container_status_terminated":                                                     "container.terminated",
 		"kube_pod_container_status_waiting":                                                        "container.waiting",
 		"kube_persistentvolumeclaim_status_phase":                                                  "persistentvolumeclaim.status",
 		"kube_persistentvolumeclaim_access_mode":                                                   "persistentvolumeclaim.access_mode",
 		"kube_persistentvolumeclaim_resource_requests_storage_bytes":                               "persistentvolumeclaim.request_storage",
 		"kube_persistentvolume_capacity_bytes":                                                     "persistentvolume.capacity",
-		"kube_pod_container_resource_limits":                                                       "container.resource_limits",   // TODO: Investigate adding a transformer to generate one metric per resource?
-		"kube_pod_container_resource_requests":                                                     "container.resource_requests", // TODO: Investigate adding a transformer to generate one metric per resource?
 		"kube_pod_container_status_ready":                                                          "container.ready",
 		"kube_pod_container_status_restarts_total":                                                 "container.restarts",
 		"kube_pod_container_status_running":                                                        "container.running",

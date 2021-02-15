@@ -26,13 +26,19 @@
 | `kubernetes_state.endpoint.address_not_ready` | Number of addresses not ready in endpoint.   | `endpoint` `kube_namespace`   |
 | `kubernetes_state.namespace.count` | Number of namespaces | `phase` |
 | `kubernetes_state.node.count` | Information about a cluster node.   | `node` `kernel_version` `os_image` `container_runtime_version` `kubelet_version` `kubeproxy_version` `provider_id` `pod_cidr`   |
-| `kubernetes_state.node.allocatable` | The allocatable for different resources of a node that are available for scheduling.   | `node` `resource` `unit`   |
-| `kubernetes_state.node.capacity` | The capacity for different resources of a node.   | `node` `resource` `unit`   |
+| `kubernetes_state.node.cpu_allocatable` | The allocatable cpu of a node that is available for scheduling.   | `node` `resource` `unit`   |
+| `kubernetes_state.node.memory_allocatable` | The allocatable memory of a node that is available for scheduling.   | `node` `resource` `unit`   |
+| `kubernetes_state.node.pods_allocatable` | The allocatable memory of a node that is available for scheduling.   | `node` `resource` `unit`   |
+| `kubernetes_state.node.cpu_capacity` | The cpu capacity of a node.   | `node` `resource` `unit`   |
+| `kubernetes_state.node.memory_capacity` | The memory capacity of a node.   | `node` `resource` `unit`   |
+| `kubernetes_state.node.pods_capacity` | The pods capacity of a node.   | `node` `resource` `unit`   |
 | `kubernetes_state.node.by_condition` | The condition of a cluster node.   | `condition` `node` `status`   |
 | `kubernetes_state.node.status` | Whether the node can schedule new pods.   | `node` `status`   |
 | `kubernetes_state.container.terminated` | Describes whether the container is currently in terminated state.   | `kube_namespace` `pod_name` `kube_container_name` (`env` `service` `version` from standard labels)   |
-| `kubernetes_state.container.resource_limits` | The number of requested limit resource by a container.   | `kube_namespace` `pod_name` `kube_container_name` `node` `resource` `unit` (`env` `service` `version` from standard labels)   |
-| `kubernetes_state.container.resource_requests` | The number of requested request resource by a container.   | `kube_namespace` `pod_name` `kube_container_name` `node` `resource` `unit` (`env` `service` `version` from standard labels)   |
+| `kubernetes_state.container.cpu_limit` | The value of cpu limit by a container.   | `kube_namespace` `pod_name` `kube_container_name` `node` `resource` `unit` (`env` `service` `version` from standard labels)   |
+| `kubernetes_state.container.memory_limit` | The value of memory limit by a container.   | `kube_namespace` `pod_name` `kube_container_name` `node` `resource` `unit` (`env` `service` `version` from standard labels)   |
+| `kubernetes_state.container.cpu_requested` | The value of cpu requested by a container.   | `kube_namespace` `pod_name` `kube_container_name` `node` `resource` `unit` (`env` `service` `version` from standard labels)   |
+| `kubernetes_state.container.memory_requested` | The value of memory requested by a container.   | `kube_namespace` `pod_name` `kube_container_name` `node` `resource` `unit` (`env` `service` `version` from standard labels)   |
 | `kubernetes_state.container.ready` | Describes whether the containers readiness check succeeded.   | `kube_namespace` `pod_name` `kube_container_name` (`env` `service` `version` from standard labels)   |
 | `kubernetes_state.container.restarts` | The number of container restarts per container.   | `kube_namespace` `pod_name` `kube_container_name` (`env` `service` `version` from standard labels)   |
 | `kubernetes_state.container.running` | Describes whether the container is currently in running state.   | `kube_namespace` `pod_name` `kube_container_name` (`env` `service` `version` from standard labels)   |
