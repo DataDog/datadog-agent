@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/docker"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -122,7 +122,7 @@ func doRun(m *testing.M) int {
 	// Setup docker check
 	var dockerCfg = []byte(dockerCfgString)
 	var dockerInitCfg = []byte("")
-	dockerCheck = containers.DockerFactory()
+	dockerCheck = docker.DockerFactory()
 	dockerCheck.Configure(dockerCfg, dockerInitCfg, "test")
 
 	// Setup mock sender
