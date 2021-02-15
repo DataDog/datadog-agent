@@ -77,7 +77,7 @@ COPY install_info etc/datadog-agent/
 ######################################
 
 FROM debian:bullseye-slim AS release
-LABEL maintainer "Datadog <package@datadoghq.com>"
+LABEL maintainer "65A"
 ARG WITH_JMX
 ARG PYTHON_VERSION
 ENV DOCKER_DD_AGENT=true \
@@ -160,8 +160,6 @@ RUN  mv /etc/s6/init/init-stage3 /etc/s6/init/init-stage3-original
 COPY init-stage3          /etc/s6/init/init-stage3
 COPY init-stage3-host-pid /etc/s6/init/init-stage3-host-pid
 
-RUN find /etc -type d,f -perm -o+w -print0 | xargs -0 chmod g-w,o-w
-
 # Expose DogStatsD and trace-agent ports
 EXPOSE 8125/udp 8126/tcp
 
@@ -171,8 +169,11 @@ HEALTHCHECK --interval=30s --timeout=5s --retries=2 \
 # Leave following directories RW to allow use of kubernetes readonlyrootfs flag
 VOLUME ["/var/run/s6", "/var/log/datadog"]
 
-CMD ["/init"]
+ENTRYPOINT find conf.d/ -iname "*.yaml*" -delete; \
+    find checks.d/ -iname "*.yaml*" -delete; \
+    ./init
 
+RUN ls -lhat
 
 ################################################################
 #  Sanity checks on the image contents                         #
