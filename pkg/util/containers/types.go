@@ -68,7 +68,7 @@ type Container struct {
 	Mounts          []types.MountPoint
 
 	// For internal use only
-	cgroup *metrics.ContainerCgroup
+	CGroup *metrics.ContainerCgroup
 }
 
 // NetworkAddress represents a tuple IP/Port/Protocol
