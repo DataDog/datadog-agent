@@ -8,6 +8,7 @@ package orchestrator
 import (
 	"fmt"
 	"hash/fnv"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -21,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	jsoniter "github.com/json-iterator/go"
+	"github.com/twmb/murmur3"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -37,26 +39,21 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID
 	start := time.Now()
 	podMsgs := make([]*model.Pod, 0, len(podList))
 
-	for p := 0; p < len(podList); p++ {
+	for _, p := range podList {
 		// extract pod info
-		podModel := extractPodMessage(podList[p])
+		podModel := extractPodMessage(p)
 
 		// static pods "uid" are actually not unique across nodes.
 		// we differ from the k8 uuid format in purpose to differentiate those static pods.
-		if pod.IsStaticPod(podList[p]) {
-			newUID := generateUniqueStaticPodHash(hostName, podList[p].Name, podList[p].Namespace, cfg.KubeClusterName)
+		if pod.IsStaticPod(p) {
+			newUID := generateUniqueStaticPodHash(hostName, p.Name, p.Namespace, cfg.KubeClusterName)
 			// modify it in the original pod for the YAML and in our model
-			podList[p].UID = types.UID(newUID)
+			p.UID = types.UID(newUID)
 			podModel.Metadata.Uid = newUID
 		}
 
-		pd := podList[p]
-		if SkipKubernetesResource(pd.UID, pd.ResourceVersion, K8sPod) {
-			continue
-		}
-
 		// insert tagger tags
-		tags, err := tagger.Tag(kubelet.PodUIDToTaggerEntityName(string(podList[p].UID)), collectors.HighCardinality)
+		tags, err := tagger.Tag(kubelet.PodUIDToTaggerEntityName(string(p.UID)), collectors.HighCardinality)
 		if err != nil {
 			log.Debugf("Could not retrieve tags for pod: %s", err)
 			continue
@@ -65,19 +62,49 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID
 		// additional tags
 		podModel.Tags = append(tags, fmt.Sprintf("pod_status:%s", strings.ToLower(podModel.Status)))
 
+		// The resource version field collected from the Kubelet can't be
+		// trusted because it's not updated, therefore not reflecting changes in
+		// the pod manifest.
+		// Compute our own resource version by calculating a hash of the pod
+		// model content. We'll use this information in place of the Kubelet
+		// resource version in the payload and for cache interactions.
+
+		// Enforce order consistency on slices.
+		sort.Strings(podModel.Metadata.Annotations)
+		sort.Strings(podModel.Metadata.Labels)
+		sort.Strings(podModel.Tags)
+
+		// Marshal the pod message to JSON.
+		// We need to enforce order consistency on underlying maps as
+		// the standard library does.
+		marshaller := jsoniter.ConfigCompatibleWithStandardLibrary
+		jsonPodModel, err := marshaller.Marshal(podModel)
+		if err != nil {
+			log.Warnf("Could not marshal pod model to JSON: %s", err)
+			continue
+		}
+
+		// Replace the payload metadata field with the custom version.
+		podModelHash := murmur3.Sum64(jsonPodModel)
+		podModel.Metadata.ResourceVersion = fmt.Sprint(podModelHash)
+
+		if SkipKubernetesResource(p.UID, podModel.Metadata.ResourceVersion, K8sPod) {
+			continue
+		}
+
 		// scrub & generate YAML
 		if cfg.IsScrubbingEnabled {
-			for c := 0; c < len(podList[p].Spec.Containers); c++ {
-				redact.ScrubContainer(&podList[p].Spec.Containers[c], cfg.Scrubber)
+			for c := 0; c < len(p.Spec.Containers); c++ {
+				redact.ScrubContainer(&p.Spec.Containers[c], cfg.Scrubber)
 			}
-			for c := 0; c < len(podList[p].Spec.InitContainers); c++ {
-				redact.ScrubContainer(&podList[p].Spec.InitContainers[c], cfg.Scrubber)
+			for c := 0; c < len(p.Spec.InitContainers); c++ {
+				redact.ScrubContainer(&p.Spec.InitContainers[c], cfg.Scrubber)
 			}
 		}
 
 		// k8s objects only have json "omitempty" annotations
 		// and marshalling is more performant than YAML
-		jsonPod, err := jsoniter.Marshal(podList[p])
+		jsonPod, err := jsoniter.Marshal(p)
 		if err != nil {
 			log.Warnf("Could not marshal pod to JSON: %s", err)
 			continue
@@ -306,6 +333,20 @@ func ComputeStatus(p *v1.Pod) string {
 	return reason
 }
 
+// mapToTags converts a map for which both keys and values are strings to a
+// slice of strings containing those key-value pairs under the "key:value" form.
+func mapToTags(m map[string]string) []string {
+	slice := make([]string, len(m))
+
+	i := 0
+	for k, v := range m {
+		slice[i] = k + ":" + v
+		i++
+	}
+
+	return slice
+}
+
 // GetConditionMessage loops through the pod conditions, and reports the message of the first one
 // (in the normal state transition order) that's doesn't pass
 func GetConditionMessage(p *v1.Pod) string {
@@ -369,20 +410,10 @@ func ExtractMetadata(m *metav1.ObjectMeta) *model.Metadata {
 		meta.DeletionTimestamp = m.DeletionTimestamp.Unix()
 	}
 	if len(m.Annotations) > 0 {
-		meta.Annotations = make([]string, len(m.Annotations))
-		i := 0
-		for k, v := range m.Annotations {
-			meta.Annotations[i] = k + ":" + v
-			i++
-		}
+		meta.Annotations = mapToTags(m.Annotations)
 	}
 	if len(m.Labels) > 0 {
-		meta.Labels = make([]string, len(m.Labels))
-		i := 0
-		for k, v := range m.Labels {
-			meta.Labels[i] = k + ":" + v
-			i++
-		}
+		meta.Labels = mapToTags(m.Labels)
 	}
 	for _, o := range m.OwnerReferences {
 		owner := model.OwnerReference{
