@@ -363,6 +363,7 @@ elif [ "$OS" = "SUSE" ]; then
     fi
   fi
 
+  # parse the major version number out of the distro release info file. xargs is used to trim whitespace.
   SUSE_VER=$( (cat /etc/SuSE-release 2>/dev/null; cat /etc/SUSE-brand 2>/dev/null) | grep VERSION | tr . = | cut -d = -f 2 | xargs echo)
   if [ "$SUSE_VER" -ge 15 ]; then
     gpgkeys=''
