@@ -15,32 +15,32 @@ import (
 // SetCgroups has to be called when creating the Container, in order to
 // be able to enable FillCgroupMetrics and FillNetworkMetrics to works
 func (c *Container) SetCgroups(cgroup *metrics.ContainerCgroup) error {
-	c.CGroup = cgroup
-	c.Pids = c.CGroup.Pids
+	c.cGroup = cgroup
+	c.Pids = c.cGroup.Pids
 	return nil
 }
 
 // FillCgroupLimits fills the resource limits for a Container, based on the
 // associated cgroups. This can be called once if the limits are assumed constant.
 func (c *Container) FillCgroupLimits() error {
-	if c.CGroup == nil {
-		return errors.New("no CGroup for this container")
+	if c.cGroup == nil {
+		return errors.New("no cGroup for this container")
 	}
 	var err error
 
-	c.CPULimit, err = c.CGroup.CPULimit()
+	c.CPULimit, err = c.cGroup.CPULimit()
 	if err != nil {
 		return fmt.Errorf("cpu limit: %s", err)
 	}
-	c.MemLimit, err = c.CGroup.MemLimit()
+	c.MemLimit, err = c.cGroup.MemLimit()
 	if err != nil {
 		return fmt.Errorf("mem limit: %s", err)
 	}
-	c.SoftMemLimit, err = c.CGroup.SoftMemLimit()
+	c.SoftMemLimit, err = c.cGroup.SoftMemLimit()
 	if err != nil {
 		return fmt.Errorf("soft mem limit: %s", err)
 	}
-	c.MemFailCnt, err = c.CGroup.FailedMemoryCount()
+	c.MemFailCnt, err = c.cGroup.FailedMemoryCount()
 	if err != nil {
 		return fmt.Errorf("failed mem count: %s", err)
 	}
@@ -50,28 +50,28 @@ func (c *Container) FillCgroupLimits() error {
 // FillCgroupMetrics fills the performance metrics for a Container, based on the
 // associated cgroups. Network metrics are handled by FillNetworkMetrics
 func (c *Container) FillCgroupMetrics() error {
-	if c.CGroup == nil {
-		return errors.New("no CGroup for this container")
+	if c.cGroup == nil {
+		return errors.New("no cGroup for this container")
 	}
 	var err error
 
-	c.Memory, err = c.CGroup.Mem()
+	c.Memory, err = c.cGroup.Mem()
 	if err != nil {
 		return fmt.Errorf("memory: %s", err)
 	}
-	c.CPU, err = c.CGroup.CPU()
+	c.CPU, err = c.cGroup.CPU()
 	if err != nil {
 		return fmt.Errorf("cpu: %s", err)
 	}
-	c.CPUNrThrottled, err = c.CGroup.CPUNrThrottled()
+	c.CPUNrThrottled, err = c.cGroup.CPUNrThrottled()
 	if err != nil {
 		return fmt.Errorf("cpuNrThrottled: %s", err)
 	}
-	c.IO, err = c.CGroup.IO()
+	c.IO, err = c.cGroup.IO()
 	if err != nil {
 		return fmt.Errorf("i/o: %s", err)
 	}
-	c.StartedAt, err = c.CGroup.ContainerStartTime()
+	c.StartedAt, err = c.cGroup.ContainerStartTime()
 	if err != nil {
 		return fmt.Errorf("start time: %s", err)
 	}
@@ -82,14 +82,14 @@ func (c *Container) FillCgroupMetrics() error {
 // FillNetworkMetrics fills the network metrics for a Container,
 // based on the associated cgroups.
 func (c *Container) FillNetworkMetrics(networks map[string]string) error {
-	if c.CGroup == nil {
-		return errors.New("no CGroup for this container")
+	if c.cGroup == nil {
+		return errors.New("no cGroup for this container")
 	}
-	if len(c.CGroup.Pids) == 0 {
+	if len(c.cGroup.Pids) == 0 {
 		return errors.New("no pid for this container")
 	}
 	var err error
-	c.Network, err = metrics.CollectNetworkStats(int(c.CGroup.Pids[0]), networks)
+	c.Network, err = metrics.CollectNetworkStats(int(c.cGroup.Pids[0]), networks)
 	if err != nil {
 		return fmt.Errorf("Could not collect network stats for container %s: %s", c.ID, err)
 	}
