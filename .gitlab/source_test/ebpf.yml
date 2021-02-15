@@ -2,7 +2,7 @@
 .retrieve_linux_go_deps: &retrieve_linux_go_deps |
   mkdir -p $GOPATH/pkg/mod && tar xzf modcache.tar.gz -C $GOPATH/pkg/mod
   rm -f modcache.tar.gz
-  
+
 # Run tests for eBPF code
 tests_ebpf:
   stage: source_test

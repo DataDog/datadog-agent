@@ -40,8 +40,6 @@
     # FIXME: skip the installation step until we fix the preinst/postinst scripts in the rpm package
     # to also work with SUSE11
     # - rpm -i $OMNIBUS_PACKAGE_DIR_SUSE/*.rpm
-  variables:
-    OMNIBUS_SOFTWARE: datadog-agent
   artifacts:
     expire_in: 2 weeks
     paths:
@@ -108,8 +106,6 @@ iot_agent_suse-x64:
     - inv -e agent.omnibus-build --iot --log-level debug --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR --skip-deps
     - ls $OMNIBUS_BASE_DIR/pkg/
     - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && cp $OMNIBUS_BASE_DIR/pkg/*.{rpm,metadata.json} $OMNIBUS_PACKAGE_DIR_SUSE
-  variables:
-    OMNIBUS_SOFTWARE: datadog-iot-agent
   artifacts:
     expire_in: 2 weeks
     paths:
@@ -141,8 +137,6 @@ dogstatsd_suse-x64:
     - inv -e dogstatsd.omnibus-build --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR_SUSE ${USE_S3_CACHING} --skip-deps
     - find $OMNIBUS_BASE_DIR_SUSE/pkg -type f -name '*.rpm' -print0 | sort -z | xargs -0 -I '{}' rpm -i '{}'
     - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && cp $OMNIBUS_BASE_DIR_SUSE/pkg/*.{rpm,metadata.json} $OMNIBUS_PACKAGE_DIR_SUSE
-  variables:
-    OMNIBUS_SOFTWARE: datadog-dogstatsd
   artifacts:
     expire_in: 2 weeks
     paths:
