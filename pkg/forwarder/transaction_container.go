@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/hashicorp/go-multierror"
 )
@@ -33,6 +35,38 @@ type transactionContainer struct {
 	optionalTransactionStorage transactionStorage
 	telemetry                  transactionContainerTelemetry
 	mutex                      sync.RWMutex
+}
+
+func getStorageMaxSize(storagePath string) (int64, error) {
+	disk := filesystem.NewDisk()
+	usage, err := disk.GetUsage(storagePath)
+	if err != nil {
+		return 0, err
+	}
+	storageMaxSize := config.Datadog.GetInt64("forwarder_storage_max_size_in_bytes")
+	diskRatio := config.Datadog.GetFloat64("forwarder_storage_max_disk_ratio")
+	minDiskUsage := config.Datadog.GetInt64("forwarder_storage_min_size_in_bytes")
+	return getStorageMaxSizeFromDiskUsage(usage, storageMaxSize, diskRatio, minDiskUsage)
+}
+
+func getStorageMaxSizeFromDiskUsage(
+	usage *filesystem.DiskUsage,
+	storageMaxSize int64,
+	diskRatio float64,
+	minDiskUsage int64) (int64, error) {
+	maxDiskUsage := float64(usage.Total) * diskRatio
+	availableDiskUsage := int64(maxDiskUsage) - int64(usage.Used)
+	if storageMaxSize > availableDiskUsage {
+		log.Warnf("Cannot honor the value defined for `forwarder_storage_max_size_in_bytes=%v`. "+
+			"The value exceeds the maximum disk space usage defined by `forwarder_storage_max_disk_ratio`. "+
+			"`forwarder_storage_max_size_in_bytes=%v` is used instead. ", storageMaxSize, availableDiskUsage)
+		storageMaxSize = availableDiskUsage
+	}
+
+	if storageMaxSize < minDiskUsage {
+		return 0, fmt.Errorf("`forwarder_storage_max_size_in_bytes=%v` value is too low and must be at least %v", storageMaxSize, minDiskUsage)
+	}
+	return storageMaxSize, nil
 }
 
 func buildTransactionContainer(

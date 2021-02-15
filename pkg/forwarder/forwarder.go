@@ -304,13 +304,16 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 		completionHandler: options.CompletionHandler,
 	}
 	var optionalRemovalPolicy *failedTransactionRemovalPolicy
-	storageMaxSize := config.Datadog.GetInt64("forwarder_storage_max_size_in_bytes")
+	storagePath := config.Datadog.GetString("forwarder_storage_path")
+	storageMaxSize, err := getStorageMaxSize(storagePath)
+	if err != nil {
+		log.Errorf("Error when getting the disk storage maximum capacity for transactions: %v", err)
+	}
 
 	// Disk Persistence is a core-only feature for now.
 	if storageMaxSize == 0 {
 		log.Infof("Retry queue storage on disk is disabled")
 	} else if HasFeature(options.EnabledFeatures, CoreFeatures) {
-		storagePath := config.Datadog.GetString("forwarder_storage_path")
 		outdatedFileInDays := config.Datadog.GetInt("forwarder_outdated_file_in_days")
 		var err error
 

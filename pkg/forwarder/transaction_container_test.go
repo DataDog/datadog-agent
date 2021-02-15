@@ -3,7 +3,9 @@ package forwarder
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTransactionContainerAdd(t *testing.T) {
@@ -96,6 +98,41 @@ func TestTransactionContainerZeroMaxMemSizeInBytes(t *testing.T) {
 	inMemTrDropped, err = container.add(createTransactionWithPayloadSize(10))
 	a.NoError(err)
 	a.Equal(1, inMemTrDropped)
+}
+
+func TestGetStorageMaxSize(t *testing.T) {
+	r := require.New(t)
+	usage := &filesystem.DiskUsage{
+		Used:  80,
+		Total: 100,
+	}
+	storage, err := getStorageMaxSizeFromDiskUsage(usage, 10, 0.9, 1)
+	r.NoError(err)
+	r.Equal(int64(10), storage)
+}
+
+func TestGetStorageMaxSizeNotEnoughSpaceWarning(t *testing.T) {
+	r := require.New(t)
+
+	usage := &filesystem.DiskUsage{
+		Used:  85,
+		Total: 100,
+	}
+	storage, err := getStorageMaxSizeFromDiskUsage(usage, 10, 0.9, 1)
+	r.NoError(err)
+	r.Equal(int64(5), storage)
+}
+
+func TestGetStorageMaxSizeNotEnoughSpaceError(t *testing.T) {
+	r := require.New(t)
+
+	usage := &filesystem.DiskUsage{
+		Used:  85,
+		Total: 100,
+	}
+	storage, err := getStorageMaxSizeFromDiskUsage(usage, 10, 0.9, 6)
+	r.Error(err)
+	r.Equal(int64(0), storage)
 }
 
 func createTransactionWithPayloadSize(payloadSize int) *HTTPTransaction {
