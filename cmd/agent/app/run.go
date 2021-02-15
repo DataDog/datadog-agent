@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package app
 
@@ -230,6 +230,10 @@ func StartAgent() error {
 	}
 
 	log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
+
+	if err := util.SetupCoreDump(); err != nil {
+		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
+	}
 
 	// init settings that can be changed at runtime
 	if err := settings.InitRuntimeSettings(); err != nil {

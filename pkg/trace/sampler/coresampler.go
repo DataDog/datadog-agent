@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package sampler
 
@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/atomic"
+	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
@@ -41,24 +42,10 @@ const (
 	PriorityEngineType
 )
 
-// Engine is a common basic interface for sampler engines.
-type Engine interface {
-	// Run the sampler.
-	Run()
-	// Stop the sampler.
-	Stop()
-	// Sample a trace.
-	Sample(trace pb.Trace, root *pb.Span, env string) bool
-	// GetState returns information about the sampler.
-	GetState() interface{}
-	// GetType returns the type of the sampler.
-	GetType() EngineType
-}
-
 // Sampler is the main component of the sampling logic
 type Sampler struct {
 	// Storage of the state of the sampler
-	Backend Backend
+	Backend *MemoryBackend
 
 	// Extra sampling rate to combine to the existing sampling
 	extraRate float64
@@ -75,11 +62,13 @@ type Sampler struct {
 	// signatureScoreFactor = math.Pow(signatureScoreSlope, math.Log10(scoreSamplingOffset))
 	signatureScoreFactor *atomic.Float64
 
-	exit chan struct{}
+	tags    []string
+	exit    chan struct{}
+	stopped chan struct{}
 }
 
 // newSampler returns an initialized Sampler
-func newSampler(extraRate float64, targetTPS float64) *Sampler {
+func newSampler(extraRate float64, targetTPS float64, tags []string) *Sampler {
 	s := &Sampler{
 		Backend:              NewMemoryBackend(defaultDecayPeriod, defaultDecayFactor),
 		extraRate:            extraRate,
@@ -88,8 +77,10 @@ func newSampler(extraRate float64, targetTPS float64) *Sampler {
 		signatureScoreOffset: atomic.NewFloat(0),
 		signatureScoreSlope:  atomic.NewFloat(0),
 		signatureScoreFactor: atomic.NewFloat(0),
+		tags:                 tags,
 
-		exit: make(chan struct{}),
+		exit:    make(chan struct{}),
+		stopped: make(chan struct{}),
 	}
 
 	s.SetSignatureCoefficients(initialSignatureScoreOffset, defaultSignatureScoreSlope)
@@ -114,34 +105,42 @@ func (s *Sampler) UpdateTargetTPS(targetTPS float64) {
 	s.targetTPS = targetTPS
 }
 
-// Run runs and block on the Sampler main loop
-func (s *Sampler) Run() {
+// Start runs and the Sampler main loop
+func (s *Sampler) Start() {
 	go func() {
 		defer watchdog.LogOnPanic()
-		s.Backend.Run()
+		decayTicker := time.NewTicker(s.Backend.DecayPeriod)
+		adjustTicker := time.NewTicker(adjustPeriod)
+		statsTicker := time.NewTicker(10 * time.Second)
+		defer decayTicker.Stop()
+		defer adjustTicker.Stop()
+		defer statsTicker.Stop()
+		for {
+			select {
+			case <-decayTicker.C:
+				s.Backend.DecayScore()
+			case <-adjustTicker.C:
+				s.AdjustScoring()
+			case <-statsTicker.C:
+				s.report()
+			case <-s.exit:
+				close(s.stopped)
+				return
+			}
+		}
 	}()
-	s.RunAdjustScoring()
+}
+
+func (s *Sampler) report() {
+	kept, seen := s.Backend.report()
+	metrics.Count("datadog.trace_agent.sampler.kept", kept, s.tags, 1)
+	metrics.Count("datadog.trace_agent.sampler.seen", seen, s.tags, 1)
 }
 
 // Stop stops the main Run loop
 func (s *Sampler) Stop() {
-	s.Backend.Stop()
 	close(s.exit)
-}
-
-// RunAdjustScoring is the sampler feedback loop to adjust the scoring coefficients
-func (s *Sampler) RunAdjustScoring() {
-	t := time.NewTicker(adjustPeriod)
-	defer t.Stop()
-
-	for {
-		select {
-		case <-t.C:
-			s.AdjustScoring()
-		case <-s.exit:
-			return
-		}
-	}
+	<-s.stopped
 }
 
 // GetSampleRate returns the sample rate to apply to a trace.

@@ -116,7 +116,7 @@ require (
 	github.com/kubernetes-incubator/custom-metrics-apiserver v0.0.0-20190918110929-3d9be26a50eb // Pinned to kubernetes-1.16.2
 	github.com/lxn/walk v0.0.0-20191128110447-55ccb3a9f5c1
 	github.com/lxn/win v0.0.0-20191128105842-2da648fda5b4
-	github.com/mailru/easyjson v0.0.0-20190626092158-b2ccc519800e
+	github.com/mailru/easyjson v0.7.6
 	github.com/mdlayher/netlink v1.1.0
 	github.com/mholt/archiver v3.1.1+incompatible
 	github.com/mholt/archiver/v3 v3.5.0
@@ -173,7 +173,9 @@ require (
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
 	gopkg.in/ini.v1 v1.55.0 // indirect
 	gopkg.in/yaml.v2 v2.2.8
+	gopkg.in/yaml.v3 v3.0.0-20200506231410-2ff61e1afc86
 	gopkg.in/zorkian/go-datadog-api.v2 v2.29.0
+	gotest.tools v2.2.0+incompatible
 	gotest.tools/gotestsum v0.5.3
 	honnef.co/go/tools v0.0.1-2020.1.5
 	k8s.io/api v0.17.4

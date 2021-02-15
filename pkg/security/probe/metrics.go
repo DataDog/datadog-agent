@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build linux
 
@@ -72,6 +72,10 @@ var (
 	// MetricPerfBufferSortingError is the name of the metric used to report events reordering issues.
 	// Tags: map, cpu, event_type
 	MetricPerfBufferSortingError = newRuntimeSecurityMetric(".perf_buffer.sorting_error")
+	// MetricPerfBufferSortingQueueSize is the name of the metric used to report reordering queue size.
+	MetricPerfBufferSortingQueueSize = newRuntimeSecurityMetric(".perf_buffer.sorting_queue_size")
+	// MetricPerfBufferSortingAvgOp is the name of the metric used to report average sorting operations.
+	MetricPerfBufferSortingAvgOp = newRuntimeSecurityMetric(".perf_buffer.sorting_avg_op")
 
 	// Process Resolver metrics
 

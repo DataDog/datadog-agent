@@ -31,7 +31,7 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlex
 	}
 	in.Delim('{')
 	for !in.IsDelim('}') {
-		key := in.UnsafeString()
+		key := in.UnsafeFieldName(false)
 		in.WantColon()
 		if in.IsNull() {
 			in.Skip()
@@ -39,7 +39,7 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlex
 			continue
 		}
 		switch key {
-		case "user":
+		case "id":
 			out.User = string(in.String())
 		case "group":
 			out.Group = string(in.String())
@@ -58,7 +58,7 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(out *jwr
 	first := true
 	_ = first
 	if in.User != "" {
-		const prefix string = ",\"user\":"
+		const prefix string = ",\"id\":"
 		first = false
 		out.RawString(prefix[1:])
 		out.String(string(in.User))
@@ -111,7 +111,7 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(in *jle
 	out.ProcessCacheEntrySerializer = new(ProcessCacheEntrySerializer)
 	in.Delim('{')
 	for !in.IsDelim('}') {
-		key := in.UnsafeString()
+		key := in.UnsafeFieldName(false)
 		in.WantColon()
 		if in.IsNull() {
 			in.Skip()
@@ -170,6 +170,10 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(in *jle
 			out.UID = uint32(in.Uint32())
 		case "gid":
 			out.GID = uint32(in.Uint32())
+		case "user":
+			out.User = string(in.String())
+		case "group":
+			out.Group = string(in.String())
 		case "name":
 			out.Name = string(in.String())
 		case "executable_container_path":
@@ -222,10 +226,6 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(in *jle
 					in.AddError((*out.ExitTime).UnmarshalJSON(data))
 				}
 			}
-		case "user":
-			out.User = string(in.String())
-		case "group":
-			out.Group = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -319,6 +319,26 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(out *jw
 		}
 		out.Uint32(uint32(in.GID))
 	}
+	if in.User != "" {
+		const prefix string = ",\"user\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.User))
+	}
+	if in.Group != "" {
+		const prefix string = ",\"group\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.Group))
+	}
 	if in.Name != "" {
 		const prefix string = ",\"name\":"
 		if first {
@@ -429,26 +449,6 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(out *jw
 		}
 		out.Raw((*in.ExitTime).MarshalJSON())
 	}
-	if in.User != "" {
-		const prefix string = ",\"user\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
-		out.String(string(in.User))
-	}
-	if in.Group != "" {
-		const prefix string = ",\"group\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
-		out.String(string(in.Group))
-	}
 	out.RawByte('}')
 }
 
@@ -486,7 +486,7 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe2(in *jle
 	}
 	in.Delim('{')
 	for !in.IsDelim('}') {
-		key := in.UnsafeString()
+		key := in.UnsafeFieldName(false)
 		in.WantColon()
 		if in.IsNull() {
 			in.Skip()
@@ -504,6 +504,10 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe2(in *jle
 			out.UID = uint32(in.Uint32())
 		case "gid":
 			out.GID = uint32(in.Uint32())
+		case "user":
+			out.User = string(in.String())
+		case "group":
+			out.Group = string(in.String())
 		case "name":
 			out.Name = string(in.String())
 		case "executable_container_path":
@@ -556,10 +560,6 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe2(in *jle
 					in.AddError((*out.ExitTime).UnmarshalJSON(data))
 				}
 			}
-		case "user":
-			out.User = string(in.String())
-		case "group":
-			out.Group = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -620,6 +620,26 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe2(out *jw
 		}
 		out.Uint32(uint32(in.GID))
 	}
+	if in.User != "" {
+		const prefix string = ",\"user\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.User))
+	}
+	if in.Group != "" {
+		const prefix string = ",\"group\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.Group))
+	}
 	if in.Name != "" {
 		const prefix string = ",\"name\":"
 		if first {
@@ -730,26 +750,6 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe2(out *jw
 		}
 		out.Raw((*in.ExitTime).MarshalJSON())
 	}
-	if in.User != "" {
-		const prefix string = ",\"user\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
-		out.String(string(in.User))
-	}
-	if in.Group != "" {
-		const prefix string = ",\"group\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
-		out.String(string(in.Group))
-	}
 	out.RawByte('}')
 }
 
@@ -787,7 +787,7 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe3(in *jle
 	}
 	in.Delim('{')
 	for !in.IsDelim('}') {
-		key := in.UnsafeString()
+		key := in.UnsafeFieldName(false)
 		in.WantColon()
 		if in.IsNull() {
 			in.Skip()
@@ -1120,7 +1120,7 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe4(in *jle
 	}
 	in.Delim('{')
 	for !in.IsDelim('}') {
-		key := in.UnsafeString()
+		key := in.UnsafeFieldName(false)
 		in.WantColon()
 		if in.IsNull() {
 			in.Skip()
@@ -1523,7 +1523,7 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe5(in *jle
 	out.FileEventSerializer = new(FileEventSerializer)
 	in.Delim('{')
 	for !in.IsDelim('}') {
-		key := in.UnsafeString()
+		key := in.UnsafeFieldName(false)
 		in.WantColon()
 		if in.IsNull() {
 			in.Skip()
@@ -1684,7 +1684,7 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe6(in *jle
 	}
 	in.Delim('{')
 	for !in.IsDelim('}') {
-		key := in.UnsafeString()
+		key := in.UnsafeFieldName(false)
 		in.WantColon()
 		if in.IsNull() {
 			in.Skip()
@@ -1775,7 +1775,7 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe7(in *jle
 	}
 	in.Delim('{')
 	for !in.IsDelim('}') {
-		key := in.UnsafeString()
+		key := in.UnsafeFieldName(false)
 		in.WantColon()
 		if in.IsNull() {
 			in.Skip()

@@ -2,7 +2,7 @@
 # Cookbook Name:: dd-security-agent-check
 # Recipe:: stress-tests
 #
-# Copyright (C) 2020 Datadog
+# Copyright (C) 2020-present Datadog
 #
 
 if node['platform_family'] != 'windows'

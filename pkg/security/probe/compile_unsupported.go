@@ -1,4 +1,4 @@
-// +build linux,!linux_bpf
+// +build linux,!linux_bpf ebpf_bindata
 
 package probe
 

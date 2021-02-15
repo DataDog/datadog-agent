@@ -1,31 +1,17 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package http
 
 import (
 	"net/http"
-	"regexp"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-const (
-	apiKeyReplacement = "api_key=*************************$1"
-)
-
-var apiKeyRegExp = regexp.MustCompile("api_key=*\\w+(\\w{5})")
-
-// SanitizeURL sanitizes credentials from a message containing a URL, and returns
-// a string that can be logged safely.
-// For now, it obfuscates the API key.
-func SanitizeURL(message string) string {
-	return apiKeyRegExp.ReplaceAllString(message, apiKeyReplacement)
-}
 
 // ResetClient wraps (http.Client).Do and resets the underlying connections at the
 // configured interval

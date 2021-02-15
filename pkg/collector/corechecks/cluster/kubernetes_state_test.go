@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -260,6 +260,39 @@ func TestProcessMetrics(t *testing.T) {
 			metricsToGet:       []ksmstore.DDMetricsFam{},
 			metricTransformers: metricTransformers,
 			expected:           []metricsExpected{},
+		},
+		{
+			name:   "kube_zone and kube_region tags from default label joins",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper, LabelJoins: defaultLabelJoins},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_node_status_capacity": {
+					{
+						Type: "*v1.Node",
+						Name: "kube_node_status_capacity",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"node": "nodename", "resource": "cpu", "unit": "core"},
+								Val:    4,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet: []ksmstore.DDMetricsFam{
+				{
+					Name:        "kube_node_labels",
+					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"node": "nodename", "label_foo": "bar", "label_topology_kubernetes_io_region": "europe-west1", "label_topology_kubernetes_io_zone": "europe-west1-b"}}},
+				},
+			},
+			metricTransformers: metricTransformers,
+			expected: []metricsExpected{
+				{
+					name:     "kubernetes_state.node.capacity",
+					val:      4,
+					tags:     []string{"node:nodename", "resource:cpu", "unit:core", "kube_region:europe-west1", "kube_zone:europe-west1-b"},
+					hostname: "nodename",
+				},
+			},
 		},
 	}
 	for _, test := range tests {

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package commands
 
@@ -105,7 +105,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				// we'll search for a config file named `datadog-cluster.yaml`
 				configName = "datadog-cluster"
 			}
-			resolvedLogLevel, warnings, err := standalone.SetupCLI(loggerName, *confFilePath, configName, logLevel, "off")
+			resolvedLogLevel, warnings, err := standalone.SetupCLI(loggerName, *confFilePath, configName, "", logLevel, "off")
 			if err != nil {
 				fmt.Printf("Cannot initialize command: %v\n", err)
 				return err
@@ -535,7 +535,7 @@ func writeCheckToFile(checkName string, checkFileOutput *bytes.Buffer) {
 	_ = os.Mkdir(common.DefaultCheckFlareDirectory, os.ModeDir)
 
 	// Windows cannot accept ":" in file names
-	filenameSafeTimeStamp := strings.ReplaceAll(time.Now().Format(time.RFC3339), ":", "_")
+	filenameSafeTimeStamp := strings.ReplaceAll(time.Now().UTC().Format(time.RFC3339), ":", "-")
 	flarePath := filepath.Join(common.DefaultCheckFlareDirectory, "check_"+checkName+"_"+filenameSafeTimeStamp+".log")
 
 	w, err := flare.NewRedactingWriter(flarePath, os.ModePerm, true)

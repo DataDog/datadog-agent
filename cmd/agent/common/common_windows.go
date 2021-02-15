@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package common
 
@@ -199,7 +199,7 @@ func ImportRegistryConfig() error {
 	var val string
 
 	if val, _, err = k.GetStringValue("api_key"); err == nil && val != "" {
-		overrides["api_key"] = val
+		overrides["api_key"] = config.SanitizeAPIKey(val)
 		log.Debug("Setting API key")
 		commandLineSettingFound = true
 	} else {

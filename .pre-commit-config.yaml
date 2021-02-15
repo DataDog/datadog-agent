@@ -21,6 +21,7 @@ repos:
   hooks:
     - id: shellcheck
       args: ["--severity=info", "-e", "SC2059", "-e", "SC2028"]
+      additional_dependencies: [] # Can be removed after this fix gets merged: https://github.com/jumanjihouse/pre-commit-hooks/pull/80
 - repo: local
   hooks:
     - id: golint

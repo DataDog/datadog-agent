@@ -40,6 +40,8 @@ DEFAULT_TEST_TARGETS = [
     "./cmd",
 ]
 
+DEFAULT_GIT_BRANCH = 'master'
+
 
 def ensure_bytes(s):
     if not isinstance(s, bytes):
@@ -217,8 +219,12 @@ def lint_teamassignment(ctx):
     """
     Make sure PRs are assigned a team label
     """
+    branch = os.environ.get("CIRCLE_BRANCH")
     pr_url = os.environ.get("CIRCLE_PULL_REQUEST")
-    if pr_url:
+
+    if branch == DEFAULT_GIT_BRANCH:
+        print("Running on {}, skipping check for team assignment.".format(DEFAULT_GIT_BRANCH))
+    elif pr_url:
         import requests
 
         pr_id = pr_url.rsplit('/')[-1]
@@ -234,9 +240,10 @@ def lint_teamassignment(ctx):
         print("PR {} requires team assignment".format(pr_url))
         raise Exit(code=1)
 
-    # The PR has not been created yet
+    # No PR is associated with this build: given that we have the "run only on PRs" setting activated,
+    # this can only happen when we're building on a tag. We don't need to check for a team assignment.
     else:
-        print("PR not yet created, skipping check for team assignment")
+        print("PR not found, skipping check for team assignment.")
 
 
 @task
@@ -244,8 +251,12 @@ def lint_milestone(ctx):
     """
     Make sure PRs are assigned a milestone
     """
+    branch = os.environ.get("CIRCLE_BRANCH")
     pr_url = os.environ.get("CIRCLE_PULL_REQUEST")
-    if pr_url:
+
+    if branch == DEFAULT_GIT_BRANCH:
+        print("Running on {}, skipping check for milestone.".format(DEFAULT_GIT_BRANCH))
+    elif pr_url:
         import requests
 
         pr_id = pr_url.rsplit('/')[-1]
@@ -253,15 +264,16 @@ def lint_milestone(ctx):
         res = requests.get("https://api.github.com/repos/DataDog/datadog-agent/issues/{}".format(pr_id))
         pr = res.json()
         if pr.get("milestone"):
-            print("Milestone: %s" % pr["milestone"].get("title", "NO_TITLE"))
+            print("Milestone: {}".format(pr["milestone"].get("title", "NO_TITLE")))
             return
 
-        print("PR %s requires a milestone" % pr_url)
+        print("PR {} requires a milestone.".format(pr_url))
         raise Exit(code=1)
 
-    # The PR has not been created yet
+    # No PR is associated with this build: given that we have the "run only on PRs" setting activated,
+    # this can only happen when we're building on a tag. We don't need to check for a milestone.
     else:
-        print("PR not yet created, skipping check for milestone")
+        print("PR not found, skipping check for milestone.")
 
 
 @task
@@ -270,9 +282,13 @@ def lint_releasenote(ctx):
     Lint release notes with Reno
     """
 
-    # checking if a releasenote has been added/changed
+    branch = os.environ.get("CIRCLE_BRANCH")
     pr_url = os.environ.get("CIRCLE_PULL_REQUEST")
-    if pr_url:
+
+    if branch == DEFAULT_GIT_BRANCH:
+        print("Running on {}, skipping release note check.".format(DEFAULT_GIT_BRANCH))
+    # Check if a releasenote has been added/changed
+    elif pr_url:
         import requests
 
         pr_id = pr_url.rsplit('/')[-1]
@@ -308,42 +324,10 @@ def lint_releasenote(ctx):
                     ", or apply the label 'changelog/no-changelog' to the PR."
                 )
                 raise Exit(code=1)
-
-    # The PR has not been created yet, let's compare with master (the usual base branch of the future PR)
+    # No PR is associated with this build: given that we have the "run only on PRs" setting activated,
+    # this can only happen when we're building on a tag. We don't need to check for release notes.
     else:
-        branch = os.environ.get("CIRCLE_BRANCH")
-        if branch is None:
-            print("No branch found, skipping reno linting")
-        else:
-            if re.match(r".*/.*", branch) is None:
-                print("{} is not a feature branch, skipping reno linting".format(branch))
-            else:
-                import requests
-
-                # Then check that in the diff with master, at least one note was touched
-                url = "https://api.github.com/repos/DataDog/datadog-agent/compare/master...{}".format(branch)
-                # traverse paginated github response
-                while True:
-                    res = requests.get(url)
-                    files = res.json().get("files", {})
-                    if any(
-                        [
-                            f['filename'].startswith("releasenotes/notes/")
-                            or f['filename'].startswith("releasenotes-dca/notes/")
-                            or f['filename'].startswith("releasenotes-installscript/notes/")
-                            for f in files
-                        ]
-                    ):
-                        break
-
-                    if 'next' in res.links:
-                        url = res.links['next']['url']
-                    else:
-                        print(
-                            "Error: No releasenote was found for this PR. Please add one using 'reno'"
-                            ", or apply the label 'changelog/no-changelog' to the PR."
-                        )
-                        raise Exit(code=1)
+        print("PR not found, skipping release note check.")
 
     ctx.run("reno lint")
 
@@ -596,7 +580,9 @@ def lint_python(ctx):
 
     print(
         """Remember to set up pre-commit to lint your files before committing:
-    https://github.com/DataDog/datadog-agent/blob/master/docs/dev/agent_dev_env.md#pre-commit-hooks"""
+    https://github.com/DataDog/datadog-agent/blob/{}/docs/dev/agent_dev_env.md#pre-commit-hooks""".format(
+            DEFAULT_GIT_BRANCH
+        )
     )
 
     ctx.run("flake8 .")
