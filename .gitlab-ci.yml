@@ -135,7 +135,6 @@ variables:
   BCC_VERSION: v0.12.0
   SYSTEM_PROBE_GO_VERSION: 1.14.12
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
-  # the deb signing key is split in halves, as it exceeds the maximum size of 4096 chars for a single entry
   DEB_GPG_KEY_NAME: "Datadog, Inc <package@datadoghq.com>"
   DEB_GPG_KEY_SSM_NAME: ci.datadog-agent.deb_signing_private_key_8387EEAF
   DEB_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.deb_signing_key_passphrase_8387EEAF
