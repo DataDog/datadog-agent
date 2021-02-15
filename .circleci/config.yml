@@ -234,6 +234,10 @@ jobs:
     steps:
       - checkout
       - run:
+          name: Remove existing packages
+          command: |
+            brew remove --force $(brew list --formula)
+      - run:
           name: Setup runner
           command: |
             bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/$BUILDIMAGES_VERSION/macos/builder_setup.sh)"
