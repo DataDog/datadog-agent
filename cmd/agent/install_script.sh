@@ -85,6 +85,8 @@ Troubleshooting and basic usage information for the Agent are available at:
 }
 trap on_error ERR
 
+echo -e "\033[34m\n* Datadog Agent install script v${install_script_version}\n\033[0m"
+
 hostname=
 if [ -n "$DD_HOSTNAME" ]; then
     hostname=$DD_HOSTNAME
