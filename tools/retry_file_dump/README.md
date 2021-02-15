@@ -1,6 +1,7 @@
 # Retry file dump
 
-Dump the transactions stored in a `.retry` file into a JSON file.
+`.retry` files are created by the Agent when the retry queue of the forwarder is full. See `forwarder_storage_max_size_in_bytes` for more information.
+This tool dumps the transactions stored in a `.retry` file into a JSON file.
 
 ## Build
 
