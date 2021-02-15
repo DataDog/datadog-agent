@@ -68,6 +68,7 @@ func (p permissionsInfos) statFiles() error {
 		var uid = strconv.Itoa(int(sys.Uid))
 		u, err := user.LookupId(uid)
 		if err != nil {
+			// User not found, eg: it was deleted from the system
 			uname = uid
 		} else if len(u.Name) > 0 {
 			uname = u.Name
@@ -79,6 +80,7 @@ func (p permissionsInfos) statFiles() error {
 		var gid = strconv.Itoa(int(sys.Gid))
 		g, err := user.LookupGroupId(gid)
 		if err != nil {
+			// Group not found, eg: it was deleted from the system
 			gname = gid
 		} else {
 			gname = g.Name
