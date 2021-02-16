@@ -4,7 +4,6 @@ package tracer
 
 import (
 	"testing"
-	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -14,14 +13,15 @@ import (
 )
 
 const (
-	numTestBatches = 4
+	numTestCPUs = 4
 )
 
 func TestPerfBatchManagerExtract(t *testing.T) {
 	t.Run("normal flush", func(t *testing.T) {
-		manager := PerfBatchManager{stateByCPU: make([]batchState, numTestBatches)}
+		manager := newEmptyBatchManager()
 
 		batch := new(batch)
+		batch.id = 0
 		batch.c0.tup.pid = 1
 		batch.c1.tup.pid = 2
 		batch.c2.tup.pid = 3
@@ -29,7 +29,7 @@ func TestPerfBatchManagerExtract(t *testing.T) {
 		batch.c4.tup.pid = 5
 		batch.cpu = 0
 
-		conns := manager.Extract(batch, time.Now())
+		conns := manager.Extract(batch)
 		assert.Len(t, conns, 5)
 		assert.Equal(t, uint32(1), conns[0].Pid)
 		assert.Equal(t, uint32(2), conns[1].Pid)
@@ -39,9 +39,10 @@ func TestPerfBatchManagerExtract(t *testing.T) {
 	})
 
 	t.Run("partial flush", func(t *testing.T) {
-		manager := PerfBatchManager{stateByCPU: make([]batchState, numTestBatches)}
+		manager := newEmptyBatchManager()
 
 		batch := new(batch)
+		batch.id = 0
 		batch.c0.tup.pid = 1
 		batch.c1.tup.pid = 2
 		batch.c2.tup.pid = 3
@@ -50,9 +51,11 @@ func TestPerfBatchManagerExtract(t *testing.T) {
 		batch.cpu = 0
 
 		// Simulate a partial flush
-		manager.stateByCPU[0].offset = 3
+		manager.stateByCPU[0].processed = map[uint64]batchState{
+			0: {offset: 3},
+		}
 
-		conns := manager.Extract(batch, time.Now())
+		conns := manager.Extract(batch)
 		assert.Len(t, conns, 2)
 		assert.Equal(t, uint32(4), conns[0].Pid)
 		assert.Equal(t, uint32(5), conns[1].Pid)
@@ -64,9 +67,10 @@ func TestGetIdleConns(t *testing.T) {
 	defer doneFn()
 
 	batch := new(batch)
+	batch.id = 0
 	batch.c0.tup.pid = 1
 	batch.c1.tup.pid = 2
-	batch.pos = 2
+	batch.len = 2
 	batch.cpu = 0
 
 	updateBatch := func() {
@@ -81,7 +85,7 @@ func TestGetIdleConns(t *testing.T) {
 
 	// Now let's pretend a new connection was added to the batch on eBPF side
 	batch.c2.tup.pid = 3
-	batch.pos++
+	batch.len++
 	updateBatch()
 
 	// We should now get only the connection that hasn't been processed before
@@ -90,12 +94,20 @@ func TestGetIdleConns(t *testing.T) {
 	assert.Equal(t, uint32(3), idleConns[0].Pid)
 }
 
+func newEmptyBatchManager() *PerfBatchManager {
+	p := PerfBatchManager{stateByCPU: make([]percpuState, numTestCPUs)}
+	for cpu := 0; cpu < numTestCPUs; cpu++ {
+		p.stateByCPU[cpu] = percpuState{processed: make(map[uint64]batchState)}
+	}
+	return &p
+}
+
 func newTestBatchManager(t *testing.T) (manager *PerfBatchManager, doneFn func()) {
 	tr, err := NewTracer(testConfig())
 	require.NoError(t, err)
 
 	connCloseMap, _ := tr.getMap(probes.ConnCloseBatchMap)
-	manager, err = NewPerfBatchManager(connCloseMap, numTestBatches)
+	manager, err = NewPerfBatchManager(connCloseMap, numTestCPUs)
 	require.NoError(t, err)
 
 	doneFn = func() { tr.Stop() }
