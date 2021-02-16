@@ -170,7 +170,7 @@ func (d *DockerCheck) Run() error {
 		}
 	} else {
 		log.Debugf("Agent is not running in container, skipping the Docker check")
-		return
+		return nil
 	}
 
 	cList, err := du.ListContainers(&docker.ContainerListConfig{IncludeExited: true, FlagExcluded: true})

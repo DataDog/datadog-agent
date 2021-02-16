@@ -82,6 +82,7 @@ func reportContainerRestart(events []*docker.ContainerEvent, sender aggregator.S
     		message := fmt.Sprintf("Container %s restarted", ev.ContainerName)
     		status := metrics.ServiceCheckWarning
     		tags, err := tagger.Tag(ev.ContainerEntityName(), collectors.HighCardinality)
+    		tags = append(tags, "eventName:docker.restart"...)
     		if err != nil {
     			log.Debugf("no tags for %s: %s", ev.ContainerID, err)
     		}
