@@ -22,6 +22,8 @@ import (
 const sqlQueryTag = "sql.query"
 const nonParsableResource = "Non-parsable SQL query"
 
+var questionMark = []byte("?")
+
 // tokenFilter is a generic interface that a sqlObfuscator expects. It defines
 // the Filter() function used to filter or replace given tokens.
 // A filter can be stateful and keep an internal state to apply the filter later;
@@ -95,20 +97,20 @@ type replaceFilter struct {
 func (f *replaceFilter) Filter(token, lastToken TokenKind, buffer []byte) (tokenType TokenKind, tokenBytes []byte, err error) {
 	switch lastToken {
 	case Savepoint:
-		return FilteredGroupable, []byte("?"), nil
+		return FilteredGroupable, questionMark, nil
 	case '=':
 		switch token {
 		case DoubleQuotedString:
 			// double-quoted strings after assignments are eligible for obfuscation
-			return FilteredGroupable, []byte("?"), nil
+			return FilteredGroupable, questionMark, nil
 		}
 	}
 	switch token {
 	case String, Number, Null, Variable, PreparedStatement, BooleanLiteral, EscapeSequence:
-		return FilteredGroupable, []byte("?"), nil
+		return FilteredGroupable, questionMark, nil
 	case '?':
 		// Cases like 'ARRAY [ ?, ? ]' should be collapsed into 'ARRAY [ ? ]'
-		return FilteredGroupable, []byte("?"), nil
+		return FilteredGroupable, questionMark, nil
 	case TableName:
 		if f.quantizeTableNames {
 			return token, replaceDigits(buffer), nil
