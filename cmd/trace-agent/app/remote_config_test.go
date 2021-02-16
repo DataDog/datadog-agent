@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package main
+package app
 
 import (
 	"context"
@@ -28,7 +28,7 @@ import (
 func TestConfigEndpoint(t *testing.T) {
 	defer func(old string) { features.Set(old) }(strings.Join(features.All(), ","))
 
-	var tcs = []struct {
+	tcs := []struct {
 		name               string
 		reqBody            string
 		expectedStatusCode int

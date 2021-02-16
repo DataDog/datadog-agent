@@ -249,7 +249,7 @@ func (p *Probe) Init() error {
 		})
 	}
 
-	if selectors, exists := probes.SelectorsPerEventType["*"]; exists {
+	if selectors, exists := probes.SelectorsPerEventType()["*"]; exists {
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, selectors...)
 	}
 
@@ -864,7 +864,7 @@ func (p *Probe) selectTCProbes() []manager.ProbesSelector {
 func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 	var activatedProbes []manager.ProbesSelector
 
-	for eventType, selectors := range probes.SelectorsPerEventType {
+	for eventType, selectors := range probes.SelectorsPerEventType() {
 		if eventType == "*" || rs.HasRulesForEventType(eventType) {
 			activatedProbes = append(activatedProbes, selectors...)
 		}
@@ -889,7 +889,7 @@ func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 
 	// Add syscall monitor probes
 	if p.config.SyscallMonitor {
-		activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
+		activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors()...)
 	}
 
 	// Print the list of unique probe identification IDs that are registered
@@ -1227,7 +1227,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 
 	if p.config.SyscallMonitor {
 		// Add syscall monitor probes
-		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
+		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors()...)
 	}
 
 	p.constantOffsets, err = p.GetOffsetConstants()

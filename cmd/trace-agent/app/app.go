@@ -3,16 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package main
+package app
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"math/rand"
 	"net/http"
 	"os"
+	"os/signal"
 	"runtime"
 	"runtime/pprof"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/manager"
@@ -22,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
+	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
@@ -47,8 +51,46 @@ const messageAgentDisabled = `trace-agent not enabled. Set the environment varia
 DD_APM_ENABLED=true or add "apm_config.enabled: true" entry
 to your datadog.yaml. Exiting...`
 
+func Run() {
+	flags.RegisterFlags()
+	ctx, cancelFunc := context.WithCancel(context.Background())
+
+	// prepare go runtime
+	ddruntime.SetMaxProcs()
+
+	// Handle stops properly
+	go func() {
+		defer watchdog.LogOnPanic()
+		handleSignal(cancelFunc)
+	}()
+
+	flag.Parse()
+
+	run(ctx)
+}
+
+// handleSignal closes a channel to exit cleanly from routines
+func handleSignal(onSignal func()) {
+	sigChan := make(chan os.Signal, 10)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGPIPE)
+	for signo := range sigChan {
+		switch signo {
+		case syscall.SIGINT, syscall.SIGTERM:
+			log.Infof("received signal %d (%v)", signo, signo)
+			onSignal()
+			return
+		case syscall.SIGPIPE:
+			// By default systemd redirects the stdout to journald. When journald is stopped or crashes we receive a SIGPIPE signal.
+			// Go ignores SIGPIPE signals unless it is when stdout or stdout is closed, in this case the agent is stopped.
+			// We never want the agent to stop upon receiving SIGPIPE, so we intercept the SIGPIPE signals and just discard them.
+		default:
+			log.Warnf("unhandled signal %d (%v)", signo, signo)
+		}
+	}
+}
+
 // Run is the entrypoint of our code, which starts the agent.
-func Run(ctx context.Context) {
+func run(ctx context.Context) {
 	if flags.Version {
 		fmt.Print(info.VersionString())
 		return

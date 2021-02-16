@@ -3,22 +3,23 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package main
+package app
 
 import (
 	"context"
 	"fmt"
 	"net/http"
-	_ "net/http/pprof"
 	"os"
 	"time"
+
+	_ "net/http/pprof"
 
 	"github.com/spf13/cobra"
 
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/agent/common/commands/config"
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
-	"github.com/DataDog/datadog-agent/cmd/process-agent/app"
+	"github.com/DataDog/datadog-agent/cmd/process-agent/flags"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -93,7 +94,7 @@ func getSettingsClient(_ *cobra.Command, _ []string) (settings.Client, error) {
 }
 
 func init() {
-	rootCmd.AddCommand(configCommand, app.StatusCmd, app.VersionCmd, app.CheckCmd, app.EventsCmd)
+	rootCmd.AddCommand(configCommand, StatusCmd, VersionCmd, CheckCmd, EventsCmd)
 }
 
 const (
@@ -105,6 +106,33 @@ process_config:
 to your datadog.yaml file.
 Exiting.`
 )
+
+func rootCmdRun(cmd *cobra.Command, args []string) {
+	exit := make(chan struct{})
+
+	// Invoke the Agent
+	runAgent(exit)
+}
+
+// Run starts the process-agent
+func Run() {
+	rootCmd.PersistentFlags().StringVar(&opts.configPath, flags.CfgPath, flags.DefaultConfPath, "Path to datadog.yaml config")
+
+	if flags.DefaultSysProbeConfPath != "" {
+		rootCmd.PersistentFlags().StringVar(&opts.sysProbeConfigPath, flags.SysProbeConfig, flags.DefaultSysProbeConfPath, "Path to system-probe.yaml config")
+	}
+
+	rootCmd.PersistentFlags().StringVarP(&opts.pidfilePath, "pid", "p", "", "Path to set pidfile for process")
+	rootCmd.PersistentFlags().BoolVarP(&opts.info, "info", "i", false, "Show info about running process agent and exit")
+	rootCmd.PersistentFlags().BoolP("version", "v", false, "[deprecated] Print the version and exit")
+	rootCmd.PersistentFlags().String("check", "",
+		"[deprecated] Run a specific check and print the results. Choose from: process, rtprocess, container, rtcontainer, connections, process_discovery")
+
+	os.Args = fixDeprecatedFlags(os.Args, os.Stdout)
+	if err := rootCmd.Execute(); err != nil {
+		os.Exit(-1)
+	}
+}
 
 func runAgent(exit chan struct{}) {
 	if err := ddutil.SetupCoreDump(); err != nil {

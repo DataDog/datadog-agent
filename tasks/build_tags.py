@@ -144,7 +144,7 @@ WINDOWS_32BIT_EXCLUDE_TAGS = {"docker", "kubeapiserver", "kubelet", "orchestrato
 build_tags = {
     AgentFlavor.base: {
         # Build setups
-        "agent": AGENT_TAGS,
+        "agent": AGENT_TAGS.union(TRACE_AGENT_TAGS).union(PROCESS_AGENT_TAGS).union(SECURITY_AGENT_TAGS),
         "android": ANDROID_TAGS,
         "cluster-agent": CLUSTER_AGENT_TAGS,
         "cluster-agent-cloudfoundry": CLUSTER_AGENT_CLOUDFOUNDRY_TAGS,
@@ -204,6 +204,7 @@ def get_default_build_tags(build="agent", arch="x64", flavor=AgentFlavor.base):
     The container integrations are currently only supported on Linux, disabling on
     the Windows and Darwin builds.
     """
+    # Agent is the single binary Agent
     include = build_tags.get(flavor).get(build)
     if include is None:
         print("Warning: unrecognized build type, no build tags included.")

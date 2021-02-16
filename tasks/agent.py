@@ -16,7 +16,7 @@ from distutils.dir_util import copy_tree
 from invoke import task
 from invoke.exceptions import Exit, ParseError
 
-from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from .build_tags import AGENT_TAGS, PROCESS_AGENT_TAGS, SECURITY_AGENT_TAGS, TRACE_AGENT_TAGS, filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .docker import pull_base_images
 from .flavor import AgentFlavor
 from .go import deps
@@ -192,7 +192,7 @@ def build(
         "gcflags": gcflags,
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
-        "flavor": "iot-agent" if flavor.is_iot() else "agent",
+        "flavor": flavor.to_cmd_path(),
     }
     ctx.run(cmd.format(**args), env=env)
 

@@ -38,11 +38,21 @@ monitoring and performance data.`,
 )
 
 // loggerName is the name of the core agent logger
-const loggerName config.LoggerName = "CORE"
-const jmxLoggerName config.LoggerName = "JMXFETCH"
+const (
+	loggerName    config.LoggerName = "CORE"
+	jmxLoggerName config.LoggerName = "JMXFETCH"
+)
 
 func init() {
 	AgentCmd.PersistentFlags().StringVarP(&confFilePath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
 	AgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
 	AgentCmd.PersistentFlags().StringVarP(&sysProbeConfFilePath, "sysprobecfgpath", "", "", "path to directory containing system-probe.yaml")
+}
+
+// Run starts the Agent
+func Run() {
+	// Invoke the Agent
+	if err := AgentCmd.Execute(); err != nil {
+		os.Exit(-1)
+	}
 }

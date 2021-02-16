@@ -44,8 +44,6 @@ var CheckCmd = &cobra.Command{
 	SilenceUsage: true,
 }
 
-const loggerName ddconfig.LoggerName = "PROCESS"
-
 var checkOutputJSON = false
 
 func runCheckCmd(cmd *cobra.Command, args []string) error {

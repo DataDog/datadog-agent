@@ -8,28 +8,9 @@
 
 package main
 
-import (
-	"context"
-	"flag"
-
-	"github.com/DataDog/datadog-agent/pkg/runtime"
-	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
-)
+import "github.com/DataDog/datadog-agent/cmd/trace-agent/app"
 
 // main is the main application entry point
 func main() {
-	ctx, cancelFunc := context.WithCancel(context.Background())
-
-	// prepare go runtime
-	runtime.SetMaxProcs()
-
-	// Handle stops properly
-	go func() {
-		defer watchdog.LogOnPanic()
-		handleSignal(cancelFunc)
-	}()
-
-	flag.Parse()
-
-	Run(ctx)
+	app.Run()
 }
