@@ -1,6 +1,6 @@
 The kubernetes manifests found in this directory have been automatically generated
 from the [helm chart `datadog/datadog`](https://github.com/DataDog/helm-charts/tree/master/charts/datadog)
-version 2.5.4 with the following `values.yaml`:
+version 2.8.4 with the following `values.yaml`:
 
 ```yaml
 datadog:
@@ -14,4 +14,9 @@ datadog:
     enabled: true
   systemProbe:
     enabled: true
+  securityAgent:
+    compliance:
+      enabled: true
+    runtime:
+      enabled: true
 ```

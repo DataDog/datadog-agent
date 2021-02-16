@@ -4,12 +4,9 @@ version 2.8.4 with the following `values.yaml`:
 
 ```yaml
 datadog:
-  collectEvents: true
-  processAgent:
-    enabled: false
-clusterAgent:
-  enabled: true
-  metricsProvider:
-    enabled: true
-    useDatadogMetrics: true
+  securityAgent:
+    compliance:
+      enabled: true
+    runtime:
+      enabled: true
 ```
