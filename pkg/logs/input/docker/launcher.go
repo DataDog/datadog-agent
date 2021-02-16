@@ -46,13 +46,14 @@ type Launcher struct {
 	readTimeout        time.Duration               // client read timeout to set on the created tailer
 	serviceNameFunc    func(string, string) string // serviceNameFunc gets the service name from the tagger, it is in a separate field for testing purpose
 
+	forceTailingFromFile   bool                         // will ignore known offset and always tail from file
 	tailFromFile           bool                         // If true docker will be tailed from the corresponding log file
 	fileSourcesByContainer map[string]*config.LogSource // Keep track of locally generated sources
 	sources                *config.LogSources           // To schedule file source when taileing container from file
 }
 
 // NewLauncher returns a new launcher
-func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry, shouldRetry, tailFromFile bool) (*Launcher, error) {
+func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry, shouldRetry, tailFromFile, forceTailingFromFile bool) (*Launcher, error) {
 	if !shouldRetry {
 		if _, err := dockerutil.GetDockerUtil(); err != nil {
 			return nil, err
@@ -70,6 +71,7 @@ func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services
 		readTimeout:            readTimeout,
 		serviceNameFunc:        input.ServiceNameFromTags,
 		sources:                sources,
+		forceTailingFromFile:   forceTailingFromFile,
 		tailFromFile:           tailFromFile,
 		fileSourcesByContainer: make(map[string]*config.LogSource),
 	}
@@ -280,11 +282,26 @@ func newOverridenSource(standardService, shortName string, status *config.LogSta
 
 // startTailer starts a new tailer for the container matching with the source.
 func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
-	if l.tailFromFile {
+	if l.shouldTailFromFile(container) {
 		l.scheduleFileSource(container, source)
 	} else {
 		l.startSocketTailer(container, source)
 	}
+}
+
+func (l *Launcher) shouldTailFromFile(container *Container) bool {
+	if !l.tailFromFile {
+		return false
+	}
+	// Unsure this one is really useful, user could be instructed to clean up the registry
+	if l.forceTailingFromFile {
+		return true
+	}
+	// Check if there is a known offset for that container, if so keep tailing
+	// the container from the docker socket
+	registryID := fmt.Sprintf("docker:%s", container.service.Identifier)
+	offset := l.registry.GetOffset(registryID)
+	return offset == ""
 }
 
 func (l *Launcher) scheduleFileSource(container *Container, source *config.LogSource) {
