@@ -237,6 +237,13 @@ jobs:
           name: Remove existing packages
           command: |
             brew remove --force $(brew list --formula)
+      - restore_cache:
+          keys:
+            # If incremental dep fails, increase the cache version number
+            # See https://github.com/DataDog/datadog-agent/pull/2384
+            - v1-macosdeps-{{ .Branch }}-{{ .Revision }}
+            - v1-macosdeps-{{ .Branch }}-
+            - v1-macosdeps-master-
       - run:
           name: Setup runner
           command: |
@@ -246,6 +253,11 @@ jobs:
           command: |
             brew install clang-format
             python3 -m pip install -r requirements.txt
+      - save_cache:
+          key: v1-macosdeps-{{ .Branch }}-{{ .Revision }}
+          paths:
+            - /usr/local/bin
+            - /usr/local/Cellar/
       - run:
           name: Compile rtloader
           command: |
