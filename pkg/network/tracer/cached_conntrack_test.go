@@ -39,8 +39,8 @@ func TestEnsureConntrack(t *testing.T) {
 	cache = newCachedConntrack("/proc", creator, 1)
 	defer cache.Close()
 
-	// once when cache.Close() is called, another when eviction happens
-	m.EXPECT().Close().Times(2)
+	// expected cache.Close() when eviction happens
+	m.EXPECT().Close().Times(1)
 
 	ctrk, err = cache.ensureConntrack(1234, os.Getpid())
 	require.NoError(t, err)
@@ -149,11 +149,6 @@ func TestCachedConntrackClose(t *testing.T) {
 		require.NotNil(t, ctrk)
 		ctrks = append(ctrks, ctrk)
 	}
-	defer func() {
-		for _, c := range ctrks {
-			c.Close()
-		}
-	}()
 
 	m.EXPECT().Close().Times(len(ctrks))
 }
