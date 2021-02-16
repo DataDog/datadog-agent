@@ -371,6 +371,7 @@ func newPayload(headers map[string]string) *payload {
 	p := ppool.Get().(*payload)
 	p.body.Reset()
 	p.headers = headers
+	p.retries = 0
 	return p
 }
 
