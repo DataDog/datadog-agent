@@ -207,7 +207,7 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.ProfilingEnabled = config.Datadog.GetBool(key(spNS, "profiling.enabled"))
 		a.ProfilingSite = config.Datadog.GetString(key(spNS, "profiling.site"))
 		a.ProfilingURL = config.Datadog.GetString(key(spNS, "profiling.profile_dd_url"))
-		a.ProfilingAPIKey = config.Datadog.GetString(key(spNS, "profiling.api_key"))
+		a.ProfilingAPIKey = config.SanitizeAPIKey(config.Datadog.GetString(key(spNS, "profiling.api_key")))
 		a.ProfilingEnvironment = config.Datadog.GetString(key(spNS, "profiling.env"))
 	}
 	a.EnableRuntimeCompiler = config.Datadog.GetBool(key(spNS, "enable_runtime_compiler"))
@@ -238,7 +238,7 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	a.APIEndpoints[0].Endpoint = URL
 
 	if key := "api_key"; config.Datadog.IsSet(key) {
-		a.APIEndpoints[0].APIKey = config.Datadog.GetString(key)
+		a.APIEndpoints[0].APIKey = config.SanitizeAPIKey(config.Datadog.GetString(key))
 	}
 
 	if config.Datadog.IsSet("hostname") {
@@ -376,7 +376,7 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 			}
 			for _, k := range apiKeys {
 				a.APIEndpoints = append(a.APIEndpoints, api.Endpoint{
-					APIKey:   k,
+					APIKey:   config.SanitizeAPIKey(k),
 					Endpoint: u,
 				})
 			}
@@ -389,7 +389,7 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		a.ProfilingEnabled = config.Datadog.GetBool(key(ns, "profiling.enabled"))
 		a.ProfilingSite = config.Datadog.GetString("site")
 		a.ProfilingURL = config.Datadog.GetString("profiling.profile_dd_url")
-		a.ProfilingAPIKey = config.Datadog.GetString("api_key")
+		a.ProfilingAPIKey = config.SanitizeAPIKey(config.Datadog.GetString("api_key"))
 		a.ProfilingEnvironment = config.Datadog.GetString("env")
 	}
 

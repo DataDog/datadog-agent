@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	ddutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -85,6 +86,10 @@ func runAgent(exit chan struct{}) {
 	if opts.version {
 		fmt.Print(versionString("\n"))
 		cleanupAndExit(0)
+	}
+
+	if err := ddutil.SetupCoreDump(); err != nil {
+		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
 	if opts.check == "" && !opts.info && opts.pidfilePath != "" {

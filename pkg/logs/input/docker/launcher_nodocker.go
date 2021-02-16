@@ -20,7 +20,7 @@ import (
 type Launcher struct{}
 
 // NewLauncher returns a new Launcher
-func NewLauncher(readTimeout time.Duration, psources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry, shouldRetry, tailFromFile bool) (*Launcher, error) {
+func NewLauncher(readTimeout time.Duration, psources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry, shouldRetry, tailFromFile, forceTailingFromFile bool) (*Launcher, error) {
 	return &Launcher{}, nil
 }
 

@@ -27,7 +27,7 @@ SYSCALL_COMPAT_KPROBE3(mount, const char*, source, const char*, target, const ch
         .mount.fstype = fstype,
     };
 
-    cache_syscall(&syscall, EVENT_MOUNT);
+    cache_syscall(&syscall);
     return 0;
 }
 

@@ -18,7 +18,6 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // Field name
@@ -523,7 +522,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, in
 			if iterator != nil {
 				// regID not specified generate one
 				if regID == "" {
-					regID = utils.RandString(8)
+					regID = RandString(8)
 				}
 
 				if info, exists := state.registersInfo[regID]; exists {

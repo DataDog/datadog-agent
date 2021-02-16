@@ -28,6 +28,12 @@ var blankRegex = regexp.MustCompile(`^\s*$`)
 var singleLineReplacers, multiLineReplacers []Replacer
 
 func init() {
+	hintedKeyReplacer := Replacer{
+		// If hinted, mask the value regardless if it doesn't match 32/40-char hexadecimal string
+		Regex: regexp.MustCompile(`(ap[ip]_key=)\b[a-zA-Z0-9]+([a-zA-Z0-9]{5})\b`),
+		Hints: []string{"api_key", "app_key"},
+		Repl:  []byte(`$1***************************$2`),
+	}
 	apiKeyReplacer := Replacer{
 		Regex: regexp.MustCompile(`\b[a-fA-F0-9]{27}([a-fA-F0-9]{5})\b`),
 		Repl:  []byte(`***************************$1`),
@@ -62,7 +68,7 @@ func init() {
 		Hints: []string{"BEGIN"},
 		Repl:  []byte(`********`),
 	}
-	singleLineReplacers = []Replacer{apiKeyReplacer, appKeyReplacer, uriPasswordReplacer, passwordReplacer, tokenReplacer, snmpReplacer}
+	singleLineReplacers = []Replacer{hintedKeyReplacer, apiKeyReplacer, appKeyReplacer, uriPasswordReplacer, passwordReplacer, tokenReplacer, snmpReplacer}
 	multiLineReplacers = []Replacer{certReplacer}
 }
 
@@ -130,22 +136,7 @@ func credentialsCleaner(file io.Reader) ([]byte, error) {
 	for scanner.Scan() {
 		b := scanner.Bytes()
 		if !commentRegex.Match(b) && !blankRegex.Match(b) && string(b) != "" {
-			for _, repl := range singleLineReplacers {
-				containsHint := false
-				for _, hint := range repl.Hints {
-					if strings.Contains(string(b), hint) {
-						containsHint = true
-						break
-					}
-				}
-				if len(repl.Hints) == 0 || containsHint {
-					if repl.ReplFunc != nil {
-						b = repl.Regex.ReplaceAllFunc(b, repl.ReplFunc)
-					} else {
-						b = repl.Regex.ReplaceAll(b, repl.Repl)
-					}
-				}
-			}
+			b = scrubCredentials(b, singleLineReplacers)
 			if !first {
 				cleanedFile = append(cleanedFile, byte('\n'))
 			}
@@ -160,22 +151,34 @@ func credentialsCleaner(file io.Reader) ([]byte, error) {
 	}
 
 	// Then we apply multiline replacers on the cleaned file
-	for _, repl := range multiLineReplacers {
+	cleanedFile = scrubCredentials(cleanedFile, multiLineReplacers)
+
+	return cleanedFile, nil
+}
+
+// scrubCredentials obfuscate sensitive information based on Replacer Regex
+func scrubCredentials(data []byte, replacers []Replacer) []byte {
+	for _, repl := range replacers {
 		containsHint := false
 		for _, hint := range repl.Hints {
-			if strings.Contains(string(cleanedFile), hint) {
+			if strings.Contains(string(data), hint) {
 				containsHint = true
 				break
 			}
 		}
 		if len(repl.Hints) == 0 || containsHint {
 			if repl.ReplFunc != nil {
-				cleanedFile = repl.Regex.ReplaceAllFunc(cleanedFile, repl.ReplFunc)
+				data = repl.Regex.ReplaceAllFunc(data, repl.ReplFunc)
 			} else {
-				cleanedFile = repl.Regex.ReplaceAll(cleanedFile, repl.Repl)
+				data = repl.Regex.ReplaceAll(data, repl.Repl)
 			}
 		}
 	}
+	return data
+}
 
-	return cleanedFile, nil
+// SanitizeURL sanitizes credentials from a message containing a URL, and returns
+// a string that can be logged safely.
+func SanitizeURL(message string) string {
+	return string(scrubCredentials([]byte(message), singleLineReplacers))
 }
