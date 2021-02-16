@@ -20,3 +20,5 @@ The following command creates a JSON file (`.retry.json`) for each `.retry` file
 ```
 ./retry_file_dump --folder=/opt/datadog-agent/run/transactions_to_retry/c47da40ac935c8fd5ca1441a5ee3d068/
 ```
+
+The generated JSON files contain `\ufffdAPI_KEY\ufffd0\ufffd` which is a placeholder for the API key.
