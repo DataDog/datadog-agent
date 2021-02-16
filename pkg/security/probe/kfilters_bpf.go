@@ -44,39 +44,9 @@ func (ak activeKFilters) Remove(a activeKFilter) {
 	delete(ak, a.Key())
 }
 
-type mapEntry struct {
-	tableName string
-	key       interface{}
-	tableKey  interface{}
-	value     interface{}
-}
-
 type mapHash struct {
 	tableName string
 	key       interface{}
-}
-
-func (e *mapEntry) Key() interface{} {
-	return mapHash{
-		tableName: e.tableName,
-		key:       e.key,
-	}
-}
-
-func (e *mapEntry) Remove(probe *Probe) error {
-	table, err := probe.Map(e.tableName)
-	if err != nil {
-		return err
-	}
-	return table.Delete(e.tableKey)
-}
-
-func (e *mapEntry) Apply(probe *Probe) error {
-	table, err := probe.Map(e.tableName)
-	if err != nil {
-		return err
-	}
-	return table.Put(e.tableKey, e.value)
 }
 
 type arrayEntry struct {
@@ -107,4 +77,46 @@ func (e *arrayEntry) Apply(probe *Probe) error {
 		return err
 	}
 	return table.Put(e.index, e.value)
+}
+
+type mapEventMask struct {
+	tableName string
+	tableKey  interface{}
+	key       interface{}
+	eventMask uint64
+}
+
+func (e *mapEventMask) Key() interface{} {
+	return mapHash{
+		tableName: e.tableName,
+		key:       e.key,
+	}
+}
+
+func (e *mapEventMask) Remove(probe *Probe) error {
+	table, err := probe.Map(e.tableName)
+	if err != nil {
+		return err
+	}
+	var eventMask uint64
+	if err := table.Lookup(e.tableKey, &eventMask); err != nil {
+		return err
+	}
+	if eventMask &^= e.eventMask; eventMask == 0 {
+		return table.Delete(e.tableKey)
+	}
+	return table.Put(e.tableKey, eventMask)
+}
+
+func (e *mapEventMask) Apply(probe *Probe) error {
+	table, err := probe.Map(e.tableName)
+	if err != nil {
+		return err
+	}
+	var eventMask uint64
+	_ = table.Lookup(e.tableKey, &eventMask)
+	if eventMask |= e.eventMask; eventMask == 0 {
+		return table.Delete(e.tableKey)
+	}
+	return table.Put(e.tableKey, eventMask)
 }

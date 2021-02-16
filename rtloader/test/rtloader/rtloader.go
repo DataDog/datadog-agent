@@ -217,7 +217,37 @@ func runFakeCheck() (string, error) {
 	runtime.UnlockOSThread()
 
 	return out, err
+}
 
+func cancelFakeCheck() error {
+	var module *C.rtloader_pyobject_t
+	var class *C.rtloader_pyobject_t
+	var check *C.rtloader_pyobject_t
+
+	runtime.LockOSThread()
+	state := C.ensure_gil(rtloader)
+
+	classStr := (*C.char)(helpers.TrackedCString("fake_check"))
+	defer C._free(unsafe.Pointer(classStr))
+	C.get_class(rtloader, classStr, &module, &class)
+
+	emptyStr := (*C.char)(helpers.TrackedCString(""))
+	defer C._free(unsafe.Pointer(emptyStr))
+	checkIdStr := (*C.char)(helpers.TrackedCString("checkID"))
+	defer C._free(unsafe.Pointer(checkIdStr))
+	configStr := (*C.char)(helpers.TrackedCString("{\"fake_check\": \"/\"}"))
+	defer C._free(unsafe.Pointer(configStr))
+	classStr = (*C.char)(helpers.TrackedCString("fake_check"))
+	defer C._free(unsafe.Pointer(classStr))
+
+	C.get_check(rtloader, class, emptyStr, configStr, checkIdStr, classStr, &check)
+
+	C.cancel_check(rtloader, check)
+
+	C.release_gil(rtloader, state)
+	runtime.UnlockOSThread()
+
+	return fetchError()
 }
 
 func runFakeGetWarnings() ([]string, error) {

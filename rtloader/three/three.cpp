@@ -435,6 +435,25 @@ done:
     return ret;
 }
 
+void Three::cancelCheck(RtLoaderPyObject *check)
+{
+    if (check == NULL) {
+        return;
+    }
+
+    PyObject *py_check = reinterpret_cast<PyObject *>(check);
+
+    char cancel[] = "cancel";
+    PyObject *result = NULL;
+
+    result = PyObject_CallMethod(py_check, cancel, NULL);
+    // at least None should be returned
+    if (result == NULL) {
+        setError("error invoking 'cancel' method: " + _fetchPythonError());
+    }
+    Py_XDECREF(result);
+}
+
 char **Three::getCheckWarnings(RtLoaderPyObject *check)
 {
     if (check == NULL) {
