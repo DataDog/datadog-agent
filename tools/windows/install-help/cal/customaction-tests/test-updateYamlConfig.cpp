@@ -128,12 +128,142 @@ TEST_F(UpdateYamlConfigTests, When_PROXY_HOST_Present_Replace_It)
 ## For Logs proxy information, refer to https://docs.datadoghq.com/agent/proxy/#proxy-for-logs
 #
 proxy:
-  https: pUser:pPass@172.14.0.1:4242
-  http: pUser:pPass@172.14.0.1:4242
+  https: http://pUser:pPass@172.14.0.1:4242
+  http: http://pUser:pPass@172.14.0.1:4242
 
 #   https: http://<USERNAME>:<PASSWORD>@<PROXY_SERVER_FOR_HTTPS>:<PORT>
 #   http: http://<USERNAME>:<PASSWORD>@<PROXY_SERVER_FOR_HTTP>:<PORT>
 #   no_proxy:
 #     - <HOSTNAME-1>
 #     - <HOSTNAME-2>)");
+}
+
+TEST_F(UpdateYamlConfigTests, Respect_PROXY_HOST_Scheme)
+{
+    value_map values = {{L"PROXY_HOST", L"ftps://mydomain.org"},
+                        {L"PROXY_PORT", L"4242"},
+                        {L"PROXY_USER", L"pUser"},
+                        {L"PROXY_PASSWORD", L"pPass"}};
+    std::wstring result = replace_yaml_properties(LR"(
+## @param proxy - custom object - optional
+## If you need a proxy to connect to the Internet, provide it here (default:
+## disabled). Refer to https://docs.datadoghq.com/agent/proxy/ to understand how to use these settings.
+## For Logs proxy information, refer to https://docs.datadoghq.com/agent/proxy/#proxy-for-logs
+#
+# proxy:
+#   https: http://<USERNAME>:<PASSWORD>@<PROXY_SERVER_FOR_HTTPS>:<PORT>
+#   http: http://<USERNAME>:<PASSWORD>@<PROXY_SERVER_FOR_HTTP>:<PORT>
+#   no_proxy:
+#     - <HOSTNAME-1>
+#     - <HOSTNAME-2>)",
+                                                  propertyRetriever(values));
+
+    EXPECT_EQ(result, LR"(
+## @param proxy - custom object - optional
+## If you need a proxy to connect to the Internet, provide it here (default:
+## disabled). Refer to https://docs.datadoghq.com/agent/proxy/ to understand how to use these settings.
+## For Logs proxy information, refer to https://docs.datadoghq.com/agent/proxy/#proxy-for-logs
+#
+proxy:
+  https: ftps://pUser:pPass@mydomain.org:4242
+  http: ftps://pUser:pPass@mydomain.org:4242
+
+#   https: http://<USERNAME>:<PASSWORD>@<PROXY_SERVER_FOR_HTTPS>:<PORT>
+#   http: http://<USERNAME>:<PASSWORD>@<PROXY_SERVER_FOR_HTTP>:<PORT>
+#   no_proxy:
+#     - <HOSTNAME-1>
+#     - <HOSTNAME-2>)");
+}
+
+/// <summary>
+/// Asserts that process_dd_url is always set regardless if PROCESS_ENABLED is specified
+/// </summary>
+TEST_F(UpdateYamlConfigTests, Always_Set_process_dd_url)
+{
+    value_map values =
+    {
+        {L"PROCESS_DD_URL", L"https://process.someurl.datadoghq.com"},
+    };
+    std::wstring result = replace_yaml_properties(LR"(
+## @param process_config - custom object - optional
+## Enter specific configurations for your Process data collection.
+## Uncomment this parameter and the one below to enable them.
+## See https://docs.datadoghq.com/graphing/infrastructure/process/
+#
+# process_config:
+
+  ## @param enabled - string - optional - default: "false"
+  ##  A string indicating the enabled state of the Process Agent:
+  ##    * "false"    : The Agent collects only containers information.
+  ##    * "true"     : The Agent collects containers and processes information.
+  ##    * "disabled" : The Agent process collection is disabled.
+  #
+  # enabled: "true"
+)",
+                                                  propertyRetriever(values));
+
+    EXPECT_EQ(result, LR"(
+## @param process_config - custom object - optional
+## Enter specific configurations for your Process data collection.
+## Uncomment this parameter and the one below to enable them.
+## See https://docs.datadoghq.com/graphing/infrastructure/process/
+#
+process_config:
+  process_dd_url: https://process.someurl.datadoghq.com
+
+  ## @param enabled - string - optional - default: "false"
+  ##  A string indicating the enabled state of the Process Agent:
+  ##    * "false"    : The Agent collects only containers information.
+  ##    * "true"     : The Agent collects containers and processes information.
+  ##    * "disabled" : The Agent process collection is disabled.
+  #
+  # enabled: "true"
+)");
+}
+
+TEST_F(UpdateYamlConfigTests, Always_Set_apm_dd_url)
+{
+    value_map values = {
+        {L"TRACE_DD_URL", L"https://trace.someurl.datadoghq.com"},
+    };
+    std::wstring result = replace_yaml_properties(LR"(
+## @param apm_config - custom object - optional
+## Enter specific configurations for your trace collection.
+## Uncomment this parameter and the one below to enable them.
+## See https://docs.datadoghq.com/agent/apm/
+#
+# apm_config:
+
+  ## @param enabled - boolean - optional - default: true
+  ## Set to true to enable the APM Agent.
+  #
+  # enabled: true
+
+  ## @param apm_dd_url - string - optional
+  ## Define the endpoint and port to hit when using a proxy for APM. The traces are forwarded in TCP
+  ## therefore the proxy must be able to handle TCP connections.
+  #
+  # apm_dd_url: <ENDPOINT>:<PORT>
+)",
+                                                  propertyRetriever(values));
+
+    EXPECT_EQ(result, LR"(
+## @param apm_config - custom object - optional
+## Enter specific configurations for your trace collection.
+## Uncomment this parameter and the one below to enable them.
+## See https://docs.datadoghq.com/agent/apm/
+#
+apm_config:
+
+  ## @param enabled - boolean - optional - default: true
+  ## Set to true to enable the APM Agent.
+  #
+  # enabled: true
+
+  ## @param apm_dd_url - string - optional
+  ## Define the endpoint and port to hit when using a proxy for APM. The traces are forwarded in TCP
+  ## therefore the proxy must be able to handle TCP connections.
+  #
+  apm_dd_url: https://trace.someurl.datadoghq.com
+)");
 }
