@@ -48,12 +48,22 @@ namespace
         return result.str();
     };
 
-    std::wstring format_proxy(const std::wstring &proxyHost, const property_retriever &propertyRetriever)
+    std::wstring format_proxy(std::wstring proxyHost, const property_retriever &propertyRetriever)
     {
         const auto proxyPort = propertyRetriever(L"PROXY_PORT");
         const auto proxyUser = propertyRetriever(L"PROXY_USER");
         const auto proxyPassword = propertyRetriever(L"PROXY_PASSWORD");
         std::wstringstream proxy;
+        std::size_t schemeEnd = proxyHost.find(L"://", 0);
+        if (schemeEnd == std::string::npos)
+        {
+            proxy << "http://";
+        }
+        else
+        {
+            proxy << proxyHost.substr(0, schemeEnd+3);
+            proxyHost.erase(0, schemeEnd+3);
+        }
         if (proxyUser)
         {
             proxy << *proxyUser;
@@ -142,8 +152,7 @@ std::wstring replace_yaml_properties(
         // This replacer will uncomment the logs_config section if LOGS_DD_URL is specified, regardless of its value
         {L"LOGS_DD_URL",  L"^[ #]*logs_config:.*",    [](auto const &v, auto const &) { return L"logs_config:"; }},
         // logs_dd_url and apm_dd_url are indented so override default formatter to specify correct indentation
-        {L"LOGS_DD_URL",  L"^[ #]*logs_dd_url:.*",    format_simple_value(L"  logs_dd_url:") },
-        {L"TRACE_DD_URL", L"^[ #]*apm_dd_url:.*",     format_simple_value(L"  apm_dd_url:") },
+        {L"LOGS_DD_URL",  L"^[ #]*logs_dd_url:.*",    format_simple_value(L"  logs_dd_url: ") },
         {L"TAGS",         L"^[ #]*tags:(?:(?:.|\n)*?)^[ #]*- <TAG_KEY>:<TAG_VALUE>", format_tags},
         {L"PROXY_HOST",   L"^[ #]*proxy:.*",          format_proxy},
         {L"HOSTNAME_FQDN_ENABLED", L"^[ #]*hostname_fqdn:.*", format_simple_value(L"hostname_fqdn:") },
@@ -169,30 +178,42 @@ std::wstring replace_yaml_properties(
     if (processEnabledProp)
     {
         std::wstring processEnabled = to_bool(*processEnabledProp) ? L"true" : L"disabled";
-        auto processDdUrl = propertyRetriever(L"PROCESS_DD_URL");
-        if (processDdUrl)
-        {
-            PropertyReplacer::match(input, L"^[ #]*process_config:")
-                .replace_with(L"process_config:\n  process_dd_url: " + *processDdUrl);
-        }
-        else
-        {
-            PropertyReplacer::match(input, L"^[ #]*process_config:").replace_with(L"process_config:");
-        }
-
         PropertyReplacer::match(input, L"process_config:")
             .then(L"^[ #]*enabled:.*")
             // Note that this is a string, and should be between ""
             .replace_with(L"  enabled: \"" + processEnabled + L"\"");
     }
+    auto processDdUrl = propertyRetriever(L"PROCESS_DD_URL");
+    if (processDdUrl)
+    {
+        PropertyReplacer::match(input, L"^[ #]*process_config:")
+            .replace_with(L"process_config:\n  process_dd_url: " + *processDdUrl);
+    }
+    else
+    {
+        PropertyReplacer::match(input, L"^[ #]*process_config:").replace_with(L"process_config:");
+    }
 
     auto apmEnabled = propertyRetriever(L"APM_ENABLED");
-    if (apmEnabled)
+    auto traceUrl = propertyRetriever(L"TRACE_DD_URL");
+
+    if (apmEnabled || traceUrl)
     {
         PropertyReplacer::match(input, L"^[ #]*apm_config:").replace_with(L"apm_config:");
+    }
+
+    if (apmEnabled)
+    {
         PropertyReplacer::match(input, L"apm_config:")
             .then(L"^[ #]*enabled:.*")
             .replace_with(L"  enabled: " + *apmEnabled);
+    }
+
+    if (traceUrl)
+    {
+        PropertyReplacer::match(input, L"apm_config:")
+            .then(L"^[ #]*apm_dd_url:.*")
+            .replace_with(format_simple_value(L"  apm_dd_url: ")(*traceUrl, propertyRetriever));
     }
 
     return input;
