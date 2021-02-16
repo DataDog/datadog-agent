@@ -237,7 +237,7 @@ func (a *Agent) Process(p *api.Payload) {
 			Trace: pt.WeightedTrace,
 			Env:   pt.Env,
 		})
-		// TODO[piochelepiotr] Maybe we can skip some computation if stats are computed in the tracer and the trace is droped.
+		// TODO(piochelepiotr): Maybe we can skip some computation if stats are computed in the tracer and the trace is droped.
 		if keep {
 			ss.Traces = append(ss.Traces, traceutil.APITrace(t))
 			ss.Size += t.Msgsize()
