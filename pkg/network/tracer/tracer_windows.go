@@ -6,12 +6,14 @@ import (
 	"expvar"
 	"fmt"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -56,7 +58,11 @@ type Tracer struct {
 // NewTracer returns an initialized tracer struct
 func NewTracer(config *config.Config) (*Tracer, error) {
 	di, err := network.NewDriverInterface(config.EnableMonotonicCount, config.DriverBufferSize)
-	if err != nil {
+
+	if err != nil && errors.Cause(err) == syscall.Errno(syscall.ERROR_FILE_NOT_FOUND) {
+		log.Debugf("could not create driver interface: %v", err)
+		return nil, fmt.Errorf("The Windows driver was not installed, reinstall the Datadog Agent with network performance monitoring enabled")
+	} else if err != nil {
 		return nil, fmt.Errorf("could not create windows driver controller: %v", err)
 	}
 
