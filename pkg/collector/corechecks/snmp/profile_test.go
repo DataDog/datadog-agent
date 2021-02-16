@@ -2,10 +2,12 @@ package snmp
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	assert "github.com/stretchr/testify/require"
-	filepath "path/filepath"
+	"path/filepath"
 	"testing"
+
+	assert "github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func mockProfilesDefinitions() profileDefinitionMap {

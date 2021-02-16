@@ -2,8 +2,9 @@ package snmp
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func Test_makeStringBatches(t *testing.T) {

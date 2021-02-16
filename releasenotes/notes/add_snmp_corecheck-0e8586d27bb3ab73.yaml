@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Add snmp corecheck implementation
+    Add snmp corecheck implementation in go

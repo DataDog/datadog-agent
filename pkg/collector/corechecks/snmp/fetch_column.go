@@ -2,9 +2,11 @@ package snmp
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/gosnmp/gosnmp"
 	"sort"
+
+	"github.com/gosnmp/gosnmp"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func fetchColumnOidsWithBatching(session sessionAPI, oids map[string]string, oidBatchSize int) (columnResultValuesType, error) {

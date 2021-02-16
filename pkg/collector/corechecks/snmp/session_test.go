@@ -2,10 +2,11 @@ package snmp
 
 import (
 	"fmt"
-	"github.com/gosnmp/gosnmp"
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+
+	"github.com/gosnmp/gosnmp"
+	"github.com/stretchr/testify/assert"
 )
 
 func Test_snmpSession_Configure(t *testing.T) {

@@ -3,12 +3,14 @@ package snmp
 import (
 	"bufio"
 	"bytes"
+	"strings"
+	"testing"
+
+	"gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
-	"gopkg.in/yaml.v2"
-	"strings"
-	"testing"
 )
 
 func Test_transformIndex(t *testing.T) {

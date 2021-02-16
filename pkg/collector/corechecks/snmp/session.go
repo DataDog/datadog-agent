@@ -2,11 +2,16 @@ package snmp
 
 import (
 	"fmt"
-	"github.com/gosnmp/gosnmp"
 	"time"
+
+	"github.com/gosnmp/gosnmp"
 )
 
 const sysObjectIDOid = "1.3.6.1.2.1.1.2.0"
+
+// Java SNMP uses 50, snmp-net uses 10
+// Same max repetition as gosnmp.defaultMaxRepetitions
+const bulkMaxRepetition = 50
 
 type sessionAPI interface {
 	Configure(config snmpConfig) error
@@ -93,7 +98,7 @@ func (s *snmpSession) Get(oids []string) (result *gosnmp.SnmpPacket, err error) 
 }
 
 func (s *snmpSession) GetBulk(oids []string) (result *gosnmp.SnmpPacket, err error) {
-	return s.gosnmpInst.GetBulk(oids, 0, 10)
+	return s.gosnmpInst.GetBulk(oids, 0, bulkMaxRepetition)
 }
 
 func (s *snmpSession) GetNext(oids []string) (result *gosnmp.SnmpPacket, err error) {

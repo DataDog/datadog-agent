@@ -2,9 +2,10 @@ package snmp
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func Test_getValueFromPDU(t *testing.T) {

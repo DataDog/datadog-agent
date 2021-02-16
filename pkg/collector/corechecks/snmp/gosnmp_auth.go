@@ -2,8 +2,9 @@ package snmp
 
 import (
 	"fmt"
-	"github.com/gosnmp/gosnmp"
 	"strings"
+
+	"github.com/gosnmp/gosnmp"
 )
 
 func getAuthProtocol(authProtocolStr string) (gosnmp.SnmpV3AuthProtocol, error) {

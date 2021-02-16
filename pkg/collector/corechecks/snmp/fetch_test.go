@@ -2,9 +2,11 @@ package snmp
 
 import (
 	"fmt"
-	"github.com/gosnmp/gosnmp"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/gosnmp/gosnmp"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func Test_fetchColumnOids(t *testing.T) {

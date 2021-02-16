@@ -2,10 +2,12 @@ package snmp
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/gosnmp/gosnmp"
 	"math"
 	"strings"
+
+	"github.com/gosnmp/gosnmp"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // getValueFromPDU converts gosnmp.SnmpPDU to snmpValueType
@@ -118,11 +120,12 @@ func resultToColumnValues(columnOids []string, snmpPacket *gosnmp.SnmpPacket) (c
 
 		prefix := columnOid + "."
 		if strings.HasPrefix(oid, prefix) {
-			returnValues[columnOid][oid[len(prefix):]] = value
+			index := oid[len(prefix):]
+			returnValues[columnOid][index] = value
 			nextOidsMap[columnOid] = oid
 		} else {
-			// if oid is not prefixed by columnOid, it means it's not part of the column
-			// and we can stop requesting the next row of this column
+			// If oid is not prefixed by columnOid, it means it's not part of the column
+			// and we can stop requesting the next row of this column. This is expected.
 			delete(nextOidsMap, columnOid)
 		}
 	}

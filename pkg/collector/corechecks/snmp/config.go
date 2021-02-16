@@ -2,11 +2,13 @@ package snmp
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"gopkg.in/yaml.v2"
 	"path/filepath"
 	"strings"
+
+	"gopkg.in/yaml.v2"
+
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var defaultOidBatchSize = 60
@@ -95,13 +97,28 @@ func (c *snmpConfig) getStaticTags() []string {
 	return tags
 }
 
-// toString used for logging, it will hide sensitive information
+// toString used for logging snmpConfig without sensitive information
 func (c *snmpConfig) toString() string {
-	configCopy := *c
-	configCopy.communityString = "***"
-	configCopy.authKey = "***"
-	configCopy.privKey = "***"
-	return fmt.Sprintf("%#v", configCopy)
+	return fmt.Sprintf("snmpConfig: ipAddress=`%s`, port=`%d`, snmpVersion=`%s`, timeout=`%d`, retries=`%d`, "+
+		"user=`%s`, authProtocol=`%s`, privProtocol=`%s`, contextName=`%s`, oidConfig=`%#v`, metrics=`%#v`, "+
+		"metricTags=`%#v`, oidBatchSize=`%d`, profiles=`%#v`, profileTags=`%#v`, uptimeMetricAdded=`%t`",
+		c.ipAddress,
+		c.port,
+		c.snmpVersion,
+		c.timeout,
+		c.retries,
+		c.user,
+		c.authProtocol,
+		c.privProtocol,
+		c.contextName,
+		c.oidConfig,
+		c.metrics,
+		c.metricTags,
+		c.oidBatchSize,
+		c.profiles,
+		c.profileTags,
+		c.uptimeMetricAdded,
+	)
 }
 
 func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (snmpConfig, error) {

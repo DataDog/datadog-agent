@@ -2,6 +2,7 @@ package snmp
 
 import (
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

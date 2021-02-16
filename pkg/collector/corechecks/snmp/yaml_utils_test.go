@@ -1,9 +1,10 @@
 package snmp
 
 import (
-	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v2"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 type MyStringArray struct {

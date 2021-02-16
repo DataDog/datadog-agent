@@ -2,10 +2,12 @@ package snmp
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 )
 
 func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
