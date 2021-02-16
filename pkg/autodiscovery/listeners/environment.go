@@ -49,12 +49,13 @@ func (l *EnvironmentListener) Stop() {
 
 func (l *EnvironmentListener) createServices() {
 	features := map[string]config.Feature{
-		"docker":      config.Docker,
-		"kubelet":     config.Kubernetes,
-		"ecs_fargate": config.ECSFargate,
-		"eks_fargate": config.EKSFargate,
-		"cri":         config.Cri,
-		"containerd":  config.Containerd,
+		"docker":       config.Docker,
+		"kubelet":      config.Kubernetes,
+		"ecs_fargate":  config.ECSFargate,
+		"eks_fargate":  config.EKSFargate,
+		"cri":          config.Cri,
+		"containerd":   config.Containerd,
+		"orchestrator": config.OrchestratorExplorer,
 	}
 
 	for name, feature := range features {

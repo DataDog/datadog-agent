@@ -8,6 +8,8 @@
 package serializer
 
 // ProcessMessageBody is a type alias for processes proto message body
+// this type alias allows to avoid importing the process agent payload proto
+// in case it's not needed (dogstastd)
 type ProcessMessageBody = stubMessageBody
 
 type processPayloadEncoderStub struct{}
@@ -27,6 +29,8 @@ func (stubMessageBody) Reset()         {}
 func (stubMessageBody) String() string { return "" }
 func (stubMessageBody) Size() int      { return 0 }
 
+// processPayloadEncoder is a dummy ProcessMessageBody to avoid importing
+// the process agent payload proto in case it's not needed (dogstastd)
 var processPayloadEncoder = func(m ProcessMessageBody) ([]byte, error) {
 	return []byte{}, nil
 }

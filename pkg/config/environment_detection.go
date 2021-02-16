@@ -31,6 +31,8 @@ const (
 	ECSFargate
 	// EKSFargate environment
 	EKSFargate
+	// OrchestratorExplorer can be enabled
+	OrchestratorExplorer
 )
 
 const (
@@ -127,6 +129,9 @@ func detectContainerFeatures() {
 
 	if IsKubernetes() {
 		detectedFeatures[Kubernetes] = struct{}{}
+		if Datadog.GetBool("orchestrator_explorer.enabled") {
+			detectedFeatures[OrchestratorExplorer] = struct{}{}
+		}
 	}
 
 	if IsECSFargate() {
