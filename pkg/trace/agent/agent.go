@@ -157,7 +157,10 @@ func (a *Agent) Process(p *api.Payload) {
 	defer timing.Since("datadog.trace_agent.internal.process_payload_ms", time.Now())
 	ts := p.Source
 	ss := new(writer.SampledSpans)
-	sinputs := make([]stats.Input, 0, len(p.Traces))
+	var sinputs []stats.Input
+	if !p.ClientComputedStats {
+		sinputs = make([]stats.Input, 0, len(p.Traces))
+	}
 	for _, t := range p.Traces {
 		if len(t) == 0 {
 			log.Debugf("Skipping received empty trace")
@@ -233,10 +236,12 @@ func (a *Agent) Process(p *api.Payload) {
 
 		events, keep := a.sample(ts, pt)
 
-		sinputs = append(sinputs, stats.Input{
-			Trace: pt.WeightedTrace,
-			Env:   pt.Env,
-		})
+		if !p.ClientComputedStats {
+			sinputs = append(sinputs, stats.Input{
+				Trace: pt.WeightedTrace,
+				Env:   pt.Env,
+			})
+		}
 		// TODO(piochelepiotr): Maybe we can skip some computation if stats are computed in the tracer and the trace is droped.
 		if keep {
 			ss.Traces = append(ss.Traces, traceutil.APITrace(t))
@@ -255,7 +260,7 @@ func (a *Agent) Process(p *api.Payload) {
 	if ss.Size > 0 {
 		a.TraceWriter.In <- ss
 	}
-	if len(sinputs) > 0 && !p.ClientComputedStats {
+	if len(sinputs) > 0 {
 		a.Concentrator.In <- sinputs
 	}
 }
