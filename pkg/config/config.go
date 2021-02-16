@@ -682,6 +682,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_checks.clc_runners_port", 5005)
 	// Cluster check runner
 	config.BindEnvAndSetDefault("clc_runner_enabled", false)
+	config.BindEnvAndSetDefault("clc_runner_id", "")
 	config.BindEnvAndSetDefault("clc_runner_host", "") // must be set using the Kubernetes downward API
 	config.BindEnvAndSetDefault("clc_runner_port", 5005)
 	config.BindEnvAndSetDefault("clc_runner_server_write_timeout", 15)
