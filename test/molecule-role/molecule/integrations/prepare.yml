@@ -35,11 +35,6 @@
         src: files/agent/agent_integration_sample.d/conf.yaml
         dest: /home/ubuntu/agent/agent_integration_sample.d/
         mode: preserve
-    - name: Copy docker integration config files
-      copy:
-        src: files/agent/docker.d/conf.yaml
-        dest: /home/ubuntu/agent/docker.d/
-        mode: preserve
     - name: Gather facts (we need the docker network interface ip)
       setup:
     - name: Run Docker compose

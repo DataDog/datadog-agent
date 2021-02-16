@@ -98,7 +98,6 @@ services:
       - /sys/kernel/debug:/sys/kernel/debug
       - ./agent/nagios.d:/etc/stackstate-agent/conf.d/nagios.d:ro
       - ./agent/agent_integration_sample.d:/etc/stackstate-agent/conf.d/agent_integration_sample.d:ro
-      - ./agent/docker.d:/etc/stackstate-agent/conf.d/docker.d:ro
       - nagios_logs:/opt/nagios/var/log
       - nagios_conf:/etc/nagios/
     environment:
