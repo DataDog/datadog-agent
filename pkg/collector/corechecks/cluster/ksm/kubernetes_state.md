@@ -34,6 +34,7 @@
 | `kubernetes_state.node.pods_capacity` | The pods capacity of a node.   | `node` `resource` `unit`   |
 | `kubernetes_state.node.by_condition` | The condition of a cluster node.   | `condition` `node` `status`   |
 | `kubernetes_state.node.status` | Whether the node can schedule new pods.   | `node` `status`   |
+| `kubernetes_state.node.age` | The time in seconds since the creation of the node.   | `node`   |
 | `kubernetes_state.container.terminated` | Describes whether the container is currently in terminated state.   | `kube_namespace` `pod_name` `kube_container_name` (`env` `service` `version` from standard labels)   |
 | `kubernetes_state.container.cpu_limit` | The value of cpu limit by a container.   | `kube_namespace` `pod_name` `kube_container_name` `node` `resource` `unit` (`env` `service` `version` from standard labels)   |
 | `kubernetes_state.container.memory_limit` | The value of memory limit by a container.   | `kube_namespace` `pod_name` `kube_container_name` `node` `resource` `unit` (`env` `service` `version` from standard labels)   |
