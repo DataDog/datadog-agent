@@ -25,6 +25,7 @@
     <ConfigurationType>Application</ConfigurationType>
     <PlatformToolset>v142</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
+    <VcpkgTriplet Condition="'$(Platform)'=='x64'">x64-windows-static</VcpkgTriplet>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
@@ -48,6 +49,7 @@
       <DependentUpon>ReplaceYamlProperties_Tests.cpp</DependentUpon>
     </ClCompile>
     <ClCompile Include="ReplaceYamlProperties_Tests.cpp" />
+    <ClCompile Include="ReplaceYamlProperties_IntegrationTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\customaction.vcxproj">
@@ -59,7 +61,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CustomActionDataTest.h" />
-    <ClInclude Include="ReplaceYamlProperties.h" />
+    <ClInclude Include="ReplaceYamlProperties_IntegrationTests.h" />
   </ItemGroup>
   <ItemDefinitionGroup />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
