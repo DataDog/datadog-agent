@@ -26,15 +26,11 @@ type PerfBatchManager struct {
 	// stateByCPU contains the state of each batch.
 	// The slice is indexed by the CPU core number.
 	stateByCPU []batchState
-
-	// maxIdleInterval represents the maximum time (in nanoseconds)
-	// a batch can remain idle (that is, without being flushed) on eBPF
-	maxIdleInterval int64
 }
 
 // NewPerfBatchManager returns a new `PerfBatchManager` and initializes the
 // eBPF map that holds the tcp_close batch objects.
-func NewPerfBatchManager(batchMap *ebpf.Map, maxIdleInterval time.Duration, numBatches int) (*PerfBatchManager, error) {
+func NewPerfBatchManager(batchMap *ebpf.Map, numBatches int) (*PerfBatchManager, error) {
 	if batchMap == nil {
 		return nil, fmt.Errorf("batchMap is nil")
 	}
@@ -46,9 +42,8 @@ func NewPerfBatchManager(batchMap *ebpf.Map, maxIdleInterval time.Duration, numB
 	}
 
 	return &PerfBatchManager{
-		batchMap:        batchMap,
-		stateByCPU:      make([]batchState, numBatches),
-		maxIdleInterval: maxIdleInterval.Nanoseconds(),
+		batchMap:   batchMap,
+		stateByCPU: make([]batchState, numBatches),
 	}, nil
 }
 
@@ -61,7 +56,6 @@ func (p *PerfBatchManager) Extract(b *batch, now time.Time) []network.Connection
 
 	state := &p.stateByCPU[b.cpu]
 	lastOffset := state.offset
-	state.updated = now.UnixNano()
 	state.offset = 0
 
 	buffer := make([]network.ConnectionStats, 0, ConnCloseBatchSize)
@@ -70,16 +64,11 @@ func (p *PerfBatchManager) Extract(b *batch, now time.Time) []network.Connection
 
 // GetIdleConns return all connections that have been "stuck" in idle batches
 // for more than `idleInterval`
-func (p *PerfBatchManager) GetIdleConns(now time.Time) []network.ConnectionStats {
+func (p *PerfBatchManager) GetIdleConns() []network.ConnectionStats {
 	var idle []network.ConnectionStats
-	nowTS := now.UnixNano()
 	batch := new(batch)
 	for i := 0; i < len(p.stateByCPU); i++ {
 		state := &p.stateByCPU[i]
-
-		if (nowTS - state.updated) < p.maxIdleInterval {
-			continue
-		}
 
 		// we have an idle batch, so let's retrieve its data from eBPF
 		err := p.batchMap.Lookup(unsafe.Pointer(&i), unsafe.Pointer(batch))
@@ -92,7 +81,6 @@ func (p *PerfBatchManager) GetIdleConns(now time.Time) []network.ConnectionStats
 			continue
 		}
 
-		state.updated = nowTS
 		if pos == state.offset {
 			continue
 		}
@@ -105,6 +93,5 @@ func (p *PerfBatchManager) GetIdleConns(now time.Time) []network.ConnectionStats
 }
 
 type batchState struct {
-	offset  int
-	updated int64
+	offset int
 }

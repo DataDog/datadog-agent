@@ -410,7 +410,7 @@ func (t *Tracer) initPerfPolling(perf *ddebpf.PerfHandler) (*manager.PerfMap, *P
 	connCloseEventMap, _ := t.getMap(probes.ConnCloseEventMap)
 	connCloseMap, _ := t.getMap(probes.ConnCloseBatchMap)
 	numCPUs := int(connCloseEventMap.ABI().MaxEntries)
-	batchManager, err := NewPerfBatchManager(connCloseMap, 30*time.Second, numCPUs)
+	batchManager, err := NewPerfBatchManager(connCloseMap, numCPUs)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -444,7 +444,7 @@ func (t *Tracer) initPerfPolling(perf *ddebpf.PerfHandler) (*manager.PerfMap, *P
 				if !ok {
 					return
 				}
-				idleConns := t.batchManager.GetIdleConns(time.Now())
+				idleConns := t.batchManager.GetIdleConns()
 				for _, c := range idleConns {
 					t.storeClosedConn(&c)
 				}

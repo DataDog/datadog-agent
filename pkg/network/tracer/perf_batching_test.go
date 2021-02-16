@@ -59,16 +59,8 @@ func TestPerfBatchManagerExtract(t *testing.T) {
 	})
 }
 
-func TestGetIdleConnsZeroState(t *testing.T) {
-	const maxIdleTime = 10 * time.Second
-	manager, doneFn := newTestBatchManager(t, maxIdleTime)
-	defer doneFn()
-	assert.Len(t, manager.GetIdleConns(time.Now()), 0)
-}
-
 func TestGetIdleConns(t *testing.T) {
-	const maxIdleTime = 10 * time.Second
-	manager, doneFn := newTestBatchManager(t, maxIdleTime)
+	manager, doneFn := newTestBatchManager(t)
 	defer doneFn()
 
 	batch := new(batch)
@@ -82,8 +74,7 @@ func TestGetIdleConns(t *testing.T) {
 	}
 	updateBatch()
 
-	now := time.Now()
-	idleConns := manager.GetIdleConns(now)
+	idleConns := manager.GetIdleConns()
 	assert.Len(t, idleConns, 2)
 	assert.Equal(t, uint32(1), idleConns[0].Pid)
 	assert.Equal(t, uint32(2), idleConns[1].Pid)
@@ -93,22 +84,18 @@ func TestGetIdleConns(t *testing.T) {
 	batch.pos++
 	updateBatch()
 
-	// We should not get anything back since 5 seconds < idleTime (10 seconds)
-	idleConns = manager.GetIdleConns(now.Add(5 * time.Second))
-	assert.Len(t, idleConns, 0)
-
 	// We should now get only the connection that hasn't been processed before
-	idleConns = manager.GetIdleConns(now.Add(15 * time.Second))
+	idleConns = manager.GetIdleConns()
 	assert.Len(t, idleConns, 1)
 	assert.Equal(t, uint32(3), idleConns[0].Pid)
 }
 
-func newTestBatchManager(t *testing.T, idleTime time.Duration) (manager *PerfBatchManager, doneFn func()) {
+func newTestBatchManager(t *testing.T) (manager *PerfBatchManager, doneFn func()) {
 	tr, err := NewTracer(testConfig())
 	require.NoError(t, err)
 
 	connCloseMap, _ := tr.getMap(probes.ConnCloseBatchMap)
-	manager, err = NewPerfBatchManager(connCloseMap, idleTime, numTestBatches)
+	manager, err = NewPerfBatchManager(connCloseMap, numTestBatches)
 	require.NoError(t, err)
 
 	doneFn = func() { tr.Stop() }
