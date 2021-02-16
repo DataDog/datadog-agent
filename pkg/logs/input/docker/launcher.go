@@ -241,13 +241,15 @@ func (l *Launcher) getFileSource(container *Container, source *config.LogSource)
 		serviceName = shortName
 	}
 
-	// New file source
+	// New file source that inherit most of its parent properties
 	fileSource := config.NewLogSource(source.Name, &config.LogsConfig{
-		Identifier: containerID,
-		Path:       l.getPath(containerID),
-		Service:    serviceName,
-		Source:     shortName,
-		Type:       config.FileType,
+		Type:            config.FileType,
+		Identifier:      containerID,
+		Path:            l.getPath(containerID),
+		Service:         serviceName,
+		Source:          shortName,
+		Tags:            source.Config.Tags,
+		ProcessingRules: source.Config.ProcessingRules,
 	})
 	fileSource.SetSourceType(config.DockerSourceType)
 	fileSource.Status = source.Status
