@@ -81,11 +81,7 @@ func GetPublicIPv4() (string, error) {
 	if !config.IsCloudProviderEnabled(CloudProviderName) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
-	ip, err := getMetadataItem("/public-ipv4")
-	if err != nil {
-		return "", err
-	}
-	return ip, nil
+	return getMetadataItem("/public-ipv4")
 }
 
 // IsRunningOn returns true if the agent is running on AWS

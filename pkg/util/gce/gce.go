@@ -88,12 +88,12 @@ func GetPublicIPv4() (string, error) {
 	if !config.IsCloudProviderEnabled(CloudProviderName) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
-	clusterName, err := getResponseWithMaxLength(metadataURL+"/instance/network-interfaces/0/access-configs/0/external-ip",
+	publicIPv4, err := getResponseWithMaxLength(metadataURL+"/instance/network-interfaces/0/access-configs/0/external-ip",
 		config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
 	if err != nil {
 		return "", fmt.Errorf("unable to retrieve public IPv4 from GCE: %s", err)
 	}
-	return clusterName, nil
+	return publicIPv4, nil
 }
 
 // GetNetworkID retrieves the network ID using the metadata endpoint. For
