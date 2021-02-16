@@ -74,7 +74,7 @@ func (m MetricType) String() string {
 type MetricSampleContext interface {
 	GetName() string
 	GetHost() string
-	GetTags(tagsBuffer []string) []string
+	GetTags(*util.TagsBuilder)
 }
 
 // MetricSample represents a raw metric sample
@@ -104,50 +104,41 @@ func (m *MetricSample) GetHost() string {
 	return m.Host
 }
 
-func findOriginTags(origin string, tags []string) []string {
+func findOriginTags(origin string, tb *util.TagsBuilder) {
 	if origin != listeners.NoOrigin {
-		originTags, err := tagger.Tag(origin, tagger.DogstatsdCardinality)
-		if err != nil {
+		if err := tagger.TagBuilder(origin, tagger.DogstatsdCardinality, tb); err != nil {
 			log.Errorf(err.Error())
-		} else {
-			tags = append(tags, originTags...)
 		}
 	}
 
 	// Include orchestrator scope tags if the cardinality is set to orchestrator
 	if tagger.DogstatsdCardinality == collectors.OrchestratorCardinality {
-		orchestratorScopeTags, err := tagger.OrchestratorScopeTag()
-		if err != nil {
+		if err := tagger.OrchestratorScopeTagBuilder(tb); err != nil {
 			log.Error(err.Error())
-		} else {
-			tags = append(tags, orchestratorScopeTags...)
 		}
 	}
-	return tags
 }
 
 // EnrichTags expend a tag list with origin detection tags
-func EnrichTags(tagsBuffer []string, originID string, k8sOriginID string) []string {
+func EnrichTags(tb *util.TagsBuilder, originID string, k8sOriginID string) {
 	if originID != "" {
-		tagsBuffer = findOriginTags(originID, tagsBuffer)
+		findOriginTags(originID, tb)
 	}
 
 	if k8sOriginID != "" {
-		if entityTags, err := tagger.Tag(k8sOriginID, tagger.DogstatsdCardinality); err == nil {
-			tagsBuffer = append(tagsBuffer, entityTags...)
-		} else {
+		if err := tagger.TagBuilder(k8sOriginID, tagger.DogstatsdCardinality, tb); err != nil {
 			tlmUDPOriginDetectionError.Inc()
 			log.Tracef("Cannot get tags for entity %s: %s", k8sOriginID, err)
 		}
 	}
 
-	return util.SortUniqInPlace(tagsBuffer)
+	tb.SortUniq()
 }
 
 // GetTags returns the metric sample tags
-func (m *MetricSample) GetTags(tagsBuffer []string) []string {
-	tagsBuffer = append(tagsBuffer, m.Tags...)
-	return EnrichTags(tagsBuffer, m.OriginID, m.K8sOriginID)
+func (m *MetricSample) GetTags(tb *util.TagsBuilder) {
+	tb.Append(m.Tags...)
+	EnrichTags(tb, m.OriginID, m.K8sOriginID)
 }
 
 // Copy returns a deep copy of the m MetricSample

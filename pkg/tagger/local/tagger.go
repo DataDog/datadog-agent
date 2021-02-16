@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
@@ -215,8 +216,8 @@ func (t *Tagger) Stop() error {
 	return nil
 }
 
-// Tag returns tags for a given entity
-func (t *Tagger) Tag(entity string, cardinality collectors.TagCardinality) ([]string, error) {
+// getTags returns a read only list of tags for a given entity.
+func (t *Tagger) getTags(entity string, cardinality collectors.TagCardinality) ([]string, error) {
 	telemetry.Queries.Inc(collectors.TagCardinalityToString(cardinality))
 
 	if entity == "" {
@@ -226,7 +227,7 @@ func (t *Tagger) Tag(entity string, cardinality collectors.TagCardinality) ([]st
 
 	if len(sources) == len(t.fetchers) {
 		// All sources sent data to cache
-		return copyArray(cachedTags), nil
+		return cachedTags, nil
 	}
 	// Else, partial cache miss, query missing data
 	// TODO: get logging on that to make sure we should optimize
@@ -272,9 +273,26 @@ IterCollectors:
 	}
 	t.RUnlock()
 
-	computedTags := utils.ConcatenateTags(tagArrays)
+	return utils.ConcatenateTags(tagArrays), nil
+}
 
-	return copyArray(computedTags), nil
+// TagBuilder appends tags for a given entity from the tagger to the TagsBuilder
+func (t *Tagger) TagBuilder(entity string, cardinality collectors.TagCardinality, tb *util.TagsBuilder) error {
+	tags, err := t.getTags(entity, cardinality)
+	if err == nil {
+		tb.Append(tags...)
+	}
+	return err
+}
+
+// Tag returns a copy of the tags for a given entity
+func (t *Tagger) Tag(entity string, cardinality collectors.TagCardinality) ([]string, error) {
+	tags, err := t.getTags(entity, cardinality)
+	if err != nil {
+		return nil, err
+	}
+
+	return copyArray(tags), nil
 }
 
 // Standard returns standard tags for a given entity
