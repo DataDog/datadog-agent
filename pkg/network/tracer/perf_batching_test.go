@@ -27,9 +27,8 @@ func TestPerfBatchManagerExtract(t *testing.T) {
 		batch.c2.tup.pid = 3
 		batch.c3.tup.pid = 4
 		batch.c4.tup.pid = 5
-		batch.cpu = 0
 
-		conns := manager.Extract(batch)
+		conns := manager.Extract(batch, 0)
 		assert.Len(t, conns, 5)
 		assert.Equal(t, uint32(1), conns[0].Pid)
 		assert.Equal(t, uint32(2), conns[1].Pid)
@@ -48,14 +47,13 @@ func TestPerfBatchManagerExtract(t *testing.T) {
 		batch.c2.tup.pid = 3
 		batch.c3.tup.pid = 4
 		batch.c4.tup.pid = 5
-		batch.cpu = 0
 
 		// Simulate a partial flush
 		manager.stateByCPU[0].processed = map[uint64]batchState{
 			0: {offset: 3},
 		}
 
-		conns := manager.Extract(batch)
+		conns := manager.Extract(batch, 0)
 		assert.Len(t, conns, 2)
 		assert.Equal(t, uint32(4), conns[0].Pid)
 		assert.Equal(t, uint32(5), conns[1].Pid)
@@ -71,10 +69,10 @@ func TestGetIdleConns(t *testing.T) {
 	batch.c0.tup.pid = 1
 	batch.c1.tup.pid = 2
 	batch.len = 2
-	batch.cpu = 0
 
+	cpu := 0
 	updateBatch := func() {
-		manager.batchMap.Put(unsafe.Pointer(&batch.cpu), unsafe.Pointer(batch))
+		manager.batchMap.Put(unsafe.Pointer(&cpu), unsafe.Pointer(batch))
 	}
 	updateBatch()
 

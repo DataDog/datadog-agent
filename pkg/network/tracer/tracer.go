@@ -430,8 +430,8 @@ func (t *Tracer) initPerfPolling(perf *ddebpf.PerfHandler) (*manager.PerfMap, *P
 				}
 				atomic.AddInt64(&t.perfReceived, 1)
 
-				batch := toBatch(batchData)
-				conns := t.batchManager.Extract(batch)
+				batch := toBatch(batchData.Data)
+				conns := t.batchManager.Extract(batch, batchData.CPU)
 				for _, c := range conns {
 					t.storeClosedConn(&c)
 				}

@@ -44,7 +44,6 @@ func NewPerfBatchManager(batchMap *ebpf.Map, numCPUs int) (*PerfBatchManager, er
 	state := make([]percpuState, numCPUs)
 	for cpu := 0; cpu < numCPUs; cpu++ {
 		b := new(batch)
-		b.cpu = C.__u16(cpu)
 		batchMap.Put(unsafe.Pointer(&cpu), unsafe.Pointer(b))
 		state[cpu] = percpuState{
 			processed: make(map[uint64]batchState),
@@ -59,13 +58,13 @@ func NewPerfBatchManager(batchMap *ebpf.Map, numCPUs int) (*PerfBatchManager, er
 
 // Extract from the given batch all connections that haven't been processed yet.
 // This method is also responsible for keeping track of each CPU core batch state.
-func (p *PerfBatchManager) Extract(b *batch) []network.ConnectionStats {
-	if int(b.cpu) >= len(p.stateByCPU) {
+func (p *PerfBatchManager) Extract(b *batch, cpu int) []network.ConnectionStats {
+	if cpu >= len(p.stateByCPU) {
 		return nil
 	}
 
 	batchId := uint64(b.id)
-	cpuState := &p.stateByCPU[b.cpu]
+	cpuState := &p.stateByCPU[cpu]
 	start := uint16(0)
 	if bState, ok := cpuState.processed[batchId]; ok {
 		start = bState.offset
