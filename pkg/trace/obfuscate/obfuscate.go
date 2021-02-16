@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // Package obfuscate implements quantizing and obfuscating of tags and resources for
 // a set of spans matching a certain criteria.
@@ -148,19 +148,20 @@ func compactWhitespaces(t string) string {
 // replaceDigits replaces consecutive sequences of digits with '?',
 // example: "jobs_2020_1597876964" --> "jobs_?_?"
 func replaceDigits(buffer []byte) []byte {
-	buf := make([]byte, 0, len(buffer))
 	scanningDigit := false
-	for _, c := range string(buffer) {
-		if isDigit(c) {
+	filtered := buffer[:0]
+	for _, b := range buffer {
+		// digits are encoded as 1 byte in utf8
+		if isDigit(rune(b)) {
 			if scanningDigit {
 				continue
 			}
 			scanningDigit = true
-			buf = append(buf, byte('?'))
+			filtered = append(filtered, byte('?'))
 			continue
 		}
 		scanningDigit = false
-		buf = append(buf, byte(c))
+		filtered = append(filtered, b)
 	}
-	return buf
+	return filtered
 }

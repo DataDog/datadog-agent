@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package decoder
 
@@ -91,7 +91,7 @@ func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parser.Parser
 
 	for _, rule := range source.Config.ProcessingRules {
 		if rule.Type == config.MultiLine {
-			lineHandler = NewMultiLineHandler(outputChan, rule.Regex, defaultFlushTimeout, lineLimit)
+			lineHandler = NewMultiLineHandler(outputChan, rule.Regex, config.AggregationTimeout(), lineLimit)
 		}
 	}
 	if lineHandler == nil {
@@ -99,7 +99,7 @@ func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parser.Parser
 	}
 
 	if parser.SupportsPartialLine() {
-		lineParser = NewMultiLineParser(defaultFlushTimeout, parser, lineHandler, lineLimit)
+		lineParser = NewMultiLineParser(config.AggregationTimeout(), parser, lineHandler, lineLimit)
 	} else {
 		lineParser = NewSingleLineParser(parser, lineHandler)
 	}

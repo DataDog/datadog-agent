@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package config
 
@@ -74,7 +74,7 @@ func (oc *OrchestratorConfig) LoadYamlConfig(path string) error {
 	oc.OrchestratorEndpoints[0].Endpoint = URL
 
 	if key := "api_key"; config.Datadog.IsSet(key) {
-		oc.OrchestratorEndpoints[0].APIKey = config.Datadog.GetString(key)
+		oc.OrchestratorEndpoints[0].APIKey = config.SanitizeAPIKey(config.Datadog.GetString(key))
 	}
 
 	if err := extractOrchestratorAdditionalEndpoints(URL, &oc.OrchestratorEndpoints); err != nil {
@@ -139,7 +139,7 @@ func extractEndpoints(URL *url.URL, k string, endpoints *[]api.Endpoint) error {
 		}
 		for _, k := range apiKeys {
 			*endpoints = append(*endpoints, api.Endpoint{
-				APIKey:   k,
+				APIKey:   config.SanitizeAPIKey(k),
 				Endpoint: u,
 			})
 		}

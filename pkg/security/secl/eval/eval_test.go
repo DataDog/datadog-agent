@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package eval
 
@@ -164,6 +164,7 @@ func TestSimpleBool(t *testing.T) {
 		Expected bool
 	}{
 		{Expr: `(444 == 444) && ("test" == "test")`, Expected: true},
+		{Expr: `(444 == 444) and ("test" == "test")`, Expected: true},
 		{Expr: `(444 != 444) && ("test" == "test")`, Expected: false},
 		{Expr: `(444 != 555) && ("test" == "test")`, Expected: true},
 		{Expr: `(444 != 555) && ("test" != "aaaa")`, Expected: true},
@@ -196,7 +197,10 @@ func TestPrecedence(t *testing.T) {
 	}{
 		{Expr: `false || (true != true)`, Expected: false},
 		{Expr: `false || true`, Expected: true},
+		{Expr: `false or true`, Expected: true},
 		{Expr: `1 == 1 & 1`, Expected: true},
+		{Expr: `not true && false`, Expected: false},
+		{Expr: `not (true && false)`, Expected: true},
 	}
 
 	for _, test := range tests {

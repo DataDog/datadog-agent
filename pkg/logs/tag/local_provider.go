@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2021 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package tag
 
@@ -24,11 +24,12 @@ type localProvider struct {
 // NewLocalProvider returns a new local Provider.
 func NewLocalProvider(t []string) Provider {
 	p := &localProvider{
-		tags: t,
+		tags:         t,
+		expectedTags: t,
 	}
 
 	if config.IsExpectedTagsSet() {
-		p.expectedTags = append(p.tags, host.GetHostTags(true).System...)
+		p.expectedTags = append(p.tags, host.GetHostTags(false).System...)
 		p.expectedTagsDeadline = coreConfig.StartTime.Add(coreConfig.Datadog.GetDuration("logs_config.expected_tags_duration"))
 
 		// reset submitExpectedTags after deadline elapsed

@@ -94,7 +94,7 @@ agent_rpm-arm64-a6:
     PYTHON_RUNTIMES: '2,3'
     PACKAGE_ARCH: arm64
   before_script:
-    - source /root/.bashrc
+    - source /root/.bashrc && conda activate ddpy3
     - export RELEASE_VERSION=$RELEASE_VERSION_6
 
 # build Agent package for rpm-arm64
@@ -111,7 +111,7 @@ agent_rpm-arm64-a7:
     PYTHON_RUNTIMES: '3'
     PACKAGE_ARCH: arm64
   before_script:
-    - source /root/.bashrc
+    - source /root/.bashrc && conda activate ddpy3
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
 .iot_agent_build_common_rpm:

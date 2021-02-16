@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package config
 
@@ -291,9 +291,9 @@ func isSetAndNotEmpty(config coreConfig.Config, key string) bool {
 // getLogsAPIKey provides the dd api key used by the main logs agent sender.
 func getLogsAPIKey(config coreConfig.Config) string {
 	if isSetAndNotEmpty(config, "logs_config.api_key") {
-		return config.GetString("logs_config.api_key")
+		return coreConfig.SanitizeAPIKey(config.GetString("logs_config.api_key"))
 	}
-	return config.GetString("api_key")
+	return coreConfig.SanitizeAPIKey(config.GetString("api_key"))
 }
 
 // parseAddress returns the host and the port of the address.
@@ -321,4 +321,9 @@ func batchWaitFromKey(config coreConfig.Config, batchWaitKey string) time.Durati
 // TaggerWarmupDuration is used to configure the tag providers
 func TaggerWarmupDuration() time.Duration {
 	return coreConfig.Datadog.GetDuration("logs_config.tagger_warmup_duration") * time.Second
+}
+
+// AggregationTimeout is used when performing aggregation operations
+func AggregationTimeout() time.Duration {
+	return coreConfig.Datadog.GetDuration("logs_config.aggregation_timeout") * time.Millisecond
 }

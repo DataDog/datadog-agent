@@ -2,7 +2,7 @@
 # Cookbook Name:: dd-system-probe-check
 # Recipe:: default
 #
-# Copyright (C) 2020 Datadog
+# Copyright (C) 2020-present Datadog
 #
 if platform?('centos')
   include_recipe 'yum-centos::vault'
@@ -17,6 +17,8 @@ package 'kernel headers' do
     package_name "linux-headers-#{kernel_version}"
   end
 end
+
+package 'python3'
 
 package 'conntrack'
 
@@ -48,6 +50,12 @@ end
 # mode options don't work) so we make the test files executable
 execute 'chmod test files' do
   command "chmod -R 755 /tmp/system-probe-tests"
+  user "root"
+  action :run
+end
+
+execute 'ensure conntrack is enabled' do
+  command "iptables -I INPUT 1 -m conntrack --ctstate NEW,RELATED,ESTABLISHED -j ACCEPT"
   user "root"
   action :run
 end
