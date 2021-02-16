@@ -39,29 +39,6 @@ func TestGrainWithExtraTags(t *testing.T) {
 	assert.Equal(TagSet{Tag{"env", "default"}, Tag{"resource", "yo"}, Tag{"service", "thing"}, Tag{"_dd.hostname", "host-id"}, Tag{"http.status_code", "418"}, Tag{"version", "v0"}, Tag{"synthetics", "true"}}, aggr.ToTagSet())
 }
 
-func TestHandleSpanSkipStats(t *testing.T) {
-	span := &WeightedSpan{Span: traceutil.GetRoot(benchTrace)}
-	subdata := []SublayerValue{{"a", Tag{"x", "y"}, 0.5}}
-
-	t.Run("on", func(t *testing.T) {
-		sb := NewRawBucket(0, 1e9)
-		sb.HandleSpan(span, "env", subdata, false)
-		assert.Len(t, sb.data, 1)
-		for _, v := range sb.data {
-			assert.False(t, v.IsSublayersOnly())
-		}
-	})
-
-	t.Run("off", func(t *testing.T) {
-		sb := NewRawBucket(0, 1e9)
-		sb.HandleSpan(span, "env", subdata, true)
-		assert.Len(t, sb.data, 1)
-		for _, v := range sb.data {
-			assert.True(t, v.IsSublayersOnly())
-		}
-	})
-}
-
 func BenchmarkHandleSpanRandom(b *testing.B) {
 	sb := NewRawBucket(0, 1e9)
 	b.ResetTimer()
@@ -71,7 +48,7 @@ func BenchmarkHandleSpanRandom(b *testing.B) {
 		traceutil.ComputeTopLevel(benchTrace)
 		wt := NewWeightedTrace(benchTrace, root)
 		for _, span := range wt {
-			sb.HandleSpan(span, "dev", nil, false)
+			sb.HandleSpan(span, "dev")
 		}
 	}
 }
