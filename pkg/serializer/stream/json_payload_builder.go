@@ -9,18 +9,47 @@ package stream
 
 import (
 	"bytes"
+	"expvar"
 
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+var (
+	// TODO(remy): could probably removed as not appearing in the status page
+	expvars                = expvar.NewMap("jsonstream")
+	expvarsTotalCalls      = expvar.Int{}
+	expvarsTotalItems      = expvar.Int{}
+	expvarsWriteItemErrors = expvar.Int{}
+	expvarsPayloadFulls    = expvar.Int{}
+
+	tlmTotalCalls = telemetry.NewCounter("jsonstream", "total_calls",
+		nil, "Total calls to the jsontream serializer")
+	tlmTotalItems = telemetry.NewCounter("jsonstream", "total_items",
+		nil, "Total items in the jsonstream serializer")
+	tlmItemDrops = telemetry.NewCounter("jsonstream", "item_drops",
+		nil, "Items dropped in the jsonstream serializer")
+	tlmWriteItemErrors = telemetry.NewCounter("jsonstream", "write_item_errors",
+		nil, "Count of 'write item errors' in the jsonstream serializer")
+	tlmPayloadFull = telemetry.NewCounter("jsonstream", "payload_full",
+		nil, "How many times we've hit a 'paylodad is full' in the jsonstream serializer")
 )
 
 var jsonConfig = jsoniter.Config{
 	EscapeHTML:                    false,
 	ObjectFieldMustBeSimpleString: true,
 }.Froze()
+
+func init() {
+	expvars.Set("TotalCalls", &expvarsTotalCalls)
+	expvars.Set("TotalItems", &expvarsTotalItems)
+	expvars.Set("WriteItemErrors", &expvarsWriteItemErrors)
+	expvars.Set("PayloadFulls", &expvarsPayloadFulls)
+}
 
 // JSONPayloadBuilder is used to build payloads. JSONPayloadBuilder allocates memory based
 // on what was previously need to serialize payloads. Keep that in mind and

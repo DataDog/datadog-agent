@@ -10,6 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 )
 
@@ -31,6 +32,11 @@ type SketchPoint struct {
 
 // A SketchSeriesList implements marshaler.Marshaler
 type SketchSeriesList []SketchSeries
+
+var (
+	tlmItemTooBig = telemetry.NewCounter("sketch_series", "sketch_too_big",
+		nil, "Number of payloads dropped because they were too big")
+)
 
 // MarshalJSON serializes sketch series to JSON.
 // Quite slow, but hopefully this method is called only in the `agent check` command
@@ -164,6 +170,7 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 			// Add it to the new compression buffer
 			e = compressor.AddItem(bufferContext.PrecompressionBuf[:totalItemSize])
 			if e == stream.ErrItemTooBig {
+				tlmItemTooBig.Add(1)
 				// Drop this sketch since it can't fit
 				continue
 			}

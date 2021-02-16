@@ -24,49 +24,21 @@ const (
 )
 
 var (
-	// TODO(remy): could probably removed as not appearing in the status page
-	expvars                = expvar.NewMap("jsonstream")
-	expvarsTotalCalls      = expvar.Int{}
-	expvarsTotalItems      = expvar.Int{}
-	expvarsTotalPayloads   = expvar.Int{}
-	expvarsTotalCycles     = expvar.Int{}
-	expvarsItemDrops       = expvar.Int{}
-	expvarsBytesIn         = expvar.Int{}
-	expvarsBytesOut        = expvar.Int{}
-	expvarsWriteItemErrors = expvar.Int{}
-	expvarsPayloadFulls    = expvar.Int{}
+	expvarsTotalPayloads = expvar.Int{}
+	expvarsTotalCycles   = expvar.Int{}
+	expvarsItemDrops     = expvar.Int{}
+	expvarsBytesIn       = expvar.Int{}
+	expvarsBytesOut      = expvar.Int{}
 
-	tlmTotalCalls = telemetry.NewCounter("jsonstream", "total_calls",
-		nil, "Total calls to the jsontream serializer")
-	tlmTotalItems = telemetry.NewCounter("jsonstream", "total_items",
-		nil, "Total items in the jsonstream serializer")
-	tlmTotalPayloads = telemetry.NewCounter("jsonstream", "total_payloads",
-		nil, "Total payloads in the jsonstream serializer")
-	tlmTotalCycles = telemetry.NewCounter("jsonstream", "total_cycles",
-		nil, "Total cycles in the jsonstream serializer")
-	tlmItemDrops = telemetry.NewCounter("jsonstream", "item_drops",
-		nil, "Items dropped in the jsonstream serializer")
-	tlmBytesIn = telemetry.NewCounter("jsonstream", "bytes_in",
-		nil, "Count of bytes entering the jsonstream serializer")
-	tlmBytesOut = telemetry.NewCounter("jsonstream", "bytes_out",
-		nil, "Count of bytes out the jsonstream serializer")
-	tlmWriteItemErrors = telemetry.NewCounter("jsonstream", "write_item_errors",
-		nil, "Count of 'write item errors' in the jsonstream serializer")
-	tlmPayloadFull = telemetry.NewCounter("jsonstream", "payload_full",
-		nil, "How many times we've hit a 'paylodad is full' in the jsonstream serializer")
+	tlmTotalPayloads = telemetry.NewCounter("compressor", "total_payloads",
+		nil, "Total payloads in the compressor serializer")
+	tlmTotalCycles = telemetry.NewCounter("compressor", "total_cycles",
+		nil, "Total cycles in the compressor serializer")
+	tlmBytesIn = telemetry.NewCounter("compressor", "bytes_in",
+		nil, "Count of bytes entering the compressor serializer")
+	tlmBytesOut = telemetry.NewCounter("compressor", "bytes_out",
+		nil, "Count of bytes out the compressor serializer")
 )
-
-func init() {
-	expvars.Set("TotalCalls", &expvarsTotalCalls)
-	expvars.Set("TotalItems", &expvarsTotalItems)
-	expvars.Set("TotalPayloads", &expvarsTotalPayloads)
-	expvars.Set("TotalCompressCycles", &expvarsTotalCycles)
-	expvars.Set("ItemDrops", &expvarsItemDrops)
-	expvars.Set("BytesIn", &expvarsBytesIn)
-	expvars.Set("BytesOut", &expvarsBytesOut)
-	expvars.Set("WriteItemErrors", &expvarsWriteItemErrors)
-	expvars.Set("PayloadFulls", &expvarsPayloadFulls)
-}
 
 var (
 	maxRepacks = 40 // CPU time vs tighter payload tradeoff
