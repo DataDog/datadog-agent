@@ -386,7 +386,7 @@ metrics:
 			rawInitConfig: []byte(`
 `),
 			expectedErrors: []string{
-				"validation errors: symbol name missing: name=`` oid=`1.2.3`",
+				"validation errors: either a table symbol or a scalar symbol must be provided",
 				"either a table symbol or a scalar symbol must be provided",
 			},
 		},

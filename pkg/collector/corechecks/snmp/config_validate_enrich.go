@@ -13,20 +13,23 @@ func validateEnrichMetricTags(metricTags []metricTagConfig) []string {
 	return errors
 }
 
+// validateEnrichMetrics will validate metricsConfig and enrich it.
+// Example of enrichment:
+// - storage of compiled regex pattern
 func validateEnrichMetrics(metrics []metricsConfig) []string {
 	var errors []string
 	for i := range metrics {
 		metricConfig := metrics[i]
-		if metricConfig.Symbol.OID == "" && len(metricConfig.Symbols) == 0 {
+		if !metricConfig.isScalar() && !metricConfig.isColumn() {
 			errors = append(errors, fmt.Sprintf("either a table symbol or a scalar symbol must be provided: %#v", metricConfig))
 		}
-		if metricConfig.Symbol.OID != "" && len(metricConfig.Symbols) > 0 {
+		if metricConfig.isScalar() && metricConfig.isColumn() {
 			errors = append(errors, fmt.Sprintf("table symbol and scalar symbol cannot be both provided: %#v", metricConfig))
 		}
-		if metricConfig.Symbol.OID != "" {
+		if metricConfig.isScalar() {
 			errors = append(errors, validateSymbol(metricConfig.Symbol, metricConfig)...)
 		}
-		if len(metricConfig.Symbols) > 0 {
+		if metricConfig.isColumn() {
 			for _, symbol := range metricConfig.Symbols {
 				errors = append(errors, validateSymbol(symbol, metricConfig)...)
 			}

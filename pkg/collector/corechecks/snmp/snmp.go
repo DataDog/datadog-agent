@@ -37,7 +37,7 @@ func (c *Check) Run() error {
 	staticTags := c.config.getStaticTags()
 
 	var checkErr error
-	tags, checkErr := c.doRun(staticTags)
+	tags, checkErr := c.processSnmpMetrics(staticTags)
 	if checkErr != nil {
 		c.sender.serviceCheck("snmp.can_check", metrics.ServiceCheckCritical, "", tags, checkErr.Error())
 	} else {
@@ -56,7 +56,7 @@ func (c *Check) Run() error {
 	return checkErr
 }
 
-func (c *Check) doRun(staticTags []string) ([]string, error) {
+func (c *Check) processSnmpMetrics(staticTags []string) ([]string, error) {
 	tags := copyStrings(staticTags)
 
 	// Create connection

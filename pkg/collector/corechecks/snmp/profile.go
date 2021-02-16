@@ -31,6 +31,10 @@ type profileDefinition struct {
 var defaultProfilesMu = &sync.Mutex{}
 var globalProfileConfigMap profileDefinitionMap
 
+// loadDefaultProfiles will load the profiles from disk only once and store it
+// in globalProfileConfigMap. The subsequent call to it will return profiles stored in
+// globalProfileConfigMap. The mutex will help loading once when `loadDefaultProfiles`
+// is called by multiple check instances.
 func loadDefaultProfiles() (profileDefinitionMap, error) {
 	defaultProfilesMu.Lock()
 	defer defaultProfilesMu.Unlock()

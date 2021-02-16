@@ -80,7 +80,7 @@ func Test_validateEnrichMetrics(t *testing.T) {
 				},
 			},
 			errors: []string{
-				"symbol name missing: name=`` oid=`1.2.3`",
+				"either a table symbol or a scalar symbol must be provided",
 			},
 		},
 		{
