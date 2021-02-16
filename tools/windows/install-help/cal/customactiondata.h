@@ -50,6 +50,7 @@ class CustomActionData : ICustomActionData
     bool UserParamMismatch() const override;
     const TargetMachine &GetTargetMachine() const override;
 
+    bool npmPresent() const;
   private:
     MSIHANDLE hInstall;
     TargetMachine machine;
@@ -63,6 +64,7 @@ class CustomActionData : ICustomActionData
     std::wstring pvsDomain; // previously installed domain for user, read from registry
     sid_ptr _sid;
     bool doInstallSysprobe;
+    bool ddnpmPresent;
     bool _ddUserExists;
     bool findPreviousUserInfo();
     void checkForUserMismatch(bool previousInstall, bool userSupplied, std::wstring &computed_domain,

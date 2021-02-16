@@ -29,6 +29,8 @@ func setupAPM(config Config) {
 	config.SetKnown("apm_config.obfuscation.remove_stack_traces")
 	config.SetKnown("apm_config.obfuscation.redis.enabled")
 	config.SetKnown("apm_config.obfuscation.memcached.enabled")
+	config.SetKnown("apm_config.filter_tags.require")
+	config.SetKnown("apm_config.filter_tags.reject")
 	config.SetKnown("apm_config.extra_sample_rate")
 	config.SetKnown("apm_config.dd_agent_bin")
 	config.SetKnown("apm_config.trace_writer.connection_limit")
@@ -75,6 +77,8 @@ func setupAPM(config Config) {
 	config.BindEnv("apm_config.ignore_resources", "DD_APM_IGNORE_RESOURCES", "DD_IGNORE_RESOURCE")       //nolint:errcheck
 	config.BindEnv("apm_config.receiver_socket", "DD_APM_RECEIVER_SOCKET")                               //nolint:errcheck
 	config.BindEnv("apm_config.windows_pipe_name", "DD_APM_WINDOWS_PIPE_NAME")                           //nolint:errcheck
+	config.BindEnv("apm_config.filter_tags.require", "DD_APM_FILTER_TAGS_REQUIRE")                       //nolint:errcheck
+	config.BindEnv("apm_config.filter_tags.reject", "DD_APM_FILTER_TAGS_REJECT")                         //nolint:errcheck
 
 	config.SetEnvKeyTransformer("apm_config.ignore_resources", func(in string) interface{} {
 		r, err := splitCSVString(in, ',')
@@ -83,6 +87,14 @@ func setupAPM(config Config) {
 			return []string{}
 		}
 		return r
+	})
+
+	config.SetEnvKeyTransformer("apm_config.filter_tags.require", func(in string) interface{} {
+		return strings.Split(in, " ")
+	})
+
+	config.SetEnvKeyTransformer("apm_config.filter_tags.reject", func(in string) interface{} {
+		return strings.Split(in, " ")
 	})
 
 	config.SetEnvKeyTransformer("apm_config.replace_tags", func(in string) interface{} {

@@ -111,9 +111,16 @@ func (c *PythonCheck) RunSimple() error {
 // Stop does nothing
 func (c *PythonCheck) Stop() {}
 
-// Cancel deregisters the sender
-// TODO: allow python checks to implement Cancel
+// Cancel signals to a python check that he can free all internal resources and
+// deregisters the sender
 func (c *PythonCheck) Cancel() {
+	gstate := newStickyLock()
+	defer gstate.unlock()
+
+	C.cancel_check(rtloader, c.instance)
+	if err := getRtLoaderError(); err != nil {
+		log.Warnf("failed to cancel check %s: %s", c.id, err)
+	}
 	aggregator.DestroySender(c.id)
 }
 

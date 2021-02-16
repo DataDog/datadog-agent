@@ -115,6 +115,12 @@ public:
     */
     virtual char *runCheck(RtLoaderPyObject *check) = 0;
 
+    //! Pure virtual cancelCheck member.
+    /*!
+      \param check The python object pointer to the check we wish to cancel.
+    */
+    virtual void cancelCheck(RtLoaderPyObject *check) = 0;
+
     //! Pure virtual getCheckWarnings member.
     /*!
       \param check The python object pointer to the check we wish to collect existing warnings for.
