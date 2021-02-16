@@ -1,7 +1,7 @@
 """
 High level testing tasks
 """
-from __future__ import print_function
+
 
 import copy
 import operator

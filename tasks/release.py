@@ -1,7 +1,7 @@
 """
 Release helper tasks
 """
-from __future__ import print_function
+
 
 import hashlib
 import json
@@ -582,7 +582,7 @@ def finish(
     list_major_versions = major_versions.split(",")
     print("Finishing release for major version(s) {}".format(list_major_versions))
 
-    list_major_versions = list(map(lambda x: int(x), list_major_versions))
+    list_major_versions = list([int(x) for x in list_major_versions])
     highest_major = 0
     for version in list_major_versions:
         if int(version) > highest_major:
@@ -749,7 +749,7 @@ def create_rc(
     list_major_versions = major_versions.split(",")
     print("Creating RC for agent version(s) {}".format(list_major_versions))
 
-    list_major_versions = list(map(lambda x: int(x), list_major_versions))
+    list_major_versions = list([int(x) for x in list_major_versions])
     highest_major = 0
     for version in list_major_versions:
         if int(version) > highest_major:
