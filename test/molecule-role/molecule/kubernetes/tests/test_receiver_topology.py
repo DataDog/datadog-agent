@@ -203,7 +203,7 @@ def test_cluster_agent_base_topology(host, ansible_var):
         )
         # 1 cluster agent secret stackstate-auth-token
         cluster_agent_secret_match = re.compile("urn:kubernetes:/{}:{}:secret/"
-                                                   "stackstate-auth-token".format(cluster_name, namespace))
+                                                "stackstate-auth-token".format(cluster_name, namespace))
         assert _find_component(
             json_data=json_data,
             type_name="secret",
@@ -440,8 +440,8 @@ def test_cluster_agent_base_topology(host, ansible_var):
         ).startswith("urn:kubernetes:/%s:%s:pod/stackstate-cluster-agent" % (cluster_name, namespace))
         #  pod uses secret cluster-agent -> stackstate-auth-token
         pod_uses_secret_match = re.compile("urn:kubernetes:/%s:%s:pod/stackstate-cluster-agent-.*->"
-                                              "urn:kubernetes:/%s:%s:secret/stackstate-auth-token" %
-                                              (cluster_name, namespace, cluster_name, namespace))
+                                           "urn:kubernetes:/%s:%s:secret/stackstate-auth-token" %
+                                           (cluster_name, namespace, cluster_name, namespace))
         assert _relation_data(
             json_data=json_data,
             type_name="uses",
