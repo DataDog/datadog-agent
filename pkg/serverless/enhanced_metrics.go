@@ -13,8 +13,6 @@ const (
 	lambdaPricePerGbSecond    = 0.0000166667
 )
 
-const timeoutLogSubstring = "Task timed out after "
-
 func getOutOfMemorySubstrings() []string {
 	return []string{
 		"fatal error: runtime: out of memory",       // Go
