@@ -4,6 +4,7 @@ package tracer
 
 import (
 	"testing"
+	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -90,6 +91,35 @@ func TestGetIdleConns(t *testing.T) {
 	idleConns = manager.GetIdleConns()
 	assert.Len(t, idleConns, 1)
 	assert.Equal(t, uint32(3), idleConns[0].Pid)
+}
+
+func TestPerfBatchStateCleanup(t *testing.T) {
+	manager, doneFn := newTestBatchManager(t)
+	defer doneFn()
+	manager.expiredStateInterval = 100 * time.Millisecond
+
+	batch := new(batch)
+	batch.id = 0
+	batch.c0.tup.pid = 1
+	batch.c1.tup.pid = 2
+	batch.len = 2
+
+	cpu := 0
+	manager.batchMap.Put(unsafe.Pointer(&cpu), unsafe.Pointer(batch))
+
+	manager.GetIdleConns()
+	_, ok := manager.stateByCPU[cpu].processed[0]
+	require.True(t, ok)
+	assert.Equal(t, uint16(2), manager.stateByCPU[cpu].processed[0].offset)
+
+	// wait for expiration and read partial batches again
+	time.Sleep(manager.expiredStateInterval)
+	manager.GetIdleConns()
+
+	// state should not have been cleaned up, since no more connections have happened
+	_, ok = manager.stateByCPU[cpu].processed[0]
+	require.True(t, ok)
+	assert.Equal(t, uint16(2), manager.stateByCPU[cpu].processed[0].offset)
 }
 
 func newEmptyBatchManager() *PerfBatchManager {
