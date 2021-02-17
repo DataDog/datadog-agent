@@ -7,10 +7,19 @@
 #define true 1
 #define false 0
 
+typedef enum {
+    CONN_DIRECTION_UNKNOWN = 0b00,
+    CONN_DIRECTION_INCOMING = 0b01,
+    CONN_DIRECTION_OUTGOING = 0b10,
+} conn_direction_t;
+
+#define CONN_DIRECTION_MASK 0b11
+
 typedef struct {
     __u64 sent_bytes;
     __u64 recv_bytes;
     __u64 timestamp;
+    __u8  direction;
 } conn_stats_ts_t;
 
 // Metadata bit masks

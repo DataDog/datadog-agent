@@ -72,5 +72,7 @@ func (r *RequestStats) AddRequest(statusClass int, latency float64) {
 	}
 
 	err := r[i].latencies.Add(latency)
-	log.Debugf("Error recording HTTP transaction latency: could not add latency to ddsketch: %v", err)
+	if err != nil {
+		log.Debugf("Error recording HTTP transaction latency: could not add latency to ddsketch: %v", err)
+	}
 }
