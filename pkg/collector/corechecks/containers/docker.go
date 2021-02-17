@@ -9,6 +9,7 @@ package containers
 
 import (
 	"fmt"
+	"github.com/StackVista/stackstate-agent/pkg/collector/corechecks/containers/topology"
 	"math"
 	"sort"
 	"strings"
@@ -44,6 +45,8 @@ type DockerConfig struct {
 	CollectImageSize         bool               `yaml:"collect_image_size"`
 	CollectDiskStats         bool               `yaml:"collect_disk_stats"`
 	CollectVolumeCount       bool               `yaml:"collect_volume_count"`
+	// sts
+	CollectContainerTopology bool               `yaml:"collect_container_topology"`
 	Tags                     []string           `yaml:"tags"` // Used only by the configuration converter v5 → v6
 	CollectEvent             bool               `yaml:"collect_events"`
 	FilteredEventType        []string           `yaml:"filtered_event_types"`
@@ -75,6 +78,8 @@ type DockerCheck struct {
 	dockerHostname              string
 	cappedSender                *cappedSender
 	collectContainerSizeCounter uint64
+	// sts
+	topologyCollector  *topology.DockerTopologyCollector
 }
 
 func updateContainerRunningCount(images map[string]*containerPerImage, c *containers.Container) {
@@ -338,6 +343,17 @@ func (d *DockerCheck) Run() error {
 		}
 	}
 
+	//sts
+	// Collect container topology
+	if d.instance.CollectContainerTopology {
+		err := d.topologyCollector.CollectTopology(du)
+		if err != nil {
+			sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", nil, err.Error())
+			d.Warnf("Error initialising check: %s", err)
+			return err
+		}
+	}
+
 	sender.Commit()
 	return nil
 }
@@ -394,6 +410,7 @@ func DockerFactory() check.Check {
 	return &DockerCheck{
 		CheckBase: core.NewCheckBase(dockerCheckName),
 		instance:  &DockerConfig{},
+		topologyCollector: topology.MakeDockerTopologyCollector(),
 	}
 }
 
