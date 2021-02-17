@@ -1,0 +1,13 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    When a new node starts, the DCA might receive Kubernetes events before the API server can GET it.
+    In this case, the DCA will keep on querying the API server for each event it receives until it succeeds.
+    In order to not hammer the API server, the DCA will now query the API server to get the node info at most once every minutes per node.
