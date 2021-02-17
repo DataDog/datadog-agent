@@ -41,27 +41,23 @@
   before_script:  # test all of the kernels to make sure the driver loads and runs properly
     - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
     - rsync -azr --delete ./ $SRC_PATH
-    - export TEST_PLATFORMS="win2016,urn,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:2016.127.20190416"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2019,urn,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:2019.0.20190410"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win1903,urn,MicrosoftWindowsServer:WindowsServer:Datacenter-Core-1903-with-Containers-smalldisk:18362.1256.2012032308"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win1909,urn,MicrosoftWindowsServer:WindowsServer:datacenter-core-1909-with-containers-smalldisk:18363.1316.2101130054"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2004,urn,MicrosoftWindowsServer:WindowsServer:datacenter-core-2004-with-containers-smalldisk:19041.746.2101092327"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win20h2,urn,MicrosoftWindowsServer:WindowsServer:datacenter-core-20h2-with-containers-smalldisk:19042.746.2101092352"
+    - export KITCHEN_PLATFORM=windows
+    - export KITCHEN_OSVERS="win2012r2,win2016,win2019,win1903,win1909,win2004,win20h2"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
   script:
-    - bash -l tasks/run-test-kitchen.sh windows-npm-driver-test $AGENT_MAJOR_VERSION
+    - bash -l tasks/run-test-kitchen.sh windows-npmdriver $AGENT_MAJOR_VERSION
 
 .kitchen_test_windows_npm_installer:
   before_script:  # Use only 2016 and 2019 for testing that we upgrade properly and don't install the driver when not specified
     - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
     - rsync -azr --delete ./ $SRC_PATH
-    - export TEST_PLATFORMS="win2016,urn,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:2016.127.20190416"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2019,urn,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:2019.0.20190410"
+    - export KITCHEN_PLATFORM=windows
+    - export KITCHEN_OSVERS="win2016"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
   script:
-    - bash -l tasks/run-test-kitchen.sh windows-npm-install-test $AGENT_MAJOR_VERSION
+    - bash -l tasks/run-test-kitchen.sh windows-npm-test $AGENT_MAJOR_VERSION
 
 # Kitchen: Test types (test suite * agent flavor + azure location)
 # -------------------------------

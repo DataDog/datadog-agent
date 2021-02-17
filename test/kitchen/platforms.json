@@ -43,7 +43,11 @@
             "win2012": "urn,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190410",
             "win2012r2": "urn,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20190416",
             "win2016": "urn,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:2016.127.20190416",
-            "win2019": "urn,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:2019.0.20190410"
+            "win2019": "urn,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:2019.0.20190410",
+            "win1903": "urn,MicrosoftWindowsServer:WindowsServer:Datacenter-Core-1903-with-Containers-smalldisk:18362.1256.2012032308",
+            "win1909": "urn,MicrosoftWindowsServer:WindowsServer:datacenter-core-1909-with-containers-smalldisk:18363.1316.2101130054",
+            "win2004": "urn,MicrosoftWindowsServer:WindowsServer:datacenter-core-2004-with-containers-smalldisk:19041.746.2101092327",
+            "win20h2": "urn,MicrosoftWindowsServer:WindowsServer:datacenter-core-20h2-with-containers-smalldisk:19042.746.2101092352"
         },
         "ec2" : {
             "win2012r2": "ami-0f2688fe4ee9b2443",
