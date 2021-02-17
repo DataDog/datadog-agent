@@ -47,7 +47,28 @@
     <ClCompile Include="ReplaceYamlProperties_ProcessTests.cpp">
       <DependentUpon>ReplaceYamlProperties_Tests.cpp</DependentUpon>
     </ClCompile>
+    <ClCompile Include="wcalogs.cpp" />
+    <ClCompile Include="stdafx.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
+      <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">stdafx.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">stdafx.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">stdafx.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Release|x64'">stdafx.h</PrecompiledHeaderFile>
+    </ClCompile>
     <ClCompile Include="ReplaceYamlProperties_Tests.cpp" />
+    <ClCompile Include="stdafx.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
+      <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">stdafx.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">stdafx.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">stdafx.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Release|x64'">stdafx.h</PrecompiledHeaderFile>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\customaction.vcxproj">
@@ -58,6 +79,7 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="stdafx.h" />
     <ClInclude Include="CustomActionDataTest.h" />
     <ClInclude Include="ReplaceYamlProperties.h" />
   </ItemGroup>
@@ -69,52 +91,50 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <PrecompiledHeaderFile>stdafx.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderFile>customaction-tests.h</PrecompiledHeaderFile>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <WarningLevel>Level3</WarningLevel>
-      <AdditionalIncludeDirectories>$(WIX)sdk\VS2017\inc;$(MSBuildThisFileDirectory)include;$(SolutionDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)include;$(WIX)sdk\VS2017\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
-      <AdditionalLibraryDirectories>$(SolutionDir)$(PlatformTargetAsMSBuildArchitecture)\$(Configuration);$(SolutionDir)packages\Microsoft.googletest.v140.windesktop.msvcstl.static.rt-static.1.8.1\lib\native\v140\windesktop\msvcstl\static\rt-static\$(PlatformTargetAsMSBuildArchitecture)\$(Configuration);$(WIX)sdk\VS2017\lib\$(PlatformTargetAsMSBuildArchitecture);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>gtest_maind.lib;userenv.lib;wcautil.lib;netapi32.lib;msi.lib;bcrypt.lib;dutil.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalOptions>$(SolutionDir)$(PlatformTargetAsMSBuildArchitecture)\$(Configuration)\*.obj %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalLibraryDirectories>$(SolutionDir)$(PlatformTargetAsMSBuildArchitecture)\$(Configuration);$(SolutionDir)packages\Microsoft.googletest.v140.windesktop.msvcstl.static.rt-static.1.8.1\lib\native\v140\windesktop\msvcstl\static\rt-static\$(PlatformTargetAsMSBuildArchitecture)\$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>gtest_maind.lib;userenv.lib;netapi32.lib;msi.lib;bcrypt.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <PrecompiledHeaderFile>stdafx.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderFile>customaction-tests.h</PrecompiledHeaderFile>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>X64;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <WarningLevel>Level3</WarningLevel>
-      <AdditionalIncludeDirectories>$(WIX)sdk\VS2017\inc;$(MSBuildThisFileDirectory)include;$(SolutionDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)include;$(WIX)sdk\VS2017\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
-      <AdditionalLibraryDirectories>$(SolutionDir)$(PlatformTargetAsMSBuildArchitecture)\$(Configuration);$(SolutionDir)packages\Microsoft.googletest.v140.windesktop.msvcstl.static.rt-static.1.8.1\lib\native\v140\windesktop\msvcstl\static\rt-static\$(PlatformTargetAsMSBuildArchitecture)\$(Configuration);$(WIX)sdk\VS2017\lib\$(PlatformTargetAsMSBuildArchitecture);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>gtest_maind.lib;userenv.lib;wcautil.lib;netapi32.lib;msi.lib;bcrypt.lib;dutil.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalOptions>$(SolutionDir)$(PlatformTargetAsMSBuildArchitecture)\$(Configuration)\*.obj %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalLibraryDirectories>$(SolutionDir)$(PlatformTargetAsMSBuildArchitecture)\$(Configuration);$(SolutionDir)packages\Microsoft.googletest.v140.windesktop.msvcstl.static.rt-static.1.8.1\lib\native\v140\windesktop\msvcstl\static\rt-static\$(PlatformTargetAsMSBuildArchitecture)\$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>gtest_maind.lib;userenv.lib;netapi32.lib;msi.lib;bcrypt.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <PrecompiledHeaderFile>stdafx.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderFile>customaction-tests.h</PrecompiledHeaderFile>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <AdditionalIncludeDirectories>$(WIX)sdk\VS2017\inc;$(MSBuildThisFileDirectory)include;$(SolutionDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)include;$(WIX)sdk\VS2017\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
@@ -122,20 +142,20 @@
       <SubSystem>Console</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
-      <AdditionalLibraryDirectories>$(SolutionDir)$(PlatformTargetAsMSBuildArchitecture)\$(Configuration);$(SolutionDir)packages\Microsoft.googletest.v140.windesktop.msvcstl.static.rt-static.1.8.1\lib\native\v140\windesktop\msvcstl\static\rt-static\$(PlatformTargetAsMSBuildArchitecture)\$(Configuration);$(WIX)sdk\VS2017\lib\$(PlatformTargetAsMSBuildArchitecture);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>gtest_main.lib;userenv.lib;wcautil.lib;netapi32.lib;msi.lib;bcrypt.lib;dutil.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)$(PlatformTargetAsMSBuildArchitecture)\$(Configuration);$(SolutionDir)packages\Microsoft.googletest.v140.windesktop.msvcstl.static.rt-static.1.8.1\lib\native\v140\windesktop\msvcstl\static\rt-static\$(PlatformTargetAsMSBuildArchitecture)\$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>gtest_main.lib;userenv.lib;netapi32.lib;msi.lib;bcrypt.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions>$(SolutionDir)$(PlatformTargetAsMSBuildArchitecture)\$(Configuration)\*.obj %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <PrecompiledHeaderFile>stdafx.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderFile>customaction-tests.h</PrecompiledHeaderFile>
       <PreprocessorDefinitions>X64;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <AdditionalIncludeDirectories>$(WIX)sdk\VS2017\inc;$(MSBuildThisFileDirectory)include;$(SolutionDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)include;$(WIX)sdk\VS2017\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
@@ -143,8 +163,8 @@
       <SubSystem>Console</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
-      <AdditionalLibraryDirectories>$(SolutionDir)$(PlatformTargetAsMSBuildArchitecture)\$(Configuration);$(SolutionDir)packages\Microsoft.googletest.v140.windesktop.msvcstl.static.rt-static.1.8.1\lib\native\v140\windesktop\msvcstl\static\rt-static\$(PlatformTargetAsMSBuildArchitecture)\$(Configuration);$(WIX)sdk\VS2017\lib\$(PlatformTargetAsMSBuildArchitecture);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>gtest_main.lib;userenv.lib;wcautil.lib;netapi32.lib;msi.lib;bcrypt.lib;dutil.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)$(PlatformTargetAsMSBuildArchitecture)\$(Configuration);$(SolutionDir)packages\Microsoft.googletest.v140.windesktop.msvcstl.static.rt-static.1.8.1\lib\native\v140\windesktop\msvcstl\static\rt-static\$(PlatformTargetAsMSBuildArchitecture)\$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>gtest_main.lib;userenv.lib;netapi32.lib;msi.lib;bcrypt.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions>$(SolutionDir)$(PlatformTargetAsMSBuildArchitecture)\$(Configuration)\*.obj %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>

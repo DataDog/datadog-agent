@@ -1,5 +1,5 @@
-#include "TargetMachine.h"
 #include "stdafx.h"
+#include "TargetMachine.h"
 #include <DsGetDC.h>
 
 TargetMachine::TargetMachine()

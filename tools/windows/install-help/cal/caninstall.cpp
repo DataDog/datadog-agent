@@ -1,5 +1,5 @@
-#include "TargetMachine.h"
 #include "stdafx.h"
+#include "TargetMachine.h"
 
 /**
  *  canInstall determines if the install can proceed based on the current
