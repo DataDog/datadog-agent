@@ -158,9 +158,6 @@ func (a *Agent) Process(p *api.Payload) {
 	ts := p.Source
 	ss := new(writer.SampledSpans)
 	var sinputs []stats.Input
-	if !p.ClientComputedStats {
-		sinputs = make([]stats.Input, 0, len(p.Traces))
-	}
 	for _, t := range p.Traces {
 		if len(t) == 0 {
 			log.Debugf("Skipping received empty trace")
@@ -237,6 +234,9 @@ func (a *Agent) Process(p *api.Payload) {
 		events, keep := a.sample(ts, pt)
 
 		if !p.ClientComputedStats {
+			if sinputs == nil {
+				sinputs = make([]stats.Input, 0, len(p.Traces))
+			}
 			sinputs = append(sinputs, stats.Input{
 				Trace: pt.WeightedTrace,
 				Env:   pt.Env,
