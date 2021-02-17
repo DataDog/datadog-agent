@@ -6,6 +6,7 @@
 package host
 
 import (
+	"errors"
 	"os"
 	"path"
 	"sync"
@@ -152,24 +153,21 @@ func getHostAliases() []string {
 	return aliases
 }
 
-// try to get the public IPv4 address using AWS and GCE
 func getPublicIPv4() (string, error) {
-	publicIPv4, err := ec2.GetPublicIPv4()
-	if err == nil {
-		log.Debugf("EC2 public IP = %s", publicIPv4)
-		return publicIPv4, err
+	publicIPFetcher := map[string]func() (string, error){
+		"EC2": ec2.GetPublicIPv4,
+		"GCE": gce.GetPublicIPv4,
 	}
-	log.Debugf("no EC2 public IPv4: %s", err)
-
-	publicIPv4, err = gce.GetPublicIPv4()
-	if err == nil {
-		log.Debugf("GCE public IP = %s", publicIPv4)
-		return publicIPv4, err
+	for name, fetcher := range publicIPFetcher {
+		publicIPv4, err := fetcher()
+		if err == nil {
+			log.Debugf("%s public IP = %s", name, publicIPv4)
+			return publicIPv4, nil
+		}
+		log.Debugf("could not fetch %s public IPv4: %s", name, err)
 	}
-	log.Debugf("no GCE public IPv4: %s", err)
-
 	log.Infof("No public IPv4 address found")
-	return "", err
+	return "", errors.New("No public IPv4 address found")
 }
 
 // getMeta grabs the information and refreshes the cache
