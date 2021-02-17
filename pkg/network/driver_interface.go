@@ -155,6 +155,7 @@ func (di *DriverInterface) Close() error {
 	for _, buf := range di.dnsReadBuffers {
 		C.free(unsafe.Pointer(buf))
 	}
+	di.dnsReadBuffers = nil
 
 	return nil
 }
