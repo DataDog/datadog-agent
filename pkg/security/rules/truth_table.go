@@ -129,7 +129,7 @@ func genFilterValues(rule *eval.Rule, event eval.Event) ([]FilterValues, error) 
 					Type:  fValue.Type,
 				})
 
-				notValue, err := notOfValue(fValue.Value)
+				notValue, err := eval.NotOfValue(fValue.Value)
 				if err != nil {
 					return nil, &ErrValueTypeUnknown{Field: field}
 				}

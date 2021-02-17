@@ -26,10 +26,6 @@ func TestMkdir(t *testing.T) {
 			ID:         "test_rule_mkdirat",
 			Expression: `mkdir.filename == "{{.Root}}/testat-mkdir"`,
 		},
-		{
-			ID:         "test_rule_mkdirat_error",
-			Expression: `process.name == "{{.ProcessName}}" && mkdir.retval == EACCES`,
-		},
 	}
 
 	test, err := newTestModule(nil, rules, testOpts{})
@@ -38,12 +34,12 @@ func TestMkdir(t *testing.T) {
 	}
 	defer test.Close()
 
-	testFile, testFilePtr, err := test.Path("test-mkdir")
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	t.Run("mkdir", func(t *testing.T) {
+		testFile, testFilePtr, err := test.Path("test-mkdir")
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		if _, _, errno := syscall.Syscall(syscall.SYS_MKDIR, uintptr(testFilePtr), uintptr(0707), 0); errno != 0 {
 			t.Fatal(err)
 		}
@@ -102,6 +98,21 @@ func TestMkdir(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+}
+
+func TestMkdirError(t *testing.T) {
+	rules := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_mkdirat_error",
+			Expression: `process.name == "{{.ProcessName}}" && mkdir.retval == EACCES`,
+		},
+	}
+
+	test, err := newTestModule(nil, rules, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
 
 	t.Run("mkdirat-error", func(t *testing.T) {
 		_, testatFilePtr, err := test.Path("testat2-mkdir")
