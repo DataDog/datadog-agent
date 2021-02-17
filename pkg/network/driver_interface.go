@@ -70,7 +70,7 @@ const (
 )
 
 const (
-	dnsReadBufferCount = 100 // TODO: how to tune this?
+	dnsReadBufferCount = 100
 )
 
 // DriverExpvarNames is a list of all the DriverExpvar names returned from GetStats
