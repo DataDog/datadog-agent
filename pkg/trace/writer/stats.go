@@ -61,8 +61,9 @@ func NewStatsWriter(cfg *config.AgentConfig, in <-chan []stats.Bucket) *StatsWri
 		stats:     &info.StatsWriterInfo{},
 		stop:      make(chan struct{}),
 		flushChan: make(chan chan struct{}),
-		syncMode:  cfg.SynchronousFlushing,                 // syncMod reports whether the writer should flush on its own or only when FlushSync is called
-		easylog:   logutil.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
+		// syncMode reports whether the writer should flush on its own or only when FlushSync is called
+		syncMode: cfg.SynchronousFlushing,
+		easylog:  logutil.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
 	}
 	climit := cfg.StatsWriter.ConnectionLimit
 	if climit == 0 {
