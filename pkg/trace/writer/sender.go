@@ -247,6 +247,10 @@ func (s *sender) sendPayload(p *payload) {
 			return
 		}
 		atomic.AddInt32(&s.attempt, 1)
+
+		if r := atomic.AddInt32(&p.retries, 1); shouldWarnRetry(r) {
+			log.Warnf("Retried payload %d times: %s", r, err.Error())
+		}
 		select {
 		case s.queue <- p:
 			s.recordEvent(eventTypeRetry, stats)
@@ -270,6 +274,15 @@ func (s *sender) sendPayload(p *payload) {
 		// this is a fatal error, we have to drop this payload
 		s.releasePayload(p, eventTypeRejected, stats)
 	}
+}
+
+// shouldWarnRetry determines whether a warning should be emitted
+// after it has been retried n times.
+func shouldWarnRetry(n int32) bool {
+	if (n != 0) && (n != 2) && ((n & (n - 1)) == 0) {
+		return true
+	}
+	return false
 }
 
 // releasePayload releases the payload p and records the specified event. The payload
@@ -339,6 +352,7 @@ func (s *sender) do(req *http.Request) error {
 type payload struct {
 	body    *bytes.Buffer     // request body
 	headers map[string]string // request headers
+	retries int32             // number of retries sending this payload
 }
 
 // ppool is a pool of payloads.
@@ -357,6 +371,7 @@ func newPayload(headers map[string]string) *payload {
 	p := ppool.Get().(*payload)
 	p.body.Reset()
 	p.headers = headers
+	p.retries = 0
 	return p
 }
 

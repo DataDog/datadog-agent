@@ -36,7 +36,8 @@ Download the [gcc toolchain](http://win-builds.org/).
 
 [Invoke](http://www.pyinvoke.org/) is a task runner written in Python
 that is extensively used in this project to orchestrate builds and test
-runs.
+runs. Our invoke tasks are only compatible with Python 3, thus you will
+need to use Python 3 to run them.
 
 Though you may install invoke in a variety of way we suggest you use
 the provided [requirements](https://github.com/DataDog/datadog-agent/blob/master/requirements.txt)
