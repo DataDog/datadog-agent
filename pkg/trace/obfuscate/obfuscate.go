@@ -148,19 +148,20 @@ func compactWhitespaces(t string) string {
 // replaceDigits replaces consecutive sequences of digits with '?',
 // example: "jobs_2020_1597876964" --> "jobs_?_?"
 func replaceDigits(buffer []byte) []byte {
-	buf := make([]byte, 0, len(buffer))
 	scanningDigit := false
-	for _, c := range string(buffer) {
-		if isDigit(c) {
+	filtered := buffer[:0]
+	for _, b := range buffer {
+		// digits are encoded as 1 byte in utf8
+		if isDigit(rune(b)) {
 			if scanningDigit {
 				continue
 			}
 			scanningDigit = true
-			buf = append(buf, byte('?'))
+			filtered = append(filtered, byte('?'))
 			continue
 		}
 		scanningDigit = false
-		buf = append(buf, byte(c))
+		filtered = append(filtered, b)
 	}
-	return buf
+	return filtered
 }

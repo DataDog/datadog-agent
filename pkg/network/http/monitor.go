@@ -105,13 +105,13 @@ func (m *Monitor) Start() error {
 		defer report.Stop()
 		for {
 			select {
-			case data, ok := <-m.perfHandler.DataChannel:
+			case dataEvent, ok := <-m.perfHandler.DataChannel:
 				if !ok {
 					return
 				}
 
 				// The notification we read from the perf ring tells us which HTTP batch of transactions is ready to be consumed
-				notification := toHTTPNotification(data)
+				notification := toHTTPNotification(dataEvent.Data)
 				transactions, err := m.batchManager.GetTransactionsFrom(notification)
 				m.process(transactions, err)
 			case _, ok := <-m.perfHandler.LostChannel:

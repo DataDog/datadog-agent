@@ -99,7 +99,7 @@ agent_deb-arm64-a6:
     DESTINATION_DEB: 'datadog-agent_6_arm64.deb'
     DESTINATION_DBG_DEB: 'datadog-agent-dbg_6_arm64.deb'
   before_script:
-    - source /root/.bashrc
+    - source /root/.bashrc && conda activate ddpy3
     - export RELEASE_VERSION=$RELEASE_VERSION_6
 
 agent_deb-arm64-a7:
@@ -117,7 +117,7 @@ agent_deb-arm64-a7:
     DESTINATION_DEB: 'datadog-agent_7_arm64.deb'
     DESTINATION_DBG_DEB: 'datadog-agent-dbg_7_arm64.deb'
   before_script:
-    - source /root/.bashrc
+    - source /root/.bashrc && conda activate ddpy3
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
 .iot_agent_build_common_deb:

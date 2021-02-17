@@ -32,6 +32,7 @@ class CustomActionData
     void Sid(sid_ptr &sid);
 
     bool installSysprobe() const;
+    bool npmPresent() const;
 
     bool UserParamMismatch() const
     {
@@ -53,6 +54,7 @@ class CustomActionData
     std::wstring pvsDomain; // previously installed domain for user, read from registry
     sid_ptr _sid;
     bool doInstallSysprobe;
+    bool ddnpmPresent;
     bool _ddUserExists;
     bool findPreviousUserInfo();
     void checkForUserMismatch(bool previousInstall, bool userSupplied, std::wstring &computed_domain,

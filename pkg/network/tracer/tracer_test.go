@@ -562,7 +562,8 @@ func TestTCPRetransmitSharedSocket(t *testing.T) {
 	assert.Equal(t, 1, connsWithRetransmits)
 
 	// Test if telemetry measuring PID collisions is correct
-	assert.GreaterOrEqual(t, int64(numProcesses-1), atomic.LoadInt64(&tr.pidCollisions))
+	// >= because there can be other connections going on during CI that increase pidCollisions
+	assert.GreaterOrEqual(t, atomic.LoadInt64(&tr.pidCollisions), int64(numProcesses-1))
 }
 
 func TestTCPRTT(t *testing.T) {
@@ -1880,6 +1881,68 @@ func TestConnectionClobber(t *testing.T) {
 	require.Equal(t, preCap, cap(tr.buffer))
 }
 
+func TestTCPDirection(t *testing.T) {
+	cfg := testConfig()
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	// Warm-up tracer state
+	_ = getConnections(t, tr)
+
+	// Start an HTTP server on localhost:8080
+	serverAddr := "127.0.0.1:8080"
+	srv := &nethttp.Server{
+		Addr: serverAddr,
+		Handler: nethttp.HandlerFunc(func(w nethttp.ResponseWriter, req *nethttp.Request) {
+			t.Logf("received http request from %s", req.RemoteAddr)
+			io.Copy(ioutil.Discard, req.Body)
+			w.WriteHeader(200)
+		}),
+		ReadTimeout:  time.Second,
+		WriteTimeout: time.Second,
+	}
+	srv.SetKeepAlivesEnabled(false)
+	go func() {
+		_ = srv.ListenAndServe()
+	}()
+	defer srv.Shutdown(context.Background())
+
+	// Allow the HTTP server time to get set up
+	time.Sleep(time.Millisecond * 500)
+
+	// Send a HTTP request to the test server
+	client := new(nethttp.Client)
+	resp, err := client.Get("http://" + serverAddr + "/test")
+	require.NoError(t, err)
+	resp.Body.Close()
+
+	// Iterate through active connections until we find connection created above
+	var outgoingConns []network.ConnectionStats
+	var incomingConns []network.ConnectionStats
+	require.Eventuallyf(t, func() bool {
+		conns := getConnections(t, tr)
+		if len(outgoingConns) == 0 {
+			outgoingConns = searchConnections(conns, func(cs network.ConnectionStats) bool {
+				return fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == serverAddr
+			})
+		}
+		if len(incomingConns) == 0 {
+			incomingConns = searchConnections(conns, func(cs network.ConnectionStats) bool {
+				return fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == serverAddr
+			})
+		}
+
+		return len(outgoingConns) == 1 && len(incomingConns) == 1
+	}, 3*time.Second, 10*time.Millisecond, "couldn't find incoming and outgoing http connections matching: %s", serverAddr)
+
+	// Verify connection directions
+	conn := outgoingConns[0]
+	assert.Equal(t, conn.Direction, network.OUTGOING, "connection direction must be outgoing: %s", conn)
+	conn = incomingConns[0]
+	assert.Equal(t, conn.Direction, network.INCOMING, "connection direction must be incoming: %s", conn)
+}
+
 func TestEnableHTTPMonitoring(t *testing.T) {
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
@@ -1897,7 +1960,7 @@ func TestHTTPStats(t *testing.T) {
 		return
 	}
 
-	cfg := config.NewDefaultConfig()
+	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
@@ -1945,13 +2008,15 @@ func TestHTTPStats(t *testing.T) {
 
 	// Verify HTTP stats
 	conn := matchingConns[0]
+	assert.Equal(t, conn.Direction, network.OUTGOING, "connection direction must be outgoing")
 	httpReqStats, ok := conn.HTTPStatsByPath["/test"]
 	assert.True(t, ok)
-	assert.Equal(t, 0, httpReqStats.Count(0)) // number of requests with response status 100
-	assert.Equal(t, 1, httpReqStats.Count(1)) // 200
-	assert.Equal(t, 0, httpReqStats.Count(2)) // 300
-	assert.Equal(t, 0, httpReqStats.Count(3)) // 400
-	assert.Equal(t, 0, httpReqStats.Count(4)) // 500
+	assert.Equal(t, 0, httpReqStats.Count(0), "100s") // number of requests with response status 100
+	// it sees both sides of the req/resp so will register two 200s
+	assert.Equal(t, 1, httpReqStats.Count(1), "200s") // 200
+	assert.Equal(t, 0, httpReqStats.Count(2), "300s") // 300
+	assert.Equal(t, 0, httpReqStats.Count(3), "400s") // 400
+	assert.Equal(t, 0, httpReqStats.Count(4), "500s") // 500
 }
 
 func TestRuntimeCompilerEnvironmentVar(t *testing.T) {
