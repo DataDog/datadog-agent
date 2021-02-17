@@ -148,5 +148,13 @@ var (
 			"deployment.count",
 			[]string{"namespace"},
 		),
+		"kube_daemonset_metadata_generation": newCountObjectsAggregator(
+			"daemonset.count",
+			[]string{"namespace"},
+		),
+		"kube_statefulset_status_observed_generation": newCountObjectsAggregator(
+			"statefulset.count",
+			[]string{"namespace"},
+		),
 	}
 )
