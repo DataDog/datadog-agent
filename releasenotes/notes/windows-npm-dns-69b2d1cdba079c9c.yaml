@@ -1,0 +1,3 @@
+features:
+  - |
+    Network Performance Monitoring now instruments DNS. This means that the domain tag and the DNS page will container Network Performance Monitoring now instruments DNS. This means that the domain tag and the DNS page will container Network Performance Monitoring now instruments DNS. Network data from windows hosts will be tagged with the domain tag, and the DNS page will show data for Windows hosts.
