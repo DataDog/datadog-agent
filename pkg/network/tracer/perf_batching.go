@@ -17,6 +17,7 @@ import (
 )
 
 const ConnCloseBatchSize = uint16(C.CONN_CLOSED_BATCH_SIZE)
+const defaultExpiredStateInterval = 60 * time.Second
 
 // PerfBatchManager is reponsbile for two things:
 //
@@ -32,6 +33,8 @@ type PerfBatchManager struct {
 	// stateByCPU contains the state of each batch.
 	// The slice is indexed by the CPU core number.
 	stateByCPU []percpuState
+
+	expiredStateInterval time.Duration
 }
 
 // NewPerfBatchManager returns a new `PerfBatchManager` and initializes the
@@ -51,8 +54,9 @@ func NewPerfBatchManager(batchMap *ebpf.Map, numCPUs int) (*PerfBatchManager, er
 	}
 
 	return &PerfBatchManager{
-		batchMap:   batchMap,
-		stateByCPU: state,
+		batchMap:             batchMap,
+		stateByCPU:           state,
+		expiredStateInterval: defaultExpiredStateInterval,
 	}, nil
 }
 
@@ -99,16 +103,12 @@ func (p *PerfBatchManager) GetIdleConns() []network.ConnectionStats {
 		start := uint16(0)
 		batchId := uint64(b.id)
 		if bState, ok := cpuState.processed[batchId]; ok {
-			if batchLen <= bState.offset {
-				continue
-			}
 			start = bState.offset
 		}
 
 		idle = p.extractBatchInto(idle, b, start, batchLen)
-		if len(idle) > 0 {
-			cpuState.processed[batchId] = batchState{offset: batchLen, updated: time.Now()}
-		}
+		// update timestamp regardless since this partial batch still exists
+		cpuState.processed[batchId] = batchState{offset: batchLen, updated: time.Now()}
 	}
 
 	p.cleanupExpiredState()
@@ -147,14 +147,12 @@ func (p *PerfBatchManager) extractBatchInto(buffer []network.ConnectionStats, b 
 	return buffer
 }
 
-const expiredStateInterval = 60 * time.Second
-
 func (p *PerfBatchManager) cleanupExpiredState() {
 	now := time.Now()
 	for cpu := 0; cpu < len(p.stateByCPU); cpu++ {
 		cpuState := &p.stateByCPU[cpu]
 		for id, s := range cpuState.processed {
-			if now.Sub(s.updated) > expiredStateInterval {
+			if now.Sub(s.updated) > p.expiredStateInterval {
 				delete(cpuState.processed, id)
 			}
 		}
