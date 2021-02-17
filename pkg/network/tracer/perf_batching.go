@@ -57,7 +57,6 @@ func NewPerfBatchManager(batchMap *ebpf.Map, numCPUs int) (*PerfBatchManager, er
 }
 
 // Extract from the given batch all connections that haven't been processed yet.
-// This method is also responsible for keeping track of each CPU core batch state.
 func (p *PerfBatchManager) Extract(b *batch, cpu int) []network.ConnectionStats {
 	if cpu >= len(p.stateByCPU) {
 		return nil
@@ -72,16 +71,14 @@ func (p *PerfBatchManager) Extract(b *batch, cpu int) []network.ConnectionStats 
 
 	buffer := make([]network.ConnectionStats, 0, ConnCloseBatchSize-start)
 	conns := p.extractBatchInto(buffer, b, start, ConnCloseBatchSize)
-	if len(conns) > 0 {
-		cpuState.processed[batchId] = batchState{offset: ConnCloseBatchSize, updated: time.Now()}
-	}
+	delete(cpuState.processed, batchId)
 
-	p.cleanupExpiredState()
 	return conns
 }
 
-// GetIdleConns return all connections that have been "stuck" in idle batches
-// for more than `idleInterval`
+// GetIdleConns return all connections that are in batches that are not yet full.
+// It tracks which connections have been processed by this call, by batch id.
+// This prevents double-processing of connections between GetIdleConns and Extract.
 func (p *PerfBatchManager) GetIdleConns() []network.ConnectionStats {
 	var idle []network.ConnectionStats
 	b := new(batch)
