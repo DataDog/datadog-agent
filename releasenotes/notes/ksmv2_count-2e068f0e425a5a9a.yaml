@@ -15,3 +15,5 @@ enhancements:
     * ``replicaset.count``
     * ``job.count``
     * ``deployment.count``
+    * ``daemonset.count``
+    * ``statefulset.coumt``
