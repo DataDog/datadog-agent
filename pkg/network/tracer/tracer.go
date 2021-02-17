@@ -410,7 +410,7 @@ func (t *Tracer) initPerfPolling(perf *ddebpf.PerfHandler) (*manager.PerfMap, *P
 	connCloseEventMap, _ := t.getMap(probes.ConnCloseEventMap)
 	connCloseMap, _ := t.getMap(probes.ConnCloseBatchMap)
 	numCPUs := int(connCloseEventMap.ABI().MaxEntries)
-	batchManager, err := NewPerfBatchManager(connCloseMap, 30*time.Second, numCPUs)
+	batchManager, err := NewPerfBatchManager(connCloseMap, numCPUs)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -430,8 +430,8 @@ func (t *Tracer) initPerfPolling(perf *ddebpf.PerfHandler) (*manager.PerfMap, *P
 				}
 				atomic.AddInt64(&t.perfReceived, 1)
 
-				batch := toBatch(batchData)
-				conns := t.batchManager.Extract(batch, time.Now())
+				batch := toBatch(batchData.Data)
+				conns := t.batchManager.Extract(batch, batchData.CPU)
 				for _, c := range conns {
 					t.storeClosedConn(&c)
 				}
@@ -444,7 +444,7 @@ func (t *Tracer) initPerfPolling(perf *ddebpf.PerfHandler) (*manager.PerfMap, *P
 				if !ok {
 					return
 				}
-				idleConns := t.batchManager.GetIdleConns(time.Now())
+				idleConns := t.batchManager.GetIdleConns()
 				for _, c := range idleConns {
 					t.storeClosedConn(&c)
 				}
