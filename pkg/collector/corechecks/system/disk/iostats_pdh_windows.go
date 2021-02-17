@@ -24,6 +24,8 @@ import (
 )
 
 var (
+	modkernel32 = windows.NewLazyDLL("kernel32.dll")
+
 	procGetLogicalDriveStringsW = modkernel32.NewProc("GetLogicalDriveStringsW")
 	procGetDriveType            = modkernel32.NewProc("GetDriveTypeW")
 
