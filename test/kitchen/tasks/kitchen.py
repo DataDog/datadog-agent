@@ -6,6 +6,7 @@ import json
 import os.path
 import re
 
+
 @task(iterable=['platlist'])
 def genconfig(
     ctx,
@@ -15,22 +16,21 @@ def genconfig(
     testfiles=None,
     uservars=None,
     platformfile="platforms.json",
-    platlist=None
+    platlist=None,
 ):
     """
     Create a kitchen config
     """
     if not platform and not platlist:
-        print("Must supply a platform to configure\n")
-        raise Exit(1)
+        raise Exit(message="Must supply a platform to configure\n", code=1)
 
     if not testfiles:
-        print("Must supply one or more testfiles to include\n")
-        raise Exit(1)
+        raise Exit(message="Must supply one or more testfiles to include\n", code=1)
 
     if platlist and (platform or provider):
-        print("Can specify either a list of specific OS images OR a platform and provider, but not both\n")
-        raise Exit(1)
+        raise Exit(
+            message="Can specify either a list of specific OS images OR a platform and provider, but not both\n", code=1
+        )
 
     if not platlist and not provider:
         provider = "azure"
@@ -43,21 +43,23 @@ def genconfig(
     if platform:
         plat = platforms.get(platform)
         if not plat:
-            print("Unknown platform {platform}.  Known platforms are {avail}\n".format(
-                platform=platform,
-                avail=list(platforms.keys())
-            ))
+            raise Exit(
+                message="Unknown platform {platform}.  Known platforms are {avail}\n".format(
+                    platform=platform, avail=list(platforms.keys())
+                ),
+                code=2,
+            )
             raise Exit(2)
 
         ## check to see if the OS is configured for the given provider
         prov = plat.get(provider)
         if not prov:
-            print("Unknown provider {prov}.  Known providers for platform {plat} are {avail}\n".format(
-                prov=provider,
-                plat=platform,
-                avail=list(plat.keys())
-            ))
-            raise Exit(3)
+            raise Exit(
+                message="Unknown provider {prov}.  Known providers for platform {plat} are {avail}\n".format(
+                    prov=provider, plat=platform, avail=list(plat.keys())
+                ),
+                code=3,
+            )
 
         ## get list of target OSes
         if osversions.lower() == "all":
@@ -75,26 +77,24 @@ def genconfig(
         for entry in platlist:
             driver, os, image = entry.split(",")
             if provider and driver != provider:
-                print("Can only use one driver type per config ( {} != {} )\n".format(provider, driver))
-                raise Exit(1)
+                raise Exit(
+                    message="Can only use one driver type per config ( {} != {} )\n".format(provider, driver), code=1
+                )
 
             provider = driver
             # check to see if we know this one
             if not platforms.get(os):
-                print("Unknown OS in {}\n".format(entry))
-                raise Exit(4)
+                raise Exit(message="Unknown OS in {}\n".format(entry), code=4)
+
             if not platforms[os].get(driver):
-                print("Unknown driver in {}\n".format(entry))
-                raise Exit(5)
+                raise Exit(message="Unknown driver in {}\n".format(entry), code=5)
+
             if not platforms[os][driver].get(image):
-                print("Unknown image in {}\n".format(entry))
-                raise Exit(6)
+                raise Exit(message="Unknown image in {}\n".format(entry), code=6)
+
             if testplatforms:
                 testplatforms += "|"
             testplatforms += "{},{}".format(image, platforms[os][driver][image])
-
-    
-
 
     print("Using the following test platform(s)\n")
     for logplat in testplatforms.split("|"):
@@ -126,10 +126,12 @@ def genconfig(
     env['TEST_PLATFORMS'] = testplatforms
     ctx.run("erb tmpkitchen.yml > kitchen.yml", env=env)
 
+
 def load_platforms(ctx, platformfile):
     with open(platformfile, "r") as f:
         platforms = json.load(f)
     return platforms
+
 
 def load_targets(ctx, targethash, selections):
     returnlist = []
@@ -147,6 +149,7 @@ def load_targets(ctx, targethash, selections):
                     print("Skipping duplicate target key {} (matched search {})\n".format(key, selection))
 
     return returnlist
+
 
 def load_user_env(ctx, provider, varsfile):
     env = {}
