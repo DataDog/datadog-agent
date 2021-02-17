@@ -144,15 +144,15 @@ var (
 			"job.count",
 			[]string{"namespace", "owner_name", "owner_kind"},
 		),
-		"kube_deployment_status_observed_generation": newCountObjectsAggregator(
+		"kube_deployment_labels": newCountObjectsAggregator(
 			"deployment.count",
 			[]string{"namespace"},
 		),
-		"kube_daemonset_metadata_generation": newCountObjectsAggregator(
+		"kube_daemonset_labels": newCountObjectsAggregator(
 			"daemonset.count",
 			[]string{"namespace"},
 		),
-		"kube_statefulset_status_observed_generation": newCountObjectsAggregator(
+		"kube_statefulset_labels": newCountObjectsAggregator(
 			"statefulset.count",
 			[]string{"namespace"},
 		),
