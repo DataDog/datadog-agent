@@ -39,25 +39,24 @@ func TestEnsureConntrack(t *testing.T) {
 	cache = newCachedConntrack("/proc", creator, 1)
 	defer cache.Close()
 
-	// expected cache.Close() when eviction happens
-	m.EXPECT().Close().Times(1)
+	// one for when eviction happens for the first conntrack instance
+	// and the second one for when the cache is closed, and the second
+	// remaining conntrack instance is closed
+	m.EXPECT().Close().Times(2)
 
 	ctrk, err = cache.ensureConntrack(1234, os.Getpid())
 	require.NoError(t, err)
 	require.Equal(t, 1, n)
-	ctrk.Close()
 
 	// call again, should get the cached Conntrack
 	ctrk, err = cache.ensureConntrack(1234, os.Getpid())
 	require.NoError(t, err)
 	require.Equal(t, 1, n)
-	ctrk.Close()
 
 	// evict the lone conntrack in the cache
 	ctrk, err = cache.ensureConntrack(1235, os.Getpid())
 	require.NoError(t, err)
 	require.Equal(t, 2, n)
-	ctrk.Close()
 }
 
 func TestCachedConntrackExists(t *testing.T) {
