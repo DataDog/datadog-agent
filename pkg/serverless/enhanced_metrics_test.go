@@ -32,29 +32,6 @@ func TestGenerateEnhancedMetricsFromFunctionLogOutOfMemory(t *testing.T) {
 	}})
 }
 
-func TestGenerateEnhancedMetricsFromFunctionLogTimeout(t *testing.T) {
-	outOfMemoryLog := aws.LogMessage{
-		Type:         aws.LogTypeFunction,
-		StringRecord: "Task timed out after 30.03 seconds",
-		Time:         time.Now(),
-	}
-	metricsChan := make(chan []metrics.MetricSample)
-	tags := []string{"functionname:test-function"}
-
-	go generateEnhancedMetricsFromFunctionLog(outOfMemoryLog, tags, metricsChan)
-
-	generatedMetrics := <-metricsChan
-
-	assert.Equal(t, generatedMetrics, []metrics.MetricSample{{
-		Name:       "aws.lambda.enhanced.timeouts",
-		Value:      1.0,
-		Mtype:      metrics.DistributionType,
-		Tags:       tags,
-		SampleRate: 1,
-		Timestamp:  float64(outOfMemoryLog.Time.UnixNano()),
-	}})
-}
-
 func TestGenerateEnhancedMetricsFromFunctionLogNoMetric(t *testing.T) {
 	outOfMemoryLog := aws.LogMessage{
 		Type:         aws.LogTypeFunction,

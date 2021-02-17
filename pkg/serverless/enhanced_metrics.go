@@ -20,7 +20,8 @@ func getOutOfMemorySubstrings() []string {
 		"fatal error: runtime: out of memory",       // Go
 		"java.lang.OutOfMemoryError",                // Java
 		"JavaScript heap out of memory",             // Node
-		"MemoryError",                               // Python
+		"Runtime exited with error: signal: killed", // Node
+		"MemoryError", // Python
 		"failed to allocate memory (NoMemoryError)", // Ruby
 	}
 }
@@ -28,21 +29,6 @@ func getOutOfMemorySubstrings() []string {
 // generateEnhancedMetricsFromRegularLog generates enhanced metrics from a LogTypeFunction message
 func generateEnhancedMetricsFromFunctionLog(message aws.LogMessage, tags []string, metricsChan chan []metrics.MetricSample) {
 	logString := message.StringRecord
-
-	// timeouts metric
-	if strings.Contains(logString, timeoutLogSubstring) {
-		metricsChan <- []metrics.MetricSample{{
-			Name:       "aws.lambda.enhanced.timeouts",
-			Value:      1.0,
-			Mtype:      metrics.DistributionType,
-			Tags:       tags,
-			SampleRate: 1,
-			Timestamp:  float64(message.Time.UnixNano()),
-		}}
-		return
-	}
-
-	// out_of_memory metric
 	for _, substring := range getOutOfMemorySubstrings() {
 		if strings.Contains(logString, substring) {
 			metricsChan <- []metrics.MetricSample{{
@@ -53,7 +39,7 @@ func generateEnhancedMetricsFromFunctionLog(message aws.LogMessage, tags []strin
 				SampleRate: 1,
 				Timestamp:  float64(message.Time.UnixNano()),
 			}}
-			break
+			return
 		}
 	}
 }
