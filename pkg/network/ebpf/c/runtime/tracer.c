@@ -311,11 +311,11 @@ int kprobe__tcp_close(struct pt_regs* ctx) {
     sk = (struct sock*)PT_REGS_PARM1(ctx);
 
     // Get network namespace id
-    log_debug("kprobe/tcp_close: pid_tgid: %d, ns: %d\n", pid_tgid, get_netns_from_sock(sk));
-
+    log_debug("kprobe/tcp_close: tgid: %u, pid: %u\n", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
+    log_debug("kprobe/tcp_close: netns: %u, sport: %u, dport: %u\n", t.netns, t.sport, t.dport);
 
     cleanup_conn(&t);
     return 0;
