@@ -178,14 +178,16 @@ func (s *sender) backoff() {
 // Stop stops the sender. It attempts to wait for all inflight payloads to complete
 // with a timeout of 5 seconds.
 func (s *sender) Stop() {
-	s.waitForInflight()
+	s.WaitForInflight()
 	s.mu.Lock()
 	s.closed = true
 	s.mu.Unlock()
 	close(s.queue)
 }
 
-func (s *sender) waitForInflight() {
+// WaitForInflight blocks until all in progress payloads are sent,
+// or the timeout is reached.
+func (s *sender) WaitForInflight() {
 	timeout := time.After(5 * time.Second)
 outer:
 	for {
@@ -278,6 +280,19 @@ func (s *sender) sendPayload(p *payload) {
 		// this is a fatal error, we have to drop this payload
 		s.releasePayload(p, eventTypeRejected, stats)
 	}
+}
+
+// WaitForSenders blocks until all senders have sent their inflight payloads
+func WaitForSenders(senders []*sender) {
+	var wg sync.WaitGroup
+	for _, s := range senders {
+		wg.Add(1)
+		go func(s *sender) {
+			defer wg.Done()
+			s.WaitForInflight()
+		}(s)
+	}
+	wg.Wait()
 }
 
 // shouldWarnRetry determines whether a warning should be emitted

@@ -113,16 +113,19 @@ func (a *Agent) Run() {
 }
 
 // FlushSync flushes traces sychronously. This method only works when the agent is configured in synchronous flushing
-// mode.
+// mode via the apm_config.sync_flush option.
 func (a *Agent) FlushSync() {
-	err := a.StatsWriter.FlushSync()
-	if err != nil {
-		log.Errorf("Error flushing trace agent: %s", err.Error())
+	if !a.conf.SynchronousFlushing {
+		log.Critical("(*Agent).FlushSync called without apm_conf.sync_flushing enabled. No data was sent to Datadog.")
 		return
 	}
-	err = a.TraceWriter.FlushSync()
-	if err != nil {
-		log.Errorf("Error flushing trace agent: %s", err.Error())
+
+	if err := a.StatsWriter.FlushSync(); err != nil {
+		log.Errorf("Error flushing stats: %s", err.Error())
+		return
+	}
+	if err := a.TraceWriter.FlushSync(); err != nil {
+		log.Errorf("Error flushing traces: %s", err.Error())
 		return
 	}
 }
@@ -208,7 +211,7 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 
 		// Extra sanitization steps of the trace.
 		for _, span := range t {
-			for k, v := range a.conf.AdditionalMetadata {
+			for k, v := range a.conf.GlobalTags {
 				traceutil.SetMeta(span, k, v)
 			}
 			a.obfuscator.Obfuscate(span)

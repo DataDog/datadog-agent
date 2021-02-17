@@ -108,8 +108,8 @@ type AgentConfig struct {
 	// It maps tag keys to a set of replacements. Only supported in A6.
 	ReplaceTags []*ReplaceRule
 
-	// AdditonalMetadata list metadata that will be added to all spans
-	AdditionalMetadata map[string]string
+	// GlobalTags list metadata that will be added to all spans
+	GlobalTags map[string]string
 
 	// transaction analytics
 	AnalyzedRateByServiceLegacy map[string]float64
@@ -169,7 +169,7 @@ func New() *AgentConfig {
 		AnalyzedRateByServiceLegacy: make(map[string]float64),
 		AnalyzedSpansByService:      make(map[string]map[string]float64),
 
-		AdditionalMetadata: make(map[string]string),
+		GlobalTags: make(map[string]string),
 
 		DDAgentBin: defaultDDAgentBin,
 	}

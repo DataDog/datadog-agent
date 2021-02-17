@@ -265,9 +265,9 @@ func TestProcess(t *testing.T) {
 		assert.EqualValues(t, 5, want.TracesPriority2)
 	})
 
-	t.Run("AdditionalMetadata", func(t *testing.T) {
+	t.Run("GlobalTags", func(t *testing.T) {
 		cfg := config.New()
-		cfg.AdditionalMetadata["_dd.test"] = "value"
+		cfg.GlobalTags["_dd.test"] = "value"
 		cfg.Endpoints[0].APIKey = "test"
 		ctx, cancel := context.WithCancel(context.Background())
 		agnt := NewAgent(ctx, cfg)

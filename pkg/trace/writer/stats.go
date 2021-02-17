@@ -9,7 +9,6 @@ import (
 	"errors"
 	"math"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -46,6 +45,7 @@ type StatsWriter struct {
 	flushChan chan chan struct{}
 	stats     *info.StatsWriterInfo
 
+	// syncMode reports whether the writer should flush on its own or only when FlushSync is called
 	syncMode bool
 	payloads []*stats.Payload // payloads buffered for sync mode
 
@@ -100,6 +100,7 @@ func (w *StatsWriter) Run() {
 			}
 		case notify := <-w.flushChan:
 			w.sendPayloads()
+			WaitForSenders(w.senders)
 			notify <- struct{}{}
 		case <-t.C:
 			w.report()
@@ -112,23 +113,13 @@ func (w *StatsWriter) Run() {
 // FlushSync is a no-op for TraceWriter
 func (w *StatsWriter) FlushSync() error {
 	if !w.syncMode {
-		return errors.New("SyncFlush called on StatsWriter, which is a no-op")
+		return errors.New("not flushing; sync mode not enabled")
 	}
 
 	defer w.report()
 	notify := make(chan struct{}, 1)
 	w.flushChan <- notify
 	<-notify
-
-	var wg sync.WaitGroup
-	for _, s := range w.senders {
-		wg.Add(1)
-		go func(s *sender) {
-			defer wg.Done()
-			s.waitForInflight()
-		}(s)
-	}
-	wg.Wait()
 	return nil
 }
 

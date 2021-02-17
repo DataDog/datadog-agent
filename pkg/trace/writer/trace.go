@@ -71,10 +71,8 @@ type TraceWriter struct {
 // will accept incoming spans via the in channel.
 func NewTraceWriter(cfg *config.AgentConfig) *TraceWriter {
 
-	in := make(chan *SampledSpans, 1000)
-
 	tw := &TraceWriter{
-		In:        in,
+		In:        make(chan *SampledSpans, 1000),
 		hostname:  cfg.Hostname,
 		env:       cfg.DefaultEnv,
 		stats:     &info.TraceWriterInfo{},
@@ -154,9 +152,7 @@ func (w *TraceWriter) runSync() {
 			w.addSpans(pkg)
 		case notify := <-w.flushChan:
 			w.drainAndFlush()
-			// Wait for encoding/compression to complete on each payload,
-			// and submission to senders
-			w.wg.Wait()
+			WaitForSenders(w.senders)
 			notify <- struct{}{}
 		case <-w.stop:
 			w.drainAndFlush()
@@ -168,23 +164,13 @@ func (w *TraceWriter) runSync() {
 // FlushSync blocks and sends pending payloads when syncMode is true
 func (w *TraceWriter) FlushSync() error {
 	if !w.syncMode {
-		return errors.New("FlushSync called on TraceWriter when in async mode")
+		return errors.New("not flushing; sync mode not enabled")
 	}
 	defer w.report()
 
 	notify := make(chan struct{}, 1)
 	w.flushChan <- notify
 	<-notify
-
-	var wg sync.WaitGroup
-	for _, s := range w.senders {
-		wg.Add(1)
-		go func(s *sender) {
-			defer wg.Done()
-			s.waitForInflight()
-		}(s)
-	}
-	wg.Wait()
 	return nil
 }
 
@@ -220,6 +206,9 @@ outer:
 		}
 	}
 	w.flush()
+	// Wait for encoding/compression to complete on each payload,
+	// and submission to senders
+	w.wg.Wait()
 }
 
 func (w *TraceWriter) resetBuffer() {
