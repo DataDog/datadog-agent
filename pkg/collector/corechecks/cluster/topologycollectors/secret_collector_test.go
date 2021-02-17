@@ -50,7 +50,7 @@ func TestSecretCollector(t *testing.T) {
 					"creationTimestamp": creationTime,
 					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 					"uid":               types.UID("test-secret-1"),
-					"data":              map[string][]byte{"key1": asBase64("value1"), "key2": asBase64("longersecretvalue2")},
+					"data":              "c20ca49dcb76feaaa1c14a2725263bf2290d0e5f3dc98d208b249f080fa64b45",
 					"identifiers":       []string{"urn:kubernetes:/test-cluster-name:test-namespace:secret/test-secret-1"},
 				},
 			},
@@ -65,6 +65,7 @@ func TestSecretCollector(t *testing.T) {
 					"creationTimestamp": creationTime,
 					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 					"uid":               types.UID("test-secret-2"),
+					"data":              "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", // Empty data is represented as a hash to obscure it
 					"identifiers":       []string{"urn:kubernetes:/test-cluster-name:test-namespace:secret/test-secret-2"},
 				},
 			},
@@ -79,6 +80,7 @@ func TestSecretCollector(t *testing.T) {
 					"creationTimestamp": creationTime,
 					"tags":              map[string]string{"cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 					"uid":               types.UID("test-secret-3"),
+					"data":              "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", // Empty data is represented as a hash to obscure it
 					"identifiers":       []string{"urn:kubernetes:/test-cluster-name:test-namespace:secret/test-secret-3"},
 				},
 			},

@@ -33,10 +33,6 @@ func (d Data) PutNonEmpty(key string, value interface{}) bool {
 			if len(t) != 0 {
 				d[key] = value
 			}
-		case map[string][]byte:
-			if len(t) != 0 {
-				d[key] = value
-			}
 		case string:
 			if t != "" {
 				d[key] = value
