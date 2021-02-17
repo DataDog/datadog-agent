@@ -70,15 +70,11 @@ kitchen_windows_installer_agent-a6:
   extends:
     - .kitchen_scenario_windows_a6
     - .kitchen_test_windows_installer_agent
-  allow_failure: true
-  retry: 0
 
 kitchen_windows_installer_agent-a7:
   extends:
     - .kitchen_scenario_windows_a7
     - .kitchen_test_windows_installer_agent
-  allow_failure: true
-  retry: 0
 
 kitchen_windows_chef_agent-a6:
   extends:
