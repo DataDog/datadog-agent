@@ -6,9 +6,9 @@
         "JMXFETCH_VERSION": "0.42.0",
         "JMXFETCH_HASH": "3102eb76aa973e4ac08f9727130979d95eda734876424ca4d92b1c4c43081a1f",
         "MACOS_BUILD_VERSION": "master",
-        "WINDOWS_DDNPM_DRIVER": "attestation-signed",
-        "WINDOWS_DDNPM_VERSION": "0.98.2.git.47.635bb9b",
-        "WINDOWS_DDNPM_SHASUM": "d5641a09805fdfd0c8c445178ba46ae92275688d4c4ec30de01d4ba00fd94563"
+        "WINDOWS_DDNPM_DRIVER": "release-signed",
+        "WINDOWS_DDNPM_VERSION": "0.98.2.git.57.aaa352e",
+        "WINDOWS_DDNPM_SHASUM": "861bbfe375ef48f037cbb7f2999b6af8d53a76b7d08712b6d207f90236b622fe"
     },
     "nightly-a7": {
         "INTEGRATIONS_CORE_VERSION": "master",
@@ -17,9 +17,9 @@
         "JMXFETCH_VERSION": "0.42.0",
         "JMXFETCH_HASH": "3102eb76aa973e4ac08f9727130979d95eda734876424ca4d92b1c4c43081a1f",
         "MACOS_BUILD_VERSION": "master",
-        "WINDOWS_DDNPM_DRIVER": "attestation-signed",
-        "WINDOWS_DDNPM_VERSION": "0.98.2.git.47.635bb9b",
-        "WINDOWS_DDNPM_SHASUM": "d5641a09805fdfd0c8c445178ba46ae92275688d4c4ec30de01d4ba00fd94563",
+        "WINDOWS_DDNPM_DRIVER": "release-signed",
+        "WINDOWS_DDNPM_VERSION": "0.98.2.git.57.aaa352e",
+        "WINDOWS_DDNPM_SHASUM": "861bbfe375ef48f037cbb7f2999b6af8d53a76b7d08712b6d207f90236b622fe",
         "SECURITY_AGENT_POLICIES_VERSION": "master"
     },
     "6.26.0-rc.3": {
