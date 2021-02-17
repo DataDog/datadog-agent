@@ -361,7 +361,7 @@ func (di *DriverInterface) ReadDNSPacket(visit func([]byte, time.Time) error) (d
 			return false, nil
 		}
 
-		return false, errors.Wrap(err, "could not get queued complation status")
+		return false, errors.Wrap(err, "could not get queued completion status")
 	}
 
 	var buf *_readbuffer
