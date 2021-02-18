@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    On error, the user prompt will now have a default negative answer and it will
+    time out after 60 seconds if there is no answer to prevent hanging on some
+    noninteractive environments.
