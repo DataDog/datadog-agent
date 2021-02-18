@@ -123,9 +123,9 @@ var (
 	// deniedMetrics used to configure the KSM store to ignore these metrics by KSM engine
 	deniedMetrics = options.MetricSet{
 		".*_created":                                       {},
-		".*_owner":                                         {},
 		".*_generation":                                    {},
 		".*_metadata_resource_version":                     {},
+		"kube_pod_owner":                                   {},
 		"kube_pod_status_reason":                           {},
 		"kube_pod_restart_policy":                          {},
 		"kube_pod_.*_time":                                 {},
