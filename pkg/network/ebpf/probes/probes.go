@@ -80,24 +80,31 @@ const (
 
 	// SocketHTTPFilter is the socket probe for HTTP
 	SocketHTTPFilter ProbeName = "socket/http_filter"
+
+	// ConntrackHashInsert is the probe for new conntrack entries
+	ConntrackHashInsert ProbeName = "kprobe/__nf_conntrack_hash_insert"
+	// ConntrackDelete is the probe for deleting conntrack entries
+	ConntrackDelete ProbeName = "kprobe/nf_ct_delete"
 )
 
 // BPFMapName stores the name of the BPF maps storing statistics and other info
 type BPFMapName string
 
 const (
-	ConnMap              BPFMapName = "conn_stats"
-	TcpStatsMap          BPFMapName = "tcp_stats"
-	ConnCloseEventMap    BPFMapName = "conn_close_event"
-	TracerStatusMap      BPFMapName = "tracer_status"
-	PortBindingsMap      BPFMapName = "port_bindings"
-	UdpPortBindingsMap   BPFMapName = "udp_port_bindings"
-	TelemetryMap         BPFMapName = "telemetry"
-	ConnCloseBatchMap    BPFMapName = "conn_close_batch"
-	HttpInFlightMap      BPFMapName = "http_in_flight"
-	HttpBatchesMap       BPFMapName = "http_batches"
-	HttpBatchStateMap    BPFMapName = "http_batch_state"
-	HttpNotificationsMap BPFMapName = "http_notifications"
+	ConnMap               BPFMapName = "conn_stats"
+	TcpStatsMap           BPFMapName = "tcp_stats"
+	ConnCloseEventMap     BPFMapName = "conn_close_event"
+	TracerStatusMap       BPFMapName = "tracer_status"
+	PortBindingsMap       BPFMapName = "port_bindings"
+	UdpPortBindingsMap    BPFMapName = "udp_port_bindings"
+	TelemetryMap          BPFMapName = "telemetry"
+	ConnCloseBatchMap     BPFMapName = "conn_close_batch"
+	HttpInFlightMap       BPFMapName = "http_in_flight"
+	HttpBatchesMap        BPFMapName = "http_batches"
+	HttpBatchStateMap     BPFMapName = "http_batch_state"
+	HttpNotificationsMap  BPFMapName = "http_notifications"
+	ConntrackMap          BPFMapName = "conntrack"
+	ConntrackTelemetryMap BPFMapName = "conntrack_telemetry"
 )
 
 // SectionName returns the SectionName for the given BPF map

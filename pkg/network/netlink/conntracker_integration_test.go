@@ -14,11 +14,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/mdlayher/netlink"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/vishvananda/netns"
 )
 
 const (
@@ -98,9 +98,9 @@ func setupTestConnTrackerCrossNamespace(t *testing.T, enableAllNs bool) (Conntra
 
 	time.Sleep(time.Second)
 
-	closer := startServerTCPNs(t, net.ParseIP("2.2.2.4"), 8080, "test")
+	closer := testutil.StartServerTCPNs(t, net.ParseIP("2.2.2.4"), 8080, "test")
 
-	laddr := pingTCP(t, net.ParseIP("2.2.2.4"), 80).LocalAddr().(*net.TCPAddr)
+	laddr := testutil.PingTCP(t, net.ParseIP("2.2.2.4"), 80).LocalAddr().(*net.TCPAddr)
 	return ct, closer, laddr
 }
 
@@ -111,7 +111,11 @@ func TestConntracker(t *testing.T) {
 	}
 	defer teardown(t)
 
-	testConntracker(t, net.ParseIP("1.1.1.1"), net.ParseIP("2.2.2.2"))
+	ct, err := NewConntracker("/proc", 100, 500, false)
+	require.NoError(t, err)
+	defer ct.Close()
+	time.Sleep(100 * time.Millisecond)
+	testutil.TestConntracker(t, net.ParseIP("1.1.1.1"), net.ParseIP("2.2.2.2"), ct)
 }
 
 func TestConntracker6(t *testing.T) {
@@ -124,10 +128,6 @@ func TestConntracker6(t *testing.T) {
 		t.Errorf("setup command output: %s", string(out))
 	}
 
-	testConntracker(t, net.ParseIP("fd00::1"), net.ParseIP("fd00::2"))
-}
-
-func testConntracker(t *testing.T, serverIP, clientIP net.IP) {
 	cfg := config.NewDefaultConfig()
 	cfg.ProcRoot = "/proc"
 	cfg.ConntrackMaxStateSize = 100
@@ -137,58 +137,7 @@ func testConntracker(t *testing.T, serverIP, clientIP net.IP) {
 	require.NoError(t, err)
 	defer ct.Close()
 	time.Sleep(100 * time.Millisecond)
-
-	srv1 := startServerTCP(t, serverIP, natPort)
-	defer srv1.Close()
-	srv2 := startServerTCP(t, serverIP, nonNatPort)
-	defer srv2.Close()
-	srv3 := startServerUDP(t, serverIP, natPort)
-	defer srv3.Close()
-
-	localAddr := pingTCP(t, clientIP, natPort).LocalAddr().(*net.TCPAddr)
-	time.Sleep(1 * time.Second)
-
-	trans := ct.GetTranslationForConn(
-		network.ConnectionStats{
-			Source: util.AddressFromNetIP(localAddr.IP),
-			SPort:  uint16(localAddr.Port),
-			Dest:   util.AddressFromNetIP(clientIP),
-			DPort:  uint16(natPort),
-			Type:   network.TCP,
-		},
-	)
-	require.NotNil(t, trans)
-	assert.Equal(t, util.AddressFromNetIP(serverIP), trans.ReplSrcIP)
-
-	localAddrUDP := pingUDP(t, clientIP, natPort).LocalAddr().(*net.UDPAddr)
-	time.Sleep(time.Second)
-	trans = ct.GetTranslationForConn(
-		network.ConnectionStats{
-			Source: util.AddressFromNetIP(localAddrUDP.IP),
-			SPort:  uint16(localAddrUDP.Port),
-			Dest:   util.AddressFromNetIP(clientIP),
-			DPort:  uint16(natPort),
-			Type:   network.UDP,
-		},
-	)
-	require.NotNil(t, trans)
-	assert.Equal(t, util.AddressFromNetIP(serverIP), trans.ReplSrcIP)
-
-	// now dial TCP directly
-	localAddr = pingTCP(t, serverIP, nonNatPort).LocalAddr().(*net.TCPAddr)
-	time.Sleep(time.Second)
-
-	trans = ct.GetTranslationForConn(
-		network.ConnectionStats{
-			Source: util.AddressFromNetIP(localAddr.IP),
-			SPort:  uint16(localAddr.Port),
-			Dest:   util.AddressFromNetIP(serverIP),
-			DPort:  uint16(nonNatPort),
-			Type:   network.TCP,
-		},
-	)
-	assert.Nil(t, trans)
-
+	testutil.TestConntracker(t, net.ParseIP("fd00::1"), net.ParseIP("fd00::2"), ct)
 }
 
 // This test generates a dump of netlink messages in test_data/message_dump
@@ -241,15 +190,15 @@ func testMessageDump(t *testing.T, f *os.File, serverIP, clientIP net.IP) {
 		close(writeDone)
 	}()
 
-	tcpServer := startServerTCP(t, serverIP, natPort)
+	tcpServer := testutil.StartServerTCP(t, serverIP, natPort)
 	defer tcpServer.Close()
 
-	udpServer := startServerUDP(t, serverIP, nonNatPort)
+	udpServer := testutil.StartServerUDP(t, serverIP, nonNatPort)
 	defer udpServer.Close()
 
 	for i := 0; i < 100; i++ {
-		pingTCP(t, clientIP, natPort)
-		pingUDP(t, clientIP, nonNatPort)
+		testutil.PingTCP(t, clientIP, natPort)
+		testutil.PingUDP(t, clientIP, nonNatPort)
 	}
 
 	time.Sleep(time.Second)
@@ -280,128 +229,6 @@ func writeMsgToFile(f *os.File, m netlink.Message) {
 	f.Write(payload)
 }
 
-func startServerTCPNs(t *testing.T, ip net.IP, port int, ns string) io.Closer {
-	h, err := netns.GetFromName(ns)
-	require.NoError(t, err)
-
-	var closer io.Closer
-	util.WithNS("/proc", h, func() error {
-		closer = startServerTCP(t, ip, port)
-		return nil
-	})
-
-	return closer
-}
-
-func startServerTCP(t *testing.T, ip net.IP, port int) io.Closer {
-	ch := make(chan struct{})
-	addr := fmt.Sprintf("%s:%d", ip, port)
-	network := "tcp"
-	if isIpv6(ip) {
-		network = "tcp6"
-		addr = fmt.Sprintf("[%s]:%d", ip, port)
-	}
-
-	l, err := net.Listen(network, addr)
-	require.NoError(t, err)
-	go func() {
-		close(ch)
-		for {
-			conn, err := l.Accept()
-			if err != nil {
-				return
-			}
-
-			conn.Write([]byte("hello"))
-			conn.Close()
-		}
-	}()
-	<-ch
-
-	return l
-}
-
-func startServerUDPNs(t *testing.T, ip net.IP, port int, ns string) io.Closer {
-	h, err := netns.GetFromName(ns)
-	require.NoError(t, err)
-
-	var closer io.Closer
-	util.WithNS("/proc", h, func() error {
-		closer = startServerUDP(t, ip, port)
-		return nil
-	})
-
-	return closer
-}
-
-func startServerUDP(t *testing.T, ip net.IP, port int) io.Closer {
-	ch := make(chan struct{})
-	network := "udp"
-	if isIpv6(ip) {
-		network = "udp6"
-	}
-
-	addr := &net.UDPAddr{
-		IP:   ip,
-		Port: port,
-	}
-
-	l, err := net.ListenUDP(network, addr)
-	require.NoError(t, err)
-	go func() {
-		close(ch)
-
-		for {
-			bs := make([]byte, 10)
-			_, err := l.Read(bs)
-			if err != nil {
-				return
-			}
-		}
-	}()
-	<-ch
-
-	return l
-}
-
-func pingTCP(t *testing.T, ip net.IP, port int) net.Conn {
-	addr := fmt.Sprintf("%s:%d", ip, port)
-	network := "tcp"
-	if isIpv6(ip) {
-		network = "tcp6"
-		addr = fmt.Sprintf("[%s]:%d", ip, port)
-	}
-
-	conn, err := net.Dial(network, addr)
-	require.NoError(t, err)
-
-	_, err = conn.Write([]byte("ping"))
-	require.NoError(t, err)
-	bs := make([]byte, 10)
-	_, err = conn.Read(bs)
-	require.NoError(t, err)
-
-	return conn
-}
-
-func pingUDP(t *testing.T, ip net.IP, port int) net.Conn {
-	network := "udp"
-	if isIpv6(ip) {
-		network = "udp6"
-	}
-	addr := &net.UDPAddr{
-		IP:   ip,
-		Port: port,
-	}
-	conn, err := net.DialUDP(network, nil, addr)
-	require.NoError(t, err)
-
-	_, err = conn.Write([]byte("ping"))
-	require.NoError(t, err)
-
-	return conn
-}
-
 func teardown(t *testing.T) {
 	cmd := exec.Command("testdata/teardown_dnat.sh")
 	if out, err := cmd.CombinedOutput(); err != nil {
@@ -423,8 +250,4 @@ func teardownCrossNs(t *testing.T) {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		assert.NoError(t, err, "teardown command output %s", string(out))
 	}
-}
-
-func isIpv6(ip net.IP) bool {
-	return ip.To4() == nil
 }

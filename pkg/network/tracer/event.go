@@ -121,6 +121,10 @@ func connTupleFromConn(conn net.Conn, pid uint32, netns uint32) (*ConnTuple, err
 	return ct, nil
 }
 
+func connTupleFromConnectionStats(stats *network.ConnectionStats) *ConnTuple {
+	return newConnTuple(int(stats.Pid), uint64(stats.NetNS), stats.Source, stats.Dest, stats.SPort, stats.DPort, stats.Type)
+}
+
 func newConnTuple(pid int, netns uint64, saddr, daddr util.Address, sport, dport uint16, proto network.ConnectionType) *ConnTuple {
 	ct := &ConnTuple{
 		pid:   C.__u32(pid),
