@@ -1,10 +1,10 @@
-from invoke import task
-from invoke.exceptions import Exit
-
 import glob
 import json
 import os.path
 import re
+
+from invoke import task
+from invoke.exceptions import Exit
 
 
 @task(iterable=['platlist'])
