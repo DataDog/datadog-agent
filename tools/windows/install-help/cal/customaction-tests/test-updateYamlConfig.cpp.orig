@@ -1,33 +1,33 @@
 #include "stdafx.h"
+#include <yaml-cpp/yaml.h>
+#include <fstream>
+#include <filesystem>
 #include "gtest/gtest.h"
 #include "PropertyReplacer.h"
 
 class UpdateYamlConfigTests : public testing::Test
 {
-  protected:
-};
+public:
+    std::wstring DatadogYaml;
 
-/*
-     values = {
-        {L"APIKEY", L"1234567890"},
-        {L"SITE", L"datadoghq.eu"},
-        {L"HOSTNAME", L"raspberrypi"},
-        {L"LOGS_ENABLED", L"true"},
-        {L"CMD_PORT", L"8000"},
-        {L"DD_URL", L"http://example.org:8999"},
-        {L"LOGS_DD_URL", L"https://logs.example.org"},
-        {L"TRACE_DD_URL", L"https://trace.example.org:5858"},
-        {L"PROCESS_DD_URL", L"https://proc.example.org"},
-        {L"PROCESS_ENABLED", L"true"},
-        {L"APM_ENABLED", L"true"},
-        {L"TAGS", L"region=eastus2,aws_org=2"},
-        {L"PROXY_HOST", L"172.14.0.1"},
-        {L"PROXY_PORT", L"4242"},
-        {L"PROXY_USER", L"pUser"},
-        {L"PROXY_PASSWORD", L"pPass"},
-        {L"HOSTNAME_FQDN_ENABLED", L"true"}
-    };
- */
+  protected:
+    void SetUp() override
+    {
+        std::cout << "Executing tests in " << std::filesystem::current_path() << std::endl;
+        std::wifstream inputConfigStream("datadog.yaml");
+        EXPECT_TRUE(inputConfigStream.is_open());
+        inputConfigStream.seekg(0, std::ios::end);
+        const size_t fileSize = inputConfigStream.tellg();
+        if (fileSize <= 0)
+        {
+            assert(false);
+        }
+        DatadogYaml.reserve(fileSize);
+        inputConfigStream.seekg(0, std::ios::beg);
+
+        DatadogYaml.assign(std::istreambuf_iterator<wchar_t>(inputConfigStream), std::istreambuf_iterator<wchar_t>());
+    }
+};
 
 typedef std::map<std::wstring, std::wstring> value_map;
 property_retriever propertyRetriever(value_map const &values)
@@ -42,6 +42,7 @@ property_retriever propertyRetriever(value_map const &values)
         return std::nullopt;
     };
 }
+
 
 TEST_F(UpdateYamlConfigTests, When_APIKEY_Present_Replace_It)
 {
@@ -138,6 +139,7 @@ proxy:
 #     - <HOSTNAME-2>)");
 }
 
+<<<<<<< Updated upstream
 TEST_F(UpdateYamlConfigTests, Respect_PROXY_HOST_Scheme)
 {
     value_map values = {{L"PROXY_HOST", L"ftps://mydomain.org"},
@@ -266,4 +268,34 @@ apm_config:
   #
   apm_dd_url: https://trace.someurl.datadoghq.com
 )");
+=======
+
+TEST_F(UpdateYamlConfigTests, dd_agent_no_subservices)
+{
+    value_map values = {{L"APIKEY", L"testapikey"},
+                        {L"LOGS_ENABLED", L"false"},
+                        {L"PROCESS_ENABLED", L"false"},
+                        {L"APM_ENABLED", L"false"}};
+    std::wstring result = replace_yaml_properties(DatadogYaml, propertyRetriever(values));
+
+    auto node = YAML::Load(std::string(result.begin(), result.end()));
+
+    EXPECT_EQ(node["api_key"].as<std::string>(), "testapikey");
+
+    // 'an Agent with APM disabled'
+    EXPECT_TRUE(node["apm_config"].IsDefined());
+    EXPECT_TRUE(node["apm_config"]["enabled"].IsDefined());
+    EXPECT_EQ(node["apm_config"]["enabled"].as<std::string>(), "false");
+
+    // 'an Agent with logs disabled'
+    // There is no need to enable the logs config if the logs are disabled
+    //EXPECT_TRUE(node["logs_config"].IsDefined());
+    EXPECT_TRUE(node["logs_enabled"].IsDefined());
+    EXPECT_EQ(node["logs_enabled"].as<std::string>(), "false");
+
+    // 'an Agent with process disabled'
+    EXPECT_TRUE(node["process_config"].IsDefined());
+    EXPECT_TRUE(node["process_config"]["enabled"].IsDefined());
+    EXPECT_EQ(node["process_config"]["enabled"].as<std::string>(), "disabled");
+>>>>>>> Stashed changes
 }

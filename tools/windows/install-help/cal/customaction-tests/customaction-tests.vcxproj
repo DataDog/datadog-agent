@@ -33,9 +33,21 @@
   <ImportGroup Label="PropertySheets" />
   <PropertyGroup Label="UserMacros" />
   <ItemGroup>
-    <ClCompile Include="test-customactiondata.cpp" />
-    <ClCompile Include="test-caninstall.cpp" />
-    <ClCompile Include="test-updateYamlConfig.cpp" />
+    <ClCompile Include="CustomActionData_Init.cpp" />
+    <ClCompile Include="CustomActionData_CanInstall.cpp" />
+    <ClCompile Include="ReplaceYamlProperties_APMTests.cpp">
+      <DependentUpon>ReplaceYamlProperties_Tests.cpp</DependentUpon>
+    </ClCompile>
+    <ClCompile Include="ReplaceYamlProperties_LogsTests.cpp">
+      <DependentUpon>ReplaceYamlProperties_Tests.cpp</DependentUpon>
+    </ClCompile>
+    <ClCompile Include="ReplaceYamlProperties_ProxyTests.cpp">
+      <DependentUpon>ReplaceYamlProperties_Tests.cpp</DependentUpon>
+    </ClCompile>
+    <ClCompile Include="ReplaceYamlProperties_ProcessTests.cpp">
+      <DependentUpon>ReplaceYamlProperties_Tests.cpp</DependentUpon>
+    </ClCompile>
+    <ClCompile Include="ReplaceYamlProperties_Tests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\customaction.vcxproj">
@@ -47,6 +59,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CustomActionDataTest.h" />
+    <ClInclude Include="ReplaceYamlProperties.h" />
   </ItemGroup>
   <ItemDefinitionGroup />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
