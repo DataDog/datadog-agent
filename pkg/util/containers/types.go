@@ -77,3 +77,9 @@ type NetworkAddress struct {
 	Port     int
 	Protocol string
 }
+
+// sts
+// SwarmService represents a Swarm Service definition
+type SwarmService struct {
+
+}

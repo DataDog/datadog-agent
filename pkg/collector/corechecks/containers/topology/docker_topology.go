@@ -45,6 +45,9 @@ func (dt *DockerTopologyCollector) CollectTopology(du *docker.DockerUtil) error 
 		return err
 	}
 
+
+	batcher.GetBatcher().SubmitComplete(dt.CheckID)
+
 	return nil
 }
 
