@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build jmx
 
@@ -149,17 +149,18 @@ func doJmxListNotCollected(cmd *cobra.Command, args []string) error {
 // runJmxCommandConsole sets up the common utils necessary for JMX, and executes the command
 // with the Console reporter
 func runJmxCommandConsole(command string) error {
-	logLevel, _, err := standalone.SetupCLI(loggerName, confFilePath, "", jmxLogLevel, "debug")
-	if err != nil {
-		fmt.Printf("Cannot initialize command: %v\n", err)
-		return err
-	}
-
 	logFile := ""
 	if saveFlare {
 		// Windows cannot accept ":" in file names
 		filenameSafeTimeStamp := strings.ReplaceAll(time.Now().UTC().Format(time.RFC3339), ":", "-")
 		logFile = filepath.Join(common.DefaultJMXFlareDirectory, "jmx_"+command+"_"+filenameSafeTimeStamp+".log")
+		jmxLogLevel = "debug"
+	}
+
+	logLevel, _, err := standalone.SetupCLI(loggerName, confFilePath, "", logFile, jmxLogLevel, "debug")
+	if err != nil {
+		fmt.Printf("Cannot initialize command: %v\n", err)
+		return err
 	}
 
 	err = config.SetupJMXLogger(jmxLoggerName, logLevel, logFile, "", false, true, false)

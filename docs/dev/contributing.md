@@ -98,10 +98,12 @@ happier!
 ### Reno
 
 We use `Reno` to create our CHANGELOG. Reno is a pretty simple
-[tool](https://docs.openstack.org/reno/latest/user/usage.html). With each PR
-should come a new releasenotes created with `reno` (unless your change doesn't
-have a single user impact and should not be mentioned in the CHANGELOG, very
-unlikely !).
+[tool](https://docs.openstack.org/reno/latest/user/usage.html).
+
+Each PR should include a `releasenotes` file created with `reno`, unless the PR doesn't
+have any impact on the behavior of the Agent and therefore shouldn't be mentioned in the
+CHANGELOG (examples: repository documentation updates, changes in code comments). PRs that
+don't require a release note file will be labeled `changelog/no-changelog` by maintainers.
 
 To install reno: `pip install reno`
 

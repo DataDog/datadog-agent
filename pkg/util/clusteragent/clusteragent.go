@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package clusteragent
 
@@ -48,6 +48,7 @@ type DCAClientInterface interface {
 
 	GetVersion() (version.Version, error)
 	GetNodeLabels(nodeName string) (map[string]string, error)
+	GetNamespaceLabels(nsName string) (map[string]string, error)
 	GetPodsMetadataForNode(nodeName string) (apiv1.NamespacesPodsStringsSet, error)
 	GetKubernetesMetadataNames(nodeName, ns, podName string) ([]string, error)
 	GetCFAppsMetadataForNode(nodename string) (map[string][]string, error)
@@ -246,6 +247,39 @@ func (c *DCAClient) GetNodeLabels(nodeName string) (map[string]string, error) {
 
 	// https://host:port/api/v1/tags/node/{nodeName}
 	rawURL := fmt.Sprintf("%s/%s/%s", c.clusterAgentAPIEndpoint, dcaNodeMeta, nodeName)
+
+	req, err := http.NewRequest("GET", rawURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header = c.clusterAgentAPIRequestHeaders
+
+	resp, err := c.clusterAgentAPIClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code from cluster agent: %d", resp.StatusCode)
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(body, &labels)
+	return labels, err
+}
+
+// GetNamespaceLabels returns the namespace labels from the Cluster Agent.
+func (c *DCAClient) GetNamespaceLabels(nsName string) (map[string]string, error) {
+	const dcaNamespaceMeta = "api/v1/tags/namespace"
+	var err error
+	var labels map[string]string
+
+	// https://host:port/api/v1/tags/namespace/{nsName}
+	rawURL := fmt.Sprintf("%s/%s/%s", c.clusterAgentAPIEndpoint, dcaNamespaceMeta, nsName)
 
 	req, err := http.NewRequest("GET", rawURL, nil)
 	if err != nil {

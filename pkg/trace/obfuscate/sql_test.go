@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package obfuscate
 
@@ -1235,6 +1235,7 @@ func BenchmarkObfuscateSQLString(b *testing.B) {
 	}
 
 	b.Run("random", func(b *testing.B) {
+		b.ReportAllocs()
 		var j uint64
 		for i := 0; i < b.N; i++ {
 			_, err := obf.ObfuscateSQLString(fmt.Sprintf("SELECT * FROM users WHERE id=%d", atomic.AddUint64(&j, 1)))

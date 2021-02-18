@@ -1,7 +1,7 @@
 import random
 import unittest
 
-import release
+from . import release
 
 
 class TestIsHigherMethod(unittest.TestCase):

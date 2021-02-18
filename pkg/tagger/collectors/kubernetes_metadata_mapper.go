@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubeapiserver,kubelet
 
@@ -16,7 +16,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/hashicorp/golang-lru/simplelru"
 )
+
+// maxNamespacesInLRU limits the number of entries in the LRU cache for namespace labels on tags fetch
+const maxNamespacesInLRU = 100
 
 func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 	var err error
@@ -37,6 +41,13 @@ func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 	var tagInfo []*TagInfo
 	var metadataNames []string
 	var tag []string
+
+	lruNamespaceTags, err := simplelru.NewLRU(maxNamespacesInLRU, nil)
+	if err != nil {
+		log.Debugf("Failed to create LRU for namespace tags: %v", err)
+		return nil
+	}
+
 	for _, po := range pods {
 		if kubelet.IsPodReady(po) == false {
 			log.Debugf("pod %q is not ready, skipping", po.Metadata.Name)
@@ -63,7 +74,15 @@ func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 			continue
 		}
 
-		tagList := utils.NewTagList()
+		var tagList *utils.TagList
+		if c.hasNamespaceLabelsAsTags() {
+			tagList = c.namespaceTagsFromLRU(lruNamespaceTags, po.Metadata.Namespace)
+		}
+
+		if tagList == nil {
+			tagList = utils.NewTagList()
+		}
+
 		metadataNames, err = c.getMetadaNames(apiserver.GetPodMetadataNames, metadataByNsPods, po)
 		if err != nil {
 			log.Errorf("Could not fetch tags, %v", err)
@@ -115,6 +134,20 @@ func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 	return tagInfo
 }
 
+func (c *KubeMetadataCollector) namespaceTagsFromLRU(lru *simplelru.LRU, ns string) *utils.TagList {
+	var tagList *utils.TagList
+	if v, ok := lru.Get(ns); ok {
+		tagList = v.(*utils.TagList)
+	} else {
+		tagList = c.getNamespaceTags(apiserver.GetNamespaceLabels, ns)
+		lru.Add(ns, tagList)
+	}
+	if tagList != nil {
+		tagList = tagList.Copy()
+	}
+	return tagList
+}
+
 func (c *KubeMetadataCollector) getMetadaNames(getPodMetaDataFromAPIServerFunc func(string, string, string) ([]string, error), metadataByNsPods apiv1.NamespacesPodsStringsSet, po *kubelet.Pod) ([]string, error) {
 	if !c.isClusterAgentEnabled() {
 		metadataNames, err := getPodMetaDataFromAPIServerFunc(po.Spec.NodeName, po.Metadata.Namespace, po.Metadata.Name)
@@ -136,6 +169,27 @@ func (c *KubeMetadataCollector) getMetadaNames(getPodMetaDataFromAPIServerFunc f
 		err = fmt.Errorf("Could not pull the metadata map of pod %s on node %s, %v", po.Metadata.Name, po.Spec.NodeName, err)
 	}
 	return metadataNames, err
+}
+
+func (c *KubeMetadataCollector) getNamespaceTags(getNamespaceLabelsFromAPIServerFunc func(string) (map[string]string, error), ns string) *utils.TagList {
+	if !c.hasNamespaceLabelsAsTags() {
+		return nil
+	}
+
+	if c.isClusterAgentEnabled() {
+		getNamespaceLabelsFromAPIServerFunc = c.dcaClient.GetNamespaceLabels
+	}
+	labels, err := getNamespaceLabelsFromAPIServerFunc(ns)
+	if err != nil {
+		_ = log.Warnf("Could not fetch labels for namespace: %s, %v", ns, err)
+		return nil
+	}
+
+	tags := utils.NewTagList()
+	for name, value := range labels {
+		utils.AddMetadataAsTags(name, value, c.namespaceLabelsAsTags, c.globNamespaceLabels, tags)
+	}
+	return tags
 }
 
 // addToCacheMetadataMapping is acting like the DCA at the node level.

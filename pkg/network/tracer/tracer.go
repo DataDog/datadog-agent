@@ -2,6 +2,10 @@
 
 package tracer
 
+/*
+#include "../ebpf/c/tracer.h"
+*/
+import "C"
 import (
 	"expvar"
 	"fmt"
@@ -20,6 +24,7 @@ import (
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -45,9 +50,7 @@ type Tracer struct {
 
 	config *config.Config
 
-	state          network.State
-	portMapping    *network.PortMapping
-	udpPortMapping *network.PortMapping
+	state network.State
 
 	conntracker netlink.Conntracker
 
@@ -55,11 +58,12 @@ type Tracer struct {
 
 	httpMonitor *http.Monitor
 
-	perfMap      *manager.PerfMap
-	perfHandler  *ddebpf.PerfHandler
-	batchManager *PerfBatchManager
-	flushIdle    chan chan struct{}
-	stop         chan struct{}
+	perfMap       *manager.PerfMap
+	perfHandler   *ddebpf.PerfHandler
+	batchManager  *PerfBatchManager
+	flushIdle     chan chan struct{}
+	stop          chan struct{}
+	runtimeTracer bool
 
 	// Telemetry
 	perfReceived  int64
@@ -115,8 +119,23 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		log.Infof("detected platform %s, switch to use kprobes from kernel version < 4.1.0", currKernelVersion)
 	}
 
+	runtimeTracer := false
+	var buf bytecode.AssetReader
+	if config.EnableRuntimeCompiler {
+		buf, err = getRuntimeCompiledTracer(config)
+		if err != nil {
+			if !config.AllowPrecompiledFallback {
+				return nil, fmt.Errorf("error compiling network tracer: %s", err)
+			}
+			log.Warnf("error compiling network tracer, falling back to pre-compiled: %s", err)
+		} else {
+			runtimeTracer = true
+			defer buf.Close()
+		}
+	}
+
 	// Use the config to determine what kernel probes should be enabled
-	enabledProbes, err := config.EnabledProbes(pre410Kernel)
+	enabledProbes, err := config.EnabledProbes(runtimeTracer)
 	if err != nil {
 		return nil, fmt.Errorf("invalid probe configuration: %v", err)
 	}
@@ -148,19 +167,6 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 			string(probes.UdpPortBindingsMap): {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.HttpInFlightMap):    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 		},
-	}
-
-	var buf bytecode.AssetReader
-	if config.EnableRuntimeCompiler {
-		buf, err = getRuntimeCompiledTracer(config)
-		if err != nil {
-			if !config.AllowPrecompiledFallback {
-				return nil, fmt.Errorf("error compiling network tracer: %s", err)
-			}
-			log.Warnf("error compiling network tracer, falling back to pre-compiled: %s", err)
-		} else {
-			defer buf.Close()
-		}
 	}
 
 	if buf == nil {
@@ -195,7 +201,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	}
 	perfHandlerTCP := ddebpf.NewPerfHandler(closedChannelSize)
 	perfHandlerHTTP := ddebpf.NewPerfHandler(closedChannelSize)
-	m := netebpf.NewManager(perfHandlerTCP, perfHandlerHTTP)
+	m := netebpf.NewManager(perfHandlerTCP, perfHandlerHTTP, runtimeTracer)
 
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
 	for _, p := range m.Probes {
@@ -221,14 +227,10 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error enabling DNS traffic inspection: %s", err)
 	}
-	portMapping := network.NewPortMapping(config.ProcRoot, config.CollectTCPConns, config.CollectIPv6Conns)
-	udpPortMapping := network.NewPortMapping(config.ProcRoot, config.CollectTCPConns, config.CollectIPv6Conns)
-	if err := portMapping.ReadInitialState(); err != nil {
-		return nil, fmt.Errorf("failed to read initial TCP pid->port mapping: %s", err)
-	}
 
-	if err := udpPortMapping.ReadInitialUDPState(); err != nil {
-		return nil, fmt.Errorf("failed to read initial UDP pid->port mapping: %s", err)
+	err = initializePortBindingMaps(config, m)
+	if err != nil {
+		return nil, fmt.Errorf("error initializing port binding maps: %s", err)
 	}
 
 	conntracker := netlink.NewNoOpConntracker()
@@ -253,8 +255,6 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		m:              m,
 		config:         config,
 		state:          state,
-		portMapping:    portMapping,
-		udpPortMapping: udpPortMapping,
 		reverseDNS:     reverseDNS,
 		httpMonitor:    newHTTPMonitor(!pre410Kernel, config, m, perfHandlerHTTP),
 		buffer:         make([]network.ConnectionStats, 0, 512),
@@ -265,6 +265,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		flushIdle:      make(chan chan struct{}),
 		stop:           make(chan struct{}),
 		buf:            make([]byte, network.ConnectionByteKeyMaxLen),
+		runtimeTracer:  runtimeTracer,
 	}
 
 	tr.perfMap, tr.batchManager, err = tr.initPerfPolling(perfHandlerTCP)
@@ -283,6 +284,46 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	go tr.expvarStats()
 
 	return tr, nil
+}
+
+func initializePortBindingMaps(config *config.Config, m *manager.Manager) error {
+	if tcpPorts, err := network.ReadInitialState(config.ProcRoot, network.TCP, config.CollectIPv6Conns); err != nil {
+		return fmt.Errorf("failed to read initial TCP pid->port mapping: %s", err)
+	} else {
+		tcpPortMap, _, err := m.GetMap(string(probes.PortBindingsMap))
+		if err != nil {
+			return fmt.Errorf("failed to get TCP port binding map: %w", err)
+		}
+		for p := range tcpPorts {
+			log.Debugf("adding initial TCP port binding: netns: %d port: %d", p.Ino, p.Port)
+			pb := portBindingTuple{net_ns: C.__u32(p.Ino), port: C.__u16(p.Port)}
+			state := uint8(C.PORT_LISTENING)
+			err = tcpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&state), ebpf.UpdateNoExist)
+			if err != nil {
+				return fmt.Errorf("failed to update TCP port binding map: %w", err)
+			}
+		}
+	}
+
+	if udpPorts, err := network.ReadInitialState(config.ProcRoot, network.UDP, config.CollectIPv6Conns); err != nil {
+		return fmt.Errorf("failed to read initial UDP pid->port mapping: %s", err)
+	} else {
+		udpPortMap, _, err := m.GetMap(string(probes.UdpPortBindingsMap))
+		if err != nil {
+			return fmt.Errorf("failed to get UDP port binding map: %w", err)
+		}
+		for p := range udpPorts {
+			log.Debugf("adding initial UDP port binding: netns: %d port: %d", p.Ino, p.Port)
+			// UDP port bindings currently do not have network namespace numbers
+			pb := portBindingTuple{net_ns: 0, port: C.__u16(p.Port)}
+			state := uint8(C.PORT_LISTENING)
+			err = udpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&state), ebpf.UpdateNoExist)
+			if err != nil {
+				return fmt.Errorf("failed to update UDP port binding map: %w", err)
+			}
+		}
+	}
+	return nil
 }
 
 func newReverseDNS(cfg *config.Config, m *manager.Manager, pre410Kernel bool) (network.ReverseDNS, error) {
@@ -405,7 +446,7 @@ func (t *Tracer) initPerfPolling(perf *ddebpf.PerfHandler) (*manager.PerfMap, *P
 	connCloseEventMap, _ := t.getMap(probes.ConnCloseEventMap)
 	connCloseMap, _ := t.getMap(probes.ConnCloseBatchMap)
 	numCPUs := int(connCloseEventMap.ABI().MaxEntries)
-	batchManager, err := NewPerfBatchManager(connCloseMap, 30*time.Second, numCPUs)
+	batchManager, err := NewPerfBatchManager(connCloseMap, numCPUs)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -425,8 +466,8 @@ func (t *Tracer) initPerfPolling(perf *ddebpf.PerfHandler) (*manager.PerfMap, *P
 				}
 				atomic.AddInt64(&t.perfReceived, 1)
 
-				batch := toBatch(batchData)
-				conns := t.batchManager.Extract(batch, time.Now())
+				batch := toBatch(batchData.Data)
+				conns := t.batchManager.Extract(batch, batchData.CPU)
 				for _, c := range conns {
 					t.storeClosedConn(&c)
 				}
@@ -439,7 +480,7 @@ func (t *Tracer) initPerfPolling(perf *ddebpf.PerfHandler) (*manager.PerfMap, *P
 				if !ok {
 					return
 				}
-				idleConns := t.batchManager.GetIdleConns(time.Now())
+				idleConns := t.batchManager.GetIdleConns()
 				for _, c := range idleConns {
 					t.storeClosedConn(&c)
 				}
@@ -472,7 +513,6 @@ func (t *Tracer) shouldSkipConnection(conn *network.ConnectionStats) bool {
 }
 
 func (t *Tracer) storeClosedConn(cs *network.ConnectionStats) {
-	cs.Direction = t.determineConnectionDirection(cs)
 	if t.shouldSkipConnection(cs) {
 		atomic.AddInt64(&t.skippedConns, 1)
 		return
@@ -500,6 +540,7 @@ func (t *Tracer) Stop() {
 func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, error) {
 	t.bufferLock.Lock()
 	defer t.bufferLock.Unlock()
+	log.Tracef("GetActiveConnections clientID=%s", clientID)
 
 	latestConns, latestTime, err := t.getConnections(t.buffer[:0])
 	if err != nil {
@@ -574,16 +615,6 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 		return nil, 0, fmt.Errorf("error retrieving the bpf %s map: %s", probes.TcpStatsMap, err)
 	}
 
-	portMp, err := t.getMap(probes.PortBindingsMap)
-	if err != nil {
-		return nil, 0, fmt.Errorf("error retrieving the bpf %s map: %s", probes.PortBindingsMap, err)
-	}
-
-	udpPortMp, err := t.getMap(probes.UdpPortBindingsMap)
-	if err != nil {
-		return nil, 0, fmt.Errorf("error retrieving the bpf %s map: %s", probes.UdpPortBindingsMap, err)
-	}
-
 	latestTime, ok, err := t.getLatestTimestamp()
 	if err != nil {
 		return nil, 0, fmt.Errorf("error retrieving latest timestamp: %s", err)
@@ -591,16 +622,6 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 
 	if !ok { // if no timestamps have been captured, there can be no packets
 		return nil, 0, nil
-	}
-
-	closedPortBindings, err := t.populatePortMapping(portMp, t.portMapping)
-	if err != nil {
-		return nil, 0, fmt.Errorf("error populating port mapping: %s", err)
-	}
-
-	closedUDPPortBindings, err := t.populatePortMapping(udpPortMp, t.udpPortMapping)
-	if err != nil {
-		return nil, 0, fmt.Errorf("error populating UDP port mapping: %s", err)
 	}
 
 	cachedConntrack := newCachedConntrack(t.config.ProcRoot, netlink.NewConntrack, 128)
@@ -612,12 +633,7 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 	var expired []*ConnTuple
 	entries := mp.IterateFrom(unsafe.Pointer(&ConnTuple{}))
 	for entries.Next(unsafe.Pointer(key), unsafe.Pointer(stats)) {
-
-		// expiry is handled differently for UDP and TCP. For TCP where conntrack TTL is very long, we use a short expiry for userspace tracking
-		// but use conntrack as a source of truth to keep long lived idle TCP conns in the userspace state, while evicting closed TCP connections.
-		// for UDP, the conntrack TTL is lower (two minutes), so the userspace and conntrack expiry are synced to avoid touching conntrack for
-		// UDP expiries
-		if stats.isExpired(latestTime, t.timeoutForConn(key)) && (key.isUDP() || !t.conntrackExists(cachedConntrack, key)) {
+		if t.connectionExpired(key, latestTime, stats, cachedConntrack) {
 			expired = append(expired, key.copy())
 			if key.isTCP() {
 				atomic.AddInt64(&t.expiredTCPConns, 1)
@@ -625,8 +641,6 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 			atomic.AddInt64(&t.closedConns, 1)
 		} else {
 			conn := connStats(key, stats, t.getTCPStats(tcpMp, key, seen))
-			conn.Direction = t.determineConnectionDirection(&conn)
-
 			if t.shouldSkipConnection(&conn) {
 				atomic.AddInt64(&t.skippedConns, 1)
 			} else {
@@ -646,18 +660,6 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 
 	// check for expired clients in the state
 	t.state.RemoveExpiredClients(time.Now())
-
-	for _, key := range closedPortBindings {
-		port := uint16(key.port)
-		t.portMapping.RemoveMapping(uint64(key.net_ns), port)
-		_ = portMp.Delete(unsafe.Pointer(&key))
-	}
-
-	for _, key := range closedUDPPortBindings {
-		port := uint16(key.port)
-		t.udpPortMapping.RemoveMapping(uint64(key.net_ns), port)
-		_ = udpPortMp.Delete(unsafe.Pointer(&key))
-	}
 
 	// Get the latest time a second time because it could have changed while we were reading the eBPF map
 	latestTime, _, err = t.getLatestTimestamp()
@@ -707,7 +709,7 @@ func (t *Tracer) removeEntries(mp, tcpMp *ebpf.Map, entries []*ConnTuple) {
 
 	t.state.RemoveConnections(keys)
 
-	log.Debugf("Removed %d entries in %s", len(keys), time.Now().Sub(now))
+	log.Debugf("Removed %d connection entries in %s", len(keys), time.Now().Sub(now))
 }
 
 // getTCPStats reads tcp related stats for the given ConnTuple
@@ -857,40 +859,6 @@ func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 	return &network.Connections{Conns: latestConns}, nil
 }
 
-// populatePortMapping reads an entire portBinding bpf map and populates the userspace  port map.  A list of
-// closed ports will be returned.
-// the map will be one of port_bindings  or udp_port_bindings, and the mapping will be one of tracer#portMapping
-// tracer#udpPortMapping respectively.
-func (t *Tracer) populatePortMapping(mp *ebpf.Map, mapping *network.PortMapping) (closed []portBindingTuple, err error) {
-	var key, emptyKey portBindingTuple
-	var state uint8
-
-	entries := mp.IterateFrom(unsafe.Pointer(&emptyKey))
-	for entries.Next(unsafe.Pointer(&key), unsafe.Pointer(&state)) {
-		log.Tracef("port mapping added port=%d net_ns=%d", key.port, key.net_ns)
-		mapping.AddMapping(uint64(key.net_ns), uint16(key.port))
-		if isPortClosed(state) {
-			log.Tracef("port mapping closed port=%d net_ns=%d", key.port, key.net_ns)
-			closed = append(closed, key)
-		}
-	}
-
-	return closed, nil
-}
-
-func (t *Tracer) determineConnectionDirection(conn *network.ConnectionStats) network.ConnectionDirection {
-	pm := t.portMapping
-	netNs := uint64(conn.NetNS)
-	if conn.Type == network.UDP {
-		pm = t.udpPortMapping
-		netNs = 0 // namespace is always 0 for udp since we can't get namespace info from ebpf
-	}
-	if pm.IsListening(netNs, conn.SPort) {
-		return network.INCOMING
-	}
-	return network.OUTGOING
-}
-
 func (t *Tracer) getProbeProgramIDs() (map[string]uint32, error) {
 	fds := make(map[string]uint32, 0)
 	for _, p := range t.m.Probes {
@@ -911,13 +879,29 @@ func (t *Tracer) getProbeProgramIDs() (map[string]uint32, error) {
 	return fds, nil
 }
 
-func (t *Tracer) conntrackExists(ctr *cachedConntrack, conn *ConnTuple) bool {
-	ok, err := ctr.Exists(conn)
-	if err != nil {
-		log.Errorf("error checking conntrack for connection %+v", *conn)
+// connectionExpired returns true if the passed in connection has expired
+//
+// expiry is handled differently for UDP and TCP. For TCP where conntrack TTL is very long, we use a short expiry for userspace tracking
+// but use conntrack as a source of truth to keep long lived idle TCP conns in the userspace state, while evicting closed TCP connections.
+// for UDP, the conntrack TTL is lower (two minutes), so the userspace and conntrack expiry are synced to avoid touching conntrack for
+// UDP expiries
+func (t *Tracer) connectionExpired(conn *ConnTuple, latestTime uint64, stats *ConnStatsWithTimestamp, ctr *cachedConntrack) bool {
+	if !stats.isExpired(latestTime, t.timeoutForConn(conn)) {
+		return false
 	}
 
-	return ok
+	// skip connection check for udp connections or if
+	// the pid for the connection is dead
+	if conn.isUDP() || !procutil.PidExists(int(conn.Pid())) {
+		return true
+	}
+
+	ok, err := ctr.Exists(conn)
+	if err != nil {
+		log.Warnf("error checking conntrack for connection %s: %s", *conn, err)
+	}
+
+	return !ok
 }
 
 func newHTTPMonitor(supported bool, c *config.Config, m *manager.Manager, h *ddebpf.PerfHandler) *http.Monitor {

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build linux
 
@@ -62,12 +62,12 @@ func AllMaps() []*manager.Map {
 		{Name: "inode_discarders"},
 		{Name: "pid_discarders"},
 		{Name: "discarder_revisions"},
+		{Name: "basename_approvers"},
 		// Dentry resolver table
 		{Name: "pathnames"},
 		// Snapshot table
 		{Name: "inode_info_cache"},
 		// Open tables
-		{Name: "open_basename_approvers"},
 		{Name: "open_flags_approvers"},
 		// Exec tables
 		{Name: "proc_cache"},

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build linux
 
@@ -57,6 +57,48 @@ func (caps Capabilities) GetFieldCapabilities() rules.FieldCapabilities {
 	return fcs
 }
 
+func oneBasenameCapabilities(event string) Capabilities {
+	return Capabilities{
+		event + ".filename": {
+			PolicyFlags:     PolicyFlagBasename,
+			FieldValueTypes: eval.ScalarValueType,
+		},
+		event + ".basename": {
+			PolicyFlags:     PolicyFlagBasename,
+			FieldValueTypes: eval.ScalarValueType,
+		},
+	}
+}
+
+func twoBasenameCapabilities(event string, field1, field2 string) Capabilities {
+	return Capabilities{
+		event + "." + field1 + ".filename": {
+			PolicyFlags:     PolicyFlagBasename,
+			FieldValueTypes: eval.ScalarValueType,
+		},
+		event + "." + field1 + ".basename": {
+			PolicyFlags:     PolicyFlagBasename,
+			FieldValueTypes: eval.ScalarValueType,
+		},
+		event + "." + field2 + ".filename": {
+			PolicyFlags:     PolicyFlagBasename,
+			FieldValueTypes: eval.ScalarValueType,
+		},
+		event + "." + field2 + ".basename": {
+			PolicyFlags:     PolicyFlagBasename,
+			FieldValueTypes: eval.ScalarValueType,
+		},
+	}
+}
+
 func init() {
+	allCapabilities["chmod"] = oneBasenameCapabilities("chmod")
+	allCapabilities["chown"] = oneBasenameCapabilities("chown")
+	allCapabilities["link"] = twoBasenameCapabilities("link", "source", "target")
+	allCapabilities["mkdir"] = oneBasenameCapabilities("mkdir")
 	allCapabilities["open"] = openCapabilities
+	allCapabilities["rename"] = twoBasenameCapabilities("rename", "old", "new")
+	allCapabilities["rmdir"] = oneBasenameCapabilities("rmdir")
+	allCapabilities["unlink"] = oneBasenameCapabilities("unlink")
+	allCapabilities["utimes"] = oneBasenameCapabilities("utimes")
 }

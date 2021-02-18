@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package message
 
@@ -47,12 +47,13 @@ func NewMessage(content []byte, origin *Origin, status string, ingestionTimestam
 }
 
 // NewMessageFromLambda construts a message with content, status, origin and with the given timestamp and Lambda metadata
-func NewMessageFromLambda(content []byte, origin *Origin, status string, utcTime time.Time, ARN, reqID string) *Message {
+func NewMessageFromLambda(content []byte, origin *Origin, status string, utcTime time.Time, ARN, reqID string, ingestionTimestamp int64) *Message {
 	return &Message{
-		Content:   content,
-		Origin:    origin,
-		status:    status,
-		Timestamp: utcTime,
+		Content:            content,
+		Origin:             origin,
+		status:             status,
+		IngestionTimestamp: ingestionTimestamp,
+		Timestamp:          utcTime,
 		Lambda: &Lambda{
 			ARN:       ARN,
 			RequestID: reqID,
