@@ -644,6 +644,7 @@
     <WixVariable Id="WixUIDialogBmp" Value="Resources\assets\dialog_background.bmp" />
     <WixVariable Id="WixUIBannerBmp" Value="Resources\assets\banner_background.bmp" />
 
+    <!-- Properties must each be on their own line and end with a semicolon ; -->
     <CustomAction Id='SetFinalizeProperty' Return='check' Property='FinalizeInstall'
         Value='
             PROJECTLOCATION=[PROJECTLOCATION];
