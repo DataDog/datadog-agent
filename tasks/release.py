@@ -170,7 +170,7 @@ def update_dca_changelog(ctx, new_version, agent_version):
 
     # commit new CHANGELOG
     ctx.run("git add CHANGELOG-DCA.rst")
-    
+
     print("\nCommit this with:")
     print("git commit -m \"[DCA] Update CHANGELOG for {}\"".format(new_version))
 
@@ -250,12 +250,10 @@ def update_changelog(ctx, new_version):
     ctx.run("cat CHANGELOG.rst >> /tmp/new_changelog.rst && mv /tmp/new_changelog.rst CHANGELOG.rst")
 
     # commit new CHANGELOG
-    ctx.run(
-        "git add CHANGELOG.rst \
-            && git commit -m \"Update CHANGELOG for {}\"".format(
-            new_version
-        )
-    )
+    ctx.run("git add CHANGELOG.rst")
+
+    print("\nCommit this with:")
+    print("git commit -m \"[DCA] Update CHANGELOG for {}\"".format(new_version))
 
 
 @task
@@ -321,12 +319,10 @@ def update_installscript_changelog(ctx, new_version):
     )
 
     # commit new CHANGELOG-INSTALLSCRIPT
-    ctx.run(
-        "git add CHANGELOG-INSTALLSCRIPT.rst \
-            && git commit -m \"[INSTALLSCRIPT] Update CHANGELOG-INSTALLSCRIPT for {}\"".format(
-            new_version
-        )
-    )
+    ctx.run("git add CHANGELOG-INSTALLSCRIPT.rst")
+
+    print("\nCommit this with:")
+    print("git commit -m \"[INSTALLSCRIPT] Update CHANGELOG-INSTALLSCRIPT for {}\"".format(new_version))
 
 
 @task
