@@ -12,10 +12,12 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+// Disk gets information about the disk
 type Disk struct {
 	procGetDiskFreeSpaceExW *windows.LazyProc
 }
 
+// NewDisk creates a new instance of Disk
 func NewDisk() Disk {
 	modkernel32 := windows.NewLazyDLL("kernel32.dll")
 	return Disk{
@@ -23,6 +25,7 @@ func NewDisk() Disk {
 	}
 }
 
+// GetUsage gets the disk usage
 func (d Disk) GetUsage(path string) (*DiskUsage, error) {
 	free := uint64(0)
 	total := uint64(0)

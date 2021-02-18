@@ -5,6 +5,7 @@
 
 package filesystem
 
+// DiskUsage is the disk usage
 type DiskUsage struct {
 	Total     uint64
 	Available uint64

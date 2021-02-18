@@ -8,12 +8,15 @@ package filesystem
 
 import "github.com/shirou/gopsutil/disk"
 
+// Disk gets information about the disk
 type Disk struct{}
 
+// NewDisk creates a new instance of Disk
 func NewDisk() Disk {
 	return Disk{}
 }
 
+// GetUsage gets the disk usage
 func (Disk) GetUsage(path string) (*DiskUsage, error) {
 	usage, err := disk.Usage(path)
 	if err != nil {
