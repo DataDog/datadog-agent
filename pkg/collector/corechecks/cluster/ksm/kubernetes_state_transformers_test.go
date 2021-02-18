@@ -1452,3 +1452,361 @@ func Test_validateJob(t *testing.T) {
 		})
 	}
 }
+
+func Test_containerResourceRequestsTransformer(t *testing.T) {
+	tests := []struct {
+		name     string
+		args     args
+		expected *metricsExpected
+	}{
+		{
+			name: "memory",
+			args: args{
+				name: "kube_pod_container_resource_requests",
+				metric: ksmstore.DDMetric{
+					Val: 50000000,
+					Labels: map[string]string{
+						"resource": "memory",
+						"unit":     "byte",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.container.memory_requested",
+				val:      50000000,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
+			name: "cpu",
+			args: args{
+				name: "kube_pod_container_resource_requests",
+				metric: ksmstore.DDMetric{
+					Val: 2,
+					Labels: map[string]string{
+						"resource": "cpu",
+						"unit":     "core",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.container.cpu_requested",
+				val:      2,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
+			name: "no resource label",
+			args: args{
+				name: "kube_pod_container_resource_requests",
+				metric: ksmstore.DDMetric{
+					Val: 2,
+					Labels: map[string]string{
+						"resource": "cpu",
+						"unit":     "core",
+					},
+				},
+				tags: []string{"foo:bar"},
+			},
+			expected: nil,
+		},
+	}
+	for _, tt := range tests {
+		s := mocksender.NewMockSender("ksm")
+		s.SetupAcceptAll()
+		t.Run(tt.name, func(t *testing.T) {
+			containerResourceRequestsTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags)
+			if tt.expected != nil {
+				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.expected.tags)
+				s.AssertNumberOfCalls(t, "Gauge", 1)
+			} else {
+				s.AssertNotCalled(t, "Gauge")
+			}
+		})
+	}
+}
+
+func Test_containerResourceLimitsTransformer(t *testing.T) {
+	tests := []struct {
+		name     string
+		args     args
+		expected *metricsExpected
+	}{
+		{
+			name: "memory",
+			args: args{
+				name: "kube_pod_container_resource_limits",
+				metric: ksmstore.DDMetric{
+					Val: 50000000,
+					Labels: map[string]string{
+						"resource": "memory",
+						"unit":     "byte",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.container.memory_limit",
+				val:      50000000,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
+			name: "cpu",
+			args: args{
+				name: "kube_pod_container_resource_limits",
+				metric: ksmstore.DDMetric{
+					Val: 2,
+					Labels: map[string]string{
+						"resource": "cpu",
+						"unit":     "core",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.container.cpu_limit",
+				val:      2,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
+			name: "no resource label",
+			args: args{
+				name: "kube_pod_container_resource_limits",
+				metric: ksmstore.DDMetric{
+					Val: 2,
+					Labels: map[string]string{
+						"resource": "cpu",
+						"unit":     "core",
+					},
+				},
+				tags: []string{"foo:bar"},
+			},
+			expected: nil,
+		},
+	}
+	for _, tt := range tests {
+		s := mocksender.NewMockSender("ksm")
+		s.SetupAcceptAll()
+		t.Run(tt.name, func(t *testing.T) {
+			containerResourceLimitsTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags)
+			if tt.expected != nil {
+				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.expected.tags)
+				s.AssertNumberOfCalls(t, "Gauge", 1)
+			} else {
+				s.AssertNotCalled(t, "Gauge")
+			}
+		})
+	}
+}
+
+func Test_nodeAllocatableTransformer(t *testing.T) {
+	tests := []struct {
+		name     string
+		args     args
+		expected *metricsExpected
+	}{
+		{
+			name: "memory",
+			args: args{
+				name: "kube_node_status_allocatable",
+				metric: ksmstore.DDMetric{
+					Val: 50000000,
+					Labels: map[string]string{
+						"resource": "memory",
+						"unit":     "byte",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.node.memory_allocatable",
+				val:      50000000,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
+			name: "cpu",
+			args: args{
+				name: "kube_node_status_allocatable",
+				metric: ksmstore.DDMetric{
+					Val: 4,
+					Labels: map[string]string{
+						"resource": "cpu",
+						"unit":     "core",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.node.cpu_allocatable",
+				val:      4,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
+			name: "pods",
+			args: args{
+				name: "kube_node_status_allocatable",
+				metric: ksmstore.DDMetric{
+					Val: 100,
+					Labels: map[string]string{
+						"resource": "pods",
+						"unit":     "integer",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.node.pods_allocatable",
+				val:      100,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
+			name: "no resource label",
+			args: args{
+				name: "kube_node_status_allocatable",
+				metric: ksmstore.DDMetric{
+					Val: 4,
+					Labels: map[string]string{
+						"resource": "cpu",
+						"unit":     "core",
+					},
+				},
+				tags: []string{"foo:bar"},
+			},
+			expected: nil,
+		},
+	}
+	for _, tt := range tests {
+		s := mocksender.NewMockSender("ksm")
+		s.SetupAcceptAll()
+		t.Run(tt.name, func(t *testing.T) {
+			nodeAllocatableTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags)
+			if tt.expected != nil {
+				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.expected.tags)
+				s.AssertNumberOfCalls(t, "Gauge", 1)
+			} else {
+				s.AssertNotCalled(t, "Gauge")
+			}
+		})
+	}
+}
+
+func Test_nodeCapacityTransformer(t *testing.T) {
+	tests := []struct {
+		name     string
+		args     args
+		expected *metricsExpected
+	}{
+		{
+			name: "memory",
+			args: args{
+				name: "kube_node_status_capacity",
+				metric: ksmstore.DDMetric{
+					Val: 50000000,
+					Labels: map[string]string{
+						"resource": "memory",
+						"unit":     "byte",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.node.memory_capacity",
+				val:      50000000,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
+			name: "cpu",
+			args: args{
+				name: "kube_node_status_capacity",
+				metric: ksmstore.DDMetric{
+					Val: 2,
+					Labels: map[string]string{
+						"resource": "cpu",
+						"unit":     "core",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.node.cpu_capacity",
+				val:      2,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
+			name: "pods",
+			args: args{
+				name: "kube_node_status_capacity",
+				metric: ksmstore.DDMetric{
+					Val: 100,
+					Labels: map[string]string{
+						"resource": "pods",
+						"unit":     "integer",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.node.pods_capacity",
+				val:      100,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
+			name: "no resource label",
+			args: args{
+				name: "kube_node_status_capacity",
+				metric: ksmstore.DDMetric{
+					Val: 4,
+					Labels: map[string]string{
+						"resource": "cpu",
+						"unit":     "core",
+					},
+				},
+				tags: []string{"foo:bar"},
+			},
+			expected: nil,
+		},
+	}
+	for _, tt := range tests {
+		s := mocksender.NewMockSender("ksm")
+		s.SetupAcceptAll()
+		t.Run(tt.name, func(t *testing.T) {
+			nodeCapacityTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags)
+			if tt.expected != nil {
+				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.expected.tags)
+				s.AssertNumberOfCalls(t, "Gauge", 1)
+			} else {
+				s.AssertNotCalled(t, "Gauge")
+			}
+		})
+	}
+}

@@ -31,6 +31,8 @@ var (
 		"kube_pod_status_phase":                       podPhaseTransformer,
 		"kube_pod_container_status_waiting_reason":    containerWaitingReasonTransformer,
 		"kube_pod_container_status_terminated_reason": containerTerminatedReasonTransformer,
+		"kube_pod_container_resource_requests":        containerResourceRequestsTransformer,
+		"kube_pod_container_resource_limits":          containerResourceLimitsTransformer,
 		"kube_cronjob_next_schedule_time":             cronJobNextScheduleTransformer,
 		"kube_cronjob_status_last_schedule_time":      cronJobLastScheduleTransformer,
 		"kube_job_complete":                           jobCompleteTransformer,
@@ -39,6 +41,8 @@ var (
 		"kube_job_status_succeeded":                   jobStatusSucceededTransformer,
 		"kube_node_status_condition":                  nodeConditionTransformer,
 		"kube_node_spec_unschedulable":                nodeUnschedulableTransformer,
+		"kube_node_status_allocatable":                nodeAllocatableTransformer,
+		"kube_node_status_capacity":                   nodeCapacityTransformer,
 		"kube_resourcequota":                          resourcequotaTransformer,
 		"kube_limitrange":                             limitrangeTransformer,
 		"kube_persistentvolume_status_phase":          pvPhaseTransformer,
@@ -175,6 +179,71 @@ func containerTerminatedReasonTransformer(s aggregator.Sender, name string, metr
 		if _, allowed := allowedTerminatedReasons[strings.ToLower(reason)]; allowed {
 			s.Gauge(ksmMetricPrefix+"container.status_report.count.terminated", metric.Val, hostname, tags)
 		}
+	}
+}
+
+// containerResourceRequestsTransformer transforms the generic ksm resource request metrics into resource-specific metrics
+func containerResourceRequestsTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
+	submitContainerResourceMetric(s, name, metric, hostname, tags, "requested")
+}
+
+// containerResourceLimitsTransformer transforms the generic ksm resource limit metrics into resource-specific metrics
+func containerResourceLimitsTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
+	submitContainerResourceMetric(s, name, metric, hostname, tags, "limit")
+}
+
+// submitContainerResourceMetric can be called by container resource metric transformers to submit resource-specific metrics
+// metricSuffix can be either requested or limit
+func submitContainerResourceMetric(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, metricSuffix string) {
+	resource, found := metric.Labels["resource"]
+	if !found {
+		log.Debugf("Couldn't find 'resource' label, ignoring resource metric '%s'", name)
+		return
+	}
+
+	switch resource {
+	case "cpu":
+		s.Gauge(ksmMetricPrefix+"container.cpu_"+metricSuffix, metric.Val, hostname, tags)
+		return
+	case "memory":
+		s.Gauge(ksmMetricPrefix+"container.memory_"+metricSuffix, metric.Val, hostname, tags)
+		return
+	default:
+		log.Tracef("Ignoring container resource metric '%s': resource '%s' is not supported", name, resource)
+	}
+}
+
+// nodeAllocatableTransformer transforms the generic ksm node allocatable metrics into resource-specific metrics
+func nodeAllocatableTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
+	submitNodeResourceMetric(s, name, metric, hostname, tags, "allocatable")
+}
+
+// nodeCapacityTransformer transforms the generic ksm node capacity metrics into resource-specific metrics
+func nodeCapacityTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
+	submitNodeResourceMetric(s, name, metric, hostname, tags, "capacity")
+}
+
+// submitNodeResourceMetric can be called by node resource metric transformers to submit resource-specific metrics
+// metricSuffix can be either allocatable or capacity
+func submitNodeResourceMetric(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, metricSuffix string) {
+	resource, found := metric.Labels["resource"]
+	if !found {
+		log.Debugf("Couldn't find 'resource' label, ignoring resource metric '%s'", name)
+		return
+	}
+
+	switch resource {
+	case "cpu":
+		s.Gauge(ksmMetricPrefix+"node.cpu_"+metricSuffix, metric.Val, hostname, tags)
+		return
+	case "memory":
+		s.Gauge(ksmMetricPrefix+"node.memory_"+metricSuffix, metric.Val, hostname, tags)
+		return
+	case "pods":
+		s.Gauge(ksmMetricPrefix+"node.pods_"+metricSuffix, metric.Val, hostname, tags)
+		return
+	default:
+		log.Tracef("Ignoring node resource metric '%s': resource '%s' is not supported", name, resource)
 	}
 }
 
