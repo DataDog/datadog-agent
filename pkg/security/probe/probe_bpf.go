@@ -335,7 +335,6 @@ func (p *Probe) invalidateDentry(mountID uint32, inode uint64, revision uint32) 
 		// Call a user space remove function to ensure the discarder will be removed.
 		p.removeDiscarderInode(mountID, inode)
 	}
-	_ = p.monitor.loadController.ResetForkCount(mountID, inode)
 }
 
 func (p *Probe) handleEvent(CPU uint64, data []byte) {
@@ -851,7 +850,7 @@ func processDiscarderWrapper(eventType EventType, fnc onDiscarderHandler) onDisc
 				return err
 			}
 
-			return probe.discardInode(eventType, event.Process.MountID, event.Process.Inode)
+			return probe.discardInode(eventType, event.Process.MountID, event.Process.Inode, true)
 		}
 
 		if fnc != nil {
@@ -890,7 +889,7 @@ func filenameDiscarderWrapper(eventType EventType, handler onDiscarderHandler, g
 					log.Tracef("Apply `%s.filename` inode discarder for event `%s`, inode: %d", eventType, eventType, inode)
 
 					// not able to discard the parent then only discard the filename
-					err = probe.discardInode(eventType, mountID, inode)
+					err = probe.discardInode(eventType, mountID, inode, true)
 				}
 			} else {
 				log.Tracef("Apply `%s.filename` parent inode discarder for event `%s` with value `%s`", eventType, eventType, filename)

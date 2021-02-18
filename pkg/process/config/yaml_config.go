@@ -414,7 +414,7 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		a.StatsdPort = config.Datadog.GetInt(k)
 	}
 
-	if bindHost := config.Datadog.GetString("bind_host"); bindHost != "" {
+	if bindHost := config.GetBindHost(); bindHost != "" {
 		a.StatsdHost = bindHost
 	}
 

@@ -15,17 +15,12 @@ const (
 	gomaxprocsKey = "GOMAXPROCS"
 )
 
-func init() {
+// SetMaxProcs sets the GOMAXPROCS for the go runtime to a sane value
+func SetMaxProcs() {
+
 	defer func() {
 		log.Infof("runtime: final GOMAXPROCS value is: %d", runtime.GOMAXPROCS(0))
 	}()
-
-	SetMaxProcs()
-
-}
-
-// SetMaxProcs sets the GOMAXPROCS for the go runtime to a sane value
-func SetMaxProcs() {
 
 	// This call will cause GOMAXPROCS to be set to the number of vCPUs allocated to the process
 	// if the process is running in a Linux environment (including when its running in a docker / K8s setup).

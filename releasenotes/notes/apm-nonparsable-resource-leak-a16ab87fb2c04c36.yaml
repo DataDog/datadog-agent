@@ -6,7 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-features:
+fixes:
   - |
-    Network Performance monitoring is now supported on Windows,
-    on Windows Server 2016 and above, and Windows 10.
+    APM: When SQL query obfuscation fails, the "sql.query" tag no longer contains the original query.

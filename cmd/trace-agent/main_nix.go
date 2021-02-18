@@ -11,6 +11,7 @@ import (
 	"context"
 	"flag"
 
+	"github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
@@ -18,6 +19,9 @@ import (
 // main is the main application entry point
 func main() {
 	ctx, cancelFunc := context.WithCancel(context.Background())
+
+	// prepare go runtime
+	runtime.SetMaxProcs()
 
 	// Handle stops properly
 	go func() {
