@@ -32,7 +32,8 @@ def add_prelude(ctx, version):
         )
 
     ctx.run("git add {}".format(new_releasenote))
-    ctx.run("git commit -m \"Add prelude for {} release\"".format(version))
+    print("\nCommit this with:")
+    print("git commit -m \"Add prelude for {} release\"".format(version))
 
 
 @task
@@ -59,7 +60,8 @@ def add_dca_prelude(ctx, version, agent7_version, agent6_version=""):
         )
 
     ctx.run("git add {}".format(new_releasenote))
-    ctx.run("git commit -m \"Add prelude for {} release\"".format(version))
+    print("\nCommit this with:")
+    print("git commit -m \"Add prelude for {} release\"".format(version))
 
 
 @task
@@ -77,7 +79,8 @@ def add_installscript_prelude(ctx, version):
         )
 
     ctx.run("git add {}".format(new_releasenote))
-    ctx.run("git commit -m \"Add prelude for {} release\"".format(version))
+    print("\nCommit this with:")
+    print("git commit -m \"Add prelude for {} release\"".format(version))
 
 
 @task
@@ -166,12 +169,10 @@ def update_dca_changelog(ctx, new_version, agent_version):
     ctx.run("cat CHANGELOG-DCA.rst >> /tmp/new_changelog-dca.rst && mv /tmp/new_changelog-dca.rst CHANGELOG-DCA.rst")
 
     # commit new CHANGELOG
-    ctx.run(
-        "git add CHANGELOG-DCA.rst \
-            && git commit -m \"[DCA] Update CHANGELOG for {}\"".format(
-            new_version
-        )
-    )
+    ctx.run("git add CHANGELOG-DCA.rst")
+    
+    print("\nCommit this with:")
+    print("git commit -m \"[DCA] Update CHANGELOG for {}\"".format(new_version))
 
 
 @task
