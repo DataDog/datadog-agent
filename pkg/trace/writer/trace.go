@@ -50,19 +50,21 @@ type TraceWriter struct {
 	// Channel should only be received from when testing.
 	In chan *SampledSpans
 
-	hostname  string
-	env       string
-	senders   []*sender
-	stop      chan struct{}
-	flushChan chan chan struct{}
-	stats     *info.TraceWriterInfo
-	wg        sync.WaitGroup // waits for gzippers
-	tick      time.Duration  // flush frequency
+	hostname string
+	env      string
+	senders  []*sender
+	stop     chan struct{}
+	stats    *info.TraceWriterInfo
+	wg       sync.WaitGroup // waits for gzippers
+	tick     time.Duration  // flush frequency
 
 	traces       []*pb.APITrace // traces buffered
 	events       []*pb.Span     // events buffered
 	bufferedSize int            // estimated buffer size
-	syncMode     bool           // when enabled, traces are only sent when Flush is called
+
+	// syncMode reports whether the writer should flush on its own or only when FlushSync is called
+	syncMode  bool
+	flushChan chan chan struct{}
 
 	easylog *logutil.ThrottledLogger
 }
@@ -70,7 +72,6 @@ type TraceWriter struct {
 // NewTraceWriter returns a new TraceWriter. It is created for the given agent configuration and
 // will accept incoming spans via the in channel.
 func NewTraceWriter(cfg *config.AgentConfig) *TraceWriter {
-
 	tw := &TraceWriter{
 		In:        make(chan *SampledSpans, 1000),
 		hostname:  cfg.Hostname,
@@ -112,7 +113,6 @@ func (w *TraceWriter) Stop() {
 	log.Debug("Exiting trace writer. Trying to flush whatever is left...")
 	w.stop <- struct{}{}
 	<-w.stop
-	w.wg.Wait()
 	stopSenders(w.senders)
 }
 

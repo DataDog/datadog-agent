@@ -37,17 +37,17 @@ const (
 
 // StatsWriter ingests stats buckets and flushes them to the API.
 type StatsWriter struct {
-	in        <-chan []stats.Bucket
-	hostname  string
-	env       string
-	senders   []*sender
-	stop      chan struct{}
-	flushChan chan chan struct{}
-	stats     *info.StatsWriterInfo
+	in       <-chan []stats.Bucket
+	hostname string
+	env      string
+	senders  []*sender
+	stop     chan struct{}
+	stats    *info.StatsWriterInfo
 
 	// syncMode reports whether the writer should flush on its own or only when FlushSync is called
-	syncMode bool
-	payloads []*stats.Payload // payloads buffered for sync mode
+	syncMode  bool
+	payloads  []*stats.Payload // payloads buffered for sync mode
+	flushChan chan chan struct{}
 
 	easylog *logutil.ThrottledLogger
 }
@@ -61,9 +61,8 @@ func NewStatsWriter(cfg *config.AgentConfig, in <-chan []stats.Bucket) *StatsWri
 		stats:     &info.StatsWriterInfo{},
 		stop:      make(chan struct{}),
 		flushChan: make(chan chan struct{}),
-		// syncMode reports whether the writer should flush on its own or only when FlushSync is called
-		syncMode: cfg.SynchronousFlushing,
-		easylog:  logutil.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
+		syncMode:  cfg.SynchronousFlushing,
+		easylog:   logutil.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
 	}
 	climit := cfg.StatsWriter.ConnectionLimit
 	if climit == 0 {
@@ -111,7 +110,7 @@ func (w *StatsWriter) Run() {
 	}
 }
 
-// FlushSync is a no-op for TraceWriter
+// FlushSync blocks and sends pending payloads when syncMode is true
 func (w *StatsWriter) FlushSync() error {
 	if !w.syncMode {
 		return errors.New("not flushing; sync mode not enabled")

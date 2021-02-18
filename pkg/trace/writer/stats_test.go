@@ -215,6 +215,7 @@ func TestStatsSyncWriter(t *testing.T) {
 		}
 		assertPayload(assert, expectedHeaders, testSets, srv.Payloads())
 	})
+
 	t.Run("stop", func(t *testing.T) {
 		assert := assert.New(t)
 		sw, statsChannel, srv := testStatsSyncWriter()
