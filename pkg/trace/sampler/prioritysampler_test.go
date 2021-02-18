@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/cihub/seelog"
 
@@ -21,19 +22,20 @@ const (
 	testServiceB = "service-b"
 )
 
-func getTestPriorityEngine() *PriorityEngine {
+func getTestPrioritySampler() *PrioritySampler {
 	// Disable debug logs in these tests
 	seelog.UseLogger(seelog.Disabled)
 
 	// No extra fixed sampling, no maximum TPS
-	extraRate := 1.0
-	targetTPS := 0.0
+	conf := &config.AgentConfig{
+		ExtraSampleRate: 1.0,
+		TargetTPS:       0.0,
+	}
 
-	rateByService := RateByService{}
-	return NewPriorityEngine(extraRate, targetTPS, &rateByService)
+	return NewPrioritySampler(conf, &DynamicConfig{})
 }
 
-func getTestTraceWithService(t *testing.T, service string, s *PriorityEngine) (pb.Trace, *pb.Span) {
+func getTestTraceWithService(t *testing.T, service string, s *PrioritySampler) (pb.Trace, *pb.Span) {
 	tID := randomTraceID()
 	trace := pb.Trace{
 		&pb.Span{TraceID: tID, SpanID: 1, ParentID: 0, Start: 42, Duration: 1000000, Service: service, Type: "web", Meta: map[string]string{"env": defaultEnv}},
@@ -62,12 +64,12 @@ func TestPrioritySample(t *testing.T) {
 
 	env := defaultEnv
 
-	s := getTestPriorityEngine()
+	s := getTestPrioritySampler()
 
 	assert.Equal(0.0, s.Sampler.Backend.GetTotalScore(), "checking fresh backend total score is 0")
 	assert.Equal(0.0, s.Sampler.Backend.GetSampledScore(), "checkeing fresh backend sampled score is 0")
 
-	s = getTestPriorityEngine()
+	s = getTestPrioritySampler()
 	trace, root := getTestTraceWithService(t, "my-service", s)
 
 	SetSamplingPriority(root, -1)
@@ -76,7 +78,7 @@ func TestPrioritySample(t *testing.T) {
 	assert.Equal(0.0, s.Sampler.Backend.GetTotalScore(), "sampling a priority -1 trace should *NOT* impact sampler backend")
 	assert.Equal(0.0, s.Sampler.Backend.GetSampledScore(), "sampling a priority -1 trace should *NOT* impact sampler backend")
 
-	s = getTestPriorityEngine()
+	s = getTestPrioritySampler()
 	trace, root = getTestTraceWithService(t, "my-service", s)
 
 	SetSamplingPriority(root, 0)
@@ -85,7 +87,7 @@ func TestPrioritySample(t *testing.T) {
 	assert.True(0.0 < s.Sampler.Backend.GetTotalScore(), "sampling a priority 0 trace should increase total score")
 	assert.Equal(0.0, s.Sampler.Backend.GetSampledScore(), "sampling a priority 0 trace should *NOT* increase sampled score")
 
-	s = getTestPriorityEngine()
+	s = getTestPrioritySampler()
 	trace, root = getTestTraceWithService(t, "my-service", s)
 
 	SetSamplingPriority(root, 1)
@@ -94,7 +96,7 @@ func TestPrioritySample(t *testing.T) {
 	assert.True(0.0 < s.Sampler.Backend.GetTotalScore(), "sampling a priority 0 trace should increase total score")
 	assert.True(0.0 < s.Sampler.Backend.GetSampledScore(), "sampling a priority 0 trace should increase sampled score")
 
-	s = getTestPriorityEngine()
+	s = getTestPrioritySampler()
 	trace, root = getTestTraceWithService(t, "my-service", s)
 
 	SetSamplingPriority(root, 2)
@@ -103,7 +105,7 @@ func TestPrioritySample(t *testing.T) {
 	assert.Equal(0.0, s.Sampler.Backend.GetTotalScore(), "sampling a priority 2 trace should *NOT* increase total score")
 	assert.Equal(0.0, s.Sampler.Backend.GetSampledScore(), "sampling a priority 2 trace should *NOT* increase sampled score")
 
-	s = getTestPriorityEngine()
+	s = getTestPrioritySampler()
 	trace, root = getTestTraceWithService(t, "my-service", s)
 
 	SetSamplingPriority(root, PriorityUserKeep)
@@ -121,7 +123,7 @@ func TestPrioritySampleThresholdTo1(t *testing.T) {
 	assert := assert.New(t)
 	env := defaultEnv
 
-	s := getTestPriorityEngine()
+	s := getTestPrioritySampler()
 	for i := 0; i < 1e2; i++ {
 		trace, root := getTestTraceWithService(t, "my-service", s)
 		SetSamplingPriority(root, SamplingPriority(i%2))
@@ -148,7 +150,7 @@ func TestTargetTPSByService(t *testing.T) {
 	rand.Seed(1)
 	// Test the "effectiveness" of the targetTPS option.
 	assert := assert.New(t)
-	s := getTestPriorityEngine()
+	s := getTestPrioritySampler()
 
 	type testCase struct {
 		targetTPS     float64
@@ -187,7 +189,7 @@ func TestTargetTPSByService(t *testing.T) {
 		handledCount := 0
 
 		for period := 0; period < initPeriods+periods; period++ {
-			s.Sampler.Backend.decayScore()
+			s.Sampler.Backend.DecayScore()
 			s.Sampler.AdjustScoring()
 			for i := 0; i < int(tracesPerPeriod); i++ {
 				trace, root := getTestTraceWithService(t, "service-a", s)
@@ -226,6 +228,3 @@ func TestTargetTPSByService(t *testing.T) {
 		assert.InEpsilon(targetTPS, float64(sampledCount)/(float64(periods)*periodSeconds), relativeError)
 	}
 }
-
-// Ensure PriorityEngine implements engine.
-var testPriorityEngine Engine = &PriorityEngine{}

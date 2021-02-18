@@ -12,7 +12,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/gobwas/glob"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
@@ -41,6 +43,9 @@ type KubeMetadataCollector struct {
 	lastUpdate time.Time
 	lastExpire time.Time
 	lastSeen   map[string]time.Time
+
+	namespaceLabelsAsTags map[string]string
+	globNamespaceLabels   map[string]glob.Glob
 }
 
 // Detect tries to connect to the kubelet and the API Server if the DCA is not used or the DCA.
@@ -87,6 +92,10 @@ func (c *KubeMetadataCollector) Detect(out chan<- []*TagInfo) (CollectionMode, e
 	c.expireFreq = kubeMetadataExpireFreq
 	c.lastExpire = time.Now()
 	c.lastSeen = make(map[string]time.Time)
+
+	c.namespaceLabelsAsTags, c.globNamespaceLabels = utils.InitMetadataAsTags(
+		config.Datadog.GetStringMapString("kubernetes_namespace_labels_as_tags"),
+	)
 
 	return PullCollection, nil
 }
@@ -197,6 +206,10 @@ func (c *KubeMetadataCollector) isClusterAgentEnabled() bool {
 		}
 	}
 	return false
+}
+
+func (c *KubeMetadataCollector) hasNamespaceLabelsAsTags() bool {
+	return len(c.namespaceLabelsAsTags) != 0 || len(c.globNamespaceLabels) != 0
 }
 
 func kubernetesFactory() Collector {

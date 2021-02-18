@@ -10,6 +10,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"sync"
@@ -38,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
@@ -142,10 +144,24 @@ func start(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	if err := util.SetupCoreDump(); err != nil {
+		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
+	}
+
 	if !config.Datadog.IsSet("api_key") {
 		log.Critical("no API key configured, exiting")
 		return nil
 	}
+
+	// Expose the registered metrics via HTTP.
+	http.Handle("/metrics", telemetry.Handler())
+	go func() {
+		port := config.Datadog.GetInt("metrics_port")
+		err := http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", port), nil)
+		if err != nil && err != http.ErrServerClosed {
+			log.Errorf("Error creating telemetry server on port %v: %v", port, err)
+		}
+	}()
 
 	// Setup healthcheck port
 	var healthPort = config.Datadog.GetInt("health_port")

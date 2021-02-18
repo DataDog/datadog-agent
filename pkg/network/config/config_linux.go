@@ -4,12 +4,19 @@ package config
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 // EnabledProbes returns a map of probes that are enabled per config settings.
 // This map does not include the probes used exclusively in the offset guessing process.
-func (c *Config) EnabledProbes(pre410Kernel bool) (map[probes.ProbeName]struct{}, error) {
+func (c *Config) EnabledProbes(runtimeTracer bool) (map[probes.ProbeName]struct{}, error) {
 	enabled := make(map[probes.ProbeName]struct{}, 0)
+
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		return nil, err
+	}
+	pre410Kernel := kv < kernel.VersionCode(4, 1, 0)
 
 	if c.CollectTCPConns {
 		if pre410Kernel {
@@ -20,10 +27,15 @@ func (c *Config) EnabledProbes(pre410Kernel bool) (map[probes.ProbeName]struct{}
 		enabled[probes.TCPCleanupRBuf] = struct{}{}
 		enabled[probes.TCPClose] = struct{}{}
 		enabled[probes.TCPCloseReturn] = struct{}{}
-		enabled[probes.TCPRetransmit] = struct{}{}
 		enabled[probes.InetCskAcceptReturn] = struct{}{}
 		enabled[probes.TCPv4DestroySock] = struct{}{}
 		enabled[probes.TCPSetState] = struct{}{}
+
+		if !runtimeTracer && kv < kernel.VersionCode(4, 7, 0) {
+			enabled[probes.TCPRetransmitPre470] = struct{}{}
+		} else {
+			enabled[probes.TCPRetransmit] = struct{}{}
+		}
 
 		if c.BPFDebug || c.EnableHTTPMonitoring {
 			enabled[probes.TCPSendMsgReturn] = struct{}{}

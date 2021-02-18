@@ -53,8 +53,8 @@ func TestSetXAttr(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer f.Close()
 		defer os.Remove(testFile)
+		defer f.Close()
 
 		_, _, errno := syscall.Syscall6(syscall.SYS_SETXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), uintptr(xattrValuePtr), 0, unix.XATTR_CREATE, 0)
 		if errno != 0 {

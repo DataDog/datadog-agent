@@ -59,7 +59,8 @@ const (
 	UDPDestroySockReturn ProbeName = "kretprobe/udp_destroy_sock"
 
 	// TCPRetransmit traces the return value for the tcp_retransmit_skb() system call
-	TCPRetransmit ProbeName = "kprobe/tcp_retransmit_skb"
+	TCPRetransmit       ProbeName = "kprobe/tcp_retransmit_skb"
+	TCPRetransmitPre470 ProbeName = "kprobe/tcp_retransmit_skb/pre_4_7_0"
 
 	// InetCskAcceptReturn traces the return value for the inet_csk_accept syscall
 	InetCskAcceptReturn ProbeName = "kretprobe/inet_csk_accept"

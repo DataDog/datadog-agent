@@ -4,5 +4,5 @@
 #   the arm builder (and that are not needed, given we don't use cryptography in arm jobs).
 # - but adding the '; platform_machine == "x86_64"' to work around that breaks on python3.5, which some
 #   jobs still use
-cryptography==3.2.1
+cryptography==3.3.2
 PyJWT==1.7.1

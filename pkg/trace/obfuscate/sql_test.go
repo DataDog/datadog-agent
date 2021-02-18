@@ -1235,6 +1235,7 @@ func BenchmarkObfuscateSQLString(b *testing.B) {
 	}
 
 	b.Run("random", func(b *testing.B) {
+		b.ReportAllocs()
 		var j uint64
 		for i := 0; i < b.N; i++ {
 			_, err := obf.ObfuscateSQLString(fmt.Sprintf("SELECT * FROM users WHERE id=%d", atomic.AddUint64(&j, 1)))
