@@ -375,6 +375,7 @@ def omnibus_build(
     system_probe_bin=None,
     libbcc_tarball=None,
     with_bcc=True,
+    manifest_only=False,
 ):
     """
     Build the Agent packages with Omnibus Installer.
@@ -432,9 +433,15 @@ def omnibus_build(
             # The full explanation is available on this PR: https://github.com/DataDog/datadog-agent/pull/5010.
             omnibus = "unset __PYVENV_LAUNCHER__ && bundle exec omnibus"
 
-        cmd = "{omnibus} build {project_name} --log-level={log_level} {populate_s3_cache} {overrides}"
+        if manifest_only:
+            task = "manifest"
+        else:
+            task = "build"
+
+        cmd = "{omnibus} {task} {project_name} --log-level={log_level} {populate_s3_cache} {overrides}"
         args = {
             "omnibus": omnibus,
+            "task": task,
             "project_name": target_project,
             "log_level": log_level,
             "overrides": overrides_cmd,
