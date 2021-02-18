@@ -72,6 +72,11 @@ Troubleshooting and basic usage information for the Agent are available at:
 
     https://docs.datadoghq.com/agent/basic_agent_usage/\n\033[0m\n"
 
+    if ! tty -s; then
+      fallback_msg
+      exit 1;
+    fi
+    
     while true; do
         read -t 60 -p  "Do you want to send a failure report to Datadog (including $logfile)? (y/[n]) " -r yn || on_read_error
         case $yn in
