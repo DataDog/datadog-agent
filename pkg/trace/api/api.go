@@ -107,11 +107,19 @@ func (r *HTTPReceiver) buildMux() *http.ServeMux {
 
 	r.attachDebugHandlers(mux)
 	for _, e := range endpoints {
-		mux.Handle(e.Pattern, e.Handler(r))
+		mux.Handle(e.Pattern, replyWithVersion(e.Handler(r)))
 	}
 	mux.HandleFunc("/info", r.makeInfoHandler())
 
 	return mux
+}
+
+// replyWithVersion returns an http.Handler which calls h but adds the Datadog Agent version.
+func replyWithVersion(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Datadog-Agent-Version", info.Version)
+		h.ServeHTTP(w, r)
+	})
 }
 
 // Start starts doing the HTTP server and is ready to receive traces
