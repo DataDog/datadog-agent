@@ -100,7 +100,6 @@ func (w *StatsWriter) Run() {
 			}
 		case notify := <-w.flushChan:
 			w.sendPayloads()
-			WaitForSenders(w.senders)
 			notify <- struct{}{}
 		case <-t.C:
 			w.report()
@@ -159,7 +158,7 @@ func (w *StatsWriter) SendPayload(p *stats.Payload) {
 	}
 	atomic.AddInt64(&w.stats.Bytes, int64(req.body.Len()))
 
-	sendPayloads(w.senders, req)
+	sendPayloads(w.senders, req, w.syncMode)
 }
 
 func (w *StatsWriter) sendPayloads() {

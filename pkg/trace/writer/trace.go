@@ -152,7 +152,6 @@ func (w *TraceWriter) runSync() {
 			w.addSpans(pkg)
 		case notify := <-w.flushChan:
 			w.drainAndFlush()
-			WaitForSenders(w.senders)
 			notify <- struct{}{}
 		case <-w.stop:
 			w.drainAndFlush()
@@ -267,7 +266,7 @@ func (w *TraceWriter) flush() {
 			log.Errorf("Error closing gzip stream when writing trace payload: %v", err)
 		}
 
-		sendPayloads(w.senders, p)
+		sendPayloads(w.senders, p, w.syncMode)
 	}()
 }
 
