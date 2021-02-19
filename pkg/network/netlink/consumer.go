@@ -223,7 +223,7 @@ func (c *Consumer) DumpTable(family uint8) (<-chan Event, error) {
 		}
 	}
 
-	rootNS, err := netns.GetFromPath(fmt.Sprintf("%s/1/ns/net", c.procRoot))
+	rootNS, err := netns.GetRootNetNamespace(c.procRoot)
 	if err != nil {
 		return nil, fmt.Errorf("error dumping conntrack table, could not get root namespace: %w", err)
 	}
@@ -276,7 +276,7 @@ func (c *Consumer) DumpTable(family uint8) (<-chan Event, error) {
 func (c *Consumer) dumpTable(family uint8, output chan Event, ns netns.NsHandle) error {
 	return util.WithNS(c.procRoot, ns, func() error {
 
-		log.Tracef("dumping table for ns %s", ns)
+		log.Tracef("dumping table for ns %s family %d", ns, family)
 
 		sock, err := NewSocket()
 		if err != nil {

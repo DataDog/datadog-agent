@@ -4,6 +4,7 @@ package tracer
 
 import "C"
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -16,9 +17,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
+	ct "github.com/florianl/go-conntrack"
 	"golang.org/x/sys/unix"
 )
 
@@ -26,6 +29,10 @@ import (
 #include "../ebpf/c/runtime/conntrack-types.h"
 */
 import "C"
+
+const (
+	initializationTimeout = time.Second * 10
+)
 
 type conntrackTelemetry C.conntrack_telemetry_t
 
@@ -43,13 +50,13 @@ type ebpfConntracker struct {
 }
 
 // NewEBPFConntracker creates a netlink.Conntracker that monitor conntrack NAT entries via eBPF
-func NewEBPFConntracker(config *config.Config) (netlink.Conntracker, error) {
-	buf, err := getRuntimeCompiledConntracker(config)
+func NewEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
+	buf, err := getRuntimeCompiledConntracker(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("unable to compile ebpf conntracker: %s", err)
 	}
 
-	m, err := getManager(buf, config.ConntrackMaxStateSize)
+	m, err := getManager(buf, cfg.ConntrackMaxStateSize)
 	if err != nil {
 		return nil, err
 	}
@@ -72,11 +79,100 @@ func NewEBPFConntracker(config *config.Config) (netlink.Conntracker, error) {
 		return nil, fmt.Errorf("unable to get telemetry map: %s", err)
 	}
 
-	return &ebpfConntracker{
+	e := &ebpfConntracker{
 		m:            m,
 		ctMap:        ctMap,
 		telemetryMap: telemetryMap,
-	}, nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), initializationTimeout)
+	defer cancel()
+
+	err = e.dumpInitialTables(ctx, cfg)
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, fmt.Errorf("could not initialize conntrack after %s", initializationTimeout)
+		}
+		return nil, err
+	}
+	log.Infof("initialized ebpf conntrack")
+	return e, nil
+}
+
+func (e *ebpfConntracker) dumpInitialTables(ctx context.Context, cfg *config.Config) error {
+	consumer, err := netlink.NewConsumer(cfg.ProcRoot, cfg.ConntrackRateLimit, true)
+	if err != nil {
+		return err
+	}
+	defer consumer.Stop()
+
+	if err := e.loadInitialState(ctx, consumer.DumpTable(unix.AF_INET)); err != nil {
+		return err
+	}
+	if err := e.loadInitialState(ctx, consumer.DumpTable(unix.AF_INET6)); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (e *ebpfConntracker) loadInitialState(ctx context.Context, events <-chan netlink.Event) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case ev, ok := <-events:
+			if !ok {
+				return nil
+			}
+			e.processEvent(ev)
+		}
+	}
+}
+
+func (e *ebpfConntracker) processEvent(ev netlink.Event) {
+	conns := netlink.DecodeAndReleaseEvent(ev)
+	for _, c := range conns {
+		if netlink.IsNAT(c) {
+			log.Tracef("initial conntrack %s", c)
+			src := formatKey(uint32(c.NetNS), c.Origin)
+			dst := formatKey(uint32(c.NetNS), c.Reply)
+			if src != nil && dst != nil {
+				if err := e.addTranslation(src, dst); err != nil {
+					log.Warnf("error adding initial conntrack entry to ebpf map: %s", err)
+				}
+				if err := e.addTranslation(dst, src); err != nil {
+					log.Warnf("error adding initial conntrack entry to ebpf map: %s", err)
+				}
+			}
+		}
+	}
+}
+
+func (e *ebpfConntracker) addTranslation(src *ConnTuple, dst *ConnTuple) error {
+	if err := e.ctMap.Update(unsafe.Pointer(src), unsafe.Pointer(dst), ebpf.UpdateNoExist); err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
+		return err
+	}
+	return nil
+}
+
+func formatKey(netns uint32, tuple *ct.IPTuple) *ConnTuple {
+	var proto network.ConnectionType
+	switch *tuple.Proto.Number {
+	case unix.IPPROTO_TCP:
+		proto = network.TCP
+	case unix.IPPROTO_UDP:
+		proto = network.UDP
+	default:
+		return nil
+	}
+
+	return newConnTuple(0,
+		netns,
+		util.AddressFromNetIP(*tuple.Src),
+		util.AddressFromNetIP(*tuple.Dst),
+		*tuple.Proto.SrcPort,
+		*tuple.Proto.DstPort,
+		proto)
 }
 
 func (e *ebpfConntracker) GetTranslationForConn(stats network.ConnectionStats) *network.IPTranslation {
