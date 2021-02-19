@@ -83,8 +83,6 @@ const (
 
 	// ConntrackHashInsert is the probe for new conntrack entries
 	ConntrackHashInsert ProbeName = "kprobe/__nf_conntrack_hash_insert"
-	// ConntrackDelete is the probe for deleting conntrack entries
-	ConntrackDelete ProbeName = "kprobe/nf_ct_delete"
 )
 
 // BPFMapName stores the name of the BPF maps storing statistics and other info

@@ -33,10 +33,10 @@ type ebpfConntracker struct {
 	telemetryMap *ebpf.Map
 
 	stats struct {
-		gets            int64
-		getTimeTotal    int64
-		deletes         int64
-		deleteTimeTotal int64
+		gets                 int64
+		getTotalTime         int64
+		unregisters          int64
+		unregistersTotalTime int64
 	}
 }
 
@@ -91,7 +91,7 @@ func (e *ebpfConntracker) GetTranslationForConn(stats network.ConnectionStats) *
 	}
 
 	atomic.AddInt64(&e.stats.gets, 1)
-	atomic.AddInt64(&e.stats.getTimeTotal, time.Now().Sub(start).Nanoseconds())
+	atomic.AddInt64(&e.stats.getTotalTime, time.Now().Sub(start).Nanoseconds())
 	return &network.IPTranslation{
 		ReplSrcIP:   dst.SourceAddress(),
 		ReplDstIP:   dst.DestAddress(),
@@ -111,8 +111,8 @@ func (e *ebpfConntracker) DeleteTranslation(stats network.ConnectionStats) {
 		}
 		log.Warnf("unable to delete conntrack entry from eBPF map: %s", err)
 	}
-	atomic.AddInt64(&e.stats.deletes, 1)
-	atomic.AddInt64(&e.stats.deleteTimeTotal, time.Now().Sub(start).Nanoseconds())
+	atomic.AddInt64(&e.stats.unregisters, 1)
+	atomic.AddInt64(&e.stats.unregistersTotalTime, time.Now().Sub(start).Nanoseconds())
 }
 
 func (e *ebpfConntracker) GetStats() map[string]int64 {
@@ -122,21 +122,20 @@ func (e *ebpfConntracker) GetStats() map[string]int64 {
 		log.Tracef("error retrieving the telemetry struct: %s", err)
 	} else {
 		m["registers_total"] = int64(telemetry.registers)
-		m["unregisters_total"] = int64(telemetry.unregisters)
 	}
 
 	gets := atomic.LoadInt64(&e.stats.gets)
-	getTimeTotal := atomic.LoadInt64(&e.stats.getTimeTotal)
+	getTimeTotal := atomic.LoadInt64(&e.stats.getTotalTime)
 	m["gets_total"] = gets
 	if gets > 0 {
 		m["nanoseconds_per_get"] = gets / getTimeTotal
 	}
 
-	deletes := atomic.LoadInt64(&e.stats.deletes)
-	deleteTimeTotal := atomic.LoadInt64(&e.stats.deleteTimeTotal)
-	m["deletes_total"] = deletes
-	if deletes > 0 {
-		m["nanoseconds_per_delete"] = deletes / deleteTimeTotal
+	unregisters := atomic.LoadInt64(&e.stats.unregisters)
+	unregistersTimeTotal := atomic.LoadInt64(&e.stats.unregistersTotalTime)
+	m["unregisters_total"] = unregisters
+	if unregisters > 0 {
+		m["nanoseconds_per_unregister"] = unregisters / unregistersTimeTotal
 	}
 	return m
 }
@@ -157,7 +156,6 @@ func getManager(buf io.ReaderAt, maxTrackedConnections int) (*manager.Manager, e
 		PerfMaps: []*manager.PerfMap{},
 		Probes: []*manager.Probe{
 			{Section: string(probes.ConntrackHashInsert)},
-			{Section: string(probes.ConntrackDelete)},
 		},
 	}
 

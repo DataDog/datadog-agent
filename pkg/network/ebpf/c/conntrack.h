@@ -112,8 +112,6 @@ static __always_inline void increment_telemetry_count(enum conntrack_telemetry_c
     case registers:
         __sync_fetch_and_add(&val->registers, 1);
         break;
-    case unregisters:
-        __sync_fetch_and_add(&val->unregisters, 1);
     }
     return;
 }
