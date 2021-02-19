@@ -405,7 +405,7 @@ def get_licenses_list(ctx):
                     else:
                         licenses.append("core,\"{}\",{}".format(package, license))
     licenses.sort()
-    ctx.run('rm -rf vendor/')
+    shutil.rmtree("vendor/")
     return licenses
 
 
