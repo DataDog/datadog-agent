@@ -16,9 +16,15 @@ import (
 	_ "expvar"         // Blank import used because this isn't directly used in this file
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/kubernetesapiserver"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/filehandles"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/memory"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/uptime"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
