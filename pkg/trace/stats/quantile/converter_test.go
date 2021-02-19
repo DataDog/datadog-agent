@@ -6,7 +6,9 @@
 package quantile
 
 import (
+	"io/ioutil"
 	"math"
+	"os"
 	"testing"
 
 	"github.com/DataDog/sketches-go/ddsketch"
@@ -77,6 +79,20 @@ func getConvertedSketchQuantiles(t *testing.T, n int, gen func(i int) float64, t
 	return hits, errors
 }
 
+func testUnmarshalDenseSketchFromFile(filename string, zeroCount int, contiguousBinLength int) func(t *testing.T) {
+	return func(t *testing.T) {
+		assert := assert.New(t)
+		file, _ := os.Open(filename)
+		defer file.Close()
+
+		data, _ := ioutil.ReadAll(file)
+		sketch, err := decodeDDSketch(data)
+		assert.Equal(nil, err)
+		assert.Equal(contiguousBinLength, len(sketch.contiguousBins))
+		assert.Equal(zeroCount, sketch.count(0))
+	}
+}
+
 func testDDSketchToGKConstant(n int) func(t *testing.T) {
 	return func(t *testing.T) {
 		assert := assert.New(t)
@@ -126,4 +142,8 @@ func TestDDToGKSketch(t *testing.T) {
 	t.Run("uniform1e3", testDDSketchToGKUniform(1000))
 	t.Run("constant10", testDDSketchToGKConstant(10))
 	t.Run("constant1e3", testDDSketchToGKConstant(1000))
+}
+
+func TestDecoding(t *testing.T) {
+	t.Run("dense_sketch_from_Java", testUnmarshalDenseSketchFromFile("java_generated_dense_ddsketch.ddsketch", 101, 631))
 }
