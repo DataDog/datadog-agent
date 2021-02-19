@@ -80,7 +80,7 @@ var InvalidDiscarders = map[eval.Field][]interface{}{
 	"removexattr.filename": dentryInvalidDiscarder,
 }
 
-func discardMarshalHeader(req *ERPCRequest, eventType model.EventType, timeout uint64) int {
+func marshalDiscardHeader(req *ERPCRequest, eventType model.EventType, timeout uint64) int {
 	ebpf.ByteOrder.PutUint64(req.Data[0:8], uint64(eventType))
 	ebpf.ByteOrder.PutUint64(req.Data[8:16], uint64(timeout))
 
@@ -103,7 +103,7 @@ func (p *pidDiscarders) discard(eventType model.EventType, pid uint32) error {
 		OP: DiscardPidOp,
 	}
 
-	offset := discardMarshalHeader(&req, eventType, 0)
+	offset := marshalDiscardHeader(&req, eventType, 0)
 	ebpf.ByteOrder.PutUint32(req.Data[offset:offset+4], pid)
 
 	return p.erpc.Request(&req)
@@ -114,7 +114,7 @@ func (p *pidDiscarders) discardWithTimeout(eventType model.EventType, pid uint32
 		OP: DiscardPidOp,
 	}
 
-	offset := discardMarshalHeader(&req, eventType, uint64(timeout))
+	offset := marshalDiscardHeader(&req, eventType, uint64(timeout))
 	ebpf.ByteOrder.PutUint32(req.Data[offset:offset+4], pid)
 
 	return p.erpc.Request(&req)
@@ -169,7 +169,7 @@ func (id *inodeDiscarders) discardInode(eventType model.EventType, mountID uint3
 		isLeafInt = 1
 	}
 
-	offset := discardMarshalHeader(&req, eventType, 0)
+	offset := marshalDiscardHeader(&req, eventType, 0)
 	ebpf.ByteOrder.PutUint64(req.Data[offset:offset+8], inode)
 	ebpf.ByteOrder.PutUint32(req.Data[offset+8:offset+12], mountID)
 	ebpf.ByteOrder.PutUint32(req.Data[offset+12:offset+16], isLeafInt)
