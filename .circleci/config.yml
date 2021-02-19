@@ -251,7 +251,7 @@ jobs:
       - run:
           name: Install python deps & clang-format
           command: |
-            brew install clang-format
+            brew install clang-format || brew link --overwrite clang-format
             python3 -m pip install -r requirements.txt
       - save_cache:
           key: v2-macosdeps-{{ .Branch }}-{{ .Revision }}
@@ -260,6 +260,7 @@ jobs:
             - /usr/local/Cellar
             - /usr/local/lib
             - /usr/local/Frameworks
+            - /usr/local/opt/openssl@1.1
       - run:
           name: Compile rtloader
           command: |

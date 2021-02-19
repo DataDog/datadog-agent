@@ -117,6 +117,35 @@ func TestReceiverRequestBodyLength(t *testing.T) {
 	testBody(http.StatusRequestEntityTooLarge, " []")
 }
 
+func TestVersionHeader(t *testing.T) {
+	assert := assert.New(t)
+	r := newTestReceiverFromConfig(config.New())
+	r.Start()
+	defer r.Stop()
+	data := msgpTraces(t, pb.Traces{
+		testutil.RandomTrace(10, 20),
+		testutil.RandomTrace(10, 20),
+		testutil.RandomTrace(10, 20),
+	})
+
+	for _, e := range []string{
+		"/v0.3/traces",
+		"/v0.4/traces",
+		// this one will return 500, but that's fine, we want to test that all
+		// reponses have the header regardless of status code
+		"/v0.5/traces",
+	} {
+		resp, err := http.Post("http://localhost:8126"+e, "application/msgpack", bytes.NewReader(data))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, ok := resp.Header["Datadog-Agent-Version"]
+		assert.True(ok)
+		v := resp.Header.Get("Datadog-Agent-Version")
+		assert.Equal(v, info.Version)
+	}
+}
+
 func TestLegacyReceiver(t *testing.T) {
 	// testing traces without content-type in agent endpoints, it should use JSON decoding
 	assert := assert.New(t)

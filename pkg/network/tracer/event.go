@@ -224,6 +224,7 @@ func (t *ConnTuple) String() string {
 __u64 sent_bytes;
 __u64 recv_bytes;
 __u64 timestamp;
+__u8  direction;
 */
 type ConnStatsWithTimestamp C.conn_stats_ts_t
 
@@ -239,36 +240,12 @@ __u32 tcp_sent_miscounts;
 */
 type kernelTelemetry C.telemetry_t
 
-const ConnCloseBatchSize = int(C.CONN_CLOSED_BATCH_SIZE)
-
 func (cs *ConnStatsWithTimestamp) isExpired(latestTime uint64, timeout uint64) bool {
 	return latestTime > timeout+uint64(cs.timestamp)
 }
 
 func toBatch(data []byte) *batch {
 	return (*batch)(unsafe.Pointer(&data[0]))
-}
-
-// ExtractBatchInto extract network.ConnectionStats objects from the given `batch` into the supplied `buffer`.
-// The `start` (inclusive) and `end` (exclusive) arguments represent the offsets of the connections we're interested in.
-func ExtractBatchInto(buffer []network.ConnectionStats, b *batch, start, end int) []network.ConnectionStats {
-	if start >= end || end > ConnCloseBatchSize {
-		return nil
-	}
-
-	current := uintptr(unsafe.Pointer(b)) + uintptr(start)*C.sizeof_conn_t
-	for i := start; i < end; i++ {
-		ct := Conn(*(*C.conn_t)(unsafe.Pointer(current)))
-
-		tup := ConnTuple(ct.tup)
-		cst := ConnStatsWithTimestamp(ct.conn_stats)
-		tst := TCPStats(ct.tcp_stats)
-
-		buffer = append(buffer, connStats(&tup, &cst, &tst))
-		current += C.sizeof_conn_t
-	}
-
-	return buffer
 }
 
 func connStats(t *ConnTuple, s *ConnStatsWithTimestamp, tcpStats *TCPStats) network.ConnectionStats {
@@ -287,6 +264,7 @@ func connStats(t *ConnTuple, s *ConnStatsWithTimestamp, tcpStats *TCPStats) netw
 	stats := network.ConnectionStats{
 		Pid:                uint32(t.pid),
 		Type:               connType(metadata),
+		Direction:          connDirection(uint8(s.direction)),
 		Family:             family,
 		NetNS:              uint32(t.netns),
 		Source:             source,
@@ -326,6 +304,13 @@ func connFamily(m uint) network.ConnectionFamily {
 	return network.AFINET6
 }
 
-func isPortClosed(state uint8) bool {
-	return state == C.PORT_CLOSED
+func connDirection(m uint8) network.ConnectionDirection {
+	switch m {
+	case C.CONN_DIRECTION_INCOMING:
+		return network.INCOMING
+	case C.CONN_DIRECTION_OUTGOING:
+		return network.OUTGOING
+	default:
+		return network.OUTGOING
+	}
 }
