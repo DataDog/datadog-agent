@@ -21,6 +21,7 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -454,8 +455,15 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("kubernetes_apiserver_use_protobuf", false)
 
 	config.BindEnvAndSetDefault("prometheus_scrape.enabled", false)           // Enables the prometheus config provider
-	config.SetKnown("prometheus_scrape.checks")                               // Defines any extra prometheus/openmetrics check configurations to be handled by the prometheus config provider
 	config.BindEnvAndSetDefault("prometheus_scrape.service_endpoints", false) // Enables Service Endpoints checks in the prometheus config provider
+	_ = config.BindEnv("prometheus_scrape.checks")                            // Defines any extra prometheus/openmetrics check configurations to be handled by the prometheus config provider
+	config.SetEnvKeyTransformer("prometheus_scrape.checks", func(in string) interface{} {
+		var promChecks []*types.PrometheusCheck
+		if err := json.Unmarshal([]byte(in), &promChecks); err != nil {
+			log.Warnf(`"prometheus_scrape.checks" can not be parsed: %v`, err)
+		}
+		return promChecks
+	})
 
 	// SNMP
 	config.SetKnown("snmp_listener.discovery_interval")
