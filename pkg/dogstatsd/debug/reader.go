@@ -6,35 +6,40 @@
 package debug
 
 import (
-	"bufio"
 	"encoding/binary"
-	"os"
+	"io"
+	"io/ioutil"
 	"sync" // might be unnecessary
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/debug/pb"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	proto "github.com/golang/protobuf/proto"
 )
 
 type TrafficCaptureReader struct {
-	File     *os.File
-	reader   *bufio.Reader
+	Contents []byte
 	Traffic  chan *pb.UnixDogstatsdMsg
 	Shutdown chan struct{}
+	offset   uint32
+	last     int64
+
 	sync.Mutex
 }
 
 func NewTrafficCaptureReader(path string, depth int) (*TrafficCaptureReader, error) {
 
-	fp, err := os.Open(path)
+	// TODO: think about the following approach
+	// read entire thing into memory for performance reasons
+	c, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
 
 	return &TrafficCaptureReader{
-		File:    fp,
-		reader:  bufio.NewReader(fp),
-		Traffic: make(chan *pb.UnixDogstatsdMsg, depth),
+		Contents: c,
+		Traffic:  make(chan *pb.UnixDogstatsdMsg, depth),
 	}, nil
 }
 
@@ -44,38 +49,49 @@ func (tc *TrafficCaptureReader) Read() {
 
 	for {
 		msg, err := tc.ReadNext()
-		if err != nil {
+		if err != nil && err == io.EOF {
+			log.Debugf("Done reading capture file...", err)
+			break
+		} else if err != nil {
+			log.Errorf("Error processing: %v", err)
 			break
 		}
 
 		// TODO: ensure proper cadence
+		if tc.last != 0 {
+			if msg.Timestamp > tc.last {
+				time.Sleep(time.Second * time.Duration(msg.Timestamp-tc.last))
+			}
+		}
+
+		tc.last = msg.Timestamp
 		tc.Traffic <- msg
 	}
 }
 
 func (tc *TrafficCaptureReader) ReadNext() (*pb.UnixDogstatsdMsg, error) {
 
-	d, err := tc.reader.Peek(4)
-	if err != nil {
-		return nil, err
+	tc.Lock()
+
+	if int(tc.offset+4) > len(tc.Contents) {
+		return nil, io.EOF
+	}
+	sz := binary.LittleEndian.Uint32(tc.Contents[tc.offset : tc.offset+4])
+	tc.offset += 4
+
+	if int(tc.offset+sz) > len(tc.Contents) {
+		return nil, io.EOF
 	}
 
-	sz := binary.LittleEndian.Uint32(d)
-	tc.reader.Discard(4)
-
-	d, err = tc.reader.Peek(int(sz))
-	defer tc.reader.Discard(int(sz))
-
-	if err != nil {
-		return nil, err
-	}
-
-	// avoid a fresh allocation
+	// avoid a fresh allocation - at least this runs in a separate process
 	msg := &pb.UnixDogstatsdMsg{}
-	err = proto.Unmarshal(d, msg)
+	err := proto.Unmarshal(tc.Contents[tc.offset:tc.offset+sz], msg)
 	if err != nil {
 		return nil, err
 	}
+	tc.offset += sz
+
+	tc.Unlock()
 
 	return msg, nil
 }

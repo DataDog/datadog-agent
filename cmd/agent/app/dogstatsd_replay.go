@@ -8,6 +8,7 @@ package app
 import (
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -69,12 +70,12 @@ func dogstatsdReplay() error {
 		return e
 	}
 
-	addr, err := net.ResolveUnixAddr("unix", s)
+	addr, err := net.ResolveUnixAddr("unixgram", s)
 	if err != nil {
 		return err
 	}
 
-	conn, err := net.DialUnix("unix", nil, addr)
+	conn, err := net.Dial(addr.Network(), addr.String())
 	if err != nil {
 		return err
 	}
@@ -82,18 +83,24 @@ func dogstatsdReplay() error {
 	// enable reading at natural rate
 	go reader.Read()
 
-	// TODO: cleanup shutdown
+	// wait for go routine to start processing...
+	time.Sleep(time.Second)
+
+replay:
 	for {
 		select {
 		case msg := <-reader.Traffic:
-			_, _, err := conn.WriteMsgUnix(msg.Payload, msg.Ancillary, addr)
+			// TODO: for when the tagger works
+			// _, _, err := conn.WriteMsgUnix(msg.Payload, msg.Ancillary, addr)
+			n, err := conn.Write(msg.Payload[:msg.PayloadSize])
 			if err != nil {
 				return err
 			}
 		case <-reader.Shutdown:
-			break
+			break replay
 		}
 	}
 
+	fmt.Printf("replay done....")
 	return nil
 }

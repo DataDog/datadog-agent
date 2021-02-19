@@ -173,7 +173,7 @@ func (tc *TrafficCaptureWriter) Enqueue(msg *CaptureBuffer) {
 	if tc.ongoing {
 		tc.Traffic <- msg
 	}
-	tc.Unlock()
+	tc.RUnlock()
 }
 
 func (tc *TrafficCaptureWriter) RegisterSharedPoolManager(p *packets.PoolManager) error {

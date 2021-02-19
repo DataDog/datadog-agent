@@ -5,7 +5,9 @@ package pb;
 
 // The message contains the payload and the ancillary info
 message UnixDogstatsdMsg {
-    uint64 timestamp = 1;
-    bytes payload = 2;
-    bytes ancillary = 3;
+    int64 timestamp = 1;
+    int32 payloadSize = 2;
+    bytes payload = 3;
+    int32 ancillarySize = 4;
+    bytes ancillary = 5;
 }

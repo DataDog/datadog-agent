@@ -12,6 +12,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/debug"
@@ -167,8 +168,10 @@ func (l *UDSListener) Listen() {
 
 			if capBuff != nil {
 				capBuff.Oob = &oob
-				capBuff.Pb.Ancillary = oob         // or oob[:oobn] ?
-				capBuff.Pb.Payload = packet.Buffer // or packet.Buffer[:n] ?
+				capBuff.Pb.AncillarySize = int32(oobn)
+				capBuff.Pb.Ancillary = oob[:oobn] // or oob[:oobn] ?
+				capBuff.Pb.PayloadSize = int32(n)
+				capBuff.Pb.Payload = packet.Buffer[:n] // or packet.Buffer[:n] ?
 			}
 
 			if taggingErr != nil {
@@ -185,7 +188,10 @@ func (l *UDSListener) Listen() {
 			n, _, err = l.conn.ReadFromUnix(packet.Buffer)
 
 			if capBuff != nil {
+				capBuff.Pb.Timestamp = time.Now().Unix()
 				capBuff.Buff = packet
+				capBuff.Pb.AncillarySize = int32(0)
+				capBuff.Pb.PayloadSize = int32(n)
 				capBuff.Pb.Payload = packet.Buffer // or packet.Buffer[:n] ?
 			}
 		}
