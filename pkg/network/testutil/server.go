@@ -18,7 +18,7 @@ func StartServerTCPNs(t *testing.T, ip net.IP, port int, ns string) io.Closer {
 	require.NoError(t, err)
 
 	var closer io.Closer
-	util.WithNS("/proc", h, func() error {
+	_ = util.WithNS("/proc", h, func() error {
 		closer = StartServerTCP(t, ip, port)
 		return nil
 	})
@@ -48,7 +48,7 @@ func StartServerTCP(t *testing.T, ip net.IP, port int) io.Closer {
 				return
 			}
 
-			conn.Write([]byte("hello"))
+			_, _ = conn.Write([]byte("hello"))
 			conn.Close()
 		}
 	}()
@@ -64,7 +64,7 @@ func StartServerUDPNs(t *testing.T, ip net.IP, port int, ns string) io.Closer {
 	require.NoError(t, err)
 
 	var closer io.Closer
-	util.WithNS("/proc", h, func() error {
+	_ = util.WithNS("/proc", h, func() error {
 		closer = StartServerUDP(t, ip, port)
 		return nil
 	})
