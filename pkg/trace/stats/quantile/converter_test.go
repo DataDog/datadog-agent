@@ -145,5 +145,5 @@ func TestDDToGKSketch(t *testing.T) {
 }
 
 func TestDecoding(t *testing.T) {
-	t.Run("dense_sketch_from_Java", testUnmarshalDenseSketchFromFile("java_generated_dense_ddsketch.ddsketch", 101, 631))
+	t.Run("dense", testUnmarshalDenseSketchFromFile("java_generated_dense_ddsketch.ddsketch", 101, 631))
 }
