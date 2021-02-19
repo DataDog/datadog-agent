@@ -86,6 +86,7 @@ func GetNetNamespaces(procRoot string) ([]netns.NsHandle, error) {
 	return nss, nil
 }
 
+// GetCurrentIno returns the ino number for the current network namespace
 func GetCurrentIno() (uint32, error) {
 	curNS, err := netns.Get()
 	if err != nil {
