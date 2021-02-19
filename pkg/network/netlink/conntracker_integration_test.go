@@ -5,20 +5,21 @@ package netlink
 import (
 	"encoding/binary"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"net"
 	"os"
-	"os/exec"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
+	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/mdlayher/netlink"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/vishvananda/netns"
 )
 
 const (
@@ -26,52 +27,29 @@ const (
 	nonNatPort = 9876
 )
 
-func TestConnTrackerCrossNamespaceAllNsEnabled(t *testing.T) {
-	cmd := exec.Command("testdata/setup_cross_ns_dnat.sh")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		require.NoError(t, err, "setup command output %s", string(out))
-	}
-
-	defer teardownCrossNs(t)
-
-	ct, closer, laddr := setupTestConnTrackerCrossNamespace(t, true)
-	defer ct.Close()
-	defer closer.Close()
-
-	var trans *network.IPTranslation
-	require.Eventually(t, func() bool {
-		trans = ct.GetTranslationForConn(
-			network.ConnectionStats{
-				Source: util.AddressFromNetIP(laddr.IP),
-				SPort:  uint16(laddr.Port),
-				Dest:   util.AddressFromString("2.2.2.4"),
-				DPort:  uint16(80),
-				Type:   network.TCP,
-			},
-		)
-
-		if trans != nil {
-			return true
-		}
-
-		return false
-
-	}, 5*time.Second, 1*time.Second, "timed out waiting for conntrack entry")
-
-	assert.Equal(t, uint16(8080), trans.ReplSrcPort)
-}
-
+// keep this test for netlink only, because eBPF listens to all namespaces all the time.
 func TestConnTrackerCrossNamespaceAllNsDisabled(t *testing.T) {
-	cmd := exec.Command("testdata/setup_cross_ns_dnat.sh")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		require.NoError(t, err, "setup command output %s", string(out))
-	}
+	defer testutil.TeardownCrossNsDNAT(t)
+	testutil.SetupCrossNsDNAT(t)
 
-	defer teardownCrossNs(t)
+	cfg := config.NewDefaultConfig()
+	cfg.ConntrackMaxStateSize = 100
+	cfg.ConntrackRateLimit = 500
+	cfg.EnableConntrackAllNamespaces = false
+	ct, err := NewConntracker(cfg)
+	require.NoError(t, err)
+	time.Sleep(time.Second)
 
-	ct, closer, laddr := setupTestConnTrackerCrossNamespace(t, false)
-	defer ct.Close()
+	closer := nettestutil.StartServerTCPNs(t, net.ParseIP("2.2.2.4"), 8080, "test")
+	laddr := nettestutil.PingTCP(t, net.ParseIP("2.2.2.4"), 80).LocalAddr().(*net.TCPAddr)
 	defer closer.Close()
+
+	testNs, err := netns.GetFromName("test")
+	require.NoError(t, err)
+	defer testNs.Close()
+
+	testIno, err := util.GetInoForNs(testNs)
+	require.NoError(t, err)
 
 	time.Sleep(time.Second)
 	trans := ct.GetTranslationForConn(
@@ -81,63 +59,11 @@ func TestConnTrackerCrossNamespaceAllNsDisabled(t *testing.T) {
 			Dest:   util.AddressFromString("2.2.2.4"),
 			DPort:  uint16(80),
 			Type:   network.TCP,
+			NetNS:  testIno,
 		},
 	)
 
 	assert.Nil(t, trans)
-}
-
-func setupTestConnTrackerCrossNamespace(t *testing.T, enableAllNs bool) (Conntracker, io.Closer, *net.TCPAddr) {
-	cfg := config.NewDefaultConfig()
-	cfg.ProcRoot = "/proc"
-	cfg.ConntrackMaxStateSize = 100
-	cfg.ConntrackRateLimit = 500
-	cfg.EnableConntrackAllNamespaces = enableAllNs
-	ct, err := NewConntracker(cfg)
-	require.NoError(t, err)
-
-	time.Sleep(time.Second)
-
-	closer := testutil.StartServerTCPNs(t, net.ParseIP("2.2.2.4"), 8080, "test")
-
-	laddr := testutil.PingTCP(t, net.ParseIP("2.2.2.4"), 80).LocalAddr().(*net.TCPAddr)
-	return ct, closer, laddr
-}
-
-func TestConntracker(t *testing.T) {
-	cmd := exec.Command("testdata/setup_dnat.sh")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Errorf("setup command output: %s", string(out))
-	}
-	defer teardown(t)
-
-	ct, err := NewConntracker("/proc", 100, 500, false)
-	require.NoError(t, err)
-	defer ct.Close()
-	time.Sleep(100 * time.Millisecond)
-	testutil.TestConntracker(t, net.ParseIP("1.1.1.1"), net.ParseIP("2.2.2.2"), ct)
-}
-
-func TestConntracker6(t *testing.T) {
-	defer func() {
-		teardown6(t)
-	}()
-
-	cmd := exec.Command("testdata/setup_dnat6.sh")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Errorf("setup command output: %s", string(out))
-	}
-
-	cfg := config.NewDefaultConfig()
-	cfg.ProcRoot = "/proc"
-	cfg.ConntrackMaxStateSize = 100
-	cfg.ConntrackRateLimit = 500
-	cfg.EnableConntrackAllNamespaces = false
-	ct, err := NewConntracker(cfg)
-	require.NoError(t, err)
-	defer ct.Close()
-	time.Sleep(100 * time.Millisecond)
-	testutil.TestConntracker(t, net.ParseIP("fd00::1"), net.ParseIP("fd00::2"), ct)
 }
 
 // This test generates a dump of netlink messages in test_data/message_dump
@@ -145,14 +71,12 @@ func TestConntracker6(t *testing.T) {
 func TestMessageDump(t *testing.T) {
 	skipUnless(t, "netlink_dump")
 
-	cmd := exec.Command("testdata/setup_dnat.sh")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Errorf("setup command output: %s", string(out))
-	}
-	defer teardown(t)
+	defer testutil.TeardownDNAT(t)
+	testutil.SetupDNAT(t)
 
-	f, err := os.Create("testdata/message_dump")
+	f, err := ioutil.TempFile("", "message_dump")
 	require.NoError(t, err)
+	defer os.Remove(f.Name())
 	defer f.Close()
 
 	testMessageDump(t, f, net.ParseIP("1.1.1.1"), net.ParseIP("2.2.2.2"))
@@ -161,14 +85,12 @@ func TestMessageDump(t *testing.T) {
 func TestMessageDump6(t *testing.T) {
 	skipUnless(t, "netlink_dump")
 
-	cmd := exec.Command("testdata/setup_dnat6.sh")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Errorf("setup command output: %s", string(out))
-	}
-	defer teardown6(t)
+	defer testutil.TeardownDNAT6(t)
+	testutil.SetupDNAT6(t)
 
-	f, err := os.Create("testdata/message_dump6")
+	f, err := ioutil.TempFile("", "message_dump6")
 	require.NoError(t, err)
+	defer os.Remove(f.Name())
 	defer f.Close()
 
 	testMessageDump(t, f, net.ParseIP("fd00::1"), net.ParseIP("fd00::2"))
@@ -190,15 +112,15 @@ func testMessageDump(t *testing.T, f *os.File, serverIP, clientIP net.IP) {
 		close(writeDone)
 	}()
 
-	tcpServer := testutil.StartServerTCP(t, serverIP, natPort)
+	tcpServer := nettestutil.StartServerTCP(t, serverIP, natPort)
 	defer tcpServer.Close()
 
-	udpServer := testutil.StartServerUDP(t, serverIP, nonNatPort)
+	udpServer := nettestutil.StartServerUDP(t, serverIP, nonNatPort)
 	defer udpServer.Close()
 
 	for i := 0; i < 100; i++ {
-		testutil.PingTCP(t, clientIP, natPort)
-		testutil.PingUDP(t, clientIP, nonNatPort)
+		nettestutil.PingTCP(t, clientIP, natPort)
+		nettestutil.PingUDP(t, clientIP, nonNatPort)
 	}
 
 	time.Sleep(time.Second)
@@ -227,27 +149,4 @@ func writeMsgToFile(f *os.File, m netlink.Message) {
 	binary.LittleEndian.PutUint32(length, uint32(len(m.Data)))
 	payload := append(length, m.Data...)
 	f.Write(payload)
-}
-
-func teardown(t *testing.T) {
-	cmd := exec.Command("testdata/teardown_dnat.sh")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		fmt.Printf("teardown command output: %s", string(out))
-		t.Errorf("error tearing down: %s", err)
-	}
-}
-
-func teardown6(t *testing.T) {
-	cmd := exec.Command("testdata/teardown_dnat6.sh")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		fmt.Printf("teardown command output: %s", string(out))
-		t.Errorf("error tearing down: %s", err)
-	}
-}
-
-func teardownCrossNs(t *testing.T) {
-	cmd := exec.Command("testdata/teardown_cross_ns_dnat.sh")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		assert.NoError(t, err, "teardown command output %s", string(out))
-	}
 }

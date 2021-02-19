@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// PingTCP connects to the provided IP address over TCP/TCPv6, sends the string "ping",
+// reads from the connection, and returns the open connection for further use/inspection.
 func PingTCP(t *testing.T, ip net.IP, port int) net.Conn {
 	addr := fmt.Sprintf("%s:%d", ip, port)
 	network := "tcp"
@@ -28,6 +30,8 @@ func PingTCP(t *testing.T, ip net.IP, port int) net.Conn {
 	return conn
 }
 
+// PingUDP connects to the provided IP address over UDP/UDPv6, sends the string "ping",
+// and returns the open connection for further use/inspection.
 func PingUDP(t *testing.T, ip net.IP, port int) net.Conn {
 	network := "udp"
 	if isIpv6(ip) {

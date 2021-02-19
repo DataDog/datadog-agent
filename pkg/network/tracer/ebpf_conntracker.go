@@ -40,6 +40,7 @@ type ebpfConntracker struct {
 	}
 }
 
+// NewEBPFConntracker creates a netlink.Conntracker that monitor conntrack NAT entries via eBPF
 func NewEBPFConntracker(config *config.Config) (netlink.Conntracker, error) {
 	buf, err := getRuntimeCompiledConntracker(config)
 	if err != nil {

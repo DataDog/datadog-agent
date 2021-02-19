@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"os"
 	"testing"
@@ -74,10 +75,11 @@ func BenchmarkDecodeMultipleMessages(b *testing.B) {
 }
 
 func loadDumpData() ([]netlink.Message, error) {
-	f, err := os.Open("testdata/message_dump")
+	f, err := ioutil.TempFile("", "message_dump")
 	if err != nil {
 		return nil, err
 	}
+	defer os.Remove(f.Name())
 	defer f.Close()
 
 	var messages []netlink.Message
