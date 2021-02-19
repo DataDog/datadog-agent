@@ -43,12 +43,16 @@ var (
 		"kube_node_spec_unschedulable":                nodeUnschedulableTransformer,
 		"kube_node_status_allocatable":                nodeAllocatableTransformer,
 		"kube_node_status_capacity":                   nodeCapacityTransformer,
+		"kube_node_created":                           nodeCreationTransformer,
 		"kube_resourcequota":                          resourcequotaTransformer,
 		"kube_limitrange":                             limitrangeTransformer,
 		"kube_persistentvolume_status_phase":          pvPhaseTransformer,
 		"kube_service_spec_type":                      serviceTypeTransformer,
 	}
 )
+
+// now allows testing
+var now = time.Now
 
 // nodeConditionTransformer generates service checks based on the metric kube_node_status_condition
 // It also submit the metric kubernetes_state.node.by_condition
@@ -142,6 +146,11 @@ func nodeUnschedulableTransformer(s aggregator.Sender, name string, metric ksmst
 	}
 	tags = append(tags, "status:"+status)
 	s.Gauge(ksmMetricPrefix+"node.status", 1, hostname, tags)
+}
+
+// nodeCreationTransformer generates the node age metric based on the creation timestamp
+func nodeCreationTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
+	s.Gauge(ksmMetricPrefix+"node.age", float64(now().Unix())-metric.Val, hostname, tags)
 }
 
 // podPhaseTransformer sends status phase metrics for pods, the tag phase has the pod status
@@ -246,9 +255,6 @@ func submitNodeResourceMetric(s aggregator.Sender, name string, metric ksmstore.
 		log.Tracef("Ignoring node resource metric '%s': resource '%s' is not supported", name, resource)
 	}
 }
-
-// now allows testing
-var now = time.Now
 
 // cronJobNextScheduleTransformer sends a service check to alert if the cronjob's next schedule is in the past
 func cronJobNextScheduleTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
