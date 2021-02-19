@@ -229,12 +229,39 @@ struct kevent_t {
     u64 type;
 };
 
+struct ktimeval {
+    long tv_sec;
+    long tv_nsec;
+};
+
+struct file_metadata_t {
+    u32 uid;
+    u32 gid;
+    u16 mode;
+    char padding[6];
+
+    struct ktimeval ctime;
+    struct ktimeval mtime;
+};
+
+void __attribute__((always_inline)) copy_file_metadata(struct file_metadata_t* src, struct file_metadata_t* dst) {
+    dst->uid = src->uid;
+    dst->gid = src->gid;
+    dst->mode = src->mode;
+    dst->ctime.tv_sec = src->ctime.tv_sec;
+    dst->ctime.tv_nsec = src->ctime.tv_nsec;
+    dst->mtime.tv_sec = src->mtime.tv_sec;
+    dst->mtime.tv_nsec = src->mtime.tv_nsec;
+}
+
 struct file_t {
     u64 inode;
     u32 mount_id;
     u32 overlay_numlower;
     u32 path_id;
     u32 padding;
+
+    struct file_metadata_t metadata;
 };
 
 struct syscall_t {

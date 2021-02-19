@@ -17,6 +17,7 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 	"unsafe"
 
 	"github.com/pkg/errors"
@@ -29,7 +30,7 @@ import (
 func TestOpen(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.filename == "{{.Root}}/test-open" && open.flags & O_CREAT != 0`,
+		Expression: `open.file.path == "{{.Root}}/test-open" && open.flags & O_CREAT != 0`,
 	}
 
 	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
@@ -67,11 +68,11 @@ func TestOpen(t *testing.T) {
 				t.Errorf("expected open mode 0755, got %#o", mode)
 			}
 
-			if inode := getInode(t, testFile); inode != event.Open.Inode {
-				t.Logf("expected inode %d, got %d", event.Open.Inode, inode)
+			if inode := getInode(t, testFile); inode != event.Open.File.Inode {
+				t.Logf("expected inode %d, got %d", event.Open.File.Inode, inode)
 			}
 
-			testContainerPath(t, event, "open.container_path")
+			testContainerPath(t, event, "open.file.container_path")
 		}
 	})
 
@@ -98,11 +99,11 @@ func TestOpen(t *testing.T) {
 			if mode := event.Open.Mode; mode != 0711 {
 				t.Errorf("expected open mode 0711, got %#o", mode)
 			}
-			if inode := getInode(t, testFile); inode != event.Open.Inode {
-				t.Logf("expected inode %d, got %d", event.Open.Inode, inode)
+			if inode := getInode(t, testFile); inode != event.Open.File.Inode {
+				t.Logf("expected inode %d, got %d", event.Open.File.Inode, inode)
 			}
 
-			testContainerPath(t, event, "open.container_path")
+			testContainerPath(t, event, "open.file.container_path")
 		}
 	})
 
@@ -137,11 +138,11 @@ func TestOpen(t *testing.T) {
 			if mode := event.Open.Mode; mode != 0711 {
 				t.Errorf("expected open mode 0711, got %#o", mode)
 			}
-			if inode := getInode(t, testFile); inode != event.Open.Inode {
-				t.Errorf("expected inode %d, got %d", event.Open.Inode, inode)
+			if inode := getInode(t, testFile); inode != event.Open.File.Inode {
+				t.Errorf("expected inode %d, got %d", event.Open.File.Inode, inode)
 			}
 
-			testContainerPath(t, event, "open.container_path")
+			testContainerPath(t, event, "open.file.container_path")
 		}
 	})
 
@@ -165,11 +166,11 @@ func TestOpen(t *testing.T) {
 				t.Errorf("expected open mode O_CREAT|O_WRONLY|O_TRUNC, got %d", flags)
 			}
 
-			if inode := getInode(t, testFile); inode != event.Open.Inode {
-				t.Logf("expected inode %d, got %d", event.Open.Inode, inode)
+			if inode := getInode(t, testFile); inode != event.Open.File.Inode {
+				t.Logf("expected inode %d, got %d", event.Open.File.Inode, inode)
 			}
 
-			testContainerPath(t, event, "open.container_path")
+			testContainerPath(t, event, "open.file.container_path")
 		}
 	})
 
@@ -206,11 +207,11 @@ func TestOpen(t *testing.T) {
 				t.Errorf("expected open mode O_CREAT|O_WRONLY|O_TRUNC, got %s", model.OpenFlags(flags))
 			}
 
-			if inode := getInode(t, testFile); inode != event.Open.Inode {
-				t.Logf("expected inode %d, got %d", event.Open.Inode, inode)
+			if inode := getInode(t, testFile); inode != event.Open.File.Inode {
+				t.Logf("expected inode %d, got %d", event.Open.File.Inode, inode)
 			}
 
-			testContainerPath(t, event, "open.container_path")
+			testContainerPath(t, event, "open.file.container_path")
 		}
 	})
 
@@ -249,14 +250,68 @@ func TestOpen(t *testing.T) {
 				t.Errorf("expected open mode O_RDWR, got %d", flags)
 			}
 
-			if inode := getInode(t, testFile); inode != event.Open.Inode {
-				t.Logf("expected inode %d, got %d", event.Open.Inode, inode)
+			if inode := getInode(t, testFile); inode != event.Open.File.Inode {
+				t.Logf("expected inode %d, got %d", event.Open.File.Inode, inode)
 			}
 
-			testContainerPath(t, event, "open.container_path")
+			testContainerPath(t, event, "open.file.container_path")
 		}
 	})
 
+	_ = os.Remove(testFile)
+}
+
+func TestOpenMetadata(t *testing.T) {
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `open.file.path == "{{.Root}}/test-open" && open.file.uid == 98 && open.file.gid == 99`,
+	}
+
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	fileMode := 0o447
+	expectedMode := applyUmask(fileMode)
+	testFile, _, err := test.CreateWithOptions("test-open", 98, 99, fileMode)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("metadata", func(t *testing.T) {
+		// CreateWithOptions creates the file and then chmod the user / group. When the file was created it didn't
+		// have the right uid / gid, thus didn't match the rule. Open the file again to trigger the rule.
+		f, err := os.Open(testFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(testFile)
+		defer f.Close()
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if event.GetType() != "open" {
+				t.Errorf("expected open event, got %s", event.GetType())
+			}
+
+			if int(event.Open.File.Mode) & expectedMode != expectedMode {
+				t.Errorf("expected mode %d, got %d", expectedMode, int(event.Open.File.Mode) & expectedMode)
+			}
+
+			now := time.Now()
+			if event.Open.File.MTime.After(now) || event.Open.File.MTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected mtime close to %s, got %s", now, event.Open.File.MTime)
+			}
+
+			if event.Open.File.CTime.After(now) || event.Open.File.CTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected ctime close to %s, got %s", now, event.Open.File.CTime)
+			}
+		}
+	})
 }
 
 func openMountByID(mountID int) (f *os.File, err error) {
@@ -375,7 +430,7 @@ func benchmarkFind(b *testing.B, filesPerFolder, maxDepth int, rules ...*rules.R
 func BenchmarkFind(b *testing.B) {
 	benchmarkFind(b, 128, 8, &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.filename == "{{.Root}}/donotmatch"`,
+		Expression: `open.file.path == "{{.Root}}/donotmatch"`,
 	})
 }
 

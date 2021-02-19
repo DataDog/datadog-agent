@@ -36,7 +36,7 @@ func TestProcess(t *testing.T) {
 
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: fmt.Sprintf(`process.user == "%s" && process.name == "%s" && open.filename == "{{.Root}}/test-process"`, currentUser.Name, path.Base(executable)),
+		Expression: fmt.Sprintf(`process.file.user == "%s" && process.file.name == "%s" && open.file.path == "{{.Root}}/test-process"`, currentUser.Name, path.Base(executable)),
 	}
 
 	test, err := newTestModule(nil, []*rules.RuleDefinition{ruleDef}, testOpts{})
@@ -45,20 +45,11 @@ func TestProcess(t *testing.T) {
 	}
 	defer test.Close()
 
-	testFile, _, err := test.Path("test-process")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	f, err := os.Create(testFile)
+	testFile, _, err := test.Create("test-process")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer os.Remove(testFile)
-
-	if err := f.Close(); err != nil {
-		t.Fatal(err)
-	}
 
 	_, rule, err := test.GetEvent()
 	if err != nil {
@@ -79,11 +70,11 @@ func TestProcessContext(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule",
-			Expression: fmt.Sprintf(`open.filename == "{{.Root}}/test-process-context" && open.flags & O_CREAT == 0`),
+			Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/test-process-context" && open.flags & O_CREAT == 0`),
 		},
 		{
 			ID:         "test_rule_ancestors",
-			Expression: fmt.Sprintf(`open.filename == "{{.Root}}/test-process-ancestors" && process.ancestors[_].name == "%s"`, path.Base(executable)),
+			Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/test-process-ancestors" && process.ancestors[_].file.name == "%s"`, path.Base(executable)),
 		},
 	}
 
@@ -124,15 +115,15 @@ func TestProcessContext(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if filename, _ := event.GetFieldValue("process.filename"); filename.(string) != executable {
+			if filename, _ := event.GetFieldValue("process.file.path"); filename.(string) != executable {
 				t.Errorf("not able to find the proper process filename `%v` vs `%s`: %v", filename, executable, event)
 			}
 
-			if inode := getInode(t, executable); inode != event.Process.Inode {
-				t.Logf("expected inode %d, got %d", inode, event.Process.Inode)
+			if inode := getInode(t, executable); inode != event.Process.FileFields.Inode {
+				t.Logf("expected inode %d, got %d", event.Process.FileFields.Inode, inode)
 			}
 
-			testContainerPath(t, event, "process.container_path")
+			testContainerPath(t, event, "process.file.container_path")
 		}
 	})
 
@@ -158,7 +149,7 @@ func TestProcessContext(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if filename, _ := event.GetFieldValue("process.filename"); filename.(string) != executable {
+			if filename, _ := event.GetFieldValue("process.file.path"); filename.(string) != executable {
 				t.Errorf("not able to find the proper process filename `%v` vs `%s`", filename, executable)
 			}
 
@@ -166,11 +157,11 @@ func TestProcessContext(t *testing.T) {
 				t.Error("not able to get a tty name")
 			}
 
-			if inode := getInode(t, executable); inode != event.Process.Inode {
-				t.Logf("expected inode %d, got %d", event.Process.Inode, inode)
+			if inode := getInode(t, executable); inode != event.Process.FileFields.Inode {
+				t.Logf("expected inode %d, got %d", event.Process.FileFields.Inode, inode)
 			}
 
-			testContainerPath(t, event, "process.container_path")
+			testContainerPath(t, event, "process.file.container_path")
 		}
 	})
 
@@ -233,7 +224,7 @@ func TestProcessExec(t *testing.T) {
 
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: fmt.Sprintf(`exec.filename == "%s"`, executable),
+		Expression: fmt.Sprintf(`exec.file.path == "%s"`, executable),
 	}
 
 	test, err := newTestModule(nil, []*rules.RuleDefinition{ruleDef}, testOpts{})
@@ -251,15 +242,70 @@ func TestProcessExec(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	} else {
-		if filename, _ := event.GetFieldValue("exec.filename"); filename.(string) != executable {
+		if filename, _ := event.GetFieldValue("exec.file.path"); filename.(string) != executable {
 			t.Errorf("expected exec filename `%v`, got `%v`", executable, filename)
 		}
 
-		if filename, _ := event.GetFieldValue("process.filename"); filename.(string) != executable {
+		if filename, _ := event.GetFieldValue("process.file.path"); filename.(string) != executable {
 			t.Errorf("expected process filename `%v`, got `%v`", executable, filename)
 		}
 
-		testContainerPath(t, event, "exec.container_path")
+		testContainerPath(t, event, "exec.file.container_path")
+	}
+}
+
+func TestProcessMetadata(t *testing.T) {
+	ruleDef := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `exec.file.path == "{{.Root}}/test-exec" && exec.file.uid == 98 && exec.file.gid == 99`,
+	}
+
+	test, err := newTestModule(nil, []*rules.RuleDefinition{ruleDef}, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	fileMode := 0o277
+	expectedMode := applyUmask(fileMode)
+	testFile, _, err := test.CreateWithOptions("test-exec", 98, 99, fileMode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile)
+
+	f, err := os.OpenFile(testFile, os.O_WRONLY, 0)
+	if err != nil {
+		t.Error(err)
+	}
+	f.WriteString("#!/bin/bash\n")
+	f.Close()
+
+	cmd := exec.Command(testFile)
+	if _, err := cmd.CombinedOutput(); err != nil {
+		t.Error(err)
+	}
+
+	event, _, err := test.GetEvent()
+	if err != nil {
+		t.Error(err)
+	} else {
+		if event.GetType() != "exec" {
+			t.Errorf("expected exec event, got %s", event.GetType())
+		}
+
+		if int(event.Exec.FileFields.Mode) & expectedMode != expectedMode {
+			t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Exec.FileFields.Mode) & expectedMode)
+		}
+
+		now := time.Now()
+		if event.Exec.FileFields.MTime.After(now) || event.Exec.FileFields.MTime.Before(now.Add(-1 * time.Hour)) {
+			t.Errorf("expected mtime close to %s, got %s", now, event.Exec.FileFields.MTime)
+		}
+
+		if event.Exec.FileFields.CTime.After(now) || event.Exec.FileFields.CTime.Before(now.Add(-1 * time.Hour)) {
+			t.Errorf("expected ctime close to %s, got %s", now, event.Exec.FileFields.CTime)
+		}
 	}
 }
 
@@ -275,7 +321,7 @@ func TestProcessLineage(t *testing.T) {
 
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: fmt.Sprintf(`exec.filename == "%s"`, executable),
+		Expression: fmt.Sprintf(`exec.file.path == "%s"`, executable),
 	}
 
 	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{wantProbeEvents: true})
@@ -352,7 +398,7 @@ func testProcessLineageExec(t *testing.T, event *probe.Event) error {
 		}
 	}
 
-	testContainerPath(t, event, "process.container_path")
+	testContainerPath(t, event, "process.file.container_path")
 	return nil
 }
 
@@ -388,7 +434,7 @@ func testProcessLineageFork(t *testing.T, event *probe.Event) {
 			// child entry deleted).
 		}
 
-		testContainerPath(t, event, "process.container_path")
+		testContainerPath(t, event, "process.file.container_path")
 	}
 }
 

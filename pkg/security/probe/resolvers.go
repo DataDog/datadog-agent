@@ -108,6 +108,22 @@ func (r *Resolvers) ResolveInode(e *model.FileEvent) string {
 	return path
 }
 
+// ResolveUser resolves the user id of the file to a username
+func (r *Resolvers) ResolveUser(e *model.FileEvent) string {
+	if len(e.User) == 0 {
+		e.User, _ = r.UserGroupResolver.ResolveUser(int(e.UID))
+	}
+	return e.User
+}
+
+// ResolveGroup resolves the group id of the file to a group name
+func (r *Resolvers) ResolveGroup(e *model.FileEvent) string {
+	if len(e.Group) == 0 {
+		e.Group, _ = r.UserGroupResolver.ResolveGroup(int(e.GID))
+	}
+	return e.Group
+}
+
 // ResolveProcessUser resolves the user id of the process to a username
 func (r *Resolvers) ResolveProcessUser(p *model.ProcessContext) string {
 	if len(p.User) == 0 {

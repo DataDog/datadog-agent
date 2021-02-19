@@ -20,7 +20,7 @@ import (
 func TestUtime(t *testing.T) {
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `utimes.filename == "{{.Root}}/test-utime"`,
+		Expression: `utimes.file.path == "{{.Root}}/test-utime" && utimes.file.uid == 98 && utimes.file.gid == 99`,
 	}
 
 	test, err := newTestModule(nil, []*rules.RuleDefinition{ruleDef}, testOpts{})
@@ -29,22 +29,15 @@ func TestUtime(t *testing.T) {
 	}
 	defer test.Close()
 
-	testFile, testFilePtr, err := test.Path("test-utime")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	f, err := os.Create(testFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err := f.Close(); err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(testFile)
-
 	t.Run("utime", func(t *testing.T) {
+		fileMode := 0o447
+		expectedMode := applyUmask(fileMode)
+		testFile, testFilePtr, err := test.CreateWithOptions("test-utime", 98, 99, fileMode)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(testFile)
+
 		utimbuf := &syscall.Utimbuf{
 			Actime:  123,
 			Modtime: 456,
@@ -70,15 +63,36 @@ func TestUtime(t *testing.T) {
 				t.Errorf("expected modification time of 456, got %d", mtime)
 			}
 
-			if inode := getInode(t, testFile); inode != event.Utimes.Inode {
-				t.Logf("expected inode %d, got %d", event.Utimes.Inode, inode)
+			if inode := getInode(t, testFile); inode != event.Utimes.File.Inode {
+				t.Logf("expected inode %d, got %d", event.Utimes.File.Inode, inode)
 			}
 
-			testContainerPath(t, event, "utimes.container_path")
+			if int(event.Utimes.File.Mode) & expectedMode != expectedMode {
+				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Utimes.File.Mode) & expectedMode)
+			}
+
+			now := time.Now()
+			if event.Utimes.File.MTime.After(now) || event.Utimes.File.MTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected mtime close to %s, got %s", now, event.Utimes.File.MTime)
+			}
+
+			if event.Utimes.File.CTime.After(now) || event.Utimes.File.CTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected ctime close to %s, got %s", now, event.Utimes.File.CTime)
+			}
+
+			testContainerPath(t, event, "utimes.file.container_path")
 		}
 	})
 
 	t.Run("utimes", func(t *testing.T) {
+		fileMode := 0o447
+		expectedMode := applyUmask(fileMode)
+		testFile, testFilePtr, err := test.CreateWithOptions("test-utime", 98, 99, fileMode)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(testFile)
+
 		var times = [2]syscall.Timeval{
 			{
 				Sec:  111,
@@ -110,15 +124,36 @@ func TestUtime(t *testing.T) {
 				t.Errorf("expected access microseconds of 222, got %d", atime%int64(time.Second)/int64(time.Microsecond))
 			}
 
-			if inode := getInode(t, testFile); inode != event.Utimes.Inode {
-				t.Logf("expected inode %d, got %d", event.Utimes.Inode, inode)
+			if inode := getInode(t, testFile); inode != event.Utimes.File.Inode {
+				t.Logf("expected inode %d, got %d", event.Utimes.File.Inode, inode)
 			}
 
-			testContainerPath(t, event, "utimes.container_path")
+			if int(event.Utimes.File.Mode) & expectedMode != expectedMode {
+				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Utimes.File.Mode) & expectedMode)
+			}
+
+			now := time.Now()
+			if event.Utimes.File.MTime.After(now) || event.Utimes.File.MTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected mtime close to %s, got %s", now, event.Utimes.File.MTime)
+			}
+
+			if event.Utimes.File.CTime.After(now) || event.Utimes.File.CTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected ctime close to %s, got %s", now, event.Utimes.File.CTime)
+			}
+
+			testContainerPath(t, event, "utimes.file.container_path")
 		}
 	})
 
 	t.Run("utimensat", func(t *testing.T) {
+		fileMode := 0o447
+		expectedMode := applyUmask(fileMode)
+		testFile, testFilePtr, err := test.CreateWithOptions("test-utime", 98, 99, fileMode)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(testFile)
+
 		var ntimes = [2]syscall.Timespec{
 			{
 				Sec:  111,
@@ -153,11 +188,24 @@ func TestUtime(t *testing.T) {
 				t.Errorf("expected modification microseconds of 666, got %d (%d)", mtime%int64(time.Second)/int64(time.Nanosecond), mtime)
 			}
 
-			if inode := getInode(t, testFile); inode != event.Utimes.Inode {
-				t.Logf("expected inode %d, got %d", event.Utimes.Inode, inode)
+			if inode := getInode(t, testFile); inode != event.Utimes.File.Inode {
+				t.Logf("expected inode %d, got %d", event.Utimes.File.Inode, inode)
 			}
 
-			testContainerPath(t, event, "utimes.container_path")
+			if int(event.Utimes.File.Mode) & expectedMode != expectedMode {
+				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Utimes.File.Mode) & expectedMode)
+			}
+
+			now := time.Now()
+			if event.Utimes.File.MTime.After(now) || event.Utimes.File.MTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected mtime close to %s, got %s", now, event.Utimes.File.MTime)
+			}
+
+			if event.Utimes.File.CTime.After(now) || event.Utimes.File.CTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected ctime close to %s, got %s", now, event.Utimes.File.CTime)
+			}
+
+			testContainerPath(t, event, "utimes.file.container_path")
 		}
 	})
 }

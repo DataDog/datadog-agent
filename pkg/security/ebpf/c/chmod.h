@@ -68,6 +68,7 @@ int __attribute__((always_inline)) trace__sys_chmod_ret(struct pt_regs *ctx) {
         .padding = 0,
         .mode = syscall->setattr.mode,
     };
+    copy_file_metadata(&syscall->setattr.metadata, &event.file.metadata);
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);

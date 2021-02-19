@@ -36,7 +36,7 @@ func (m *Model) NewEvent() eval.Event {
 // ValidateField validates the value of a field
 func (m *Model) ValidateField(key string, field eval.FieldValue) error {
 	// check that all path are absolute
-	if strings.HasSuffix(key, "filename") || strings.HasSuffix(key, "_path") {
+	if strings.HasSuffix(key, "path") {
 		if value, ok := field.Value.(string); ok {
 			errAbs := fmt.Errorf("invalid path `%s`, all the path have to be absolute", value)
 			errDepth := fmt.Errorf("invalid path `%s`, path depths have to be shorter than %d", value, MaxPathDepth)
@@ -81,16 +81,18 @@ func (m *Model) ValidateField(key string, field eval.FieldValue) error {
 // ChmodEvent represents a chmod event
 type ChmodEvent struct {
 	SyscallEvent
-	FileEvent
-	Mode uint32 `field:"mode"`
+	File FileEvent `field:"file"`
+	Mode uint32    `field:"file.destination.mode"`
 }
 
 // ChownEvent represents a chown event
 type ChownEvent struct {
 	SyscallEvent
-	FileEvent
-	UID int32 `field:"uid"`
-	GID int32 `field:"gid"`
+	File  FileEvent `field:"file"`
+	UID   int32     `field:"file.destination.uid"`
+	User  string    `field:"file.destination.user" handler:"ResolveChownUID,string"`
+	GID   int32     `field:"file.destination.gid"`
+	Group string    `field:"file.destination.group" handler:"ResolveChownGID,string"`
 }
 
 // ContainerContext holds the container context of an event
@@ -152,18 +154,18 @@ func (e *Event) GetPointer() unsafe.Pointer {
 type ExecEvent struct {
 	// proc_cache_t
 	// (container context is parsed in Event.Container)
-	FileFields
+	FileFields FileFields `field:"file"`
 
-	PathnameStr         string `field:"filename" handler:"ResolveExecInode,string"`
-	ContainerPath       string `field:"container_path" handler:"ResolveExecContainerPath,string"`
-	BasenameStr         string `field:"name" handler:"ResolveExecBasename,string"`
+	PathnameStr         string `field:"file.path" handler:"ResolveExecInode,string"`
+	ContainerPath       string `field:"file.container_path" handler:"ResolveExecContainerPath,string"`
+	BasenameStr         string `field:"file.name" handler:"ResolveExecBasename,string"`
 	PathResolutionError error  `field:"-"`
 
 	ExecTimestamp uint64    `field:"-"`
 	ExecTime      time.Time `field:"-"`
 
 	TTYName string `field:"tty_name" handler:"ResolveExecTTY,string"`
-	Comm    string `field:"-" handler:"ResolveExecComm,string"`
+	Comm    string `field:"comm" handler:"ResolveExecComm,string"`
 
 	// pid_cache_t
 	ForkTimestamp uint64    `field:"-"`
@@ -192,18 +194,41 @@ func (e *ExecEvent) GetPathResolutionError() string {
 
 // FileFields holds the information required to identify a file
 type FileFields struct {
-	MountID         uint32 `field:"-"`
+	UID   uint32    `field:"uid"`
+	User  string    `field:"user" handler:"ResolveUID,string"`
+	GID   uint32    `field:"gid"`
+	Group string    `field:"group" handler:"ResolveGID,string"`
+	Mode  uint16    `field:"mode"`
+	CTime time.Time `field:"-"`
+	MTime time.Time `field:"-"`
+
+	MountID         uint32 `field:"mount_id"`
 	Inode           uint64 `field:"inode"`
 	PathID          uint32 `field:"-"`
 	OverlayNumLower int32  `field:"overlay_numlower"`
 }
 
+// CopyFileFields copies src into dst
+func CopyFileFields(src *FileFields, dst *FileFields) {
+	dst.UID = src.UID
+	dst.User = src.User
+	dst.GID = src.GID
+	dst.Group = src.Group
+	dst.Mode = src.Mode
+	dst.CTime = src.CTime
+	dst.MTime = src.MTime
+	dst.MountID = src.MountID
+	dst.Inode = src.Inode
+	dst.PathID = src.PathID
+	dst.OverlayNumLower = src.OverlayNumLower
+}
+
 // FileEvent is the common file event type
 type FileEvent struct {
 	FileFields
-	PathnameStr   string `field:"filename" handler:"ResolveFileInode,string"`
+	PathnameStr   string `field:"path" handler:"ResolveFileInode,string"`
 	ContainerPath string `field:"container_path" handler:"ResolveFileContainerPath,string"`
-	BasenameStr   string `field:"basename" handler:"ResolveFileBasename,string"`
+	BasenameStr   string `field:"name" handler:"ResolveFileBasename,string"`
 
 	PathResolutionError error `field:"-"`
 }
@@ -226,15 +251,15 @@ type InvalidateDentryEvent struct {
 // LinkEvent represents a link event
 type LinkEvent struct {
 	SyscallEvent
-	Source FileEvent `field:"source"`
-	Target FileEvent `field:"target"`
+	Source FileEvent `field:"file"`
+	Target FileEvent `field:"file.destination"`
 }
 
 // MkdirEvent represents a mkdir event
 type MkdirEvent struct {
 	SyscallEvent
-	FileEvent
-	Mode uint32 `field:"mode"`
+	File FileEvent `field:"file"`
+	Mode uint32    `field:"file.destination.mode"`
 }
 
 // MountEvent represents a mount event
@@ -288,9 +313,9 @@ func (m *MountEvent) GetMountPointPathResolutionError() string {
 // OpenEvent represents an open event
 type OpenEvent struct {
 	SyscallEvent
-	FileEvent
-	Flags uint32 `field:"flags"`
-	Mode  uint32 `field:"mode"`
+	File  FileEvent `field:"file"`
+	Flags uint32    `field:"flags"`
+	Mode  uint32    `field:"file.destination.mode"`
 }
 
 // ProcessCacheEntry this structure holds the container context that we keep in kernel for each process
@@ -339,24 +364,24 @@ type ProcessContext struct {
 // RenameEvent represents a rename event
 type RenameEvent struct {
 	SyscallEvent
-	Old               FileEvent `field:"old"`
-	New               FileEvent `field:"new"`
+	Old               FileEvent `field:"file"`
+	New               FileEvent `field:"file.destination"`
 	DiscarderRevision uint32    `field:"-"`
 }
 
 // RmdirEvent represents a rmdir event
 type RmdirEvent struct {
 	SyscallEvent
-	FileEvent
-	DiscarderRevision uint32 `field:"-"`
+	File              FileEvent `field:"file"`
+	DiscarderRevision uint32    `field:"-"`
 }
 
 // SetXAttrEvent represents an extended attributes event
 type SetXAttrEvent struct {
 	SyscallEvent
-	FileEvent
-	Namespace string `field:"namespace" handler:"GetXAttrNamespace,string"`
-	Name      string `field:"name" handler:"GetXAttrName,string"`
+	File      FileEvent `field:"file"`
+	Namespace string    `field:"file.destination.namespace" handler:"GetXAttrNamespace,string"`
+	Name      string    `field:"file.destination.name" handler:"GetXAttrName,string"`
 
 	NameRaw [200]byte
 }
@@ -369,9 +394,9 @@ type SyscallEvent struct {
 // UnlinkEvent represents an unlink event
 type UnlinkEvent struct {
 	SyscallEvent
-	FileEvent
-	Flags             uint32 `field:"flags"`
-	DiscarderRevision uint32 `field:"-"`
+	File              FileEvent `field:"file"`
+	Flags             uint32    `field:"-"`
+	DiscarderRevision uint32    `field:"-"`
 }
 
 // UmountEvent represents an umount event
@@ -384,7 +409,7 @@ type UmountEvent struct {
 // UtimesEvent represents a utime event
 type UtimesEvent struct {
 	SyscallEvent
-	FileEvent
-	Atime time.Time
-	Mtime time.Time
+	File  FileEvent `field:"file"`
+	Atime time.Time `field:"-"`
+	Mtime time.Time `field:"-"`
 }

@@ -11,6 +11,7 @@ import (
 	"os"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
@@ -18,12 +19,12 @@ import (
 func TestChown(t *testing.T) {
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `chown.filename == "{{.Root}}/test-chown"`,
+		Expression: `chown.file.path == "{{.Root}}/test-chown" && chown.file.destination.uid in [100, 101, 102, 103] && chown.file.destination.gid in [200, 201, 202, 203]`,
 	}
 
 	ruleDef2 := &rules.RuleDefinition{
 		ID:         "test_rule2",
-		Expression: `chown.filename == "{{.Root}}/test-symlink"`,
+		Expression: `chown.file.path == "{{.Root}}/test-symlink" && chown.file.destination.uid in [100, 101, 102, 103] && chown.file.destination.gid in [200, 201, 202, 203]`,
 	}
 
 	test, err := newTestModule(nil, []*rules.RuleDefinition{ruleDef, ruleDef2}, testOpts{})
@@ -32,17 +33,12 @@ func TestChown(t *testing.T) {
 	}
 	defer test.Close()
 
-	testFile, testFilePtr, err := test.Path("test-chown")
+	fileMode := 0o447
+	expectedMode := applyUmask(fileMode)
+	testFile, testFilePtr, err := test.CreateWithOptions("test-chown", 98, 99, fileMode)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	f, err := os.Create(testFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(testFile)
-	defer f.Close()
 
 	t.Run("chown", func(t *testing.T) {
 		if _, _, errno := syscall.Syscall(syscall.SYS_CHOWN, uintptr(testFilePtr), 100, 200); errno != 0 {
@@ -65,19 +61,45 @@ func TestChown(t *testing.T) {
 				t.Errorf("expected chown group 200, got %d", group)
 			}
 
-			if inode := getInode(t, testFile); inode != event.Chown.Inode {
-				t.Logf("expected inode %d, got %d", event.Chown.Inode, inode)
+			if inode := getInode(t, testFile); inode != event.Chown.File.Inode {
+				t.Logf("expected inode %d, got %d", event.Chown.File.Inode, inode)
 			}
 
-			testContainerPath(t, event, "chown.container_path")
+			if int(event.Chown.File.Mode) & expectedMode != expectedMode {
+				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Chown.File.Mode) & expectedMode)
+			}
+
+			if event.Chown.File.UID != 98 {
+				t.Errorf("expected initial UID %d, got %d", 98, event.Chown.File.UID)
+			}
+
+			if event.Chown.File.GID != 99 {
+				t.Errorf("expected initial GID %d, got %d", 99, event.Chown.File.GID)
+			}
+
+			now := time.Now()
+			if event.Chown.File.MTime.After(now) || event.Chown.File.MTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected mtime close to %s, got %s", now, event.Chown.File.MTime)
+			}
+
+			if event.Chown.File.CTime.After(now) || event.Chown.File.CTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected ctime close to %s, got %s", now, event.Chown.File.CTime)
+			}
+
+			testContainerPath(t, event, "chown.file.container_path")
 		}
 	})
 
 	t.Run("fchown", func(t *testing.T) {
+		f, err := os.Open(testFile)
+		if err != nil {
+			t.Fatal(err)
+		}
 		// fchown syscall
 		if _, _, errno := syscall.Syscall(syscall.SYS_FCHOWN, f.Fd(), 101, 201); errno != 0 {
 			t.Fatal(err)
 		}
+		defer f.Close()
 
 		event, _, err := test.GetEvent()
 		if err != nil {
@@ -95,11 +117,32 @@ func TestChown(t *testing.T) {
 				t.Errorf("expected chown group 201, got %d", group)
 			}
 
-			if inode := getInode(t, testFile); inode != event.Chown.Inode {
-				t.Logf("expected inode %d, got %d", event.Chown.Inode, inode)
+			if inode := getInode(t, testFile); inode != event.Chown.File.Inode {
+				t.Logf("expected inode %d, got %d", event.Chown.File.Inode, inode)
 			}
 
-			testContainerPath(t, event, "chown.container_path")
+			if int(event.Chown.File.Mode) & expectedMode != expectedMode {
+				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Chown.File.Mode) & expectedMode)
+			}
+
+			if event.Chown.File.UID != 100 {
+				t.Errorf("expected initial UID %d, got %d", 100, event.Chown.File.UID)
+			}
+
+			if event.Chown.File.GID != 200 {
+				t.Errorf("expected initial GID %d, got %d", 200, event.Chown.File.GID)
+			}
+
+			now := time.Now()
+			if event.Chown.File.MTime.After(now) || event.Chown.File.MTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected mtime close to %s, got %s", now, event.Chown.File.MTime)
+			}
+
+			if event.Chown.File.CTime.After(now) || event.Chown.File.CTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected ctime close to %s, got %s", now, event.Chown.File.CTime)
+			}
+
+			testContainerPath(t, event, "chown.file.container_path")
 		}
 	})
 
@@ -124,11 +167,32 @@ func TestChown(t *testing.T) {
 				t.Errorf("expected chown group 202, got %d", group)
 			}
 
-			if inode := getInode(t, testFile); inode != event.Chown.Inode {
-				t.Logf("expected inode %d, got %d", event.Chown.Inode, inode)
+			if inode := getInode(t, testFile); inode != event.Chown.File.Inode {
+				t.Logf("expected inode %d, got %d", event.Chown.File.Inode, inode)
 			}
 
-			testContainerPath(t, event, "chown.container_path")
+			if int(event.Chown.File.Mode) & expectedMode != expectedMode {
+				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Chown.File.Mode) & expectedMode)
+			}
+
+			if event.Chown.File.UID != 101 {
+				t.Errorf("expected initial UID %d, got %d", 101, event.Chown.File.UID)
+			}
+
+			if event.Chown.File.GID != 201 {
+				t.Errorf("expected initial GID %d, got %d", 201, event.Chown.File.GID)
+			}
+
+			now := time.Now()
+			if event.Chown.File.MTime.After(now) || event.Chown.File.MTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected mtime close to %s, got %s", now, event.Chown.File.MTime)
+			}
+
+			if event.Chown.File.CTime.After(now) || event.Chown.File.CTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected ctime close to %s, got %s", now, event.Chown.File.CTime)
+			}
+
+			testContainerPath(t, event, "chown.file.container_path")
 		}
 	})
 
@@ -167,11 +231,32 @@ func TestChown(t *testing.T) {
 				t.Errorf("expected chown group 203, got %d", group)
 			}
 
-			if inode := getInode(t, testSymlink); inode != event.Chown.Inode {
-				t.Logf("expected inode %d, got %d", event.Chown.Inode, inode)
+			if inode := getInode(t, testSymlink); inode != event.Chown.File.Inode {
+				t.Logf("expected inode %d, got %d", event.Chown.File.Inode, inode)
 			}
 
-			testContainerPath(t, event, "chown.container_path")
+			if int(event.Chown.File.Mode) & 0o777 != 0o777 {
+				t.Errorf("expected initial mode %d, got %d", 0o777, int(event.Chown.File.Mode))
+			}
+
+			if event.Chown.File.UID != 0 {
+				t.Errorf("expected initial UID %d, got %d", 0, event.Chown.File.UID)
+			}
+
+			if event.Chown.File.GID != 0 {
+				t.Errorf("expected initial GID %d, got %d", 0, event.Chown.File.GID)
+			}
+
+			now := time.Now()
+			if event.Chown.File.MTime.After(now) || event.Chown.File.MTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected mtime close to %s, got %s", now, event.Chown.File.MTime)
+			}
+
+			if event.Chown.File.CTime.After(now) || event.Chown.File.CTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected ctime close to %s, got %s", now, event.Chown.File.CTime)
+			}
+
+			testContainerPath(t, event, "chown.file.container_path")
 		}
 	})
 }

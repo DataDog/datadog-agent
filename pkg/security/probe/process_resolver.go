@@ -13,6 +13,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"path"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -150,17 +151,13 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 			return errors.Wrapf(err, "snapshot failed for %d: couldn't parse container ID", proc.Pid)
 		}
 
-		entry.FileFields = model.FileFields{
-			Inode:           inode,
-			OverlayNumLower: info.OverlayNumLower,
-			MountID:         info.MountID,
-		}
+		entry.FileFields = *info
 		entry.ExecEvent.PathnameStr = pathnameStr
+		entry.ExecEvent.BasenameStr = path.Base(pathnameStr)
 		entry.ContainerContext.ID = string(containerID)
+		// resolve container path with the MountResolver
+		entry.ContainerPath = p.resolvers.resolveContainerPath(&entry.ExecEvent.FileFields)
 	}
-
-	// resolve container path with the MountResolver
-	entry.ContainerPath = p.resolvers.resolveContainerPath(&entry.ExecEvent.FileFields)
 
 	entry.ExecTime = time.Unix(0, filledProc.CreateTime*int64(time.Millisecond))
 	entry.ForkTime = entry.ExecTime
@@ -181,7 +178,8 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 }
 
 // retrieveInodeInfo fetches inode metadata from kernel space
-func (p *ProcessResolver) retrieveInodeInfo(inode uint64) (*InodeInfo, error) {
+func (p *ProcessResolver) retrieveInodeInfo(inode uint64) (*model.FileFields, error) {
+	var info model.FileFields
 	inodeb := make([]byte, 8)
 
 	model.ByteOrder.PutUint64(inodeb, inode)
@@ -190,13 +188,12 @@ func (p *ProcessResolver) retrieveInodeInfo(inode uint64) (*InodeInfo, error) {
 		return nil, err
 	}
 
-	if data == nil {
-		return nil, errors.New("not found")
+	if _, err = info.UnmarshalBinary(data); err != nil {
+		return nil, err
 	}
 
-	var info InodeInfo
-	if _, err := info.UnmarshalBinary(data); err != nil {
-		return nil, err
+	if info.Inode == 0 {
+		return nil, errors.New("not found")
 	}
 
 	return &info, nil
@@ -304,7 +301,7 @@ func (p *ProcessResolver) unmarshalProcessCacheEntry(entry *model.ProcessCacheEn
 	// resolve FileEvent now so that the dentry cache is up to date. Fork events might send a null inode if the parent
 	// wasn't in the kernel cache, so only resolve if necessary
 
-	if entry.Inode != 0 && entry.MountID != 0 {
+	if entry.FileFields.Inode != 0 && entry.FileFields.MountID != 0 {
 		entry.PathnameStr, _ = p.resolvers.resolveInode(&entry.FileFields)
 		entry.ContainerPath = p.resolvers.resolveContainerPath(&entry.FileFields)
 	}
@@ -465,7 +462,7 @@ func (p *ProcessResolver) syncCache(proc *process.Process) (*model.ProcessCacheE
 		return nil, false
 	}
 
-	log.Tracef("New process cache entry added: %s %s %d/%d", entry.Comm, entry.PathnameStr, pid, entry.Inode)
+	log.Tracef("New process cache entry added: %s %s %d/%d", entry.Comm, entry.PathnameStr, pid, entry.FileFields.Inode)
 
 	return entry, true
 }

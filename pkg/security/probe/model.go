@@ -140,7 +140,47 @@ func (ev *Event) UnmarshalExecEvent(data []byte) (int, error) {
 	}
 	ev.processCacheEntry = entry
 
-	return ev.resolvers.ProcessResolver.unmarshalProcessCacheEntry(ev.processCacheEntry, data, false)
+	n, err := ev.resolvers.ProcessResolver.unmarshalProcessCacheEntry(ev.processCacheEntry, data, false)
+	if err != nil {
+		return n, err
+	}
+
+	// Some fields need to be copied manually in the ExecEvent structure because they do not have "Exec" specific
+	// resolvers, and the data was parsed in the ProcessCacheEntry structure
+	model.CopyFileFields(&ev.processCacheEntry.ProcessContext.ExecEvent.FileFields, &ev.Exec.FileFields)
+	return n, nil
+}
+
+// ResolveUID resolves the user id of the file to a username
+func (ev *Event) ResolveUID(e *model.FileFields) string {
+	if len(e.User) == 0 {
+		e.User, _ = ev.resolvers.UserGroupResolver.ResolveUser(int(e.UID))
+	}
+	return e.User
+}
+
+// ResolveGID resolves the group id of the file to a group name
+func (ev *Event) ResolveGID(e *model.FileFields) string {
+	if len(e.Group) == 0 {
+		e.Group, _ = ev.resolvers.UserGroupResolver.ResolveGroup(int(e.GID))
+	}
+	return e.Group
+}
+
+// ResolveChownUID resolves the user id of a chown event to a username
+func (ev *Event) ResolveChownUID(e *model.ChownEvent) string {
+	if len(e.User) == 0 {
+		e.User, _ = ev.resolvers.UserGroupResolver.ResolveUser(int(e.UID))
+	}
+	return e.User
+}
+
+// ResolveChownGID resolves the group id of a chown event to a group name
+func (ev *Event) ResolveChownGID(e *model.ChownEvent) string {
+	if len(e.Group) == 0 {
+		e.Group, _ = ev.resolvers.UserGroupResolver.ResolveGroup(int(e.GID))
+	}
+	return e.Group
 }
 
 // ResolveExecPPID resolves the parent process ID

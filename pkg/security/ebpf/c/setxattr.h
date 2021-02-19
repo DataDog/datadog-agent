@@ -131,6 +131,7 @@ int __attribute__((always_inline)) trace__sys_setxattr_ret(struct pt_regs *ctx, 
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
+    fill_file_metadata(syscall->setxattr.dentry, &event.file.metadata);
 
     send_event(ctx, event_type, event);
 

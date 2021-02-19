@@ -25,7 +25,7 @@ type BinaryUnmarshaler interface {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *ChmodEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
+	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
 	if err != nil {
 		return n, err
 	}
@@ -41,7 +41,7 @@ func (e *ChmodEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *ChownEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
+	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
 	if err != nil {
 		return n, err
 	}
@@ -137,7 +137,7 @@ func (e *InvalidateDentryEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *FileFields) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 24 {
+	if len(data) < 72 {
 		return 0, ErrNotEnoughData
 	}
 	e.Inode = ByteOrder.Uint64(data[0:8])
@@ -145,7 +145,22 @@ func (e *FileFields) UnmarshalBinary(data []byte) (int, error) {
 	e.OverlayNumLower = int32(ByteOrder.Uint32(data[12:16]))
 	e.PathID = ByteOrder.Uint32(data[16:20])
 
-	return 24, nil
+	// +4 for padding
+
+	e.UID = ByteOrder.Uint32(data[24:28])
+	e.GID = ByteOrder.Uint32(data[28:32])
+	e.Mode = ByteOrder.Uint16(data[32:34])
+
+	// +6 for padding
+
+	timeSec := ByteOrder.Uint64(data[40:48])
+	timeNsec := ByteOrder.Uint64(data[48:56])
+	e.CTime = time.Unix(int64(timeSec), int64(timeNsec))
+
+	timeSec = ByteOrder.Uint64(data[56:64])
+	timeNsec = ByteOrder.Uint64(data[64:72])
+	e.MTime = time.Unix(int64(timeSec), int64(timeNsec))
+	return 72, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -160,7 +175,7 @@ func (e *LinkEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
+	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
 	if err != nil {
 		return n, err
 	}
@@ -203,7 +218,7 @@ func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
+	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
 	if err != nil {
 		return n, err
 	}
@@ -252,7 +267,7 @@ func (e *RenameEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *RmdirEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
+	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
 	if err != nil {
 		return n, err
 	}
@@ -270,7 +285,7 @@ func (e *RmdirEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *SetXAttrEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
+	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
 	if err != nil {
 		return n, err
 	}
@@ -313,7 +328,7 @@ func (e *UmountEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *UnlinkEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
+	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
 	if err != nil {
 		return n, err
 	}
@@ -331,7 +346,7 @@ func (e *UnlinkEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *UtimesEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
+	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
 	if err != nil {
 		return n, err
 	}

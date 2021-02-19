@@ -81,16 +81,18 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
 
+    struct dentry *exec_dentry = get_path_dentry(path);
     struct proc_cache_t entry = {
         .executable = {
             .inode = syscall->open.path_key.ino,
-            .overlay_numlower = get_overlay_numlower(get_path_dentry(path)),
+            .overlay_numlower = get_overlay_numlower(exec_dentry),
             .mount_id = get_path_mount_id(path),
             .path_id = syscall->open.path_key.path_id,
         },
         .container = {},
         .exec_timestamp = bpf_ktime_get_ns(),
     };
+    fill_file_metadata(exec_dentry, &entry.executable.metadata);
     bpf_get_current_comm(&entry.comm, sizeof(entry.comm));
 
     // cache dentry
@@ -218,6 +220,8 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
             event.proc_entry.executable.mount_id = parent_proc_entry->executable.mount_id;
             event.proc_entry.executable.path_id = parent_proc_entry->executable.path_id;
             event.proc_entry.exec_timestamp = parent_proc_entry->exec_timestamp;
+
+            copy_file_metadata(&parent_proc_entry->executable.metadata, &event.proc_entry.executable.metadata);
             copy_tty_name(event.proc_entry.tty_name, parent_proc_entry->tty_name);
 
             // fetch container context
@@ -304,6 +308,7 @@ int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
             };
             bpf_get_current_comm(&event.proc_entry.comm, sizeof(event.proc_entry.comm));
             copy_tty_name(event.proc_entry.tty_name, proc_entry->tty_name);
+            copy_file_metadata(&proc_entry->executable.metadata, &event.proc_entry.executable.metadata);
 
             fill_process_context(&event.process);
             fill_container_context(proc_entry, &event.proc_entry.container);

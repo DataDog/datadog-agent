@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
@@ -19,7 +20,7 @@ import (
 func TestRename(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `rename.old.filename == "{{.Root}}/test-rename" && rename.new.filename == "{{.Root}}/test2-rename"`,
+		Expression: `rename.file.path == "{{.Root}}/test-rename" && rename.file.uid == 98 && rename.file.gid == 99 && rename.file.destination.path == "{{.Root}}/test2-rename" && rename.file.destination.uid == 98 && rename.file.destination.gid == 99`,
 	}
 
 	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
@@ -28,17 +29,10 @@ func TestRename(t *testing.T) {
 	}
 	defer test.Close()
 
-	testOldFile, testOldFilePtr, err := test.Path("test-rename")
+	fileMode := 0o447
+	expectedMode := applyUmask(fileMode)
+	testOldFile, testOldFilePtr, err := test.CreateWithOptions("test-rename", 98, 99, fileMode)
 	if err != nil {
-		t.Fatal(err)
-	}
-
-	f, err := os.Create(testOldFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err := f.Close(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -46,6 +40,9 @@ func TestRename(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	defer os.Remove(testNewFile)
+	defer os.Remove(testOldFile)
 
 	t.Run("rename", func(t *testing.T) {
 		_, _, errno := syscall.Syscall(syscall.SYS_RENAME, uintptr(testOldFilePtr), uintptr(testNewFilePtr), 0)
@@ -65,8 +62,33 @@ func TestRename(t *testing.T) {
 				t.Logf("expected inode %d, got %d", event.Rename.New.Inode, inode)
 			}
 
-			testContainerPath(t, event, "rename.old.container_path")
-			testContainerPath(t, event, "rename.new.container_path")
+			testContainerPath(t, event, "rename.file.container_path")
+			testContainerPath(t, event, "rename.file.destination.container_path")
+
+			if int(event.Rename.Old.Mode) & expectedMode != expectedMode {
+				t.Errorf("expected old mode %d, got %d", expectedMode, event.Rename.Old.Mode)
+			}
+
+			now := time.Now()
+			if event.Rename.Old.MTime.After(now) || event.Rename.Old.MTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected old mtime close to %s, got %s", now, event.Rename.Old.MTime)
+			}
+
+			if event.Rename.Old.CTime.After(now) || event.Rename.Old.CTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected old ctime close to %s, got %s", now, event.Rename.Old.CTime)
+			}
+
+			if int(event.Rename.New.Mode) & expectedMode != expectedMode {
+				t.Errorf("expected new mode %d, got %d", expectedMode, event.Rename.New.Mode)
+			}
+
+			if event.Rename.New.MTime.After(now) || event.Rename.New.MTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected new mtime close to %s, got %s", now, event.Rename.New.MTime)
+			}
+
+			if event.Rename.New.CTime.After(now) || event.Rename.New.CTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected new ctime close to %s, got %s", now, event.Rename.New.CTime)
+			}
 		}
 	})
 
@@ -92,8 +114,33 @@ func TestRename(t *testing.T) {
 				t.Logf("expected inode %d, got %d", event.Rename.New.Inode, inode)
 			}
 
-			testContainerPath(t, event, "rename.old.container_path")
-			testContainerPath(t, event, "rename.new.container_path")
+			testContainerPath(t, event, "rename.file.container_path")
+			testContainerPath(t, event, "rename.file.destination.container_path")
+
+			if int(event.Rename.Old.Mode) & expectedMode != expectedMode {
+				t.Errorf("expected old mode %d, got %d", expectedMode, event.Rename.Old.Mode)
+			}
+
+			now := time.Now()
+			if event.Rename.Old.MTime.After(now) || event.Rename.Old.MTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected old mtime close to %s, got %s", now, event.Rename.Old.MTime)
+			}
+
+			if event.Rename.Old.CTime.After(now) || event.Rename.Old.CTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected old ctime close to %s, got %s", now, event.Rename.Old.CTime)
+			}
+
+			if int(event.Rename.New.Mode) & expectedMode != expectedMode {
+				t.Errorf("expected new mode %d, got %d", expectedMode, event.Rename.New.Mode)
+			}
+
+			if event.Rename.New.MTime.After(now) || event.Rename.New.MTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected new mtime close to %s, got %s", now, event.Rename.New.MTime)
+			}
+
+			if event.Rename.New.CTime.After(now) || event.Rename.New.CTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected new ctime close to %s, got %s", now, event.Rename.New.CTime)
+			}
 		}
 	})
 
@@ -129,8 +176,33 @@ func TestRename(t *testing.T) {
 				t.Logf("expected inode %d, got %d", event.Rename.New.Inode, inode)
 			}
 
-			testContainerPath(t, event, "rename.old.container_path")
-			testContainerPath(t, event, "rename.new.container_path")
+			testContainerPath(t, event, "rename.file.container_path")
+			testContainerPath(t, event, "rename.file.destination.container_path")
+
+			if int(event.Rename.Old.Mode) & expectedMode != expectedMode {
+				t.Errorf("expected old mode %d, got %d", expectedMode, event.Rename.Old.Mode)
+			}
+
+			now := time.Now()
+			if event.Rename.Old.MTime.After(now) || event.Rename.Old.MTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected old mtime close to %s, got %s", now, event.Rename.Old.MTime)
+			}
+
+			if event.Rename.Old.CTime.After(now) || event.Rename.Old.CTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected old ctime close to %s, got %s", now, event.Rename.Old.CTime)
+			}
+
+			if int(event.Rename.New.Mode) & expectedMode != expectedMode {
+				t.Errorf("expected new mode %d, got %d", expectedMode, event.Rename.New.Mode)
+			}
+
+			if event.Rename.New.MTime.After(now) || event.Rename.New.MTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected new mtime close to %s, got %s", now, event.Rename.New.MTime)
+			}
+
+			if event.Rename.New.CTime.After(now) || event.Rename.New.CTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected new ctime close to %s, got %s", now, event.Rename.New.CTime)
+			}
 		}
 	})
 }

@@ -57,6 +57,7 @@ int kprobe__vfs_rename(struct pt_regs *ctx) {
     struct dentry *target_dentry = (struct dentry *)PT_REGS_PARM4(ctx);
 
     syscall->rename.src_dentry = src_dentry;
+    fill_file_metadata(src_dentry, &syscall->rename.src_metadata);
     syscall->rename.target_dentry = target_dentry;
 
     if (filter_syscall(syscall, rename_approvers)) {
@@ -128,6 +129,8 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
 
         struct proc_cache_t *entry = fill_process_context(&event.process);
         fill_container_context(entry, &event.container);
+        copy_file_metadata(&syscall->rename.src_metadata, &event.old.metadata);
+        copy_file_metadata(&syscall->rename.src_metadata, &event.new.metadata);
 
         // for centos7, use src dentry for target resolution as the pointers have been swapped
         resolve_dentry(syscall->rename.src_dentry, syscall->rename.target_key, 0);

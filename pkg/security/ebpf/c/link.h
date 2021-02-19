@@ -60,6 +60,7 @@ int kprobe__vfs_link(struct pt_regs *ctx) {
     }
 
     syscall->link.src_overlay_numlower = get_overlay_numlower(src_dentry);
+    fill_file_metadata(src_dentry, &syscall->link.src_metadata);
 
     // this is a hard link, source and target dentries are on the same filesystem & mount point
     // target_path was set by kprobe/filename_create before we reach this point.
@@ -106,6 +107,8 @@ int __attribute__((always_inline)) trace__sys_link_ret(struct pt_regs *ctx) {
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
+    copy_file_metadata(&syscall->link.src_metadata, &event.source.metadata);
+    fill_file_metadata(syscall->link.target_dentry, &event.target.metadata);
 
     resolve_dentry(syscall->link.target_dentry, syscall->link.target_key, 0);
 

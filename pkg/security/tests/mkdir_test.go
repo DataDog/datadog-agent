@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
@@ -20,11 +21,11 @@ func TestMkdir(t *testing.T) {
 	rules := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_mkdir",
-			Expression: `mkdir.filename == "{{.Root}}/test-mkdir"`,
+			Expression: `mkdir.file.path == "{{.Root}}/test-mkdir" && mkdir.file.uid == 0 && mkdir.file.gid == 0`,
 		},
 		{
 			ID:         "test_rule_mkdirat",
-			Expression: `mkdir.filename == "{{.Root}}/testat-mkdir"`,
+			Expression: `mkdir.file.path == "{{.Root}}/testat-mkdir" && mkdir.file.uid == 0 && mkdir.file.gid == 0`,
 		},
 	}
 
@@ -34,13 +35,15 @@ func TestMkdir(t *testing.T) {
 	}
 	defer test.Close()
 
+	mkdirMode := 0o707
+	expectedMode := applyUmask(mkdirMode)
+
 	t.Run("mkdir", func(t *testing.T) {
 		testFile, testFilePtr, err := test.Path("test-mkdir")
 		if err != nil {
 			t.Fatal(err)
 		}
-
-		if _, _, errno := syscall.Syscall(syscall.SYS_MKDIR, uintptr(testFilePtr), uintptr(0707), 0); errno != 0 {
+		if _, _, errno := syscall.Syscall(syscall.SYS_MKDIR, uintptr(testFilePtr), uintptr(mkdirMode), 0); errno != 0 {
 			t.Fatal(err)
 		}
 		defer syscall.Rmdir(testFile)
@@ -53,15 +56,28 @@ func TestMkdir(t *testing.T) {
 				t.Errorf("expected triggered rule 'test_rule_mkdir', got '%s'", rule.ID)
 			}
 
-			if mode := event.Mkdir.Mode; mode != 0707 {
-				t.Errorf("expected mkdir mode 0707, got %#o (%+v)", mode, event)
+			if mode := event.Mkdir.Mode; mode != uint32(mkdirMode) {
+				t.Errorf("expected mkdir mode %d, got %#o (%+v)", mkdirMode, mode, event)
 			}
 
-			if inode := getInode(t, testFile); inode != event.Mkdir.Inode {
-				t.Logf("expected inode %d, got %d", event.Mkdir.Inode, inode)
+			if inode := getInode(t, testFile); inode != event.Mkdir.File.Inode {
+				t.Logf("expected inode %d, got %d", event.Mkdir.File.Inode, inode)
 			}
 
-			testContainerPath(t, event, "mkdir.container_path")
+			if int(event.Mkdir.File.Mode) & expectedMode != expectedMode {
+				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Mkdir.File.Mode) & expectedMode)
+			}
+
+			now := time.Now()
+			if event.Mkdir.File.MTime.After(now) || event.Mkdir.File.MTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected mtime close to %s, got %s", now, event.Mkdir.File.MTime)
+			}
+
+			if event.Mkdir.File.CTime.After(now) || event.Mkdir.File.CTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected ctime close to %s, got %s", now, event.Mkdir.File.CTime)
+			}
+
+			testContainerPath(t, event, "mkdir.file.container_path")
 		}
 	})
 
@@ -74,6 +90,7 @@ func TestMkdir(t *testing.T) {
 		if _, _, errno := syscall.Syscall(syscall.SYS_MKDIRAT, 0, uintptr(testatFilePtr), uintptr(0777)); errno != 0 {
 			t.Fatal(error(errno))
 		}
+		defer syscall.Rmdir(testatFile)
 
 		event, rule, err := test.GetEvent()
 		if err != nil {
@@ -87,15 +104,24 @@ func TestMkdir(t *testing.T) {
 				t.Errorf("expected mkdir mode 0777, got %#o", mode)
 			}
 
-			if inode := getInode(t, testatFile); inode != event.Mkdir.Inode {
-				t.Logf("expected inode %d, got %d", event.Mkdir.Inode, inode)
+			if inode := getInode(t, testatFile); inode != event.Mkdir.File.Inode {
+				t.Logf("expected inode %d, got %d", event.Mkdir.File.Inode, inode)
 			}
 
-			testContainerPath(t, event, "mkdir.container_path")
-		}
+			if int(event.Mkdir.File.Mode) & expectedMode != expectedMode {
+				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Mkdir.File.Mode) & expectedMode)
+			}
 
-		if err := syscall.Rmdir(testatFile); err != nil {
-			t.Fatal(err)
+			now := time.Now()
+			if event.Mkdir.File.MTime.After(now) || event.Mkdir.File.MTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected mtime close to %s, got %s", now, event.Mkdir.File.MTime)
+			}
+
+			if event.Mkdir.File.CTime.After(now) || event.Mkdir.File.CTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected ctime close to %s, got %s", now, event.Mkdir.File.CTime)
+			}
+
+			testContainerPath(t, event, "mkdir.file.container_path")
 		}
 	})
 }
@@ -104,7 +130,7 @@ func TestMkdirError(t *testing.T) {
 	rules := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_mkdirat_error",
-			Expression: `process.name == "{{.ProcessName}}" && mkdir.retval == EACCES`,
+			Expression: `process.file.name == "{{.ProcessName}}" && mkdir.retval == EACCES`,
 		},
 	}
 

@@ -135,9 +135,9 @@ func newExecSerializer(exec *model.ExecEvent, e *Event) *FileSerializer {
 		Path:                e.ResolveExecInode(exec),
 		PathResolutionError: exec.GetPathResolutionError(),
 		ContainerPath:       e.ResolveExecContainerPath(exec),
-		Inode:               getUint64Pointer(&exec.Inode),
-		MountID:             getUint32Pointer(&exec.MountID),
-		OverlayNumLower:     getInt32Pointer(&exec.OverlayNumLower),
+		Inode:               getUint64Pointer(&exec.FileFields.Inode),
+		MountID:             getUint32Pointer(&exec.FileFields.MountID),
+		OverlayNumLower:     getInt32Pointer(&exec.FileFields.OverlayNumLower),
 	}
 }
 
@@ -170,47 +170,44 @@ func getTimeIfNotZero(t time.Time) *time.Time {
 }
 
 func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event, r *Resolvers, useEvent bool) *ProcessCacheEntrySerializer {
-	var pid, ppid, tid, uid, gid uint32
-	var user, group string
-
-	if useEvent && e != nil {
-		pid = e.Process.Pid
-		ppid = e.Process.PPid
-		tid = e.Process.Tid
-		uid = e.Process.UID
-		gid = e.Process.GID
-		user = e.ResolveProcessUser(&e.Process)
-		group = e.ResolveProcessGroup(&e.Process)
-	} else {
-		pid = pce.Pid
-		ppid = pce.PPid
-		tid = pce.Tid
-		uid = pce.UID
-		gid = pce.GID
-		user = e.ResolveExecUser(&pce.ProcessContext.ExecEvent)
-		group = e.ResolveExecGroup(&pce.ProcessContext.ExecEvent)
-	}
-
-	return &ProcessCacheEntrySerializer{
-		Pid:                 pid,
-		PPid:                ppid,
-		Tid:                 tid,
-		UID:                 uid,
-		GID:                 gid,
-		User:                user,
-		Group:               group,
-		Name:                e.ResolveExecBasename(&pce.ExecEvent),
-		Path:                e.ResolveExecInode(&pce.ExecEvent),
+	pceSerializer := &ProcessCacheEntrySerializer{
+		Inode:               pce.FileFields.Inode,
+		MountID:             pce.FileFields.MountID,
 		PathResolutionError: pce.GetPathResolutionError(),
-		ContainerPath:       e.ResolveExecContainerPath(&pce.ExecEvent),
-		Comm:                e.ResolveExecComm(&pce.ExecEvent),
-		Inode:               pce.Inode,
-		MountID:             pce.MountID,
-		TTY:                 e.ResolveExecTTY(&pce.ExecEvent),
 		ForkTime:            getTimeIfNotZero(pce.ForkTime),
 		ExecTime:            getTimeIfNotZero(pce.ExecTime),
 		ExitTime:            getTimeIfNotZero(pce.ExitTime),
 	}
+
+	if useEvent && e != nil {
+		pceSerializer.Pid = e.Process.Pid
+		pceSerializer.PPid = e.Process.PPid
+		pceSerializer.Tid = e.Process.Tid
+		pceSerializer.UID = e.Process.UID
+		pceSerializer.GID = e.Process.GID
+		pceSerializer.User = e.ResolveProcessUser(&e.Process)
+		pceSerializer.Group = e.ResolveProcessGroup(&e.Process)
+		pceSerializer.Name = e.ResolveExecBasename(&pce.ExecEvent)
+		pceSerializer.Path = e.ResolveExecInode(&pce.ExecEvent)
+		pceSerializer.ContainerPath = e.ResolveExecContainerPath(&pce.ExecEvent)
+		pceSerializer.Comm = e.ResolveExecComm(&pce.ExecEvent)
+		pceSerializer.TTY = e.ResolveExecTTY(&pce.ExecEvent)
+	} else {
+		pceSerializer.Pid = pce.Pid
+		pceSerializer.PPid = pce.PPid
+		pceSerializer.Tid = pce.Tid
+		pceSerializer.UID = pce.UID
+		pceSerializer.GID = pce.GID
+		pceSerializer.User = r.ResolveProcessUser(&pce.ProcessContext)
+		pceSerializer.Group = r.ResolveProcessGroup(&pce.ProcessContext)
+		pceSerializer.Name = pce.ExecEvent.BasenameStr
+		pceSerializer.Path = pce.ExecEvent.PathnameStr
+		pceSerializer.ContainerPath = pce.ExecEvent.ContainerPath
+		pceSerializer.Comm = pce.Comm
+		pceSerializer.TTY = pce.TTYName
+	}
+
+	return pceSerializer
 }
 
 func newContainerContextSerializer(cc *model.ContainerContext, e *Event) *ContainerContextSerializer {
@@ -286,13 +283,13 @@ func newEventSerializer(event *Event) *EventSerializer {
 	switch model.EventType(event.Type) {
 	case model.FileChmodEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.Chmod.FileEvent, event),
+			FileSerializer: *newFileSerializer(&event.Chmod.File, event),
 		}
 		s.FileSerializer.Mode = &event.Chmod.Mode
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Chmod.Retval)
 	case model.FileChownEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.Chown.FileEvent, event),
+			FileSerializer: *newFileSerializer(&event.Chown.File, event),
 		}
 		s.FileSerializer.UID = &event.Chown.UID
 		s.FileSerializer.GID = &event.Chown.GID
@@ -305,25 +302,25 @@ func newEventSerializer(event *Event) *EventSerializer {
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Link.Retval)
 	case model.FileOpenEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.Open.FileEvent, event),
+			FileSerializer: *newFileSerializer(&event.Open.File, event),
 		}
 		s.FileSerializer.Mode = &event.Open.Mode
 		s.FileSerializer.Flags = model.OpenFlags(event.Open.Flags).StringArray()
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Open.Retval)
 	case model.FileMkdirEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.Mkdir.FileEvent, event),
+			FileSerializer: *newFileSerializer(&event.Mkdir.File, event),
 		}
 		s.FileSerializer.Mode = &event.Mkdir.Mode
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Mkdir.Retval)
 	case model.FileRmdirEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.Rmdir.FileEvent, event),
+			FileSerializer: *newFileSerializer(&event.Rmdir.File, event),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Rmdir.Retval)
 	case model.FileUnlinkEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.Unlink.FileEvent, event),
+			FileSerializer: *newFileSerializer(&event.Unlink.File, event),
 		}
 		s.FileSerializer.Flags = model.UnlinkFlags(event.Unlink.Flags).StringArray()
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Unlink.Retval)
@@ -335,21 +332,21 @@ func newEventSerializer(event *Event) *EventSerializer {
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Rename.Retval)
 	case model.FileRemoveXAttrEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.RemoveXAttr.FileEvent, event),
+			FileSerializer: *newFileSerializer(&event.RemoveXAttr.File, event),
 		}
 		s.FileSerializer.XAttrName = event.GetXAttrName(&event.RemoveXAttr)
 		s.FileSerializer.XAttrNamespace = event.GetXAttrNamespace(&event.RemoveXAttr)
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.RemoveXAttr.Retval)
 	case model.FileSetXAttrEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.SetXAttr.FileEvent, event),
+			FileSerializer: *newFileSerializer(&event.SetXAttr.File, event),
 		}
 		s.FileSerializer.XAttrName = event.GetXAttrName(&event.SetXAttr)
 		s.FileSerializer.XAttrNamespace = event.GetXAttrNamespace(&event.SetXAttr)
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.SetXAttr.Retval)
 	case model.FileUtimeEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.Utimes.FileEvent, event),
+			FileSerializer: *newFileSerializer(&event.Utimes.File, event),
 		}
 		s.FileSerializer.Atime = getTimeIfNotZero(event.Utimes.Atime)
 		s.FileSerializer.Mtime = getTimeIfNotZero(event.Utimes.Mtime)

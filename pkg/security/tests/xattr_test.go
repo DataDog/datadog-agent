@@ -11,6 +11,7 @@ import (
 	"os"
 	"syscall"
 	"testing"
+	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
@@ -20,7 +21,7 @@ import (
 func TestSetXAttr(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `setxattr.filename == "{{.Root}}/test-setxattr" && setxattr.namespace == "user" && setxattr.name == "user.test_xattr"`,
+		Expression: `((setxattr.file.path == "{{.Root}}/test-setxattr" && setxattr.file.uid == 98 && setxattr.file.gid == 99) || setxattr.file.path == "{{.Root}}/test-setxattr-link") && setxattr.file.destination.namespace == "user" && setxattr.file.destination.name == "user.test_xattr"`,
 	}
 
 	testDrive, err := newTestDrive("ext4", []string{"user_xattr"})
@@ -35,11 +36,6 @@ func TestSetXAttr(t *testing.T) {
 	}
 	defer test.Close()
 
-	testFile, testFilePtr, err := testDrive.Path("test-setxattr")
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	xattrName, err := syscall.BytePtrFromString("user.test_xattr")
 	if err != nil {
 		t.Fatal(err)
@@ -47,14 +43,15 @@ func TestSetXAttr(t *testing.T) {
 	xattrNamePtr := unsafe.Pointer(xattrName)
 	xattrValuePtr := unsafe.Pointer(&[]byte{})
 
+	fileMode := 0o777
+	expectedMode := applyUmask(fileMode)
+
 	t.Run("setxattr", func(t *testing.T) {
-		// create file
-		f, err := os.Create(testFile)
+		testFile, testFilePtr, err := test.CreateWithOptions("test-setxattr", 98, 99, fileMode)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer os.Remove(testFile)
-		defer f.Close()
 
 		_, _, errno := syscall.Syscall6(syscall.SYS_SETXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), uintptr(xattrValuePtr), 0, unix.XATTR_CREATE, 0)
 		if errno != 0 {
@@ -73,29 +70,38 @@ func TestSetXAttr(t *testing.T) {
 				t.Errorf("expected setxattr name user.test_xattr, got %s", event.SetXAttr.Name)
 			}
 
-			if inode := getInode(t, testFile); inode != event.SetXAttr.Inode {
-				t.Logf("expected inode %d, got %d", event.SetXAttr.Inode, inode)
+			if inode := getInode(t, testFile); inode != event.SetXAttr.File.Inode {
+				t.Logf("expected inode %d, got %d", event.SetXAttr.File.Inode, inode)
 			}
 
-			testContainerPath(t, event, "setxattr.container_path")
+			if int(event.SetXAttr.File.Mode) & expectedMode != expectedMode {
+				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.SetXAttr.File.Mode) & expectedMode)
+			}
+
+			now := time.Now()
+			if event.SetXAttr.File.MTime.After(now) || event.SetXAttr.File.MTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected mtime close to %s, got %s", now, event.SetXAttr.File.MTime)
+			}
+
+			if event.SetXAttr.File.CTime.After(now) || event.SetXAttr.File.CTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected ctime close to %s, got %s", now, event.SetXAttr.File.CTime)
+			}
+
+			testContainerPath(t, event, "setxattr.file.container_path")
 		}
 	})
 
 	t.Run("lsetxattr", func(t *testing.T) {
-		testOldFile, testOldFilePtr, err := testDrive.Path("test-setxattr-old")
+		testFile, testFilePtr, err := test.Path("test-setxattr-link")
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		f, err := os.Create(testOldFile)
+		testOldFile, testOldFilePtr, err := test.CreateWithOptions("test-setxattr-old", 98, 99, fileMode)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer os.Remove(testOldFile)
-
-		if err := f.Close(); err != nil {
-			t.Fatal(err)
-		}
 
 		_, _, errno := syscall.Syscall(syscall.SYS_SYMLINK, uintptr(testOldFilePtr), uintptr(testFilePtr), 0)
 		if errno != 0 {
@@ -126,8 +132,12 @@ func TestSetXAttr(t *testing.T) {
 	})
 
 	t.Run("fsetxattr", func(t *testing.T) {
-		// create file
-		f, err := os.Create(testFile)
+		testFile, _, err := test.CreateWithOptions("test-setxattr", 98, 99, fileMode)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		f, err := os.Open(testFile)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -151,11 +161,24 @@ func TestSetXAttr(t *testing.T) {
 				t.Errorf("expected setxattr name user.test_xattr, got %s", event.SetXAttr.Name)
 			}
 
-			if inode := getInode(t, testFile); inode != event.SetXAttr.Inode {
-				t.Logf("expected inode %d, got %d", event.SetXAttr.Inode, inode)
+			if inode := getInode(t, testFile); inode != event.SetXAttr.File.Inode {
+				t.Logf("expected inode %d, got %d", event.SetXAttr.File.Inode, inode)
 			}
 
-			testContainerPath(t, event, "setxattr.container_path")
+			if int(event.SetXAttr.File.Mode) & expectedMode != expectedMode {
+				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.SetXAttr.File.Mode) & expectedMode)
+			}
+
+			now := time.Now()
+			if event.SetXAttr.File.MTime.After(now) || event.SetXAttr.File.MTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected mtime close to %s, got %s", now, event.SetXAttr.File.MTime)
+			}
+
+			if event.SetXAttr.File.CTime.After(now) || event.SetXAttr.File.CTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected ctime close to %s, got %s", now, event.SetXAttr.File.CTime)
+			}
+
+			testContainerPath(t, event, "setxattr.file.container_path")
 		}
 	})
 }
@@ -164,7 +187,7 @@ func TestRemoveXAttr(t *testing.T) {
 	rules := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule",
-			Expression: `removexattr.filename == "{{.Root}}/test-removexattr" && removexattr.namespace == "user" && removexattr.name == "user.test_xattr"`,
+			Expression: `((removexattr.file.path == "{{.Root}}/test-removexattr" && removexattr.file.uid == 98 && removexattr.file.gid == 99) || removexattr.file.path == "{{.Root}}/test-removexattr-link") && removexattr.file.destination.namespace == "user" && removexattr.file.destination.name == "user.test_xattr" `,
 		},
 	}
 
@@ -180,20 +203,22 @@ func TestRemoveXAttr(t *testing.T) {
 	}
 	defer test.Close()
 
-	testFile, testFilePtr, err := testDrive.Path("test-removexattr")
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	xattrName, err := syscall.BytePtrFromString("user.test_xattr")
 	if err != nil {
 		t.Fatal(err)
 	}
 	xattrNamePtr := unsafe.Pointer(xattrName)
 
+	fileMode := 0o777
+	expectedMode := applyUmask(fileMode)
+
 	t.Run("removexattr", func(t *testing.T) {
-		// create file
-		f, err := os.Create(testFile)
+		testFile, testFilePtr, err := test.CreateWithOptions("test-removexattr", 98, 99, fileMode)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		f, err := os.Open(testFile)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -223,26 +248,35 @@ func TestRemoveXAttr(t *testing.T) {
 				t.Errorf("expected removexattr name user.test_xattr, got %s", event.RemoveXAttr.Name)
 			}
 
-			if inode := getInode(t, testFile); inode != event.RemoveXAttr.Inode {
-				t.Logf("expected inode %d, got %d", event.RemoveXAttr.Inode, inode)
+			if inode := getInode(t, testFile); inode != event.RemoveXAttr.File.Inode {
+				t.Logf("expected inode %d, got %d", event.RemoveXAttr.File.Inode, inode)
 			}
 
-			testContainerPath(t, event, "removexattr.container_path")
+			if int(event.RemoveXAttr.File.Mode) & expectedMode != expectedMode {
+				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.RemoveXAttr.File.Mode) & expectedMode)
+			}
+
+			now := time.Now()
+			if event.RemoveXAttr.File.MTime.After(now) || event.RemoveXAttr.File.MTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected mtime close to %s, got %s", now, event.RemoveXAttr.File.MTime)
+			}
+
+			if event.RemoveXAttr.File.CTime.After(now) || event.RemoveXAttr.File.CTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected ctime close to %s, got %s", now, event.RemoveXAttr.File.CTime)
+			}
+
+			testContainerPath(t, event, "removexattr.file.container_path")
 		}
 	})
 
 	t.Run("lremovexattr", func(t *testing.T) {
-		testOldFile, testOldFilePtr, err := testDrive.Path("test-removexattr-old")
+		testFile, testFilePtr, err := test.Path("test-removexattr-link")
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		f, err := os.Create(testOldFile)
+		testOldFile, testOldFilePtr, err := test.CreateWithOptions("test-setxattr-old", 98, 99, fileMode)
 		if err != nil {
-			t.Fatal(err)
-		}
-
-		if err := f.Close(); err != nil {
 			t.Fatal(err)
 		}
 		defer os.Remove(testOldFile)
@@ -283,8 +317,12 @@ func TestRemoveXAttr(t *testing.T) {
 	})
 
 	t.Run("fremovexattr", func(t *testing.T) {
-		// create file
-		f, err := os.Create(testFile)
+		testFile, _, err := test.CreateWithOptions("test-removexattr", 98, 99, fileMode)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		f, err := os.Open(testFile)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -314,11 +352,24 @@ func TestRemoveXAttr(t *testing.T) {
 				t.Errorf("expected removexattr name user.test_xattr, got %s", event.RemoveXAttr.Name)
 			}
 
-			if inode := getInode(t, testFile); inode != event.RemoveXAttr.Inode {
-				t.Logf("expected inode %d, got %d", event.RemoveXAttr.Inode, inode)
+			if inode := getInode(t, testFile); inode != event.RemoveXAttr.File.Inode {
+				t.Logf("expected inode %d, got %d", event.RemoveXAttr.File.Inode, inode)
 			}
 
-			testContainerPath(t, event, "removexattr.container_path")
+			if int(event.RemoveXAttr.File.Mode) & expectedMode != expectedMode {
+				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.RemoveXAttr.File.Mode) & expectedMode)
+			}
+
+			now := time.Now()
+			if event.RemoveXAttr.File.MTime.After(now) || event.RemoveXAttr.File.MTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected mtime close to %s, got %s", now, event.RemoveXAttr.File.MTime)
+			}
+
+			if event.RemoveXAttr.File.CTime.After(now) || event.RemoveXAttr.File.CTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected ctime close to %s, got %s", now, event.RemoveXAttr.File.CTime)
+			}
+
+			testContainerPath(t, event, "removexattr.file.container_path")
 		}
 	})
 }

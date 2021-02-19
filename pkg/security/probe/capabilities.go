@@ -59,11 +59,11 @@ func (caps Capabilities) GetFieldCapabilities() rules.FieldCapabilities {
 
 func oneBasenameCapabilities(event string) Capabilities {
 	return Capabilities{
-		event + ".filename": {
+		event + ".file.path": {
 			PolicyFlags:     PolicyFlagBasename,
 			FieldValueTypes: eval.ScalarValueType,
 		},
-		event + ".basename": {
+		event + ".file.name": {
 			PolicyFlags:     PolicyFlagBasename,
 			FieldValueTypes: eval.ScalarValueType,
 		},
@@ -72,19 +72,19 @@ func oneBasenameCapabilities(event string) Capabilities {
 
 func twoBasenameCapabilities(event string, field1, field2 string) Capabilities {
 	return Capabilities{
-		event + "." + field1 + ".filename": {
+		event + "." + field1 + ".path": {
 			PolicyFlags:     PolicyFlagBasename,
 			FieldValueTypes: eval.ScalarValueType,
 		},
-		event + "." + field1 + ".basename": {
+		event + "." + field1 + ".name": {
 			PolicyFlags:     PolicyFlagBasename,
 			FieldValueTypes: eval.ScalarValueType,
 		},
-		event + "." + field2 + ".filename": {
+		event + "." + field2 + ".path": {
 			PolicyFlags:     PolicyFlagBasename,
 			FieldValueTypes: eval.ScalarValueType,
 		},
-		event + "." + field2 + ".basename": {
+		event + "." + field2 + ".name": {
 			PolicyFlags:     PolicyFlagBasename,
 			FieldValueTypes: eval.ScalarValueType,
 		},
@@ -94,10 +94,10 @@ func twoBasenameCapabilities(event string, field1, field2 string) Capabilities {
 func init() {
 	allCapabilities["chmod"] = oneBasenameCapabilities("chmod")
 	allCapabilities["chown"] = oneBasenameCapabilities("chown")
-	allCapabilities["link"] = twoBasenameCapabilities("link", "source", "target")
+	allCapabilities["link"] = twoBasenameCapabilities("link", "file", "file.destination")
 	allCapabilities["mkdir"] = oneBasenameCapabilities("mkdir")
 	allCapabilities["open"] = openCapabilities
-	allCapabilities["rename"] = twoBasenameCapabilities("rename", "old", "new")
+	allCapabilities["rename"] = twoBasenameCapabilities("rename", "file", "file.destination")
 	allCapabilities["rmdir"] = oneBasenameCapabilities("rmdir")
 	allCapabilities["unlink"] = oneBasenameCapabilities("unlink")
 	allCapabilities["utimes"] = oneBasenameCapabilities("utimes")

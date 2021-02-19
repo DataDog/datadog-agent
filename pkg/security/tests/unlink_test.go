@@ -11,6 +11,7 @@ import (
 	"os"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
@@ -18,7 +19,7 @@ import (
 func TestUnlink(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `unlink.filename == "{{.Root}}/test-unlink" || unlink.filename == "{{.Root}}/test-unlinkat"`,
+		Expression: `unlink.file.path in ["{{.Root}}/test-unlink", "{{.Root}}/test-unlinkat"] && unlink.file.uid == 98 && unlink.file.gid == 99`,
 	}
 
 	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
@@ -27,16 +28,12 @@ func TestUnlink(t *testing.T) {
 	}
 	defer test.Close()
 
-	testFile, testFilePtr, err := test.Path("test-unlink")
+	fileMode := 0o447
+	expectedMode := applyUmask(fileMode)
+	testFile, testFilePtr, err := test.CreateWithOptions("test-unlink", 98, 99, fileMode)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	f, err := os.Create(testFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	f.Close()
 	defer os.Remove(testFile)
 
 	inode := getInode(t, testFile)
@@ -54,30 +51,37 @@ func TestUnlink(t *testing.T) {
 				t.Errorf("expected unlink event, got %s", event.GetType())
 			}
 
-			if inode != event.Unlink.Inode {
-				t.Logf("expected inode %d, got %d", event.Unlink.Inode, inode)
+			if inode != event.Unlink.File.Inode {
+				t.Logf("expected inode %d, got %d", event.Unlink.File.Inode, inode)
 			}
 
-			testContainerPath(t, event, "unlink.container_path")
+			if int(event.Unlink.File.Mode) & expectedMode != expectedMode {
+				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Unlink.File.Mode) & expectedMode)
+			}
+
+			now := time.Now()
+			if event.Unlink.File.MTime.After(now) || event.Unlink.File.MTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected mtime close to %s, got %s", now, event.Unlink.File.MTime)
+			}
+
+			if event.Unlink.File.CTime.After(now) || event.Unlink.File.CTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected ctime close to %s, got %s", now, event.Unlink.File.CTime)
+			}
+
+			testContainerPath(t, event, "unlink.file.container_path")
 		}
 	})
 
-	testatFile, testatFilePtr, err := test.Path("test-unlinkat")
+	testAtFile, testAtFilePtr, err := test.CreateWithOptions("test-unlinkat", 98, 99, fileMode)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer os.Remove(testAtFile)
 
-	f, err = os.Create(testatFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	f.Close()
-	defer os.Remove(testatFile)
-
-	inode = getInode(t, testatFile)
+	inode = getInode(t, testAtFile)
 
 	t.Run("unlinkat", func(t *testing.T) {
-		if _, _, err := syscall.Syscall(syscall.SYS_UNLINKAT, 0, uintptr(testatFilePtr), 0); err != 0 {
+		if _, _, err := syscall.Syscall(syscall.SYS_UNLINKAT, 0, uintptr(testAtFilePtr), 0); err != 0 {
 			t.Fatal(err)
 		}
 
@@ -89,11 +93,24 @@ func TestUnlink(t *testing.T) {
 				t.Errorf("expected unlink event, got %s", event.GetType())
 			}
 
-			if inode != event.Unlink.Inode {
-				t.Logf("expected inode %d, got %d", event.Unlink.Inode, inode)
+			if inode != event.Unlink.File.Inode {
+				t.Logf("expected inode %d, got %d", event.Unlink.File.Inode, inode)
 			}
 
-			testContainerPath(t, event, "unlink.container_path")
+			if int(event.Unlink.File.Mode) & expectedMode != expectedMode {
+				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Unlink.File.Mode) & expectedMode)
+			}
+
+			now := time.Now()
+			if event.Unlink.File.MTime.After(now) || event.Unlink.File.MTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected mtime close to %s, got %s", now, event.Unlink.File.MTime)
+			}
+
+			if event.Unlink.File.CTime.After(now) || event.Unlink.File.CTime.Before(now.Add(-1 * time.Hour)) {
+				t.Errorf("expected ctime close to %s, got %s", now, event.Unlink.File.CTime)
+			}
+
+			testContainerPath(t, event, "unlink.file.container_path")
 		}
 	})
 }
