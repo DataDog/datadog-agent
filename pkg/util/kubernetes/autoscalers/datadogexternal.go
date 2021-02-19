@@ -185,8 +185,15 @@ func (p *Processor) updateRateLimitingMetrics() error {
 
 // NewDatadogClient generates a new client to query metrics from Datadog
 func NewDatadogClient() (*datadog.Client, error) {
-	apiKey := config.SanitizeAPIKey(config.Datadog.GetString("api_key"))
-	appKey := config.Datadog.GetString("app_key")
+	apiKey := config.SanitizeAPIKey(config.Datadog.GetString("external_metrics_provider.api_key"))
+	if apiKey == "" {
+		apiKey = config.SanitizeAPIKey(config.Datadog.GetString("api_key"))
+	}
+
+	appKey := config.SanitizeAPIKey(config.Datadog.GetString("external_metrics_provider.app_key"))
+	if appKey == "" {
+		appKey = config.SanitizeAPIKey(config.Datadog.GetString("app_key"))
+	}
 
 	// DATADOG_HOST used to be the only way to set the external metrics
 	// endpoint, so we need to keep backwards compatibility. In order of

@@ -92,6 +92,8 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 func NewServerless(sources *config.LogSources, services *service.Services, processingRules []*config.ProcessingRule, endpoints *config.Endpoints) *Agent {
 	health := health.RegisterLiveness("logs-agent")
 
+	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver()
+
 	// setup the a null auditor, not tracking data in any registry
 	auditor := auditor.NewNullAuditor()
 	destinationsCtx := client.NewDestinationsContext()
@@ -105,11 +107,12 @@ func NewServerless(sources *config.LogSources, services *service.Services, proce
 	}
 
 	return &Agent{
-		auditor:          auditor,
-		destinationsCtx:  destinationsCtx,
-		pipelineProvider: pipelineProvider,
-		inputs:           inputs,
-		health:           health,
+		auditor:                   auditor,
+		destinationsCtx:           destinationsCtx,
+		pipelineProvider:          pipelineProvider,
+		inputs:                    inputs,
+		health:                    health,
+		diagnosticMessageReceiver: diagnosticMessageReceiver,
 	}
 }
 

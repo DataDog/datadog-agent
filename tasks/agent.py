@@ -1,7 +1,7 @@
 """
 Agent namespaced tasks
 """
-from __future__ import print_function
+
 
 import datetime
 import glob
@@ -39,6 +39,7 @@ AGENT_CORECHECKS = [
     "containerd",
     "cpu",
     "cri",
+    "snmp",
     "docker",
     "file_handle",
     "go_expvar",

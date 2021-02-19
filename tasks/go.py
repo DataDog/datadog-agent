@@ -1,7 +1,7 @@
 """
 Golang related tasks go here
 """
-from __future__ import print_function
+
 
 import datetime
 import os
@@ -13,13 +13,6 @@ from invoke.exceptions import Exit
 
 from .build_tags import get_default_build_tags
 from .utils import get_build_flags
-
-# We use `basestring` in the code for compat with python2 unicode strings.
-# This makes the same code work in python3 as well.
-try:
-    basestring
-except NameError:
-    basestring = str
 
 # List of modules to ignore when running lint
 MODULE_WHITELIST = [
@@ -63,7 +56,7 @@ def fmt(ctx, targets, fail_on_fmt=False):
     Example invokation:
         inv fmt --targets=./pkg/collector/check,./pkg/aggregator
     """
-    if isinstance(targets, basestring):
+    if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
         targets = targets.split(',')
@@ -87,7 +80,7 @@ def lint(ctx, targets):
     Example invokation:
         inv lint --targets=./pkg/collector/check,./pkg/aggregator
     """
-    if isinstance(targets, basestring):
+    if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
         targets = targets.split(',')
@@ -124,7 +117,7 @@ def vet(ctx, targets, rtloader_root=None, build_tags=None, arch="x64"):
     Example invokation:
         inv vet --targets=./pkg/collector/check,./pkg/aggregator
     """
-    if isinstance(targets, basestring):
+    if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
         targets = targets.split(',')
@@ -152,7 +145,7 @@ def cyclo(ctx, targets, limit=15):
     Example invokation:
         inv cyclo --targets=./pkg/collector/check,./pkg/aggregator
     """
-    if isinstance(targets, basestring):
+    if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
         targets = targets.split(',')
@@ -171,7 +164,7 @@ def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, arch="x64")
     Example invocation:
         inv golangci_lint --targets=./pkg/collector/check,./pkg/aggregator
     """
-    if isinstance(targets, basestring):
+    if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
         targets = targets.split(',')
@@ -201,7 +194,7 @@ def ineffassign(ctx, targets):
     Example invokation:
         inv ineffassign --targets=./pkg/collector/check,./pkg/aggregator
     """
-    if isinstance(targets, basestring):
+    if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
         targets = targets.split(',')
@@ -220,7 +213,7 @@ def staticcheck(ctx, targets, build_tags=None, arch="x64"):
     Example invokation:
         inv statickcheck --targets=./pkg/collector/check,./pkg/aggregator
     """
-    if isinstance(targets, basestring):
+    if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
         targets = targets.split(',')
@@ -247,7 +240,7 @@ def misspell(ctx, targets):
     Example invokation:
         inv misspell --targets=./pkg/collector/check,./pkg/aggregator
     """
-    if isinstance(targets, basestring):
+    if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
         targets = targets.split(',')

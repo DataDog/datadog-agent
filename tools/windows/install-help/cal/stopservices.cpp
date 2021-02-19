@@ -708,6 +708,18 @@ class serviceDef
             }
             WcaLog(LOGMSG_STANDARD, "Updated path for existing service");
         }
+        {
+            WcaLog(LOGMSG_STANDARD, "Resetting dependencies");
+            BOOL bRet = ChangeServiceConfigW(hService, SERVICE_NO_CHANGE, SERVICE_NO_CHANGE, SERVICE_NO_CHANGE,
+                                             NULL, NULL, NULL, this->lpDependencies, NULL, NULL, NULL);
+            if (!bRet)
+            {
+                retval = GetLastError();
+                WcaLog(LOGMSG_STANDARD, "Failed to update service dependency config %d\n", retval);
+                goto done_verify;
+            }
+            WcaLog(LOGMSG_STANDARD, "Updated dependencies for existing service, dependencies now %S", this->lpDependencies);
+        }
 
     done_verify:
         CloseServiceHandle(hService);
@@ -721,12 +733,16 @@ class serviceDef
     const wchar_t* getServiceName() const { return this->svcName;  }
 };
 
+static    wchar_t * probeDepsNoNPM = L"datadogagent\0\0";
+static    wchar_t * probeDepsWithNPM = L"datadogagent\0ddnpm\0\0";
+
 int installServices(CustomActionData &data, PSID sid, const wchar_t *password)
 {
     SC_HANDLE hScManager = NULL;
     SC_HANDLE hService = NULL;
     int retval = 0;
     // Get a handle to the SCM database.
+    
 #ifdef __REGISTER_ALL_SERVICES
 #define NUM_SERVICES 4
     serviceDef services[NUM_SERVICES] = {
@@ -737,7 +753,7 @@ int installServices(CustomActionData &data, PSID sid, const wchar_t *password)
         serviceDef(processService.c_str(), L"Datadog Process Agent", L"Send process metrics to Datadog",
                    process_exe.c_str(), L"datadogagent\0\0", SERVICE_DEMAND_START, NULL, NULL),
         serviceDef(systemProbeService.c_str(), L"Datadog System Probe", L"Send network metrics to Datadog",
-                   sysprobe_exe.c_str(), L"datadogagent\0ddnpm\0\0", SERVICE_DEMAND_START, NULL, NULL)
+                   sysprobe_exe.c_str(), data.npmPresent() ? probeDepsWithNPM : probeDepsNoNPM, SERVICE_DEMAND_START, NULL, NULL)
 
     };
     // by default, don't add sysprobe
@@ -834,7 +850,7 @@ int uninstallServices(CustomActionData &data)
         serviceDef(processService.c_str(), L"Datadog Process Agent", L"Send process metrics to Datadog",
                    process_exe.c_str(), L"datadogagent\0\0", SERVICE_DEMAND_START, NULL, NULL),
         serviceDef(systemProbeService.c_str(), L"Datadog System Probe", L"Send network metrics to Datadog",
-                   sysprobe_exe.c_str(), L"datadogagent\0ddnpm\0\0", SERVICE_DEMAND_START, NULL, NULL)
+                   sysprobe_exe.c_str(), data.npmPresent() ? probeDepsWithNPM : probeDepsNoNPM, SERVICE_DEMAND_START, NULL, NULL)
 
     };
 #else
@@ -885,7 +901,7 @@ int verifyServices(CustomActionData &data)
         serviceDef(processService.c_str(), L"Datadog Process Agent", L"Send process metrics to Datadog",
                    process_exe.c_str(), L"datadogagent\0\0", SERVICE_DEMAND_START, NULL, NULL),
         serviceDef(systemProbeService.c_str(), L"Datadog System Probe", L"Send network metrics to Datadog",
-                   sysprobe_exe.c_str(), L"datadogagent\0ddnpm\0\0", SERVICE_DEMAND_START, NULL, NULL)
+                   sysprobe_exe.c_str(), data.npmPresent() ? probeDepsWithNPM : probeDepsNoNPM, SERVICE_DEMAND_START, NULL, NULL)
 
     };
     // by default, don't add sysprobe

@@ -31,7 +31,8 @@ type Meta struct {
 
 // NetworkMeta is metadata about the host's network
 type NetworkMeta struct {
-	ID string `json:"network-id"`
+	ID         string `json:"network-id"`
+	PublicIPv4 string `json:"public-ipv4,omitempty"`
 }
 
 // LogsMeta is metadata about the host's logs agent

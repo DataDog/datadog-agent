@@ -1,7 +1,7 @@
 """
 High level testing tasks
 """
-from __future__ import print_function
+
 
 import copy
 import operator
@@ -20,13 +20,6 @@ from .dogstatsd import integration_tests as dsd_integration_tests
 from .go import fmt, generate, golangci_lint, ineffassign, lint, lint_licenses, misspell, staticcheck, vet
 from .trace_agent import integration_tests as trace_integration_tests
 from .utils import get_build_flags
-
-# We use `basestring` in the code for compat with python2 unicode strings.
-# This makes the same code work in python3 as well.
-try:
-    basestring
-except NameError:
-    basestring = str
 
 PROFILE_COV = "profile.cov"
 
@@ -80,7 +73,7 @@ def test(
     Example invokation:
         inv test --targets=./pkg/collector/check,./pkg/aggregator --race
     """
-    if isinstance(targets, basestring):
+    if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
         tool_targets = test_targets = targets.split(',')
