@@ -266,29 +266,13 @@ func TestPodCollector(t *testing.T) {
 					assert.EqualValues(t, expectedRelation, relation)
 				},
 				func() {
-					component := <-componentChannel
-					expectedComponent := &topology.Component{
-						ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:volume/test-volume-3",
-						Type:       topology.Type{Name: "volume"},
-						Data: topology.Data{
-							"name": "test-volume-3",
-							"source": coreV1.VolumeSource{
-								ConfigMap: &configMap,
-							},
-							"identifiers": []string{"urn:kubernetes:/test-cluster-name:test-namespace:configmap/name-of-the-config-map"},
-							"tags":        map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
-						},
-					}
-					assert.EqualValues(t, expectedComponent, component)
-				},
-				func() {
 					relation := <-relationChannel
 					expectedRelation := &topology.Relation{
 						ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:pod/test-pod-4->" +
-							"urn:kubernetes:/test-cluster-name:test-namespace:volume/test-volume-3",
+							"urn:kubernetes:/test-cluster-name:test-namespace:configmap/name-of-the-config-map",
 						Type:     topology.Type{Name: "claims"},
 						SourceID: "urn:kubernetes:/test-cluster-name:test-namespace:pod/test-pod-4",
-						TargetID: "urn:kubernetes:/test-cluster-name:test-namespace:volume/test-volume-3",
+						TargetID: "urn:kubernetes:/test-cluster-name:test-namespace:configmap/name-of-the-config-map",
 						Data:     map[string]interface{}{},
 					}
 					assert.EqualValues(t, expectedRelation, relation)

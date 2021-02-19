@@ -103,6 +103,10 @@ func (pc *PodCollector) CollectorFunction() error {
 		for _, vol := range pod.Spec.Volumes {
 			if pc.isPersistentVolume(vol) {
 				volumeExternalID = pc.buildPersistentVolumeExternalID(vol.Name)
+			} else if vol.Secret != nil {
+				volumeExternalID = pc.buildSecretExternalID(pod.Namespace, vol.Secret.SecretName)
+			} else if vol.ConfigMap != nil {
+				volumeExternalID = pc.buildConfigMapExternalID(pod.Namespace, vol.ConfigMap.Name)
 			} else {
 				volComponent = pc.volumeToStackStateComponent(pod, vol)
 				volumeExternalID = volComponent.ExternalID
@@ -299,14 +303,8 @@ func (pc *PodCollector) volumeToStackStateComponent(pod v1.Pod, volume v1.Volume
 	if volume.HostPath != nil {
 		identifiers = append(identifiers, fmt.Sprintf("urn:/%s:%s:volume:%s:%s", pc.GetInstance().URL, pc.GetInstance().Type, pod.Spec.NodeName, volume.Name))
 	}
-	if volume.Secret != nil {
-		identifiers = append(identifiers, fmt.Sprintf("urn/%s:%s:secret:%s", pc.GetInstance().URL, pc.GetInstance().Type, volume.Secret.SecretName))
-	}
 	if volume.DownwardAPI != nil {
 		identifiers = append(identifiers, fmt.Sprintf("urn/%s:%s:downardapi:%s", pc.GetInstance().URL, pc.GetInstance().Type, volume.Name))
-	}
-	if volume.ConfigMap != nil {
-		identifiers = append(identifiers, pc.buildConfigMapExternalID(pod.Namespace, volume.ConfigMap.Name))
 	}
 	if volume.Projected != nil {
 		identifiers = append(identifiers, fmt.Sprintf("urn/%s:%s:projected:%s", pc.GetInstance().URL, pc.GetInstance().Type, volume.Name))
