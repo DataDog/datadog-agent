@@ -175,19 +175,19 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP) DesiredLRP {
 			if ev.Name == EnvAdVariableName {
 				err = json.Unmarshal([]byte(ev.Value), &envAD)
 				if err != nil {
-					log.Errorf("Failed unmarshalling %s env variable for LRP %s: %s",
+					_ = log.Errorf("Failed unmarshalling %s env variable for LRP %s: %s",
 						EnvAdVariableName, bbsLRP.ProcessGuid, err.Error())
 				}
 			} else if ev.Name == EnvVcapServicesVariableName {
 				envVS, err = getVcapServicesMap(ev.Value, bbsLRP.ProcessGuid)
 				if err != nil {
-					log.Errorf("Failed unmarshalling %s env variable for LRP %s: %s",
+					_ = log.Errorf("Failed unmarshalling %s env variable for LRP %s: %s",
 						EnvVcapServicesVariableName, bbsLRP.ProcessGuid, err.Error())
 				}
 			} else if ev.Name == EnvVcapApplicationName {
 				envVA, err = getVcapApplicationMap(ev.Value)
 				if err != nil {
-					log.Errorf("Failed unmarshalling %s env variable for LRP %s: %s",
+					_ = log.Errorf("Failed unmarshalling %s env variable for LRP %s: %s",
 						EnvVcapApplicationName, bbsLRP.ProcessGuid, err.Error())
 				}
 			}
@@ -209,12 +209,26 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP) DesiredLRP {
 		var ok bool
 		extractVA[key], ok = envVA[key]
 		if !ok || extractVA[key] == "" {
-			log.Errorf("Couldn't extract %s from LRP %s", key, bbsLRP.ProcessGuid)
+			_ = log.Errorf("Couldn't extract %s from LRP %s", key, bbsLRP.ProcessGuid)
+		}
+	}
+	appName := extractVA[ApplicationNameKey]
+	appGUID := extractVA[ApplicationIDKey]
+
+	// try to get updated app name from CC API in case of app renames
+	ccCache, err := GetGlobalCCCache()
+	if err != nil {
+		log.Debugf("Could not get Cloud Foundry CCAPI cache: %v", err)
+	} else {
+		if ccApp, err := ccCache.GetApp(appGUID); err != nil {
+			log.Debugf("Could not find app %s in cc cache", appGUID)
+		} else {
+			appName = ccApp.Name
 		}
 	}
 	d := DesiredLRP{
-		AppGUID:            extractVA[ApplicationIDKey],
-		AppName:            extractVA[ApplicationNameKey],
+		AppGUID:            appGUID,
+		AppName:            appName,
 		EnvAD:              envAD,
 		EnvVcapServices:    envVS,
 		EnvVcapApplication: envVA,
@@ -268,12 +282,12 @@ func getVcapServicesMap(vcap, processGUID string) (map[string][]byte, error) {
 			if name, ok := inst["name"]; ok {
 				nameStr, success := name.(string)
 				if !success {
-					log.Errorf("Failed converting name of instance %v of LRP %s to string", name, processGUID)
+					_ = log.Errorf("Failed converting name of instance %v of LRP %s to string", name, processGUID)
 					continue
 				}
 				serializedInst, err := json.Marshal(inst)
 				if err != nil {
-					log.Errorf("Failed serializing instance %s of LRP %s to JSON", nameStr, processGUID)
+					_ = log.Errorf("Failed serializing instance %s of LRP %s to JSON", nameStr, processGUID)
 					continue
 				}
 				ret[nameStr] = serializedInst

@@ -533,6 +533,13 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.cert_file", "")
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.key_file", "")
 
+	// Cloud Foundry CC
+	config.BindEnvAndSetDefault("cloud_foundry_cc.url", "https://cloud-controller-ng.service.cf.internal:9024")
+	config.BindEnvAndSetDefault("cloud_foundry_cc.client_id", "")
+	config.BindEnvAndSetDefault("cloud_foundry_cc.client_secret", "")
+	config.BindEnvAndSetDefault("cloud_foundry_cc.poll_interval", 15)
+	config.BindEnvAndSetDefault("cloud_foundry_cc.skip_ssl_validation", false)
+
 	// Cloud Foundry Garden
 	config.BindEnvAndSetDefault("cloud_foundry_garden.listen_network", "unix")
 	config.BindEnvAndSetDefault("cloud_foundry_garden.listen_address", "/var/vcap/data/garden/garden.sock")

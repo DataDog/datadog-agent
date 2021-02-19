@@ -1948,6 +1948,44 @@ api_key:
   # key_file: ""
 
 {{ end -}}
+{{- if .CloudFoundryBBS }}
+####################################################################
+## Cloud Foundry Cloud Controller Configuration for Autodiscovery ##
+####################################################################
+
+## @param cloud_foundry_cc - custom object - optional
+## This section configures how the Cluster Agent accesses CC API to gather information
+## necessary for autodiscovery on Cloud Foundry deployments.
+#
+# cloud_foundry_cc:
+
+  ## @param url - string - optional - default: https://cloud-controller-ng.service.cf.internal:9024
+  ## URL of the CC API.
+  #
+  # url: https://cloud-controller-ng.service.cf.internal:9024
+
+  ## @param client_id - string - optional
+  ## Client ID for oauth with UAA to get a token to access the CC API.
+  #
+  # client_id: <UAA_CLIENT_ID>
+
+  ## @param client_secret - string - optional
+  ## Client ID for oauth with UAA to get a token to access the CC API.
+  #
+  # client_secret: <UAA_CLIENT_SECRET>
+
+  ## @param skip_ssl_validation - bool - optional - default: false
+  ## Wether or not to skip SSL validation when interacting with CC API.
+  #
+  # skip_ssl_validation: false
+
+  ## @param poll_interval - integer - optional - default: 15
+  ## Refresh rate of CC API, in seconds. Values lower than 10 might influence
+  ## performance of other operations in the cluster.
+  #
+  # poll_interval: 15
+
+{{ end -}}
 {{- if .SNMP }}
 
 ########################

@@ -180,6 +180,12 @@ func run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// initialize CC Cache
+	err = initializeCCCache(mainCtx)
+	if err != nil {
+		_ = log.Errorf("Error initializing Cloud Foundry CCAPI cache, some advanced tagging features may be missing: %v", err)
+	}
+
 	// create and setup the Autoconfig instance
 	common.LoadComponents(config.Datadog.GetString("confd_path"))
 	// start the autoconfig, this will immediately run any configured check
@@ -218,6 +224,23 @@ func run(cmd *cobra.Command, args []string) error {
 
 	log.Info("See ya!")
 	log.Flush()
+	return nil
+}
+
+func initializeCCCache(ctx context.Context) error {
+	pollInterval := time.Second * time.Duration(config.Datadog.GetInt("cloud_foundry_bbs.poll_interval"))
+	_, err := cloudfoundry.ConfigureGlobalCCCache(
+		ctx,
+		config.Datadog.GetString("cloud_foundry_cc.url"),
+		config.Datadog.GetString("cloud_foundry_cc.client_id"),
+		config.Datadog.GetString("cloud_foundry_cc.client_secret"),
+		config.Datadog.GetBool("cloud_foundry_cc.skip_ssl_validation"),
+		pollInterval,
+		nil,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to initialize CC Cache: %v", err)
+	}
 	return nil
 }
 

@@ -211,11 +211,11 @@ func (bc *BBSCache) readData() {
 	}()
 	wg.Wait()
 	if errActual != nil {
-		log.Errorf("Failed reading Actual LRP data from BBS API: %s", errActual.Error())
+		_ = log.Errorf("Failed reading Actual LRP data from BBS API: %s", errActual.Error())
 		return
 	}
 	if errDesired != nil {
-		log.Errorf("Failed reading Desired LRP data from BBS API: %s", errDesired.Error())
+		_ = log.Errorf("Failed reading Desired LRP data from BBS API: %s", errDesired.Error())
 		return
 	}
 
@@ -281,12 +281,6 @@ func (bc *BBSCache) extractNodeTags(nodeActualLRPs []*ActualLRP, desiredLRPsByPr
 		dlrp, ok := desiredLRPsByProcessGUID[alrp.ProcessGUID]
 		if !ok {
 			log.Debugf("Could not find desired LRP for process GUID %s", alrp.ProcessGUID)
-			continue
-		}
-		vcApp := dlrp.EnvVcapApplication
-		_, ok = vcApp[ApplicationNameKey]
-		if !ok {
-			log.Debugf("Could not find application_name of app %s", dlrp.AppGUID)
 			continue
 		}
 		tags[alrp.InstanceGUID] = []string{

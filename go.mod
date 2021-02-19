@@ -65,6 +65,7 @@ require (
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/clbanning/mxj v1.8.4
 	github.com/client9/misspell v0.3.4
+	github.com/cloudfoundry-community/go-cfclient v0.0.0-20201123235753-4f46d6348a05
 	github.com/cobaugh/osrelease v0.0.0-20181218015638-a93a0a55a249
 	github.com/containerd/cgroups v0.0.0-20190919134610-bf292b21730f
 	github.com/containerd/containerd v1.3.2
@@ -161,6 +162,7 @@ require (
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/mod v0.3.1-0.20200828183125-ce943fd02449 // indirect
 	golang.org/x/net v0.0.0-20201110031124-69a78807bb2b
+	golang.org/x/oauth2 v0.0.0-20201109201403-9fd604954f58 // indirect
 	golang.org/x/perf v0.0.0-20200918155509-d949658356f9
 	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
 	golang.org/x/sys v0.0.0-20201119102817-f84b799fce68
@@ -168,8 +170,8 @@ require (
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 	golang.org/x/tools v0.0.0-20210114065538-d78b04bdf963
 	gomodules.xyz/jsonpatch/v3 v3.0.1
-	google.golang.org/genproto v0.0.0-20200526211855-cb27e3aa2013
-	google.golang.org/grpc v1.27.1
+	google.golang.org/genproto v0.0.0-20200825200019-8632dd797987
+	google.golang.org/grpc v1.31.0
 	gopkg.in/DataDog/dd-trace-go.v1 v1.23.1
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
 	gopkg.in/ini.v1 v1.55.0 // indirect
@@ -183,6 +185,7 @@ require (
 	k8s.io/apimachinery v0.17.4
 	k8s.io/apiserver v0.17.4 // indirect
 	k8s.io/autoscaler/vertical-pod-autoscaler v0.0.0-20200123122250-fa95810cfc1e
+	k8s.io/cli-runtime v0.20.2 // indirect
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/cri-api v0.0.0
 	k8s.io/klog v1.0.1-0.20200310124935-4ad0115ba9e4 // Min version that includes fix for Windows Nano
