@@ -368,8 +368,8 @@ def get_omnibus_env(
         # get certificate and password from ssm
         pfxfile = get_signing_cert(ctx)
         pfxpass = get_pfx_pass(ctx)
-        env['SIGN_PFX'] = "{}".format(pfxfile)
-        env['SIGN_PFX_PW'] = "{}".format(pfxpass)
+        env['SIGN_PFX'] = str(pfxfile)
+        env['SIGN_PFX_PW'] = str(pfxpass)
 
     if sys.platform == 'darwin':
         # Target MacOS 10.12
@@ -385,9 +385,9 @@ def get_omnibus_env(
     env['PY_RUNTIMES'] = python_runtimes
     if with_bcc:
         env['WITH_BCC'] = 'true'
-    if system_probe_bin is not None:
+    if system_probe_bin:
         env['SYSTEM_PROBE_BIN'] = system_probe_bin
-    if libbcc_tarball is not None:
+    if libbcc_tarball:
         env['LIBBCC_TARBALL'] = libbcc_tarball
 
     return env
