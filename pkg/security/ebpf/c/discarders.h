@@ -41,7 +41,7 @@ int __attribute__((always_inline)) bump_discarder_revision(u32 mount_id) {
 
 struct discarder_state_t {
     u64 expire_at;
-    u32 is_invalid;
+    u32 is_retained;
 };
 
 struct discarder_parameters_t {
@@ -78,9 +78,9 @@ int __attribute__((always_inline)) is_discarded(struct bpf_map_def *discarder_ma
 
     u64 tm = bpf_ktime_get_ns();
 
-    // this discarder has been marked as invalid by event such as unlink, rename, etc.
-    // keep them for a while in the map to avoid userspace to reinsert it
-    if (params->state.is_invalid) {
+    // this discarder has been marked as on hold by event such as unlink, rename, etc.
+    // keep them for a while in the map to avoid userspace to reinsert it with a pending userspace event
+    if (params->state.is_retained) {
         if (params->state.expire_at < tm) {
             bpf_map_delete_elem(discarder_map, key);
         }
@@ -99,12 +99,15 @@ int __attribute__((always_inline)) is_discarded(struct bpf_map_def *discarder_ma
     return 0;
 }
 
-// do not remove it direclty, first mark it as invalid for a period of time, after that it will be removed
+// do not remove it directly, first mark it as on hold for a period of time, after that it will be removed
 void __attribute__((always_inline)) remove_discarder(struct bpf_map_def *discarder_map, void *key) {
     struct discarder_parameters_t *params = bpf_map_lookup_elem(discarder_map, key);
     if (params) {
-        params->state.is_invalid = 1;
-        params->state.expire_at = bpf_ktime_get_ns() + DISCARDER_RETENTION;
+        u64 retention;
+        LOAD_CONSTANT("discarder_retention", retention);
+
+        params->state.is_retained = 1;
+        params->state.expire_at = bpf_ktime_get_ns() + retention;
     }
 }
 
@@ -119,7 +122,7 @@ struct inode_filter_t {
     u64 parent_mask;
     u64 leaf_mask;
     u64 timestamp;
-    u32 is_invalid;
+    u32 is_retained;
     u32 padding;
 };
 
@@ -157,7 +160,9 @@ int __attribute__((always_inline)) is_discarded_by_inode(u64 event_type, u32 mou
         .is_leaf = is_leaf,
     };
 
-    return is_discarded(&inode_discarders, &key, event_type);
+    int ret = is_discarded(&inode_discarders, &key, event_type);
+
+    return ret;
 }
 
 void __attribute__((always_inline)) remove_inode_discarder(u32 mount_id, u64 inode, u32 is_leaf) {

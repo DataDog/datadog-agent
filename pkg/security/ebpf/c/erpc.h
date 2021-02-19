@@ -6,7 +6,7 @@
 #define RPC_CMD 0xdeadc001
 
 enum erpc_op {
-    UNKNOW_OP,
+    UNKNOWN_OP,
     DISCARD_INODE_OP,
     DISCARD_PID_OP
 };

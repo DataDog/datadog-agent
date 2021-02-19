@@ -13,9 +13,12 @@ import (
 	"path/filepath"
 	"syscall"
 	"testing"
+	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/pkg/errors"
+
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
 func openTestFile(test *testModule, filename string, flags int) (int, string, error) {
@@ -76,7 +79,7 @@ func TestOpenBasenameApproverFilter(t *testing.T) {
 func TestOpenLeafDiscarderFilter(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.filename =="{{.Root}}/test-obc-1" && open.flags & (O_CREAT | O_SYNC) > 0`,
+		Expression: `open.filename =~ "{{.Root}}/test-obc-1" && open.flags & (O_CREAT | O_SYNC) > 0`,
 	}
 
 	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{wantProbeEvents: true})
@@ -225,5 +228,85 @@ func TestOpenProcessPidDiscarder(t *testing.T) {
 
 	if event, err := waitForOpenProbeEvent(test, testFile2); err == nil {
 		t.Fatalf("shouldn't get an event: %+v", event)
+	}
+}
+
+func TestDiscarderRetentionFilter(t *testing.T) {
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `open.filename =~ "{{.Root}}/test-obc-1" && open.flags & (O_CREAT | O_SYNC) > 0`,
+	}
+
+	testDrive, err := newTestDrive("xfs", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer testDrive.Close()
+
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{testDir: testDrive.Root(), wantProbeEvents: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	fd1, testFile1, err := openTestFile(test, "test-obc-2", syscall.O_CREAT|syscall.O_SYNC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer syscall.Close(fd1)
+	defer os.Remove(testFile1)
+
+	if _, err := waitForOpenDiscarder(test, testFile1); err != nil {
+		inode := getInode(t, testFile1)
+		parentInode := getInode(t, path.Dir(testFile1))
+
+		t.Fatalf("not able to get the expected event inode: %d, parent inode: %d", inode, parentInode)
+	}
+
+	fd2, testFile2, err := openTestFile(test, "test-obc-2", syscall.O_CREAT|syscall.O_SYNC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	syscall.Close(fd2)
+
+	if event, err := waitForOpenProbeEvent(test, testFile2); err == nil {
+		t.Fatalf("shouldn't get an event: %+v", event)
+	}
+
+	// check the retention, we should have event during the retention period
+	var discarded bool
+
+	start := time.Now()
+	end := start.Add(20 * time.Second)
+
+	newFile, _, err := test.Path("test-obc-renamed")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// rename to generate an invalidation of the discarder in kernel marking it as retained
+	if err := os.Rename(testFile2, newFile); err != nil {
+		t.Fatal(err)
+	}
+
+	for time.Now().Before(end) {
+		fd2, testFile2, err = openTestFile(test, "test-obc-renamed", syscall.O_CREAT|syscall.O_SYNC)
+		if err != nil {
+			t.Fatal(err)
+		}
+		syscall.Close(fd2)
+
+		if _, err := waitForOpenProbeEvent(test, testFile2); err != nil {
+			discarded = true
+			break
+		}
+	}
+
+	if !discarded {
+		t.Fatalf("should be discarded")
+	}
+
+	if diff := time.Now().Sub(start); uint64(diff) < uint64(probe.DiscardRetention)-uint64(time.Second) {
+		t.Errorf("discarder retention (%s) not reached: %s", time.Duration(uint64(probe.DiscardRetention)-uint64(time.Second)), diff)
 	}
 }

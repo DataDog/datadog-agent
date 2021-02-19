@@ -9,8 +9,9 @@ package probe
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/security/log"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/security/log"
 
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"

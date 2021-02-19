@@ -3,8 +3,6 @@
 
 #include "process.h"
 
-#define DISCARDER_RETENTION 5000000000 // 5 seconds
-
 enum policy_mode
 {
     NO_FILTER = 0,

@@ -696,12 +696,12 @@ func (p *Probe) NewRuleSet(opts *rules.Opts) *rules.RuleSet {
 
 // NewProbe instantiates a new runtime security agent probe
 func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
-	ctx, cancel := context.WithCancel(context.Background())
-
 	erpc, err := NewERPC()
 	if err != nil {
 		return nil, err
 	}
+
+	ctx, cancel := context.WithCancel(context.Background())
 
 	p := &Probe{
 		config:         config,
@@ -742,6 +742,8 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 			Value: getSuperBlockMagicOffset(p),
 		},
 	)
+	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, erpc.GetConstants()...)
+	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
 
 	resolvers, err := NewResolvers(p, client)
 	if err != nil {

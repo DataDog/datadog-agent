@@ -15,8 +15,10 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	lib "github.com/DataDog/ebpf"
+	"github.com/DataDog/ebpf/manager"
 	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/pkg/errors"
 
@@ -31,8 +33,24 @@ const (
 	// discarderRevisionSize array size used to store discarder revisions
 	discarderRevisionSize = 4096
 
+	// DiscardInodeOp discards an inode
 	DiscardInodeOp = 1
+	// DiscardPidOp discards a pid
 	DiscardPidOp
+
+	// DiscardRetention time a discard is retained but not discarding. This avoid race for pending event is userspace
+	// pipeline for already deleted file in kernel space.
+	DiscardRetention = 5 * time.Second
+)
+
+var (
+	// DiscarderConstants ebpf constants
+	DiscarderConstants = []manager.ConstantEditor{
+		{
+			Name:  "discarder_retention",
+			Value: uint64(DiscardRetention.Nanoseconds()),
+		},
+	}
 )
 
 // Discarder represents a discarder which is basically the field that we know for sure
@@ -81,8 +99,8 @@ var InvalidDiscarders = map[eval.Field][]interface{}{
 }
 
 func marshalDiscardHeader(req *ERPCRequest, eventType model.EventType, timeout uint64) int {
-	ebpf.ByteOrder.PutUint64(req.Data[0:8], uint64(eventType))
-	ebpf.ByteOrder.PutUint64(req.Data[8:16], uint64(timeout))
+	model.ByteOrder.PutUint64(req.Data[0:8], uint64(eventType))
+	model.ByteOrder.PutUint64(req.Data[8:16], timeout)
 
 	return 16
 }
@@ -99,12 +117,11 @@ type pidDiscarderParameters struct {
 
 func (p *pidDiscarders) discard(eventType model.EventType, pid uint32) error {
 	req := ERPCRequest{
-
 		OP: DiscardPidOp,
 	}
 
 	offset := marshalDiscardHeader(&req, eventType, 0)
-	ebpf.ByteOrder.PutUint32(req.Data[offset:offset+4], pid)
+	model.ByteOrder.PutUint32(req.Data[offset:offset+4], pid)
 
 	return p.erpc.Request(&req)
 }
@@ -115,7 +132,7 @@ func (p *pidDiscarders) discardWithTimeout(eventType model.EventType, pid uint32
 	}
 
 	offset := marshalDiscardHeader(&req, eventType, uint64(timeout))
-	ebpf.ByteOrder.PutUint32(req.Data[offset:offset+4], pid)
+	model.ByteOrder.PutUint32(req.Data[offset:offset+4], pid)
 
 	return p.erpc.Request(&req)
 }
@@ -170,16 +187,11 @@ func (id *inodeDiscarders) discardInode(eventType model.EventType, mountID uint3
 	}
 
 	offset := marshalDiscardHeader(&req, eventType, 0)
-	ebpf.ByteOrder.PutUint64(req.Data[offset:offset+8], inode)
-	ebpf.ByteOrder.PutUint32(req.Data[offset+8:offset+12], mountID)
-	ebpf.ByteOrder.PutUint32(req.Data[offset+12:offset+16], isLeafInt)
+	model.ByteOrder.PutUint64(req.Data[offset:offset+8], inode)
+	model.ByteOrder.PutUint32(req.Data[offset+8:offset+12], mountID)
+	model.ByteOrder.PutUint32(req.Data[offset+12:offset+16], isLeafInt)
 
 	return id.erpc.Request(&req)
-}
-
-func (id *inodeDiscarders) getRevision(mountID uint32) uint32 {
-	key := mountID % discarderRevisionSize
-	return id.revisionCache[key]
 }
 
 func (id *inodeDiscarders) setRevision(mountID uint32, revision uint32) {
