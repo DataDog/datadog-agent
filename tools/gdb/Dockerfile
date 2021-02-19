@@ -6,8 +6,14 @@ FROM datadog/agent:${AGENT_VERSION}
 # the same versions of the debug packages (that are deps of gdb) as what's originally installed in the image
 ARG DEBIAN_REPO_SNAPSHOT_DATE
 RUN grep '^\#' /etc/apt/sources.list | sed 's/# //' > /etc/apt/sources.list.tmp \
- && [ ! -z "$DEBIAN_REPO_SNAPSHOT_DATE" ] && sed -i -r "s/[0-9]+T[0-9]+Z/${DEBIAN_REPO_SNAPSHOT_DATE}/" /etc/apt/sources.list.tmp; \
- mv /etc/apt/sources.list.tmp /etc/apt/sources.list \
+ && if [ -f ".debian_repo_snapshot_date" ]; then \
+    sed -i -r "s/[0-9]+T[0-9]+Z/$(cat .debian_repo_snapshot_date)/" /etc/apt/sources.list.tmp; \
+    mv /etc/apt/sources.list.tmp /etc/apt/sources.list; \
+elif [ ! -z "$DEBIAN_REPO_SNAPSHOT_DATE"]; then \
+    sed -i -r "s/[0-9]+T[0-9]+Z/${DEBIAN_REPO_SNAPSHOT_DATE}/" /etc/apt/sources.list.tmp; \
+    mv /etc/apt/sources.list.tmp /etc/apt/sources.list; \
+ fi \
+ && cat /etc/apt/sources.list \ 
  && apt-get -o Acquire::Check-Valid-Until=false update \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" gdb
 
