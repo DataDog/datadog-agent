@@ -55,16 +55,16 @@ func TestUnlink(t *testing.T) {
 				t.Logf("expected inode %d, got %d", event.Unlink.File.Inode, inode)
 			}
 
-			if int(event.Unlink.File.Mode) & expectedMode != expectedMode {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Unlink.File.Mode) & expectedMode)
+			if int(event.Unlink.File.Mode)&expectedMode != expectedMode {
+				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Unlink.File.Mode)&expectedMode)
 			}
 
 			now := time.Now()
-			if event.Unlink.File.MTime.After(now) || event.Unlink.File.MTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Unlink.File.MTime.After(now) || event.Unlink.File.MTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected mtime close to %s, got %s", now, event.Unlink.File.MTime)
 			}
 
-			if event.Unlink.File.CTime.After(now) || event.Unlink.File.CTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Unlink.File.CTime.After(now) || event.Unlink.File.CTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected ctime close to %s, got %s", now, event.Unlink.File.CTime)
 			}
 
@@ -97,16 +97,16 @@ func TestUnlink(t *testing.T) {
 				t.Logf("expected inode %d, got %d", event.Unlink.File.Inode, inode)
 			}
 
-			if int(event.Unlink.File.Mode) & expectedMode != expectedMode {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Unlink.File.Mode) & expectedMode)
+			if int(event.Unlink.File.Mode)&expectedMode != expectedMode {
+				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Unlink.File.Mode)&expectedMode)
 			}
 
 			now := time.Now()
-			if event.Unlink.File.MTime.After(now) || event.Unlink.File.MTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Unlink.File.MTime.After(now) || event.Unlink.File.MTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected mtime close to %s, got %s", now, event.Unlink.File.MTime)
 			}
 
-			if event.Unlink.File.CTime.After(now) || event.Unlink.File.CTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Unlink.File.CTime.After(now) || event.Unlink.File.CTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected ctime close to %s, got %s", now, event.Unlink.File.CTime)
 			}
 

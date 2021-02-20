@@ -57,28 +57,28 @@ func TestLink(t *testing.T) {
 			testContainerPath(t, event, "link.file.container_path")
 			testContainerPath(t, event, "link.file.destination.container_path")
 
-			if int(event.Link.Source.Mode) & expectedMode != expectedMode {
+			if int(event.Link.Source.Mode)&expectedMode != expectedMode {
 				t.Errorf("expected source mode %d, got %d", expectedMode, event.Link.Source.Mode)
 			}
 
-			if int(event.Link.Target.Mode) & expectedMode != expectedMode {
+			if int(event.Link.Target.Mode)&expectedMode != expectedMode {
 				t.Errorf("expected target mode %d, got %d", expectedMode, event.Link.Target.Mode)
 			}
 
 			now := time.Now()
-			if event.Link.Source.MTime.After(now) || event.Link.Source.MTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Link.Source.MTime.After(now) || event.Link.Source.MTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected source mtime close to %s, got %s", now, event.Link.Source.MTime)
 			}
 
-			if event.Link.Source.CTime.After(now) || event.Link.Source.CTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Link.Source.CTime.After(now) || event.Link.Source.CTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected source ctime close to %s, got %s", now, event.Link.Source.CTime)
 			}
 
-			if event.Link.Target.MTime.After(now) || event.Link.Target.MTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Link.Target.MTime.After(now) || event.Link.Target.MTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected target mtime close to %s, got %s", now, event.Link.Target.MTime)
 			}
 
-			if event.Link.Target.CTime.After(now) || event.Link.Target.CTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Link.Target.CTime.After(now) || event.Link.Target.CTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected target ctime close to %s, got %s", now, event.Link.Target.CTime)
 			}
 		}
@@ -109,28 +109,28 @@ func TestLink(t *testing.T) {
 			testContainerPath(t, event, "link.file.container_path")
 			testContainerPath(t, event, "link.file.destination.container_path")
 
-			if int(event.Link.Source.Mode) & expectedMode != expectedMode {
+			if int(event.Link.Source.Mode)&expectedMode != expectedMode {
 				t.Errorf("expected initial mode %d, got %d", expectedMode, event.Link.Source.Mode)
 			}
 
-			if int(event.Link.Target.Mode) & expectedMode != expectedMode {
+			if int(event.Link.Target.Mode)&expectedMode != expectedMode {
 				t.Errorf("expected target mode %d, got %d", expectedMode, event.Link.Target.Mode)
 			}
 
 			now := time.Now()
-			if event.Link.Source.MTime.After(now) || event.Link.Source.MTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Link.Source.MTime.After(now) || event.Link.Source.MTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected source mtime close to %s, got %s", now, event.Link.Source.MTime)
 			}
 
-			if event.Link.Source.CTime.After(now) || event.Link.Source.CTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Link.Source.CTime.After(now) || event.Link.Source.CTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected source ctime close to %s, got %s", now, event.Link.Source.CTime)
 			}
 
-			if event.Link.Target.MTime.After(now) || event.Link.Target.MTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Link.Target.MTime.After(now) || event.Link.Target.MTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected target mtime close to %s, got %s", now, event.Link.Target.MTime)
 			}
 
-			if event.Link.Target.CTime.After(now) || event.Link.Target.CTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Link.Target.CTime.After(now) || event.Link.Target.CTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected target ctime close to %s, got %s", now, event.Link.Target.CTime)
 			}
 		}

@@ -294,16 +294,16 @@ func TestProcessMetadata(t *testing.T) {
 			t.Errorf("expected exec event, got %s", event.GetType())
 		}
 
-		if int(event.Exec.FileFields.Mode) & expectedMode != expectedMode {
-			t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Exec.FileFields.Mode) & expectedMode)
+		if int(event.Exec.FileFields.Mode)&expectedMode != expectedMode {
+			t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Exec.FileFields.Mode)&expectedMode)
 		}
 
 		now := time.Now()
-		if event.Exec.FileFields.MTime.After(now) || event.Exec.FileFields.MTime.Before(now.Add(-1 * time.Hour)) {
+		if event.Exec.FileFields.MTime.After(now) || event.Exec.FileFields.MTime.Before(now.Add(-1*time.Hour)) {
 			t.Errorf("expected mtime close to %s, got %s", now, event.Exec.FileFields.MTime)
 		}
 
-		if event.Exec.FileFields.CTime.After(now) || event.Exec.FileFields.CTime.Before(now.Add(-1 * time.Hour)) {
+		if event.Exec.FileFields.CTime.After(now) || event.Exec.FileFields.CTime.Before(now.Add(-1*time.Hour)) {
 			t.Errorf("expected ctime close to %s, got %s", now, event.Exec.FileFields.CTime)
 		}
 	}

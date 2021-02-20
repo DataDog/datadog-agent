@@ -65,8 +65,8 @@ func TestChown(t *testing.T) {
 				t.Logf("expected inode %d, got %d", event.Chown.File.Inode, inode)
 			}
 
-			if int(event.Chown.File.Mode) & expectedMode != expectedMode {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Chown.File.Mode) & expectedMode)
+			if int(event.Chown.File.Mode)&expectedMode != expectedMode {
+				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Chown.File.Mode)&expectedMode)
 			}
 
 			if event.Chown.File.UID != 98 {
@@ -78,11 +78,11 @@ func TestChown(t *testing.T) {
 			}
 
 			now := time.Now()
-			if event.Chown.File.MTime.After(now) || event.Chown.File.MTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Chown.File.MTime.After(now) || event.Chown.File.MTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected mtime close to %s, got %s", now, event.Chown.File.MTime)
 			}
 
-			if event.Chown.File.CTime.After(now) || event.Chown.File.CTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Chown.File.CTime.After(now) || event.Chown.File.CTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected ctime close to %s, got %s", now, event.Chown.File.CTime)
 			}
 
@@ -121,8 +121,8 @@ func TestChown(t *testing.T) {
 				t.Logf("expected inode %d, got %d", event.Chown.File.Inode, inode)
 			}
 
-			if int(event.Chown.File.Mode) & expectedMode != expectedMode {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Chown.File.Mode) & expectedMode)
+			if int(event.Chown.File.Mode)&expectedMode != expectedMode {
+				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Chown.File.Mode)&expectedMode)
 			}
 
 			if event.Chown.File.UID != 100 {
@@ -134,11 +134,11 @@ func TestChown(t *testing.T) {
 			}
 
 			now := time.Now()
-			if event.Chown.File.MTime.After(now) || event.Chown.File.MTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Chown.File.MTime.After(now) || event.Chown.File.MTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected mtime close to %s, got %s", now, event.Chown.File.MTime)
 			}
 
-			if event.Chown.File.CTime.After(now) || event.Chown.File.CTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Chown.File.CTime.After(now) || event.Chown.File.CTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected ctime close to %s, got %s", now, event.Chown.File.CTime)
 			}
 
@@ -171,8 +171,8 @@ func TestChown(t *testing.T) {
 				t.Logf("expected inode %d, got %d", event.Chown.File.Inode, inode)
 			}
 
-			if int(event.Chown.File.Mode) & expectedMode != expectedMode {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Chown.File.Mode) & expectedMode)
+			if int(event.Chown.File.Mode)&expectedMode != expectedMode {
+				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Chown.File.Mode)&expectedMode)
 			}
 
 			if event.Chown.File.UID != 101 {
@@ -184,11 +184,11 @@ func TestChown(t *testing.T) {
 			}
 
 			now := time.Now()
-			if event.Chown.File.MTime.After(now) || event.Chown.File.MTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Chown.File.MTime.After(now) || event.Chown.File.MTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected mtime close to %s, got %s", now, event.Chown.File.MTime)
 			}
 
-			if event.Chown.File.CTime.After(now) || event.Chown.File.CTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Chown.File.CTime.After(now) || event.Chown.File.CTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected ctime close to %s, got %s", now, event.Chown.File.CTime)
 			}
 
@@ -235,7 +235,7 @@ func TestChown(t *testing.T) {
 				t.Logf("expected inode %d, got %d", event.Chown.File.Inode, inode)
 			}
 
-			if int(event.Chown.File.Mode) & 0o777 != 0o777 {
+			if int(event.Chown.File.Mode)&0o777 != 0o777 {
 				t.Errorf("expected initial mode %d, got %d", 0o777, int(event.Chown.File.Mode))
 			}
 
@@ -248,11 +248,11 @@ func TestChown(t *testing.T) {
 			}
 
 			now := time.Now()
-			if event.Chown.File.MTime.After(now) || event.Chown.File.MTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Chown.File.MTime.After(now) || event.Chown.File.MTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected mtime close to %s, got %s", now, event.Chown.File.MTime)
 			}
 
-			if event.Chown.File.CTime.After(now) || event.Chown.File.CTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Chown.File.CTime.After(now) || event.Chown.File.CTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected ctime close to %s, got %s", now, event.Chown.File.CTime)
 			}
 

@@ -64,16 +64,16 @@ func TestMkdir(t *testing.T) {
 				t.Logf("expected inode %d, got %d", event.Mkdir.File.Inode, inode)
 			}
 
-			if int(event.Mkdir.File.Mode) & expectedMode != expectedMode {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Mkdir.File.Mode) & expectedMode)
+			if int(event.Mkdir.File.Mode)&expectedMode != expectedMode {
+				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Mkdir.File.Mode)&expectedMode)
 			}
 
 			now := time.Now()
-			if event.Mkdir.File.MTime.After(now) || event.Mkdir.File.MTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Mkdir.File.MTime.After(now) || event.Mkdir.File.MTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected mtime close to %s, got %s", now, event.Mkdir.File.MTime)
 			}
 
-			if event.Mkdir.File.CTime.After(now) || event.Mkdir.File.CTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Mkdir.File.CTime.After(now) || event.Mkdir.File.CTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected ctime close to %s, got %s", now, event.Mkdir.File.CTime)
 			}
 
@@ -108,16 +108,16 @@ func TestMkdir(t *testing.T) {
 				t.Logf("expected inode %d, got %d", event.Mkdir.File.Inode, inode)
 			}
 
-			if int(event.Mkdir.File.Mode) & expectedMode != expectedMode {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Mkdir.File.Mode) & expectedMode)
+			if int(event.Mkdir.File.Mode)&expectedMode != expectedMode {
+				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Mkdir.File.Mode)&expectedMode)
 			}
 
 			now := time.Now()
-			if event.Mkdir.File.MTime.After(now) || event.Mkdir.File.MTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Mkdir.File.MTime.After(now) || event.Mkdir.File.MTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected mtime close to %s, got %s", now, event.Mkdir.File.MTime)
 			}
 
-			if event.Mkdir.File.CTime.After(now) || event.Mkdir.File.CTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Mkdir.File.CTime.After(now) || event.Mkdir.File.CTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected ctime close to %s, got %s", now, event.Mkdir.File.CTime)
 			}
 

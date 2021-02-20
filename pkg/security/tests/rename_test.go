@@ -65,28 +65,28 @@ func TestRename(t *testing.T) {
 			testContainerPath(t, event, "rename.file.container_path")
 			testContainerPath(t, event, "rename.file.destination.container_path")
 
-			if int(event.Rename.Old.Mode) & expectedMode != expectedMode {
+			if int(event.Rename.Old.Mode)&expectedMode != expectedMode {
 				t.Errorf("expected old mode %d, got %d", expectedMode, event.Rename.Old.Mode)
 			}
 
 			now := time.Now()
-			if event.Rename.Old.MTime.After(now) || event.Rename.Old.MTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Rename.Old.MTime.After(now) || event.Rename.Old.MTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected old mtime close to %s, got %s", now, event.Rename.Old.MTime)
 			}
 
-			if event.Rename.Old.CTime.After(now) || event.Rename.Old.CTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Rename.Old.CTime.After(now) || event.Rename.Old.CTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected old ctime close to %s, got %s", now, event.Rename.Old.CTime)
 			}
 
-			if int(event.Rename.New.Mode) & expectedMode != expectedMode {
+			if int(event.Rename.New.Mode)&expectedMode != expectedMode {
 				t.Errorf("expected new mode %d, got %d", expectedMode, event.Rename.New.Mode)
 			}
 
-			if event.Rename.New.MTime.After(now) || event.Rename.New.MTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Rename.New.MTime.After(now) || event.Rename.New.MTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected new mtime close to %s, got %s", now, event.Rename.New.MTime)
 			}
 
-			if event.Rename.New.CTime.After(now) || event.Rename.New.CTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Rename.New.CTime.After(now) || event.Rename.New.CTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected new ctime close to %s, got %s", now, event.Rename.New.CTime)
 			}
 		}
@@ -117,28 +117,28 @@ func TestRename(t *testing.T) {
 			testContainerPath(t, event, "rename.file.container_path")
 			testContainerPath(t, event, "rename.file.destination.container_path")
 
-			if int(event.Rename.Old.Mode) & expectedMode != expectedMode {
+			if int(event.Rename.Old.Mode)&expectedMode != expectedMode {
 				t.Errorf("expected old mode %d, got %d", expectedMode, event.Rename.Old.Mode)
 			}
 
 			now := time.Now()
-			if event.Rename.Old.MTime.After(now) || event.Rename.Old.MTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Rename.Old.MTime.After(now) || event.Rename.Old.MTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected old mtime close to %s, got %s", now, event.Rename.Old.MTime)
 			}
 
-			if event.Rename.Old.CTime.After(now) || event.Rename.Old.CTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Rename.Old.CTime.After(now) || event.Rename.Old.CTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected old ctime close to %s, got %s", now, event.Rename.Old.CTime)
 			}
 
-			if int(event.Rename.New.Mode) & expectedMode != expectedMode {
+			if int(event.Rename.New.Mode)&expectedMode != expectedMode {
 				t.Errorf("expected new mode %d, got %d", expectedMode, event.Rename.New.Mode)
 			}
 
-			if event.Rename.New.MTime.After(now) || event.Rename.New.MTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Rename.New.MTime.After(now) || event.Rename.New.MTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected new mtime close to %s, got %s", now, event.Rename.New.MTime)
 			}
 
-			if event.Rename.New.CTime.After(now) || event.Rename.New.CTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Rename.New.CTime.After(now) || event.Rename.New.CTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected new ctime close to %s, got %s", now, event.Rename.New.CTime)
 			}
 		}
@@ -179,28 +179,28 @@ func TestRename(t *testing.T) {
 			testContainerPath(t, event, "rename.file.container_path")
 			testContainerPath(t, event, "rename.file.destination.container_path")
 
-			if int(event.Rename.Old.Mode) & expectedMode != expectedMode {
+			if int(event.Rename.Old.Mode)&expectedMode != expectedMode {
 				t.Errorf("expected old mode %d, got %d", expectedMode, event.Rename.Old.Mode)
 			}
 
 			now := time.Now()
-			if event.Rename.Old.MTime.After(now) || event.Rename.Old.MTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Rename.Old.MTime.After(now) || event.Rename.Old.MTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected old mtime close to %s, got %s", now, event.Rename.Old.MTime)
 			}
 
-			if event.Rename.Old.CTime.After(now) || event.Rename.Old.CTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Rename.Old.CTime.After(now) || event.Rename.Old.CTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected old ctime close to %s, got %s", now, event.Rename.Old.CTime)
 			}
 
-			if int(event.Rename.New.Mode) & expectedMode != expectedMode {
+			if int(event.Rename.New.Mode)&expectedMode != expectedMode {
 				t.Errorf("expected new mode %d, got %d", expectedMode, event.Rename.New.Mode)
 			}
 
-			if event.Rename.New.MTime.After(now) || event.Rename.New.MTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Rename.New.MTime.After(now) || event.Rename.New.MTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected new mtime close to %s, got %s", now, event.Rename.New.MTime)
 			}
 
-			if event.Rename.New.CTime.After(now) || event.Rename.New.CTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Rename.New.CTime.After(now) || event.Rename.New.CTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected new ctime close to %s, got %s", now, event.Rename.New.CTime)
 			}
 		}

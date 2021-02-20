@@ -67,16 +67,16 @@ func TestUtime(t *testing.T) {
 				t.Logf("expected inode %d, got %d", event.Utimes.File.Inode, inode)
 			}
 
-			if int(event.Utimes.File.Mode) & expectedMode != expectedMode {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Utimes.File.Mode) & expectedMode)
+			if int(event.Utimes.File.Mode)&expectedMode != expectedMode {
+				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Utimes.File.Mode)&expectedMode)
 			}
 
 			now := time.Now()
-			if event.Utimes.File.MTime.After(now) || event.Utimes.File.MTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Utimes.File.MTime.After(now) || event.Utimes.File.MTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected mtime close to %s, got %s", now, event.Utimes.File.MTime)
 			}
 
-			if event.Utimes.File.CTime.After(now) || event.Utimes.File.CTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Utimes.File.CTime.After(now) || event.Utimes.File.CTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected ctime close to %s, got %s", now, event.Utimes.File.CTime)
 			}
 
@@ -128,16 +128,16 @@ func TestUtime(t *testing.T) {
 				t.Logf("expected inode %d, got %d", event.Utimes.File.Inode, inode)
 			}
 
-			if int(event.Utimes.File.Mode) & expectedMode != expectedMode {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Utimes.File.Mode) & expectedMode)
+			if int(event.Utimes.File.Mode)&expectedMode != expectedMode {
+				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Utimes.File.Mode)&expectedMode)
 			}
 
 			now := time.Now()
-			if event.Utimes.File.MTime.After(now) || event.Utimes.File.MTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Utimes.File.MTime.After(now) || event.Utimes.File.MTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected mtime close to %s, got %s", now, event.Utimes.File.MTime)
 			}
 
-			if event.Utimes.File.CTime.After(now) || event.Utimes.File.CTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Utimes.File.CTime.After(now) || event.Utimes.File.CTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected ctime close to %s, got %s", now, event.Utimes.File.CTime)
 			}
 
@@ -192,16 +192,16 @@ func TestUtime(t *testing.T) {
 				t.Logf("expected inode %d, got %d", event.Utimes.File.Inode, inode)
 			}
 
-			if int(event.Utimes.File.Mode) & expectedMode != expectedMode {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Utimes.File.Mode) & expectedMode)
+			if int(event.Utimes.File.Mode)&expectedMode != expectedMode {
+				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Utimes.File.Mode)&expectedMode)
 			}
 
 			now := time.Now()
-			if event.Utimes.File.MTime.After(now) || event.Utimes.File.MTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Utimes.File.MTime.After(now) || event.Utimes.File.MTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected mtime close to %s, got %s", now, event.Utimes.File.MTime)
 			}
 
-			if event.Utimes.File.CTime.After(now) || event.Utimes.File.CTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Utimes.File.CTime.After(now) || event.Utimes.File.CTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected ctime close to %s, got %s", now, event.Utimes.File.CTime)
 			}
 

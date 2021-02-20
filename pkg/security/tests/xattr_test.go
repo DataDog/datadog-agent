@@ -74,16 +74,16 @@ func TestSetXAttr(t *testing.T) {
 				t.Logf("expected inode %d, got %d", event.SetXAttr.File.Inode, inode)
 			}
 
-			if int(event.SetXAttr.File.Mode) & expectedMode != expectedMode {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.SetXAttr.File.Mode) & expectedMode)
+			if int(event.SetXAttr.File.Mode)&expectedMode != expectedMode {
+				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.SetXAttr.File.Mode)&expectedMode)
 			}
 
 			now := time.Now()
-			if event.SetXAttr.File.MTime.After(now) || event.SetXAttr.File.MTime.Before(now.Add(-1 * time.Hour)) {
+			if event.SetXAttr.File.MTime.After(now) || event.SetXAttr.File.MTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected mtime close to %s, got %s", now, event.SetXAttr.File.MTime)
 			}
 
-			if event.SetXAttr.File.CTime.After(now) || event.SetXAttr.File.CTime.Before(now.Add(-1 * time.Hour)) {
+			if event.SetXAttr.File.CTime.After(now) || event.SetXAttr.File.CTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected ctime close to %s, got %s", now, event.SetXAttr.File.CTime)
 			}
 
@@ -165,16 +165,16 @@ func TestSetXAttr(t *testing.T) {
 				t.Logf("expected inode %d, got %d", event.SetXAttr.File.Inode, inode)
 			}
 
-			if int(event.SetXAttr.File.Mode) & expectedMode != expectedMode {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.SetXAttr.File.Mode) & expectedMode)
+			if int(event.SetXAttr.File.Mode)&expectedMode != expectedMode {
+				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.SetXAttr.File.Mode)&expectedMode)
 			}
 
 			now := time.Now()
-			if event.SetXAttr.File.MTime.After(now) || event.SetXAttr.File.MTime.Before(now.Add(-1 * time.Hour)) {
+			if event.SetXAttr.File.MTime.After(now) || event.SetXAttr.File.MTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected mtime close to %s, got %s", now, event.SetXAttr.File.MTime)
 			}
 
-			if event.SetXAttr.File.CTime.After(now) || event.SetXAttr.File.CTime.Before(now.Add(-1 * time.Hour)) {
+			if event.SetXAttr.File.CTime.After(now) || event.SetXAttr.File.CTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected ctime close to %s, got %s", now, event.SetXAttr.File.CTime)
 			}
 
@@ -252,16 +252,16 @@ func TestRemoveXAttr(t *testing.T) {
 				t.Logf("expected inode %d, got %d", event.RemoveXAttr.File.Inode, inode)
 			}
 
-			if int(event.RemoveXAttr.File.Mode) & expectedMode != expectedMode {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.RemoveXAttr.File.Mode) & expectedMode)
+			if int(event.RemoveXAttr.File.Mode)&expectedMode != expectedMode {
+				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.RemoveXAttr.File.Mode)&expectedMode)
 			}
 
 			now := time.Now()
-			if event.RemoveXAttr.File.MTime.After(now) || event.RemoveXAttr.File.MTime.Before(now.Add(-1 * time.Hour)) {
+			if event.RemoveXAttr.File.MTime.After(now) || event.RemoveXAttr.File.MTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected mtime close to %s, got %s", now, event.RemoveXAttr.File.MTime)
 			}
 
-			if event.RemoveXAttr.File.CTime.After(now) || event.RemoveXAttr.File.CTime.Before(now.Add(-1 * time.Hour)) {
+			if event.RemoveXAttr.File.CTime.After(now) || event.RemoveXAttr.File.CTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected ctime close to %s, got %s", now, event.RemoveXAttr.File.CTime)
 			}
 
@@ -356,16 +356,16 @@ func TestRemoveXAttr(t *testing.T) {
 				t.Logf("expected inode %d, got %d", event.RemoveXAttr.File.Inode, inode)
 			}
 
-			if int(event.RemoveXAttr.File.Mode) & expectedMode != expectedMode {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.RemoveXAttr.File.Mode) & expectedMode)
+			if int(event.RemoveXAttr.File.Mode)&expectedMode != expectedMode {
+				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.RemoveXAttr.File.Mode)&expectedMode)
 			}
 
 			now := time.Now()
-			if event.RemoveXAttr.File.MTime.After(now) || event.RemoveXAttr.File.MTime.Before(now.Add(-1 * time.Hour)) {
+			if event.RemoveXAttr.File.MTime.After(now) || event.RemoveXAttr.File.MTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected mtime close to %s, got %s", now, event.RemoveXAttr.File.MTime)
 			}
 
-			if event.RemoveXAttr.File.CTime.After(now) || event.RemoveXAttr.File.CTime.Before(now.Add(-1 * time.Hour)) {
+			if event.RemoveXAttr.File.CTime.After(now) || event.RemoveXAttr.File.CTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected ctime close to %s, got %s", now, event.RemoveXAttr.File.CTime)
 			}
 

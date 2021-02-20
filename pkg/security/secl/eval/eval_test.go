@@ -662,6 +662,27 @@ func TestFieldValidator(t *testing.T) {
 	}
 }
 
+func TestLegacyField(t *testing.T) {
+	model := &testModel{}
+	opts := NewOptsWithParams(testConstants)
+
+	tests := []struct {
+		Expr     string
+		Expected bool
+	}{
+		{Expr: `process.legacy_name == "/tmp/secrets"`, Expected: true},
+		{Expr: `process.random_name == "/tmp/secrets"`, Expected: false},
+		{Expr: `process.name == "/tmp/secrets"`, Expected: true},
+	}
+
+	for _, test := range tests {
+		_, err := parseRule(test.Expr, model, opts)
+		if err == nil != test.Expected {
+			t.Errorf("expected result `%t` not found, got `%t`\n%s", test.Expected, err == nil, test.Expr)
+		}
+	}
+}
+
 func TestRegisterSyntaxError(t *testing.T) {
 	model := &testModel{}
 	opts := NewOptsWithParams(testConstants)

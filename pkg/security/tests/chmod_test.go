@@ -57,16 +57,16 @@ func TestChmod(t *testing.T) {
 				t.Logf("expected inode %d, got %d", event.Chmod.File.Inode, inode)
 			}
 
-			if int(event.Chmod.File.Mode) & expectedMode != expectedMode {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Chmod.File.Mode) & expectedMode)
+			if int(event.Chmod.File.Mode)&expectedMode != expectedMode {
+				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Chmod.File.Mode)&expectedMode)
 			}
 
 			now := time.Now()
-			if event.Chmod.File.MTime.After(now) || event.Chmod.File.MTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Chmod.File.MTime.After(now) || event.Chmod.File.MTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected mtime close to %s, got %s", now, event.Chmod.File.MTime)
 			}
 
-			if event.Chmod.File.CTime.After(now) || event.Chmod.File.CTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Chmod.File.CTime.After(now) || event.Chmod.File.CTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected ctime close to %s, got %s", now, event.Chmod.File.CTime)
 			}
 
@@ -100,16 +100,16 @@ func TestChmod(t *testing.T) {
 				t.Logf("expected inode %d, got %d", event.Chmod.File.Inode, inode)
 			}
 
-			if int(event.Chmod.File.Mode) & 0o707 != 0o707 {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Chmod.File.Mode) & expectedMode)
+			if int(event.Chmod.File.Mode)&0o707 != 0o707 {
+				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Chmod.File.Mode)&expectedMode)
 			}
 
 			now := time.Now()
-			if event.Chmod.File.MTime.After(now) || event.Chmod.File.MTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Chmod.File.MTime.After(now) || event.Chmod.File.MTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected mtime close to %s, got %s", now, event.Chmod.File.MTime)
 			}
 
-			if event.Chmod.File.CTime.After(now) || event.Chmod.File.CTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Chmod.File.CTime.After(now) || event.Chmod.File.CTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected ctime close to %s, got %s", now, event.Chmod.File.CTime)
 			}
 
@@ -138,16 +138,16 @@ func TestChmod(t *testing.T) {
 				t.Logf("expected inode %d, got %d", event.Chmod.File.Inode, inode)
 			}
 
-			if int(event.Chmod.File.Mode) & 0o447 != 0o447 {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Chmod.File.Mode) & expectedMode)
+			if int(event.Chmod.File.Mode)&0o447 != 0o447 {
+				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Chmod.File.Mode)&expectedMode)
 			}
 
 			now := time.Now()
-			if event.Chmod.File.MTime.After(now) || event.Chmod.File.MTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Chmod.File.MTime.After(now) || event.Chmod.File.MTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected mtime close to %s, got %s", now, event.Chmod.File.MTime)
 			}
 
-			if event.Chmod.File.CTime.After(now) || event.Chmod.File.CTime.Before(now.Add(-1 * time.Hour)) {
+			if event.Chmod.File.CTime.After(now) || event.Chmod.File.CTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected ctime close to %s, got %s", now, event.Chmod.File.CTime)
 			}
 
