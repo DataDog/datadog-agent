@@ -92,7 +92,7 @@ replay:
 		case msg := <-reader.Traffic:
 			// TODO: for when the tagger works
 			// _, _, err := conn.WriteMsgUnix(msg.Payload, msg.Ancillary, addr)
-			n, err := conn.Write(msg.Payload[:msg.PayloadSize])
+			_, err := conn.Write(msg.Payload[:msg.PayloadSize])
 			if err != nil {
 				return err
 			}
