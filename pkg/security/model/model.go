@@ -89,9 +89,9 @@ type ChmodEvent struct {
 type ChownEvent struct {
 	SyscallEvent
 	File  FileEvent `field:"file"`
-	UID   int32     `field:"file.destination.uid"`
+	UID   uint32    `field:"file.destination.uid"`
 	User  string    `field:"file.destination.user" handler:"ResolveChownUID,string"`
-	GID   int32     `field:"file.destination.gid"`
+	GID   uint32    `field:"file.destination.gid"`
 	Group string    `field:"file.destination.group" handler:"ResolveChownGID,string"`
 }
 

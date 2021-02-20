@@ -51,8 +51,8 @@ func (e *ChownEvent) UnmarshalBinary(data []byte) (int, error) {
 		return n, ErrNotEnoughData
 	}
 
-	e.UID = int32(ByteOrder.Uint32(data[0:4]))
-	e.GID = int32(ByteOrder.Uint32(data[4:8]))
+	e.UID = ByteOrder.Uint32(data[0:4])
+	e.GID = ByteOrder.Uint32(data[4:8])
 	return n + 8, nil
 }
 
