@@ -314,7 +314,7 @@ func newEventSerializer(event *Event) *EventSerializer {
 		Date:                     event.ResolveEventTimestamp(),
 	}
 
-	if event.Container.ID != "" {
+	if event.ResolveContainerID(&event.Container) != "" {
 		s.ContainerContextSerializer = newContainerContextSerializer(&event.Container, event)
 	}
 

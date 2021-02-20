@@ -108,7 +108,8 @@ int __attribute__((always_inline)) trace__sys_link_ret(struct pt_regs *ctx) {
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
     copy_file_metadata(&syscall->link.src_metadata, &event.source.metadata);
-    fill_file_metadata(syscall->link.target_dentry, &event.target.metadata);
+    // this is a hard link, source and destination have necessarily the same inode metadata
+    copy_file_metadata(&syscall->link.src_metadata, &event.target.metadata);
 
     resolve_dentry(syscall->link.target_dentry, syscall->link.target_key, 0);
 
