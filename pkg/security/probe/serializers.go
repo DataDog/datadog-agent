@@ -56,24 +56,25 @@ type UserContextSerializer struct {
 // ProcessCacheEntrySerializer serializes a process cache entry to JSON
 // easyjson:json
 type ProcessCacheEntrySerializer struct {
-	Pid                 uint32          `json:"pid,omitempty"`
-	PPid                uint32          `json:"ppid,omitempty"`
-	Tid                 uint32          `json:"tid,omitempty"`
-	UID                 uint32          `json:"uid"`
-	GID                 uint32          `json:"gid"`
-	User                string          `json:"user,omitempty"`
-	Group               string          `json:"group,omitempty"`
-	ContainerPath       string          `json:"executable_container_path,omitempty"`
-	Path                string          `json:"executable_path,omitempty"`
-	PathResolutionError string          `json:"path_resolution_error,omitempty"`
-	Comm                string          `json:"comm,omitempty"`
-	Inode               uint64          `json:"executable_inode,omitempty"`
-	MountID             uint32          `json:"executable_mount_id,omitempty"`
-	TTY                 string          `json:"tty,omitempty"`
-	ForkTime            *time.Time      `json:"fork_time,omitempty"`
-	ExecTime            *time.Time      `json:"exec_time,omitempty"`
-	ExitTime            *time.Time      `json:"exit_time,omitempty"`
-	Executable          *FileSerializer `json:"executable,omitempty"`
+	Pid                 uint32                      `json:"pid,omitempty"`
+	PPid                uint32                      `json:"ppid,omitempty"`
+	Tid                 uint32                      `json:"tid,omitempty"`
+	UID                 uint32                      `json:"uid"`
+	GID                 uint32                      `json:"gid"`
+	User                string                      `json:"user,omitempty"`
+	Group               string                      `json:"group,omitempty"`
+	ContainerPath       string                      `json:"executable_container_path,omitempty"`
+	Path                string                      `json:"executable_path,omitempty"`
+	PathResolutionError string                      `json:"path_resolution_error,omitempty"`
+	Comm                string                      `json:"comm,omitempty"`
+	Inode               uint64                      `json:"executable_inode,omitempty"`
+	MountID             uint32                      `json:"executable_mount_id,omitempty"`
+	TTY                 string                      `json:"tty,omitempty"`
+	ForkTime            *time.Time                  `json:"fork_time,omitempty"`
+	ExecTime            *time.Time                  `json:"exec_time,omitempty"`
+	ExitTime            *time.Time                  `json:"exit_time,omitempty"`
+	Executable          *FileSerializer             `json:"executable,omitempty"`
+	Container           *ContainerContextSerializer `json:"container,omitempty"`
 }
 
 // ContainerContextSerializer serializes a container context to JSON
@@ -233,6 +234,7 @@ func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event, r *R
 		pceSerializer.Comm = e.ResolveExecComm(&pce.ExecEvent)
 		pceSerializer.TTY = e.ResolveExecTTY(&pce.ExecEvent)
 		pceSerializer.Executable = newExecSerializer(&pce.ExecEvent, e)
+		// this is the top level process, do not populate the container field
 	} else {
 		pceSerializer.Pid = pce.Pid
 		pceSerializer.PPid = pce.PPid
@@ -246,6 +248,11 @@ func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event, r *R
 		pceSerializer.Comm = pce.Comm
 		pceSerializer.TTY = pce.TTYName
 		pceSerializer.Executable = newExecSerializerWithResolvers(&pce.ExecEvent, r)
+		if len(pce.ContainerContext.ID) != 0 {
+			pceSerializer.Container = &ContainerContextSerializer{
+				ID: pce.ContainerContext.ID,
+			}
+		}
 	}
 
 	return pceSerializer
@@ -279,7 +286,8 @@ func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Re
 	first := true
 	for ptr != nil {
 		ancestor := (*model.ProcessCacheEntry)(ptr)
-		s := newProcessCacheEntrySerializer(ancestor, e, r, false)
+		// pass nil instead of e to prevent mixing values with the ancestors
+		s := newProcessCacheEntrySerializer(ancestor, nil, r, false)
 		ps.Ancestors = append(ps.Ancestors, s)
 
 		if first {

@@ -98,10 +98,6 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
     // cache dentry
     resolve_dentry(syscall->open.dentry, syscall->open.path_key, 0);
 
-    u32 cookie = bpf_get_prandom_u32();
-    // insert new proc cache entry
-    bpf_map_update_elem(&proc_cache, &cookie, &entry, BPF_ANY);
-
     // select the previous cookie entry in cache of the current process
     // (this entry was created by the fork of the current process)
     struct pid_cache_t *fork_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &tgid);
@@ -113,7 +109,15 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
             // inherit the parent container context
             fill_container_context(parent_entry, &entry.container);
         }
-        // update pid <-> cookie mapping
+    }
+
+    // Insert new proc cache entry (Note: do not move the order of this block with the previous one, we need to inherit
+    // the container ID before saving the entry in proc_cache. Modifying entry after insertion won't work.)
+    u32 cookie = bpf_get_prandom_u32();
+    bpf_map_update_elem(&proc_cache, &cookie, &entry, BPF_ANY);
+
+    // update pid <-> cookie mapping
+    if (fork_entry) {
         fork_entry->cookie = cookie;
     } else {
         struct pid_cache_t new_pid_entry = {

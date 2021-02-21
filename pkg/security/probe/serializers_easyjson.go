@@ -234,6 +234,16 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(in *jle
 				}
 				(*out.Executable).UnmarshalEasyJSON(in)
 			}
+		case "container":
+			if in.IsNull() {
+				in.Skip()
+				out.Container = nil
+			} else {
+				if out.Container == nil {
+					out.Container = new(ContainerContextSerializer)
+				}
+				(*out.Container).UnmarshalEasyJSON(in)
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -387,6 +397,11 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(out *jw
 		out.RawString(prefix)
 		(*in.Executable).MarshalEasyJSON(out)
 	}
+	if in.Container != nil {
+		const prefix string = ",\"container\":"
+		out.RawString(prefix)
+		(*in.Container).MarshalEasyJSON(out)
+	}
 	out.RawByte('}')
 }
 
@@ -505,6 +520,16 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe2(in *jle
 					out.Executable = new(FileSerializer)
 				}
 				(*out.Executable).UnmarshalEasyJSON(in)
+			}
+		case "container":
+			if in.IsNull() {
+				in.Skip()
+				out.Container = nil
+			} else {
+				if out.Container == nil {
+					out.Container = new(ContainerContextSerializer)
+				}
+				(*out.Container).UnmarshalEasyJSON(in)
 			}
 		default:
 			in.SkipRecursive()
@@ -625,6 +650,11 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe2(out *jw
 		const prefix string = ",\"executable\":"
 		out.RawString(prefix)
 		(*in.Executable).MarshalEasyJSON(out)
+	}
+	if in.Container != nil {
+		const prefix string = ",\"container\":"
+		out.RawString(prefix)
+		(*in.Container).MarshalEasyJSON(out)
 	}
 	out.RawByte('}')
 }

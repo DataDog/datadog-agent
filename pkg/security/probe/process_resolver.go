@@ -22,13 +22,13 @@ import (
 
 	"github.com/DataDog/datadog-go/statsd"
 	lib "github.com/DataDog/ebpf"
+	"github.com/DataDog/gopsutil/process"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/gopsutil/process"
 )
 
 const (
@@ -340,6 +340,17 @@ func (p *ProcessResolver) resolveWithKernelMaps(pid uint32) *model.ProcessCacheE
 	entry.GID = model.ByteOrder.Uint32(data[read+4 : read+8])
 	entry.Pid = pid
 	entry.Tid = pid
+
+	// If we fall back to the kernel maps for a process in a container that was already running when the agent
+	// started, the kernel space container ID will be empty even though the process is inside a container. Since there
+	// is no insurance that the parent of this process is still running, we can't use our user space cache to check if
+	// the parent is in a container. In other words, we have to fall back to /proc to query the container ID of the
+	// process.
+	containerID, err := p.resolvers.ContainerResolver.GetContainerID(pid)
+	if err != nil {
+		return nil
+	}
+	entry.ContainerContext.ID = string(containerID)
 
 	if entry.ExecTime.IsZero() {
 		return p.insertForkEntry(pid, entry)
