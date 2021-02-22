@@ -27,14 +27,15 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/cihub/seelog"
-
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf"
+	"github.com/cihub/seelog"
+	"github.com/golang/mock/gomock"
 	"github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -2135,4 +2136,53 @@ func TestSelfConnect(t *testing.T) {
 		return len(conns) == 1
 	}, 5*time.Second, time.Second, "could not find expected number of tcp connections, expected: 1")
 
+}
+
+func TestNewConntracker(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	cfg := testConfig()
+
+	mockCreator := func(_ *config.Config) (netlink.Conntracker, error) {
+		return netlink.NewMockConntracker(ctrl), nil
+	}
+
+	errCreator := func(_ *config.Config) (netlink.Conntracker, error) {
+		return nil, assert.AnError
+	}
+
+	mockConntracker := netlink.NewMockConntracker(ctrl)
+	noopConntracker := netlink.NewNoOpConntracker()
+
+	tests := []struct {
+		conntrackEnabled  bool
+		ignoreInitFailure bool
+		creator           func(*config.Config) (netlink.Conntracker, error)
+
+		conntracker netlink.Conntracker
+		err         error
+	}{
+		{false, false, mockCreator, noopConntracker, nil},
+		{true, true, mockCreator, mockConntracker, nil},
+		{true, true, errCreator, noopConntracker, nil},
+		{true, false, mockCreator, mockConntracker, nil},
+		{true, false, errCreator, nil, assert.AnError},
+	}
+
+	for _, te := range tests {
+		cfg.EnableConntrack = te.conntrackEnabled
+		cfg.IgnoreConntrackInitFailure = te.ignoreInitFailure
+		c, err := newConntracker(cfg, te.creator)
+		if te.conntracker != nil {
+			require.IsType(t, te.conntracker, c)
+		} else {
+			require.Nil(t, c)
+		}
+
+		if te.err != nil {
+			require.Error(t, err)
+		} else {
+			require.NoError(t, err)
+		}
+	}
 }

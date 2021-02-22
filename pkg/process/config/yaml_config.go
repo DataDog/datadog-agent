@@ -62,6 +62,10 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.EnableHTTPMonitoring = config.Datadog.GetBool("network_config.enable_http_monitoring")
 	}
 
+	if config.Datadog.IsSet("network_config.ignore_conntrack_init_failure") {
+		a.IgnoreConntrackInitFailure = config.Datadog.GetBool("network_config.ignore_conntrack_init_failure")
+	}
+
 	if config.Datadog.GetBool(key(spNS, "enabled")) {
 		a.EnableSystemProbe = true
 	}
