@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -10,6 +10,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"sync"
@@ -38,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
@@ -50,7 +52,7 @@ import (
 // loggerName is the name of the cluster agent logger
 const loggerName config.LoggerName = "CLUSTER"
 
-// FIXME: move SetupAutoConfig and StartAutoConfig in their own package so we don't import cmd/agent
+// FIXME: move LoadComponents and StartAutoConfig in their own package so we don't import cmd/agent
 var (
 	ClusterAgentCmd = &cobra.Command{
 		Use:   "datadog-cluster-agent [command]",
@@ -142,10 +144,24 @@ func start(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	if err := util.SetupCoreDump(); err != nil {
+		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
+	}
+
 	if !config.Datadog.IsSet("api_key") {
 		log.Critical("no API key configured, exiting")
 		return nil
 	}
+
+	// Expose the registered metrics via HTTP.
+	http.Handle("/metrics", telemetry.Handler())
+	go func() {
+		port := config.Datadog.GetInt("metrics_port")
+		err := http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", port), nil)
+		if err != nil && err != http.ErrServerClosed {
+			log.Errorf("Error creating telemetry server on port %v: %v", port, err)
+		}
+	}()
 
 	// Setup healthcheck port
 	var healthPort = config.Datadog.GetInt("health_port")
@@ -218,29 +234,38 @@ func start(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Generate and persist a cluster ID
-	// this must be a UUID, and ideally be stable for the lifetime of a cluster
-	// so we store it in a configmap that we try and read before generating a new one.
-	coreClient := apiCl.Cl.CoreV1().(*corev1.CoreV1Client)
-	_, err = apicommon.GetOrCreateClusterID(coreClient)
-	if err != nil {
-		log.Errorf("Failed to generate or retrieve the cluster ID")
-	}
+	if config.Datadog.GetBool("orchestrator_explorer.enabled") {
+		// Generate and persist a cluster ID
+		// this must be a UUID, and ideally be stable for the lifetime of a cluster
+		// so we store it in a configmap that we try and read before generating a new one.
+		coreClient := apiCl.Cl.CoreV1().(*corev1.CoreV1Client)
+		_, err = apicommon.GetOrCreateClusterID(coreClient)
+		if err != nil {
+			log.Errorf("Failed to generate or retrieve the cluster ID")
+		}
 
-	// TODO: move rest of the controllers out of the apiserver package
-	orchestratorCtx := orchestrator.ControllerContext{
-		IsLeaderFunc:                 le.IsLeader,
-		UnassignedPodInformerFactory: apiCl.UnassignedPodInformerFactory,
-		InformerFactory:              apiCl.InformerFactory,
-		Client:                       apiCl.Cl,
-		StopCh:                       stopCh,
-		Hostname:                     hostname,
-		ClusterName:                  clustername.GetClusterName(),
-		ConfigPath:                   confPath,
-	}
-	err = orchestrator.StartController(orchestratorCtx)
-	if err != nil {
-		log.Errorf("Could not start orchestrator controller: %v", err)
+		clusterName := clustername.GetClusterName(hostname)
+		if clusterName == "" {
+			log.Warn("Failed to auto-detect a Kubernetes cluster name. We recommend you set it manually via the cluster_name config option")
+		}
+
+		// TODO: move rest of the controllers out of the apiserver package
+		orchestratorCtx := orchestrator.ControllerContext{
+			IsLeaderFunc:                 le.IsLeader,
+			UnassignedPodInformerFactory: apiCl.UnassignedPodInformerFactory,
+			InformerFactory:              apiCl.InformerFactory,
+			Client:                       apiCl.Cl,
+			StopCh:                       stopCh,
+			Hostname:                     hostname,
+			ClusterName:                  clusterName,
+			ConfigPath:                   confPath,
+		}
+		err = orchestrator.StartController(orchestratorCtx)
+		if err != nil {
+			log.Errorf("Could not start orchestrator controller: %v", err)
+		}
+	} else {
+		log.Info("Orchestrator explorer is disabled")
 	}
 
 	if config.Datadog.GetBool("admission_controller.enabled") {
@@ -263,7 +288,7 @@ func start(cmd *cobra.Command, args []string) error {
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
 	// create and setup the Autoconfig instance
-	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
+	common.LoadComponents(config.Datadog.GetString("confd_path"))
 	// start the autoconfig, this will immediately run any configured check
 	common.StartAutoConfig()
 
@@ -329,7 +354,7 @@ func start(cmd *cobra.Command, args []string) error {
 		go func() {
 			defer wg.Done()
 
-			if err := runCompliance(mainCtx); err != nil {
+			if err := runCompliance(mainCtx, apiCl, le.IsLeader); err != nil {
 				log.Errorf("Error while running compliance agent: %v", err)
 			}
 		}()

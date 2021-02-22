@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package app
 
@@ -22,10 +22,12 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/app/settings"
 	"github.com/DataDog/datadog-agent/cmd/agent/clcrunnerapi"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
@@ -35,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -43,13 +46,26 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 
+	// runtime init routines
+	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
+
 	// register core checks
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/kubernetesapiserver"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/containerd"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/cri"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/docker"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/nvidia/jetson"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/filehandles"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/memory"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/uptime"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/systemd"
 
 	// register metadata providers
@@ -85,6 +101,9 @@ func run(cmd *cobra.Command, args []string) error {
 	defer func() {
 		StopAgent()
 	}()
+
+	// prepare go runtime
+	ddruntime.SetMaxProcs()
 
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
@@ -131,15 +150,17 @@ func run(cmd *cobra.Command, args []string) error {
 
 // StartAgent Initializes the agent process
 func StartAgent() error {
+	var (
+		err            error
+		configSetupErr error
+		loggerSetupErr error
+	)
+
 	// Main context passed to components
 	common.MainCtx, common.MainCtxCancel = context.WithCancel(context.Background())
 
 	// Global Agent configuration
-	err := common.SetupConfig(confFilePath)
-	if err != nil {
-		log.Errorf("Failed to setup config %v", err)
-		return fmt.Errorf("unable to set up global agent configuration: %v", err)
-	}
+	configSetupErr = common.SetupConfig(confFilePath)
 
 	// Setup logger
 	if runtime.GOOS != "android" {
@@ -149,12 +170,18 @@ func StartAgent() error {
 			logFile = common.DefaultLogFile
 		}
 
+		jmxLogFile := config.Datadog.GetString("jmx_log_file")
+		if jmxLogFile == "" {
+			jmxLogFile = common.DefaultJmxLogFile
+		}
+
 		if config.Datadog.GetBool("disable_file_logging") {
 			// this will prevent any logging on file
 			logFile = ""
+			jmxLogFile = ""
 		}
 
-		err = config.SetupLogger(
+		loggerSetupErr = config.SetupLogger(
 			loggerName,
 			config.Datadog.GetString("log_level"),
 			logFile,
@@ -163,8 +190,22 @@ func StartAgent() error {
 			config.Datadog.GetBool("log_to_console"),
 			config.Datadog.GetBool("log_format_json"),
 		)
+
+		//Setup JMX logger
+		if loggerSetupErr == nil {
+			loggerSetupErr = config.SetupJMXLogger(
+				jmxLoggerName,
+				config.Datadog.GetString("log_level"),
+				jmxLogFile,
+				syslogURI,
+				config.Datadog.GetBool("syslog_rfc"),
+				config.Datadog.GetBool("log_to_console"),
+				config.Datadog.GetBool("log_format_json"),
+			)
+		}
+
 	} else {
-		err = config.SetupLogger(
+		loggerSetupErr = config.SetupLogger(
 			loggerName,
 			config.Datadog.GetString("log_level"),
 			"", // no log file on android
@@ -173,12 +214,35 @@ func StartAgent() error {
 			true,  // always log to console
 			false, // not in json
 		)
+
+		//Setup JMX logger
+		if loggerSetupErr == nil {
+			loggerSetupErr = config.SetupJMXLogger(
+				jmxLoggerName,
+				config.Datadog.GetString("log_level"),
+				"", // no log file on android
+				"", // no syslog on android,
+				false,
+				true,  // always log to console
+				false, // not in json
+			)
+		}
 	}
-	if err != nil {
-		return fmt.Errorf("Error while setting up logging, exiting: %v", err)
+
+	if configSetupErr != nil {
+		log.Errorf("Failed to setup config %v", configSetupErr)
+		return fmt.Errorf("unable to set up global agent configuration: %v", configSetupErr)
+	}
+
+	if loggerSetupErr != nil {
+		return fmt.Errorf("Error while setting up logging, exiting: %v", loggerSetupErr)
 	}
 
 	log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
+
+	if err := util.SetupCoreDump(); err != nil {
+		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
+	}
 
 	// init settings that can be changed at runtime
 	if err := settings.InitRuntimeSettings(); err != nil {
@@ -198,7 +262,12 @@ func StartAgent() error {
 	if config.Datadog.GetBool("telemetry.enabled") {
 		http.Handle("/telemetry", telemetry.Handler())
 	}
-	go http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux) //nolint:errcheck
+	go func() {
+		err := http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux)
+		if err != nil && err != http.ErrServerClosed {
+			log.Errorf("Error creating expvar server on port %v: %v", port, err)
+		}
+	}()
 
 	// Setup healthcheck port
 	var healthPort = config.Datadog.GetInt("health_port")
@@ -259,7 +328,12 @@ func StartAgent() error {
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
-	common.Forwarder = forwarder.NewDefaultForwarder(forwarder.NewOptions(keysPerDomain))
+
+	// Enable core agent specific features like persistence-to-disk
+	options := forwarder.NewOptions(keysPerDomain)
+	options.EnabledFeatures = forwarder.SetFeature(options.EnabledFeatures, forwarder.CoreFeatures)
+
+	common.Forwarder = forwarder.NewDefaultForwarder(options)
 	log.Debugf("Starting forwarder")
 	common.Forwarder.Start() //nolint:errcheck
 	log.Debugf("Forwarder started")
@@ -272,20 +346,34 @@ func StartAgent() error {
 	// start dogstatsd
 	if config.Datadog.GetBool("use_dogstatsd") {
 		var err error
-		common.DSD, err = dogstatsd.NewServer(agg)
+		common.DSD, err = dogstatsd.NewServer(agg, nil)
 		if err != nil {
 			log.Errorf("Could not start dogstatsd: %s", err)
 		}
 	}
 	log.Debugf("statsd started")
 
+	// Start SNMP trap server
+	if traps.IsEnabled() {
+		if config.Datadog.GetBool("logs_enabled") {
+			err = traps.StartServer()
+			if err != nil {
+				log.Errorf("Failed to start snmp-traps server: %s", err)
+			}
+		} else {
+			log.Warn(
+				"snmp-traps server did not start, as log collection is disabled. " +
+					"Please enable log collection to collect and forward traps.",
+			)
+		}
+	}
+
 	// start logs-agent
 	if config.Datadog.GetBool("logs_enabled") || config.Datadog.GetBool("log_enabled") {
 		if config.Datadog.GetBool("log_enabled") {
 			log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
 		}
-		err := logs.Start()
-		if err != nil {
+		if err := logs.Start(func() *autodiscovery.AutoConfig { return common.AC }); err != nil {
 			log.Error("Could not start logs-agent: ", err)
 		}
 	} else {
@@ -303,9 +391,12 @@ func StartAgent() error {
 	util.LogVersionHistory()
 
 	// create and setup the Autoconfig instance
-	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
+	common.LoadComponents(config.Datadog.GetString("confd_path"))
 	// start the autoconfig, this will immediately run any configured check
 	common.StartAutoConfig()
+
+	// check for common misconfigurations and report them to log
+	misconfig.ToLog()
 
 	// setup the metadata collector
 	common.MetadataScheduler = metadata.NewScheduler(s)
@@ -320,7 +411,8 @@ func StartAgent() error {
 	}
 
 	// start dependent services
-	startDependentServices()
+	go startDependentServices()
+
 	return nil
 }
 
@@ -347,6 +439,7 @@ func StopAgent() {
 	if common.MetadataScheduler != nil {
 		common.MetadataScheduler.Stop()
 	}
+	traps.StopServer()
 	api.StopServer()
 	clcrunnerapi.StopCLCRunnerServer()
 	jmx.StopJmxfetch()

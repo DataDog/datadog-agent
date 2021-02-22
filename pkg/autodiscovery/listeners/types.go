@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package listeners
 
@@ -12,9 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// ID is the representation of the unique ID of a Service
-type ID string
 
 // ContainerPort represents a network port in a Service.
 type ContainerPort struct {
@@ -31,7 +28,7 @@ type Service interface {
 	GetADIdentifiers() ([]string, error)       // identifiers on which templates will be matched
 	GetHosts() (map[string]string, error)      // network --> IP address
 	GetPorts() ([]ContainerPort, error)        // network ports
-	GetTags() ([]string, error)                // tags
+	GetTags() ([]string, string, error)        // tags and tags hash
 	GetPid() (int, error)                      // process identifier
 	GetHostname() (string, error)              // hostname.domainname for the entity
 	GetCreationTime() integration.CreationTime // created before or after the agent start

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build apm
 // +build !windows
@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
 	"github.com/DataDog/datadog-agent/pkg/util"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -81,7 +81,7 @@ func (c *APMCheck) run() error {
 	hostname, _ := util.GetHostname()
 
 	env := os.Environ()
-	env = append(env, fmt.Sprintf("DD_API_KEY=%s", config.Datadog.GetString("api_key")))
+	env = append(env, fmt.Sprintf("DD_API_KEY=%s", config.SanitizeAPIKey(config.Datadog.GetString("api_key"))))
 	env = append(env, fmt.Sprintf("DD_HOSTNAME=%s", hostname))
 	env = append(env, fmt.Sprintf("DD_DOGSTATSD_PORT=%s", config.Datadog.GetString("dogstatsd_port")))
 	env = append(env, fmt.Sprintf("DD_LOG_LEVEL=%s", config.Datadog.GetString("log_level")))
@@ -171,7 +171,7 @@ func (c *APMCheck) Configure(data integration.Data, initConfig integration.Data,
 	}
 
 	c.source = source
-	c.telemetry = telemetry.IsCheckEnabled("apm")
+	c.telemetry = telemetry_utils.IsCheckEnabled("apm")
 	return nil
 }
 
@@ -201,6 +201,9 @@ func (c *APMCheck) Stop() {
 	c.stop <- struct{}{}
 	<-c.stopDone
 }
+
+// Cancel does nothing
+func (c *APMCheck) Cancel() {}
 
 // GetWarnings does not return anything in APM
 func (c *APMCheck) GetWarnings() []error {

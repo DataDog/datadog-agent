@@ -16,13 +16,17 @@ venv3[78]/
 **/debug.test
 # files
 .DS_Store
-.vscode
 *.cov
 *.pyc
 *.swp
 *.exe
 *.syso
 *.log
+
+# local development environment control files
+.env
+.envrc
+.python-version
 
 #file generated at build time by message compiler
 agentmsg.h
@@ -34,6 +38,7 @@ dogstatsd.yaml
 cloudfoundry.yaml
 Dockerfiles/cluster-agent/datadog-cluster.yaml
 Dockerfiles/cluster-agent/dist
+Dockerfiles/cluster-agent/security-agent-policies
 
 # jetbrains IDE directory
 /.idea/
@@ -107,6 +112,9 @@ omnibus/.tarball-version
 omnibus/files/sources
 omnibus/resources/agent/msi/cal/packages/
 
+# serverless artifact
+cmd/serverless/serverless
+
 #visual studio files
 *.aps
 omnibus/resources/agent/msi/cal/packages/
@@ -117,7 +125,8 @@ tools/windows/install-help/cal/packages/
 [Rr]elease/
 
 # ebpf object files
-pkg/ebpf/c/*.o
+pkg/ebpf/bytecode/build/
+pkg/ebpf/bytecode/bindata/
 
 # windows container build output
 build.out/
@@ -144,3 +153,7 @@ cmd/agent/gui/templates.go
 
 # netlink message dump test files
 pkg/network/netlink/testdata/message_dump*
+
+# serverless
+.layers
+.extension

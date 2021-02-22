@@ -81,6 +81,7 @@ if [ -n "$DD_UPGRADE" ]; then
   upgrade=$DD_UPGRADE
 fi
 
+gpgkeys_yum_repo="https://${yum_url}/DATADOG_RPM_KEY_E09422B3.public"
 agent_major_version=7
 # if [ -n "$DD_AGENT_MAJOR_VERSION" ]; then
 #   if [ "$DD_AGENT_MAJOR_VERSION" != "6" ] && [ "$DD_AGENT_MAJOR_VERSION" != "7" ]; then
@@ -179,9 +180,7 @@ if [ "$OS" = "RedHat" ]; then
         ARCHI="x86_64"
     fi
 
-    gpgkeys="https://${yum_url}/DATADOG_RPM_KEY.public"
-
-    $sudo_cmd sh -c "echo -e '[datadog]\nname = Datadog, Inc.\nbaseurl = https://${yum_url}/${yum_version_path}/${ARCHI}/\nenabled=1\ngpgcheck=1\nrepo_gpgcheck=0\npriority=1\ngpgkey=${gpgkeys}' > /etc/yum.repos.d/datadog.repo"
+    $sudo_cmd sh -c "echo -e '[datadog]\nname = Datadog, Inc.\nbaseurl = https://${yum_url}/${yum_version_path}/${ARCHI}/\nenabled=1\ngpgcheck=1\nrepo_gpgcheck=0\npriority=1\ngpgkey=${gpgkeys_yum_repo}' > /etc/yum.repos.d/datadog.repo"
 
     printf "\033[34m* Installing the Datadog Dogstatsd package\n\033[0m\n"
     $sudo_cmd yum -y clean metadata
@@ -248,19 +247,17 @@ elif [ "$OS" = "SUSE" ]; then
   echo -e "\033[34m\n* Importing the Datadog GPG Keys\n\033[0m"
   if [ "$SUSE11" == "yes" ]; then
     # SUSE 11 special case
-    $sudo_cmd curl -o /tmp/DATADOG_RPM_KEY.public "https://${yum_url}/DATADOG_RPM_KEY.public"
+    $sudo_cmd curl -o /tmp/DATADOG_RPM_KEY.public "${gpgkeys_yum_repo}"
     $sudo_cmd rpm --import /tmp/DATADOG_RPM_KEY.public
   else
-    $sudo_cmd rpm --import "https://${yum_url}/DATADOG_RPM_KEY.public"
+    $sudo_cmd rpm --import "${gpgkeys_yum_repo}"
   fi
 
-  gpgkeys="https://${yum_url}/DATADOG_RPM_KEY.public"
-
   echo -e "\033[34m\n* Installing YUM Repository for Datadog\n\033[0m"
-  $sudo_cmd sh -c "echo -e '[datadog]\nname=datadog\nenabled=1\nbaseurl=https://${yum_url}/suse/${yum_version_path}/${ARCHI}\ntype=rpm-md\ngpgcheck=1\nrepo_gpgcheck=0\ngpgkey=${gpgkeys}' > /etc/zypp/repos.d/datadog.repo"
+  $sudo_cmd sh -c "echo -e '[datadog]\nname=datadog\nenabled=1\nbaseurl=https://${yum_url}/suse/${yum_version_path}/${ARCHI}\ntype=rpm-md\ngpgcheck=1\nrepo_gpgcheck=0\ngpgkey=${gpgkeys_yum_repo}' > /etc/zypp/repos.d/datadog.repo"
 
   echo -e "\033[34m\n* Refreshing repositories\n\033[0m"
-  $sudo_cmd zypper --non-interactive --no-gpg-check refresh datadog
+  $sudo_cmd zypper --non-interactive --no-gpg-checks refresh datadog
 
   echo -e "\033[34m\n* Installing Datadog Agent\n\033[0m"
   $sudo_cmd zypper --non-interactive install "$agent_flavor"

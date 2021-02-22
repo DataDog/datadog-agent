@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://wwt.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package listener
 
@@ -62,7 +62,9 @@ func (t *Tailer) forwardMessages() {
 		t.done <- struct{}{}
 	}()
 	for output := range t.decoder.OutputChan {
-		t.outputChan <- message.NewMessageWithSource(output.Content, message.StatusInfo, t.source)
+		if len(output.Content) > 0 {
+			t.outputChan <- message.NewMessageWithSource(output.Content, message.StatusInfo, t.source, output.IngestionTimestamp)
+		}
 	}
 }
 
@@ -88,6 +90,7 @@ func (t *Tailer) readForever() {
 				log.Warnf("Couldn't read message from connection: %v", err)
 				return
 			}
+			t.source.BytesRead.Add(int64(len(data)))
 			t.decoder.InputChan <- decoder.NewInput(data)
 		}
 	}

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package providers
 
@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/config"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -72,6 +74,7 @@ func TestNewYamlConfigProvider(t *testing.T) {
 }
 
 func TestCollect(t *testing.T) {
+	config.Datadog.Set("ignore_autoconf", []string{"ignored"})
 	paths := []string{"tests", "foo/bar"}
 	provider := NewFileConfigProvider(paths)
 	configs, err := provider.Collect()
@@ -120,6 +123,9 @@ func TestCollect(t *testing.T) {
 
 	// logs files collected in root directory
 	assert.Equal(t, 1, len(get("logs-agent_only")))
+
+	// ignored autoconf file not collected
+	assert.Equal(t, 0, len(get("ignored")))
 
 	// total number of configurations found
 	assert.Equal(t, 15, len(configs))

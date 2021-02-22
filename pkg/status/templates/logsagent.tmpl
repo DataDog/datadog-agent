@@ -52,17 +52,28 @@ Logs Agent
   {{ .name }}
   {{ printDashes .name "-" }}
   {{- range .sources }}
-    Type: {{ .type }}
-    {{- range $key, $value := .configuration }}
-    {{$key}}: {{$value}}
-    {{- end }}
-    Status: {{ .status }}
-    {{- range $message := .messages }}
-      {{ $message }}
-    {{- end }}
-    {{- if .inputs }}
-    Inputs: {{ range $input := .inputs }}{{$input}} {{ end }}
-    {{- end }}
+    - Type: {{ .type }}
+      {{- range $key, $value := .configuration }}
+      {{$key}}: {{$value}}
+      {{- end }}
+      Status: {{ .status }}
+      {{- range $message := .messages }}
+        {{ $message }}
+      {{- end }}
+      {{- if .inputs }}
+      Inputs: {{ range $input := .inputs }}{{$input}} {{ end }}
+      {{- end }}
+      BytesRead: {{ .bytes_read }}
+      Average Latency (ms): {{ .all_time_avg_latency }}
+      24h Average Latency (ms): {{ .recent_avg_latency }}
+      Peak Latency (ms): {{ .all_time_peak_latency }}
+      24h Peak Latency (ms): {{ .recent_peak_latency }}
+      {{- if .info }}
+      Container Info:
+      {{- range $inf := .info }}
+        {{ $inf }}
+      {{- end }}
+      {{- end }}
   {{- end }}
 {{- end }}
 

@@ -73,7 +73,7 @@ api_key:
 #
 # env: <environment name>
 
-## @param tag_value_split_separator - list of key:value elements - optional
+## @param tag_value_split_separator - map - optional
 ## Split tag values according to a given separator. Only applies to host tags,
 ## and tags coming from container integrations. It does not apply to tags on dogstatsd metrics,
 ## and tags collected by other integrations.
@@ -88,7 +88,7 @@ api_key:
 ##  results in the raw tag being transformed into "foo:1", "foo:2", "foo:3" tags
 #
 # tag_value_split_separator:
-#   - <TAG_KEY>: <SEPARATOR>
+#   <TAG_KEY>: <SEPARATOR>
 
 ## @param checks_tag_cardinality - string - optional - default: low
 ## Configure the level of granularity of tags to send for checks metrics and events. Choices are:
@@ -142,7 +142,7 @@ api_key:
 ## @param aggregator_stop_timeout - integer - optional - default: 2
 ## When stopping the agent, the Aggregator will try to flush out data ready for
 ## aggregation (metrics, events, ...). Data are flushed to the Forwarder in order
-## to be sent to DataDog, therefore the Agent might take at most
+## to be sent to Datadog, therefore the Agent might take at most
 ## 'aggregator_stop_timeout'+'forwarder_stop_timeout' seconds to exit.
 ##
 ## You can set the maximum amount of time, in seconds, allocated to the
@@ -163,12 +163,12 @@ api_key:
 #
 # forwarder_timeout: 20
 
-## @param forwarder_retry_queue_max_size - integer - optional - default: 30
-## The forwarder retries failed requests. Use this setting to change the
-## maximum length of the forwarder's retry queue (each request in the queue
-## takes no more than 2MB in memory)
+## @param forwarder_retry_queue_payloads_max_size - integer - optional - default: 15728640 (15MB)
+## It defines the maximum size in bytes of all the payloads in the forwarder's retry queue.
+## The actual memory used is greater than the payloads size as there are extra fields like HTTP headers,
+## but no more than 2.5 times the payload size.
 #
-# forwarder_retry_queue_max_size: 30
+# forwarder_retry_queue_payloads_max_size: 15728640
 
 ## @param forwarder_num_workers - integer - optional - default: 1
 ## The number of workers used by the forwarder.
@@ -212,6 +212,9 @@ api_key:
 
 ## @param collect_ec2_tags - boolean - optional - default: false
 ## Collect AWS EC2 custom tags as host tags.
+## Requires the EC2 instance to have an IAM role with the `EC2:DescribeTags`
+## permission. See docs for further details:
+## https://docs.datadoghq.com/integrations/faq/how-do-i-pull-my-ec2-tags-without-using-the-aws-integration/
 #
 # collect_ec2_tags: false
 
@@ -219,6 +222,16 @@ api_key:
 ## Timeout in milliseconds on calls to the AWS EC2 metadata endpoints.
 #
 # ec2_metadata_timeout: 300
+
+## @param ec2_prefer_imdsv2 - boolean - optional - default: false
+## If this flag is true then the agent will request EC2 metadata using IMDS v2,
+## which offers additional security for accessing metadata. However, in some
+## situations (such as a containerized agent on a plain EC2 instance) it may
+## require additional configuration on the AWS side. See the AWS guidelines
+## for further details:
+## https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/configuring-instance-metadata-service.html#instance-metadata-transition-to-version-2
+#
+# ec2_prefer_imdsv2: false
 
 ## @param collect_gce_tags - boolean - optional - default: true
 ## Collect Google Cloud Engine metadata as host tags
@@ -245,6 +258,12 @@ api_key:
 #   - "google-container-manifest"
 #   - "bosh_settings"
 
+## @param gce_send_project_id_tag - bool - optional - default: false
+## Send the project ID host tag with the `project_id:` tag key in addition to
+## the `project:` tag key.
+#
+# gce_send_project_id_tag: false
+
 ## @param gce_metadata_timeout - integer - optional - default: 1000
 ## Timeout in milliseconds on calls to the GCE metadata endpoints.
 #
@@ -259,6 +278,18 @@ api_key:
 # flare_stripped_keys:
 #   - "sensitive_key_1"
 #   - "sensitive_key_2"
+
+## @param no_proxy_nonexact_match - boolean - optional - default: false
+## Enable more flexible no_proxy matching. See https://godoc.org/golang.org/x/net/http/httpproxy#Config
+## for more information on accepted matching criteria.
+#
+# no_proxy_nonexact_match: false
+
+## @param use_proxy_for_cloud_metadata - boolean - optional - default: false
+## By default cloud provider IP's are added to the transport's `no_proxy` list.
+## Use this parameter to remove them from the `no_proxy` list.
+#
+# use_proxy_for_cloud_metadata: false
 
 {{ end }}
 {{- if .Agent }}
@@ -377,17 +408,17 @@ api_key:
 #
 # tracemalloc_debug: false
 
-## @param tracemalloc_whitelist - string - optional
+## @param tracemalloc_include - string - optional
 ## Comma-separated list of Python checks to enable tracemalloc for when `tracemalloc_debug` is true.
 ## By default, all Python checks are enabled.
 #
-# tracemalloc_whitelist: <TRACEMALLOC_WHITELIST>
+# tracemalloc_include: <TRACEMALLOC_EXCLUDE>
 
-## @param tracemalloc_blacklist - string - optional
+## @param tracemalloc_exclude - string - optional
 ## Comma-separated list of Python checks to disable tracemalloc for when `tracemalloc_debug` is true.
-## By default, all Python checks are enabled. This setting takes precedence over `tracemalloc_whitelist`.
+## By default, all Python checks are enabled. This setting takes precedence over `tracemalloc_include`.
 #
-# tracemalloc_blacklist: <TRACEMALLOC_BLACKLIST>
+# tracemalloc_exclude: <TRACEMALLOC_INCLUDE>
 
 ## @param windows_use_pythonpath - boolean - optional
 ## Whether to honour the value of the PYTHONPATH env var when set on Windows.
@@ -731,11 +762,21 @@ api_key:
   # obfuscation:
   #     <OBFUSCATION_CONFIGURATION>
 
+  ## @param filter_tags - object - optional
+  ## Defines rules by which to filter traces based on tags.
+  ##  * require - list of key or key/value strings - traces must have those tags in order to be sent to Datadog
+  ##  * reject - list of key or key/value strings - traces with these tags are dropped by the Agent
+  ## Note: Rules take into account the intersection of tags defined.
+  #
+  # filter_tags:
+  #     require: [<LIST_OF_KEY_VALUE_TAGS>]
+  #     reject: [<LIST_OF_KEY_VALUE_TAGS>]
+
   ## @param replace_tags - list of objects - optional
-  ## Defines a set of rules to replace or remove certain services, resources, tags containing
+  ## Defines a set of rules to replace or remove certain resources, tags containing
   ## potentially sensitive information.
   ## Each rules has to contain:
-  ##  * name - string - The tag name to replace, for services or resources use "service.name" or "resource.name".
+  ##  * name - string - The tag name to replace, for resources use "resource.name".
   ##  * pattern - string - The pattern to match the desired content to replace
   ##  * repl - string - what to inline if the pattern is matched
   ##
@@ -849,6 +890,24 @@ api_key:
   #   - 'sql*'
   #   - '*pass*d*'
 
+{{- if .Profiling -}}
+  ## @param profiling - custom object - optional
+  ## Enter specific configurations for profiling.
+  ## Uncomment this parameter and the one below to enable profiling.
+  ## See https://docs.datadoghq.com/tracing/profiling/
+  #
+  ## NOTE: If you enable this option, it may impact your billing or
+  ##       other features (e.g. process-agent profiles showing with your
+  ##       services).
+  #
+  # profiling:
+  #
+  ## @param enabled - boolean - optional - default: false
+  ## Enable profiling for the Process Agent process.
+  #
+  # enabled: false
+
+{{ end }}
 {{ end -}}
 {{- if .Compliance }}
 #############################################
@@ -879,17 +938,10 @@ api_key:
 ##################################
 
 ## @param system_probe_config - custom object - optional
-## Beta Agent
 ## Enter specific configurations for your System Probe data collection.
 ## Uncomment this parameter and the one below to enable them.
 #
 # system_probe_config:
-
-  ## @param enabled - boolean - optional - default: false
-  ## Set to true to enable the System Probe.
-  #
-  # enabled: false
-
   ## @param sysprobe_socket - string - optional - default: /opt/datadog-agent/run/sysprobe.sock
   ## The full path to the location of the unix socket where system probes are accessed.
   #
@@ -900,12 +952,45 @@ api_key:
   #
   # log_file: /var/log/datadog/system-probe.log
 
+{{- if .Profiling -}}
+  ## @param profiling - custom object - optional
+  ## Enter specific configurations for profiling.
+  ## Uncomment this parameter and the one below to enable profiling.
+  ## See https://docs.datadoghq.com/tracing/profiling/
+  #
+  ## NOTE: If enabled this option may incur billing charges or other
+  ##       unexpected side-effects (ie. system probe profiles showing with your
+  ##       services).
+  #
+  # profiling:
+  #
+    ## @param enabled - boolean - optional - default: false
+    ## Enable profiling for the System Probe process.
+    #
+    # enabled: false
+
+{{ end }}
+
+{{- if .NetworkModule }}
+
+########################################
+## System Probe Network Configuration ##
+########################################
+
+# network_config:
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable the Network Module of the System Probe
+  #
+  # enabled: false
+
+{{ end -}}
+
 {{- if .SecurityModule }}
 
 ##########################################
 ## Security Agent Runtime Configuration ##
 ##                                      ##
-## Settings to sent logs to DataDog are ##
+## Settings to sent logs to Datadog are ##
 ## fetched from section `logs_config`   ##
 ##########################################
 
@@ -914,11 +999,6 @@ api_key:
   ## Set to true to enable the Security Runtime Module.
   #
   # enabled: false
-
-  ## @param debug - boolean - optional - default: false
-  ## Enable debug mode.
-  #
-  # debug: false
 
   ## @param socket - string - optional - default: /opt/datadog-agent/run/runtime-security.sock
   ## The full path to the location of the unix socket where security runtime module is accessed.
@@ -1151,6 +1231,11 @@ api_key:
 #
 # jmx_use_container_support: false
 
+## @param jmx_log_file - string - optional
+## Path of the log file where JMXFetch logs are written.
+#
+# jmx_log_file: <JMXFETCH_LOG_FILE_PATH>
+
 ## @param jmx_max_restarts - integer - optional - default: 3
 ## Number of JMX restarts allowed in the restart-interval before giving up.
 #
@@ -1187,10 +1272,10 @@ api_key:
 #
 # jmx_reconnection_thread_pool_size: 3
 
-## @param jmx_reconnection_timeout - integer - optional - default: 10
+## @param jmx_reconnection_timeout - integer - optional - default: 60
 ## Determines the maximum waiting period in seconds before timing up on instance reconnection.
 #
-# jmx_reconnection_timeout: 10
+# jmx_reconnection_timeout: 60
 
 {{ end -}}
 {{- if .Logging }}
@@ -1538,6 +1623,14 @@ api_key:
 #   <ANNOTATION>: <TAG_KEY>
 #   <HIGH_CARDINALITY_ANNOTATION>: +<TAG_KEY>
 
+## @param kubernetes_namespace_labels_as_tags - map - optional
+## The Agent can extract namespace label values and set them as metric tags values associated to a <TAG_KEY>.
+## If you prefix your tag name with +, it will only be added to high cardinality metrics.
+#
+# kubernetes_namespace_labels_as_tags:
+#   <NAMESPACE_LABEL>: <TAG_KEY>
+#   <HIGH_CARDINALITY_NAMESPACE_LABEL_NAME>: +<TAG_KEY>
+
 {{ end -}}
 {{- if .ECS }}
 
@@ -1563,6 +1656,11 @@ api_key:
 ## ECS Agent for tasks scheduled with the EC2 launch type.
 #
 # ecs_collect_resource_tags_ec2: false
+
+## @param ecs_metadata_timeout - integer - optional - default: 500
+## Timeout in milliseconds on calls to the AWS ECS metadata endpoints.
+#
+# ecs_metadata_timeout: 500
 
 {{ end -}}
 {{- if .CRI }}
@@ -1821,3 +1919,47 @@ api_key:
   # key_file: ""
 
 {{ end -}}
+{{- if .SNMP }}
+
+########################
+## SNMP Configuration ##
+########################
+
+## @param snmp_traps_enabled - boolean - optional - default: false
+## Set to true to enable collection of traps.
+#
+# snmp_traps_enabled: false
+
+## @param snmp_traps_config - custom object - optional
+## This section configures SNMP traps collection. Traps are forwarded as logs to Datadog.
+## NOTE: This feature is currently **EXPERIMENTAL**. Both behavior and configuration options may
+## change in the future. Only SNMPv2 is supported.
+#
+# snmp_traps_config:
+
+  ## @param port - integer - optional - default: 162
+  ## The UDP port to use when listening for incoming trap packets.
+  #
+  # port: 162
+
+  ## @param community_strings - list of strings - required
+  ## A list of known SNMPv2 community strings that devices can use to send traps to the Agent.
+  ## Traps with an unknown community string are ignored.
+  ## Must be non-empty.
+  #
+  # community_strings:
+  #   - <COMMUNITY_1>
+  #   - <COMMUNITY_2>
+
+  ## @param bind_host - string - optional
+  ## The hostname to listen on for incoming trap packets.
+  ## Defaults to the global `bind_host` config option value.
+  #
+  # bind_host: <BIND_HOST>
+
+  ## stop_timeout - float - optional - default: 5.0
+  ## The maximum number of seconds to wait for the trap server to stop when the Agent shuts down.
+  #
+  # stop_timeout: 5.0
+
+{{end -}}

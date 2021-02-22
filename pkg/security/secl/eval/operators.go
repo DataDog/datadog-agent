@@ -1,12 +1,11 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package eval
 
 import (
-	"regexp"
 	"sort"
 
 	"github.com/pkg/errors"
@@ -22,50 +21,22 @@ func IntNot(a *IntEvaluator, opts *Opts, state *state) *IntEvaluator {
 	if a.EvalFnc != nil {
 		ea := a.EvalFnc
 
-		var evalFnc func(ctx *Context) int
-		if opts.Debug {
-			evalFnc = func(ctx *Context) int {
-				ctx.evalDepth++
-				op := ea(ctx)
-				result := ^ea(ctx)
-				ctx.Logf("Evaluation ^%d => %d", op, result)
-				ctx.evalDepth--
-				return result
-			}
-		} else {
-			evalFnc = func(ctx *Context) int {
-				return ^ea(ctx)
-			}
+		evalFnc := func(ctx *Context) int {
+			return ^ea(ctx)
 		}
 
 		return &IntEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
 			isPartial: isPartialLeaf,
 		}
 	}
 
 	return &IntEvaluator{
 		Value:     ^a.Value,
+		Weight:    a.Weight,
 		isPartial: isPartialLeaf,
 	}
-}
-
-func patternToRegexp(pattern string) (*regexp.Regexp, error) {
-	// only accept suffix wilcard, ex: /etc/* or /etc/*.conf
-	if matched, err := regexp.Match(`\*.*/`, []byte(pattern)); err != nil || matched {
-		return nil, &ErrInvalidPattern{Pattern: pattern}
-	}
-
-	// quote eveything except wilcard
-	re := regexp.MustCompile(`[\.*+?()|\[\]{}^$]`)
-	quoted := re.ReplaceAllStringFunc(pattern, func(s string) string {
-		if s != "*" {
-			return "\\" + s
-		}
-		return ".*"
-	})
-
-	return regexp.Compile("^" + quoted + "$")
 }
 
 // StringMatches - String pattern matching operator
@@ -85,7 +56,7 @@ func StringMatches(a *StringEvaluator, b *StringEvaluator, not bool, opts *Opts,
 	}
 
 	if a.Field != "" {
-		if err := state.UpdateFieldValues(a.Field, FieldValue{Value: b.Value, Type: PatternValueType}); err != nil {
+		if err := state.UpdateFieldValues(a.Field, FieldValue{Value: b.Value, Type: PatternValueType, Regex: re}); err != nil {
 			return nil, err
 		}
 	}
@@ -93,31 +64,17 @@ func StringMatches(a *StringEvaluator, b *StringEvaluator, not bool, opts *Opts,
 	if a.EvalFnc != nil {
 		ea := a.EvalFnc
 
-		var evalFnc func(ctx *Context) bool
-		if opts.Debug {
-			evalFnc = func(ctx *Context) bool {
-				ctx.evalDepth++
-				op := ea(ctx)
-				result := re.MatchString(op)
-				if not {
-					return !result
-				}
-				ctx.Logf("Evaluating %s ~= %s => %v", op, re.String(), result)
-				ctx.evalDepth--
-				return result
+		evalFnc := func(ctx *Context) bool {
+			result := re.MatchString(ea(ctx))
+			if not {
+				return !result
 			}
-		} else {
-			evalFnc = func(ctx *Context) bool {
-				result := re.MatchString(ea(ctx))
-				if not {
-					return !result
-				}
-				return result
-			}
+			return result
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight + PatternWeight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -128,6 +85,7 @@ func StringMatches(a *StringEvaluator, b *StringEvaluator, not bool, opts *Opts,
 		if not {
 			return &BoolEvaluator{
 				Value:     !ea,
+				Weight:    a.Weight + PatternWeight,
 				isPartial: isPartialLeaf,
 			}, nil
 		}
@@ -135,6 +93,7 @@ func StringMatches(a *StringEvaluator, b *StringEvaluator, not bool, opts *Opts,
 
 	return &BoolEvaluator{
 		Value:     ea,
+		Weight:    a.Weight + PatternWeight,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -159,22 +118,9 @@ func Not(a *BoolEvaluator, opts *Opts, state *state) *BoolEvaluator {
 			}
 		}
 
-		var evalFnc func(ctx *Context) bool
-		if opts.Debug {
-			evalFnc = func(ctx *Context) bool {
-				ctx.evalDepth++
-				op := a.EvalFnc(ctx)
-				result := !op
-				ctx.Logf("Evaluating ! %v => %v", op, result)
-				ctx.evalDepth--
-				return result
-			}
-		} else {
-			evalFnc = ea
-		}
-
 		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
+			EvalFnc:   ea,
+			Weight:    a.Weight,
 			isPartial: isPartialLeaf,
 		}
 	}
@@ -186,6 +132,7 @@ func Not(a *BoolEvaluator, opts *Opts, state *state) *BoolEvaluator {
 
 	return &BoolEvaluator{
 		Value:     value,
+		Weight:    a.Weight,
 		isPartial: isPartialLeaf,
 	}
 }
@@ -200,30 +147,20 @@ func Minus(a *IntEvaluator, opts *Opts, state *state) *IntEvaluator {
 	if a.EvalFnc != nil {
 		ea := a.EvalFnc
 
-		var evalFnc func(ctx *Context) int
-		if opts.Debug {
-			evalFnc = func(ctx *Context) int {
-				ctx.evalDepth++
-				op := ea(ctx)
-				result := -op
-				ctx.Logf("Evaluating -%d => %d", op, result)
-				ctx.evalDepth--
-				return result
-			}
-		} else {
-			evalFnc = func(ctx *Context) int {
-				return -ea(ctx)
-			}
+		evalFnc := func(ctx *Context) int {
+			return -ea(ctx)
 		}
 
 		return &IntEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
 			isPartial: isPartialLeaf,
 		}
 	}
 
 	return &IntEvaluator{
 		Value:     -a.Value,
+		Weight:    a.Weight,
 		isPartial: isPartialLeaf,
 	}
 }
@@ -246,34 +183,19 @@ func StringArrayContains(a *StringEvaluator, b *StringArray, not bool, opts *Opt
 	if a.EvalFnc != nil {
 		ea := a.EvalFnc
 
-		var evalFnc func(ctx *Context) bool
-		if opts.Debug {
-			evalFnc = func(ctx *Context) bool {
-				ctx.evalDepth++
-				s := ea(ctx)
-				i := sort.SearchStrings(b.Values, s)
-				result := i < len(b.Values) && b.Values[i] == s
-				ctx.Logf("Evaluating %s in %+v => %v", s, b.Values, result)
-				if not {
-					result = !result
-				}
-				ctx.evalDepth--
-				return result
+		evalFnc := func(ctx *Context) bool {
+			s := ea(ctx)
+			i := sort.SearchStrings(b.Values, s)
+			result := i < len(b.Values) && b.Values[i] == s
+			if not {
+				result = !result
 			}
-		} else {
-			evalFnc = func(ctx *Context) bool {
-				s := ea(ctx)
-				i := sort.SearchStrings(b.Values, s)
-				result := i < len(b.Values) && b.Values[i] == s
-				if not {
-					result = !result
-				}
-				return result
-			}
+			return result
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight + InArrayWeight*len(b.Values),
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -289,6 +211,68 @@ func StringArrayContains(a *StringEvaluator, b *StringArray, not bool, opts *Opt
 
 	return &BoolEvaluator{
 		Value:     ea,
+		Weight:    a.Weight + InArrayWeight*len(b.Values),
+		isPartial: isPartialLeaf,
+	}, nil
+}
+
+// StringArrayMatches - "test" in [~"...", "..."] operator
+func StringArrayMatches(a *StringEvaluator, b *PatternArray, not bool, opts *Opts, state *state) (*BoolEvaluator, error) {
+	isPartialLeaf := a.isPartial
+	if a.Field != "" && state.field != "" && a.Field != state.field {
+		isPartialLeaf = true
+	}
+
+	if a.Field != "" {
+		for _, value := range b.Values {
+			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	if a.EvalFnc != nil {
+		ea := a.EvalFnc
+
+		evalFnc := func(ctx *Context) bool {
+			s := ea(ctx)
+
+			var result bool
+			for _, reg := range b.Regexps {
+				if result = reg.MatchString(s); result {
+					break
+				}
+			}
+
+			if not {
+				return !result
+			}
+			return result
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
+			Weight:    a.Weight + InPatternArrayWeight*len(b.Values),
+			isPartial: isPartialLeaf,
+		}, nil
+	}
+
+	ea := true
+	if !isPartialLeaf {
+		for _, reg := range b.Regexps {
+			if ea = reg.MatchString(a.Value); ea {
+				break
+			}
+		}
+
+		if not {
+			ea = !ea
+		}
+	}
+
+	return &BoolEvaluator{
+		Value:     ea,
+		Weight:    a.Weight + InPatternArrayWeight*len(b.Values),
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -311,36 +295,19 @@ func IntArrayContains(a *IntEvaluator, b *IntArray, not bool, opts *Opts, state 
 	if a.EvalFnc != nil {
 		ea := a.EvalFnc
 
-		var evalFnc func(ctx *Context) bool
-		if opts.Debug {
-			evalFnc = func(ctx *Context) bool {
-				ctx.evalDepth++
-				n := ea(ctx)
-				i := sort.SearchInts(b.Values, n)
-				result := i < len(b.Values) && b.Values[i] == n
-				if not {
-					result = !result
-				}
-				ctx.Logf("Evaluating %d in %+v => %v", n, b.Values, result)
-				ctx.evalDepth--
-				return result
+		evalFnc := func(ctx *Context) bool {
+			n := ea(ctx)
+			i := sort.SearchInts(b.Values, n)
+			result := i < len(b.Values) && b.Values[i] == n
+			if not {
+				result = !result
 			}
-		} else {
-			evalFnc = func(ctx *Context) bool {
-				ctx.evalDepth++
-				n := ea(ctx)
-				i := sort.SearchInts(b.Values, n)
-				result := i < len(b.Values) && b.Values[i] == n
-				if not {
-					result = !result
-				}
-				ctx.evalDepth--
-				return result
-			}
+			return result
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight + InArrayWeight*len(b.Values),
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -356,6 +323,7 @@ func IntArrayContains(a *IntEvaluator, b *IntArray, not bool, opts *Opts, state 
 
 	return &BoolEvaluator{
 		Value:     ea,
+		Weight:    a.Weight + InArrayWeight*len(b.Values),
 		isPartial: isPartialLeaf,
 	}, nil
 }

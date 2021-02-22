@@ -200,6 +200,18 @@ Each test suite runs one or more chef recipes (usually to install the agent in v
 - The most important parts are the run list, the attributes to set for each cookbook used, and optionally a list of platforms to exclude.
 - Add the suite to the list of accepted suites in `tasks/run-test-kitchen.sh`.
 
+**Note:** When creating kitchen resources on Azure, the kitchen Azure driver creates one resource group for each suite + test platform combination. Its name is computed as follows:
+`kitchen-<suite_name>-<platform_name>-<timestamp>pl<pipeline n°>-<suffix>`, with:
+- `suite_name`: the kitchen test suite name, defined in `kitchen-azure-<suite_name>-test.yml`.
+- `platform_name`: the short name of the test platform, defined in the `TEST_PLATFORMS`.
+- `timestamp`: a `YYYYMMDDThhmmss` timestamp (15 chars),
+- `pipeline n°`: the pipeline number (7-8 chars for the foreseeable future).
+- `suffix`: `a6` or `a7` (2 chars).
+
+Azure will throw an error if a resource group name is longer than 80 characters: `Failed to complete #create action: [{"error"=>{"code"=>"InvalidParameter", "message"=>"The entity name 'resourceGroupName' is invalid according to its validation rule: ^[^_\\W][\\w-._]{0,79}(?<![-.])$.", "target"=>"resourceGroupName"}}]`
+
+Therefore, your test suite name + test platform short name combinations need to be short enough to not exceed the limit.
+
 **Note (HACK):** On some test suites, we define attributes for a cookbook named `dd-agent-rspec`. This is not a real cookbook; we're using this as a workaround to pass variables to the rspec tests (in the rspec tests, we only have access to a `dna.json` file that has the contents of `kitchen.yml`).
 
 3. Create the rspec test directory matching your new test suite.
@@ -208,3 +220,15 @@ Each test suite runs one or more chef recipes (usually to install the agent in v
 - Remember that your main test file must be in `test/integration/<suite_name>/<suite_name>_spec.rb`.
 
 4. Create the necessary Gitlab jobs to run your test suite on all platforms, Agent flavors and versions you want, following the existing naming conventions.
+
+5. Update the periodic cleanup job (`periodic_kitchen_cleanup_azure`)
+
+When kitchen tests are run, VMs are created in dedicated resource groups in Azure. These resource groups are prefixed with `kitchen-<name_of_the_test_suite>`.
+
+The periodic cleanup jobs runs the `cleanup_azure.py` script on a given list of Azure resource group prefixes. Eg.:
+```
+RESOURCE_GROUP_PREFIX=kitchen-dd-agent python3.6 ~/deploy_scripts/cleanup_azure.py
+```
+cleans up all resources created by test suites that start with `dd-agent`.
+
+If you add a new test suite that doesn't match any of the already present prefixes, then you need to add a line to the cleanup job to clean up the resources created under this new prefix.

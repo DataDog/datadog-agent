@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package telemetry
 
@@ -13,6 +13,10 @@ import (
 
 // Counter tracks how many times something is happening.
 type Counter interface {
+	// Initialize creates the counter with the given tags and initializes it to 0.
+	// This method is intended to be used when the counter value is important to
+	// send even before any incrementing/addition is done on it.
+	Initialize(tagsValue ...string)
 	// Inc increments the counter with the given tags value.
 	Inc(tagsValue ...string)
 	// Add adds the given value to the counter with the given tags value.

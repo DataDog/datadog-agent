@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 // +build windows
 
 package listeners
@@ -39,6 +39,10 @@ func TestNamedPipeSeveralClients(t *testing.T) {
 		client := createNamedPipeClient(t)
 		_, err := client.Write([]byte(fmt.Sprintf("client %d\n", i)))
 		assert.NoError(t, err)
+
+		// `Close` does not flush the previous write.
+		// Wait to make sure the write is flushed before closing.
+		time.Sleep(100 * time.Millisecond)
 		client.Close()
 	}
 

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package flare
 
@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
-	api_util "github.com/DataDog/datadog-agent/pkg/api/util"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
@@ -35,7 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/mholt/archiver"
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -84,18 +84,57 @@ type filePermsInfo struct {
 	group string
 }
 
+// ProfileData maps (pprof) profile names to the profile data.
+type ProfileData map[string][]byte
+
+// CreatePerformanceProfile adds a set of heap and CPU profiles into target, using cpusec as the CPU
+// profile duration, debugURL as the target URL for fetching the profiles and prefix as a prefix for
+// naming them inside target.
+//
+// It is accepted to pass a nil target.
+func CreatePerformanceProfile(prefix, debugURL string, cpusec int, target *ProfileData) error {
+	c := apiutil.GetClient(false)
+	if *target == nil {
+		*target = make(ProfileData)
+	}
+	for _, prof := range []struct{ Name, URL string }{
+		{
+			// 1st heap profile
+			Name: prefix + "-1st-heap.pprof",
+			URL:  debugURL + "/heap",
+		},
+		{
+			// CPU profile
+			Name: prefix + "-cpu.pprof",
+			URL:  fmt.Sprintf("%s/profile?seconds=%d", debugURL, cpusec),
+		},
+		{
+			// 2nd heap profile
+			Name: prefix + "-2nd-heap.pprof",
+			URL:  debugURL + "/heap",
+		},
+	} {
+		b, err := apiutil.DoGet(c, prof.URL)
+		if err != nil {
+			return err
+		}
+		(*target)[prof.Name] = b
+	}
+	return nil
+}
+
 // CreateArchive packages up the files
-func CreateArchive(local bool, distPath, pyChecksPath, logFilePath string) (string, error) {
+func CreateArchive(local bool, distPath, pyChecksPath string, logFilePaths []string, pdata ProfileData) (string, error) {
 	zipFilePath := getArchivePath()
 	confSearchPaths := SearchPaths{
 		"":        config.Datadog.GetString("confd_path"),
 		"dist":    filepath.Join(distPath, "conf.d"),
 		"checksd": pyChecksPath,
 	}
-	return createArchive(zipFilePath, local, confSearchPaths, logFilePath)
+	return createArchive(confSearchPaths, local, zipFilePath, logFilePaths, pdata)
 }
 
-func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, logFilePath string) (string, error) {
+func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, logFilePaths []string, pdata ProfileData) (string, error) {
 	tempDir, err := createTempDir()
 	if err != nil {
 		return "", err
@@ -225,21 +264,40 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 	if err != nil {
 		log.Errorf("Could not write typeperf data: %s", err)
 	}
+	err = zipLodctrOutput(tempDir, hostname)
+	if err != nil {
+		log.Errorf("Could not write lodctr data: %s", err)
+	}
+
 	err = zipCounterStrings(tempDir, hostname)
 	if err != nil {
 		log.Errorf("Could not write counter strings: %s", err)
 	}
 
+	err = zipWindowsEventLogs(tempDir, hostname)
+	if err != nil {
+		log.Errorf("Could not export Windows event logs: %s", err)
+	}
+
 	// force a log flush before zipping them
 	log.Flush()
-	err = zipLogFiles(tempDir, hostname, logFilePath, permsInfos)
-	if err != nil {
-		log.Errorf("Could not zip logs: %s", err)
+	for _, logFilePath := range logFilePaths {
+		err = zipLogFiles(tempDir, hostname, logFilePath, permsInfos)
+		if err != nil {
+			log.Errorf("Could not zip logs: %s", err)
+		}
 	}
 
 	err = zipInstallInfo(tempDir, hostname)
 	if err != nil {
 		log.Errorf("Could not zip install_info: %s", err)
+	}
+
+	if pdata != nil {
+		err = zipPerformanceProfile(tempDir, hostname, pdata)
+		if err != nil {
+			log.Errorf("Could not zip performance profile: %s", err)
+		}
 	}
 
 	// gets files infos and write the permissions.log file
@@ -265,7 +323,6 @@ func createTempDir() (string, error) {
 	dirName := hex.EncodeToString(b)
 	return ioutil.TempDir("", dirName)
 }
-
 func zipStatusFile(tempDir, hostname string) error {
 	// Grab the status
 	s, err := status.GetAndFormatStatus()
@@ -381,10 +438,6 @@ func zipExpVar(tempDir, hostname string) error {
 	apmPort := "8126"
 	if config.Datadog.IsSet("apm_config.receiver_port") {
 		apmPort = config.Datadog.GetString("apm_config.receiver_port")
-	}
-	// TODO(gbbr): Remove this once we use BindEnv for trace-agent
-	if v := os.Getenv("DD_APM_RECEIVER_PORT"); v != "" {
-		apmPort = v
 	}
 	f := filepath.Join(tempDir, hostname, "expvar", "trace-agent")
 	w, err := newRedactingWriter(f, os.ModePerm, true)
@@ -556,7 +609,7 @@ func zipRegistryJSON(tempDir, hostname string) error {
 }
 
 func zipVersionHistory(tempDir, hostname string) error {
-	originalPath := filepath.Join(config.Datadog.GetString("logs_config.run_path"), "version-history.json")
+	originalPath := filepath.Join(config.Datadog.GetString("run_path"), "version-history.json")
 	original, err := os.Open(originalPath)
 	if err != nil {
 		return err
@@ -631,9 +684,9 @@ func zipTaggerList(tempDir, hostname string) error {
 		taggerListURL = fmt.Sprintf("https://%v:%v/agent/tagger-list", ipcAddress, config.Datadog.GetInt("cmd_port"))
 	}
 
-	c := api_util.GetClient(false) // FIX: get certificates right then make this true
+	c := apiutil.GetClient(false) // FIX: get certificates right then make this true
 
-	r, err := api_util.DoGet(c, taggerListURL)
+	r, err := apiutil.DoGet(c, taggerListURL)
 	if err != nil {
 		return err
 	}
@@ -746,6 +799,20 @@ func zipHTTPCallContent(tempDir, hostname, filename, url string) error {
 	return err
 }
 
+func zipPerformanceProfile(tempDir, hostname string, pdata ProfileData) error {
+	dir := filepath.Join(tempDir, hostname, "profiles")
+	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+		return err
+	}
+	for name, data := range pdata {
+		fullpath := filepath.Join(dir, name)
+		if err := ioutil.WriteFile(fullpath, data, os.ModePerm); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, permsInfos permissionsInfos) error {
 	for prefix, filePath := range confSearchPaths {
 
@@ -823,12 +890,7 @@ func newRedactingWriter(f string, p os.FileMode, buffered bool) (*RedactingWrite
 }
 
 func ensureParentDirsExist(p string) error {
-	err := os.MkdirAll(filepath.Dir(p), os.ModePerm)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return os.MkdirAll(filepath.Dir(p), os.ModePerm)
 }
 
 func getFirstSuffix(s string) string {
@@ -837,8 +899,8 @@ func getFirstSuffix(s string) string {
 
 func getArchivePath() string {
 	dir := os.TempDir()
-	t := time.Now()
-	timeString := t.Format("2006-01-02-15-04-05")
+	t := time.Now().UTC()
+	timeString := strings.ReplaceAll(t.Format(time.RFC3339), ":", "-")
 	fileName := strings.Join([]string{"datadog", "agent", timeString}, "-")
 	fileName = strings.Join([]string{fileName, "zip"}, ".")
 	filePath := filepath.Join(dir, fileName)

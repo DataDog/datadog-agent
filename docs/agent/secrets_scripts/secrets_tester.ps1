@@ -8,6 +8,9 @@ param(
     [Parameter(Mandatory=$True)]
     [string]$password,
 
+    [Parameter(Mandatory=$False)]
+    [string]$arguments,
+
     [Parameter(Mandatory=$True)]
     [string]$payload
 )
@@ -17,6 +20,7 @@ $ErrorActionPreference = "Stop"
 $cmd  = New-Object System.Diagnostics.ProcessStartInfo;
 
 $cmd.FileName = $executable
+$cmd.Arguments = $arguments
 $cmd.RedirectStandardOutput = $true
 $cmd.RedirectStandardError = $true
 $cmd.RedirectStandardInput = $true
@@ -24,7 +28,7 @@ $cmd.UseShellExecute = $false
 $cmd.UserName = $user
 $cmd.Password = ConvertTo-SecureString $password -AsPlainText -Force
 
-"Creating new Process with $($executable)"
+"Creating new Process with $($executable) $($arguments)"
 $process = [System.Diagnostics.Process]::Start($cmd);
 
 "Waiting a second for the process to be up and running"

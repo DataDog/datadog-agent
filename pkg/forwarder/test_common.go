@@ -1,7 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
+
+// +build test
 
 package forwarder
 
@@ -48,6 +50,22 @@ func (t *testTransaction) Process(_ context.Context, client *http.Client) error 
 
 func (t *testTransaction) GetTarget() string {
 	return t.Called().Get(0).(string)
+}
+
+func (t *testTransaction) GetPriority() TransactionPriority {
+	return TransactionPriorityNormal
+}
+
+func (t *testTransaction) GetEndpointName() string {
+	return ""
+}
+
+func (t *testTransaction) GetPayloadSize() int {
+	return t.Called().Get(0).(int)
+}
+
+func (t *testTransaction) SerializeTo(serializer *TransactionsSerializer) error {
+	return nil
 }
 
 // Compile-time checking to ensure that MockedForwarder implements Forwarder
@@ -105,6 +123,11 @@ func (tf *MockedForwarder) SubmitSketchSeries(payload Payloads, extra http.Heade
 
 // SubmitHostMetadata updates the internal mock struct
 func (tf *MockedForwarder) SubmitHostMetadata(payload Payloads, extra http.Header) error {
+	return tf.Called(payload, extra).Error(0)
+}
+
+// SubmitAgentChecksMetadata updates the internal mock struct
+func (tf *MockedForwarder) SubmitAgentChecksMetadata(payload Payloads, extra http.Header) error {
 	return tf.Called(payload, extra).Error(0)
 }
 

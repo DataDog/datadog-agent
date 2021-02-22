@@ -1,9 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
-// +build linux_bpf
+// +build linux
 
 package probe
 
@@ -20,18 +20,16 @@ type PolicyFlag uint8
 
 // Policy modes
 const (
-	PolicyModeAccept PolicyMode = iota + 1
+	PolicyModeNoFilter PolicyMode = iota
+	PolicyModeAccept
 	PolicyModeDeny
-	PolicyModeNoFilter
 )
 
 // Policy flags
 const (
-	PolicyFlagBasename     PolicyFlag = 1
-	PolicyFlagFlags        PolicyFlag = 2
-	PolicyFlagMode         PolicyFlag = 4
-	PolicyFlagProcessInode PolicyFlag = 8
-	PolicyFlagProcessName  PolicyFlag = 16
+	PolicyFlagBasename PolicyFlag = 1
+	PolicyFlagFlags    PolicyFlag = 2
+	PolicyFlagMode     PolicyFlag = 4
 
 	// need to be aligned with the kernel size
 	BasenameFilterSize = 32
@@ -43,6 +41,8 @@ func (m PolicyMode) String() string {
 		return "accept"
 	case PolicyModeDeny:
 		return "deny"
+	case PolicyModeNoFilter:
+		return "no filter"
 	}
 	return ""
 }
@@ -68,12 +68,6 @@ func (f PolicyFlag) MarshalJSON() ([]byte, error) {
 	}
 	if f&PolicyFlagMode != 0 {
 		flags = append(flags, `"mode"`)
-	}
-	if f&PolicyFlagProcessInode != 0 {
-		flags = append(flags, `"inode"`)
-	}
-	if f&PolicyFlagProcessName != 0 {
-		flags = append(flags, `"name"`)
 	}
 	return []byte("[" + strings.Join(flags, ",") + "]"), nil
 }

@@ -20,7 +20,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/profiling"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // All System Probe modules should register their factories here
@@ -58,6 +61,10 @@ func runAgent(exit <-chan struct{}) {
 		cleanupAndExit(0)
 	}
 
+	if err := util.SetupCoreDump(); err != nil {
+		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
+	}
+
 	// --pid
 	if opts.pidFilePath != "" {
 		if err := pidfile.WritePID(opts.pidFilePath); err != nil {
@@ -85,6 +92,13 @@ func runAgent(exit <-chan struct{}) {
 		gracefulExit()
 	}
 
+	if cfg.ProfilingEnabled {
+		if err := enableProfiling(cfg); err != nil {
+			log.Warnf("failed to enable profiling: %s", err)
+		}
+		defer profiling.Stop()
+	}
+
 	log.Infof("running system-probe with version: %s", versionString(", "))
 
 	// configure statsd
@@ -101,10 +115,18 @@ func runAgent(exit <-chan struct{}) {
 
 	// if a debug port is specified, we expose the default handler to that port
 	if cfg.SystemProbeDebugPort > 0 {
-		go http.ListenAndServe(fmt.Sprintf("localhost:%d", cfg.SystemProbeDebugPort), http.DefaultServeMux) //nolint:errcheck
+		go func() {
+			err := http.ListenAndServe(fmt.Sprintf("localhost:%d", cfg.SystemProbeDebugPort), http.DefaultServeMux)
+			if err != nil && err != http.ErrServerClosed {
+				log.Criticalf("Error creating debug HTTP server: %v", err)
+				cleanupAndExit(1)
+			}
+		}()
 	}
 
 	loader := NewLoader()
+	defer loader.Close()
+
 	httpMux := http.NewServeMux()
 
 	err = loader.Register(cfg, httpMux, factories)
@@ -137,22 +159,36 @@ func runAgent(exit <-chan struct{}) {
 	}()
 
 	log.Infof("system probe successfully started")
-
-	go func() {
-		tags := []string{
-			fmt.Sprintf("version:%s", Version),
-			fmt.Sprintf("revision:%s", GitCommit),
-		}
-		heartbeat := time.NewTicker(15 * time.Second)
-		for range heartbeat.C {
-			statsd.Client.Gauge("datadog.system_probe.agent", 1, tags, 1) //nolint:errcheck
-			for moduleName := range loader.modules {
-				statsd.Client.Gauge(fmt.Sprintf("datadog.system_probe.agent.%s", moduleName), 1, tags, 1) //nolint:errcheck
-			}
-		}
-	}()
-
 	<-exit
+}
+
+func enableProfiling(cfg *config.AgentConfig) error {
+	var site string
+	v, _ := version.Agent()
+
+	// check if TRACE_AGENT_URL is set, in which case, forward the profiles to the trace agent
+	if traceAgentURL := os.Getenv("TRACE_AGENT_URL"); len(traceAgentURL) > 0 {
+		site = fmt.Sprintf(profiling.ProfilingLocalURLTemplate, traceAgentURL)
+	} else {
+		// allow full url override for development use
+		s := ddconfig.DefaultSite
+		if cfg.ProfilingSite != "" {
+			s = cfg.ProfilingSite
+		}
+
+		site = fmt.Sprintf(profiling.ProfileURLTemplate, s)
+		if cfg.ProfilingURL != "" {
+			site = cfg.ProfilingURL
+		}
+	}
+
+	return profiling.Start(
+		cfg.ProfilingAPIKey,
+		site,
+		cfg.ProfilingEnvironment,
+		"system-probe",
+		fmt.Sprintf("version:%v", v),
+	)
 }
 
 func gracefulExit() {

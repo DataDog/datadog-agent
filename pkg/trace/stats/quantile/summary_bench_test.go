@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package quantile
 
@@ -32,7 +32,7 @@ func BenchmarkGKSliceInsertion(b *testing.B) {
 	b.ReportAllocs()
 
 	for n := 0; n < b.N; n++ {
-		s.Insert(vals[n%randlen], uint64(n))
+		s.Insert(vals[n%randlen])
 	}
 }
 
@@ -46,7 +46,7 @@ func BenchmarkGKSliceInsertionPreallocd(b *testing.B) {
 	b.ReportAllocs()
 
 	for n := 0; n < b.N; n++ {
-		s.Insert(vals[n%randlen], uint64(n))
+		s.Insert(vals[n%randlen])
 	}
 }
 
@@ -54,7 +54,7 @@ func BGKSliceQuantiles(b *testing.B, n int) {
 	s := NewSliceSummary()
 	vals := randSlice(n)
 	for i := 0; i < n; i++ {
-		s.Insert(vals[i], uint64(i))
+		s.Insert(vals[i])
 	}
 
 	b.ResetTimer()
@@ -84,7 +84,7 @@ func BGKSliceEncoding(b *testing.B, n int) {
 	s := NewSliceSummary()
 	vals := randSlice(n)
 	for i := 0; i < n; i++ {
-		s.Insert(vals[i], uint64(i))
+		s.Insert(vals[i])
 	}
 
 	b.ResetTimer()

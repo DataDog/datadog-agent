@@ -1,13 +1,15 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package pipeline
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"testing"
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 
 	"github.com/stretchr/testify/suite"
 
@@ -19,11 +21,11 @@ import (
 type ProviderTestSuite struct {
 	suite.Suite
 	p *provider
-	a *auditor.Auditor
+	a *auditor.RegistryAuditor
 }
 
 func (suite *ProviderTestSuite) SetupTest() {
-	suite.a = auditor.New("", health.RegisterLiveness("fake"))
+	suite.a = auditor.New("", auditor.DefaultRegistryFilename, time.Hour, health.RegisterLiveness("fake"))
 	suite.p = &provider{
 		numberOfPipelines: 3,
 		auditor:           suite.a,

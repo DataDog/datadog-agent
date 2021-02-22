@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Agent host tags are now correctly removed from the in-app host when the configured ``tags``/``DD_TAGS`` list is empty or not defined.

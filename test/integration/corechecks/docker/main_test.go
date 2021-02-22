@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package docker
 
@@ -16,9 +16,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/docker"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
 
@@ -97,6 +99,7 @@ func setup() error {
 	}
 
 	// Setup tagger
+	tagger.SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
 	tagger.Init()
 
 	// Start compose recipes
@@ -119,7 +122,7 @@ func doRun(m *testing.M) int {
 	// Setup docker check
 	var dockerCfg = []byte(dockerCfgString)
 	var dockerInitCfg = []byte("")
-	dockerCheck = containers.DockerFactory()
+	dockerCheck = docker.DockerFactory()
 	dockerCheck.Configure(dockerCfg, dockerInitCfg, "test")
 
 	// Setup mock sender

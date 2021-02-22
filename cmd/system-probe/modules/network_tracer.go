@@ -14,11 +14,11 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/encoding"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ErrSysprobeUnsupported is the unsupported error prefix, for error-class matching from callers
@@ -30,14 +30,19 @@ var inactivityLogDuration = 10 * time.Minute
 var NetworkTracer = api.Factory{
 	Name: "network_tracer",
 	Fn: func(cfg *config.AgentConfig) (api.Module, error) {
+		if !cfg.CheckIsEnabled("Network") {
+			log.Infof("Network tracer disabled")
+			return nil, api.ErrNotEnabled
+		}
+
 		// Checking whether the current OS + kernel version is supported by the tracer
-		if supported, msg := ebpf.IsTracerSupportedByOS(cfg.ExcludedBPFLinuxVersions); !supported {
+		if supported, msg := tracer.IsTracerSupportedByOS(cfg.ExcludedBPFLinuxVersions); !supported {
 			return nil, fmt.Errorf("%s: %s", ErrSysprobeUnsupported, msg)
 		}
 
 		log.Infof("Creating tracer for: %s", filepath.Base(os.Args[0]))
 
-		t, err := ebpf.NewTracer(config.SysProbeConfigFromConfig(cfg))
+		t, err := tracer.NewTracer(networkconfig.TracerConfigFromConfig(cfg))
 		return &networkTracer{tracer: t}, err
 	},
 }
@@ -45,7 +50,7 @@ var NetworkTracer = api.Factory{
 var _ api.Module = &networkTracer{}
 
 type networkTracer struct {
-	tracer *ebpf.Tracer
+	tracer *tracer.Tracer
 }
 
 func (nt *networkTracer) GetStats() map[string]interface{} {

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build docker
 
@@ -292,7 +292,7 @@ func (l *DockerListener) createService(cID string) {
 	if err != nil {
 		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
 	}
-	_, err = svc.GetTags()
+	_, _, err = svc.GetTags()
 	if err != nil {
 		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
 	}
@@ -551,13 +551,8 @@ func parseDockerPort(port nat.Port) ([]ContainerPort, error) {
 }
 
 // GetTags retrieves tags using the Tagger
-func (s *DockerService) GetTags() ([]string, error) {
-	tags, err := tagger.Tag(s.GetTaggerEntity(), tagger.ChecksCardinality)
-	if err != nil {
-		return []string{}, err
-	}
-
-	return tags, nil
+func (s *DockerService) GetTags() ([]string, string, error) {
+	return tagger.TagWithHash(s.GetTaggerEntity(), tagger.ChecksCardinality)
 }
 
 // GetPid inspect the container an return its pid

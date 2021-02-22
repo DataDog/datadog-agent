@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -29,14 +30,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func runCompliance(ctx context.Context) error {
-	apiCl, err := apiserver.WaitForAPIClient(ctx)
-	if err != nil {
-		return err
-	}
-
+func runCompliance(ctx context.Context, apiCl *apiserver.APIClient, isLeader func() bool) error {
 	stopper := restart.NewSerialStopper()
-	if err := startCompliance(stopper, apiCl); err != nil {
+	if err := startCompliance(stopper, apiCl, isLeader); err != nil {
 		return err
 	}
 
@@ -47,7 +43,7 @@ func runCompliance(ctx context.Context) error {
 }
 
 // TODO: Factorize code with pkg/compliance
-func startCompliance(stopper restart.Stopper, apiCl *apiserver.APIClient) error {
+func startCompliance(stopper restart.Stopper, apiCl *apiserver.APIClient, isLeader func() bool) error {
 	httpConnectivity := config.HTTPConnectivityFailure
 	if endpoints, err := config.BuildHTTPEndpoints(); err == nil {
 		httpConnectivity = http.CheckConnectivity(endpoints.Main)
@@ -65,12 +61,12 @@ func startCompliance(stopper restart.Stopper, apiCl *apiserver.APIClient) error 
 	health := health.RegisterLiveness("compliance")
 
 	// setup the auditor
-	auditor := auditor.New(coreconfig.Datadog.GetString("compliance_config.run_path"), health)
+	auditor := auditor.New(coreconfig.Datadog.GetString("compliance_config.run_path"), "compliance-cluster-registry.json", coreconfig.DefaultAuditorTTL, health)
 	auditor.Start()
 	stopper.Add(auditor)
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, nil, endpoints, destinationsCtx)
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, destinationsCtx)
 	pipelineProvider.Start()
 	stopper.Add(pipelineProvider)
 
@@ -105,6 +101,7 @@ func startCompliance(stopper restart.Stopper, apiCl *apiserver.APIClient) error 
 			return rule.Scope.Includes(compliance.KubernetesClusterScope)
 		}),
 		checks.WithKubernetesClient(apiCl.DynamicCl),
+		checks.WithIsLeader(isLeader),
 	)
 	if err != nil {
 		return err

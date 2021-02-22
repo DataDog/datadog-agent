@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package config
 
@@ -55,6 +55,14 @@ func (c *safeConfig) GetKnownKeys() map[string]interface{} {
 	c.Lock()
 	defer c.Unlock()
 	return c.Viper.GetKnownKeys()
+}
+
+// SetEnvKeyTransformer allows defining a transformer function which decides
+// how an environment variables value gets assigned to key.
+func (c *safeConfig) SetEnvKeyTransformer(key string, fn func(string) interface{}) {
+	c.Lock()
+	defer c.Unlock()
+	c.Viper.SetEnvKeyTransformer(key, fn)
 }
 
 // SetFs wraps Viper for concurrent access
@@ -348,9 +356,9 @@ func (c *safeConfig) GetEnvVars() []string {
 }
 
 // BindEnvAndSetDefault implements the Config interface
-func (c *safeConfig) BindEnvAndSetDefault(key string, val interface{}) {
+func (c *safeConfig) BindEnvAndSetDefault(key string, val interface{}, env ...string) {
 	c.SetDefault(key, val)
-	c.BindEnv(key) //nolint:errcheck
+	c.BindEnv(append([]string{key}, env...)...) //nolint:errcheck
 }
 
 // NewConfig returns a new Config object.

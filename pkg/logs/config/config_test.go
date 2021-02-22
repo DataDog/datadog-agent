@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package config
 
@@ -46,15 +46,16 @@ func (suite *ConfigTestSuite) TestDefaultDatadogConfig() {
 }
 
 func (suite *ConfigTestSuite) TestDefaultSources() {
-	var sources []*LogSource
-	var source *LogSource
+	// container collect all source
+
+	source := ContainerCollectAllSource()
+	suite.Nil(source)
 
 	suite.config.Set("logs_config.container_collect_all", true)
 
-	sources = DefaultSources()
-	suite.Equal(1, len(sources))
+	source = ContainerCollectAllSource()
+	suite.NotNil(source)
 
-	source = sources[0]
 	suite.Equal("container_collect_all", source.Name)
 	suite.Equal(DockerType, source.Config.Type)
 	suite.Equal("docker", source.Config.Source)

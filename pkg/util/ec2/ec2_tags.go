@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build ec2
 
@@ -104,7 +104,7 @@ type ec2Identity struct {
 func getInstanceIdentity() (*ec2Identity, error) {
 	instanceIdentity := &ec2Identity{}
 
-	res, err := doHTTPRequest(instanceIdentityURL, http.MethodGet, map[string]string{}, true)
+	res, err := doHTTPRequest(instanceIdentityURL, http.MethodGet, map[string]string{}, config.Datadog.GetBool("ec2_prefer_imdsv2"))
 	if err != nil {
 		return instanceIdentity, fmt.Errorf("unable to fetch EC2 API, %s", err)
 	}
@@ -137,7 +137,7 @@ func getSecurityCreds() (*ec2SecurityCred, error) {
 		return iamParams, err
 	}
 
-	res, err := doHTTPRequest(metadataURL+"/iam/security-credentials/"+iamRole, http.MethodGet, map[string]string{}, true)
+	res, err := doHTTPRequest(metadataURL+"/iam/security-credentials/"+iamRole, http.MethodGet, map[string]string{}, config.Datadog.GetBool("ec2_prefer_imdsv2"))
 	if err != nil {
 		return iamParams, fmt.Errorf("unable to fetch EC2 API, %s", err)
 	}
@@ -156,7 +156,7 @@ func getSecurityCreds() (*ec2SecurityCred, error) {
 }
 
 func getIAMRole() (string, error) {
-	res, err := doHTTPRequest(metadataURL+"/iam/security-credentials/", http.MethodGet, map[string]string{}, true)
+	res, err := doHTTPRequest(metadataURL+"/iam/security-credentials/", http.MethodGet, map[string]string{}, config.Datadog.GetBool("ec2_prefer_imdsv2"))
 	if err != nil {
 		return "", fmt.Errorf("unable to fetch EC2 API, %s", err)
 	}

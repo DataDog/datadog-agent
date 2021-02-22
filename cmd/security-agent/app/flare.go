@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package app
 
@@ -12,7 +12,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	secagentcommon "github.com/DataDog/datadog-agent/cmd/security-agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
@@ -42,11 +42,10 @@ var flareCmd = &cobra.Command{
 			color.NoColor = true
 		}
 
-		// we'll search for a config file named `datadog.yaml`
-		config.Datadog.SetConfigName("datadog")
-		err := common.SetupConfig(confPath)
+		// Read configuration files received from the command line arguments '-c'
+		err := secagentcommon.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed)
 		if err != nil {
-			return fmt.Errorf("unable to set up global security agent configuration: %v", err)
+			return err
 		}
 
 		// The flare command should not log anything, all errors should be reported directly to the console without the log format
@@ -80,7 +79,7 @@ func requestFlare(caseID string) error {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 	urlstr := fmt.Sprintf("https://localhost:%v/agent/flare", config.Datadog.GetInt("security_agent.cmd_port"))
 
-	logFile := config.Datadog.GetString("log_file")
+	logFile := config.Datadog.GetString("security_agent.log_file")
 
 	// Set session token
 	e = util.SetAuthToken()
@@ -97,7 +96,7 @@ func requestFlare(caseID string) error {
 			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make a full flare: %s.", e.Error()))
 		}
 		fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally, some logs will be missing."))
-		filePath, e = flare.CreateSecurityAgentArchive(true, logFile)
+		filePath, e = flare.CreateSecurityAgentArchive(true, logFile, nil)
 		if e != nil {
 			fmt.Printf("The flare zipfile failed to be created: %s\n", e)
 			return e

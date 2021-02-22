@@ -2,7 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog
 // (https://www.datadoghq.com/).
-// Copyright 2019-2020 Datadog, Inc.
+// Copyright 2019-present Datadog, Inc.
 #include "two.h"
 
 #include "constants.h"
@@ -430,6 +430,25 @@ char *Two::runCheck(RtLoaderPyObject *check)
 done:
     Py_XDECREF(result);
     return ret_copy;
+}
+
+void Two::cancelCheck(RtLoaderPyObject *check)
+{
+    if (check == NULL) {
+        return;
+    }
+
+    PyObject *py_check = reinterpret_cast<PyObject *>(check);
+
+    char cancel[] = "cancel";
+    PyObject *result = NULL;
+
+    result = PyObject_CallMethod(py_check, cancel, NULL);
+    // at least None should be returned
+    if (result == NULL) {
+        setError("error invoking 'cancel' method: " + _fetchPythonError());
+    }
+    Py_XDECREF(result);
 }
 
 char **Two::getCheckWarnings(RtLoaderPyObject *check)
@@ -886,6 +905,11 @@ void Two::setReadPersistentCacheCb(cb_read_persistent_cache_t cb)
 void Two::setObfuscateSqlCb(cb_obfuscate_sql_t cb)
 {
     _set_obfuscate_sql_cb(cb);
+}
+
+void Two::setObfuscateSqlExecPlanCb(cb_obfuscate_sql_exec_plan_t cb)
+{
+    _set_obfuscate_sql_exec_plan_cb(cb);
 }
 
 // Python Helpers

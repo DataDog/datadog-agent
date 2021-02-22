@@ -3,24 +3,25 @@ package checks
 import (
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	model "github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	agentutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/gopsutil/cpu"
 	"github.com/DataDog/gopsutil/process"
-
-	model "github.com/DataDog/agent-payload/process"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/DataDog/datadog-agent/pkg/process/statsd"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 const emptyCtrID = ""
 
 // Process is a singleton ProcessCheck.
-var Process = &ProcessCheck{}
+var Process = &ProcessCheck{probe: procutil.NewProcessProbe()}
 
 var errEmptyCPUTime = errors.New("empty CPU time information returned")
 
@@ -28,7 +29,9 @@ var errEmptyCPUTime = errors.New("empty CPU time information returned")
 // for live and running processes. The instance will store some state between
 // checks that will be used for rates, cpu calculations, etc.
 type ProcessCheck struct {
-	sync.Mutex
+	sync.RWMutex
+
+	probe *procutil.Probe
 
 	sysInfo         *model.SystemInfo
 	lastCPUTime     cpu.TimesStat
@@ -37,6 +40,10 @@ type ProcessCheck struct {
 	lastCtrIDForPID map[int32]string
 	lastRun         time.Time
 	networkID       string
+
+	// lastPIDs is []int32 that holds PIDs that the check fetched last time,
+	// will be reused by RTProcessCheck to get stats
+	lastPIDs atomic.Value
 }
 
 // Init initializes the singleton ProcessCheck.
@@ -75,26 +82,36 @@ func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Mess
 	if len(cpuTimes) == 0 {
 		return nil, errEmptyCPUTime
 	}
-	procs, err := getAllProcesses(cfg)
+
+	procs, err := getAllProcesses(p.probe)
 	if err != nil {
 		return nil, err
 	}
+
+	// stores lastPIDs to be used by RTProcess
+	lastPIDs := make([]int32, 0, len(procs))
+	for pid := range procs {
+		lastPIDs = append(lastPIDs, pid)
+	}
+	p.lastPIDs.Store(lastPIDs)
+
 	ctrList, _ := util.GetContainers()
 
 	// Keep track of containers addresses
 	LocalResolver.LoadAddrs(ctrList)
 
+	ctrByProc := ctrIDForPID(ctrList)
 	// End check early if this is our first run.
 	if p.lastProcs == nil {
 		p.lastProcs = procs
 		p.lastCPUTime = cpuTimes[0]
 		p.lastCtrRates = util.ExtractContainerRateMetric(ctrList)
-		p.lastCtrIDForPID = ctrIDForPID(ctrList)
+		p.lastCtrIDForPID = ctrByProc
 		p.lastRun = time.Now()
 		return nil, nil
 	}
 
-	procsByCtr := fmtProcesses(cfg, procs, p.lastProcs, ctrList, cpuTimes[0], p.lastCPUTime, p.lastRun)
+	procsByCtr := fmtProcesses(cfg, procs, p.lastProcs, ctrByProc, cpuTimes[0], p.lastCPUTime, p.lastRun)
 	ctrs := fmtContainers(ctrList, p.lastCtrRates, p.lastRun)
 
 	messages, totalProcs, totalContainers := createProcCtrMessages(procsByCtr, ctrs, cfg, p.sysInfo, groupID, p.networkID)
@@ -105,12 +122,20 @@ func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Mess
 	p.lastCtrRates = util.ExtractContainerRateMetric(ctrList)
 	p.lastCPUTime = cpuTimes[0]
 	p.lastRun = time.Now()
-	p.lastCtrIDForPID = ctrIDForPID(ctrList)
+	p.lastCtrIDForPID = ctrByProc
 
 	statsd.Client.Gauge("datadog.process.containers.host_count", float64(totalContainers), []string{}, 1) //nolint:errcheck
 	statsd.Client.Gauge("datadog.process.processes.host_count", float64(totalProcs), []string{}, 1)       //nolint:errcheck
 	log.Debugf("collected processes in %s", time.Now().Sub(start))
 	return messages, nil
+}
+
+// GetLastPIDs returns the lastPIDs as []int32 slice
+func (p *ProcessCheck) GetLastPIDs() []int32 {
+	if result := p.lastPIDs.Load(); result != nil {
+		return result.([]int32)
+	}
+	return nil
 }
 
 func createProcCtrMessages(
@@ -205,12 +230,10 @@ func ctrIDForPID(ctrList []*containers.Container) map[int32]string {
 func fmtProcesses(
 	cfg *config.AgentConfig,
 	procs, lastProcs map[int32]*process.FilledProcess,
-	ctrList []*containers.Container,
+	ctrByProc map[int32]string,
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
 ) map[string][]*model.Process {
-	ctrIDForPID := ctrIDForPID(ctrList)
-
 	procsByCtr := make(map[string][]*model.Process)
 
 	for _, fp := range procs {
@@ -234,7 +257,7 @@ func fmtProcesses(
 			IoStat:                 formatIO(fp, lastProcs[fp.Pid].IOStat, lastRun),
 			VoluntaryCtxSwitches:   uint64(fp.CtxSwitches.Voluntary),
 			InvoluntaryCtxSwitches: uint64(fp.CtxSwitches.Involuntary),
-			ContainerId:            ctrIDForPID[fp.Pid],
+			ContainerId:            ctrByProc[fp.Pid],
 		}
 		_, ok := procsByCtr[proc.ContainerId]
 		if !ok {
@@ -336,23 +359,9 @@ func skipProcess(
 	return false
 }
 
-// filterCtrIDsByPIDs uses lastCtrIDForPID and filter down only the pid -> cid that we need
-func (p *ProcessCheck) filterCtrIDsByPIDs(pids []int32) map[int32]string {
-	p.Lock()
-	defer p.Unlock()
-
-	ctrByPid := make(map[int32]string)
-	for _, pid := range pids {
-		if cid, ok := p.lastCtrIDForPID[pid]; ok {
-			ctrByPid[pid] = cid
-		}
-	}
-	return ctrByPid
-}
-
 func (p *ProcessCheck) createTimesforPIDs(pids []int32) map[int32]int64 {
-	p.Lock()
-	defer p.Unlock()
+	p.RLock()
+	defer p.RUnlock()
 
 	createTimeForPID := make(map[int32]int64)
 	for _, pid := range pids {

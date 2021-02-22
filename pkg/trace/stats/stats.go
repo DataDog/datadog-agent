@@ -1,12 +1,13 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package stats
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/stats/quantile"
 )
@@ -64,8 +65,21 @@ type Distribution struct {
 // GrainKey generates the key used to aggregate counts and distributions
 // which is of the form: name|measure|aggr
 // for example: serve|duration|service:webserver
-func GrainKey(name, measure, aggr string) string {
-	return name + "|" + measure + "|" + aggr
+func GrainKey(name, measure string, aggr Aggregation) string {
+	b := strings.Builder{}
+	// +2 for "|" separators
+	size := len(name) + 1 + len(measure) + 1
+	size += aggr.KeyLen()
+	b.Grow(size)
+
+	b.WriteString(name)
+	b.WriteRune('|')
+	b.WriteString(measure)
+	b.WriteRune('|')
+
+	aggr.WriteKey(&b)
+
+	return b.String()
 }
 
 // NewCount returns a new Count for a metric and a given tag set
@@ -109,7 +123,7 @@ func NewDistribution(m, ckey, name string, tgs TagSet) Distribution {
 
 // Add inserts the proper values in a given distribution from a span
 func (d Distribution) Add(v float64, sampleID uint64) {
-	d.Summary.Insert(v, sampleID)
+	d.Summary.Insert(v)
 }
 
 // Merge is used when 2 Distributions represent the same thing and it merges the 2 underlying summaries

@@ -2,7 +2,7 @@
 # Cookbook Name:: dd-agent-step-by-step
 # Recipe:: default
 #
-# Copyright (C) 2013 Datadog
+# Copyright (C) 2013-present Datadog
 #
 # All rights reserved - Do Not Redistribute
 #
@@ -73,7 +73,7 @@ when 'suse'
       sudo rpm --import /tmp/DATADOG_RPM_KEY_E09422B3.public
       sudo rpm --import https://yum.datadoghq.com/DATADOG_RPM_KEY.public
       sudo rpm --import https://yum.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public
-      sudo zypper --non-interactive --no-gpg-check refresh datadog
+      sudo zypper --non-interactive --no-gpg-checks refresh datadog
       sudo zypper --non-interactive install #{node['dd-agent-step-by-step']['package_name']}
     EOF
   end

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package testsuite
 
@@ -45,9 +45,15 @@ func TestSecrets(t *testing.T) {
 		t.Skip(err.Error())
 	}
 
+	// CI environment might have no datadog.yaml; we don't care in this
+	// case so we can just use an empty file to avoid failure.
+	if err := ioutil.WriteFile(filepath.Join(tmpDir, "datadog.yaml"), []byte(""), os.ModePerm); err != nil {
+		t.Skip(err.Error())
+	}
+
 	// run the trace-agent
 	var buf safeWriter
-	cmd = exec.Command(binTraceAgent)
+	cmd = exec.Command(binTraceAgent, "-config", filepath.Join(tmpDir, "datadog.yaml"))
 	cmd.Env = []string{
 		"DD_SECRET_BACKEND_COMMAND=" + binSecrets,
 		"DD_HOSTNAME=ENC[secret1]",

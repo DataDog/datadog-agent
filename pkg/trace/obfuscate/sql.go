@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package obfuscate
 
@@ -14,7 +14,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -22,6 +21,8 @@ import (
 
 const sqlQueryTag = "sql.query"
 const nonParsableResource = "Non-parsable SQL query"
+
+var questionMark = []byte("?")
 
 // tokenFilter is a generic interface that a sqlObfuscator expects. It defines
 // the Filter() function used to filter or replace given tokens.
@@ -88,23 +89,33 @@ func (f *discardFilter) Reset() {}
 
 // replaceFilter is a token filter which obfuscates strings and numbers in queries by replacing them
 // with the "?" character.
-type replaceFilter struct{}
+type replaceFilter struct {
+	quantizeTableNames bool
+}
 
 // Filter the given token so that it will be replaced if in the token replacement list
 func (f *replaceFilter) Filter(token, lastToken TokenKind, buffer []byte) (tokenType TokenKind, tokenBytes []byte, err error) {
 	switch lastToken {
 	case Savepoint:
-		return FilteredGroupable, []byte("?"), nil
+		return FilteredGroupable, questionMark, nil
 	case '=':
 		switch token {
 		case DoubleQuotedString:
 			// double-quoted strings after assignments are eligible for obfuscation
-			return FilteredGroupable, []byte("?"), nil
+			return FilteredGroupable, questionMark, nil
 		}
 	}
 	switch token {
 	case String, Number, Null, Variable, PreparedStatement, BooleanLiteral, EscapeSequence:
-		return FilteredGroupable, []byte("?"), nil
+		return FilteredGroupable, questionMark, nil
+	case '?':
+		// Cases like 'ARRAY [ ?, ? ]' should be collapsed into 'ARRAY [ ? ]'
+		return FilteredGroupable, questionMark, nil
+	case TableName:
+		if f.quantizeTableNames {
+			return token, replaceDigits(buffer), nil
+		}
+		fallthrough
 	default:
 		return token, buffer, nil
 	}
@@ -166,6 +177,18 @@ func (f *groupingFilter) Reset() {
 // some elements such as comments and aliases and obfuscation attempts to hide sensitive information
 // in strings and numbers by redacting them.
 func (o *Obfuscator) ObfuscateSQLString(in string) (*ObfuscatedQuery, error) {
+	if v, ok := o.queryCache.Get(in); ok {
+		return v.(*ObfuscatedQuery), nil
+	}
+	oq, err := o.obfuscateSQLString(in)
+	if err != nil {
+		return oq, err
+	}
+	o.queryCache.Set(in, oq, oq.Cost())
+	return oq, nil
+}
+
+func (o *Obfuscator) obfuscateSQLString(in string) (*ObfuscatedQuery, error) {
 	lesc := o.SQLLiteralEscapes()
 	tok := NewSQLTokenizer(in, lesc)
 	out, err := attemptObfuscation(tok)
@@ -186,6 +209,7 @@ func (o *Obfuscator) ObfuscateSQLString(in string) (*ObfuscatedQuery, error) {
 // tableFinderFilter is a filter which attempts to identify the table name as it goes through each
 // token in a query.
 type tableFinderFilter struct {
+	storeTableNames bool
 	// seen keeps track of unique table names encountered by the filter.
 	seen map[string]struct{}
 	// csv specifies a comma-separated list of tables
@@ -195,20 +219,23 @@ type tableFinderFilter struct {
 // Filter implements tokenFilter.
 func (f *tableFinderFilter) Filter(token, lastToken TokenKind, buffer []byte) (TokenKind, []byte, error) {
 	switch lastToken {
-	case From:
+	case From, Join:
 		// SELECT ... FROM [tableName]
 		// DELETE FROM [tableName]
+		// ... JOIN [tableName]
 		if r, _ := utf8.DecodeRune(buffer); !unicode.IsLetter(r) {
 			// first character in buffer is not a letter; we might have a nested
 			// query like SELECT * FROM (SELECT ...)
 			break
 		}
 		fallthrough
-	case Update, Into, Join:
+	case Update, Into:
 		// UPDATE [tableName]
 		// INSERT INTO [tableName]
-		// ... JOIN [tableName]
-		f.storeName(string(buffer))
+		if f.storeTableNames {
+			f.storeName(string(buffer))
+		}
+		return TableName, buffer, nil
 	}
 	return token, buffer, nil
 }
@@ -245,38 +272,52 @@ type ObfuscatedQuery struct {
 	TablesCSV string // comma-separated list of tables that the query addresses
 }
 
+// Cost returns the number of bytes needed to store all the fields
+// of this ObfuscatedQuery.
+func (oq *ObfuscatedQuery) Cost() int64 {
+	return int64(len(oq.Query) + len(oq.TablesCSV))
+}
+
 // attemptObfuscation attempts to obfuscate the SQL query loaded into the tokenizer, using the
 // given set of filters.
 func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
-	filters := []tokenFilter{
-		&discardFilter{},
-		&replaceFilter{},
-		&groupingFilter{},
-	}
-	tableFinder := &tableFinderFilter{}
-	if config.HasFeature("table_names") {
-		filters = append(filters, tableFinder)
-	}
+
 	var (
-		out       bytes.Buffer
-		err       error
-		lastToken TokenKind
+		storeTableNames    = config.HasFeature("table_names")
+		quantizeTableNames = config.HasFeature("quantize_sql_tables")
+		out                = bytes.NewBuffer(make([]byte, 0, len(tokenizer.buf)))
+		err                error
+		lastToken          TokenKind
+		discard            discardFilter
+		replace            = replaceFilter{quantizeTableNames: quantizeTableNames}
+		grouping           groupingFilter
+		tableFinder        = tableFinderFilter{storeTableNames: storeTableNames}
 	)
 	// call Scan() function until tokens are available or if a LEX_ERROR is raised. After
 	// retrieving a token, send it to the tokenFilter chains so that the token is discarded
 	// or replaced.
 	for {
 		token, buff := tokenizer.Scan()
-		if token == EOFChar {
+		if token == EndChar {
 			break
 		}
 		if token == LexError {
 			return nil, fmt.Errorf("%v", tokenizer.Err())
 		}
-		for _, f := range filters {
-			if token, buff, err = f.Filter(token, lastToken, buff); err != nil {
+
+		if token, buff, err = discard.Filter(token, lastToken, buff); err != nil {
+			return nil, err
+		}
+		if storeTableNames || quantizeTableNames {
+			if token, buff, err = tableFinder.Filter(token, lastToken, buff); err != nil {
 				return nil, err
 			}
+		}
+		if token, buff, err = replace.Filter(token, lastToken, buff); err != nil {
+			return nil, err
+		}
+		if token, buff, err = grouping.Filter(token, lastToken, buff); err != nil {
+			return nil, err
 		}
 		if buff != nil {
 			if out.Len() != 0 {
@@ -307,12 +348,7 @@ func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 }
 
 func (o *Obfuscator) obfuscateSQL(span *pb.Span) {
-	tags := []string{"type:sql"}
-	defer func() {
-		metrics.Count("datadog.trace_agent.obfuscations", 1, tags, 1)
-	}()
 	if span.Resource == "" {
-		tags = append(tags, "outcome:empty-resource")
 		return
 	}
 	oq, err := o.ObfuscateSQLString(span.Resource)
@@ -323,14 +359,12 @@ func (o *Obfuscator) obfuscateSQL(span *pb.Span) {
 			span.Meta = make(map[string]string, 1)
 		}
 		if _, ok := span.Meta[sqlQueryTag]; !ok {
-			span.Meta[sqlQueryTag] = span.Resource
+			span.Meta[sqlQueryTag] = nonParsableResource
 		}
 		span.Resource = nonParsableResource
-		tags = append(tags, "outcome:error")
 		return
 	}
 
-	tags = append(tags, "outcome:success")
 	span.Resource = oq.Query
 
 	if len(oq.TablesCSV) > 0 {
@@ -341,4 +375,13 @@ func (o *Obfuscator) obfuscateSQL(span *pb.Span) {
 		return
 	}
 	traceutil.SetMeta(span, sqlQueryTag, oq.Query)
+}
+
+// ObfuscateSQLExecPlan obfuscates query conditions in the provided JSON encoded execution plan. If normalize=True,
+// then cost and row estimates are also obfuscated away.
+func (o *Obfuscator) ObfuscateSQLExecPlan(jsonPlan string, normalize bool) (string, error) {
+	if normalize {
+		return o.sqlExecPlanNormalize.obfuscate([]byte(jsonPlan))
+	}
+	return o.sqlExecPlan.obfuscate([]byte(jsonPlan))
 }

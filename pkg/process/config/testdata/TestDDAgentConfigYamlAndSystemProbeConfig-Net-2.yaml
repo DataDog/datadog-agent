@@ -23,3 +23,6 @@ system_probe_config:
         - "*"
       "*":
         - "*"
+
+network_config:
+    enabled: false

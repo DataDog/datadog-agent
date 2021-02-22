@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build secrets
 
@@ -22,9 +22,10 @@ var (
 	// list of handles and where they were found
 	secretOrigin map[string]common.StringSet
 
-	secretBackendCommand   string
-	secretBackendArguments []string
-	secretBackendTimeout   = 5
+	secretBackendCommand               string
+	secretBackendArguments             []string
+	secretBackendTimeout               = 5
+	secretBackendCommandAllowGroupExec bool
 
 	// SecretBackendOutputMaxSize defines max size of the JSON output from a secrets reader backend
 	SecretBackendOutputMaxSize = 1024 * 1024
@@ -38,11 +39,15 @@ func init() {
 // Init initializes the command and other options of the secrets package. Since
 // this package is used by the 'config' package to decrypt itself we can't
 // directly use it.
-func Init(command string, arguments []string, timeout int, maxSize int) {
+func Init(command string, arguments []string, timeout int, maxSize int, groupExecPerm bool) {
 	secretBackendCommand = command
 	secretBackendArguments = arguments
 	secretBackendTimeout = timeout
 	SecretBackendOutputMaxSize = maxSize
+	secretBackendCommandAllowGroupExec = groupExecPerm
+	if secretBackendCommandAllowGroupExec {
+		log.Warnf("Agent configuration relax permissions constraint on the secret backend cmd, Group can read and exec")
+	}
 }
 
 type walkerCallback func(string) (string, error)

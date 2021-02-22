@@ -33,24 +33,21 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*BoolEval
 			}
 		}
 
-		var evalFnc func(ctx *Context) bool
-		if opts.Debug {
-			evalFnc = func(ctx *Context) bool {
-				ctx.evalDepth++
-				op1, op2 := ea(ctx), eb(ctx)
-				result := op1 || op2
-				ctx.Logf("Evaluating %v || %v => %v", op1, op2, result)
-				ctx.evalDepth--
-				return result
-			}
-		} else {
-			evalFnc = func(ctx *Context) bool {
-				return ea(ctx) || eb(ctx)
-			}
+		// optimise the evaluation if need moving the evaluation with more weight at the right
+
+		if a.Weight > b.Weight {
+			tmp := ea
+			ea = eb
+			eb = tmp
+		}
+
+		evalFnc := func(ctx *Context) bool {
+			return ea(ctx) || eb(ctx)
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -93,24 +90,13 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*BoolEval
 			}
 		}
 
-		var evalFnc func(ctx *Context) bool
-		if opts.Debug {
-			evalFnc = func(ctx *Context) bool {
-				ctx.evalDepth++
-				op1, op2 := ea(ctx), eb
-				result := op1 || op2
-				ctx.Logf("Evaluating %v || %v => %v", op1, op2, result)
-				ctx.evalDepth--
-				return result
-			}
-		} else {
-			evalFnc = func(ctx *Context) bool {
-				return ea(ctx) || eb
-			}
+		evalFnc := func(ctx *Context) bool {
+			return ea(ctx) || eb
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -134,24 +120,13 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*BoolEval
 		}
 	}
 
-	var evalFnc func(ctx *Context) bool
-	if opts.Debug {
-		evalFnc = func(ctx *Context) bool {
-			ctx.evalDepth++
-			op1, op2 := ea, eb(ctx)
-			result := op1 || op2
-			ctx.Logf("Evaluating %v || %v => %v", op1, op2, result)
-			ctx.evalDepth--
-			return result
-		}
-	} else {
-		evalFnc = func(ctx *Context) bool {
-			return ea || eb(ctx)
-		}
+	evalFnc := func(ctx *Context) bool {
+		return ea || eb(ctx)
 	}
 
 	return &BoolEvaluator{
 		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -187,24 +162,21 @@ func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*BoolEva
 			}
 		}
 
-		var evalFnc func(ctx *Context) bool
-		if opts.Debug {
-			evalFnc = func(ctx *Context) bool {
-				ctx.evalDepth++
-				op1, op2 := ea(ctx), eb(ctx)
-				result := op1 && op2
-				ctx.Logf("Evaluating %v && %v => %v", op1, op2, result)
-				ctx.evalDepth--
-				return result
-			}
-		} else {
-			evalFnc = func(ctx *Context) bool {
-				return ea(ctx) && eb(ctx)
-			}
+		// optimise the evaluation if need moving the evaluation with more weight at the right
+
+		if a.Weight > b.Weight {
+			tmp := ea
+			ea = eb
+			eb = tmp
+		}
+
+		evalFnc := func(ctx *Context) bool {
+			return ea(ctx) && eb(ctx)
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -247,24 +219,13 @@ func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*BoolEva
 			}
 		}
 
-		var evalFnc func(ctx *Context) bool
-		if opts.Debug {
-			evalFnc = func(ctx *Context) bool {
-				ctx.evalDepth++
-				op1, op2 := ea(ctx), eb
-				result := op1 && op2
-				ctx.Logf("Evaluating %v && %v => %v", op1, op2, result)
-				ctx.evalDepth--
-				return result
-			}
-		} else {
-			evalFnc = func(ctx *Context) bool {
-				return ea(ctx) && eb
-			}
+		evalFnc := func(ctx *Context) bool {
+			return ea(ctx) && eb
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -288,24 +249,13 @@ func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*BoolEva
 		}
 	}
 
-	var evalFnc func(ctx *Context) bool
-	if opts.Debug {
-		evalFnc = func(ctx *Context) bool {
-			ctx.evalDepth++
-			op1, op2 := ea, eb(ctx)
-			result := op1 && op2
-			ctx.Logf("Evaluating %v && %v => %v", op1, op2, result)
-			ctx.evalDepth--
-			return result
-		}
-	} else {
-		evalFnc = func(ctx *Context) bool {
-			return ea && eb(ctx)
-		}
+	evalFnc := func(ctx *Context) bool {
+		return ea && eb(ctx)
 	}
 
 	return &BoolEvaluator{
 		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -328,24 +278,15 @@ func IntEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*Boo
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
-		var evalFnc func(ctx *Context) bool
-		if opts.Debug {
-			evalFnc = func(ctx *Context) bool {
-				ctx.evalDepth++
-				op1, op2 := ea(ctx), eb(ctx)
-				result := op1 == op2
-				ctx.Logf("Evaluating %v == %v => %v", op1, op2, result)
-				ctx.evalDepth--
-				return result
-			}
-		} else {
-			evalFnc = func(ctx *Context) bool {
-				return ea(ctx) == eb(ctx)
-			}
+		// optimise the evaluation if need moving the evaluation with more weight at the right
+
+		evalFnc := func(ctx *Context) bool {
+			return ea(ctx) == eb(ctx)
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -368,24 +309,13 @@ func IntEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*Boo
 			}
 		}
 
-		var evalFnc func(ctx *Context) bool
-		if opts.Debug {
-			evalFnc = func(ctx *Context) bool {
-				ctx.evalDepth++
-				op1, op2 := ea(ctx), eb
-				result := op1 == op2
-				ctx.Logf("Evaluating %v == %v => %v", op1, op2, result)
-				ctx.evalDepth--
-				return result
-			}
-		} else {
-			evalFnc = func(ctx *Context) bool {
-				return ea(ctx) == eb
-			}
+		evalFnc := func(ctx *Context) bool {
+			return ea(ctx) == eb
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -398,24 +328,13 @@ func IntEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*Boo
 		}
 	}
 
-	var evalFnc func(ctx *Context) bool
-	if opts.Debug {
-		evalFnc = func(ctx *Context) bool {
-			ctx.evalDepth++
-			op1, op2 := ea, eb(ctx)
-			result := op1 == op2
-			ctx.Logf("Evaluating %v == %v => %v", op1, op2, result)
-			ctx.evalDepth--
-			return result
-		}
-	} else {
-		evalFnc = func(ctx *Context) bool {
-			return ea == eb(ctx)
-		}
+	evalFnc := func(ctx *Context) bool {
+		return ea == eb(ctx)
 	}
 
 	return &BoolEvaluator{
 		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -438,24 +357,15 @@ func IntNotEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
-		var evalFnc func(ctx *Context) bool
-		if opts.Debug {
-			evalFnc = func(ctx *Context) bool {
-				ctx.evalDepth++
-				op1, op2 := ea(ctx), eb(ctx)
-				result := op1 != op2
-				ctx.Logf("Evaluating %v != %v => %v", op1, op2, result)
-				ctx.evalDepth--
-				return result
-			}
-		} else {
-			evalFnc = func(ctx *Context) bool {
-				return ea(ctx) != eb(ctx)
-			}
+		// optimise the evaluation if need moving the evaluation with more weight at the right
+
+		evalFnc := func(ctx *Context) bool {
+			return ea(ctx) != eb(ctx)
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -478,24 +388,13 @@ func IntNotEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*
 			}
 		}
 
-		var evalFnc func(ctx *Context) bool
-		if opts.Debug {
-			evalFnc = func(ctx *Context) bool {
-				ctx.evalDepth++
-				op1, op2 := ea(ctx), eb
-				result := op1 != op2
-				ctx.Logf("Evaluating %v != %v => %v", op1, op2, result)
-				ctx.evalDepth--
-				return result
-			}
-		} else {
-			evalFnc = func(ctx *Context) bool {
-				return ea(ctx) != eb
-			}
+		evalFnc := func(ctx *Context) bool {
+			return ea(ctx) != eb
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -508,24 +407,13 @@ func IntNotEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*
 		}
 	}
 
-	var evalFnc func(ctx *Context) bool
-	if opts.Debug {
-		evalFnc = func(ctx *Context) bool {
-			ctx.evalDepth++
-			op1, op2 := ea, eb(ctx)
-			result := op1 != op2
-			ctx.Logf("Evaluating %v != %v => %v", op1, op2, result)
-			ctx.evalDepth--
-			return result
-		}
-	} else {
-		evalFnc = func(ctx *Context) bool {
-			return ea != eb(ctx)
-		}
+	evalFnc := func(ctx *Context) bool {
+		return ea != eb(ctx)
 	}
 
 	return &BoolEvaluator{
 		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -548,24 +436,15 @@ func IntAnd(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*IntEva
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
-		var evalFnc func(ctx *Context) int
-		if opts.Debug {
-			evalFnc = func(ctx *Context) int {
-				ctx.evalDepth++
-				op1, op2 := ea(ctx), eb(ctx)
-				result := op1 & op2
-				ctx.Logf("Evaluating %v & %v => %v", op1, op2, result)
-				ctx.evalDepth--
-				return result
-			}
-		} else {
-			evalFnc = func(ctx *Context) int {
-				return ea(ctx) & eb(ctx)
-			}
+		// optimise the evaluation if need moving the evaluation with more weight at the right
+
+		evalFnc := func(ctx *Context) int {
+			return ea(ctx) & eb(ctx)
 		}
 
 		return &IntEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -588,24 +467,13 @@ func IntAnd(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*IntEva
 			}
 		}
 
-		var evalFnc func(ctx *Context) int
-		if opts.Debug {
-			evalFnc = func(ctx *Context) int {
-				ctx.evalDepth++
-				op1, op2 := ea(ctx), eb
-				result := op1 & op2
-				ctx.Logf("Evaluating %v & %v => %v", op1, op2, result)
-				ctx.evalDepth--
-				return result
-			}
-		} else {
-			evalFnc = func(ctx *Context) int {
-				return ea(ctx) & eb
-			}
+		evalFnc := func(ctx *Context) int {
+			return ea(ctx) & eb
 		}
 
 		return &IntEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -618,24 +486,13 @@ func IntAnd(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*IntEva
 		}
 	}
 
-	var evalFnc func(ctx *Context) int
-	if opts.Debug {
-		evalFnc = func(ctx *Context) int {
-			ctx.evalDepth++
-			op1, op2 := ea, eb(ctx)
-			result := op1 & op2
-			ctx.Logf("Evaluating %v & %v => %v", op1, op2, result)
-			ctx.evalDepth--
-			return result
-		}
-	} else {
-		evalFnc = func(ctx *Context) int {
-			return ea & eb(ctx)
-		}
+	evalFnc := func(ctx *Context) int {
+		return ea & eb(ctx)
 	}
 
 	return &IntEvaluator{
 		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -658,24 +515,15 @@ func IntOr(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*IntEval
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
-		var evalFnc func(ctx *Context) int
-		if opts.Debug {
-			evalFnc = func(ctx *Context) int {
-				ctx.evalDepth++
-				op1, op2 := ea(ctx), eb(ctx)
-				result := op1 | op2
-				ctx.Logf("Evaluating %v | %v => %v", op1, op2, result)
-				ctx.evalDepth--
-				return result
-			}
-		} else {
-			evalFnc = func(ctx *Context) int {
-				return ea(ctx) | eb(ctx)
-			}
+		// optimise the evaluation if need moving the evaluation with more weight at the right
+
+		evalFnc := func(ctx *Context) int {
+			return ea(ctx) | eb(ctx)
 		}
 
 		return &IntEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -698,24 +546,13 @@ func IntOr(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*IntEval
 			}
 		}
 
-		var evalFnc func(ctx *Context) int
-		if opts.Debug {
-			evalFnc = func(ctx *Context) int {
-				ctx.evalDepth++
-				op1, op2 := ea(ctx), eb
-				result := op1 | op2
-				ctx.Logf("Evaluating %v | %v => %v", op1, op2, result)
-				ctx.evalDepth--
-				return result
-			}
-		} else {
-			evalFnc = func(ctx *Context) int {
-				return ea(ctx) | eb
-			}
+		evalFnc := func(ctx *Context) int {
+			return ea(ctx) | eb
 		}
 
 		return &IntEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -728,24 +565,13 @@ func IntOr(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*IntEval
 		}
 	}
 
-	var evalFnc func(ctx *Context) int
-	if opts.Debug {
-		evalFnc = func(ctx *Context) int {
-			ctx.evalDepth++
-			op1, op2 := ea, eb(ctx)
-			result := op1 | op2
-			ctx.Logf("Evaluating %v | %v => %v", op1, op2, result)
-			ctx.evalDepth--
-			return result
-		}
-	} else {
-		evalFnc = func(ctx *Context) int {
-			return ea | eb(ctx)
-		}
+	evalFnc := func(ctx *Context) int {
+		return ea | eb(ctx)
 	}
 
 	return &IntEvaluator{
 		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -768,24 +594,15 @@ func IntXor(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*IntEva
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
-		var evalFnc func(ctx *Context) int
-		if opts.Debug {
-			evalFnc = func(ctx *Context) int {
-				ctx.evalDepth++
-				op1, op2 := ea(ctx), eb(ctx)
-				result := op1 ^ op2
-				ctx.Logf("Evaluating %v ^ %v => %v", op1, op2, result)
-				ctx.evalDepth--
-				return result
-			}
-		} else {
-			evalFnc = func(ctx *Context) int {
-				return ea(ctx) ^ eb(ctx)
-			}
+		// optimise the evaluation if need moving the evaluation with more weight at the right
+
+		evalFnc := func(ctx *Context) int {
+			return ea(ctx) ^ eb(ctx)
 		}
 
 		return &IntEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -808,24 +625,13 @@ func IntXor(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*IntEva
 			}
 		}
 
-		var evalFnc func(ctx *Context) int
-		if opts.Debug {
-			evalFnc = func(ctx *Context) int {
-				ctx.evalDepth++
-				op1, op2 := ea(ctx), eb
-				result := op1 ^ op2
-				ctx.Logf("Evaluating %v ^ %v => %v", op1, op2, result)
-				ctx.evalDepth--
-				return result
-			}
-		} else {
-			evalFnc = func(ctx *Context) int {
-				return ea(ctx) ^ eb
-			}
+		evalFnc := func(ctx *Context) int {
+			return ea(ctx) ^ eb
 		}
 
 		return &IntEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -838,24 +644,13 @@ func IntXor(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*IntEva
 		}
 	}
 
-	var evalFnc func(ctx *Context) int
-	if opts.Debug {
-		evalFnc = func(ctx *Context) int {
-			ctx.evalDepth++
-			op1, op2 := ea, eb(ctx)
-			result := op1 ^ op2
-			ctx.Logf("Evaluating %v ^ %v => %v", op1, op2, result)
-			ctx.evalDepth--
-			return result
-		}
-	} else {
-		evalFnc = func(ctx *Context) int {
-			return ea ^ eb(ctx)
-		}
+	evalFnc := func(ctx *Context) int {
+		return ea ^ eb(ctx)
 	}
 
 	return &IntEvaluator{
 		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -878,24 +673,15 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *sta
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
-		var evalFnc func(ctx *Context) bool
-		if opts.Debug {
-			evalFnc = func(ctx *Context) bool {
-				ctx.evalDepth++
-				op1, op2 := ea(ctx), eb(ctx)
-				result := op1 == op2
-				ctx.Logf("Evaluating %v == %v => %v", op1, op2, result)
-				ctx.evalDepth--
-				return result
-			}
-		} else {
-			evalFnc = func(ctx *Context) bool {
-				return ea(ctx) == eb(ctx)
-			}
+		// optimise the evaluation if need moving the evaluation with more weight at the right
+
+		evalFnc := func(ctx *Context) bool {
+			return ea(ctx) == eb(ctx)
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -918,24 +704,13 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *sta
 			}
 		}
 
-		var evalFnc func(ctx *Context) bool
-		if opts.Debug {
-			evalFnc = func(ctx *Context) bool {
-				ctx.evalDepth++
-				op1, op2 := ea(ctx), eb
-				result := op1 == op2
-				ctx.Logf("Evaluating %v == %v => %v", op1, op2, result)
-				ctx.evalDepth--
-				return result
-			}
-		} else {
-			evalFnc = func(ctx *Context) bool {
-				return ea(ctx) == eb
-			}
+		evalFnc := func(ctx *Context) bool {
+			return ea(ctx) == eb
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -948,24 +723,13 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *sta
 		}
 	}
 
-	var evalFnc func(ctx *Context) bool
-	if opts.Debug {
-		evalFnc = func(ctx *Context) bool {
-			ctx.evalDepth++
-			op1, op2 := ea, eb(ctx)
-			result := op1 == op2
-			ctx.Logf("Evaluating %v == %v => %v", op1, op2, result)
-			ctx.evalDepth--
-			return result
-		}
-	} else {
-		evalFnc = func(ctx *Context) bool {
-			return ea == eb(ctx)
-		}
+	evalFnc := func(ctx *Context) bool {
+		return ea == eb(ctx)
 	}
 
 	return &BoolEvaluator{
 		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -988,24 +752,15 @@ func StringNotEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
-		var evalFnc func(ctx *Context) bool
-		if opts.Debug {
-			evalFnc = func(ctx *Context) bool {
-				ctx.evalDepth++
-				op1, op2 := ea(ctx), eb(ctx)
-				result := op1 != op2
-				ctx.Logf("Evaluating %v != %v => %v", op1, op2, result)
-				ctx.evalDepth--
-				return result
-			}
-		} else {
-			evalFnc = func(ctx *Context) bool {
-				return ea(ctx) != eb(ctx)
-			}
+		// optimise the evaluation if need moving the evaluation with more weight at the right
+
+		evalFnc := func(ctx *Context) bool {
+			return ea(ctx) != eb(ctx)
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -1028,24 +783,13 @@ func StringNotEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *
 			}
 		}
 
-		var evalFnc func(ctx *Context) bool
-		if opts.Debug {
-			evalFnc = func(ctx *Context) bool {
-				ctx.evalDepth++
-				op1, op2 := ea(ctx), eb
-				result := op1 != op2
-				ctx.Logf("Evaluating %v != %v => %v", op1, op2, result)
-				ctx.evalDepth--
-				return result
-			}
-		} else {
-			evalFnc = func(ctx *Context) bool {
-				return ea(ctx) != eb
-			}
+		evalFnc := func(ctx *Context) bool {
+			return ea(ctx) != eb
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -1058,24 +802,13 @@ func StringNotEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *
 		}
 	}
 
-	var evalFnc func(ctx *Context) bool
-	if opts.Debug {
-		evalFnc = func(ctx *Context) bool {
-			ctx.evalDepth++
-			op1, op2 := ea, eb(ctx)
-			result := op1 != op2
-			ctx.Logf("Evaluating %v != %v => %v", op1, op2, result)
-			ctx.evalDepth--
-			return result
-		}
-	} else {
-		evalFnc = func(ctx *Context) bool {
-			return ea != eb(ctx)
-		}
+	evalFnc := func(ctx *Context) bool {
+		return ea != eb(ctx)
 	}
 
 	return &BoolEvaluator{
 		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -1098,24 +831,15 @@ func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
-		var evalFnc func(ctx *Context) bool
-		if opts.Debug {
-			evalFnc = func(ctx *Context) bool {
-				ctx.evalDepth++
-				op1, op2 := ea(ctx), eb(ctx)
-				result := op1 == op2
-				ctx.Logf("Evaluating %v == %v => %v", op1, op2, result)
-				ctx.evalDepth--
-				return result
-			}
-		} else {
-			evalFnc = func(ctx *Context) bool {
-				return ea(ctx) == eb(ctx)
-			}
+		// optimise the evaluation if need moving the evaluation with more weight at the right
+
+		evalFnc := func(ctx *Context) bool {
+			return ea(ctx) == eb(ctx)
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -1138,24 +862,13 @@ func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*
 			}
 		}
 
-		var evalFnc func(ctx *Context) bool
-		if opts.Debug {
-			evalFnc = func(ctx *Context) bool {
-				ctx.evalDepth++
-				op1, op2 := ea(ctx), eb
-				result := op1 == op2
-				ctx.Logf("Evaluating %v == %v => %v", op1, op2, result)
-				ctx.evalDepth--
-				return result
-			}
-		} else {
-			evalFnc = func(ctx *Context) bool {
-				return ea(ctx) == eb
-			}
+		evalFnc := func(ctx *Context) bool {
+			return ea(ctx) == eb
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -1168,24 +881,13 @@ func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*
 		}
 	}
 
-	var evalFnc func(ctx *Context) bool
-	if opts.Debug {
-		evalFnc = func(ctx *Context) bool {
-			ctx.evalDepth++
-			op1, op2 := ea, eb(ctx)
-			result := op1 == op2
-			ctx.Logf("Evaluating %v == %v => %v", op1, op2, result)
-			ctx.evalDepth--
-			return result
-		}
-	} else {
-		evalFnc = func(ctx *Context) bool {
-			return ea == eb(ctx)
-		}
+	evalFnc := func(ctx *Context) bool {
+		return ea == eb(ctx)
 	}
 
 	return &BoolEvaluator{
 		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -1208,24 +910,15 @@ func BoolNotEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state)
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
-		var evalFnc func(ctx *Context) bool
-		if opts.Debug {
-			evalFnc = func(ctx *Context) bool {
-				ctx.evalDepth++
-				op1, op2 := ea(ctx), eb(ctx)
-				result := op1 != op2
-				ctx.Logf("Evaluating %v != %v => %v", op1, op2, result)
-				ctx.evalDepth--
-				return result
-			}
-		} else {
-			evalFnc = func(ctx *Context) bool {
-				return ea(ctx) != eb(ctx)
-			}
+		// optimise the evaluation if need moving the evaluation with more weight at the right
+
+		evalFnc := func(ctx *Context) bool {
+			return ea(ctx) != eb(ctx)
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -1248,24 +941,13 @@ func BoolNotEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state)
 			}
 		}
 
-		var evalFnc func(ctx *Context) bool
-		if opts.Debug {
-			evalFnc = func(ctx *Context) bool {
-				ctx.evalDepth++
-				op1, op2 := ea(ctx), eb
-				result := op1 != op2
-				ctx.Logf("Evaluating %v != %v => %v", op1, op2, result)
-				ctx.evalDepth--
-				return result
-			}
-		} else {
-			evalFnc = func(ctx *Context) bool {
-				return ea(ctx) != eb
-			}
+		evalFnc := func(ctx *Context) bool {
+			return ea(ctx) != eb
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -1278,24 +960,13 @@ func BoolNotEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state)
 		}
 	}
 
-	var evalFnc func(ctx *Context) bool
-	if opts.Debug {
-		evalFnc = func(ctx *Context) bool {
-			ctx.evalDepth++
-			op1, op2 := ea, eb(ctx)
-			result := op1 != op2
-			ctx.Logf("Evaluating %v != %v => %v", op1, op2, result)
-			ctx.evalDepth--
-			return result
-		}
-	} else {
-		evalFnc = func(ctx *Context) bool {
-			return ea != eb(ctx)
-		}
+	evalFnc := func(ctx *Context) bool {
+		return ea != eb(ctx)
 	}
 
 	return &BoolEvaluator{
 		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -1318,24 +989,15 @@ func GreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*B
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
-		var evalFnc func(ctx *Context) bool
-		if opts.Debug {
-			evalFnc = func(ctx *Context) bool {
-				ctx.evalDepth++
-				op1, op2 := ea(ctx), eb(ctx)
-				result := op1 > op2
-				ctx.Logf("Evaluating %v > %v => %v", op1, op2, result)
-				ctx.evalDepth--
-				return result
-			}
-		} else {
-			evalFnc = func(ctx *Context) bool {
-				return ea(ctx) > eb(ctx)
-			}
+		// optimise the evaluation if need moving the evaluation with more weight at the right
+
+		evalFnc := func(ctx *Context) bool {
+			return ea(ctx) > eb(ctx)
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -1358,24 +1020,13 @@ func GreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*B
 			}
 		}
 
-		var evalFnc func(ctx *Context) bool
-		if opts.Debug {
-			evalFnc = func(ctx *Context) bool {
-				ctx.evalDepth++
-				op1, op2 := ea(ctx), eb
-				result := op1 > op2
-				ctx.Logf("Evaluating %v > %v => %v", op1, op2, result)
-				ctx.evalDepth--
-				return result
-			}
-		} else {
-			evalFnc = func(ctx *Context) bool {
-				return ea(ctx) > eb
-			}
+		evalFnc := func(ctx *Context) bool {
+			return ea(ctx) > eb
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -1388,24 +1039,13 @@ func GreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*B
 		}
 	}
 
-	var evalFnc func(ctx *Context) bool
-	if opts.Debug {
-		evalFnc = func(ctx *Context) bool {
-			ctx.evalDepth++
-			op1, op2 := ea, eb(ctx)
-			result := op1 > op2
-			ctx.Logf("Evaluating %v > %v => %v", op1, op2, result)
-			ctx.evalDepth--
-			return result
-		}
-	} else {
-		evalFnc = func(ctx *Context) bool {
-			return ea > eb(ctx)
-		}
+	evalFnc := func(ctx *Context) bool {
+		return ea > eb(ctx)
 	}
 
 	return &BoolEvaluator{
 		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -1428,24 +1068,15 @@ func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *sta
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
-		var evalFnc func(ctx *Context) bool
-		if opts.Debug {
-			evalFnc = func(ctx *Context) bool {
-				ctx.evalDepth++
-				op1, op2 := ea(ctx), eb(ctx)
-				result := op1 >= op2
-				ctx.Logf("Evaluating %v >= %v => %v", op1, op2, result)
-				ctx.evalDepth--
-				return result
-			}
-		} else {
-			evalFnc = func(ctx *Context) bool {
-				return ea(ctx) >= eb(ctx)
-			}
+		// optimise the evaluation if need moving the evaluation with more weight at the right
+
+		evalFnc := func(ctx *Context) bool {
+			return ea(ctx) >= eb(ctx)
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -1468,24 +1099,13 @@ func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *sta
 			}
 		}
 
-		var evalFnc func(ctx *Context) bool
-		if opts.Debug {
-			evalFnc = func(ctx *Context) bool {
-				ctx.evalDepth++
-				op1, op2 := ea(ctx), eb
-				result := op1 >= op2
-				ctx.Logf("Evaluating %v >= %v => %v", op1, op2, result)
-				ctx.evalDepth--
-				return result
-			}
-		} else {
-			evalFnc = func(ctx *Context) bool {
-				return ea(ctx) >= eb
-			}
+		evalFnc := func(ctx *Context) bool {
+			return ea(ctx) >= eb
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -1498,24 +1118,13 @@ func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *sta
 		}
 	}
 
-	var evalFnc func(ctx *Context) bool
-	if opts.Debug {
-		evalFnc = func(ctx *Context) bool {
-			ctx.evalDepth++
-			op1, op2 := ea, eb(ctx)
-			result := op1 >= op2
-			ctx.Logf("Evaluating %v >= %v => %v", op1, op2, result)
-			ctx.evalDepth--
-			return result
-		}
-	} else {
-		evalFnc = func(ctx *Context) bool {
-			return ea >= eb(ctx)
-		}
+	evalFnc := func(ctx *Context) bool {
+		return ea >= eb(ctx)
 	}
 
 	return &BoolEvaluator{
 		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -1538,24 +1147,15 @@ func LesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*Bo
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
-		var evalFnc func(ctx *Context) bool
-		if opts.Debug {
-			evalFnc = func(ctx *Context) bool {
-				ctx.evalDepth++
-				op1, op2 := ea(ctx), eb(ctx)
-				result := op1 < op2
-				ctx.Logf("Evaluating %v < %v => %v", op1, op2, result)
-				ctx.evalDepth--
-				return result
-			}
-		} else {
-			evalFnc = func(ctx *Context) bool {
-				return ea(ctx) < eb(ctx)
-			}
+		// optimise the evaluation if need moving the evaluation with more weight at the right
+
+		evalFnc := func(ctx *Context) bool {
+			return ea(ctx) < eb(ctx)
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -1578,24 +1178,13 @@ func LesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*Bo
 			}
 		}
 
-		var evalFnc func(ctx *Context) bool
-		if opts.Debug {
-			evalFnc = func(ctx *Context) bool {
-				ctx.evalDepth++
-				op1, op2 := ea(ctx), eb
-				result := op1 < op2
-				ctx.Logf("Evaluating %v < %v => %v", op1, op2, result)
-				ctx.evalDepth--
-				return result
-			}
-		} else {
-			evalFnc = func(ctx *Context) bool {
-				return ea(ctx) < eb
-			}
+		evalFnc := func(ctx *Context) bool {
+			return ea(ctx) < eb
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -1608,24 +1197,13 @@ func LesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*Bo
 		}
 	}
 
-	var evalFnc func(ctx *Context) bool
-	if opts.Debug {
-		evalFnc = func(ctx *Context) bool {
-			ctx.evalDepth++
-			op1, op2 := ea, eb(ctx)
-			result := op1 < op2
-			ctx.Logf("Evaluating %v < %v => %v", op1, op2, result)
-			ctx.evalDepth--
-			return result
-		}
-	} else {
-		evalFnc = func(ctx *Context) bool {
-			return ea < eb(ctx)
-		}
+	evalFnc := func(ctx *Context) bool {
+		return ea < eb(ctx)
 	}
 
 	return &BoolEvaluator{
 		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -1648,24 +1226,15 @@ func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *stat
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
-		var evalFnc func(ctx *Context) bool
-		if opts.Debug {
-			evalFnc = func(ctx *Context) bool {
-				ctx.evalDepth++
-				op1, op2 := ea(ctx), eb(ctx)
-				result := op1 <= op2
-				ctx.Logf("Evaluating %v <= %v => %v", op1, op2, result)
-				ctx.evalDepth--
-				return result
-			}
-		} else {
-			evalFnc = func(ctx *Context) bool {
-				return ea(ctx) <= eb(ctx)
-			}
+		// optimise the evaluation if need moving the evaluation with more weight at the right
+
+		evalFnc := func(ctx *Context) bool {
+			return ea(ctx) <= eb(ctx)
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -1688,24 +1257,13 @@ func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *stat
 			}
 		}
 
-		var evalFnc func(ctx *Context) bool
-		if opts.Debug {
-			evalFnc = func(ctx *Context) bool {
-				ctx.evalDepth++
-				op1, op2 := ea(ctx), eb
-				result := op1 <= op2
-				ctx.Logf("Evaluating %v <= %v => %v", op1, op2, result)
-				ctx.evalDepth--
-				return result
-			}
-		} else {
-			evalFnc = func(ctx *Context) bool {
-				return ea(ctx) <= eb
-			}
+		evalFnc := func(ctx *Context) bool {
+			return ea(ctx) <= eb
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -1718,24 +1276,13 @@ func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *stat
 		}
 	}
 
-	var evalFnc func(ctx *Context) bool
-	if opts.Debug {
-		evalFnc = func(ctx *Context) bool {
-			ctx.evalDepth++
-			op1, op2 := ea, eb(ctx)
-			result := op1 <= op2
-			ctx.Logf("Evaluating %v <= %v => %v", op1, op2, result)
-			ctx.evalDepth--
-			return result
-		}
-	} else {
-		evalFnc = func(ctx *Context) bool {
-			return ea <= eb(ctx)
-		}
+	evalFnc := func(ctx *Context) bool {
+		return ea <= eb(ctx)
 	}
 
 	return &BoolEvaluator{
 		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
 		isPartial: isPartialLeaf,
 	}, nil
 }

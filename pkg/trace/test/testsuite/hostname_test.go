@@ -1,12 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package testsuite
 
 import (
-	"fmt"
+	"log"
 	"os"
 	"testing"
 	"time"
@@ -19,14 +19,14 @@ import (
 
 func TestMain(m *testing.M) {
 	if _, ok := os.LookupEnv("INTEGRATION"); !ok {
-		fmt.Println("--- SKIP: to run tests in this package, set the INTEGRATION environment variable")
-		return
+		log.Println("--- SKIP: to run tests in this package, set the INTEGRATION environment variable")
+		os.Exit(0)
 	}
 	os.Exit(m.Run())
 }
 
 func TestHostname(t *testing.T) {
-	r := test.Runner{Verbose: true}
+	r := test.Runner{}
 	if err := r.Start(); err != nil {
 		t.Fatal(err)
 	}

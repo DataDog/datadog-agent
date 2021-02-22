@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build process
 // +build darwin freebsd
@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -165,7 +165,7 @@ func (c *ProcessAgentCheck) Configure(data integration.Data, initConfig integrat
 	}
 
 	c.source = source
-	c.telemetry = telemetry.IsCheckEnabled("process_agent")
+	c.telemetry = telemetry_utils.IsCheckEnabled("process_agent")
 	return nil
 }
 
@@ -198,6 +198,9 @@ func (c *ProcessAgentCheck) Stop() {
 	c.stop <- struct{}{}
 	<-c.stopDone
 }
+
+// Cancel does nothing
+func (c *ProcessAgentCheck) Cancel() {}
 
 // GetMetricStats returns the stats from the last run of the check, but there aren't any yet
 func (c *ProcessAgentCheck) GetMetricStats() (map[string]int64, error) {

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package testutil
 
@@ -18,7 +18,7 @@ const defaultEnv = "none"
 // TestBucket returns a fixed stats bucket to be used in unit tests
 func TestBucket() stats.Bucket {
 	srb := stats.NewRawBucket(0, 1e9)
-	srb.HandleSpan(TestWeightedSpan(), defaultEnv, defaultAggregators, nil)
+	srb.HandleSpan(TestWeightedSpan(), defaultEnv, nil, false)
 	sb := srb.Export()
 
 	// marshalling then unmarshalling data to:
@@ -42,7 +42,7 @@ func TestBucket() stats.Bucket {
 func BucketWithSpans(spans []*stats.WeightedSpan) stats.Bucket {
 	srb := stats.NewRawBucket(0, 1e9)
 	for _, s := range spans {
-		srb.HandleSpan(s, defaultEnv, defaultAggregators, nil)
+		srb.HandleSpan(s, defaultEnv, nil, false)
 	}
 	return srb.Export()
 }

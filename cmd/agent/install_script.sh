@@ -6,13 +6,26 @@
 # using the package manager and Datadog repositories.
 
 set -e
-install_script_version=1.0.0
+install_script_version=1.3.1
 logfile="ddagent-install.log"
+support_email=support@datadoghq.com
 
 LEGACY_ETCDIR="/etc/dd-agent"
 LEGACY_CONF="$LEGACY_ETCDIR/datadog.conf"
 ETCDIR="/etc/datadog-agent"
 CONF="$ETCDIR/datadog.yaml"
+
+# A2923DFF56EDA6E76E55E492D3A80E30382E94DE expires in 2022
+# D75CEA17048B9ACBF186794B32637D44F14F620E expires in 2032
+APT_GPG_KEYS=("A2923DFF56EDA6E76E55E492D3A80E30382E94DE" "D75CEA17048B9ACBF186794B32637D44F14F620E")
+
+# DATADOG_RPM_KEY_E09422B3.public expires in 2022
+# DATADOG_RPM_KEY_20200908.public expires in 2024
+RPM_GPG_KEYS=("DATADOG_RPM_KEY_E09422B3.public" "DATADOG_RPM_KEY_20200908.public")
+
+# RPM_GPG_KEYS_A6 contains keys we only install for the A6 repo.
+# DATADOG_RPM_KEY.public is only useful to install old (< 6.14) Agent packages.
+RPM_GPG_KEYS_A6=("DATADOG_RPM_KEY.public")
 
 # Set up a named pipe for logging
 npipe=/tmp/$$.tmp
@@ -24,6 +37,32 @@ exec 1>&-
 exec 1>$npipe 2>&1
 trap 'rm -f $npipe' EXIT
 
+function fallback_msg(){
+  printf "
+If you are still having problems, please send an email to $support_email
+with the contents of $logfile and any information you think would be
+useful and we will do our very best to help you solve your problem.\n"
+}
+
+function report(){
+  if curl -f -s \
+    --data-urlencode "os=${OS}" \
+    --data-urlencode "version=${agent_major_version}" \
+    --data-urlencode "log=$(cat $logfile)" \
+    --data-urlencode "email=${email}" \
+    --data-urlencode "apikey=${apikey}" \
+    "$report_failure_url"; then
+   printf "A notification has been sent to Datadog with the contents of $logfile\n"
+  else
+    printf "Unable to send the notification (curl v7.18 or newer is required)"
+    fallback_msg
+  fi
+}
+
+function on_read_error() {
+  printf "Timed out or input EOF reached, assuming 'No'\n"
+  yn="n"
+}
 
 function on_error() {
     printf "\033[31m$ERROR_MESSAGE
@@ -31,13 +70,32 @@ It looks like you hit an issue when trying to install the Agent.
 
 Troubleshooting and basic usage information for the Agent are available at:
 
-    https://docs.datadoghq.com/agent/basic_agent_usage/
+    https://docs.datadoghq.com/agent/basic_agent_usage/\n\033[0m\n"
 
-If you're still having problems, please send an email to support@datadoghq.com
-with the contents of ddagent-install.log and we'll do our very best to help you
-solve your problem.\n\033[0m\n"
+    if ! tty -s; then
+      fallback_msg
+      exit 1;
+    fi
+    
+    while true; do
+        read -t 60 -p  "Do you want to send a failure report to Datadog (including $logfile)? (y/[n]) " -r yn || on_read_error
+        case $yn in
+          [Yy]* )
+            read -p "Enter an email address so we can follow up: " -r email
+            report
+            break;;
+          [Nn]*|"" )
+            fallback_msg
+            break;;
+          * )
+            printf "Please answer yes or no.\n"
+            ;;
+        esac
+    done
 }
 trap on_error ERR
+
+echo -e "\033[34m\n* Datadog Agent install script v${install_script_version}\n\033[0m"
 
 hostname=
 if [ -n "$DD_HOSTNAME" ]; then
@@ -126,10 +184,16 @@ else
 fi
 
 keyserver="hkp://keyserver.ubuntu.com:80"
+backup_keyserver="hkp://pool.sks-keyservers.net:80"
 # use this env var to specify another key server, such as
 # hkp://p80.pool.sks-keyservers.net:80 for example.
 if [ -n "$DD_KEYSERVER" ]; then
   keyserver="$DD_KEYSERVER"
+fi
+
+report_failure_url="https://api.datadoghq.com/agent_stats/report_failure"
+if [ -n "$TESTING_REPORT_URL" ]; then
+  report_failure_url=$TESTING_REPORT_URL
 fi
 
 if [ ! "$apikey" ]; then
@@ -192,6 +256,17 @@ if [ "$OS" = "RedHat" ]; then
       gpgkeys="https://${yum_url}/DATADOG_RPM_KEY.public\n       https://$yum_url/DATADOG_RPM_KEY_E09422B3.public"
     fi
 
+    gpgkeys=''
+    separator='\n       '
+    for key_path in "${RPM_GPG_KEYS[@]}"; do
+      gpgkeys="${gpgkeys:+"${gpgkeys}${separator}"}https://${yum_url}/${key_path}"
+    done
+    if [ "$agent_major_version" -eq 6 ]; then
+      for key_path in "${RPM_GPG_KEYS_A6[@]}"; do
+        gpgkeys="${gpgkeys:+"${gpgkeys}${separator}"}https://${yum_url}/${key_path}"
+      done
+    fi
+
     $sudo_cmd sh -c "echo -e '[datadog]\nname = Datadog, Inc.\nbaseurl = https://${yum_url}/${yum_version_path}/${ARCHI}/\nenabled=1\ngpgcheck=1\nrepo_gpgcheck=0\npriority=1\ngpgkey=${gpgkeys}' > /etc/yum.repos.d/datadog.repo"
 
     printf "\033[34m* Installing the Datadog Agent package\n\033[0m\n"
@@ -220,7 +295,27 @@ elif [ "$OS" = "Debian" ]; then
     fi
     printf "\033[34m\n* Installing APT package sources for Datadog\n\033[0m\n"
     $sudo_cmd sh -c "echo 'deb https://${apt_url}/ ${apt_repo_version}' > /etc/apt/sources.list.d/datadog.list"
-    $sudo_cmd apt-key adv --recv-keys --keyserver "${keyserver}" A2923DFF56EDA6E76E55E492D3A80E30382E94DE
+
+    for key in "${APT_GPG_KEYS[@]}"; do
+      for retries in {0..4}; do
+        $sudo_cmd apt-key adv --recv-keys --keyserver "${keyserver}" "${key}" && break
+        if [ "$retries" -eq 4 ]; then
+          ERROR_MESSAGE="ERROR
+  Couldn't fetch Datadog public key ${key}.
+  This might be due to a connectivity error with the key server
+  or a temporary service interruption.
+  *****
+  "
+          false
+        fi
+        printf "\033[33m\napt-key failed to retrieve Datadog's public key ${key}, retrying in 5 seconds...\n\033[0m\n"
+        sleep 5
+        if [ "$retries" -eq 1 ]; then
+          printf "\033[34mSwitching to backup keyserver\n\033[0m\n"
+          keyserver="${backup_keyserver}"
+        fi
+      done
+    done
 
     printf "\033[34m\n* Installing the Datadog Agent package\n\033[0m\n"
     ERROR_MESSAGE="ERROR
@@ -259,30 +354,49 @@ elif [ "$OS" = "SUSE" ]; then
   echo -e "\033[34m\n* Importing the Datadog GPG Keys\n\033[0m"
   if [ "$SUSE11" == "yes" ]; then
     # SUSE 11 special case
-    if [ "$agent_major_version" -lt 7 ]; then
-      $sudo_cmd curl -o /tmp/DATADOG_RPM_KEY.public "https://${yum_url}/DATADOG_RPM_KEY.public"
-      $sudo_cmd rpm --import /tmp/DATADOG_RPM_KEY.public
+    for key_path in "${RPM_GPG_KEYS[@]}"; do
+      $sudo_cmd curl -o "/tmp/${key_path}" "https://${yum_url}/${key_path}"
+      $sudo_cmd rpm --import "/tmp/${key_path}"
+    done
+    if [ "$agent_major_version" -eq 6 ]; then
+      for key_path in "${RPM_GPG_KEYS_A6[@]}"; do
+        $sudo_cmd curl -o "/tmp/${key_path}" "https://${yum_url}/${key_path}"
+        $sudo_cmd rpm --import "/tmp/${key_path}"
+      done
     fi
-    $sudo_cmd curl -o /tmp/DATADOG_RPM_KEY_E09422B3.public "https://${yum_url}/DATADOG_RPM_KEY_E09422B3.public"
-    $sudo_cmd rpm --import /tmp/DATADOG_RPM_KEY_E09422B3.public
   else
-    if [ "$agent_major_version" -lt 7 ]; then
-      $sudo_cmd rpm --import "https://${yum_url}/DATADOG_RPM_KEY.public"
+    for key_path in "${RPM_GPG_KEYS[@]}"; do
+      $sudo_cmd rpm --import "https://${yum_url}/${key_path}"
+    done
+    if [ "$agent_major_version" -eq 6 ]; then
+      for key_path in "${RPM_GPG_KEYS_A6[@]}"; do
+        $sudo_cmd rpm --import "https://${yum_url}/${key_path}"
+      done
     fi
-    $sudo_cmd rpm --import "https://${yum_url}/DATADOG_RPM_KEY_E09422B3.public"
   fi
 
-  if [ "$agent_major_version" -eq 7 ]; then
-    gpgkeys="https://${yum_url}/DATADOG_RPM_KEY_E09422B3.public"
+  # parse the major version number out of the distro release info file. xargs is used to trim whitespace.
+  SUSE_VER=$( (cat /etc/SuSE-release 2>/dev/null; cat /etc/SUSE-brand 2>/dev/null) | grep VERSION | tr . = | cut -d = -f 2 | xargs echo)
+  if [ "$SUSE_VER" -ge 15 ]; then
+    gpgkeys=''
+    separator='\n       '
+    for key_path in "${RPM_GPG_KEYS[@]}"; do
+      gpgkeys="${gpgkeys:+"${gpgkeys}${separator}"}https://${yum_url}/${key_path}"
+    done
+    if [ "$agent_major_version" -eq 6 ]; then
+      for key_path in "${RPM_GPG_KEYS_A6[@]}"; do
+        gpgkeys="${gpgkeys:+"${gpgkeys}${separator}"}https://${yum_url}/${key_path}"
+      done
+    fi
   else
-    gpgkeys="https://${yum_url}/DATADOG_RPM_KEY.public\n       https://${yum_url}/DATADOG_RPM_KEY_E09422B3.public"
+    gpgkeys="https://${yum_url}/DATADOG_RPM_KEY_CURRENT.public"
   fi
 
   echo -e "\033[34m\n* Installing YUM Repository for Datadog\n\033[0m"
   $sudo_cmd sh -c "echo -e '[datadog]\nname=datadog\nenabled=1\nbaseurl=https://${yum_url}/suse/${yum_version_path}/${ARCHI}\ntype=rpm-md\ngpgcheck=1\nrepo_gpgcheck=0\ngpgkey=${gpgkeys}' > /etc/zypp/repos.d/datadog.repo"
 
   echo -e "\033[34m\n* Refreshing repositories\n\033[0m"
-  $sudo_cmd zypper --non-interactive --no-gpg-check refresh datadog
+  $sudo_cmd zypper --non-interactive --no-gpg-checks refresh datadog
 
   echo -e "\033[34m\n* Installing Datadog Agent\n\033[0m"
   $sudo_cmd zypper --non-interactive install "$agent_flavor"

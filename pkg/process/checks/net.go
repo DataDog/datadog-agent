@@ -4,10 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"time"
 
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/dockerproxy"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
@@ -88,7 +90,7 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	tel := c.diffTelemetry(conns.Telemetry)
 
 	log.Debugf("collected connections in %s", time.Since(start))
-	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, tel), nil
+	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, tel, conns.Domains), nil
 }
 
 func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
@@ -136,6 +138,7 @@ func (c *ConnectionsCheck) diffTelemetry(tel *model.ConnectionsTelemetry) *model
 		ConnsBpfMapSize:           tel.ConnsBpfMapSize,
 		UdpSendsProcessed:         tel.MonotonicUdpSendsProcessed - c.lastTelemetry.UdpSendsProcessed,
 		UdpSendsMissed:            tel.MonotonicUdpSendsMissed - c.lastTelemetry.UdpSendsMissed,
+		ConntrackSamplingPercent:  tel.ConntrackSamplingPercent,
 	}
 	c.saveTelemetry(tel)
 	return cct
@@ -164,26 +167,51 @@ func batchConnections(
 	dns map[string]*model.DNSEntry,
 	networkID string,
 	telemetry *model.CollectorConnectionsTelemetry,
+	domains []string,
 ) []model.MessageBody {
 	groupSize := groupSize(len(cxs), cfg.MaxConnsPerMessage)
 	batches := make([]model.MessageBody, 0, groupSize)
 
 	dnsEncoder := model.NewV1DNSEncoder()
 
+	if len(cxs) > cfg.MaxConnsPerMessage {
+		// Sort connections by remote IP/PID for more efficient resolution
+		sort.Slice(cxs, func(i, j int) bool {
+			if cxs[i].Raddr.Ip != cxs[j].Raddr.Ip {
+				return cxs[i].Raddr.Ip < cxs[j].Raddr.Ip
+			}
+			return cxs[i].Pid < cxs[j].Pid
+		})
+	}
+
 	for len(cxs) > 0 {
 		batchSize := min(cfg.MaxConnsPerMessage, len(cxs))
 		batchConns := cxs[:batchSize] // Connections for this particular batch
 
+		ctrIDForPID := make(map[int32]string)
 		batchDNS := make(map[string]*model.DNSEntry)
+		domainIndices := make(map[int32]struct{})
 		for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
 			if entries, ok := dns[c.Raddr.Ip]; ok {
 				batchDNS[c.Raddr.Ip] = entries
 			}
+
+			if c.Laddr.ContainerId != "" {
+				ctrIDForPID[c.Pid] = c.Laddr.ContainerId
+			}
+			for d := range c.DnsStatsByDomain {
+				domainIndices[d] = struct{}{}
+			}
 		}
 
-		// Get the container and process relationship from either the process or container checks
-		ctrIDForPID := getCtrIDsByPIDs(connectionPIDs(batchConns))
-
+		// We want to keep the length of the domains array same so that the pointers in DnsStatsByDomain remain valid
+		// For absent entries, we simply use an empty string to cut down on storage.
+		batchDomains := make([]string, len(domains))
+		for i, domain := range domains {
+			if _, ok := domainIndices[int32(i)]; ok {
+				batchDomains[i] = domain
+			}
+		}
 		cc := &model.CollectorConnections{
 			HostName:          cfg.HostName,
 			NetworkId:         networkID,
@@ -193,7 +221,17 @@ func batchConnections(
 			ContainerForPid:   ctrIDForPID,
 			EncodedDNS:        dnsEncoder.Encode(batchDNS),
 			ContainerHostType: cfg.ContainerHostType,
+			Domains:           batchDomains,
 		}
+
+		// Add OS telemetry
+		if hostInfo := host.GetStatusInformation(); hostInfo != nil {
+			cc.KernelVersion = hostInfo.KernelVersion
+			cc.Architecture = hostInfo.KernelArch
+			cc.Platform = hostInfo.Platform
+			cc.PlatformVersion = hostInfo.PlatformVersion
+		}
+
 		// only add the telemetry to the first message to prevent double counting
 		if len(batches) == 0 {
 			cc.Telemetry = telemetry
@@ -231,13 +269,4 @@ func connectionPIDs(conns []*model.Connection) []int32 {
 		pids = append(pids, pid)
 	}
 	return pids
-}
-
-// getCtrIDsByPIDs will fetch container id and pid relationship from either process check or container check, depend on which one is enabled and ran
-func getCtrIDsByPIDs(pids []int32) map[int32]string {
-	// process check is never run, use container check instead
-	if Process.lastRun.IsZero() {
-		return Container.filterCtrIDsByPIDs(pids)
-	}
-	return Process.filterCtrIDsByPIDs(pids)
 }

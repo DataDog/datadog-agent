@@ -2,7 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog
 // (https://www.datadoghq.com/).
-// Copyright 2019-2020 Datadog, Inc.
+// Copyright 2019-present Datadog, Inc.
 #ifndef DATADOG_AGENT_RTLOADER_RTLOADER_H
 #define DATADOG_AGENT_RTLOADER_RTLOADER_H
 
@@ -114,6 +114,12 @@ public:
       \return A C-string with the check result.
     */
     virtual char *runCheck(RtLoaderPyObject *check) = 0;
+
+    //! Pure virtual cancelCheck member.
+    /*!
+      \param check The python object pointer to the check we wish to cancel.
+    */
+    virtual void cancelCheck(RtLoaderPyObject *check) = 0;
 
     //! Pure virtual getCheckWarnings member.
     /*!
@@ -417,6 +423,15 @@ public:
       specific check instances.
     */
     virtual void setObfuscateSqlCb(cb_obfuscate_sql_t) = 0;
+
+    //! setObfuscateSqlExecPlanCb member.
+    /*!
+      \param A cb_obfuscate_sql_exec_plan_t function pointer to the CGO callback.
+
+      This allows us to set the relevant CGO callback that will allow retrieving value for
+      specific check instances.
+    */
+    virtual void setObfuscateSqlExecPlanCb(cb_obfuscate_sql_exec_plan_t) = 0;
 
 private:
     mutable std::string _error; /*!< string containing a RtLoader error */

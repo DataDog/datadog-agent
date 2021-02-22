@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package clustername
 
@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
@@ -62,7 +63,7 @@ func init() {
 	}
 }
 
-func getClusterName(data *clusterNameData) string {
+func getClusterName(data *clusterNameData, hostname string) string {
 	data.mutex.Lock()
 	defer data.mutex.Unlock()
 
@@ -70,10 +71,13 @@ func getClusterName(data *clusterNameData) string {
 		data.clusterName = config.Datadog.GetString("cluster_name")
 		if data.clusterName != "" {
 			log.Infof("Got cluster name %s from config", data.clusterName)
-			if !validClusterName.MatchString(data.clusterName) || len(data.clusterName) > 40 {
-				log.Errorf("%q isn’t a valid cluster name. It must be dot-separated tokens where tokens "+
-					"start with a lowercase letter followed by up to 39 lowercase letters, numbers, or "+
-					"hyphens, and cannot end with a hyphen nor have a dot adjacent to a hyphen.", data.clusterName)
+			// the host alias "hostname-clustername" must not exceed 255 chars
+			hostAlias := hostname + "-" + data.clusterName
+			if !validClusterName.MatchString(data.clusterName) || len(hostAlias) > 255 {
+				log.Errorf("\"%s\" isn’t a valid cluster name. It must be dot-separated tokens where tokens "+
+					"start with a lowercase letter followed by lowercase letters, numbers, or "+
+					"hyphens, and cannot end with a hyphen nor have a dot adjacent to a hyphen and \"%s\" must not "+
+					"exceed 255 chars", data.clusterName, hostAlias)
 				log.Errorf("As a consequence, the cluster name provided by the config will be ignored")
 				data.clusterName = ""
 			}
@@ -111,8 +115,8 @@ func getClusterName(data *clusterNameData) string {
 }
 
 // GetClusterName returns a k8s cluster name if it exists, either directly specified or autodiscovered
-func GetClusterName() string {
-	return getClusterName(defaultClusterNameData)
+func GetClusterName(hostname string) string {
+	return getClusterName(defaultClusterNameData, hostname)
 }
 
 func resetClusterName(data *clusterNameData) {
@@ -135,12 +139,24 @@ func GetClusterID() (string, error) {
 		return cachedClusterID.(string), nil
 	}
 
+	// in older setups the cluster ID was exposed as an env var from a configmap created by the cluster agent
 	clusterID, found := os.LookupEnv(clusterIDEnv)
 	if !found {
-		err := fmt.Errorf("Cluster ID env variable %s is missing, kubernetes cluster cannot be identified", clusterIDEnv)
-		return "", err
-	} else if len(clusterID) != 36 {
-		err := fmt.Errorf("Unexpected value %s for env variable %s, ignoring it", clusterID, clusterIDEnv)
+		log.Debugf("Cluster ID env variable %s is missing, calling the Cluster Agent", clusterIDEnv)
+
+		dcaClient, err := clusteragent.GetClusterAgentClient()
+		if err != nil {
+			return "", err
+		}
+		clusterID, err = dcaClient.GetKubernetesClusterID()
+		if err != nil {
+			return "", err
+		}
+		log.Debugf("Cluster ID retrieved from the Cluster Agent, set to %s", clusterID)
+	}
+
+	if len(clusterID) != 36 {
+		err := fmt.Errorf("Unexpected value for Cluster ID: %s, ignoring it", clusterID)
 		return "", err
 	}
 

@@ -8,7 +8,7 @@
       {{- if .runnerStats.Workers}}
         <br>Check Workers: {{.runnerStats.Workers}}
       {{end}}
-      <br>Agent start: {{.agent_start}}
+      <br>Agent start: {{ formatUnixTime .agent_start_nano }}
       {{- if .config.log_file}}
         <br>Log File: {{.config.log_file}}
       {{end}}
@@ -24,7 +24,7 @@
   <div class="stat">
     <span class="stat_title">System Info</span>
     <span class="stat_data">
-      System UTC Time: {{.time}}
+      System time: {{ formatUnixTime .time_nano }}
       {{- if .ntpOffset}}
         <br>NTP Offset: {{ humanizeDuration .ntpOffset "s"}}
         {{- if ntpWarning .ntpOffset}}
@@ -102,6 +102,21 @@
     </span>
   </div>
 
+  {{- if .TransportWarnings }}
+    <div class="stat">
+      <span class="stat_title">Transport Proxy Warnings</span>
+      <span class="stat_data">
+      The following hosts used a proxy - but will ignore the proxy in future Agent versions with the no_proxy setting.
+      Enable the new behavior now with no_proxy_nonexact_match: true
+        <span class="stat_data">
+        {{- range $key, $value := .TransportWarnings }}
+          {{ $key }}<br>
+        {{- end }}
+        </span>
+      </span>
+    </div>
+  {{- end }}
+
   <div class="stat">
     <span class="stat_title">JMX Status</span>
     <span class="stat_data">
@@ -116,6 +131,15 @@
         {{- if and (not .timestamp) (not .checks)}}
           No JMX status available
         {{- else }}
+          <span class="stat_subtitle">Information</span>
+          <span class="stat_subdata">
+            {{- range $k,$v := .info }}
+              {{ $k }} : {{ $v }}<br>
+            {{- end }}
+            {{- if .errors }}
+              Socket errors: {{ .errors }}
+            {{- end }}
+          </span>
           <span class="stat_subtitle">Initialized Checks</span>
           <span class="stat_subdata">
             {{- if (not .checks.initialized_checks)}}
@@ -156,18 +180,35 @@
     <span class="stat_data">
       {{- with .forwarderStats -}}
         {{- range $key, $value := .Transactions }}
-            {{- if and (ne $key "Errors") (ne $key "ErrorsByType") (ne $key "HTTPErrors") (ne $key "HTTPErrorsByCode") (ne $key "ConnectionEvents")}}
+            {{- if and (ne $key "InputBytesByEndpoint") (ne $key "InputCountByEndpoint") (ne $key "DroppedByEndpoint") (ne $key "RequeuedByEndpoint") (ne $key "RetriedByEndpoint") (ne $key "Success") (ne $key "SuccessByEndpoint") (ne $key "SuccessBytesByEndpoint") (ne $key "Errors") (ne $key "ErrorsByType") (ne $key "HTTPErrors") (ne $key "HTTPErrorsByCode") (ne $key "ConnectionEvents")}}
           {{formatTitle $key}}: {{humanize $value}}<br>
             {{- end}}
         {{- end}}
-        {{- if .Transactions.Errors }}
-          <span class="stat_subtitle">Transactions Errors</span>
+        {{- if .Transactions.Success }}
+          <span class="stat_subtitle">Transaction Successes</span>
             <span class="stat_subdata">
-              Errors: {{.Transactions.Errors}}<br>
+              Total number: {{.Transactions.Success}}<br>
+              Successes By Endpoint:<br>
+              <span class="stat_subdata">
+                {{- range $type, $count := .Transactions.SuccessByEndpoint }}
+                  {{- if $count}}
+                    {{$type}}: {{humanize $count}}<br>
+                  {{- end}}
+                {{- end}}
+              </span>
+            </span>
+          </span>
+        {{- end}}
+        {{- if .Transactions.Errors }}
+          <span class="stat_subtitle">Transaction Errors</span>
+            <span class="stat_subdata">
+              Total number: {{.Transactions.Errors}}<br>
               Errors By Type:<br>
               <span class="stat_subdata">
                 {{- range $type, $count := .Transactions.ErrorsByType }}
+                  {{- if $count}}
                     {{$type}}: {{humanize $count}}<br>
+                  {{- end}}
                 {{- end}}
               </span>
             </span>
@@ -176,11 +217,13 @@
         {{- if .Transactions.HTTPErrors }}
           <span class="stat_subtitle">HTTP Errors</span>
             <span class="stat_subdata">
-              Errors: {{.Transactions.HTTPErrors}}<br>
+              Total number: {{.Transactions.HTTPErrors}}<br>
               HTTP Errors By Code:<br>
               <span class="stat_subdata">
                 {{- range $code, $count := .Transactions.HTTPErrorsByCode }}
+                  {{- if $count}}
                     {{$code}}: {{humanize $count}}<br>
+                  {{- end}}
                 {{- end}}
               </span>
             </span>
@@ -263,6 +306,7 @@
         <span class="stat_subtitle">{{ .name }}</span>
         <span class="stat_subdata">
           {{- range .sources }}
+            <span class="stat_subdata">
             Type: {{ .type }}</br>
             {{- range $key, $value := .configuration }}
             {{$key}}: {{$value}}</br>
@@ -275,7 +319,21 @@
             {{- end }}
             {{- if .inputs }}
             Inputs: {{ range $input := .inputs }}{{$input}} {{ end }}</br>
+            BytesRead: {{ .bytes_read }}</br>
+            Average Latency (ms): {{ .all_time_avg_latency }}</br>
+            24h Average Latency (ms): {{ .recent_avg_latency }}</br>
+            Peak Latency (ms): {{ .all_time_peak_latency }}</br>
+            24h Peak Latency (ms): {{ .recent_peak_latency }}</br>
+            {{- if .info }}
+            Container Info:</br>
+              <span class="stat_subdata">
+                {{- range $inf := .info }}
+                  {{ $inf }}</br>
+                {{- end }}
+              </span>
             {{- end }}
+            {{- end }}
+            </span>
           {{- end }}
         </span>
       {{- end }}
@@ -347,5 +405,19 @@
   <div class="stat" id="apmStats">
     <span class="stat_title">APM</span>
     <span class="stat_data">Loading...</span>
+  </div>
+
+  <div class="stat">
+    <span class="stat_title">SNMP Traps</span>
+    <span class="stat_data">
+      {{- with .snmpTrapsStats -}}
+        {{- if .error }}
+          Error: {{.error}}<br>
+        {{- end }}
+        {{- range $key, $value := .metrics}}
+          {{formatTitle $key}}: {{humanize $value}}<br>
+        {{- end }}
+      {{- end -}}
+    </span>
   </div>
 {{- end -}}

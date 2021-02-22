@@ -14,7 +14,9 @@ import "C"
 import (
 	"encoding/binary"
 	"fmt"
+	"math"
 	"net"
+	"sync"
 	"sync/atomic"
 	"unsafe"
 
@@ -45,6 +47,19 @@ var (
 	ddAPIVersionBuf = makeDDAPIVersionBuffer(C.DD_NPMDRIVER_SIGNATURE)
 )
 
+// DriverExpvar is the name of a top-level driver expvar returned from GetStats
+type DriverExpvar string
+
+const (
+	totalFlowStats  DriverExpvar = "driver_total_flow_stats"
+	flowHandleStats              = "driver_flow_handle_stats"
+	flowStats                    = "flows"
+	driverStats                  = "driver"
+)
+
+// DriverExpvarNames is a list of all the DriverExpvar names returned from GetStats
+var DriverExpvarNames = []DriverExpvar{totalFlowStats, flowHandleStats, flowStats, driverStats}
+
 // Creates a buffer that Driver will use to verify proper versions are communicating
 // We create a buffer because the system calls we make need a *byte which is not
 // possible with const value
@@ -57,20 +72,29 @@ func makeDDAPIVersionBuffer(signature uint64) []byte {
 // DriverInterface holds all necessary information for interacting with the windows driver
 type DriverInterface struct {
 	// declare totalFlows first so it remains on a 64 bit boundary since it is used by atomic functions
-	totalFlows int64
+	totalFlows     int64
+	closedFlows    int64
+	openFlows      int64
+	moreDataErrors int64
+	bufferSize     int64
 
 	driverFlowHandle  *DriverHandle
 	driverStatsHandle *DriverHandle
 
 	path                  string
 	enableMonotonicCounts bool
+
+	bufferLock sync.Mutex
+	readBuffer []uint8
 }
 
 // NewDriverInterface returns a DriverInterface struct for interacting with the driver
-func NewDriverInterface(enableMonotonicCounts bool) (*DriverInterface, error) {
+func NewDriverInterface(enableMonotonicCounts bool, bufferSize int) (*DriverInterface, error) {
 	dc := &DriverInterface{
 		path:                  deviceName,
 		enableMonotonicCounts: enableMonotonicCounts,
+		readBuffer:            make([]byte, bufferSize),
+		bufferSize:            int64(bufferSize),
 	}
 
 	err := dc.setupFlowHandle()
@@ -88,15 +112,13 @@ func NewDriverInterface(enableMonotonicCounts bool) (*DriverInterface, error) {
 
 // Close shuts down the driver interface
 func (di *DriverInterface) Close() error {
-	err := windows.CloseHandle(di.driverFlowHandle.handle)
-	if err != nil {
-		log.Errorf("error closing flow file handle %v", err)
+	if err := windows.CloseHandle(di.driverFlowHandle.handle); err != nil {
+		return errors.Wrap(err, "error closing flow file handle")
 	}
-	err = windows.CloseHandle(di.driverStatsHandle.handle)
-	if err != nil {
-		log.Errorf("error closing stat file handle %v", err)
+	if err := windows.CloseHandle(di.driverStatsHandle.handle); err != nil {
+		return errors.Wrap(err, "error closing stat file handle")
 	}
-	return err
+	return nil
 }
 
 // setupFlowHandle generates a windows Driver Handle, and creates a DriverHandle struct to pull flows from the driver
@@ -169,9 +191,9 @@ func (di *DriverInterface) closeDriverHandle(handle windows.Handle) error {
 }
 
 // GetStats returns statistics for the driver interface used by the windows tracer
-func (di *DriverInterface) GetStats() (map[string]interface{}, error) {
+func (di *DriverInterface) GetStats() (map[DriverExpvar]interface{}, error) {
 
-	flowHandleStats, err := di.driverFlowHandle.getStatsForHandle()
+	handleStats, err := di.driverFlowHandle.getStatsForHandle()
 	if err != nil {
 		return nil, err
 	}
@@ -181,46 +203,80 @@ func (di *DriverInterface) GetStats() (map[string]interface{}, error) {
 		return nil, err
 	}
 	totalFlows := atomic.LoadInt64(&di.totalFlows)
+	openFlows := atomic.SwapInt64(&di.openFlows, 0)
+	closedFlows := atomic.SwapInt64(&di.closedFlows, 0)
+	moreDataErrors := atomic.SwapInt64(&di.moreDataErrors, 0)
+	bufferSize := atomic.LoadInt64(&di.bufferSize)
 
-	return map[string]interface{}{
-		"driver_total_flow_stats":  totalDriverStats,
-		"driver_flow_handle_stats": flowHandleStats,
-		"total_flows": map[string]int64{
-			"total": totalFlows,
+	return map[DriverExpvar]interface{}{
+		totalFlowStats:  totalDriverStats,
+		flowHandleStats: handleStats,
+		flowStats: map[string]int64{
+			"total":  totalFlows,
+			"open":   openFlows,
+			"closed": closedFlows,
+		},
+		driverStats: map[string]int64{
+			"more_data_errors": moreDataErrors,
+			"buffer_size":      bufferSize,
 		},
 	}, nil
 }
 
-// GetConnectionStats will read all flows from the driver and convert them into ConnectionStats
-func (di *DriverInterface) GetConnectionStats() ([]ConnectionStats, []ConnectionStats, error) {
-	readbuffer := make([]uint8, 1024)
-	connStatsActive := make([]ConnectionStats, 0)
-	connStatsClosed := make([]ConnectionStats, 0)
+// GetConnectionStats will read all flows from the driver and convert them into ConnectionStats.
+// It returns the count of connections added to the active and closed buffers, respectively.
+func (di *DriverInterface) GetConnectionStats(activeBuf *DriverBuffer, closedBuf *DriverBuffer) (int, int, error) {
+	di.bufferLock.Lock()
+	defer di.bufferLock.Unlock()
 
-	for {
-		var count uint32
-		var bytesused int
-		err := windows.ReadFile(di.driverFlowHandle.handle, readbuffer, &count, nil)
-		if err != nil && err != windows.ERROR_MORE_DATA {
-			return nil, nil, err
-		}
-		var buf []byte
-		for ; bytesused < int(count); bytesused += C.sizeof_struct__perFlowData {
-			buf = readbuffer[bytesused:]
-			pfd := (*C.struct__perFlowData)(unsafe.Pointer(&(buf[0])))
-			if isFlowClosed(pfd.flags) {
-				// Closed Connection
-				connStatsClosed = append(connStatsClosed, FlowToConnStat(pfd, di.enableMonotonicCounts))
-			} else {
-				connStatsActive = append(connStatsActive, FlowToConnStat(pfd, di.enableMonotonicCounts))
+	var activeCount, closedCount int
+	var bytesRead uint32
+	var totalBytesRead uint32
+	// keep reading while driver says there is more data available
+	for err := error(windows.ERROR_MORE_DATA); err == windows.ERROR_MORE_DATA; {
+		err = windows.ReadFile(di.driverFlowHandle.handle, di.readBuffer, &bytesRead, nil)
+		if err != nil {
+			if err != windows.ERROR_MORE_DATA {
+				return 0, 0, err
 			}
-			atomic.AddInt64(&di.totalFlows, 1)
+			atomic.AddInt64(&di.moreDataErrors, 1)
 		}
-		if err == nil {
-			break
+		totalBytesRead += bytesRead
+
+		var buf []byte
+		for bytesUsed := uint32(0); bytesUsed < bytesRead; bytesUsed += C.sizeof_struct__perFlowData {
+			buf = di.readBuffer[bytesUsed:]
+			pfd := (*C.struct__perFlowData)(unsafe.Pointer(&(buf[0])))
+
+			if isFlowClosed(pfd.flags) {
+				FlowToConnStat(closedBuf.Next(), pfd, di.enableMonotonicCounts)
+				closedCount++
+			} else {
+				FlowToConnStat(activeBuf.Next(), pfd, di.enableMonotonicCounts)
+				activeCount++
+			}
 		}
 	}
-	return connStatsActive, connStatsClosed, nil
+
+	di.readBuffer = resizeDriverBuffer(int(totalBytesRead), di.readBuffer)
+	atomic.StoreInt64(&di.bufferSize, int64(len(di.readBuffer)))
+
+	atomic.AddInt64(&di.openFlows, int64(activeCount))
+	atomic.AddInt64(&di.closedFlows, int64(closedCount))
+	atomic.AddInt64(&di.totalFlows, int64(activeCount+closedCount))
+
+	return activeCount, closedCount, nil
+}
+
+func resizeDriverBuffer(compareSize int, buffer []uint8) []uint8 {
+	// Explicitly setting len to 0 causes the ReadFile syscall to break, so allocate buffer with cap = len
+	if compareSize >= cap(buffer)*2 {
+		return make([]uint8, cap(buffer)*2)
+	} else if compareSize <= cap(buffer)/2 {
+		// Take the max of buffer/2 and compareSize to limit future array resizes
+		return make([]uint8, int(math.Max(float64(cap(buffer)/2), float64(compareSize))))
+	}
+	return buffer
 }
 
 // DriverHandle struct stores the windows handle for the driver as well as information about what type of filter is set

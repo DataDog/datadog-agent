@@ -1,22 +1,31 @@
-Running Compliance Checks
+Compliance Checks
 =========================
+{{- $runnerStats := .RunnerStats }}
+{{- range $Check := .ComplianceChecks }}
+  {{ $Check.Name }}
+  {{printDashes $Check.Name "-"}}
+    Framework: {{ $Check.Framework }} ({{ $Check.Version }})
+    Source: {{ $Check.Source }}
+  {{- if $Check.InitError }}
+    Configuration: [{{ yellowText $Check.InitError }}]
+  {{- else }}
+    Configuration: [{{ greenText "OK"}}]
+  {{- if $Check.LastEvent }}
 
-{{- with .RunnerStats }}
-  {{- if and (not .Runs) (not .Checks)}}
-    No checks have run yet
-  {{end -}}
-
-  {{- range $CheckName, $CheckInstances := .Checks}}
-    {{ $version := version $CheckInstances }}
-    {{$CheckName}}{{ if $version }} ({{$version}}){{ end }}
-    {{printDashes $CheckName "-"}}{{- if $version }}{{printDashes $version "-"}}---{{ end }}
-    {{- range $CheckInstances }}
-      Instance ID: {{.CheckID}} {{status .}}
-      Configuration Source: {{.CheckConfigSource}}
-      Total Runs: {{humanize .TotalRuns}}
-      Average Execution Time : {{humanizeDuration .AverageExecutionTime "ms"}}
-      Last Execution Date : {{formatUnixTime .UpdateTimestamp}}
-      Last Successful Execution Date : {{ if .LastSuccessDate }}{{formatUnixTime .LastSuccessDate}}{{ else }}Never{{ end }}
+    Report:
+      Result: {{ complianceResult $Check.LastEvent.result }}
+      Data:
+      {{- range $k, $v := $Check.LastEvent.data }}
+        {{ $k }}: {{ $v }}
+      {{- end }}
+  {{- end }}
+  {{- if and $runnerStats.Checks (index $runnerStats.Checks $Check.Name) }}
+    {{ $checkInstances := index $runnerStats.Checks $Check.Name }}
+    {{- range $checkInstances }}
+    Total Runs: {{humanize .TotalRuns}}
+    Average Execution Time : {{humanizeDuration .AverageExecutionTime "ms"}}
+    Last Execution Date : {{formatUnixTime .UpdateTimestamp}}
+    Last Successful Execution Date : {{ if .LastSuccessDate }}{{formatUnixTime .LastSuccessDate}}{{ else }}Never{{ end }}
       {{- if $.CheckMetadata }}
       {{- if index $.CheckMetadata .CheckID }}
       metadata:
@@ -25,15 +34,18 @@ Running Compliance Checks
       {{- end }}
       {{- end }}
       {{- end }}
-      {{if .LastError -}}
-      Error: {{lastErrorMessage .LastError}}
+      {{- if .LastError }}
+    Error: {{lastErrorMessage .LastError}}
       {{lastErrorTraceback .LastError -}}
       {{- end }}
-      {{- if .LastWarnings -}}
+      {{- if .LastWarnings }}
         {{- range .LastWarnings }}
-      Warning: {{.}}
-        {{ end -}}
+    Warning: {{.}}
+        {{- end }}
       {{- end }}
     {{- end }}
+  {{- else }}
+    {{ greenText "Check has not run yet" }}
   {{- end }}
-{{- end }}
+  {{- end }}
+{{ end }}

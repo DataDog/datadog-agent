@@ -89,7 +89,7 @@ func TestRandomizeMessages(t *testing.T) {
 
 			cfg.MaxPerMessage = tc.maxSize
 			cfg.ContainerHostType = tc.containerHostType
-			processes := fmtProcesses(cfg, procsByPid, procsByPid, ctrs, syst2, syst1, lastRun)
+			processes := fmtProcesses(cfg, procsByPid, procsByPid, containersByPid(ctrs), syst2, syst1, lastRun)
 			containers := fmtContainers(ctrs, lastCtrRates, lastRun)
 			messages, totalProcs, totalContainers := createProcCtrMessages(processes, containers, cfg, sysInfo, int32(i), "nid")
 
@@ -207,7 +207,7 @@ func TestBasicProcessMessages(t *testing.T) {
 			cfg.Blacklist = bl
 			cfg.MaxPerMessage = tc.maxSize
 
-			procs := fmtProcesses(cfg, tc.cur, tc.last, tc.containers, syst2, syst1, lastRun)
+			procs := fmtProcesses(cfg, tc.cur, tc.last, containersByPid(tc.containers), syst2, syst1, lastRun)
 			containers := fmtContainers(tc.containers, lastCtrRates, lastRun)
 			messages, totalProcs, totalContainers := createProcCtrMessages(procs, containers, cfg, sysInfo, int32(i), "nid")
 

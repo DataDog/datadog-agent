@@ -97,3 +97,230 @@ func TestLocalResolver(t *testing.T) {
 	assert.Equal("container-2", connections.Conns[2].Raddr.ContainerId)
 	assert.Equal("container-3", connections.Conns[3].Raddr.ContainerId)
 }
+
+func TestResolveLoopbackConnections(t *testing.T) {
+
+	tests := []struct {
+		name            string
+		conn            *model.Connection
+		expectedLaddrID string
+		expectedRaddrID string
+	}{
+		{
+			name: "raddr resolution with nat",
+			conn: &model.Connection{
+				Pid: 1,
+				Laddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1234,
+				},
+				Raddr: &model.Addr{
+					Ip:   "10.1.1.2",
+					Port: 1234,
+				},
+				IpTranslation: &model.IPTranslation{
+					ReplDstIP:   "10.1.1.1",
+					ReplDstPort: 1234,
+					ReplSrcIP:   "10.1.1.2",
+					ReplSrcPort: 1234,
+				},
+				NetNS: 1,
+			},
+			expectedLaddrID: "foo1",
+			expectedRaddrID: "foo2",
+		},
+		{
+			name: "raddr resolution with nat to localhost",
+			conn: &model.Connection{
+				Pid:   2,
+				NetNS: 2,
+				Laddr: &model.Addr{
+					Ip:   "10.1.1.2",
+					Port: 1234,
+				},
+				Raddr: &model.Addr{
+					Ip:   "10.1.1.1",
+					Port: 1234,
+				},
+				IpTranslation: &model.IPTranslation{
+					ReplDstIP:   "10.1.1.2",
+					ReplDstPort: 1234,
+					ReplSrcIP:   "127.0.0.1",
+					ReplSrcPort: 1234,
+				},
+			},
+			expectedLaddrID: "foo2",
+			expectedRaddrID: "foo1",
+		},
+		{
+			name: "raddr failed localhost resolution",
+			conn: &model.Connection{
+				Pid:   3,
+				NetNS: 3,
+				Laddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1235,
+				},
+				Raddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1234,
+				},
+			},
+			expectedLaddrID: "foo3",
+			expectedRaddrID: "",
+		},
+		{
+			name: "raddr resolution within same netns (3)",
+			conn: &model.Connection{
+				Pid:   5,
+				NetNS: 3,
+				Laddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1240,
+				},
+				Raddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1235,
+				},
+			},
+			expectedLaddrID: "foo5",
+			expectedRaddrID: "foo3",
+		},
+		{
+			name: "raddr failed resolution, known address in different netns",
+			conn: &model.Connection{
+				Pid:   5,
+				NetNS: 4,
+				Laddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1240,
+				},
+				Raddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1235,
+				},
+			},
+			expectedLaddrID: "foo5",
+			expectedRaddrID: "",
+		},
+		{
+			name: "failed laddr and raddr resolution",
+			conn: &model.Connection{
+				Pid:   10,
+				NetNS: 10,
+				Laddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1234,
+				},
+				Raddr: &model.Addr{
+					Ip:   "10.1.1.1",
+					Port: 1235,
+				},
+			},
+			expectedLaddrID: "",
+			expectedRaddrID: "",
+		},
+		{
+			name: "failed resolution: unknown pid for laddr, raddr address in different netns from known address",
+			conn: &model.Connection{
+				Pid:   11,
+				NetNS: 10,
+				Laddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1250,
+				},
+				Raddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1240,
+				},
+			},
+			expectedLaddrID: "",
+			expectedRaddrID: "",
+		},
+		{
+			name: "localhost resolution within same netns 1/2",
+			conn: &model.Connection{
+				Pid:   6,
+				NetNS: 7,
+				Laddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1260,
+				},
+				Raddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1250,
+				},
+			},
+			expectedLaddrID: "foo6",
+			expectedRaddrID: "foo7",
+		},
+		{
+			name: "localhost resolution within same netns 2/2",
+			conn: &model.Connection{
+				Pid:   7,
+				NetNS: 7,
+				Laddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1250,
+				},
+				Raddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1260,
+				},
+			},
+			expectedLaddrID: "foo7",
+			expectedRaddrID: "foo6",
+		},
+	}
+
+	resolver := &LocalResolver{}
+	resolver.LoadAddrs(
+		[]*containers.Container{
+			{
+				ID:   "foo1",
+				Pids: []int32{1},
+			},
+			{
+				ID:   "foo2",
+				Pids: []int32{2},
+			},
+			{
+				ID:   "foo3",
+				Pids: []int32{3},
+			},
+			{
+				ID:   "foo4",
+				Pids: []int32{4},
+			},
+			{
+				ID:   "foo5",
+				Pids: []int32{5},
+			},
+			{
+				ID:   "foo6",
+				Pids: []int32{6},
+			},
+			{
+				ID:   "foo7",
+				Pids: []int32{7},
+			},
+			{
+				ID:   "bar",
+				Pids: []int32{20},
+			},
+		},
+	)
+
+	conns := &model.Connections{}
+	for _, te := range tests {
+		conns.Conns = append(conns.Conns, te.conn)
+	}
+	resolver.Resolve(conns)
+
+	for _, te := range tests {
+		t.Run(te.name, func(_t *testing.T) {
+			assert.Equal(_t, te.expectedLaddrID, te.conn.Laddr.ContainerId, "laddr container id does not match expected value")
+			assert.Equal(_t, te.expectedRaddrID, te.conn.Raddr.ContainerId, "raddr container id does not match expected value")
+		})
+	}
+}

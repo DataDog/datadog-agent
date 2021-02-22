@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build python
 
@@ -91,6 +91,11 @@ func getRtLoaderError() error {
 		return errors.New(C.GoString(cErr))
 	}
 	return nil
+}
+
+// Load returns Python loader name
+func (cl *PythonCheckLoader) Name() string {
+	return "python"
 }
 
 // Load tries to import a Python module with the same name found in config.Name, searches for
@@ -288,7 +293,7 @@ func reportPy3Warnings(checkName string, checkFilePath string) {
 
 			if err != nil {
 				status = a7TagUnknown
-				log.Errorf("Failed to validate Python 3 linting for check '%s': '%s'", checkName, err)
+				log.Warnf("Failed to validate Python 3 linting for check '%s': '%s'", checkName, err)
 			} else if len(warnings) == 0 {
 				status = a7TagReady
 				metricValue = 1.0

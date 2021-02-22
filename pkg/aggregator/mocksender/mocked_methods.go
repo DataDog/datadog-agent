@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package mocksender
 
@@ -22,6 +22,11 @@ func (m *MockSender) Count(metric string, value float64, hostname string, tags [
 //MonotonicCount adds a monotonic count type to the mock calls.
 func (m *MockSender) MonotonicCount(metric string, value float64, hostname string, tags []string) {
 	m.Called(metric, value, hostname, tags)
+}
+
+//MonotonicCountWithFlushFirstValue adds a monotonic count type to the mock calls with flushFirstValue parameter
+func (m *MockSender) MonotonicCountWithFlushFirstValue(metric string, value float64, hostname string, tags []string, flushFirstValue bool) {
+	m.Called(metric, value, hostname, tags, flushFirstValue)
 }
 
 //Counter adds a counter type to the mock calls.

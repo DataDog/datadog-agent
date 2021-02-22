@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package runner
 
@@ -258,9 +258,9 @@ func (r *Runner) work() {
 		doLog, lastLog := shouldLog(check.ID())
 
 		if doLog {
-			log.Infof("Running check %s", check)
+			log.Infoc("Running check", "check", check)
 		} else {
-			log.Debugf("Running check %s", check)
+			log.Debugc("Running check", "check", check)
 		}
 
 		// run the check
@@ -319,14 +319,14 @@ func (r *Runner) work() {
 		}
 		r.m.Unlock()
 
-		l := "Done running check %s"
+		l := "Done running check"
 		if doLog {
 			if lastLog {
 				l = l + fmt.Sprintf(", next runs will be logged every %v runs", config.Datadog.GetInt64("logging_frequency"))
 			}
-			log.Infof(l, check)
+			log.Infoc(l, "check", check.String())
 		} else {
-			log.Debugf(l, check)
+			log.Debugc(l, "check", check.String())
 		}
 
 		if check.Interval() == 0 {

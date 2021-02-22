@@ -1,9 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
-//go:generate go-bindata -pkg status -prefix templates -o ./templates.go templates/...
+//go:generate go run github.com/shuLhan/go-bindata/cmd/go-bindata -pkg status -prefix templates -o ./templates.go templates/...
 //go:generate go fmt ./templates.go
 
 package status
@@ -16,6 +16,7 @@ import (
 	"text/template"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 )
 
 var fmap = Textfmap()
@@ -39,6 +40,7 @@ func FormatStatus(data []byte) (string, error) {
 	endpointsInfos := stats["endpointsInfos"]
 	inventoriesStats := stats["inventories"]
 	systemProbeStats := stats["systemProbeStats"]
+	snmpTrapsStats := stats["snmpTrapsStats"]
 	title := fmt.Sprintf("Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderStatusTemplate(b, "/header.tmpl", stats)
@@ -56,6 +58,9 @@ func FormatStatus(data []byte) (string, error) {
 	if config.Datadog.GetBool("cluster_agent.enabled") || config.Datadog.GetBool("cluster_checks.enabled") {
 		renderStatusTemplate(b, "/clusteragent.tmpl", dcaStats)
 	}
+	if traps.IsEnabled() {
+		renderStatusTemplate(b, "/snmp-traps.tmpl", snmpTrapsStats)
+	}
 
 	return b.String(), nil
 }
@@ -72,6 +77,7 @@ func FormatDCAStatus(data []byte) (string, error) {
 	checkSchedulerStats := stats["checkSchedulerStats"]
 	endpointsInfos := stats["endpointsInfos"]
 	logsStats := stats["logsStats"]
+	orchestratorStats := stats["orchestrator"]
 	title := fmt.Sprintf("Datadog Cluster Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderStatusTemplate(b, "/header.tmpl", stats)
@@ -80,6 +86,9 @@ func FormatDCAStatus(data []byte) (string, error) {
 	renderStatusTemplate(b, "/endpoints.tmpl", endpointsInfos)
 	if config.Datadog.GetBool("compliance_config.enabled") {
 		renderStatusTemplate(b, "/logsagent.tmpl", logsStats)
+	}
+	if config.Datadog.GetBool("orchestrator_explorer.enabled") {
+		renderStatusTemplate(b, "/orchestrator.tmpl", orchestratorStats)
 	}
 
 	return b.String(), nil
@@ -101,11 +110,13 @@ func FormatSecurityAgentStatus(data []byte) (string, error) {
 	stats := make(map[string]interface{})
 	json.Unmarshal(data, &stats) //nolint:errcheck
 	runnerStats := stats["runnerStats"]
+	complianceChecks := stats["complianceChecks"]
 	title := fmt.Sprintf("Datadog Security Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderStatusTemplate(b, "/header.tmpl", stats)
-	renderComplianceChecksStats(b, runnerStats)
+
 	renderRuntimeSecurityStats(b, stats["runtimeSecurityStatus"])
+	renderComplianceChecksStats(b, runnerStats, complianceChecks)
 
 	return b.String(), nil
 }
@@ -151,9 +162,10 @@ func renderCheckStats(data []byte, checkName string) (string, error) {
 	return b.String(), nil
 }
 
-func renderComplianceChecksStats(w io.Writer, runnerStats /*, checkSchedulerStats*/ interface{} /*, onlyCheck string*/) {
+func renderComplianceChecksStats(w io.Writer, runnerStats interface{}, complianceChecks interface{}) {
 	checkStats := make(map[string]interface{})
 	checkStats["RunnerStats"] = runnerStats
+	checkStats["ComplianceChecks"] = complianceChecks
 	renderStatusTemplate(w, "/compliance.tmpl", checkStats)
 }
 

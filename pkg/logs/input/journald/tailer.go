@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build systemd
 
@@ -135,6 +135,7 @@ func (t *Tailer) tail() {
 			return
 		default:
 			n, err := t.journal.Next()
+			t.source.BytesRead.Add(int64(n))
 			if err != nil && err != io.EOF {
 				err := fmt.Errorf("cant't tail journal %s: %s", t.journalPath(), err)
 				t.source.Status.Error(err)
@@ -177,7 +178,7 @@ func (t *Tailer) shouldDrop(entry *sdjournal.JournalEntry) bool {
 // A journal entry has different fields that may vary depending on its nature,
 // for more information, see https://www.freedesktop.org/software/systemd/man/systemd.journal-fields.html.
 func (t *Tailer) toMessage(entry *sdjournal.JournalEntry) *message.Message {
-	return message.NewMessage(t.getContent(entry), t.getOrigin(entry), t.getStatus(entry))
+	return message.NewMessage(t.getContent(entry), t.getOrigin(entry), t.getStatus(entry), time.Now().UnixNano())
 }
 
 // getContent returns all the fields of the entry as a json-string,

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package config
 
@@ -14,7 +14,6 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -67,7 +66,7 @@ type AgentConfig struct {
 
 	// Sampler configuration
 	ExtraSampleRate float64
-	MaxTPS          float64
+	TargetTPS       float64
 	MaxEPS          float64
 
 	// Receiver
@@ -117,6 +116,17 @@ type AgentConfig struct {
 
 	// Obfuscation holds sensitive data obufscator's configuration.
 	Obfuscation *ObfuscationConfig
+
+	// RequireTags specifies a list of tags which must be present on the root span in order for a trace to be accepted.
+	RequireTags []*Tag
+
+	// RejectTags specifies a list of tags which must be absent on the root span in order for a trace to be accepted.
+	RejectTags []*Tag
+}
+
+// Tag represents a key/value pair.
+type Tag struct {
+	K, V string
 }
 
 // New returns a configuration with the default values.
@@ -126,11 +136,10 @@ func New() *AgentConfig {
 		DefaultEnv: "none",
 		Endpoints:  []*Endpoint{{Host: "https://trace.agent.datadoghq.com"}},
 
-		BucketInterval:   time.Duration(10) * time.Second,
-		ExtraAggregators: []string{"http.status_code", "version", "_dd.hostname"},
+		BucketInterval: time.Duration(10) * time.Second,
 
 		ExtraSampleRate: 1.0,
-		MaxTPS:          10,
+		TargetTPS:       10,
 		MaxEPS:          200,
 
 		ReceiverHost:    "localhost",
@@ -251,11 +260,6 @@ func Load(path string) (*AgentConfig, error) {
 	} else {
 		log.Infof("Loaded configuration: %s", cfg.ConfigPath)
 	}
-	loadEnv()
-	if err := config.ResolveSecrets(config.Datadog, filepath.Base(path)); err != nil {
-		// resolve secrets now that we've finished loading from all sources (file, flags & env)
-		return cfg, err
-	}
 	cfg.applyDatadogConfig()
 	return cfg, cfg.validate()
 }
@@ -263,10 +267,7 @@ func Load(path string) (*AgentConfig, error) {
 func prepareConfig(path string) (*AgentConfig, error) {
 	cfg := New()
 	config.Datadog.SetConfigFile(path)
-	// we'll resolve secrets later, after loading environment variable values too,
-	// in order to make sure that any potential secret references present in environment
-	// variables get counted.
-	if _, err := config.LoadWithoutSecret(); err != nil {
+	if _, err := config.Load(); err != nil {
 		return cfg, err
 	}
 	cfg.ConfigPath = path
@@ -277,4 +278,15 @@ func prepareConfig(path string) (*AgentConfig, error) {
 // of the DD_APM_FEATURES environment variable.
 func HasFeature(f string) bool {
 	return strings.Contains(os.Getenv("DD_APM_FEATURES"), f)
+}
+
+// Features returns a list of all the features configured by means of DD_APM_FEATURES.
+func Features() []string {
+	var all []string
+	if fenv := os.Getenv("DD_APM_FEATURES"); fenv != "" {
+		for _, f := range strings.Split(fenv, ",") {
+			all = append(all, strings.TrimSpace(f))
+		}
+	}
+	return all
 }

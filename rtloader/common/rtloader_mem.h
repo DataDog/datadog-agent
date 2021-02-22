@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2019-2020 Datadog, Inc.
+// Copyright 2019-present Datadog, Inc.
 #ifndef DATADOG_AGENT_RTLOADER_MEM_H
 #define DATADOG_AGENT_RTLOADER_MEM_H
 
@@ -65,9 +65,7 @@ void *_malloc(size_t sz);
 void _free(void *ptr);
 
 #ifdef __cplusplus
-#    ifdef _WIN32
-#        define __THROW
-#    elif __APPLE__
+#    ifndef __GLIBC__
 #        define __THROW
 #    endif
 

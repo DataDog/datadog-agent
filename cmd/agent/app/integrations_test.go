@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build python
 
@@ -142,6 +142,41 @@ func TestSemverToPEP440(t *testing.T) {
 	assert.Equal(t, semverToPEP440(semver.New("1.3.4-alpha.1")), "1.3.4a1")
 	assert.Equal(t, semverToPEP440(semver.New("1.3.4-beta.1")), "1.3.4b1")
 	assert.Equal(t, semverToPEP440(semver.New("1.3.4-beta")), "1.3.4b")
+}
+
+func TestPEP440ToSemver(t *testing.T) {
+	version, _ := PEP440ToSemver("1.3.4")
+	assert.Equal(t, version.String(), "1.3.4")
+
+	version, _ = PEP440ToSemver("12.3.4")
+	assert.Equal(t, version.String(), "12.3.4")
+
+	version, _ = PEP440ToSemver("1.32.4")
+	assert.Equal(t, version.String(), "1.32.4")
+
+	version, _ = PEP440ToSemver("1.3.42")
+	assert.Equal(t, version.String(), "1.3.42")
+
+	version, _ = PEP440ToSemver("1.3.4rc1")
+	assert.Equal(t, version.String(), "1.3.4-rc.1")
+
+	version, _ = PEP440ToSemver("1.3.4a1")
+	assert.Equal(t, version.String(), "1.3.4-alpha.1")
+
+	version, _ = PEP440ToSemver("1.3.4b1")
+	assert.Equal(t, version.String(), "1.3.4-beta.1")
+
+	version, _ = PEP440ToSemver("1.3.4b12")
+	assert.Equal(t, version.String(), "1.3.4-beta.12")
+
+	// PEP440 allows this: https://www.python.org/dev/peps/pep-0440/#implicit-pre-release-number
+	// We don't ship versions like this, but we support this in case we do in the future.
+	version, _ = PEP440ToSemver("1.3.4b")
+	assert.Equal(t, version.String(), "1.3.4-beta.0")
+
+	// Other identifiers are passed-through, for resiliency.
+	version, _ = PEP440ToSemver("1.3.4dev1")
+	assert.Equal(t, version.String(), "1.3.4-dev.1")
 }
 
 func TestGetIntegrationName(t *testing.T) {

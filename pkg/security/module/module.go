@@ -1,9 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
-// +build linux_bpf
+// +build linux
 
 package module
 
@@ -11,22 +11,23 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
-	"path/filepath"
+	"os/signal"
+	"sync"
+	"sync/atomic"
+	"syscall"
 	"time"
 
-	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
-	aconfig "github.com/DataDog/datadog-agent/pkg/process/config"
 	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/policy"
+	agentLogger "github.com/DataDog/datadog-agent/pkg/security/log"
+	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
@@ -37,14 +38,18 @@ import (
 
 // Module represents the system-probe module for the runtime security agent
 type Module struct {
-	probe        *sprobe.Probe
-	config       *config.Config
-	ruleSet      *rules.RuleSet
-	eventServer  *EventServer
-	grpcServer   *grpc.Server
-	listener     net.Listener
-	statsdClient *statsd.Client
-	rateLimiter  *RateLimiter
+	sync.RWMutex
+	probe          *sprobe.Probe
+	config         *config.Config
+	ruleSets       [2]*rules.RuleSet
+	currentRuleSet uint64
+	reloading      uint64
+	statsdClient   *statsd.Client
+	apiServer      *APIServer
+	grpcServer     *grpc.Server
+	listener       net.Listener
+	rateLimiter    *RateLimiter
+	sigupChan      chan os.Signal
 }
 
 // Register the runtime security agent module
@@ -68,137 +73,168 @@ func (m *Module) Register(httpMux *http.ServeMux) error {
 		}
 	}()
 
-	m.probe.SetEventHandler(m)
-	m.ruleSet.AddListener(m)
+	// initialize the eBPF manager and load the programs and maps in the kernel. At this stage, the probes are not
+	// running yet.
+	if err := m.probe.Init(m.statsdClient); err != nil {
+		return errors.Wrap(err, "failed to init probe")
+	}
 
-	go m.statsMonitor(context.Background())
-
+	// start the manager and its probes / perf maps
 	if err := m.probe.Start(); err != nil {
-		return err
+		return errors.Wrap(err, "failed to start probe")
 	}
 
-	report, err := m.ApplyRuleSet(false)
-	if err != nil {
-		log.Warn(err)
-	}
-
-	// now that the probes have started, run the snapshot functions for the probes that require
-	// to fetch the current state of the system (example: mount points probes, process probes, ...)
+	// fetch the current state of the system (example: mount points, running processes, ...) so that our user space
+	// context is ready when we start the probes
 	if err := m.probe.Snapshot(); err != nil {
 		return err
 	}
 
-	content, _ := json.MarshalIndent(report, "", "\t")
-	log.Debug(string(content))
+	m.probe.SetEventHandler(m)
+
+	if err := m.Reload(); err != nil {
+		return err
+	}
+
+	go m.statsMonitor(context.Background())
+
+	signal.Notify(m.sigupChan, syscall.SIGHUP)
+
+	go func() {
+		for range m.sigupChan {
+			log.Info("Reload configuration")
+
+			if err := m.Reload(); err != nil {
+				log.Errorf("failed to reload configuration: %s", err)
+			}
+		}
+	}()
 
 	return nil
 }
 
-// ApplyRuleSet applies the loaded set of rules and returns a report
-// of the applied approvers for it. If dryRun is set to true,
-// the rules won't be applied but the report will still be returned.
-func (m *Module) ApplyRuleSet(dryRun bool) (*probe.Report, error) {
-	return m.probe.ApplyRuleSet(m.ruleSet, dryRun)
+func (m *Module) displayReport(report *probe.Report) {
+	content, _ := json.Marshal(report)
+	log.Debugf("Policy report: %s", content)
+}
+
+// Reload the rule set
+func (m *Module) Reload() error {
+	m.Lock()
+	defer m.Unlock()
+
+	atomic.StoreUint64(&m.reloading, 1)
+	defer atomic.StoreUint64(&m.reloading, 0)
+
+	rsa := sprobe.NewRuleSetApplier(m.config, m.probe)
+
+	ruleSet := m.probe.NewRuleSet(rules.NewOptsWithParams(model.SECLConstants, sprobe.SupportedDiscarders, agentLogger.DatadogAgentLogger{}))
+	if err := rules.LoadPolicies(m.config.PoliciesDir, ruleSet); err != nil {
+		return err
+	}
+
+	// analyze the ruleset, push default policies in the kernel and generate the policy report
+	report, err := rsa.Apply(ruleSet)
+	if err != nil {
+		return err
+	}
+
+	ruleSet.AddListener(m)
+	ruleIDs := ruleSet.ListRuleIDs()
+	for _, customRuleID := range sprobe.AllCustomRuleIDs() {
+		for _, ruleID := range ruleIDs {
+			if ruleID == customRuleID {
+				return fmt.Errorf("rule ID '%s' conflicts with a custom rule ID", ruleID)
+			}
+		}
+		ruleIDs = append(ruleIDs, customRuleID)
+	}
+
+	m.apiServer.Apply(ruleIDs)
+	m.rateLimiter.Apply(ruleIDs)
+
+	atomic.StoreUint64(&m.currentRuleSet, 1-m.currentRuleSet)
+	m.ruleSets[m.currentRuleSet] = ruleSet
+
+	m.displayReport(report)
+
+	// report that a new policy was loaded
+	monitor := m.probe.GetMonitor()
+	monitor.ReportRuleSetLoaded(ruleSet, time.Now())
+
+	return nil
 }
 
 // Close the module
 func (m *Module) Close() {
+	close(m.sigupChan)
+
 	if m.grpcServer != nil {
 		m.grpcServer.Stop()
 	}
 
 	if m.listener != nil {
 		m.listener.Close()
+		os.Remove(m.config.SocketPath)
 	}
 
-	m.probe.Stop()
-}
-
-// RuleMatch is called by the ruleset when a rule matches
-func (m *Module) RuleMatch(rule *eval.Rule, event eval.Event) {
-	if m.rateLimiter.Allow(rule.ID) {
-		m.eventServer.SendEvent(rule, event)
-	} else {
-		log.Debugf("Event on rule %s was dropped due to rate limiting", rule.ID)
-	}
+	m.probe.Close()
 }
 
 // EventDiscarderFound is called by the ruleset when a new discarder discovered
-func (m *Module) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field string) {
-	if err := m.probe.OnNewDiscarder(rs, event.(*sprobe.Event), field); err != nil {
-		log.Debug(err)
+func (m *Module) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
+	if atomic.LoadUint64(&m.reloading) == 1 {
+		return
+	}
+
+	if err := m.probe.OnNewDiscarder(rs, event.(*probe.Event), field, eventType); err != nil {
+		log.Trace(err)
 	}
 }
 
 // HandleEvent is called by the probe when an event arrives from the kernel
 func (m *Module) HandleEvent(event *sprobe.Event) {
-	m.ruleSet.Evaluate(event)
+	if ruleSet := m.ruleSets[atomic.LoadUint64(&m.currentRuleSet)]; ruleSet != nil {
+		ruleSet.Evaluate(event)
+	}
 }
 
-// LoadPolicies loads the policies listed in the configuration of
-// returns the set of the loaded rules
-func LoadPolicies(config *config.Config, probe *sprobe.Probe) (*rules.RuleSet, error) {
-	var result *multierror.Error
+// HandleCustomEvent is called by the probe when an event should be sent to Datadog but doesn't need evaluation
+func (m *Module) HandleCustomEvent(rule *rules.Rule, event *sprobe.CustomEvent) {
+	m.SendEvent(rule, event)
+}
 
-	ruleSet := probe.NewRuleSet(rules.NewOptsWithParams(config.Debug, sprobe.SECLConstants, sprobe.InvalidDiscarders))
+// RuleMatch is called by the ruleset when a rule matches
+func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
+	m.SendEvent(rule, event)
+}
 
-	policyFiles, err := ioutil.ReadDir(config.PoliciesDir)
-	if err != nil {
-		return nil, err
+// SendEvent sends an event to the backend after checking that the rate limiter allows it for the provided rule
+func (m *Module) SendEvent(rule *rules.Rule, event Event) {
+	if m.rateLimiter.Allow(rule.ID) {
+		m.apiServer.SendEvent(rule, event)
+	} else {
+		log.Tracef("Event on rule %s was dropped due to rate limiting", rule.ID)
 	}
-
-	// Load and parse policies
-	for _, policyPath := range policyFiles {
-		filename := policyPath.Name()
-
-		// policy path extension check
-		if filepath.Ext(filename) != ".policy" {
-			log.Debugf("ignoring file `%s` wrong extension `%s`", policyPath.Name(), filepath.Ext(filename))
-			continue
-		}
-
-		// Open policy path
-		f, err := os.Open(filepath.Join(config.PoliciesDir, filename))
-		if err != nil {
-			result = multierror.Append(result, errors.Wrapf(err, "failed to load policy `%s`", policyPath))
-			continue
-		}
-
-		// Parse policy file
-		policy, err := policy.LoadPolicy(f)
-		if err != nil {
-			result = multierror.Append(result, errors.Wrapf(err, "failed to load policy `%s`", policyPath))
-			continue
-		}
-
-		// Add the macros to the ruleset and generate macros evaluators
-		if err := ruleSet.AddMacros(policy.Macros); err != nil {
-			result = multierror.Append(result, err)
-		}
-
-		// Add rules to the ruleset and generate rules evaluators
-		if err := ruleSet.AddRules(policy.Rules); err != nil {
-			result = multierror.Append(result, err)
-		}
-	}
-
-	return ruleSet, result.ErrorOrNil()
 }
 
 func (m *Module) statsMonitor(ctx context.Context) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	ticker := time.NewTicker(20 * time.Second)
+	ticker := time.NewTicker(m.config.StatsPollingInterval)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.C:
-			if err := m.probe.SendStats(m.statsdClient); err != nil {
+			if err := m.probe.SendStats(); err != nil {
 				log.Debug(err)
 			}
-			if err := m.rateLimiter.SendStats(m.statsdClient); err != nil {
+			if err := m.rateLimiter.SendStats(); err != nil {
+				log.Debug(err)
+			}
+			if err := m.apiServer.SendStats(); err != nil {
 				log.Debug(err)
 			}
 		case <-ctx.Done():
@@ -209,66 +245,61 @@ func (m *Module) statsMonitor(ctx context.Context) {
 
 // GetStats returns statistics about the module
 func (m *Module) GetStats() map[string]interface{} {
-	probeStats, err := m.probe.GetStats()
-	if err != nil {
-		return nil
+	debug := map[string]interface{}{}
+
+	if m.probe != nil {
+		debug["probe"] = m.probe.GetDebugStats()
+	} else {
+		debug["probe"] = "not_running"
 	}
 
-	return map[string]interface{}{
-		"probe": probeStats,
-	}
+	return debug
+}
+
+// GetProbe returns the module's probe
+func (m *Module) GetProbe() *sprobe.Probe {
+	return m.probe
 }
 
 // GetRuleSet returns the set of loaded rules
 func (m *Module) GetRuleSet() *rules.RuleSet {
-	return m.ruleSet
+	return m.ruleSets[atomic.LoadUint64(&m.currentRuleSet)]
 }
 
 // NewModule instantiates a runtime security system-probe module
-func NewModule(cfg *aconfig.AgentConfig) (api.Module, error) {
-	config, err := config.NewConfig(cfg)
-	if err != nil {
-		log.Errorf("invalid security runtime module configuration: %s", err)
-		return nil, err
-	}
-
-	if !config.Enabled {
-		log.Infof("security runtime module disabled")
-		return nil, api.ErrNotEnabled
-	}
-
+func NewModule(cfg *config.Config) (api.Module, error) {
 	var statsdClient *statsd.Client
+	var err error
 	if cfg != nil {
 		statsdAddr := os.Getenv("STATSD_URL")
 		if statsdAddr == "" {
-			statsdAddr = fmt.Sprintf("%s:%d", cfg.StatsdHost, cfg.StatsdPort)
+			statsdAddr = cfg.StatsdAddr
 		}
+
 		if statsdClient, err = statsd.New(statsdAddr); err != nil {
 			return nil, err
 		}
+	} else {
+		log.Warn("Logs won't be send to DataDog")
 	}
 
-	probe, err := sprobe.NewProbe(config)
-	if err != nil {
-		return nil, err
-	}
-
-	ruleSet, err := LoadPolicies(config, probe)
+	probe, err := sprobe.NewProbe(cfg, statsdClient)
 	if err != nil {
 		return nil, err
 	}
 
 	m := &Module{
-		config:       config,
-		probe:        probe,
-		ruleSet:      ruleSet,
-		eventServer:  NewEventServer(),
-		grpcServer:   grpc.NewServer(),
-		statsdClient: statsdClient,
-		rateLimiter:  NewRateLimiter(ruleSet.ListRuleIDs()),
+		config:         cfg,
+		probe:          probe,
+		statsdClient:   statsdClient,
+		apiServer:      NewAPIServer(cfg, probe, statsdClient),
+		grpcServer:     grpc.NewServer(),
+		rateLimiter:    NewRateLimiter(statsdClient),
+		sigupChan:      make(chan os.Signal, 1),
+		currentRuleSet: 1,
 	}
 
-	sapi.RegisterSecurityModuleServer(m.grpcServer, m.eventServer)
+	sapi.RegisterSecurityModuleServer(m.grpcServer, m.apiServer)
 
 	return m, nil
 }

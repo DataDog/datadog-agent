@@ -1,114 +1,80 @@
+// +build linux
+
 package network
 
 import (
+	"errors"
+	"fmt"
+	"os"
 	"path"
-	"sync"
+	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// PortMapping tracks which ports a pid is listening on
+// PortMapping represents a port binding
 type PortMapping struct {
-	procRoot    string
-	collectTCP  bool
-	collectIPv6 bool
-	ports       map[uint16]struct{}
-	sync.RWMutex
+	Ino  uint64
+	Port uint16
 }
 
-//NewPortMapping creates a new PortMapping instance
-func NewPortMapping(procRoot string, collectTCP, collectIPv6 bool) *PortMapping {
-	return &PortMapping{
-		procRoot:    procRoot,
-		collectTCP:  collectTCP,
-		collectIPv6: collectIPv6,
-		ports:       make(map[uint16]struct{}),
-	}
-}
-
-// AddMapping indicates that something is listening on the provided port
-func (pm *PortMapping) AddMapping(port uint16) {
-	pm.Lock()
-	defer pm.Unlock()
-
-	pm.ports[port] = struct{}{}
-}
-
-// RemoveMapping indicates that the provided port is no longer being listened on
-func (pm *PortMapping) RemoveMapping(port uint16) {
-	pm.Lock()
-	defer pm.Unlock()
-
-	delete(pm.ports, port)
-}
-
-// IsListening returns true if something is listening on the given port
-func (pm *PortMapping) IsListening(port uint16) bool {
-	pm.RLock()
-	defer pm.RUnlock()
-
-	_, ok := pm.ports[port]
-	return ok
+var statusMap = map[ConnectionType]int64{
+	TCP: tcpListen,
+	UDP: tcpClose,
 }
 
 // ReadInitialState reads the /proc filesystem and determines which ports are being listened on
-func (pm *PortMapping) ReadInitialState() error {
-	pm.Lock()
-	defer pm.Unlock()
-
+func ReadInitialState(procRoot string, protocol ConnectionType, collectIPv6 bool) (map[PortMapping]struct{}, error) {
 	start := time.Now()
+	defer func() {
+		log.Debugf("Read initial %s pid->port mapping in %s", protocol.String(), time.Now().Sub(start))
+	}()
 
-	if pm.collectTCP {
-		if ports, err := readProcNet(path.Join(pm.procRoot, "net/tcp")); err != nil {
-			log.Errorf("error reading tcp state: %s", err)
-		} else {
-			for _, port := range ports {
-				pm.ports[port] = struct{}{}
-			}
-		}
-
-		if pm.collectIPv6 {
-			if ports, err := readProcNet(path.Join(pm.procRoot, "net/tcp6")); err != nil {
-				log.Errorf("error reading tcp6 state: %s", err)
-			} else {
-				for _, port := range ports {
-					pm.ports[port] = struct{}{}
-				}
-			}
-		}
+	lp := strings.ToLower(protocol.String())
+	paths := []string{"net/" + lp}
+	if collectIPv6 {
+		paths = append(paths, "net/"+lp+"6")
 	}
 
-	log.Debugf("Read initial pid->port mapping in %s", time.Now().Sub(start))
-
-	return nil
+	status := statusMap[protocol]
+	return readState(procRoot, paths, status)
 }
 
-// ReadInitialUDPState reads the /proc filesystem and determines which ports are being used as UDP server
-func (pm *PortMapping) ReadInitialUDPState() error {
-	pm.Lock()
-	defer pm.Unlock()
-
-	udpPath := path.Join(pm.procRoot, "net/udp")
-	if ports, err := readProcNetWithStatus(udpPath, tcpClose); err != nil {
-		log.Errorf("failed to read UDP state: %s", err)
-	} else {
-		log.Info("read UDP ports: %v", ports)
-		for _, port := range ports {
-			pm.ports[port] = struct{}{}
+func readState(procRoot string, paths []string, status int64) (map[PortMapping]struct{}, error) {
+	seen := make(map[uint64]struct{})
+	allports := make(map[PortMapping]struct{})
+	err := util.WithAllProcs(procRoot, func(pid int) error {
+		nsIno, err := util.GetNetNsInoFromPid(procRoot, pid)
+		if err != nil {
+			if !errors.Is(err, os.ErrNotExist) {
+				log.Errorf("error getting net ns for pid %d: %s", pid, err)
+			}
+			return nil
 		}
-	}
 
-	if pm.collectIPv6 {
-		if ports, err := readProcNetWithStatus(path.Join(pm.procRoot, "net/udp6"), 7); err != nil {
-			log.Errorf("error reading UDPv6 state: %s", err)
-		} else {
-			log.Info("read UDPv6 state: %v", ports)
+		if _, ok := seen[nsIno]; ok {
+			return nil
+		}
+		seen[nsIno] = struct{}{}
+
+		for _, p := range paths {
+			ports, err := readProcNetWithStatus(path.Join(procRoot, fmt.Sprintf("%d", pid), p), status)
+			if err != nil {
+				log.Errorf("error reading port state net ns ino=%d pid=%d path=%s status=%d", nsIno, pid, p, status)
+				continue
+			}
+
 			for _, port := range ports {
-				pm.ports[port] = struct{}{}
+				allports[PortMapping{Ino: nsIno, Port: port}] = struct{}{}
 			}
 		}
-	}
 
-	return nil
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return allports, nil
 }

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package scheduler
 
@@ -27,7 +27,7 @@ var (
 	tlmChecksEntered = telemetry.NewGauge("scheduler", "checks_entered",
 		[]string{"check_name"}, "How many checks are currently tracked by the scheduler")
 	tlmQueuesCount = telemetry.NewCounter("scheduler", "queues_count",
-		[]string{"check_name"}, "How many queues were opened")
+		nil, "How many queues were opened")
 )
 
 func init() {
@@ -92,7 +92,7 @@ func (s *Scheduler) Enter(check check.Check) error {
 		s.jobQueues[check.Interval()] = newJobQueue(check.Interval())
 		s.startQueue(s.jobQueues[check.Interval()])
 		if check.IsTelemetryEnabled() {
-			tlmQueuesCount.Inc(check.String())
+			tlmQueuesCount.Inc()
 		}
 		schedulerQueuesCount.Add(1)
 	}

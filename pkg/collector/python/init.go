@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build python
 
@@ -81,12 +81,13 @@ void GetConfig(char*, char **);
 void GetHostname(char **);
 void GetVersion(char **);
 void Headers(char **);
-void ReadPersistentCache(char *);
+char * ReadPersistentCache(char *);
 void SetCheckMetadata(char *, char *, char *);
 void SetExternalTags(char *, char *, char **);
 void WritePersistentCache(char *, char *);
 bool TracemallocEnabled();
 char* ObfuscateSQL(char *, char **);
+char* ObfuscateSQLExecPlan(char *, bool, char **);
 
 void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_get_clustername_cb(rtloader, GetClusterName);
@@ -100,15 +101,16 @@ void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_read_persistent_cache_cb(rtloader, ReadPersistentCache);
 	set_tracemalloc_enabled_cb(rtloader, TracemallocEnabled);
 	set_obfuscate_sql_cb(rtloader, ObfuscateSQL);
+	set_obfuscate_sql_exec_plan_cb(rtloader, ObfuscateSQLExecPlan);
 }
 
 //
 // aggregator module
 //
 
-void SubmitMetric(char *, metric_type_t, char *, float, char **, int, char *);
-void SubmitServiceCheck(char *, char *, int, char **, int, char *, char *);
-void SubmitEvent(char *, event_t *, int);
+void SubmitMetric(char *, metric_type_t, char *, double, char **, char *, bool);
+void SubmitServiceCheck(char *, char *, int, char **, char *, char *);
+void SubmitEvent(char *, event_t *);
 void SubmitHistogramBucket(char *, char *, long long, float, float, int, char *, char **);
 
 void initAggregatorModule(rtloader_t *rtloader) {
@@ -122,7 +124,7 @@ void initAggregatorModule(rtloader_t *rtloader) {
 // _util module
 //
 
-void GetSubprocessOutput(char **, int, char **, char **, int*, char **);
+void GetSubprocessOutput(char **, char **, char **, char **, int*, char **);
 
 void initUtilModule(rtloader_t *rtloader) {
 	set_get_subprocess_output_cb(rtloader, GetSubprocessOutput);
@@ -132,7 +134,7 @@ void initUtilModule(rtloader_t *rtloader) {
 // tagger module
 //
 
-char **Tags(char **, int);
+char **Tags(char *, int);
 
 void initTaggerModule(rtloader_t *rtloader) {
 	set_tags_cb(rtloader, Tags);
@@ -142,7 +144,7 @@ void initTaggerModule(rtloader_t *rtloader) {
 // containers module
 //
 
-int IsContainerExcluded(char *, char *);
+int IsContainerExcluded(char *, char *, char *);
 
 void initContainersModule(rtloader_t *rtloader) {
 	set_is_excluded_cb(rtloader, IsContainerExcluded);
@@ -152,7 +154,7 @@ void initContainersModule(rtloader_t *rtloader) {
 // kubeutil module
 //
 
-void GetKubeletConnectionInfo(char *);
+void GetKubeletConnectionInfo(char **);
 
 void initkubeutilModule(rtloader_t *rtloader) {
 	set_get_connection_info_cb(rtloader, GetKubeletConnectionInfo);
@@ -315,7 +317,6 @@ func Initialize(paths ...string) error {
 
 	if rtloader == nil {
 		err := addExpvarPythonInitErrors(fmt.Sprintf("could not load runtime python for version %s: %s", pythonVersion, C.GoString(pyErr)))
-		log.Errorf("Could not load runtime python for version %s: %s", pythonVersion, C.GoString(pyErr))
 		if pyErr != nil {
 			// pyErr tracked when created in rtloader
 			C._free(unsafe.Pointer(pyErr))
@@ -343,7 +344,6 @@ func Initialize(paths ...string) error {
 	// Init RtLoader machinery
 	if C.init(rtloader) == 0 {
 		err := fmt.Sprintf("could not initialize rtloader: %s", C.GoString(C.get_error(rtloader)))
-		log.Errorf("Could not initialize rtloader: %s", C.GoString(C.get_error(rtloader)))
 		return addExpvarPythonInitErrors(err)
 	}
 

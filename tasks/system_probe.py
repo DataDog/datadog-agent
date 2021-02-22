@@ -1,6 +1,5 @@
 import contextlib
 import datetime
-import getpass
 import glob
 import os
 import shutil
@@ -35,6 +34,13 @@ GIMME_ENV_VARS = ['GOROOT', 'PATH']
 
 DATADOG_AGENT_EMBEDDED_PATH = '/opt/datadog-agent/embedded'
 
+KITCHEN_DIR = os.path.join("test", "kitchen")
+KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-system-probe-check", "files", "default", "tests")
+TEST_PACKAGES_LIST = ["./pkg/ebpf/...", "./pkg/network/..."]
+TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
+
+is_windows = sys.platform == "win32"
+
 
 @task
 def build(
@@ -46,10 +52,10 @@ def build(
     python_runtimes='3',
     with_bcc=True,
     go_mod="vendor",
-    windows=False,
+    windows=is_windows,
     arch="x64",
     embedded_path=DATADOG_AGENT_EMBEDDED_PATH,
-    bundle_ebpf=True,
+    bundle_ebpf=False,
 ):
     """
     Build the system_probe
@@ -138,7 +144,9 @@ def build(
 
 
 @task
-def build_in_docker(ctx, rebuild_ebpf_builder=False, race=False, incremental_build=False, major_version='7'):
+def build_in_docker(
+    ctx, rebuild_ebpf_builder=False, race=False, incremental_build=False, major_version='7', bundle_ebpf=False
+):
     """
     Build the system_probe using a container
     This can be used when the current OS don't have up to date linux headers
@@ -162,46 +170,108 @@ def build_in_docker(ctx, rebuild_ebpf_builder=False, race=False, incremental_bui
         cmd += " --race"
     if incremental_build:
         cmd += " --incremental-build"
+    if bundle_ebpf:
+        cmd += " --bundle-ebpf"
 
     ctx.run(docker_cmd.format(cwd=os.getcwd(), builder=EBPF_BUILDER_IMAGE, cmd=cmd))
 
 
 @task
-def test(ctx, skip_object_files=False, only_check_bpf_bytes=False, bundle_ebpf=True):
+def test(
+    ctx, packages=TEST_PACKAGES, skip_object_files=False, bundle_ebpf=True, output_path=None, runtime_compiled=False
+):
     """
     Run tests on eBPF parts
     If skip_object_files is set to True, this won't rebuild object files
-    If only_check_bpf_bytes is set to True this will only check that the assets bundled are
-    matching the currently generated object files
+    If output_path is set, we run `go test` with the flags `-c -o output_path`, which *compiles* the test suite
+    into a single binary. This artifact is meant to be used in conjunction with kitchen tests.
     """
 
     if not skip_object_files:
         build_object_files(ctx, bundle_ebpf=bundle_ebpf)
 
-    pkg = "./pkg/ebpf/... ./pkg/network/..."
-
-    # Pass along the PATH env variable to retrieve the go binary path
-    path = os.environ['PATH']
-
-    cmd = 'go test -mod={go_mod} -v -tags "{bpf_tag}" {pkg}'
+    cmd = 'go test -mod=vendor -v -tags {bpf_tag} {output_params} {pkgs}'
     if not is_root():
         cmd = 'sudo -E PATH={path} ' + cmd
 
     bpf_tag = BPF_TAG
-    if only_check_bpf_bytes:
-        bpf_tag += ",ebpf_bindata"
-        cmd += " -run=TestEbpfBytesCorrect"
-    else:
-        if getpass.getuser() != "root":
-            print("system-probe tests must be run as root")
-            raise Exit(code=1)
-        if os.getenv("GOPATH") is None:
-            print(
-                "GOPATH is not set, if you are running tests with sudo, you may need to use the -E option to preserve your environment"
-            )
-            raise Exit(code=1)
+    # temporary measure until we have a good default for BPFDir for testing
+    bpf_tag += ",ebpf_bindata"
+    if os.getenv("GOPATH") is None:
+        print(
+            "GOPATH is not set, if you are running tests with sudo, you may need to use the -E option to preserve your environment"
+        )
+        raise Exit(code=1)
 
-    ctx.run(cmd.format(path=path, go_mod="vendor", bpf_tag=bpf_tag, pkg=pkg))
+    args = {
+        "path": os.environ['PATH'],
+        "bpf_tag": bpf_tag,
+        "output_params": "-c -o " + output_path if output_path else "",
+        "pkgs": packages,
+    }
+
+    env = {'CGO_LDFLAGS_ALLOW': "-Wl,--wrap=.*"}
+    if runtime_compiled:
+        env['DD_TESTS_RUNTIME_COMPILED'] = "1"
+
+    ctx.run(cmd.format(**args), env=env)
+
+
+@task
+def kitchen_prepare(ctx):
+    """
+    Compile test suite for kitchen
+    """
+
+    # Clean up previous build
+    if os.path.exists(KITCHEN_ARTIFACT_DIR):
+        shutil.rmtree(KITCHEN_ARTIFACT_DIR)
+
+    # Retrieve a list of all packages we want to test
+    # This handles the elipsis notation (eg. ./pkg/ebpf/...)
+    target_packages = []
+    for pkg in TEST_PACKAGES_LIST:
+        target_packages += (
+            check_output("go list -f '{{ .Dir }}' -tags linux_bpf %s" % (pkg), shell=True)
+            .decode('utf-8')
+            .strip()
+            .split("\n")
+        )
+
+    # This will compile one 'testsuite' file per package by running `go test -c -o output_path`.
+    # These artifacts will be "vendored" inside a chef recipe like the following:
+    # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/network/testsuite
+    # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/network/netlink/testsuite
+    # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/ebpf/testsuite
+    # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/ebpf/bytecode/testsuite
+    for i, pkg in enumerate(target_packages):
+        relative_path = os.path.relpath(pkg)
+        target_path = os.path.join(KITCHEN_ARTIFACT_DIR, relative_path)
+
+        test(
+            ctx,
+            packages=pkg,
+            skip_object_files=(i != 0),
+            bundle_ebpf=False,
+            output_path=os.path.join(target_path, "testsuite"),
+        )
+
+        # copy ancillary data, if applicable
+        for extra in ["testdata", "build"]:
+            extra_path = os.path.join(pkg, extra)
+            if os.path.isdir(extra_path):
+                shutil.copytree(extra_path, os.path.join(target_path, extra))
+
+
+@task
+def kitchen_test(ctx):
+    """
+    Run tests (locally) using chef kitchen against an array of different platforms.
+    * Make sure to run `inv -e system-probe.kitchen-prepare` using the agent-development VM;
+    * Then we recommend to run `inv -e system-probe.kitchen-test` directly from your (macOS) machine;
+    """
+    with ctx.cd(KITCHEN_DIR):
+        ctx.run("kitchen test", env={"KITCHEN_YAML": "kitchen-vagrant-system-probe.yml"})
 
 
 @task
@@ -236,16 +306,12 @@ def cfmt(ctx):
     Format C code using clang-format
     """
 
-    fmtCmd = "clang-format -i -style='{{BasedOnStyle: WebKit, BreakBeforeBraces: Attach}}' {file}"
-    # This only works with gnu sed
-    sedCmd = r"sed -i 's/__attribute__((always_inline)) /__attribute__((always_inline))\
-/g' {file}"
+    fmtCmd = "clang-format -i -style=file {file}"
 
     files = glob.glob("pkg/ebpf/c/*.[c,h]")
 
     for file in files:
         ctx.run(fmtCmd.format(file=file))
-        ctx.run(sedCmd.format(file=file))
 
 
 @task
@@ -283,31 +349,59 @@ def build_object_files(ctx, bundle_ebpf=False):
     print("checking for clang executable...")
     ctx.run("which clang")
     print("found clang")
+    ctx.run("clang -v")
 
+    os_info = os.uname()
     centos_headers_dir = "/usr/src/kernels"
     debian_headers_dir = "/usr/src"
+    linux_headers = []
     if os.path.isdir(centos_headers_dir):
-        linux_headers = [os.path.join(centos_headers_dir, d) for d in os.listdir(centos_headers_dir)]
+        for d in os.listdir(centos_headers_dir):
+            if os_info.release in d:
+                linux_headers.append(os.path.join(centos_headers_dir, d))
     else:
-        linux_headers = [
-            os.path.join(debian_headers_dir, d) for d in os.listdir(debian_headers_dir) if d.startswith("linux-")
-        ]
+        for d in os.listdir(debian_headers_dir):
+            if d.startswith("linux-") and os_info.release in d:
+                linux_headers.append(os.path.join(debian_headers_dir, d))
+
+    # fallback to non-filtered version for Docker where `uname -r` is not correct
+    if len(linux_headers) == 0:
+        if os.path.isdir(centos_headers_dir):
+            linux_headers = [os.path.join(centos_headers_dir, d) for d in os.listdir(centos_headers_dir)]
+        else:
+            linux_headers = [
+                os.path.join(debian_headers_dir, d) for d in os.listdir(debian_headers_dir) if d.startswith("linux-")
+            ]
 
     bpf_dir = os.path.join(".", "pkg", "ebpf")
+    build_dir = os.path.join(bpf_dir, "bytecode", "build")
+    build_runtime_dir = os.path.join(build_dir, "runtime")
     c_dir = os.path.join(bpf_dir, "c")
+
+    network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
+    network_c_dir = os.path.join(network_bpf_dir, "c")
+    network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
 
     flags = [
         '-D__KERNEL__',
         '-DCONFIG_64BIT',
         '-D__BPF_TRACING__',
+        '-DKBUILD_MODNAME=\'"ddsysprobe"\'',
         '-Wno-unused-value',
         '-Wno-pointer-sign',
         '-Wno-compare-distinct-pointer-types',
         '-Wunused',
         '-Wall',
         '-Werror',
+        "-include {}".format(os.path.join(c_dir, "asm_goto_workaround.h")),
         '-O2',
         '-emit-llvm',
+        # Some linux distributions enable stack protector by default which is not available on eBPF
+        '-fno-stack-protector',
+        '-fno-color-diagnostics',
+        '-fno-unwind-tables',
+        '-fno-asynchronous-unwind-tables',
+        "-I{}".format(c_dir),
     ]
 
     # Mapping used by the kernel, from https://elixir.bootlin.com/linux/latest/source/scripts/subarch.include
@@ -339,71 +433,115 @@ def build_object_files(ctx, bundle_ebpf=False):
         for s in subdirs:
             flags.extend(["-isystem", os.path.join(d, s)])
 
-    cmd = "clang {flags} -c {c_file} -o - | llc -march=bpf -filetype=obj -o '{file}'"
+    cmd = "clang {flags} -c '{c_file}' -o '{bc_file}'"
+    llc_cmd = "llc -march=bpf -filetype=obj -o '{obj_file}' '{bc_file}'"
 
-    commands = []
+    commands = [
+        "mkdir -p {build_dir}".format(build_dir=build_dir),
+        "mkdir -p {build_runtime_dir}".format(build_runtime_dir=build_runtime_dir),
+    ]
+    bindata_files = []
 
-    # Build both the standard and debug version
-    tracer_c_file = os.path.join(c_dir, "tracer-ebpf.c")
-    obj_file = os.path.join(c_dir, "tracer-ebpf.o")
-    commands.append(cmd.format(flags=" ".join(flags), c_file=tracer_c_file, file=obj_file))
+    corechecks_c_dir = os.path.join(".", "pkg", "collector", "corechecks", "ebpf", "c")
+    corechecks_bcc_dir = os.path.join(corechecks_c_dir, "bcc")
+    bcc_files = [
+        os.path.join(corechecks_bcc_dir, "tcp-queue-length-kern.c"),
+        os.path.join(corechecks_c_dir, "tcp-queue-length-kern-user.h"),
+        os.path.join(corechecks_bcc_dir, "oom-kill-kern.c"),
+        os.path.join(corechecks_c_dir, "oom-kill-kern-user.h"),
+        os.path.join(corechecks_bcc_dir, "bpf-common.h"),
+    ]
+    for f in bcc_files:
+        commands.append("cp {file} {dest}".format(file=f, dest=build_dir))
+        bindata_files.append(os.path.join(build_dir, os.path.basename(f)))
 
-    debug_obj_file = os.path.join(c_dir, "tracer-ebpf-debug.o")
-    commands.append(cmd.format(flags=" ".join(flags + ["-DDEBUG=1"]), c_file=tracer_c_file, file=debug_obj_file))
+    compiled_programs = [
+        "tracer",
+        "offset-guess",
+    ]
+    network_flags = list(flags)
+    network_flags.append("-I{}".format(network_c_dir))
+    for p in compiled_programs:
+        # Build both the standard and debug version
+        src_file = os.path.join(network_prebuilt_dir, "{}.c".format(p))
+        bc_file = os.path.join(build_dir, "{}.bc".format(p))
+        obj_file = os.path.join(build_dir, "{}.o".format(p))
+        commands.append(cmd.format(flags=" ".join(network_flags), bc_file=bc_file, c_file=src_file))
+        commands.append(llc_cmd.format(flags=" ".join(network_flags), bc_file=bc_file, obj_file=obj_file))
 
-    # Build security runtime programs
-    security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
-    security_c_file = os.path.join(security_agent_c_dir, "probe.c")
-
-    security_agent_obj_file = os.path.join(security_agent_c_dir, "runtime-security.o")
-    commands.append(
-        cmd.format(
-            flags=" ".join(flags + ["-DUSE_SYSCALL_WRAPPER=0"]), c_file=security_c_file, file=security_agent_obj_file
-        )
-    )
-
-    security_agent_syscall_wrapper_obj_file = os.path.join(security_agent_c_dir, "runtime-security-syscall-wrapper.o")
-    commands.append(
-        cmd.format(
-            flags=" ".join(flags + ["-DUSE_SYSCALL_WRAPPER=1"]),
-            c_file=security_c_file,
-            file=security_agent_syscall_wrapper_obj_file,
-        )
-    )
-
-    if bundle_ebpf:
-        assets_cmd = (
-            os.environ["GOPATH"]
-            + "/bin/go-bindata -pkg bytecode -tags ebpf_bindata -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{obj_file}' '{debug_obj_file}' "
-            + "'{tcp_queue_length_kern_c_file}' '{tcp_queue_length_kern_user_h_file}' '{oom_kill_kern_c_file}' '{oom_kill_kern_user_h_file}' "
-            + "'{bpf_common_h_file}' "
-            + "'{security_agent_obj_file}' '{security_agent_syscall_wrapper_obj_file}'"
-        )
-        go_file = os.path.join(bpf_dir, "bytecode", "tracer-ebpf.go")
+        debug_bc_file = os.path.join(build_dir, "{}-debug.bc".format(p))
+        debug_obj_file = os.path.join(build_dir, "{}-debug.o".format(p))
         commands.append(
-            assets_cmd.format(
-                c_dir=c_dir,
-                go_file=go_file,
-                obj_file=obj_file,
-                debug_obj_file=debug_obj_file,
-                tcp_queue_length_kern_c_file=os.path.join(c_dir, "tcp-queue-length-kern.c"),
-                tcp_queue_length_kern_user_h_file=os.path.join(bpf_dir, "tcp-queue-length-kern-user.h"),
-                oom_kill_kern_c_file=os.path.join(c_dir, "oom-kill-kern.c"),
-                oom_kill_kern_user_h_file=os.path.join(bpf_dir, "oom-kill-kern-user.h"),
-                bpf_common_h_file=os.path.join(c_dir, "bpf-common.h"),
-                security_agent_obj_file=security_agent_obj_file,
-                security_agent_syscall_wrapper_obj_file=security_agent_syscall_wrapper_obj_file,
-            )
+            cmd.format(flags=" ".join(network_flags + ["-DDEBUG=1"]), bc_file=debug_bc_file, c_file=src_file)
         )
+        commands.append(llc_cmd.format(flags=" ".join(network_flags), bc_file=debug_bc_file, obj_file=debug_obj_file))
 
-        commands.append("gofmt -w -s {go_file}".format(go_file=go_file))
+        bindata_files.extend([obj_file, debug_obj_file])
+
+    security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
+    security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
+    security_c_file = os.path.join(security_agent_prebuilt_dir, "probe.c")
+    security_bc_file = os.path.join(build_dir, "runtime-security.bc")
+    security_agent_obj_file = os.path.join(build_dir, "runtime-security.o")
+    security_flags = list(flags)
+    security_flags.append("-I{}".format(security_agent_c_dir))
+
+    commands.append(
+        cmd.format(
+            flags=" ".join(security_flags + ["-DUSE_SYSCALL_WRAPPER=0"]),
+            c_file=security_c_file,
+            bc_file=security_bc_file,
+        )
+    )
+    commands.append(
+        llc_cmd.format(flags=" ".join(security_flags), bc_file=security_bc_file, obj_file=security_agent_obj_file)
+    )
+
+    security_agent_syscall_wrapper_bc_file = os.path.join(build_dir, "runtime-security-syscall-wrapper.bc")
+    security_agent_syscall_wrapper_obj_file = os.path.join(build_dir, "runtime-security-syscall-wrapper.o")
+    commands.append(
+        cmd.format(
+            flags=" ".join(security_flags + ["-DUSE_SYSCALL_WRAPPER=1"]),
+            c_file=security_c_file,
+            bc_file=security_agent_syscall_wrapper_bc_file,
+        )
+    )
+    commands.append(
+        llc_cmd.format(
+            flags=" ".join(security_flags),
+            bc_file=security_agent_syscall_wrapper_bc_file,
+            obj_file=security_agent_syscall_wrapper_obj_file,
+        )
+    )
+    bindata_files.extend([security_agent_obj_file, security_agent_syscall_wrapper_obj_file])
+
+    runtime_compiler_files = [
+        "./pkg/network/tracer/compile.go",
+        "./pkg/security/probe/compile.go",
+    ]
+    for f in runtime_compiler_files:
+        commands.append("go generate -mod=vendor -tags linux_bpf {}".format(f))
 
     for cmd in commands:
         ctx.run(cmd)
 
+    if bundle_ebpf:
+        go_dir = os.path.join(bpf_dir, "bytecode", "bindata")
+        bundle_files(ctx, bindata_files, "pkg/.*/", go_dir)
+
+
+def bundle_files(ctx, bindata_files, dir_prefix, go_dir):
+    assets_cmd = (
+        "go run github.com/shuLhan/go-bindata/cmd/go-bindata -tags ebpf_bindata -split"
+        + " -pkg bindata -prefix '{dir_prefix}' -modtime 1 -o '{go_dir}' '{bindata_files}'"
+    )
+    ctx.run(assets_cmd.format(dir_prefix=dir_prefix, go_dir=go_dir, bindata_files="' '".join(bindata_files)))
+    ctx.run("gofmt -w -s {go_dir}".format(go_dir=go_dir))
+
 
 def build_ebpf_builder(ctx):
-    """build_ebpf_builder builds the docker image for the ebpf builder
+    """
+    build_ebpf_builder builds the docker image for the ebpf builder
     """
 
     cmd = "docker build -t {image} -f {file} ."

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package check
 
@@ -10,6 +10,12 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
+)
+
+const (
+	runCheckFailureTag = "fail"
+	runCheckSuccessTag = "ok"
 )
 
 var (
@@ -55,13 +61,22 @@ type Stats struct {
 
 // NewStats returns a new check stats instance
 func NewStats(c Check) *Stats {
-	return &Stats{
+	stats := Stats{
 		CheckID:           c.ID(),
 		CheckName:         c.String(),
 		CheckVersion:      c.Version(),
 		CheckConfigSource: c.ConfigSource(),
-		telemetry:         telemetry.IsCheckEnabled(c.String()),
+		telemetry:         telemetry_utils.IsCheckEnabled(c.String()),
 	}
+
+	// We are interested in a check's run state values even when they are 0 so we
+	// initialize them here explicitly
+	if stats.telemetry && telemetry_utils.IsEnabled() {
+		tlmRuns.Initialize(stats.CheckName, runCheckFailureTag)
+		tlmRuns.Initialize(stats.CheckName, runCheckSuccessTag)
+	}
+
+	return &stats
 }
 
 // Add tracks a new execution time
@@ -89,12 +104,12 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats m
 	if err != nil {
 		cs.TotalErrors++
 		if cs.telemetry {
-			tlmRuns.Inc(cs.CheckName, "fail")
+			tlmRuns.Inc(cs.CheckName, runCheckFailureTag)
 		}
 		cs.LastError = err.Error()
 	} else {
 		if cs.telemetry {
-			tlmRuns.Inc(cs.CheckName, "ok")
+			tlmRuns.Inc(cs.CheckName, runCheckSuccessTag)
 		}
 		cs.LastError = ""
 		cs.LastSuccessDate = time.Now().Unix()

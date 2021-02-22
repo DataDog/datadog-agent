@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package api
 
@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
@@ -41,15 +42,23 @@ func httpDecodingError(err error, tags []string, w http.ResponseWriter) {
 	errtag := "decoding-error"
 	msg := err.Error()
 
-	if err == ErrLimitedReaderLimitReached {
+	switch err {
+	case ErrLimitedReaderLimitReached:
 		status = http.StatusRequestEntityTooLarge
-		errtag := "payload-too-large"
+		errtag = "payload-too-large"
+		msg = errtag
+	case io.EOF, io.ErrUnexpectedEOF:
+		errtag = "unexpected-eof"
+		msg = errtag
+	}
+	if err, ok := err.(net.Error); ok && err.Timeout() {
+		status = http.StatusRequestTimeout
+		errtag = "timeout"
 		msg = errtag
 	}
 
 	tags = append(tags, fmt.Sprintf("error:%s", errtag))
 	metrics.Count(receiverErrorKey, 1, tags, 1)
-
 	http.Error(w, msg, status)
 }
 

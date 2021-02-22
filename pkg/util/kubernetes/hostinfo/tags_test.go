@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubelet,kubeapiserver
 
@@ -28,6 +28,14 @@ func TestExtractTags(t *testing.T) {
 		"node-role.kubernetes.io/9090-090-9":   "bar",
 		"node-role.kubernetes.io/compute-node": "",
 		"node-role.kubernetes.io/foo":          "bar",
+	}
+
+	gkeLabelsWithRole := map[string]string{
+		"beta.kubernetes.io/arch":       "amd64",
+		"beta.kubernetes.io/os":         "linux",
+		"cloud.google.com/gke-nodepool": "default-pool",
+		"kubernetes.io/hostname":        "gke-dummy-18-default-pool-6888842e-hcv0",
+		"kubernetes.io/role":            "foo",
 	}
 
 	for _, tc := range []struct {
@@ -83,6 +91,19 @@ func TestExtractTags(t *testing.T) {
 				"kube_node_role:9090-090-9",
 				"kube_node_role:compute-node",
 				"kube_node_role:foo",
+			},
+		},
+		{
+			nodeLabels: gkeLabelsWithRole,
+			labelsToTags: map[string]string{
+				"*": "foo_%%label%%",
+			},
+			expectedTags: []string{
+				"foo_beta.kubernetes.io/arch:amd64",
+				"foo_beta.kubernetes.io/os:linux",
+				"foo_cloud.google.com/gke-nodepool:default-pool",
+				"foo_kubernetes.io/hostname:gke-dummy-18-default-pool-6888842e-hcv0",
+				"foo_kubernetes.io/role:foo",
 			},
 		},
 	} {

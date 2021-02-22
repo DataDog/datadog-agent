@@ -5,9 +5,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/pkg/errors"
 )
 
 // OOMKillProbe Factory
@@ -20,15 +22,18 @@ var OOMKillProbe = api.Factory{
 		}
 
 		log.Infof("Starting the OOM Kill probe")
-		okp, err := ebpf.NewOOMKillProbe(config.SysProbeConfigFromConfig(cfg))
-		return &oomKillModule{okp}, err
+		okp, err := probe.NewOOMKillProbe(ebpf.SysProbeConfigFromConfig(cfg))
+		if err != nil {
+			return nil, errors.Wrapf(err, "unable to start the OOM kill probe")
+		}
+		return &oomKillModule{okp}, nil
 	},
 }
 
 var _ api.Module = &oomKillModule{}
 
 type oomKillModule struct {
-	*ebpf.OOMKillProbe
+	*probe.OOMKillProbe
 }
 
 func (o *oomKillModule) Register(httpMux *http.ServeMux) error {

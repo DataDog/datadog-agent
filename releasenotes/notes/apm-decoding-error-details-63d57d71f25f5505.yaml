@@ -1,0 +1,13 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    APM: Decoding errors reported by the `datadog.trace-agent.receiver.error`
+    and `datadog.trace_agent.normalizer.traces_dropped` contain more detailed
+    reason tags in case of EOFs and timeouts.

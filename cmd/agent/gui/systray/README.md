@@ -2,7 +2,7 @@
 
 Source code of the systray GUI on macOS (System tray icon and menu).
 
-Written in Swift 3.
+Written in Swift 5.
 
 ## Development
 

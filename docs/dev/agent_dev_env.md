@@ -1,4 +1,4 @@
-# Setting up your development environment
+# Linux and MacOS Development Environments
 
 ## Python
 
@@ -36,7 +36,8 @@ Download the [gcc toolchain](http://win-builds.org/).
 
 [Invoke](http://www.pyinvoke.org/) is a task runner written in Python
 that is extensively used in this project to orchestrate builds and test
-runs.
+runs. Our invoke tasks are only compatible with Python 3, thus you will
+need to use Python 3 to run them.
 
 Though you may install invoke in a variety of way we suggest you use
 the provided [requirements](https://github.com/DataDog/datadog-agent/blob/master/requirements.txt)
@@ -182,3 +183,11 @@ inv install-shellcheck --destination <path>
 ```
 
 (by default, the shellcheck binary is installed in `/usr/local/bin`).
+
+# Setting up your Windows development environment
+
+## Code editor
+
+[Microsoft Visual Studio Code](https://code.visualstudio.com/download) is recommended as it's lightweight and versatile.
+
+Building on Windows would require multiple 3rd-party softwares to be installed. To avoid the complexity, it is recommended to make the code change in VS Code then do the build in Docker image. For complete information, see [Build the Agent packages](https://github.com/DataDog/datadog-agent/blob/master/docs/dev/agent_omnibus.md)

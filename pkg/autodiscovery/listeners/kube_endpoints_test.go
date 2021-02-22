@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build clusterchecks
 // +build kubeapiserver
@@ -73,7 +73,7 @@ func TestProcessEndpoints(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []ContainerPort{{123, "port123"}, {126, "port126"}}, ports)
 
-	tags, err := eps[0].GetTags()
+	tags, _, err := eps[0].GetTags()
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"kube_service:myservice", "kube_namespace:default", "kube_endpoint_ip:10.0.0.1", "foo:bar"}, tags)
 
@@ -92,7 +92,7 @@ func TestProcessEndpoints(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []ContainerPort{{123, "port123"}, {126, "port126"}}, ports)
 
-	tags, err = eps[1].GetTags()
+	tags, _, err = eps[1].GetTags()
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"kube_service:myservice", "kube_namespace:default", "kube_endpoint_ip:10.0.0.2", "foo:bar"}, tags)
 

@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package agent
 
 import (
 	"bytes"
 	"context"
+	"io/ioutil"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -33,12 +34,7 @@ import (
 
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
-	"github.com/tinylib/msgp/msgp"
 )
-
-func newMockSampler(wantSampled bool, wantRate float64) *Sampler {
-	return &Sampler{engine: testutil.NewMockEngine(wantSampled, wantRate)}
-}
 
 // Test to make sure that the joined effort of the quantizer and truncator, in that order, produce the
 // desired string
@@ -147,6 +143,52 @@ func TestProcess(t *testing.T) {
 		assert.EqualValues(2, want.SpansFiltered)
 	})
 
+	t.Run("BlacklistPayload", func(t *testing.T) {
+		// Regression test for DataDog/datadog-agent#6500
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		cfg.Ignore["resource"] = []string{"^INSERT.*"}
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewAgent(ctx, cfg)
+		defer cancel()
+
+		now := time.Now()
+		spanValid := &pb.Span{
+			TraceID:  1,
+			SpanID:   1,
+			Resource: "SELECT name FROM people WHERE age = 42 AND extra = 55",
+			Type:     "sql",
+			Start:    now.Add(-time.Second).UnixNano(),
+			Duration: (500 * time.Millisecond).Nanoseconds(),
+		}
+		spanInvalid := &pb.Span{
+			TraceID:  1,
+			SpanID:   1,
+			Resource: "INSERT INTO db VALUES (1, 2, 3)",
+			Type:     "sql",
+			Start:    now.Add(-time.Second).UnixNano(),
+			Duration: (500 * time.Millisecond).Nanoseconds(),
+		}
+
+		want := agnt.Receiver.Stats.GetTagStats(info.Tags{})
+		assert := assert.New(t)
+
+		agnt.Process(&api.Payload{
+			Traces: pb.Traces{{spanInvalid, spanInvalid}, {spanValid}},
+			Source: want,
+		}, stats.NewSublayerCalculator())
+		assert.EqualValues(1, want.TracesFiltered)
+		assert.EqualValues(2, want.SpansFiltered)
+		var span *pb.Span
+		select {
+		case ss := <-agnt.TraceWriter.In:
+			span = ss.Traces[0].Spans[0]
+		case <-time.After(2 * time.Second):
+			t.Fatal("timeout: Expected one valid trace, but none were received.")
+		}
+		assert.Equal("unnamed_operation", span.Name)
+	})
+
 	t.Run("ContainerTags", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
@@ -247,7 +289,7 @@ func TestProcess(t *testing.T) {
 		timeout := time.After(2 * time.Second)
 		var span *pb.Span
 		select {
-		case ss := <-agnt.Out:
+		case ss := <-agnt.TraceWriter.In:
 			span = ss.Traces[0].Spans[0]
 		case <-timeout:
 			t.Fatal("timed out")
@@ -263,7 +305,6 @@ func TestProcess(t *testing.T) {
 		agnt := NewAgent(ctx, cfg)
 		defer cancel()
 
-		payloadN := 2
 		trace := pb.Trace{{
 			TraceID:  1,
 			SpanID:   1,
@@ -273,10 +314,13 @@ func TestProcess(t *testing.T) {
 			Duration: (500 * time.Millisecond).Nanoseconds(),
 			Metrics:  map[string]float64{sampler.KeySamplingPriority: 2},
 		}}
-		var traces pb.Traces
-		for size := 0; size < writer.MaxPayloadSize*payloadN; size += trace.Msgsize() {
-			traces = append(traces, trace)
-		}
+		// we are sending 3 traces
+		traces := pb.Traces{trace, trace, trace}
+		// setting writer.MaxPayloadSize to the size of 1 trace (+1 byte)
+		defer func(oldSize int) { writer.MaxPayloadSize = oldSize }(writer.MaxPayloadSize)
+		writer.MaxPayloadSize = trace.Msgsize() + 1
+		// and expecting it to result in 3 payloads
+		expectedPayloads := 3
 		go agnt.Process(&api.Payload{
 			Traces: traces,
 			Source: agnt.Receiver.Stats.GetTagStats(info.Tags{}),
@@ -285,9 +329,9 @@ func TestProcess(t *testing.T) {
 		var gotCount int
 		timeout := time.After(3 * time.Second)
 		// expect multiple payloads
-		for i := 0; i < payloadN+2; i++ {
+		for i := 0; i < expectedPayloads; i++ {
 			select {
-			case ss := <-agnt.Out:
+			case ss := <-agnt.TraceWriter.In:
 				gotCount += int(ss.SpanCount)
 			case <-timeout:
 				t.Fatal("timed out")
@@ -295,6 +339,272 @@ func TestProcess(t *testing.T) {
 		}
 		// without missing a trace
 		assert.Equal(t, gotCount, len(traces))
+	})
+
+	t.Run("sublayer", func(t *testing.T) {
+		for _, tt := range []struct {
+			trace pb.Trace
+			f     func(t *testing.T, spans []*pb.Span)
+		}{
+			{
+				trace: pb.Trace{
+					{
+						TraceID: 1,
+						SpanID:  1,
+						Metrics: map[string]float64{sampler.KeySamplingPriority: 2},
+					},
+					{
+						TraceID:  1,
+						SpanID:   2,
+						ParentID: 1,
+						Metrics:  map[string]float64{sampler.KeySamplingPriority: 2},
+					},
+				},
+				f: func(t *testing.T, spans []*pb.Span) {
+					assert.Equal(t, float64(0), spans[0].Metrics["_sublayers.duration.by_service.sublayer_service:unnamed-service"])
+				},
+			},
+			{
+				trace: pb.Trace{
+					{
+						TraceID: 1,
+						SpanID:  1,
+						Metrics: map[string]float64{sampler.KeySamplingPriority: -1},
+					},
+					{
+						TraceID:  1,
+						SpanID:   2,
+						ParentID: 1,
+						Metrics:  map[string]float64{sampler.KeySamplingPriority: -1},
+					},
+				},
+				f: func(t *testing.T, spans []*pb.Span) {
+					assert.NotContains(t, spans[0].Metrics, "_sublayers.duration.by_service.sublayer_service:unnamed-service")
+				},
+			},
+		} {
+			t.Run("", func(t *testing.T) {
+				cfg := config.New()
+				cfg.Endpoints[0].APIKey = "test"
+				ctx, cancel := context.WithCancel(context.Background())
+				agnt := NewAgent(ctx, cfg)
+				cancel()
+
+				traces := pb.Traces{tt.trace}
+				traceutil.SetTopLevel(tt.trace[0], true)
+				agnt.Process(&api.Payload{
+					Traces: traces,
+					Source: agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+				}, stats.NewSublayerCalculator())
+				tt.f(t, tt.trace)
+			})
+		}
+	})
+}
+
+func TestFilteredByTags(t *testing.T) {
+	for _, tt := range []struct {
+		require []*config.Tag
+		reject  []*config.Tag
+		span    pb.Span
+		drop    bool
+	}{
+		{
+			require: []*config.Tag{{K: "key", V: "val"}},
+			span:    pb.Span{Meta: map[string]string{"key": "val"}},
+			drop:    false,
+		},
+		{
+			reject: []*config.Tag{{K: "key", V: "val"}},
+			span:   pb.Span{Meta: map[string]string{"key": "val4"}},
+			drop:   false,
+		},
+		{
+			reject: []*config.Tag{{K: "something", V: "else"}},
+			span:   pb.Span{Meta: map[string]string{"key": "val"}},
+			drop:   false,
+		},
+		{
+			require: []*config.Tag{{K: "something", V: "else"}},
+			reject:  []*config.Tag{{K: "bad-key", V: "bad-value"}},
+			span:    pb.Span{Meta: map[string]string{"something": "else", "bad-key": "other-value"}},
+			drop:    false,
+		},
+		{
+			require: []*config.Tag{{K: "key", V: "value"}, {K: "key-only"}},
+			reject:  []*config.Tag{{K: "bad-key", V: "bad-value"}},
+			span:    pb.Span{Meta: map[string]string{"key": "value", "key-only": "but-also-value", "bad-key": "not-bad-value"}},
+			drop:    false,
+		},
+		{
+			require: []*config.Tag{{K: "key", V: "val"}},
+			span:    pb.Span{Meta: map[string]string{"key": "val2"}},
+			drop:    true,
+		},
+		{
+			require: []*config.Tag{{K: "something", V: "else"}},
+			span:    pb.Span{Meta: map[string]string{"key": "val"}},
+			drop:    true,
+		},
+		{
+			require: []*config.Tag{{K: "valid"}, {K: "test"}},
+			reject:  []*config.Tag{{K: "test"}},
+			span:    pb.Span{Meta: map[string]string{"test": "random", "valid": "random"}},
+			drop:    true,
+		},
+		{
+			require: []*config.Tag{{K: "valid-key", V: "valid-value"}, {K: "test"}},
+			reject:  []*config.Tag{{K: "test"}},
+			span:    pb.Span{Meta: map[string]string{"test": "random", "valid-key": "wrong-value"}},
+			drop:    true,
+		},
+		{
+			reject: []*config.Tag{{K: "key", V: "val"}},
+			span:   pb.Span{Meta: map[string]string{"key": "val"}},
+			drop:   true,
+		},
+		{
+			require: []*config.Tag{{K: "something", V: "else"}, {K: "key-only"}},
+			reject:  []*config.Tag{{K: "bad-key", V: "bad-value"}, {K: "bad-key-only"}},
+			span:    pb.Span{Meta: map[string]string{"something": "else", "key-only": "but-also-value", "bad-key-only": "random"}},
+			drop:    true,
+		},
+	} {
+		t.Run("", func(t *testing.T) {
+			if filteredByTags(&tt.span, tt.require, tt.reject) != tt.drop {
+				t.Fatal()
+			}
+		})
+	}
+}
+
+func TestClientComputedTopLevel(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	ctx, cancel := context.WithCancel(context.Background())
+	agnt := NewAgent(ctx, cfg)
+	defer cancel()
+	traces := pb.Traces{{{
+		Service:  "something &&<@# that should be a metric!",
+		TraceID:  1,
+		SpanID:   1,
+		Resource: "SELECT name FROM people WHERE age = 42 AND extra = 55",
+		Type:     "sql",
+		Start:    time.Now().Add(-time.Second).UnixNano(),
+		Duration: (500 * time.Millisecond).Nanoseconds(),
+		Metrics:  map[string]float64{sampler.KeySamplingPriority: 2},
+	}}}
+
+	t.Run("onNotTop", func(t *testing.T) {
+		go agnt.Process(&api.Payload{
+			Traces:                 traces,
+			Source:                 agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			ClientComputedTopLevel: true,
+		}, stats.NewSublayerCalculator())
+		timeout := time.After(time.Second)
+		select {
+		case ss := <-agnt.TraceWriter.In:
+			_, ok := ss.Traces[0].Spans[0].Metrics["_top_level"]
+			assert.False(t, ok)
+			return
+		case <-timeout:
+			t.Fatal("timed out waiting for input")
+		}
+	})
+
+	t.Run("off", func(t *testing.T) {
+		go agnt.Process(&api.Payload{
+			Traces:                 traces,
+			Source:                 agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			ClientComputedTopLevel: false,
+		}, stats.NewSublayerCalculator())
+		timeout := time.After(time.Second)
+		select {
+		case ss := <-agnt.TraceWriter.In:
+			_, ok := ss.Traces[0].Spans[0].Metrics["_top_level"]
+			assert.True(t, ok)
+			return
+		case <-timeout:
+			t.Fatal("timed out waiting for input")
+		}
+	})
+
+	t.Run("onTop", func(t *testing.T) {
+		traces[0][0].Metrics["_dd.top_level"] = 1
+		go agnt.Process(&api.Payload{
+			Traces:                 traces,
+			Source:                 agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			ClientComputedTopLevel: true,
+		}, stats.NewSublayerCalculator())
+		timeout := time.After(time.Second)
+		select {
+		case ss := <-agnt.TraceWriter.In:
+			_, ok := ss.Traces[0].Spans[0].Metrics["_top_level"]
+			assert.True(t, ok)
+			_, ok = ss.Traces[0].Spans[0].Metrics["_dd.top_level"]
+			assert.True(t, ok)
+			return
+		case <-timeout:
+			t.Fatal("timed out waiting for input")
+		}
+	})
+}
+
+func TestClientComputedStats(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	ctx, cancel := context.WithCancel(context.Background())
+	agnt := NewAgent(ctx, cfg)
+	defer cancel()
+	traces := pb.Traces{{{
+		Service:  "something &&<@# that should be a metric!",
+		TraceID:  1,
+		SpanID:   1,
+		Resource: "SELECT name FROM people WHERE age = 42 AND extra = 55",
+		Type:     "sql",
+		Start:    time.Now().Add(-time.Second).UnixNano(),
+		Duration: (500 * time.Millisecond).Nanoseconds(),
+		Metrics:  map[string]float64{sampler.KeySamplingPriority: 2},
+	}}}
+
+	t.Run("on", func(t *testing.T) {
+		go agnt.Process(&api.Payload{
+			Traces:              traces,
+			Source:              agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			ClientComputedStats: true,
+		}, stats.NewSublayerCalculator())
+		timeout := time.After(time.Second)
+		for {
+			select {
+			case inputs := <-agnt.Concentrator.In:
+				for _, in := range inputs {
+					assert.True(t, in.SublayersOnly)
+				}
+				return
+			case <-timeout:
+				t.Fatal("timed out waiting for input")
+			}
+		}
+	})
+
+	t.Run("off", func(t *testing.T) {
+		go agnt.Process(&api.Payload{
+			Traces:              traces,
+			Source:              agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			ClientComputedStats: false,
+		}, stats.NewSublayerCalculator())
+		timeout := time.After(time.Second)
+		for {
+			select {
+			case inputs := <-agnt.Concentrator.In:
+				for _, in := range inputs {
+					assert.False(t, in.SublayersOnly)
+				}
+				return
+			case <-timeout:
+				t.Fatal("timed out waiting for input")
+			}
+		}
 	})
 }
 
@@ -304,38 +614,22 @@ func TestSampling(t *testing.T) {
 		// hasPriority will be true if the input trace should have sampling priority set
 		hasErrors, hasPriority bool
 
-		// scoreRate, scoreErrorRate, priorityRate are the rates used by the mock samplers
-		scoreRate, scoreErrorRate, priorityRate float64
+		// noPrioritySampled, errorsSampled, prioritySampled are the sample decisions of the mock samplers
+		noPrioritySampled, errorsSampled, prioritySampled bool
 
-		// scoreSampled, scoreErrorSampled, prioritySampled are the sample decisions of the mock samplers
-		scoreSampled, scoreErrorSampled, prioritySampled bool
-
-		// wantRate and wantSampled are the expected result
-		wantRate    float64
+		// wantSampled is the expected result
 		wantSampled bool
 	}{
-		"score-rate": {
-			scoreRate: 0.5,
-			wantRate:  0.5,
+		"nopriority-unsampled": {
+			noPrioritySampled: false,
+			wantSampled:       false,
 		},
-		"error-priority": {
-			hasErrors:      true,
-			hasPriority:    true,
-			scoreErrorRate: 0.8,
-			priorityRate:   0.2,
-			wantRate:       sampler.CombineRates(0.8, 0.2),
-		},
-		"score-unsampled": {
-			scoreSampled: false,
-			wantSampled:  false,
-		},
-		"score-sampled": {
-			scoreSampled: true,
-			wantSampled:  true,
+		"nopriority-sampled": {
+			noPrioritySampled: true,
+			wantSampled:       true,
 		},
 		"prio-unsampled": {
 			hasPriority:     true,
-			scoreSampled:    true,
 			prioritySampled: false,
 			wantSampled:     false,
 		},
@@ -344,63 +638,60 @@ func TestSampling(t *testing.T) {
 			prioritySampled: true,
 			wantSampled:     true,
 		},
-		"score-prio-sampled": {
+		"error-unsampled": {
+			hasErrors:     true,
+			errorsSampled: false,
+			wantSampled:   false,
+		},
+		"error-sampled": {
+			hasErrors:     true,
+			errorsSampled: true,
+			wantSampled:   true,
+		},
+		"error-sampled-prio-unsampled": {
+			hasErrors:       true,
 			hasPriority:     true,
-			scoreSampled:    true,
+			errorsSampled:   true,
+			prioritySampled: false,
+			wantSampled:     true,
+		},
+		"error-unsampled-prio-sampled": {
+			hasErrors:       true,
+			hasPriority:     true,
+			errorsSampled:   false,
 			prioritySampled: true,
 			wantSampled:     true,
 		},
-		"score-prio-unsampled": {
+		"error-prio-sampled": {
+			hasErrors:       true,
 			hasPriority:     true,
-			scoreSampled:    false,
+			errorsSampled:   true,
+			prioritySampled: true,
+			wantSampled:     true,
+		},
+		"error-prio-unsampled": {
+			hasErrors:       true,
+			hasPriority:     true,
+			errorsSampled:   false,
 			prioritySampled: false,
 			wantSampled:     false,
 		},
-		"error-unsampled": {
-			hasErrors:         true,
-			scoreErrorSampled: false,
-			wantSampled:       false,
-		},
-		"error-sampled": {
-			hasErrors:         true,
-			scoreErrorSampled: true,
-			wantSampled:       true,
-		},
-		"error-sampled-prio-unsampled": {
-			hasErrors:         true,
-			hasPriority:       true,
-			scoreErrorSampled: true,
-			prioritySampled:   false,
-			wantSampled:       true,
-		},
-		"error-unsampled-prio-sampled": {
-			hasErrors:         true,
-			hasPriority:       true,
-			scoreErrorSampled: false,
-			prioritySampled:   true,
-			wantSampled:       true,
-		},
-		"error-prio-sampled": {
-			hasErrors:         true,
-			hasPriority:       true,
-			scoreErrorSampled: true,
-			prioritySampled:   true,
-			wantSampled:       true,
-		},
-		"error-prio-unsampled": {
-			hasErrors:         true,
-			hasPriority:       true,
-			scoreErrorSampled: false,
-			prioritySampled:   false,
-			wantSampled:       false,
-		},
 	} {
 		t.Run(name, func(t *testing.T) {
+			cfg := &config.AgentConfig{}
+			sampledCfg := &config.AgentConfig{ExtraSampleRate: 1}
 			a := &Agent{
-				ScoreSampler:       newMockSampler(tt.scoreSampled, tt.scoreRate),
-				ErrorsScoreSampler: newMockSampler(tt.scoreErrorSampled, tt.scoreErrorRate),
-				PrioritySampler:    newMockSampler(tt.prioritySampled, tt.priorityRate),
+				NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
+				ErrorsSampler:     sampler.NewErrorsSampler(cfg),
+				PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
 			}
+			if tt.errorsSampled {
+				a.ErrorsSampler = sampler.NewErrorsSampler(sampledCfg)
+			}
+			if tt.noPrioritySampled {
+				a.NoPrioritySampler = sampler.NewNoPrioritySampler(sampledCfg)
+			}
+
 			root := &pb.Span{
 				Service:  "serv1",
 				Start:    time.Now().UnixNano(),
@@ -413,11 +704,14 @@ func TestSampling(t *testing.T) {
 			}
 			pt := ProcessedTrace{Trace: pb.Trace{root}, Root: root}
 			if tt.hasPriority {
-				sampler.SetSamplingPriority(pt.Root, 1)
+				if tt.prioritySampled {
+					sampler.SetSamplingPriority(pt.Root, 1)
+				} else {
+					sampler.SetSamplingPriority(pt.Root, 0)
+				}
 			}
 
-			sampled, rate := a.runSamplers(pt, tt.hasPriority)
-			assert.EqualValues(t, tt.wantRate, rate)
+			sampled := a.runSamplers(pt, tt.hasPriority)
 			assert.EqualValues(t, tt.wantSampled, sampled)
 		})
 	}
@@ -632,7 +926,7 @@ func BenchmarkThroughput(b *testing.B) {
 		b.SkipNow()
 	}
 
-	ddlog.SetupDatadogLogger(seelog.Disabled, "") // disable logging
+	ddlog.SetupLogger(seelog.Disabled, "") // disable logging
 
 	folder := filepath.Join(env, "benchmarks")
 	filepath.Walk(folder, func(path string, info os.FileInfo, err error) error {
@@ -662,7 +956,7 @@ func benchThroughput(file string) func(*testing.B) {
 		// start the agent without the trace and stats writers; we will be draining
 		// these channels ourselves in the benchmarks, plus we don't want the writers
 		// resource usage to show up in the results.
-		agnt.Out = make(chan *writer.SampledSpans)
+		agnt.TraceWriter.In = make(chan *writer.SampledSpans)
 		go agnt.Run()
 
 		// wait for receiver to start:
@@ -715,7 +1009,7 @@ func benchThroughput(file string) func(*testing.B) {
 		loop:
 			for {
 				select {
-				case <-agnt.Out:
+				case <-agnt.TraceWriter.In:
 					got++
 					if got == count {
 						// processed everything!
@@ -749,7 +1043,8 @@ func tracesFromFile(file string) (raw []byte, count int, err error) {
 	// prepare the traces in this file by adding sampling.priority=2
 	// everywhere to ensure consistent sampling assumptions and results.
 	var traces pb.Traces
-	if err := msgp.Decode(in, &traces); err != nil {
+	bts, err := ioutil.ReadAll(in)
+	if _, err = traces.UnmarshalMsg(bts); err != nil {
 		return nil, 0, err
 	}
 	for _, t := range traces {
@@ -763,9 +1058,9 @@ func tracesFromFile(file string) (raw []byte, count int, err error) {
 		}
 	}
 	// re-encode the modified payload
-	var data bytes.Buffer
-	if err := msgp.Encode(&data, traces); err != nil {
+	var data []byte
+	if data, err = traces.MarshalMsg(nil); err != nil {
 		return nil, 0, err
 	}
-	return data.Bytes(), count, nil
+	return data, count, nil
 }

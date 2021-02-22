@@ -1,7 +1,7 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
-# Copyright 2016-2020 Datadog, Inc.
+# Copyright 2016-present Datadog, Inc.
 
 require './lib/ostools.rb'
 require 'json'
@@ -10,6 +10,8 @@ name 'datadog-agent-integrations-py3'
 
 dependency 'datadog-agent'
 dependency 'pip3'
+
+dependency 'snowflake-connector-python-py3'
 
 if arm?
   # psycopg2 doesn't come with pre-built wheel on the arm architecture.
@@ -31,8 +33,10 @@ if linux?
   dependency 'unixodbc'
   dependency 'freetds'  # needed for SQL Server integration
   dependency 'nfsiostat'
-  # need kerberos for hdfs
+  # add libkrb5 for all integrations supporting kerberos auth with `requests-kerberos`
   dependency 'libkrb5'
+  # needed for glusterfs
+  dependency 'gstatus'
 
   unless suse? || arm?
     dependency 'aerospike-py3'
@@ -69,6 +73,7 @@ blacklist_packages = Array.new
 
 # We build these manually
 blacklist_packages.push(/^aerospike==/)
+blacklist_packages.push(/^snowflake-connector-python==/)
 
 if suse?
   blacklist_folders.push('aerospike')  # Temporarily blacklist Aerospike until builder supports new dependency
@@ -130,7 +135,7 @@ build do
     # install the core integrations.
     #
     command "#{pip} install wheel==0.34.1"
-    command "#{pip} install pip-tools==4.2.0"
+    command "#{pip} install pip-tools==5.4.0"
     uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools']
     nix_build_env = {
       "CFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
@@ -182,12 +187,18 @@ build do
     # Use pip-compile to create the final requirements file. Notice when we invoke `pip` through `python -m pip <...>`,
     # there's no need to refer to `pip`, the interpreter will pick the right script.
     if windows?
-      command "#{python} -m pip install --no-deps  #{windows_safe_path(project_dir)}\\datadog_checks_base"
-      command "#{python} -m pip install --no-deps  #{windows_safe_path(project_dir)}\\datadog_checks_downloader --install-option=\"--install-scripts=#{windows_safe_path(install_dir)}/bin\""
+      wheel_build_dir = "#{windows_safe_path(project_dir)}\\.wheels"
+      command "#{python} -m pip wheel . --wheel-dir=#{wheel_build_dir}", :cwd => "#{windows_safe_path(project_dir)}\\datadog_checks_base"
+      command "#{python} -m pip install datadog_checks_base --no-deps --no-index --find-links=#{wheel_build_dir}"
+      command "#{python} -m pip wheel . --wheel-dir=#{wheel_build_dir}", :cwd => "#{windows_safe_path(project_dir)}\\datadog_checks_downloader"
+      command "#{python} -m pip install datadog_checks_downloader --no-deps --no-index --find-links=#{wheel_build_dir}"
       command "#{python} -m piptools compile --generate-hashes --output-file #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{static_reqs_out_file}"
     else
-      command "#{pip} install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_base"
-      command "#{pip} install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_downloader"
+      wheel_build_dir = "#{project_dir}/.wheels"
+      command "#{pip} wheel . --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_base"
+      command "#{pip} install datadog_checks_base --no-deps --no-index --find-links=#{wheel_build_dir}"
+      command "#{pip} wheel . --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_downloader"
+      command "#{pip} install datadog_checks_downloader --no-deps --no-index --find-links=#{wheel_build_dir}"
       command "#{python} -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_requirements_file} #{static_reqs_out_file}", :env => nix_build_env
     end
 
@@ -276,26 +287,20 @@ build do
 
       File.file?("#{check_dir}/setup.py") || next
       if windows?
-        command "#{python} -m pip install --no-deps #{windows_safe_path(project_dir)}\\#{check}"
+        command "#{python} -m pip wheel . --wheel-dir=#{wheel_build_dir}", :cwd => "#{windows_safe_path(project_dir)}\\#{check}"
+        command "#{python} -m pip install datadog-#{check} --no-deps --no-index --find-links=#{wheel_build_dir}"
       else
-        command "#{pip} install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/#{check}"
+        command "#{pip} wheel . --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/#{check}"
+        command "#{pip} install datadog-#{check} --no-deps --no-index --find-links=#{wheel_build_dir}"
       end
     end
 
-    # Patch applies to only one file: set it explicitly as a target, no need for -p
+    # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
     if windows?
-      patch :source => "jpype_0_7.patch", :target => "#{python_3_embedded}/Lib/site-packages/jaydebeapi/__init__.py"
+      command "#{python} -m pip check"
     else
-      patch :source => "jpype_0_7.patch", :target => "#{install_dir}/embedded/lib/python3.8/site-packages/jaydebeapi/__init__.py"
+      command "#{pip} check"
     end
-
-  end
-
-  # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
-  if windows?
-    command "#{python} -m pip check"
-  else
-    command "#{pip} check"
   end
 
   # Ship `requirements-agent-release.txt` file containing the versions of every check shipped with the agent

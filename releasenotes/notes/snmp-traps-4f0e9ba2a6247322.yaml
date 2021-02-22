@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add support for receiving and processing SNMP traps, and forwarding them as logs to Datadog.

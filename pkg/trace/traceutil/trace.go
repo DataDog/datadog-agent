@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package traceutil
 
@@ -12,15 +12,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// GetEnv returns the meta value for the "env" key for
-// the first trace it finds or an empty string
+// GetEnv returns the first "env" tag found in trace t.
 func GetEnv(t pb.Trace) string {
-	// exit this on first success
 	for _, s := range t {
-		for k, v := range s.Meta {
-			if k == "env" {
-				return v
-			}
+		if v, ok := s.Meta["env"]; ok {
+			// exit this on first success
+			return v
 		}
 	}
 	return ""
@@ -98,17 +95,7 @@ func ChildrenMap(t pb.Trace) map[uint64][]*pb.Span {
 		if span.ParentID == 0 {
 			continue
 		}
-		_, ok := childrenMap[span.SpanID]
-		if !ok {
-			childrenMap[span.SpanID] = []*pb.Span{}
-		}
-		children, ok := childrenMap[span.ParentID]
-		if ok {
-			children = append(children, span)
-		} else {
-			children = []*pb.Span{span}
-		}
-		childrenMap[span.ParentID] = children
+		childrenMap[span.ParentID] = append(childrenMap[span.ParentID], span)
 	}
 
 	return childrenMap

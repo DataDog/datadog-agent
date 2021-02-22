@@ -2,7 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog
 // (https://www.datadoghq.com/).
-// Copyright 2019-2020 Datadog, Inc.
+// Copyright 2019-present Datadog, Inc.
 #ifndef DATADOG_AGENT_RTLOADER_H_INCLUDED
 #define DATADOG_AGENT_RTLOADER_H_INCLUDED
 
@@ -182,10 +182,18 @@ DATADOG_AGENT_RTLOADER_API int get_check_deprecated(rtloader_t *rtloader, rtload
     \param check A rtloader_pyobject_t * pointer to the check instance we wish to run.
     \return A C-string with the check summary.
     \sa rtloader_pyobject_t, rtloader_t
-
-    This function is deprecated in favor of `get_check()`.
 */
 DATADOG_AGENT_RTLOADER_API char *run_check(rtloader_t *, rtloader_pyobject_t *check);
+
+/*! \fn char *cancel_check(rtloader_t *, rtloader_pyobject_t *check)
+    \brief Cancels a check instance. This allow check to be notified when
+    they're unscheduled and can free any remaining resources.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param check A rtloader_pyobject_t * pointer to the check instance we wish to cancel.
+    \return A C-string with the check summary.
+    \sa rtloader_pyobject_t, rtloader_t
+*/
+DATADOG_AGENT_RTLOADER_API void cancel_check(rtloader_t *, rtloader_pyobject_t *check);
 
 /*! \fn char **get_checks_warnings(rtloader_t *, rtloader_pyobject_t *check)
     \brief Get all warnings, if any, for a check instance.
@@ -195,8 +203,6 @@ DATADOG_AGENT_RTLOADER_API char *run_check(rtloader_t *, rtloader_pyobject_t *ch
     \return An array of C-strings with found warnings for the instance, or NULL if none or
     an error occurred.
     \sa rtloader_pyobject_t, rtloader_t
-
-    This function is deprecated in favor of `get_check()`.
 */
 DATADOG_AGENT_RTLOADER_API char **get_checks_warnings(rtloader_t *, rtloader_pyobject_t *check);
 
@@ -322,6 +328,8 @@ DATADOG_AGENT_RTLOADER_API const char *get_error(const rtloader_t *);
     provide the go-routine dump. If you need both, just crash twice trying both options :)
 
     Currently only SEGFAULT is handled.
+
+    The returned error C-string must be freed by the caller.
 */
 DATADOG_AGENT_RTLOADER_API int handle_crashes(const int, char **error);
 #endif
@@ -580,6 +588,17 @@ DATADOG_AGENT_RTLOADER_API void set_read_persistent_cache_cb(rtloader_t *, cb_re
     The callback is expected to be provided by the rtloader caller - in go-context: CGO.
 */
 DATADOG_AGENT_RTLOADER_API void set_obfuscate_sql_cb(rtloader_t *, cb_obfuscate_sql_t);
+
+/*! \fn void set_obfuscate_sql_exec_plan_cb(rtloader_t *, cb_obfuscate_sql_exec_plan_t)
+    \brief Sets a callback to be used by rtloader to allow retrieving a value for a given
+    check instance.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param object A function pointer with cb_obfuscate_sql_exec_plan_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_obfuscate_sql_exec_plan_cb(rtloader_t *, cb_obfuscate_sql_exec_plan_t);
 
 #ifdef __cplusplus
 }

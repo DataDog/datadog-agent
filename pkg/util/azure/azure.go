@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package azure
 
@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 // declare these as vars not const to ease testing
@@ -64,6 +65,16 @@ func GetClusterName() (string, error) {
 	return splitAll[len(splitAll)-2], nil
 }
 
+// GetNTPHosts returns the NTP hosts for Azure if it is detected as the cloud provider, otherwise an empty array.
+// Demo: https://docs.microsoft.com/en-us/azure/virtual-machines/linux/time-sync
+func GetNTPHosts() []string {
+	if IsRunningOn() {
+		return []string{"time.windows.com"}
+	}
+
+	return nil
+}
+
 func getResponseWithMaxLength(endpoint string, maxLength int) (string, error) {
 	result, err := getResponse(endpoint)
 	if err != nil {
@@ -77,7 +88,8 @@ func getResponseWithMaxLength(endpoint string, maxLength int) (string, error) {
 
 func getResponse(url string) (string, error) {
 	client := http.Client{
-		Timeout: timeout,
+		Transport: httputils.CreateHTTPTransport(),
+		Timeout:   timeout,
 	}
 
 	req, err := http.NewRequest("GET", url, nil)

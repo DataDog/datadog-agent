@@ -1,12 +1,12 @@
 package network
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/dustin/go-humanize"
 )
@@ -39,6 +39,13 @@ const (
 
 // ConnectionFamily will be either v4 or v6
 type ConnectionFamily uint8
+
+func (c ConnectionFamily) String() string {
+	if c == AFINET {
+		return "v4"
+	}
+	return "v6"
+}
 
 // ConnectionDirection indicates if the connection is incoming to the host or outbound
 type ConnectionDirection uint8
@@ -88,6 +95,7 @@ type ConnectionsTelemetry struct {
 	ConnsBpfMapSize                    int64
 	MonotonicUDPSendsProcessed         int64
 	MonotonicUDPSendsMissed            int64
+	ConntrackSamplingPercent           int64
 }
 
 // ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned
@@ -137,6 +145,9 @@ type ConnectionStats struct {
 	DNSTimeouts            uint32
 	DNSSuccessLatencySum   uint64
 	DNSFailureLatencySum   uint64
+	DNSCountByRcode        map[uint32]uint32
+	DNSStatsByDomain       map[string]DNSStats
+	HTTPStatsByPath        map[string]http.RequestStats
 }
 
 // IPTranslation can be associated with a connection to show the connection is NAT'd
@@ -148,42 +159,30 @@ type IPTranslation struct {
 }
 
 func (c ConnectionStats) String() string {
-	return ConnectionSummary(c, nil)
+	return ConnectionSummary(&c, nil)
 }
 
 // ByteKey returns a unique key for this connection represented as a byte array
 // It's as following:
 //
+//     4B      2B      2B     .5B     .5B      4/16B        4/16B   = 17/41B
 //    32b     16b     16b      4b      4b     32/128b      32/128b
 // |  PID  | SPORT | DPORT | Family | Type |  SrcAddr  |  DestAddr
-func (c ConnectionStats) ByteKey(buffer *bytes.Buffer) ([]byte, error) {
-	buffer.Reset()
+func (c ConnectionStats) ByteKey(buf []byte) ([]byte, error) {
+	n := 0
 	// Byte-packing to improve creation speed
 	// PID (32 bits) + SPort (16 bits) + DPort (16 bits) = 64 bits
 	p0 := uint64(c.Pid)<<32 | uint64(c.SPort)<<16 | uint64(c.DPort)
-
-	var buf [8]byte
-	binary.LittleEndian.PutUint64(buf[:], p0)
-
-	if _, err := buffer.Write(buf[:]); err != nil {
-		return nil, err
-	}
+	binary.LittleEndian.PutUint64(buf[0:], p0)
+	n += 8
 
 	// Family (4 bits) + Type (4 bits) = 8 bits
-	p1 := uint8(c.Family)<<4 | uint8(c.Type)
-	if err := buffer.WriteByte(p1); err != nil {
-		return nil, err
-	}
+	buf[n] = uint8(c.Family)<<4 | uint8(c.Type)
+	n++
 
-	if _, err := buffer.Write(c.Source.Bytes()); err != nil {
-		return nil, err
-	}
-
-	if _, err := buffer.Write(c.Dest.Bytes()); err != nil {
-		return nil, err
-	}
-
-	return buffer.Bytes(), nil
+	n += c.Source.WriteTo(buf[n:]) // 4 or 16 bytes
+	n += c.Dest.WriteTo(buf[n:])   // 4 or 16 bytes
+	return buf[:n], nil
 }
 
 const keyFmt = "p:%d|src:%s:%d|dst:%s:%d|f:%d|t:%d"
@@ -224,7 +223,7 @@ func BeautifyKey(key string) string {
 }
 
 // ConnectionSummary returns a string summarizing a connection
-func ConnectionSummary(c ConnectionStats, names map[util.Address][]string) string {
+func ConnectionSummary(c *ConnectionStats, names map[util.Address][]string) string {
 	str := fmt.Sprintf(
 		"[%s] [PID: %d] [%v:%d ⇄ %v:%d] (%s) %s sent (+%s), %s received (+%s)",
 		c.Type,
@@ -256,4 +255,21 @@ func printAddress(address util.Address, names []string) string {
 	}
 
 	return strings.Join(names, ",")
+}
+
+// DNSKey is an identifier for a set of DNS connections
+type DNSKey struct {
+	serverIP   util.Address
+	clientIP   util.Address
+	clientPort uint16
+	// ConnectionType will be either TCP or UDP
+	protocol ConnectionType
+}
+
+// DNSStats holds statistics corresponding to a particular domain
+type DNSStats struct {
+	DNSTimeouts          uint32
+	DNSSuccessLatencySum uint64
+	DNSFailureLatencySum uint64
+	DNSCountByRcode      map[uint32]uint32
 }

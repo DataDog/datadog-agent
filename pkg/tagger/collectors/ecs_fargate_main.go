@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017-2020 Datadog, Inc.
+// Copyright 2017-present Datadog, Inc.
 
 // +build docker
 
@@ -9,7 +9,6 @@ package collectors
 
 import (
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/errors"
@@ -34,8 +33,6 @@ type ECSFargateCollector struct {
 	lastExpire   time.Time
 	expireFreq   time.Duration
 	labelsAsTags map[string]string
-	// Used to initialize the orchestrator scope tags which don't need to be refetched after
-	doOnceOrchScope sync.Once
 }
 
 // Detect tries to connect to the ECS metadata API

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build clusterchecks
 
@@ -284,18 +284,17 @@ func (bc *BBSCache) extractNodeTags(nodeActualLRPs []*ActualLRP, desiredLRPsByPr
 			continue
 		}
 		vcApp := dlrp.EnvVcapApplication
-		appName, ok := vcApp[ApplicationNameKey]
+		_, ok = vcApp[ApplicationNameKey]
 		if !ok {
 			log.Debugf("Could not find application_name of app %s", dlrp.AppGUID)
 			continue
 		}
 		tags[alrp.InstanceGUID] = []string{
-			fmt.Sprintf("%s:%s_%d", ContainerNameTagKey, appName, alrp.Index),
-			fmt.Sprintf("%s:%s", AppNameTagKey, appName),
-			fmt.Sprintf("%s:%s", AppGUIDTagKey, dlrp.AppGUID),
+			fmt.Sprintf("%s:%s_%d", ContainerNameTagKey, dlrp.AppName, alrp.Index),
 			fmt.Sprintf("%s:%d", AppInstanceIndexTagKey, alrp.Index),
 			fmt.Sprintf("%s:%s", AppInstanceGUIDTagKey, alrp.InstanceGUID),
 		}
+		tags[alrp.InstanceGUID] = append(tags[alrp.InstanceGUID], dlrp.GetTagsFromDLRP()...)
 	}
 	return tags
 }

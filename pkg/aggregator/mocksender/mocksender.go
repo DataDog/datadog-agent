@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package mocksender
 
@@ -46,6 +46,13 @@ func (m *MockSender) SetupAcceptAll() {
 			mock.AnythingOfType("[]string"), // Tags
 		).Return()
 	}
+	m.On("MonotonicCountWithFlushFirstValue",
+		mock.AnythingOfType("string"),   // Metric
+		mock.AnythingOfType("float64"),  // Value
+		mock.AnythingOfType("string"),   // Hostname
+		mock.AnythingOfType("[]string"), // Tags
+		mock.AnythingOfType("bool"),     // FlushFirstValue
+	).Return()
 	m.On("ServiceCheck",
 		mock.AnythingOfType("string"),                     // checkName (e.g: docker.exit)
 		mock.AnythingOfType("metrics.ServiceCheckStatus"), // (e.g: metrics.ServiceCheckOK)

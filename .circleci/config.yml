@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: datadog/datadog-agent-runner-circle:go11311
+      - image: datadog/datadog-agent-runner-circle:go11412
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -89,8 +89,6 @@ jobs:
           paths:
             - /go/src/github.com/DataDog/datadog-agent/vendor
             - /go/src/github.com/DataDog/datadog-agent/dev
-            - /go/pkg
-            - /go/bin
             - /usr/local/lib/python3.6/dist-packages
             - /usr/local/bin
 
@@ -229,12 +227,23 @@ jobs:
 
   macos_tests:
     macos:
-      xcode: 10.1.0
+      xcode: 11.7.0
     environment:
-      BUILDIMAGES_VERSION: "a8226a8e78774afad285e7372fe8c6c179340dd9" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
+      BUILDIMAGES_VERSION: "aa0a9b99830e937e32986359794361aeb95940f5" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
     working_directory: ~/go/src/github.com/DataDog/datadog-agent
     steps:
       - checkout
+      - run:
+          name: Remove existing packages
+          command: |
+            brew remove --force $(brew list --formula)
+      - restore_cache:
+          keys:
+            # If incremental dep fails, increase the cache version number
+            # See https://github.com/DataDog/datadog-agent/pull/2384
+            - v2-macosdeps-{{ .Branch }}-{{ .Revision }}
+            - v2-macosdeps-{{ .Branch }}-
+            - v2-macosdeps-master-
       - run:
           name: Setup runner
           command: |
@@ -242,8 +251,16 @@ jobs:
       - run:
           name: Install python deps & clang-format
           command: |
-            brew install clang-format
+            brew install clang-format || brew link --overwrite clang-format
             python3 -m pip install -r requirements.txt
+      - save_cache:
+          key: v2-macosdeps-{{ .Branch }}-{{ .Revision }}
+          paths:
+            - /usr/local/bin
+            - /usr/local/Cellar
+            - /usr/local/lib
+            - /usr/local/Frameworks
+            - /usr/local/opt/openssl@1.1
       - run:
           name: Compile rtloader
           command: |
@@ -271,40 +288,12 @@ jobs:
             inv -e deps
             inv -e test --python-runtimes 3 --coverage --race --profile --fail-on-fmt --cpus 3
 
-  macos_build:
-    macos:
-      xcode: 10.1.0
-    environment:
-      BUILDIMAGES_VERSION: "f43e0e081e9a54fea3241ef0efde28374981f7a0" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
-      RELEASE_VERSION: "nightly-a7"
-      AGENT_MAJOR_VERSION: "7"
-      PYTHON_RUNTIMES: "3"
-    working_directory: ~/go/src/github.com/DataDog/datadog-agent
-    steps:
-      - checkout
-      - run:
-          name: Setup builder
-          command: |
-            bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/$BUILDIMAGES_VERSION/macos/builder_setup.sh)"
-      - run:
-          name: Run omnibus build
-          no_output_timeout: 30m
-          command: |
-            export VERSION=$CIRCLE_SHA1
-            bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/$BUILDIMAGES_VERSION/macos/build_script.sh)"
-      - run: mkdir -p ~/artifacts && cp omnibus/pkg/*.dmg ~/artifacts
-      - store_artifacts:
-          path: ~/artifacts
-
 workflows:
   version: 2
   test_and_build:
     jobs:
       - checkout_code
       - macos_tests
-      - macos_build:
-          requires:
-            - macos_tests
       - dependencies:
           requires:
             - checkout_code
@@ -315,12 +304,21 @@ workflows:
           requires:
             - dependencies
       - release_note:
+          filters:
+            branches:
+              ignore: master
           requires:
             - dependencies
       - team_label:
+          filters:
+            branches:
+              ignore: master
           requires:
             - dependencies
       - milestone:
+          filters:
+            branches:
+              ignore: master
           requires:
             - dependencies
       - filename_linting:

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package app
 
@@ -11,8 +11,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"os"
-	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -55,7 +53,7 @@ var statusCmd = &cobra.Command{
 			return fmt.Errorf("unable to set up global agent configuration: %v", err)
 		}
 
-		err = config.SetupLogger(loggerName, config.GetEnv("DD_LOG_LEVEL", "off"), "", "", false, true, false)
+		err = config.SetupLogger(loggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
 		if err != nil {
 			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
 			return err
@@ -138,13 +136,6 @@ func requestStatus() error {
 // key with an explanation.
 func getAPMStatus() map[string]interface{} {
 	port := 8126
-	// TODO(gbbr): This should be handled by the shared config package once
-	// we migrate APM env. vars there.
-	if p, ok := os.LookupEnv("DD_APM_RECEIVER_PORT"); ok {
-		if v, err := strconv.Atoi(p); err == nil {
-			port = v
-		}
-	}
 	if config.Datadog.IsSet("apm_config.receiver_port") {
 		port = config.Datadog.GetInt("apm_config.receiver_port")
 	}

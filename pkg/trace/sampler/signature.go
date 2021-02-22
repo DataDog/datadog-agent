@@ -1,12 +1,11 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package sampler
 
 import (
-	"hash/fnv"
 	"sort"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -37,7 +36,6 @@ func computeSignatureWithRootAndEnv(trace pb.Trace, root *pb.Span, env string) S
 	for i := range trace {
 		spanHashes = append(spanHashes, computeSpanHash(trace[i], env, false))
 	}
-
 	// Now sort, dedupe then merge all the hashes to build the signature
 	sortHashes(spanHashes)
 
@@ -61,9 +59,9 @@ type ServiceSignature struct{ Name, Env string }
 // priority, and used as a key to store the desired rate for a given
 // service,env tuple.
 func (s ServiceSignature) Hash() Signature {
-	h := fnv.New32a()
+	h := new32a()
 	h.Write([]byte(s.Name))
-	h.Write([]byte{','})
+	h.WriteChar(',')
 	h.Write([]byte(s.Env))
 	return Signature(h.Sum32())
 }
@@ -73,11 +71,11 @@ func (s ServiceSignature) String() string {
 }
 
 func computeSpanHash(span *pb.Span, env string, withResource bool) spanHash {
-	h := fnv.New32a()
+	h := new32a()
 	h.Write([]byte(env))
 	h.Write([]byte(span.Service))
 	h.Write([]byte(span.Name))
-	h.Write([]byte{byte(span.Error)})
+	h.WriteChar(byte(span.Error))
 	if withResource {
 		h.Write([]byte(span.Resource))
 	}
@@ -91,3 +89,34 @@ func computeSpanHash(span *pb.Span, env string, withResource bool) spanHash {
 	}
 	return spanHash(h.Sum32())
 }
+
+// sum32a is an adaptation of https://golang.org/pkg/hash/fnv/#New32a, but simplified
+// for our use case to remove interfaces which caused unnecessary allocations.
+type sum32a uint32
+
+const (
+	offset32 = 2166136261
+	prime32  = 16777619
+)
+
+func new32a() sum32a {
+	return offset32
+}
+
+func (s *sum32a) Write(data []byte) {
+	hash := *s
+	for _, c := range data {
+		hash ^= sum32a(c)
+		hash *= prime32
+	}
+	*s = hash
+}
+
+func (s *sum32a) WriteChar(c byte) {
+	hash := *s
+	hash ^= sum32a(c)
+	hash *= prime32
+	*s = hash
+}
+
+func (s *sum32a) Sum32() uint32 { return uint32(*s) }

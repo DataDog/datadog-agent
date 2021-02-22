@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build jmx
 
@@ -24,7 +24,7 @@ import (
 // reports with the ConsoleReporter to the agent's `log.Info`.
 // The common utils, including AutoConfig, must have already been initialized.
 func ExecJMXCommandConsole(command string, selectedChecks []string, logLevel string) error {
-	return execJmxCommand(command, selectedChecks, jmxfetch.ReporterConsole, log.Info, logLevel)
+	return execJmxCommand(command, selectedChecks, jmxfetch.ReporterConsole, log.JMXInfo, logLevel)
 }
 
 // ExecJmxListWithMetricsJSON runs the JMX command with "with-metrics", reporting

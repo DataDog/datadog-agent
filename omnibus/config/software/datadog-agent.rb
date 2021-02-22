@@ -1,7 +1,7 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
-# Copyright 2016-2020 Datadog, Inc.
+# Copyright 2016-present Datadog, Inc.
 
 require './lib/ostools.rb'
 require 'pathname'
@@ -48,13 +48,6 @@ build do
   # include embedded path (mostly for `pkg-config` binary)
   env = with_embedded_path(env)
 
-  # cgosymbolizer must be patched on SLES11 builders - PR upstream pending merge
-  if suse?
-    patch :source => "0001-sles-sys-types.h-must-be-included-here-to-build.patch", :plevel => 1,
-          :acceptable_output => "Reversed (or previously applied) patch detected",
-          :target => "#{gopath.to_path}/src/github.com/DataDog/datadog-agent/vendor/github.com/ianlancetaylor/cgosymbolizer/symbolizer.c"
-  end
-
   # we assume the go deps are already installed before running omnibus
   if windows?
     platform = windows_arch_i386? ? "x86" : "x64"
@@ -78,9 +71,6 @@ build do
     conf_dir = "#{install_dir}/etc/datadog-agent"
   end
   mkdir conf_dir
-  if linux?
-    mkdir "#{conf_dir}/runtime-security.d"
-  end
   mkdir "#{install_dir}/bin"
   unless windows?
     mkdir "#{install_dir}/run/"
@@ -90,7 +80,11 @@ build do
   ## build the custom action library required for the install
   if windows?
     platform = windows_arch_i386? ? "x86" : "x64"
-    command "invoke customaction.build --major-version #{major_version_arg} --arch=" + platform
+    debug_customaction = ""
+    if ENV['DEBUG_CUSTOMACTION'] and not ENV['DEBUG_CUSTOMACTION'].empty?
+      debug_customaction = "--debug"
+    end
+    command "invoke customaction.build --major-version #{major_version_arg} #{debug_customaction} --arch=" + platform
     unless windows_arch_i386?
       command "invoke installcmd.build --major-version #{major_version_arg} --arch=" + platform
       command "invoke uninstallcmd.build --major-version #{major_version_arg} --arch=" + platform
@@ -99,7 +93,9 @@ build do
 
   # move around bin and config files
   move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"
-  move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
+  if linux? or (windows? and not windows_arch_i386? and ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?)
+      move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
+  end
   move 'bin/agent/dist/conf.d', "#{conf_dir}/"
   copy 'bin/agent', "#{install_dir}/bin/"
 
@@ -151,7 +147,6 @@ build do
   else
     command "invoke -e security-agent.build --major-version #{major_version_arg}", :env => env
     copy 'bin/security-agent/security-agent', "#{install_dir}/embedded/bin"
-    copy 'bin/security-agent/dist/runtime-security.d/default.policy', "#{conf_dir}/runtime-security.d"
   end
 
   if linux?
@@ -269,7 +264,8 @@ build do
     mkdir "#{app_temp_dir}/MacOS"
     systray_build_dir = "#{project_dir}/cmd/agent/gui/systray"
     # Target OSX 10.10 (it brings significant changes to Cocoa and Foundation APIs, and older versions of OSX are EOL'ed)
-    command 'swiftc -O -swift-version "3" -target "x86_64-apple-macosx10.10" -static-stdlib Sources/*.swift -o gui', cwd: systray_build_dir
+    # Add @executable_path/../Frameworks to rpath to find the swift libs in the Frameworks folder.
+    command 'swiftc -O -swift-version "5" -target "x86_64-apple-macosx10.10" -Xlinker \'-rpath\' -Xlinker \'@executable_path/../Frameworks\' Sources/*.swift -o gui', cwd: systray_build_dir
     copy "#{systray_build_dir}/gui", "#{app_temp_dir}/MacOS/"
     copy "#{systray_build_dir}/agent.png", "#{app_temp_dir}/MacOS/"
   end

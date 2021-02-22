@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build clusterchecks
 // +build kubeapiserver
@@ -105,6 +105,7 @@ func TestParseKubeServiceAnnotationsForEndpoints(t *testing.T) {
 func TestGenerateConfigs(t *testing.T) {
 	for _, tc := range []struct {
 		name        string
+		resolveMode endpointResolveMode
 		endpoints   *v1.Endpoints
 		template    integration.Config
 		expectedOut []integration.Config
@@ -116,7 +117,8 @@ func TestGenerateConfigs(t *testing.T) {
 			expectedOut: []integration.Config{{}},
 		},
 		{
-			name: "Endpoints without podRef",
+			name:        "Endpoints without podRef",
+			resolveMode: "auto",
 			endpoints: &v1.Endpoints{
 				ObjectMeta: metav1.ObjectMeta{
 					ResourceVersion: "123",
@@ -164,7 +166,8 @@ func TestGenerateConfigs(t *testing.T) {
 			},
 		},
 		{
-			name: "Endpoints with podRef",
+			name:        "Endpoints with podRef",
+			resolveMode: "unknown",
 			endpoints: &v1.Endpoints{
 				ObjectMeta: metav1.ObjectMeta{
 					ResourceVersion: "123",
@@ -219,9 +222,66 @@ func TestGenerateConfigs(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:        "Endpoints with podRef but with resolve=ip",
+			resolveMode: "ip",
+			endpoints: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "123",
+					UID:             types.UID("endpoints-uid"),
+					Name:            "myservice",
+					Namespace:       "default",
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.1", Hostname: "testhost1", NodeName: &nodename1, TargetRef: &v1.ObjectReference{
+								UID:  types.UID("pod-uid-1"),
+								Kind: "Pod",
+							}},
+							{IP: "10.0.0.2", Hostname: "testhost2", NodeName: &nodename2, TargetRef: &v1.ObjectReference{
+								UID:  types.UID("pod-uid-2"),
+								Kind: "Pod",
+							}},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "port123", Port: 123},
+							{Name: "port126", Port: 126},
+						},
+					},
+				},
+			},
+			template: integration.Config{
+				Name:          "http_check",
+				ADIdentifiers: []string{"kube_endpoint_uid://default/myservice/"},
+				InitConfig:    integration.Data("{}"),
+				Instances:     []integration.Data{integration.Data("{\"name\":\"My endpoint\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+				ClusterCheck:  false,
+			},
+			expectedOut: []integration.Config{
+				{
+					Entity:        "kube_endpoint_uid://default/myservice/10.0.0.1",
+					Name:          "http_check",
+					ADIdentifiers: []string{"kube_endpoint_uid://default/myservice/10.0.0.1"},
+					InitConfig:    integration.Data("{}"),
+					Instances:     []integration.Data{integration.Data("{\"name\":\"My endpoint\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+					ClusterCheck:  true,
+					NodeName:      "",
+				},
+				{
+					Entity:        "kube_endpoint_uid://default/myservice/10.0.0.2",
+					Name:          "http_check",
+					ADIdentifiers: []string{"kube_endpoint_uid://default/myservice/10.0.0.2"},
+					InitConfig:    integration.Data("{}"),
+					Instances:     []integration.Data{integration.Data("{\"name\":\"My endpoint\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+					ClusterCheck:  true,
+					NodeName:      "",
+				},
+			},
+		},
 	} {
 		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
-			cfgs := generateConfigs(tc.template, tc.endpoints)
+			cfgs := generateConfigs(tc.template, tc.resolveMode, tc.endpoints)
 			assert.EqualValues(t, tc.expectedOut, cfgs)
 		})
 	}

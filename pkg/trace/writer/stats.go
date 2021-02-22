@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package writer
 
@@ -116,19 +116,24 @@ func (w *StatsWriter) addStats(s []stats.Bucket) {
 	log.Debugf("Flushing %d entries (buckets=%d payloads=%v)", entryCount, bucketCount, len(payloads))
 
 	for _, p := range payloads {
-		req := newPayload(map[string]string{
-			headerLanguages:    strings.Join(info.Languages(), "|"),
-			"Content-Type":     "application/json",
-			"Content-Encoding": "gzip",
-		})
-		if err := stats.EncodePayload(req.body, p); err != nil {
-			log.Errorf("Stats encoding error: %v", err)
-			return
-		}
-		atomic.AddInt64(&w.stats.Bytes, int64(req.body.Len()))
-
-		sendPayloads(w.senders, req)
+		w.SendPayload(p)
 	}
+}
+
+// SendPayload sends a stats payload to the Datadog backend.
+func (w *StatsWriter) SendPayload(p *stats.Payload) {
+	req := newPayload(map[string]string{
+		headerLanguages:    strings.Join(info.Languages(), "|"),
+		"Content-Type":     "application/json",
+		"Content-Encoding": "gzip",
+	})
+	if err := stats.EncodePayload(req.body, p); err != nil {
+		log.Errorf("Stats encoding error: %v", err)
+		return
+	}
+	atomic.AddInt64(&w.stats.Bytes, int64(req.body.Len()))
+
+	sendPayloads(w.senders, req)
 }
 
 // buildPayloads returns a set of payload to send out, each paylods guaranteed

@@ -1,15 +1,16 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
-// +build linux_bpf
+// +build linux
 
 package probe
 
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -17,14 +18,13 @@ func TestMountResolver(t *testing.T) {
 	// Prepare test cases
 	type testCase struct {
 		mountID               uint32
-		numlower              int32
 		expectedMountPath     string
 		expectedContainerPath string
 		expectedError         error
 	}
 	type event struct {
-		mount  *MountEvent
-		umount *UmountEvent
+		mount  *model.MountEvent
+		umount *model.UmountEvent
 	}
 	type args struct {
 		events []event
@@ -39,38 +39,30 @@ func TestMountResolver(t *testing.T) {
 			args{
 				[]event{
 					{
-						mount: &MountEvent{
-							127,
-							71,
-							52,
-							27,
-							0,
-							"overlay",
-							"/var/lib/docker/overlay2/f44b5a1fe134f57a31da79fa2e76ea09f8659a34edfa0fa2c3b4f52adbd91963/merged",
-							0,
-							0,
-							"",
-							[16]byte{},
+						mount: &model.MountEvent{
+							SyscallEvent:  model.SyscallEvent{},
+							MountID:       127,
+							GroupID:       71,
+							Device:        52,
+							ParentMountID: 27,
+							ParentInode:   0,
+							FSType:        "overlay",
+							MountPointStr: "/var/lib/docker/overlay2/f44b5a1fe134f57a31da79fa2e76ea09f8659a34edfa0fa2c3b4f52adbd91963/merged",
+							RootMountID:   0,
+							RootInode:     0,
+							RootStr:       "",
+							FSTypeRaw:     [16]byte{},
 						},
 					},
 				},
 				[]testCase{
 					{
 						127,
-						0,
-						"",
 						"/var/lib/docker/overlay2/f44b5a1fe134f57a31da79fa2e76ea09f8659a34edfa0fa2c3b4f52adbd91963/merged",
+						"",
 						nil,
 					},
 					{
-						127,
-						1,
-						"",
-						"/var/lib/docker/overlay2/f44b5a1fe134f57a31da79fa2e76ea09f8659a34edfa0fa2c3b4f52adbd91963/merged",
-						nil,
-					},
-					{
-						0,
 						0,
 						"",
 						"",
@@ -78,7 +70,6 @@ func TestMountResolver(t *testing.T) {
 					},
 					{
 						27,
-						0,
 						"",
 						"",
 						ErrMountNotFound,
@@ -91,15 +82,15 @@ func TestMountResolver(t *testing.T) {
 			args{
 				[]event{
 					{
-						umount: &UmountEvent{
-							127,
+						umount: &model.UmountEvent{
+							SyscallEvent: model.SyscallEvent{},
+							MountID:      127,
 						},
 					},
 				},
 				[]testCase{
 					{
 						127,
-						0,
 						"",
 						"",
 						ErrMountNotFound,
@@ -112,69 +103,69 @@ func TestMountResolver(t *testing.T) {
 			args{
 				[]event{
 					{
-						mount: &MountEvent{
-							27,
-							0,
-							1,
-							1,
-							0,
-							"ext4",
-							"/",
-							0,
-							0,
-							"",
-							[16]byte{},
+						mount: &model.MountEvent{
+							SyscallEvent:  model.SyscallEvent{},
+							MountID:       27,
+							GroupID:       0,
+							Device:        1,
+							ParentMountID: 1,
+							ParentInode:   0,
+							FSType:        "ext4",
+							MountPointStr: "/",
+							RootMountID:   0,
+							RootInode:     0,
+							RootStr:       "",
+							FSTypeRaw:     [16]byte{},
 						},
 					},
 					{
-						mount: &MountEvent{
-							22,
-							0,
-							21,
-							27,
-							0,
-							"sysfs",
-							"/sys",
-							0,
-							0,
-							"",
-							[16]byte{},
+						mount: &model.MountEvent{
+							SyscallEvent:  model.SyscallEvent{},
+							MountID:       22,
+							GroupID:       0,
+							Device:        21,
+							ParentMountID: 27,
+							ParentInode:   0,
+							FSType:        "sysfs",
+							MountPointStr: "/sys",
+							RootMountID:   0,
+							RootInode:     0,
+							RootStr:       "",
+							FSTypeRaw:     [16]byte{},
 						},
 					},
 					{
-						mount: &MountEvent{
-							31,
-							0,
-							26,
-							22,
-							0,
-							"tmpfs",
-							"/fs/cgroup",
-							0,
-							0,
-							"",
-							[16]byte{},
+						mount: &model.MountEvent{
+							SyscallEvent:  model.SyscallEvent{},
+							MountID:       31,
+							GroupID:       0,
+							Device:        26,
+							ParentMountID: 22,
+							ParentInode:   0,
+							FSType:        "tmpfs",
+							MountPointStr: "/sys/fs/cgroup",
+							RootMountID:   0,
+							RootInode:     0,
+							RootStr:       "",
+							FSTypeRaw:     [16]byte{},
 						},
 					},
 				},
 				[]testCase{
 					{
 						27,
-						0,
-						"",
+						"/",
 						"",
 						nil,
 					},
 					{
-						27,
-						1,
-						"",
+						22,
+						"/sys",
 						"",
 						nil,
 					},
 					{
 						31,
-						0,
 						"/sys/fs/cgroup",
 						"",
 						nil,
@@ -187,29 +178,27 @@ func TestMountResolver(t *testing.T) {
 			args{
 				[]event{
 					{
-						umount: &UmountEvent{
-							27,
+						umount: &model.UmountEvent{
+							SyscallEvent: model.SyscallEvent{},
+							MountID:      27,
 						},
 					},
 				},
 				[]testCase{
 					{
 						27,
-						0,
 						"",
 						"",
 						ErrMountNotFound,
 					},
 					{
 						22,
-						0,
 						"",
 						"",
 						ErrMountNotFound,
 					},
 					{
 						31,
-						0,
 						"",
 						"",
 						ErrMountNotFound,
@@ -222,70 +211,73 @@ func TestMountResolver(t *testing.T) {
 			args{
 				[]event{
 					{
-						mount: &MountEvent{
-							27,
-							0,
-							1,
-							1,
-							0,
-							"ext4",
-							"/",
-							0,
-							0,
-							"",
-							[16]byte{},
+						mount: &model.MountEvent{
+							SyscallEvent:  model.SyscallEvent{},
+							MountID:       27,
+							GroupID:       0,
+							Device:        1,
+							ParentMountID: 1,
+							ParentInode:   0,
+							FSType:        "ext4",
+							MountPointStr: "/",
+							RootMountID:   0,
+							RootInode:     0,
+							RootStr:       "",
+							FSTypeRaw:     [16]byte{},
 						},
 					},
 					{
-						mount: &MountEvent{
-							176,
-							71,
-							52,
-							27,
-							0,
-							"overlay",
-							"/var/lib/docker/overlay2/f44b5a1fe134f57a31da79fa2e76ea09f8659a34edfa0fa2c3b4f52adbd91963/merged",
-							0,
-							0,
-							"",
-							[16]byte{},
+						mount: &model.MountEvent{
+							SyscallEvent:  model.SyscallEvent{},
+							MountID:       176,
+							GroupID:       71,
+							Device:        52,
+							ParentMountID: 27,
+							ParentInode:   0,
+							FSType:        "overlay",
+							MountPointStr: "/var/lib/docker/overlay2/f44b5a1fe134f57a31da79fa2e76ea09f8659a34edfa0fa2c3b4f52adbd91963/merged",
+							RootMountID:   0,
+							RootInode:     0,
+							RootStr:       "",
+							FSTypeRaw:     [16]byte{},
 						},
 					},
 					{
-						mount: &MountEvent{
-							638,
-							0,
-							52,
-							635,
-							0,
-							"bind",
-							"/",
-							0,
-							0,
-							"",
-							[16]byte{},
+						mount: &model.MountEvent{
+							SyscallEvent:  model.SyscallEvent{},
+							MountID:       638,
+							GroupID:       71,
+							Device:        52,
+							ParentMountID: 635,
+							ParentInode:   0,
+							FSType:        "bind",
+							MountPointStr: "/",
+							RootMountID:   0,
+							RootInode:     0,
+							RootStr:       "",
+							FSTypeRaw:     [16]byte{},
 						},
 					},
 					{
-						mount: &MountEvent{
-							639,
-							0,
-							54,
-							638,
-							0,
-							"proc",
-							"proc",
-							0,
-							0,
-							"",
-							[16]byte{},
+						mount: &model.MountEvent{
+							SyscallEvent:  model.SyscallEvent{},
+							MountID:       639,
+							GroupID:       0,
+							Device:        54,
+							ParentMountID: 638,
+							ParentInode:   0,
+							FSType:        "proc",
+							MountPointStr: "proc",
+							RootMountID:   0,
+							RootInode:     0,
+							RootStr:       "",
+							FSTypeRaw:     [16]byte{},
 						},
 					},
 				},
 				[]testCase{
 					{
 						639,
-						1,
 						"proc",
 						"/var/lib/docker/overlay2/f44b5a1fe134f57a31da79fa2e76ea09f8659a34edfa0fa2c3b4f52adbd91963/merged",
 						nil,
@@ -298,29 +290,27 @@ func TestMountResolver(t *testing.T) {
 			args{
 				[]event{
 					{
-						umount: &UmountEvent{
-							176,
+						umount: &model.UmountEvent{
+							SyscallEvent: model.SyscallEvent{},
+							MountID:      176,
 						},
 					},
 				},
 				[]testCase{
 					{
 						176,
-						0,
 						"",
 						"",
 						ErrMountNotFound,
 					},
 					{
 						638,
-						0,
 						"",
 						"",
 						ErrMountNotFound,
 					},
 					{
 						639,
-						0,
 						"",
 						"",
 						ErrMountNotFound,
@@ -331,12 +321,12 @@ func TestMountResolver(t *testing.T) {
 	}
 
 	// Create mount resolver
-	mr := NewMountResolver()
+	mr := NewMountResolver(nil)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, evt := range tt.args.events {
 				if evt.mount != nil {
-					mr.Insert(evt.mount)
+					mr.insert(*evt.mount)
 				}
 				if evt.umount != nil {
 					if err := mr.Delete(evt.umount.MountID); err != nil {
@@ -345,7 +335,7 @@ func TestMountResolver(t *testing.T) {
 				}
 			}
 			for _, testC := range tt.args.cases {
-				cp, p, _, err := mr.GetMountPath(testC.mountID, testC.numlower)
+				cp, p, _, err := mr.GetMountPath(testC.mountID)
 				if err != nil {
 					if testC.expectedError != nil {
 						assert.Equal(t, testC.expectedError.Error(), err.Error())

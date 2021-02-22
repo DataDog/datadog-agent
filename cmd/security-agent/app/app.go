@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package app
 
@@ -9,7 +9,9 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path"
 	"syscall"
+	"time"
 
 	_ "expvar" // Blank import used because this isn't directly used in this file
 	"net/http"
@@ -18,8 +20,9 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	commonagent "github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -32,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	ddgostatsd "github.com/DataDog/datadog-go/statsd"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -46,6 +50,7 @@ var (
 		Short: "Datadog Security Agent at your service.",
 		Long: `
 Datadog Security Agent takes care of running compliance and security checks.`,
+		SilenceUsage: true, // don't print usage on errors
 	}
 
 	startCmd = &cobra.Command{
@@ -80,26 +85,32 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 		},
 	}
 
-	pidfilePath string
-	confPath    string
-	flagNoColor bool
-	stopCh      chan struct{}
+	pidfilePath   string
+	confPathArray []string
+	flagNoColor   bool
+	stopCh        chan struct{}
 )
 
 func init() {
-	SecurityAgentCmd.PersistentFlags().StringVarP(&confPath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
+	var defaultConfPathArray = []string{path.Join(commonagent.DefaultConfPath, "datadog.yaml"),
+		path.Join(commonagent.DefaultConfPath, "security-agent.yaml")}
+	SecurityAgentCmd.PersistentFlags().StringArrayVarP(&confPathArray, "cfgpath", "c", defaultConfPathArray, "path to a yaml configuration file")
 	SecurityAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
 
 	SecurityAgentCmd.AddCommand(versionCmd)
 	SecurityAgentCmd.AddCommand(complianceCmd)
 
+	if runtimeCmd != nil {
+		SecurityAgentCmd.AddCommand(runtimeCmd)
+	}
+
 	startCmd.Flags().StringVarP(&pidfilePath, "pidfile", "p", "", "path to the pidfile")
 	SecurityAgentCmd.AddCommand(startCmd)
 }
 
-func newLogContext() (*config.Endpoints, *client.DestinationsContext, error) {
+func newLogContext(logsConfig config.LogsConfigKeys, endpointPrefix string) (*config.Endpoints, *client.DestinationsContext, error) {
 	httpConnectivity := config.HTTPConnectivityFailure
-	if endpoints, err := config.BuildHTTPEndpoints(); err == nil {
+	if endpoints, err := config.BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix); err == nil {
 		httpConnectivity = logshttp.CheckConnectivity(endpoints.Main)
 	}
 
@@ -114,28 +125,50 @@ func newLogContext() (*config.Endpoints, *client.DestinationsContext, error) {
 	return endpoints, destinationsCtx, nil
 }
 
+func newLogContextCompliance() (*config.Endpoints, *client.DestinationsContext, error) {
+	logsConfigComplianceKeys := config.LogsConfigKeys{
+		CompressionLevel:        "compliance_config.endpoints.compression_level",
+		ConnectionResetInterval: "compliance_config.endpoints.connection_reset_interval",
+		LogsDDURL:               "compliance_config.endpoints.logs_dd_url",
+		DDURL:                   "compliance_config.endpoints.dd_url",
+		DevModeNoSSL:            "compliance_config.endpoints.dev_mode_no_ssl",
+		AdditionalEndpoints:     "compliance_config.endpoints.additional_endpoints",
+		BatchWait:               "compliance_config.endpoints.batch_wait",
+	}
+	return newLogContext(logsConfigComplianceKeys, "compliance-http-intake.logs.")
+}
+
+// This function will only be used on Linux. The only platforms where the runtime agent runs
+func newLogContextRuntime() (*config.Endpoints, *client.DestinationsContext, error) { // nolint: deadcode, unused
+	logsConfigRuntimeKeys := config.LogsConfigKeys{
+		CompressionLevel:        "runtime_security_config.endpoints.compression_level",
+		ConnectionResetInterval: "runtime_security_config.endpoints.connection_reset_interval",
+		LogsDDURL:               "runtime_security_config.endpoints.logs_dd_url",
+		DDURL:                   "runtime_security_config.endpoints.dd_url",
+		DevModeNoSSL:            "runtime_security_config.endpoints.dev_mode_no_ssl",
+		AdditionalEndpoints:     "runtime_security_config.endpoints.additional_endpoints",
+		BatchWait:               "runtime_security_config.endpoints.batch_wait",
+	}
+	return newLogContext(logsConfigRuntimeKeys, "runtime-security-http-intake.logs.")
+}
+
 func start(cmd *cobra.Command, args []string) error {
 	defer log.Flush()
 
-	// we'll search for a config file named `datadog.yaml`
-	coreconfig.Datadog.SetConfigName("datadog")
-	err := common.SetupConfig(confPath)
-	if err != nil {
-		return fmt.Errorf("unable to set up global agent configuration: %v", err)
+	// Read configuration files received from the command line arguments '-c'
+	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
+		return err
 	}
 
 	// Setup logger
 	syslogURI := coreconfig.GetSyslogURI()
-	logFile := coreconfig.Datadog.GetString("log_file")
-	if logFile == "" {
-		logFile = common.DefaultLogFile
-	}
+	logFile := coreconfig.Datadog.GetString("security_agent.log_file")
 	if coreconfig.Datadog.GetBool("disable_file_logging") {
 		// this will prevent any logging on file
 		logFile = ""
 	}
 
-	err = coreconfig.SetupLogger(
+	err := coreconfig.SetupLogger(
 		loggerName,
 		coreconfig.Datadog.GetString("log_level"),
 		logFile,
@@ -147,6 +180,10 @@ func start(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		log.Criticalf("Unable to setup logger: %s", err)
 		return nil
+	}
+
+	if err := util.SetupCoreDump(); err != nil {
+		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
 	if pidfilePath != "" {
@@ -161,6 +198,11 @@ func start(cmd *cobra.Command, args []string) error {
 	// Check if we have at least one component to start based on config
 	if !coreconfig.Datadog.GetBool("compliance_config.enabled") && !coreconfig.Datadog.GetBool("runtime_security_config.enabled") {
 		log.Infof("All security-agent components are deactivated, exiting")
+
+		// A sleep is necessary so that sysV doesn't think the agent has failed
+		// to startup because of an error. Only applies on Debian 7 and SUSE 11.
+		time.Sleep(5 * time.Second)
+
 		return nil
 	}
 
@@ -175,7 +217,12 @@ func start(cmd *cobra.Command, args []string) error {
 	if coreconfig.Datadog.GetBool("telemetry.enabled") {
 		http.Handle("/telemetry", telemetry.Handler())
 	}
-	go http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux) //nolint:errcheck
+	go func() {
+		err := http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux)
+		if err != nil && err != http.ErrServerClosed {
+			log.Errorf("Error creating expvar server on port %v: %v", port, err)
+		}
+	}()
 
 	// get hostname
 	// FIXME: use gRPC cross-agent communication API to retrieve hostname
@@ -200,18 +247,23 @@ func start(cmd *cobra.Command, args []string) error {
 	stopper := restart.NewSerialStopper()
 	defer stopper.Stop()
 
-	endpoints, dstContext, err := newLogContext()
-	if err != nil {
-		log.Error(err)
-	}
-	stopper.Add(dstContext)
+	// Retrieve statsd host and port from the datadog agent configuration file
+	statsdHost := coreconfig.GetBindHost()
+	statsdPort := coreconfig.Datadog.GetInt("dogstatsd_port")
 
-	if err = startCompliance(hostname, endpoints, dstContext, stopper); err != nil {
+	// Create a statsd Client
+	statsdAddr := fmt.Sprintf("%s:%d", statsdHost, statsdPort)
+	statsdClient, err := ddgostatsd.New(statsdAddr)
+	if err != nil {
+		return log.Criticalf("Error creating statsd Client: %s", err)
+	}
+
+	if err = startCompliance(hostname, stopper, statsdClient); err != nil {
 		return err
 	}
 
 	// start runtime security agent
-	runtimeAgent, err := startRuntimeSecurity(hostname, endpoints, dstContext, stopper)
+	runtimeAgent, err := startRuntimeSecurity(hostname, stopper, statsdClient)
 	if err != nil {
 		return err
 	}

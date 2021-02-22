@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build linux
 
@@ -56,7 +56,7 @@ func (c ContainerCgroup) cgroupFilePath(target, file string) string {
 	}
 	targetPath, ok := c.Paths[target]
 	if !ok {
-		log.Errorf("Missing target %s from paths", target)
+		log.Debugf("Missing target %s from paths", target)
 		return ""
 	}
 	// sometimes the container is running inside a "dind container" instead of directly on the host,

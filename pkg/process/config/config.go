@@ -16,20 +16,26 @@ import (
 
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var (
+const (
 	// defaultProxyPort is the default port used for proxies.
 	// This mirrors the configuration for the infrastructure agent.
 	defaultProxyPort = 3128
 
 	// defaultSystemProbeBPFDir is the default path for eBPF programs
-	defaultSystemProbeBPFDir = "/opt/datadog-agent/embedded/usr/share/system-probe/ebpf"
+	defaultSystemProbeBPFDir = "/opt/datadog-agent/embedded/share/system-probe/ebpf"
 
+	// defaultRuntimeCompilerOutputDir is the default path for output from the system-probe runtime compiler
+	defaultRuntimeCompilerOutputDir = "/var/tmp/datadog-agent/system-probe/build"
+)
+
+var (
 	processChecks   = []string{"process", "rtprocess"}
 	containerChecks = []string{"container", "rtcontainer"}
 )
@@ -47,31 +53,37 @@ type WindowsConfig struct {
 
 	// EnableMonotonicCount determines if we will calculate send/recv bytes of connections with headers and retransmits
 	EnableMonotonicCount bool
+
+	// DriverBufferSize (bytes) determines the size of the buffer we pass to the driver when reading flows
+	DriverBufferSize int
 }
 
 // AgentConfig is the global config for the process-agent. This information
 // is sourced from config files and the environment variables.
 type AgentConfig struct {
-	Enabled               bool
-	HostName              string
-	APIEndpoints          []api.Endpoint
-	OrchestratorEndpoints []api.Endpoint
-	LogFile               string
-	LogLevel              string
-	LogToConsole          bool
-	QueueSize             int // The number of items allowed in each delivery queue.
-	ProcessQueueBytes     int // The total number of bytes that can be enqueued for delivery to the process intake endpoint
-	PodQueueBytes         int // The total number of bytes that can be enqueued for delivery to the orchestrator endpoint
-	Blacklist             []*regexp.Regexp
-	Scrubber              *DataScrubber
-	MaxPerMessage         int
-	MaxConnsPerMessage    int
-	AllowRealTime         bool
-	Transport             *http.Transport `json:"-"`
-	DDAgentBin            string
-	StatsdHost            string
-	StatsdPort            int
-	ProcessExpVarPort     int
+	Enabled              bool
+	HostName             string
+	APIEndpoints         []api.Endpoint
+	LogFile              string
+	LogLevel             string
+	LogToConsole         bool
+	QueueSize            int // The number of items allowed in each delivery queue.
+	ProcessQueueBytes    int // The total number of bytes that can be enqueued for delivery to the process intake endpoint
+	Blacklist            []*regexp.Regexp
+	Scrubber             *DataScrubber
+	MaxPerMessage        int
+	MaxConnsPerMessage   int
+	AllowRealTime        bool
+	Transport            *http.Transport `json:"-"`
+	DDAgentBin           string
+	StatsdHost           string
+	StatsdPort           int
+	ProcessExpVarPort    int
+	ProfilingEnabled     bool
+	ProfilingSite        string
+	ProfilingURL         string
+	ProfilingAPIKey      string
+	ProfilingEnvironment string
 	// host type of the agent, used to populate container payload with additional host information
 	ContainerHostType model.ContainerHostType
 
@@ -82,6 +94,7 @@ type AgentConfig struct {
 	DisableIPv6Tracing             bool
 	DisableDNSInspection           bool
 	CollectLocalDNS                bool
+	EnableHTTPMonitoring           bool
 	SystemProbeAddress             string
 	SystemProbeLogFile             string
 	SystemProbeBPFDir              string
@@ -93,20 +106,24 @@ type AgentConfig struct {
 	EnableConntrack                bool
 	ConntrackMaxStateSize          int
 	ConntrackRateLimit             int
+	EnableConntrackAllNamespaces   bool
 	SystemProbeDebugPort           int
 	ClosedChannelSize              int
 	MaxClosedConnectionsBuffered   int
 	MaxConnectionsStateBuffered    int
 	OffsetGuessThreshold           uint64
+	EnableTracepoints              bool
+	EnableRuntimeCompiler          bool
+	KernelHeadersDirs              []string
+	RuntimeCompilerOutputDir       string
+
+	// Orchestrator config
+	Orchestrator *oconfig.OrchestratorConfig
 
 	// DNS stats configuration
-	CollectDNSStats bool
-	DNSTimeout      time.Duration
-
-	// Orchestrator collection configuration
-	OrchestrationCollectionEnabled bool
-	KubeClusterName                string
-	IsScrubbingEnabled             bool
+	CollectDNSStats   bool
+	DNSTimeout        time.Duration
+	CollectDNSDomains bool
 
 	// Check config
 	EnabledChecks  []string
@@ -136,7 +153,6 @@ func (a AgentConfig) CheckInterval(checkName string) time.Duration {
 
 const (
 	defaultProcessEndpoint       = "https://process.datadoghq.com"
-	defaultOrchestratorEndpoint  = "https://orchestrator.datadoghq.com"
 	maxMessageBatch              = 100
 	maxConnsMessageBatch         = 1000
 	defaultMaxTrackedConnections = 65536
@@ -165,11 +181,6 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		// This is a hardcoded URL so parsing it should not fail
 		panic(err)
 	}
-	orchestratorEndpoint, err := url.Parse(defaultOrchestratorEndpoint)
-	if err != nil {
-		// This is a hardcoded URL so parsing it should not fail
-		panic(err)
-	}
 
 	var enabledChecks []string
 	if canAccessContainers {
@@ -177,16 +188,14 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 	}
 
 	ac := &AgentConfig{
-		Enabled:               canAccessContainers, // We'll always run inside of a container.
-		APIEndpoints:          []api.Endpoint{{Endpoint: processEndpoint}},
-		OrchestratorEndpoints: []api.Endpoint{{Endpoint: orchestratorEndpoint}},
-		LogFile:               defaultLogFilePath,
-		LogLevel:              "info",
-		LogToConsole:          false,
+		Enabled:      canAccessContainers, // We'll always run inside of a container.
+		APIEndpoints: []api.Endpoint{{Endpoint: processEndpoint}},
+		LogFile:      defaultLogFilePath,
+		LogLevel:     "info",
+		LogToConsole: false,
 
 		// Allow buffering up to 75 megabytes of payload data in total
 		ProcessQueueBytes: 60 * 1000 * 1000,
-		PodQueueBytes:     15 * 1000 * 1000,
 		// This can be fairly high as the input should get throttled by queue bytes first.
 		// Assuming we generate ~8 checks/minute (for process/network), this should allow buffering of ~30 minutes of data assuming it fits within the queue bytes memory budget
 		QueueSize: 256,
@@ -204,20 +213,30 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		StatsdPort: 8125,
 
 		// System probe collection configuration
-		EnableSystemProbe:     false,
-		DisableTCPTracing:     false,
-		DisableUDPTracing:     false,
-		DisableIPv6Tracing:    false,
-		DisableDNSInspection:  false,
-		SystemProbeAddress:    defaultSystemProbeAddress,
-		SystemProbeLogFile:    defaultSystemProbeLogFilePath,
-		SystemProbeBPFDir:     defaultSystemProbeBPFDir,
-		MaxTrackedConnections: defaultMaxTrackedConnections,
-		EnableConntrack:       true,
-		ClosedChannelSize:     500,
-		ConntrackMaxStateSize: defaultMaxTrackedConnections * 2,
-		ConntrackRateLimit:    500,
-		OffsetGuessThreshold:  400,
+		EnableSystemProbe:            false,
+		DisableTCPTracing:            false,
+		DisableUDPTracing:            false,
+		DisableIPv6Tracing:           false,
+		DisableDNSInspection:         false,
+		EnableHTTPMonitoring:         false,
+		SystemProbeAddress:           defaultSystemProbeAddress,
+		SystemProbeLogFile:           defaultSystemProbeLogFilePath,
+		SystemProbeBPFDir:            defaultSystemProbeBPFDir,
+		MaxTrackedConnections:        defaultMaxTrackedConnections,
+		EnableConntrack:              true,
+		ClosedChannelSize:            500,
+		ConntrackMaxStateSize:        defaultMaxTrackedConnections * 2,
+		ConntrackRateLimit:           500,
+		EnableConntrackAllNamespaces: true,
+		OffsetGuessThreshold:         400,
+		EnableTracepoints:            false,
+		CollectDNSStats:              true,
+		CollectDNSDomains:            false,
+		EnableRuntimeCompiler:        false,
+		RuntimeCompilerOutputDir:     defaultRuntimeCompilerOutputDir,
+
+		// Orchestrator config
+		Orchestrator: oconfig.NewDefaultOrchestratorConfig(),
 
 		// Check config
 		EnabledChecks: enabledChecks,
@@ -239,6 +258,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 			ArgsRefreshInterval:  15, // with default 20s check interval we refresh every 5m
 			AddNewArgs:           true,
 			EnableMonotonicCount: false,
+			DriverBufferSize:     1024,
 		},
 	}
 
@@ -301,13 +321,16 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	canAccessContainers := err == nil
 
 	cfg := NewDefaultAgentConfig(canAccessContainers)
-
 	// For Agent 6 we will have a YAML config file to use.
 	if err := loadConfigIfExists(yamlPath); err != nil {
 		return nil, err
 	}
 
 	if err := cfg.LoadProcessYamlConfig(yamlPath); err != nil {
+		return nil, err
+	}
+
+	if err := cfg.Orchestrator.LoadYamlConfig(yamlPath); err != nil {
 		return nil, err
 	}
 
@@ -362,8 +385,12 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	}
 
 	// activate the pod collection if enabled and we have the cluster name set
-	if cfg.OrchestrationCollectionEnabled && cfg.KubeClusterName != "" {
-		cfg.EnabledChecks = append(cfg.EnabledChecks, "pod")
+	if cfg.Orchestrator.OrchestrationCollectionEnabled {
+		if cfg.Orchestrator.KubeClusterName != "" {
+			cfg.EnabledChecks = append(cfg.EnabledChecks, "pod")
+		} else {
+			log.Warnf("Failed to auto-detect a Kubernetes cluster name. Pod collection will not start. To fix this, set it manually via the cluster_name config option")
+		}
 	}
 
 	return cfg, nil
@@ -416,7 +443,9 @@ func loadEnvVariables() {
 		{"DD_SCRUB_ARGS", "process_config.scrub_args"},
 		{"DD_STRIP_PROCESS_ARGS", "process_config.strip_proc_arguments"},
 		{"DD_PROCESS_AGENT_URL", "process_config.process_dd_url"},
-		{"DD_ORCHESTRATOR_URL", "process_config.orchestrator_dd_url"},
+		{"DD_PROCESS_AGENT_PROFILING_ENABLED", "process_config.profiling.enabled"},
+		{"DD_PROCESS_AGENT_REMOTE_TAGGER", "process_config.remote_tagger"},
+		{"DD_ORCHESTRATOR_URL", "orchestrator_explorer.orchestrator_dd_url"},
 		{"DD_HOSTNAME", "hostname"},
 		{"DD_DOGSTATSD_PORT", "dogstatsd_port"},
 		{"DD_BIND_HOST", "bind_host"},
@@ -466,7 +495,7 @@ func loadEnvVariables() {
 		if err := json.Unmarshal([]byte(v), &endpoints); err != nil {
 			log.Errorf(`Could not parse DD_ORCHESTRATOR_ADDITIONAL_ENDPOINTS: %v. It must be of the form '{"https://process.agent.datadoghq.com": ["apikey1", ...], ...}'.`, err)
 		} else {
-			config.Datadog.Set("process_config.orchestrator_additional_endpoints", endpoints)
+			config.Datadog.Set("orchestrator_explorer.orchestrator_additional_endpoints", endpoints)
 		}
 	}
 }
@@ -474,18 +503,29 @@ func loadEnvVariables() {
 func loadSysProbeEnvVariables() {
 	for _, variable := range []struct{ env, cfg string }{
 		{"DD_SYSTEM_PROBE_ENABLED", "system_probe_config.enabled"},
+		{"DD_SYSTEM_PROBE_NETWORK_ENABLED", "network_config.enabled"},
+		{"DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "network_config.enable_http_monitoring"},
 		{"DD_SYSPROBE_SOCKET", "system_probe_config.sysprobe_socket"},
 		{"DD_SYSTEM_PROBE_CONNTRACK_IGNORE_ENOBUFS", "system_probe_config.conntrack_ignore_enobufs"},
+		{"DD_SYSTEM_PROBE_ENABLE_CONNTRACK_ALL_NAMESPACES", "system_probe_config.enable_conntrack_all_namespaces"},
 		{"DD_DISABLE_TCP_TRACING", "system_probe_config.disable_tcp"},
 		{"DD_DISABLE_UDP_TRACING", "system_probe_config.disable_udp"},
 		{"DD_DISABLE_IPV6_TRACING", "system_probe_config.disable_ipv6"},
 		{"DD_DISABLE_DNS_INSPECTION", "system_probe_config.disable_dns_inspection"},
 		{"DD_COLLECT_LOCAL_DNS", "system_probe_config.collect_local_dns"},
 		{"DD_COLLECT_DNS_STATS", "system_probe_config.collect_dns_stats"},
+		{"DD_SYSTEM_PROBE_PROFILING_ENABLED", "system_probe_config.profiling.enabled"},
+		{"DD_SITE", "system_probe_config.profiling.site"},
+		{"DD_APM_PROFILING_DD_URL", "system_probe_config.profiling.profile_dd_url"},
+		{"DD_API_KEY", "system_probe_config.profiling.api_key"},
+		{"DD_ENV", "system_probe_config.profiling.env"},
+		{"DD_COLLECT_DNS_DOMAINS", "system_probe_config.collect_dns_domains"},
+		{"DD_ENABLE_RUNTIME_COMPILER", "system_probe_config.enable_runtime_compiler"},
+		{"DD_KERNEL_HEADER_DIRS", "system_probe_config.kernel_header_dirs"},
+		{"DD_RUNTIME_COMPILER_OUTPUT_DIR", "system_probe_config.runtime_compiler_output_dir"},
 	} {
 		if v, ok := os.LookupEnv(variable.env); ok {
 			config.Datadog.Set(variable.cfg, v)
-
 		}
 	}
 }

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubelet,kubeapiserver
 
@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
 // GetTags gets the tags from the kubernetes apiserver
@@ -32,7 +33,7 @@ func GetTags() ([]string, error) {
 
 func getDefaultLabelsToTags() map[string]string {
 	return map[string]string{
-		NormalizedRoleLabel: "kube_node_role",
+		NormalizedRoleLabel: kubernetes.KubeNodeRoleTagName,
 	}
 }
 
@@ -48,13 +49,10 @@ func getLabelsToTags() map[string]string {
 
 func extractTags(nodeLabels, labelsToTags map[string]string) []string {
 	tagList := utils.NewTagList()
-
+	labelsToTags, glob := utils.InitMetadataAsTags(labelsToTags)
 	for labelName, labelValue := range nodeLabels {
 		labelName, labelValue := LabelPreprocessor(labelName, labelValue)
-
-		if tagName, found := labelsToTags[strings.ToLower(labelName)]; found {
-			tagList.AddLow(tagName, labelValue)
-		}
+		utils.AddMetadataAsTags(labelName, labelValue, labelsToTags, glob, tagList)
 	}
 
 	tags, _, _, _ := tagList.Compute()

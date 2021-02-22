@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package retry
 
@@ -17,10 +17,11 @@ import (
 // See the unit test for an example.
 type Retrier struct {
 	sync.RWMutex
-	cfg      Config
-	status   Status
-	nextTry  time.Time
-	tryCount uint
+	cfg          Config
+	status       Status
+	nextTry      time.Time
+	tryCount     uint
+	lastTryError error
 }
 
 // SetupRetrier must be called before calling other methods
@@ -107,6 +108,7 @@ func (r *Retrier) doTry() *Error {
 	err := method()
 
 	r.Lock()
+	r.lastTryError = err
 	if err == nil {
 		r.status = OK
 	} else {
@@ -153,5 +155,6 @@ func (r *Retrier) wrapError(err error) *Error {
 		RessourceName: r.cfg.Name,
 		RetryStatus:   r.status,
 		LogicError:    err,
+		LastTryError:  r.lastTryError,
 	}
 }

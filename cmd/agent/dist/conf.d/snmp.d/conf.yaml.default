@@ -1,0 +1,17 @@
+# snmp
+# TODO: Remove me
+
+init_config:
+  loader: core
+
+instances:
+  - ip_address: 127.0.0.1
+    port: 1161
+    community_string: public
+    metrics:
+    - symbol:
+        OID: 1.3.6.1.2.1.1.3.0
+        name: sysUpTimeInstance
+    - symbol:
+        OID: 1.3.6.1.2.1.2.1
+        name: ifNumber

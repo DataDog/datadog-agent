@@ -1,7 +1,7 @@
 /// Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package settings
 
@@ -57,7 +57,7 @@ func (l profilingRuntimeSetting) Set(v interface{}) error {
 
 		v, _ := version.Agent()
 		err := profiling.Start(
-			config.Datadog.GetString("api_key"),
+			config.SanitizeAPIKey(config.Datadog.GetString("api_key")),
 			site,
 			config.Datadog.GetString("env"),
 			profiling.ProfileCoreService,

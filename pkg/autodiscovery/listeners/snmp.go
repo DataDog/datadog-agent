@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2020 Datadog, Inc.
+// Copyright 2020-present Datadog, Inc.
 
 package listeners
 
@@ -228,7 +228,10 @@ func (l *SNMPListener) checkDevices() {
 	discoveryTicker := time.NewTicker(time.Duration(l.config.DiscoveryInterval) * time.Second)
 
 	for {
-		for _, subnet := range subnets {
+		var subnet *snmpSubnet
+		for i := range subnets {
+			// Use `&subnets[i]` to pass the correct pointer address to snmpJob{}
+			subnet = &subnets[i]
 			startingIP := make(net.IP, len(subnet.startingIP))
 			copy(startingIP, subnet.startingIP)
 			for currentIP := startingIP; subnet.network.Contains(currentIP); incrementIP(currentIP) {
@@ -240,7 +243,7 @@ func (l *SNMPListener) checkDevices() {
 				jobIP := make(net.IP, len(currentIP))
 				copy(jobIP, currentIP)
 				job := snmpJob{
-					subnet:    &subnet,
+					subnet:    subnet,
 					currentIP: jobIP,
 				}
 				jobs <- job
@@ -349,8 +352,8 @@ func (s *SNMPService) GetPorts() ([]ContainerPort, error) {
 }
 
 // GetTags returns the list of container tags - currently always empty
-func (s *SNMPService) GetTags() ([]string, error) {
-	return []string{}, nil
+func (s *SNMPService) GetTags() ([]string, string, error) {
+	return []string{}, "", nil
 }
 
 // GetPid returns nil and an error because pids are currently not supported

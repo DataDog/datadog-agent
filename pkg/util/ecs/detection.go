@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build docker
 
@@ -22,6 +22,7 @@ const (
 	isFargateInstanceCacheKey      = "IsFargateInstanceCacheKey"
 	hasFargateResourceTagsCacheKey = "HasFargateResourceTagsCacheKey"
 	hasEC2ResourceTagsCacheKey     = "HasEC2ResourceTagsCacheKey"
+	hasEC2ResourceTagsCacheExpiry  = 5 * time.Minute
 )
 
 // IsECSInstance returns whether the agent is running in ECS.
@@ -82,10 +83,14 @@ func HasEC2ResourceTags() bool {
 	return queryCacheBool(hasEC2ResourceTagsCacheKey, func() (bool, time.Duration) {
 		client, err := ecsmeta.V3FromCurrentTask()
 		if err != nil {
-			return newBoolEntry(false)
+			log.Debugf("failed to detect V3 metadata endpoint: %s", err)
+			return false, hasEC2ResourceTagsCacheExpiry
 		}
 		_, err = client.GetTaskWithTags()
-		return newBoolEntry(err == nil)
+		if err != nil {
+			log.Debugf("failed to get task with tags: %s", err)
+		}
+		return err == nil, hasEC2ResourceTagsCacheExpiry
 	})
 }
 
@@ -102,6 +107,16 @@ func HasFargateResourceTags() bool {
 		_, err = client.GetTaskWithTags()
 		return newBoolEntry(err == nil)
 	})
+}
+
+// GetNTPHosts returns the NTP hosts for ECS/Fargate if it is detected as the cloud provider, otherwise an empty array.
+// Docs: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/set-time.html#configure_ntp
+func GetNTPHosts() []string {
+	if IsRunningOn() {
+		return []string{"169.254.169.123"}
+	}
+
+	return nil
 }
 
 func queryCacheBool(cacheKey string, cacheMissEvalFunc func() (bool, time.Duration)) bool {

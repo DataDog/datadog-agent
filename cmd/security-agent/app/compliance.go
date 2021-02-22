@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package app
 
@@ -12,7 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	secagentcommon "github.com/DataDog/datadog-agent/cmd/security-agent/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/compliance/agent"
@@ -22,10 +22,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddgostatsd "github.com/DataDog/datadog-go/statsd"
 )
 
 var (
@@ -60,17 +62,15 @@ func init() {
 }
 
 func eventRun(cmd *cobra.Command, args []string) error {
-	// we'll search for a config file named `datadog.yaml`
-	coreconfig.Datadog.SetConfigName("datadog")
-	err := common.SetupConfig(confPath)
-	if err != nil {
-		return fmt.Errorf("unable to set up global agent configuration: %w", err)
+	// Read configuration files received from the command line arguments '-c'
+	if err := secagentcommon.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
+		return err
 	}
 
 	stopper := restart.NewSerialStopper()
 	defer stopper.Stop()
 
-	endpoints, dstContext, err := newLogContext()
+	endpoints, dstContext, err := newLogContextCompliance()
 	if err != nil {
 		return err
 	}
@@ -99,12 +99,12 @@ func newComplianceReporter(stopper restart.Stopper, sourceName, sourceType strin
 	health := health.RegisterLiveness("compliance")
 
 	// setup the auditor
-	auditor := auditor.New(coreconfig.Datadog.GetString("compliance_config.run_path"), health)
+	auditor := auditor.New(coreconfig.Datadog.GetString("compliance_config.run_path"), "compliance-registry.json", coreconfig.DefaultAuditorTTL, health)
 	auditor.Start()
 	stopper.Add(auditor)
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, nil, endpoints, context)
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, context)
 	pipelineProvider.Start()
 	stopper.Add(pipelineProvider)
 
@@ -119,11 +119,17 @@ func newComplianceReporter(stopper restart.Stopper, sourceName, sourceType strin
 	return event.NewReporter(logSource, pipelineProvider.NextPipelineChan()), nil
 }
 
-func startCompliance(hostname string, endpoints *config.Endpoints, context *client.DestinationsContext, stopper restart.Stopper) error {
+func startCompliance(hostname string, stopper restart.Stopper, statsdClient *ddgostatsd.Client) error {
 	enabled := coreconfig.Datadog.GetBool("compliance_config.enabled")
 	if !enabled {
 		return nil
 	}
+
+	endpoints, context, err := newLogContextCompliance()
+	if err != nil {
+		log.Error(err)
+	}
+	stopper.Add(context)
 
 	reporter, err := newComplianceReporter(stopper, "compliance-agent", "compliance", endpoints, context)
 	if err != nil {
@@ -174,5 +180,10 @@ func startCompliance(hostname string, endpoints *config.Endpoints, context *clie
 	stopper.Add(agent)
 
 	log.Infof("Running compliance checks every %s", checkInterval.String())
+
+	// Send the compliance 'running' metrics periodically
+	ticker := sendRunningMetrics(statsdClient, "compliance")
+	stopper.Add(ticker)
+
 	return nil
 }

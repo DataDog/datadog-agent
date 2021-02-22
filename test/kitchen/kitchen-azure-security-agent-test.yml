@@ -1,0 +1,12 @@
+suites:
+
+# Deploys and run the functional tests
+- name: dd-security-agent-test
+  run_list:
+    - "recipe[dd-agent-rhel-workaround]"
+    - "recipe[dd-agent-sles-workaround]"
+    - "recipe[dd-security-agent-check]"
+  attributes:
+    apt:
+      unattended_upgrades:
+        enable: false

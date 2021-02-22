@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package retry
 
@@ -13,6 +13,7 @@ var statusFormats map[Status]string
 // you can get its Status with IsRetryError()
 type Error struct {
 	LogicError    error
+	LastTryError  error
 	RessourceName string
 	RetryStatus   Status
 }
@@ -24,6 +25,11 @@ func (e *Error) Error() string {
 		format = "error in %s: %s"
 	}
 	return fmt.Sprintf(format, e.RessourceName, e.LogicError)
+}
+
+// Unwrap implements the Go 1.13 unwrap convention
+func (e *Error) Unwrap() error {
+	return e.LastTryError
 }
 
 // IsRetryError checks an `error` object to tell if it's a Retry.Error

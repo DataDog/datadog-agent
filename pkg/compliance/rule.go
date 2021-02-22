@@ -1,10 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // Package compliance defines common interfaces and types for Compliance Agent
 package compliance
+
+import "fmt"
 
 // Rule defines a rule in a compliance config
 type Rule struct {
@@ -38,4 +40,9 @@ func (l RuleScopeList) Includes(ruleScope RuleScope) bool {
 		}
 	}
 	return false
+}
+
+// CheckName returns a canonical name of a check for a rule ID and description
+func CheckName(ruleID string, description string) string {
+	return fmt.Sprintf("%s: %s", ruleID, description)
 }

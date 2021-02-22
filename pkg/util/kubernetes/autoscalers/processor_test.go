@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017-2020 Datadog, Inc.
+// Copyright 2017-present Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -100,6 +100,46 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 			},
 			map[string]custommetrics.ExternalMetricValue{
 				"id1": {
+					MetricName: "requests_per_s",
+					Labels:     map[string]string{"foo": "bar"},
+					Value:      14,
+					Valid:      true,
+				},
+			},
+		},
+		{
+			"perform unique from list of input externalMetrics",
+			map[string]custommetrics.ExternalMetricValue{
+				"id1": {
+					MetricName: metricName,
+					Labels:     map[string]string{"foo": "bar"},
+					Valid:      false,
+				},
+				"id2": {
+					MetricName: metricName,
+					Labels:     map[string]string{"foo": "bar"},
+					Valid:      false,
+				},
+			},
+			[]datadog.Series{
+				{
+					Metric: &metricName,
+					Points: []datadog.DataPoint{
+						makePoints(1531492452000, 12),
+						makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
+						makePoints(0, 27),
+					},
+					Scope: makePtr("foo:bar"),
+				},
+			},
+			map[string]custommetrics.ExternalMetricValue{
+				"id1": {
+					MetricName: "requests_per_s",
+					Labels:     map[string]string{"foo": "bar"},
+					Value:      14,
+					Valid:      true,
+				},
+				"id2": {
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"foo": "bar"},
 					Value:      14,

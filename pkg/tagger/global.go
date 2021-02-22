@@ -1,23 +1,25 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package tagger
 
 import (
-	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/tagger/local"
+	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // defaultTagger is the shared tagger instance backing the global Tag and Init functions
-var defaultTagger *Tagger
+var defaultTagger Tagger
 var initOnce sync.Once
 
 // ChecksCardinality defines the cardinality of tags we should send for check metrics
@@ -35,18 +37,26 @@ func Init() {
 		checkCard := config.Datadog.GetString("checks_tag_cardinality")
 		dsdCard := config.Datadog.GetString("dogstatsd_tag_cardinality")
 
-		ChecksCardinality, err = stringToTagCardinality(checkCard)
+		ChecksCardinality, err = collectors.StringToTagCardinality(checkCard)
 		if err != nil {
 			log.Warnf("failed to parse check tag cardinality, defaulting to low. Error: %s", err)
 			ChecksCardinality = collectors.LowCardinality
 		}
-		DogstatsdCardinality, err = stringToTagCardinality(dsdCard)
+		DogstatsdCardinality, err = collectors.StringToTagCardinality(dsdCard)
 		if err != nil {
 			log.Warnf("failed to parse dogstatsd tag cardinality, defaulting to low. Error: %s", err)
 			DogstatsdCardinality = collectors.LowCardinality
 		}
 
-		defaultTagger.Init(collectors.DefaultCatalog)
+		if config.IsCLCRunner() {
+			log.Infof("Tagger not started on CLC")
+			return
+		}
+
+		err = defaultTagger.Init()
+		if err != nil {
+			log.Errorf("failed to start the tagger: %s", err)
+		}
 	})
 }
 
@@ -57,10 +67,38 @@ func Tag(entity string, cardinality collectors.TagCardinality) ([]string, error)
 	return defaultTagger.Tag(entity, cardinality)
 }
 
+// TagWithHash is similar to Tag but it also computes and returns the hash of the tags found
+func TagWithHash(entity string, cardinality collectors.TagCardinality) ([]string, string, error) {
+	tags, err := Tag(entity, cardinality)
+	if err != nil {
+		return tags, "", err
+	}
+	return tags, utils.ComputeTagsHash(tags), nil
+}
+
+// GetEntityHash returns the hash for the tags associated with the given entity
+// Returns an empty string if the tags lookup fails
+func GetEntityHash(entity string, cardinality collectors.TagCardinality) string {
+	_, hash, _ := TagWithHash(entity, cardinality)
+	return hash
+}
+
 // StandardTags queries the defaultTagger to get entity
 // standard tags (env, version, service) from cache or sources.
 func StandardTags(entity string) ([]string, error) {
 	return defaultTagger.Standard(entity)
+}
+
+// AgentTags returns the agent tags
+// It relies on the container provider utils to get the Agent container ID
+func AgentTags(cardinality collectors.TagCardinality) ([]string, error) {
+	ctrID, err := providers.ContainerImpl().GetAgentCID()
+	if err != nil {
+		return nil, err
+	}
+
+	entityID := containers.BuildTaggerEntityName(ctrID)
+	return Tag(entityID, cardinality)
 }
 
 // OrchestratorScopeTag queries tags for orchestrator scope (e.g. task_arn in ECS Fargate)
@@ -78,26 +116,16 @@ func List(cardinality collectors.TagCardinality) response.TaggerListResponse {
 	return defaultTagger.List(cardinality)
 }
 
-// GetEntityHash returns the hash for the tags associated with the given entity
-func GetEntityHash(entity string) string {
-	return defaultTagger.GetEntityHash(entity)
+// SetDefaultTagger sets the global Tagger instance
+func SetDefaultTagger(tagger Tagger) {
+	defaultTagger = tagger
 }
 
-// stringToTagCardinality extracts a TagCardinality from a string.
-// In case of failure to parse, returns an error and defaults to Low.
-func stringToTagCardinality(c string) (collectors.TagCardinality, error) {
-	switch strings.ToLower(c) {
-	case "high":
-		return collectors.HighCardinality, nil
-	case "orchestrator":
-		return collectors.OrchestratorCardinality, nil
-	case "low":
-		return collectors.LowCardinality, nil
-	default:
-		return collectors.LowCardinality, fmt.Errorf("unsupported value %s received for tag cardinality", c)
-	}
+// GetDefaultTagger returns the global Tagger instance
+func GetDefaultTagger() Tagger {
+	return defaultTagger
 }
 
 func init() {
-	defaultTagger = newTagger()
+	SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
 }

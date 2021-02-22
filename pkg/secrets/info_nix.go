@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build secrets,!windows
 
@@ -15,7 +15,7 @@ import (
 )
 
 func (info *SecretInfo) populateRights() {
-	err := checkRights(info.ExecutablePath)
+	err := checkRights(info.ExecutablePath, secretBackendCommandAllowGroupExec)
 	if err != nil {
 		info.Rights = fmt.Sprintf("Error: %s", err)
 	} else {

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixes an issue with not always reporting ECS Fargate task_arn tag due to a race condition in the tag collector.

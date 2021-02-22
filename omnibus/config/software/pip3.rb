@@ -1,11 +1,11 @@
 name "pip3"
 
-default_version "19.3.1"
+default_version "20.3.3"
 
 dependency "setuptools3"
 
 source :url => "https://github.com/pypa/pip/archive/#{version}.tar.gz",
-       :sha256 => "f12b7a6be2dbbfeefae5f14992c89175ef72ce0fe96452b4f66be855a12841ff",
+       :sha256 => "016f8d509871b72fb05da911db513c11059d8a99f4591dda3050a3cf83a29a79",
        :extract => :seven_zip
 
 relative_path "pip-#{version}"

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build python
 
@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -58,7 +58,7 @@ func NewPythonCheck(name string, class *C.rtloader_pyobject_t) *PythonCheck {
 		class:        class,
 		interval:     defaults.DefaultCheckInterval,
 		lastWarnings: []error{},
-		telemetry:    telemetry.IsCheckEnabled(name),
+		telemetry:    telemetry_utils.IsCheckEnabled(name),
 	}
 	runtime.SetFinalizer(pyCheck, pythonCheckFinalizer)
 	return pyCheck
@@ -110,6 +110,19 @@ func (c *PythonCheck) RunSimple() error {
 
 // Stop does nothing
 func (c *PythonCheck) Stop() {}
+
+// Cancel signals to a python check that he can free all internal resources and
+// deregisters the sender
+func (c *PythonCheck) Cancel() {
+	gstate := newStickyLock()
+	defer gstate.unlock()
+
+	C.cancel_check(rtloader, c.instance)
+	if err := getRtLoaderError(); err != nil {
+		log.Warnf("failed to cancel check %s: %s", c.id, err)
+	}
+	aggregator.DestroySender(c.id)
+}
 
 // String representation (for debug and logging)
 func (c *PythonCheck) String() string {

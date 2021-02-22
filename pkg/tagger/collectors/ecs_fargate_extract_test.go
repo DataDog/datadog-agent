@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build docker
 
@@ -128,6 +128,8 @@ func TestParseMetadata(t *testing.T) {
 				"container_name:ecs-redis-datadog-3-redis-f6eedfd8b18a8fbe1d00",
 				"hightag:value2",
 				"container_id:0fc5bb7a1b29adc30997eabae1415a98fe85591eb7432c23349703a53aa43280",
+				"env:staging",
+				"service:backend",
 			},
 			StandardTags: []string{
 				"service:redis",
@@ -148,15 +150,15 @@ func TestParseMetadata(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"unknownID"}, expires)
 
-	// Diff parsing should show 0 containers
+	// Diff parsing should show 0 containers + 1 tag for task_arn
 	updates, err = collector.parseMetadata(&meta, false)
 	assert.NoError(t, err)
-	assert.Len(t, updates, 0)
+	assert.Len(t, updates, 1)
 
-	// Full parsing should show 3 containers
+	// Full parsing should show 3 containers + 1 tag for task_arn
 	updates, err = collector.parseMetadata(&meta, true)
 	assert.NoError(t, err)
-	assert.Len(t, updates, 3)
+	assert.Len(t, updates, 4)
 }
 
 func TestParseMetadataV10(t *testing.T) {

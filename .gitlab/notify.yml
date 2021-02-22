@@ -1,0 +1,71 @@
+---
+# notify stage
+# Contains jobs which send slack notifications depending on pipeline status.
+
+include:
+  - https://gitlab-templates.ddbuild.io/slack-notifier/v1/template.yml
+
+.if_master_branch: &if_master_branch
+  if: $CI_COMMIT_BRANCH == "master"
+
+.if_deploy: &if_deploy
+  if: $DEPLOY_AGENT == "true"
+
+.if_deploy_on_tag_6: &if_deploy_on_tag_6
+  # no RELEASE_VERSION means a nightly build for omnibus
+  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_6 != "nightly" && $RELEASE_VERSION_6 != ""
+
+.if_deploy_on_tag_7: &if_deploy_on_tag_7
+  # no RELEASE_VERSION means a nightly build for omnibus
+  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_7 != "nightly-a7" && $RELEASE_VERSION_7 != ""
+
+notify-on-success:
+  extends: .slack-notifier-base
+  rules:
+    - <<: *if_master_branch
+    - <<: *if_deploy
+  script: |
+    COMMIT_URL="$CI_PROJECT_URL/commit/$CI_COMMIT_SHA"
+
+    AUTHOR=$(git show -s --format="%an" HEAD)
+
+    if [ "$DEPLOY_AGENT" = "true" ]; then
+      MESSAGE_TEXT=":host-green: :rocket: Deploy pipeline <$CI_PIPELINE_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME succeeded.
+      $CI_COMMIT_TITLE (<$COMMIT_URL|$CI_COMMIT_SHORT_SHA>) by $AUTHOR"
+    else
+      MESSAGE_TEXT=":host-green: :merged: Merge pipeline <$CI_PIPELINE_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME succeeded.
+      $CI_COMMIT_TITLE (<$COMMIT_URL|$CI_COMMIT_SHORT_SHA>) by $AUTHOR"
+    fi
+    postmessage "#datadog-agent-pipelines" "$MESSAGE_TEXT"
+
+notify-on-tagged-success:
+  extends: .slack-notifier-base
+  rules:
+    - <<: *if_deploy_on_tag_6
+    - <<: *if_deploy_on_tag_7
+  script: |
+    MESSAGE_TEXT=":host-green: Tagged build <$CI_PIPELINE_URL|$CI_PIPELINE_ID> succeeded.
+    *$CI_COMMIT_REF_NAME* is available in the staging repositories."
+    postmessage "#agent-release-sync" "$MESSAGE_TEXT"
+
+notify-on-failure:
+  extends: .slack-notifier-base
+  rules:
+    - <<: *if_master_branch
+      when: on_failure
+    - <<: *if_deploy
+      when: on_failure
+  dependencies: []
+  script: |
+    COMMIT_URL="$CI_PROJECT_URL/commit/$CI_COMMIT_SHA"
+
+    AUTHOR=$(git show -s --format="%an" HEAD)
+
+    if [ "$DEPLOY_AGENT" = "true" ]; then
+      MESSAGE_TEXT=":host-red: :rocket: Deploy pipeline <$CI_PIPELINE_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME failed.
+      $CI_COMMIT_TITLE (<$COMMIT_URL|$CI_COMMIT_SHORT_SHA>) by $AUTHOR"
+    else
+      MESSAGE_TEXT=":host-red: :merged: Merge pipeline <$CI_PIPELINE_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME failed.
+      $CI_COMMIT_TITLE (<$COMMIT_URL|$CI_COMMIT_SHORT_SHA>) by $AUTHOR"
+    fi
+    postmessage "#datadog-agent-pipelines" "$MESSAGE_TEXT"

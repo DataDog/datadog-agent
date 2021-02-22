@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package main
 
@@ -79,7 +79,7 @@ func (f *forwarderBenchStub) Stop()        {}
 func (f *forwarderBenchStub) SubmitV1Series(payloads forwarder.Payloads, extraHeaders http.Header) error {
 	return nil
 }
-func (f *forwarderBenchStub) SubmitV1Intake(payloads forwarder.Payloads, extraHeaders http.Header) error {
+func (f *forwarderBenchStub) SubmitV1Intake(payloads forwarder.Payloads, extraHeaders http.Header, priority forwarder.TransactionPriority) error {
 	return nil
 }
 func (f *forwarderBenchStub) SubmitV1CheckRuns(payloads forwarder.Payloads, extraHeaders http.Header) error {
@@ -100,7 +100,7 @@ func (f *forwarderBenchStub) SubmitSketchSeries(payload forwarder.Payloads, extr
 func (f *forwarderBenchStub) SubmitHostMetadata(payload forwarder.Payloads, extraHeaders http.Header) error {
 	return nil
 }
-func (f *forwarderBenchStub) SubmitMetadata(payload forwarder.Payloads, extraHeaders http.Header) error {
+func (f *forwarderBenchStub) SubmitMetadata(payload forwarder.Payloads, extraHeaders http.Header, priority forwarder.TransactionPriority) error {
 	return nil
 }
 

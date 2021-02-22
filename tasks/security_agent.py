@@ -1,5 +1,6 @@
 import datetime
 import os
+import shutil
 
 from invoke import task
 
@@ -107,9 +108,6 @@ def build(
         if not os.path.exists(dist_folder):
             os.makedirs(dist_folder)
 
-        cmd = 'go run ./pkg/security/config/genconfig -output {default_policy}'
-        ctx.run(cmd.format(default_policy=os.path.join(dist_folder, "default.policy")), env=env)
-
 
 @task()
 def gen_mocks(ctx):
@@ -127,44 +125,171 @@ def gen_mocks(ctx):
 
 
 @task
-def functional_tests(
-    ctx, race=False, verbose=False, go_version=None, arch="x64", major_version='7', pattern='', output='', build_tags=''
+def run_functional_tests(
+    ctx, testsuite, verbose=False, testflags='',
+):
+    cmd = '{testsuite} {verbose_opt} {testflags}'
+    if os.getuid() != 0:
+        cmd = 'sudo -E PATH={path} ' + cmd
+
+    args = {
+        "testsuite": testsuite,
+        "verbose_opt": "-test.v" if verbose else "",
+        "testflags": testflags,
+        "path": os.environ['PATH'],
+    }
+
+    ctx.run(cmd.format(**args))
+
+
+@task
+def build_functional_tests(
+    ctx,
+    output='pkg/security/tests/testsuite',
+    go_version=None,
+    arch="x64",
+    major_version='7',
+    build_tags='functionaltests',
+    bundle_ebpf=True,
+    static=False,
 ):
     ldflags, gcflags, env = get_build_flags(ctx, arch=arch, major_version=major_version)
 
     goenv = get_go_env(ctx, go_version)
     env.update(goenv)
 
-    cmd = 'sudo -E go test -tags functionaltests,linux_bpf,{build_tags} {output_opt} {verbose_opt} {run_opt} {REPO_PATH}/pkg/security/tests'
+    env["CGO_ENABLED"] = "1"
+    if arch == "x86":
+        env["GOARCH"] = "386"
+
+    build_tags = "linux_bpf," + build_tags
+    if bundle_ebpf:
+        build_tags = "ebpf_bindata," + build_tags
+
+    if static:
+        ldflags += '-extldflags "-static"'
+        build_tags += ',osusergo'
+
+    cmd = 'go test -tags {build_tags} -ldflags="{ldflags}" -c -o {output} '
+    cmd += '{repo_path}/pkg/security/tests'
 
     args = {
-        "verbose_opt": "-v" if verbose else "",
-        "race_opt": "-race" if race else "",
-        "output_opt": "-c -o " + output if output else "",
-        "run_opt": "-run " + pattern if pattern else "",
+        "output": output,
+        "ldflags": ldflags,
         "build_tags": build_tags,
-        "REPO_PATH": REPO_PATH,
+        "repo_path": REPO_PATH,
     }
 
     ctx.run(cmd.format(**args), env=env)
 
 
 @task
-def docker_functional_tests(ctx, race=False, verbose=False, go_version=None, arch="x64", major_version='7', pattern=''):
-    functional_tests(
+def build_stress_tests(
+    ctx, output='pkg/security/tests/stresssuite', go_version=None, arch="x64", major_version='7', bundle_ebpf=True,
+):
+    build_functional_tests(
         ctx,
-        race=race,
-        verbose=verbose,
+        output=output,
+        go_version=go_version,
+        arch=arch,
+        major_version=major_version,
+        build_tags='stresstests',
+        bundle_ebpf=bundle_ebpf,
+    )
+
+
+@task
+def stress_tests(
+    ctx,
+    verbose=False,
+    go_version=None,
+    arch="x64",
+    major_version='7',
+    output='pkg/security/tests/stresssuite',
+    bundle_ebpf=True,
+    testflags='',
+):
+    build_stress_tests(
+        ctx, go_version=go_version, arch=arch, major_version=major_version, output=output, bundle_ebpf=bundle_ebpf,
+    )
+
+    run_functional_tests(
+        ctx, testsuite=output, verbose=verbose, testflags=testflags,
+    )
+
+
+@task
+def functional_tests(
+    ctx,
+    verbose=False,
+    go_version=None,
+    arch="x64",
+    major_version='7',
+    output='pkg/security/tests/testsuite',
+    bundle_ebpf=True,
+    testflags='',
+):
+    build_functional_tests(
+        ctx, go_version=go_version, arch=arch, major_version=major_version, output=output, bundle_ebpf=bundle_ebpf,
+    )
+
+    run_functional_tests(
+        ctx, testsuite=output, verbose=verbose, testflags=testflags,
+    )
+
+
+@task
+def kitchen_functional_tests(
+    ctx, verbose=False, go_version=None, major_version='7', build_tests=False, testflags='',
+):
+    if build_tests:
+        functional_tests(
+            ctx,
+            verbose=verbose,
+            go_version=go_version,
+            arch="x64",
+            major_version=major_version,
+            output="test/kitchen/site-cookbooks/dd-security-agent-check/files/testsuite",
+            testflags=testflags,
+        )
+
+        functional_tests(
+            ctx,
+            verbose=verbose,
+            go_version=go_version,
+            major_version=major_version,
+            output="test/kitchen/site-cookbooks/dd-security-agent-check/files/testsuite32",
+            arch="x86",
+            testflags=testflags,
+        )
+
+    kitchen_dir = os.path.join("test", "kitchen")
+    shutil.copy(
+        os.path.join(kitchen_dir, "kitchen-vagrant-security-agent.yml"), os.path.join(kitchen_dir, "kitchen.yml")
+    )
+
+    with ctx.cd(kitchen_dir):
+        ctx.run("kitchen test")
+
+
+@task
+def docker_functional_tests(
+    ctx, verbose=False, go_version=None, arch="x64", major_version='7', testflags='',
+):
+    build_functional_tests(
+        ctx,
         go_version=go_version,
         arch=arch,
         major_version=major_version,
         output="pkg/security/tests/testsuite",
+        bundle_ebpf=True,
     )
 
     container_name = 'security-agent-tests'
     capabilities = ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
 
-    cmd = 'docker run --name {container_name} {caps} -d '
+    cmd = 'docker run --name {container_name} {caps} --privileged -d '
+    cmd += '-v /proc:/host/proc -e HOST_PROC=/host/proc '
     cmd += '-v {GOPATH}/src/{REPO_PATH}/pkg/security/tests:/tests debian:bullseye sleep 3600'
 
     args = {
@@ -179,11 +304,11 @@ def docker_functional_tests(ctx, race=False, verbose=False, go_version=None, arc
     cmd = 'docker exec {container_name} mount -t debugfs none /sys/kernel/debug'
     ctx.run(cmd.format(**args))
 
-    cmd = 'docker exec {container_name} /tests/testsuite {pattern}'
+    cmd = 'docker exec {container_name} /tests/testsuite --env docker {testflags}'
     if verbose:
         cmd += ' -test.v'
     try:
-        ctx.run(cmd.format(pattern='-test.run ' + pattern if pattern else '', **args))
+        ctx.run(cmd.format(testflags=testflags, **args))
     finally:
         cmd = 'docker rm -f {container_name}'
         ctx.run(cmd.format(**args))

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017-2020 Datadog, Inc.
+// Copyright 2017-present Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -122,10 +122,14 @@ func (p *Processor) UpdateExternalMetrics(emList map[string]custommetrics.Extern
 	var err error
 	updated = make(map[string]custommetrics.ExternalMetricValue)
 
-	batch := []string{}
+	uniqueQueries := make(map[string]struct{}, len(emList))
+	batch := make([]string, 0, len(emList))
 	for _, e := range emList {
 		q := getKey(e.MetricName, e.Labels, aggregator, rollup)
-		batch = append(batch, q)
+		if _, found := uniqueQueries[q]; !found {
+			uniqueQueries[q] = struct{}{}
+			batch = append(batch, q)
+		}
 	}
 
 	metrics, err := p.QueryExternalMetric(batch)

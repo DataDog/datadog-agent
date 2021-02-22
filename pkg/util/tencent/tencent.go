@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package tencent
 
@@ -56,6 +56,16 @@ func GetInstanceID() (string, error) {
 func HostnameProvider() (string, error) {
 	log.Debug("GetHostname trying Tencent metadata...")
 	return GetInstanceID()
+}
+
+// GetNTPHosts returns the NTP hosts for Tencent if it is detected as the cloud provider, otherwise an empty array.
+// Demo: https://intl.cloud.tencent.com/document/product/213/32379
+func GetNTPHosts() []string {
+	if IsRunningOn() {
+		return []string{"ntpupdate.tencentyun.com"}
+	}
+
+	return nil
 }
 
 func getMetadataItemWithMaxLength(endpoint string, maxLength int) (string, error) {

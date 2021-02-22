@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build functionaltests
 
@@ -12,16 +12,16 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/policy"
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
 func TestChmod(t *testing.T) {
-	rule := &policy.RuleDefinition{
+	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `chmod.filename == "{{.Root}}/test-chmod"`,
+		Expression: `chmod.filename == "{{.Root}}/test-chmod" && (chmod.mode == 0707 || chmod.mode == 0757)`,
 	}
 
-	test, err := newTestModule(nil, []*policy.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,56 +39,78 @@ func TestChmod(t *testing.T) {
 	defer os.Remove(testFile)
 	defer f.Close()
 
-	if _, _, errno := syscall.Syscall(syscall.SYS_CHMOD, uintptr(testFilePtr), uintptr(0707), 0); errno != 0 {
-		t.Fatal(err)
-	}
-
-	event, _, err := test.GetEvent()
-	if err != nil {
-		t.Error(err)
-	} else {
-		if event.GetType() != "chmod" {
-			t.Errorf("expected chmod event, got %s", event.GetType())
+	t.Run("chmod", func(t *testing.T) {
+		if _, _, errno := syscall.Syscall(syscall.SYS_CHMOD, uintptr(testFilePtr), uintptr(0707), 0); errno != 0 {
+			t.Fatal(err)
 		}
 
-		if mode := event.Chmod.Mode; mode != 0707 {
-			t.Errorf("expected chmod mode 0707, got %#o", mode)
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if event.GetType() != "chmod" {
+				t.Errorf("expected chmod event, got %s", event.GetType())
+			}
+
+			if mode := event.Chmod.Mode; mode != 0707 {
+				t.Errorf("expected chmod mode 0707, got %#o", mode)
+			}
+
+			if inode := getInode(t, testFile); inode != event.Chmod.Inode {
+				t.Logf("expected inode %d, got %d", event.Chmod.Inode, inode)
+			}
+
+			testContainerPath(t, event, "chmod.container_path")
 		}
-	}
+	})
 
-	// fchmod syscall
-	if _, _, errno := syscall.Syscall(syscall.SYS_FCHMOD, f.Fd(), uintptr(0717), 0); errno != 0 {
-		t.Fatal(err)
-	}
-
-	event, _, err = test.GetEvent()
-	if err != nil {
-		t.Error(err)
-	} else {
-		if event.GetType() != "chmod" {
-			t.Errorf("expected chmod event, got %s", event.GetType())
-		}
-
-		if mode := event.Chmod.Mode; mode != 0717 {
-			t.Errorf("expected chmod mode 0717, got %#o", mode)
-		}
-	}
-
-	// fchmodat syscall
-	if _, _, errno := syscall.Syscall6(syscall.SYS_FCHMODAT, 0, uintptr(testFilePtr), uintptr(0757), 0, 0, 0); errno != 0 {
-		t.Fatal(err)
-	}
-
-	event, _, err = test.GetEvent()
-	if err != nil {
-		t.Error(err)
-	} else {
-		if event.GetType() != "chmod" {
-			t.Errorf("expected chmod event, got %s", event.GetType())
+	t.Run("fchmod", func(t *testing.T) {
+		if _, _, errno := syscall.Syscall(syscall.SYS_FCHMOD, f.Fd(), uintptr(0707), 0); errno != 0 {
+			t.Fatal(err)
 		}
 
-		if mode := event.Chmod.Mode; mode != 0757 {
-			t.Errorf("expected chmod mode 0757, got %#o", mode)
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if event.GetType() != "chmod" {
+				t.Errorf("expected chmod event, got %s", event.GetType())
+			}
+
+			if mode := event.Chmod.Mode; mode != 0707 {
+				t.Errorf("expected chmod mode 0707, got %#o", mode)
+			}
+
+			if inode := getInode(t, testFile); inode != event.Chmod.Inode {
+				t.Logf("expected inode %d, got %d", event.Chmod.Inode, inode)
+			}
+
+			testContainerPath(t, event, "chmod.container_path")
 		}
-	}
+	})
+
+	t.Run("fchmodat", func(t *testing.T) {
+		if _, _, errno := syscall.Syscall6(syscall.SYS_FCHMODAT, 0, uintptr(testFilePtr), uintptr(0757), 0, 0, 0); errno != 0 {
+			t.Fatal(err)
+		}
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if event.GetType() != "chmod" {
+				t.Errorf("expected chmod event, got %s", event.GetType())
+			}
+
+			if mode := event.Chmod.Mode; mode != 0757 {
+				t.Errorf("expected chmod mode 0757, got %#o", mode)
+			}
+
+			if inode := getInode(t, testFile); inode != event.Chmod.Inode {
+				t.Logf("expected inode %d, got %d", event.Chmod.Inode, inode)
+			}
+
+			testContainerPath(t, event, "chmod.container_path")
+		}
+	})
 }

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package checks
 
@@ -32,11 +32,6 @@ func TestCheckRun(t *testing.T) {
 		expectEvent *event.Event
 		expectErr   error
 	}{
-		{
-			name:      "config error",
-			configErr: errors.New("configuration failed"),
-			expectErr: errors.New("configuration failed"),
-		},
 		{
 			name: "successful check",
 			checkReport: &compliance.Report{
@@ -106,13 +101,11 @@ func TestCheckRun(t *testing.T) {
 				ruleID:       ruleID,
 				resourceType: resourceType,
 				resourceID:   resourceID,
-
-				configError: test.configErr,
-
-				checkable: checkable,
+				checkable:    checkable,
 			}
 
 			if test.configErr == nil {
+				env.On("IsLeader").Return(true)
 				env.On("Reporter").Return(reporter)
 				reporter.On("Report", test.expectEvent).Once()
 				checkable.On("check", check).Return(test.checkReport, test.checkErr)
@@ -122,4 +115,39 @@ func TestCheckRun(t *testing.T) {
 			assert.Equal(test.expectErr, err)
 		})
 	}
+}
+
+func TestCheckRunNoLeader(t *testing.T) {
+	const (
+		ruleID       = "rule-id"
+		resourceType = "resource-type"
+		resourceID   = "resource-id"
+	)
+
+	assert := assert.New(t)
+
+	env := &mocks.Env{}
+	defer env.AssertExpectations(t)
+
+	reporter := &mocks.Reporter{}
+	defer reporter.AssertExpectations(t)
+
+	checkable := &mockCheckable{}
+	defer checkable.AssertExpectations(t)
+
+	check := &complianceCheck{
+		Env: env,
+
+		ruleID:       ruleID,
+		resourceType: resourceType,
+		resourceID:   resourceID,
+		checkable:    checkable,
+	}
+
+	// Not leader
+	env.On("IsLeader").Return(false)
+	checkable.AssertNotCalled(t, "check")
+
+	err := check.Run()
+	assert.Nil(err)
 }

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package info
 
@@ -124,6 +124,11 @@ func newTagStats(tags Tags) *TagStats {
 	return &TagStats{tags, Stats{TracesDropped: &TracesDropped{}, SpansMalformed: &SpansMalformed{}}}
 }
 
+// AsTags returns all the tags contained in the TagStats.
+func (ts *TagStats) AsTags() []string {
+	return (&ts.Tags).toArray()
+}
+
 func (ts *TagStats) publish() {
 	// Atomically load the stats from ts
 	tracesReceived := atomic.LoadInt64(&ts.TracesReceived)
@@ -204,6 +209,11 @@ type TracesDropped struct {
 	SpanIDZero int64
 	// ForeignSpan is when a span in a trace has a TraceId that is different than the first span in the trace
 	ForeignSpan int64
+	// Timeout is when a request times out.
+	Timeout int64
+	// EOF is when an unexpected EOF is encountered, this can happen because the client has aborted
+	// or because a bad payload (i.e. shorter than claimed in Content-Length) was sent.
+	EOF int64
 }
 
 // tagValues converts TracesDropped into a map representation with keys matching standardized names for all reasons
@@ -215,6 +225,8 @@ func (s *TracesDropped) tagValues() map[string]int64 {
 		"trace_id_zero":     atomic.LoadInt64(&s.TraceIDZero),
 		"span_id_zero":      atomic.LoadInt64(&s.SpanIDZero),
 		"foreign_span":      atomic.LoadInt64(&s.ForeignSpan),
+		"timeout":           atomic.LoadInt64(&s.Timeout),
+		"unexpected_eof":    atomic.LoadInt64(&s.EOF),
 	}
 }
 
@@ -356,6 +368,8 @@ func (s *Stats) reset() {
 	atomic.StoreInt64(&s.TracesDropped.TraceIDZero, 0)
 	atomic.StoreInt64(&s.TracesDropped.SpanIDZero, 0)
 	atomic.StoreInt64(&s.TracesDropped.ForeignSpan, 0)
+	atomic.StoreInt64(&s.TracesDropped.Timeout, 0)
+	atomic.StoreInt64(&s.TracesDropped.EOF, 0)
 	atomic.StoreInt64(&s.SpansMalformed.DuplicateSpanID, 0)
 	atomic.StoreInt64(&s.SpansMalformed.ServiceEmpty, 0)
 	atomic.StoreInt64(&s.SpansMalformed.ServiceTruncate, 0)

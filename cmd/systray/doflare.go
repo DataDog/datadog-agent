@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 // +build windows
 
 package main
@@ -190,6 +190,11 @@ func requestFlare(caseID, customerEmail string) (response string, e error) {
 		logFile = common.DefaultLogFile
 	}
 
+	jmxLogFile := config.Datadog.GetString("jmx_log_file")
+	if jmxLogFile == "" {
+		jmxLogFile = common.DefaultJmxLogFile
+	}
+
 	// Set session token
 	e = util.SetAuthToken()
 	if e != nil {
@@ -206,7 +211,7 @@ func requestFlare(caseID, customerEmail string) (response string, e error) {
 		}
 		log.Debug("Initiating flare locally.")
 
-		filePath, e = flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath, logFile)
+		filePath, e = flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath, []string{logFile, jmxLogFile}, nil)
 		if e != nil {
 			log.Errorf("The flare zipfile failed to be created: %s\n", e)
 			return

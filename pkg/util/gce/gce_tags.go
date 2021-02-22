@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build gce
 
@@ -84,6 +84,9 @@ func GetTags() ([]string, error) {
 	}
 	if metadata.Project.ProjectID != "" {
 		tags = append(tags, fmt.Sprintf("project:%s", metadata.Project.ProjectID))
+		if config.Datadog.GetBool("gce_send_project_id_tag") {
+			tags = append(tags, fmt.Sprintf("project_id:%s", metadata.Project.ProjectID))
+		}
 	}
 	if metadata.Project.NumericProjectID != 0 {
 		tags = append(tags, fmt.Sprintf("numeric_project_id:%d", metadata.Project.NumericProjectID))

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package util
 
@@ -20,6 +20,11 @@ import (
 type cloudProviderDetector struct {
 	name     string
 	callback func() bool
+}
+
+type cloudProviderNTPDetector struct {
+	name     string
+	callback func() []string
 }
 
 // DetectCloudProvider detects the cloud provider where the agent is running in order:
@@ -47,4 +52,25 @@ func DetectCloudProvider() {
 		}
 	}
 	log.Info("No cloud provider detected")
+}
+
+// GetCloudProviderNTPHosts detects the cloud provider where the agent is running in order and returns its NTP host name.
+func GetCloudProviderNTPHosts() []string {
+	detectors := []cloudProviderNTPDetector{
+		{name: ecscommon.CloudProviderName, callback: ecs.GetNTPHosts},
+		{name: ec2.CloudProviderName, callback: ec2.GetNTPHosts},
+		{name: gce.CloudProviderName, callback: gce.GetNTPHosts},
+		{name: azure.CloudProviderName, callback: azure.GetNTPHosts},
+		{name: alibaba.CloudProviderName, callback: alibaba.GetNTPHosts},
+		{name: tencent.CloudProviderName, callback: tencent.GetNTPHosts},
+	}
+
+	for _, cloudNTPDetector := range detectors {
+		if cloudNTPServers := cloudNTPDetector.callback(); cloudNTPServers != nil {
+			log.Infof("Using NTP servers from %s cloud provider: %+q", cloudNTPDetector.name, cloudNTPServers)
+			return cloudNTPServers
+		}
+	}
+
+	return nil
 }

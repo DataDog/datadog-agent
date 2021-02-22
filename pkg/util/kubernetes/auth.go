@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package kubernetes
 
@@ -15,13 +15,14 @@ import (
 
 // Kubernetes constants
 const (
-	ServiceAccountPath      = "/var/run/secrets/kubernetes.io/serviceaccount"
-	ServiceAccountTokenPath = ServiceAccountPath + "/token"
+	DefaultServiceAccountPath      = "/var/run/secrets/kubernetes.io/serviceaccount"
+	DefaultServiceAccountTokenPath = DefaultServiceAccountPath + "/token"
+	DefaultServiceAccountCAPath    = DefaultServiceAccountPath + "/ca.crt"
 )
 
 // IsServiceAccountTokenAvailable returns if a service account token is available on disk
 func IsServiceAccountTokenAvailable() bool {
-	_, err := os.Stat(ServiceAccountTokenPath)
+	_, err := os.Stat(DefaultServiceAccountPath)
 	return err == nil
 }
 

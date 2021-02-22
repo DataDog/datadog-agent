@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: agent
-          image: "datadog/agent:7.21.1"
+          image: "gcr.io/datadoghq/agent:7.23.1"
           imagePullPolicy: IfNotPresent
           command: ["agent", "run"]
           resources: {}
@@ -73,18 +73,22 @@ spec:
               mountPath: /etc/datadog-agent
             - name: runtimesocketdir
               mountPath: /host/var/run
+              mountPropagation: None
               readOnly: true
             - name: procdir
               mountPath: /host/proc
+              mountPropagation: None
               readOnly: true
             - name: cgroups
               mountPath: /host/sys/fs/cgroup
+              mountPropagation: None
               readOnly: true
           livenessProbe:
             failureThreshold: 6
             httpGet:
               path: /live
               port: 5555
+              scheme: HTTP
             initialDelaySeconds: 15
             periodSeconds: 15
             successThreshold: 1
@@ -94,13 +98,14 @@ spec:
             httpGet:
               path: /ready
               port: 5555
+              scheme: HTTP
             initialDelaySeconds: 15
             periodSeconds: 15
             successThreshold: 1
             timeoutSeconds: 5
       initContainers:
         - name: init-volume
-          image: "datadog/agent:7.21.1"
+          image: "gcr.io/datadoghq/agent:7.23.1"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -110,7 +115,7 @@ spec:
               mountPath: /opt/datadog-agent
           resources: {}
         - name: init-config
-          image: "datadog/agent:7.21.1"
+          image: "gcr.io/datadoghq/agent:7.23.1"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -120,9 +125,11 @@ spec:
               mountPath: /etc/datadog-agent
             - name: procdir
               mountPath: /host/proc
+              mountPropagation: None
               readOnly: true
             - name: runtimesocketdir
               mountPath: /host/var/run
+              mountPropagation: None
               readOnly: true
           env:
             - name: DD_API_KEY

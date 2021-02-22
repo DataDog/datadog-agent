@@ -1,17 +1,19 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package host
 
 import (
+	"errors"
 	"os"
 	"path"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/alibaba"
@@ -26,8 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/gce"
 	kubelet "github.com/DataDog/datadog-agent/pkg/util/hostname/kubelet"
-
-	"github.com/DataDog/datadog-agent/pkg/logs"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 
 	"io/ioutil"
 
@@ -56,11 +57,12 @@ func GetPayload(hostnameData util.HostnameData) *Payload {
 		PythonVersion: GetPythonVersion(),
 		SystemStats:   getSystemStats(),
 		Meta:          meta,
-		HostTags:      getHostTags(),
+		HostTags:      GetHostTags(false),
 		ContainerMeta: getContainerMeta(1 * time.Second),
 		NetworkMeta:   getNetworkMeta(),
 		LogsMeta:      getLogsMeta(),
 		InstallMethod: getInstallMethod(getInstallInfoPath()),
+		ProxyMeta:     getProxyMeta(),
 	}
 
 	// Cache the metadata for use in other payloads
@@ -151,6 +153,23 @@ func getHostAliases() []string {
 	return aliases
 }
 
+func getPublicIPv4() (string, error) {
+	publicIPFetcher := map[string]func() (string, error){
+		"EC2": ec2.GetPublicIPv4,
+		"GCE": gce.GetPublicIPv4,
+	}
+	for name, fetcher := range publicIPFetcher {
+		publicIPv4, err := fetcher()
+		if err == nil {
+			log.Debugf("%s public IP = %s", name, publicIPv4)
+			return publicIPv4, nil
+		}
+		log.Debugf("could not fetch %s public IPv4: %s", name, err)
+	}
+	log.Infof("No public IPv4 address found")
+	return "", errors.New("No public IPv4 address found")
+}
+
 // getMeta grabs the information and refreshes the cache
 func getMeta(hostnameData util.HostnameData) *Meta {
 	hostname, _ := os.Hostname()
@@ -188,7 +207,16 @@ func getNetworkMeta() *NetworkMeta {
 		log.Infof("could not get network metadata: %s", err)
 		return nil
 	}
-	return &NetworkMeta{ID: nid}
+
+	networkMeta := &NetworkMeta{ID: nid}
+
+	publicIPv4, err := getPublicIPv4()
+	if err == nil {
+		log.Infof("Adding public IPv4 %s to network metadata", publicIPv4)
+		networkMeta.PublicIPv4 = publicIPv4
+	}
+
+	return networkMeta
 }
 
 func getContainerMeta(timeout time.Duration) map[string]string {
@@ -235,7 +263,17 @@ func getContainerMeta(timeout time.Duration) map[string]string {
 }
 
 func getLogsMeta() *LogsMeta {
-	return &LogsMeta{Transport: string(logs.CurrentTransport)}
+	return &LogsMeta{Transport: string(status.CurrentTransport)}
+}
+
+func getProxyMeta() *ProxyMeta {
+	httputils.NoProxyWarningMapMutex.Lock()
+	defer httputils.NoProxyWarningMapMutex.Unlock()
+
+	return &ProxyMeta{
+		NoProxyNonexactMatch: config.Datadog.GetBool("no_proxy_nonexact_match"),
+		ProxyBehaviorChanged: len(httputils.NoProxyWarningMap) > 0,
+	}
 }
 
 func buildKey(key string) string {

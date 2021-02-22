@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package writer
 
@@ -28,7 +28,7 @@ import (
 const testAPIKey = "123"
 
 func TestMain(m *testing.M) {
-	log.SetupDatadogLogger(seelog.Disabled, "error")
+	log.SetupLogger(seelog.Disabled, "error")
 	os.Exit(m.Run())
 }
 
@@ -328,5 +328,25 @@ func (r *mockRecorder) recordEvent(t eventType, data *eventData) {
 		r.dropped = append(r.dropped, data)
 	case eventTypeRejected:
 		r.rejected = append(r.rejected, data)
+	}
+}
+
+func TestShouldWarnRetry(t *testing.T) {
+	for _, test := range []struct {
+		retries    int32
+		shouldWarn bool
+	}{{0, false},
+		{1, true},
+		{2, false},
+		{3, false},
+		{4, true},
+		{5, false},
+		{6, false},
+		{8, true},
+	} {
+		actual := shouldWarnRetry(test.retries)
+		if actual != test.shouldWarn {
+			t.Fatalf("expected: %t, actual: %t", test.shouldWarn, actual)
+		}
 	}
 }

@@ -1,7 +1,7 @@
 """
 High level testing tasks
 """
-from __future__ import print_function
+
 
 import copy
 import operator
@@ -21,13 +21,6 @@ from .go import fmt, generate, golangci_lint, ineffassign, lint, lint_licenses, 
 from .trace_agent import integration_tests as trace_integration_tests
 from .utils import get_build_flags
 
-# We use `basestring` in the code for compat with python2 unicode strings.
-# This makes the same code work in python3 as well.
-try:
-    basestring
-except NameError:
-    basestring = str
-
 PROFILE_COV = "profile.cov"
 
 DEFAULT_TOOL_TARGETS = [
@@ -39,6 +32,15 @@ DEFAULT_TEST_TARGETS = [
     "./pkg",
     "./cmd",
 ]
+
+DEFAULT_GIT_BRANCH = 'master'
+
+
+def ensure_bytes(s):
+    if not isinstance(s, bytes):
+        return s.encode('utf-8')
+
+    return s
 
 
 @task()
@@ -71,7 +73,7 @@ def test(
     Example invokation:
         inv test --targets=./pkg/collector/check,./pkg/aggregator --race
     """
-    if isinstance(targets, basestring):
+    if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
         tool_targets = test_targets = targets.split(',')
@@ -114,7 +116,7 @@ def test(
         lint(ctx, targets=tool_targets)
         misspell(ctx, targets=tool_targets)
         ineffassign(ctx, targets=tool_targets)
-        staticcheck(ctx, targets=tool_targets)
+        staticcheck(ctx, targets=tool_targets, build_tags=build_tags, arch=arch)
 
         # for now we only run golangci_lint on Unix as the Windows env need more work
         if sys.platform != 'win32':
@@ -154,6 +156,11 @@ def test(
         else:
             race_opt = "-race"
 
+        # Needed to fix an issue when using -race + gcc 10.x on Windows
+        # https://github.com/bazelbuild/rules_go/issues/2614
+        if sys.platform == 'win32':
+            ldflags += " -linkmode=external"
+
     if coverage:
         if race:
             # atomic is quite expensive but it's the only way to run
@@ -173,7 +180,7 @@ def test(
     nocache = '-count=1' if not cache else ''
 
     build_tags.append("test")
-    cmd = 'go test {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
+    cmd = 'go run gotest.tools/gotestsum --format pkgname -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
     cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache} {pkg_folder}'
     args = {
         "go_mod": go_mod,
@@ -205,8 +212,12 @@ def lint_teamassignment(ctx):
     """
     Make sure PRs are assigned a team label
     """
+    branch = os.environ.get("CIRCLE_BRANCH")
     pr_url = os.environ.get("CIRCLE_PULL_REQUEST")
-    if pr_url:
+
+    if branch == DEFAULT_GIT_BRANCH:
+        print("Running on {}, skipping check for team assignment.".format(DEFAULT_GIT_BRANCH))
+    elif pr_url:
         import requests
 
         pr_id = pr_url.rsplit('/')[-1]
@@ -222,9 +233,10 @@ def lint_teamassignment(ctx):
         print("PR {} requires team assignment".format(pr_url))
         raise Exit(code=1)
 
-    # The PR has not been created yet
+    # No PR is associated with this build: given that we have the "run only on PRs" setting activated,
+    # this can only happen when we're building on a tag. We don't need to check for a team assignment.
     else:
-        print("PR not yet created, skipping check for team assignment")
+        print("PR not found, skipping check for team assignment.")
 
 
 @task
@@ -232,8 +244,12 @@ def lint_milestone(ctx):
     """
     Make sure PRs are assigned a milestone
     """
+    branch = os.environ.get("CIRCLE_BRANCH")
     pr_url = os.environ.get("CIRCLE_PULL_REQUEST")
-    if pr_url:
+
+    if branch == DEFAULT_GIT_BRANCH:
+        print("Running on {}, skipping check for milestone.".format(DEFAULT_GIT_BRANCH))
+    elif pr_url:
         import requests
 
         pr_id = pr_url.rsplit('/')[-1]
@@ -241,15 +257,16 @@ def lint_milestone(ctx):
         res = requests.get("https://api.github.com/repos/DataDog/datadog-agent/issues/{}".format(pr_id))
         pr = res.json()
         if pr.get("milestone"):
-            print("Milestone: %s" % pr["milestone"].get("title", "NO_TITLE"))
+            print("Milestone: {}".format(pr["milestone"].get("title", "NO_TITLE")))
             return
 
-        print("PR %s requires a milestone" % pr_url)
+        print("PR {} requires a milestone.".format(pr_url))
         raise Exit(code=1)
 
-    # The PR has not been created yet
+    # No PR is associated with this build: given that we have the "run only on PRs" setting activated,
+    # this can only happen when we're building on a tag. We don't need to check for a milestone.
     else:
-        print("PR not yet created, skipping check for milestone")
+        print("PR not found, skipping check for milestone.")
 
 
 @task
@@ -258,9 +275,13 @@ def lint_releasenote(ctx):
     Lint release notes with Reno
     """
 
-    # checking if a releasenote has been added/changed
+    branch = os.environ.get("CIRCLE_BRANCH")
     pr_url = os.environ.get("CIRCLE_PULL_REQUEST")
-    if pr_url:
+
+    if branch == DEFAULT_GIT_BRANCH:
+        print("Running on {}, skipping release note check.".format(DEFAULT_GIT_BRANCH))
+    # Check if a releasenote has been added/changed
+    elif pr_url:
         import requests
 
         pr_id = pr_url.rsplit('/')[-1]
@@ -282,6 +303,7 @@ def lint_releasenote(ctx):
                 [
                     f['filename'].startswith("releasenotes/notes/")
                     or f['filename'].startswith("releasenotes-dca/notes/")
+                    or f['filename'].startswith("releasenotes-installscript/notes/")
                     for f in files
                 ]
             ):
@@ -295,41 +317,10 @@ def lint_releasenote(ctx):
                     ", or apply the label 'changelog/no-changelog' to the PR."
                 )
                 raise Exit(code=1)
-
-    # The PR has not been created yet, let's compare with master (the usual base branch of the future PR)
+    # No PR is associated with this build: given that we have the "run only on PRs" setting activated,
+    # this can only happen when we're building on a tag. We don't need to check for release notes.
     else:
-        branch = os.environ.get("CIRCLE_BRANCH")
-        if branch is None:
-            print("No branch found, skipping reno linting")
-        else:
-            if re.match(r".*/.*", branch) is None:
-                print("{} is not a feature branch, skipping reno linting".format(branch))
-            else:
-                import requests
-
-                # Then check that in the diff with master, at least one note was touched
-                url = "https://api.github.com/repos/DataDog/datadog-agent/compare/master...{}".format(branch)
-                # traverse paginated github response
-                while True:
-                    res = requests.get(url)
-                    files = res.json().get("files", {})
-                    if any(
-                        [
-                            f['filename'].startswith("releasenotes/notes/")
-                            or f['filename'].startswith("releasenotes-dca/notes/")
-                            for f in files
-                        ]
-                    ):
-                        break
-
-                    if 'next' in res.links:
-                        url = res.links['next']['url']
-                    else:
-                        print(
-                            "Error: No releasenote was found for this PR. Please add one using 'reno'"
-                            ", or apply the label 'changelog/no-changelog' to the PR."
-                        )
-                        raise Exit(code=1)
+        print("PR not found, skipping release note check.")
 
     ctx.run("reno lint")
 
@@ -358,7 +349,7 @@ def lint_filenames(ctx):
     # Maximum length supported by the win32 API
     max_length = 255
     for file in files:
-        if prefix_length + len(file) > max_length:
+        if not file.startswith('test/kitchen/') and prefix_length + len(file) > max_length:
             print(
                 "Error: path {} is too long ({} characters too many)".format(
                     file, prefix_length + len(file) - max_length
@@ -382,7 +373,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
 
 
 @task
-def e2e_tests(ctx, target="gitlab", image=""):
+def e2e_tests(ctx, target="gitlab", agent_image="", dca_image=""):
     """
     Run e2e tests in several environments.
     """
@@ -391,10 +382,15 @@ def e2e_tests(ctx, target="gitlab", image=""):
         print('target %s not in %s' % (target, choices))
         raise Exit(1)
     if not os.getenv("DATADOG_AGENT_IMAGE"):
-        if not image:
+        if not agent_image:
             print("define DATADOG_AGENT_IMAGE envvar or image flag")
             raise Exit(1)
-        os.environ["DATADOG_AGENT_IMAGE"] = image
+        os.environ["DATADOG_AGENT_IMAGE"] = agent_image
+    if not os.getenv("DATADOG_CLUSTER_AGENT_IMAGE"):
+        if not dca_image:
+            print("define DATADOG_CLUSTER_AGENT_IMAGE envvar or image flag")
+            raise Exit(1)
+        os.environ["DATADOG_CLUSTER_AGENT_IMAGE"] = dca_image
 
     ctx.run("./test/e2e/scripts/setup-instance/00-entrypoint-%s.sh" % target)
 
@@ -405,7 +401,8 @@ class TestProfiler:
 
     def write(self, txt):
         # Output to stdout
-        sys.stdout.write(txt)
+        # NOTE: write to underlying stream on Python 3 to avoid unicode issues when default encoding is not UTF-8
+        getattr(sys.stdout, 'buffer', sys.stdout).write(ensure_bytes(txt))
         # Extract the run time
         for result in self.parser.finditer(txt):
             self.times.append((result.group(1), float(result.group(2))))
@@ -576,7 +573,9 @@ def lint_python(ctx):
 
     print(
         """Remember to set up pre-commit to lint your files before committing:
-    https://github.com/DataDog/datadog-agent/blob/master/docs/dev/agent_dev_env.md#pre-commit-hooks"""
+    https://github.com/DataDog/datadog-agent/blob/{}/docs/dev/agent_dev_env.md#pre-commit-hooks""".format(
+            DEFAULT_GIT_BRANCH
+        )
     )
 
     ctx.run("flake8 .")

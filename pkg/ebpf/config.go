@@ -1,132 +1,119 @@
 package ebpf
 
 import (
-	"time"
+	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
-// Config stores all flags used by the eBPF tracer
+// Config stores all common flags used by system-probe
 type Config struct {
-	// CollectTCPConns specifies whether the tracer should collect traffic statistics for TCP connections
-	CollectTCPConns bool
-
-	// CollectUDPConns specifies whether the tracer should collect traffic statistics for UDP connections
-	CollectUDPConns bool
-
-	// CollectIPv6Conns specifics whether the tracer should capture traffic for IPv6 TCP/UDP connections
-	CollectIPv6Conns bool
-
-	// CollectLocalDNS specifies whether the tracer should capture traffic for local DNS calls
-	CollectLocalDNS bool
-
-	// DNSInspection specifies whether the tracer should enhance connection data with domain names by inspecting DNS traffic
-	// Notice this does *not* depend on CollectLocalDNS
-	DNSInspection bool
-
-	// CollectDNSStats specifies whether the tracer should enhance connection data with relevant DNS stats
-	// It is relevant *only* when DNSInspection is enabled.
-	CollectDNSStats bool
-
-	// DNSTimeout determines the length of time to wait before considering a DNS Query to have timed out
-	DNSTimeout time.Duration
-
-	// UDPConnTimeout determines the length of traffic inactivity between two (IP, port)-pairs before declaring a UDP
-	// connection as inactive.
-	// Note: As UDP traffic is technically "connection-less", for tracking, we consider a UDP connection to be traffic
-	//       between a source and destination IP and port.
-	UDPConnTimeout time.Duration
-
-	// TCPConnTimeout is like UDPConnTimeout, but for TCP connections. TCP connections are cleared when
-	// the BPF module receives a tcp_close call, but TCP connections also age out to catch cases where
-	// tcp_close is not intercepted for some reason.
-	TCPConnTimeout time.Duration
-
-	// TCPClosedTimeout represents the maximum amount of time a closed TCP connection can remain buffered in eBPF before
-	// being marked as idle and flushed to the perf ring.
-	TCPClosedTimeout time.Duration
-
-	// MaxTrackedConnections specifies the maximum number of connections we can track. This determines the size of the eBPF Maps
-	MaxTrackedConnections uint
-
-	// MaxClosedConnectionsBuffered represents the maximum number of closed connections we'll buffer in memory. These closed connections
-	// get flushed on every client request (default 30s check interval)
-	MaxClosedConnectionsBuffered int
-
-	// MaxDNSStatsBufferred represents the maximum number of DNS stats we'll buffer in memory. These stats
-	// get flushed on every client request (default 30s check interval)
-	MaxDNSStatsBufferred int
-
-	// MaxConnectionsStateBuffered represents the maximum number of state objects that we'll store in memory. These state objects store
-	// the stats for a connection so we can accurately determine traffic change between client requests.
-	MaxConnectionsStateBuffered int
-
-	// ClientStateExpiry specifies the max time a client (e.g. process-agent)'s state will be stored in memory before being evicted.
-	ClientStateExpiry time.Duration
-
-	// ProcRoot is the root path to the proc filesystem
-	ProcRoot string
-
 	// BPFDebug enables bpf debug logs
 	BPFDebug bool
 
 	// BPFDir is the directory to load the eBPF program from
 	BPFDir string
 
-	// EnableConntrack enables probing conntrack for network address translation via netlink
-	EnableConntrack bool
-
-	// ConntrackMaxStateSize specifies the maximum number of connections with NAT we can track
-	ConntrackMaxStateSize int
-
-	// ConntrackRateLimit specifies the maximum number of netlink messages *per second* that can be processed
-	// Setting it to -1 disables the limit and can result in a high CPU usage.
-	ConntrackRateLimit int
+	// ProcRoot is the root path to the proc filesystem
+	ProcRoot string
 
 	// DebugPort specifies a port to run golang's expvar and pprof debug endpoint
 	DebugPort int
 
-	// ClosedChannelSize specifies the size for closed channel for the tracer
-	ClosedChannelSize int
+	// EnableTracepoints enables use of tracepoints instead of kprobes for probing syscalls (if available on system)
+	EnableTracepoints bool
 
-	// ExcludedSourceConnections is a map of source connections to blacklist
-	ExcludedSourceConnections map[string][]string
+	// EnableRuntimeCompiler enables the use of the embedded compiler to build eBPF programs on-host
+	EnableRuntimeCompiler bool
 
-	// ExcludedDestinationConnections is a map of destination connections to blacklist
-	ExcludedDestinationConnections map[string][]string
+	// KernelHeadersDir is the directories of the kernel headers to use for runtime compilation
+	KernelHeadersDirs []string
 
-	// OffsetGuessThreshold is the size of the byte threshold we will iterate over when guessing offsets
-	OffsetGuessThreshold uint64
+	// RuntimeCompilerOutputDir is the directory where the runtime compiler will store compiled programs
+	RuntimeCompilerOutputDir string
 
-	// EnableMonotonicCount (Windows only) determines if we will calculate send/recv bytes of connections with headers and retransmits
-	EnableMonotonicCount bool
+	// AllowPrecompiledFallback indicates whether we are allowed to fallback to the prebuilt probes if runtime compilation fails.
+	AllowPrecompiledFallback bool
 }
 
-// NewDefaultConfig enables traffic collection for all connection types
-func NewDefaultConfig() *Config {
-	return &Config{
-		CollectTCPConns:       true,
-		CollectUDPConns:       true,
-		CollectIPv6Conns:      true,
-		CollectLocalDNS:       false,
-		DNSInspection:         true,
-		UDPConnTimeout:        30 * time.Second,
-		TCPConnTimeout:        2 * time.Minute,
-		TCPClosedTimeout:      20 * time.Second,
-		MaxTrackedConnections: 65536,
-		ConntrackMaxStateSize: 65536,
-		ConntrackRateLimit:    500,
-		ProcRoot:              "/proc",
-		BPFDebug:              false,
-		EnableConntrack:       true,
-		// With clients checking connection stats roughly every 30s, this gives us roughly ~1.6k + ~2.5k objects a second respectively.
-		MaxClosedConnectionsBuffered: 50000,
-		MaxConnectionsStateBuffered:  75000,
-		MaxDNSStatsBufferred:         75000,
-		ClientStateExpiry:            2 * time.Minute,
-		ClosedChannelSize:            500,
-		// DNS Stats related configurations
-		CollectDNSStats:      false,
-		DNSTimeout:           15 * time.Second,
-		OffsetGuessThreshold: 400,
-		EnableMonotonicCount: false,
+// curDir is used for testing purposes only
+func curDir() (string, error) {
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		return "", fmt.Errorf("unable to get current file build path")
 	}
+
+	buildDir := filepath.Dir(file)
+
+	// build relative path from base of repo
+	buildRoot := rootDir(buildDir)
+	relPath, err := filepath.Rel(buildRoot, buildDir)
+	if err != nil {
+		return "", err
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	curRoot := rootDir(cwd)
+
+	return filepath.Join(curRoot, relPath), nil
+}
+
+// rootDir returns the base repository directory, just before `pkg`.
+// If `pkg` is not found, the dir provided is returned.
+func rootDir(dir string) string {
+	pkgIndex := -1
+	parts := strings.Split(dir, string(filepath.Separator))
+	for i, d := range parts {
+		if d == "pkg" {
+			pkgIndex = i
+			break
+		}
+	}
+	if pkgIndex == -1 {
+		return dir
+	}
+	return strings.Join(parts[:pkgIndex], string(filepath.Separator))
+}
+
+// NewDefaultConfig creates a instance of Config with sane default values
+func NewDefaultConfig() *Config {
+	cwd, err := curDir()
+	if err != nil {
+		// default to repo structure and hope we are running from the root
+		cwd = "pkg/ebpf"
+	}
+
+	return &Config{
+		BPFDir:                   filepath.Join(cwd, "bytecode/build"),
+		BPFDebug:                 false,
+		ProcRoot:                 "/proc",
+		EnableRuntimeCompiler:    false,
+		RuntimeCompilerOutputDir: "/var/tmp/datadog-agent/system-probe/build",
+		AllowPrecompiledFallback: true,
+	}
+}
+
+// SysProbeConfigFromConfig creates a Config from values provided by config.AgentConfig
+func SysProbeConfigFromConfig(cfg *config.AgentConfig) *Config {
+	ebpfConfig := NewDefaultConfig()
+
+	ebpfConfig.ProcRoot = util.GetProcRoot()
+	if cfg != nil {
+		ebpfConfig.BPFDebug = cfg.SysProbeBPFDebug
+		ebpfConfig.BPFDir = cfg.SystemProbeBPFDir
+		ebpfConfig.EnableTracepoints = cfg.EnableTracepoints
+		ebpfConfig.EnableRuntimeCompiler = cfg.EnableRuntimeCompiler
+		ebpfConfig.KernelHeadersDirs = cfg.KernelHeadersDirs
+		ebpfConfig.RuntimeCompilerOutputDir = cfg.RuntimeCompilerOutputDir
+	}
+
+	return ebpfConfig
 }

@@ -2,6 +2,146 @@
 Release Notes
 =============
 
+.. _Release Notes_dca-1.10.0_dca-1.10.X:
+
+1.10.0
+==========
+
+Prelude
+-------
+
+Released on: 2020-12-10
+    Pinned to datadog-agent v7.24.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#7240--6240>`_..
+
+.. _Release Notes_dca-1.10.0_dca-1.10.X_New Features:
+
+New Features
+------------
+
+- Add a new command 'datadog-cluster-agent health' to show the cluster
+  agent's health, similar to the already existing `agent health`.
+
+- collect node information for the orchestrator explorer
+
+- Fill DatadogMetric `AutoscalerReferences` field to ease usage/investigation of DatadogMetrics
+
+- The Cluster Agent can now collect stats from Cluster Level Check runners
+  to optimize its dispatching logic and rebalance the scheduled checks.
+
+- Allow providing custom tags to orchestrator resources.
+
+
+.. _Release Notes_dca-1.10.0_dca-1.10.X_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add new configuration parameter to allow 'GroupExec' permission on the secret-backend command.
+  The new parameter ('secret_backend_command_allow_group_exec_perm') is now enabled by default in the cluster-agent image.
+
+- Add resolve option to endpoint checks through new annotation `ad.datadoghq.com/endpoints.resolve`. With `ip` value, it allows endpoint checks to target static pods
+
+- Expose metrics for the cluster level checks advanced dispatching.
+
+
+.. _Release Notes_dca-1.10.0_dca-1.10.X_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix 'readsecret.sh' permission in Cluster-Agent dockerfiles that removes `other` permission. 
+
+- Fix issue in Cluster Agent when using external metrics without DatadogMetrics where multiple HPAs using the same metricName + Labels would prevent all HPAs (except 1st one) to get values from Datadog
+
+- Ensure that leader election runs if orchestrator_explorer and leader_election are enabled.
+
+- Rename node role tag from "node_role" to "kube_node_role" in orchestrator_explorer collection.
+
+
+.. _Release Notes_dca-1.9.1_dca-1.9.x:
+
+1.9.1
+=====
+
+.. _Release Notes_dca-1.9.1_dca-1.9.x_Prelude:
+
+Prelude
+-------
+
+Released on: 2020-10-21
+Pinned to datadog-agent v7.23.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#7231>`_..
+
+.. _Release Notes_dca-1.9.1_dca-1.9.x_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Support of secrets in JSON environment variables, added in `7.23.0`, is
+  reverted due to a side effect (e.g. a string value of `"-"` would be loaded as a list). This
+  feature will be fixed and added again in a future release.
+
+
+.. _Release Notes_1.9.0:
+
+1.9.0
+=====
+
+.. _Release Notes_1.9.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2020-10-13
+Pinned to datadog-agent v7.23.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#7230--6230>`_..
+
+New Features
+------------
+
+- Collect the node and cluster resource in Kubernetes for the Orchestrator Explorer (#6297).
+- Add `resolve` option to the endpoint checks (#5918).
+- Add `health` command (#6144).
+- Add options to configure the External Metrics Server (#6406).
+
+Enhancement Notes
+-----------------
+
+- Fill DatadogMetric `AutoscalerReferences` field to ease usage/investigation of DatadogMetrics (#6367).
+- Only run compliance checks on the Cluster Agent leader (#6311).
+- Add `orchestrator_explorer` configuration to enable the cluster-id ConfigMap creation and Orchestrator Explorer instanciation (#6189).
+
+Bug Fixes
+---------
+
+- Fix transformer for gibiBytes and gigaBytes (#6437).
+- Fix `cluster-agent` commands to allow executing the `readsecret.sh` script for the secret backend feature (#6445). 
+- Fix issue with External Metrics when several HPAs use the same query (#6412).
+
+.. _Release Notes_1.8.0:
+
+1.8.0
+=====
+
+.. _Release Notes_1.8.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2020-08-07
+
+New Features
+------------
+
+- Add compliance check command to the DCA CLI (#5930)
+- Add `clusterchecks rebalance` command (#5839)
+- Add collection of additional Kubernetes resource types (deployments, replicaSets and services) for Live Containers (#6082, #5999)
+
+
+Enhancement Notes
+-----------------
+
+- Support "ignore AD tags" parameter for cluster/endpoint checks (#6115)
+- Use APIserver connection retrier (#6106)
+
 .. _Release Notes_1.7.0:
 
 1.7.0
@@ -21,7 +161,7 @@ New Features
 ------------
 
 - Add support of DatadogMetric CRD to allow autoscaling based on arbitrary queries (#5384)
-- Add Admission Controller to inject Entity ID, standard tags and agent host (useful in serverless environments) 
+- Add Admission Controller to inject Entity ID, standard tags and agent host (useful in serverless environments)
 
 Enhancement Notes
 -----------------

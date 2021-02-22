@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 // +build !windows
 
 package listeners
@@ -139,6 +139,23 @@ func TestUDPReceive(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
+}
+
+// Reproducer for https://github.com/DataDog/datadog-agent/issues/6803
+func TestNewUDPListenerWhenBusyWithSoRcvBufSet(t *testing.T) {
+	port, err := getAvailableUDPPort()
+	assert.Nil(t, err)
+	address, _ := net.ResolveUDPAddr("udp", fmt.Sprintf("127.0.0.1:%d", port))
+	conn, err := net.ListenUDP("udp", address)
+	assert.NotNil(t, conn)
+	assert.Nil(t, err)
+	defer conn.Close()
+	config.Datadog.SetDefault("dogstatsd_so_rcvbuf", 1)
+	config.Datadog.SetDefault("dogstatsd_port", port)
+	config.Datadog.SetDefault("dogstatsd_non_local_traffic", false)
+	s, err := NewUDPListener(nil, packetPoolUDP)
+	assert.Nil(t, s)
+	assert.NotNil(t, err)
 }
 
 // getAvailableUDPPort requests a random port number and makes sure it is available

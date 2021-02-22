@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build docker
 
@@ -182,6 +182,14 @@ func (t *Tailer) readForever() {
 		default:
 			inBuf := make([]byte, 4096)
 			n, err := t.read(inBuf, t.readTimeout)
+
+			// Since `container_collect_all` reports all docker logs as a single source (even though the source is overridden internally),
+			// we need to report the byte count to the parent source used to populate the status page.
+			if t.source.ParentSource != nil {
+				t.source.ParentSource.BytesRead.Add(int64(n))
+			} else {
+				t.source.BytesRead.Add(int64(n))
+			}
 			if err != nil { // an error occurred, stop from reading new logs
 				switch {
 				case isReaderClosed(err):
@@ -274,7 +282,7 @@ func (t *Tailer) forwardMessages() {
 			t.setLastSince(output.Timestamp)
 			origin.Identifier = t.Identifier()
 			origin.SetTags(t.tagProvider.GetTags())
-			t.outputChan <- message.NewMessage(output.Content, origin, output.Status)
+			t.outputChan <- message.NewMessage(output.Content, origin, output.Status, output.IngestionTimestamp)
 		}
 	}
 }

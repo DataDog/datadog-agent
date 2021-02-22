@@ -2,7 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog
 // (https://www.datadoghq.com/).
-// Copyright 2019-2020 Datadog, Inc.
+// Copyright 2019-present Datadog, Inc.
 #ifdef _WIN32
 #    include <Windows.h>
 #else
@@ -36,6 +36,9 @@
 #elif __APPLE__
 #    define DATADOG_AGENT_TWO "libdatadog-agent-two.dylib"
 #    define DATADOG_AGENT_THREE "libdatadog-agent-three.dylib"
+#elif __FreeBSD__
+#    define DATADOG_AGENT_TWO "libdatadog-agent-two.so"
+#    define DATADOG_AGENT_THREE "libdatadog-agent-three.so"
 #elif _WIN32
 #    define DATADOG_AGENT_TWO "libdatadog-agent-two.dll"
 #    define DATADOG_AGENT_THREE "libdatadog-agent-three.dll"
@@ -312,6 +315,11 @@ char *run_check(rtloader_t *rtloader, rtloader_pyobject_t *check)
     return AS_TYPE(RtLoader, rtloader)->runCheck(AS_TYPE(RtLoaderPyObject, check));
 }
 
+void cancel_check(rtloader_t *rtloader, rtloader_pyobject_t *check)
+{
+    AS_TYPE(RtLoader, rtloader)->cancelCheck(AS_TYPE(RtLoaderPyObject, check));
+}
+
 char **get_checks_warnings(rtloader_t *rtloader, rtloader_pyobject_t *check)
 {
     return AS_TYPE(RtLoader, rtloader)->getCheckWarnings(AS_TYPE(RtLoaderPyObject, check));
@@ -412,7 +420,7 @@ DATADOG_AGENT_RTLOADER_API int handle_crashes(const int enable, char **error)
         *error = strdupe(err_msg.str().c_str());
     }
 
-    return err;
+    return err == 0 ? 1 : 0;
 }
 #endif
 
@@ -536,6 +544,11 @@ void set_read_persistent_cache_cb(rtloader_t *rtloader, cb_read_persistent_cache
 void set_obfuscate_sql_cb(rtloader_t *rtloader, cb_obfuscate_sql_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setObfuscateSqlCb(cb);
+}
+
+void set_obfuscate_sql_exec_plan_cb(rtloader_t *rtloader, cb_obfuscate_sql_exec_plan_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setObfuscateSqlExecPlanCb(cb);
 }
 
 /*

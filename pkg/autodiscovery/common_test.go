@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package autodiscovery
 
@@ -48,8 +48,8 @@ func (s *dummyService) GetPorts() ([]listeners.ContainerPort, error) {
 }
 
 // GetTags returns mil
-func (s *dummyService) GetTags() ([]string, error) {
-	return nil, nil
+func (s *dummyService) GetTags() ([]string, string, error) {
+	return nil, "", nil
 }
 
 // GetPid return a dummy pid

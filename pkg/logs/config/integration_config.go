@@ -1,23 +1,32 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package config
 
 import (
 	"fmt"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
 )
 
 // Logs source types
 const (
-	TCPType          = "tcp"
-	UDPType          = "udp"
-	FileType         = "file"
-	DockerType       = "docker"
-	JournaldType     = "journald"
-	WindowsEventType = "windows_event"
+	TCPType           = "tcp"
+	UDPType           = "udp"
+	FileType          = "file"
+	DockerType        = "docker"
+	JournaldType      = "journald"
+	WindowsEventType  = "windows_event"
+	SnmpTrapsType     = "snmp_traps"
+	StringChannelType = "string_channel"
+
+	// UTF16BE for UTF-16 Big endian encoding
+	UTF16BE string = "utf-16-be"
+	// UTF16LE for UTF-16 Little Endian encoding
+	UTF16LE string = "utf-16-le"
 )
 
 // LogsConfig represents a log source config, which can be for instance
@@ -28,6 +37,7 @@ type LogsConfig struct {
 	Port int    // Network
 	Path string // File, Journald
 
+	Encoding     string   `mapstructure:"encoding" json:"encoding"`             // File
 	ExcludePaths []string `mapstructure:"exclude_paths" json:"exclude_paths"`   // File
 	TailingMode  string   `mapstructure:"start_position" json:"start_position"` // File
 
@@ -35,13 +45,21 @@ type LogsConfig struct {
 	ExcludeUnits  []string `mapstructure:"exclude_units" json:"exclude_units"`   // Journald
 	ContainerMode bool     `mapstructure:"container_mode" json:"container_mode"` // Journald
 
-	Image      string // Docker
-	Label      string // Docker
-	Name       string // Docker
+	Image string // Docker
+	Label string // Docker
+	// Name contains the container name
+	Name string // Docker
+	// Identifier contains the container ID
 	Identifier string // Docker
 
 	ChannelPath string `mapstructure:"channel_path" json:"channel_path"` // Windows Event
 	Query       string // Windows Event
+
+	// used as input only by the Channel tailer.
+	// could have been unidirectional but the tailer could not close it in this case.
+	// TODO(remy): strongly typed to an AWS Lambda LogMessage, we should probably use
+	// a more generic type here.
+	Channel chan aws.LogMessage
 
 	Service         string
 	Source          string

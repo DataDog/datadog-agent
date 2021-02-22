@@ -1,0 +1,31 @@
+---
+.if_master_branch: &if_master_branch
+  if: $CI_COMMIT_BRANCH == "master"
+
+.retrieve_linux_go_deps: &retrieve_linux_go_deps |
+  mkdir vendor && tar xzf vendor.tar.gz -C vendor
+  rm -f vendor.tar.gz
+
+# Scan the dependencies for security vulnerabilities with snyk
+security_scan_test:
+  rules:
+    - <<: *if_master_branch
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/snyk:v3523070-7400854-next
+  tags: ["runner:main", "size:large"]
+  needs: ["linux_x64_go_deps"]
+  before_script:
+    # this image isn't built in the datadog-agent-builders repo
+    # it doesn't have invoke so we install the dependencies without invoke
+    - *retrieve_linux_go_deps
+    - mkdir -p $GOPATH/src/github.com/DataDog/datadog-agent
+    - rsync -azr --delete ./ $GOPATH/src/github.com/DataDog/datadog-agent
+    - cd $GOPATH/src/github.com/DataDog/datadog-agent
+    - python3 -m pip install -r requirements.txt
+  script:
+    - set +x     # don't print the api key to the logs
+    # send the list of the dependencies to snyk
+    - SNYK_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.snyk_token --with-decryption --query "Parameter.Value" --out text)
+      snyk monitor --command=python3 --project-name=datadog-agent-requirements.txt --file=requirements.txt --package-manager=pip
+    - SNYK_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.snyk_token --with-decryption --query "Parameter.Value" --out text)
+      snyk monitor --project-name=datadog-agent-go.sum --file=go.mod

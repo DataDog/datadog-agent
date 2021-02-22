@@ -5,14 +5,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/stretchr/testify/assert"
 )
+
+// copy of aggregator.MetricSamplePoolBatchSize to avoid cycling import
+const sampleBatchSize = 32
 
 func buildPacketAssembler() (*packetAssembler, chan Packets) {
 	out := make(chan Packets, 16)
 	psb := newPacketsBuffer(1, 1*time.Hour, out)
-	pb := newPacketAssembler(100*time.Millisecond, psb, NewPacketPool(aggregator.MetricSamplePoolBatchSize))
+	pb := newPacketAssembler(100*time.Millisecond, psb, NewPacketPool(sampleBatchSize))
 	return pb, out
 }
 
@@ -70,7 +72,7 @@ func TestPacketBufferOverflow(t *testing.T) {
 	pb, out := buildPacketAssembler()
 	// generate a message exactly of the size of the buffer of the packet assembler
 	// to fill it completely
-	message1 := generateRandomPacket(aggregator.MetricSamplePoolBatchSize)
+	message1 := generateRandomPacket(sampleBatchSize)
 	message2 := []byte("12345678")
 
 	pb.addMessage(message1)
@@ -86,8 +88,8 @@ func TestPacketBufferOverflow(t *testing.T) {
 
 func TestPacketBufferMergePlusOverflow(t *testing.T) {
 	pb, out := buildPacketAssembler()
-	message1 := generateRandomPacket(aggregator.MetricSamplePoolBatchSize / 2)
-	message2 := generateRandomPacket((aggregator.MetricSamplePoolBatchSize / 2) - 1)
+	message1 := generateRandomPacket(sampleBatchSize / 2)
+	message2 := generateRandomPacket((sampleBatchSize / 2) - 1)
 	message3 := []byte("Z")
 
 	pb.addMessage(message1)
@@ -126,4 +128,21 @@ func TestPacketBufferEmptySecond(t *testing.T) {
 	packets := <-out
 	assert.Len(t, packets, 1)
 	assert.Equal(t, []byte("test1\n"), packets[0].Contents)
+}
+
+func BenchmarkPacketsBufferFlush(b *testing.B) {
+	packet := generateRandomPacket(4)
+
+	for i := 0; i < b.N; i++ {
+		pb, out := buildPacketAssembler()
+
+		for i := 0; i < 100; i++ {
+			pb.addMessage(packet)
+
+			// let's empty the packets channel to make sure it is not blocking
+			for len(out) > 0 {
+				<-out
+			}
+		}
+	}
 }

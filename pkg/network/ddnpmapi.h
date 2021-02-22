@@ -16,7 +16,7 @@ typedef __int64 LONG64;
 typedef unsigned char       uint8_t;
 
 // define a version signature so that the driver won't load out of date structures, etc.
-#define DD_NPMDRIVER_VERSION       0x05
+#define DD_NPMDRIVER_VERSION       0x08
 #define DD_NPMDRIVER_SIGNATURE     ((uint64_t)0xDDFD << 32 | DD_NPMDRIVER_VERSION)
 
 // for more information on defining control codes, see
@@ -48,6 +48,7 @@ typedef unsigned char       uint8_t;
                                               0x805, \
                                               METHOD_BUFFERED,\
                                               FILE_ANY_ACCESS)
+
 #pragma pack(1)
 
 /*!
@@ -127,7 +128,7 @@ typedef struct _filterAddress
 #define     DIRECTION_INBOUND    ((uint64_t)0)
 #define     DIRECTION_OUTBOUND   ((uint64_t)1)
 
-#define     FILTER_LAYER_IPPACKET       ((uint64_t) 0)
+//#define     FILTER_LAYER_IPPACKET       ((uint64_t) 0)
 #define     FILTER_LAYER_TRANSPORT      ((uint64_t) 1)
 
 typedef struct _filterDefinition
@@ -195,6 +196,8 @@ typedef struct _perFlowData {
     uint64_t monotonicRecvBytes;
     uint64_t transportBytesIn;
 
+    uint64_t timestamp;             // last activity on this flow.  ns since system boot
+
     uint16_t        localPort;      // host byte order
     uint16_t        remotePort;     // host byte order
     // stats unique to a particular transport
@@ -216,8 +219,10 @@ typedef struct _perFlowData {
 #define IS_FLOW_DIRECTION_OUTBOUND(f)    ( (((f)->flags & FLOW_DIRECTION_MASK) >> FLOW_DIRECTION_BITS) == FLOW_DIRECTION_OUTBOUND)
 
 #define FLOW_CLOSED_MASK 0x10
+#define TCP_FLOW_ESTABLISHED_MASK 0x20
 
 #define IS_FLOW_CLOSED(f) ( (((f)->flags) & FLOW_CLOSED_MASK) == FLOW_CLOSED_MASK )
+#define IS_TCP_FLOW_ESTABLISHED(f) ( (((f)->flags) & TCP_FLOW_ESTABLISHED_MASK) == TCP_FLOW_ESTABLISHED_MASK )
 
 /*!
  * PACKET_HEADER structure
@@ -235,6 +240,7 @@ typedef struct filterPacketHeader
     uint64_t        pktSize;                //! size of packet
     uint64_t        af;		                //! address family of packet
     uint64_t        ownerPid;               //! (-1) if not available
+    uint64_t        timestamp;              // timestamp in ns since unix epoch
 
     // data follows
 } PACKET_HEADER, *PPACKET_HEADER;

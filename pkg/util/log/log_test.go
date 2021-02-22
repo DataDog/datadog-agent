@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // Go vet raise an error when test the "Warn" method: call has possible formatting directive %s
 // +build !dovet
@@ -34,7 +34,7 @@ func TestBasicLogging(t *testing.T) {
 	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 	assert.Nil(t, err)
 
-	SetupDatadogLogger(l, "debug")
+	SetupLogger(l, "debug")
 	assert.NotNil(t, logger)
 
 	Tracef("%s", "foo")
@@ -84,7 +84,7 @@ func TestLogBuffer(t *testing.T) {
 	Errorf("%s", "foo")
 	Criticalf("%s", "foo")
 
-	SetupDatadogLogger(l, "debug")
+	SetupLogger(l, "debug")
 	assert.NotNil(t, logger)
 
 	w.Flush()
@@ -100,7 +100,7 @@ func TestCredentialScrubbingLogging(t *testing.T) {
 	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 	assert.Nil(t, err)
 
-	SetupDatadogLogger(l, "info")
+	SetupLogger(l, "info")
 	assert.NotNil(t, logger)
 
 	Info("this is an API KEY: ", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
@@ -123,7 +123,7 @@ func TestExtraLogging(t *testing.T) {
 	lA, err := seelog.LoggerFromWriterWithMinLevelAndFormat(wA, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 	assert.Nil(t, err)
 
-	SetupDatadogLogger(l, "info")
+	SetupLogger(l, "info")
 	assert.NotNil(t, logger)
 
 	err = RegisterAdditionalLogger("extra", lA)
@@ -158,7 +158,7 @@ func TestWarnNotNil(t *testing.T) {
 	assert.NotNil(t, Warn("test"))
 
 	l, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.CriticalLvl, "[%LEVEL] %FuncShort: %Msg")
-	SetupDatadogLogger(l, "critical")
+	SetupLogger(l, "critical")
 
 	assert.NotNil(t, Warn("test"))
 
@@ -174,7 +174,7 @@ func TestWarnfNotNil(t *testing.T) {
 	assert.NotNil(t, Warn("test"))
 
 	l, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.CriticalLvl, "[%LEVEL] %FuncShort: %Msg")
-	SetupDatadogLogger(l, "critical")
+	SetupLogger(l, "critical")
 
 	assert.NotNil(t, Warn("test"))
 
@@ -190,7 +190,7 @@ func TestErrorNotNil(t *testing.T) {
 	assert.NotNil(t, Error("test"))
 
 	l, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.CriticalLvl, "[%LEVEL] %FuncShort: %Msg")
-	SetupDatadogLogger(l, "critical")
+	SetupLogger(l, "critical")
 
 	assert.NotNil(t, Error("test"))
 
@@ -206,7 +206,7 @@ func TestErrorfNotNil(t *testing.T) {
 	assert.NotNil(t, Errorf("test"))
 
 	l, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.CriticalLvl, "[%LEVEL] %FuncShort: %Msg")
-	SetupDatadogLogger(l, "critical")
+	SetupLogger(l, "critical")
 
 	assert.NotNil(t, Errorf("test"))
 
@@ -222,7 +222,7 @@ func TestCriticalNotNil(t *testing.T) {
 	assert.NotNil(t, Critical("test"))
 
 	l, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.InfoLvl, "[%LEVEL] %FuncShort: %Msg")
-	SetupDatadogLogger(l, "info")
+	SetupLogger(l, "info")
 
 	assert.NotNil(t, Critical("test"))
 }
@@ -234,7 +234,7 @@ func TestCriticalfNotNil(t *testing.T) {
 	assert.NotNil(t, Criticalf("test"))
 
 	l, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.InfoLvl, "[%LEVEL] %FuncShort: %Msg")
-	SetupDatadogLogger(l, "info")
+	SetupLogger(l, "info")
 
 	assert.NotNil(t, Criticalf("test"))
 }

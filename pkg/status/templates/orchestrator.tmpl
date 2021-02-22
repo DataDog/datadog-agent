@@ -1,0 +1,65 @@
+{{/*
+*/}}=====================
+Orchestrator Explorer
+=====================
+
+{{- if .Error }}
+  Error: {{ .Error }}
+{{- end }}
+{{- if .Disabled }}
+  Disabled: {{ .Disabled }}
+{{- end }}
+{{- if .ClusterIDError }}
+  Cluster ID error: {{.ClusterIDError}}
+{{- end }}
+
+{{- if .ClusterID }}
+  Cluster ID: {{.ClusterID}}
+{{- end }}
+{{- if .ClusterNameError }}
+  Cluster ID error: {{.ClusterNameError}}
+{{- end }}
+
+{{- if .ClusterName }}
+  Cluster name: {{.ClusterName}}
+{{- end }}
+{{- if .ContainerScrubbing }}
+  {{.ContainerScrubbing}}
+{{- end}}
+{{- if and (not .Error) (not .Disabled) }}
+{{/* this line intentionally left blank */}}
+  ======================
+  Orchestrator Endpoints
+  ======================
+  {{- range $key, $value := .OrchestratorEndpoints}}
+  {{$key}} - API Key ending with: {{$value}}
+  {{- end}}
+
+{{- if .LeaderError }}
+    Leader election error: {{.ClusterIDError}}
+{{else}}
+{{/* this line intentionally left blank */}}
+{{- if .Leader }}
+  ===========
+  Cache Stats
+  ===========
+    Elements in the cache: {{.CacheNumber}}
+    Pods:
+      Last Run: (Hits: {{.PodsStats.CacheHits}} Miss: {{.PodsStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Pods}} Miss: {{.CacheMiss.Pods}})
+    Deployments:
+      Last Run: (Hits: {{.DeploymentsStats.CacheHits}} Miss: {{.DeploymentsStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Deployments}} Miss: {{.CacheMiss.Deployments}})
+    ReplicaSets:
+      Last Run: (Hits: {{.ReplicaSetsStats.CacheHits}} Miss: {{.ReplicaSetsStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.ReplicaSets}} Miss: {{.CacheMiss.ReplicaSets}})
+    Services:
+      Last Run: (Hits: {{.ServicesStats.CacheHits}} Miss: {{.ServicesStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Services}} Miss: {{.CacheMiss.Services}})
+    Nodes:
+      Last Run: (Hits: {{.NodesStats.CacheHits}} Miss: {{.NodesStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Nodes}} Miss: {{.CacheMiss.Nodes}})
+{{else}}
+{{- if .LeaderName }}
+  Status: Follower, cluster agent leader is: {{ .LeaderName }}
+{{else}}
+  Leader election in progress, see dedicated section for more info
+{{- end}}
+{{- end}}
+{{- end}}
+{{- end}}

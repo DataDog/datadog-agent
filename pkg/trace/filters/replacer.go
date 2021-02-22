@@ -1,11 +1,13 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package filters
 
 import (
+	"strconv"
+
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
@@ -42,6 +44,25 @@ func (f Replacer) Replace(trace pb.Trace) {
 					continue
 				}
 				s.Meta[key] = re.ReplaceAllString(s.Meta[key], str)
+			}
+		}
+	}
+}
+
+// ReplaceStatsGroup applies the replacer rules to the given stats bucket group.
+func (f Replacer) ReplaceStatsGroup(b *pb.ClientGroupedStats) {
+	for _, rule := range f.rules {
+		key, str, re := rule.Name, rule.Repl, rule.Re
+		switch key {
+		case "resource.name":
+			b.Resource = re.ReplaceAllString(b.Resource, str)
+		case "*":
+			b.Resource = re.ReplaceAllString(b.Resource, str)
+			fallthrough
+		case "http.status_code":
+			strcode := re.ReplaceAllString(strconv.Itoa(int(b.HTTPStatusCode)), str)
+			if code, err := strconv.Atoi(strcode); err == nil {
+				b.HTTPStatusCode = uint32(code)
 			}
 		}
 	}

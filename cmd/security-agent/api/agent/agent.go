@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // Package agent implements the api endpoints for the `/agent` prefix.
 // This group of endpoints is meant to provide high-level functionalities
@@ -123,11 +123,14 @@ func (a *Agent) getHealth(w http.ResponseWriter, r *http.Request) {
 func (a *Agent) makeFlare(w http.ResponseWriter, r *http.Request) {
 	log.Infof("Making a flare")
 	w.Header().Set("Content-Type", "application/json")
-	logFile := config.Datadog.GetString("log_file")
-	if logFile == "" {
-		logFile = common.DefaultLogFile
+	logFile := config.Datadog.GetString("security_agent.log_file")
+
+	var runtimeAgentStatus map[string]interface{}
+	if a.runtimeAgent != nil {
+		runtimeAgentStatus = a.runtimeAgent.GetStatus()
 	}
-	filePath, err := flare.CreateSecurityAgentArchive(false, logFile)
+
+	filePath, err := flare.CreateSecurityAgentArchive(false, logFile, runtimeAgentStatus)
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)

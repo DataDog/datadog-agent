@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package compliance
 
@@ -30,6 +30,7 @@ type SuiteMeta struct {
 	Framework string      `yaml:"framework,omitempty"`
 	Version   string      `yaml:"version,omitempty"`
 	Tags      []string    `yaml:"tags,omitempty"`
+	Source    string      `yaml:"-"`
 }
 
 // Suite represents a set of compliance checks reporting events
@@ -54,6 +55,7 @@ func ParseSuite(config string) (*Suite, error) {
 	if err != nil {
 		return nil, err
 	}
+	s.Meta.Source = config
 
 	v, err := semver.NewVersion(s.Meta.Schema.Version)
 	if err != nil {

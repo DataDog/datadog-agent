@@ -14,17 +14,25 @@ type protoSerializer struct{}
 func (protoSerializer) Marshal(conns *network.Connections) ([]byte, error) {
 	agentConns := make([]*model.Connection, len(conns.Conns))
 
+	domainSet := make(map[string]int)
 	for i, conn := range conns.Conns {
-		agentConns[i] = FormatConnection(conn)
+		agentConns[i] = FormatConnection(conn, domainSet)
 	}
 
-	payload := &model.Connections{
-		Conns:     agentConns,
-		Dns:       FormatDNS(conns.DNS),
-		Telemetry: FormatTelemetry(conns.Telemetry),
+	domains := make([]string, len(domainSet))
+	for k, v := range domainSet {
+		domains[v] = k
 	}
 
-	return proto.Marshal(payload)
+	payload := connsPool.Get().(*model.Connections)
+	payload.Conns = agentConns
+	payload.Domains = domains
+	payload.Dns = FormatDNS(conns.DNS)
+	payload.Telemetry = FormatTelemetry(conns.Telemetry)
+
+	buf, err := proto.Marshal(payload)
+	returnToPool(payload)
+	return buf, err
 }
 
 func (protoSerializer) Unmarshal(blob []byte) (*model.Connections, error) {

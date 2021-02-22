@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package flavor
 
@@ -18,11 +18,13 @@ const (
 	Dogstatsd = "dogstatsd"
 	// SecurityAgent is the Security Agent flavor
 	SecurityAgent = "security_agent"
+	// ServerlessAgent is an Agent running in a serverless environment
+	ServerlessAgent = "serverless_agent"
 	// HerokuAgent is the Heroku Agent flavor
 	HerokuAgent = "heroku_agent"
 )
 
-var agentFlavor string = DefaultAgent
+var agentFlavor = DefaultAgent
 
 // SetFlavor sets the Agent flavor
 func SetFlavor(flavor string) {

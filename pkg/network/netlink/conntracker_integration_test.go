@@ -17,12 +17,86 @@ import (
 	"github.com/mdlayher/netlink"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/vishvananda/netns"
 )
 
 const (
 	natPort    = 5432
 	nonNatPort = 9876
 )
+
+func TestConnTrackerCrossNamespaceAllNsEnabled(t *testing.T) {
+	cmd := exec.Command("testdata/setup_cross_ns_dnat.sh")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		require.NoError(t, err, "setup command output %s", string(out))
+	}
+
+	defer teardownCrossNs(t)
+
+	ct, closer, laddr := setupTestConnTrackerCrossNamespace(t, true)
+	defer ct.Close()
+	defer closer.Close()
+
+	var trans *network.IPTranslation
+	require.Eventually(t, func() bool {
+		trans = ct.GetTranslationForConn(
+			network.ConnectionStats{
+				Source: util.AddressFromNetIP(laddr.IP),
+				SPort:  uint16(laddr.Port),
+				Dest:   util.AddressFromString("2.2.2.4"),
+				DPort:  uint16(80),
+				Type:   network.TCP,
+			},
+		)
+
+		if trans != nil {
+			return true
+		}
+
+		return false
+
+	}, 5*time.Second, 1*time.Second, "timed out waiting for conntrack entry")
+
+	assert.Equal(t, uint16(8080), trans.ReplSrcPort)
+}
+
+func TestConnTrackerCrossNamespaceAllNsDisabled(t *testing.T) {
+	cmd := exec.Command("testdata/setup_cross_ns_dnat.sh")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		require.NoError(t, err, "setup command output %s", string(out))
+	}
+
+	defer teardownCrossNs(t)
+
+	ct, closer, laddr := setupTestConnTrackerCrossNamespace(t, false)
+	defer ct.Close()
+	defer closer.Close()
+
+	time.Sleep(time.Second)
+	trans := ct.GetTranslationForConn(
+		network.ConnectionStats{
+			Source: util.AddressFromNetIP(laddr.IP),
+			SPort:  uint16(laddr.Port),
+			Dest:   util.AddressFromString("2.2.2.4"),
+			DPort:  uint16(80),
+			Type:   network.TCP,
+		},
+	)
+
+	assert.Nil(t, trans)
+}
+
+func setupTestConnTrackerCrossNamespace(t *testing.T, enableAllNs bool) (Conntracker, io.Closer, *net.TCPAddr) {
+	ct, err := NewConntracker("/proc", 100, 500, enableAllNs)
+	require.NoError(t, err)
+
+	time.Sleep(time.Second)
+
+	closer := startServerTCPNs(t, net.ParseIP("2.2.2.4"), 8080, "test")
+
+	laddr := pingTCP(t, net.ParseIP("2.2.2.4"), 80).LocalAddr().(*net.TCPAddr)
+	return ct, closer, laddr
+}
 
 func TestConntracker(t *testing.T) {
 	cmd := exec.Command("testdata/setup_dnat.sh")
@@ -48,7 +122,7 @@ func TestConntracker6(t *testing.T) {
 }
 
 func testConntracker(t *testing.T, serverIP, clientIP net.IP) {
-	ct, err := NewConntracker("/proc", 100, 500)
+	ct, err := NewConntracker("/proc", 100, 500, false)
 	require.NoError(t, err)
 	defer ct.Close()
 	time.Sleep(100 * time.Millisecond)
@@ -60,7 +134,7 @@ func testConntracker(t *testing.T, serverIP, clientIP net.IP) {
 	srv3 := startServerUDP(t, serverIP, natPort)
 	defer srv3.Close()
 
-	localAddr := pingTCP(t, clientIP, natPort)
+	localAddr := pingTCP(t, clientIP, natPort).LocalAddr().(*net.TCPAddr)
 	time.Sleep(1 * time.Second)
 
 	trans := ct.GetTranslationForConn(
@@ -75,7 +149,7 @@ func testConntracker(t *testing.T, serverIP, clientIP net.IP) {
 	require.NotNil(t, trans)
 	assert.Equal(t, util.AddressFromNetIP(serverIP), trans.ReplSrcIP)
 
-	localAddrUDP := pingUDP(t, clientIP, natPort).(*net.UDPAddr)
+	localAddrUDP := pingUDP(t, clientIP, natPort).LocalAddr().(*net.UDPAddr)
 	time.Sleep(time.Second)
 	trans = ct.GetTranslationForConn(
 		network.ConnectionStats{
@@ -90,7 +164,7 @@ func testConntracker(t *testing.T, serverIP, clientIP net.IP) {
 	assert.Equal(t, util.AddressFromNetIP(serverIP), trans.ReplSrcIP)
 
 	// now dial TCP directly
-	localAddr = pingTCP(t, serverIP, nonNatPort)
+	localAddr = pingTCP(t, serverIP, nonNatPort).LocalAddr().(*net.TCPAddr)
 	time.Sleep(time.Second)
 
 	trans = ct.GetTranslationForConn(
@@ -141,7 +215,7 @@ func TestMessageDump6(t *testing.T) {
 }
 
 func testMessageDump(t *testing.T, f *os.File, serverIP, clientIP net.IP) {
-	consumer, err := NewConsumer("/proc", 500)
+	consumer, err := NewConsumer("/proc", 500, false)
 	require.NoError(t, err)
 	events := consumer.Events()
 
@@ -195,6 +269,19 @@ func writeMsgToFile(f *os.File, m netlink.Message) {
 	f.Write(payload)
 }
 
+func startServerTCPNs(t *testing.T, ip net.IP, port int, ns string) io.Closer {
+	h, err := netns.GetFromName(ns)
+	require.NoError(t, err)
+
+	var closer io.Closer
+	util.WithNS("/proc", h, func() error {
+		closer = startServerTCP(t, ip, port)
+		return nil
+	})
+
+	return closer
+}
+
 func startServerTCP(t *testing.T, ip net.IP, port int) io.Closer {
 	ch := make(chan struct{})
 	addr := fmt.Sprintf("%s:%d", ip, port)
@@ -221,6 +308,19 @@ func startServerTCP(t *testing.T, ip net.IP, port int) io.Closer {
 	<-ch
 
 	return l
+}
+
+func startServerUDPNs(t *testing.T, ip net.IP, port int, ns string) io.Closer {
+	h, err := netns.GetFromName(ns)
+	require.NoError(t, err)
+
+	var closer io.Closer
+	util.WithNS("/proc", h, func() error {
+		closer = startServerUDP(t, ip, port)
+		return nil
+	})
+
+	return closer
 }
 
 func startServerUDP(t *testing.T, ip net.IP, port int) io.Closer {
@@ -253,7 +353,7 @@ func startServerUDP(t *testing.T, ip net.IP, port int) io.Closer {
 	return l
 }
 
-func pingTCP(t *testing.T, ip net.IP, port int) *net.TCPAddr {
+func pingTCP(t *testing.T, ip net.IP, port int) net.Conn {
 	addr := fmt.Sprintf("%s:%d", ip, port)
 	network := "tcp"
 	if isIpv6(ip) {
@@ -270,10 +370,10 @@ func pingTCP(t *testing.T, ip net.IP, port int) *net.TCPAddr {
 	_, err = conn.Read(bs)
 	require.NoError(t, err)
 
-	return conn.LocalAddr().(*net.TCPAddr)
+	return conn
 }
 
-func pingUDP(t *testing.T, ip net.IP, port int) net.Addr {
+func pingUDP(t *testing.T, ip net.IP, port int) net.Conn {
 	network := "udp"
 	if isIpv6(ip) {
 		network = "udp6"
@@ -288,7 +388,7 @@ func pingUDP(t *testing.T, ip net.IP, port int) net.Addr {
 	_, err = conn.Write([]byte("ping"))
 	require.NoError(t, err)
 
-	return conn.LocalAddr()
+	return conn
 }
 
 func teardown(t *testing.T) {
@@ -304,6 +404,13 @@ func teardown6(t *testing.T) {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		fmt.Printf("teardown command output: %s", string(out))
 		t.Errorf("error tearing down: %s", err)
+	}
+}
+
+func teardownCrossNs(t *testing.T) {
+	cmd := exec.Command("testdata/teardown_cross_ns_dnat.sh")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		assert.NoError(t, err, "teardown command output %s", string(out))
 	}
 }
 

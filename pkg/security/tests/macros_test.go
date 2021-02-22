@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build functionaltests
 
@@ -11,11 +11,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/policy"
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
 func TestMacros(t *testing.T) {
-	macros := []*policy.MacroDefinition{
+	macros := []*rules.MacroDefinition{
 		{
 			ID:         "testmacro",
 			Expression: `"{{.Root}}/test-macro"`,
@@ -26,7 +26,7 @@ func TestMacros(t *testing.T) {
 		},
 	}
 
-	rules := []*policy.RuleDefinition{
+	rules := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule",
 			Expression: `testmacro in testmacro2 && mkdir.filename in testmacro2`,

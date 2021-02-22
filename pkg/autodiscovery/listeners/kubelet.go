@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubelet
 
@@ -10,10 +10,12 @@ package listeners
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"sort"
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -219,37 +221,59 @@ func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRu
 	var containerName string
 	for _, container := range pod.Status.GetAllContainers() {
 		if container.ID == svc.entity {
+			// Get the ImageName from the `spec` because the one in `status` isn’t reliable
+			containerImage := ""
+			for _, containerSpec := range pod.Spec.Containers {
+				if containerSpec.Name == container.Name {
+					containerImage = containerSpec.Image
+					break
+				}
+			}
+			if containerImage == "" {
+				log.Debugf("couldn't find the container %s (%s) in the spec of pod %s", container.Name, container.ID, pod.Metadata.Name)
+				containerImage = container.Image
+			}
+
 			// Detect AD exclusion
-			if l.filters.IsExcluded(containers.GlobalFilter, container.Name, container.Image, pod.Metadata.Namespace) {
-				log.Debugf("container %s filtered out: name %q image %q namespace %q", container.ID, container.Name, container.Image, pod.Metadata.Namespace)
+			if l.filters.IsExcluded(containers.GlobalFilter, container.Name, containerImage, pod.Metadata.Namespace) {
+				log.Debugf("container %s filtered out: name %q image %q namespace %q", container.ID, container.Name, containerImage, pod.Metadata.Namespace)
 				return
 			}
 
 			// Detect metrics or logs exclusion
-			svc.metricsExcluded = l.filters.IsExcluded(containers.MetricsFilter, container.Name, container.Image, pod.Metadata.Namespace)
-			svc.logsExcluded = l.filters.IsExcluded(containers.LogsFilter, container.Name, container.Image, pod.Metadata.Namespace)
+			svc.metricsExcluded = l.filters.IsExcluded(containers.MetricsFilter, container.Name, containerImage, pod.Metadata.Namespace)
+			svc.logsExcluded = l.filters.IsExcluded(containers.LogsFilter, container.Name, containerImage, pod.Metadata.Namespace)
 
+			// Cache the container name to get the corresponding ports after breaking the for-loop
 			containerName = container.Name
+
+			// Check for custom AD identifiers
+			adIdentifier := containerName
+			if customADIdentifier, customIDFound := common.GetCustomCheckID(pod.Metadata.Annotations, containerName); customIDFound {
+				adIdentifier = customADIdentifier
+				// Add custom check ID as AD identifier
+				svc.adIdentifiers = append(svc.adIdentifiers, customADIdentifier)
+			}
 
 			// Add container uid as ID
 			svc.adIdentifiers = append(svc.adIdentifiers, entity)
 
 			// Cache check names if the pod template is annotated
-			if podHasADTemplate(pod.Metadata.Annotations, containerName) {
+			if podHasADTemplate(pod.Metadata.Annotations, adIdentifier) {
 				var err error
-				svc.checkNames, err = getCheckNamesFromAnnotations(pod.Metadata.Annotations, containerName)
+				svc.checkNames, err = getCheckNamesFromAnnotations(pod.Metadata.Annotations, adIdentifier)
 				if err != nil {
 					log.Error(err.Error())
 				}
 			}
 
 			// Add other identifiers if no template found
-			svc.adIdentifiers = append(svc.adIdentifiers, container.Image)
-			_, short, _, err := containers.SplitImageName(container.Image)
+			svc.adIdentifiers = append(svc.adIdentifiers, containerImage)
+			_, short, _, err := containers.SplitImageName(containerImage)
 			if err != nil {
 				log.Warnf("Error while spliting image name: %s", err)
 			}
-			if len(short) > 0 && short != container.Image {
+			if len(short) > 0 && short != containerImage {
 				svc.adIdentifiers = append(svc.adIdentifiers, short)
 			}
 			break
@@ -283,10 +307,47 @@ func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRu
 	}
 
 	l.m.Lock()
+	defer l.m.Unlock()
+	old, found := l.services[entity]
+	if found && kubeletSvcEqual(old, &svc) {
+		log.Tracef("Received a duplicated kubelet service '%s'", svc.entity)
+		return
+	}
 	l.services[entity] = &svc
-	l.m.Unlock()
 
 	l.newService <- &svc
+}
+
+// kubeletSvcEqual returns false if one of the following fields aren't equal
+// - hosts
+// - ports
+// - ad identifiers
+// - check names
+// - readiness
+func kubeletSvcEqual(first, second Service) bool {
+	hosts1, _ := first.GetHosts()
+	hosts2, _ := second.GetHosts()
+	if !reflect.DeepEqual(hosts1, hosts2) {
+		return false
+	}
+
+	ports1, _ := first.GetPorts()
+	ports2, _ := second.GetPorts()
+	if !reflect.DeepEqual(ports1, ports2) {
+		return false
+	}
+
+	ad1, _ := first.GetADIdentifiers()
+	ad2, _ := second.GetADIdentifiers()
+	if !reflect.DeepEqual(ad1, ad2) {
+		return false
+	}
+
+	if !reflect.DeepEqual(first.GetCheckNames(), second.GetCheckNames()) {
+		return false
+	}
+
+	return first.IsReady() == second.IsReady()
 }
 
 // podHasADTemplate looks in pod annotations and looks for annotations containing an
@@ -375,8 +436,8 @@ func (s *KubeContainerService) GetPorts() ([]ContainerPort, error) {
 }
 
 // GetTags retrieves tags using the Tagger
-func (s *KubeContainerService) GetTags() ([]string, error) {
-	return tagger.Tag(s.GetTaggerEntity(), tagger.ChecksCardinality)
+func (s *KubeContainerService) GetTags() ([]string, string, error) {
+	return tagger.TagWithHash(s.GetTaggerEntity(), tagger.ChecksCardinality)
 }
 
 // GetHostname returns nil and an error because port is not supported in Kubelet
@@ -451,8 +512,8 @@ func (s *KubePodService) GetPorts() ([]ContainerPort, error) {
 }
 
 // GetTags retrieves tags using the Tagger
-func (s *KubePodService) GetTags() ([]string, error) {
-	return tagger.Tag(s.GetTaggerEntity(), tagger.ChecksCardinality)
+func (s *KubePodService) GetTags() ([]string, string, error) {
+	return tagger.TagWithHash(s.GetTaggerEntity(), tagger.ChecksCardinality)
 }
 
 // GetHostname returns nil and an error because port is not supported in Kubelet

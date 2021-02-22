@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package integration
 
@@ -289,7 +289,7 @@ func (c *Config) Digest() string {
 			// identical configs with the same tags but with different order
 			tagsInterface, ok := val.([]interface{})
 			if !ok {
-				log.Debug("Error while calculating config digest for %s, skipping: cannot read tags from config", c.Name)
+				log.Debugf("Error while calculating config digest for %s, skipping: cannot read tags from config", c.Name)
 				continue
 			}
 			tags := make([]string, len(tagsInterface))

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build systemd
 
@@ -519,6 +519,10 @@ func isValidServiceCheckStatus(serviceCheckStatus string) bool {
 
 // Configure configures the systemd checks
 func (c *SystemdCheck) Configure(rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
+	// Make sure check id is different for each different config
+	// Must be called before CommonConfigure that uses checkID
+	c.BuildID(rawInstance, rawInitConfig)
+
 	err := c.CommonConfigure(rawInstance, source)
 	if err != nil {
 		return err

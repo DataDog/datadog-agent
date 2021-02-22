@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package status
 
@@ -13,19 +13,38 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
+// Transport is the transport used by logs-agent, i.e TCP or HTTP
+type Transport string
+
+const (
+	// TransportHTTP indicates logs-agent is using HTTP transport
+	TransportHTTP Transport = "HTTP"
+	// TransportTCP indicates logs-agent is using TCP transport
+	TransportTCP Transport = "TCP"
+)
+
 var (
 	builder  *Builder
 	warnings *config.Messages
 	errors   *config.Messages
+
+	// CurrentTransport is the current transport used by logs-agent, i.e TCP or HTTP
+	CurrentTransport Transport
 )
 
 // Source provides some information about a logs source.
 type Source struct {
-	Type          string                 `json:"type"`
-	Configuration map[string]interface{} `json:"configuration"`
-	Status        string                 `json:"status"`
-	Inputs        []string               `json:"inputs"`
-	Messages      []string               `json:"messages"`
+	BytesRead          int64                  `json:"bytes_read"`
+	AllTimeAvgLatency  int64                  `json:"all_time_avg_latency"`
+	AllTimePeakLatency int64                  `json:"all_time_peak_latency"`
+	RecentAvgLatency   int64                  `json:"recent_avg_latency"`
+	RecentPeakLatency  int64                  `json:"recent_peak_latency"`
+	Type               string                 `json:"type"`
+	Configuration      map[string]interface{} `json:"configuration"`
+	Status             string                 `json:"status"`
+	Inputs             []string               `json:"inputs"`
+	Messages           []string               `json:"messages"`
+	Info               []string               `json:"info"`
 }
 
 // Integration provides some information about a logs integration.

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build ignore
 
@@ -42,7 +42,9 @@ type context struct {
 	ClusterChecks     bool
 	CloudFoundryBBS   bool
 	Compliance        bool
+	SNMP              bool
 	SecurityModule    bool
+	NetworkModule     bool // Sub-module of System Probe
 }
 
 func mkContext(buildType string) context {
@@ -70,6 +72,7 @@ func mkContext(buildType string) context {
 		Kubelet:           true,
 		KubeApiServer:     true, // TODO: remove when phasing out from node-agent
 		Compliance:        true,
+		SNMP:              true,
 		SecurityModule:    true,
 	}
 
@@ -90,7 +93,8 @@ func mkContext(buildType string) context {
 		}
 	case "system-probe":
 		return context{
-			SystemProbe: true,
+			SystemProbe:   true,
+			NetworkModule: true,
 		}
 	case "dogstatsd":
 		return context{

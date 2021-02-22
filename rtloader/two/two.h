@@ -2,7 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog
 // (https://www.datadoghq.com/).
-// Copyright 2019-2020 Datadog, Inc.
+// Copyright 2019-present Datadog, Inc.
 #ifndef DATADOG_AGENT_RTLOADER_TWO_H
 #define DATADOG_AGENT_RTLOADER_TWO_H
 
@@ -66,6 +66,7 @@ public:
                   RtLoaderPyObject *&check);
 
     char *runCheck(RtLoaderPyObject *check);
+    void cancelCheck(RtLoaderPyObject *check);
     char **getCheckWarnings(RtLoaderPyObject *check);
     void decref(RtLoaderPyObject *obj);
     void incref(RtLoaderPyObject *obj);
@@ -103,6 +104,7 @@ public:
     void setWritePersistentCacheCb(cb_write_persistent_cache_t);
     void setReadPersistentCacheCb(cb_read_persistent_cache_t);
     void setObfuscateSqlCb(cb_obfuscate_sql_t);
+    void setObfuscateSqlExecPlanCb(cb_obfuscate_sql_exec_plan_t);
 
     // _util API
     virtual void setSubprocessOutputCb(cb_get_subprocess_output_t);

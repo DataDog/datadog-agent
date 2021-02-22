@@ -1,0 +1,30 @@
+---
+# deps_fetch stage
+# Contains jobs which fetch go dependencies for various Linux platforms, in order
+# to reuse them in further jobs that need them.
+
+.go_deps:
+  stage: deps_fetch
+  needs: []
+  script:
+    - inv -e deps --verbose
+    - cd $CI_PROJECT_DIR/vendor && tar czf $CI_PROJECT_DIR/vendor.tar.gz .
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - $CI_PROJECT_DIR/vendor.tar.gz
+
+linux_x64_go_deps:
+  extends: .go_deps
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main", "size:2xlarge"]
+
+linux_arm64_go_deps:
+  extends: .go_deps
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
+
+linux_armhf_go_deps:
+  extends: .go_deps
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_armhf:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]

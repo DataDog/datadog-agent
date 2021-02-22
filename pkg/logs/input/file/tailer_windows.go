@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build windows
 
@@ -18,7 +18,7 @@ import (
 
 // setup sets up the file tailer
 func (t *Tailer) setup(offset int64, whence int) error {
-	fullpath, err := filepath.Abs(t.path)
+	fullpath, err := filepath.Abs(t.file.Path)
 	if err != nil {
 		return err
 	}
@@ -89,7 +89,7 @@ func (t *Tailer) read() (int, error) {
 	if err == io.EOF || os.IsNotExist(err) {
 		return 0, nil
 	} else if err != nil {
-		t.source.Status.Error(err)
+		t.file.Source.Status.Error(err)
 		return 0, log.Error("Err: ", err)
 	}
 	return 0, nil

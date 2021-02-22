@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package flare
 
@@ -128,7 +128,7 @@ func analyzeResponse(r *http.Response, err error) (string, error) {
 		return response, err
 	}
 	if r.StatusCode == http.StatusForbidden {
-		apiKey := config.Datadog.GetString("api_key")
+		apiKey := config.SanitizeAPIKey(config.Datadog.GetString("api_key"))
 		var errStr string
 
 		if len(apiKey) == 0 {
@@ -177,6 +177,6 @@ func mkURL(caseID string) string {
 	if caseID != "" {
 		url += "/" + caseID
 	}
-	url += "?api_key=" + config.Datadog.GetString("api_key")
+	url += "?api_key=" + config.SanitizeAPIKey(config.Datadog.GetString("api_key"))
 	return url
 }

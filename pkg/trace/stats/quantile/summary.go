@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // Package quantile implements "Space-Efficient Online Computation of Quantile
 // Summaries" (Greenwald, Khanna 2001):
@@ -57,8 +57,8 @@ func (s SliceSummary) String() string {
 	return b.String()
 }
 
-// Insert inserts a new value v in the summary paired with t (the ID of the span it was reported from)
-func (s *SliceSummary) Insert(v float64, t uint64) {
+// Insert inserts a new value v in the summary
+func (s *SliceSummary) Insert(v float64) {
 	newEntry := Entry{
 		V:     v,
 		G:     1,

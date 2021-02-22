@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package util
 
@@ -30,7 +30,7 @@ const maxVersionHistoryEntries = 60
 // LogVersionHistory loads version history file, append new entry if agent version is different than the last entry in the
 // JSON file, trim the file if too many entries then save the file.
 func LogVersionHistory() {
-	versionHistoryFilePath := filepath.Join(config.Datadog.GetString("logs_config.run_path"), "version-history.json")
+	versionHistoryFilePath := filepath.Join(config.Datadog.GetString("run_path"), "version-history.json")
 	logVersionHistoryToFile(versionHistoryFilePath, version.AgentVersion, time.Now().UTC())
 }
 
@@ -40,7 +40,7 @@ func logVersionHistoryToFile(versionHistoryFilePath, agentVersion string, timest
 	history := versionHistoryEntries{}
 
 	if err != nil {
-		log.Warnf("Cannot read file: %s, will create a new one. %v", versionHistoryFilePath, err)
+		log.Infof("Cannot read file: %s, will create a new one. %v", versionHistoryFilePath, err)
 	} else {
 		err = json.Unmarshal(file, &history)
 		if err != nil {

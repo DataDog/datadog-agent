@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubelet
 
@@ -89,8 +89,7 @@ func (suite *SecureTestSuite) TestTLSWithoutCA() {
 
 	_, err := kubelet.GetKubeUtil()
 	require.NotNil(suite.T(), err)
-	assert.Contains(suite.T(), err.Error(), "Get https://127.0.0.1:10250/pods: x509: ")
-	assert.Regexp(suite.T(), "10255: \\w+: connection refused", err.Error())
+	assert.Contains(suite.T(), err.Error(), "impossible to reach Kubelet with host: 127.0.0.1. Please check if your setup requires kubelet_tls_verify = false")
 }
 
 // TestTLSWithCACertificate with:

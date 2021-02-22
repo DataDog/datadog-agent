@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package writer
 
@@ -45,7 +45,10 @@ type SampledSpans struct {
 
 // TraceWriter buffers traces and APM events, flushing them to the Datadog API.
 type TraceWriter struct {
-	in       <-chan *SampledSpans
+	// In receives sampled spans to be processed by the trace writer.
+	// Channel should only be received from when testing.
+	In chan *SampledSpans
+
 	hostname string
 	env      string
 	senders  []*sender
@@ -63,9 +66,9 @@ type TraceWriter struct {
 
 // NewTraceWriter returns a new TraceWriter. It is created for the given agent configuration and
 // will accept incoming spans via the in channel.
-func NewTraceWriter(cfg *config.AgentConfig, in <-chan *SampledSpans) *TraceWriter {
+func NewTraceWriter(cfg *config.AgentConfig) *TraceWriter {
 	tw := &TraceWriter{
-		in:       in,
+		In:       make(chan *SampledSpans, 1000),
 		hostname: cfg.Hostname,
 		env:      cfg.DefaultEnv,
 		stats:    &info.TraceWriterInfo{},
@@ -114,14 +117,14 @@ func (w *TraceWriter) Run() {
 	defer close(w.stop)
 	for {
 		select {
-		case pkg := <-w.in:
+		case pkg := <-w.In:
 			w.addSpans(pkg)
 		case <-w.stop:
 			// drain the input channel before stopping
 		outer:
 			for {
 				select {
-				case pkg := <-w.in:
+				case pkg := <-w.In:
 					w.addSpans(pkg)
 				default:
 					break outer
