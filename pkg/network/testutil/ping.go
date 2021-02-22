@@ -49,3 +49,7 @@ func PingUDP(t *testing.T, ip net.IP, port int) net.Conn {
 
 	return conn
 }
+
+func isIpv6(ip net.IP) bool {
+	return ip.To4() == nil
+}
