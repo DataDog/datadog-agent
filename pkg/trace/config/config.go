@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"crypto/tls"
 	"errors"
-	"fmt"
 	"net"
 	"net/http"
 	"net/url"
@@ -275,39 +274,19 @@ func prepareConfig(path string) (*AgentConfig, error) {
 	return cfg, nil
 }
 
-// allFeatures keeps track of all features that ever existed in the trace-agent.
-var allFeatures = map[string]struct{}{
-	// Do not remove any features from here, regardless of whether they exist
-	// in the code or not, and do not omit any features (code will panic).
-	// They are used by the discovery endpoint to report the state of the agent
-	// to clients.
-	//
-	// A removed feature flag may mean its permanent enabling when it comes to code,
-	// but its absence from discovery may erroneously lead clients to believe that
-	// the feature is off, and this would be false!
-	"sql_cache":              struct{}{},
-	"table_names":            struct{}{},
-	"quantize_sql_tables":    struct{}{},
-	"429":                    struct{}{},
-	"big_resource":           struct{}{},
-	"disable_sublayer_spans": struct{}{},
-	"disable_sublayer_stats": struct{}{},
-}
-
 // HasFeature returns true if the feature f is present. Features are values
 // of the DD_APM_FEATURES environment variable.
 func HasFeature(f string) bool {
-	if _, ok := allFeatures[f]; !ok {
-		panic(fmt.Errorf("feature %q must be added to the (pkg/trace/config).allFeatures map", f))
-	}
 	return strings.Contains(os.Getenv("DD_APM_FEATURES"), f)
 }
 
-// Features returns the state of all feature flags.
-func Features() map[string]bool {
-	all := make(map[string]bool, len(allFeatures))
-	for f := range allFeatures {
-		all[f] = HasFeature(f)
+// Features returns a list of all the features configured by means of DD_APM_FEATURES.
+func Features() []string {
+	var all []string
+	if fenv := os.Getenv("DD_APM_FEATURES"); fenv != "" {
+		for _, f := range strings.Split(fenv, ",") {
+			all = append(all, strings.TrimSpace(f))
+		}
 	}
 	return all
 }

@@ -120,22 +120,11 @@ func TestInfoHandler(t *testing.T) {
 		"/v0.5/stats",
 		"/profiling/v1/input"
 	],
-	"feature_flags": {
-		"429": false,
-		"big_resource": false,
-		"disable_sublayer_spans": false,
-		"disable_sublayer_stats": false,
-		"quantize_sql_tables": false,
-		"sql_cache": false,
-		"table_names": false
-	},
+	"feature_flags": [
+		"feature_flag"
+	],
 	"config": {
 		"default_env": "prod",
-		"bucket_interval": 1000000000,
-		"extra_aggregators": [
-			"agg:val"
-		],
-		"extra_sample_rate": 2.4,
 		"target_tps": 11,
 		"max_eps": 12,
 		"receiver_port": 8111,
@@ -146,9 +135,6 @@ func TestInfoHandler(t *testing.T) {
 		"statsd_port": 123,
 		"max_memory": 1000000,
 		"max_cpu": 12345,
-		"analyzed_rate_by_service_legacy": {
-			"X": 1.2
-		},
 		"analyzed_spans_by_service": {
 			"X": {
 				"Y": 2.4
