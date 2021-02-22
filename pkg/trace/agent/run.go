@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package agent
 
@@ -17,6 +17,9 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/tagger/local"
+	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/flags"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -24,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -113,6 +117,10 @@ func Run(ctx context.Context) {
 		defer os.Remove(flags.PIDFilePath)
 	}
 
+	if err := util.SetupCoreDump(); err != nil {
+		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
+	}
+
 	err = metrics.Configure(cfg, []string{"version:" + info.Version})
 	if err != nil {
 		osutil.Exitf("cannot configure dogstatsd: %v", err)
@@ -124,8 +132,20 @@ func Run(ctx context.Context) {
 
 	rand.Seed(time.Now().UTC().UnixNano())
 
+	var t tagger.Tagger
+	if coreconfig.Datadog.GetBool("apm_config.remote_tagger") {
+		t = remote.NewTagger()
+	} else {
+		t = local.NewTagger(collectors.DefaultCatalog)
+	}
+	tagger.SetDefaultTagger(t)
 	tagger.Init()
-	defer tagger.Stop()
+	defer func() {
+		err := tagger.Stop()
+		if err != nil {
+			log.Error(err)
+		}
+	}()
 
 	agnt := NewAgent(ctx, cfg)
 	log.Infof("Trace agent running on host %s", cfg.Hostname)

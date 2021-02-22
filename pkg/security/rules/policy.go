@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package rules
 
@@ -14,11 +14,9 @@ import (
 	"regexp"
 	"sort"
 
-	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 // Policy represents a policy file which is composed of a list of rules and macros
@@ -77,13 +75,13 @@ func LoadPolicy(r io.Reader, name string) (*Policy, error) {
 }
 
 // LoadPolicies loads the policies listed in the configuration and apply them to the given ruleset
-func LoadPolicies(config *config.Config, ruleSet *RuleSet) error {
+func LoadPolicies(policiesDir string, ruleSet *RuleSet) error {
 	var (
 		result *multierror.Error
 		rules  []*RuleDefinition
 	)
 
-	policyFiles, err := ioutil.ReadDir(config.PoliciesDir)
+	policyFiles, err := ioutil.ReadDir(policiesDir)
 	if err != nil {
 		return err
 	}
@@ -95,12 +93,12 @@ func LoadPolicies(config *config.Config, ruleSet *RuleSet) error {
 
 		// policy path extension check
 		if filepath.Ext(filename) != ".policy" {
-			log.Debugf("ignoring file `%s` wrong extension `%s`", policyPath.Name(), filepath.Ext(filename))
+			ruleSet.logger.Debugf("ignoring file `%s` wrong extension `%s`", policyPath.Name(), filepath.Ext(filename))
 			continue
 		}
 
 		// Open policy path
-		f, err := os.Open(filepath.Join(config.PoliciesDir, filename))
+		f, err := os.Open(filepath.Join(policiesDir, filename))
 		if err != nil {
 			result = multierror.Append(result, errors.Wrapf(err, "failed to load policy `%s`", policyPath.Name()))
 			continue
@@ -118,6 +116,9 @@ func LoadPolicies(config *config.Config, ruleSet *RuleSet) error {
 		if err := ruleSet.AddMacros(policy.Macros); err != nil {
 			result = multierror.Append(result, err)
 		}
+
+		// Add policy version for logging purposes
+		ruleSet.AddPolicyVersion(filename, policy.Version)
 
 		rules = append(rules, policy.Rules...)
 	}

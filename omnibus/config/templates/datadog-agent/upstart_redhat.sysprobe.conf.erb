@@ -4,7 +4,7 @@ start on starting datadog-agent
 stop on (runlevel [!2345] or stopping datadog-agent)
 
 respawn
-respawn limit 10 5
+respawn limit 5 10
 normal exit 0
 
 console output

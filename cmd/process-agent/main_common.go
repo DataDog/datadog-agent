@@ -19,7 +19,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/tagger/local"
+	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	ddutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -84,6 +88,10 @@ func runAgent(exit chan struct{}) {
 		cleanupAndExit(0)
 	}
 
+	if err := ddutil.SetupCoreDump(); err != nil {
+		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
+	}
+
 	if opts.check == "" && !opts.info && opts.pidfilePath != "" {
 		err := pidfile.WritePID(opts.pidfilePath)
 		if err != nil {
@@ -110,6 +118,13 @@ func runAgent(exit chan struct{}) {
 	log.Infof("running version: %s", versionString(", "))
 
 	// Tagger must be initialized after agent config has been setup
+	var t tagger.Tagger
+	if ddconfig.Datadog.GetBool("process_config.remote_tagger") {
+		t = remote.NewTagger()
+	} else {
+		t = local.NewTagger(collectors.DefaultCatalog)
+	}
+	tagger.SetDefaultTagger(t)
 	tagger.Init()
 	defer tagger.Stop() //nolint:errcheck
 
@@ -223,8 +238,9 @@ func debugCheckResults(cfg *config.AgentConfig, check string) error {
 		return err
 	}
 
-	if check == checks.Connections.Name() {
-		// Connections check requires process-check to have occurred first (for process creation ts)
+	// Connections check requires process-check to have occurred first (for process creation ts),
+	// RTProcess check requires process check to gather PIDs first
+	if check == checks.Connections.Name() || check == checks.RTProcess.Name() {
 		checks.Process.Init(cfg, sysInfo)
 		checks.Process.Run(cfg, 0) //nolint:errcheck
 	}

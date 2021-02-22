@@ -2,7 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog
 // (https://www.datadoghq.com/).
-// Copyright 2019-2020 Datadog, Inc.
+// Copyright 2019-present Datadog, Inc.
 #ifdef _WIN32
 #    include <Windows.h>
 #else
@@ -313,6 +313,11 @@ int get_check_deprecated(rtloader_t *rtloader, rtloader_pyobject_t *py_class, co
 char *run_check(rtloader_t *rtloader, rtloader_pyobject_t *check)
 {
     return AS_TYPE(RtLoader, rtloader)->runCheck(AS_TYPE(RtLoaderPyObject, check));
+}
+
+void cancel_check(rtloader_t *rtloader, rtloader_pyobject_t *check)
+{
+    AS_TYPE(RtLoader, rtloader)->cancelCheck(AS_TYPE(RtLoaderPyObject, check));
 }
 
 char **get_checks_warnings(rtloader_t *rtloader, rtloader_pyobject_t *check)

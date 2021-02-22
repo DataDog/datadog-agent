@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package gce
 
@@ -112,6 +112,23 @@ func TestGetClusterName(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, "/instance/attributes/cluster-name", lastRequest.URL.Path)
+}
+
+func TestGetPublicIPv4(t *testing.T) {
+	expected := "10.0.0.2"
+	var lastRequest *http.Request
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		io.WriteString(w, expected)
+		lastRequest = r
+	}))
+	defer ts.Close()
+	metadataURL = ts.URL
+
+	val, err := GetPublicIPv4()
+	assert.Nil(t, err)
+	assert.Equal(t, expected, val)
+	assert.Equal(t, "/instance/network-interfaces/0/access-configs/0/external-ip", lastRequest.URL.Path)
 }
 
 func TestGetNetwork(t *testing.T) {

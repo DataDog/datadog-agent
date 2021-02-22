@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -58,6 +59,10 @@ func runAgent(exit <-chan struct{}) {
 	if opts.version {
 		fmt.Println(versionString("\n"))
 		cleanupAndExit(0)
+	}
+
+	if err := util.SetupCoreDump(); err != nil {
+		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
 	// --pid
@@ -158,18 +163,25 @@ func runAgent(exit <-chan struct{}) {
 }
 
 func enableProfiling(cfg *config.AgentConfig) error {
-	// allow full url override for development use
-	s := ddconfig.DefaultSite
-	if cfg.ProfilingSite != "" {
-		s = cfg.ProfilingSite
-	}
-
-	site := fmt.Sprintf(profiling.ProfileURLTemplate, s)
-	if cfg.ProfilingURL != "" {
-		site = cfg.ProfilingURL
-	}
-
+	var site string
 	v, _ := version.Agent()
+
+	// check if TRACE_AGENT_URL is set, in which case, forward the profiles to the trace agent
+	if traceAgentURL := os.Getenv("TRACE_AGENT_URL"); len(traceAgentURL) > 0 {
+		site = fmt.Sprintf(profiling.ProfilingLocalURLTemplate, traceAgentURL)
+	} else {
+		// allow full url override for development use
+		s := ddconfig.DefaultSite
+		if cfg.ProfilingSite != "" {
+			s = cfg.ProfilingSite
+		}
+
+		site = fmt.Sprintf(profiling.ProfileURLTemplate, s)
+		if cfg.ProfilingURL != "" {
+			site = cfg.ProfilingURL
+		}
+	}
+
 	return profiling.Start(
 		cfg.ProfilingAPIKey,
 		site,

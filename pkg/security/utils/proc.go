@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build linux
 
@@ -73,6 +73,26 @@ func ParseMountInfoFile(pid int32) ([]*mountinfo.Info, error) {
 	defer f.Close()
 
 	return mountinfo.GetMountsFromReader(f, nil)
+}
+
+// GetProcesses returns list of active processes
+func GetProcesses() ([]*process.Process, error) {
+	pids, err := process.Pids()
+	if err != nil {
+		return nil, err
+	}
+
+	var processes []*process.Process
+	for _, pid := range pids {
+		proc, err := process.NewProcess(pid)
+		if err != nil {
+			// the process does not exist anymore, continue
+			continue
+		}
+		processes = append(processes, proc)
+	}
+
+	return processes, nil
 }
 
 // GetFilledProcess returns a FilledProcess from a Process input

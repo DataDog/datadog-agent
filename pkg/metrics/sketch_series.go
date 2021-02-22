@@ -109,7 +109,6 @@ func (sl SketchSeriesList) Marshal() ([]byte, error) {
 			Dogsketches: dsl,
 		})
 	}
-
 	return pb.Marshal()
 }
 

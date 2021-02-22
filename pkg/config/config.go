@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package config
 
@@ -29,6 +29,7 @@ import (
 )
 
 const (
+
 	// DefaultSite is the default site the Agent sends data to.
 	DefaultSite    = "datadoghq.com"
 	infraURLPrefix = "https://app."
@@ -74,6 +75,12 @@ var (
 	// the Python version set in the configuration and use `DefaultPython` instead.
 	// We use this to force Python 3 in the Agent 7 as it's the only one available.
 	ForceDefaultPython string
+)
+
+// Variables to initialize at start time
+var (
+	// StartTime is the agent startup time
+	StartTime = time.Now()
 )
 
 // MetadataProviders helps unmarshalling `metadata_providers` config param
@@ -181,7 +188,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("enable_gohai", true)
 	config.BindEnvAndSetDefault("check_runners", int64(4))
 	config.BindEnvAndSetDefault("auth_token_file_path", "")
-	config.BindEnvAndSetDefault("bind_host", "localhost")
+	_ = config.BindEnv("bind_host")
 	config.BindEnvAndSetDefault("ipc_address", "localhost")
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
@@ -197,6 +204,7 @@ func InitConfig(config Config) {
 	// Debugging + C-land crash feature flags
 	config.BindEnvAndSetDefault("c_stacktrace_collection", false)
 	config.BindEnvAndSetDefault("c_core_dump", false)
+	config.BindEnvAndSetDefault("go_core_dump", false)
 	config.BindEnvAndSetDefault("memtrack_enabled", true)
 	config.BindEnvAndSetDefault("tracemalloc_debug", false)
 	config.BindEnvAndSetDefault("tracemalloc_include", "")
@@ -400,7 +408,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("extra_listeners", []string{})
 	config.BindEnvAndSetDefault("extra_config_providers", []string{})
 	config.BindEnvAndSetDefault("ignore_autoconf", []string{})
-	config.BindEnvAndSetDefault("autoconf_from_environment", true)
 
 	// Docker
 	config.BindEnvAndSetDefault("docker_query_timeout", int64(5))
@@ -409,6 +416,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("kubernetes_pod_labels_as_tags", map[string]string{})
 	config.BindEnvAndSetDefault("kubernetes_pod_annotations_as_tags", map[string]string{})
 	config.BindEnvAndSetDefault("kubernetes_node_labels_as_tags", map[string]string{})
+	config.BindEnvAndSetDefault("kubernetes_namespace_labels_as_tags", map[string]string{})
 	config.BindEnvAndSetDefault("container_cgroup_prefix", "")
 
 	// CRI
@@ -578,6 +586,12 @@ func InitConfig(config Config) {
 	config.BindEnv("logs_config.processing_rules") //nolint:errcheck
 	// enforce the agent to use files to collect container logs on kubernetes environment
 	config.BindEnvAndSetDefault("logs_config.k8s_container_use_file", false)
+	// Enable the agent to use files to collect container logs on standalone docker environment, containers
+	// with an existing registry offset will continue to be tailed from the docker socket unless
+	// logs_config.docker_container_force_use_file is set to true.
+	config.BindEnvAndSetDefault("logs_config.docker_container_use_file", false)
+	// Force tailing from file for all docker container, even the ones with an existing registry entry
+	config.BindEnvAndSetDefault("logs_config.docker_container_force_use_file", false)
 	// additional config to ensure initial logs are tagged with kubelet tags
 	// wait (seconds) for tagger before start fetching tags of new AD services
 	config.BindEnvAndSetDefault("logs_config.tagger_warmup_duration", 0) // Disabled by default (0 seconds)
@@ -602,7 +616,12 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.stop_grace_period", 30)
 	config.BindEnvAndSetDefault("logs_config.close_timeout", 60)
 	config.BindEnvAndSetDefault("logs_config.auditor_ttl", DefaultAuditorTTL) // in hours
-	config.BindEnv("logs_config.additional_endpoints")                        //nolint:errcheck
+	// Timeout in milliseonds used when performing agreggation operations,
+	// including multi-line log processing rules and chunked line reaggregation.
+	// It may be useful to increase it when logs writing is slowed down, that
+	// could happen while serializing large objects on log lines.
+	config.BindEnvAndSetDefault("logs_config.aggregation_timeout", 1000)
+	config.BindEnv("logs_config.additional_endpoints") //nolint:errcheck
 
 	// The cardinality of tags to send for checks and dogstatsd respectively.
 	// Choices are: low, orchestrator, high.
@@ -623,6 +642,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("external_metrics_provider.enabled", false)
 	config.BindEnvAndSetDefault("external_metrics_provider.port", 443)
 	config.BindEnvAndSetDefault("external_metrics_provider.endpoint", "")                 // Override the Datadog API endpoint to query external metrics from
+	config.BindEnvAndSetDefault("external_metrics_provider.api_key", "")                  // Override the Datadog API Key for external metrics endpoint
+	config.BindEnvAndSetDefault("external_metrics_provider.app_key", "")                  // Override the Datadog APP Key for external metrics endpoint
 	config.BindEnvAndSetDefault("external_metrics_provider.refresh_period", 30)           // value in seconds. Frequency of calls to Datadog to refresh metric values
 	config.BindEnvAndSetDefault("external_metrics_provider.batch_window", 10)             // value in seconds. Batch the events from the Autoscalers informer to push updates to the ConfigMap (GlobalStore)
 	config.BindEnvAndSetDefault("external_metrics_provider.max_age", 120)                 // value in seconds. 4 cycles from the Autoscaler controller (up to Kubernetes 1.11) is enough to consider a metric stale
@@ -718,6 +739,7 @@ func InitConfig(config Config) {
 	config.SetKnown("process_config.expvar_port")
 	config.SetKnown("process_config.log_file")
 	config.SetKnown("process_config.profiling.enabled")
+	config.SetKnown("process_config.remote_tagger")
 
 	// System probe
 	config.SetKnown("system_probe_config.enabled")
@@ -750,6 +772,9 @@ func InitConfig(config Config) {
 	config.SetKnown("system_probe_config.enable_tcp_queue_length")
 	config.SetKnown("system_probe_config.enable_oom_kill")
 	config.SetKnown("system_probe_config.enable_tracepoints")
+	config.SetKnown("system_probe_config.enable_runtime_compiler")
+	config.SetKnown("system_probe_config.kernel_header_dirs")
+	config.SetKnown("system_probe_config.runtime_compiler_output_dir")
 	config.SetKnown("system_probe_config.profiling.enabled")
 	config.SetKnown("system_probe_config.profiling.site")
 	config.SetKnown("system_probe_config.profiling.profile_dd_url")
@@ -794,6 +819,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.load_controller.discarder_timeout", 10)
 	config.BindEnvAndSetDefault("runtime_security_config.load_controller.control_period", 2)
 	config.BindEnvAndSetDefault("runtime_security_config.pid_cache_size", 10000)
+	config.BindEnvAndSetDefault("runtime_security_config.cookie_cache_size", 100)
+	config.BindEnvAndSetDefault("runtime_security_config.agent_monitoring_events", true)
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
@@ -1272,4 +1299,15 @@ func IsCLCRunner() bool {
 		}
 	}
 	return false
+}
+
+// GetBindHost returns `bind_host` variable or default value
+// Not using `config.BindEnvAndSetDefault` as some processes need to know
+// if value was default one or not (e.g. trace-agent)
+func GetBindHost() string {
+	if Datadog.IsSet("bind_host") {
+		return Datadog.GetString("bind_host")
+	}
+
+	return "localhost"
 }

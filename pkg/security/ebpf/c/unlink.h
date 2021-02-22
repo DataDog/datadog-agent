@@ -14,15 +14,20 @@ struct unlink_event_t {
     u32 discarder_revision;
 };
 
+int __attribute__((always_inline)) unlink_approvers(struct syscall_cache_t *syscall) {
+    return basename_approver(syscall, syscall->unlink.dentry, EVENT_UNLINK);
+}
+
 int __attribute__((always_inline)) trace__sys_unlink(int flags) {
     struct syscall_cache_t syscall = {
         .type = SYSCALL_UNLINK,
+        .policy = fetch_policy(EVENT_UNLINK),
         .unlink = {
             .flags = flags,
         }
     };
 
-    cache_syscall(&syscall, EVENT_UNLINK);
+    cache_syscall(&syscall);
 
     return 0;
 }
@@ -49,17 +54,21 @@ int kprobe__vfs_unlink(struct pt_regs *ctx) {
     struct dentry *dentry = (struct dentry *) PT_REGS_PARM2(ctx);
     set_path_key_inode(dentry, &syscall->unlink.path_key, 1);
 
+    syscall->unlink.dentry = dentry;
     syscall->unlink.overlay_numlower = get_overlay_numlower(dentry);
 
+    if (filter_syscall(syscall, unlink_approvers)) {
+        return mark_as_discarded(syscall);
+    }
+
     if (discarded_by_process(syscall->policy.mode, EVENT_UNLINK)) {
-        pop_syscall(SYSCALL_UNLINK);
-        return 0;
+        return mark_as_discarded(syscall);
     }
 
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
     int ret = resolve_dentry(dentry, syscall->unlink.path_key, syscall->policy.mode != NO_FILTER ? EVENT_UNLINK : 0);
     if (ret < 0) {
-        pop_syscall(SYSCALL_UNLINK);
+        return mark_as_discarded(syscall);
     }
 
     return 0;
@@ -75,10 +84,15 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
         return 0;
     }
 
+    // ensure that we invalidate all the layers
+    u64 inode = syscall->unlink.path_key.ino;
+    invalidate_inode(ctx, syscall->unlink.path_key.mount_id, inode, 1);
+
     u64 enabled_events = get_enabled_events();
-    int enabled = mask_has_event(enabled_events, EVENT_UNLINK) ||
-                  mask_has_event(enabled_events, EVENT_RMDIR);
-    if (enabled) {
+    int pass_to_userspace = !syscall->discarded &&
+                            (mask_has_event(enabled_events, EVENT_UNLINK) ||
+                             mask_has_event(enabled_events, EVENT_RMDIR));
+    if (pass_to_userspace) {
         struct unlink_event_t event = {
             .syscall.retval = retval,
             .file = {
@@ -97,7 +111,7 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
         send_event(ctx, syscall->unlink.flags&AT_REMOVEDIR ? EVENT_RMDIR : EVENT_UNLINK, event);
     }
 
-    invalidate_inode(ctx, syscall->unlink.path_key.mount_id, syscall->unlink.path_key.ino, !enabled);
+    invalidate_inode(ctx, syscall->unlink.path_key.mount_id, syscall->unlink.path_key.ino, !pass_to_userspace);
 
     return 0;
 }

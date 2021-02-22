@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package serializer
 
@@ -10,7 +10,6 @@ import (
 	"expvar"
 	"fmt"
 	"net/http"
-	"regexp"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
@@ -25,7 +24,6 @@ const (
 	protobufContentType                         = "application/x-protobuf"
 	jsonContentType                             = "application/json"
 	payloadVersionHTTPHeader                    = "DD-Agent-Payload"
-	apiKeyReplacement                           = "\"apiKey\":\"*************************$1"
 	maxItemCountForCreateMarshalersBySourceType = 100
 )
 
@@ -43,8 +41,6 @@ var (
 	expvarsSendEventsErrItemTooBigs         = expvar.Int{}
 	expvarsSendEventsErrItemTooBigsFallback = expvar.Int{}
 )
-
-var apiKeyRegExp = regexp.MustCompile("\"apiKey\":\"*\\w+(\\w{5})")
 
 func init() {
 	expvars.Set("SendEventsErrItemTooBigs", &expvarsSendEventsErrItemTooBigs)
@@ -337,13 +333,18 @@ func (s *Serializer) SendHostMetadata(m marshaler.Marshaler) error {
 	return s.sendMetadata(m, s.Forwarder.SubmitHostMetadata)
 }
 
+// SendAgentchecksMetadata serializes a metadata payload and sends it to the forwarder
+func (s *Serializer) SendAgentchecksMetadata(m marshaler.Marshaler) error {
+	return s.sendMetadata(m, s.Forwarder.SubmitAgentChecksMetadata)
+}
+
 func (s *Serializer) sendMetadata(m marshaler.Marshaler, submit func(payload forwarder.Payloads, extra http.Header) error) error {
 	mustSplit, compressedPayload, payload, err := split.CheckSizeAndSerialize(m, true, split.MarshalJSON)
 	if err != nil {
 		return fmt.Errorf("could not determine size of metadata payload: %s", err)
 	}
 
-	log.Debugf("Sending metadata payload, content: %v", apiKeyRegExp.ReplaceAllString(string(payload), apiKeyReplacement))
+	log.Debugf("Sending metadata payload, content: %v", string(payload))
 
 	if mustSplit {
 		return fmt.Errorf("metadata payload was too big to send (%d bytes compressed, %d bytes uncompressed), metadata payloads cannot be split", len(compressedPayload), len(payload))
@@ -374,6 +375,6 @@ func (s *Serializer) SendJSONToV1Intake(data interface{}) error {
 	}
 
 	log.Infof("Sent processes metadata payload, size: %d bytes.", len(payload))
-	log.Debugf("Sent processes metadata payload, content: %v", apiKeyRegExp.ReplaceAllString(string(payload), apiKeyReplacement))
+	log.Debugf("Sent processes metadata payload, content: %v", string(payload))
 	return nil
 }

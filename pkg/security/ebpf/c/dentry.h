@@ -17,11 +17,13 @@
 
 #define FAKE_INODE_MSW 0xdeadc001UL
 
+#define MAX_SEGMENT_LENGTH 127
+
 struct path_leaf_t {
   struct path_key_t parent;
   // TODO: reduce the amount of allocated structs during the resolution so that we can take this buffer to its max
   // theoretical value (256), without reaching the eBPF stack max size.
-  char name[128];
+  char name[MAX_SEGMENT_LENGTH + 1];
 };
 
 struct bpf_map_def SEC("maps/pathnames") pathnames = {
@@ -191,10 +193,17 @@ void __attribute__((always_inline)) get_dentry_name(struct dentry *dentry, void 
 #define get_dentry_key_path(dentry, path) (struct path_key_t) { .ino = get_dentry_ino(dentry), .mount_id = get_path_mount_id(path) }
 #define get_inode_key_path(inode, path) (struct path_key_t) { .ino = get_inode_ino(inode), .mount_id = get_path_mount_id(path) }
 
+static int is_overlayfs(struct dentry *dentry);
+static int get_overlayfs_ino(struct dentry *dentry, struct path_key_t *path);
+
 static __attribute__((always_inline)) void set_path_key_inode(struct dentry *dentry, struct path_key_t *path_key, int invalidate) {
     path_key->path_id = get_path_id(invalidate);
     if (!path_key->ino) {
         path_key->ino = get_dentry_ino(dentry);
+    }
+
+    if (is_overlayfs(dentry)) {
+        path_key->ino = get_overlayfs_ino(dentry, path_key);
     }
 }
 
@@ -223,7 +232,7 @@ static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, 
 
         // discard filename and its parent only in order to limit the number of lookup
         if (event_type && i < 2) {
-            if (discarded_by_inode(event_type, key.mount_id, key.ino)) {
+            if (discarded_by_inode(event_type, key.mount_id, key.ino, i)) {
                 return DENTRY_DISCARDED;
             }
         }
@@ -232,6 +241,7 @@ static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, 
         bpf_probe_read_str(&map_value.name, sizeof(map_value.name), (void *)qstr.name);
 
         if (map_value.name[0] == '/' || map_value.name[0] == 0) {
+            map_value.name[0] = '/';
             next_key.ino = 0;
             next_key.mount_id = 0;
         }
@@ -246,8 +256,7 @@ static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, 
     }
 
     // If the last next_id isn't null, this means that there are still other parents to fetch.
-    // TODO: use BPF_PROG_ARRAY to recursively fetch 32 more times. For now, add a fake parent to notify
-    // that we couldn't fetch everything.
+    // TODO: use BPF_PROG_ARRAY to recursively fetch 32 more times.
 
     map_value.name[0] = 0;
     map_value.parent.mount_id = 0;

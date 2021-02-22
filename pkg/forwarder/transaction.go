@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package forwarder
 
@@ -19,7 +19,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -196,6 +195,9 @@ type HTTPTransaction struct {
 	// retryable indicates whether this transaction can be retried
 	retryable bool
 
+	// storableOnDisk indicates whether this transaction can be stored on disk
+	storableOnDisk bool
+
 	// attemptHandler will be called with a transaction before the attempting to send the request
 	// This field is not restored when a transaction is deserialized from the disk (the default value is used).
 	attemptHandler HTTPAttemptHandler
@@ -225,10 +227,11 @@ type Transaction interface {
 // NewHTTPTransaction returns a new HTTPTransaction.
 func NewHTTPTransaction() *HTTPTransaction {
 	tr := &HTTPTransaction{
-		createdAt:  time.Now(),
-		ErrorCount: 0,
-		retryable:  true,
-		Headers:    make(http.Header),
+		createdAt:      time.Now(),
+		ErrorCount:     0,
+		retryable:      true,
+		storableOnDisk: true,
+		Headers:        make(http.Header),
 	}
 	tr.setDefaultHandlers()
 	return tr
@@ -247,7 +250,7 @@ func (t *HTTPTransaction) GetCreatedAt() time.Time {
 // GetTarget return the url used by the transaction
 func (t *HTTPTransaction) GetTarget() string {
 	url := t.Domain + t.Endpoint.route
-	return httputils.SanitizeURL(url) // sanitized url that can be logged
+	return log.SanitizeURL(url) // sanitized url that can be logged
 }
 
 // GetPriority returns the priority
@@ -294,7 +297,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 	reader := bytes.NewReader(*t.Payload)
 	url := t.Domain + t.Endpoint.route
 	transactionEndpointName := t.GetEndpointName()
-	logURL := httputils.SanitizeURL(url) // sanitized url that can be logged
+	logURL := log.SanitizeURL(url) // sanitized url that can be logged
 
 	req, err := http.NewRequest("POST", url, reader)
 	if err != nil {
@@ -316,7 +319,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 		t.ErrorCount++
 		transactionsErrors.Add(1)
 		tlmTxErrors.Inc(t.Domain, transactionEndpointName, "cant_send")
-		return 0, nil, fmt.Errorf("error while sending transaction, rescheduling it: %s", httputils.SanitizeURL(err.Error()))
+		return 0, nil, fmt.Errorf("error while sending transaction, rescheduling it: %s", log.SanitizeURL(err.Error()))
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -383,5 +386,9 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 
 // SerializeTo serializes the transaction using TransactionsSerializer
 func (t *HTTPTransaction) SerializeTo(serializer *TransactionsSerializer) error {
-	return serializer.Add(t)
+	if t.storableOnDisk {
+		return serializer.Add(t)
+	}
+	log.Trace("The transaction is not stored on disk because `storableOnDisk` is false.")
+	return nil
 }

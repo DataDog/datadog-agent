@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package obfuscate
 
@@ -21,6 +21,8 @@ import (
 
 const sqlQueryTag = "sql.query"
 const nonParsableResource = "Non-parsable SQL query"
+
+var questionMark = []byte("?")
 
 // tokenFilter is a generic interface that a sqlObfuscator expects. It defines
 // the Filter() function used to filter or replace given tokens.
@@ -95,20 +97,20 @@ type replaceFilter struct {
 func (f *replaceFilter) Filter(token, lastToken TokenKind, buffer []byte) (tokenType TokenKind, tokenBytes []byte, err error) {
 	switch lastToken {
 	case Savepoint:
-		return FilteredGroupable, []byte("?"), nil
+		return FilteredGroupable, questionMark, nil
 	case '=':
 		switch token {
 		case DoubleQuotedString:
 			// double-quoted strings after assignments are eligible for obfuscation
-			return FilteredGroupable, []byte("?"), nil
+			return FilteredGroupable, questionMark, nil
 		}
 	}
 	switch token {
 	case String, Number, Null, Variable, PreparedStatement, BooleanLiteral, EscapeSequence:
-		return FilteredGroupable, []byte("?"), nil
+		return FilteredGroupable, questionMark, nil
 	case '?':
 		// Cases like 'ARRAY [ ?, ? ]' should be collapsed into 'ARRAY [ ? ]'
-		return FilteredGroupable, []byte("?"), nil
+		return FilteredGroupable, questionMark, nil
 	case TableName:
 		if f.quantizeTableNames {
 			return token, replaceDigits(buffer), nil
@@ -357,7 +359,7 @@ func (o *Obfuscator) obfuscateSQL(span *pb.Span) {
 			span.Meta = make(map[string]string, 1)
 		}
 		if _, ok := span.Meta[sqlQueryTag]; !ok {
-			span.Meta[sqlQueryTag] = span.Resource
+			span.Meta[sqlQueryTag] = nonParsableResource
 		}
 		span.Resource = nonParsableResource
 		return

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package api
 
@@ -115,6 +115,35 @@ func TestReceiverRequestBodyLength(t *testing.T) {
 
 	testBody(http.StatusOK, "[]")
 	testBody(http.StatusRequestEntityTooLarge, " []")
+}
+
+func TestVersionHeader(t *testing.T) {
+	assert := assert.New(t)
+	r := newTestReceiverFromConfig(config.New())
+	r.Start()
+	defer r.Stop()
+	data := msgpTraces(t, pb.Traces{
+		testutil.RandomTrace(10, 20),
+		testutil.RandomTrace(10, 20),
+		testutil.RandomTrace(10, 20),
+	})
+
+	for _, e := range []string{
+		"/v0.3/traces",
+		"/v0.4/traces",
+		// this one will return 500, but that's fine, we want to test that all
+		// reponses have the header regardless of status code
+		"/v0.5/traces",
+	} {
+		resp, err := http.Post("http://localhost:8126"+e, "application/msgpack", bytes.NewReader(data))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, ok := resp.Header["Datadog-Agent-Version"]
+		assert.True(ok)
+		v := resp.Header.Get("Datadog-Agent-Version")
+		assert.Equal(v, info.Version)
+	}
 }
 
 func TestLegacyReceiver(t *testing.T) {
@@ -558,11 +587,6 @@ func TestHandleStats(t *testing.T) {
 	}
 
 	t.Run("on", func(t *testing.T) {
-		defer func(old string) {
-			os.Setenv("DD_APM_FEATURES", old)
-		}(os.Getenv("DD_APM_FEATURES"))
-		os.Setenv("DD_APM_FEATURES", "client_stats")
-
 		cfg := newTestReceiverConfig()
 		rcv := newTestReceiverFromConfig(cfg)
 		mockProcessor := new(mockStatsProcessor)
@@ -587,24 +611,6 @@ func TestHandleStats(t *testing.T) {
 		}
 		if gotp, gotlang := mockProcessor.Got(); !reflect.DeepEqual(gotp, p) || gotlang != "lang1" {
 			t.Fatalf("Did not match payload: %v: %v", gotlang, gotp)
-		}
-	})
-
-	t.Run("off", func(t *testing.T) {
-		cfg := newTestReceiverConfig()
-		rcv := newTestReceiverFromConfig(cfg)
-		mockProcessor := new(mockStatsProcessor)
-		rcv.statsProcessor = mockProcessor
-		mux := rcv.buildMux()
-		server := httptest.NewServer(mux)
-
-		req, _ := http.NewRequest("POST", server.URL+"/v0.5/stats", nil)
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if resp.StatusCode != 404 {
-			t.Fail()
 		}
 	})
 }

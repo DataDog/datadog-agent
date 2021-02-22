@@ -1,13 +1,15 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package pipeline
 
 import (
 	"context"
 	"sync/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -27,11 +29,12 @@ type Provider interface {
 
 // provider implements providing logic
 type provider struct {
-	numberOfPipelines int
-	auditor           auditor.Auditor
-	outputChan        chan *message.Message
-	processingRules   []*config.ProcessingRule
-	endpoints         *config.Endpoints
+	numberOfPipelines         int
+	auditor                   auditor.Auditor
+	diagnosticMessageReceiver diagnostic.MessageReceiver
+	outputChan                chan *message.Message
+	processingRules           []*config.ProcessingRule
+	endpoints                 *config.Endpoints
 
 	pipelines            []*Pipeline
 	currentPipelineIndex int32
@@ -41,24 +44,25 @@ type provider struct {
 }
 
 // NewProvider returns a new Provider
-func NewProvider(numberOfPipelines int, auditor auditor.Auditor, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) Provider {
-	return newProvider(numberOfPipelines, auditor, processingRules, endpoints, destinationsContext, false)
+func NewProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) Provider {
+	return newProvider(numberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsContext, false)
 }
 
 // NewServerlessProvider returns a new Provider in serverless mode
 func NewServerlessProvider(numberOfPipelines int, auditor auditor.Auditor, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) Provider {
-	return newProvider(numberOfPipelines, auditor, processingRules, endpoints, destinationsContext, true)
+	return newProvider(numberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, processingRules, endpoints, destinationsContext, true)
 }
 
-func newProvider(numberOfPipelines int, auditor auditor.Auditor, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, serverless bool) Provider {
+func newProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, serverless bool) Provider {
 	return &provider{
-		numberOfPipelines:   numberOfPipelines,
-		auditor:             auditor,
-		processingRules:     processingRules,
-		endpoints:           endpoints,
-		pipelines:           []*Pipeline{},
-		destinationsContext: destinationsContext,
-		serverless:          serverless,
+		numberOfPipelines:         numberOfPipelines,
+		auditor:                   auditor,
+		diagnosticMessageReceiver: diagnosticMessageReceiver,
+		processingRules:           processingRules,
+		endpoints:                 endpoints,
+		pipelines:                 []*Pipeline{},
+		destinationsContext:       destinationsContext,
+		serverless:                serverless,
 	}
 }
 
@@ -68,7 +72,7 @@ func (p *provider) Start() {
 	p.outputChan = p.auditor.Channel()
 
 	for i := 0; i < p.numberOfPipelines; i++ {
-		pipeline := NewPipeline(p.outputChan, p.processingRules, p.endpoints, p.destinationsContext, p.serverless)
+		pipeline := NewPipeline(p.outputChan, p.processingRules, p.endpoints, p.destinationsContext, p.diagnosticMessageReceiver, p.serverless)
 		pipeline.Start()
 		p.pipelines = append(p.pipelines, pipeline)
 	}

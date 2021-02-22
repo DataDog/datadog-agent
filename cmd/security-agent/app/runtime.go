@@ -3,7 +3,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package app
 
@@ -19,10 +19,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
+	securityLogger "github.com/DataDog/datadog-agent/pkg/security/log"
+	"github.com/DataDog/datadog-agent/pkg/security/model"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -45,11 +48,42 @@ var (
 	checkPoliciesArgs = struct {
 		dir string
 	}{}
+
+	dumpCmd = &cobra.Command{
+		Use:   "dump",
+		Short: "Dump security module information",
+	}
+
+	dumpProcessCacheCmd = &cobra.Command{
+		Use:   "process-cache",
+		Short: "process cache",
+		RunE:  dumpProcessCache,
+	}
 )
 
 func init() {
+	dumpCmd.AddCommand(dumpProcessCacheCmd)
+	runtimeCmd.AddCommand(dumpCmd)
+
 	runtimeCmd.AddCommand(checkPoliciesCmd)
 	checkPoliciesCmd.Flags().StringVar(&checkPoliciesArgs.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+}
+
+func dumpProcessCache(cmd *cobra.Command, args []string) error {
+	client, err := secagent.NewRuntimeSecurityClient()
+	if err != nil {
+		return errors.Wrap(err, "unable to create a runtime security client instance")
+	}
+	defer client.Close()
+
+	filename, err := client.DumpProcessCache()
+	if err != nil {
+		return errors.Wrap(err, "unable to get a process cache dump")
+	}
+
+	fmt.Printf("Dump written: %s\n", filename)
+
+	return nil
 }
 
 func checkPolicies(cmd *cobra.Command, args []string) error {
@@ -61,13 +95,11 @@ func checkPolicies(cmd *cobra.Command, args []string) error {
 		PIDCacheSize:        1,
 	}
 
-	probe, err := sprobe.NewProbe(cfg, nil)
-	if err != nil {
-		return err
-	}
+	opts := rules.NewOptsWithParams(model.SECLConstants, sprobe.SupportedDiscarders, securityLogger.DatadogAgentLogger{})
+	model := &sprobe.Model{}
+	ruleSet := rules.NewRuleSet(model, model.NewEvent, opts)
 
-	ruleSet := probe.NewRuleSet(rules.NewOptsWithParams(sprobe.SECLConstants, sprobe.SupportedDiscarders))
-	if err := rules.LoadPolicies(cfg, ruleSet); err != nil {
+	if err := rules.LoadPolicies(cfg.PoliciesDir, ruleSet); err != nil {
 		return err
 	}
 
@@ -93,7 +125,7 @@ func newRuntimeReporter(stopper restart.Stopper, sourceName, sourceType string, 
 	stopper.Add(auditor)
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, nil, endpoints, context)
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, context)
 	pipelineProvider.Start()
 	stopper.Add(pipelineProvider)
 

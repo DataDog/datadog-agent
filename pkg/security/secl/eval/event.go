@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package eval
 
@@ -27,12 +27,8 @@ type Event interface {
 	GetFieldType(field Field) (reflect.Kind, error)
 	// GetPointer returns an unsafe.Pointer of this object
 	GetPointer() unsafe.Pointer
-}
-
-// Iterator interface of a field iterator
-type Iterator interface {
-	Front(ctx *Context) unsafe.Pointer
-	Next() unsafe.Pointer
+	// GetTags returns a list of tags
+	GetTags() []string
 }
 
 func eventTypesFromFields(model Model, state *state) ([]EventType, error) {
