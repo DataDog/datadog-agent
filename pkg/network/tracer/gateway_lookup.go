@@ -4,6 +4,7 @@ package tracer
 
 import (
 	"net"
+	"time"
 	"unsafe"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -23,6 +24,8 @@ type gatewayLookup struct {
 	routeCache          network.RouteCache
 	subnetCache         map[int]network.Subnet // interface index to subnet map
 	subnetForHwAddrFunc func(net.HardwareAddr) (network.Subnet, error)
+
+	logLimiter *util.LogLimit
 }
 
 func gwLookupEnabled(config *config.Config) bool {
@@ -53,6 +56,7 @@ func newGatewayLookup(config *config.Config, runtimeCompilerEnabled bool, m *man
 		subnetCache:         make(map[int]network.Subnet),
 		routeCache:          network.NewRouteCache(routeCacheSize, router),
 		subnetForHwAddrFunc: ec2SubnetForHardwareAddr,
+		logLimiter:          util.NewLogLimit(10, 10*time.Minute),
 	}
 }
 
@@ -82,7 +86,9 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) {
 		}
 
 		if s, err = g.subnetForHwAddrFunc(ifi.HardwareAddr); err != nil {
-			log.Errorf("error getting subnet info for interface index %d: %s", r.IfIndex, err)
+			if g.logLimiter.ShouldLog() {
+				log.Errorf("error getting subnet info for interface index %d: %s", r.IfIndex, err)
+			}
 			return
 		}
 
