@@ -101,7 +101,7 @@ func (c *Check) collectDiskMetrics(sender aggregator.Sender) error {
 	if err != nil {
 		return err
 	}
-	for deviceName, ioStats := range iomap {
+	for deviceName, ioCounter := range iomap {
 
 		tags := []string{}
 		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
@@ -109,7 +109,7 @@ func (c *Check) collectDiskMetrics(sender aggregator.Sender) error {
 
 		tags = c.applyDeviceTags(deviceName, "", tags)
 
-		c.sendDiskMetrics(sender, ioStats, tags)
+		c.sendDiskMetrics(sender, ioCounter, tags)
 	}
 
 	return nil
