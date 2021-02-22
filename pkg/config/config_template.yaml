@@ -196,9 +196,10 @@ api_key:
 # forwarder_storage_max_size_in_bytes: 50000000
 
 ## @param forwarder_storage_max_disk_ratio - float - optional - default: 0.95
-## `forwarder_storage_max_disk_ratio` defines the maximum disk usage for storing transactions.
+## `forwarder_storage_max_disk_ratio` defines the disk capacity limit for storing transactions.
 ## `0.9` means the Agent can store transactions on disk until `forwarder_storage_max_size_in_bytes` 
-## is reached or when the disk usage exceeds 95% of the disk capacity.
+## is reached or when the disk mount for `forwarder_storage_path` exceeds 90% of the disk capacity,
+## whichever is lower.
 # 
 # forwarder_storage_max_size_in_bytes: 0.95
 
