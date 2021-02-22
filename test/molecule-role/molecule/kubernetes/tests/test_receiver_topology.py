@@ -435,10 +435,10 @@ def test_cluster_agent_base_topology(host, ansible_var):
                                               (cluster_name, namespace, cluster_name, namespace))
         assert _relation_data(
             json_data=json_data,
-            type_name="uses",
+            type_name="uses_value",
             external_id_assert_fn=lambda eid:  pod_uses_configmap_match.findall(eid)
         ).startswith("urn:kubernetes:/%s:%s:pod/stackstate-cluster-agent" % (cluster_name, namespace))
-        #  pod uses secret cluster-agent -> stackstate-auth-token
+        #  pod uses_value secret cluster-agent -> stackstate-auth-token
         pod_uses_secret_match = re.compile("urn:kubernetes:/%s:%s:pod/stackstate-cluster-agent-.*->"
                                            "urn:kubernetes:/%s:%s:secret/stackstate-auth-token" %
                                            (cluster_name, namespace, cluster_name, namespace))
