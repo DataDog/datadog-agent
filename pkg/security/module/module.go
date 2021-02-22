@@ -10,6 +10,7 @@ package module
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -32,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-go/statsd"
 )
 
@@ -49,6 +51,8 @@ type Module struct {
 	listener       net.Listener
 	rateLimiter    *RateLimiter
 	sigupChan      chan os.Signal
+	ctx            context.Context
+	cancelFnc      context.CancelFunc
 }
 
 // Register the runtime security agent module
@@ -95,7 +99,7 @@ func (m *Module) Register(httpMux *http.ServeMux) error {
 		return err
 	}
 
-	go m.statsMonitor(context.Background())
+	go m.metricsSender()
 
 	signal.Notify(m.sigupChan, syscall.SIGHUP)
 
@@ -239,16 +243,16 @@ func (m *Module) SendEvent(rule *rules.Rule, event Event) {
 	}
 }
 
-func (m *Module) statsMonitor(ctx context.Context) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+func (m *Module) metricsSender() {
+	statsTicker := time.NewTicker(m.config.StatsPollingInterval)
+	defer statsTicker.Stop()
 
-	ticker := time.NewTicker(m.config.StatsPollingInterval)
-	defer ticker.Stop()
+	heartbeatTicker := time.NewTicker(15 * time.Second)
+	defer heartbeatTicker.Stop()
 
 	for {
 		select {
-		case <-ticker.C:
+		case <-statsTicker.C:
 			if err := m.probe.SendStats(); err != nil {
 				log.Debug(err)
 			}
@@ -258,7 +262,15 @@ func (m *Module) statsMonitor(ctx context.Context) {
 			if err := m.apiServer.SendStats(); err != nil {
 				log.Debug(err)
 			}
-		case <-ctx.Done():
+		case <-heartbeatTicker.C:
+			tags := []string{fmt.Sprintf("version:%s", version.AgentVersion)}
+			if m.config.RuntimeEnabled {
+				_ = m.statsdClient.Gauge("datadog.security_agent.runtime.running", 1, tags, 1)
+			}
+			if m.config.FIMEnabled {
+				_ = m.statsdClient.Gauge("datadog.security_agent.fim.running", 1, tags, 1)
+			}
+		case <-m.ctx.Done():
 			return
 		}
 	}
@@ -309,6 +321,8 @@ func NewModule(cfg *config.Config) (api.Module, error) {
 		return nil, err
 	}
 
+	ctx, cancelFnc := context.WithCancel(context.Background())
+
 	m := &Module{
 		config:         cfg,
 		probe:          probe,
@@ -318,6 +332,8 @@ func NewModule(cfg *config.Config) (api.Module, error) {
 		rateLimiter:    NewRateLimiter(statsdClient),
 		sigupChan:      make(chan os.Signal, 1),
 		currentRuleSet: 1,
+		ctx:            ctx,
+		cancelFnc:      cancelFnc,
 	}
 
 	sapi.RegisterSecurityModuleServer(m.grpcServer, m.apiServer)

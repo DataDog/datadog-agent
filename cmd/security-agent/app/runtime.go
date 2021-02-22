@@ -172,9 +172,5 @@ func startRuntimeSecurity(hostname string, stopper restart.Stopper, statsdClient
 
 	log.Info("Datadog runtime security agent is now running")
 
-	// Send the runtime 'running' metrics periodically
-	ticker := sendRunningMetrics(statsdClient, "runtime")
-	stopper.Add(ticker)
-
 	return agent, nil
 }

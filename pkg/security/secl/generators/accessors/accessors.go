@@ -418,9 +418,9 @@ func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 func (m *Model) GetEventTypes() []eval.EventType {
 	return []eval.EventType{
 		{{range $Name, $Exists := .EventTypes}}
-			{{if ne $Name "*"}}
+			{{- if ne $Name "*"}}
 			eval.EventType("{{$Name}}"),
-			{{end}}
+			{{end -}}
 		{{end}}
 	}
 }

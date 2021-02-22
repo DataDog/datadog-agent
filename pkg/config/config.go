@@ -806,6 +806,7 @@ func InitConfig(config Config) {
 
 	// Datadog security agent (runtime)
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
+	config.SetKnown("runtime_security_config.fim_enabled")
 	config.BindEnvAndSetDefault("runtime_security_config.policies.dir", DefaultRuntimePoliciesDir)
 	config.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
 	config.BindEnvAndSetDefault("runtime_security_config.enable_kernel_filters", true)
@@ -821,8 +822,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.pid_cache_size", 10000)
 	config.BindEnvAndSetDefault("runtime_security_config.cookie_cache_size", 100)
 	config.BindEnvAndSetDefault("runtime_security_config.agent_monitoring_events", true)
-	config.BindEnvAndSetDefault("runtime_security_config.runtime_enabled", false)
-	config.BindEnvAndSetDefault("runtime_security_config.fim_enabled", false)
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
