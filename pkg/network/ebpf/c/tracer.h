@@ -25,9 +25,9 @@ typedef struct {
 
 // Connection flags
 typedef enum {
-    CONN_L_INIT  = 1 << 0,
-    CONN_R_INIT  = 1 << 1,
-    CONN_ASSURED = 1 << 2
+    CONN_L_INIT  = 1 << 0, // initial/first message sent
+    CONN_R_INIT  = 1 << 1, // reply received for initial message from remote
+    CONN_ASSURED = 1 << 2  // "3-way handshake" complete, i.e. response to initial reply sent
 } conn_flags_t;
 
 // Metadata bit masks
