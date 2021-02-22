@@ -1,6 +1,7 @@
 package serverless
 
 import (
+	"math"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -97,5 +98,7 @@ func calculateEstimatedCost(billedDurationMs float64, memorySizeMb float64) floa
 	billedDurationSeconds := billedDurationMs / 1000.0
 	memorySizeGb := memorySizeMb / 1024.0
 	gbSeconds := billedDurationSeconds * memorySizeGb
-	return baseLambdaInvocationPrice + (gbSeconds * lambdaPricePerGbSecond)
+	// round the final float result because float math could have float point imprecision
+	// on some arch. (i.e. 1.00000000000002 values)
+	return math.Round((baseLambdaInvocationPrice+(gbSeconds*lambdaPricePerGbSecond))*10e12) / 10e12
 }
