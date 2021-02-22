@@ -3,4 +3,8 @@
 
 package runtime
 
+<<<<<<< HEAD
 var RuntimeSecurity = NewRuntimeAsset("runtime-security.c", "7f1b4892c9536775bdd557266821d2be6604e97357e9ed059387d39ebb363a1a")
+=======
+var RuntimeSecurity = NewRuntimeAsset("runtime-security.c", "88fe5cab7cad5eae712ca0b1ef73f16652123e1577fca9e1b0c01c82d10e43ea")
+>>>>>>> 0907efd9f (Add fallback and scrubber)

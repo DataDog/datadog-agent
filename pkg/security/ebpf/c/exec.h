@@ -9,7 +9,7 @@
 
 #define MAX_ARGS_PERF_LEN 128
 #define MAX_ARGS_LEN (1 << 15)
-#define MAX_ARGS 16
+#define MAX_ARGS 32
 #define MAX_ARG_SIZE 4096
 
 struct first_args_value_t {
@@ -22,7 +22,7 @@ struct args_value_t {
     char args[MAX_ARGS_LEN];
 };
 
-struct bpf_map_def SEC("maps/exec_args") exec_args = {
+struct bpf_map_def SEC("maps/args_cache") args_cache = {
     .type = BPF_MAP_TYPE_LRU_HASH,
     .key_size = sizeof(u32),
     .value_size = sizeof(struct args_value_t),
@@ -31,7 +31,7 @@ struct bpf_map_def SEC("maps/exec_args") exec_args = {
     .namespace = "",
 };
 
-struct bpf_map_def SEC("maps/exec_args_value") exec_args_value = {
+struct bpf_map_def SEC("maps/args_value") args_value = {
     .type = BPF_MAP_TYPE_PERCPU_ARRAY,
     .key_size = sizeof(u32),
     .value_size = sizeof(struct args_value_t),
@@ -71,7 +71,7 @@ void __attribute__((always_inline)) extract_args(struct syscall_cache_t *syscall
     syscall->exec.args_id = bpf_get_prandom_u32();
 
     u32 key = 0;
-    struct args_value_t *args = bpf_map_lookup_elem(&exec_args_value, &key);
+    struct args_value_t *args = bpf_map_lookup_elem(&args_value, &key);
     if (!args) {
         return;
     }
@@ -87,21 +87,23 @@ void __attribute__((always_inline)) extract_args(struct syscall_cache_t *syscall
     for (int i = 0; i < MAX_ARGS; i++) {
         int n = bpf_probe_read_str(&(args->args[(offset + sizeof(len)) & (MAX_ARGS_LEN - MAX_ARG_SIZE - 1)]), MAX_ARG_SIZE, (void *)str);
         if (n > 0) {
-            n--;// ignore trailing space 
+            n--; // ignore trailing space
 
-            len = n; 
+            len = n;
+
             bpf_probe_read(&(args->args[offset&(MAX_ARGS_LEN - MAX_ARG_SIZE - 1)]), sizeof(len), &len);
 
             bpf_probe_read(&str, sizeof(str), (void *)&argv[++a]);
 
             offset += n + sizeof(len);
         } else {
-            bpf_map_update_elem(&exec_args, &syscall->exec.args_id, args, BPF_ANY);
+            bpf_map_update_elem(&args_cache, &syscall->exec.args_id, args, BPF_ANY);
             return;
         }
     }
 
     syscall->exec.args_truncated = 1;
+    bpf_map_update_elem(&args_cache, &syscall->exec.args_id, args, BPF_ANY);
 }
 
 int __attribute__((always_inline)) trace__sys_execveat(const char **argv, const char **env) {
@@ -333,7 +335,7 @@ int kprobe_exit_itimers(struct pt_regs *ctx) {
 }
 
 void __attribute__((always_inline)) fill_args(struct exec_event_t *event, struct syscall_cache_t *syscall) {
-    struct args_value_t *args = bpf_map_lookup_elem(&exec_args, &syscall->exec.args_id);
+    struct args_value_t *args = bpf_map_lookup_elem(&args_cache, &syscall->exec.args_id);
     if (args) {
         bpf_probe_read(&event->args.args, MAX_ARGS_PERF_LEN, args->args);
         event->args.id = syscall->exec.args_id;

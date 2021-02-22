@@ -307,6 +307,18 @@ func newCredentialsSerializerWithResolvers(ce *model.Credentials, r *Resolvers) 
 }
 
 func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event, topLevel bool) *ProcessCacheEntrySerializer {
+	var args = []string{}
+
+	// scrub args, do not send args if no scrubber instance is passed
+	// can be the case for some custom event
+	if e.scrubber == nil {
+		args = []string{}
+	} else {
+		if newArgs, changed := e.scrubber.ScrubCommand(args); changed {
+			args = newArgs
+		}
+	}
+
 	pceSerializer := &ProcessCacheEntrySerializer{
 		Inode:               pce.FileFields.Inode,
 		MountID:             pce.FileFields.MountID,
@@ -323,7 +335,7 @@ func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event, topL
 		Comm:          e.ResolveExecComm(&pce.ExecEvent),
 		TTY:           e.ResolveExecTTY(&pce.ExecEvent),
 		Executable:    newExecFileSerializer(&pce.ExecEvent, e),
-		Args:          []string{},
+		Args:          args,
 	}
 
 	credsSerializer := newCredentialsSerializer(&pce.Credentials, e)
@@ -402,7 +414,7 @@ func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Re
 
 	if e == nil {
 		// custom events call newProcessContextSerializer with an empty Event
-		e = NewEvent(r)
+		e = NewEvent(r, nil)
 		e.Process = model.ProcessContext{
 			Ancestor: entry,
 		}

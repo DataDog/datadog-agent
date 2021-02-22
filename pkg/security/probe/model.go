@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
@@ -35,6 +36,7 @@ type Event struct {
 	resolvers           *Resolvers
 	processCacheEntry   *model.ProcessCacheEntry
 	pathResolutionError error
+	scrubber            *pconfig.DataScrubber
 }
 
 // GetPathResolutionError returns the path resolution error as a string if there is one
@@ -541,9 +543,10 @@ func (ev *Event) Clone() Event {
 }
 
 // NewEvent returns a new event
-func NewEvent(resolvers *Resolvers) *Event {
+func NewEvent(resolvers *Resolvers, scrubber *pconfig.DataScrubber) *Event {
 	return &Event{
 		Event:     model.Event{},
 		resolvers: resolvers,
+		scrubber:  scrubber,
 	}
 }

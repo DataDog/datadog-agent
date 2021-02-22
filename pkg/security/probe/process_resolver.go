@@ -74,6 +74,7 @@ type ProcessResolver struct {
 	inodeInfoMap *lib.Map
 	procCacheMap *lib.Map
 	pidCacheMap  *lib.Map
+	argsCacheMap *lib.Map
 	cacheSize    int64
 	opts         ProcessResolverOpts
 
@@ -104,6 +105,9 @@ func (p *ProcessResolver) AddForkEntry(pid uint32, entry *model.ProcessCacheEntr
 func (p *ProcessResolver) AddExecEntry(pid uint32, entry *model.ProcessCacheEntry) *model.ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
+
+	p.resolveExecArgs(entry)
+
 	return p.insertExecEntry(pid, entry)
 }
 
@@ -374,6 +378,25 @@ func (p *ProcessResolver) resolveWithProcfs(pid uint32) *model.ProcessCacheEntry
 	return entry
 }
 
+func (p *ProcessResolver) resolveExecArgs(pce *model.ProcessCacheEntry) {
+	// already fully resolved
+	if !pce.ArgsOverflow {
+		return
+	}
+
+	entryb, err := p.argsCacheMap.LookupBytes(pce.ArgsID)
+	if err != nil || entryb == nil {
+		return
+	}
+
+	args, err := model.UnmarshalStringArray(entryb)
+	if err != nil {
+		return
+	}
+
+	pce.Args = append(args, "...")
+}
+
 // Get returns the cache entry for a specified pid
 func (p *ProcessResolver) Get(pid uint32) *model.ProcessCacheEntry {
 	p.RLock()
@@ -446,6 +469,10 @@ func (p *ProcessResolver) Start(ctx context.Context) error {
 	}
 
 	if p.pidCacheMap, err = p.probe.Map("pid_cache"); err != nil {
+		return err
+	}
+
+	if p.argsCacheMap, err = p.probe.Map("args_cache"); err != nil {
 		return err
 	}
 
