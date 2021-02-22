@@ -216,6 +216,34 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 	})
 }
 
+func TestIgnoreConntrackInitFailure(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+		defer restoreGlobalConfig()
+
+		cfg, err := NewAgentConfig(
+			"test",
+			"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-IgnoreCTInitFailure.yaml",
+			"",
+		)
+
+		assert.Nil(t, err)
+		assert.True(t, cfg.IgnoreConntrackInitFailure)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+		defer restoreGlobalConfig()
+
+		os.Setenv("DD_SYSTEM_PROBE_NETWORK_IGNORE_CONNTRACK_INIT_FAILURE", "true")
+		defer os.Unsetenv("DD_SYSTEM_PROBE_NETWORK_IGNORE_CONNTRACK_INIT_FAILURE")
+		cfg, err := NewAgentConfig("test", "", "")
+
+		assert.Nil(t, err)
+		assert.True(t, cfg.IgnoreConntrackInitFailure)
+	})
+}
+
 func TestGetHostname(t *testing.T) {
 	cfg := NewDefaultAgentConfig(false)
 	h, err := getHostname(cfg.DDAgentBin)

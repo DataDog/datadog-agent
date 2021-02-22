@@ -233,13 +233,9 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		return nil, fmt.Errorf("error initializing port binding maps: %s", err)
 	}
 
-	conntracker := netlink.NewNoOpConntracker()
-	if config.EnableConntrack {
-		if c, err := netlink.NewConntracker(config.ProcRoot, config.ConntrackMaxStateSize, config.ConntrackRateLimit, config.EnableConntrackAllNamespaces); err != nil {
-			log.Warnf("could not initialize conntrack, tracer will continue without NAT tracking: %s", err)
-		} else {
-			conntracker = c
-		}
+	conntracker, err := newConntracker(config, netlink.NewConntracker)
+	if err != nil {
+		return nil, err
 	}
 
 	state := network.NewState(
@@ -284,6 +280,25 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	go tr.expvarStats()
 
 	return tr, nil
+}
+
+func newConntracker(cfg *config.Config, conntrackerCreator func(*config.Config) (netlink.Conntracker, error)) (netlink.Conntracker, error) {
+	conntracker := netlink.NewNoOpConntracker()
+	if !cfg.EnableConntrack {
+		return conntracker, nil
+	}
+
+	if c, err := conntrackerCreator(cfg); err != nil {
+		if cfg.IgnoreConntrackInitFailure {
+			log.Warnf("could not initialize conntrack, tracer will continue without NAT tracking: %s", err)
+		} else {
+			return nil, fmt.Errorf("could not initialize conntrack: %s. set network_config.ignore_conntrack_init_failure to true to ignore conntrack failures on startup", err)
+		}
+	} else {
+		conntracker = c
+	}
+
+	return conntracker, nil
 }
 
 func initializePortBindingMaps(config *config.Config, m *manager.Manager) error {

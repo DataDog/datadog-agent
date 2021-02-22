@@ -160,6 +160,9 @@ RUN  mv /etc/s6/init/init-stage3 /etc/s6/init/init-stage3-original
 COPY init-stage3          /etc/s6/init/init-stage3
 COPY init-stage3-host-pid /etc/s6/init/init-stage3-host-pid
 
+# Add Debian snapshot date for debugging
+RUN date +%Y%m%dT000000Z > .debian_repo_snapshot_date
+
 RUN find /etc -type d,f -perm -o+w -print0 | xargs -0 chmod g-w,o-w
 
 # Expose DogStatsD and trace-agent ports

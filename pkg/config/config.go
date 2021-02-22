@@ -784,6 +784,7 @@ func InitConfig(config Config) {
 	config.SetKnown("system_probe_config.windows.driver_buffer_size")
 	config.SetKnown("network_config.enabled")
 	config.SetKnown("network_config.enable_http_monitoring")
+	config.SetKnown("network_config.ignore_conntrack_init_failure")
 
 	// Network
 	config.BindEnv("network.id") //nolint:errcheck
