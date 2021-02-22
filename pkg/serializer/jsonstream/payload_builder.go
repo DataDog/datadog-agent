@@ -15,7 +15,15 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+var tlmCompressorLocks = telemetry.NewGauge(
+	"payload_builder",
+	"blocking_goroutines",
+	nil,
+	"Number of blocked goroutines waiting for a compressor to be available",
 )
 
 var jsonConfig = jsoniter.Config{
@@ -60,7 +68,9 @@ func (b *PayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	m marshaler.StreamJSONMarshaler,
 	policy OnErrItemTooBigPolicy) (forwarder.Payloads, error) {
 
+	defer tlmCompressorLocks.Dec()
 	defer b.mu.Unlock()
+	tlmCompressorLocks.Inc()
 	b.mu.Lock()
 
 	var payloads forwarder.Payloads
