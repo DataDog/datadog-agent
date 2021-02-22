@@ -210,9 +210,9 @@ api_key:
 # forwarder_storage_path: /opt/datadog-agent/run/transactions_to_retry
 
 ## @param forwarder_outdated_file_in_days - int - optional - default: 10
-## When the retry_queue of the forwarder is full the transactions are stored on disk.
-## When the Agent restarts, if a file containing transactions was created more than 
-## `forwarder_outdated_file_in_days` days ago, it is removed.
+## This value specifies how many days the overflow transactions will remain valid before
+## being discarded. During the Agent restart, if a retry file contains transactions that were
+## created more than `forwarder_outdated_file_in_days` days ago, they are removed.
 #
 # forwarder_outdated_file_in_days: 10
 
