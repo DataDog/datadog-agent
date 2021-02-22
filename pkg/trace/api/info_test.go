@@ -103,7 +103,7 @@ func TestInfoHandler(t *testing.T) {
 	info.Version = "0.99.0"
 	info.GitCommit = "fab047e10"
 	info.BuildDate = "2020-12-04 15:57:06.74187 +0200 EET m=+0.029001792"
-	h := rcv.makeInfoHandler()
+	_, h := rcv.makeInfoHandler()
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/info", nil)
 	h.ServeHTTP(rec, req)
@@ -120,9 +120,15 @@ func TestInfoHandler(t *testing.T) {
 		"/v0.5/stats",
 		"/profiling/v1/input"
 	],
-	"feature_flags": [
-		"feature_flag"
-	],
+	"feature_flags": {
+		"429": false,
+		"big_resource": false,
+		"disable_sublayer_spans": false,
+		"disable_sublayer_stats": false,
+		"quantize_sql_tables": false,
+		"sql_cache": false,
+		"table_names": false
+	},
 	"config": {
 		"default_env": "prod",
 		"bucket_interval": 1000000000,
@@ -163,8 +169,8 @@ func TestInfoHandler(t *testing.T) {
 		}
 	}
 }` {
-		t.Fatal("Output of /info has changed. Changing the keys " +
-			"is not allowed because the client rely on them and " +
-			"is considered a breaking change")
+		t.Fatal("Output of /info has changed. Changing the keys "+
+			"is not allowed because the client rely on them and "+
+			"is considered a breaking change:\n\n%f", rec.Body.String())
 	}
 }

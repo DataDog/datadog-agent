@@ -1,6 +1,7 @@
 package api
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -11,7 +12,7 @@ import (
 )
 
 // makeInfoHandler returns a new handler for handling the discovery endpoint.
-func (r *HTTPReceiver) makeInfoHandler() http.HandlerFunc {
+func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc) {
 	var all []string
 	for _, e := range endpoints {
 		if !e.Hidden {
@@ -59,12 +60,12 @@ func (r *HTTPReceiver) makeInfoHandler() http.HandlerFunc {
 		oconf.Memcached = o.Memcached.Enabled
 	}
 	txt, err := json.MarshalIndent(struct {
-		Version      string        `json:"version"`
-		GitCommit    string        `json:"git_commit"`
-		BuildDate    string        `json:"build_date"`
-		Endpoints    []string      `json:"endpoints"`
-		FeatureFlags []string      `json:"feature_flags,omitempty"`
-		Config       reducedConfig `json:"config"`
+		Version      string          `json:"version"`
+		GitCommit    string          `json:"git_commit"`
+		BuildDate    string          `json:"build_date"`
+		Endpoints    []string        `json:"endpoints"`
+		FeatureFlags map[string]bool `json:"feature_flags,omitempty"`
+		Config       reducedConfig   `json:"config"`
 	}{
 		Version:      info.Version,
 		GitCommit:    info.GitCommit,
@@ -94,7 +95,8 @@ func (r *HTTPReceiver) makeInfoHandler() http.HandlerFunc {
 	if err != nil {
 		panic(fmt.Errorf("Error making /info handler: %v", err))
 	}
-	return func(w http.ResponseWriter, req *http.Request) {
+	h := sha256.Sum256(txt)
+	return fmt.Sprintf("%x", h), func(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprintf(w, "%s", txt)
 	}
 }
