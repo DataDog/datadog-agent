@@ -348,7 +348,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 
 		// Delete new mount point from cache
 		if err := p.resolvers.MountResolver.Delete(event.Umount.MountID); err != nil {
-			log.Errorf("failed to delete mount point %d from cache: %s", event.Umount.MountID, err)
+			log.Warnf("failed to delete mount point %d from cache: %s", event.Umount.MountID, err)
 		}
 	case model.FileOpenEventType:
 		if _, err := event.Open.UnmarshalBinary(data[offset:]); err != nil {
