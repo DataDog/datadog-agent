@@ -36,10 +36,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func newMockSampler(wantSampled bool) *Sampler {
-	return &Sampler{engine: testutil.NewMockEngine(wantSampled)}
-}
-
 // Test to make sure that the joined effort of the quantizer and truncator, in that order, produce the
 // desired string
 func TestFormatTrace(t *testing.T) {
@@ -406,6 +402,82 @@ func TestProcess(t *testing.T) {
 	})
 }
 
+func TestFilteredByTags(t *testing.T) {
+	for _, tt := range []struct {
+		require []*config.Tag
+		reject  []*config.Tag
+		span    pb.Span
+		drop    bool
+	}{
+		{
+			require: []*config.Tag{{K: "key", V: "val"}},
+			span:    pb.Span{Meta: map[string]string{"key": "val"}},
+			drop:    false,
+		},
+		{
+			reject: []*config.Tag{{K: "key", V: "val"}},
+			span:   pb.Span{Meta: map[string]string{"key": "val4"}},
+			drop:   false,
+		},
+		{
+			reject: []*config.Tag{{K: "something", V: "else"}},
+			span:   pb.Span{Meta: map[string]string{"key": "val"}},
+			drop:   false,
+		},
+		{
+			require: []*config.Tag{{K: "something", V: "else"}},
+			reject:  []*config.Tag{{K: "bad-key", V: "bad-value"}},
+			span:    pb.Span{Meta: map[string]string{"something": "else", "bad-key": "other-value"}},
+			drop:    false,
+		},
+		{
+			require: []*config.Tag{{K: "key", V: "value"}, {K: "key-only"}},
+			reject:  []*config.Tag{{K: "bad-key", V: "bad-value"}},
+			span:    pb.Span{Meta: map[string]string{"key": "value", "key-only": "but-also-value", "bad-key": "not-bad-value"}},
+			drop:    false,
+		},
+		{
+			require: []*config.Tag{{K: "key", V: "val"}},
+			span:    pb.Span{Meta: map[string]string{"key": "val2"}},
+			drop:    true,
+		},
+		{
+			require: []*config.Tag{{K: "something", V: "else"}},
+			span:    pb.Span{Meta: map[string]string{"key": "val"}},
+			drop:    true,
+		},
+		{
+			require: []*config.Tag{{K: "valid"}, {K: "test"}},
+			reject:  []*config.Tag{{K: "test"}},
+			span:    pb.Span{Meta: map[string]string{"test": "random", "valid": "random"}},
+			drop:    true,
+		},
+		{
+			require: []*config.Tag{{K: "valid-key", V: "valid-value"}, {K: "test"}},
+			reject:  []*config.Tag{{K: "test"}},
+			span:    pb.Span{Meta: map[string]string{"test": "random", "valid-key": "wrong-value"}},
+			drop:    true,
+		},
+		{
+			reject: []*config.Tag{{K: "key", V: "val"}},
+			span:   pb.Span{Meta: map[string]string{"key": "val"}},
+			drop:   true,
+		},
+		{
+			require: []*config.Tag{{K: "something", V: "else"}, {K: "key-only"}},
+			reject:  []*config.Tag{{K: "bad-key", V: "bad-value"}, {K: "bad-key-only"}},
+			span:    pb.Span{Meta: map[string]string{"something": "else", "key-only": "but-also-value", "bad-key-only": "random"}},
+			drop:    true,
+		},
+	} {
+		t.Run("", func(t *testing.T) {
+			if filteredByTags(&tt.span, tt.require, tt.reject) != tt.drop {
+				t.Fatal()
+			}
+		})
+	}
+}
+
 func TestClientComputedTopLevel(t *testing.T) {
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
@@ -542,26 +614,22 @@ func TestSampling(t *testing.T) {
 		// hasPriority will be true if the input trace should have sampling priority set
 		hasErrors, hasPriority bool
 
-		// scoreRate, scoreErrorRate, priorityRate are the rates used by the mock samplers
-		scoreRate, scoreErrorRate, priorityRate float64
-
-		// scoreSampled, scoreErrorSampled, prioritySampled are the sample decisions of the mock samplers
-		scoreSampled, scoreErrorSampled, prioritySampled bool
+		// noPrioritySampled, errorsSampled, prioritySampled are the sample decisions of the mock samplers
+		noPrioritySampled, errorsSampled, prioritySampled bool
 
 		// wantSampled is the expected result
 		wantSampled bool
 	}{
-		"score-unsampled": {
-			scoreSampled: false,
-			wantSampled:  false,
+		"nopriority-unsampled": {
+			noPrioritySampled: false,
+			wantSampled:       false,
 		},
-		"score-sampled": {
-			scoreSampled: true,
-			wantSampled:  true,
+		"nopriority-sampled": {
+			noPrioritySampled: true,
+			wantSampled:       true,
 		},
 		"prio-unsampled": {
 			hasPriority:     true,
-			scoreSampled:    true,
 			prioritySampled: false,
 			wantSampled:     false,
 		},
@@ -570,63 +638,60 @@ func TestSampling(t *testing.T) {
 			prioritySampled: true,
 			wantSampled:     true,
 		},
-		"score-prio-sampled": {
+		"error-unsampled": {
+			hasErrors:     true,
+			errorsSampled: false,
+			wantSampled:   false,
+		},
+		"error-sampled": {
+			hasErrors:     true,
+			errorsSampled: true,
+			wantSampled:   true,
+		},
+		"error-sampled-prio-unsampled": {
+			hasErrors:       true,
 			hasPriority:     true,
-			scoreSampled:    true,
+			errorsSampled:   true,
+			prioritySampled: false,
+			wantSampled:     true,
+		},
+		"error-unsampled-prio-sampled": {
+			hasErrors:       true,
+			hasPriority:     true,
+			errorsSampled:   false,
 			prioritySampled: true,
 			wantSampled:     true,
 		},
-		"score-prio-unsampled": {
+		"error-prio-sampled": {
+			hasErrors:       true,
 			hasPriority:     true,
-			scoreSampled:    false,
+			errorsSampled:   true,
+			prioritySampled: true,
+			wantSampled:     true,
+		},
+		"error-prio-unsampled": {
+			hasErrors:       true,
+			hasPriority:     true,
+			errorsSampled:   false,
 			prioritySampled: false,
 			wantSampled:     false,
 		},
-		"error-unsampled": {
-			hasErrors:         true,
-			scoreErrorSampled: false,
-			wantSampled:       false,
-		},
-		"error-sampled": {
-			hasErrors:         true,
-			scoreErrorSampled: true,
-			wantSampled:       true,
-		},
-		"error-sampled-prio-unsampled": {
-			hasErrors:         true,
-			hasPriority:       true,
-			scoreErrorSampled: true,
-			prioritySampled:   false,
-			wantSampled:       true,
-		},
-		"error-unsampled-prio-sampled": {
-			hasErrors:         true,
-			hasPriority:       true,
-			scoreErrorSampled: false,
-			prioritySampled:   true,
-			wantSampled:       true,
-		},
-		"error-prio-sampled": {
-			hasErrors:         true,
-			hasPriority:       true,
-			scoreErrorSampled: true,
-			prioritySampled:   true,
-			wantSampled:       true,
-		},
-		"error-prio-unsampled": {
-			hasErrors:         true,
-			hasPriority:       true,
-			scoreErrorSampled: false,
-			prioritySampled:   false,
-			wantSampled:       false,
-		},
 	} {
 		t.Run(name, func(t *testing.T) {
+			cfg := &config.AgentConfig{}
+			sampledCfg := &config.AgentConfig{ExtraSampleRate: 1}
 			a := &Agent{
-				ScoreSampler:       newMockSampler(tt.scoreSampled),
-				ErrorsScoreSampler: newMockSampler(tt.scoreErrorSampled),
-				PrioritySampler:    newMockSampler(tt.prioritySampled),
+				NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
+				ErrorsSampler:     sampler.NewErrorsSampler(cfg),
+				PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
 			}
+			if tt.errorsSampled {
+				a.ErrorsSampler = sampler.NewErrorsSampler(sampledCfg)
+			}
+			if tt.noPrioritySampled {
+				a.NoPrioritySampler = sampler.NewNoPrioritySampler(sampledCfg)
+			}
+
 			root := &pb.Span{
 				Service:  "serv1",
 				Start:    time.Now().UnixNano(),
@@ -639,7 +704,11 @@ func TestSampling(t *testing.T) {
 			}
 			pt := ProcessedTrace{Trace: pb.Trace{root}, Root: root}
 			if tt.hasPriority {
-				sampler.SetSamplingPriority(pt.Root, 1)
+				if tt.prioritySampled {
+					sampler.SetSamplingPriority(pt.Root, 1)
+				} else {
+					sampler.SetSamplingPriority(pt.Root, 0)
+				}
 			}
 
 			sampled := a.runSamplers(pt, tt.hasPriority)

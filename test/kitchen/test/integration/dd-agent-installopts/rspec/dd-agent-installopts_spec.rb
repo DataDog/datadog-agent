@@ -31,7 +31,7 @@ shared_examples_for 'a configured Agent' do
     confYaml = read_conf_file()
     it 'has an API key' do
       expect(confYaml).to have_key("api_key")
-      expect(confYaml["api_key"]).to be_truthy  # for now just accept that something's there
+      expect(confYaml["api_key"]).to eql("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
     end
     it 'has tags set' do
       expect(confYaml).to have_key("tags")

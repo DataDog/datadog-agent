@@ -4,10 +4,16 @@ FROM $AGENT_BASE
 # include some useful dev tools since this will be used or development
 RUN apt-get update -y && apt-get install -y jq conntrack netcat dnsutils iproute2 net-tools
 
+# the core agent has the library path hardcoded, this allows the agent included below to find libs
+ENV LD_LIBRARY_PATH /opt/datadog-agent/embedded/lib
+
 # inv -e process-agent.build-dev-image will set up a temporary
 # build directory where this Dockerfile and the necessary binaries
 # are in the same directory
 COPY process-agent /opt/datadog-agent/embedded/bin/process-agent
 COPY system-probe /opt/datadog-agent/embedded/bin/system-probe
+
+# comment out the below if you don't want the replace the base image's core agent binary
+COPY agent /opt/datadog-agent/bin/agent/agent
 
 COPY *.o /opt/datadog-agent/embedded/share/system-probe/ebpf/

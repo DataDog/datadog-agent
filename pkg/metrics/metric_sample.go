@@ -27,7 +27,6 @@ const (
 	HistogramType
 	HistorateType
 	SetType
-	// NOTE: DistributionType is in development and is NOT supported
 	DistributionType
 )
 

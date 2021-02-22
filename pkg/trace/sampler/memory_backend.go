@@ -7,6 +7,7 @@ package sampler
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -16,6 +17,9 @@ import (
 // Its bias with steady counts is 1 * decayFactor.
 // The stored scores represent approximation of the real count values (with a countScaleFactor factor).
 type MemoryBackend struct {
+	// seen, kept are used for telemetry
+	seen int64
+	kept int64
 	// scores maps signatures to scores.
 	scores map[Signature]float64
 
@@ -28,9 +32,9 @@ type MemoryBackend struct {
 	// mu is a lock protecting all the scores.
 	mu sync.RWMutex
 
-	// decayPeriod is the time period between each score decay.
+	// DecayPeriod is the time period between each score decay.
 	// A lower value is more reactive, but forgets quicker.
-	decayPeriod time.Duration
+	DecayPeriod time.Duration
 
 	// decayFactor is how much we reduce/divide the score at every decay run.
 	// A lower value is more reactive, but forgets quicker.
@@ -39,45 +43,21 @@ type MemoryBackend struct {
 	// countScaleFactor is the factor to apply to move from the score
 	// to the representing number of traces per second.
 	// By definition of the decay formula is:
-	// countScaleFactor = (decayFactor / (decayFactor - 1)) * decayPeriod
+	// countScaleFactor = (decayFactor / (decayFactor - 1)) * DecayPeriod
 	// It also represents by how much a spike is smoothed: if we instantly
 	// receive N times the same signature, its immediate count will be
 	// increased by N / countScaleFactor.
 	countScaleFactor float64
-
-	// exit is the channel to close to stop the run loop.
-	exit chan struct{}
 }
 
 // NewMemoryBackend returns an initialized Backend.
 func NewMemoryBackend(decayPeriod time.Duration, decayFactor float64) *MemoryBackend {
 	return &MemoryBackend{
 		scores:           make(map[Signature]float64),
-		decayPeriod:      decayPeriod,
+		DecayPeriod:      decayPeriod,
 		decayFactor:      decayFactor,
 		countScaleFactor: (decayFactor / (decayFactor - 1)) * decayPeriod.Seconds(),
-		exit:             make(chan struct{}),
 	}
-}
-
-// Run runs and block on the Sampler main loop.
-func (b *MemoryBackend) Run() {
-	t := time.NewTicker(b.decayPeriod)
-	defer t.Stop()
-
-	for {
-		select {
-		case <-t.C:
-			b.decayScore()
-		case <-b.exit:
-			return
-		}
-	}
-}
-
-// Stop stops the main Run loop.
-func (b *MemoryBackend) Stop() {
-	close(b.exit)
 }
 
 // CountSignature counts an incoming signature.
@@ -85,6 +65,7 @@ func (b *MemoryBackend) CountSignature(signature Signature) {
 	b.mu.Lock()
 	b.scores[signature]++
 	b.totalScore++
+	atomic.AddInt64(&b.seen, 1)
 	b.mu.Unlock()
 }
 
@@ -92,7 +73,14 @@ func (b *MemoryBackend) CountSignature(signature Signature) {
 func (b *MemoryBackend) CountSample() {
 	b.mu.Lock()
 	b.sampledScore++
+	atomic.AddInt64(&b.kept, 1)
 	b.mu.Unlock()
+}
+
+func (b *MemoryBackend) report() (int64, int64) {
+	kept := atomic.SwapInt64(&b.kept, 0)
+	seen := atomic.SwapInt64(&b.seen, 0)
+	return kept, seen
 }
 
 // GetSignatureScore returns the score of a signature.
@@ -151,8 +139,8 @@ func (b *MemoryBackend) GetCardinality() int64 {
 	return cardinality
 }
 
-// decayScore applies the decay to the rolling counters.
-func (b *MemoryBackend) decayScore() {
+// DecayScore applies the decay to the rolling counters.
+func (b *MemoryBackend) DecayScore() {
 	b.mu.Lock()
 	for sig := range b.scores {
 		if b.scores[sig] > b.decayFactor*minSignatureScoreOffset {

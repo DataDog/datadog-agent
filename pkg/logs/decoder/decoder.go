@@ -91,7 +91,7 @@ func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parser.Parser
 
 	for _, rule := range source.Config.ProcessingRules {
 		if rule.Type == config.MultiLine {
-			lineHandler = NewMultiLineHandler(outputChan, rule.Regex, defaultFlushTimeout, lineLimit)
+			lineHandler = NewMultiLineHandler(outputChan, rule.Regex, config.AggregationTimeout(), lineLimit)
 		}
 	}
 	if lineHandler == nil {
@@ -99,7 +99,7 @@ func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parser.Parser
 	}
 
 	if parser.SupportsPartialLine() {
-		lineParser = NewMultiLineParser(defaultFlushTimeout, parser, lineHandler, lineLimit)
+		lineParser = NewMultiLineParser(config.AggregationTimeout(), parser, lineHandler, lineLimit)
 	} else {
 		lineParser = NewSingleLineParser(parser, lineHandler)
 	}

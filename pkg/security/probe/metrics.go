@@ -72,6 +72,10 @@ var (
 	// MetricPerfBufferSortingError is the name of the metric used to report events reordering issues.
 	// Tags: map, cpu, event_type
 	MetricPerfBufferSortingError = newRuntimeSecurityMetric(".perf_buffer.sorting_error")
+	// MetricPerfBufferSortingQueueSize is the name of the metric used to report reordering queue size.
+	MetricPerfBufferSortingQueueSize = newRuntimeSecurityMetric(".perf_buffer.sorting_queue_size")
+	// MetricPerfBufferSortingAvgOp is the name of the metric used to report average sorting operations.
+	MetricPerfBufferSortingAvgOp = newRuntimeSecurityMetric(".perf_buffer.sorting_avg_op")
 
 	// Process Resolver metrics
 

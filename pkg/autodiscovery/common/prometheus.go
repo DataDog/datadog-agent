@@ -61,7 +61,7 @@ type OpenmetricsInstance struct {
 	LabelsMapper                  map[string]string           `mapstructure:"labels_mapper" json:"labels_mapper,omitempty"`
 	TypeOverride                  map[string]string           `mapstructure:"type_overrides" json:"type_overrides,omitempty"`
 	HistogramBuckets              bool                        `mapstructure:"send_histograms_buckets" json:"send_histograms_buckets,omitempty"`
-	DistribuitionBuckets          bool                        `mapstructure:"send_distribution_buckets" json:"send_distribution_buckets,omitempty"`
+	DistributionBuckets           bool                        `mapstructure:"send_distribution_buckets" json:"send_distribution_buckets,omitempty"`
 	MonotonicCounter              bool                        `mapstructure:"send_monotonic_counter" json:"send_monotonic_counter,omitempty"`
 	DistributionCountsAsMonotonic bool                        `mapstructure:"send_distribution_counts_as_monotonic" json:"send_distribution_counts_as_monotonic,omitempty"`
 	DistributionSumsAsMonotonic   bool                        `mapstructure:"send_distribution_sums_as_monotonic" json:"send_distribution_sums_as_monotonic,omitempty"`
