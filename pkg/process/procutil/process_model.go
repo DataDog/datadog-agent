@@ -197,24 +197,29 @@ func ConvertAllFilledProcesses(processes map[int32]*process.FilledProcess) map[i
 	return result
 }
 
-// ConvertFilledProcessesToStats takes a group of FilledProcess objects and convert them into Stats
-func ConvertFilledProcessesToStats(processes map[int32]*process.FilledProcess) map[int32]*Stats {
+// ConvertAllFilledProcessesToStats takes a group of FilledProcess objects and convert them into Stats
+func ConvertAllFilledProcessesToStats(processes map[int32]*process.FilledProcess) map[int32]*Stats {
 	stats := make(map[int32]*Stats, len(processes))
 	for pid, p := range processes {
-		stats[pid] = &Stats{
-			CreateTime:  p.CreateTime,
-			Status:      p.Status,
-			Nice:        p.Nice,
-			OpenFdCount: p.OpenFdCount,
-			NumThreads:  p.NumThreads,
-			CPUTime:     ConvertFromCPUStat(p.CpuTime),
-			MemInfo:     ConvertFromMemInfo(p.MemInfo),
-			MemInfoEx:   ConvertFromMemInfoEx(p.MemInfoEx),
-			IOStat:      ConvertFromIOStats(p.IOStat),
-			CtxSwitches: ConvertFromCtxSwitches(p.CtxSwitches),
-		}
+		stats[pid] = ConvertFilledProcessesToStats(p)
 	}
 	return stats
+}
+
+// ConvertFilledProcessesToStats takes a group of FilledProcess objects and convert them into Stats
+func ConvertFilledProcessesToStats(p *process.FilledProcess) *Stats {
+	return &Stats{
+		CreateTime:  p.CreateTime,
+		Status:      p.Status,
+		Nice:        p.Nice,
+		OpenFdCount: p.OpenFdCount,
+		NumThreads:  p.NumThreads,
+		CPUTime:     ConvertFromCPUStat(p.CpuTime),
+		MemInfo:     ConvertFromMemInfo(p.MemInfo),
+		MemInfoEx:   ConvertFromMemInfoEx(p.MemInfoEx),
+		IOStat:      ConvertFromIOStats(p.IOStat),
+		CtxSwitches: ConvertFromCtxSwitches(p.CtxSwitches),
+	}
 }
 
 // ConvertFromFilledProcess takes a FilledProcess object and convert it into Process
@@ -230,18 +235,7 @@ func ConvertFromFilledProcess(p *process.FilledProcess) *Process {
 		Username: p.Username,
 		Uids:     p.Uids,
 		Gids:     p.Gids,
-		Stats: &Stats{
-			CreateTime:  p.CreateTime,
-			Status:      p.Status,
-			Nice:        p.Nice,
-			OpenFdCount: p.OpenFdCount,
-			NumThreads:  p.NumThreads,
-			CPUTime:     ConvertFromCPUStat(p.CpuTime),
-			MemInfo:     ConvertFromMemInfo(p.MemInfo),
-			MemInfoEx:   ConvertFromMemInfoEx(p.MemInfoEx),
-			IOStat:      ConvertFromIOStats(p.IOStat),
-			CtxSwitches: ConvertFromCtxSwitches(p.CtxSwitches),
-		},
+		Stats:    ConvertFilledProcessesToStats(p),
 	}
 }
 
