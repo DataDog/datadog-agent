@@ -229,6 +229,7 @@ def test(
         print("----- Module '{}'".format(module.full_path()))
         if not module.condition():
             print("----- Skipped")
+            continue
 
         with ctx.cd(module.full_path()):
             matches = ["{}/...".format(t) for t in module.targets]
