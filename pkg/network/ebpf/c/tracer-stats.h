@@ -27,7 +27,7 @@ static __always_inline void update_conn_state(conn_tuple_t* t, conn_stats_ts_t *
     }
 }
 
-static __always_inline void update_conn_stats(conn_tuple_t* t, size_t sent_bytes, size_t recv_bytes, u64 ts) {
+static __always_inline void update_conn_stats(conn_tuple_t* t, size_t sent_bytes, size_t recv_bytes, u64 ts, conn_direction_t dir) {
     conn_stats_ts_t* val;
 
     // initialize-if-no-exist the connection stat, and load it
@@ -47,6 +47,21 @@ static __always_inline void update_conn_stats(conn_tuple_t* t, size_t sent_bytes
         __sync_fetch_and_add(&val->recv_bytes, recv_bytes);
     }
     val->timestamp = ts;
+
+    if (dir != CONN_DIRECTION_UNKNOWN) {
+        val->direction = dir;
+    } else if (val->direction == CONN_DIRECTION_UNKNOWN) {
+        u8* state = NULL;
+        port_binding_t pb = {};
+        pb.port = t->sport;
+        if (t->metadata & CONN_TYPE_TCP) {
+            pb.net_ns = t->netns;
+            state = bpf_map_lookup_elem(&port_bindings, &pb);
+        } else {
+            state = bpf_map_lookup_elem(&udp_port_bindings, &pb);
+        }
+        val->direction = (state != NULL) ? CONN_DIRECTION_INCOMING : CONN_DIRECTION_OUTGOING;
+    }
 }
 
 static __always_inline void update_tcp_stats(conn_tuple_t* t, tcp_stats_t stats) {
@@ -80,10 +95,10 @@ static __always_inline void update_tcp_stats(conn_tuple_t* t, tcp_stats_t stats)
     }
 }
 
-static __always_inline int handle_message(conn_tuple_t* t, size_t sent_bytes, size_t recv_bytes) {
+static __always_inline int handle_message(conn_tuple_t* t, size_t sent_bytes, size_t recv_bytes, conn_direction_t dir) {
     u64 ts = bpf_ktime_get_ns();
 
-    update_conn_stats(t, sent_bytes, recv_bytes, ts);
+    update_conn_stats(t, sent_bytes, recv_bytes, ts, dir);
 
     return 0;
 }
