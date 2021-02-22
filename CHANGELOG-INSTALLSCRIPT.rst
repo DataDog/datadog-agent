@@ -4,7 +4,7 @@ Release Notes
 
 .. _Release Notes_installscript-1.3.1:
 
-installscript-1.3.1
+1.3.1
 ===================
 
 .. _Release Notes_installscript-1.3.1_Prelude:
@@ -12,7 +12,7 @@ installscript-1.3.1
 Prelude
 -------
 
-Released on: 2021-02-15
+Released on: 2021-02-22
 
 .. _Release Notes_installscript-1.3.1_New Features:
 
