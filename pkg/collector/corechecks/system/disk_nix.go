@@ -142,8 +142,8 @@ func (c *DiskCheck) sendPartitionMetrics(sender aggregator.Sender, usage *disk.U
 }
 
 func (c *DiskCheck) sendDiskMetrics(sender aggregator.Sender, ioCounter, lastIoCounter disk.IOCountersStat, tags []string) {
-	sender.Count(fmt.Sprintf(diskMetric, "read_time"), float64(incrementWithOverflow(ioCounter.ReadTime, lastIoCounter.ReadTime)), "", tags)
-	sender.Count(fmt.Sprintf(diskMetric, "write_time"), float64(incrementWithOverflow(ioCounter.WriteTime, lastIoCounter.WriteTime)), "", tags)
+	sender.MonotonicCount(fmt.Sprintf(diskMetric, "read_time"), float64(incrementWithOverflow(ioCounter.ReadTime, lastIoCounter.ReadTime)), "", tags)
+	sender.MonotonicCount(fmt.Sprintf(diskMetric, "write_time"), float64(incrementWithOverflow(ioCounter.WriteTime, lastIoCounter.WriteTime)), "", tags)
 	// FIXME(8.x): These older metrics are kept here for backwards compatibility, but they are wrong: the value is not a percentage
 	sender.Rate(fmt.Sprintf(diskMetric, "read_time_pct"), float64(ioCounter.ReadTime)*100/1000, "", tags)
 	sender.Rate(fmt.Sprintf(diskMetric, "write_time_pct"), float64(ioCounter.WriteTime)*100/1000, "", tags)

@@ -100,8 +100,8 @@ func TestDiskCheck(t *testing.T) {
 	mock.On("Commit").Return().Times(1)
 	diskCheck.Run()
 
-	mock.On("Count", "system.disk.read_time", 1.656, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
-	mock.On("Count", "system.disk.write_time", 0.028, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
+	mock.On("MonotonicCount", "system.disk.read_time", 1.656, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
+	mock.On("MonotonicCount", "system.disk.write_time", 0.028, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
 
 	mock.On("Rate", "system.disk.read_time_pct", 1970096.4, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
 	mock.On("Rate", "system.disk.write_time_pct", 41862.8, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
@@ -110,7 +110,7 @@ func TestDiskCheck(t *testing.T) {
 	diskCheck.Run()
 
 	mock.AssertExpectations(t)
-	mock.AssertNumberOfCalls(t, "Count", expectedCounts)
+	mock.AssertNumberOfCalls(t, "MonotonicCount", expectedCounts)
 	mock.AssertNumberOfCalls(t, "Gauge", expectedGauges*2)
 	mock.AssertNumberOfCalls(t, "Rate", expectedRates)
 	mock.AssertNumberOfCalls(t, "Commit", 2)
