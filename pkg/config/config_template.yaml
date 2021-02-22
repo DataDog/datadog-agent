@@ -187,7 +187,6 @@ api_key:
 #
 # forwarder_stop_timeout: 2
 
-
 ## @param forwarder_storage_max_size_in_bytes - int - optional - default: 0
 ## When the retry queue of the forwarder is full, `forwarder_storage_max_size_in_bytes` 
 ## defines the amount of disk space the Agent can use to store transactions on the disk.
@@ -197,8 +196,8 @@ api_key:
 
 ## @param forwarder_storage_max_disk_ratio - float - optional - default: 0.95
 ## `forwarder_storage_max_disk_ratio` defines the disk capacity limit for storing transactions.
-## `0.9` means the Agent can store transactions on disk until `forwarder_storage_max_size_in_bytes` 
-## is reached or when the disk mount for `forwarder_storage_path` exceeds 90% of the disk capacity,
+## `0.95` means the Agent can store transactions on disk until `forwarder_storage_max_size_in_bytes` 
+## is reached or when the disk mount for `forwarder_storage_path` exceeds 95% of the disk capacity,
 ## whichever is lower.
 # 
 # forwarder_storage_max_size_in_bytes: 0.95
