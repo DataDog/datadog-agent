@@ -80,6 +80,10 @@ type Config struct {
 	// EnableConntrack enables probing conntrack for network address translation via netlink
 	EnableConntrack bool
 
+	// IgnoreConntrackInitFailure will ignore any conntrack initialization failiures during system-probe load. If this is set to false, system-probe
+	// will fail to start if there is a conntrack initialization failure.
+	IgnoreConntrackInitFailure bool
+
 	// ConntrackMaxStateSize specifies the maximum number of connections with NAT we can track
 	ConntrackMaxStateSize int
 
@@ -128,6 +132,7 @@ func NewDefaultConfig() *Config {
 		ConntrackRateLimit:           500,
 		EnableConntrackAllNamespaces: true,
 		EnableConntrack:              true,
+		IgnoreConntrackInitFailure:   false,
 		// With clients checking connection stats roughly every 30s, this gives us roughly ~1.6k + ~2.5k objects a second respectively.
 		MaxClosedConnectionsBuffered: 50000,
 		MaxConnectionsStateBuffered:  75000,

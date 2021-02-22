@@ -57,7 +57,7 @@ int __attribute__((always_inline)) trace__sys_execveat() {
         .type = SYSCALL_EXEC,
     };
 
-    cache_syscall(&syscall, EVENT_EXEC);
+    cache_syscall(&syscall);
     return 0;
 }
 
@@ -154,7 +154,7 @@ int __attribute__((always_inline)) handle_do_fork(struct pt_regs *ctx) {
             .is_thread = 1,
         }
     };
-    cache_syscall(&syscall, EVENT_FORK);
+    cache_syscall(&syscall);
 
     return 0;
 }

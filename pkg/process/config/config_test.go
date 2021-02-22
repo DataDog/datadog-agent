@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/gopsutil/process"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -144,7 +144,7 @@ func TestOnlyEnvConfigArgsScrubbingDisabled(t *testing.T) {
 	}
 
 	for i := range cases {
-		fp := &process.FilledProcess{Cmdline: cases[i].cmdline}
+		fp := &procutil.Process{Cmdline: cases[i].cmdline}
 		cases[i].cmdline = agentConfig.Scrubber.ScrubProcessCommand(fp)
 		assert.Equal(t, cases[i].parsedCmdline, cases[i].cmdline)
 	}
@@ -213,6 +213,34 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 
 		assert.Nil(t, err)
 		assert.True(t, cfg.EnableHTTPMonitoring)
+	})
+}
+
+func TestIgnoreConntrackInitFailure(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+		defer restoreGlobalConfig()
+
+		cfg, err := NewAgentConfig(
+			"test",
+			"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-IgnoreCTInitFailure.yaml",
+			"",
+		)
+
+		assert.Nil(t, err)
+		assert.True(t, cfg.IgnoreConntrackInitFailure)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+		defer restoreGlobalConfig()
+
+		os.Setenv("DD_SYSTEM_PROBE_NETWORK_IGNORE_CONNTRACK_INIT_FAILURE", "true")
+		defer os.Unsetenv("DD_SYSTEM_PROBE_NETWORK_IGNORE_CONNTRACK_INIT_FAILURE")
+		cfg, err := NewAgentConfig("test", "", "")
+
+		assert.Nil(t, err)
+		assert.True(t, cfg.IgnoreConntrackInitFailure)
 	})
 }
 

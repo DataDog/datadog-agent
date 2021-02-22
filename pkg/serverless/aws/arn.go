@@ -30,6 +30,8 @@ func SetARN(arn string) {
 	currentARN.Lock()
 	defer currentARN.Unlock()
 
+	arn = strings.ToLower(arn)
+
 	// remove the version if any
 	// format: arn:aws:lambda:<region>:<account-id>:function:<function-name>[:<version>]
 	if parts := strings.Split(arn, ":"); len(parts) > 7 {

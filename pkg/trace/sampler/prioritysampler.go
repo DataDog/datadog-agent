@@ -19,9 +19,9 @@
 package sampler
 
 import (
-	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
@@ -35,8 +35,8 @@ const (
 	prioritySamplingRateThresholdTo1 = 0.3
 )
 
-// PriorityEngine is the main component of the sampling logic
-type PriorityEngine struct {
+// PrioritySampler is the main component of the sampling logic
+type PrioritySampler struct {
 	// Sampler is the underlying sampler used by this engine, sharing logic among various engines.
 	Sampler *Sampler
 
@@ -45,11 +45,11 @@ type PriorityEngine struct {
 	exit          chan struct{}
 }
 
-// NewPriorityEngine returns an initialized Sampler
-func NewPriorityEngine(extraRate float64, targetTPS float64, rateByService *RateByService) *PriorityEngine {
-	s := &PriorityEngine{
-		Sampler:       newSampler(extraRate, targetTPS),
-		rateByService: rateByService,
+// NewPrioritySampler returns an initialized Sampler
+func NewPrioritySampler(conf *config.AgentConfig, dynConf *DynamicConfig) *PrioritySampler {
+	s := &PrioritySampler{
+		Sampler:       newSampler(conf.ExtraSampleRate, conf.TargetTPS, []string{"sampler:priority"}),
+		rateByService: &dynConf.RateByService,
 		catalog:       newServiceLookup(),
 		exit:          make(chan struct{}),
 	}
@@ -58,16 +58,9 @@ func NewPriorityEngine(extraRate float64, targetTPS float64, rateByService *Rate
 	return s
 }
 
-// Run runs and block on the Sampler main loop
-func (s *PriorityEngine) Run() {
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	go func() {
-		s.Sampler.Run()
-		wg.Done()
-	}()
-
+// Start runs and block on the Sampler main loop
+func (s *PrioritySampler) Start() {
+	s.Sampler.Start()
 	go func() {
 		t := time.NewTicker(syncPeriod)
 		defer t.Stop()
@@ -77,30 +70,26 @@ func (s *PriorityEngine) Run() {
 			case <-t.C:
 				s.rateByService.SetAll(s.ratesByService())
 			case <-s.exit:
-				wg.Done()
 				return
 			}
 		}
 	}()
-
-	wg.Wait()
 }
 
-// Stop stops the main Run loop
-func (s *PriorityEngine) Stop() {
+// Stop stops the sampler main loop
+func (s *PrioritySampler) Stop() {
 	s.Sampler.Stop()
 	close(s.exit)
 }
 
 // Sample counts an incoming trace and returns the trace sampling decision and the applied sampling rate
-func (s *PriorityEngine) Sample(trace pb.Trace, root *pb.Span, env string) bool {
+func (s *PrioritySampler) Sample(trace pb.Trace, root *pb.Span, env string) bool {
 	// Extra safety, just in case one trace is empty
 	if len(trace) == 0 {
 		return false
 	}
 
 	samplingPriority, _ := GetSamplingPriority(root)
-
 	// Regardless of rates, sampling here is based on the metadata set
 	// by the client library. Which, is turn, is based on agent hints,
 	// but the rule of thumb is: respect client choice.
@@ -128,7 +117,7 @@ func (s *PriorityEngine) Sample(trace pb.Trace, root *pb.Span, env string) bool 
 	return sampled
 }
 
-func (s *PriorityEngine) applyRate(sampled bool, root *pb.Span, signature Signature) {
+func (s *PrioritySampler) applyRate(sampled bool, root *pb.Span, signature Signature) {
 	if root.ParentID != 0 {
 		return
 	}
@@ -154,19 +143,8 @@ func (s *PriorityEngine) applyRate(sampled bool, root *pb.Span, signature Signat
 	}
 }
 
-// GetState collects and return internal statistics and coefficients for indication purposes
-// It returns an interface{}, as other samplers might return other informations.
-func (s *PriorityEngine) GetState() interface{} {
-	return s.Sampler.GetState()
-}
-
 // ratesByService returns all rates by service, this information is useful for
 // agents to pick the right service rate.
-func (s *PriorityEngine) ratesByService() map[ServiceSignature]float64 {
+func (s *PrioritySampler) ratesByService() map[ServiceSignature]float64 {
 	return s.catalog.ratesByService(s.Sampler.GetAllSignatureSampleRates(), s.Sampler.GetDefaultSampleRate())
-}
-
-// GetType return the type of the sampler engine
-func (s *PriorityEngine) GetType() EngineType {
-	return PriorityEngineType
 }

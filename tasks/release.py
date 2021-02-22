@@ -1,7 +1,7 @@
 """
 Release helper tasks
 """
-from __future__ import print_function
+
 
 import hashlib
 import json
@@ -32,7 +32,8 @@ def add_prelude(ctx, version):
         )
 
     ctx.run("git add {}".format(new_releasenote))
-    ctx.run("git commit -m \"Add prelude for {} release\"".format(version))
+    print("\nCommit this with:")
+    print("git commit -m \"Add prelude for {} release\"".format(version))
 
 
 @task
@@ -59,7 +60,8 @@ def add_dca_prelude(ctx, version, agent7_version, agent6_version=""):
         )
 
     ctx.run("git add {}".format(new_releasenote))
-    ctx.run("git commit -m \"Add prelude for {} release\"".format(version))
+    print("\nCommit this with:")
+    print("git commit -m \"Add prelude for {} release\"".format(version))
 
 
 @task
@@ -77,7 +79,8 @@ def add_installscript_prelude(ctx, version):
         )
 
     ctx.run("git add {}".format(new_releasenote))
-    ctx.run("git commit -m \"Add prelude for {} release\"".format(version))
+    print("\nCommit this with:")
+    print("git commit -m \"Add prelude for {} release\"".format(version))
 
 
 @task
@@ -166,12 +169,10 @@ def update_dca_changelog(ctx, new_version, agent_version):
     ctx.run("cat CHANGELOG-DCA.rst >> /tmp/new_changelog-dca.rst && mv /tmp/new_changelog-dca.rst CHANGELOG-DCA.rst")
 
     # commit new CHANGELOG
-    ctx.run(
-        "git add CHANGELOG-DCA.rst \
-            && git commit -m \"[DCA] Update CHANGELOG for {}\"".format(
-            new_version
-        )
-    )
+    ctx.run("git add CHANGELOG-DCA.rst")
+
+    print("\nCommit this with:")
+    print("git commit -m \"[DCA] Update CHANGELOG for {}\"".format(new_version))
 
 
 @task
@@ -249,12 +250,10 @@ def update_changelog(ctx, new_version):
     ctx.run("cat CHANGELOG.rst >> /tmp/new_changelog.rst && mv /tmp/new_changelog.rst CHANGELOG.rst")
 
     # commit new CHANGELOG
-    ctx.run(
-        "git add CHANGELOG.rst \
-            && git commit -m \"Update CHANGELOG for {}\"".format(
-            new_version
-        )
-    )
+    ctx.run("git add CHANGELOG.rst")
+
+    print("\nCommit this with:")
+    print("git commit -m \"[DCA] Update CHANGELOG for {}\"".format(new_version))
 
 
 @task
@@ -320,12 +319,10 @@ def update_installscript_changelog(ctx, new_version):
     )
 
     # commit new CHANGELOG-INSTALLSCRIPT
-    ctx.run(
-        "git add CHANGELOG-INSTALLSCRIPT.rst \
-            && git commit -m \"[INSTALLSCRIPT] Update CHANGELOG-INSTALLSCRIPT for {}\"".format(
-            new_version
-        )
-    )
+    ctx.run("git add CHANGELOG-INSTALLSCRIPT.rst")
+
+    print("\nCommit this with:")
+    print("git commit -m \"[INSTALLSCRIPT] Update CHANGELOG-INSTALLSCRIPT for {}\"".format(new_version))
 
 
 @task
@@ -582,7 +579,7 @@ def finish(
     list_major_versions = major_versions.split(",")
     print("Finishing release for major version(s) {}".format(list_major_versions))
 
-    list_major_versions = list(map(lambda x: int(x), list_major_versions))
+    list_major_versions = [int(x) for x in list_major_versions]
     highest_major = 0
     for version in list_major_versions:
         if int(version) > highest_major:
@@ -749,7 +746,7 @@ def create_rc(
     list_major_versions = major_versions.split(",")
     print("Creating RC for agent version(s) {}".format(list_major_versions))
 
-    list_major_versions = list(map(lambda x: int(x), list_major_versions))
+    list_major_versions = [int(x) for x in list_major_versions]
     highest_major = 0
     for version in list_major_versions:
         if int(version) > highest_major:

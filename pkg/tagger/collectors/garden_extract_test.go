@@ -88,6 +88,10 @@ func (fakeDCAClient) GetNodeLabels(nodeName string) (map[string]string, error) {
 	panic("implement me")
 }
 
+func (fakeDCAClient) GetNamespaceLabels(nsName string) (map[string]string, error) {
+	panic("implement me")
+}
+
 func (fakeDCAClient) GetPodsMetadataForNode(nodeName string) (apiv1.NamespacesPodsStringsSet, error) {
 	panic("implement me")
 }

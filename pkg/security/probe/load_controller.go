@@ -17,13 +17,14 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/hashicorp/golang-lru/simplelru"
 
+	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type eventCounterLRUKey struct {
 	Pid    uint32
 	Cookie uint32
-	Event  EventType
+	Event  model.EventType
 }
 
 // LoadController is used to monitor and control the pressure put on the host
@@ -63,7 +64,7 @@ func NewLoadController(probe *Probe, statsdClient *statsd.Client) (*LoadControll
 // Count processes the provided events and ensures the load of the provided event type is within the configured limits
 func (lc *LoadController) Count(event *Event) {
 	switch event.GetEventType() {
-	case ExitEventType, ExecEventType, InvalidateDentryEventType:
+	case model.ExitEventType, model.ExecEventType, model.InvalidateDentryEventType:
 	default:
 		lc.GenericCount(event)
 	}
@@ -115,7 +116,8 @@ func (lc *LoadController) discardNoisiestProcess() {
 
 	// push a temporary discarder on the noisiest process & event type tuple
 	log.Tracef("discarding %s events from pid %d for %s seconds", maxKey.Event, maxKey.Pid, lc.DiscarderTimeout)
-	if err := lc.probe.discardPIDWithTimeout(maxKey.Event, maxKey.Pid, lc.DiscarderTimeout); err != nil {
+	timeout := lc.probe.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Now().Add(lc.DiscarderTimeout))
+	if err := lc.probe.pidDiscarders.discardWithTimeout(maxKey.Event, maxKey.Pid, timeout); err != nil {
 		log.Warnf("couldn't insert temporary discarder: %v", err)
 		return
 	}

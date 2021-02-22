@@ -26,6 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
 	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	agentLogger "github.com/DataDog/datadog-agent/pkg/security/log"
+	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
@@ -126,8 +128,8 @@ func (m *Module) Reload() error {
 
 	rsa := sprobe.NewRuleSetApplier(m.config, m.probe)
 
-	ruleSet := m.probe.NewRuleSet(rules.NewOptsWithParams(sprobe.SECLConstants, sprobe.SupportedDiscarders))
-	if err := rules.LoadPolicies(m.config, ruleSet); err != nil {
+	ruleSet := m.probe.NewRuleSet(rules.NewOptsWithParams(model.SECLConstants, sprobe.SupportedDiscarders, agentLogger.DatadogAgentLogger{}))
+	if err := rules.LoadPolicies(m.config.PoliciesDir, ruleSet); err != nil {
 		return err
 	}
 
@@ -185,7 +187,7 @@ func (m *Module) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field 
 		return
 	}
 
-	if err := m.probe.OnNewDiscarder(rs, event.(*sprobe.Event), field, eventType); err != nil {
+	if err := m.probe.OnNewDiscarder(rs, event.(*probe.Event), field, eventType); err != nil {
 		log.Trace(err)
 	}
 }
