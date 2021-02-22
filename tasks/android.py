@@ -146,7 +146,7 @@ def clean(ctx):
 
 
 @task
-def assetconfigs(ctx):
+def assetconfigs(_):
     # move the core check config
     shutil.rmtree(CORECHECK_CONFS_DIR, ignore_errors=True)
 

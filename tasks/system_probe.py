@@ -556,7 +556,7 @@ def is_root():
     return os.getuid() == 0
 
 
-def should_use_sudo(ctx):
+def should_use_sudo(_):
     # We are already root
     if is_root():
         return False

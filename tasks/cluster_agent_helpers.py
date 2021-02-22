@@ -74,7 +74,7 @@ def build_common(
         )
 
 
-def refresh_assets_common(ctx, bin_path, additional_dist_folders, development):
+def refresh_assets_common(_, bin_path, additional_dist_folders, development):
     """
     Clean up and refresh cluster agent's assets and config files
     """

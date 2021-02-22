@@ -74,7 +74,7 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
 
 
 @task
-def clean(ctx, arch="x64", debug=False):
+def clean(_, arch="x64", debug=False):
     configuration = "Release"
     if debug:
         configuration = "Debug"

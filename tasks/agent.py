@@ -212,7 +212,7 @@ def build(
 
 
 @task
-def refresh_assets(ctx, build_tags, development=True, iot=False, windows_sysprobe=False):
+def refresh_assets(_, build_tags, development=True, iot=False, windows_sysprobe=False):
     """
     Clean up and refresh Collector's assets and config files
     """
@@ -271,7 +271,7 @@ def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None, 
 
 
 @task
-def system_tests(ctx):
+def system_tests(_):
     """
     Run the system testsuite.
     """
