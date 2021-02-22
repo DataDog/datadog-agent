@@ -9,7 +9,7 @@ static __always_inline u32 get_netns(void *p_net) {
 #ifdef CONFIG_NET_NS
     struct net *ct_net = NULL;
     bpf_probe_read(&ct_net, sizeof(ct_net), p_net);
-    #if __is_identifier(ns_common)
+    #ifdef _LINUX_NS_COMMON_H
         bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), &ct_net->ns.inum);
     #else
         bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), &ct_net->proc_inum);

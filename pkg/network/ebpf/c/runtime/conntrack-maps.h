@@ -8,7 +8,7 @@
 /* This map is used for tracking conntrack entries
  */
 struct bpf_map_def SEC("maps/conntrack") conntrack = {
-#if __is_identifier(BPF_MAP_TYPE_LRU_HASH)
+#ifdef BPF_F_NO_COMMON_LRU
     .type = BPF_MAP_TYPE_LRU_HASH,
 #else
     .type = BPF_MAP_TYPE_HASH,
