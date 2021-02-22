@@ -6,7 +6,7 @@
 # using the package manager and Datadog repositories.
 
 set -e
-install_script_version=1.3.0
+install_script_version=1.3.1
 logfile="ddagent-install.log"
 support_email=support@datadoghq.com
 
@@ -59,6 +59,11 @@ function report(){
   fi
 }
 
+function on_read_error() {
+  printf "Timed out or input EOF reached, assuming 'No'\n"
+  yn="n"
+}
+
 function on_error() {
     printf "\033[31m$ERROR_MESSAGE
 It looks like you hit an issue when trying to install the Agent.
@@ -67,14 +72,19 @@ Troubleshooting and basic usage information for the Agent are available at:
 
     https://docs.datadoghq.com/agent/basic_agent_usage/\n\033[0m\n"
 
+    if ! tty -s; then
+      fallback_msg
+      exit 1;
+    fi
+    
     while true; do
-        read -p  "Do you want to send a failure report to Datadog (including $logfile)? (y/n) " -r yn
+        read -t 60 -p  "Do you want to send a failure report to Datadog (including $logfile)? (y/[n]) " -r yn || on_read_error
         case $yn in
           [Yy]* )
             read -p "Enter an email address so we can follow up: " -r email
             report
             break;;
-          [Nn]* )
+          [Nn]*|"" )
             fallback_msg
             break;;
           * )

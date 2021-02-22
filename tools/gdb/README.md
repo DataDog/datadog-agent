@@ -18,7 +18,7 @@ The image is based on the `datadog/agent` image for the version of the Agent you
   docker build -t gdb-agent:7.18.0 --build-arg AGENT_VERSION=7.18.0 .
   ```
 
-  If the Debian snapshot repos definitions in the Agent image do not actually reflect the debian repo snapshots
+  For Agent 7.26.0 or earlier, if the Debian snapshot repos definitions in the Agent image do not actually reflect the debian repo snapshots
   that were used at the time of the original Agent image build, the optional build arg `DEBIAN_REPO_SNAPSHOT_DATE`
   must be set to the snapshot's date.
 
@@ -49,6 +49,4 @@ See https://devguide.python.org/gdb/#gdb-7-and-later for more info on the Python
 
 ## TODO
 
-* make the Agent image define its debian repo snapshot date at build time so we can use it here directly, without requiring
-the use of a separate build arg (`DEBIAN_REPO_SNAPSHOT_DATE`)
 * add cpython sources
