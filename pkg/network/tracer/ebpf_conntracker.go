@@ -40,6 +40,8 @@ type ebpfConntracker struct {
 	m            *manager.Manager
 	ctMap        *ebpf.Map
 	telemetryMap *ebpf.Map
+	// only kept around for stats purposes from initial dump
+	consumer *netlink.Consumer
 
 	stats struct {
 		gets                 int64
@@ -100,16 +102,17 @@ func NewEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 }
 
 func (e *ebpfConntracker) dumpInitialTables(ctx context.Context, cfg *config.Config) error {
-	consumer, err := netlink.NewConsumer(cfg.ProcRoot, cfg.ConntrackRateLimit, true)
+	var err error
+	e.consumer, err = netlink.NewConsumer(cfg.ProcRoot, cfg.ConntrackRateLimit, true)
 	if err != nil {
 		return err
 	}
-	defer consumer.Stop()
+	defer e.consumer.Stop()
 
-	if err := e.loadInitialState(ctx, consumer.DumpTable(unix.AF_INET)); err != nil {
+	if err := e.loadInitialState(ctx, e.consumer.DumpTable(unix.AF_INET)); err != nil {
 		return err
 	}
-	if err := e.loadInitialState(ctx, consumer.DumpTable(unix.AF_INET6)); err != nil {
+	if err := e.loadInitialState(ctx, e.consumer.DumpTable(unix.AF_INET6)); err != nil {
 		return err
 	}
 	return nil
@@ -215,12 +218,15 @@ func (e *ebpfConntracker) DeleteTranslation(stats network.ConnectionStats) {
 }
 
 func (e *ebpfConntracker) GetStats() map[string]int64 {
-	m := map[string]int64{}
+	m := map[string]int64{
+		"state_size": 0,
+	}
 	telemetry := &conntrackTelemetry{}
 	if err := e.telemetryMap.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(telemetry)); err != nil {
 		log.Tracef("error retrieving the telemetry struct: %s", err)
 	} else {
 		m["registers_total"] = int64(telemetry.registers)
+		m["registers_dropped"] = int64(telemetry.registers_dropped)
 	}
 
 	gets := atomic.LoadInt64(&e.stats.gets)
@@ -236,6 +242,12 @@ func (e *ebpfConntracker) GetStats() map[string]int64 {
 	if unregisters > 0 {
 		m["nanoseconds_per_unregister"] = unregisters / unregistersTimeTotal
 	}
+
+	// Merge telemetry from the consumer
+	for k, v := range e.consumer.GetStats() {
+		m[k] = v
+	}
+
 	return m
 }
 

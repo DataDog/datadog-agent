@@ -31,6 +31,7 @@ int kprobe___nf_conntrack_hash_insert(struct pt_regs* ctx) {
     struct nf_conntrack_tuple orig = tuplehash[IP_CT_DIR_ORIGINAL].tuple;
     struct nf_conntrack_tuple reply = tuplehash[IP_CT_DIR_REPLY].tuple;
     if (!is_nat(&orig, &reply)) {
+        increment_telemetry_count(registers_dropped);
         return 0;
     }
     u32 netns = get_netns(&ct->ct_net);
