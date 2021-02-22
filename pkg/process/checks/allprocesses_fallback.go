@@ -20,5 +20,5 @@ func getAllProcStats(probe *procutil.Probe, pids []int32) (map[int32]*procutil.S
 	if err != nil {
 		return nil, err
 	}
-	return procutil.ConvertFillProcessesToStats(procs), nil
+	return procutil.ConvertFilledProcessesToStats(procs), nil
 }

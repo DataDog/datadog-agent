@@ -197,8 +197,8 @@ func ConvertAllFilledProcesses(processes map[int32]*process.FilledProcess) map[i
 	return result
 }
 
-// ConvertFillProcessesToStats takes a group of FilledProcess objects and convert them into Stats
-func ConvertFillProcessesToStats(processes map[int32]*process.FilledProcess) map[int32]*Stats {
+// ConvertFilledProcessesToStats takes a group of FilledProcess objects and convert them into Stats
+func ConvertFilledProcessesToStats(processes map[int32]*process.FilledProcess) map[int32]*Stats {
 	stats := make(map[int32]*Stats, len(processes))
 	for pid, p := range processes {
 		stats[pid] = &Stats{
