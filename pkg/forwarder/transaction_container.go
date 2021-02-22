@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package forwarder
 
@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/hashicorp/go-multierror"
 )
 
@@ -30,42 +31,47 @@ type transactionContainer struct {
 	flushToStorageRatio        float64
 	dropPrioritySorter         transactionPrioritySorter
 	optionalTransactionStorage transactionStorage
+	telemetry                  transactionContainerTelemetry
 	mutex                      sync.RWMutex
 }
 
-func tryNewTransactionContainer(
+func buildTransactionContainer(
 	maxMemSizeInBytes int,
 	flushToStorageRatio float64,
 	optionalDomainFolderPath string,
 	storageMaxSize int64,
-	dropPrioritySorter transactionPrioritySorter) (*transactionContainer, error) {
-	if maxMemSizeInBytes <= 0 {
-		return nil, nil
-	}
+	dropPrioritySorter transactionPrioritySorter,
+	domain string,
+	apiKeys []string) *transactionContainer {
 	var storage transactionStorage
 	var err error
 
 	if optionalDomainFolderPath != "" && storageMaxSize > 0 {
-		serializer := NewTransactionsSerializer()
-		storage, err = newTransactionsFileStorage(serializer, optionalDomainFolderPath, storageMaxSize)
+		serializer := NewTransactionsSerializer(domain, apiKeys)
+		storage, err = newTransactionsFileStorage(serializer, optionalDomainFolderPath, storageMaxSize, transactionsFileStorageTelemetry{})
+
+		// If the storage on disk cannot be used, log the error and continue.
+		// Returning `nil, err` would mean not using `TransactionContainer` and so not using `forwarder_retry_queue_payloads_max_size` config.
 		if err != nil {
-			return nil, fmt.Errorf("Error when creating the file storage: %v", err)
+			log.Errorf("Error when creating the file storage: %v", err)
 		}
 	}
 
-	return newTransactionContainer(dropPrioritySorter, storage, maxMemSizeInBytes, flushToStorageRatio), nil
+	return newTransactionContainer(dropPrioritySorter, storage, maxMemSizeInBytes, flushToStorageRatio, transactionContainerTelemetry{})
 }
 
 func newTransactionContainer(
 	dropPrioritySorter transactionPrioritySorter,
 	optionalTransactionStorage transactionStorage,
 	maxMemSizeInBytes int,
-	flushToStorageRatio float64) *transactionContainer {
+	flushToStorageRatio float64,
+	telemetry transactionContainerTelemetry) *transactionContainer {
 	return &transactionContainer{
 		maxMemSizeInBytes:          maxMemSizeInBytes,
 		flushToStorageRatio:        flushToStorageRatio,
 		dropPrioritySorter:         dropPrioritySorter,
 		optionalTransactionStorage: optionalTransactionStorage,
+		telemetry:                  telemetry,
 	}
 }
 
@@ -94,6 +100,7 @@ func (tc *transactionContainer) add(t Transaction) (int, error) {
 		}
 		if diskErr != nil {
 			diskErr = fmt.Errorf("Cannot store transactions on disk: %v", diskErr)
+			tc.telemetry.incErrorsCount()
 		}
 	}
 
@@ -103,10 +110,14 @@ func (tc *transactionContainer) add(t Transaction) (int, error) {
 	if payloadSizeInBytesToDrop > 0 {
 		transactions := tc.extractTransactionsFromMemory(payloadSizeInBytesToDrop)
 		inMemTransactionDroppedCount = len(transactions)
+		tc.telemetry.addTransactionsDroppedCount(inMemTransactionDroppedCount)
 	}
 
 	tc.transactions = append(tc.transactions, t)
 	tc.currentMemSizeInBytes += payloadSize
+	tc.telemetry.setCurrentMemSizeInBytes(tc.currentMemSizeInBytes)
+	tc.telemetry.setTransactionsCount(len(tc.transactions))
+
 	return inMemTransactionDroppedCount, diskErr
 }
 
@@ -126,10 +137,13 @@ func (tc *transactionContainer) extractTransactions() ([]Transaction, error) {
 	} else if tc.optionalTransactionStorage != nil {
 		transactions, err = tc.optionalTransactionStorage.Deserialize()
 		if err != nil {
+			tc.telemetry.incErrorsCount()
 			return nil, err
 		}
 	}
 	tc.currentMemSizeInBytes = 0
+	tc.telemetry.setCurrentMemSizeInBytes(tc.currentMemSizeInBytes)
+	tc.telemetry.setTransactionsCount(len(tc.transactions))
 	return transactions, nil
 }
 
@@ -164,6 +178,11 @@ func (tc *transactionContainer) extractTransactionsForDisk(payloadSize int) [][]
 		// Flush the N first transactions whose payload size sum is greater than `sizeInBytesToFlush`
 		transactions := tc.extractTransactionsFromMemory(sizeInBytesToFlush)
 
+		if len(transactions) == 0 {
+			// Happens when `sizeInBytesToFlush == 0`
+			// Avoid infinite loop
+			break
+		}
 		payloadsGroupToFlush = append(payloadsGroupToFlush, transactions)
 	}
 

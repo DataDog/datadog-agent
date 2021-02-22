@@ -1,19 +1,18 @@
-#include "stdafx.h"
 #include "TargetMachine.h"
+#include "stdafx.h"
 #include <DsGetDC.h>
 
 TargetMachine::TargetMachine()
-: _serverType(0)
-, _machineName(L"")
-, _domain(L"")
-, _isDomainJoined(false)
+    : _serverType(0)
+    , _machineName(L"")
+    , _joinedDomain(L"")
+    , _isDomainJoined(false)
+    , _dnsDomainName(L"")
 {
-
 }
 
 TargetMachine::~TargetMachine()
 {
-
 }
 
 DWORD TargetMachine::Detect()
@@ -41,8 +40,10 @@ DWORD TargetMachine::Detect()
     std::wstring compare_computer;
     if (DetectComputerName(ComputerNameDnsHostname, compare_computer))
     {
-        if (_machineName != compare_computer) {
-            WcaLog(LOGMSG_STANDARD, "Got two different computer names %S %S", _machineName.c_str(), compare_computer.c_str());
+        if (_machineName != compare_computer)
+        {
+            WcaLog(LOGMSG_STANDARD, "Got two different computer names %S %S", _machineName.c_str(),
+                   compare_computer.c_str());
         }
     }
     else
@@ -53,13 +54,14 @@ DWORD TargetMachine::Detect()
     }
 
     // Retrieves a NetBIOS or DNS name associated with the local computer.
-    if (DetectComputerName(ComputerNameDnsDomain, _domain))
+    if (DetectComputerName(ComputerNameDnsDomain, _dnsDomainName))
     {
         // newer domains will look like DNS domains.  (i.e. domain.local)
         // just take the domain portion, which is all we're interested in.
-        size_t pos = _domain.find(L'.');
-        if (pos != std::wstring::npos) {
-            _domain = _domain.substr(0, pos);
+        size_t pos = _dnsDomainName.find(L'.');
+        if (pos != std::wstring::npos)
+        {
+            _dnsDomainName = _dnsDomainName.substr(0, pos);
         }
     }
     else
@@ -76,8 +78,8 @@ DWORD TargetMachine::Detect()
 
 DWORD TargetMachine::DetectMachineType()
 {
-    SERVER_INFO_101* serverInfo;
-    DWORD status = NetServerGetInfo(nullptr, 101, reinterpret_cast<LPBYTE*>(&serverInfo));
+    SERVER_INFO_101 *serverInfo;
+    DWORD status = NetServerGetInfo(nullptr, 101, reinterpret_cast<LPBYTE *>(&serverInfo));
     if (status != NERR_Success)
     {
         /*
@@ -95,16 +97,20 @@ DWORD TargetMachine::DetectMachineType()
         return status;
     }
     _serverType = serverInfo->sv101_type;
-    if (SV_TYPE_WORKSTATION & _serverType) {
+    if (SV_TYPE_WORKSTATION & _serverType)
+    {
         WcaLog(LOGMSG_STANDARD, "machine is type SV_TYPE_WORKSTATION");
     }
-    if (SV_TYPE_SERVER & _serverType) {
+    if (SV_TYPE_SERVER & _serverType)
+    {
         WcaLog(LOGMSG_STANDARD, "machine is type SV_TYPE_SERVER");
     }
-    if (SV_TYPE_DOMAIN_CTRL & _serverType) {
+    if (SV_TYPE_DOMAIN_CTRL & _serverType)
+    {
         WcaLog(LOGMSG_STANDARD, "machine is type SV_TYPE_DOMAIN_CTRL");
     }
-    if (SV_TYPE_DOMAIN_BAKCTRL & _serverType) {
+    if (SV_TYPE_DOMAIN_BAKCTRL & _serverType)
+    {
         WcaLog(LOGMSG_STANDARD, "machine is type SV_TYPE_DOMAIN_BAKCTRL");
     }
     if (serverInfo != nullptr)
@@ -114,29 +120,33 @@ DWORD TargetMachine::DetectMachineType()
     return ERROR_SUCCESS;
 }
 
-bool TargetMachine::DetectComputerName(COMPUTER_NAME_FORMAT fmt, std::wstring& result)
+bool TargetMachine::DetectComputerName(COMPUTER_NAME_FORMAT fmt, std::wstring &result)
 {
-    wchar_t* buffer = nullptr;
+    wchar_t *buffer = nullptr;
     DWORD sz = 0;
     BOOL res = GetComputerNameExW(fmt, buffer, &sz);
-    if (res) {
+    if (res)
+    {
         // this should never succeed
         WcaLog(LOGMSG_STANDARD, "Unexpected.  Didn't get buffer size for computer name %d", static_cast<int>(fmt));
         return false;
     }
     DWORD err = GetLastError();
-    if (ERROR_MORE_DATA != err) {
+    if (ERROR_MORE_DATA != err)
+    {
         WcaLog(LOGMSG_STANDARD, "Unable to get computername info %d", err);
         return false;
     }
     buffer = new wchar_t[sz + 1];
     sz = sz + 1;
     res = GetComputerNameExW(fmt, buffer, &sz);
-    if (res) {
+    if (res)
+    {
         _wcslwr_s(buffer, sz + 1);
         result = buffer;
     }
-    else {
+    else
+    {
         err = GetLastError();
         WcaLog(LOGMSG_STANDARD, "Unable to get computername info %d", err);
     }
@@ -149,14 +159,12 @@ bool TargetMachine::DetectComputerName(COMPUTER_NAME_FORMAT fmt, std::wstring& r
 DWORD TargetMachine::DetectDomainInformation()
 {
     // check if it's actually domain joined or not
-    std::wstring joined_domain;
     LPWSTR name = nullptr;
     NETSETUP_JOIN_STATUS st;
     DWORD nErr = NetGetJoinInformation(nullptr, &name, &st);
     if (nErr == NERR_Success)
     {
-        _wcslwr_s(name, wcslen(name) + 1);
-        joined_domain = name;
+        _joinedDomain = name;
         (void)NetApiBufferFree(name);
     }
     else
@@ -173,27 +181,27 @@ DWORD TargetMachine::DetectDomainInformation()
 
     switch (st)
     {
-        case NetSetupUnknownStatus:
-            WcaLog(LOGMSG_STANDARD, "Unknown domain joining status, assuming not joined");
-            break;
-        case NetSetupUnjoined:
-            WcaLog(LOGMSG_STANDARD, "Computer explicitly not joined to domain");
-            break;
-        case NetSetupWorkgroupName:
-            WcaLog(LOGMSG_STANDARD, "Computer is joined to a workgroup");
-            break;
-        case NetSetupDomainName:
-            WcaLog(LOGMSG_STANDARD, "Computer is domain-joined");
-            _isDomainJoined = true;
-            break;
+    case NetSetupUnknownStatus:
+        WcaLog(LOGMSG_STANDARD, "Unknown domain joining status, assuming not joined");
+        break;
+    case NetSetupUnjoined:
+        WcaLog(LOGMSG_STANDARD, "Computer explicitly not joined to domain");
+        break;
+    case NetSetupWorkgroupName:
+        WcaLog(LOGMSG_STANDARD, "Computer is joined to a workgroup");
+        break;
+    case NetSetupDomainName:
+        WcaLog(LOGMSG_STANDARD, "Computer is joined to domain \"%S\"", _joinedDomain.c_str());
+        _isDomainJoined = true;
+        break;
     }
 
     if (_isDomainJoined)
     {
-        if (_domain != joined_domain)
+        if (_dnsDomainName != _joinedDomain)
         {
-            WcaLog(LOGMSG_STANDARD, "DNS domain name %S doesn't match the joined domain %S", _domain.c_str(), joined_domain.c_str());
-            _domain = joined_domain;
+            WcaLog(LOGMSG_STANDARD, "DNS domain name \"%S\" doesn't match the joined domain \"%S\"",
+                   _dnsDomainName.c_str(), _joinedDomain.c_str());
         }
 
         // Detect if we are on a read-only domain controller
@@ -203,12 +211,9 @@ DWORD TargetMachine::DetectDomainInformation()
             // See https://docs.microsoft.com/en-us/windows/win32/api/dsgetdc/nf-dsgetdc-dsgetdcnamea
             // ComputerName = nullptr means local computer
             nErr = DsGetDcName(
-                /*ComputerName*/ nullptr,
-                _domain.c_str(),
+                /*ComputerName*/ nullptr, _joinedDomain.c_str(),
                 /*DomainGuid*/ nullptr,
-                /*SiteName*/ nullptr,
-                0,
-                &dcInfo);
+                /*SiteName*/ nullptr, 0, &dcInfo);
             if (nErr != ERROR_SUCCESS)
             {
                 return nErr;
@@ -217,7 +222,6 @@ DWORD TargetMachine::DetectDomainInformation()
             WcaLog(LOGMSG_STANDARD, "Domain Controller is %s", IsReadOnlyDomainController() ? "Read-Only" : "Writable");
             NetApiBufferFree(dcInfo);
         }
-        
     }
 
     return ERROR_SUCCESS;
@@ -228,9 +232,14 @@ std::wstring TargetMachine::GetMachineName() const
     return _machineName;
 }
 
-std::wstring TargetMachine::GetDomain() const
+std::wstring TargetMachine::JoinedDomainName() const
 {
-    return _domain;
+    return _joinedDomain;
+}
+
+std::wstring TargetMachine::DnsDomainName() const
+{
+    return _dnsDomainName;
 }
 
 bool TargetMachine::IsDomainJoined() const

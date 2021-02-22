@@ -8,7 +8,7 @@
       {{- if .runnerStats.Workers}}
         <br>Check Workers: {{.runnerStats.Workers}}
       {{end}}
-      <br>Agent start: {{.agent_start}}
+      <br>Agent start: {{ formatUnixTime .agent_start_nano }}
       {{- if .config.log_file}}
         <br>Log File: {{.config.log_file}}
       {{end}}
@@ -24,7 +24,7 @@
   <div class="stat">
     <span class="stat_title">System Info</span>
     <span class="stat_data">
-      System UTC Time: {{.time}}
+      System time: {{ formatUnixTime .time_nano }}
       {{- if .ntpOffset}}
         <br>NTP Offset: {{ humanizeDuration .ntpOffset "s"}}
         {{- if ntpWarning .ntpOffset}}
@@ -101,6 +101,21 @@
     {{- end }}
     </span>
   </div>
+
+  {{- if .TransportWarnings }}
+    <div class="stat">
+      <span class="stat_title">Transport Proxy Warnings</span>
+      <span class="stat_data">
+      The following hosts used a proxy - but will ignore the proxy in future Agent versions with the no_proxy setting.
+      Enable the new behavior now with no_proxy_nonexact_match: true
+        <span class="stat_data">
+        {{- range $key, $value := .TransportWarnings }}
+          {{ $key }}<br>
+        {{- end }}
+        </span>
+      </span>
+    </div>
+  {{- end }}
 
   <div class="stat">
     <span class="stat_title">JMX Status</span>
@@ -305,6 +320,10 @@
             {{- if .inputs }}
             Inputs: {{ range $input := .inputs }}{{$input}} {{ end }}</br>
             BytesRead: {{ .bytes_read }}</br>
+            Average Latency (ms): {{ .all_time_avg_latency }}</br>
+            24h Average Latency (ms): {{ .recent_avg_latency }}</br>
+            Peak Latency (ms): {{ .all_time_peak_latency }}</br>
+            24h Peak Latency (ms): {{ .recent_peak_latency }}</br>
             {{- if .info }}
             Container Info:</br>
               <span class="stat_subdata">

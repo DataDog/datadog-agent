@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package metrics
 
@@ -76,12 +76,14 @@ func (s ServiceCheckStatus) String() string {
 
 // ServiceCheck holds a service check (w/ serialization to DD api format)
 type ServiceCheck struct {
-	CheckName string             `json:"check"`
-	Host      string             `json:"host_name"`
-	Ts        int64              `json:"timestamp"`
-	Status    ServiceCheckStatus `json:"status"`
-	Message   string             `json:"message"`
-	Tags      []string           `json:"tags"`
+	CheckName   string             `json:"check"`
+	Host        string             `json:"host_name"`
+	Ts          int64              `json:"timestamp"`
+	Status      ServiceCheckStatus `json:"status"`
+	Message     string             `json:"message"`
+	Tags        []string           `json:"tags"`
+	OriginID    string             `json:"-"`
+	K8sOriginID string             `json:"-"`
 }
 
 // ServiceChecks represents a list of service checks ready to be serialize

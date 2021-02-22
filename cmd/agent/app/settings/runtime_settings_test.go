@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package settings
 
@@ -114,7 +114,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 	serializer := serializer.NewSerializer(common.Forwarder)
 	agg := aggregator.InitAggregator(serializer, "")
-	common.DSD, err = dogstatsd.NewServer(agg)
+	common.DSD, err = dogstatsd.NewServer(agg, nil)
 	require.Nil(t, err)
 
 	cleanRuntimeSetting()

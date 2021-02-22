@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build clusterchecks
 // +build kubeapiserver
@@ -12,10 +12,12 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/labels"
@@ -37,6 +39,7 @@ type KubeEndpointsListener struct {
 	serviceInformer   infov1.ServiceInformer
 	serviceLister     listv1.ServiceLister
 	endpoints         map[types.UID][]*KubeEndpointService
+	promInclAnnot     common.PrometheusAnnotations
 	newService        chan<- Service
 	delService        chan<- Service
 	m                 sync.RWMutex
@@ -80,6 +83,7 @@ func NewKubeEndpointsListener() (ServiceListener, error) {
 		endpointsLister:   endpointsInformer.Lister(),
 		serviceInformer:   serviceInformer,
 		serviceLister:     serviceInformer.Lister(),
+		promInclAnnot:     common.GetPrometheusIncludeAnnotations(),
 	}, nil
 }
 
@@ -249,8 +253,9 @@ func (l *KubeEndpointsListener) isEndpointsAnnotated(kep *v1.Endpoints) bool {
 	ksvc, err := l.serviceLister.Services(kep.Namespace).Get(kep.Name)
 	if err != nil {
 		log.Tracef("Cannot get Kubernetes service: %s", err)
+		return false
 	}
-	return isServiceAnnotated(ksvc, kubeEndpointsAnnotationFormat)
+	return isServiceAnnotated(ksvc, kubeEndpointsAnnotationFormat) || l.promInclAnnot.IsMatchingAnnotations(ksvc.GetAnnotations())
 }
 
 func (l *KubeEndpointsListener) createService(kep *v1.Endpoints, alreadyExistingService, checkServiceAnnotations bool) {

@@ -7,9 +7,14 @@
 
 #include "defs.h"
 #include "buffer_selector.h"
+#include "filters.h"
+#include "approvers.h"
+#include "discarders.h"
+#include "dentry.h"
+#include "exec.h"
 #include "process.h"
 #include "container.h"
-#include "dentry.h"
+#include "overlayfs.h"
 #include "exec.h"
 #include "setattr.h"
 #include "mnt.h"
@@ -34,7 +39,7 @@ struct invalidate_dentry_event_t {
     struct kevent_t event;
     u64 inode;
     u32 mount_id;
-    u32 padding;
+    u32 revision;
 };
 
 void __attribute__((always_inline)) invalidate_inode(struct pt_regs *ctx, u32 mount_id, u64 inode, int send_invalidate_event) {
@@ -48,14 +53,17 @@ void __attribute__((always_inline)) invalidate_inode(struct pt_regs *ctx, u32 mo
     if (send_invalidate_event) {
         // invalidate dentry
         struct invalidate_dentry_event_t event = {
-            .event.type = EVENT_INVALIDATE_DENTRY,
-            .event.timestamp = bpf_ktime_get_ns(),
             .inode = inode,
             .mount_id = mount_id,
+            .revision = bump_discarder_revision(mount_id),
         };
 
-        send_event(ctx, event);
+        send_event(ctx, EVENT_INVALIDATE_DENTRY, event);
     }
+}
+
+void __attribute__((always_inline)) invalidate_path_key(struct pt_regs *ctx, struct path_key_t *key, int send_invalidate_event) {
+    invalidate_inode(ctx, key->mount_id, key->ino, send_invalidate_event);
 }
 
 __u32 _version SEC("version") = 0xFFFFFFFE;

@@ -1,18 +1,18 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package rules
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // MacroID represents the ID of a macro
@@ -29,9 +29,11 @@ type RuleID = string
 
 // RuleDefinition holds the definition of a rule
 type RuleDefinition struct {
-	ID         RuleID            `yaml:"id"`
-	Expression string            `yaml:"expression"`
-	Tags       map[string]string `yaml:"tags"`
+	ID          RuleID            `yaml:"id"`
+	Expression  string            `yaml:"expression"`
+	Description string            `yaml:"description"`
+	Tags        map[string]string `yaml:"tags"`
+	Policy      *Policy
 }
 
 // GetTags returns the tags associated to a rule
@@ -45,10 +47,16 @@ func (rd *RuleDefinition) GetTags() []string {
 	return tags
 }
 
+// Rule describes a rule of a ruleset
+type Rule struct {
+	*eval.Rule
+	Definition *RuleDefinition
+}
+
 // RuleSetListener describes the methods implemented by an object used to be
 // notified of events on a rule set.
 type RuleSetListener interface {
-	RuleMatch(rule *eval.Rule, event eval.Event)
+	RuleMatch(rule *Rule, event eval.Event)
 	EventDiscarderFound(rs *RuleSet, event eval.Event, field eval.Field, eventType eval.EventType)
 }
 
@@ -56,16 +64,21 @@ type RuleSetListener interface {
 type Opts struct {
 	eval.Opts
 	SupportedDiscarders map[eval.Field]bool
+	Logger              Logger
 }
 
 // NewOptsWithParams initializes a new Opts instance with Debug and Constants parameters
-func NewOptsWithParams(constants map[string]interface{}, supportedDiscarders map[eval.Field]bool) *Opts {
+func NewOptsWithParams(constants map[string]interface{}, supportedDiscarders map[eval.Field]bool, logger ...Logger) *Opts {
+	if len(logger) == 0 {
+		logger = []Logger{DefaultLogger{}}
+	}
 	return &Opts{
 		Opts: eval.Opts{
 			Constants: constants,
 			Macros:    make(map[eval.MacroID]*eval.Macro),
 		},
 		SupportedDiscarders: supportedDiscarders,
+		Logger:              logger[0],
 	}
 }
 
@@ -73,6 +86,7 @@ func NewOptsWithParams(constants map[string]interface{}, supportedDiscarders map
 // against it. If the rule matches, the listeners for this rule set are notified
 type RuleSet struct {
 	opts             *Opts
+	loadedPolicies   map[string]string
 	eventRuleBuckets map[eval.EventType]*RuleBucket
 	rules            map[eval.RuleID]*eval.Rule
 	model            eval.Model
@@ -80,6 +94,7 @@ type RuleSet struct {
 	listeners        []RuleSetListener
 	// fields holds the list of event field queries (like "process.uid") used by the entire set of rules
 	fields []string
+	logger Logger
 }
 
 // ListRuleIDs returns the list of RuleIDs from the ruleset
@@ -89,6 +104,20 @@ func (rs *RuleSet) ListRuleIDs() []RuleID {
 		ids = append(ids, ruleID)
 	}
 	return ids
+}
+
+// ListMacroIDs returns the list of MacroIDs from the ruleset
+func (rs *RuleSet) ListMacroIDs() []MacroID {
+	var ids []string
+	for macroID := range rs.opts.Macros {
+		ids = append(ids, macroID)
+	}
+	return ids
+}
+
+// ListPolicies returns the list of loaded policies and their version
+func (rs *RuleSet) ListPolicies() map[string]string {
+	return rs.loadedPolicies
 }
 
 // AddMacros parses the macros AST and adds them to the list of macros of the ruleset
@@ -157,10 +186,13 @@ func (rs *RuleSet) AddRule(ruleDef *RuleDefinition) (*eval.Rule, error) {
 		tags = append(tags, k+":"+v)
 	}
 
-	rule := &eval.Rule{
-		ID:         ruleDef.ID,
-		Expression: ruleDef.Expression,
-		Tags:       tags,
+	rule := &Rule{
+		Rule: &eval.Rule{
+			ID:         ruleDef.ID,
+			Expression: ruleDef.Expression,
+			Tags:       tags,
+		},
+		Definition: ruleDef,
 	}
 
 	if err := rule.Parse(); err != nil {
@@ -184,26 +216,26 @@ func (rs *RuleSet) AddRule(ruleDef *RuleDefinition) (*eval.Rule, error) {
 	}
 
 	if len(rule.GetEventTypes()) == 0 {
-		log.Errorf("rule without event specified: %s", ruleDef.Expression)
+		_ = rs.logger.Errorf("rule without event specified: %s", ruleDef.Expression)
 		return nil, ErrRuleWithoutEvent
 	}
 
 	// TODO: this contraints could be removed, but currently approver resolution can't handle multiple event type approver
 	if len(rule.GetEventTypes()) > 1 {
-		log.Errorf("multiple event types specified on the same rule: %s", ruleDef.Expression)
+		_ = rs.logger.Errorf("multiple event types specified on the same rule: %s", ruleDef.Expression)
 		return nil, ErrRuleWithMultipleEvents
 	}
 
 	// Merge the fields of the new rule with the existing list of fields of the ruleset
 	rs.AddFields(rule.GetEvaluator().GetFields())
 
-	rs.rules[ruleDef.ID] = rule
+	rs.rules[ruleDef.ID] = rule.Rule
 
-	return rule, nil
+	return rule.Rule, nil
 }
 
 // NotifyRuleMatch notifies all the ruleset listeners that an event matched a rule
-func (rs *RuleSet) NotifyRuleMatch(rule *eval.Rule, event eval.Event) {
+func (rs *RuleSet) NotifyRuleMatch(rule *Rule, event eval.Event) {
 	for _, listener := range rs.listeners {
 		listener.RuleMatch(rule, event)
 	}
@@ -298,11 +330,11 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	if !exists {
 		return result
 	}
-	log.Tracef("Evaluating event of type `%s` against set of %d rules", eventType, len(bucket.rules))
+	rs.logger.Tracef("Evaluating event of type `%s` against set of %d rules", eventType, len(bucket.rules))
 
 	for _, rule := range bucket.rules {
 		if rule.GetEvaluator().Eval(ctx) {
-			log.Tracef("Rule `%s` matches with event `%s`\n", rule.ID, event)
+			rs.logger.Tracef("Rule `%s` matches with event `%s`\n", rule.ID, event)
 
 			rs.NotifyRuleMatch(rule, event)
 			result = true
@@ -310,7 +342,7 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	}
 
 	if !result {
-		log.Tracef("Looking for discarders for event of type `%s`", eventType)
+		rs.logger.Tracef("Looking for discarders for event of type `%s`", eventType)
 
 		for _, field := range bucket.fields {
 			if rs.opts.SupportedDiscarders != nil {
@@ -373,6 +405,11 @@ func (rs *RuleSet) generatePartials() error {
 	return nil
 }
 
+// AddPolicyVersion adds the provided policy filename and version to the map of loaded policies
+func (rs *RuleSet) AddPolicyVersion(filename string, version string) {
+	rs.loadedPolicies[strings.ReplaceAll(filename, ".", "_")] = version
+}
+
 // NewRuleSet returns a new ruleset for the specified data model
 func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts) *RuleSet {
 	return &RuleSet{
@@ -381,5 +418,7 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts) *Rule
 		opts:             opts,
 		eventRuleBuckets: make(map[eval.EventType]*RuleBucket),
 		rules:            make(map[eval.RuleID]*eval.Rule),
+		loadedPolicies:   make(map[string]string),
+		logger:           opts.Logger,
 	}
 }

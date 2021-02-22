@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package metrics
 
@@ -92,6 +92,8 @@ type Event struct {
 	AggregationKey string         `json:"aggregation_key,omitempty"`
 	SourceTypeName string         `json:"source_type_name,omitempty"`
 	EventType      string         `json:"event_type,omitempty"`
+	OriginID       string         `json:"-"`
+	K8sOriginID    string         `json:"-"`
 }
 
 // Return a JSON string or "" in case of error during the Marshaling

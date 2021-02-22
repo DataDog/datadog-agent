@@ -5,7 +5,9 @@ import (
 
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/gogo/protobuf/proto"
 )
 
 var connsPool = sync.Pool{
@@ -21,7 +23,7 @@ var connPool = sync.Pool{
 }
 
 // FormatConnection converts a ConnectionStats into an model.Connection
-func FormatConnection(conn network.ConnectionStats) *model.Connection {
+func FormatConnection(conn network.ConnectionStats, domainSet map[string]int) *model.Connection {
 	c := connPool.Get().(*model.Connection)
 	c.Pid = int32(conn.Pid)
 	c.Laddr = formatAddr(conn.Source, conn.SPort)
@@ -47,6 +49,8 @@ func FormatConnection(conn network.ConnectionStats) *model.Connection {
 	c.DnsCountByRcode = conn.DNSCountByRcode
 	c.LastTcpEstablished = conn.LastTCPEstablished
 	c.LastTcpClosed = conn.LastTCPClosed
+	c.DnsStatsByDomain = formatDNSStatsByDomain(conn.DNSStatsByDomain, domainSet)
+	c.HttpStatsByPath = formatHTTPStatsByPath(conn.HTTPStatsByPath)
 	return c
 }
 
@@ -158,6 +162,24 @@ func formatDirection(d network.ConnectionDirection) model.ConnectionDirection {
 	}
 }
 
+func formatDNSStatsByDomain(stats map[string]network.DNSStats, domainSet map[string]int) map[int32]*model.DNSStats {
+	m := make(map[int32]*model.DNSStats)
+	for d, s := range stats {
+		var ms model.DNSStats
+		ms.DnsCountByRcode = s.DNSCountByRcode
+		ms.DnsFailureLatencySum = s.DNSFailureLatencySum
+		ms.DnsSuccessLatencySum = s.DNSSuccessLatencySum
+		ms.DnsTimeouts = s.DNSTimeouts
+		pos, ok := domainSet[d]
+		if !ok {
+			pos = len(domainSet)
+			domainSet[d] = pos
+		}
+		m[int32(pos)] = &ms
+	}
+	return m
+}
+
 func formatIPTranslation(ct *network.IPTranslation) *model.IPTranslation {
 	if ct == nil {
 		return nil
@@ -169,4 +191,31 @@ func formatIPTranslation(ct *network.IPTranslation) *model.IPTranslation {
 		ReplSrcPort: int32(ct.ReplSrcPort),
 		ReplDstPort: int32(ct.ReplDstPort),
 	}
+}
+
+func formatHTTPStatsByPath(statsByPath map[string]http.RequestStats) map[string]*model.HTTPStats {
+	formattedStatsByPath := make(map[string]*model.HTTPStats)
+
+	for path, stats := range statsByPath {
+		var ms model.HTTPStats
+		ms.StatsByResponseStatus = make([]*model.HTTPStats_Data, 5)
+
+		for i := 0; i < 5; i++ {
+			status := model.HTTPResponseStatus(i)
+			count := uint32(stats.Count(status))
+
+			var latencyBytes []byte
+			if latencies := stats.Latencies(status); latencies != nil {
+				latencyBytes, _ = proto.Marshal(latencies.ToProto())
+			}
+
+			ms.StatsByResponseStatus[status] = &model.HTTPStats_Data{
+				Count:     count,
+				Latencies: latencyBytes,
+			}
+		}
+		formattedStatsByPath[path] = &ms
+	}
+
+	return formattedStatsByPath
 }

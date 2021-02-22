@@ -3,7 +3,6 @@
 package tracer
 
 import (
-	"encoding/binary"
 	"fmt"
 	"net"
 	"strconv"
@@ -19,12 +18,12 @@ import (
 */
 import "C"
 
-/* tcp_conn_t
+/* conn_t
 conn_tuple_t tup;
 conn_stats_ts_t conn_stats;
 tcp_stats_t tcp_stats;
 */
-type TCPConn C.tcp_conn_t
+type Conn C.conn_t
 
 /* conn_tuple_t
 __u64 saddr_h;
@@ -40,11 +39,11 @@ __u32 metadata;
 type ConnTuple C.conn_tuple_t
 
 /* batch_t
-tcp_conn_t c0;
-tcp_conn_t c1;
-tcp_conn_t c2;
-tcp_conn_t c3;
-tcp_conn_t c4;
+conn_t c0;
+conn_t c1;
+conn_t c2;
+conn_t c3;
+conn_t c4;
 __u16 pos;
 __u16 cpu;
 */
@@ -97,16 +96,16 @@ func connTupleFromConn(conn net.Conn, pid uint32) (*ConnTuple, error) {
 		dbytes := dhost.To4()
 		ct.metadata |= C.CONN_V4
 		ct.saddr_h = 0
-		ct.saddr_l = C.__u64(binary.LittleEndian.Uint32(sbytes))
+		ct.saddr_l = C.__u64(nativeEndian.Uint32(sbytes))
 		ct.daddr_h = 0
-		ct.daddr_l = C.__u64(binary.LittleEndian.Uint32(dbytes))
+		ct.daddr_l = C.__u64(nativeEndian.Uint32(dbytes))
 	} else if sbytes := shost.To16(); sbytes != nil {
 		dbytes := dhost.To16()
 		ct.metadata |= C.CONN_V6
-		ct.saddr_h = C.__u64(binary.LittleEndian.Uint64(sbytes[:8]))
-		ct.saddr_l = C.__u64(binary.LittleEndian.Uint64(sbytes[8:]))
-		ct.daddr_h = C.__u64(binary.LittleEndian.Uint64(dbytes[:8]))
-		ct.daddr_l = C.__u64(binary.LittleEndian.Uint64(dbytes[8:]))
+		ct.saddr_h = C.__u64(nativeEndian.Uint64(sbytes[:8]))
+		ct.saddr_l = C.__u64(nativeEndian.Uint64(sbytes[8:]))
+		ct.daddr_h = C.__u64(nativeEndian.Uint64(dbytes[:8]))
+		ct.daddr_l = C.__u64(nativeEndian.Uint64(dbytes[8:]))
 	} else {
 		return nil, fmt.Errorf("invalid source/dest address")
 	}
@@ -133,15 +132,15 @@ func newConnTuple(pid int, netns uint64, saddr, daddr util.Address, sport, dport
 	if len(sbytes) == 4 {
 		ct.metadata |= C.CONN_V4
 		ct.saddr_h = 0
-		ct.saddr_l = C.__u64(binary.LittleEndian.Uint32(sbytes))
+		ct.saddr_l = C.__u64(nativeEndian.Uint32(sbytes))
 		ct.daddr_h = 0
-		ct.daddr_l = C.__u64(binary.LittleEndian.Uint32(dbytes))
+		ct.daddr_l = C.__u64(nativeEndian.Uint32(dbytes))
 	} else if len(sbytes) == 16 {
 		ct.metadata |= C.CONN_V6
-		ct.saddr_h = C.__u64(binary.LittleEndian.Uint64(sbytes[:8]))
-		ct.saddr_l = C.__u64(binary.LittleEndian.Uint64(sbytes[8:]))
-		ct.daddr_h = C.__u64(binary.LittleEndian.Uint64(dbytes[:8]))
-		ct.daddr_l = C.__u64(binary.LittleEndian.Uint64(dbytes[8:]))
+		ct.saddr_h = C.__u64(nativeEndian.Uint64(sbytes[:8]))
+		ct.saddr_l = C.__u64(nativeEndian.Uint64(sbytes[8:]))
+		ct.daddr_h = C.__u64(nativeEndian.Uint64(dbytes[:8]))
+		ct.daddr_l = C.__u64(nativeEndian.Uint64(dbytes[8:]))
 	} else {
 		return nil
 	}
@@ -158,6 +157,10 @@ func newConnTuple(pid int, netns uint64, saddr, daddr util.Address, sport, dport
 
 func (t *ConnTuple) isTCP() bool {
 	return connType(uint(t.metadata)) == network.TCP
+}
+
+func (t *ConnTuple) isUDP() bool {
+	return connType(uint(t.metadata)) == network.UDP
 }
 
 func (t *ConnTuple) isIPv4() bool {
@@ -221,6 +224,7 @@ func (t *ConnTuple) String() string {
 __u64 sent_bytes;
 __u64 recv_bytes;
 __u64 timestamp;
+__u8  direction;
 */
 type ConnStatsWithTimestamp C.conn_stats_ts_t
 
@@ -236,36 +240,12 @@ __u32 tcp_sent_miscounts;
 */
 type kernelTelemetry C.telemetry_t
 
-const TCPCloseBatchSize = int(C.TCP_CLOSED_BATCH_SIZE)
-
 func (cs *ConnStatsWithTimestamp) isExpired(latestTime uint64, timeout uint64) bool {
 	return latestTime > timeout+uint64(cs.timestamp)
 }
 
 func toBatch(data []byte) *batch {
 	return (*batch)(unsafe.Pointer(&data[0]))
-}
-
-// ExtractBatchInto extract network.ConnectionStats objects from the given `batch` into the supplied `buffer`.
-// The `start` (inclusive) and `end` (exclusive) arguments represent the offsets of the connections we're interested in.
-func ExtractBatchInto(buffer []network.ConnectionStats, b *batch, start, end int) []network.ConnectionStats {
-	if start >= end || end > TCPCloseBatchSize {
-		return nil
-	}
-
-	current := uintptr(unsafe.Pointer(b)) + uintptr(start)*C.sizeof_tcp_conn_t
-	for i := start; i < end; i++ {
-		ct := TCPConn(*(*C.tcp_conn_t)(unsafe.Pointer(current)))
-
-		tup := ConnTuple(ct.tup)
-		cst := ConnStatsWithTimestamp(ct.conn_stats)
-		tst := TCPStats(ct.tcp_stats)
-
-		buffer = append(buffer, connStats(&tup, &cst, &tst))
-		current += C.sizeof_tcp_conn_t
-	}
-
-	return buffer
 }
 
 func connStats(t *ConnTuple, s *ConnStatsWithTimestamp, tcpStats *TCPStats) network.ConnectionStats {
@@ -281,24 +261,30 @@ func connStats(t *ConnTuple, s *ConnStatsWithTimestamp, tcpStats *TCPStats) netw
 		dest = util.V6Address(uint64(t.daddr_l), uint64(t.daddr_h))
 	}
 
-	return network.ConnectionStats{
-		Pid:                     uint32(t.pid),
-		Type:                    connType(metadata),
-		Family:                  family,
-		NetNS:                   uint32(t.netns),
-		Source:                  source,
-		Dest:                    dest,
-		SPort:                   uint16(t.sport),
-		DPort:                   uint16(t.dport),
-		MonotonicSentBytes:      uint64(s.sent_bytes),
-		MonotonicRecvBytes:      uint64(s.recv_bytes),
-		MonotonicRetransmits:    uint32(tcpStats.retransmits),
-		MonotonicTCPEstablished: uint32(tcpStats.state_transitions >> C.TCP_ESTABLISHED & 1),
-		MonotonicTCPClosed:      uint32(tcpStats.state_transitions >> C.TCP_CLOSE & 1),
-		RTT:                     uint32(tcpStats.rtt),
-		RTTVar:                  uint32(tcpStats.rtt_var),
-		LastUpdateEpoch:         uint64(s.timestamp),
+	stats := network.ConnectionStats{
+		Pid:                uint32(t.pid),
+		Type:               connType(metadata),
+		Direction:          connDirection(uint8(s.direction)),
+		Family:             family,
+		NetNS:              uint32(t.netns),
+		Source:             source,
+		Dest:               dest,
+		SPort:              uint16(t.sport),
+		DPort:              uint16(t.dport),
+		MonotonicSentBytes: uint64(s.sent_bytes),
+		MonotonicRecvBytes: uint64(s.recv_bytes),
+		LastUpdateEpoch:    uint64(s.timestamp),
 	}
+
+	if connType(metadata) == network.TCP {
+		stats.MonotonicRetransmits = uint32(tcpStats.retransmits)
+		stats.MonotonicTCPEstablished = uint32(tcpStats.state_transitions >> C.TCP_ESTABLISHED & 1)
+		stats.MonotonicTCPClosed = uint32(tcpStats.state_transitions >> C.TCP_CLOSE & 1)
+		stats.RTT = uint32(tcpStats.rtt)
+		stats.RTTVar = uint32(tcpStats.rtt_var)
+	}
+
+	return stats
 }
 
 func connType(m uint) network.ConnectionType {
@@ -318,6 +304,13 @@ func connFamily(m uint) network.ConnectionFamily {
 	return network.AFINET6
 }
 
-func isPortClosed(state uint8) bool {
-	return state == C.PORT_CLOSED
+func connDirection(m uint8) network.ConnectionDirection {
+	switch m {
+	case C.CONN_DIRECTION_INCOMING:
+		return network.INCOMING
+	case C.CONN_DIRECTION_OUTGOING:
+		return network.OUTGOING
+	default:
+		return network.OUTGOING
+	}
 }

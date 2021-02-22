@@ -1,12 +1,13 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package decoder
 
 import (
 	"bytes"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/parser"
@@ -44,19 +45,21 @@ func NewDecodedInput(content []byte, rawDataLen int) *DecodedInput {
 
 // Message represents a structured line.
 type Message struct {
-	Content    []byte
-	Status     string
-	RawDataLen int
-	Timestamp  string
+	Content            []byte
+	Status             string
+	RawDataLen         int
+	Timestamp          string
+	IngestionTimestamp int64
 }
 
 // NewMessage returns a new output.
 func NewMessage(content []byte, status string, rawDataLen int, timestamp string) *Message {
 	return &Message{
-		Content:    content,
-		Status:     status,
-		RawDataLen: rawDataLen,
-		Timestamp:  timestamp,
+		Content:            content,
+		Status:             status,
+		RawDataLen:         rawDataLen,
+		Timestamp:          timestamp,
+		IngestionTimestamp: time.Now().UnixNano(),
 	}
 }
 
@@ -88,7 +91,7 @@ func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parser.Parser
 
 	for _, rule := range source.Config.ProcessingRules {
 		if rule.Type == config.MultiLine {
-			lineHandler = NewMultiLineHandler(outputChan, rule.Regex, defaultFlushTimeout, lineLimit)
+			lineHandler = NewMultiLineHandler(outputChan, rule.Regex, config.AggregationTimeout(), lineLimit)
 		}
 	}
 	if lineHandler == nil {
@@ -96,7 +99,7 @@ func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parser.Parser
 	}
 
 	if parser.SupportsPartialLine() {
-		lineParser = NewMultiLineParser(defaultFlushTimeout, parser, lineHandler, lineLimit)
+		lineParser = NewMultiLineParser(config.AggregationTimeout(), parser, lineHandler, lineLimit)
 	} else {
 		lineParser = NewSingleLineParser(parser, lineHandler)
 	}

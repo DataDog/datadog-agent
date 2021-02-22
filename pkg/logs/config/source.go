@@ -1,13 +1,16 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package config
 
 import (
 	"expvar"
 	"sync"
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
 // SourceType used for log line parsing logic.
@@ -42,19 +45,23 @@ type LogSource struct {
 	info       map[string]string
 	// In the case that the source is overridden, keep a reference to the parent for bubbling up information about the child
 	ParentSource *LogSource
+	// LatencyStats tracks internal stats on the time spent by messages from this source in a processing pipeline, i.e.
+	// the duration between when a message is decoded by the tailer/listener/decoder and when the message is handled by a sender
+	LatencyStats *util.StatsTracker
 }
 
 // NewLogSource creates a new log source.
 func NewLogSource(name string, config *LogsConfig) *LogSource {
 	return &LogSource{
-		Name:      name,
-		Config:    config,
-		Status:    NewLogStatus(),
-		inputs:    make(map[string]bool),
-		lock:      &sync.Mutex{},
-		Messages:  NewMessages(),
-		BytesRead: expvar.Int{},
-		info:      make(map[string]string),
+		Name:         name,
+		Config:       config,
+		Status:       NewLogStatus(),
+		inputs:       make(map[string]bool),
+		lock:         &sync.Mutex{},
+		Messages:     NewMessages(),
+		BytesRead:    expvar.Int{},
+		info:         make(map[string]string),
+		LatencyStats: util.NewStatsTracker(time.Hour*24, time.Hour),
 	}
 }
 

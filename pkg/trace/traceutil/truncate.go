@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package traceutil
 
@@ -25,10 +25,10 @@ const (
 	MaxMetricsKeyLen = MaxMetaKeyLen
 )
 
-// TruncateResource truncates a span's resource to the maximum allowed length. The boolean
-// will be true if truncation occurs
+// TruncateResource truncates a span's resource to the maximum allowed length.
+// It returns true if the input was below the max size.
 func TruncateResource(r string) (string, bool) {
-	return TruncateUTF8(r, MaxResourceLen), len(r) > MaxResourceLen
+	return TruncateUTF8(r, MaxResourceLen), len(r) <= MaxResourceLen
 }
 
 // TruncateUTF8 truncates the given string to make sure it uses less than limit bytes.

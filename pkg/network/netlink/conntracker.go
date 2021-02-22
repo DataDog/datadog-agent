@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ct "github.com/florianl/go-conntrack"
@@ -63,7 +64,7 @@ type realConntracker struct {
 }
 
 // NewConntracker creates a new conntracker with a short term buffer capped at the given size
-func NewConntracker(procRoot string, maxStateSize, targetRateLimit int, listenAllNamespaces bool) (Conntracker, error) {
+func NewConntracker(config *config.Config) (Conntracker, error) {
 	var (
 		err         error
 		conntracker Conntracker
@@ -72,7 +73,7 @@ func NewConntracker(procRoot string, maxStateSize, targetRateLimit int, listenAl
 	done := make(chan struct{})
 
 	go func() {
-		conntracker, err = newConntrackerOnce(procRoot, maxStateSize, targetRateLimit, listenAllNamespaces)
+		conntracker, err = newConntrackerOnce(config.ProcRoot, config.ConntrackMaxStateSize, config.ConntrackRateLimit, config.EnableConntrackAllNamespaces)
 		done <- struct{}{}
 	}()
 
@@ -168,42 +169,23 @@ func (ctr *realConntracker) DeleteTranslation(c network.ConnectionStats) {
 	ctr.Lock()
 	defer ctr.Unlock()
 
-	keys := []connKey{
-		{
-			srcIP:     c.Source,
-			srcPort:   c.SPort,
-			dstIP:     c.Dest,
-			dstPort:   c.DPort,
-			transport: c.Type,
-		},
-		{
-			srcIP:     c.Dest,
-			srcPort:   c.DPort,
-			dstIP:     c.Source,
-			dstPort:   c.SPort,
-			transport: c.Type,
-		},
+	k := connKey{
+		srcIP:     c.Source,
+		srcPort:   c.SPort,
+		dstIP:     c.Dest,
+		dstPort:   c.DPort,
+		transport: c.Type,
 	}
 
-	deleteTrans := func(k connKey) bool {
-		t, ok := ctr.state[k]
-		if !ok {
-			log.Tracef("not deleting %+v from conntrack", k)
-			return false
-		}
-
-		delete(ctr.state, k)
-		delete(ctr.state, ipTranslationToConnKey(k.transport, t))
-		log.Tracef("deleted %+v from conntrack", k)
-		return true
+	t, ok := ctr.state[k]
+	if !ok {
+		log.Tracef("not deleting %+v from conntrack", k)
+		return
 	}
 
-	for _, k := range keys {
-		if ok := deleteTrans(k); ok {
-			atomic.AddInt64(&ctr.stats.unregisters, 1)
-			break
-		}
-	}
+	delete(ctr.state, k)
+	delete(ctr.state, ipTranslationToConnKey(k.transport, t))
+	atomic.AddInt64(&ctr.stats.unregisters, 1)
 }
 
 func (ctr *realConntracker) Close() {

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build linux
 
@@ -26,7 +26,7 @@ func MountInfoPath() string {
 }
 
 // MountInfoPidPath returns the path to the mountinfo file of a pid in /proc
-func MountInfoPidPath(pid uint32) string {
+func MountInfoPidPath(pid int32) string {
 	return filepath.Join(util.HostProc(), fmt.Sprintf("/%d/mountinfo", pid))
 }
 
@@ -36,12 +36,12 @@ func CgroupTaskPath(tgid, pid uint32) string {
 }
 
 // ProcExePath returns the path to the exe file of a pid in /proc
-func ProcExePath(pid uint32) string {
+func ProcExePath(pid int32) string {
 	return filepath.Join(util.HostProc(), fmt.Sprintf("%d/exe", pid))
 }
 
 // PidTTY returns the TTY of the given pid
-func PidTTY(pid uint32) string {
+func PidTTY(pid int32) string {
 	fdPath := filepath.Join(util.HostProc(), fmt.Sprintf("%d/fd/0", pid))
 
 	ttyPath, err := os.Readlink(fdPath)
@@ -65,7 +65,7 @@ func PidTTY(pid uint32) string {
 }
 
 // ParseMountInfoFile collects the mounts for a specific process ID.
-func ParseMountInfoFile(pid uint32) ([]*mountinfo.Info, error) {
+func ParseMountInfoFile(pid int32) ([]*mountinfo.Info, error) {
 	f, err := os.Open(MountInfoPidPath(pid))
 	if err != nil {
 		return nil, err
@@ -73,6 +73,26 @@ func ParseMountInfoFile(pid uint32) ([]*mountinfo.Info, error) {
 	defer f.Close()
 
 	return mountinfo.GetMountsFromReader(f, nil)
+}
+
+// GetProcesses returns list of active processes
+func GetProcesses() ([]*process.Process, error) {
+	pids, err := process.Pids()
+	if err != nil {
+		return nil, err
+	}
+
+	var processes []*process.Process
+	for _, pid := range pids {
+		proc, err := process.NewProcess(pid)
+		if err != nil {
+			// the process does not exist anymore, continue
+			continue
+		}
+		processes = append(processes, proc)
+	}
+
+	return processes, nil
 }
 
 // GetFilledProcess returns a FilledProcess from a Process input
@@ -103,6 +123,11 @@ func GetFilledProcess(p *process.Process) *process.FilledProcess {
 		return nil
 	}
 
+	memInfo, err := p.MemoryInfo()
+	if err != nil {
+		return nil
+	}
+
 	return &process.FilledProcess{
 		Pid:        p.Pid,
 		Ppid:       ppid,
@@ -110,5 +135,6 @@ func GetFilledProcess(p *process.Process) *process.FilledProcess {
 		Name:       name,
 		Uids:       uids,
 		Gids:       gids,
+		MemInfo:    memInfo,
 	}
 }

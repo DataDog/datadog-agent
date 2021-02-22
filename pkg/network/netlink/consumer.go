@@ -206,61 +206,64 @@ func (c *Consumer) isPeerNS(conn *netlink.Conn, ns netns.NsHandle) bool {
 // This method is meant to be used once during the process initialization of system-probe.
 func (c *Consumer) DumpTable(family uint8) <-chan Event {
 	output := make(chan Event, outputBuffer)
-	defer close(output)
 
-	var nss []netns.NsHandle
-	var err error
-	if c.listenAllNamespaces {
-		nss, err = util.GetNetNamespaces(c.procRoot)
+	go func() {
+		defer close(output)
+
+		var nss []netns.NsHandle
+		var err error
+		if c.listenAllNamespaces {
+			nss, err = util.GetNetNamespaces(c.procRoot)
+			if err != nil {
+				log.Errorf("error dumping conntrack table, could not get network namespaces: %s", err)
+				return
+			}
+		}
+
+		rootNS, err := netns.GetFromPath(fmt.Sprintf("%s/1/ns/net", c.procRoot))
 		if err != nil {
-			log.Errorf("error dumping conntrack table, could not get network namespaces: %s", err)
-			return output
+			log.Errorf("error dumping conntrack table, could not get root namespace: %s", err)
+			return
 		}
-	}
 
-	rootNS, err := netns.GetFromPath(fmt.Sprintf("%s/1/ns/net", c.procRoot))
-	if err != nil {
-		log.Errorf("error dumping conntrack table, could not get root namespace: %s", err)
-		return output
-	}
+		defer func() {
+			if rootNS.IsOpen() {
+				rootNS.Close()
+			}
+		}()
 
-	defer func() {
-		if rootNS.IsOpen() {
-			rootNS.Close()
+		conn, err := netlink.Dial(unix.AF_UNSPEC, &netlink.Config{NetNS: int(rootNS)})
+		if err != nil {
+			log.Errorf("error dumping conntrack table, could not open netlink socket: %s", err)
+			return
+		}
+
+		defer func() {
+			_ = conn.Close()
+		}()
+
+		// root ns first
+		if err := c.dumpTable(family, output, rootNS); err != nil {
+			log.Errorf("error dumping conntrack table for root namespace, some NAT info may be missing: %s", err)
+		}
+
+		for _, ns := range nss {
+			if rootNS.Equal(ns) {
+				// we've already dumped the table for the root ns above
+				continue
+			}
+
+			if !c.isPeerNS(conn, ns) {
+				log.Tracef("not dumping ns %s since it is not a peer of the root ns", ns)
+				_ = ns.Close()
+				continue
+			}
+
+			if err := c.dumpTable(family, output, ns); err != nil {
+				log.Errorf("error dumping conntrack table for namespace %d: %s", ns, err)
+			}
 		}
 	}()
-
-	conn, err := netlink.Dial(unix.AF_UNSPEC, &netlink.Config{NetNS: int(rootNS)})
-	if err != nil {
-		log.Errorf("error dumping conntrack table, could not open netlink socket: %s", err)
-		return output
-	}
-
-	defer func() {
-		_ = conn.Close()
-	}()
-
-	// root ns first
-	if err := c.dumpTable(family, output, rootNS); err != nil {
-		log.Errorf("error dumping conntrack table for root namespace, some NAT info may be missing: %s", err)
-	}
-
-	for _, ns := range nss {
-		if rootNS.Equal(ns) {
-			// we've already dumped the table for the root ns above
-			continue
-		}
-
-		if !c.isPeerNS(conn, ns) {
-			log.Tracef("not dumping ns %s since it is not a peer of the root ns", ns)
-			_ = ns.Close()
-			continue
-		}
-
-		if err := c.dumpTable(family, output, ns); err != nil {
-			log.Errorf("error dumping conntrack table for namespace %d: %s", ns, err)
-		}
-	}
 
 	return output
 }

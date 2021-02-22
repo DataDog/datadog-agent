@@ -43,6 +43,7 @@ var ClientStatsTests = []struct {
 							Resource:       "",
 							HTTPStatusCode: 200,
 							Type:           "web",
+							Synthetics:     true,
 							Hits:           22,
 							Errors:         33,
 							Duration:       44,
@@ -61,8 +62,8 @@ var ClientStatsTests = []struct {
 					Start:    1,
 					Duration: 2,
 					Counts: map[string]stats.Count{
-						"noname00|duration|env:testing,resource:noname00,service:unnamed-service,http.status_code:200,version:0.1-alpha": {
-							Key:     "noname00|duration|env:testing,resource:noname00,service:unnamed-service,http.status_code:200,version:0.1-alpha",
+						"noname00|duration|env:testing,resource:noname00,service:unnamed-service,http.status_code:200,version:0.1-alpha,synthetics:true": {
+							Key:     "noname00|duration|env:testing,resource:noname00,service:unnamed-service,http.status_code:200,version:0.1-alpha,synthetics:true",
 							Name:    "noname00",
 							Measure: "duration",
 							TagSet: stats.TagSet{
@@ -71,11 +72,12 @@ var ClientStatsTests = []struct {
 								stats.Tag{Name: "service", Value: "unnamed-service"},
 								stats.Tag{Name: "http.status_code", Value: "200"},
 								stats.Tag{Name: "version", Value: "0.1-alpha"},
+								stats.Tag{Name: "synthetics", Value: "true"},
 							},
 							Value: 44,
 						},
-						"noname00|errors|env:testing,resource:noname00,service:unnamed-service,http.status_code:200,version:0.1-alpha": {
-							Key:     "noname00|errors|env:testing,resource:noname00,service:unnamed-service,http.status_code:200,version:0.1-alpha",
+						"noname00|errors|env:testing,resource:noname00,service:unnamed-service,http.status_code:200,version:0.1-alpha,synthetics:true": {
+							Key:     "noname00|errors|env:testing,resource:noname00,service:unnamed-service,http.status_code:200,version:0.1-alpha,synthetics:true",
 							Name:    "noname00",
 							Measure: "errors",
 							TagSet: stats.TagSet{
@@ -84,11 +86,12 @@ var ClientStatsTests = []struct {
 								stats.Tag{Name: "service", Value: "unnamed-service"},
 								stats.Tag{Name: "http.status_code", Value: "200"},
 								stats.Tag{Name: "version", Value: "0.1-alpha"},
+								stats.Tag{Name: "synthetics", Value: "true"},
 							},
 							Value: 33,
 						},
-						"noname00|hits|env:testing,resource:noname00,service:unnamed-service,http.status_code:200,version:0.1-alpha": {
-							Key:     "noname00|hits|env:testing,resource:noname00,service:unnamed-service,http.status_code:200,version:0.1-alpha",
+						"noname00|hits|env:testing,resource:noname00,service:unnamed-service,http.status_code:200,version:0.1-alpha,synthetics:true": {
+							Key:     "noname00|hits|env:testing,resource:noname00,service:unnamed-service,http.status_code:200,version:0.1-alpha,synthetics:true",
 							Name:    "noname00",
 							Measure: "hits",
 							TagSet: stats.TagSet{
@@ -97,13 +100,14 @@ var ClientStatsTests = []struct {
 								stats.Tag{Name: "service", Value: "unnamed-service"},
 								stats.Tag{Name: "http.status_code", Value: "200"},
 								stats.Tag{Name: "version", Value: "0.1-alpha"},
+								stats.Tag{Name: "synthetics", Value: "true"},
 							},
 							Value: 22,
 						},
 					},
 					Distributions: map[string]stats.Distribution{
-						"noname00|duration|env:testing,resource:noname00,service:unnamed-service,http.status_code:200,version:0.1-alpha": {
-							Key:     "noname00|duration|env:testing,resource:noname00,service:unnamed-service,http.status_code:200,version:0.1-alpha",
+						"noname00|duration|env:testing,resource:noname00,service:unnamed-service,http.status_code:200,version:0.1-alpha,synthetics:true": {
+							Key:     "noname00|duration|env:testing,resource:noname00,service:unnamed-service,http.status_code:200,version:0.1-alpha,synthetics:true",
 							Name:    "noname00",
 							Measure: "duration",
 							TagSet: stats.TagSet{
@@ -112,13 +116,14 @@ var ClientStatsTests = []struct {
 								stats.Tag{Name: "service", Value: "unnamed-service"},
 								stats.Tag{Name: "http.status_code", Value: "200"},
 								stats.Tag{Name: "version", Value: "0.1-alpha"},
+								stats.Tag{Name: "synthetics", Value: "true"},
 							},
 							Summary: getEmptyGKSketch(),
 						},
 					},
 					ErrDistributions: map[string]stats.Distribution{
-						"noname00|duration|env:testing,resource:noname00,service:unnamed-service,http.status_code:200,version:0.1-alpha": {
-							Key:     "noname00|duration|env:testing,resource:noname00,service:unnamed-service,http.status_code:200,version:0.1-alpha",
+						"noname00|duration|env:testing,resource:noname00,service:unnamed-service,http.status_code:200,version:0.1-alpha,synthetics:true": {
+							Key:     "noname00|duration|env:testing,resource:noname00,service:unnamed-service,http.status_code:200,version:0.1-alpha,synthetics:true",
 							Name:    "noname00",
 							Measure: "duration",
 							TagSet: stats.TagSet{
@@ -127,6 +132,7 @@ var ClientStatsTests = []struct {
 								stats.Tag{Name: "service", Value: "unnamed-service"},
 								stats.Tag{Name: "http.status_code", Value: "200"},
 								stats.Tag{Name: "version", Value: "0.1-alpha"},
+								stats.Tag{Name: "synthetics", Value: "true"},
 							},
 							Summary: getEmptyGKSketch(),
 						},

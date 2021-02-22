@@ -3,6 +3,9 @@ class AgentCheck(object):
     def __init__(self, *args, **kwargs):
         pass
 
+    def cancel(self):
+        pass
+
     def run(self):
         return ""  # empty string means success
 

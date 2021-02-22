@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package obfuscate
 
@@ -85,6 +85,38 @@ func TestCompactWhitespaces(t *testing.T) {
 
 	for _, testCase := range resultsToExpect {
 		assert.Equal(testCase.after, compactWhitespaces(testCase.before))
+	}
+}
+
+func TestReplaceDigits(t *testing.T) {
+	assert := assert.New(t)
+
+	for _, tt := range []struct {
+		in       []byte
+		expected []byte
+	}{
+		{
+			[]byte("table123"),
+			[]byte("table?"),
+		},
+		{
+			[]byte(""),
+			[]byte(""),
+		},
+		{
+			[]byte("2020-table"),
+			[]byte("?-table"),
+		},
+		{
+			[]byte("sales_2019_07_01"),
+			[]byte("sales_?_?_?"),
+		},
+		{
+			[]byte("45"),
+			[]byte("?"),
+		},
+	} {
+		assert.Equal(tt.expected, replaceDigits(tt.in))
 	}
 }
 
@@ -264,5 +296,12 @@ func BenchmarkCompactWhitespaces(b *testing.B) {
 	str := "a b       cde     fg       hi                     j  jk   lk lkjfdsalfd     afsd sfdafsd f"
 	for i := 0; i < b.N; i++ {
 		compactWhitespaces(str)
+	}
+}
+
+func BenchmarkReplaceDigits(b *testing.B) {
+	tbl := []byte("sales_2019_07_01_orders")
+	for i := 0; i < b.N; i++ {
+		replaceDigits(tbl)
 	}
 }

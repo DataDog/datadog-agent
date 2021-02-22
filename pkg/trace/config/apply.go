@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package config
 
@@ -58,10 +58,10 @@ type ObfuscationConfig struct {
 // HTTPObfuscationConfig holds the configuration settings for HTTP obfuscation.
 type HTTPObfuscationConfig struct {
 	// RemoveQueryStrings determines query strings to be removed from HTTP URLs.
-	RemoveQueryString bool `mapstructure:"remove_query_string"`
+	RemoveQueryString bool `mapstructure:"remove_query_string" json:"remove_query_string"`
 
 	// RemovePathDigits determines digits in path segments to be obfuscated.
-	RemovePathDigits bool `mapstructure:"remove_paths_with_digits"`
+	RemovePathDigits bool `mapstructure:"remove_paths_with_digits" json:"remove_path_digits"`
 }
 
 // Enablable can represent any option that has an "enabled" boolean sub-field.
@@ -122,7 +122,7 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		c.Endpoints = []*Endpoint{{}}
 	}
 	if config.Datadog.IsSet("api_key") {
-		c.Endpoints[0].APIKey = config.Datadog.GetString("api_key")
+		c.Endpoints[0].APIKey = config.SanitizeAPIKey(config.Datadog.GetString("api_key"))
 	}
 	if config.Datadog.IsSet("hostname") {
 		c.Hostname = config.Datadog.GetString("hostname")
@@ -217,7 +217,7 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		c.MaxEPS = config.Datadog.GetFloat64("apm_config.max_events_per_second")
 	}
 	if config.Datadog.IsSet("apm_config.max_traces_per_second") {
-		c.MaxTPS = config.Datadog.GetFloat64("apm_config.max_traces_per_second")
+		c.TargetTPS = config.Datadog.GetFloat64("apm_config.max_traces_per_second")
 	}
 	if k := "apm_config.ignore_resources"; config.Datadog.IsSet(k) {
 		c.Ignore["resource"] = config.Datadog.GetStringSlice(k)
@@ -238,15 +238,20 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		}
 	}
 
-	if config.Datadog.IsSet("bind_host") {
-		host := config.Datadog.GetString("bind_host")
-		c.StatsdHost = host
-		c.ReceiverHost = host
-	}
-	if config.Datadog.IsSet("apm_config.apm_non_local_traffic") {
-		if config.Datadog.GetBool("apm_config.apm_non_local_traffic") {
+	if config.Datadog.IsSet("bind_host") || config.Datadog.IsSet("apm_config.apm_non_local_traffic") {
+		if config.Datadog.IsSet("bind_host") {
+			host := config.Datadog.GetString("bind_host")
+			c.StatsdHost = host
+			c.ReceiverHost = host
+		}
+
+		if config.Datadog.IsSet("apm_config.apm_non_local_traffic") && config.Datadog.GetBool("apm_config.apm_non_local_traffic") {
 			c.ReceiverHost = "0.0.0.0"
 		}
+	} else if config.IsContainerized() {
+		// Automatically activate non local traffic in containerized environment if no explicit config set
+		log.Info("Activating non-local traffic automatically in containerized environment, trace-agent will listen on 0.0.0.0")
+		c.ReceiverHost = "0.0.0.0"
 	}
 
 	if config.Datadog.IsSet("apm_config.obfuscation") {
@@ -257,6 +262,19 @@ func (c *AgentConfig) applyDatadogConfig() error {
 			if c.Obfuscation.RemoveStackTraces {
 				c.addReplaceRule("error.stack", `(?s).*`, "?")
 			}
+		}
+	}
+
+	if config.Datadog.IsSet("apm_config.filter_tags.require") {
+		tags := config.Datadog.GetStringSlice("apm_config.filter_tags.require")
+		for _, tag := range tags {
+			c.RequireTags = append(c.RequireTags, splitTag(tag))
+		}
+	}
+	if config.Datadog.IsSet("apm_config.filter_tags.reject") {
+		tags := config.Datadog.GetStringSlice("apm_config.filter_tags.reject")
+		for _, tag := range tags {
+			c.RejectTags = append(c.RejectTags, splitTag(tag))
 		}
 	}
 
@@ -335,7 +353,7 @@ func (c *AgentConfig) applyDatadogConfig() error {
 func (c *AgentConfig) loadDeprecatedValues() error {
 	cfg := config.Datadog
 	if cfg.IsSet("apm_config.api_key") {
-		c.Endpoints[0].APIKey = config.Datadog.GetString("apm_config.api_key")
+		c.Endpoints[0].APIKey = config.SanitizeAPIKey(config.Datadog.GetString("apm_config.api_key"))
 	}
 	if cfg.IsSet("apm_config.log_level") {
 		c.LogLevel = config.Datadog.GetString("apm_config.log_level")
@@ -440,4 +458,18 @@ func toFloat64(val interface{}) (float64, error) {
 	default:
 		return 0, fmt.Errorf("%v can not be converted to float64", val)
 	}
+}
+
+// splitTag splits a "k:v" formatted string and returns a Tag.
+func splitTag(tag string) *Tag {
+	parts := strings.SplitN(tag, ":", 2)
+	kv := &Tag{
+		K: strings.TrimSpace(parts[0]),
+	}
+	if len(parts) > 1 {
+		if v := strings.TrimSpace(parts[1]); v != "" {
+			kv.V = v
+		}
+	}
+	return kv
 }

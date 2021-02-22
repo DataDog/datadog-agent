@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package forwarder
 
@@ -23,17 +23,23 @@ type failedTransactionRemovalPolicy struct {
 	rootPath           string
 	knownDomainFolders map[string]struct{}
 	outdatedFileTime   time.Time
+	telemetry          failedTransactionRemovalPolicyTelemetry
 }
 
-func newFailedTransactionRemovalPolicy(rootPath string, outdatedFileDayCount int) (*failedTransactionRemovalPolicy, error) {
+func newFailedTransactionRemovalPolicy(
+	rootPath string,
+	outdatedFileDayCount int,
+	telemetry failedTransactionRemovalPolicyTelemetry) (*failedTransactionRemovalPolicy, error) {
 	if err := os.MkdirAll(rootPath, 0755); err != nil {
 		return nil, err
 	}
+	telemetry.addNewRemovalPolicyCount()
 
 	return &failedTransactionRemovalPolicy{
 		rootPath:           rootPath,
 		knownDomainFolders: make(map[string]struct{}),
 		outdatedFileTime:   time.Now().Add(time.Duration(-outdatedFileDayCount*24) * time.Hour),
+		telemetry:          telemetry,
 	}, nil
 }
 
@@ -44,37 +50,52 @@ func (p *failedTransactionRemovalPolicy) registerDomain(domainName string) (stri
 		return "", err
 	}
 
+	p.telemetry.addRegisteredDomainCount()
 	p.knownDomainFolders[folder] = struct{}{}
 	return folder, nil
 }
 
-// removeOutdatedFiles removes the outdated files.
-// It removes files with extension retryTransactionsExtension:
-// - For domains not registered
-// - When a file is older than outDatedFileDayCount days
+// removeOutdatedFiles removes the outdated files when a file is
+// older than outDatedFileDayCount days.
 func (p *failedTransactionRemovalPolicy) removeOutdatedFiles() ([]string, error) {
+	return p.forEachDomainPath(func(folderPath string) ([]string, error) {
+		files, err := p.removeOutdatedRetryFiles(folderPath)
+		p.telemetry.addOutdatedFilesCount(len(files))
+		return files, err
+	})
+}
+
+// removeUnknownDomains remove unknown domains.
+func (p *failedTransactionRemovalPolicy) removeUnknownDomains() ([]string, error) {
+	return p.forEachDomainPath(func(folderPath string) ([]string, error) {
+		if _, found := p.knownDomainFolders[folderPath]; !found {
+			files, err := p.removeUnknownDomain(folderPath)
+			p.telemetry.addFilesFromUnknownDomainCount(len(files))
+			return files, err
+		}
+		return nil, nil
+	})
+}
+
+func (p *failedTransactionRemovalPolicy) forEachDomainPath(callback func(folderPath string) ([]string, error)) ([]string, error) {
 	entries, err := ioutil.ReadDir(p.rootPath)
 	if err != nil {
 		return nil, err
 	}
 
-	var filesRemoved []string
+	var paths []string
 	for _, domain := range entries {
 		if domain.Mode().IsDir() {
 			folderPath := path.Join(p.rootPath, domain.Name())
-			var files []string
-			if _, found := p.knownDomainFolders[folderPath]; found {
-				files, err = p.removeOutdatedRetryFiles(folderPath)
-			} else {
-				files, err = p.removeUnknownDomain(folderPath)
-			}
+			files, err := callback(folderPath)
+
 			if err != nil {
 				return nil, err
 			}
-			filesRemoved = append(filesRemoved, files...)
+			paths = append(paths, files...)
 		}
 	}
-	return filesRemoved, nil
+	return paths, nil
 }
 
 func (p *failedTransactionRemovalPolicy) getFolderPathForDomain(domainName string) (string, error) {

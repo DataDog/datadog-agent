@@ -102,6 +102,14 @@ if [[ $1 == "windows-install-test" ]]; then
   cat kitchen-azure-winstall.yml >> kitchen.yml
 fi
 
+if [[ $1 == "windows-npm-install-test" ]]; then
+  cat kitchen-azure-windows-npm-test.yml >> kitchen.yml
+fi
+
+if [[ $1 == "windows-npm-driver-test" ]]; then
+  cat kitchen-azure-windows-npmdriver.yml >> kitchen.yml
+fi
+
 if [[ $1 == "chef-test" ]]; then
   cat kitchen-azure-chef-test.yml >> kitchen.yml
 fi
@@ -128,6 +136,10 @@ fi
 
 if [[ $1 == "security-agent-test" ]]; then
   cat kitchen-azure-security-agent-test.yml >> kitchen.yml
+fi
+
+if [[ $1 == "security-agent-stress" ]]; then
+  cat kitchen-azure-security-agent-stress.yml >> kitchen.yml
 fi
 
 if [[ $1 == "system-probe-test" ]]; then

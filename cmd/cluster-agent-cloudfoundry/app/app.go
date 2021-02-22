@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build clusterchecks
 
@@ -38,7 +38,7 @@ import (
 // loggerName is the name of the cluster agent logger
 const loggerName config.LoggerName = "CLUSTER"
 
-// FIXME: move SetupAutoConfig and StartAutoConfig in their own package so we don't import cmd/agent
+// FIXME: move LoadComponents and StartAutoConfig in their own package so we don't import cmd/agent
 var (
 	ClusterAgentCmd = &cobra.Command{
 		Use:   "datadog-cluster-agent-cloudfoundry [command]",
@@ -181,7 +181,7 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 
 	// create and setup the Autoconfig instance
-	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
+	common.LoadComponents(config.Datadog.GetString("confd_path"))
 	// start the autoconfig, this will immediately run any configured check
 	common.StartAutoConfig()
 

@@ -100,7 +100,8 @@ RUN apt update \
   # Install iproute2 package for the ss utility that is used by the network check.
   # When the network check will have switched from using ss to directly parsing /proc/net/tcp,
   # this can be removed
-  && apt install -y iproute2 \
+  # Install libssl-dev as it's required by some Python checks and we rely on system version
+  && apt install -y iproute2 libssl-dev \
   # https://security-tracker.debian.org/tracker/CVE-2016-2779
   && rm -f /usr/sbin/runuser \
   # https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-6954
@@ -161,6 +162,9 @@ COPY init-stage3-host-pid /etc/s6/init/init-stage3-host-pid
 
 RUN find /etc -type d,f -perm -o+w -print0 | xargs -0 chmod g-w,o-w
 
+# Add Debian snapshot date for debugging
+RUN date +%Y%m%dT000000Z > .debian_repo_snapshot_date
+
 # Expose DogStatsD and trace-agent ports
 EXPOSE 8125/udp 8126/tcp
 
@@ -168,7 +172,7 @@ HEALTHCHECK --interval=30s --timeout=5s --retries=2 \
   CMD ["/probe.sh"]
 
 # Leave following directories RW to allow use of kubernetes readonlyrootfs flag
-VOLUME ["/var/run/s6", "/etc/datadog-agent", "/var/log/datadog", "/tmp"]
+VOLUME ["/var/run/s6", "/var/log/datadog"]
 
 CMD ["/init"]
 

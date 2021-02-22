@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 // +build !windows
 
 package inventories
@@ -256,4 +256,25 @@ func TestSetup(t *testing.T) {
 	SetAgentMetadata("key", "yet_another_value")
 	assert.True(t, waitForCalledSignal(ms.sendNowCalled))
 	assert.True(t, ms.lastSendNowDelay > time.Duration(0))
+}
+
+func Test_createCheckInstanceMetadata_returnsNewMetadata(t *testing.T) {
+	defer clearMetadata()
+
+	const (
+		checkID        = "a-check-id"
+		configProvider = "a-config-provider"
+		metadataKey    = "a-metadata-key"
+	)
+
+	checkMetadataCache[checkID] = &checkMetadataCacheEntry{
+		CheckInstanceMetadata: CheckInstanceMetadata{
+			metadataKey: "a-metadata-value",
+		},
+	}
+
+	md := createCheckInstanceMetadata(checkID, configProvider)
+	(*md)[metadataKey] = "a-different-metadata-value"
+
+	assert.NotEqual(t, checkMetadataCache[checkID].CheckInstanceMetadata[metadataKey], (*md)[metadataKey])
 }

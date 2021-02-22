@@ -30,6 +30,10 @@ type Config struct {
 	// It is relevant *only* when DNSInspection is enabled.
 	CollectDNSStats bool
 
+	// CollectDNSDomains specifies whether collected DNS stats would be scoped by domain
+	// It is relevant *only* when DNSInspection and CollectDNSStats is enabled.
+	CollectDNSDomains bool
+
 	// DNSTimeout determines the length of time to wait before considering a DNS Query to have timed out
 	DNSTimeout time.Duration
 
@@ -62,6 +66,10 @@ type Config struct {
 	// get flushed on every client request (default 30s check interval)
 	MaxDNSStatsBufferred int
 
+	// MaxHTTPStatsBuffered represents the maximum number of HTTP stats we'll buffer in memory. These stats
+	// get flushed on every client request (default 30s check interval)
+	MaxHTTPStatsBuffered int
+
 	// MaxConnectionsStateBuffered represents the maximum number of state objects that we'll store in memory. These state objects store
 	// the stats for a connection so we can accurately determine traffic change between client requests.
 	MaxConnectionsStateBuffered int
@@ -71,6 +79,10 @@ type Config struct {
 
 	// EnableConntrack enables probing conntrack for network address translation via netlink
 	EnableConntrack bool
+
+	// IgnoreConntrackInitFailure will ignore any conntrack initialization failiures during system-probe load. If this is set to false, system-probe
+	// will fail to start if there is a conntrack initialization failure.
+	IgnoreConntrackInitFailure bool
 
 	// ConntrackMaxStateSize specifies the maximum number of connections with NAT we can track
 	ConntrackMaxStateSize int
@@ -120,14 +132,17 @@ func NewDefaultConfig() *Config {
 		ConntrackRateLimit:           500,
 		EnableConntrackAllNamespaces: true,
 		EnableConntrack:              true,
+		IgnoreConntrackInitFailure:   false,
 		// With clients checking connection stats roughly every 30s, this gives us roughly ~1.6k + ~2.5k objects a second respectively.
 		MaxClosedConnectionsBuffered: 50000,
 		MaxConnectionsStateBuffered:  75000,
 		MaxDNSStatsBufferred:         75000,
+		MaxHTTPStatsBuffered:         75000,
 		ClientStateExpiry:            2 * time.Minute,
 		ClosedChannelSize:            500,
 		// DNS Stats related configurations
 		CollectDNSStats:      true,
+		CollectDNSDomains:    false,
 		DNSTimeout:           15 * time.Second,
 		OffsetGuessThreshold: 400,
 		EnableMonotonicCount: false,

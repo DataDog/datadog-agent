@@ -1,0 +1,92 @@
+---
+# deps_build stage
+# Contains jobs which build various libraries needed for system-probe.
+
+.build_libbcc_common:
+  stage: deps_build
+  script:
+    - git clone -b "$BCC_VERSION" --depth=1 https://github.com/iovisor/bcc.git /tmp/bcc
+    # Patch libbcc to remove references to glibc symbols with a too recent version
+    - cd /tmp/bcc
+    - patch -p1 < "$CI_PROJECT_DIR"/omnibus/config/software/libbcc_compat.patch
+    - mkdir /tmp/bcc/build
+    - cd /tmp/bcc/build
+    - cmake .. -DCMAKE_INSTALL_PREFIX=/opt/libbcc -DCMAKE_EXE_LINKER_FLAGS="-Wl,-rpath,$DATADOG_AGENT_EMBEDDED_PATH/lib" -DCMAKE_SHARED_LINKER_FLAGS="-Wl,-rpath,$DATADOG_AGENT_EMBEDDED_PATH/lib"
+    - make -j 4  # "$(nproc)"
+    # Check that libbcc has no references to too recent glibc
+    - objdump -p src/cc/libbcc.so | grep GLIBC_2.29 && exit 1
+    - objdump -p src/cc/libbcc.so | grep GLIBC_2.26 && exit 1
+    - make install
+    - cd /opt/libbcc
+    - chmod go-rwx lib/libbcc*
+    - rm -rf share/bcc/examples share/bcc/introspection share/bcc/man share/bcc/tools lib/python2* lib/python3*
+    - cp $(ldd lib/libbcc.so | awk '$1 ~ /^libtinfo/ {system("dirname " $3)}')/libtinfo* lib
+    - tar cvaf /tmp/libbcc.tar.xz .
+    - $S3_CP_CMD /tmp/libbcc.tar.xz $S3_ARTIFACTS_URI/libbcc-$ARCH.tar.xz
+
+build_libbcc_x64:
+  extends: .build_libbcc_common
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_LIBBCC_BUILDIMAGES
+  tags: ["runner:main", "size:large"]
+  variables:
+    ARCH: amd64
+
+build_libbcc_arm64:
+  extends: .build_libbcc_common
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_LIBBCC_BUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
+  variables:
+    ARCH: arm64
+
+.build_clang_common:
+  rules:
+    - when: manual
+      allow_failure: true
+  stage: deps_build
+  script:
+    - wget https://github.com/llvm/llvm-project/releases/download/llvmorg-11.0.1/clang-11.0.1.src.tar.xz -O clang.src.tar.xz
+    - wget https://github.com/llvm/llvm-project/releases/download/llvmorg-11.0.1/llvm-11.0.1.src.tar.xz -O llvm.src.tar.xz
+    - mkdir clang && tar xf clang.src.tar.xz --strip-components=1 --no-same-owner -C clang
+    - mkdir llvm && tar xf llvm.src.tar.xz --strip-components=1 --no-same-owner -C llvm
+    - mkdir build && cd build
+    - |
+      cmake -DLLVM_ENABLE_PROJECTS=clang \
+      -DLLVM_TARGETS_TO_BUILD="BPF" \
+      -DCMAKE_INSTALL_PREFIX=$DATADOG_AGENT_EMBEDDED_PATH \
+      -G "Ninja" \
+      -DCMAKE_BUILD_TYPE=MinSizeRel \
+      -DLLVM_BUILD_TOOLS=OFF \
+      -DLLVM_ENABLE_TERMINFO=OFF \
+      -DLLVM_INCLUDE_EXAMPLES=OFF \
+      -DLLVM_INCLUDE_TESTS=OFF \
+      -DLLVM_INCLUDE_BENCHMARKS=OFF \
+      -DLLVM_STATIC_LINK_CXX_STDLIB=ON \
+      -DLLVM_ENABLE_BINDINGS=OFF \
+      -DLLVM_PARALLEL_COMPILE_JOBS=4 \
+      -DLLVM_PARALLEL_LINK_JOBS=4 \
+      ../llvm
+    - cmake --build . --target install
+    - cd $DATADOG_AGENT_EMBEDDED_PATH
+    - rm -rf bin share libexec lib/clang lib/cmake lib/*.so*
+    - mkdir -p $CI_PROJECT_DIR/.tmp
+    - tar cvaf $CI_PROJECT_DIR/.tmp/clang-$ARCH-11.0.1.tar.xz .
+    - $S3_CP_CMD $CI_PROJECT_DIR/.tmp/clang-$ARCH-11.0.1.tar.xz $S3_PERMANENT_ARTIFACTS_URI/clang-$ARCH-11.0.1.tar.xz
+  timeout: 2h 00m
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $CI_PROJECT_DIR/.tmp/clang-$ARCH-11.0.1.tar.xz
+
+build_clang_x64:
+  extends: .build_clang_common
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["runner:main", "size:2xlarge"]
+  variables:
+    ARCH: amd64
+
+build_clang_arm64:
+  extends: .build_clang_common
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
+  variables:
+    ARCH: arm64

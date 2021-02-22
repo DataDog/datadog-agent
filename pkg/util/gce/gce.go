@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package gce
 
@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 // declare these as vars not const to ease testing
@@ -53,7 +54,10 @@ func GetHostAlias() (string, error) {
 	instanceName, err := getResponseWithMaxLength(metadataURL+"/instance/name",
 		config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
 	if err != nil {
-		// If the endpoint is not reachable, fallback on the old way to get the alias
+		// If the endpoint is not reachable, fallback on the old way to get the alias.
+		// For instance, it happens in GKE, where the metadata server is only a subset
+		// of the Compute Engine metadata server.
+		// See https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity#gke_mds
 		hostname, hostErr := GetHostname()
 		if hostErr != nil {
 			return "", fmt.Errorf("unable to retrieve instance name and hostname from GCE: %s", err)
@@ -80,6 +84,19 @@ func GetClusterName() (string, error) {
 		return "", fmt.Errorf("unable to retrieve clustername from GCE: %s", err)
 	}
 	return clusterName, nil
+}
+
+// GetPublicIPv4 returns the public IPv4 address of the current GCE instance
+func GetPublicIPv4() (string, error) {
+	if !config.IsCloudProviderEnabled(CloudProviderName) {
+		return "", fmt.Errorf("cloud provider is disabled by configuration")
+	}
+	publicIPv4, err := getResponseWithMaxLength(metadataURL+"/instance/network-interfaces/0/access-configs/0/external-ip",
+		config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
+	if err != nil {
+		return "", fmt.Errorf("unable to retrieve public IPv4 from GCE: %s", err)
+	}
+	return publicIPv4, nil
 }
 
 // GetNetworkID retrieves the network ID using the metadata endpoint. For
@@ -143,7 +160,8 @@ func getResponseWithMaxLength(endpoint string, maxLength int) (string, error) {
 
 func getResponse(url string) (string, error) {
 	client := http.Client{
-		Timeout: time.Duration(config.Datadog.GetInt("gce_metadata_timeout")) * time.Millisecond,
+		Transport: httputils.CreateHTTPTransport(),
+		Timeout:   time.Duration(config.Datadog.GetInt("gce_metadata_timeout")) * time.Millisecond,
 	}
 
 	req, err := http.NewRequest("GET", url, nil)

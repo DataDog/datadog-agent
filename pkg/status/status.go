@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package status
 
@@ -28,10 +28,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
-var startTime = time.Now()
-var timeFormat = "2006-01-02 15:04:05.000000 MST"
+var timeFormat = "2006-01-02 15:04:05.999 MST"
 
 // GetStatus grabs the status from expvar and puts it into a map
 func GetStatus() (map[string]interface{}, error) {
@@ -69,6 +70,12 @@ func GetStatus() (map[string]interface{}, error) {
 
 	if config.Datadog.GetBool("system_probe_config.enabled") {
 		stats["systemProbeStats"] = GetSystemProbeStats(config.Datadog.GetString("system_probe_config.sysprobe_socket"))
+	}
+
+	if !config.Datadog.GetBool("no_proxy_nonexact_match") {
+		httputils.NoProxyWarningMapMutex.Lock()
+		stats["TransportWarnings"] = httputils.NoProxyWarningMap
+		httputils.NoProxyWarningMapMutex.Unlock()
 	}
 
 	return stats, nil
@@ -279,10 +286,10 @@ func getCommonStatus() (map[string]interface{}, error) {
 	stats["conf_file"] = config.Datadog.ConfigFileUsed()
 	stats["pid"] = os.Getpid()
 	stats["go_version"] = runtime.Version()
-	stats["agent_start"] = startTime.Format(timeFormat)
+	stats["agent_start_nano"] = config.StartTime.UnixNano()
 	stats["build_arch"] = runtime.GOARCH
 	now := time.Now()
-	stats["time"] = now.Format(timeFormat)
+	stats["time_nano"] = now.UnixNano()
 
 	return stats, nil
 }

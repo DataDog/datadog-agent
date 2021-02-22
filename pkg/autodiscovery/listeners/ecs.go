@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017-2020 Datadog, Inc.
+// Copyright 2017-present Datadog, Inc.
 
 // +build docker
 
@@ -15,10 +15,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ECSListener implements the ServiceListener interface for fargate-backed ECS cluster.
@@ -129,6 +128,11 @@ func (l *ECSListener) refreshServices(firstRun bool) {
 	}
 
 	for _, c := range meta.Containers {
+		// Skip containers for which ECS failed to retrieve metadata
+		if c.DockerID == "" {
+			log.Debugf("Skipping a container for which ECS is reporting an empty ID: name %q, docker name: %q, image %q, image id: %q", c.Name, c.DockerName, c.Image, c.ImageID)
+			continue
+		}
 		if _, found := l.services[c.DockerID]; found {
 			delete(notSeen, c.DockerID)
 			continue
@@ -139,7 +143,11 @@ func (l *ECSListener) refreshServices(firstRun bool) {
 		}
 		// Detect AD exclusion
 		if l.filters.IsExcluded(containers.GlobalFilter, c.DockerName, c.Image, "") {
-			log.Debugf("container %s filtered out: name %q image %q", c.DockerID[:12], c.DockerName, c.Image)
+			dockerID := c.DockerID
+			if len(c.DockerID) >= 12 {
+				dockerID = c.DockerID[:12]
+			}
+			log.Debugf("container %s filtered out: name %q image %q", dockerID, c.DockerName, c.Image)
 			continue
 		}
 		s, err := l.createService(c, firstRun)

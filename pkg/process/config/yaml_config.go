@@ -50,12 +50,20 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.CollectDNSStats = config.Datadog.GetBool(key(spNS, "collect_dns_stats"))
 	}
 
+	if config.Datadog.IsSet(key(spNS, "collect_dns_domains")) {
+		a.CollectDNSDomains = config.Datadog.GetBool(key(spNS, "collect_dns_domains"))
+	}
+
 	if config.Datadog.IsSet(key(spNS, "dns_timeout_in_s")) {
 		a.DNSTimeout = config.Datadog.GetDuration(key(spNS, "dns_timeout_in_s")) * time.Second
 	}
 
 	if config.Datadog.IsSet("network_config.enable_http_monitoring") {
 		a.EnableHTTPMonitoring = config.Datadog.GetBool("network_config.enable_http_monitoring")
+	}
+
+	if config.Datadog.IsSet("network_config.ignore_conntrack_init_failure") {
+		a.IgnoreConntrackInitFailure = config.Datadog.GetBool("network_config.ignore_conntrack_init_failure")
 	}
 
 	if config.Datadog.GetBool(key(spNS, "enabled")) {
@@ -199,12 +207,20 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.Enabled = true
 	}
 
-	if config.Datadog.IsSet(key(spNS, "profiling_enabled")) {
+	if config.Datadog.IsSet(key(spNS, "profiling.enabled")) {
 		a.ProfilingEnabled = config.Datadog.GetBool(key(spNS, "profiling.enabled"))
 		a.ProfilingSite = config.Datadog.GetString(key(spNS, "profiling.site"))
 		a.ProfilingURL = config.Datadog.GetString(key(spNS, "profiling.profile_dd_url"))
-		a.ProfilingAPIKey = config.Datadog.GetString(key(spNS, "profiling.api_key"))
+		a.ProfilingAPIKey = config.SanitizeAPIKey(config.Datadog.GetString(key(spNS, "profiling.api_key")))
 		a.ProfilingEnvironment = config.Datadog.GetString(key(spNS, "profiling.env"))
+	}
+	a.EnableRuntimeCompiler = config.Datadog.GetBool(key(spNS, "enable_runtime_compiler"))
+	if config.Datadog.IsSet(key(spNS, "kernel_header_dirs")) {
+		a.KernelHeadersDirs = config.Datadog.GetStringSlice(key(spNS, "kernel_header_dirs"))
+	}
+
+	if config.Datadog.IsSet(key(spNS, "runtime_compiler_output_dir")) {
+		a.RuntimeCompilerOutputDir = config.Datadog.GetString(key(spNS, "runtime_compiler_output_dir"))
 	}
 
 	return nil
@@ -226,7 +242,7 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	a.APIEndpoints[0].Endpoint = URL
 
 	if key := "api_key"; config.Datadog.IsSet(key) {
-		a.APIEndpoints[0].APIKey = config.Datadog.GetString(key)
+		a.APIEndpoints[0].APIKey = config.SanitizeAPIKey(config.Datadog.GetString(key))
 	}
 
 	if config.Datadog.IsSet("hostname") {
@@ -364,11 +380,21 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 			}
 			for _, k := range apiKeys {
 				a.APIEndpoints = append(a.APIEndpoints, api.Endpoint{
-					APIKey:   k,
+					APIKey:   config.SanitizeAPIKey(k),
 					Endpoint: u,
 				})
 			}
 		}
+	}
+
+	// use `profiling.enabled` field in `process_config` section to enable/disable profiling for process-agent,
+	// but use the configuration from main agent to fill the settings
+	if config.Datadog.IsSet(key(ns, "profiling.enabled")) {
+		a.ProfilingEnabled = config.Datadog.GetBool(key(ns, "profiling.enabled"))
+		a.ProfilingSite = config.Datadog.GetString("site")
+		a.ProfilingURL = config.Datadog.GetString("profiling.profile_dd_url")
+		a.ProfilingAPIKey = config.SanitizeAPIKey(config.Datadog.GetString("api_key"))
+		a.ProfilingEnvironment = config.Datadog.GetString("env")
 	}
 
 	// Used to override container source auto-detection
@@ -392,7 +418,7 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		a.StatsdPort = config.Datadog.GetInt(k)
 	}
 
-	if bindHost := config.Datadog.GetString("bind_host"); bindHost != "" {
+	if bindHost := config.GetBindHost(); bindHost != "" {
 		a.StatsdHost = bindHost
 	}
 

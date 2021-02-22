@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/mdlayher/netlink"
 	"github.com/stretchr/testify/assert"
@@ -87,7 +88,12 @@ func TestConnTrackerCrossNamespaceAllNsDisabled(t *testing.T) {
 }
 
 func setupTestConnTrackerCrossNamespace(t *testing.T, enableAllNs bool) (Conntracker, io.Closer, *net.TCPAddr) {
-	ct, err := NewConntracker("/proc", 100, 500, enableAllNs)
+	cfg := config.NewDefaultConfig()
+	cfg.ProcRoot = "/proc"
+	cfg.ConntrackMaxStateSize = 100
+	cfg.ConntrackRateLimit = 500
+	cfg.EnableConntrackAllNamespaces = enableAllNs
+	ct, err := NewConntracker(cfg)
 	require.NoError(t, err)
 
 	time.Sleep(time.Second)
@@ -122,7 +128,12 @@ func TestConntracker6(t *testing.T) {
 }
 
 func testConntracker(t *testing.T, serverIP, clientIP net.IP) {
-	ct, err := NewConntracker("/proc", 100, 500, false)
+	cfg := config.NewDefaultConfig()
+	cfg.ProcRoot = "/proc"
+	cfg.ConntrackMaxStateSize = 100
+	cfg.ConntrackRateLimit = 500
+	cfg.EnableConntrackAllNamespaces = false
+	ct, err := NewConntracker(cfg)
 	require.NoError(t, err)
 	defer ct.Close()
 	time.Sleep(100 * time.Millisecond)

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package file
 
@@ -220,10 +220,6 @@ func (s *Scanner) startNewTailer(file *File, m config.TailingMode) bool {
 	offset, whence, err := Position(s.registry, tailer.Identifier(), mode)
 	if err != nil {
 		log.Warnf("Could not recover offset for file with path %v: %v", file.Path, err)
-	}
-
-	if sourceID := file.getSourceIdentifier(); sourceID != "" {
-		s.registry.SetConfigID(tailer.Identifier(), sourceID)
 	}
 
 	log.Infof("Starting a new tailer for: %s (offset: %d, whence: %d) for tailer key %s", file.Path, offset, whence, file.GetScanKey())

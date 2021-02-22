@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package forwarder
 
@@ -27,12 +27,14 @@ type transactionsFileStorage struct {
 	maxSizeInBytes     int64
 	filenames          []string
 	currentSizeInBytes int64
+	telemetry          transactionsFileStorageTelemetry
 }
 
 func newTransactionsFileStorage(
 	serializer *TransactionsSerializer,
 	storagePath string,
-	maxSizeInBytes int64) (*transactionsFileStorage, error) {
+	maxSizeInBytes int64,
+	telemetry transactionsFileStorageTelemetry) (*transactionsFileStorage, error) {
 
 	if err := os.MkdirAll(storagePath, 0755); err != nil {
 		return nil, err
@@ -42,6 +44,7 @@ func newTransactionsFileStorage(
 		serializer:     serializer,
 		storagePath:    storagePath,
 		maxSizeInBytes: maxSizeInBytes,
+		telemetry:      telemetry,
 	}
 
 	if err := storage.reloadExistingRetryFiles(); err != nil {
@@ -52,6 +55,12 @@ func newTransactionsFileStorage(
 
 // Serialize serializes transactions to the file system.
 func (s *transactionsFileStorage) Serialize(transactions []Transaction) error {
+	s.telemetry.addSerializeCount()
+
+	// Reset the serializer in case some transactions were serialized
+	// but `GetBytesAndReset` was not called because of an error.
+	_, _ = s.serializer.GetBytesAndReset()
+
 	for _, t := range transactions {
 		if err := t.SerializeTo(s.serializer); err != nil {
 			return err
@@ -82,6 +91,9 @@ func (s *transactionsFileStorage) Serialize(transactions []Transaction) error {
 
 	s.currentSizeInBytes += bufferSize
 	s.filenames = append(s.filenames, file.Name())
+	s.telemetry.setFileSize(bufferSize)
+	s.telemetry.setCurrentSizeInBytes(s.getCurrentSizeInBytes())
+	s.telemetry.setFilesCount(s.getFilesCount())
 	return nil
 }
 
@@ -90,22 +102,28 @@ func (s *transactionsFileStorage) Deserialize() ([]Transaction, error) {
 	if len(s.filenames) == 0 {
 		return nil, nil
 	}
+	s.telemetry.addDeserializeCount()
 	index := len(s.filenames) - 1
 	path := s.filenames[index]
 	bytes, err := ioutil.ReadFile(path)
+
+	// Remove the file even in case of a read failure.
+	if errRemoveFile := s.removeFileAt(index); errRemoveFile != nil {
+		return nil, errRemoveFile
+	}
+
 	if err != nil {
 		return nil, err
 	}
 
-	if err := s.removeFileAt(index); err != nil {
-		return nil, err
-	}
-
-	transactions, err := s.serializer.Deserialize(bytes)
+	transactions, errorsCount, err := s.serializer.Deserialize(bytes)
 	if err != nil {
 		return nil, err
 	}
-
+	s.telemetry.addDeserializeErrorsCount(errorsCount)
+	s.telemetry.addDeserializeTransactionsCount(len(transactions))
+	s.telemetry.setCurrentSizeInBytes(s.getCurrentSizeInBytes())
+	s.telemetry.setFilesCount(s.getFilesCount())
 	return transactions, err
 }
 
@@ -131,6 +149,7 @@ func (s *transactionsFileStorage) makeRoomFor(bufferSize int64) error {
 		if err := s.removeFileAt(index); err != nil {
 			return err
 		}
+		s.telemetry.addFilesRemovedCount()
 	}
 
 	return nil
@@ -138,6 +157,10 @@ func (s *transactionsFileStorage) makeRoomFor(bufferSize int64) error {
 
 func (s *transactionsFileStorage) removeFileAt(index int) error {
 	filename := s.filenames[index]
+
+	// Remove the file from s.filenames also in case of error to not
+	// fail on the next call.
+	s.filenames = append(s.filenames[:index], s.filenames[index+1:]...)
 
 	size, err := util.GetFileSize(filename)
 	if err != nil {
@@ -149,7 +172,6 @@ func (s *transactionsFileStorage) removeFileAt(index int) error {
 	}
 
 	s.currentSizeInBytes -= size
-	s.filenames = append(s.filenames[:index], s.filenames[index+1:]...)
 	return nil
 }
 
@@ -163,11 +185,13 @@ func (s *transactionsFileStorage) reloadExistingRetryFiles() error {
 	sort.Slice(files, func(i, j int) bool {
 		return files[i].ModTime().Before(files[j].ModTime())
 	})
-
+	var filenames []string
 	for _, file := range files {
 		fullPath := path.Join(s.storagePath, file.Name())
-		s.filenames = append(s.filenames, fullPath)
+		filenames = append(filenames, fullPath)
 	}
+	s.telemetry.addReloadedRetryFilesCount(len(filenames))
+	s.filenames = append(s.filenames, filenames...)
 	return nil
 }
 

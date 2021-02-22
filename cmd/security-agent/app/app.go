@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package app
 
@@ -182,6 +182,10 @@ func start(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	if err := util.SetupCoreDump(); err != nil {
+		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
+	}
+
 	if pidfilePath != "" {
 		err = pidfile.WritePID(pidfilePath)
 		if err != nil {
@@ -213,7 +217,12 @@ func start(cmd *cobra.Command, args []string) error {
 	if coreconfig.Datadog.GetBool("telemetry.enabled") {
 		http.Handle("/telemetry", telemetry.Handler())
 	}
-	go http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux) //nolint:errcheck
+	go func() {
+		err := http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux)
+		if err != nil && err != http.ErrServerClosed {
+			log.Errorf("Error creating expvar server on port %v: %v", port, err)
+		}
+	}()
 
 	// get hostname
 	// FIXME: use gRPC cross-agent communication API to retrieve hostname
@@ -239,7 +248,7 @@ func start(cmd *cobra.Command, args []string) error {
 	defer stopper.Stop()
 
 	// Retrieve statsd host and port from the datadog agent configuration file
-	statsdHost := coreconfig.Datadog.GetString("bind_host")
+	statsdHost := coreconfig.GetBindHost()
 	statsdPort := coreconfig.Datadog.GetInt("dogstatsd_port")
 
 	// Create a statsd Client

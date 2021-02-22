@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubeapiserver,kubelet
 
@@ -9,9 +9,12 @@ package collectors
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/gobwas/glob"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
@@ -27,19 +30,22 @@ const (
 )
 
 type KubeMetadataCollector struct {
-	kubeUtil  kubelet.KubeUtilInterface
-	apiClient *apiserver.APIClient
-	infoOut   chan<- []*TagInfo
-	dcaClient clusteragent.DCAClientInterface
+	kubeUtil            kubelet.KubeUtilInterface
+	apiClient           *apiserver.APIClient
+	infoOut             chan<- []*TagInfo
+	dcaClient           clusteragent.DCAClientInterface
+	clusterAgentEnabled bool
+	updateFreq          time.Duration
+	expireFreq          time.Duration
+
+	m sync.RWMutex
 	// used to set a custom delay
 	lastUpdate time.Time
-	updateFreq time.Duration
-
 	lastExpire time.Time
 	lastSeen   map[string]time.Time
-	expireFreq time.Duration
 
-	clusterAgentEnabled bool
+	namespaceLabelsAsTags map[string]string
+	globNamespaceLabels   map[string]glob.Glob
 }
 
 // Detect tries to connect to the kubelet and the API Server if the DCA is not used or the DCA.
@@ -87,13 +93,17 @@ func (c *KubeMetadataCollector) Detect(out chan<- []*TagInfo) (CollectionMode, e
 	c.lastExpire = time.Now()
 	c.lastSeen = make(map[string]time.Time)
 
+	c.namespaceLabelsAsTags, c.globNamespaceLabels = utils.InitMetadataAsTags(
+		config.Datadog.GetStringMapString("kubernetes_namespace_labels_as_tags"),
+	)
+
 	return PullCollection, nil
 }
 
 // Pull implements an additional time constraints to avoid exhausting the kube-apiserver
 func (c *KubeMetadataCollector) Pull() error {
 	// Time constraints, get the delta in seconds to display it in the logs:
-	timeDelta := c.lastUpdate.Add(c.updateFreq).Unix() - time.Now().Unix()
+	timeDelta := c.getLastUpdate().Add(c.updateFreq).Unix() - time.Now().Unix()
 	if timeDelta > 0 {
 		log.Tracef("skipping, next effective Pull will be in %d seconds", timeDelta)
 		return nil
@@ -111,7 +121,25 @@ func (c *KubeMetadataCollector) Pull() error {
 		}
 	}
 
+	tagInfos := c.collectUpdates(pods)
+
+	c.infoOut <- tagInfos
+
+	return nil
+}
+
+func (c *KubeMetadataCollector) getLastUpdate() time.Time {
+	c.m.RLock()
+	defer c.m.RUnlock()
+	return c.lastUpdate
+}
+
+func (c *KubeMetadataCollector) collectUpdates(pods []*kubelet.Pod) []*TagInfo {
 	tagInfos := c.getTagInfos(pods)
+
+	c.m.Lock()
+	defer c.m.Unlock()
+
 	now := time.Now()
 
 	for _, tagInfo := range tagInfos {
@@ -134,9 +162,7 @@ func (c *KubeMetadataCollector) Pull() error {
 	}
 
 	c.lastUpdate = now
-	c.infoOut <- tagInfos
-
-	return nil
+	return tagInfos
 }
 
 // Fetch fetches tags for a given entity by iterating on the whole podlist and
@@ -180,6 +206,10 @@ func (c *KubeMetadataCollector) isClusterAgentEnabled() bool {
 		}
 	}
 	return false
+}
+
+func (c *KubeMetadataCollector) hasNamespaceLabelsAsTags() bool {
+	return len(c.namespaceLabelsAsTags) != 0 || len(c.globNamespaceLabels) != 0
 }
 
 func kubernetesFactory() Collector {

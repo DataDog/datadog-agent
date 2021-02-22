@@ -10,9 +10,9 @@ func TestTransactionContainerAdd(t *testing.T) {
 	a := assert.New(t)
 	path, clean := createTmpFolder(a)
 	defer clean()
-	s, err := newTransactionsFileStorage(NewTransactionsSerializer(), path, 1000)
+	s, err := newTransactionsFileStorage(NewTransactionsSerializer("", nil), path, 1000, transactionsFileStorageTelemetry{})
 	a.NoError(err)
-	container := newTransactionContainer(createDropPrioritySorter(), s, 100, 0.6)
+	container := newTransactionContainer(createDropPrioritySorter(), s, 100, 0.6, transactionContainerTelemetry{})
 
 	// When adding the last element `15`, the buffer becomes full and the first 3
 	// transactions are flushed to the disk as 10 + 20 + 30 >= 100 * 0.6
@@ -39,9 +39,9 @@ func TestTransactionContainerSeveralFlushToDisk(t *testing.T) {
 	a := assert.New(t)
 	path, clean := createTmpFolder(a)
 	defer clean()
-	s, err := newTransactionsFileStorage(NewTransactionsSerializer(), path, 1000)
+	s, err := newTransactionsFileStorage(NewTransactionsSerializer("", nil), path, 1000, transactionsFileStorageTelemetry{})
 	a.NoError(err)
-	container := newTransactionContainer(createDropPrioritySorter(), s, 50, 0.1)
+	container := newTransactionContainer(createDropPrioritySorter(), s, 50, 0.1, transactionContainerTelemetry{})
 
 	// Flush to disk when adding `40`
 	for _, payloadSize := range []int{9, 10, 11, 40} {
@@ -60,7 +60,7 @@ func TestTransactionContainerSeveralFlushToDisk(t *testing.T) {
 
 func TestTransactionContainerNoTransactionStorage(t *testing.T) {
 	a := assert.New(t)
-	container := newTransactionContainer(createDropPrioritySorter(), nil, 50, 0.1)
+	container := newTransactionContainer(createDropPrioritySorter(), nil, 50, 0.1, transactionContainerTelemetry{})
 
 	for _, payloadSize := range []int{9, 10, 11} {
 		dropCount, err := container.add(createTransactionWithPayloadSize(payloadSize))
@@ -76,6 +76,26 @@ func TestTransactionContainerNoTransactionStorage(t *testing.T) {
 	a.Equal(11+30, container.getCurrentMemSizeInBytes())
 
 	assertPayloadSizeFromExtractTransactions(a, container, []int{11, 30})
+}
+
+func TestTransactionContainerZeroMaxMemSizeInBytes(t *testing.T) {
+	a := assert.New(t)
+	path, clean := createTmpFolder(a)
+	defer clean()
+	s, err := newTransactionsFileStorage(NewTransactionsSerializer("", nil), path, 1000, transactionsFileStorageTelemetry{})
+	a.NoError(err)
+
+	maxMemSizeInBytes := 0
+	container := newTransactionContainer(createDropPrioritySorter(), s, maxMemSizeInBytes, 0.1, transactionContainerTelemetry{})
+
+	inMemTrDropped, err := container.add(createTransactionWithPayloadSize(10))
+	a.NoError(err)
+	a.Equal(0, inMemTrDropped)
+
+	// `extractTransactionsForDisk` does not behave the same when there is a existing transaction.
+	inMemTrDropped, err = container.add(createTransactionWithPayloadSize(10))
+	a.NoError(err)
+	a.Equal(1, inMemTrDropped)
 }
 
 func createTransactionWithPayloadSize(payloadSize int) *HTTPTransaction {

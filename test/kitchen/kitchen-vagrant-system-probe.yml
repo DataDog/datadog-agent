@@ -11,7 +11,7 @@ provisioner:
 
 platforms:
 <%
-    ENV['TEST_PLATFORMS'] ||= "centos7:roboxes/centos7,xenial:bento/ubuntu-16.04"
+    ENV['TEST_PLATFORMS'] ||= "centos7:bento/centos-7.6,xenial:bento/ubuntu-16.04"
     test_platforms = ENV['TEST_PLATFORMS'].split(',').map { |p| p.split(':') }
     test_platforms.each do |platform|
 %>

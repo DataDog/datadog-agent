@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package dogstatsd
 
@@ -47,7 +47,7 @@ func benchParsePackets(b *testing.B, rawPacket []byte) {
 	config.SetupLogger("", "off", "", "", false, true, false)
 
 	agg := mockAggregator()
-	s, _ := NewServer(agg)
+	s, _ := NewServer(agg, nil)
 	defer s.Stop()
 
 	done := make(chan struct{})
@@ -97,7 +97,7 @@ func BenchmarkParseMetricMessage(b *testing.B) {
 	config.SetupLogger("", "off", "", "", false, true, false)
 
 	agg := mockAggregator()
-	s, _ := NewServer(agg)
+	s, _ := NewServer(agg, nil)
 	defer s.Stop()
 
 	done := make(chan struct{})
@@ -114,13 +114,12 @@ func BenchmarkParseMetricMessage(b *testing.B) {
 	defer close(done)
 
 	parser := newParser(newFloat64ListPool())
-	originTagger := originTags{}
 	message := []byte("daemon:666|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2")
 
 	b.RunParallel(func(pb *testing.PB) {
 		samplesBench = make([]metrics.MetricSample, 0, 512)
 		for pb.Next() {
-			s.parseMetricMessage(samplesBench, parser, message, originTagger.getTags)
+			s.parseMetricMessage(samplesBench, parser, message, "")
 			samplesBench = samplesBench[0:0]
 		}
 	})
@@ -159,7 +158,7 @@ func BenchmarkMapperControl(b *testing.B) {
 	config.SetupLogger("", "off", "", "", false, true, false)
 
 	agg := mockAggregator()
-	s, _ := NewServer(agg)
+	s, _ := NewServer(agg, nil)
 	defer s.Stop()
 
 	done := make(chan struct{})

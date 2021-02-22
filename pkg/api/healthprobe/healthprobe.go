@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package healthprobe
 
@@ -69,7 +69,7 @@ func healthHandler(getStatusNonBlocking func() (health.Status, error), w http.Re
 
 	if len(health.Unhealthy) > 0 {
 		w.WriteHeader(http.StatusInternalServerError)
-		log.Debugf("Healthcheck failed on: %v", health.Unhealthy)
+		log.Infof("Healthcheck failed on: %v", health.Unhealthy)
 	}
 
 	jsonHealth, err := json.Marshal(health)

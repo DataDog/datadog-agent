@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package alibaba
 
@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 // declare these as vars not const to ease testing
@@ -72,7 +73,8 @@ func getResponseWithMaxLength(endpoint string, maxLength int) (string, error) {
 
 func getResponse(url string) (string, error) {
 	client := http.Client{
-		Timeout: timeout,
+		Transport: httputils.CreateHTTPTransport(),
+		Timeout:   timeout,
 	}
 
 	req, err := http.NewRequest("GET", url, nil)

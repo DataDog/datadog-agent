@@ -141,7 +141,7 @@ func extractIPsAndPorts(conn net.Conn) (
 	if err != nil {
 		return
 	}
-	saddr = binary.LittleEndian.Uint32(net.ParseIP(saddrStr).To4())
+	saddr = nativeEndian.Uint32(net.ParseIP(saddrStr).To4())
 	sportn, err := strconv.Atoi(sportStr)
 	if err != nil {
 		return
@@ -152,7 +152,7 @@ func extractIPsAndPorts(conn net.Conn) (
 	if err != nil {
 		return
 	}
-	daddr = binary.LittleEndian.Uint32(net.ParseIP(daddrStr).To4())
+	daddr = nativeEndian.Uint32(net.ParseIP(daddrStr).To4())
 	dportn, err := strconv.Atoi(dportStr)
 	if err != nil {
 		return
@@ -301,11 +301,20 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *tracerStatus, expected *f
 		status.saddr = C.__u32(expected.saddr)
 	case guessDaddr:
 		if status.daddr == C.__u32(expected.daddr) {
-			logAndAdvance(status, status.offset_daddr, guessFamily)
+			logAndAdvance(status, status.offset_daddr, guessDport)
 			break
 		}
 		status.offset_daddr++
 		status.daddr = C.__u32(expected.daddr)
+	case guessDport:
+		if status.dport == C.__u16(htons(expected.dport)) {
+			logAndAdvance(status, status.offset_dport, guessFamily)
+			// we know the family ((struct __sk_common)->skc_family) is
+			// after the skc_dport field, so we start from there
+			status.offset_family = status.offset_dport
+			break
+		}
+		status.offset_dport++
 	case guessFamily:
 		if status.family == C.__u16(expected.family) {
 			logAndAdvance(status, status.offset_family, guessSport)
@@ -317,16 +326,10 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *tracerStatus, expected *f
 		status.offset_family++
 	case guessSport:
 		if status.sport == C.__u16(htons(expected.sport)) {
-			logAndAdvance(status, status.offset_sport, guessDport)
+			logAndAdvance(status, status.offset_sport, guessSaddrFl4)
 			break
 		}
 		status.offset_sport++
-	case guessDport:
-		if status.dport == C.__u16(htons(expected.dport)) {
-			logAndAdvance(status, status.offset_dport, guessSaddrFl4)
-			break
-		}
-		status.offset_dport++
 	case guessSaddrFl4:
 		if status.saddr_fl4 == C.__u32(expected.saddrFl4) {
 			logAndAdvance(status, status.offset_saddr_fl4, guessDaddrFl4)
@@ -580,7 +583,7 @@ func newEventGenerator() (*eventGenerator, error) {
 		return nil, err
 	}
 
-	udpConn, err := net.Dial("udp", "8.8.8.8:53")
+	udpConn, err := net.Dial("udp", "8.8.4.4:53")
 	if err != nil {
 		return nil, err
 	}

@@ -1,0 +1,173 @@
+---
+# FIXME: our current Gitlab version doesn't support importing a file more than once
+# For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
+# See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
+# include:
+#   - /.gitlab/docker_common/tag_job_templates.yml
+
+.if_master_branch: &if_master_branch
+  if: $CI_COMMIT_BRANCH == "master"
+
+.docker_hub_variables: &docker_hub_variables
+  DOCKER_REGISTRY_LOGIN_SSM_KEY: docker_hub_login
+  DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd
+  DELEGATION_KEY_SSM_KEY: docker_hub_signing_key
+  DELEGATION_PASS_SSM_KEY: docker_hub_signing_pass
+  DOCKER_REGISTRY_URL: docker.io
+  SRC_AGENT: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+  SRC_DSD: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
+  SRC_DCA: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
+
+.google_container_registry_variables: &google_container_registry_variables
+  <<: *docker_hub_variables
+  DOCKER_REGISTRY_LOGIN_SSM_KEY: gcr_login
+  DOCKER_REGISTRY_PWD_SSM_KEY: gcr_pwd
+  GOOGLE_PROJECT_ID: datadoghq
+
+#
+# Use these steps to revert the latest tags to a previous release
+# while maintaining content trust signatures
+# - Create a pipeline on master with the RELEASE_6 and/or RELEASE_7 env vars
+# - in the gitlab pipeline view, trigger the step (in the first column)
+#
+revert_latest_6_docker_hub:
+  extends: .docker_tag_job_definition
+  rules:
+    - <<: *if_master_branch
+      when: manual
+      allow_failure: true
+  stage: maintenance_jobs
+  variables:
+    <<: *docker_hub_variables
+    NEW_LATEST_RELEASE_6: ""  # tag name of the non-jmx version, for example "6.21.0"
+  script:
+    - if [[ -z "$NEW_LATEST_RELEASE_6" ]]; then echo "Need release version to revert to"; exit 1; fi
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag latest-py2 --image datadog/agent-amd64:${NEW_LATEST_RELEASE_6},linux/amd64 --image datadog/agent-arm64:${NEW_LATEST_RELEASE_6},linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag latest-py2-jmx --image datadog/agent-amd64:${NEW_LATEST_RELEASE_6}-jmx,linux/amd64 --image datadog/agent-arm64:${NEW_LATEST_RELEASE_6}-jmx,linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag 6 --image datadog/agent-amd64:${NEW_LATEST_RELEASE_6},linux/amd64 --image datadog/agent-arm64:${NEW_LATEST_RELEASE_6},linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag 6-jmx --image datadog/agent-amd64:${NEW_LATEST_RELEASE_6}-jmx,linux/amd64 --image datadog/agent-arm64:${NEW_LATEST_RELEASE_6}-jmx,linux/arm64
+
+revert_latest_7_docker_hub:
+  extends: .docker_tag_job_definition
+  rules:
+    - <<: *if_master_branch
+      when: manual
+      allow_failure: true
+  stage: maintenance_jobs
+  variables:
+    <<: *docker_hub_variables
+    NEW_LATEST_RELEASE_7: ""  # tag name of the non-jmx version, for example "7.21.0"
+  script:
+    - if [[ -z "$NEW_LATEST_RELEASE_7" ]]; then echo "Need release version to revert to"; exit 1; fi
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag latest
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7},linux/amd64
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-win1809,windows/amd64
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-win1909,windows/amd64
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-win2004,windows/amd64
+      --image datadog/agent-arm64:${NEW_LATEST_RELEASE_7},linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag latest-jmx
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx,linux/amd64
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1809,windows/amd64
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1909,windows/amd64
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win2004,windows/amd64
+      --image datadog/agent-arm64:${NEW_LATEST_RELEASE_7}-jmx,linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag 7
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7},linux/amd64
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-win1809,windows/amd64
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-win1909,windows/amd64
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-win2004,windows/amd64
+      --image datadog/agent-arm64:${NEW_LATEST_RELEASE_7},linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag 7-jmx
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx,linux/amd64
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1809,windows/amd64
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1909,windows/amd64
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win2004,windows/amd64
+      --image datadog/agent-arm64:${NEW_LATEST_RELEASE_7}-jmx,linux/arm64
+    - inv -e docker.publish --signed-pull --signed-push datadog/dogstatsd:${NEW_LATEST_RELEASE_7} datadog/dogstatsd:latest
+    - inv -e docker.publish --signed-pull --signed-push datadog/dogstatsd:${NEW_LATEST_RELEASE_7} datadog/dogstatsd:7
+
+revert_latest_6_google_container_registry:
+  extends: .google_container_registry_tag_job_definition
+  rules:
+    - <<: *if_master_branch
+      when: manual
+      allow_failure: true
+  stage: maintenance_jobs
+  variables:
+    <<: *google_container_registry_variables
+    NEW_LATEST_RELEASE_6: ""  # tag name of the non-jmx version, for example "6.21.0"
+  script:
+    - if [[ -z "$NEW_LATEST_RELEASE_6" ]]; then echo "Need release version to revert to"; exit 1; fi
+    - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag latest-py2 --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_6},linux/amd64 --image gcr.io/datadoghq/agent-arm64:${NEW_LATEST_RELEASE_6},linux/arm64
+    - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag latest-py2-jmx --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_6}-jmx,linux/amd64 --image gcr.io/datadoghq/agent-arm64:${NEW_LATEST_RELEASE_6}-jmx,linux/arm64
+    - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag 6 --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_6},linux/amd64 --image gcr.io/datadoghq/agent-arm64:${NEW_LATEST_RELEASE_6},linux/arm64
+    - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag 6-jmx --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_6}-jmx,linux/amd64 --image gcr.io/datadoghq/agent-arm64:${NEW_LATEST_RELEASE_6}-jmx,linux/arm64
+
+revert_latest_7_google_container_registry:
+  extends: .google_container_registry_tag_job_definition
+  rules:
+    - <<: *if_master_branch
+      when: manual
+      allow_failure: true
+  stage: maintenance_jobs
+  variables:
+    <<: *google_container_registry_variables
+    NEW_LATEST_RELEASE_7: ""  # tag name of the non-jmx version, for example "7.21.0"
+  script:
+    - if [[ -z "$NEW_LATEST_RELEASE_7" ]]; then echo "Need release version to revert to"; exit 1; fi
+    - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag latest
+      --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7},linux/amd64
+      --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-win1809,windows/amd64
+      --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-win1909,windows/amd64
+      --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-win2004,windows/amd64
+      --image gcr.io/datadoghq/agent-arm64:${NEW_LATEST_RELEASE_7},linux/arm64
+    - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag latest-jmx
+      --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx,linux/amd64
+      --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1809,windows/amd64
+      --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1909,windows/amd64
+      --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win2004,windows/amd64
+      --image gcr.io/datadoghq/agent-arm64:${NEW_LATEST_RELEASE_7}-jmx,linux/arm64
+    - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag 7
+      --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7},linux/amd64
+      --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-win1809,windows/amd64
+      --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-win1909,windows/amd64
+      --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-win2004,windows/amd64
+      --image gcr.io/datadoghq/agent-arm64:${NEW_LATEST_RELEASE_7},linux/arm64
+    - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag 7-jmx
+      --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx,linux/amd64
+      --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1809,windows/amd64
+      --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1909,windows/amd64
+      --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win2004,windows/amd64
+      --image gcr.io/datadoghq/agent-arm64:${NEW_LATEST_RELEASE_7}-jmx,linux/arm64
+    - inv -e docker.publish gcr.io/datadoghq/dogstatsd:${NEW_LATEST_RELEASE_7} gcr.io/datadoghq/dogstatsd:latest
+    - inv -e docker.publish gcr.io/datadoghq/dogstatsd:${NEW_LATEST_RELEASE_7} gcr.io/datadoghq/dogstatsd:7
+
+#
+# Use this step to delete a tag of a given image
+# We call the Docker Hub API because docker cli doesn't support deleting tags
+# - Run a pipeline on master with the IMAGE and TAG env vars
+# - in the gitlab pipeline view, trigger the step (in the first column)
+delete_docker_tag:
+  rules:
+    - <<: *if_master_branch
+      when: manual
+      allow_failure: true
+  stage: maintenance_jobs
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:v2718650-9ce6565-0.6.1-py3
+  tags: ["runner:docker", "size:large"]
+  dependencies: []
+  variables:
+    <<: *docker_hub_variables
+    IMAGE: ""  # image name, for example "agent"
+    TAG: ""  # tag name, for example "6.9.0"
+    ORGANIZATION: "datadog"
+  before_script:
+    - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
+    - PASS=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
+    - python3 -m pip install -r requirements.txt
+    - |
+      export DOCKER_TOKEN=`curl -s -H "Content-Type: application/json" -X POST -d '{"username": "'$DOCKER_REGISTRY_LOGIN'", "password": "'$PASS'"}' https://hub.docker.com/v2/users/login/ | python -c 'import sys, json; print(json.load(sys.stdin)["token"].strip())'`
+  script:
+    - if [[ -z "$IMAGE" ]]; then echo "Need an image"; exit 1; fi
+    - if [[ -z "$TAG" ]]; then echo "Need a tag to delete"; exit 1; fi
+    - inv -e docker.delete ${ORGANIZATION} ${IMAGE} ${TAG} ${DOCKER_TOKEN} &>/dev/null

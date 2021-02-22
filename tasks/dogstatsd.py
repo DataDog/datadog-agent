@@ -1,7 +1,7 @@
 """
 Dogstatsd tasks
 """
-from __future__ import absolute_import, print_function
+
 
 import os
 import shutil
@@ -26,7 +26,7 @@ from .utils import (
 # constants
 DOGSTATSD_BIN_PATH = os.path.join(".", "bin", "dogstatsd")
 STATIC_BIN_PATH = os.path.join(".", "bin", "static")
-MAX_BINARY_SIZE = 20 * 1024
+MAX_BINARY_SIZE = 21 * 1024
 DOGSTATSD_TAG = "datadog/dogstatsd:master"
 
 

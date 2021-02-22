@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package ec2
 
@@ -294,6 +294,28 @@ func TestGetLocalIPv4(t *testing.T) {
 	ips, err := GetLocalIPv4()
 	require.NoError(t, err)
 	assert.Equal(t, []string{ip}, ips)
+}
+
+func TestGetPublicIPv4(t *testing.T) {
+	ip := "10.0.0.2"
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		switch r.RequestURI {
+		case "/public-ipv4":
+			io.WriteString(w, ip)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+
+	defer ts.Close()
+	metadataURL = ts.URL
+	config.Datadog.Set("ec2_metadata_timeout", 1000)
+	defer resetPackageVars()
+
+	val, err := GetPublicIPv4()
+	require.NoError(t, err)
+	assert.Equal(t, ip, val)
 }
 
 func TestGetToken(t *testing.T) {

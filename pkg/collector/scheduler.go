@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package collector
 
@@ -150,7 +150,6 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 		return nil, err
 	}
 	selectedLoader := initConfig.LoaderName
-	log.Debugf("Get checks for check '%s' with loader name '%s'", config.Name, selectedLoader)
 
 	for _, instance := range config.Instances {
 		errors := []string{}
@@ -165,6 +164,11 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 
 		if instanceConfig.LoaderName != "" {
 			selectedInstanceLoader = instanceConfig.LoaderName
+		}
+		if selectedInstanceLoader != "" {
+			log.Debugf("Loading check instance for check '%s' using loader %s (init_config loader: %s, instance loader: %s)", config.Name, selectedInstanceLoader, initConfig.LoaderName, instanceConfig.LoaderName)
+		} else {
+			log.Debugf("Loading check instance for check '%s' using default loaders", config.Name)
 		}
 
 		for _, loader := range s.loaders {

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build linux
 
@@ -20,6 +20,18 @@ var execProbes = []*manager.Probe{
 	{
 		UID:     SecurityAgentUID,
 		Section: "kprobe/do_exit",
+	},
+	{
+		UID:     SecurityAgentUID,
+		Section: "kprobe/do_fork",
+	},
+	{
+		UID:     SecurityAgentUID,
+		Section: "kprobe/_do_fork",
+	},
+	{
+		UID:     SecurityAgentUID,
+		Section: "kprobe/kernel_clone",
 	},
 	{
 		UID:     SecurityAgentUID,

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package app
 
@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -98,12 +99,12 @@ func newComplianceReporter(stopper restart.Stopper, sourceName, sourceType strin
 	health := health.RegisterLiveness("compliance")
 
 	// setup the auditor
-	auditor := auditor.New(coreconfig.Datadog.GetString("compliance_config.run_path"), "compliance-registry.json", health)
+	auditor := auditor.New(coreconfig.Datadog.GetString("compliance_config.run_path"), "compliance-registry.json", coreconfig.DefaultAuditorTTL, health)
 	auditor.Start()
 	stopper.Add(auditor)
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, nil, endpoints, context)
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, context)
 	pipelineProvider.Start()
 	stopper.Add(pipelineProvider)
 

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build linux
 
@@ -20,13 +20,8 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-const (
-	syscallMetric = MetricPrefix + ".syscalls"
-	execMetric    = MetricPrefix + ".exec"
 )
 
 // ProcessSyscall represents a syscall made by a process
@@ -39,11 +34,11 @@ type ProcessSyscall struct {
 // UnmarshalBinary unmarshals a binary representation of a ProcessSyscall
 func (p *ProcessSyscall) UnmarshalBinary(data []byte) error {
 	var comm [16]byte
-	utils.SliceToArray(data[0:16], unsafe.Pointer(&comm))
+	model.SliceToArray(data[0:16], unsafe.Pointer(&comm))
 
 	p.Process = string(bytes.Trim(comm[:], "\x00"))
-	p.Pid = ebpf.ByteOrder.Uint32(data[16:20])
-	p.ID = ebpf.ByteOrder.Uint32(data[20:24])
+	p.Pid = model.ByteOrder.Uint32(data[16:20])
+	p.ID = model.ByteOrder.Uint32(data[20:24])
 	return nil
 }
 
@@ -68,7 +63,7 @@ func (p *ProcessPath) UnmarshalBinary(data []byte) error {
 	if len(data) == 0 {
 		return errors.New("path empty")
 	}
-	utils.SliceToArray(data[0:256], unsafe.Pointer(&p.PathRaw))
+	model.SliceToArray(data[0:256], unsafe.Pointer(&p.PathRaw))
 	p.Path = C.GoString((*C.char)(unsafe.Pointer(&p.PathRaw)))
 	return nil
 }
@@ -77,6 +72,7 @@ func (p *ProcessPath) UnmarshalBinary(data []byte) error {
 type SyscallStatsCollector interface {
 	CountSyscall(process string, syscallID Syscall, count uint64) error
 	CountExec(process string, count uint64) error
+	CountConcurrentSyscalls(count int64) error
 }
 
 // SyscallStats collects syscall statistics and store them in memory
@@ -96,6 +92,11 @@ func (s *SyscallStats) CountExec(process string, count uint64) error {
 	return nil
 }
 
+// CountConcurrentSyscalls counts the number of syscalls that are currently being executed
+func (s *SyscallStats) CountConcurrentSyscalls(count int64) error {
+	return nil
+}
+
 // SyscallStatsdCollector collects syscall statistics and sends them to statsd
 type SyscallStatsdCollector struct {
 	statsdClient *statsd.Client
@@ -109,7 +110,7 @@ func (s *SyscallStatsdCollector) CountSyscall(process string, syscallID Syscall,
 		fmt.Sprintf("syscall:%s", syscall),
 	}
 
-	return s.statsdClient.Count(syscallMetric, int64(count), tags, 1.0)
+	return s.statsdClient.Count(MetricSyscalls, int64(count), tags, 1.0)
 }
 
 // CountExec counts the number times a process was executed
@@ -118,7 +119,15 @@ func (s *SyscallStatsdCollector) CountExec(process string, count uint64) error {
 		fmt.Sprintf("process:%s", process),
 	}
 
-	return s.statsdClient.Count(execMetric, int64(count), tags, 1.0)
+	return s.statsdClient.Count(MetricExec, int64(count), tags, 1.0)
+}
+
+// CountConcurrentSyscalls counts the number of syscalls that are currently being executed
+func (s *SyscallStatsdCollector) CountConcurrentSyscalls(count int64) error {
+	if count > 0 {
+		return s.statsdClient.Count(MetricConcurrentSyscall, count, []string{}, 1.0)
+	}
+	return nil
 }
 
 // SyscallMonitor monitors syscalls using eBPF maps filled using kernel tracepoints
@@ -127,6 +136,7 @@ type SyscallMonitor struct {
 	buffers            [2]*lib.Map
 	execBuffers        [2]*lib.Map
 	activeKernelBuffer uint32
+	concurrentSyscalls *lib.Map
 }
 
 // GetStats returns the syscall statistics
@@ -155,6 +165,7 @@ func (sm *SyscallMonitor) CollectStats(collector SyscallStatsCollector) error {
 		execBuffer        = sm.execBuffers[1-sm.activeKernelBuffer]
 	)
 
+	// syscall counter
 	mapIterator := buffer.Iterate()
 	for mapIterator.Next(&processSyscallRaw, &value) {
 		if err := processSyscall.UnmarshalBinary(processSyscallRaw); err != nil {
@@ -175,6 +186,7 @@ func (sm *SyscallMonitor) CollectStats(collector SyscallStatsCollector) error {
 		log.Debugf("couldn't iterate over %s: %v", buffer.String(), mapIterator.Err())
 	}
 
+	// exec counter
 	mapIterator = execBuffer.Iterate()
 	for mapIterator.Next(&processPath, &value) {
 		if !processPath.IsEmpty() {
@@ -192,8 +204,18 @@ func (sm *SyscallMonitor) CollectStats(collector SyscallStatsCollector) error {
 		log.Debugf("couldn't iterate over %s: %v", execBuffer.String(), mapIterator.Err())
 	}
 
+	// concurrent syscalls counter
+	var concurrentSyscallKey uint32
+	var concurrentCount int64
+	if err := sm.concurrentSyscalls.Lookup(concurrentSyscallKey, &concurrentCount); err != nil {
+		return err
+	}
+	if err := collector.CountConcurrentSyscalls(concurrentCount); err != nil {
+		return err
+	}
+
 	sm.activeKernelBuffer = 1 - sm.activeKernelBuffer
-	return sm.bufferSelector.Put(ebpf.ZeroUint32MapItem, sm.activeKernelBuffer)
+	return sm.bufferSelector.Put(ebpf.BufferSelectorSyscallMonitorKey, sm.activeKernelBuffer)
 }
 
 // NewSyscallMonitor instantiates a new syscall monitor
@@ -239,9 +261,18 @@ func NewSyscallMonitor(manager *manager.Manager) (*SyscallMonitor, error) {
 		return nil, errors.New("map exec_count_two not found")
 	}
 
+	concurrentSyscalls, ok, err := manager.GetMap("concurrent_syscalls")
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, errors.New("map concurrent_syscalls not found")
+	}
+
 	return &SyscallMonitor{
-		bufferSelector: bufferSelector,
-		buffers:        [2]*lib.Map{frontBuffer, backBuffer},
-		execBuffers:    [2]*lib.Map{execFrontBuffer, execBackBuffer},
+		bufferSelector:     bufferSelector,
+		buffers:            [2]*lib.Map{frontBuffer, backBuffer},
+		execBuffers:        [2]*lib.Map{execFrontBuffer, execBackBuffer},
+		concurrentSyscalls: concurrentSyscalls,
 	}, nil
 }

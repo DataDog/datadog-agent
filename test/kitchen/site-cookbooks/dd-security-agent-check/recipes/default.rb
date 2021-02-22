@@ -2,7 +2,7 @@
 # Cookbook Name:: dd-security-agent-check
 # Recipe:: default
 #
-# Copyright (C) 2020 Datadog
+# Copyright (C) 2020-present Datadog
 #
 
 if node['platform_family'] != 'windows'
@@ -32,6 +32,10 @@ if node['platform_family'] != 'windows'
       apt_update
 
       package 'gnupg'
+
+      package 'unattended-upgrades' do
+        action :remove
+      end
     end
 
     if ['ubuntu', 'debian', 'centos'].include?(node[:platform])

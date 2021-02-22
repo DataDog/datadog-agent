@@ -1,14 +1,13 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package config
 
 import (
 	"fmt"
 	"net/url"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -63,7 +62,6 @@ func key(pieces ...string) string {
 
 // LoadYamlConfig load orchestrator-specific configuration
 func (oc *OrchestratorConfig) LoadYamlConfig(path string) error {
-	loadEnvVariables()
 	// Resolve any secrets
 	if err := config.ResolveSecrets(config.Datadog, filepath.Base(path)); err != nil {
 		return err
@@ -76,7 +74,7 @@ func (oc *OrchestratorConfig) LoadYamlConfig(path string) error {
 	oc.OrchestratorEndpoints[0].Endpoint = URL
 
 	if key := "api_key"; config.Datadog.IsSet(key) {
-		oc.OrchestratorEndpoints[0].APIKey = config.Datadog.GetString(key)
+		oc.OrchestratorEndpoints[0].APIKey = config.SanitizeAPIKey(config.Datadog.GetString(key))
 	}
 
 	if err := extractOrchestratorAdditionalEndpoints(URL, &oc.OrchestratorEndpoints); err != nil {
@@ -120,12 +118,6 @@ func (oc *OrchestratorConfig) LoadYamlConfig(path string) error {
 	return nil
 }
 
-func loadEnvVariables() {
-	if v := os.Getenv("DD_ORCHESTRATOR_CUSTOM_SENSITIVE_WORDS"); v != "" {
-		config.Datadog.Set(key(orchestratorNS, "custom_sensitive_words"), strings.Split(v, ","))
-	}
-}
-
 func extractOrchestratorAdditionalEndpoints(URL *url.URL, orchestratorEndpoints *[]api.Endpoint) error {
 	if k := key(orchestratorNS, "orchestrator_additional_endpoints"); config.Datadog.IsSet(k) {
 		if err := extractEndpoints(URL, k, orchestratorEndpoints); err != nil {
@@ -147,7 +139,7 @@ func extractEndpoints(URL *url.URL, k string, endpoints *[]api.Endpoint) error {
 		}
 		for _, k := range apiKeys {
 			*endpoints = append(*endpoints, api.Endpoint{
-				APIKey:   k,
+				APIKey:   config.SanitizeAPIKey(k),
 				Endpoint: u,
 			})
 		}

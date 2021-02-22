@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package main
 
@@ -69,9 +69,13 @@ func main() {
 	config.Datadog.AddConfigPath(DefaultConfPath)
 
 	// go_expvar server
-	go http.ListenAndServe(
-		fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_stats_port")),
-		http.DefaultServeMux)
+	go func() {
+		port := config.Datadog.GetInt("dogstatsd_stats_port")
+		err := http.ListenAndServe(fmt.Sprintf("127.0.0.1:%d", port), http.DefaultServeMux)
+		if err != nil && err != http.ErrServerClosed {
+			log.Errorf("Error creating expvar server on port %v: %v", port, err)
+		}
+	}()
 
 	isIntSess, err := svc.IsAnInteractiveSession()
 	if err != nil {
@@ -203,7 +207,7 @@ func importRegistryConfig() error {
 	var val string
 
 	if val, _, err = k.GetStringValue("api_key"); err == nil && val != "" {
-		overrides["api_key"] = val
+		overrides["api_key"] = config.SanitizeAPIKey(val)
 		log.Debug("Setting API key")
 	} else {
 		log.Debug("API key not found, not setting")

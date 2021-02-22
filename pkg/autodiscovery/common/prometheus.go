@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package common
 
@@ -61,7 +61,7 @@ type OpenmetricsInstance struct {
 	LabelsMapper                  map[string]string           `mapstructure:"labels_mapper" json:"labels_mapper,omitempty"`
 	TypeOverride                  map[string]string           `mapstructure:"type_overrides" json:"type_overrides,omitempty"`
 	HistogramBuckets              bool                        `mapstructure:"send_histograms_buckets" json:"send_histograms_buckets,omitempty"`
-	DistribuitionBuckets          bool                        `mapstructure:"send_distribution_buckets" json:"send_distribution_buckets,omitempty"`
+	DistributionBuckets           bool                        `mapstructure:"send_distribution_buckets" json:"send_distribution_buckets,omitempty"`
 	MonotonicCounter              bool                        `mapstructure:"send_monotonic_counter" json:"send_monotonic_counter,omitempty"`
 	DistributionCountsAsMonotonic bool                        `mapstructure:"send_distribution_counts_as_monotonic" json:"send_distribution_counts_as_monotonic,omitempty"`
 	DistributionSumsAsMonotonic   bool                        `mapstructure:"send_distribution_sums_as_monotonic" json:"send_distribution_sums_as_monotonic,omitempty"`
@@ -287,4 +287,53 @@ func buildURL(annotations map[string]string) string {
 	}
 
 	return openmetricsURLPrefix + port + path
+}
+
+// PrometheusAnnotations abstracts a map of prometheus annotations
+type PrometheusAnnotations map[string]string
+
+// GetPrometheusIncludeAnnotations returns the Prometheus AD include annotations based on the Prometheus config
+func GetPrometheusIncludeAnnotations() PrometheusAnnotations {
+	annotations := PrometheusAnnotations{}
+	checks, err := ReadPrometheusChecksConfig()
+	if err != nil {
+		log.Warnf("Couldn't get configurations from 'prometheus_scrape.checks': %v", err)
+		return annotations
+	}
+
+	if len(checks) == 0 {
+		annotations[PrometheusScrapeAnnotation] = "true"
+		return annotations
+	}
+
+	for _, check := range checks {
+		if err := check.Init(); err != nil {
+			log.Errorf("Couldn't init check configuration: %v", err)
+			continue
+		}
+		for k, v := range check.AD.GetIncludeAnnotations() {
+			annotations[k] = v
+		}
+	}
+	return annotations
+}
+
+// IsMatchingAnnotations returns whether annotations matches the AD include rules for Prometheus
+func (a PrometheusAnnotations) IsMatchingAnnotations(svcAnnotations map[string]string) bool {
+	for k, v := range a {
+		if svcAnnotations[k] == v {
+			return true
+		}
+	}
+	return false
+}
+
+// AnnotationsDiffer returns whether the Prometheus AD include annotations have changed
+func (a PrometheusAnnotations) AnnotationsDiffer(first, second map[string]string) bool {
+	for k := range a {
+		if first[k] != second[k] {
+			return true
+		}
+	}
+	return false
 }

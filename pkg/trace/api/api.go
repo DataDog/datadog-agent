@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package api
 
@@ -106,24 +106,20 @@ func (r *HTTPReceiver) buildMux() *http.ServeMux {
 	mux := http.NewServeMux()
 
 	r.attachDebugHandlers(mux)
-
-	mux.HandleFunc("/spans", r.handleWithVersion(v01, r.handleTraces))
-	mux.HandleFunc("/services", r.handleWithVersion(v01, r.handleServices))
-	mux.HandleFunc("/v0.1/spans", r.handleWithVersion(v01, r.handleTraces))
-	mux.HandleFunc("/v0.1/services", r.handleWithVersion(v01, r.handleServices))
-	mux.HandleFunc("/v0.2/traces", r.handleWithVersion(v02, r.handleTraces))
-	mux.HandleFunc("/v0.2/services", r.handleWithVersion(v02, r.handleServices))
-	mux.HandleFunc("/v0.3/traces", r.handleWithVersion(v03, r.handleTraces))
-	mux.HandleFunc("/v0.3/services", r.handleWithVersion(v03, r.handleServices))
-	mux.HandleFunc("/v0.4/traces", r.handleWithVersion(v04, r.handleTraces))
-	mux.HandleFunc("/v0.4/services", r.handleWithVersion(v04, r.handleServices))
-	mux.HandleFunc("/v0.5/traces", r.handleWithVersion(v05, r.handleTraces))
-	if config.HasFeature("client_stats") {
-		mux.HandleFunc("/v0.5/stats", r.handleStats)
+	for _, e := range endpoints {
+		mux.Handle(e.Pattern, replyWithVersion(e.Handler(r)))
 	}
-	mux.Handle("/profiling/v1/input", r.profileProxyHandler())
+	mux.HandleFunc("/info", r.makeInfoHandler())
 
 	return mux
+}
+
+// replyWithVersion returns an http.Handler which calls h but adds the Datadog Agent version.
+func replyWithVersion(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Datadog-Agent-Version", info.Version)
+		h.ServeHTTP(w, r)
+	})
 }
 
 // Start starts doing the HTTP server and is ready to receive traces

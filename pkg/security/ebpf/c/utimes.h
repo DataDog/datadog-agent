@@ -22,17 +22,23 @@ struct utime_event_t {
 };
 
 int __attribute__((always_inline)) trace__sys_utimes() {
-    struct syscall_cache_t syscall = {
-        .type = SYSCALL_UTIME,
-    };
-
-    cache_syscall(&syscall, EVENT_UTIME);
-
-    if (discarded_by_process(syscall.policy.mode, EVENT_UTIME)) {
-        pop_syscall(SYSCALL_UTIME);
+    struct policy_t policy = fetch_policy(EVENT_UTIME);
+    if (discarded_by_process(policy.mode, EVENT_UTIME)) {
+        return 0;
     }
 
+    struct syscall_cache_t syscall = {
+        .type = SYSCALL_UTIME,
+        .policy = policy,
+    };
+
+    cache_syscall(&syscall);
+
     return 0;
+}
+
+int __attribute__((always_inline)) utime_approvers(struct syscall_cache_t *syscall) {
+    return basename_approver(syscall, syscall->setattr.dentry, EVENT_UTIME);
 }
 
 // On old kernels, we have sys_utime and compat_sys_utime.
@@ -66,16 +72,7 @@ int __attribute__((always_inline)) trace__sys_utimes_ret(struct pt_regs *ctx) {
     if (IS_UNHANDLED_ERROR(retval))
         return 0;
 
-    // add an real entry to reach the first dentry with the proper inode
-    u64 inode = syscall->setattr.path_key.ino;
-    if (syscall->setattr.real_inode) {
-        inode = syscall->setattr.real_inode;
-        link_dentry_inode(syscall->setattr.path_key, inode);
-    }
-
     struct utime_event_t event = {
-        .event.type = EVENT_UTIME,
-        .event.timestamp = bpf_ktime_get_ns(),
         .syscall.retval = retval,
         .atime = {
             .tv_sec = syscall->setattr.atime.tv_sec,
@@ -86,7 +83,7 @@ int __attribute__((always_inline)) trace__sys_utimes_ret(struct pt_regs *ctx) {
             .tv_usec = syscall->setattr.mtime.tv_nsec,
         },
         .file = {
-            .inode = inode,
+            .inode = syscall->setattr.path_key.ino,
             .mount_id = syscall->setattr.path_key.mount_id,
             .overlay_numlower = get_overlay_numlower(syscall->setattr.dentry),
             .path_id = syscall->setattr.path_key.path_id,
@@ -98,7 +95,7 @@ int __attribute__((always_inline)) trace__sys_utimes_ret(struct pt_regs *ctx) {
 
     // dentry resolution in setattr.h
 
-    send_event(ctx, event);
+    send_event(ctx, EVENT_UTIME, event);
 
     return 0;
 }

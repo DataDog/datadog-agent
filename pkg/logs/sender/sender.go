@@ -1,12 +1,13 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package sender
 
 import (
 	"context"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -16,7 +17,8 @@ import (
 // Strategy should contain all logic to send logs to a remote destination
 // and forward them the next stage of the pipeline.
 type Strategy interface {
-	Send(inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error)
+	Send(inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error, mu *sync.Mutex)
+	Flush(inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error, mu *sync.Mutex)
 }
 
 // Sender sends logs to different destinations.
@@ -26,6 +28,7 @@ type Sender struct {
 	destinations *client.Destinations
 	strategy     Strategy
 	done         chan struct{}
+	mu           sync.Mutex
 }
 
 // NewSender returns a new sender.
@@ -51,11 +54,16 @@ func (s *Sender) Stop() {
 	<-s.done
 }
 
+// Flush sends synchronously the messages that this sender has to send.
+func (s *Sender) Flush() {
+	s.strategy.Flush(s.inputChan, s.outputChan, s.send, &s.mu)
+}
+
 func (s *Sender) run() {
 	defer func() {
 		s.done <- struct{}{}
 	}()
-	s.strategy.Send(s.inputChan, s.outputChan, s.send)
+	s.strategy.Send(s.inputChan, s.outputChan, s.send, &s.mu)
 }
 
 // send sends a payload to multiple destinations,

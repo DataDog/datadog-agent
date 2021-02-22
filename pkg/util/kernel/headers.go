@@ -46,6 +46,24 @@ func FindHeaderDirs() ([]string, error) {
 	return nil, err
 }
 
+// ValidateHeaderDir verifies that the kernel headers in the directory match the kernel version of the running host
+func ValidateHeaderDir(path string) error {
+	hv, err := HostVersion()
+	if err != nil {
+		return err
+	}
+
+	dirv, err := getHeaderVersion(path)
+	if err != nil {
+		return err
+	}
+
+	if dirv != hv {
+		return fmt.Errorf("header version %s does not match host version %s", dirv, hv)
+	}
+	return nil
+}
+
 func getHeaderDirs(v Version) ([]string, error) {
 	hi := host.GetStatusInformation()
 	if hi.KernelVersion == "" {

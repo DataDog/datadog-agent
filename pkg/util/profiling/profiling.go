@@ -1,7 +1,7 @@
 /// Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package profiling
 
@@ -23,6 +23,8 @@ const (
 	ProfileURLTemplate = "https://intake.profile.%s/v1/input"
 	// ProfileCoreService default service for the core agent profiler.
 	ProfileCoreService = "datadog-agent"
+	// ProfilingLocalURLTemplate is the constant used to compute the URL of the local trace agent
+	ProfilingLocalURLTemplate = "http://%v/profiling/v1/input"
 )
 
 // Active returns a boolean indicating whether profiling is active or not;

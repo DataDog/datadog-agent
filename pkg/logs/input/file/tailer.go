@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package file
 
@@ -90,7 +90,7 @@ func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.
 	if file.Source.Config.Identifier != "" {
 		tagProvider = tag.NewProvider(containers.BuildTaggerEntityName(file.Source.Config.Identifier))
 	} else {
-		tagProvider = tag.NoopProvider
+		tagProvider = tag.NewLocalProvider([]string{})
 	}
 
 	forwardContext, stopForward := context.WithCancel(context.Background())
@@ -148,6 +148,9 @@ func (t *Tailer) readForever() {
 			return
 		}
 		t.file.Source.BytesRead.Add(int64(n))
+		if t.file.Source.ParentSource != nil {
+			t.file.Source.ParentSource.BytesRead.Add(int64(n))
+		}
 
 		select {
 		case <-t.stop:
@@ -240,7 +243,7 @@ func (t *Tailer) forwardMessages() {
 		// We don't return directly to keep the same shutdown sequence that in the
 		// normal case.
 		select {
-		case t.outputChan <- message.NewMessage(output.Content, origin, output.Status):
+		case t.outputChan <- message.NewMessage(output.Content, origin, output.Status, output.IngestionTimestamp):
 		case <-t.forwardContext.Done():
 		}
 	}
