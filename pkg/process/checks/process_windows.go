@@ -23,7 +23,7 @@ func formatCPU(fp *procutil.Stats, t2, t1 *procutil.CPUTimesStat, syst2, syst1 c
 	// under windows, utime & stime are number of 100-ns increments.  The elapsed time
 	// is in nanoseconds.
 	return &model.CPUStat{
-		LastCpu:    "CPU",
+		LastCpu:    "cpu",
 		TotalPct:   calculatePct(((t2.User-t1.User)+(t2.System-t1.System))*100, deltaSys, numCPU),
 		UserPct:    calculatePct((t2.User-t1.User)*100, deltaSys, numCPU),
 		SystemPct:  calculatePct((t2.System-t1.System)*100, deltaSys, numCPU),

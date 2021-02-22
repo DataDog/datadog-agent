@@ -37,7 +37,7 @@ func formatCPU(fp *procutil.Stats, t2, t1 *procutil.CPUTimesStat, syst2, syst1 c
 	numCPU := float64(runtime.NumCPU())
 	deltaSys := syst2.Total() - syst1.Total()
 	return &model.CPUStat{
-		LastCpu:    "CPU",
+		LastCpu:    "cpu",
 		TotalPct:   calculatePct((t2.User-t1.User)+(t2.System-t1.System), deltaSys, numCPU),
 		UserPct:    calculatePct(t2.User-t1.User, deltaSys, numCPU),
 		SystemPct:  calculatePct(t2.System-t1.System, deltaSys, numCPU),
