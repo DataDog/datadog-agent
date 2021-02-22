@@ -162,7 +162,6 @@ require (
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/mod v0.3.1-0.20200828183125-ce943fd02449 // indirect
 	golang.org/x/net v0.0.0-20201110031124-69a78807bb2b
-	golang.org/x/oauth2 v0.0.0-20201109201403-9fd604954f58 // indirect
 	golang.org/x/perf v0.0.0-20200918155509-d949658356f9
 	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
 	golang.org/x/sys v0.0.0-20201119102817-f84b799fce68
@@ -185,7 +184,6 @@ require (
 	k8s.io/apimachinery v0.17.4
 	k8s.io/apiserver v0.17.4 // indirect
 	k8s.io/autoscaler/vertical-pod-autoscaler v0.0.0-20200123122250-fa95810cfc1e
-	k8s.io/cli-runtime v0.20.2 // indirect
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/cri-api v0.0.0
 	k8s.io/klog v1.0.1-0.20200310124935-4ad0115ba9e4 // Min version that includes fix for Windows Nano

@@ -1,3 +1,10 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+// +build clusterchecks
+
 package cloudfoundry
 
 import (
@@ -17,7 +24,7 @@ type CCCacheI interface {
 	LastUpdated() time.Time
 	GetPollAttempts() int
 	GetPollSuccesses() int
-	GetApps(string) (*cfclient.V3App, error)
+	GetApp(string) (*cfclient.V3App, error)
 }
 
 // CCCache is a simple structure that caches and automatically refreshes data from Cloud Foundry API
@@ -25,12 +32,16 @@ type CCCache struct {
 	sync.RWMutex
 	cancelContext context.Context
 	configured    bool
-	ccAPIClient   *cfclient.Client
+	ccAPIClient   CCClientI
 	pollInterval  time.Duration
 	pollAttempts  int
 	pollSuccesses int
 	lastUpdated   time.Time
-	appsByGuid    map[string]*cfclient.V3App
+	appsByGUID    map[string]*cfclient.V3App
+}
+
+type CCClientI interface {
+	ListV3AppsByQuery(url.Values) ([]cfclient.V3App, error)
 }
 
 var (
@@ -39,7 +50,7 @@ var (
 )
 
 // ConfigureGlobalCCCache configures the global instance of CCCache from provided config
-func ConfigureGlobalCCCache(ctx context.Context, ccURL, ccClientId, ccClientSecret string, skipSSLValidation bool, pollInterval time.Duration, testing *cfclient.Client) (*CCCache, error) {
+func ConfigureGlobalCCCache(ctx context.Context, ccURL, ccClientID, ccClientSecret string, skipSSLValidation bool, pollInterval time.Duration, testing CCClientI) (*CCCache, error) {
 	globalCCCacheLock.Lock()
 	defer globalCCCacheLock.Unlock()
 
@@ -52,7 +63,7 @@ func ConfigureGlobalCCCache(ctx context.Context, ccURL, ccClientId, ccClientSecr
 	} else {
 		clientConfig := &cfclient.Config{
 			ApiAddress:        ccURL,
-			ClientID:          ccClientId,
+			ClientID:          ccClientID,
 			ClientSecret:      ccClientSecret,
 			SkipSslValidation: skipSSLValidation,
 		}
@@ -75,6 +86,8 @@ func ConfigureGlobalCCCache(ctx context.Context, ccURL, ccClientId, ccClientSecr
 
 // GetGlobalCCCache returns the global instance of CCCache (or error if the instance is not configured yet)
 func GetGlobalCCCache() (*CCCache, error) {
+	globalCCCacheLock.Lock()
+	defer globalCCCacheLock.Unlock()
 	if !globalCCCache.configured {
 		return nil, fmt.Errorf("global CC Cache not configured")
 	}
@@ -105,7 +118,7 @@ func (ccc *CCCache) GetPollSuccesses() int {
 func (ccc *CCCache) GetApp(guid string) (*cfclient.V3App, error) {
 	ccc.RLock()
 	defer ccc.RUnlock()
-	app, ok := ccc.appsByGuid[guid]
+	app, ok := ccc.appsByGUID[guid]
 	if !ok {
 		return nil, fmt.Errorf("could not find app %s in cloud controller cache", guid)
 	}
@@ -139,15 +152,15 @@ func (ccc *CCCache) readData() {
 		_ = log.Errorf("Failed listing apps from cloud controller: %v", err)
 		return
 	}
-	appsByGuid := make(map[string]*cfclient.V3App, len(apps))
+	appsByGUID := make(map[string]*cfclient.V3App, len(apps))
 	for i, app := range apps {
-		appsByGuid[app.GUID] = &apps[i] // can't point to the for loop variable, as it is reused, use indexed value
+		appsByGUID[app.GUID] = &apps[i] // can't point to the for loop variable, as it is reused, use indexed value
 	}
 
 	// put new apps in cache
 	ccc.Lock()
 	defer ccc.Unlock()
-	ccc.appsByGuid = appsByGuid
+	ccc.appsByGUID = appsByGUID
 	ccc.pollSuccesses++
 	ccc.lastUpdated = time.Now()
 }

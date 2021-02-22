@@ -118,7 +118,7 @@ var BBSModelD1 = models.DesiredLRP{
 
 var ExpectedD1 = DesiredLRP{
 	AppGUID:         "random_app_guid",
-	AppName:         "name_of_the_app",
+	AppName:         "name_of_app_cc",
 	EnvAD:           ADConfig{"xxx": {}},
 	EnvVcapServices: map[string][]byte{"xxx": []byte("{\"name\":\"xxx\"}")},
 	EnvVcapApplication: map[string]string{
