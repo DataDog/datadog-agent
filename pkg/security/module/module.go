@@ -117,6 +117,30 @@ func (m *Module) displayReport(report *probe.Report) {
 	log.Debugf("Policy report: %s", content)
 }
 
+func (m *Module) getEventTypeEnabled() map[eval.EventType]bool {
+	enabled := make(map[eval.EventType]bool)
+
+	categories := model.GetEventTypePerCategory()
+
+	if m.config.FIMEnabled {
+		if eventTypes, exists := categories[model.FIMCategory]; exists {
+			for _, eventType := range eventTypes {
+				enabled[eventType] = true
+			}
+		}
+	}
+
+	if m.config.RuntimeEnabled {
+		if eventTypes, exists := categories[model.RuntimeCategory]; exists {
+			for _, eventType := range eventTypes {
+				enabled[eventType] = true
+			}
+		}
+	}
+
+	return enabled
+}
+
 // Reload the rule set
 func (m *Module) Reload() error {
 	m.Lock()
@@ -127,7 +151,7 @@ func (m *Module) Reload() error {
 
 	rsa := sprobe.NewRuleSetApplier(m.config, m.probe)
 
-	ruleSet := m.probe.NewRuleSet(rules.NewOptsWithParams(model.SECLConstants, sprobe.SupportedDiscarders, sprobe.AllCustomRuleIDs(), agentLogger.DatadogAgentLogger{}))
+	ruleSet := m.probe.NewRuleSet(rules.NewOptsWithParams(model.SECLConstants, sprobe.SupportedDiscarders, m.getEventTypeEnabled(), sprobe.AllCustomRuleIDs(), agentLogger.DatadogAgentLogger{}))
 
 	loadErr := rules.LoadPolicies(m.config.PoliciesDir, ruleSet)
 	if loadErr.ErrorOrNil() != nil {

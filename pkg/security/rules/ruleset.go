@@ -65,11 +65,12 @@ type Opts struct {
 	eval.Opts
 	SupportedDiscarders map[eval.Field]bool
 	ReservedRuleIDs     []RuleID
+	EventTypeEnabled    map[eval.EventType]bool
 	Logger              Logger
 }
 
 // NewOptsWithParams initializes a new Opts instance with Debug and Constants parameters
-func NewOptsWithParams(constants map[string]interface{}, supportedDiscarders map[eval.Field]bool, reservedRuleIDs []RuleID, logger ...Logger) *Opts {
+func NewOptsWithParams(constants map[string]interface{}, supportedDiscarders map[eval.Field]bool, eventTypeEnabled map[eval.EventType]bool, reservedRuleIDs []RuleID, logger ...Logger) *Opts {
 	if len(logger) == 0 {
 		logger = []Logger{DefaultLogger{}}
 	}
@@ -80,6 +81,7 @@ func NewOptsWithParams(constants map[string]interface{}, supportedDiscarders map
 		},
 		SupportedDiscarders: supportedDiscarders,
 		ReservedRuleIDs:     reservedRuleIDs,
+		EventTypeEnabled:    eventTypeEnabled,
 		Logger:              logger[0],
 	}
 }
@@ -216,6 +218,25 @@ func (rs *RuleSet) AddRule(ruleDef *RuleDefinition) (*eval.Rule, error) {
 		return nil, &ErrRuleLoad{Definition: ruleDef, Err: err}
 	}
 
+	eventTypes := rule.GetEventTypes()
+
+	if len(eventTypes) == 0 {
+		return nil, &ErrRuleLoad{Definition: ruleDef, Err: errors.New("no event in the rule definition")}
+	}
+
+	// TODO: this contraints could be removed, but currently approver resolution can't handle multiple event type approver
+	if len(eventTypes) > 1 {
+		return nil, &ErrRuleLoad{Definition: ruleDef, Err: errors.New("rule with multiple events is not supported")}
+	}
+
+	// ignore event types not supported
+	if _, exists := rs.opts.EventTypeEnabled["*"]; !exists {
+		et := eventTypes[0]
+		if _, exists := rs.opts.EventTypeEnabled[et]; !exists {
+			return nil, nil
+		}
+	}
+
 	for _, event := range rule.GetEvaluator().EventTypes {
 		bucket, exists := rs.eventRuleBuckets[event]
 		if !exists {
@@ -226,15 +247,6 @@ func (rs *RuleSet) AddRule(ruleDef *RuleDefinition) (*eval.Rule, error) {
 		if err := bucket.AddRule(rule); err != nil {
 			return nil, err
 		}
-	}
-
-	if len(rule.GetEventTypes()) == 0 {
-		return nil, &ErrRuleLoad{Definition: ruleDef, Err: errors.New("no event in the rule definition")}
-	}
-
-	// TODO: this contraints could be removed, but currently approver resolution can't handle multiple event type approver
-	if len(rule.GetEventTypes()) > 1 {
-		return nil, &ErrRuleLoad{Definition: ruleDef, Err: errors.New("rule with multiple events is not supported")}
 	}
 
 	// Merge the fields of the new rule with the existing list of fields of the ruleset

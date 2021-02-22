@@ -6,7 +6,10 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
+features:
+  - |
+    Add config parameters to enable fim and runtime rules.
 enhancements:
   - |
     Runtime security module doesn't stop on first policies file
-    load error and now send a event with a report of the load.
+    load error and now send an event with a report of the load.

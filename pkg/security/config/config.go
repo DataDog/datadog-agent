@@ -63,6 +63,10 @@ type Config struct {
 	StatsdAddr string
 	// AgentMonitoringEvents determines if the monitoring events of the agent should be sent to Datadog
 	AgentMonitoringEvents bool
+	// RuntimeEnabled determines whether exec related rules will be loaded
+	RuntimeEnabled bool
+	// FIMEnabled determines whether fim rules will be loaded
+	FIMEnabled bool
 }
 
 // NewConfig returns a new Config object
@@ -87,9 +91,16 @@ func NewConfig(cfg *config.AgentConfig) (*Config, error) {
 		StatsPollingInterval:               time.Duration(aconfig.Datadog.GetInt("runtime_security_config.events_stats.polling_interval")) * time.Second,
 		StatsdAddr:                         fmt.Sprintf("%s:%d", cfg.StatsdHost, cfg.StatsdPort),
 		AgentMonitoringEvents:              aconfig.Datadog.GetBool("runtime_security_config.agent_monitoring_events"),
+		RuntimeEnabled:                     aconfig.Datadog.GetBool("runtime_security_config.runtime_enabled"),
+		FIMEnabled:                         aconfig.Datadog.GetBool("runtime_security_config.fim_enabled"),
 	}
 
 	if !c.Enabled {
+		return c, nil
+	}
+
+	// check whether fim or runtime are enabled
+	if !c.RuntimeEnabled && !c.FIMEnabled {
 		return c, nil
 	}
 
