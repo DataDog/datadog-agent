@@ -215,6 +215,51 @@ var (
 		"S_IXUSR": syscall.S_IXUSR,
 	}
 
+	kernelCapabilityConstants = map[string]int{
+		"CAP_AUDIT_CONTROL":      1 << unix.CAP_AUDIT_CONTROL,
+		"CAP_AUDIT_READ":         1 << unix.CAP_AUDIT_READ,
+		"CAP_AUDIT_WRITE":        1 << unix.CAP_AUDIT_WRITE,
+		"CAP_BLOCK_SUSPEND":      1 << unix.CAP_BLOCK_SUSPEND,
+		"CAP_BPF":                1 << unix.CAP_BPF,
+		"CAP_CHECKPOINT_RESTORE": 1 << unix.CAP_CHECKPOINT_RESTORE,
+		"CAP_CHOWN":              1 << unix.CAP_CHOWN,
+		"CAP_DAC_OVERRIDE":       1 << unix.CAP_DAC_OVERRIDE,
+		"CAP_DAC_READ_SEARCH":    1 << unix.CAP_DAC_READ_SEARCH,
+		"CAP_FOWNER":             1 << unix.CAP_FOWNER,
+		"CAP_FSETID":             1 << unix.CAP_FSETID,
+		"CAP_IPC_LOCK":           1 << unix.CAP_IPC_LOCK,
+		"CAP_IPC_OWNER":          1 << unix.CAP_IPC_OWNER,
+		"CAP_KILL":               1 << unix.CAP_KILL,
+		"CAP_LAST_CAP":           1 << unix.CAP_LAST_CAP,
+		"CAP_LEASE":              1 << unix.CAP_LEASE,
+		"CAP_LINUX_IMMUTABLE":    1 << unix.CAP_LINUX_IMMUTABLE,
+		"CAP_MAC_ADMIN":          1 << unix.CAP_MAC_ADMIN,
+		"CAP_MAC_OVERRIDE":       1 << unix.CAP_MAC_OVERRIDE,
+		"CAP_MKNOD":              1 << unix.CAP_MKNOD,
+		"CAP_NET_ADMIN":          1 << unix.CAP_NET_ADMIN,
+		"CAP_NET_BIND_SERVICE":   1 << unix.CAP_NET_BIND_SERVICE,
+		"CAP_NET_BROADCAST":      1 << unix.CAP_NET_BROADCAST,
+		"CAP_NET_RAW":            1 << unix.CAP_NET_RAW,
+		"CAP_PERFMON":            1 << unix.CAP_PERFMON,
+		"CAP_SETFCAP":            1 << unix.CAP_SETFCAP,
+		"CAP_SETGID":             1 << unix.CAP_SETGID,
+		"CAP_SETPCAP":            1 << unix.CAP_SETPCAP,
+		"CAP_SETUID":             1 << unix.CAP_SETUID,
+		"CAP_SYSLOG":             1 << unix.CAP_SYSLOG,
+		"CAP_SYS_ADMIN":          1 << unix.CAP_SYS_ADMIN,
+		"CAP_SYS_BOOT":           1 << unix.CAP_SYS_BOOT,
+		"CAP_SYS_CHROOT":         1 << unix.CAP_SYS_CHROOT,
+		"CAP_SYS_MODULE":         1 << unix.CAP_SYS_MODULE,
+		"CAP_SYS_NICE":           1 << unix.CAP_SYS_NICE,
+		"CAP_SYS_PACCT":          1 << unix.CAP_SYS_PACCT,
+		"CAP_SYS_PTRACE":         1 << unix.CAP_SYS_PTRACE,
+		"CAP_SYS_RAWIO":          1 << unix.CAP_SYS_RAWIO,
+		"CAP_SYS_RESOURCE":       1 << unix.CAP_SYS_RESOURCE,
+		"CAP_SYS_TIME":           1 << unix.CAP_SYS_TIME,
+		"CAP_SYS_TTY_CONFIG":     1 << unix.CAP_SYS_TTY_CONFIG,
+		"CAP_WAKE_ALARM":         1 << unix.CAP_WAKE_ALARM,
+	}
+
 	unlinkFlagsConstants = map[string]int{
 		"AT_REMOVEDIR": unix.AT_REMOVEDIR,
 	}
@@ -228,9 +273,10 @@ var (
 )
 
 var (
-	openFlagsStrings   = map[int]string{}
-	chmodModeStrings   = map[int]string{}
-	unlinkFlagsStrings = map[int]string{}
+	openFlagsStrings          = map[int]string{}
+	chmodModeStrings          = map[int]string{}
+	unlinkFlagsStrings        = map[int]string{}
+	kernelCapabilitiesStrings = map[int]string{}
 )
 
 func initOpenConstants() {
@@ -246,9 +292,6 @@ func initOpenConstants() {
 func initChmodConstants() {
 	for k, v := range chmodModeConstants {
 		SECLConstants[k] = &eval.IntEvaluator{Value: v}
-	}
-
-	for k, v := range chmodModeConstants {
 		chmodModeStrings[v] = k
 	}
 }
@@ -256,9 +299,6 @@ func initChmodConstants() {
 func initUnlinkConstanst() {
 	for k, v := range unlinkFlagsConstants {
 		SECLConstants[k] = &eval.IntEvaluator{Value: v}
-	}
-
-	for k, v := range unlinkFlagsConstants {
 		unlinkFlagsStrings[v] = k
 	}
 }
@@ -269,11 +309,19 @@ func initErrorConstants() {
 	}
 }
 
+func initKernelCapabilityConstants() {
+	for k, v := range kernelCapabilityConstants {
+		SECLConstants[k] = &eval.IntEvaluator{Value: v}
+		kernelCapabilitiesStrings[v] = k
+	}
+}
+
 func initConstants() {
 	initErrorConstants()
 	initOpenConstants()
 	initChmodConstants()
 	initUnlinkConstanst()
+	initKernelCapabilityConstants()
 }
 
 func bitmaskToStringArray(bitmask int, intToStrMap map[int]string) []string {
@@ -292,7 +340,7 @@ func bitmaskToStringArray(bitmask int, intToStrMap map[int]string) []string {
 	}
 
 	if result != bitmask {
-		strs = append(strs, fmt.Sprintf("%d", bitmask^result))
+		strs = append(strs, fmt.Sprintf("%d", bitmask&^result))
 	}
 
 	sort.Strings(strs)
@@ -313,7 +361,7 @@ func (f OpenFlags) String() string {
 	return bitmaskToString(int(f), openFlagsStrings)
 }
 
-// StringArray returns the open flags as an array of string
+// StringArray returns the open flags as an array of strings
 func (f OpenFlags) StringArray() []string {
 	if int(f) == syscall.O_RDONLY {
 		return []string{openFlagsStrings[syscall.O_RDONLY]}
@@ -335,7 +383,7 @@ func (f UnlinkFlags) String() string {
 	return bitmaskToString(int(f), unlinkFlagsStrings)
 }
 
-// StringArray returns the unlink flags as an array of string
+// StringArray returns the unlink flags as an array of strings
 func (f UnlinkFlags) StringArray() []string {
 	return bitmaskToStringArray(int(f), unlinkFlagsStrings)
 }
@@ -353,4 +401,16 @@ func (f RetValError) String() string {
 
 func init() {
 	initConstants()
+}
+
+// KernelCapability represents a kernel capability bitmask value
+type KernelCapability uint64
+
+func (kc KernelCapability) String() string {
+	return bitmaskToString(int(kc), kernelCapabilitiesStrings)
+}
+
+// StringArray returns the kernel capabilities as an array of strings
+func (kc KernelCapability) StringArray() []string {
+	return bitmaskToStringArray(int(kc), kernelCapabilitiesStrings)
 }
