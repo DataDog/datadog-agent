@@ -78,11 +78,18 @@ def test(
     go_mod="vendor",
 ):
     """
-    Run all the tools and tests on the given targets. If targets are not specified,
-    the value from `invoke.yaml` will be used.
+    Run all the tools and tests on the given module and targets.
+
+    A module should be provided as the path to one of the go modules in the repository.
+
+    Targets should be provided as a comma-separated list of relative paths within the given module.
+    If targets are provided but no module is set, the main module (".") is used.
+
+    If no module or target is set the tests are run against all modules and targets.
 
     Example invokation:
         inv test --targets=./pkg/collector/check,./pkg/aggregator --race
+        inv test --module=. --race
     """
     if isinstance(module, str):
         # when this function is called from the command line, targets are passed
@@ -232,8 +239,11 @@ def test(
             continue
 
         with ctx.cd(module.full_path()):
-            matches = ["{}/...".format(t) for t in module.targets]
-            ctx.run(cmd.format(pkg_folder=' '.join(matches), **args), env=env, out_stream=test_profiler)
+            ctx.run(
+                cmd.format(pkg_folder=' '.join("{}/...".format(t) for t in module.targets), **args),
+                env=env,
+                out_stream=test_profiler,
+            )
 
     if coverage:
         print("\n--- Test coverage:")
