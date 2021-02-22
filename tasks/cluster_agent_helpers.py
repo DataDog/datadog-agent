@@ -13,7 +13,6 @@ from .utils import REPO_PATH, bin_name, get_build_flags, get_version
 
 def build_common(
     ctx,
-    command,
     bin_path,
     build_tags,
     bin_suffix,

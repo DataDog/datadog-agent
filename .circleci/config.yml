@@ -81,9 +81,6 @@ jobs:
           name: test rtloader
           command: |
             inv rtloader.test
-      - run:
-          name: pre-compile go deps
-          command: inv -e agent.build --exclude-rtloader --race --precompile-only
       - save_cache:
           <<: *save_deps
           paths:

@@ -15,7 +15,6 @@ def build(
     ctx,
     rebuild=False,
     race=False,
-    precompile_only=False,
     build_include=None,
     build_exclude=None,
     major_version='7',
@@ -27,10 +26,7 @@ def build(
     Build the trace agent.
     """
 
-    # get env prior to windows sources so we only have to set the target architecture once
-    ldflags, gcflags, env = get_build_flags(
-        ctx, arch=arch, major_version=major_version, python_runtimes=python_runtimes
-    )
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes=python_runtimes)
 
     # generate windows resources
     if sys.platform == 'win32':
@@ -39,7 +35,7 @@ def build(
             env["GOARCH"] = "386"
             windres_target = "pe-i386"
 
-        ver = get_version_numeric_only(ctx, env, major_version=major_version)
+        ver = get_version_numeric_only(ctx, major_version=major_version)
         maj_ver, min_ver, patch_ver = ver.split(".")
 
         ctx.run(

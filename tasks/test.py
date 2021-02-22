@@ -132,8 +132,7 @@ def test(
         python_home_2=python_home_2,
         python_home_3=python_home_3,
         major_version=major_version,
-        python_runtimes='3',
-        arch=arch,
+        python_runtimes=python_runtimes,
     )
 
     if sys.platform == 'win32':
