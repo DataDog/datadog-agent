@@ -44,15 +44,12 @@ type CCClientI interface {
 	ListV3AppsByQuery(url.Values) ([]cfclient.V3App, error)
 }
 
-var (
-	globalCCCache     = &CCCache{}
-	globalCCCacheLock sync.Mutex
-)
+var globalCCCache = &CCCache{}
 
 // ConfigureGlobalCCCache configures the global instance of CCCache from provided config
 func ConfigureGlobalCCCache(ctx context.Context, ccURL, ccClientID, ccClientSecret string, skipSSLValidation bool, pollInterval time.Duration, testing CCClientI) (*CCCache, error) {
-	globalCCCacheLock.Lock()
-	defer globalCCCacheLock.Unlock()
+	globalCCCache.Lock()
+	defer globalCCCache.Unlock()
 
 	if globalCCCache.configured {
 		return globalCCCache, nil
@@ -86,8 +83,8 @@ func ConfigureGlobalCCCache(ctx context.Context, ccURL, ccClientID, ccClientSecr
 
 // GetGlobalCCCache returns the global instance of CCCache (or error if the instance is not configured yet)
 func GetGlobalCCCache() (*CCCache, error) {
-	globalCCCacheLock.Lock()
-	defer globalCCCacheLock.Unlock()
+	globalCCCache.Lock()
+	defer globalCCCache.Unlock()
 	if !globalCCCache.configured {
 		return nil, fmt.Errorf("global CC Cache not configured")
 	}

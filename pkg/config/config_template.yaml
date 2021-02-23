@@ -1975,15 +1975,15 @@ api_key:
   # client_secret: <UAA_CLIENT_SECRET>
 
   ## @param skip_ssl_validation - bool - optional - default: false
-  ## Wether or not to skip SSL validation when interacting with CC API.
+  ## Whether or not to skip SSL validation when interacting with CC API.
   #
   # skip_ssl_validation: false
 
-  ## @param poll_interval - integer - optional - default: 15
+  ## @param poll_interval - integer - optional - default: 60
   ## Refresh rate of CC API, in seconds. Values lower than 10 might influence
   ## performance of other operations in the cluster.
   #
-  # poll_interval: 15
+  # poll_interval: 60
 
 {{ end -}}
 {{- if .SNMP }}

@@ -175,14 +175,12 @@ func run(cmd *cobra.Command, args []string) error {
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
 
 	// initialize BBS Cache before starting provider/listener
-	err = initializeBBSCache(mainCtx)
-	if err != nil {
+	if err = initializeBBSCache(mainCtx); err != nil {
 		return err
 	}
 
 	// initialize CC Cache
-	err = initializeCCCache(mainCtx)
-	if err != nil {
+	if err = initializeCCCache(mainCtx); err != nil {
 		_ = log.Errorf("Error initializing Cloud Foundry CCAPI cache, some advanced tagging features may be missing: %v", err)
 	}
 

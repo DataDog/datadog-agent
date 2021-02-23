@@ -537,7 +537,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cloud_foundry_cc.url", "https://cloud-controller-ng.service.cf.internal:9024")
 	config.BindEnvAndSetDefault("cloud_foundry_cc.client_id", "")
 	config.BindEnvAndSetDefault("cloud_foundry_cc.client_secret", "")
-	config.BindEnvAndSetDefault("cloud_foundry_cc.poll_interval", 15)
+	config.BindEnvAndSetDefault("cloud_foundry_cc.poll_interval", 60)
 	config.BindEnvAndSetDefault("cloud_foundry_cc.skip_ssl_validation", false)
 
 	// Cloud Foundry Garden

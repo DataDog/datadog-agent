@@ -217,14 +217,14 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP) DesiredLRP {
 
 	// try to get updated app name from CC API in case of app renames
 	ccCache, err := GetGlobalCCCache()
-	if err != nil {
-		log.Debugf("Could not get Cloud Foundry CCAPI cache: %v", err)
-	} else {
+	if err == nil {
 		if ccApp, err := ccCache.GetApp(appGUID); err != nil {
 			log.Debugf("Could not find app %s in cc cache", appGUID)
 		} else {
 			appName = ccApp.Name
 		}
+	} else {
+		log.Debugf("Could not get Cloud Foundry CCAPI cache: %v", err)
 	}
 	d := DesiredLRP{
 		AppGUID:            appGUID,
