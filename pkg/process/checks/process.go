@@ -291,26 +291,23 @@ func formatIO(fp *procutil.Stats, lastIO *procutil.IOCountersStat, before time.T
 	if before.IsZero() || diff <= 0 {
 		return &model.IOStat{}
 	}
-	// Reading 0 as a counter means the file could not be opened due to permissions. We distinguish this from a real 0 in rates.
-	var readRate float32
-	readRate = -1
-	if fp.IOStat.ReadCount != 0 {
-		readRate = calculateRate(fp.IOStat.ReadCount, lastIO.ReadCount, before)
+	// Reading -1 as counter means the file could not be opened due to permissions.
+	// In that case we set the rate as -1 to distinguish from a real 0 in rates.
+	readRate := float32(-1)
+	if fp.IOStat.ReadCount >= 0 {
+		readRate = calculateRate(uint64(fp.IOStat.ReadCount), uint64(lastIO.ReadCount), before)
 	}
-	var writeRate float32
-	writeRate = -1
-	if fp.IOStat.WriteCount != 0 {
-		writeRate = calculateRate(fp.IOStat.WriteCount, lastIO.WriteCount, before)
+	writeRate := float32(-1)
+	if fp.IOStat.WriteCount >= 0 {
+		writeRate = calculateRate(uint64(fp.IOStat.WriteCount), uint64(lastIO.WriteCount), before)
 	}
-	var readBytesRate float32
-	readBytesRate = -1
-	if fp.IOStat.ReadBytes != 0 {
-		readBytesRate = calculateRate(fp.IOStat.ReadBytes, lastIO.ReadBytes, before)
+	readBytesRate := float32(-1)
+	if fp.IOStat.ReadBytes >= 0 {
+		readBytesRate = calculateRate(uint64(fp.IOStat.ReadBytes), uint64(lastIO.ReadBytes), before)
 	}
-	var writeBytesRate float32
-	writeBytesRate = -1
-	if fp.IOStat.WriteBytes != 0 {
-		writeBytesRate = calculateRate(fp.IOStat.WriteBytes, lastIO.WriteBytes, before)
+	writeBytesRate := float32(-1)
+	if fp.IOStat.WriteBytes >= 0 {
+		writeBytesRate = calculateRate(uint64(fp.IOStat.WriteBytes), uint64(lastIO.WriteBytes), before)
 	}
 	return &model.IOStat{
 		ReadRate:       readRate,

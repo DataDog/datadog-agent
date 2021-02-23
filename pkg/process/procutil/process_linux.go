@@ -281,7 +281,12 @@ func (p *Probe) parseIO(pidPath string) *IOCountersStat {
 	path := filepath.Join(pidPath, "io")
 	var err error
 
-	io := &IOCountersStat{}
+	io := &IOCountersStat{
+		ReadBytes:  -1,
+		ReadCount:  -1,
+		WriteBytes: -1,
+		WriteCount: -1,
+	}
 
 	if err = p.ensurePathReadable(path); err != nil {
 		return io
@@ -321,22 +326,22 @@ func (p *Probe) parseIOLine(line []byte, io *IOCountersStat) {
 func (p *Probe) parseIOKV(key, value string, io *IOCountersStat) {
 	switch key {
 	case "syscr":
-		v, err := strconv.ParseUint(value, 10, 64)
+		v, err := strconv.ParseInt(value, 10, 64)
 		if err == nil {
 			io.ReadCount = v
 		}
 	case "syscw":
-		v, err := strconv.ParseUint(value, 10, 64)
+		v, err := strconv.ParseInt(value, 10, 64)
 		if err == nil {
 			io.WriteCount = v
 		}
 	case "read_bytes":
-		v, err := strconv.ParseUint(value, 10, 64)
+		v, err := strconv.ParseInt(value, 10, 64)
 		if err == nil {
 			io.ReadBytes = v
 		}
 	case "write_bytes":
-		v, err := strconv.ParseUint(value, 10, 64)
+		v, err := strconv.ParseInt(value, 10, 64)
 		if err == nil {
 			io.WriteBytes = v
 		}

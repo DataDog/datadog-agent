@@ -288,7 +288,19 @@ func TestFormatIO(t *testing.T) {
 	// Elapsed time < 1s
 	assert.NotNil(t, formatIO(fp, last, time.Now()))
 
-	result := formatIO(fp, last, time.Now().Add(-1*time.Second))
+	// IOStats that have permission problem
+	result := formatIO(&procutil.Stats{IOStat: &procutil.IOCountersStat{
+		ReadCount:  -1,
+		WriteCount: -1,
+		ReadBytes:  -1,
+		WriteBytes: -1,
+	}}, last, time.Now().Add(-1*time.Second))
+	assert.Equal(t, float32(-1), result.ReadRate)
+	assert.Equal(t, float32(-1), result.WriteRate)
+	assert.Equal(t, float32(-1), result.ReadBytesRate)
+	assert.Equal(t, float32(-1), result.WriteBytesRate)
+
+	result = formatIO(fp, last, time.Now().Add(-1*time.Second))
 	require.NotNil(t, result)
 
 	assert.Equal(t, float32(5), result.ReadRate)
