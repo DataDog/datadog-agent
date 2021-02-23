@@ -168,7 +168,7 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.EnabledChecks = append(a.EnabledChecks, "TCP queue length")
 	}
 
-	if config.Datadog.GetBool(key(spNS, "process.enabled")) {
+	if config.Datadog.GetBool(key(spNS, "process_config.enabled")) {
 		a.EnableSystemProbe = true
 		a.EnabledChecks = append(a.EnabledChecks, ProcessModule)
 	}
