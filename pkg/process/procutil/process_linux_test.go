@@ -198,29 +198,6 @@ func testStatsForPIDs(t *testing.T) {
 	assert.Len(t, stats, len(pids))
 }
 
-func compareStats(t *testing.T, procV1, procV2 *process.FilledProcess) {
-	assert.Equal(t, procV1.Pid, procV2.Pid)
-	// CPU Timestamp might be different between gopsutil and procutil fetches data,
-	// so we compare with tolerance of 1s, then compare CpuTime without `Timestamp` field
-	assert.InDelta(t, procV1.CpuTime.Timestamp, procV2.CpuTime.Timestamp, 1.0)
-	procV1.CpuTime.Timestamp = 0
-	procV2.CpuTime.Timestamp = 0
-	assert.EqualValues(t, procV1.CpuTime, procV2.CpuTime)
-
-	assert.Equal(t, procV1.CreateTime, procV2.CreateTime)
-	assert.Equal(t, procV1.OpenFdCount, procV2.OpenFdCount)
-	assert.Equal(t, procV1.Status, procV2.Status)
-	assert.Equal(t, procV1.NumThreads, procV2.NumThreads)
-	assert.EqualValues(t, procV1.CtxSwitches, procV2.CtxSwitches)
-	assert.EqualValues(t, procV1.MemInfo, procV2.MemInfo)
-	// gopsutil has a bug in statm parsing https://github.com/shirou/gopsutil/issues/277
-	// so we compare after swapping the value of field `Data` and `Dirty` from gopsutil
-	// TODO: fix the problem in gopsutil forked by `Datadog`
-	procV1.MemInfoEx.Dirty, procV1.MemInfoEx.Data = procV1.MemInfoEx.Data, procV1.MemInfoEx.Dirty
-	assert.EqualValues(t, procV1.MemInfoEx, procV2.MemInfoEx)
-	assert.EqualValues(t, procV1.IOStat, procV2.IOStat)
-}
-
 func TestMultipleProbes(t *testing.T) {
 	os.Setenv("HOST_PROC", "resources/test_procfs/proc/")
 	defer os.Unsetenv("HOST_PROC")
