@@ -981,8 +981,7 @@ api_key:
   ## The full path to the location of the unix socket where system probes are accessed.
   #
   # sysprobe_socket: /opt/datadog-agent/run/sysprobe.sock
-{{ end -}}
-
+{{ end }}
   ## @param log_file - string - optional - default: /var/log/datadog/system-probe.log
   ## The full path to the file where system-probe logs are written.
   #
