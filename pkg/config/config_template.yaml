@@ -971,10 +971,17 @@ api_key:
 ## Uncomment this parameter and the one below to enable them.
 #
 # system_probe_config:
+{{- if (eq .OS "windows")}}
+  ## @param sysprobe_socket - string - optional - default: localhost:3333
+  ## The TCP address where system probes are accessed.
+  #
+  # sysprobe_socket: localhost:3333
+{{else}}
   ## @param sysprobe_socket - string - optional - default: /opt/datadog-agent/run/sysprobe.sock
   ## The full path to the location of the unix socket where system probes are accessed.
   #
   # sysprobe_socket: /opt/datadog-agent/run/sysprobe.sock
+{{ end -}}
 
   ## @param log_file - string - optional - default: /var/log/datadog/system-probe.log
   ## The full path to the file where system-probe logs are written.

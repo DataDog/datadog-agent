@@ -12,11 +12,13 @@ import (
 	"html/template"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
 // context contains the context used to render the config file template
 type context struct {
+	OS                string
 	Common            bool
 	Agent             bool
 	Python            bool // Sub-option of Agent
@@ -51,6 +53,7 @@ func mkContext(buildType string) context {
 	buildType = strings.ToLower(buildType)
 
 	agentContext := context{
+		OS:                runtime.GOOS,
 		Common:            true,
 		Agent:             true,
 		Python:            true,
