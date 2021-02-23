@@ -50,9 +50,9 @@ New Features
   and/or Docker - activating relevant configuration depending on node
   configuration).
   This feature is activated by default and can be de-activated by setting
-  environment variable `AUTCONFIG_FROM_ENVIRONMENT=false`.
+  environment variable ``AUTCONFIG_FROM_ENVIRONMENT=false``.
 
-- Adds a new agent command `stream-logs` to stream the logs being processed by the agent.
+- Adds a new agent command ``stream-logs`` to stream the logs being processed by the agent.
   This will help diagnose issues with log integrations.
 
 - Submit host tags with log events for a configurable time duration
@@ -104,15 +104,15 @@ Enhancement Notes
 - Consider the task level resource limits if the container level resource limits aren't defined on ECS Fargate.
 
 - Use the default agent transport for host metadata calls.
-  This allows usage of the config `no_proxy` setting for host metadata calls.
-  By default cloud provider IPs are added to the transport's `no_proxy` list.
-  Added config flag `use_proxy_for_cloud_metadata` to disable this behavior. 
+  This allows usage of the config ``no_proxy`` setting for host metadata calls.
+  By default cloud provider IPs are added to the transport's ``no_proxy`` list.
+  Added config flag ``use_proxy_for_cloud_metadata`` to disable this behavior. 
 
 - GOMAXPROCS is now set automatically to match the allocated CPU cgroup quota.
   GOMAXPROCS can now also be manually specified and overridden in millicore units.
   If no quota or GOMAXPROCS value is set it will default to the original behavior.
 
-- Added `--flare` flag to `jmx (list|collect)` commands to save check results to the agent logs directory.
+- Added ``--flare`` flag to ``jmx (list|collect)`` commands to save check results to the agent logs directory.
   This enables flare to pick up jmx command results.
 
 - Kubernetes events are now tagged with kube_service, kube_daemon_set, kube_job and kube_cronjob.
@@ -140,7 +140,7 @@ Enhancement Notes
 Known Issues
 ------------
 
-- Remove Docker volumes for `/etc/datadog-agent` and `/tmp` as it prevents to inherit from Datadog Agent image. It was originally done to allow read-only rootfs on Kubernetes, so continue supporting this feature, relevant volumes are created in newer Kubernetes manifest or Helm chart >= 2.6.9
+- Remove Docker volumes for ``/etc/datadog-agent`` and ``/tmp`` as it prevents to inherit from Datadog Agent image. It was originally done to allow read-only rootfs on Kubernetes, so continue supporting this feature, relevant volumes are created in newer Kubernetes manifest or Helm chart >= 2.6.9
 
 
 .. _Release Notes_7.26.0_Bug Fixes:
