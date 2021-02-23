@@ -32,6 +32,10 @@ Download the [gcc toolchain](http://win-builds.org/).
 - Add installation folder to the %PATH%.
 
 
+## Windows development
+
+Windows platform instructions can be found [here](agent_dev_env_win.md)
+
 ## Invoke + Python Dependencies
 
 [Invoke](http://www.pyinvoke.org/) is a task runner written in Python
