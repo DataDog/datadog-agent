@@ -14,10 +14,10 @@ import (
 
 func TestString(t *testing.T) {
 	// bogus sysctl
-	s, err := NewString("/tmp", "foo", 0).Get()
+	_, err := NewString("/tmp", "foo", 0).Get()
 	require.Error(t, err)
 
-	s, err = NewString("/proc", "net/ipv4/tcp_keepalive_intvl", 0).Get()
+	s, err := NewString("/proc", "net/ipv4/tcp_keepalive_intvl", 0).Get()
 	require.NoError(t, err)
 	require.NotEmpty(t, s)
 
@@ -47,14 +47,14 @@ func TestString(t *testing.T) {
 	require.Eventually(t, func() bool {
 		v, _ := sctl.Get()
 		return v == "baz"
-	}, 2*time.Second, 500*time.Microsecond)
+	}, 3*time.Second, 500*time.Microsecond)
 }
 
 func TestInt(t *testing.T) {
-	i, err := NewInt("/tmp", "foo", 0).Get()
+	_, err := NewInt("/tmp", "foo", 0).Get()
 	require.Error(t, err)
 
-	i, err = NewInt("/proc", "net/ipv4/tcp_keepalive_intvl", 0).Get()
+	i, err := NewInt("/proc", "net/ipv4/tcp_keepalive_intvl", 0).Get()
 	require.NoError(t, err)
 	require.NotZero(t, i)
 
@@ -84,7 +84,7 @@ func TestInt(t *testing.T) {
 	require.Eventually(t, func() bool {
 		v, _ := sctl.Get()
 		return v == 22
-	}, 2*time.Second, 500*time.Microsecond)
+	}, 3*time.Second, 500*time.Microsecond)
 }
 
 func createTmpProcSys(t *testing.T) (procRoot string) {
