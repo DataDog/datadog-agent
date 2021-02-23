@@ -1260,11 +1260,6 @@ func setNumWorkers(config Config) {
 		numWorkers = 1
 	}
 
-	if numWorkers > MaxNumWorkers {
-		numWorkers = MaxNumWorkers
-		log.Warnf("Configured number of checks workers (%v) is too high: %v will be used", numWorkers, MaxNumWorkers)
-	}
-
 	// update config with the actual effective number of workers
 	config.Set("check_runners", numWorkers)
 }
