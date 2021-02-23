@@ -19,6 +19,10 @@ import (
 */
 import "C"
 
+const (
+	maxNbCpus = 256
+)
+
 type TCPQueueLengthTracer struct {
 	m        *bpflib.Module
 	statsMap *bpflib.Table
@@ -99,16 +103,33 @@ func (t *TCPQueueLengthTracer) Get() TCPQueueLengthStats {
 	for it := t.statsMap.Iter(); it.Next(); {
 		var statsKey C.struct_stats_key
 		data := it.Key()
+		if len(data) != C.sizeof_struct_stats_key {
+			log.Errorf("Unexpected tcp_queue_stats eBPF map key size: %d instead of %d.", len(data), C.sizeof_struct_stats_key)
+			break
+		}
 		C.memcpy(unsafe.Pointer(&statsKey), unsafe.Pointer(&data[0]), C.sizeof_struct_stats_key)
 		containerID := C.GoString(&statsKey.cgroup_name[0])
+		// This cannot happen because statsKey.cgroup_name is filled by bpf_probe_read_str which ensures a NULL-terminated string
+		if len(containerID) >= C.sizeof_struct_stats_key {
+			log.Critical("statsKey.cgroup_name wasn’t properly NULL-terminated")
+			break
+		}
 
-		var statsValue [256]C.struct_stats_value
+		var statsValue [maxNbCpus]C.struct_stats_value
 		data = it.Leaf()
-		C.memcpy(unsafe.Pointer(&statsValue), unsafe.Pointer(&data[0]), C.sizeof_struct_stats_value*C.ulong(len(cpus)))
+		nbCpus := len(cpus)
+		if nbCpus > maxNbCpus {
+			nbCpus = maxNbCpus
+		}
+		if len(data) != C.sizeof_struct_stats_value*nbCpus {
+			log.Errorf("Unexpected tcp_queue_length eBPF map value size: %d instead of %d.", len(data), C.sizeof_struct_stats_value*nbCpus)
+			break
+		}
+		C.memcpy(unsafe.Pointer(&statsValue), unsafe.Pointer(&data[0]), C.sizeof_struct_stats_value*C.ulong(nbCpus))
 
 		max := TCPQueueLengthStatsValue{}
 		for _, cpu := range cpus {
-			if cpu > 256 {
+			if cpu >= maxNbCpus {
 				log.Error("Too many CPUs")
 				continue
 			}
