@@ -28,7 +28,11 @@ func NewString(procRoot, sysctl string, cacheFor time.Duration) *String {
 
 // Get gets the current value of the sysctl
 func (s *String) Get() (string, error) {
-	v, updated, err := s.sctl.Get()
+	return s.get(time.Now())
+}
+
+func (s *String) get(now time.Time) (string, error) {
+	v, updated, err := s.sctl.get(now)
 	if err == nil && updated {
 		s.v = v
 	}
@@ -54,7 +58,11 @@ func NewInt(procRoot, sysctl string, cacheFor time.Duration) *Int {
 
 // Get gets the current value of the sysctl
 func (i *Int) Get() (int, error) {
-	v, updated, err := i.sctl.Get()
+	return i.get(time.Now())
+}
+
+func (i *Int) get(now time.Time) (int, error) {
+	v, updated, err := i.sctl.get(now)
 	if err == nil && updated {
 		i.v, err = strconv.Atoi(v)
 	}
@@ -63,21 +71,20 @@ func (i *Int) Get() (int, error) {
 }
 
 type sctl struct {
-	ttl      int64
-	lastRead int64
+	ttl      time.Duration
+	lastRead time.Time
 	path     string
 }
 
 func newSCtl(procRoot, sysctl string, cacheFor time.Duration) *sctl {
 	return &sctl{
-		ttl:  int64(cacheFor.Seconds()),
+		ttl:  cacheFor,
 		path: filepath.Join(procRoot, "sys", sysctl),
 	}
 }
 
-func (s *sctl) Get() (string, bool, error) {
-	now := time.Now().Unix()
-	if s.lastRead > 0 && s.lastRead+s.ttl > now {
+func (s *sctl) get(now time.Time) (string, bool, error) {
+	if !s.lastRead.IsZero() && s.lastRead.Add(s.ttl).After(now) {
 		return "", false, nil
 	}
 

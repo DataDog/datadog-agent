@@ -39,15 +39,16 @@ func TestString(t *testing.T) {
 	createTmpSysctl(t, procRoot, "foo", "bar\n")
 	// sysctl with a shorter ttl
 	sctl = NewString(procRoot, "foo", 2*time.Second)
+	// ttl should still not have expired
 	v, err = sctl.Get()
 	require.NoError(t, err)
 	require.Equal(t, "bar", v)
 
+	// check for ttl expiry
 	createTmpSysctl(t, procRoot, "foo", "baz")
-	require.Eventually(t, func() bool {
-		v, _ := sctl.Get()
-		return v == "baz"
-	}, 3*time.Second, 500*time.Microsecond)
+	v, err = sctl.get(time.Now().Add(2 * time.Second))
+	require.NoError(t, err)
+	require.Equal(t, "baz", v)
 }
 
 func TestInt(t *testing.T) {
@@ -76,15 +77,16 @@ func TestInt(t *testing.T) {
 	createTmpSysctl(t, procRoot, "foo", "12\n")
 	// sysctl with a shorter ttl
 	sctl = NewInt(procRoot, "foo", 2*time.Second)
+	// ttl should still not have expired
 	v, err = sctl.Get()
 	require.NoError(t, err)
 	require.Equal(t, 12, v)
 
+	// check for ttl expiry
 	createTmpSysctl(t, procRoot, "foo", "22\n")
-	require.Eventually(t, func() bool {
-		v, _ := sctl.Get()
-		return v == 22
-	}, 3*time.Second, 500*time.Microsecond)
+	v, err = sctl.get(time.Now().Add(2 * time.Second))
+	require.NoError(t, err)
+	require.Equal(t, 22, v)
 }
 
 func createTmpProcSys(t *testing.T) (procRoot string) {
