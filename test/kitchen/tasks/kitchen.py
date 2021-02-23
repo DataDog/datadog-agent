@@ -38,7 +38,7 @@ def genconfig(
     platforms = load_platforms(ctx, platformfile=platformfile)
 
     # create the TEST_PLATFORMS environment variable
-    testplatforms = ""
+    testplatformslist = []
 
     if platform:
         plat = platforms.get(platform)
@@ -69,9 +69,8 @@ def genconfig(
 
         print("Chose os targets {}\n".format(osimages))
         for osimage in osimages:
-            if testplatforms:
-                testplatforms += "|"
-            testplatforms += "{},{}".format(osimage, prov[osimage])
+            testplatformslist.append("{},{}".format(osimage, prov[osimage]))
+
     elif platlist:
         # platform list should be in the form of driver,os,image
         for entry in platlist:
@@ -92,13 +91,12 @@ def genconfig(
             if not platforms[os][driver].get(image):
                 raise Exit(message="Unknown image in {}\n".format(entry), code=6)
 
-            if testplatforms:
-                testplatforms += "|"
-            testplatforms += "{},{}".format(image, platforms[os][driver][image])
+            testplatformslist.append("{},{}".format(image, platforms[os][driver][image]))
 
     print("Using the following test platform(s)\n")
-    for logplat in testplatforms.split("|"):
+    for logplat in testplatformslist:
         print("  {}".format(logplat))
+    testplatforms = "|".join(testplatformslist)
 
     # create the kitchen.yml file
     with open('tmpkitchen.yml', 'w') as kitchenyml:
