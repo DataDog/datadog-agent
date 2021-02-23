@@ -184,14 +184,10 @@ func (e *ebpfConntracker) GetTranslationForConn(stats network.ConnectionStats) *
 	src.pid = 0
 	log.Tracef("looking up in conntrack: %s", src)
 
-	var dst ConnTuple
-	if err := e.ctMap.Lookup(unsafe.Pointer(src), unsafe.Pointer(&dst)); err != nil {
-		if !errors.Is(err, ebpf.ErrKeyNotExist) {
-			log.Warnf("error looking up connection in ebpf conntrack map: %s", err)
-		}
+	dst := e.get(src)
+	if dst == nil {
 		return nil
 	}
-
 	atomic.AddInt64(&e.stats.gets, 1)
 	atomic.AddInt64(&e.stats.getTotalTime, time.Now().Sub(start).Nanoseconds())
 	return &network.IPTranslation{
@@ -202,16 +198,36 @@ func (e *ebpfConntracker) GetTranslationForConn(stats network.ConnectionStats) *
 	}
 }
 
+func (e *ebpfConntracker) get(src *ConnTuple) *ConnTuple {
+	var dst ConnTuple
+	if err := e.ctMap.Lookup(unsafe.Pointer(src), unsafe.Pointer(&dst)); err != nil {
+		if !errors.Is(err, ebpf.ErrKeyNotExist) {
+			log.Warnf("error looking up connection in ebpf conntrack map: %s", err)
+		}
+		return nil
+	}
+	return &dst
+}
+
+func (e *ebpfConntracker) delete(key *ConnTuple) {
+	if err := e.ctMap.Delete(unsafe.Pointer(key)); err != nil {
+		if errors.Is(err, ebpf.ErrKeyNotExist) {
+			log.Tracef("connection does not exist in ebpf conntrack map: %s", key)
+			return
+		}
+		log.Warnf("unable to delete conntrack entry from eBPF map: %s", err)
+	}
+}
+
 func (e *ebpfConntracker) DeleteTranslation(stats network.ConnectionStats) {
 	start := time.Now()
 	key := connTupleFromConnectionStats(&stats)
 	key.pid = 0
-	if err := e.ctMap.Delete(unsafe.Pointer(key)); err != nil {
-		if errors.Is(err, ebpf.ErrKeyNotExist) {
-			log.Tracef("connection does not exist in ebpf conntrack map: %s", stats)
-			return
-		}
-		log.Warnf("unable to delete conntrack entry from eBPF map: %s", err)
+
+	dst := e.get(key)
+	e.delete(key)
+	if dst != nil {
+		e.delete(dst)
 	}
 	atomic.AddInt64(&e.stats.unregisters, 1)
 	atomic.AddInt64(&e.stats.unregistersTotalTime, time.Now().Sub(start).Nanoseconds())
