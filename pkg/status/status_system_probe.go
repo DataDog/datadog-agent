@@ -15,8 +15,6 @@ import (
 
 // GetSystemProbeStats returns the expvar stats of the system probe
 func GetSystemProbeStats(socketPath string) map[string]interface{} {
-
-	// TODO: Pull system-probe path from system-probe.yaml
 	net.SetSystemProbePath(socketPath)
 	probeUtil, err := net.GetRemoteSystemProbeUtil()
 

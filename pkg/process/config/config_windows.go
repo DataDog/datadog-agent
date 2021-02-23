@@ -3,6 +3,8 @@
 package config
 
 import (
+	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 
@@ -35,4 +37,12 @@ func init() {
 			defaultDDAgentBin = agentFilePath
 		}
 	}
+}
+
+// ValidateSysprobeSocket validates that the sysprobe socket config option is of the correct format.
+func ValidateSysprobeSocket(sockAddress string) error {
+	if _, _, err := net.SplitHostPort(sockAddress); err != nil {
+		return fmt.Errorf("it must be of the form 'host:port'")
+	}
+	return nil
 }

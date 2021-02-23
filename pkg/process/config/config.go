@@ -521,7 +521,6 @@ func loadSysProbeEnvVariables() {
 		{"DD_SYSTEM_PROBE_ENABLED", "system_probe_config.enabled"},
 		{"DD_SYSTEM_PROBE_NETWORK_ENABLED", "network_config.enabled"},
 		{"DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "network_config.enable_http_monitoring"},
-		{"DD_SYSPROBE_SOCKET", "system_probe_config.sysprobe_socket"},
 		{"DD_SYSTEM_PROBE_CONNTRACK_IGNORE_ENOBUFS", "system_probe_config.conntrack_ignore_enobufs"},
 		{"DD_SYSTEM_PROBE_ENABLE_CONNTRACK_ALL_NAMESPACES", "system_probe_config.enable_conntrack_all_namespaces"},
 		{"DD_SYSTEM_PROBE_NETWORK_IGNORE_CONNTRACK_INIT_FAILURE", "network_config.ignore_conntrack_init_failure"},
@@ -543,6 +542,14 @@ func loadSysProbeEnvVariables() {
 	} {
 		if v, ok := os.LookupEnv(variable.env); ok {
 			config.Datadog.Set(variable.cfg, v)
+		}
+	}
+
+	if v, ok := os.LookupEnv("DD_SYSPROBE_SOCKET"); ok {
+		if err := ValidateSysprobeSocket(v); err != nil {
+			log.Errorf("Could not parse DD_SYSPROBE_SOCKET: %s", err)
+		} else {
+			config.Datadog.Set(key(spNS, "sysprobe_socket"), v)
 		}
 	}
 }
