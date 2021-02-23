@@ -241,9 +241,9 @@ jobs:
           keys:
             # If incremental dep fails, increase the cache version number
             # See https://github.com/DataDog/datadog-agent/pull/2384
-            - v2-macosdeps-{{ .Branch }}-{{ .Revision }}
-            - v2-macosdeps-{{ .Branch }}-
-            - v2-macosdeps-master-
+            - test-v1-macosdeps-{{ .Branch }}-{{ .Revision }}
+            - test-v1-macosdeps-{{ .Branch }}-
+            - test-v1-macosdeps-master-
       - run:
           name: Setup runner
           command: |
@@ -254,13 +254,13 @@ jobs:
             brew install clang-format || brew link --overwrite clang-format
             python3 -m pip install -r requirements.txt
       - save_cache:
-          key: v2-macosdeps-{{ .Branch }}-{{ .Revision }}
+          key: test-v1-macosdeps-{{ .Branch }}-{{ .Revision }}
           paths:
             - /usr/local/bin
             - /usr/local/Cellar
             - /usr/local/lib
             - /usr/local/Frameworks
-            - /usr/local/opt/openssl@1.1
+            - /usr/local/opt
       - run:
           name: Compile rtloader
           command: |
