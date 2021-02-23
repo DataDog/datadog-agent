@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -316,7 +317,9 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.Equal(100, agentConfig.Windows.ArgsRefreshInterval)
 	assert.Equal(false, agentConfig.Windows.AddNewArgs)
 	assert.Equal(false, agentConfig.Scrubber.Enabled)
-	assert.Equal("/var/my-location/system-probe.log", agentConfig.SystemProbeAddress)
+	if runtime.GOOS != "windows" {
+		assert.Equal("/var/my-location/system-probe.log", agentConfig.SystemProbeAddress)
+	}
 	assert.Equal(append(processChecks, ConnectionsCheckName, NetworkCheckName), agentConfig.EnabledChecks)
 	assert.Equal(500, agentConfig.ClosedChannelSize)
 	assert.True(agentConfig.SysProbeBPFDebug)
@@ -346,7 +349,9 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.False(agentConfig.SysProbeBPFDebug)
 	assert.Equal(1000, agentConfig.ClosedChannelSize)
 	assert.Equal(agentConfig.ExcludedBPFLinuxVersions, []string{"5.5.0", "4.2.1"})
-	assert.Equal("/var/my-location/system-probe.log", agentConfig.SystemProbeAddress)
+	if runtime.GOOS != "windows" {
+		assert.Equal("/var/my-location/system-probe.log", agentConfig.SystemProbeAddress)
+	}
 	assert.Equal(append(processChecks), agentConfig.EnabledChecks)
 	assert.True(agentConfig.DisableTCPTracing)
 	assert.True(agentConfig.DisableUDPTracing)
@@ -354,6 +359,17 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.False(agentConfig.DisableDNSInspection)
 	assert.Equal(map[string][]string{"172.0.0.1/20": {"*"}, "*": {"443"}, "127.0.0.1": {"5005"}}, agentConfig.ExcludedSourceConnections)
 	assert.Equal(map[string][]string{"172.0.0.1/20": {"*"}, "*": {"*"}, "2001:db8::2:1": {"5005"}}, agentConfig.ExcludedDestinationConnections)
+
+	agentConfig, err = NewAgentConfig(
+		"test",
+		"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml",
+		"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-Net-Windows.yaml",
+	)
+	assert.NoError(err)
+
+	if runtime.GOOS == "windows" {
+		assert.Equal("localhost:4444", agentConfig.SystemProbeAddress)
+	}
 }
 
 func TestProxyEnv(t *testing.T) {
