@@ -103,6 +103,10 @@ func (pc *PodCollector) CollectorFunction() error {
 		for _, vol := range pod.Spec.Volumes {
 			if pc.isPersistentVolume(vol) {
 				volumeExternalID = pc.buildPersistentVolumeExternalID(vol.Name)
+			} else if vol.Secret != nil {
+				volumeExternalID = pc.buildSecretExternalID(pod.Namespace, vol.Secret.SecretName)
+			} else if vol.ConfigMap != nil {
+				volumeExternalID = pc.buildConfigMapExternalID(pod.Namespace, vol.ConfigMap.Name)
 			} else {
 				volComponent = pc.volumeToStackStateComponent(pod, vol)
 				volumeExternalID = volComponent.ExternalID
@@ -117,6 +121,8 @@ func (pc *PodCollector) CollectorFunction() error {
 			for _, env := range c.EnvFrom {
 				if env.ConfigMapRef != nil {
 					pc.RelationChan <- pc.podToConfigMapStackStateRelation(component.ExternalID, pc.buildConfigMapExternalID(pod.Namespace, env.ConfigMapRef.LocalObjectReference.Name))
+				} else if env.SecretRef != nil {
+					pc.RelationChan <- pc.podToSecretStackStateRelation(component.ExternalID, pc.buildSecretExternalID(pod.Namespace, env.SecretRef.LocalObjectReference.Name))
 				}
 			}
 
@@ -124,6 +130,8 @@ func (pc *PodCollector) CollectorFunction() error {
 			for _, env := range c.Env {
 				if env.ValueFrom != nil && env.ValueFrom.ConfigMapKeyRef != nil {
 					pc.RelationChan <- pc.podToConfigMapVarStackStateRelation(component.ExternalID, pc.buildConfigMapExternalID(pod.Namespace, env.ValueFrom.ConfigMapKeyRef.LocalObjectReference.Name))
+				} else if env.ValueFrom != nil && env.ValueFrom.SecretKeyRef != nil {
+					pc.RelationChan <- pc.podToSecretVarStackStateRelation(component.ExternalID, pc.buildSecretExternalID(pod.Namespace, env.ValueFrom.SecretKeyRef.LocalObjectReference.Name))
 				}
 			}
 		}
@@ -263,6 +271,17 @@ func (pc *PodCollector) podToConfigMapStackStateRelation(podExternalID, configMa
 	return relation
 }
 
+// Creates a StackState relation from a Kubernetes / OpenShift Pod to Secret relation
+func (pc *PodCollector) podToSecretStackStateRelation(podExternalID, secretExternalID string) *topology.Relation {
+	log.Tracef("Mapping kubernetes pod to secret relation: %s -> %s", podExternalID, secretExternalID)
+
+	relation := pc.CreateRelation(podExternalID, secretExternalID, "uses")
+
+	log.Tracef("Created StackState pod -> secret relation %s->%s", relation.SourceID, relation.TargetID)
+
+	return relation
+}
+
 // Creates a StackState relation from a Kubernetes / OpenShift Pod to Namespace relation
 func (pc *PodCollector) namespaceToPodStackStateRelation(namespaceExternalID, podExternalID string) *topology.Relation {
 	log.Tracef("Mapping kubernetes namespace to pod relation: %s -> %s", namespaceExternalID, podExternalID)
@@ -285,6 +304,17 @@ func (pc *PodCollector) podToConfigMapVarStackStateRelation(podExternalID, confi
 	return relation
 }
 
+// Creates a StackState relation from a Kubernetes / OpenShift Pod to Secret variable relation
+func (pc *PodCollector) podToSecretVarStackStateRelation(podExternalID, secretExternalID string) *topology.Relation {
+	log.Tracef("Mapping kubernetes pod to secret var relation: %s -> %s", podExternalID, secretExternalID)
+
+	relation := pc.CreateRelation(podExternalID, secretExternalID, "uses_value")
+
+	log.Tracef("Created StackState pod -> secret var relation %s->%s", relation.SourceID, relation.TargetID)
+
+	return relation
+}
+
 // Creates a StackState component from a Kubernetes / OpenShift Volume
 func (pc *PodCollector) volumeToStackStateComponent(pod v1.Pod, volume v1.Volume) *topology.Component {
 	// creates a StackState component for the kubernetes pod
@@ -299,14 +329,8 @@ func (pc *PodCollector) volumeToStackStateComponent(pod v1.Pod, volume v1.Volume
 	if volume.HostPath != nil {
 		identifiers = append(identifiers, fmt.Sprintf("urn:/%s:%s:volume:%s:%s", pc.GetInstance().URL, pc.GetInstance().Type, pod.Spec.NodeName, volume.Name))
 	}
-	if volume.Secret != nil {
-		identifiers = append(identifiers, fmt.Sprintf("urn/%s:%s:secret:%s", pc.GetInstance().URL, pc.GetInstance().Type, volume.Secret.SecretName))
-	}
 	if volume.DownwardAPI != nil {
 		identifiers = append(identifiers, fmt.Sprintf("urn/%s:%s:downardapi:%s", pc.GetInstance().URL, pc.GetInstance().Type, volume.Name))
-	}
-	if volume.ConfigMap != nil {
-		identifiers = append(identifiers, pc.buildConfigMapExternalID(pod.Namespace, volume.ConfigMap.Name))
 	}
 	if volume.Projected != nil {
 		identifiers = append(identifiers, fmt.Sprintf("urn/%s:%s:projected:%s", pc.GetInstance().URL, pc.GetInstance().Type, volume.Name))

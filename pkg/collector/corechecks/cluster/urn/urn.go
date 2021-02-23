@@ -20,6 +20,7 @@ type Builder interface {
 	BuildExternalID(kind, namespace, objName string) (string, error)
 	BuildClusterExternalID() string
 	BuildConfigMapExternalID(namespace, configMapName string) string
+	BuildSecretExternalID(namespace, secretName string) string
 	BuildNamespaceExternalID(namespaceName string) string
 	BuildContainerExternalID(namespace, podName, containerName string) string
 	BuildDaemonSetExternalID(namespace, daemonSetName string) string
@@ -152,6 +153,11 @@ func (b *urnBuilder) BuildStatefulSetExternalID(namespace, statefulSetName strin
 // BuildConfigMapExternalID creates the urn external identifier for a cluster config map
 func (b *urnBuilder) BuildConfigMapExternalID(namespace, configMapName string) string {
 	return b.BuildComponentExternalID("configmap", namespace, configMapName)
+}
+
+// BuildSecretExternalID creates the urn external identifier for a cluster secret
+func (b *urnBuilder) BuildSecretExternalID(namespace, secretName string) string {
+	return b.BuildComponentExternalID("secret", namespace, secretName)
 }
 
 // BuildNamespaceExternalID creates the urn external identifier for a cluster namespace

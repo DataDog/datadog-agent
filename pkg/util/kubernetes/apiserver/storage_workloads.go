@@ -22,6 +22,16 @@ func (c *APIClient) GetConfigMaps() ([]coreV1.ConfigMap, error) {
 	return cmList.Items, nil
 }
 
+// GetSecrets() retrieves all the Secrets in the Kubernetes / OpenShift cluster across all namespaces.
+func (c *APIClient) GetSecrets() ([]coreV1.Secret, error) {
+	secretList, err := c.Cl.CoreV1().Secrets(metaV1.NamespaceAll).List(metaV1.ListOptions{})
+	if err != nil {
+		return []coreV1.Secret{}, err
+	}
+
+	return secretList.Items, nil
+}
+
 // GetNamespaces() retrieves all the ConfigMaps in the Kubernetes / OpenShift cluster across all namespaces.
 func (c *APIClient) GetNamespaces() ([]coreV1.Namespace, error) {
 	cmList, err := c.Cl.CoreV1().Namespaces().List(metaV1.ListOptions{})
