@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Remove agent max workers hard limit
