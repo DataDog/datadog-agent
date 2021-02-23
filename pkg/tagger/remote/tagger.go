@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -127,6 +128,15 @@ func (t *Tagger) Tag(entityID string, cardinality collectors.TagCardinality) ([]
 	}
 
 	return []string{}, nil
+}
+
+// TagBuilder returns tags for a given entity at the desired cardinality.
+func (t *Tagger) TagBuilder(entityID string, cardinality collectors.TagCardinality, tb *util.TagsBuilder) error {
+	tags, err := t.Tag(entityID, cardinality)
+	if err == nil {
+		tb.Append(tags...)
+	}
+	return err
 }
 
 // Standard returns the standard tags for a given entity.
