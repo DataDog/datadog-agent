@@ -174,20 +174,13 @@ func (e *ExecEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	e.ArgsID = ByteOrder.Uint32(data[read : read+4])
 	e.ArgsTruncated = ByteOrder.Uint32(data[read+4:read+8]) == 1
-	SliceToArray(data[read+8:read+136], unsafe.Pointer(&e.ArgsRaw))
-	e.UnmarshalArgs()
+	read += 8
 
-	return read + 136, nil
-}
+	e.EnvsID = ByteOrder.Uint32(data[read : read+4])
+	e.EnvsTruncated = ByteOrder.Uint32(data[read+4:read+8]) == 1
+	read += 8
 
-// UnmarshalArgs resolves exec arguments
-func (e *ExecEvent) UnmarshalArgs() {
-	args, err := UnmarshalStringArray(e.ArgsRaw[:])
-	if err != nil {
-		e.ArgsOverflow = true
-	} else {
-		e.Args = args
-	}
+	return read, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -201,6 +194,28 @@ func (e *InvalidateDentryEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.DiscarderRevision = ByteOrder.Uint32(data[12:16])
 
 	return 16, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *ArgsEnvsEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 140 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.ID = ByteOrder.Uint32(data[0:4])
+	e.IsArgs = ByteOrder.Uint32(data[4:8]) == argsType
+	e.Size = ByteOrder.Uint32(data[8:12])
+	SliceToArray(data[12:140], unsafe.Pointer(&e.ValuesRaw))
+	values, err := UnmarshalStringArray(e.ValuesRaw[:e.Size])
+	if err != nil || e.Size == 128 {
+		if len(values) > 0 {
+			values[len(values)-1] = values[len(values)-1] + "..."
+		}
+		e.IsTruncated = true
+	}
+	e.Values = values
+
+	return 140, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself

@@ -298,7 +298,9 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	eventType := event.GetEventType()
 	p.monitor.perfBufferMonitor.CountEvent(eventType, event.TimestampRaw, 1, dataLen, p.perfMap, int(CPU))
 
-	if eventType == model.InvalidateDentryEventType {
+	// no need to dispatch events
+	switch eventType {
+	case model.InvalidateDentryEventType:
 		if _, err := event.InvalidateDentry.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode invalidate dentry event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
@@ -306,7 +308,19 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 
 		p.invalidateDentry(event.InvalidateDentry.MountID, event.InvalidateDentry.Inode, event.InvalidateDentry.DiscarderRevision)
 
-		// no need to dispatch
+		return
+	case model.ArgsEnvsEventType:
+		if _, err := event.ArgsEnvs.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode args envs event: %s (offset %d, len %d)", err, offset, dataLen)
+			return
+		}
+
+		if event.ArgsEnvs.IsArgs {
+			p.resolvers.ProcessResolver.UpdateArgs(event.ArgsEnvs.ID, event.ArgsEnvs.Values, event.ArgsEnvs.IsTruncated)
+		} else {
+			p.resolvers.ProcessResolver.UpdateEnvs(event.ArgsEnvs.ID, event.ArgsEnvs.Values, event.ArgsEnvs.IsTruncated)
+		}
+
 		return
 	}
 

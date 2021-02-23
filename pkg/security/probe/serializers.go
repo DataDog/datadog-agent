@@ -10,6 +10,7 @@
 package probe
 
 import (
+	"strings"
 	"syscall"
 	"time"
 
@@ -132,6 +133,9 @@ type ProcessCacheEntrySerializer struct {
 	Executable          *FileSerializer               `json:"executable,omitempty"`
 	Container           *ContainerContextSerializer   `json:"container,omitempty"`
 	Args                []string                      `json:"args,omitempty"`
+	ArgsTruncated       bool                          `json:"args_truncated,omitempty"`
+	Envs                []string                      `json:"envs,omitempty"`
+	EnvsTruncated       bool                          `json:"envs_truncated,omitempty"`
 }
 
 // ContainerContextSerializer serializes a container context to JSON
@@ -307,16 +311,26 @@ func newCredentialsSerializerWithResolvers(ce *model.Credentials, r *Resolvers) 
 }
 
 func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event, topLevel bool) *ProcessCacheEntrySerializer {
-	var args = []string{}
+	var args, envs []string
 
 	// scrub args, do not send args if no scrubber instance is passed
 	// can be the case for some custom event
 	if e.scrubber == nil {
 		args = []string{}
+		envs = []string{}
 	} else {
 		if newArgs, changed := e.scrubber.ScrubCommand(args); changed {
 			args = newArgs
 		}
+
+		// for envs, we just keep the keys
+		var newEnvs []string
+		for _, env := range envs {
+			if els := strings.SplitN(env, "=", 2); len(els) > 0 {
+				newEnvs = append(newEnvs, els[0])
+			}
+		}
+		envs = newEnvs
 	}
 
 	pceSerializer := &ProcessCacheEntrySerializer{

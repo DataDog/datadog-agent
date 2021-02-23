@@ -6,6 +6,11 @@
 
 #define FSTYPE_LEN 16
 
+struct str_array_ref_t {
+    u32 id;
+    u8 truncated;
+};
+
 struct syscall_cache_t {
     struct policy_t policy;
     u64 type;
@@ -102,8 +107,10 @@ struct syscall_cache_t {
         } clone;
 
         struct {
-            u32 args_id;
-            u8 args_truncated;
+            struct dentry *dentry;
+            struct path_key_t path_key;
+            struct str_array_ref_t args;
+            struct str_array_ref_t envs;
             u8 is_parsed;
         } exec;
     };

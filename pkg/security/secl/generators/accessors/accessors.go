@@ -159,6 +159,8 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 		if structType, ok := typeSpec.Type.(*ast.StructType); ok {
 		FIELD:
 			for _, field := range structType.Fields.List {
+				fieldIterator := iterator
+
 				var tag reflect.StructTag
 				if field.Tag != nil {
 					tag = reflect.StructTag(field.Tag.Value[1 : len(field.Tag.Value)-1])
@@ -168,7 +170,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 					event = e
 				}
 
-				if len(field.Names) > 0 {
+				if isEmbedded := len(field.Names) == 0; !isEmbedded {
 					fieldName := field.Names[0].Name
 					fieldAlias := fieldName
 
@@ -177,9 +179,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 					}
 
 					if fieldTag, found := tag.Lookup("field"); found {
-						split := strings.Split(fieldTag, ",")
-
-						if fieldAlias = split[0]; fieldAlias == "-" {
+						if fieldAlias = fieldTag; fieldAlias == "-" {
 							continue FIELD
 						}
 
@@ -226,7 +226,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 								IsArray:       IsArray,
 							}
 
-							iterator = module.Iterators[alias]
+							fieldIterator = module.Iterators[alias]
 						}
 
 						if handler, found := tag.Lookup("handler"); found {
@@ -252,7 +252,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 									Public:     true,
 									Event:      event,
 									OrigType:   fieldType.Name,
-									Iterator:   iterator,
+									Iterator:   fieldIterator,
 								}
 								module.EventTypes[event] = true
 							}
@@ -265,7 +265,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 					dejavu[fieldName] = true
 
 					if fieldType, ok := field.Type.(*ast.Ident); ok {
-						if err := handleField(astFile, fieldName, fieldAlias, prefix, aliasPrefix, filepath.Base(pkgname), fieldType, event, iterator, dejavu, false); err != nil {
+						if err := handleField(astFile, fieldName, fieldAlias, prefix, aliasPrefix, filepath.Base(pkgname), fieldType, event, fieldIterator, dejavu, false); err != nil {
 							log.Print(err)
 						}
 						delete(dejavu, fieldName)
@@ -273,7 +273,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 						continue
 					} else if fieldType, ok := field.Type.(*ast.StarExpr); ok {
 						if ident, ok := fieldType.X.(*ast.Ident); ok {
-							if err := handleField(astFile, fieldName, fieldAlias, prefix, aliasPrefix, filepath.Base(pkgname), ident, event, iterator, dejavu, false); err != nil {
+							if err := handleField(astFile, fieldName, fieldAlias, prefix, aliasPrefix, filepath.Base(pkgname), ident, event, fieldIterator, dejavu, false); err != nil {
 								log.Print(err)
 							}
 							delete(dejavu, fieldName)
@@ -282,7 +282,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 						}
 					} else if ft, ok := field.Type.(*ast.ArrayType); ok {
 						if ident, ok := ft.Elt.(*ast.Ident); ok {
-							if err := handleField(astFile, fieldName, fieldAlias, prefix, aliasPrefix, filepath.Base(pkgname), ident, event, iterator, dejavu, true); err != nil {
+							if err := handleField(astFile, fieldName, fieldAlias, prefix, aliasPrefix, filepath.Base(pkgname), ident, event, fieldIterator, dejavu, true); err != nil {
 								log.Print(err)
 							}
 
@@ -301,6 +301,10 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 						log.Printf("Don't know what to do with %s: %s", fieldName, spew.Sdump(field.Type))
 					}
 				} else {
+					if fieldTag, found := tag.Lookup("field"); found && fieldTag == "-" {
+						continue FIELD
+					}
+
 					// Embedded field
 					ident, _ := field.Type.(*ast.Ident)
 					if starExpr, ok := field.Type.(*ast.StarExpr); ident == nil && ok {
@@ -311,7 +315,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 						embedded := astFile.Scope.Lookup(ident.Name)
 						if embedded != nil {
 							log.Printf("Embedded struct %s", ident.Name)
-							handleSpec(astFile, embedded.Decl, prefix+"."+ident.Name, aliasPrefix, event, iterator, dejavu)
+							handleSpec(astFile, embedded.Decl, prefix+"."+ident.Name, aliasPrefix, event, fieldIterator, dejavu)
 						}
 					}
 				}
@@ -655,7 +659,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			{{$FieldName}} = {{$Field.OrigType}}(v)
 			return nil
 		{{else if eq $Field.BasicType "bool"}}
-			if {{$FieldName}}, ok = value.(string); !ok {
+			if {{$FieldName}}, ok = value.(bool); !ok {
 				return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
 			}
 			return nil

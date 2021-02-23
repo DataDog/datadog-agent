@@ -131,6 +131,7 @@ type Event struct {
 	Mount            MountEvent            `field:"-"`
 	Umount           UmountEvent           `field:"-"`
 	InvalidateDentry InvalidateDentryEvent `field:"-"`
+	ArgsEnvs         ArgsEnvsEvent         `field:"-"`
 }
 
 // GetType returns the event type
@@ -228,6 +229,33 @@ func (e *ExecArgsIterator) Next() unsafe.Pointer {
 	return nil
 }
 
+// ExecEnvsIterator represents an exec envs iterator
+type ExecEnvsIterator struct {
+	envs  []string
+	index int
+}
+
+// Front returns the first env variable
+func (e *ExecEnvsIterator) Front(ctx *eval.Context) unsafe.Pointer {
+	e.envs = (*Event)(ctx.Object).Process.Envs
+	if len(e.envs) > 0 {
+		e.index = 0
+		return unsafe.Pointer(&e.envs[0])
+	}
+	return nil
+}
+
+// Next returns the next env variable
+func (e *ExecEnvsIterator) Next() unsafe.Pointer {
+	if e.index < len(e.envs) {
+		value := e.envs[e.index]
+		e.index++
+		return unsafe.Pointer(&value)
+	}
+
+	return nil
+}
+
 // ExecEvent represents a exec event
 type ExecEvent struct {
 	// proc_cache_t
@@ -259,11 +287,13 @@ type ExecEvent struct {
 	Credentials
 
 	Args []string `field:"args" iterator:"ExecArgsIterator"`
+	Envs []string `field:"envs" iterator:"ExecEnvsIterator"`
 
-	ArgsID        uint32    `field:"-"`
-	ArgsTruncated bool      `field:"-"`
-	ArgsRaw       [128]byte `field:"-"`
-	ArgsOverflow  bool      `field:"-"`
+	ArgsID        uint32 `field:"-"`
+	ArgsTruncated bool   `field:"args_truncated"`
+
+	EnvsID        uint32 `field:"-"`
+	EnvsTruncated bool   `field:"envs_truncated"`
 }
 
 // GetPathResolutionError returns the path resolution error as a string if there is one
@@ -327,6 +357,21 @@ type MkdirEvent struct {
 	SyscallEvent
 	File FileEvent `field:"file"`
 	Mode uint32    `field:"file.destination.mode"`
+}
+
+const (
+	argsType uint32 = iota + 1
+	envsType
+)
+
+// ArgsEnvs defines a args/envs event
+type ArgsEnvsEvent struct {
+	ID          uint32
+	IsArgs      bool
+	Size        uint32
+	Values      []string
+	ValuesRaw   [128]byte
+	IsTruncated bool
 }
 
 // MountEvent represents a mount event
