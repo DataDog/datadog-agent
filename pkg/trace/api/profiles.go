@@ -101,7 +101,7 @@ func newProfileProxy(transport http.RoundTripper, targets []*url.URL, keys []str
 			req.Header.Set("X-Datadog-Container-Tags", ctags)
 		}
 		req.Header.Set("X-Datadog-Additional-Tags", tags)
-		metrics.Count("datadog.trace_agent.profile", 1, nil, 1)
+		metrics.Count("datadog.trace_agent.profile", 1, nil, 1) //nolint:errcheck
 		// URL, Host and key are set in the transport for each outbound request
 	}
 	logger := logutil.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds

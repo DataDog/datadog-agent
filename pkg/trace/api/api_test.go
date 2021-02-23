@@ -165,7 +165,7 @@ func TestLegacyReceiver(t *testing.T) {
 		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
 			// start testing server
 			server := httptest.NewServer(
-				http.HandlerFunc(tc.r.handleWithVersion(tc.apiVersion, tc.r.handleTraces)),
+				tc.r.handleWithVersion(tc.apiVersion, tc.r.handleTraces),
 			)
 
 			// send traces to that endpoint without a content-type
@@ -230,7 +230,7 @@ func TestReceiverJSONDecoder(t *testing.T) {
 		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
 			// start testing server
 			server := httptest.NewServer(
-				http.HandlerFunc(tc.r.handleWithVersion(tc.apiVersion, tc.r.handleTraces)),
+				tc.r.handleWithVersion(tc.apiVersion, tc.r.handleTraces),
 			)
 
 			// send traces to that endpoint without a content-type
@@ -290,7 +290,7 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
 			// start testing server
 			server := httptest.NewServer(
-				http.HandlerFunc(tc.r.handleWithVersion(tc.apiVersion, tc.r.handleTraces)),
+				tc.r.handleWithVersion(tc.apiVersion, tc.r.handleTraces),
 			)
 
 			// send traces to that endpoint using the msgpack content-type
@@ -370,7 +370,7 @@ func TestReceiverDecodingError(t *testing.T) {
 	assert := assert.New(t)
 	conf := newTestReceiverConfig()
 	r := newTestReceiverFromConfig(conf)
-	server := httptest.NewServer(http.HandlerFunc(r.handleWithVersion(v04, r.handleTraces)))
+	server := httptest.NewServer(r.handleWithVersion(v04, r.handleTraces))
 	data := []byte("} invalid json")
 	var client http.Client
 
@@ -403,7 +403,7 @@ func TestReceiverUnexpectedEOF(t *testing.T) {
 	assert := assert.New(t)
 	conf := newTestReceiverConfig()
 	r := newTestReceiverFromConfig(conf)
-	server := httptest.NewServer(http.HandlerFunc(r.handleWithVersion(v05, r.handleTraces)))
+	server := httptest.NewServer(r.handleWithVersion(v05, r.handleTraces))
 	var client http.Client
 	traceCount := 2
 
@@ -675,7 +675,7 @@ func TestHandleTraces(t *testing.T) {
 	receiver := newTestReceiverFromConfig(conf)
 
 	// response recorder
-	handler := http.HandlerFunc(receiver.handleWithVersion(v04, receiver.handleTraces))
+	handler := receiver.handleWithVersion(v04, receiver.handleTraces)
 
 	for n := 0; n < 10; n++ {
 		// consume the traces channel without doing anything
@@ -786,7 +786,7 @@ func TestReceiverRateLimiterCancel(t *testing.T) {
 	receiver := newTestReceiverFromConfig(conf)
 	receiver.RateLimiter.SetTargetRate(0.000001) // Make sure we sample aggressively
 
-	server := httptest.NewServer(http.HandlerFunc(receiver.handleWithVersion(v04, receiver.handleTraces)))
+	server := httptest.NewServer(receiver.handleWithVersion(v04, receiver.handleTraces))
 
 	defer server.Close()
 	url := server.URL + "/v0.4/traces"
@@ -830,7 +830,7 @@ func BenchmarkHandleTracesFromOneApp(b *testing.B) {
 	receiver := newTestReceiverFromConfig(conf)
 
 	// response recorder
-	handler := http.HandlerFunc(receiver.handleWithVersion(v04, receiver.handleTraces))
+	handler := receiver.handleWithVersion(v04, receiver.handleTraces)
 
 	// benchmark
 	b.ResetTimer()
@@ -871,7 +871,7 @@ func BenchmarkHandleTracesFromMultipleApps(b *testing.B) {
 	receiver := newTestReceiverFromConfig(conf)
 
 	// response recorder
-	handler := http.HandlerFunc(receiver.handleWithVersion(v04, receiver.handleTraces))
+	handler := receiver.handleWithVersion(v04, receiver.handleTraces)
 
 	// benchmark
 	b.ResetTimer()

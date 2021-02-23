@@ -148,9 +148,9 @@ func (e *ExceptionSampler) loadSeenSpans(shardSig Signature) *seenSpans {
 }
 
 func (e *ExceptionSampler) report() {
-	metrics.Count("datadog.trace_agent.sampler.exception.hits", atomic.SwapInt64(&e.hits, 0), nil, 1)
-	metrics.Count("datadog.trace_agent.sampler.exception.misses", atomic.SwapInt64(&e.misses, 0), nil, 1)
-	metrics.Gauge("datadog.trace_agent.sampler.exception.shrinks", float64(atomic.LoadInt64(&e.shrinks)), nil, 1)
+	metrics.Count("datadog.trace_agent.sampler.exception.hits", atomic.SwapInt64(&e.hits, 0), nil, 1)             //nolint:errcheck
+	metrics.Count("datadog.trace_agent.sampler.exception.misses", atomic.SwapInt64(&e.misses, 0), nil, 1)         //nolint:errcheck
+	metrics.Gauge("datadog.trace_agent.sampler.exception.shrinks", float64(atomic.LoadInt64(&e.shrinks)), nil, 1) //nolint:errcheck
 }
 
 // seenSpans keeps record of a set of spans.

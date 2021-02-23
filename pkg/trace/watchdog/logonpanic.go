@@ -38,7 +38,7 @@ func LogOnPanic() {
 
 		metrics.Gauge("datadog.trace_agent.panic", 1, []string{
 			"err:" + shortErrMsg(errMsg),
-		}, 1)
+		}, 1) //nolint:errcheck
 
 		log.Error(logMsg)
 		log.Flush()
