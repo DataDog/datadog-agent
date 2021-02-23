@@ -179,7 +179,7 @@ func (ctr *realConntracker) DeleteTranslation(c network.ConnectionStats) {
 
 	t, ok := ctr.state[k]
 	if !ok {
-		log.Tracef("not deleting %+v from conntrack", k)
+		log.Tracef("not deleting %+v: not found in conntrack cache", k)
 		return
 	}
 

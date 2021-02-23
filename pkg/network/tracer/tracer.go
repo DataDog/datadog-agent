@@ -799,7 +799,7 @@ func (t *Tracer) getMap(name probes.BPFMapName) (*ebpf.Map, error) {
 	return mp, nil
 }
 
-func (t *Tracer) timeoutForConn(c *ConnTuple) uint64 {
+func (t *Tracer) timeoutForConn(c *ConnTuple, isAssured bool) uint64 {
 	if c.isTCP() {
 		return uint64(t.config.TCPConnTimeout.Nanoseconds())
 	}
@@ -916,7 +916,7 @@ func (t *Tracer) getProbeProgramIDs() (map[string]uint32, error) {
 // for UDP, the conntrack TTL is lower (two minutes), so the userspace and conntrack expiry are synced to avoid touching conntrack for
 // UDP expiries
 func (t *Tracer) connectionExpired(conn *ConnTuple, latestTime uint64, stats *ConnStatsWithTimestamp, ctr *cachedConntrack) bool {
-	if !stats.isExpired(latestTime, t.timeoutForConn(conn)) {
+	if !stats.isExpired(latestTime, t.timeoutForConn(conn, stats.isAssured())) {
 		return false
 	}
 

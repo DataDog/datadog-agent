@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -112,7 +113,14 @@ func getEndpointsFromTransactions(transactions []Transaction) []string {
 
 func newTestTransactionsFileStorage(a *assert.Assertions, path string, maxSizeInBytes int64) *transactionsFileStorage {
 	telemetry := transactionsFileStorageTelemetry{}
-	storage, err := newTransactionsFileStorage(NewTransactionsSerializer(domainName, nil), path, maxSizeInBytes, telemetry)
+	disk := diskUsageRetrieverMock{
+		diskUsage: &filesystem.DiskUsage{
+			Available: 10000,
+			Total:     10000,
+		}}
+	maxStorage, err := newForwarderMaxStorage("", disk, maxSizeInBytes, 1)
+	a.NoError(err)
+	storage, err := newTransactionsFileStorage(NewTransactionsSerializer(domainName, nil), path, maxStorage, telemetry)
 	a.NoError(err)
 	return storage
 }
