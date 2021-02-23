@@ -239,7 +239,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	// adaptive flush configuration
 	if v, exists := os.LookupEnv(flushStrategyEnvVar); exists {
 		if flushStrategy, err := flush.StrategyFromString(v); err != nil {
-			log.Debug("Can't parse flush strategy %s, will use the adaptive flush instead.")
+			log.Debugf("Wrong flush strategy %s, will use the adaptive flush instead. Err: %s", v, err)
 		} else {
 			daemon.UseAdaptiveFlush(false) // we're forcing the flush strategy, we won't be using the adaptive flush
 			daemon.SetFlushStrategy(flushStrategy)

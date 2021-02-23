@@ -45,11 +45,13 @@ func StrategyFromString(str string) (Strategy, error) {
 
 	if strings.HasPrefix(str, "periodically") && strings.Count(str, ",") == 1 {
 		parts := strings.Split(str, ",")
-		if msecs, err := strconv.Atoi(parts[1]); err != nil {
+
+		msecs, err := strconv.Atoi(parts[1])
+		if err != nil {
 			return &AtTheEnd{}, fmt.Errorf("StrategyFromString: can't parse flush strategy: %s", str)
-		} else {
-			return &Periodically{interval: time.Duration(msecs) * time.Millisecond}, nil
 		}
+
+		return &Periodically{interval: time.Duration(msecs) * time.Millisecond}, nil
 	}
 
 	return &AtTheEnd{}, fmt.Errorf("StrategyFromString: can't parse flush strategy: %s", str)
