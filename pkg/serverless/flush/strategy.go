@@ -30,13 +30,10 @@ const (
 
 // StrategyFromString returns a flush strategy from the given string.
 // Possible values:
-//   - start
 //   - end
 //   - periodically[,milliseconds]
 func StrategyFromString(str string) (Strategy, error) {
 	switch str {
-	case "start":
-		return &AtTheStart{}, nil
 	case "end":
 		return &AtTheEnd{}, nil
 	case "periodically":
@@ -68,20 +65,6 @@ func (s *AtTheEnd) String() string { return "end" }
 func (s *AtTheEnd) ShouldFlush(moment Moment, t time.Time) bool {
 	return moment == Stopping
 }
-
-// -----
-
-// AtTheStart is the strategy flushing at the start of the execution of the function.
-type AtTheStart struct{}
-
-func (s *AtTheStart) String() string { return "start" }
-
-// ShouldFlush returns true if this strategy want to flush at the given moment.
-func (s *AtTheStart) ShouldFlush(moment Moment, t time.Time) bool {
-	return moment == Starting
-}
-
-// -----
 
 // Periodically is the strategy flushing at least every N [nano/micro/milli]seconds
 // at the start of the function.

@@ -57,17 +57,11 @@ func (d *Daemon) AutoSelectStrategy() flush.Strategy {
 		return &flush.AtTheEnd{}
 	}
 
-	// if the function is running more than 1 time a minute, we can switch to the flush strategy
-	// flushing at least every 10 seconds.
+	// if running more than 1 time every 5 minutes, we can switch to the flush strategy
+	// flushing at least every 10 seconds (at the start of the invocation)
 	// TODO(remy): compute a proper interval instead of hard-coding 10 seconds
-	if freq.Seconds() <= 60 {
-		return flush.NewPeriodically(10 * time.Second)
-	}
-
-	// if running more than 1 time every 5 minutes, we can switch to a "flush at the start
-	// of the function" strategy.
 	if freq.Seconds() < 60*5 {
-		return &flush.AtTheStart{}
+		return flush.NewPeriodically(10 * time.Second)
 	}
 
 	return &flush.AtTheEnd{}

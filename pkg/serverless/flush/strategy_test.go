@@ -7,17 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestAtTheStart(t *testing.T) {
-	assert := assert.New(t)
-
-	s := &AtTheStart{}
-	assert.True(s.ShouldFlush(Starting, time.Now()), "it should flush because it's the start of the invocation")
-	assert.False(s.ShouldFlush(Stopping, time.Now()), "it should not flush because it's the end of the invocation")
-	assert.True(s.ShouldFlush(Starting, time.Now()), "it shouldn't have memory and should flush again")
-	assert.True(s.ShouldFlush(Starting, time.Now().Add(time.Second)), "it shouldn't have memory and should flush again")
-	assert.False(s.ShouldFlush(Stopping, time.Now().Add(time.Second)), "it should not flush because it's the end of the invocation")
-}
-
 func TestAtTheEnd(t *testing.T) {
 	assert := assert.New(t)
 
@@ -48,11 +37,7 @@ func TestPeriodically(t *testing.T) {
 func TestStrategyFromString(t *testing.T) {
 	assert := assert.New(t)
 
-	s, err := StrategyFromString("start")
-	assert.Equal("start", s.String())
-	assert.NoError(err, "parsing this string shouldn't fail")
-
-	s, err = StrategyFromString("end")
+	s, err := StrategyFromString("end")
 	assert.Equal("end", s.String())
 	assert.NoError(err, "parsing this string shouldn't fail")
 
