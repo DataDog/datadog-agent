@@ -6,10 +6,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 )
 
-const maxInvocationsStored = 50
+const maxInvocationsStored = 10
 
 // StoreInvocationTime stores the given invocation time in the list of previous
-// invocations. It is used to compute the invocation frequency of the current function.
+// invocations. It is used to compute the invocation interval of the current function.
 // It is automatically removing entries when too much have been already stored (more than maxInvocationsStored).
 // When trying to store a new point, if it is older than the last one stored, it is ignored.
 // Returns if the point has been stored.
@@ -28,9 +28,9 @@ func (d *Daemon) StoreInvocationTime(t time.Time) bool {
 	return true
 }
 
-// InvocationFrequency computes the invocation frequency of the current function.
+// InvocationInterval computes the invocation interval of the current function.
 // This function returns 0 if not enough invocations were done.
-func (d *Daemon) InvocationFrequency() time.Duration {
+func (d *Daemon) InvocationInterval() time.Duration {
 	// with less than 3 invocations, we don't have enough data to compute
 	// something reliable.
 	if len(d.lastInvocations) < 3 {
@@ -45,12 +45,12 @@ func (d *Daemon) InvocationFrequency() time.Duration {
 	return time.Duration(total / int64(len(d.lastInvocations)-1))
 }
 
-// AutoSelectStrategy uses the invocation frequency of the function to select the
+// AutoSelectStrategy uses the invocation interval of the function to select the
 // best flush strategy.
 // This function doesn't mind if the flush strategy has been overridden through
 // configuration / environment var, the caller is responsible of that.
 func (d *Daemon) AutoSelectStrategy() flush.Strategy {
-	freq := d.InvocationFrequency()
+	freq := d.InvocationInterval()
 
 	// when not enough data is available, fallback on flush.AtTheEnd strategy
 	if freq == time.Duration(0) {
@@ -59,8 +59,9 @@ func (d *Daemon) AutoSelectStrategy() flush.Strategy {
 
 	// if the function is running more than 1 time a minute, we can switch to the flush strategy
 	// flushing at least every 10 seconds.
+	// TODO(remy): compute a proper interval instead of hard-coding 10 seconds
 	if freq.Seconds() <= 60 {
-		return &flush.AtLeast{N: 10 * time.Second}
+		return flush.NewPeriodically(10 * time.Second)
 	}
 
 	// if running more than 1 time every 5 minutes, we can switch to a "flush at the start

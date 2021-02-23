@@ -48,8 +48,8 @@ func TestAutoSelectStrategy(t *testing.T) {
 	assert.True(d.StoreInvocationTime(now.Add(-time.Minute * 10)))
 	assert.Equal((&flush.AtTheEnd{}).String(), d.AutoSelectStrategy().String(), "not the good strategy has been selected")
 	assert.True(d.StoreInvocationTime(now.Add(-time.Minute * 6)))
-	// because of the frequency, we should kept the "flush at the end" strategy
-	fmt.Println(d.InvocationFrequency())
+	// because of the interval, we should kept the "flush at the end" strategy
+	fmt.Println(d.InvocationInterval())
 	assert.Equal((&flush.AtTheEnd{}).String(), d.AutoSelectStrategy().String(), "not the good strategy has been selected")
 }
 
@@ -67,11 +67,11 @@ func TestStoreInvocationTime(t *testing.T) {
 
 	assert.True(len(d.lastInvocations) <= maxInvocationsStored, "the amount of stored invocations should be lower or equal to 50")
 	// validate that the proper entries were removed
-	assert.Equal(now.Add(-time.Second*50), d.lastInvocations[0])
-	assert.Equal(now.Add(-time.Second*49), d.lastInvocations[1])
+	assert.Equal(now.Add(-time.Second*10), d.lastInvocations[0])
+	assert.Equal(now.Add(-time.Second*9), d.lastInvocations[1])
 }
 
-func TestInvocationFrequency(t *testing.T) {
+func TestInvocationInterval(t *testing.T) {
 	assert := assert.New(t)
 
 	d := Daemon{
@@ -79,21 +79,21 @@ func TestInvocationFrequency(t *testing.T) {
 		flushStrategy:   &flush.AtTheEnd{},
 	}
 
-	// first scenario, validate that we're not computing the frequency if we only have 2 invocations done
+	// first scenario, validate that we're not computing the interval if we only have 2 invocations done
 	// -----
 
 	for i := 0; i < 2; i++ {
 		time.Sleep(100 * time.Millisecond)
 		d.lastInvocations = append(d.lastInvocations, time.Now())
-		assert.Equal(time.Duration(0), d.InvocationFrequency(), "we should not compute any frequency just yet since we don't have enough data")
+		assert.Equal(time.Duration(0), d.InvocationInterval(), "we should not compute any interval just yet since we don't have enough data")
 	}
 	time.Sleep(100 * time.Millisecond)
 	d.lastInvocations = append(d.lastInvocations, time.Now())
 
-	//	assert.Equal(d.InvocationFrequency(), time.Duration(0), "we should not compute any frequency just yet since we don't have enough data")
-	assert.NotEqual(time.Duration(0), d.InvocationFrequency(), "we should compute some frequency now")
+	//	assert.Equal(d.InvocationInterval(), time.Duration(0), "we should not compute any interval just yet since we don't have enough data")
+	assert.NotEqual(time.Duration(0), d.InvocationInterval(), "we should compute some interval now")
 
-	// second scenario, validate the frequency that has been computed
+	// second scenario, validate the interval that has been computed
 	// -----
 
 	// reset the data
@@ -106,10 +106,10 @@ func TestInvocationFrequency(t *testing.T) {
 		d.StoreInvocationTime(now.Add(-time.Second * time.Duration(i)))
 	}
 
-	// because we've added 50 execution, one every last 50 seconds, the frequency
+	// because we've added 50 execution, one every last 50 seconds, the interval
 	// computed between each function execution should be 1s
 	assert.Equal(maxInvocationsStored, len(d.lastInvocations), fmt.Sprintf("the amount of invocations stored should be %d", maxInvocationsStored))
-	assert.Equal(time.Second, d.InvocationFrequency(), "the compute frequency should be 1s")
+	assert.Equal(time.Second, d.InvocationInterval(), "the compute interval should be 1s")
 
 	// function executed 100ms
 
@@ -117,8 +117,8 @@ func TestInvocationFrequency(t *testing.T) {
 		d.StoreInvocationTime(now.Add(-time.Millisecond * 10 * time.Duration(i)))
 	}
 
-	// because we've added 50 execution, one every last 50 seconds, the frequency
+	// because we've added 50 execution, one every last 50 seconds, the interval
 	// computed between each function execution should be 1s
 	assert.Equal(maxInvocationsStored, len(d.lastInvocations), fmt.Sprintf("the amount of invocations stored should be %d", maxInvocationsStored))
-	assert.Equal(time.Millisecond*10, d.InvocationFrequency(), "the compute frequency should be 100ms")
+	assert.Equal(time.Millisecond*10, d.InvocationInterval(), "the compute interval should be 100ms")
 }

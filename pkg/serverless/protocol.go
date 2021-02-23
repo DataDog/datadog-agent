@@ -32,15 +32,14 @@ type Daemon struct {
 	statsdServer *dogstatsd.Server
 
 	// lastInvocations stores last invocations time to be able to compute the
-	// frequency of invocation of the function.
+	// interval of invocation of the function.
 	lastInvocations []time.Time
 	// flushStrategy is the currently selected flush strategy, defaulting to the
 	// the "flush at the end" naive strategy.
-	// FIXME(remy): configuration override
 	flushStrategy flush.Strategy
-	// adaptiveFlush is set to true if we want to automatically switch to the best
-	// flush strategy during the life of the extension.
-	adaptiveFlush bool
+	// useAdaptiveFlush is set to false when the flush strategy has been forced
+	// through configuration.
+	useAdaptiveFlush bool
 
 	// aggregator used by the statsd server
 	aggregator *aggregator.BufferedAggregator
@@ -64,8 +63,22 @@ func (d *Daemon) SetAggregator(aggregator *aggregator.BufferedAggregator) {
 }
 
 // SetFlushStrategy sets the flush strategy to use.
-func (d *Daemon) SetFlushStrategy(strategy flush.Strategy) {
+// Returns false if it was already the current flush strategy.
+func (d *Daemon) SetFlushStrategy(strategy flush.Strategy) bool {
+	log.Debug("Set flush strategy to:", strategy.String())
+
+	if strategy == d.flushStrategy {
+		return false
+	}
+
 	d.flushStrategy = strategy
+	return true
+}
+
+// UseAdaptiveFlush sets whether we use the adaptive flush or not.
+// Set it to false when the flush strategy has been forced through configuration.
+func (d *Daemon) UseAdaptiveFlush(enabled bool) {
+	d.useAdaptiveFlush = enabled
 }
 
 // TriggerFlush triggers a flush of the aggregated metrics and of the logs.
@@ -76,21 +89,14 @@ func (d *Daemon) TriggerFlush(ctx context.Context) {
 	log.Debug("Flush done")
 
 	// we've just flushed, we can maybe try to change the flush strategy?
-	if d.adaptiveFlush {
+	// (but do that only if the flush strategy hasn't be forced through configuration)
+	if d.useAdaptiveFlush {
 		newStrat := d.AutoSelectStrategy()
 		if newStrat.String() != d.flushStrategy.String() {
 			log.Debug("Switching to flush strategy:", newStrat)
 			d.flushStrategy = newStrat
 		}
 	}
-}
-
-// DisableAdaptiveFlush disables the adaptive flush, the flush will always be
-// done and the end of the invocation of the function.
-func (d *Daemon) DisableAdaptiveFlush() {
-	log.Debug("Adaptive flush has been disabled")
-	d.adaptiveFlush = false
-	d.flushStrategy = &flush.AtTheEnd{}
 }
 
 // StartDaemon starts an HTTP server to receive messages from the runtime.
@@ -103,14 +109,14 @@ func StartDaemon(stopCh chan struct{}) *Daemon {
 	mux := http.NewServeMux()
 
 	daemon := &Daemon{
-		statsdServer:    nil,
-		httpServer:      &http.Server{Addr: fmt.Sprintf(":%d", httpServerPort), Handler: mux},
-		mux:             mux,
-		stopCh:          stopCh,
-		adaptiveFlush:   true, // by default, the adaptive flush is enabled
-		ReadyWg:         &sync.WaitGroup{},
-		lastInvocations: make([]time.Time, 0),
-		flushStrategy:   &flush.AtTheEnd{},
+		statsdServer:     nil,
+		httpServer:       &http.Server{Addr: fmt.Sprintf(":%d", httpServerPort), Handler: mux},
+		mux:              mux,
+		stopCh:           stopCh,
+		ReadyWg:          &sync.WaitGroup{},
+		lastInvocations:  make([]time.Time, 0),
+		useAdaptiveFlush: true,
+		flushStrategy:    &flush.AtTheEnd{},
 	}
 
 	log.Debug("Adaptive flush is enabled")

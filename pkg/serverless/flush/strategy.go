@@ -1,6 +1,9 @@
 package flush
 
 import (
+	"fmt"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -10,7 +13,7 @@ type Strategy interface {
 	ShouldFlush(moment Moment, t time.Time) bool
 }
 
-// Moment represents at which moment we're asking the flush Strategy if we
+// Moment represents at which moment we're asking the flush strategy if we
 // should flush or not.
 // Note that there is no entry for the shutdown of the environment because we always
 // flush in this situation.
@@ -23,14 +26,38 @@ const (
 	// Stopping is used to represent the moment right after the function has finished
 	// its execution.
 	Stopping Moment = "stopping"
-	// Running is used to indicate that the function is still running.
-	// Running Moment = "running"
 )
+
+// StrategyFromString returns a flush strategy from the given string.
+// Possible values:
+//   - start
+//   - end
+//   - periodically[,milliseconds]
+func StrategyFromString(str string) (Strategy, error) {
+	switch str {
+	case "start":
+		return &AtTheStart{}, nil
+	case "end":
+		return &AtTheEnd{}, nil
+	case "periodically":
+		return &Periodically{interval: 10 * time.Second}, nil
+	}
+
+	if strings.HasPrefix(str, "periodically") && strings.Count(str, ",") == 1 {
+		parts := strings.Split(str, ",")
+		if msecs, err := strconv.Atoi(parts[1]); err != nil {
+			return &AtTheEnd{}, fmt.Errorf("StrategyFromString: can't parse flush strategy: %s", str)
+		} else {
+			return &Periodically{interval: time.Duration(msecs) * time.Millisecond}, nil
+		}
+	}
+
+	return &AtTheEnd{}, fmt.Errorf("StrategyFromString: can't parse flush strategy: %s", str)
+}
 
 // -----
 
 // AtTheEnd strategy is the simply flushing the data at the end of the execution of the function.
-// FIXME(remy): in its own file?
 type AtTheEnd struct{}
 
 func (s *AtTheEnd) String() string { return "end" }
@@ -43,7 +70,6 @@ func (s *AtTheEnd) ShouldFlush(moment Moment, t time.Time) bool {
 // -----
 
 // AtTheStart is the strategy flushing at the start of the execution of the function.
-// FIXME(remy): in its own file?
 type AtTheStart struct{}
 
 func (s *AtTheStart) String() string { return "start" }
@@ -55,48 +81,28 @@ func (s *AtTheStart) ShouldFlush(moment Moment, t time.Time) bool {
 
 // -----
 
-// AtLeast is the strategy flushing at least every N [nano/micro/milli]seconds
+// Periodically is the strategy flushing at least every N [nano/micro/milli]seconds
 // at the start of the function.
-type AtLeast struct {
-	// FIXME(remy): comment me
-	N time.Duration
-	// lastFlush
+type Periodically struct {
+	interval  time.Duration
 	lastFlush time.Time
 }
 
-func (s *AtLeast) String() string { return "at least" }
+// NewPeriodically returns an initialized Periodically flush strategy.
+func NewPeriodically(interval time.Duration) *Periodically {
+	return &Periodically{interval: interval}
+}
+
+func (s *Periodically) String() string {
+	return fmt.Sprintf("periodically,%d", s.interval/time.Millisecond)
+}
 
 // ShouldFlush returns true if this strategy want to flush at the given moment.
-func (s *AtLeast) ShouldFlush(moment Moment, t time.Time) bool {
+func (s *Periodically) ShouldFlush(moment Moment, t time.Time) bool {
 	if moment == Starting {
 		now := time.Now()
-		if s.lastFlush.Add(s.N).Before(now) {
+		if s.lastFlush.Add(s.interval).Before(now) {
 			s.lastFlush = now
-			return true
-		}
-	}
-	return false
-}
-
-// -----
-
-// EveryNInvoke is the strategy flushing at the start of the function but only every N invocations.
-type EveryNInvoke struct {
-	// The flush will happen every N invocations.
-	// In other words: N-1 is the amount of function invocation for which this strategy won't flush
-	N int
-	// cnt is the internal counter used to decide whether or not the flush should be executed.
-	cnt int
-}
-
-func (s *EveryNInvoke) String() string { return "every n invoke" }
-
-// ShouldFlush returns true if this strategy want to flush at the given moment.
-func (s *EveryNInvoke) ShouldFlush(moment Moment, t time.Time) bool {
-	if moment == Starting {
-		s.cnt++
-		if s.cnt%s.N == 0 {
-			s.cnt = 0
 			return true
 		}
 	}
