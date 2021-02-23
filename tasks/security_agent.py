@@ -40,7 +40,16 @@ def get_go_env(ctx, go_version):
 
 @task
 def build(
-    ctx, race=False, go_version=None, incremental_build=False, major_version='7', go_mod="vendor", skip_assets=False,
+    ctx,
+    race=False,
+    go_version=None,
+    incremental_build=False,
+    major_version='7',
+    # arch is never used here; we keep it to have a
+    # consistent CLI on the build task for all agents.
+    arch="x64",  # noqa: U100
+    go_mod="vendor",
+    skip_assets=False,
 ):
     """
     Build the security agent
