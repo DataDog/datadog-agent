@@ -160,7 +160,6 @@ func payloadsContain(t *testing.T, payloads []*payload, sampledSpans []*SampledS
 }
 
 func TestTraceWriterFlushSync(t *testing.T) {
-	// TestTraceWriter
 	srv := newTestServer()
 	cfg := &config.AgentConfig{
 		Hostname:   testHostname,
@@ -194,7 +193,6 @@ func TestTraceWriterFlushSync(t *testing.T) {
 }
 
 func TestTraceWriterSyncStop(t *testing.T) {
-	// TestTraceWriter
 	srv := newTestServer()
 	cfg := &config.AgentConfig{
 		Hostname:   testHostname,
