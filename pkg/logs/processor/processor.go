@@ -57,15 +57,13 @@ func (p *Processor) Stop() {
 func (p *Processor) Flush(ctx context.Context) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	running := true
-	for running {
+	for {
 		select {
 		case <-ctx.Done():
 			return
 		default:
 			if len(p.inputChan) == 0 {
-				running = false
-				break
+				return
 			}
 			msg := <-p.inputChan
 			p.processMessage(msg)

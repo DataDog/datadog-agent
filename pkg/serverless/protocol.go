@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package serverless
 
 import (
@@ -63,16 +68,9 @@ func (d *Daemon) SetAggregator(aggregator *aggregator.BufferedAggregator) {
 }
 
 // SetFlushStrategy sets the flush strategy to use.
-// Returns false if it was already the current flush strategy.
-func (d *Daemon) SetFlushStrategy(strategy flush.Strategy) bool {
-	log.Debug("Set flush strategy to:", strategy.String())
-
-	if strategy == d.flushStrategy {
-		return false
-	}
-
+func (d *Daemon) SetFlushStrategy(strategy flush.Strategy) {
+	log.Debugf("Set flush strategy: %s (was: %s)", strategy.String(), d.flushStrategy.String())
 	d.flushStrategy = strategy
-	return true
 }
 
 // UseAdaptiveFlush sets whether we use the adaptive flush or not.

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package flush
 
 import (
@@ -37,7 +42,7 @@ func StrategyFromString(str string) (Strategy, error) {
 	case "end":
 		return &AtTheEnd{}, nil
 	case "periodically":
-		return &Periodically{interval: 10 * time.Second}, nil
+		return NewPeriodically(10 * time.Second), nil
 	}
 
 	if strings.HasPrefix(str, "periodically") && strings.Count(str, ",") == 1 {
@@ -48,7 +53,7 @@ func StrategyFromString(str string) (Strategy, error) {
 			return &AtTheEnd{}, fmt.Errorf("StrategyFromString: can't parse flush strategy: %s", str)
 		}
 
-		return &Periodically{interval: time.Duration(msecs) * time.Millisecond}, nil
+		return NewPeriodically(time.Duration(msecs) * time.Millisecond), nil
 	}
 
 	return &AtTheEnd{}, fmt.Errorf("StrategyFromString: can't parse flush strategy: %s", str)
