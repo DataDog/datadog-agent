@@ -171,7 +171,7 @@ func TestExtraConfig(t *testing.T) {
 		config:       snmpConfig,
 	}
 
-	info, err := svc.GetExtraConfig([]byte("autodiscovery_subnet"))
+	info, err := svc.GetExtraConfig([]byte("network"))
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "192.168.0.0/24", string(info))
 
