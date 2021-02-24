@@ -264,6 +264,31 @@ func TestProcess(t *testing.T) {
 		assert.EqualValues(t, 5, want.TracesPriority2)
 	})
 
+	t.Run("GlobalTags", func(t *testing.T) {
+		cfg := config.New()
+		cfg.GlobalTags["_dd.test"] = "value"
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewAgent(ctx, cfg)
+		defer cancel()
+		now := time.Now()
+		span := &pb.Span{
+			TraceID:  1,
+			SpanID:   1,
+			Resource: "SELECT name FROM people WHERE age = 42 AND extra = 55",
+			Type:     "sql",
+			Start:    now.Add(-time.Second).UnixNano(),
+			Duration: (500 * time.Millisecond).Nanoseconds(),
+		}
+		agnt.Process(&api.Payload{
+			Traces: pb.Traces{{span}},
+			Source: info.NewReceiverStats().GetTagStats(info.Tags{}),
+		}, stats.NewSublayerCalculator())
+
+		assert := assert.New(t)
+		assert.Equal("value", span.GetMeta()["_dd.test"])
+	})
+
 	t.Run("normalizing", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
