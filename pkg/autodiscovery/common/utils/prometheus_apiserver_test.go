@@ -6,33 +6,35 @@
 // +build clusterchecks
 // +build kubeapiserver
 
-package common
+package utils
 
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
-	"github.com/stretchr/testify/assert"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
+	k8stypes "k8s.io/apimachinery/pkg/types"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestConfigsForService(t *testing.T) {
 	tests := []struct {
 		name  string
-		check *PrometheusCheck
+		check *types.PrometheusCheck
 		svc   *corev1.Service
 		want  []integration.Config
 	}{
 		{
 			name:  "nominal case",
-			check: DefaultPrometheusCheck,
+			check: types.DefaultPrometheusCheck,
 			svc: &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
-					UID:         types.UID("foo-uid"),
+					UID:         k8stypes.UID("foo-uid"),
 					Name:        "svc-foo",
 					Annotations: map[string]string{"prometheus.io/scrape": "true"},
 				},
@@ -51,8 +53,8 @@ func TestConfigsForService(t *testing.T) {
 		},
 		{
 			name: "custom prometheus_url",
-			check: &PrometheusCheck{
-				Instances: []*OpenmetricsInstance{
+			check: &types.PrometheusCheck{
+				Instances: []*types.OpenmetricsInstance{
 					{
 						URL:       "foo/bar",
 						Metrics:   []string{"*"},
@@ -62,7 +64,7 @@ func TestConfigsForService(t *testing.T) {
 			},
 			svc: &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
-					UID:         types.UID("foo-uid"),
+					UID:         k8stypes.UID("foo-uid"),
 					Name:        "svc-foo",
 					Annotations: map[string]string{"prometheus.io/scrape": "true"},
 				},
@@ -81,10 +83,10 @@ func TestConfigsForService(t *testing.T) {
 		},
 		{
 			name:  "excluded",
-			check: DefaultPrometheusCheck,
+			check: types.DefaultPrometheusCheck,
 			svc: &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
-					UID:         types.UID("foo-uid"),
+					UID:         k8stypes.UID("foo-uid"),
 					Name:        "svc-foo",
 					Annotations: map[string]string{"prometheus.io/scrape": "false"},
 				},
@@ -93,10 +95,10 @@ func TestConfigsForService(t *testing.T) {
 		},
 		{
 			name:  "no match",
-			check: DefaultPrometheusCheck,
+			check: types.DefaultPrometheusCheck,
 			svc: &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
-					UID:         types.UID("foo-uid"),
+					UID:         k8stypes.UID("foo-uid"),
 					Name:        "svc-foo",
 					Annotations: map[string]string{"foo": "bar"},
 				},
@@ -107,7 +109,7 @@ func TestConfigsForService(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.NoError(t, tt.check.Init())
-			assert.ElementsMatch(t, tt.want, tt.check.ConfigsForService(tt.svc))
+			assert.ElementsMatch(t, tt.want, ConfigsForService(tt.check, tt.svc))
 		})
 	}
 }

@@ -118,7 +118,8 @@ var (
 
 	// deniedMetrics used to configure the KSM store to ignore these metrics by KSM engine
 	deniedMetrics = options.MetricSet{
-		".*_created":                                       {},
+		// deny all *_created metrics except for kube_node_created
+		"^_created|^(?:[^k]|k[^u]|ku[^b]|kub[^e]|kube[^_]|kube_[^n]|kube_n[^o]|kube_no[^d]|kube_nod[^e]|kube_node.).*_created": {},
 		".*_generation":                                    {},
 		".*_metadata_resource_version":                     {},
 		"kube_pod_owner":                                   {},

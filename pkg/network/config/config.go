@@ -6,6 +6,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
+const (
+	defaultUDPTimeoutSeconds       = 30
+	defaultUDPStreamTimeoutSeconds = 120
+)
+
 // Config stores all flags used by the network eBPF tracer
 type Config struct {
 	ebpf.Config
@@ -40,11 +45,16 @@ type Config struct {
 	// EnableHTTPMonitoring specifies whether the tracer should monitor HTTP traffic
 	EnableHTTPMonitoring bool
 
-	// UDPConnTimeout determines the length of traffic inactivity between two (IP, port)-pairs before declaring a UDP
-	// connection as inactive.
-	// Note: As UDP traffic is technically "connection-less", for tracking, we consider a UDP connection to be traffic
-	//       between a source and destination IP and port.
+	// UDPConnTimeout determines the length of traffic inactivity between two
+	// (IP, port)-pairs before declaring a UDP connection as inactive. This is
+	// set to /proc/sys/net/netfilter/nf_conntrack_udp_timeout on Linux by
+	// default.
 	UDPConnTimeout time.Duration
+
+	// UDPStreamTimeout is the timeout for udp streams. This is set to
+	// /proc/sys/net/netfilter/nf_conntrack_udp_timeout_stream on Linux by
+	// default.
+	UDPStreamTimeout time.Duration
 
 	// TCPConnTimeout is like UDPConnTimeout, but for TCP connections. TCP connections are cleared when
 	// the BPF module receives a tcp_close call, but TCP connections also age out to catch cases where
@@ -79,6 +89,10 @@ type Config struct {
 
 	// EnableConntrack enables probing conntrack for network address translation via netlink
 	EnableConntrack bool
+
+	// IgnoreConntrackInitFailure will ignore any conntrack initialization failiures during system-probe load. If this is set to false, system-probe
+	// will fail to start if there is a conntrack initialization failure.
+	IgnoreConntrackInitFailure bool
 
 	// ConntrackMaxStateSize specifies the maximum number of connections with NAT we can track
 	ConntrackMaxStateSize int
@@ -120,7 +134,8 @@ func NewDefaultConfig() *Config {
 		CollectLocalDNS:              false,
 		DNSInspection:                true,
 		EnableHTTPMonitoring:         false,
-		UDPConnTimeout:               30 * time.Second,
+		UDPConnTimeout:               defaultUDPTimeoutSeconds * time.Second,
+		UDPStreamTimeout:             defaultUDPStreamTimeoutSeconds * time.Second,
 		TCPConnTimeout:               2 * time.Minute,
 		TCPClosedTimeout:             time.Second,
 		MaxTrackedConnections:        65536,
@@ -128,6 +143,7 @@ func NewDefaultConfig() *Config {
 		ConntrackRateLimit:           500,
 		EnableConntrackAllNamespaces: true,
 		EnableConntrack:              true,
+		IgnoreConntrackInitFailure:   false,
 		// With clients checking connection stats roughly every 30s, this gives us roughly ~1.6k + ~2.5k objects a second respectively.
 		MaxClosedConnectionsBuffered: 50000,
 		MaxConnectionsStateBuffered:  75000,
