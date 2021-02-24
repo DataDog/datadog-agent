@@ -27,6 +27,7 @@ import (
 	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	agentLogger "github.com/DataDog/datadog-agent/pkg/security/log"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
@@ -265,10 +266,10 @@ func (m *Module) metricsSender() {
 		case <-heartbeatTicker.C:
 			tags := []string{fmt.Sprintf("version:%s", version.AgentVersion)}
 			if m.config.RuntimeEnabled {
-				_ = m.statsdClient.Gauge("datadog.security_agent.runtime.running", 1, tags, 1)
+				_ = m.statsdClient.Gauge(metrics.MetricsSecurityAgentRuntimeRunning, 1, tags, 1)
 			}
 			if m.config.FIMEnabled {
-				_ = m.statsdClient.Gauge("datadog.security_agent.fim.running", 1, tags, 1)
+				_ = m.statsdClient.Gauge(metrics.MetricsSecurityAgentFIMRunning, 1, tags, 1)
 			}
 		case <-m.ctx.Done():
 			return

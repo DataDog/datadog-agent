@@ -23,6 +23,7 @@ import (
 	lib "github.com/DataDog/ebpf"
 	"github.com/pkg/errors"
 
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -80,11 +81,11 @@ type ProcessResolver struct {
 
 // SendStats sends process resolver metrics
 func (p *ProcessResolver) SendStats() error {
-	if err := p.client.Gauge(MetricProcessResolverCacheSize, p.GetCacheSize(), []string{}, 1.0); err != nil {
+	if err := p.client.Gauge(metrics.MetricProcessResolverCacheSize, p.GetCacheSize(), []string{}, 1.0); err != nil {
 		return errors.Wrap(err, "failed to send process_resolver cache_size metric")
 	}
 
-	if err := p.client.Gauge(MetricProcessResolverReferenceCount, p.GetEntryCacheSize(), []string{}, 1.0); err != nil {
+	if err := p.client.Gauge(metrics.MetricProcessResolverReferenceCount, p.GetEntryCacheSize(), []string{}, 1.0); err != nil {
 		return errors.Wrap(err, "failed to send process_resolver reference_count metric")
 	}
 
@@ -213,7 +214,7 @@ func (p *ProcessResolver) insertForkEntry(pid uint32, entry *model.ProcessCacheE
 	}
 	p.entryCache[pid] = entry
 
-	_ = p.client.Count(MetricProcessResolverAdded, 1, []string{}, 1.0)
+	_ = p.client.Count(metrics.MetricProcessResolverAdded, 1, []string{}, 1.0)
 
 	if p.opts.DebugCacheSize {
 		atomic.AddInt64(&p.cacheSize, 1)
@@ -233,7 +234,7 @@ func (p *ProcessResolver) insertExecEntry(pid uint32, entry *model.ProcessCacheE
 
 	p.entryCache[pid] = entry
 
-	_ = p.client.Count(MetricProcessResolverAdded, 1, []string{}, 1.0)
+	_ = p.client.Count(metrics.MetricProcessResolverAdded, 1, []string{}, 1.0)
 
 	if p.opts.DebugCacheSize {
 		atomic.AddInt64(&p.cacheSize, 1)
@@ -270,23 +271,23 @@ func (p *ProcessResolver) Resolve(pid uint32) *model.ProcessCacheEntry {
 
 	entry, exists := p.entryCache[pid]
 	if exists {
-		_ = p.client.Count(MetricProcessResolverCacheHits, 1, []string{"type:cache"}, 1.0)
+		_ = p.client.Count(metrics.MetricProcessResolverCacheHits, 1, []string{"type:cache"}, 1.0)
 		return entry
 	}
 
 	// fallback to the kernel maps directly, the perf event may be delayed / may have been lost
 	if entry = p.resolveWithKernelMaps(pid); entry != nil {
-		_ = p.client.Count(MetricProcessResolverCacheHits, 1, []string{"type:kernel_maps"}, 1.0)
+		_ = p.client.Count(metrics.MetricProcessResolverCacheHits, 1, []string{"type:kernel_maps"}, 1.0)
 		return entry
 	}
 
 	// fallback to /proc, the in-kernel LRU may have deleted the entry
 	if entry = p.resolveWithProcfs(pid); entry != nil {
-		_ = p.client.Count(MetricProcessResolverCacheHits, 1, []string{"type:procfs"}, 1.0)
+		_ = p.client.Count(metrics.MetricProcessResolverCacheHits, 1, []string{"type:procfs"}, 1.0)
 		return entry
 	}
 
-	_ = p.client.Count(MetricProcessResolverCacheMiss, 1, []string{}, 1.0)
+	_ = p.client.Count(metrics.MetricProcessResolverCacheMiss, 1, []string{}, 1.0)
 	return nil
 }
 
@@ -405,7 +406,7 @@ func (p *ProcessResolver) cacheFlush(ctx context.Context) {
 
 			delEntry := func(pid uint32, exitTime time.Time) {
 				p.deleteEntry(pid, exitTime)
-				_ = p.client.Count(MetricProcessResolverFlushed, 1, []string{}, 1.0)
+				_ = p.client.Count(metrics.MetricProcessResolverFlushed, 1, []string{}, 1.0)
 			}
 
 			// flush slowly
