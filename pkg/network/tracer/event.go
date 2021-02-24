@@ -80,7 +80,7 @@ func ipPortFromAddr(addr net.Addr) (net.IP, int) {
 	return nil, 0
 }
 
-func connTupleFromConn(conn net.Conn, pid uint32) (*ConnTuple, error) {
+func connTupleFromConn(conn net.Conn, pid uint32, netns uint32) (*ConnTuple, error) {
 	saddr := conn.LocalAddr()
 	shost, sport := ipPortFromAddr(saddr)
 
@@ -88,6 +88,7 @@ func connTupleFromConn(conn net.Conn, pid uint32) (*ConnTuple, error) {
 	dhost, dport := ipPortFromAddr(daddr)
 
 	ct := &ConnTuple{
+		netns: C.__u32(netns),
 		pid:   C.__u32(pid),
 		sport: C.__u16(sport),
 		dport: C.__u16(dport),
