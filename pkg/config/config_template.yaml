@@ -611,7 +611,7 @@ api_key:
     #
     # ad_identifier: snmp
 
-    ## @param loader - string - optional - default: core
+    ## @param loader - string - optional
     ## Check loader to use. Available loaders:
     ## - core: will use corecheck SNMP integration
     ## - python: will use python SNMP integration
