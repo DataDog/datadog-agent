@@ -607,10 +607,7 @@ func testParseIO(t *testing.T) {
 		require.NoError(t, err)
 		expIO, err := expProc.IOCounters()
 		require.NoError(t, err)
-		assert.Equal(t, int64(expIO.ReadCount), actual.ReadCount)
-		assert.Equal(t, int64(expIO.ReadBytes), actual.ReadBytes)
-		assert.Equal(t, int64(expIO.WriteCount), actual.WriteCount)
-		assert.Equal(t, int64(expIO.WriteBytes), actual.WriteBytes)
+		assert.EqualValues(t, ConvertFromIOStats(expIO), actual)
 	}
 }
 
