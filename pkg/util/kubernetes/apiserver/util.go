@@ -12,10 +12,14 @@ import (
 	"fmt"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/cache"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"golang.org/x/sync/errgroup"
-	"k8s.io/client-go/tools/cache"
+	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 )
 
 // syncTimeout can be used to wait for the kubernetes client-go cache to sync.
@@ -39,4 +43,12 @@ func SyncInformers(informers map[InformerName]cache.SharedInformer) error {
 		})
 	}
 	return g.Wait()
+}
+
+func StructureIntoWPA(obj interface{}, structDest *v1alpha1.WatermarkPodAutoscaler) error {
+	unstrObj, ok := obj.(*unstructured.Unstructured)
+	if !ok {
+		return fmt.Errorf("Could not cast Unstructured object: %v", obj)
+	}
+	return runtime.DefaultUnstructuredConverter.FromUnstructured(unstrObj.UnstructuredContent(), structDest)
 }
