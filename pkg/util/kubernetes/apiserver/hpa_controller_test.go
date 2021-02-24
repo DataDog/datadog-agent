@@ -25,7 +25,7 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
-	"k8s.io/client-go/kubernetes/scheme"
+	kscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
@@ -73,7 +73,7 @@ func newFakeAutoscalerController(t *testing.T, client kubernetes.Interface, isLe
 
 	autoscalerController, _ := NewAutoscalersController(
 		client,
-		eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "FakeAutoscalerController"}),
+		eventBroadcaster.NewRecorder(kscheme.Scheme, corev1.EventSource{Component: "FakeAutoscalerController"}),
 		isLeaderFunc,
 		dcl,
 	)
