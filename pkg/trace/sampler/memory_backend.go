@@ -69,11 +69,27 @@ func (b *MemoryBackend) CountSignature(signature Signature) {
 	b.mu.Unlock()
 }
 
+// CountClientDropped counts client dropped traces. They are added
+// to the totalScore, allowing them to weight on sampling rates during
+// adjust calls
+func (b *MemoryBackend) CountClientDropped(dropped int64) {
+	b.mu.Lock()
+	b.totalScore += float64(dropped)
+	b.mu.Unlock()
+}
+
 // CountSample counts a trace sampled by the sampler.
 func (b *MemoryBackend) CountSample() {
 	b.mu.Lock()
 	b.sampledScore++
 	atomic.AddInt64(&b.kept, 1)
+	b.mu.Unlock()
+}
+
+// CountWeightedSig counts a trace sampled by the sampler.
+func (b *MemoryBackend) CountWeightedSig(signature Signature, n float64) {
+	b.mu.Lock()
+	b.scores[signature] += n
 	b.mu.Unlock()
 }
 

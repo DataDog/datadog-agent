@@ -83,7 +83,7 @@ func (s *PrioritySampler) Stop() {
 }
 
 // Sample counts an incoming trace and returns the trace sampling decision and the applied sampling rate
-func (s *PrioritySampler) Sample(trace pb.Trace, root *pb.Span, env string) bool {
+func (s *PrioritySampler) Sample(trace pb.Trace, root *pb.Span, env string, clientDroppedP0s bool) bool {
 	// Extra safety, just in case one trace is empty
 	if len(trace) == 0 {
 		return false
@@ -104,6 +104,11 @@ func (s *PrioritySampler) Sample(trace pb.Trace, root *pb.Span, env string) bool
 	if samplingPriority > 1 {
 		return sampled
 	}
+	// short-circuiting root P0 trace chunks that the client passed. The sig is already taken in account
+	// in CountWeightedSig below. This chunk will likely be sampled by the ExceptionSampler
+	if clientDroppedP0s && samplingPriority == 0 && root.ParentID == 0 {
+		return sampled
+	}
 
 	signature := s.catalog.register(ServiceSignature{root.Service, env})
 
@@ -111,36 +116,49 @@ func (s *PrioritySampler) Sample(trace pb.Trace, root *pb.Span, env string) bool
 	s.Sampler.Backend.CountSignature(signature)
 
 	if sampled {
-		s.applyRate(sampled, root, signature)
+		rate := s.applyRate(sampled, root, signature)
 		s.Sampler.Backend.CountSample()
+		// adjust sig score with the expected P0 count for that sig
+		// adjusting this score only matters for root spans
+		if clientDroppedP0s && rate != 0 {
+			// removing 1 to not count twice the P1 chunk
+			weight := 1/rate - 1
+			s.Sampler.Backend.CountWeightedSig(signature, weight)
+		}
 	}
 	return sampled
 }
 
-func (s *PrioritySampler) applyRate(sampled bool, root *pb.Span, signature Signature) {
+// CountClientDroppedP0s counts client dropped traces.
+func (s *PrioritySampler) CountClientDroppedP0s(dropped int64) {
+	s.Sampler.Backend.CountClientDropped(dropped)
+}
+
+func (s *PrioritySampler) applyRate(sampled bool, root *pb.Span, signature Signature) float64 {
 	if root.ParentID != 0 {
-		return
+		return 1.0
 	}
 	// recent tracers annotate roots with applied priority rate
 	// agentRateKey is set when the agent computed rate is applied
-	if _, ok := getMetric(root, agentRateKey); ok {
-		return
+	if rate, ok := getMetric(root, agentRateKey); ok {
+		return rate
 	}
 	// ruleRateKey is set when a tracer rule rate is applied
-	if _, ok := getMetric(root, ruleRateKey); ok {
-		return
+	if rate, ok := getMetric(root, ruleRateKey); ok {
+		return rate
 	}
 
 	// slow path used by older tracer versions
 	// dd-trace-go used to set the rate in deprecatedRateKey
-	if _, ok := getMetric(root, deprecatedRateKey); !ok {
-		// if it's not set add next rate
-		rate := s.Sampler.GetSignatureSampleRate(signature)
-		if rate > prioritySamplingRateThresholdTo1 {
-			rate = 1
-		}
-		setMetric(root, deprecatedRateKey, rate)
+	if rate, ok := getMetric(root, deprecatedRateKey); ok {
+		return rate
 	}
+	rate := s.Sampler.GetSignatureSampleRate(signature)
+	if rate > prioritySamplingRateThresholdTo1 {
+		rate = 1
+	}
+	setMetric(root, deprecatedRateKey, rate)
+	return rate
 }
 
 // ratesByService returns all rates by service, this information is useful for

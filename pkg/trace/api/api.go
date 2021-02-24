@@ -350,6 +350,14 @@ const (
 	// headerComputedStats specifies whether the client has computed stats so that the agent
 	// doesn't have to.
 	headerComputedStats = "Datadog-Client-Computed-Stats"
+
+	// headderDroppedP0Traces contains the number of P0 trace chunks dropped by the client.
+	// This value is used to adjust priority rates computed by the agent.
+	headerDroppedP0Traces = "Datadog-Client-Dropped-P0-Traces"
+
+	// headderDroppedP0Spans contains the number of P0 spans dropped by the client.
+	// This value is used to adjust priority rates computed by the agent.
+	headerDroppedP0Spans = "Datadog-Client-Dropped-P0-Spans"
 )
 
 func (r *HTTPReceiver) tagStats(v Version, req *http.Request) *info.TagStats {
@@ -481,6 +489,9 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		ClientComputedTopLevel: req.Header.Get(headerComputedTopLevel) != "",
 		ClientComputedStats:    req.Header.Get(headerComputedStats) != "",
 	}
+
+	payload.ClientDroppedP0s = extractDroppedP0sHeaders(req, ts)
+
 	select {
 	case r.out <- payload:
 		// ok
@@ -496,6 +507,23 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 			r.out <- payload
 		}()
 	}
+}
+func extractDroppedP0sHeaders(req *http.Request, ts *info.TagStats) int64 {
+	var droppedP0Traces int64
+	if droppedP0s := req.Header.Get(headerDroppedP0Traces); droppedP0s != "" {
+		count, err := strconv.ParseInt(droppedP0s, 10, 64)
+		if err == nil {
+			droppedP0Traces = count
+			atomic.AddInt64(&ts.ClientDroppedP0Traces, count)
+		}
+	}
+	if droppedP0s := req.Header.Get(headerDroppedP0Spans); droppedP0s != "" {
+		count, err := strconv.ParseInt(droppedP0s, 10, 64)
+		if err == nil {
+			atomic.AddInt64(&ts.ClientDroppedP0Spans, count)
+		}
+	}
+	return droppedP0Traces
 }
 
 // Payload specifies information about a set of traces received by the API.
@@ -518,6 +546,8 @@ type Payload struct {
 	// ClientComputedStats reports whether the client has computed and sent over stats
 	// so that the agent doesn't have to.
 	ClientComputedStats bool
+	// ClientDroppedP0s reports the number of P0 traces chunks dropped by the client
+	ClientDroppedP0s int64
 }
 
 // handleServices handle a request with a list of several services

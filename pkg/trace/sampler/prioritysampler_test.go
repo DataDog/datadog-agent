@@ -73,7 +73,7 @@ func TestPrioritySample(t *testing.T) {
 	trace, root := getTestTraceWithService(t, "my-service", s)
 
 	SetSamplingPriority(root, -1)
-	sampled := s.Sample(trace, root, env)
+	sampled := s.Sample(trace, root, env, false)
 	assert.False(sampled, "trace with negative priority is dropped")
 	assert.Equal(0.0, s.Sampler.Backend.GetTotalScore(), "sampling a priority -1 trace should *NOT* impact sampler backend")
 	assert.Equal(0.0, s.Sampler.Backend.GetSampledScore(), "sampling a priority -1 trace should *NOT* impact sampler backend")
@@ -82,7 +82,7 @@ func TestPrioritySample(t *testing.T) {
 	trace, root = getTestTraceWithService(t, "my-service", s)
 
 	SetSamplingPriority(root, 0)
-	sampled = s.Sample(trace, root, env)
+	sampled = s.Sample(trace, root, env, false)
 	assert.False(sampled, "trace with priority 0 is dropped")
 	assert.True(0.0 < s.Sampler.Backend.GetTotalScore(), "sampling a priority 0 trace should increase total score")
 	assert.Equal(0.0, s.Sampler.Backend.GetSampledScore(), "sampling a priority 0 trace should *NOT* increase sampled score")
@@ -91,7 +91,7 @@ func TestPrioritySample(t *testing.T) {
 	trace, root = getTestTraceWithService(t, "my-service", s)
 
 	SetSamplingPriority(root, 1)
-	sampled = s.Sample(trace, root, env)
+	sampled = s.Sample(trace, root, env, false)
 	assert.True(sampled, "trace with priority 1 is kept")
 	assert.True(0.0 < s.Sampler.Backend.GetTotalScore(), "sampling a priority 0 trace should increase total score")
 	assert.True(0.0 < s.Sampler.Backend.GetSampledScore(), "sampling a priority 0 trace should increase sampled score")
@@ -100,7 +100,7 @@ func TestPrioritySample(t *testing.T) {
 	trace, root = getTestTraceWithService(t, "my-service", s)
 
 	SetSamplingPriority(root, 2)
-	sampled = s.Sample(trace, root, env)
+	sampled = s.Sample(trace, root, env, false)
 	assert.True(sampled, "trace with priority 2 is kept")
 	assert.Equal(0.0, s.Sampler.Backend.GetTotalScore(), "sampling a priority 2 trace should *NOT* increase total score")
 	assert.Equal(0.0, s.Sampler.Backend.GetSampledScore(), "sampling a priority 2 trace should *NOT* increase sampled score")
@@ -109,13 +109,13 @@ func TestPrioritySample(t *testing.T) {
 	trace, root = getTestTraceWithService(t, "my-service", s)
 
 	SetSamplingPriority(root, PriorityUserKeep)
-	sampled = s.Sample(trace, root, env)
+	sampled = s.Sample(trace, root, env, false)
 	assert.True(sampled, "trace with high priority is kept")
 	assert.Equal(0.0, s.Sampler.Backend.GetTotalScore(), "sampling a high priority trace should *NOT* increase total score")
 	assert.Equal(0.0, s.Sampler.Backend.GetSampledScore(), "sampling a high priority trace should *NOT* increase sampled score")
 
 	delete(root.Metrics, KeySamplingPriority)
-	sampled = s.Sample(trace, root, env)
+	sampled = s.Sample(trace, root, env, false)
 	assert.False(sampled, "this should not happen but a trace without priority sampling set should be dropped")
 }
 
@@ -127,7 +127,7 @@ func TestPrioritySampleThresholdTo1(t *testing.T) {
 	for i := 0; i < 1e2; i++ {
 		trace, root := getTestTraceWithService(t, "my-service", s)
 		SetSamplingPriority(root, SamplingPriority(i%2))
-		sampled := s.Sample(trace, root, env)
+		sampled := s.Sample(trace, root, env, false)
 		if sampled {
 			rate, _ := root.Metrics[deprecatedRateKey]
 			assert.Equal(1.0, rate)
@@ -136,7 +136,7 @@ func TestPrioritySampleThresholdTo1(t *testing.T) {
 	for i := 0; i < 1e3; i++ {
 		trace, root := getTestTraceWithService(t, "my-service", s)
 		SetSamplingPriority(root, SamplingPriority(i%2))
-		sampled := s.Sample(trace, root, env)
+		sampled := s.Sample(trace, root, env, false)
 		if sampled {
 			rate, _ := root.Metrics[deprecatedRateKey]
 			if rate < 1 {
@@ -193,7 +193,7 @@ func TestTargetTPSByService(t *testing.T) {
 			s.Sampler.AdjustScoring()
 			for i := 0; i < int(tracesPerPeriod); i++ {
 				trace, root := getTestTraceWithService(t, "service-a", s)
-				sampled := s.Sample(trace, root, defaultEnv)
+				sampled := s.Sample(trace, root, defaultEnv, false)
 				// Once we got into the "supposed-to-be" stable "regime", count the samples
 				if period > initPeriods {
 					handledCount++
