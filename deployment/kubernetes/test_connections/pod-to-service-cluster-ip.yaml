@@ -4,6 +4,7 @@ metadata:
   name: pod-server
   labels:
     type: server
+    test: pod-to-service-cluster-ip
 spec:
   containers:
     - image: itsthenetwork/alpine-ncat
@@ -20,6 +21,7 @@ metadata:
   name: pod-service
   labels:
     type: service
+    test: pod-to-service-cluster-ip
 spec:
   type: ClusterIP
   ports:
@@ -33,6 +35,8 @@ apiVersion: v1
 kind: Pod
 metadata:
   name: pod-client
+  labels:
+    test: pod-to-service-cluster-ip
 spec:
   containers:
     - image: jgkamat/netcat
