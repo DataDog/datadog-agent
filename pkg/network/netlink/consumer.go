@@ -116,16 +116,6 @@ func NewConsumer(procRoot string, targetRateLimit int, listenAllNamespaces bool)
 	}
 	c.initWorker(procRoot)
 
-	var err error
-	c.do(true, func() {
-		samplingRate := 1.0 // Start sampling everything
-		err = c.initNetlinkSocket(samplingRate)
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
 	return c, nil
 }
 
@@ -134,10 +124,18 @@ func NewConsumer(procRoot string, targetRateLimit int, listenAllNamespaces bool)
 func (c *Consumer) Events() <-chan Event {
 	output := make(chan Event, outputBuffer)
 	c.do(false, func() {
-		defer close(output)
+		defer func() {
+			log.Info("exited conntrack netlink receive loop")
+			close(output)
+		}()
+
 		c.streaming = true
+		if err := c.initNetlinkSocket(1.0); err != nil {
+			log.Errorf("could not initialize conntrack netlink socket: %s", err)
+			return
+		}
 		_ = c.conn.JoinGroup(netlinkCtNew)
-		c.receive(output, c.socket)
+		c.receive(output)
 	})
 
 	return output
@@ -305,7 +303,8 @@ func (c *Consumer) dumpTable(family uint8, output chan Event, ns netns.NsHandle)
 			return fmt.Errorf("netlink dump message validation error: %w", err)
 		}
 
-		c.receive(output, sock)
+		c.socket = sock
+		c.receive(output)
 		return nil
 	})
 }
@@ -415,13 +414,14 @@ func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
 // attribute is true, and only when we detect an EOF we close the output channel.
 // It's also worth noting that in the event of an ENOBUF error, we'll re-create a new netlink socket,
 // and attach a BPF sampler to it, to lower the the read throughput and save CPU.
-func (c *Consumer) receive(output chan Event, socket *Socket) {
+func (c *Consumer) receive(output chan Event) {
 ReadLoop:
 	for {
 		buffer := c.pool.Get().(*[]byte)
-		msgs, netns, err := socket.ReceiveInto(*buffer)
+		msgs, netns, err := c.socket.ReceiveInto(*buffer)
 
 		if err != nil {
+			log.Debugf("consumer netlink socket error: %s", err)
 			switch socketError(err) {
 			case errEOF:
 				// EOFs are usually indicative of normal program termination, so we simply exit
@@ -435,6 +435,7 @@ ReadLoop:
 
 		throttlingErr := c.throttle(len(msgs))
 		if throttlingErr != nil {
+			log.Errorf("exiting conntrack netlink consumer loop due to throttling error: %s", err)
 			return
 		}
 
