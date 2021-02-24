@@ -3,12 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package common
+package types
 
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -53,7 +52,7 @@ func TestBuildURL(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := buildURL(tt.annotations); got != tt.want {
+			if got := BuildURL(tt.annotations); got != tt.want {
 				t.Errorf("buildURL() = %v, want %v", got, tt.want)
 			}
 		})
@@ -64,56 +63,19 @@ func TestContainerRegex(t *testing.T) {
 	ad := &ADConfig{}
 	ad.setContainersRegex()
 	assert.Nil(t, ad.ContainersRe)
-	assert.True(t, ad.matchContainer("a-random-string"))
+	assert.True(t, ad.MatchContainer("a-random-string"))
 
 	ad = &ADConfig{KubeContainerNames: []string{"foo"}}
 	ad.setContainersRegex()
 	assert.NotNil(t, ad.ContainersRe)
-	assert.True(t, ad.matchContainer("foo"))
-	assert.False(t, ad.matchContainer("bar"))
+	assert.True(t, ad.MatchContainer("foo"))
+	assert.False(t, ad.MatchContainer("bar"))
 
 	ad = &ADConfig{KubeContainerNames: []string{"foo", "b*"}}
 	ad.setContainersRegex()
 	assert.NotNil(t, ad.ContainersRe)
-	assert.True(t, ad.matchContainer("foo"))
-	assert.True(t, ad.matchContainer("bar"))
-}
-
-func TestGetPrometheusIncludeAnnotations(t *testing.T) {
-	tests := []struct {
-		name   string
-		config []*PrometheusCheck
-		want   map[string]string
-	}{
-		{
-			name:   "empty config, default",
-			config: []*PrometheusCheck{},
-			want:   PrometheusAnnotations{"prometheus.io/scrape": "true"},
-		},
-		{
-			name:   "custom config",
-			config: []*PrometheusCheck{{AD: &ADConfig{KubeAnnotations: &InclExcl{Incl: map[string]string{"include": "true"}}}}},
-			want:   PrometheusAnnotations{"include": "true"},
-		},
-		{
-			name: "multiple configs",
-			config: []*PrometheusCheck{
-				{
-					AD: &ADConfig{KubeAnnotations: &InclExcl{Incl: map[string]string{"foo": "bar"}}},
-				},
-				{
-					AD: &ADConfig{KubeAnnotations: &InclExcl{Incl: map[string]string{"baz": "tar"}}},
-				},
-			},
-			want: PrometheusAnnotations{"foo": "bar", "baz": "tar"},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			config.Datadog.Set("prometheus_scrape.checks", tt.config)
-			assert.EqualValues(t, tt.want, GetPrometheusIncludeAnnotations())
-		})
-	}
+	assert.True(t, ad.MatchContainer("foo"))
+	assert.True(t, ad.MatchContainer("bar"))
 }
 
 func TestPrometheusIsMatchingAnnotations(t *testing.T) {

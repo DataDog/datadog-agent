@@ -48,7 +48,7 @@ def build(
     # arch is never used here; we keep it to have a
     # consistent CLI on the build task for all agents.
     arch="x64",  # noqa: U100
-    go_mod="vendor",
+    go_mod="mod",
     skip_assets=False,
 ):
     """

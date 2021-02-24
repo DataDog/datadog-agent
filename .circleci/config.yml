@@ -84,7 +84,7 @@ jobs:
       - save_cache:
           <<: *save_deps
           paths:
-            - /go/src/github.com/DataDog/datadog-agent/vendor
+            - /go/pkg/mod
             - /go/src/github.com/DataDog/datadog-agent/dev
             - /usr/local/lib/python3.6/dist-packages
             - /usr/local/bin

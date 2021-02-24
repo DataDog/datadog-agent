@@ -13,7 +13,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -58,7 +59,7 @@ type PrometheusServicesConfigProvider struct {
 	collectEndpoints   bool
 	monitoredEndpoints map[string]bool
 
-	checks []*common.PrometheusCheck
+	checks []*types.PrometheusCheck
 }
 
 // NewPrometheusServicesConfigProvider returns a new Prometheus ConfigProvider connected to kube apiserver
@@ -111,7 +112,7 @@ func NewPrometheusServicesConfigProvider(configProviders config.ConfigurationPro
 	return p, nil
 }
 
-func newPromServicesProvider(checks []*common.PrometheusCheck, api ServiceAPI, collectEndpoints bool) *PrometheusServicesConfigProvider {
+func newPromServicesProvider(checks []*types.PrometheusCheck, api ServiceAPI, collectEndpoints bool) *PrometheusServicesConfigProvider {
 	return &PrometheusServicesConfigProvider{
 		checks:             checks,
 		api:                api,
@@ -135,7 +136,7 @@ func (p *PrometheusServicesConfigProvider) Collect() ([]integration.Config, erro
 	var configs []integration.Config
 	for _, svc := range services {
 		for _, check := range p.checks {
-			serviceConfigs := check.ConfigsForService(svc)
+			serviceConfigs := utils.ConfigsForService(check, svc)
 
 			if len(serviceConfigs) == 0 {
 				continue
@@ -152,7 +153,7 @@ func (p *PrometheusServicesConfigProvider) Collect() ([]integration.Config, erro
 				return nil, err
 			}
 
-			endpointConfigs := check.ConfigsForServiceEndpoints(svc, ep)
+			endpointConfigs := utils.ConfigsForServiceEndpoints(check, svc, ep)
 
 			if len(endpointConfigs) == 0 {
 				continue
@@ -266,7 +267,7 @@ func (p *PrometheusServicesConfigProvider) invalidateIfChangedEndpoints(old, obj
 
 // promAnnotationsDiffer returns whether a service update corresponds to a config invalidation
 func (p *PrometheusServicesConfigProvider) promAnnotationsDiffer(first, second map[string]string) bool {
-	for _, annotation := range common.PrometheusStandardAnnotations {
+	for _, annotation := range types.PrometheusStandardAnnotations {
 		if first[annotation] != second[annotation] {
 			return true
 		}

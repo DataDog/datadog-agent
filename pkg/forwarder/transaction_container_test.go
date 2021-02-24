@@ -3,15 +3,15 @@ package forwarder
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestTransactionContainerAdd(t *testing.T) {
 	a := assert.New(t)
-	path, clean := createTmpFolder(a)
+	s, clean := newTransactionsFileStorageTest(a)
 	defer clean()
-	s, err := newTransactionsFileStorage(NewTransactionsSerializer("", nil), path, 1000, transactionsFileStorageTelemetry{})
-	a.NoError(err)
+
 	container := newTransactionContainer(createDropPrioritySorter(), s, 100, 0.6, transactionContainerTelemetry{})
 
 	// When adding the last element `15`, the buffer becomes full and the first 3
@@ -25,7 +25,7 @@ func TestTransactionContainerAdd(t *testing.T) {
 
 	assertPayloadSizeFromExtractTransactions(a, container, []int{40, 15})
 
-	_, err = container.add(createTransactionWithPayloadSize(5))
+	_, err := container.add(createTransactionWithPayloadSize(5))
 	a.NoError(err)
 	a.Equal(5, container.getCurrentMemSizeInBytes())
 	a.Equal(1, container.getTransactionCount())
@@ -37,10 +37,9 @@ func TestTransactionContainerAdd(t *testing.T) {
 
 func TestTransactionContainerSeveralFlushToDisk(t *testing.T) {
 	a := assert.New(t)
-	path, clean := createTmpFolder(a)
+	s, clean := newTransactionsFileStorageTest(a)
 	defer clean()
-	s, err := newTransactionsFileStorage(NewTransactionsSerializer("", nil), path, 1000, transactionsFileStorageTelemetry{})
-	a.NoError(err)
+
 	container := newTransactionContainer(createDropPrioritySorter(), s, 50, 0.1, transactionContainerTelemetry{})
 
 	// Flush to disk when adding `40`
@@ -80,10 +79,8 @@ func TestTransactionContainerNoTransactionStorage(t *testing.T) {
 
 func TestTransactionContainerZeroMaxMemSizeInBytes(t *testing.T) {
 	a := assert.New(t)
-	path, clean := createTmpFolder(a)
+	s, clean := newTransactionsFileStorageTest(a)
 	defer clean()
-	s, err := newTransactionsFileStorage(NewTransactionsSerializer("", nil), path, 1000, transactionsFileStorageTelemetry{})
-	a.NoError(err)
 
 	maxMemSizeInBytes := 0
 	container := newTransactionContainer(createDropPrioritySorter(), s, maxMemSizeInBytes, 0.1, transactionContainerTelemetry{})
@@ -123,4 +120,18 @@ func assertPayloadSizeFromExtractTransactions(
 
 func createDropPrioritySorter() sortByCreatedTimeAndPriority {
 	return sortByCreatedTimeAndPriority{highPriorityFirst: false}
+}
+
+func newTransactionsFileStorageTest(a *assert.Assertions) (*transactionsFileStorage, func()) {
+	path, clean := createTmpFolder(a)
+	disk := diskUsageRetrieverMock{
+		diskUsage: &filesystem.DiskUsage{
+			Available: 10000,
+			Total:     10000,
+		}}
+	maxStorage, err := newForwarderMaxStorage("", disk, 1000, 1)
+	a.NoError(err)
+	s, err := newTransactionsFileStorage(NewTransactionsSerializer("", nil), path, maxStorage, transactionsFileStorageTelemetry{})
+	a.NoError(err)
+	return s, clean
 }

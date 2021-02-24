@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
@@ -92,7 +91,7 @@ func TestProcess(t *testing.T) {
 		agnt.Process(&api.Payload{
 			Traces: pb.Traces{{span}},
 			Source: info.NewReceiverStats().GetTagStats(info.Tags{}),
-		}, stats.NewSublayerCalculator())
+		})
 
 		assert := assert.New(t)
 		assert.Equal("SELECT name FROM people WHERE age = ? ...", span.Resource)
@@ -131,14 +130,14 @@ func TestProcess(t *testing.T) {
 		agnt.Process(&api.Payload{
 			Traces: pb.Traces{{spanValid}},
 			Source: want,
-		}, stats.NewSublayerCalculator())
+		})
 		assert.EqualValues(0, want.TracesFiltered)
 		assert.EqualValues(0, want.SpansFiltered)
 
 		agnt.Process(&api.Payload{
 			Traces: pb.Traces{{spanInvalid, spanInvalid}},
 			Source: want,
-		}, stats.NewSublayerCalculator())
+		})
 		assert.EqualValues(1, want.TracesFiltered)
 		assert.EqualValues(2, want.SpansFiltered)
 	})
@@ -176,7 +175,7 @@ func TestProcess(t *testing.T) {
 		agnt.Process(&api.Payload{
 			Traces: pb.Traces{{spanInvalid, spanInvalid}, {spanValid}},
 			Source: want,
-		}, stats.NewSublayerCalculator())
+		})
 		assert.EqualValues(1, want.TracesFiltered)
 		assert.EqualValues(2, want.SpansFiltered)
 		var span *pb.Span
@@ -209,7 +208,7 @@ func TestProcess(t *testing.T) {
 			Traces:        pb.Traces{{span}},
 			Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
 			ContainerTags: "A:B,C",
-		}, stats.NewSublayerCalculator())
+		})
 
 		assert.Equal(t, "A:B,C", span.Meta[tagContainersTags])
 	})
@@ -255,7 +254,7 @@ func TestProcess(t *testing.T) {
 			agnt.Process(&api.Payload{
 				Traces: pb.Traces{{span}},
 				Source: want,
-			}, stats.NewSublayerCalculator())
+			})
 		}
 
 		assert.EqualValues(t, 1, want.TracesPriorityNone)
@@ -285,7 +284,7 @@ func TestProcess(t *testing.T) {
 		go agnt.Process(&api.Payload{
 			Traces: traces,
 			Source: agnt.Receiver.Stats.GetTagStats(info.Tags{}),
-		}, stats.NewSublayerCalculator())
+		})
 		timeout := time.After(2 * time.Second)
 		var span *pb.Span
 		select {
@@ -324,7 +323,7 @@ func TestProcess(t *testing.T) {
 		go agnt.Process(&api.Payload{
 			Traces: traces,
 			Source: agnt.Receiver.Stats.GetTagStats(info.Tags{}),
-		}, stats.NewSublayerCalculator())
+		})
 
 		var gotCount int
 		timeout := time.After(3 * time.Second)
@@ -339,66 +338,6 @@ func TestProcess(t *testing.T) {
 		}
 		// without missing a trace
 		assert.Equal(t, gotCount, len(traces))
-	})
-
-	t.Run("sublayer", func(t *testing.T) {
-		for _, tt := range []struct {
-			trace pb.Trace
-			f     func(t *testing.T, spans []*pb.Span)
-		}{
-			{
-				trace: pb.Trace{
-					{
-						TraceID: 1,
-						SpanID:  1,
-						Metrics: map[string]float64{sampler.KeySamplingPriority: 2},
-					},
-					{
-						TraceID:  1,
-						SpanID:   2,
-						ParentID: 1,
-						Metrics:  map[string]float64{sampler.KeySamplingPriority: 2},
-					},
-				},
-				f: func(t *testing.T, spans []*pb.Span) {
-					assert.Equal(t, float64(0), spans[0].Metrics["_sublayers.duration.by_service.sublayer_service:unnamed-service"])
-				},
-			},
-			{
-				trace: pb.Trace{
-					{
-						TraceID: 1,
-						SpanID:  1,
-						Metrics: map[string]float64{sampler.KeySamplingPriority: -1},
-					},
-					{
-						TraceID:  1,
-						SpanID:   2,
-						ParentID: 1,
-						Metrics:  map[string]float64{sampler.KeySamplingPriority: -1},
-					},
-				},
-				f: func(t *testing.T, spans []*pb.Span) {
-					assert.NotContains(t, spans[0].Metrics, "_sublayers.duration.by_service.sublayer_service:unnamed-service")
-				},
-			},
-		} {
-			t.Run("", func(t *testing.T) {
-				cfg := config.New()
-				cfg.Endpoints[0].APIKey = "test"
-				ctx, cancel := context.WithCancel(context.Background())
-				agnt := NewAgent(ctx, cfg)
-				cancel()
-
-				traces := pb.Traces{tt.trace}
-				traceutil.SetTopLevel(tt.trace[0], true)
-				agnt.Process(&api.Payload{
-					Traces: traces,
-					Source: agnt.Receiver.Stats.GetTagStats(info.Tags{}),
-				}, stats.NewSublayerCalculator())
-				tt.f(t, tt.trace)
-			})
-		}
 	})
 }
 
@@ -500,7 +439,7 @@ func TestClientComputedTopLevel(t *testing.T) {
 			Traces:                 traces,
 			Source:                 agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 			ClientComputedTopLevel: true,
-		}, stats.NewSublayerCalculator())
+		})
 		timeout := time.After(time.Second)
 		select {
 		case ss := <-agnt.TraceWriter.In:
@@ -517,7 +456,7 @@ func TestClientComputedTopLevel(t *testing.T) {
 			Traces:                 traces,
 			Source:                 agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 			ClientComputedTopLevel: false,
-		}, stats.NewSublayerCalculator())
+		})
 		timeout := time.After(time.Second)
 		select {
 		case ss := <-agnt.TraceWriter.In:
@@ -535,7 +474,7 @@ func TestClientComputedTopLevel(t *testing.T) {
 			Traces:                 traces,
 			Source:                 agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 			ClientComputedTopLevel: true,
-		}, stats.NewSublayerCalculator())
+		})
 		timeout := time.After(time.Second)
 		select {
 		case ss := <-agnt.TraceWriter.In:
@@ -568,43 +507,21 @@ func TestClientComputedStats(t *testing.T) {
 	}}}
 
 	t.Run("on", func(t *testing.T) {
-		go agnt.Process(&api.Payload{
+		agnt.Process(&api.Payload{
 			Traces:              traces,
 			Source:              agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 			ClientComputedStats: true,
-		}, stats.NewSublayerCalculator())
-		timeout := time.After(time.Second)
-		for {
-			select {
-			case inputs := <-agnt.Concentrator.In:
-				for _, in := range inputs {
-					assert.True(t, in.SublayersOnly)
-				}
-				return
-			case <-timeout:
-				t.Fatal("timed out waiting for input")
-			}
-		}
+		})
+		assert.Len(t, agnt.Concentrator.In, 0)
 	})
 
 	t.Run("off", func(t *testing.T) {
-		go agnt.Process(&api.Payload{
+		agnt.Process(&api.Payload{
 			Traces:              traces,
 			Source:              agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 			ClientComputedStats: false,
-		}, stats.NewSublayerCalculator())
-		timeout := time.After(time.Second)
-		for {
-			select {
-			case inputs := <-agnt.Concentrator.In:
-				for _, in := range inputs {
-					assert.False(t, in.SublayersOnly)
-				}
-				return
-			case <-timeout:
-				t.Fatal("timed out waiting for input")
-			}
-		}
+		})
+		assert.Len(t, agnt.Concentrator.In, 1)
 	})
 }
 
@@ -907,7 +824,7 @@ func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 		ta.Process(&api.Payload{
 			Traces: pb.Traces{testutil.RandomTrace(10, 8)},
 			Source: info.NewReceiverStats().GetTagStats(info.Tags{}),
-		}, stats.NewSublayerCalculator())
+		})
 	}
 }
 

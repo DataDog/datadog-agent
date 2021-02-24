@@ -17,7 +17,7 @@ AGENT_TAG = "datadog/agent:master"
 
 @task
 def build(
-    ctx, rebuild=False, race=False, major_version='7', arch="x64", go_mod="vendor",
+    ctx, rebuild=False, race=False, major_version='7', arch="x64", go_mod="mod",
 ):
     """
     Build the agent. If the bits to include in the build are not specified,

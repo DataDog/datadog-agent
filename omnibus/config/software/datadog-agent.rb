@@ -21,9 +21,11 @@ build do
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
   etc_dir = "/etc/datadog-agent"
+  gomodcache = Pathname.new("/gomodcache")
   if windows?
     env = {
         'GOPATH' => gopath.to_path,
+        'GOMODCACHE' => gomodcache.to_path,
         'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
         "Python2_ROOT_DIR" => "#{windows_safe_path(python_2_embedded)}",
         "Python3_ROOT_DIR" => "#{windows_safe_path(python_3_embedded)}",
@@ -34,6 +36,7 @@ build do
   else
     env = {
         'GOPATH' => gopath.to_path,
+        'GOMODCACHE' => gomodcache.to_path,
         'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
         "Python2_ROOT_DIR" => "#{install_dir}/embedded",
         "Python3_ROOT_DIR" => "#{install_dir}/embedded",
