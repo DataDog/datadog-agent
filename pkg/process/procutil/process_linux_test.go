@@ -148,14 +148,53 @@ func testProcessesByPID(t *testing.T) {
 	assert.NoError(t, err)
 
 	// make sure the process that has no command line doesn't get included in the output
-	for pid := range expectedProcs {
+	for pid, expectProc := range expectedProcs {
 		cmd := strings.Join(probe.getCmdline(filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid)))), " ")
 		if cmd == "" {
 			assert.NotContains(t, procByPID, pid)
 		} else {
 			assert.Contains(t, procByPID, pid)
+			compareProcess(t, ConvertFromFilledProcess(expectProc), procByPID[pid])
 		}
 	}
+}
+
+func compareProcess(t *testing.T, procV1, procV2 *Process) {
+	assert.Equal(t, procV1.Pid, procV2.Pid)
+	assert.Equal(t, procV1.Ppid, procV2.Ppid)
+	assert.Equal(t, procV1.NsPid, procV2.NsPid)
+	oldCmd := strings.Trim(strings.Join(procV1.Cmdline, " "), " ")
+	newCmd := strings.Join(procV2.Cmdline, " ")
+	assert.Equal(t, oldCmd, newCmd)
+	assert.Equal(t, procV1.Username, procV2.Username)
+	assert.Equal(t, procV1.Cwd, procV2.Cwd)
+	assert.Equal(t, procV1.Exe, procV2.Exe)
+	assert.Equal(t, procV1.Name, procV2.Name)
+	assert.ElementsMatch(t, procV1.Uids, procV2.Uids)
+	assert.ElementsMatch(t, procV1.Gids, procV2.Gids)
+	compareStats(t, procV1.Stats, procV2.Stats)
+}
+
+func compareStats(t *testing.T, st1, st2 *Stats) {
+	// CPU Timestamp might be different between gopsutil and procutil fetches data,
+	// so we compare with tolerance of 1s, then compare CpuTime without `Timestamp` field
+	assert.InDelta(t, st1.CPUTime.Timestamp, st2.CPUTime.Timestamp, 1.0)
+	st1.CPUTime.Timestamp = 0
+	st2.CPUTime.Timestamp = 0
+	assert.EqualValues(t, st1.CPUTime, st2.CPUTime)
+
+	assert.Equal(t, st1.CreateTime, st2.CreateTime)
+	assert.Equal(t, st1.OpenFdCount, st2.OpenFdCount)
+	assert.Equal(t, st1.Status, st2.Status)
+	assert.Equal(t, st1.NumThreads, st2.NumThreads)
+	assert.EqualValues(t, st1.CtxSwitches, st2.CtxSwitches)
+	assert.EqualValues(t, st1.MemInfo, st2.MemInfo)
+	// gopsutil has a bug in statm parsing https://github.com/shirou/gopsutil/issues/277
+	// so we compare after swapping the value of field `Data` and `Dirty` from gopsutil
+	// TODO: fix the problem in gopsutil forked by `Datadog`
+	st1.MemInfoEx.Dirty, st1.MemInfoEx.Data = st1.MemInfoEx.Data, st1.MemInfoEx.Dirty
+	assert.EqualValues(t, st1.MemInfoEx, st2.MemInfoEx)
+	assert.EqualValues(t, st1.IOStat, st2.IOStat)
 }
 
 func TestStatsForPIDsTestFS(t *testing.T) {
@@ -196,6 +235,10 @@ func testStatsForPIDs(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, stats)
 	assert.Len(t, stats, len(pids))
+	for pid, stat := range stats {
+		assert.Contains(t, pids, pid)
+		compareStats(t, ConvertFilledProcessesToStats(expectProcs[pid]), stat)
+	}
 }
 
 func TestMultipleProbes(t *testing.T) {
