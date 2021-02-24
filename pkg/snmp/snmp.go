@@ -93,6 +93,9 @@ func NewListenerConfig() (ListenerConfig, error) {
 		if config.Retries == 0 {
 			config.Retries = defaultRetries
 		}
+		if config.Loader == "" {
+			config.Loader = "core"
+		}
 	}
 	return snmpConfig, nil
 }
