@@ -75,7 +75,7 @@ def test(
     arch="x64",
     cache=True,
     skip_linters=False,
-    go_mod="vendor",
+    go_mod="mod",
 ):
     """
     Run all the tools and tests on the given module and targets.

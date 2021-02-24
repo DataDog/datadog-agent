@@ -6,8 +6,8 @@
   if: $RELEASE_VERSION_7 != ""
 
 .retrieve_linux_go_deps: &retrieve_linux_go_deps |
-  mkdir vendor && tar xzf vendor.tar.gz -C vendor
-  rm -f vendor.tar.gz
+  mkdir -p /gomodcache && tar xzf modcache.tar.gz -C /gomodcache
+  rm -f modcache.tar.gz
 
 .agent_build_common_suse_rpm:
   script:
