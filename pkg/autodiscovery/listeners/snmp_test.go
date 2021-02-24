@@ -25,6 +25,7 @@ func TestSNMPListener(t *testing.T) {
 	snmpConfig := snmp.Config{
 		Network:   "192.168.0.0/24",
 		Community: "public",
+		Loader: "core",
 	}
 	listenerConfig := snmp.ListenerConfig{
 		Configs: []snmp.Config{snmpConfig},
@@ -47,7 +48,7 @@ func TestSNMPListener(t *testing.T) {
 
 	job := <-testChan
 
-	assert.Equal(t, "core", job.subnet.config.Loader) // default to loader:core
+	assert.Equal(t, "core", job.subnet.config.Loader)
 	assert.Equal(t, "snmp", job.subnet.adIdentifier)
 	assert.Equal(t, "192.168.0.0", job.currentIP.String())
 	assert.Equal(t, "192.168.0.0", job.subnet.startingIP.String())
