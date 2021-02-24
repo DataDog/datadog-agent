@@ -16,7 +16,7 @@ import (
 var OOMKillProbe = api.Factory{
 	Name: "oom_kill_probe",
 	Fn: func(cfg *config.AgentConfig) (api.Module, error) {
-		if !cfg.CheckIsEnabled("OOM Kill") {
+		if !cfg.CheckIsEnabled(config.OOMKillCheckName) {
 			log.Info("OOM kill probe disabled")
 			return nil, api.ErrNotEnabled
 		}
