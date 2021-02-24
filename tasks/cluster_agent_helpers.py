@@ -13,7 +13,6 @@ from .utils import REPO_PATH, bin_name, get_build_flags, get_version
 
 def build_common(
     ctx,
-    command,
     bin_path,
     build_tags,
     bin_suffix,
@@ -74,7 +73,7 @@ def build_common(
         )
 
 
-def refresh_assets_common(ctx, bin_path, additional_dist_folders, development):
+def refresh_assets_common(_, bin_path, additional_dist_folders, development):
     """
     Clean up and refresh cluster agent's assets and config files
     """

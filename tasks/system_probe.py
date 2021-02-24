@@ -76,7 +76,7 @@ def build(
             print("system probe not supported on x86")
             raise
 
-        ver = get_version_numeric_only(ctx, env, major_version=major_version)
+        ver = get_version_numeric_only(ctx, major_version=major_version)
         maj_ver, min_ver, patch_ver = ver.split(".")
         resdir = os.path.join(".", "cmd", "system-probe", "windows_resources")
 
@@ -556,7 +556,7 @@ def is_root():
     return os.getuid() == 0
 
 
-def should_use_sudo(ctx):
+def should_use_sudo(_):
     # We are already root
     if is_root():
         return False

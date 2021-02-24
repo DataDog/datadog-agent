@@ -8,7 +8,7 @@ from .deploy.pipeline_tools import trigger_agent_pipeline, wait_for_pipeline
 
 
 @task
-def trigger(ctx, git_ref="master", release_version_6="nightly", release_version_7="nightly-a7", repo_branch="nightly"):
+def trigger(_, git_ref="master", release_version_6="nightly", release_version_7="nightly-a7", repo_branch="nightly"):
     """
     Trigger a deploy pipeline on the given git ref.
     The --release-version-6 and --release-version-7 options indicate which release.json entries are used.

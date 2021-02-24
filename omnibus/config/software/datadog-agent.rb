@@ -61,7 +61,7 @@ build do
     command "inv -e rtloader.make --python-runtimes #{py_runtimes_arg} --install-prefix \"#{windows_safe_path(python_2_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\"\" --arch #{platform}", :env => env
     command "mv rtloader/bin/*.dll  #{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent/"
     command "inv -e agent.build --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rtloader-root=#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/rtloader --rebuild --no-development --embedded-path=#{install_dir}/embedded --arch #{platform} #{do_windows_sysprobe}", env: env
-    command "inv -e systray.build --major-version #{major_version_arg} --rebuild --no-development --arch #{platform}", env: env
+    command "inv -e systray.build --major-version #{major_version_arg} --rebuild --arch #{platform}", env: env
   else
     command "inv -e rtloader.make --python-runtimes #{py_runtimes_arg} --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER'", :env => env
     command "inv -e rtloader.install"

@@ -32,14 +32,7 @@ CORECHECK_CONFS_DIR = "cmd/agent/android/app/src/main/assets/conf.d"
 
 @task
 def build(
-    ctx,
-    rebuild=False,
-    race=False,
-    development=True,
-    precompile_only=False,
-    skip_assets=False,
-    major_version='7',
-    python_runtimes='3',
+    ctx, rebuild=False, race=False, major_version='7', python_runtimes='3',
 ):
     """
     Build the android apk. If the bits to include in the build are not specified,
@@ -105,7 +98,7 @@ def build(
 
 
 @task
-def sign_apk(ctx, development=True):
+def sign_apk(ctx):
     """
     Signs the APK with the default platform signature.
     """
@@ -146,7 +139,7 @@ def clean(ctx):
 
 
 @task
-def assetconfigs(ctx):
+def assetconfigs(_):
     # move the core check config
     shutil.rmtree(CORECHECK_CONFS_DIR, ignore_errors=True)
 

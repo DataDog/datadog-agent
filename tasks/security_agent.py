@@ -45,14 +45,16 @@ def build(
     go_version=None,
     incremental_build=False,
     major_version='7',
-    arch="x64",
+    # arch is never used here; we keep it to have a
+    # consistent CLI on the build task for all agents.
+    arch="x64",  # noqa: U100
     go_mod="mod",
     skip_assets=False,
 ):
     """
     Build the security agent
     """
-    ldflags, gcflags, env = get_build_flags(ctx, arch=arch, major_version=major_version, python_runtimes='3')
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes='3')
 
     # TODO use pkg/version for this
     main = "main."
@@ -153,7 +155,7 @@ def build_functional_tests(
     bundle_ebpf=True,
     static=False,
 ):
-    ldflags, gcflags, env = get_build_flags(ctx, arch=arch, major_version=major_version)
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version)
 
     goenv = get_go_env(ctx, go_version)
     env.update(goenv)

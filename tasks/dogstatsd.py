@@ -62,7 +62,7 @@ def build(
             env["GOARCH"] = "386"
             windres_target = "pe-i386"
 
-        ver = get_version_numeric_only(ctx, env, major_version=major_version)
+        ver = get_version_numeric_only(ctx, major_version=major_version)
         maj_ver, min_ver, patch_ver = ver.split(".")
 
         ctx.run(
@@ -119,7 +119,7 @@ def build(
 
 
 @task
-def refresh_assets(ctx):
+def refresh_assets(_):
     """
     Clean up and refresh Collector's assets and config files
     """
