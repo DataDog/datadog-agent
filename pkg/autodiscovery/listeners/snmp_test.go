@@ -196,6 +196,7 @@ func TestExtraConfigv3(t *testing.T) {
 		AuthProtocol: "SHA",
 		PrivKey:      "private",
 		PrivProtocol: "DES",
+		Loader:       "core",
 	}
 
 	svc := SNMPService{
@@ -225,4 +226,8 @@ func TestExtraConfigv3(t *testing.T) {
 	info, err = svc.GetExtraConfig([]byte("priv_protocol"))
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "DES", string(info))
+
+	info, err = svc.GetExtraConfig([]byte("loader"))
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "core", string(info))
 }
