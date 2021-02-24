@@ -669,6 +669,43 @@ ORDER BY [b].[Name]`,
 			`SELECT id, name FROM emp WHERE name LIKE {fn UCASE('Smith')}`,
 			`SELECT id, name FROM emp WHERE name LIKE ?`,
 		},
+		{
+			`DROP TABLE IF EXISTS django_site;
+DROP TABLE IF EXISTS knowledgebase_article;
+
+CREATE TABLE django_site (
+    id integer PRIMARY KEY,
+    domain character varying(100) NOT NULL,
+    name character varying(50) NOT NULL,
+    uuid uuid NOT NULL,
+    disabled boolean DEFAULT false NOT NULL
+);
+
+CREATE TABLE knowledgebase_article (
+    id integer PRIMARY KEY,
+    title character varying(255) NOT NULL,
+    site_id integer NOT NULL,
+    CONSTRAINT knowledgebase_article_site_id_fkey FOREIGN KEY (site_id) REFERENCES django_site(id)
+);
+
+INSERT INTO django_site(id, domain, name, uuid, disabled) VALUES (1, 'foo.domain', 'Foo', 'cb4776c1-edf3-4041-96a8-e152f5ae0f91', false);
+INSERT INTO knowledgebase_article(id, title, site_id) VALUES(1, 'title', 1);`,
+			`DROP TABLE IF EXISTS django_site DROP TABLE IF EXISTS knowledgebase_article CREATE TABLE django_site ( id integer PRIMARY KEY, domain character varying ( ? ) NOT ? name character varying ( ? ) NOT ? uuid uuid NOT ? disabled boolean DEFAULT ? NOT ? ) CREATE TABLE knowledgebase_article ( id integer PRIMARY KEY, title character varying ( ? ) NOT ? site_id integer NOT ? CONSTRAINT knowledgebase_article_site_id_fkey FOREIGN KEY ( site_id ) REFERENCES django_site ( id ) ) INSERT INTO django_site ( id, domain, name, uuid, disabled ) VALUES ( ? ) INSERT INTO knowledgebase_article ( id, title, site_id ) VALUES ( ? )`,
+		},
+		{
+			`
+SELECT set_config('foo.bar', (SELECT foo.bar FROM sometable WHERE sometable.uuid = %(some_id)s)::text, FALSE);
+SELECT
+    othertable.id,
+    othertable.title
+FROM othertable
+INNER JOIN sometable ON sometable.id = othertable.site_id
+WHERE
+    sometable.uuid = %(some_id)s
+LIMIT 1
+;`,
+			`SELECT set_config ( ? ( SELECT foo.bar FROM sometable WHERE sometable.uuid = ? ) :: text, ? ) SELECT othertable.id, othertable.title FROM othertable INNER JOIN sometable ON sometable.id = othertable.site_id WHERE sometable.uuid = ? LIMIT ?`,
+		},
 	}
 
 	for _, c := range cases {

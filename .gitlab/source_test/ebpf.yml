@@ -1,7 +1,7 @@
 ---
 .retrieve_linux_go_deps: &retrieve_linux_go_deps |
-  mkdir vendor && tar xzf vendor.tar.gz -C vendor
-  rm -f vendor.tar.gz
+  mkdir -p $GOPATH/pkg/mod && tar xzf modcache.tar.gz -C $GOPATH/pkg/mod
+  rm -f modcache.tar.gz
 
 # Run tests for eBPF code
 tests_ebpf:

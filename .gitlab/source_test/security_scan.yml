@@ -3,8 +3,8 @@
   if: $CI_COMMIT_BRANCH == "master"
 
 .retrieve_linux_go_deps: &retrieve_linux_go_deps |
-  mkdir vendor && tar xzf vendor.tar.gz -C vendor
-  rm -f vendor.tar.gz
+  mkdir -p $GOPATH/pkg/mod && tar xzf modcache.tar.gz -C $GOPATH/pkg/mod
+  rm -f modcache.tar.gz
 
 # Scan the dependencies for security vulnerabilities with snyk
 security_scan_test:

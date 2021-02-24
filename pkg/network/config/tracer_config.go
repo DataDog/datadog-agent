@@ -4,10 +4,10 @@ import (
 	"io/ioutil"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -84,7 +84,8 @@ func TracerConfigFromConfig(cfg *config.AgentConfig) *Config {
 	tracerConfig.EnableMonotonicCount = cfg.Windows.EnableMonotonicCount
 	tracerConfig.DriverBufferSize = cfg.Windows.DriverBufferSize
 
-	tracerConfig.UDPConnTimeout = getUDPConnTimeout()
+	tracerConfig.UDPConnTimeout = sysUDPTimeout()
+	tracerConfig.UDPStreamTimeout = sysUDPStreamTimeout()
 
 	return tracerConfig
 }
@@ -94,14 +95,23 @@ func isIPv6EnabledOnHost() bool {
 	return err == nil
 }
 
-func getUDPConnTimeout() time.Duration {
-	content, err := ioutil.ReadFile(filepath.Join(util.GetProcRoot(), "sys/net/netfilter/nf_conntrack_udp_timeout_stream"))
+func sysUDPTimeout() time.Duration {
+	return time.Duration(procSysGetInt(util.GetProcRoot(), "net/netfilter/nf_conntrack_udp_timeout", defaultUDPTimeoutSeconds)) * time.Second
+}
+
+func sysUDPStreamTimeout() time.Duration {
+	return time.Duration(procSysGetInt(util.GetProcRoot(), "net/netfilter/nf_conntrack_udp_timeout_stream", defaultUDPStreamTimeoutSeconds)) * time.Second
+}
+
+func procSysGetInt(procRoot string, entry string, defValue int) int {
+	content, err := ioutil.ReadFile(filepath.Join(procRoot, "sys", entry))
 	if err != nil {
-		return 2 * time.Minute
+		return defValue
 	}
 
-	if seconds, err := strconv.Atoi(string(content)); err == nil {
-		return time.Second * time.Duration(seconds)
+	if v, err := strconv.Atoi(strings.TrimSpace(string(content))); err == nil {
+		return v
 	}
-	return 2 * time.Minute
+
+	return defValue
 }

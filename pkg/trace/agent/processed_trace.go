@@ -17,7 +17,6 @@ type ProcessedTrace struct {
 	WeightedTrace stats.WeightedTrace
 	Root          *pb.Span
 	Env           string
-	Sublayers     stats.SublayerMap
 }
 
 // Weight returns the weight at the root span.
