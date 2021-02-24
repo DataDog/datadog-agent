@@ -8,6 +8,7 @@
 package apiserver
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"testing"
@@ -319,7 +320,7 @@ func TestAutoscalerController(t *testing.T) {
 	)
 	mockedHPA.Annotations = makeAnnotations("foo", map[string]string{"foo": "bar"})
 
-	_, err := c.HorizontalPodAutoscalers("default").Create(mockedHPA)
+	_, err := c.HorizontalPodAutoscalers("default").Create(context.TODO(), mockedHPA, metav1.CreateOptions{})
 	require.NoError(t, err)
 	timeout := time.NewTimer(5 * time.Second)
 	ticker := time.NewTicker(500 * time.Millisecond)
@@ -385,7 +386,7 @@ func TestAutoscalerController(t *testing.T) {
 		},
 	}
 	mockedHPA.Annotations = makeAnnotations("nginx.net.request_per_s", map[string]string{"dcos_version": "2.1.9"})
-	_, err = c.HorizontalPodAutoscalers(mockedHPA.Namespace).Update(mockedHPA)
+	_, err = c.HorizontalPodAutoscalers(mockedHPA.Namespace).Update(context.TODO(), mockedHPA, metav1.UpdateOptions{})
 	require.NoError(t, err)
 	select {
 	case key := <-hctrl.autoscalers:
@@ -438,7 +439,7 @@ func TestAutoscalerController(t *testing.T) {
 	)
 	mockedHPA.Annotations = makeAnnotations("foo", map[string]string{"foo": "bar"})
 
-	_, err = c.HorizontalPodAutoscalers("default").Create(newMockedHPA)
+	_, err = c.HorizontalPodAutoscalers("default").Create(context.TODO(), newMockedHPA, metav1.CreateOptions{})
 	require.NoError(t, err)
 	select {
 	case key := <-hctrl.autoscalers:
@@ -448,7 +449,7 @@ func TestAutoscalerController(t *testing.T) {
 	}
 
 	// Verify that a Delete removes the Data from the Global Store and decreases metricsProcessdCount
-	err = c.HorizontalPodAutoscalers("default").Delete(newMockedHPA.Name, &metav1.DeleteOptions{})
+	err = c.HorizontalPodAutoscalers("default").Delete(context.TODO(), newMockedHPA.Name, metav1.DeleteOptions{})
 	require.NoError(t, err)
 	select {
 	case <-ticker.C:
@@ -457,7 +458,7 @@ func TestAutoscalerController(t *testing.T) {
 		require.FailNow(t, "Timeout waiting for HPAs to update")
 	}
 	// Verify that a Delete removes the Data from the Global Store
-	err = c.HorizontalPodAutoscalers("default").Delete(mockedHPA.Name, &metav1.DeleteOptions{})
+	err = c.HorizontalPodAutoscalers("default").Delete(context.TODO(), mockedHPA.Name, metav1.DeleteOptions{})
 	require.NoError(t, err)
 	select {
 	case <-ticker.C:

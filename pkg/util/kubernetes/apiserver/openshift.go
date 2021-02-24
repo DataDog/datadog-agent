@@ -8,6 +8,8 @@
 package apiserver
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -16,14 +18,14 @@ import (
 // non-standard `/oapi` URL prefix to standard api groups under the `/apis`
 // prefix in 3.6. Detecting both, with a preference for the new prefix.
 func (c *APIClient) DetectOpenShiftAPILevel() OpenShiftAPILevel {
-	err := c.Cl.CoreV1().RESTClient().Get().AbsPath("/apis/quota.openshift.io").Do().Error()
+	err := c.Cl.CoreV1().RESTClient().Get().AbsPath("/apis/quota.openshift.io").Do(context.TODO()).Error()
 	if err == nil {
 		log.Debugf("Found %s", OpenShiftAPIGroup)
 		return OpenShiftAPIGroup
 	}
 	log.Debugf("Cannot access %s: %s", OpenShiftAPIGroup, err)
 
-	err = c.Cl.CoreV1().RESTClient().Get().AbsPath("/oapi").Do().Error()
+	err = c.Cl.CoreV1().RESTClient().Get().AbsPath("/oapi").Do(context.TODO()).Error()
 	if err == nil {
 		log.Debugf("Found %s", OpenShiftOAPI)
 		return OpenShiftOAPI
