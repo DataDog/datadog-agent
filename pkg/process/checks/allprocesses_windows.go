@@ -8,15 +8,13 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/shirou/w32"
+	"golang.org/x/sys/windows"
 
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	process "github.com/DataDog/gopsutil/process"
-
-	"github.com/shirou/w32"
-
-	"golang.org/x/sys/windows"
 )
 
 var (
@@ -178,10 +176,10 @@ func getAllProcesses(probe *procutil.Probe) (map[int32]*procutil.Process, error)
 					Swap: 0,
 				},
 				IOStat: &procutil.IOCountersStat{
-					ReadCount:  ioCounters.ReadOperationCount,
-					WriteCount: ioCounters.WriteOperationCount,
-					ReadBytes:  ioCounters.ReadTransferCount,
-					WriteBytes: ioCounters.WriteTransferCount,
+					ReadCount:  int64(ioCounters.ReadOperationCount),
+					WriteCount: int64(ioCounters.WriteOperationCount),
+					ReadBytes:  int64(ioCounters.ReadTransferCount),
+					WriteBytes: int64(ioCounters.WriteTransferCount),
 				},
 				CtxSwitches: &procutil.NumCtxSwitchesStat{},
 			},
