@@ -140,6 +140,30 @@ func (d *dnsStatKeeper) GetAndResetAllStats() map[DNSKey]map[string]DNSStats {
 	return ret
 }
 
+// Snapshot returns a deep copy of all DNS stats.
+// Please only use this for testing.
+func (d *dnsStatKeeper) Snapshot() map[DNSKey]map[string]DNSStats {
+	d.mux.Lock()
+	defer d.mux.Unlock()
+
+	snapshot := make(map[DNSKey]map[string]DNSStats)
+	for key, statsByDomain := range d.stats {
+		snapshot[key] = make(map[string]DNSStats)
+		for domain, statsCopy := range statsByDomain {
+			// Copy DNSCountByRcode map
+			rcodeCopy := make(map[uint32]uint32)
+			for rcode, count := range statsCopy.DNSCountByRcode {
+				rcodeCopy[rcode] = count
+			}
+
+			statsCopy.DNSCountByRcode = rcodeCopy
+			snapshot[key][domain] = statsCopy
+		}
+	}
+
+	return snapshot
+}
+
 func (d *dnsStatKeeper) removeExpiredStates(earliestTs time.Time) {
 	deleteThreshold := 5000
 	d.mux.Lock()

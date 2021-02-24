@@ -1,4 +1,4 @@
 dependencies:
 - name: datadog-operator
-  version: 0.x.x
+  version: 0.2.x
   repository: https://helm.datadoghq.com

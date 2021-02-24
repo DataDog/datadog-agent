@@ -24,8 +24,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
+	securityLogger "github.com/DataDog/datadog-agent/pkg/security/log"
+	"github.com/DataDog/datadog-agent/pkg/security/model"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ddgostatsd "github.com/DataDog/datadog-go/statsd"
@@ -93,13 +96,14 @@ func checkPolicies(cmd *cobra.Command, args []string) error {
 		PIDCacheSize:        1,
 	}
 
-	probe, err := sprobe.NewProbe(cfg, nil)
-	if err != nil {
-		return err
-	}
+	// enabled all the rules
+	enabled := map[eval.EventType]bool{"*": true}
 
-	ruleSet := probe.NewRuleSet(rules.NewOptsWithParams(sprobe.SECLConstants, sprobe.SupportedDiscarders))
-	if err := rules.LoadPolicies(cfg, ruleSet); err != nil {
+	opts := rules.NewOptsWithParams(model.SECLConstants, sprobe.SupportedDiscarders, enabled, sprobe.AllCustomRuleIDs(), securityLogger.DatadogAgentLogger{})
+	model := &sprobe.Model{}
+	ruleSet := rules.NewRuleSet(model, model.NewEvent, opts)
+
+	if err := rules.LoadPolicies(cfg.PoliciesDir, ruleSet); err != nil {
 		return err
 	}
 
@@ -167,10 +171,6 @@ func startRuntimeSecurity(hostname string, stopper restart.Stopper, statsdClient
 	stopper.Add(agent)
 
 	log.Info("Datadog runtime security agent is now running")
-
-	// Send the runtime 'running' metrics periodically
-	ticker := sendRunningMetrics(statsdClient, "runtime")
-	stopper.Add(ticker)
 
 	return agent, nil
 }

@@ -71,7 +71,16 @@ def wait_until_service_stopped(service, timeout = 60)
   # Check if the service has stopped every second
   # Timeout after the given number of seconds
   for _ in 1..timeout do
-    break if !is_service_running?(service)
+    if !is_service_running?(service)
+      case service
+      when "datadog-agent"
+        break if !is_port_bound(5001)
+      when "datadog-dogstatsd"
+        break if !is_port_bound(8125)
+      else
+        break
+      end
+    end
     sleep 1
   end
   # HACK: somewhere between 6.15.0 and 6.16.0, the delay between the
@@ -86,14 +95,25 @@ def wait_until_service_stopped(service, timeout = 60)
   # - after: works correctly
   # Until we understand and fix the problem, we're adding this sleep
   # so that we don't get flakes in the kitchen tests.
-  sleep 2
+  # sleep 2
+  # ^ Sleep removed in lieu of extra port bound check. Keeping the
+  # comment for now in case kitchen tests still flakes.
 end
 
 def wait_until_service_started(service, timeout = 30)
   # Check if the service has started every second
   # Timeout after the given number of seconds
   for _ in 1..timeout do
-    break if is_service_running?(service)
+    if is_service_running?(service)
+      case service
+      when "datadog-agent"
+        break if is_port_bound(5001)
+      when "datadog-dogstatsd"
+        break if is_port_bound(8125)
+      else
+        break
+      end
+    end
     sleep 1
   end
   # HACK: somewhere between 6.15.0 and 6.16.0, the delay between the
@@ -108,7 +128,9 @@ def wait_until_service_started(service, timeout = 30)
   # - after: works correctly
   # Until we understand and fix the problem, we're adding this sleep
   # so that we don't get flakes in the kitchen tests.
-  sleep 5
+  # sleep 5
+  # ^ Sleep removed in lieu of extra port bound check. Keeping the
+  # comment for now in case kitchen tests still flakes.
 end
 
 def stop(flavor)
@@ -254,6 +276,18 @@ def is_service_running?(service)
   end
 end
 
+def is_windows_service_installed(service)
+  raise "is_windows_service_installed is only for windows" unless os == :windows
+  scresult = `sc qc #{service} 2>&1`
+  if scresult.include?('FAILED')
+    return false
+  elsif scresult.include?('SUCCESS')
+    return true
+  end
+  # if we get here, some return we didn't expect happened.
+  raise "Unknown result checking service status #{scresult}"
+end
+  
 def is_flavor_running?(flavor)
   is_service_running?(get_service_name(flavor))
 end
@@ -823,6 +857,36 @@ shared_examples_for 'an Agent with process enabled' do
     expect(is_service_running?("datadog-process-agent")).to be_truthy
   end
 end
+
+shared_examples_for 'an upgraded Agent with the expected version' do
+  # We retrieve the value defined in kitchen.yml because there is no simple way
+  # to set env variables on the target machine or via parameters in Kitchen/Busser
+  # See https://github.com/test-kitchen/test-kitchen/issues/662 for reference
+  let(:agent_expected_version) {
+    if os == :windows
+      dna_json_path = "#{ENV['USERPROFILE']}\\AppData\\Local\\Temp\\kitchen\\dna.json"
+    else
+      dna_json_path = "/tmp/kitchen/dna.json"
+    end
+    JSON.parse(IO.read(dna_json_path)).fetch('dd-agent-upgrade-rspec').fetch('agent_expected_version')
+  }
+
+  it 'runs with the expected version (based on the `info` command output)' do
+    agent_short_version = /(\.?\d)+/.match(agent_expected_version)[0]
+    expect(info).to include "v#{agent_short_version}"
+  end
+
+  it 'runs with the expected version (based on the version manifest file)' do
+    if os == :windows
+      version_manifest_file = "C:/Program Files/Datadog/Datadog Agent/version-manifest.txt"
+    else
+      version_manifest_file = '/opt/datadog-agent/version-manifest.txt'
+    end
+    expect(File).to exist(version_manifest_file)
+    # Match the first line of the manifest file
+    expect(File.open(version_manifest_file) {|f| f.readline.strip}).to match "agent #{agent_expected_version}"
+  end
+end 
 
 def get_user_sid(uname)
   output = `powershell -command "(New-Object System.Security.Principal.NTAccount('#{uname}')).Translate([System.Security.Principal.SecurityIdentifier]).value"`.strip

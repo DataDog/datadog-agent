@@ -8,19 +8,29 @@
 package probe
 
 import (
-	"github.com/DataDog/gopsutil/process"
 	"os"
 	"path"
 	"strconv"
 	"strings"
 	"sync"
 
+	"github.com/DataDog/gopsutil/process"
+
 	"github.com/cobaugh/osrelease"
 	"github.com/moby/sys/mountinfo"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+)
+
+var (
+	// KERNEL_VERSION(a,b,c) = (a << 16) + (b << 8) + (c)
+	kernel4_13 = kernel.VersionCode(4, 13, 0) //nolint:deadcode,unused
+	kernel4_16 = kernel.VersionCode(4, 16, 0) //nolint:deadcode,unused
+	kernel5_3  = kernel.VersionCode(5, 3, 0)  //nolint:deadcode,unused
 )
 
 var (
@@ -29,7 +39,7 @@ var (
 )
 
 // newMountEventFromMountInfo - Creates a new MountEvent from parsed MountInfo data
-func newMountEventFromMountInfo(mnt *mountinfo.Info) (*MountEvent, error) {
+func newMountEventFromMountInfo(mnt *mountinfo.Info) (*model.MountEvent, error) {
 	var err error
 	var groupID uint64
 
@@ -50,7 +60,7 @@ func newMountEventFromMountInfo(mnt *mountinfo.Info) (*MountEvent, error) {
 	}
 
 	// create a MountEvent out of the parsed MountInfo
-	return &MountEvent{
+	return &model.MountEvent{
 		ParentMountID: uint32(mnt.Parent),
 		MountPointStr: mnt.Mountpoint,
 		RootStr:       mnt.Root,
@@ -61,17 +71,12 @@ func newMountEventFromMountInfo(mnt *mountinfo.Info) (*MountEvent, error) {
 	}, nil
 }
 
-// IsOverlayFS returns whether it is an overlay fs
-func (m *MountEvent) IsOverlayFS() bool {
-	return m.GetFSType() == "overlay"
-}
-
 // MountResolver represents a cache for mountpoints and the corresponding file systems
 type MountResolver struct {
 	probe   *Probe
 	lock    sync.RWMutex
-	mounts  map[uint32]*MountEvent
-	devices map[uint32]map[uint32]*MountEvent
+	mounts  map[uint32]*model.MountEvent
+	devices map[uint32]map[uint32]*model.MountEvent
 }
 
 // SyncCache - Snapshots the current mount points of the system by reading through /proc/[pid]/mountinfo.
@@ -97,13 +102,13 @@ func (mr *MountResolver) SyncCache(proc *process.Process) error {
 		mr.insert(*e)
 
 		// init discarder revisions
-		mr.probe.initDiscarderRevision(e)
+		mr.probe.inodeDiscarders.initRevision(e)
 	}
 
 	return nil
 }
 
-func (mr *MountResolver) deleteChildren(parent *MountEvent) {
+func (mr *MountResolver) deleteChildren(parent *model.MountEvent) {
 	for _, mount := range mr.mounts {
 		if mount.ParentMountID == parent.MountID {
 			if _, exists := mr.mounts[mount.MountID]; exists {
@@ -114,7 +119,7 @@ func (mr *MountResolver) deleteChildren(parent *MountEvent) {
 }
 
 // deleteDevice deletes MountEvent sharing the same device id for overlay fs mount
-func (mr *MountResolver) deleteDevice(mount *MountEvent) {
+func (mr *MountResolver) deleteDevice(mount *model.MountEvent) {
 	if !mount.IsOverlayFS() {
 		return
 	}
@@ -126,7 +131,7 @@ func (mr *MountResolver) deleteDevice(mount *MountEvent) {
 	}
 }
 
-func (mr *MountResolver) delete(mount *MountEvent) {
+func (mr *MountResolver) delete(mount *model.MountEvent) {
 	delete(mr.mounts, mount.MountID)
 
 	mounts, exists := mr.devices[mount.Device]
@@ -166,17 +171,17 @@ func (mr *MountResolver) IsOverlayFS(mountID uint32) bool {
 }
 
 // Insert a new mount point in the cache
-func (mr *MountResolver) Insert(e MountEvent) {
+func (mr *MountResolver) Insert(e model.MountEvent) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
 	mr.insert(e)
 
 	// init discarder revisions
-	mr.probe.initDiscarderRevision(&e)
+	mr.probe.inodeDiscarders.initRevision(&e)
 }
 
-func (mr *MountResolver) insert(e MountEvent) {
+func (mr *MountResolver) insert(e model.MountEvent) {
 	// Retrieve the parent paths and strip it from the event
 	p, ok := mr.mounts[e.ParentMountID]
 	if ok {
@@ -188,7 +193,7 @@ func (mr *MountResolver) insert(e MountEvent) {
 
 	mounts := mr.devices[e.Device]
 	if mounts == nil {
-		mounts = make(map[uint32]*MountEvent)
+		mounts = make(map[uint32]*model.MountEvent)
 		mr.devices[e.Device] = mounts
 	}
 	mounts[e.MountID] = &e
@@ -218,7 +223,7 @@ func (mr *MountResolver) getParentPath(mountID uint32) string {
 	return mountPointStr
 }
 
-func (mr *MountResolver) getAncestor(mount *MountEvent, maxDepth int) *MountEvent {
+func (mr *MountResolver) getAncestor(mount *model.MountEvent, maxDepth int) *model.MountEvent {
 	if maxDepth <= 0 {
 		return nil
 	}
@@ -236,7 +241,7 @@ func (mr *MountResolver) getAncestor(mount *MountEvent, maxDepth int) *MountEven
 }
 
 // getOverlayPath uses deviceID to find overlay path
-func (mr *MountResolver) getOverlayPath(mount *MountEvent) string {
+func (mr *MountResolver) getOverlayPath(mount *model.MountEvent) string {
 	for _, deviceMount := range mr.devices[mount.Device] {
 		if mount.Device == deviceMount.Device && mount.MountID != deviceMount.MountID && deviceMount.IsOverlayFS() {
 			if p := mr.getParentPath(deviceMount.MountID); p != "" {
@@ -290,12 +295,58 @@ func getMountIDOffset(probe *Probe) uint64 {
 	return offset
 }
 
+func getSizeOfStructInode(probe *Probe) uint64 {
+	var rh7Kernel bool
+	var rh8Kernel bool
+	var suse12Kernel bool
+
+	osrelease, err := osrelease.Read()
+	if err == nil {
+		rh7Kernel = (osrelease["ID"] == "centos" || osrelease["ID"] == "rhel") && osrelease["VERSION_ID"] == "7"
+		rh8Kernel = osrelease["PLATFORM_ID"] == "platform:el8"
+		suse12Kernel = ((osrelease["ID"] == "sles") || (osrelease["ID"] == "opensuse-leap")) && strings.HasPrefix(osrelease["VERSION_ID"], "12")
+	}
+
+	var sizeOf uint64
+	if rh7Kernel {
+		sizeOf = 584
+	} else if rh8Kernel {
+		sizeOf = 648
+	} else if suse12Kernel {
+		sizeOf = 560
+	} else if probe.kernelVersion != 0 && probe.kernelVersion < kernel4_16 {
+		sizeOf = 608
+	} else {
+		sizeOf = 600
+	}
+
+	return sizeOf
+}
+
+func getSuperBlockMagicOffset(probe *Probe) uint64 {
+	var rh7Kernel bool
+
+	osrelease, err := osrelease.Read()
+	if err == nil {
+		rh7Kernel = (osrelease["ID"] == "centos" || osrelease["ID"] == "rhel") && (osrelease["VERSION_ID"] == "7")
+	}
+
+	var sizeOf uint64
+	if rh7Kernel {
+		sizeOf = 88
+	} else {
+		sizeOf = 96
+	}
+
+	return sizeOf
+}
+
 // NewMountResolver instantiates a new mount resolver
 func NewMountResolver(probe *Probe) *MountResolver {
 	return &MountResolver{
 		probe:   probe,
 		lock:    sync.RWMutex{},
-		devices: make(map[uint32]map[uint32]*MountEvent),
-		mounts:  make(map[uint32]*MountEvent),
+		devices: make(map[uint32]map[uint32]*model.MountEvent),
+		mounts:  make(map[uint32]*model.MountEvent),
 	}
 }

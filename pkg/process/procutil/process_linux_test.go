@@ -154,43 +154,47 @@ func testProcessesByPID(t *testing.T) {
 			assert.NotContains(t, procByPID, pid)
 		} else {
 			assert.Contains(t, procByPID, pid)
-			compareFilledProcs(t, expectProc, ConvertToFilledProcess(procByPID[pid]))
+			compareProcess(t, ConvertFromFilledProcess(expectProc), procByPID[pid])
 		}
 	}
 }
 
-func compareFilledProcs(t *testing.T, procV1, procV2 *process.FilledProcess) {
+func compareProcess(t *testing.T, procV1, procV2 *Process) {
 	assert.Equal(t, procV1.Pid, procV2.Pid)
 	assert.Equal(t, procV1.Ppid, procV2.Ppid)
 	assert.Equal(t, procV1.NsPid, procV2.NsPid)
 	oldCmd := strings.Trim(strings.Join(procV1.Cmdline, " "), " ")
 	newCmd := strings.Join(procV2.Cmdline, " ")
 	assert.Equal(t, oldCmd, newCmd)
-	// CPU Timestamp might be different between gopsutil and procutil fetches data,
-	// so we compare with tolerance of 1s, then compare CpuTime without `Timestamp` field
-	assert.InDelta(t, procV1.CpuTime.Timestamp, procV2.CpuTime.Timestamp, 1.0)
-	procV1.CpuTime.Timestamp = 0
-	procV2.CpuTime.Timestamp = 0
-	assert.EqualValues(t, procV1.CpuTime, procV2.CpuTime)
-
-	assert.Equal(t, procV1.CreateTime, procV2.CreateTime)
-	assert.Equal(t, procV1.OpenFdCount, procV2.OpenFdCount)
+	assert.Equal(t, procV1.Username, procV2.Username)
+	assert.Equal(t, procV1.Cwd, procV2.Cwd)
+	assert.Equal(t, procV1.Exe, procV2.Exe)
 	assert.Equal(t, procV1.Name, procV2.Name)
-	assert.Equal(t, procV1.Status, procV2.Status)
 	assert.ElementsMatch(t, procV1.Uids, procV2.Uids)
 	assert.ElementsMatch(t, procV1.Gids, procV2.Gids)
-	assert.Equal(t, procV1.NumThreads, procV2.NumThreads)
-	assert.EqualValues(t, procV1.CtxSwitches, procV2.CtxSwitches)
-	assert.EqualValues(t, procV1.MemInfo, procV2.MemInfo)
+	compareStats(t, procV1.Stats, procV2.Stats)
+}
+
+func compareStats(t *testing.T, st1, st2 *Stats) {
+	// CPU Timestamp might be different between gopsutil and procutil fetches data,
+	// so we compare with tolerance of 1s, then compare CpuTime without `Timestamp` field
+	assert.InDelta(t, st1.CPUTime.Timestamp, st2.CPUTime.Timestamp, 1.0)
+	st1.CPUTime.Timestamp = 0
+	st2.CPUTime.Timestamp = 0
+	assert.EqualValues(t, st1.CPUTime, st2.CPUTime)
+
+	assert.Equal(t, st1.CreateTime, st2.CreateTime)
+	assert.Equal(t, st1.OpenFdCount, st2.OpenFdCount)
+	assert.Equal(t, st1.Status, st2.Status)
+	assert.Equal(t, st1.NumThreads, st2.NumThreads)
+	assert.EqualValues(t, st1.CtxSwitches, st2.CtxSwitches)
+	assert.EqualValues(t, st1.MemInfo, st2.MemInfo)
 	// gopsutil has a bug in statm parsing https://github.com/shirou/gopsutil/issues/277
 	// so we compare after swapping the value of field `Data` and `Dirty` from gopsutil
 	// TODO: fix the problem in gopsutil forked by `Datadog`
-	procV1.MemInfoEx.Dirty, procV1.MemInfoEx.Data = procV1.MemInfoEx.Data, procV1.MemInfoEx.Dirty
-	assert.EqualValues(t, procV1.MemInfoEx, procV2.MemInfoEx)
-	assert.Equal(t, procV1.Cwd, procV2.Cwd)
-	assert.Equal(t, procV1.Exe, procV2.Exe)
-	assert.EqualValues(t, procV1.IOStat, procV2.IOStat)
-	assert.Equal(t, procV1.Username, procV2.Username)
+	st1.MemInfoEx.Dirty, st1.MemInfoEx.Data = st1.MemInfoEx.Data, st1.MemInfoEx.Dirty
+	assert.EqualValues(t, st1.MemInfoEx, st2.MemInfoEx)
+	assert.EqualValues(t, st1.IOStat, st2.IOStat)
 }
 
 func TestStatsForPIDsTestFS(t *testing.T) {
@@ -233,31 +237,8 @@ func testStatsForPIDs(t *testing.T) {
 	assert.Len(t, stats, len(pids))
 	for pid, stat := range stats {
 		assert.Contains(t, pids, pid)
-		compareStats(t, expectProcs[pid], ConvertToFilledProcess(&Process{Pid: pid, Stats: stat}))
+		compareStats(t, ConvertFilledProcessesToStats(expectProcs[pid]), stat)
 	}
-}
-
-func compareStats(t *testing.T, procV1, procV2 *process.FilledProcess) {
-	assert.Equal(t, procV1.Pid, procV2.Pid)
-	// CPU Timestamp might be different between gopsutil and procutil fetches data,
-	// so we compare with tolerance of 1s, then compare CpuTime without `Timestamp` field
-	assert.InDelta(t, procV1.CpuTime.Timestamp, procV2.CpuTime.Timestamp, 1.0)
-	procV1.CpuTime.Timestamp = 0
-	procV2.CpuTime.Timestamp = 0
-	assert.EqualValues(t, procV1.CpuTime, procV2.CpuTime)
-
-	assert.Equal(t, procV1.CreateTime, procV2.CreateTime)
-	assert.Equal(t, procV1.OpenFdCount, procV2.OpenFdCount)
-	assert.Equal(t, procV1.Status, procV2.Status)
-	assert.Equal(t, procV1.NumThreads, procV2.NumThreads)
-	assert.EqualValues(t, procV1.CtxSwitches, procV2.CtxSwitches)
-	assert.EqualValues(t, procV1.MemInfo, procV2.MemInfo)
-	// gopsutil has a bug in statm parsing https://github.com/shirou/gopsutil/issues/277
-	// so we compare after swapping the value of field `Data` and `Dirty` from gopsutil
-	// TODO: fix the problem in gopsutil forked by `Datadog`
-	procV1.MemInfoEx.Dirty, procV1.MemInfoEx.Data = procV1.MemInfoEx.Data, procV1.MemInfoEx.Dirty
-	assert.EqualValues(t, procV1.MemInfoEx, procV2.MemInfoEx)
-	assert.EqualValues(t, procV1.IOStat, procV2.IOStat)
 }
 
 func TestMultipleProbes(t *testing.T) {
@@ -274,13 +255,17 @@ func TestMultipleProbes(t *testing.T) {
 
 	procByPID1, err := probe1.ProcessesByPID(now)
 	assert.NoError(t, err)
+	resetNiceValues(procByPID1)
 	procByPID2, err := probe2.ProcessesByPID(now)
 	assert.NoError(t, err)
+	resetNiceValues(procByPID2)
 	for i := 0; i < 10; i++ {
 		currProcByPID1, err := probe1.ProcessesByPID(now)
 		assert.NoError(t, err)
+		resetNiceValues(currProcByPID1)
 		currProcByPID2, err := probe2.ProcessesByPID(now)
 		assert.NoError(t, err)
+		resetNiceValues(currProcByPID2)
 		assert.EqualValues(t, currProcByPID1, currProcByPID2)
 		assert.EqualValues(t, currProcByPID1, procByPID1)
 		assert.EqualValues(t, currProcByPID2, procByPID2)
@@ -514,7 +499,6 @@ func testParseStatus(t *testing.T) {
 
 		assert.Equal(t, expMemInfo.RSS, actual.memInfo.RSS)
 		assert.Equal(t, expMemInfo.VMS, actual.memInfo.VMS)
-		assert.Equal(t, expMemInfo.Swap, actual.memInfo.Swap)
 
 		assert.Equal(t, expCtxSwitches.Voluntary, actual.ctxSwitches.Voluntary)
 		assert.Equal(t, expCtxSwitches.Involuntary, actual.ctxSwitches.Involuntary)
@@ -619,19 +603,33 @@ func testParseIO(t *testing.T) {
 	defer probe.Close()
 
 	pids, err := probe.getActivePIDs()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	for _, pid := range pids {
 		actual := probe.parseIO(filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid))))
 		expProc, err := process.NewProcess(pid)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		expIO, err := expProc.IOCounters()
-		assert.NoError(t, err)
-		assert.Equal(t, expIO.ReadCount, actual.ReadCount)
-		assert.Equal(t, expIO.ReadBytes, actual.ReadBytes)
-		assert.Equal(t, expIO.WriteCount, actual.WriteCount)
-		assert.Equal(t, expIO.WriteBytes, actual.WriteBytes)
+		require.NoError(t, err)
+		assert.EqualValues(t, ConvertFromIOStats(expIO), actual)
 	}
+}
+
+func TestFetchFieldsWithoutPermission(t *testing.T) {
+	t.Skip("This test is not working in CI, but could be tested locally")
+	probe := NewProcessProbe()
+	defer probe.Close()
+
+	// PID 1 should be owned by root so we would always get permission error
+	pid := int32(1)
+	actual := probe.parseIO(filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid))))
+	assert.Equal(t, int64(-1), actual.ReadCount)
+	assert.Equal(t, int64(-1), actual.ReadBytes)
+	assert.Equal(t, int64(-1), actual.WriteCount)
+	assert.Equal(t, int64(-1), actual.WriteBytes)
+
+	fd := probe.getFDCount(strconv.Itoa(int(pid)))
+	assert.Equal(t, int32(-1), fd)
 }
 
 func TestParseStatContent(t *testing.T) {
@@ -1110,5 +1108,14 @@ func benchmarkGetProcsProcutil(b *testing.B) {
 func maySkipLocalTest(t *testing.T) {
 	if skipLocalTest {
 		t.Skip("flaky test in CI")
+	}
+}
+
+// resetNiceValues takes a group of processes and reset the "nice" values on them.
+// this is needed because the "nice" values are not extract from procfs but using system call,
+// so it might cause test flakiness if we don't reset the value
+func resetNiceValues(procs map[int32]*Process) {
+	for _, p := range procs {
+		p.Stats.Nice = 0
 	}
 }

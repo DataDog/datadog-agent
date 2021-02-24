@@ -111,6 +111,7 @@ type AgentConfig struct {
 	EnableConntrack                bool
 	ConntrackMaxStateSize          int
 	ConntrackRateLimit             int
+	IgnoreConntrackInitFailure     bool
 	EnableConntrackAllNamespaces   bool
 	SystemProbeDebugPort           int
 	ClosedChannelSize              int
@@ -232,6 +233,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		ClosedChannelSize:            500,
 		ConntrackMaxStateSize:        defaultMaxTrackedConnections * 2,
 		ConntrackRateLimit:           500,
+		IgnoreConntrackInitFailure:   false,
 		EnableConntrackAllNamespaces: true,
 		OffsetGuessThreshold:         400,
 		EnableTracepoints:            false,
@@ -513,6 +515,7 @@ func loadSysProbeEnvVariables() {
 		{"DD_SYSPROBE_SOCKET", "system_probe_config.sysprobe_socket"},
 		{"DD_SYSTEM_PROBE_CONNTRACK_IGNORE_ENOBUFS", "system_probe_config.conntrack_ignore_enobufs"},
 		{"DD_SYSTEM_PROBE_ENABLE_CONNTRACK_ALL_NAMESPACES", "system_probe_config.enable_conntrack_all_namespaces"},
+		{"DD_SYSTEM_PROBE_NETWORK_IGNORE_CONNTRACK_INIT_FAILURE", "network_config.ignore_conntrack_init_failure"},
 		{"DD_DISABLE_TCP_TRACING", "system_probe_config.disable_tcp"},
 		{"DD_DISABLE_UDP_TRACING", "system_probe_config.disable_udp"},
 		{"DD_DISABLE_IPV6_TRACING", "system_probe_config.disable_ipv6"},
@@ -528,7 +531,7 @@ func loadSysProbeEnvVariables() {
 		{"DD_ENABLE_RUNTIME_COMPILER", "system_probe_config.enable_runtime_compiler"},
 		{"DD_KERNEL_HEADER_DIRS", "system_probe_config.kernel_header_dirs"},
 		{"DD_RUNTIME_COMPILER_OUTPUT_DIR", "system_probe_config.runtime_compiler_output_dir"},
-		{"DD_SYSTEM_PROBE_PROCESS_ENABLED", "system_probe_config.process.enabled"},
+		{"DD_SYSTEM_PROBE_PROCESS_ENABLED", "system_probe_config.process_config.enabled"},
 	} {
 		if v, ok := os.LookupEnv(variable.env); ok {
 			config.Datadog.Set(variable.cfg, v)

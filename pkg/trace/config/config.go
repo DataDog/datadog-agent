@@ -116,6 +116,17 @@ type AgentConfig struct {
 
 	// Obfuscation holds sensitive data obufscator's configuration.
 	Obfuscation *ObfuscationConfig
+
+	// RequireTags specifies a list of tags which must be present on the root span in order for a trace to be accepted.
+	RequireTags []*Tag
+
+	// RejectTags specifies a list of tags which must be absent on the root span in order for a trace to be accepted.
+	RejectTags []*Tag
+}
+
+// Tag represents a key/value pair.
+type Tag struct {
+	K, V string
 }
 
 // New returns a configuration with the default values.
@@ -267,4 +278,15 @@ func prepareConfig(path string) (*AgentConfig, error) {
 // of the DD_APM_FEATURES environment variable.
 func HasFeature(f string) bool {
 	return strings.Contains(os.Getenv("DD_APM_FEATURES"), f)
+}
+
+// Features returns a list of all the features configured by means of DD_APM_FEATURES.
+func Features() []string {
+	var all []string
+	if fenv := os.Getenv("DD_APM_FEATURES"); fenv != "" {
+		for _, f := range strings.Split(fenv, ",") {
+			all = append(all, strings.TrimSpace(f))
+		}
+	}
+	return all
 }

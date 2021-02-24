@@ -129,7 +129,7 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			if inode := getInode(t, executable); inode != event.Process.Inode {
-				t.Logf("expected inode %d, got %d", event.Process.Inode, inode)
+				t.Logf("expected inode %d, got %d", inode, event.Process.Inode)
 			}
 
 			testContainerPath(t, event, "process.container_path")
@@ -175,6 +175,12 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	t.Run("ancestors", func(t *testing.T) {
+		shell := "/usr/bin/sh"
+		if resolved, err := os.Readlink(shell); err == nil {
+			shell = resolved
+		}
+		shell = path.Base(shell)
+
 		executable := "/usr/bin/touch"
 		if resolved, err := os.Readlink(executable); err == nil {
 			executable = resolved
@@ -191,7 +197,7 @@ func TestProcessContext(t *testing.T) {
 
 		// Bash attempts to optimize away forks in the last command in a function body
 		// under appropriate circumstances (source: bash changelog)
-		cmd := exec.Command("sh", "-c", "$("+executable+" "+testFile+")")
+		cmd := exec.Command(shell, "-c", "$("+executable+" "+testFile+")")
 		if _, err := cmd.CombinedOutput(); err != nil {
 			t.Error(err)
 		}
@@ -200,15 +206,16 @@ func TestProcessContext(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if filename := event.Process.ResolveInode(event); filename != executable {
+			if filename := event.ResolveExecInode(&event.Exec); filename != executable {
 				t.Errorf("expected process filename `%s`, got `%s`: %v", executable, filename, event)
 			}
 
 			if rule.ID != "test_rule_ancestors" {
 				t.Error("Wrong rule triggered")
 			}
-			if comm := event.Process.Ancestor.Comm; comm != "sh" {
-				t.Errorf("ancestor `sh` expected, got %s, event:%v", comm, event)
+
+			if ancestor := event.Process.Ancestor; ancestor == nil || ancestor.Comm != shell {
+				t.Errorf("ancestor `%s` expected, got %v, event:%v", shell, ancestor, event)
 			}
 		}
 	})

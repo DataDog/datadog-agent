@@ -9,8 +9,9 @@ import (
 	"reflect"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
 	"github.com/pkg/errors"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
 )
 
 // RuleID - ID of a Rule

@@ -40,8 +40,8 @@ require (
 	code.cloudfoundry.org/rep v0.0.0-20200325195957-1404b978e31e // indirect
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
-	github.com/DataDog/agent-payload v4.56.0+incompatible
-	github.com/DataDog/datadog-go v4.2.0+incompatible
+	github.com/DataDog/agent-payload v4.57.0+incompatible
+	github.com/DataDog/datadog-go v4.4.0+incompatible
 	github.com/DataDog/datadog-operator v0.2.1-0.20200709152311-9c71245c6822
 	github.com/DataDog/ebpf v0.0.0-20210121152636-7fc17cac5ed7
 	github.com/DataDog/gohai v0.0.0-20200605003749-e17d616e422a
@@ -101,6 +101,7 @@ require (
 	github.com/google/pprof v0.0.0-20201117184057-ae444373da19
 	github.com/gordonklaus/ineffassign v0.0.0-20210103220932-664217a59c00
 	github.com/gorilla/mux v1.7.4
+	github.com/gosnmp/gosnmp v1.29.0
 	github.com/goware/modvendor v0.3.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.0
 	github.com/grpc-ecosystem/grpc-gateway v1.14.1
@@ -173,7 +174,9 @@ require (
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
 	gopkg.in/ini.v1 v1.55.0 // indirect
 	gopkg.in/yaml.v2 v2.2.8
+	gopkg.in/yaml.v3 v3.0.0-20200506231410-2ff61e1afc86
 	gopkg.in/zorkian/go-datadog-api.v2 v2.29.0
+	gotest.tools v2.2.0+incompatible
 	gotest.tools/gotestsum v0.5.3
 	honnef.co/go/tools v0.0.1-2020.1.5
 	k8s.io/api v0.17.4

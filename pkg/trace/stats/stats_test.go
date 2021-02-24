@@ -52,8 +52,7 @@ func testWeightedSpans(withVersion bool) WeightedTrace {
 }
 
 func testTrace() pb.Trace {
-	// Data below represents a trace with some sublayers, so that we make sure,
-	// those data are correctly calculated when aggregating in HandleSpan()
+	// The structure of the trace is:
 	// A |---------------------------------------------------------------| duration: 100
 	// B   |----------------------|                                        duration: 20
 	// C     |-----| |---|                                                 duration: 5+3
@@ -68,32 +67,6 @@ func testTrace() pb.Trace {
 			Start: 2, Duration: 5},
 		&pb.Span{TraceID: 42, SpanID: 3000, ParentID: 100, Service: "C",
 			Name: "sql.query", Type: "sql", Resource: "SELECT ololololo... value FROM table",
-			Start: 10, Duration: 3, Error: 1},
-	}
-
-	traceutil.ComputeTopLevel(trace)
-	return trace
-}
-
-func testTraceTopLevel() pb.Trace {
-	// Data below represents a trace with some sublayers, so that we make sure,
-	// those data are correctly calculated when aggregating in HandleSpan()
-	// In this case, the sublayers B and C have been merged into B,
-	// showing what happens when some spans are not marked as top-level.
-	// A |---------------------------------------------------------------| duration: 100
-	// B   |----------------------|                                        duration: 20
-	// B     |-----| |---|                                                 duration: 5+3
-	trace := pb.Trace{
-		&pb.Span{TraceID: 42, SpanID: 42, ParentID: 0, Service: "A",
-			Name: "A.foo", Type: "web", Resource: "α", Start: 0, Duration: 100,
-			Metrics: map[string]float64{sampler.KeySamplingRateGlobal: 1}},
-		&pb.Span{TraceID: 42, SpanID: 100, ParentID: 42, Service: "B",
-			Name: "B.bar", Type: "web", Resource: "α", Start: 1, Duration: 20},
-		&pb.Span{TraceID: 42, SpanID: 2000, ParentID: 100, Service: "B",
-			Name: "B.bar.1", Type: "web", Resource: "α",
-			Start: 2, Duration: 5},
-		&pb.Span{TraceID: 42, SpanID: 3000, ParentID: 100, Service: "B",
-			Name: "B.bar.2", Type: "web", Resource: "α",
 			Start: 10, Duration: 3, Error: 1},
 	}
 
@@ -125,7 +98,7 @@ func TestBucketDefault(t *testing.T) {
 	// Without version tag
 	for _, s := range testWeightedSpans(false) {
 		t.Logf("weight: %f, topLevel: %v", s.Weight, s.TopLevel)
-		srb.HandleSpan(s, defaultEnv, nil, false)
+		srb.HandleSpan(s, defaultEnv)
 	}
 	sb := srb.Export()
 
@@ -231,7 +204,7 @@ func TestBucketExtraAggregators(t *testing.T) {
 
 	// with version tag
 	for _, s := range testWeightedSpans(true) {
-		srb.HandleSpan(s, defaultEnv, nil, false)
+		srb.HandleSpan(s, defaultEnv)
 	}
 	sb := srb.Export()
 
@@ -294,7 +267,7 @@ func TestBucketMany(t *testing.T) {
 		s := templateSpan
 		s.Resource = "α" + strconv.Itoa(i)
 		srbCopy := *srb
-		srbCopy.HandleSpan(s, defaultEnv, nil, false)
+		srbCopy.HandleSpan(s, defaultEnv)
 	}
 	sb := srb.Export()
 
@@ -309,194 +282,6 @@ func TestBucketMany(t *testing.T) {
 		if strings.Contains(ckey, "|hits|") {
 			assert.Equal(1.0, c.Value, "hits %s wrong value", ckey)
 		}
-	}
-}
-
-func TestBucketSublayers(t *testing.T) {
-	assert := assert.New(t)
-
-	tr := testTrace()
-	sublayers := NewSublayerCalculator().ComputeSublayers(tr)
-	root := traceutil.GetRoot(tr)
-	SetSublayersOnSpan(root, sublayers)
-
-	wt := NewWeightedTrace(tr, root)
-
-	assert.NotNil(sublayers)
-
-	srb := NewRawBucket(0, 1e9)
-
-	// No custom aggregators only the defaults
-	for _, s := range wt {
-		srb.HandleSpan(s, defaultEnv, sublayers, false)
-	}
-	sb := srb.Export()
-
-	expectedCounts := map[string]expectedCount{
-		"A.foo|_sublayers.duration.by_service|env:default,resource:α,service:A,sublayer_service:A":                                        {value: 160, topLevel: 2},
-		"A.foo|_sublayers.duration.by_service|env:default,resource:α,service:A,sublayer_service:B":                                        {value: 24, topLevel: 2},
-		"A.foo|_sublayers.duration.by_service|env:default,resource:α,service:A,sublayer_service:C":                                        {value: 16, topLevel: 2},
-		"A.foo|_sublayers.duration.by_type|env:default,resource:α,service:A,sublayer_type:sql":                                            {value: 16, topLevel: 2},
-		"A.foo|_sublayers.duration.by_type|env:default,resource:α,service:A,sublayer_type:web":                                            {value: 184, topLevel: 2},
-		"A.foo|_sublayers.span_count|env:default,resource:α,service:A,:":                                                                  {value: 8, topLevel: 2},
-		"A.foo|duration|env:default,resource:α,service:A":                                                                                 {value: 200, topLevel: 2},
-		"A.foo|errors|env:default,resource:α,service:A":                                                                                   {value: 0, topLevel: 2},
-		"A.foo|hits|env:default,resource:α,service:A":                                                                                     {value: 2, topLevel: 2},
-		"B.bar|_sublayers.duration.by_service|env:default,resource:α,service:B,sublayer_service:A":                                        {value: 160, topLevel: 2},
-		"B.bar|_sublayers.duration.by_service|env:default,resource:α,service:B,sublayer_service:B":                                        {value: 24, topLevel: 2},
-		"B.bar|_sublayers.duration.by_service|env:default,resource:α,service:B,sublayer_service:C":                                        {value: 16, topLevel: 2},
-		"B.bar|_sublayers.duration.by_type|env:default,resource:α,service:B,sublayer_type:sql":                                            {value: 16, topLevel: 2},
-		"B.bar|_sublayers.duration.by_type|env:default,resource:α,service:B,sublayer_type:web":                                            {value: 184, topLevel: 2},
-		"B.bar|_sublayers.span_count|env:default,resource:α,service:B,:":                                                                  {value: 8, topLevel: 2},
-		"B.bar|duration|env:default,resource:α,service:B":                                                                                 {value: 40, topLevel: 2},
-		"B.bar|errors|env:default,resource:α,service:B":                                                                                   {value: 0, topLevel: 2},
-		"B.bar|hits|env:default,resource:α,service:B":                                                                                     {value: 2, topLevel: 2},
-		"sql.query|_sublayers.duration.by_service|env:default,resource:SELECT ololololo... value FROM table,service:C,sublayer_service:A": {value: 160, topLevel: 2},
-		"sql.query|_sublayers.duration.by_service|env:default,resource:SELECT ololololo... value FROM table,service:C,sublayer_service:B": {value: 24, topLevel: 2},
-		"sql.query|_sublayers.duration.by_service|env:default,resource:SELECT ololololo... value FROM table,service:C,sublayer_service:C": {value: 16, topLevel: 2},
-		"sql.query|_sublayers.duration.by_service|env:default,resource:SELECT value FROM table,service:C,sublayer_service:A":              {value: 160, topLevel: 2},
-		"sql.query|_sublayers.duration.by_service|env:default,resource:SELECT value FROM table,service:C,sublayer_service:B":              {value: 24, topLevel: 2},
-		"sql.query|_sublayers.duration.by_service|env:default,resource:SELECT value FROM table,service:C,sublayer_service:C":              {value: 16, topLevel: 2},
-		"sql.query|_sublayers.duration.by_type|env:default,resource:SELECT ololololo... value FROM table,service:C,sublayer_type:sql":     {value: 16, topLevel: 2},
-		"sql.query|_sublayers.duration.by_type|env:default,resource:SELECT ololololo... value FROM table,service:C,sublayer_type:web":     {value: 184, topLevel: 2},
-		"sql.query|_sublayers.duration.by_type|env:default,resource:SELECT value FROM table,service:C,sublayer_type:sql":                  {value: 16, topLevel: 2},
-		"sql.query|_sublayers.duration.by_type|env:default,resource:SELECT value FROM table,service:C,sublayer_type:web":                  {value: 184, topLevel: 2},
-		"sql.query|_sublayers.span_count|env:default,resource:SELECT ololololo... value FROM table,service:C,:":                           {value: 8, topLevel: 2},
-		"sql.query|_sublayers.span_count|env:default,resource:SELECT value FROM table,service:C,:":                                        {value: 8, topLevel: 2},
-		"sql.query|duration|env:default,resource:SELECT ololololo... value FROM table,service:C":                                          {value: 6, topLevel: 2},
-		"sql.query|duration|env:default,resource:SELECT value FROM table,service:C":                                                       {value: 10, topLevel: 2},
-		"sql.query|errors|env:default,resource:SELECT ololololo... value FROM table,service:C":                                            {value: 2, topLevel: 2},
-		"sql.query|errors|env:default,resource:SELECT value FROM table,service:C":                                                         {value: 0, topLevel: 2},
-		"sql.query|hits|env:default,resource:SELECT ololololo... value FROM table,service:C":                                              {value: 2, topLevel: 2},
-		"sql.query|hits|env:default,resource:SELECT value FROM table,service:C":                                                           {value: 2, topLevel: 2},
-	}
-
-	assert.Len(sb.Counts, len(expectedCounts), "Missing counts!")
-	for ckey, c := range sb.Counts {
-		val, ok := expectedCounts[ckey]
-		if !ok {
-			assert.Fail("Unexpected count %s", ckey)
-		}
-		assert.Equal(val.value, c.Value, "Count %s wrong value", ckey)
-		assert.Equal(val.topLevel, c.TopLevel, "Count %s wrong topLevel", ckey)
-		keyFields := strings.Split(ckey, "|")
-		tags := NewTagSetFromString(keyFields[2])
-		assert.Equal(tags, c.TagSet, "bad tagset for count %s", ckey)
-	}
-
-	expectedDistributions := map[string]expectedDistribution{
-		"A.foo|duration|env:default,resource:α,service:A": {
-			entries: []quantile.Entry{{V: 100, G: 1, Delta: 0}}, topLevel: 2},
-		"B.bar|duration|env:default,resource:α,service:B": {
-			entries: []quantile.Entry{{V: 20, G: 1, Delta: 0}}, topLevel: 2},
-		"sql.query|duration|env:default,resource:SELECT value FROM table,service:C": {
-			entries: []quantile.Entry{{V: 5, G: 1, Delta: 0}}, topLevel: 2},
-		"sql.query|duration|env:default,resource:SELECT ololololo... value FROM table,service:C": {
-			entries: []quantile.Entry{{V: 3, G: 1, Delta: 0}}, topLevel: 2},
-	}
-
-	assert.Len(sb.Distributions, len(expectedDistributions), "Missing distributions!")
-	for dkey, d := range sb.Distributions {
-		val, ok := expectedDistributions[dkey]
-		if !ok {
-			assert.Fail("Unexpected distribution %s", dkey)
-		}
-		assert.Equal(val.entries, d.Summary.Entries, "Distribution %s wrong value", dkey)
-		assert.Equal(val.topLevel, d.TopLevel, "Distribution %s wrong topLevel", dkey)
-		keyFields := strings.Split(dkey, "|")
-		tags := NewTagSetFromString(keyFields[2])
-		assert.Equal(tags, d.TagSet, "bad tagset for distribution %s", dkey)
-	}
-}
-
-func TestBucketSublayersTopLevel(t *testing.T) {
-	assert := assert.New(t)
-
-	tr := testTraceTopLevel()
-	sublayers := NewSublayerCalculator().ComputeSublayers(tr)
-	root := traceutil.GetRoot(tr)
-	SetSublayersOnSpan(root, sublayers)
-
-	wt := NewWeightedTrace(tr, root)
-
-	assert.NotNil(sublayers)
-
-	srb := NewRawBucket(0, 1e9)
-
-	// No custom aggregators only the defaults
-	for _, s := range wt {
-		srb.HandleSpan(s, defaultEnv, sublayers, false)
-	}
-	sb := srb.Export()
-
-	expectedCounts := map[string]expectedCount{
-		"A.foo|_sublayers.duration.by_service|env:default,resource:α,service:A,sublayer_service:A": {value: 80, topLevel: 1},
-		"A.foo|_sublayers.duration.by_service|env:default,resource:α,service:A,sublayer_service:B": {value: 20, topLevel: 1},
-		"A.foo|_sublayers.duration.by_type|env:default,resource:α,service:A,sublayer_type:web":     {value: 100, topLevel: 1},
-		"A.foo|_sublayers.span_count|env:default,resource:α,service:A,:":                           {value: 4, topLevel: 1},
-		"A.foo|hits|env:default,resource:α,service:A":                                              {value: 1, topLevel: 1},
-		"A.foo|errors|env:default,resource:α,service:A":                                            {value: 0, topLevel: 1},
-		"A.foo|duration|env:default,resource:α,service:A":                                          {value: 100, topLevel: 1},
-		"B.bar|_sublayers.duration.by_service|env:default,resource:α,service:B,sublayer_service:A": {value: 80, topLevel: 1},
-		"B.bar|_sublayers.duration.by_service|env:default,resource:α,service:B,sublayer_service:B": {value: 20, topLevel: 1},
-		"B.bar|_sublayers.duration.by_type|env:default,resource:α,service:B,sublayer_type:web":     {value: 100, topLevel: 1},
-		"B.bar|_sublayers.span_count|env:default,resource:α,service:B,:":                           {value: 4, topLevel: 1},
-		"B.bar|hits|env:default,resource:α,service:B":                                              {value: 1, topLevel: 1},
-		"B.bar|errors|env:default,resource:α,service:B":                                            {value: 0, topLevel: 1},
-		"B.bar|duration|env:default,resource:α,service:B":                                          {value: 20, topLevel: 1},
-		// [TODO] the ultimate target is to *NOT* compute & store the counts below, which have topLevel == 0
-		"B.bar.1|_sublayers.duration.by_service|env:default,resource:α,service:B,sublayer_service:A": {value: 80, topLevel: 0},
-		"B.bar.1|_sublayers.duration.by_service|env:default,resource:α,service:B,sublayer_service:B": {value: 20, topLevel: 0},
-		"B.bar.1|_sublayers.duration.by_type|env:default,resource:α,service:B,sublayer_type:web":     {value: 100, topLevel: 0},
-		"B.bar.1|_sublayers.span_count|env:default,resource:α,service:B,:":                           {value: 4, topLevel: 0},
-		"B.bar.1|hits|env:default,resource:α,service:B":                                              {value: 1, topLevel: 0},
-		"B.bar.1|errors|env:default,resource:α,service:B":                                            {value: 0, topLevel: 0},
-		"B.bar.1|duration|env:default,resource:α,service:B":                                          {value: 5, topLevel: 0},
-		"B.bar.2|_sublayers.duration.by_service|env:default,resource:α,service:B,sublayer_service:A": {value: 80, topLevel: 0},
-		"B.bar.2|_sublayers.duration.by_service|env:default,resource:α,service:B,sublayer_service:B": {value: 20, topLevel: 0},
-		"B.bar.2|_sublayers.duration.by_type|env:default,resource:α,service:B,sublayer_type:web":     {value: 100, topLevel: 0},
-		"B.bar.2|_sublayers.span_count|env:default,resource:α,service:B,:":                           {value: 4, topLevel: 0},
-		"B.bar.2|hits|env:default,resource:α,service:B":                                              {value: 1, topLevel: 0},
-		"B.bar.2|errors|env:default,resource:α,service:B":                                            {value: 1, topLevel: 0},
-		"B.bar.2|duration|env:default,resource:α,service:B":                                          {value: 3, topLevel: 0},
-	}
-
-	assert.Len(sb.Counts, len(expectedCounts), "Missing counts!")
-	for ckey, c := range sb.Counts {
-		val, ok := expectedCounts[ckey]
-		if !ok {
-			assert.Fail("Unexpected count %s", ckey)
-		}
-		assert.Equal(val.value, c.Value, "Count %s wrong value", ckey)
-		assert.Equal(val.topLevel, c.TopLevel, "Count %s wrong topLevel", ckey)
-		keyFields := strings.Split(ckey, "|")
-		tags := NewTagSetFromString(keyFields[2])
-		assert.Equal(tags, c.TagSet, "bad tagset for count %s", ckey)
-	}
-
-	expectedDistributions := map[string]expectedDistribution{
-		"A.foo|duration|env:default,resource:α,service:A": {
-			entries: []quantile.Entry{{V: 100, G: 1, Delta: 0}}, topLevel: 1},
-		"B.bar|duration|env:default,resource:α,service:B": {
-			entries: []quantile.Entry{{V: 20, G: 1, Delta: 0}}, topLevel: 1},
-		// [TODO] the ultimate target is to *NOT* compute & store the counts below, which have topLevel == 0
-		"B.bar.1|duration|env:default,resource:α,service:B": {
-			entries: []quantile.Entry{{V: 5, G: 1, Delta: 0}}, topLevel: 0},
-		"B.bar.2|duration|env:default,resource:α,service:B": {
-			entries: []quantile.Entry{{V: 3, G: 1, Delta: 0}}, topLevel: 0},
-	}
-
-	assert.Len(sb.Distributions, len(expectedDistributions), "Missing distributions!")
-	for dkey, d := range sb.Distributions {
-		val, ok := expectedDistributions[dkey]
-		if !ok {
-			assert.Fail("Unexpected distribution %s", dkey)
-		}
-		assert.Equal(val.entries, d.Summary.Entries, "Distribution %s wrong value", dkey)
-		assert.Equal(val.topLevel, d.TopLevel, "Distribution %s wrong topLevel", dkey)
-		keyFields := strings.Split(dkey, "|")
-		tags := NewTagSetFromString(keyFields[2])
-		assert.Equal(tags, d.TagSet, "bad tagset for distribution %s", dkey)
 	}
 }
 
@@ -533,25 +318,7 @@ func BenchmarkHandleSpan(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		for _, s := range wt {
-			srb.HandleSpan(s, defaultEnv, nil, false)
-		}
-	}
-}
-
-func BenchmarkHandleSpanSublayers(b *testing.B) {
-	srb := NewRawBucket(0, 1e9)
-	tr := testTrace()
-	sublayers := NewSublayerCalculator().ComputeSublayers(tr)
-	root := traceutil.GetRoot(tr)
-	SetSublayersOnSpan(root, sublayers)
-
-	wt := NewWeightedTrace(tr, root)
-
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		for _, s := range wt {
-			srb.HandleSpan(s, defaultEnv, sublayers, false)
+			srb.HandleSpan(s, defaultEnv)
 		}
 	}
 }

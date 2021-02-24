@@ -66,6 +66,12 @@ const (
 	// tokens.
 	FilteredGroupable
 
+	// FilteredGroupableParenthesis is a parenthesis marked as filtered groupable. It is the
+	// beginning of either a group of values ('(') or a nested query. We track is as
+	// a special case for when it may start a nested query as opposed to just another
+	// value group to be obfuscated.
+	FilteredGroupableParenthesis
+
 	// Filtered specifies that the token is a comma and was discarded by one
 	// of the filters.
 	Filtered
@@ -75,6 +81,48 @@ const (
 	// See issue https://github.com/DataDog/datadog-trace-agent/issues/475.
 	FilteredBracketedIdentifier
 )
+
+var tokenKindStrings = map[TokenKind]string{
+	LexError:                     "LexError",
+	ID:                           "ID",
+	Limit:                        "Limit",
+	Null:                         "Null",
+	String:                       "String",
+	DoubleQuotedString:           "DoubleQuotedString",
+	Number:                       "Number",
+	BooleanLiteral:               "BooleanLiteral",
+	ValueArg:                     "ValueArg",
+	ListArg:                      "ListArg",
+	Comment:                      "Comment",
+	Variable:                     "Variable",
+	Savepoint:                    "Savepoint",
+	PreparedStatement:            "PreparedStatement",
+	EscapeSequence:               "EscapeSequence",
+	NullSafeEqual:                "NullSafeEqual",
+	LE:                           "LE",
+	GE:                           "GE",
+	NE:                           "NE",
+	As:                           "As",
+	From:                         "From",
+	Update:                       "Update",
+	Insert:                       "Insert",
+	Into:                         "Into",
+	Join:                         "Join",
+	TableName:                    "TableName",
+	ColonCast:                    "ColonCast",
+	FilteredGroupable:            "FilteredGroupable",
+	FilteredGroupableParenthesis: "FilteredGroupableParenthesis",
+	Filtered:                     "Filtered",
+	FilteredBracketedIdentifier:  "FilteredBracketedIdentifier",
+}
+
+func (k TokenKind) String() string {
+	str, ok := tokenKindStrings[k]
+	if !ok {
+		return "<unknown>"
+	}
+	return str
+}
 
 const escapeCharacter = '\\'
 
@@ -490,7 +538,7 @@ exit:
 }
 
 func (tkn *SQLTokenizer) scanString(delim rune, kind TokenKind) (TokenKind, []byte) {
-	buffer := &bytes.Buffer{}
+	buf := bytes.NewBuffer(tkn.buf[:0])
 	for {
 		ch := tkn.lastChar
 		tkn.advance()
@@ -513,19 +561,18 @@ func (tkn *SQLTokenizer) scanString(delim rune, kind TokenKind) (TokenKind, []by
 		}
 		if ch == EndChar {
 			tkn.setErr("unexpected EOF in string")
-			return LexError, buffer.Bytes()
+			return LexError, buf.Bytes()
 		}
-		buffer.WriteRune(ch)
+		buf.WriteRune(ch)
 	}
-	buf := buffer.Bytes()
-	if kind == ID && len(buf) == 0 || bytes.IndexFunc(buf, func(r rune) bool { return !unicode.IsSpace(r) }) == -1 {
+	if kind == ID && buf.Len() == 0 || bytes.IndexFunc(buf.Bytes(), func(r rune) bool { return !unicode.IsSpace(r) }) == -1 {
 		// This string is an empty or white-space only identifier.
 		// We should keep the start and end delimiters in order to
 		// avoid creating invalid queries.
 		// See: https://github.com/DataDog/datadog-trace-agent/issues/316
 		return kind, append(runeBytes(delim), runeBytes(delim)...)
 	}
-	return kind, buf
+	return kind, buf.Bytes()
 }
 
 func (tkn *SQLTokenizer) scanCommentType1(prefix string) (TokenKind, []byte) {

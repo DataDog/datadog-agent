@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -45,13 +44,13 @@ type Concentrator struct {
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
-func NewConcentrator(bsize int64, out chan []Bucket) *Concentrator {
+func NewConcentrator(bsize int64, out chan []Bucket, now time.Time) *Concentrator {
 	c := Concentrator{
 		bsize:   bsize,
 		buckets: make(map[int64]*RawBucket),
 		// At start, only allow stats for the current time bucket. Ensure we don't
 		// override buckets which could have been sent before an Agent restart.
-		oldestTs: alignTs(time.Now().UnixNano(), bsize),
+		oldestTs: alignTs(now.UnixNano(), bsize),
 		// TODO: Move to configuration.
 		bufferLen: defaultBufferLen,
 
@@ -110,19 +109,10 @@ func (c *Concentrator) Stop() {
 	c.exitWG.Wait()
 }
 
-// SublayerMap maps spans to their sublayer values.
-type SublayerMap map[*pb.Span][]SublayerValue
-
 // Input contains input for the concentractor.
 type Input struct {
-	Trace     WeightedTrace
-	Sublayers SublayerMap
-	Env       string
-
-	// SublayersOnly reports whether stats computation and
-	// export should be disabled in buckets coming from this
-	// input.
-	SublayersOnly bool
+	Trace WeightedTrace
+	Env   string
 }
 
 // Add applies the given input to the concentrator.
@@ -154,9 +144,7 @@ func (c *Concentrator) addNow(i *Input) {
 			b = NewRawBucket(btime, c.bsize)
 			c.buckets[btime] = b
 		}
-
-		subs, _ := i.Sublayers[s.Span]
-		b.HandleSpan(s, i.Env, subs, i.SublayersOnly)
+		b.HandleSpan(s, i.Env)
 	}
 }
 
