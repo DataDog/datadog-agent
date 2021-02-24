@@ -571,22 +571,6 @@ func testParseIO(t *testing.T) {
 	}
 }
 
-func TestFetchFieldsWithoutPermission(t *testing.T) {
-	probe := NewProcessProbe()
-	defer probe.Close()
-
-	// PID 1 is always owned by root so we would always get permission error
-	pid := int32(1)
-	actual := probe.parseIO(filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid))))
-	assert.Equal(t, int64(-1), actual.ReadCount)
-	assert.Equal(t, int64(-1), actual.ReadBytes)
-	assert.Equal(t, int64(-1), actual.WriteCount)
-	assert.Equal(t, int64(-1), actual.WriteBytes)
-
-	fd := probe.getFDCount(strconv.Itoa(int(pid)))
-	assert.Equal(t, int32(-1), fd)
-}
-
 func TestParseStatContent(t *testing.T) {
 	probe := NewProcessProbe()
 	defer probe.Close()
