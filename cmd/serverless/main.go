@@ -33,12 +33,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
-<<<<<<< HEAD
 	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
-=======
 	traceAgent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	traceConfig "github.com/DataDog/datadog-agent/pkg/trace/config"
->>>>>>> master
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
