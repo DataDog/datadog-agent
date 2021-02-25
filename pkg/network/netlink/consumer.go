@@ -104,7 +104,7 @@ func (e *Event) Done() {
 
 // NewConsumer creates a new Conntrack event consumer.
 // targetRateLimit represents the maximum number of netlink messages per second that can be read off the socket
-func NewConsumer(procRoot string, targetRateLimit int, listenAllNamespaces bool) (*Consumer, error) {
+func NewConsumer(procRoot string, targetRateLimit int, listenAllNamespaces bool) *Consumer {
 	c := &Consumer{
 		procRoot:            procRoot,
 		pool:                newBufferPool(),
@@ -114,15 +114,21 @@ func NewConsumer(procRoot string, targetRateLimit int, listenAllNamespaces bool)
 		netlinkSeqNumber:    1,
 		listenAllNamespaces: listenAllNamespaces,
 	}
+
 	c.initWorker(procRoot)
 
-	return c, nil
+	return c
 }
 
 // Events returns a channel of Event objects (wrapping netlink messages) which receives
 // all new connections added to the Conntrack table.
-func (c *Consumer) Events() <-chan Event {
+func (c *Consumer) Events() (<-chan Event, error) {
+	if err := c.initNetlinkSocket(1.0); err != nil {
+		return nil, fmt.Errorf("could not initialize conntrack netlink socket: %w", err)
+	}
+
 	output := make(chan Event, outputBuffer)
+
 	c.do(false, func() {
 		defer func() {
 			log.Info("exited conntrack netlink receive loop")
@@ -130,15 +136,11 @@ func (c *Consumer) Events() <-chan Event {
 		}()
 
 		c.streaming = true
-		if err := c.initNetlinkSocket(1.0); err != nil {
-			log.Errorf("could not initialize conntrack netlink socket: %s", err)
-			return
-		}
 		_ = c.conn.JoinGroup(netlinkCtNew)
 		c.receive(output)
 	})
 
-	return output
+	return output, nil
 }
 
 // isPeerNS determines whether the given network namespace is a peer
@@ -202,41 +204,41 @@ func (c *Consumer) isPeerNS(conn *netlink.Conn, ns netns.NsHandle) bool {
 // DumpTable returns a channel of Event objects containing all entries
 // present in the Conntrack table. The channel is closed once all entries are read.
 // This method is meant to be used once during the process initialization of system-probe.
-func (c *Consumer) DumpTable(family uint8) <-chan Event {
+func (c *Consumer) DumpTable(family uint8) (<-chan Event, error) {
+	var nss []netns.NsHandle
+	var err error
+	if c.listenAllNamespaces {
+		nss, err = util.GetNetNamespaces(c.procRoot)
+		if err != nil {
+			log.Errorf("error dumping conntrack table, could not get network namespaces: %s", err)
+			return nil, err
+		}
+	}
+
+	rootNS, err := netns.GetFromPath(fmt.Sprintf("%s/1/ns/net", c.procRoot))
+	if err != nil {
+		log.Errorf("error dumping conntrack table, could not get root namespace: %s", err)
+		return nil, err
+	}
+
+	conn, err := netlink.Dial(unix.AF_UNSPEC, &netlink.Config{NetNS: int(rootNS)})
+	if err != nil {
+		log.Errorf("error dumping conntrack table, could not open netlink socket: %s", err)
+		rootNS.Close()
+		return nil, err
+	}
+
 	output := make(chan Event, outputBuffer)
 
 	go func() {
-		defer close(output)
-
-		var nss []netns.NsHandle
-		var err error
-		if c.listenAllNamespaces {
-			nss, err = util.GetNetNamespaces(c.procRoot)
-			if err != nil {
-				log.Errorf("error dumping conntrack table, could not get network namespaces: %s", err)
-				return
-			}
-		}
-
-		rootNS, err := netns.GetFromPath(fmt.Sprintf("%s/1/ns/net", c.procRoot))
-		if err != nil {
-			log.Errorf("error dumping conntrack table, could not get root namespace: %s", err)
-			return
-		}
-
 		defer func() {
-			if rootNS.IsOpen() {
-				rootNS.Close()
+			for _, ns := range nss {
+				_ = ns.Close()
 			}
-		}()
 
-		conn, err := netlink.Dial(unix.AF_UNSPEC, &netlink.Config{NetNS: int(rootNS)})
-		if err != nil {
-			log.Errorf("error dumping conntrack table, could not open netlink socket: %s", err)
-			return
-		}
+			close(output)
 
-		defer func() {
+			_ = rootNS.Close()
 			_ = conn.Close()
 		}()
 
@@ -253,7 +255,6 @@ func (c *Consumer) DumpTable(family uint8) <-chan Event {
 
 			if !c.isPeerNS(conn, ns) {
 				log.Tracef("not dumping ns %s since it is not a peer of the root ns", ns)
-				_ = ns.Close()
 				continue
 			}
 
@@ -263,14 +264,10 @@ func (c *Consumer) DumpTable(family uint8) <-chan Event {
 		}
 	}()
 
-	return output
+	return output, nil
 }
 
 func (c *Consumer) dumpTable(family uint8, output chan Event, ns netns.NsHandle) error {
-	defer func() {
-		_ = ns.Close()
-	}()
-
 	return util.WithNS(c.procRoot, ns, func() error {
 
 		log.Tracef("dumping table for ns %s", ns)
