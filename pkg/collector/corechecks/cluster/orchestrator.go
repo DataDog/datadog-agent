@@ -43,6 +43,8 @@ const (
 )
 
 var (
+	// this needs to match what is found in https://github.com/kubernetes/kube-state-metrics/blob/09539977815728349522b58154d800e4b517ec9c/internal/store/builder.go#L176-L206
+	// in order to share/split easily the collector configuration with the KSM core check
 	defaultResources = []string{
 		"pods", // unassigned pods
 		"deployments",
