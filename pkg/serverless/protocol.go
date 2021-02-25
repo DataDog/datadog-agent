@@ -32,7 +32,7 @@ type Daemon struct {
 	statsdServer *dogstatsd.Server
 	traceAgent   *traceAgent.Agent
 
-	// Aggregator used by the statsd server
+	// aggregator used by the statsd server
 	aggregator *aggregator.BufferedAggregator
 	stopCh     chan struct{}
 

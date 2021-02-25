@@ -223,7 +223,7 @@ func ReportInitError(id ID, errorEnum ErrorEnum) error {
 	return nil
 }
 
-// WaitForNextInvocation starts waiting and blocking until it receives a request.
+// WaitForNextInvocation makes a blocking HTTP call to receive the next event from AWS.
 // Note that for now, we only subscribe to INVOKE and SHUTDOWN events.
 // Write into stopCh to stop the main thread of the running program.
 func WaitForNextInvocation(stopCh chan struct{}, statsdServer *dogstatsd.Server, metricsChan chan []metrics.MetricSample, traceAgent *traceAgent.Agent, id ID) error {
@@ -236,6 +236,7 @@ func WaitForNextInvocation(stopCh chan struct{}, statsdServer *dogstatsd.Server,
 	}
 	request.Header.Set(headerExtID, id.String())
 
+	// make a blocking HTTP call to wait for the next event from AWS
 	log.Debug("Waiting for next invocation...")
 	client := &http.Client{Timeout: 0} // this one should never timeout
 	if response, err = client.Do(request); err != nil {
