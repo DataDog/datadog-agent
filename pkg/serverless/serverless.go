@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -280,7 +279,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, id ID) error {
 		log.Debugf("The flush strategy %s has decided to flush the data in the moment: %s", daemon.flushStrategy, flush.Starting)
 		flushTimeout := config.Datadog.GetDuration("forwarder_timeout") * time.Second
 		ctx, cancel := context.WithTimeout(context.Background(), flushTimeout)
-		daemon.TriggerFlush(ctx)
+		daemon.TriggerFlush(ctx, false)
 		cancel() // free the resource of the context
 	} else {
 		log.Debugf("The flush strategy %s has decided to not flush in the moment: %s", daemon.flushStrategy, flush.Starting)
@@ -290,13 +289,8 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, id ID) error {
 		// note that there is no scenario where we would not want to flush while the env
 		// is shutting down, then, we're not relying on the current flush strategy,
 		// we are flushing in all cases.
-		if daemon.statsdServer != nil {
-			// flush metrics synchronously
-			daemon.statsdServer.Flush()
-		}
-		if logs.IsAgentRunning() {
-			logs.Stop()
-		}
+		daemon.TriggerFlush(context.Background(), true)
+
 		// shutdown the serverless agent
 		stopCh <- struct{}{}
 	}

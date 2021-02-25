@@ -5,11 +5,12 @@
 
 // +build kubelet
 
-package common
+package utils
 
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -20,14 +21,14 @@ import (
 func TestConfigsForPod(t *testing.T) {
 	tests := []struct {
 		name    string
-		check   *PrometheusCheck
+		check   *types.PrometheusCheck
 		pod     *kubelet.Pod
 		want    []integration.Config
 		matched bool
 	}{
 		{
 			name:  "nominal case",
-			check: DefaultPrometheusCheck,
+			check: types.DefaultPrometheusCheck,
 			pod: &kubelet.Pod{
 				Metadata: kubelet.PodMetadata{
 					Name:        "foo-pod",
@@ -61,8 +62,8 @@ func TestConfigsForPod(t *testing.T) {
 		},
 		{
 			name: "custom prometheus_url",
-			check: &PrometheusCheck{
-				Instances: []*OpenmetricsInstance{
+			check: &types.PrometheusCheck{
+				Instances: []*types.OpenmetricsInstance{
 					{
 						URL:       "foo/bar",
 						Metrics:   []string{"*"},
@@ -103,7 +104,7 @@ func TestConfigsForPod(t *testing.T) {
 		},
 		{
 			name:  "excluded",
-			check: DefaultPrometheusCheck,
+			check: types.DefaultPrometheusCheck,
 			pod: &kubelet.Pod{
 				Metadata: kubelet.PodMetadata{
 					Name:        "foo-pod",
@@ -128,7 +129,7 @@ func TestConfigsForPod(t *testing.T) {
 		},
 		{
 			name:  "no match",
-			check: DefaultPrometheusCheck,
+			check: types.DefaultPrometheusCheck,
 			pod: &kubelet.Pod{
 				Metadata: kubelet.PodMetadata{
 					Name:        "foo-pod",
@@ -153,7 +154,7 @@ func TestConfigsForPod(t *testing.T) {
 		},
 		{
 			name:  "multi containers, match all",
-			check: DefaultPrometheusCheck,
+			check: types.DefaultPrometheusCheck,
 			pod: &kubelet.Pod{
 				Metadata: kubelet.PodMetadata{
 					Name:        "foo-pod",
@@ -203,8 +204,8 @@ func TestConfigsForPod(t *testing.T) {
 		},
 		{
 			name: "multi containers, match one container",
-			check: &PrometheusCheck{
-				AD: &ADConfig{
+			check: &types.PrometheusCheck{
+				AD: &types.ADConfig{
 					KubeContainerNames: []string{"foo-ctr1"},
 				},
 			},
@@ -249,8 +250,8 @@ func TestConfigsForPod(t *testing.T) {
 		},
 		{
 			name: "container name mismatch",
-			check: &PrometheusCheck{
-				AD: &ADConfig{
+			check: &types.PrometheusCheck{
+				AD: &types.ADConfig{
 					KubeContainerNames: []string{"bar"},
 				},
 			},
@@ -278,8 +279,8 @@ func TestConfigsForPod(t *testing.T) {
 		},
 		{
 			name: "container name regex",
-			check: &PrometheusCheck{
-				AD: &ADConfig{
+			check: &types.PrometheusCheck{
+				AD: &types.ADConfig{
 					KubeContainerNames: []string{"bar", "*o-c*"},
 				},
 			},
@@ -318,7 +319,7 @@ func TestConfigsForPod(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.check.Init()
-			assert.ElementsMatch(t, tt.want, tt.check.ConfigsForPod(tt.pod))
+			assert.ElementsMatch(t, tt.want, ConfigsForPod(tt.check, tt.pod))
 		})
 	}
 }

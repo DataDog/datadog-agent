@@ -58,7 +58,7 @@ def isUDPListening(container):
     return b":8125" in out
 
 
-def isUDSListening(container, retries=10):
+def isUDSListening(container):
     out = container.exec_run(cmd="netstat -a").output
     return SOCKET_PATH in out
 

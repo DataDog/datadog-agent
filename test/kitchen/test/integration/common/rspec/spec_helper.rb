@@ -71,7 +71,16 @@ def wait_until_service_stopped(service, timeout = 60)
   # Check if the service has stopped every second
   # Timeout after the given number of seconds
   for _ in 1..timeout do
-    break if !is_service_running?(service)
+    if !is_service_running?(service)
+      case service
+      when "datadog-agent"
+        break if !is_port_bound(5001)
+      when "datadog-dogstatsd"
+        break if !is_port_bound(8125)
+      else
+        break
+      end
+    end
     sleep 1
   end
   # HACK: somewhere between 6.15.0 and 6.16.0, the delay between the
@@ -86,14 +95,25 @@ def wait_until_service_stopped(service, timeout = 60)
   # - after: works correctly
   # Until we understand and fix the problem, we're adding this sleep
   # so that we don't get flakes in the kitchen tests.
-  sleep 2
+  # sleep 2
+  # ^ Sleep removed in lieu of extra port bound check. Keeping the
+  # comment for now in case kitchen tests still flakes.
 end
 
 def wait_until_service_started(service, timeout = 30)
   # Check if the service has started every second
   # Timeout after the given number of seconds
   for _ in 1..timeout do
-    break if is_service_running?(service)
+    if is_service_running?(service)
+      case service
+      when "datadog-agent"
+        break if is_port_bound(5001)
+      when "datadog-dogstatsd"
+        break if is_port_bound(8125)
+      else
+        break
+      end
+    end
     sleep 1
   end
   # HACK: somewhere between 6.15.0 and 6.16.0, the delay between the
@@ -108,7 +128,9 @@ def wait_until_service_started(service, timeout = 30)
   # - after: works correctly
   # Until we understand and fix the problem, we're adding this sleep
   # so that we don't get flakes in the kitchen tests.
-  sleep 5
+  # sleep 5
+  # ^ Sleep removed in lieu of extra port bound check. Keeping the
+  # comment for now in case kitchen tests still flakes.
 end
 
 def stop(flavor)

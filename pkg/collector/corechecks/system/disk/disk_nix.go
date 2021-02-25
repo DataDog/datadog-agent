@@ -121,23 +121,22 @@ func (c *Check) sendPartitionMetrics(sender aggregator.Sender, usage *disk.Usage
 	sender.Gauge(fmt.Sprintf(diskMetric, "total"), float64(usage.Total)/1024, "", tags)
 	sender.Gauge(fmt.Sprintf(diskMetric, "used"), float64(usage.Used)/1024, "", tags)
 	sender.Gauge(fmt.Sprintf(diskMetric, "free"), float64(usage.Free)/1024, "", tags)
-	// FIXME: 6.x, use percent, a lot more logical than in_use
+	// FIXME(8.x): use percent, a lot more logical than in_use
 	sender.Gauge(fmt.Sprintf(diskMetric, "in_use"), usage.UsedPercent/100, "", tags)
 
 	// Inodes metrics
 	sender.Gauge(fmt.Sprintf(inodeMetric, "total"), float64(usage.InodesTotal), "", tags)
 	sender.Gauge(fmt.Sprintf(inodeMetric, "used"), float64(usage.InodesUsed), "", tags)
 	sender.Gauge(fmt.Sprintf(inodeMetric, "free"), float64(usage.InodesFree), "", tags)
-	// FIXME: 6.x, use percent, a lot more logical than in_use
+	// FIXME(8.x): use percent, a lot more logical than in_use
 	sender.Gauge(fmt.Sprintf(inodeMetric, "in_use"), usage.InodesUsedPercent/100, "", tags)
 
 }
 
 func (c *Check) sendDiskMetrics(sender aggregator.Sender, ioCounter disk.IOCountersStat, tags []string) {
-
-	// /1000 as psutil returns the value in ms
-	// Rate computes a rate of change between to consecutive check run.
-	// For cumulated time values like read and write times this a ratio between 0 and 1, we want it as a percentage so we *100 in advance
+	sender.MonotonicCount(fmt.Sprintf(diskMetric, "read_time"), float64(ioCounter.ReadTime), "", tags)
+	sender.MonotonicCount(fmt.Sprintf(diskMetric, "write_time"), float64(ioCounter.WriteTime), "", tags)
+	// FIXME(8.x): These older metrics are kept here for backwards compatibility, but they are wrong: the value is not a percentage
 	sender.Rate(fmt.Sprintf(diskMetric, "read_time_pct"), float64(ioCounter.ReadTime)*100/1000, "", tags)
 	sender.Rate(fmt.Sprintf(diskMetric, "write_time_pct"), float64(ioCounter.WriteTime)*100/1000, "", tags)
 }

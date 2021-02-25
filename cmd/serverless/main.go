@@ -34,6 +34,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
+	traceAgent "github.com/DataDog/datadog-agent/pkg/trace/agent"
+	traceConfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -81,6 +83,10 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 	flushStrategyEnvVar = "DD_SERVERLESS_FLUSH_STRATEGY"
 
 	logsLogsTypeSubscribed = "DD_LOGS_CONFIG_LAMBDA_LOGS_TYPE"
+
+	datadogConfigPath        = "datadog.yaml"
+	traceOriginMetadataKey   = "_dd.origin"
+	traceOriginMetadataValue = "lambda"
 )
 
 const (
@@ -336,6 +342,22 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		log.Errorf("Unable to start the DogStatsD server: %s", err)
 	}
 	statsdServer.ServerlessMode = true // we're running in a serverless environment (will removed host field from samples)
+	// initializes the trace agent
+	// --------------------------------
+	var ta *traceAgent.Agent
+	if config.Datadog.GetBool("apm_config.enabled") {
+		tc, confErr := traceConfig.Load(datadogConfigPath)
+		tc.GlobalTags[traceOriginMetadataKey] = traceOriginMetadataValue
+		tc.SynchronousFlushing = true
+		if confErr != nil {
+			log.Errorf("Unable to load trace agent config: %s", confErr)
+			return
+		}
+		ta = traceAgent.NewAgent(ctx, tc)
+		go func() {
+			ta.Run()
+		}()
+	}
 
 	// run the invocation loop in a routine
 	// we don't want to start this mainloop before because once we're waiting on
@@ -350,6 +372,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 
 	// DogStatsD daemon ready.
 	daemon.SetStatsdServer(statsdServer)
+	daemon.SetTraceAgent(ta)
 	daemon.SetAggregator(aggregatorInstance)
 	daemon.ReadyWg.Done()
 

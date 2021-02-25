@@ -11,4 +11,4 @@ import "github.com/DataDog/datadog-agent/pkg/logs/message"
 type NoopMessageReceiver struct{}
 
 // HandleMessage does nothing with the message
-func (n *NoopMessageReceiver) HandleMessage(m message.Message) {}
+func (n *NoopMessageReceiver) HandleMessage(m message.Message, redactedMsg []byte) {}

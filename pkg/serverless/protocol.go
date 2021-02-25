@@ -14,6 +14,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
+	traceAgent "github.com/DataDog/datadog-agent/pkg/trace/agent"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/logs"
@@ -35,6 +38,7 @@ type Daemon struct {
 	mux        *http.ServeMux
 
 	statsdServer *dogstatsd.Server
+	traceAgent   *traceAgent.Agent
 
 	// lastInvocations stores last invocations time to be able to compute the
 	// interval of invocation of the function.
@@ -60,6 +64,11 @@ func (d *Daemon) SetStatsdServer(statsdServer *dogstatsd.Server) {
 	d.statsdServer = statsdServer
 }
 
+// SetTraceAgent sets the Agent instance for submitting traces
+func (d *Daemon) SetTraceAgent(traceAgent *traceAgent.Agent) {
+	d.traceAgent = traceAgent
+}
+
 // SetAggregator sets the aggregator used within the DogStatsD server.
 // Use this aggregator `GetChannels()` or `GetBufferedChannels()` to send metrics
 // directly to the aggregator, with caution.
@@ -79,16 +88,49 @@ func (d *Daemon) UseAdaptiveFlush(enabled bool) {
 	d.useAdaptiveFlush = enabled
 }
 
-// TriggerFlush triggers a flush of the aggregated metrics and of the logs.
+// TriggerFlush triggers a flush of the aggregated metrics, traces and logs.
+// They are flushed concurrently.
 // In some circumstances, it may switch to another flush strategy after the flush.
-func (d *Daemon) TriggerFlush(ctx context.Context) {
-	logs.Flush(ctx) // ctx timeout
-	d.statsdServer.Flush()
+// shutdown indicates whether this is the last flush before the shutdown or not.
+func (d *Daemon) TriggerFlush(ctx context.Context, shutdown bool) {
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	wg.Add(1)
+	wg.Add(1)
+
+	// metrics
+	go func() {
+		if d.statsdServer != nil {
+			d.statsdServer.Flush()
+		}
+		wg.Done()
+	}()
+
+	// traces
+	go func() {
+		if d.traceAgent != nil {
+			d.traceAgent.FlushSync()
+		}
+		wg.Done()
+	}()
+
+	// logs
+	go func() {
+		if shutdown {
+			logs.Stop() // stop the logs agent, everything will be flushed
+		} else {
+			logs.Flush(ctx)
+		}
+		wg.Done()
+	}()
+
+	wg.Wait()
 	log.Debug("Flush done")
 
 	// we've just flushed, we can maybe try to change the flush strategy?
 	// (but do that only if the flush strategy hasn't be forced through configuration)
-	if d.useAdaptiveFlush {
+	// note that we don't mind doing that if we are shutting down.
+	if d.useAdaptiveFlush && !shutdown {
 		newStrat := d.AutoSelectStrategy()
 		if newStrat.String() != d.flushStrategy.String() {
 			log.Debug("Switching to flush strategy:", newStrat)
@@ -235,11 +277,10 @@ func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// synchronous flush of the logs agent
-	// FIXME(remy): could the enhanced metrics be generated at this point? if not
-	//              and they're already generated when REPORT is received on the http server,
-	//              we could make this run in parallel with the statsd flush
-	// FIXME(remy): note that I am not using the request context because I think that we don't
-	//              want the flush to be canceled if the client is closing the request.
-	f.daemon.TriggerFlush(context.Background())
+	// note that I am not using the request context because I think that we don't
+	// want the flush to be canceled if the client is closing the request.
+	flushTimeout := config.Datadog.GetDuration("forwarder_timeout") * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), flushTimeout)
+	f.daemon.TriggerFlush(ctx, false)
+	cancel()
 }
