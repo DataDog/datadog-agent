@@ -80,6 +80,9 @@ type Consumer struct {
 
 	netlinkSeqNumber    uint32
 	listenAllNamespaces bool
+
+	// for testing purposes
+	recvLoopRunning int32
 }
 
 // Event encapsulates the result of a single netlink.Con.Receive() call
@@ -396,6 +399,10 @@ func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
 	return nil
 }
 
+func (c *Consumer) isRecvLoopRunning() bool {
+	return atomic.LoadInt32(&c.recvLoopRunning) == 1
+}
+
 // receive netlink messages and flushes them to the Event channel.
 // This method gets called in two different contexts:
 //
@@ -409,6 +416,11 @@ func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
 // It's also worth noting that in the event of an ENOBUF error, we'll re-create a new netlink socket,
 // and attach a BPF sampler to it, to lower the the read throughput and save CPU.
 func (c *Consumer) receive(output chan Event) {
+	atomic.StoreInt32(&c.recvLoopRunning, 1)
+	defer func() {
+		atomic.StoreInt32(&c.recvLoopRunning, 0)
+	}()
+
 ReadLoop:
 	for {
 		buffer := c.pool.Get().(*[]byte)
