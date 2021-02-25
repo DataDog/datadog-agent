@@ -50,7 +50,12 @@ func newTransactionsFileStorage(
 	if err := storage.reloadExistingRetryFiles(); err != nil {
 		return nil, err
 	}
-	return storage, nil
+
+	// Check if there is an error when computing the available space
+	// in this function to warn the user sonner (and not when there is an outage)
+	_, err := maxStorage.computeMaxStorage(0)
+
+	return storage, err
 }
 
 // Serialize serializes transactions to the file system.
