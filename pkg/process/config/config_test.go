@@ -3,6 +3,8 @@
 package config
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -652,7 +654,19 @@ func TestGetHostnameFromAgent(t *testing.T) {
 		&pb.HostnameRequest{},
 	).Return(&pb.HostnameReply{Hostname: "unit-test-hostname"}, nil)
 
-	hostname, err := getHostnameFromAgent(mockClient)
-	require.NoError(t, err)
-	assert.Equal(t, "unit-test-hostname", hostname)
+	t.Run("hostname returns from grpc", func(t *testing.T) {
+		hostname := getHostnameFromGRPC(func(ctx context.Context) (pb.AgentClient, error) {
+			return mockClient, nil
+		})
+
+		assert.Equal(t, "unit-test-hostname", hostname)
+	})
+
+	t.Run("grpc client is unavailable", func(t *testing.T) {
+		hostname := getHostnameFromGRPC(func(ctx context.Context) (pb.AgentClient, error) {
+			return nil, errors.New("no grpc client")
+		})
+
+		assert.Empty(t, hostname)
+	})
 }
