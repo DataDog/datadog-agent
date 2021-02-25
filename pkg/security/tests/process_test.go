@@ -21,7 +21,7 @@ import (
 
 	"github.com/avast/retry-go"
 	"github.com/pkg/errors"
-	"kernel.org/pub/linux/libs/security/libcap/cap"
+	"github.com/syndtr/gocapability/capability"
 
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
@@ -260,12 +260,18 @@ func TestProcessExec(t *testing.T) {
 }
 
 func TestProcessMetadata(t *testing.T) {
-	ruleDef := &rules.RuleDefinition{
-		ID:         "test_rule",
-		Expression: `exec.file.path == "{{.Root}}/test-exec" && exec.file.uid == 98 && exec.file.gid == 99`,
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_executable",
+			Expression: `exec.file.path == "{{.Root}}/test-exec" && exec.file.uid == 98 && exec.file.gid == 99`,
+		},
+		{
+			ID:         "test_metadata",
+			Expression: `exec.file.path == "{{.Root}}/test-exec" && process.uid == 1001 && process.euid == 1002 && process.fsuid == 1002 && process.gid == 2001 && process.egid == 2002 && process.fsgid == 2002`,
+		},
 	}
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{ruleDef}, testOpts{})
+	test, err := newTestModule(nil, ruleDefs, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -320,15 +326,14 @@ func TestProcessMetadata(t *testing.T) {
 			runtime.LockOSThread()
 			// do not unlock, we want the thread to be killed when exiting the goroutine
 
-			if _, _, errno := syscall.Syscall(syscall.SYS_SETREGID, 2001, 2002, 0); errno != 0 {
+			if _, _, errno := syscall.Syscall(syscall.SYS_SETREGID, 2001, 2001, 0); errno != 0 {
 				t.Fatal(errno)
 			}
-			if _, _, errno := syscall.Syscall(syscall.SYS_SETREUID, 1001, 1002, 0); errno != 0 {
+			if _, _, errno := syscall.Syscall(syscall.SYS_SETREUID, 1001, 1001, 0); errno != 0 {
 				t.Fatal(errno)
 			}
 
-			cmd := exec.Command(testFile)
-			if _, err := cmd.CombinedOutput(); err != nil {
+			if _, err := syscall.ForkExec(testFile, []string{}, nil); err != nil {
 				t.Error(err)
 			}
 		}()
@@ -344,20 +349,20 @@ func TestProcessMetadata(t *testing.T) {
 			if uid := event.ResolveCredentialsUID(&event.Exec.Credentials); uid != 1001 {
 				t.Errorf("expected uid 1001, got %d", uid)
 			}
-			if euid := event.ResolveCredentialsEUID(&event.Exec.Credentials); euid != 1002 {
+			if euid := event.ResolveCredentialsEUID(&event.Exec.Credentials); euid != 1001 {
 				t.Errorf("expected euid 1002, got %d", euid)
 			}
-			if fsuid := event.ResolveCredentialsFSUID(&event.Process.Credentials); fsuid != 1002 {
+			if fsuid := event.ResolveCredentialsFSUID(&event.Process.Credentials); fsuid != 1001 {
 				t.Errorf("expected fsuid 1002, got %d", fsuid)
 			}
 
 			if gid := event.ResolveCredentialsGID(&event.Exec.Credentials); gid != 2001 {
 				t.Errorf("expected gid 2001, got %d", gid)
 			}
-			if egid := event.ResolveCredentialsEGID(&event.Exec.Credentials); egid != 2002 {
+			if egid := event.ResolveCredentialsEGID(&event.Exec.Credentials); egid != 2001 {
 				t.Errorf("expected egid 2002, got %d", egid)
 			}
-			if fsgid := event.ResolveCredentialsFSGID(&event.Exec.Credentials); fsgid != 2002 {
+			if fsgid := event.ResolveCredentialsFSGID(&event.Exec.Credentials); fsgid != 2001 {
 				t.Errorf("expected fsgid 2002, got %d", fsgid)
 			}
 		}
@@ -753,22 +758,24 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 	})
 
 	t.Run("capset", func(t *testing.T) {
-		threadCapabilities := cap.GetProc()
+		// Parse kernel capabilities of the current thread
+		threadCapabilities, err := capability.NewPid2(0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := threadCapabilities.Load(); err != nil {
+			t.Fatal(err)
+		}
+
 		go func() {
 			runtime.LockOSThread()
 			// do not unlock, we want the thread to be killed when exiting the goroutine
 
-			if err := threadCapabilities.SetFlag(cap.Permitted, false, cap.SYS_BOOT); err != nil {
-				t.Error(err)
-			}
-			if err := threadCapabilities.SetFlag(cap.Effective, false, cap.SYS_BOOT); err != nil {
-				t.Error(err)
-			}
-			if err := threadCapabilities.SetFlag(cap.Effective, false, cap.WAKE_ALARM); err != nil {
-				t.Error(err)
-			}
-			if err := threadCapabilities.SetProc(); err != nil {
-				t.Error(err)
+			// remove capabilities that we do not need
+			threadCapabilities.Unset(capability.PERMITTED|capability.EFFECTIVE, capability.CAP_SYS_BOOT)
+			threadCapabilities.Unset(capability.EFFECTIVE, capability.CAP_WAKE_ALARM)
+			if err := threadCapabilities.Apply(capability.CAPS); err != nil {
+				t.Fatal(err)
 			}
 		}()
 
@@ -780,17 +787,22 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 				t.Errorf("expected test_capset rule, got %s", rule.ID)
 			}
 
-			// transform the collected kernel capabilities into a cap.Set
-			newSet := cap.NewSet()
-			if err := parseCapIntoSet(event.Capset.CapEffective, cap.Effective, newSet); err != nil {
-				t.Errorf("failed to parse cap_effective capability: %v", err)
+			// transform the collected kernel capabilities into a usable capability set
+			newSet, err := capability.NewPid2(0)
+			if err != nil {
+				t.Fatal(err)
 			}
-			if err := parseCapIntoSet(event.Capset.CapPermitted, cap.Permitted, newSet); err != nil {
-				t.Errorf("failed to parse cap_permitted capability: %v", err)
-			}
+			newSet.Clear(capability.PERMITTED | capability.EFFECTIVE)
+			parseCapIntoSet(event.Capset.CapEffective, capability.EFFECTIVE, newSet, t)
+			parseCapIntoSet(event.Capset.CapPermitted, capability.PERMITTED, newSet, t)
 
-			if diff, err := threadCapabilities.Compare(newSet); err != nil || diff != 0 {
-				t.Errorf("expected following capability set `%s`, got `%s`, error `%v`, diff `%d`", threadCapabilities, newSet, err, diff)
+			for _, c := range capability.List() {
+				if expectedValue := threadCapabilities.Get(capability.EFFECTIVE, c); expectedValue != newSet.Get(capability.EFFECTIVE, c) {
+					t.Errorf("expected incorrect %s flag in cap_effective, expected %v", c, expectedValue)
+				}
+				if expectedValue := threadCapabilities.Get(capability.PERMITTED, c); expectedValue != newSet.Get(capability.PERMITTED, c) {
+					t.Errorf("expected incorrect %s flag in cap_permitted, expected %v", c, expectedValue)
+				}
 			}
 		}
 	})
@@ -802,15 +814,14 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 	_, _ = newTestModule(nil, nil, testOpts{})
 }
 
-func parseCapIntoSet(capabilities uint64, flag cap.Flag, set *cap.Set) error {
+func parseCapIntoSet(capabilities uint64, flag capability.CapType, c capability.Capabilities, t *testing.T) {
 	for _, v := range model.KernelCapabilityConstants {
 		if v == 0 {
 			continue
 		}
 
-		if err := set.SetFlag(flag, int(capabilities)&v == v, cap.Value(math.Log2(float64(v)))); err != nil {
-			return err
+		if int(capabilities)&v == v {
+			c.Set(flag, capability.Cap(math.Log2(float64(v))))
 		}
 	}
-	return nil
 }

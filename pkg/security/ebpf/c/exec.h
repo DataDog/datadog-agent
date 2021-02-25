@@ -194,7 +194,7 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
         event.pid_entry.cookie = parent_pid_entry->cookie;
 
         // ensure pid and ppid have the same credentials
-        copy_credentials(&parent_pid_entry->credentials, &event.pid_entry.credentials);
+        event.pid_entry.credentials = parent_pid_entry->credentials;
 
         // fetch the parent proc cache entry
         struct proc_cache_t *parent_proc_entry = bpf_map_lookup_elem(&proc_cache, &event.pid_entry.cookie);

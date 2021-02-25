@@ -54,13 +54,13 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "execveat"}, Entry),
 		},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "setuid"}, EntryAndExit),
 		},
 		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "setuid16"}, EntryAndExit),
 		},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "setgid"}, EntryAndExit),
 		},
 		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
@@ -78,13 +78,13 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "setegid16"}, EntryAndExit),
 		},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "setfsuid"}, EntryAndExit),
 		},
 		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "setfsuid16"}, EntryAndExit),
 		},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "setfsgid"}, EntryAndExit),
 		},
 		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
@@ -114,7 +114,7 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "setresgid16"}, EntryAndExit),
 		},
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "capset"}, EntryAndExit),
 		},
 

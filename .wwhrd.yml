@@ -45,4 +45,3 @@ exceptions: # Exclude all tools and tool dependencies
   - "github.com/matoous/godox"
   - "github.com/go-critic/go-critic/checkers/..."
   - "golang.org/x/mod/..."
-  - "kernel.org/pub/linux/libs/security/libcap/cap"

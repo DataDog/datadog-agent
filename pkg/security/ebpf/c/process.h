@@ -83,7 +83,7 @@ void __attribute__((always_inline)) copy_pid_cache_except_exit_ts(struct pid_cac
     dst->cookie = src->cookie;
     dst->ppid = src->ppid;
     dst->fork_timestamp = src->fork_timestamp;
-    copy_credentials(&src->credentials, &dst->credentials);
+    dst->credentials = src->credentials;
 }
 
 struct bpf_map_def SEC("maps/pid_cache") pid_cache = {
