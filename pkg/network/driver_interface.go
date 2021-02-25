@@ -9,6 +9,7 @@ package network
 
 //! Defines the objects used to communicate with the driver as well as its control codes
 #include "ddnpmapi.h"
+#include <stdlib.h>
 */
 import "C"
 import (
