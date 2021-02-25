@@ -36,7 +36,7 @@ func newTransactionsFileStorage(
 	maxStorage *forwarderMaxStorage,
 	telemetry transactionsFileStorageTelemetry) (*transactionsFileStorage, error) {
 
-	if err := os.MkdirAll(storagePath, 0755); err != nil {
+	if err := os.MkdirAll(storagePath, 0700); err != nil {
 		return nil, err
 	}
 
