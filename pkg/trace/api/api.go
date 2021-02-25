@@ -105,23 +105,24 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 func (r *HTTPReceiver) buildMux() *http.ServeMux {
 	mux := http.NewServeMux()
 
+	hash, infoHandler := r.makeInfoHandler()
 	r.attachDebugHandlers(mux)
-
-	mux.HandleFunc("/spans", r.handleWithVersion(v01, r.handleTraces))
-	mux.HandleFunc("/services", r.handleWithVersion(v01, r.handleServices))
-	mux.HandleFunc("/v0.1/spans", r.handleWithVersion(v01, r.handleTraces))
-	mux.HandleFunc("/v0.1/services", r.handleWithVersion(v01, r.handleServices))
-	mux.HandleFunc("/v0.2/traces", r.handleWithVersion(v02, r.handleTraces))
-	mux.HandleFunc("/v0.2/services", r.handleWithVersion(v02, r.handleServices))
-	mux.HandleFunc("/v0.3/traces", r.handleWithVersion(v03, r.handleTraces))
-	mux.HandleFunc("/v0.3/services", r.handleWithVersion(v03, r.handleServices))
-	mux.HandleFunc("/v0.4/traces", r.handleWithVersion(v04, r.handleTraces))
-	mux.HandleFunc("/v0.4/services", r.handleWithVersion(v04, r.handleServices))
-	mux.HandleFunc("/v0.5/traces", r.handleWithVersion(v05, r.handleTraces))
-	mux.HandleFunc("/v0.5/stats", r.handleStats)
-	mux.Handle("/profiling/v1/input", r.profileProxyHandler())
+	for _, e := range endpoints {
+		mux.Handle(e.Pattern, replyWithVersion(hash, e.Handler(r)))
+	}
+	mux.HandleFunc("/info", infoHandler)
 
 	return mux
+}
+
+// replyWithVersion returns an http.Handler which calls h with an addition of some
+// HTTP headers containing version and state information.
+func replyWithVersion(hash string, h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Datadog-Agent-Version", info.Version)
+		w.Header().Set("Datadog-Agent-State", hash)
+		h.ServeHTTP(w, r)
+	})
 }
 
 // Start starts doing the HTTP server and is ready to receive traces

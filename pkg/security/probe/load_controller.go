@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/hashicorp/golang-lru/simplelru"
 
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -116,7 +117,8 @@ func (lc *LoadController) discardNoisiestProcess() {
 
 	// push a temporary discarder on the noisiest process & event type tuple
 	log.Tracef("discarding %s events from pid %d for %s seconds", maxKey.Event, maxKey.Pid, lc.DiscarderTimeout)
-	if err := lc.probe.discardPIDWithTimeout(maxKey.Event, maxKey.Pid, lc.DiscarderTimeout); err != nil {
+	timeout := lc.probe.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Now().Add(lc.DiscarderTimeout))
+	if err := lc.probe.pidDiscarders.discardWithTimeout(maxKey.Event, maxKey.Pid, timeout); err != nil {
 		log.Warnf("couldn't insert temporary discarder: %v", err)
 		return
 	}
@@ -130,7 +132,7 @@ func (lc *LoadController) discardNoisiestProcess() {
 		tags := []string{
 			fmt.Sprintf("event_type:%s", maxKey.Event),
 		}
-		if err := lc.statsdClient.Count(MetricLoadControllerPidDiscarder, 1, tags, 1.0); err != nil {
+		if err := lc.statsdClient.Count(metrics.MetricLoadControllerPidDiscarder, 1, tags, 1.0); err != nil {
 			log.Warnf("couldn't send load_controller.pids_discarder metric: %v", err)
 			return
 		}

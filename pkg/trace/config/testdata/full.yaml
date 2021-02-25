@@ -36,6 +36,10 @@ apm_config:
     - /health
     - /500
 
+  filter_tags:    
+    require: ["env:prod", "db:mongodb"]
+    reject: ["outcome:success"]
+
   replace_tags:
     - name: "http.method"
       pattern: "\\?.*$"

@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
@@ -75,10 +74,6 @@ func (ev *Event) ResolveFileBasename(f *model.FileEvent) string {
 func (ev *Event) ResolveFileContainerPath(f *model.FileEvent) string {
 	if len(f.ContainerPath) == 0 {
 		f.ContainerPath = ev.resolvers.resolveContainerPath(&f.FileFields)
-		if len(f.ContainerPath) == 0 && len(f.PathnameStr) == 0 {
-			// The container path might be included in the pathname. The container path will be set there.
-			_ = ev.ResolveFileInode(f)
-		}
 	}
 	return f.ContainerPath
 }
@@ -326,7 +321,7 @@ func ExtractEventInfo(data []byte) (uint64, uint64, error) {
 		return 0, 0, model.ErrNotEnoughData
 	}
 
-	return ebpf.ByteOrder.Uint64(data[0:8]), ebpf.ByteOrder.Uint64(data[8:16]), nil
+	return model.ByteOrder.Uint64(data[0:8]), model.ByteOrder.Uint64(data[8:16]), nil
 }
 
 // ResolveEventTimestamp resolves the monolitic kernel event timestamp to an absolute time

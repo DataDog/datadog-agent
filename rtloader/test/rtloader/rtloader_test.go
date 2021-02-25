@@ -196,3 +196,38 @@ with open(r'%s', 'w') as f:
 	// Check for leaks
 	helpers.AssertMemoryUsage(t)
 }
+
+func TestCancelCheck(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	code := `import fake_check
+fake_check.was_canceled = False`
+
+	if _, err := runString(code); err != nil {
+		t.Fatalf("`TestCancelCheck` error resetting was_canceled: %v", err)
+	}
+
+	if err := cancelFakeCheck(); err != nil {
+		t.Fatal(err)
+	}
+
+	code = fmt.Sprintf(`
+import sys
+import fake_check
+with open(r'%s', 'w') as f:
+	f.write(str(fake_check.was_canceled))`, tmpfile.Name())
+
+	output, err := runString(code)
+
+	if err != nil {
+		t.Fatalf("`cancel_check` error: %v", err)
+	}
+
+	if output != "True" {
+		t.Errorf("Unexpected printed value: '%s'", output)
+	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}

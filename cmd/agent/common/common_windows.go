@@ -199,7 +199,7 @@ func ImportRegistryConfig() error {
 	var val string
 
 	if val, _, err = k.GetStringValue("api_key"); err == nil && val != "" {
-		overrides["api_key"] = val
+		overrides["api_key"] = config.SanitizeAPIKey(val)
 		log.Debug("Setting API key")
 		commandLineSettingFound = true
 	} else {

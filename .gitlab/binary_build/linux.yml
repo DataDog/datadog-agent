@@ -3,8 +3,8 @@
   if: $RELEASE_VERSION_7 != ""
 
 .retrieve_linux_go_deps: &retrieve_linux_go_deps |
-  mkdir vendor && tar xzf vendor.tar.gz -C vendor
-  rm -f vendor.tar.gz
+  mkdir -p $GOPATH/pkg/mod && tar xzf modcache.tar.gz -C $GOPATH/pkg/mod
+  rm -f modcache.tar.gz
 
 build_dogstatsd_static-deb_x64:
   stage: binary_build
@@ -39,7 +39,7 @@ build_dogstatsd_static-deb_arm64:
     ARCH: arm64
   before_script:
     - *retrieve_linux_go_deps
-    - source /root/.bashrc
+    - source /root/.bashrc && conda activate ddpy3
     # Hack to work around the cloning issue with arm runners
     - mkdir -p $GOPATH/src/github.com/DataDog
     - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog
@@ -57,7 +57,7 @@ build_dogstatsd-deb_arm64:
     ARCH: arm64
   before_script:
     - *retrieve_linux_go_deps
-    - source /root/.bashrc
+    - source /root/.bashrc && conda activate ddpy3
     # Hack to work around the cloning issue with arm runners
     - mkdir -p $GOPATH/src/github.com/DataDog
     - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog

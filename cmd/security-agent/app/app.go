@@ -182,6 +182,10 @@ func start(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	if err := util.SetupCoreDump(); err != nil {
+		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
+	}
+
 	if pidfilePath != "" {
 		err = pidfile.WritePID(pidfilePath)
 		if err != nil {

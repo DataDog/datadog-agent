@@ -1,6 +1,7 @@
 package host
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -60,4 +61,16 @@ func TestGetHostTagsWithEnv(t *testing.T) {
 	hostTags := GetHostTags(false)
 	assert.NotNil(t, hostTags.System)
 	assert.Equal(t, []string{"tag1:value1", "tag2", "tag3", "env:prod", "env:preprod"}, hostTags.System)
+}
+
+func TestMarshalEmptyHostTags(t *testing.T) {
+	tags := &Tags{
+		System:              []string{},
+		GoogleCloudPlatform: []string{},
+	}
+
+	marshaled, _ := json.Marshal(tags)
+
+	// `System` should be marshaled as an empty list
+	assert.Equal(t, string(marshaled), `{"system":[]}`)
 }

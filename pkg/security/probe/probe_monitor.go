@@ -9,11 +9,12 @@ package probe
 
 import (
 	"context"
+
+	"github.com/hashicorp/go-multierror"
+
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/DataDog/ebpf/manager"
 	"github.com/pkg/errors"
@@ -27,6 +28,7 @@ type Monitor struct {
 	loadController    *LoadController
 	perfBufferMonitor *PerfBufferMonitor
 	syscallMonitor    *SyscallMonitor
+	reordererMonitor  *ReordererMonitor
 }
 
 // NewMonitor returns a new instance of a ProbeMonitor
@@ -49,6 +51,11 @@ func NewMonitor(p *Probe, client *statsd.Client) (*Monitor, error) {
 		return nil, errors.Wrap(err, "couldn't create the events statistics monitor")
 	}
 
+	m.reordererMonitor, err = NewReOrderMonitor(p, client)
+	if err != nil {
+		return nil, errors.Wrap(err, "couldn't create the reorder monitor")
+	}
+
 	// create a new syscall monitor if requested
 	if p.config.SyscallMonitor {
 		m.syscallMonitor, err = NewSyscallMonitor(p.manager)
@@ -67,6 +74,7 @@ func (m *Monitor) GetPerfBufferMonitor() *PerfBufferMonitor {
 // Start triggers the goroutine of all the underlying controllers and monitors of the Monitor
 func (m *Monitor) Start(ctx context.Context) error {
 	go m.loadController.Start(ctx)
+	go m.reordererMonitor.Start(ctx)
 	return nil
 }
 
@@ -128,12 +136,12 @@ func (m *Monitor) ProcessLostEvent(count uint64, cpu int, perfMap *manager.PerfM
 }
 
 // ReportRuleSetLoaded reports to Datadog that new ruleset was loaded
-func (m *Monitor) ReportRuleSetLoaded(ruleSet *rules.RuleSet, timestamp time.Time) {
-	if err := m.client.Count(MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
+func (m *Monitor) ReportRuleSetLoaded(ruleSet *rules.RuleSet, err *multierror.Error) {
+	if err := m.client.Count(metrics.MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
 		log.Error(errors.Wrap(err, "failed to send ruleset_loaded metric"))
 	}
 
 	m.probe.DispatchCustomEvent(
-		NewRuleSetLoadedEvent(ruleSet.ListPolicies(), ruleSet.ListRuleIDs(), ruleSet.ListMacroIDs()),
+		NewRuleSetLoadedEvent(ruleSet, err),
 	)
 }

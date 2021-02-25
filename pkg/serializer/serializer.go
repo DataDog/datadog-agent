@@ -10,7 +10,6 @@ import (
 	"expvar"
 	"fmt"
 	"net/http"
-	"regexp"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
@@ -25,7 +24,6 @@ const (
 	protobufContentType                         = "application/x-protobuf"
 	jsonContentType                             = "application/json"
 	payloadVersionHTTPHeader                    = "DD-Agent-Payload"
-	apiKeyReplacement                           = "\"apiKey\":\"*************************$1"
 	maxItemCountForCreateMarshalersBySourceType = 100
 )
 
@@ -43,8 +41,6 @@ var (
 	expvarsSendEventsErrItemTooBigs         = expvar.Int{}
 	expvarsSendEventsErrItemTooBigsFallback = expvar.Int{}
 )
-
-var apiKeyRegExp = regexp.MustCompile("\"apiKey\":\"*\\w+(\\w{5})")
 
 func init() {
 	expvars.Set("SendEventsErrItemTooBigs", &expvarsSendEventsErrItemTooBigs)
@@ -348,7 +344,7 @@ func (s *Serializer) sendMetadata(m marshaler.Marshaler, submit func(payload for
 		return fmt.Errorf("could not determine size of metadata payload: %s", err)
 	}
 
-	log.Debugf("Sending metadata payload, content: %v", apiKeyRegExp.ReplaceAllString(string(payload), apiKeyReplacement))
+	log.Debugf("Sending metadata payload, content: %v", string(payload))
 
 	if mustSplit {
 		return fmt.Errorf("metadata payload was too big to send (%d bytes compressed, %d bytes uncompressed), metadata payloads cannot be split", len(compressedPayload), len(payload))
@@ -379,6 +375,6 @@ func (s *Serializer) SendJSONToV1Intake(data interface{}) error {
 	}
 
 	log.Infof("Sent processes metadata payload, size: %d bytes.", len(payload))
-	log.Debugf("Sent processes metadata payload, content: %v", apiKeyRegExp.ReplaceAllString(string(payload), apiKeyReplacement))
+	log.Debugf("Sent processes metadata payload, content: %v", string(payload))
 	return nil
 }

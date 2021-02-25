@@ -23,7 +23,7 @@ import (
 	lib "github.com/DataDog/ebpf"
 	"github.com/pkg/errors"
 
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -54,8 +54,8 @@ func (i *InodeInfo) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 8 {
 		return 0, model.ErrNotEnoughData
 	}
-	i.MountID = ebpf.ByteOrder.Uint32(data)
-	i.OverlayNumLower = int32(ebpf.ByteOrder.Uint32(data[4:]))
+	i.MountID = model.ByteOrder.Uint32(data)
+	i.OverlayNumLower = int32(model.ByteOrder.Uint32(data[4:]))
 	return 8, nil
 }
 
@@ -81,11 +81,11 @@ type ProcessResolver struct {
 
 // SendStats sends process resolver metrics
 func (p *ProcessResolver) SendStats() error {
-	if err := p.client.Gauge(MetricProcessResolverCacheSize, p.GetCacheSize(), []string{}, 1.0); err != nil {
+	if err := p.client.Gauge(metrics.MetricProcessResolverCacheSize, p.GetCacheSize(), []string{}, 1.0); err != nil {
 		return errors.Wrap(err, "failed to send process_resolver cache_size metric")
 	}
 
-	if err := p.client.Gauge(MetricProcessResolverReferenceCount, p.GetEntryCacheSize(), []string{}, 1.0); err != nil {
+	if err := p.client.Gauge(metrics.MetricProcessResolverReferenceCount, p.GetEntryCacheSize(), []string{}, 1.0); err != nil {
 		return errors.Wrap(err, "failed to send process_resolver reference_count metric")
 	}
 
@@ -184,7 +184,7 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 func (p *ProcessResolver) retrieveInodeInfo(inode uint64) (*InodeInfo, error) {
 	inodeb := make([]byte, 8)
 
-	ebpf.ByteOrder.PutUint64(inodeb, inode)
+	model.ByteOrder.PutUint64(inodeb, inode)
 	data, err := p.inodeInfoMap.LookupBytes(inodeb)
 	if err != nil {
 		return nil, err
@@ -214,7 +214,7 @@ func (p *ProcessResolver) insertForkEntry(pid uint32, entry *model.ProcessCacheE
 	}
 	p.entryCache[pid] = entry
 
-	_ = p.client.Count(MetricProcessResolverAdded, 1, []string{}, 1.0)
+	_ = p.client.Count(metrics.MetricProcessResolverAdded, 1, []string{}, 1.0)
 
 	if p.opts.DebugCacheSize {
 		atomic.AddInt64(&p.cacheSize, 1)
@@ -234,7 +234,7 @@ func (p *ProcessResolver) insertExecEntry(pid uint32, entry *model.ProcessCacheE
 
 	p.entryCache[pid] = entry
 
-	_ = p.client.Count(MetricProcessResolverAdded, 1, []string{}, 1.0)
+	_ = p.client.Count(metrics.MetricProcessResolverAdded, 1, []string{}, 1.0)
 
 	if p.opts.DebugCacheSize {
 		atomic.AddInt64(&p.cacheSize, 1)
@@ -271,23 +271,23 @@ func (p *ProcessResolver) Resolve(pid uint32) *model.ProcessCacheEntry {
 
 	entry, exists := p.entryCache[pid]
 	if exists {
-		_ = p.client.Count(MetricProcessResolverCacheHits, 1, []string{"type:cache"}, 1.0)
+		_ = p.client.Count(metrics.MetricProcessResolverCacheHits, 1, []string{"type:cache"}, 1.0)
 		return entry
 	}
 
 	// fallback to the kernel maps directly, the perf event may be delayed / may have been lost
 	if entry = p.resolveWithKernelMaps(pid); entry != nil {
-		_ = p.client.Count(MetricProcessResolverCacheHits, 1, []string{"type:kernel_maps"}, 1.0)
+		_ = p.client.Count(metrics.MetricProcessResolverCacheHits, 1, []string{"type:kernel_maps"}, 1.0)
 		return entry
 	}
 
 	// fallback to /proc, the in-kernel LRU may have deleted the entry
 	if entry = p.resolveWithProcfs(pid); entry != nil {
-		_ = p.client.Count(MetricProcessResolverCacheHits, 1, []string{"type:procfs"}, 1.0)
+		_ = p.client.Count(metrics.MetricProcessResolverCacheHits, 1, []string{"type:procfs"}, 1.0)
 		return entry
 	}
 
-	_ = p.client.Count(MetricProcessResolverCacheMiss, 1, []string{}, 1.0)
+	_ = p.client.Count(metrics.MetricProcessResolverCacheMiss, 1, []string{}, 1.0)
 	return nil
 }
 
@@ -314,7 +314,7 @@ func (p *ProcessResolver) unmarshalProcessCacheEntry(entry *model.ProcessCacheEn
 
 func (p *ProcessResolver) resolveWithKernelMaps(pid uint32) *model.ProcessCacheEntry {
 	pidb := make([]byte, 4)
-	ebpf.ByteOrder.PutUint32(pidb, pid)
+	model.ByteOrder.PutUint32(pidb, pid)
 
 	cookieb, err := p.pidCacheMap.LookupBytes(pidb)
 	if err != nil || cookieb == nil {
@@ -339,8 +339,8 @@ func (p *ProcessResolver) resolveWithKernelMaps(pid uint32) *model.ProcessCacheE
 		return nil
 	}
 
-	entry.UID = ebpf.ByteOrder.Uint32(data[read : read+4])
-	entry.GID = ebpf.ByteOrder.Uint32(data[read+4 : read+8])
+	entry.UID = model.ByteOrder.Uint32(data[read : read+4])
+	entry.GID = model.ByteOrder.Uint32(data[read+4 : read+8])
 	entry.Pid = pid
 	entry.Tid = pid
 
@@ -406,7 +406,7 @@ func (p *ProcessResolver) cacheFlush(ctx context.Context) {
 
 			delEntry := func(pid uint32, exitTime time.Time) {
 				p.deleteEntry(pid, exitTime)
-				_ = p.client.Count(MetricProcessResolverFlushed, 1, []string{}, 1.0)
+				_ = p.client.Count(metrics.MetricProcessResolverFlushed, 1, []string{}, 1.0)
 			}
 
 			// flush slowly

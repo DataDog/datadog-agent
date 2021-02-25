@@ -15,6 +15,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -54,6 +55,7 @@ system_probe_config:
 
 runtime_security_config:
   enabled: true
+  fim_enabled: true
   socket: /tmp/test-security-probe.sock
   flush_discarder_window: 0
   load_controller:
@@ -482,6 +484,12 @@ type tracePipeLogger struct {
 	stop chan struct{}
 }
 
+func (l *tracePipeLogger) handleEvent(event *TraceEvent) {
+	if event.PID == strconv.Itoa(os.Getpid()) {
+		log.Debug(event.Raw)
+	}
+}
+
 func (l *tracePipeLogger) Start() {
 	channelEvents, channelErrors := l.Channel()
 
@@ -489,9 +497,12 @@ func (l *tracePipeLogger) Start() {
 		for {
 			select {
 			case <-l.stop:
+				for len(channelEvents) > 0 {
+					l.handleEvent(<-channelEvents)
+				}
 				return
 			case event := <-channelEvents:
-				log.Debug(event.Raw)
+				l.handleEvent(event)
 			case err := <-channelErrors:
 				log.Error(err)
 			}
@@ -500,6 +511,8 @@ func (l *tracePipeLogger) Start() {
 }
 
 func (l *tracePipeLogger) Stop() {
+	time.Sleep(time.Millisecond * 200)
+
 	l.stop <- struct{}{}
 	l.Close()
 }
@@ -515,6 +528,8 @@ func (tm *testModule) startTracing() (*tracePipeLogger, error) {
 		stop:      make(chan struct{}),
 	}
 	logger.Start()
+
+	time.Sleep(time.Millisecond * 200)
 
 	return logger, nil
 }
@@ -597,7 +612,7 @@ func (t *simpleTest) swapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, er
 
 		var err error
 
-		logger, err = seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stdout, seelog.TraceLvl, logFormat)
+		logger, err = seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stdout, logLevel, logFormat)
 		if err != nil {
 			return 0, err
 		}

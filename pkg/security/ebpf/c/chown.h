@@ -13,20 +13,26 @@ struct chown_event_t {
     gid_t group;
 };
 
+int __attribute__((always_inline)) chown_approvers(struct syscall_cache_t *syscall) {
+    return basename_approver(syscall, syscall->setattr.dentry, EVENT_CHOWN);
+}
+
 int __attribute__((always_inline)) trace__sys_chown(uid_t user, gid_t group) {
+    struct policy_t policy = fetch_policy(EVENT_CHOWN);
+    if (discarded_by_process(policy.mode, EVENT_CHOWN)) {
+        return 0;
+    }
+
     struct syscall_cache_t syscall = {
         .type = SYSCALL_CHOWN,
+        .policy = policy,
         .setattr = {
             .user = user,
             .group = group
         }
     };
 
-    cache_syscall(&syscall, EVENT_CHOWN);
-
-    if (discarded_by_process(syscall.policy.mode, EVENT_CHOWN)) {
-        pop_syscall(SYSCALL_CHOWN);
-    }
+    cache_syscall(&syscall);
 
     return 0;
 }

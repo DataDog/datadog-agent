@@ -17,8 +17,3 @@ func TestRandomBucket(t *testing.T) {
 		assert.False(t, b.IsEmpty())
 	}
 }
-
-func TestTestBucket(t *testing.T) {
-	b := TestBucket()
-	assert.False(t, b.IsEmpty())
-}

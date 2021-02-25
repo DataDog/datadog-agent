@@ -18,6 +18,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
 
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
@@ -40,11 +41,15 @@ var (
 // connections or otherHandler otherwise. Copied from cockroachdb.
 func grpcHandlerFunc(grpcServer *grpc.Server, otherHandler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
 		// This is a partial recreation of gRPC's internal checks https://github.com/grpc/grpc-go/pull/514/files#diff-95e9a25b738459a2d3030e1e6fa2a718R61
 		if r.ProtoMajor == 2 && strings.Contains(r.Header.Get("Content-Type"), "application/grpc") {
 			grpcServer.ServeHTTP(w, r)
 		} else {
+			deadline := time.Now().Add(config.Datadog.GetDuration("server_timeout") * time.Second)
+
+			conn := agent.GetConnection(r)
+			_ = conn.SetWriteDeadline(deadline)
+
 			otherHandler.ServeHTTP(w, r)
 		}
 	})
@@ -125,10 +130,6 @@ func StartServer() error {
 		ErrorLog: stdLog.New(&config.ErrorLogWriter{
 			AdditionalDepth: 5, // Use a stack depth of 5 on top of the default one to get a relevant filename in the stdlib
 		}, "Error from the agent http API server: ", 0), // log errors to seelog,
-		// TODO: WriteTimeout closes gRPC streams every $server_timeout
-		// seconds, need to find a solution for that before
-		// re-enabling.
-		// WriteTimeout: config.Datadog.GetDuration("server_timeout") * time.Second,
 		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
 			// Store the connection in the context so requests can reference it if needed
 			return context.WithValue(ctx, agent.ConnContextKey, c)

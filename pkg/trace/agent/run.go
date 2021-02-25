@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -114,6 +115,10 @@ func Run(ctx context.Context) {
 
 		log.Infof("PID '%d' written to PID file '%s'", os.Getpid(), flags.PIDFilePath)
 		defer os.Remove(flags.PIDFilePath)
+	}
+
+	if err := util.SetupCoreDump(); err != nil {
+		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
 	err = metrics.Configure(cfg, []string{"version:" + info.Version})

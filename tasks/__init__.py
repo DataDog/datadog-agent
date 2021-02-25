@@ -29,7 +29,19 @@ from . import (
     uninstallcmd,
 )
 from .build_tags import audit_tag_impact
-from .go import cyclo, deps, fmt, generate, generate_licenses, golangci_lint, lint, lint_licenses, reset, vet
+from .go import (
+    cyclo,
+    deps,
+    deps_vendored,
+    fmt,
+    generate,
+    generate_licenses,
+    golangci_lint,
+    lint,
+    lint_licenses,
+    reset,
+    vet,
+)
 from .test import (
     check_gitlab_broken_dependencies,
     e2e_tests,
@@ -57,6 +69,7 @@ ns.add_task(golangci_lint)
 ns.add_task(test)
 ns.add_task(integration_tests)
 ns.add_task(deps)
+ns.add_task(deps_vendored)
 ns.add_task(lint_licenses)
 ns.add_task(generate_licenses)
 ns.add_task(reset)

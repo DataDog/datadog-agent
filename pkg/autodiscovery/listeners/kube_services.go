@@ -15,11 +15,11 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/types"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	infov1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -33,8 +33,8 @@ const (
 // KubeServiceListener listens to kubernetes service creation
 type KubeServiceListener struct {
 	informer      infov1.ServiceInformer
-	services      map[types.UID]Service
-	promInclAnnot common.PrometheusAnnotations
+	services      map[k8stypes.UID]Service
+	promInclAnnot types.PrometheusAnnotations
 	newService    chan<- Service
 	delService    chan<- Service
 	m             sync.RWMutex
@@ -68,9 +68,9 @@ func NewKubeServiceListener() (ServiceListener, error) {
 	}
 
 	return &KubeServiceListener{
-		services:      make(map[types.UID]Service),
+		services:      make(map[k8stypes.UID]Service),
 		informer:      servicesInformer,
-		promInclAnnot: common.GetPrometheusIncludeAnnotations(),
+		promInclAnnot: getPrometheusIncludeAnnotations(),
 	}, nil
 }
 

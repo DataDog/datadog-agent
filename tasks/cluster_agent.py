@@ -40,7 +40,6 @@ def build(
     """
     build_common(
         ctx,
-        "cluster-agent.build",
         BIN_PATH,
         get_default_build_tags(build="cluster-agent"),
         "",
@@ -84,7 +83,7 @@ def clean(ctx):
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="vendor"):
+def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="mod"):
     """
     Run integration tests for cluster-agent
     """

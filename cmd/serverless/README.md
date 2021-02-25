@@ -15,5 +15,5 @@ GOOS=linux go build -tags serverless -o datadog-agent
 
 ## Limitations
 
-  - Doesn't support the API key provided to the runtime for now (using the Lambda library),
-    it must be set in the DD_API_KEY environment var.
+- Doesn't support the API key provided to the runtime for now (using the Lambda library),
+  it must be set in the DD_API_KEY environment var.
