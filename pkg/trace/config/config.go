@@ -78,7 +78,6 @@ type AgentConfig struct {
 	MaxRequestBytes int64 // specifies the maximum allowed request size for incoming trace payloads
 
 	// Writers
-	SynchronousFlushing     bool // Mode where traces are only submitted when FlushAsync is called, used for Serverless Extension
 	StatsWriter             *WriterConfig
 	TraceWriter             *WriterConfig
 	ConnectionResetInterval time.Duration // frequency at which outgoing connections are reset. 0 means no reset is performed
@@ -107,9 +106,6 @@ type AgentConfig struct {
 	// ReplaceTags is used to filter out sensitive information from tag values.
 	// It maps tag keys to a set of replacements. Only supported in A6.
 	ReplaceTags []*ReplaceRule
-
-	// GlobalTags list metadata that will be added to all spans
-	GlobalTags map[string]string
 
 	// transaction analytics
 	AnalyzedRateByServiceLegacy map[string]float64
@@ -168,8 +164,6 @@ func New() *AgentConfig {
 		Ignore:                      make(map[string][]string),
 		AnalyzedRateByServiceLegacy: make(map[string]float64),
 		AnalyzedSpansByService:      make(map[string]map[string]float64),
-
-		GlobalTags: make(map[string]string),
 
 		DDAgentBin: defaultDDAgentBin,
 	}

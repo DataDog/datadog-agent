@@ -7,8 +7,6 @@ import (
 	"net/http"
 	"sync"
 
-	traceAgent "github.com/DataDog/datadog-agent/pkg/trace/agent"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/logs"
@@ -29,7 +27,6 @@ type Daemon struct {
 	mux        *http.ServeMux
 
 	statsdServer *dogstatsd.Server
-	traceAgent   *traceAgent.Agent
 
 	// aggregator used by the statsd server
 	aggregator *aggregator.BufferedAggregator
@@ -43,11 +40,6 @@ type Daemon struct {
 // SetStatsdServer sets the DogStatsD server instance running when it is ready.
 func (d *Daemon) SetStatsdServer(statsdServer *dogstatsd.Server) {
 	d.statsdServer = statsdServer
-}
-
-// SetTraceAgent sets the Agent instance for submitting traces
-func (d *Daemon) SetTraceAgent(traceAgent *traceAgent.Agent) {
-	d.traceAgent = traceAgent
 }
 
 // SetAggregator sets the aggregator used within the DogStatsD server.
@@ -183,34 +175,13 @@ func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("DogStatsD server not ready"))
 		return
 	}
-	// synchronous flush metrics, traces and logs
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	wg.Add(1)
-	wg.Add(1)
 
-	go func() {
-		if f.daemon.statsdServer != nil {
-			f.daemon.statsdServer.Flush(true)
-		}
-		wg.Done()
-	}()
-	go func() {
-		if f.daemon.traceAgent != nil {
-			f.daemon.traceAgent.FlushSync()
-		}
-		wg.Done()
-	}()
-
+	// synchronous flush of the logs agent
 	// FIXME(remy): could the enhanced metrics be generated at this point? if not
 	//              and they're already generated when REPORT is received on the http server,
 	//              we could make this run in parallel with the statsd flush
-	go func() {
-		logs.Flush()
-		wg.Done()
-	}()
-
-	wg.Wait()
-
+	logs.Flush()
+	// synchronous flush
+	f.daemon.statsdServer.Flush(true)
 	log.Debug("Sync flush done")
 }

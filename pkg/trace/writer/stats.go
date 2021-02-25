@@ -6,7 +6,6 @@
 package writer
 
 import (
-	"errors"
 	"math"
 	"strings"
 	"sync/atomic"
@@ -44,25 +43,18 @@ type StatsWriter struct {
 	stop     chan struct{}
 	stats    *info.StatsWriterInfo
 
-	// syncMode reports whether the writer should flush on its own or only when FlushSync is called
-	syncMode  bool
-	payloads  []*stats.Payload // payloads buffered for sync mode
-	flushChan chan chan struct{}
-
 	easylog *logutil.ThrottledLogger
 }
 
 // NewStatsWriter returns a new StatsWriter. It must be started using Run.
 func NewStatsWriter(cfg *config.AgentConfig, in <-chan []stats.Bucket) *StatsWriter {
 	sw := &StatsWriter{
-		in:        in,
-		hostname:  cfg.Hostname,
-		env:       cfg.DefaultEnv,
-		stats:     &info.StatsWriterInfo{},
-		stop:      make(chan struct{}),
-		flushChan: make(chan chan struct{}),
-		syncMode:  cfg.SynchronousFlushing,
-		easylog:   logutil.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
+		in:       in,
+		hostname: cfg.Hostname,
+		env:      cfg.DefaultEnv,
+		stats:    &info.StatsWriterInfo{},
+		stop:     make(chan struct{}),
+		easylog:  logutil.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
 	}
 	climit := cfg.StatsWriter.ConnectionLimit
 	if climit == 0 {
@@ -95,31 +87,12 @@ func (w *StatsWriter) Run() {
 		select {
 		case stats := <-w.in:
 			w.addStats(stats)
-			if !w.syncMode {
-				w.sendPayloads()
-			}
-		case notify := <-w.flushChan:
-			w.sendPayloads()
-			notify <- struct{}{}
 		case <-t.C:
 			w.report()
 		case <-w.stop:
 			return
 		}
 	}
-}
-
-// FlushSync blocks and sends pending payloads when syncMode is true
-func (w *StatsWriter) FlushSync() error {
-	if !w.syncMode {
-		return errors.New("not flushing; sync mode not enabled")
-	}
-
-	defer w.report()
-	notify := make(chan struct{}, 1)
-	w.flushChan <- notify
-	<-notify
-	return nil
 }
 
 // Stop stops a running StatsWriter.
@@ -142,7 +115,9 @@ func (w *StatsWriter) addStats(s []stats.Bucket) {
 	atomic.AddInt64(&w.stats.StatsBuckets, int64(bucketCount))
 	log.Debugf("Flushing %d entries (buckets=%d payloads=%v)", entryCount, bucketCount, len(payloads))
 
-	w.payloads = append(w.payloads, payloads...)
+	for _, p := range payloads {
+		w.SendPayload(p)
+	}
 }
 
 // SendPayload sends a stats payload to the Datadog backend.
@@ -158,14 +133,7 @@ func (w *StatsWriter) SendPayload(p *stats.Payload) {
 	}
 	atomic.AddInt64(&w.stats.Bytes, int64(req.body.Len()))
 
-	sendPayloads(w.senders, req, w.syncMode)
-}
-
-func (w *StatsWriter) sendPayloads() {
-	for _, p := range w.payloads {
-		w.SendPayload(p)
-	}
-	w.payloads = w.payloads[:0]
+	sendPayloads(w.senders, req)
 }
 
 // buildPayloads returns a set of payload to send out, each paylods guaranteed
