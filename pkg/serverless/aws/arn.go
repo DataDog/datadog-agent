@@ -4,6 +4,8 @@ import (
 	"io/ioutil"
 	"strings"
 	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -51,7 +53,10 @@ func SetARN(arn string) {
 // cacheARN writes the ARN to a file in the /tmp directory so we can restore it if the extension process is restarted
 func cacheARN(arn string) {
 	data := []byte(arn)
-	ioutil.WriteFile(cachedARNFilePath, data, 0644)
+	err := ioutil.WriteFile(cachedARNFilePath, data, 0644)
+	if err != nil {
+		log.Error("Error writing ARN to cache")
+	}
 }
 
 // FunctionNameFromARN returns the function name from the currently set ARN.
@@ -82,7 +87,10 @@ func SetRequestID(reqID string) {
 // cacheRequestID writes the Request ID to a file in the /tmp directory so we can restore it if the extension process is restarted
 func cacheRequestID(reqID string) {
 	data := []byte(reqID)
-	ioutil.WriteFile(cachedRequestIDFilePath, data, 0644)
+	err := ioutil.WriteFile(cachedRequestIDFilePath, data, 0644)
+	if err != nil {
+		log.Error("Error writing request ID to cache")
+	}
 }
 
 // RestoreCurrentARNFromCache sets the current ARN to the value cached as a file in case the extension process was restarted
