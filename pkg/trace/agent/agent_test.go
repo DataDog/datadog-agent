@@ -65,8 +65,8 @@ func TestProcess(t *testing.T) {
 	t.Run("Replacer", func(t *testing.T) {
 		// Ensures that for "sql" type spans:
 		// • obfuscator runs before replacer
-		// • obfuscator obfuscates both resource and "sql.query" tag
-		// • resulting resource is obfuscated with replacements applied
+		// • obfuscator obfuscates both resource and "sql.query" tag
+		// • resulting resource is obfuscated with replacements applied
 		// • resulting "sql.query" tag is obfuscated with no replacements applied
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
@@ -283,7 +283,7 @@ func TestProcess(t *testing.T) {
 		agnt.Process(&api.Payload{
 			Traces: pb.Traces{{span}},
 			Source: info.NewReceiverStats().GetTagStats(info.Tags{}),
-		}, stats.NewSublayerCalculator())
+		})
 
 		assert := assert.New(t)
 		assert.Equal("value", span.GetMeta()["_dd.test"])
