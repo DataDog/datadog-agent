@@ -418,7 +418,7 @@ ReadLoop:
 		msgs, netns, err := c.socket.ReceiveInto(*buffer)
 
 		if err != nil {
-			log.Debugf("consumer netlink socket error: %s", err)
+			log.Tracef("consumer netlink socket error: %s", err)
 			switch socketError(err) {
 			case errEOF:
 				// EOFs are usually indicative of normal program termination, so we simply exit
