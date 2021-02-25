@@ -1,10 +1,45 @@
 # StackState Agent v2 releases
 
-## 2.10.0 (???)
+## 2.11.0 (2021-02-25)
+
+## 2.10.0 (2021-02-25)
+
+**Features**
+
+- Docker Integration
+  - The Docker integration is enabled by default for linux and dockerized installations which will produce docker-specific telemetry. [(STAC-11903)](https://stackstate.atlassian.net/browse/STAC-11903)
+    - StackState will create a DEVIATING health state for spurious restarts on a container.
+- Disk Integration
+  - The Disk integration is enabled by default which will produce topology and telemetry related to disk usage of the agent host. [(STAC-11902)](https://stackstate.atlassian.net/browse/STAC-11902)
+    - StackState will create a DEVIATING health state on a host when disk space reaches 80% and CRITICAL at 100%.
+
+**Improvements**
+
+- Integrations:
+  - Added support to configure Process Agent using `sts_url` [(STAC-11215)](https://stackstate.atlassian.net/browse/STAC-11215)
+  - Provide default url for install script [(STAC-11215)](https://stackstate.atlassian.net/browse/STAC-11215)
+- Nagios Integration:
+  - Added event stream for passive service state events [(STAC-11119)](https://stackstate.atlassian.net/browse/STAC-11119)
+  - Added event stream for service notification events [(STAC-11119)](https://stackstate.atlassian.net/browse/STAC-11119)
+  - Added event stream for service flapping events [(STAC-11119)](https://stackstate.atlassian.net/browse/STAC-11119)
+  - Added event stream check for host flapping alerts [(STAC-11119)](https://stackstate.atlassian.net/browse/STAC-11119)
+- vSphere:
+  - Topology and properties collection [(STAC-11133)](https://stackstate.atlassian.net/browse/STAC-11133)
+  - Events collection [(STAC-11133)](https://stackstate.atlassian.net/browse/STAC-11133)
+  - Metrics collection [(STAC-11133)](https://stackstate.atlassian.net/browse/STAC-11133)
+- Zabix:
+  - Replace `yaml.safe_load` with `json.loads` [(STAC-11470)](https://stackstate.atlassian.net/browse/STAC-11470)
+  - Move stop snapshot from finally block and use StackPackInstance [(STAC-11470)](https://stackstate.atlassian.net/browse/STAC-11470)
+  - Send OK Service Check if successful [(STAC-11470)](https://stackstate.atlassian.net/browse/STAC-11470)
 
 **Bugfix**
+
 - Integrations:
   - Agent Integrations are not tagged with Check instance tags [(STAC-11453)](https://stackstate.atlassian.net/browse/STAC-11453)
+  - Don't create Job - Pod relations from Pods that finished running [(STAC-11490)](https://stackstate.atlassian.net/browse/STAC-11521)
+- Nagios:
+  - Shows correct check name in Event details [(STAC-11119)](https://stackstate.atlassian.net/browse/STAC-11119)
+
 
 ## 2.9.0 (2020-12-18)
 
