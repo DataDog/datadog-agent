@@ -392,45 +392,45 @@ def test_agent_integration_sample_events(host):
 
     util.wait_until(wait_for_events, 180, 3)
 
-# Re-enable when Topology Events are merged into StackState master
-# def test_agent_integration_sample_topology_events(host):
-#     url = "http://localhost:7070/api/topic/sts_topology_events?limit=1000"
-#
-#     def wait_for_topology_events():
-#         data = host.check_output("curl \"%s\"" % url)
-#         json_data = json.loads(data)
-#         with open("./topic-agent-integration-sample-sts-topology-events.json", 'w') as f:
-#             json.dump(json_data, f, indent=4)
-#
-#         def _topology_event_data(event):
-#             for message in json_data["messages"]:
-#                 p = message["message"]
-#                 if "TopologyEvent" in p:
-#                     _data = p["TopologyEvent"]
-#                     if _data == dict(_data, **event):
-#                         return _data
-#             return None
-#
-#         assert _topology_event_data(
-#             {
-#                 "category": "my_category",
-#                 "name": "URL timeout",
-#                 "tags": [],
-#                 "data": "{\"another_thing\":1,\"big_black_hole\":\"here\",\"test\":{\"1\":\"test\"}}",
-#                 "source_identifier": "source_identifier_value",
-#                 "source": "source_value",
-#                 "element_identifiers": [
-#                     "urn:host:/123"
-#                 ],
-#                 "source_links": [
-#                     {
-#                         "url": "http://localhost",
-#                         "name": "my_event_external_link"
-#                     }
-#                 ],
-#                 "type": "HTTP_TIMEOUT",
-#                 "description": "Http request to http://localhost timed out after 5.0 seconds."
-#             }
-#         ) is not None
-#
-#     util.wait_until(wait_for_topology_events, 180, 3)
+
+def test_agent_integration_sample_topology_events(host):
+    url = "http://localhost:7070/api/topic/sts_topology_events?limit=1000"
+
+    def wait_for_topology_events():
+        data = host.check_output("curl \"%s\"" % url)
+        json_data = json.loads(data)
+        with open("./topic-agent-integration-sample-sts-topology-events.json", 'w') as f:
+            json.dump(json_data, f, indent=4)
+
+        def _topology_event_data(event):
+            for message in json_data["messages"]:
+                p = message["message"]
+                if "TopologyEvent" in p:
+                    _data = p["TopologyEvent"]
+                    if _data == dict(_data, **event):
+                        return _data
+            return None
+
+        assert _topology_event_data(
+            {
+                "category": "my_category",
+                "name": "URL timeout",
+                "tags": [],
+                "data": "{\"another_thing\":1,\"big_black_hole\":\"here\",\"test\":{\"1\":\"test\"}}",
+                "source_identifier": "source_identifier_value",
+                "source": "source_value",
+                "element_identifiers": [
+                    "urn:host:/123"
+                ],
+                "source_links": [
+                    {
+                        "url": "http://localhost",
+                        "name": "my_event_external_link"
+                    }
+                ],
+                "type": "HTTP_TIMEOUT",
+                "description": "Http request to http://localhost timed out after 5.0 seconds."
+            }
+        ) is not None
+
+    util.wait_until(wait_for_topology_events, 180, 3)

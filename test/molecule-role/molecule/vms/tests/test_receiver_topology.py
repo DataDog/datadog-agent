@@ -191,3 +191,42 @@ def test_topology_filtering(host, common_vars):
         ) is not None
 
     util.wait_until(wait_for_components, 120, 3)
+
+
+def test_host_topology(host):
+    agent_hosts = AnsibleRunner(os.environ['MOLECULE_INVENTORY_FILE']).get_hosts('agent_linux_vm')
+
+    for hostname in agent_hosts:
+        def wait_for_components():
+            url = "http://localhost:7070/api/topic/sts_topo_process_agents?offset=0&limit=1000"
+            data = host.check_output("curl \"%s\"" % url)
+            json_data = json.loads(data)
+            with open("./topic-topo-process-agents-topology-{}.json".format(hostname), 'w') as f:
+                json.dump(json_data, f, indent=4)
+
+            # assert that we get the host component
+            host_match = re.compile("urn:host:/{}".format(hostname))
+            host_component = _find_component(
+                json_data=json_data,
+                type_name="host",
+                external_id_assert_fn=lambda v: host_match.findall(v))
+            assert json.loads(host_component["data"])["host"] == hostname
+
+            # assert that we get the disk integration host component
+            url = "http://localhost:7070/api/topic/sts_topo_disk_agents?offset=0&limit=100"
+            data = host.check_output("curl \"%s\"" % url)
+            json_data = json.loads(data)
+            with open("./topic-topo-disk-agents-topology-{}.json".format(hostname), 'w') as f:
+                json.dump(json_data, f, indent=4)
+
+            # assert that we get the host component with the list of devices
+            host_match = re.compile("urn:host:/{}".format(hostname))
+            host_component = _find_component(
+                json_data=json_data,
+                type_name="host",
+                external_id_assert_fn=lambda v: host_match.findall(v))
+            host_data = json.loads(host_component["data"])
+            assert host_data["host"] == hostname
+            assert "devices" in host_data and isinstance(host_data["devices"], list)
+
+        util.wait_until(wait_for_components, 120, 3)

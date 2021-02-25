@@ -28,6 +28,9 @@ var (
 type DiskCheck struct {
 	core.CheckBase
 	cfg *diskConfig
+	// sts
+	// topologyCollector collects all disk topology and produces it using the Batcher
+	topologyCollector *DiskTopologyCollector
 }
 
 // Run executes the check
@@ -37,7 +40,7 @@ func (c *DiskCheck) Run() error {
 		return err
 	}
 
-	err = c.collectPartitionMetrics(sender)
+	partitions, err := c.collectPartitionMetrics(sender)
 	if err != nil {
 		return err
 	}
@@ -47,15 +50,25 @@ func (c *DiskCheck) Run() error {
 	}
 	sender.Commit()
 
-	return nil
-}
-
-func (c *DiskCheck) collectPartitionMetrics(sender aggregator.Sender) error {
-	partitions, err := diskPartitions(true)
+	//sts
+	// produce disk topology
+	err = c.topologyCollector.BuildTopology(partitions)
 	if err != nil {
 		return err
 	}
+	//sts
 
+	return nil
+}
+
+func (c *DiskCheck) collectPartitionMetrics(sender aggregator.Sender) ([]disk.PartitionStat, error) {
+	partitions, err := diskPartitions(true)
+	if err != nil {
+		return nil, err
+	}
+
+	// sts - collect disk partitions to create host topology
+	parts := make([]disk.PartitionStat, 0)
 	for _, partition := range partitions {
 		if c.excludeDisk(partition.Mountpoint, partition.Device, partition.Fstype) {
 			continue
@@ -88,10 +101,13 @@ func (c *DiskCheck) collectPartitionMetrics(sender aggregator.Sender) error {
 
 		tags = c.applyDeviceTags(partition.Device, partition.Mountpoint, tags)
 
+		// sts - keep the partitions
+		parts = append(parts, partition)
+
 		c.sendPartitionMetrics(sender, usage, tags)
 	}
 
-	return nil
+	return parts, nil
 }
 
 func (c *DiskCheck) collectDiskMetrics(sender aggregator.Sender) error {
