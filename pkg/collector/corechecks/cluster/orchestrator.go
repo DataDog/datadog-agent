@@ -79,6 +79,7 @@ type OrchestratorCheck struct {
 	stopCh                  chan struct{}
 	clusterID               string
 	groupID                 int32
+	isCLCRunner             bool
 	unassignedPodLister     corelisters.PodLister
 	unassignedPodListerSync cache.InformerSynced
 	deployLister            appslisters.DeploymentLister
@@ -98,6 +99,7 @@ func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance) *
 		instance:           instance,
 		stopCh:             make(chan struct{}),
 		groupID:            rand.Int31(),
+		isCLCRunner:        config.IsCLCRunner(),
 	}
 }
 
@@ -217,8 +219,8 @@ func (o *OrchestratorCheck) Run() error {
 	}
 
 	// If the check is configured as a cluster check, the cluster check worker needs to skip the leader election section.
-	// The Cluster Agent will passed in the `skip_leader_election` bool.
-	if !o.instance.LeaderSkip {
+	// we also do a safety check for dedicated runners to avoid trying the leader election
+	if !o.isCLCRunner || !o.instance.LeaderSkip {
 		// Only run if Leader Election is enabled.
 		if !config.Datadog.GetBool("leader_election") {
 			return log.Error("Leader Election not enabled. The cluster-agent will not run the check.")

@@ -106,6 +106,7 @@ var (
 	aggregatorEvent                            = expvar.Int{}
 	aggregatorHostnameUpdate                   = expvar.Int{}
 	aggregatorOrchestratorMetadata             = expvar.Int{}
+	aggregatorOrchestratorMetadataErrors       = expvar.Int{}
 
 	tlmFlush = telemetry.NewCounter("aggregator", "flush",
 		[]string{"data_type", "state"}, "Number of metrics/service checks/events flushed")
@@ -149,6 +150,7 @@ func init() {
 	aggregatorExpvars.Set("Event", &aggregatorEvent)
 	aggregatorExpvars.Set("HostnameUpdate", &aggregatorHostnameUpdate)
 	aggregatorExpvars.Set("OrchestratorMetadata", &aggregatorOrchestratorMetadata)
+	aggregatorExpvars.Set("OrchestratorMetadataErrors", &aggregatorOrchestratorMetadataErrors)
 }
 
 // InitAggregator returns the Singleton instance
@@ -753,6 +755,7 @@ func (agg *BufferedAggregator) run() {
 					orchestratorMetadata.payloadType,
 				)
 				if err != nil {
+					aggregatorOrchestratorMetadataErrors.Add(1)
 					log.Errorf("Error submitting orchestrator data: %s", err)
 				}
 			}(orchestratorMetadata)
