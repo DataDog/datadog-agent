@@ -628,7 +628,7 @@ func TestSampling(t *testing.T) {
 				}
 			}
 
-			sampled := a.runSamplers(pt, tt.hasPriority, false)
+			sampled := a.runSamplers(pt, tt.hasPriority)
 			assert.EqualValues(t, tt.wantSampled, sampled)
 		})
 	}

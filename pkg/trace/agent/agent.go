@@ -226,13 +226,14 @@ func (a *Agent) Process(p *api.Payload) {
 			env = v
 		}
 		pt := ProcessedTrace{
-			Trace:         t,
-			WeightedTrace: stats.NewWeightedTrace(t, root),
-			Root:          root,
-			Env:           env,
+			Trace:            t,
+			WeightedTrace:    stats.NewWeightedTrace(t, root),
+			Root:             root,
+			Env:              env,
+			ClientDroppedP0s: p.ClientDroppedP0s > 0,
 		}
 
-		events, keep := a.sample(ts, pt, p.ClientDroppedP0s > 0)
+		events, keep := a.sample(ts, pt)
 
 		if !p.ClientComputedStats {
 			if sinputs == nil {
@@ -348,7 +349,7 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang string) {
 
 // sample decides whether the trace will be kept and extracts any APM events
 // from it.
-func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace, clientDroppedP0s bool) (events []*pb.Span, keep bool) {
+func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace) (events []*pb.Span, keep bool) {
 	priority, hasPriority := sampler.GetSamplingPriority(pt.Root)
 
 	// Depending on the sampling priority, count that trace differently.
@@ -370,7 +371,7 @@ func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace, clientDroppedP0s bo
 		return nil, false
 	}
 
-	sampled := a.runSamplers(pt, hasPriority, clientDroppedP0s)
+	sampled := a.runSamplers(pt, hasPriority)
 
 	events, numExtracted := a.EventProcessor.Process(pt.Root, pt.Trace)
 
@@ -382,9 +383,9 @@ func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace, clientDroppedP0s bo
 
 // runSamplers runs all the agent's samplers on pt and returns the sampling decision
 // along with the sampling rate.
-func (a *Agent) runSamplers(pt ProcessedTrace, hasPriority, clientDroppedP0s bool) bool {
+func (a *Agent) runSamplers(pt ProcessedTrace, hasPriority bool) bool {
 	if hasPriority {
-		return a.samplePriorityTrace(pt, clientDroppedP0s)
+		return a.samplePriorityTrace(pt)
 	}
 	return a.sampleNoPriorityTrace(pt)
 }
@@ -392,8 +393,8 @@ func (a *Agent) runSamplers(pt ProcessedTrace, hasPriority, clientDroppedP0s boo
 // samplePriorityTrace samples traces with priority set on them. PrioritySampler and
 // ErrorSampler are run in parallel. The ExceptionSampler catches traces with rare top-level
 // or measured spans that are not caught by PrioritySampler and ErrorSampler.
-func (a *Agent) samplePriorityTrace(pt ProcessedTrace, clientDroppedP0s bool) bool {
-	if a.PrioritySampler.Sample(pt.Trace, pt.Root, pt.Env, clientDroppedP0s) {
+func (a *Agent) samplePriorityTrace(pt ProcessedTrace) bool {
+	if a.PrioritySampler.Sample(pt.Trace, pt.Root, pt.Env, pt.ClientDroppedP0s) {
 		return true
 	}
 	if traceContainsError(pt.Trace) {

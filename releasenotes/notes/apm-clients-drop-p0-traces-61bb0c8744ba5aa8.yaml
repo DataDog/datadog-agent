@@ -8,4 +8,5 @@
 ---
 features:
   - |
-    APM: allow tracer clients to drop AUTO_DROP traces
+    APM: Tracing clients no longer need to be sending traces marked
+    with sampling priority 0 (AUTO_DROP) in order for stats to be correct.

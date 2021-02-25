@@ -356,7 +356,7 @@ const (
 	headerDroppedP0Traces = "Datadog-Client-Dropped-P0-Traces"
 
 	// headderDroppedP0Spans contains the number of P0 spans dropped by the client.
-	// This value is used to adjust priority rates computed by the agent.
+	// This value is used for metrics and could be used in the future to adjust priority rates.
 	headerDroppedP0Spans = "Datadog-Client-Dropped-P0-Spans"
 )
 
@@ -488,9 +488,8 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		ContainerTags:          getContainerTags(req.Header.Get(headerContainerID)),
 		ClientComputedTopLevel: req.Header.Get(headerComputedTopLevel) != "",
 		ClientComputedStats:    req.Header.Get(headerComputedStats) != "",
+		ClientDroppedP0s:       droppedP0Traces(req, ts),
 	}
-
-	payload.ClientDroppedP0s = extractDroppedP0sHeaders(req, ts)
 
 	select {
 	case r.out <- payload:
@@ -508,22 +507,22 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		}()
 	}
 }
-func extractDroppedP0sHeaders(req *http.Request, ts *info.TagStats) int64 {
-	var droppedP0Traces int64
-	if droppedP0s := req.Header.Get(headerDroppedP0Traces); droppedP0s != "" {
-		count, err := strconv.ParseInt(droppedP0s, 10, 64)
+func droppedP0Traces(req *http.Request, ts *info.TagStats) int64 {
+	var dropped int64
+	if v := req.Header.Get(headerDroppedP0Traces); v != "" {
+		count, err := strconv.ParseInt(v, 10, 64)
 		if err == nil {
-			droppedP0Traces = count
+			dropped = count
 			atomic.AddInt64(&ts.ClientDroppedP0Traces, count)
 		}
 	}
-	if droppedP0s := req.Header.Get(headerDroppedP0Spans); droppedP0s != "" {
-		count, err := strconv.ParseInt(droppedP0s, 10, 64)
+	if v := req.Header.Get(headerDroppedP0Spans); v != "" {
+		count, err := strconv.ParseInt(v, 10, 64)
 		if err == nil {
 			atomic.AddInt64(&ts.ClientDroppedP0Spans, count)
 		}
 	}
-	return droppedP0Traces
+	return dropped
 }
 
 // Payload specifies information about a set of traces received by the API.
@@ -546,7 +545,7 @@ type Payload struct {
 	// ClientComputedStats reports whether the client has computed and sent over stats
 	// so that the agent doesn't have to.
 	ClientComputedStats bool
-	// ClientDroppedP0s reports the number of P0 traces chunks dropped by the client
+	// ClientDroppedP0s specifies the number of P0 traces chunks dropped by the client.
 	ClientDroppedP0s int64
 }
 

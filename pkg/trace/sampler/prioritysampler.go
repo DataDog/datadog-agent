@@ -129,9 +129,11 @@ func (s *PrioritySampler) Sample(trace pb.Trace, root *pb.Span, env string, clie
 	return sampled
 }
 
-// CountClientDroppedP0s counts client dropped traces.
+// CountClientDroppedP0s counts client dropped traces. They are added
+// to the totalScore, allowing them to weight on sampling rates during
+// adjust calls
 func (s *PrioritySampler) CountClientDroppedP0s(dropped int64) {
-	s.Sampler.Backend.CountClientDropped(dropped)
+	s.Sampler.Backend.AddTotalScore(float64(dropped))
 }
 
 func (s *PrioritySampler) applyRate(sampled bool, root *pb.Span, signature Signature) float64 {

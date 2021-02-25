@@ -69,12 +69,10 @@ func (b *MemoryBackend) CountSignature(signature Signature) {
 	b.mu.Unlock()
 }
 
-// CountClientDropped counts client dropped traces. They are added
-// to the totalScore, allowing them to weight on sampling rates during
-// adjust calls
-func (b *MemoryBackend) CountClientDropped(dropped int64) {
+// AddTotalScore adds to the total score.
+func (b *MemoryBackend) AddTotalScore(n float64) {
 	b.mu.Lock()
-	b.totalScore += float64(dropped)
+	b.totalScore += n
 	b.mu.Unlock()
 }
 
