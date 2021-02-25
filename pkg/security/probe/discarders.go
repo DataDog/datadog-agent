@@ -30,13 +30,15 @@ import (
 )
 
 const (
-	// discarderRevisionSize array size used to store discarder revisions
-	discarderRevisionSize = 4096
-
 	// DiscardInodeOp discards an inode
-	DiscardInodeOp = 1
+	DiscardInodeOp = iota + 1
 	// DiscardPidOp discards a pid
 	DiscardPidOp
+)
+
+const (
+	// discarderRevisionSize array size used to store discarder revisions
+	discarderRevisionSize = 4096
 
 	// DiscardRetention time a discard is retained but not discarding. This avoid race for pending event is userspace
 	// pipeline for already deleted file in kernel space.
@@ -110,11 +112,6 @@ type pidDiscarders struct {
 	erpc *ERPC
 }
 
-type pidDiscarderParameters struct {
-	EventType  model.EventType
-	Timestamps [model.MaxEventRoundedUp]uint64
-}
-
 func (p *pidDiscarders) discard(eventType model.EventType, pid uint32) error {
 	req := ERPCRequest{
 		OP: DiscardPidOp,
@@ -145,11 +142,6 @@ type inodeDiscarder struct {
 	PathKey  PathKey
 	Revision uint32
 	Padding  uint32
-}
-
-type inodeDiscarderParameters struct {
-	ParentMask model.EventType
-	LeafMask   model.EventType
 }
 
 type inodeDiscarders struct {
@@ -405,7 +397,7 @@ func createInvalidDiscardersCache() map[eval.Field]map[interface{}]bool {
 func processDiscarderWrapper(eventType model.EventType, fnc onDiscarderHandler) onDiscarderHandler {
 	return func(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) error {
 		if discarder.Field == "process.filename" {
-			log.Tracef("Apply process.filename discarder for event `%s`, inode: %d", eventType, event.Process.Inode)
+			log.Tracef("Apply process.filename discarder for event `%s`, inode: %d, pid: %d", eventType, event.Process.Inode, event.Process.Pid)
 
 			// discard by PID for long running process
 			if err := probe.pidDiscarders.discard(eventType, event.Process.Pid); err != nil {

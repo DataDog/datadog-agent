@@ -606,15 +606,14 @@ func (p *Probe) FlushDiscarders() error {
 	time.Sleep(100 * time.Millisecond)
 
 	var discardedInodes []inodeDiscarder
-	var inodeParams inodeDiscarderParameters
+	var mapValue [256]byte
 	var inode inodeDiscarder
-	for entries := p.inodeDiscarders.Iterate(); entries.Next(&inode, &inodeParams); {
+	for entries := p.inodeDiscarders.Iterate(); entries.Next(&inode, &mapValue); {
 		discardedInodes = append(discardedInodes, inode)
 	}
 
 	var discardedPids []uint32
-	var pidParams pidDiscarderParameters
-	for pid, entries := uint32(0), p.pidDiscarders.Iterate(); entries.Next(&pid, &pidParams); {
+	for pid, entries := uint32(0), p.pidDiscarders.Iterate(); entries.Next(&pid, &mapValue); {
 		discardedPids = append(discardedPids, pid)
 	}
 

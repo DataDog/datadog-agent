@@ -46,25 +46,58 @@ struct discarder_state_t {
 
 struct discarder_parameters_t {
     u64 event_mask;
-    u64 timestamps[EVENT_MAX_ROUNDED_UP];
+    u64 timestamps[EVENT_LAST_DISCARDER-EVENT_FIRST_DISCARDER];
     struct discarder_state_t state;
-    u32 padding;
 };
 
+u64* __attribute__((always_inline)) get_discarder_timestamp(struct discarder_parameters_t *params, u64 event_type) {
+    switch (event_type) {
+        case EVENT_OPEN:
+            return &params->timestamps[EVENT_OPEN-EVENT_FIRST_DISCARDER];
+        case EVENT_MKDIR:
+            return &params->timestamps[EVENT_MKDIR-EVENT_FIRST_DISCARDER];
+        case EVENT_LINK:
+            return &params->timestamps[EVENT_LINK-EVENT_FIRST_DISCARDER];
+        case EVENT_RENAME:
+            return &params->timestamps[EVENT_RENAME-EVENT_FIRST_DISCARDER];
+        case EVENT_UNLINK:
+            return &params->timestamps[EVENT_UNLINK-EVENT_FIRST_DISCARDER];
+        case EVENT_RMDIR:
+            return &params->timestamps[EVENT_RMDIR-EVENT_FIRST_DISCARDER];
+        case EVENT_CHMOD:
+            return &params->timestamps[EVENT_CHMOD-EVENT_FIRST_DISCARDER];
+        case EVENT_CHOWN:
+            return &params->timestamps[EVENT_CHOWN-EVENT_FIRST_DISCARDER];
+        case EVENT_UTIME:
+            return &params->timestamps[EVENT_UTIME-EVENT_FIRST_DISCARDER];
+        case EVENT_SETXATTR:
+            return &params->timestamps[EVENT_SETXATTR-EVENT_FIRST_DISCARDER];
+        case EVENT_REMOVEXATTR:
+            return &params->timestamps[EVENT_REMOVEXATTR-EVENT_FIRST_DISCARDER];
+        default:
+            return NULL;
+    }
+}
+
 void __attribute__((always_inline)) discard(struct bpf_map_def *discarder_map, void *key, u64 event_type, u64 timeout) {
+    u64 *discarder_timestamp;
     u64 timestamp = timeout ? bpf_ktime_get_ns() + timeout : 0;
 
     struct discarder_parameters_t *params = bpf_map_lookup_elem(discarder_map, key);
     if (params) {
         params->event_mask |= event_type;
-        params->timestamps[(event_type-1)&(EVENT_MAX_ROUNDED_UP-1)] = timestamp;
+
+        if ((discarder_timestamp = get_discarder_timestamp(params, event_type)) != NULL) {
+            *discarder_timestamp = timestamp;
+        }
     } else {
         struct discarder_parameters_t new_params = {
             .event_mask = event_type,
         };
 
-        void *dst = new_params.timestamps + ((event_type-1)&(EVENT_MAX_ROUNDED_UP-1));
-        bpf_probe_read(dst, sizeof(u64), &timestamp);
+        if ((discarder_timestamp = get_discarder_timestamp(&new_params, event_type)) != NULL) {
+            *discarder_timestamp = timestamp;
+        }
 
         bpf_map_update_elem(discarder_map, key, &new_params, BPF_NOEXIST);
     }
@@ -72,9 +105,8 @@ void __attribute__((always_inline)) discard(struct bpf_map_def *discarder_map, v
 
 int __attribute__((always_inline)) is_discarded(struct bpf_map_def *discarder_map, void *key, u64 event_type) {
     struct discarder_parameters_t *params = bpf_map_lookup_elem(discarder_map, key);
-    if (!params) {
+    if (params == NULL)
         return 0;
-    }
 
     u64 tm = bpf_ktime_get_ns();
 
@@ -87,8 +119,8 @@ int __attribute__((always_inline)) is_discarded(struct bpf_map_def *discarder_ma
         return 0;
     }
 
-    u64 pid_tm = params->timestamps[(event_type-1)&(EVENT_MAX_ROUNDED_UP-1)];
-    if (event_type > 0 && pid_tm != 0 && pid_tm <= tm) {
+    u64* pid_tm = get_discarder_timestamp(params, event_type);
+    if (pid_tm != NULL && *pid_tm && *pid_tm <= tm) {
         return 0;
     }
 
