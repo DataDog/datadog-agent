@@ -189,6 +189,7 @@ require (
 	k8s.io/kube-state-metrics v1.8.1-0.20200108124505-369470d6ead8
 	k8s.io/kubernetes v1.16.2
 	k8s.io/metrics v0.17.3
+	kernel.org/pub/linux/libs/security/libcap/cap v1.2.48
 )
 
 // Pinned to kubernetes-1.16.2

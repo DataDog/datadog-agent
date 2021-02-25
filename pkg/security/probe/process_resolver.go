@@ -383,6 +383,10 @@ func (p *ProcessResolver) Get(pid uint32) *model.ProcessCacheEntry {
 
 // UpdateUID updates the credentials of the provided pid
 func (p *ProcessResolver) UpdateUID(pid uint32, e *Event) {
+	if e.Process.Pid != e.Process.Tid {
+		return
+	}
+
 	p.Lock()
 	defer p.Unlock()
 	entry := p.entryCache[pid]
@@ -398,6 +402,10 @@ func (p *ProcessResolver) UpdateUID(pid uint32, e *Event) {
 
 // UpdateGID updates the credentials of the provided pid
 func (p *ProcessResolver) UpdateGID(pid uint32, e *Event) {
+	if e.Process.Pid != e.Process.Tid {
+		return
+	}
+
 	p.Lock()
 	defer p.Unlock()
 	entry := p.entryCache[pid]
@@ -412,13 +420,17 @@ func (p *ProcessResolver) UpdateGID(pid uint32, e *Event) {
 }
 
 // UpdateCapset updates the credentials of the provided pid
-func (p *ProcessResolver) UpdateCapset(pid uint32, capset model.CapsetEvent) {
+func (p *ProcessResolver) UpdateCapset(pid uint32, e *Event) {
+	if e.Process.Pid != e.Process.Tid {
+		return
+	}
+
 	p.Lock()
 	defer p.Unlock()
 	entry := p.entryCache[pid]
 	if entry != nil {
-		entry.Credentials.CapEffective = capset.CapEffective
-		entry.Credentials.CapPermitted = capset.CapPermitted
+		entry.Credentials.CapEffective = e.Capset.CapEffective
+		entry.Credentials.CapPermitted = e.Capset.CapPermitted
 	}
 }
 

@@ -2063,6 +2063,11 @@ k8s.io/utils v0.0.0-20191114184206-e782cd3c129f/go.mod h1:sZAwmy6armz5eXlNoLmJcl
 k8s.io/utils v0.0.0-20191114200735-6ca3b61696b6/go.mod h1:sZAwmy6armz5eXlNoLmJcl4F1QuKu7sr+mFQ0byX7Ew=
 k8s.io/utils v0.0.0-20200109141947-94aeca20bf09 h1:sz6xjn8QP74104YNmJpzLbJ+a3ZtHt0tkD0g8vpdWNw=
 k8s.io/utils v0.0.0-20200109141947-94aeca20bf09/go.mod h1:sZAwmy6armz5eXlNoLmJcl4F1QuKu7sr+mFQ0byX7Ew=
+kernel.org/pub/linux/libs/security/libcap v0.2.48 h1:tGJFoS4NwksnkWIwNRqlJHw2AEpendGSTym8Jeo1hJw=
+kernel.org/pub/linux/libs/security/libcap/cap v1.2.48 h1:gW8VCEsPUwAp0/cW8CN2zfoqvz0+ijagsH2x+O2KlMM=
+kernel.org/pub/linux/libs/security/libcap/cap v1.2.48/go.mod h1:cs/AYPYd93hM59y4VPzpn4FP5TFgFoCcKtzlb0LM1c8=
+kernel.org/pub/linux/libs/security/libcap/psx v1.2.48 h1:5Oh8T4MP1+3KV2SvCBkCeGd97g7QHWMkTS7SrEme2bA=
+kernel.org/pub/linux/libs/security/libcap/psx v1.2.48/go.mod h1:+l6Ee2F59XiJ2I6WR5ObpC1utCQJZ/VLsEbQCD8RG24=
 modernc.org/cc v1.0.0/go.mod h1:1Sk4//wdnYJiUIxnW8ddKpaOJCF37yAdqYnkxUpaYxw=
 modernc.org/golex v1.0.0/go.mod h1:b/QX9oBD/LhixY6NDh+IdGv17hgB+51fET1i2kPSmvk=
 modernc.org/mathutil v1.0.0/go.mod h1:wU0vUrJsVWBZ4P6e7xtFJEhFSNsfRLJ8H458uRjg03k=

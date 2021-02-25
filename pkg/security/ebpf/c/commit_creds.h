@@ -5,10 +5,24 @@ struct credentials_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct container_context_t container;
-    u32 chunk1;
-    u32 chunk2;
-    u32 chunk3;
-    u32 chunk4;
+    union {
+        struct {
+            u32 uid;
+            u32 euid;
+            u32 fsuid;
+        } setuid;
+
+        struct {
+            u32 gid;
+            u32 egid;
+            u32 fsgid;
+        } setgid;
+
+        struct {
+            u64 cap_effective;
+            u64 cap_permitted;
+        } capset;
+    };
 };
 
 int __attribute__((always_inline)) trace__credentials_update(u64 type) {
@@ -43,22 +57,20 @@ int __attribute__((always_inline)) trace__credentials_update_ret(struct pt_regs 
     switch (syscall->type) {
         case SYSCALL_SETUID:
             event_type = EVENT_SETUID;
-            event.chunk1 = pid_entry->credentials.uid;
-            event.chunk2 = pid_entry->credentials.euid;
-            event.chunk3 = pid_entry->credentials.fsuid;
+            event.setuid.uid = pid_entry->credentials.uid;
+            event.setuid.euid = pid_entry->credentials.euid;
+            event.setuid.fsuid = pid_entry->credentials.fsuid;
             break;
         case SYSCALL_SETGID:
             event_type = EVENT_SETGID;
-            event.chunk1 = pid_entry->credentials.gid;
-            event.chunk2 = pid_entry->credentials.egid;
-            event.chunk3 = pid_entry->credentials.fsgid;
+            event.setgid.gid = pid_entry->credentials.gid;
+            event.setgid.egid = pid_entry->credentials.egid;
+            event.setgid.fsgid = pid_entry->credentials.fsgid;
             break;
         case SYSCALL_CAPSET:
             event_type = EVENT_CAPSET;
-            event.chunk1 = pid_entry->credentials.cap_effective >> 32;
-            event.chunk2 = pid_entry->credentials.cap_effective;
-            event.chunk3 = pid_entry->credentials.cap_permitted >> 32;
-            event.chunk4 = pid_entry->credentials.cap_permitted;
+            event.capset.cap_effective = pid_entry->credentials.cap_effective;
+            event.capset.cap_permitted = pid_entry->credentials.cap_permitted;
             break;
     }
 
@@ -255,13 +267,13 @@ int kprobe__commit_creds(struct pt_regs *ctx) {
         return 0;
     }
     bpf_probe_read(&pid_entry->credentials.uid, sizeof(pid_entry->credentials.uid), &credentials->uid);
-    bpf_probe_read(&pid_entry->credentials.gid, sizeof(pid_entry->credentials.uid), &credentials->gid);
-    bpf_probe_read(&pid_entry->credentials.euid, sizeof(pid_entry->credentials.uid), &credentials->euid);
-    bpf_probe_read(&pid_entry->credentials.egid, sizeof(pid_entry->credentials.uid), &credentials->egid);
-    bpf_probe_read(&pid_entry->credentials.fsuid, sizeof(pid_entry->credentials.uid), &credentials->fsuid);
-    bpf_probe_read(&pid_entry->credentials.fsgid, sizeof(pid_entry->credentials.uid), &credentials->fsgid);
-    bpf_probe_read(&pid_entry->credentials.cap_effective, sizeof(pid_entry->credentials.uid), &credentials->cap_effective);
-    bpf_probe_read(&pid_entry->credentials.cap_permitted, sizeof(pid_entry->credentials.uid), &credentials->cap_permitted);
+    bpf_probe_read(&pid_entry->credentials.gid, sizeof(pid_entry->credentials.gid), &credentials->gid);
+    bpf_probe_read(&pid_entry->credentials.euid, sizeof(pid_entry->credentials.euid), &credentials->euid);
+    bpf_probe_read(&pid_entry->credentials.egid, sizeof(pid_entry->credentials.egid), &credentials->egid);
+    bpf_probe_read(&pid_entry->credentials.fsuid, sizeof(pid_entry->credentials.fsuid), &credentials->fsuid);
+    bpf_probe_read(&pid_entry->credentials.fsgid, sizeof(pid_entry->credentials.fsgid), &credentials->fsgid);
+    bpf_probe_read(&pid_entry->credentials.cap_effective, sizeof(pid_entry->credentials.cap_effective), &credentials->cap_effective);
+    bpf_probe_read(&pid_entry->credentials.cap_permitted, sizeof(pid_entry->credentials.cap_permitted), &credentials->cap_permitted);
 
     if (new_entry) {
         bpf_map_update_elem(&pid_cache, &pid, &new_pid_entry, BPF_ANY);

@@ -438,7 +438,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			log.Errorf("failed to decode capset event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		defer p.resolvers.ProcessResolver.UpdateCapset(event.Process.Pid, event.Capset)
+		defer p.resolvers.ProcessResolver.UpdateCapset(event.Process.Pid, event)
 	default:
 		log.Errorf("unsupported event type %d", eventType)
 		return

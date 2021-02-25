@@ -215,7 +215,8 @@ var (
 		"S_IXUSR": syscall.S_IXUSR,
 	}
 
-	kernelCapabilityConstants = map[string]int{
+	// KernelCapabilityConstants list of kernel capabilities
+	KernelCapabilityConstants = map[string]int{
 		"CAP_AUDIT_CONTROL":      1 << unix.CAP_AUDIT_CONTROL,
 		"CAP_AUDIT_READ":         1 << unix.CAP_AUDIT_READ,
 		"CAP_AUDIT_WRITE":        1 << unix.CAP_AUDIT_WRITE,
@@ -310,7 +311,7 @@ func initErrorConstants() {
 }
 
 func initKernelCapabilityConstants() {
-	for k, v := range kernelCapabilityConstants {
+	for k, v := range KernelCapabilityConstants {
 		SECLConstants[k] = &eval.IntEvaluator{Value: v}
 		kernelCapabilitiesStrings[v] = k
 	}

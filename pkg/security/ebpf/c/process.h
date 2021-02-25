@@ -68,13 +68,7 @@ struct credentials_t {
 };
 
 void __attribute__((always_inline)) copy_credentials(struct credentials_t* src, struct credentials_t* dst) {
-    dst->uid = src->uid;
-    dst->gid = src->gid;
-    dst->euid = src->euid;
-    dst->egid = src->egid;
-    dst->fsuid = src->fsuid;
-    dst->cap_effective = src->cap_effective;
-    dst->cap_permitted = src->cap_permitted;
+    *dst = *src;
 }
 
 struct pid_cache_t {
