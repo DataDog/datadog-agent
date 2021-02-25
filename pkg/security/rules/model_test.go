@@ -80,15 +80,6 @@ func (m *testModel) ValidateField(key string, value eval.FieldValue) error {
 	return nil
 }
 
-func (m *testModel) TranslateLegacyField(field eval.Field) eval.Field {
-	switch field {
-	case "process.legacy_name":
-		return "process.name"
-	default:
-		return field
-	}
-}
-
 func (m *testModel) GetIterator(field eval.Field) (eval.Iterator, error) {
 	return nil, &eval.ErrIteratorNotSupported{Field: field}
 }

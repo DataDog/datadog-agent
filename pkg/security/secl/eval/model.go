@@ -15,7 +15,4 @@ type Model interface {
 	GetIterator(field Field) (Iterator, error)
 	// NewEvent returns a new event instance
 	NewEvent() Event
-	// TranslateLegacyField transforms a legacy attribute into its updated version. Should be idempotent for non legacy
-	// fields.
-	TranslateLegacyField(field Field) Field
 }

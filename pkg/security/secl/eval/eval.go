@@ -53,16 +53,9 @@ type FieldValue struct {
 
 // Opts are the options to be passed to the evaluator
 type Opts struct {
-	Constants map[string]interface{}
-	Macros    map[MacroID]*Macro
-}
-
-// NewOptsWithParams initializes a new Opts instance with Constants parameters
-func NewOptsWithParams(constants map[string]interface{}) *Opts {
-	return &Opts{
-		Constants: constants,
-		Macros:    make(map[MacroID]*Macro),
-	}
+	LegacyAttributes map[Field]Field
+	Constants        map[string]interface{}
+	Macros           map[MacroID]*Macro
 }
 
 // Evaluator is the interface of an evaluator
@@ -184,12 +177,12 @@ func patternToRegexp(pattern string) (*regexp.Regexp, error) {
 	return regexp.Compile("^" + quoted + "$")
 }
 
-func nodeToEvaluator(obj interface{}, opts *Opts, state *state, model Model) (interface{}, interface{}, lexer.Position, error) {
+func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, interface{}, lexer.Position, error) {
 	switch obj := obj.(type) {
 	case *ast.BooleanExpression:
-		return nodeToEvaluator(obj.Expression, opts, state, model)
+		return nodeToEvaluator(obj.Expression, opts, state)
 	case *ast.Expression:
-		cmp, _, pos, err := nodeToEvaluator(obj.Comparison, opts, state, model)
+		cmp, _, pos, err := nodeToEvaluator(obj.Comparison, opts, state)
 		if err != nil {
 			return nil, nil, pos, err
 		}
@@ -200,7 +193,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state, model Model) (in
 				return nil, nil, obj.Pos, NewTypeError(obj.Pos, reflect.Bool)
 			}
 
-			next, _, pos, err := nodeToEvaluator(obj.Next, opts, state, model)
+			next, _, pos, err := nodeToEvaluator(obj.Next, opts, state)
 			if err != nil {
 				return nil, nil, pos, err
 			}
@@ -228,7 +221,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state, model Model) (in
 		}
 		return cmp, nil, obj.Pos, nil
 	case *ast.BitOperation:
-		unary, _, pos, err := nodeToEvaluator(obj.Unary, opts, state, model)
+		unary, _, pos, err := nodeToEvaluator(obj.Unary, opts, state)
 		if err != nil {
 			return nil, nil, pos, err
 		}
@@ -239,7 +232,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state, model Model) (in
 				return nil, nil, obj.Pos, NewTypeError(obj.Pos, reflect.Int)
 			}
 
-			next, _, pos, err := nodeToEvaluator(obj.Next, opts, state, model)
+			next, _, pos, err := nodeToEvaluator(obj.Next, opts, state)
 			if err != nil {
 				return nil, nil, pos, err
 			}
@@ -274,13 +267,13 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state, model Model) (in
 		return unary, nil, obj.Pos, nil
 
 	case *ast.Comparison:
-		unary, _, pos, err := nodeToEvaluator(obj.BitOperation, opts, state, model)
+		unary, _, pos, err := nodeToEvaluator(obj.BitOperation, opts, state)
 		if err != nil {
 			return nil, nil, pos, err
 		}
 
 		if obj.ArrayComparison != nil {
-			next, _, pos, err := nodeToEvaluator(obj.ArrayComparison, opts, state, model)
+			next, _, pos, err := nodeToEvaluator(obj.ArrayComparison, opts, state)
 			if err != nil {
 				return nil, nil, pos, err
 			}
@@ -318,7 +311,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state, model Model) (in
 				return nil, nil, pos, NewTypeError(pos, reflect.Array)
 			}
 		} else if obj.ScalarComparison != nil {
-			next, _, pos, err := nodeToEvaluator(obj.ScalarComparison, opts, state, model)
+			next, _, pos, err := nodeToEvaluator(obj.ScalarComparison, opts, state)
 			if err != nil {
 				return nil, nil, pos, err
 			}
@@ -439,14 +432,14 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state, model Model) (in
 		}
 
 	case *ast.ArrayComparison:
-		return nodeToEvaluator(obj.Array, opts, state, model)
+		return nodeToEvaluator(obj.Array, opts, state)
 
 	case *ast.ScalarComparison:
-		return nodeToEvaluator(obj.Next, opts, state, model)
+		return nodeToEvaluator(obj.Next, opts, state)
 
 	case *ast.Unary:
 		if obj.Op != nil {
-			unary, _, pos, err := nodeToEvaluator(obj.Unary, opts, state, model)
+			unary, _, pos, err := nodeToEvaluator(obj.Unary, opts, state)
 			if err != nil {
 				return nil, nil, pos, err
 			}
@@ -477,7 +470,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state, model Model) (in
 			return nil, nil, pos, NewOpUnknownError(obj.Pos, *obj.Op)
 		}
 
-		return nodeToEvaluator(obj.Primary, opts, state, model)
+		return nodeToEvaluator(obj.Primary, opts, state)
 	case *ast.Primary:
 		switch {
 		case obj.Ident != nil:
@@ -497,8 +490,14 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state, model Model) (in
 			}
 
 			// transform extracted field to support legacy SECL attributes
-			field = model.TranslateLegacyField(field)
-			itField = model.TranslateLegacyField(itField)
+			if opts.LegacyAttributes != nil {
+				if newField, ok := opts.LegacyAttributes[field]; ok {
+					field = newField
+				}
+				if newField, ok := opts.LegacyAttributes[field]; ok {
+					itField = newField
+				}
+			}
 
 			// extract iterator
 			var iterator Iterator
@@ -569,7 +568,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state, model Model) (in
 				IsPattern: true,
 			}, nil, obj.Pos, nil
 		case obj.SubExpression != nil:
-			return nodeToEvaluator(obj.SubExpression, opts, state, model)
+			return nodeToEvaluator(obj.SubExpression, opts, state)
 		default:
 			return nil, nil, obj.Pos, NewError(obj.Pos, fmt.Sprintf("unknown primary '%s'", reflect.TypeOf(obj)))
 		}

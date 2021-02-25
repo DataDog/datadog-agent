@@ -218,7 +218,7 @@ func ruleToEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, e
 	}
 	state := newState(model, "", macros)
 
-	eval, _, _, err := nodeToEvaluator(rule.BooleanExpression, opts, state, model)
+	eval, _, _, err := nodeToEvaluator(rule.BooleanExpression, opts, state)
 	if err != nil {
 		return nil, err
 	}
@@ -304,7 +304,7 @@ func (r *Rule) GenPartials() error {
 
 	for _, field := range r.GetFields() {
 		state := newState(r.Model, field, macroPartials[field])
-		pEval, _, _, err := nodeToEvaluator(r.ast.BooleanExpression, r.Opts, state, r.Model)
+		pEval, _, _, err := nodeToEvaluator(r.ast.BooleanExpression, r.Opts, state)
 		if err != nil {
 			return errors.Wrapf(err, "couldn't generate partial for field %s and rule %s", field, r.ID)
 		}

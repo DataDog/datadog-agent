@@ -123,13 +123,13 @@ SYSCALL_KRETPROBE(rmdir) {
                 .mount_id = syscall->rmdir.path_key.mount_id,
                 .overlay_numlower = syscall->rmdir.overlay_numlower,
                 .path_id = syscall->rmdir.path_key.path_id,
+                .metadata = syscall->rmdir.metadata,
             },
             .discarder_revision = bump_discarder_revision(syscall->rmdir.path_key.mount_id),
         };
 
         struct proc_cache_t *entry = fill_process_context(&event.process);
         fill_container_context(entry, &event.container);
-        copy_file_metadata(&syscall->rmdir.metadata, &event.file.metadata);
 
         send_event(ctx, EVENT_RMDIR, event);
     }

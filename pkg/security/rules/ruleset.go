@@ -70,14 +70,15 @@ type Opts struct {
 }
 
 // NewOptsWithParams initializes a new Opts instance with Debug and Constants parameters
-func NewOptsWithParams(constants map[string]interface{}, supportedDiscarders map[eval.Field]bool, eventTypeEnabled map[eval.EventType]bool, reservedRuleIDs []RuleID, logger ...Logger) *Opts {
+func NewOptsWithParams(constants map[string]interface{}, supportedDiscarders map[eval.Field]bool, eventTypeEnabled map[eval.EventType]bool, reservedRuleIDs []RuleID, legacyAttributes map[eval.Field]eval.Field, logger ...Logger) *Opts {
 	if len(logger) == 0 {
 		logger = []Logger{DefaultLogger{}}
 	}
 	return &Opts{
 		Opts: eval.Opts{
-			Constants: constants,
-			Macros:    make(map[eval.MacroID]*eval.Macro),
+			Constants:        constants,
+			Macros:           make(map[eval.MacroID]*eval.Macro),
+			LegacyAttributes: legacyAttributes,
 		},
 		SupportedDiscarders: supportedDiscarders,
 		ReservedRuleIDs:     reservedRuleIDs,

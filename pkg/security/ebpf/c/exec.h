@@ -223,9 +223,9 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
             event.proc_entry.executable.overlay_numlower = parent_proc_entry->executable.overlay_numlower;
             event.proc_entry.executable.mount_id = parent_proc_entry->executable.mount_id;
             event.proc_entry.executable.path_id = parent_proc_entry->executable.path_id;
+            event.proc_entry.executable.metadata = parent_proc_entry->executable.metadata;
             event.proc_entry.exec_timestamp = parent_proc_entry->exec_timestamp;
 
-            copy_file_metadata(&parent_proc_entry->executable.metadata, &event.proc_entry.executable.metadata);
             copy_tty_name(event.proc_entry.tty_name, parent_proc_entry->tty_name);
 
             // fetch container context
@@ -303,6 +303,7 @@ int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
                     .overlay_numlower = proc_entry->executable.overlay_numlower,
                     .mount_id = proc_entry->executable.mount_id,
                     .path_id = proc_entry->executable.path_id,
+                    .metadata = proc_entry->executable.metadata,
                 },
                 .proc_entry.container = {},
                 .proc_entry.exec_timestamp = proc_entry->exec_timestamp,
@@ -312,7 +313,6 @@ int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
             };
             bpf_get_current_comm(&event.proc_entry.comm, sizeof(event.proc_entry.comm));
             copy_tty_name(event.proc_entry.tty_name, proc_entry->tty_name);
-            copy_file_metadata(&proc_entry->executable.metadata, &event.proc_entry.executable.metadata);
 
             fill_process_context(&event.process);
             fill_container_context(proc_entry, &event.proc_entry.container);

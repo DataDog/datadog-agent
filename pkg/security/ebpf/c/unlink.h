@@ -101,6 +101,7 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
                 .inode = syscall->unlink.path_key.ino,
                 .overlay_numlower = syscall->unlink.overlay_numlower,
                 .path_id = syscall->unlink.path_key.path_id,
+                .metadata = syscall->unlink.metadata,
             },
             .flags = syscall->unlink.flags,
             .discarder_revision = bump_discarder_revision(syscall->unlink.path_key.mount_id),
@@ -108,7 +109,6 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
 
         struct proc_cache_t *entry = fill_process_context(&event.process);
         fill_container_context(entry, &event.container);
-        copy_file_metadata(&syscall->unlink.metadata, &event.file.metadata);
 
         send_event(ctx, syscall->unlink.flags&AT_REMOVEDIR ? EVENT_RMDIR : EVENT_UNLINK, event);
     }

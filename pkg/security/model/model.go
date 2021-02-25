@@ -208,21 +208,6 @@ type FileFields struct {
 	OverlayNumLower int32  `field:"overlay_numlower"`
 }
 
-// CopyFileFields copies src into dst
-func CopyFileFields(src *FileFields, dst *FileFields) {
-	dst.UID = src.UID
-	dst.User = src.User
-	dst.GID = src.GID
-	dst.Group = src.Group
-	dst.Mode = src.Mode
-	dst.CTime = src.CTime
-	dst.MTime = src.MTime
-	dst.MountID = src.MountID
-	dst.Inode = src.Inode
-	dst.PathID = src.PathID
-	dst.OverlayNumLower = src.OverlayNumLower
-}
-
 // FileEvent is the common file event type
 type FileEvent struct {
 	FileFields

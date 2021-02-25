@@ -63,11 +63,11 @@ func macroToEvaluator(macro *ast.Macro, model Model, opts *Opts, field Field) (*
 
 	switch {
 	case macro.Expression != nil:
-		eval, _, _, err = nodeToEvaluator(macro.Expression, opts, state, model)
+		eval, _, _, err = nodeToEvaluator(macro.Expression, opts, state)
 	case macro.Array != nil:
-		eval, _, _, err = nodeToEvaluator(macro.Array, opts, state, model)
+		eval, _, _, err = nodeToEvaluator(macro.Array, opts, state)
 	case macro.Primary != nil:
-		eval, _, _, err = nodeToEvaluator(macro.Primary, opts, state, model)
+		eval, _, _, err = nodeToEvaluator(macro.Primary, opts, state)
 	}
 
 	if err != nil {

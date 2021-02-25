@@ -156,7 +156,7 @@ func (m *Module) Reload() error {
 
 	rsa := sprobe.NewRuleSetApplier(m.config, m.probe)
 
-	ruleSet := m.probe.NewRuleSet(rules.NewOptsWithParams(model.SECLConstants, sprobe.SupportedDiscarders, m.getEventTypeEnabled(), sprobe.AllCustomRuleIDs(), agentLogger.DatadogAgentLogger{}))
+	ruleSet := m.probe.NewRuleSet(rules.NewOptsWithParams(model.SECLConstants, sprobe.SupportedDiscarders, m.getEventTypeEnabled(), sprobe.AllCustomRuleIDs(), model.SECLLegacyAttributes, agentLogger.DatadogAgentLogger{}))
 
 	loadErr := rules.LoadPolicies(m.config.PoliciesDir, ruleSet)
 	if loadErr.ErrorOrNil() != nil {

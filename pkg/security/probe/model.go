@@ -147,7 +147,7 @@ func (ev *Event) UnmarshalExecEvent(data []byte) (int, error) {
 
 	// Some fields need to be copied manually in the ExecEvent structure because they do not have "Exec" specific
 	// resolvers, and the data was parsed in the ProcessCacheEntry structure
-	model.CopyFileFields(&ev.processCacheEntry.ProcessContext.ExecEvent.FileFields, &ev.Exec.FileFields)
+	ev.Exec.FileFields = ev.processCacheEntry.ProcessContext.ExecEvent.FileFields
 	return n, nil
 }
 

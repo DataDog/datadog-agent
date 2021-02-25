@@ -97,19 +97,19 @@ int __attribute__((always_inline)) trace__sys_link_ret(struct pt_regs *ctx) {
             .mount_id = syscall->link.src_key.mount_id,
             .overlay_numlower = syscall->link.src_overlay_numlower,
             .path_id = syscall->link.src_key.path_id,
+            .metadata = syscall->link.src_metadata,
         },
         .target = {
             .inode = syscall->link.target_key.ino,
             .mount_id = syscall->link.target_key.mount_id,
             .overlay_numlower = get_overlay_numlower(syscall->link.target_dentry),
+            // this is a hard link, source and destination have necessarily the same inode metadata
+            .metadata = syscall->link.src_metadata,
         }
     };
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
-    copy_file_metadata(&syscall->link.src_metadata, &event.source.metadata);
-    // this is a hard link, source and destination have necessarily the same inode metadata
-    copy_file_metadata(&syscall->link.src_metadata, &event.target.metadata);
 
     resolve_dentry(syscall->link.target_dentry, syscall->link.target_key, 0);
 

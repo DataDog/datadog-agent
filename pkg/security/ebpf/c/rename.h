@@ -117,20 +117,20 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
                 .inode = syscall->rename.src_key.ino,
                 .mount_id = syscall->rename.src_key.mount_id,
                 .overlay_numlower = syscall->rename.src_overlay_numlower,
+                .metadata = syscall->rename.src_metadata,
             },
             .new = {
                 .inode = syscall->rename.target_key.ino,
                 .mount_id = syscall->rename.target_key.mount_id,
                 .overlay_numlower = get_overlay_numlower(syscall->rename.src_dentry),
                 .path_id = syscall->rename.target_key.path_id,
+                .metadata = syscall->rename.src_metadata,
             },
             .discarder_revision = bump_discarder_revision(syscall->rename.target_key.mount_id),
         };
 
         struct proc_cache_t *entry = fill_process_context(&event.process);
         fill_container_context(entry, &event.container);
-        copy_file_metadata(&syscall->rename.src_metadata, &event.old.metadata);
-        copy_file_metadata(&syscall->rename.src_metadata, &event.new.metadata);
 
         // for centos7, use src dentry for target resolution as the pointers have been swapped
         resolve_dentry(syscall->rename.src_dentry, syscall->rename.target_key, 0);
