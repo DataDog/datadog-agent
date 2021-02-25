@@ -25,7 +25,7 @@ func TestSNMPListener(t *testing.T) {
 	snmpConfig := snmp.Config{
 		Network:   "192.168.0.0/24",
 		Community: "public",
-		Loader: "core",
+		Loader:    "core",
 	}
 	listenerConfig := snmp.ListenerConfig{
 		Configs: []snmp.Config{snmpConfig},
