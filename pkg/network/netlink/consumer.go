@@ -399,10 +399,6 @@ func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
 	return nil
 }
 
-func (c *Consumer) isRecvLoopRunning() bool {
-	return atomic.LoadInt32(&c.recvLoopRunning) == 1
-}
-
 // receive netlink messages and flushes them to the Event channel.
 // This method gets called in two different contexts:
 //
