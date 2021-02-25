@@ -572,6 +572,8 @@ def finish(
 
     """
     Creates new entry in the release.json file for the new version. Removes all the RC entries.
+
+    Update internal module dependencies with the new version.
     """
 
     if sys.version_info[0] < 3:
