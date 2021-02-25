@@ -172,7 +172,7 @@ def build_functional_tests(
         ldflags += '-extldflags "-static"'
         build_tags += ',osusergo'
 
-    cmd = 'go test -tags {build_tags} -ldflags="{ldflags}" -c -o {output} '
+    cmd = 'go test -mod=mod -tags {build_tags} -ldflags="{ldflags}" -c -o {output} '
     cmd += '{repo_path}/pkg/security/tests'
 
     args = {
