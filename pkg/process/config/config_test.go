@@ -655,18 +655,22 @@ func TestGetHostnameFromAgent(t *testing.T) {
 	).Return(&pb.HostnameReply{Hostname: "unit-test-hostname"}, nil)
 
 	t.Run("hostname returns from grpc", func(t *testing.T) {
-		hostname := getHostnameFromGRPC(func(ctx context.Context) (pb.AgentClient, error) {
+		hostname, err := getHostnameFromGRPC(func(ctx context.Context) (pb.AgentClient, error) {
 			return mockClient, nil
 		})
 
+		assert.Nil(t, err)
 		assert.Equal(t, "unit-test-hostname", hostname)
 	})
 
 	t.Run("grpc client is unavailable", func(t *testing.T) {
-		hostname := getHostnameFromGRPC(func(ctx context.Context) (pb.AgentClient, error) {
-			return nil, errors.New("no grpc client")
+		grpcErr := errors.New("no grpc client")
+		hostname, err := getHostnameFromGRPC(func(ctx context.Context) (pb.AgentClient, error) {
+			return nil, grpcErr
 		})
 
+		assert.NotNil(t, err)
+		assert.Equal(t, grpcErr, errors.Unwrap(err))
 		assert.Empty(t, hostname)
 	})
 }

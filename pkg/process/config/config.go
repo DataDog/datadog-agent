@@ -364,7 +364,10 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	}
 
 	// get the hostname from the datadog agent
-	cfg.HostName = getHostnameFromGRPC(util.GetDDAgentClient)
+	cfg.HostName, err = getHostnameFromGRPC(util.GetDDAgentClient)
+	if err != nil {
+		log.Errorf("failed to get hostname from grpc: %v", err)
+	}
 
 	// If the hostname is not set then we fallback to our own hostname mechanism
 	if cfg.HostName == "" {
@@ -591,20 +594,22 @@ func getHostname(ddAgentBin string) (string, error) {
 }
 
 // getHostnameFromGRPC retrieves the hostname from the main datadog agent via GRPC
-func getHostnameFromGRPC(grpcClientFn func(ctx context.Context) (pb.AgentClient, error)) string {
+func getHostnameFromGRPC(grpcClientFn func(ctx context.Context) (pb.AgentClient, error)) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), grpcAgentTimeout)
 	defer cancel()
-	if ddAgentClient, err := grpcClientFn(ctx); err == nil {
-		if reply, err := ddAgentClient.GetHostname(ctx, &pb.HostnameRequest{}); err == nil {
-			log.Debugf("Retrieved hostname:%s from datadog agent via grpc", reply.Hostname)
-			return reply.Hostname
-		}
-		log.Errorf("Cannot get hostname from datadog agent via grpc: %v", err)
-	} else {
-		log.Errorf("Cannot connect to datadog agent via grpc: %v", err)
+
+	ddAgentClient, err := grpcClientFn(ctx)
+	if err != nil {
+		return "", fmt.Errorf("cannot connect to datadog agent via grpc: %w", err)
+	}
+	reply, err := ddAgentClient.GetHostname(ctx, &pb.HostnameRequest{})
+
+	if err != nil {
+		return "", fmt.Errorf("cannot get hostname from datadog agent via grpc: %w", err)
 	}
 
-	return ""
+	log.Debugf("retrieved hostname:%s from datadog agent via grpc", reply.Hostname)
+	return reply.Hostname, nil
 }
 
 // proxyFromEnv parses out the proxy configuration from the ENV variables in a
