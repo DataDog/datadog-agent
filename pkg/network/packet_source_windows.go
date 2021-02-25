@@ -13,6 +13,7 @@ type windowsPacketSource struct {
 	di *DriverInterface
 }
 
+// NewWindowsPacketSource constructs a new packet source
 func NewWindowsPacketSource(di *DriverInterface) PacketSource {
 	return &windowsPacketSource{di: di}
 }
