@@ -33,7 +33,7 @@ type Daemon struct {
 	traceAgent   *traceAgent.Agent
 
 	// Aggregator used by the statsd server
-	Aggregator *aggregator.BufferedAggregator
+	aggregator *aggregator.BufferedAggregator
 	stopCh     chan struct{}
 
 	// Wait on this WaitGroup in controllers to be sure that the Daemon is ready.
@@ -55,7 +55,7 @@ func (d *Daemon) SetTraceAgent(traceAgent *traceAgent.Agent) {
 // Use this aggregator `GetChannels()` or `GetBufferedChannels()` to send metrics
 // directly to the aggregator, with caution.
 func (d *Daemon) SetAggregator(aggregator *aggregator.BufferedAggregator) {
-	d.Aggregator = aggregator
+	d.aggregator = aggregator
 }
 
 // StartDaemon starts an HTTP server to receive messages from the Datadog Lambda Library or AWS.
@@ -124,7 +124,7 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Error("Can't read log message")
 		w.WriteHeader(400)
 	} else {
-		metricsChan := l.daemon.Aggregator.GetBufferedMetricsWithTsChannel()
+		metricsChan := l.daemon.aggregator.GetBufferedMetricsWithTsChannel()
 		metricTags := getTagsForEnhancedMetrics()
 		sendLogsToIntake := config.Datadog.GetBool("logs_enabled")
 		for _, message := range messages {
