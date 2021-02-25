@@ -1,14 +1,15 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubelet
 
 package providers
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -19,7 +20,7 @@ import (
 type PrometheusPodsConfigProvider struct {
 	kubelet kubelet.KubeUtilInterface
 
-	checks []*common.PrometheusCheck
+	checks []*types.PrometheusCheck
 }
 
 // NewPrometheusPodsConfigProvider returns a new Prometheus ConfigProvider connected to kubelet.
@@ -69,7 +70,7 @@ func (p *PrometheusPodsConfigProvider) parsePodlist(podlist []*kubelet.Pod) []in
 	var configs []integration.Config
 	for _, pod := range podlist {
 		for _, check := range p.checks {
-			configs = append(configs, check.ConfigsForPod(pod)...)
+			configs = append(configs, utils.ConfigsForPod(check, pod)...)
 		}
 	}
 	return configs

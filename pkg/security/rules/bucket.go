@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package rules
 
@@ -9,6 +9,7 @@ import (
 	"sort"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/pkg/errors"
 )
 
 // RuleBucket groups rules with the same event type
@@ -21,7 +22,7 @@ type RuleBucket struct {
 func (rb *RuleBucket) AddRule(rule *Rule) error {
 	for _, r := range rb.rules {
 		if r.ID == rule.ID {
-			return ErrDuplicateRuleID{ID: r.ID}
+			return &ErrRuleLoad{Definition: rule.Definition, Err: errors.New("multiple definition with the same ID")}
 		}
 	}
 

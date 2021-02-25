@@ -1,12 +1,16 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
+
+// +build test
 
 package aggregator
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/util"
+
 	// stdlib
 	"math"
 	"testing"
@@ -22,9 +26,9 @@ import (
 
 func generateContextKey(sample metrics.MetricSampleContext) ckey.ContextKey {
 	k := ckey.NewKeyGenerator()
-	tagsBuffer := []string{}
-	tagsBuffer = sample.GetTags(tagsBuffer)
-	return k.Generate(sample.GetName(), sample.GetHost(), tagsBuffer)
+	tb := util.NewTagsBuilder()
+	sample.GetTags(tb)
+	return k.Generate(sample.GetName(), sample.GetHost(), tb.Get())
 }
 
 func TestCheckGaugeSampling(t *testing.T) {

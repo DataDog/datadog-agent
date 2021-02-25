@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package ec2
 
@@ -74,6 +74,14 @@ func GetLocalIPv4() ([]string, error) {
 		return nil, err
 	}
 	return []string{ip}, nil
+}
+
+// GetPublicIPv4 gets the public IPv4 for the currently running host using the EC2 metadata API.
+func GetPublicIPv4() (string, error) {
+	if !config.IsCloudProviderEnabled(CloudProviderName) {
+		return "", fmt.Errorf("cloud provider is disabled by configuration")
+	}
+	return getMetadataItem("/public-ipv4")
 }
 
 // IsRunningOn returns true if the agent is running on AWS

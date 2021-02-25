@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build linux
 
@@ -20,9 +20,10 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+import "github.com/DataDog/datadog-agent/pkg/security/metrics"
 
 // ProcessSyscall represents a syscall made by a process
 type ProcessSyscall struct {
@@ -34,11 +35,11 @@ type ProcessSyscall struct {
 // UnmarshalBinary unmarshals a binary representation of a ProcessSyscall
 func (p *ProcessSyscall) UnmarshalBinary(data []byte) error {
 	var comm [16]byte
-	utils.SliceToArray(data[0:16], unsafe.Pointer(&comm))
+	model.SliceToArray(data[0:16], unsafe.Pointer(&comm))
 
 	p.Process = string(bytes.Trim(comm[:], "\x00"))
-	p.Pid = ebpf.ByteOrder.Uint32(data[16:20])
-	p.ID = ebpf.ByteOrder.Uint32(data[20:24])
+	p.Pid = model.ByteOrder.Uint32(data[16:20])
+	p.ID = model.ByteOrder.Uint32(data[20:24])
 	return nil
 }
 
@@ -63,7 +64,7 @@ func (p *ProcessPath) UnmarshalBinary(data []byte) error {
 	if len(data) == 0 {
 		return errors.New("path empty")
 	}
-	utils.SliceToArray(data[0:256], unsafe.Pointer(&p.PathRaw))
+	model.SliceToArray(data[0:256], unsafe.Pointer(&p.PathRaw))
 	p.Path = C.GoString((*C.char)(unsafe.Pointer(&p.PathRaw)))
 	return nil
 }
@@ -110,7 +111,7 @@ func (s *SyscallStatsdCollector) CountSyscall(process string, syscallID Syscall,
 		fmt.Sprintf("syscall:%s", syscall),
 	}
 
-	return s.statsdClient.Count(MetricSyscalls, int64(count), tags, 1.0)
+	return s.statsdClient.Count(metrics.MetricSyscalls, int64(count), tags, 1.0)
 }
 
 // CountExec counts the number times a process was executed
@@ -119,13 +120,13 @@ func (s *SyscallStatsdCollector) CountExec(process string, count uint64) error {
 		fmt.Sprintf("process:%s", process),
 	}
 
-	return s.statsdClient.Count(MetricExec, int64(count), tags, 1.0)
+	return s.statsdClient.Count(metrics.MetricExec, int64(count), tags, 1.0)
 }
 
 // CountConcurrentSyscalls counts the number of syscalls that are currently being executed
 func (s *SyscallStatsdCollector) CountConcurrentSyscalls(count int64) error {
 	if count > 0 {
-		return s.statsdClient.Count(MetricConcurrentSyscall, count, []string{}, 1.0)
+		return s.statsdClient.Count(metrics.MetricConcurrentSyscall, count, []string{}, 1.0)
 	}
 	return nil
 }

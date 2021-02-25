@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package tagger
 
@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -62,9 +63,17 @@ func Init() {
 
 // Tag queries the defaultTagger to get entity tags from cache or sources.
 // It can return tags at high cardinality (with tags about individual containers),
-// or at orchestrator cardinality (pod/task level)
+// or at orchestrator cardinality (pod/task level).
 func Tag(entity string, cardinality collectors.TagCardinality) ([]string, error) {
 	return defaultTagger.Tag(entity, cardinality)
+}
+
+// TagBuilder queries the defaultTagger to get entity tags from cache or
+// sources and appends them to the TagsBuilder.  It can return tags at high
+// cardinality (with tags about individual containers), or at orchestrator
+// cardinality (pod/task level).
+func TagBuilder(entity string, cardinality collectors.TagCardinality, tb *util.TagsBuilder) error {
+	return defaultTagger.TagBuilder(entity, cardinality, tb)
 }
 
 // TagWithHash is similar to Tag but it also computes and returns the hash of the tags found
@@ -104,6 +113,12 @@ func AgentTags(cardinality collectors.TagCardinality) ([]string, error) {
 // OrchestratorScopeTag queries tags for orchestrator scope (e.g. task_arn in ECS Fargate)
 func OrchestratorScopeTag() ([]string, error) {
 	return defaultTagger.Tag(collectors.OrchestratorScopeEntityID, collectors.OrchestratorCardinality)
+}
+
+// OrchestratorScopeTagBuilder queries tags for orchestrator scope (e.g.
+// task_arn in ECS Fargate) and appends them to the TagsBuilder
+func OrchestratorScopeTagBuilder(tb *util.TagsBuilder) error {
+	return defaultTagger.TagBuilder(collectors.OrchestratorScopeEntityID, collectors.OrchestratorCardinality, tb)
 }
 
 // Stop queues a stop signal to the defaultTagger

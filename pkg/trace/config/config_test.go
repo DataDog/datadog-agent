@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package config
 
@@ -180,6 +180,9 @@ func TestFullYamlConfig(t *testing.T) {
 		{Host: "https://my2.endpoint.eu", APIKey: "apikey4", NoProxy: noProxy},
 		{Host: "https://my2.endpoint.eu", APIKey: "apikey5", NoProxy: noProxy},
 	}, c.Endpoints)
+
+	assert.ElementsMatch([]*Tag{{K: "env", V: "prod"}, {K: "db", V: "mongodb"}}, c.RequireTags)
+	assert.ElementsMatch([]*Tag{{K: "outcome", V: "success"}}, c.RejectTags)
 
 	assert.ElementsMatch([]*ReplaceRule{
 		{

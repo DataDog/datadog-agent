@@ -1,6 +1,6 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build python
 
@@ -268,7 +268,7 @@ func validateArgs(args []string, local bool) error {
 
 	if !local {
 		if !datadogPkgNameRe.MatchString(args[0]) {
-			return fmt.Errorf("invalid package name - this manager only handles datadog packages")
+			return fmt.Errorf("invalid package name - this manager only handles datadog packages. Did you mean `datadog-%s`?", args[0])
 		}
 	} else {
 		// Validate the wheel we try to install exists

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package aggregator
 
@@ -376,7 +376,9 @@ func (agg *BufferedAggregator) addServiceCheck(sc metrics.ServiceCheck) {
 	if sc.Ts == 0 {
 		sc.Ts = time.Now().Unix()
 	}
-	sc.Tags = metrics.EnrichTags(sc.Tags, sc.OriginID, sc.K8sOriginID)
+	tb := util.NewTagsBuilderFromSlice(sc.Tags)
+	metrics.EnrichTags(tb, sc.OriginID, sc.K8sOriginID)
+	sc.Tags = tb.Get()
 
 	agg.serviceChecks = append(agg.serviceChecks, &sc)
 }
@@ -386,7 +388,9 @@ func (agg *BufferedAggregator) addEvent(e metrics.Event) {
 	if e.Ts == 0 {
 		e.Ts = time.Now().Unix()
 	}
-	e.Tags = metrics.EnrichTags(e.Tags, e.OriginID, e.K8sOriginID)
+	tb := util.NewTagsBuilderFromSlice(e.Tags)
+	metrics.EnrichTags(tb, e.OriginID, e.K8sOriginID)
+	e.Tags = tb.Get()
 
 	agg.events = append(agg.events, &e)
 }

@@ -61,12 +61,12 @@ func NewExceptionSampler() *ExceptionSampler {
 	return e
 }
 
-// Add samples a trace and returns true if trace was sampled (should be kept)
-func (e *ExceptionSampler) Add(env string, root *pb.Span, t pb.Trace) (sampled bool) {
-	return e.add(time.Now(), env, root, t)
+// Sample a trace and returns true if trace was sampled (should be kept)
+func (e *ExceptionSampler) Sample(t pb.Trace, root *pb.Span, env string) bool {
+	return e.sample(time.Now(), env, root, t)
 }
 
-func (e *ExceptionSampler) add(now time.Time, env string, root *pb.Span, t pb.Trace) (sampled bool) {
+func (e *ExceptionSampler) sample(now time.Time, env string, root *pb.Span, t pb.Trace) bool {
 	if priority, ok := GetSamplingPriority(root); priority > 0 && ok {
 		e.handlePriorityTrace(now, env, t)
 		return false

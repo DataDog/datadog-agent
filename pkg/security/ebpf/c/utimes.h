@@ -22,17 +22,23 @@ struct utime_event_t {
 };
 
 int __attribute__((always_inline)) trace__sys_utimes() {
-    struct syscall_cache_t syscall = {
-        .type = SYSCALL_UTIME,
-    };
-
-    cache_syscall(&syscall, EVENT_UTIME);
-
-    if (discarded_by_process(syscall.policy.mode, EVENT_UTIME)) {
-        pop_syscall(SYSCALL_UTIME);
+    struct policy_t policy = fetch_policy(EVENT_UTIME);
+    if (discarded_by_process(policy.mode, EVENT_UTIME)) {
+        return 0;
     }
 
+    struct syscall_cache_t syscall = {
+        .type = SYSCALL_UTIME,
+        .policy = policy,
+    };
+
+    cache_syscall(&syscall);
+
     return 0;
+}
+
+int __attribute__((always_inline)) utime_approvers(struct syscall_cache_t *syscall) {
+    return basename_approver(syscall, syscall->setattr.dentry, EVENT_UTIME);
 }
 
 // On old kernels, we have sys_utime and compat_sys_utime.

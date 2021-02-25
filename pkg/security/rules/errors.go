@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package rules
 
@@ -45,15 +45,6 @@ func (e ErrNoApprover) Error() string {
 	return fmt.Sprintf("no approver for fields `%s`", strings.Join(e.Fields, ", "))
 }
 
-// ErrDuplicateRuleID is returned when 2 rules have the same identifier
-type ErrDuplicateRuleID struct {
-	ID string
-}
-
-func (e ErrDuplicateRuleID) Error() string {
-	return fmt.Sprintf("duplicate rule ID `%s`", e.ID)
-}
-
 // ErrNoEventTypeBucket is returned when no bucket could be found for an event type
 type ErrNoEventTypeBucket struct {
 	EventType string
@@ -61,4 +52,44 @@ type ErrNoEventTypeBucket struct {
 
 func (e ErrNoEventTypeBucket) Error() string {
 	return fmt.Sprintf("no bucket for event type `%s`", e.EventType)
+}
+
+// ErrPoliciesLoad is returned on policies dir error
+type ErrPoliciesLoad struct {
+	Name string
+	Err  error
+}
+
+func (e ErrPoliciesLoad) Error() string {
+	return fmt.Sprintf("policies dir read error `%s`: %s", e.Name, e.Err)
+}
+
+// ErrPolicyLoad is returned on policy file error
+type ErrPolicyLoad struct {
+	Name string
+	Err  error
+}
+
+func (e ErrPolicyLoad) Error() string {
+	return fmt.Sprintf("policy file error `%s`: %s", e.Name, e.Err)
+}
+
+// ErrMacroLoad is on macro definition error
+type ErrMacroLoad struct {
+	Definition *MacroDefinition
+	Err        error
+}
+
+func (e ErrMacroLoad) Error() string {
+	return fmt.Sprintf("macro `%s` definition error: %s", e.Definition.ID, e.Err)
+}
+
+// ErrRuleLoad is on rule definition error
+type ErrRuleLoad struct {
+	Definition *RuleDefinition
+	Err        error
+}
+
+func (e ErrRuleLoad) Error() string {
+	return fmt.Sprintf("rule `%s` definition error: %s", e.Definition.ID, e.Err)
 }

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package config
 
@@ -25,8 +25,8 @@ type Policy struct {
 type Config struct {
 	ebpf.Config
 
-	// Enabled defines if the runtime security module should be enabled
-	Enabled bool
+	// RuntimeEnabled defines if the runtime security module should be enabled
+	RuntimeEnabled bool
 	// PoliciesDir defines the folder in which the policy files are located
 	PoliciesDir string
 	// EnableKernelFilters defines if in-kernel filtering should be activated or not
@@ -48,11 +48,10 @@ type Config struct {
 	EventServerRate int
 	// PIDCacheSize is the size of the user space PID caches
 	PIDCacheSize int
+	// CookieCacheSize is the size of the cookie cache used to cache process context
+	CookieCacheSize int
 	// LoadControllerEventsCountThreshold defines the amount of events past which we will trigger the in-kernel circuit breaker
 	LoadControllerEventsCountThreshold int64
-	// LoadControllerForkBombThreshold defines the amount fork events triggered by the same process binary past which
-	// we will report a fork bomb alert
-	LoadControllerForkBombThreshold int64
 	// LoadControllerDiscarderTimeout defines the amount of time discarders set by the load controller should last
 	LoadControllerDiscarderTimeout time.Duration
 	// LoadControllerControlPeriod defines the period at which the load controller will empty the user space counter used
@@ -64,13 +63,21 @@ type Config struct {
 	StatsdAddr string
 	// AgentMonitoringEvents determines if the monitoring events of the agent should be sent to Datadog
 	AgentMonitoringEvents bool
+	// FIMEnabled determines whether fim rules will be loaded
+	FIMEnabled bool
+}
+
+// IsEnabled returns true if any feature is enabled
+func (c *Config) IsEnabled() bool {
+	return c.RuntimeEnabled || c.FIMEnabled
 }
 
 // NewConfig returns a new Config object
 func NewConfig(cfg *config.AgentConfig) (*Config, error) {
 	c := &Config{
 		Config:                             *ebpf.SysProbeConfigFromConfig(cfg),
-		Enabled:                            aconfig.Datadog.GetBool("runtime_security_config.enabled"),
+		RuntimeEnabled:                     aconfig.Datadog.GetBool("runtime_security_config.enabled"),
+		FIMEnabled:                         aconfig.Datadog.GetBool("runtime_security_config.fim_enabled"),
 		EnableKernelFilters:                aconfig.Datadog.GetBool("runtime_security_config.enable_kernel_filters"),
 		EnableApprovers:                    aconfig.Datadog.GetBool("runtime_security_config.enable_approvers"),
 		EnableDiscarders:                   aconfig.Datadog.GetBool("runtime_security_config.enable_discarders"),
@@ -81,8 +88,8 @@ func NewConfig(cfg *config.AgentConfig) (*Config, error) {
 		EventServerBurst:                   aconfig.Datadog.GetInt("runtime_security_config.event_server.burst"),
 		EventServerRate:                    aconfig.Datadog.GetInt("runtime_security_config.event_server.rate"),
 		PIDCacheSize:                       aconfig.Datadog.GetInt("runtime_security_config.pid_cache_size"),
+		CookieCacheSize:                    aconfig.Datadog.GetInt("runtime_security_config.cookie_cache_size"),
 		LoadControllerEventsCountThreshold: int64(aconfig.Datadog.GetInt("runtime_security_config.load_controller.events_count_threshold")),
-		LoadControllerForkBombThreshold:    int64(aconfig.Datadog.GetInt("runtime_security_config.load_controller.fork_bomb_threshold")),
 		LoadControllerDiscarderTimeout:     time.Duration(aconfig.Datadog.GetInt("runtime_security_config.load_controller.discarder_timeout")) * time.Second,
 		LoadControllerControlPeriod:        time.Duration(aconfig.Datadog.GetInt("runtime_security_config.load_controller.control_period")) * time.Second,
 		StatsPollingInterval:               time.Duration(aconfig.Datadog.GetInt("runtime_security_config.events_stats.polling_interval")) * time.Second,
@@ -90,7 +97,12 @@ func NewConfig(cfg *config.AgentConfig) (*Config, error) {
 		AgentMonitoringEvents:              aconfig.Datadog.GetBool("runtime_security_config.agent_monitoring_events"),
 	}
 
-	if !c.Enabled {
+	// if runtime is enabled then we force fim
+	if c.RuntimeEnabled {
+		c.FIMEnabled = true
+	}
+
+	if !c.IsEnabled() {
 		return c, nil
 	}
 

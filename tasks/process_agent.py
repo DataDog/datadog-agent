@@ -33,14 +33,12 @@ def build(
     major_version='7',
     python_runtimes='3',
     arch="x64",
-    go_mod="vendor",
+    go_mod="mod",
 ):
     """
     Build the process agent
     """
-    ldflags, gcflags, env = get_build_flags(
-        ctx, arch=arch, major_version=major_version, python_runtimes=python_runtimes
-    )
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes=python_runtimes)
 
     # generate windows resources
     if sys.platform == 'win32':
@@ -49,7 +47,7 @@ def build(
             env["GOARCH"] = "386"
             windres_target = "pe-i386"
 
-        ver = get_version_numeric_only(ctx, env, major_version=major_version)
+        ver = get_version_numeric_only(ctx, major_version=major_version)
         maj_ver, min_ver, patch_ver = ver.split(".")
         resdir = os.path.join(".", "cmd", "process-agent", "windows_resources")
 
@@ -133,11 +131,13 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
         ctx.run("cp bin/process-agent/process-agent {to}".format(to=docker_context + "/process-agent"))
 
         ctx.run("cp bin/system-probe/system-probe {to}".format(to=docker_context + "/system-probe"))
+        ctx.run("cp bin/agent/agent {to}".format(to=docker_context + "/agent"))
         ctx.run("cp pkg/ebpf/bytecode/build/*.o {to}".format(to=docker_context))
 
         with ctx.cd(docker_context):
+            # --pull in the build will force docker to grab the latest base image
             ctx.run(
-                "docker build --tag {image} --build-arg AGENT_BASE={base_image} .".format(
+                "docker build --pull --tag {image} --build-arg AGENT_BASE={base_image} .".format(
                     image=image, base_image=base_image
                 )
             )
@@ -152,6 +152,6 @@ class TempDir:
         print("created tempdir: {name}".format(name=self.fname))
         return self.fname
 
-    def __exit__(self, exception_type, exception_value, traceback):
+    def __exit__(self):
         print("deleting tempdir: {name}".format(name=self.fname))
         shutil.rmtree(self.fname)

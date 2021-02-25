@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package config
 
@@ -78,6 +78,7 @@ type AgentConfig struct {
 	MaxRequestBytes int64 // specifies the maximum allowed request size for incoming trace payloads
 
 	// Writers
+	SynchronousFlushing     bool // Mode where traces are only submitted when FlushAsync is called, used for Serverless Extension
 	StatsWriter             *WriterConfig
 	TraceWriter             *WriterConfig
 	ConnectionResetInterval time.Duration // frequency at which outgoing connections are reset. 0 means no reset is performed
@@ -107,6 +108,9 @@ type AgentConfig struct {
 	// It maps tag keys to a set of replacements. Only supported in A6.
 	ReplaceTags []*ReplaceRule
 
+	// GlobalTags list metadata that will be added to all spans
+	GlobalTags map[string]string
+
 	// transaction analytics
 	AnalyzedRateByServiceLegacy map[string]float64
 	AnalyzedSpansByService      map[string]map[string]float64
@@ -116,6 +120,17 @@ type AgentConfig struct {
 
 	// Obfuscation holds sensitive data obufscator's configuration.
 	Obfuscation *ObfuscationConfig
+
+	// RequireTags specifies a list of tags which must be present on the root span in order for a trace to be accepted.
+	RequireTags []*Tag
+
+	// RejectTags specifies a list of tags which must be absent on the root span in order for a trace to be accepted.
+	RejectTags []*Tag
+}
+
+// Tag represents a key/value pair.
+type Tag struct {
+	K, V string
 }
 
 // New returns a configuration with the default values.
@@ -153,6 +168,8 @@ func New() *AgentConfig {
 		Ignore:                      make(map[string][]string),
 		AnalyzedRateByServiceLegacy: make(map[string]float64),
 		AnalyzedSpansByService:      make(map[string]map[string]float64),
+
+		GlobalTags: make(map[string]string),
 
 		DDAgentBin: defaultDDAgentBin,
 	}
@@ -267,4 +284,15 @@ func prepareConfig(path string) (*AgentConfig, error) {
 // of the DD_APM_FEATURES environment variable.
 func HasFeature(f string) bool {
 	return strings.Contains(os.Getenv("DD_APM_FEATURES"), f)
+}
+
+// Features returns a list of all the features configured by means of DD_APM_FEATURES.
+func Features() []string {
+	var all []string
+	if fenv := os.Getenv("DD_APM_FEATURES"); fenv != "" {
+		for _, f := range strings.Split(fenv, ",") {
+			all = append(all, strings.TrimSpace(f))
+		}
+	}
+	return all
 }

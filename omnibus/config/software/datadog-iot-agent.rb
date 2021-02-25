@@ -1,7 +1,7 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
-# Copyright 2016-2020 Datadog, Inc.
+# Copyright 2016-present Datadog, Inc.
 
 require './lib/ostools.rb'
 require 'pathname'
@@ -18,8 +18,10 @@ build do
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
   etc_dir = "/etc/datadog-agent"
+  gomodcache = Pathname.new("/gomodcache")
   env = {
     'GOPATH' => gopath.to_path,
+    'GOMODCACHE' => gomodcache.to_path,
     'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
   }
   # include embedded path (mostly for `pkg-config` binary)

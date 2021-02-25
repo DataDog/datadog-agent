@@ -23,6 +23,11 @@ venv3[78]/
 *.syso
 *.log
 
+# local development environment control files
+.env
+.envrc
+.python-version
+
 #file generated at build time by message compiler
 agentmsg.h
 

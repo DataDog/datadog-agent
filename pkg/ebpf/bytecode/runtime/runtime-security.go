@@ -3,8 +3,4 @@
 
 package runtime
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
-)
-
-var RuntimeSecurity = ebpf.NewRuntimeAsset("runtime-security.c", "5502e3acb95da4e494c41b0c78f13719b4f77375bb5f0c7b919810a5b01add38")
+var RuntimeSecurity = NewRuntimeAsset("runtime-security.c", "82c30572aef4e3548583d8501d11dfd849720501a04871f4c8ce3e5e2df527af")

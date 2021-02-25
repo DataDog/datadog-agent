@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package obfuscate
 
@@ -92,12 +92,9 @@ func TestSQLResourceWithError(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		// copy test cases as Quantize mutates
-		testSpan := tc.span
-
 		NewObfuscator(nil).Obfuscate(&tc.span)
 		assert.Equal("Non-parsable SQL query", tc.span.Resource)
-		assert.Equal(testSpan.Resource, tc.span.Meta["sql.query"])
+		assert.Equal("Non-parsable SQL query", tc.span.Meta["sql.query"])
 	}
 }
 
@@ -672,6 +669,43 @@ ORDER BY [b].[Name]`,
 			`SELECT id, name FROM emp WHERE name LIKE {fn UCASE('Smith')}`,
 			`SELECT id, name FROM emp WHERE name LIKE ?`,
 		},
+		{
+			`DROP TABLE IF EXISTS django_site;
+DROP TABLE IF EXISTS knowledgebase_article;
+
+CREATE TABLE django_site (
+    id integer PRIMARY KEY,
+    domain character varying(100) NOT NULL,
+    name character varying(50) NOT NULL,
+    uuid uuid NOT NULL,
+    disabled boolean DEFAULT false NOT NULL
+);
+
+CREATE TABLE knowledgebase_article (
+    id integer PRIMARY KEY,
+    title character varying(255) NOT NULL,
+    site_id integer NOT NULL,
+    CONSTRAINT knowledgebase_article_site_id_fkey FOREIGN KEY (site_id) REFERENCES django_site(id)
+);
+
+INSERT INTO django_site(id, domain, name, uuid, disabled) VALUES (1, 'foo.domain', 'Foo', 'cb4776c1-edf3-4041-96a8-e152f5ae0f91', false);
+INSERT INTO knowledgebase_article(id, title, site_id) VALUES(1, 'title', 1);`,
+			`DROP TABLE IF EXISTS django_site DROP TABLE IF EXISTS knowledgebase_article CREATE TABLE django_site ( id integer PRIMARY KEY, domain character varying ( ? ) NOT ? name character varying ( ? ) NOT ? uuid uuid NOT ? disabled boolean DEFAULT ? NOT ? ) CREATE TABLE knowledgebase_article ( id integer PRIMARY KEY, title character varying ( ? ) NOT ? site_id integer NOT ? CONSTRAINT knowledgebase_article_site_id_fkey FOREIGN KEY ( site_id ) REFERENCES django_site ( id ) ) INSERT INTO django_site ( id, domain, name, uuid, disabled ) VALUES ( ? ) INSERT INTO knowledgebase_article ( id, title, site_id ) VALUES ( ? )`,
+		},
+		{
+			`
+SELECT set_config('foo.bar', (SELECT foo.bar FROM sometable WHERE sometable.uuid = %(some_id)s)::text, FALSE);
+SELECT
+    othertable.id,
+    othertable.title
+FROM othertable
+INNER JOIN sometable ON sometable.id = othertable.site_id
+WHERE
+    sometable.uuid = %(some_id)s
+LIMIT 1
+;`,
+			`SELECT set_config ( ? ( SELECT foo.bar FROM sometable WHERE sometable.uuid = ? ) :: text, ? ) SELECT othertable.id, othertable.title FROM othertable INNER JOIN sometable ON sometable.id = othertable.site_id WHERE sometable.uuid = ? LIMIT ?`,
+		},
 	}
 
 	for _, c := range cases {
@@ -1238,6 +1272,7 @@ func BenchmarkObfuscateSQLString(b *testing.B) {
 	}
 
 	b.Run("random", func(b *testing.B) {
+		b.ReportAllocs()
 		var j uint64
 		for i := 0; i < b.N; i++ {
 			_, err := obf.ObfuscateSQLString(fmt.Sprintf("SELECT * FROM users WHERE id=%d", atomic.AddUint64(&j, 1)))

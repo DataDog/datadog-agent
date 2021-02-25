@@ -7,11 +7,28 @@
 #define true 1
 #define false 0
 
+typedef enum {
+    CONN_DIRECTION_UNKNOWN = 0b00,
+    CONN_DIRECTION_INCOMING = 0b01,
+    CONN_DIRECTION_OUTGOING = 0b10,
+} conn_direction_t;
+
+#define CONN_DIRECTION_MASK 0b11
+
 typedef struct {
     __u64 sent_bytes;
     __u64 recv_bytes;
     __u64 timestamp;
+    __u32 flags;
+    __u8  direction;
 } conn_stats_ts_t;
+
+// Connection flags
+typedef enum {
+    CONN_L_INIT  = 1 << 0, // initial/first message sent
+    CONN_R_INIT  = 1 << 1, // reply received for initial message from remote
+    CONN_ASSURED = 1 << 2  // "3-way handshake" complete, i.e. response to initial reply sent
+} conn_flags_t;
 
 // Metadata bit masks
 // 0 << x is only for readability
@@ -55,7 +72,7 @@ typedef struct {
     conn_tuple_t tup;
     conn_stats_ts_t conn_stats;
     tcp_stats_t tcp_stats;
-} tcp_conn_t;
+} conn_t;
 
 // From include/net/tcp.h
 // tcp_flag_byte(th) (((u_int8_t *)th)[13])
@@ -145,28 +162,29 @@ typedef struct {
     __u64 batch_idx;
 } http_batch_notification_t;
 
-// Must match the number of tcp_conn_t objects embedded in the batch_t struct
-#ifndef TCP_CLOSED_BATCH_SIZE
-#define TCP_CLOSED_BATCH_SIZE 5
+// Must match the number of conn_t objects embedded in the batch_t struct
+#ifndef CONN_CLOSED_BATCH_SIZE
+#define CONN_CLOSED_BATCH_SIZE 5
 #endif
 
 // This struct is meant to be used as a container for batching
 // writes to the perf buffer. Ideally we should have an array of tcp_conn_t objects
 // but apparently eBPF verifier doesn't allow arbitrary index access during runtime.
 typedef struct {
-    tcp_conn_t c0;
-    tcp_conn_t c1;
-    tcp_conn_t c2;
-    tcp_conn_t c3;
-    tcp_conn_t c4;
-    __u16 pos;
-    __u16 cpu;
+    conn_t c0;
+    conn_t c1;
+    conn_t c2;
+    conn_t c3;
+    conn_t c4;
+    __u16 len;
+    __u64 id;
 } batch_t;
 
 // Telemetry names
 typedef struct {
     __u64 tcp_sent_miscounts;
     __u64 missed_tcp_close;
+    __u64 missed_udp_close;
     __u64 udp_sends_processed;
     __u64 udp_sends_missed;
 } telemetry_t;

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package local
 
@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
@@ -119,6 +120,32 @@ func TestFetchAllMiss(t *testing.T) {
 
 	streamer.AssertCalled(t, "Fetch", "entity_name")
 	puller.AssertCalled(t, "Fetch", "entity_name")
+}
+
+func TestTagBuilder(t *testing.T) {
+	catalog := collectors.Catalog{"stream": NewDummyStreamer, "pull": NewDummyPuller}
+	tagger := NewTagger(catalog)
+	tagger.Init()
+	defer tagger.Stop()
+
+	tagger.store.processTagInfo([]*collectors.TagInfo{
+		{
+			Entity:       "entity_name",
+			Source:       "stream",
+			LowCardTags:  []string{"low1"},
+			HighCardTags: []string{"high"},
+		},
+		{
+			Entity:      "entity_name",
+			Source:      "pull",
+			LowCardTags: []string{"low2"},
+		},
+	})
+
+	tb := util.NewTagsBuilder()
+	err := tagger.TagBuilder("entity_name", collectors.HighCardinality, tb)
+	assert.NoError(t, err)
+	assert.ElementsMatch(t, []string{"high", "low1", "low2"}, tb.Get())
 }
 
 func TestFetchAllCached(t *testing.T) {

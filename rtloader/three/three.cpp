@@ -2,7 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog
 // (https://www.datadoghq.com/).
-// Copyright 2019-2020 Datadog, Inc.
+// Copyright 2019-present Datadog, Inc.
 #include "three.h"
 
 #include "constants.h"
@@ -433,6 +433,25 @@ char *Three::runCheck(RtLoaderPyObject *check)
 done:
     Py_XDECREF(result);
     return ret;
+}
+
+void Three::cancelCheck(RtLoaderPyObject *check)
+{
+    if (check == NULL) {
+        return;
+    }
+
+    PyObject *py_check = reinterpret_cast<PyObject *>(check);
+
+    char cancel[] = "cancel";
+    PyObject *result = NULL;
+
+    result = PyObject_CallMethod(py_check, cancel, NULL);
+    // at least None should be returned
+    if (result == NULL) {
+        setError("error invoking 'cancel' method: " + _fetchPythonError());
+    }
+    Py_XDECREF(result);
 }
 
 char **Three::getCheckWarnings(RtLoaderPyObject *check)

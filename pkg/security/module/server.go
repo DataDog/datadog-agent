@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build linux
 
@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -184,7 +185,7 @@ func (a *APIServer) SendStats() error {
 	for ruleID, val := range a.GetStats() {
 		tags := []string{fmt.Sprintf("rule_id:%s", ruleID)}
 		if val > 0 {
-			if err := a.statsdClient.Count(sprobe.MetricEventServerExpired, val, tags, 1.0); err != nil {
+			if err := a.statsdClient.Count(metrics.MetricEventServerExpired, val, tags, 1.0); err != nil {
 				return err
 			}
 		}

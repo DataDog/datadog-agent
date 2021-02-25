@@ -1,7 +1,7 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https://www.datadoghq.com/).
-# Copyright 2016-2020 Datadog, Inc.
+# Copyright 2016-present Datadog, Inc.
 
 # 3p
 import json
@@ -166,7 +166,7 @@ def _is_affirmative(s):
     return s.lower() in ('yes', 'true', '1')
 
 
-def get_config_path(cfg_path="", os_name=None):
+def get_config_path(cfg_path=""):
     return os.path.join(cfg_path, "datadog.conf")
 
 
@@ -238,7 +238,7 @@ def remove_empty(string_array):
     return filter(lambda x: x, string_array)
 
 
-def get_config(cfg_path=None, options=None, can_query_registry=True):
+def get_config(options=None):
     # General config
     agentConfig = {
         'check_freq': DEFAULT_CHECK_FREQUENCY,

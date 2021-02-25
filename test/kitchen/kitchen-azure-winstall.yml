@@ -20,6 +20,7 @@ suites:
         windows_agent_filename: "<%= ENV['WINDOWS_AGENT_FILE'] %>"
         <% end %>
         agent_install_options: >
+          APIKEY=<%= api_key %>
           TAGS=k1:v1,k2:v2
           HOSTNAME=dd-agent-installopts
           CMD_PORT=4999
@@ -34,7 +35,6 @@ suites:
           TRACE_DD_URL=https://trace.someurl.datadoghq.com
       dd-agent-rspec:
         skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
-
 
   - name: dd-agent-all-subservices
     run_list:

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017-2020 Datadog, Inc.
+// Copyright 2017-present Datadog, Inc.
 
 package listeners
 
@@ -11,6 +11,8 @@ import (
 	"hash/fnv"
 	"strconv"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -152,4 +154,31 @@ func (f *containerFilters) IsExcluded(filter containers.FilterType, name, image,
 		return f.logs.IsExcluded(name, image, ns)
 	}
 	return false
+}
+
+// getPrometheusIncludeAnnotations returns the Prometheus AD include annotations based on the Prometheus config
+func getPrometheusIncludeAnnotations() types.PrometheusAnnotations {
+	annotations := types.PrometheusAnnotations{}
+	checks := []*types.PrometheusCheck{}
+	err := config.Datadog.UnmarshalKey("prometheus_scrape.checks", &checks)
+	if err != nil {
+		log.Warnf("Couldn't get configurations from 'prometheus_scrape.checks': %v", err)
+		return annotations
+	}
+
+	if len(checks) == 0 {
+		annotations[types.PrometheusScrapeAnnotation] = "true"
+		return annotations
+	}
+
+	for _, check := range checks {
+		if err := check.Init(); err != nil {
+			log.Errorf("Couldn't init check configuration: %v", err)
+			continue
+		}
+		for k, v := range check.AD.GetIncludeAnnotations() {
+			annotations[k] = v
+		}
+	}
+	return annotations
 }

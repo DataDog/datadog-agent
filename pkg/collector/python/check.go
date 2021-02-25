@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build python
 
@@ -111,9 +111,16 @@ func (c *PythonCheck) RunSimple() error {
 // Stop does nothing
 func (c *PythonCheck) Stop() {}
 
-// Cancel deregisters the sender
-// TODO: allow python checks to implement Cancel
+// Cancel signals to a python check that he can free all internal resources and
+// deregisters the sender
 func (c *PythonCheck) Cancel() {
+	gstate := newStickyLock()
+	defer gstate.unlock()
+
+	C.cancel_check(rtloader, c.instance)
+	if err := getRtLoaderError(); err != nil {
+		log.Warnf("failed to cancel check %s: %s", c.id, err)
+	}
 	aggregator.DestroySender(c.id)
 }
 

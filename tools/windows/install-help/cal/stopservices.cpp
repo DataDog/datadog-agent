@@ -708,6 +708,18 @@ class serviceDef
             }
             WcaLog(LOGMSG_STANDARD, "Updated path for existing service");
         }
+        {
+            WcaLog(LOGMSG_STANDARD, "Resetting dependencies");
+            BOOL bRet = ChangeServiceConfigW(hService, SERVICE_NO_CHANGE, SERVICE_NO_CHANGE, SERVICE_NO_CHANGE,
+                                             NULL, NULL, NULL, this->lpDependencies, NULL, NULL, NULL);
+            if (!bRet)
+            {
+                retval = GetLastError();
+                WcaLog(LOGMSG_STANDARD, "Failed to update service dependency config %d\n", retval);
+                goto done_verify;
+            }
+            WcaLog(LOGMSG_STANDARD, "Updated dependencies for existing service, dependencies now %S", this->lpDependencies);
+        }
 
     done_verify:
         CloseServiceHandle(hService);
@@ -718,7 +730,11 @@ class serviceDef
 
         return retval;
     }
+    const wchar_t* getServiceName() const { return this->svcName;  }
 };
+
+static    wchar_t * probeDepsNoNPM = L"datadogagent\0\0";
+static    wchar_t * probeDepsWithNPM = L"datadogagent\0ddnpm\0\0";
 
 int installServices(CustomActionData &data, PSID sid, const wchar_t *password)
 {
@@ -726,6 +742,7 @@ int installServices(CustomActionData &data, PSID sid, const wchar_t *password)
     SC_HANDLE hService = NULL;
     int retval = 0;
     // Get a handle to the SCM database.
+    
 #ifdef __REGISTER_ALL_SERVICES
 #define NUM_SERVICES 4
     serviceDef services[NUM_SERVICES] = {
@@ -736,7 +753,7 @@ int installServices(CustomActionData &data, PSID sid, const wchar_t *password)
         serviceDef(processService.c_str(), L"Datadog Process Agent", L"Send process metrics to Datadog",
                    process_exe.c_str(), L"datadogagent\0\0", SERVICE_DEMAND_START, NULL, NULL),
         serviceDef(systemProbeService.c_str(), L"Datadog System Probe", L"Send network metrics to Datadog",
-                   sysprobe_exe.c_str(), L"datadogagent\0ddnpm\0\0", SERVICE_DEMAND_START, NULL, NULL)
+                   sysprobe_exe.c_str(), data.npmPresent() ? probeDepsWithNPM : probeDepsNoNPM, SERVICE_DEMAND_START, NULL, NULL)
 
     };
     // by default, don't add sysprobe
@@ -833,7 +850,7 @@ int uninstallServices(CustomActionData &data)
         serviceDef(processService.c_str(), L"Datadog Process Agent", L"Send process metrics to Datadog",
                    process_exe.c_str(), L"datadogagent\0\0", SERVICE_DEMAND_START, NULL, NULL),
         serviceDef(systemProbeService.c_str(), L"Datadog System Probe", L"Send network metrics to Datadog",
-                   sysprobe_exe.c_str(), L"datadogagent\0ddnpm\0\0", SERVICE_DEMAND_START, NULL, NULL)
+                   sysprobe_exe.c_str(), data.npmPresent() ? probeDepsWithNPM : probeDepsNoNPM, SERVICE_DEMAND_START, NULL, NULL)
 
     };
 #else
@@ -884,7 +901,7 @@ int verifyServices(CustomActionData &data)
         serviceDef(processService.c_str(), L"Datadog Process Agent", L"Send process metrics to Datadog",
                    process_exe.c_str(), L"datadogagent\0\0", SERVICE_DEMAND_START, NULL, NULL),
         serviceDef(systemProbeService.c_str(), L"Datadog System Probe", L"Send network metrics to Datadog",
-                   sysprobe_exe.c_str(), L"datadogagent\0ddnpm\0\0", SERVICE_DEMAND_START, NULL, NULL)
+                   sysprobe_exe.c_str(), data.npmPresent() ? probeDepsWithNPM : probeDepsNoNPM, SERVICE_DEMAND_START, NULL, NULL)
 
     };
     // by default, don't add sysprobe
@@ -911,14 +928,56 @@ int verifyServices(CustomActionData &data)
         WcaLog(LOGMSG_STANDARD, "OpenSCManager failed (%d)\n", GetLastError());
         return -1;
     }
-    for (int i = 0; i < servicesToInstall; i++)
+    for (int i = 0; i < servicesToInstall; i++) 
     {
         WcaLog(LOGMSG_STANDARD, "updating service %d", i);
         retval = services[i].verify(hScManager);
-        if (retval != 0)
+        if (retval != 0) 
         {
-            WcaLog(LOGMSG_STANDARD, "Failed to verify service %d %d 0x%x, rolling back", i, retval, retval);
-            break;
+            if(ERROR_SERVICE_DOES_NOT_EXIST == retval && i > 1)
+            {
+                // i > 1 b/c we can't do this for core or trace, since they run as
+                // ddagentuser and we don't have the password.  process & npm run
+                // as local system, so there's no password to need.
+                
+                // since we're adding a new service later (npm), on upgrade we
+                // must have the core agent.  Any of the subservices, if they're not
+                // present, accept that (they might be newly added) and just try
+                // to install it instead.
+
+                // this only works b/c the NPM service is running as LOCAL_SYSTEM rather
+                // than ddagentuser; otherwise, we wouldn't have the password at this
+                // point and this wouldn't work.
+                retval = services[i].create(hScManager);
+                if(0 != retval)
+                {
+                    // if we can't create it, don't fail the upgrade,just log and
+                    // continue on.  The existing services can/should still function
+                    WcaLog(LOGMSG_STANDARD, "Failed to create new service during upgrade %S %d %d 0x%x", services[i].getServiceName(), i, retval, retval);
+                    WcaLog(LOGMSG_STANDARD, "Allowing upgrade to proceed");
+                    // since we're allowing the upgrade to continue, reset the error code to zero
+                    // in case this is the last one. Don't want to fail the upgrade by mistake
+                    retval = 0;
+                    continue;
+                }
+                // else
+
+                // since we just created this service, we need to allow the datadog
+                // agent core service to start/stop it
+                retval = EnableServiceForUser(data.Sid(), services[i].getServiceName());
+                if(0 != retval)
+                {
+                    WcaLog(LOGMSG_STANDARD, "Failed to modify service permissions for %S", services[i].getServiceName());
+                    // since we're allowing the upgrade to continue, reset the error code to zero
+                    // in case this is the last one. Don't want to fail the upgrade by mistake
+                    retval = 0;
+                    continue;
+                }
+            } else 
+            {
+                WcaLog(LOGMSG_STANDARD, "Failed to verify service %d %d 0x%x, rolling back", i, retval, retval);
+                break;
+            }
         }
     }
 #ifdef __REGISTER_ALL_SERVICES

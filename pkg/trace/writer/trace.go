@@ -1,12 +1,13 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package writer
 
 import (
 	"compress/gzip"
+	"errors"
 	"math"
 	"strings"
 	"sync"
@@ -61,6 +62,10 @@ type TraceWriter struct {
 	events       []*pb.Span     // events buffered
 	bufferedSize int            // estimated buffer size
 
+	// syncMode reports whether the writer should flush on its own or only when FlushSync is called
+	syncMode  bool
+	flushChan chan chan struct{}
+
 	easylog *logutil.ThrottledLogger
 }
 
@@ -68,13 +73,15 @@ type TraceWriter struct {
 // will accept incoming spans via the in channel.
 func NewTraceWriter(cfg *config.AgentConfig) *TraceWriter {
 	tw := &TraceWriter{
-		In:       make(chan *SampledSpans, 1000),
-		hostname: cfg.Hostname,
-		env:      cfg.DefaultEnv,
-		stats:    &info.TraceWriterInfo{},
-		stop:     make(chan struct{}),
-		tick:     5 * time.Second,
-		easylog:  logutil.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
+		In:        make(chan *SampledSpans, 1000),
+		hostname:  cfg.Hostname,
+		env:       cfg.DefaultEnv,
+		stats:     &info.TraceWriterInfo{},
+		stop:      make(chan struct{}),
+		flushChan: make(chan chan struct{}),
+		syncMode:  cfg.SynchronousFlushing,
+		tick:      5 * time.Second,
+		easylog:   logutil.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
 	}
 	climit := cfg.TraceWriter.ConnectionLimit
 	if climit == 0 {
@@ -106,12 +113,19 @@ func (w *TraceWriter) Stop() {
 	log.Debug("Exiting trace writer. Trying to flush whatever is left...")
 	w.stop <- struct{}{}
 	<-w.stop
-	w.wg.Wait()
 	stopSenders(w.senders)
 }
 
 // Run starts the TraceWriter.
 func (w *TraceWriter) Run() {
+	if w.syncMode {
+		w.runSync()
+	} else {
+		w.runAsync()
+	}
+}
+
+func (w *TraceWriter) runAsync() {
 	t := time.NewTicker(w.tick)
 	defer t.Stop()
 	defer close(w.stop)
@@ -120,23 +134,43 @@ func (w *TraceWriter) Run() {
 		case pkg := <-w.In:
 			w.addSpans(pkg)
 		case <-w.stop:
-			// drain the input channel before stopping
-		outer:
-			for {
-				select {
-				case pkg := <-w.In:
-					w.addSpans(pkg)
-				default:
-					break outer
-				}
-			}
-			w.flush()
+			w.drainAndFlush()
 			return
 		case <-t.C:
 			w.report()
 			w.flush()
 		}
 	}
+}
+
+func (w *TraceWriter) runSync() {
+	defer close(w.stop)
+	defer close(w.flushChan)
+	for {
+		select {
+		case pkg := <-w.In:
+			w.addSpans(pkg)
+		case notify := <-w.flushChan:
+			w.drainAndFlush()
+			notify <- struct{}{}
+		case <-w.stop:
+			w.drainAndFlush()
+			return
+		}
+	}
+}
+
+// FlushSync blocks and sends pending payloads when syncMode is true
+func (w *TraceWriter) FlushSync() error {
+	if !w.syncMode {
+		return errors.New("not flushing; sync mode not enabled")
+	}
+	defer w.report()
+
+	notify := make(chan struct{}, 1)
+	w.flushChan <- notify
+	<-notify
+	return nil
 }
 
 func (w *TraceWriter) addSpans(pkg *SampledSpans) {
@@ -158,6 +192,22 @@ func (w *TraceWriter) addSpans(pkg *SampledSpans) {
 		w.events = append(w.events, pkg.Events...)
 	}
 	w.bufferedSize += size
+}
+
+func (w *TraceWriter) drainAndFlush() {
+outer:
+	for {
+		select {
+		case pkg := <-w.In:
+			w.addSpans(pkg)
+		default:
+			break outer
+		}
+	}
+	w.flush()
+	// Wait for encoding/compression to complete on each payload,
+	// and submission to senders
+	w.wg.Wait()
 }
 
 func (w *TraceWriter) resetBuffer() {
@@ -216,7 +266,7 @@ func (w *TraceWriter) flush() {
 			log.Errorf("Error closing gzip stream when writing trace payload: %v", err)
 		}
 
-		sendPayloads(w.senders, p)
+		sendPayloads(w.senders, p, w.syncMode)
 	}()
 }
 

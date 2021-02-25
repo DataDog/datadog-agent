@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package processor
 
@@ -84,7 +84,7 @@ func (p *Processor) processMessage(msg *message.Message) {
 		metrics.LogsProcessed.Add(1)
 		metrics.TlmLogsProcessed.Inc()
 
-		p.diagnosticMessageReceiver.HandleMessage(*msg)
+		p.diagnosticMessageReceiver.HandleMessage(*msg, redactedMsg)
 
 		// Encode the message to its final format
 		content, err := p.encoder.Encode(msg, redactedMsg)

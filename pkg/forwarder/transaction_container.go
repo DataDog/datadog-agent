@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package forwarder
 
@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/hashicorp/go-multierror"
 )
@@ -43,16 +45,19 @@ func buildTransactionContainer(
 	dropPrioritySorter transactionPrioritySorter,
 	domain string,
 	apiKeys []string) *transactionContainer {
-	if maxMemSizeInBytes <= 0 {
-		return nil
-	}
 	var storage transactionStorage
 	var err error
 
 	if optionalDomainFolderPath != "" && storageMaxSize > 0 {
 		serializer := NewTransactionsSerializer(domain, apiKeys)
-		storage, err = newTransactionsFileStorage(serializer, optionalDomainFolderPath, storageMaxSize, transactionsFileStorageTelemetry{})
+		var maxStorage *forwarderMaxStorage
+		storageMaxSize := config.Datadog.GetInt64("forwarder_storage_max_size_in_bytes")
+		diskRatio := config.Datadog.GetFloat64("forwarder_storage_max_disk_ratio")
 
+		maxStorage, err = newForwarderMaxStorage(optionalDomainFolderPath, filesystem.NewDisk(), storageMaxSize, diskRatio)
+		if err == nil {
+			storage, err = newTransactionsFileStorage(serializer, optionalDomainFolderPath, maxStorage, transactionsFileStorageTelemetry{})
+		}
 		// If the storage on disk cannot be used, log the error and continue.
 		// Returning `nil, err` would mean not using `TransactionContainer` and so not using `forwarder_retry_queue_payloads_max_size` config.
 		if err != nil {
@@ -181,6 +186,11 @@ func (tc *transactionContainer) extractTransactionsForDisk(payloadSize int) [][]
 		// Flush the N first transactions whose payload size sum is greater than `sizeInBytesToFlush`
 		transactions := tc.extractTransactionsFromMemory(sizeInBytesToFlush)
 
+		if len(transactions) == 0 {
+			// Happens when `sizeInBytesToFlush == 0`
+			// Avoid infinite loop
+			break
+		}
 		payloadsGroupToFlush = append(payloadsGroupToFlush, transactions)
 	}
 

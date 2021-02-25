@@ -1,7 +1,7 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
-# Copyright 2016-2020 Datadog, Inc.
+# Copyright 2016-present Datadog, Inc.
 
 require './lib/ostools.rb'
 require 'pathname'
@@ -21,9 +21,11 @@ build do
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
   etc_dir = "/etc/datadog-agent"
+  gomodcache = Pathname.new("/gomodcache")
   if windows?
     env = {
         'GOPATH' => gopath.to_path,
+        'GOMODCACHE' => gomodcache.to_path,
         'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
         "Python2_ROOT_DIR" => "#{windows_safe_path(python_2_embedded)}",
         "Python3_ROOT_DIR" => "#{windows_safe_path(python_3_embedded)}",
@@ -34,6 +36,7 @@ build do
   else
     env = {
         'GOPATH' => gopath.to_path,
+        'GOMODCACHE' => gomodcache.to_path,
         'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
         "Python2_ROOT_DIR" => "#{install_dir}/embedded",
         "Python3_ROOT_DIR" => "#{install_dir}/embedded",
@@ -48,13 +51,6 @@ build do
   # include embedded path (mostly for `pkg-config` binary)
   env = with_embedded_path(env)
 
-  # cgosymbolizer must be patched on SLES11 builders - PR upstream pending merge
-  if suse?
-    patch :source => "0001-sles-sys-types.h-must-be-included-here-to-build.patch", :plevel => 1,
-          :acceptable_output => "Reversed (or previously applied) patch detected",
-          :target => "#{gopath.to_path}/src/github.com/DataDog/datadog-agent/vendor/github.com/ianlancetaylor/cgosymbolizer/symbolizer.c"
-  end
-
   # we assume the go deps are already installed before running omnibus
   if windows?
     platform = windows_arch_i386? ? "x86" : "x64"
@@ -65,7 +61,7 @@ build do
     command "inv -e rtloader.make --python-runtimes #{py_runtimes_arg} --install-prefix \"#{windows_safe_path(python_2_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\"\" --arch #{platform}", :env => env
     command "mv rtloader/bin/*.dll  #{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent/"
     command "inv -e agent.build --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rtloader-root=#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/rtloader --rebuild --no-development --embedded-path=#{install_dir}/embedded --arch #{platform} #{do_windows_sysprobe}", env: env
-    command "inv -e systray.build --major-version #{major_version_arg} --rebuild --no-development --arch #{platform}", env: env
+    command "inv -e systray.build --major-version #{major_version_arg} --rebuild --arch #{platform}", env: env
   else
     command "inv -e rtloader.make --python-runtimes #{py_runtimes_arg} --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER'", :env => env
     command "inv -e rtloader.install"
@@ -87,7 +83,11 @@ build do
   ## build the custom action library required for the install
   if windows?
     platform = windows_arch_i386? ? "x86" : "x64"
-    command "invoke customaction.build --major-version #{major_version_arg} --arch=" + platform
+    debug_customaction = ""
+    if ENV['DEBUG_CUSTOMACTION'] and not ENV['DEBUG_CUSTOMACTION'].empty?
+      debug_customaction = "--debug"
+    end
+    command "invoke customaction.build --major-version #{major_version_arg} #{debug_customaction} --arch=" + platform
     unless windows_arch_i386?
       command "invoke installcmd.build --major-version #{major_version_arg} --arch=" + platform
       command "invoke uninstallcmd.build --major-version #{major_version_arg} --arch=" + platform

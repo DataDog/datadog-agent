@@ -2,6 +2,43 @@
 Release Notes
 =============
 
+.. _Release Notes_7.25.1:
+
+7.25.1
+======
+
+.. _Release Notes_7.25.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2021-01-26
+
+
+.. _Release Notes_7.25.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix "fatal error: concurrent map read and map write" due to reads of
+  a concurrently mutated map in inventories.payload.MarshalJSON()
+
+- Fix an issue on arm64 where non-gauge metrics from Python checks
+  were treated as gauges.
+
+- On Windows, fixes uninstall/upgrade problem if core agent is not running
+  but other services are.
+
+- Fix NPM UDP destination address decoding when source address ends with `.8` during offset guessing.
+
+- On Windows, changes the password generating algorithm to have a minimum
+  length of 16 and a maximum length of 20 (from 12-18).  Improves compatibility
+  with environments that have longer password requirements.
+
+=============
+Release Notes
+=============
+
 .. _Release Notes_7.25.0:
 
 7.25.0 / 6.25.0

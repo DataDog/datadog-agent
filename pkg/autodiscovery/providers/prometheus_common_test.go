@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package providers
 
@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/stretchr/testify/assert"
@@ -18,23 +18,23 @@ import (
 func TestGetPrometheusConfigs(t *testing.T) {
 	tests := []struct {
 		name       string
-		config     []*common.PrometheusCheck
-		wantChecks []*common.PrometheusCheck
+		config     []*types.PrometheusCheck
+		wantChecks []*types.PrometheusCheck
 		wantErr    bool
 	}{
 		{
 			name:   "empty config, default check",
-			config: []*common.PrometheusCheck{},
-			wantChecks: []*common.PrometheusCheck{
+			config: []*types.PrometheusCheck{},
+			wantChecks: []*types.PrometheusCheck{
 				{
-					Instances: []*common.OpenmetricsInstance{
+					Instances: []*types.OpenmetricsInstance{
 						{
 							Metrics:   []string{"*"},
 							Namespace: "",
 						},
 					},
-					AD: &common.ADConfig{
-						KubeAnnotations: &common.InclExcl{
+					AD: &types.ADConfig{
+						KubeAnnotations: &types.InclExcl{
 							Excl: map[string]string{"prometheus.io/scrape": "false"},
 							Incl: map[string]string{"prometheus.io/scrape": "true"},
 						},
@@ -46,26 +46,26 @@ func TestGetPrometheusConfigs(t *testing.T) {
 		},
 		{
 			name: "custom instance, set required fields",
-			config: []*common.PrometheusCheck{
+			config: []*types.PrometheusCheck{
 				{
-					Instances: []*common.OpenmetricsInstance{
+					Instances: []*types.OpenmetricsInstance{
 						{
 							Timeout: 20,
 						},
 					},
 				},
 			},
-			wantChecks: []*common.PrometheusCheck{
+			wantChecks: []*types.PrometheusCheck{
 				{
-					Instances: []*common.OpenmetricsInstance{
+					Instances: []*types.OpenmetricsInstance{
 						{
 							Metrics:   []string{"*"},
 							Namespace: "",
 							Timeout:   20,
 						},
 					},
-					AD: &common.ADConfig{
-						KubeAnnotations: &common.InclExcl{
+					AD: &types.ADConfig{
+						KubeAnnotations: &types.InclExcl{
 							Excl: map[string]string{"prometheus.io/scrape": "false"},
 							Incl: map[string]string{"prometheus.io/scrape": "true"},
 						},
@@ -77,26 +77,26 @@ func TestGetPrometheusConfigs(t *testing.T) {
 		},
 		{
 			name: "custom AD, set required fields",
-			config: []*common.PrometheusCheck{
+			config: []*types.PrometheusCheck{
 				{
-					AD: &common.ADConfig{
-						KubeAnnotations: &common.InclExcl{
+					AD: &types.ADConfig{
+						KubeAnnotations: &types.InclExcl{
 							Excl: map[string]string{"custom/annotation": "exclude"},
 						},
 						KubeContainerNames: []string{"foo*"},
 					},
 				},
 			},
-			wantChecks: []*common.PrometheusCheck{
+			wantChecks: []*types.PrometheusCheck{
 				{
-					Instances: []*common.OpenmetricsInstance{
+					Instances: []*types.OpenmetricsInstance{
 						{
 							Metrics:   []string{"*"},
 							Namespace: "",
 						},
 					},
-					AD: &common.ADConfig{
-						KubeAnnotations: &common.InclExcl{
+					AD: &types.ADConfig{
+						KubeAnnotations: &types.InclExcl{
 							Excl: map[string]string{"custom/annotation": "exclude"},
 							Incl: map[string]string{"prometheus.io/scrape": "true"},
 						},
@@ -109,17 +109,17 @@ func TestGetPrometheusConfigs(t *testing.T) {
 		},
 		{
 			name: "custom instances and AD",
-			config: []*common.PrometheusCheck{
+			config: []*types.PrometheusCheck{
 				{
-					Instances: []*common.OpenmetricsInstance{
+					Instances: []*types.OpenmetricsInstance{
 						{
 							Metrics:       []string{"foo", "bar"},
 							Namespace:     "custom_ns",
 							IgnoreMetrics: []string{"baz"},
 						},
 					},
-					AD: &common.ADConfig{
-						KubeAnnotations: &common.InclExcl{
+					AD: &types.ADConfig{
+						KubeAnnotations: &types.InclExcl{
 							Incl: map[string]string{"custom/annotation": "include"},
 							Excl: map[string]string{"custom/annotation": "exclude"},
 						},
@@ -127,17 +127,17 @@ func TestGetPrometheusConfigs(t *testing.T) {
 					},
 				},
 			},
-			wantChecks: []*common.PrometheusCheck{
+			wantChecks: []*types.PrometheusCheck{
 				{
-					Instances: []*common.OpenmetricsInstance{
+					Instances: []*types.OpenmetricsInstance{
 						{
 							Metrics:       []string{"foo", "bar"},
 							Namespace:     "custom_ns",
 							IgnoreMetrics: []string{"baz"},
 						},
 					},
-					AD: &common.ADConfig{
-						KubeAnnotations: &common.InclExcl{
+					AD: &types.ADConfig{
+						KubeAnnotations: &types.InclExcl{
 							Incl: map[string]string{"custom/annotation": "include"},
 							Excl: map[string]string{"custom/annotation": "exclude"},
 						},
@@ -149,40 +149,40 @@ func TestGetPrometheusConfigs(t *testing.T) {
 		},
 		{
 			name: "invalid check",
-			config: []*common.PrometheusCheck{
+			config: []*types.PrometheusCheck{
 				{
-					AD: &common.ADConfig{
+					AD: &types.ADConfig{
 						KubeContainerNames: []string{"*"},
 					},
 				},
 			},
-			wantChecks: []*common.PrometheusCheck{},
+			wantChecks: []*types.PrometheusCheck{},
 			wantErr:    false,
 		},
 		{
 			name: "two checks, one invalid check",
-			config: []*common.PrometheusCheck{
+			config: []*types.PrometheusCheck{
 				{
-					AD: &common.ADConfig{
+					AD: &types.ADConfig{
 						KubeContainerNames: []string{"*"},
 					},
 				},
 				{
-					AD: &common.ADConfig{
+					AD: &types.ADConfig{
 						KubeContainerNames: []string{"foo", "bar"},
 					},
 				},
 			},
-			wantChecks: []*common.PrometheusCheck{
+			wantChecks: []*types.PrometheusCheck{
 				{
-					Instances: []*common.OpenmetricsInstance{
+					Instances: []*types.OpenmetricsInstance{
 						{
 							Metrics:   []string{"*"},
 							Namespace: "",
 						},
 					},
-					AD: &common.ADConfig{
-						KubeAnnotations: &common.InclExcl{
+					AD: &types.ADConfig{
+						KubeAnnotations: &types.InclExcl{
 							Excl: map[string]string{"prometheus.io/scrape": "false"},
 							Incl: map[string]string{"prometheus.io/scrape": "true"},
 						},

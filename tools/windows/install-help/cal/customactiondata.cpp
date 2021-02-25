@@ -2,7 +2,8 @@
 
 CustomActionData::CustomActionData()
     : domainUser(false)
-    , doInstallSysprobe(false)
+    , doInstallSysprobe(true)
+    , ddnpmPresent(false)
     , userParamMismatch(false)
 {
 }
@@ -116,6 +117,11 @@ bool CustomActionData::installSysprobe() const
     return doInstallSysprobe;
 }
 
+bool CustomActionData::npmPresent() const 
+{
+    return this->ddnpmPresent;
+}
+
 const TargetMachine &CustomActionData::GetTargetMachine() const
 {
     return machine;
@@ -130,6 +136,7 @@ bool CustomActionData::parseSysprobeData()
     std::wstring sysprobePresent;
     std::wstring addlocal;
     this->doInstallSysprobe = false;
+    this->ddnpmPresent = false;
     if (!this->value(L"SYSPROBE_PRESENT", sysprobePresent))
     {
         // key isn't even there.
@@ -143,7 +150,10 @@ bool CustomActionData::parseSysprobeData()
         WcaLog(LOGMSG_STANDARD, "SYSPROBE_PRESENT explicitly disabled %S", sysprobePresent.c_str());
         return true;
     }
-    if (!this->value(L"ADDLOCAL", addlocal))
+    this->doInstallSysprobe = true;
+
+    // now check to see if we're installing the driver
+    if(!this->value(L"ADDLOCAL", addlocal))
     {
         // should never happen.  But if the addlocalkey isn't there,
         // don't bother trying
@@ -152,17 +162,15 @@ bool CustomActionData::parseSysprobeData()
         return true;
     }
     WcaLog(LOGMSG_STANDARD, "ADDLOCAL is (%S)", addlocal.c_str());
-    if (_wcsicmp(addlocal.c_str(), L"ALL") == 0)
-    {
+    if(_wcsicmp(addlocal.c_str(), L"ALL")== 0){
         // installing all components, do it
-        this->doInstallSysprobe = true;
+        this->ddnpmPresent = true;
         WcaLog(LOGMSG_STANDARD, "ADDLOCAL is ALL");
-    }
-    else if (addlocal.find(L"WindowsNP") != std::wstring::npos)
-    {
+    } else if (addlocal.find(L"WindowsNP") != std::wstring::npos) {
         WcaLog(LOGMSG_STANDARD, "ADDLOCAL contains WindowsNP %S", addlocal.c_str());
-        this->doInstallSysprobe = true;
+        this->ddnpmPresent = true;
     }
+    
     return true;
 }
 

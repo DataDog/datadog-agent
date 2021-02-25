@@ -32,12 +32,12 @@ func NewOffsetManager() *manager.Manager {
 	}
 }
 
-func NewManager(closedHandler, httpHandler *ebpf.PerfHandler) *manager.Manager {
-	return &manager.Manager{
+func NewManager(closedHandler, httpHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Manager {
+	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: string(probes.ConnMap)},
 			{Name: string(probes.TcpStatsMap)},
-			{Name: string(probes.TcpCloseBatchMap)},
+			{Name: string(probes.ConnCloseBatchMap)},
 			{Name: "udp_recv_sock"},
 			{Name: string(probes.PortBindingsMap)},
 			{Name: string(probes.UdpPortBindingsMap)},
@@ -49,7 +49,7 @@ func NewManager(closedHandler, httpHandler *ebpf.PerfHandler) *manager.Manager {
 		},
 		PerfMaps: []*manager.PerfMap{
 			{
-				Map: manager.Map{Name: string(probes.TcpCloseEventMap)},
+				Map: manager.Map{Name: string(probes.ConnCloseEventMap)},
 				PerfMapOptions: manager.PerfMapOptions{
 					PerfRingBufferSize: 8 * os.Getpagesize(),
 					Watermark:          1,
@@ -84,6 +84,7 @@ func NewManager(closedHandler, httpHandler *ebpf.PerfHandler) *manager.Manager {
 			{Section: string(probes.InetCskAcceptReturn), KProbeMaxActive: maxActive},
 			{Section: string(probes.TCPv4DestroySock)},
 			{Section: string(probes.UDPDestroySock)},
+			{Section: string(probes.UDPDestroySockReturn), KProbeMaxActive: maxActive},
 			{Section: string(probes.InetBind)},
 			{Section: string(probes.Inet6Bind)},
 			{Section: string(probes.InetBindRet), KProbeMaxActive: maxActive},
@@ -92,4 +93,13 @@ func NewManager(closedHandler, httpHandler *ebpf.PerfHandler) *manager.Manager {
 			{Section: string(probes.SocketHTTPFilter)},
 		},
 	}
+
+	// the runtime compiled tracer has no need for separate probes targeting specific kernel versions, since it can
+	// do that with #ifdefs inline. Thus the following probes should only be declared as existing in the prebuilt
+	// tracer.
+	if !runtimeTracer {
+		mgr.Probes = append(mgr.Probes, &manager.Probe{Section: string(probes.TCPRetransmitPre470), MatchFuncName: "^tcp_retransmit_skb$"})
+	}
+
+	return mgr
 }

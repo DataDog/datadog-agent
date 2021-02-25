@@ -1,12 +1,15 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017-2020 Datadog, Inc.
+// Copyright 2017-present Datadog, Inc.
 
 package listeners
 
 import (
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -211,6 +214,43 @@ func TestComputeContainerServiceIDs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.want, ComputeContainerServiceIDs(tt.args.entity, tt.args.image, tt.args.labels))
+		})
+	}
+}
+
+func TestGetPrometheusIncludeAnnotations(t *testing.T) {
+	tests := []struct {
+		name   string
+		config []*types.PrometheusCheck
+		want   map[string]string
+	}{
+		{
+			name:   "empty config, default",
+			config: []*types.PrometheusCheck{},
+			want:   types.PrometheusAnnotations{"prometheus.io/scrape": "true"},
+		},
+		{
+			name:   "custom config",
+			config: []*types.PrometheusCheck{{AD: &types.ADConfig{KubeAnnotations: &types.InclExcl{Incl: map[string]string{"include": "true"}}}}},
+			want:   types.PrometheusAnnotations{"include": "true"},
+		},
+		{
+			name: "multiple configs",
+			config: []*types.PrometheusCheck{
+				{
+					AD: &types.ADConfig{KubeAnnotations: &types.InclExcl{Incl: map[string]string{"foo": "bar"}}},
+				},
+				{
+					AD: &types.ADConfig{KubeAnnotations: &types.InclExcl{Incl: map[string]string{"baz": "tar"}}},
+				},
+			},
+			want: types.PrometheusAnnotations{"foo": "bar", "baz": "tar"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config.Datadog.Set("prometheus_scrape.checks", tt.config)
+			assert.EqualValues(t, tt.want, getPrometheusIncludeAnnotations())
 		})
 	}
 }

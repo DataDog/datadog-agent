@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package obfuscate
 
@@ -21,6 +21,8 @@ import (
 
 const sqlQueryTag = "sql.query"
 const nonParsableResource = "Non-parsable SQL query"
+
+var questionMark = []byte("?")
 
 // tokenFilter is a generic interface that a sqlObfuscator expects. It defines
 // the Filter() function used to filter or replace given tokens.
@@ -76,7 +78,7 @@ func (f *discardFilter) Filter(token, lastToken TokenKind, buffer []byte) (Token
 	case As:
 		return As, nil, nil
 	case Comment, ';':
-		return FilteredGroupable, nil, nil
+		return markFilteredGroupable(token), nil, nil
 	default:
 		return token, buffer, nil
 	}
@@ -95,20 +97,20 @@ type replaceFilter struct {
 func (f *replaceFilter) Filter(token, lastToken TokenKind, buffer []byte) (tokenType TokenKind, tokenBytes []byte, err error) {
 	switch lastToken {
 	case Savepoint:
-		return FilteredGroupable, []byte("?"), nil
+		return markFilteredGroupable(token), questionMark, nil
 	case '=':
 		switch token {
 		case DoubleQuotedString:
 			// double-quoted strings after assignments are eligible for obfuscation
-			return FilteredGroupable, []byte("?"), nil
+			return markFilteredGroupable(token), questionMark, nil
 		}
 	}
 	switch token {
 	case String, Number, Null, Variable, PreparedStatement, BooleanLiteral, EscapeSequence:
-		return FilteredGroupable, []byte("?"), nil
+		return markFilteredGroupable(token), questionMark, nil
 	case '?':
 		// Cases like 'ARRAY [ ?, ? ]' should be collapsed into 'ARRAY [ ? ]'
-		return FilteredGroupable, []byte("?"), nil
+		return markFilteredGroupable(token), questionMark, nil
 	case TableName:
 		if f.quantizeTableNames {
 			return token, replaceDigits(buffer), nil
@@ -125,8 +127,8 @@ func (f *replaceFilter) Reset() {}
 // groupingFilter is a token filter which groups together items replaced by the replaceFilter. It is meant
 // to run immediately after it.
 type groupingFilter struct {
-	groupFilter int
-	groupMulti  int
+	groupFilter int // counts the number of values, e.g. 3 = ?, ?, ?
+	groupMulti  int // counts the number of groups, e.g. 2 = (?, ?), (?, ?, ?)
 }
 
 // Filter the given token so that it will be discarded if a grouping pattern
@@ -136,33 +138,59 @@ type groupingFilter struct {
 func (f *groupingFilter) Filter(token, lastToken TokenKind, buffer []byte) (tokenType TokenKind, tokenBytes []byte, err error) {
 	// increasing the number of groups means that we're filtering an entire group
 	// because it can be represented with a single '( ? )'
-	if (lastToken == '(' && token == FilteredGroupable) || (token == '(' && f.groupMulti > 0) {
+	if (lastToken == '(' && isFilteredGroupable(token)) || (token == '(' && f.groupMulti > 0) {
 		f.groupMulti++
 	}
 
 	switch {
-	case token == FilteredGroupable:
+	case f.groupMulti > 0 && lastToken == FilteredGroupableParenthesis && token == ID:
+		// this is the start of a new group that seems to be a nested query;
+		// cancel grouping.
+		f.Reset()
+		return token, append([]byte("( "), buffer...), nil
+	case isFilteredGroupable(token):
 		// the previous filter has dropped this token so we should start
 		// counting the group filter so that we accept only one '?' for
 		// the same group
 		f.groupFilter++
 
 		if f.groupFilter > 1 {
-			return FilteredGroupable, nil, nil
+			return markFilteredGroupable(token), nil, nil
 		}
 	case f.groupFilter > 0 && (token == ',' || token == '?'):
 		// if we are in a group drop all commas
-		return FilteredGroupable, nil, nil
+		return markFilteredGroupable(token), nil, nil
 	case f.groupMulti > 1:
 		// drop all tokens since we're in a counting group
 		// and they're duplicated
-		return FilteredGroupable, nil, nil
-	case token != ',' && token != '(' && token != ')' && token != FilteredGroupable:
+		return markFilteredGroupable(token), nil, nil
+	case token != ',' && token != '(' && token != ')' && !isFilteredGroupable(token):
 		// when we're out of a group reset the filter state
 		f.Reset()
 	}
 
 	return token, buffer, nil
+}
+
+// isFilteredGroupable reports whether token is to be considered filtered groupable.
+func isFilteredGroupable(token TokenKind) bool {
+	switch token {
+	case FilteredGroupable, FilteredGroupableParenthesis:
+		return true
+	default:
+		return false
+	}
+}
+
+// markFilteredGroupable returns the appropriate TokenKind to mark this token as
+// filtered groupable.
+func markFilteredGroupable(token TokenKind) TokenKind {
+	switch token {
+	case '(':
+		return FilteredGroupableParenthesis
+	default:
+		return FilteredGroupable
+	}
 }
 
 // Reset resets the groupingFilter so that it may be used again.
@@ -357,7 +385,7 @@ func (o *Obfuscator) obfuscateSQL(span *pb.Span) {
 			span.Meta = make(map[string]string, 1)
 		}
 		if _, ok := span.Meta[sqlQueryTag]; !ok {
-			span.Meta[sqlQueryTag] = span.Resource
+			span.Meta[sqlQueryTag] = nonParsableResource
 		}
 		span.Resource = nonParsableResource
 		return

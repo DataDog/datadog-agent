@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package logs
 
@@ -67,6 +67,7 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 			coreConfig.Datadog.GetBool("logs_config.container_collect_all"),
 			coreConfig.Datadog.GetBool("logs_config.k8s_container_use_file"),
 			coreConfig.Datadog.GetBool("logs_config.docker_container_use_file"),
+			coreConfig.Datadog.GetBool("logs_config.docker_container_force_use_file"),
 			time.Duration(coreConfig.Datadog.GetInt("logs_config.docker_client_read_timeout"))*time.Second,
 			sources, services, pipelineProvider, auditor),
 		listener.NewLauncher(sources, coreConfig.Datadog.GetInt("logs_config.frame_size"), pipelineProvider),
@@ -91,6 +92,8 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 func NewServerless(sources *config.LogSources, services *service.Services, processingRules []*config.ProcessingRule, endpoints *config.Endpoints) *Agent {
 	health := health.RegisterLiveness("logs-agent")
 
+	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver()
+
 	// setup the a null auditor, not tracking data in any registry
 	auditor := auditor.NewNullAuditor()
 	destinationsCtx := client.NewDestinationsContext()
@@ -104,11 +107,12 @@ func NewServerless(sources *config.LogSources, services *service.Services, proce
 	}
 
 	return &Agent{
-		auditor:          auditor,
-		destinationsCtx:  destinationsCtx,
-		pipelineProvider: pipelineProvider,
-		inputs:           inputs,
-		health:           health,
+		auditor:                   auditor,
+		destinationsCtx:           destinationsCtx,
+		pipelineProvider:          pipelineProvider,
+		inputs:                    inputs,
+		health:                    health,
+		diagnosticMessageReceiver: diagnosticMessageReceiver,
 	}
 }
 

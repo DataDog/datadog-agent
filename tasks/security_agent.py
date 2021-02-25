@@ -45,14 +45,16 @@ def build(
     go_version=None,
     incremental_build=False,
     major_version='7',
-    arch="x64",
-    go_mod="vendor",
+    # arch is never used here; we keep it to have a
+    # consistent CLI on the build task for all agents.
+    arch="x64",  # noqa: U100
+    go_mod="mod",
     skip_assets=False,
 ):
     """
     Build the security agent
     """
-    ldflags, gcflags, env = get_build_flags(ctx, arch=arch, major_version=major_version, python_runtimes='3')
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes='3')
 
     # TODO use pkg/version for this
     main = "main."
@@ -151,8 +153,9 @@ def build_functional_tests(
     major_version='7',
     build_tags='functionaltests',
     bundle_ebpf=True,
+    static=False,
 ):
-    ldflags, gcflags, env = get_build_flags(ctx, arch=arch, major_version=major_version)
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version)
 
     goenv = get_go_env(ctx, go_version)
     env.update(goenv)
@@ -165,11 +168,16 @@ def build_functional_tests(
     if bundle_ebpf:
         build_tags = "ebpf_bindata," + build_tags
 
-    cmd = 'go test -tags {build_tags} -c -o {output} '
+    if static:
+        ldflags += '-extldflags "-static"'
+        build_tags += ',osusergo'
+
+    cmd = 'go test -mod=mod -tags {build_tags} -ldflags="{ldflags}" -c -o {output} '
     cmd += '{repo_path}/pkg/security/tests'
 
     args = {
         "output": output,
+        "ldflags": ldflags,
         "build_tags": build_tags,
         "repo_path": REPO_PATH,
     }

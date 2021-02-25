@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 //go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/generators/operators -output eval_operators.go
 
@@ -18,7 +18,6 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // Field name
@@ -212,13 +211,13 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, in
 			}
 
 			switch *obj.Op {
-			case "||":
+			case "||", "or":
 				boolEvaluator, err := Or(cmpBool, nextBool, opts, state)
 				if err != nil {
 					return nil, nil, obj.Pos, err
 				}
 				return boolEvaluator, nil, obj.Pos, nil
-			case "&&":
+			case "&&", "and":
 				boolEvaluator, err := And(cmpBool, nextBool, opts, state)
 				if err != nil {
 					return nil, nil, obj.Pos, err
@@ -453,7 +452,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, in
 			}
 
 			switch *obj.Op {
-			case "!":
+			case "!", "not":
 				unaryBool, ok := unary.(*BoolEvaluator)
 				if !ok {
 					return nil, nil, pos, NewTypeError(pos, reflect.Bool)
@@ -523,7 +522,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, in
 			if iterator != nil {
 				// regID not specified generate one
 				if regID == "" {
-					regID = utils.RandString(8)
+					regID = RandString(8)
 				}
 
 				if info, exists := state.registersInfo[regID]; exists {

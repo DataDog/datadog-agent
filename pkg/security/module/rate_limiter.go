@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build linux
 
@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 	"golang.org/x/time/rate"
 
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
@@ -123,12 +123,12 @@ func (rl *RateLimiter) SendStats() error {
 	for ruleID, counts := range rl.GetStats() {
 		tags := []string{fmt.Sprintf("rule_id:%s", ruleID)}
 		if counts.dropped > 0 {
-			if err := rl.statsdClient.Count(probe.MetricRateLimiterDrop, counts.dropped, tags, 1.0); err != nil {
+			if err := rl.statsdClient.Count(metrics.MetricRateLimiterDrop, counts.dropped, tags, 1.0); err != nil {
 				return err
 			}
 		}
 		if counts.allowed > 0 {
-			if err := rl.statsdClient.Count(probe.MetricRateLimiterAllow, counts.allowed, tags, 1.0); err != nil {
+			if err := rl.statsdClient.Count(metrics.MetricRateLimiterAllow, counts.allowed, tags, 1.0); err != nil {
 				return err
 			}
 		}

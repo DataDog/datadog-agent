@@ -2,7 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog
 // (https://www.datadoghq.com/).
-// Copyright 2019-2020 Datadog, Inc.
+// Copyright 2019-present Datadog, Inc.
 #ifndef DATADOG_AGENT_RTLOADER_H_INCLUDED
 #define DATADOG_AGENT_RTLOADER_H_INCLUDED
 
@@ -184,6 +184,16 @@ DATADOG_AGENT_RTLOADER_API int get_check_deprecated(rtloader_t *rtloader, rtload
     \sa rtloader_pyobject_t, rtloader_t
 */
 DATADOG_AGENT_RTLOADER_API char *run_check(rtloader_t *, rtloader_pyobject_t *check);
+
+/*! \fn char *cancel_check(rtloader_t *, rtloader_pyobject_t *check)
+    \brief Cancels a check instance. This allow check to be notified when
+    they're unscheduled and can free any remaining resources.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param check A rtloader_pyobject_t * pointer to the check instance we wish to cancel.
+    \return A C-string with the check summary.
+    \sa rtloader_pyobject_t, rtloader_t
+*/
+DATADOG_AGENT_RTLOADER_API void cancel_check(rtloader_t *, rtloader_pyobject_t *check);
 
 /*! \fn char **get_checks_warnings(rtloader_t *, rtloader_pyobject_t *check)
     \brief Get all warnings, if any, for a check instance.

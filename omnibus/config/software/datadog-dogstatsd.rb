@@ -1,7 +1,7 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
-# Copyright 2016-2020 Datadog, Inc.
+# Copyright 2016-present Datadog, Inc.
 require 'pathname'
 
 name 'datadog-dogstatsd'
@@ -16,8 +16,10 @@ relative_path 'src/github.com/DataDog/datadog-agent'
 build do
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
+  gomodcache = Pathname.new("/gomodcache")
   env = {
     'GOPATH' => gopath.to_path,
+    'GOMODCACHE' => gomodcache.to_path,
     'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
   }
 

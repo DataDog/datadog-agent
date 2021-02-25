@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package flare
 
@@ -899,8 +899,8 @@ func getFirstSuffix(s string) string {
 
 func getArchivePath() string {
 	dir := os.TempDir()
-	t := time.Now()
-	timeString := t.Format("2006-01-02-15-04-05")
+	t := time.Now().UTC()
+	timeString := strings.ReplaceAll(t.Format(time.RFC3339), ":", "-")
 	fileName := strings.Join([]string{"datadog", "agent", timeString}, "-")
 	fileName = strings.Join([]string{fileName, "zip"}, ".")
 	filePath := filepath.Join(dir, fileName)

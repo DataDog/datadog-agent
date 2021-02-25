@@ -3,24 +3,24 @@ package checks
 import (
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	model "github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	agentutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/gopsutil/cpu"
-	"github.com/DataDog/gopsutil/process"
-
-	model "github.com/DataDog/agent-payload/process"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/DataDog/datadog-agent/pkg/process/statsd"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 const emptyCtrID = ""
 
 // Process is a singleton ProcessCheck.
-var Process = &ProcessCheck{}
+var Process = &ProcessCheck{probe: procutil.NewProcessProbe()}
 
 var errEmptyCPUTime = errors.New("empty CPU time information returned")
 
@@ -30,13 +30,19 @@ var errEmptyCPUTime = errors.New("empty CPU time information returned")
 type ProcessCheck struct {
 	sync.RWMutex
 
+	probe *procutil.Probe
+
 	sysInfo         *model.SystemInfo
 	lastCPUTime     cpu.TimesStat
-	lastProcs       map[int32]*process.FilledProcess
+	lastProcs       map[int32]*procutil.Process
 	lastCtrRates    map[string]util.ContainerRateMetrics
 	lastCtrIDForPID map[int32]string
 	lastRun         time.Time
 	networkID       string
+
+	// lastPIDs is []int32 that holds PIDs that the check fetched last time,
+	// will be reused by RTProcessCheck to get stats
+	lastPIDs atomic.Value
 }
 
 // Init initializes the singleton ProcessCheck.
@@ -75,10 +81,19 @@ func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Mess
 	if len(cpuTimes) == 0 {
 		return nil, errEmptyCPUTime
 	}
-	procs, err := getAllProcesses(cfg)
+
+	procs, err := getAllProcesses(p.probe)
 	if err != nil {
 		return nil, err
 	}
+
+	// stores lastPIDs to be used by RTProcess
+	lastPIDs := make([]int32, 0, len(procs))
+	for pid := range procs {
+		lastPIDs = append(lastPIDs, pid)
+	}
+	p.lastPIDs.Store(lastPIDs)
+
 	ctrList, _ := util.GetContainers()
 
 	// Keep track of containers addresses
@@ -112,6 +127,14 @@ func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Mess
 	statsd.Client.Gauge("datadog.process.processes.host_count", float64(totalProcs), []string{}, 1)       //nolint:errcheck
 	log.Debugf("collected processes in %s", time.Now().Sub(start))
 	return messages, nil
+}
+
+// GetLastPIDs returns the lastPIDs as []int32 slice
+func (p *ProcessCheck) GetLastPIDs() []int32 {
+	if result := p.lastPIDs.Load(); result != nil {
+		return result.([]int32)
+	}
+	return nil
 }
 
 func createProcCtrMessages(
@@ -205,7 +228,7 @@ func ctrIDForPID(ctrList []*containers.Container) map[int32]string {
 // non-container processes would be in a single group with key as empty string ""
 func fmtProcesses(
 	cfg *config.AgentConfig,
-	procs, lastProcs map[int32]*process.FilledProcess,
+	procs, lastProcs map[int32]*procutil.Process,
 	ctrByProc map[int32]string,
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
@@ -225,14 +248,14 @@ func fmtProcesses(
 			NsPid:                  fp.NsPid,
 			Command:                formatCommand(fp),
 			User:                   formatUser(fp),
-			Memory:                 formatMemory(fp),
-			Cpu:                    formatCPU(fp, fp.CpuTime, lastProcs[fp.Pid].CpuTime, syst2, syst1),
-			CreateTime:             fp.CreateTime,
-			OpenFdCount:            fp.OpenFdCount,
-			State:                  model.ProcessState(model.ProcessState_value[fp.Status]),
-			IoStat:                 formatIO(fp, lastProcs[fp.Pid].IOStat, lastRun),
-			VoluntaryCtxSwitches:   uint64(fp.CtxSwitches.Voluntary),
-			InvoluntaryCtxSwitches: uint64(fp.CtxSwitches.Involuntary),
+			Memory:                 formatMemory(fp.Stats),
+			Cpu:                    formatCPU(fp.Stats, fp.Stats.CPUTime, lastProcs[fp.Pid].Stats.CPUTime, syst2, syst1),
+			CreateTime:             fp.Stats.CreateTime,
+			OpenFdCount:            fp.Stats.OpenFdCount,
+			State:                  model.ProcessState(model.ProcessState_value[fp.Stats.Status]),
+			IoStat:                 formatIO(fp.Stats, lastProcs[fp.Pid].Stats.IOStat, lastRun),
+			VoluntaryCtxSwitches:   uint64(fp.Stats.CtxSwitches.Voluntary),
+			InvoluntaryCtxSwitches: uint64(fp.Stats.CtxSwitches.Involuntary),
 			ContainerId:            ctrByProc[fp.Pid],
 		}
 		_, ok := procsByCtr[proc.ContainerId]
@@ -247,7 +270,7 @@ func fmtProcesses(
 	return procsByCtr
 }
 
-func formatCommand(fp *process.FilledProcess) *model.Command {
+func formatCommand(fp *procutil.Process) *model.Command {
 	return &model.Command{
 		Args:   fp.Cmdline,
 		Cwd:    fp.Cwd,
@@ -258,8 +281,8 @@ func formatCommand(fp *process.FilledProcess) *model.Command {
 	}
 }
 
-func formatIO(fp *process.FilledProcess, lastIO *process.IOCountersStat, before time.Time) *model.IOStat {
-	// This will be nill for Mac
+func formatIO(fp *procutil.Stats, lastIO *procutil.IOCountersStat, before time.Time) *model.IOStat {
+	// This will be nil for Mac
 	if fp.IOStat == nil {
 		return &model.IOStat{}
 	}
@@ -297,7 +320,7 @@ func formatIO(fp *process.FilledProcess, lastIO *process.IOCountersStat, before 
 	}
 }
 
-func formatMemory(fp *process.FilledProcess) *model.MemoryStat {
+func formatMemory(fp *procutil.Stats) *model.MemoryStat {
 	ms := &model.MemoryStat{
 		Rss:  fp.MemInfo.RSS,
 		Vms:  fp.MemInfo.VMS,
@@ -318,8 +341,8 @@ func formatMemory(fp *process.FilledProcess) *model.MemoryStat {
 // for multiple collections.
 func skipProcess(
 	cfg *config.AgentConfig,
-	fp *process.FilledProcess,
-	lastProcs map[int32]*process.FilledProcess,
+	fp *procutil.Process,
+	lastProcs map[int32]*procutil.Process,
 ) bool {
 	if len(fp.Cmdline) == 0 {
 		return true
@@ -342,7 +365,7 @@ func (p *ProcessCheck) createTimesforPIDs(pids []int32) map[int32]int64 {
 	createTimeForPID := make(map[int32]int64)
 	for _, pid := range pids {
 		if p, ok := p.lastProcs[pid]; ok {
-			createTimeForPID[pid] = p.CreateTime
+			createTimeForPID[pid] = p.Stats.CreateTime
 		}
 	}
 	return createTimeForPID

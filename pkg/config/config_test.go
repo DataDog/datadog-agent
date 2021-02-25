@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package config
 
@@ -11,6 +11,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -920,4 +922,20 @@ func TestDogstatsdMappingProfilesEnv(t *testing.T) {
 	}
 	mappings, _ := GetDogstatsdMappingProfiles()
 	assert.Equal(t, mappings, expected)
+}
+
+func TestPrometheusScrapeChecksEnv(t *testing.T) {
+	env := "DD_PROMETHEUS_SCRAPE_CHECKS"
+	err := os.Setenv(env, `[{"configurations":[{"timeout":5,"send_distribution_buckets":true}],"autodiscovery":{"kubernetes_container_names":["my-app"],"kubernetes_annotations":{"include":{"custom_label":"true"}}}}]`)
+	assert.Nil(t, err)
+	defer os.Unsetenv(env)
+	expected := []*types.PrometheusCheck{
+		{
+			Instances: []*types.OpenmetricsInstance{{Timeout: 5, DistributionBuckets: true}},
+			AD:        &types.ADConfig{KubeContainerNames: []string{"my-app"}, KubeAnnotations: &types.InclExcl{Incl: map[string]string{"custom_label": "true"}}},
+		},
+	}
+	checks := []*types.PrometheusCheck{}
+	assert.NoError(t, Datadog.UnmarshalKey("prometheus_scrape.checks", &checks))
+	assert.EqualValues(t, checks, expected)
 }
