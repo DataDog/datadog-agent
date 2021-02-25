@@ -13,6 +13,7 @@ import (
 	"sort"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/cloudfoundry-community/go-cfclient"
 
 	"code.cloudfoundry.org/bbs/models"
 )
@@ -118,6 +119,17 @@ type DesiredLRP struct {
 	ProcessGUID        string
 	SpaceGUID          string
 	SpaceName          string
+}
+
+// CFApp carries the necessary data about a CF App obtained from the CC API
+type CFApp struct {
+	Name string
+}
+
+func CFAppFromV3App(app *cfclient.V3App) *CFApp {
+	return &CFApp{
+		Name: app.Name,
+	}
 }
 
 // ActualLRPFromBBSModel creates a new ActualLRP from BBS's ActualLRP model

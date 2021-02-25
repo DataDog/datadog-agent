@@ -37,7 +37,7 @@ type CCCache struct {
 	pollAttempts  int
 	pollSuccesses int
 	lastUpdated   time.Time
-	appsByGUID    map[string]*cfclient.V3App
+	appsByGUID    map[string]*CFApp
 }
 
 type CCClientI interface {
@@ -112,7 +112,7 @@ func (ccc *CCCache) GetPollSuccesses() int {
 	return ccc.pollSuccesses
 }
 
-func (ccc *CCCache) GetApp(guid string) (*cfclient.V3App, error) {
+func (ccc *CCCache) GetApp(guid string) (*CFApp, error) {
 	ccc.RLock()
 	defer ccc.RUnlock()
 	app, ok := ccc.appsByGUID[guid]
@@ -149,9 +149,9 @@ func (ccc *CCCache) readData() {
 		_ = log.Errorf("Failed listing apps from cloud controller: %v", err)
 		return
 	}
-	appsByGUID := make(map[string]*cfclient.V3App, len(apps))
-	for i, app := range apps {
-		appsByGUID[app.GUID] = &apps[i] // can't point to the for loop variable, as it is reused, use indexed value
+	appsByGUID := make(map[string]*CFApp, len(apps))
+	for _, app := range apps {
+		appsByGUID[app.GUID] = CFAppFromV3App(&app) // can't point to the for loop variable, as it is reused, use indexed value
 	}
 
 	// put new apps in cache

@@ -12,8 +12,37 @@ import (
 	"testing"
 
 	"code.cloudfoundry.org/bbs/models"
+	"github.com/cloudfoundry-community/go-cfclient"
 	"github.com/stretchr/testify/assert"
 )
+
+var v3App1 = cfclient.V3App{
+	Name:          "name_of_app_cc",
+	State:         "running",
+	Lifecycle:     cfclient.V3Lifecycle{},
+	GUID:          "random_app_guid",
+	CreatedAt:     "",
+	UpdatedAt:     "",
+	Relationships: nil,
+	Links:         nil,
+	Metadata:      cfclient.V3Metadata{},
+}
+
+var cfApp1 = CFApp{
+	Name: "name_of_app_cc",
+}
+
+var v3App2 = cfclient.V3App{
+	Name:          "app2",
+	State:         "running",
+	Lifecycle:     cfclient.V3Lifecycle{},
+	GUID:          "guid2",
+	CreatedAt:     "",
+	UpdatedAt:     "",
+	Relationships: nil,
+	Links:         nil,
+	Metadata:      cfclient.V3Metadata{},
+}
 
 var BBSModelA1 = models.ActualLRP{
 	ActualLRPNetInfo: models.ActualLRPNetInfo{
@@ -174,6 +203,11 @@ func TestADIdentifier(t *testing.T) {
 			assert.EqualValues(t, tc.expected, i.String())
 		})
 	}
+}
+
+func TestCFAppFromV3App(t *testing.T) {
+	result := CFAppFromV3App(&v3App1)
+	assert.EqualValues(t, cfApp1, *result)
 }
 
 func TestActualLRPFromBBSModel(t *testing.T) {
