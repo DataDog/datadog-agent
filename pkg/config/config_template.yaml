@@ -200,7 +200,7 @@ api_key:
 ## is reached or when the disk mount for `forwarder_storage_path` exceeds 95% of the disk capacity,
 ## whichever is lower.
 # 
-# forwarder_storage_max_size_in_bytes: 0.95
+# forwarder_storage_max_disk_ratio: 0.95
 
 ## @param forwarder_storage_path - string - optional - default: /opt/datadog-agent/run/transactions_to_retry (c:\ProgramData\Datadog\run\transactions_to_retry on Windows)
 ## `forwarder_storage_path` defines the root folder where the transactions of the forwarder are stored when
