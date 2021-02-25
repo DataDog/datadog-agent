@@ -1,8 +1,14 @@
 package aws
 
 import (
+	"io/ioutil"
 	"strings"
 	"sync"
+)
+
+const (
+	cachedARNFilePath       = "/tmp/dd-lambda-extension-function-arn-cache"
+	cachedRequestIDFilePath = "/tmp/dd-lambda-extension-request-id-cache"
 )
 
 var currentARN struct {
@@ -39,6 +45,21 @@ func SetARN(arn string) {
 	}
 
 	currentARN.value = arn
+	cacheARN(arn)
+}
+
+// cacheARN writes the ARN to a file in the /tmp directory so we can restore it if the extension process is restarted
+func cacheARN(arn string) {
+	data := []byte(arn)
+	ioutil.WriteFile(cachedARNFilePath, data, 0644)
+}
+
+// FunctionNameFromARN returns the function name from the currently set ARN.
+// Thread-safe.
+func FunctionNameFromARN() string {
+	arn := GetARN()
+	parts := strings.Split(arn, ":")
+	return parts[len(parts)-1]
 }
 
 // GetRequestID returns the currently running function request ID.
@@ -55,17 +76,39 @@ func SetRequestID(reqID string) {
 	defer currentReqID.Unlock()
 
 	currentReqID.value = reqID
+	cacheRequestID(reqID)
 }
 
-// FunctionNameFromARN returns the function name from the currently set ARN.
-// Thread-safe.
-func FunctionNameFromARN() string {
-	currentARN.Lock()
-	defer currentARN.Unlock()
-	if currentARN.value == "" {
+// cacheRequestID writes the Request ID to a file in the /tmp directory so we can restore it if the extension process is restarted
+func cacheRequestID(reqID string) {
+	data := []byte(reqID)
+	ioutil.WriteFile(cachedRequestIDFilePath, data, 0644)
+}
+
+// RestoreCurrentARNFromCache sets the current ARN to the value cached as a file in case the extension process was restarted
+func RestoreCurrentARNFromCache() {
+	SetARN(getCurrentARNFromCache())
+}
+
+// getCurrentARNFromCache retrieves the cached current ARN
+func getCurrentARNFromCache() string {
+	data, err := ioutil.ReadFile(cachedARNFilePath)
+	if err != nil {
 		return ""
 	}
+	return string(data)
+}
 
-	parts := strings.Split(currentARN.value, ":")
-	return parts[len(parts)-1]
+// RestoreCurrentRequestIDFromCache sets the current request ID to the value cached as a file in case the extension process was restarted
+func RestoreCurrentRequestIDFromCache() {
+	SetRequestID(getCurrentRequestIDFromCache())
+}
+
+// getCurrentRequestIDFromCache retrieves the cached current request ID
+func getCurrentRequestIDFromCache() string {
+	data, err := ioutil.ReadFile(cachedRequestIDFilePath)
+	if err != nil {
+		return ""
+	}
+	return string(data)
 }

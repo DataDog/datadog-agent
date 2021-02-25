@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/logs"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -70,6 +71,7 @@ type Payload struct {
 	EventType          string `json:"eventType"`
 	DeadlineMs         int64  `json:"deadlineMs"`
 	InvokedFunctionArn string `json:"invokedFunctionArn"`
+	ShutdownReason     string `json:"shutdownReason"`
 	//    RequestId string `json:"requestId"` // unused
 }
 
@@ -221,13 +223,11 @@ func ReportInitError(id ID, errorEnum ErrorEnum) error {
 }
 
 // WaitForNextInvocation starts waiting and blocking until it receives a request.
-// Note that for now, we only subscribe to INVOKE and SHUTDOWN messages.
+// Note that for now, we only subscribe to INVOKE and SHUTDOWN events.
 // Write into stopCh to stop the main thread of the running program.
-func WaitForNextInvocation(stopCh chan struct{}, statsdServer *dogstatsd.Server, id ID) error {
+func WaitForNextInvocation(stopCh chan struct{}, statsdServer *dogstatsd.Server, metricsChan chan []metrics.MetricSample, id ID) error {
+	// Make an HTTP call for the next INVOKE/SHUTDOWN event and block until we receive it
 	var err error
-
-	// do the blocking HTTP GET call
-
 	var request *http.Request
 	var response *http.Response
 
@@ -236,14 +236,13 @@ func WaitForNextInvocation(stopCh chan struct{}, statsdServer *dogstatsd.Server,
 	}
 	request.Header.Set(headerExtID, id.String())
 
-	// the blocking call is here
+	log.Debug("Waiting for next invocation...")
 	client := &http.Client{Timeout: 0} // this one should never timeout
 	if response, err = client.Do(request); err != nil {
 		return fmt.Errorf("WaitForNextInvocation: while GET next route: %v", err)
 	}
 
-	// we received a response, meaning we've been invoked
-
+	// we received an INVOKE or SHUTDOWN event
 	var body []byte
 	if body, err = ioutil.ReadAll(response.Body); err != nil {
 		return fmt.Errorf("WaitForNextInvocation: can't read the body: %v", err)
@@ -255,20 +254,23 @@ func WaitForNextInvocation(stopCh chan struct{}, statsdServer *dogstatsd.Server,
 		return fmt.Errorf("WaitForNextInvocation: can't unmarshal the payload: %v", err)
 	}
 
-	// sets the current ARN.
-	// TODO(remy): we could probably do this once
-	if payload.InvokedFunctionArn != "" {
+	if payload.EventType == "INVOKE" {
+		log.Debug("Received invocation event")
 		aws.SetARN(payload.InvokedFunctionArn)
 	}
-
 	if payload.EventType == "SHUTDOWN" {
+		log.Debug("Received shutdown event. Reason: " + payload.ShutdownReason)
+		if payload.ShutdownReason == "timeout" {
+			metricTags := getTagsForEnhancedMetrics()
+			sendTimeoutEnhancedMetric(metricTags, metricsChan)
+			// Ensure that timeout metric has been received by the statsdServer before flushing
+			time.Sleep(50 * time.Millisecond)
+		}
 		if statsdServer != nil {
 			// flush metrics synchronously
 			statsdServer.Flush(true)
 		}
-		if logs.IsAgentRunning() {
-			logs.Stop()
-		}
+		logs.Stop()
 		// shutdown the serverless agent
 		stopCh <- struct{}{}
 	}

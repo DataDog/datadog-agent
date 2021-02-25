@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
+	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -244,49 +245,47 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		log.Error("No API key configured, exiting")
 	}
 
-	// starts logs collection if enabled
-	// ---------------------------------
+	// restore the current function ARN and request ID from the cache in case the extension was restarted
+	// ---------------------------
 
-	if config.Datadog.GetBool("logs_enabled") {
+	aws.RestoreCurrentARNFromCache()
+	aws.RestoreCurrentRequestIDFromCache()
 
-		// type of logs we are subscribing to
-		var logsType []string
-		// TODO(remy): there is two different things that we may have to differentiate:
-		//             the user may want to send these logs to the intake, and the Agent
-		//             may want to fetch more than what he want sent. For instance, if the
-		//             user don't care about the platform logs, the Agent will still want
-		//             to receive them in order to generate the enhanced metrics.
-		if envLogsType, exists := os.LookupEnv(logsLogsTypeSubscribed); exists {
-			parts := strings.Split(strings.TrimSpace(envLogsType), " ")
-			for _, part := range parts {
-				part = strings.ToLower(strings.TrimSpace(part))
-				switch part {
-				case "function", "platform", "extension":
-					logsType = append(logsType, part)
-				default:
-					log.Warn("While subscribing to logs, unknown log type", part)
-				}
+	// starts logs collection
+	// ----------------------
+
+	// type of logs we are subscribing to
+	var logsType []string
+	if envLogsType, exists := os.LookupEnv(logsLogsTypeSubscribed); exists {
+		parts := strings.Split(strings.TrimSpace(envLogsType), " ")
+		for _, part := range parts {
+			part = strings.ToLower(strings.TrimSpace(part))
+			switch part {
+			case "function", "platform", "extension":
+				logsType = append(logsType, part)
+			default:
+				log.Warn("While subscribing to logs, unknown log type", part)
 			}
-		} else {
-			logsType = append(logsType, "platform", "function")
 		}
+	} else {
+		logsType = append(logsType, "platform", "function")
+	}
 
-		log.Debug("Enabling logs collection HTTP route")
-		if httpAddr, logsChan, err := daemon.EnableLogsCollection(); err != nil {
-			log.Error("While starting the HTTP Logs Server:", err)
+	log.Debug("Enabling logs collection HTTP route")
+	if httpAddr, logsChan, err := daemon.EnableLogsCollection(); err != nil {
+		log.Error("While starting the HTTP Logs Server:", err)
+	} else {
+		// subscribe to the logs on the platform
+		if err := serverless.SubscribeLogs(serverlessID, httpAddr, logsType); err != nil {
+			log.Error("Can't subscribe to logs:", err)
 		} else {
-			// subscribe to the logs on the platform
-			if err := serverless.SubscribeLogs(serverlessID, httpAddr, logsType); err != nil {
-				log.Error("Can't subscribe to logs:", err)
-			} else {
-				// we subscribed to the logs collection on the platform, let's instantiate
-				// a logs agent to collect/process/flush the logs.
-				if err := logs.StartServerless(
-					func() *autodiscovery.AutoConfig { return common.AC },
-					logsChan, extraTags,
-				); err != nil {
-					log.Error("Could not start an instance of the Logs Agent:", err)
-				}
+			// we subscribed to the logs collection on the platform, let's instantiate
+			// a logs agent to collect/process/flush the logs.
+			if err := logs.StartServerless(
+				func() *autodiscovery.AutoConfig { return common.AC },
+				logsChan, extraTags,
+			); err != nil {
+				log.Error("Could not start an instance of the Logs Agent:", err)
 			}
 		}
 	}
@@ -308,6 +307,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	serializer := serializer.NewSerializer(f)
 
 	aggregatorInstance := aggregator.InitAggregator(serializer, "serverless")
+	metricsChan := aggregatorInstance.GetBufferedMetricsWithTsChannel()
 
 	// initializes the DogStatsD server
 	// --------------------------------
@@ -320,7 +320,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		// serverless.ReportInitError(serverlessID, serverless.FatalDogstatsdInit)
 		log.Errorf("Unable to start the DogStatsD server: %s", err)
 	}
-	statsdServer.ServerlessMode = true // we're running in a serverless environment (will removed host field from samples)
+	statsdServer.ServerlessMode = true // we're running in a serverless environment (will remove host field from samples)
 
 	// run the invocation loop in a routine
 	// we don't want to start this mainloop before because once we're waiting on
@@ -328,7 +328,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	go func() {
 		for {
 			// TODO(remy): shouldn't we wait for the logs agent to finish? + dogstatsd server before listening again?
-			if err := serverless.WaitForNextInvocation(stopCh, statsdServer, serverlessID); err != nil {
+			if err := serverless.WaitForNextInvocation(stopCh, statsdServer, metricsChan, serverlessID); err != nil {
 				log.Error(err)
 			}
 		}
