@@ -363,10 +363,12 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 		cfg.LogLevel = "warn"
 	}
 
-	// get the hostname from the datadog agent
-	cfg.HostName, err = getHostnameFromGRPC(util.GetDDAgentClient)
-	if err != nil {
-		log.Errorf("failed to get hostname from grpc: %v", err)
+	// get the hostname from the datadog agent if a hostname has not been specified in the config
+	if cfg.HostName == "" {
+		cfg.HostName, err = getHostnameFromGRPC(util.GetDDAgentClient)
+		if err != nil {
+			log.Errorf("failed to get hostname from grpc: %v", err)
+		}
 	}
 
 	// If the hostname is not set then we fallback to our own hostname mechanism
