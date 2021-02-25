@@ -210,22 +210,19 @@ func (c *Consumer) DumpTable(family uint8) (<-chan Event, error) {
 	if c.listenAllNamespaces {
 		nss, err = util.GetNetNamespaces(c.procRoot)
 		if err != nil {
-			log.Errorf("error dumping conntrack table, could not get network namespaces: %s", err)
-			return nil, err
+			return nil, fmt.Errorf("error dumping conntrack table, could not get network namespaces: %w", err)
 		}
 	}
 
 	rootNS, err := netns.GetFromPath(fmt.Sprintf("%s/1/ns/net", c.procRoot))
 	if err != nil {
-		log.Errorf("error dumping conntrack table, could not get root namespace: %s", err)
-		return nil, err
+		return nil, fmt.Errorf("error dumping conntrack table, could not get root namespace: %w", err)
 	}
 
 	conn, err := netlink.Dial(unix.AF_UNSPEC, &netlink.Config{NetNS: int(rootNS)})
 	if err != nil {
-		log.Errorf("error dumping conntrack table, could not open netlink socket: %s", err)
 		rootNS.Close()
-		return nil, err
+		return nil, fmt.Errorf("error dumping conntrack table, could not open netlink socket: %w", err)
 	}
 
 	output := make(chan Event, outputBuffer)
@@ -274,7 +271,7 @@ func (c *Consumer) dumpTable(family uint8, output chan Event, ns netns.NsHandle)
 
 		sock, err := NewSocket()
 		if err != nil {
-			return fmt.Errorf("could not open netlink socket for net ns %d", int(ns))
+			return fmt.Errorf("could not open netlink socket for net ns %d: %w", int(ns), err)
 		}
 
 		conn := netlink.NewConn(sock, sock.pid)
