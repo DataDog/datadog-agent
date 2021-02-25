@@ -151,7 +151,7 @@ func (ccc *CCCache) readData() {
 	}
 	appsByGUID := make(map[string]*CFApp, len(apps))
 	for _, app := range apps {
-		appsByGUID[app.GUID] = CFAppFromV3App(&app) // can't point to the for loop variable, as it is reused, use indexed value
+		appsByGUID[app.GUID] = CFAppFromV3App(&app)
 	}
 
 	// put new apps in cache

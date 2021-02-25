@@ -44,6 +44,10 @@ var v3App2 = cfclient.V3App{
 	Metadata:      cfclient.V3Metadata{},
 }
 
+var cfApp2 = CFApp{
+	Name: "app2",
+}
+
 var BBSModelA1 = models.ActualLRP{
 	ActualLRPNetInfo: models.ActualLRPNetInfo{
 		InstanceAddress: "1.2.3.4",
