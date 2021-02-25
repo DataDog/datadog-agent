@@ -857,7 +857,7 @@ def update_modules(ctx, agent_version, verify=True):
     * --verify checks for correctness on the Agent Version (on by default).
 
     Examples:
-    inv -e update-modules 7.27.0 
+    inv -e release.update-modules 7.27.0 
     """
     if verify:
         check_version(agent_version)
