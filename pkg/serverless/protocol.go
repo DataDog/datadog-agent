@@ -136,17 +136,17 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			// If the global request ID or ARN variable isn't set at this point, do not process further
-			if aws.GetArn() == "" || aws.GetRequestID() == "" {
+			if aws.GetARN() == "" || aws.GetRequestID() == "" {
 				continue
 			}
 
 			switch message.Type {
-				case aws.LogTypeFunction:
-					generateEnhancedMetricsFromFunctionLog(message, metricTags, metricsChan)
-				case aws.LogTypePlatformReport:
-					generateEnhancedMetricsFromReportLog(message, metricTags, metricsChan)
-				case aws.LogTypePlatformLogsDropped:
-					log.Debug("Logs were dropped by the AWS Lambda Logs API")
+			case aws.LogTypeFunction:
+				generateEnhancedMetricsFromFunctionLog(message, metricTags, metricsChan)
+			case aws.LogTypePlatformReport:
+				generateEnhancedMetricsFromReportLog(message, metricTags, metricsChan)
+			case aws.LogTypePlatformLogsDropped:
+				log.Debug("Logs were dropped by the AWS Lambda Logs API")
 			}
 
 			// We always collect and process logs for the purpose of extracting enhanced metrics.
@@ -154,7 +154,8 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if sendLogsToIntake {
 				l.ch <- message
 			}
-		w.WriteHeader(200)
+			w.WriteHeader(200)
+		}
 	}
 }
 
