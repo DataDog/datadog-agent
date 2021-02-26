@@ -4,20 +4,12 @@ package netlink
 
 import (
 	"net"
-	"os"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/require"
 )
-
-func TestMain(m *testing.M) {
-	log.SetupLogger(seelog.Default, "trace")
-	os.Exit(m.Run())
-}
 
 func TestConsumerKeepsRunningAfterCircuitBreakerTrip(t *testing.T) {
 	c := NewConsumer("/proc", 1, false)
