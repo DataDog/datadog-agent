@@ -158,6 +158,18 @@ unsigned long __attribute__((always_inline)) get_dentry_ino(struct dentry *dentr
     return get_inode_ino(d_inode);
 }
 
+void __attribute__((always_inline)) fill_file_metadata(struct dentry* dentry, struct file_metadata_t* file) {
+    struct inode *d_inode;
+    bpf_probe_read(&d_inode, sizeof(d_inode), &dentry->d_inode);
+
+    bpf_probe_read(&file->mode, sizeof(file->mode), &d_inode->i_mode);
+    bpf_probe_read(&file->uid, sizeof(file->uid), &d_inode->i_uid);
+    bpf_probe_read(&file->gid, sizeof(file->gid), &d_inode->i_gid);
+
+    bpf_probe_read(&file->ctime, sizeof(file->ctime), &d_inode->i_ctime);
+    bpf_probe_read(&file->mtime, sizeof(file->mtime), &d_inode->i_mtime);
+}
+
 void __attribute__((always_inline)) write_dentry_inode(struct dentry *dentry, struct inode **d_inode) {
     bpf_probe_read(d_inode, sizeof(d_inode), &dentry->d_inode);
 }

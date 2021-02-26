@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"golang.org/x/sys/unix"
 	"io/ioutil"
 	"net"
 	"os"
@@ -461,6 +462,26 @@ func (tm *testModule) Path(filename string) (string, unsafe.Pointer, error) {
 	return tm.st.Path(filename)
 }
 
+func (tm *testModule) CreateWithOptions(filename string, user, group, mode int) (string, unsafe.Pointer, error) {
+	testFile, testFilePtr, err := tm.st.Path(filename)
+	if err != nil {
+		return testFile, testFilePtr, err
+	}
+
+	// Create file
+	fd, _, errno := syscall.Syscall(syscall.SYS_OPEN, uintptr(testFilePtr), syscall.O_CREAT, uintptr(mode))
+	if errno != 0 {
+		return testFile, testFilePtr, error(errno)
+	}
+	syscall.Close(int(fd))
+
+	// Chown the file
+	if _, _, errno := syscall.Syscall(syscall.SYS_CHOWN, uintptr(testFilePtr), uintptr(user), uintptr(group)); errno != 0 {
+		return testFile, testFilePtr, error(errno)
+	}
+	return testFile, testFilePtr, err
+}
+
 func (tm *testModule) Create(filename string) (string, unsafe.Pointer, error) {
 	testFile, testPtr, err := tm.st.Path(filename)
 	if err != nil {
@@ -654,6 +675,19 @@ func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 	return t, nil
 }
 
+// systemUmask caches the system umask between tests
+var systemUmask int
+
+func applyUmask(fileMode int) int {
+	if systemUmask == 0 {
+		// Get the system umask to compute the right access mode
+		systemUmask = unix.Umask(0)
+		// the previous line overrides the system umask, change it back
+		_ = unix.Umask(systemUmask)
+	}
+	return fileMode &^ systemUmask
+}
+
 func testContainerPath(t *testing.T, event *sprobe.Event, fieldPath string) {
 	if testEnvironment != DockerEnvironment {
 		return
@@ -718,11 +752,11 @@ func waitForProbeEvent(test *testModule, key string, value interface{}) (*probe.
 }
 
 func waitForOpenDiscarder(test *testModule, filename string) (*probe.Event, error) {
-	return waitForDiscarder(test, "open.filename", filename)
+	return waitForDiscarder(test, "open.file.path", filename)
 }
 
 func waitForOpenProbeEvent(test *testModule, filename string) (*probe.Event, error) {
-	return waitForProbeEvent(test, "open.filename", filename)
+	return waitForProbeEvent(test, "open.file.path", filename)
 }
 
 func TestEnv(t *testing.T) {

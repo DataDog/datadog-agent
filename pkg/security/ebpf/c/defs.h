@@ -229,12 +229,29 @@ struct kevent_t {
     u64 type;
 };
 
+struct ktimeval {
+    long tv_sec;
+    long tv_nsec;
+};
+
+struct file_metadata_t {
+    u32 uid;
+    u32 gid;
+    u16 mode;
+    char padding[6];
+
+    struct ktimeval ctime;
+    struct ktimeval mtime;
+};
+
 struct file_t {
     u64 inode;
     u32 mount_id;
     u32 overlay_numlower;
     u32 path_id;
     u32 padding;
+
+    struct file_metadata_t metadata;
 };
 
 struct syscall_t {
