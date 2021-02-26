@@ -17,6 +17,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -35,7 +36,7 @@ import (
 
 var (
 	expvarEndpoints map[string]*expvar.Map
-	expvarTypes     = []string{"conntrack", "state", "tracer", "ebpf", "kprobes", "dns", "http"}
+	expvarTypes     = []string{"conntrack", "state", "tracer", "ebpf", "kprobes", "dns", "http", "compiler"}
 )
 
 func init() {
@@ -122,6 +123,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	runtimeTracer := false
 	var buf bytecode.AssetReader
 	if config.EnableRuntimeCompiler {
+		runtime.Tracer.SetCompilerEnabled()
 		buf, err = getRuntimeCompiledTracer(config)
 		if err != nil {
 			if !config.AllowPrecompiledFallback {
@@ -850,9 +852,10 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 			"expired_tcp_conns":            expiredTCP,
 			"pid_collisions":               pidCollisions,
 		},
-		"ebpf":    t.getEbpfTelemetry(),
-		"kprobes": ddebpf.GetProbeStats(),
-		"dns":     t.reverseDNS.GetStats(),
+		"ebpf":     t.getEbpfTelemetry(),
+		"kprobes":  ddebpf.GetProbeStats(),
+		"dns":      t.reverseDNS.GetStats(),
+		"compiler": runtime.Tracer.GetCompilerStats(),
 	}
 
 	if t.httpMonitor != nil {

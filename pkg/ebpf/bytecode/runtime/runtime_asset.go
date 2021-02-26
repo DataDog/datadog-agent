@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/compiler"
@@ -40,6 +41,11 @@ type CompiledOutput interface {
 type RuntimeAsset struct {
 	filename string
 	hash     string
+
+	// Telemetry
+	compilerEnabled     int64
+	compilationSuccess  int64
+	compilationDuration int64
 }
 
 func NewRuntimeAsset(filename, hash string) *RuntimeAsset {
@@ -74,6 +80,11 @@ func (a *RuntimeAsset) Verify(dir string) (io.Reader, string, error) {
 
 // Compile compiles the runtime asset if necessary and returns the resulting file.
 func (a *RuntimeAsset) Compile(config *ebpf.Config, cflags []string) (CompiledOutput, error) {
+	start := time.Now()
+	defer func() {
+		a.compilationDuration = time.Since(start).Nanoseconds()
+	}()
+
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return nil, fmt.Errorf("unable to get kernel version: %w", err)
@@ -111,7 +122,24 @@ func (a *RuntimeAsset) Compile(config *ebpf.Config, cflags []string) (CompiledOu
 			return nil, fmt.Errorf("failed to compile runtime version of %s: %s", a.filename, err)
 		}
 	}
-	return os.Open(outputFile)
+
+	out, err := os.Open(outputFile)
+	if err == nil {
+		a.compilationSuccess = 1
+	}
+	return out, err
+}
+
+func (a *RuntimeAsset) SetCompilerEnabled() {
+	a.compilerEnabled = 1
+}
+
+func (a *RuntimeAsset) GetCompilerStats() map[string]int64 {
+	return map[string]int64{
+		"compiler_enabled":     a.compilerEnabled,
+		"compilation_success":  a.compilationSuccess,
+		"compilation_duration": a.compilationDuration,
+	}
 }
 
 func hashFlags(flags []string) string {
