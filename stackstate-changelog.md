@@ -37,6 +37,7 @@
 - Integrations:
   - Agent Integrations are not tagged with Check instance tags [(STAC-11453)](https://stackstate.atlassian.net/browse/STAC-11453)
   - Don't create Job - Pod relations from Pods that finished running [(STAC-11490)](https://stackstate.atlassian.net/browse/STAC-11521)
+  - Process Agent restart bug fixed for older kernel versions
 - Nagios:
   - Shows correct check name in Event details [(STAC-11119)](https://stackstate.atlassian.net/browse/STAC-11119)
 
