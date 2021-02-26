@@ -3,6 +3,10 @@
 
 package network
 
+import (
+	"fmt"
+)
+
 func AllocateReadBuffer() (*_readbuffer, error) {
 	return nil, fmt.Errorf("unsupported on 386")
 }
