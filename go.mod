@@ -25,6 +25,8 @@ replace (
 	google.golang.org/grpc => github.com/grpc/grpc-go v1.26.0
 )
 
+replace github.com/DataDog/datadog-agent/pkg/util/log => ./pkg/util/log
+
 require (
 	code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db
 	code.cloudfoundry.org/cfhttp/v2 v2.0.0 // indirect
@@ -41,6 +43,7 @@ require (
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
 	github.com/DataDog/agent-payload v4.55.0+incompatible
+	github.com/DataDog/datadog-agent/pkg/util/log v0.0.0
 	github.com/DataDog/datadog-go v4.4.0+incompatible
 	github.com/DataDog/datadog-operator v0.2.1-0.20200709152311-9c71245c6822
 	github.com/DataDog/ebpf v0.0.0-20210121152636-7fc17cac5ed7

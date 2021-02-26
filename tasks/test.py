@@ -41,6 +41,7 @@ PROFILE_COV = "profile.cov"
 
 DEFAULT_MODULES = [
     GoModule(".", targets=["./pkg", "./cmd"]),
+    GoModule("pkg/util/log"),
 ]
 
 DEFAULT_GIT_BRANCH = 'master'
