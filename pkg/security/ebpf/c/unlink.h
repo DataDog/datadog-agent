@@ -61,7 +61,7 @@ int kprobe__vfs_unlink(struct pt_regs *ctx) {
         return mark_as_discarded(syscall);
     }
 
-    if (discarded_by_process(syscall->policy.mode, EVENT_UNLINK)) {
+    if (is_discarded_by_process(syscall->policy.mode, EVENT_UNLINK)) {
         return mark_as_discarded(syscall);
     }
 

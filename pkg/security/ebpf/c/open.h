@@ -27,7 +27,7 @@ struct open_event_t {
 
 int __attribute__((always_inline)) trace__sys_openat(int flags, umode_t mode) {
     struct policy_t policy = fetch_policy(EVENT_OPEN);
-    if (discarded_by_process(policy.mode, EVENT_OPEN)) {
+    if (is_discarded_by_process(policy.mode, EVENT_OPEN)) {
         return 0;
     }
 

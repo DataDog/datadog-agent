@@ -19,7 +19,7 @@ int __attribute__((always_inline)) link_approvers(struct syscall_cache_t *syscal
 
 int __attribute__((always_inline)) trace__sys_link() {
     struct policy_t policy = fetch_policy(EVENT_LINK);
-    if (discarded_by_process(policy.mode, EVENT_LINK)) {
+    if (is_discarded_by_process(policy.mode, EVENT_LINK)) {
         return 0;
     }
 

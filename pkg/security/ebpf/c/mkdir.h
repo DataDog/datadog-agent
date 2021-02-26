@@ -19,7 +19,7 @@ int __attribute__((always_inline)) mkdir_approvers(struct syscall_cache_t *sysca
 
 long __attribute__((always_inline)) trace__sys_mkdir(umode_t mode) {
     struct policy_t policy = fetch_policy(EVENT_MKDIR);
-    if (discarded_by_process(policy.mode, EVENT_MKDIR)) {
+    if (is_discarded_by_process(policy.mode, EVENT_MKDIR)) {
         return 0;
     }
 

@@ -181,7 +181,8 @@
 
 enum event_type
 {
-    EVENT_OPEN = 1,
+    EVENT_FIRST_DISCARDER = 1,
+    EVENT_OPEN = EVENT_FIRST_DISCARDER,
     EVENT_MKDIR,
     EVENT_LINK,
     EVENT_RENAME,
@@ -190,16 +191,17 @@ enum event_type
     EVENT_CHMOD,
     EVENT_CHOWN,
     EVENT_UTIME,
-    EVENT_MOUNT,
-    EVENT_UMOUNT,
     EVENT_SETXATTR,
     EVENT_REMOVEXATTR,
+    EVENT_LAST_DISCARDER = EVENT_REMOVEXATTR,
+
+    EVENT_MOUNT,
+    EVENT_UMOUNT,
     EVENT_FORK,
     EVENT_EXEC,
     EVENT_EXIT,
     EVENT_INVALIDATE_DENTRY,
     EVENT_MAX, // has to be the last one
-    EVENT_MAX_ROUNDED_UP = 32, // closest power of 2 that is bigger than EVENT_MAX
 };
 
 enum syscall_type
