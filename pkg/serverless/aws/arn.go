@@ -103,7 +103,7 @@ func RestoreCurrentStateFromFile() error {
 		return err
 	}
 	var restoredState persistedState
-	err = json.Unmarshal([]byte(file), &restoredState)
+	err = json.Unmarshal(file, &restoredState)
 	if err != nil {
 		return err
 	}
