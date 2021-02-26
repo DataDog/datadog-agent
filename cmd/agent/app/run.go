@@ -338,17 +338,16 @@ func StartAgent() error {
 	common.Forwarder.Start() //nolint:errcheck
 	log.Debugf("Forwarder started")
 
-	// setup the aggregator
-	s := serializer.NewSerializer(common.Forwarder)
-	agg := aggregator.InitAggregator(s, hostname)
-	agg.AddAgentStartupTelemetry(version.AgentVersion)
-
 	// setup the orchestrator forwarder (only on cluster check runners)
 	orchestratorForwarder = orchcfg.NewOrchestratorForwarder(confFilePath, true)
 	if orchestratorForwarder != nil {
 		orchestratorForwarder.Start() //nolint:errcheck
-		s.AttachOrchestratorForwarder(orchestratorForwarder)
 	}
+
+	// setup the aggregator
+	s := serializer.NewSerializer(common.Forwarder, orchestratorForwarder)
+	agg := aggregator.InitAggregator(s, hostname)
+	agg.AddAgentStartupTelemetry(version.AgentVersion)
 
 	// start dogstatsd
 	if config.Datadog.GetBool("use_dogstatsd") {

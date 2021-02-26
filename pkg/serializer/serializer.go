@@ -125,9 +125,10 @@ type Serializer struct {
 }
 
 // NewSerializer returns a new Serializer initialized
-func NewSerializer(forwarder forwarder.Forwarder) *Serializer {
+func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder forwarder.Forwarder) *Serializer {
 	s := &Serializer{
 		Forwarder:                     forwarder,
+		orchestratorForwarder:         orchestratorForwarder,
 		seriesPayloadBuilder:          jsonstream.NewPayloadBuilder(),
 		enableEvents:                  config.Datadog.GetBool("enable_payloads.events"),
 		enableSeries:                  config.Datadog.GetBool("enable_payloads.series"),
@@ -156,11 +157,6 @@ func NewSerializer(forwarder forwarder.Forwarder) *Serializer {
 	}
 
 	return s
-}
-
-// AttachOrchestratorForwarder sets a dedicated forwarder for orchestrator metadata payloads
-func (s *Serializer) AttachOrchestratorForwarder(forwarder forwarder.Forwarder) {
-	s.orchestratorForwarder = forwarder
 }
 
 func (s Serializer) serializePayload(payload marshaler.Marshaler, compress bool, useV1API bool) (forwarder.Payloads, http.Header, error) {

@@ -327,7 +327,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	log.Debugf("Using a SyncForwarder with a %v timeout", forwarderTimeout)
 	f := forwarder.NewSyncForwarder(keysPerDomain, forwarderTimeout)
 	f.Start() //nolint:errcheck
-	serializer := serializer.NewSerializer(f)
+	serializer := serializer.NewSerializer(f, nil)
 
 	aggregatorInstance := aggregator.InitAggregator(serializer, "serverless")
 	metricsChan := aggregatorInstance.GetBufferedMetricsWithTsChannel()
