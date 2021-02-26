@@ -875,18 +875,18 @@ def update_modules(ctx, agent_version, verify=True):
 
 
 @task
-def tag_version(ctx, agent_version, commit="HEAD", verify=True, push=False):
+def tag_version(ctx, agent_version, commit="HEAD", verify=True, push=True):
     """
     Create tags for a given Datadog Agent version.
     The version should be given as an Agent 7 version.
 
     * --commit COMMIT will tag COMMIT with the tags (default HEAD)
     * --verify checks for correctness on the Agent version (on by default).
-    * --push will push the tags to the origin remote (off by default).
+    * --push will push the tags to the origin remote (on by default).
 
     Examples:
-    inv -e release.tag-version 7.27.0              # Create tags; don't push them
-    inv -e release.tag-version 7.27.0-rc.3 --push  # Create and push tags to origin
+    inv -e release.tag-version 7.27.0                 # Create tags and push them to origin
+    inv -e release.tag-version 7.27.0-rc.3 --no-push  # Create tags locally; don't push them
     """
     if verify:
         check_version(agent_version)

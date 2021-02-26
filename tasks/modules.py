@@ -11,10 +11,10 @@ class GoModule:
         self.dependencies = dependencies if dependencies else []
         self.condition = condition
 
-    def version(self, agent_version: str) -> str:
+    def __version(self, agent_version: str) -> str:
         """Return the module version for a given Agent version.
         >>> mods = [GoModule("."), GoModule("./pkg/util/log")]
-        >>> [mod.version("7.27.0") for mod in mods]
+        >>> [mod.__version("7.27.0") for mod in mods]
         ["v7.27.0", "v0.27.0"]
         """
         if self.path == ".":
@@ -26,12 +26,12 @@ class GoModule:
         """Return the module tag name for a given Agent version.
         >>> mods = [GoModule("."), GoModule("pkg/util/log")]
         >>> [mod.tag("7.27.0") for mod in mods]
-        [["v.6.27.0", "v7.27.0"], ["pkg/util/log/v0.27.0"]]
+        [["6.27.0", "7.27.0"], ["pkg/util/log/v0.27.0"]]
         """
         if self.path == ".":
-            return ["v7" + agent_version[1:], "v6" + agent_version[1:]]
+            return ["6" + agent_version[1:], "7" + agent_version[1:]]
 
-        return ["{}/{}".format(self.path, self.version(agent_version))]
+        return ["{}/{}".format(self.path, self.__version(agent_version))]
 
     def full_path(self) -> str:
         """Return the absolute path of the Go module."""
@@ -50,7 +50,7 @@ class GoModule:
         go_path = "github.com/DataDog/datadog-agent"
         if self.path != ".":
             go_path += "/" + self.path
-        return "{go_path}@{version}".format(go_path=go_path, version=self.version(agent_version))
+        return "{go_path}@{version}".format(go_path=go_path, version=self.__version(agent_version))
 
 
 DEFAULT_MODULES = {
