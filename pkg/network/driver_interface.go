@@ -369,10 +369,10 @@ func (di *DriverInterface) ReadDNSPacket(visit func([]byte, time.Time) error) (d
 	var buf *_readbuffer
 	buf = (*_readbuffer)(unsafe.Pointer(ol))
 
-	// fph := (*C.struct_filterPacketHeader)(unsafe.Pointer(&buf.data[0]))
+	fph := (*C.struct_filterPacketHeader)(unsafe.Pointer(&buf.data[0]))
+	captureTime := time.Unix(0, int64(fph.timestamp))
 
 	start := C.sizeof_struct_filterPacketHeader
-	captureTime := time.Now() // TODO: this should read out of the packet header once the driver supports it
 
 	if err := visit(buf.data[start:], captureTime); err != nil {
 		return false, err
