@@ -13,11 +13,13 @@ import (
 	"unsafe"
 )
 
+// AllocateReadBuffer allocates a read buffer with malloc. Buffer's must be freed with FreeReadBuffer.
 func AllocateReadBuffer() (*_readbuffer, error) {
 	sizeOfReadBuffer := unsafe.Sizeof(_readbuffer{})
 	return (*_readbuffer)(C.malloc(C.ulonglong(sizeOfReadBuffer))), nil
 }
 
+// FreeReadBuffer frees a read buffer allocated by AllocateReadBuffer
 func FreeReadBuffer(buf * _readbuffer) {
 	C.free(unsafe.Pointer(buf))
 }
