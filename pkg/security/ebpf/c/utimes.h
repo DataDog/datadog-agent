@@ -23,7 +23,7 @@ struct utime_event_t {
 
 int __attribute__((always_inline)) trace__sys_utimes() {
     struct policy_t policy = fetch_policy(EVENT_UTIME);
-    if (discarded_by_process(policy.mode, EVENT_UTIME)) {
+    if (is_discarded_by_process(policy.mode, EVENT_UTIME)) {
         return 0;
     }
 

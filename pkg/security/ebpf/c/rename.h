@@ -82,7 +82,7 @@ int kprobe__vfs_rename(struct pt_regs *ctx) {
     }
 
     // If we are discarded, we still want to invalidate the inode
-    if (discarded_by_process(syscall->policy.mode, EVENT_RENAME)) {
+    if (is_discarded_by_process(syscall->policy.mode, EVENT_RENAME)) {
         return mark_as_discarded(syscall);
     }
 
