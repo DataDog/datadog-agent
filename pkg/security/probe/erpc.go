@@ -8,10 +8,10 @@
 package probe
 
 import (
-	"os"
 	"syscall"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/ebpf/manager"
 )
 
@@ -42,7 +42,7 @@ func (k *ERPC) GetConstants() []manager.ConstantEditor {
 		},
 		{
 			Name:  "erpc_pid",
-			Value: uint64(os.Getpid()),
+			Value: uint64(utils.Getpid()),
 		},
 	}
 }
