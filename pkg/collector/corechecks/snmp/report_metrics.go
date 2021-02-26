@@ -78,7 +78,7 @@ func (ms *metricSender) reportColumnMetrics(metricConfig metricsConfig, values *
 
 func (ms *metricSender) sendMetric(metricName string, value snmpValueType, tags []string, forcedType string, options metricsConfigOption, extractValuePattern *regexp.Regexp) {
 	if extractValuePattern != nil {
-		extractedValue, err := value.withExtractValue(extractValuePattern)
+		extractedValue, err := value.extractStringValue(extractValuePattern)
 		if err != nil {
 			log.Debugf("error extracting value from `%v` with pattern `%v`: %v", value, extractValuePattern, err)
 			return

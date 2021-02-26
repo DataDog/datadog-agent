@@ -35,13 +35,13 @@ func (sv snmpValueType) toString() (string, error) {
 	return "", fmt.Errorf("invalid type %T for value %#v", sv.value, sv.value)
 }
 
-func (sv snmpValueType) withExtractValue(pattern *regexp.Regexp) (snmpValueType, error) {
+func (sv snmpValueType) extractStringValue(extractValuePattern *regexp.Regexp) (snmpValueType, error) {
 	switch sv.value.(type) {
 	case string:
 		srcValue := sv.value.(string)
-		matches := pattern.FindStringSubmatch(srcValue)
+		matches := extractValuePattern.FindStringSubmatch(srcValue)
 		if matches == nil {
-			return snmpValueType{}, fmt.Errorf("extract value pattern does not match (pattern=%v, srcValue=%v)", pattern, srcValue)
+			return snmpValueType{}, fmt.Errorf("extract value extractValuePattern does not match (extractValuePattern=%v, srcValue=%v)", extractValuePattern, srcValue)
 		}
 		matchedValue := matches[1] // use first matching group
 		return snmpValueType{submissionType: sv.submissionType, value: matchedValue}, nil
