@@ -232,7 +232,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		DisableTCPTracing:            false,
 		DisableUDPTracing:            false,
 		DisableIPv6Tracing:           false,
-		DisableDNSInspection:         false, // TODO: true if windows
+		DisableDNSInspection:         false,
 		EnableHTTPMonitoring:         false,
 		SystemProbeAddress:           defaultSystemProbeAddress,
 		SystemProbeLogFile:           defaultSystemProbeLogFilePath,
