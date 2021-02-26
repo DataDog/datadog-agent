@@ -1,5 +1,4 @@
 import os
-from typing import List
 
 
 class GoModule:
@@ -11,7 +10,7 @@ class GoModule:
         self.dependencies = dependencies if dependencies else []
         self.condition = condition
 
-    def __version(self, agent_version: str) -> str:
+    def __version(self, agent_version):
         """Return the module version for a given Agent version.
         >>> mods = [GoModule("."), GoModule("./pkg/util/log")]
         >>> [mod.__version("7.27.0") for mod in mods]
@@ -22,7 +21,7 @@ class GoModule:
 
         return "v0" + agent_version[1:]
 
-    def tag(self, agent_version: str) -> List[str]:
+    def tag(self, agent_version):
         """Return the module tag name for a given Agent version.
         >>> mods = [GoModule("."), GoModule("pkg/util/log")]
         >>> [mod.tag("7.27.0") for mod in mods]
@@ -33,15 +32,15 @@ class GoModule:
 
         return ["{}/{}".format(self.path, self.__version(agent_version))]
 
-    def full_path(self) -> str:
+    def full_path(self):
         """Return the absolute path of the Go module."""
         return os.path.abspath(self.path)
 
-    def go_mod_path(self) -> str:
+    def go_mod_path(self):
         """Return the absolute path of the Go module go.mod file."""
         return self.full_path() + "/go.mod"
 
-    def dependency_path(self, agent_version: str) -> str:
+    def dependency_path(self, agent_version):
         """Return the versioned dependency path of the Go module
         >>> mods = [GoModule("."), GoModule("pkg/util/log")]
         >>> [mod.dependency_path("7.27.0") for mod in mods]
