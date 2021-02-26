@@ -37,7 +37,7 @@ func (c *PodCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
 }
 
 // Name returns the name of the ProcessCheck.
-func (c *PodCheck) Name() string { return "pod" }
+func (c *PodCheck) Name() string { return config.PodCheckName }
 
 // RealTime indicates if this check only runs in real-time mode.
 func (c *PodCheck) RealTime() bool { return false }

@@ -30,7 +30,7 @@ var inactivityLogDuration = 10 * time.Minute
 var NetworkTracer = api.Factory{
 	Name: "network_tracer",
 	Fn: func(cfg *config.AgentConfig) (api.Module, error) {
-		if !cfg.CheckIsEnabled("Network") {
+		if !cfg.CheckIsEnabled(config.NetworkCheckName) {
 			log.Infof("Network tracer disabled")
 			return nil, api.ErrNotEnabled
 		}
