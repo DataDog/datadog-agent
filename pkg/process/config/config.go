@@ -35,9 +35,23 @@ const (
 	defaultRuntimeCompilerOutputDir = "/var/tmp/datadog-agent/system-probe/build"
 )
 
+// Name for check performed by process-agent or system-probe
+const (
+	ProcessCheckName     = "process"
+	RTProcessCheckName   = "rtprocess"
+	ContainerCheckName   = "container"
+	RTContainerCheckName = "rtcontainer"
+	ConnectionsCheckName = "connections"
+	PodCheckName         = "pod"
+
+	NetworkCheckName        = "Network"
+	OOMKillCheckName        = "OOM Kill"
+	TCPQueueLengthCheckName = "TCP queue length"
+)
+
 var (
-	processChecks   = []string{"process", "rtprocess"}
-	containerChecks = []string{"container", "rtcontainer"}
+	processChecks   = []string{ProcessCheckName, RTProcessCheckName}
+	containerChecks = []string{ContainerCheckName, RTContainerCheckName}
 )
 
 type proxyFunc func(*http.Request) (*url.URL, error)
@@ -243,12 +257,12 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		// Check config
 		EnabledChecks: enabledChecks,
 		CheckIntervals: map[string]time.Duration{
-			"process":     10 * time.Second,
-			"rtprocess":   2 * time.Second,
-			"container":   10 * time.Second,
-			"rtcontainer": 2 * time.Second,
-			"connections": 30 * time.Second,
-			"pod":         10 * time.Second,
+			ProcessCheckName:     10 * time.Second,
+			RTProcessCheckName:   2 * time.Second,
+			ContainerCheckName:   10 * time.Second,
+			RTContainerCheckName: 2 * time.Second,
+			ConnectionsCheckName: 30 * time.Second,
+			PodCheckName:         10 * time.Second,
 		},
 
 		// DataScrubber to hide command line sensitive words
@@ -389,7 +403,7 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	// activate the pod collection if enabled and we have the cluster name set
 	if cfg.Orchestrator.OrchestrationCollectionEnabled {
 		if cfg.Orchestrator.KubeClusterName != "" {
-			cfg.EnabledChecks = append(cfg.EnabledChecks, "pod")
+			cfg.EnabledChecks = append(cfg.EnabledChecks, PodCheckName)
 		} else {
 			log.Warnf("Failed to auto-detect a Kubernetes cluster name. Pod collection will not start. To fix this, set it manually via the cluster_name config option")
 		}

@@ -290,8 +290,8 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.Equal(true, agentConfig.AllowRealTime)
 	assert.Equal(true, agentConfig.Enabled)
 	assert.Equal(append(processChecks), agentConfig.EnabledChecks)
-	assert.Equal(8*time.Second, agentConfig.CheckIntervals["container"])
-	assert.Equal(30*time.Second, agentConfig.CheckIntervals["process"])
+	assert.Equal(8*time.Second, agentConfig.CheckIntervals[ContainerCheckName])
+	assert.Equal(30*time.Second, agentConfig.CheckIntervals[ProcessCheckName])
 	assert.Equal(100, agentConfig.Windows.ArgsRefreshInterval)
 	assert.Equal(false, agentConfig.Windows.AddNewArgs)
 	assert.Equal(false, agentConfig.Scrubber.Enabled)
@@ -311,13 +311,13 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.Equal(10, agentConfig.QueueSize)
 	assert.Equal(true, agentConfig.AllowRealTime)
 	assert.Equal(true, agentConfig.Enabled)
-	assert.Equal(8*time.Second, agentConfig.CheckIntervals["container"])
-	assert.Equal(30*time.Second, agentConfig.CheckIntervals["process"])
+	assert.Equal(8*time.Second, agentConfig.CheckIntervals[ContainerCheckName])
+	assert.Equal(30*time.Second, agentConfig.CheckIntervals[ProcessCheckName])
 	assert.Equal(100, agentConfig.Windows.ArgsRefreshInterval)
 	assert.Equal(false, agentConfig.Windows.AddNewArgs)
 	assert.Equal(false, agentConfig.Scrubber.Enabled)
 	assert.Equal("/var/my-location/system-probe.log", agentConfig.SystemProbeAddress)
-	assert.Equal(append(processChecks, "connections", "Network"), agentConfig.EnabledChecks)
+	assert.Equal(append(processChecks, ConnectionsCheckName, NetworkCheckName), agentConfig.EnabledChecks)
 	assert.Equal(500, agentConfig.ClosedChannelSize)
 	assert.True(agentConfig.SysProbeBPFDebug)
 	assert.Empty(agentConfig.ExcludedBPFLinuxVersions)
@@ -338,8 +338,8 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.Equal(10, agentConfig.QueueSize)
 	assert.Equal(true, agentConfig.AllowRealTime)
 	assert.Equal(true, agentConfig.Enabled)
-	assert.Equal(8*time.Second, agentConfig.CheckIntervals["container"])
-	assert.Equal(30*time.Second, agentConfig.CheckIntervals["process"])
+	assert.Equal(8*time.Second, agentConfig.CheckIntervals[ContainerCheckName])
+	assert.Equal(30*time.Second, agentConfig.CheckIntervals[ProcessCheckName])
 	assert.Equal(100, agentConfig.Windows.ArgsRefreshInterval)
 	assert.Equal(false, agentConfig.Windows.AddNewArgs)
 	assert.Equal(false, agentConfig.Scrubber.Enabled)
@@ -527,7 +527,7 @@ func TestNetworkConfig(t *testing.T) {
 
 		assert.True(t, agentConfig.EnableSystemProbe)
 		assert.True(t, agentConfig.Enabled)
-		assert.ElementsMatch(t, []string{"connections", "Network", "process", "rtprocess"}, agentConfig.EnabledChecks)
+		assert.ElementsMatch(t, []string{ConnectionsCheckName, NetworkCheckName, ProcessCheckName, RTProcessCheckName}, agentConfig.EnabledChecks)
 	})
 
 	t.Run("env", func(t *testing.T) {
@@ -539,7 +539,7 @@ func TestNetworkConfig(t *testing.T) {
 
 		assert.True(t, agentConfig.EnableSystemProbe)
 		assert.True(t, agentConfig.Enabled)
-		assert.ElementsMatch(t, []string{"connections", "Network", "process", "rtprocess"}, agentConfig.EnabledChecks)
+		assert.ElementsMatch(t, []string{ConnectionsCheckName, NetworkCheckName, ProcessCheckName, RTProcessCheckName}, agentConfig.EnabledChecks)
 	})
 }
 
@@ -553,7 +553,7 @@ func TestSystemProbeNoNetwork(t *testing.T) {
 
 	assert.True(t, agentConfig.EnableSystemProbe)
 	assert.True(t, agentConfig.Enabled)
-	assert.ElementsMatch(t, []string{"OOM Kill", "process", "rtprocess"}, agentConfig.EnabledChecks)
+	assert.ElementsMatch(t, []string{OOMKillCheckName, ProcessCheckName, RTProcessCheckName}, agentConfig.EnabledChecks)
 
 }
 

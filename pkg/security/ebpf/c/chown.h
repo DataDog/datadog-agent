@@ -19,7 +19,7 @@ int __attribute__((always_inline)) chown_approvers(struct syscall_cache_t *sysca
 
 int __attribute__((always_inline)) trace__sys_chown(uid_t user, gid_t group) {
     struct policy_t policy = fetch_policy(EVENT_CHOWN);
-    if (discarded_by_process(policy.mode, EVENT_CHOWN)) {
+    if (is_discarded_by_process(policy.mode, EVENT_CHOWN)) {
         return 0;
     }
 

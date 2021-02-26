@@ -15,9 +15,10 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	lib "github.com/DataDog/ebpf"
-	libebpf "github.com/DataDog/ebpf"
+	"github.com/DataDog/ebpf/manager"
 	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/pkg/errors"
 
@@ -29,8 +30,29 @@ import (
 )
 
 const (
+	// DiscardInodeOp discards an inode
+	DiscardInodeOp = iota + 1
+	// DiscardPidOp discards a pid
+	DiscardPidOp
+)
+
+const (
 	// discarderRevisionSize array size used to store discarder revisions
 	discarderRevisionSize = 4096
+
+	// DiscardRetention time a discard is retained but not discarding. This avoid race for pending event is userspace
+	// pipeline for already deleted file in kernel space.
+	DiscardRetention = 5 * time.Second
+)
+
+var (
+	// DiscarderConstants ebpf constants
+	DiscarderConstants = []manager.ConstantEditor{
+		{
+			Name:  "discarder_retention",
+			Value: uint64(DiscardRetention.Nanoseconds()),
+		},
+	}
 )
 
 // Discarder represents a discarder which is basically the field that we know for sure
@@ -78,43 +100,42 @@ var InvalidDiscarders = map[eval.Field][]interface{}{
 	"removexattr.filename": dentryInvalidDiscarder,
 }
 
-type pidDiscarders struct {
-	*lib.Map
+func marshalDiscardHeader(req *ERPCRequest, eventType model.EventType, timeout uint64) int {
+	model.ByteOrder.PutUint64(req.Data[0:8], uint64(eventType))
+	model.ByteOrder.PutUint64(req.Data[8:16], timeout)
+
+	return 16
 }
 
-type pidDiscarderParameters struct {
-	EventType  model.EventType
-	Timestamps [model.MaxEventRoundedUp]uint64
+type pidDiscarders struct {
+	*lib.Map
+	erpc *ERPC
 }
 
 func (p *pidDiscarders) discard(eventType model.EventType, pid uint32) error {
-	var params pidDiscarderParameters
-
-	updateFlags := libebpf.UpdateExist
-	if err := p.Lookup(pid, &params); err != nil {
-		updateFlags = libebpf.UpdateAny
+	req := ERPCRequest{
+		OP: DiscardPidOp,
 	}
 
-	params.EventType |= 1 << (eventType - 1)
-	return p.Update(pid, &params, updateFlags)
+	offset := marshalDiscardHeader(&req, eventType, 0)
+	model.ByteOrder.PutUint32(req.Data[offset:offset+4], pid)
+
+	return p.erpc.Request(&req)
 }
 
 func (p *pidDiscarders) discardWithTimeout(eventType model.EventType, pid uint32, timeout int64) error {
-	var params pidDiscarderParameters
-
-	updateFlags := libebpf.UpdateExist
-	if err := p.Lookup(pid, &params); err != nil {
-		updateFlags = libebpf.UpdateAny
+	req := ERPCRequest{
+		OP: DiscardPidOp,
 	}
 
-	params.EventType |= 1 << (eventType - 1)
-	params.Timestamps[eventType] = uint64(timeout)
+	offset := marshalDiscardHeader(&req, eventType, uint64(timeout))
+	model.ByteOrder.PutUint32(req.Data[offset:offset+4], pid)
 
-	return p.Update(pid, &params, updateFlags)
+	return p.erpc.Request(&req)
 }
 
-func newPidDiscarders(m *lib.Map) *pidDiscarders {
-	return &pidDiscarders{Map: m}
+func newPidDiscarders(m *lib.Map, erpc *ERPC) *pidDiscarders {
+	return &pidDiscarders{Map: m, erpc: erpc}
 }
 
 type inodeDiscarder struct {
@@ -123,20 +144,16 @@ type inodeDiscarder struct {
 	Padding  uint32
 }
 
-type inodeDiscarderParameters struct {
-	ParentMask model.EventType
-	LeafMask   model.EventType
-}
-
 type inodeDiscarders struct {
 	*lib.Map
+	erpc           *ERPC
 	revisions      *lib.Map
 	revisionCache  [discarderRevisionSize]uint32
 	dentryResolver *DentryResolver
 	regexCache     *simplelru.LRU
 }
 
-func newInodeDiscarders(inodesMap, revisionsMap *lib.Map, dentryResolver *DentryResolver) (*inodeDiscarders, error) {
+func newInodeDiscarders(inodesMap, revisionsMap *lib.Map, erpc *ERPC, dentryResolver *DentryResolver) (*inodeDiscarders, error) {
 	regexCache, err := simplelru.NewLRU(64, nil)
 	if err != nil {
 		return nil, err
@@ -144,49 +161,29 @@ func newInodeDiscarders(inodesMap, revisionsMap *lib.Map, dentryResolver *Dentry
 
 	return &inodeDiscarders{
 		Map:            inodesMap,
+		erpc:           erpc,
 		revisions:      revisionsMap,
 		dentryResolver: dentryResolver,
 		regexCache:     regexCache,
 	}, nil
 }
 
-func (id *inodeDiscarders) removeInode(mountID uint32, inode uint64) {
-	key := inodeDiscarder{
-		PathKey: PathKey{
-			MountID: mountID,
-			Inode:   inode,
-		},
-	}
-	_ = id.Delete(&key)
-}
-
 func (id *inodeDiscarders) discardInode(eventType model.EventType, mountID uint32, inode uint64, isLeaf bool) error {
-	var params inodeDiscarderParameters
-	key := inodeDiscarder{
-		PathKey: PathKey{
-			MountID: mountID,
-			Inode:   inode,
-		},
-		Revision: id.getRevision(mountID),
+	req := ERPCRequest{
+		OP: DiscardInodeOp,
 	}
 
-	updateFlags := libebpf.UpdateExist
-	if err := id.Lookup(key, &params); err != nil {
-		updateFlags = libebpf.UpdateAny
-	}
-
+	var isLeafInt uint32
 	if isLeaf {
-		params.LeafMask |= 1 << (eventType - 1)
-	} else {
-		params.ParentMask |= 1 << (eventType - 1)
+		isLeafInt = 1
 	}
 
-	return id.Update(&key, &params, updateFlags)
-}
+	offset := marshalDiscardHeader(&req, eventType, 0)
+	model.ByteOrder.PutUint64(req.Data[offset:offset+8], inode)
+	model.ByteOrder.PutUint32(req.Data[offset+8:offset+12], mountID)
+	model.ByteOrder.PutUint32(req.Data[offset+12:offset+16], isLeafInt)
 
-func (id *inodeDiscarders) getRevision(mountID uint32) uint32 {
-	key := mountID % discarderRevisionSize
-	return id.revisionCache[key]
+	return id.erpc.Request(&req)
 }
 
 func (id *inodeDiscarders) setRevision(mountID uint32, revision uint32) {
@@ -400,7 +397,7 @@ func createInvalidDiscardersCache() map[eval.Field]map[interface{}]bool {
 func processDiscarderWrapper(eventType model.EventType, fnc onDiscarderHandler) onDiscarderHandler {
 	return func(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) error {
 		if discarder.Field == "process.filename" {
-			log.Tracef("Apply process.filename discarder for event `%s`, inode: %d", eventType, event.Process.Inode)
+			log.Tracef("Apply process.filename discarder for event `%s`, inode: %d, pid: %d", eventType, event.Process.Inode, event.Process.Pid)
 
 			// discard by PID for long running process
 			if err := probe.pidDiscarders.discard(eventType, event.Process.Pid); err != nil {
