@@ -114,13 +114,6 @@ func (e *Event) Done() {
 // NewConsumer creates a new Conntrack event consumer.
 // targetRateLimit represents the maximum number of netlink messages per second that can be read off the socket
 func NewConsumer(procRoot string, targetRateLimit int, listenAllNamespaces bool) *Consumer {
-	if pre315Kernel {
-		// bpf sampling is not available on kernel versions < 3.15
-		// since the rand kernel extension instruction is not available
-		targetRateLimit = -1
-		log.Warnf("netlink conntrack sampling disabled; not available on kernel versions < 3.15")
-	}
-
 	c := &Consumer{
 		procRoot:            procRoot,
 		pool:                newBufferPool(),
@@ -448,9 +441,8 @@ ReadLoop:
 			}
 		}
 
-		throttlingErr := c.throttle(len(msgs))
-		if throttlingErr != nil {
-			log.Errorf("exiting conntrack netlink consumer loop due to throttling error: %s", throttlingErr)
+		if err := c.throttle(len(msgs)); err != nil {
+			log.Errorf("exiting conntrack netlink consumer loop due to throttling error: %s", err)
 			return
 		}
 
@@ -503,6 +495,12 @@ func (c *Consumer) throttle(numMessages int) error {
 
 	// Close current socket
 	c.socket.Close()
+
+	if pre315Kernel {
+		// we cannot recreate the socket and set a bpf filter on
+		// kernels before 3.15, so we bail here
+		return fmt.Errorf("conntrack sampling not supported on kernel versions < 3.15. Please adjust system_probe_config.conntrack_rate_limit (currently set to %d) to accommodate higher conntrack update rate detected", c.targetRateLimit)
+	}
 
 	// Create new socket with the desired sampling rate
 	// We calculate the required sampling rate to reach the target maxMessagesPersecond

@@ -57,16 +57,19 @@ func TestConsumerKeepsRunningAfterCircuitBreakerTrip(t *testing.T) {
 		time.Sleep(250 * time.Millisecond)
 	}
 
-	// on pre 3.15 kernels, the circuit break and
-	// sampling code are effectively disabled so
-	// c.samplingRate will remain at 1.0
+	// on pre 3.15 kernels, the receive loop
+	// will simply bail since bpf random sampling
+	// is not available
 	if pre315Kernel {
-		require.Equal(t, 1.0, c.samplingRate)
+		require.Eventually(t, func() bool {
+			return !isRecvLoopRunning() && c.breaker.IsOpen()
+		}, 3*time.Second, 100*time.Millisecond)
 	} else {
 		require.Eventually(t, func() bool {
 			return c.samplingRate < 1.0
 		}, 3*time.Second, 100*time.Millisecond)
+
+		require.True(t, isRecvLoopRunning())
 	}
 
-	require.True(t, isRecvLoopRunning())
 }
