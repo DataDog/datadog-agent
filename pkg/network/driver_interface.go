@@ -154,7 +154,7 @@ func (di *DriverInterface) Close() error {
 	}
 
 	for _, buf := range di.dnsReadBuffers {
-		C.free(unsafe.Pointer(buf))
+		freeReadBuffer(buf)
 	}
 	di.dnsReadBuffers = nil
 
@@ -584,7 +584,7 @@ func prepareCompletionBuffers(h windows.Handle, count int) (iocp windows.Handle,
 
 	buffers = make([]*_readbuffer, count)
 	for i := 0; i < count; i++ {
-		buf, err := AllocateReadBuffer()
+		buf, err := allocateReadBuffer()
 		if err != nil {
 			return windows.Handle(0), nil, err
 		}
