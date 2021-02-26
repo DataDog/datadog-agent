@@ -1,10 +1,11 @@
 
 // +build windows
 
-// AMD64 specific implementations for allocating and freeing readbuffers. AMD64
+package network
+
+// This file contains AMD64 specific implementations for allocating and freeing readbuffers. AMD64
 // is the only supported architecture, but the AMD64 implementation will not
 // compiled on i386 because the signature for malloc changes based on bus size.
-package network
 
 // #include <stdlib.h>
 import  "C"

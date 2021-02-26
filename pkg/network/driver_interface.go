@@ -351,7 +351,7 @@ func resizeDriverBuffer(compareSize int, buffer []uint8) []uint8 {
 	return buffer
 }
 
-// GetDNS returns a raw IP packet that wraps a DNS packet
+// ReadDNSPacket visits a raw DNS packet if one is available.
 func (di *DriverInterface) ReadDNSPacket(visit func([]byte, time.Time) error) (didRead bool, err error) {
 	var bytesRead uint32
 	var key uint32 // returned by GetQueuedCompletionStatus, then ignored
