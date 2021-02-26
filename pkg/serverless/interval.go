@@ -19,7 +19,7 @@ const maxInvocationsStored = 10
 // When trying to store a new point, if it is older than the last one stored, it is ignored.
 // Returns if the point has been stored.
 func (d *Daemon) StoreInvocationTime(t time.Time) bool {
-	// ignore points less recent than the last stored one
+	// ignore points older than the last stored one
 	if len(d.lastInvocations) > 0 && d.lastInvocations[len(d.lastInvocations)-1].After(t) {
 		return false
 	}
