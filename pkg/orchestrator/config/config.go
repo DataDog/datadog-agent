@@ -159,7 +159,8 @@ func extractOrchestratorDDUrl() (*url.URL, error) {
 	return URL, nil
 }
 
-// NewOrchestratorForwarder returns
+// NewOrchestratorForwarder returns an orchestratorForwarder
+// if the feature is activated on the cluster-agent/cluster-check runner, nil otherwise
 func NewOrchestratorForwarder(confPath string, isCoreAgent bool) *forwarder.DefaultForwarder {
 	if !config.Datadog.GetBool("orchestrator_explorer.enabled") {
 		return nil
