@@ -1,4 +1,3 @@
-
 // +build windows
 
 package network
@@ -8,7 +7,7 @@ package network
 // compiled on i386 because the signature for malloc changes based on bus size.
 
 // #include <stdlib.h>
-import  "C"
+import "C"
 
 import (
 	"unsafe"
@@ -19,6 +18,6 @@ func allocateReadBuffer() (*_readbuffer, error) {
 	return (*_readbuffer)(C.malloc(C.ulonglong(sizeOfReadBuffer))), nil
 }
 
-func freeReadBuffer(buf * _readbuffer) {
+func freeReadBuffer(buf *_readbuffer) {
 	C.free(unsafe.Pointer(buf))
 }
