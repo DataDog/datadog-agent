@@ -274,7 +274,7 @@ func (e *ebpfConntracker) Close() {
 	}
 }
 
-func getManager(buf io.ReaderAt, maxTrackedConnections int) (*manager.Manager, error) {
+func getManager(buf io.ReaderAt, maxStateSize int) (*manager.Manager, error) {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: string(probes.ConntrackMap)},
@@ -298,7 +298,7 @@ func getManager(buf io.ReaderAt, maxTrackedConnections int) (*manager.Manager, e
 			Max: math.MaxUint64,
 		},
 		MapSpecEditors: map[string]manager.MapSpecEditor{
-			string(probes.ConntrackMap): {Type: ebpf.Hash, MaxEntries: uint32(maxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.ConntrackMap): {Type: ebpf.Hash, MaxEntries: uint32(maxStateSize), EditorFlag: manager.EditMaxEntries},
 		},
 	}
 
