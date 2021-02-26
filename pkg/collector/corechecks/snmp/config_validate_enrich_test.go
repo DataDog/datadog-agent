@@ -148,7 +148,7 @@ func Test_validateEnrichMetrics(t *testing.T) {
 				},
 			},
 			errors: []string{
-				"column symbols [{1.2 abc}] doesn't have a 'metric_tags' section",
+				"column symbols [{1.2 abc  <nil>}] doesn't have a 'metric_tags' section",
 			},
 		},
 		{
@@ -262,6 +262,21 @@ func Test_validateEnrichMetrics(t *testing.T) {
 			},
 			errors: []string{
 				"transform rule end should be greater than start. Invalid rule",
+			},
+		},
+		{
+			name: "error compiling extract_value",
+			metrics: []metricsConfig{
+				{
+					Symbol: symbolConfig{
+						OID: "1.2.3",
+						Name: "myMetric",
+						ExtractValue: "[{",
+					},
+				},
+			},
+			errors: []string{
+				"cannot compile `extract_value`",
 			},
 		},
 	}
