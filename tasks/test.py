@@ -42,6 +42,7 @@ PROFILE_COV = "profile.cov"
 DEFAULT_MODULES = [
     GoModule(".", targets=["./pkg", "./cmd"]),
     GoModule("pkg/util/log"),
+    GoModule("pkg/util/winutil", condition=lambda: sys.platform == 'win32'),
 ]
 
 DEFAULT_GIT_BRANCH = 'master'
