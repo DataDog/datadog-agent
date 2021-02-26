@@ -25,7 +25,7 @@ var SecurityRuntime = api.Factory{
 			return nil, errors.Wrap(err, "invalid security runtime module configuration")
 		}
 
-		if !config.Enabled {
+		if !config.IsEnabled() {
 			log.Infof("security runtime module disabled")
 			return nil, api.ErrNotEnabled
 		}

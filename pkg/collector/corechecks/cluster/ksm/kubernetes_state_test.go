@@ -287,7 +287,7 @@ func TestProcessMetrics(t *testing.T) {
 			metricTransformers: metricTransformers,
 			expected: []metricsExpected{
 				{
-					name:     "kubernetes_state.node.capacity",
+					name:     "kubernetes_state.node.cpu_capacity",
 					val:      4,
 					tags:     []string{"node:nodename", "resource:cpu", "unit:core", "kube_region:europe-west1", "kube_zone:europe-west1-b"},
 					hostname: "nodename",
@@ -897,6 +897,37 @@ func TestAllowDeny(t *testing.T) {
 	for _, metric := range metadataMetrics {
 		assert.True(t, allowDenyList.IsIncluded(metric))
 		assert.False(t, allowDenyList.IsExcluded(metric))
+	}
+}
+
+func TestCreationMetricsFiltering(t *testing.T) {
+	allowDenyList, err := allowdenylist.New(options.MetricSet{}, deniedMetrics)
+	assert.NoError(t, err)
+
+	err = allowDenyList.Parse()
+	assert.NoError(t, err)
+
+	included := []string{"kube_node_created"}
+	for _, metric := range included {
+		assert.True(t, allowDenyList.IsIncluded(metric))
+		assert.False(t, allowDenyList.IsExcluded(metric))
+	}
+
+	excluded := []string{
+		"kube_pod_created",
+		"kube_cronjob_created",
+		"kube_daemonset_created",
+		"kube_deployment_created",
+		"kube_endpoint_created",
+		"kube_job_created",
+		"kube_namespace_created",
+		"kube_replicaset_created",
+		"kube_service_created",
+		"kube_replicationcontroller_created",
+	}
+	for _, metric := range excluded {
+		assert.True(t, allowDenyList.IsExcluded(metric))
+		assert.False(t, allowDenyList.IsIncluded(metric))
 	}
 }
 

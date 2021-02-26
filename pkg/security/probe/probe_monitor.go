@@ -9,8 +9,10 @@ package probe
 
 import (
 	"context"
-	"time"
 
+	"github.com/hashicorp/go-multierror"
+
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-go/statsd"
@@ -134,12 +136,12 @@ func (m *Monitor) ProcessLostEvent(count uint64, cpu int, perfMap *manager.PerfM
 }
 
 // ReportRuleSetLoaded reports to Datadog that new ruleset was loaded
-func (m *Monitor) ReportRuleSetLoaded(ruleSet *rules.RuleSet, timestamp time.Time) {
-	if err := m.client.Count(MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
+func (m *Monitor) ReportRuleSetLoaded(ruleSet *rules.RuleSet, err *multierror.Error) {
+	if err := m.client.Count(metrics.MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
 		log.Error(errors.Wrap(err, "failed to send ruleset_loaded metric"))
 	}
 
 	m.probe.DispatchCustomEvent(
-		NewRuleSetLoadedEvent(ruleSet.ListPolicies(), ruleSet.ListRuleIDs(), ruleSet.ListMacroIDs()),
+		NewRuleSetLoadedEvent(ruleSet, err),
 	)
 }

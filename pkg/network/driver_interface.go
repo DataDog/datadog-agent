@@ -9,6 +9,7 @@ package network
 
 //! Defines the objects used to communicate with the driver as well as its control codes
 #include "ddnpmapi.h"
+#include <stdlib.h>
 */
 import "C"
 import (
@@ -581,12 +582,15 @@ func prepareCompletionBuffers(h windows.Handle, count int) (iocp windows.Handle,
 		return windows.Handle(0), nil, errors.Wrap(err, "error creating IO completion port")
 	}
 
-	sizeOfReadBuffer := unsafe.Sizeof(_readbuffer{})
 	buffers = make([]*_readbuffer, count)
 	for i := 0; i < count; i++ {
-		buffers[i] = (*_readbuffer)(C.malloc(C.ulonglong(sizeOfReadBuffer)))
-		buf := buffers[i]
-		err := windows.ReadFile(h, buf.data[:], nil, &(buf.ol))
+		buf, err := AllocateReadBuffer()
+		if err != nil {
+			return windows.Handle(0), nil, err
+		}
+		buffers[i] = buf
+
+		err = windows.ReadFile(h, buf.data[:], nil, &(buf.ol))
 		if err != nil && err != windows.ERROR_IO_PENDING {
 			windows.CloseHandle(iocp)
 			return windows.Handle(0), nil, errors.Wrap(err, "failed to initiate readfile")

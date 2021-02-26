@@ -4,6 +4,7 @@
 
 | Name      | Description   | Tags      |
 |--------   |---------      |---------  |
+| `kubernetes_state.daemonset.count` | Number of DaemonSets | `kube_namespace` |
 | `kubernetes_state.daemonset.scheduled` | The number of nodes running at least one daemon pod and are supposed to.   | `kube_daemon_set` `kube_namespace` (`env` `service` `version` from standard labels)   |
 | `kubernetes_state.daemonset.desired` | The number of nodes that should be running the daemon pod.   | `kube_daemon_set` `kube_namespace` (`env` `service` `version` from standard labels)   |
 | `kubernetes_state.daemonset.misscheduled` | The number of nodes running a daemon pod but are not supposed to.   | `kube_daemon_set` `kube_namespace` (`env` `service` `version` from standard labels)   |
@@ -11,6 +12,7 @@
 | `kubernetes_state.daemonset.updated` | The total number of nodes that are running updated daemon pod.   | `kube_daemon_set` `kube_namespace` (`env` `service` `version` from standard labels)   |
 | `kubernetes_state.daemonset.daemons_unavailable` | The number of nodes that should be running the daemon pod and have none of the daemon pod running and available.   | `kube_daemon_set` `kube_namespace` (`env` `service` `version` from standard labels)   |
 | `kubernetes_state.daemonset.daemons_available` | The number of nodes that should be running the daemon pod and have one or more of the daemon pod running and available.   | `kube_daemon_set` `kube_namespace` (`env` `service` `version` from standard labels)   |
+| `kubernetes_state.deployment.count` | Number of deployments | `kube_namespace` |
 | `kubernetes_state.deployment.paused` | Whether the deployment is paused and will not be processed by the deployment controller.   | `kube_deployment` `kube_namespace` (`env` `service` `version` from standard labels)   |
 | `kubernetes_state.deployment.replicas_desired` | Number of desired pods for a deployment.   | `kube_deployment` `kube_namespace` (`env` `service` `version` from standard labels)   |
 | `kubernetes_state.deployment.rollingupdate.max_unavailable` | Maximum number of unavailable replicas during a rolling update of a deployment.   | `kube_deployment` `kube_namespace` (`env` `service` `version` from standard labels)   |
@@ -22,14 +24,22 @@
 | `kubernetes_state.deployment.condition` | The current status conditions of a deployment.   | `kube_deployment` `kube_namespace` (`env` `service` `version` from standard labels)   |
 | `kubernetes_state.endpoint.address_available` | Number of addresses available in endpoint.   | `endpoint` `kube_namespace`   |
 | `kubernetes_state.endpoint.address_not_ready` | Number of addresses not ready in endpoint.   | `endpoint` `kube_namespace`   |
+| `kubernetes_state.namespace.count` | Number of namespaces | `phase` |
 | `kubernetes_state.node.count` | Information about a cluster node.   | `node` `kernel_version` `os_image` `container_runtime_version` `kubelet_version` `kubeproxy_version` `provider_id` `pod_cidr`   |
-| `kubernetes_state.node.allocatable` | The allocatable for different resources of a node that are available for scheduling.   | `node` `resource` `unit`   |
-| `kubernetes_state.node.capacity` | The capacity for different resources of a node.   | `node` `resource` `unit`   |
+| `kubernetes_state.node.cpu_allocatable` | The allocatable cpu of a node that is available for scheduling.   | `node` `resource` `unit`   |
+| `kubernetes_state.node.memory_allocatable` | The allocatable memory of a node that is available for scheduling.   | `node` `resource` `unit`   |
+| `kubernetes_state.node.pods_allocatable` | The allocatable memory of a node that is available for scheduling.   | `node` `resource` `unit`   |
+| `kubernetes_state.node.cpu_capacity` | The cpu capacity of a node.   | `node` `resource` `unit`   |
+| `kubernetes_state.node.memory_capacity` | The memory capacity of a node.   | `node` `resource` `unit`   |
+| `kubernetes_state.node.pods_capacity` | The pods capacity of a node.   | `node` `resource` `unit`   |
 | `kubernetes_state.node.by_condition` | The condition of a cluster node.   | `condition` `node` `status`   |
 | `kubernetes_state.node.status` | Whether the node can schedule new pods.   | `node` `status`   |
+| `kubernetes_state.node.age` | The time in seconds since the creation of the node.   | `node`   |
 | `kubernetes_state.container.terminated` | Describes whether the container is currently in terminated state.   | `kube_namespace` `pod_name` `kube_container_name` (`env` `service` `version` from standard labels)   |
-| `kubernetes_state.container.resource_limits` | The number of requested limit resource by a container.   | `kube_namespace` `pod_name` `kube_container_name` `node` `resource` `unit` (`env` `service` `version` from standard labels)   |
-| `kubernetes_state.container.resource_requests` | The number of requested request resource by a container.   | `kube_namespace` `pod_name` `kube_container_name` `node` `resource` `unit` (`env` `service` `version` from standard labels)   |
+| `kubernetes_state.container.cpu_limit` | The value of cpu limit by a container.   | `kube_namespace` `pod_name` `kube_container_name` `node` `resource` `unit` (`env` `service` `version` from standard labels)   |
+| `kubernetes_state.container.memory_limit` | The value of memory limit by a container.   | `kube_namespace` `pod_name` `kube_container_name` `node` `resource` `unit` (`env` `service` `version` from standard labels)   |
+| `kubernetes_state.container.cpu_requested` | The value of cpu requested by a container.   | `kube_namespace` `pod_name` `kube_container_name` `node` `resource` `unit` (`env` `service` `version` from standard labels)   |
+| `kubernetes_state.container.memory_requested` | The value of memory requested by a container.   | `kube_namespace` `pod_name` `kube_container_name` `node` `resource` `unit` (`env` `service` `version` from standard labels)   |
 | `kubernetes_state.container.ready` | Describes whether the containers readiness check succeeded.   | `kube_namespace` `pod_name` `kube_container_name` (`env` `service` `version` from standard labels)   |
 | `kubernetes_state.container.restarts` | The number of container restarts per container.   | `kube_namespace` `pod_name` `kube_container_name` (`env` `service` `version` from standard labels)   |
 | `kubernetes_state.container.running` | Describes whether the container is currently in running state.   | `kube_namespace` `pod_name` `kube_container_name` (`env` `service` `version` from standard labels)   |
@@ -53,6 +63,7 @@
 | `kubernetes_state.pdb.disruptions_allowed` | Number of pod disruptions that are currently allowed.   | `kube_namespace` `poddisruptionbudget`   |
 | `kubernetes_state.pdb.pods_total` | Total number of pods counted by this disruption budget.   | `kube_namespace` `poddisruptionbudget`   |
 | `kubernetes_state.secret.type` | Type about secret.   | `kube_namespace` `secret` `type`   |
+| `kubernetes_state.replicaset.count` | Number of ReplicaSets | `kube_namespace` `owner_name` `owner_kind` |
 | `kubernetes_state.replicaset.replicas_desired` | Number of desired pods for a ReplicaSet.   | `kube_namespace` `kube_replica_set` (`env` `service` `version` from standard labels)   |
 | `kubernetes_state.replicaset.fully_labeled_replicas` | The number of fully labeled replicas per ReplicaSet.   | `kube_namespace` `kube_replica_set` (`env` `service` `version` from standard labels)   |
 | `kubernetes_state.replicaset.replicas_ready` | The number of ready replicas per ReplicaSet.   | `kube_namespace` `kube_replica_set` (`env` `service` `version` from standard labels)   |
@@ -62,6 +73,7 @@
 | `kubernetes_state.replicationcontroller.fully_labeled_replicas` | The number of fully labeled replicas per ReplicationController.   | `kube_namespace` `kube_replication_controller`   |
 | `kubernetes_state.replicationcontroller.replicas_ready` | The number of ready replicas per ReplicationController.   | `kube_namespace` `kube_replication_controller`   |
 | `kubernetes_state.replicationcontroller.replicas` | The number of replicas per ReplicationController.   | `kube_namespace` `kube_replication_controller`   |
+| `kubernetes_state.statefulset.count` | Number of StatefulSets | `kube_namespace` |
 | `kubernetes_state.statefulset.replicas_desired` | Number of desired pods for a StatefulSet.   | `kube_namespace` `kube_stateful_set` (`env` `service` `version` from standard labels)   |
 | `kubernetes_state.statefulset.replicas` | The number of replicas per StatefulSet.   | `kube_namespace` `kube_stateful_set` (`env` `service` `version` from standard labels)   |
 | `kubernetes_state.statefulset.replicas_current` | The number of current replicas per StatefulSet.   | `kube_namespace` `kube_stateful_set` (`env` `service` `version` from standard labels)   |
@@ -82,12 +94,14 @@
 | `kubernetes_state.vpa.spec_container_maxallowed` | Maximum resources the VerticalPodAutoscaler can set for containers matching the name.   | `kube_namespace` `verticalpodautoscaler` `kube_container_name` `resource` `target_api_version` `target_kind` `target_name` `unit`    |
 | `kubernetes_state.cronjob.spec_suspend` | Suspend flag tells the controller to suspend subsequent executions.   | `kube_namespace` `kube_cronjob` (`env` `service` `version` from standard labels)    |
 | `kubernetes_state.cronjob.duration_since_last_schedule` | The duration since the last time the cronjob was scheduled.   | `kube_cronjob` `kube_namespace` (`env` `service` `version` from standard labels)    |
+| `kubernetes_state.job.count` | Number of jobs | `kube_namespace` `owner_name` `owner_kind` |
 | `kubernetes_state.job.failed` | The number of pods which reached Phase Failed.   | `kube_job` `kube_namespace` (`env` `service` `version` from standard labels)    |
 | `kubernetes_state.job.succeeded` | The number of pods which reached Phase Succeeded.   | `kube_job` `kube_namespace` (`env` `service` `version` from standard labels)    |
 | `kubernetes_state.resourcequota.<resource>.limit` | Information about resource quota limits by resource.   | `kube_namespace` `resourcequota`   |
 | `kubernetes_state.resourcequota.<resource>.used` | Information about resource quota usage by resource.   | `kube_namespace` `resourcequota`   |
 | `kubernetes_state.limitrange.cpu.<constraint>` | Information about limit range usage by constraint.   | `kube_namespace` `limitrange` `type`   |
 | `kubernetes_state.limitrange.memory.<constraint>` | Information about memory limit range usage by constraint.   | `kube_namespace` `limitrange` `type`   |
+| `kubernetes_state.service.count` | Number of services | `kube_namespace` `type` |
 | `kubernetes_state.service.type` | Service types.   | `kube_namespace` `kube_service` `type`   |
 
 ## Service Checks

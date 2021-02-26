@@ -7,10 +7,11 @@ import (
 	"net/http"
 	"sync"
 
+	traceAgent "github.com/DataDog/datadog-agent/pkg/trace/agent"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/logs"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -28,6 +29,7 @@ type Daemon struct {
 	mux        *http.ServeMux
 
 	statsdServer *dogstatsd.Server
+	traceAgent   *traceAgent.Agent
 
 	// aggregator used by the statsd server
 	aggregator *aggregator.BufferedAggregator
@@ -41,6 +43,11 @@ type Daemon struct {
 // SetStatsdServer sets the DogStatsD server instance running when it is ready.
 func (d *Daemon) SetStatsdServer(statsdServer *dogstatsd.Server) {
 	d.statsdServer = statsdServer
+}
+
+// SetTraceAgent sets the Agent instance for submitting traces
+func (d *Daemon) SetTraceAgent(traceAgent *traceAgent.Agent) {
+	d.traceAgent = traceAgent
 }
 
 // SetAggregator sets the aggregator used within the DogStatsD server.
@@ -111,58 +118,32 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Error("Can't read log message")
 		w.WriteHeader(400)
 	} else {
+		metricsChan := l.daemon.aggregator.GetBufferedMetricsWithTsChannel()
+		functionARN := aws.GetARN()
+		functionName := aws.FunctionNameFromARN()
+		// FIXME(remy): could this be exported to properly get all tags?
+		metricTags := []string{
+			fmt.Sprintf("functionname:%s", functionName),
+			fmt.Sprintf("function_arn:%s", functionARN),
+		}
 		for _, message := range messages {
 			switch message.Type {
 			case aws.LogTypePlatformStart:
 				if len(message.ObjectRecord.RequestID) > 0 {
 					aws.SetRequestID(message.ObjectRecord.RequestID)
 				}
-				fallthrough
-			default:
+				l.ch <- message
+			case aws.LogTypeFunction:
+				if functionName != "" {
+					generateEnhancedMetricsFromFunctionLog(message, metricTags, metricsChan)
+				}
 				l.ch <- message
 			case aws.LogTypePlatformReport:
-				functionName := aws.FunctionNameFromARN()
 				if functionName != "" {
-					// report enhanced metrics using DogStatsD
-					tags := []string{fmt.Sprintf("functionname:%s", functionName)} // FIXME(remy): could this be exported to properly get all tags?
-					metricsChan := l.daemon.aggregator.GetBufferedMetricsWithTsChannel()
-					metricsChan <- []metrics.MetricSample{{
-						Name:       "aws.lambda.enhanced.max_memory_used",
-						Value:      float64(message.ObjectRecord.Metrics.MaxMemoryUsedMB),
-						Mtype:      metrics.DistributionType,
-						Tags:       tags,
-						SampleRate: 1,
-						Timestamp:  float64(message.Time.UnixNano()),
-					}, {
-						Name:       "aws.lambda.enhanced.memorysize",
-						Value:      float64(message.ObjectRecord.Metrics.MemorySizeMB),
-						Mtype:      metrics.DistributionType,
-						Tags:       tags,
-						SampleRate: 1,
-						Timestamp:  float64(message.Time.UnixNano()),
-					}, {
-						Name:       "aws.lambda.enhanced.billed_duration",
-						Value:      float64(message.ObjectRecord.Metrics.BilledDurationMs),
-						Mtype:      metrics.DistributionType,
-						Tags:       tags,
-						SampleRate: 1,
-						Timestamp:  float64(message.Time.UnixNano()),
-					}, {
-						Name:       "aws.lambda.enhanced.duration",
-						Value:      message.ObjectRecord.Metrics.DurationMs,
-						Mtype:      metrics.DistributionType,
-						Tags:       tags,
-						SampleRate: 1,
-						Timestamp:  float64(message.Time.UnixNano()),
-					}, {
-						Name:       "aws.lambda.enhanced.init_duration",
-						Value:      message.ObjectRecord.Metrics.InitDurationMs,
-						Mtype:      metrics.DistributionType,
-						Tags:       tags,
-						SampleRate: 1,
-						Timestamp:  float64(message.Time.UnixNano()),
-					}}
+					generateEnhancedMetricsFromReportLog(message, metricTags, metricsChan)
 				}
+				l.ch <- message
+			default:
 				l.ch <- message
 			}
 		}
@@ -202,13 +183,34 @@ func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("DogStatsD server not ready"))
 		return
 	}
+	// synchronous flush metrics, traces and logs
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	wg.Add(1)
+	wg.Add(1)
 
-	// synchronous flush of the logs agent
+	go func() {
+		if f.daemon.statsdServer != nil {
+			f.daemon.statsdServer.Flush(true)
+		}
+		wg.Done()
+	}()
+	go func() {
+		if f.daemon.traceAgent != nil {
+			f.daemon.traceAgent.FlushSync()
+		}
+		wg.Done()
+	}()
+
 	// FIXME(remy): could the enhanced metrics be generated at this point? if not
 	//              and they're already generated when REPORT is received on the http server,
 	//              we could make this run in parallel with the statsd flush
-	logs.Flush()
-	// synchronous flush
-	f.daemon.statsdServer.Flush(true)
+	go func() {
+		logs.Flush()
+		wg.Done()
+	}()
+
+	wg.Wait()
+
 	log.Debug("Sync flush done")
 }

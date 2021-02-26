@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
+	traceAgent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -223,7 +224,7 @@ func ReportInitError(id ID, errorEnum ErrorEnum) error {
 // WaitForNextInvocation starts waiting and blocking until it receives a request.
 // Note that for now, we only subscribe to INVOKE and SHUTDOWN messages.
 // Write into stopCh to stop the main thread of the running program.
-func WaitForNextInvocation(stopCh chan struct{}, statsdServer *dogstatsd.Server, id ID) error {
+func WaitForNextInvocation(stopCh chan struct{}, statsdServer *dogstatsd.Server, traceAgent *traceAgent.Agent, id ID) error {
 	var err error
 
 	// do the blocking HTTP GET call
@@ -265,6 +266,9 @@ func WaitForNextInvocation(stopCh chan struct{}, statsdServer *dogstatsd.Server,
 		if statsdServer != nil {
 			// flush metrics synchronously
 			statsdServer.Flush(true)
+		}
+		if traceAgent != nil {
+			traceAgent.FlushSync()
 		}
 		if logs.IsAgentRunning() {
 			logs.Stop()

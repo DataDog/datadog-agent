@@ -264,11 +264,12 @@ func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][
 				// they shouldn't be forwarded to Datadog
 				continue
 			}
-			if !isKnownMetric(metricFamily.Name) {
-				// ignore the metric if it doesn't have a transformer
-				// or if it isn't mapped to a datadog metric name
-				log.Tracef("KSM metric '%s' is unknown for the check, ignoring it", metricFamily.Name)
-				continue
+			if aggregator, found := metricAggregators[metricFamily.Name]; found {
+				for _, m := range metricFamily.ListMetrics {
+					aggregator.accumulate(m)
+				}
+				// Some metrics can be aggregated and consumed as-is or by a transformer.
+				// So, let’s continue the processing.
 			}
 			if transform, found := metricTransformers[metricFamily.Name]; found {
 				for _, m := range metricFamily.ListMetrics {
@@ -277,11 +278,23 @@ func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][
 				}
 				continue
 			}
-			for _, m := range metricFamily.ListMetrics {
-				hostname, tags := k.hostnameAndTags(m.Labels, labelJoiner)
-				sender.Gauge(formatMetricName(metricFamily.Name), m.Val, hostname, tags)
+			if ddname, found := metricNamesMapper[metricFamily.Name]; found {
+				for _, m := range metricFamily.ListMetrics {
+					hostname, tags := k.hostnameAndTags(m.Labels, labelJoiner)
+					sender.Gauge(ksmMetricPrefix+ddname, m.Val, hostname, tags)
+				}
+				continue
 			}
+			if _, found := metricAggregators[metricFamily.Name]; found {
+				continue
+			}
+			// ignore the metric if it doesn't have a transformer
+			// or if it isn't mapped to a datadog metric name
+			log.Tracef("KSM metric '%s' is unknown for the check, ignoring it", metricFamily.Name)
 		}
+	}
+	for _, aggregator := range metricAggregators {
+		aggregator.flush(sender, k, labelJoiner)
 	}
 }
 
@@ -456,15 +469,6 @@ func newKSMCheck(base core.CheckBase, instance *KSMConfig) *KSMCheck {
 	}
 }
 
-// formatMetricName converts the default KSM metric names into Datadog metric names
-func formatMetricName(name string) string {
-	if ddName, found := metricNamesMapper[name]; found {
-		return ksmMetricPrefix + ddName
-	}
-	log.Tracef("KSM metric '%s' is not found in the metric names mapper", name)
-	return ksmMetricPrefix + name
-}
-
 // resourceNameFromMetric returns the resource name based on the metric name
 // It relies on the conventional KSM naming format kube_<resource>_suffix
 // returns an empty string otherwise
@@ -480,10 +484,16 @@ func resourceNameFromMetric(name string) string {
 // A known metric should satisfy one of the conditions:
 //  - has a datadog metric name
 //  - has a metric transformer
+//  - has a metric aggregator
 func isKnownMetric(name string) bool {
 	if _, found := metricNamesMapper[name]; found {
 		return true
 	}
-	_, found := metricTransformers[name]
-	return found
+	if _, found := metricTransformers[name]; found {
+		return true
+	}
+	if _, found := metricAggregators[name]; found {
+		return true
+	}
+	return false
 }

@@ -117,7 +117,7 @@ func TestReceiverRequestBodyLength(t *testing.T) {
 	testBody(http.StatusRequestEntityTooLarge, " []")
 }
 
-func TestVersionHeader(t *testing.T) {
+func TestStateHeaders(t *testing.T) {
 	assert := assert.New(t)
 	r := newTestReceiverFromConfig(config.New())
 	r.Start()
@@ -143,6 +143,11 @@ func TestVersionHeader(t *testing.T) {
 		assert.True(ok)
 		v := resp.Header.Get("Datadog-Agent-Version")
 		assert.Equal(v, info.Version)
+
+		_, ok = resp.Header["Datadog-Agent-State"]
+		assert.True(ok)
+		v = resp.Header.Get("Datadog-Agent-State")
+		assert.NotEmpty(v)
 	}
 }
 

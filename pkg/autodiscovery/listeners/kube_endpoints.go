@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -21,7 +21,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/types"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	infov1 "k8s.io/client-go/informers/core/v1"
 	listv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
@@ -38,8 +38,8 @@ type KubeEndpointsListener struct {
 	endpointsLister   listv1.EndpointsLister
 	serviceInformer   infov1.ServiceInformer
 	serviceLister     listv1.ServiceLister
-	endpoints         map[types.UID][]*KubeEndpointService
-	promInclAnnot     common.PrometheusAnnotations
+	endpoints         map[k8stypes.UID][]*KubeEndpointService
+	promInclAnnot     types.PrometheusAnnotations
 	newService        chan<- Service
 	delService        chan<- Service
 	m                 sync.RWMutex
@@ -78,12 +78,12 @@ func NewKubeEndpointsListener() (ServiceListener, error) {
 	}
 
 	return &KubeEndpointsListener{
-		endpoints:         make(map[types.UID][]*KubeEndpointService),
+		endpoints:         make(map[k8stypes.UID][]*KubeEndpointService),
 		endpointsInformer: endpointsInformer,
 		endpointsLister:   endpointsInformer.Lister(),
 		serviceInformer:   serviceInformer,
 		serviceLister:     serviceInformer.Lister(),
-		promInclAnnot:     common.GetPrometheusIncludeAnnotations(),
+		promInclAnnot:     getPrometheusIncludeAnnotations(),
 	}, nil
 }
 

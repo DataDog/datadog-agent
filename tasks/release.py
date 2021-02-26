@@ -32,7 +32,8 @@ def add_prelude(ctx, version):
         )
 
     ctx.run("git add {}".format(new_releasenote))
-    ctx.run("git commit -m \"Add prelude for {} release\"".format(version))
+    print("\nCommit this with:")
+    print("git commit -m \"Add prelude for {} release\"".format(version))
 
 
 @task
@@ -59,7 +60,8 @@ def add_dca_prelude(ctx, version, agent7_version, agent6_version=""):
         )
 
     ctx.run("git add {}".format(new_releasenote))
-    ctx.run("git commit -m \"Add prelude for {} release\"".format(version))
+    print("\nCommit this with:")
+    print("git commit -m \"Add prelude for {} release\"".format(version))
 
 
 @task
@@ -77,7 +79,8 @@ def add_installscript_prelude(ctx, version):
         )
 
     ctx.run("git add {}".format(new_releasenote))
-    ctx.run("git commit -m \"Add prelude for {} release\"".format(version))
+    print("\nCommit this with:")
+    print("git commit -m \"Add prelude for {} release\"".format(version))
 
 
 @task
@@ -166,12 +169,10 @@ def update_dca_changelog(ctx, new_version, agent_version):
     ctx.run("cat CHANGELOG-DCA.rst >> /tmp/new_changelog-dca.rst && mv /tmp/new_changelog-dca.rst CHANGELOG-DCA.rst")
 
     # commit new CHANGELOG
-    ctx.run(
-        "git add CHANGELOG-DCA.rst \
-            && git commit -m \"[DCA] Update CHANGELOG for {}\"".format(
-            new_version
-        )
-    )
+    ctx.run("git add CHANGELOG-DCA.rst")
+
+    print("\nCommit this with:")
+    print("git commit -m \"[DCA] Update CHANGELOG for {}\"".format(new_version))
 
 
 @task
@@ -249,12 +250,10 @@ def update_changelog(ctx, new_version):
     ctx.run("cat CHANGELOG.rst >> /tmp/new_changelog.rst && mv /tmp/new_changelog.rst CHANGELOG.rst")
 
     # commit new CHANGELOG
-    ctx.run(
-        "git add CHANGELOG.rst \
-            && git commit -m \"Update CHANGELOG for {}\"".format(
-            new_version
-        )
-    )
+    ctx.run("git add CHANGELOG.rst")
+
+    print("\nCommit this with:")
+    print("git commit -m \"[DCA] Update CHANGELOG for {}\"".format(new_version))
 
 
 @task
@@ -320,12 +319,10 @@ def update_installscript_changelog(ctx, new_version):
     )
 
     # commit new CHANGELOG-INSTALLSCRIPT
-    ctx.run(
-        "git add CHANGELOG-INSTALLSCRIPT.rst \
-            && git commit -m \"[INSTALLSCRIPT] Update CHANGELOG-INSTALLSCRIPT for {}\"".format(
-            new_version
-        )
-    )
+    ctx.run("git add CHANGELOG-INSTALLSCRIPT.rst")
+
+    print("\nCommit this with:")
+    print("git commit -m \"[INSTALLSCRIPT] Update CHANGELOG-INSTALLSCRIPT for {}\"".format(new_version))
 
 
 @task
@@ -356,7 +353,7 @@ def _find_v6_tag(ctx, v7_tag):
 
 
 @task
-def list_major_change(ctx, milestone):
+def list_major_change(_, milestone):
     """
     List all PR labeled "major_changed" for this release.
     """
@@ -560,7 +557,7 @@ def _save_release_json(
 
 @task
 def finish(
-    ctx,
+    _,
     major_versions="6,7",
     integration_version=None,
     omnibus_software_version=None,
@@ -727,7 +724,7 @@ def finish(
 
 @task
 def create_rc(
-    ctx,
+    _,
     major_versions="6,7",
     integration_version=None,
     omnibus_software_version=None,

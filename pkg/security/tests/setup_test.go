@@ -55,6 +55,7 @@ system_probe_config:
 
 runtime_security_config:
   enabled: true
+  fim_enabled: true
   socket: /tmp/test-security-probe.sock
   flush_discarder_window: 0
   load_controller:
