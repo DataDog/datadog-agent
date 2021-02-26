@@ -11,15 +11,14 @@ import (
 	"sync/atomic"
 	"syscall"
 
-	"github.com/pkg/errors"
-	"github.com/vishvananda/netns"
-
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"golang.org/x/sys/unix"
-
 	"github.com/mdlayher/netlink"
 	"github.com/mdlayher/netlink/nlenc"
+	"github.com/pkg/errors"
+	"github.com/vishvananda/netns"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -44,6 +43,13 @@ const (
 )
 
 var errShortErrorMessage = errors.New("not enough data for netlink error code")
+var pre315Kernel bool
+
+func init() {
+	if vers, err := kernel.HostVersion(); err == nil {
+		pre315Kernel = vers < kernel.VersionCode(3, 15, 0)
+	}
+}
 
 // Consumer is responsible for encapsulating all the logic of hooking into Conntrack via a Netlink socket
 // and streaming new connection events.
@@ -108,6 +114,13 @@ func (e *Event) Done() {
 // NewConsumer creates a new Conntrack event consumer.
 // targetRateLimit represents the maximum number of netlink messages per second that can be read off the socket
 func NewConsumer(procRoot string, targetRateLimit int, listenAllNamespaces bool) *Consumer {
+	if pre315Kernel {
+		// bpf sampling is not available on kernel versions < 3.15
+		// since the rand kernel extension instruction is not available
+		targetRateLimit = -1
+		log.Warnf("netlink conntrack sampling disabled; not available on kernel versions < 3.15")
+	}
+
 	c := &Consumer{
 		procRoot:            procRoot,
 		pool:                newBufferPool(),

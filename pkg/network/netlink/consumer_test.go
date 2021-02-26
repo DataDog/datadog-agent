@@ -4,12 +4,20 @@ package netlink
 
 import (
 	"net"
+	"os"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/require"
 )
+
+func TestMain(m *testing.M) {
+	log.SetupLogger(seelog.Default, "trace")
+	os.Exit(m.Run())
+}
 
 func TestConsumerKeepsRunningAfterCircuitBreakerTrip(t *testing.T) {
 	c := NewConsumer("/proc", 1, false)
@@ -57,9 +65,16 @@ func TestConsumerKeepsRunningAfterCircuitBreakerTrip(t *testing.T) {
 		time.Sleep(250 * time.Millisecond)
 	}
 
-	require.Eventually(t, func() bool {
-		return c.samplingRate < 1.0
-	}, 3*time.Second, 100*time.Millisecond)
+	// on pre 3.15 kernels, the circuit break and
+	// sampling code are effectively disabled so
+	// c.samplingRate will remain at 1.0
+	if pre315Kernel {
+		require.Equal(t, 1.0, c.samplingRate)
+	} else {
+		require.Eventually(t, func() bool {
+			return c.samplingRate < 1.0
+		}, 3*time.Second, 100*time.Millisecond)
+	}
 
 	require.True(t, isRecvLoopRunning())
 }
