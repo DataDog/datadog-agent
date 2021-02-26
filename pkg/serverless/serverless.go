@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
@@ -31,7 +32,8 @@ const (
 	headerExtErrType  string = "Lambda-Extension-Function-Error-Type"
 	headerContentType string = "Content-Type"
 
-	requestTimeout time.Duration = 5 * time.Second
+	requestTimeout      time.Duration = 5 * time.Second
+	arbitraryShortDelay time.Duration = 10 * time.Millisecond
 
 	// FatalNoAPIKey is the error reported to the AWS Extension environment when
 	// no API key has been set. Unused until we can report error
@@ -261,11 +263,14 @@ func WaitForNextInvocation(stopCh chan struct{}, statsdServer *dogstatsd.Server,
 	}
 	if payload.EventType == "SHUTDOWN" {
 		log.Debug("Received shutdown event. Reason: " + payload.ShutdownReason)
-		if payload.ShutdownReason == "timeout" {
+
+		aws.PersistCurrentStateToFile()
+
+		if strings.ToLower(payload.ShutdownReason) == "timeout" {
 			metricTags := getTagsForEnhancedMetrics()
 			sendTimeoutEnhancedMetric(metricTags, metricsChan)
 			// Ensure that timeout metric has been received by the statsdServer before flushing
-			time.Sleep(50 * time.Millisecond)
+			time.Sleep(arbitraryShortDelay)
 		}
 		if statsdServer != nil {
 			// flush metrics synchronously

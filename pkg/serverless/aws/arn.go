@@ -1,6 +1,8 @@
 package aws
 
 import (
+	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"strings"
 	"sync"
@@ -8,10 +10,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	cachedARNFilePath       = "/tmp/dd-lambda-extension-function-arn-cache"
-	cachedRequestIDFilePath = "/tmp/dd-lambda-extension-request-id-cache"
-)
+const persistedStateFilePath = "/tmp/dd-lambda-extension-cache"
+
+type persistedState struct {
+	CurrentARN   string
+	CurrentReqID string
+}
 
 var currentARN struct {
 	value string
@@ -47,16 +51,6 @@ func SetARN(arn string) {
 	}
 
 	currentARN.value = arn
-	cacheARN(arn)
-}
-
-// cacheARN writes the ARN to a file in the /tmp directory so we can restore it if the extension process is restarted
-func cacheARN(arn string) {
-	data := []byte(arn)
-	err := ioutil.WriteFile(cachedARNFilePath, data, 0644)
-	if err != nil {
-		log.Error("Error writing ARN to cache")
-	}
 }
 
 // FunctionNameFromARN returns the function name from the currently set ARN.
@@ -81,42 +75,47 @@ func SetRequestID(reqID string) {
 	defer currentReqID.Unlock()
 
 	currentReqID.value = reqID
-	cacheRequestID(reqID)
 }
 
-// cacheRequestID writes the Request ID to a file in the /tmp directory so we can restore it if the extension process is restarted
-func cacheRequestID(reqID string) {
-	data := []byte(reqID)
-	err := ioutil.WriteFile(cachedRequestIDFilePath, data, 0644)
-	if err != nil {
-		log.Error("Error writing request ID to cache")
+// PersistCurrentStateToFile persists the current state (ARN and Request ID) to a file.
+// This allows the state to be restored after the extension restarts.
+// Call this function when the extension shuts down.
+func PersistCurrentStateToFile() error {
+	dataToPersist := persistedState{
+		CurrentARN:   GetARN(),
+		CurrentReqID: GetRequestID(),
 	}
-}
 
-// RestoreCurrentARNFromCache sets the current ARN to the value cached as a file in case the extension process was restarted
-func RestoreCurrentARNFromCache() {
-	SetARN(getCurrentARNFromCache())
-}
-
-// getCurrentARNFromCache retrieves the cached current ARN
-func getCurrentARNFromCache() string {
-	data, err := ioutil.ReadFile(cachedARNFilePath)
+	file, err := json.MarshalIndent(dataToPersist, "", "")
 	if err != nil {
-		return ""
+		log.Error("Error converting current state to JSON")
+		return err
 	}
-	return string(data)
-}
-
-// RestoreCurrentRequestIDFromCache sets the current request ID to the value cached as a file in case the extension process was restarted
-func RestoreCurrentRequestIDFromCache() {
-	SetRequestID(getCurrentRequestIDFromCache())
-}
-
-// getCurrentRequestIDFromCache retrieves the cached current request ID
-func getCurrentRequestIDFromCache() string {
-	data, err := ioutil.ReadFile(cachedRequestIDFilePath)
+	err = ioutil.WriteFile(persistedStateFilePath, file, 0644)
 	if err != nil {
-		return ""
+		log.Error("Error persisting current state to file")
+		return err
 	}
-	return string(data)
+	return nil
+}
+
+// RestoreCurrentStateFromFile restores the current state (ARN and Request ID) from a file
+// after the extension is restarted. Call this function when the extension starts.
+func RestoreCurrentStateFromFile() error {
+	file, err := ioutil.ReadFile(persistedStateFilePath)
+	if err != nil {
+		log.Error("Error reading persisted state file")
+		return err
+	}
+	var restoredState persistedState
+	err = json.Unmarshal([]byte(file), &restoredState)
+	if err != nil {
+		log.Error("Could not unmarshal the persisted state file")
+		return err
+	}
+	fmt.Printf(restoredState.CurrentARN)
+	fmt.Printf(restoredState.CurrentReqID)
+	SetARN(restoredState.CurrentARN)
+	SetRequestID(restoredState.CurrentReqID)
+	return nil
 }
