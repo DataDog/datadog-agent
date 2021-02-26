@@ -559,7 +559,7 @@ func TestStructureIntoWPA(t *testing.T) {
 			caseName:    "obj corrupted",
 			obj:         map[string]interface{}{},
 			expectedWpa: nil,
-			error:       fmt.Errorf("Could not cast Unstructured object: map[]"),
+			error:       fmt.Errorf("could not cast Unstructured object: map[]"),
 		},
 		{
 			caseName: "All good",

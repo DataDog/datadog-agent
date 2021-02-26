@@ -48,7 +48,7 @@ func SyncInformers(informers map[InformerName]cache.SharedInformer) error {
 func StructureIntoWPA(obj interface{}, structDest *v1alpha1.WatermarkPodAutoscaler) error {
 	unstrObj, ok := obj.(*unstructured.Unstructured)
 	if !ok {
-		return fmt.Errorf("Could not cast Unstructured object: %v", obj)
+		return fmt.Errorf("could not cast Unstructured object: %v", obj)
 	}
 	return runtime.DefaultUnstructuredConverter.FromUnstructured(unstrObj.UnstructuredContent(), structDest)
 }

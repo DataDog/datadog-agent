@@ -197,7 +197,7 @@ func (h *AutoscalersController) syncWPA(key interface{}) error {
 	wpaCached := &apis_v1alpha1.WatermarkPodAutoscaler{}
 	err = StructureIntoWPA(wpaCachedObj, wpaCached)
 	if err != nil {
-		log.Errorf("Could cast wpa %s retrieved from cache to wpa structure: %v", key, err)
+		log.Errorf("Could not cast wpa %s retrieved from cache to wpa structure: %v", key, err)
 		return err
 	}
 	switch {
