@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const persistedStateFilePath = "/tmp/dd-lambda-extension-cache"
+const persistedStateFilePath = "/tmp/dd-lambda-extension-cache.json"
 
 type persistedState struct {
 	CurrentARN   string
