@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	bpflib "github.com/iovisor/gobpf/bcc"
-	"github.com/iovisor/gobpf/pkg/cpuonline"
+	"github.com/iovisor/gobpf/pkg/cpupossible"
 )
 
 /*
@@ -18,10 +18,6 @@ import (
 #include "../c/tcp-queue-length-kern-user.h"
 */
 import "C"
-
-const (
-	maxNbCpus = 256
-)
 
 type TCPQueueLengthTracer struct {
 	m        *bpflib.Module
@@ -92,11 +88,12 @@ func (t *TCPQueueLengthTracer) Get() TCPQueueLengthStats {
 		return nil
 	}
 
-	cpus, err := cpuonline.Get()
+	cpus, err := cpupossible.Get()
 	if err != nil {
 		log.Errorf("Failed to get online CPUs: %v", err)
 		return TCPQueueLengthStats{}
 	}
+	nbCpus := len(cpus)
 
 	result := make(TCPQueueLengthStats)
 
@@ -115,24 +112,16 @@ func (t *TCPQueueLengthTracer) Get() TCPQueueLengthStats {
 			break
 		}
 
-		var statsValue [maxNbCpus]C.struct_stats_value
+		statsValue := make([]C.struct_stats_value, nbCpus)
 		data = it.Leaf()
-		nbCpus := len(cpus)
-		if nbCpus > maxNbCpus {
-			nbCpus = maxNbCpus
-		}
 		if len(data) != C.sizeof_struct_stats_value*nbCpus {
 			log.Errorf("Unexpected tcp_queue_length eBPF map value size: %d instead of %d.", len(data), C.sizeof_struct_stats_value*nbCpus)
 			break
 		}
-		C.memcpy(unsafe.Pointer(&statsValue), unsafe.Pointer(&data[0]), C.sizeof_struct_stats_value*C.ulong(nbCpus))
+		C.memcpy(unsafe.Pointer(&statsValue[0]), unsafe.Pointer(&data[0]), C.sizeof_struct_stats_value*C.ulong(nbCpus))
 
 		max := TCPQueueLengthStatsValue{}
 		for _, cpu := range cpus {
-			if cpu >= maxNbCpus {
-				log.Error("Too many CPUs")
-				continue
-			}
 			if uint32(statsValue[cpu].read_buffer_max_usage) > max.ReadBufferMaxUsage {
 				max.ReadBufferMaxUsage = uint32(statsValue[cpu].read_buffer_max_usage)
 			}
