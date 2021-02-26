@@ -154,8 +154,8 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if sendLogsToIntake {
 				l.ch <- message
 			}
-			w.WriteHeader(200)
 		}
+		w.WriteHeader(200)
 	}
 }
 
