@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"sync"
 	"sync/atomic"
 	"time"
 	"unsafe"
@@ -33,6 +34,12 @@ import "C"
 const (
 	initializationTimeout = time.Second * 10
 )
+
+var tuplePool = sync.Pool{
+	New: func() interface{} {
+		return new(ConnTuple)
+	},
+}
 
 type conntrackTelemetry C.conntrack_telemetry_t
 
@@ -180,7 +187,12 @@ func formatKey(netns uint32, tuple *ct.IPTuple) *ConnTuple {
 
 func (e *ebpfConntracker) GetTranslationForConn(stats network.ConnectionStats) *network.IPTranslation {
 	start := time.Now()
-	src := connTupleFromConnectionStats(&stats)
+	src := tuplePool.Get().(*ConnTuple)
+	defer tuplePool.Put(src)
+
+	if err := toConnTupleFromConnectionStats(src, &stats); err != nil {
+		return nil
+	}
 	src.pid = 0
 	log.Tracef("looking up in conntrack: %s", src)
 
@@ -188,6 +200,8 @@ func (e *ebpfConntracker) GetTranslationForConn(stats network.ConnectionStats) *
 	if dst == nil {
 		return nil
 	}
+	defer tuplePool.Put(dst)
+
 	atomic.AddInt64(&e.stats.gets, 1)
 	atomic.AddInt64(&e.stats.getTotalTime, time.Now().Sub(start).Nanoseconds())
 	return &network.IPTranslation{
@@ -199,14 +213,15 @@ func (e *ebpfConntracker) GetTranslationForConn(stats network.ConnectionStats) *
 }
 
 func (e *ebpfConntracker) get(src *ConnTuple) *ConnTuple {
-	var dst ConnTuple
-	if err := e.ctMap.Lookup(unsafe.Pointer(src), unsafe.Pointer(&dst)); err != nil {
+	dst := tuplePool.Get().(*ConnTuple)
+	if err := e.ctMap.Lookup(unsafe.Pointer(src), unsafe.Pointer(dst)); err != nil {
 		if !errors.Is(err, ebpf.ErrKeyNotExist) {
 			log.Warnf("error looking up connection in ebpf conntrack map: %s", err)
 		}
+		tuplePool.Put(dst)
 		return nil
 	}
-	return &dst
+	return dst
 }
 
 func (e *ebpfConntracker) delete(key *ConnTuple) {
@@ -221,13 +236,19 @@ func (e *ebpfConntracker) delete(key *ConnTuple) {
 
 func (e *ebpfConntracker) DeleteTranslation(stats network.ConnectionStats) {
 	start := time.Now()
-	key := connTupleFromConnectionStats(&stats)
+	key := tuplePool.Get().(*ConnTuple)
+	defer tuplePool.Put(key)
+
+	if err := toConnTupleFromConnectionStats(key, &stats); err != nil {
+		return
+	}
 	key.pid = 0
 
 	dst := e.get(key)
 	e.delete(key)
 	if dst != nil {
 		e.delete(dst)
+		tuplePool.Put(dst)
 	}
 	atomic.AddInt64(&e.stats.unregisters, 1)
 	atomic.AddInt64(&e.stats.unregistersTotalTime, time.Now().Sub(start).Nanoseconds())
