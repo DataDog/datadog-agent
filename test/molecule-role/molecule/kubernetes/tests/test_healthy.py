@@ -37,31 +37,3 @@ def test_cluster_agent_healthy(host, ansible_var):
         assert host.run(c).rc == 0
 
     util.wait_until(assert_healthy, 30, 5)
-
-
-@pytest.mark.fourth
-def test_apply_pod_to_service_demo(host, ansible_var):
-    namespace = ansible_var('namespace')
-
-    # We recognize DNAT connections after the agent is started, because we dunno directions of in-flight connections
-    # so we make sure we deploy the demo after the node agent is healthy
-    c = kubeconfig_env + "kubectl -n={} apply -f /home/ubuntu/deployment/test_connections/pod-to-service-cluster-ip.yaml".format(namespace)
-    assert host.run(c).rc == 0
-
-
-@pytest.mark.fifth
-def test_apply_container_to_container_demo(host, ansible_var):
-    namespace = ansible_var('namespace')
-
-    # We stay in line with how dnat is provisioned (through a test)
-    c = kubeconfig_env + "kubectl -n={} apply -f /home/ubuntu/deployment/test_connections/pod-localhost.yaml".format(namespace)
-    assert host.run(c).rc == 0
-
-
-@pytest.mark.sixth
-def test_apply_pod_to_pod_headless_demo(host, ansible_var):
-    namespace = ansible_var('namespace')
-
-    # We stay in line with how dnat is provisioned (through a test)
-    c = kubeconfig_env + "kubectl -n={} apply -f /home/ubuntu/deployment/test_connections/pod-to-pod-headless.yaml".format(namespace)
-    assert host.run(c).rc == 0

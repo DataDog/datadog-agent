@@ -487,14 +487,14 @@ def test_cluster_agent_base_topology(host, ansible_var):
             external_id_assert_fn=lambda eid:  agent_container_mounts_volume_match.findall(eid)
         ).startswith("urn:kubernetes:/%s:%s:pod/stackstate-agent" % (cluster_name, namespace))
         # hello job controls hello pod
-        job_controls_match = re.compile("urn:kubernetes:/%s:%s:job/hello-.*->"
-                                        "urn:kubernetes:/%s:%s:pod/hello-.*" %
+        job_controls_match = re.compile("urn:kubernetes:/%s:%s:job/countdown->"
+                                        "urn:kubernetes:/%s:%s:pod/countdown-.*" %
                                         (cluster_name, namespace, cluster_name, namespace))
         assert _relation_data(
             json_data=json_data,
             type_name="controls",
             external_id_assert_fn=lambda eid:  job_controls_match.findall(eid)
-        ).startswith("urn:kubernetes:/%s:%s:job/hello" % (cluster_name, namespace))
+        ).startswith("urn:kubernetes:/%s:%s:job/countdown" % (cluster_name, namespace))
 
         # assert process agent data
         stackstate_cluster_agent_process_match = re.compile("%s" % stackstate_cluster_agent_container_external_id)
