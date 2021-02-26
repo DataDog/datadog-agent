@@ -578,9 +578,10 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 
 	conns := t.state.Connections(clientID, latestTime, latestConns, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
 	names := t.reverseDNS.Resolve(conns)
-	tm := t.getConnTelemetry(len(latestConns))
+	ctm := t.getConnTelemetry(len(latestConns))
+	tm := t.getTracerTelemetry()
 
-	return &network.Connections{Conns: conns, DNS: names, Telemetry: tm}, nil
+	return &network.Connections{Conns: conns, DNS: names, ConnTelemetry: ctm, Telemetry: tm}, nil
 }
 
 func (t *Tracer) getConnTelemetry(mapSize int) *network.ConnectionsTelemetry {
@@ -614,6 +615,23 @@ func (t *Tracer) getConnTelemetry(mapSize int) *network.ConnectionsTelemetry {
 	}
 	if usm, ok := ebpfStats["udp_sends_missed"]; ok {
 		tm.MonotonicUDPSendsMissed = usm
+	}
+
+	return tm
+}
+
+func (t *Tracer) getTracerTelemetry() *network.TracerTelemetry {
+	tm := &network.TracerTelemetry{}
+
+	compilerStats := runtime.Tracer.GetCompilerStats()
+	if ce, ok := compilerStats["compiler_enabled"]; ok {
+		tm.RuntimeCompilationEnabled = ce
+	}
+	if cs, ok := compilerStats["compilation_success"]; ok {
+		tm.RuntimeCompilationSuccess = cs
+	}
+	if cd, ok := compilerStats["compilation_duration"]; ok {
+		tm.RuntimeCompilationDuration = cd
 	}
 
 	return tm

@@ -82,8 +82,8 @@ var telemetryPool = sync.Pool{
 	},
 }
 
-// FormatTelemetry converts telemetry from its internal representation to a protobuf message
-func FormatTelemetry(tel *network.ConnectionsTelemetry) *model.ConnectionsTelemetry {
+// FormatConnTelemetry converts telemetry from its internal representation to a protobuf message
+func FormatConnTelemetry(tel *network.ConnectionsTelemetry) *model.ConnectionsTelemetry {
 	if tel == nil {
 		return nil
 	}
@@ -102,6 +102,19 @@ func FormatTelemetry(tel *network.ConnectionsTelemetry) *model.ConnectionsTeleme
 	return t
 }
 
+// FormatTracerTelemetry converts telemetry from its internal representation to a protobuf message
+func FormatTracerTelemetry(tel *network.TracerTelemetry) *model.NetworkTracerTelemetry {
+	if tel == nil {
+		return nil
+	}
+
+	t := &model.NetworkTracerTelemetry{}
+	t.RuntimeCompilationEnabled = tel.RuntimeCompilationEnabled
+	t.RuntimeCompilationSuccess = tel.RuntimeCompilationSuccess
+	t.RuntimeCompilationDuration = tel.RuntimeCompilationDuration
+	return t
+}
+
 func returnToPool(c *model.Connections) {
 	if c.Conns != nil {
 		for _, c := range c.Conns {
@@ -113,7 +126,7 @@ func returnToPool(c *model.Connections) {
 			dnsPool.Put(e)
 		}
 	}
-	telemetryPool.Put(c.Telemetry)
+	telemetryPool.Put(c.ConnTelemetry)
 	connsPool.Put(c)
 }
 

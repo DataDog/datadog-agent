@@ -87,10 +87,10 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	// Resolve the Raddr side of connections for local containers
 	LocalResolver.Resolve(conns)
 
-	tel := c.diffTelemetry(conns.Telemetry)
+	connTel := c.diffTelemetry(conns.ConnTelemetry)
 
 	log.Debugf("collected connections in %s", time.Since(start))
-	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, tel, conns.Domains), nil
+	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, connTel, conns.Domains, conns.TracerTelemetry), nil
 }
 
 func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
@@ -166,8 +166,9 @@ func batchConnections(
 	cxs []*model.Connection,
 	dns map[string]*model.DNSEntry,
 	networkID string,
-	telemetry *model.CollectorConnectionsTelemetry,
+	connTelemetry *model.CollectorConnectionsTelemetry,
 	domains []string,
+	tracerTelemetry *model.NetworkTracerTelemetry,
 ) []model.MessageBody {
 	groupSize := groupSize(len(cxs), cfg.MaxConnsPerMessage)
 	batches := make([]model.MessageBody, 0, groupSize)
@@ -234,7 +235,8 @@ func batchConnections(
 
 		// only add the telemetry to the first message to prevent double counting
 		if len(batches) == 0 {
-			cc.Telemetry = telemetry
+			cc.ConnTelemetry = connTelemetry
+			cc.TracerTelemetry = tracerTelemetry
 		}
 		batches = append(batches, cc)
 
