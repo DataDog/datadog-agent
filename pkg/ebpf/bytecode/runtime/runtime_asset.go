@@ -31,6 +31,8 @@ var (
 	}
 )
 
+var CompilationEnabled = false
+
 type CompiledOutput interface {
 	io.Reader
 	io.ReaderAt
@@ -43,7 +45,6 @@ type RuntimeAsset struct {
 	hash     string
 
 	// Telemetry
-	compilerEnabled     int64
 	compilationSuccess  int64
 	compilationDuration int64
 }
@@ -130,16 +131,16 @@ func (a *RuntimeAsset) Compile(config *ebpf.Config, cflags []string) (CompiledOu
 	return out, err
 }
 
-func (a *RuntimeAsset) SetCompilerEnabled() {
-	a.compilerEnabled = 1
-}
-
 func (a *RuntimeAsset) GetCompilerStats() map[string]int64 {
-	return map[string]int64{
-		"compiler_enabled":     a.compilerEnabled,
-		"compilation_success":  a.compilationSuccess,
-		"compilation_duration": a.compilationDuration,
+	stats := make(map[string]int64)
+	if CompilationEnabled {
+		stats["compiler_enabled"] = 1
+		stats["compilation_success"] = a.compilationSuccess
+		stats["compilation_duration"] = a.compilationDuration
+	} else {
+		stats["compiler_enabled"] = 0
 	}
+	return stats
 }
 
 func hashFlags(flags []string) string {
