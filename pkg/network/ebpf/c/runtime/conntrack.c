@@ -21,7 +21,11 @@ SEC("kprobe/__nf_conntrack_hash_insert")
 int kprobe___nf_conntrack_hash_insert(struct pt_regs* ctx) {
     struct nf_conn *ct = (struct nf_conn*)PT_REGS_PARM1(ctx);
     u32 status = ct_status(ct);
-    if (status == 0) {
+    if (!(status&IPS_CONFIRMED)) {
+        return 0;
+    }
+    if (!(status&IPS_NAT_MASK)) {
+        increment_telemetry_count(registers_dropped);
         return 0;
     }
 
@@ -30,10 +34,7 @@ int kprobe___nf_conntrack_hash_insert(struct pt_regs* ctx) {
 
     struct nf_conntrack_tuple orig = tuplehash[IP_CT_DIR_ORIGINAL].tuple;
     struct nf_conntrack_tuple reply = tuplehash[IP_CT_DIR_REPLY].tuple;
-    if (!(status&IPS_NAT_MASK)) {
-        increment_telemetry_count(registers_dropped);
-        return 0;
-    }
+
     u32 netns = get_netns(&ct->ct_net);
     log_debug("kprobe/__nf_conntrack_hash_insert: netns: %u, status: %x\n", netns, status);
 
