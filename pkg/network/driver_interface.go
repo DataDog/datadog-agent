@@ -356,6 +356,9 @@ func (di *DriverInterface) ReadDNSPacket(visit func([]byte, time.Time) error) (d
 	var bytesRead uint32
 	var key uint32 // returned by GetQueuedCompletionStatus, then ignored
 	var ol *windows.Overlapped
+
+	// NOTE: ideally we would pass a timeout of INFINITY to the GetQueuedCompletionStatus, but are using a
+	// timeout of 0 and letting userspace do a busy loop to align better with the Linux code.
 	err = windows.GetQueuedCompletionStatus(di.dnsIOCP, &bytesRead, &key, &ol, 0)
 	if err != nil {
 		if err == syscall.Errno(syscall.WAIT_TIMEOUT) {
