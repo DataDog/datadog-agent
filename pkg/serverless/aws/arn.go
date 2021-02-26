@@ -6,8 +6,6 @@ import (
 	"io/ioutil"
 	"strings"
 	"sync"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const persistedStateFilePath = "/tmp/dd-lambda-extension-cache.json"
@@ -88,12 +86,10 @@ func PersistCurrentStateToFile() error {
 
 	file, err := json.MarshalIndent(dataToPersist, "", "")
 	if err != nil {
-		log.Error("Error converting current state to JSON")
 		return err
 	}
 	err = ioutil.WriteFile(persistedStateFilePath, file, 0644)
 	if err != nil {
-		log.Error("Error persisting current state to file")
 		return err
 	}
 	return nil
@@ -104,13 +100,11 @@ func PersistCurrentStateToFile() error {
 func RestoreCurrentStateFromFile() error {
 	file, err := ioutil.ReadFile(persistedStateFilePath)
 	if err != nil {
-		log.Error("Error reading persisted state file")
 		return err
 	}
 	var restoredState persistedState
 	err = json.Unmarshal([]byte(file), &restoredState)
 	if err != nil {
-		log.Error("Could not unmarshal the persisted state file")
 		return err
 	}
 	fmt.Printf(restoredState.CurrentARN)

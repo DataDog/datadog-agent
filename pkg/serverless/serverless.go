@@ -264,7 +264,10 @@ func WaitForNextInvocation(stopCh chan struct{}, statsdServer *dogstatsd.Server,
 	if payload.EventType == "SHUTDOWN" {
 		log.Debug("Received shutdown event. Reason: " + payload.ShutdownReason)
 
-		aws.PersistCurrentStateToFile()
+		err := aws.PersistCurrentStateToFile()
+		if err != nil {
+			log.Error("Unable to persist current state to file while shutting down")
+		}
 
 		if strings.ToLower(payload.ShutdownReason) == "timeout" {
 			metricTags := getTagsForEnhancedMetrics()
