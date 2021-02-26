@@ -43,7 +43,7 @@ func (sv snmpValueType) withExtractValue(pattern *regexp.Regexp) (snmpValueType,
 		if matches == nil {
 			return snmpValueType{}, fmt.Errorf("extract value pattern does not match (pattern=%v, srcValue=%v)", pattern, srcValue)
 		}
-		matchedValue := matches[1]  // use first matching group
+		matchedValue := matches[1] // use first matching group
 		return snmpValueType{submissionType: sv.submissionType, value: matchedValue}, nil
 	default:
 		return sv, nil

@@ -269,8 +269,8 @@ func Test_validateEnrichMetrics(t *testing.T) {
 			metrics: []metricsConfig{
 				{
 					Symbol: symbolConfig{
-						OID: "1.2.3",
-						Name: "myMetric",
+						OID:          "1.2.3",
+						Name:         "myMetric",
 						ExtractValue: "[{",
 					},
 				},
