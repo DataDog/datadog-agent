@@ -108,11 +108,13 @@ func (cl *PythonCheckLoader) Load(config integration.Config, instance integratio
 	moduleName := config.Name
 
 	// Lock the GIL
-	glock := newStickyLock()
+	glock, err := newStickyLock()
+	if err != nil {
+		return nil, err
+	}
 	defer glock.unlock()
 
 	// Platform-specific preparation
-	var err error
 	if !agentConfig.Datadog.GetBool("win_skip_com_init") {
 		log.Debugf("Performing platform loading prep")
 		err = platformLoaderPrep()
@@ -190,7 +192,10 @@ func (cl *PythonCheckLoader) Load(config integration.Config, instance integratio
 		go reportPy3Warnings(name, goCheckFilePath)
 	}
 
-	c := NewPythonCheck(moduleName, checkClass)
+	c, err := NewPythonCheck(moduleName, checkClass)
+	if err != nil {
+		return c, err
+	}
 
 	// The GIL should be unlocked at this point, `check.Configure` uses its own stickyLock and stickyLocks must not be nested
 	if err := c.Configure(instance, config.InitConfig, config.Source); err != nil {
