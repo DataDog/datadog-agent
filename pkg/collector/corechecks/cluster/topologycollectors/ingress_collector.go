@@ -60,6 +60,18 @@ func (ic *IngressCollector) CollectorFunction() error {
 			}
 		}
 
+		// submit relation to loadbalancer
+		for _, ingressPoints := range in.Status.LoadBalancer.Ingress {
+			if ingressPoints.Hostname != "" {
+				endpointExternalID := ic.buildEndpointExternalID(ingressPoints.Hostname)
+				ic.RelationChan <- ic.ingressToLoadBalancerStackStateRelation(component.ExternalID, endpointExternalID)
+			}
+
+			if ingressPoints.IP != "" {
+				endpointExternalID := ic.buildEndpointExternalID(ingressPoints.IP)
+				ic.RelationChan <- ic.ingressToLoadBalancerStackStateRelation(component.ExternalID, endpointExternalID)
+			}
+		}
 	}
 
 	return nil
@@ -72,15 +84,6 @@ func (ic *IngressCollector) ingressToStackStateComponent(ingress v1beta1.Ingress
 	tags := ic.initTags(ingress.ObjectMeta)
 
 	identifiers := make([]string, 0)
-
-	for _, ingressPoints := range ingress.Status.LoadBalancer.Ingress {
-		if ingressPoints.Hostname != "" {
-			identifiers = append(identifiers, ic.buildEndpointExternalID(ingressPoints.Hostname))
-		}
-		if ingressPoints.IP != "" {
-			identifiers = append(identifiers, ic.buildEndpointExternalID(ingressPoints.IP))
-		}
-	}
 
 	ingressExternalID := ic.buildIngressExternalID(ingress.Namespace, ingress.Name)
 	component := &topology.Component{
@@ -103,13 +106,24 @@ func (ic *IngressCollector) ingressToStackStateComponent(ingress v1beta1.Ingress
 	return component
 }
 
-// Creates a StackState component from a Kubernetes / OpenShift Ingress to Service
+// Creates a StackState relation from a Kubernetes / OpenShift Ingress to Service
 func (ic *IngressCollector) ingressToServiceStackStateRelation(ingressExternalID, serviceExternalID string) *topology.Relation {
 	log.Tracef("Mapping kubernetes ingress to service relation: %s -> %s", ingressExternalID, serviceExternalID)
 
 	relation := ic.CreateRelation(ingressExternalID, serviceExternalID, "routes")
 
 	log.Tracef("Created StackState ingress -> service relation %s->%s", relation.SourceID, relation.TargetID)
+
+	return relation
+}
+
+// Creates a StackState relation from a Kubernetes / OpenShift Ingress to LoadBalancer
+func (ic *IngressCollector) ingressToLoadBalancerStackStateRelation(ingressExternalID, loadBalancerExternalID string) *topology.Relation {
+	log.Tracef("Mapping kubernetes ingress to load balancer relation: %s -> %s", ingressExternalID, loadBalancerExternalID)
+
+	relation := ic.CreateRelation(ingressExternalID, loadBalancerExternalID, "routes")
+
+	log.Tracef("Created StackState ingress -> load balancer relation %s->%s", relation.SourceID, relation.TargetID)
 
 	return relation
 }

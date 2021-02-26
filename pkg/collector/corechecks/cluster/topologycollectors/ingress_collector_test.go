@@ -8,6 +8,9 @@ package topologycollectors
 
 import (
 	"fmt"
+	"testing"
+	"time"
+
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
 	"github.com/stretchr/testify/assert"
@@ -15,8 +18,6 @@ import (
 	"k8s.io/api/extensions/v1beta1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"testing"
-	"time"
 )
 
 func TestIngressCollector(t *testing.T) {
@@ -47,11 +48,25 @@ func TestIngressCollector(t *testing.T) {
 					"creationTimestamp": creationTime,
 					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 					"uid":               types.UID("test-ingress-1"),
-					"identifiers": []string{"urn:endpoint:/test-cluster-name:34.100.200.15",
-						"urn:endpoint:/test-cluster-name:64047e8f24bb48e9a406ac8286ee8b7d.eu-west-1.elb.amazonaws.com"},
+					"identifiers":       []string{},
 				},
 			},
-			expectedRelations: []*topology.Relation{},
+			expectedRelations: []*topology.Relation{
+				{
+					ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:ingress/test-ingress-1->urn:endpoint:/test-cluster-name:34.100.200.15",
+					SourceID:   "urn:kubernetes:/test-cluster-name:test-namespace:ingress/test-ingress-1",
+					TargetID:   "urn:endpoint:/test-cluster-name:34.100.200.15",
+					Type:       topology.Type{Name: "routes"},
+					Data:       map[string]interface{}{},
+				},
+				{
+					ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:ingress/test-ingress-1->urn:endpoint:/test-cluster-name:64047e8f24bb48e9a406ac8286ee8b7d.eu-west-1.elb.amazonaws.com",
+					SourceID:   "urn:kubernetes:/test-cluster-name:test-namespace:ingress/test-ingress-1",
+					TargetID:   "urn:endpoint:/test-cluster-name:64047e8f24bb48e9a406ac8286ee8b7d.eu-west-1.elb.amazonaws.com",
+					Type:       topology.Type{Name: "routes"},
+					Data:       map[string]interface{}{},
+				},
+			},
 		},
 		{
 			testCase: "Test Service 2 - Default Backend",
@@ -63,8 +78,7 @@ func TestIngressCollector(t *testing.T) {
 					"creationTimestamp": creationTime,
 					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 					"uid":               types.UID("test-ingress-2"),
-					"identifiers": []string{"urn:endpoint:/test-cluster-name:34.100.200.15",
-						"urn:endpoint:/test-cluster-name:64047e8f24bb48e9a406ac8286ee8b7d.eu-west-1.elb.amazonaws.com"},
+					"identifiers":       []string{},
 				},
 			},
 			expectedRelations: []*topology.Relation{
@@ -75,6 +89,20 @@ func TestIngressCollector(t *testing.T) {
 					SourceID: "urn:kubernetes:/test-cluster-name:test-namespace:ingress/test-ingress-2",
 					TargetID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service",
 					Data:     map[string]interface{}{},
+				},
+				{
+					ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:ingress/test-ingress-2->urn:endpoint:/test-cluster-name:34.100.200.15",
+					SourceID:   "urn:kubernetes:/test-cluster-name:test-namespace:ingress/test-ingress-2",
+					TargetID:   "urn:endpoint:/test-cluster-name:34.100.200.15",
+					Type:       topology.Type{Name: "routes"},
+					Data:       map[string]interface{}{},
+				},
+				{
+					ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:ingress/test-ingress-2->urn:endpoint:/test-cluster-name:64047e8f24bb48e9a406ac8286ee8b7d.eu-west-1.elb.amazonaws.com",
+					SourceID:   "urn:kubernetes:/test-cluster-name:test-namespace:ingress/test-ingress-2",
+					TargetID:   "urn:endpoint:/test-cluster-name:64047e8f24bb48e9a406ac8286ee8b7d.eu-west-1.elb.amazonaws.com",
+					Type:       topology.Type{Name: "routes"},
+					Data:       map[string]interface{}{},
 				},
 			},
 		},
@@ -90,8 +118,7 @@ func TestIngressCollector(t *testing.T) {
 					"uid":               types.UID("test-ingress-3"),
 					"kind":              "some-specified-kind",
 					"generateName":      "some-specified-generation",
-					"identifiers": []string{"urn:endpoint:/test-cluster-name:34.100.200.15",
-						"urn:endpoint:/test-cluster-name:64047e8f24bb48e9a406ac8286ee8b7d.eu-west-1.elb.amazonaws.com"},
+					"identifiers":       []string{},
 				},
 			},
 			expectedRelations: []*topology.Relation{
@@ -118,6 +145,20 @@ func TestIngressCollector(t *testing.T) {
 					SourceID: "urn:kubernetes:/test-cluster-name:test-namespace:ingress/test-ingress-3",
 					TargetID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-3",
 					Data:     map[string]interface{}{},
+				},
+				{
+					ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:ingress/test-ingress-3->urn:endpoint:/test-cluster-name:34.100.200.15",
+					SourceID:   "urn:kubernetes:/test-cluster-name:test-namespace:ingress/test-ingress-3",
+					TargetID:   "urn:endpoint:/test-cluster-name:34.100.200.15",
+					Type:       topology.Type{Name: "routes"},
+					Data:       map[string]interface{}{},
+				},
+				{
+					ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:ingress/test-ingress-3->urn:endpoint:/test-cluster-name:64047e8f24bb48e9a406ac8286ee8b7d.eu-west-1.elb.amazonaws.com",
+					SourceID:   "urn:kubernetes:/test-cluster-name:test-namespace:ingress/test-ingress-3",
+					TargetID:   "urn:endpoint:/test-cluster-name:64047e8f24bb48e9a406ac8286ee8b7d.eu-west-1.elb.amazonaws.com",
+					Type:       topology.Type{Name: "routes"},
+					Data:       map[string]interface{}{},
 				},
 			},
 		},
