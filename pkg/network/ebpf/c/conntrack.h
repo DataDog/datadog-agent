@@ -28,20 +28,6 @@ static __always_inline void print_translation(conn_tuple_t *t) {
     print_ip(t->daddr_h, t->daddr_l, t->dport, t->metadata);
 }
 
-static __always_inline int nf_addr_cmp(const union nf_inet_addr *a1, const union nf_inet_addr *a2) {
-    return a1->all[0] == a2->all[0] &&
-           a1->all[1] == a2->all[1] &&
-           a1->all[2] == a2->all[2] &&
-           a1->all[3] == a2->all[3];
-}
-
-static __always_inline bool is_nat(struct nf_conntrack_tuple *orig, struct nf_conntrack_tuple *reply) {
-    return !nf_addr_cmp(&orig->src.u3, &reply->dst.u3) ||
-           !nf_addr_cmp(&orig->dst.u3, &reply->src.u3) ||
-           orig->src.u.all != reply->dst.u.all ||
-           orig->dst.u.all != reply->src.u.all;
-}
-
 static __always_inline int conntrack_tuple_to_conn_tuple(conn_tuple_t* t, struct nf_conntrack_tuple* ct) {
     __builtin_memset(t, 0, sizeof(conn_tuple_t));
 
