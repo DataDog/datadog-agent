@@ -630,6 +630,9 @@ func (t *Tracer) getTracerTelemetry() *network.TracerTelemetry {
 	if cs, ok := compilerStats["compilation_success"]; ok {
 		tm.RuntimeCompilationSuccess = cs
 	}
+	if cf, ok := compilerStats["compilation_failure"]; ok {
+		tm.RuntimeCompilationFailure = cf
+	}
 	if cd, ok := compilerStats["compilation_duration"]; ok {
 		tm.RuntimeCompilationDuration = cd
 	}

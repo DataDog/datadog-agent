@@ -103,6 +103,7 @@ type ConnectionsTelemetry struct {
 type TracerTelemetry struct {
 	RuntimeCompilationEnabled  int64
 	RuntimeCompilationSuccess  int64
+	RuntimeCompilationFailure  int64
 	RuntimeCompilationDuration int64
 }
 

@@ -16,6 +16,7 @@ import (
 func getRuntimeCompiledTracer(config *config.Config) (runtime.CompiledOutput, error) {
 	kv, err := kernel.HostVersion()
 	if err != nil {
+		runtime.Tracer.SetRuntimeCompilationFailure()
 		return nil, fmt.Errorf("unable to get kernel version: %w", err)
 	}
 	pre410Kernel := kv < kernel.VersionCode(4, 1, 0)

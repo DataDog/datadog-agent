@@ -46,6 +46,7 @@ type RuntimeAsset struct {
 
 	// Telemetry
 	compilationSuccess  int64
+	compilationFailure  int64
 	compilationDuration int64
 }
 
@@ -88,15 +89,18 @@ func (a *RuntimeAsset) Compile(config *ebpf.Config, cflags []string) (CompiledOu
 
 	kv, err := kernel.HostVersion()
 	if err != nil {
+		a.compilationFailure = 1
 		return nil, fmt.Errorf("unable to get kernel version: %w", err)
 	}
 
 	inputReader, hash, err := a.Verify(config.BPFDir)
 	if err != nil {
+		a.compilationFailure = 1
 		return nil, fmt.Errorf("error reading input file: %s", err)
 	}
 
 	if err := os.MkdirAll(config.RuntimeCompilerOutputDir, 0755); err != nil {
+		a.compilationFailure = 1
 		return nil, fmt.Errorf("unable to create compiler output directory %s: %w", config.RuntimeCompilerOutputDir, err)
 	}
 
@@ -111,15 +115,18 @@ func (a *RuntimeAsset) Compile(config *ebpf.Config, cflags []string) (CompiledOu
 	outputFile := filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("%s-%d-%s-%s.o", baseName, kv, hash, flagHash))
 	if _, err := os.Stat(outputFile); err != nil {
 		if !os.IsNotExist(err) {
+			a.compilationFailure = 1
 			return nil, fmt.Errorf("error stat-ing output file %s: %w", outputFile, err)
 		}
 		comp, err := compiler.NewEBPFCompiler(config.KernelHeadersDirs, config.BPFDebug)
 		if err != nil {
+			a.compilationFailure = 1
 			return nil, fmt.Errorf("failed to create compiler: %w", err)
 		}
 		defer comp.Close()
 
 		if err := comp.CompileToObjectFile(inputReader, outputFile, flags); err != nil {
+			a.compilationFailure = 1
 			return nil, fmt.Errorf("failed to compile runtime version of %s: %s", a.filename, err)
 		}
 	}
@@ -127,8 +134,14 @@ func (a *RuntimeAsset) Compile(config *ebpf.Config, cflags []string) (CompiledOu
 	out, err := os.Open(outputFile)
 	if err == nil {
 		a.compilationSuccess = 1
+	} else {
+		a.compilationFailure = 1
 	}
 	return out, err
+}
+
+func (a *RuntimeAsset) SetRuntimeCompilationFailure() {
+	a.compilationFailure = 1
 }
 
 func (a *RuntimeAsset) GetCompilerStats() map[string]int64 {
@@ -136,6 +149,7 @@ func (a *RuntimeAsset) GetCompilerStats() map[string]int64 {
 	if CompilationEnabled {
 		stats["compiler_enabled"] = 1
 		stats["compilation_success"] = a.compilationSuccess
+		stats["compilation_failure"] = a.compilationFailure
 		stats["compilation_duration"] = a.compilationDuration
 	} else {
 		stats["compiler_enabled"] = 0
