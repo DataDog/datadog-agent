@@ -14,7 +14,7 @@ from datetime import date
 from invoke import Failure, task
 from invoke.exceptions import Exit
 
-from tasks.modules import DEFAULT_MODULES
+from .modules import DEFAULT_MODULES
 
 
 @task
