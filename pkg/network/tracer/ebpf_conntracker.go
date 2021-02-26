@@ -249,14 +249,14 @@ func (e *ebpfConntracker) GetStats() map[string]int64 {
 	getTimeTotal := atomic.LoadInt64(&e.stats.getTotalTime)
 	m["gets_total"] = gets
 	if gets > 0 {
-		m["nanoseconds_per_get"] = gets / getTimeTotal
+		m["nanoseconds_per_get"] = getTimeTotal / gets
 	}
 
 	unregisters := atomic.LoadInt64(&e.stats.unregisters)
 	unregistersTimeTotal := atomic.LoadInt64(&e.stats.unregistersTotalTime)
 	m["unregisters_total"] = unregisters
 	if unregisters > 0 {
-		m["nanoseconds_per_unregister"] = unregisters / unregistersTimeTotal
+		m["nanoseconds_per_unregister"] = unregistersTimeTotal / unregisters
 	}
 
 	// Merge telemetry from the consumer
