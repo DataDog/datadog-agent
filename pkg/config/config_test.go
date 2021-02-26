@@ -478,12 +478,13 @@ func TestIsCloudProviderEnabled(t *testing.T) {
 	holdValue := Datadog.Get("cloud_provider_metadata")
 	defer Datadog.Set("cloud_provider_metadata", holdValue)
 
-	Datadog.Set("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba", "tencent"})
+	Datadog.Set("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba", "tencent", "upcloud"})
 	assert.True(t, IsCloudProviderEnabled("AWS"))
 	assert.True(t, IsCloudProviderEnabled("GCP"))
 	assert.True(t, IsCloudProviderEnabled("Alibaba"))
 	assert.True(t, IsCloudProviderEnabled("Azure"))
 	assert.True(t, IsCloudProviderEnabled("Tencent"))
+	assert.True(t, IsCloudProviderEnabled("UpCloud"))
 
 	Datadog.Set("cloud_provider_metadata", []string{"aws"})
 	assert.True(t, IsCloudProviderEnabled("AWS"))
@@ -491,6 +492,7 @@ func TestIsCloudProviderEnabled(t *testing.T) {
 	assert.False(t, IsCloudProviderEnabled("Alibaba"))
 	assert.False(t, IsCloudProviderEnabled("Azure"))
 	assert.False(t, IsCloudProviderEnabled("Tencent"))
+	assert.False(t, IsCloudProviderEnabled("UpCloud"))
 
 	Datadog.Set("cloud_provider_metadata", []string{"tencent"})
 	assert.False(t, IsCloudProviderEnabled("AWS"))
@@ -498,6 +500,7 @@ func TestIsCloudProviderEnabled(t *testing.T) {
 	assert.False(t, IsCloudProviderEnabled("Alibaba"))
 	assert.False(t, IsCloudProviderEnabled("Azure"))
 	assert.True(t, IsCloudProviderEnabled("Tencent"))
+	assert.False(t, IsCloudProviderEnabled("UpCloud"))
 
 	Datadog.Set("cloud_provider_metadata", []string{})
 	assert.False(t, IsCloudProviderEnabled("AWS"))
@@ -505,6 +508,7 @@ func TestIsCloudProviderEnabled(t *testing.T) {
 	assert.False(t, IsCloudProviderEnabled("Alibaba"))
 	assert.False(t, IsCloudProviderEnabled("Azure"))
 	assert.False(t, IsCloudProviderEnabled("Tencent"))
+	assert.False(t, IsCloudProviderEnabled("UpCloud"))
 }
 
 func TestEnvNestedConfig(t *testing.T) {

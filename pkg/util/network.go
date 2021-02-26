@@ -8,6 +8,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/upcloud"
 )
 
 // GetNetworkID retrieves the network_id which can be used to improve network
@@ -16,6 +17,7 @@ import (
 // * configuration
 // * GCE
 // * EC2
+// * UpCloud
 func GetNetworkID() (string, error) {
 	cacheNetworkIDKey := cache.BuildAgentKey("networkID")
 	if cacheNetworkID, found := cache.Cache.Get(cacheNetworkIDKey); found {
@@ -40,6 +42,13 @@ func GetNetworkID() (string, error) {
 	if networkID, err := ec2.GetNetworkID(); err == nil {
 		cache.Cache.Set(cacheNetworkIDKey, networkID, cache.NoExpiration)
 		log.Debugf("GetNetworkID: using network ID from EC2 metadata: %s", networkID)
+		return networkID, nil
+	}
+
+	log.Debugf("GetNetworkID trying UpCloud")
+	if networkID, err := upcloud.GetNetworkID(); err == nil {
+		cache.Cache.Set(cacheNetworkIDKey, networkID, cache.NoExpiration)
+		log.Debugf("GetNetworkID: using network ID from UpCloud metadata: %s", networkID)
 		return networkID, nil
 	}
 
