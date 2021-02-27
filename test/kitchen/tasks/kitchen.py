@@ -125,13 +125,13 @@ def genconfig(
     ctx.run("erb tmpkitchen.yml > kitchen.yml", env=env)
 
 
-def load_platforms(ctx, platformfile):
+def load_platforms(_, platformfile):
     with open(platformfile, "r") as f:
         platforms = json.load(f)
     return platforms
 
 
-def load_targets(ctx, targethash, selections):
+def load_targets(_, targethash, selections):
     returnlist = []
     commentpattern = re.compile("^comment")
     for selection in selections.split(","):
@@ -149,7 +149,7 @@ def load_targets(ctx, targethash, selections):
     return returnlist
 
 
-def load_user_env(ctx, provider, varsfile):
+def load_user_env(_, provider, varsfile):
     env = {}
     commentpattern = re.compile("^comment")
     if os.path.exists(varsfile):
