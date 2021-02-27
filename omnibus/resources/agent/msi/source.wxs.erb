@@ -558,7 +558,7 @@
      <?if $(var.IncludeSysprobe) = true ?>
       <!-- don't install by default (indicated by level 100)  Only things with level
            <= INSTALLLEVEL (1 by default) will be installed.  Can be changed via gui or command line params to optionally install -->
-      <Feature Id="WindowsNP" 
+      <Feature Id="NPM" 
                Level="100"  
                Title="Network Performance Monitoring" 
                ConfigurableDirectory="APPLICATIONROOTDIRECTORY"
@@ -567,7 +567,7 @@
                >
         <MergeRef Id="ddnpminstall"/>
         
-        <Condition Level="1"><![CDATA[NPM OR (DD_FILTER_INSTALLED and (not WixUI_InstallMode = "Change"))]]></Condition>
+        <Condition Level="1"><![CDATA[(DD_FILTER_INSTALLED and (not WixUI_InstallMode = "Change"))]]></Condition>
         
       </Feature>
     <?endif ?>
