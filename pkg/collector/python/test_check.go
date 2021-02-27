@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -81,6 +82,14 @@ char *run_check(rtloader_t *s, rtloader_pyobject_t *check) {
 	run_check_instance = check;
 	run_check_calls++;
 	return run_check_return;
+}
+
+int cancel_check_calls = 0;
+rtloader_pyobject_t *cancel_check_instance = NULL;
+void cancel_check(rtloader_t *s, rtloader_pyobject_t *check) {
+	cancel_check_instance = check;
+	cancel_check_calls++;
+	return;
 }
 
 //
@@ -161,6 +170,8 @@ void reset_check_mock() {
 	get_check_check_id = NULL;
 	get_check_check_name = NULL;
 	get_check_check = NULL;
+	cancel_check_calls = 0;
+	cancel_check_instance = NULL;
 
 	get_check_deprecated_calls = 0;
 	get_check_deprecated_return = 0;
@@ -177,7 +188,15 @@ void reset_check_mock() {
 import "C"
 
 func testRunCheck(t *testing.T) {
-	check := NewPythonFakeCheck()
+	// Initialize rtloader pointer
+	rtloader = &C.rtloader_t{}
+	defer func() { rtloader = nil }()
+
+	check, err := NewPythonFakeCheck()
+	if !assert.Nil(t, err) {
+		return
+	}
+
 	check.instance = &C.rtloader_pyobject_t{}
 
 	C.reset_check_mock()
@@ -185,7 +204,7 @@ func testRunCheck(t *testing.T) {
 	warn := []*C.char{C.CString("warn1"), C.CString("warn2"), nil}
 	C.get_checks_warnings_return = &warn[0]
 
-	err := check.runCheck(false)
+	err = check.runCheck(false)
 	assert.Nil(t, err)
 
 	assert.Equal(t, C.int(1), C.gil_locked_calls)
@@ -197,8 +216,221 @@ func testRunCheck(t *testing.T) {
 	assert.Equal(t, check.lastWarnings, []error{fmt.Errorf("warn1"), fmt.Errorf("warn2")})
 }
 
+func testRunCheckWithRuntimeNotInitializedError(t *testing.T) {
+	// Initialize rtloader pointer
+	rtloader = &C.rtloader_t{}
+	defer func() { rtloader = nil }()
+
+	check, err := NewPythonFakeCheck()
+	if !assert.Nil(t, err) {
+		return
+	}
+
+	check.instance = &C.rtloader_pyobject_t{}
+
+	C.reset_check_mock()
+	C.run_check_return = C.CString("")
+
+	rtloader = nil
+
+	err = check.runCheck(false)
+	assert.EqualError(
+		t,
+		err,
+		"error acquiring the GIL: rtloader is not initialized",
+	)
+}
+
+func testInitiCheckWithRuntimeNotInitialized(t *testing.T) {
+	// Ensure RT pointer is zeroized
+	rtloader = nil
+
+	C.reset_check_mock()
+
+	_, err := NewPythonFakeCheck()
+	if !assert.NotNil(t, err) {
+		return
+	}
+
+	assert.EqualError(
+		t,
+		err,
+		"error acquiring the GIL: rtloader is not initialized",
+	)
+
+	assert.Equal(t, C.int(0), C.gil_locked_calls)
+	assert.Equal(t, C.int(0), C.gil_unlocked_calls)
+	assert.Equal(t, C.int(0), C.run_check_calls)
+	assert.Equal(t, C.int(0), C.rtloader_free_calls)
+	assert.Equal(t, C.int(0), C.rtloader_incref_calls)
+	assert.Equal(t, C.int(0), C.rtloader_decref_calls)
+}
+
+func testCheckCancel(t *testing.T) {
+	// Initialize rtloader pointer
+	rtloader = &C.rtloader_t{}
+	defer func() { rtloader = nil }()
+
+	check, err := NewPythonFakeCheck()
+	if !assert.Nil(t, err) {
+		return
+	}
+
+	C.reset_check_mock()
+	check.instance = &C.rtloader_pyobject_t{}
+	C.run_check_return = C.CString("")
+
+	err = check.runCheck(false)
+	if !assert.Nil(t, err) {
+		return
+	}
+
+	// Sanity checks to ensure known start state
+	assert.Equal(t, C.int(1), C.gil_locked_calls)
+	assert.Equal(t, C.int(1), C.gil_unlocked_calls)
+	assert.Equal(t, C.int(0), C.rtloader_incref_calls)
+	assert.Equal(t, C.int(0), C.rtloader_decref_calls)
+	assert.Equal(t, C.int(0), C.cancel_check_calls)
+	assert.Equal(t, check.instance, C.run_check_instance)
+
+	check.Cancel()
+
+	// Check that the lock was acquired
+	assert.Equal(t, C.int(2), C.gil_locked_calls)
+	assert.Equal(t, C.int(2), C.gil_unlocked_calls)
+
+	// Check that the call was passed to C
+	assert.Equal(t, C.int(1), C.cancel_check_calls)
+	assert.Equal(t, check.instance, C.cancel_check_instance)
+}
+
+func testCheckCancelWhenRuntimeUnloaded(t *testing.T) {
+	// Initialize rtloader pointer
+	rtloader = &C.rtloader_t{}
+	defer func() { rtloader = nil }()
+
+	check, err := NewPythonFakeCheck()
+	if !assert.Nil(t, err) {
+		return
+	}
+
+	C.reset_check_mock()
+	check.instance = &C.rtloader_pyobject_t{}
+	C.run_check_return = C.CString("")
+
+	err = check.runCheck(false)
+	if !assert.Nil(t, err) {
+		return
+	}
+
+	// Sanity checks to ensure known start state
+	assert.Equal(t, C.int(1), C.gil_locked_calls)
+	assert.Equal(t, C.int(1), C.gil_unlocked_calls)
+	assert.Equal(t, C.int(0), C.rtloader_incref_calls)
+	assert.Equal(t, C.int(0), C.rtloader_decref_calls)
+	assert.Equal(t, C.int(0), C.cancel_check_calls)
+	assert.Equal(t, check.instance, C.run_check_instance)
+
+	// Simulate rtloader being unloaded
+	rtloader = nil
+
+	check.Cancel()
+
+	// There should be no invocations of cancel
+	assert.Equal(t, C.int(0), C.cancel_check_calls)
+}
+
+func testFinalizer(t *testing.T) {
+	// Initialize rtloader pointer
+	rtloader = &C.rtloader_t{}
+	defer func() { rtloader = nil }()
+
+	check, err := NewPythonFakeCheck()
+	if !assert.Nil(t, err) {
+		return
+	}
+
+	C.reset_check_mock()
+	check.instance = &C.rtloader_pyobject_t{}
+	C.run_check_return = C.CString("")
+
+	err = check.runCheck(false)
+	if !assert.Nil(t, err) {
+		return
+	}
+
+	// Sanity checks to ensure known start state
+	assert.Equal(t, C.int(1), C.gil_locked_calls)
+	assert.Equal(t, C.int(1), C.gil_unlocked_calls)
+	assert.Equal(t, C.int(0), C.rtloader_incref_calls)
+	assert.Equal(t, C.int(0), C.rtloader_decref_calls)
+	assert.Equal(t, check.instance, C.run_check_instance)
+
+	pythonCheckFinalizer(check)
+
+	// Finalizer runs in a goroutine so we have to wait a bit
+	time.Sleep(100 * time.Millisecond)
+
+	// Check that the lock was acquired
+	assert.Equal(t, C.int(2), C.gil_locked_calls)
+	assert.Equal(t, C.int(2), C.gil_unlocked_calls)
+
+	// Check that the class and instance have been decref-d
+	assert.Equal(t, C.int(0), C.rtloader_incref_calls)
+	assert.Equal(t, C.int(2), C.rtloader_decref_calls)
+}
+
+func testFinalizerWhenRuntimeUnloaded(t *testing.T) {
+	// Initialize rtloader pointer
+	rtloader = &C.rtloader_t{}
+	defer func() { rtloader = nil }()
+
+	check, err := NewPythonFakeCheck()
+	if !assert.Nil(t, err) {
+		return
+	}
+
+	C.reset_check_mock()
+	check.instance = &C.rtloader_pyobject_t{}
+	C.run_check_return = C.CString("")
+
+	err = check.runCheck(false)
+	if !assert.Nil(t, err) {
+		return
+	}
+
+	// Sanity checks to ensure known start state
+	assert.Equal(t, C.int(1), C.gil_locked_calls)
+	assert.Equal(t, C.int(1), C.gil_unlocked_calls)
+	assert.Equal(t, C.int(0), C.rtloader_incref_calls)
+	assert.Equal(t, C.int(0), C.rtloader_decref_calls)
+	assert.Equal(t, check.instance, C.run_check_instance)
+
+	// Simulate rtloader being unloaded
+	rtloader = nil
+
+	pythonCheckFinalizer(check)
+
+	// Finalizer runs in a goroutine so we have to wait a bit
+	time.Sleep(100 * time.Millisecond)
+
+	// There should be no changes in the lock/unlock and inc/decref calls
+	assert.Equal(t, C.int(1), C.gil_locked_calls)
+	assert.Equal(t, C.int(1), C.gil_unlocked_calls)
+	assert.Equal(t, C.int(0), C.rtloader_incref_calls)
+	assert.Equal(t, C.int(0), C.rtloader_decref_calls)
+}
+
 func testRunErrorNil(t *testing.T) {
-	check := NewPythonFakeCheck()
+	// Initialize rtloader pointer
+	rtloader = &C.rtloader_t{}
+	defer func() { rtloader = nil }()
+
+	check, err := NewPythonFakeCheck()
+	if !assert.Nil(t, err) {
+		return
+	}
+
 	check.instance = &C.rtloader_pyobject_t{}
 
 	C.reset_check_mock()
@@ -206,9 +438,9 @@ func testRunErrorNil(t *testing.T) {
 	C.has_error_return = 1
 	C.get_error_return = C.CString("some error")
 
-	err := check.runCheck(false)
-	assert.NotNil(t, err)
-	assert.NotNil(t, fmt.Errorf("some error"), err)
+	errStr := check.runCheck(false)
+	assert.NotNil(t, errStr)
+	assert.NotNil(t, fmt.Errorf("some error"), errStr)
 
 	assert.Equal(t, C.int(1), C.gil_locked_calls)
 	assert.Equal(t, C.int(1), C.gil_unlocked_calls)
@@ -219,15 +451,23 @@ func testRunErrorNil(t *testing.T) {
 }
 
 func testRunErrorReturn(t *testing.T) {
-	check := NewPythonFakeCheck()
+	// Initialize rtloader pointer
+	rtloader = &C.rtloader_t{}
+	defer func() { rtloader = nil }()
+
+	check, err := NewPythonFakeCheck()
+	if !assert.Nil(t, err) {
+		return
+	}
+
 	check.instance = &C.rtloader_pyobject_t{}
 
 	C.reset_check_mock()
 	C.run_check_return = C.CString("not OK")
 
-	err := check.runCheck(false)
-	assert.NotNil(t, err)
-	assert.NotNil(t, fmt.Errorf("not OK"), err)
+	errStr := check.runCheck(false)
+	assert.NotNil(t, errStr)
+	assert.NotNil(t, fmt.Errorf("not OK"), errStr)
 
 	assert.Equal(t, C.int(1), C.gil_locked_calls)
 	assert.Equal(t, C.int(1), C.gil_unlocked_calls)
@@ -241,7 +481,14 @@ func testRun(t *testing.T) {
 	sender := mocksender.NewMockSender(check.ID("testID"))
 	sender.SetupAcceptAll()
 
-	c := NewPythonFakeCheck()
+	// Initialize rtloader pointer
+	rtloader = &C.rtloader_t{}
+	defer func() { rtloader = nil }()
+
+	c, err := NewPythonFakeCheck()
+	if !assert.Nil(t, err) {
+		return
+	}
 
 	c.instance = &C.rtloader_pyobject_t{}
 	c.id = check.ID("testID")
@@ -249,7 +496,7 @@ func testRun(t *testing.T) {
 	C.reset_check_mock()
 	C.run_check_return = C.CString("")
 
-	err := c.Run()
+	err = c.Run()
 	assert.Nil(t, err)
 
 	assert.Equal(t, C.int(1), C.gil_locked_calls)
@@ -268,7 +515,14 @@ func testRunSimple(t *testing.T) {
 	sender := mocksender.NewMockSender(check.ID("testID"))
 	sender.SetupAcceptAll()
 
-	c := NewPythonFakeCheck()
+	// Initialize rtloader pointer
+	rtloader = &C.rtloader_t{}
+	defer func() { rtloader = nil }()
+
+	c, err := NewPythonFakeCheck()
+	if !assert.Nil(t, err) {
+		return
+	}
 
 	c.instance = &C.rtloader_pyobject_t{}
 	c.id = check.ID("testID")
@@ -276,7 +530,7 @@ func testRunSimple(t *testing.T) {
 	C.reset_check_mock()
 	C.run_check_return = C.CString("")
 
-	err := c.RunSimple()
+	err = c.RunSimple()
 	assert.Nil(t, err)
 
 	assert.Equal(t, C.int(1), C.gil_locked_calls)
@@ -292,14 +546,22 @@ func testRunSimple(t *testing.T) {
 }
 
 func testConfigure(t *testing.T) {
-	c := NewPythonFakeCheck()
+	// Initialize rtloader pointer
+	rtloader = &C.rtloader_t{}
+	defer func() { rtloader = nil }()
+
+	c, err := NewPythonFakeCheck()
+	if !assert.Nil(t, err) {
+		return
+	}
+
 	c.class = &C.rtloader_pyobject_t{}
 
 	C.reset_check_mock()
 
 	C.get_check_return = 1
 	C.get_check_check = &C.rtloader_pyobject_t{}
-	err := c.Configure(integration.Data("{\"val\": 21}"), integration.Data("{\"val\": 21}"), "test")
+	err = c.Configure(integration.Data("{\"val\": 21}"), integration.Data("{\"val\": 21}"), "test")
 	assert.Nil(t, err)
 
 	assert.Equal(t, c.class, C.get_check_py_class)
@@ -319,7 +581,15 @@ func testConfigure(t *testing.T) {
 }
 
 func testConfigureDeprecated(t *testing.T) {
-	c := NewPythonFakeCheck()
+	// Initialize rtloader pointer
+	rtloader = &C.rtloader_t{}
+	defer func() { rtloader = nil }()
+
+	c, err := NewPythonFakeCheck()
+	if !assert.Nil(t, err) {
+		return
+	}
+
 	c.class = &C.rtloader_pyobject_t{}
 
 	C.reset_check_mock()
@@ -327,7 +597,7 @@ func testConfigureDeprecated(t *testing.T) {
 	C.get_check_return = 0
 	C.get_check_deprecated_check = &C.rtloader_pyobject_t{}
 	C.get_check_deprecated_return = 1
-	err := c.Configure(integration.Data("{\"val\": 21}"), integration.Data("{\"val\": 21}"), "test")
+	err = c.Configure(integration.Data("{\"val\": 21}"), integration.Data("{\"val\": 21}"), "test")
 	assert.Nil(t, err)
 
 	assert.Equal(t, c.class, C.get_check_py_class)
@@ -347,9 +617,13 @@ func testConfigureDeprecated(t *testing.T) {
 	assert.Equal(t, c.instance, C.get_check_deprecated_check)
 }
 
-func NewPythonFakeCheck() *PythonCheck {
-	c := NewPythonCheck("fake_check", nil)
+func NewPythonFakeCheck() (*PythonCheck, error) {
+	c, err := NewPythonCheck("fake_check", nil)
+
 	// Remove check finalizer that may trigger race condition while testing
-	runtime.SetFinalizer(c, nil)
-	return c
+	if err == nil {
+		runtime.SetFinalizer(c, nil)
+	}
+
+	return c, err
 }

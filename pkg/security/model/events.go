@@ -31,14 +31,14 @@ const (
 	FileChownEventType
 	// FileUtimeEventType Utime event
 	FileUtimeEventType
-	// FileMountEventType Mount event
-	FileMountEventType
-	// FileUmountEventType Umount event
-	FileUmountEventType
 	// FileSetXAttrEventType Setxattr event
 	FileSetXAttrEventType
 	// FileRemoveXAttrEventType Removexattr event
 	FileRemoveXAttrEventType
+	// FileMountEventType Mount event
+	FileMountEventType
+	// FileUmountEventType Umount event
+	FileUmountEventType
 	// ForkEventType Fork event
 	ForkEventType
 	// ExecEventType Exec event
@@ -50,8 +50,14 @@ const (
 	// MaxEventType is used internally to get the maximum number of kernel events.
 	MaxEventType
 
+	// FirstDiscarderEventType first event that accepts discarders
+	FirstDiscarderEventType = FileOpenEventType
+
+	// LastDiscarderEventType last event that accepts discarders
+	LastDiscarderEventType = FileRemoveXAttrEventType
+
 	// CustomLostReadEventType is the custom event used to report lost events detected in user space
-	CustomLostReadEventType
+	CustomLostReadEventType EventType = iota
 	// CustomLostWriteEventType is the custom event used to report lost events detected in kernel space
 	CustomLostWriteEventType
 	// CustomRulesetLoadedEventType is the custom event used to report that a new ruleset was loaded
@@ -64,9 +70,6 @@ const (
 	CustomTruncatedParentsEventType
 	// CustomTruncatedSegmentEventType is the custom event used to report that a segment of a path was truncated
 	CustomTruncatedSegmentEventType
-
-	// MaxEventRoundedUp is the closest power of 2 that is bigger than MaxEventType
-	MaxEventRoundedUp = 32
 )
 
 func (t EventType) String() string {

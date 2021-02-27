@@ -401,6 +401,7 @@ def build_object_files(ctx, bundle_ebpf=False):
         '-fno-color-diagnostics',
         '-fno-unwind-tables',
         '-fno-asynchronous-unwind-tables',
+        '-fno-jump-tables',
         "-I{}".format(c_dir),
     ]
 

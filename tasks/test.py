@@ -99,7 +99,7 @@ def test(
         else:
             modules = [m for m in DEFAULT_MODULES if m.path == module]
     elif isinstance(targets, str):
-        modules = GoModule(".", targets=targets.split(','))
+        modules = [GoModule(".", targets=targets.split(','))]
     else:
         print("Using default modules and targets")
         modules = DEFAULT_MODULES

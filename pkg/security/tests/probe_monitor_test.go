@@ -33,7 +33,7 @@ func TestProbeMonitor(t *testing.T) {
 
 	rule := &rules.RuleDefinition{
 		ID:         "path_test",
-		Expression: `open.filename =~ "*a/test-open" && open.flags & O_CREAT != 0`,
+		Expression: `open.file.path =~ "*a/test-open" && open.flags & O_CREAT != 0`,
 	}
 
 	probeMonitorOpts := testOpts{}
@@ -116,7 +116,7 @@ func TestProbeMonitor(t *testing.T) {
 func TestNoisyProcess(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "path_test",
-		Expression: `open.filename =~ "*do-not-match/test-open" && open.flags & O_CREAT != 0`,
+		Expression: `open.file.path =~ "*do-not-match/test-open" && open.flags & O_CREAT != 0`,
 	}
 
 	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{disableDiscarders: true, eventsCountThreshold: 1000})

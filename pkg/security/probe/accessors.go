@@ -60,11 +60,11 @@ func (m *Model) GetEventTypes() []eval.EventType {
 func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
 	switch field {
 
-	case "chmod.basename":
+	case "chmod.file.container_path":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).Chmod.FileEvent)
+				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Chmod.File)
 
 			},
 			Field: field,
@@ -72,43 +72,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
-	case "chmod.container_path":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Chmod.FileEvent)
-
-			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
-		}, nil
-
-	case "chmod.filename":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).Chmod.FileEvent)
-
-			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
-		}, nil
-
-	case "chmod.inode":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-
-				return int((*Event)(ctx.Object).Chmod.FileEvent.FileFields.Inode)
-
-			},
-			Field: field,
-
-			Weight: eval.FunctionWeight,
-		}, nil
-
-	case "chmod.mode":
+	case "chmod.file.destination.mode":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
@@ -120,16 +84,124 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
-	case "chmod.overlay_numlower":
+	case "chmod.file.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).Chmod.FileEvent.FileFields.OverlayNumLower)
+				return int((*Event)(ctx.Object).Chmod.File.FileFields.GID)
 
 			},
 			Field: field,
 
 			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "chmod.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveGID(&(*Event)(ctx.Object).Chmod.File.FileFields)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "chmod.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Chmod.File.FileFields.Inode)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "chmod.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Chmod.File.FileFields.Mode)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "chmod.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Chmod.File.FileFields.MountID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "chmod.file.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).Chmod.File)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "chmod.file.overlay_numlower":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Chmod.File.FileFields.OverlayNumLower)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "chmod.file.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).Chmod.File)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "chmod.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Chmod.File.FileFields.UID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "chmod.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveUID(&(*Event)(ctx.Object).Chmod.File.FileFields)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "chmod.retval":
@@ -144,11 +216,11 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
-	case "chown.basename":
+	case "chown.file.container_path":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).Chown.FileEvent)
+				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Chown.File)
 
 			},
 			Field: field,
@@ -156,31 +228,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
-	case "chown.container_path":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Chown.FileEvent)
-
-			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
-		}, nil
-
-	case "chown.filename":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).Chown.FileEvent)
-
-			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
-		}, nil
-
-	case "chown.gid":
+	case "chown.file.destination.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
@@ -192,11 +240,23 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
-	case "chown.inode":
+	case "chown.file.destination.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveChownGID(&(*Event)(ctx.Object).Chown)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "chown.file.destination.uid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).Chown.FileEvent.FileFields.Inode)
+				return int((*Event)(ctx.Object).Chown.UID)
 
 			},
 			Field: field,
@@ -204,16 +264,136 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
-	case "chown.overlay_numlower":
+	case "chown.file.destination.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveChownUID(&(*Event)(ctx.Object).Chown)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "chown.file.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).Chown.FileEvent.FileFields.OverlayNumLower)
+				return int((*Event)(ctx.Object).Chown.File.FileFields.GID)
 
 			},
 			Field: field,
 
 			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "chown.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveGID(&(*Event)(ctx.Object).Chown.File.FileFields)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "chown.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Chown.File.FileFields.Inode)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "chown.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Chown.File.FileFields.Mode)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "chown.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Chown.File.FileFields.MountID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "chown.file.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).Chown.File)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "chown.file.overlay_numlower":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Chown.File.FileFields.OverlayNumLower)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "chown.file.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).Chown.File)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "chown.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Chown.File.FileFields.UID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "chown.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveUID(&(*Event)(ctx.Object).Chown.File.FileFields)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "chown.retval":
@@ -221,18 +401,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Chown.SyscallEvent.Retval)
-
-			},
-			Field: field,
-
-			Weight: eval.FunctionWeight,
-		}, nil
-
-	case "chown.uid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-
-				return int((*Event)(ctx.Object).Chown.UID)
 
 			},
 			Field: field,
@@ -252,11 +420,11 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
-	case "exec.container_path":
+	case "exec.comm":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveExecContainerPath(&(*Event)(ctx.Object).Exec)
+				return (*Event)(ctx.Object).ResolveExecComm(&(*Event)(ctx.Object).Exec)
 
 			},
 			Field: field,
@@ -276,11 +444,131 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
-	case "exec.filename":
+	case "exec.file.container_path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveExecContainerPath(&(*Event)(ctx.Object).Exec)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "exec.file.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Exec.FileFields.GID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "exec.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveGID(&(*Event)(ctx.Object).Exec.FileFields)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "exec.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Exec.FileFields.Inode)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "exec.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Exec.FileFields.Mode)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "exec.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Exec.FileFields.MountID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "exec.file.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveExecBasename(&(*Event)(ctx.Object).Exec)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "exec.file.overlay_numlower":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Exec.FileFields.OverlayNumLower)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "exec.file.path":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ResolveExecInode(&(*Event)(ctx.Object).Exec)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "exec.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Exec.FileFields.UID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "exec.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveUID(&(*Event)(ctx.Object).Exec.FileFields)
 
 			},
 			Field: field,
@@ -310,42 +598,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field: field,
 
 			Weight: eval.HandlerWeight,
-		}, nil
-
-	case "exec.inode":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-
-				return int((*Event)(ctx.Object).Exec.FileFields.Inode)
-
-			},
-			Field: field,
-
-			Weight: eval.FunctionWeight,
-		}, nil
-
-	case "exec.name":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveExecBasename(&(*Event)(ctx.Object).Exec)
-
-			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
-		}, nil
-
-	case "exec.overlay_numlower":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-
-				return int((*Event)(ctx.Object).Exec.FileFields.OverlayNumLower)
-
-			},
-			Field: field,
-
-			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.ppid":
@@ -396,6 +648,270 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
+	case "link.file.container_path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Link.Source)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "link.file.destination.container_path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Link.Target)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "link.file.destination.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Link.Target.FileFields.GID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "link.file.destination.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveGID(&(*Event)(ctx.Object).Link.Target.FileFields)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "link.file.destination.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Link.Target.FileFields.Inode)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "link.file.destination.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Link.Target.FileFields.Mode)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "link.file.destination.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Link.Target.FileFields.MountID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "link.file.destination.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).Link.Target)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "link.file.destination.overlay_numlower":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Link.Target.FileFields.OverlayNumLower)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "link.file.destination.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).Link.Target)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "link.file.destination.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Link.Target.FileFields.UID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "link.file.destination.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveUID(&(*Event)(ctx.Object).Link.Target.FileFields)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "link.file.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Link.Source.FileFields.GID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "link.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveGID(&(*Event)(ctx.Object).Link.Source.FileFields)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "link.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Link.Source.FileFields.Inode)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "link.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Link.Source.FileFields.Mode)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "link.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Link.Source.FileFields.MountID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "link.file.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).Link.Source)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "link.file.overlay_numlower":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Link.Source.FileFields.OverlayNumLower)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "link.file.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).Link.Source)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "link.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Link.Source.FileFields.UID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "link.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveUID(&(*Event)(ctx.Object).Link.Source.FileFields)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
 	case "link.retval":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -408,11 +924,11 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
-	case "link.source.basename":
+	case "mkdir.file.container_path":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).Link.Source)
+				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Mkdir.File)
 
 			},
 			Field: field,
@@ -420,163 +936,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
-	case "link.source.container_path":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Link.Source)
-
-			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
-		}, nil
-
-	case "link.source.filename":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).Link.Source)
-
-			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
-		}, nil
-
-	case "link.source.inode":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-
-				return int((*Event)(ctx.Object).Link.Source.FileFields.Inode)
-
-			},
-			Field: field,
-
-			Weight: eval.FunctionWeight,
-		}, nil
-
-	case "link.source.overlay_numlower":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-
-				return int((*Event)(ctx.Object).Link.Source.FileFields.OverlayNumLower)
-
-			},
-			Field: field,
-
-			Weight: eval.FunctionWeight,
-		}, nil
-
-	case "link.target.basename":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).Link.Target)
-
-			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
-		}, nil
-
-	case "link.target.container_path":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Link.Target)
-
-			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
-		}, nil
-
-	case "link.target.filename":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).Link.Target)
-
-			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
-		}, nil
-
-	case "link.target.inode":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-
-				return int((*Event)(ctx.Object).Link.Target.FileFields.Inode)
-
-			},
-			Field: field,
-
-			Weight: eval.FunctionWeight,
-		}, nil
-
-	case "link.target.overlay_numlower":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-
-				return int((*Event)(ctx.Object).Link.Target.FileFields.OverlayNumLower)
-
-			},
-			Field: field,
-
-			Weight: eval.FunctionWeight,
-		}, nil
-
-	case "mkdir.basename":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).Mkdir.FileEvent)
-
-			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
-		}, nil
-
-	case "mkdir.container_path":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Mkdir.FileEvent)
-
-			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
-		}, nil
-
-	case "mkdir.filename":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).Mkdir.FileEvent)
-
-			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
-		}, nil
-
-	case "mkdir.inode":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-
-				return int((*Event)(ctx.Object).Mkdir.FileEvent.FileFields.Inode)
-
-			},
-			Field: field,
-
-			Weight: eval.FunctionWeight,
-		}, nil
-
-	case "mkdir.mode":
+	case "mkdir.file.destination.mode":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
@@ -588,16 +948,124 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
-	case "mkdir.overlay_numlower":
+	case "mkdir.file.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).Mkdir.FileEvent.FileFields.OverlayNumLower)
+				return int((*Event)(ctx.Object).Mkdir.File.FileFields.GID)
 
 			},
 			Field: field,
 
 			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "mkdir.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveGID(&(*Event)(ctx.Object).Mkdir.File.FileFields)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "mkdir.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Mkdir.File.FileFields.Inode)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "mkdir.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Mkdir.File.FileFields.Mode)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "mkdir.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Mkdir.File.FileFields.MountID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "mkdir.file.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).Mkdir.File)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "mkdir.file.overlay_numlower":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Mkdir.File.FileFields.OverlayNumLower)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "mkdir.file.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).Mkdir.File)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "mkdir.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Mkdir.File.FileFields.UID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "mkdir.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveUID(&(*Event)(ctx.Object).Mkdir.File.FileFields)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "mkdir.retval":
@@ -612,11 +1080,11 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
-	case "open.basename":
+	case "open.file.container_path":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).Open.FileEvent)
+				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Open.File)
 
 			},
 			Field: field,
@@ -624,11 +1092,35 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
-	case "open.container_path":
+	case "open.file.destination.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Open.Mode)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "open.file.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Open.File.FileFields.GID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "open.file.group":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Open.FileEvent)
+				return (*Event)(ctx.Object).ResolveGID(&(*Event)(ctx.Object).Open.File.FileFields)
 
 			},
 			Field: field,
@@ -636,11 +1128,95 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
-	case "open.filename":
+	case "open.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Open.File.FileFields.Inode)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "open.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Open.File.FileFields.Mode)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "open.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Open.File.FileFields.MountID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "open.file.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).Open.FileEvent)
+				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).Open.File)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "open.file.overlay_numlower":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Open.File.FileFields.OverlayNumLower)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "open.file.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).Open.File)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "open.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Open.File.FileFields.UID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "open.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveUID(&(*Event)(ctx.Object).Open.File.FileFields)
 
 			},
 			Field: field,
@@ -660,42 +1236,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
-	case "open.inode":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-
-				return int((*Event)(ctx.Object).Open.FileEvent.FileFields.Inode)
-
-			},
-			Field: field,
-
-			Weight: eval.FunctionWeight,
-		}, nil
-
-	case "open.mode":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-
-				return int((*Event)(ctx.Object).Open.Mode)
-
-			},
-			Field: field,
-
-			Weight: eval.FunctionWeight,
-		}, nil
-
-	case "open.overlay_numlower":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-
-				return int((*Event)(ctx.Object).Open.FileEvent.FileFields.OverlayNumLower)
-
-			},
-			Field: field,
-
-			Weight: eval.FunctionWeight,
-		}, nil
-
 	case "open.retval":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -708,7 +1248,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
-	case "process.ancestors.container_path":
+	case "process.ancestors.comm":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
@@ -718,7 +1258,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if reg.Value != nil {
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
-					result = (*Event)(ctx.Object).ResolveExecContainerPath(&element.ExecEvent)
+					result = (*Event)(ctx.Object).ResolveExecComm(&element.ExecEvent)
 
 				}
 
@@ -752,7 +1292,183 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.IteratorWeight,
 		}, nil
 
-	case "process.ancestors.filename":
+	case "process.ancestors.file.container_path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				var result string
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*model.ProcessCacheEntry)(reg.Value)
+
+					result = (*Event)(ctx.Object).ResolveExecContainerPath(&element.ExecEvent)
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.file.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				var result int
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*model.ProcessCacheEntry)(reg.Value)
+
+					result = int(element.ProcessContext.ExecEvent.FileFields.GID)
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				var result string
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*model.ProcessCacheEntry)(reg.Value)
+
+					result = (*Event)(ctx.Object).ResolveGID(&element.FileFields)
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				var result int
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*model.ProcessCacheEntry)(reg.Value)
+
+					result = int(element.ProcessContext.ExecEvent.FileFields.Inode)
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				var result int
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*model.ProcessCacheEntry)(reg.Value)
+
+					result = int(element.ProcessContext.ExecEvent.FileFields.Mode)
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				var result int
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*model.ProcessCacheEntry)(reg.Value)
+
+					result = int(element.ProcessContext.ExecEvent.FileFields.MountID)
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.file.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				var result string
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*model.ProcessCacheEntry)(reg.Value)
+
+					result = (*Event)(ctx.Object).ResolveExecBasename(&element.ExecEvent)
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.file.overlay_numlower":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				var result int
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*model.ProcessCacheEntry)(reg.Value)
+
+					result = int(element.ProcessContext.ExecEvent.FileFields.OverlayNumLower)
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.file.path":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
@@ -763,6 +1479,50 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
 					result = (*Event)(ctx.Object).ResolveExecInode(&element.ExecEvent)
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				var result int
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*model.ProcessCacheEntry)(reg.Value)
+
+					result = int(element.ProcessContext.ExecEvent.FileFields.UID)
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				var result string
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*model.ProcessCacheEntry)(reg.Value)
+
+					result = (*Event)(ctx.Object).ResolveUID(&element.FileFields)
 
 				}
 
@@ -829,72 +1589,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
 					result = (*Event)(ctx.Object).ResolveContainerID(&element.ContainerContext)
-
-				}
-
-				return result
-
-			},
-			Field: field,
-
-			Weight: eval.IteratorWeight,
-		}, nil
-
-	case "process.ancestors.inode":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-
-				var result int
-
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
-					element := (*model.ProcessCacheEntry)(reg.Value)
-
-					result = int(element.ProcessContext.ExecEvent.FileFields.Inode)
-
-				}
-
-				return result
-
-			},
-			Field: field,
-
-			Weight: eval.IteratorWeight,
-		}, nil
-
-	case "process.ancestors.name":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				var result string
-
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
-					element := (*model.ProcessCacheEntry)(reg.Value)
-
-					result = (*Event)(ctx.Object).ResolveExecBasename(&element.ExecEvent)
-
-				}
-
-				return result
-
-			},
-			Field: field,
-
-			Weight: eval.IteratorWeight,
-		}, nil
-
-	case "process.ancestors.overlay_numlower":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-
-				var result int
-
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
-					element := (*model.ProcessCacheEntry)(reg.Value)
-
-					result = int(element.ProcessContext.ExecEvent.FileFields.OverlayNumLower)
 
 				}
 
@@ -1038,11 +1732,11 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.IteratorWeight,
 		}, nil
 
-	case "process.container_path":
+	case "process.comm":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveExecContainerPath(&(*Event)(ctx.Object).Process.ExecEvent)
+				return (*Event)(ctx.Object).ResolveExecComm(&(*Event)(ctx.Object).Process.ExecEvent)
 
 			},
 			Field: field,
@@ -1062,11 +1756,131 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
-	case "process.filename":
+	case "process.file.container_path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveExecContainerPath(&(*Event)(ctx.Object).Process.ExecEvent)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "process.file.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Process.ExecEvent.FileFields.GID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "process.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveGID(&(*Event)(ctx.Object).Process.ExecEvent.FileFields)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "process.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Process.ExecEvent.FileFields.Inode)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "process.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Process.ExecEvent.FileFields.Mode)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "process.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Process.ExecEvent.FileFields.MountID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "process.file.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveExecBasename(&(*Event)(ctx.Object).Process.ExecEvent)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "process.file.overlay_numlower":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Process.ExecEvent.FileFields.OverlayNumLower)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "process.file.path":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ResolveExecInode(&(*Event)(ctx.Object).Process.ExecEvent)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "process.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Process.ExecEvent.FileFields.UID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "process.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveUID(&(*Event)(ctx.Object).Process.ExecEvent.FileFields)
 
 			},
 			Field: field,
@@ -1096,42 +1910,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field: field,
 
 			Weight: eval.HandlerWeight,
-		}, nil
-
-	case "process.inode":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-
-				return int((*Event)(ctx.Object).Process.ExecEvent.FileFields.Inode)
-
-			},
-			Field: field,
-
-			Weight: eval.FunctionWeight,
-		}, nil
-
-	case "process.name":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveExecBasename(&(*Event)(ctx.Object).Process.ExecEvent)
-
-			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
-		}, nil
-
-	case "process.overlay_numlower":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-
-				return int((*Event)(ctx.Object).Process.ExecEvent.FileFields.OverlayNumLower)
-
-			},
-			Field: field,
-
-			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.pid":
@@ -1206,11 +1984,11 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
-	case "removexattr.basename":
+	case "removexattr.file.container_path":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).RemoveXAttr.FileEvent)
+				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).RemoveXAttr.File)
 
 			},
 			Field: field,
@@ -1218,43 +1996,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
-	case "removexattr.container_path":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).RemoveXAttr.FileEvent)
-
-			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
-		}, nil
-
-	case "removexattr.filename":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).RemoveXAttr.FileEvent)
-
-			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
-		}, nil
-
-	case "removexattr.inode":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-
-				return int((*Event)(ctx.Object).RemoveXAttr.FileEvent.FileFields.Inode)
-
-			},
-			Field: field,
-
-			Weight: eval.FunctionWeight,
-		}, nil
-
-	case "removexattr.name":
+	case "removexattr.file.destination.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
@@ -1266,7 +2008,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
-	case "removexattr.namespace":
+	case "removexattr.file.destination.namespace":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
@@ -1278,16 +2020,124 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
-	case "removexattr.overlay_numlower":
+	case "removexattr.file.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).RemoveXAttr.FileEvent.FileFields.OverlayNumLower)
+				return int((*Event)(ctx.Object).RemoveXAttr.File.FileFields.GID)
 
 			},
 			Field: field,
 
 			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "removexattr.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveGID(&(*Event)(ctx.Object).RemoveXAttr.File.FileFields)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "removexattr.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).RemoveXAttr.File.FileFields.Inode)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "removexattr.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).RemoveXAttr.File.FileFields.Mode)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "removexattr.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).RemoveXAttr.File.FileFields.MountID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "removexattr.file.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).RemoveXAttr.File)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "removexattr.file.overlay_numlower":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).RemoveXAttr.File.FileFields.OverlayNumLower)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "removexattr.file.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).RemoveXAttr.File)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "removexattr.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).RemoveXAttr.File.FileFields.UID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "removexattr.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveUID(&(*Event)(ctx.Object).RemoveXAttr.File.FileFields)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "removexattr.retval":
@@ -1302,79 +2152,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
-	case "rename.new.basename":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).Rename.New)
-
-			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
-		}, nil
-
-	case "rename.new.container_path":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Rename.New)
-
-			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
-		}, nil
-
-	case "rename.new.filename":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).Rename.New)
-
-			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
-		}, nil
-
-	case "rename.new.inode":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-
-				return int((*Event)(ctx.Object).Rename.New.FileFields.Inode)
-
-			},
-			Field: field,
-
-			Weight: eval.FunctionWeight,
-		}, nil
-
-	case "rename.new.overlay_numlower":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-
-				return int((*Event)(ctx.Object).Rename.New.FileFields.OverlayNumLower)
-
-			},
-			Field: field,
-
-			Weight: eval.FunctionWeight,
-		}, nil
-
-	case "rename.old.basename":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).Rename.Old)
-
-			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
-		}, nil
-
-	case "rename.old.container_path":
+	case "rename.file.container_path":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
@@ -1386,11 +2164,11 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
-	case "rename.old.filename":
+	case "rename.file.destination.container_path":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).Rename.Old)
+				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Rename.New)
 
 			},
 			Field: field,
@@ -1398,7 +2176,151 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
-	case "rename.old.inode":
+	case "rename.file.destination.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Rename.New.FileFields.GID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "rename.file.destination.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveGID(&(*Event)(ctx.Object).Rename.New.FileFields)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "rename.file.destination.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Rename.New.FileFields.Inode)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "rename.file.destination.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Rename.New.FileFields.Mode)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "rename.file.destination.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Rename.New.FileFields.MountID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "rename.file.destination.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).Rename.New)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "rename.file.destination.overlay_numlower":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Rename.New.FileFields.OverlayNumLower)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "rename.file.destination.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).Rename.New)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "rename.file.destination.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Rename.New.FileFields.UID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "rename.file.destination.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveUID(&(*Event)(ctx.Object).Rename.New.FileFields)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "rename.file.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Rename.Old.FileFields.GID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "rename.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveGID(&(*Event)(ctx.Object).Rename.Old.FileFields)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "rename.file.inode":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
@@ -1410,7 +2332,43 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
-	case "rename.old.overlay_numlower":
+	case "rename.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Rename.Old.FileFields.Mode)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "rename.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Rename.Old.FileFields.MountID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "rename.file.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).Rename.Old)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "rename.file.overlay_numlower":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
@@ -1420,6 +2378,42 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field: field,
 
 			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "rename.file.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).Rename.Old)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "rename.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Rename.Old.FileFields.UID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "rename.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveUID(&(*Event)(ctx.Object).Rename.Old.FileFields)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "rename.retval":
@@ -1434,11 +2428,11 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
-	case "rmdir.basename":
+	case "rmdir.file.container_path":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).Rmdir.FileEvent)
+				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Rmdir.File)
 
 			},
 			Field: field,
@@ -1446,35 +2440,11 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
-	case "rmdir.container_path":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Rmdir.FileEvent)
-
-			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
-		}, nil
-
-	case "rmdir.filename":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).Rmdir.FileEvent)
-
-			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
-		}, nil
-
-	case "rmdir.inode":
+	case "rmdir.file.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).Rmdir.FileEvent.FileFields.Inode)
+				return int((*Event)(ctx.Object).Rmdir.File.FileFields.GID)
 
 			},
 			Field: field,
@@ -1482,16 +2452,112 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
-	case "rmdir.overlay_numlower":
+	case "rmdir.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveGID(&(*Event)(ctx.Object).Rmdir.File.FileFields)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "rmdir.file.inode":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).Rmdir.FileEvent.FileFields.OverlayNumLower)
+				return int((*Event)(ctx.Object).Rmdir.File.FileFields.Inode)
 
 			},
 			Field: field,
 
 			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "rmdir.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Rmdir.File.FileFields.Mode)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "rmdir.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Rmdir.File.FileFields.MountID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "rmdir.file.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).Rmdir.File)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "rmdir.file.overlay_numlower":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Rmdir.File.FileFields.OverlayNumLower)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "rmdir.file.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).Rmdir.File)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "rmdir.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Rmdir.File.FileFields.UID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "rmdir.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveUID(&(*Event)(ctx.Object).Rmdir.File.FileFields)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "rmdir.retval":
@@ -1506,11 +2572,11 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
-	case "setxattr.basename":
+	case "setxattr.file.container_path":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).SetXAttr.FileEvent)
+				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).SetXAttr.File)
 
 			},
 			Field: field,
@@ -1518,43 +2584,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
-	case "setxattr.container_path":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).SetXAttr.FileEvent)
-
-			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
-		}, nil
-
-	case "setxattr.filename":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).SetXAttr.FileEvent)
-
-			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
-		}, nil
-
-	case "setxattr.inode":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-
-				return int((*Event)(ctx.Object).SetXAttr.FileEvent.FileFields.Inode)
-
-			},
-			Field: field,
-
-			Weight: eval.FunctionWeight,
-		}, nil
-
-	case "setxattr.name":
+	case "setxattr.file.destination.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
@@ -1566,7 +2596,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
-	case "setxattr.namespace":
+	case "setxattr.file.destination.namespace":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
@@ -1578,16 +2608,124 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
-	case "setxattr.overlay_numlower":
+	case "setxattr.file.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).SetXAttr.FileEvent.FileFields.OverlayNumLower)
+				return int((*Event)(ctx.Object).SetXAttr.File.FileFields.GID)
 
 			},
 			Field: field,
 
 			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "setxattr.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveGID(&(*Event)(ctx.Object).SetXAttr.File.FileFields)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "setxattr.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).SetXAttr.File.FileFields.Inode)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "setxattr.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).SetXAttr.File.FileFields.Mode)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "setxattr.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).SetXAttr.File.FileFields.MountID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "setxattr.file.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).SetXAttr.File)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "setxattr.file.overlay_numlower":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).SetXAttr.File.FileFields.OverlayNumLower)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "setxattr.file.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).SetXAttr.File)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "setxattr.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).SetXAttr.File.FileFields.UID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "setxattr.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveUID(&(*Event)(ctx.Object).SetXAttr.File.FileFields)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "setxattr.retval":
@@ -1602,11 +2740,11 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
-	case "unlink.basename":
+	case "unlink.file.container_path":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).Unlink.FileEvent)
+				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Unlink.File)
 
 			},
 			Field: field,
@@ -1614,11 +2752,23 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
-	case "unlink.container_path":
+	case "unlink.file.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Unlink.File.FileFields.GID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "unlink.file.group":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Unlink.FileEvent)
+				return (*Event)(ctx.Object).ResolveGID(&(*Event)(ctx.Object).Unlink.File.FileFields)
 
 			},
 			Field: field,
@@ -1626,11 +2776,47 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
-	case "unlink.filename":
+	case "unlink.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Unlink.File.FileFields.Inode)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "unlink.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Unlink.File.FileFields.Mode)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "unlink.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Unlink.File.FileFields.MountID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "unlink.file.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).Unlink.FileEvent)
+				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).Unlink.File)
 
 			},
 			Field: field,
@@ -1638,11 +2824,11 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
-	case "unlink.flags":
+	case "unlink.file.overlay_numlower":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).Unlink.Flags)
+				return int((*Event)(ctx.Object).Unlink.File.FileFields.OverlayNumLower)
 
 			},
 			Field: field,
@@ -1650,11 +2836,23 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
-	case "unlink.inode":
+	case "unlink.file.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).Unlink.File)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "unlink.file.uid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).Unlink.FileEvent.FileFields.Inode)
+				return int((*Event)(ctx.Object).Unlink.File.FileFields.UID)
 
 			},
 			Field: field,
@@ -1662,16 +2860,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
-	case "unlink.overlay_numlower":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+	case "unlink.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
 
-				return int((*Event)(ctx.Object).Unlink.FileEvent.FileFields.OverlayNumLower)
+				return (*Event)(ctx.Object).ResolveUID(&(*Event)(ctx.Object).Unlink.File.FileFields)
 
 			},
 			Field: field,
 
-			Weight: eval.FunctionWeight,
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "unlink.retval":
@@ -1686,11 +2884,11 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
-	case "utimes.basename":
+	case "utimes.file.container_path":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).Utimes.FileEvent)
+				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Utimes.File)
 
 			},
 			Field: field,
@@ -1698,35 +2896,11 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
-	case "utimes.container_path":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Utimes.FileEvent)
-
-			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
-		}, nil
-
-	case "utimes.filename":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).Utimes.FileEvent)
-
-			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
-		}, nil
-
-	case "utimes.inode":
+	case "utimes.file.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).Utimes.FileEvent.FileFields.Inode)
+				return int((*Event)(ctx.Object).Utimes.File.FileFields.GID)
 
 			},
 			Field: field,
@@ -1734,16 +2908,112 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
-	case "utimes.overlay_numlower":
+	case "utimes.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveGID(&(*Event)(ctx.Object).Utimes.File.FileFields)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "utimes.file.inode":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).Utimes.FileEvent.FileFields.OverlayNumLower)
+				return int((*Event)(ctx.Object).Utimes.File.FileFields.Inode)
 
 			},
 			Field: field,
 
 			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "utimes.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Utimes.File.FileFields.Mode)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "utimes.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Utimes.File.FileFields.MountID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "utimes.file.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).Utimes.File)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "utimes.file.overlay_numlower":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Utimes.File.FileFields.OverlayNumLower)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "utimes.file.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).Utimes.File)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "utimes.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Utimes.File.FileFields.UID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "utimes.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveUID(&(*Event)(ctx.Object).Utimes.File.FileFields)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "utimes.retval":
@@ -1766,53 +3036,95 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 func (e *Event) GetFields() []eval.Field {
 	return []eval.Field{
 
-		"chmod.basename",
+		"chmod.file.container_path",
 
-		"chmod.container_path",
+		"chmod.file.destination.mode",
 
-		"chmod.filename",
+		"chmod.file.gid",
 
-		"chmod.inode",
+		"chmod.file.group",
 
-		"chmod.mode",
+		"chmod.file.inode",
 
-		"chmod.overlay_numlower",
+		"chmod.file.mode",
+
+		"chmod.file.mount_id",
+
+		"chmod.file.name",
+
+		"chmod.file.overlay_numlower",
+
+		"chmod.file.path",
+
+		"chmod.file.uid",
+
+		"chmod.file.user",
 
 		"chmod.retval",
 
-		"chown.basename",
+		"chown.file.container_path",
 
-		"chown.container_path",
+		"chown.file.destination.gid",
 
-		"chown.filename",
+		"chown.file.destination.group",
 
-		"chown.gid",
+		"chown.file.destination.uid",
 
-		"chown.inode",
+		"chown.file.destination.user",
 
-		"chown.overlay_numlower",
+		"chown.file.gid",
+
+		"chown.file.group",
+
+		"chown.file.inode",
+
+		"chown.file.mode",
+
+		"chown.file.mount_id",
+
+		"chown.file.name",
+
+		"chown.file.overlay_numlower",
+
+		"chown.file.path",
+
+		"chown.file.uid",
+
+		"chown.file.user",
 
 		"chown.retval",
 
-		"chown.uid",
-
 		"container.id",
 
-		"exec.container_path",
+		"exec.comm",
 
 		"exec.cookie",
 
-		"exec.filename",
+		"exec.file.container_path",
+
+		"exec.file.gid",
+
+		"exec.file.group",
+
+		"exec.file.inode",
+
+		"exec.file.mode",
+
+		"exec.file.mount_id",
+
+		"exec.file.name",
+
+		"exec.file.overlay_numlower",
+
+		"exec.file.path",
+
+		"exec.file.uid",
+
+		"exec.file.user",
 
 		"exec.gid",
 
 		"exec.group",
-
-		"exec.inode",
-
-		"exec.name",
-
-		"exec.overlay_numlower",
 
 		"exec.ppid",
 
@@ -1822,75 +3134,137 @@ func (e *Event) GetFields() []eval.Field {
 
 		"exec.user",
 
+		"link.file.container_path",
+
+		"link.file.destination.container_path",
+
+		"link.file.destination.gid",
+
+		"link.file.destination.group",
+
+		"link.file.destination.inode",
+
+		"link.file.destination.mode",
+
+		"link.file.destination.mount_id",
+
+		"link.file.destination.name",
+
+		"link.file.destination.overlay_numlower",
+
+		"link.file.destination.path",
+
+		"link.file.destination.uid",
+
+		"link.file.destination.user",
+
+		"link.file.gid",
+
+		"link.file.group",
+
+		"link.file.inode",
+
+		"link.file.mode",
+
+		"link.file.mount_id",
+
+		"link.file.name",
+
+		"link.file.overlay_numlower",
+
+		"link.file.path",
+
+		"link.file.uid",
+
+		"link.file.user",
+
 		"link.retval",
 
-		"link.source.basename",
+		"mkdir.file.container_path",
 
-		"link.source.container_path",
+		"mkdir.file.destination.mode",
 
-		"link.source.filename",
+		"mkdir.file.gid",
 
-		"link.source.inode",
+		"mkdir.file.group",
 
-		"link.source.overlay_numlower",
+		"mkdir.file.inode",
 
-		"link.target.basename",
+		"mkdir.file.mode",
 
-		"link.target.container_path",
+		"mkdir.file.mount_id",
 
-		"link.target.filename",
+		"mkdir.file.name",
 
-		"link.target.inode",
+		"mkdir.file.overlay_numlower",
 
-		"link.target.overlay_numlower",
+		"mkdir.file.path",
 
-		"mkdir.basename",
+		"mkdir.file.uid",
 
-		"mkdir.container_path",
-
-		"mkdir.filename",
-
-		"mkdir.inode",
-
-		"mkdir.mode",
-
-		"mkdir.overlay_numlower",
+		"mkdir.file.user",
 
 		"mkdir.retval",
 
-		"open.basename",
+		"open.file.container_path",
 
-		"open.container_path",
+		"open.file.destination.mode",
 
-		"open.filename",
+		"open.file.gid",
+
+		"open.file.group",
+
+		"open.file.inode",
+
+		"open.file.mode",
+
+		"open.file.mount_id",
+
+		"open.file.name",
+
+		"open.file.overlay_numlower",
+
+		"open.file.path",
+
+		"open.file.uid",
+
+		"open.file.user",
 
 		"open.flags",
 
-		"open.inode",
-
-		"open.mode",
-
-		"open.overlay_numlower",
-
 		"open.retval",
 
-		"process.ancestors.container_path",
+		"process.ancestors.comm",
 
 		"process.ancestors.cookie",
 
-		"process.ancestors.filename",
+		"process.ancestors.file.container_path",
+
+		"process.ancestors.file.gid",
+
+		"process.ancestors.file.group",
+
+		"process.ancestors.file.inode",
+
+		"process.ancestors.file.mode",
+
+		"process.ancestors.file.mount_id",
+
+		"process.ancestors.file.name",
+
+		"process.ancestors.file.overlay_numlower",
+
+		"process.ancestors.file.path",
+
+		"process.ancestors.file.uid",
+
+		"process.ancestors.file.user",
 
 		"process.ancestors.gid",
 
 		"process.ancestors.group",
 
 		"process.ancestors.id",
-
-		"process.ancestors.inode",
-
-		"process.ancestors.name",
-
-		"process.ancestors.overlay_numlower",
 
 		"process.ancestors.pid",
 
@@ -1904,21 +3278,35 @@ func (e *Event) GetFields() []eval.Field {
 
 		"process.ancestors.user",
 
-		"process.container_path",
+		"process.comm",
 
 		"process.cookie",
 
-		"process.filename",
+		"process.file.container_path",
+
+		"process.file.gid",
+
+		"process.file.group",
+
+		"process.file.inode",
+
+		"process.file.mode",
+
+		"process.file.mount_id",
+
+		"process.file.name",
+
+		"process.file.overlay_numlower",
+
+		"process.file.path",
+
+		"process.file.uid",
+
+		"process.file.user",
 
 		"process.gid",
 
 		"process.group",
-
-		"process.inode",
-
-		"process.name",
-
-		"process.overlay_numlower",
 
 		"process.pid",
 
@@ -1932,95 +3320,177 @@ func (e *Event) GetFields() []eval.Field {
 
 		"process.user",
 
-		"removexattr.basename",
+		"removexattr.file.container_path",
 
-		"removexattr.container_path",
+		"removexattr.file.destination.name",
 
-		"removexattr.filename",
+		"removexattr.file.destination.namespace",
 
-		"removexattr.inode",
+		"removexattr.file.gid",
 
-		"removexattr.name",
+		"removexattr.file.group",
 
-		"removexattr.namespace",
+		"removexattr.file.inode",
 
-		"removexattr.overlay_numlower",
+		"removexattr.file.mode",
+
+		"removexattr.file.mount_id",
+
+		"removexattr.file.name",
+
+		"removexattr.file.overlay_numlower",
+
+		"removexattr.file.path",
+
+		"removexattr.file.uid",
+
+		"removexattr.file.user",
 
 		"removexattr.retval",
 
-		"rename.new.basename",
+		"rename.file.container_path",
 
-		"rename.new.container_path",
+		"rename.file.destination.container_path",
 
-		"rename.new.filename",
+		"rename.file.destination.gid",
 
-		"rename.new.inode",
+		"rename.file.destination.group",
 
-		"rename.new.overlay_numlower",
+		"rename.file.destination.inode",
 
-		"rename.old.basename",
+		"rename.file.destination.mode",
 
-		"rename.old.container_path",
+		"rename.file.destination.mount_id",
 
-		"rename.old.filename",
+		"rename.file.destination.name",
 
-		"rename.old.inode",
+		"rename.file.destination.overlay_numlower",
 
-		"rename.old.overlay_numlower",
+		"rename.file.destination.path",
+
+		"rename.file.destination.uid",
+
+		"rename.file.destination.user",
+
+		"rename.file.gid",
+
+		"rename.file.group",
+
+		"rename.file.inode",
+
+		"rename.file.mode",
+
+		"rename.file.mount_id",
+
+		"rename.file.name",
+
+		"rename.file.overlay_numlower",
+
+		"rename.file.path",
+
+		"rename.file.uid",
+
+		"rename.file.user",
 
 		"rename.retval",
 
-		"rmdir.basename",
+		"rmdir.file.container_path",
 
-		"rmdir.container_path",
+		"rmdir.file.gid",
 
-		"rmdir.filename",
+		"rmdir.file.group",
 
-		"rmdir.inode",
+		"rmdir.file.inode",
 
-		"rmdir.overlay_numlower",
+		"rmdir.file.mode",
+
+		"rmdir.file.mount_id",
+
+		"rmdir.file.name",
+
+		"rmdir.file.overlay_numlower",
+
+		"rmdir.file.path",
+
+		"rmdir.file.uid",
+
+		"rmdir.file.user",
 
 		"rmdir.retval",
 
-		"setxattr.basename",
+		"setxattr.file.container_path",
 
-		"setxattr.container_path",
+		"setxattr.file.destination.name",
 
-		"setxattr.filename",
+		"setxattr.file.destination.namespace",
 
-		"setxattr.inode",
+		"setxattr.file.gid",
 
-		"setxattr.name",
+		"setxattr.file.group",
 
-		"setxattr.namespace",
+		"setxattr.file.inode",
 
-		"setxattr.overlay_numlower",
+		"setxattr.file.mode",
+
+		"setxattr.file.mount_id",
+
+		"setxattr.file.name",
+
+		"setxattr.file.overlay_numlower",
+
+		"setxattr.file.path",
+
+		"setxattr.file.uid",
+
+		"setxattr.file.user",
 
 		"setxattr.retval",
 
-		"unlink.basename",
+		"unlink.file.container_path",
 
-		"unlink.container_path",
+		"unlink.file.gid",
 
-		"unlink.filename",
+		"unlink.file.group",
 
-		"unlink.flags",
+		"unlink.file.inode",
 
-		"unlink.inode",
+		"unlink.file.mode",
 
-		"unlink.overlay_numlower",
+		"unlink.file.mount_id",
+
+		"unlink.file.name",
+
+		"unlink.file.overlay_numlower",
+
+		"unlink.file.path",
+
+		"unlink.file.uid",
+
+		"unlink.file.user",
 
 		"unlink.retval",
 
-		"utimes.basename",
+		"utimes.file.container_path",
 
-		"utimes.container_path",
+		"utimes.file.gid",
 
-		"utimes.filename",
+		"utimes.file.group",
 
-		"utimes.inode",
+		"utimes.file.inode",
 
-		"utimes.overlay_numlower",
+		"utimes.file.mode",
+
+		"utimes.file.mount_id",
+
+		"utimes.file.name",
+
+		"utimes.file.overlay_numlower",
+
+		"utimes.file.path",
+
+		"utimes.file.uid",
+
+		"utimes.file.user",
 
 		"utimes.retval",
 	}
@@ -2029,81 +3499,177 @@ func (e *Event) GetFields() []eval.Field {
 func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	switch field {
 
-	case "chmod.basename":
+	case "chmod.file.container_path":
 
-		return e.ResolveFileBasename(&e.Chmod.FileEvent), nil
+		return e.ResolveFileContainerPath(&e.Chmod.File), nil
 
-	case "chmod.container_path":
-
-		return e.ResolveFileContainerPath(&e.Chmod.FileEvent), nil
-
-	case "chmod.filename":
-
-		return e.ResolveFileInode(&e.Chmod.FileEvent), nil
-
-	case "chmod.inode":
-
-		return int(e.Chmod.FileEvent.FileFields.Inode), nil
-
-	case "chmod.mode":
+	case "chmod.file.destination.mode":
 
 		return int(e.Chmod.Mode), nil
 
-	case "chmod.overlay_numlower":
+	case "chmod.file.gid":
 
-		return int(e.Chmod.FileEvent.FileFields.OverlayNumLower), nil
+		return int(e.Chmod.File.FileFields.GID), nil
+
+	case "chmod.file.group":
+
+		return e.ResolveGID(&e.Chmod.File.FileFields), nil
+
+	case "chmod.file.inode":
+
+		return int(e.Chmod.File.FileFields.Inode), nil
+
+	case "chmod.file.mode":
+
+		return int(e.Chmod.File.FileFields.Mode), nil
+
+	case "chmod.file.mount_id":
+
+		return int(e.Chmod.File.FileFields.MountID), nil
+
+	case "chmod.file.name":
+
+		return e.ResolveFileBasename(&e.Chmod.File), nil
+
+	case "chmod.file.overlay_numlower":
+
+		return int(e.Chmod.File.FileFields.OverlayNumLower), nil
+
+	case "chmod.file.path":
+
+		return e.ResolveFileInode(&e.Chmod.File), nil
+
+	case "chmod.file.uid":
+
+		return int(e.Chmod.File.FileFields.UID), nil
+
+	case "chmod.file.user":
+
+		return e.ResolveUID(&e.Chmod.File.FileFields), nil
 
 	case "chmod.retval":
 
 		return int(e.Chmod.SyscallEvent.Retval), nil
 
-	case "chown.basename":
+	case "chown.file.container_path":
 
-		return e.ResolveFileBasename(&e.Chown.FileEvent), nil
+		return e.ResolveFileContainerPath(&e.Chown.File), nil
 
-	case "chown.container_path":
-
-		return e.ResolveFileContainerPath(&e.Chown.FileEvent), nil
-
-	case "chown.filename":
-
-		return e.ResolveFileInode(&e.Chown.FileEvent), nil
-
-	case "chown.gid":
+	case "chown.file.destination.gid":
 
 		return int(e.Chown.GID), nil
 
-	case "chown.inode":
+	case "chown.file.destination.group":
 
-		return int(e.Chown.FileEvent.FileFields.Inode), nil
+		return e.ResolveChownGID(&e.Chown), nil
 
-	case "chown.overlay_numlower":
+	case "chown.file.destination.uid":
 
-		return int(e.Chown.FileEvent.FileFields.OverlayNumLower), nil
+		return int(e.Chown.UID), nil
+
+	case "chown.file.destination.user":
+
+		return e.ResolveChownUID(&e.Chown), nil
+
+	case "chown.file.gid":
+
+		return int(e.Chown.File.FileFields.GID), nil
+
+	case "chown.file.group":
+
+		return e.ResolveGID(&e.Chown.File.FileFields), nil
+
+	case "chown.file.inode":
+
+		return int(e.Chown.File.FileFields.Inode), nil
+
+	case "chown.file.mode":
+
+		return int(e.Chown.File.FileFields.Mode), nil
+
+	case "chown.file.mount_id":
+
+		return int(e.Chown.File.FileFields.MountID), nil
+
+	case "chown.file.name":
+
+		return e.ResolveFileBasename(&e.Chown.File), nil
+
+	case "chown.file.overlay_numlower":
+
+		return int(e.Chown.File.FileFields.OverlayNumLower), nil
+
+	case "chown.file.path":
+
+		return e.ResolveFileInode(&e.Chown.File), nil
+
+	case "chown.file.uid":
+
+		return int(e.Chown.File.FileFields.UID), nil
+
+	case "chown.file.user":
+
+		return e.ResolveUID(&e.Chown.File.FileFields), nil
 
 	case "chown.retval":
 
 		return int(e.Chown.SyscallEvent.Retval), nil
 
-	case "chown.uid":
-
-		return int(e.Chown.UID), nil
-
 	case "container.id":
 
 		return e.ResolveContainerID(&e.Container), nil
 
-	case "exec.container_path":
+	case "exec.comm":
 
-		return e.ResolveExecContainerPath(&e.Exec), nil
+		return e.ResolveExecComm(&e.Exec), nil
 
 	case "exec.cookie":
 
 		return int(e.ResolveExecCookie(&e.Exec)), nil
 
-	case "exec.filename":
+	case "exec.file.container_path":
+
+		return e.ResolveExecContainerPath(&e.Exec), nil
+
+	case "exec.file.gid":
+
+		return int(e.Exec.FileFields.GID), nil
+
+	case "exec.file.group":
+
+		return e.ResolveGID(&e.Exec.FileFields), nil
+
+	case "exec.file.inode":
+
+		return int(e.Exec.FileFields.Inode), nil
+
+	case "exec.file.mode":
+
+		return int(e.Exec.FileFields.Mode), nil
+
+	case "exec.file.mount_id":
+
+		return int(e.Exec.FileFields.MountID), nil
+
+	case "exec.file.name":
+
+		return e.ResolveExecBasename(&e.Exec), nil
+
+	case "exec.file.overlay_numlower":
+
+		return int(e.Exec.FileFields.OverlayNumLower), nil
+
+	case "exec.file.path":
 
 		return e.ResolveExecInode(&e.Exec), nil
+
+	case "exec.file.uid":
+
+		return int(e.Exec.FileFields.UID), nil
+
+	case "exec.file.user":
+
+		return e.ResolveUID(&e.Exec.FileFields), nil
 
 	case "exec.gid":
 
@@ -2112,18 +3678,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "exec.group":
 
 		return e.ResolveExecGroup(&e.Exec), nil
-
-	case "exec.inode":
-
-		return int(e.Exec.FileFields.Inode), nil
-
-	case "exec.name":
-
-		return e.ResolveExecBasename(&e.Exec), nil
-
-	case "exec.overlay_numlower":
-
-		return int(e.Exec.FileFields.OverlayNumLower), nil
 
 	case "exec.ppid":
 
@@ -2141,111 +3695,207 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.ResolveExecUser(&e.Exec), nil
 
+	case "link.file.container_path":
+
+		return e.ResolveFileContainerPath(&e.Link.Source), nil
+
+	case "link.file.destination.container_path":
+
+		return e.ResolveFileContainerPath(&e.Link.Target), nil
+
+	case "link.file.destination.gid":
+
+		return int(e.Link.Target.FileFields.GID), nil
+
+	case "link.file.destination.group":
+
+		return e.ResolveGID(&e.Link.Target.FileFields), nil
+
+	case "link.file.destination.inode":
+
+		return int(e.Link.Target.FileFields.Inode), nil
+
+	case "link.file.destination.mode":
+
+		return int(e.Link.Target.FileFields.Mode), nil
+
+	case "link.file.destination.mount_id":
+
+		return int(e.Link.Target.FileFields.MountID), nil
+
+	case "link.file.destination.name":
+
+		return e.ResolveFileBasename(&e.Link.Target), nil
+
+	case "link.file.destination.overlay_numlower":
+
+		return int(e.Link.Target.FileFields.OverlayNumLower), nil
+
+	case "link.file.destination.path":
+
+		return e.ResolveFileInode(&e.Link.Target), nil
+
+	case "link.file.destination.uid":
+
+		return int(e.Link.Target.FileFields.UID), nil
+
+	case "link.file.destination.user":
+
+		return e.ResolveUID(&e.Link.Target.FileFields), nil
+
+	case "link.file.gid":
+
+		return int(e.Link.Source.FileFields.GID), nil
+
+	case "link.file.group":
+
+		return e.ResolveGID(&e.Link.Source.FileFields), nil
+
+	case "link.file.inode":
+
+		return int(e.Link.Source.FileFields.Inode), nil
+
+	case "link.file.mode":
+
+		return int(e.Link.Source.FileFields.Mode), nil
+
+	case "link.file.mount_id":
+
+		return int(e.Link.Source.FileFields.MountID), nil
+
+	case "link.file.name":
+
+		return e.ResolveFileBasename(&e.Link.Source), nil
+
+	case "link.file.overlay_numlower":
+
+		return int(e.Link.Source.FileFields.OverlayNumLower), nil
+
+	case "link.file.path":
+
+		return e.ResolveFileInode(&e.Link.Source), nil
+
+	case "link.file.uid":
+
+		return int(e.Link.Source.FileFields.UID), nil
+
+	case "link.file.user":
+
+		return e.ResolveUID(&e.Link.Source.FileFields), nil
+
 	case "link.retval":
 
 		return int(e.Link.SyscallEvent.Retval), nil
 
-	case "link.source.basename":
+	case "mkdir.file.container_path":
 
-		return e.ResolveFileBasename(&e.Link.Source), nil
+		return e.ResolveFileContainerPath(&e.Mkdir.File), nil
 
-	case "link.source.container_path":
-
-		return e.ResolveFileContainerPath(&e.Link.Source), nil
-
-	case "link.source.filename":
-
-		return e.ResolveFileInode(&e.Link.Source), nil
-
-	case "link.source.inode":
-
-		return int(e.Link.Source.FileFields.Inode), nil
-
-	case "link.source.overlay_numlower":
-
-		return int(e.Link.Source.FileFields.OverlayNumLower), nil
-
-	case "link.target.basename":
-
-		return e.ResolveFileBasename(&e.Link.Target), nil
-
-	case "link.target.container_path":
-
-		return e.ResolveFileContainerPath(&e.Link.Target), nil
-
-	case "link.target.filename":
-
-		return e.ResolveFileInode(&e.Link.Target), nil
-
-	case "link.target.inode":
-
-		return int(e.Link.Target.FileFields.Inode), nil
-
-	case "link.target.overlay_numlower":
-
-		return int(e.Link.Target.FileFields.OverlayNumLower), nil
-
-	case "mkdir.basename":
-
-		return e.ResolveFileBasename(&e.Mkdir.FileEvent), nil
-
-	case "mkdir.container_path":
-
-		return e.ResolveFileContainerPath(&e.Mkdir.FileEvent), nil
-
-	case "mkdir.filename":
-
-		return e.ResolveFileInode(&e.Mkdir.FileEvent), nil
-
-	case "mkdir.inode":
-
-		return int(e.Mkdir.FileEvent.FileFields.Inode), nil
-
-	case "mkdir.mode":
+	case "mkdir.file.destination.mode":
 
 		return int(e.Mkdir.Mode), nil
 
-	case "mkdir.overlay_numlower":
+	case "mkdir.file.gid":
 
-		return int(e.Mkdir.FileEvent.FileFields.OverlayNumLower), nil
+		return int(e.Mkdir.File.FileFields.GID), nil
+
+	case "mkdir.file.group":
+
+		return e.ResolveGID(&e.Mkdir.File.FileFields), nil
+
+	case "mkdir.file.inode":
+
+		return int(e.Mkdir.File.FileFields.Inode), nil
+
+	case "mkdir.file.mode":
+
+		return int(e.Mkdir.File.FileFields.Mode), nil
+
+	case "mkdir.file.mount_id":
+
+		return int(e.Mkdir.File.FileFields.MountID), nil
+
+	case "mkdir.file.name":
+
+		return e.ResolveFileBasename(&e.Mkdir.File), nil
+
+	case "mkdir.file.overlay_numlower":
+
+		return int(e.Mkdir.File.FileFields.OverlayNumLower), nil
+
+	case "mkdir.file.path":
+
+		return e.ResolveFileInode(&e.Mkdir.File), nil
+
+	case "mkdir.file.uid":
+
+		return int(e.Mkdir.File.FileFields.UID), nil
+
+	case "mkdir.file.user":
+
+		return e.ResolveUID(&e.Mkdir.File.FileFields), nil
 
 	case "mkdir.retval":
 
 		return int(e.Mkdir.SyscallEvent.Retval), nil
 
-	case "open.basename":
+	case "open.file.container_path":
 
-		return e.ResolveFileBasename(&e.Open.FileEvent), nil
+		return e.ResolveFileContainerPath(&e.Open.File), nil
 
-	case "open.container_path":
+	case "open.file.destination.mode":
 
-		return e.ResolveFileContainerPath(&e.Open.FileEvent), nil
+		return int(e.Open.Mode), nil
 
-	case "open.filename":
+	case "open.file.gid":
 
-		return e.ResolveFileInode(&e.Open.FileEvent), nil
+		return int(e.Open.File.FileFields.GID), nil
+
+	case "open.file.group":
+
+		return e.ResolveGID(&e.Open.File.FileFields), nil
+
+	case "open.file.inode":
+
+		return int(e.Open.File.FileFields.Inode), nil
+
+	case "open.file.mode":
+
+		return int(e.Open.File.FileFields.Mode), nil
+
+	case "open.file.mount_id":
+
+		return int(e.Open.File.FileFields.MountID), nil
+
+	case "open.file.name":
+
+		return e.ResolveFileBasename(&e.Open.File), nil
+
+	case "open.file.overlay_numlower":
+
+		return int(e.Open.File.FileFields.OverlayNumLower), nil
+
+	case "open.file.path":
+
+		return e.ResolveFileInode(&e.Open.File), nil
+
+	case "open.file.uid":
+
+		return int(e.Open.File.FileFields.UID), nil
+
+	case "open.file.user":
+
+		return e.ResolveUID(&e.Open.File.FileFields), nil
 
 	case "open.flags":
 
 		return int(e.Open.Flags), nil
 
-	case "open.inode":
-
-		return int(e.Open.FileEvent.FileFields.Inode), nil
-
-	case "open.mode":
-
-		return int(e.Open.Mode), nil
-
-	case "open.overlay_numlower":
-
-		return int(e.Open.FileEvent.FileFields.OverlayNumLower), nil
-
 	case "open.retval":
 
 		return int(e.Open.SyscallEvent.Retval), nil
 
-	case "process.ancestors.container_path":
+	case "process.ancestors.comm":
 
 		var values []string
 
@@ -2258,7 +3908,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := (*Event)(ctx.Object).ResolveExecContainerPath(&element.ExecEvent)
+			result := (*Event)(ctx.Object).ResolveExecComm(&element.ExecEvent)
 
 			values = append(values, result)
 
@@ -2289,7 +3939,183 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return values, nil
 
-	case "process.ancestors.filename":
+	case "process.ancestors.file.container_path":
+
+		var values []string
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &model.ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*model.ProcessCacheEntry)(ptr)
+
+			result := (*Event)(ctx.Object).ResolveExecContainerPath(&element.ExecEvent)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.file.gid":
+
+		var values []int
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &model.ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*model.ProcessCacheEntry)(ptr)
+
+			result := int(element.ProcessContext.ExecEvent.FileFields.GID)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.file.group":
+
+		var values []string
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &model.ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*model.ProcessCacheEntry)(ptr)
+
+			result := (*Event)(ctx.Object).ResolveGID(&element.FileFields)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.file.inode":
+
+		var values []int
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &model.ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*model.ProcessCacheEntry)(ptr)
+
+			result := int(element.ProcessContext.ExecEvent.FileFields.Inode)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.file.mode":
+
+		var values []int
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &model.ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*model.ProcessCacheEntry)(ptr)
+
+			result := int(element.ProcessContext.ExecEvent.FileFields.Mode)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.file.mount_id":
+
+		var values []int
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &model.ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*model.ProcessCacheEntry)(ptr)
+
+			result := int(element.ProcessContext.ExecEvent.FileFields.MountID)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.file.name":
+
+		var values []string
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &model.ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*model.ProcessCacheEntry)(ptr)
+
+			result := (*Event)(ctx.Object).ResolveExecBasename(&element.ExecEvent)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.file.overlay_numlower":
+
+		var values []int
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &model.ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*model.ProcessCacheEntry)(ptr)
+
+			result := int(element.ProcessContext.ExecEvent.FileFields.OverlayNumLower)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.file.path":
 
 		var values []string
 
@@ -2303,6 +4129,50 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := (*Event)(ctx.Object).ResolveExecInode(&element.ExecEvent)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.file.uid":
+
+		var values []int
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &model.ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*model.ProcessCacheEntry)(ptr)
+
+			result := int(element.ProcessContext.ExecEvent.FileFields.UID)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.file.user":
+
+		var values []string
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &model.ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*model.ProcessCacheEntry)(ptr)
+
+			result := (*Event)(ctx.Object).ResolveUID(&element.FileFields)
 
 			values = append(values, result)
 
@@ -2369,72 +4239,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := (*Event)(ctx.Object).ResolveContainerID(&element.ContainerContext)
-
-			values = append(values, result)
-
-			ptr = iterator.Next()
-		}
-
-		return values, nil
-
-	case "process.ancestors.inode":
-
-		var values []int
-
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
-
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-
-			result := int(element.ProcessContext.ExecEvent.FileFields.Inode)
-
-			values = append(values, result)
-
-			ptr = iterator.Next()
-		}
-
-		return values, nil
-
-	case "process.ancestors.name":
-
-		var values []string
-
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
-
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-
-			result := (*Event)(ctx.Object).ResolveExecBasename(&element.ExecEvent)
-
-			values = append(values, result)
-
-			ptr = iterator.Next()
-		}
-
-		return values, nil
-
-	case "process.ancestors.overlay_numlower":
-
-		var values []int
-
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
-
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-
-			result := int(element.ProcessContext.ExecEvent.FileFields.OverlayNumLower)
 
 			values = append(values, result)
 
@@ -2575,17 +4379,57 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return values, nil
 
-	case "process.container_path":
+	case "process.comm":
 
-		return e.ResolveExecContainerPath(&e.Process.ExecEvent), nil
+		return e.ResolveExecComm(&e.Process.ExecEvent), nil
 
 	case "process.cookie":
 
 		return int(e.ResolveExecCookie(&e.Process.ExecEvent)), nil
 
-	case "process.filename":
+	case "process.file.container_path":
+
+		return e.ResolveExecContainerPath(&e.Process.ExecEvent), nil
+
+	case "process.file.gid":
+
+		return int(e.Process.ExecEvent.FileFields.GID), nil
+
+	case "process.file.group":
+
+		return e.ResolveGID(&e.Process.ExecEvent.FileFields), nil
+
+	case "process.file.inode":
+
+		return int(e.Process.ExecEvent.FileFields.Inode), nil
+
+	case "process.file.mode":
+
+		return int(e.Process.ExecEvent.FileFields.Mode), nil
+
+	case "process.file.mount_id":
+
+		return int(e.Process.ExecEvent.FileFields.MountID), nil
+
+	case "process.file.name":
+
+		return e.ResolveExecBasename(&e.Process.ExecEvent), nil
+
+	case "process.file.overlay_numlower":
+
+		return int(e.Process.ExecEvent.FileFields.OverlayNumLower), nil
+
+	case "process.file.path":
 
 		return e.ResolveExecInode(&e.Process.ExecEvent), nil
+
+	case "process.file.uid":
+
+		return int(e.Process.ExecEvent.FileFields.UID), nil
+
+	case "process.file.user":
+
+		return e.ResolveUID(&e.Process.ExecEvent.FileFields), nil
 
 	case "process.gid":
 
@@ -2594,18 +4438,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "process.group":
 
 		return e.ResolveExecGroup(&e.Process.ExecEvent), nil
-
-	case "process.inode":
-
-		return int(e.Process.ExecEvent.FileFields.Inode), nil
-
-	case "process.name":
-
-		return e.ResolveExecBasename(&e.Process.ExecEvent), nil
-
-	case "process.overlay_numlower":
-
-		return int(e.Process.ExecEvent.FileFields.OverlayNumLower), nil
 
 	case "process.pid":
 
@@ -2631,185 +4463,349 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.ResolveExecUser(&e.Process.ExecEvent), nil
 
-	case "removexattr.basename":
+	case "removexattr.file.container_path":
 
-		return e.ResolveFileBasename(&e.RemoveXAttr.FileEvent), nil
+		return e.ResolveFileContainerPath(&e.RemoveXAttr.File), nil
 
-	case "removexattr.container_path":
-
-		return e.ResolveFileContainerPath(&e.RemoveXAttr.FileEvent), nil
-
-	case "removexattr.filename":
-
-		return e.ResolveFileInode(&e.RemoveXAttr.FileEvent), nil
-
-	case "removexattr.inode":
-
-		return int(e.RemoveXAttr.FileEvent.FileFields.Inode), nil
-
-	case "removexattr.name":
+	case "removexattr.file.destination.name":
 
 		return e.GetXAttrName(&e.RemoveXAttr), nil
 
-	case "removexattr.namespace":
+	case "removexattr.file.destination.namespace":
 
 		return e.GetXAttrNamespace(&e.RemoveXAttr), nil
 
-	case "removexattr.overlay_numlower":
+	case "removexattr.file.gid":
 
-		return int(e.RemoveXAttr.FileEvent.FileFields.OverlayNumLower), nil
+		return int(e.RemoveXAttr.File.FileFields.GID), nil
+
+	case "removexattr.file.group":
+
+		return e.ResolveGID(&e.RemoveXAttr.File.FileFields), nil
+
+	case "removexattr.file.inode":
+
+		return int(e.RemoveXAttr.File.FileFields.Inode), nil
+
+	case "removexattr.file.mode":
+
+		return int(e.RemoveXAttr.File.FileFields.Mode), nil
+
+	case "removexattr.file.mount_id":
+
+		return int(e.RemoveXAttr.File.FileFields.MountID), nil
+
+	case "removexattr.file.name":
+
+		return e.ResolveFileBasename(&e.RemoveXAttr.File), nil
+
+	case "removexattr.file.overlay_numlower":
+
+		return int(e.RemoveXAttr.File.FileFields.OverlayNumLower), nil
+
+	case "removexattr.file.path":
+
+		return e.ResolveFileInode(&e.RemoveXAttr.File), nil
+
+	case "removexattr.file.uid":
+
+		return int(e.RemoveXAttr.File.FileFields.UID), nil
+
+	case "removexattr.file.user":
+
+		return e.ResolveUID(&e.RemoveXAttr.File.FileFields), nil
 
 	case "removexattr.retval":
 
 		return int(e.RemoveXAttr.SyscallEvent.Retval), nil
 
-	case "rename.new.basename":
-
-		return e.ResolveFileBasename(&e.Rename.New), nil
-
-	case "rename.new.container_path":
-
-		return e.ResolveFileContainerPath(&e.Rename.New), nil
-
-	case "rename.new.filename":
-
-		return e.ResolveFileInode(&e.Rename.New), nil
-
-	case "rename.new.inode":
-
-		return int(e.Rename.New.FileFields.Inode), nil
-
-	case "rename.new.overlay_numlower":
-
-		return int(e.Rename.New.FileFields.OverlayNumLower), nil
-
-	case "rename.old.basename":
-
-		return e.ResolveFileBasename(&e.Rename.Old), nil
-
-	case "rename.old.container_path":
+	case "rename.file.container_path":
 
 		return e.ResolveFileContainerPath(&e.Rename.Old), nil
 
-	case "rename.old.filename":
+	case "rename.file.destination.container_path":
 
-		return e.ResolveFileInode(&e.Rename.Old), nil
+		return e.ResolveFileContainerPath(&e.Rename.New), nil
 
-	case "rename.old.inode":
+	case "rename.file.destination.gid":
+
+		return int(e.Rename.New.FileFields.GID), nil
+
+	case "rename.file.destination.group":
+
+		return e.ResolveGID(&e.Rename.New.FileFields), nil
+
+	case "rename.file.destination.inode":
+
+		return int(e.Rename.New.FileFields.Inode), nil
+
+	case "rename.file.destination.mode":
+
+		return int(e.Rename.New.FileFields.Mode), nil
+
+	case "rename.file.destination.mount_id":
+
+		return int(e.Rename.New.FileFields.MountID), nil
+
+	case "rename.file.destination.name":
+
+		return e.ResolveFileBasename(&e.Rename.New), nil
+
+	case "rename.file.destination.overlay_numlower":
+
+		return int(e.Rename.New.FileFields.OverlayNumLower), nil
+
+	case "rename.file.destination.path":
+
+		return e.ResolveFileInode(&e.Rename.New), nil
+
+	case "rename.file.destination.uid":
+
+		return int(e.Rename.New.FileFields.UID), nil
+
+	case "rename.file.destination.user":
+
+		return e.ResolveUID(&e.Rename.New.FileFields), nil
+
+	case "rename.file.gid":
+
+		return int(e.Rename.Old.FileFields.GID), nil
+
+	case "rename.file.group":
+
+		return e.ResolveGID(&e.Rename.Old.FileFields), nil
+
+	case "rename.file.inode":
 
 		return int(e.Rename.Old.FileFields.Inode), nil
 
-	case "rename.old.overlay_numlower":
+	case "rename.file.mode":
+
+		return int(e.Rename.Old.FileFields.Mode), nil
+
+	case "rename.file.mount_id":
+
+		return int(e.Rename.Old.FileFields.MountID), nil
+
+	case "rename.file.name":
+
+		return e.ResolveFileBasename(&e.Rename.Old), nil
+
+	case "rename.file.overlay_numlower":
 
 		return int(e.Rename.Old.FileFields.OverlayNumLower), nil
+
+	case "rename.file.path":
+
+		return e.ResolveFileInode(&e.Rename.Old), nil
+
+	case "rename.file.uid":
+
+		return int(e.Rename.Old.FileFields.UID), nil
+
+	case "rename.file.user":
+
+		return e.ResolveUID(&e.Rename.Old.FileFields), nil
 
 	case "rename.retval":
 
 		return int(e.Rename.SyscallEvent.Retval), nil
 
-	case "rmdir.basename":
+	case "rmdir.file.container_path":
 
-		return e.ResolveFileBasename(&e.Rmdir.FileEvent), nil
+		return e.ResolveFileContainerPath(&e.Rmdir.File), nil
 
-	case "rmdir.container_path":
+	case "rmdir.file.gid":
 
-		return e.ResolveFileContainerPath(&e.Rmdir.FileEvent), nil
+		return int(e.Rmdir.File.FileFields.GID), nil
 
-	case "rmdir.filename":
+	case "rmdir.file.group":
 
-		return e.ResolveFileInode(&e.Rmdir.FileEvent), nil
+		return e.ResolveGID(&e.Rmdir.File.FileFields), nil
 
-	case "rmdir.inode":
+	case "rmdir.file.inode":
 
-		return int(e.Rmdir.FileEvent.FileFields.Inode), nil
+		return int(e.Rmdir.File.FileFields.Inode), nil
 
-	case "rmdir.overlay_numlower":
+	case "rmdir.file.mode":
 
-		return int(e.Rmdir.FileEvent.FileFields.OverlayNumLower), nil
+		return int(e.Rmdir.File.FileFields.Mode), nil
+
+	case "rmdir.file.mount_id":
+
+		return int(e.Rmdir.File.FileFields.MountID), nil
+
+	case "rmdir.file.name":
+
+		return e.ResolveFileBasename(&e.Rmdir.File), nil
+
+	case "rmdir.file.overlay_numlower":
+
+		return int(e.Rmdir.File.FileFields.OverlayNumLower), nil
+
+	case "rmdir.file.path":
+
+		return e.ResolveFileInode(&e.Rmdir.File), nil
+
+	case "rmdir.file.uid":
+
+		return int(e.Rmdir.File.FileFields.UID), nil
+
+	case "rmdir.file.user":
+
+		return e.ResolveUID(&e.Rmdir.File.FileFields), nil
 
 	case "rmdir.retval":
 
 		return int(e.Rmdir.SyscallEvent.Retval), nil
 
-	case "setxattr.basename":
+	case "setxattr.file.container_path":
 
-		return e.ResolveFileBasename(&e.SetXAttr.FileEvent), nil
+		return e.ResolveFileContainerPath(&e.SetXAttr.File), nil
 
-	case "setxattr.container_path":
-
-		return e.ResolveFileContainerPath(&e.SetXAttr.FileEvent), nil
-
-	case "setxattr.filename":
-
-		return e.ResolveFileInode(&e.SetXAttr.FileEvent), nil
-
-	case "setxattr.inode":
-
-		return int(e.SetXAttr.FileEvent.FileFields.Inode), nil
-
-	case "setxattr.name":
+	case "setxattr.file.destination.name":
 
 		return e.GetXAttrName(&e.SetXAttr), nil
 
-	case "setxattr.namespace":
+	case "setxattr.file.destination.namespace":
 
 		return e.GetXAttrNamespace(&e.SetXAttr), nil
 
-	case "setxattr.overlay_numlower":
+	case "setxattr.file.gid":
 
-		return int(e.SetXAttr.FileEvent.FileFields.OverlayNumLower), nil
+		return int(e.SetXAttr.File.FileFields.GID), nil
+
+	case "setxattr.file.group":
+
+		return e.ResolveGID(&e.SetXAttr.File.FileFields), nil
+
+	case "setxattr.file.inode":
+
+		return int(e.SetXAttr.File.FileFields.Inode), nil
+
+	case "setxattr.file.mode":
+
+		return int(e.SetXAttr.File.FileFields.Mode), nil
+
+	case "setxattr.file.mount_id":
+
+		return int(e.SetXAttr.File.FileFields.MountID), nil
+
+	case "setxattr.file.name":
+
+		return e.ResolveFileBasename(&e.SetXAttr.File), nil
+
+	case "setxattr.file.overlay_numlower":
+
+		return int(e.SetXAttr.File.FileFields.OverlayNumLower), nil
+
+	case "setxattr.file.path":
+
+		return e.ResolveFileInode(&e.SetXAttr.File), nil
+
+	case "setxattr.file.uid":
+
+		return int(e.SetXAttr.File.FileFields.UID), nil
+
+	case "setxattr.file.user":
+
+		return e.ResolveUID(&e.SetXAttr.File.FileFields), nil
 
 	case "setxattr.retval":
 
 		return int(e.SetXAttr.SyscallEvent.Retval), nil
 
-	case "unlink.basename":
+	case "unlink.file.container_path":
 
-		return e.ResolveFileBasename(&e.Unlink.FileEvent), nil
+		return e.ResolveFileContainerPath(&e.Unlink.File), nil
 
-	case "unlink.container_path":
+	case "unlink.file.gid":
 
-		return e.ResolveFileContainerPath(&e.Unlink.FileEvent), nil
+		return int(e.Unlink.File.FileFields.GID), nil
 
-	case "unlink.filename":
+	case "unlink.file.group":
 
-		return e.ResolveFileInode(&e.Unlink.FileEvent), nil
+		return e.ResolveGID(&e.Unlink.File.FileFields), nil
 
-	case "unlink.flags":
+	case "unlink.file.inode":
 
-		return int(e.Unlink.Flags), nil
+		return int(e.Unlink.File.FileFields.Inode), nil
 
-	case "unlink.inode":
+	case "unlink.file.mode":
 
-		return int(e.Unlink.FileEvent.FileFields.Inode), nil
+		return int(e.Unlink.File.FileFields.Mode), nil
 
-	case "unlink.overlay_numlower":
+	case "unlink.file.mount_id":
 
-		return int(e.Unlink.FileEvent.FileFields.OverlayNumLower), nil
+		return int(e.Unlink.File.FileFields.MountID), nil
+
+	case "unlink.file.name":
+
+		return e.ResolveFileBasename(&e.Unlink.File), nil
+
+	case "unlink.file.overlay_numlower":
+
+		return int(e.Unlink.File.FileFields.OverlayNumLower), nil
+
+	case "unlink.file.path":
+
+		return e.ResolveFileInode(&e.Unlink.File), nil
+
+	case "unlink.file.uid":
+
+		return int(e.Unlink.File.FileFields.UID), nil
+
+	case "unlink.file.user":
+
+		return e.ResolveUID(&e.Unlink.File.FileFields), nil
 
 	case "unlink.retval":
 
 		return int(e.Unlink.SyscallEvent.Retval), nil
 
-	case "utimes.basename":
+	case "utimes.file.container_path":
 
-		return e.ResolveFileBasename(&e.Utimes.FileEvent), nil
+		return e.ResolveFileContainerPath(&e.Utimes.File), nil
 
-	case "utimes.container_path":
+	case "utimes.file.gid":
 
-		return e.ResolveFileContainerPath(&e.Utimes.FileEvent), nil
+		return int(e.Utimes.File.FileFields.GID), nil
 
-	case "utimes.filename":
+	case "utimes.file.group":
 
-		return e.ResolveFileInode(&e.Utimes.FileEvent), nil
+		return e.ResolveGID(&e.Utimes.File.FileFields), nil
 
-	case "utimes.inode":
+	case "utimes.file.inode":
 
-		return int(e.Utimes.FileEvent.FileFields.Inode), nil
+		return int(e.Utimes.File.FileFields.Inode), nil
 
-	case "utimes.overlay_numlower":
+	case "utimes.file.mode":
 
-		return int(e.Utimes.FileEvent.FileFields.OverlayNumLower), nil
+		return int(e.Utimes.File.FileFields.Mode), nil
+
+	case "utimes.file.mount_id":
+
+		return int(e.Utimes.File.FileFields.MountID), nil
+
+	case "utimes.file.name":
+
+		return e.ResolveFileBasename(&e.Utimes.File), nil
+
+	case "utimes.file.overlay_numlower":
+
+		return int(e.Utimes.File.FileFields.OverlayNumLower), nil
+
+	case "utimes.file.path":
+
+		return e.ResolveFileInode(&e.Utimes.File), nil
+
+	case "utimes.file.uid":
+
+		return int(e.Utimes.File.FileFields.UID), nil
+
+	case "utimes.file.user":
+
+		return e.ResolveUID(&e.Utimes.File.FileFields), nil
 
 	case "utimes.retval":
 
@@ -2823,76 +4819,139 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	switch field {
 
-	case "chmod.basename":
+	case "chmod.file.container_path":
 		return "chmod", nil
 
-	case "chmod.container_path":
+	case "chmod.file.destination.mode":
 		return "chmod", nil
 
-	case "chmod.filename":
+	case "chmod.file.gid":
 		return "chmod", nil
 
-	case "chmod.inode":
+	case "chmod.file.group":
 		return "chmod", nil
 
-	case "chmod.mode":
+	case "chmod.file.inode":
 		return "chmod", nil
 
-	case "chmod.overlay_numlower":
+	case "chmod.file.mode":
+		return "chmod", nil
+
+	case "chmod.file.mount_id":
+		return "chmod", nil
+
+	case "chmod.file.name":
+		return "chmod", nil
+
+	case "chmod.file.overlay_numlower":
+		return "chmod", nil
+
+	case "chmod.file.path":
+		return "chmod", nil
+
+	case "chmod.file.uid":
+		return "chmod", nil
+
+	case "chmod.file.user":
 		return "chmod", nil
 
 	case "chmod.retval":
 		return "chmod", nil
 
-	case "chown.basename":
+	case "chown.file.container_path":
 		return "chown", nil
 
-	case "chown.container_path":
+	case "chown.file.destination.gid":
 		return "chown", nil
 
-	case "chown.filename":
+	case "chown.file.destination.group":
 		return "chown", nil
 
-	case "chown.gid":
+	case "chown.file.destination.uid":
 		return "chown", nil
 
-	case "chown.inode":
+	case "chown.file.destination.user":
 		return "chown", nil
 
-	case "chown.overlay_numlower":
+	case "chown.file.gid":
+		return "chown", nil
+
+	case "chown.file.group":
+		return "chown", nil
+
+	case "chown.file.inode":
+		return "chown", nil
+
+	case "chown.file.mode":
+		return "chown", nil
+
+	case "chown.file.mount_id":
+		return "chown", nil
+
+	case "chown.file.name":
+		return "chown", nil
+
+	case "chown.file.overlay_numlower":
+		return "chown", nil
+
+	case "chown.file.path":
+		return "chown", nil
+
+	case "chown.file.uid":
+		return "chown", nil
+
+	case "chown.file.user":
 		return "chown", nil
 
 	case "chown.retval":
 		return "chown", nil
 
-	case "chown.uid":
-		return "chown", nil
-
 	case "container.id":
 		return "*", nil
 
-	case "exec.container_path":
+	case "exec.comm":
 		return "exec", nil
 
 	case "exec.cookie":
 		return "exec", nil
 
-	case "exec.filename":
+	case "exec.file.container_path":
+		return "exec", nil
+
+	case "exec.file.gid":
+		return "exec", nil
+
+	case "exec.file.group":
+		return "exec", nil
+
+	case "exec.file.inode":
+		return "exec", nil
+
+	case "exec.file.mode":
+		return "exec", nil
+
+	case "exec.file.mount_id":
+		return "exec", nil
+
+	case "exec.file.name":
+		return "exec", nil
+
+	case "exec.file.overlay_numlower":
+		return "exec", nil
+
+	case "exec.file.path":
+		return "exec", nil
+
+	case "exec.file.uid":
+		return "exec", nil
+
+	case "exec.file.user":
 		return "exec", nil
 
 	case "exec.gid":
 		return "exec", nil
 
 	case "exec.group":
-		return "exec", nil
-
-	case "exec.inode":
-		return "exec", nil
-
-	case "exec.name":
-		return "exec", nil
-
-	case "exec.overlay_numlower":
 		return "exec", nil
 
 	case "exec.ppid":
@@ -2907,91 +4966,193 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "exec.user":
 		return "exec", nil
 
+	case "link.file.container_path":
+		return "link", nil
+
+	case "link.file.destination.container_path":
+		return "link", nil
+
+	case "link.file.destination.gid":
+		return "link", nil
+
+	case "link.file.destination.group":
+		return "link", nil
+
+	case "link.file.destination.inode":
+		return "link", nil
+
+	case "link.file.destination.mode":
+		return "link", nil
+
+	case "link.file.destination.mount_id":
+		return "link", nil
+
+	case "link.file.destination.name":
+		return "link", nil
+
+	case "link.file.destination.overlay_numlower":
+		return "link", nil
+
+	case "link.file.destination.path":
+		return "link", nil
+
+	case "link.file.destination.uid":
+		return "link", nil
+
+	case "link.file.destination.user":
+		return "link", nil
+
+	case "link.file.gid":
+		return "link", nil
+
+	case "link.file.group":
+		return "link", nil
+
+	case "link.file.inode":
+		return "link", nil
+
+	case "link.file.mode":
+		return "link", nil
+
+	case "link.file.mount_id":
+		return "link", nil
+
+	case "link.file.name":
+		return "link", nil
+
+	case "link.file.overlay_numlower":
+		return "link", nil
+
+	case "link.file.path":
+		return "link", nil
+
+	case "link.file.uid":
+		return "link", nil
+
+	case "link.file.user":
+		return "link", nil
+
 	case "link.retval":
 		return "link", nil
 
-	case "link.source.basename":
-		return "link", nil
-
-	case "link.source.container_path":
-		return "link", nil
-
-	case "link.source.filename":
-		return "link", nil
-
-	case "link.source.inode":
-		return "link", nil
-
-	case "link.source.overlay_numlower":
-		return "link", nil
-
-	case "link.target.basename":
-		return "link", nil
-
-	case "link.target.container_path":
-		return "link", nil
-
-	case "link.target.filename":
-		return "link", nil
-
-	case "link.target.inode":
-		return "link", nil
-
-	case "link.target.overlay_numlower":
-		return "link", nil
-
-	case "mkdir.basename":
+	case "mkdir.file.container_path":
 		return "mkdir", nil
 
-	case "mkdir.container_path":
+	case "mkdir.file.destination.mode":
 		return "mkdir", nil
 
-	case "mkdir.filename":
+	case "mkdir.file.gid":
 		return "mkdir", nil
 
-	case "mkdir.inode":
+	case "mkdir.file.group":
 		return "mkdir", nil
 
-	case "mkdir.mode":
+	case "mkdir.file.inode":
 		return "mkdir", nil
 
-	case "mkdir.overlay_numlower":
+	case "mkdir.file.mode":
+		return "mkdir", nil
+
+	case "mkdir.file.mount_id":
+		return "mkdir", nil
+
+	case "mkdir.file.name":
+		return "mkdir", nil
+
+	case "mkdir.file.overlay_numlower":
+		return "mkdir", nil
+
+	case "mkdir.file.path":
+		return "mkdir", nil
+
+	case "mkdir.file.uid":
+		return "mkdir", nil
+
+	case "mkdir.file.user":
 		return "mkdir", nil
 
 	case "mkdir.retval":
 		return "mkdir", nil
 
-	case "open.basename":
+	case "open.file.container_path":
 		return "open", nil
 
-	case "open.container_path":
+	case "open.file.destination.mode":
 		return "open", nil
 
-	case "open.filename":
+	case "open.file.gid":
+		return "open", nil
+
+	case "open.file.group":
+		return "open", nil
+
+	case "open.file.inode":
+		return "open", nil
+
+	case "open.file.mode":
+		return "open", nil
+
+	case "open.file.mount_id":
+		return "open", nil
+
+	case "open.file.name":
+		return "open", nil
+
+	case "open.file.overlay_numlower":
+		return "open", nil
+
+	case "open.file.path":
+		return "open", nil
+
+	case "open.file.uid":
+		return "open", nil
+
+	case "open.file.user":
 		return "open", nil
 
 	case "open.flags":
 		return "open", nil
 
-	case "open.inode":
-		return "open", nil
-
-	case "open.mode":
-		return "open", nil
-
-	case "open.overlay_numlower":
-		return "open", nil
-
 	case "open.retval":
 		return "open", nil
 
-	case "process.ancestors.container_path":
+	case "process.ancestors.comm":
 		return "*", nil
 
 	case "process.ancestors.cookie":
 		return "*", nil
 
-	case "process.ancestors.filename":
+	case "process.ancestors.file.container_path":
+		return "*", nil
+
+	case "process.ancestors.file.gid":
+		return "*", nil
+
+	case "process.ancestors.file.group":
+		return "*", nil
+
+	case "process.ancestors.file.inode":
+		return "*", nil
+
+	case "process.ancestors.file.mode":
+		return "*", nil
+
+	case "process.ancestors.file.mount_id":
+		return "*", nil
+
+	case "process.ancestors.file.name":
+		return "*", nil
+
+	case "process.ancestors.file.overlay_numlower":
+		return "*", nil
+
+	case "process.ancestors.file.path":
+		return "*", nil
+
+	case "process.ancestors.file.uid":
+		return "*", nil
+
+	case "process.ancestors.file.user":
 		return "*", nil
 
 	case "process.ancestors.gid":
@@ -3001,15 +5162,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 
 	case "process.ancestors.id":
-		return "*", nil
-
-	case "process.ancestors.inode":
-		return "*", nil
-
-	case "process.ancestors.name":
-		return "*", nil
-
-	case "process.ancestors.overlay_numlower":
 		return "*", nil
 
 	case "process.ancestors.pid":
@@ -3030,28 +5182,49 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.ancestors.user":
 		return "*", nil
 
-	case "process.container_path":
+	case "process.comm":
 		return "*", nil
 
 	case "process.cookie":
 		return "*", nil
 
-	case "process.filename":
+	case "process.file.container_path":
+		return "*", nil
+
+	case "process.file.gid":
+		return "*", nil
+
+	case "process.file.group":
+		return "*", nil
+
+	case "process.file.inode":
+		return "*", nil
+
+	case "process.file.mode":
+		return "*", nil
+
+	case "process.file.mount_id":
+		return "*", nil
+
+	case "process.file.name":
+		return "*", nil
+
+	case "process.file.overlay_numlower":
+		return "*", nil
+
+	case "process.file.path":
+		return "*", nil
+
+	case "process.file.uid":
+		return "*", nil
+
+	case "process.file.user":
 		return "*", nil
 
 	case "process.gid":
 		return "*", nil
 
 	case "process.group":
-		return "*", nil
-
-	case "process.inode":
-		return "*", nil
-
-	case "process.name":
-		return "*", nil
-
-	case "process.overlay_numlower":
 		return "*", nil
 
 	case "process.pid":
@@ -3072,139 +5245,262 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.user":
 		return "*", nil
 
-	case "removexattr.basename":
+	case "removexattr.file.container_path":
 		return "removexattr", nil
 
-	case "removexattr.container_path":
+	case "removexattr.file.destination.name":
 		return "removexattr", nil
 
-	case "removexattr.filename":
+	case "removexattr.file.destination.namespace":
 		return "removexattr", nil
 
-	case "removexattr.inode":
+	case "removexattr.file.gid":
 		return "removexattr", nil
 
-	case "removexattr.name":
+	case "removexattr.file.group":
 		return "removexattr", nil
 
-	case "removexattr.namespace":
+	case "removexattr.file.inode":
 		return "removexattr", nil
 
-	case "removexattr.overlay_numlower":
+	case "removexattr.file.mode":
+		return "removexattr", nil
+
+	case "removexattr.file.mount_id":
+		return "removexattr", nil
+
+	case "removexattr.file.name":
+		return "removexattr", nil
+
+	case "removexattr.file.overlay_numlower":
+		return "removexattr", nil
+
+	case "removexattr.file.path":
+		return "removexattr", nil
+
+	case "removexattr.file.uid":
+		return "removexattr", nil
+
+	case "removexattr.file.user":
 		return "removexattr", nil
 
 	case "removexattr.retval":
 		return "removexattr", nil
 
-	case "rename.new.basename":
+	case "rename.file.container_path":
 		return "rename", nil
 
-	case "rename.new.container_path":
+	case "rename.file.destination.container_path":
 		return "rename", nil
 
-	case "rename.new.filename":
+	case "rename.file.destination.gid":
 		return "rename", nil
 
-	case "rename.new.inode":
+	case "rename.file.destination.group":
 		return "rename", nil
 
-	case "rename.new.overlay_numlower":
+	case "rename.file.destination.inode":
 		return "rename", nil
 
-	case "rename.old.basename":
+	case "rename.file.destination.mode":
 		return "rename", nil
 
-	case "rename.old.container_path":
+	case "rename.file.destination.mount_id":
 		return "rename", nil
 
-	case "rename.old.filename":
+	case "rename.file.destination.name":
 		return "rename", nil
 
-	case "rename.old.inode":
+	case "rename.file.destination.overlay_numlower":
 		return "rename", nil
 
-	case "rename.old.overlay_numlower":
+	case "rename.file.destination.path":
+		return "rename", nil
+
+	case "rename.file.destination.uid":
+		return "rename", nil
+
+	case "rename.file.destination.user":
+		return "rename", nil
+
+	case "rename.file.gid":
+		return "rename", nil
+
+	case "rename.file.group":
+		return "rename", nil
+
+	case "rename.file.inode":
+		return "rename", nil
+
+	case "rename.file.mode":
+		return "rename", nil
+
+	case "rename.file.mount_id":
+		return "rename", nil
+
+	case "rename.file.name":
+		return "rename", nil
+
+	case "rename.file.overlay_numlower":
+		return "rename", nil
+
+	case "rename.file.path":
+		return "rename", nil
+
+	case "rename.file.uid":
+		return "rename", nil
+
+	case "rename.file.user":
 		return "rename", nil
 
 	case "rename.retval":
 		return "rename", nil
 
-	case "rmdir.basename":
+	case "rmdir.file.container_path":
 		return "rmdir", nil
 
-	case "rmdir.container_path":
+	case "rmdir.file.gid":
 		return "rmdir", nil
 
-	case "rmdir.filename":
+	case "rmdir.file.group":
 		return "rmdir", nil
 
-	case "rmdir.inode":
+	case "rmdir.file.inode":
 		return "rmdir", nil
 
-	case "rmdir.overlay_numlower":
+	case "rmdir.file.mode":
+		return "rmdir", nil
+
+	case "rmdir.file.mount_id":
+		return "rmdir", nil
+
+	case "rmdir.file.name":
+		return "rmdir", nil
+
+	case "rmdir.file.overlay_numlower":
+		return "rmdir", nil
+
+	case "rmdir.file.path":
+		return "rmdir", nil
+
+	case "rmdir.file.uid":
+		return "rmdir", nil
+
+	case "rmdir.file.user":
 		return "rmdir", nil
 
 	case "rmdir.retval":
 		return "rmdir", nil
 
-	case "setxattr.basename":
+	case "setxattr.file.container_path":
 		return "setxattr", nil
 
-	case "setxattr.container_path":
+	case "setxattr.file.destination.name":
 		return "setxattr", nil
 
-	case "setxattr.filename":
+	case "setxattr.file.destination.namespace":
 		return "setxattr", nil
 
-	case "setxattr.inode":
+	case "setxattr.file.gid":
 		return "setxattr", nil
 
-	case "setxattr.name":
+	case "setxattr.file.group":
 		return "setxattr", nil
 
-	case "setxattr.namespace":
+	case "setxattr.file.inode":
 		return "setxattr", nil
 
-	case "setxattr.overlay_numlower":
+	case "setxattr.file.mode":
+		return "setxattr", nil
+
+	case "setxattr.file.mount_id":
+		return "setxattr", nil
+
+	case "setxattr.file.name":
+		return "setxattr", nil
+
+	case "setxattr.file.overlay_numlower":
+		return "setxattr", nil
+
+	case "setxattr.file.path":
+		return "setxattr", nil
+
+	case "setxattr.file.uid":
+		return "setxattr", nil
+
+	case "setxattr.file.user":
 		return "setxattr", nil
 
 	case "setxattr.retval":
 		return "setxattr", nil
 
-	case "unlink.basename":
+	case "unlink.file.container_path":
 		return "unlink", nil
 
-	case "unlink.container_path":
+	case "unlink.file.gid":
 		return "unlink", nil
 
-	case "unlink.filename":
+	case "unlink.file.group":
 		return "unlink", nil
 
-	case "unlink.flags":
+	case "unlink.file.inode":
 		return "unlink", nil
 
-	case "unlink.inode":
+	case "unlink.file.mode":
 		return "unlink", nil
 
-	case "unlink.overlay_numlower":
+	case "unlink.file.mount_id":
+		return "unlink", nil
+
+	case "unlink.file.name":
+		return "unlink", nil
+
+	case "unlink.file.overlay_numlower":
+		return "unlink", nil
+
+	case "unlink.file.path":
+		return "unlink", nil
+
+	case "unlink.file.uid":
+		return "unlink", nil
+
+	case "unlink.file.user":
 		return "unlink", nil
 
 	case "unlink.retval":
 		return "unlink", nil
 
-	case "utimes.basename":
+	case "utimes.file.container_path":
 		return "utimes", nil
 
-	case "utimes.container_path":
+	case "utimes.file.gid":
 		return "utimes", nil
 
-	case "utimes.filename":
+	case "utimes.file.group":
 		return "utimes", nil
 
-	case "utimes.inode":
+	case "utimes.file.inode":
 		return "utimes", nil
 
-	case "utimes.overlay_numlower":
+	case "utimes.file.mode":
+		return "utimes", nil
+
+	case "utimes.file.mount_id":
+		return "utimes", nil
+
+	case "utimes.file.name":
+		return "utimes", nil
+
+	case "utimes.file.overlay_numlower":
+		return "utimes", nil
+
+	case "utimes.file.path":
+		return "utimes", nil
+
+	case "utimes.file.uid":
+		return "utimes", nil
+
+	case "utimes.file.user":
 		return "utimes", nil
 
 	case "utimes.retval":
@@ -3218,63 +5514,119 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	switch field {
 
-	case "chmod.basename":
+	case "chmod.file.container_path":
 
 		return reflect.String, nil
 
-	case "chmod.container_path":
+	case "chmod.file.destination.mode":
+
+		return reflect.Int, nil
+
+	case "chmod.file.gid":
+
+		return reflect.Int, nil
+
+	case "chmod.file.group":
 
 		return reflect.String, nil
 
-	case "chmod.filename":
+	case "chmod.file.inode":
+
+		return reflect.Int, nil
+
+	case "chmod.file.mode":
+
+		return reflect.Int, nil
+
+	case "chmod.file.mount_id":
+
+		return reflect.Int, nil
+
+	case "chmod.file.name":
 
 		return reflect.String, nil
 
-	case "chmod.inode":
+	case "chmod.file.overlay_numlower":
 
 		return reflect.Int, nil
 
-	case "chmod.mode":
+	case "chmod.file.path":
+
+		return reflect.String, nil
+
+	case "chmod.file.uid":
 
 		return reflect.Int, nil
 
-	case "chmod.overlay_numlower":
+	case "chmod.file.user":
 
-		return reflect.Int, nil
+		return reflect.String, nil
 
 	case "chmod.retval":
 
 		return reflect.Int, nil
 
-	case "chown.basename":
+	case "chown.file.container_path":
 
 		return reflect.String, nil
 
-	case "chown.container_path":
+	case "chown.file.destination.gid":
+
+		return reflect.Int, nil
+
+	case "chown.file.destination.group":
 
 		return reflect.String, nil
 
-	case "chown.filename":
+	case "chown.file.destination.uid":
+
+		return reflect.Int, nil
+
+	case "chown.file.destination.user":
 
 		return reflect.String, nil
 
-	case "chown.gid":
+	case "chown.file.gid":
 
 		return reflect.Int, nil
 
-	case "chown.inode":
+	case "chown.file.group":
+
+		return reflect.String, nil
+
+	case "chown.file.inode":
 
 		return reflect.Int, nil
 
-	case "chown.overlay_numlower":
+	case "chown.file.mode":
 
 		return reflect.Int, nil
+
+	case "chown.file.mount_id":
+
+		return reflect.Int, nil
+
+	case "chown.file.name":
+
+		return reflect.String, nil
+
+	case "chown.file.overlay_numlower":
+
+		return reflect.Int, nil
+
+	case "chown.file.path":
+
+		return reflect.String, nil
+
+	case "chown.file.uid":
+
+		return reflect.Int, nil
+
+	case "chown.file.user":
+
+		return reflect.String, nil
 
 	case "chown.retval":
-
-		return reflect.Int, nil
-
-	case "chown.uid":
 
 		return reflect.Int, nil
 
@@ -3282,7 +5634,7 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
-	case "exec.container_path":
+	case "exec.comm":
 
 		return reflect.String, nil
 
@@ -3290,7 +5642,47 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
-	case "exec.filename":
+	case "exec.file.container_path":
+
+		return reflect.String, nil
+
+	case "exec.file.gid":
+
+		return reflect.Int, nil
+
+	case "exec.file.group":
+
+		return reflect.String, nil
+
+	case "exec.file.inode":
+
+		return reflect.Int, nil
+
+	case "exec.file.mode":
+
+		return reflect.Int, nil
+
+	case "exec.file.mount_id":
+
+		return reflect.Int, nil
+
+	case "exec.file.name":
+
+		return reflect.String, nil
+
+	case "exec.file.overlay_numlower":
+
+		return reflect.Int, nil
+
+	case "exec.file.path":
+
+		return reflect.String, nil
+
+	case "exec.file.uid":
+
+		return reflect.Int, nil
+
+	case "exec.file.user":
 
 		return reflect.String, nil
 
@@ -3301,18 +5693,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "exec.group":
 
 		return reflect.String, nil
-
-	case "exec.inode":
-
-		return reflect.Int, nil
-
-	case "exec.name":
-
-		return reflect.String, nil
-
-	case "exec.overlay_numlower":
-
-		return reflect.Int, nil
 
 	case "exec.ppid":
 
@@ -3330,87 +5710,195 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
+	case "link.file.container_path":
+
+		return reflect.String, nil
+
+	case "link.file.destination.container_path":
+
+		return reflect.String, nil
+
+	case "link.file.destination.gid":
+
+		return reflect.Int, nil
+
+	case "link.file.destination.group":
+
+		return reflect.String, nil
+
+	case "link.file.destination.inode":
+
+		return reflect.Int, nil
+
+	case "link.file.destination.mode":
+
+		return reflect.Int, nil
+
+	case "link.file.destination.mount_id":
+
+		return reflect.Int, nil
+
+	case "link.file.destination.name":
+
+		return reflect.String, nil
+
+	case "link.file.destination.overlay_numlower":
+
+		return reflect.Int, nil
+
+	case "link.file.destination.path":
+
+		return reflect.String, nil
+
+	case "link.file.destination.uid":
+
+		return reflect.Int, nil
+
+	case "link.file.destination.user":
+
+		return reflect.String, nil
+
+	case "link.file.gid":
+
+		return reflect.Int, nil
+
+	case "link.file.group":
+
+		return reflect.String, nil
+
+	case "link.file.inode":
+
+		return reflect.Int, nil
+
+	case "link.file.mode":
+
+		return reflect.Int, nil
+
+	case "link.file.mount_id":
+
+		return reflect.Int, nil
+
+	case "link.file.name":
+
+		return reflect.String, nil
+
+	case "link.file.overlay_numlower":
+
+		return reflect.Int, nil
+
+	case "link.file.path":
+
+		return reflect.String, nil
+
+	case "link.file.uid":
+
+		return reflect.Int, nil
+
+	case "link.file.user":
+
+		return reflect.String, nil
+
 	case "link.retval":
 
 		return reflect.Int, nil
 
-	case "link.source.basename":
+	case "mkdir.file.container_path":
 
 		return reflect.String, nil
 
-	case "link.source.container_path":
-
-		return reflect.String, nil
-
-	case "link.source.filename":
-
-		return reflect.String, nil
-
-	case "link.source.inode":
+	case "mkdir.file.destination.mode":
 
 		return reflect.Int, nil
 
-	case "link.source.overlay_numlower":
+	case "mkdir.file.gid":
 
 		return reflect.Int, nil
 
-	case "link.target.basename":
+	case "mkdir.file.group":
 
 		return reflect.String, nil
 
-	case "link.target.container_path":
-
-		return reflect.String, nil
-
-	case "link.target.filename":
-
-		return reflect.String, nil
-
-	case "link.target.inode":
+	case "mkdir.file.inode":
 
 		return reflect.Int, nil
 
-	case "link.target.overlay_numlower":
+	case "mkdir.file.mode":
 
 		return reflect.Int, nil
 
-	case "mkdir.basename":
+	case "mkdir.file.mount_id":
+
+		return reflect.Int, nil
+
+	case "mkdir.file.name":
 
 		return reflect.String, nil
 
-	case "mkdir.container_path":
+	case "mkdir.file.overlay_numlower":
+
+		return reflect.Int, nil
+
+	case "mkdir.file.path":
 
 		return reflect.String, nil
 
-	case "mkdir.filename":
+	case "mkdir.file.uid":
+
+		return reflect.Int, nil
+
+	case "mkdir.file.user":
 
 		return reflect.String, nil
-
-	case "mkdir.inode":
-
-		return reflect.Int, nil
-
-	case "mkdir.mode":
-
-		return reflect.Int, nil
-
-	case "mkdir.overlay_numlower":
-
-		return reflect.Int, nil
 
 	case "mkdir.retval":
 
 		return reflect.Int, nil
 
-	case "open.basename":
+	case "open.file.container_path":
 
 		return reflect.String, nil
 
-	case "open.container_path":
+	case "open.file.destination.mode":
+
+		return reflect.Int, nil
+
+	case "open.file.gid":
+
+		return reflect.Int, nil
+
+	case "open.file.group":
 
 		return reflect.String, nil
 
-	case "open.filename":
+	case "open.file.inode":
+
+		return reflect.Int, nil
+
+	case "open.file.mode":
+
+		return reflect.Int, nil
+
+	case "open.file.mount_id":
+
+		return reflect.Int, nil
+
+	case "open.file.name":
+
+		return reflect.String, nil
+
+	case "open.file.overlay_numlower":
+
+		return reflect.Int, nil
+
+	case "open.file.path":
+
+		return reflect.String, nil
+
+	case "open.file.uid":
+
+		return reflect.Int, nil
+
+	case "open.file.user":
 
 		return reflect.String, nil
 
@@ -3418,23 +5906,11 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
-	case "open.inode":
-
-		return reflect.Int, nil
-
-	case "open.mode":
-
-		return reflect.Int, nil
-
-	case "open.overlay_numlower":
-
-		return reflect.Int, nil
-
 	case "open.retval":
 
 		return reflect.Int, nil
 
-	case "process.ancestors.container_path":
+	case "process.ancestors.comm":
 
 		return reflect.String, nil
 
@@ -3442,7 +5918,47 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
-	case "process.ancestors.filename":
+	case "process.ancestors.file.container_path":
+
+		return reflect.String, nil
+
+	case "process.ancestors.file.gid":
+
+		return reflect.Int, nil
+
+	case "process.ancestors.file.group":
+
+		return reflect.String, nil
+
+	case "process.ancestors.file.inode":
+
+		return reflect.Int, nil
+
+	case "process.ancestors.file.mode":
+
+		return reflect.Int, nil
+
+	case "process.ancestors.file.mount_id":
+
+		return reflect.Int, nil
+
+	case "process.ancestors.file.name":
+
+		return reflect.String, nil
+
+	case "process.ancestors.file.overlay_numlower":
+
+		return reflect.Int, nil
+
+	case "process.ancestors.file.path":
+
+		return reflect.String, nil
+
+	case "process.ancestors.file.uid":
+
+		return reflect.Int, nil
+
+	case "process.ancestors.file.user":
 
 		return reflect.String, nil
 
@@ -3457,18 +5973,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "process.ancestors.id":
 
 		return reflect.String, nil
-
-	case "process.ancestors.inode":
-
-		return reflect.Int, nil
-
-	case "process.ancestors.name":
-
-		return reflect.String, nil
-
-	case "process.ancestors.overlay_numlower":
-
-		return reflect.Int, nil
 
 	case "process.ancestors.pid":
 
@@ -3494,7 +5998,7 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
-	case "process.container_path":
+	case "process.comm":
 
 		return reflect.String, nil
 
@@ -3502,7 +6006,47 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
-	case "process.filename":
+	case "process.file.container_path":
+
+		return reflect.String, nil
+
+	case "process.file.gid":
+
+		return reflect.Int, nil
+
+	case "process.file.group":
+
+		return reflect.String, nil
+
+	case "process.file.inode":
+
+		return reflect.Int, nil
+
+	case "process.file.mode":
+
+		return reflect.Int, nil
+
+	case "process.file.mount_id":
+
+		return reflect.Int, nil
+
+	case "process.file.name":
+
+		return reflect.String, nil
+
+	case "process.file.overlay_numlower":
+
+		return reflect.Int, nil
+
+	case "process.file.path":
+
+		return reflect.String, nil
+
+	case "process.file.uid":
+
+		return reflect.Int, nil
+
+	case "process.file.user":
 
 		return reflect.String, nil
 
@@ -3513,18 +6057,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "process.group":
 
 		return reflect.String, nil
-
-	case "process.inode":
-
-		return reflect.Int, nil
-
-	case "process.name":
-
-		return reflect.String, nil
-
-	case "process.overlay_numlower":
-
-		return reflect.Int, nil
 
 	case "process.pid":
 
@@ -3550,185 +6082,349 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
-	case "removexattr.basename":
+	case "removexattr.file.container_path":
 
 		return reflect.String, nil
 
-	case "removexattr.container_path":
+	case "removexattr.file.destination.name":
 
 		return reflect.String, nil
 
-	case "removexattr.filename":
+	case "removexattr.file.destination.namespace":
 
 		return reflect.String, nil
 
-	case "removexattr.inode":
+	case "removexattr.file.gid":
 
 		return reflect.Int, nil
 
-	case "removexattr.name":
+	case "removexattr.file.group":
 
 		return reflect.String, nil
 
-	case "removexattr.namespace":
-
-		return reflect.String, nil
-
-	case "removexattr.overlay_numlower":
+	case "removexattr.file.inode":
 
 		return reflect.Int, nil
+
+	case "removexattr.file.mode":
+
+		return reflect.Int, nil
+
+	case "removexattr.file.mount_id":
+
+		return reflect.Int, nil
+
+	case "removexattr.file.name":
+
+		return reflect.String, nil
+
+	case "removexattr.file.overlay_numlower":
+
+		return reflect.Int, nil
+
+	case "removexattr.file.path":
+
+		return reflect.String, nil
+
+	case "removexattr.file.uid":
+
+		return reflect.Int, nil
+
+	case "removexattr.file.user":
+
+		return reflect.String, nil
 
 	case "removexattr.retval":
 
 		return reflect.Int, nil
 
-	case "rename.new.basename":
+	case "rename.file.container_path":
 
 		return reflect.String, nil
 
-	case "rename.new.container_path":
+	case "rename.file.destination.container_path":
 
 		return reflect.String, nil
 
-	case "rename.new.filename":
-
-		return reflect.String, nil
-
-	case "rename.new.inode":
+	case "rename.file.destination.gid":
 
 		return reflect.Int, nil
 
-	case "rename.new.overlay_numlower":
-
-		return reflect.Int, nil
-
-	case "rename.old.basename":
+	case "rename.file.destination.group":
 
 		return reflect.String, nil
 
-	case "rename.old.container_path":
-
-		return reflect.String, nil
-
-	case "rename.old.filename":
-
-		return reflect.String, nil
-
-	case "rename.old.inode":
+	case "rename.file.destination.inode":
 
 		return reflect.Int, nil
 
-	case "rename.old.overlay_numlower":
+	case "rename.file.destination.mode":
 
 		return reflect.Int, nil
+
+	case "rename.file.destination.mount_id":
+
+		return reflect.Int, nil
+
+	case "rename.file.destination.name":
+
+		return reflect.String, nil
+
+	case "rename.file.destination.overlay_numlower":
+
+		return reflect.Int, nil
+
+	case "rename.file.destination.path":
+
+		return reflect.String, nil
+
+	case "rename.file.destination.uid":
+
+		return reflect.Int, nil
+
+	case "rename.file.destination.user":
+
+		return reflect.String, nil
+
+	case "rename.file.gid":
+
+		return reflect.Int, nil
+
+	case "rename.file.group":
+
+		return reflect.String, nil
+
+	case "rename.file.inode":
+
+		return reflect.Int, nil
+
+	case "rename.file.mode":
+
+		return reflect.Int, nil
+
+	case "rename.file.mount_id":
+
+		return reflect.Int, nil
+
+	case "rename.file.name":
+
+		return reflect.String, nil
+
+	case "rename.file.overlay_numlower":
+
+		return reflect.Int, nil
+
+	case "rename.file.path":
+
+		return reflect.String, nil
+
+	case "rename.file.uid":
+
+		return reflect.Int, nil
+
+	case "rename.file.user":
+
+		return reflect.String, nil
 
 	case "rename.retval":
 
 		return reflect.Int, nil
 
-	case "rmdir.basename":
+	case "rmdir.file.container_path":
 
 		return reflect.String, nil
 
-	case "rmdir.container_path":
-
-		return reflect.String, nil
-
-	case "rmdir.filename":
-
-		return reflect.String, nil
-
-	case "rmdir.inode":
+	case "rmdir.file.gid":
 
 		return reflect.Int, nil
 
-	case "rmdir.overlay_numlower":
+	case "rmdir.file.group":
+
+		return reflect.String, nil
+
+	case "rmdir.file.inode":
 
 		return reflect.Int, nil
+
+	case "rmdir.file.mode":
+
+		return reflect.Int, nil
+
+	case "rmdir.file.mount_id":
+
+		return reflect.Int, nil
+
+	case "rmdir.file.name":
+
+		return reflect.String, nil
+
+	case "rmdir.file.overlay_numlower":
+
+		return reflect.Int, nil
+
+	case "rmdir.file.path":
+
+		return reflect.String, nil
+
+	case "rmdir.file.uid":
+
+		return reflect.Int, nil
+
+	case "rmdir.file.user":
+
+		return reflect.String, nil
 
 	case "rmdir.retval":
 
 		return reflect.Int, nil
 
-	case "setxattr.basename":
+	case "setxattr.file.container_path":
 
 		return reflect.String, nil
 
-	case "setxattr.container_path":
+	case "setxattr.file.destination.name":
 
 		return reflect.String, nil
 
-	case "setxattr.filename":
+	case "setxattr.file.destination.namespace":
 
 		return reflect.String, nil
 
-	case "setxattr.inode":
+	case "setxattr.file.gid":
 
 		return reflect.Int, nil
 
-	case "setxattr.name":
+	case "setxattr.file.group":
 
 		return reflect.String, nil
 
-	case "setxattr.namespace":
-
-		return reflect.String, nil
-
-	case "setxattr.overlay_numlower":
+	case "setxattr.file.inode":
 
 		return reflect.Int, nil
+
+	case "setxattr.file.mode":
+
+		return reflect.Int, nil
+
+	case "setxattr.file.mount_id":
+
+		return reflect.Int, nil
+
+	case "setxattr.file.name":
+
+		return reflect.String, nil
+
+	case "setxattr.file.overlay_numlower":
+
+		return reflect.Int, nil
+
+	case "setxattr.file.path":
+
+		return reflect.String, nil
+
+	case "setxattr.file.uid":
+
+		return reflect.Int, nil
+
+	case "setxattr.file.user":
+
+		return reflect.String, nil
 
 	case "setxattr.retval":
 
 		return reflect.Int, nil
 
-	case "unlink.basename":
+	case "unlink.file.container_path":
 
 		return reflect.String, nil
 
-	case "unlink.container_path":
+	case "unlink.file.gid":
+
+		return reflect.Int, nil
+
+	case "unlink.file.group":
 
 		return reflect.String, nil
 
-	case "unlink.filename":
+	case "unlink.file.inode":
+
+		return reflect.Int, nil
+
+	case "unlink.file.mode":
+
+		return reflect.Int, nil
+
+	case "unlink.file.mount_id":
+
+		return reflect.Int, nil
+
+	case "unlink.file.name":
 
 		return reflect.String, nil
 
-	case "unlink.flags":
+	case "unlink.file.overlay_numlower":
 
 		return reflect.Int, nil
 
-	case "unlink.inode":
+	case "unlink.file.path":
+
+		return reflect.String, nil
+
+	case "unlink.file.uid":
 
 		return reflect.Int, nil
 
-	case "unlink.overlay_numlower":
+	case "unlink.file.user":
 
-		return reflect.Int, nil
+		return reflect.String, nil
 
 	case "unlink.retval":
 
 		return reflect.Int, nil
 
-	case "utimes.basename":
+	case "utimes.file.container_path":
 
 		return reflect.String, nil
 
-	case "utimes.container_path":
-
-		return reflect.String, nil
-
-	case "utimes.filename":
-
-		return reflect.String, nil
-
-	case "utimes.inode":
+	case "utimes.file.gid":
 
 		return reflect.Int, nil
 
-	case "utimes.overlay_numlower":
+	case "utimes.file.group":
+
+		return reflect.String, nil
+
+	case "utimes.file.inode":
 
 		return reflect.Int, nil
+
+	case "utimes.file.mode":
+
+		return reflect.Int, nil
+
+	case "utimes.file.mount_id":
+
+		return reflect.Int, nil
+
+	case "utimes.file.name":
+
+		return reflect.String, nil
+
+	case "utimes.file.overlay_numlower":
+
+		return reflect.Int, nil
+
+	case "utimes.file.path":
+
+		return reflect.String, nil
+
+	case "utimes.file.uid":
+
+		return reflect.Int, nil
+
+	case "utimes.file.user":
+
+		return reflect.String, nil
 
 	case "utimes.retval":
 
@@ -3742,41 +6438,15 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	switch field {
 
-	case "chmod.basename":
+	case "chmod.file.container_path":
 
 		var ok bool
-		if e.Chmod.FileEvent.BasenameStr, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Chmod.FileEvent.BasenameStr"}
+		if e.Chmod.File.ContainerPath, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.ContainerPath"}
 		}
 		return nil
 
-	case "chmod.container_path":
-
-		var ok bool
-		if e.Chmod.FileEvent.ContainerPath, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Chmod.FileEvent.ContainerPath"}
-		}
-		return nil
-
-	case "chmod.filename":
-
-		var ok bool
-		if e.Chmod.FileEvent.PathnameStr, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Chmod.FileEvent.PathnameStr"}
-		}
-		return nil
-
-	case "chmod.inode":
-
-		var ok bool
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Chmod.FileEvent.FileFields.Inode"}
-		}
-		e.Chmod.FileEvent.FileFields.Inode = uint64(v)
-		return nil
-
-	case "chmod.mode":
+	case "chmod.file.destination.mode":
 
 		var ok bool
 		v, ok := value.(int)
@@ -3786,14 +6456,96 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chmod.Mode = uint32(v)
 		return nil
 
-	case "chmod.overlay_numlower":
+	case "chmod.file.gid":
 
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Chmod.FileEvent.FileFields.OverlayNumLower"}
+			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.FileFields.GID"}
 		}
-		e.Chmod.FileEvent.FileFields.OverlayNumLower = int32(v)
+		e.Chmod.File.FileFields.GID = uint32(v)
+		return nil
+
+	case "chmod.file.group":
+
+		var ok bool
+		if e.Chmod.File.FileFields.Group, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.FileFields.Group"}
+		}
+		return nil
+
+	case "chmod.file.inode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.FileFields.Inode"}
+		}
+		e.Chmod.File.FileFields.Inode = uint64(v)
+		return nil
+
+	case "chmod.file.mode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.FileFields.Mode"}
+		}
+		e.Chmod.File.FileFields.Mode = uint16(v)
+		return nil
+
+	case "chmod.file.mount_id":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.FileFields.MountID"}
+		}
+		e.Chmod.File.FileFields.MountID = uint32(v)
+		return nil
+
+	case "chmod.file.name":
+
+		var ok bool
+		if e.Chmod.File.BasenameStr, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.BasenameStr"}
+		}
+		return nil
+
+	case "chmod.file.overlay_numlower":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.FileFields.OverlayNumLower"}
+		}
+		e.Chmod.File.FileFields.OverlayNumLower = int32(v)
+		return nil
+
+	case "chmod.file.path":
+
+		var ok bool
+		if e.Chmod.File.PathnameStr, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.PathnameStr"}
+		}
+		return nil
+
+	case "chmod.file.uid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.FileFields.UID"}
+		}
+		e.Chmod.File.FileFields.UID = uint32(v)
+		return nil
+
+	case "chmod.file.user":
+
+		var ok bool
+		if e.Chmod.File.FileFields.User, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.FileFields.User"}
+		}
 		return nil
 
 	case "chmod.retval":
@@ -3806,58 +6558,140 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chmod.SyscallEvent.Retval = int64(v)
 		return nil
 
-	case "chown.basename":
+	case "chown.file.container_path":
 
 		var ok bool
-		if e.Chown.FileEvent.BasenameStr, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Chown.FileEvent.BasenameStr"}
+		if e.Chown.File.ContainerPath, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chown.File.ContainerPath"}
 		}
 		return nil
 
-	case "chown.container_path":
-
-		var ok bool
-		if e.Chown.FileEvent.ContainerPath, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Chown.FileEvent.ContainerPath"}
-		}
-		return nil
-
-	case "chown.filename":
-
-		var ok bool
-		if e.Chown.FileEvent.PathnameStr, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Chown.FileEvent.PathnameStr"}
-		}
-		return nil
-
-	case "chown.gid":
+	case "chown.file.destination.gid":
 
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.GID"}
 		}
-		e.Chown.GID = int32(v)
+		e.Chown.GID = uint32(v)
 		return nil
 
-	case "chown.inode":
+	case "chown.file.destination.group":
+
+		var ok bool
+		if e.Chown.Group, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chown.Group"}
+		}
+		return nil
+
+	case "chown.file.destination.uid":
 
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Chown.FileEvent.FileFields.Inode"}
+			return &eval.ErrValueTypeMismatch{Field: "Chown.UID"}
 		}
-		e.Chown.FileEvent.FileFields.Inode = uint64(v)
+		e.Chown.UID = uint32(v)
 		return nil
 
-	case "chown.overlay_numlower":
+	case "chown.file.destination.user":
+
+		var ok bool
+		if e.Chown.User, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chown.User"}
+		}
+		return nil
+
+	case "chown.file.gid":
 
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Chown.FileEvent.FileFields.OverlayNumLower"}
+			return &eval.ErrValueTypeMismatch{Field: "Chown.File.FileFields.GID"}
 		}
-		e.Chown.FileEvent.FileFields.OverlayNumLower = int32(v)
+		e.Chown.File.FileFields.GID = uint32(v)
+		return nil
+
+	case "chown.file.group":
+
+		var ok bool
+		if e.Chown.File.FileFields.Group, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chown.File.FileFields.Group"}
+		}
+		return nil
+
+	case "chown.file.inode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chown.File.FileFields.Inode"}
+		}
+		e.Chown.File.FileFields.Inode = uint64(v)
+		return nil
+
+	case "chown.file.mode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chown.File.FileFields.Mode"}
+		}
+		e.Chown.File.FileFields.Mode = uint16(v)
+		return nil
+
+	case "chown.file.mount_id":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chown.File.FileFields.MountID"}
+		}
+		e.Chown.File.FileFields.MountID = uint32(v)
+		return nil
+
+	case "chown.file.name":
+
+		var ok bool
+		if e.Chown.File.BasenameStr, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chown.File.BasenameStr"}
+		}
+		return nil
+
+	case "chown.file.overlay_numlower":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chown.File.FileFields.OverlayNumLower"}
+		}
+		e.Chown.File.FileFields.OverlayNumLower = int32(v)
+		return nil
+
+	case "chown.file.path":
+
+		var ok bool
+		if e.Chown.File.PathnameStr, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chown.File.PathnameStr"}
+		}
+		return nil
+
+	case "chown.file.uid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chown.File.FileFields.UID"}
+		}
+		e.Chown.File.FileFields.UID = uint32(v)
+		return nil
+
+	case "chown.file.user":
+
+		var ok bool
+		if e.Chown.File.FileFields.User, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chown.File.FileFields.User"}
+		}
 		return nil
 
 	case "chown.retval":
@@ -3870,16 +6704,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chown.SyscallEvent.Retval = int64(v)
 		return nil
 
-	case "chown.uid":
-
-		var ok bool
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Chown.UID"}
-		}
-		e.Chown.UID = int32(v)
-		return nil
-
 	case "container.id":
 
 		var ok bool
@@ -3888,11 +6712,11 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 
-	case "exec.container_path":
+	case "exec.comm":
 
 		var ok bool
-		if e.Exec.ContainerPath, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Exec.ContainerPath"}
+		if e.Exec.Comm, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Comm"}
 		}
 		return nil
 
@@ -3906,11 +6730,103 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Cookie = uint32(v)
 		return nil
 
-	case "exec.filename":
+	case "exec.file.container_path":
+
+		var ok bool
+		if e.Exec.ContainerPath, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.ContainerPath"}
+		}
+		return nil
+
+	case "exec.file.gid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.FileFields.GID"}
+		}
+		e.Exec.FileFields.GID = uint32(v)
+		return nil
+
+	case "exec.file.group":
+
+		var ok bool
+		if e.Exec.FileFields.Group, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.FileFields.Group"}
+		}
+		return nil
+
+	case "exec.file.inode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.FileFields.Inode"}
+		}
+		e.Exec.FileFields.Inode = uint64(v)
+		return nil
+
+	case "exec.file.mode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.FileFields.Mode"}
+		}
+		e.Exec.FileFields.Mode = uint16(v)
+		return nil
+
+	case "exec.file.mount_id":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.FileFields.MountID"}
+		}
+		e.Exec.FileFields.MountID = uint32(v)
+		return nil
+
+	case "exec.file.name":
+
+		var ok bool
+		if e.Exec.BasenameStr, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.BasenameStr"}
+		}
+		return nil
+
+	case "exec.file.overlay_numlower":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.FileFields.OverlayNumLower"}
+		}
+		e.Exec.FileFields.OverlayNumLower = int32(v)
+		return nil
+
+	case "exec.file.path":
 
 		var ok bool
 		if e.Exec.PathnameStr, ok = value.(string); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.PathnameStr"}
+		}
+		return nil
+
+	case "exec.file.uid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.FileFields.UID"}
+		}
+		e.Exec.FileFields.UID = uint32(v)
+		return nil
+
+	case "exec.file.user":
+
+		var ok bool
+		if e.Exec.FileFields.User, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.FileFields.User"}
 		}
 		return nil
 
@@ -3930,34 +6846,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Exec.Group, ok = value.(string); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Group"}
 		}
-		return nil
-
-	case "exec.inode":
-
-		var ok bool
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Exec.FileFields.Inode"}
-		}
-		e.Exec.FileFields.Inode = uint64(v)
-		return nil
-
-	case "exec.name":
-
-		var ok bool
-		if e.Exec.BasenameStr, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Exec.BasenameStr"}
-		}
-		return nil
-
-	case "exec.overlay_numlower":
-
-		var ok bool
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Exec.FileFields.OverlayNumLower"}
-		}
-		e.Exec.FileFields.OverlayNumLower = int32(v)
 		return nil
 
 	case "exec.ppid":
@@ -3996,6 +6884,206 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 
+	case "link.file.container_path":
+
+		var ok bool
+		if e.Link.Source.ContainerPath, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Link.Source.ContainerPath"}
+		}
+		return nil
+
+	case "link.file.destination.container_path":
+
+		var ok bool
+		if e.Link.Target.ContainerPath, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Link.Target.ContainerPath"}
+		}
+		return nil
+
+	case "link.file.destination.gid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Link.Target.FileFields.GID"}
+		}
+		e.Link.Target.FileFields.GID = uint32(v)
+		return nil
+
+	case "link.file.destination.group":
+
+		var ok bool
+		if e.Link.Target.FileFields.Group, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Link.Target.FileFields.Group"}
+		}
+		return nil
+
+	case "link.file.destination.inode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Link.Target.FileFields.Inode"}
+		}
+		e.Link.Target.FileFields.Inode = uint64(v)
+		return nil
+
+	case "link.file.destination.mode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Link.Target.FileFields.Mode"}
+		}
+		e.Link.Target.FileFields.Mode = uint16(v)
+		return nil
+
+	case "link.file.destination.mount_id":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Link.Target.FileFields.MountID"}
+		}
+		e.Link.Target.FileFields.MountID = uint32(v)
+		return nil
+
+	case "link.file.destination.name":
+
+		var ok bool
+		if e.Link.Target.BasenameStr, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Link.Target.BasenameStr"}
+		}
+		return nil
+
+	case "link.file.destination.overlay_numlower":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Link.Target.FileFields.OverlayNumLower"}
+		}
+		e.Link.Target.FileFields.OverlayNumLower = int32(v)
+		return nil
+
+	case "link.file.destination.path":
+
+		var ok bool
+		if e.Link.Target.PathnameStr, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Link.Target.PathnameStr"}
+		}
+		return nil
+
+	case "link.file.destination.uid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Link.Target.FileFields.UID"}
+		}
+		e.Link.Target.FileFields.UID = uint32(v)
+		return nil
+
+	case "link.file.destination.user":
+
+		var ok bool
+		if e.Link.Target.FileFields.User, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Link.Target.FileFields.User"}
+		}
+		return nil
+
+	case "link.file.gid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Link.Source.FileFields.GID"}
+		}
+		e.Link.Source.FileFields.GID = uint32(v)
+		return nil
+
+	case "link.file.group":
+
+		var ok bool
+		if e.Link.Source.FileFields.Group, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Link.Source.FileFields.Group"}
+		}
+		return nil
+
+	case "link.file.inode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Link.Source.FileFields.Inode"}
+		}
+		e.Link.Source.FileFields.Inode = uint64(v)
+		return nil
+
+	case "link.file.mode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Link.Source.FileFields.Mode"}
+		}
+		e.Link.Source.FileFields.Mode = uint16(v)
+		return nil
+
+	case "link.file.mount_id":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Link.Source.FileFields.MountID"}
+		}
+		e.Link.Source.FileFields.MountID = uint32(v)
+		return nil
+
+	case "link.file.name":
+
+		var ok bool
+		if e.Link.Source.BasenameStr, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Link.Source.BasenameStr"}
+		}
+		return nil
+
+	case "link.file.overlay_numlower":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Link.Source.FileFields.OverlayNumLower"}
+		}
+		e.Link.Source.FileFields.OverlayNumLower = int32(v)
+		return nil
+
+	case "link.file.path":
+
+		var ok bool
+		if e.Link.Source.PathnameStr, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Link.Source.PathnameStr"}
+		}
+		return nil
+
+	case "link.file.uid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Link.Source.FileFields.UID"}
+		}
+		e.Link.Source.FileFields.UID = uint32(v)
+		return nil
+
+	case "link.file.user":
+
+		var ok bool
+		if e.Link.Source.FileFields.User, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Link.Source.FileFields.User"}
+		}
+		return nil
+
 	case "link.retval":
 
 		var ok bool
@@ -4006,129 +7094,15 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Link.SyscallEvent.Retval = int64(v)
 		return nil
 
-	case "link.source.basename":
+	case "mkdir.file.container_path":
 
 		var ok bool
-		if e.Link.Source.BasenameStr, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Link.Source.BasenameStr"}
+		if e.Mkdir.File.ContainerPath, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.ContainerPath"}
 		}
 		return nil
 
-	case "link.source.container_path":
-
-		var ok bool
-		if e.Link.Source.ContainerPath, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Link.Source.ContainerPath"}
-		}
-		return nil
-
-	case "link.source.filename":
-
-		var ok bool
-		if e.Link.Source.PathnameStr, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Link.Source.PathnameStr"}
-		}
-		return nil
-
-	case "link.source.inode":
-
-		var ok bool
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Link.Source.FileFields.Inode"}
-		}
-		e.Link.Source.FileFields.Inode = uint64(v)
-		return nil
-
-	case "link.source.overlay_numlower":
-
-		var ok bool
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Link.Source.FileFields.OverlayNumLower"}
-		}
-		e.Link.Source.FileFields.OverlayNumLower = int32(v)
-		return nil
-
-	case "link.target.basename":
-
-		var ok bool
-		if e.Link.Target.BasenameStr, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Link.Target.BasenameStr"}
-		}
-		return nil
-
-	case "link.target.container_path":
-
-		var ok bool
-		if e.Link.Target.ContainerPath, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Link.Target.ContainerPath"}
-		}
-		return nil
-
-	case "link.target.filename":
-
-		var ok bool
-		if e.Link.Target.PathnameStr, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Link.Target.PathnameStr"}
-		}
-		return nil
-
-	case "link.target.inode":
-
-		var ok bool
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Link.Target.FileFields.Inode"}
-		}
-		e.Link.Target.FileFields.Inode = uint64(v)
-		return nil
-
-	case "link.target.overlay_numlower":
-
-		var ok bool
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Link.Target.FileFields.OverlayNumLower"}
-		}
-		e.Link.Target.FileFields.OverlayNumLower = int32(v)
-		return nil
-
-	case "mkdir.basename":
-
-		var ok bool
-		if e.Mkdir.FileEvent.BasenameStr, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Mkdir.FileEvent.BasenameStr"}
-		}
-		return nil
-
-	case "mkdir.container_path":
-
-		var ok bool
-		if e.Mkdir.FileEvent.ContainerPath, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Mkdir.FileEvent.ContainerPath"}
-		}
-		return nil
-
-	case "mkdir.filename":
-
-		var ok bool
-		if e.Mkdir.FileEvent.PathnameStr, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Mkdir.FileEvent.PathnameStr"}
-		}
-		return nil
-
-	case "mkdir.inode":
-
-		var ok bool
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Mkdir.FileEvent.FileFields.Inode"}
-		}
-		e.Mkdir.FileEvent.FileFields.Inode = uint64(v)
-		return nil
-
-	case "mkdir.mode":
+	case "mkdir.file.destination.mode":
 
 		var ok bool
 		v, ok := value.(int)
@@ -4138,14 +7112,96 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Mkdir.Mode = uint32(v)
 		return nil
 
-	case "mkdir.overlay_numlower":
+	case "mkdir.file.gid":
 
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Mkdir.FileEvent.FileFields.OverlayNumLower"}
+			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.FileFields.GID"}
 		}
-		e.Mkdir.FileEvent.FileFields.OverlayNumLower = int32(v)
+		e.Mkdir.File.FileFields.GID = uint32(v)
+		return nil
+
+	case "mkdir.file.group":
+
+		var ok bool
+		if e.Mkdir.File.FileFields.Group, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.FileFields.Group"}
+		}
+		return nil
+
+	case "mkdir.file.inode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.FileFields.Inode"}
+		}
+		e.Mkdir.File.FileFields.Inode = uint64(v)
+		return nil
+
+	case "mkdir.file.mode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.FileFields.Mode"}
+		}
+		e.Mkdir.File.FileFields.Mode = uint16(v)
+		return nil
+
+	case "mkdir.file.mount_id":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.FileFields.MountID"}
+		}
+		e.Mkdir.File.FileFields.MountID = uint32(v)
+		return nil
+
+	case "mkdir.file.name":
+
+		var ok bool
+		if e.Mkdir.File.BasenameStr, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.BasenameStr"}
+		}
+		return nil
+
+	case "mkdir.file.overlay_numlower":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.FileFields.OverlayNumLower"}
+		}
+		e.Mkdir.File.FileFields.OverlayNumLower = int32(v)
+		return nil
+
+	case "mkdir.file.path":
+
+		var ok bool
+		if e.Mkdir.File.PathnameStr, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.PathnameStr"}
+		}
+		return nil
+
+	case "mkdir.file.uid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.FileFields.UID"}
+		}
+		e.Mkdir.File.FileFields.UID = uint32(v)
+		return nil
+
+	case "mkdir.file.user":
+
+		var ok bool
+		if e.Mkdir.File.FileFields.User, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.FileFields.User"}
+		}
 		return nil
 
 	case "mkdir.retval":
@@ -4158,27 +7214,113 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Mkdir.SyscallEvent.Retval = int64(v)
 		return nil
 
-	case "open.basename":
+	case "open.file.container_path":
 
 		var ok bool
-		if e.Open.FileEvent.BasenameStr, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Open.FileEvent.BasenameStr"}
+		if e.Open.File.ContainerPath, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Open.File.ContainerPath"}
 		}
 		return nil
 
-	case "open.container_path":
+	case "open.file.destination.mode":
 
 		var ok bool
-		if e.Open.FileEvent.ContainerPath, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Open.FileEvent.ContainerPath"}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Open.Mode"}
+		}
+		e.Open.Mode = uint32(v)
+		return nil
+
+	case "open.file.gid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Open.File.FileFields.GID"}
+		}
+		e.Open.File.FileFields.GID = uint32(v)
+		return nil
+
+	case "open.file.group":
+
+		var ok bool
+		if e.Open.File.FileFields.Group, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Open.File.FileFields.Group"}
 		}
 		return nil
 
-	case "open.filename":
+	case "open.file.inode":
 
 		var ok bool
-		if e.Open.FileEvent.PathnameStr, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Open.FileEvent.PathnameStr"}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Open.File.FileFields.Inode"}
+		}
+		e.Open.File.FileFields.Inode = uint64(v)
+		return nil
+
+	case "open.file.mode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Open.File.FileFields.Mode"}
+		}
+		e.Open.File.FileFields.Mode = uint16(v)
+		return nil
+
+	case "open.file.mount_id":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Open.File.FileFields.MountID"}
+		}
+		e.Open.File.FileFields.MountID = uint32(v)
+		return nil
+
+	case "open.file.name":
+
+		var ok bool
+		if e.Open.File.BasenameStr, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Open.File.BasenameStr"}
+		}
+		return nil
+
+	case "open.file.overlay_numlower":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Open.File.FileFields.OverlayNumLower"}
+		}
+		e.Open.File.FileFields.OverlayNumLower = int32(v)
+		return nil
+
+	case "open.file.path":
+
+		var ok bool
+		if e.Open.File.PathnameStr, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Open.File.PathnameStr"}
+		}
+		return nil
+
+	case "open.file.uid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Open.File.FileFields.UID"}
+		}
+		e.Open.File.FileFields.UID = uint32(v)
+		return nil
+
+	case "open.file.user":
+
+		var ok bool
+		if e.Open.File.FileFields.User, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Open.File.FileFields.User"}
 		}
 		return nil
 
@@ -4192,36 +7334,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Open.Flags = uint32(v)
 		return nil
 
-	case "open.inode":
-
-		var ok bool
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Open.FileEvent.FileFields.Inode"}
-		}
-		e.Open.FileEvent.FileFields.Inode = uint64(v)
-		return nil
-
-	case "open.mode":
-
-		var ok bool
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Open.Mode"}
-		}
-		e.Open.Mode = uint32(v)
-		return nil
-
-	case "open.overlay_numlower":
-
-		var ok bool
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Open.FileEvent.FileFields.OverlayNumLower"}
-		}
-		e.Open.FileEvent.FileFields.OverlayNumLower = int32(v)
-		return nil
-
 	case "open.retval":
 
 		var ok bool
@@ -4232,15 +7344,15 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Open.SyscallEvent.Retval = int64(v)
 		return nil
 
-	case "process.ancestors.container_path":
+	case "process.ancestors.comm":
 
 		if e.Process.Ancestor == nil {
 			e.Process.Ancestor = &model.ProcessCacheEntry{}
 		}
 
 		var ok bool
-		if e.Process.Ancestor.ProcessContext.ExecEvent.ContainerPath, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.ContainerPath"}
+		if e.Process.Ancestor.ProcessContext.ExecEvent.Comm, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.Comm"}
 		}
 		return nil
 
@@ -4258,7 +7370,113 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Process.Ancestor.ProcessContext.ExecEvent.Cookie = uint32(v)
 		return nil
 
-	case "process.ancestors.filename":
+	case "process.ancestors.file.container_path":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &model.ProcessCacheEntry{}
+		}
+
+		var ok bool
+		if e.Process.Ancestor.ProcessContext.ExecEvent.ContainerPath, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.ContainerPath"}
+		}
+		return nil
+
+	case "process.ancestors.file.gid":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &model.ProcessCacheEntry{}
+		}
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.FileFields.GID"}
+		}
+		e.Process.Ancestor.ProcessContext.ExecEvent.FileFields.GID = uint32(v)
+		return nil
+
+	case "process.ancestors.file.group":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &model.ProcessCacheEntry{}
+		}
+
+		var ok bool
+		if e.Process.Ancestor.ProcessContext.ExecEvent.FileFields.Group, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.FileFields.Group"}
+		}
+		return nil
+
+	case "process.ancestors.file.inode":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &model.ProcessCacheEntry{}
+		}
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.FileFields.Inode"}
+		}
+		e.Process.Ancestor.ProcessContext.ExecEvent.FileFields.Inode = uint64(v)
+		return nil
+
+	case "process.ancestors.file.mode":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &model.ProcessCacheEntry{}
+		}
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.FileFields.Mode"}
+		}
+		e.Process.Ancestor.ProcessContext.ExecEvent.FileFields.Mode = uint16(v)
+		return nil
+
+	case "process.ancestors.file.mount_id":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &model.ProcessCacheEntry{}
+		}
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.FileFields.MountID"}
+		}
+		e.Process.Ancestor.ProcessContext.ExecEvent.FileFields.MountID = uint32(v)
+		return nil
+
+	case "process.ancestors.file.name":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &model.ProcessCacheEntry{}
+		}
+
+		var ok bool
+		if e.Process.Ancestor.ProcessContext.ExecEvent.BasenameStr, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.BasenameStr"}
+		}
+		return nil
+
+	case "process.ancestors.file.overlay_numlower":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &model.ProcessCacheEntry{}
+		}
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.FileFields.OverlayNumLower"}
+		}
+		e.Process.Ancestor.ProcessContext.ExecEvent.FileFields.OverlayNumLower = int32(v)
+		return nil
+
+	case "process.ancestors.file.path":
 
 		if e.Process.Ancestor == nil {
 			e.Process.Ancestor = &model.ProcessCacheEntry{}
@@ -4267,6 +7485,32 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		if e.Process.Ancestor.ProcessContext.ExecEvent.PathnameStr, ok = value.(string); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.PathnameStr"}
+		}
+		return nil
+
+	case "process.ancestors.file.uid":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &model.ProcessCacheEntry{}
+		}
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.FileFields.UID"}
+		}
+		e.Process.Ancestor.ProcessContext.ExecEvent.FileFields.UID = uint32(v)
+		return nil
+
+	case "process.ancestors.file.user":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &model.ProcessCacheEntry{}
+		}
+
+		var ok bool
+		if e.Process.Ancestor.ProcessContext.ExecEvent.FileFields.User, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.FileFields.User"}
 		}
 		return nil
 
@@ -4306,46 +7550,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Process.Ancestor.ContainerContext.ID, ok = value.(string); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ContainerContext.ID"}
 		}
-		return nil
-
-	case "process.ancestors.inode":
-
-		if e.Process.Ancestor == nil {
-			e.Process.Ancestor = &model.ProcessCacheEntry{}
-		}
-
-		var ok bool
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.FileFields.Inode"}
-		}
-		e.Process.Ancestor.ProcessContext.ExecEvent.FileFields.Inode = uint64(v)
-		return nil
-
-	case "process.ancestors.name":
-
-		if e.Process.Ancestor == nil {
-			e.Process.Ancestor = &model.ProcessCacheEntry{}
-		}
-
-		var ok bool
-		if e.Process.Ancestor.ProcessContext.ExecEvent.BasenameStr, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.BasenameStr"}
-		}
-		return nil
-
-	case "process.ancestors.overlay_numlower":
-
-		if e.Process.Ancestor == nil {
-			e.Process.Ancestor = &model.ProcessCacheEntry{}
-		}
-
-		var ok bool
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.FileFields.OverlayNumLower"}
-		}
-		e.Process.Ancestor.ProcessContext.ExecEvent.FileFields.OverlayNumLower = int32(v)
 		return nil
 
 	case "process.ancestors.pid":
@@ -4428,11 +7632,11 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 
-	case "process.container_path":
+	case "process.comm":
 
 		var ok bool
-		if e.Process.ExecEvent.ContainerPath, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.ContainerPath"}
+		if e.Process.ExecEvent.Comm, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.Comm"}
 		}
 		return nil
 
@@ -4446,11 +7650,103 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Process.ExecEvent.Cookie = uint32(v)
 		return nil
 
-	case "process.filename":
+	case "process.file.container_path":
+
+		var ok bool
+		if e.Process.ExecEvent.ContainerPath, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.ContainerPath"}
+		}
+		return nil
+
+	case "process.file.gid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.FileFields.GID"}
+		}
+		e.Process.ExecEvent.FileFields.GID = uint32(v)
+		return nil
+
+	case "process.file.group":
+
+		var ok bool
+		if e.Process.ExecEvent.FileFields.Group, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.FileFields.Group"}
+		}
+		return nil
+
+	case "process.file.inode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.FileFields.Inode"}
+		}
+		e.Process.ExecEvent.FileFields.Inode = uint64(v)
+		return nil
+
+	case "process.file.mode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.FileFields.Mode"}
+		}
+		e.Process.ExecEvent.FileFields.Mode = uint16(v)
+		return nil
+
+	case "process.file.mount_id":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.FileFields.MountID"}
+		}
+		e.Process.ExecEvent.FileFields.MountID = uint32(v)
+		return nil
+
+	case "process.file.name":
+
+		var ok bool
+		if e.Process.ExecEvent.BasenameStr, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.BasenameStr"}
+		}
+		return nil
+
+	case "process.file.overlay_numlower":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.FileFields.OverlayNumLower"}
+		}
+		e.Process.ExecEvent.FileFields.OverlayNumLower = int32(v)
+		return nil
+
+	case "process.file.path":
 
 		var ok bool
 		if e.Process.ExecEvent.PathnameStr, ok = value.(string); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.PathnameStr"}
+		}
+		return nil
+
+	case "process.file.uid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.FileFields.UID"}
+		}
+		e.Process.ExecEvent.FileFields.UID = uint32(v)
+		return nil
+
+	case "process.file.user":
+
+		var ok bool
+		if e.Process.ExecEvent.FileFields.User, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.FileFields.User"}
 		}
 		return nil
 
@@ -4470,34 +7766,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Process.ExecEvent.Group, ok = value.(string); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.Group"}
 		}
-		return nil
-
-	case "process.inode":
-
-		var ok bool
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.FileFields.Inode"}
-		}
-		e.Process.ExecEvent.FileFields.Inode = uint64(v)
-		return nil
-
-	case "process.name":
-
-		var ok bool
-		if e.Process.ExecEvent.BasenameStr, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.BasenameStr"}
-		}
-		return nil
-
-	case "process.overlay_numlower":
-
-		var ok bool
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.FileFields.OverlayNumLower"}
-		}
-		e.Process.ExecEvent.FileFields.OverlayNumLower = int32(v)
 		return nil
 
 	case "process.pid":
@@ -4556,41 +7824,15 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 
-	case "removexattr.basename":
+	case "removexattr.file.container_path":
 
 		var ok bool
-		if e.RemoveXAttr.FileEvent.BasenameStr, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.FileEvent.BasenameStr"}
+		if e.RemoveXAttr.File.ContainerPath, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.ContainerPath"}
 		}
 		return nil
 
-	case "removexattr.container_path":
-
-		var ok bool
-		if e.RemoveXAttr.FileEvent.ContainerPath, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.FileEvent.ContainerPath"}
-		}
-		return nil
-
-	case "removexattr.filename":
-
-		var ok bool
-		if e.RemoveXAttr.FileEvent.PathnameStr, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.FileEvent.PathnameStr"}
-		}
-		return nil
-
-	case "removexattr.inode":
-
-		var ok bool
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.FileEvent.FileFields.Inode"}
-		}
-		e.RemoveXAttr.FileEvent.FileFields.Inode = uint64(v)
-		return nil
-
-	case "removexattr.name":
+	case "removexattr.file.destination.name":
 
 		var ok bool
 		if e.RemoveXAttr.Name, ok = value.(string); !ok {
@@ -4598,7 +7840,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 
-	case "removexattr.namespace":
+	case "removexattr.file.destination.namespace":
 
 		var ok bool
 		if e.RemoveXAttr.Namespace, ok = value.(string); !ok {
@@ -4606,14 +7848,96 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 
-	case "removexattr.overlay_numlower":
+	case "removexattr.file.gid":
 
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.FileEvent.FileFields.OverlayNumLower"}
+			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.FileFields.GID"}
 		}
-		e.RemoveXAttr.FileEvent.FileFields.OverlayNumLower = int32(v)
+		e.RemoveXAttr.File.FileFields.GID = uint32(v)
+		return nil
+
+	case "removexattr.file.group":
+
+		var ok bool
+		if e.RemoveXAttr.File.FileFields.Group, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.FileFields.Group"}
+		}
+		return nil
+
+	case "removexattr.file.inode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.FileFields.Inode"}
+		}
+		e.RemoveXAttr.File.FileFields.Inode = uint64(v)
+		return nil
+
+	case "removexattr.file.mode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.FileFields.Mode"}
+		}
+		e.RemoveXAttr.File.FileFields.Mode = uint16(v)
+		return nil
+
+	case "removexattr.file.mount_id":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.FileFields.MountID"}
+		}
+		e.RemoveXAttr.File.FileFields.MountID = uint32(v)
+		return nil
+
+	case "removexattr.file.name":
+
+		var ok bool
+		if e.RemoveXAttr.File.BasenameStr, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.BasenameStr"}
+		}
+		return nil
+
+	case "removexattr.file.overlay_numlower":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.FileFields.OverlayNumLower"}
+		}
+		e.RemoveXAttr.File.FileFields.OverlayNumLower = int32(v)
+		return nil
+
+	case "removexattr.file.path":
+
+		var ok bool
+		if e.RemoveXAttr.File.PathnameStr, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.PathnameStr"}
+		}
+		return nil
+
+	case "removexattr.file.uid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.FileFields.UID"}
+		}
+		e.RemoveXAttr.File.FileFields.UID = uint32(v)
+		return nil
+
+	case "removexattr.file.user":
+
+		var ok bool
+		if e.RemoveXAttr.File.FileFields.User, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.FileFields.User"}
+		}
 		return nil
 
 	case "removexattr.retval":
@@ -4626,15 +7950,15 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.RemoveXAttr.SyscallEvent.Retval = int64(v)
 		return nil
 
-	case "rename.new.basename":
+	case "rename.file.container_path":
 
 		var ok bool
-		if e.Rename.New.BasenameStr, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Rename.New.BasenameStr"}
+		if e.Rename.Old.ContainerPath, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.ContainerPath"}
 		}
 		return nil
 
-	case "rename.new.container_path":
+	case "rename.file.destination.container_path":
 
 		var ok bool
 		if e.Rename.New.ContainerPath, ok = value.(string); !ok {
@@ -4642,15 +7966,25 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 
-	case "rename.new.filename":
+	case "rename.file.destination.gid":
 
 		var ok bool
-		if e.Rename.New.PathnameStr, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Rename.New.PathnameStr"}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rename.New.FileFields.GID"}
+		}
+		e.Rename.New.FileFields.GID = uint32(v)
+		return nil
+
+	case "rename.file.destination.group":
+
+		var ok bool
+		if e.Rename.New.FileFields.Group, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rename.New.FileFields.Group"}
 		}
 		return nil
 
-	case "rename.new.inode":
+	case "rename.file.destination.inode":
 
 		var ok bool
 		v, ok := value.(int)
@@ -4660,7 +7994,35 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.New.FileFields.Inode = uint64(v)
 		return nil
 
-	case "rename.new.overlay_numlower":
+	case "rename.file.destination.mode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rename.New.FileFields.Mode"}
+		}
+		e.Rename.New.FileFields.Mode = uint16(v)
+		return nil
+
+	case "rename.file.destination.mount_id":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rename.New.FileFields.MountID"}
+		}
+		e.Rename.New.FileFields.MountID = uint32(v)
+		return nil
+
+	case "rename.file.destination.name":
+
+		var ok bool
+		if e.Rename.New.BasenameStr, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rename.New.BasenameStr"}
+		}
+		return nil
+
+	case "rename.file.destination.overlay_numlower":
 
 		var ok bool
 		v, ok := value.(int)
@@ -4670,31 +8032,51 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.New.FileFields.OverlayNumLower = int32(v)
 		return nil
 
-	case "rename.old.basename":
+	case "rename.file.destination.path":
 
 		var ok bool
-		if e.Rename.Old.BasenameStr, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.BasenameStr"}
+		if e.Rename.New.PathnameStr, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rename.New.PathnameStr"}
 		}
 		return nil
 
-	case "rename.old.container_path":
+	case "rename.file.destination.uid":
 
 		var ok bool
-		if e.Rename.Old.ContainerPath, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.ContainerPath"}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rename.New.FileFields.UID"}
+		}
+		e.Rename.New.FileFields.UID = uint32(v)
+		return nil
+
+	case "rename.file.destination.user":
+
+		var ok bool
+		if e.Rename.New.FileFields.User, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rename.New.FileFields.User"}
 		}
 		return nil
 
-	case "rename.old.filename":
+	case "rename.file.gid":
 
 		var ok bool
-		if e.Rename.Old.PathnameStr, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.PathnameStr"}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.FileFields.GID"}
+		}
+		e.Rename.Old.FileFields.GID = uint32(v)
+		return nil
+
+	case "rename.file.group":
+
+		var ok bool
+		if e.Rename.Old.FileFields.Group, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.FileFields.Group"}
 		}
 		return nil
 
-	case "rename.old.inode":
+	case "rename.file.inode":
 
 		var ok bool
 		v, ok := value.(int)
@@ -4704,7 +8086,35 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.Old.FileFields.Inode = uint64(v)
 		return nil
 
-	case "rename.old.overlay_numlower":
+	case "rename.file.mode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.FileFields.Mode"}
+		}
+		e.Rename.Old.FileFields.Mode = uint16(v)
+		return nil
+
+	case "rename.file.mount_id":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.FileFields.MountID"}
+		}
+		e.Rename.Old.FileFields.MountID = uint32(v)
+		return nil
+
+	case "rename.file.name":
+
+		var ok bool
+		if e.Rename.Old.BasenameStr, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.BasenameStr"}
+		}
+		return nil
+
+	case "rename.file.overlay_numlower":
 
 		var ok bool
 		v, ok := value.(int)
@@ -4712,6 +8122,32 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.FileFields.OverlayNumLower"}
 		}
 		e.Rename.Old.FileFields.OverlayNumLower = int32(v)
+		return nil
+
+	case "rename.file.path":
+
+		var ok bool
+		if e.Rename.Old.PathnameStr, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.PathnameStr"}
+		}
+		return nil
+
+	case "rename.file.uid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.FileFields.UID"}
+		}
+		e.Rename.Old.FileFields.UID = uint32(v)
+		return nil
+
+	case "rename.file.user":
+
+		var ok bool
+		if e.Rename.Old.FileFields.User, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.FileFields.User"}
+		}
 		return nil
 
 	case "rename.retval":
@@ -4724,48 +8160,104 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.SyscallEvent.Retval = int64(v)
 		return nil
 
-	case "rmdir.basename":
+	case "rmdir.file.container_path":
 
 		var ok bool
-		if e.Rmdir.FileEvent.BasenameStr, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Rmdir.FileEvent.BasenameStr"}
+		if e.Rmdir.File.ContainerPath, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.ContainerPath"}
 		}
 		return nil
 
-	case "rmdir.container_path":
-
-		var ok bool
-		if e.Rmdir.FileEvent.ContainerPath, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Rmdir.FileEvent.ContainerPath"}
-		}
-		return nil
-
-	case "rmdir.filename":
-
-		var ok bool
-		if e.Rmdir.FileEvent.PathnameStr, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Rmdir.FileEvent.PathnameStr"}
-		}
-		return nil
-
-	case "rmdir.inode":
+	case "rmdir.file.gid":
 
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Rmdir.FileEvent.FileFields.Inode"}
+			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.FileFields.GID"}
 		}
-		e.Rmdir.FileEvent.FileFields.Inode = uint64(v)
+		e.Rmdir.File.FileFields.GID = uint32(v)
 		return nil
 
-	case "rmdir.overlay_numlower":
+	case "rmdir.file.group":
+
+		var ok bool
+		if e.Rmdir.File.FileFields.Group, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.FileFields.Group"}
+		}
+		return nil
+
+	case "rmdir.file.inode":
 
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Rmdir.FileEvent.FileFields.OverlayNumLower"}
+			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.FileFields.Inode"}
 		}
-		e.Rmdir.FileEvent.FileFields.OverlayNumLower = int32(v)
+		e.Rmdir.File.FileFields.Inode = uint64(v)
+		return nil
+
+	case "rmdir.file.mode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.FileFields.Mode"}
+		}
+		e.Rmdir.File.FileFields.Mode = uint16(v)
+		return nil
+
+	case "rmdir.file.mount_id":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.FileFields.MountID"}
+		}
+		e.Rmdir.File.FileFields.MountID = uint32(v)
+		return nil
+
+	case "rmdir.file.name":
+
+		var ok bool
+		if e.Rmdir.File.BasenameStr, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.BasenameStr"}
+		}
+		return nil
+
+	case "rmdir.file.overlay_numlower":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.FileFields.OverlayNumLower"}
+		}
+		e.Rmdir.File.FileFields.OverlayNumLower = int32(v)
+		return nil
+
+	case "rmdir.file.path":
+
+		var ok bool
+		if e.Rmdir.File.PathnameStr, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.PathnameStr"}
+		}
+		return nil
+
+	case "rmdir.file.uid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.FileFields.UID"}
+		}
+		e.Rmdir.File.FileFields.UID = uint32(v)
+		return nil
+
+	case "rmdir.file.user":
+
+		var ok bool
+		if e.Rmdir.File.FileFields.User, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.FileFields.User"}
+		}
 		return nil
 
 	case "rmdir.retval":
@@ -4778,41 +8270,15 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rmdir.SyscallEvent.Retval = int64(v)
 		return nil
 
-	case "setxattr.basename":
+	case "setxattr.file.container_path":
 
 		var ok bool
-		if e.SetXAttr.FileEvent.BasenameStr, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.FileEvent.BasenameStr"}
+		if e.SetXAttr.File.ContainerPath, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.ContainerPath"}
 		}
 		return nil
 
-	case "setxattr.container_path":
-
-		var ok bool
-		if e.SetXAttr.FileEvent.ContainerPath, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.FileEvent.ContainerPath"}
-		}
-		return nil
-
-	case "setxattr.filename":
-
-		var ok bool
-		if e.SetXAttr.FileEvent.PathnameStr, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.FileEvent.PathnameStr"}
-		}
-		return nil
-
-	case "setxattr.inode":
-
-		var ok bool
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.FileEvent.FileFields.Inode"}
-		}
-		e.SetXAttr.FileEvent.FileFields.Inode = uint64(v)
-		return nil
-
-	case "setxattr.name":
+	case "setxattr.file.destination.name":
 
 		var ok bool
 		if e.SetXAttr.Name, ok = value.(string); !ok {
@@ -4820,7 +8286,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 
-	case "setxattr.namespace":
+	case "setxattr.file.destination.namespace":
 
 		var ok bool
 		if e.SetXAttr.Namespace, ok = value.(string); !ok {
@@ -4828,14 +8294,96 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 
-	case "setxattr.overlay_numlower":
+	case "setxattr.file.gid":
 
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.FileEvent.FileFields.OverlayNumLower"}
+			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.FileFields.GID"}
 		}
-		e.SetXAttr.FileEvent.FileFields.OverlayNumLower = int32(v)
+		e.SetXAttr.File.FileFields.GID = uint32(v)
+		return nil
+
+	case "setxattr.file.group":
+
+		var ok bool
+		if e.SetXAttr.File.FileFields.Group, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.FileFields.Group"}
+		}
+		return nil
+
+	case "setxattr.file.inode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.FileFields.Inode"}
+		}
+		e.SetXAttr.File.FileFields.Inode = uint64(v)
+		return nil
+
+	case "setxattr.file.mode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.FileFields.Mode"}
+		}
+		e.SetXAttr.File.FileFields.Mode = uint16(v)
+		return nil
+
+	case "setxattr.file.mount_id":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.FileFields.MountID"}
+		}
+		e.SetXAttr.File.FileFields.MountID = uint32(v)
+		return nil
+
+	case "setxattr.file.name":
+
+		var ok bool
+		if e.SetXAttr.File.BasenameStr, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.BasenameStr"}
+		}
+		return nil
+
+	case "setxattr.file.overlay_numlower":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.FileFields.OverlayNumLower"}
+		}
+		e.SetXAttr.File.FileFields.OverlayNumLower = int32(v)
+		return nil
+
+	case "setxattr.file.path":
+
+		var ok bool
+		if e.SetXAttr.File.PathnameStr, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.PathnameStr"}
+		}
+		return nil
+
+	case "setxattr.file.uid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.FileFields.UID"}
+		}
+		e.SetXAttr.File.FileFields.UID = uint32(v)
+		return nil
+
+	case "setxattr.file.user":
+
+		var ok bool
+		if e.SetXAttr.File.FileFields.User, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.FileFields.User"}
+		}
 		return nil
 
 	case "setxattr.retval":
@@ -4848,58 +8396,104 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SetXAttr.SyscallEvent.Retval = int64(v)
 		return nil
 
-	case "unlink.basename":
+	case "unlink.file.container_path":
 
 		var ok bool
-		if e.Unlink.FileEvent.BasenameStr, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Unlink.FileEvent.BasenameStr"}
+		if e.Unlink.File.ContainerPath, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.ContainerPath"}
 		}
 		return nil
 
-	case "unlink.container_path":
-
-		var ok bool
-		if e.Unlink.FileEvent.ContainerPath, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Unlink.FileEvent.ContainerPath"}
-		}
-		return nil
-
-	case "unlink.filename":
-
-		var ok bool
-		if e.Unlink.FileEvent.PathnameStr, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Unlink.FileEvent.PathnameStr"}
-		}
-		return nil
-
-	case "unlink.flags":
+	case "unlink.file.gid":
 
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Unlink.Flags"}
+			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.FileFields.GID"}
 		}
-		e.Unlink.Flags = uint32(v)
+		e.Unlink.File.FileFields.GID = uint32(v)
 		return nil
 
-	case "unlink.inode":
+	case "unlink.file.group":
+
+		var ok bool
+		if e.Unlink.File.FileFields.Group, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.FileFields.Group"}
+		}
+		return nil
+
+	case "unlink.file.inode":
 
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Unlink.FileEvent.FileFields.Inode"}
+			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.FileFields.Inode"}
 		}
-		e.Unlink.FileEvent.FileFields.Inode = uint64(v)
+		e.Unlink.File.FileFields.Inode = uint64(v)
 		return nil
 
-	case "unlink.overlay_numlower":
+	case "unlink.file.mode":
 
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Unlink.FileEvent.FileFields.OverlayNumLower"}
+			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.FileFields.Mode"}
 		}
-		e.Unlink.FileEvent.FileFields.OverlayNumLower = int32(v)
+		e.Unlink.File.FileFields.Mode = uint16(v)
+		return nil
+
+	case "unlink.file.mount_id":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.FileFields.MountID"}
+		}
+		e.Unlink.File.FileFields.MountID = uint32(v)
+		return nil
+
+	case "unlink.file.name":
+
+		var ok bool
+		if e.Unlink.File.BasenameStr, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.BasenameStr"}
+		}
+		return nil
+
+	case "unlink.file.overlay_numlower":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.FileFields.OverlayNumLower"}
+		}
+		e.Unlink.File.FileFields.OverlayNumLower = int32(v)
+		return nil
+
+	case "unlink.file.path":
+
+		var ok bool
+		if e.Unlink.File.PathnameStr, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.PathnameStr"}
+		}
+		return nil
+
+	case "unlink.file.uid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.FileFields.UID"}
+		}
+		e.Unlink.File.FileFields.UID = uint32(v)
+		return nil
+
+	case "unlink.file.user":
+
+		var ok bool
+		if e.Unlink.File.FileFields.User, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.FileFields.User"}
+		}
 		return nil
 
 	case "unlink.retval":
@@ -4912,48 +8506,104 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Unlink.SyscallEvent.Retval = int64(v)
 		return nil
 
-	case "utimes.basename":
+	case "utimes.file.container_path":
 
 		var ok bool
-		if e.Utimes.FileEvent.BasenameStr, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Utimes.FileEvent.BasenameStr"}
+		if e.Utimes.File.ContainerPath, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.ContainerPath"}
 		}
 		return nil
 
-	case "utimes.container_path":
-
-		var ok bool
-		if e.Utimes.FileEvent.ContainerPath, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Utimes.FileEvent.ContainerPath"}
-		}
-		return nil
-
-	case "utimes.filename":
-
-		var ok bool
-		if e.Utimes.FileEvent.PathnameStr, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Utimes.FileEvent.PathnameStr"}
-		}
-		return nil
-
-	case "utimes.inode":
+	case "utimes.file.gid":
 
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Utimes.FileEvent.FileFields.Inode"}
+			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.FileFields.GID"}
 		}
-		e.Utimes.FileEvent.FileFields.Inode = uint64(v)
+		e.Utimes.File.FileFields.GID = uint32(v)
 		return nil
 
-	case "utimes.overlay_numlower":
+	case "utimes.file.group":
+
+		var ok bool
+		if e.Utimes.File.FileFields.Group, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.FileFields.Group"}
+		}
+		return nil
+
+	case "utimes.file.inode":
 
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Utimes.FileEvent.FileFields.OverlayNumLower"}
+			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.FileFields.Inode"}
 		}
-		e.Utimes.FileEvent.FileFields.OverlayNumLower = int32(v)
+		e.Utimes.File.FileFields.Inode = uint64(v)
+		return nil
+
+	case "utimes.file.mode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.FileFields.Mode"}
+		}
+		e.Utimes.File.FileFields.Mode = uint16(v)
+		return nil
+
+	case "utimes.file.mount_id":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.FileFields.MountID"}
+		}
+		e.Utimes.File.FileFields.MountID = uint32(v)
+		return nil
+
+	case "utimes.file.name":
+
+		var ok bool
+		if e.Utimes.File.BasenameStr, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.BasenameStr"}
+		}
+		return nil
+
+	case "utimes.file.overlay_numlower":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.FileFields.OverlayNumLower"}
+		}
+		e.Utimes.File.FileFields.OverlayNumLower = int32(v)
+		return nil
+
+	case "utimes.file.path":
+
+		var ok bool
+		if e.Utimes.File.PathnameStr, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.PathnameStr"}
+		}
+		return nil
+
+	case "utimes.file.uid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.FileFields.UID"}
+		}
+		e.Utimes.File.FileFields.UID = uint32(v)
+		return nil
+
+	case "utimes.file.user":
+
+		var ok bool
+		if e.Utimes.File.FileFields.User, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.FileFields.User"}
+		}
 		return nil
 
 	case "utimes.retval":

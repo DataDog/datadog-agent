@@ -12,6 +12,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/gopsutil/process"
@@ -19,6 +20,17 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
+
+// Getpid returns the current process ID in the host namespace
+func Getpid() int32 {
+	p, err := os.Readlink(filepath.Join(util.HostProc(), "/self"))
+	if err == nil {
+		if pid, err := strconv.Atoi(p); err == nil {
+			return int32(pid)
+		}
+	}
+	return int32(os.Getpid())
+}
 
 // MountInfoPath returns the path to the mountinfo file of the current pid in /proc
 func MountInfoPath() string {
