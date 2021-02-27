@@ -10,7 +10,7 @@ provisioner:
 platforms:
 <%
     ENV['TEST_PLATFORMS'] ||= "centos7:roboxes/centos7,centos8:roboxes/centos8"
-    test_platforms = ENV['TEST_PLATFORMS'].split(',').map { |p| p.split(':') }
+    test_platforms = ENV['TEST_PLATFORMS'].split('|').map { |p| p.split(',') }
     test_platforms.each do |platform|
 %>
   - name: <%= platform[0] %>
