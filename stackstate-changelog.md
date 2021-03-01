@@ -27,16 +27,21 @@
   - Topology and properties collection [(STAC-11133)](https://stackstate.atlassian.net/browse/STAC-11133)
   - Events collection [(STAC-11133)](https://stackstate.atlassian.net/browse/STAC-11133)
   - Metrics collection [(STAC-11133)](https://stackstate.atlassian.net/browse/STAC-11133)
-- Zabix:
+- Zabbix:
   - Replace `yaml.safe_load` with `json.loads` [(STAC-11470)](https://stackstate.atlassian.net/browse/STAC-11470)
   - Move stop snapshot from finally block and use StackPackInstance [(STAC-11470)](https://stackstate.atlassian.net/browse/STAC-11470)
   - Send OK Service Check if successful [(STAC-11470)](https://stackstate.atlassian.net/browse/STAC-11470)
+- Kubernetes Integration
+  - Show Kubernetes secret resources as components in StackState [(STAC-12034)](https://stackstate.atlassian.net/browse/STAC-12034)
+  - Show Kubernetes namespaces as components in StackState [(STAC-11382)](https://stackstate.atlassian.net/browse/STAC-11382)
+  - Show ExternalName of Kubernetes services as components in StackState [(STAC-11523)](https://stackstate.atlassian.net/browse/STAC-11523)
 
 **Bugfix**
 
 - Integrations:
   - Agent Integrations are not tagged with Check instance tags [(STAC-11453)](https://stackstate.atlassian.net/browse/STAC-11453)
   - Don't create Job - Pod relations from Pods that finished running [(STAC-11490)](https://stackstate.atlassian.net/browse/STAC-11521)
+  - Process Agent restart bug fixed for older kernel versions
 - Nagios:
   - Shows correct check name in Event details [(STAC-11119)](https://stackstate.atlassian.net/browse/STAC-11119)
 
