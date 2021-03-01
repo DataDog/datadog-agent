@@ -19,8 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/api/pb/mocks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/cihub/seelog"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,11 +28,6 @@ var originalConfig = config.Datadog
 
 func restoreGlobalConfig() {
 	config.Datadog = originalConfig
-}
-
-func TestMain(m *testing.M) {
-	log.SetupLogger(seelog.Default, "info")
-	os.Exit(m.Run())
 }
 
 func TestBlacklist(t *testing.T) {
