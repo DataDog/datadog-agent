@@ -10,6 +10,7 @@ package probe
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-go/statsd"
 )
 
@@ -34,12 +35,12 @@ func (r *ReordererMonitor) Start(ctx context.Context) {
 	for {
 		select {
 		case metric := <-r.probe.reOrderer.Metrics:
-			_ = r.statsdClient.Gauge(MetricPerfBufferSortingQueueSize, float64(metric.QueueSize), []string{}, 1.0)
+			_ = r.statsdClient.Gauge(metrics.MetricPerfBufferSortingQueueSize, float64(metric.QueueSize), []string{}, 1.0)
 			var avg float64
 			if metric.TotalOp > 0 {
 				avg = float64(metric.TotalDepth) / float64(metric.TotalOp)
 			}
-			_ = r.statsdClient.Gauge(MetricPerfBufferSortingAvgOp, avg, []string{}, 1.0)
+			_ = r.statsdClient.Gauge(metrics.MetricPerfBufferSortingAvgOp, avg, []string{}, 1.0)
 		case <-ctx.Done():
 			return
 		}

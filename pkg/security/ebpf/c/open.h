@@ -27,7 +27,7 @@ struct open_event_t {
 
 int __attribute__((always_inline)) trace__sys_openat(int flags, umode_t mode) {
     struct policy_t policy = fetch_policy(EVENT_OPEN);
-    if (discarded_by_process(policy.mode, EVENT_OPEN)) {
+    if (is_discarded_by_process(policy.mode, EVENT_OPEN)) {
         return 0;
     }
 
@@ -192,6 +192,7 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
         .mode = syscall->open.mode,
     };
 
+    fill_file_metadata(syscall->open.dentry, &event.file.metadata);
     int ret = resolve_dentry(syscall->open.dentry, syscall->open.path_key, syscall->policy.mode != NO_FILTER ? EVENT_OPEN : 0);
     if (ret == DENTRY_DISCARDED || (ret == DENTRY_INVALID && !(IS_UNHANDLED_ERROR(retval)))) {
        return 0;

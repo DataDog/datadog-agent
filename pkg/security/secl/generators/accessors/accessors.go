@@ -51,6 +51,7 @@ type Module struct {
 	BuildTags       []string
 	Fields          map[string]*structField
 	Iterators       map[string]*structField
+	EventTypes      map[string]bool
 	Mock            bool
 }
 
@@ -92,6 +93,7 @@ func handleBasic(name, alias, kind, event string, iterator *structField) {
 	switch kind {
 	case "int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64":
 		module.Fields[alias] = &structField{Name: name, ReturnType: "int", Public: true, Event: event, OrigType: kind, BasicType: origTypeToBasicType(kind), Iterator: iterator}
+		module.EventTypes[event] = true
 	default:
 		public := false
 		firstChar := strings.TrimPrefix(kind, "[]")
@@ -111,6 +113,7 @@ func handleBasic(name, alias, kind, event string, iterator *structField) {
 			OrigType:   kind,
 			Iterator:   iterator,
 		}
+		module.EventTypes[event] = true
 	}
 }
 
@@ -230,6 +233,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 									OrigType:   fieldType.Name,
 									Iterator:   iterator,
 								}
+								module.EventTypes[event] = true
 							}
 							delete(dejavu, fieldName)
 
@@ -334,13 +338,14 @@ func parseFile(filename string, pkgName string) (*Module, error) {
 	}
 
 	module = &Module{
-		Name:      moduleName,
-		SourcePkg: pkgName,
-		TargetPkg: pkgName,
-		BuildTags: buildTags,
-		Fields:    make(map[string]*structField),
-		Iterators: make(map[string]*structField),
-		Mock:      mock,
+		Name:       moduleName,
+		SourcePkg:  pkgName,
+		TargetPkg:  pkgName,
+		BuildTags:  buildTags,
+		Fields:     make(map[string]*structField),
+		Iterators:  make(map[string]*structField),
+		EventTypes: make(map[string]bool),
+		Mock:       mock,
 	}
 
 	// If the target package is different from the model package
@@ -408,6 +413,16 @@ func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 	}
 
 	return nil, &eval.ErrIteratorNotSupported{Field: field}
+}
+
+func (m *Model) GetEventTypes() []eval.EventType {
+	return []eval.EventType{
+		{{range $Name, $Exists := .EventTypes}}
+			{{- if ne $Name "*"}}
+			eval.EventType("{{$Name}}"),
+			{{end -}}
+		{{end}}
+	}
 }
 
 func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
@@ -478,7 +493,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 func (e *Event) GetFields() []eval.Field {
 	return []eval.Field{
 		{{range $Name, $Field := .Fields}}
-			"{{$Name}}",{{else}}
+			"{{$Name}}",
 		{{end}}
 	}
 }

@@ -18,7 +18,7 @@ import (
 	listersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -257,7 +257,7 @@ func generateConfigs(tpl integration.Config, resolveMode endpointResolveMode, ke
 	case "":
 		fallthrough
 	case kubeEndpointResolveAuto:
-		resolveFunc = common.ResolveEndpointConfigAuto
+		resolveFunc = utils.ResolveEndpointConfigAuto
 	}
 
 	for i := range kep.Subsets {

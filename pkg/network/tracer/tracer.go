@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
@@ -37,6 +38,8 @@ var (
 	expvarEndpoints map[string]*expvar.Map
 	expvarTypes     = []string{"conntrack", "state", "tracer", "ebpf", "kprobes", "dns", "http"}
 )
+
+const defaultUDPConnTimeoutNanoSeconds uint64 = uint64(time.Duration(120) * time.Second)
 
 func init() {
 	expvarEndpoints = make(map[string]*expvar.Map, len(expvarTypes))
@@ -94,6 +97,9 @@ type Tracer struct {
 	// Connections for the tracer to blacklist
 	sourceExcludes []*network.ConnectionFilter
 	destExcludes   []*network.ConnectionFilter
+
+	sysctlUDPConnTimeout       *sysctl.Int
+	sysctlUDPConnStreamTimeout *sysctl.Int
 }
 
 const (
@@ -248,20 +254,22 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	)
 
 	tr := &Tracer{
-		m:              m,
-		config:         config,
-		state:          state,
-		reverseDNS:     reverseDNS,
-		httpMonitor:    newHTTPMonitor(!pre410Kernel, config, m, perfHandlerHTTP),
-		buffer:         make([]network.ConnectionStats, 0, 512),
-		conntracker:    conntracker,
-		sourceExcludes: network.ParseConnectionFilters(config.ExcludedSourceConnections),
-		destExcludes:   network.ParseConnectionFilters(config.ExcludedDestinationConnections),
-		perfHandler:    perfHandlerTCP,
-		flushIdle:      make(chan chan struct{}),
-		stop:           make(chan struct{}),
-		buf:            make([]byte, network.ConnectionByteKeyMaxLen),
-		runtimeTracer:  runtimeTracer,
+		m:                          m,
+		config:                     config,
+		state:                      state,
+		reverseDNS:                 reverseDNS,
+		httpMonitor:                newHTTPMonitor(!pre410Kernel, config, m, perfHandlerHTTP),
+		buffer:                     make([]network.ConnectionStats, 0, 512),
+		conntracker:                conntracker,
+		sourceExcludes:             network.ParseConnectionFilters(config.ExcludedSourceConnections),
+		destExcludes:               network.ParseConnectionFilters(config.ExcludedDestinationConnections),
+		perfHandler:                perfHandlerTCP,
+		flushIdle:                  make(chan chan struct{}),
+		stop:                       make(chan struct{}),
+		buf:                        make([]byte, network.ConnectionByteKeyMaxLen),
+		runtimeTracer:              runtimeTracer,
+		sysctlUDPConnTimeout:       sysctl.NewInt(config.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout", time.Minute),
+		sysctlUDPConnStreamTimeout: sysctl.NewInt(config.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout_stream", time.Minute),
 	}
 
 	tr.perfMap, tr.batchManager, err = tr.initPerfPolling(perfHandlerTCP)
@@ -793,11 +801,27 @@ func (t *Tracer) getMap(name probes.BPFMapName) (*ebpf.Map, error) {
 	return mp, nil
 }
 
-func (t *Tracer) timeoutForConn(c *ConnTuple) uint64 {
+func (t *Tracer) timeoutForConn(c *ConnTuple, isAssured bool) uint64 {
 	if c.isTCP() {
 		return uint64(t.config.TCPConnTimeout.Nanoseconds())
 	}
-	return uint64(t.config.UDPConnTimeout.Nanoseconds())
+
+	return t.udpConnTimeout(isAssured)
+}
+
+func (t *Tracer) udpConnTimeout(isAssured bool) uint64 {
+	if isAssured {
+		if v, err := t.sysctlUDPConnStreamTimeout.Get(); err == nil {
+			return uint64(time.Duration(v) * time.Second)
+		}
+
+	} else {
+		if v, err := t.sysctlUDPConnTimeout.Get(); err == nil {
+			return uint64(time.Duration(v) * time.Second)
+		}
+	}
+
+	return defaultUDPConnTimeoutNanoSeconds
 }
 
 // getTelemetry calls GetStats and extract telemetry from the state structure
@@ -901,7 +925,7 @@ func (t *Tracer) getProbeProgramIDs() (map[string]uint32, error) {
 // for UDP, the conntrack TTL is lower (two minutes), so the userspace and conntrack expiry are synced to avoid touching conntrack for
 // UDP expiries
 func (t *Tracer) connectionExpired(conn *ConnTuple, latestTime uint64, stats *ConnStatsWithTimestamp, ctr *cachedConntrack) bool {
-	if !stats.isExpired(latestTime, t.timeoutForConn(conn)) {
+	if !stats.isExpired(latestTime, t.timeoutForConn(conn, stats.isAssured())) {
 		return false
 	}
 

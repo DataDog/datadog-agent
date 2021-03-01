@@ -21,6 +21,7 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -342,6 +343,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("forwarder_outdated_file_in_days", 10)
 	config.BindEnvAndSetDefault("forwarder_flush_to_disk_mem_ratio", 0.5)
 	config.BindEnvAndSetDefault("forwarder_storage_max_size_in_bytes", 0) // 0 means disabled. This is a BETA feature.
+	config.BindEnvAndSetDefault("forwarder_storage_max_disk_ratio", 0.95) // Do not store transactions on disk when the disk usage exceeds 95% of the disk capacity.
 
 	// Dogstatsd
 	config.BindEnvAndSetDefault("use_dogstatsd", true)
@@ -454,8 +456,15 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("kubernetes_apiserver_use_protobuf", false)
 
 	config.BindEnvAndSetDefault("prometheus_scrape.enabled", false)           // Enables the prometheus config provider
-	config.SetKnown("prometheus_scrape.checks")                               // Defines any extra prometheus/openmetrics check configurations to be handled by the prometheus config provider
 	config.BindEnvAndSetDefault("prometheus_scrape.service_endpoints", false) // Enables Service Endpoints checks in the prometheus config provider
+	_ = config.BindEnv("prometheus_scrape.checks")                            // Defines any extra prometheus/openmetrics check configurations to be handled by the prometheus config provider
+	config.SetEnvKeyTransformer("prometheus_scrape.checks", func(in string) interface{} {
+		var promChecks []*types.PrometheusCheck
+		if err := json.Unmarshal([]byte(in), &promChecks); err != nil {
+			log.Warnf(`"prometheus_scrape.checks" can not be parsed: %v`, err)
+		}
+		return promChecks
+	})
 
 	// SNMP
 	config.SetKnown("snmp_listener.discovery_interval")
@@ -807,6 +816,7 @@ func InitConfig(config Config) {
 
 	// Datadog security agent (runtime)
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
+	config.SetKnown("runtime_security_config.fim_enabled")
 	config.BindEnvAndSetDefault("runtime_security_config.policies.dir", DefaultRuntimePoliciesDir)
 	config.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
 	config.BindEnvAndSetDefault("runtime_security_config.enable_kernel_filters", true)
@@ -1257,11 +1267,6 @@ func setNumWorkers(config Config) {
 	if wTracemalloc {
 		log.Infof("Tracemalloc enabled, only one check runner enabled to run checks serially")
 		numWorkers = 1
-	}
-
-	if numWorkers > MaxNumWorkers {
-		numWorkers = MaxNumWorkers
-		log.Warnf("Configured number of checks workers (%v) is too high: %v will be used", numWorkers, MaxNumWorkers)
 	}
 
 	// update config with the actual effective number of workers

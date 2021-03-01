@@ -6,11 +6,12 @@
 // +build clusterchecks
 // +build kubeapiserver
 
-package common
+package utils
 
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -25,14 +26,14 @@ const (
 )
 
 // ConfigsForService returns the openmetrics configurations for a given service if it matches the AD configuration
-func (pc *PrometheusCheck) ConfigsForService(svc *v1.Service) []integration.Config {
+func ConfigsForService(pc *types.PrometheusCheck, svc *v1.Service) []integration.Config {
 	var configs []integration.Config
 	namespacedName := fmt.Sprintf("%s/%s", svc.GetNamespace(), svc.GetName())
-	if pc.isExcluded(svc.GetAnnotations(), namespacedName) {
+	if pc.IsExcluded(svc.GetAnnotations(), namespacedName) {
 		return configs
 	}
 
-	instances, found := pc.buildInstances(svc.GetAnnotations(), namespacedName)
+	instances, found := buildInstances(pc, svc.GetAnnotations(), namespacedName)
 	if found {
 		serviceID := apiserver.EntityForService(svc)
 		configs = append(configs, integration.Config{
@@ -51,14 +52,14 @@ func (pc *PrometheusCheck) ConfigsForService(svc *v1.Service) []integration.Conf
 
 // ConfigsForServiceEndpoints returns the openmetrics configurations for a given endpoints if it matches the AD
 // configuration for related service
-func (pc *PrometheusCheck) ConfigsForServiceEndpoints(svc *v1.Service, ep *v1.Endpoints) []integration.Config {
+func ConfigsForServiceEndpoints(pc *types.PrometheusCheck, svc *v1.Service, ep *v1.Endpoints) []integration.Config {
 	var configs []integration.Config
 	namespacedName := fmt.Sprintf("%s/%s", svc.GetNamespace(), svc.GetName())
-	if pc.isExcluded(svc.GetAnnotations(), namespacedName) {
+	if pc.IsExcluded(svc.GetAnnotations(), namespacedName) {
 		return configs
 	}
 
-	instances, found := pc.buildInstances(svc.GetAnnotations(), namespacedName)
+	instances, found := buildInstances(pc, svc.GetAnnotations(), namespacedName)
 	if found {
 		for _, subset := range ep.Subsets {
 			for _, address := range subset.Addresses {

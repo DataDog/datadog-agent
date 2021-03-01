@@ -75,7 +75,7 @@ def test(
     arch="x64",
     cache=True,
     skip_linters=False,
-    go_mod="vendor",
+    go_mod="mod",
 ):
     """
     Run all the tools and tests on the given module and targets.
@@ -99,7 +99,7 @@ def test(
         else:
             modules = [m for m in DEFAULT_MODULES if m.path == module]
     elif isinstance(targets, str):
-        modules = GoModule(".", targets=targets.split(','))
+        modules = [GoModule(".", targets=targets.split(','))]
     else:
         print("Using default modules and targets")
         modules = DEFAULT_MODULES
@@ -169,8 +169,7 @@ def test(
         python_home_2=python_home_2,
         python_home_3=python_home_3,
         major_version=major_version,
-        python_runtimes='3',
-        arch=arch,
+        python_runtimes=python_runtimes,
     )
 
     if sys.platform == 'win32':
@@ -255,7 +254,7 @@ def test(
 
 
 @task
-def lint_teamassignment(ctx):
+def lint_teamassignment(_):
     """
     Make sure PRs are assigned a team label
     """
@@ -287,7 +286,7 @@ def lint_teamassignment(ctx):
 
 
 @task
-def lint_milestone(ctx):
+def lint_milestone(_):
     """
     Make sure PRs are assigned a milestone
     """
@@ -472,7 +471,7 @@ class TestProfiler:
 
 @task
 def make_simple_gitlab_yml(
-    ctx, jobs_to_process, yml_file_src='.gitlab-ci.yml', yml_file_dest='.gitlab-ci.yml', dont_include_deps=False
+    _, jobs_to_process, yml_file_src='.gitlab-ci.yml', yml_file_dest='.gitlab-ci.yml', dont_include_deps=False
 ):
     """
     Replaces .gitlab-ci.yml with one containing only the steps needed to run the given jobs.
@@ -526,7 +525,7 @@ def make_simple_gitlab_yml(
 
 
 @task
-def make_kitchen_gitlab_yml(ctx):
+def make_kitchen_gitlab_yml(_):
     """
     Replaces .gitlab-ci.yml with one containing only the steps needed to run kitchen-tests
     """
@@ -589,7 +588,7 @@ def make_kitchen_gitlab_yml(ctx):
 
 
 @task
-def check_gitlab_broken_dependencies(ctx):
+def check_gitlab_broken_dependencies(_):
     """
     Checks that a gitlab job doesn't depend on (need) other jobs that will be excluded from the build,
     since this would make gitlab fail when triggering a pipeline with those jobs excluded.

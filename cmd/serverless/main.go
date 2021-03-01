@@ -33,6 +33,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
+	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
+	traceAgent "github.com/DataDog/datadog-agent/pkg/trace/agent"
+	traceConfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -77,7 +80,13 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 
 	logLevelEnvVar = "DD_LOG_LEVEL"
 
+	flushStrategyEnvVar = "DD_SERVERLESS_FLUSH_STRATEGY"
+
 	logsLogsTypeSubscribed = "DD_LOGS_CONFIG_LAMBDA_LOGS_TYPE"
+
+	datadogConfigPath        = "datadog.yaml"
+	traceOriginMetadataKey   = "_dd.origin"
+	traceOriginMetadataValue = "lambda"
 )
 
 const (
@@ -233,6 +242,18 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		extraTags = append(extraTags, dsdTags...)
 	}
 
+	// adaptive flush configuration
+	if v, exists := os.LookupEnv(flushStrategyEnvVar); exists {
+		if flushStrategy, err := flush.StrategyFromString(v); err != nil {
+			log.Debugf("Wrong flush strategy %s, will use the adaptive flush instead. Err: %s", v, err)
+		} else {
+			daemon.UseAdaptiveFlush(false) // we're forcing the flush strategy, we won't be using the adaptive flush
+			daemon.SetFlushStrategy(flushStrategy)
+		}
+	} else {
+		daemon.UseAdaptiveFlush(true) // already initialized to true, but let's be explicit just in case
+	}
+
 	// validate that an apikey has been set, either by the env var, read from KMS or SSM.
 	// ---------------------------
 
@@ -321,14 +342,29 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		log.Errorf("Unable to start the DogStatsD server: %s", err)
 	}
 	statsdServer.ServerlessMode = true // we're running in a serverless environment (will removed host field from samples)
+	// initializes the trace agent
+	// --------------------------------
+	var ta *traceAgent.Agent
+	if config.Datadog.GetBool("apm_config.enabled") {
+		tc, confErr := traceConfig.Load(datadogConfigPath)
+		tc.GlobalTags[traceOriginMetadataKey] = traceOriginMetadataValue
+		tc.SynchronousFlushing = true
+		if confErr != nil {
+			log.Errorf("Unable to load trace agent config: %s", confErr)
+			return
+		}
+		ta = traceAgent.NewAgent(ctx, tc)
+		go func() {
+			ta.Run()
+		}()
+	}
 
 	// run the invocation loop in a routine
 	// we don't want to start this mainloop before because once we're waiting on
 	// the invocation route, we can't report init errors anymore.
 	go func() {
 		for {
-			// TODO(remy): shouldn't we wait for the logs agent to finish? + dogstatsd server before listening again?
-			if err := serverless.WaitForNextInvocation(stopCh, statsdServer, serverlessID); err != nil {
+			if err := serverless.WaitForNextInvocation(stopCh, daemon, serverlessID); err != nil {
 				log.Error(err)
 			}
 		}
@@ -336,6 +372,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 
 	// DogStatsD daemon ready.
 	daemon.SetStatsdServer(statsdServer)
+	daemon.SetTraceAgent(ta)
 	daemon.SetAggregator(aggregatorInstance)
 	daemon.ReadyWg.Done()
 
