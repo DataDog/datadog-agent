@@ -3,9 +3,6 @@ package config
 import (
 	"io/ioutil"
 	"path/filepath"
-	"strconv"
-	"strings"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
@@ -84,34 +81,10 @@ func TracerConfigFromConfig(cfg *config.AgentConfig) *Config {
 	tracerConfig.EnableMonotonicCount = cfg.Windows.EnableMonotonicCount
 	tracerConfig.DriverBufferSize = cfg.Windows.DriverBufferSize
 
-	tracerConfig.UDPConnTimeout = sysUDPTimeout()
-	tracerConfig.UDPStreamTimeout = sysUDPStreamTimeout()
-
 	return tracerConfig
 }
 
 func isIPv6EnabledOnHost() bool {
 	_, err := ioutil.ReadFile(filepath.Join(util.GetProcRoot(), "net/if_inet6"))
 	return err == nil
-}
-
-func sysUDPTimeout() time.Duration {
-	return time.Duration(procSysGetInt(util.GetProcRoot(), "net/netfilter/nf_conntrack_udp_timeout", defaultUDPTimeoutSeconds)) * time.Second
-}
-
-func sysUDPStreamTimeout() time.Duration {
-	return time.Duration(procSysGetInt(util.GetProcRoot(), "net/netfilter/nf_conntrack_udp_timeout_stream", defaultUDPStreamTimeoutSeconds)) * time.Second
-}
-
-func procSysGetInt(procRoot string, entry string, defValue int) int {
-	content, err := ioutil.ReadFile(filepath.Join(procRoot, "sys", entry))
-	if err != nil {
-		return defValue
-	}
-
-	if v, err := strconv.Atoi(strings.TrimSpace(string(content))); err == nil {
-		return v
-	}
-
-	return defValue
 }
