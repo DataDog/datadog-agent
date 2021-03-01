@@ -1948,7 +1948,7 @@ api_key:
   # key_file: ""
 
 {{ end -}}
-{{- if .CloudFoundryBBS }}
+{{- if .CloudFoundryCC }}
 ####################################################################
 ## Cloud Foundry Cloud Controller Configuration for Autodiscovery ##
 ####################################################################
