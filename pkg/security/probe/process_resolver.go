@@ -226,8 +226,8 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 	if err != nil {
 		return errors.Wrapf(err, "snapshot failed for %d: couldn't parse kernel capabilities", proc.Pid)
 	}
-	_ = p.resolvers.ResolveProcessUser(&entry.ProcessContext)
-	_ = p.resolvers.ResolveProcessGroup(&entry.ProcessContext)
+	_ = p.resolvers.ResolveProcessContextUser(&entry.ProcessContext)
+	_ = p.resolvers.ResolveProcessContextGroup(&entry.ProcessContext)
 	return nil
 }
 
