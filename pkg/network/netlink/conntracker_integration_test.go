@@ -226,9 +226,9 @@ func TestMessageDump6(t *testing.T) {
 }
 
 func testMessageDump(t *testing.T, f *os.File, serverIP, clientIP net.IP) {
-	consumer, err := NewConsumer("/proc", 500, false)
+	consumer := NewConsumer("/proc", 500, false)
+	events, err := consumer.Events()
 	require.NoError(t, err)
-	events := consumer.Events()
 
 	writeDone := make(chan struct{})
 	go func() {
