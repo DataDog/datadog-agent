@@ -120,7 +120,7 @@ func (s *PrioritySampler) Sample(trace pb.Trace, root *pb.Span, env string, clie
 		s.Sampler.Backend.CountSample()
 		// adjust sig score with the expected P0 count for that sig
 		// adjusting this score only matters for root spans
-		if clientDroppedP0s && rate != 0 {
+		if clientDroppedP0s && rate > 0 && rate < 1 {
 			// removing 1 to not count twice the P1 chunk
 			weight := 1/rate - 1
 			s.Sampler.Backend.CountWeightedSig(signature, weight)

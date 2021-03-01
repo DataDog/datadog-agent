@@ -507,6 +507,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		}()
 	}
 }
+
 func droppedP0Traces(req *http.Request, ts *info.TagStats) int64 {
 	var dropped int64
 	if v := req.Header.Get(headerDroppedP0Traces); v != "" {
