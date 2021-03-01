@@ -441,7 +441,7 @@ func (p *ProcessResolver) Get(pid uint32) *model.ProcessCacheEntry {
 
 // UpdateUID updates the credentials of the provided pid
 func (p *ProcessResolver) UpdateUID(pid uint32, e *Event) {
-	if e.Process.Pid != e.Process.Tid {
+	if e.ProcessContext.Pid != e.ProcessContext.Tid {
 		return
 	}
 
@@ -460,7 +460,7 @@ func (p *ProcessResolver) UpdateUID(pid uint32, e *Event) {
 
 // UpdateGID updates the credentials of the provided pid
 func (p *ProcessResolver) UpdateGID(pid uint32, e *Event) {
-	if e.Process.Pid != e.Process.Tid {
+	if e.ProcessContext.Pid != e.ProcessContext.Tid {
 		return
 	}
 
@@ -479,7 +479,7 @@ func (p *ProcessResolver) UpdateGID(pid uint32, e *Event) {
 
 // UpdateCapset updates the credentials of the provided pid
 func (p *ProcessResolver) UpdateCapset(pid uint32, e *Event) {
-	if e.Process.Pid != e.Process.Tid {
+	if e.ProcessContext.Pid != e.ProcessContext.Tid {
 		return
 	}
 

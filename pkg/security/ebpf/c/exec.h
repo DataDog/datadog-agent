@@ -371,11 +371,11 @@ int kprobe_exit_itimers(struct pt_regs *ctx) {
     return 0;
 }
 
-void __attribute__((always_inline)) fill_args_envs(struct exec_event_t *event, struct syscall_cache_t *syscall) {}
-    event->args_id = syscall->exec.args.id,
-    event->args_truncated = syscall->exec.args.truncated,
-    event->envs_id = syscall->exec.envs.id,
-    event->envs_truncated = syscall->exec.envs.truncated,
+void __attribute__((always_inline)) fill_args_envs(struct exec_event_t *event, struct syscall_cache_t *syscall) {
+    event->args_id = syscall->exec.args.id;
+    event->args_truncated = syscall->exec.args.truncated;
+    event->envs_id = syscall->exec.envs.id;
+    event->envs_truncated = syscall->exec.envs.truncated;
 }
 
 SEC("kprobe/security_bprm_committed_creds")

@@ -108,8 +108,8 @@ type Event struct {
 	TimestampRaw uint64    `field:"-"`
 	Timestamp    time.Time `field:"timestamp"`
 
-	Process   ProcessContext   `field:"process" event:"*"`
-	Container ContainerContext `field:"container"`
+	ProcessContext   ProcessContext   `field:"process" event:"*"`
+	ContainerContext ContainerContext `field:"container"`
 
 	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`
 	Chown       ChownEvent    `field:"chown" event:"chown"`
@@ -210,7 +210,7 @@ type ExecArgsIterator struct {
 
 // Front returns the first arg
 func (e *ExecArgsIterator) Front(ctx *eval.Context) unsafe.Pointer {
-	e.args = (*Event)(ctx.Object).Process.Args
+	e.args = (*Event)(ctx.Object).Exec.Args
 	if len(e.args) > 0 {
 		e.index = 0
 		return unsafe.Pointer(&e.args[0])
@@ -237,7 +237,7 @@ type ExecEnvsIterator struct {
 
 // Front returns the first env variable
 func (e *ExecEnvsIterator) Front(ctx *eval.Context) unsafe.Pointer {
-	e.envs = (*Event)(ctx.Object).Process.Envs
+	e.envs = (*Event)(ctx.Object).Exec.Envs
 	if len(e.envs) > 0 {
 		e.index = 0
 		return unsafe.Pointer(&e.envs[0])
@@ -254,6 +254,14 @@ func (e *ExecEnvsIterator) Next() unsafe.Pointer {
 	}
 
 	return nil
+}
+
+// GetPathResolutionError returns the path resolution error as a string if there is one
+func (e *Process) GetPathResolutionError() string {
+	if e.PathResolutionError != nil {
+		return e.PathResolutionError.Error()
+	}
+	return ""
 }
 
 // Process represents a process
@@ -298,14 +306,6 @@ type Process struct {
 // ExecEvent represents a exec event
 type ExecEvent struct {
 	Process
-}
-
-// GetPathResolutionError returns the path resolution error as a string if there is one
-func (e *ExecEvent) GetPathResolutionError() string {
-	if e.PathResolutionError != nil {
-		return e.PathResolutionError.Error()
-	}
-	return ""
 }
 
 // FileFields holds the information required to identify a file
@@ -447,7 +447,7 @@ type ProcessAncestorsIterator struct {
 
 // Front returns the first element
 func (it *ProcessAncestorsIterator) Front(ctx *eval.Context) unsafe.Pointer {
-	if front := (*Event)(ctx.Object).Process.Ancestor; front != nil {
+	if front := (*Event)(ctx.Object).ProcessContext.Ancestor; front != nil {
 		it.prev = front
 		return unsafe.Pointer(front)
 	}

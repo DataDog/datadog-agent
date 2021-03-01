@@ -263,7 +263,7 @@ func (p *Probe) zeroEvent() *Event {
 }
 
 func (p *Probe) unmarshalProcessContainer(data []byte, event *Event) (int, error) {
-	read, err := model.UnmarshalBinary(data, &event.Process, &event.Container)
+	read, err := model.UnmarshalBinary(data, &event.ProcessContext, &event.ContainerContext)
 	if err != nil {
 		return 0, err
 	}
@@ -428,33 +428,33 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			log.Errorf("failed to decode fork event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-		event.updateProcessCachePointer(p.resolvers.ProcessResolver.AddForkEntry(event.Process.Pid, event.processCacheEntry))
+		event.updateProcessCachePointer(p.resolvers.ProcessResolver.AddForkEntry(event.ProcessContext.Pid, event.processCacheEntry))
 	case model.ExecEventType:
 		if _, err := event.UnmarshalExecEvent(data[offset:]); err != nil {
 			log.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		event.updateProcessCachePointer(p.resolvers.ProcessResolver.AddExecEntry(event.Process.Pid, event.processCacheEntry))
+		event.updateProcessCachePointer(p.resolvers.ProcessResolver.AddExecEntry(event.ProcessContext.Pid, event.processCacheEntry))
 	case model.ExitEventType:
-		defer p.resolvers.ProcessResolver.DeleteEntry(event.Process.Pid, event.ResolveEventTimestamp())
+		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessContext.Pid, event.ResolveEventTimestamp())
 	case model.SetuidEventType:
 		if _, err := event.SetUID.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode setuid event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		defer p.resolvers.ProcessResolver.UpdateUID(event.Process.Pid, event)
+		defer p.resolvers.ProcessResolver.UpdateUID(event.ProcessContext.Pid, event)
 	case model.SetgidEventType:
 		if _, err := event.SetGID.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode setgid event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		defer p.resolvers.ProcessResolver.UpdateGID(event.Process.Pid, event)
+		defer p.resolvers.ProcessResolver.UpdateGID(event.ProcessContext.Pid, event)
 	case model.CapsetEventType:
 		if _, err := event.Capset.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode capset event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		defer p.resolvers.ProcessResolver.UpdateCapset(event.Process.Pid, event)
+		defer p.resolvers.ProcessResolver.UpdateCapset(event.ProcessContext.Pid, event)
 	default:
 		log.Errorf("unsupported event type %d", eventType)
 		return

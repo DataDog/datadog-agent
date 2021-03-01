@@ -129,10 +129,10 @@ func (ev *Event) ResolveContainerID(e *model.ContainerContext) string {
 func (ev *Event) UnmarshalExecEvent(data []byte) (int, error) {
 	// reset the process cache entry of the current event
 	entry := NewProcessCacheEntry()
-	entry.ContainerContext = ev.Container
+	entry.ContainerContext = ev.ContainerContext
 	entry.ProcessContext = model.ProcessContext{
-		Pid: ev.Process.Pid,
-		Tid: ev.Process.Tid,
+		Pid: ev.ProcessContext.Pid,
+		Tid: ev.ProcessContext.Tid,
 	}
 	ev.processCacheEntry = entry
 
@@ -515,16 +515,16 @@ func (ev *Event) ResolveEventTimestamp() time.Time {
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessCacheEntry of the event
 func (ev *Event) ResolveProcessCacheEntry() *model.ProcessCacheEntry {
 	if ev.processCacheEntry == nil {
-		ev.processCacheEntry = ev.resolvers.ProcessResolver.Resolve(ev.Process.Pid, ev.Process.Tid)
+		ev.processCacheEntry = ev.resolvers.ProcessResolver.Resolve(ev.ProcessContext.Pid, ev.ProcessContext.Tid)
 		if ev.processCacheEntry == nil {
 			ev.processCacheEntry = &model.ProcessCacheEntry{}
 		}
 	}
 
 	// TODO refactor to remove this indirect which forces us to recopy lot of fields
-	ev.Process.Ancestor = ev.processCacheEntry.Ancestor
-	ev.Process.Args = ev.processCacheEntry.Args
-	ev.Process.Envs = ev.processCacheEntry.Envs
+	ev.ProcessContext.Ancestor = ev.processCacheEntry.Ancestor
+	ev.ProcessContext.Args = ev.processCacheEntry.Args
+	ev.ProcessContext.Envs = ev.processCacheEntry.Envs
 
 	return ev.processCacheEntry
 }
@@ -532,9 +532,9 @@ func (ev *Event) ResolveProcessCacheEntry() *model.ProcessCacheEntry {
 // updateProcessCachePointer updates the internal pointers of the event structure to the ProcessCacheEntry of the event
 func (ev *Event) updateProcessCachePointer(entry *model.ProcessCacheEntry) {
 	// TODO refactor to remove this indirect which forces us to recopy lot of fields
-	ev.Process.Ancestor = entry.Ancestor
-	ev.Process.Args = entry.Args
-	ev.Process.Envs = ev.processCacheEntry.Envs
+	ev.ProcessContext.Ancestor = entry.Ancestor
+	ev.ProcessContext.Args = entry.Args
+	ev.ProcessContext.Envs = ev.processCacheEntry.Envs
 
 	ev.processCacheEntry = entry
 }
