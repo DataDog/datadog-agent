@@ -68,6 +68,15 @@ func BenchmarkJSONStream100000(b *testing.B)   { benchmarkJSONStream(b, 1, false
 func BenchmarkJSONStream1000000(b *testing.B)  { benchmarkJSONStream(b, 1, false, 1000000) }
 func BenchmarkJSONStream10000000(b *testing.B) { benchmarkJSONStream(b, 1, false, 10000000) }
 
+func BenchmarkJSONStreamShared1(b *testing.B)        { benchmarkJSONStream(b, 1, true, 1) }
+func BenchmarkJSONStreamShared10(b *testing.B)       { benchmarkJSONStream(b, 1, true, 10) }
+func BenchmarkJSONStreamShared100(b *testing.B)      { benchmarkJSONStream(b, 1, true, 100) }
+func BenchmarkJSONStreamShared1000(b *testing.B)     { benchmarkJSONStream(b, 1, true, 1000) }
+func BenchmarkJSONStreamShared10000(b *testing.B)    { benchmarkJSONStream(b, 1, true, 10000) }
+func BenchmarkJSONStreamShared100000(b *testing.B)   { benchmarkJSONStream(b, 1, true, 100000) }
+func BenchmarkJSONStreamShared1000000(b *testing.B)  { benchmarkJSONStream(b, 1, true, 1000000) }
+func BenchmarkJSONStreamShared10000000(b *testing.B) { benchmarkJSONStream(b, 1, true, 10000000) }
+
 // Large payloads
 func BenchmarkJSONStreamUnSharedLarge1(b *testing.B)    { benchmarkJSONStream(b, 1, false, 100000) }
 func BenchmarkJSONStreamUnSharedLarge10(b *testing.B)   { benchmarkJSONStream(b, 10, false, 100000) }
