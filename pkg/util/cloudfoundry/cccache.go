@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net/url"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -34,8 +35,8 @@ type CCCache struct {
 	configured    bool
 	ccAPIClient   CCClientI
 	pollInterval  time.Duration
-	pollAttempts  int
-	pollSuccesses int
+	pollAttempts  int64
+	pollSuccesses int64
 	lastUpdated   time.Time
 	appsByGUID    map[string]*CFApp
 }
@@ -99,17 +100,13 @@ func (ccc *CCCache) LastUpdated() time.Time {
 }
 
 // GetPollAttempts returns the number of times the cache queried the CC API
-func (ccc *CCCache) GetPollAttempts() int {
-	ccc.RLock()
-	defer ccc.RUnlock()
-	return ccc.pollAttempts
+func (ccc *CCCache) GetPollAttempts() int64 {
+	return atomic.LoadInt64(&ccc.pollAttempts)
 }
 
 // GetPollSuccesses returns the number of times the cache successfully queried the CC API
-func (ccc *CCCache) GetPollSuccesses() int {
-	ccc.RLock()
-	defer ccc.RUnlock()
-	return ccc.pollSuccesses
+func (ccc *CCCache) GetPollSuccesses() int64 {
+	return atomic.LoadInt64(&ccc.pollSuccesses)
 }
 
 func (ccc *CCCache) GetApp(guid string) (*CFApp, error) {
@@ -138,9 +135,7 @@ func (ccc *CCCache) start() {
 
 func (ccc *CCCache) readData() {
 	log.Debug("Reading data from CC API")
-	ccc.Lock()
-	ccc.pollAttempts++
-	ccc.Unlock()
+	atomic.AddInt64(&ccc.pollAttempts, 1)
 
 	query := url.Values{}
 	query.Add("per_page", "5000")
