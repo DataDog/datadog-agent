@@ -181,7 +181,7 @@ func (ev *Event) ResolveChownGID(e *model.ChownEvent) string {
 }
 
 // ResolveExecPPID resolves the parent process ID
-func (ev *Event) ResolveExecPPID(e *model.ExecEvent) int {
+func (ev *Event) ResolveExecPPID(e *model.Process) int {
 	if e.PPid == 0 && ev != nil {
 		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
 			e.PPid = entry.PPid
@@ -191,7 +191,7 @@ func (ev *Event) ResolveExecPPID(e *model.ExecEvent) int {
 }
 
 // ResolveExecInode resolves the executable inode to a full path
-func (ev *Event) ResolveExecInode(e *model.ExecEvent) string {
+func (ev *Event) ResolveExecInode(e *model.Process) string {
 	if len(e.PathnameStr) == 0 && ev != nil {
 		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
 			e.PathnameStr = entry.PathnameStr
@@ -201,7 +201,7 @@ func (ev *Event) ResolveExecInode(e *model.ExecEvent) string {
 }
 
 // ResolveExecContainerPath resolves the inode to a path relative to the container
-func (ev *Event) ResolveExecContainerPath(e *model.ExecEvent) string {
+func (ev *Event) ResolveExecContainerPath(e *model.Process) string {
 	if len(e.ContainerPath) == 0 && ev != nil {
 		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
 			e.ContainerPath = entry.ContainerPath
@@ -211,7 +211,7 @@ func (ev *Event) ResolveExecContainerPath(e *model.ExecEvent) string {
 }
 
 // ResolveExecBasename resolves the inode to a filename
-func (ev *Event) ResolveExecBasename(e *model.ExecEvent) string {
+func (ev *Event) ResolveExecBasename(e *model.Process) string {
 	if len(e.BasenameStr) == 0 {
 		if e.PathnameStr == "" {
 			e.PathnameStr = ev.ResolveExecInode(e)
@@ -223,7 +223,7 @@ func (ev *Event) ResolveExecBasename(e *model.ExecEvent) string {
 }
 
 // ResolveExecCookie resolves the cookie of the process
-func (ev *Event) ResolveExecCookie(e *model.ExecEvent) int {
+func (ev *Event) ResolveExecCookie(e *model.Process) int {
 	if e.Cookie == 0 && ev != nil {
 		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
 			e.Cookie = entry.Cookie
@@ -233,7 +233,7 @@ func (ev *Event) ResolveExecCookie(e *model.ExecEvent) int {
 }
 
 // ResolveExecTTY resolves the name of the process tty
-func (ev *Event) ResolveExecTTY(e *model.ExecEvent) string {
+func (ev *Event) ResolveExecTTY(e *model.Process) string {
 	if e.TTYName == "" && ev != nil {
 		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
 			e.TTYName = entry.TTYName
@@ -243,7 +243,7 @@ func (ev *Event) ResolveExecTTY(e *model.ExecEvent) string {
 }
 
 // ResolveExecComm resolves the comm of the process
-func (ev *Event) ResolveExecComm(e *model.ExecEvent) string {
+func (ev *Event) ResolveExecComm(e *model.Process) string {
 	if len(e.Comm) == 0 && ev != nil {
 		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
 			e.Comm = entry.Comm

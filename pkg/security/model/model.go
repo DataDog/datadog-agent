@@ -256,8 +256,8 @@ func (e *ExecEnvsIterator) Next() unsafe.Pointer {
 	return nil
 }
 
-// ExecEvent represents a exec event
-type ExecEvent struct {
+// Process represents a process
+type Process struct {
 	// proc_cache_t
 	// (container context is parsed in Event.Container)
 	FileFields FileFields `field:"file"`
@@ -286,14 +286,18 @@ type ExecEvent struct {
 	// credentials_t section of pid_cache_t
 	Credentials
 
-	Args []string `field:"args" iterator:"ExecArgsIterator"`
-	Envs []string `field:"envs" iterator:"ExecEnvsIterator"`
+	Args          []string `field:"args" iterator:"ExecArgsIterator"`
+	ArgsTruncated bool     `field:"args_truncated"`
+	Envs          []string `field:"envs" iterator:"ExecEnvsIterator"`
+	EnvsTruncated bool     `field:"envs_truncated"`
 
-	ArgsID        uint32 `field:"-"`
-	ArgsTruncated bool   `field:"args_truncated"`
+	ArgsID uint32 `field:"-"`
+	EnvsID uint32 `field:"-"`
+}
 
-	EnvsID        uint32 `field:"-"`
-	EnvsTruncated bool   `field:"envs_truncated"`
+// ExecEvent represents a exec event
+type ExecEvent struct {
+	Process
 }
 
 // GetPathResolutionError returns the path resolution error as a string if there is one

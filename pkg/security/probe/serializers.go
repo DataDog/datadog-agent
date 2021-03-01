@@ -207,7 +207,7 @@ func newFileSerializer(fe *model.FileEvent, e *Event) *FileSerializer {
 func newExecFileSerializer(exec *model.ExecEvent, e *Event) *FileSerializer {
 	mode := uint32(exec.FileFields.Mode)
 	return &FileSerializer{
-		Path:                e.ResolveExecInode(exec),
+		Path:                e.ResolveExecInode(&exec.Process),
 		PathResolutionError: exec.GetPathResolutionError(),
 		Name:                e.ResolveExecBasename(exec),
 		ContainerPath:       e.ResolveExecContainerPath(exec),
