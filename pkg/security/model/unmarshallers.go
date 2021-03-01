@@ -134,7 +134,7 @@ func (e *Credentials) UnmarshalBinary(data []byte) (int, error) {
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
-func (e *ExecEvent) UnmarshalBinary(data []byte) (int, error) {
+func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	// Unmarshal proc_cache_t
 	read, err := UnmarshalBinary(data, &e.FileFields)
 	if err != nil {
@@ -170,6 +170,21 @@ func (e *ExecEvent) UnmarshalBinary(data []byte) (int, error) {
 	read, err = UnmarshalBinary(data[read:], &e.Credentials)
 	if err != nil {
 		return 0, err
+	}
+
+	return read, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *ExecEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 164 {
+		return 0, ErrNotEnoughData
+	}
+
+	// Unmarshal proc_cache_t
+	read, err := UnmarshalBinary(data, &e.Process)
+	if err != nil {
+		return read, err
 	}
 
 	e.ArgsID = ByteOrder.Uint32(data[read : read+4])

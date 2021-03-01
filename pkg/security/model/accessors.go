@@ -1522,7 +1522,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*ProcessCacheEntry)(reg.Value)
 
-					result = element.ProcessContext.ExecEvent.Process.ArgsTruncated
+					result = element.ProcessContext.Process.ArgsTruncated
 
 				}
 
@@ -1545,7 +1545,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*ProcessCacheEntry)(reg.Value)
 
-					result = int(element.ProcessContext.ExecEvent.Process.Credentials.CapEffective)
+					result = int(element.ProcessContext.Process.Credentials.CapEffective)
 
 				}
 
@@ -1568,7 +1568,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*ProcessCacheEntry)(reg.Value)
 
-					result = int(element.ProcessContext.ExecEvent.Process.Credentials.CapPermitted)
+					result = int(element.ProcessContext.Process.Credentials.CapPermitted)
 
 				}
 
@@ -1591,7 +1591,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*ProcessCacheEntry)(reg.Value)
 
-					result = element.ProcessContext.ExecEvent.Process.Comm
+					result = element.ProcessContext.Process.Comm
 
 				}
 
@@ -1614,7 +1614,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*ProcessCacheEntry)(reg.Value)
 
-					result = int(element.ProcessContext.ExecEvent.Process.Cookie)
+					result = int(element.ProcessContext.Process.Cookie)
 
 				}
 
@@ -1637,7 +1637,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*ProcessCacheEntry)(reg.Value)
 
-					result = int(element.ProcessContext.ExecEvent.Process.Credentials.EGID)
+					result = int(element.ProcessContext.Process.Credentials.EGID)
 
 				}
 
@@ -1660,7 +1660,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*ProcessCacheEntry)(reg.Value)
 
-					result = element.ProcessContext.ExecEvent.Process.Credentials.EGroup
+					result = element.ProcessContext.Process.Credentials.EGroup
 
 				}
 
@@ -1707,7 +1707,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*ProcessCacheEntry)(reg.Value)
 
-					result = element.ProcessContext.ExecEvent.Process.EnvsTruncated
+					result = element.ProcessContext.Process.EnvsTruncated
 
 				}
 
@@ -1730,7 +1730,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*ProcessCacheEntry)(reg.Value)
 
-					result = int(element.ProcessContext.ExecEvent.Process.Credentials.EUID)
+					result = int(element.ProcessContext.Process.Credentials.EUID)
 
 				}
 
@@ -1753,7 +1753,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*ProcessCacheEntry)(reg.Value)
 
-					result = element.ProcessContext.ExecEvent.Process.Credentials.EUser
+					result = element.ProcessContext.Process.Credentials.EUser
 
 				}
 
@@ -1776,7 +1776,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*ProcessCacheEntry)(reg.Value)
 
-					result = element.ProcessContext.ExecEvent.Process.ContainerPath
+					result = element.ProcessContext.Process.ContainerPath
 
 				}
 
@@ -1799,7 +1799,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*ProcessCacheEntry)(reg.Value)
 
-					result = int(element.ProcessContext.ExecEvent.Process.FileFields.GID)
+					result = int(element.ProcessContext.Process.FileFields.GID)
 
 				}
 
@@ -1822,7 +1822,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*ProcessCacheEntry)(reg.Value)
 
-					result = element.ProcessContext.ExecEvent.Process.FileFields.Group
+					result = element.ProcessContext.Process.FileFields.Group
 
 				}
 
@@ -1845,7 +1845,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*ProcessCacheEntry)(reg.Value)
 
-					result = int(element.ProcessContext.ExecEvent.Process.FileFields.Inode)
+					result = int(element.ProcessContext.Process.FileFields.Inode)
 
 				}
 
@@ -1868,7 +1868,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*ProcessCacheEntry)(reg.Value)
 
-					result = int(element.ProcessContext.ExecEvent.Process.FileFields.Mode)
+					result = int(element.ProcessContext.Process.FileFields.Mode)
 
 				}
 
@@ -1891,7 +1891,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*ProcessCacheEntry)(reg.Value)
 
-					result = int(element.ProcessContext.ExecEvent.Process.FileFields.MountID)
+					result = int(element.ProcessContext.Process.FileFields.MountID)
 
 				}
 
@@ -1914,7 +1914,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*ProcessCacheEntry)(reg.Value)
 
-					result = element.ProcessContext.ExecEvent.Process.BasenameStr
+					result = element.ProcessContext.Process.BasenameStr
 
 				}
 
@@ -1937,7 +1937,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*ProcessCacheEntry)(reg.Value)
 
-					result = int(element.ProcessContext.ExecEvent.Process.FileFields.OverlayNumLower)
+					result = int(element.ProcessContext.Process.FileFields.OverlayNumLower)
 
 				}
 
@@ -1960,7 +1960,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*ProcessCacheEntry)(reg.Value)
 
-					result = element.ProcessContext.ExecEvent.Process.PathnameStr
+					result = element.ProcessContext.Process.PathnameStr
 
 				}
 
@@ -1983,7 +1983,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*ProcessCacheEntry)(reg.Value)
 
-					result = int(element.ProcessContext.ExecEvent.Process.FileFields.UID)
+					result = int(element.ProcessContext.Process.FileFields.UID)
 
 				}
 
@@ -2006,7 +2006,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*ProcessCacheEntry)(reg.Value)
 
-					result = element.ProcessContext.ExecEvent.Process.FileFields.User
+					result = element.ProcessContext.Process.FileFields.User
 
 				}
 
@@ -2029,7 +2029,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*ProcessCacheEntry)(reg.Value)
 
-					result = int(element.ProcessContext.ExecEvent.Process.Credentials.FSGID)
+					result = int(element.ProcessContext.Process.Credentials.FSGID)
 
 				}
 
@@ -2052,7 +2052,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*ProcessCacheEntry)(reg.Value)
 
-					result = element.ProcessContext.ExecEvent.Process.Credentials.FSGroup
+					result = element.ProcessContext.Process.Credentials.FSGroup
 
 				}
 
@@ -2075,7 +2075,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*ProcessCacheEntry)(reg.Value)
 
-					result = int(element.ProcessContext.ExecEvent.Process.Credentials.FSUID)
+					result = int(element.ProcessContext.Process.Credentials.FSUID)
 
 				}
 
@@ -2098,7 +2098,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*ProcessCacheEntry)(reg.Value)
 
-					result = element.ProcessContext.ExecEvent.Process.Credentials.FSUser
+					result = element.ProcessContext.Process.Credentials.FSUser
 
 				}
 
@@ -2121,7 +2121,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*ProcessCacheEntry)(reg.Value)
 
-					result = int(element.ProcessContext.ExecEvent.Process.Credentials.GID)
+					result = int(element.ProcessContext.Process.Credentials.GID)
 
 				}
 
@@ -2144,7 +2144,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*ProcessCacheEntry)(reg.Value)
 
-					result = element.ProcessContext.ExecEvent.Process.Credentials.Group
+					result = element.ProcessContext.Process.Credentials.Group
 
 				}
 
@@ -2213,7 +2213,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*ProcessCacheEntry)(reg.Value)
 
-					result = int(element.ProcessContext.ExecEvent.Process.PPid)
+					result = int(element.ProcessContext.Process.PPid)
 
 				}
 
@@ -2259,7 +2259,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*ProcessCacheEntry)(reg.Value)
 
-					result = element.ProcessContext.ExecEvent.Process.TTYName
+					result = element.ProcessContext.Process.TTYName
 
 				}
 
@@ -2282,7 +2282,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*ProcessCacheEntry)(reg.Value)
 
-					result = int(element.ProcessContext.ExecEvent.Process.Credentials.UID)
+					result = int(element.ProcessContext.Process.Credentials.UID)
 
 				}
 
@@ -2305,7 +2305,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*ProcessCacheEntry)(reg.Value)
 
-					result = element.ProcessContext.ExecEvent.Process.Credentials.User
+					result = element.ProcessContext.Process.Credentials.User
 
 				}
 
@@ -2345,7 +2345,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 
-				return (*Event)(ctx.Object).ProcessContext.ExecEvent.Process.ArgsTruncated
+				return (*Event)(ctx.Object).ProcessContext.Process.ArgsTruncated
 
 			},
 			Field: field,
@@ -2357,7 +2357,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ProcessContext.ExecEvent.Process.Credentials.CapEffective)
+				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.CapEffective)
 
 			},
 			Field: field,
@@ -2369,7 +2369,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ProcessContext.ExecEvent.Process.Credentials.CapPermitted)
+				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.CapPermitted)
 
 			},
 			Field: field,
@@ -2381,7 +2381,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ProcessContext.ExecEvent.Process.Comm
+				return (*Event)(ctx.Object).ProcessContext.Process.Comm
 
 			},
 			Field: field,
@@ -2393,7 +2393,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ProcessContext.ExecEvent.Process.Cookie)
+				return int((*Event)(ctx.Object).ProcessContext.Process.Cookie)
 
 			},
 			Field: field,
@@ -2405,7 +2405,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ProcessContext.ExecEvent.Process.Credentials.EGID)
+				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.EGID)
 
 			},
 			Field: field,
@@ -2417,7 +2417,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ProcessContext.ExecEvent.Process.Credentials.EGroup
+				return (*Event)(ctx.Object).ProcessContext.Process.Credentials.EGroup
 
 			},
 			Field: field,
@@ -2453,7 +2453,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 
-				return (*Event)(ctx.Object).ProcessContext.ExecEvent.Process.EnvsTruncated
+				return (*Event)(ctx.Object).ProcessContext.Process.EnvsTruncated
 
 			},
 			Field: field,
@@ -2465,7 +2465,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ProcessContext.ExecEvent.Process.Credentials.EUID)
+				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.EUID)
 
 			},
 			Field: field,
@@ -2477,7 +2477,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ProcessContext.ExecEvent.Process.Credentials.EUser
+				return (*Event)(ctx.Object).ProcessContext.Process.Credentials.EUser
 
 			},
 			Field: field,
@@ -2489,7 +2489,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ProcessContext.ExecEvent.Process.ContainerPath
+				return (*Event)(ctx.Object).ProcessContext.Process.ContainerPath
 
 			},
 			Field: field,
@@ -2501,7 +2501,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ProcessContext.ExecEvent.Process.FileFields.GID)
+				return int((*Event)(ctx.Object).ProcessContext.Process.FileFields.GID)
 
 			},
 			Field: field,
@@ -2513,7 +2513,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ProcessContext.ExecEvent.Process.FileFields.Group
+				return (*Event)(ctx.Object).ProcessContext.Process.FileFields.Group
 
 			},
 			Field: field,
@@ -2525,7 +2525,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ProcessContext.ExecEvent.Process.FileFields.Inode)
+				return int((*Event)(ctx.Object).ProcessContext.Process.FileFields.Inode)
 
 			},
 			Field: field,
@@ -2537,7 +2537,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ProcessContext.ExecEvent.Process.FileFields.Mode)
+				return int((*Event)(ctx.Object).ProcessContext.Process.FileFields.Mode)
 
 			},
 			Field: field,
@@ -2549,7 +2549,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ProcessContext.ExecEvent.Process.FileFields.MountID)
+				return int((*Event)(ctx.Object).ProcessContext.Process.FileFields.MountID)
 
 			},
 			Field: field,
@@ -2561,7 +2561,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ProcessContext.ExecEvent.Process.BasenameStr
+				return (*Event)(ctx.Object).ProcessContext.Process.BasenameStr
 
 			},
 			Field: field,
@@ -2573,7 +2573,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ProcessContext.ExecEvent.Process.FileFields.OverlayNumLower)
+				return int((*Event)(ctx.Object).ProcessContext.Process.FileFields.OverlayNumLower)
 
 			},
 			Field: field,
@@ -2585,7 +2585,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ProcessContext.ExecEvent.Process.PathnameStr
+				return (*Event)(ctx.Object).ProcessContext.Process.PathnameStr
 
 			},
 			Field: field,
@@ -2597,7 +2597,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ProcessContext.ExecEvent.Process.FileFields.UID)
+				return int((*Event)(ctx.Object).ProcessContext.Process.FileFields.UID)
 
 			},
 			Field: field,
@@ -2609,7 +2609,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ProcessContext.ExecEvent.Process.FileFields.User
+				return (*Event)(ctx.Object).ProcessContext.Process.FileFields.User
 
 			},
 			Field: field,
@@ -2621,7 +2621,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ProcessContext.ExecEvent.Process.Credentials.FSGID)
+				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.FSGID)
 
 			},
 			Field: field,
@@ -2633,7 +2633,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ProcessContext.ExecEvent.Process.Credentials.FSGroup
+				return (*Event)(ctx.Object).ProcessContext.Process.Credentials.FSGroup
 
 			},
 			Field: field,
@@ -2645,7 +2645,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ProcessContext.ExecEvent.Process.Credentials.FSUID)
+				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.FSUID)
 
 			},
 			Field: field,
@@ -2657,7 +2657,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ProcessContext.ExecEvent.Process.Credentials.FSUser
+				return (*Event)(ctx.Object).ProcessContext.Process.Credentials.FSUser
 
 			},
 			Field: field,
@@ -2669,7 +2669,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ProcessContext.ExecEvent.Process.Credentials.GID)
+				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.GID)
 
 			},
 			Field: field,
@@ -2681,7 +2681,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ProcessContext.ExecEvent.Process.Credentials.Group
+				return (*Event)(ctx.Object).ProcessContext.Process.Credentials.Group
 
 			},
 			Field: field,
@@ -2705,7 +2705,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ProcessContext.ExecEvent.Process.PPid)
+				return int((*Event)(ctx.Object).ProcessContext.Process.PPid)
 
 			},
 			Field: field,
@@ -2729,7 +2729,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ProcessContext.ExecEvent.Process.TTYName
+				return (*Event)(ctx.Object).ProcessContext.Process.TTYName
 
 			},
 			Field: field,
@@ -2741,7 +2741,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ProcessContext.ExecEvent.Process.Credentials.UID)
+				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.UID)
 
 			},
 			Field: field,
@@ -2753,7 +2753,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ProcessContext.ExecEvent.Process.Credentials.User
+				return (*Event)(ctx.Object).ProcessContext.Process.Credentials.User
 
 			},
 			Field: field,
@@ -5070,7 +5070,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := element.ProcessContext.ExecEvent.Process.ArgsTruncated
+			result := element.ProcessContext.Process.ArgsTruncated
 
 			values = append(values, result)
 
@@ -5093,7 +5093,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := int(element.ProcessContext.ExecEvent.Process.Credentials.CapEffective)
+			result := int(element.ProcessContext.Process.Credentials.CapEffective)
 
 			values = append(values, result)
 
@@ -5116,7 +5116,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := int(element.ProcessContext.ExecEvent.Process.Credentials.CapPermitted)
+			result := int(element.ProcessContext.Process.Credentials.CapPermitted)
 
 			values = append(values, result)
 
@@ -5139,7 +5139,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := element.ProcessContext.ExecEvent.Process.Comm
+			result := element.ProcessContext.Process.Comm
 
 			values = append(values, result)
 
@@ -5162,7 +5162,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := int(element.ProcessContext.ExecEvent.Process.Cookie)
+			result := int(element.ProcessContext.Process.Cookie)
 
 			values = append(values, result)
 
@@ -5185,7 +5185,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := int(element.ProcessContext.ExecEvent.Process.Credentials.EGID)
+			result := int(element.ProcessContext.Process.Credentials.EGID)
 
 			values = append(values, result)
 
@@ -5208,7 +5208,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := element.ProcessContext.ExecEvent.Process.Credentials.EGroup
+			result := element.ProcessContext.Process.Credentials.EGroup
 
 			values = append(values, result)
 
@@ -5255,7 +5255,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := element.ProcessContext.ExecEvent.Process.EnvsTruncated
+			result := element.ProcessContext.Process.EnvsTruncated
 
 			values = append(values, result)
 
@@ -5278,7 +5278,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := int(element.ProcessContext.ExecEvent.Process.Credentials.EUID)
+			result := int(element.ProcessContext.Process.Credentials.EUID)
 
 			values = append(values, result)
 
@@ -5301,7 +5301,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := element.ProcessContext.ExecEvent.Process.Credentials.EUser
+			result := element.ProcessContext.Process.Credentials.EUser
 
 			values = append(values, result)
 
@@ -5324,7 +5324,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := element.ProcessContext.ExecEvent.Process.ContainerPath
+			result := element.ProcessContext.Process.ContainerPath
 
 			values = append(values, result)
 
@@ -5347,7 +5347,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := int(element.ProcessContext.ExecEvent.Process.FileFields.GID)
+			result := int(element.ProcessContext.Process.FileFields.GID)
 
 			values = append(values, result)
 
@@ -5370,7 +5370,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := element.ProcessContext.ExecEvent.Process.FileFields.Group
+			result := element.ProcessContext.Process.FileFields.Group
 
 			values = append(values, result)
 
@@ -5393,7 +5393,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := int(element.ProcessContext.ExecEvent.Process.FileFields.Inode)
+			result := int(element.ProcessContext.Process.FileFields.Inode)
 
 			values = append(values, result)
 
@@ -5416,7 +5416,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := int(element.ProcessContext.ExecEvent.Process.FileFields.Mode)
+			result := int(element.ProcessContext.Process.FileFields.Mode)
 
 			values = append(values, result)
 
@@ -5439,7 +5439,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := int(element.ProcessContext.ExecEvent.Process.FileFields.MountID)
+			result := int(element.ProcessContext.Process.FileFields.MountID)
 
 			values = append(values, result)
 
@@ -5462,7 +5462,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := element.ProcessContext.ExecEvent.Process.BasenameStr
+			result := element.ProcessContext.Process.BasenameStr
 
 			values = append(values, result)
 
@@ -5485,7 +5485,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := int(element.ProcessContext.ExecEvent.Process.FileFields.OverlayNumLower)
+			result := int(element.ProcessContext.Process.FileFields.OverlayNumLower)
 
 			values = append(values, result)
 
@@ -5508,7 +5508,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := element.ProcessContext.ExecEvent.Process.PathnameStr
+			result := element.ProcessContext.Process.PathnameStr
 
 			values = append(values, result)
 
@@ -5531,7 +5531,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := int(element.ProcessContext.ExecEvent.Process.FileFields.UID)
+			result := int(element.ProcessContext.Process.FileFields.UID)
 
 			values = append(values, result)
 
@@ -5554,7 +5554,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := element.ProcessContext.ExecEvent.Process.FileFields.User
+			result := element.ProcessContext.Process.FileFields.User
 
 			values = append(values, result)
 
@@ -5577,7 +5577,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := int(element.ProcessContext.ExecEvent.Process.Credentials.FSGID)
+			result := int(element.ProcessContext.Process.Credentials.FSGID)
 
 			values = append(values, result)
 
@@ -5600,7 +5600,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := element.ProcessContext.ExecEvent.Process.Credentials.FSGroup
+			result := element.ProcessContext.Process.Credentials.FSGroup
 
 			values = append(values, result)
 
@@ -5623,7 +5623,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := int(element.ProcessContext.ExecEvent.Process.Credentials.FSUID)
+			result := int(element.ProcessContext.Process.Credentials.FSUID)
 
 			values = append(values, result)
 
@@ -5646,7 +5646,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := element.ProcessContext.ExecEvent.Process.Credentials.FSUser
+			result := element.ProcessContext.Process.Credentials.FSUser
 
 			values = append(values, result)
 
@@ -5669,7 +5669,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := int(element.ProcessContext.ExecEvent.Process.Credentials.GID)
+			result := int(element.ProcessContext.Process.Credentials.GID)
 
 			values = append(values, result)
 
@@ -5692,7 +5692,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := element.ProcessContext.ExecEvent.Process.Credentials.Group
+			result := element.ProcessContext.Process.Credentials.Group
 
 			values = append(values, result)
 
@@ -5761,7 +5761,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := int(element.ProcessContext.ExecEvent.Process.PPid)
+			result := int(element.ProcessContext.Process.PPid)
 
 			values = append(values, result)
 
@@ -5807,7 +5807,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := element.ProcessContext.ExecEvent.Process.TTYName
+			result := element.ProcessContext.Process.TTYName
 
 			values = append(values, result)
 
@@ -5830,7 +5830,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := int(element.ProcessContext.ExecEvent.Process.Credentials.UID)
+			result := int(element.ProcessContext.Process.Credentials.UID)
 
 			values = append(values, result)
 
@@ -5853,7 +5853,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := element.ProcessContext.ExecEvent.Process.Credentials.User
+			result := element.ProcessContext.Process.Credentials.User
 
 			values = append(values, result)
 
@@ -5888,31 +5888,31 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "process.args_truncated":
 
-		return e.ProcessContext.ExecEvent.Process.ArgsTruncated, nil
+		return e.ProcessContext.Process.ArgsTruncated, nil
 
 	case "process.cap_effective":
 
-		return int(e.ProcessContext.ExecEvent.Process.Credentials.CapEffective), nil
+		return int(e.ProcessContext.Process.Credentials.CapEffective), nil
 
 	case "process.cap_permitted":
 
-		return int(e.ProcessContext.ExecEvent.Process.Credentials.CapPermitted), nil
+		return int(e.ProcessContext.Process.Credentials.CapPermitted), nil
 
 	case "process.comm":
 
-		return e.ProcessContext.ExecEvent.Process.Comm, nil
+		return e.ProcessContext.Process.Comm, nil
 
 	case "process.cookie":
 
-		return int(e.ProcessContext.ExecEvent.Process.Cookie), nil
+		return int(e.ProcessContext.Process.Cookie), nil
 
 	case "process.egid":
 
-		return int(e.ProcessContext.ExecEvent.Process.Credentials.EGID), nil
+		return int(e.ProcessContext.Process.Credentials.EGID), nil
 
 	case "process.egroup":
 
-		return e.ProcessContext.ExecEvent.Process.Credentials.EGroup, nil
+		return e.ProcessContext.Process.Credentials.EGroup, nil
 
 	case "process.envs":
 
@@ -5940,83 +5940,83 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "process.envs_truncated":
 
-		return e.ProcessContext.ExecEvent.Process.EnvsTruncated, nil
+		return e.ProcessContext.Process.EnvsTruncated, nil
 
 	case "process.euid":
 
-		return int(e.ProcessContext.ExecEvent.Process.Credentials.EUID), nil
+		return int(e.ProcessContext.Process.Credentials.EUID), nil
 
 	case "process.euser":
 
-		return e.ProcessContext.ExecEvent.Process.Credentials.EUser, nil
+		return e.ProcessContext.Process.Credentials.EUser, nil
 
 	case "process.file.container_path":
 
-		return e.ProcessContext.ExecEvent.Process.ContainerPath, nil
+		return e.ProcessContext.Process.ContainerPath, nil
 
 	case "process.file.gid":
 
-		return int(e.ProcessContext.ExecEvent.Process.FileFields.GID), nil
+		return int(e.ProcessContext.Process.FileFields.GID), nil
 
 	case "process.file.group":
 
-		return e.ProcessContext.ExecEvent.Process.FileFields.Group, nil
+		return e.ProcessContext.Process.FileFields.Group, nil
 
 	case "process.file.inode":
 
-		return int(e.ProcessContext.ExecEvent.Process.FileFields.Inode), nil
+		return int(e.ProcessContext.Process.FileFields.Inode), nil
 
 	case "process.file.mode":
 
-		return int(e.ProcessContext.ExecEvent.Process.FileFields.Mode), nil
+		return int(e.ProcessContext.Process.FileFields.Mode), nil
 
 	case "process.file.mount_id":
 
-		return int(e.ProcessContext.ExecEvent.Process.FileFields.MountID), nil
+		return int(e.ProcessContext.Process.FileFields.MountID), nil
 
 	case "process.file.name":
 
-		return e.ProcessContext.ExecEvent.Process.BasenameStr, nil
+		return e.ProcessContext.Process.BasenameStr, nil
 
 	case "process.file.overlay_numlower":
 
-		return int(e.ProcessContext.ExecEvent.Process.FileFields.OverlayNumLower), nil
+		return int(e.ProcessContext.Process.FileFields.OverlayNumLower), nil
 
 	case "process.file.path":
 
-		return e.ProcessContext.ExecEvent.Process.PathnameStr, nil
+		return e.ProcessContext.Process.PathnameStr, nil
 
 	case "process.file.uid":
 
-		return int(e.ProcessContext.ExecEvent.Process.FileFields.UID), nil
+		return int(e.ProcessContext.Process.FileFields.UID), nil
 
 	case "process.file.user":
 
-		return e.ProcessContext.ExecEvent.Process.FileFields.User, nil
+		return e.ProcessContext.Process.FileFields.User, nil
 
 	case "process.fsgid":
 
-		return int(e.ProcessContext.ExecEvent.Process.Credentials.FSGID), nil
+		return int(e.ProcessContext.Process.Credentials.FSGID), nil
 
 	case "process.fsgroup":
 
-		return e.ProcessContext.ExecEvent.Process.Credentials.FSGroup, nil
+		return e.ProcessContext.Process.Credentials.FSGroup, nil
 
 	case "process.fsuid":
 
-		return int(e.ProcessContext.ExecEvent.Process.Credentials.FSUID), nil
+		return int(e.ProcessContext.Process.Credentials.FSUID), nil
 
 	case "process.fsuser":
 
-		return e.ProcessContext.ExecEvent.Process.Credentials.FSUser, nil
+		return e.ProcessContext.Process.Credentials.FSUser, nil
 
 	case "process.gid":
 
-		return int(e.ProcessContext.ExecEvent.Process.Credentials.GID), nil
+		return int(e.ProcessContext.Process.Credentials.GID), nil
 
 	case "process.group":
 
-		return e.ProcessContext.ExecEvent.Process.Credentials.Group, nil
+		return e.ProcessContext.Process.Credentials.Group, nil
 
 	case "process.pid":
 
@@ -6024,7 +6024,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "process.ppid":
 
-		return int(e.ProcessContext.ExecEvent.Process.PPid), nil
+		return int(e.ProcessContext.Process.PPid), nil
 
 	case "process.tid":
 
@@ -6032,15 +6032,15 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "process.tty_name":
 
-		return e.ProcessContext.ExecEvent.Process.TTYName, nil
+		return e.ProcessContext.Process.TTYName, nil
 
 	case "process.uid":
 
-		return int(e.ProcessContext.ExecEvent.Process.Credentials.UID), nil
+		return int(e.ProcessContext.Process.Credentials.UID), nil
 
 	case "process.user":
 
-		return e.ProcessContext.ExecEvent.Process.Credentials.User, nil
+		return e.ProcessContext.Process.Credentials.User, nil
 
 	case "removexattr.file.container_path":
 
@@ -9558,9 +9558,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "process.ancestors.args":
 
 		var ok bool
-		if e.ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.Args, ok = value.([]string); !ok {
+		if e.ProcessContext.Ancestor.ProcessContext.Process.Args, ok = value.([]string); !ok {
 
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.Args"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Args"}
 		}
 		return nil
 
@@ -9571,8 +9571,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 
 		var ok bool
-		if e.ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.ArgsTruncated, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.ArgsTruncated"}
+		if e.ProcessContext.Ancestor.ProcessContext.Process.ArgsTruncated, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.ArgsTruncated"}
 		}
 		return nil
 
@@ -9585,9 +9585,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.Credentials.CapEffective"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.CapEffective"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.Credentials.CapEffective = uint64(v)
+		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.CapEffective = uint64(v)
 		return nil
 
 	case "process.ancestors.cap_permitted":
@@ -9599,9 +9599,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.Credentials.CapPermitted"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.CapPermitted"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.Credentials.CapPermitted = uint64(v)
+		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.CapPermitted = uint64(v)
 		return nil
 
 	case "process.ancestors.comm":
@@ -9611,9 +9611,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 
 		var ok bool
-		if e.ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.Comm, ok = value.(string); !ok {
+		if e.ProcessContext.Ancestor.ProcessContext.Process.Comm, ok = value.(string); !ok {
 
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.Comm"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Comm"}
 		}
 		return nil
 
@@ -9626,9 +9626,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.Cookie"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Cookie"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.Cookie = uint32(v)
+		e.ProcessContext.Ancestor.ProcessContext.Process.Cookie = uint32(v)
 		return nil
 
 	case "process.ancestors.egid":
@@ -9640,9 +9640,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.Credentials.EGID"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.EGID"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.Credentials.EGID = uint32(v)
+		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EGID = uint32(v)
 		return nil
 
 	case "process.ancestors.egroup":
@@ -9652,18 +9652,18 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 
 		var ok bool
-		if e.ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.Credentials.EGroup, ok = value.(string); !ok {
+		if e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EGroup, ok = value.(string); !ok {
 
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.Credentials.EGroup"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.EGroup"}
 		}
 		return nil
 
 	case "process.ancestors.envs":
 
 		var ok bool
-		if e.ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.Envs, ok = value.([]string); !ok {
+		if e.ProcessContext.Ancestor.ProcessContext.Process.Envs, ok = value.([]string); !ok {
 
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.Envs"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Envs"}
 		}
 		return nil
 
@@ -9674,8 +9674,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 
 		var ok bool
-		if e.ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.EnvsTruncated, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.EnvsTruncated"}
+		if e.ProcessContext.Ancestor.ProcessContext.Process.EnvsTruncated, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.EnvsTruncated"}
 		}
 		return nil
 
@@ -9688,9 +9688,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.Credentials.EUID"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.EUID"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.Credentials.EUID = uint32(v)
+		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EUID = uint32(v)
 		return nil
 
 	case "process.ancestors.euser":
@@ -9700,9 +9700,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 
 		var ok bool
-		if e.ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.Credentials.EUser, ok = value.(string); !ok {
+		if e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EUser, ok = value.(string); !ok {
 
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.Credentials.EUser"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.EUser"}
 		}
 		return nil
 
@@ -9713,9 +9713,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 
 		var ok bool
-		if e.ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.ContainerPath, ok = value.(string); !ok {
+		if e.ProcessContext.Ancestor.ProcessContext.Process.ContainerPath, ok = value.(string); !ok {
 
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.ContainerPath"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.ContainerPath"}
 		}
 		return nil
 
@@ -9728,9 +9728,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.FileFields.GID"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileFields.GID"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.FileFields.GID = uint32(v)
+		e.ProcessContext.Ancestor.ProcessContext.Process.FileFields.GID = uint32(v)
 		return nil
 
 	case "process.ancestors.file.group":
@@ -9740,9 +9740,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 
 		var ok bool
-		if e.ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.FileFields.Group, ok = value.(string); !ok {
+		if e.ProcessContext.Ancestor.ProcessContext.Process.FileFields.Group, ok = value.(string); !ok {
 
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.FileFields.Group"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileFields.Group"}
 		}
 		return nil
 
@@ -9755,9 +9755,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.FileFields.Inode"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileFields.Inode"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.FileFields.Inode = uint64(v)
+		e.ProcessContext.Ancestor.ProcessContext.Process.FileFields.Inode = uint64(v)
 		return nil
 
 	case "process.ancestors.file.mode":
@@ -9769,9 +9769,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.FileFields.Mode"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileFields.Mode"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.FileFields.Mode = uint16(v)
+		e.ProcessContext.Ancestor.ProcessContext.Process.FileFields.Mode = uint16(v)
 		return nil
 
 	case "process.ancestors.file.mount_id":
@@ -9783,9 +9783,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.FileFields.MountID"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileFields.MountID"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.FileFields.MountID = uint32(v)
+		e.ProcessContext.Ancestor.ProcessContext.Process.FileFields.MountID = uint32(v)
 		return nil
 
 	case "process.ancestors.file.name":
@@ -9795,9 +9795,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 
 		var ok bool
-		if e.ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.BasenameStr, ok = value.(string); !ok {
+		if e.ProcessContext.Ancestor.ProcessContext.Process.BasenameStr, ok = value.(string); !ok {
 
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.BasenameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.BasenameStr"}
 		}
 		return nil
 
@@ -9810,9 +9810,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.FileFields.OverlayNumLower"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileFields.OverlayNumLower"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.FileFields.OverlayNumLower = int32(v)
+		e.ProcessContext.Ancestor.ProcessContext.Process.FileFields.OverlayNumLower = int32(v)
 		return nil
 
 	case "process.ancestors.file.path":
@@ -9822,9 +9822,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 
 		var ok bool
-		if e.ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.PathnameStr, ok = value.(string); !ok {
+		if e.ProcessContext.Ancestor.ProcessContext.Process.PathnameStr, ok = value.(string); !ok {
 
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.PathnameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.PathnameStr"}
 		}
 		return nil
 
@@ -9837,9 +9837,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.FileFields.UID"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileFields.UID"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.FileFields.UID = uint32(v)
+		e.ProcessContext.Ancestor.ProcessContext.Process.FileFields.UID = uint32(v)
 		return nil
 
 	case "process.ancestors.file.user":
@@ -9849,9 +9849,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 
 		var ok bool
-		if e.ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.FileFields.User, ok = value.(string); !ok {
+		if e.ProcessContext.Ancestor.ProcessContext.Process.FileFields.User, ok = value.(string); !ok {
 
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.FileFields.User"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileFields.User"}
 		}
 		return nil
 
@@ -9864,9 +9864,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.Credentials.FSGID"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSGID"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.Credentials.FSGID = uint32(v)
+		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSGID = uint32(v)
 		return nil
 
 	case "process.ancestors.fsgroup":
@@ -9876,9 +9876,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 
 		var ok bool
-		if e.ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.Credentials.FSGroup, ok = value.(string); !ok {
+		if e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSGroup, ok = value.(string); !ok {
 
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.Credentials.FSGroup"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSGroup"}
 		}
 		return nil
 
@@ -9891,9 +9891,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.Credentials.FSUID"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSUID"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.Credentials.FSUID = uint32(v)
+		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSUID = uint32(v)
 		return nil
 
 	case "process.ancestors.fsuser":
@@ -9903,9 +9903,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 
 		var ok bool
-		if e.ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.Credentials.FSUser, ok = value.(string); !ok {
+		if e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSUser, ok = value.(string); !ok {
 
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.Credentials.FSUser"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSUser"}
 		}
 		return nil
 
@@ -9918,9 +9918,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.Credentials.GID"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.GID"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.Credentials.GID = uint32(v)
+		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.GID = uint32(v)
 		return nil
 
 	case "process.ancestors.group":
@@ -9930,9 +9930,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 
 		var ok bool
-		if e.ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.Credentials.Group, ok = value.(string); !ok {
+		if e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.Group, ok = value.(string); !ok {
 
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.Credentials.Group"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.Group"}
 		}
 		return nil
 
@@ -9972,9 +9972,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.PPid"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.PPid"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.PPid = uint32(v)
+		e.ProcessContext.Ancestor.ProcessContext.Process.PPid = uint32(v)
 		return nil
 
 	case "process.ancestors.tid":
@@ -9998,9 +9998,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 
 		var ok bool
-		if e.ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.TTYName, ok = value.(string); !ok {
+		if e.ProcessContext.Ancestor.ProcessContext.Process.TTYName, ok = value.(string); !ok {
 
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.TTYName"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.TTYName"}
 		}
 		return nil
 
@@ -10013,9 +10013,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.Credentials.UID"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.UID"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.Credentials.UID = uint32(v)
+		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.UID = uint32(v)
 		return nil
 
 	case "process.ancestors.user":
@@ -10025,26 +10025,26 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 
 		var ok bool
-		if e.ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.Credentials.User, ok = value.(string); !ok {
+		if e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.User, ok = value.(string); !ok {
 
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.ExecEvent.Process.Credentials.User"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.User"}
 		}
 		return nil
 
 	case "process.args":
 
 		var ok bool
-		if e.ProcessContext.ExecEvent.Process.Args, ok = value.([]string); !ok {
+		if e.ProcessContext.Process.Args, ok = value.([]string); !ok {
 
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.ExecEvent.Process.Args"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Args"}
 		}
 		return nil
 
 	case "process.args_truncated":
 
 		var ok bool
-		if e.ProcessContext.ExecEvent.Process.ArgsTruncated, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.ExecEvent.Process.ArgsTruncated"}
+		if e.ProcessContext.Process.ArgsTruncated, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.ArgsTruncated"}
 		}
 		return nil
 
@@ -10053,9 +10053,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.ExecEvent.Process.Credentials.CapEffective"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.CapEffective"}
 		}
-		e.ProcessContext.ExecEvent.Process.Credentials.CapEffective = uint64(v)
+		e.ProcessContext.Process.Credentials.CapEffective = uint64(v)
 		return nil
 
 	case "process.cap_permitted":
@@ -10063,17 +10063,17 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.ExecEvent.Process.Credentials.CapPermitted"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.CapPermitted"}
 		}
-		e.ProcessContext.ExecEvent.Process.Credentials.CapPermitted = uint64(v)
+		e.ProcessContext.Process.Credentials.CapPermitted = uint64(v)
 		return nil
 
 	case "process.comm":
 
 		var ok bool
-		if e.ProcessContext.ExecEvent.Process.Comm, ok = value.(string); !ok {
+		if e.ProcessContext.Process.Comm, ok = value.(string); !ok {
 
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.ExecEvent.Process.Comm"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Comm"}
 		}
 		return nil
 
@@ -10082,9 +10082,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.ExecEvent.Process.Cookie"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Cookie"}
 		}
-		e.ProcessContext.ExecEvent.Process.Cookie = uint32(v)
+		e.ProcessContext.Process.Cookie = uint32(v)
 		return nil
 
 	case "process.egid":
@@ -10092,34 +10092,34 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.ExecEvent.Process.Credentials.EGID"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.EGID"}
 		}
-		e.ProcessContext.ExecEvent.Process.Credentials.EGID = uint32(v)
+		e.ProcessContext.Process.Credentials.EGID = uint32(v)
 		return nil
 
 	case "process.egroup":
 
 		var ok bool
-		if e.ProcessContext.ExecEvent.Process.Credentials.EGroup, ok = value.(string); !ok {
+		if e.ProcessContext.Process.Credentials.EGroup, ok = value.(string); !ok {
 
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.ExecEvent.Process.Credentials.EGroup"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.EGroup"}
 		}
 		return nil
 
 	case "process.envs":
 
 		var ok bool
-		if e.ProcessContext.ExecEvent.Process.Envs, ok = value.([]string); !ok {
+		if e.ProcessContext.Process.Envs, ok = value.([]string); !ok {
 
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.ExecEvent.Process.Envs"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Envs"}
 		}
 		return nil
 
 	case "process.envs_truncated":
 
 		var ok bool
-		if e.ProcessContext.ExecEvent.Process.EnvsTruncated, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.ExecEvent.Process.EnvsTruncated"}
+		if e.ProcessContext.Process.EnvsTruncated, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.EnvsTruncated"}
 		}
 		return nil
 
@@ -10128,26 +10128,26 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.ExecEvent.Process.Credentials.EUID"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.EUID"}
 		}
-		e.ProcessContext.ExecEvent.Process.Credentials.EUID = uint32(v)
+		e.ProcessContext.Process.Credentials.EUID = uint32(v)
 		return nil
 
 	case "process.euser":
 
 		var ok bool
-		if e.ProcessContext.ExecEvent.Process.Credentials.EUser, ok = value.(string); !ok {
+		if e.ProcessContext.Process.Credentials.EUser, ok = value.(string); !ok {
 
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.ExecEvent.Process.Credentials.EUser"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.EUser"}
 		}
 		return nil
 
 	case "process.file.container_path":
 
 		var ok bool
-		if e.ProcessContext.ExecEvent.Process.ContainerPath, ok = value.(string); !ok {
+		if e.ProcessContext.Process.ContainerPath, ok = value.(string); !ok {
 
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.ExecEvent.Process.ContainerPath"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.ContainerPath"}
 		}
 		return nil
 
@@ -10156,17 +10156,17 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.ExecEvent.Process.FileFields.GID"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileFields.GID"}
 		}
-		e.ProcessContext.ExecEvent.Process.FileFields.GID = uint32(v)
+		e.ProcessContext.Process.FileFields.GID = uint32(v)
 		return nil
 
 	case "process.file.group":
 
 		var ok bool
-		if e.ProcessContext.ExecEvent.Process.FileFields.Group, ok = value.(string); !ok {
+		if e.ProcessContext.Process.FileFields.Group, ok = value.(string); !ok {
 
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.ExecEvent.Process.FileFields.Group"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileFields.Group"}
 		}
 		return nil
 
@@ -10175,9 +10175,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.ExecEvent.Process.FileFields.Inode"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileFields.Inode"}
 		}
-		e.ProcessContext.ExecEvent.Process.FileFields.Inode = uint64(v)
+		e.ProcessContext.Process.FileFields.Inode = uint64(v)
 		return nil
 
 	case "process.file.mode":
@@ -10185,9 +10185,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.ExecEvent.Process.FileFields.Mode"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileFields.Mode"}
 		}
-		e.ProcessContext.ExecEvent.Process.FileFields.Mode = uint16(v)
+		e.ProcessContext.Process.FileFields.Mode = uint16(v)
 		return nil
 
 	case "process.file.mount_id":
@@ -10195,17 +10195,17 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.ExecEvent.Process.FileFields.MountID"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileFields.MountID"}
 		}
-		e.ProcessContext.ExecEvent.Process.FileFields.MountID = uint32(v)
+		e.ProcessContext.Process.FileFields.MountID = uint32(v)
 		return nil
 
 	case "process.file.name":
 
 		var ok bool
-		if e.ProcessContext.ExecEvent.Process.BasenameStr, ok = value.(string); !ok {
+		if e.ProcessContext.Process.BasenameStr, ok = value.(string); !ok {
 
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.ExecEvent.Process.BasenameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.BasenameStr"}
 		}
 		return nil
 
@@ -10214,17 +10214,17 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.ExecEvent.Process.FileFields.OverlayNumLower"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileFields.OverlayNumLower"}
 		}
-		e.ProcessContext.ExecEvent.Process.FileFields.OverlayNumLower = int32(v)
+		e.ProcessContext.Process.FileFields.OverlayNumLower = int32(v)
 		return nil
 
 	case "process.file.path":
 
 		var ok bool
-		if e.ProcessContext.ExecEvent.Process.PathnameStr, ok = value.(string); !ok {
+		if e.ProcessContext.Process.PathnameStr, ok = value.(string); !ok {
 
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.ExecEvent.Process.PathnameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.PathnameStr"}
 		}
 		return nil
 
@@ -10233,17 +10233,17 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.ExecEvent.Process.FileFields.UID"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileFields.UID"}
 		}
-		e.ProcessContext.ExecEvent.Process.FileFields.UID = uint32(v)
+		e.ProcessContext.Process.FileFields.UID = uint32(v)
 		return nil
 
 	case "process.file.user":
 
 		var ok bool
-		if e.ProcessContext.ExecEvent.Process.FileFields.User, ok = value.(string); !ok {
+		if e.ProcessContext.Process.FileFields.User, ok = value.(string); !ok {
 
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.ExecEvent.Process.FileFields.User"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileFields.User"}
 		}
 		return nil
 
@@ -10252,17 +10252,17 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.ExecEvent.Process.Credentials.FSGID"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.FSGID"}
 		}
-		e.ProcessContext.ExecEvent.Process.Credentials.FSGID = uint32(v)
+		e.ProcessContext.Process.Credentials.FSGID = uint32(v)
 		return nil
 
 	case "process.fsgroup":
 
 		var ok bool
-		if e.ProcessContext.ExecEvent.Process.Credentials.FSGroup, ok = value.(string); !ok {
+		if e.ProcessContext.Process.Credentials.FSGroup, ok = value.(string); !ok {
 
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.ExecEvent.Process.Credentials.FSGroup"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.FSGroup"}
 		}
 		return nil
 
@@ -10271,17 +10271,17 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.ExecEvent.Process.Credentials.FSUID"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.FSUID"}
 		}
-		e.ProcessContext.ExecEvent.Process.Credentials.FSUID = uint32(v)
+		e.ProcessContext.Process.Credentials.FSUID = uint32(v)
 		return nil
 
 	case "process.fsuser":
 
 		var ok bool
-		if e.ProcessContext.ExecEvent.Process.Credentials.FSUser, ok = value.(string); !ok {
+		if e.ProcessContext.Process.Credentials.FSUser, ok = value.(string); !ok {
 
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.ExecEvent.Process.Credentials.FSUser"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.FSUser"}
 		}
 		return nil
 
@@ -10290,17 +10290,17 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.ExecEvent.Process.Credentials.GID"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.GID"}
 		}
-		e.ProcessContext.ExecEvent.Process.Credentials.GID = uint32(v)
+		e.ProcessContext.Process.Credentials.GID = uint32(v)
 		return nil
 
 	case "process.group":
 
 		var ok bool
-		if e.ProcessContext.ExecEvent.Process.Credentials.Group, ok = value.(string); !ok {
+		if e.ProcessContext.Process.Credentials.Group, ok = value.(string); !ok {
 
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.ExecEvent.Process.Credentials.Group"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.Group"}
 		}
 		return nil
 
@@ -10319,9 +10319,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.ExecEvent.Process.PPid"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.PPid"}
 		}
-		e.ProcessContext.ExecEvent.Process.PPid = uint32(v)
+		e.ProcessContext.Process.PPid = uint32(v)
 		return nil
 
 	case "process.tid":
@@ -10337,9 +10337,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "process.tty_name":
 
 		var ok bool
-		if e.ProcessContext.ExecEvent.Process.TTYName, ok = value.(string); !ok {
+		if e.ProcessContext.Process.TTYName, ok = value.(string); !ok {
 
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.ExecEvent.Process.TTYName"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.TTYName"}
 		}
 		return nil
 
@@ -10348,17 +10348,17 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.ExecEvent.Process.Credentials.UID"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.UID"}
 		}
-		e.ProcessContext.ExecEvent.Process.Credentials.UID = uint32(v)
+		e.ProcessContext.Process.Credentials.UID = uint32(v)
 		return nil
 
 	case "process.user":
 
 		var ok bool
-		if e.ProcessContext.ExecEvent.Process.Credentials.User, ok = value.(string); !ok {
+		if e.ProcessContext.Process.Credentials.User, ok = value.(string); !ok {
 
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.ExecEvent.Process.Credentials.User"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.User"}
 		}
 		return nil
 

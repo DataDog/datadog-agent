@@ -424,13 +424,13 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			return
 		}
 	case model.ForkEventType:
-		if _, err := event.UnmarshalExecEvent(data[offset:]); err != nil {
+		if _, err := event.UnmarshalProcess(data[offset:]); err != nil {
 			log.Errorf("failed to decode fork event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 		event.updateProcessCachePointer(p.resolvers.ProcessResolver.AddForkEntry(event.ProcessContext.Pid, event.processCacheEntry))
 	case model.ExecEventType:
-		if _, err := event.UnmarshalExecEvent(data[offset:]); err != nil {
+		if _, err := event.UnmarshalProcess(data[offset:]); err != nil {
 			log.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}

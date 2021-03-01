@@ -125,8 +125,8 @@ func (ev *Event) ResolveContainerID(e *model.ContainerContext) string {
 	return e.ID
 }
 
-// UnmarshalExecEvent unmarshal an ExecEvent
-func (ev *Event) UnmarshalExecEvent(data []byte) (int, error) {
+// UnmarshalExecEvent unmarshal a Process
+func (ev *Event) UnmarshalProcess(data []byte) (int, error) {
 	// reset the process cache entry of the current event
 	entry := NewProcessCacheEntry()
 	entry.ContainerContext = ev.ContainerContext
@@ -144,7 +144,7 @@ func (ev *Event) UnmarshalExecEvent(data []byte) (int, error) {
 	// Some fields need to be copied manually in the ExecEvent structure because they do not have "Exec" specific
 	// resolvers, and the data was parsed in the ProcessCacheEntry structure. We couldn't introduce resolvers for these
 	// fields because those resolvers would be shared with FileEvents.
-	ev.Exec.FileFields = ev.processCacheEntry.ProcessContext.ExecEvent.FileFields
+	ev.Exec.FileFields = ev.processCacheEntry.ProcessContext.FileFields
 	return n, nil
 }
 

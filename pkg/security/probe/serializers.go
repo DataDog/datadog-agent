@@ -224,23 +224,23 @@ func newProcessFileSerializer(process *model.Process, e *Event) *FileSerializer 
 	}
 }
 
-func newExecFileSerializerWithResolvers(exec *model.ExecEvent, r *Resolvers) *FileSerializer {
-	mode := uint32(exec.FileFields.Mode)
+func newProcessFileSerializerWithResolvers(process *model.Process, r *Resolvers) *FileSerializer {
+	mode := uint32(process.FileFields.Mode)
 	return &FileSerializer{
-		Path:                exec.PathnameStr,
-		PathResolutionError: exec.GetPathResolutionError(),
-		Name:                exec.BasenameStr,
-		ContainerPath:       exec.ContainerPath,
-		Inode:               getUint64Pointer(&exec.FileFields.Inode),
-		MountID:             getUint32Pointer(&exec.FileFields.MountID),
-		OverlayNumLower:     getInt32Pointer(&exec.FileFields.OverlayNumLower),
+		Path:                process.PathnameStr,
+		PathResolutionError: process.GetPathResolutionError(),
+		Name:                process.BasenameStr,
+		ContainerPath:       process.ContainerPath,
+		Inode:               getUint64Pointer(&process.FileFields.Inode),
+		MountID:             getUint32Pointer(&process.FileFields.MountID),
+		OverlayNumLower:     getInt32Pointer(&process.FileFields.OverlayNumLower),
 		Mode:                getUint32Pointer(&mode),
-		UID:                 exec.FileFields.UID,
-		GID:                 exec.FileFields.GID,
-		User:                r.ResolveUser(&exec.FileFields),
-		Group:               r.ResolveGroup(&exec.FileFields),
-		Mtime:               &exec.FileFields.MTime,
-		Ctime:               &exec.FileFields.CTime,
+		UID:                 process.FileFields.UID,
+		GID:                 process.FileFields.GID,
+		User:                r.ResolveUser(&process.FileFields),
+		Group:               r.ResolveGroup(&process.FileFields),
+		Mtime:               &process.FileFields.MTime,
+		Ctime:               &process.FileFields.CTime,
 	}
 }
 
@@ -344,11 +344,11 @@ func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event, topL
 		Pid:           e.ProcessContext.Pid,
 		PPid:          e.ProcessContext.PPid,
 		Tid:           e.ProcessContext.Tid,
-		Path:          e.ResolveProcessInode(&pce.ExecEvent.Process),
-		ContainerPath: e.ResolveProcessContainerPath(&pce.ExecEvent.Process),
-		Comm:          e.ResolveProcessComm(&pce.ExecEvent.Process),
-		TTY:           e.ResolveProcessTTY(&pce.ExecEvent.Process),
-		Executable:    newProcessFileSerializer(&pce.ExecEvent.Process, e),
+		Path:          e.ResolveProcessInode(&pce.Process),
+		ContainerPath: e.ResolveProcessContainerPath(&pce.Process),
+		Comm:          e.ResolveProcessComm(&pce.Process),
+		TTY:           e.ResolveProcessTTY(&pce.Process),
+		Executable:    newProcessFileSerializer(&pce.Process, e),
 		Args:          args,
 	}
 
@@ -382,11 +382,11 @@ func newProcessCacheEntrySerializerWithResolvers(pce *model.ProcessCacheEntry, r
 		Pid:           pce.Pid,
 		PPid:          pce.PPid,
 		Tid:           pce.Tid,
-		Path:          pce.ExecEvent.PathnameStr,
-		ContainerPath: pce.ExecEvent.ContainerPath,
+		Path:          pce.Process.PathnameStr,
+		ContainerPath: pce.Process.ContainerPath,
 		Comm:          pce.Comm,
 		TTY:           pce.TTYName,
-		Executable:    newExecFileSerializerWithResolvers(&pce.ExecEvent, r),
+		Executable:    newProcessFileSerializerWithResolvers(&pce.Process, r),
 	}
 
 	credsSerializer := newCredentialsSerializerWithResolvers(&pce.Credentials, r)
@@ -633,7 +633,7 @@ func newEventSerializer(event *Event) *EventSerializer {
 		s.Category = ProcessActivity
 	case model.ExecEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newProcessFileSerializer(&event.processCacheEntry.ExecEvent.Process, event),
+			FileSerializer: *newProcessFileSerializer(&event.processCacheEntry.Process, event),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
 		s.Category = ProcessActivity

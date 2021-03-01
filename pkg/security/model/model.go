@@ -467,7 +467,7 @@ func (it *ProcessAncestorsIterator) Next() unsafe.Pointer {
 
 // ProcessContext holds the process context of an event
 type ProcessContext struct {
-	ExecEvent
+	Process
 
 	Pid uint32 `field:"pid"`
 	Tid uint32 `field:"tid"`

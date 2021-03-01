@@ -93,7 +93,7 @@ func (pc *ProcessCacheEntry) UnmarshalBinary(data []byte, unmarshalContext bool)
 		read += offset
 	}
 
-	offset, err := pc.ExecEvent.UnmarshalBinary(data[read:])
+	offset, err := pc.Process.UnmarshalBinary(data[read:])
 	if err != nil {
 		return 0, err
 	}

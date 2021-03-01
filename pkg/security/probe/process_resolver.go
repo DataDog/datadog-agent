@@ -197,11 +197,11 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 		}
 
 		entry.FileFields = *info
-		entry.ExecEvent.PathnameStr = pathnameStr
-		entry.ExecEvent.BasenameStr = path.Base(pathnameStr)
+		entry.Process.PathnameStr = pathnameStr
+		entry.Process.BasenameStr = path.Base(pathnameStr)
 		entry.ContainerContext.ID = string(containerID)
 		// resolve container path with the MountResolver
-		entry.ContainerPath = p.resolvers.resolveContainerPath(&entry.ExecEvent.FileFields)
+		entry.ContainerPath = p.resolvers.resolveContainerPath(&entry.Process.FileFields)
 	}
 
 	entry.ExecTime = time.Unix(0, filledProc.CreateTime*int64(time.Millisecond))
