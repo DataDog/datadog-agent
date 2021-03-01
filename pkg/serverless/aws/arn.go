@@ -7,7 +7,6 @@ package aws
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"strings"
 	"sync"
@@ -112,8 +111,6 @@ func RestoreCurrentStateFromFile() error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf(restoredState.CurrentARN)
-	fmt.Printf(restoredState.CurrentReqID)
 	SetARN(restoredState.CurrentARN)
 	SetRequestID(restoredState.CurrentReqID)
 	return nil

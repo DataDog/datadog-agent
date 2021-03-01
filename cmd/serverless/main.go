@@ -269,7 +269,10 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	// restore the current function ARN and request ID from the cache in case the extension was restarted
 	// ---------------------------
 
-	aws.RestoreCurrentStateFromFile()
+	err = aws.RestoreCurrentStateFromFile()
+	if err != nil {
+		log.Debug("Did not restore current state from file")
+	}
 
 	// starts logs collection
 	// ----------------------
