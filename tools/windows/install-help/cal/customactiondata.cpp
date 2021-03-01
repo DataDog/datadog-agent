@@ -166,8 +166,8 @@ bool CustomActionData::parseSysprobeData()
         // installing all components, do it
         this->ddnpmPresent = true;
         WcaLog(LOGMSG_STANDARD, "ADDLOCAL is ALL");
-    } else if (addlocal.find(L"WindowsNP") != std::wstring::npos) {
-        WcaLog(LOGMSG_STANDARD, "ADDLOCAL contains WindowsNP %S", addlocal.c_str());
+    } else if (addlocal.find(L"NPM") != std::wstring::npos) {
+        WcaLog(LOGMSG_STANDARD, "ADDLOCAL contains NPM %S", addlocal.c_str());
         this->ddnpmPresent = true;
     }
     
