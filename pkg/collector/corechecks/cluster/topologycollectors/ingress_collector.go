@@ -60,27 +60,34 @@ func (ic *IngressCollector) CollectorFunction() error {
 			}
 		}
 
+		// submit relation to loadbalancer
+		for _, ingressPoints := range in.Status.LoadBalancer.Ingress {
+			if ingressPoints.Hostname != "" {
+				endpoint := ic.endpointStackStateComponentFromIngress(in, ingressPoints.Hostname)
+
+				ic.ComponentChan <- endpoint
+				ic.RelationChan <- ic.endpointToIngressStackStateRelation(endpoint.ExternalID, component.ExternalID)
+			}
+
+			if ingressPoints.IP != "" {
+				endpoint := ic.endpointStackStateComponentFromIngress(in, ingressPoints.IP)
+
+				ic.ComponentChan <- endpoint
+				ic.RelationChan <- ic.endpointToIngressStackStateRelation(endpoint.ExternalID, component.ExternalID)
+			}
+		}
 	}
 
 	return nil
 }
 
-// Creates a StackState deployment component from a Kubernetes / OpenShift Cluster
+// Creates a StackState ingress component from a Kubernetes / OpenShift Ingress
 func (ic *IngressCollector) ingressToStackStateComponent(ingress v1beta1.Ingress) *topology.Component {
 	log.Tracef("Mapping Ingress to StackState component: %s", ingress.String())
 
 	tags := ic.initTags(ingress.ObjectMeta)
 
 	identifiers := make([]string, 0)
-
-	for _, ingressPoints := range ingress.Status.LoadBalancer.Ingress {
-		if ingressPoints.Hostname != "" {
-			identifiers = append(identifiers, ic.buildEndpointExternalID(ingressPoints.Hostname))
-		}
-		if ingressPoints.IP != "" {
-			identifiers = append(identifiers, ic.buildEndpointExternalID(ingressPoints.IP))
-		}
-	}
 
 	ingressExternalID := ic.buildIngressExternalID(ingress.Namespace, ingress.Name)
 	component := &topology.Component{
@@ -103,13 +110,48 @@ func (ic *IngressCollector) ingressToStackStateComponent(ingress v1beta1.Ingress
 	return component
 }
 
-// Creates a StackState component from a Kubernetes / OpenShift Ingress to Service
+// Creates a StackState loadbalancer component from a Kubernetes / OpenShift Ingress
+func (ic *IngressCollector) endpointStackStateComponentFromIngress(ingress v1beta1.Ingress, ingressPoint string) *topology.Component {
+	log.Tracef("Mapping Ingress to StackState endpoint component: %s", ingressPoint)
+
+	tags := ic.initTags(ingress.ObjectMeta)
+	identifiers := make([]string, 0)
+	endpointExternalID := ic.buildEndpointExternalID(ingressPoint)
+
+	component := &topology.Component{
+		ExternalID: endpointExternalID,
+		Type:       topology.Type{Name: "endpoint"},
+		Data: map[string]interface{}{
+			"name":              ingressPoint,
+			"creationTimestamp": ingress.CreationTimestamp,
+			"tags":              tags,
+			"identifiers":       identifiers,
+		},
+	}
+
+	log.Tracef("Created StackState endpoint component %s: %v", endpointExternalID, component.JSONString())
+
+	return component
+}
+
+// Creates a StackState relation from a Kubernetes / OpenShift Ingress to Service
 func (ic *IngressCollector) ingressToServiceStackStateRelation(ingressExternalID, serviceExternalID string) *topology.Relation {
 	log.Tracef("Mapping kubernetes ingress to service relation: %s -> %s", ingressExternalID, serviceExternalID)
 
 	relation := ic.CreateRelation(ingressExternalID, serviceExternalID, "routes")
 
 	log.Tracef("Created StackState ingress -> service relation %s->%s", relation.SourceID, relation.TargetID)
+
+	return relation
+}
+
+// Creates a StackState relation from an Endpoint to a Kubernetes / OpenShift Ingress
+func (ic *IngressCollector) endpointToIngressStackStateRelation(endpointExternalID, ingressExternalID string) *topology.Relation {
+	log.Tracef("Mapping endpoint to kubernetes ingress relation: %s -> %s", endpointExternalID, ingressExternalID)
+
+	relation := ic.CreateRelation(endpointExternalID, ingressExternalID, "routes")
+
+	log.Tracef("Created endpoint -> StackState ingress relation %s->%s", relation.SourceID, relation.TargetID)
 
 	return relation
 }
