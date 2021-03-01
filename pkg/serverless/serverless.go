@@ -233,7 +233,7 @@ func ReportInitError(id ID, errorEnum ErrorEnum) error {
 // WaitForNextInvocation makes a blocking HTTP call to receive the next event from AWS.
 // Note that for now, we only subscribe to INVOKE and SHUTDOWN events.
 // Write into stopCh to stop the main thread of the running program.
-func WaitForNextInvocation(stopCh chan struct{}, metricsChan chan []metrics.MetricSample, id ID) error {
+func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, metricsChan chan []metrics.MetricSample, id ID) error {
 	var err error
 	var request *http.Request
 	var response *http.Response
