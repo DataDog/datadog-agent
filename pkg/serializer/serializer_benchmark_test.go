@@ -68,7 +68,7 @@ func BenchmarkJSONStream100000(b *testing.B)   { benchmarkJSONStream(b, 1, false
 func BenchmarkJSONStream1000000(b *testing.B)  { benchmarkJSONStream(b, 1, false, 1000000) }
 func BenchmarkJSONStream10000000(b *testing.B) { benchmarkJSONStream(b, 1, false, 10000000) }
 
-// Large
+// Large payloads
 func BenchmarkJSONStreamUnSharedLarge1(b *testing.B)    { benchmarkJSONStream(b, 1, false, 100000) }
 func BenchmarkJSONStreamUnSharedLarge10(b *testing.B)   { benchmarkJSONStream(b, 10, false, 100000) }
 func BenchmarkJSONStreamUnSharedLarge100(b *testing.B)  { benchmarkJSONStream(b, 100, false, 100000) }
@@ -79,7 +79,7 @@ func BenchmarkJSONStreamSharedLarge10(b *testing.B)   { benchmarkJSONStream(b, 1
 func BenchmarkJSONStreamSharedLarge100(b *testing.B)  { benchmarkJSONStream(b, 100, true, 100000) }
 func BenchmarkJSONStreamSharedLarge1000(b *testing.B) { benchmarkJSONStream(b, 1000, true, 100000) }
 
-// MED
+// Medium payloads
 func BenchmarkJSONStreamUnSharedMed1(b *testing.B)     { benchmarkJSONStream(b, 1, false, 10000) }
 func BenchmarkJSONStreamUnSharedMed10(b *testing.B)    { benchmarkJSONStream(b, 10, false, 10000) }
 func BenchmarkJSONStreamUnSharedMed100(b *testing.B)   { benchmarkJSONStream(b, 100, false, 10000) }
@@ -92,7 +92,7 @@ func BenchmarkJSONStreamSharedMed100(b *testing.B)   { benchmarkJSONStream(b, 10
 func BenchmarkJSONStreamSharedMed1000(b *testing.B)  { benchmarkJSONStream(b, 1000, true, 10000) }
 func BenchmarkJSONStreamSharedMed10000(b *testing.B) { benchmarkJSONStream(b, 10000, true, 10000) }
 
-// // SMALL
+// Small payloads
 func BenchmarkJSONStreamUnSharedSmall1(b *testing.B)     { benchmarkJSONStream(b, 1, false, 100) }
 func BenchmarkJSONStreamUnSharedSmall10(b *testing.B)    { benchmarkJSONStream(b, 10, false, 100) }
 func BenchmarkJSONStreamUnSharedSmall100(b *testing.B)   { benchmarkJSONStream(b, 100, false, 100) }
