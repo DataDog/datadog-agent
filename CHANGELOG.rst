@@ -140,7 +140,7 @@ Enhancement Notes
 Known Issues
 ------------
 
-- Remove Docker volumes for ``/etc/datadog-agent`` and ``/tmp`` as it prevents to inherit from Datadog Agent image. It was originally done to allow read-only rootfs on Kubernetes, so continue supporting this feature, relevant volumes are created in newer Kubernetes manifest or Helm chart >= 2.6.9
+- Docker image: remove Docker volumes for ``/etc/datadog-agent`` and ``/tmp`` as it prevents to inherit from Datadog Agent image. It was originally done to allow read-only rootfs on Kubernetes, so in order to continue supporting this feature, relevant volumes are created in newer Kubernetes manifest or Helm chart >= 2.6.9
 
 
 .. _Release Notes_7.26.0_Bug Fixes:
