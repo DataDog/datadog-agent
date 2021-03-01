@@ -49,10 +49,15 @@ type PythonCheck struct {
 }
 
 // NewPythonCheck conveniently creates a PythonCheck instance
-func NewPythonCheck(name string, class *C.rtloader_pyobject_t) *PythonCheck {
-	glock := newStickyLock()
+func NewPythonCheck(name string, class *C.rtloader_pyobject_t) (*PythonCheck, error) {
+	glock, err := newStickyLock()
+	if err != nil {
+		return nil, err
+	}
+
 	C.rtloader_incref(rtloader, class) // own the ref
 	glock.unlock()
+
 	pyCheck := &PythonCheck{
 		ModuleName:   name,
 		class:        class,
@@ -61,12 +66,16 @@ func NewPythonCheck(name string, class *C.rtloader_pyobject_t) *PythonCheck {
 		telemetry:    telemetry_utils.IsCheckEnabled(name),
 	}
 	runtime.SetFinalizer(pyCheck, pythonCheckFinalizer)
-	return pyCheck
+
+	return pyCheck, nil
 }
 
 func (c *PythonCheck) runCheck(commitMetrics bool) error {
 	// Lock the GIL and release it at the end of the run
-	gstate := newStickyLock()
+	gstate, err := newStickyLock()
+	if err != nil {
+		return err
+	}
 	defer gstate.unlock()
 
 	log.Debugf("Running python check %s %s", c.ModuleName, c.id)
@@ -91,11 +100,11 @@ func (c *PythonCheck) runCheck(commitMetrics bool) error {
 	// grab the warnings and add them to the struct
 	c.lastWarnings = c.getPythonWarnings(gstate)
 
-	err := C.GoString(cResult)
-	if err == "" {
+	checkErrStr := C.GoString(cResult)
+	if checkErrStr == "" {
 		return nil
 	}
-	return errors.New(err)
+	return errors.New(checkErrStr)
 }
 
 // Run a Python check
@@ -114,7 +123,11 @@ func (c *PythonCheck) Stop() {}
 // Cancel signals to a python check that he can free all internal resources and
 // deregisters the sender
 func (c *PythonCheck) Cancel() {
-	gstate := newStickyLock()
+	gstate, err := newStickyLock()
+	if err != nil {
+		log.Warnf("failed to cancel check %s: %s", c.id, err)
+		return
+	}
 	defer gstate.unlock()
 
 	C.cancel_check(rtloader, c.instance)
@@ -308,8 +321,15 @@ func pythonCheckFinalizer(c *PythonCheck) {
 	// Run in a separate goroutine because acquiring the python lock might take some time,
 	// and we're in a finalizer
 	go func(c *PythonCheck) {
-		glock := newStickyLock() // acquire lock to call DecRef
+		log.Debugf("Running finalizer for check %s", c.id)
+
+		glock, err := newStickyLock() // acquire lock to call DecRef
+		if err != nil {
+			log.Warnf("Could not finalize check %s: %s", c.id, err.Error())
+			return
+		}
 		defer glock.unlock()
+
 		C.rtloader_decref(rtloader, c.class)
 		if c.instance != nil {
 			C.rtloader_decref(rtloader, c.instance)

@@ -81,24 +81,22 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
 
+    struct dentry *exec_dentry = get_path_dentry(path);
     struct proc_cache_t entry = {
         .executable = {
             .inode = syscall->open.path_key.ino,
-            .overlay_numlower = get_overlay_numlower(get_path_dentry(path)),
+            .overlay_numlower = get_overlay_numlower(exec_dentry),
             .mount_id = get_path_mount_id(path),
             .path_id = syscall->open.path_key.path_id,
         },
         .container = {},
         .exec_timestamp = bpf_ktime_get_ns(),
     };
+    fill_file_metadata(exec_dentry, &entry.executable.metadata);
     bpf_get_current_comm(&entry.comm, sizeof(entry.comm));
 
     // cache dentry
     resolve_dentry(syscall->open.dentry, syscall->open.path_key, 0);
-
-    u32 cookie = bpf_get_prandom_u32();
-    // insert new proc cache entry
-    bpf_map_update_elem(&proc_cache, &cookie, &entry, BPF_ANY);
 
     // select the previous cookie entry in cache of the current process
     // (this entry was created by the fork of the current process)
@@ -111,7 +109,15 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
             // inherit the parent container context
             fill_container_context(parent_entry, &entry.container);
         }
-        // update pid <-> cookie mapping
+    }
+
+    // Insert new proc cache entry (Note: do not move the order of this block with the previous one, we need to inherit
+    // the container ID before saving the entry in proc_cache. Modifying entry after insertion won't work.)
+    u32 cookie = bpf_get_prandom_u32();
+    bpf_map_update_elem(&proc_cache, &cookie, &entry, BPF_ANY);
+
+    // update pid <-> cookie mapping
+    if (fork_entry) {
         fork_entry->cookie = cookie;
     } else {
         struct pid_cache_t new_pid_entry = {
@@ -217,7 +223,9 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
             event.proc_entry.executable.overlay_numlower = parent_proc_entry->executable.overlay_numlower;
             event.proc_entry.executable.mount_id = parent_proc_entry->executable.mount_id;
             event.proc_entry.executable.path_id = parent_proc_entry->executable.path_id;
+            event.proc_entry.executable.metadata = parent_proc_entry->executable.metadata;
             event.proc_entry.exec_timestamp = parent_proc_entry->exec_timestamp;
+
             copy_tty_name(event.proc_entry.tty_name, parent_proc_entry->tty_name);
 
             // fetch container context
@@ -295,6 +303,7 @@ int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
                     .overlay_numlower = proc_entry->executable.overlay_numlower,
                     .mount_id = proc_entry->executable.mount_id,
                     .path_id = proc_entry->executable.path_id,
+                    .metadata = proc_entry->executable.metadata,
                 },
                 .proc_entry.container = {},
                 .proc_entry.exec_timestamp = proc_entry->exec_timestamp,

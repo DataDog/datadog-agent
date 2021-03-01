@@ -80,7 +80,7 @@ func ipPortFromAddr(addr net.Addr) (net.IP, int) {
 	return nil, 0
 }
 
-func connTupleFromConn(conn net.Conn, pid uint32) (*ConnTuple, error) {
+func connTupleFromConn(conn net.Conn, pid uint32, netns uint32) (*ConnTuple, error) {
 	saddr := conn.LocalAddr()
 	shost, sport := ipPortFromAddr(saddr)
 
@@ -88,6 +88,7 @@ func connTupleFromConn(conn net.Conn, pid uint32) (*ConnTuple, error) {
 	dhost, dport := ipPortFromAddr(daddr)
 
 	ct := &ConnTuple{
+		netns: C.__u32(netns),
 		pid:   C.__u32(pid),
 		sport: C.__u16(sport),
 		dport: C.__u16(dport),
@@ -224,6 +225,7 @@ func (t *ConnTuple) String() string {
 __u64 sent_bytes;
 __u64 recv_bytes;
 __u64 timestamp;
+__u32 flags;
 __u8  direction;
 */
 type ConnStatsWithTimestamp C.conn_stats_ts_t
@@ -242,6 +244,10 @@ type kernelTelemetry C.telemetry_t
 
 func (cs *ConnStatsWithTimestamp) isExpired(latestTime uint64, timeout uint64) bool {
 	return latestTime > timeout+uint64(cs.timestamp)
+}
+
+func (cs *ConnStatsWithTimestamp) isAssured() bool {
+	return uint(cs.flags)&C.CONN_ASSURED > 0
 }
 
 func toBatch(data []byte) *batch {

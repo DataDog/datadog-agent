@@ -24,7 +24,7 @@ const retryFileFormat = "2006_01_02__15_04_05_"
 type transactionsFileStorage struct {
 	serializer         *TransactionsSerializer
 	storagePath        string
-	maxSizeInBytes     int64
+	maxStorage         *forwarderMaxStorage
 	filenames          []string
 	currentSizeInBytes int64
 	telemetry          transactionsFileStorageTelemetry
@@ -33,7 +33,7 @@ type transactionsFileStorage struct {
 func newTransactionsFileStorage(
 	serializer *TransactionsSerializer,
 	storagePath string,
-	maxSizeInBytes int64,
+	maxStorage *forwarderMaxStorage,
 	telemetry transactionsFileStorageTelemetry) (*transactionsFileStorage, error) {
 
 	if err := os.MkdirAll(storagePath, 0755); err != nil {
@@ -41,10 +41,10 @@ func newTransactionsFileStorage(
 	}
 
 	storage := &transactionsFileStorage{
-		serializer:     serializer,
-		storagePath:    storagePath,
-		maxSizeInBytes: maxSizeInBytes,
-		telemetry:      telemetry,
+		serializer:  serializer,
+		storagePath: storagePath,
+		maxStorage:  maxStorage,
+		telemetry:   telemetry,
 	}
 
 	if err := storage.reloadExistingRetryFiles(); err != nil {
@@ -138,11 +138,16 @@ func (s *transactionsFileStorage) getCurrentSizeInBytes() int64 {
 }
 
 func (s *transactionsFileStorage) makeRoomFor(bufferSize int64) error {
-	if bufferSize > s.maxSizeInBytes {
-		return fmt.Errorf("The payload is too big. Current:%v Maximum:%v", bufferSize, s.maxSizeInBytes)
+	maxSizeInBytes := s.maxStorage.getMaxSizeInBytes()
+	if bufferSize > maxSizeInBytes {
+		return fmt.Errorf("The payload is too big. Current:%v Maximum:%v", bufferSize, maxSizeInBytes)
 	}
 
-	for len(s.filenames) > 0 && s.currentSizeInBytes+bufferSize > s.maxSizeInBytes {
+	maxStorageInBytes, err := s.maxStorage.computeMaxStorage(s.currentSizeInBytes)
+	if err != nil {
+		return err
+	}
+	for len(s.filenames) > 0 && s.currentSizeInBytes+bufferSize > maxStorageInBytes {
 		index := 0
 		filename := s.filenames[index]
 		log.Infof("Maximum disk space for retry transactions is reached. Removing %s", filename)

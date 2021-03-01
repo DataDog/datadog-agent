@@ -5,11 +5,12 @@
 
 // +build kubelet
 
-package common
+package utils
 
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -17,17 +18,17 @@ import (
 )
 
 // ConfigsForPod returns the openmetrics configurations for a given pod if it matches the AD configuration
-func (pc *PrometheusCheck) ConfigsForPod(pod *kubelet.Pod) []integration.Config {
+func ConfigsForPod(pc *types.PrometheusCheck, pod *kubelet.Pod) []integration.Config {
 	var configs []integration.Config
 	namespacedName := fmt.Sprintf("%s/%s", pod.Metadata.Namespace, pod.Metadata.Name)
-	if pc.isExcluded(pod.Metadata.Annotations, namespacedName) {
+	if pc.IsExcluded(pod.Metadata.Annotations, namespacedName) {
 		return configs
 	}
 
-	instances, found := pc.buildInstances(pod.Metadata.Annotations, namespacedName)
+	instances, found := buildInstances(pc, pod.Metadata.Annotations, namespacedName)
 	if found {
 		for _, container := range pod.Status.GetAllContainers() {
-			if !pc.AD.matchContainer(container.Name) {
+			if !pc.AD.MatchContainer(container.Name) {
 				log.Debugf("Container '%s' doesn't match the AD configuration 'kubernetes_container_names', ignoring it", container.Name)
 				continue
 			}

@@ -353,7 +353,7 @@ def _find_v6_tag(ctx, v7_tag):
 
 
 @task
-def list_major_change(ctx, milestone):
+def list_major_change(_, milestone):
     """
     List all PR labeled "major_changed" for this release.
     """
@@ -557,7 +557,7 @@ def _save_release_json(
 
 @task
 def finish(
-    ctx,
+    _,
     major_versions="6,7",
     integration_version=None,
     omnibus_software_version=None,
@@ -724,7 +724,7 @@ def finish(
 
 @task
 def create_rc(
-    ctx,
+    _,
     major_versions="6,7",
     integration_version=None,
     omnibus_software_version=None,

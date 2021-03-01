@@ -80,7 +80,6 @@ def build(
     build_exclude=None,
     iot=False,
     development=True,
-    precompile_only=False,
     skip_assets=False,
     embedded_path=None,
     rtloader_root=None,
@@ -90,7 +89,7 @@ def build(
     python_runtimes='3',
     arch='x64',
     exclude_rtloader=False,
-    go_mod="vendor",
+    go_mod="mod",
     windows_sysprobe=False,
 ):
     """
@@ -113,7 +112,6 @@ def build(
         python_home_3=python_home_3,
         major_version=major_version,
         python_runtimes=python_runtimes,
-        arch=arch,
     )
 
     if sys.platform == 'win32':
@@ -131,7 +129,7 @@ def build(
         # This generates the manifest resource. The manifest resource is necessary for
         # being able to load the ancient C-runtime that comes along with Python 2.7
         # command = "rsrc -arch amd64 -manifest cmd/agent/agent.exe.manifest -o cmd/agent/rsrc.syso"
-        ver = get_version_numeric_only(ctx, env, major_version=major_version)
+        ver = get_version_numeric_only(ctx, major_version=major_version)
         build_maj, build_min, build_patch = ver.split(".")
 
         command = "windmc --target {target_arch} -r cmd/agent cmd/agent/agentmsg.mc ".format(target_arch=windres_target)
@@ -212,7 +210,7 @@ def build(
 
 
 @task
-def refresh_assets(ctx, build_tags, development=True, iot=False, windows_sysprobe=False):
+def refresh_assets(_, build_tags, development=True, iot=False, windows_sysprobe=False):
     """
     Clean up and refresh Collector's assets and config files
     """
@@ -271,7 +269,7 @@ def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None, 
 
 
 @task
-def system_tests(ctx):
+def system_tests(_):
     """
     Run the system testsuite.
     """
@@ -318,7 +316,7 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="vendor", arch="x64"):
+def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="mod", arch="x64"):
     """
     Run integration tests for the Agent
     """
@@ -381,7 +379,7 @@ def get_omnibus_env(
     if hardened_runtime:
         env['HARDENED_RUNTIME_MAC'] = 'true'
 
-    env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True, major_version=major_version, env=env)
+    env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True, major_version=major_version)
     env['MAJOR_VERSION'] = major_version
     env['PY_RUNTIMES'] = python_runtimes
     if with_bcc:

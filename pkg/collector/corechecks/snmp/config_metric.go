@@ -8,8 +8,11 @@ import (
 )
 
 type symbolConfig struct {
-	OID  string `yaml:"OID"`
-	Name string `yaml:"name"`
+	OID          string `yaml:"OID"`
+	Name         string `yaml:"name"`
+	ExtractValue string `yaml:"extract_value"`
+
+	extractValuePattern *regexp.Regexp
 }
 
 type metricTagConfig struct {
