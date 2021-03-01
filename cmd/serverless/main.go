@@ -367,7 +367,6 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	// the invocation route, we can't report init errors anymore.
 	go func() {
 		for {
-			// TODO(remy): shouldn't we wait for the logs agent to finish? + dogstatsd server before listening again?
 			if err := serverless.WaitForNextInvocation(stopCh, daemon, metricsChan, serverlessID); err != nil {
 				log.Error(err)
 			}
