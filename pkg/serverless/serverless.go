@@ -1,7 +1,13 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package serverless
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -10,10 +16,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
-	"github.com/DataDog/datadog-agent/pkg/logs"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
-	traceAgent "github.com/DataDog/datadog-agent/pkg/trace/agent"
+	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -224,7 +229,7 @@ func ReportInitError(id ID, errorEnum ErrorEnum) error {
 // WaitForNextInvocation starts waiting and blocking until it receives a request.
 // Note that for now, we only subscribe to INVOKE and SHUTDOWN messages.
 // Write into stopCh to stop the main thread of the running program.
-func WaitForNextInvocation(stopCh chan struct{}, statsdServer *dogstatsd.Server, traceAgent *traceAgent.Agent, id ID) error {
+func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, id ID) error {
 	var err error
 
 	// do the blocking HTTP GET call
@@ -244,6 +249,7 @@ func WaitForNextInvocation(stopCh chan struct{}, statsdServer *dogstatsd.Server,
 	}
 
 	// we received a response, meaning we've been invoked
+	daemon.StoreInvocationTime(time.Now())
 
 	var body []byte
 	if body, err = ioutil.ReadAll(response.Body); err != nil {
@@ -262,17 +268,29 @@ func WaitForNextInvocation(stopCh chan struct{}, statsdServer *dogstatsd.Server,
 		aws.SetARN(payload.InvokedFunctionArn)
 	}
 
+	// immediately check if we should flush data
+	// note that since we're flushing synchronously here, there is a scenario
+	// where this could be blocking the function if the flush is slow (if the
+	// extension is not quickly going back to listen on the "wait next event"
+	// route). That's why we use a context.Context with a timeout `flushTimeout``
+	// to avoid blocking for too long.
+	// This flushTimeout is re-using the forwarder_timeout value.
+	if daemon.flushStrategy.ShouldFlush(flush.Starting, time.Now()) {
+		log.Debugf("The flush strategy %s has decided to flush the data in the moment: %s", daemon.flushStrategy, flush.Starting)
+		flushTimeout := config.Datadog.GetDuration("forwarder_timeout") * time.Second
+		ctx, cancel := context.WithTimeout(context.Background(), flushTimeout)
+		daemon.TriggerFlush(ctx, false)
+		cancel() // free the resource of the context
+	} else {
+		log.Debugf("The flush strategy %s has decided to not flush in the moment: %s", daemon.flushStrategy, flush.Starting)
+	}
+
 	if payload.EventType == "SHUTDOWN" {
-		if statsdServer != nil {
-			// flush metrics synchronously
-			statsdServer.Flush(true)
-		}
-		if traceAgent != nil {
-			traceAgent.FlushSync()
-		}
-		if logs.IsAgentRunning() {
-			logs.Stop()
-		}
+		// note that there is no scenario where we would not want to flush while the env
+		// is shutting down, then, we're not relying on the current flush strategy,
+		// we are flushing in all cases.
+		daemon.TriggerFlush(context.Background(), true)
+
 		// shutdown the serverless agent
 		stopCh <- struct{}{}
 	}
