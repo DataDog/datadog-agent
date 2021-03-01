@@ -7,6 +7,7 @@ package tracer
 */
 import "C"
 import (
+	"errors"
 	"expvar"
 	"fmt"
 	"math"
@@ -31,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
-	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 )
 
