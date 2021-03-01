@@ -532,7 +532,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveExecComm(&(*Event)(ctx.Object).Exec.Process)
+				return (*Event)(ctx.Object).ResolveProcessComm(&(*Event)(ctx.Object).Exec.Process)
 
 			},
 			Field: field,
@@ -544,7 +544,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveExecCookie(&(*Event)(ctx.Object).Exec.Process))
+				return int((*Event)(ctx.Object).ResolveProcessCookie(&(*Event)(ctx.Object).Exec.Process))
 
 			},
 			Field: field,
@@ -640,7 +640,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveExecContainerPath(&(*Event)(ctx.Object).Exec.Process)
+				return (*Event)(ctx.Object).ResolveProcessContainerPath(&(*Event)(ctx.Object).Exec.Process)
 
 			},
 			Field: field,
@@ -712,7 +712,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveExecBasename(&(*Event)(ctx.Object).Exec.Process)
+				return (*Event)(ctx.Object).ResolveProcessBasename(&(*Event)(ctx.Object).Exec.Process)
 
 			},
 			Field: field,
@@ -736,7 +736,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveExecInode(&(*Event)(ctx.Object).Exec.Process)
+				return (*Event)(ctx.Object).ResolveProcessInode(&(*Event)(ctx.Object).Exec.Process)
 
 			},
 			Field: field,
@@ -844,7 +844,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveExecPPID(&(*Event)(ctx.Object).Exec.Process))
+				return int((*Event)(ctx.Object).ResolveProcessPPID(&(*Event)(ctx.Object).Exec.Process))
 
 			},
 			Field: field,
@@ -856,7 +856,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveExecTTY(&(*Event)(ctx.Object).Exec.Process)
+				return (*Event)(ctx.Object).ResolveProcessTTY(&(*Event)(ctx.Object).Exec.Process)
 
 			},
 			Field: field,
@@ -1592,7 +1592,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
-					result = (*Event)(ctx.Object).ResolveExecComm(&element.Process)
+					result = (*Event)(ctx.Object).ResolveProcessComm(&element.Process)
 
 				}
 
@@ -1615,7 +1615,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
-					result = int((*Event)(ctx.Object).ResolveExecCookie(&element.Process))
+					result = int((*Event)(ctx.Object).ResolveProcessCookie(&element.Process))
 
 				}
 
@@ -1777,7 +1777,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
-					result = (*Event)(ctx.Object).ResolveExecContainerPath(&element.Process)
+					result = (*Event)(ctx.Object).ResolveProcessContainerPath(&element.Process)
 
 				}
 
@@ -1915,7 +1915,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
-					result = (*Event)(ctx.Object).ResolveExecBasename(&element.Process)
+					result = (*Event)(ctx.Object).ResolveProcessBasename(&element.Process)
 
 				}
 
@@ -1961,7 +1961,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
-					result = (*Event)(ctx.Object).ResolveExecInode(&element.Process)
+					result = (*Event)(ctx.Object).ResolveProcessInode(&element.Process)
 
 				}
 
@@ -2214,7 +2214,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
-					result = int((*Event)(ctx.Object).ResolveExecPPID(&element.Process))
+					result = int((*Event)(ctx.Object).ResolveProcessPPID(&element.Process))
 
 				}
 
@@ -2260,7 +2260,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(reg.Value)
 
-					result = (*Event)(ctx.Object).ResolveExecTTY(&element.Process)
+					result = (*Event)(ctx.Object).ResolveProcessTTY(&element.Process)
 
 				}
 
@@ -2382,7 +2382,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveExecComm(&(*Event)(ctx.Object).ProcessContext.ExecEvent.Process)
+				return (*Event)(ctx.Object).ResolveProcessComm(&(*Event)(ctx.Object).ProcessContext.ExecEvent.Process)
 
 			},
 			Field: field,
@@ -2394,7 +2394,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveExecCookie(&(*Event)(ctx.Object).ProcessContext.ExecEvent.Process))
+				return int((*Event)(ctx.Object).ResolveProcessCookie(&(*Event)(ctx.Object).ProcessContext.ExecEvent.Process))
 
 			},
 			Field: field,
@@ -2490,7 +2490,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveExecContainerPath(&(*Event)(ctx.Object).ProcessContext.ExecEvent.Process)
+				return (*Event)(ctx.Object).ResolveProcessContainerPath(&(*Event)(ctx.Object).ProcessContext.ExecEvent.Process)
 
 			},
 			Field: field,
@@ -2562,7 +2562,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveExecBasename(&(*Event)(ctx.Object).ProcessContext.ExecEvent.Process)
+				return (*Event)(ctx.Object).ResolveProcessBasename(&(*Event)(ctx.Object).ProcessContext.ExecEvent.Process)
 
 			},
 			Field: field,
@@ -2586,7 +2586,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveExecInode(&(*Event)(ctx.Object).ProcessContext.ExecEvent.Process)
+				return (*Event)(ctx.Object).ResolveProcessInode(&(*Event)(ctx.Object).ProcessContext.ExecEvent.Process)
 
 			},
 			Field: field,
@@ -2706,7 +2706,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveExecPPID(&(*Event)(ctx.Object).ProcessContext.ExecEvent.Process))
+				return int((*Event)(ctx.Object).ResolveProcessPPID(&(*Event)(ctx.Object).ProcessContext.ExecEvent.Process))
 
 			},
 			Field: field,
@@ -2730,7 +2730,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveExecTTY(&(*Event)(ctx.Object).ProcessContext.ExecEvent.Process)
+				return (*Event)(ctx.Object).ResolveProcessTTY(&(*Event)(ctx.Object).ProcessContext.ExecEvent.Process)
 
 			},
 			Field: field,
@@ -4699,11 +4699,11 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "exec.comm":
 
-		return e.ResolveExecComm(&e.Exec.Process), nil
+		return e.ResolveProcessComm(&e.Exec.Process), nil
 
 	case "exec.cookie":
 
-		return int(e.ResolveExecCookie(&e.Exec.Process)), nil
+		return int(e.ResolveProcessCookie(&e.Exec.Process)), nil
 
 	case "exec.egid":
 
@@ -4751,7 +4751,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "exec.file.container_path":
 
-		return e.ResolveExecContainerPath(&e.Exec.Process), nil
+		return e.ResolveProcessContainerPath(&e.Exec.Process), nil
 
 	case "exec.file.gid":
 
@@ -4775,7 +4775,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "exec.file.name":
 
-		return e.ResolveExecBasename(&e.Exec.Process), nil
+		return e.ResolveProcessBasename(&e.Exec.Process), nil
 
 	case "exec.file.overlay_numlower":
 
@@ -4783,7 +4783,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "exec.file.path":
 
-		return e.ResolveExecInode(&e.Exec.Process), nil
+		return e.ResolveProcessInode(&e.Exec.Process), nil
 
 	case "exec.file.uid":
 
@@ -4819,11 +4819,11 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "exec.ppid":
 
-		return int(e.ResolveExecPPID(&e.Exec.Process)), nil
+		return int(e.ResolveProcessPPID(&e.Exec.Process)), nil
 
 	case "exec.tty_name":
 
-		return e.ResolveExecTTY(&e.Exec.Process), nil
+		return e.ResolveProcessTTY(&e.Exec.Process), nil
 
 	case "exec.uid":
 
@@ -5140,7 +5140,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := (*Event)(ctx.Object).ResolveExecComm(&element.Process)
+			result := (*Event)(ctx.Object).ResolveProcessComm(&element.Process)
 
 			values = append(values, result)
 
@@ -5163,7 +5163,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := int((*Event)(ctx.Object).ResolveExecCookie(&element.Process))
+			result := int((*Event)(ctx.Object).ResolveProcessCookie(&element.Process))
 
 			values = append(values, result)
 
@@ -5325,7 +5325,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := (*Event)(ctx.Object).ResolveExecContainerPath(&element.Process)
+			result := (*Event)(ctx.Object).ResolveProcessContainerPath(&element.Process)
 
 			values = append(values, result)
 
@@ -5463,7 +5463,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := (*Event)(ctx.Object).ResolveExecBasename(&element.Process)
+			result := (*Event)(ctx.Object).ResolveProcessBasename(&element.Process)
 
 			values = append(values, result)
 
@@ -5509,7 +5509,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := (*Event)(ctx.Object).ResolveExecInode(&element.Process)
+			result := (*Event)(ctx.Object).ResolveProcessInode(&element.Process)
 
 			values = append(values, result)
 
@@ -5762,7 +5762,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := int((*Event)(ctx.Object).ResolveExecPPID(&element.Process))
+			result := int((*Event)(ctx.Object).ResolveProcessPPID(&element.Process))
 
 			values = append(values, result)
 
@@ -5808,7 +5808,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := (*Event)(ctx.Object).ResolveExecTTY(&element.Process)
+			result := (*Event)(ctx.Object).ResolveProcessTTY(&element.Process)
 
 			values = append(values, result)
 
@@ -5901,11 +5901,11 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "process.comm":
 
-		return e.ResolveExecComm(&e.ProcessContext.ExecEvent.Process), nil
+		return e.ResolveProcessComm(&e.ProcessContext.ExecEvent.Process), nil
 
 	case "process.cookie":
 
-		return int(e.ResolveExecCookie(&e.ProcessContext.ExecEvent.Process)), nil
+		return int(e.ResolveProcessCookie(&e.ProcessContext.ExecEvent.Process)), nil
 
 	case "process.egid":
 
@@ -5953,7 +5953,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "process.file.container_path":
 
-		return e.ResolveExecContainerPath(&e.ProcessContext.ExecEvent.Process), nil
+		return e.ResolveProcessContainerPath(&e.ProcessContext.ExecEvent.Process), nil
 
 	case "process.file.gid":
 
@@ -5977,7 +5977,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "process.file.name":
 
-		return e.ResolveExecBasename(&e.ProcessContext.ExecEvent.Process), nil
+		return e.ResolveProcessBasename(&e.ProcessContext.ExecEvent.Process), nil
 
 	case "process.file.overlay_numlower":
 
@@ -5985,7 +5985,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "process.file.path":
 
-		return e.ResolveExecInode(&e.ProcessContext.ExecEvent.Process), nil
+		return e.ResolveProcessInode(&e.ProcessContext.ExecEvent.Process), nil
 
 	case "process.file.uid":
 
@@ -6025,7 +6025,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "process.ppid":
 
-		return int(e.ResolveExecPPID(&e.ProcessContext.ExecEvent.Process)), nil
+		return int(e.ResolveProcessPPID(&e.ProcessContext.ExecEvent.Process)), nil
 
 	case "process.tid":
 
@@ -6033,7 +6033,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "process.tty_name":
 
-		return e.ResolveExecTTY(&e.ProcessContext.ExecEvent.Process), nil
+		return e.ResolveProcessTTY(&e.ProcessContext.ExecEvent.Process), nil
 
 	case "process.uid":
 

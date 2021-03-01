@@ -270,16 +270,16 @@ type Process struct {
 	// (container context is parsed in Event.Container)
 	FileFields FileFields `field:"file"`
 
-	PathnameStr         string `field:"file.path" handler:"ResolveExecInode,string"`
-	ContainerPath       string `field:"file.container_path" handler:"ResolveExecContainerPath,string"`
-	BasenameStr         string `field:"file.name" handler:"ResolveExecBasename,string"`
+	PathnameStr         string `field:"file.path" handler:"ResolveProcessInode,string"`
+	ContainerPath       string `field:"file.container_path" handler:"ResolveProcessContainerPath,string"`
+	BasenameStr         string `field:"file.name" handler:"ResolveProcessBasename,string"`
 	PathResolutionError error  `field:"-"`
 
 	ExecTimestamp uint64    `field:"-"`
 	ExecTime      time.Time `field:"-"`
 
-	TTYName string `field:"tty_name" handler:"ResolveExecTTY,string"`
-	Comm    string `field:"comm" handler:"ResolveExecComm,string"`
+	TTYName string `field:"tty_name" handler:"ResolveProcessTTY,string"`
+	Comm    string `field:"comm" handler:"ResolveProcessComm,string"`
 
 	// pid_cache_t
 	ForkTimestamp uint64    `field:"-"`
@@ -288,8 +288,8 @@ type Process struct {
 	ExitTimestamp uint64    `field:"-"`
 	ExitTime      time.Time `field:"-"`
 
-	Cookie uint32 `field:"cookie" handler:"ResolveExecCookie,int"`
-	PPid   uint32 `field:"ppid" handler:"ResolveExecPPID,int"`
+	Cookie uint32 `field:"cookie" handler:"ResolveProcessCookie,int"`
+	PPid   uint32 `field:"ppid" handler:"ResolveProcessPPID,int"`
 
 	// credentials_t section of pid_cache_t
 	Credentials
