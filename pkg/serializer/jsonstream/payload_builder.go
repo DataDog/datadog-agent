@@ -35,15 +35,27 @@ var jsonConfig = jsoniter.Config{
 // on what was previously need to serialize payloads. Keep that in mind and
 // use multiple PayloadBuilders for different sources.
 type PayloadBuilder struct {
-	input, output *bytes.Buffer
-	mu            sync.Mutex
+	inputSizeHint, outputSizeHint int
+	shareAndLockBuffers           bool
+	input, output                 *bytes.Buffer
+	mu                            sync.Mutex
 }
 
 // NewPayloadBuilder creates a new PayloadBuilder with default values.
-func NewPayloadBuilder() *PayloadBuilder {
+func NewPayloadBuilder(shareAndLockBuffers bool) *PayloadBuilder {
+	if shareAndLockBuffers {
+		return &PayloadBuilder{
+			inputSizeHint:       4096,
+			outputSizeHint:      4096,
+			shareAndLockBuffers: true,
+			input:               bytes.NewBuffer(make([]byte, 0, 4096)),
+			output:              bytes.NewBuffer(make([]byte, 0, 4096)),
+		}
+	}
 	return &PayloadBuilder{
-		input:  bytes.NewBuffer(make([]byte, 0, 4096)),
-		output: bytes.NewBuffer(make([]byte, 0, 4096)),
+		inputSizeHint:       4096,
+		outputSizeHint:      4096,
+		shareAndLockBuffers: false,
 	}
 }
 
@@ -68,10 +80,20 @@ func (b *PayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	m marshaler.StreamJSONMarshaler,
 	policy OnErrItemTooBigPolicy) (forwarder.Payloads, error) {
 
-	defer tlmCompressorLocks.Dec()
-	defer b.mu.Unlock()
-	tlmCompressorLocks.Inc()
-	b.mu.Lock()
+	var input, output *bytes.Buffer
+	if b.shareAndLockBuffers {
+		defer tlmCompressorLocks.Dec()
+		defer b.mu.Unlock()
+		tlmCompressorLocks.Inc()
+		b.mu.Lock()
+		input = b.input
+		output = b.output
+		input.Reset()
+		output.Reset()
+	} else {
+		input = bytes.NewBuffer(make([]byte, 0, b.inputSizeHint))
+		output = bytes.NewBuffer(make([]byte, 0, b.outputSizeHint))
+	}
 
 	var payloads forwarder.Payloads
 	var i int
@@ -94,7 +116,7 @@ func (b *PayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 		return nil, err
 	}
 
-	compressor, err := newCompressor(b.input, b.output, header.Bytes(), footer.Bytes())
+	compressor, err := newCompressor(input, output, header.Bytes(), footer.Bytes())
 	if err != nil {
 		return nil, err
 	}
@@ -122,9 +144,9 @@ func (b *PayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 				return payloads, err
 			}
 			payloads = append(payloads, &payload)
-			b.input.Reset()
-			b.output.Reset()
-			compressor, err = newCompressor(b.input, b.output, header.Bytes(), footer.Bytes())
+			input.Reset()
+			output.Reset()
+			compressor, err = newCompressor(input, output, header.Bytes(), footer.Bytes())
 			if err != nil {
 				return nil, err
 			}
@@ -155,6 +177,11 @@ func (b *PayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 		return payloads, err
 	}
 	payloads = append(payloads, &payload)
+
+	if !b.shareAndLockBuffers {
+		b.inputSizeHint = input.Cap()
+		b.outputSizeHint = output.Cap()
+	}
 
 	return payloads, nil
 }
