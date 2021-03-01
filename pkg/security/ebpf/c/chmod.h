@@ -64,6 +64,7 @@ int __attribute__((always_inline)) trace__sys_chmod_ret(struct pt_regs *ctx) {
             .inode = syscall->setattr.path_key.ino,
             .overlay_numlower = get_overlay_numlower(syscall->setattr.dentry),
             .path_id = syscall->setattr.path_key.path_id,
+            .metadata = syscall->setattr.metadata,
         },
         .padding = 0,
         .mode = syscall->setattr.mode,

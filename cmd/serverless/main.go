@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
+	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 	traceAgent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	traceConfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -78,6 +79,8 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 	apiKeyEnvVar    = "DD_API_KEY"
 
 	logLevelEnvVar = "DD_LOG_LEVEL"
+
+	flushStrategyEnvVar = "DD_SERVERLESS_FLUSH_STRATEGY"
 
 	logsLogsTypeSubscribed = "DD_LOGS_CONFIG_LAMBDA_LOGS_TYPE"
 
@@ -239,6 +242,18 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		extraTags = append(extraTags, dsdTags...)
 	}
 
+	// adaptive flush configuration
+	if v, exists := os.LookupEnv(flushStrategyEnvVar); exists {
+		if flushStrategy, err := flush.StrategyFromString(v); err != nil {
+			log.Debugf("Wrong flush strategy %s, will use the adaptive flush instead. Err: %s", v, err)
+		} else {
+			daemon.UseAdaptiveFlush(false) // we're forcing the flush strategy, we won't be using the adaptive flush
+			daemon.SetFlushStrategy(flushStrategy)
+		}
+	} else {
+		daemon.UseAdaptiveFlush(true) // already initialized to true, but let's be explicit just in case
+	}
+
 	// validate that an apikey has been set, either by the env var, read from KMS or SSM.
 	// ---------------------------
 
@@ -349,8 +364,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	// the invocation route, we can't report init errors anymore.
 	go func() {
 		for {
-			// TODO(remy): shouldn't we wait for the logs agent to finish? + dogstatsd server before listening again?
-			if err := serverless.WaitForNextInvocation(stopCh, statsdServer, ta, serverlessID); err != nil {
+			if err := serverless.WaitForNextInvocation(stopCh, daemon, serverlessID); err != nil {
 				log.Error(err)
 			}
 		}

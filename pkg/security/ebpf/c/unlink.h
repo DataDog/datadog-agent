@@ -53,6 +53,7 @@ int kprobe__vfs_unlink(struct pt_regs *ctx) {
     // we resolve all the information before the file is actually removed
     struct dentry *dentry = (struct dentry *) PT_REGS_PARM2(ctx);
     set_path_key_inode(dentry, &syscall->unlink.path_key, 1);
+    fill_file_metadata(dentry, &syscall->unlink.metadata);
 
     syscall->unlink.dentry = dentry;
     syscall->unlink.overlay_numlower = get_overlay_numlower(dentry);
@@ -100,6 +101,7 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
                 .inode = syscall->unlink.path_key.ino,
                 .overlay_numlower = syscall->unlink.overlay_numlower,
                 .path_id = syscall->unlink.path_key.path_id,
+                .metadata = syscall->unlink.metadata,
             },
             .flags = syscall->unlink.flags,
             .discarder_revision = bump_discarder_revision(syscall->unlink.path_key.mount_id),

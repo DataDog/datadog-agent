@@ -60,6 +60,7 @@ int kprobe__vfs_link(struct pt_regs *ctx) {
     }
 
     syscall->link.src_overlay_numlower = get_overlay_numlower(src_dentry);
+    fill_file_metadata(src_dentry, &syscall->link.src_metadata);
 
     // this is a hard link, source and target dentries are on the same filesystem & mount point
     // target_path was set by kprobe/filename_create before we reach this point.
@@ -96,11 +97,14 @@ int __attribute__((always_inline)) trace__sys_link_ret(struct pt_regs *ctx) {
             .mount_id = syscall->link.src_key.mount_id,
             .overlay_numlower = syscall->link.src_overlay_numlower,
             .path_id = syscall->link.src_key.path_id,
+            .metadata = syscall->link.src_metadata,
         },
         .target = {
             .inode = syscall->link.target_key.ino,
             .mount_id = syscall->link.target_key.mount_id,
             .overlay_numlower = get_overlay_numlower(syscall->link.target_dentry),
+            // this is a hard link, source and destination have necessarily the same inode metadata
+            .metadata = syscall->link.src_metadata,
         }
     };
 

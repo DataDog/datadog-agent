@@ -57,6 +57,7 @@ int kprobe__vfs_rename(struct pt_regs *ctx) {
     struct dentry *target_dentry = (struct dentry *)PT_REGS_PARM4(ctx);
 
     syscall->rename.src_dentry = src_dentry;
+    fill_file_metadata(src_dentry, &syscall->rename.src_metadata);
     syscall->rename.target_dentry = target_dentry;
 
     if (filter_syscall(syscall, rename_approvers)) {
@@ -116,12 +117,14 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
                 .inode = syscall->rename.src_key.ino,
                 .mount_id = syscall->rename.src_key.mount_id,
                 .overlay_numlower = syscall->rename.src_overlay_numlower,
+                .metadata = syscall->rename.src_metadata,
             },
             .new = {
                 .inode = syscall->rename.target_key.ino,
                 .mount_id = syscall->rename.target_key.mount_id,
                 .overlay_numlower = get_overlay_numlower(syscall->rename.src_dentry),
                 .path_id = syscall->rename.target_key.path_id,
+                .metadata = syscall->rename.src_metadata,
             },
             .discarder_revision = bump_discarder_revision(syscall->rename.target_key.mount_id),
         };

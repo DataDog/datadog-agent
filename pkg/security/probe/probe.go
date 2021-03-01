@@ -361,7 +361,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		}
 
 		// defer it do ensure that it will be done after the dispatch that could re-add it
-		defer p.invalidateDentry(event.Rmdir.MountID, event.Rmdir.Inode, event.Rmdir.DiscarderRevision)
+		defer p.invalidateDentry(event.Rmdir.File.MountID, event.Rmdir.File.Inode, event.Rmdir.DiscarderRevision)
 	case model.FileUnlinkEventType:
 		if _, err := event.Unlink.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode unlink event: %s (offset %d, len %d)", err, offset, dataLen)
@@ -369,7 +369,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		}
 
 		// defer it do ensure that it will be done after the dispatch that could re-add it
-		defer p.invalidateDentry(event.Unlink.MountID, event.Unlink.Inode, event.Unlink.DiscarderRevision)
+		defer p.invalidateDentry(event.Unlink.File.MountID, event.Unlink.File.Inode, event.Unlink.DiscarderRevision)
 	case model.FileRenameEventType:
 		if _, err := event.Rename.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode rename event: %s (offset %d, len %d)", err, offset, dataLen)
