@@ -492,6 +492,18 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.IteratorWeight,
 		}, nil
 
+	case "exec.args_truncated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+
+				return (*Event)(ctx.Object).Exec.ArgsTruncated
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
 	case "exec.cap_effective":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -586,6 +598,18 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field: field,
 
 			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "exec.envs_truncated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+
+				return (*Event)(ctx.Object).Exec.EnvsTruncated
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.euid":
@@ -1488,6 +1512,29 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.IteratorWeight,
 		}, nil
 
+	case "process.ancestors.args_truncated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+
+				var result bool
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+
+					element := (*model.ProcessCacheEntry)(reg.Value)
+
+					result = element.ProcessContext.ExecEvent.ArgsTruncated
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
 	case "process.ancestors.cap_effective":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -1639,6 +1686,29 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					element := *elementPtr
 
 					result = element
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.envs_truncated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+
+				var result bool
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+
+					element := (*model.ProcessCacheEntry)(reg.Value)
+
+					result = element.ProcessContext.ExecEvent.EnvsTruncated
 
 				}
 
@@ -2272,6 +2342,18 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.IteratorWeight,
 		}, nil
 
+	case "process.args_truncated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+
+				return (*Event)(ctx.Object).Process.ExecEvent.ArgsTruncated
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
 	case "process.cap_effective":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -2366,6 +2448,18 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field: field,
 
 			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.envs_truncated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+
+				return (*Event)(ctx.Object).Process.ExecEvent.EnvsTruncated
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.euid":
@@ -3930,6 +4024,8 @@ func (e *Event) GetFields() []eval.Field {
 
 		"exec.args",
 
+		"exec.args_truncated",
+
 		"exec.cap_effective",
 
 		"exec.cap_permitted",
@@ -3943,6 +4039,8 @@ func (e *Event) GetFields() []eval.Field {
 		"exec.egroup",
 
 		"exec.envs",
+
+		"exec.envs_truncated",
 
 		"exec.euid",
 
@@ -4092,6 +4190,8 @@ func (e *Event) GetFields() []eval.Field {
 
 		"process.ancestors.args",
 
+		"process.ancestors.args_truncated",
+
 		"process.ancestors.cap_effective",
 
 		"process.ancestors.cap_permitted",
@@ -4105,6 +4205,8 @@ func (e *Event) GetFields() []eval.Field {
 		"process.ancestors.egroup",
 
 		"process.ancestors.envs",
+
+		"process.ancestors.envs_truncated",
 
 		"process.ancestors.euid",
 
@@ -4160,6 +4262,8 @@ func (e *Event) GetFields() []eval.Field {
 
 		"process.args",
 
+		"process.args_truncated",
+
 		"process.cap_effective",
 
 		"process.cap_permitted",
@@ -4173,6 +4277,8 @@ func (e *Event) GetFields() []eval.Field {
 		"process.egroup",
 
 		"process.envs",
+
+		"process.envs_truncated",
 
 		"process.euid",
 
@@ -4579,6 +4685,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return values, nil
 
+	case "exec.args_truncated":
+
+		return e.Exec.ArgsTruncated, nil
+
 	case "exec.cap_effective":
 
 		return int(e.ResolveCredentialsCapEffective(&e.Exec.Credentials)), nil
@@ -4626,6 +4736,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
+
+	case "exec.envs_truncated":
+
+		return e.Exec.EnvsTruncated, nil
 
 	case "exec.euid":
 
@@ -4943,6 +5057,29 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return values, nil
 
+	case "process.ancestors.args_truncated":
+
+		var values []bool
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &model.ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*model.ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.ExecEvent.ArgsTruncated
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
 	case "process.ancestors.cap_effective":
 
 		var values []int
@@ -5097,6 +5234,29 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			element := *elementPtr
 
 			result := element
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.envs_truncated":
+
+		var values []bool
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &model.ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*model.ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.ExecEvent.EnvsTruncated
 
 			values = append(values, result)
 
@@ -5727,6 +5887,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return values, nil
 
+	case "process.args_truncated":
+
+		return e.Process.ExecEvent.ArgsTruncated, nil
+
 	case "process.cap_effective":
 
 		return int(e.ResolveCredentialsCapEffective(&e.Process.ExecEvent.Credentials)), nil
@@ -5774,6 +5938,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return values, nil
+
+	case "process.envs_truncated":
+
+		return e.Process.ExecEvent.EnvsTruncated, nil
 
 	case "process.euid":
 
@@ -6378,6 +6546,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "exec.args":
 		return "exec", nil
 
+	case "exec.args_truncated":
+		return "exec", nil
+
 	case "exec.cap_effective":
 		return "exec", nil
 
@@ -6397,6 +6568,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exec", nil
 
 	case "exec.envs":
+		return "exec", nil
+
+	case "exec.envs_truncated":
 		return "exec", nil
 
 	case "exec.euid":
@@ -6621,6 +6795,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.ancestors.args":
 		return "*", nil
 
+	case "process.ancestors.args_truncated":
+		return "*", nil
+
 	case "process.ancestors.cap_effective":
 		return "*", nil
 
@@ -6640,6 +6817,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 
 	case "process.ancestors.envs":
+		return "*", nil
+
+	case "process.ancestors.envs_truncated":
 		return "*", nil
 
 	case "process.ancestors.euid":
@@ -6723,6 +6903,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.args":
 		return "*", nil
 
+	case "process.args_truncated":
+		return "*", nil
+
 	case "process.cap_effective":
 		return "*", nil
 
@@ -6742,6 +6925,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 
 	case "process.envs":
+		return "*", nil
+
+	case "process.envs_truncated":
 		return "*", nil
 
 	case "process.euid":
@@ -7256,6 +7442,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
+	case "exec.args_truncated":
+
+		return reflect.Bool, nil
+
 	case "exec.cap_effective":
 
 		return reflect.Int, nil
@@ -7283,6 +7473,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "exec.envs":
 
 		return reflect.String, nil
+
+	case "exec.envs_truncated":
+
+		return reflect.Bool, nil
 
 	case "exec.euid":
 
@@ -7580,6 +7774,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
+	case "process.ancestors.args_truncated":
+
+		return reflect.Bool, nil
+
 	case "process.ancestors.cap_effective":
 
 		return reflect.Int, nil
@@ -7607,6 +7805,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "process.ancestors.envs":
 
 		return reflect.String, nil
+
+	case "process.ancestors.envs_truncated":
+
+		return reflect.Bool, nil
 
 	case "process.ancestors.euid":
 
@@ -7716,6 +7918,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
+	case "process.args_truncated":
+
+		return reflect.Bool, nil
+
 	case "process.cap_effective":
 
 		return reflect.Int, nil
@@ -7743,6 +7949,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "process.envs":
 
 		return reflect.String, nil
+
+	case "process.envs_truncated":
+
+		return reflect.Bool, nil
 
 	case "process.euid":
 
@@ -8564,6 +8774,14 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 
+	case "exec.args_truncated":
+
+		var ok bool
+		if e.Exec.ArgsTruncated, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.ArgsTruncated"}
+		}
+		return nil
+
 	case "exec.cap_effective":
 
 		var ok bool
@@ -8628,6 +8846,14 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Exec.Envs, ok = value.([]string); !ok {
 
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Envs"}
+		}
+		return nil
+
+	case "exec.envs_truncated":
+
+		var ok bool
+		if e.Exec.EnvsTruncated, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.EnvsTruncated"}
 		}
 		return nil
 
@@ -9339,6 +9565,18 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 
+	case "process.ancestors.args_truncated":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &model.ProcessCacheEntry{}
+		}
+
+		var ok bool
+		if e.Process.Ancestor.ProcessContext.ExecEvent.ArgsTruncated, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.ArgsTruncated"}
+		}
+		return nil
+
 	case "process.ancestors.cap_effective":
 
 		if e.Process.Ancestor == nil {
@@ -9427,6 +9665,18 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Process.Ancestor.ProcessContext.ExecEvent.Envs, ok = value.([]string); !ok {
 
 			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.Envs"}
+		}
+		return nil
+
+	case "process.ancestors.envs_truncated":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &model.ProcessCacheEntry{}
+		}
+
+		var ok bool
+		if e.Process.Ancestor.ProcessContext.ExecEvent.EnvsTruncated, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.EnvsTruncated"}
 		}
 		return nil
 
@@ -9791,6 +10041,14 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 
+	case "process.args_truncated":
+
+		var ok bool
+		if e.Process.ExecEvent.ArgsTruncated, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.ArgsTruncated"}
+		}
+		return nil
+
 	case "process.cap_effective":
 
 		var ok bool
@@ -9855,6 +10113,14 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Process.ExecEvent.Envs, ok = value.([]string); !ok {
 
 			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.Envs"}
+		}
+		return nil
+
+	case "process.envs_truncated":
+
+		var ok bool
+		if e.Process.ExecEvent.EnvsTruncated, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.EnvsTruncated"}
 		}
 		return nil
 
