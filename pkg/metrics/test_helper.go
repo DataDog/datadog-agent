@@ -142,7 +142,7 @@ func makesketch(n int) *quantile.Sketch {
 
 // Makeseries creates a SketchSeries with i+5 Sketch Points
 func Makeseries(i int) SketchSeries {
-	// makeseries is deterministic so that we can test for mutation.
+	// Makeseries is deterministic so that we can test for mutation.
 	ss := SketchSeries{
 		Name: fmt.Sprintf("name.%d", i),
 		Tags: []string{

@@ -3,32 +3,34 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2021 Datadog, Inc.
 
-package split
+// +build test
+
+package metrics
 
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 )
 
 func benchmarkSplitPayloadsSketchesSplit(b *testing.B, numPoints int) {
-	testSketchSeries := make(metrics.SketchSeriesList, numPoints)
+	testSketchSeries := make(SketchSeriesList, numPoints)
 	for i := 0; i < numPoints; i++ {
-		testSketchSeries[i] = metrics.Makeseries(200)
+		testSketchSeries[i] = Makeseries(200)
 	}
 
 	b.ResetTimer()
 
 	for n := 0; n < b.N; n++ {
-		Payloads(testSketchSeries, true, Marshal)
+		split.Payloads(testSketchSeries, true, split.Marshal)
 	}
 }
 
 func benchmarkSplitPayloadsSketchesNew(b *testing.B, numPoints int) {
-	testSketchSeries := make(metrics.SketchSeriesList, numPoints)
+	testSketchSeries := make(SketchSeriesList, numPoints)
 	for i := 0; i < numPoints; i++ {
-		testSketchSeries[i] = metrics.Makeseries(200)
+		testSketchSeries[i] = Makeseries(200)
 	}
 
 	b.ResetTimer()
