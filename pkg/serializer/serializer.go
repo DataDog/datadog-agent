@@ -116,6 +116,7 @@ type Serializer struct {
 	enableJSONStream              bool
 	enableServiceChecksJSONStream bool
 	enableEventsJSONStream        bool
+	enableSketchProtobufStream    bool
 }
 
 // NewSerializer returns a new Serializer initialized
@@ -131,6 +132,7 @@ func NewSerializer(forwarder forwarder.Forwarder) *Serializer {
 		enableJSONStream:              stream.Available && config.Datadog.GetBool("enable_stream_payload_serialization"),
 		enableServiceChecksJSONStream: stream.Available && config.Datadog.GetBool("enable_service_checks_stream_payload_serialization"),
 		enableEventsJSONStream:        stream.Available && config.Datadog.GetBool("enable_events_stream_payload_serialization"),
+		enableSketchProtobufStream:    stream.Available && config.Datadog.GetBool("enable_sketch_stream_payload_serialization"),
 	}
 
 	if !s.enableEvents {
@@ -315,12 +317,13 @@ func (s *Serializer) SendSketch(sketches marshaler.Marshaler) error {
 
 	var extraHeaders http.Header
 
-	payloads, err := sketches.MarshalSplitCompress(marshaler.DefaultBufferContext())
-	if err == nil {
-		return s.Forwarder.SubmitSketchSeries(payloads, protobufExtraHeadersWithCompression)
+	if s.enableSketchProtobufStream {
+		payloads, err := sketches.MarshalSplitCompress(marshaler.DefaultBufferContext())
+		if err == nil {
+			return s.Forwarder.SubmitSketchSeries(payloads, protobufExtraHeadersWithCompression)
+		}
+		log.Warnf("Error: %v trying to stream compress SketchSeriesList - falling back to split/compress method", err)
 	}
-
-	log.Warnf("Error: %v trying to stream compress SketchSeriesList - falling back to split/compress method", err)
 
 	compress := true
 	useV1API := false // Sketches only have a v2 endpoint
