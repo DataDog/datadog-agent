@@ -211,11 +211,11 @@ func (bc *BBSCache) readData() {
 	}()
 	wg.Wait()
 	if errActual != nil {
-		_ = log.Errorf("Failed reading Actual LRP data from BBS API: %s", errActual.Error())
+		log.Errorf("Failed reading Actual LRP data from BBS API: %s", errActual.Error())
 		return
 	}
 	if errDesired != nil {
-		_ = log.Errorf("Failed reading Desired LRP data from BBS API: %s", errDesired.Error())
+		log.Errorf("Failed reading Desired LRP data from BBS API: %s", errDesired.Error())
 		return
 	}
 

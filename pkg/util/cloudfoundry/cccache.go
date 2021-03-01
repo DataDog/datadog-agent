@@ -141,7 +141,7 @@ func (ccc *CCCache) readData() {
 	query.Add("per_page", "5000")
 	apps, err := ccc.ccAPIClient.ListV3AppsByQuery(query)
 	if err != nil {
-		_ = log.Errorf("Failed listing apps from cloud controller: %v", err)
+		log.Errorf("Failed listing apps from cloud controller: %v", err)
 		return
 	}
 	appsByGUID := make(map[string]*CFApp, len(apps))
