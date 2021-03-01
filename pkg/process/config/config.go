@@ -46,6 +46,8 @@ var (
 
 type proxyFunc func(*http.Request) (*url.URL, error)
 
+type cmdFunc = func(name string, arg ...string) *exec.Cmd
+
 // WindowsConfig stores all windows-specific configuration for the process-agent and system-probe.
 type WindowsConfig struct {
 	// Number of checks runs between refreshes of command-line arguments
@@ -363,23 +365,9 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 		cfg.LogLevel = "warn"
 	}
 
-	// get the hostname from the datadog agent if a hostname has not been specified in the config
 	if cfg.HostName == "" {
-		cfg.HostName, err = getHostnameFromGRPC(util.GetDDAgentClient)
-		if err != nil {
-			log.Errorf("failed to get hostname from grpc: %v", err)
-		}
-	}
-
-	// If the hostname is not set then we fallback to our own hostname mechanism
-	if cfg.HostName == "" {
-		if fargate.IsFargateInstance() {
-			if hostname, err := fargate.GetFargateHost(); err == nil {
-				cfg.HostName = hostname
-			} else {
-				log.Errorf("Cannot get Fargate host: %v", err)
-			}
-		} else if hostname, err := getHostname(cfg.DDAgentBin); err == nil {
+		// lookup hostname if there is no config override
+		if hostname, err := getHostname(cfg.DDAgentBin); err == nil {
 			cfg.HostName = hostname
 		} else {
 			log.Errorf("Cannot get hostname: %v", err)
@@ -565,15 +553,44 @@ func isAffirmative(value string) (bool, error) {
 	return v == "true" || v == "yes" || v == "1", nil
 }
 
-// getHostname shells out to obtain the hostname used by the infra agent
-// falling back to os.Hostname() if it is unavailable
+// getHostname attempts to resolve the hostname in the following order: the main datadog agent via grpc, the main agent
+// via cli and lastly falling back to os.Hostname() if it is unavailable
 func getHostname(ddAgentBin string) (string, error) {
-	cmd := exec.Command(ddAgentBin, "hostname")
+	// Fargate is handled as an exceptional case (there is no concept of a host, so we use the ARN in-place).
+	// We also support config/env overrides so we need to check that none is set
+	if fargate.IsFargateInstance() {
+		hostname, err := fargate.GetFargateHost()
+		if err != nil {
+			return hostname, nil
+		}
+		log.Errorf("Cannot get Fargate host: %v", err)
+	}
+
+	// Get the hostname via gRPC from the main agent if a hostname has not been set either from config/fargate
+	hostname, err := getHostnameFromGRPC(util.GetDDAgentClient)
+	if err != nil {
+		return hostname, nil
+	}
+	log.Errorf("failed to get hostname from grpc: %v", err)
+
+	// If the hostname is not set then we fallback to our the agent binary
+	hostname, err = getHostnameFromCmd(ddAgentBin, exec.Command)
+	if err == nil {
+		return hostname, nil
+	}
+	log.Errorf("Cannot get hostname from cmd: %v", err)
+
+	return os.Hostname()
+}
+
+// getHostnameCmd shells out to obtain the hostname used by the infra agent
+func getHostnameFromCmd(ddAgentBin string, cmdFn cmdFunc) (string, error) {
+	cmd := cmdFn(ddAgentBin, "hostname")
 
 	// Copying all environment variables to child process
 	// Windows: Required, so the child process can load DLLs, etc.
 	// Linux:   Optional, but will make use of DD_HOSTNAME and DOCKER_DD_AGENT if they exist
-	cmd.Env = os.Environ()
+	cmd.Env = append(cmd.Env, os.Environ()...)
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -581,18 +598,15 @@ func getHostname(ddAgentBin string) (string, error) {
 
 	err := cmd.Run()
 	if err != nil {
-		log.Infof("error retrieving dd-agent hostname, falling back to os.Hostname(): %v", err)
-		return os.Hostname()
+		return "", err
 	}
 
 	hostname := strings.TrimSpace(stdout.String())
-
 	if hostname == "" {
-		log.Infof("error retrieving dd-agent hostname, falling back to os.Hostname(): %s", stderr.String())
-		return os.Hostname()
+		return "", fmt.Errorf("error retrieving dd-agent hostname %s", stderr.String())
 	}
 
-	return hostname, err
+	return hostname, nil
 }
 
 // getHostnameFromGRPC retrieves the hostname from the main datadog agent via GRPC

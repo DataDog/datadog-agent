@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
@@ -18,6 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/api/pb/mocks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/cihub/seelog"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,6 +30,11 @@ var originalConfig = config.Datadog
 
 func restoreGlobalConfig() {
 	config.Datadog = originalConfig
+}
+
+func TestMain(m *testing.M) {
+	log.SetupLogger(seelog.Default, "info")
+	os.Exit(m.Run())
 }
 
 func TestBlacklist(t *testing.T) {
@@ -253,7 +261,9 @@ func TestGetHostname(t *testing.T) {
 	cfg := NewDefaultAgentConfig(false)
 	h, err := getHostname(cfg.DDAgentBin)
 	assert.Nil(t, err)
-	assert.NotEqual(t, "", h)
+	// verify we fall back to getting os hostname
+	expectedHostname, _ := os.Hostname()
+	assert.Equal(t, expectedHostname, h)
 }
 
 func TestDefaultConfig(t *testing.T) {
@@ -673,4 +683,63 @@ func TestGetHostnameFromAgent(t *testing.T) {
 		assert.Equal(t, grpcErr, errors.Unwrap(err))
 		assert.Empty(t, hostname)
 	})
+}
+
+func TestGetHostnameFromCmd(t *testing.T) {
+	t.Run("valid hostname", func(t *testing.T) {
+		h, err := getHostnameFromCmd("agent-success", fakeExecCommand)
+		assert.Nil(t, err)
+		assert.Equal(t, "unit_test_hostname", h)
+	})
+
+	t.Run("no hostname returned", func(t *testing.T) {
+		h, err := getHostnameFromCmd("agent-empty_hostname", fakeExecCommand)
+		assert.NotNil(t, err)
+		assert.Equal(t, "", h)
+	})
+}
+
+// TestGetHostnameShellCmd is a method that is called as a substitute for a dd-agent shell command,
+// the GO_TEST_PROCESS flag ensures that if it is called as part of the test suite, it is skipped.
+func TestGetHostnameShellCmd(t *testing.T) {
+	if os.Getenv("GO_TEST_PROCESS") != "1" {
+		return
+	}
+
+	args := os.Args
+	for len(args) > 0 {
+		if args[0] == "--" {
+			args = args[1:]
+			break
+		}
+		args = args[1:]
+	}
+
+	if len(args) == 0 {
+		fmt.Fprintf(os.Stderr, "No command\n")
+		os.Exit(2)
+	}
+
+	cmd, args := args[0], args[1:]
+	switch cmd {
+	case "agent-success":
+		assert.EqualValues(t, []string{"hostname"}, args)
+		fmt.Fprintf(os.Stdout, "unit_test_hostname")
+	case "agent-empty_hostname":
+		assert.EqualValues(t, []string{"hostname"}, args)
+		fmt.Fprintf(os.Stdout, "")
+	}
+
+	os.Exit(0)
+}
+
+// fakeExecCommand is a function that initialises a new exec.Cmd, one which will
+// simply call TestShellProcessSuccess rather than the command it is provided. It will
+// also pass through the command and its arguments as an argument to TestShellProcessSuccess
+func fakeExecCommand(command string, args ...string) *exec.Cmd {
+	cs := []string{"-test.run=TestGetHostnameShellCmd", "--", command}
+	cs = append(cs, args...)
+	cmd := exec.Command(os.Args[0], cs...)
+	cmd.Env = []string{"GO_TEST_PROCESS=1"}
+	return cmd
 }
