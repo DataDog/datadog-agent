@@ -31,5 +31,4 @@ import (
 	_ "gotest.tools/gotestsum"
 	_ "honnef.co/go/tools/cmd/staticcheck"
 	_ "github.com/mailru/easyjson/easyjson"
-	_ "github.com/syndtr/gocapability/capability"
 )
