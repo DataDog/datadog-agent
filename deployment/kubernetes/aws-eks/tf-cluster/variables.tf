@@ -3,7 +3,7 @@ variable "AWS_REGION" {
 }
 
 variable "SCALING_DESIRED_CAPACITY" {
-  default = 4
+  default = 2
 }
 
 variable "CLUSTER_NAME" {

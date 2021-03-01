@@ -64,7 +64,7 @@ resource "aws_launch_configuration" "eks-launch-configuration" {
 resource "aws_autoscaling_group" "eks-autoscaling-group" {
   desired_capacity     = var.SCALING_DESIRED_CAPACITY
   launch_configuration = aws_launch_configuration.eks-launch-configuration.id
-  max_size             = 4
+  max_size             = 2
   min_size             = 0
   name                 = "eks-${local.cluster_name}"
   vpc_zone_identifier  = [aws_subnet.eks-private.id, aws_subnet.eks-private-2.id]

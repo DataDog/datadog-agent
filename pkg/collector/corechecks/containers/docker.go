@@ -21,6 +21,7 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
 	core "github.com/StackVista/stackstate-agent/pkg/collector/corechecks"
+	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/metrics"
 	"github.com/StackVista/stackstate-agent/pkg/tagger"
 	"github.com/StackVista/stackstate-agent/pkg/tagger/collectors"
@@ -29,7 +30,6 @@ import (
 	cmetrics "github.com/StackVista/stackstate-agent/pkg/util/containers/metrics"
 	"github.com/StackVista/stackstate-agent/pkg/util/docker"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
-	"github.com/StackVista/stackstate-agent/pkg/config"
 )
 
 const (
@@ -40,19 +40,21 @@ const (
 )
 
 type DockerConfig struct {
-	CollectContainerSize     bool               `yaml:"collect_container_size"`
-	CollectContainerSizeFreq uint64             `yaml:"collect_container_size_frequency"`
-	CollectExitCodes         bool               `yaml:"collect_exit_codes"`
-	CollectImagesStats       bool               `yaml:"collect_images_stats"`
-	CollectImageSize         bool               `yaml:"collect_image_size"`
-	CollectDiskStats         bool               `yaml:"collect_disk_stats"`
-	CollectVolumeCount       bool               `yaml:"collect_volume_count"`
+	CollectContainerSize     bool   `yaml:"collect_container_size"`
+	CollectContainerSizeFreq uint64 `yaml:"collect_container_size_frequency"`
+	CollectExitCodes         bool   `yaml:"collect_exit_codes"`
+	CollectImagesStats       bool   `yaml:"collect_images_stats"`
+	CollectImageSize         bool   `yaml:"collect_image_size"`
+	CollectDiskStats         bool   `yaml:"collect_disk_stats"`
+	CollectVolumeCount       bool   `yaml:"collect_volume_count"`
 	// sts
-	CollectContainerTopology bool               `yaml:"collect_container_topology"`
-	Tags                     []string           `yaml:"tags"` // Used only by the configuration converter v5 → v6
-	CollectEvent             bool               `yaml:"collect_events"`
-	FilteredEventType        []string           `yaml:"filtered_event_types"`
-	CappedMetrics            map[string]float64 `yaml:"capped_metrics"`
+	CollectContainerTopology bool `yaml:"collect_container_topology"`
+	CollectSwarmTopology     bool `yaml:"collect_swarm_topology"`
+	// sts
+	Tags              []string           `yaml:"tags"` // Used only by the configuration converter v5 → v6
+	CollectEvent      bool               `yaml:"collect_events"`
+	FilteredEventType []string           `yaml:"filtered_event_types"`
+	CappedMetrics     map[string]float64 `yaml:"capped_metrics"`
 }
 
 type containerPerImage struct {
@@ -81,7 +83,7 @@ type DockerCheck struct {
 	cappedSender                *cappedSender
 	collectContainerSizeCounter uint64
 	// sts
-	topologyCollector  *topology.DockerTopologyCollector
+	topologyCollector *topology.DockerTopologyCollector
 }
 
 func updateContainerRunningCount(images map[string]*containerPerImage, c *containers.Container) {
@@ -167,7 +169,7 @@ func (d *DockerCheck) Run() error {
 	}
 
 	du, err := docker.GetDockerUtil()
-	if (config.IsContainerized()) {
+	if config.IsContainerized() {
 		if err != nil {
 			sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", nil, err.Error())
 			d.Warnf("Error initialising check: %s", err)
@@ -354,7 +356,18 @@ func (d *DockerCheck) Run() error {
 	//sts
 	// Collect container topology
 	if d.instance.CollectContainerTopology {
-		err := d.topologyCollector.CollectTopology(du)
+		err := d.topologyCollector.BuildContainerTopology(du)
+		if err != nil {
+			sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", nil, err.Error())
+			d.Warnf("Error initialising check: %s", err)
+			return err
+		}
+	}
+
+	//sts
+	// Collect container topology
+	if d.instance.CollectSwarmTopology {
+		err := d.topologyCollector.BuildSwarmTopology(du)
 		if err != nil {
 			sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", nil, err.Error())
 			d.Warnf("Error initialising check: %s", err)
@@ -416,8 +429,8 @@ func (d *DockerCheck) Configure(config, initConfig integration.Data) error {
 // DockerFactory is exported for integration testing
 func DockerFactory() check.Check {
 	return &DockerCheck{
-		CheckBase: core.NewCheckBase(dockerCheckName),
-		instance:  &DockerConfig{},
+		CheckBase:         core.NewCheckBase(dockerCheckName),
+		instance:          &DockerConfig{},
 		topologyCollector: topology.MakeDockerTopologyCollector(),
 	}
 }
