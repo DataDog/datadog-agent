@@ -32,6 +32,11 @@ Upgrade Notes
   recommended to configure ``forwarder_retry_queue_payloads_max_size`` and 
   remove ``forwarder_retry_queue_max_size`` from the Agent configuration.
 
+- Docker image: remove Docker volumes for ``/etc/datadog-agent`` and ``/tmp`` 
+  as it prevents to inherit from Datadog Agent image. It was originally done 
+  to allow read-only rootfs on Kubernetes, so in order to continue supporting 
+  this feature, relevant volumes are created in newer Kubernetes manifest or 
+  Helm chart >= 2.6.9
 
 .. _Release Notes_7.26.0_New Features:
 
@@ -133,14 +138,6 @@ Enhancement Notes
   now supported. Note that the file path is relative
   to the Agent and not the pod/container bearing
   the annotation.
-
-
-.. _Release Notes_7.26.0_Known Issues:
-
-Known Issues
-------------
-
-- Docker image: remove Docker volumes for ``/etc/datadog-agent`` and ``/tmp`` as it prevents to inherit from Datadog Agent image. It was originally done to allow read-only rootfs on Kubernetes, so in order to continue supporting this feature, relevant volumes are created in newer Kubernetes manifest or Helm chart >= 2.6.9
 
 
 .. _Release Notes_7.26.0_Bug Fixes:
