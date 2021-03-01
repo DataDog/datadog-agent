@@ -3,6 +3,7 @@ package metrics
 import (
 	"bytes"
 	"encoding/json"
+	"expvar"
 
 	"github.com/DataDog/agent-payload/gogen"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
@@ -34,9 +35,23 @@ type SketchPoint struct {
 type SketchSeriesList []SketchSeries
 
 var (
-	tlmItemTooBig = telemetry.NewCounter("sketch_series", "sketch_too_big",
-		nil, "Number of payloads dropped because they were too big")
+	expvars                    = expvar.NewMap("sketch_series")
+	expvarsItemTooBig          = expvar.Int{}
+	expvarsPayloadFull         = expvar.Int{}
+	expvarsUnexpectedItemDrops = expvar.Int{}
+	tlmItemTooBig              = telemetry.NewCounter("sketch_series", "sketch_too_big",
+		nil, "Number of payloads dropped because they were too big for the stream compressor")
+	tlmPayloadFull = telemetry.NewCounter("sketch_series", "payload_full",
+		nil, "How many times we've hit a 'paylodad is full' in the stream compressor")
+	tlmUnexpectedItemDrops = telemetry.NewCounter("sketch_series", "unexpected_item_drops",
+		nil, "Items dropped in the stream compressor")
 )
+
+func init() {
+	expvars.Set("ItemTooBig", &expvarsItemTooBig)
+	expvars.Set("PayloadFull", &expvarsPayloadFull)
+	expvars.Set("UnexpectedDrops", &expvarsUnexpectedItemDrops)
+}
 
 // MarshalJSON serializes sketch series to JSON.
 // Quite slow, but hopefully this method is called only in the `agent check` command
@@ -153,6 +168,9 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 
 		// Compress the protobuf metadata and the marshaled sketch
 		e = compressor.AddItem(bufferContext.PrecompressionBuf[:totalItemSize])
+		if e == stream.ErrPayloadFull {
+			tlmPayloadFull.Inc()
+		}
 		if e == stream.ErrItemTooBig || e == stream.ErrPayloadFull {
 			// Since the compression buffer is full - flush it and rotate
 			payload, e := compressor.Close()
@@ -175,8 +193,11 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 				continue
 			}
 			if e != nil {
+				tlmUnexpectedItemDrops.Inc()
 				return nil, e
 			}
+		} else if e != nil {
+			tlmUnexpectedItemDrops.Inc()
 		}
 	}
 
