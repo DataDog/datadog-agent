@@ -7,6 +7,7 @@ package forwarder
 
 import (
 	"expvar"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
@@ -16,10 +17,11 @@ type counterExpvar struct {
 	expvar  expvar.Int
 }
 
-func newCounterExpvar(subsystem string, name string, expvarName string, help string, parent *expvar.Map) *counterExpvar {
+func newCounterExpvar(subsystem string, name string, help string, parent *expvar.Map) *counterExpvar {
 	c := &counterExpvar{
 		counter: telemetry.NewCounter(subsystem, name, []string{}, help),
 	}
+	expvarName := toCamelCase(name)
 	parent.Set(expvarName, &c.expvar)
 	return c
 }
@@ -34,10 +36,11 @@ type gaugeExpvar struct {
 	expvar expvar.Int
 }
 
-func newGaugeExpvar(subsystem string, name string, expvarName string, help string, parent *expvar.Map) *gaugeExpvar {
+func newGaugeExpvar(subsystem string, name string, help string, parent *expvar.Map) *gaugeExpvar {
 	g := &gaugeExpvar{
 		gauge: telemetry.NewGauge(subsystem, name, []string{}, help),
 	}
+	expvarName := toCamelCase(name)
 	parent.Set(expvarName, &g.expvar)
 	return g
 }
@@ -77,25 +80,21 @@ func init() {
 	newRemovalPolicyCountTelemetry = newCounterExpvar(
 		"removal_policy",
 		"new_removal_policy_count",
-		"NewRemovalPolicyCount",
 		"The number of times failedTransactionRemovalPolicy is created",
 		&removalPolicyExpvar)
 	registeredDomainCountTelemetry = newCounterExpvar(
 		"removal_policy",
 		"registered_domain_count",
-		"RegisteredDomainCount",
 		"The number of domains registered by failedTransactionRemovalPolicy",
 		&removalPolicyExpvar)
 	outdatedFilesCountTelemetry = newCounterExpvar(
 		"removal_policy",
 		"outdated_files_count",
-		"OutdatedFilesCount",
 		"The number of outdated files removed",
 		&removalPolicyExpvar)
 	filesFromUnknownDomainCountTelemetry = newCounterExpvar(
 		"removal_policy",
 		"files_from_unknown_domain_count",
-		"FilesFromUnknownDomainCount",
 		"The number of files removed from an unknown domain",
 		&removalPolicyExpvar)
 
@@ -103,25 +102,21 @@ func init() {
 	currentMemSizeInBytesTelemetry = newGaugeExpvar(
 		"transaction_container",
 		"current_mem_size_in_bytes",
-		"CurrentMemSizeInBytes",
 		"The retry queue size",
 		&transactionContainerExpvar)
 	transactionsCountTelemetry = newGaugeExpvar(
 		"transaction_container",
 		"transactions_count",
-		"TransactionsCount",
 		"The number of transactions in the retry queue",
 		&transactionContainerExpvar)
 	transactionsDroppedCountTelemetry = newCounterExpvar(
 		"transaction_container",
 		"transactions_dropped_count",
-		"TransactionsDroppedCount",
 		"The number of transactions dropped because the retry queue is full",
 		&transactionContainerExpvar)
 	errorsCountTelemetry = newCounterExpvar(
 		"transaction_container",
 		"errors_count",
-		"ErrorsCount",
 		"The number of errors",
 		&transactionContainerExpvar)
 
@@ -129,55 +124,46 @@ func init() {
 	serializeCountTelemetry = newCounterExpvar(
 		"file_storage",
 		"serialize_count",
-		"SerializeCount",
 		"The number of times `transactionsFileStorage.Serialize` is called",
 		&fileStorageExpvar)
 	deserializeCountTelemetry = newCounterExpvar(
 		"file_storage",
 		"deserialize_count",
-		"DeserializeCount",
 		"The number of times `transactionsFileStorage.Deserialize` is called",
 		&fileStorageExpvar)
 	fileSizeTelemetry = newGaugeExpvar(
 		"file_storage",
 		"file_size",
-		"FileSize",
 		"The last file size stored on the disk",
 		&fileStorageExpvar)
 	currentSizeInBytesTelemetry = newGaugeExpvar(
 		"file_storage",
 		"current_size_in_bytes",
-		"CurrentSizeInBytes",
 		"The number of bytes used to store transactions on the disk",
 		&fileStorageExpvar)
 	filesCountTelemetry = newGaugeExpvar(
 		"file_storage",
 		"files_count",
-		"FilesCount",
 		"The number of files",
 		&fileStorageExpvar)
 	reloadedRetryFilesCountTelemetry = newCounterExpvar(
 		"file_storage",
 		"reloaded_retry_files_count",
-		"ReloadedRetryFilesCount",
 		"The number of files reloaded from a previous run of the Agent",
 		&fileStorageExpvar)
 	filesRemovedCountTelemetry = newCounterExpvar(
 		"file_storage",
 		"files_removed_count",
-		"FilesRemovedCount",
 		"The number of files removed because the disk limit was reached",
 		&fileStorageExpvar)
 	deserializeErrorsCountTelemetry = newCounterExpvar(
 		"file_storage",
 		"deserialize_errors_count",
-		"DeserializeErrorsCount",
 		"The number of errors during deserialization",
 		&fileStorageExpvar)
 	deserializeTransactionsCountTelemetry = newCounterExpvar(
 		"file_storage",
 		"deserialize_transactions_count",
-		"DeserializeTransactionsCount",
 		"The number of transactions read from the disk",
 		&fileStorageExpvar)
 }
@@ -253,4 +239,13 @@ func (transactionsFileStorageTelemetry) addDeserializeErrorsCount(count int) {
 
 func (transactionsFileStorageTelemetry) addDeserializeTransactionsCount(count int) {
 	deserializeTransactionsCountTelemetry.add(float64(count))
+}
+
+func toCamelCase(s string) string {
+	parts := strings.Split(s, "_")
+	var camelCase string
+	for _, p := range parts {
+		camelCase += strings.Title(p)
+	}
+	return camelCase
 }
