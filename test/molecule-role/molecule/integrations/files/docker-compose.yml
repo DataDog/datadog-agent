@@ -81,6 +81,10 @@ services:
     depends_on:
       - mysql
 
+  nginx:
+    image: nginx:1.14.2
+    container_name: nginx-1
+
   stackstate-agent:
     image: docker.io/stackstate/stackstate-agent-2-test:${AGENT_VERSION}
     network_mode: "host"

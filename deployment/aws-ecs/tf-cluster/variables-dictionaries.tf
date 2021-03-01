@@ -24,10 +24,10 @@ variable "environment_to_region_map" {
 variable "environment_to_instance_size_map" {
   type = "map"
   default = {
-    default = "t2.small"
-    dev     = "t2.small"
-    qa      = "t2.small"
-    staging = "t2.small"
-    prod    = "t2.small"
+    default = "t2.medium"
+    dev     = "t2.medium"
+    qa      = "t2.medium"
+    staging = "t2.medium"
+    prod    = "t2.medium"
   }
 }

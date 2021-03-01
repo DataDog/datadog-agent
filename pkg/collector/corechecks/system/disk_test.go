@@ -7,6 +7,11 @@
 package system
 
 import (
+	"fmt"
+	"github.com/StackVista/stackstate-agent/pkg/batcher"
+	"github.com/StackVista/stackstate-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/topology"
+	"github.com/stretchr/testify/assert"
 	"regexp"
 	"testing"
 
@@ -88,14 +93,18 @@ func diskIoSampler(names ...string) (map[string]disk.IOCountersStat, error) {
 }
 
 func TestDiskCheck(t *testing.T) {
-
 	diskPartitions = diskSampler
 	diskUsage = diskUsageSampler
 	ioCounters = diskIoSampler
-	diskCheck := new(DiskCheck)
+	diskCheck := diskFactory().(*DiskCheck)
 	diskCheck.Configure(nil, nil)
 
 	mock := mocksender.NewMockSender(diskCheck.ID())
+	// set up the mock batcher
+	mockBatcher := batcher.NewMockBatcher()
+	// set mock hostname
+	testHostname := "test-hostname"
+	config.Datadog.Set("hostname", testHostname)
 
 	expectedRates := 2
 	expectedGauges := 16
@@ -128,19 +137,44 @@ func TestDiskCheck(t *testing.T) {
 	mock.AssertNumberOfCalls(t, "Gauge", expectedGauges)
 	mock.AssertNumberOfCalls(t, "Rate", expectedRates)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
+
+	producedTopology := mockBatcher.CollectedTopology.Flush()
+	expectedTopology := batcher.Topologies{
+		"disk_topology": {
+			StartSnapshot: false,
+			StopSnapshot:  false,
+			Instance:      topology.Instance{Type: "disk", URL: "agents"},
+			Components: []topology.Component{
+				{
+					ExternalID: fmt.Sprintf("urn:host:/%s", testHostname),
+					Type: topology.Type{
+						Name: "host",
+					},
+					Data: topology.Data{
+						"host":    testHostname,
+						"devices": []string{"/dev/sda2", "/dev/sda1"},
+					},
+				},
+			},
+			Relations: []topology.Relation{},
+		},
+	}
+
+	assert.Equal(t, expectedTopology, producedTopology)
 }
 
 func TestDiskCheckExcludedDiskFilsystem(t *testing.T) {
 	diskPartitions = diskSampler
 	diskUsage = diskUsageSampler
 	ioCounters = diskIoSampler
-	diskCheck := new(DiskCheck)
+	diskCheck := diskFactory().(*DiskCheck)
 	diskCheck.Configure(nil, nil)
 
 	diskCheck.cfg.excludedFilesystems = []string{"vfat"}
 	diskCheck.cfg.excludedDisks = []string{"/dev/sda2"}
 
 	mock := mocksender.NewMockSender(diskCheck.ID())
+	_ = batcher.NewMockBatcher()
 
 	expectedGauges := 0
 	expectedRates := 2
@@ -161,13 +195,14 @@ func TestDiskCheckExcludedRe(t *testing.T) {
 	diskPartitions = diskSampler
 	diskUsage = diskUsageSampler
 	ioCounters = diskIoSampler
-	diskCheck := new(DiskCheck)
+	diskCheck := diskFactory().(*DiskCheck)
 	diskCheck.Configure(nil, nil)
 
 	diskCheck.cfg.excludedMountpointRe = regexp.MustCompile("/boot/efi")
 	diskCheck.cfg.excludedDiskRe = regexp.MustCompile("/dev/sda2")
 
 	mock := mocksender.NewMockSender(diskCheck.ID())
+	_ = batcher.NewMockBatcher()
 
 	expectedGauges := 0
 	expectedRates := 2
@@ -188,13 +223,14 @@ func TestDiskCheckTags(t *testing.T) {
 	diskPartitions = diskSampler
 	diskUsage = diskUsageSampler
 	ioCounters = diskIoSampler
-	diskCheck := new(DiskCheck)
+	diskCheck := diskFactory().(*DiskCheck)
 
 	config := integration.Data([]byte("use_mount: true\ntag_by_filesystem: true\nall_partitions: true\ndevice_tag_re:\n  /boot/efi: role:esp\n  /dev/sda2: device_type:sata,disk_size:large"))
 
 	diskCheck.Configure(config, nil)
 
 	mock := mocksender.NewMockSender(diskCheck.ID())
+	_ = batcher.NewMockBatcher()
 
 	expectedGauges := 16
 	expectedRates := 2
