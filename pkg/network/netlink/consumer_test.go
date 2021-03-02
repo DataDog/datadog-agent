@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -39,7 +40,7 @@ func TestConsumerKeepsRunningAfterCircuitBreakerTrip(t *testing.T) {
 		return isRecvLoopRunning()
 	}, 3*time.Second, 100*time.Millisecond)
 
-	srv := startServerTCP(t, net.ParseIP("127.0.0.1"), 0)
+	srv := nettestutil.StartServerTCP(t, net.ParseIP("127.0.0.1"), 0)
 	defer srv.Close()
 
 	l := srv.(net.Listener)
