@@ -94,13 +94,13 @@ func (s *maxEPSSampler) getSampleRate() float64 {
 
 func (s *maxEPSSampler) report() {
 	maxRate := s.maxEPS
-	metrics.Gauge("datadog.trace_agent.events.max_eps.max_rate", maxRate, nil, 1)
+	metrics.Gauge("datadog.trace_agent.events.max_eps.max_rate", maxRate, nil, 1) //nolint:errcheck
 
 	currentRate := s.rateCounter.GetRate()
-	metrics.Gauge("datadog.trace_agent.events.max_eps.current_rate", currentRate, nil, 1)
+	metrics.Gauge("datadog.trace_agent.events.max_eps.current_rate", currentRate, nil, 1) //nolint:errcheck
 
 	sampleRate := s.getSampleRate()
-	metrics.Gauge("datadog.trace_agent.events.max_eps.sample_rate", sampleRate, nil, 1)
+	metrics.Gauge("datadog.trace_agent.events.max_eps.sample_rate", sampleRate, nil, 1) //nolint:errcheck
 
 	reachedMaxGaugeV := 0.
 	if sampleRate < 1 {

@@ -145,7 +145,7 @@ func (c *counter) flush() {
 	sum := c.sum.Swap(0)
 	max := c.max.Swap(0)
 	c.mu.Unlock()
-	metrics.Count(c.name+".count", int64(count), nil, 1)
-	metrics.Gauge(c.name+".max", max, nil, 1)
-	metrics.Gauge(c.name+".avg", sum/count, nil, 1)
+	metrics.Count(c.name+".count", int64(count), nil, 1) //nolint:errcheck
+	metrics.Gauge(c.name+".max", max, nil, 1)            //nolint:errcheck
+	metrics.Gauge(c.name+".avg", sum/count, nil, 1)      //nolint:errcheck
 }

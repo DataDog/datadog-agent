@@ -66,7 +66,7 @@ func (sl *rateLimitedListener) Refresh(conns int) {
 				"status:errored":  &sl.errored,
 			} {
 				v := int64(atomic.SwapUint32(stat, 0))
-				metrics.Count("datadog.trace_agent.receiver.tcp_connections", v, []string{tag}, 1)
+				metrics.Count("datadog.trace_agent.receiver.tcp_connections", v, []string{tag}, 1) //nolint:errcheck
 			}
 		case <-t.C:
 			atomic.StoreInt32(&sl.lease, int32(conns))

@@ -6,9 +6,6 @@ run:
   skip-dirs:
     # ignore test helper
     - pkg/util/testutil
-
-    # TODO APM
-    - pkg/trace
     # TODO metrics-aggregation
     - pkg/quantile
 

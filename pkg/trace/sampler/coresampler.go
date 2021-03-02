@@ -133,8 +133,8 @@ func (s *Sampler) Start() {
 
 func (s *Sampler) report() {
 	kept, seen := s.Backend.report()
-	metrics.Count("datadog.trace_agent.sampler.kept", kept, s.tags, 1)
-	metrics.Count("datadog.trace_agent.sampler.seen", seen, s.tags, 1)
+	metrics.Count("datadog.trace_agent.sampler.kept", kept, s.tags, 1) //nolint:errcheck
+	metrics.Count("datadog.trace_agent.sampler.seen", seen, s.tags, 1) //nolint:errcheck
 }
 
 // Stop stops the main Run loop
