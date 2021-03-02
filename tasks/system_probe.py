@@ -201,7 +201,7 @@ def test(
     """
 
     if not skip_linters:
-        cfmt(ctx, fail_on_fmt=True)
+        cfmt(ctx)
         ctidy(ctx)
 
     if not skip_object_files:
@@ -319,7 +319,7 @@ def nettop(ctx, incremental_build=False, go_mod="mod"):
 
 
 @task
-def cfmt(ctx, fix=False, fail_on_fmt=False):
+def cfmt(ctx, fix=False, fail_on_issue=False):
     """
     Format C code using clang-format
     """
@@ -330,7 +330,7 @@ def cfmt(ctx, fix=False, fail_on_fmt=False):
     fmt_cmd = "clang-format -i --style=file --fallback-style=none"
     if not fix:
         fmt_cmd = fmt_cmd + " --dry-run"
-    if fail_on_fmt:
+    if fail_on_issue:
         fmt_cmd = fmt_cmd + " --Werror"
 
     files = get_ebpf_targets()
@@ -342,7 +342,7 @@ def cfmt(ctx, fix=False, fail_on_fmt=False):
 
 
 @task
-def ctidy(ctx, fix=False):
+def ctidy(ctx, fix=False, fail_on_issue=False):
     """
     Lint C code using clang-tidy
     """
@@ -363,7 +363,7 @@ def ctidy(ctx, fix=False):
     network_files.extend(glob.glob(network_c_dir + "/**/*.c"))
     network_flags = list(build_flags)
     network_flags.append("-I{}".format(network_c_dir))
-    run_tidy(ctx, files=network_files, build_flags=network_flags, fix=fix)
+    run_tidy(ctx, files=network_files, build_flags=network_flags, fix=fix, fail_on_issue=fail_on_issue)
 
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
     security_files = list(base_files)
@@ -371,13 +371,15 @@ def ctidy(ctx, fix=False):
     security_flags = list(build_flags)
     security_flags.append("-I{}".format(security_agent_c_dir))
     security_flags.append("-DUSE_SYSCALL_WRAPPER=0")
-    run_tidy(ctx, files=security_files, build_flags=security_flags, fix=fix)
+    run_tidy(ctx, files=security_files, build_flags=security_flags, fix=fix, fail_on_issue=fail_on_issue)
 
 
-def run_tidy(ctx, files, build_flags, fix=False):
+def run_tidy(ctx, files, build_flags, fix=False, fail_on_issue=False):
     flags = ["--quiet"]
     if fix:
         flags.append("--fix")
+    if fail_on_issue:
+        flags.append("--warnings-as-errors='*'")
 
     ctx.run(
         "clang-tidy {flags} {files} -- {build_flags}".format(

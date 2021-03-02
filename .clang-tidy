@@ -1,6 +1,5 @@
 ---
 Checks: 'clang-diagnostic-*,clang-analyzer-*,readability-*,-readability-magic-numbers,linuxkernel-*,portability-*,-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling'
-WarningsAsErrors: '*'
 HeaderFilterRegex: '.*'
 AnalyzeTemporaryDtors: false
 FormatStyle: file
