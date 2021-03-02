@@ -9,6 +9,7 @@ from .go import generate
 from .utils import (
     REPO_PATH,
     bin_name,
+    generate_config,
     get_build_flags,
     get_git_branch_name,
     get_git_commit,
@@ -17,8 +18,8 @@ from .utils import (
     get_version,
 )
 
-BIN_DIR = os.path.join(".", "bin", "security-agent")
-BIN_PATH = os.path.join(BIN_DIR, bin_name("security-agent", android=False))
+BIN_DIR = os.path.join(".", "bin")
+BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent", android=False))
 GIMME_ENV_VARS = ['GOROOT', 'PATH']
 
 
@@ -106,9 +107,9 @@ def build(
     ctx.run(cmd.format(**args), env=env)
 
     if not skip_assets:
-        dist_folder = os.path.join(BIN_DIR, "dist", "runtime-security.d")
-        if not os.path.exists(dist_folder):
-            os.makedirs(dist_folder)
+        dist_folder = os.path.join(BIN_DIR, "agent", "dist")
+        generate_config(ctx, build_type="security-agent", output_file="./cmd/agent/dist/security-agent.yaml", env=env)
+        shutil.copy("./cmd/agent/dist/security-agent.yaml", os.path.join(dist_folder, "security-agent.yaml"))
 
 
 @task()

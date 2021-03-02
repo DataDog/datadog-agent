@@ -47,6 +47,7 @@ type context struct {
 	Compliance        bool
 	SNMP              bool
 	SecurityModule    bool
+	SecurityAgent     bool
 	NetworkModule     bool // Sub-module of System Probe
 }
 
@@ -125,6 +126,10 @@ func mkContext(buildType string) context {
 			ClusterChecks:   true,
 			CloudFoundryBBS: true,
 			CloudFoundryCC:  true,
+		}
+	case "security-agent":
+		return context{
+			SecurityAgent: true,
 		}
 	}
 
