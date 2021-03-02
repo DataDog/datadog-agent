@@ -114,7 +114,7 @@ def build(
         for line in lines:
             for env_var in GIMME_ENV_VARS:
                 if env_var in line:
-                    goenv[env_var] = line[line.find(env_var) + len(env_var) + 1: -1].strip('\'\"')
+                    goenv[env_var] = line[line.find(env_var) + len(env_var) + 1 : -1].strip('\'\"')
         ld_vars["GoVersion"] = go_version
 
     # extend PATH from gimme with the one from get_build_flags
@@ -191,7 +191,7 @@ def test(
     bundle_ebpf=True,
     output_path=None,
     runtime_compiled=False,
-    skip_linters=False
+    skip_linters=False,
 ):
     """
     Run tests on eBPF parts
