@@ -161,18 +161,14 @@ func (d *DockerUtil) GetStorageStats() ([]*StorageStats, error) {
 	return parseStorageStatsFromInfo(info)
 }
 
-func isImageShaID(image string) bool {
-	return strings.HasPrefix(image, "sha256:")
-}
-
-func isImageRepoDigest(image string) bool {
-	return strings.Contains(image, "@sha256:")
+func isImageShaOrRepoDigest(image string) bool {
+	return strings.HasPrefix(image, "sha256:") || strings.Contains(image, "@sha256:")
 }
 
 // ResolveImageName will resolve sha image name to their user-friendly name.
 // For non-sha/non-repodigest names we will just return the name as-is.
 func (d *DockerUtil) ResolveImageName(image string) (string, error) {
-	if !isImageShaID(image) && !isImageRepoDigest(image) {
+	if !isImageShaOrRepoDigest(image) {
 		return image, nil
 	}
 
@@ -212,7 +208,7 @@ func (d *DockerUtil) ResolveImageName(image string) (string, error) {
 // It is similar to ResolveImageName except it tries to match the image to the container Config.Image.
 // For non-sha names we will just return the name as-is.
 func (d *DockerUtil) ResolveImageNameFromContainer(co types.ContainerJSON) (string, error) {
-	if co.Config.Image != "" && !isImageShaID(co.Config.Image) && !isImageRepoDigest(co.Config.Image) {
+	if co.Config.Image != "" && !isImageShaOrRepoDigest(co.Config.Image) {
 		return co.Config.Image, nil
 	}
 
