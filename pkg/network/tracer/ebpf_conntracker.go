@@ -109,18 +109,17 @@ func NewEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 }
 
 func (e *ebpfConntracker) dumpInitialTables(ctx context.Context, cfg *config.Config) error {
-	var err error
-	e.consumer, err = netlink.NewConsumer(cfg.ProcRoot, cfg.ConntrackRateLimit, true)
-	if err != nil {
-		return err
-	}
+	e.consumer = netlink.NewConsumer(cfg.ProcRoot, cfg.ConntrackRateLimit, true)
 	defer e.consumer.Stop()
 
-	if err := e.loadInitialState(ctx, e.consumer.DumpTable(unix.AF_INET)); err != nil {
-		return err
-	}
-	if err := e.loadInitialState(ctx, e.consumer.DumpTable(unix.AF_INET6)); err != nil {
-		return err
+	for _, family := range []uint8{unix.AF_INET, unix.AF_INET6} {
+		events, err := e.consumer.DumpTable(family)
+		if err != nil {
+			return err
+		}
+		if err := e.loadInitialState(ctx, events); err != nil {
+			return err
+		}
 	}
 	return nil
 }

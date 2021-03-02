@@ -325,7 +325,9 @@ func (c *Consumer) GetStats() map[string]int64 {
 
 // Stop the consumer
 func (c *Consumer) Stop() {
-	c.conn.Close()
+	if c.conn != nil {
+		c.conn.Close()
+	}
 }
 
 // initWorker creates a go-routine *within the root network namespace*.
@@ -494,7 +496,8 @@ func (c *Consumer) throttle(numMessages int) error {
 	atomic.AddInt64(&c.throttles, 1)
 
 	// Close current socket
-	c.socket.Close()
+	c.conn.Close()
+	c.conn = nil
 
 	if pre315Kernel {
 		// we cannot recreate the socket and set a bpf filter on
