@@ -31,12 +31,12 @@ type CCCacheI interface {
 // CCCache is a simple structure that caches and automatically refreshes data from Cloud Foundry API
 type CCCache struct {
 	sync.RWMutex
+	pollAttempts  int64
+	pollSuccesses int64
 	cancelContext context.Context
 	configured    bool
 	ccAPIClient   CCClientI
 	pollInterval  time.Duration
-	pollAttempts  int64
-	pollSuccesses int64
 	lastUpdated   time.Time
 	appsByGUID    map[string]*CFApp
 }
