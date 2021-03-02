@@ -85,9 +85,8 @@ type ProcessResolver struct {
 	cacheSize        int64
 	opts             ProcessResolverOpts
 
-	entryCache map[uint32]*model.ProcessCacheEntry
-	argsCache  *simplelru.LRU
-	envsCache  *simplelru.LRU
+	entryCache    map[uint32]*model.ProcessCacheEntry
+	argsEnvsCache *simplelru.LRU
 }
 
 // SendStats sends process resolver metrics
@@ -103,9 +102,9 @@ func (p *ProcessResolver) SendStats() error {
 	return nil
 }
 
-// UpdateArgs updates arguments of the given id
-func (p *ProcessResolver) UpdateArgs(event *model.ArgsEnvsEvent) {
-	if e, found := p.argsCache.Get(event.ID); found {
+// UpdateArgsEnvs updates arguments or environment variables of the given id
+func (p *ProcessResolver) UpdateArgsEnvs(event *model.ArgsEnvsEvent) {
+	if e, found := p.argsEnvsCache.Get(event.ID); found {
 		entry := e.(*argsEnvsCacheEntry)
 
 		entry.Values = append(entry.Values, event.Values...)
@@ -115,23 +114,7 @@ func (p *ProcessResolver) UpdateArgs(event *model.ArgsEnvsEvent) {
 			Values:      event.Values,
 			IsTruncated: event.IsTruncated,
 		}
-		p.argsCache.Add(event.ID, entry)
-	}
-}
-
-// UpdateEnvs updates environment of the given id
-func (p *ProcessResolver) UpdateEnvs(event *model.ArgsEnvsEvent) {
-	if e, found := p.envsCache.Get(event.ID); found {
-		entry := e.(*argsEnvsCacheEntry)
-
-		entry.Values = append(entry.Values, event.Values...)
-		entry.IsTruncated = entry.IsTruncated || event.IsTruncated
-	} else {
-		entry := &argsEnvsCacheEntry{
-			Values:      event.Values,
-			IsTruncated: event.IsTruncated,
-		}
-		p.envsCache.Add(event.ID, entry)
+		p.argsEnvsCache.Add(event.ID, entry)
 	}
 }
 
@@ -419,11 +402,8 @@ func (p *ProcessResolver) resolveWithProcfs(pid uint32) *model.ProcessCacheEntry
 
 // ResolveArgs resolves arguments
 func (p *ProcessResolver) ResolveArgs(pce *model.ProcessCacheEntry) {
-	fmt.Printf("1111111111111&: %+v\n", pce.ArgsID)
-	if e, found := p.argsCache.Get(pce.ArgsID); found {
+	if e, found := p.argsEnvsCache.Get(pce.ArgsID); found {
 		entry := e.(*argsEnvsCacheEntry)
-
-		fmt.Printf("2222222222222222é&: %+v\n", pce.ArgsID)
 
 		pce.Args = entry.Values
 		if pce.ArgsTruncated {
@@ -435,7 +415,7 @@ func (p *ProcessResolver) ResolveArgs(pce *model.ProcessCacheEntry) {
 
 // ResolveArgs resolves environment variables
 func (p *ProcessResolver) ResolveEnvs(pce *model.ProcessCacheEntry) {
-	if e, found := p.envsCache.Get(pce.EnvsID); found {
+	if e, found := p.argsEnvsCache.Get(pce.EnvsID); found {
 		entry := e.(*argsEnvsCacheEntry)
 
 		pce.Envs = entry.Values
@@ -675,23 +655,18 @@ func (p *ProcessResolver) GetEntryCacheSize() float64 {
 
 // NewProcessResolver returns a new process resolver
 func NewProcessResolver(probe *Probe, resolvers *Resolvers, client *statsd.Client, opts ProcessResolverOpts) (*ProcessResolver, error) {
-	argsCache, err := simplelru.NewLRU(512, nil)
-	if err != nil {
-		return nil, err
-	}
-	envsCache, err := simplelru.NewLRU(512, nil)
+	argsEnvsCache, err := simplelru.NewLRU(512, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	return &ProcessResolver{
-		probe:      probe,
-		resolvers:  resolvers,
-		client:     client,
-		entryCache: make(map[uint32]*model.ProcessCacheEntry),
-		opts:       opts,
-		argsCache:  argsCache,
-		envsCache:  envsCache,
+		probe:         probe,
+		resolvers:     resolvers,
+		client:        client,
+		entryCache:    make(map[uint32]*model.ProcessCacheEntry),
+		opts:          opts,
+		argsEnvsCache: argsEnvsCache,
 	}, nil
 }
 

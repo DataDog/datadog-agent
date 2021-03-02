@@ -378,7 +378,6 @@ const (
 // ArgsEnvs defines a args/envs event
 type ArgsEnvsEvent struct {
 	ID          uint32
-	IsArgs      bool
 	Size        uint32
 	Values      []string
 	ValuesRaw   [128]byte

@@ -213,14 +213,13 @@ func (e *InvalidateDentryEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *ArgsEnvsEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 140 {
+	if len(data) < 136 {
 		return 0, ErrNotEnoughData
 	}
 
 	e.ID = ByteOrder.Uint32(data[0:4])
-	e.IsArgs = ByteOrder.Uint32(data[4:8]) == argsType
-	e.Size = ByteOrder.Uint32(data[8:12])
-	SliceToArray(data[12:140], unsafe.Pointer(&e.ValuesRaw))
+	e.Size = ByteOrder.Uint32(data[4:8])
+	SliceToArray(data[8:136], unsafe.Pointer(&e.ValuesRaw))
 	values, err := UnmarshalStringArray(e.ValuesRaw[:e.Size])
 	if err != nil || e.Size == 128 {
 		if len(values) > 0 {
@@ -230,7 +229,7 @@ func (e *ArgsEnvsEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 	e.Values = values
 
-	return 140, nil
+	return 136, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself

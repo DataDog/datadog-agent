@@ -31,7 +31,7 @@ func UnmarshalStringArray(data []byte) ([]string, error) {
 	var result []string
 	len := uint32(len(data))
 
-	for i := uint32(0); i < len-1; {
+	for i := uint32(0); i < len; {
 		if i+4 >= len {
 			return result, ErrStringArrayOverflow
 		}

@@ -315,13 +315,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			return
 		}
 
-		fmt.Printf("TTTTTTTTTTTTTt: %+v\n", event.ArgsEnvs)
-
-		if event.ArgsEnvs.IsArgs {
-			p.resolvers.ProcessResolver.UpdateArgs(&event.ArgsEnvs)
-		} else {
-			p.resolvers.ProcessResolver.UpdateEnvs(&event.ArgsEnvs)
-		}
+		p.resolvers.ProcessResolver.UpdateArgsEnvs(&event.ArgsEnvs)
 
 		return
 	}

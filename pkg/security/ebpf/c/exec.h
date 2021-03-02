@@ -9,16 +9,12 @@
 
 #define MAX_PERF_STR_BUFF_LEN 128
 #define MAX_STR_BUFF_LEN (1 << 15)
-#define MAX_ARRAY_ELEMENT 2
+#define MAX_ARRAY_ELEMENT 40
 #define MAX_ARRAY_ELEMENT_SIZE 4096
-
-#define ARGS_TYPE 1
-#define ENVS_TYPE 2
 
 struct args_envs_event_t {
     struct kevent_t event;
     u32 id;
-    u32 type;
     u32 size;
     char value[MAX_PERF_STR_BUFF_LEN];
 };
@@ -66,7 +62,7 @@ struct _tracepoint_sched_process_fork
     pid_t child_pid;
 };
 
-void __attribute__((always_inline)) parse_str_array(struct pt_regs *ctx, struct str_array_ref_t *array_ref, const char **data, u8 type) {
+void __attribute__((always_inline)) parse_str_array(struct pt_regs *ctx, struct str_array_ref_t *array_ref, const char **data) {
     u32 id = bpf_get_prandom_u32();
     array_ref->id = id;
 
@@ -83,7 +79,6 @@ void __attribute__((always_inline)) parse_str_array(struct pt_regs *ctx, struct 
 
     struct args_envs_event_t event = {
         .id = id,
-        .type = type,
     };
 
     int i = 0, n = 0, offset = 0;
@@ -100,31 +95,26 @@ void __attribute__((always_inline)) parse_str_array(struct pt_regs *ctx, struct 
             bpf_probe_read(&str, sizeof(str), (void *)&data[++a]);
 
             int len = n + sizeof(n);
-            if (event.size + len > MAX_PERF_STR_BUFF_LEN - 1) {
-                void *perf_ptr = &(buff->value[perf_offset&(MAX_STR_BUFF_LEN - MAX_ARRAY_ELEMENT_SIZE - 1)]);
-                bpf_probe_read(&event.value, MAX_PERF_STR_BUFF_LEN, perf_ptr);
-
-                send_event(ctx, EVENT_ARGS_ENVS, event);
-                event.size = 0;
-
-                perf_offset = offset;
-            }
             offset += len;
 
-            // current argument overflow the perf buff size, thus send it truncated
-            if (len > MAX_PERF_STR_BUFF_LEN) {
-                event.size = MAX_PERF_STR_BUFF_LEN;
-
+            if (event.size + len > MAX_PERF_STR_BUFF_LEN) {
                 void *perf_ptr = &(buff->value[perf_offset&(MAX_STR_BUFF_LEN - MAX_ARRAY_ELEMENT_SIZE - 1)]);
                 bpf_probe_read(&event.value, MAX_PERF_STR_BUFF_LEN, perf_ptr);
 
+                // current argument overflow the perf buff size, thus send it truncated
+                if (len > MAX_PERF_STR_BUFF_LEN) {
+                    event.size = MAX_PERF_STR_BUFF_LEN;
+
+                    perf_offset = offset;
+                    len = 0;
+                } else {
+                    perf_offset += event.size;
+                }
+
                 send_event(ctx, EVENT_ARGS_ENVS, event);
                 event.size = 0;
-
-                perf_offset = offset;
-            } else {
-                event.size += len;
-            }            
+            }
+            event.size += len;
         } else {
             break;
         }
@@ -133,6 +123,9 @@ void __attribute__((always_inline)) parse_str_array(struct pt_regs *ctx, struct 
 
     // flush remaining values
     if (event.size > 0) {
+        if (event.size > MAX_PERF_STR_BUFF_LEN) {
+            event.size = MAX_PERF_STR_BUFF_LEN;
+        }
         void *perf_ptr = &(buff->value[perf_offset&(MAX_STR_BUFF_LEN - MAX_ARRAY_ELEMENT_SIZE - 1)]);
         bpf_probe_read(&event.value, MAX_PERF_STR_BUFF_LEN, perf_ptr);
 
@@ -144,8 +137,8 @@ int __attribute__((always_inline)) trace__sys_execveat(struct pt_regs *ctx, cons
     struct syscall_cache_t syscall = {
         .type = SYSCALL_EXEC,
     };
-    parse_str_array(ctx, &syscall.exec.args, argv, ARGS_TYPE);
-    parse_str_array(ctx, &syscall.exec.envs, env, ENVS_TYPE);
+    parse_str_array(ctx, &syscall.exec.args, argv);
+    //parse_str_array(ctx, &syscall.exec.envs, env);
 
     cache_syscall(&syscall);
     return 0;
@@ -405,6 +398,8 @@ int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
 
             // fill args and envs
             fill_args_envs(&event, syscall);
+
+            bpf_printk("TTTTTTTTTTTTT: %d\n", event.args_truncated);
 
             // send the entry to maintain userspace cache
             send_event(ctx, EVENT_EXEC, event);

@@ -124,8 +124,8 @@ func TestProcessContext(t *testing.T) {
 				t.Errorf("not able to find the proper process filename `%v` vs `%s`: %v", filename, executable, event)
 			}
 
-			if inode := getInode(t, executable); inode != event.Process.FileFields.Inode {
-				t.Logf("expected inode %d, got %d", event.Process.FileFields.Inode, inode)
+			if inode := getInode(t, executable); inode != event.ProcessContext.FileFields.Inode {
+				t.Logf("expected inode %d, got %d", event.ProcessContext.FileFields.Inode, inode)
 			}
 
 			testContainerPath(t, event, "process.file.container_path")
@@ -162,8 +162,13 @@ func TestProcessContext(t *testing.T) {
 				t.Error("not able to get a tty name")
 			}
 
+<<<<<<< HEAD
 			if inode := getInode(t, executable); inode != event.Process.FileFields.Inode {
 				t.Logf("expected inode %d, got %d", event.Process.FileFields.Inode, inode)
+=======
+			if inode := getInode(t, executable); inode != event.ProcessContext.Inode {
+				t.Logf("expected inode %d, got %d", event.ProcessContext.Inode, inode)
+>>>>>>> 049eae05e (Reduce number of instruction)
 			}
 
 			testContainerPath(t, event, "process.file.container_path")
@@ -202,7 +207,7 @@ func TestProcessContext(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if filename := event.ResolveExecInode(&event.Exec); filename != executable {
+			if filename := event.ResolveProcessInode(&event.Exec.Process); filename != executable {
 				t.Errorf("expected process filename `%s`, got `%s`: %v", executable, filename, event)
 			}
 
@@ -210,7 +215,7 @@ func TestProcessContext(t *testing.T) {
 				t.Error("Wrong rule triggered")
 			}
 
-			if ancestor := event.Process.Ancestor; ancestor == nil || ancestor.Comm != shell {
+			if ancestor := event.ProcessContext.Ancestor; ancestor == nil || ancestor.Comm != shell {
 				t.Errorf("ancestor `%s` expected, got %v, event:%v", shell, ancestor, event)
 			}
 		}
@@ -414,7 +419,7 @@ func TestProcessLineage(t *testing.T) {
 			if err := testProcessLineageExec(t, event); err != nil {
 				t.Error(err)
 			} else {
-				execPid = int(event.Process.Pid)
+				execPid = int(event.ProcessContext.Pid)
 			}
 		}
 	})
@@ -433,7 +438,7 @@ func TestProcessLineage(t *testing.T) {
 				if err != nil {
 					continue
 				}
-				if int(event.Process.Pid) == execPid {
+				if int(event.ProcessContext.Pid) == execPid {
 					testProcessLineageExit(t, event, test)
 					return
 				}
@@ -502,7 +507,7 @@ func testProcessLineageExit(t *testing.T, event *probe.Event, test *testModule) 
 	// make sure that the process cache entry of the process was properly deleted from the cache
 	err := retry.Do(func() error {
 		resolvers := test.probe.GetResolvers()
-		entry := resolvers.ProcessResolver.Get(event.Process.Pid)
+		entry := resolvers.ProcessResolver.Get(event.ProcessContext.Pid)
 		if entry != nil {
 			return fmt.Errorf("the process cache entry was not deleted from the user space cache")
 		}
