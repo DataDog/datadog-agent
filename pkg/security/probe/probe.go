@@ -430,13 +430,8 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			log.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-
-		fmt.Printf("AAAAAAAAAAAAaa: %+v\n", event.processCacheEntry.Process.ArgsID)
-
 		p.resolvers.ProcessResolver.ResolveArgs(event.processCacheEntry)
 		p.resolvers.ProcessResolver.ResolveEnvs(event.processCacheEntry)
-
-		fmt.Printf("BBBBBBBBBBBBBBB: %+v\n", event.processCacheEntry.Args)
 
 		event.updateProcessCachePointer(p.resolvers.ProcessResolver.AddExecEntry(event.ProcessContext.Pid, event.processCacheEntry))
 	case model.ExitEventType:
@@ -798,6 +793,8 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		})
 
 	p.scrubber = pconfig.NewDefaultDataScrubber()
+	p.scrubber.AddCustomSensitiveWords(config.CustomSensitiveWords)
+
 	p.event = NewEvent(p.resolvers, p.scrubber)
 
 	eventZero.resolvers = p.resolvers

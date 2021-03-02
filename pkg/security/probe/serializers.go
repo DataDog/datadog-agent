@@ -10,7 +10,6 @@
 package probe
 
 import (
-	"fmt"
 	"strings"
 	"syscall"
 	"time"
@@ -313,9 +312,6 @@ func newCredentialsSerializerWithResolvers(ce *model.Credentials, r *Resolvers) 
 
 func scrubArgsEnvs(process *model.Process, e *Event) ([]string, []string) {
 	args := process.Args
-
-	fmt.Printf(">>>>>>>>>>>: %v\n", args)
-
 	envs := process.Envs
 
 	// scrub args, do not send args if no scrubber instance is passed

@@ -399,8 +399,6 @@ int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
             // fill args and envs
             fill_args_envs(&event, syscall);
 
-            bpf_printk("TTTTTTTTTTTTT: %d\n", event.args_truncated);
-
             // send the entry to maintain userspace cache
             send_event(ctx, EVENT_EXEC, event);
         }
