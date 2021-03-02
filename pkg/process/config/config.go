@@ -563,7 +563,7 @@ func getHostname(ddAgentBin string) (string, error) {
 		if err == nil {
 			return hostname, nil
 		}
-		log.Errorf("Cannot get Fargate host: %v", err)
+		log.Errorf("failed to get Fargate host: %v", err)
 	}
 
 	// Get the hostname via gRPC from the main agent if a hostname has not been set either from config/fargate
@@ -573,12 +573,12 @@ func getHostname(ddAgentBin string) (string, error) {
 	}
 	log.Errorf("failed to get hostname from grpc: %v", err)
 
-	// If the hostname is not set then we fallback to our the agent binary
+	// If the hostname is not set then we fallback to use the agent binary
 	hostname, err = getHostnameFromCmd(ddAgentBin, exec.Command)
 	if err == nil {
 		return hostname, nil
 	}
-	log.Errorf("Cannot get hostname from cmd: %v", err)
+	log.Errorf("failed to get hostname from cmd: %v", err)
 
 	return os.Hostname()
 }
