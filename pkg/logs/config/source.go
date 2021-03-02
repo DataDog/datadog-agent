@@ -104,19 +104,21 @@ func (s *LogSource) GetSourceType() SourceType {
 	return s.sourceType
 }
 
+// RegisterInfo registers some info to display on the status page
 func (s *LogSource) RegisterInfo(i InfoProvider) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	s.info[i.InfoKey()] = i
 }
 
+// GetInfo gets an InfoProvider instance by the key
 func (s *LogSource) GetInfo(key string) InfoProvider {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	return s.info[key]
 }
 
-// GetInfo returns a list of info about the source
+// GetInfoStatus returns a primitive representation of the info for the status page
 func (s *LogSource) GetInfoStatus() (map[string]string, map[string][]string) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
