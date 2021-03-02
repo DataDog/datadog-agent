@@ -68,25 +68,10 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID
 		// Compute our own resource version by calculating a hash of the pod
 		// model content. We'll use this information in place of the Kubelet
 		// resource version in the payload and for cache interactions.
-
-		// Enforce order consistency on slices.
-		sort.Strings(podModel.Metadata.Annotations)
-		sort.Strings(podModel.Metadata.Labels)
-		sort.Strings(podModel.Tags)
-
-		// Marshal the pod message to JSON.
-		// We need to enforce order consistency on underlying maps as
-		// the standard library does.
-		marshaller := jsoniter.ConfigCompatibleWithStandardLibrary
-		jsonPodModel, err := marshaller.Marshal(podModel)
-		if err != nil {
-			log.Warnf("Could not marshal pod model to JSON: %s", err)
+		if err := fillPodResourceVersion(podModel); err != nil {
+			log.Warnf("Failed to compute pod resource version: %s", err)
 			continue
 		}
-
-		// Replace the payload metadata field with the custom version.
-		podModelHash := murmur3.Sum64(jsonPodModel)
-		podModel.Metadata.ResourceVersion = fmt.Sprint(podModelHash)
 
 		if SkipKubernetesResource(p.UID, podModel.Metadata.ResourceVersion, K8sPod) {
 			continue
@@ -333,20 +318,6 @@ func ComputeStatus(p *v1.Pod) string {
 	return reason
 }
 
-// mapToTags converts a map for which both keys and values are strings to a
-// slice of strings containing those key-value pairs under the "key:value" form.
-func mapToTags(m map[string]string) []string {
-	slice := make([]string, len(m))
-
-	i := 0
-	for k, v := range m {
-		slice[i] = k + ":" + v
-		i++
-	}
-
-	return slice
-}
-
 // GetConditionMessage loops through the pod conditions, and reports the message of the first one
 // (in the normal state transition order) that's doesn't pass
 func GetConditionMessage(p *v1.Pod) string {
@@ -393,6 +364,42 @@ func generateUniqueStaticPodHash(host, podName, namespace, clusterName string) s
 	_, _ = h.Write([]byte(namespace))
 	_, _ = h.Write([]byte(clusterName))
 	return strconv.FormatUint(h.Sum64(), 16)
+}
+
+func fillPodResourceVersion(p *model.Pod) error {
+	// Enforce order consistency on slices.
+	sort.Strings(p.Metadata.Annotations)
+	sort.Strings(p.Metadata.Labels)
+	sort.Strings(p.Tags)
+
+	// Marshal the pod message to JSON.
+	// We need to enforce order consistency on underlying maps as
+	// the standard library does.
+	marshaller := jsoniter.ConfigCompatibleWithStandardLibrary
+	jsonPodModel, err := marshaller.Marshal(p)
+	if err != nil {
+		return fmt.Errorf("could not marshal pod model to JSON: %s", err)
+	}
+
+	// Replace the payload metadata field with the custom version.
+	version := murmur3.Sum64(jsonPodModel)
+	p.Metadata.ResourceVersion = fmt.Sprint(version)
+
+	return nil
+}
+
+// mapToTags converts a map for which both keys and values are strings to a
+// slice of strings containing those key-value pairs under the "key:value" form.
+func mapToTags(m map[string]string) []string {
+	slice := make([]string, len(m))
+
+	i := 0
+	for k, v := range m {
+		slice[i] = k + ":" + v
+		i++
+	}
+
+	return slice
 }
 
 // ExtractMetadata extracts standard metadata into the model
