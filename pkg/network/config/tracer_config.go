@@ -1,12 +1,8 @@
 package config
 
 import (
-	"io/ioutil"
-	"path/filepath"
-
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -91,4 +87,3 @@ func TracerConfigFromConfig(cfg *config.AgentConfig) *Config {
 
 	return tracerConfig
 }
-
