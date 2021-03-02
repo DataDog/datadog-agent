@@ -13,7 +13,7 @@ import (
 	"sync"
 )
 
-var persistedStateFilePath = filepath.FromSlash("/tmp/dd-lambda-extension-cache.json")
+var persistedStateFilePath = filepath.Join("tmp", "dd-lambda-extension-cache.json")
 
 type persistedState struct {
 	CurrentARN   string
