@@ -178,7 +178,7 @@ def build_in_docker(
 
 @task
 def test(
-    ctx, packages=TEST_PACKAGES, skip_object_files=False, bundle_ebpf=True, output_path=None, runtime_compiled=False
+    ctx, packages=TEST_PACKAGES, skip_object_files=False, bundle_ebpf=True, output_path=None, runtime_compiled=False, skip_linters=False
 ):
     """
     Run tests on eBPF parts
@@ -186,6 +186,9 @@ def test(
     If output_path is set, we run `go test` with the flags `-c -o output_path`, which *compiles* the test suite
     into a single binary. This artifact is meant to be used in conjunction with kitchen tests.
     """
+
+    if not skip_linters:
+        cfmt(ctx, fail_on_fmt=True)
 
     if not skip_object_files:
         build_object_files(ctx, bundle_ebpf=bundle_ebpf)
@@ -301,17 +304,19 @@ def nettop(ctx, incremental_build=False, go_mod="mod"):
 
 
 @task
-def cfmt(ctx):
+def cfmt(ctx, fail_on_fmt=False):
     """
     Format C code using clang-format
     """
-
-    fmtCmd = "clang-format -i -style=file {file}"
+    fmtCmd = "clang-format --verbose -i --style=file --fallback-style=none"
+    if fail_on_fmt:
+        fmtCmd = fmtCmd + " --Werror --dry-run"
 
     files = glob.glob("pkg/ebpf/c/*.[c,h]")
+    files.extend(glob.glob("pkg/ebpf/*.[c,h]"))
+    files.extend(glob.glob("pkg/security/ebpf/c/*.[c,h]"))
+    ctx.run("{cmd} {files}".format(cmd=fmtCmd, files=" ".join(files)))
 
-    for file in files:
-        ctx.run(fmtCmd.format(file=file))
 
 
 @task
