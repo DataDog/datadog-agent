@@ -30,8 +30,8 @@ func copyProcessContext(parent, child *ProcessCacheEntry) {
 	}
 }
 
-func (pc *ProcessCacheEntry) CompactArgsEnvs() {
-	// TODO: do not copy at the moment, need to handle memory usage properly
+func (pc *ProcessCacheEntry) compactArgsEnvs() {
+	// TODO: do not copy for the moment, need to handle memory usage properly
 	pc.Args = []string{}
 	pc.Envs = []string{}
 }
@@ -40,7 +40,7 @@ func (pc *ProcessCacheEntry) CompactArgsEnvs() {
 func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 	entry.Ancestor = pc
 
-	pc.CompactArgsEnvs()
+	pc.compactArgsEnvs()
 
 	// empty and mark as exit previous entry
 	pc.ExitTime = entry.ExecTime

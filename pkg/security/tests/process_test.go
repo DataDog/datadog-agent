@@ -15,6 +15,7 @@ import (
 	"os/user"
 	"path"
 	"runtime"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -81,6 +82,10 @@ func TestProcessContext(t *testing.T) {
 			ID:         "test_rule_ancestors",
 			Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/test-process-ancestors" && process.ancestors[_].file.name == "%s"`, path.Base(executable)),
 		},
+		{
+			ID:         "test_rule_args",
+			Expression: `exec.args in ["-al"]`,
+		},
 	}
 
 	test, err := newTestModule(nil, ruleDefs, testOpts{})
@@ -132,6 +137,119 @@ func TestProcessContext(t *testing.T) {
 		}
 	})
 
+	t.Run("args", func(t *testing.T) {
+		executable := "/usr/bin/ls"
+		if resolved, err := os.Readlink(executable); err == nil {
+			executable = resolved
+		} else {
+			if os.IsNotExist(err) {
+				executable = "/bin/ls"
+			}
+		}
+
+		cmd := exec.Command(executable, "-al", "--password", "secret", "--custom", "secret")
+		_ = cmd.Run()
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			args, err := event.GetFieldValue("exec.args")
+			if err != nil || len(args.([]string)) == 0 {
+				t.Error("not able to get args")
+			}
+
+			contains := func(s string) bool {
+				for _, arg := range args.([]string) {
+					if s == arg {
+						return true
+					}
+				}
+				return false
+			}
+
+			if !contains("-al") || !contains("--password") || !contains("--custom") {
+				t.Error("arg not found")
+			}
+
+			// trigger serialization to test scrubber
+			str := event.String()
+
+			if !strings.Contains(str, "password") || !strings.Contains(str, "custom") {
+				t.Error("args not serialized")
+			}
+
+			if strings.Contains(str, "secret") {
+				t.Error("secret exposed")
+			}
+		}
+	})
+
+	t.Run("args-overflow", func(t *testing.T) {
+		executable := "/usr/bin/ls"
+		if resolved, err := os.Readlink(executable); err == nil {
+			executable = resolved
+		} else {
+			if os.IsNotExist(err) {
+				executable = "/bin/ls"
+			}
+		}
+
+		// size overflow
+		var long string
+		for i := 0; i != 1024; i++ {
+			long += "a"
+		}
+
+		cmd := exec.Command(executable, "-al", long)
+		_ = cmd.Run()
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			args, err := event.GetFieldValue("exec.args")
+			if err != nil {
+				t.Errorf("not able to get args")
+			}
+
+			if len(args.([]string)) != 2 {
+				t.Errorf("incorrect number of args")
+			}
+
+			if !strings.HasSuffix(args.([]string)[1], "...") {
+				t.Error("arg not truncated")
+			}
+		}
+
+		// number of args overflow
+		num := []string{"-al"}
+		for i := 0; i != 100; i++ {
+			num = append(num, "aaa")
+		}
+		cmd = exec.Command(executable, num...)
+		_ = cmd.Run()
+
+		event, _, err = test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			args, err := event.GetFieldValue("exec.args")
+			if err != nil {
+				t.Errorf("not able to get args")
+			}
+
+			n := len(args.([]string))
+			if n == 0 || n > 100 {
+				t.Errorf("incorrect number of args")
+			}
+
+			if args.([]string)[n-1] != "..." {
+				t.Error("arg not truncated")
+			}
+		}
+	})
+
 	t.Run("tty", func(t *testing.T) {
 		// not working on centos8
 		t.Skip()
@@ -162,13 +280,8 @@ func TestProcessContext(t *testing.T) {
 				t.Error("not able to get a tty name")
 			}
 
-<<<<<<< HEAD
-			if inode := getInode(t, executable); inode != event.Process.FileFields.Inode {
-				t.Logf("expected inode %d, got %d", event.Process.FileFields.Inode, inode)
-=======
-			if inode := getInode(t, executable); inode != event.ProcessContext.Inode {
-				t.Logf("expected inode %d, got %d", event.ProcessContext.Inode, inode)
->>>>>>> 049eae05e (Reduce number of instruction)
+			if inode := getInode(t, executable); inode != event.ProcessContext.FileFields.Inode {
+				t.Logf("expected inode %d, got %d", event.ProcessContext.FileFields.Inode, inode)
 			}
 
 			testContainerPath(t, event, "process.file.container_path")
@@ -357,7 +470,7 @@ func TestProcessMetadata(t *testing.T) {
 			if euid := event.ResolveCredentialsEUID(&event.Exec.Credentials); euid != 1001 {
 				t.Errorf("expected euid 1002, got %d", euid)
 			}
-			if fsuid := event.ResolveCredentialsFSUID(&event.Process.Credentials); fsuid != 1001 {
+			if fsuid := event.ResolveCredentialsFSUID(&event.ProcessContext.Credentials); fsuid != 1001 {
 				t.Errorf("expected fsuid 1002, got %d", fsuid)
 			}
 

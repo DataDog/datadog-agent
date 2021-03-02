@@ -352,7 +352,6 @@ def build_object_files(ctx, bundle_ebpf=False):
     ctx.run("clang -v")
 
     os_info = os.uname()
-    print(os_info.release)
     centos_headers_dir = "/usr/src/kernels"
     debian_headers_dir = "/usr/src"
     linux_headers = []

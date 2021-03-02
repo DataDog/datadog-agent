@@ -131,9 +131,6 @@ struct policy_t __attribute__((always_inline)) fetch_policy(u64 event_type) {
         return *policy;
     }
     struct policy_t empty_policy = { };
-#ifdef DEBUG
-        bpf_printk("cache/syscall policy for %d is %d\n", event_type, policy.mode);
-#endif
     return empty_policy;
 }
 

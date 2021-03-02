@@ -212,7 +212,7 @@ type ExecArgsIterator struct {
 func (e *ExecArgsIterator) Front(ctx *eval.Context) unsafe.Pointer {
 	e.args = (*Event)(ctx.Object).ProcessContext.Args
 	if len(e.args) > 0 {
-		e.index = 0
+		e.index = 1
 		return unsafe.Pointer(&e.args[0])
 	}
 	return nil
@@ -239,7 +239,7 @@ type ExecEnvsIterator struct {
 func (e *ExecEnvsIterator) Front(ctx *eval.Context) unsafe.Pointer {
 	e.envs = (*Event)(ctx.Object).ProcessContext.Envs
 	if len(e.envs) > 0 {
-		e.index = 0
+		e.index = 1
 		return unsafe.Pointer(&e.envs[0])
 	}
 	return nil
@@ -299,8 +299,6 @@ type Process struct {
 	Envs          []string `field:"-"`
 	EnvsTruncated bool     `field:"-"`
 
-	// NOTE shouldn't be define here but in ExecEvent instead. But first we need to
-	// rework the chain of process unmarshallers
 	ArgsID uint32 `field:"-"`
 	EnvsID uint32 `field:"-"`
 }
@@ -371,12 +369,7 @@ type MkdirEvent struct {
 	Mode uint32    `field:"file.destination.mode"`
 }
 
-const (
-	argsType uint32 = iota + 1
-	envsType
-)
-
-// ArgsEnvs defines a args/envs event
+// ArgsEnvsEvent defines a args/envs event
 type ArgsEnvsEvent struct {
 	ID          uint32
 	Size        uint32

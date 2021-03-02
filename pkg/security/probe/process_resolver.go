@@ -413,7 +413,7 @@ func (p *ProcessResolver) ResolveArgs(pce *model.ProcessCacheEntry) {
 	}
 }
 
-// ResolveArgs resolves environment variables
+// ResolveEnvs resolves environment variables
 func (p *ProcessResolver) ResolveEnvs(pce *model.ProcessCacheEntry) {
 	if e, found := p.argsEnvsCache.Get(pce.EnvsID); found {
 		entry := e.(*argsEnvsCacheEntry)

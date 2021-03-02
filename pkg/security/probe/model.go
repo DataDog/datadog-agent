@@ -125,7 +125,7 @@ func (ev *Event) ResolveContainerID(e *model.ContainerContext) string {
 	return e.ID
 }
 
-// UnmarshalProcess unmarshal an Process
+// UnmarshalProcess unmarshal a Process
 func (ev *Event) UnmarshalProcess(data []byte) (int, error) {
 	// reset the process cache entry of the current event
 	entry := NewProcessCacheEntry()
@@ -482,7 +482,6 @@ func (ev *Event) ResolveEventTimestamp() time.Time {
 	return ev.Timestamp
 }
 
-// copyProcessCacheEntryToContext - TODO refactor to remove this indirect which forces us to recopy lot of fields
 func (ev *Event) setProcessContextWithProcessCacheEntry(entry *model.ProcessCacheEntry) {
 	ev.ProcessContext.Ancestor = entry.Ancestor
 	ev.ProcessContext.Args = entry.Args
