@@ -28,17 +28,18 @@ import (
 // Tagger instead of instantiating one.
 type Tagger struct {
 	sync.RWMutex
-	store       *tagStore
-	candidates  map[string]collectors.CollectorFactory
-	pullers     map[string]collectors.Puller
-	streamers   map[string]collectors.Streamer
-	fetchers    map[string]collectors.Fetcher
-	infoIn      chan []*collectors.TagInfo
-	pullTicker  *time.Ticker
-	pruneTicker *time.Ticker
-	retryTicker *time.Ticker
-	stop        chan bool
-	health      *health.Handle
+	store           *tagStore
+	candidates      map[string]collectors.CollectorFactory
+	pullers         map[string]collectors.Puller
+	streamers       map[string]collectors.Streamer
+	fetchers        map[string]collectors.Fetcher
+	infoIn          chan []*collectors.TagInfo
+	pullTicker      *time.Ticker
+	pruneTicker     *time.Ticker
+	retryTicker     *time.Ticker
+	telemetryTicker *time.Ticker
+	stop            chan bool
+	health          *health.Handle
 }
 
 type collectorReply struct {
@@ -53,16 +54,17 @@ type collectorReply struct {
 // instead of creating your own.
 func NewTagger(catalog collectors.Catalog) *Tagger {
 	t := &Tagger{
-		store:       newTagStore(),
-		candidates:  make(map[string]collectors.CollectorFactory),
-		pullers:     make(map[string]collectors.Puller),
-		streamers:   make(map[string]collectors.Streamer),
-		fetchers:    make(map[string]collectors.Fetcher),
-		infoIn:      make(chan []*collectors.TagInfo, 5),
-		pullTicker:  time.NewTicker(5 * time.Second),
-		pruneTicker: time.NewTicker(5 * time.Minute),
-		retryTicker: time.NewTicker(30 * time.Second),
-		stop:        make(chan bool),
+		store:           newTagStore(),
+		candidates:      make(map[string]collectors.CollectorFactory),
+		pullers:         make(map[string]collectors.Puller),
+		streamers:       make(map[string]collectors.Streamer),
+		fetchers:        make(map[string]collectors.Fetcher),
+		infoIn:          make(chan []*collectors.TagInfo, 5),
+		pullTicker:      time.NewTicker(5 * time.Second),
+		pruneTicker:     time.NewTicker(5 * time.Minute),
+		retryTicker:     time.NewTicker(30 * time.Second),
+		telemetryTicker: time.NewTicker(1 * time.Minute),
+		stop:            make(chan bool),
 	}
 
 	// Populate collector candidate list from catalog
@@ -103,6 +105,7 @@ func (t *Tagger) run() error {
 			t.pullTicker.Stop()
 			t.pruneTicker.Stop()
 			t.retryTicker.Stop()
+			t.telemetryTicker.Stop()
 			t.health.Deregister() //nolint:errcheck
 			return nil
 		case <-t.health.C:
@@ -114,6 +117,8 @@ func (t *Tagger) run() error {
 			go t.pull()
 		case <-t.pruneTicker.C:
 			t.store.prune() //nolint:errcheck
+		case <-t.telemetryTicker.C:
+			t.store.collectTelemetry()
 		}
 	}
 }
