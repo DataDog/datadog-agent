@@ -313,12 +313,15 @@ def cfmt(ctx, fail_on_fmt=False):
     ctx.run("which clang-format")
     print("found clang-format")
 
-    fmtCmd = "clang-format --verbose -i --style=file --fallback-style=none"
+    fmt_cmd = "clang-format --verbose -i --style=file --fallback-style=none"
     if fail_on_fmt:
-        fmtCmd = fmtCmd + " --Werror --dry-run"
+        fmt_cmd = fmt_cmd + " --Werror --dry-run"
 
     files = get_ebpf_targets()
-    ctx.run("{cmd} {files}".format(cmd=fmtCmd, files=" ".join(files)))
+    # remove externally maintained files
+    files.remove("pkg/ebpf/c/bpf_endian.h")
+
+    ctx.run("{cmd} {files}".format(cmd=fmt_cmd, files=" ".join(files)))
 
 
 @task
@@ -333,13 +336,28 @@ def ctidy(ctx, fix=False):
 
     build_flags = get_ebpf_build_flags()
     build_flags.append("-DDEBUG=1")
-    build_flags.append("-DUSE_SYSCALL_WRAPPER=0")
 
-    files = get_ebpf_c_files()
-    # remove BCC files
-    files.remove("pkg/ebpf/c/oom-kill-kern.c")
-    files.remove("pkg/ebpf/c/tcp-queue-length-kern.c")
+    bpf_dir = os.path.join(".", "pkg", "ebpf")
+    base_files = glob.glob(bpf_dir + "/c/**/*.c")
 
+    network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
+    network_c_dir = os.path.join(network_bpf_dir, "c")
+    network_files = list(base_files)
+    network_files.extend(glob.glob(network_c_dir + "/**/*.c"))
+    network_flags = list(build_flags)
+    network_flags.append("-I{}".format(network_c_dir))
+    run_tidy(ctx, network_files, network_flags, fix)
+
+    security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
+    security_files = list(base_files)
+    security_files.extend(glob.glob(security_agent_c_dir + "/**/*.c"))
+    security_flags = list(build_flags)
+    security_flags.append("-I{}".format(security_agent_c_dir))
+    security_flags.append("-DUSE_SYSCALL_WRAPPER=0")
+    run_tidy(ctx, security_files, security_flags, fix)
+
+
+def run_tidy(ctx, files, build_flags, fix=False):
     flags = ["--quiet"]
     if fix:
         flags.append("--fix")
@@ -377,15 +395,16 @@ def object_files(ctx, bundle_ebpf=True):
 
 
 def get_ebpf_c_files():
-    files = glob.glob("pkg/ebpf/c/*.c")
-    files.extend(glob.glob("pkg/ebpf/*.c"))
-    files.extend(glob.glob("pkg/security/ebpf/c/*.c"))
+    files = glob.glob("pkg/ebpf/c/**/*.c")
+    files.extend(glob.glob("pkg/network/ebpf/c/**/*.c"))
+    files.extend(glob.glob("pkg/security/ebpf/c/**/*.c"))
+    files.extend(glob.glob("pkg/collector/corechecks/ebpf/c/**/*.c"))
     return files
 
 
 def get_ebpf_targets():
     files = glob.glob("pkg/ebpf/c/*.[c,h]")
-    files.extend(glob.glob("pkg/ebpf/*.[c,h]"))
+    files.extend(glob.glob("pkg/network/ebpf/c/*.[c,h]"))
     files.extend(glob.glob("pkg/security/ebpf/c/*.[c,h]"))
     return files
 
@@ -467,7 +486,7 @@ def get_ebpf_build_flags():
         '-emit-llvm',
         # Some linux distributions enable stack protector by default which is not available on eBPF
         '-fno-stack-protector',
-		'-fno-color-diagnostics',
+        '-fno-color-diagnostics',
         '-fno-unwind-tables',
         '-fno-asynchronous-unwind-tables',
         '-fno-jump-tables',
@@ -493,7 +512,12 @@ def build_object_files(ctx, bundle_ebpf=False):
     print("found clang")
 
     bpf_dir = os.path.join(".", "pkg", "ebpf")
-    c_dir = os.path.join(bpf_dir, "c")
+    build_dir = os.path.join(bpf_dir, "bytecode", "build")
+    build_runtime_dir = os.path.join(build_dir, "runtime")
+
+    network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
+    network_c_dir = os.path.join(network_bpf_dir, "c")
+    network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
 
     flags = get_ebpf_build_flags()
     cmd = "clang {flags} -c '{c_file}' -o '{bc_file}'"

@@ -1,9 +1,9 @@
 ---
-Checks:          'clang-diagnostic-*,clang-analyzer-*,clang-diagnostic-*,clang-analyzer-*,readability-*,-readability-magic-numbers,linuxkernel-*,portability-*'
-WarningsAsErrors: '*,-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling'
+Checks: 'clang-diagnostic-*,clang-analyzer-*,readability-*,-readability-magic-numbers,linuxkernel-*,portability-*,-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling'
+WarningsAsErrors: '*'
 HeaderFilterRegex: '.*'
 AnalyzeTemporaryDtors: false
-FormatStyle:     file
+FormatStyle: file
 CheckOptions:
   - key:             cert-dcl16-c.NewSuffixes
     value:           'L;LL;LU;LLU'
@@ -41,5 +41,3 @@ CheckOptions:
     value:           llvm
   - key:             modernize-use-nullptr.NullMacros
     value:           'NULL'
-...
-
