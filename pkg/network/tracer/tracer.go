@@ -7,6 +7,7 @@ package tracer
 */
 import "C"
 import (
+	"errors"
 	"expvar"
 	"fmt"
 	"math"
@@ -19,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
@@ -37,6 +39,8 @@ var (
 	expvarEndpoints map[string]*expvar.Map
 	expvarTypes     = []string{"conntrack", "state", "tracer", "ebpf", "kprobes", "dns", "http"}
 )
+
+const defaultUDPConnTimeoutNanoSeconds uint64 = uint64(time.Duration(120) * time.Second)
 
 func init() {
 	expvarEndpoints = make(map[string]*expvar.Map, len(expvarTypes))
@@ -94,6 +98,9 @@ type Tracer struct {
 	// Connections for the tracer to blacklist
 	sourceExcludes []*network.ConnectionFilter
 	destExcludes   []*network.ConnectionFilter
+
+	sysctlUDPConnTimeout       *sysctl.Int
+	sysctlUDPConnStreamTimeout *sysctl.Int
 }
 
 const (
@@ -233,13 +240,9 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		return nil, fmt.Errorf("error initializing port binding maps: %s", err)
 	}
 
-	conntracker := netlink.NewNoOpConntracker()
-	if config.EnableConntrack {
-		if c, err := netlink.NewConntracker(config.ProcRoot, config.ConntrackMaxStateSize, config.ConntrackRateLimit, config.EnableConntrackAllNamespaces); err != nil {
-			log.Warnf("could not initialize conntrack, tracer will continue without NAT tracking: %s", err)
-		} else {
-			conntracker = c
-		}
+	conntracker, err := newConntracker(config, netlink.NewConntracker)
+	if err != nil {
+		return nil, err
 	}
 
 	state := network.NewState(
@@ -252,20 +255,22 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	)
 
 	tr := &Tracer{
-		m:              m,
-		config:         config,
-		state:          state,
-		reverseDNS:     reverseDNS,
-		httpMonitor:    newHTTPMonitor(!pre410Kernel, config, m, perfHandlerHTTP),
-		buffer:         make([]network.ConnectionStats, 0, 512),
-		conntracker:    conntracker,
-		sourceExcludes: network.ParseConnectionFilters(config.ExcludedSourceConnections),
-		destExcludes:   network.ParseConnectionFilters(config.ExcludedDestinationConnections),
-		perfHandler:    perfHandlerTCP,
-		flushIdle:      make(chan chan struct{}),
-		stop:           make(chan struct{}),
-		buf:            make([]byte, network.ConnectionByteKeyMaxLen),
-		runtimeTracer:  runtimeTracer,
+		m:                          m,
+		config:                     config,
+		state:                      state,
+		reverseDNS:                 reverseDNS,
+		httpMonitor:                newHTTPMonitor(!pre410Kernel, config, m, perfHandlerHTTP),
+		buffer:                     make([]network.ConnectionStats, 0, 512),
+		conntracker:                conntracker,
+		sourceExcludes:             network.ParseConnectionFilters(config.ExcludedSourceConnections),
+		destExcludes:               network.ParseConnectionFilters(config.ExcludedDestinationConnections),
+		perfHandler:                perfHandlerTCP,
+		flushIdle:                  make(chan chan struct{}),
+		stop:                       make(chan struct{}),
+		buf:                        make([]byte, network.ConnectionByteKeyMaxLen),
+		runtimeTracer:              runtimeTracer,
+		sysctlUDPConnTimeout:       sysctl.NewInt(config.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout", time.Minute),
+		sysctlUDPConnStreamTimeout: sysctl.NewInt(config.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout_stream", time.Minute),
 	}
 
 	tr.perfMap, tr.batchManager, err = tr.initPerfPolling(perfHandlerTCP)
@@ -286,6 +291,25 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	return tr, nil
 }
 
+func newConntracker(cfg *config.Config, conntrackerCreator func(*config.Config) (netlink.Conntracker, error)) (netlink.Conntracker, error) {
+	conntracker := netlink.NewNoOpConntracker()
+	if !cfg.EnableConntrack {
+		return conntracker, nil
+	}
+
+	if c, err := conntrackerCreator(cfg); err != nil {
+		if cfg.IgnoreConntrackInitFailure {
+			log.Warnf("could not initialize conntrack, tracer will continue without NAT tracking: %s", err)
+		} else {
+			return nil, fmt.Errorf("could not initialize conntrack: %s. set network_config.ignore_conntrack_init_failure to true to ignore conntrack failures on startup", err)
+		}
+	} else {
+		conntracker = c
+	}
+
+	return conntracker, nil
+}
+
 func initializePortBindingMaps(config *config.Config, m *manager.Manager) error {
 	if tcpPorts, err := network.ReadInitialState(config.ProcRoot, network.TCP, config.CollectIPv6Conns); err != nil {
 		return fmt.Errorf("failed to read initial TCP pid->port mapping: %s", err)
@@ -299,7 +323,7 @@ func initializePortBindingMaps(config *config.Config, m *manager.Manager) error 
 			pb := portBindingTuple{net_ns: C.__u32(p.Ino), port: C.__u16(p.Port)}
 			state := uint8(C.PORT_LISTENING)
 			err = tcpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&state), ebpf.UpdateNoExist)
-			if err != nil {
+			if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
 				return fmt.Errorf("failed to update TCP port binding map: %w", err)
 			}
 		}
@@ -318,7 +342,7 @@ func initializePortBindingMaps(config *config.Config, m *manager.Manager) error 
 			pb := portBindingTuple{net_ns: 0, port: C.__u16(p.Port)}
 			state := uint8(C.PORT_LISTENING)
 			err = udpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&state), ebpf.UpdateNoExist)
-			if err != nil {
+			if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
 				return fmt.Errorf("failed to update UDP port binding map: %w", err)
 			}
 		}
@@ -778,11 +802,27 @@ func (t *Tracer) getMap(name probes.BPFMapName) (*ebpf.Map, error) {
 	return mp, nil
 }
 
-func (t *Tracer) timeoutForConn(c *ConnTuple) uint64 {
+func (t *Tracer) timeoutForConn(c *ConnTuple, isAssured bool) uint64 {
 	if c.isTCP() {
 		return uint64(t.config.TCPConnTimeout.Nanoseconds())
 	}
-	return uint64(t.config.UDPConnTimeout.Nanoseconds())
+
+	return t.udpConnTimeout(isAssured)
+}
+
+func (t *Tracer) udpConnTimeout(isAssured bool) uint64 {
+	if isAssured {
+		if v, err := t.sysctlUDPConnStreamTimeout.Get(); err == nil {
+			return uint64(time.Duration(v) * time.Second)
+		}
+
+	} else {
+		if v, err := t.sysctlUDPConnTimeout.Get(); err == nil {
+			return uint64(time.Duration(v) * time.Second)
+		}
+	}
+
+	return defaultUDPConnTimeoutNanoSeconds
 }
 
 // getTelemetry calls GetStats and extract telemetry from the state structure
@@ -886,7 +926,7 @@ func (t *Tracer) getProbeProgramIDs() (map[string]uint32, error) {
 // for UDP, the conntrack TTL is lower (two minutes), so the userspace and conntrack expiry are synced to avoid touching conntrack for
 // UDP expiries
 func (t *Tracer) connectionExpired(conn *ConnTuple, latestTime uint64, stats *ConnStatsWithTimestamp, ctr *cachedConntrack) bool {
-	if !stats.isExpired(latestTime, t.timeoutForConn(conn)) {
+	if !stats.isExpired(latestTime, t.timeoutForConn(conn, stats.isAssured())) {
 		return false
 	}
 

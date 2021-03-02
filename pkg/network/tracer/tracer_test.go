@@ -27,14 +27,14 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/cihub/seelog"
-
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf"
+	"github.com/golang/mock/gomock"
 	"github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -51,7 +51,6 @@ var (
 const runtimeCompilationEnvVar = "DD_TESTS_RUNTIME_COMPILED"
 
 func TestMain(m *testing.M) {
-	log.SetupLogger(seelog.Default, "trace")
 	cfg := testConfig()
 	if cfg.EnableRuntimeCompiler {
 		fmt.Println("RUNTIME COMPILER ENABLED")
@@ -424,7 +423,7 @@ func TestTCPRemoveEntries(t *testing.T) {
 	tcpMp, err := tr.getMap(probes.TcpStatsMap)
 	require.NoError(t, err)
 
-	key, err := connTupleFromConn(c, 0)
+	key, err := connTupleFromConn(c, 0, 0)
 	require.NoError(t, err)
 	stats := new(TCPStats)
 	err = tcpMp.Lookup(unsafe.Pointer(key), unsafe.Pointer(stats))
@@ -2074,15 +2073,112 @@ func testConfig() *config.Config {
 	return cfg
 }
 
+func TestConnectionAssured(t *testing.T) {
+
+	cfg := testConfig()
+	cfg.BPFDebug = true
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	require.NotNil(t, tr)
+	defer tr.Stop()
+
+	// register test as client
+	getConnections(t, tr)
+
+	server := NewUDPServer(func(b []byte, n int) []byte {
+		return genPayload(serverMessageSize)
+	})
+
+	done := make(chan struct{})
+	server.Run(done, clientMessageSize)
+	defer close(done)
+
+	c, err := net.DialTimeout("udp", server.address, time.Second)
+	require.NoError(t, err)
+	defer c.Close()
+
+	// do two exchanges to make the connection "assured"
+	for i := 0; i < 2; i++ {
+		_, err = c.Write(genPayload(clientMessageSize))
+		require.NoError(t, err)
+
+		buf := make([]byte, serverMessageSize)
+		_, err = c.Read(buf)
+		require.NoError(t, err)
+	}
+
+	var conn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+		var ok bool
+		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		return ok && conn.MonotonicSentBytes > 0 && conn.MonotonicRecvBytes > 0
+	}, 3*time.Second, 500*time.Millisecond, "could not find udp connection")
+
+	// verify the connection is marked as assured
+	connMp, err := tr.getMap(probes.ConnMap)
+	require.NoError(t, err)
+	defer connMp.Close()
+	key, err := connTupleFromConn(c, conn.Pid, conn.NetNS)
+	stats := &ConnStatsWithTimestamp{}
+	err = connMp.Lookup(unsafe.Pointer(key), unsafe.Pointer(stats))
+	require.NoError(t, err)
+	require.True(t, stats.isAssured())
+}
+
+func TestConnectionNotAssured(t *testing.T) {
+
+	cfg := testConfig()
+	cfg.BPFDebug = true
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	require.NotNil(t, tr)
+	defer tr.Stop()
+
+	// register test as client
+	getConnections(t, tr)
+
+	server := NewUDPServer(func(b []byte, n int) []byte {
+		return nil
+	})
+
+	done := make(chan struct{})
+	server.Run(done, clientMessageSize)
+	defer close(done)
+
+	c, err := net.DialTimeout("udp", server.address, time.Second)
+	require.NoError(t, err)
+	defer c.Close()
+
+	_, err = c.Write(genPayload(clientMessageSize))
+	require.NoError(t, err)
+
+	var conn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+		var ok bool
+		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		return ok && conn.MonotonicSentBytes > 0 && conn.MonotonicRecvBytes == 0
+	}, 3*time.Second, 500*time.Millisecond, "could not find udp connection")
+
+	// verify the connection is marked as not assured
+	connMp, err := tr.getMap(probes.ConnMap)
+	require.NoError(t, err)
+	defer connMp.Close()
+	key, err := connTupleFromConn(c, conn.Pid, conn.NetNS)
+	stats := &ConnStatsWithTimestamp{}
+	err = connMp.Lookup(unsafe.Pointer(key), unsafe.Pointer(stats))
+	require.NoError(t, err)
+	require.False(t, stats.isAssured())
+}
+
 func TestSelfConnect(t *testing.T) {
 	// Enable BPF-based system probe
 	cfg := testConfig()
 	cfg.BPFDebug = true
 	cfg.TCPConnTimeout = 3 * time.Second
 	tr, err := NewTracer(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer tr.Stop()
 
 	getConnections(t, tr)
@@ -2134,5 +2230,67 @@ func TestSelfConnect(t *testing.T) {
 		t.Logf("connections: %v", conns)
 		return len(conns) == 1
 	}, 5*time.Second, time.Second, "could not find expected number of tcp connections, expected: 1")
+}
 
+func TestNewConntracker(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	cfg := testConfig()
+
+	mockCreator := func(_ *config.Config) (netlink.Conntracker, error) {
+		return netlink.NewMockConntracker(ctrl), nil
+	}
+
+	errCreator := func(_ *config.Config) (netlink.Conntracker, error) {
+		return nil, assert.AnError
+	}
+
+	mockConntracker := netlink.NewMockConntracker(ctrl)
+	noopConntracker := netlink.NewNoOpConntracker()
+
+	tests := []struct {
+		conntrackEnabled  bool
+		ignoreInitFailure bool
+		creator           func(*config.Config) (netlink.Conntracker, error)
+
+		conntracker netlink.Conntracker
+		err         error
+	}{
+		{false, false, mockCreator, noopConntracker, nil},
+		{true, true, mockCreator, mockConntracker, nil},
+		{true, true, errCreator, noopConntracker, nil},
+		{true, false, mockCreator, mockConntracker, nil},
+		{true, false, errCreator, nil, assert.AnError},
+	}
+
+	for _, te := range tests {
+		cfg.EnableConntrack = te.conntrackEnabled
+		cfg.IgnoreConntrackInitFailure = te.ignoreInitFailure
+		c, err := newConntracker(cfg, te.creator)
+		if te.conntracker != nil {
+			require.IsType(t, te.conntracker, c)
+		} else {
+			require.Nil(t, c)
+		}
+
+		if te.err != nil {
+			require.Error(t, err)
+		} else {
+			require.NoError(t, err)
+		}
+	}
+}
+
+func TestUDPConnExpiryTimeout(t *testing.T) {
+	streamTimeout, err := sysctl.NewInt("/proc", "net/netfilter/nf_conntrack_udp_timeout_stream", 0).Get()
+	require.NoError(t, err)
+	timeout, err := sysctl.NewInt("/proc", "net/netfilter/nf_conntrack_udp_timeout", 0).Get()
+	require.NoError(t, err)
+
+	tr, err := NewTracer(testConfig())
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	require.Equal(t, uint64(time.Duration(timeout)*time.Second), tr.udpConnTimeout(false))
+	require.Equal(t, uint64(time.Duration(streamTimeout)*time.Second), tr.udpConnTimeout(true))
 }

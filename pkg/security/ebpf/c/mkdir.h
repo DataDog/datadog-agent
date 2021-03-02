@@ -19,7 +19,7 @@ int __attribute__((always_inline)) mkdir_approvers(struct syscall_cache_t *sysca
 
 long __attribute__((always_inline)) trace__sys_mkdir(umode_t mode) {
     struct policy_t policy = fetch_policy(EVENT_MKDIR);
-    if (discarded_by_process(policy.mode, EVENT_MKDIR)) {
+    if (is_discarded_by_process(policy.mode, EVENT_MKDIR)) {
         return 0;
     }
 
@@ -94,6 +94,7 @@ int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
         .mode = syscall->mkdir.mode,
     };
 
+    fill_file_metadata(syscall->mkdir.dentry, &event.file.metadata);
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
 

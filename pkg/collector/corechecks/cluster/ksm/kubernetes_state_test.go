@@ -900,6 +900,37 @@ func TestAllowDeny(t *testing.T) {
 	}
 }
 
+func TestCreationMetricsFiltering(t *testing.T) {
+	allowDenyList, err := allowdenylist.New(options.MetricSet{}, deniedMetrics)
+	assert.NoError(t, err)
+
+	err = allowDenyList.Parse()
+	assert.NoError(t, err)
+
+	included := []string{"kube_node_created"}
+	for _, metric := range included {
+		assert.True(t, allowDenyList.IsIncluded(metric))
+		assert.False(t, allowDenyList.IsExcluded(metric))
+	}
+
+	excluded := []string{
+		"kube_pod_created",
+		"kube_cronjob_created",
+		"kube_daemonset_created",
+		"kube_deployment_created",
+		"kube_endpoint_created",
+		"kube_job_created",
+		"kube_namespace_created",
+		"kube_replicaset_created",
+		"kube_service_created",
+		"kube_replicationcontroller_created",
+	}
+	for _, metric := range excluded {
+		assert.True(t, allowDenyList.IsExcluded(metric))
+		assert.False(t, allowDenyList.IsIncluded(metric))
+	}
+}
+
 func lenMetrics(metricsToProcess map[string][]ksmstore.DDMetricsFam) int {
 	count := 0
 	for _, metricFamily := range metricsToProcess {

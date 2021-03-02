@@ -23,7 +23,7 @@ struct utime_event_t {
 
 int __attribute__((always_inline)) trace__sys_utimes() {
     struct policy_t policy = fetch_policy(EVENT_UTIME);
-    if (discarded_by_process(policy.mode, EVENT_UTIME)) {
+    if (is_discarded_by_process(policy.mode, EVENT_UTIME)) {
         return 0;
     }
 
@@ -87,6 +87,7 @@ int __attribute__((always_inline)) trace__sys_utimes_ret(struct pt_regs *ctx) {
             .mount_id = syscall->setattr.path_key.mount_id,
             .overlay_numlower = get_overlay_numlower(syscall->setattr.dentry),
             .path_id = syscall->setattr.path_key.path_id,
+            .metadata = syscall->setattr.metadata,
         },
     };
 

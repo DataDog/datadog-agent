@@ -11,6 +11,7 @@ core,"code.cloudfoundry.org/garden/client/connection",Apache-2.0
 core,"code.cloudfoundry.org/garden/gardenfakes",Apache-2.0
 core,"code.cloudfoundry.org/garden/routes",Apache-2.0
 core,"code.cloudfoundry.org/garden/transport",Apache-2.0
+core,"code.cloudfoundry.org/gofileutils/fileutils",Apache-2.0
 core,"code.cloudfoundry.org/lager",Apache-2.0
 core,"code.cloudfoundry.org/tlsconfig",Apache-2.0
 core,"github.com/BurntSushi/toml",MIT
@@ -141,6 +142,7 @@ core,"github.com/cespare/xxhash",MIT
 core,"github.com/cihub/seelog",NewBSD
 core,"github.com/clbanning/mxj",MIT
 core,"github.com/client9/misspell",MIT
+core,"github.com/cloudfoundry-community/go-cfclient",MIT
 core,"github.com/cloudfoundry-incubator/candiedyaml",Apache-2.0
 core,"github.com/cobaugh/osrelease",NewBSD
 core,"github.com/containerd/cgroups/stats/v1",Apache-2.0
@@ -616,6 +618,7 @@ core,"golang.org/x/net/proxy",NewBSD
 core,"golang.org/x/net/trace",NewBSD
 core,"golang.org/x/net/websocket",NewBSD
 core,"golang.org/x/oauth2",NewBSD
+core,"golang.org/x/oauth2/clientcredentials",NewBSD
 core,"golang.org/x/oauth2/internal",NewBSD
 core,"golang.org/x/sync/errgroup",NewBSD
 core,"golang.org/x/sys/cpu",NewBSD

@@ -71,7 +71,6 @@ def get_build_flags(
     python_home_3=None,
     major_version='7',
     python_runtimes='3',
-    arch="x64",
 ):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
@@ -261,9 +260,7 @@ def query_version(ctx, git_sha_length=7, prefix=None, major_version_hint=None):
     return version, pre, commit_number, git_sha
 
 
-def get_version(
-    ctx, include_git=False, url_safe=False, git_sha_length=7, prefix=None, env=os.environ, major_version='7'
-):
+def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7, prefix=None, major_version='7'):
     # we only need the git info for the non omnibus builds, omnibus includes all this information by default
 
     version = ""
@@ -282,14 +279,14 @@ def get_version(
     return str(version)
 
 
-def get_version_numeric_only(ctx, env=os.environ, major_version='7'):
+def get_version_numeric_only(ctx, major_version='7'):
     # we only need the git info for the non omnibus builds, omnibus includes all this information by default
 
     version, _, _, _ = query_version(ctx, major_version_hint=major_version)
     return version
 
 
-def load_release_versions(ctx, target_version):
+def load_release_versions(_, target_version):
     with open("release.json", "r") as f:
         versions = json.load(f)
         if target_version in versions:

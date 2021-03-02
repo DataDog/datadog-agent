@@ -6,6 +6,7 @@
 package processor
 
 import (
+	"context"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -53,16 +54,21 @@ func (p *Processor) Stop() {
 }
 
 // Flush processes synchronously the messages that this processor has to process.
-func (p *Processor) Flush() {
+func (p *Processor) Flush(ctx context.Context) {
 	p.mu.Lock()
+	defer p.mu.Unlock()
 	for {
-		if len(p.inputChan) == 0 {
-			break
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			if len(p.inputChan) == 0 {
+				return
+			}
+			msg := <-p.inputChan
+			p.processMessage(msg)
 		}
-		msg := <-p.inputChan
-		p.processMessage(msg)
 	}
-	p.mu.Unlock()
 }
 
 // run starts the processing of the inputChan
@@ -84,7 +90,7 @@ func (p *Processor) processMessage(msg *message.Message) {
 		metrics.LogsProcessed.Add(1)
 		metrics.TlmLogsProcessed.Inc()
 
-		p.diagnosticMessageReceiver.HandleMessage(*msg)
+		p.diagnosticMessageReceiver.HandleMessage(*msg, redactedMsg)
 
 		// Encode the message to its final format
 		content, err := p.encoder.Encode(msg, redactedMsg)

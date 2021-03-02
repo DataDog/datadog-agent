@@ -23,7 +23,7 @@ func TestMount(t *testing.T) {
 	dstMntBasename := "test-dest-mount"
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: fmt.Sprintf(`utimes.filename == "{{.Root}}/%s/test-mount"`, dstMntBasename),
+		Expression: fmt.Sprintf(`utimes.file.path == "{{.Root}}/%s/test-mount"`, dstMntBasename),
 	}
 
 	testDrive, err := newTestDrive("ext4", []string{})
@@ -112,8 +112,8 @@ func TestMount(t *testing.T) {
 				t.Errorf("expected utimes event, got %s", event.GetType())
 			}
 
-			if event.Utimes.PathnameStr != utimFile {
-				t.Errorf("expected %v for PathnameStr, got %v", utimFile, event.Utimes.PathnameStr)
+			if event.Utimes.File.PathnameStr != utimFile {
+				t.Errorf("expected %v for PathnameStr, got %v", utimFile, event.Utimes.File.PathnameStr)
 			}
 		}
 	})

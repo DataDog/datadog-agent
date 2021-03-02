@@ -90,7 +90,7 @@ func GetProcControlGroups(tgid, pid uint32) ([]ControlGroup, error) {
 func GetProcContainerID(tgid, pid uint32) (ContainerID, error) {
 	cgroups, err := GetProcControlGroups(tgid, pid)
 	if err != nil {
-		return ContainerID(""), err
+		return "", err
 	}
 
 	for _, cgroup := range cgroups {
@@ -98,5 +98,5 @@ func GetProcContainerID(tgid, pid uint32) (ContainerID, error) {
 			return containerID, nil
 		}
 	}
-	return ContainerID(""), nil
+	return "", nil
 }

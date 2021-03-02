@@ -80,6 +80,10 @@ func StartServer(sc clusteragent.ServerContext) error {
 		Certificates: []tls.Certificate{rootTLSCert},
 	}
 
+	if config.Datadog.GetBool("force_tls_12") {
+		tlsConfig.MinVersion = tls.VersionTLS12
+	}
+
 	srv := &http.Server{
 		Handler: r,
 		ErrorLog: stdLog.New(&config.ErrorLogWriter{
