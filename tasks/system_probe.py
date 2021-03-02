@@ -319,7 +319,7 @@ def nettop(ctx, incremental_build=False, go_mod="mod"):
 
 
 @task
-def cfmt(ctx, fail_on_fmt=False):
+def cfmt(ctx, fix=False, fail_on_fmt=False):
     """
     Format C code using clang-format
     """
@@ -327,12 +327,15 @@ def cfmt(ctx, fail_on_fmt=False):
     ctx.run("which clang-format")
     print("found clang-format")
 
-    fmt_cmd = "clang-format --verbose -i --style=file --fallback-style=none"
+    fmt_cmd = "clang-format -i --style=file --fallback-style=none"
+    if not fix:
+        fmt_cmd = fmt_cmd + " --dry-run"
     if fail_on_fmt:
-        fmt_cmd = fmt_cmd + " --Werror --dry-run"
+        fmt_cmd = fmt_cmd + " --Werror"
 
     files = get_ebpf_targets()
     # remove externally maintained files
+    files.remove("pkg/ebpf/c/bpf_helpers.h")
     files.remove("pkg/ebpf/c/bpf_endian.h")
 
     ctx.run("{cmd} {files}".format(cmd=fmt_cmd, files=" ".join(files)))
@@ -360,7 +363,7 @@ def ctidy(ctx, fix=False):
     network_files.extend(glob.glob(network_c_dir + "/**/*.c"))
     network_flags = list(build_flags)
     network_flags.append("-I{}".format(network_c_dir))
-    run_tidy(ctx, network_files, network_flags, fix)
+    run_tidy(ctx, files=network_files, build_flags=network_flags, fix=fix)
 
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
     security_files = list(base_files)
@@ -368,7 +371,7 @@ def ctidy(ctx, fix=False):
     security_flags = list(build_flags)
     security_flags.append("-I{}".format(security_agent_c_dir))
     security_flags.append("-DUSE_SYSCALL_WRAPPER=0")
-    run_tidy(ctx, security_files, security_flags, fix)
+    run_tidy(ctx, files=security_files, build_flags=security_flags, fix=fix)
 
 
 def run_tidy(ctx, files, build_flags, fix=False):
