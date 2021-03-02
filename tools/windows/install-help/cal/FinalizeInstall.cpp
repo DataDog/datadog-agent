@@ -25,7 +25,8 @@ bool updateYamlConfig(CustomActionData &customActionData)
         inputConfig.assign(std::istreambuf_iterator<wchar_t>(inputConfigStream), std::istreambuf_iterator<wchar_t>());
     }
 
-    std::wregex re(L"^[ #]*api_key:(.*)");
+    // If we find an API key entry in the yaml file, don't do anything
+    std::wregex re(L"^api_key:(.*)");
     std::match_results<std::wstring::const_iterator> results;
     if (std::regex_search(inputConfig, results, re))
     {
