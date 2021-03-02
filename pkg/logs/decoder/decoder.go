@@ -92,7 +92,12 @@ func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parser.Parser
 	for _, rule := range source.Config.ProcessingRules {
 		if rule.Type == config.MultiLine {
 			lh := NewMultiLineHandler(outputChan, rule.Regex, config.AggregationTimeout(), lineLimit)
-			source.RegisterInfo(lh.countInfo)
+
+			if existingInfo, ok := source.GetInfo(lh.countInfo.InfoKey()).(*config.CountInfo); ok {
+				lh.countInfo = existingInfo
+			} else {
+				source.RegisterInfo(lh.countInfo)
+			}
 			lineHandler = lh
 		}
 	}

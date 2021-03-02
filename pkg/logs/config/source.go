@@ -42,8 +42,7 @@ type LogSource struct {
 	// that reads log lines for this source. E.g, a sourceType == containerd and Config.Type == file means that
 	// the agent is tailing a file to read logs of a containerd container
 	sourceType SourceType
-	info       map[string]string
-	infos      map[string]InfoProvider
+	info       map[string]InfoProvider
 	// In the case that the source is overridden, keep a reference to the parent for bubbling up information about the child
 	ParentSource *LogSource
 	// LatencyStats tracks internal stats on the time spent by messages from this source in a processing pipeline, i.e.
@@ -61,7 +60,7 @@ func NewLogSource(name string, config *LogsConfig) *LogSource {
 		lock:         &sync.Mutex{},
 		Messages:     NewMessages(),
 		BytesRead:    expvar.Int{},
-		infos:        make(map[string]InfoProvider),
+		info:         make(map[string]InfoProvider),
 		LatencyStats: util.NewStatsTracker(time.Hour*24, time.Hour),
 	}
 }
@@ -108,7 +107,13 @@ func (s *LogSource) GetSourceType() SourceType {
 func (s *LogSource) RegisterInfo(i InfoProvider) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
-	s.infos[i.InfoKey()] = i
+	s.info[i.InfoKey()] = i
+}
+
+func (s *LogSource) GetInfo(key string) InfoProvider {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	return s.info[key]
 }
 
 // GetInfo returns a list of info about the source
@@ -118,7 +123,7 @@ func (s *LogSource) GetInfoStatus() (map[string]string, map[string][]string) {
 	simpleInfo := make(map[string]string)
 	multiLineInfo := make(map[string][]string)
 
-	for _, v := range s.infos {
+	for _, v := range s.info {
 		switch {
 		case len(v.Info()) == 0:
 			continue
