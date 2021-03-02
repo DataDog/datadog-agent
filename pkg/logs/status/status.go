@@ -44,7 +44,8 @@ type Source struct {
 	Status             string                 `json:"status"`
 	Inputs             []string               `json:"inputs"`
 	Messages           []string               `json:"messages"`
-	Info               []string               `json:"info"`
+	SimpleInfo         map[string]string      `json:"simpleInfo"`
+	MultiLineInfo      map[string][]string    `json:"multiLineInfo"`
 }
 
 // Integration provides some information about a logs integration.

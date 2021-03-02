@@ -43,6 +43,7 @@ type LogSource struct {
 	// the agent is tailing a file to read logs of a containerd container
 	sourceType SourceType
 	info       map[string]string
+	infos      map[string]InfoProvider
 	// In the case that the source is overridden, keep a reference to the parent for bubbling up information about the child
 	ParentSource *LogSource
 	// LatencyStats tracks internal stats on the time spent by messages from this source in a processing pipeline, i.e.
@@ -60,7 +61,7 @@ func NewLogSource(name string, config *LogsConfig) *LogSource {
 		lock:         &sync.Mutex{},
 		Messages:     NewMessages(),
 		BytesRead:    expvar.Int{},
-		info:         make(map[string]string),
+		infos:        make(map[string]InfoProvider),
 		LatencyStats: util.NewStatsTracker(time.Hour*24, time.Hour),
 	}
 }
@@ -104,27 +105,28 @@ func (s *LogSource) GetSourceType() SourceType {
 	return s.sourceType
 }
 
-// UpdateInfo sets the info data with a unique key
-func (s *LogSource) UpdateInfo(key string, val string) {
+func (s *LogSource) RegisterInfo(i InfoProvider) {
 	s.lock.Lock()
-	s.info[key] = val
-	s.lock.Unlock()
-}
-
-// RemoveInfo remove the info data given a unique key
-func (s *LogSource) RemoveInfo(key string) {
-	s.lock.Lock()
-	delete(s.info, key)
-	s.lock.Unlock()
+	defer s.lock.Unlock()
+	s.infos[i.InfoKey()] = i
 }
 
 // GetInfo returns a list of info about the source
-func (s *LogSource) GetInfo() []string {
+func (s *LogSource) GetInfoStatus() (map[string]string, map[string][]string) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
-	info := make([]string, 0, len(s.info))
-	for _, v := range s.info {
-		info = append(info, v)
+	simpleInfo := make(map[string]string)
+	multiLineInfo := make(map[string][]string)
+
+	for _, v := range s.infos {
+		switch {
+		case len(v.Info()) == 0:
+			continue
+		case len(v.Info()) == 1:
+			simpleInfo[v.InfoKey()] = v.Info()[0]
+		case len(v.Info()) > 1:
+			multiLineInfo[v.InfoKey()] = v.Info()
+		}
 	}
-	return info
+	return simpleInfo, multiLineInfo
 }

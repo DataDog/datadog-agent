@@ -123,6 +123,7 @@ func (b *Builder) getIntegrations() []Integration {
 	for name, logSources := range b.groupSourcesByName() {
 		var sources []Source
 		for _, source := range logSources {
+			simpleInfo, multiLineInfo := source.GetInfoStatus()
 			sources = append(sources, Source{
 				BytesRead:          source.BytesRead.Value(),
 				AllTimeAvgLatency:  source.LatencyStats.AllTimeAvg() / int64(time.Millisecond),
@@ -134,7 +135,8 @@ func (b *Builder) getIntegrations() []Integration {
 				Status:             b.toString(source.Status),
 				Inputs:             source.GetInputs(),
 				Messages:           source.Messages.GetMessages(),
-				Info:               source.GetInfo(),
+				SimpleInfo:         simpleInfo,
+				MultiLineInfo:      multiLineInfo,
 			})
 		}
 		integrations = append(integrations, Integration{

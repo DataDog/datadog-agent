@@ -68,10 +68,17 @@ Logs Agent
       24h Average Latency (ms): {{ .recent_avg_latency }}
       Peak Latency (ms): {{ .all_time_peak_latency }}
       24h Peak Latency (ms): {{ .recent_peak_latency }}
-      {{- if .info }}
-      Container Info:
-      {{- range $inf := .info }}
+      {{- if .simpleInfo }}
+      {{- range $key, $value := .simpleInfo }}
+      {{$key}}: {{$value}}
+      {{- end }}
+      {{- end }}
+      {{- if .multiLineInfo }}
+      {{- range $key, $value := .multiLineInfo }}
+      {{$key}}:
+        {{- range $inf := $value }}
         {{ $inf }}
+        {{- end }}
       {{- end }}
       {{- end }}
   {{- end }}
