@@ -188,7 +188,7 @@ api_key:
 # forwarder_stop_timeout: 2
 
 ## @param forwarder_storage_max_size_in_bytes - int - optional - default: 0
-## When the retry queue of the forwarder is full, `forwarder_storage_max_size_in_bytes` 
+## When the retry queue of the forwarder is full, `forwarder_storage_max_size_in_bytes`
 ## defines the amount of disk space the Agent can use to store transactions on the disk.
 ## When `forwarder_storage_max_size_in_bytes` is `0`, the transactions are never stored on the disk.
 #
@@ -196,10 +196,10 @@ api_key:
 
 ## @param forwarder_storage_max_disk_ratio - float - optional - default: 0.95
 ## `forwarder_storage_max_disk_ratio` defines the disk capacity limit for storing transactions.
-## `0.95` means the Agent can store transactions on disk until `forwarder_storage_max_size_in_bytes` 
+## `0.95` means the Agent can store transactions on disk until `forwarder_storage_max_size_in_bytes`
 ## is reached or when the disk mount for `forwarder_storage_path` exceeds 95% of the disk capacity,
 ## whichever is lower.
-# 
+#
 # forwarder_storage_max_size_in_bytes: 0.95
 
 ## @param forwarder_storage_path - string - optional - default: /opt/datadog-agent/run/transactions_to_retry (c:\ProgramData\Datadog\run\transactions_to_retry on Windows)
@@ -610,6 +610,13 @@ api_key:
     ## specify the corresponding ad_identifier at the top of the file.
     #
     # ad_identifier: snmp
+
+    ## @param loader - string - optional - default: python
+    ## Check loader to use. Available loaders:
+    ## - core: will use corecheck SNMP integration
+    ## - python: will use python SNMP integration
+    #
+    # loader: core
 
 {{- if .Profiling -}}
 ## @param profiling - custom object - optional
