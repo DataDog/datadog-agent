@@ -23,7 +23,7 @@ const (
 // ValidateSysprobeSocket validates that the sysprobe socket config option is of the correct format.
 func ValidateSysprobeSocket(sockPath string) error {
 	if !filepath.IsAbs(sockPath) {
-		return fmt.Errorf("it must be an absolute file path")
+		return fmt.Errorf("socket path must be an absolute file path")
 	}
 	return nil
 }
