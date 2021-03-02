@@ -103,7 +103,7 @@ func checkPolicies(cmd *cobra.Command, args []string) error {
 	model := &sprobe.Model{}
 	ruleSet := rules.NewRuleSet(model, model.NewEvent, opts)
 
-	if err := rules.LoadPolicies(cfg.PoliciesDir, ruleSet); err != nil {
+	if err := rules.LoadPolicies(cfg.PoliciesDir, ruleSet); err.ErrorOrNil() != nil {
 		return err
 	}
 
