@@ -52,7 +52,7 @@ func newTransactionsFileStorage(
 	}
 
 	// Check if there is an error when computing the available space
-	// in this function to warn the user sonner (and not when there is an outage)
+	// in this function to warn the user sooner (and not when there is an outage)
 	_, err := maxStorage.computeMaxStorage(0)
 
 	return storage, err
