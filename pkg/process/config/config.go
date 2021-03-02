@@ -560,7 +560,7 @@ func getHostname(ddAgentBin string) (string, error) {
 	// We also support config/env overrides so we need to check that none is set
 	if fargate.IsFargateInstance() {
 		hostname, err := fargate.GetFargateHost()
-		if err != nil {
+		if err == nil {
 			return hostname, nil
 		}
 		log.Errorf("Cannot get Fargate host: %v", err)
@@ -568,7 +568,7 @@ func getHostname(ddAgentBin string) (string, error) {
 
 	// Get the hostname via gRPC from the main agent if a hostname has not been set either from config/fargate
 	hostname, err := getHostnameFromGRPC(util.GetDDAgentClient)
-	if err != nil {
+	if err == nil {
 		return hostname, nil
 	}
 	log.Errorf("failed to get hostname from grpc: %v", err)

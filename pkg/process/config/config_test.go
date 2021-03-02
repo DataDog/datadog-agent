@@ -254,7 +254,9 @@ func TestGetHostname(t *testing.T) {
 	cfg := NewDefaultAgentConfig(false)
 	h, err := getHostname(cfg.DDAgentBin)
 	assert.Nil(t, err)
-	assert.NotEqual(t, "", h)
+	// verify we fall back to getting os hostname
+	expectedHostname, _ := os.Hostname()
+	assert.Equal(t, expectedHostname, h)
 }
 
 func TestDefaultConfig(t *testing.T) {
