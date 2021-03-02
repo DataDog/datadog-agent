@@ -6,18 +6,9 @@
 package aws
 
 import (
-	"encoding/json"
-	"io/ioutil"
 	"strings"
 	"sync"
 )
-
-const persistedStateFilePath = "/tmp/dd-lambda-extension-cache.json"
-
-type persistedState struct {
-	CurrentARN   string
-	CurrentReqID string
-}
 
 var currentARN struct {
 	value string
@@ -55,14 +46,6 @@ func SetARN(arn string) {
 	currentARN.value = arn
 }
 
-// FunctionNameFromARN returns the function name from the currently set ARN.
-// Thread-safe.
-func FunctionNameFromARN() string {
-	arn := GetARN()
-	parts := strings.Split(arn, ":")
-	return parts[len(parts)-1]
-}
-
 // GetRequestID returns the currently running function request ID.
 func GetRequestID() string {
 	currentReqID.Lock()
@@ -79,39 +62,15 @@ func SetRequestID(reqID string) {
 	currentReqID.value = reqID
 }
 
-// PersistCurrentStateToFile persists the current state (ARN and Request ID) to a file.
-// This allows the state to be restored after the extension restarts.
-// Call this function when the extension shuts down.
-func PersistCurrentStateToFile() error {
-	dataToPersist := persistedState{
-		CurrentARN:   GetARN(),
-		CurrentReqID: GetRequestID(),
+// FunctionNameFromARN returns the function name from the currently set ARN.
+// Thread-safe.
+func FunctionNameFromARN() string {
+	currentARN.Lock()
+	defer currentARN.Unlock()
+	if currentARN.value == "" {
+		return ""
 	}
 
-	file, err := json.MarshalIndent(dataToPersist, "", "")
-	if err != nil {
-		return err
-	}
-	err = ioutil.WriteFile(persistedStateFilePath, file, 0644)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// RestoreCurrentStateFromFile restores the current state (ARN and Request ID) from a file
-// after the extension is restarted. Call this function when the extension starts.
-func RestoreCurrentStateFromFile() error {
-	file, err := ioutil.ReadFile(persistedStateFilePath)
-	if err != nil {
-		return err
-	}
-	var restoredState persistedState
-	err = json.Unmarshal(file, &restoredState)
-	if err != nil {
-		return err
-	}
-	SetARN(restoredState.CurrentARN)
-	SetRequestID(restoredState.CurrentReqID)
-	return nil
+	parts := strings.Split(currentARN.value, ":")
+	return parts[len(parts)-1]
 }

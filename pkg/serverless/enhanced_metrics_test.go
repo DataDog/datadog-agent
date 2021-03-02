@@ -117,37 +117,6 @@ func TestGenerateEnhancedMetricsFromReportLog(t *testing.T) {
 	}})
 }
 
-func TestSendTimeoutEnhancedMetric(t *testing.T) {
-	metricsChan := make(chan []metrics.MetricSample)
-	tags := []string{"functionname:test-function"}
-
-	go sendTimeoutEnhancedMetric(tags, metricsChan)
-
-	generatedMetrics := <-metricsChan
-
-	assert.Equal(t, generatedMetrics, []metrics.MetricSample{{
-		Name:       "aws.lambda.enhanced.timeouts",
-		Value:      1.0,
-		Mtype:      metrics.DistributionType,
-		Tags:       tags,
-		SampleRate: 1,
-		// compare the generated timestamp to itself because we can't know its value
-		Timestamp: generatedMetrics[0].Timestamp,
-	}})
-}
-
-func TestGetTagsForEnhancedMetrics(t *testing.T) {
-	aws.SetARN("arn:aws:lambda:us-east-1:123456789012:function:my-function:7")
-	defer aws.SetARN("")
-
-	generatedTags := getTagsForEnhancedMetrics()
-
-	assert.Equal(t, generatedTags, []string{
-		"functionname:my-function",
-		"function_arn:arn:aws:lambda:us-east-1:123456789012:function:my-function",
-	})
-}
-
 func TestCalculateEstimatedCost(t *testing.T) {
 	// Latest Lambda pricing and billing examples from https://aws.amazon.com/lambda/pricing/
 	const freeTierComputeCost = lambdaPricePerGbSecond * 400000
