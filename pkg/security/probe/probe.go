@@ -315,10 +315,12 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			return
 		}
 
+		fmt.Printf("TTTTTTTTTTTTTt: %+v\n", event.ArgsEnvs)
+
 		if event.ArgsEnvs.IsArgs {
-			p.resolvers.ProcessResolver.UpdateArgs(event.ArgsEnvs.ID, event.ArgsEnvs.Values, event.ArgsEnvs.IsTruncated)
+			p.resolvers.ProcessResolver.UpdateArgs(&event.ArgsEnvs)
 		} else {
-			p.resolvers.ProcessResolver.UpdateEnvs(event.ArgsEnvs.ID, event.ArgsEnvs.Values, event.ArgsEnvs.IsTruncated)
+			p.resolvers.ProcessResolver.UpdateEnvs(&event.ArgsEnvs)
 		}
 
 		return
@@ -434,8 +436,13 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			log.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+
+		fmt.Printf("AAAAAAAAAAAAaa: %+v\n", event.processCacheEntry.Process.ArgsID)
+
 		p.resolvers.ProcessResolver.ResolveArgs(event.processCacheEntry)
 		p.resolvers.ProcessResolver.ResolveEnvs(event.processCacheEntry)
+
+		fmt.Printf("BBBBBBBBBBBBBBB: %+v\n", event.processCacheEntry.Args)
 
 		event.updateProcessCachePointer(p.resolvers.ProcessResolver.AddExecEntry(event.ProcessContext.Pid, event.processCacheEntry))
 	case model.ExitEventType:

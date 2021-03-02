@@ -167,10 +167,11 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	read += 24
 
 	// Unmarshal the credentials contained in pid_cache_t
-	read, err = UnmarshalBinary(data[read:], &e.Credentials)
+	n, err := UnmarshalBinary(data[read:], &e.Credentials)
 	if err != nil {
 		return 0, err
 	}
+	read += n
 
 	e.ArgsID = ByteOrder.Uint32(data[read : read+4])
 	e.ArgsTruncated = ByteOrder.Uint32(data[read+4:read+8]) == 1

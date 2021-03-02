@@ -10,6 +10,7 @@
 package probe
 
 import (
+	"fmt"
 	"strings"
 	"syscall"
 	"time"
@@ -310,8 +311,12 @@ func newCredentialsSerializerWithResolvers(ce *model.Credentials, r *Resolvers) 
 	}
 }
 
-func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event, topLevel bool) *ProcessCacheEntrySerializer {
-	var args, envs []string
+func scrubArgsEnvs(process *model.Process, e *Event) ([]string, []string) {
+	args := process.Args
+
+	fmt.Printf(">>>>>>>>>>>: %v\n", args)
+
+	envs := process.Envs
 
 	// scrub args, do not send args if no scrubber instance is passed
 	// can be the case for some custom event
@@ -333,6 +338,12 @@ func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event, topL
 		envs = newEnvs
 	}
 
+	return args, envs
+}
+
+func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event, topLevel bool) *ProcessCacheEntrySerializer {
+	args, envs := scrubArgsEnvs(&pce.Process, e)
+
 	pceSerializer := &ProcessCacheEntrySerializer{
 		Inode:               pce.FileFields.Inode,
 		MountID:             pce.FileFields.MountID,
@@ -350,6 +361,9 @@ func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event, topL
 		TTY:           e.ResolveProcessTTY(&pce.Process),
 		Executable:    newProcessFileSerializer(&pce.Process, e),
 		Args:          args,
+		ArgsTruncated: pce.Process.ArgsTruncated,
+		Envs:          envs,
+		EnvsTruncated: pce.Process.EnvsTruncated,
 	}
 
 	credsSerializer := newCredentialsSerializer(&pce.Credentials, e)

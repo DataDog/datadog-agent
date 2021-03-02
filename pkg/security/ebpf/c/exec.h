@@ -136,8 +136,6 @@ void __attribute__((always_inline)) parse_str_array(struct pt_regs *ctx, struct 
         void *perf_ptr = &(buff->value[perf_offset&(MAX_STR_BUFF_LEN - MAX_ARRAY_ELEMENT_SIZE - 1)]);
         bpf_probe_read(&event.value, MAX_PERF_STR_BUFF_LEN, perf_ptr);
 
-        bpf_printk(">>>>>>>>>>>: %s\n", event.value);
-
         send_event(ctx, EVENT_ARGS_ENVS, event);
     }
 }
@@ -147,7 +145,7 @@ int __attribute__((always_inline)) trace__sys_execveat(struct pt_regs *ctx, cons
         .type = SYSCALL_EXEC,
     };
     parse_str_array(ctx, &syscall.exec.args, argv, ARGS_TYPE);
-    //parse_str_array(ctx, &syscall.exec.envs, env, ENVS_TYPE);
+    parse_str_array(ctx, &syscall.exec.envs, env, ENVS_TYPE);
 
     cache_syscall(&syscall);
     return 0;

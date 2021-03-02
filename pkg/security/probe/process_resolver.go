@@ -104,34 +104,34 @@ func (p *ProcessResolver) SendStats() error {
 }
 
 // UpdateArgs updates arguments of the given id
-func (p *ProcessResolver) UpdateArgs(id uint32, newArgs []string, isTruncated bool) {
-	if e, found := p.argsCache.Get(id); found {
+func (p *ProcessResolver) UpdateArgs(event *model.ArgsEnvsEvent) {
+	if e, found := p.argsCache.Get(event.ID); found {
 		entry := e.(*argsEnvsCacheEntry)
 
-		entry.Values = append(entry.Values, newArgs...)
-		entry.IsTruncated = entry.IsTruncated || isTruncated
+		entry.Values = append(entry.Values, event.Values...)
+		entry.IsTruncated = entry.IsTruncated || event.IsTruncated
 	} else {
 		entry := &argsEnvsCacheEntry{
-			Values:      newArgs,
-			IsTruncated: isTruncated,
+			Values:      event.Values,
+			IsTruncated: event.IsTruncated,
 		}
-		p.argsCache.Add(id, entry)
+		p.argsCache.Add(event.ID, entry)
 	}
 }
 
 // UpdateEnvs updates environment of the given id
-func (p *ProcessResolver) UpdateEnvs(id uint32, newEnvs []string, isTruncated bool) {
-	if e, found := p.envsCache.Get(id); found {
+func (p *ProcessResolver) UpdateEnvs(event *model.ArgsEnvsEvent) {
+	if e, found := p.envsCache.Get(event.ID); found {
 		entry := e.(*argsEnvsCacheEntry)
 
-		entry.Values = append(entry.Values, newEnvs...)
-		entry.IsTruncated = entry.IsTruncated || isTruncated
+		entry.Values = append(entry.Values, event.Values...)
+		entry.IsTruncated = entry.IsTruncated || event.IsTruncated
 	} else {
 		entry := &argsEnvsCacheEntry{
-			Values:      newEnvs,
-			IsTruncated: isTruncated,
+			Values:      event.Values,
+			IsTruncated: event.IsTruncated,
 		}
-		p.envsCache.Add(id, entry)
+		p.envsCache.Add(event.ID, entry)
 	}
 }
 
@@ -419,10 +419,17 @@ func (p *ProcessResolver) resolveWithProcfs(pid uint32) *model.ProcessCacheEntry
 
 // ResolveArgs resolves arguments
 func (p *ProcessResolver) ResolveArgs(pce *model.ProcessCacheEntry) {
+	fmt.Printf("1111111111111&: %+v\n", pce.ArgsID)
 	if e, found := p.argsCache.Get(pce.ArgsID); found {
 		entry := e.(*argsEnvsCacheEntry)
+
+		fmt.Printf("2222222222222222é&: %+v\n", pce.ArgsID)
+
 		pce.Args = entry.Values
-		pce.ArgsTruncated = entry.IsTruncated
+		if pce.ArgsTruncated {
+			pce.Args = append(pce.Args, "...")
+		}
+		pce.ArgsTruncated = pce.ArgsTruncated || entry.IsTruncated
 	}
 }
 
@@ -430,8 +437,12 @@ func (p *ProcessResolver) ResolveArgs(pce *model.ProcessCacheEntry) {
 func (p *ProcessResolver) ResolveEnvs(pce *model.ProcessCacheEntry) {
 	if e, found := p.envsCache.Get(pce.EnvsID); found {
 		entry := e.(*argsEnvsCacheEntry)
+
 		pce.Envs = entry.Values
-		pce.EnvsTruncated = entry.IsTruncated
+		if pce.EnvsTruncated {
+			pce.Envs = append(pce.Envs, "...")
+		}
+		pce.EnvsTruncated = pce.EnvsTruncated || entry.IsTruncated
 	}
 }
 

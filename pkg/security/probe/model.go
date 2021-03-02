@@ -252,36 +252,6 @@ func (ev *Event) ResolveProcessComm(e *model.Process) string {
 	return e.Comm
 }
 
-// ResolveExecForkTimestamp returns the fork timestamp of the process
-func (ev *Event) ResolveExecForkTimestamp(e *model.ExecEvent) time.Time {
-	if e.ForkTime.IsZero() && ev != nil {
-		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
-			e.ForkTime = entry.ForkTime
-		}
-	}
-	return e.ForkTime
-}
-
-// ResolveExecExecTimestamp returns the execve timestamp of the process
-func (ev *Event) ResolveExecExecTimestamp(e *model.ExecEvent) time.Time {
-	if e.ExecTime.IsZero() && ev != nil {
-		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
-			e.ExecTime = entry.ExecTime
-		}
-	}
-	return e.ExecTime
-}
-
-// ResolveExecExitTimestamp returns the exit timestamp of the process
-func (ev *Event) ResolveExecExitTimestamp(e *model.ExecEvent) time.Time {
-	if e.ExitTime.IsZero() && ev != nil {
-		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
-			e.ExitTime = entry.ExitTime
-		}
-	}
-	return e.ExitTime
-}
-
 // ResolveCredentialsUID resolves the user id of the process
 func (ev *Event) ResolveCredentialsUID(e *model.Credentials) int {
 	if e.UID == 0 && ev != nil {
