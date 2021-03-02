@@ -153,6 +153,6 @@ func (ccc *CCCache) readData() {
 	ccc.Lock()
 	defer ccc.Unlock()
 	ccc.appsByGUID = appsByGUID
-	ccc.pollSuccesses++
+	atomic.AddInt64(&ccc.pollSuccesses, 1)
 	ccc.lastUpdated = time.Now()
 }
