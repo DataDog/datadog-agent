@@ -6,9 +6,10 @@
 package v1
 
 import (
-	"k8s.io/apimachinery/pkg/util/sets"
 	"reflect"
 	"testing"
+
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 func TestNamespacesPodsStringsSet_Copy(t *testing.T) {
