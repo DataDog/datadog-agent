@@ -8,11 +8,12 @@ package aws
 import (
 	"encoding/json"
 	"io/ioutil"
+	"path/filepath"
 	"strings"
 	"sync"
 )
 
-const persistedStateFilePath = "/tmp/dd-lambda-extension-cache.json"
+var persistedStateFilePath = filepath.FromSlash("/tmp/dd-lambda-extension-cache.json")
 
 type persistedState struct {
 	CurrentARN   string
