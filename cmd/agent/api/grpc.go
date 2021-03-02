@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/status"
 
 	pb "github.com/DataDog/datadog-agent/cmd/agent/api/pb"
@@ -23,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
 	hostutil "github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -169,4 +171,8 @@ func pb2taggerCardinality(pbCardinality pb.TagCardinality) (collectors.TagCardin
 	}
 
 	return 0, status.Errorf(codes.InvalidArgument, "invalid cardinality %q", pbCardinality)
+}
+
+func init() {
+	grpclog.SetLoggerV2(grpc.NewLogger())
 }
