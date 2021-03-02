@@ -433,12 +433,12 @@ func NewProcessCacheEntry() *model.ProcessCacheEntry {
 	return &model.ProcessCacheEntry{}
 }
 
-// ResolveProcessUser resolves the user id of the process to a username
+// ResolveProcessContextUser resolves the user id of the process to a username
 func (ev *Event) ResolveProcessContextUser(p *model.ProcessContext) string {
 	return ev.resolvers.ResolveProcessContextUser(p)
 }
 
-// ResolveProcessGroup resolves the group id of the process to a group name
+// ResolveProcessContextGroup resolves the group id of the process to a group name
 func (ev *Event) ResolveProcessContextGroup(p *model.ProcessContext) string {
 	return ev.resolvers.ResolveProcessContextGroup(p)
 }
