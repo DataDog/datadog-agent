@@ -488,7 +488,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		ContainerTags:          getContainerTags(req.Header.Get(headerContainerID)),
 		ClientComputedTopLevel: req.Header.Get(headerComputedTopLevel) != "",
 		ClientComputedStats:    req.Header.Get(headerComputedStats) != "",
-		ClientDroppedP0s:       droppedP0Traces(req, ts),
+		ClientDroppedP0s:       droppedTracesFromHeader(req.Header, ts),
 	}
 
 	select {
@@ -508,16 +508,16 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	}
 }
 
-func droppedP0Traces(req *http.Request, ts *info.TagStats) int64 {
+func droppedTracesFromHeader(h http.Header, ts *info.TagStats) int64 {
 	var dropped int64
-	if v := req.Header.Get(headerDroppedP0Traces); v != "" {
+	if v := h.Get(headerDroppedP0Traces); v != "" {
 		count, err := strconv.ParseInt(v, 10, 64)
 		if err == nil {
 			dropped = count
 			atomic.AddInt64(&ts.ClientDroppedP0Traces, count)
 		}
 	}
-	if v := req.Header.Get(headerDroppedP0Spans); v != "" {
+	if v := h.Get(headerDroppedP0Spans); v != "" {
 		count, err := strconv.ParseInt(v, 10, 64)
 		if err == nil {
 			atomic.AddInt64(&ts.ClientDroppedP0Spans, count)
