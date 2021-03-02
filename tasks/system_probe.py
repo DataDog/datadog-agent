@@ -87,7 +87,14 @@ def build(
         )
 
         ctx.run(
-            "windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/system-probe/windows_resources/system-probe.rc --target {target_arch} -O coff -o cmd/process-agent/rsrc.syso".format(
+            "windres "
+            "--define MAJ_VER={maj_ver} "
+            "--define MIN_VER={min_ver} "
+            "--define PATCH_VER={patch_ver} "
+            "-i cmd/system-probe/windows_resources/system-probe.rc "
+            "--target {target_arch} "
+            "-O coff "
+            "-o cmd/process-agent/rsrc.syso".format(
                 maj_ver=maj_ver, min_ver=min_ver, patch_ver=patch_ver, target_arch=windres_target
             )
         )
@@ -107,7 +114,7 @@ def build(
         for line in lines:
             for env_var in GIMME_ENV_VARS:
                 if env_var in line:
-                    goenv[env_var] = line[line.find(env_var) + len(env_var) + 1 : -1].strip('\'\"')
+                    goenv[env_var] = line[line.find(env_var) + len(env_var) + 1: -1].strip('\'\"')
         ld_vars["GoVersion"] = go_version
 
     # extend PATH from gimme with the one from get_build_flags
@@ -178,7 +185,13 @@ def build_in_docker(
 
 @task
 def test(
-    ctx, packages=TEST_PACKAGES, skip_object_files=False, bundle_ebpf=True, output_path=None, runtime_compiled=False, skip_linters=False
+    ctx,
+    packages=TEST_PACKAGES,
+    skip_object_files=False,
+    bundle_ebpf=True,
+    output_path=None,
+    runtime_compiled=False,
+    skip_linters=False
 ):
     """
     Run tests on eBPF parts
@@ -203,7 +216,8 @@ def test(
     bpf_tag += ",ebpf_bindata"
     if os.getenv("GOPATH") is None:
         print(
-            "GOPATH is not set, if you are running tests with sudo, you may need to use the -E option to preserve your environment"
+            "GOPATH is not set, if you are running tests with sudo, you may need to use the -E option to preserve "
+            "your environment "
         )
         raise Exit(code=1)
 
@@ -236,7 +250,7 @@ def kitchen_prepare(ctx):
     target_packages = []
     for pkg in TEST_PACKAGES_LIST:
         target_packages += (
-            check_output("go list -f '{{ .Dir }}' -tags linux_bpf %s" % (pkg), shell=True)
+            check_output("go list -f '{{ .Dir }}' -tags linux_bpf %s" % pkg, shell=True)
             .decode('utf-8')
             .strip()
             .split("\n")
@@ -408,7 +422,6 @@ def get_ebpf_targets():
     files.extend(glob.glob("pkg/security/ebpf/c/*.[c,h]"))
     return files
 
-    ctx.run("clang -v")
 
 def get_linux_header_dirs():
     os_info = os.uname()
