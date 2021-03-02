@@ -254,9 +254,7 @@ func TestGetHostname(t *testing.T) {
 	cfg := NewDefaultAgentConfig(false)
 	h, err := getHostname(cfg.DDAgentBin)
 	assert.Nil(t, err)
-	// verify we fall back to getting os hostname
-	expectedHostname, _ := os.Hostname()
-	assert.Equal(t, expectedHostname, h)
+	assert.NotEqual(t, "", h)
 }
 
 func TestDefaultConfig(t *testing.T) {
@@ -698,6 +696,7 @@ func TestGetHostnameShellCmd(t *testing.T) {
 	if os.Getenv("GO_TEST_PROCESS") != "1" {
 		return
 	}
+	defer os.Exit(0)
 
 	args := os.Args
 	for len(args) > 0 {
@@ -722,8 +721,6 @@ func TestGetHostnameShellCmd(t *testing.T) {
 		assert.EqualValues(t, []string{"hostname"}, args)
 		fmt.Fprintf(os.Stdout, "")
 	}
-
-	os.Exit(0)
 }
 
 // fakeExecCommand is a function that initialises a new exec.Cmd, one which will
