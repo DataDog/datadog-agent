@@ -75,15 +75,14 @@ type ProcessResolverOpts struct {
 // ProcessResolver resolved process context
 type ProcessResolver struct {
 	sync.RWMutex
-	probe            *Probe
-	resolvers        *Resolvers
-	client           *statsd.Client
-	inodeInfoMap     *lib.Map
-	procCacheMap     *lib.Map
-	pidCacheMap      *lib.Map
-	argsEnvsCacheMap *lib.Map
-	cacheSize        int64
-	opts             ProcessResolverOpts
+	probe        *Probe
+	resolvers    *Resolvers
+	client       *statsd.Client
+	inodeInfoMap *lib.Map
+	procCacheMap *lib.Map
+	pidCacheMap  *lib.Map
+	cacheSize    int64
+	opts         ProcessResolverOpts
 
 	entryCache    map[uint32]*model.ProcessCacheEntry
 	argsEnvsCache *simplelru.LRU

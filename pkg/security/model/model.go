@@ -307,7 +307,7 @@ type Process struct {
 type ExecEvent struct {
 	Process
 
-	// override Process fiels so that SECL can expose them
+	// override Process fields so that SECL can expose them
 	Args          []string `field:"args" iterator:"ExecArgsIterator"`
 	ArgsTruncated bool     `field:"args_truncated"`
 	Envs          []string `field:"envs" iterator:"ExecEnvsIterator"`
