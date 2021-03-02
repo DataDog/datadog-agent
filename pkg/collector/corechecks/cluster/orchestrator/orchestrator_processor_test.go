@@ -5,7 +5,7 @@
 
 // +build kubeapiserver,orchestrator
 
-package cluster
+package orchestrator
 
 import (
 	"testing"

@@ -5,7 +5,7 @@
 
 // +build kubeapiserver,orchestrator
 
-package cluster
+package orchestrator
 
 import (
 	"context"
@@ -167,7 +167,7 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 	// Prepare the collectors for the resources specified in the configuration file.
 	collectors := o.instance.Collectors
 
-	// Enable the KSM default collectors if the config collectors list is empty.
+	// Enable the orchestrator default collectors if the config collectors list is empty.
 	if len(collectors) == 0 {
 		collectors = defaultResources
 	}
@@ -230,7 +230,6 @@ func (o *OrchestratorCheck) Run() error {
 		errLeader := o.runLeaderElection()
 		if errLeader != nil {
 			if errLeader == apiserver.ErrNotLeader {
-				// Only the leader can instantiate the apiserver client.
 				return nil
 			}
 			return err

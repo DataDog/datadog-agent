@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	coreutil "github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -161,11 +162,11 @@ func extractOrchestratorDDUrl() (*url.URL, error) {
 
 // NewOrchestratorForwarder returns an orchestratorForwarder
 // if the feature is activated on the cluster-agent/cluster-check runner, nil otherwise
-func NewOrchestratorForwarder(confPath string, isCoreAgent bool) *forwarder.DefaultForwarder {
+func NewOrchestratorForwarder(confPath string) *forwarder.DefaultForwarder {
 	if !config.Datadog.GetBool("orchestrator_explorer.enabled") {
 		return nil
 	}
-	if isCoreAgent && !config.IsCLCRunner() {
+	if flavor.GetFlavor() == flavor.DefaultAgent && !config.IsCLCRunner() {
 		return nil
 	}
 	orchestratorCfg := NewDefaultOrchestratorConfig()

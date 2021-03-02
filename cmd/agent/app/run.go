@@ -53,6 +53,7 @@ import (
 	// register core checks
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/kubernetesapiserver"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/containerd"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/cri"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/docker"
@@ -339,7 +340,7 @@ func StartAgent() error {
 	log.Debugf("Forwarder started")
 
 	// setup the orchestrator forwarder (only on cluster check runners)
-	orchestratorForwarder = orchcfg.NewOrchestratorForwarder(confFilePath, true)
+	orchestratorForwarder = orchcfg.NewOrchestratorForwarder(confFilePath)
 	if orchestratorForwarder != nil {
 		orchestratorForwarder.Start() //nolint:errcheck
 	}

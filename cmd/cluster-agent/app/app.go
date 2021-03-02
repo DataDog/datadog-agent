@@ -195,7 +195,7 @@ func start(cmd *cobra.Command, args []string) error {
 	f := forwarder.NewDefaultForwarder(forwarderOpts)
 	f.Start() //nolint:errcheck
 	// setup the orchestrator forwarder
-	orchestratorForwarder = orchcfg.NewOrchestratorForwarder(confPath, false)
+	orchestratorForwarder = orchcfg.NewOrchestratorForwarder(confPath)
 	if orchestratorForwarder != nil {
 		orchestratorForwarder.Start() //nolint:errcheck
 	}
