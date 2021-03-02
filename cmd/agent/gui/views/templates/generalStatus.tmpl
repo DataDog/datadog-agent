@@ -319,16 +319,23 @@
             {{- end }}
             {{- if .inputs }}
             Inputs: {{ range $input := .inputs }}{{$input}} {{ end }}</br>
+            {{- end }}
             BytesRead: {{ .bytes_read }}</br>
             Average Latency (ms): {{ .all_time_avg_latency }}</br>
             24h Average Latency (ms): {{ .recent_avg_latency }}</br>
             Peak Latency (ms): {{ .all_time_peak_latency }}</br>
             24h Peak Latency (ms): {{ .recent_peak_latency }}</br>
-            {{- if .info }}
-            Container Info:</br>
+            {{- if .simpleInfo }}
+            {{- range $key, $value := .simpleInfo }}
+            {{$key}}: {{$value}}</br>
+            {{- end }}
+            {{- end }}
+            {{- if .multiLineInfo }}
+            {{- range $key, $value := .multiLineInfo }}
+            {{$key}}:</br>
               <span class="stat_subdata">
-                {{- range $inf := .info }}
-                  {{ $inf }}</br>
+                {{- range $inf := $value }}
+                {{ $inf }}</br>
                 {{- end }}
               </span>
             {{- end }}
