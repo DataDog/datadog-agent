@@ -161,3 +161,21 @@ func TestTwoPayload(t *testing.T) {
 	require.Equal(t, "{[A,B,C]}", payloadToString(*payloads[0]))
 	require.Equal(t, "{[D,E,F]}", payloadToString(*payloads[1]))
 }
+
+func TestLockedCompressorProducesSamePayloads(t *testing.T) {
+	m := &dummyMarshaller{
+		items:  []string{"A", "B", "C", "D", "E", "F"},
+		header: "{[",
+		footer: "]}",
+	}
+	defer resetDefaults()
+
+	builderLocked := NewPayloadBuilder(true)
+	builderUnLocked := NewPayloadBuilder(false)
+	payloads1, err := builderLocked.Build(m)
+	require.NoError(t, err)
+	payloads2, err := builderUnLocked.Build(m)
+	require.NoError(t, err)
+
+	require.Equal(t, payloadToString(*payloads1[0]), payloadToString(*payloads2[0]))
+}

@@ -9,7 +9,9 @@ package jsonstream
 
 import (
 	"bytes"
+	"expvar"
 	"sync"
+	"time"
 
 	jsoniter "github.com/json-iterator/go"
 
@@ -19,11 +21,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var tlmCompressorLocks = telemetry.NewGauge(
-	"payload_builder",
-	"blocking_goroutines",
-	nil,
-	"Number of blocked goroutines waiting for a compressor to be available",
+var (
+	tlmCompressorLocks        = telemetry.NewGauge("jsonstream", "blocking_goroutines", nil, "Number of blocked goroutines waiting for a compressor to be available")
+	tlmTotalLockTime          = telemetry.NewCounter("jsonstream", "blocked_time", nil, "Total time spent waiting for the compressor to be available")
+	tlmTotalSerializationTime = telemetry.NewCounter("jsonstream", "serialization_time", nil, "Total time spent serializing and compressing payloads")
+	expvarsCompressorLocks    = expvar.Int{}
+	expvarsTotalLockTime      = expvar.Int{}
+	expvarsSerializationTime  = expvar.Int{}
 )
 
 var jsonConfig = jsoniter.Config{
@@ -32,13 +36,20 @@ var jsonConfig = jsoniter.Config{
 }.Froze()
 
 // PayloadBuilder is used to build payloads. PayloadBuilder allocates memory based
-// on what was previously need to serialize payloads. Keep that in mind and
-// use multiple PayloadBuilders for different sources.
+// on what was previously need to serialize payloads. If shareAndLockBuffers is enabled
+// new input/output buffers will be reused and locked to be thread safe. Keep that
+// in mind and use multiple PayloadBuilders for different sources.
 type PayloadBuilder struct {
 	inputSizeHint, outputSizeHint int
 	shareAndLockBuffers           bool
 	input, output                 *bytes.Buffer
 	mu                            sync.Mutex
+}
+
+func init() {
+	expvars.Set("CompressorLocks", &expvarsCompressorLocks)
+	expvars.Set("TotalLockTime", &expvarsTotalLockTime)
+	expvars.Set("TotalSerializationTime", &expvarsSerializationTime)
 }
 
 // NewPayloadBuilder creates a new PayloadBuilder with default values.
@@ -82,10 +93,18 @@ func (b *PayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 
 	var input, output *bytes.Buffer
 	if b.shareAndLockBuffers {
-		defer tlmCompressorLocks.Dec()
 		defer b.mu.Unlock()
+
 		tlmCompressorLocks.Inc()
+		expvarsCompressorLocks.Add(1)
+		start := time.Now()
 		b.mu.Lock()
+		elapsed := time.Since(start)
+		expvarsTotalLockTime.Add(int64(elapsed))
+		tlmTotalLockTime.Add(float64(elapsed))
+		tlmCompressorLocks.Dec()
+		expvarsCompressorLocks.Add(-1)
+
 		input = b.input
 		output = b.output
 		input.Reset()
@@ -100,6 +119,7 @@ func (b *PayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	itemCount := m.Len()
 	expvarsTotalCalls.Add(1)
 	tlmTotalCalls.Inc()
+	start := time.Now()
 
 	// Temporary buffers
 	var header, footer bytes.Buffer
@@ -182,6 +202,10 @@ func (b *PayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 		b.inputSizeHint = input.Cap()
 		b.outputSizeHint = output.Cap()
 	}
+
+	elapsed := time.Since(start)
+	expvarsSerializationTime.Add(int64(elapsed))
+	tlmTotalSerializationTime.Add(float64(elapsed))
 
 	return payloads, nil
 }
