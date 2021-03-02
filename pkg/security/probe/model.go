@@ -125,18 +125,12 @@ func (ev *Event) ResolveContainerID(e *model.ContainerContext) string {
 
 // UnmarshalExecEvent unmarshal an ExecEvent
 func (ev *Event) UnmarshalExecEvent(data []byte) (int, error) {
-	if len(data) < 136 {
-		return 0, model.ErrNotEnoughData
-	}
-
 	// reset the process cache entry of the current event
 	entry := NewProcessCacheEntry()
 	entry.ContainerContext = ev.Container
 	entry.ProcessContext = model.ProcessContext{
 		Pid: ev.Process.Pid,
 		Tid: ev.Process.Tid,
-		UID: ev.Process.UID,
-		GID: ev.Process.GID,
 	}
 	ev.processCacheEntry = entry
 
@@ -146,21 +140,22 @@ func (ev *Event) UnmarshalExecEvent(data []byte) (int, error) {
 	}
 
 	// Some fields need to be copied manually in the ExecEvent structure because they do not have "Exec" specific
-	// resolvers, and the data was parsed in the ProcessCacheEntry structure
+	// resolvers, and the data was parsed in the ProcessCacheEntry structure. We couldn't introduce resolvers for these
+	// fields because those resolvers would be shared with FileEvents.
 	ev.Exec.FileFields = ev.processCacheEntry.ProcessContext.ExecEvent.FileFields
 	return n, nil
 }
 
-// ResolveUID resolves the user id of the file to a username
-func (ev *Event) ResolveUID(e *model.FileFields) string {
+// ResolveUser resolves the user id of the file to a username
+func (ev *Event) ResolveUser(e *model.FileFields) string {
 	if len(e.User) == 0 {
 		e.User, _ = ev.resolvers.UserGroupResolver.ResolveUser(int(e.UID))
 	}
 	return e.User
 }
 
-// ResolveGID resolves the group id of the file to a group name
-func (ev *Event) ResolveGID(e *model.FileFields) string {
+// ResolveGroup resolves the group id of the file to a group name
+func (ev *Event) ResolveGroup(e *model.FileFields) string {
 	if len(e.Group) == 0 {
 		e.Group, _ = ev.resolvers.UserGroupResolver.ResolveGroup(int(e.GID))
 	}
@@ -255,42 +250,6 @@ func (ev *Event) ResolveExecComm(e *model.ExecEvent) string {
 	return e.Comm
 }
 
-// ResolveExecUID resolves the user id of the process
-func (ev *Event) ResolveExecUID(e *model.ExecEvent) int {
-	if e.UID == 0 && ev != nil {
-		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
-			e.UID = entry.UID
-		}
-	}
-	return int(e.UID)
-}
-
-// ResolveExecGID resolves the group id of the process
-func (ev *Event) ResolveExecGID(e *model.ExecEvent) int {
-	if e.GID == 0 && ev != nil {
-		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
-			e.GID = entry.GID
-		}
-	}
-	return int(e.GID)
-}
-
-// ResolveExecUser resolves the user id of the process to a username
-func (ev *Event) ResolveExecUser(e *model.ExecEvent) string {
-	if len(e.User) == 0 && ev != nil {
-		e.User, _ = ev.resolvers.UserGroupResolver.ResolveUser(int(ev.Process.UID))
-	}
-	return e.User
-}
-
-// ResolveExecGroup resolves the group id of the process to a group name
-func (ev *Event) ResolveExecGroup(e *model.ExecEvent) string {
-	if len(e.Group) == 0 && ev != nil {
-		e.Group, _ = ev.resolvers.UserGroupResolver.ResolveGroup(int(ev.Process.GID))
-	}
-	return e.Group
-}
-
 // ResolveExecForkTimestamp returns the fork timestamp of the process
 func (ev *Event) ResolveExecForkTimestamp(e *model.ExecEvent) time.Time {
 	if e.ForkTime.IsZero() && ev != nil {
@@ -319,6 +278,182 @@ func (ev *Event) ResolveExecExitTimestamp(e *model.ExecEvent) time.Time {
 		}
 	}
 	return e.ExitTime
+}
+
+// ResolveCredentialsUID resolves the user id of the process
+func (ev *Event) ResolveCredentialsUID(e *model.Credentials) int {
+	if e.UID == 0 && ev != nil {
+		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
+			e.UID = entry.UID
+		}
+	}
+	return int(e.UID)
+}
+
+// ResolveCredentialsUser resolves the user id of the process to a username
+func (ev *Event) ResolveCredentialsUser(e *model.Credentials) string {
+	if len(e.User) == 0 && ev != nil {
+		e.User, _ = ev.resolvers.UserGroupResolver.ResolveUser(ev.ResolveCredentialsUID(e))
+	}
+	return e.User
+}
+
+// ResolveCredentialsGID resolves the group id of the process
+func (ev *Event) ResolveCredentialsGID(e *model.Credentials) int {
+	if e.GID == 0 && ev != nil {
+		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
+			e.GID = entry.GID
+		}
+	}
+	return int(e.GID)
+}
+
+// ResolveCredentialsGroup resolves the group id of the process to a group name
+func (ev *Event) ResolveCredentialsGroup(e *model.Credentials) string {
+	if len(e.Group) == 0 && ev != nil {
+		e.Group, _ = ev.resolvers.UserGroupResolver.ResolveGroup(ev.ResolveCredentialsGID(e))
+	}
+	return e.Group
+}
+
+// ResolveCredentialsEUID resolves the effective user id of the process
+func (ev *Event) ResolveCredentialsEUID(e *model.Credentials) int {
+	if e.EUID == 0 && ev != nil {
+		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
+			e.EUID = entry.EUID
+		}
+	}
+	return int(e.EUID)
+}
+
+// ResolveCredentialsEUser resolves the effective user id of the process to a username
+func (ev *Event) ResolveCredentialsEUser(e *model.Credentials) string {
+	if len(e.EUser) == 0 && ev != nil {
+		e.EUser, _ = ev.resolvers.UserGroupResolver.ResolveUser(ev.ResolveCredentialsEUID(e))
+	}
+	return e.EUser
+}
+
+// ResolveCredentialsEGID resolves the effective group id of the process
+func (ev *Event) ResolveCredentialsEGID(e *model.Credentials) int {
+	if e.EGID == 0 && ev != nil {
+		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
+			e.EGID = entry.EGID
+		}
+	}
+	return int(e.EGID)
+}
+
+// ResolveCredentialsEGroup resolves the effective group id of the process to a group name
+func (ev *Event) ResolveCredentialsEGroup(e *model.Credentials) string {
+	if len(e.EGroup) == 0 && ev != nil {
+		e.EGroup, _ = ev.resolvers.UserGroupResolver.ResolveGroup(ev.ResolveCredentialsEGID(e))
+	}
+	return e.EGroup
+}
+
+// ResolveCredentialsFSUID resolves the file-system user id of the process
+func (ev *Event) ResolveCredentialsFSUID(e *model.Credentials) int {
+	if e.FSUID == 0 && ev != nil {
+		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
+			e.FSUID = entry.FSUID
+		}
+	}
+	return int(e.FSUID)
+}
+
+// ResolveCredentialsFSUser resolves the file-system user id of the process to a username
+func (ev *Event) ResolveCredentialsFSUser(e *model.Credentials) string {
+	if len(e.FSUser) == 0 && ev != nil {
+		e.FSUser, _ = ev.resolvers.UserGroupResolver.ResolveUser(ev.ResolveCredentialsFSUID(e))
+	}
+	return e.FSUser
+}
+
+// ResolveCredentialsFSGID resolves the file-system group id of the process
+func (ev *Event) ResolveCredentialsFSGID(e *model.Credentials) int {
+	if e.FSGID == 0 && ev != nil {
+		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
+			e.FSGID = entry.FSGID
+		}
+	}
+	return int(e.FSGID)
+}
+
+// ResolveCredentialsFSGroup resolves the file-system group id of the process to a group name
+func (ev *Event) ResolveCredentialsFSGroup(e *model.Credentials) string {
+	if len(e.FSGroup) == 0 && ev != nil {
+		e.FSGroup, _ = ev.resolvers.UserGroupResolver.ResolveGroup(ev.ResolveCredentialsFSGID(e))
+	}
+	return e.FSGroup
+}
+
+// ResolveCredentialsCapEffective resolves the cap_effective kernel capability of the process
+func (ev *Event) ResolveCredentialsCapEffective(e *model.Credentials) int {
+	if e.CapEffective == 0 {
+		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
+			e.CapEffective = entry.CapEffective
+		}
+	}
+	return int(e.CapEffective)
+}
+
+// ResolveCredentialsCapPermitted resolves the cap_permitted kernel capability of the process
+func (ev *Event) ResolveCredentialsCapPermitted(e *model.Credentials) int {
+	if e.CapPermitted == 0 {
+		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
+			e.CapPermitted = entry.CapPermitted
+		}
+	}
+	return int(e.CapPermitted)
+}
+
+// ResolveSetuidUser resolves the user of the Setuid event
+func (ev *Event) ResolveSetuidUser(e *model.SetuidEvent) string {
+	if len(e.User) == 0 {
+		e.User, _ = ev.resolvers.UserGroupResolver.ResolveUser(int(e.UID))
+	}
+	return e.User
+}
+
+// ResolveSetuidEUser resolves the effective user of the Setuid event
+func (ev *Event) ResolveSetuidEUser(e *model.SetuidEvent) string {
+	if len(e.EUser) == 0 {
+		e.EUser, _ = ev.resolvers.UserGroupResolver.ResolveUser(int(e.EUID))
+	}
+	return e.EUser
+}
+
+// ResolveSetuidFSUser resolves the file-system user of the Setuid event
+func (ev *Event) ResolveSetuidFSUser(e *model.SetuidEvent) string {
+	if len(e.FSUser) == 0 {
+		e.FSUser, _ = ev.resolvers.UserGroupResolver.ResolveUser(int(e.FSUID))
+	}
+	return e.FSUser
+}
+
+// ResolveSetgidGroup resolves the group of the Setgid event
+func (ev *Event) ResolveSetgidGroup(e *model.SetgidEvent) string {
+	if len(e.Group) == 0 {
+		e.Group, _ = ev.resolvers.UserGroupResolver.ResolveUser(int(e.GID))
+	}
+	return e.Group
+}
+
+// ResolveSetgidEGroup resolves the effective group of the Setgid event
+func (ev *Event) ResolveSetgidEGroup(e *model.SetgidEvent) string {
+	if len(e.EGroup) == 0 {
+		e.EGroup, _ = ev.resolvers.UserGroupResolver.ResolveUser(int(e.EGID))
+	}
+	return e.EGroup
+}
+
+// ResolveSetgidFSGroup resolves the file-system group of the Setgid event
+func (ev *Event) ResolveSetgidFSGroup(e *model.SetgidEvent) string {
+	if len(e.FSGroup) == 0 {
+		e.FSGroup, _ = ev.resolvers.UserGroupResolver.ResolveUser(int(e.FSGID))
+	}
+	return e.FSGroup
 }
 
 // NewProcessCacheEntry returns an empty instance of ProcessCacheEntry
@@ -378,7 +513,7 @@ func (ev *Event) ResolveEventTimestamp() time.Time {
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessCacheEntry of the event
 func (ev *Event) ResolveProcessCacheEntry() *model.ProcessCacheEntry {
 	if ev.processCacheEntry == nil {
-		ev.processCacheEntry = ev.resolvers.ProcessResolver.Resolve(ev.Process.Pid)
+		ev.processCacheEntry = ev.resolvers.ProcessResolver.Resolve(ev.Process.Pid, ev.Process.Tid)
 		if ev.processCacheEntry == nil {
 			ev.processCacheEntry = &model.ProcessCacheEntry{}
 		}

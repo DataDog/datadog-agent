@@ -143,15 +143,6 @@ func (m *testModel) ValidateField(key string, value FieldValue) error {
 	return nil
 }
 
-func (m *testModel) TranslateLegacyField(field Field) Field {
-	switch field {
-	case "process.legacy_name":
-		return "process.name"
-	default:
-		return field
-	}
-}
-
 func (m *testModel) GetIterator(field Field) (Iterator, error) {
 	switch field {
 	case "process.list":
