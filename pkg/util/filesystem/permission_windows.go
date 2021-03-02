@@ -14,14 +14,14 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// Handle permissions for Unix and Windows
+// Permission handles permissions for Unix and Windows
 type Permission struct {
 	currentUserSid   *windows.SID
 	administratorSid *windows.SID
 	systemSid        *windows.SID
 }
 
-// Create a new instance of `Permission`
+// NewPermission creates a new instance of `Permission`
 func NewPermission() (*Permission, error) {
 	administratorSid, err := windows.StringToSid("S-1-5-32-544")
 	if err != nil {
@@ -60,8 +60,8 @@ func getCurrentUserSid() (*windows.SID, error) {
 	return windows.StringToSid(sidString)
 }
 
-// Set the permission of `path` to the current user and current group.
-func (p *Permission) SetPermToCurrentUserAndGroup(path string) error {
+// Set the ACLs to the current user, system and administrator.
+func (p *Permission) RestrictAccessToUser(path string) error {
 	return acl.Apply(
 		path,
 		true,  // replace the file permissions

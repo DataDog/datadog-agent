@@ -8,15 +8,15 @@ package filesystem
 
 import "os"
 
-// Handle permissions for Unix and Windows
+// Permission handles permissions for Unix and Windows
 type Permission struct{}
 
-// Create a new instance of `Permission`
+// NewPermission creates a new instance of `Permission`
 func NewPermission() (*Permission, error) {
 	return &Permission{}, nil
 }
 
-// Set the permission of `path` to the current user and current group.
-func (p *Permission) SetPermToCurrentUserAndGroup(path string) error {
+// RestrictAccessToUser restricts the access to the user (chmod 700)
+func (p *Permission) RestrictAccessToUser(path string) error {
 	return os.Chmod(path, 0700)
 }

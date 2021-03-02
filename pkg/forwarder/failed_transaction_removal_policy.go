@@ -39,7 +39,7 @@ func newFailedTransactionRemovalPolicy(
 	if err != nil {
 		return nil, err
 	}
-	if err := permission.SetPermToCurrentUserAndGroup(rootPath); err != nil {
+	if err := permission.RestrictAccessToUser(rootPath); err != nil {
 		return nil, err
 	}
 
