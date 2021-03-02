@@ -644,7 +644,12 @@
     <WixVariable Id="WixUIDialogBmp" Value="Resources\assets\dialog_background.bmp" />
     <WixVariable Id="WixUIBannerBmp" Value="Resources\assets\banner_background.bmp" />
 
-    <!-- Properties must each be on their own line and end with a semicolon ; -->
+    <!-- Properties must each be on their own line and end with a semicolon ;
+      NOTE: This property will cause the build time warning
+      "warning LGHT1076 : ICE03: String overflow (greater than length permitted in column);"
+      This does not affect the final artefact, as it seems to affects only the base string, not the expanded one.
+      At runtime this limitation doesn\'t seem to apply.
+    -->
     <CustomAction Id='SetFinalizeProperty' Return='check' Property='FinalizeInstall'
         Value='
             PROJECTLOCATION=[PROJECTLOCATION];
