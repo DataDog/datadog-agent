@@ -36,7 +36,8 @@ func TestPersistAndRestoreCurrentState(t *testing.T) {
 	t.Cleanup(resetState)
 	SetARN(exampleArn)
 	SetRequestID(exampleRequestID)
-	PersistCurrentStateToFile()
+	err := PersistCurrentStateToFile()
+	assert.Equal(t, nil, err)
 
 	SetARN("")
 	SetRequestID("")
@@ -45,8 +46,8 @@ func TestPersistAndRestoreCurrentState(t *testing.T) {
 	output = GetRequestID()
 	assert.Equal(t, "", output)
 
-	err := RestoreCurrentStateFromFile()
-	assert.Equal(t, err, nil)
+	err = RestoreCurrentStateFromFile()
+	assert.Equal(t, nil, err)
 	output = GetARN()
 	assert.Equal(t, exampleArnWithoutVersion, output)
 	output = GetRequestID()
