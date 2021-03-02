@@ -48,7 +48,7 @@ func getTestTraceWithService(t *testing.T, service string, s *PrioritySampler) (
 	var rate float64
 	if serviceRate, ok := rates[key]; ok {
 		rate = serviceRate
-		trace[0].Metrics["_dd.agent_psr"] = serviceRate
+		trace[0].Metrics[agentRateKey] = serviceRate
 	} else {
 		rate = 1
 	}
@@ -130,7 +130,7 @@ func TestPrioritySampleThresholdTo1(t *testing.T) {
 		SetSamplingPriority(root, SamplingPriority(i%2))
 		sampled := s.Sample(trace, root, env, false)
 		if sampled {
-			rate, _ := root.Metrics[deprecatedRateKey]
+			rate, _ := root.Metrics[agentRateKey]
 			assert.Equal(1.0, rate)
 		}
 	}
@@ -139,7 +139,7 @@ func TestPrioritySampleThresholdTo1(t *testing.T) {
 		SetSamplingPriority(root, SamplingPriority(i%2))
 		sampled := s.Sample(trace, root, env, false)
 		if sampled {
-			rate, _ := root.Metrics[deprecatedRateKey]
+			rate, _ := root.Metrics[agentRateKey]
 			if rate < 1 {
 				assert.True(rate < prioritySamplingRateThresholdTo1)
 			}
