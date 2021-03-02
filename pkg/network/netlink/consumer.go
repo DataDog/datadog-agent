@@ -223,7 +223,7 @@ func (c *Consumer) DumpTable(family uint8) (<-chan Event, error) {
 		}
 	}
 
-	rootNS, err := netns.GetRootNetNamespace(c.procRoot)
+	rootNS, err := util.GetRootNetNamespace(c.procRoot)
 	if err != nil {
 		return nil, fmt.Errorf("error dumping conntrack table, could not get root namespace: %w", err)
 	}
