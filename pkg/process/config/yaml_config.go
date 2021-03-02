@@ -81,7 +81,11 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 
 	// The full path to the location of the unix socket where connections will be accessed
 	if socketPath := config.Datadog.GetString(key(spNS, "sysprobe_socket")); socketPath != "" {
-		a.SystemProbeAddress = socketPath
+		if err := ValidateSysprobeSocket(socketPath); err != nil {
+			log.Errorf("Could not parse %s.sysprobe_socket: %s", spNS, err)
+		} else {
+			a.SystemProbeAddress = socketPath
+		}
 	}
 
 	if config.Datadog.IsSet(key(spNS, "enable_conntrack")) {
@@ -195,7 +199,7 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.EnabledChecks = append(a.EnabledChecks, ConnectionsCheckName, NetworkCheckName)
 		a.EnableSystemProbe = true // system-probe is implicitly enabled if networks is enabled
 	} else if config.Datadog.IsSet(key(spNS, "enabled")) && config.Datadog.GetBool(key(spNS, "enabled")) && !config.Datadog.IsSet(key("network_config", "enabled")) {
-		// This case exists to preserve backwards compatibility. If system_probe.enabled is explicitlty set to true, and there is no network_config block,
+		// This case exists to preserve backwards compatibility. If system_probe_config.enabled is explicitly set to true, and there is no network_config block,
 		// enable the connections/network check.
 		log.Info("network_config not found, but system-probe was enabled, enabling network module by default")
 		a.EnabledChecks = append(a.EnabledChecks, NetworkCheckName, ConnectionsCheckName)
