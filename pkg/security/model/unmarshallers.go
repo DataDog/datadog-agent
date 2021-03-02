@@ -85,15 +85,64 @@ func (e *Event) UnmarshalBinary(data []byte) (int, error) {
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
-func (e *ExecEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 136 {
+func (e *SetuidEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 16 {
+		return 0, ErrNotEnoughData
+	}
+	e.UID = ByteOrder.Uint32(data[0:4])
+	e.EUID = ByteOrder.Uint32(data[4:8])
+	e.FSUID = ByteOrder.Uint32(data[8:12])
+	return 16, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *SetgidEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 16 {
+		return 0, ErrNotEnoughData
+	}
+	e.GID = ByteOrder.Uint32(data[0:4])
+	e.EGID = ByteOrder.Uint32(data[4:8])
+	e.FSGID = ByteOrder.Uint32(data[8:12])
+	return 16, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *CapsetEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 16 {
+		return 0, ErrNotEnoughData
+	}
+	e.CapEffective = ByteOrder.Uint64(data[0:8])
+	e.CapPermitted = ByteOrder.Uint64(data[8:16])
+	return 16, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *Credentials) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 40 {
 		return 0, ErrNotEnoughData
 	}
 
+	e.UID = ByteOrder.Uint32(data[0:4])
+	e.GID = ByteOrder.Uint32(data[4:8])
+	e.EUID = ByteOrder.Uint32(data[8:12])
+	e.EGID = ByteOrder.Uint32(data[12:16])
+	e.FSUID = ByteOrder.Uint32(data[16:20])
+	e.FSGID = ByteOrder.Uint32(data[20:24])
+	e.CapEffective = ByteOrder.Uint64(data[24:32])
+	e.CapPermitted = ByteOrder.Uint64(data[32:40])
+	return 40, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *ExecEvent) UnmarshalBinary(data []byte) (int, error) {
 	// Unmarshal proc_cache_t
 	read, err := UnmarshalBinary(data, &e.FileFields)
 	if err != nil {
-		return read, err
+		return 0, err
+	}
+
+	if len(data[read:]) < 112 {
+		return 0, ErrNotEnoughData
 	}
 
 	e.ExecTimestamp = ByteOrder.Uint64(data[read : read+8])
@@ -115,11 +164,10 @@ func (e *ExecEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	e.ForkTimestamp = ByteOrder.Uint64(data[read+8 : read+16])
 	e.ExitTimestamp = ByteOrder.Uint64(data[read+16 : read+24])
+	read += 24
 
-	// ignore uid / gid, it has already been parsed in Event.Process
-	// add 8 to the total
-
-	return read + 32, nil
+	// Unmarshal the credentials contained in pid_cache_t
+	return UnmarshalBinary(data[read:], &e.Credentials)
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -235,16 +283,14 @@ func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (p *ProcessContext) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 16 {
+	if len(data) < 8 {
 		return 0, ErrNotEnoughData
 	}
 
 	p.Pid = ByteOrder.Uint32(data[0:4])
 	p.Tid = ByteOrder.Uint32(data[4:8])
-	p.UID = ByteOrder.Uint32(data[8:12])
-	p.GID = ByteOrder.Uint32(data[12:16])
 
-	return 16, nil
+	return 8, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself

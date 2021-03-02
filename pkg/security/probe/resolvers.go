@@ -108,20 +108,68 @@ func (r *Resolvers) ResolveInode(e *model.FileEvent) string {
 	return path
 }
 
-// ResolveUID resolves the user id of the file to a username
-func (r *Resolvers) ResolveUID(e *model.FileFields) string {
+// ResolveUser resolves the user id of the file to a username
+func (r *Resolvers) ResolveUser(e *model.FileFields) string {
 	if len(e.User) == 0 {
 		e.User, _ = r.UserGroupResolver.ResolveUser(int(e.UID))
 	}
 	return e.User
 }
 
-// ResolveGID resolves the group id of the file to a group name
-func (r *Resolvers) ResolveGID(e *model.FileFields) string {
+// ResolveGroup resolves the group id of the file to a group name
+func (r *Resolvers) ResolveGroup(e *model.FileFields) string {
 	if len(e.Group) == 0 {
 		e.Group, _ = r.UserGroupResolver.ResolveGroup(int(e.GID))
 	}
 	return e.Group
+}
+
+// ResolveCredentialsUser resolves the user id of the process to a username
+func (r *Resolvers) ResolveCredentialsUser(e *model.Credentials) string {
+	if len(e.User) == 0 {
+		e.User, _ = r.UserGroupResolver.ResolveUser(int(e.UID))
+	}
+	return e.User
+}
+
+// ResolveCredentialsGroup resolves the group id of the process to a group name
+func (r *Resolvers) ResolveCredentialsGroup(e *model.Credentials) string {
+	if len(e.Group) == 0 {
+		e.Group, _ = r.UserGroupResolver.ResolveGroup(int(e.GID))
+	}
+	return e.Group
+}
+
+// ResolveCredentialsEUser resolves the effective user id of the process to a username
+func (r *Resolvers) ResolveCredentialsEUser(e *model.Credentials) string {
+	if len(e.EUser) == 0 {
+		e.EUser, _ = r.UserGroupResolver.ResolveUser(int(e.EUID))
+	}
+	return e.EUser
+}
+
+// ResolveCredentialsEGroup resolves the effective group id of the process to a group name
+func (r *Resolvers) ResolveCredentialsEGroup(e *model.Credentials) string {
+	if len(e.EGroup) == 0 {
+		e.EGroup, _ = r.UserGroupResolver.ResolveGroup(int(e.EGID))
+	}
+	return e.EGroup
+}
+
+// ResolveCredentialsFSUser resolves the file-system user id of the process to a username
+func (r *Resolvers) ResolveCredentialsFSUser(e *model.Credentials) string {
+	if len(e.FSUser) == 0 {
+		e.FSUser, _ = r.UserGroupResolver.ResolveUser(int(e.FSUID))
+	}
+	return e.FSUser
+}
+
+// ResolveCredentialsFSGroup resolves the file-system group id of the process to a group name
+func (r *Resolvers) ResolveCredentialsFSGroup(e *model.Credentials) string {
+	if len(e.FSGroup) == 0 {
+		e.FSGroup, _ = r.UserGroupResolver.ResolveGroup(int(e.FSGID))
+	}
+	return e.FSGroup
 }
 
 // ResolveProcessUser resolves the user id of the process to a username

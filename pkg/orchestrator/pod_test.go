@@ -562,6 +562,48 @@ func TestComputeStatus(t *testing.T) {
 	}
 }
 
+func TestFillPodResourceVersion(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		input *model.Pod
+	}{
+		{
+			name: "ordered",
+			input: &model.Pod{
+				Metadata: &model.Metadata{
+					Name:        "pod",
+					Namespace:   "default",
+					Labels:      []string{"app:my-app", "chart_name:webscale-app", "team:one-team"},
+					Annotations: []string{"kubernetes.io/config.seen:2021-03-01T03:22:49.057675874Z", "kubernetes.io/config.source:api"},
+				},
+				RestartCount: 5,
+				Status:       "running",
+				Tags:         []string{"kube_namespace:default", "kube_service:my-app", "pod_name:name"},
+			},
+		},
+		{
+			name: "unordered",
+			input: &model.Pod{
+				Metadata: &model.Metadata{
+					Name:        "pod",
+					Namespace:   "default",
+					Labels:      []string{"chart_name:webscale-app", "team:one-team", "app:my-app"},
+					Annotations: []string{"kubernetes.io/config.source:api", "kubernetes.io/config.seen:2021-03-01T03:22:49.057675874Z"},
+				},
+				RestartCount: 5,
+				Status:       "running",
+				Tags:         []string{"pod_name:name", "kube_service:my-app", "kube_namespace:default"},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := fillPodResourceVersion(tc.input)
+			assert.NoError(t, err)
+			assert.Equal(t, "4669378970017265057", tc.input.Metadata.ResourceVersion)
+		})
+	}
+}
+
 func TestGetConditionMessage(t *testing.T) {
 	for nb, tc := range []struct {
 		pod     *v1.Pod

@@ -30,6 +30,8 @@ func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 func (m *Model) GetEventTypes() []eval.EventType {
 	return []eval.EventType{
 
+		eval.EventType("capset"),
+
 		eval.EventType("chmod"),
 
 		eval.EventType("chown"),
@@ -48,6 +50,10 @@ func (m *Model) GetEventTypes() []eval.EventType {
 
 		eval.EventType("rmdir"),
 
+		eval.EventType("setgid"),
+
+		eval.EventType("setuid"),
+
 		eval.EventType("setxattr"),
 
 		eval.EventType("unlink"),
@@ -58,6 +64,30 @@ func (m *Model) GetEventTypes() []eval.EventType {
 
 func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
 	switch field {
+
+	case "capset.cap_effective":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Capset.CapEffective)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "capset.cap_permitted":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Capset.CapPermitted)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
 
 	case "chmod.file.container_path":
 		return &eval.StringEvaluator{
@@ -419,6 +449,30 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
+	case "exec.cap_effective":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Exec.Credentials.CapEffective)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "exec.cap_permitted":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Exec.Credentials.CapPermitted)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
 	case "exec.comm":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -436,6 +490,54 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Exec.Cookie)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "exec.egid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Exec.Credentials.EGID)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "exec.egroup":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Exec.Credentials.EGroup
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "exec.euid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Exec.Credentials.EUID)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "exec.euser":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Exec.Credentials.EUser
 
 			},
 			Field: field,
@@ -575,11 +677,59 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
+	case "exec.fsgid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Exec.Credentials.FSGID)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "exec.fsgroup":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Exec.Credentials.FSGroup
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "exec.fsuid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Exec.Credentials.FSUID)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "exec.fsuser":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Exec.Credentials.FSUser
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
 	case "exec.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).Exec.GID)
+				return int((*Event)(ctx.Object).Exec.Credentials.GID)
 
 			},
 			Field: field,
@@ -591,7 +741,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).Exec.Group
+				return (*Event)(ctx.Object).Exec.Credentials.Group
 
 			},
 			Field: field,
@@ -627,7 +777,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).Exec.UID)
+				return int((*Event)(ctx.Object).Exec.Credentials.UID)
 
 			},
 			Field: field,
@@ -639,7 +789,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).Exec.User
+				return (*Event)(ctx.Object).Exec.Credentials.User
 
 			},
 			Field: field,
@@ -1247,6 +1397,50 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "process.ancestors.cap_effective":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				var result int
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
+
+					result = int(element.ProcessContext.ExecEvent.Credentials.CapEffective)
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.cap_permitted":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				var result int
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
+
+					result = int(element.ProcessContext.ExecEvent.Credentials.CapPermitted)
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
 	case "process.ancestors.comm":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -1280,6 +1474,94 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					element := (*ProcessCacheEntry)(reg.Value)
 
 					result = int(element.ProcessContext.ExecEvent.Cookie)
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.egid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				var result int
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
+
+					result = int(element.ProcessContext.ExecEvent.Credentials.EGID)
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.egroup":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				var result string
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
+
+					result = element.ProcessContext.ExecEvent.Credentials.EGroup
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.euid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				var result int
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
+
+					result = int(element.ProcessContext.ExecEvent.Credentials.EUID)
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.euser":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				var result string
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
+
+					result = element.ProcessContext.ExecEvent.Credentials.EUser
 
 				}
 
@@ -1533,6 +1815,94 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.IteratorWeight,
 		}, nil
 
+	case "process.ancestors.fsgid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				var result int
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
+
+					result = int(element.ProcessContext.ExecEvent.Credentials.FSGID)
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.fsgroup":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				var result string
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
+
+					result = element.ProcessContext.ExecEvent.Credentials.FSGroup
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.fsuid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				var result int
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
+
+					result = int(element.ProcessContext.ExecEvent.Credentials.FSUID)
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.fsuser":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				var result string
+
+				reg := ctx.Registers[regID]
+				if reg.Value != nil {
+					element := (*ProcessCacheEntry)(reg.Value)
+
+					result = element.ProcessContext.ExecEvent.Credentials.FSUser
+
+				}
+
+				return result
+
+			},
+			Field: field,
+
+			Weight: eval.IteratorWeight,
+		}, nil
+
 	case "process.ancestors.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -1543,7 +1913,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if reg.Value != nil {
 					element := (*ProcessCacheEntry)(reg.Value)
 
-					result = int(element.ProcessContext.GID)
+					result = int(element.ProcessContext.ExecEvent.Credentials.GID)
 
 				}
 
@@ -1565,7 +1935,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if reg.Value != nil {
 					element := (*ProcessCacheEntry)(reg.Value)
 
-					result = element.ProcessContext.ExecEvent.Group
+					result = element.ProcessContext.ExecEvent.Credentials.Group
 
 				}
 
@@ -1697,7 +2067,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if reg.Value != nil {
 					element := (*ProcessCacheEntry)(reg.Value)
 
-					result = int(element.ProcessContext.UID)
+					result = int(element.ProcessContext.ExecEvent.Credentials.UID)
 
 				}
 
@@ -1719,7 +2089,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if reg.Value != nil {
 					element := (*ProcessCacheEntry)(reg.Value)
 
-					result = element.ProcessContext.ExecEvent.User
+					result = element.ProcessContext.ExecEvent.Credentials.User
 
 				}
 
@@ -1729,6 +2099,30 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field: field,
 
 			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.cap_effective":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Process.ExecEvent.Credentials.CapEffective)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "process.cap_permitted":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Process.ExecEvent.Credentials.CapPermitted)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "process.comm":
@@ -1748,6 +2142,54 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Process.ExecEvent.Cookie)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "process.egid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Process.ExecEvent.Credentials.EGID)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "process.egroup":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Process.ExecEvent.Credentials.EGroup
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "process.euid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Process.ExecEvent.Credentials.EUID)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "process.euser":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Process.ExecEvent.Credentials.EUser
 
 			},
 			Field: field,
@@ -1887,23 +2329,71 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
-	case "process.gid":
+	case "process.fsgid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).Process.GID)
+				return int((*Event)(ctx.Object).Process.ExecEvent.Credentials.FSGID)
 
 			},
 			Field: field,
 
-			Weight: eval.FunctionWeight,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "process.fsgroup":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Process.ExecEvent.Credentials.FSGroup
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "process.fsuid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Process.ExecEvent.Credentials.FSUID)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "process.fsuser":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Process.ExecEvent.Credentials.FSUser
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "process.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Process.ExecEvent.Credentials.GID)
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "process.group":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).Process.ExecEvent.Group
+				return (*Event)(ctx.Object).Process.ExecEvent.Credentials.Group
 
 			},
 			Field: field,
@@ -1963,19 +2453,19 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).Process.UID)
+				return int((*Event)(ctx.Object).Process.ExecEvent.Credentials.UID)
 
 			},
 			Field: field,
 
-			Weight: eval.FunctionWeight,
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "process.user":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).Process.ExecEvent.User
+				return (*Event)(ctx.Object).Process.ExecEvent.Credentials.User
 
 			},
 			Field: field,
@@ -2571,6 +3061,150 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "setgid.egid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).SetGID.EGID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "setgid.egroup":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).SetGID.EGroup
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "setgid.fsgid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).SetGID.FSGID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "setgid.fsgroup":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).SetGID.FSGroup
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "setgid.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).SetGID.GID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "setgid.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).SetGID.Group
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "setuid.euid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).SetUID.EUID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "setuid.euser":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).SetUID.EUser
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "setuid.fsuid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).SetUID.FSUID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "setuid.fsuser":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).SetUID.FSUser
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "setuid.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).SetUID.UID)
+
+			},
+			Field: field,
+
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "setuid.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).SetUID.User
+
+			},
+			Field: field,
+
+			Weight: eval.HandlerWeight,
+		}, nil
+
 	case "setxattr.file.container_path":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -3035,6 +3669,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 func (e *Event) GetFields() []eval.Field {
 	return []eval.Field{
 
+		"capset.cap_effective",
+
+		"capset.cap_permitted",
+
 		"chmod.file.container_path",
 
 		"chmod.file.destination.mode",
@@ -3095,9 +3733,21 @@ func (e *Event) GetFields() []eval.Field {
 
 		"container.id",
 
+		"exec.cap_effective",
+
+		"exec.cap_permitted",
+
 		"exec.comm",
 
 		"exec.cookie",
+
+		"exec.egid",
+
+		"exec.egroup",
+
+		"exec.euid",
+
+		"exec.euser",
 
 		"exec.file.container_path",
 
@@ -3120,6 +3770,14 @@ func (e *Event) GetFields() []eval.Field {
 		"exec.file.uid",
 
 		"exec.file.user",
+
+		"exec.fsgid",
+
+		"exec.fsgroup",
+
+		"exec.fsuid",
+
+		"exec.fsuser",
 
 		"exec.gid",
 
@@ -3233,9 +3891,21 @@ func (e *Event) GetFields() []eval.Field {
 
 		"open.retval",
 
+		"process.ancestors.cap_effective",
+
+		"process.ancestors.cap_permitted",
+
 		"process.ancestors.comm",
 
 		"process.ancestors.cookie",
+
+		"process.ancestors.egid",
+
+		"process.ancestors.egroup",
+
+		"process.ancestors.euid",
+
+		"process.ancestors.euser",
 
 		"process.ancestors.file.container_path",
 
@@ -3259,6 +3929,14 @@ func (e *Event) GetFields() []eval.Field {
 
 		"process.ancestors.file.user",
 
+		"process.ancestors.fsgid",
+
+		"process.ancestors.fsgroup",
+
+		"process.ancestors.fsuid",
+
+		"process.ancestors.fsuser",
+
 		"process.ancestors.gid",
 
 		"process.ancestors.group",
@@ -3277,9 +3955,21 @@ func (e *Event) GetFields() []eval.Field {
 
 		"process.ancestors.user",
 
+		"process.cap_effective",
+
+		"process.cap_permitted",
+
 		"process.comm",
 
 		"process.cookie",
+
+		"process.egid",
+
+		"process.egroup",
+
+		"process.euid",
+
+		"process.euser",
 
 		"process.file.container_path",
 
@@ -3302,6 +3992,14 @@ func (e *Event) GetFields() []eval.Field {
 		"process.file.uid",
 
 		"process.file.user",
+
+		"process.fsgid",
+
+		"process.fsgroup",
+
+		"process.fsuid",
+
+		"process.fsuser",
 
 		"process.gid",
 
@@ -3417,6 +4115,30 @@ func (e *Event) GetFields() []eval.Field {
 
 		"rmdir.retval",
 
+		"setgid.egid",
+
+		"setgid.egroup",
+
+		"setgid.fsgid",
+
+		"setgid.fsgroup",
+
+		"setgid.gid",
+
+		"setgid.group",
+
+		"setuid.euid",
+
+		"setuid.euser",
+
+		"setuid.fsuid",
+
+		"setuid.fsuser",
+
+		"setuid.uid",
+
+		"setuid.user",
+
 		"setxattr.file.container_path",
 
 		"setxattr.file.destination.name",
@@ -3497,6 +4219,14 @@ func (e *Event) GetFields() []eval.Field {
 
 func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	switch field {
+
+	case "capset.cap_effective":
+
+		return int(e.Capset.CapEffective), nil
+
+	case "capset.cap_permitted":
+
+		return int(e.Capset.CapPermitted), nil
 
 	case "chmod.file.container_path":
 
@@ -3618,6 +4348,14 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.Container.ID, nil
 
+	case "exec.cap_effective":
+
+		return int(e.Exec.Credentials.CapEffective), nil
+
+	case "exec.cap_permitted":
+
+		return int(e.Exec.Credentials.CapPermitted), nil
+
 	case "exec.comm":
 
 		return e.Exec.Comm, nil
@@ -3625,6 +4363,22 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "exec.cookie":
 
 		return int(e.Exec.Cookie), nil
+
+	case "exec.egid":
+
+		return int(e.Exec.Credentials.EGID), nil
+
+	case "exec.egroup":
+
+		return e.Exec.Credentials.EGroup, nil
+
+	case "exec.euid":
+
+		return int(e.Exec.Credentials.EUID), nil
+
+	case "exec.euser":
+
+		return e.Exec.Credentials.EUser, nil
 
 	case "exec.file.container_path":
 
@@ -3670,13 +4424,29 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.Exec.FileFields.User, nil
 
+	case "exec.fsgid":
+
+		return int(e.Exec.Credentials.FSGID), nil
+
+	case "exec.fsgroup":
+
+		return e.Exec.Credentials.FSGroup, nil
+
+	case "exec.fsuid":
+
+		return int(e.Exec.Credentials.FSUID), nil
+
+	case "exec.fsuser":
+
+		return e.Exec.Credentials.FSUser, nil
+
 	case "exec.gid":
 
-		return int(e.Exec.GID), nil
+		return int(e.Exec.Credentials.GID), nil
 
 	case "exec.group":
 
-		return e.Exec.Group, nil
+		return e.Exec.Credentials.Group, nil
 
 	case "exec.ppid":
 
@@ -3688,11 +4458,11 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "exec.uid":
 
-		return int(e.Exec.UID), nil
+		return int(e.Exec.Credentials.UID), nil
 
 	case "exec.user":
 
-		return e.Exec.User, nil
+		return e.Exec.Credentials.User, nil
 
 	case "link.file.container_path":
 
@@ -3894,6 +4664,50 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.Open.SyscallEvent.Retval), nil
 
+	case "process.ancestors.cap_effective":
+
+		var values []int
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.ProcessContext.ExecEvent.Credentials.CapEffective)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.cap_permitted":
+
+		var values []int
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.ProcessContext.ExecEvent.Credentials.CapPermitted)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
 	case "process.ancestors.comm":
 
 		var values []string
@@ -3930,6 +4744,94 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.ExecEvent.Cookie)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.egid":
+
+		var values []int
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.ProcessContext.ExecEvent.Credentials.EGID)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.egroup":
+
+		var values []string
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.ExecEvent.Credentials.EGroup
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.euid":
+
+		var values []int
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.ProcessContext.ExecEvent.Credentials.EUID)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.euser":
+
+		var values []string
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.ExecEvent.Credentials.EUser
 
 			values = append(values, result)
 
@@ -4180,6 +5082,94 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return values, nil
 
+	case "process.ancestors.fsgid":
+
+		var values []int
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.ProcessContext.ExecEvent.Credentials.FSGID)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.fsgroup":
+
+		var values []string
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.ExecEvent.Credentials.FSGroup
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.fsuid":
+
+		var values []int
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.ProcessContext.ExecEvent.Credentials.FSUID)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.fsuser":
+
+		var values []string
+
+		ctx := &eval.Context{}
+		ctx.SetObject(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.ExecEvent.Credentials.FSUser
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
 	case "process.ancestors.gid":
 
 		var values []int
@@ -4193,7 +5183,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := int(element.ProcessContext.GID)
+			result := int(element.ProcessContext.ExecEvent.Credentials.GID)
 
 			values = append(values, result)
 
@@ -4215,7 +5205,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := element.ProcessContext.ExecEvent.Group
+			result := element.ProcessContext.ExecEvent.Credentials.Group
 
 			values = append(values, result)
 
@@ -4347,7 +5337,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := int(element.ProcessContext.UID)
+			result := int(element.ProcessContext.ExecEvent.Credentials.UID)
 
 			values = append(values, result)
 
@@ -4369,7 +5359,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := element.ProcessContext.ExecEvent.User
+			result := element.ProcessContext.ExecEvent.Credentials.User
 
 			values = append(values, result)
 
@@ -4378,6 +5368,14 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return values, nil
 
+	case "process.cap_effective":
+
+		return int(e.Process.ExecEvent.Credentials.CapEffective), nil
+
+	case "process.cap_permitted":
+
+		return int(e.Process.ExecEvent.Credentials.CapPermitted), nil
+
 	case "process.comm":
 
 		return e.Process.ExecEvent.Comm, nil
@@ -4385,6 +5383,22 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "process.cookie":
 
 		return int(e.Process.ExecEvent.Cookie), nil
+
+	case "process.egid":
+
+		return int(e.Process.ExecEvent.Credentials.EGID), nil
+
+	case "process.egroup":
+
+		return e.Process.ExecEvent.Credentials.EGroup, nil
+
+	case "process.euid":
+
+		return int(e.Process.ExecEvent.Credentials.EUID), nil
+
+	case "process.euser":
+
+		return e.Process.ExecEvent.Credentials.EUser, nil
 
 	case "process.file.container_path":
 
@@ -4430,13 +5444,29 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.Process.ExecEvent.FileFields.User, nil
 
+	case "process.fsgid":
+
+		return int(e.Process.ExecEvent.Credentials.FSGID), nil
+
+	case "process.fsgroup":
+
+		return e.Process.ExecEvent.Credentials.FSGroup, nil
+
+	case "process.fsuid":
+
+		return int(e.Process.ExecEvent.Credentials.FSUID), nil
+
+	case "process.fsuser":
+
+		return e.Process.ExecEvent.Credentials.FSUser, nil
+
 	case "process.gid":
 
-		return int(e.Process.GID), nil
+		return int(e.Process.ExecEvent.Credentials.GID), nil
 
 	case "process.group":
 
-		return e.Process.ExecEvent.Group, nil
+		return e.Process.ExecEvent.Credentials.Group, nil
 
 	case "process.pid":
 
@@ -4456,11 +5486,11 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "process.uid":
 
-		return int(e.Process.UID), nil
+		return int(e.Process.ExecEvent.Credentials.UID), nil
 
 	case "process.user":
 
-		return e.Process.ExecEvent.User, nil
+		return e.Process.ExecEvent.Credentials.User, nil
 
 	case "removexattr.file.container_path":
 
@@ -4658,6 +5688,54 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.Rmdir.SyscallEvent.Retval), nil
 
+	case "setgid.egid":
+
+		return int(e.SetGID.EGID), nil
+
+	case "setgid.egroup":
+
+		return e.SetGID.EGroup, nil
+
+	case "setgid.fsgid":
+
+		return int(e.SetGID.FSGID), nil
+
+	case "setgid.fsgroup":
+
+		return e.SetGID.FSGroup, nil
+
+	case "setgid.gid":
+
+		return int(e.SetGID.GID), nil
+
+	case "setgid.group":
+
+		return e.SetGID.Group, nil
+
+	case "setuid.euid":
+
+		return int(e.SetUID.EUID), nil
+
+	case "setuid.euser":
+
+		return e.SetUID.EUser, nil
+
+	case "setuid.fsuid":
+
+		return int(e.SetUID.FSUID), nil
+
+	case "setuid.fsuser":
+
+		return e.SetUID.FSUser, nil
+
+	case "setuid.uid":
+
+		return int(e.SetUID.UID), nil
+
+	case "setuid.user":
+
+		return e.SetUID.User, nil
+
 	case "setxattr.file.container_path":
 
 		return e.SetXAttr.File.ContainerPath, nil
@@ -4818,6 +5896,12 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	switch field {
 
+	case "capset.cap_effective":
+		return "capset", nil
+
+	case "capset.cap_permitted":
+		return "capset", nil
+
 	case "chmod.file.container_path":
 		return "chmod", nil
 
@@ -4908,10 +5992,28 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "container.id":
 		return "*", nil
 
+	case "exec.cap_effective":
+		return "exec", nil
+
+	case "exec.cap_permitted":
+		return "exec", nil
+
 	case "exec.comm":
 		return "exec", nil
 
 	case "exec.cookie":
+		return "exec", nil
+
+	case "exec.egid":
+		return "exec", nil
+
+	case "exec.egroup":
+		return "exec", nil
+
+	case "exec.euid":
+		return "exec", nil
+
+	case "exec.euser":
 		return "exec", nil
 
 	case "exec.file.container_path":
@@ -4945,6 +6047,18 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exec", nil
 
 	case "exec.file.user":
+		return "exec", nil
+
+	case "exec.fsgid":
+		return "exec", nil
+
+	case "exec.fsgroup":
+		return "exec", nil
+
+	case "exec.fsuid":
+		return "exec", nil
+
+	case "exec.fsuser":
 		return "exec", nil
 
 	case "exec.gid":
@@ -5115,10 +6229,28 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "open.retval":
 		return "open", nil
 
+	case "process.ancestors.cap_effective":
+		return "*", nil
+
+	case "process.ancestors.cap_permitted":
+		return "*", nil
+
 	case "process.ancestors.comm":
 		return "*", nil
 
 	case "process.ancestors.cookie":
+		return "*", nil
+
+	case "process.ancestors.egid":
+		return "*", nil
+
+	case "process.ancestors.egroup":
+		return "*", nil
+
+	case "process.ancestors.euid":
+		return "*", nil
+
+	case "process.ancestors.euser":
 		return "*", nil
 
 	case "process.ancestors.file.container_path":
@@ -5154,6 +6286,18 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.ancestors.file.user":
 		return "*", nil
 
+	case "process.ancestors.fsgid":
+		return "*", nil
+
+	case "process.ancestors.fsgroup":
+		return "*", nil
+
+	case "process.ancestors.fsuid":
+		return "*", nil
+
+	case "process.ancestors.fsuser":
+		return "*", nil
+
 	case "process.ancestors.gid":
 		return "*", nil
 
@@ -5181,10 +6325,28 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.ancestors.user":
 		return "*", nil
 
+	case "process.cap_effective":
+		return "*", nil
+
+	case "process.cap_permitted":
+		return "*", nil
+
 	case "process.comm":
 		return "*", nil
 
 	case "process.cookie":
+		return "*", nil
+
+	case "process.egid":
+		return "*", nil
+
+	case "process.egroup":
+		return "*", nil
+
+	case "process.euid":
+		return "*", nil
+
+	case "process.euser":
 		return "*", nil
 
 	case "process.file.container_path":
@@ -5218,6 +6380,18 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 
 	case "process.file.user":
+		return "*", nil
+
+	case "process.fsgid":
+		return "*", nil
+
+	case "process.fsgroup":
+		return "*", nil
+
+	case "process.fsuid":
+		return "*", nil
+
+	case "process.fsuser":
 		return "*", nil
 
 	case "process.gid":
@@ -5390,6 +6564,42 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 
 	case "rmdir.retval":
 		return "rmdir", nil
+
+	case "setgid.egid":
+		return "setgid", nil
+
+	case "setgid.egroup":
+		return "setgid", nil
+
+	case "setgid.fsgid":
+		return "setgid", nil
+
+	case "setgid.fsgroup":
+		return "setgid", nil
+
+	case "setgid.gid":
+		return "setgid", nil
+
+	case "setgid.group":
+		return "setgid", nil
+
+	case "setuid.euid":
+		return "setuid", nil
+
+	case "setuid.euser":
+		return "setuid", nil
+
+	case "setuid.fsuid":
+		return "setuid", nil
+
+	case "setuid.fsuser":
+		return "setuid", nil
+
+	case "setuid.uid":
+		return "setuid", nil
+
+	case "setuid.user":
+		return "setuid", nil
 
 	case "setxattr.file.container_path":
 		return "setxattr", nil
@@ -5513,6 +6723,14 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	switch field {
 
+	case "capset.cap_effective":
+
+		return reflect.Int, nil
+
+	case "capset.cap_permitted":
+
+		return reflect.Int, nil
+
 	case "chmod.file.container_path":
 
 		return reflect.String, nil
@@ -5633,6 +6851,14 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
+	case "exec.cap_effective":
+
+		return reflect.Int, nil
+
+	case "exec.cap_permitted":
+
+		return reflect.Int, nil
+
 	case "exec.comm":
 
 		return reflect.String, nil
@@ -5640,6 +6866,22 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "exec.cookie":
 
 		return reflect.Int, nil
+
+	case "exec.egid":
+
+		return reflect.Int, nil
+
+	case "exec.egroup":
+
+		return reflect.String, nil
+
+	case "exec.euid":
+
+		return reflect.Int, nil
+
+	case "exec.euser":
+
+		return reflect.String, nil
 
 	case "exec.file.container_path":
 
@@ -5682,6 +6924,22 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 
 	case "exec.file.user":
+
+		return reflect.String, nil
+
+	case "exec.fsgid":
+
+		return reflect.Int, nil
+
+	case "exec.fsgroup":
+
+		return reflect.String, nil
+
+	case "exec.fsuid":
+
+		return reflect.Int, nil
+
+	case "exec.fsuser":
 
 		return reflect.String, nil
 
@@ -5909,6 +7167,14 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
+	case "process.ancestors.cap_effective":
+
+		return reflect.Int, nil
+
+	case "process.ancestors.cap_permitted":
+
+		return reflect.Int, nil
+
 	case "process.ancestors.comm":
 
 		return reflect.String, nil
@@ -5916,6 +7182,22 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "process.ancestors.cookie":
 
 		return reflect.Int, nil
+
+	case "process.ancestors.egid":
+
+		return reflect.Int, nil
+
+	case "process.ancestors.egroup":
+
+		return reflect.String, nil
+
+	case "process.ancestors.euid":
+
+		return reflect.Int, nil
+
+	case "process.ancestors.euser":
+
+		return reflect.String, nil
 
 	case "process.ancestors.file.container_path":
 
@@ -5961,6 +7243,22 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
+	case "process.ancestors.fsgid":
+
+		return reflect.Int, nil
+
+	case "process.ancestors.fsgroup":
+
+		return reflect.String, nil
+
+	case "process.ancestors.fsuid":
+
+		return reflect.Int, nil
+
+	case "process.ancestors.fsuser":
+
+		return reflect.String, nil
+
 	case "process.ancestors.gid":
 
 		return reflect.Int, nil
@@ -5997,6 +7295,14 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
+	case "process.cap_effective":
+
+		return reflect.Int, nil
+
+	case "process.cap_permitted":
+
+		return reflect.Int, nil
+
 	case "process.comm":
 
 		return reflect.String, nil
@@ -6004,6 +7310,22 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "process.cookie":
 
 		return reflect.Int, nil
+
+	case "process.egid":
+
+		return reflect.Int, nil
+
+	case "process.egroup":
+
+		return reflect.String, nil
+
+	case "process.euid":
+
+		return reflect.Int, nil
+
+	case "process.euser":
+
+		return reflect.String, nil
 
 	case "process.file.container_path":
 
@@ -6046,6 +7368,22 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 
 	case "process.file.user":
+
+		return reflect.String, nil
+
+	case "process.fsgid":
+
+		return reflect.Int, nil
+
+	case "process.fsgroup":
+
+		return reflect.String, nil
+
+	case "process.fsuid":
+
+		return reflect.Int, nil
+
+	case "process.fsuser":
 
 		return reflect.String, nil
 
@@ -6276,6 +7614,54 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "rmdir.retval":
 
 		return reflect.Int, nil
+
+	case "setgid.egid":
+
+		return reflect.Int, nil
+
+	case "setgid.egroup":
+
+		return reflect.String, nil
+
+	case "setgid.fsgid":
+
+		return reflect.Int, nil
+
+	case "setgid.fsgroup":
+
+		return reflect.String, nil
+
+	case "setgid.gid":
+
+		return reflect.Int, nil
+
+	case "setgid.group":
+
+		return reflect.String, nil
+
+	case "setuid.euid":
+
+		return reflect.Int, nil
+
+	case "setuid.euser":
+
+		return reflect.String, nil
+
+	case "setuid.fsuid":
+
+		return reflect.Int, nil
+
+	case "setuid.fsuser":
+
+		return reflect.String, nil
+
+	case "setuid.uid":
+
+		return reflect.Int, nil
+
+	case "setuid.user":
+
+		return reflect.String, nil
 
 	case "setxattr.file.container_path":
 
@@ -6436,6 +7822,26 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	switch field {
+
+	case "capset.cap_effective":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Capset.CapEffective"}
+		}
+		e.Capset.CapEffective = uint64(v)
+		return nil
+
+	case "capset.cap_permitted":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Capset.CapPermitted"}
+		}
+		e.Capset.CapPermitted = uint64(v)
+		return nil
 
 	case "chmod.file.container_path":
 
@@ -6711,6 +8117,26 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 
+	case "exec.cap_effective":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Credentials.CapEffective"}
+		}
+		e.Exec.Credentials.CapEffective = uint64(v)
+		return nil
+
+	case "exec.cap_permitted":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Credentials.CapPermitted"}
+		}
+		e.Exec.Credentials.CapPermitted = uint64(v)
+		return nil
+
 	case "exec.comm":
 
 		var ok bool
@@ -6727,6 +8153,42 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Cookie"}
 		}
 		e.Exec.Cookie = uint32(v)
+		return nil
+
+	case "exec.egid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Credentials.EGID"}
+		}
+		e.Exec.Credentials.EGID = uint32(v)
+		return nil
+
+	case "exec.egroup":
+
+		var ok bool
+		if e.Exec.Credentials.EGroup, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Credentials.EGroup"}
+		}
+		return nil
+
+	case "exec.euid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Credentials.EUID"}
+		}
+		e.Exec.Credentials.EUID = uint32(v)
+		return nil
+
+	case "exec.euser":
+
+		var ok bool
+		if e.Exec.Credentials.EUser, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Credentials.EUser"}
+		}
 		return nil
 
 	case "exec.file.container_path":
@@ -6829,21 +8291,57 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 
+	case "exec.fsgid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Credentials.FSGID"}
+		}
+		e.Exec.Credentials.FSGID = uint32(v)
+		return nil
+
+	case "exec.fsgroup":
+
+		var ok bool
+		if e.Exec.Credentials.FSGroup, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Credentials.FSGroup"}
+		}
+		return nil
+
+	case "exec.fsuid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Credentials.FSUID"}
+		}
+		e.Exec.Credentials.FSUID = uint32(v)
+		return nil
+
+	case "exec.fsuser":
+
+		var ok bool
+		if e.Exec.Credentials.FSUser, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Credentials.FSUser"}
+		}
+		return nil
+
 	case "exec.gid":
 
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Exec.GID"}
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Credentials.GID"}
 		}
-		e.Exec.GID = uint32(v)
+		e.Exec.Credentials.GID = uint32(v)
 		return nil
 
 	case "exec.group":
 
 		var ok bool
-		if e.Exec.Group, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Exec.Group"}
+		if e.Exec.Credentials.Group, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Credentials.Group"}
 		}
 		return nil
 
@@ -6870,16 +8368,16 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Exec.UID"}
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Credentials.UID"}
 		}
-		e.Exec.UID = uint32(v)
+		e.Exec.Credentials.UID = uint32(v)
 		return nil
 
 	case "exec.user":
 
 		var ok bool
-		if e.Exec.User, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Exec.User"}
+		if e.Exec.Credentials.User, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Credentials.User"}
 		}
 		return nil
 
@@ -7343,6 +8841,34 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Open.SyscallEvent.Retval = int64(v)
 		return nil
 
+	case "process.ancestors.cap_effective":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.Credentials.CapEffective"}
+		}
+		e.Process.Ancestor.ProcessContext.ExecEvent.Credentials.CapEffective = uint64(v)
+		return nil
+
+	case "process.ancestors.cap_permitted":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.Credentials.CapPermitted"}
+		}
+		e.Process.Ancestor.ProcessContext.ExecEvent.Credentials.CapPermitted = uint64(v)
+		return nil
+
 	case "process.ancestors.comm":
 
 		if e.Process.Ancestor == nil {
@@ -7367,6 +8893,58 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.Cookie"}
 		}
 		e.Process.Ancestor.ProcessContext.ExecEvent.Cookie = uint32(v)
+		return nil
+
+	case "process.ancestors.egid":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.Credentials.EGID"}
+		}
+		e.Process.Ancestor.ProcessContext.ExecEvent.Credentials.EGID = uint32(v)
+		return nil
+
+	case "process.ancestors.egroup":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		if e.Process.Ancestor.ProcessContext.ExecEvent.Credentials.EGroup, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.Credentials.EGroup"}
+		}
+		return nil
+
+	case "process.ancestors.euid":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.Credentials.EUID"}
+		}
+		e.Process.Ancestor.ProcessContext.ExecEvent.Credentials.EUID = uint32(v)
+		return nil
+
+	case "process.ancestors.euser":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		if e.Process.Ancestor.ProcessContext.ExecEvent.Credentials.EUser, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.Credentials.EUser"}
+		}
 		return nil
 
 	case "process.ancestors.file.container_path":
@@ -7513,6 +9091,58 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 
+	case "process.ancestors.fsgid":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.Credentials.FSGID"}
+		}
+		e.Process.Ancestor.ProcessContext.ExecEvent.Credentials.FSGID = uint32(v)
+		return nil
+
+	case "process.ancestors.fsgroup":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		if e.Process.Ancestor.ProcessContext.ExecEvent.Credentials.FSGroup, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.Credentials.FSGroup"}
+		}
+		return nil
+
+	case "process.ancestors.fsuid":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.Credentials.FSUID"}
+		}
+		e.Process.Ancestor.ProcessContext.ExecEvent.Credentials.FSUID = uint32(v)
+		return nil
+
+	case "process.ancestors.fsuser":
+
+		if e.Process.Ancestor == nil {
+			e.Process.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		if e.Process.Ancestor.ProcessContext.ExecEvent.Credentials.FSUser, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.Credentials.FSUser"}
+		}
+		return nil
+
 	case "process.ancestors.gid":
 
 		if e.Process.Ancestor == nil {
@@ -7522,9 +9152,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.GID"}
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.Credentials.GID"}
 		}
-		e.Process.Ancestor.ProcessContext.GID = uint32(v)
+		e.Process.Ancestor.ProcessContext.ExecEvent.Credentials.GID = uint32(v)
 		return nil
 
 	case "process.ancestors.group":
@@ -7534,8 +9164,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 
 		var ok bool
-		if e.Process.Ancestor.ProcessContext.ExecEvent.Group, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.Group"}
+		if e.Process.Ancestor.ProcessContext.ExecEvent.Credentials.Group, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.Credentials.Group"}
 		}
 		return nil
 
@@ -7614,9 +9244,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.UID"}
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.Credentials.UID"}
 		}
-		e.Process.Ancestor.ProcessContext.UID = uint32(v)
+		e.Process.Ancestor.ProcessContext.ExecEvent.Credentials.UID = uint32(v)
 		return nil
 
 	case "process.ancestors.user":
@@ -7626,9 +9256,29 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 
 		var ok bool
-		if e.Process.Ancestor.ProcessContext.ExecEvent.User, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.User"}
+		if e.Process.Ancestor.ProcessContext.ExecEvent.Credentials.User, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.Ancestor.ProcessContext.ExecEvent.Credentials.User"}
 		}
+		return nil
+
+	case "process.cap_effective":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.Credentials.CapEffective"}
+		}
+		e.Process.ExecEvent.Credentials.CapEffective = uint64(v)
+		return nil
+
+	case "process.cap_permitted":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.Credentials.CapPermitted"}
+		}
+		e.Process.ExecEvent.Credentials.CapPermitted = uint64(v)
 		return nil
 
 	case "process.comm":
@@ -7647,6 +9297,42 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.Cookie"}
 		}
 		e.Process.ExecEvent.Cookie = uint32(v)
+		return nil
+
+	case "process.egid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.Credentials.EGID"}
+		}
+		e.Process.ExecEvent.Credentials.EGID = uint32(v)
+		return nil
+
+	case "process.egroup":
+
+		var ok bool
+		if e.Process.ExecEvent.Credentials.EGroup, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.Credentials.EGroup"}
+		}
+		return nil
+
+	case "process.euid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.Credentials.EUID"}
+		}
+		e.Process.ExecEvent.Credentials.EUID = uint32(v)
+		return nil
+
+	case "process.euser":
+
+		var ok bool
+		if e.Process.ExecEvent.Credentials.EUser, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.Credentials.EUser"}
+		}
 		return nil
 
 	case "process.file.container_path":
@@ -7749,21 +9435,57 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 
+	case "process.fsgid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.Credentials.FSGID"}
+		}
+		e.Process.ExecEvent.Credentials.FSGID = uint32(v)
+		return nil
+
+	case "process.fsgroup":
+
+		var ok bool
+		if e.Process.ExecEvent.Credentials.FSGroup, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.Credentials.FSGroup"}
+		}
+		return nil
+
+	case "process.fsuid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.Credentials.FSUID"}
+		}
+		e.Process.ExecEvent.Credentials.FSUID = uint32(v)
+		return nil
+
+	case "process.fsuser":
+
+		var ok bool
+		if e.Process.ExecEvent.Credentials.FSUser, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.Credentials.FSUser"}
+		}
+		return nil
+
 	case "process.gid":
 
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Process.GID"}
+			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.Credentials.GID"}
 		}
-		e.Process.GID = uint32(v)
+		e.Process.ExecEvent.Credentials.GID = uint32(v)
 		return nil
 
 	case "process.group":
 
 		var ok bool
-		if e.Process.ExecEvent.Group, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.Group"}
+		if e.Process.ExecEvent.Credentials.Group, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.Credentials.Group"}
 		}
 		return nil
 
@@ -7810,16 +9532,16 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Process.UID"}
+			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.Credentials.UID"}
 		}
-		e.Process.UID = uint32(v)
+		e.Process.ExecEvent.Credentials.UID = uint32(v)
 		return nil
 
 	case "process.user":
 
 		var ok bool
-		if e.Process.ExecEvent.User, ok = value.(string); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.User"}
+		if e.Process.ExecEvent.Credentials.User, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.ExecEvent.Credentials.User"}
 		}
 		return nil
 
@@ -8267,6 +9989,114 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.SyscallEvent.Retval"}
 		}
 		e.Rmdir.SyscallEvent.Retval = int64(v)
+		return nil
+
+	case "setgid.egid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SetGID.EGID"}
+		}
+		e.SetGID.EGID = uint32(v)
+		return nil
+
+	case "setgid.egroup":
+
+		var ok bool
+		if e.SetGID.EGroup, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SetGID.EGroup"}
+		}
+		return nil
+
+	case "setgid.fsgid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SetGID.FSGID"}
+		}
+		e.SetGID.FSGID = uint32(v)
+		return nil
+
+	case "setgid.fsgroup":
+
+		var ok bool
+		if e.SetGID.FSGroup, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SetGID.FSGroup"}
+		}
+		return nil
+
+	case "setgid.gid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SetGID.GID"}
+		}
+		e.SetGID.GID = uint32(v)
+		return nil
+
+	case "setgid.group":
+
+		var ok bool
+		if e.SetGID.Group, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SetGID.Group"}
+		}
+		return nil
+
+	case "setuid.euid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SetUID.EUID"}
+		}
+		e.SetUID.EUID = uint32(v)
+		return nil
+
+	case "setuid.euser":
+
+		var ok bool
+		if e.SetUID.EUser, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SetUID.EUser"}
+		}
+		return nil
+
+	case "setuid.fsuid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SetUID.FSUID"}
+		}
+		e.SetUID.FSUID = uint32(v)
+		return nil
+
+	case "setuid.fsuser":
+
+		var ok bool
+		if e.SetUID.FSUser, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SetUID.FSUser"}
+		}
+		return nil
+
+	case "setuid.uid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SetUID.UID"}
+		}
+		e.SetUID.UID = uint32(v)
+		return nil
+
+	case "setuid.user":
+
+		var ok bool
+		if e.SetUID.User, ok = value.(string); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SetUID.User"}
+		}
 		return nil
 
 	case "setxattr.file.container_path":

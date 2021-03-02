@@ -41,6 +41,7 @@ type context struct {
 	TraceAgent        bool
 	ClusterChecks     bool
 	CloudFoundryBBS   bool
+	CloudFoundryCC    bool
 	Compliance        bool
 	SNMP              bool
 	SecurityModule    bool
@@ -120,6 +121,7 @@ func mkContext(buildType string) context {
 			Logging:         true,
 			ClusterChecks:   true,
 			CloudFoundryBBS: true,
+			CloudFoundryCC:  true,
 		}
 	}
 

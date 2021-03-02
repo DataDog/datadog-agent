@@ -124,6 +124,10 @@ type Event struct {
 	RemoveXAttr SetXAttrEvent `field:"removexattr" event:"removexattr"`
 	Exec        ExecEvent     `field:"exec" event:"exec"`
 
+	SetUID SetuidEvent `field:"setuid" event:"setuid"`
+	SetGID SetgidEvent `field:"setgid" event:"setgid"`
+	Capset CapsetEvent `field:"capset" event:"capset"`
+
 	Mount            MountEvent            `field:"-"`
 	Umount           UmountEvent           `field:"-"`
 	InvalidateDentry InvalidateDentryEvent `field:"-"`
@@ -148,6 +152,53 @@ func (e *Event) GetTags() []string {
 // GetPointer return an unsafe.Pointer of the Event
 func (e *Event) GetPointer() unsafe.Pointer {
 	return unsafe.Pointer(e)
+}
+
+// SetuidEvent represents a setuid event
+type SetuidEvent struct {
+	UID    uint32 `field:"uid"`
+	User   string `field:"user" handler:"ResolveSetuidUser,string"`
+	EUID   uint32 `field:"euid"`
+	EUser  string `field:"euser" handler:"ResolveSetuidEUser,string"`
+	FSUID  uint32 `field:"fsuid"`
+	FSUser string `field:"fsuser" handler:"ResolveSetuidFSUser,string"`
+}
+
+// SetgidEvent represents a setgid event
+type SetgidEvent struct {
+	GID     uint32 `field:"gid"`
+	Group   string `field:"group" handler:"ResolveSetgidGroup,string"`
+	EGID    uint32 `field:"egid"`
+	EGroup  string `field:"egroup" handler:"ResolveSetgidEGroup,string"`
+	FSGID   uint32 `field:"fsgid"`
+	FSGroup string `field:"fsgroup" handler:"ResolveSetgidFSGroup,string"`
+}
+
+// CapsetEvent represents a capset event
+type CapsetEvent struct {
+	CapEffective uint64 `field:"cap_effective"`
+	CapPermitted uint64 `field:"cap_permitted"`
+}
+
+// Credentials represents the kernel credentials of a process
+type Credentials struct {
+	UID   uint32 `field:"uid" handler:"ResolveCredentialsUID,int"`
+	GID   uint32 `field:"gid" handler:"ResolveCredentialsGID,int"`
+	User  string `field:"user" handler:"ResolveCredentialsUser,string"`
+	Group string `field:"group" handler:"ResolveCredentialsGroup,string"`
+
+	EUID   uint32 `field:"euid" handler:"ResolveCredentialsEUID,int"`
+	EGID   uint32 `field:"egid" handler:"ResolveCredentialsEGID,int"`
+	EUser  string `field:"euser" handler:"ResolveCredentialsEUser,string"`
+	EGroup string `field:"egroup" handler:"ResolveCredentialsEGroup,string"`
+
+	FSUID   uint32 `field:"fsuid" handler:"ResolveCredentialsFSUID,int"`
+	FSGID   uint32 `field:"fsgid" handler:"ResolveCredentialsFSGID,int"`
+	FSUser  string `field:"fsuser" handler:"ResolveCredentialsFSUser,string"`
+	FSGroup string `field:"fsgroup" handler:"ResolveCredentialsFSGroup,string"`
+
+	CapEffective uint64 `field:"cap_effective" handler:"ResolveCredentialsCapEffective,int"`
+	CapPermitted uint64 `field:"cap_permitted" handler:"ResolveCredentialsCapPermitted,int"`
 }
 
 // ExecEvent represents a exec event
@@ -177,11 +228,8 @@ type ExecEvent struct {
 	Cookie uint32 `field:"cookie" handler:"ResolveExecCookie,int"`
 	PPid   uint32 `field:"ppid" handler:"ResolveExecPPID,int"`
 
-	// The following fields should only be used here for evaluation
-	UID   uint32 `field:"uid" handler:"ResolveExecUID,int"`
-	GID   uint32 `field:"gid" handler:"ResolveExecGID,int"`
-	User  string `field:"user" handler:"ResolveExecUser,string"`
-	Group string `field:"group" handler:"ResolveExecGroup,string"`
+	// credentials_t section of pid_cache_t
+	Credentials
 }
 
 // GetPathResolutionError returns the path resolution error as a string if there is one
@@ -195,9 +243,9 @@ func (e *ExecEvent) GetPathResolutionError() string {
 // FileFields holds the information required to identify a file
 type FileFields struct {
 	UID   uint32    `field:"uid"`
-	User  string    `field:"user" handler:"ResolveUID,string"`
+	User  string    `field:"user" handler:"ResolveUser,string"`
 	GID   uint32    `field:"gid"`
-	Group string    `field:"group" handler:"ResolveGID,string"`
+	Group string    `field:"group" handler:"ResolveGroup,string"`
 	Mode  uint16    `field:"mode"`
 	CTime time.Time `field:"-"`
 	MTime time.Time `field:"-"`
@@ -340,8 +388,6 @@ type ProcessContext struct {
 
 	Pid uint32 `field:"pid"`
 	Tid uint32 `field:"tid"`
-	UID uint32 `field:"uid"`
-	GID uint32 `field:"gid"`
 
 	Ancestor *ProcessCacheEntry `field:"ancestors" iterator:"ProcessAncestorsIterator"`
 }

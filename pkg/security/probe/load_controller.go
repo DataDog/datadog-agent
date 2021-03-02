@@ -138,7 +138,7 @@ func (lc *LoadController) discardNoisiestProcess() {
 		}
 
 		// fetch noisy process metadata
-		process := lc.probe.resolvers.ProcessResolver.Resolve(maxKey.Pid)
+		process := lc.probe.resolvers.ProcessResolver.Resolve(maxKey.Pid, maxKey.Pid)
 		if process == nil {
 			log.Warnf("Unable to resolver process with pid: %d", maxKey.Pid)
 			return
