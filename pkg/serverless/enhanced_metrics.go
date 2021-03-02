@@ -6,10 +6,8 @@
 package serverless
 
 import (
-	"fmt"
 	"math"
 	"strings"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
@@ -98,28 +96,6 @@ func generateEnhancedMetricsFromReportLog(message aws.LogMessage, tags []string,
 		SampleRate: 1,
 		Timestamp:  float64(message.Time.UnixNano()),
 	}}
-}
-
-// sendTimeoutEnhancedMetric sends an enhanced metric representing a timeout
-func sendTimeoutEnhancedMetric(tags []string, metricsChan chan []metrics.MetricSample) {
-	metricsChan <- []metrics.MetricSample{{
-		Name:       "aws.lambda.enhanced.timeouts",
-		Value:      1.0,
-		Mtype:      metrics.DistributionType,
-		Tags:       tags,
-		SampleRate: 1,
-		Timestamp:  float64(time.Now().UnixNano()),
-	}}
-}
-
-// getTagsForEnhancedMetrics returns the tags that should be included with enhanced metrics
-func getTagsForEnhancedMetrics() []string {
-	functionARN := aws.GetARN()
-	functionName := aws.FunctionNameFromARN()
-	return []string{
-		fmt.Sprintf("functionname:%s", functionName),
-		fmt.Sprintf("function_arn:%s", functionARN),
-	}
 }
 
 // calculateEstimatedCost returns the estimated cost in USD of a Lambda invocation

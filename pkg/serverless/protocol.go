@@ -14,13 +14,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	traceAgent "github.com/DataDog/datadog-agent/pkg/trace/agent"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
-	traceAgent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -54,7 +55,7 @@ type Daemon struct {
 	stopCh     chan struct{}
 
 	// Wait on this WaitGroup in controllers to be sure that the Daemon is ready.
-	// (i.e. that the DogStatsD server is properly instantiated)
+	// (i.e. that the DogStatsD server is properly instanciated)
 	ReadyWg *sync.WaitGroup
 }
 
@@ -145,7 +146,6 @@ func (d *Daemon) TriggerFlush(ctx context.Context, shutdown bool) {
 // If the Flush route is called before the statsd server has been set, a 503
 // is returned by the HTTP route.
 func StartDaemon(stopCh chan struct{}) *Daemon {
-	log.Debug("Starting daemon to receive messages from runtime...")
 	mux := http.NewServeMux()
 
 	daemon := &Daemon{
@@ -164,7 +164,7 @@ func StartDaemon(stopCh chan struct{}) *Daemon {
 	mux.Handle("/lambda/hello", &Hello{daemon})
 	mux.Handle("/lambda/flush", &Flush{daemon})
 
-	// this wait group will be blocking until the DogStatsD server has been instantiated
+	// this wait group will be blocking until the DogStatsD server has been instanciated
 	daemon.ReadyWg.Add(1)
 
 	// start the HTTP server used to communicate with the clients
@@ -198,45 +198,39 @@ type LogsCollection struct {
 
 // ServeHTTP - see type LogsCollection comment.
 func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// If the DogStatsD daemon isn't ready, wait for it.
-	l.daemon.ReadyWg.Wait()
-
 	data, _ := ioutil.ReadAll(r.Body)
 	defer r.Body.Close()
 	var messages []aws.LogMessage
-
 	if err := json.Unmarshal(data, &messages); err != nil {
 		log.Error("Can't read log message")
 		w.WriteHeader(400)
 	} else {
 		metricsChan := l.daemon.aggregator.GetBufferedMetricsWithTsChannel()
-		metricTags := getTagsForEnhancedMetrics()
-		sendLogsToIntake := config.Datadog.GetBool("logs_enabled")
+		functionARN := aws.GetARN()
+		functionName := aws.FunctionNameFromARN()
+		// FIXME(remy): could this be exported to properly get all tags?
+		metricTags := []string{
+			fmt.Sprintf("functionname:%s", functionName),
+			fmt.Sprintf("function_arn:%s", functionARN),
+		}
 		for _, message := range messages {
-			// Do not send logs or metrics if we can't associate them with an ARN or Request ID
-			// First, if the log has a Request ID, set the global Request ID variable
-			if message.Type == aws.LogTypePlatformStart {
+			switch message.Type {
+			case aws.LogTypePlatformStart:
 				if len(message.ObjectRecord.RequestID) > 0 {
 					aws.SetRequestID(message.ObjectRecord.RequestID)
 				}
-			}
-			// If the global request ID or ARN variable isn't set at this point, do not process further
-			if aws.GetARN() == "" || aws.GetRequestID() == "" {
-				continue
-			}
-
-			switch message.Type {
+				l.ch <- message
 			case aws.LogTypeFunction:
-				generateEnhancedMetricsFromFunctionLog(message, metricTags, metricsChan)
+				if functionName != "" {
+					generateEnhancedMetricsFromFunctionLog(message, metricTags, metricsChan)
+				}
+				l.ch <- message
 			case aws.LogTypePlatformReport:
-				generateEnhancedMetricsFromReportLog(message, metricTags, metricsChan)
-			case aws.LogTypePlatformLogsDropped:
-				log.Debug("Logs were dropped by the AWS Lambda Logs API")
-			}
-
-			// We always collect and process logs for the purpose of extracting enhanced metrics.
-			// However, if logs are not enabled, we do not send them to the intake.
-			if sendLogsToIntake {
+				if functionName != "" {
+					generateEnhancedMetricsFromReportLog(message, metricTags, metricsChan)
+				}
+				l.ch <- message
+			default:
 				l.ch <- message
 			}
 		}
@@ -244,8 +238,9 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Hello implements the basic Hello route, creating a way for the Datadog Lambda Library
-// to know that the serverless agent is running. It is blocking until the DogStatsD daemon is ready.
+// Hello implements the basic Hello route, creating a way for the runtime to
+// know that the serverless agent is running.
+// It is blocking until the DogStatsD daemon is ready.
 type Hello struct {
 	daemon *Daemon
 }

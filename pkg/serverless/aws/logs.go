@@ -26,8 +26,6 @@ const (
 	LogTypePlatformEnd = "platform.end"
 	// LogTypePlatformReport is used for the log messages containing a report of the last invocation.
 	LogTypePlatformReport = "platform.report"
-	// LogTypePlatformLogsDropped is used when AWS has dropped logs because we were unable to consume them fast enough.
-	LogTypePlatformLogsDropped = "platform.logsDropped"
 )
 
 // LogMessage is a log message sent by the AWS API.
@@ -44,7 +42,7 @@ type LogMessage struct {
 type PlatformObjectRecord struct {
 	RequestID string           // uuid; present in LogTypePlatform{Start,End,Report}
 	Version   string           // present in LogTypePlatformStart only
-	Metrics   ReportLogMetrics // present in LogTypePlatformReport only
+	Metrics   ReportLogMetrics // pretesent in LogTypePlatformReport only
 }
 
 // ReportLogMetrics contains metrics found in a LogTypePlatformReport log
