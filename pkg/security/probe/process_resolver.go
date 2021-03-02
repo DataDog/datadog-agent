@@ -107,9 +107,8 @@ func (p *ProcessResolver) SendStats() error {
 func (p *ProcessResolver) UpdateArgs(id uint32, newArgs []string, isTruncated bool) {
 	if e, found := p.argsCache.Get(id); found {
 		entry := e.(*argsEnvsCacheEntry)
-		entry.Values = append(entry.Values, newArgs...)
-		fmt.Printf("ZZZZZZZZZZZZZZZZZZZZZZZz: %+v\n", isTruncated)
 
+		entry.Values = append(entry.Values, newArgs...)
 		entry.IsTruncated = entry.IsTruncated || isTruncated
 	} else {
 		entry := &argsEnvsCacheEntry{
@@ -124,6 +123,7 @@ func (p *ProcessResolver) UpdateArgs(id uint32, newArgs []string, isTruncated bo
 func (p *ProcessResolver) UpdateEnvs(id uint32, newEnvs []string, isTruncated bool) {
 	if e, found := p.envsCache.Get(id); found {
 		entry := e.(*argsEnvsCacheEntry)
+
 		entry.Values = append(entry.Values, newEnvs...)
 		entry.IsTruncated = entry.IsTruncated || isTruncated
 	} else {
@@ -146,8 +146,6 @@ func (p *ProcessResolver) AddForkEntry(pid uint32, entry *model.ProcessCacheEntr
 func (p *ProcessResolver) AddExecEntry(pid uint32, entry *model.ProcessCacheEntry) *model.ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
-
-	p.resolveExecArgsEnvs(entry)
 
 	return p.insertExecEntry(pid, entry)
 }
@@ -419,12 +417,17 @@ func (p *ProcessResolver) resolveWithProcfs(pid uint32) *model.ProcessCacheEntry
 	return entry
 }
 
-func (p *ProcessResolver) resolveExecArgsEnvs(pce *model.ProcessCacheEntry) {
+// ResolveArgs resolves arguments
+func (p *ProcessResolver) ResolveArgs(pce *model.ProcessCacheEntry) {
 	if e, found := p.argsCache.Get(pce.ArgsID); found {
 		entry := e.(*argsEnvsCacheEntry)
 		pce.Args = entry.Values
 		pce.ArgsTruncated = entry.IsTruncated
 	}
+}
+
+// ResolveArgs resolves environment variables
+func (p *ProcessResolver) ResolveEnvs(pce *model.ProcessCacheEntry) {
 	if e, found := p.envsCache.Get(pce.EnvsID); found {
 		entry := e.(*argsEnvsCacheEntry)
 		pce.Envs = entry.Values

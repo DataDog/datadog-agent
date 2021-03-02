@@ -125,7 +125,7 @@ func (ev *Event) ResolveContainerID(e *model.ContainerContext) string {
 	return e.ID
 }
 
-// UnmarshalExecEvent unmarshal a Process
+// UnmarshalProcess unmarshal an Process
 func (ev *Event) UnmarshalProcess(data []byte) (int, error) {
 	// reset the process cache entry of the current event
 	entry := NewProcessCacheEntry()
@@ -512,6 +512,15 @@ func (ev *Event) ResolveEventTimestamp() time.Time {
 	return ev.Timestamp
 }
 
+// copyProcessCacheEntryToContext - TODO refactor to remove this indirect which forces us to recopy lot of fields
+func (ev *Event) setProcessContextWithProcessCacheEntry(entry *model.ProcessCacheEntry) {
+	ev.ProcessContext.Ancestor = entry.Ancestor
+	ev.ProcessContext.Args = entry.Args
+	ev.ProcessContext.ArgsTruncated = entry.ArgsTruncated
+	ev.ProcessContext.Envs = entry.Envs
+	ev.ProcessContext.EnvsTruncated = entry.EnvsTruncated
+}
+
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessCacheEntry of the event
 func (ev *Event) ResolveProcessCacheEntry() *model.ProcessCacheEntry {
 	if ev.processCacheEntry == nil {
@@ -521,20 +530,14 @@ func (ev *Event) ResolveProcessCacheEntry() *model.ProcessCacheEntry {
 		}
 	}
 
-	// TODO refactor to remove this indirect which forces us to recopy lot of fields
-	ev.ProcessContext.Ancestor = ev.processCacheEntry.Ancestor
-	ev.ProcessContext.Args = ev.processCacheEntry.Args
-	ev.ProcessContext.Envs = ev.processCacheEntry.Envs
+	ev.setProcessContextWithProcessCacheEntry(ev.processCacheEntry)
 
 	return ev.processCacheEntry
 }
 
 // updateProcessCachePointer updates the internal pointers of the event structure to the ProcessCacheEntry of the event
 func (ev *Event) updateProcessCachePointer(entry *model.ProcessCacheEntry) {
-	// TODO refactor to remove this indirect which forces us to recopy lot of fields
-	ev.ProcessContext.Ancestor = entry.Ancestor
-	ev.ProcessContext.Args = entry.Args
-	ev.ProcessContext.Envs = ev.processCacheEntry.Envs
+	ev.setProcessContextWithProcessCacheEntry(entry)
 
 	ev.processCacheEntry = entry
 }

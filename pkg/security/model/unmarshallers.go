@@ -172,6 +172,14 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 
+	e.ArgsID = ByteOrder.Uint32(data[read : read+4])
+	e.ArgsTruncated = ByteOrder.Uint32(data[read+4:read+8]) == 1
+	read += 8
+
+	e.EnvsID = ByteOrder.Uint32(data[read : read+4])
+	e.EnvsTruncated = ByteOrder.Uint32(data[read+4:read+8]) == 1
+	read += 8
+
 	return read, nil
 }
 
@@ -181,19 +189,10 @@ func (e *ExecEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	// Unmarshal proc_cache_t
 	read, err := UnmarshalBinary(data, &e.Process)
 	if err != nil {
 		return read, err
 	}
-
-	e.ArgsID = ByteOrder.Uint32(data[read : read+4])
-	e.ArgsTruncated = ByteOrder.Uint32(data[read+4:read+8]) == 1
-	read += 8
-
-	e.EnvsID = ByteOrder.Uint32(data[read : read+4])
-	e.EnvsTruncated = ByteOrder.Uint32(data[read+4:read+8]) == 1
-	read += 8
 
 	return read, nil
 }

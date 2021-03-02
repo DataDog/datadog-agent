@@ -210,7 +210,7 @@ type ExecArgsIterator struct {
 
 // Front returns the first arg
 func (e *ExecArgsIterator) Front(ctx *eval.Context) unsafe.Pointer {
-	e.args = (*Event)(ctx.Object).Exec.Args
+	e.args = (*Event)(ctx.Object).ProcessContext.Args
 	if len(e.args) > 0 {
 		e.index = 0
 		return unsafe.Pointer(&e.args[0])
@@ -237,7 +237,7 @@ type ExecEnvsIterator struct {
 
 // Front returns the first env variable
 func (e *ExecEnvsIterator) Front(ctx *eval.Context) unsafe.Pointer {
-	e.envs = (*Event)(ctx.Object).Exec.Envs
+	e.envs = (*Event)(ctx.Object).ProcessContext.Envs
 	if len(e.envs) > 0 {
 		e.index = 0
 		return unsafe.Pointer(&e.envs[0])
@@ -294,11 +294,13 @@ type Process struct {
 	// credentials_t section of pid_cache_t
 	Credentials
 
-	Args          []string `field:"args" iterator:"ExecArgsIterator"`
-	ArgsTruncated bool     `field:"args_truncated"`
-	Envs          []string `field:"envs" iterator:"ExecEnvsIterator"`
-	EnvsTruncated bool     `field:"envs_truncated"`
+	Args          []string `field:"-"`
+	ArgsTruncated bool     `field:"-"`
+	Envs          []string `field:"-"`
+	EnvsTruncated bool     `field:"-"`
 
+	// NOTE shouldn't be define here but in ExecEvent instead. But first we need to
+	// rework the chain of process unmarshallers
 	ArgsID uint32 `field:"-"`
 	EnvsID uint32 `field:"-"`
 }
@@ -306,6 +308,11 @@ type Process struct {
 // ExecEvent represents a exec event
 type ExecEvent struct {
 	Process
+
+	Args          []string `field:"args" iterator:"ExecArgsIterator"`
+	ArgsTruncated bool     `field:"args_truncated"`
+	Envs          []string `field:"envs" iterator:"ExecEnvsIterator"`
+	EnvsTruncated bool     `field:"envs_truncated"`
 }
 
 // FileFields holds the information required to identify a file
