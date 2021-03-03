@@ -119,21 +119,16 @@ func (s *LogSource) GetInfo(key string) InfoProvider {
 }
 
 // GetInfoStatus returns a primitive representation of the info for the status page
-func (s *LogSource) GetInfoStatus() (map[string]string, map[string][]string) {
+func (s *LogSource) GetInfoStatus() map[string][]string {
 	s.lock.Lock()
 	defer s.lock.Unlock()
-	simpleInfo := make(map[string]string)
-	multiLineInfo := make(map[string][]string)
+	info := make(map[string][]string)
 
 	for _, v := range s.info {
-		switch {
-		case len(v.Info()) == 0:
+		if len(v.Info()) == 0 {
 			continue
-		case len(v.Info()) == 1:
-			simpleInfo[v.InfoKey()] = v.Info()[0]
-		case len(v.Info()) > 1:
-			multiLineInfo[v.InfoKey()] = v.Info()
 		}
+		info[v.InfoKey()] = v.Info()
 	}
-	return simpleInfo, multiLineInfo
+	return info
 }

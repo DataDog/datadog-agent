@@ -325,19 +325,16 @@
             24h Average Latency (ms): {{ .recent_avg_latency }}</br>
             Peak Latency (ms): {{ .all_time_peak_latency }}</br>
             24h Peak Latency (ms): {{ .recent_peak_latency }}</br>
-            {{- if .simpleInfo }}
-            {{- range $key, $value := .simpleInfo }}
-            {{$key}}: {{$value}}</br>
-            {{- end }}
-            {{- end }}
-            {{- if .multiLineInfo }}
-            {{- range $key, $value := .multiLineInfo }}
+            {{- if .info }} 
+            {{- range $key, $value := .info }} {{ $len := len $value }} {{ if eq $len 1 }}
+            {{$key}}: {{index $value 0}}</br> {{ else }}
             {{$key}}:</br>
               <span class="stat_subdata">
                 {{- range $inf := $value }}
-                {{ $inf }}</br>
+                  {{ $inf }}</br>
                 {{- end }}
               </span>
+            {{- end }}
             {{- end }}
             {{- end }}
             </span>
