@@ -18,31 +18,11 @@ from .build_tags import filter_incompatible_tags, get_build_tags, get_default_bu
 from .cluster_agent import integration_tests as dca_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
 from .go import fmt, generate, golangci_lint, ineffassign, lint, lint_licenses, misspell, staticcheck, vet
+from .modules import DEFAULT_MODULES, GoModule
 from .trace_agent import integration_tests as trace_integration_tests
 from .utils import get_build_flags
 
-
-class GoModule:
-    """A Go module abstraction."""
-
-    def __init__(self, path, targets=None, condition=lambda: True):
-        if targets is None:
-            targets = ["."]
-
-        self.path = path
-        self.targets = targets
-        self.condition = condition
-
-    def full_path(self):
-        return os.path.abspath(self.path)
-
-
 PROFILE_COV = "profile.cov"
-
-DEFAULT_MODULES = [
-    GoModule(".", targets=["./pkg", "./cmd"]),
-]
-
 DEFAULT_GIT_BRANCH = 'master'
 
 
@@ -97,12 +77,12 @@ def test(
         if isinstance(targets, str):
             modules = [GoModule(module, targets=targets.split(','))]
         else:
-            modules = [m for m in DEFAULT_MODULES if m.path == module]
+            modules = [m for m in DEFAULT_MODULES.values() if m.path == module]
     elif isinstance(targets, str):
         modules = [GoModule(".", targets=targets.split(','))]
     else:
         print("Using default modules and targets")
-        modules = DEFAULT_MODULES
+        modules = DEFAULT_MODULES.values()
 
     build_include = (
         get_default_build_tags(build="test-with-process-tags", arch=arch)
