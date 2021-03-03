@@ -161,10 +161,14 @@ func (d *DockerUtil) GetStorageStats() ([]*StorageStats, error) {
 	return parseStorageStatsFromInfo(info)
 }
 
+func isImageShaOrRepoDigest(image string) bool {
+	return strings.HasPrefix(image, "sha256:") || strings.Contains(image, "@sha256:")
+}
+
 // ResolveImageName will resolve sha image name to their user-friendly name.
-// For non-sha names we will just return the name as-is.
+// For non-sha/non-repodigest names we will just return the name as-is.
 func (d *DockerUtil) ResolveImageName(image string) (string, error) {
-	if !strings.Contains(image, "sha256:") {
+	if !isImageShaOrRepoDigest(image) {
 		return image, nil
 	}
 
@@ -204,59 +208,11 @@ func (d *DockerUtil) ResolveImageName(image string) (string, error) {
 // It is similar to ResolveImageName except it tries to match the image to the container Config.Image.
 // For non-sha names we will just return the name as-is.
 func (d *DockerUtil) ResolveImageNameFromContainer(co types.ContainerJSON) (string, error) {
-	image := co.Image
-	if !strings.Contains(image, "sha256:") {
-		return image, nil
+	if co.Config.Image != "" && !isImageShaOrRepoDigest(co.Config.Image) {
+		return co.Config.Image, nil
 	}
 
-	d.Lock()
-	defer d.Unlock()
-	if _, ok := d.imageNameBySha[image]; !ok {
-		ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
-		defer cancel()
-		r, _, err := d.cli.ImageInspectWithRaw(ctx, image)
-		if err != nil {
-			// Only log errors that aren't "not found" because some images may
-			// just not be available in docker inspect.
-			if !client.IsErrNotFound(err) {
-				return image, err
-			}
-			d.imageNameBySha[image] = image
-		}
-
-		imageName := getBestImageName(r, co.Config.Image)
-		if imageName != "" {
-			d.imageNameBySha[image] = imageName
-		}
-	}
-	return d.imageNameBySha[image], nil
-}
-
-func getBestImageName(r types.ImageInspect, configImage string) string {
-	var imageName string
-	// Try RepoTags first and fall back to RepoDigest otherwise.
-	if len(r.RepoTags) == 1 {
-		imageName = r.RepoTags[0]
-	} else if len(r.RepoTags) > 1 {
-		// If one of the RepoTags is the tag used to run the image, then set that
-		// as the image tag. Otherwise, use the first one (random)
-		for _, t := range r.RepoTags {
-			if t == configImage {
-				imageName = t
-				break
-			}
-		}
-		if imageName == "" {
-			sort.Strings(r.RepoTags)
-			imageName = r.RepoTags[0]
-		}
-	} else if len(r.RepoDigests) > 0 {
-		// Digests formatted like quay.io/foo/bar@sha256:hash
-		sort.Strings(r.RepoDigests)
-		sp := strings.SplitN(r.RepoDigests[0], "@", 2)
-		imageName = sp[0]
-	}
-	return imageName
+	return d.ResolveImageName(co.Image)
 }
 
 // Inspect returns a docker inspect object for a given container ID.
