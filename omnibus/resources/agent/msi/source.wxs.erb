@@ -528,7 +528,12 @@
     </InstallExecuteSequence>
 
     <!-- Set the components defined in our fragment files that will be used for our feature  -->
-    <Feature Id="MainApplication" Title="Datadog Agent" Level="1" ConfigurableDirectory="APPLICATIONROOTDIRECTORY">
+    <Feature 
+      Id="MainApplication" 
+      Title="Datadog Agent" 
+      Level="1" 
+      Absent="disallow"
+      ConfigurableDirectory="APPLICATIONROOTDIRECTORY">
       <ComponentRef Id="conffolder" />
       <ComponentGroupRef Id="ProjectDir" />
       <ComponentRef Id="datadog.yaml.example" />
@@ -554,6 +559,9 @@
         <ComponentRef Id="DATADOGSYSPROBESERVICE" />
         <ComponentRef Id="system_probe.yaml.example" />
     <?endif ?>
+
+    <Condition Level="1"><![CDATA[1]]></Condition>
+
     </Feature>
      <?if $(var.IncludeSysprobe) = true ?>
       <!-- don't install by default (indicated by level 100)  Only things with level
@@ -567,7 +575,7 @@
                >
         <MergeRef Id="ddnpminstall"/>
         
-        <Condition Level="1"><![CDATA[(DD_FILTER_INSTALLED and (not WixUI_InstallMode = "Change"))]]></Condition>
+        <Condition Level="1"><![CDATA[NPM or (DD_FILTER_INSTALLED and (not WixUI_InstallMode = "Change"))]]></Condition>
         
       </Feature>
     <?endif ?>
@@ -721,7 +729,7 @@
     <WixVariable Id="WixUIBannerBmp" Value="Resources\assets\banner_background.bmp" />
 
     <CustomAction Id='SetFinalizeProperty' Return='check' Property='FinalizeInstall' 
-        Value='PROJECTLOCATION=[PROJECTLOCATION];APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY];DDAGENTUSER_NAME=[DDAGENTUSER_NAME];DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD];SYSPROBE_PRESENT=[SYSPROBE_PRESENT];ADDLOCAL=[ADDLOCAL]' />
+        Value='PROJECTLOCATION=[PROJECTLOCATION];APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY];DDAGENTUSER_NAME=[DDAGENTUSER_NAME];DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD];SYSPROBE_PRESENT=[SYSPROBE_PRESENT];ADDLOCAL=[ADDLOCAL];NPM=[NPM]' />
     <CustomAction Id='FinalizeInstall' BinaryKey='wixcadll' DllEntry='FinalizeInstall' Execute='deferred' Return='check' Impersonate='no'/>
     <CustomAction Id='StopDDServices' BinaryKey='wixcadll' DllEntry='PreStopServices' Execute='deferred' Return='check' Impersonate='no'/>
     <CustomAction Id='StartDDServices' BinaryKey='wixcadll' DllEntry='PostStartServices' Execute='deferred' Return='ignore' Impersonate='no'/>

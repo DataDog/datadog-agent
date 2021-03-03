@@ -135,6 +135,7 @@ bool CustomActionData::parseSysprobeData()
 {
     std::wstring sysprobePresent;
     std::wstring addlocal;
+    std::wstring npm;
     this->doInstallSysprobe = false;
     this->ddnpmPresent = false;
     if (!this->value(L"SYSPROBE_PRESENT", sysprobePresent))
@@ -152,6 +153,15 @@ bool CustomActionData::parseSysprobeData()
     }
     this->doInstallSysprobe = true;
 
+    if(!this->value(L"NPM", npm))
+    {
+        WcaLog(LOGMSG_STANDARD, "NPM property not present");
+    }
+    else 
+    {
+        WcaLog(LOGMSG_STANDARD, "NPM enabled via NPM property");
+        this->ddnpmPresent = true;
+    }
     // now check to see if we're installing the driver
     if(!this->value(L"ADDLOCAL", addlocal))
     {
