@@ -71,13 +71,13 @@ func resolveKubeapiserver(ctx context.Context, e env.Env, ruleID string, res com
 		if len(api.ResourceName) == 0 {
 			return nil, fmt.Errorf("unable to use 'get' apirequest without resource name")
 		}
-		resource, err := resourceAPI.Get(kubeResource.APIRequest.ResourceName, metav1.GetOptions{})
+		resource, err := resourceAPI.Get(ctx, kubeResource.APIRequest.ResourceName, metav1.GetOptions{})
 		if err != nil {
 			return nil, fmt.Errorf("unable to get Kube resource:'%v', ns:'%s' name:'%s', err: %v", resourceSchema, kubeResource.Namespace, api.ResourceName, err)
 		}
 		resources = []unstructured.Unstructured{*resource}
 	case "list":
-		list, err := resourceAPI.List(metav1.ListOptions{
+		list, err := resourceAPI.List(ctx, metav1.ListOptions{
 			LabelSelector: kubeResource.LabelSelector,
 			FieldSelector: kubeResource.FieldSelector,
 		})

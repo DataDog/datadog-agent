@@ -2,6 +2,10 @@
 
 package tracer
 
+/*
+#include "../ebpf/c/tracer.h"
+*/
+import "C"
 import (
 	"fmt"
 	"time"
@@ -11,6 +15,9 @@ import (
 
 	"github.com/DataDog/ebpf"
 )
+
+const ConnCloseBatchSize = uint16(C.CONN_CLOSED_BATCH_SIZE)
+const defaultExpiredStateInterval = 60 * time.Second
 
 // PerfBatchManager is reponsbile for two things:
 //
@@ -25,86 +32,128 @@ type PerfBatchManager struct {
 
 	// stateByCPU contains the state of each batch.
 	// The slice is indexed by the CPU core number.
-	stateByCPU []batchState
+	stateByCPU []percpuState
 
-	// maxIdleInterval represents the maximum time (in nanoseconds)
-	// a batch can remain idle (that is, without being flushed) on eBPF
-	maxIdleInterval int64
+	expiredStateInterval time.Duration
 }
 
 // NewPerfBatchManager returns a new `PerfBatchManager` and initializes the
 // eBPF map that holds the tcp_close batch objects.
-func NewPerfBatchManager(batchMap *ebpf.Map, maxIdleInterval time.Duration, numBatches int) (*PerfBatchManager, error) {
+func NewPerfBatchManager(batchMap *ebpf.Map, numCPUs int) (*PerfBatchManager, error) {
 	if batchMap == nil {
 		return nil, fmt.Errorf("batchMap is nil")
 	}
 
-	for i := 0; i < numBatches; i++ {
+	state := make([]percpuState, numCPUs)
+	for cpu := 0; cpu < numCPUs; cpu++ {
 		b := new(batch)
-		b.cpu = _Ctype_ushort(i)
-		batchMap.Put(unsafe.Pointer(&i), unsafe.Pointer(b))
+		batchMap.Put(unsafe.Pointer(&cpu), unsafe.Pointer(b))
+		state[cpu] = percpuState{
+			processed: make(map[uint64]batchState),
+		}
 	}
 
 	return &PerfBatchManager{
-		batchMap:        batchMap,
-		stateByCPU:      make([]batchState, numBatches),
-		maxIdleInterval: maxIdleInterval.Nanoseconds(),
+		batchMap:             batchMap,
+		stateByCPU:           state,
+		expiredStateInterval: defaultExpiredStateInterval,
 	}, nil
 }
 
 // Extract from the given batch all connections that haven't been processed yet.
-// This method is also responsible for keeping track of each CPU core batch state.
-func (p *PerfBatchManager) Extract(b *batch, now time.Time) []network.ConnectionStats {
-	if int(b.cpu) >= len(p.stateByCPU) {
+func (p *PerfBatchManager) Extract(b *batch, cpu int) []network.ConnectionStats {
+	if cpu >= len(p.stateByCPU) {
 		return nil
 	}
 
-	state := &p.stateByCPU[b.cpu]
-	lastOffset := state.offset
-	state.updated = now.UnixNano()
-	state.offset = 0
+	batchId := uint64(b.id)
+	cpuState := &p.stateByCPU[cpu]
+	start := uint16(0)
+	if bState, ok := cpuState.processed[batchId]; ok {
+		start = bState.offset
+	}
 
-	buffer := make([]network.ConnectionStats, 0, ConnCloseBatchSize)
-	return ExtractBatchInto(buffer, b, lastOffset, ConnCloseBatchSize)
+	buffer := make([]network.ConnectionStats, 0, ConnCloseBatchSize-start)
+	conns := p.extractBatchInto(buffer, b, start, ConnCloseBatchSize)
+	delete(cpuState.processed, batchId)
+
+	return conns
 }
 
-// GetIdleConns return all connections that have been "stuck" in idle batches
-// for more than `idleInterval`
-func (p *PerfBatchManager) GetIdleConns(now time.Time) []network.ConnectionStats {
+// GetIdleConns return all connections that are in batches that are not yet full.
+// It tracks which connections have been processed by this call, by batch id.
+// This prevents double-processing of connections between GetIdleConns and Extract.
+func (p *PerfBatchManager) GetIdleConns() []network.ConnectionStats {
 	var idle []network.ConnectionStats
-	nowTS := now.UnixNano()
-	batch := new(batch)
-	for i := 0; i < len(p.stateByCPU); i++ {
-		state := &p.stateByCPU[i]
-
-		if (nowTS - state.updated) < p.maxIdleInterval {
-			continue
-		}
+	b := new(batch)
+	for cpu := 0; cpu < len(p.stateByCPU); cpu++ {
+		cpuState := &p.stateByCPU[cpu]
 
 		// we have an idle batch, so let's retrieve its data from eBPF
-		err := p.batchMap.Lookup(unsafe.Pointer(&i), unsafe.Pointer(batch))
+		err := p.batchMap.Lookup(unsafe.Pointer(&cpu), unsafe.Pointer(b))
 		if err != nil {
 			continue
 		}
 
-		pos := int(batch.pos)
-		if pos == 0 {
+		batchLen := uint16(b.len)
+		if batchLen == 0 {
 			continue
 		}
-
-		state.updated = nowTS
-		if pos == state.offset {
-			continue
+		// have we already processed these messages?
+		start := uint16(0)
+		batchId := uint64(b.id)
+		if bState, ok := cpuState.processed[batchId]; ok {
+			start = bState.offset
 		}
 
-		idle = ExtractBatchInto(idle, batch, state.offset, pos)
-		state.offset = pos
+		idle = p.extractBatchInto(idle, b, start, batchLen)
+		// update timestamp regardless since this partial batch still exists
+		cpuState.processed[batchId] = batchState{offset: batchLen, updated: time.Now()}
 	}
 
+	p.cleanupExpiredState(time.Now())
 	return idle
 }
 
+type percpuState struct {
+	// map of batch id -> offset of conns already processed by GetIdleConns
+	processed map[uint64]batchState
+}
+
 type batchState struct {
-	offset  int
-	updated int64
+	offset  uint16
+	updated time.Time
+}
+
+// ExtractBatchInto extract network.ConnectionStats objects from the given `batch` into the supplied `buffer`.
+// The `start` (inclusive) and `end` (exclusive) arguments represent the offsets of the connections we're interested in.
+func (p *PerfBatchManager) extractBatchInto(buffer []network.ConnectionStats, b *batch, start, end uint16) []network.ConnectionStats {
+	if start >= end || end > ConnCloseBatchSize {
+		return nil
+	}
+
+	current := uintptr(unsafe.Pointer(b)) + uintptr(start)*C.sizeof_conn_t
+	for i := start; i < end; i++ {
+		ct := Conn(*(*C.conn_t)(unsafe.Pointer(current)))
+
+		tup := ConnTuple(ct.tup)
+		cst := ConnStatsWithTimestamp(ct.conn_stats)
+		tst := TCPStats(ct.tcp_stats)
+
+		buffer = append(buffer, connStats(&tup, &cst, &tst))
+		current += C.sizeof_conn_t
+	}
+
+	return buffer
+}
+
+func (p *PerfBatchManager) cleanupExpiredState(now time.Time) {
+	for cpu := 0; cpu < len(p.stateByCPU); cpu++ {
+		cpuState := &p.stateByCPU[cpu]
+		for id, s := range cpuState.processed {
+			if now.Sub(s.updated) >= p.expiredStateInterval {
+				delete(cpuState.processed, id)
+			}
+		}
+	}
 }

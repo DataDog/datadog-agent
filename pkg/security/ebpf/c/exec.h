@@ -33,31 +33,12 @@ struct _tracepoint_sched_process_fork
     pid_t child_pid;
 };
 
-void __attribute__((always_inline)) copy_proc_cache(struct proc_cache_t *dst, struct proc_cache_t *src) {
-    dst->executable = src->executable;
-    fill_container_context(src, &dst->container);
-    return;
-}
-
-static __attribute__((always_inline)) u32 copy_tty_name(char dst[TTY_NAME_LEN], char src[TTY_NAME_LEN]) {
-    if (src[0] == 0) {
-        return 0;
-    }
-
-#pragma unroll
-    for (int i = 0; i < TTY_NAME_LEN; i++)
-    {
-        dst[i] = src[i];
-    }
-    return TTY_NAME_LEN;
-}
-
 int __attribute__((always_inline)) trace__sys_execveat() {
     struct syscall_cache_t syscall = {
         .type = SYSCALL_EXEC,
     };
 
-    cache_syscall(&syscall, EVENT_EXEC);
+    cache_syscall(&syscall);
     return 0;
 }
 
@@ -81,24 +62,22 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
 
+    struct dentry *exec_dentry = get_path_dentry(path);
     struct proc_cache_t entry = {
         .executable = {
             .inode = syscall->open.path_key.ino,
-            .overlay_numlower = get_overlay_numlower(get_path_dentry(path)),
+            .overlay_numlower = get_overlay_numlower(exec_dentry),
             .mount_id = get_path_mount_id(path),
             .path_id = syscall->open.path_key.path_id,
         },
         .container = {},
         .exec_timestamp = bpf_ktime_get_ns(),
     };
+    fill_file_metadata(exec_dentry, &entry.executable.metadata);
     bpf_get_current_comm(&entry.comm, sizeof(entry.comm));
 
     // cache dentry
     resolve_dentry(syscall->open.dentry, syscall->open.path_key, 0);
-
-    u32 cookie = bpf_get_prandom_u32();
-    // insert new proc cache entry
-    bpf_map_update_elem(&proc_cache, &cookie, &entry, BPF_ANY);
 
     // select the previous cookie entry in cache of the current process
     // (this entry was created by the fork of the current process)
@@ -111,7 +90,15 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
             // inherit the parent container context
             fill_container_context(parent_entry, &entry.container);
         }
-        // update pid <-> cookie mapping
+    }
+
+    // Insert new proc cache entry (Note: do not move the order of this block with the previous one, we need to inherit
+    // the container ID before saving the entry in proc_cache. Modifying entry after insertion won't work.)
+    u32 cookie = bpf_get_prandom_u32();
+    bpf_map_update_elem(&proc_cache, &cookie, &entry, BPF_ANY);
+
+    // update pid <-> cookie mapping
+    if (fork_entry) {
         fork_entry->cookie = cookie;
     } else {
         struct pid_cache_t new_pid_entry = {
@@ -154,7 +141,7 @@ int __attribute__((always_inline)) handle_do_fork(struct pt_regs *ctx) {
             .is_thread = 1,
         }
     };
-    cache_syscall(&syscall, EVENT_FORK);
+    cache_syscall(&syscall);
 
     return 0;
 }
@@ -200,28 +187,19 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     // sched::sched_process_fork is triggered from the parent process, update the pid / tid to the child value
     event.process.pid = pid;
     event.process.tid = pid;
-    event.pid_entry.uid = event.process.uid;
-    event.pid_entry.gid = event.process.gid;
 
     struct pid_cache_t *parent_pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &ppid);
     if (parent_pid_entry) {
-        // ensures pid and ppid point to the same cookie
+        // ensure pid and ppid point to the same cookie
         event.pid_entry.cookie = parent_pid_entry->cookie;
+
+        // ensure pid and ppid have the same credentials
+        event.pid_entry.credentials = parent_pid_entry->credentials;
 
         // fetch the parent proc cache entry
         struct proc_cache_t *parent_proc_entry = bpf_map_lookup_elem(&proc_cache, &event.pid_entry.cookie);
         if (parent_proc_entry) {
-
-            // copy parent proc cache entry data
-            event.proc_entry.executable.inode = parent_proc_entry->executable.inode;
-            event.proc_entry.executable.overlay_numlower = parent_proc_entry->executable.overlay_numlower;
-            event.proc_entry.executable.mount_id = parent_proc_entry->executable.mount_id;
-            event.proc_entry.executable.path_id = parent_proc_entry->executable.path_id;
-            event.proc_entry.exec_timestamp = parent_proc_entry->exec_timestamp;
-            copy_tty_name(event.proc_entry.tty_name, parent_proc_entry->tty_name);
-
-            // fetch container context
-            fill_container_context(parent_proc_entry, &event.proc_entry.container);
+            copy_proc_cache_except_comm(parent_proc_entry, &event.proc_entry);
         }
     }
 
@@ -289,24 +267,16 @@ int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
         u32 cookie = pid_entry->cookie;
         struct proc_cache_t *proc_entry = bpf_map_lookup_elem(&proc_cache, &cookie);
         if (proc_entry) {
-            struct exec_event_t event = {
-                .proc_entry.executable = {
-                    .inode = proc_entry->executable.inode,
-                    .overlay_numlower = proc_entry->executable.overlay_numlower,
-                    .mount_id = proc_entry->executable.mount_id,
-                    .path_id = proc_entry->executable.path_id,
-                },
-                .proc_entry.container = {},
-                .proc_entry.exec_timestamp = proc_entry->exec_timestamp,
-                .pid_entry.cookie = pid_entry->cookie,
-                .pid_entry.ppid = pid_entry->ppid,
-                .pid_entry.fork_timestamp = pid_entry->fork_timestamp,
-            };
+            struct exec_event_t event = {};
+            // copy proc_cache entry data
+            copy_proc_cache_except_comm(proc_entry, &event.proc_entry);
             bpf_get_current_comm(&event.proc_entry.comm, sizeof(event.proc_entry.comm));
-            copy_tty_name(event.proc_entry.tty_name, proc_entry->tty_name);
 
+            // copy pid_cache entry data
+            copy_pid_cache_except_exit_ts(pid_entry, &event.pid_entry);
+
+            // add pid / tid context
             fill_process_context(&event.process);
-            fill_container_context(proc_entry, &event.proc_entry.container);
 
             // send the entry to maintain userspace cache
             send_event(ctx, EVENT_EXEC, event);

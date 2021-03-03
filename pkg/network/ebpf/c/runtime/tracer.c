@@ -2,12 +2,14 @@
 
 #include "tracer-events.h"
 #include "tracer-maps.h"
+#include "tracer-stats.h"
 #include "tracer-telemetry.h"
 #include "bpf_helpers.h"
 #include "bpf_endian.h"
 #include "syscalls.h"
 #include "http.h"
 #include "ip.h"
+#include "netns.h"
 
 #ifdef FEATURE_IPV6_ENABLED
 #include "ipv6.h"
@@ -27,32 +29,6 @@
 #ifndef LINUX_VERSION_CODE
 # error "kernel version not included?"
 #endif
-
-static __always_inline __u32 get_netns_from_sock(struct sock* skp) {
-    __u32 net_ns_inum = 0;
-#ifdef CONFIG_NET_NS
-    #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
-        struct net *skc_net = NULL;
-        bpf_probe_read(&skc_net, sizeof(skc_net), &skp->sk_net);
-        if (!skc_net) {
-            return 0;
-        }
-        #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
-            bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), &skc_net->proc_inum);
-        #else
-            bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), &skc_net->ns.inum);
-        #endif
-    #else
-        struct net *skc_net = NULL;
-        bpf_probe_read(&skc_net, sizeof(skc_net), &skp->sk_net.net);
-        if (!skc_net) {
-            return 0;
-        }
-        bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), &skc_net->ns.inum);
-    #endif
-#endif
-    return net_ns_inum;
-}
 
 static __always_inline __u16 read_sport(struct sock* skp) {
     __u16 sport = 0;
@@ -74,7 +50,7 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock*
 
     // Retrieve network namespace id first since addresses and ports may not be available for unconnected UDP
     // sends
-    t->netns = get_netns_from_sock(skp);
+    t->netns = get_netns(&skp->sk_net);
     u16 family = 0;
     bpf_probe_read(&family, sizeof(family), &skp->sk_family);
 
@@ -152,81 +128,6 @@ static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u6
     return read_conn_tuple_partial(t, skp, pid_tgid, type);
 }
 
-static __always_inline void update_conn_stats(conn_tuple_t* t, size_t sent_bytes, size_t recv_bytes, u64 ts) {
-    conn_stats_ts_t* val;
-
-    // initialize-if-no-exist the connection stat, and load it
-    conn_stats_ts_t empty = {};
-    __builtin_memset(&empty, 0, sizeof(conn_stats_ts_t));
-    bpf_map_update_elem(&conn_stats, t, &empty, BPF_NOEXIST);
-    val = bpf_map_lookup_elem(&conn_stats, t);
-
-    // If already in our map, increment size in-place
-    if (val != NULL) {
-        if (sent_bytes) {
-            __sync_fetch_and_add(&val->sent_bytes, sent_bytes);
-        }
-        if (recv_bytes) {
-            __sync_fetch_and_add(&val->recv_bytes, recv_bytes);
-        }
-        val->timestamp = ts;
-    }
-
-}
-
-static __always_inline void update_tcp_stats(conn_tuple_t* t, tcp_stats_t stats) {
-    // query stats without the PID from the tuple
-    __u32 pid = t->pid;
-    t->pid = 0;
-
-    // initialize-if-no-exist the connetion state, and load it
-    tcp_stats_t empty = {};
-    bpf_map_update_elem(&tcp_stats, t, &empty, BPF_NOEXIST);
-
-    tcp_stats_t* val = bpf_map_lookup_elem(&tcp_stats, t);
-    t->pid = pid;
-    if (val == NULL) {
-        return;
-    }
-
-    if (stats.retransmits > 0) {
-        __sync_fetch_and_add(&val->retransmits, stats.retransmits);
-    }
-
-    if (stats.rtt > 0) {
-        // For more information on the bit shift operations see:
-        // https://elixir.bootlin.com/linux/v4.6/source/net/ipv4/tcp.c#L2686
-        val->rtt = stats.rtt >> 3;
-        val->rtt_var = stats.rtt_var >> 2;
-    }
-
-    if (stats.state_transitions > 0) {
-        val->state_transitions |= stats.state_transitions;
-    }
-}
-
-static __always_inline int handle_message(conn_tuple_t* t, size_t sent_bytes, size_t recv_bytes) {
-    u64 ts = bpf_ktime_get_ns();
-
-    update_conn_stats(t, sent_bytes, recv_bytes, ts);
-
-    return 0;
-}
-
-static __always_inline int handle_retransmit(struct sock* sk) {
-    conn_tuple_t t = {};
-    u64 zero = 0;
-
-    if (!read_conn_tuple(&t, sk, zero, CONN_TYPE_TCP)) {
-        return 0;
-    }
-
-    tcp_stats_t stats = { .retransmits = 1, .rtt = 0, .rtt_var = 0 };
-    update_tcp_stats(&t, stats);
-
-    return 0;
-}
-
 static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* skp) {
     __u32 rtt = 0, rtt_var = 0;
     bpf_probe_read(&rtt, sizeof(rtt), &tcp_sk(skp)->srtt_us);
@@ -249,7 +150,7 @@ int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
     }
 
     handle_tcp_stats(&t, skp);
-    return handle_message(&t, size, 0);
+    return handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN);
 }
 
 SEC("kprobe/tcp_sendmsg/pre_4_1_0")
@@ -265,7 +166,7 @@ int kprobe__tcp_sendmsg__pre_4_1_0(struct pt_regs* ctx) {
     }
 
     handle_tcp_stats(&t, sk);
-    return handle_message(&t, size, 0);
+    return handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN);
 }
 
 SEC("kretprobe/tcp_sendmsg")
@@ -300,7 +201,7 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs* ctx) {
         return 0;
     }
 
-    return handle_message(&t, 0, copied);
+    return handle_message(&t, 0, copied, CONN_DIRECTION_UNKNOWN);
 }
 
 SEC("kprobe/tcp_close")
@@ -311,11 +212,11 @@ int kprobe__tcp_close(struct pt_regs* ctx) {
     sk = (struct sock*)PT_REGS_PARM1(ctx);
 
     // Get network namespace id
-    log_debug("kprobe/tcp_close: pid_tgid: %d, ns: %d\n", pid_tgid, get_netns_from_sock(sk));
-
+    log_debug("kprobe/tcp_close: tgid: %u, pid: %u\n", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
+    log_debug("kprobe/tcp_close: netns: %u, sport: %u, dport: %u\n", t.netns, t.sport, t.dport);
 
     cleanup_conn(&t);
     return 0;
@@ -323,22 +224,7 @@ int kprobe__tcp_close(struct pt_regs* ctx) {
 
 SEC("kretprobe/tcp_close")
 int kretprobe__tcp_close(struct pt_regs* ctx) {
-    u32 cpu = bpf_get_smp_processor_id();
-    batch_t* batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);
-    if (batch_ptr == NULL) {
-        return 0;
-    }
-
-    if (batch_ptr->pos >= CONN_CLOSED_BATCH_SIZE) {
-        // Here we copy the batch data to a variable allocated in the eBPF stack
-        // This is necessary for older Kernel versions only (we validated this behavior on 4.4.0),
-        // since you can't directly write a map entry to the perf buffer.
-        batch_t batch_copy = {};
-        __builtin_memcpy(&batch_copy, batch_ptr, sizeof(batch_copy));
-        bpf_perf_event_output(ctx, &conn_close_event, cpu, &batch_copy, sizeof(batch_copy));
-        batch_ptr->pos = 0;
-    }
-
+    flush_conn_close_if_full(ctx);
     return 0;
 }
 
@@ -356,13 +242,13 @@ int kprobe__ip6_make_skb(struct pt_regs* ctx) {
     }
 
     log_debug("kprobe/ip6_make_skb: pid_tgid: %d, size: %d\n", pid_tgid, size);
-    handle_message(&t, size, 0);
+    handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN);
     increment_telemetry_count(udp_send_processed);
 
     return 0;
 }
 
-// Note: This is used only in tne UDP send path.
+// Note: This is used only in the UDP send path.
 SEC("kprobe/ip_make_skb")
 int kprobe__ip_make_skb(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
@@ -394,7 +280,7 @@ int kprobe__ip_make_skb(struct pt_regs* ctx) {
     }
 
     log_debug("kprobe/ip_send_skb: pid_tgid: %d, size: %d\n", pid_tgid, size);
-    handle_message(&t, size, 0);
+    handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN);
     increment_telemetry_count(udp_send_processed);
 
     return 0;
@@ -475,7 +361,7 @@ int kretprobe__udp_recvmsg(struct pt_regs* ctx) {
     }
 
     log_debug("kretprobe/udp_recvmsg: pid_tgid: %d, return: %d\n", pid_tgid, copied);
-    handle_message(&t, 0, copied);
+    handle_message(&t, 0, copied, CONN_DIRECTION_UNKNOWN);
 
     return 0;
 }
@@ -483,9 +369,15 @@ int kretprobe__udp_recvmsg(struct pt_regs* ctx) {
 SEC("kprobe/tcp_retransmit_skb")
 int kprobe__tcp_retransmit_skb(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
+    int segs = 1;
+#else
+    int segs = (int)PT_REGS_PARM3(ctx);
+#endif
     log_debug("kprobe/tcp_retransmit\n");
 
-    return handle_retransmit(sk);
+    return handle_retransmit(sk, segs);
 }
 
 SEC("kprobe/tcp_set_state")
@@ -512,28 +404,28 @@ int kprobe__tcp_set_state(struct pt_regs* ctx) {
 
 SEC("kretprobe/inet_csk_accept")
 int kretprobe__inet_csk_accept(struct pt_regs* ctx) {
-    struct sock* skp = (struct sock*)PT_REGS_RC(ctx);
-    if (!skp) {
+    struct sock* sk = (struct sock*)PT_REGS_RC(ctx);
+    if (!sk) {
         return 0;
     }
 
-    __u16 lport = read_sport(skp);
-    if (lport == 0) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("kretprobe/inet_csk_accept: tgid: %u, pid: %u\n", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
+    handle_tcp_stats(&t, sk);
+    handle_message(&t, 0, 0, CONN_DIRECTION_INCOMING);
 
-    port_binding_t t = {};
-    t.net_ns = get_netns_from_sock(skp);
-    t.port = lport;
+    port_binding_t pb = {};
+    pb.net_ns = t.netns;
+    pb.port = t.sport;
+    __u8 state = PORT_LISTENING;
+    bpf_map_update_elem(&port_bindings, &pb, &state, BPF_NOEXIST);
 
-    __u8* val = bpf_map_lookup_elem(&port_bindings, &t);
-
-    if (val == NULL) {
-        __u8 state = PORT_LISTENING;
-        bpf_map_update_elem(&port_bindings, &t, &state, BPF_ANY);
-    }
-
-    log_debug("kretprobe/inet_csk_accept: net ns: %d, lport: %d\n", t.net_ns, t.port);
+    log_debug("kretprobe/inet_csk_accept: netns: %u, sport: %u, dport: %u\n", t.netns, t.sport, t.dport);
     return 0;
 }
 
@@ -552,12 +444,11 @@ int kprobe__tcp_v4_destroy_sock(struct pt_regs* ctx) {
     }
 
     port_binding_t t = { .net_ns = 0, .port = 0 };
-    t.net_ns = get_netns_from_sock(skp);
+    t.net_ns = get_netns(&skp->sk_net);
     t.port = lport;
     __u8* val = bpf_map_lookup_elem(&port_bindings, &t);
     if (val != NULL) {
-        __u8 state = PORT_CLOSED;
-        bpf_map_update_elem(&port_bindings, &t, &state, BPF_ANY);
+        bpf_map_delete_elem(&port_bindings, &t);
     }
 
     log_debug("kprobe/tcp_v4_destroy_sock: net ns: %u, lport: %u\n", t.net_ns, t.port);
@@ -574,34 +465,28 @@ int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
 
     conn_tuple_t tup = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    if (read_conn_tuple(&tup, skp, pid_tgid, CONN_TYPE_UDP)) {
+    int valid_tuple = read_conn_tuple(&tup, skp, pid_tgid, CONN_TYPE_UDP);
+
+    __u16 lport = 0;
+    if (valid_tuple) {
         cleanup_conn(&tup);
+        lport = tup.sport;
+    } else {
+        lport = read_sport(skp);
     }
 
-    // get the port for the current sock
-    __u16 lport = read_sport(skp);
     if (lport == 0) {
-        log_debug("ERR(udp_destroy_sock): lport is 0 \n");
+        log_debug("ERR(udp_destroy_sock): lport is 0\n");
         return 0;
     }
 
-    // decide if the port is bound, if not, do nothing
-    port_binding_t t = {};
     // although we have net ns info, we don't use it in the key
     // since we don't have it everywhere for udp port bindings
     // (see sys_enter_bind/sys_exit_bind below)
+    port_binding_t t = {};
     t.net_ns = 0;
     t.port = lport;
-    __u8* state = bpf_map_lookup_elem(&udp_port_bindings, &t);
-
-    if (state == NULL) {
-        log_debug("kprobe/udp_destroy_sock: sock was not listening, will drop event\n");
-        return 0;
-    }
-
-    // set the state to closed
-    __u8 new_state = PORT_CLOSED;
-    bpf_map_update_elem(&udp_port_bindings, &t, &new_state, BPF_ANY);
+    bpf_map_delete_elem(&udp_port_bindings, &t);
 
     log_debug("kprobe/udp_destroy_sock: port %d marked as closed\n", lport);
 

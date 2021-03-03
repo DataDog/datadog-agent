@@ -1,7 +1,7 @@
 """
 Android namespaced tasks
 """
-from __future__ import print_function
+
 
 import os
 import shutil
@@ -32,14 +32,7 @@ CORECHECK_CONFS_DIR = "cmd/agent/android/app/src/main/assets/conf.d"
 
 @task
 def build(
-    ctx,
-    rebuild=False,
-    race=False,
-    development=True,
-    precompile_only=False,
-    skip_assets=False,
-    major_version='7',
-    python_runtimes='3',
+    ctx, rebuild=False, race=False, major_version='7', python_runtimes='3',
 ):
     """
     Build the android apk. If the bits to include in the build are not specified,
@@ -58,7 +51,7 @@ def build(
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes=python_runtimes)
 
     # Generating go source from templates by running go generate on ./pkg/status
-    generate(ctx)
+    generate(ctx, mod="vendor")
 
     build_tags = get_default_build_tags(build="android")
 
@@ -105,7 +98,7 @@ def build(
 
 
 @task
-def sign_apk(ctx, development=True):
+def sign_apk(ctx):
     """
     Signs the APK with the default platform signature.
     """
@@ -146,7 +139,7 @@ def clean(ctx):
 
 
 @task
-def assetconfigs(ctx):
+def assetconfigs(_):
     # move the core check config
     shutil.rmtree(CORECHECK_CONFS_DIR, ignore_errors=True)
 

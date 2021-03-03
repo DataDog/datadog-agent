@@ -25,8 +25,8 @@ type Policy struct {
 type Config struct {
 	ebpf.Config
 
-	// Enabled defines if the runtime security module should be enabled
-	Enabled bool
+	// RuntimeEnabled defines if the runtime security module should be enabled
+	RuntimeEnabled bool
 	// PoliciesDir defines the folder in which the policy files are located
 	PoliciesDir string
 	// EnableKernelFilters defines if in-kernel filtering should be activated or not
@@ -63,13 +63,21 @@ type Config struct {
 	StatsdAddr string
 	// AgentMonitoringEvents determines if the monitoring events of the agent should be sent to Datadog
 	AgentMonitoringEvents bool
+	// FIMEnabled determines whether fim rules will be loaded
+	FIMEnabled bool
+}
+
+// IsEnabled returns true if any feature is enabled
+func (c *Config) IsEnabled() bool {
+	return c.RuntimeEnabled || c.FIMEnabled
 }
 
 // NewConfig returns a new Config object
 func NewConfig(cfg *config.AgentConfig) (*Config, error) {
 	c := &Config{
 		Config:                             *ebpf.SysProbeConfigFromConfig(cfg),
-		Enabled:                            aconfig.Datadog.GetBool("runtime_security_config.enabled"),
+		RuntimeEnabled:                     aconfig.Datadog.GetBool("runtime_security_config.enabled"),
+		FIMEnabled:                         aconfig.Datadog.GetBool("runtime_security_config.fim_enabled"),
 		EnableKernelFilters:                aconfig.Datadog.GetBool("runtime_security_config.enable_kernel_filters"),
 		EnableApprovers:                    aconfig.Datadog.GetBool("runtime_security_config.enable_approvers"),
 		EnableDiscarders:                   aconfig.Datadog.GetBool("runtime_security_config.enable_discarders"),
@@ -89,7 +97,12 @@ func NewConfig(cfg *config.AgentConfig) (*Config, error) {
 		AgentMonitoringEvents:              aconfig.Datadog.GetBool("runtime_security_config.agent_monitoring_events"),
 	}
 
-	if !c.Enabled {
+	// if runtime is enabled then we force fim
+	if c.RuntimeEnabled {
+		c.FIMEnabled = true
+	}
+
+	if !c.IsEnabled() {
 		return c, nil
 	}
 

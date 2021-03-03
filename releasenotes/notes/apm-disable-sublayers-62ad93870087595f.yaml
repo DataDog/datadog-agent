@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    APM: Sublayer metrics (trace.<SPAN_NAME>.duration and derivatives) computation
+    in agent can be disabled with feature flags disable_sublayer_spans, disable_sublayer_stats.
+    Reach out to support with questions about this metric.

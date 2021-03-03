@@ -181,7 +181,8 @@
 
 enum event_type
 {
-    EVENT_OPEN = 1,
+    EVENT_FIRST_DISCARDER = 1,
+    EVENT_OPEN = EVENT_FIRST_DISCARDER,
     EVENT_MKDIR,
     EVENT_LINK,
     EVENT_RENAME,
@@ -190,16 +191,20 @@ enum event_type
     EVENT_CHMOD,
     EVENT_CHOWN,
     EVENT_UTIME,
-    EVENT_MOUNT,
-    EVENT_UMOUNT,
     EVENT_SETXATTR,
     EVENT_REMOVEXATTR,
+    EVENT_LAST_DISCARDER = EVENT_REMOVEXATTR,
+
+    EVENT_MOUNT,
+    EVENT_UMOUNT,
     EVENT_FORK,
     EVENT_EXEC,
     EVENT_EXIT,
     EVENT_INVALIDATE_DENTRY,
+    EVENT_SETUID,
+    EVENT_SETGID,
+    EVENT_CAPSET,
     EVENT_MAX, // has to be the last one
-    EVENT_MAX_ROUNDED_UP = 32, // closest power of 2 that is bigger than EVENT_MAX
 };
 
 enum syscall_type
@@ -219,6 +224,9 @@ enum syscall_type
     SYSCALL_REMOVEXATTR = 1 << EVENT_REMOVEXATTR,
     SYSCALL_EXEC        = 1 << EVENT_EXEC,
     SYSCALL_FORK        = 1 << EVENT_FORK,
+    SYSCALL_SETUID      = 1 << EVENT_SETUID,
+    SYSCALL_SETGID      = 1 << EVENT_SETGID,
+    SYSCALL_CAPSET      = 1 << EVENT_CAPSET,
 };
 
 struct kevent_t {
@@ -227,12 +235,29 @@ struct kevent_t {
     u64 type;
 };
 
+struct ktimeval {
+    long tv_sec;
+    long tv_nsec;
+};
+
+struct file_metadata_t {
+    u32 uid;
+    u32 gid;
+    u16 mode;
+    char padding[6];
+
+    struct ktimeval ctime;
+    struct ktimeval mtime;
+};
+
 struct file_t {
     u64 inode;
     u32 mount_id;
     u32 overlay_numlower;
     u32 path_id;
     u32 padding;
+
+    struct file_metadata_t metadata;
 };
 
 struct syscall_t {
@@ -242,8 +267,6 @@ struct syscall_t {
 struct process_context_t {
     u32 pid;
     u32 tid;
-    u32 uid;
-    u32 gid;
 };
 
 struct container_context_t {
@@ -385,6 +408,7 @@ static __attribute__((always_inline)) u32 atoi(char *buff) {
 
 // implemented in the probe.c file
 void __attribute__((always_inline)) invalidate_inode(struct pt_regs *ctx, u32 mount_id, u64 inode, int send_invalidate_event);
+void __attribute__((always_inline)) invalidate_path_key(struct pt_regs *ctx, struct path_key_t *key, int send_invalidate_event);
 
 struct bpf_map_def SEC("maps/enabled_events") enabled_events = {
     .type = BPF_MAP_TYPE_ARRAY,

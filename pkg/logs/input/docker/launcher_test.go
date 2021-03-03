@@ -108,6 +108,12 @@ func TestNewOverridenSourceServiceNameOrder(t *testing.T) {
 }
 
 func TestGetFileSource(t *testing.T) {
+
+	testRules := []*config.ProcessingRule{
+		{Name: "foo", Type: config.IncludeAtMatch, Pattern: "[[:alnum:]]{5}"},
+		{Name: "bar", Type: config.ExcludeAtMatch, Pattern: "^plop"},
+		{Name: "baz", Type: config.MultiLine, Pattern: "[0-9]"},
+	}
 	tests := []struct {
 		name            string
 		sFunc           func(string, string) string
@@ -115,6 +121,8 @@ func TestGetFileSource(t *testing.T) {
 		source          *config.LogSource
 		wantServiceName string
 		wantPath        string
+		wantTags        []string
+		wantRules       []*config.ProcessingRule
 	}{
 		{
 			name:  "service name from log config",
@@ -128,9 +136,10 @@ func TestGetFileSource(t *testing.T) {
 				},
 				service: &service.Service{Identifier: "123456"},
 			},
-			source:          config.NewLogSource("from container", &config.LogsConfig{Service: "configServiceName"}),
+			source:          config.NewLogSource("from container", &config.LogsConfig{Service: "configServiceName", Tags: []string{"foo:bar", "foo:baz"}}),
 			wantServiceName: "configServiceName",
 			wantPath:        "/var/lib/docker/containers/123456/123456-json.log",
+			wantTags:        []string{"foo:bar", "foo:baz"},
 		},
 		{
 			name:  "service name from standard tags",
@@ -144,9 +153,11 @@ func TestGetFileSource(t *testing.T) {
 				},
 				service: &service.Service{Identifier: "123456"},
 			},
-			source:          config.NewLogSource("from container", &config.LogsConfig{}),
+			source:          config.NewLogSource("from container", &config.LogsConfig{ProcessingRules: testRules}),
 			wantServiceName: "stdServiceName",
 			wantPath:        "/var/lib/docker/containers/123456/123456-json.log",
+			wantRules:       testRules,
+			wantTags:        nil,
 		},
 	}
 	for _, tt := range tests {
@@ -158,6 +169,8 @@ func TestGetFileSource(t *testing.T) {
 			assert.Equal(t, config.FileType, fileSource.Config.Type)
 			assert.Equal(t, tt.container.service.Identifier, fileSource.Config.Identifier)
 			assert.Equal(t, tt.wantServiceName, fileSource.Config.Service)
+			assert.Equal(t, tt.wantTags, fileSource.Config.Tags)
+			assert.Equal(t, tt.wantRules, fileSource.Config.ProcessingRules)
 		})
 	}
 }

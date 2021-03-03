@@ -51,7 +51,7 @@ def build(
     major_version='7',
     python_runtimes='3',
     with_bcc=True,
-    go_mod="vendor",
+    go_mod="mod",
     windows=is_windows,
     arch="x64",
     embedded_path=DATADOG_AGENT_EMBEDDED_PATH,
@@ -76,7 +76,7 @@ def build(
             print("system probe not supported on x86")
             raise
 
-        ver = get_version_numeric_only(ctx, env, major_version=major_version)
+        ver = get_version_numeric_only(ctx, major_version=major_version)
         maj_ver, min_ver, patch_ver = ver.split(".")
         resdir = os.path.join(".", "cmd", "system-probe", "windows_resources")
 
@@ -190,7 +190,7 @@ def test(
     if not skip_object_files:
         build_object_files(ctx, bundle_ebpf=bundle_ebpf)
 
-    cmd = 'go test -mod=vendor -v -tags {bpf_tag} {output_params} {pkgs}'
+    cmd = 'go test -mod=mod -v -tags {bpf_tag} {output_params} {pkgs}'
     if not is_root():
         cmd = 'sudo -E PATH={path} ' + cmd
 
@@ -275,7 +275,7 @@ def kitchen_test(ctx):
 
 
 @task
-def nettop(ctx, incremental_build=False, go_mod="vendor"):
+def nettop(ctx, incremental_build=False, go_mod="mod"):
     """
     Build and run the `nettop` utility for testing
     """
@@ -401,6 +401,7 @@ def build_object_files(ctx, bundle_ebpf=False):
         '-fno-color-diagnostics',
         '-fno-unwind-tables',
         '-fno-asynchronous-unwind-tables',
+        '-fno-jump-tables',
         "-I{}".format(c_dir),
     ]
 
@@ -515,19 +516,24 @@ def build_object_files(ctx, bundle_ebpf=False):
     )
     bindata_files.extend([security_agent_obj_file, security_agent_syscall_wrapper_obj_file])
 
+    for cmd in commands:
+        ctx.run(cmd)
+
+    generate_runtime_files(ctx)
+
+    if bundle_ebpf:
+        go_dir = os.path.join(bpf_dir, "bytecode", "bindata")
+        bundle_files(ctx, bindata_files, "pkg/.*/", go_dir)
+
+
+@task
+def generate_runtime_files(ctx):
     runtime_compiler_files = [
         "./pkg/network/tracer/compile.go",
         "./pkg/security/probe/compile.go",
     ]
     for f in runtime_compiler_files:
-        commands.append("go generate -mod=vendor -tags linux_bpf {}".format(f))
-
-    for cmd in commands:
-        ctx.run(cmd)
-
-    if bundle_ebpf:
-        go_dir = os.path.join(bpf_dir, "bytecode", "bindata")
-        bundle_files(ctx, bindata_files, "pkg/.*/", go_dir)
+        ctx.run("go generate -mod=mod -tags linux_bpf {}".format(f))
 
 
 def bundle_files(ctx, bindata_files, dir_prefix, go_dir):
@@ -556,7 +562,7 @@ def is_root():
     return os.getuid() == 0
 
 
-def should_use_sudo(ctx):
+def should_use_sudo(_):
     # We are already root
     if is_root():
         return False

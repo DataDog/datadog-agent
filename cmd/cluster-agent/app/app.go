@@ -10,6 +10,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"sync"
@@ -33,11 +34,12 @@ import (
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
@@ -93,9 +95,10 @@ metadata for their metrics.`,
 		},
 	}
 
-	confPath    string
-	flagNoColor bool
-	stopCh      chan struct{}
+	confPath              string
+	flagNoColor           bool
+	stopCh                chan struct{}
+	orchestratorForwarder *forwarder.DefaultForwarder
 )
 
 func init() {
@@ -142,10 +145,24 @@ func start(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	if err := util.SetupCoreDump(); err != nil {
+		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
+	}
+
 	if !config.Datadog.IsSet("api_key") {
 		log.Critical("no API key configured, exiting")
 		return nil
 	}
+
+	// Expose the registered metrics via HTTP.
+	http.Handle("/metrics", telemetry.Handler())
+	go func() {
+		port := config.Datadog.GetInt("metrics_port")
+		err := http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", port), nil)
+		if err != nil && err != http.ErrServerClosed {
+			log.Errorf("Error creating telemetry server on port %v: %v", port, err)
+		}
+	}()
 
 	// Setup healthcheck port
 	var healthPort = config.Datadog.GetInt("health_port")
@@ -177,7 +194,12 @@ func start(cmd *cobra.Command, args []string) error {
 	forwarderOpts.DisableAPIKeyChecking = true
 	f := forwarder.NewDefaultForwarder(forwarderOpts)
 	f.Start() //nolint:errcheck
-	s := serializer.NewSerializer(f)
+	// setup the orchestrator forwarder
+	orchestratorForwarder = orchcfg.NewOrchestratorForwarder(confPath)
+	if orchestratorForwarder != nil {
+		orchestratorForwarder.Start() //nolint:errcheck
+	}
+	s := serializer.NewSerializer(f, orchestratorForwarder)
 
 	aggregatorInstance := aggregator.InitAggregator(s, hostname)
 	aggregatorInstance.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
@@ -231,22 +253,6 @@ func start(cmd *cobra.Command, args []string) error {
 		clusterName := clustername.GetClusterName(hostname)
 		if clusterName == "" {
 			log.Warn("Failed to auto-detect a Kubernetes cluster name. We recommend you set it manually via the cluster_name config option")
-		}
-
-		// TODO: move rest of the controllers out of the apiserver package
-		orchestratorCtx := orchestrator.ControllerContext{
-			IsLeaderFunc:                 le.IsLeader,
-			UnassignedPodInformerFactory: apiCl.UnassignedPodInformerFactory,
-			InformerFactory:              apiCl.InformerFactory,
-			Client:                       apiCl.Cl,
-			StopCh:                       stopCh,
-			Hostname:                     hostname,
-			ClusterName:                  clusterName,
-			ConfigPath:                   confPath,
-		}
-		err = orchestrator.StartController(orchestratorCtx)
-		if err != nil {
-			log.Errorf("Could not start orchestrator controller: %v", err)
 		}
 	} else {
 		log.Info("Orchestrator explorer is disabled")
@@ -365,6 +371,14 @@ func start(cmd *cobra.Command, args []string) error {
 
 	if stopCh != nil {
 		close(stopCh)
+	}
+
+	// stopping forwarders
+	if f != nil {
+		f.Stop()
+	}
+	if orchestratorForwarder != nil {
+		orchestratorForwarder.Stop()
 	}
 
 	log.Info("See ya!")

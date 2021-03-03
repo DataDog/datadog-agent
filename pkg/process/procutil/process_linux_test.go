@@ -276,13 +276,17 @@ func TestMultipleProbes(t *testing.T) {
 
 	procByPID1, err := probe1.ProcessesByPID(now)
 	assert.NoError(t, err)
+	resetNiceValues(procByPID1)
 	procByPID2, err := probe2.ProcessesByPID(now)
 	assert.NoError(t, err)
+	resetNiceValues(procByPID2)
 	for i := 0; i < 10; i++ {
 		currProcByPID1, err := probe1.ProcessesByPID(now)
 		assert.NoError(t, err)
+		resetNiceValues(currProcByPID1)
 		currProcByPID2, err := probe2.ProcessesByPID(now)
 		assert.NoError(t, err)
+		resetNiceValues(currProcByPID2)
 		assert.EqualValues(t, currProcByPID1, currProcByPID2)
 		assert.EqualValues(t, currProcByPID1, procByPID1)
 		assert.EqualValues(t, currProcByPID2, procByPID2)
@@ -1173,5 +1177,14 @@ func makeBenchmarkDir(b *testing.B, dirPath string, fileCount int) {
 
 	for i := 0; i < fileCount; i++ {
 		createEmptyFile(dirPath + strconv.Itoa(i))
+	}
+}
+
+// resetNiceValues takes a group of processes and reset the "nice" values on them.
+// this is needed because the "nice" values are not extract from procfs but using system call,
+// so it might cause test flakiness if we don't reset the value
+func resetNiceValues(procs map[int32]*Process) {
+	for _, p := range procs {
+		p.Stats.Nice = 0
 	}
 }

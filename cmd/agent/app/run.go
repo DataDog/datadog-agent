@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
+	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
@@ -50,13 +51,23 @@ import (
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 
 	// register core checks
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/kubernetesapiserver"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/containerd"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/cri"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/docker"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/nvidia/jetson"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/filehandles"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/memory"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/uptime"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/systemd"
 
 	// register metadata providers
@@ -65,6 +76,11 @@ import (
 )
 
 var (
+	// flags variables
+	pidfilePath string
+
+	orchestratorForwarder *forwarder.DefaultForwarder
+
 	runCmd = &cobra.Command{
 		Use:   "run",
 		Short: "Run the Agent",
@@ -73,13 +89,7 @@ var (
 	}
 )
 
-var (
-	// flags variables
-	pidfilePath string
-)
-
 func init() {
-
 	// attach the command to the root
 	AgentCmd.AddCommand(runCmd)
 
@@ -231,6 +241,10 @@ func StartAgent() error {
 
 	log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
 
+	if err := util.SetupCoreDump(); err != nil {
+		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
+	}
+
 	// init settings that can be changed at runtime
 	if err := settings.InitRuntimeSettings(); err != nil {
 		log.Warnf("Can't initiliaze the runtime settings: %v", err)
@@ -325,8 +339,14 @@ func StartAgent() error {
 	common.Forwarder.Start() //nolint:errcheck
 	log.Debugf("Forwarder started")
 
+	// setup the orchestrator forwarder (only on cluster check runners)
+	orchestratorForwarder = orchcfg.NewOrchestratorForwarder(confFilePath)
+	if orchestratorForwarder != nil {
+		orchestratorForwarder.Start() //nolint:errcheck
+	}
+
 	// setup the aggregator
-	s := serializer.NewSerializer(common.Forwarder)
+	s := serializer.NewSerializer(common.Forwarder, orchestratorForwarder)
 	agg := aggregator.InitAggregator(s, hostname)
 	agg.AddAgentStartupTelemetry(version.AgentVersion)
 
@@ -433,6 +453,9 @@ func StopAgent() {
 	aggregator.StopDefaultAggregator()
 	if common.Forwarder != nil {
 		common.Forwarder.Stop()
+	}
+	if orchestratorForwarder != nil {
+		orchestratorForwarder.Stop()
 	}
 
 	logs.Stop()

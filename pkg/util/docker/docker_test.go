@@ -120,31 +120,33 @@ func TestResolveImageNameFromContainer(t *testing.T) {
 		expectedImage string
 	}{
 		{
-			name: "test empty Image",
-			input: types.ContainerJSON{
-				ContainerJSONBase: &types.ContainerJSONBase{Image: ""},
-				Config:            &container.Config{Image: "myapp"},
-			},
-			expectedImage: "",
-		}, {
-			name: "test standard image name",
-			input: types.ContainerJSON{
-				ContainerJSONBase: &types.ContainerJSONBase{Image: imageName},
-				Config:            &container.Config{Image: "myapp"},
-			},
-			expectedImage: imageName,
-		}, {
-			name: "test image name with sha tag",
-			input: types.ContainerJSON{
-				ContainerJSONBase: &types.ContainerJSONBase{Image: imageWithShaTag},
-				Config:            &container.Config{Image: "myapp"},
-			},
-			expectedImage: imageName,
-		}, {
-			name: "test image sha tag itself",
+			name: "test empty config image name",
 			input: types.ContainerJSON{
 				ContainerJSONBase: &types.ContainerJSONBase{Image: imageSha},
-				Config:            &container.Config{Image: "myapp"},
+				Config:            &container.Config{},
+			},
+			expectedImage: imageName,
+		}, {
+			name: "test standard config image name",
+			input: types.ContainerJSON{
+				ContainerJSONBase: &types.ContainerJSONBase{Image: "ignored"},
+				Config:            &container.Config{Image: imageName},
+			},
+			expectedImage: imageName,
+		},
+		{
+			name: "test config image name as sha tag",
+			input: types.ContainerJSON{
+				ContainerJSONBase: &types.ContainerJSONBase{Image: imageSha},
+				Config:            &container.Config{Image: imageSha},
+			},
+			expectedImage: imageName,
+		},
+		{
+			name: "test config image name with sha tag",
+			input: types.ContainerJSON{
+				ContainerJSONBase: &types.ContainerJSONBase{Image: imageSha},
+				Config:            &container.Config{Image: imageWithShaTag},
 			},
 			expectedImage: imageName,
 		},
@@ -172,69 +174,12 @@ func TestResolveImageNameFromContainerError(t *testing.T) {
 
 	input := types.ContainerJSON{
 		ContainerJSONBase: &types.ContainerJSONBase{Image: imageSha},
-		Config:            &container.Config{Image: "myapp"},
+		Config:            &container.Config{Image: imageSha},
 	}
 
 	result, err := globalDockerUtil.ResolveImageNameFromContainer(input)
 	assert.Equal(imageSha, result, "test failed; expected %s but got %s", imageSha, result)
 	assert.NotNil(err, "test failed; expected an error but got %s", err)
-}
-
-func TestGetBestImageName(t *testing.T) {
-	latest := "latest"
-	assert := assert.New(t)
-	for _, tc := range []struct {
-		name          string
-		imageInspect  types.ImageInspect
-		configImage   string
-		expectedImage string
-	}{
-		{
-			name: "only one repo tag",
-			imageInspect: types.ImageInspect{
-				ID:       "image_id",
-				RepoTags: []string{latest},
-			},
-			configImage:   latest,
-			expectedImage: latest,
-		}, {
-			name: "two repo tags and configImage matches one",
-			imageInspect: types.ImageInspect{
-				ID:       "image_id",
-				RepoTags: []string{latest, "random_tag"},
-			},
-			configImage:   latest,
-			expectedImage: latest,
-		}, {
-			name: "two repo tags and configImage does not match one",
-			imageInspect: types.ImageInspect{
-				ID:       "image_id",
-				RepoTags: []string{"random_tag1", "random_tag2"},
-			},
-			configImage:   latest,
-			expectedImage: "random_tag1",
-		}, {
-			name: "no repo tags but a repo digest",
-			imageInspect: types.ImageInspect{
-				ID:          "image_id",
-				RepoDigests: []string{"quay.io/foo/bar@sha256:hash"},
-			},
-			configImage:   latest,
-			expectedImage: "quay.io/foo/bar",
-		}, {
-			name: "no repo tags or repo digests, returns empty image name",
-			imageInspect: types.ImageInspect{
-				ID: "image_id",
-			},
-			configImage:   latest,
-			expectedImage: "",
-		},
-	} {
-		t.Run(fmt.Sprintf("test case: %s", tc.name), func(t *testing.T) {
-			result := getBestImageName(tc.imageInspect, tc.configImage)
-			assert.Equal(tc.expectedImage, result, "%s test failed: expected %s but got %s", tc.name, tc.expectedImage, result)
-		})
-	}
 }
 
 func TestParseECSContainerNetworkAddresses(t *testing.T) {

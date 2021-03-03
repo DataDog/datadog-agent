@@ -127,7 +127,7 @@ func (l *NamedPipeListener) Listen() {
 		case err.Error() == "use of closed network connection":
 			{
 				// Called when the pipe listener is closed from Stop()
-				log.Info("dogstatsd-named-pipes: stop listening")
+				log.Debug("dogstatsd-named-pipes: stop listening")
 				return
 			}
 		default:
@@ -137,20 +137,20 @@ func (l *NamedPipeListener) Listen() {
 }
 
 func (l *NamedPipeListener) listenConnection(conn net.Conn, buffer []byte) {
-	log.Infof("dogstatsd-named-pipes: start listening a new named pipe client on %s", conn.LocalAddr())
+	log.Debugf("dogstatsd-named-pipes: start listening a new named pipe client on %s", conn.LocalAddr())
 	startWriteIndex := 0
 	for {
 		bytesRead, err := conn.Read(buffer[startWriteIndex:])
 
 		if err != nil {
 			if err == io.EOF {
-				log.Infof("dogstatsd-named-pipes: client disconnected from %s", conn.LocalAddr())
+				log.Debugf("dogstatsd-named-pipes: client disconnected from %s", conn.LocalAddr())
 				break
 			}
 
 			// NamedPipeListener.Stop uses a timeout to stop listening.
 			if err == winio.ErrTimeout {
-				log.Infof("dogstatsd-named-pipes: stop listening a named pipe client on %s", conn.LocalAddr())
+				log.Debugf("dogstatsd-named-pipes: stop listening a named pipe client on %s", conn.LocalAddr())
 				break
 			}
 			log.Errorf("dogstatsd-named-pipes: error reading packet: %v", err.Error())

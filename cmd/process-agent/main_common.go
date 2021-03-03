@@ -17,12 +17,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/heartbeat"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/process/util/api"
+	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	ddutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -87,6 +88,10 @@ func runAgent(exit chan struct{}) {
 		cleanupAndExit(0)
 	}
 
+	if err := ddutil.SetupCoreDump(); err != nil {
+		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
+	}
+
 	if opts.check == "" && !opts.info && opts.pidfilePath != "" {
 		err := pidfile.WritePID(opts.pidfilePath)
 		if err != nil {
@@ -135,7 +140,7 @@ func runAgent(exit chan struct{}) {
 
 	// Initialize system-probe heartbeats
 	sysprobeMonitor, err := heartbeat.NewModuleMonitor(heartbeat.Options{
-		KeysPerDomain:      api.KeysPerDomains(cfg.APIEndpoints),
+		KeysPerDomain:      apicfg.KeysPerDomains(cfg.APIEndpoints),
 		SysprobeSocketPath: cfg.SystemProbeAddress,
 		HostName:           cfg.HostName,
 		TagVersion:         Version,

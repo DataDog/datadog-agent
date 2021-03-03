@@ -14,6 +14,7 @@ import (
 	"github.com/cenkalti/backoff"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/metadata"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/pb"
@@ -24,6 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/util"
+	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -127,6 +130,15 @@ func (t *Tagger) Tag(entityID string, cardinality collectors.TagCardinality) ([]
 	}
 
 	return []string{}, nil
+}
+
+// TagBuilder returns tags for a given entity at the desired cardinality.
+func (t *Tagger) TagBuilder(entityID string, cardinality collectors.TagCardinality, tb *util.TagsBuilder) error {
+	tags, err := t.Tag(entityID, cardinality)
+	if err == nil {
+		tb.Append(tags...)
+	}
+	return err
 }
 
 // Standard returns the standard tags for a given entity.
@@ -299,4 +311,8 @@ func convertEventType(t pb.EventType) (types.EventType, error) {
 
 func convertEntityID(id *pb.EntityId) string {
 	return fmt.Sprintf("%s://%s", id.Prefix, id.Uid)
+}
+
+func init() {
+	grpclog.SetLoggerV2(grpcutil.NewLogger())
 }

@@ -12,12 +12,15 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
 	"unsafe"
 
+	"github.com/cobaugh/osrelease"
 	"golang.org/x/sys/unix"
+	"gotest.tools/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
@@ -25,7 +28,7 @@ import (
 func TestDentryRename(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `rename.old.filename in ["{{.Root}}/test-rename", "{{.Root}}/test2-rename"]`,
+		Expression: `rename.file.path in ["{{.Root}}/test-rename", "{{.Root}}/test2-rename"]`,
 	}
 
 	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
@@ -65,7 +68,7 @@ func TestDentryRename(t *testing.T) {
 			if event.GetType() != "rename" {
 				t.Errorf("expected rename event, got %s", event.GetType())
 			}
-			if value, _ := event.GetFieldValue("rename.new.filename"); value.(string) != testNewFile {
+			if value, _ := event.GetFieldValue("rename.file.destination.path"); value.(string) != testNewFile {
 				t.Errorf("expected filename not found")
 			}
 		}
@@ -80,10 +83,10 @@ func TestDentryRename(t *testing.T) {
 func TestDentryRenameReuseInode(t *testing.T) {
 	rules := []*rules.RuleDefinition{{
 		ID:         "test_rule",
-		Expression: `open.filename == "{{.Root}}/test-rename-reuse-inode"`,
+		Expression: `open.file.path == "{{.Root}}/test-rename-reuse-inode"`,
 	}, {
 		ID:         "test_rule2",
-		Expression: `open.filename == "{{.Root}}/test-rename-new"`,
+		Expression: `open.file.path == "{{.Root}}/test-rename-new"`,
 	}}
 
 	testDrive, err := newTestDrive("xfs", nil)
@@ -168,7 +171,7 @@ func TestDentryRenameReuseInode(t *testing.T) {
 			t.Errorf("expected open event, got %s", event.GetType())
 		}
 
-		if value, _ := event.GetFieldValue("open.filename"); value.(string) != testReuseInodeFile {
+		if value, _ := event.GetFieldValue("open.file.path"); value.(string) != testReuseInodeFile {
 			t.Errorf("expected filename not found %s != %s", value.(string), testReuseInodeFile)
 		}
 	}
@@ -177,7 +180,7 @@ func TestDentryRenameReuseInode(t *testing.T) {
 func TestDentryRenameFolder(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.basename == "test-rename" && (open.flags & O_CREAT) > 0`,
+		Expression: `open.file.name == "test-rename" && (open.flags & O_CREAT) > 0`,
 	}
 
 	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
@@ -216,7 +219,7 @@ func TestDentryRenameFolder(t *testing.T) {
 				t.Errorf("expected open event, got %s", event.GetType())
 			}
 
-			if value, _ := event.GetFieldValue("open.filename"); value.(string) != filename {
+			if value, _ := event.GetFieldValue("open.file.path"); value.(string) != filename {
 				t.Errorf("#%d expected filename not found, `%s` != `%s`", i, value.(string), filename)
 			}
 
@@ -237,7 +240,7 @@ func TestDentryRenameFolder(t *testing.T) {
 func TestDentryUnlink(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `unlink.filename =~ "{{.Root}}/test-unlink-*"`,
+		Expression: `unlink.file.path =~ "{{.Root}}/test-unlink-*"`,
 	}
 
 	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
@@ -269,7 +272,7 @@ func TestDentryUnlink(t *testing.T) {
 				t.Errorf("expected unlink event, got %s", event.GetType())
 			}
 
-			if value, _ := event.GetFieldValue("unlink.filename"); value.(string) != testFile {
+			if value, _ := event.GetFieldValue("unlink.file.path"); value.(string) != testFile {
 				t.Errorf("expected filename not found")
 			}
 		}
@@ -279,7 +282,7 @@ func TestDentryUnlink(t *testing.T) {
 func TestDentryRmdir(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `rmdir.filename =~ "{{.Root}}/test-rmdir-*"`,
+		Expression: `rmdir.file.path =~ "{{.Root}}/test-rmdir-*"`,
 	}
 
 	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
@@ -310,7 +313,7 @@ func TestDentryRmdir(t *testing.T) {
 				t.Errorf("expected rmdir event, got %s", event.GetType())
 			}
 
-			if value, _ := event.GetFieldValue("rmdir.filename"); value.(string) != testFile {
+			if value, _ := event.GetFieldValue("rmdir.file.path"); value.(string) != testFile {
 				t.Errorf("expected filename not found")
 			}
 		}
@@ -336,50 +339,56 @@ func createOverlayLayers(t *testing.T, test *testModule) (string, string, string
 }
 
 func TestDentryOverlay(t *testing.T) {
-	if testEnvironment == DockerEnvironment {
+	sles12 := false
+	osrelease, err := osrelease.Read()
+	if err == nil {
+		sles12 = osrelease["NAME"] == "SLES" && strings.HasPrefix(osrelease["VERSION_ID"], "12")
+	}
+
+	if testEnvironment == DockerEnvironment || sles12 {
 		t.Skip()
 	}
 
 	rules := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_open",
-			Expression: `open.filename in ["{{.Root}}/merged/read.txt", "{{.Root}}/merged/override.txt", "{{.Root}}/merged/create.txt", "{{.Root}}/merged/new.txt", "{{.Root}}/merged/truncate.txt", "{{.Root}}/merged/linked.txt"]`,
+			Expression: `open.file.path in ["{{.Root}}/merged/read.txt", "{{.Root}}/merged/override.txt", "{{.Root}}/merged/create.txt", "{{.Root}}/merged/new.txt", "{{.Root}}/merged/truncate.txt", "{{.Root}}/merged/linked.txt"]`,
 		},
 		{
 			ID:         "test_rule_unlink",
-			Expression: `unlink.filename in ["{{.Root}}/merged/read.txt", "{{.Root}}/merged/override.txt", "{{.Root}}/merged/renamed.txt", "{{.Root}}/merged/new.txt", "{{.Root}}/merged/chmod.txt", "{{.Root}}/merged/utimes.txt", "{{.Root}}/merged/chown.txt", "{{.Root}}/merged/xattr.txt", "{{.Root}}/merged/truncate.txt", "{{.Root}}/merged/link.txt", "{{.Root}}/merged/linked.txt"]`,
+			Expression: `unlink.file.path in ["{{.Root}}/merged/read.txt", "{{.Root}}/merged/override.txt", "{{.Root}}/merged/renamed.txt", "{{.Root}}/merged/new.txt", "{{.Root}}/merged/chmod.txt", "{{.Root}}/merged/utimes.txt", "{{.Root}}/merged/chown.txt", "{{.Root}}/merged/xattr.txt", "{{.Root}}/merged/truncate.txt", "{{.Root}}/merged/link.txt", "{{.Root}}/merged/linked.txt"]`,
 		},
 		{
 			ID:         "test_rule_rename",
-			Expression: `rename.old.filename == "{{.Root}}/merged/create.txt"`,
+			Expression: `rename.file.path == "{{.Root}}/merged/create.txt"`,
 		},
 		{
 			ID:         "test_rule_rmdir",
-			Expression: `rmdir.filename == "{{.Root}}/merged/dir"`,
+			Expression: `rmdir.file.path == "{{.Root}}/merged/dir"`,
 		},
 		{
 			ID:         "test_rule_chmod",
-			Expression: `chmod.filename == "{{.Root}}/merged/chmod.txt"`,
+			Expression: `chmod.file.path == "{{.Root}}/merged/chmod.txt"`,
 		},
 		{
 			ID:         "test_rule_mkdir",
-			Expression: `mkdir.filename == "{{.Root}}/merged/mkdir"`,
+			Expression: `mkdir.file.path == "{{.Root}}/merged/mkdir"`,
 		},
 		{
 			ID:         "test_rule_utimes",
-			Expression: `utimes.filename == "{{.Root}}/merged/utimes.txt"`,
+			Expression: `utimes.file.path == "{{.Root}}/merged/utimes.txt"`,
 		},
 		{
 			ID:         "test_rule_chown",
-			Expression: `chown.filename == "{{.Root}}/merged/chown.txt"`,
+			Expression: `chown.file.path == "{{.Root}}/merged/chown.txt"`,
 		},
 		{
 			ID:         "test_rule_xattr",
-			Expression: `setxattr.filename == "{{.Root}}/merged/xattr.txt"`,
+			Expression: `setxattr.file.path == "{{.Root}}/merged/xattr.txt"`,
 		},
 		{
 			ID:         "test_rule_link",
-			Expression: `link.source.filename == "{{.Root}}/merged/linked.txt"`,
+			Expression: `link.file.path == "{{.Root}}/merged/linked.txt"`,
 		},
 	}
 
@@ -456,9 +465,8 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode = getInode(t, testFile); inode != event.Open.Inode {
-				t.Logf("expected inode not found %d(real) != %d\n", inode, event.Open.Inode)
-			}
+			inode = getInode(t, testFile)
+			assert.Equal(t, event.Open.File.Inode, inode, "wrong open inode")
 		}
 
 		if err := os.Remove(testFile); err != nil {
@@ -469,9 +477,7 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode != event.Unlink.Inode {
-				t.Logf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
-			}
+			assert.Equal(t, event.Unlink.File.Inode, inode, "wrong unlink inode")
 		}
 	})
 
@@ -495,11 +501,8 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode = getInode(t, testFile); inode != event.Open.Inode {
-				t.Logf("expected inode not found %d(real) != %d\n", inode, event.Open.Inode)
-			}
-
-			inode = event.Open.Inode
+			inode = getInode(t, testFile)
+			assert.Equal(t, inode, event.Open.File.Inode, "wrong open inode")
 		}
 
 		if err := os.Remove(testFile); err != nil {
@@ -510,9 +513,7 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode != event.Unlink.Inode {
-				t.Logf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
-			}
+			assert.Equal(t, event.Unlink.File.Inode, inode, "wrong unlink inode")
 		}
 	})
 
@@ -536,11 +537,8 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode = getInode(t, testFile); inode != event.Open.Inode {
-				t.Logf("expected inode not found %d(real) != %d\n", inode, event.Open.Inode)
-			}
-
-			inode = event.Open.Inode
+			inode = getInode(t, testFile)
+			assert.Equal(t, event.Open.File.Inode, inode, "wrong open inode")
 		}
 
 		if err := os.Remove(testFile); err != nil {
@@ -551,9 +549,7 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode != event.Unlink.Inode {
-				t.Logf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
-			}
+			assert.Equal(t, event.Unlink.File.Inode, inode, "wrong unlink inode")
 		}
 	})
 
@@ -578,15 +574,12 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if value, _ := event.GetFieldValue("rename.old.filename"); value.(string) != oldFile {
+			if value, _ := event.GetFieldValue("rename.file.path"); value.(string) != oldFile {
 				t.Errorf("expected filename not found %s != %s", value.(string), oldFile)
 			}
 
-			if inode = getInode(t, newFile); inode != event.Rename.New.Inode {
-				t.Logf("expected inode not found %d(real) != %d\n", inode, event.Rename.New.Inode)
-			}
-
-			inode = event.Rename.New.Inode
+			inode = getInode(t, newFile)
+			assert.Equal(t, event.Rename.New.Inode, inode, "wrong rename inode")
 		}
 
 		if err := os.Remove(newFile); err != nil {
@@ -597,9 +590,7 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode != event.Unlink.Inode {
-				t.Logf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
-			}
+			assert.Equal(t, event.Unlink.File.Inode, inode, "wrong unlink inode")
 		}
 	})
 
@@ -619,9 +610,7 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode != event.Rmdir.Inode {
-				t.Logf("expected inode not found %d(real) != %d\n", inode, event.Rename.New.Inode)
-			}
+			assert.Equal(t, event.Rmdir.File.Inode, inode, "wrong rmdir inode")
 		}
 	})
 
@@ -641,11 +630,8 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode = getInode(t, testFile); inode != event.Chmod.Inode {
-				t.Logf("expected inode not found %d(real) != %d\n", inode, event.Chmod.Inode)
-			}
-
-			inode = event.Chmod.Inode
+			inode = getInode(t, testFile)
+			assert.Equal(t, event.Chmod.File.Inode, inode, "wrong chmod inode")
 		}
 
 		if err := os.Remove(testFile); err != nil {
@@ -656,9 +642,7 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode != event.Unlink.Inode {
-				t.Logf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
-			}
+			assert.Equal(t, event.Unlink.File.Inode, inode, "wrong unlink inode")
 		}
 	})
 
@@ -676,9 +660,8 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode := getInode(t, testFile); inode != event.Mkdir.Inode {
-				t.Logf("expected inode not found %d(real) != %d\n", inode, event.Mkdir.Inode)
-			}
+			inode := getInode(t, testFile)
+			assert.Equal(t, event.Mkdir.File.Inode, inode, "wrong mkdir inode")
 		}
 	})
 
@@ -698,11 +681,8 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode = getInode(t, testFile); inode != event.Utimes.Inode {
-				t.Logf("expected inode not found %d(real) != %d\n", inode, event.Utimes.Inode)
-			}
-
-			inode = event.Utimes.Inode
+			inode = getInode(t, testFile)
+			assert.Equal(t, event.Utimes.File.Inode, inode, "wrong utimes inode")
 		}
 
 		if err := os.Remove(testFile); err != nil {
@@ -713,9 +693,7 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode != event.Unlink.Inode {
-				t.Logf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
-			}
+			assert.Equal(t, event.Unlink.File.Inode, inode, "wrong unlink inode")
 		}
 	})
 
@@ -735,11 +713,8 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode = getInode(t, testFile); inode != event.Chown.Inode {
-				t.Logf("expected inode not found %d(real) != %d\n", inode, event.Chown.Inode)
-			}
-
-			inode = event.Chown.Inode
+			inode = getInode(t, testFile)
+			assert.Equal(t, event.Chown.File.Inode, inode, "wrong chown inode")
 		}
 
 		if err := os.Remove(testFile); err != nil {
@@ -750,9 +725,7 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode != event.Unlink.Inode {
-				t.Logf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
-			}
+			assert.Equal(t, event.Unlink.File.Inode, inode, "wrong unlink inode")
 		}
 	})
 
@@ -780,11 +753,8 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode = getInode(t, testFile); inode != event.SetXAttr.Inode {
-				t.Logf("expected inode not found %d(real) != %d\n", inode, event.SetXAttr.Inode)
-			}
-
-			inode = event.SetXAttr.Inode
+			inode = getInode(t, testFile)
+			assert.Equal(t, event.SetXAttr.File.Inode, inode, "wrong setxattr inode")
 		}
 
 		if err := os.Remove(testFile); err != nil {
@@ -795,9 +765,7 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode != event.Unlink.Inode {
-				t.Logf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
-			}
+			assert.Equal(t, event.Unlink.File.Inode, inode, "wrong unlink inode")
 		}
 	})
 
@@ -817,11 +785,8 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode = getInode(t, testFile); inode != event.Open.Inode {
-				t.Logf("expected inode not found %d(real) != %d\n", inode, event.Open.Inode)
-			}
-
-			inode = event.Open.Inode
+			inode = getInode(t, testFile)
+			assert.Equal(t, event.Open.File.Inode, inode, "wrong open inode")
 		}
 
 		if err := os.Remove(testFile); err != nil {
@@ -832,9 +797,7 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode != event.Unlink.Inode {
-				t.Logf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
-			}
+			assert.Equal(t, event.Unlink.File.Inode, inode, "wrong unlink inode")
 		}
 	})
 
@@ -859,11 +822,8 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode = getInode(t, testSrc); inode != event.Link.Source.Inode {
-				t.Logf("expected inode not found %d(real) != %d\n", inode, event.Link.Source.Inode)
-			}
-
-			inode = event.Link.Source.Inode
+			inode = getInode(t, testSrc)
+			assert.Equal(t, event.Link.Source.Inode, inode, "wrong link inode")
 		}
 
 		if err := os.Remove(testSrc); err != nil {
@@ -874,9 +834,7 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode != event.Unlink.Inode {
-				t.Logf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
-			}
+			assert.Equal(t, event.Unlink.File.Inode, inode, "wrong unlink inode")
 		}
 
 		if err := os.Remove(testTarget); err != nil {
@@ -887,9 +845,7 @@ func TestDentryOverlay(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if inode != event.Unlink.Inode {
-				t.Logf("expected inode not found %d != %d\n", inode, event.Unlink.Inode)
-			}
+			assert.Equal(t, event.Unlink.File.Inode, inode, "wrong unlink inode")
 		}
 	})
 

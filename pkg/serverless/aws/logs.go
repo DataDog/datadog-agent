@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package aws
 
 import (
@@ -21,6 +26,8 @@ const (
 	LogTypePlatformEnd = "platform.end"
 	// LogTypePlatformReport is used for the log messages containing a report of the last invocation.
 	LogTypePlatformReport = "platform.report"
+	// LogTypePlatformLogsDropped is used when AWS has dropped logs because we were unable to consume them fast enough.
+	LogTypePlatformLogsDropped = "platform.logsDropped"
 )
 
 // LogMessage is a log message sent by the AWS API.
@@ -28,20 +35,25 @@ type LogMessage struct {
 	Time time.Time
 	ARN  string
 	Type string
-	// "extension" / "function" log messages contain a record which basically a log string
+	// "extension" / "function" log messages contain a record which is basically a log string
 	StringRecord string `json:"record"`
-	// platform log messages contain a struct record object
-	ObjectRecord struct {
-		RequestID string // uuid; LogTypePlatform{Start,End,Report}
-		Version   string // LogTypePlatformStart
-		Metrics   struct {
-			DurationMs       float64
-			BilledDurationMs int
-			MemorySizeMB     int
-			MaxMemoryUsedMB  int
-			InitDurationMs   float64
-		}
-	}
+	ObjectRecord PlatformObjectRecord
+}
+
+// PlatformObjectRecord contains additional information found in Platform log messages
+type PlatformObjectRecord struct {
+	RequestID string           // uuid; present in LogTypePlatform{Start,End,Report}
+	Version   string           // present in LogTypePlatformStart only
+	Metrics   ReportLogMetrics // present in LogTypePlatformReport only
+}
+
+// ReportLogMetrics contains metrics found in a LogTypePlatformReport log
+type ReportLogMetrics struct {
+	DurationMs       float64
+	BilledDurationMs int
+	MemorySizeMB     int
+	MaxMemoryUsedMB  int
+	InitDurationMs   float64
 }
 
 // UnmarshalJSON unmarshals the given bytes in a LogMessage object.

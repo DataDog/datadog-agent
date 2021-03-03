@@ -7,13 +7,16 @@ package serializer
 
 import (
 	"encoding/json"
+	"errors"
 	"expvar"
 	"fmt"
 	"net/http"
-	"regexp"
+	"strconv"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	"github.com/DataDog/datadog-agent/pkg/serializer/jsonstream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
@@ -25,7 +28,6 @@ const (
 	protobufContentType                         = "application/x-protobuf"
 	jsonContentType                             = "application/json"
 	payloadVersionHTTPHeader                    = "DD-Agent-Payload"
-	apiKeyReplacement                           = "\"apiKey\":\"*************************$1"
 	maxItemCountForCreateMarshalersBySourceType = 100
 )
 
@@ -43,8 +45,6 @@ var (
 	expvarsSendEventsErrItemTooBigs         = expvar.Int{}
 	expvarsSendEventsErrItemTooBigsFallback = expvar.Int{}
 )
-
-var apiKeyRegExp = regexp.MustCompile("\"apiKey\":\"*\\w+(\\w{5})")
 
 func init() {
 	expvars.Set("SendEventsErrItemTooBigs", &expvarsSendEventsErrItemTooBigs)
@@ -98,11 +98,13 @@ type MetricSerializer interface {
 	SendMetadata(m marshaler.Marshaler) error
 	SendHostMetadata(m marshaler.Marshaler) error
 	SendJSONToV1Intake(data interface{}) error
+	SendOrchestratorMetadata(msgs []ProcessMessageBody, hostName, clusterID, payloadType string) error
 }
 
 // Serializer serializes metrics to the correct format and routes the payloads to the correct endpoint in the Forwarder
 type Serializer struct {
-	Forwarder forwarder.Forwarder
+	Forwarder             forwarder.Forwarder
+	orchestratorForwarder forwarder.Forwarder
 
 	seriesPayloadBuilder *jsonstream.PayloadBuilder
 
@@ -123,9 +125,10 @@ type Serializer struct {
 }
 
 // NewSerializer returns a new Serializer initialized
-func NewSerializer(forwarder forwarder.Forwarder) *Serializer {
+func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder forwarder.Forwarder) *Serializer {
 	s := &Serializer{
 		Forwarder:                     forwarder,
+		orchestratorForwarder:         orchestratorForwarder,
 		seriesPayloadBuilder:          jsonstream.NewPayloadBuilder(),
 		enableEvents:                  config.Datadog.GetBool("enable_payloads.events"),
 		enableSeries:                  config.Datadog.GetBool("enable_payloads.series"),
@@ -348,7 +351,7 @@ func (s *Serializer) sendMetadata(m marshaler.Marshaler, submit func(payload for
 		return fmt.Errorf("could not determine size of metadata payload: %s", err)
 	}
 
-	log.Debugf("Sending metadata payload, content: %v", apiKeyRegExp.ReplaceAllString(string(payload), apiKeyReplacement))
+	log.Debugf("Sending metadata payload, content: %v", string(payload))
 
 	if mustSplit {
 		return fmt.Errorf("metadata payload was too big to send (%d bytes compressed, %d bytes uncompressed), metadata payloads cannot be split", len(compressedPayload), len(payload))
@@ -379,6 +382,37 @@ func (s *Serializer) SendJSONToV1Intake(data interface{}) error {
 	}
 
 	log.Infof("Sent processes metadata payload, size: %d bytes.", len(payload))
-	log.Debugf("Sent processes metadata payload, content: %v", apiKeyRegExp.ReplaceAllString(string(payload), apiKeyReplacement))
+	log.Debugf("Sent processes metadata payload, content: %v", string(payload))
+	return nil
+}
+
+// SendOrchestratorMetadata serializes & send orchestrator metadata payloads
+func (s *Serializer) SendOrchestratorMetadata(msgs []ProcessMessageBody, hostName, clusterID, payloadType string) error {
+	if s.orchestratorForwarder == nil {
+		return errors.New("orchestrator forwarder is not setup")
+	}
+	for _, m := range msgs {
+		extraHeaders := make(http.Header)
+		extraHeaders.Set(headers.HostHeader, hostName)
+		extraHeaders.Set(headers.ClusterIDHeader, clusterID)
+		extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(time.Now().Unix())))
+
+		body, err := processPayloadEncoder(m)
+		if err != nil {
+			return log.Errorf("Unable to encode message: %s", err)
+		}
+
+		payloads := forwarder.Payloads{&body}
+		responses, err := s.orchestratorForwarder.SubmitOrchestratorChecks(payloads, extraHeaders, payloadType)
+		if err != nil {
+			return log.Errorf("Unable to submit payload: %s", err)
+		}
+
+		// Consume the responses so that writers to the channel do not become blocked
+		// we don't need the bodies here though
+		for range responses {
+
+		}
+	}
 	return nil
 }

@@ -13,18 +13,20 @@ struct setxattr_event_t {
 };
 
 int __attribute__((always_inline)) trace__sys_setxattr(const char *xattr_name) {
+    struct policy_t policy = fetch_policy(EVENT_SETXATTR);
+    if (is_discarded_by_process(policy.mode, EVENT_SETXATTR)) {
+        return 0;
+    }
+
     struct syscall_cache_t syscall = {
         .type = SYSCALL_SETXATTR,
+        .policy = policy,
         .setxattr = {
             .name = xattr_name,
         }
     };
 
-    cache_syscall(&syscall, EVENT_SETXATTR);
-
-    if (discarded_by_process(syscall.policy.mode, EVENT_SETXATTR)) {
-        pop_syscall(SYSCALL_SETXATTR);
-    }
+    cache_syscall(&syscall);
 
     return 0;
 }
@@ -42,14 +44,21 @@ SYSCALL_KPROBE2(fsetxattr, int, fd, const char *, name) {
 }
 
 int __attribute__((always_inline)) trace__sys_removexattr(const char *xattr_name) {
+    struct policy_t policy = fetch_policy(EVENT_REMOVEXATTR);
+    if (is_discarded_by_process(policy.mode, EVENT_REMOVEXATTR)) {
+        return 0;
+    }
+
     struct syscall_cache_t syscall = {
         .type = SYSCALL_REMOVEXATTR,
+        .policy = policy,
         .setxattr = {
             .name = xattr_name,
         }
     };
 
-    cache_syscall(&syscall, EVENT_REMOVEXATTR);
+    cache_syscall(&syscall);
+
     return 0;
 }
 
@@ -122,6 +131,7 @@ int __attribute__((always_inline)) trace__sys_setxattr_ret(struct pt_regs *ctx, 
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
+    fill_file_metadata(syscall->setxattr.dentry, &event.file.metadata);
 
     send_event(ctx, event_type, event);
 

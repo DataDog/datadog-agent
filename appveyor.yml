@@ -39,7 +39,7 @@ install:
 cache:
   - '%GOPATH%\bin'
   - '%LOCALAPPDATA%\pip\Cache'
-  - '%GOPATH%\src\github.com\DataDog\datadog-agent\vendor'
+  - '%GOPATH%\pkg\mod'
 
 build: off
 

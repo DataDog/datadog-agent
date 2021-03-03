@@ -154,6 +154,10 @@ func runAgent(ctx context.Context) (err error) {
 		return
 	}
 
+	if err := util.SetupCoreDump(); err != nil {
+		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
+	}
+
 	if !config.Datadog.IsSet("api_key") {
 		err = log.Critical("no API key configured, exiting")
 		return
@@ -177,7 +181,7 @@ func runAgent(ctx context.Context) (err error) {
 	}
 	f := forwarder.NewDefaultForwarder(forwarder.NewOptions(keysPerDomain))
 	f.Start() //nolint:errcheck
-	s := serializer.NewSerializer(f)
+	s := serializer.NewSerializer(f, nil)
 
 	hname, err := util.GetHostname()
 	if err != nil {

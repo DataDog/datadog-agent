@@ -3,6 +3,10 @@
 
 #include "syscalls.h"
 
+int __attribute__((always_inline)) chmod_approvers(struct syscall_cache_t *syscall);
+int __attribute__((always_inline)) chown_approvers(struct syscall_cache_t *syscall);
+int __attribute__((always_inline)) utime_approvers(struct syscall_cache_t *syscall);
+
 SEC("kprobe/security_inode_setattr")
 int kprobe__security_inode_setattr(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(SYSCALL_UTIME | SYSCALL_CHMOD | SYSCALL_CHOWN);
@@ -10,6 +14,7 @@ int kprobe__security_inode_setattr(struct pt_regs *ctx) {
         return 0;
 
     struct dentry *dentry = (struct dentry *)PT_REGS_PARM1(ctx);
+    fill_file_metadata(dentry, &syscall->setattr.metadata);
 
     struct iattr *iattr = (struct iattr *)PT_REGS_PARM2(ctx);
     if (iattr != NULL) {
@@ -40,19 +45,28 @@ int kprobe__security_inode_setattr(struct pt_regs *ctx) {
     u64 event_type = 0;
     switch (syscall->type) {
         case SYSCALL_UTIME:
+            if (filter_syscall(syscall, utime_approvers)) {
+                return discard_syscall(syscall);
+            }
             event_type = EVENT_UTIME;
             break;
         case SYSCALL_CHMOD:
+            if (filter_syscall(syscall, chmod_approvers)) {
+                return discard_syscall(syscall);
+            }
             event_type = EVENT_CHMOD;
             break;
         case SYSCALL_CHOWN:
+            if (filter_syscall(syscall, chown_approvers)) {
+                return discard_syscall(syscall);
+            }
             event_type = EVENT_CHOWN;
             break;
     }
 
     int ret = resolve_dentry(syscall->setattr.dentry, syscall->setattr.path_key, syscall->policy.mode != NO_FILTER ? event_type : 0);
     if (ret == DENTRY_DISCARDED) {
-        pop_syscall(syscall->type);
+        return discard_syscall(syscall);
     }
 
     return 0;

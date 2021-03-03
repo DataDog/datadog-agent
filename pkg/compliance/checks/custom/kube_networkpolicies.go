@@ -6,6 +6,7 @@
 package custom
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
@@ -29,7 +30,7 @@ func kubernetesNetworkPoliciesCheck(e env.Env, ruleID string, vars map[string]st
 	namespaces, err := e.KubeClient().Resource(schema.GroupVersionResource{
 		Resource: "namespaces",
 		Version:  "v1",
-	}).List(metav1.ListOptions{})
+	}).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("error while listing namespaces - rule: %s - err: %v", ruleID, err)
 	}
@@ -46,7 +47,7 @@ func kubernetesNetworkPoliciesCheck(e env.Env, ruleID string, vars map[string]st
 		Group:    "networking.k8s.io",
 		Resource: "networkpolicies",
 		Version:  "v1",
-	}).List(metav1.ListOptions{})
+	}).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("error while listing network policies - rule: %s - err: %v", ruleID, err)
 	}

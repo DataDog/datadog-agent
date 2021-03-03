@@ -18,7 +18,6 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // Field name
@@ -54,16 +53,9 @@ type FieldValue struct {
 
 // Opts are the options to be passed to the evaluator
 type Opts struct {
-	Constants map[string]interface{}
-	Macros    map[MacroID]*Macro
-}
-
-// NewOptsWithParams initializes a new Opts instance with Constants parameters
-func NewOptsWithParams(constants map[string]interface{}) *Opts {
-	return &Opts{
-		Constants: constants,
-		Macros:    make(map[MacroID]*Macro),
-	}
+	LegacyAttributes map[Field]Field
+	Constants        map[string]interface{}
+	Macros           map[MacroID]*Macro
 }
 
 // Evaluator is the interface of an evaluator
@@ -497,6 +489,16 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, in
 				return nil, nil, obj.Pos, err
 			}
 
+			// transform extracted field to support legacy SECL attributes
+			if opts.LegacyAttributes != nil {
+				if newField, ok := opts.LegacyAttributes[field]; ok {
+					field = newField
+				}
+				if newField, ok := opts.LegacyAttributes[field]; ok {
+					itField = newField
+				}
+			}
+
 			// extract iterator
 			var iterator Iterator
 			if itField != "" {
@@ -523,7 +525,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, in
 			if iterator != nil {
 				// regID not specified generate one
 				if regID == "" {
-					regID = utils.RandString(8)
+					regID = RandString(8)
 				}
 
 				if info, exists := state.registersInfo[regID]; exists {

@@ -29,7 +29,7 @@ func TestMacros(t *testing.T) {
 	rules := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule",
-			Expression: `testmacro in testmacro2 && mkdir.filename in testmacro2`,
+			Expression: `testmacro in testmacro2 && mkdir.file.path in testmacro2`,
 		},
 	}
 

@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/process/util/api"
+	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -35,9 +35,23 @@ const (
 	defaultRuntimeCompilerOutputDir = "/var/tmp/datadog-agent/system-probe/build"
 )
 
+// Name for check performed by process-agent or system-probe
+const (
+	ProcessCheckName     = "process"
+	RTProcessCheckName   = "rtprocess"
+	ContainerCheckName   = "container"
+	RTContainerCheckName = "rtcontainer"
+	ConnectionsCheckName = "connections"
+	PodCheckName         = "pod"
+
+	NetworkCheckName        = "Network"
+	OOMKillCheckName        = "OOM Kill"
+	TCPQueueLengthCheckName = "TCP queue length"
+)
+
 var (
-	processChecks   = []string{"process", "rtprocess"}
-	containerChecks = []string{"container", "rtcontainer"}
+	processChecks   = []string{ProcessCheckName, RTProcessCheckName}
+	containerChecks = []string{ContainerCheckName, RTContainerCheckName}
 )
 
 type proxyFunc func(*http.Request) (*url.URL, error)
@@ -63,7 +77,7 @@ type WindowsConfig struct {
 type AgentConfig struct {
 	Enabled              bool
 	HostName             string
-	APIEndpoints         []api.Endpoint
+	APIEndpoints         []apicfg.Endpoint
 	LogFile              string
 	LogLevel             string
 	LogToConsole         bool
@@ -106,6 +120,7 @@ type AgentConfig struct {
 	EnableConntrack                bool
 	ConntrackMaxStateSize          int
 	ConntrackRateLimit             int
+	IgnoreConntrackInitFailure     bool
 	EnableConntrackAllNamespaces   bool
 	SystemProbeDebugPort           int
 	ClosedChannelSize              int
@@ -189,7 +204,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 
 	ac := &AgentConfig{
 		Enabled:      canAccessContainers, // We'll always run inside of a container.
-		APIEndpoints: []api.Endpoint{{Endpoint: processEndpoint}},
+		APIEndpoints: []apicfg.Endpoint{{Endpoint: processEndpoint}},
 		LogFile:      defaultLogFilePath,
 		LogLevel:     "info",
 		LogToConsole: false,
@@ -227,6 +242,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		ClosedChannelSize:            500,
 		ConntrackMaxStateSize:        defaultMaxTrackedConnections * 2,
 		ConntrackRateLimit:           500,
+		IgnoreConntrackInitFailure:   false,
 		EnableConntrackAllNamespaces: true,
 		OffsetGuessThreshold:         400,
 		EnableTracepoints:            false,
@@ -241,12 +257,12 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		// Check config
 		EnabledChecks: enabledChecks,
 		CheckIntervals: map[string]time.Duration{
-			"process":     10 * time.Second,
-			"rtprocess":   2 * time.Second,
-			"container":   10 * time.Second,
-			"rtcontainer": 2 * time.Second,
-			"connections": 30 * time.Second,
-			"pod":         10 * time.Second,
+			ProcessCheckName:     10 * time.Second,
+			RTProcessCheckName:   2 * time.Second,
+			ContainerCheckName:   10 * time.Second,
+			RTContainerCheckName: 2 * time.Second,
+			ConnectionsCheckName: 30 * time.Second,
+			PodCheckName:         10 * time.Second,
 		},
 
 		// DataScrubber to hide command line sensitive words
@@ -387,7 +403,7 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	// activate the pod collection if enabled and we have the cluster name set
 	if cfg.Orchestrator.OrchestrationCollectionEnabled {
 		if cfg.Orchestrator.KubeClusterName != "" {
-			cfg.EnabledChecks = append(cfg.EnabledChecks, "pod")
+			cfg.EnabledChecks = append(cfg.EnabledChecks, PodCheckName)
 		} else {
 			log.Warnf("Failed to auto-detect a Kubernetes cluster name. Pod collection will not start. To fix this, set it manually via the cluster_name config option")
 		}
@@ -505,9 +521,9 @@ func loadSysProbeEnvVariables() {
 		{"DD_SYSTEM_PROBE_ENABLED", "system_probe_config.enabled"},
 		{"DD_SYSTEM_PROBE_NETWORK_ENABLED", "network_config.enabled"},
 		{"DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "network_config.enable_http_monitoring"},
-		{"DD_SYSPROBE_SOCKET", "system_probe_config.sysprobe_socket"},
 		{"DD_SYSTEM_PROBE_CONNTRACK_IGNORE_ENOBUFS", "system_probe_config.conntrack_ignore_enobufs"},
 		{"DD_SYSTEM_PROBE_ENABLE_CONNTRACK_ALL_NAMESPACES", "system_probe_config.enable_conntrack_all_namespaces"},
+		{"DD_SYSTEM_PROBE_NETWORK_IGNORE_CONNTRACK_INIT_FAILURE", "network_config.ignore_conntrack_init_failure"},
 		{"DD_DISABLE_TCP_TRACING", "system_probe_config.disable_tcp"},
 		{"DD_DISABLE_UDP_TRACING", "system_probe_config.disable_udp"},
 		{"DD_DISABLE_IPV6_TRACING", "system_probe_config.disable_ipv6"},
@@ -526,6 +542,14 @@ func loadSysProbeEnvVariables() {
 	} {
 		if v, ok := os.LookupEnv(variable.env); ok {
 			config.Datadog.Set(variable.cfg, v)
+		}
+	}
+
+	if v, ok := os.LookupEnv("DD_SYSPROBE_SOCKET"); ok {
+		if err := ValidateSysprobeSocket(v); err != nil {
+			log.Errorf("Could not parse DD_SYSPROBE_SOCKET: %s", err)
+		} else {
+			config.Datadog.Set(key(spNS, "sysprobe_socket"), v)
 		}
 	}
 }
