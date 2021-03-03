@@ -10,6 +10,7 @@ package cloudfoundry
 import (
 	"context"
 	"os"
+	"regexp"
 	"testing"
 	"time"
 )
@@ -28,7 +29,7 @@ var (
 func TestMain(m *testing.M) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	bc, _ = ConfigureGlobalBBSCache(ctx, "url", "", "", "", time.Second, &testBBSClient{})
+	bc, _ = ConfigureGlobalBBSCache(ctx, "url", "", "", "", time.Second, []*regexp.Regexp{}, []*regexp.Regexp{}, &testBBSClient{})
 	cc, _ = ConfigureGlobalCCCache(ctx, "url", "", "", false, time.Second, &testCCClient{})
 	for range []int{0, 1} {
 		if cc.GetPollSuccesses() == 0 || bc.GetPollSuccesses() == 0 {

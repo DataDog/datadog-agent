@@ -10,6 +10,7 @@ package cloudfoundry
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"sync"
 	"time"
 
@@ -43,6 +44,8 @@ type BBSCache struct {
 	pollInterval       time.Duration
 	pollAttempts       int
 	pollSuccesses      int
+	envIncludeList     []*regexp.Regexp
+	envExcludeList     []*regexp.Regexp
 	// maps Desired LRPs' AppGUID to list of ActualLRPs (IOW this is list of running containers per app)
 	actualLRPsByProcessGUID map[string][]*ActualLRP
 	actualLRPsByCellID      map[string][]*ActualLRP
@@ -57,7 +60,7 @@ var (
 )
 
 // ConfigureGlobalBBSCache configures the global instance of BBSCache from provided config
-func ConfigureGlobalBBSCache(ctx context.Context, bbsURL, cafile, certfile, keyfile string, pollInterval time.Duration, testing bbs.Client) (*BBSCache, error) {
+func ConfigureGlobalBBSCache(ctx context.Context, bbsURL, cafile, certfile, keyfile string, pollInterval time.Duration, includeList, excludeList []*regexp.Regexp, testing bbs.Client) (*BBSCache, error) {
 	globalBBSCacheLock.Lock()
 	defer globalBBSCacheLock.Unlock()
 
@@ -92,6 +95,8 @@ func ConfigureGlobalBBSCache(ctx context.Context, bbsURL, cafile, certfile, keyf
 	globalBBSCache.pollInterval = pollInterval
 	globalBBSCache.lastUpdated = time.Time{} // zero time
 	globalBBSCache.cancelContext = ctx
+	globalBBSCache.envIncludeList = includeList
+	globalBBSCache.envExcludeList = excludeList
 
 	go globalBBSCache.start()
 
@@ -266,7 +271,7 @@ func (bc *BBSCache) readDesiredLRPs() (map[string]*DesiredLRP, error) {
 	}
 	desiredLRPs := make(map[string]*DesiredLRP, len(desiredLRPsBBS))
 	for _, lrp := range desiredLRPsBBS {
-		desiredLRP := DesiredLRPFromBBSModel(lrp)
+		desiredLRP := DesiredLRPFromBBSModel(lrp, bc.envIncludeList, bc.envExcludeList)
 		desiredLRPs[desiredLRP.ProcessGUID] = &desiredLRP
 	}
 	log.Debugf("Successfully read %d Desired LRPs", len(desiredLRPsBBS))
