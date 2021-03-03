@@ -9,6 +9,7 @@ import (
 	"github.com/mdlayher/netlink"
 )
 
+// Copyright (C) 2016-2021 Matt Layher
 // Copied from github.com/mdlayher/netlink/align.go
 // Functions and values used to properly align netlink messages, headers,
 // and attributes. Definitions taken from Linux kernel source.
