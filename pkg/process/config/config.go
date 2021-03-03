@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
+	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -557,7 +558,6 @@ func isAffirmative(value string) (bool, error) {
 // via cli and lastly falling back to os.Hostname() if it is unavailable
 func getHostname(ddAgentBin string) (string, error) {
 	// Fargate is handled as an exceptional case (there is no concept of a host, so we use the ARN in-place).
-	// We also support config/env overrides so we need to check that none is set
 	if fargate.IsFargateInstance() {
 		hostname, err := fargate.GetFargateHost()
 		if err == nil {
@@ -567,7 +567,7 @@ func getHostname(ddAgentBin string) (string, error) {
 	}
 
 	// Get the hostname via gRPC from the main agent if a hostname has not been set either from config/fargate
-	hostname, err := getHostnameFromGRPC(util.GetDDAgentClient)
+	hostname, err := getHostnameFromGRPC(grpc.GetDDAgentClient)
 	if err == nil {
 		return hostname, nil
 	}
