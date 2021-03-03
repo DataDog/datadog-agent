@@ -166,15 +166,10 @@ SEC("kprobe/ip6_make_skb")
 int kprobe__ip6_make_skb(struct pt_regs* ctx) {
     u64 zero = 0;
     tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
-
     if (status == NULL) {
         return 0;
     }
     struct flowi6* fl6 = (struct flowi6*)PT_REGS_PARM7(ctx);
-    if (fl6 == NULL) {
-        return 0;
-    }
-
     guess_offsets(status, NULL, NULL, fl6);
     return 0;
 }
@@ -183,15 +178,10 @@ SEC("kprobe/ip6_make_skb/pre_4_7_0")
 int kprobe__ip6_make_skb__pre_4_7_0(struct pt_regs* ctx) {
     u64 zero = 0;
     tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
-
     if (status == NULL) {
         return 0;
     }
     struct flowi6* fl6 = (struct flowi6*)PT_REGS_PARM9(ctx);
-    if (fl6 == NULL) {
-        return 0;
-    }
-
     guess_offsets(status, NULL, NULL, fl6);
     return 0;
 }
