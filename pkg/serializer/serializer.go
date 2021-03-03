@@ -315,8 +315,6 @@ func (s *Serializer) SendSketch(sketches marshaler.Marshaler) error {
 		return nil
 	}
 
-	var extraHeaders http.Header
-
 	if s.enableSketchProtobufStream {
 		payloads, err := sketches.MarshalSplitCompress(marshaler.DefaultBufferContext())
 		if err == nil {

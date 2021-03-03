@@ -24,9 +24,9 @@ const (
 )
 
 var (
+	compressorExpvars    = expvar.NewMap("compressor")
 	expvarsTotalPayloads = expvar.Int{}
 	expvarsTotalCycles   = expvar.Int{}
-	expvarsItemDrops     = expvar.Int{}
 	expvarsBytesIn       = expvar.Int{}
 	expvarsBytesOut      = expvar.Int{}
 
@@ -51,6 +51,13 @@ var (
 	// ErrItemTooBig is returned when a item alone exceeds maximum payload size
 	ErrItemTooBig = errors.New("item alone exceeds maximum payload size")
 )
+
+func init() {
+	compressorExpvars.Set("TotalPayloads", &expvarsTotalPayloads)
+	compressorExpvars.Set("TotalCompressCycles", &expvarsTotalCycles)
+	compressorExpvars.Set("BytesIn", &expvarsBytesIn)
+	compressorExpvars.Set("BytesOut", &expvarsBytesOut)
+}
 
 // compressor is in charge of compressing items for a single payload
 type Compressor struct {

@@ -21,11 +21,12 @@ import (
 
 var (
 	// TODO(remy): could probably removed as not appearing in the status page
-	expvars                = expvar.NewMap("jsonstream")
+	jsonStreamExpvars      = expvar.NewMap("jsonstream")
 	expvarsTotalCalls      = expvar.Int{}
 	expvarsTotalItems      = expvar.Int{}
 	expvarsWriteItemErrors = expvar.Int{}
 	expvarsPayloadFulls    = expvar.Int{}
+	expvarsItemDrops       = expvar.Int{}
 
 	tlmTotalCalls = telemetry.NewCounter("jsonstream", "total_calls",
 		nil, "Total calls to the jsontream serializer")
@@ -36,7 +37,7 @@ var (
 	tlmWriteItemErrors = telemetry.NewCounter("jsonstream", "write_item_errors",
 		nil, "Count of 'write item errors' in the jsonstream serializer")
 	tlmPayloadFull = telemetry.NewCounter("jsonstream", "payload_full",
-		nil, "How many times we've hit a 'paylodad is full' in the jsonstream serializer")
+		nil, "How many times we've hit a 'payload is full' in the jsonstream serializer")
 )
 
 var jsonConfig = jsoniter.Config{
@@ -45,10 +46,11 @@ var jsonConfig = jsoniter.Config{
 }.Froze()
 
 func init() {
-	expvars.Set("TotalCalls", &expvarsTotalCalls)
-	expvars.Set("TotalItems", &expvarsTotalItems)
-	expvars.Set("WriteItemErrors", &expvarsWriteItemErrors)
-	expvars.Set("PayloadFulls", &expvarsPayloadFulls)
+	jsonStreamExpvars.Set("TotalCalls", &expvarsTotalCalls)
+	jsonStreamExpvars.Set("TotalItems", &expvarsTotalItems)
+	jsonStreamExpvars.Set("WriteItemErrors", &expvarsWriteItemErrors)
+	jsonStreamExpvars.Set("PayloadFulls", &expvarsPayloadFulls)
+	jsonStreamExpvars.Set("ItemDrops", &expvarsItemDrops)
 }
 
 // JSONPayloadBuilder is used to build payloads. JSONPayloadBuilder allocates memory based

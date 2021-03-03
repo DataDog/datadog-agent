@@ -42,7 +42,7 @@ var (
 	tlmItemTooBig              = telemetry.NewCounter("sketch_series", "sketch_too_big",
 		nil, "Number of payloads dropped because they were too big for the stream compressor")
 	tlmPayloadFull = telemetry.NewCounter("sketch_series", "payload_full",
-		nil, "How many times we've hit a 'paylodad is full' in the stream compressor")
+		nil, "How many times we've hit a 'payload is full' in the stream compressor")
 	tlmUnexpectedItemDrops = telemetry.NewCounter("sketch_series", "unexpected_item_drops",
 		nil, "Items dropped in the stream compressor")
 )
@@ -50,7 +50,7 @@ var (
 func init() {
 	expvars.Set("ItemTooBig", &expvarsItemTooBig)
 	expvars.Set("PayloadFull", &expvarsPayloadFull)
-	expvars.Set("UnexpectedDrops", &expvarsUnexpectedItemDrops)
+	expvars.Set("UnexpectedItemDrops", &expvarsUnexpectedItemDrops)
 }
 
 // MarshalJSON serializes sketch series to JSON.
@@ -169,9 +169,10 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 		// Compress the protobuf metadata and the marshaled sketch
 		e = compressor.AddItem(bufferContext.PrecompressionBuf[:totalItemSize])
 		if e == stream.ErrPayloadFull {
+			expvarsPayloadFull.Add(1)
 			tlmPayloadFull.Inc()
 		}
-		if e == stream.ErrItemTooBig || e == stream.ErrPayloadFull {
+		if e == stream.ErrPayloadFull {
 			// Since the compression buffer is full - flush it and rotate
 			payload, e := compressor.Close()
 			if e != nil {
@@ -188,16 +189,26 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 			// Add it to the new compression buffer
 			e = compressor.AddItem(bufferContext.PrecompressionBuf[:totalItemSize])
 			if e == stream.ErrItemTooBig {
-				tlmItemTooBig.Add(1)
-				// Drop this sketch since it can't fit
+				// Item was too big, drop it
+				expvarsItemTooBig.Add(1)
+				tlmItemTooBig.Inc()
 				continue
 			}
 			if e != nil {
+				// Unexpected error bail out
+				expvarsUnexpectedItemDrops.Add(1)
 				tlmUnexpectedItemDrops.Inc()
 				return nil, e
 			}
+		} else if e == stream.ErrItemTooBig {
+			// Item was too big, drop it
+			expvarsItemTooBig.Add(1)
+			tlmItemTooBig.Add(1)
 		} else if e != nil {
+			// Unexpected error bail out
+			expvarsUnexpectedItemDrops.Add(1)
 			tlmUnexpectedItemDrops.Inc()
+			return nil, e
 		}
 	}
 
