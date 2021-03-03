@@ -129,7 +129,7 @@ func TestBatchMultipleTopologies(t *testing.T) {
 
 	message := serializer.GetJSONToV1IntakeMessage()
 
-	assert.Equal(t,
+	assert.ObjectsAreEqualValues(
 		map[string]interface{}{
 			"internalHostname": "myhost",
 			"topologies": []topology.Topology{
