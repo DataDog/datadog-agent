@@ -643,13 +643,15 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		{{end}}
 			var ok bool
 		{{- if eq $Field.OrigType "string"}}
-			{{- if $Field.IsArray}}
-				if {{$FieldName}}, ok = value.([]string); !ok {
-			{{else}}
-				if {{$FieldName}}, ok = value.(string); !ok {
-			{{end}}
+			str, ok := value.(string)
+			if !ok {
 				return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
 			}
+			{{- if $Field.IsArray}}
+				{{$FieldName}} = append({{$FieldName}}, str)
+			{{else}}
+				{{$FieldName}} = str
+			{{end}}
 			return nil
 		{{else if eq $Field.BasicType "int"}}
 			v, ok := value.(int)
