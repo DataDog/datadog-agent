@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util/api"
+	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -68,7 +68,7 @@ func (suite *YamlConfigTestSuite) TestExtractOrchestratorProcessEndpoints() {
 	expected["key2"] = "process2.com"
 	expected["key3"] = "process2.com"
 	expected["apikey_20"] = "orchestrator.datadoghq.com"
-	var actualEndpoints []api.Endpoint
+	var actualEndpoints []apicfg.Endpoint
 
 	suite.config.Set("api_key", "wassupkey")
 	suite.config.Set("process_config.orchestrator_additional_endpoints", `{"https://process1.com": ["key1"], "https://process2.com": ["key2", "key3"]}`)
@@ -85,7 +85,7 @@ func (suite *YamlConfigTestSuite) TestExtractOrchestratorOrchestratorEndpoints()
 	expected["key2"] = "orchestrator2.com"
 	expected["key3"] = "orchestrator2.com"
 	expected["apikey_20"] = "orchestrator.datadoghq.com"
-	var actualEndpoints []api.Endpoint
+	var actualEndpoints []apicfg.Endpoint
 
 	suite.config.Set("api_key", "wassupkey")
 	suite.config.Set("orchestrator_explorer.orchestrator_additional_endpoints", `{"https://orchestrator1.com": ["key1"], "https://orchestrator2.com": ["key2", "key3"]}`)
@@ -106,7 +106,7 @@ func (suite *YamlConfigTestSuite) TestExtractOrchestratorEndpointsPrecedence() {
 	expected["test"] = "test.com"
 
 	u, _ := url.Parse("https://test.com")
-	actualEndpoints := []api.Endpoint{{APIKey: "test", Endpoint: u}}
+	actualEndpoints := []apicfg.Endpoint{{APIKey: "test", Endpoint: u}}
 
 	suite.config.Set("api_key", "wassupkey")
 	suite.config.Set("process_config.orchestrator_additional_endpoints", `{"https://process1.com": ["key1"], "https://process2.com": ["key2", "key3"]}`)

@@ -1,7 +1,15 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package serverless
 
 import (
+	"fmt"
+	"math"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
@@ -92,10 +100,34 @@ func generateEnhancedMetricsFromReportLog(message aws.LogMessage, tags []string,
 	}}
 }
 
+// sendTimeoutEnhancedMetric sends an enhanced metric representing a timeout
+func sendTimeoutEnhancedMetric(tags []string, metricsChan chan []metrics.MetricSample) {
+	metricsChan <- []metrics.MetricSample{{
+		Name:       "aws.lambda.enhanced.timeouts",
+		Value:      1.0,
+		Mtype:      metrics.DistributionType,
+		Tags:       tags,
+		SampleRate: 1,
+		Timestamp:  float64(time.Now().UnixNano()),
+	}}
+}
+
+// getTagsForEnhancedMetrics returns the tags that should be included with enhanced metrics
+func getTagsForEnhancedMetrics() []string {
+	functionARN := aws.GetARN()
+	functionName := aws.FunctionNameFromARN()
+	return []string{
+		fmt.Sprintf("functionname:%s", functionName),
+		fmt.Sprintf("function_arn:%s", functionARN),
+	}
+}
+
 // calculateEstimatedCost returns the estimated cost in USD of a Lambda invocation
 func calculateEstimatedCost(billedDurationMs float64, memorySizeMb float64) float64 {
 	billedDurationSeconds := billedDurationMs / 1000.0
 	memorySizeGb := memorySizeMb / 1024.0
 	gbSeconds := billedDurationSeconds * memorySizeGb
-	return baseLambdaInvocationPrice + (gbSeconds * lambdaPricePerGbSecond)
+	// round the final float result because float math could have float point imprecision
+	// on some arch. (i.e. 1.00000000000002 values)
+	return math.Round((baseLambdaInvocationPrice+(gbSeconds*lambdaPricePerGbSecond))*10e12) / 10e12
 }

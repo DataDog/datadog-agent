@@ -128,7 +128,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				return err
 			}
 
-			s := serializer.NewSerializer(common.Forwarder)
+			s := serializer.NewSerializer(common.Forwarder, nil)
 			// Initializing the aggregator with a flush interval of 0 (which disable the flush goroutine)
 			agg := aggregator.InitAggregatorWithFlushInterval(s, hostname, 0)
 			common.LoadComponents(config.Datadog.GetString("confd_path"))

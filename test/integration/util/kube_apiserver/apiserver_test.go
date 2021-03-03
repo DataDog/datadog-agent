@@ -9,7 +9,9 @@
 package kubernetes
 
 import (
+	"context"
 	"fmt"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"os"
 	"path/filepath"
 	"testing"
@@ -111,7 +113,7 @@ func (suite *testSuite) TestKubeEvents() {
 	// Create started event
 	testReference := createObjectReference("default", "integration_test", "event_test")
 	startedEvent := createEvent("default", "test_started", "started", *testReference)
-	_, err = core.Events("default").Create(startedEvent)
+	_, err = core.Events("default").Create(context.TODO(), startedEvent, v1.CreateOptions{})
 	require.NoError(suite.T(), err)
 
 	// Test we get the new started event
@@ -122,7 +124,7 @@ func (suite *testSuite) TestKubeEvents() {
 
 	// Create tick event
 	tickEvent := createEvent("default", "test_tick", "tick", *testReference)
-	_, err = core.Events("default").Create(tickEvent)
+	_, err = core.Events("default").Create(context.TODO(), tickEvent, v1.CreateOptions{})
 	require.NoError(suite.T(), err)
 
 	// Test we get the new tick event
@@ -135,13 +137,13 @@ func (suite *testSuite) TestKubeEvents() {
 	pointer2 := int32(2)
 	tickEvent2 := added[0]
 	tickEvent2.Count = pointer2
-	tickEvent3, err := core.Events("default").Update(tickEvent2)
+	tickEvent3, err := core.Events("default").Update(context.TODO(), tickEvent2, v1.UpdateOptions{})
 	require.NoError(suite.T(), err)
 
 	// Update tick event a second time
 	pointer3 := int32(3)
 	tickEvent3.Count = pointer3
-	_, err = core.Events("default").Update(tickEvent3)
+	_, err = core.Events("default").Update(context.TODO(), tickEvent3, v1.UpdateOptions{})
 	require.NoError(suite.T(), err)
 
 	// Test we get the two modified test events
@@ -177,9 +179,9 @@ func (suite *testSuite) TestHostnameProvider() {
 	dummyPod := createPodOnNode("default", myHostname, "target.host")
 
 	// Register it in the apiserver
-	_, err = core.Pods("default").Create(dummyPod)
+	_, err = core.Pods("default").Create(context.TODO(), dummyPod, v1.CreateOptions{})
 	require.NoError(suite.T(), err)
-	defer core.Pods("default").Delete(myHostname, nil)
+	defer core.Pods("default").Delete(context.TODO(), myHostname, v1.DeleteOptions{})
 
 	// Hostname provider should return the expected value
 	foundHost, err := hostname_apiserver.HostnameProvider()

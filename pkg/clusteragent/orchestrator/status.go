@@ -81,7 +81,7 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 
 	// get cache efficiency
 	for _, node := range orchestrator.NodeTypes() {
-		if value, found := orchestrator.KubernetesResourceCache.Get(BuildStatsKey(node)); found {
+		if value, found := orchestrator.KubernetesResourceCache.Get(orchestrator.BuildStatsKey(node)); found {
 			status[node.String()+"sStats"] = value
 		}
 	}

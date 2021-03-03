@@ -92,6 +92,10 @@ metrics:
   metric_tags:
   - symboltag1:1
   - symboltag2:2
+- symbol:
+    OID: 1.2.3.4.0
+    name: aMetricWithExtractValue
+    extract_value: '(\d+)C'
 - table:
     OID: 1.3.6.1.2.1.2.2
     name: ifTable
@@ -141,6 +145,11 @@ tags:
 				Name:  "1.3.6.1.2.1.2.1",
 				Type:  gosnmp.Integer,
 				Value: 30,
+			},
+			{
+				Name:  "1.2.3.4.0",
+				Type:  gosnmp.OctetString,
+				Value: []byte("22C"),
 			},
 		},
 	}
@@ -216,6 +225,7 @@ tags:
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", snmpGlobalTags)
 	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpGlobalTags)
 	sender.AssertMetric(t, "Gauge", "snmp.ifNumber", float64(30), "", scalarTags)
+	sender.AssertMetric(t, "Gauge", "snmp.aMetricWithExtractValue", float64(22), "", snmpGlobalTags)
 	sender.AssertMetric(t, "Gauge", "snmp.ifInErrors", float64(141), "", row1Tags)
 	sender.AssertMetric(t, "Gauge", "snmp.ifInErrors", float64(142), "", row2Tags)
 	sender.AssertMetric(t, "Gauge", "snmp.ifOutErrors", float64(201), "", row1Tags)
@@ -223,7 +233,7 @@ tags:
 
 	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", snmpTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", snmpGlobalTags)
-	sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 6, "", snmpGlobalTags)
+	sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 7, "", snmpGlobalTags)
 }
 
 func TestSupportedMetricTypes(t *testing.T) {

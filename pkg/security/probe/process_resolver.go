@@ -13,6 +13,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"path"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -21,12 +22,13 @@ import (
 
 	"github.com/DataDog/datadog-go/statsd"
 	lib "github.com/DataDog/ebpf"
+	"github.com/DataDog/gopsutil/process"
 	"github.com/pkg/errors"
 
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/gopsutil/process"
 )
 
 const (
@@ -80,11 +82,11 @@ type ProcessResolver struct {
 
 // SendStats sends process resolver metrics
 func (p *ProcessResolver) SendStats() error {
-	if err := p.client.Gauge(MetricProcessResolverCacheSize, p.GetCacheSize(), []string{}, 1.0); err != nil {
+	if err := p.client.Gauge(metrics.MetricProcessResolverCacheSize, p.GetCacheSize(), []string{}, 1.0); err != nil {
 		return errors.Wrap(err, "failed to send process_resolver cache_size metric")
 	}
 
-	if err := p.client.Gauge(MetricProcessResolverReferenceCount, p.GetEntryCacheSize(), []string{}, 1.0); err != nil {
+	if err := p.client.Gauge(metrics.MetricProcessResolverReferenceCount, p.GetEntryCacheSize(), []string{}, 1.0); err != nil {
 		return errors.Wrap(err, "failed to send process_resolver reference_count metric")
 	}
 
@@ -149,17 +151,13 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 			return errors.Wrapf(err, "snapshot failed for %d: couldn't parse container ID", proc.Pid)
 		}
 
-		entry.FileFields = model.FileFields{
-			Inode:           inode,
-			OverlayNumLower: info.OverlayNumLower,
-			MountID:         info.MountID,
-		}
+		entry.FileFields = *info
 		entry.ExecEvent.PathnameStr = pathnameStr
+		entry.ExecEvent.BasenameStr = path.Base(pathnameStr)
 		entry.ContainerContext.ID = string(containerID)
+		// resolve container path with the MountResolver
+		entry.ContainerPath = p.resolvers.resolveContainerPath(&entry.ExecEvent.FileFields)
 	}
-
-	// resolve container path with the MountResolver
-	entry.ContainerPath = p.resolvers.resolveContainerPath(&entry.ExecEvent.FileFields)
 
 	entry.ExecTime = time.Unix(0, filledProc.CreateTime*int64(time.Millisecond))
 	entry.ForkTime = entry.ExecTime
@@ -168,11 +166,20 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 	entry.TTYName = utils.PidTTY(filledProc.Pid)
 	entry.ProcessContext.Pid = pid
 	entry.ProcessContext.Tid = pid
-	if len(filledProc.Uids) > 0 {
-		entry.ProcessContext.UID = uint32(filledProc.Uids[0])
+	if len(filledProc.Uids) >= 4 {
+		entry.Credentials.UID = uint32(filledProc.Uids[0])
+		entry.Credentials.EUID = uint32(filledProc.Uids[1])
+		entry.Credentials.FSUID = uint32(filledProc.Uids[3])
 	}
 	if len(filledProc.Gids) > 0 {
-		entry.ProcessContext.GID = uint32(filledProc.Gids[0])
+		entry.Credentials.GID = uint32(filledProc.Gids[0])
+		entry.Credentials.EGID = uint32(filledProc.Gids[1])
+		entry.Credentials.FSGID = uint32(filledProc.Gids[3])
+	}
+	var err error
+	entry.Credentials.CapEffective, entry.Credentials.CapPermitted, err = utils.CapEffCapEprm(proc.Pid)
+	if err != nil {
+		return errors.Wrapf(err, "snapshot failed for %d: couldn't parse kernel capabilities", proc.Pid)
 	}
 	_ = p.resolvers.ResolveProcessUser(&entry.ProcessContext)
 	_ = p.resolvers.ResolveProcessGroup(&entry.ProcessContext)
@@ -180,7 +187,8 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 }
 
 // retrieveInodeInfo fetches inode metadata from kernel space
-func (p *ProcessResolver) retrieveInodeInfo(inode uint64) (*InodeInfo, error) {
+func (p *ProcessResolver) retrieveInodeInfo(inode uint64) (*model.FileFields, error) {
+	var info model.FileFields
 	inodeb := make([]byte, 8)
 
 	model.ByteOrder.PutUint64(inodeb, inode)
@@ -189,13 +197,12 @@ func (p *ProcessResolver) retrieveInodeInfo(inode uint64) (*InodeInfo, error) {
 		return nil, err
 	}
 
-	if data == nil {
-		return nil, errors.New("not found")
+	if _, err = info.UnmarshalBinary(data); err != nil {
+		return nil, err
 	}
 
-	var info InodeInfo
-	if _, err := info.UnmarshalBinary(data); err != nil {
-		return nil, err
+	if info.Inode == 0 {
+		return nil, errors.New("not found")
 	}
 
 	return &info, nil
@@ -213,7 +220,7 @@ func (p *ProcessResolver) insertForkEntry(pid uint32, entry *model.ProcessCacheE
 	}
 	p.entryCache[pid] = entry
 
-	_ = p.client.Count(MetricProcessResolverAdded, 1, []string{}, 1.0)
+	_ = p.client.Count(metrics.MetricProcessResolverAdded, 1, []string{}, 1.0)
 
 	if p.opts.DebugCacheSize {
 		atomic.AddInt64(&p.cacheSize, 1)
@@ -233,7 +240,7 @@ func (p *ProcessResolver) insertExecEntry(pid uint32, entry *model.ProcessCacheE
 
 	p.entryCache[pid] = entry
 
-	_ = p.client.Count(MetricProcessResolverAdded, 1, []string{}, 1.0)
+	_ = p.client.Count(metrics.MetricProcessResolverAdded, 1, []string{}, 1.0)
 
 	if p.opts.DebugCacheSize {
 		atomic.AddInt64(&p.cacheSize, 1)
@@ -264,29 +271,29 @@ func (p *ProcessResolver) DeleteEntry(pid uint32, exitTime time.Time) {
 }
 
 // Resolve returns the cache entry for the given pid
-func (p *ProcessResolver) Resolve(pid uint32) *model.ProcessCacheEntry {
+func (p *ProcessResolver) Resolve(pid, tid uint32) *model.ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
 
 	entry, exists := p.entryCache[pid]
 	if exists {
-		_ = p.client.Count(MetricProcessResolverCacheHits, 1, []string{"type:cache"}, 1.0)
+		_ = p.client.Count(metrics.MetricProcessResolverCacheHits, 1, []string{"type:cache"}, 1.0)
 		return entry
 	}
 
 	// fallback to the kernel maps directly, the perf event may be delayed / may have been lost
-	if entry = p.resolveWithKernelMaps(pid); entry != nil {
-		_ = p.client.Count(MetricProcessResolverCacheHits, 1, []string{"type:kernel_maps"}, 1.0)
+	if entry = p.resolveWithKernelMaps(pid, tid); entry != nil {
+		_ = p.client.Count(metrics.MetricProcessResolverCacheHits, 1, []string{"type:kernel_maps"}, 1.0)
 		return entry
 	}
 
 	// fallback to /proc, the in-kernel LRU may have deleted the entry
 	if entry = p.resolveWithProcfs(pid); entry != nil {
-		_ = p.client.Count(MetricProcessResolverCacheHits, 1, []string{"type:procfs"}, 1.0)
+		_ = p.client.Count(metrics.MetricProcessResolverCacheHits, 1, []string{"type:procfs"}, 1.0)
 		return entry
 	}
 
-	_ = p.client.Count(MetricProcessResolverCacheMiss, 1, []string{}, 1.0)
+	_ = p.client.Count(metrics.MetricProcessResolverCacheMiss, 1, []string{}, 1.0)
 	return nil
 }
 
@@ -300,18 +307,20 @@ func (p *ProcessResolver) unmarshalProcessCacheEntry(entry *model.ProcessCacheEn
 	entry.ForkTime = p.resolvers.TimeResolver.ResolveMonotonicTimestamp(entry.ForkTimestamp)
 	entry.ExitTime = p.resolvers.TimeResolver.ResolveMonotonicTimestamp(entry.ExitTimestamp)
 
-	// resolve FileEvent now so that the dentry cache is up to date. Fork events might send a null inode if the parent
-	// wasn't in the kernel cache, so only resolve if necessary
+	// Resolve FileEvent now while the dentry cache is up to date. Fork events might send a null inode if the parent
+	// wasn't in the kernel cache, so resolve only if necessary.
 
-	if entry.Inode != 0 && entry.MountID != 0 {
-		entry.PathnameStr, _ = p.resolvers.resolveInode(&entry.FileFields)
+	if entry.FileFields.Inode != 0 && entry.FileFields.MountID != 0 {
+		// We still need to retrieve the error from the resolution: should we fail to resolve the pathname, we need
+		// to fall back to /proc
+		entry.PathnameStr, err = p.resolvers.resolveInode(&entry.FileFields)
 		entry.ContainerPath = p.resolvers.resolveContainerPath(&entry.FileFields)
 	}
 
-	return read, nil
+	return read, err
 }
 
-func (p *ProcessResolver) resolveWithKernelMaps(pid uint32) *model.ProcessCacheEntry {
+func (p *ProcessResolver) resolveWithKernelMaps(pid, tid uint32) *model.ProcessCacheEntry {
 	pidb := make([]byte, 4)
 	model.ByteOrder.PutUint32(pidb, pid)
 
@@ -328,20 +337,24 @@ func (p *ProcessResolver) resolveWithKernelMaps(pid uint32) *model.ProcessCacheE
 
 	entry := NewProcessCacheEntry()
 	data := append(entryb, cookieb...)
-	if len(data) < 208 {
-		// not enough data
-		return nil
-	}
 
-	read, err := p.unmarshalProcessCacheEntry(entry, data, true)
+	_, err = p.unmarshalProcessCacheEntry(entry, data, true)
 	if err != nil {
 		return nil
 	}
-
-	entry.UID = model.ByteOrder.Uint32(data[read : read+4])
-	entry.GID = model.ByteOrder.Uint32(data[read+4 : read+8])
 	entry.Pid = pid
-	entry.Tid = pid
+	entry.Tid = tid
+
+	// If we fall back to the kernel maps for a process in a container that was already running when the agent
+	// started, the kernel space container ID will be empty even though the process is inside a container. Since there
+	// is no insurance that the parent of this process is still running, we can't use our user space cache to check if
+	// the parent is in a container. In other words, we have to fall back to /proc to query the container ID of the
+	// process.
+	containerID, err := p.resolvers.ContainerResolver.GetContainerID(pid)
+	if err != nil {
+		return nil
+	}
+	entry.ContainerContext.ID = string(containerID)
 
 	if entry.ExecTime.IsZero() {
 		return p.insertForkEntry(pid, entry)
@@ -366,6 +379,59 @@ func (p *ProcessResolver) Get(pid uint32) *model.ProcessCacheEntry {
 	p.RLock()
 	defer p.RUnlock()
 	return p.entryCache[pid]
+}
+
+// UpdateUID updates the credentials of the provided pid
+func (p *ProcessResolver) UpdateUID(pid uint32, e *Event) {
+	if e.Process.Pid != e.Process.Tid {
+		return
+	}
+
+	p.Lock()
+	defer p.Unlock()
+	entry := p.entryCache[pid]
+	if entry != nil {
+		entry.Credentials.UID = e.SetUID.UID
+		entry.Credentials.User = e.ResolveSetuidUser(&e.SetUID)
+		entry.Credentials.EUID = e.SetUID.EUID
+		entry.Credentials.EUser = e.ResolveSetuidEUser(&e.SetUID)
+		entry.Credentials.FSUID = e.SetUID.FSUID
+		entry.Credentials.FSUser = e.ResolveSetuidFSUser(&e.SetUID)
+	}
+}
+
+// UpdateGID updates the credentials of the provided pid
+func (p *ProcessResolver) UpdateGID(pid uint32, e *Event) {
+	if e.Process.Pid != e.Process.Tid {
+		return
+	}
+
+	p.Lock()
+	defer p.Unlock()
+	entry := p.entryCache[pid]
+	if entry != nil {
+		entry.Credentials.GID = e.SetGID.GID
+		entry.Credentials.Group = e.ResolveSetgidGroup(&e.SetGID)
+		entry.Credentials.EGID = e.SetGID.EGID
+		entry.Credentials.EGroup = e.ResolveSetgidEGroup(&e.SetGID)
+		entry.Credentials.FSGID = e.SetGID.FSGID
+		entry.Credentials.FSGroup = e.ResolveSetgidFSGroup(&e.SetGID)
+	}
+}
+
+// UpdateCapset updates the credentials of the provided pid
+func (p *ProcessResolver) UpdateCapset(pid uint32, e *Event) {
+	if e.Process.Pid != e.Process.Tid {
+		return
+	}
+
+	p.Lock()
+	defer p.Unlock()
+	entry := p.entryCache[pid]
+	if entry != nil {
+		entry.Credentials.CapEffective = e.Capset.CapEffective
+		entry.Credentials.CapPermitted = e.Capset.CapPermitted
+	}
 }
 
 // Start starts the resolver
@@ -405,7 +471,7 @@ func (p *ProcessResolver) cacheFlush(ctx context.Context) {
 
 			delEntry := func(pid uint32, exitTime time.Time) {
 				p.deleteEntry(pid, exitTime)
-				_ = p.client.Count(MetricProcessResolverFlushed, 1, []string{}, 1.0)
+				_ = p.client.Count(metrics.MetricProcessResolverFlushed, 1, []string{}, 1.0)
 			}
 
 			// flush slowly
@@ -464,7 +530,7 @@ func (p *ProcessResolver) syncCache(proc *process.Process) (*model.ProcessCacheE
 		return nil, false
 	}
 
-	log.Tracef("New process cache entry added: %s %s %d/%d", entry.Comm, entry.PathnameStr, pid, entry.Inode)
+	log.Tracef("New process cache entry added: %s %s %d/%d", entry.Comm, entry.PathnameStr, pid, entry.FileFields.Inode)
 
 	return entry, true
 }

@@ -178,6 +178,16 @@ func (s *sender) backoff() {
 // Stop stops the sender. It attempts to wait for all inflight payloads to complete
 // with a timeout of 5 seconds.
 func (s *sender) Stop() {
+	s.WaitForInflight()
+	s.mu.Lock()
+	s.closed = true
+	s.mu.Unlock()
+	close(s.queue)
+}
+
+// WaitForInflight blocks until all in progress payloads are sent,
+// or the timeout is reached.
+func (s *sender) WaitForInflight() {
 	timeout := time.After(5 * time.Second)
 outer:
 	for {
@@ -191,10 +201,6 @@ outer:
 			time.Sleep(10 * time.Millisecond)
 		}
 	}
-	s.mu.Lock()
-	s.closed = true
-	s.mu.Unlock()
-	close(s.queue)
 }
 
 // Push pushes p onto the sender's queue, to be written to the destination.
@@ -274,6 +280,19 @@ func (s *sender) sendPayload(p *payload) {
 		// this is a fatal error, we have to drop this payload
 		s.releasePayload(p, eventTypeRejected, stats)
 	}
+}
+
+// waitForSenders blocks until all senders have sent their inflight payloads
+func waitForSenders(senders []*sender) {
+	var wg sync.WaitGroup
+	for _, s := range senders {
+		wg.Add(1)
+		go func(s *sender) {
+			defer wg.Done()
+			s.WaitForInflight()
+		}(s)
+	}
+	wg.Wait()
 }
 
 // shouldWarnRetry determines whether a warning should be emitted
@@ -413,7 +432,11 @@ func stopSenders(senders []*sender) {
 }
 
 // sendPayloads sends the payload p to all senders.
-func sendPayloads(senders []*sender, p *payload) {
+func sendPayloads(senders []*sender, p *payload, syncMode bool) {
+	if syncMode {
+		defer waitForSenders(senders)
+	}
+
 	if len(senders) == 1 {
 		// fast path
 		senders[0].Push(p)

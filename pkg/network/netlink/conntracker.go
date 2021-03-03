@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ct "github.com/florianl/go-conntrack"
@@ -63,7 +64,7 @@ type realConntracker struct {
 }
 
 // NewConntracker creates a new conntracker with a short term buffer capped at the given size
-func NewConntracker(procRoot string, maxStateSize, targetRateLimit int, listenAllNamespaces bool) (Conntracker, error) {
+func NewConntracker(config *config.Config) (Conntracker, error) {
 	var (
 		err         error
 		conntracker Conntracker
@@ -72,7 +73,7 @@ func NewConntracker(procRoot string, maxStateSize, targetRateLimit int, listenAl
 	done := make(chan struct{})
 
 	go func() {
-		conntracker, err = newConntrackerOnce(procRoot, maxStateSize, targetRateLimit, listenAllNamespaces)
+		conntracker, err = newConntrackerOnce(config.ProcRoot, config.ConntrackMaxStateSize, config.ConntrackRateLimit, config.EnableConntrackAllNamespaces)
 		done <- struct{}{}
 	}()
 
@@ -85,11 +86,7 @@ func NewConntracker(procRoot string, maxStateSize, targetRateLimit int, listenAl
 }
 
 func newConntrackerOnce(procRoot string, maxStateSize, targetRateLimit int, listenAllNamespaces bool) (Conntracker, error) {
-	consumer, err := NewConsumer(procRoot, targetRateLimit, listenAllNamespaces)
-	if err != nil {
-		return nil, err
-	}
-
+	consumer := NewConsumer(procRoot, targetRateLimit, listenAllNamespaces)
 	ctr := &realConntracker{
 		consumer:             consumer,
 		compactTicker:        time.NewTicker(compactInterval),
@@ -98,9 +95,18 @@ func newConntrackerOnce(procRoot string, maxStateSize, targetRateLimit int, list
 		exceededSizeLogLimit: util.NewLogLimit(10, time.Minute*10),
 	}
 
-	ctr.loadInitialState(consumer.DumpTable(unix.AF_INET))
-	ctr.loadInitialState(consumer.DumpTable(unix.AF_INET6))
-	ctr.run()
+	for _, family := range []uint8{unix.AF_INET, unix.AF_INET6} {
+		events, err := consumer.DumpTable(family)
+		if err != nil {
+			return nil, fmt.Errorf("error dumping conntrack table for family %d: %w", family, err)
+		}
+		ctr.loadInitialState(events)
+	}
+
+	if err := ctr.run(); err != nil {
+		return nil, err
+	}
+
 	log.Infof("initialized conntrack with target_rate_limit=%d messages/sec", targetRateLimit)
 	return ctr, nil
 }
@@ -178,7 +184,7 @@ func (ctr *realConntracker) DeleteTranslation(c network.ConnectionStats) {
 
 	t, ok := ctr.state[k]
 	if !ok {
-		log.Tracef("not deleting %+v from conntrack", k)
+		log.Tracef("not deleting %+v: not found in conntrack cache", k)
 		return
 	}
 
@@ -253,9 +259,13 @@ func (ctr *realConntracker) logExceededSize() {
 	}
 }
 
-func (ctr *realConntracker) run() {
+func (ctr *realConntracker) run() error {
+	events, err := ctr.consumer.Events()
+	if err != nil {
+		return err
+	}
+
 	go func() {
-		events := ctr.consumer.Events()
 		for e := range events {
 			conns := DecodeAndReleaseEvent(e)
 			for _, c := range conns {
@@ -269,6 +279,8 @@ func (ctr *realConntracker) run() {
 			ctr.compact()
 		}
 	}()
+
+	return nil
 }
 
 func (ctr *realConntracker) compact() {

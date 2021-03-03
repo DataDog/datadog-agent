@@ -17,7 +17,7 @@ static __attribute__((always_inline)) int trace__cgroup_write(struct pt_regs *ct
         old_entry = bpf_map_lookup_elem(&proc_cache, &cookie);
         if (old_entry) {
             // copy cache data
-            copy_proc_cache(&new_entry, old_entry);
+            copy_proc_cache(old_entry, &new_entry);
         }
     } else {
         new_cookie = 1;

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build linux
 
@@ -25,7 +25,7 @@ type BinaryUnmarshaler interface {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *ChmodEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
+	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
 	if err != nil {
 		return n, err
 	}
@@ -41,7 +41,7 @@ func (e *ChmodEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *ChownEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
+	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
 	if err != nil {
 		return n, err
 	}
@@ -51,8 +51,8 @@ func (e *ChownEvent) UnmarshalBinary(data []byte) (int, error) {
 		return n, ErrNotEnoughData
 	}
 
-	e.UID = int32(ByteOrder.Uint32(data[0:4]))
-	e.GID = int32(ByteOrder.Uint32(data[4:8]))
+	e.UID = ByteOrder.Uint32(data[0:4])
+	e.GID = ByteOrder.Uint32(data[4:8])
 	return n + 8, nil
 }
 
@@ -85,15 +85,64 @@ func (e *Event) UnmarshalBinary(data []byte) (int, error) {
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
-func (e *ExecEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 136 {
+func (e *SetuidEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 16 {
+		return 0, ErrNotEnoughData
+	}
+	e.UID = ByteOrder.Uint32(data[0:4])
+	e.EUID = ByteOrder.Uint32(data[4:8])
+	e.FSUID = ByteOrder.Uint32(data[8:12])
+	return 16, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *SetgidEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 16 {
+		return 0, ErrNotEnoughData
+	}
+	e.GID = ByteOrder.Uint32(data[0:4])
+	e.EGID = ByteOrder.Uint32(data[4:8])
+	e.FSGID = ByteOrder.Uint32(data[8:12])
+	return 16, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *CapsetEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 16 {
+		return 0, ErrNotEnoughData
+	}
+	e.CapEffective = ByteOrder.Uint64(data[0:8])
+	e.CapPermitted = ByteOrder.Uint64(data[8:16])
+	return 16, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *Credentials) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 40 {
 		return 0, ErrNotEnoughData
 	}
 
+	e.UID = ByteOrder.Uint32(data[0:4])
+	e.GID = ByteOrder.Uint32(data[4:8])
+	e.EUID = ByteOrder.Uint32(data[8:12])
+	e.EGID = ByteOrder.Uint32(data[12:16])
+	e.FSUID = ByteOrder.Uint32(data[16:20])
+	e.FSGID = ByteOrder.Uint32(data[20:24])
+	e.CapEffective = ByteOrder.Uint64(data[24:32])
+	e.CapPermitted = ByteOrder.Uint64(data[32:40])
+	return 40, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *ExecEvent) UnmarshalBinary(data []byte) (int, error) {
 	// Unmarshal proc_cache_t
 	read, err := UnmarshalBinary(data, &e.FileFields)
 	if err != nil {
-		return read, err
+		return 0, err
+	}
+
+	if len(data[read:]) < 112 {
+		return 0, ErrNotEnoughData
 	}
 
 	e.ExecTimestamp = ByteOrder.Uint64(data[read : read+8])
@@ -115,11 +164,10 @@ func (e *ExecEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	e.ForkTimestamp = ByteOrder.Uint64(data[read+8 : read+16])
 	e.ExitTimestamp = ByteOrder.Uint64(data[read+16 : read+24])
+	read += 24
 
-	// ignore uid / gid, it has already been parsed in Event.Process
-	// add 8 to the total
-
-	return read + 32, nil
+	// Unmarshal the credentials contained in pid_cache_t
+	return UnmarshalBinary(data[read:], &e.Credentials)
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -137,7 +185,7 @@ func (e *InvalidateDentryEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *FileFields) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 24 {
+	if len(data) < 72 {
 		return 0, ErrNotEnoughData
 	}
 	e.Inode = ByteOrder.Uint64(data[0:8])
@@ -145,7 +193,22 @@ func (e *FileFields) UnmarshalBinary(data []byte) (int, error) {
 	e.OverlayNumLower = int32(ByteOrder.Uint32(data[12:16]))
 	e.PathID = ByteOrder.Uint32(data[16:20])
 
-	return 24, nil
+	// +4 for padding
+
+	e.UID = ByteOrder.Uint32(data[24:28])
+	e.GID = ByteOrder.Uint32(data[28:32])
+	e.Mode = ByteOrder.Uint16(data[32:34])
+
+	// +6 for padding
+
+	timeSec := ByteOrder.Uint64(data[40:48])
+	timeNsec := ByteOrder.Uint64(data[48:56])
+	e.CTime = time.Unix(int64(timeSec), int64(timeNsec))
+
+	timeSec = ByteOrder.Uint64(data[56:64])
+	timeNsec = ByteOrder.Uint64(data[64:72])
+	e.MTime = time.Unix(int64(timeSec), int64(timeNsec))
+	return 72, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -160,7 +223,7 @@ func (e *LinkEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
+	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
 	if err != nil {
 		return n, err
 	}
@@ -203,7 +266,7 @@ func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
+	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
 	if err != nil {
 		return n, err
 	}
@@ -220,16 +283,14 @@ func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (p *ProcessContext) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 16 {
+	if len(data) < 8 {
 		return 0, ErrNotEnoughData
 	}
 
 	p.Pid = ByteOrder.Uint32(data[0:4])
 	p.Tid = ByteOrder.Uint32(data[4:8])
-	p.UID = ByteOrder.Uint32(data[8:12])
-	p.GID = ByteOrder.Uint32(data[12:16])
 
-	return 16, nil
+	return 8, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -252,7 +313,7 @@ func (e *RenameEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *RmdirEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
+	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
 	if err != nil {
 		return n, err
 	}
@@ -270,7 +331,7 @@ func (e *RmdirEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *SetXAttrEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
+	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
 	if err != nil {
 		return n, err
 	}
@@ -313,7 +374,7 @@ func (e *UmountEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *UnlinkEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
+	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
 	if err != nil {
 		return n, err
 	}
@@ -331,7 +392,7 @@ func (e *UnlinkEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *UtimesEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
+	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
 	if err != nil {
 		return n, err
 	}

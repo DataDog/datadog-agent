@@ -5,10 +5,6 @@
 .if_deploy: &if_deploy
   if: $DEPLOY_AGENT == "true"
 
-.retrieve_linux_go_deps: &retrieve_linux_go_deps |
-  mkdir vendor && tar xzf vendor.tar.gz -C vendor
-  rm -f vendor.tar.gz
-
 agent_android_apk:
   rules:
     - <<: *if_not_version_7
@@ -19,11 +15,10 @@ agent_android_apk:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/android_builder:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main", "size:large"]
-  needs: ["linux_x64_go_deps"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   before_script:
-    - *retrieve_linux_go_deps
+    - inv -e deps-vendored --verbose
     - cd $SRC_PATH
     - python3 -m pip install -r requirements.txt
   script:

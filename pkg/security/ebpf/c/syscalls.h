@@ -6,11 +6,6 @@
 
 #define FSTYPE_LEN 16
 
-struct ktimeval {
-    long tv_sec;
-    long tv_nsec;
-};
-
 struct syscall_cache_t {
     struct policy_t policy;
     u64 type;
@@ -34,6 +29,7 @@ struct syscall_cache_t {
         struct {
             struct dentry *dentry;
             struct path_key_t path_key;
+            struct file_metadata_t metadata;
             int overlay_numlower;
             int flags;
         } unlink;
@@ -41,11 +37,13 @@ struct syscall_cache_t {
         struct {
             struct dentry *dentry;
             struct path_key_t path_key;
+            struct file_metadata_t metadata;
             int overlay_numlower;
         } rmdir;
 
         struct {
             struct path_key_t src_key;
+            struct file_metadata_t src_metadata;
             unsigned long src_inode;
             struct dentry *src_dentry;
             struct dentry *target_dentry;
@@ -57,6 +55,7 @@ struct syscall_cache_t {
             struct dentry *dentry;
             struct path *path;
             struct path_key_t path_key;
+            struct file_metadata_t metadata;
             union {
                 umode_t mode;
                 struct {
@@ -84,6 +83,7 @@ struct syscall_cache_t {
 
         struct {
             struct path_key_t src_key;
+            struct file_metadata_t src_metadata;
             struct path *target_path;
             struct dentry *src_dentry;
             struct dentry *target_dentry;

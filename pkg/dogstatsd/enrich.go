@@ -69,9 +69,9 @@ func enrichMetricType(dogstatsdMetricType metricType) metrics.MetricType {
 	return metrics.GaugeType
 }
 
-func isBlacklisted(metricName, namespace string, namespaceBlacklist []string) bool {
+func isExcluded(metricName, namespace string, excludedNamespaces []string) bool {
 	if namespace != "" {
-		for _, prefix := range namespaceBlacklist {
+		for _, prefix := range excludedNamespaces {
 			if strings.HasPrefix(metricName, prefix) {
 				return true
 			}
@@ -80,12 +80,12 @@ func isBlacklisted(metricName, namespace string, namespaceBlacklist []string) bo
 	return false
 }
 
-func enrichMetricSample(metricSamples []metrics.MetricSample, ddSample dogstatsdMetricSample, namespace string, namespaceBlacklist []string,
+func enrichMetricSample(metricSamples []metrics.MetricSample, ddSample dogstatsdMetricSample, namespace string, excludedNamespaces []string,
 	defaultHostname string, origin string, entityIDPrecedenceEnabled bool, serverlessMode bool) []metrics.MetricSample {
 	metricName := ddSample.name
 	tags, hostnameFromTags, originID, k8sOriginID := extractTagsMetadata(ddSample.tags, defaultHostname, origin, entityIDPrecedenceEnabled)
 
-	if !isBlacklisted(metricName, namespace, namespaceBlacklist) {
+	if !isExcluded(metricName, namespace, excludedNamespaces) {
 		metricName = namespace + metricName
 	}
 

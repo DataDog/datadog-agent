@@ -162,6 +162,9 @@ COPY init-stage3-host-pid /etc/s6/init/init-stage3-host-pid
 
 RUN find /etc -type d,f -perm -o+w -print0 | xargs -0 chmod g-w,o-w
 
+# Add Debian snapshot date for debugging
+RUN date +%Y%m%dT000000Z > .debian_repo_snapshot_date
+
 # Expose DogStatsD and trace-agent ports
 EXPOSE 8125/udp 8126/tcp
 

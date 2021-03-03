@@ -123,7 +123,7 @@ COPY test.bin /test.bin
 
 
 @task
-def mirror_image(ctx, src_image, dst_image="datadog/docker-library", dst_tag="auto"):
+def mirror_image(_, src_image, dst_image="datadog/docker-library", dst_tag="auto"):
     """
     Pull an upstream image and mirror it to our docker-library repository
     for integration tests. Tag format should be A-Z_n_n_n

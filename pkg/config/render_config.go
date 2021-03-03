@@ -12,11 +12,13 @@ import (
 	"html/template"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
 // context contains the context used to render the config file template
 type context struct {
+	OS                string
 	Common            bool
 	Agent             bool
 	Python            bool // Sub-option of Agent
@@ -41,6 +43,7 @@ type context struct {
 	TraceAgent        bool
 	ClusterChecks     bool
 	CloudFoundryBBS   bool
+	CloudFoundryCC    bool
 	Compliance        bool
 	SNMP              bool
 	SecurityModule    bool
@@ -51,6 +54,7 @@ func mkContext(buildType string) context {
 	buildType = strings.ToLower(buildType)
 
 	agentContext := context{
+		OS:                runtime.GOOS,
 		Common:            true,
 		Agent:             true,
 		Python:            true,
@@ -120,6 +124,7 @@ func mkContext(buildType string) context {
 			Logging:         true,
 			ClusterChecks:   true,
 			CloudFoundryBBS: true,
+			CloudFoundryCC:  true,
 		}
 	}
 

@@ -284,7 +284,7 @@ func (c *DatadogMetricController) createDatadogMetric(ns, name string, datadogMe
 		datadogMetric.Spec.ExternalMetricName = datadogMetricInternal.ExternalMetricName
 	}
 
-	_, err := c.clientSet.DatadoghqV1alpha1().DatadogMetrics(ns).Create(datadogMetric)
+	_, err := c.clientSet.DatadoghqV1alpha1().DatadogMetrics(ns).Create(context.TODO(), datadogMetric, metav1.CreateOptions{})
 	if err != nil {
 		return fmt.Errorf("Unable to create DatadogMetric: %s/%s, err: %v", ns, name, err)
 	}
@@ -296,14 +296,14 @@ func (c *DatadogMetricController) updateDatadogMetric(ns, name string, datadogMe
 	newStatus := datadogMetricInternal.BuildStatus(&datadogMetric.Status)
 	if newStatus != nil {
 		log.Debugf("Updating status of DatadogMetric: %s/%s", ns, name)
-		_, err := c.clientSet.DatadoghqV1alpha1().DatadogMetrics(ns).UpdateStatus(&datadoghq.DatadogMetric{
+		_, err := c.clientSet.DatadoghqV1alpha1().DatadogMetrics(ns).UpdateStatus(context.TODO(), &datadoghq.DatadogMetric{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace:       ns,
 				Name:            name,
 				ResourceVersion: datadogMetric.ResourceVersion,
 			},
 			Status: *newStatus,
-		})
+		}, metav1.UpdateOptions{})
 
 		if err != nil {
 			return fmt.Errorf("Unable to update DatadogMetric: %s/%s, err: %v", ns, name, err)
@@ -317,7 +317,7 @@ func (c *DatadogMetricController) updateDatadogMetric(ns, name string, datadogMe
 
 func (c *DatadogMetricController) deleteDatadogMetric(ns, name string) error {
 	log.Infof("Deleting DatadogMetric: %s/%s", ns, name)
-	err := c.clientSet.DatadoghqV1alpha1().DatadogMetrics(ns).Delete(name, &metav1.DeleteOptions{})
+	err := c.clientSet.DatadoghqV1alpha1().DatadogMetrics(ns).Delete(context.TODO(), name, metav1.DeleteOptions{})
 	if err != nil {
 		return fmt.Errorf("Unable to delete DatadogMetric: %s/%s, err: %v", ns, name, err)
 	}

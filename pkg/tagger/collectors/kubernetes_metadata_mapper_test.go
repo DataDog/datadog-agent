@@ -85,11 +85,11 @@ func (f *FakeDCAClient) GetKubernetesMetadataNames(nodeName, ns, podName string)
 	return f.KubernetesMetadataNames, f.KubernetesMetadataNamesErr
 }
 
-func (f *FakeDCAClient) PostClusterCheckStatus(nodeName string, status types.NodeStatus) (types.StatusResponse, error) {
+func (f *FakeDCAClient) PostClusterCheckStatus(identifier string, status types.NodeStatus) (types.StatusResponse, error) {
 	return f.ClusterCheckStatus, f.ClusterCheckStatusErr
 }
 
-func (f *FakeDCAClient) GetClusterCheckConfigs(nodeName string) (types.ConfigResponse, error) {
+func (f *FakeDCAClient) GetClusterCheckConfigs(identifier string) (types.ConfigResponse, error) {
 	return f.ClusterCheckConfigs, f.ClusterCheckConfigsErr
 }
 
