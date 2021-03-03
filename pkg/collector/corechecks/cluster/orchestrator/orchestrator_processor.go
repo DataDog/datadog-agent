@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	jsoniter "github.com/json-iterator/go"
@@ -240,13 +241,38 @@ func chunkServices(services []*model.Service, chunkCount, chunkSize int) [][]*mo
 	return chunks
 }
 
-// processNodesList process a nodes list into process messages.
-func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.OrchestratorConfig, clusterID string) ([]model.MessageBody, error) {
+// processNodesList process a nodes list into nodes process messages and cluster process message.
+func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.OrchestratorConfig, clusterID string, client *apiserver.APIClient) ([]model.MessageBody, model.MessageBody, error) {
 	start := time.Now()
 	nodeMsgs := make([]*model.Node, 0, len(nodesList))
+	nodeCount := int32(0)
+	kubeletVersions := map[string]int32{}
+	podCap := uint32(0)
+	podAllocatable := uint32(0)
+	memoryAllocatable := uint64(0)
+	memoryCap := uint64(0)
+	cpuAllocatable := uint64(0)
+	cpuCap := uint64(0)
+
+	apiServerVersions := map[string]int32{}
+	apiVersion, err := client.Cl.Discovery().ServerVersion()
+	if err != nil {
+		log.Errorf("Error getting server apiVersion: %s", err.Error())
+		return nil, nil, err
+	}
+	apiServerVersions[apiVersion.String()] = 1
 
 	for s := 0; s < len(nodesList); s++ {
 		node := nodesList[s]
+		nodeCount += 1
+		kubeletVersions[node.Status.NodeInfo.KubeletVersion] += 1
+		podCap += uint32(node.Status.Capacity.Pods().MilliValue())
+		podAllocatable += uint32(node.Status.Allocatable.Pods().MilliValue())
+		memoryAllocatable += uint64(node.Status.Allocatable.Memory().MilliValue())
+		memoryCap += uint64(node.Status.Capacity.Memory().MilliValue())
+		cpuAllocatable += uint64(node.Status.Allocatable.Cpu().MilliValue())
+		cpuCap += uint64(node.Status.Capacity.Cpu().MilliValue())
+
 		if orchestrator.SkipKubernetesResource(node.UID, node.ResourceVersion, orchestrator.K8sNode) {
 			continue
 		}
@@ -292,8 +318,28 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Orche
 		})
 	}
 
+	cluster := &model.Cluster{
+		NodeCount:         nodeCount,
+		KubeletVersions:   kubeletVersions,
+		ApiServerVersions:  apiServerVersions,
+		PodCapacity:       podCap,
+		PodAllocatable:    podAllocatable,
+		MemoryAllocatable: memoryAllocatable,
+		MemoryCapacity:    memoryCap,
+		CpuAllocatable:    cpuAllocatable,
+		CpuCapacity:       cpuCap,
+	}
+
+	clusterMessage := &model.CollectorCluster{
+		ClusterName: cfg.KubeClusterName,
+		ClusterId:   clusterID,
+		GroupId:     groupID,
+		Cluster:     cluster,
+		Tags:        cfg.ExtraTags,
+	}
+
 	log.Debugf("Collected & enriched %d out of %d nodes in %s", len(nodeMsgs), len(nodesList), time.Now().Sub(start))
-	return messages, nil
+	return messages, clusterMessage, nil
 }
 
 // chunkNodes chunks the given list of nodes, honoring the given chunk count and size.

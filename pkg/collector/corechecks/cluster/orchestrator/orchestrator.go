@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	coreutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
@@ -82,6 +83,7 @@ type OrchestratorCheck struct {
 	clusterID               string
 	groupID                 int32
 	isCLCRunner             bool
+	apiClient               *apiserver.APIClient
 	unassignedPodLister     corelisters.PodLister
 	unassignedPodListerSync cache.InformerSynced
 	deployLister            appslisters.DeploymentLister
@@ -160,6 +162,7 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 	apiCtx, apiCancel := context.WithTimeout(context.Background(), maximumWaitForAPIServer)
 	defer apiCancel()
 	apiCl, err := apiserver.WaitForAPIClient(apiCtx)
+	o.apiClient = apiCl
 	if err != nil {
 		return err
 	}
@@ -340,21 +343,22 @@ func (o *OrchestratorCheck) processNodes(sender aggregator.Sender) {
 	}
 	groupID := atomic.AddInt32(&o.groupID, 1)
 
-	messages, err := processNodesList(nodesList, groupID, o.orchestratorConfig, o.clusterID)
+	nodesMessages, clusterMessage, err := processNodesList(nodesList, groupID, o.orchestratorConfig, o.clusterID, o.apiClient)
 	if err != nil {
 		o.Warnf("Unable to process node list: %s", err) //nolint:errcheck
 		return
 	}
 
 	stats := orchestrator.CheckStats{
-		CacheHits: len(nodesList) - len(messages),
-		CacheMiss: len(messages),
+		CacheHits: len(nodesList) - len(nodesMessages),
+		CacheMiss: len(nodesMessages),
 		NodeType:  orchestrator.K8sNode,
 	}
 
 	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sNode), stats, orchestrator.NoExpiration)
 
-	sender.OrchestratorMetadata(messages, o.clusterID, forwarder.PayloadTypeNode)
+	sender.OrchestratorMetadata(nodesMessages, o.clusterID, forwarder.PayloadTypeNode)
+	sender.OrchestratorMetadata([]serializer.ProcessMessageBody{clusterMessage}, o.clusterID, forwarder.PayloadTypeCluster)
 }
 
 func (o *OrchestratorCheck) processPods(sender aggregator.Sender) {

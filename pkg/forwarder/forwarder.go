@@ -33,6 +33,8 @@ const (
 	PayloadTypeService = "service"
 	// PayloadTypeNode is the name of the node payload type
 	PayloadTypeNode = "node"
+	// PayloadTypeNode is the name of the node payload type
+	PayloadTypeCluster = "cluster"
 )
 
 var (
