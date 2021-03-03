@@ -186,16 +186,7 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *ExecEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 164 {
-		return 0, ErrNotEnoughData
-	}
-
-	read, err := UnmarshalBinary(data, &e.Process)
-	if err != nil {
-		return read, err
-	}
-
-	return read, nil
+	return UnmarshalBinary(data, &e.Process)
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
