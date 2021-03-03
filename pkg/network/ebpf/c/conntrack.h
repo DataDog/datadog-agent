@@ -11,13 +11,13 @@
 #include "ipv6.h"
 #endif
 
-static __always_inline u32 ct_status(struct nf_conn *ct) {
+static __always_inline u32 ct_status(const struct nf_conn *ct) {
     u32 status = 0;
     bpf_probe_read(&status, sizeof(status), &ct->status);
     return status;
 }
 
-static __always_inline void print_translation(conn_tuple_t *t) {
+static __always_inline void print_translation(const conn_tuple_t *t) {
     if (t->metadata&CONN_TYPE_TCP) {
         log_debug("TCP\n");
     } else {
@@ -28,7 +28,7 @@ static __always_inline void print_translation(conn_tuple_t *t) {
     print_ip(t->daddr_h, t->daddr_l, t->dport, t->metadata);
 }
 
-static __always_inline int conntrack_tuple_to_conn_tuple(conn_tuple_t* t, struct nf_conntrack_tuple* ct) {
+static __always_inline int conntrack_tuple_to_conn_tuple(conn_tuple_t* t, const struct nf_conntrack_tuple* ct) {
     __builtin_memset(t, 0, sizeof(conn_tuple_t));
 
     switch (ct->dst.protonum) {
@@ -88,8 +88,7 @@ static __always_inline int conntrack_tuple_to_conn_tuple(conn_tuple_t* t, struct
 
 static __always_inline void increment_telemetry_count(enum conntrack_telemetry_counter counter_name) {
     u64 key = 0;
-    conntrack_telemetry_t* val = NULL;
-    val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
+    conntrack_telemetry_t* val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
     if (val == NULL) {
         return;
     }
