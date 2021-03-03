@@ -12,7 +12,7 @@ class GoModule:
 
     def __version(self, agent_version):
         """Return the module version for a given Agent version.
-        >>> mods = [GoModule("."), GoModule("./pkg/util/log")]
+        >>> mods = [GoModule("."), GoModule("pkg/util/log")]
         >>> [mod.__version("7.27.0") for mod in mods]
         ["v7.27.0", "v0.27.0"]
         """
@@ -21,6 +21,7 @@ class GoModule:
 
         return "v0" + agent_version[1:]
 
+    # FIXME: Change when Agent 6 and Agent 7 releases are decoupled
     def tag(self, agent_version):
         """Return the module tag name for a given Agent version.
         >>> mods = [GoModule("."), GoModule("pkg/util/log")]
