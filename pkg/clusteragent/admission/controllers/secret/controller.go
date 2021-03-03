@@ -8,6 +8,7 @@
 package secret
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -190,7 +191,7 @@ func (c *Controller) createSecret() error {
 		Data: data,
 	}
 
-	_, err = c.clientSet.CoreV1().Secrets(c.config.GetNs()).Create(secret)
+	_, err = c.clientSet.CoreV1().Secrets(c.config.GetNs()).Create(context.TODO(), secret, metav1.CreateOptions{})
 	return err
 }
 
@@ -203,7 +204,7 @@ func (c *Controller) updateSecret(secret *corev1.Secret) error {
 
 	secret = secret.DeepCopy()
 	secret.Data = data
-	_, err = c.clientSet.CoreV1().Secrets(c.config.GetNs()).Update(secret)
+	_, err = c.clientSet.CoreV1().Secrets(c.config.GetNs()).Update(context.TODO(), secret, metav1.UpdateOptions{})
 	return err
 }
 
