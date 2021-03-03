@@ -666,6 +666,9 @@ func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 			return nil, err
 		}
 		t.toRemove = true
+		if err := os.Chmod(t.root, 0o711); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := t.load(macros, rules); err != nil {

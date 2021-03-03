@@ -14,6 +14,7 @@
 #include "exec.h"
 #include "process.h"
 #include "container.h"
+#include "commit_creds.h"
 #include "overlayfs.h"
 #include "exec.h"
 #include "setattr.h"

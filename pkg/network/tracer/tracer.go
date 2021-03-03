@@ -7,6 +7,7 @@ package tracer
 */
 import "C"
 import (
+	"errors"
 	"expvar"
 	"fmt"
 	"math"
@@ -188,7 +189,14 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		}
 		defer offsetBuf.Close()
 
-		mgrOptions.ConstantEditors, err = runOffsetGuessing(config, offsetBuf)
+		// Offset guessing has been flaky for some customers, so if it fails we'll retry it up to 5 times
+		for i := 0; i < 5; i++ {
+			mgrOptions.ConstantEditors, err = runOffsetGuessing(config, offsetBuf)
+			if err == nil {
+				break
+			}
+			time.Sleep(1 * time.Second)
+		}
 		if err != nil {
 			return nil, fmt.Errorf("error guessing offsets: %s", err)
 		}
@@ -322,7 +330,7 @@ func initializePortBindingMaps(config *config.Config, m *manager.Manager) error 
 			pb := portBindingTuple{net_ns: C.__u32(p.Ino), port: C.__u16(p.Port)}
 			state := uint8(C.PORT_LISTENING)
 			err = tcpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&state), ebpf.UpdateNoExist)
-			if err != nil {
+			if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
 				return fmt.Errorf("failed to update TCP port binding map: %w", err)
 			}
 		}
@@ -341,7 +349,7 @@ func initializePortBindingMaps(config *config.Config, m *manager.Manager) error 
 			pb := portBindingTuple{net_ns: 0, port: C.__u16(p.Port)}
 			state := uint8(C.PORT_LISTENING)
 			err = udpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&state), ebpf.UpdateNoExist)
-			if err != nil {
+			if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
 				return fmt.Errorf("failed to update UDP port binding map: %w", err)
 			}
 		}

@@ -14,6 +14,7 @@ import (
 	"github.com/cenkalti/backoff"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/metadata"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/pb"
@@ -25,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -309,4 +311,8 @@ func convertEventType(t pb.EventType) (types.EventType, error) {
 
 func convertEntityID(id *pb.EntityId) string {
 	return fmt.Sprintf("%s://%s", id.Prefix, id.Uid)
+}
+
+func init() {
+	grpclog.SetLoggerV2(grpcutil.NewLogger())
 }

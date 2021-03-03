@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package model
 
@@ -47,6 +47,12 @@ const (
 	ExitEventType
 	// InvalidateDentryEventType Dentry invalidated event
 	InvalidateDentryEventType
+	// SetuidEventType setuid event
+	SetuidEventType
+	// SetgidEventType setgid event
+	SetgidEventType
+	// CapsetEventType capset event
+	CapsetEventType
 	// MaxEventType is used internally to get the maximum number of kernel events.
 	MaxEventType
 
@@ -108,6 +114,12 @@ func (t EventType) String() string {
 		return "exit"
 	case InvalidateDentryEventType:
 		return "invalidate_dentry"
+	case SetuidEventType:
+		return "setuid"
+	case SetgidEventType:
+		return "setgid"
+	case CapsetEventType:
+		return "capset"
 
 	case CustomLostReadEventType:
 		return "lost_events_read"
