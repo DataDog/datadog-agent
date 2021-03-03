@@ -79,7 +79,7 @@ var (
 	// flags variables
 	pidfilePath string
 
-	orchestratorForwarder forwarder.Forwarder
+	orchestratorForwarder *forwarder.DefaultForwarder
 
 	runCmd = &cobra.Command{
 		Use:   "run",

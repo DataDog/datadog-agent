@@ -534,6 +534,8 @@ core,"github.com/tedsuo/rata",MIT
 core,"github.com/tetafro/godot",MIT
 core,"github.com/timakin/bodyclose/passes/bodyclose",MIT
 core,"github.com/tinylib/msgp/msgp",MIT
+core,"github.com/tklauser/go-sysconf",NewBSD
+core,"github.com/tklauser/numcpus",Apache-2.0
 core,"github.com/tommy-muehle/go-mnd",MIT
 core,"github.com/tommy-muehle/go-mnd/checks",MIT
 core,"github.com/tommy-muehle/go-mnd/config",MIT

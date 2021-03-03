@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Address issue with referencing the wrong repo tag for Docker image by
+    simplifying logic in DockerUtil.ResolveImageNameFromContainer to prefer
+    Config.Image when possible.
+
