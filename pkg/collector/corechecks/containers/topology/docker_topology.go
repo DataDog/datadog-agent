@@ -38,7 +38,7 @@ func MakeDockerTopologyCollector() *DockerTopologyCollector {
 	}
 }
 
-// BuildTopology collects all docker topology
+// BuildContainerTopology collects all docker container topology
 func (dt *DockerTopologyCollector) BuildContainerTopology(du *docker.DockerUtil) error {
 	sender := batcher.GetBatcher()
 

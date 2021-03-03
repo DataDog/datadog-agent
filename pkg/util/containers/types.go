@@ -80,8 +80,8 @@ type NetworkAddress struct {
 	Protocol string
 }
 
-// sts
 // SwarmService represents a Swarm Service definition
+// sts
 type SwarmService struct {
 	ID             string
 	Name           string

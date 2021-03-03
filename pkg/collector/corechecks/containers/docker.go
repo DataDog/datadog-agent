@@ -66,6 +66,8 @@ type containerPerImage struct {
 func (c *DockerConfig) Parse(data []byte) error {
 	// default values
 	c.CollectEvent = true
+	c.CollectContainerTopology = true
+	c.CollectSwarmTopology = true
 	c.CollectContainerSizeFreq = 5
 
 	if err := yaml.Unmarshal(data, c); err != nil {
