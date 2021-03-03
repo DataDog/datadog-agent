@@ -532,6 +532,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.ca_file", "")
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.cert_file", "")
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.key_file", "")
+	config.BindEnvAndSetDefault("cloud_foundry_bbs.env_include", []string{})
+	config.BindEnvAndSetDefault("cloud_foundry_bbs.env_exclude", []string{})
 
 	// Cloud Foundry CC
 	config.BindEnvAndSetDefault("cloud_foundry_cc.url", "https://cloud-controller-ng.service.cf.internal:9024")
