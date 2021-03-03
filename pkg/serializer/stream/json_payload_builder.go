@@ -20,7 +20,6 @@ import (
 )
 
 var (
-	// TODO(remy): could probably removed as not appearing in the status page
 	jsonStreamExpvars      = expvar.NewMap("jsonstream")
 	expvarsTotalCalls      = expvar.Int{}
 	expvarsTotalItems      = expvar.Int{}
