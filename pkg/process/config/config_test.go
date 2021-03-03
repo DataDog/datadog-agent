@@ -646,7 +646,7 @@ func TestEnablingDNSDomainCollection(t *testing.T) {
 	})
 }
 
-func TestGetHostnameFromAgent(t *testing.T) {
+func TestGetHostnameFromGRPC(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 

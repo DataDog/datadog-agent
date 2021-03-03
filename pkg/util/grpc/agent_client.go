@@ -3,6 +3,7 @@ package grpc
 import (
 	"context"
 	"crypto/tls"
+	log "github.com/cihub/seelog"
 	"net"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/pb"
@@ -29,12 +30,14 @@ func GetDDAgentClient(ctx context.Context) (pb.AgentClient, error) {
 		return nil, err
 	}
 
+	log.Debugf("attempting to create grpc agent client connection to: %s", target)
 	conn, err := grpc.DialContext(ctx, target, opts...)
 
 	if err != nil {
 		return nil, err
 	}
 
+	log.Debug("grpc agent client created")
 	return pb.NewAgentClient(conn), nil
 }
 
