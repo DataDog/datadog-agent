@@ -60,7 +60,7 @@ type readbuffer struct {
 
 	// This is the MTU of IPv6, which effectively governs the maximum DNS packet size over IPv6
 	// see https://tools.ietf.org/id/draft-madi-dnsop-udp4dns-00.html
-	data [1280]byte
+	data [1500]byte
 }
 
 const (
@@ -154,7 +154,7 @@ func (di *DriverInterface) Close() error {
 	}
 
 	for _, buf := range di.dnsReadBuffers {
-		freeReadBuffer(buf)
+		C.free(unsafe.Pointer(buf))
 	}
 	di.dnsReadBuffers = nil
 
@@ -383,7 +383,6 @@ func (di *DriverInterface) ReadDNSPacket(visit func([]byte, time.Time) error) (d
 
 	// kick off another read
 	if err := windows.ReadFile(di.driverDNSHandle.handle, buf.data[:], nil, &(buf.ol)); err != nil && err != windows.ERROR_IO_PENDING {
-		log.Errorf("%s", errors.Wrap(err, "cannot restart async"))
 		return false, err
 	}
 
@@ -587,7 +586,7 @@ func prepareCompletionBuffers(h windows.Handle, count int) (iocp windows.Handle,
 
 	buffers = make([]*readbuffer, count)
 	for i := 0; i < count; i++ {
-		buf, err := allocateReadBuffer()
+		buf := (*readbuffer)(C.malloc(C.size_t(unsafe.Sizeof(readbuffer{}))))
 		if err != nil {
 			return windows.Handle(0), nil, err
 		}
