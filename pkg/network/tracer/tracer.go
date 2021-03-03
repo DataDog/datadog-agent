@@ -188,6 +188,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 			if err == nil {
 				break
 			}
+			time.Sleep(1 * time.Second)
 		}
 		if err != nil {
 			return nil, fmt.Errorf("error guessing offsets: %s", err)
