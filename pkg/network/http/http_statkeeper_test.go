@@ -64,23 +64,13 @@ func TestProcessHTTPTransactions(t *testing.T) {
 	}
 }
 
-func TestCleanPath(t *testing.T) {
-	path := "/some/path?key1=val1&key2=val2"
-	expected := "/some/path"
-	assert.Equal(t, expected, cleanPath(path))
-
-	path = "/some/path/with/no/query"
-	expected = "/some/path/with/no/query"
-	assert.Equal(t, expected, cleanPath(path))
-}
-
 func generateIPv4HTTPTransaction(source util.Address, dest util.Address, sourcePort int, destPort int, path string, code int, latency float64) httpTX {
 	var tx httpTX
 
 	tx.request_started = 0
 	tx.response_last_seen = _Ctype_ulonglong(latency * 1000000.0) // ms to ns
 	tx.response_status_code = _Ctype_ushort(code)
-	tx.request_fragment = makeRequestFragment(path)
+	tx.request_fragment = requestFragment([]byte(path))
 	tx.tup.saddr_l = _Ctype_ulonglong(binary.LittleEndian.Uint32(source.Bytes()))
 	tx.tup.sport = _Ctype_ushort(sourcePort)
 	tx.tup.daddr_l = _Ctype_ulonglong(binary.LittleEndian.Uint32(dest.Bytes()))

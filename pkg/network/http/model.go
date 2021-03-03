@@ -16,6 +16,7 @@ import "C"
 const (
 	HTTPBatchSize  = int(C.HTTP_BATCH_SIZE)
 	HTTPBatchPages = int(C.HTTP_BATCH_PAGES)
+	HTTPBufferSize = int(C.HTTP_BUFFER_SIZE)
 )
 
 type httpTX C.http_transaction_t
@@ -50,7 +51,7 @@ func (tx *httpTX) Path() string {
 
 	i++
 
-	for j = i; j < len(b) && b[j] != ' '; j++ {
+	for j = i; j < len(b) && b[j] != ' ' && b[j] != '?'; j++ {
 	}
 
 	if i < j && j <= len(b) {
