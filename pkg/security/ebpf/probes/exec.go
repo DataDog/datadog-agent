@@ -8,6 +8,8 @@
 package probes
 
 import (
+	"fmt"
+
 	"github.com/DataDog/ebpf/manager"
 )
 
@@ -103,4 +105,32 @@ func getExecProbes() []*manager.Probe {
 	}
 
 	return execProbes
+}
+
+func getExecTailCallRoutes() []manager.TailCallRoute {
+	var routes []manager.TailCallRoute
+
+	for i := uint32(0); i != 5; i++ {
+		route := manager.TailCallRoute{
+			ProgArrayName: "args_progs",
+			Key:           i,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				Section: fmt.Sprintf("kprobe/args_progs_%d", i),
+			},
+		}
+		routes = append(routes, route)
+	}
+
+	for i := uint32(0); i != 5; i++ {
+		route := manager.TailCallRoute{
+			ProgArrayName: "envs_progs",
+			Key:           i,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				Section: fmt.Sprintf("kprobe/envs_progs_%d", i),
+			},
+		}
+		routes = append(routes, route)
+	}
+
+	return routes
 }

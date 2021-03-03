@@ -783,6 +783,9 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, erpc.GetConstants()...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
 
+	// tail calls
+	p.managerOptions.TailCallRouter = probes.AllTailRoutes()
+
 	resolvers, err := NewResolvers(p, client)
 	if err != nil {
 		return nil, err
