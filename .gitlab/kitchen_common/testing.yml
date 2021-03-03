@@ -92,18 +92,22 @@
 
 .kitchen_azure_location_north_central_us:
   variables:
+    KITCHEN_PROVIDER: azure
     AZURE_LOCATION: "North Central US"
 
 .kitchen_azure_location_west_central_us:
   variables:
+    KITCHEN_PROVIDER: azure
     AZURE_LOCATION: "West Central US"
 
 .kitchen_azure_location_central_us:
   variables:
+    KITCHEN_PROVIDER: azure
     AZURE_LOCATION: "Central US"
 
 .kitchen_azure_location_south_central_us:
   variables:
+    KITCHEN_PROVIDER: azure
     AZURE_LOCATION: "South Central US"
 
 

@@ -221,7 +221,7 @@ and then adding the desired test suite(s) from the test-definitions directory.
 There is an invoke task for creating the completed `kitchen.yml`.  The usage for 
 the invoke task is:
 
-  invoke kitchen.genconfig --platform=platform --osversions=osversions --provider=provider --testfiles=testfiles
+  invoke kitchen.genconfig --platform=platform --osversions=osversions --provider=provider --arch=arch --testfiles=testfiles
 
 where:
   platform is an index into the platforms.json.  It is (currently) one of:
@@ -242,11 +242,15 @@ where:
   - vagrant
   - hyperv (with a user-supplied platforms file)
 
+  arch is:
+  - x64
+  - arm64
+
   Testfiles is the name of the test-specific file(s) (found in [test-definitions](test-definitions) ) to be
   added.  The testfiles define the tests that are run, on what OS, on the given provider.
 
 An example command would be
-  invoke kitchen.genconfig --platform ubuntu --osversions all --provider azure --testfiles install-script-test
+  invoke kitchen.genconfig --platform ubuntu --osversions all --provider azure --arch x64 --testfiles install-script-test
 
   This will generate a kitchen.yml which executes the `install-script-test` on all of the defined `ubuntu` 
   OS images in azure.
