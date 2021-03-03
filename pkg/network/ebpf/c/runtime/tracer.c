@@ -221,9 +221,9 @@ int kretprobe__tcp_close(struct pt_regs* ctx) {
     return 0;
 }
 
+#ifdef FEATURE_IPV6_ENABLED
 SEC("kprobe/ip6_make_skb")
 int kprobe__ip6_make_skb(struct pt_regs* ctx) {
-#ifdef FEATURE_IPV6_ENABLED
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
     size_t size = (size_t)PT_REGS_PARM4(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -279,10 +279,10 @@ int kprobe__ip6_make_skb(struct pt_regs* ctx) {
     log_debug("kprobe/ip6_make_skb: pid_tgid: %d, size: %d\n", pid_tgid, size);
     handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN);
     increment_telemetry_count(udp_send_processed);
-#endif
 
     return 0;
 }
+#endif
 
 // Note: This is used only in the UDP send path.
 SEC("kprobe/ip_make_skb")
