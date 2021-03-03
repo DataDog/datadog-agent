@@ -8,7 +8,6 @@ package test
 import (
 	"compress/gzip"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -19,8 +18,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/stats"
+
 	"github.com/gogo/protobuf/proto"
+	"github.com/tinylib/msgp/msgp"
 )
 
 // defaultBackendAddress is the default listening address for the fake
@@ -101,8 +101,8 @@ func (s *fakeBackend) handleHealth(w http.ResponseWriter, req *http.Request) {
 }
 
 func (s *fakeBackend) handleStats(w http.ResponseWriter, req *http.Request) {
-	var payload stats.Payload
-	if err := readJSONRequest(req, &payload); err != nil {
+	var payload pb.StatsPayload
+	if err := readStatsPayloadPRequest(req, &payload); err != nil {
 		log.Println("server: error reading stats: ", err)
 	}
 	s.out <- payload
@@ -116,13 +116,21 @@ func (s *fakeBackend) handleTraces(w http.ResponseWriter, req *http.Request) {
 	s.out <- payload
 }
 
-func readJSONRequest(req *http.Request, v interface{}) error {
+func readStatsPayloadPRequest(req *http.Request, msg *pb.StatsPayload) error {
 	rc, err := readCloserFromRequest(req)
 	if err != nil {
 		return err
 	}
 	defer rc.Close()
-	return json.NewDecoder(rc).Decode(v)
+	v := make([]byte, 1)
+	_, err = io.ReadFull(rc, v)
+	if err != nil {
+		return err
+	}
+	if v[0] != 1 {
+		return fmt.Errorf("unkown version %d", v[0])
+	}
+	return msgp.Decode(rc, msg)
 }
 
 func readProtoRequest(req *http.Request, msg proto.Message) error {

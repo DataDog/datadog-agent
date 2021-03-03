@@ -8,26 +8,63 @@ package stats
 import (
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/stats/quantile"
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/sketches-go/ddsketch"
+	"github.com/golang/protobuf/proto"
+)
+
+const (
+	relativeAccuracy = 0.01
+	maxNumBins       = 2048
 )
 
 // Most "algorithm" stuff here is tested with stats_test.go as what is important
 // is that the final data, the one with send after a call to Export(), is correct.
 
 type groupedStats struct {
-	topLevel float64
+	hits            float64
+	topLevelHits    float64
+	errors          float64
+	duration        float64
+	okDistribution  *ddsketch.DDSketch
+	errDistribution *ddsketch.DDSketch
+}
 
-	hits                    float64
-	errors                  float64
-	duration                float64
-	durationDistribution    *quantile.SliceSummary
-	errDurationDistribution *quantile.SliceSummary
+func (s *groupedStats) export(k statsKey) (pb.ClientGroupedStats, error) {
+	msg := s.okDistribution.ToProto()
+	okSummary, err := proto.Marshal(msg)
+	if err != nil {
+		return pb.ClientGroupedStats{}, err
+	}
+	msg = s.errDistribution.ToProto()
+	errSummary, err := proto.Marshal(msg)
+	if err != nil {
+		return pb.ClientGroupedStats{}, err
+	}
+	return pb.ClientGroupedStats{
+		Service:        k.aggr.Service,
+		Name:           k.name,
+		Resource:       k.aggr.Resource,
+		HTTPStatusCode: k.aggr.StatusCode,
+		Type:           k.aggr.Type,
+		Hits:           uint64(s.hits),
+		Errors:         uint64(s.errors),
+		Duration:       uint64(s.duration),
+		OkSummary:      okSummary,
+		ErrorSummary:   errSummary,
+		Synthetics:     k.aggr.Synthetics,
+		TopLevelHits:   uint64(s.topLevelHits),
+	}, nil
 }
 
 func newGroupedStats() *groupedStats {
+	ok, _ := ddsketch.LogCollapsingLowestDenseDDSketch(relativeAccuracy, maxNumBins)
+	err, _ := ddsketch.LogCollapsingLowestDenseDDSketch(relativeAccuracy, maxNumBins)
 	return &groupedStats{
-		durationDistribution:    quantile.NewSliceSummary(),
-		errDurationDistribution: quantile.NewSliceSummary(),
+		okDistribution:  ok,
+		errDistribution: err,
 	}
 }
 
@@ -38,12 +75,12 @@ type statsKey struct {
 
 // RawBucket is used to compute span data and aggregate it
 // within a time-framed bucket. This should not be used outside
-// the agent, use Bucket for this.
+// the agent, use ClientStatsBucket for this.
 type RawBucket struct {
 	// This should really have no public fields. At all.
 
-	start    int64 // timestamp of start in our format
-	duration int64 // duration of a bucket in nanoseconds
+	start    uint64 // timestamp of start in our format
+	duration uint64 // duration of a bucket in nanoseconds
 
 	// this should really remain private as it's subject to refactoring
 	data map[statsKey]*groupedStats
@@ -52,8 +89,15 @@ type RawBucket struct {
 	keyBuf strings.Builder
 }
 
+// PayloadKey is the key of a stats payload.
+type PayloadKey struct {
+	hostname string
+	version  string
+	env      string
+}
+
 // NewRawBucket opens a new calculation bucket for time ts and initializes it properly
-func NewRawBucket(ts, d int64) *RawBucket {
+func NewRawBucket(ts, d uint64) *RawBucket {
 	// The only non-initialized value is the Duration which should be set by whoever closes that bucket
 	return &RawBucket{
 		start:    ts,
@@ -62,66 +106,41 @@ func NewRawBucket(ts, d int64) *RawBucket {
 	}
 }
 
-// Export transforms a RawBucket into a Bucket, typically used
+// Export transforms a RawBucket into a ClientStatsBucket, typically used
 // before communicating data to the API, as RawBucket is the internal
-// type while Bucket is the public, shared one.
-func (sb *RawBucket) Export() Bucket {
-	ret := NewBucket(sb.start, sb.duration)
+// type while ClientStatsBucket is the public, shared one.
+func (sb *RawBucket) Export() map[PayloadKey]pb.ClientStatsBucket {
+	m := make(map[PayloadKey]pb.ClientStatsBucket)
 	for k, v := range sb.data {
-		hitsKey := GrainKey(k.name, HITS, k.aggr)
-		tagSet := k.aggr.ToTagSet()
-		ret.Counts[hitsKey] = Count{
-			Key:      hitsKey,
-			Name:     k.name,
-			Measure:  HITS,
-			TagSet:   tagSet,
-			TopLevel: v.topLevel,
-			Value:    float64(v.hits),
+		b, err := v.export(k)
+		if err != nil {
+			log.Errorf("Dropping stats bucket due to encoding error: %v.", err)
+			continue
 		}
-		errorsKey := GrainKey(k.name, ERRORS, k.aggr)
-		ret.Counts[errorsKey] = Count{
-			Key:      errorsKey,
-			Name:     k.name,
-			Measure:  ERRORS,
-			TagSet:   tagSet,
-			TopLevel: v.topLevel,
-			Value:    float64(v.errors),
+		key := PayloadKey{
+			hostname: k.aggr.Hostname,
+			version:  k.aggr.Version,
+			env:      k.aggr.Env,
 		}
-		durationKey := GrainKey(k.name, DURATION, k.aggr)
-		ret.Counts[durationKey] = Count{
-			Key:      durationKey,
-			Name:     k.name,
-			Measure:  DURATION,
-			TagSet:   tagSet,
-			TopLevel: v.topLevel,
-			Value:    float64(v.duration),
+		s, ok := m[key]
+		if !ok {
+			s = pb.ClientStatsBucket{
+				Start:    sb.start,
+				Duration: sb.duration,
+			}
 		}
-		ret.Distributions[durationKey] = Distribution{
-			Key:      durationKey,
-			Name:     k.name,
-			Measure:  DURATION,
-			TagSet:   tagSet,
-			TopLevel: v.topLevel,
-			Summary:  v.durationDistribution,
-		}
-		ret.ErrDistributions[durationKey] = Distribution{
-			Key:      durationKey,
-			Name:     k.name,
-			Measure:  DURATION,
-			TagSet:   tagSet,
-			TopLevel: v.topLevel,
-			Summary:  v.errDurationDistribution,
-		}
+		s.Stats = append(s.Stats, b)
+		m[key] = s
 	}
-	return ret
+	return m
 }
 
 // HandleSpan adds the span to this bucket stats, aggregated with the finest grain matching given aggregators
-func (sb *RawBucket) HandleSpan(s *WeightedSpan, env string) {
+func (sb *RawBucket) HandleSpan(s *WeightedSpan, env string, hostname string) {
 	if env == "" {
 		panic("env should never be empty")
 	}
-	aggr := NewAggregationFromSpan(s.Span, env)
+	aggr := NewAggregationFromSpan(s.Span, env, hostname)
 	sb.add(s, aggr)
 }
 
@@ -134,24 +153,20 @@ func (sb *RawBucket) add(s *WeightedSpan, aggr Aggregation) {
 		gs = newGroupedStats()
 		sb.data[key] = gs
 	}
-
 	if s.TopLevel {
-		gs.topLevel += s.Weight
+		gs.topLevelHits += s.Weight
 	}
-
 	gs.hits += s.Weight
 	if s.Error != 0 {
 		gs.errors += s.Weight
 	}
 	gs.duration += float64(s.Duration) * s.Weight
-
-	// TODO add for s.Metrics ability to define arbitrary counts and distros, check some config?
 	// alter resolution of duration distro
 	trundur := nsTimestampToFloat(s.Duration)
-	gs.durationDistribution.Insert(trundur)
-
 	if s.Error != 0 {
-		gs.errDurationDistribution.Insert(trundur)
+		gs.errDistribution.Add(trundur)
+	} else {
+		gs.okDistribution.Add(trundur)
 	}
 }
 

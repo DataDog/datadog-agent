@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 )
 
@@ -47,7 +46,7 @@ func Example() {
 	switch v := (<-runner.Out()).(type) {
 	case pb.TracePayload:
 		fmt.Println("OK traces: ", len(v.Traces))
-	case stats.Payload:
+	case pb.ClientStatsPayload:
 		fmt.Println("OK stats: ", len(v.Stats))
 	}
 }
