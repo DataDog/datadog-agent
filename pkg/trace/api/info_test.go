@@ -123,6 +123,7 @@ func TestInfoHandler(t *testing.T) {
 	"feature_flags": [
 		"feature_flag"
 	],
+	"client_drop_p0s": true,
 	"config": {
 		"default_env": "prod",
 		"target_tps": 11,
