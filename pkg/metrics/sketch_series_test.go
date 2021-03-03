@@ -113,6 +113,40 @@ func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {
 	assert.Equal(t, decompressed, payload)
 }
 
+func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
+
+	config.Datadog.Set("serializer_max_uncompressed_payload_size", 100)
+
+	sl := make(SketchSeriesList, 2)
+	// A big item (to be dropped)
+	sl[0] = Makeseries(0)
+
+	// A small item (no dropped)
+	sl[1] = SketchSeries{
+		Name:     "small",
+		Tags:     []string{},
+		Host:     "",
+		Interval: 0,
+	}
+
+	payloads, err := sl.MarshalSplitCompress(marshaler.DefaultBufferContext())
+
+	assert.Nil(t, err)
+
+	reader := bytes.NewReader(*payloads[0])
+	r, _ := zlib.NewReader(reader)
+	decompressed, _ := ioutil.ReadAll(r)
+	r.Close()
+
+	pl := new(gogen.SketchPayload)
+	if err := pl.Unmarshal(decompressed); err != nil {
+		t.Fatal(err)
+	}
+
+	// Should only have 1 sketch because the the larger one was dropped.
+	require.Len(t, pl.Sketches, 1)
+}
+
 func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 	sl := make(SketchSeriesList, 2)
 
