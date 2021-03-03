@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
+	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/ebpf"
@@ -2037,7 +2038,7 @@ func setupDNAT(t *testing.T) {
 		"ip link set dummy1 up",
 		"iptables -t nat -A OUTPUT --dest 2.2.2.2 -j DNAT --to-destination 1.1.1.1",
 	}
-	runCommands(t, cmds)
+	testutil.RunCommands(t, cmds, false)
 }
 
 func teardownDNAT(t *testing.T) {
@@ -2048,20 +2049,7 @@ func teardownDNAT(t *testing.T) {
 		// clear out the conntrack table
 		"conntrack -F",
 	}
-	runCommands(t, cmds)
-}
-
-func runCommands(t *testing.T, cmds []string) {
-	t.Helper()
-	for _, c := range cmds {
-		args := strings.Split(c, " ")
-		c := exec.Command(args[0], args[1:]...)
-		out, err := c.CombinedOutput()
-		if err != nil {
-			t.Errorf("%s returned %s: %s", c, err, out)
-			return
-		}
-	}
+	testutil.RunCommands(t, cmds, true)
 }
 
 func testConfig() *config.Config {

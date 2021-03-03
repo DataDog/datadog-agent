@@ -516,19 +516,24 @@ def build_object_files(ctx, bundle_ebpf=False):
     )
     bindata_files.extend([security_agent_obj_file, security_agent_syscall_wrapper_obj_file])
 
+    for cmd in commands:
+        ctx.run(cmd)
+
+    generate_runtime_files(ctx)
+
+    if bundle_ebpf:
+        go_dir = os.path.join(bpf_dir, "bytecode", "bindata")
+        bundle_files(ctx, bindata_files, "pkg/.*/", go_dir)
+
+
+@task
+def generate_runtime_files(ctx):
     runtime_compiler_files = [
         "./pkg/network/tracer/compile.go",
         "./pkg/security/probe/compile.go",
     ]
     for f in runtime_compiler_files:
-        commands.append("go generate -mod=mod -tags linux_bpf {}".format(f))
-
-    for cmd in commands:
-        ctx.run(cmd)
-
-    if bundle_ebpf:
-        go_dir = os.path.join(bpf_dir, "bytecode", "bindata")
-        bundle_files(ctx, bindata_files, "pkg/.*/", go_dir)
+        ctx.run("go generate -mod=mod -tags linux_bpf {}".format(f))
 
 
 def bundle_files(ctx, bindata_files, dir_prefix, go_dir):
