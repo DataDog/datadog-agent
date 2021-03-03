@@ -98,7 +98,7 @@ metadata for their metrics.`,
 	confPath              string
 	flagNoColor           bool
 	stopCh                chan struct{}
-	orchestratorForwarder forwarder.Forwarder
+	orchestratorForwarder *forwarder.DefaultForwarder
 )
 
 func init() {
