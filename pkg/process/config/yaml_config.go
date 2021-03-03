@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/process/util/api"
+	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -383,7 +383,7 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 				return fmt.Errorf("invalid additional endpoint url '%s': %s", endpointURL, err)
 			}
 			for _, k := range apiKeys {
-				a.APIEndpoints = append(a.APIEndpoints, api.Endpoint{
+				a.APIEndpoints = append(a.APIEndpoints, apicfg.Endpoint{
 					APIKey:   config.SanitizeAPIKey(k),
 					Endpoint: u,
 				})
