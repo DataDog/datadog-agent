@@ -62,7 +62,7 @@ type ebpfConntracker struct {
 func NewEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 	buf, err := getRuntimeCompiledConntracker(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("unable to compile ebpf conntracker: %s", err)
+		return nil, fmt.Errorf("unable to compile ebpf conntracker: %w", err)
 	}
 
 	m, err := getManager(buf, cfg.ConntrackMaxStateSize)
@@ -73,19 +73,19 @@ func NewEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 	err = m.Start()
 	if err != nil {
 		_ = m.Stop(manager.CleanAll)
-		return nil, fmt.Errorf("failed to start ebpf conntracker: %s", err)
+		return nil, fmt.Errorf("failed to start ebpf conntracker: %w", err)
 	}
 
 	ctMap, _, err := m.GetMap(string(probes.ConntrackMap))
 	if err != nil {
 		_ = m.Stop(manager.CleanAll)
-		return nil, fmt.Errorf("unable to get conntrack map: %s", err)
+		return nil, fmt.Errorf("unable to get conntrack map: %w", err)
 	}
 
 	telemetryMap, _, err := m.GetMap(string(probes.ConntrackTelemetryMap))
 	if err != nil {
 		_ = m.Stop(manager.CleanAll)
-		return nil, fmt.Errorf("unable to get telemetry map: %s", err)
+		return nil, fmt.Errorf("unable to get telemetry map: %w", err)
 	}
 
 	e := &ebpfConntracker{
