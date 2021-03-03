@@ -7,8 +7,6 @@ package orchestrator
 
 import (
 	"path"
-
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 )
 
 var (
@@ -24,11 +22,11 @@ type CheckStats struct {
 	// CacheMiss contains the number of cache miss/send Data for a NodeType per run.
 	CacheMiss int
 
-	orchestrator.NodeType
+	NodeType
 }
 
 // BuildStatsKey builds a orchestrator statsKey prefixed key.
-func BuildStatsKey(nodeType orchestrator.NodeType) string {
+func BuildStatsKey(nodeType NodeType) string {
 	keys := append([]string{statsKey}, nodeType.String())
 	return path.Join(keys...)
 }

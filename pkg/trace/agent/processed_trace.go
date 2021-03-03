@@ -13,10 +13,11 @@ import (
 
 // ProcessedTrace represents a trace being processed in the agent.
 type ProcessedTrace struct {
-	Trace         pb.Trace
-	WeightedTrace stats.WeightedTrace
-	Root          *pb.Span
-	Env           string
+	Trace            pb.Trace
+	WeightedTrace    stats.WeightedTrace
+	Root             *pb.Span
+	Env              string
+	ClientDroppedP0s bool
 }
 
 // Weight returns the weight at the root span.

@@ -421,6 +421,24 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		event.updateProcessCachePointer(p.resolvers.ProcessResolver.AddExecEntry(event.Process.Pid, event.processCacheEntry))
 	case model.ExitEventType:
 		defer p.resolvers.ProcessResolver.DeleteEntry(event.Process.Pid, event.ResolveEventTimestamp())
+	case model.SetuidEventType:
+		if _, err := event.SetUID.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode setuid event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+		defer p.resolvers.ProcessResolver.UpdateUID(event.Process.Pid, event)
+	case model.SetgidEventType:
+		if _, err := event.SetGID.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode setgid event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+		defer p.resolvers.ProcessResolver.UpdateGID(event.Process.Pid, event)
+	case model.CapsetEventType:
+		if _, err := event.Capset.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode capset event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+		defer p.resolvers.ProcessResolver.UpdateCapset(event.Process.Pid, event)
 	default:
 		log.Errorf("unsupported event type %d", eventType)
 		return

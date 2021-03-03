@@ -10,6 +10,7 @@ package apiserver
 //// Covered by test/integration/util/kube_apiserver/apiserver_test.go
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"time"
@@ -41,7 +42,7 @@ func (c *APIClient) RunEventCollection(resVer string, lastListTime time.Time, ev
 		return diffEvents(resVerInt, listed), lastResVer, lastTime, nil
 	}
 	// Start watcher with the most up to date RV
-	evWatcher, err := c.Cl.CoreV1().Events(metav1.NamespaceAll).Watch(metav1.ListOptions{
+	evWatcher, err := c.Cl.CoreV1().Events(metav1.NamespaceAll).Watch(context.TODO(), metav1.ListOptions{
 		Watch:           true,
 		ResourceVersion: resVer,
 		Limit:           eventCardinalityLimit,
@@ -143,7 +144,7 @@ func diffEvents(latestStoredRV int, fullList []*v1.Event) []*v1.Event {
 }
 
 func (c *APIClient) listForEventResync(eventReadTimeout int64, eventCardinalityLimit int64, filter string) (added []*v1.Event, resVer string, lastListTime time.Time, err error) {
-	evList, err := c.Cl.CoreV1().Events(metav1.NamespaceAll).List(metav1.ListOptions{
+	evList, err := c.Cl.CoreV1().Events(metav1.NamespaceAll).List(context.TODO(), metav1.ListOptions{
 		TimeoutSeconds: &eventReadTimeout,
 		Limit:          eventCardinalityLimit,
 		FieldSelector:  filter,
