@@ -524,7 +524,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, in
 
 			if iterator != nil {
 				// regID not specified generate one
-				if regID == "" {
+				if regID == "" || regID == "_" {
 					regID = RandString(8)
 				}
 

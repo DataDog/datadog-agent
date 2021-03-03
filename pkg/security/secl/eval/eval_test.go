@@ -706,13 +706,14 @@ func TestRegisterSyntaxError(t *testing.T) {
 		{Expr: `process.list.key[] == 10 && process.list.value == 11`, Expected: false},
 		{Expr: `process[].list.key == 10 && process.list.value == 11`, Expected: false},
 		{Expr: `[]process.list.key == 10 && process.list.value == 11`, Expected: false},
-		{Expr: `process.list[_].key == 10 && process.list[_].value == 11 && process.array[_].key == 10 && process.array[_].value == 11`, Expected: false},
+		{Expr: `process.list[_].key == 10 && process.list[_].value == 11 && process.array[_].key == 10 && process.array[_].value == 11`, Expected: true},
+		{Expr: `process.list[A].key == 10 && process.list[A].value == 11 && process.array[A].key == 10 && process.array[A].value == 11`, Expected: false},
 	}
 
 	for _, test := range tests {
 		_, err := parseRule(test.Expr, model, opts)
 		if err == nil != test.Expected {
-			t.Errorf("expected result `%t` not found, got `%t`\n%s", test.Expected, err == nil, test.Expr)
+			t.Errorf("expected result `%t` not found, got `%t`\n%s, %s", test.Expected, err == nil, test.Expr, err)
 		}
 	}
 }
@@ -736,19 +737,20 @@ func TestRegister(t *testing.T) {
 		Expr     string
 		Expected bool
 	}{
-		{Expr: `process.list[_].key == 10 && process.list[_].value == 11`, Expected: true},
-		{Expr: `process.list[_].key == 9999 && process.list[_].value == 11`, Expected: false},
-		{Expr: `process.list[_].key == 100 && process.list[_].value == 101`, Expected: true},
-		{Expr: `process.list[_].key == 200 && process.list[_].value == 201`, Expected: true},
+		{Expr: `process.list[_].key == 10 && process.list[_].value == 101`, Expected: true},
+		{Expr: `process.list[A].key == 10 && process.list[A].value == 11`, Expected: true},
+		{Expr: `process.list[A].key == 9999 && process.list[A].value == 11`, Expected: false},
+		{Expr: `process.list[A].key == 100 && process.list[A].value == 101`, Expected: true},
+		{Expr: `process.list[A].key == 200 && process.list[A].value == 201`, Expected: true},
 		{Expr: `process.list[A].key == 200 && process.list[A].value == 201`, Expected: true},
 		{Expr: `process.list[A].key == 200 && process.list[B].value == 101`, Expected: true},
 		{Expr: `process.list[A].key == 200 || process.list[B].value == 11`, Expected: true},
 		{Expr: `process.list.key == 200 && process.list.value == 11`, Expected: true},
 		{Expr: `process.list[_].key == 10 && process.list.value == 11`, Expected: true},
-		{Expr: `process.array[_].key == 1000 && process.array[_].value == 1001`, Expected: true},
-		{Expr: `process.array[_].key == 1002 && process.array[_].value == 1001`, Expected: false},
+		{Expr: `process.array[A].key == 1000 && process.array[A].value == 1001`, Expected: true},
+		{Expr: `process.array[A].key == 1002 && process.array[A].value == 1001`, Expected: false},
 		{Expr: `process.array[A].key == 1002 && process.array[B].value == 1003`, Expected: true},
-		{Expr: `process.list[_].key == 10 && process.list[_].value == 11 && process.array[A].key == 1002 && process.array[A].value == 1003`, Expected: true},
+		{Expr: `process.list[A].key == 10 && process.list[A].value == 11 && process.array[B].key == 1002 && process.array[B].value == 1003`, Expected: true},
 	}
 
 	for _, test := range tests {
@@ -783,10 +785,10 @@ func TestRegisterPartial(t *testing.T) {
 		Field       Field
 		IsDiscarder bool
 	}{
-		{Expr: `process.list[_].key == 10 && process.list[_].value == 11`, Field: "process.list.key", IsDiscarder: false},
-		{Expr: `process.list[_].key == 55 && process.list[_].value == 11`, Field: "process.list.key", IsDiscarder: true},
-		{Expr: `process.list[_].key == 55 && process.list[_].value == 11`, Field: "process.list.value", IsDiscarder: false},
-		{Expr: `process.list[_].key == 10 && process.list[_].value == 55`, Field: "process.list.value", IsDiscarder: true},
+		{Expr: `process.list[A].key == 10 && process.list[A].value == 11`, Field: "process.list.key", IsDiscarder: false},
+		{Expr: `process.list[A].key == 55 && process.list[A].value == 11`, Field: "process.list.key", IsDiscarder: true},
+		{Expr: `process.list[A].key == 55 && process.list[A].value == 11`, Field: "process.list.value", IsDiscarder: false},
+		{Expr: `process.list[A].key == 10 && process.list[A].value == 55`, Field: "process.list.value", IsDiscarder: true},
 		{Expr: `process.list[A].key == 10 && process.list[B].value == 55`, Field: "process.list.key", IsDiscarder: false},
 		{Expr: `process.list[A].key == 55 && process.list[B].value == 11`, Field: "process.list.key", IsDiscarder: true},
 	}
