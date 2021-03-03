@@ -2,6 +2,53 @@
 Release Notes
 =============
 
+.. _Release Notes_dca-1.11.0_dca-1.11.X:
+
+dca-1.11.0
+==========
+
+.. _Release Notes_dca-1.11.0_dca-1.11.X_Prelude:
+
+Prelude
+-------
+
+Released on: 2020-12-10
+Pinned to datadog-agent v7.26.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#7260--6260>`_.
+
+
+.. _Release Notes_dca-1.11.0_dca-1.11.X_New Features:
+
+New Features
+------------
+
+- Support Prometheus Autodiscovery for Kubernetes Services.
+
+
+.. _Release Notes_dca-1.11.0_dca-1.11.X_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add `external_metrics_provider.api_key` and `external_metrics_provider.app_key` parameters overriding default `api_key` and `app_key` if set.
+
+- Add a new external_metrics_provider.endpoint config in datadog-cluster.yaml
+  and a DD_EXTERNAL_METRICS_PROVIDER_ENDPOINT environment variable to
+  override the default Datadog API endpoint to query external metrics from,
+  in place of the global DATADOG_HOST. It also makes the external metrics
+  provider respect DD_SITE if DD_EXTERNAL_METRICS_PROVIDER_ENDPOINT is not
+  set.
+
+- Node schedulability is now a dedicated tag on kubernetes node resources.
+
+
+.. _Release Notes_dca-1.11.0_dca-1.11.X_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix dual shipping for orchestrator resources in the cluster agent.
+
+
 .. _Release Notes_dca-1.10.0_dca-1.10.X:
 
 1.10.0
@@ -49,7 +96,7 @@ Enhancement Notes
 Bug Fixes
 ---------
 
-- Fix 'readsecret.sh' permission in Cluster-Agent dockerfiles that removes `other` permission. 
+- Fix 'readsecret.sh' permission in Cluster-Agent dockerfiles that removes `other` permission.
 
 - Fix issue in Cluster Agent when using external metrics without DatadogMetrics where multiple HPAs using the same metricName + Labels would prevent all HPAs (except 1st one) to get values from Datadog
 
@@ -113,7 +160,7 @@ Bug Fixes
 ---------
 
 - Fix transformer for gibiBytes and gigaBytes (#6437).
-- Fix `cluster-agent` commands to allow executing the `readsecret.sh` script for the secret backend feature (#6445). 
+- Fix `cluster-agent` commands to allow executing the `readsecret.sh` script for the secret backend feature (#6445).
 - Fix issue with External Metrics when several HPAs use the same query (#6412).
 
 .. _Release Notes_1.8.0:
