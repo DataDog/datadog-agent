@@ -55,7 +55,7 @@ type DriverExpvar string
 
 // This is the type that an overlapped read returns -- the overlapped object, which must be passed back to the kernel after reading
 // followed by a predictably sized chunk of bytes
-type _readbuffer struct {
+type readbuffer struct {
 	ol windows.Overlapped
 
 	// This is the MTU of IPv6, which effectively governs the maximum DNS packet size over IPv6
@@ -99,7 +99,7 @@ type DriverInterface struct {
 	driverStatsHandle *DriverHandle
 	driverDNSHandle   *DriverHandle
 
-	dnsReadBuffers []*_readbuffer
+	dnsReadBuffers []*readbuffer
 	dnsIOCP        windows.Handle
 
 	path                  string
@@ -369,8 +369,8 @@ func (di *DriverInterface) ReadDNSPacket(visit func([]byte, time.Time) error) (d
 		return false, errors.Wrap(err, "could not get queued completion status")
 	}
 
-	var buf *_readbuffer
-	buf = (*_readbuffer)(unsafe.Pointer(ol))
+	var buf *readbuffer
+	buf = (*readbuffer)(unsafe.Pointer(ol))
 
 	fph := (*C.struct_filterPacketHeader)(unsafe.Pointer(&buf.data[0]))
 	captureTime := time.Unix(0, int64(fph.timestamp))
@@ -579,13 +579,13 @@ func newDDAPIFilter(direction, layer C.uint64_t, ifaceIndex int, isIPV4 bool) C.
 // danger: even though all reads will reference the returned iocp, buffers must be in-scope as long
 // as reads are happening. Otherwise, the memory the kernel is writing to will be written to memory reclaimed
 // by the GC
-func prepareCompletionBuffers(h windows.Handle, count int) (iocp windows.Handle, buffers []*_readbuffer, err error) {
+func prepareCompletionBuffers(h windows.Handle, count int) (iocp windows.Handle, buffers []*readbuffer, err error) {
 	iocp, err = windows.CreateIoCompletionPort(h, windows.Handle(0), 0, 0)
 	if err != nil {
 		return windows.Handle(0), nil, errors.Wrap(err, "error creating IO completion port")
 	}
 
-	buffers = make([]*_readbuffer, count)
+	buffers = make([]*readbuffer, count)
 	for i := 0; i < count; i++ {
 		buf, err := allocateReadBuffer()
 		if err != nil {

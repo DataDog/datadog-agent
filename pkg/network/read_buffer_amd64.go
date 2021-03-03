@@ -13,11 +13,11 @@ import (
 	"unsafe"
 )
 
-func allocateReadBuffer() (*_readbuffer, error) {
-	sizeOfReadBuffer := unsafe.Sizeof(_readbuffer{})
-	return (*_readbuffer)(C.malloc(C.ulonglong(sizeOfReadBuffer))), nil
+func allocateReadBuffer() (*readbuffer, error) {
+	sizeOfReadBuffer := unsafe.Sizeof(readbuffer{})
+	return (*readbuffer)(C.malloc(C.ulonglong(sizeOfReadBuffer))), nil
 }
 
-func freeReadBuffer(buf *_readbuffer) {
+func freeReadBuffer(buf *readbuffer) {
 	C.free(unsafe.Pointer(buf))
 }
