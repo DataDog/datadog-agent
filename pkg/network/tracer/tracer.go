@@ -641,35 +641,27 @@ func (t *Tracer) getConnTelemetry(mapSize int) *network.ConnectionsTelemetry {
 }
 
 func (t *Tracer) getRuntimeCompilationTelemetry() map[string]network.RuntimeCompilationTelemetry {
-	compilationTelemetryByAsset := make(map[string]network.RuntimeCompilationTelemetry)
+	telemetryByAsset := map[string]map[string]int64{
+		"tracer": runtime.Tracer.GetTelemetry(),
+		"conntrack": runtime.Conntrack.GetTelemetry(),
+	}
 
-	ttm := network.RuntimeCompilationTelemetry{}
-	tracerTelemetry := runtime.Tracer.GetTelemetry()
-	if enabled, ok := tracerTelemetry["runtime_compilation_enabled"]; ok {
-		ttm.RuntimeCompilationEnabled = enabled == 1
+	result := make(map[string]network.RuntimeCompilationTelemetry)
+	for assetName, telemetry := range telemetryByAsset {
+		tm := network.RuntimeCompilationTelemetry{}
+		if enabled, ok := telemetry["runtime_compilation_enabled"]; ok {
+			tm.RuntimeCompilationEnabled = enabled == 1
+		}
+		if result, ok := telemetry["runtime_compilation_result"]; ok {
+			tm.RuntimeCompilationResult = int32(result)
+		}
+		if duration, ok := telemetry["runtime_compilation_duration"]; ok {
+			tm.RuntimeCompilationDuration = duration
+		}
+		result[assetName] = tm
 	}
-	if result, ok := tracerTelemetry["runtime_compilation_result"]; ok {
-		ttm.RuntimeCompilationResult = int32(result)
-	}
-	if duration, ok := tracerTelemetry["runtime_compilation_duration"]; ok {
-		ttm.RuntimeCompilationDuration = duration
-	}
-	compilationTelemetryByAsset["tracer"] = ttm
 
-	ctm := network.RuntimeCompilationTelemetry{}
-	conntrackTelemetry := runtime.Conntrack.GetTelemetry()
-	if enabled, ok := conntrackTelemetry["runtime_compilation_enabled"]; ok {
-		ctm.RuntimeCompilationEnabled = enabled == 1
-	}
-	if result, ok := conntrackTelemetry["runtime_compilation_result"]; ok {
-		ctm.RuntimeCompilationResult = int32(result)
-	}
-	if duration, ok := conntrackTelemetry["runtime_compilation_duration"]; ok {
-		ctm.RuntimeCompilationDuration = duration
-	}
-	compilationTelemetryByAsset["conntrack"] = ctm
-
-	return compilationTelemetryByAsset
+	return result
 }
 
 // getConnections returns all of the active connections in the ebpf maps along with the latest timestamp.  It takes
