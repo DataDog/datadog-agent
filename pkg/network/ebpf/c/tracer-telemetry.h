@@ -8,18 +8,22 @@
 #include <linux/kconfig.h>
 #include <net/sock.h>
 
-enum telemetry_counter{tcp_sent_miscounts, missed_tcp_close, missed_udp_close, udp_send_processed, udp_send_missed};
+enum telemetry_counter {
+    tcp_sent_miscounts,
+    missed_tcp_close,
+    missed_udp_close,
+    udp_send_processed,
+    udp_send_missed,
+};
 
 static __always_inline void increment_telemetry_count(enum telemetry_counter counter_name) {
     __u64 key = 0;
-    telemetry_t empty = {};
-    telemetry_t* val;
-    bpf_map_update_elem(&telemetry, &key, &empty, BPF_NOEXIST);
+    telemetry_t* val = NULL;
     val = bpf_map_lookup_elem(&telemetry, &key);
-
     if (val == NULL) {
         return;
     }
+
     switch (counter_name) {
     case tcp_sent_miscounts:
         __sync_fetch_and_add(&val->tcp_sent_miscounts, 1);

@@ -129,8 +129,8 @@ type Serializer struct {
 func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder forwarder.Forwarder) *Serializer {
 	s := &Serializer{
 		Forwarder:                     forwarder,
-		seriesJSONPayloadBuilder:      stream.NewJSONPayloadBuilder(),
 		orchestratorForwarder:         orchestratorForwarder,
+		seriesJSONPayloadBuilder:      stream.NewJSONPayloadBuilder(config.Datadog.GetBool("enable_json_stream_shared_compressor_buffers")),
 		enableEvents:                  config.Datadog.GetBool("enable_payloads.events"),
 		enableSeries:                  config.Datadog.GetBool("enable_payloads.series"),
 		enableServiceChecks:           config.Datadog.GetBool("enable_payloads.service_checks"),

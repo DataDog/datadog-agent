@@ -308,6 +308,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("enable_service_checks_stream_payload_serialization", true)
 	config.BindEnvAndSetDefault("enable_events_stream_payload_serialization", true)
 	config.BindEnvAndSetDefault("enable_sketch_stream_payload_serialization", true)
+	config.BindEnvAndSetDefault("enable_json_stream_shared_compressor_buffers", true)
 
 	// Warning: do not change the two following values. Your payloads will get dropped by Datadog's intake.
 	config.BindEnvAndSetDefault("serializer_max_payload_size", 2*megaByte+megaByte/2)
@@ -841,6 +842,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.pid_cache_size", 10000)
 	config.BindEnvAndSetDefault("runtime_security_config.cookie_cache_size", 100)
 	config.BindEnvAndSetDefault("runtime_security_config.agent_monitoring_events", true)
+	config.BindEnvAndSetDefault("runtime_security_config.custom_sensitive_words", []string{})
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")

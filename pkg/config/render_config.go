@@ -47,6 +47,7 @@ type context struct {
 	Compliance        bool
 	SNMP              bool
 	SecurityModule    bool
+	SecurityAgent     bool
 	NetworkModule     bool // Sub-module of System Probe
 }
 
@@ -77,7 +78,6 @@ func mkContext(buildType string) context {
 		KubeApiServer:     true, // TODO: remove when phasing out from node-agent
 		Compliance:        true,
 		SNMP:              true,
-		SecurityModule:    true,
 	}
 
 	switch buildType {
@@ -97,8 +97,9 @@ func mkContext(buildType string) context {
 		}
 	case "system-probe":
 		return context{
-			SystemProbe:   true,
-			NetworkModule: true,
+			SystemProbe:    true,
+			NetworkModule:  true,
+			SecurityModule: true,
 		}
 	case "dogstatsd":
 		return context{
@@ -125,6 +126,10 @@ func mkContext(buildType string) context {
 			ClusterChecks:   true,
 			CloudFoundryBBS: true,
 			CloudFoundryCC:  true,
+		}
+	case "security-agent":
+		return context{
+			SecurityAgent: true,
 		}
 	}
 

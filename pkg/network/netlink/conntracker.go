@@ -203,7 +203,7 @@ func (ctr *realConntracker) loadInitialState(events <-chan Event) {
 	for e := range events {
 		conns := DecodeAndReleaseEvent(e)
 		for _, c := range conns {
-			if len(ctr.state) < ctr.maxStateSize && isNAT(c) {
+			if len(ctr.state) < ctr.maxStateSize && IsNAT(c) {
 				log.Tracef("%s", c)
 				if k, ok := formatKey(c.Origin); ok {
 					ctr.state[k] = formatIPTranslation(c.Reply)
@@ -220,7 +220,7 @@ func (ctr *realConntracker) loadInitialState(events <-chan Event) {
 // it will keep being called until it returns nonzero.
 func (ctr *realConntracker) register(c Con) int {
 	// don't bother storing if the connection is not NAT
-	if !isNAT(c) {
+	if !IsNAT(c) {
 		atomic.AddInt64(&ctr.stats.registersDropped, 1)
 		return 0
 	}
@@ -295,7 +295,8 @@ func (ctr *realConntracker) compact() {
 	ctr.state = copied
 }
 
-func isNAT(c Con) bool {
+// IsNAT returns whether this Con represents a NAT translation
+func IsNAT(c Con) bool {
 	if c.Origin == nil ||
 		c.Reply == nil ||
 		c.Origin.Proto == nil ||

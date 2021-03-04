@@ -10,6 +10,8 @@ package stream
 import (
 	"bytes"
 	"expvar"
+	"sync"
+	"time"
 
 	jsoniter "github.com/json-iterator/go"
 
@@ -20,23 +22,24 @@ import (
 )
 
 var (
-	jsonStreamExpvars      = expvar.NewMap("jsonstream")
-	expvarsTotalCalls      = expvar.Int{}
-	expvarsTotalItems      = expvar.Int{}
-	expvarsWriteItemErrors = expvar.Int{}
-	expvarsPayloadFulls    = expvar.Int{}
-	expvarsItemDrops       = expvar.Int{}
+	jsonStreamExpvars        = expvar.NewMap("jsonstream")
+	expvarsTotalCalls        = expvar.Int{}
+	expvarsTotalItems        = expvar.Int{}
+	expvarsWriteItemErrors   = expvar.Int{}
+	expvarsPayloadFulls      = expvar.Int{}
+	expvarsItemDrops         = expvar.Int{}
+	expvarsCompressorLocks   = expvar.Int{}
+	expvarsTotalLockTime     = expvar.Int{}
+	expvarsSerializationTime = expvar.Int{}
 
-	tlmTotalCalls = telemetry.NewCounter("jsonstream", "total_calls",
-		nil, "Total calls to the jsontream serializer")
-	tlmTotalItems = telemetry.NewCounter("jsonstream", "total_items",
-		nil, "Total items in the jsonstream serializer")
-	tlmItemDrops = telemetry.NewCounter("jsonstream", "item_drops",
-		nil, "Items dropped in the jsonstream serializer")
-	tlmWriteItemErrors = telemetry.NewCounter("jsonstream", "write_item_errors",
-		nil, "Count of 'write item errors' in the jsonstream serializer")
-	tlmPayloadFull = telemetry.NewCounter("jsonstream", "payload_full",
-		nil, "How many times we've hit a 'payload is full' in the jsonstream serializer")
+	tlmTotalCalls             = telemetry.NewCounter("jsonstream", "total_calls", nil, "Total calls to the jsontream serializer")
+	tlmTotalItems             = telemetry.NewCounter("jsonstream", "total_items", nil, "Total items in the jsonstream serializer")
+	tlmItemDrops              = telemetry.NewCounter("jsonstream", "item_drops", nil, "Items dropped in the jsonstream serializer")
+	tlmWriteItemErrors        = telemetry.NewCounter("jsonstream", "write_item_errors", nil, "Count of 'write item errors' in the jsonstream serializer")
+	tlmPayloadFull            = telemetry.NewCounter("jsonstream", "payload_full", nil, "How many times we've hit a 'payload is full' in the jsonstream serializer")
+	tlmCompressorLocks        = telemetry.NewGauge("jsonstream", "blocking_goroutines", nil, "Number of blocked goroutines waiting for a compressor to be available")
+	tlmTotalLockTime          = telemetry.NewCounter("jsonstream", "blocked_time", nil, "Total time spent waiting for the compressor to be available")
+	tlmTotalSerializationTime = telemetry.NewCounter("jsonstream", "serialization_time", nil, "Total time spent serializing and compressing payloads")
 )
 
 var jsonConfig = jsoniter.Config{
@@ -50,6 +53,9 @@ func init() {
 	jsonStreamExpvars.Set("WriteItemErrors", &expvarsWriteItemErrors)
 	jsonStreamExpvars.Set("PayloadFulls", &expvarsPayloadFulls)
 	jsonStreamExpvars.Set("ItemDrops", &expvarsItemDrops)
+	jsonStreamExpvars.Set("CompressorLocks", &expvarsCompressorLocks)
+	jsonStreamExpvars.Set("TotalLockTime", &expvarsTotalLockTime)
+	jsonStreamExpvars.Set("TotalSerializationTime", &expvarsSerializationTime)
 }
 
 // JSONPayloadBuilder is used to build payloads. JSONPayloadBuilder allocates memory based
@@ -57,13 +63,25 @@ func init() {
 // use multiple JSONPayloadBuilders for different sources.
 type JSONPayloadBuilder struct {
 	inputSizeHint, outputSizeHint int
+	shareAndLockBuffers           bool
+	input, output                 *bytes.Buffer
+	mu                            sync.Mutex
 }
 
-// NewJSONPayloadBuilder creates a new JSONPayloadBuilder with default values.
-func NewJSONPayloadBuilder() *JSONPayloadBuilder {
+func NewJSONPayloadBuilder(shareAndLockBuffers bool) *JSONPayloadBuilder {
+	if shareAndLockBuffers {
+		return &JSONPayloadBuilder{
+			inputSizeHint:       4096,
+			outputSizeHint:      4096,
+			shareAndLockBuffers: true,
+			input:               bytes.NewBuffer(make([]byte, 0, 4096)),
+			output:              bytes.NewBuffer(make([]byte, 0, 4096)),
+		}
+	}
 	return &JSONPayloadBuilder{
-		inputSizeHint:  4096,
-		outputSizeHint: 4096,
+		inputSizeHint:       4096,
+		outputSizeHint:      4096,
+		shareAndLockBuffers: false,
 	}
 }
 
@@ -88,15 +106,35 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	m marshaler.StreamJSONMarshaler,
 	policy OnErrItemTooBigPolicy) (forwarder.Payloads, error) {
 
+	var input, output *bytes.Buffer
+	if b.shareAndLockBuffers {
+		defer b.mu.Unlock()
+
+		tlmCompressorLocks.Inc()
+		expvarsCompressorLocks.Add(1)
+		start := time.Now()
+		b.mu.Lock()
+		elapsed := time.Since(start)
+		expvarsTotalLockTime.Add(int64(elapsed))
+		tlmTotalLockTime.Add(float64(elapsed))
+		tlmCompressorLocks.Dec()
+		expvarsCompressorLocks.Add(-1)
+
+		input = b.input
+		output = b.output
+		input.Reset()
+		output.Reset()
+	} else {
+		input = bytes.NewBuffer(make([]byte, 0, b.inputSizeHint))
+		output = bytes.NewBuffer(make([]byte, 0, b.outputSizeHint))
+	}
+
 	var payloads forwarder.Payloads
 	var i int
 	itemCount := m.Len()
 	expvarsTotalCalls.Add(1)
 	tlmTotalCalls.Inc()
-
-	// Inner buffers for the compressor
-	input := bytes.NewBuffer(make([]byte, 0, b.inputSizeHint))
-	output := bytes.NewBuffer(make([]byte, 0, b.outputSizeHint))
+	start := time.Now()
 
 	// Temporary buffers
 	var header, footer bytes.Buffer
@@ -175,8 +213,14 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	}
 	payloads = append(payloads, &payload)
 
-	b.inputSizeHint = input.Cap()
-	b.outputSizeHint = output.Cap()
+	if !b.shareAndLockBuffers {
+		b.inputSizeHint = input.Cap()
+		b.outputSizeHint = output.Cap()
+	}
+
+	elapsed := time.Since(start)
+	expvarsSerializationTime.Add(int64(elapsed))
+	tlmTotalSerializationTime.Add(float64(elapsed))
 
 	return payloads, nil
 }

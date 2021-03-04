@@ -16,7 +16,7 @@ import (
 
 // PortMapping represents a port binding
 type PortMapping struct {
-	Ino  uint64
+	Ino  uint32
 	Port uint16
 }
 
@@ -43,7 +43,7 @@ func ReadInitialState(procRoot string, protocol ConnectionType, collectIPv6 bool
 }
 
 func readState(procRoot string, paths []string, status int64) (map[PortMapping]struct{}, error) {
-	seen := make(map[uint64]struct{})
+	seen := make(map[uint32]struct{})
 	allports := make(map[PortMapping]struct{})
 	err := util.WithAllProcs(procRoot, func(pid int) error {
 		nsIno, err := util.GetNetNsInoFromPid(procRoot, pid)

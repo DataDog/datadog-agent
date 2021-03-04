@@ -30,7 +30,7 @@ type JSONPayloadBuilder struct {
 }
 
 // NewJSONPayloadBuilder is not implemented when zlib is not available.
-func NewJSONPayloadBuilder() *JSONPayloadBuilder {
+func NewJSONPayloadBuilder(shareAndLockBuffers bool) *JSONPayloadBuilder {
 	return nil
 }
 
