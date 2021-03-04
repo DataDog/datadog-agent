@@ -12,4 +12,3 @@ class CustomActionDataTest : public testing::Test
         propertyDDAgentUserPassword = L"DDAGENTUSER_PASSWORD";
     }
 };
-

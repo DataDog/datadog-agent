@@ -244,7 +244,6 @@ UINT doFinalizeInstall(CustomActionData &data)
         }
         keyRollback.setStringValue(installInstalledServices.c_str(), L"true");
         keyInstall.setStringValue(installInstalledServices.c_str(), L"true");
-
     }
     else
     {
