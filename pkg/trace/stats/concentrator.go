@@ -6,6 +6,7 @@
 package stats
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"sync"
 	"time"
 
@@ -32,19 +33,20 @@ type Concentrator struct {
 	// It means that we can compute stats only for the last `bufferLen * bsize` and that we
 	// wait such time before flushing the stats.
 	// This only applies to past buckets. Stats buckets in the future are allowed with no restriction.
-	bufferLen int
-	In        chan []Input
-	Out       chan pb.StatsPayload
-	exit      chan struct{}
-	exitWG    sync.WaitGroup
-	buckets   map[int64]*RawBucket // buckets used to aggregate stats per timestamp
-	mu        sync.Mutex
-	env       string
-	hostname  string
+	bufferLen     int
+	In            chan []Input
+	Out           chan pb.StatsPayload
+	exit          chan struct{}
+	exitWG        sync.WaitGroup
+	buckets       map[int64]*RawBucket // buckets used to aggregate stats per timestamp
+	mu            sync.Mutex
+	agentEnv      string
+	agentHostname string
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
-func NewConcentrator(bsize int64, out chan pb.StatsPayload, now time.Time, env, hostname string) *Concentrator {
+func NewConcentrator(conf *config.AgentConfig, out chan pb.StatsPayload, now time.Time) *Concentrator {
+	bsize := conf.BucketInterval.Nanoseconds()
 	c := Concentrator{
 		bsize:   bsize,
 		buckets: make(map[int64]*RawBucket),
@@ -52,12 +54,12 @@ func NewConcentrator(bsize int64, out chan pb.StatsPayload, now time.Time, env, 
 		// override buckets which could have been sent before an Agent restart.
 		oldestTs: alignTs(now.UnixNano(), bsize),
 		// TODO: Move to configuration.
-		bufferLen: defaultBufferLen,
-		In:        make(chan []Input, 100),
-		Out:       out,
-		exit:      make(chan struct{}),
-		env:       env,
-		hostname:  hostname,
+		bufferLen:     defaultBufferLen,
+		In:            make(chan []Input, 100),
+		Out:           out,
+		exit:          make(chan struct{}),
+		agentEnv:      conf.DefaultEnv,
+		agentHostname: conf.Hostname,
 	}
 	return &c
 }
@@ -128,7 +130,7 @@ func (c *Concentrator) Add(inputs []Input) {
 func (c *Concentrator) addNow(i *Input) {
 	env := i.Env
 	if env == "" {
-		env = c.env
+		env = c.agentEnv
 	}
 	for _, s := range i.Trace {
 		if !(s.TopLevel || s.Measured) {
@@ -147,7 +149,7 @@ func (c *Concentrator) addNow(i *Input) {
 			b = NewRawBucket(uint64(btime), uint64(c.bsize))
 			c.buckets[btime] = b
 		}
-		b.HandleSpan(s, env, c.hostname)
+		b.HandleSpan(s, env, c.agentHostname)
 	}
 }
 
@@ -190,7 +192,7 @@ func (c *Concentrator) flushNow(now int64) pb.StatsPayload {
 			Stats:    s,
 		})
 	}
-	return pb.StatsPayload{Stats: sb, AgentHostname: c.hostname, AgentEnv: c.env}
+	return pb.StatsPayload{Stats: sb, AgentHostname: c.agentHostname, AgentEnv: c.agentEnv}
 }
 
 // alignTs returns the provided timestamp truncated to the bucket size.

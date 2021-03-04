@@ -7,6 +7,7 @@ package stats
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"math/rand"
 	"testing"
 	"time"
@@ -26,7 +27,12 @@ var (
 
 func NewTestConcentrator(now time.Time) *Concentrator {
 	statsChan := make(chan pb.StatsPayload)
-	return NewConcentrator(testBucketInterval, statsChan, now, "env", "hostname")
+	cfg := config.AgentConfig{
+		BucketInterval: time.Duration(testBucketInterval),
+		DefaultEnv:     "env",
+		Hostname:       "hostname",
+	}
+	return NewConcentrator(&cfg, statsChan, now)
 }
 
 // getTsInBucket gives a timestamp in ns which is `offset` buckets late

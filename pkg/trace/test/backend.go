@@ -128,7 +128,7 @@ func readStatsPayloadPRequest(req *http.Request, msg *pb.StatsPayload) error {
 		return err
 	}
 	if v[0] != 1 {
-		return fmt.Errorf("unkown version %d", v[0])
+		return fmt.Errorf("unknown version %d", v[0])
 	}
 	return msgp.Decode(rc, msg)
 }

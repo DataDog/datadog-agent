@@ -68,7 +68,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	statsChan := make(chan pb.StatsPayload, 100)
 
 	agnt := &Agent{
-		Concentrator:      stats.NewConcentrator(conf.BucketInterval.Nanoseconds(), statsChan, time.Now(), conf.DefaultEnv, conf.Hostname),
+		Concentrator:      stats.NewConcentrator(conf, statsChan, time.Now()),
 		Blacklister:       filters.NewBlacklister(conf.Ignore["resource"]),
 		Replacer:          filters.NewReplacer(conf.ReplaceTags),
 		PrioritySampler:   sampler.NewPrioritySampler(conf, dynConf),

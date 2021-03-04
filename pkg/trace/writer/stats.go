@@ -148,7 +148,6 @@ func (w *StatsWriter) SendPayload(p pb.StatsPayload) {
 		log.Errorf("Stats encoding error: %v", err)
 		return
 	}
-	atomic.AddInt64(&w.stats.Bytes, int64(req.body.Len()))
 	sendPayloads(w.senders, req, w.syncMode)
 }
 
@@ -189,23 +188,23 @@ func (w *StatsWriter) buildPayloads(sp pb.StatsPayload, maxEntriesPerPayload int
 	i := -1
 	nbEntries := 0
 	nbBuckets := 0
-	nbPayloads := 0
 	for _, p := range sp.Stats {
 		for _, s := range w.splitPayload(p, maxEntriesPerPayload) {
-			if i == -1 || nbEntries+s.nbEntries > maxEntriesPerPayload {
-				if i != -1 {
-					log.Debugf("Flushing %d entries (buckets=%d payloads=%v)", nbEntries, nbBuckets, nbPayloads)
+			shouldFlush := nbEntries+s.nbEntries > maxEntriesPerPayload
+			if i == -1 || shouldFlush {
+				if shouldFlush {
+					log.Debugf("Flushing %d entries (buckets=%d client_payloads=%d)", nbEntries, nbBuckets, len(grouped[i].Stats))
 					atomic.AddInt64(&w.stats.StatsBuckets, int64(nbBuckets))
+					atomic.AddInt64(&w.stats.ClientPayloads, int64(len(grouped[i].Stats)))
+					atomic.AddInt64(&w.stats.StatsEntries, int64(nbEntries))
 				}
 				grouped = append(grouped, pb.StatsPayload{AgentEnv: sp.AgentEnv, AgentHostname: sp.AgentHostname})
 				i++
 				nbEntries = 0
 				nbBuckets = 0
-				nbPayloads = 0
 			}
 			nbEntries += s.nbEntries
 			nbBuckets += len(s.Stats)
-			nbPayloads++
 			grouped[i].Stats = append(grouped[i].Stats, s.ClientStatsPayload)
 		}
 	}
@@ -275,8 +274,10 @@ func (w *StatsWriter) splitPayload(p pb.ClientStatsPayload, maxEntriesPerPayload
 var _ eventRecorder = (*StatsWriter)(nil)
 
 func (w *StatsWriter) report() {
+	metrics.Count("datadog.trace_agent.stats_writer.client_payloads", atomic.SwapInt64(&w.stats.ClientPayloads, 0), nil, 1)
 	metrics.Count("datadog.trace_agent.stats_writer.payloads", atomic.SwapInt64(&w.stats.Payloads, 0), nil, 1)
 	metrics.Count("datadog.trace_agent.stats_writer.stats_buckets", atomic.SwapInt64(&w.stats.StatsBuckets, 0), nil, 1)
+	metrics.Count("datadog.trace_agent.stats_writer.stats_entries", atomic.SwapInt64(&w.stats.StatsEntries, 0), nil, 1)
 	metrics.Count("datadog.trace_agent.stats_writer.bytes", atomic.SwapInt64(&w.stats.Bytes, 0), nil, 1)
 	metrics.Count("datadog.trace_agent.stats_writer.retries", atomic.SwapInt64(&w.stats.Retries, 0), nil, 1)
 	metrics.Count("datadog.trace_agent.stats_writer.splits", atomic.SwapInt64(&w.stats.Splits, 0), nil, 1)

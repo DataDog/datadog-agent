@@ -1,6 +1,7 @@
 package stats
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"strconv"
 	"strings"
 
@@ -30,12 +31,13 @@ type Aggregation struct {
 }
 
 func getStatusCode(s *pb.Span) uint32 {
-	if s.Meta[tagStatusCode] == "" {
+	strC := traceutil.GetMetaDefault(s, tagStatusCode, "")
+	if strC == "" {
 		return 0
 	}
-	c, err := strconv.Atoi(s.Meta[tagStatusCode])
+	c, err := strconv.Atoi(strC)
 	if err != nil {
-		log.Errorf("Invalid status code %s. Using 0.", c)
+		log.Errorf("Invalid status code %s. Using 0.", strC)
 		return 0
 	}
 	return uint32(c)
@@ -43,8 +45,8 @@ func getStatusCode(s *pb.Span) uint32 {
 
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
 func NewAggregationFromSpan(s *pb.Span, env string, defaultHostname string) Aggregation {
-	synthetics := strings.HasPrefix(s.Meta[tagOrigin], "synthetics")
-	hostname := s.Meta[tagHostname]
+	synthetics := strings.HasPrefix(traceutil.GetMetaDefault(s, tagOrigin, ""), "synthetics")
+	hostname := traceutil.GetMetaDefault(s, tagHostname, "")
 	if hostname == "" {
 		hostname = defaultHostname
 	}
@@ -55,7 +57,7 @@ func NewAggregationFromSpan(s *pb.Span, env string, defaultHostname string) Aggr
 		Type:       s.Type,
 		Hostname:   hostname,
 		StatusCode: getStatusCode(s),
-		Version:    s.Meta[tagVersion],
+		Version:    traceutil.GetMetaDefault(s, tagVersion, ""),
 		Synthetics: synthetics,
 	}
 }
