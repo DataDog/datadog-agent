@@ -280,6 +280,12 @@ var (
 	kernelCapabilitiesStrings = map[int]string{}
 )
 
+// File flags
+const (
+	LowerLayer = 1 << iota
+	UpperLayer
+)
+
 func initOpenConstants() {
 	for k, v := range openFlagsConstants {
 		SECLConstants[k] = &eval.IntEvaluator{Value: v}

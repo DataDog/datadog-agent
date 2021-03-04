@@ -141,21 +141,14 @@ dev_t __attribute__((always_inline)) get_mount_dev(void *mnt) {
     return get_vfsmount_dev(get_mount_vfsmount(mnt));
 }
 
-int __attribute__((always_inline)) get_overlay_numlower(struct dentry *dentry) {
-    int numlower;
-    void *fsdata;
-    bpf_probe_read(&fsdata, sizeof(void *), &dentry->d_fsdata);
-
-    // bpf_probe_read(&numlower, sizeof(int), fsdata + offsetof(struct ovl_entry, numlower));
-    // TODO: make it a constant and change its value based on the current kernel version. 16 is only good for kernels 4.13+
-    bpf_probe_read(&numlower, sizeof(int), fsdata + 16);
-    return numlower;
+struct inode* __attribute__((always_inline)) get_dentry_inode(struct dentry *dentry) {
+    struct inode *d_inode;
+    bpf_probe_read(&d_inode, sizeof(d_inode), &dentry->d_inode);
+    return d_inode;
 }
 
 unsigned long __attribute__((always_inline)) get_dentry_ino(struct dentry *dentry) {
-    struct inode *d_inode;
-    bpf_probe_read(&d_inode, sizeof(d_inode), &dentry->d_inode);
-    return get_inode_ino(d_inode);
+    return get_inode_ino(get_dentry_inode(dentry));
 }
 
 void __attribute__((always_inline)) fill_file_metadata(struct dentry* dentry, struct file_metadata_t* file) {
@@ -206,16 +199,16 @@ void __attribute__((always_inline)) get_dentry_name(struct dentry *dentry, void 
 #define get_inode_key_path(inode, path) (struct path_key_t) { .ino = get_inode_ino(inode), .mount_id = get_path_mount_id(path) }
 
 static int is_overlayfs(struct dentry *dentry);
-static int get_overlayfs_ino(struct dentry *dentry, struct path_key_t *path);
+static void set_overlayfs_ino(struct dentry *dentry, u64 *ino, u32 *flags);
 
-static __attribute__((always_inline)) void set_path_key_inode(struct dentry *dentry, struct path_key_t *path_key, int invalidate) {
-    path_key->path_id = get_path_id(invalidate);
-    if (!path_key->ino) {
-        path_key->ino = get_dentry_ino(dentry);
+static __attribute__((always_inline)) void set_file_inode(struct dentry *dentry, struct file_t *file, int invalidate) {
+    file->path_key.path_id = get_path_id(invalidate);
+    if (!file->path_key.ino) {
+        file->path_key.ino = get_dentry_ino(dentry);
     }
 
     if (is_overlayfs(dentry)) {
-        path_key->ino = get_overlayfs_ino(dentry, path_key);
+        set_overlayfs_ino(dentry, &file->path_key.ino, &file->flags);
     }
 }
 
