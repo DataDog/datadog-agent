@@ -3,11 +3,11 @@ package grpc
 import (
 	"context"
 	"crypto/tls"
-	log "github.com/cihub/seelog"
 	"net"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/pb"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials"
