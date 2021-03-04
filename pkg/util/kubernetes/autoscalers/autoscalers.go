@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
+	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 )
 
 // InspectHPA returns the list of external metrics from the hpa to use for autoscaling.

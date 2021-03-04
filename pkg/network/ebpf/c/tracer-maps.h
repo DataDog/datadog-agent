@@ -159,8 +159,8 @@ struct bpf_map_def SEC("maps/http_batch_state") http_batch_state = {
  * value is a telemetry object
  */
 struct bpf_map_def SEC("maps/telemetry") telemetry = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(__u16),
+    .type = BPF_MAP_TYPE_ARRAY,
+    .key_size = sizeof(u32),
     .value_size = sizeof(telemetry_t),
     .max_entries = 1,
     .pinning = 0,

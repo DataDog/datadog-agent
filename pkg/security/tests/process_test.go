@@ -9,16 +9,22 @@ package tests
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"os/user"
 	"path"
+	"runtime"
+	"strings"
+	"syscall"
 	"testing"
 	"time"
 
 	"github.com/avast/retry-go"
 	"github.com/pkg/errors"
+	"github.com/syndtr/gocapability/capability"
 
+	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
@@ -36,7 +42,7 @@ func TestProcess(t *testing.T) {
 
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: fmt.Sprintf(`process.user == "%s" && process.name == "%s" && open.filename == "{{.Root}}/test-process"`, currentUser.Name, path.Base(executable)),
+		Expression: fmt.Sprintf(`process.file.user == "%s" && process.file.name == "%s" && open.file.path == "{{.Root}}/test-process"`, currentUser.Name, path.Base(executable)),
 	}
 
 	test, err := newTestModule(nil, []*rules.RuleDefinition{ruleDef}, testOpts{})
@@ -45,20 +51,11 @@ func TestProcess(t *testing.T) {
 	}
 	defer test.Close()
 
-	testFile, _, err := test.Path("test-process")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	f, err := os.Create(testFile)
+	testFile, _, err := test.Create("test-process")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer os.Remove(testFile)
-
-	if err := f.Close(); err != nil {
-		t.Fatal(err)
-	}
 
 	_, rule, err := test.GetEvent()
 	if err != nil {
@@ -79,11 +76,15 @@ func TestProcessContext(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule",
-			Expression: fmt.Sprintf(`open.filename == "{{.Root}}/test-process-context" && open.flags & O_CREAT == 0`),
+			Expression: `open.file.path == "{{.Root}}/test-process-context" && open.flags & O_CREAT == 0`,
 		},
 		{
 			ID:         "test_rule_ancestors",
-			Expression: fmt.Sprintf(`open.filename == "{{.Root}}/test-process-ancestors" && process.ancestors[_].name == "%s"`, path.Base(executable)),
+			Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/test-process-ancestors" && process.ancestors[_].file.name == "%s"`, path.Base(executable)),
+		},
+		{
+			ID:         "test_rule_args",
+			Expression: `exec.args in ["-al"]`,
 		},
 	}
 
@@ -124,15 +125,128 @@ func TestProcessContext(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if filename, _ := event.GetFieldValue("process.filename"); filename.(string) != executable {
+			if filename, _ := event.GetFieldValue("process.file.path"); filename.(string) != executable {
 				t.Errorf("not able to find the proper process filename `%v` vs `%s`: %v", filename, executable, event)
 			}
 
-			if inode := getInode(t, executable); inode != event.Process.Inode {
-				t.Logf("expected inode %d, got %d", inode, event.Process.Inode)
+			if inode := getInode(t, executable); inode != event.ProcessContext.FileFields.Inode {
+				t.Logf("expected inode %d, got %d", event.ProcessContext.FileFields.Inode, inode)
 			}
 
-			testContainerPath(t, event, "process.container_path")
+			testContainerPath(t, event, "process.file.container_path")
+		}
+	})
+
+	t.Run("args", func(t *testing.T) {
+		executable := "/usr/bin/ls"
+		if resolved, err := os.Readlink(executable); err == nil {
+			executable = resolved
+		} else {
+			if os.IsNotExist(err) {
+				executable = "/bin/ls"
+			}
+		}
+
+		cmd := exec.Command(executable, "-al", "--password", "secret", "--custom", "secret")
+		_ = cmd.Run()
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			args, err := event.GetFieldValue("exec.args")
+			if err != nil || len(args.([]string)) == 0 {
+				t.Error("not able to get args")
+			}
+
+			contains := func(s string) bool {
+				for _, arg := range args.([]string) {
+					if s == arg {
+						return true
+					}
+				}
+				return false
+			}
+
+			if !contains("-al") || !contains("--password") || !contains("--custom") {
+				t.Error("arg not found")
+			}
+
+			// trigger serialization to test scrubber
+			str := event.String()
+
+			if !strings.Contains(str, "password") || !strings.Contains(str, "custom") {
+				t.Error("args not serialized")
+			}
+
+			if strings.Contains(str, "secret") {
+				t.Error("secret exposed")
+			}
+		}
+	})
+
+	t.Run("args-overflow", func(t *testing.T) {
+		executable := "/usr/bin/ls"
+		if resolved, err := os.Readlink(executable); err == nil {
+			executable = resolved
+		} else {
+			if os.IsNotExist(err) {
+				executable = "/bin/ls"
+			}
+		}
+
+		// size overflow
+		var long string
+		for i := 0; i != 1024; i++ {
+			long += "a"
+		}
+
+		cmd := exec.Command(executable, "-al", long)
+		_ = cmd.Run()
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			args, err := event.GetFieldValue("exec.args")
+			if err != nil {
+				t.Errorf("not able to get args")
+			}
+
+			if len(args.([]string)) != 2 {
+				t.Errorf("incorrect number of args")
+			}
+
+			if !strings.HasSuffix(args.([]string)[1], "...") {
+				t.Error("arg not truncated")
+			}
+		}
+
+		// number of args overflow
+		num := []string{"-al"}
+		for i := 0; i != 100; i++ {
+			num = append(num, "aaa")
+		}
+		cmd = exec.Command(executable, num...)
+		_ = cmd.Run()
+
+		event, _, err = test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			args, err := event.GetFieldValue("exec.args")
+			if err != nil {
+				t.Errorf("not able to get args")
+			}
+
+			n := len(args.([]string))
+			if n == 0 || n > 100 {
+				t.Errorf("incorrect number of args")
+			}
+
+			if args.([]string)[n-1] != "..." {
+				t.Error("arg not truncated")
+			}
 		}
 	})
 
@@ -158,7 +272,7 @@ func TestProcessContext(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if filename, _ := event.GetFieldValue("process.filename"); filename.(string) != executable {
+			if filename, _ := event.GetFieldValue("process.file.path"); filename.(string) != executable {
 				t.Errorf("not able to find the proper process filename `%v` vs `%s`", filename, executable)
 			}
 
@@ -166,11 +280,11 @@ func TestProcessContext(t *testing.T) {
 				t.Error("not able to get a tty name")
 			}
 
-			if inode := getInode(t, executable); inode != event.Process.Inode {
-				t.Logf("expected inode %d, got %d", event.Process.Inode, inode)
+			if inode := getInode(t, executable); inode != event.ProcessContext.FileFields.Inode {
+				t.Logf("expected inode %d, got %d", event.ProcessContext.FileFields.Inode, inode)
 			}
 
-			testContainerPath(t, event, "process.container_path")
+			testContainerPath(t, event, "process.file.container_path")
 		}
 	})
 
@@ -206,7 +320,7 @@ func TestProcessContext(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if filename := event.ResolveExecInode(&event.Exec); filename != executable {
+			if filename := event.ResolveProcessInode(&event.Exec.Process); filename != executable {
 				t.Errorf("expected process filename `%s`, got `%s`: %v", executable, filename, event)
 			}
 
@@ -214,7 +328,7 @@ func TestProcessContext(t *testing.T) {
 				t.Error("Wrong rule triggered")
 			}
 
-			if ancestor := event.Process.Ancestor; ancestor == nil || ancestor.Comm != shell {
+			if ancestor := event.ProcessContext.Ancestor; ancestor == nil || ancestor.Comm != shell {
 				t.Errorf("ancestor `%s` expected, got %v, event:%v", shell, ancestor, event)
 			}
 		}
@@ -233,7 +347,7 @@ func TestProcessExec(t *testing.T) {
 
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: fmt.Sprintf(`exec.filename == "%s"`, executable),
+		Expression: fmt.Sprintf(`exec.file.path == "%s"`, executable),
 	}
 
 	test, err := newTestModule(nil, []*rules.RuleDefinition{ruleDef}, testOpts{})
@@ -251,16 +365,126 @@ func TestProcessExec(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	} else {
-		if filename, _ := event.GetFieldValue("exec.filename"); filename.(string) != executable {
+		if filename, _ := event.GetFieldValue("exec.file.path"); filename.(string) != executable {
 			t.Errorf("expected exec filename `%v`, got `%v`", executable, filename)
 		}
 
-		if filename, _ := event.GetFieldValue("process.filename"); filename.(string) != executable {
+		if filename, _ := event.GetFieldValue("process.file.path"); filename.(string) != executable {
 			t.Errorf("expected process filename `%v`, got `%v`", executable, filename)
 		}
 
-		testContainerPath(t, event, "exec.container_path")
+		testContainerPath(t, event, "exec.file.container_path")
 	}
+}
+
+func TestProcessMetadata(t *testing.T) {
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_executable",
+			Expression: `exec.file.path == "{{.Root}}/test-exec" && exec.file.uid == 98 && exec.file.gid == 99`,
+		},
+		{
+			ID:         "test_metadata",
+			Expression: `exec.file.path == "{{.Root}}/test-exec" && process.uid == 1001 && process.euid == 1002 && process.fsuid == 1002 && process.gid == 2001 && process.egid == 2002 && process.fsgid == 2002`,
+		},
+	}
+
+	test, err := newTestModule(nil, ruleDefs, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	fileMode := 0o777
+	expectedMode := applyUmask(fileMode)
+	testFile, _, err := test.CreateWithOptions("test-exec", 98, 99, fileMode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile)
+
+	f, err := os.OpenFile(testFile, os.O_WRONLY, 0)
+	if err != nil {
+		t.Error(err)
+	}
+	f.WriteString("#!/bin/bash\n")
+	f.Close()
+
+	t.Run("executable", func(t *testing.T) {
+		cmd := exec.Command(testFile)
+		if _, err := cmd.CombinedOutput(); err != nil {
+			t.Error(err)
+		}
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if event.GetType() != "exec" {
+				t.Errorf("expected exec event, got %s", event.GetType())
+			}
+
+			if int(event.Exec.FileFields.Mode)&expectedMode != expectedMode {
+				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Exec.FileFields.Mode)&expectedMode)
+			}
+
+			now := time.Now()
+			if event.Exec.FileFields.MTime.After(now) || event.Exec.FileFields.MTime.Before(now.Add(-1*time.Hour)) {
+				t.Errorf("expected mtime close to %s, got %s", now, event.Exec.FileFields.MTime)
+			}
+
+			if event.Exec.FileFields.CTime.After(now) || event.Exec.FileFields.CTime.Before(now.Add(-1*time.Hour)) {
+				t.Errorf("expected ctime close to %s, got %s", now, event.Exec.FileFields.CTime)
+			}
+		}
+	})
+
+	t.Run("credentials", func(t *testing.T) {
+		go func() {
+			runtime.LockOSThread()
+			// do not unlock, we want the thread to be killed when exiting the goroutine
+
+			if _, _, errno := syscall.Syscall(syscall.SYS_SETREGID, 2001, 2001, 0); errno != 0 {
+				t.Fatal(errno)
+			}
+			if _, _, errno := syscall.Syscall(syscall.SYS_SETREUID, 1001, 1001, 0); errno != 0 {
+				t.Fatal(errno)
+			}
+
+			if _, err := syscall.ForkExec(testFile, []string{}, nil); err != nil {
+				t.Error(err)
+			}
+		}()
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if event.GetType() != "exec" {
+				t.Errorf("expected exec event, got %s", event.GetType())
+			}
+
+			if uid := event.ResolveCredentialsUID(&event.Exec.Credentials); uid != 1001 {
+				t.Errorf("expected uid 1001, got %d", uid)
+			}
+			if euid := event.ResolveCredentialsEUID(&event.Exec.Credentials); euid != 1001 {
+				t.Errorf("expected euid 1002, got %d", euid)
+			}
+			if fsuid := event.ResolveCredentialsFSUID(&event.ProcessContext.Credentials); fsuid != 1001 {
+				t.Errorf("expected fsuid 1002, got %d", fsuid)
+			}
+
+			if gid := event.ResolveCredentialsGID(&event.Exec.Credentials); gid != 2001 {
+				t.Errorf("expected gid 2001, got %d", gid)
+			}
+			if egid := event.ResolveCredentialsEGID(&event.Exec.Credentials); egid != 2001 {
+				t.Errorf("expected egid 2002, got %d", egid)
+			}
+			if fsgid := event.ResolveCredentialsFSGID(&event.Exec.Credentials); fsgid != 2001 {
+				t.Errorf("expected fsgid 2002, got %d", fsgid)
+			}
+		}
+	})
 }
 
 func TestProcessLineage(t *testing.T) {
@@ -275,7 +499,7 @@ func TestProcessLineage(t *testing.T) {
 
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: fmt.Sprintf(`exec.filename == "%s"`, executable),
+		Expression: fmt.Sprintf(`exec.file.path == "%s"`, executable),
 	}
 
 	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{wantProbeEvents: true})
@@ -308,7 +532,7 @@ func TestProcessLineage(t *testing.T) {
 			if err := testProcessLineageExec(t, event); err != nil {
 				t.Error(err)
 			} else {
-				execPid = int(event.Process.Pid)
+				execPid = int(event.ProcessContext.Pid)
 			}
 		}
 	})
@@ -327,7 +551,7 @@ func TestProcessLineage(t *testing.T) {
 				if err != nil {
 					continue
 				}
-				if int(event.Process.Pid) == execPid {
+				if int(event.ProcessContext.Pid) == execPid {
 					testProcessLineageExit(t, event, test)
 					return
 				}
@@ -352,7 +576,7 @@ func testProcessLineageExec(t *testing.T, event *probe.Event) error {
 		}
 	}
 
-	testContainerPath(t, event, "process.container_path")
+	testContainerPath(t, event, "process.file.container_path")
 	return nil
 }
 
@@ -388,7 +612,7 @@ func testProcessLineageFork(t *testing.T, event *probe.Event) {
 			// child entry deleted).
 		}
 
-		testContainerPath(t, event, "process.container_path")
+		testContainerPath(t, event, "process.file.container_path")
 	}
 }
 
@@ -396,7 +620,7 @@ func testProcessLineageExit(t *testing.T, event *probe.Event, test *testModule) 
 	// make sure that the process cache entry of the process was properly deleted from the cache
 	err := retry.Do(func() error {
 		resolvers := test.probe.GetResolvers()
-		entry := resolvers.ProcessResolver.Get(event.Process.Pid)
+		entry := resolvers.ProcessResolver.Get(event.ProcessContext.Pid)
 		if entry != nil {
 			return fmt.Errorf("the process cache entry was not deleted from the user space cache")
 		}
@@ -406,5 +630,316 @@ func testProcessLineageExit(t *testing.T, event *probe.Event, test *testModule) 
 
 	if err != nil {
 		t.Error(err)
+	}
+}
+
+func TestProcessCredentialsUpdate(t *testing.T) {
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_setuid",
+			Expression: `setuid.uid == 1001 && process.file.name == "testsuite"`,
+		},
+		{
+			ID:         "test_setreuid",
+			Expression: `setuid.uid == 1002 && setuid.euid == 1003 && process.file.name == "testsuite"`,
+		},
+		{
+			ID:         "test_setfsuid",
+			Expression: `setuid.fsuid == 1004 && process.file.name == "testsuite"`,
+		},
+		{
+			ID:         "test_setgid",
+			Expression: `setgid.gid == 1005 && process.file.name == "testsuite"`,
+		},
+		{
+			ID:         "test_setregid",
+			Expression: `setgid.gid == 1006 && setgid.egid == 1007 && process.file.name == "testsuite"`,
+		},
+		{
+			ID:         "test_setfsgid",
+			Expression: `setgid.fsgid == 1008 && process.file.name == "testsuite"`,
+		},
+		{
+			ID:         "test_capset",
+			Expression: `capset.cap_effective & CAP_WAKE_ALARM == 0 && capset.cap_permitted & CAP_SYS_BOOT == 0 && process.file.name == "testsuite"`,
+		},
+	}
+
+	test, err := newTestModule(nil, ruleDefs, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	t.Run("setuid", func(t *testing.T) {
+		go func() {
+			runtime.LockOSThread()
+			// do not unlock, we want the thread to be killed when exiting the goroutine
+
+			if _, _, errno := syscall.Syscall(syscall.SYS_SETUID, 1001, 0, 0); errno != 0 {
+				t.Fatal(errno)
+			}
+		}()
+
+		event, rule, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if rule.ID != "test_setuid" {
+				t.Errorf("expected test_setuid rule, got %s", rule.ID)
+			}
+
+			if event.SetUID.UID != 1001 {
+				t.Errorf("expected uid 1001, got %d", event.SetUID.UID)
+			}
+		}
+	})
+
+	t.Run("setreuid", func(t *testing.T) {
+		go func() {
+			runtime.LockOSThread()
+			// do not unlock, we want the thread to be killed when exiting the goroutine
+
+			if _, _, errno := syscall.Syscall(syscall.SYS_SETREUID, 1002, 1003, 0); errno != 0 {
+				t.Fatal(errno)
+			}
+		}()
+
+		event, rule, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if rule.ID != "test_setreuid" {
+				t.Errorf("expected test_setreuid rule, got %s", rule.ID)
+			}
+
+			if event.SetUID.UID != 1002 {
+				t.Errorf("expected uid 1002, got %d", event.SetUID.UID)
+			}
+			if event.SetUID.EUID != 1003 {
+				t.Errorf("expected euid 1003, got %d", event.SetUID.EUID)
+			}
+		}
+	})
+
+	t.Run("setresuid", func(t *testing.T) {
+		go func() {
+			runtime.LockOSThread()
+			// do not unlock, we want the thread to be killed when exiting the goroutine
+
+			if _, _, errno := syscall.Syscall(syscall.SYS_SETRESUID, 1002, 1003, 0); errno != 0 {
+				t.Fatal(errno)
+			}
+		}()
+
+		event, rule, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if rule.ID != "test_setreuid" {
+				t.Errorf("expected test_setreuid rule, got %s", rule.ID)
+			}
+
+			if event.SetUID.UID != 1002 {
+				t.Errorf("expected uid 1002, got %d", event.SetUID.UID)
+			}
+			if event.SetUID.EUID != 1003 {
+				t.Errorf("expected euid 1003, got %d", event.SetUID.EUID)
+			}
+		}
+	})
+
+	t.Run("setfsuid", func(t *testing.T) {
+		go func() {
+			runtime.LockOSThread()
+			// do not unlock, we want the thread to be killed when exiting the goroutine
+
+			if _, _, errno := syscall.Syscall(syscall.SYS_SETFSUID, 1004, 0, 0); errno != 0 {
+				t.Fatal(errno)
+			}
+		}()
+
+		event, rule, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if rule.ID != "test_setfsuid" {
+				t.Errorf("expected test_setfsuid rule, got %s", rule.ID)
+			}
+
+			if event.SetUID.FSUID != 1004 {
+				t.Errorf("expected fsuid 1004, got %d", event.SetUID.FSUID)
+			}
+		}
+	})
+
+	t.Run("setgid", func(t *testing.T) {
+		go func() {
+			runtime.LockOSThread()
+			// do not unlock, we want the thread to be killed when exiting the goroutine
+
+			if _, _, errno := syscall.Syscall(syscall.SYS_SETGID, 1005, 0, 0); errno != 0 {
+				t.Fatal(errno)
+			}
+		}()
+
+		event, rule, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if rule.ID != "test_setgid" {
+				t.Errorf("expected test_setgid rule, got %s", rule.ID)
+			}
+
+			if event.SetGID.GID != 1005 {
+				t.Errorf("expected gid 1005, got %d", event.SetGID.GID)
+			}
+		}
+	})
+
+	t.Run("setregid", func(t *testing.T) {
+		go func() {
+			runtime.LockOSThread()
+			// do not unlock, we want the thread to be killed when exiting the goroutine
+
+			if _, _, errno := syscall.Syscall(syscall.SYS_SETREGID, 1006, 1007, 0); errno != 0 {
+				t.Fatal(errno)
+			}
+		}()
+
+		event, rule, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if rule.ID != "test_setregid" {
+				t.Errorf("expected test_setregid rule, got %s", rule.ID)
+			}
+
+			if event.SetGID.GID != 1006 {
+				t.Errorf("expected gid 1006, got %d", event.SetGID.GID)
+			}
+			if event.SetGID.EGID != 1007 {
+				t.Errorf("expected egid 1007, got %d", event.SetGID.EGID)
+			}
+		}
+	})
+
+	t.Run("setresgid", func(t *testing.T) {
+		go func() {
+			runtime.LockOSThread()
+			// do not unlock, we want the thread to be killed when exiting the goroutine
+
+			if _, _, errno := syscall.Syscall(syscall.SYS_SETRESGID, 1006, 1007, 0); errno != 0 {
+				t.Fatal(errno)
+			}
+		}()
+
+		event, rule, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if rule.ID != "test_setregid" {
+				t.Errorf("expected test_setregid rule, got %s", rule.ID)
+			}
+
+			if event.SetGID.GID != 1006 {
+				t.Errorf("expected gid 1006, got %d", event.SetGID.GID)
+			}
+			if event.SetGID.EGID != 1007 {
+				t.Errorf("expected egid 1007, got %d", event.SetGID.EGID)
+			}
+		}
+	})
+
+	t.Run("setfsgid", func(t *testing.T) {
+		go func() {
+			runtime.LockOSThread()
+			// do not unlock, we want the thread to be killed when exiting the goroutine
+
+			if _, _, errno := syscall.Syscall(syscall.SYS_SETFSGID, 1008, 0, 0); errno != 0 {
+				t.Fatal(errno)
+			}
+		}()
+
+		event, rule, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if rule.ID != "test_setfsgid" {
+				t.Errorf("expected test_setfsgid rule, got %s", rule.ID)
+			}
+
+			if event.SetGID.FSGID != 1008 {
+				t.Errorf("expected fsgid 1008, got %d", event.SetGID.FSGID)
+			}
+		}
+	})
+
+	t.Run("capset", func(t *testing.T) {
+		// Parse kernel capabilities of the current thread
+		threadCapabilities, err := capability.NewPid2(0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := threadCapabilities.Load(); err != nil {
+			t.Fatal(err)
+		}
+
+		go func() {
+			runtime.LockOSThread()
+			// do not unlock, we want the thread to be killed when exiting the goroutine
+
+			// remove capabilities that we do not need
+			threadCapabilities.Unset(capability.PERMITTED|capability.EFFECTIVE, capability.CAP_SYS_BOOT)
+			threadCapabilities.Unset(capability.EFFECTIVE, capability.CAP_WAKE_ALARM)
+			if err := threadCapabilities.Apply(capability.CAPS); err != nil {
+				t.Fatal(err)
+			}
+		}()
+
+		event, rule, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if rule.ID != "test_capset" {
+				t.Errorf("expected test_capset rule, got %s", rule.ID)
+			}
+
+			// transform the collected kernel capabilities into a usable capability set
+			newSet, err := capability.NewPid2(0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			newSet.Clear(capability.PERMITTED | capability.EFFECTIVE)
+			parseCapIntoSet(event.Capset.CapEffective, capability.EFFECTIVE, newSet, t)
+			parseCapIntoSet(event.Capset.CapPermitted, capability.PERMITTED, newSet, t)
+
+			for _, c := range capability.List() {
+				if expectedValue := threadCapabilities.Get(capability.EFFECTIVE, c); expectedValue != newSet.Get(capability.EFFECTIVE, c) {
+					t.Errorf("expected incorrect %s flag in cap_effective, expected %v", c, expectedValue)
+				}
+				if expectedValue := threadCapabilities.Get(capability.PERMITTED, c); expectedValue != newSet.Get(capability.PERMITTED, c) {
+					t.Errorf("expected incorrect %s flag in cap_permitted, expected %v", c, expectedValue)
+				}
+			}
+		}
+	})
+
+	// test_capset can be somewhat noisy and some events may leak to the next tests (there is a short delay between the
+	// reset of the maps and the reload of the rules, we can't move the reset after the reload either, otherwise the
+	// ruleset_reload test won't work => we would have reset the channel that contains the reload event).
+	// Load a fake new test module to empty the rules and properly cleanup the channels.
+	_, _ = newTestModule(nil, nil, testOpts{})
+}
+
+func parseCapIntoSet(capabilities uint64, flag capability.CapType, c capability.Capabilities, t *testing.T) {
+	for _, v := range model.KernelCapabilityConstants {
+		if v == 0 {
+			continue
+		}
+
+		if int(capabilities)&v == v {
+			c.Set(flag, capability.Cap(math.Log2(float64(v))))
+		}
 	}
 }

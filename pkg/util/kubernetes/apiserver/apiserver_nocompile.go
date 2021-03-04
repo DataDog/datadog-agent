@@ -8,6 +8,7 @@
 package apiserver
 
 import (
+	"context"
 	"errors"
 
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
@@ -31,6 +32,12 @@ func GetAPIClient() (*APIClient, error) {
 	return &APIClient{}, nil
 }
 
+// WaitForAPIClient returns the shared ApiClient instance.
+func WaitForAPIClient(ctx context.Context) (*APIClient, error) {
+	log.Errorf("WaitForAPIClient not implemented %s", ErrNotCompiled.Error())
+	return &APIClient{}, nil
+}
+
 // GetPodMetadataNames is used when the API endpoint of the DCA to get the services of a pod is hit.
 func GetPodMetadataNames(nodeName, ns, podName string) ([]string, error) {
 	log.Errorf("GetPodMetadataNames not implemented %s", ErrNotCompiled.Error())
@@ -50,7 +57,7 @@ func GetMetadataMapBundleOnAllNodes(_ *APIClient) (*apiv1.MetadataResponse, erro
 }
 
 // GetNodeLabels retrieves the labels of the queried node from the cache of the shared informer.
-func GetNodeLabels(nodeName string) (map[string]string, error) {
+func GetNodeLabels(_ *APIClient, nodeName string) (map[string]string, error) {
 	log.Errorf("GetNodeLabels not implemented %s", ErrNotCompiled.Error())
 	return nil, nil
 }

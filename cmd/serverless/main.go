@@ -33,6 +33,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
+	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
+	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 	traceAgent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	traceConfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -78,6 +80,8 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 	apiKeyEnvVar    = "DD_API_KEY"
 
 	logLevelEnvVar = "DD_LOG_LEVEL"
+
+	flushStrategyEnvVar = "DD_SERVERLESS_FLUSH_STRATEGY"
 
 	logsLogsTypeSubscribed = "DD_LOGS_CONFIG_LAMBDA_LOGS_TYPE"
 
@@ -239,6 +243,18 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		extraTags = append(extraTags, dsdTags...)
 	}
 
+	// adaptive flush configuration
+	if v, exists := os.LookupEnv(flushStrategyEnvVar); exists {
+		if flushStrategy, err := flush.StrategyFromString(v); err != nil {
+			log.Debugf("Wrong flush strategy %s, will use the adaptive flush instead. Err: %s", v, err)
+		} else {
+			daemon.UseAdaptiveFlush(false) // we're forcing the flush strategy, we won't be using the adaptive flush
+			daemon.SetFlushStrategy(flushStrategy)
+		}
+	} else {
+		daemon.UseAdaptiveFlush(true) // already initialized to true, but let's be explicit just in case
+	}
+
 	// validate that an apikey has been set, either by the env var, read from KMS or SSM.
 	// ---------------------------
 
@@ -250,49 +266,49 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		log.Error("No API key configured, exiting")
 	}
 
-	// starts logs collection if enabled
-	// ---------------------------------
+	// restore the current function ARN and request ID from the cache in case the extension was restarted
+	// ---------------------------
 
-	if config.Datadog.GetBool("logs_enabled") {
+	err = aws.RestoreCurrentStateFromFile()
+	if err != nil {
+		log.Debug("Did not restore current state from file")
+	}
 
-		// type of logs we are subscribing to
-		var logsType []string
-		// TODO(remy): there is two different things that we may have to differentiate:
-		//             the user may want to send these logs to the intake, and the Agent
-		//             may want to fetch more than what he want sent. For instance, if the
-		//             user don't care about the platform logs, the Agent will still want
-		//             to receive them in order to generate the enhanced metrics.
-		if envLogsType, exists := os.LookupEnv(logsLogsTypeSubscribed); exists {
-			parts := strings.Split(strings.TrimSpace(envLogsType), " ")
-			for _, part := range parts {
-				part = strings.ToLower(strings.TrimSpace(part))
-				switch part {
-				case "function", "platform", "extension":
-					logsType = append(logsType, part)
-				default:
-					log.Warn("While subscribing to logs, unknown log type", part)
-				}
+	// starts logs collection
+	// ----------------------
+
+	// type of logs we are subscribing to
+	var logsType []string
+	if envLogsType, exists := os.LookupEnv(logsLogsTypeSubscribed); exists {
+		parts := strings.Split(strings.TrimSpace(envLogsType), " ")
+		for _, part := range parts {
+			part = strings.ToLower(strings.TrimSpace(part))
+			switch part {
+			case "function", "platform", "extension":
+				logsType = append(logsType, part)
+			default:
+				log.Warn("While subscribing to logs, unknown log type", part)
 			}
-		} else {
-			logsType = append(logsType, "platform", "function")
 		}
+	} else {
+		logsType = append(logsType, "platform", "function")
+	}
 
-		log.Debug("Enabling logs collection HTTP route")
-		if httpAddr, logsChan, err := daemon.EnableLogsCollection(); err != nil {
-			log.Error("While starting the HTTP Logs Server:", err)
+	log.Debug("Enabling logs collection HTTP route")
+	if httpAddr, logsChan, err := daemon.EnableLogsCollection(); err != nil {
+		log.Error("While starting the HTTP Logs Server:", err)
+	} else {
+		// subscribe to the logs on the platform
+		if err := serverless.SubscribeLogs(serverlessID, httpAddr, logsType); err != nil {
+			log.Error("Can't subscribe to logs:", err)
 		} else {
-			// subscribe to the logs on the platform
-			if err := serverless.SubscribeLogs(serverlessID, httpAddr, logsType); err != nil {
-				log.Error("Can't subscribe to logs:", err)
-			} else {
-				// we subscribed to the logs collection on the platform, let's instantiate
-				// a logs agent to collect/process/flush the logs.
-				if err := logs.StartServerless(
-					func() *autodiscovery.AutoConfig { return common.AC },
-					logsChan, extraTags,
-				); err != nil {
-					log.Error("Could not start an instance of the Logs Agent:", err)
-				}
+			// we subscribed to the logs collection on the platform, let's instantiate
+			// a logs agent to collect/process/flush the logs.
+			if err := logs.StartServerless(
+				func() *autodiscovery.AutoConfig { return common.AC },
+				logsChan, extraTags,
+			); err != nil {
+				log.Error("Could not start an instance of the Logs Agent:", err)
 			}
 		}
 	}
@@ -311,9 +327,10 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	log.Debugf("Using a SyncForwarder with a %v timeout", forwarderTimeout)
 	f := forwarder.NewSyncForwarder(keysPerDomain, forwarderTimeout)
 	f.Start() //nolint:errcheck
-	serializer := serializer.NewSerializer(f)
+	serializer := serializer.NewSerializer(f, nil)
 
 	aggregatorInstance := aggregator.InitAggregator(serializer, "serverless")
+	metricsChan := aggregatorInstance.GetBufferedMetricsWithTsChannel()
 
 	// initializes the DogStatsD server
 	// --------------------------------
@@ -327,6 +344,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		log.Errorf("Unable to start the DogStatsD server: %s", err)
 	}
 	statsdServer.ServerlessMode = true // we're running in a serverless environment (will removed host field from samples)
+
 	// initializes the trace agent
 	// --------------------------------
 	var ta *traceAgent.Agent
@@ -349,8 +367,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	// the invocation route, we can't report init errors anymore.
 	go func() {
 		for {
-			// TODO(remy): shouldn't we wait for the logs agent to finish? + dogstatsd server before listening again?
-			if err := serverless.WaitForNextInvocation(stopCh, statsdServer, ta, serverlessID); err != nil {
+			if err := serverless.WaitForNextInvocation(stopCh, daemon, metricsChan, serverlessID); err != nil {
 				log.Error(err)
 			}
 		}

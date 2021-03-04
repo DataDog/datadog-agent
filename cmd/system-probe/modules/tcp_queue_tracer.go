@@ -17,7 +17,7 @@ import (
 var TCPQueueLength = api.Factory{
 	Name: "tcp_queue_length_tracer",
 	Fn: func(cfg *config.AgentConfig) (api.Module, error) {
-		if !cfg.CheckIsEnabled("TCP queue length") {
+		if !cfg.CheckIsEnabled(config.TCPQueueLengthCheckName) {
 			log.Infof("TCP queue length tracer disabled")
 			return nil, api.ErrNotEnabled
 		}

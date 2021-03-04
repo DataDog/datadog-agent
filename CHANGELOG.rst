@@ -2,6 +2,177 @@
 Release Notes
 =============
 
+.. _Release Notes_7.26.0:
+
+7.26.0 / 6.26.0
+======
+
+.. _Release Notes_7.26.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2021-03-02
+
+- Please refer to the `7.26.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7260>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.26.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- ``forwarder_retry_queue_payloads_max_size`` takes precedence over the deprecated
+  ``forwarder_retry_queue_max_size``. If ``forwarder_retry_queue_max_size`` 
+  is not set, you are not affected by this change. If 
+  ``forwarder_retry_queue_max_size`` is set, but 
+  ``forwarder_retry_queue_payloads_max_size`` is not set, the Agent uses
+  ``forwarder_retry_queue_max_size * 2MB`` 
+  as the value of ``forwarder_retry_queue_payloads_max_size``. It is 
+  recommended to configure ``forwarder_retry_queue_payloads_max_size`` and 
+  remove ``forwarder_retry_queue_max_size`` from the Agent configuration.
+
+- Docker image: remove Docker volumes for ``/etc/datadog-agent`` and ``/tmp`` 
+  as it prevents to inherit from Datadog Agent image. It was originally done 
+  to allow read-only rootfs on Kubernetes, so in order to continue supporting 
+  this feature, relevant volumes are created in newer Kubernetes manifest or 
+  Helm chart >= 2.6.9
+
+.. _Release Notes_7.26.0_New Features:
+
+New Features
+------------
+
+- APM: Support SQL obfuscator feature to replace consecutive digits in table names.
+
+- APM: Add an endpoint to receive apm stats from tracers.
+
+- Agent discovers by itself which container AD features and checks should be
+  scheduled without having to specify any configuration. This works for
+  Docker, Containerd, ECS/EKS Fargate and Kubernetes.
+  It also allows to support heterogeneous nodes with a single configuration
+  (for instance a Kubernetes DaemonSet could cover nodes running Containerd
+  and/or Docker - activating relevant configuration depending on node
+  configuration).
+  This feature is activated by default and can be de-activated by setting
+  environment variable ``AUTCONFIG_FROM_ENVIRONMENT=false``.
+
+- Adds a new agent command ``stream-logs`` to stream the logs being processed by the agent.
+  This will help diagnose issues with log integrations.
+
+- Submit host tags with log events for a configurable time duration
+  to avoid potential race conditions where some tags might not be
+  available to all backend services on freshly provisioned instances.
+
+- Added no_proxy_nonexact_match as a configuration setting which 
+  allows non-exact URL and IP address matching. The new behavior uses 
+  the go http proxy function documented here 
+  https://godoc.org/golang.org/x/net/http/httpproxy#Config 
+  If the new behavior is disabled, a warning will be logged if a url or IP 
+  proxy behavior will change in the future. 
+
+- The Quality of Service of pods is now collected and sent to the orchestration endpoint.
+
+- Runtime-security new command line allowing to trigger a process cache dump..
+
+- Support Prometheus Autodiscovery for Kubernetes Pods.
+
+- The core agent now exposes a gRPC API to expose tags to the other agents.
+  The following settings are now introduced to allow each of the agents to use
+  this API (they all default to false):
+  
+  - apm_config.remote_tagger
+  - logs_config.remote_tagger
+  - process_config.remote_tagger
+
+- New perf map usage metrics.
+
+- Add unofficial arm64 support to network tracer in system-probe.
+
+- system-probe: Add optional runtime compilation of eBPF programs.
+
+
+.. _Release Notes_7.26.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- APM: Sublayer metrics (trace.<SPAN_NAME>.duration and derivatives) computation
+  in agent can be disabled with feature flags disable_sublayer_spans, disable_sublayer_stats.
+  Reach out to support with questions about this metric.
+
+- APM: Automatically activate non-local trafic (i.e. listening on 0.0.0.0) for APM in containerized environment if no explicit setting is set (bind_host or apm_non_local_traffic)
+
+- APM: Add a tag allowing trace metrics from synthetic data to 
+  be aggregated independently.
+
+- Consider the task level resource limits if the container level resource limits aren't defined on ECS Fargate.
+
+- Use the default agent transport for host metadata calls.
+  This allows usage of the config ``no_proxy`` setting for host metadata calls.
+  By default cloud provider IPs are added to the transport's ``no_proxy`` list.
+  Added config flag ``use_proxy_for_cloud_metadata`` to disable this behavior. 
+
+- GOMAXPROCS is now set automatically to match the allocated CPU cgroup quota.
+  GOMAXPROCS can now also be manually specified and overridden in millicore units.
+  If no quota or GOMAXPROCS value is set it will default to the original behavior.
+
+- Added ``--flare`` flag to ``jmx (list|collect)`` commands to save check results to the agent logs directory.
+  This enables flare to pick up jmx command results.
+
+- Kubernetes events are now tagged with kube_service, kube_daemon_set, kube_job and kube_cronjob.
+  Note: Other object kinds are already supported (pod_name, kube_deployment, kube_replica_set).
+
+- Expose logs agent pipeline latency in the status page.
+
+- Individual DEB packages are now signed.
+
+- Docker container, when not running in a Kubernetes
+  environment may now be tailed from their log file.
+  The Agent must have read access to /var/lib/docker/containers
+  and Docker containers must use the JSON logging driver.
+  This new option can be activated using the new configuration
+  flag ``logs_config.docker_container_use_file``.
+
+- File tailing from a kubernetes pod annotation is
+  now supported. Note that the file path is relative
+  to the Agent and not the pod/container bearing
+  the annotation.
+
+
+.. _Release Notes_7.26.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- APM: Group arrays of consecutive '?' identifiers
+
+- Fix agent panic when UDP port is busy and dogstatsd_so_rcvbuf is configured.
+
+- Fix a bug that prevents from reading the correct container resource limits on ECS Fargate.
+
+- Fix parsing of dogstatsd event strings that contained negative lengths for
+  event title and/or event text length.
+
+- Fix sending duplicated kubernetes events.
+
+- Do not invoke the secret backend command (if configured) when the agent
+  health command/agent container liveness probe is called.
+
+- Fix parsing of CLI options of the ``agent health`` command
+
+
+.. _Release Notes_7.26.0_Other Notes:
+
+Other Notes
+-----------
+
+- Bump gstatus version from 1.0.4 to 1.0.5.
+
+- JMXFetch upgraded from `0.41.0 <https://github.com/DataDog/jmxfetch/releases/0.41.0>`_
+  to `0.42.0 <https://github.com/DataDog/jmxfetch/releases/0.42.0>`_
+
+
 .. _Release Notes_7.25.1:
 
 7.25.1

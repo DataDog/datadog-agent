@@ -100,11 +100,11 @@ func (fakeDCAClient) GetKubernetesMetadataNames(nodeName, ns, podName string) ([
 	panic("implement me")
 }
 
-func (fakeDCAClient) PostClusterCheckStatus(nodeName string, status types.NodeStatus) (types.StatusResponse, error) {
+func (fakeDCAClient) PostClusterCheckStatus(identifier string, status types.NodeStatus) (types.StatusResponse, error) {
 	panic("implement me")
 }
 
-func (fakeDCAClient) GetClusterCheckConfigs(nodeName string) (types.ConfigResponse, error) {
+func (fakeDCAClient) GetClusterCheckConfigs(identifier string) (types.ConfigResponse, error) {
 	panic("implement me")
 }
 

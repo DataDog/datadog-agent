@@ -86,11 +86,7 @@ func NewConntracker(config *config.Config) (Conntracker, error) {
 }
 
 func newConntrackerOnce(procRoot string, maxStateSize, targetRateLimit int, listenAllNamespaces bool) (Conntracker, error) {
-	consumer, err := NewConsumer(procRoot, targetRateLimit, listenAllNamespaces)
-	if err != nil {
-		return nil, err
-	}
-
+	consumer := NewConsumer(procRoot, targetRateLimit, listenAllNamespaces)
 	ctr := &realConntracker{
 		consumer:             consumer,
 		compactTicker:        time.NewTicker(compactInterval),
@@ -99,9 +95,18 @@ func newConntrackerOnce(procRoot string, maxStateSize, targetRateLimit int, list
 		exceededSizeLogLimit: util.NewLogLimit(10, time.Minute*10),
 	}
 
-	ctr.loadInitialState(consumer.DumpTable(unix.AF_INET))
-	ctr.loadInitialState(consumer.DumpTable(unix.AF_INET6))
-	ctr.run()
+	for _, family := range []uint8{unix.AF_INET, unix.AF_INET6} {
+		events, err := consumer.DumpTable(family)
+		if err != nil {
+			return nil, fmt.Errorf("error dumping conntrack table for family %d: %w", family, err)
+		}
+		ctr.loadInitialState(events)
+	}
+
+	if err := ctr.run(); err != nil {
+		return nil, err
+	}
+
 	log.Infof("initialized conntrack with target_rate_limit=%d messages/sec", targetRateLimit)
 	return ctr, nil
 }
@@ -198,7 +203,7 @@ func (ctr *realConntracker) loadInitialState(events <-chan Event) {
 	for e := range events {
 		conns := DecodeAndReleaseEvent(e)
 		for _, c := range conns {
-			if len(ctr.state) < ctr.maxStateSize && isNAT(c) {
+			if len(ctr.state) < ctr.maxStateSize && IsNAT(c) {
 				log.Tracef("%s", c)
 				if k, ok := formatKey(c.Origin); ok {
 					ctr.state[k] = formatIPTranslation(c.Reply)
@@ -215,7 +220,7 @@ func (ctr *realConntracker) loadInitialState(events <-chan Event) {
 // it will keep being called until it returns nonzero.
 func (ctr *realConntracker) register(c Con) int {
 	// don't bother storing if the connection is not NAT
-	if !isNAT(c) {
+	if !IsNAT(c) {
 		atomic.AddInt64(&ctr.stats.registersDropped, 1)
 		return 0
 	}
@@ -254,9 +259,13 @@ func (ctr *realConntracker) logExceededSize() {
 	}
 }
 
-func (ctr *realConntracker) run() {
+func (ctr *realConntracker) run() error {
+	events, err := ctr.consumer.Events()
+	if err != nil {
+		return err
+	}
+
 	go func() {
-		events := ctr.consumer.Events()
 		for e := range events {
 			conns := DecodeAndReleaseEvent(e)
 			for _, c := range conns {
@@ -270,6 +279,8 @@ func (ctr *realConntracker) run() {
 			ctr.compact()
 		}
 	}()
+
+	return nil
 }
 
 func (ctr *realConntracker) compact() {
@@ -284,7 +295,8 @@ func (ctr *realConntracker) compact() {
 	ctr.state = copied
 }
 
-func isNAT(c Con) bool {
+// IsNAT returns whether this Con represents a NAT translation
+func IsNAT(c Con) bool {
 	if c.Origin == nil ||
 		c.Reply == nil ||
 		c.Origin.Proto == nil ||

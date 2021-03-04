@@ -71,7 +71,11 @@ func (s *TransactionsSerializer) Add(transaction *HTTPTransaction) error {
 
 	endpoint := transaction.Endpoint
 	transactionProto := HttpTransactionProto{
-		Domain:     "", // Domain is always the same
+		// The domain is not stored on the disk for security reasons.
+		// If a user can update the domain for some serialized transactions, they can replace the domain
+		// by a local address like http://127.0.0.1:1234. The Agent would send the HTTP transactions to the url
+		// http://127.0.0.1:1234/intake/?api_key=API_KEY which contains the API_KEY.
+		Domain:     "",
 		Endpoint:   &EndpointProto{Route: s.replaceAPIKeys(endpoint.route), Name: endpoint.name},
 		Headers:    s.toHeaderProto(transaction.Headers),
 		Payload:    payload,
