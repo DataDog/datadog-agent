@@ -18,7 +18,7 @@ def genconfig(
     platformfile="platforms.json",
     platlist=None,
     fips=False,
-	arch="x64",
+	arch="x86_64",
 ):
     """
     Create a kitchen config
@@ -38,7 +38,7 @@ def genconfig(
         provider = "azure"
 
     if not arch:
-        arch = "x64"
+        arch = "x86_64"
 
     platforms = load_platforms(ctx, platformfile=platformfile)
 

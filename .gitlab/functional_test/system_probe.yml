@@ -29,7 +29,7 @@
     - .kitchen_azure_location_north_central_us
   needs: [ "tests_ebpf_x64" ]
   variables:
-    KITCHEN_ARCH: x64
+    KITCHEN_ARCH: x86_64
 
 .kitchen_test_system_probe_arm64:
   extends:

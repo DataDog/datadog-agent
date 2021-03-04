@@ -1,7 +1,7 @@
 {
     "centos" : {
         "azure" : {
-            "x64": {
+            "x86_64": {
                 "centos-69": "urn,OpenLogic:CentOS:6.9:6.9.20180530",
                 "centos-76": "urn,OpenLogic:CentOS:7.6:7.6.201909120",
                 "centos-77": "urn,OpenLogic:CentOS:7.7:7.7.201912090",
@@ -15,14 +15,16 @@
             }
         },
         "vagrant" : {
-            "centos-76": "bento/centos-7.6",
-            "centos7": "roboxes/centos7",
-            "centos8": "roboxes/centos8"
+            "x86_64": {
+                "centos-76": "bento/centos-7.6",
+                "centos7": "roboxes/centos7",
+                "centos8": "roboxes/centos8"
+            }
         }
     },
     "debian" : {
         "azure" : {
-            "x64": {
+            "x86_64": {
                 "debian-8": "urn,credativ:Debian:8:8.0.201901221",
                 "debian-9": "urn,credativ:Debian:9:9.20200722.0",
                 "debian-10": "urn,Debian:debian-10:10:0.20210208.542"
@@ -37,7 +39,7 @@
     },
     "suse" : {
         "azure": {
-            "x64": {
+            "x86_64": {
                 "sles-12": "urn,SUSE:sles-12-sp5-byos:gen1:2020.09.21",
                 "sles-15": "urn,SUSE:sles-15-sp2-byos:gen1:2020.09.21"
             }
@@ -50,7 +52,7 @@
     },
     "ubuntu" : {
         "azure": {
-            "x64": {
+            "x86_64": {
                 "ubuntu-14-04": "urn,Canonical:UbuntuServer:14.04.5-LTS:14.04.201905140",
                 "ubuntu-16-04": "urn,Canonical:UbuntuServer:16.04.0-LTS:16.04.201604203",
                 "ubuntu-18-04": "urn,Canonical:UbuntuServer:18.04-LTS:18.04.201906040",
@@ -65,12 +67,14 @@
             }
         },
         "vagrant" : {
-            "ubuntu-16-04": "bento/ubuntu-16.04"
+            "x86_64": {
+                "ubuntu-16-04": "bento/ubuntu-16.04"
+            }
         }
     },
     "windows": {
         "azure" : {
-            "x64": {
+            "x86_64": {
                 "win2008r2": "id,/subscriptions/8c56d827-5f07-45ce-8f2b-6c5001db5c6f/resourceGroups/kitchen-test-images/providers/Microsoft.Compute/galleries/kitchenimages/images/Windows2008-R2-SP1/versions/1.0.0",
                 "win2012": "urn,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190410",
                 "win2012r2": "urn,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20190416",
@@ -83,7 +87,7 @@
             }
         },
         "ec2" : {
-            "x64": {
+            "x86_64": {
                 "win2012r2": "ami-0f2688fe4ee9b2443",
                 "comment-win2012r2": "EC2LaunchV2_Preview-Windows_Server-2012_R2_RTM-English-Core-Base-2021.02.10",
                 "win2016": "ami-0e3ee9d1a707d7f8c",

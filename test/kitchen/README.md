@@ -243,14 +243,14 @@ where:
   - hyperv (with a user-supplied platforms file)
 
   arch is:
-  - x64
+  - x86_64
   - arm64
 
   Testfiles is the name of the test-specific file(s) (found in [test-definitions](test-definitions) ) to be
   added.  The testfiles define the tests that are run, on what OS, on the given provider.
 
 An example command would be
-  invoke kitchen.genconfig --platform ubuntu --osversions all --provider azure --arch x64 --testfiles install-script-test
+  invoke kitchen.genconfig --platform ubuntu --osversions all --provider azure --arch x86_64 --testfiles install-script-test
 
   This will generate a kitchen.yml which executes the `install-script-test` on all of the defined `ubuntu` 
   OS images in azure.
