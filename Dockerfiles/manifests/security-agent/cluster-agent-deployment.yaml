@@ -37,7 +37,7 @@ spec:
       serviceAccountName: datadog-cluster-agent
       containers:
       - name: cluster-agent
-        image: "gcr.io/datadoghq/cluster-agent:1.10.0"
+        image: "gcr.io/datadoghq/cluster-agent:1.11.0"
         imagePullPolicy: IfNotPresent
         resources: {}
         ports:

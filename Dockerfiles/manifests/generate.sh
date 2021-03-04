@@ -34,7 +34,7 @@ datadog:
     enabled: true
   processAgent:
     enabled: true
-  systemProbe:
+  networkMonitoring:
     enabled: true
   securityAgent:
     compliance:

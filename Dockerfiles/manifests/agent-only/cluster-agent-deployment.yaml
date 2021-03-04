@@ -37,7 +37,7 @@ spec:
       serviceAccountName: datadog-cluster-agent
       containers:
       - name: cluster-agent
-        image: "gcr.io/datadoghq/cluster-agent:1.10.0"
+        image: "gcr.io/datadoghq/cluster-agent:1.11.0"
         imagePullPolicy: IfNotPresent
         resources: {}
         ports:
@@ -80,8 +80,6 @@ spec:
           value: "true"
         - name: DD_ORCHESTRATOR_EXPLORER_CONTAINER_SCRUBBING_ENABLED
           value: "true"
-        - name: DD_COMPLIANCE_CONFIG_ENABLED
-          value: "false"
         livenessProbe:
           failureThreshold: 6
           httpGet:

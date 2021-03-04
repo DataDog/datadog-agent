@@ -20,7 +20,7 @@ metadata:
   name: datadog-cluster-agent-metrics-api
   labels:
     app: "datadog"
-    chart: "datadog-2.8.4"
+    chart: "datadog-2.9.11"
     release: "datadog"
     heritage: "Helm"
 spec:

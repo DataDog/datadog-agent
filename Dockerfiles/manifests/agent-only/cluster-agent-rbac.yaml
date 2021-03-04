@@ -4,7 +4,7 @@ kind: ServiceAccount
 metadata:
   labels:
     app: "datadog"
-    chart: "datadog-2.8.4"
+    chart: "datadog-2.9.11"
     heritage: "Helm"
     release: "datadog"
   name: datadog-cluster-agent
@@ -23,6 +23,7 @@ rules:
   - endpoints
   - pods
   - nodes
+  - namespaces
   - componentstatuses
   verbs:
   - get

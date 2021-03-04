@@ -16,6 +16,10 @@ data:
       enable_tcp_queue_length: false
       enable_oom_kill: false
       collect_dns_stats: false
+      max_tracked_connections: 65536
+      conntrack_max_state_size: 131072
+    network_config:
+      enabled: false
     runtime_security_config:
       enabled: true
       debug: false
