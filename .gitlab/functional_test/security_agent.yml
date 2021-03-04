@@ -77,7 +77,7 @@ kitchen_debian_security_agent:
   extends: .kitchen_test_security_agent
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
-    - KITCHEN_PLATFORM="debian"
-    - KITCHEN_OSVERS="debian-10"
+    - export KITCHEN_PLATFORM="debian"
+    - export KITCHEN_OSVERS="debian-10"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
