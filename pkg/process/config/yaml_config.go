@@ -227,7 +227,9 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.RuntimeCompilerOutputDir = config.Datadog.GetString(key(spNS, "runtime_compiler_output_dir"))
 	}
 
-	a.EnableGatewayLookup = config.Datadog.GetBool(key(spNS, "enable_gateway_lookup"))
+	if config.Datadog.IsSet("network_config.enable_gateway_lookup") {
+		a.EnableGatewayLookup = config.Datadog.GetBool("network_config.enable_gateway_lookup")
+	}
 
 	return nil
 }
