@@ -1,3 +1,6 @@
+// +build linux
+// +build !android
+
 package netlink
 
 import (
