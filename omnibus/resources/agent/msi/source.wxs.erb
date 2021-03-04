@@ -528,37 +528,43 @@
     </InstallExecuteSequence>
 
     <!-- Set the components defined in our fragment files that will be used for our feature  -->
-    <Feature Id="MainApplication" Title="Datadog Agent" Level="1" ConfigurableDirectory="APPLICATIONROOTDIRECTORY">
-      <ComponentRef Id="conffolder" />
-      <ComponentGroupRef Id="ProjectDir" />
-      <ComponentRef Id="datadog.yaml.example" />
-      <ComponentRef Id="install_info" />
-      <ComponentRef Id="logs" />
-      <ComponentRef Id="conf.d" />
-      <ComponentRef Id="checks.d" />
-      <ComponentRef Id="REGISTRYDIRECTORY" />
-      <ComponentRef Id="ApplicationShortcut" />
-      <ComponentRef Id="DATADOGAGENTSERVICE" />
-      <ComponentRef Id="RTLOADERDLLS" />
-      <?if $(var.Platform) = x64 ?>
-        <ComponentRef Id="DATADOGAPMSERVICE" />
-        <ComponentRef Id="DATADOGPROCESSSERVICE" />
+    <Feature 
+      Id="MainApplication" 
+      Title="Datadog Agent" 
+      Level="1"
+      Absent="disallow" 
+      ConfigurableDirectory="APPLICATIONROOTDIRECTORY">
+        <ComponentRef Id="conffolder" />
+        <ComponentGroupRef Id="ProjectDir" />
+        <ComponentRef Id="datadog.yaml.example" />
+        <ComponentRef Id="install_info" />
+        <ComponentRef Id="logs" />
+        <ComponentRef Id="conf.d" />
+        <ComponentRef Id="checks.d" />
+        <ComponentRef Id="REGISTRYDIRECTORY" />
+        <ComponentRef Id="ApplicationShortcut" />
+        <ComponentRef Id="DATADOGAGENTSERVICE" />
+        <ComponentRef Id="RTLOADERDLLS" />
+        <?if $(var.Platform) = x64 ?>
+          <ComponentRef Id="DATADOGAPMSERVICE" />
+          <ComponentRef Id="DATADOGPROCESSSERVICE" />
+        <?endif ?>
+        <ComponentGroupRef Id="ExtraEXAMPLECONFSLOCATION" />
+        <ComponentRef Id="CleanupMainApplicationFolder" />
+        <ComponentRef Id="RegisterConfVariables" />
+        <?if $(var.IncludePython2) = true ?>
+          <ComponentRef Id="MSVCRUNTIME" />
+        <?endif ?>
+      <?if $(var.IncludeSysprobe) = true ?>
+          <ComponentRef Id="DATADOGSYSPROBESERVICE" />
+          <ComponentRef Id="system_probe.yaml.example" />
       <?endif ?>
-      <ComponentGroupRef Id="ExtraEXAMPLECONFSLOCATION" />
-      <ComponentRef Id="CleanupMainApplicationFolder" />
-      <ComponentRef Id="RegisterConfVariables" />
-      <?if $(var.IncludePython2) = true ?>
-        <ComponentRef Id="MSVCRUNTIME" />
-      <?endif ?>
-    <?if $(var.IncludeSysprobe) = true ?>
-        <ComponentRef Id="DATADOGSYSPROBESERVICE" />
-        <ComponentRef Id="system_probe.yaml.example" />
-    <?endif ?>
+      <Condition Level="1"><![CDATA[1]]></Condition>
     </Feature>
      <?if $(var.IncludeSysprobe) = true ?>
       <!-- don't install by default (indicated by level 100)  Only things with level
            <= INSTALLLEVEL (1 by default) will be installed.  Can be changed via gui or command line params to optionally install -->
-      <Feature Id="WindowsNP" 
+      <Feature Id="NPM" 
                Level="100"  
                Title="Network Performance Monitoring" 
                ConfigurableDirectory="APPLICATIONROOTDIRECTORY"
@@ -721,7 +727,7 @@
     <WixVariable Id="WixUIBannerBmp" Value="Resources\assets\banner_background.bmp" />
 
     <CustomAction Id='SetFinalizeProperty' Return='check' Property='FinalizeInstall' 
-        Value='PROJECTLOCATION=[PROJECTLOCATION];APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY];DDAGENTUSER_NAME=[DDAGENTUSER_NAME];DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD];SYSPROBE_PRESENT=[SYSPROBE_PRESENT];ADDLOCAL=[ADDLOCAL]' />
+        Value='PROJECTLOCATION=[PROJECTLOCATION];APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY];DDAGENTUSER_NAME=[DDAGENTUSER_NAME];DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD];SYSPROBE_PRESENT=[SYSPROBE_PRESENT];ADDLOCAL=[ADDLOCAL];NPM=[NPM]' />
     <CustomAction Id='FinalizeInstall' BinaryKey='wixcadll' DllEntry='FinalizeInstall' Execute='deferred' Return='check' Impersonate='no'/>
     <CustomAction Id='StopDDServices' BinaryKey='wixcadll' DllEntry='PreStopServices' Execute='deferred' Return='check' Impersonate='no'/>
     <CustomAction Id='StartDDServices' BinaryKey='wixcadll' DllEntry='PostStartServices' Execute='deferred' Return='ignore' Impersonate='no'/>
