@@ -406,7 +406,11 @@ func runOffsetGuessing(config *config.Config, buf bytecode.AssetReader) ([]manag
 			Max: math.MaxUint64,
 		},
 	}
-	enabledProbes := offsetGuessProbes(config)
+	enabledProbes, err := offsetGuessProbes(config)
+	if err != nil {
+		return nil, fmt.Errorf("unable to configure offset guessing probes: %w", err)
+	}
+
 	for _, p := range offsetMgr.Probes {
 		if _, enabled := enabledProbes[probes.ProbeName(p.Section)]; !enabled {
 			offsetOptions.ExcludedSections = append(offsetOptions.ExcludedSections, p.Section)
