@@ -123,6 +123,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	runtimeTracer := false
 	var buf bytecode.AssetReader
 	if config.EnableRuntimeCompiler {
+		runtime.RuntimeCompilationEnabled = true
 		buf, err = getRuntimeCompiledTracer(config)
 		if err != nil {
 			if !config.AllowPrecompiledFallback {
@@ -578,9 +579,9 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	conns := t.state.Connections(clientID, latestTime, latestConns, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
 	names := t.reverseDNS.Resolve(conns)
 	ctm := t.getConnTelemetry(len(latestConns))
-	tm := t.getTracerTelemetry()
+	rctm := t.getRuntimeCompilationTelemetry()
 
-	return &network.Connections{Conns: conns, DNS: names, ConnTelemetry: ctm, Telemetry: tm}, nil
+	return &network.Connections{Conns: conns, DNS: names, ConnTelemetry: ctm, CompilationTelemetryByAsset: rctm}, nil
 }
 
 func (t *Tracer) getConnTelemetry(mapSize int) *network.ConnectionsTelemetry {
@@ -619,21 +620,23 @@ func (t *Tracer) getConnTelemetry(mapSize int) *network.ConnectionsTelemetry {
 	return tm
 }
 
-func (t *Tracer) getTracerTelemetry() *network.TracerTelemetry {
-	tm := &network.TracerTelemetry{}
+func (t *Tracer) getRuntimeCompilationTelemetry() map[string]network.RuntimeCompilationTelemetry {
+	compilationTelemetryByAsset := make(map[string]network.RuntimeCompilationTelemetry)
 
-	compilationStats := runtime.Tracer.GetTelemetry()
-	if enabled, ok := compilationStats["compilation_enabled"]; ok {
+	tm := network.RuntimeCompilationTelemetry{}
+	tracerTelemetry := runtime.Tracer.GetTelemetry()
+	if enabled, ok := tracerTelemetry["runtime_compilation_enabled"]; ok {
 		tm.RuntimeCompilationEnabled = enabled == 1
 	}
-	if result, ok := compilationStats["compilation_result"]; ok {
+	if result, ok := tracerTelemetry["runtime_compilation_result"]; ok {
 		tm.RuntimeCompilationResult = int32(result)
 	}
-	if duration, ok := compilationStats["compilation_duration"]; ok {
+	if duration, ok := tracerTelemetry["runtime_compilation_duration"]; ok {
 		tm.RuntimeCompilationDuration = duration
 	}
+	compilationTelemetryByAsset["tracer"] = tm
 
-	return tm
+	return compilationTelemetryByAsset
 }
 
 // getConnections returns all of the active connections in the ebpf maps along with the latest timestamp.  It takes
@@ -856,23 +859,27 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 	expiredTCP := atomic.LoadInt64(&t.expiredTCPConns)
 	pidCollisions := atomic.LoadInt64(&t.pidCollisions)
 
+	tracerStats := map[string]int64{
+		"closed_conn_polling_lost":     lost,
+		"closed_conn_polling_received": received,
+		"conn_valid_skipped":           skipped, // Skipped connections (e.g. Local DNS requests)
+		"expired_tcp_conns":            expiredTCP,
+		"pid_collisions":               pidCollisions,
+	}
+	for k, v := range runtime.Tracer.GetTelemetry() {
+		tracerStats[k] = v
+	}
+	
 	stateStats := t.state.GetStats()
 	conntrackStats := t.conntracker.GetStats()
 
 	ret := map[string]interface{}{
 		"conntrack": conntrackStats,
 		"state":     stateStats,
-		"tracer": map[string]int64{
-			"closed_conn_polling_lost":     lost,
-			"closed_conn_polling_received": received,
-			"conn_valid_skipped":           skipped, // Skipped connections (e.g. Local DNS requests)
-			"expired_tcp_conns":            expiredTCP,
-			"pid_collisions":               pidCollisions,
-		},
-		"ebpf":     t.getEbpfTelemetry(),
-		"kprobes":  ddebpf.GetProbeStats(),
-		"dns":      t.reverseDNS.GetStats(),
-		"compiler": runtime.Tracer.GetTelemetry(),
+		"tracer":    tracerStats,
+		"ebpf":      t.getEbpfTelemetry(),
+		"kprobes":   ddebpf.GetProbeStats(),
+		"dns":       t.reverseDNS.GetStats(),
 	}
 
 	if t.httpMonitor != nil {

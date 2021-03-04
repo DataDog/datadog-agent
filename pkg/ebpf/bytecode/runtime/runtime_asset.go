@@ -31,6 +31,22 @@ var (
 	}
 )
 
+// RuntimeCompilationEnabled indicates whether or not runtime compilation is enabled
+var RuntimeCompilationEnabled = false
+
+// CompilationResult enumerates runtime compilation success & failure modes
+type CompilationResult int
+const (
+	success CompilationResult = iota
+	kernelVersionErr
+	verificationError
+	outputDirErr
+	outputFileErr
+	newCompilerErr
+	compilationErr
+	resultReadErr
+)
+
 type CompiledOutput interface {
 	io.Reader
 	io.ReaderAt
@@ -41,21 +57,17 @@ type CompiledOutput interface {
 type RuntimeAsset struct {
 	filename  string
 	hash      string
-	telemetry Telemetry
+
+	// Telemetry
+	compilationResult   CompilationResult
+	compilationDuration time.Duration
 }
 
 func NewRuntimeAsset(filename, hash string) *RuntimeAsset {
-	asset := &RuntimeAsset{
+	return &RuntimeAsset{
 		filename:  filename,
 		hash:      hash,
-		telemetry: newNoOpTelemetry(),
 	}
-
-	if filename == "tracer.c" || filename == "runtime-security.c" {
-		asset.telemetry = newCompilationTelemetry()
-	}
-
-	return asset
 }
 
 // Verify reads the asset in the provided directory and verifies the content hash matches what is expected.
@@ -83,28 +95,25 @@ func (a *RuntimeAsset) Verify(dir string) (io.Reader, string, error) {
 
 // Compile compiles the runtime asset if necessary and returns the resulting file.
 func (a *RuntimeAsset) Compile(config *ebpf.Config, cflags []string) (CompiledOutput, error) {
-	telemetry := getCompilationTelemetry(a.telemetry)
-	telemetry.enabled = true
 	start := time.Now()
 	defer func() {
-		telemetry.duration = time.Since(start).Nanoseconds()
-		a.telemetry = telemetry
+		a.compilationDuration = time.Since(start)
 	}()
 
 	kv, err := kernel.HostVersion()
 	if err != nil {
-		telemetry.result = KernelVersionErr
+		a.compilationResult = kernelVersionErr
 		return nil, fmt.Errorf("unable to get kernel version: %w", err)
 	}
 
 	inputReader, hash, err := a.Verify(config.BPFDir)
 	if err != nil {
-		telemetry.result = VerificationError
+		a.compilationResult = verificationError
 		return nil, fmt.Errorf("error reading input file: %s", err)
 	}
 
 	if err := os.MkdirAll(config.RuntimeCompilerOutputDir, 0755); err != nil {
-		telemetry.result = OutputDirErr
+		a.compilationResult = outputDirErr
 		return nil, fmt.Errorf("unable to create compiler output directory %s: %w", config.RuntimeCompilerOutputDir, err)
 	}
 
@@ -119,33 +128,41 @@ func (a *RuntimeAsset) Compile(config *ebpf.Config, cflags []string) (CompiledOu
 	outputFile := filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("%s-%d-%s-%s.o", baseName, kv, hash, flagHash))
 	if _, err := os.Stat(outputFile); err != nil {
 		if !os.IsNotExist(err) {
-			telemetry.result = OutputFileErr
+			a.compilationResult = outputFileErr
 			return nil, fmt.Errorf("error stat-ing output file %s: %w", outputFile, err)
 		}
 		comp, err := compiler.NewEBPFCompiler(config.KernelHeadersDirs, config.BPFDebug)
 		if err != nil {
-			telemetry.result = NewCompilerErr
+			a.compilationResult = newCompilerErr
 			return nil, fmt.Errorf("failed to create compiler: %w", err)
 		}
 		defer comp.Close()
 
 		if err := comp.CompileToObjectFile(inputReader, outputFile, flags); err != nil {
-			telemetry.result = CompilationErr
+			a.compilationResult = compilationErr
 			return nil, fmt.Errorf("failed to compile runtime version of %s: %s", a.filename, err)
 		}
 	}
 
 	out, err := os.Open(outputFile)
 	if err == nil {
-		telemetry.result = Success
+		a.compilationResult = success
 	} else {
-		telemetry.result = ResultReadErr
+		a.compilationResult = resultReadErr
 	}
 	return out, err
 }
 
 func (a *RuntimeAsset) GetTelemetry() map[string]int64 {
-	return a.telemetry.Get()
+	stats := make(map[string]int64)
+	if RuntimeCompilationEnabled {
+		stats["runtime_compilation_enabled"] = 1
+		stats["runtime_compilation_result"] = int64(a.compilationResult)
+		stats["runtime_compilation_duration"] = a.compilationDuration.Nanoseconds()
+	} else {
+		stats["runtime_compilation_enabled"] = 0
+	}
+	return stats
 }
 
 func hashFlags(flags []string) string {

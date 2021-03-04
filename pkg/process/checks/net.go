@@ -90,7 +90,7 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	connTel := c.diffTelemetry(conns.ConnTelemetry)
 
 	log.Debugf("collected connections in %s", time.Since(start))
-	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, connTel, conns.Domains, conns.TracerTelemetry), nil
+	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, connTel, conns.CompilationTelemetryByAsset, conns.Domains), nil
 }
 
 func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
@@ -167,8 +167,8 @@ func batchConnections(
 	dns map[string]*model.DNSEntry,
 	networkID string,
 	connTelemetry *model.CollectorConnectionsTelemetry,
+	compilationTelemetry map[string]*model.RuntimeCompilationTelemetry,
 	domains []string,
-	tracerTelemetry *model.NetworkTracerTelemetry,
 ) []model.MessageBody {
 	groupSize := groupSize(len(cxs), cfg.MaxConnsPerMessage)
 	batches := make([]model.MessageBody, 0, groupSize)
@@ -236,7 +236,7 @@ func batchConnections(
 		// only add the telemetry to the first message to prevent double counting
 		if len(batches) == 0 {
 			cc.ConnTelemetry = connTelemetry
-			cc.TracerTelemetry = tracerTelemetry
+			cc.CompilationTelemetryByAsset = compilationTelemetry
 		}
 		batches = append(batches, cc)
 

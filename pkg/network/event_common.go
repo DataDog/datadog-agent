@@ -79,10 +79,10 @@ func (d ConnectionDirection) String() string {
 
 // Connections wraps a collection of ConnectionStats
 type Connections struct {
-	DNS           map[util.Address][]string
-	Conns         []ConnectionStats
-	ConnTelemetry *ConnectionsTelemetry
-	Telemetry     *TracerTelemetry
+	DNS                      	map[util.Address][]string
+	Conns         			   	[]ConnectionStats
+	ConnTelemetry 			    *ConnectionsTelemetry
+	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
 }
 
 // ConnectionsTelemetry stores telemetry from the system probe related to connections collection
@@ -99,8 +99,8 @@ type ConnectionsTelemetry struct {
 	ConntrackSamplingPercent           int64
 }
 
-// TracerTelemetry stores telemetry from the system probe
-type TracerTelemetry struct {
+// RuntimeCompilationTelemetry stores telemetry related to the runtime compilation of various assets
+type RuntimeCompilationTelemetry struct {
 	RuntimeCompilationEnabled  bool
 	RuntimeCompilationResult   int32
 	RuntimeCompilationDuration int64

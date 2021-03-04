@@ -33,7 +33,7 @@ func (j jsonSerializer) Marshal(conns *network.Connections) ([]byte, error) {
 	payload.Domains = domains
 	payload.Dns = FormatDNS(conns.DNS)
 	payload.ConnTelemetry = FormatConnTelemetry(conns.ConnTelemetry)
-	payload.TracerTelemetry = FormatTracerTelemetry(conns.Telemetry)
+	payload.CompilationTelemetryByAsset = FormatCompilationTelemetry(conns.CompilationTelemetryByAsset)
 
 	writer := new(bytes.Buffer)
 	err := j.marshaller.Marshal(writer, payload)

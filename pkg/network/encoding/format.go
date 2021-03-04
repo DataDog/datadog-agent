@@ -102,17 +102,21 @@ func FormatConnTelemetry(tel *network.ConnectionsTelemetry) *model.ConnectionsTe
 	return t
 }
 
-// FormatTracerTelemetry converts telemetry from its internal representation to a protobuf message
-func FormatTracerTelemetry(tel *network.TracerTelemetry) *model.NetworkTracerTelemetry {
-	if tel == nil {
+// FormatCompilationTelemetry converts telemetry from its internal representation to a protobuf message
+func FormatCompilationTelemetry(telByAsset map[string]network.RuntimeCompilationTelemetry) map[string]*model.RuntimeCompilationTelemetry {
+	if telByAsset == nil {
 		return nil
 	}
 
-	t := &model.NetworkTracerTelemetry{}
-	t.RuntimeCompilationEnabled = tel.RuntimeCompilationEnabled
-	t.RuntimeCompilationResult = model.RuntimeCompilationResult(tel.RuntimeCompilationResult)
-	t.RuntimeCompilationDuration = tel.RuntimeCompilationDuration
-	return t
+	ret := make(map[string]*model.RuntimeCompilationTelemetry)
+	for asset, tel := range telByAsset {
+		t := &model.RuntimeCompilationTelemetry{}
+		t.RuntimeCompilationEnabled = tel.RuntimeCompilationEnabled
+		t.RuntimeCompilationResult = model.RuntimeCompilationResult(tel.RuntimeCompilationResult)
+		t.RuntimeCompilationDuration = tel.RuntimeCompilationDuration
+		ret[asset] = t
+	}
+	return ret
 }
 
 func returnToPool(c *model.Connections) {
