@@ -58,7 +58,7 @@ func Run(ctx context.Context) {
 
 	if err != nil {
 		if err == config.ErrMissingAPIKey {
-			log.Error(config.ErrMissingAPIKey)
+			log.Critical(config.ErrMissingAPIKey)
 
 			// a sleep is necessary to ensure that supervisor registers this process as "STARTED"
 			// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit

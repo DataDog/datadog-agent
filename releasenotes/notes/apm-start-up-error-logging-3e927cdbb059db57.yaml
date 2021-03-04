@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    APM: Ensured missing API key at startup is correctly logged.
