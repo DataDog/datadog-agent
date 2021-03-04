@@ -869,7 +869,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 	for k, v := range runtime.Tracer.GetTelemetry() {
 		tracerStats[k] = v
 	}
-	
+
 	stateStats := t.state.GetStats()
 	conntrackStats := t.conntracker.GetStats()
 

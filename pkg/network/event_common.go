@@ -79,9 +79,9 @@ func (d ConnectionDirection) String() string {
 
 // Connections wraps a collection of ConnectionStats
 type Connections struct {
-	DNS                      	map[util.Address][]string
-	Conns         			   	[]ConnectionStats
-	ConnTelemetry 			    *ConnectionsTelemetry
+	DNS                         map[util.Address][]string
+	Conns                       []ConnectionStats
+	ConnTelemetry               *ConnectionsTelemetry
 	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
 }
 

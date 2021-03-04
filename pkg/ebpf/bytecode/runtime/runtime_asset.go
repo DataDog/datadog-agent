@@ -36,6 +36,7 @@ var RuntimeCompilationEnabled = false
 
 // CompilationResult enumerates runtime compilation success & failure modes
 type CompilationResult int
+
 const (
 	success CompilationResult = iota
 	kernelVersionErr
@@ -55,8 +56,8 @@ type CompiledOutput interface {
 
 // RuntimeAsset represents an asset that needs its content integrity checked at runtime
 type RuntimeAsset struct {
-	filename  string
-	hash      string
+	filename string
+	hash     string
 
 	// Telemetry
 	compilationResult   CompilationResult
@@ -65,8 +66,8 @@ type RuntimeAsset struct {
 
 func NewRuntimeAsset(filename, hash string) *RuntimeAsset {
 	return &RuntimeAsset{
-		filename:  filename,
-		hash:      hash,
+		filename: filename,
+		hash:     hash,
 	}
 }
 
