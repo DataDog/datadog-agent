@@ -28,7 +28,7 @@ type Monitor struct {
 	perfMap      *manager.PerfMap
 	perfHandler  *ddebpf.PerfHandler
 	telemetry    *telemetry
-	pollRequests chan chan struct{}
+	pollRequests chan chan map[Key]map[string]RequestStats
 	statkeeper   *httpStatKeeper
 
 	// termination
@@ -82,7 +82,7 @@ func NewMonitor(procRoot string, mgr *manager.Manager, h *ddebpf.PerfHandler) (*
 		perfMap:       pm,
 		perfHandler:   h,
 		telemetry:     newTelemetry(),
-		pollRequests:  make(chan chan struct{}),
+		pollRequests:  make(chan chan map[Key]map[string]RequestStats),
 		closeFilterFn: closeFilterFn,
 		statkeeper:    statkeeper,
 	}, nil
@@ -127,7 +127,7 @@ func (m *Monitor) Start() error {
 
 				transactions := m.batchManager.GetPendingTransactions()
 				m.process(transactions, nil)
-				reply <- struct{}{}
+				reply <- m.statkeeper.GetAndResetAllStats()
 			case <-report.C:
 				transactions := m.batchManager.GetPendingTransactions()
 				m.process(transactions, nil)
@@ -138,33 +138,23 @@ func (m *Monitor) Start() error {
 	return nil
 }
 
-// Sync HTTP data between userspace and kernel space
-func (m *Monitor) Sync() {
+// GetHTTPStats returns a map of HTTP stats stored in the following format:
+// [source, dest tuple] -> [request path] -> RequestStats object
+func (m *Monitor) GetHTTPStats() map[Key]map[string]RequestStats {
 	if m == nil {
-		return
+		return nil
 	}
 
 	m.mux.Lock()
 	defer m.mux.Unlock()
 	if m.stopped {
-		return
-	}
-
-	reply := make(chan struct{}, 1)
-	defer close(reply)
-	m.pollRequests <- reply
-	<-reply
-}
-
-// GetHTTPStats returns a map of HTTP stats stored in the following format:
-// [source, dest tuple] -> [request path] -> RequestStats object
-func (m *Monitor) GetHTTPStats() map[Key]map[string]RequestStats {
-	if m == nil || m.statkeeper == nil {
 		return nil
 	}
 
-	m.Sync()
-	return m.statkeeper.GetAndResetAllStats()
+	reply := make(chan map[Key]map[string]RequestStats, 1)
+	defer close(reply)
+	m.pollRequests <- reply
+	return <-reply
 }
 
 func (m *Monitor) GetStats() map[string]interface{} {

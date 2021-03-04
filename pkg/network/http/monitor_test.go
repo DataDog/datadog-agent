@@ -53,7 +53,7 @@ func TestHTTPMonitorIntegration(t *testing.T) {
 
 	// Ensure all captured transactions get sent to user-space
 	time.Sleep(10 * time.Millisecond)
-	monitor.Sync()
+	monitor.GetHTTPStats()
 
 	// Assert all requests made were correctly captured by the monitor
 	for _, req := range requests {

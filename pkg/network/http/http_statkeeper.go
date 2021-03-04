@@ -4,11 +4,9 @@ package http
 
 import (
 	"C"
-	"sync"
 )
 
 type httpStatKeeper struct {
-	mux   sync.Mutex
 	stats  map[Key]map[string]RequestStats
 	buffer []byte
 }
@@ -21,9 +19,6 @@ func newHTTPStatkeeper() *httpStatKeeper {
 }
 
 func (h *httpStatKeeper) Process(transactions []httpTX) {
-	h.mux.Lock()
-	defer h.mux.Unlock()
-
 	for _, tx := range transactions {
 		key := Key{
 			SourceIP:   tx.SourceIP(),
@@ -45,9 +40,6 @@ func (h *httpStatKeeper) Process(transactions []httpTX) {
 }
 
 func (h *httpStatKeeper) GetAndResetAllStats() map[Key]map[string]RequestStats {
-	h.mux.Lock()
-	defer h.mux.Unlock()
-
 	ret := h.stats // No deep copy needed since `h.stats` gets reset
 	h.stats = make(map[Key]map[string]RequestStats)
 	return ret
