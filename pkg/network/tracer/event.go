@@ -362,8 +362,8 @@ func newIPRouteDest(source, dest util.Address, netns uint32) *ipRouteDest {
 		d.daddr_l = C.__u64(nativeEndian.Uint32(dbytes))
 	case 16:
 		d.family = C.CONN_V6
-		d.saddr_h = C.__u64(nativeEndian.Uint32(sbytes[:8]))
-		d.saddr_l = C.__u64(nativeEndian.Uint32(sbytes[8:]))
+		d.saddr_h = C.__u64(nativeEndian.Uint64(sbytes[:8]))
+		d.saddr_l = C.__u64(nativeEndian.Uint64(sbytes[8:]))
 		d.daddr_h = C.__u64(nativeEndian.Uint64(dbytes[:8]))
 		d.daddr_l = C.__u64(nativeEndian.Uint64(dbytes[8:]))
 	}
