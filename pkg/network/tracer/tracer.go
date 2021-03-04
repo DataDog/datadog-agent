@@ -667,7 +667,7 @@ func (t *Tracer) getRuntimeCompilationTelemetry() map[string]network.RuntimeComp
 	if duration, ok := conntrackTelemetry["runtime_compilation_duration"]; ok {
 		ctm.RuntimeCompilationDuration = duration
 	}
-	compilationTelemetryByAsset["conntracker"] = ctm
+	compilationTelemetryByAsset["conntrack"] = ctm
 
 	return compilationTelemetryByAsset
 }

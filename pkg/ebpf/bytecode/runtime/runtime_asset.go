@@ -38,7 +38,7 @@ var RuntimeCompilationEnabled = false
 type CompilationResult int
 
 const (
-	success CompilationResult = iota
+	notAttempted CompilationResult = iota
 	kernelVersionErr
 	verificationError
 	outputDirErr
@@ -46,6 +46,7 @@ const (
 	newCompilerErr
 	compilationErr
 	resultReadErr
+	compilationSuccess
 )
 
 type CompiledOutput interface {
@@ -66,8 +67,9 @@ type RuntimeAsset struct {
 
 func NewRuntimeAsset(filename, hash string) *RuntimeAsset {
 	return &RuntimeAsset{
-		filename: filename,
-		hash:     hash,
+		filename:          filename,
+		hash:              hash,
+		compilationResult: notAttempted,
 	}
 }
 
@@ -147,7 +149,7 @@ func (a *RuntimeAsset) Compile(config *ebpf.Config, cflags []string) (CompiledOu
 
 	out, err := os.Open(outputFile)
 	if err == nil {
-		a.compilationResult = success
+		a.compilationResult = compilationSuccess
 	} else {
 		a.compilationResult = resultReadErr
 	}
