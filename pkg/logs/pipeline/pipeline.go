@@ -6,6 +6,8 @@
 package pipeline
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
@@ -86,7 +88,7 @@ func (p *Pipeline) Stop() {
 }
 
 // Flush flushes synchronously the processor and sender managed by this pipeline.
-func (p *Pipeline) Flush() {
-	p.processor.Flush() // flush messages in the processor into the sender
-	p.sender.Flush()    // flush the sender
+func (p *Pipeline) Flush(ctx context.Context) {
+	p.processor.Flush(ctx) // flush messages in the processor into the sender
+	p.sender.Flush(ctx)    // flush the sender
 }

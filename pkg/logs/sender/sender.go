@@ -18,7 +18,7 @@ import (
 // and forward them the next stage of the pipeline.
 type Strategy interface {
 	Send(inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error, mu *sync.Mutex)
-	Flush(inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error, mu *sync.Mutex)
+	Flush(ctx context.Context, inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error, mu *sync.Mutex)
 }
 
 // Sender sends logs to different destinations.
@@ -55,8 +55,8 @@ func (s *Sender) Stop() {
 }
 
 // Flush sends synchronously the messages that this sender has to send.
-func (s *Sender) Flush() {
-	s.strategy.Flush(s.inputChan, s.outputChan, s.send, &s.mu)
+func (s *Sender) Flush(ctx context.Context) {
+	s.strategy.Flush(ctx, s.inputChan, s.outputChan, s.send, &s.mu)
 }
 
 func (s *Sender) run() {

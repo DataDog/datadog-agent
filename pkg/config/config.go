@@ -21,6 +21,7 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -455,8 +456,15 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("kubernetes_apiserver_use_protobuf", false)
 
 	config.BindEnvAndSetDefault("prometheus_scrape.enabled", false)           // Enables the prometheus config provider
-	config.SetKnown("prometheus_scrape.checks")                               // Defines any extra prometheus/openmetrics check configurations to be handled by the prometheus config provider
 	config.BindEnvAndSetDefault("prometheus_scrape.service_endpoints", false) // Enables Service Endpoints checks in the prometheus config provider
+	_ = config.BindEnv("prometheus_scrape.checks")                            // Defines any extra prometheus/openmetrics check configurations to be handled by the prometheus config provider
+	config.SetEnvKeyTransformer("prometheus_scrape.checks", func(in string) interface{} {
+		var promChecks []*types.PrometheusCheck
+		if err := json.Unmarshal([]byte(in), &promChecks); err != nil {
+			log.Warnf(`"prometheus_scrape.checks" can not be parsed: %v`, err)
+		}
+		return promChecks
+	})
 
 	// SNMP
 	config.SetKnown("snmp_listener.discovery_interval")
@@ -524,6 +532,13 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.ca_file", "")
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.cert_file", "")
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.key_file", "")
+
+	// Cloud Foundry CC
+	config.BindEnvAndSetDefault("cloud_foundry_cc.url", "https://cloud-controller-ng.service.cf.internal:9024")
+	config.BindEnvAndSetDefault("cloud_foundry_cc.client_id", "")
+	config.BindEnvAndSetDefault("cloud_foundry_cc.client_secret", "")
+	config.BindEnvAndSetDefault("cloud_foundry_cc.poll_interval", 60)
+	config.BindEnvAndSetDefault("cloud_foundry_cc.skip_ssl_validation", false)
 
 	// Cloud Foundry Garden
 	config.BindEnvAndSetDefault("cloud_foundry_garden.listen_network", "unix")
@@ -667,6 +682,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_checks.clc_runners_port", 5005)
 	// Cluster check runner
 	config.BindEnvAndSetDefault("clc_runner_enabled", false)
+	config.BindEnvAndSetDefault("clc_runner_id", "")
 	config.BindEnvAndSetDefault("clc_runner_host", "") // must be set using the Kubernetes downward API
 	config.BindEnvAndSetDefault("clc_runner_port", 5005)
 	config.BindEnvAndSetDefault("clc_runner_server_write_timeout", 15)
@@ -809,6 +825,7 @@ func InitConfig(config Config) {
 
 	// Datadog security agent (runtime)
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
+	config.SetKnown("runtime_security_config.fim_enabled")
 	config.BindEnvAndSetDefault("runtime_security_config.policies.dir", DefaultRuntimePoliciesDir)
 	config.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
 	config.BindEnvAndSetDefault("runtime_security_config.enable_kernel_filters", true)
@@ -824,6 +841,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.pid_cache_size", 10000)
 	config.BindEnvAndSetDefault("runtime_security_config.cookie_cache_size", 100)
 	config.BindEnvAndSetDefault("runtime_security_config.agent_monitoring_events", true)
+	config.BindEnvAndSetDefault("runtime_security_config.custom_sensitive_words", []string{})
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
@@ -1259,11 +1277,6 @@ func setNumWorkers(config Config) {
 	if wTracemalloc {
 		log.Infof("Tracemalloc enabled, only one check runner enabled to run checks serially")
 		numWorkers = 1
-	}
-
-	if numWorkers > MaxNumWorkers {
-		numWorkers = MaxNumWorkers
-		log.Warnf("Configured number of checks workers (%v) is too high: %v will be used", numWorkers, MaxNumWorkers)
 	}
 
 	// update config with the actual effective number of workers

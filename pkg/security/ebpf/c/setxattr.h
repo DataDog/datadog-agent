@@ -14,7 +14,7 @@ struct setxattr_event_t {
 
 int __attribute__((always_inline)) trace__sys_setxattr(const char *xattr_name) {
     struct policy_t policy = fetch_policy(EVENT_SETXATTR);
-    if (discarded_by_process(policy.mode, EVENT_SETXATTR)) {
+    if (is_discarded_by_process(policy.mode, EVENT_SETXATTR)) {
         return 0;
     }
 
@@ -45,7 +45,7 @@ SYSCALL_KPROBE2(fsetxattr, int, fd, const char *, name) {
 
 int __attribute__((always_inline)) trace__sys_removexattr(const char *xattr_name) {
     struct policy_t policy = fetch_policy(EVENT_REMOVEXATTR);
-    if (discarded_by_process(policy.mode, EVENT_REMOVEXATTR)) {
+    if (is_discarded_by_process(policy.mode, EVENT_REMOVEXATTR)) {
         return 0;
     }
 
@@ -131,6 +131,7 @@ int __attribute__((always_inline)) trace__sys_setxattr_ret(struct pt_regs *ctx, 
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
+    fill_file_metadata(syscall->setxattr.dentry, &event.file.metadata);
 
     send_event(ctx, event_type, event);
 

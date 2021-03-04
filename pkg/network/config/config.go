@@ -87,7 +87,7 @@ type Config struct {
 	// ClientStateExpiry specifies the max time a client (e.g. process-agent)'s state will be stored in memory before being evicted.
 	ClientStateExpiry time.Duration
 
-	// EnableConntrack enables probing conntrack for network address translation via netlink
+	// EnableConntrack enables probing conntrack for network address translation
 	EnableConntrack bool
 
 	// IgnoreConntrackInitFailure will ignore any conntrack initialization failiures during system-probe load. If this is set to false, system-probe

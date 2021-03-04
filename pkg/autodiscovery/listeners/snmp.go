@@ -413,6 +413,8 @@ func (s *SNMPService) GetExtraConfig(key []byte) ([]byte, error) {
 		return []byte(s.config.ContextName), nil
 	case "autodiscovery_subnet":
 		return []byte(s.config.Network), nil
+	case "loader":
+		return []byte(s.config.Loader), nil
 	}
 	return []byte{}, ErrNotSupported
 }

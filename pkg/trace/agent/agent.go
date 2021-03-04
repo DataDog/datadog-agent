@@ -112,15 +112,32 @@ func (a *Agent) Run() {
 	a.loop()
 }
 
+// FlushSync flushes traces sychronously. This method only works when the agent is configured in synchronous flushing
+// mode via the apm_config.sync_flush option.
+func (a *Agent) FlushSync() {
+	if !a.conf.SynchronousFlushing {
+		log.Critical("(*Agent).FlushSync called without apm_conf.sync_flushing enabled. No data was sent to Datadog.")
+		return
+	}
+
+	if err := a.StatsWriter.FlushSync(); err != nil {
+		log.Errorf("Error flushing stats: %s", err.Error())
+		return
+	}
+	if err := a.TraceWriter.FlushSync(); err != nil {
+		log.Errorf("Error flushing traces: %s", err.Error())
+		return
+	}
+}
+
 func (a *Agent) work() {
-	sublayerCalculator := stats.NewSublayerCalculator()
 	for {
 		select {
 		case p, ok := <-a.In:
 			if !ok {
 				return
 			}
-			a.Process(p, sublayerCalculator)
+			a.Process(p)
 		}
 	}
 
@@ -150,7 +167,7 @@ func (a *Agent) loop() {
 
 // Process is the default work unit that receives a trace, transforms it and
 // passes it downstream.
-func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalculator) {
+func (a *Agent) Process(p *api.Payload) {
 	if len(p.Traces) == 0 {
 		log.Debugf("Skipping received empty payload")
 		return
@@ -158,7 +175,8 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 	defer timing.Since("datadog.trace_agent.internal.process_payload_ms", time.Now())
 	ts := p.Source
 	ss := new(writer.SampledSpans)
-	sinputs := make([]stats.Input, 0, len(p.Traces))
+	var sinputs []stats.Input
+	a.PrioritySampler.CountClientDroppedP0s(p.ClientDroppedP0s)
 	for _, t := range p.Traces {
 		if len(t) == 0 {
 			log.Debugf("Skipping received empty trace")
@@ -193,6 +211,9 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 
 		// Extra sanitization steps of the trace.
 		for _, span := range t {
+			for k, v := range a.conf.GlobalTags {
+				traceutil.SetMeta(span, k, v)
+			}
 			a.obfuscator.Obfuscate(span)
 			Truncate(span)
 			if p.ClientComputedTopLevel {
@@ -215,7 +236,7 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 			}
 		}
 		if !p.ClientComputedTopLevel {
-			// Figure out the top-level spans and sublayers now as it involves modifying the Metrics map
+			// Figure out the top-level spans now as it involves modifying the Metrics map
 			// which is not thread-safe while samplers and Concentrator might modify it too.
 			traceutil.ComputeTopLevel(t)
 		}
@@ -226,33 +247,25 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 			env = v
 		}
 		pt := ProcessedTrace{
-			Trace:         t,
-			WeightedTrace: stats.NewWeightedTrace(t, root),
-			Root:          root,
-			Env:           env,
+			Trace:            t,
+			WeightedTrace:    stats.NewWeightedTrace(t, root),
+			Root:             root,
+			Env:              env,
+			ClientDroppedP0s: p.ClientDroppedP0s > 0,
 		}
 
 		events, keep := a.sample(ts, pt)
 
-		if sublayerCalculator.ShouldCompute(keep) {
-			pt.Sublayers = make(map[*pb.Span][]stats.SublayerValue)
-			subtraces := stats.ExtractSubtraces(t, root)
-			for _, subtrace := range subtraces {
-				subtraceSublayers := sublayerCalculator.ComputeSublayers(subtrace.Trace)
-				if sublayerCalculator.WithStats() {
-					pt.Sublayers[subtrace.Root] = subtraceSublayers
-				}
-				if keep {
-					stats.SetSublayersOnSpan(subtrace.Root, subtraceSublayers)
-				}
+		if !p.ClientComputedStats {
+			if sinputs == nil {
+				sinputs = make([]stats.Input, 0, len(p.Traces))
 			}
+			sinputs = append(sinputs, stats.Input{
+				Trace: pt.WeightedTrace,
+				Env:   pt.Env,
+			})
 		}
-		sinputs = append(sinputs, stats.Input{
-			Trace:         pt.WeightedTrace,
-			Sublayers:     pt.Sublayers,
-			Env:           pt.Env,
-			SublayersOnly: p.ClientComputedStats,
-		})
+		// TODO(piochelepiotr): Maybe we can skip some computation if stats are computed in the tracer and the trace is droped.
 		if keep {
 			ss.Traces = append(ss.Traces, traceutil.APITrace(t))
 			ss.Size += t.Msgsize()
@@ -402,7 +415,7 @@ func (a *Agent) runSamplers(pt ProcessedTrace, hasPriority bool) bool {
 // ErrorSampler are run in parallel. The ExceptionSampler catches traces with rare top-level
 // or measured spans that are not caught by PrioritySampler and ErrorSampler.
 func (a *Agent) samplePriorityTrace(pt ProcessedTrace) bool {
-	if a.PrioritySampler.Sample(pt.Trace, pt.Root, pt.Env) {
+	if a.PrioritySampler.Sample(pt.Trace, pt.Root, pt.Env, pt.ClientDroppedP0s) {
 		return true
 	}
 	if traceContainsError(pt.Trace) {

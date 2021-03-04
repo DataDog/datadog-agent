@@ -268,7 +268,7 @@ func validateArgs(args []string, local bool) error {
 
 	if !local {
 		if !datadogPkgNameRe.MatchString(args[0]) {
-			return fmt.Errorf("invalid package name - this manager only handles datadog packages")
+			return fmt.Errorf("invalid package name - this manager only handles datadog packages. Did you mean `datadog-%s`?", args[0])
 		}
 	} else {
 		// Validate the wheel we try to install exists

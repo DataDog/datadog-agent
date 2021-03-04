@@ -93,7 +93,7 @@ func notify(ch chan []types.EntityEvent, events []types.EntityEvent, cardinality
 		})
 	}
 
-	telemetry.Notifications.Inc()
+	telemetry.Sends.Inc()
 	telemetry.Events.Add(float64(len(events)), collectors.TagCardinalityToString(cardinality))
 
 	ch <- subscriberEvents

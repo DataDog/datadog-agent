@@ -139,7 +139,7 @@ func TestStress_E2EOpenNoKprobe(t *testing.T) {
 func TestStress_E2EOpenEvent(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.filename == "{{.Root}}/folder1/folder2/test" && open.flags & O_CREAT != 0`,
+		Expression: `open.file.path == "{{.Root}}/folder1/folder2/test" && open.flags & O_CREAT != 0`,
 	}
 
 	stressOpen(t, rule, "folder1/folder2/test", 0)
@@ -150,7 +150,7 @@ func TestStress_E2EOpenEvent(t *testing.T) {
 func TestStress_E2EOpenNoEvent(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.filename == "{{.Root}}/folder1/folder2/test-no-event" && open.flags & O_APPEND != 0`,
+		Expression: `open.file.path == "{{.Root}}/folder1/folder2/test-no-event" && open.flags & O_APPEND != 0`,
 	}
 
 	stressOpen(t, rule, "folder1/folder2/test", 0)
@@ -161,7 +161,7 @@ func TestStress_E2EOpenNoEvent(t *testing.T) {
 func TestStress_E2EOpenWrite1KEvent(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.filename == "{{.Root}}/folder1/folder2/test" && open.flags & O_CREAT != 0`,
+		Expression: `open.file.path == "{{.Root}}/folder1/folder2/test" && open.flags & O_CREAT != 0`,
 	}
 
 	stressOpen(t, rule, "folder1/folder2/test", 1024)
@@ -179,7 +179,7 @@ func TestStress_E2EOpenWrite1KNoKprobe(t *testing.T) {
 func TestStress_E2EOpenWrite1KNoEvent(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.filename == "{{.Root}}/folder1/folder2/test-no-event" && open.flags & O_APPEND != 0`,
+		Expression: `open.file.path == "{{.Root}}/folder1/folder2/test-no-event" && open.flags & O_APPEND != 0`,
 	}
 
 	stressOpen(t, rule, "folder1/folder2/test", 1024)
@@ -305,7 +305,7 @@ func TestStress_E2EExecEvent(t *testing.T) {
 
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: fmt.Sprintf(`open.filename == "{{.Root}}/folder1/folder2/test-ancestors" && process.name == "%s"`, "touch"),
+		Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/folder1/folder2/test-ancestors" && process.file.name == "%s"`, "touch"),
 	}
 
 	stressExec(t, rule, "folder1/folder2/test-ancestors", executable)

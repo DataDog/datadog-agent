@@ -2,6 +2,7 @@ package snmp
 
 import (
 	"fmt"
+	"regexp"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -51,7 +52,7 @@ func (ms *metricSender) reportScalarMetrics(metric metricsConfig, values *result
 
 	scalarTags := copyStrings(tags)
 	scalarTags = append(scalarTags, metric.getSymbolTags()...)
-	ms.sendMetric(metric.Symbol.Name, value, scalarTags, metric.ForcedType, metric.Options)
+	ms.sendMetric(metric.Symbol.Name, value, scalarTags, metric.ForcedType, metric.Options, metric.Symbol.extractValuePattern)
 }
 
 func (ms *metricSender) reportColumnMetrics(metricConfig metricsConfig, values *resultValueStore, tags []string) {
@@ -69,13 +70,22 @@ func (ms *metricSender) reportColumnMetrics(metricConfig metricsConfig, values *
 				log.Debugf("report column: caching tags `%v` for fullIndex `%s`", rowTagsCache[fullIndex], fullIndex)
 			}
 			rowTags := rowTagsCache[fullIndex]
-			ms.sendMetric(symbol.Name, value, rowTags, metricConfig.ForcedType, metricConfig.Options)
+			ms.sendMetric(symbol.Name, value, rowTags, metricConfig.ForcedType, metricConfig.Options, symbol.extractValuePattern)
 			ms.trySendBandwidthUsageMetric(symbol, fullIndex, values, rowTags)
 		}
 	}
 }
 
-func (ms *metricSender) sendMetric(metricName string, value snmpValueType, tags []string, forcedType string, options metricsConfigOption) {
+func (ms *metricSender) sendMetric(metricName string, value snmpValueType, tags []string, forcedType string, options metricsConfigOption, extractValuePattern *regexp.Regexp) {
+	if extractValuePattern != nil {
+		extractedValue, err := value.extractStringValue(extractValuePattern)
+		if err != nil {
+			log.Debugf("error extracting value from `%v` with pattern `%v`: %v", value, extractValuePattern, err)
+			return
+		}
+		value = extractedValue
+	}
+
 	metricFullName := "snmp." + metricName
 	if forcedType == "" {
 		if value.submissionType != "" {

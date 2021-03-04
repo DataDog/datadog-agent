@@ -139,4 +139,10 @@ func TestMitre(t *testing.T) {
 			}
 		})
 	}
+
+	// The default policy can be somewhat noisy and some events may leak to the next tests (there is a short delay
+	// between the reset of the maps and the reload of the rules, we can't move the reset after the reload either,
+	// otherwise the ruleset_reload test won't work => we would have reset the channel that contains the reload event).
+	// Load a fake new test module to empty the rules and properly cleanup the channels.
+	_, _ = newTestModule(nil, nil, testOpts{})
 }

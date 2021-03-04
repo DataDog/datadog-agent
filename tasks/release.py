@@ -14,6 +14,8 @@ from datetime import date
 from invoke import Failure, task
 from invoke.exceptions import Exit
 
+from .modules import DEFAULT_MODULES
+
 
 @task
 def add_prelude(ctx, version):
@@ -353,7 +355,7 @@ def _find_v6_tag(ctx, v7_tag):
 
 
 @task
-def list_major_change(ctx, milestone):
+def list_major_change(_, milestone):
     """
     List all PR labeled "major_changed" for this release.
     """
@@ -570,6 +572,8 @@ def finish(
 
     """
     Creates new entry in the release.json file for the new version. Removes all the RC entries.
+
+    Update internal module dependencies with the new version.
     """
 
     if sys.version_info[0] < 3:
@@ -721,6 +725,9 @@ def finish(
         macos_build_version,
     )
 
+    # Update internal module dependencies
+    update_modules(ctx, _stringify_version(highest_version))
+
 
 @task
 def create_rc(
@@ -737,6 +744,8 @@ def create_rc(
     """
     Takes whatever version is the highest in release.json and adds a new RC to it.
     If there was no RC, creates one and bump minor version. If there was an RC, create RC + 1.
+
+    Update internal module dependencies with the new RC.
     """
 
     if sys.version_info[0] < 3:
@@ -831,3 +840,61 @@ def create_rc(
         security_agent_policies_version,
         macos_build_version,
     )
+
+    # Update internal module dependencies
+    update_modules(ctx, _stringify_version(highest_version))
+
+
+def check_version(agent_version):
+    """Check Agent version to see if it is valid."""
+    version_re = re.compile(r'7[.](\d+)[.](\d+)(-rc\.(\d+))?')
+    if not version_re.match(agent_version):
+        raise Exit(message="Version should be of the form 7.Y.Z or 7.Y.Z-rc.t")
+
+
+@task
+def update_modules(ctx, agent_version, verify=True):
+    """
+    Update internal dependencies between the different Agent modules.
+    * --verify checks for correctness on the Agent Version (on by default).
+
+    Examples:
+    inv -e release.update-modules 7.27.0 
+    """
+    if verify:
+        check_version(agent_version)
+
+    for module in DEFAULT_MODULES.values():
+        for dependency in module.dependencies:
+            dependency_mod = DEFAULT_MODULES[dependency]
+            ctx.run(
+                "go mod edit -require={dependency_path} {go_mod_path}".format(
+                    dependency_path=dependency_mod.dependency_path(agent_version), go_mod_path=module.go_mod_path()
+                )
+            )
+
+
+@task
+def tag_version(ctx, agent_version, commit="HEAD", verify=True, push=True):
+    """
+    Create tags for a given Datadog Agent version.
+    The version should be given as an Agent 7 version.
+
+    * --commit COMMIT will tag COMMIT with the tags (default HEAD)
+    * --verify checks for correctness on the Agent version (on by default).
+    * --push will push the tags to the origin remote (on by default).
+
+    Examples:
+    inv -e release.tag-version 7.27.0                 # Create tags and push them to origin
+    inv -e release.tag-version 7.27.0-rc.3 --no-push  # Create tags locally; don't push them
+    """
+    if verify:
+        check_version(agent_version)
+
+    for module in DEFAULT_MODULES.values():
+        for tag in module.tag(agent_version):
+            ctx.run("git tag -m {tag} {tag} {commit}".format(tag=tag, commit=commit))
+            if push:
+                ctx.run("git push origin {}".format(tag))
+
+    print("Created all tags for version {}".format(agent_version))
