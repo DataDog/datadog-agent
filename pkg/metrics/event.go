@@ -94,6 +94,7 @@ type Event struct {
 	EventType      string         `json:"event_type,omitempty"`
 	OriginID       string         `json:"-"`
 	K8sOriginID    string         `json:"-"`
+	Cardinality    string         `json:"-"`
 }
 
 // Return a JSON string or "" in case of error during the Marshaling

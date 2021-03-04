@@ -30,7 +30,7 @@ type PayloadBuilder struct {
 }
 
 // NewPayloadBuilder is not implemented when zlib is not available.
-func NewPayloadBuilder() *PayloadBuilder {
+func NewPayloadBuilder(shareAndLockBuffers bool) *PayloadBuilder {
 	return nil
 }
 

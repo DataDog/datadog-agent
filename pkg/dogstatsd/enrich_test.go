@@ -859,12 +859,13 @@ func TestEnrichTags(t *testing.T) {
 		entityIDPrecendenceEnabled bool
 	}
 	tests := []struct {
-		name            string
-		args            args
-		wantedTags      []string
-		wantedHost      string
-		wantedOrigin    string
-		wantedK8sOrigin string
+		name              string
+		args              args
+		wantedTags        []string
+		wantedHost        string
+		wantedOrigin      string
+		wantedK8sOrigin   string
+		wantedCardinality string
 	}{
 		{
 			name: "empty tags, host=foo",
@@ -873,10 +874,11 @@ func TestEnrichTags(t *testing.T) {
 				originTags:                 "",
 				entityIDPrecendenceEnabled: true,
 			},
-			wantedTags:      nil,
-			wantedHost:      "foo",
-			wantedOrigin:    "",
-			wantedK8sOrigin: "",
+			wantedTags:        nil,
+			wantedHost:        "foo",
+			wantedOrigin:      "",
+			wantedK8sOrigin:   "",
+			wantedCardinality: "",
 		},
 		{
 			name: "entityId not present, host=foo, should return origin tags",
@@ -886,10 +888,11 @@ func TestEnrichTags(t *testing.T) {
 				originTags:                 "originID",
 				entityIDPrecendenceEnabled: true,
 			},
-			wantedTags:      []string{"env:prod"},
-			wantedHost:      "foo",
-			wantedOrigin:    "originID",
-			wantedK8sOrigin: "",
+			wantedTags:        []string{"env:prod"},
+			wantedHost:        "foo",
+			wantedOrigin:      "originID",
+			wantedK8sOrigin:   "",
+			wantedCardinality: "",
 		},
 		{
 			name: "entityId not present, host=foo, empty tags list, should return origin tags",
@@ -899,10 +902,11 @@ func TestEnrichTags(t *testing.T) {
 				originTags:                 "originID",
 				entityIDPrecendenceEnabled: true,
 			},
-			wantedTags:      nil,
-			wantedHost:      "foo",
-			wantedOrigin:    "originID",
-			wantedK8sOrigin: "",
+			wantedTags:        nil,
+			wantedHost:        "foo",
+			wantedOrigin:      "originID",
+			wantedK8sOrigin:   "",
+			wantedCardinality: "",
 		},
 		{
 			name: "entityId present, host=foo, should not return origin tags",
@@ -912,10 +916,11 @@ func TestEnrichTags(t *testing.T) {
 				originTags:                 "originID",
 				entityIDPrecendenceEnabled: true,
 			},
-			wantedTags:      []string{"env:prod"},
-			wantedHost:      "foo",
-			wantedOrigin:    "",
-			wantedK8sOrigin: "kubernetes_pod_uid://my-id",
+			wantedTags:        []string{"env:prod"},
+			wantedHost:        "foo",
+			wantedOrigin:      "",
+			wantedK8sOrigin:   "kubernetes_pod_uid://my-id",
+			wantedCardinality: "",
 		},
 		{
 			name: "entityId=none present, host=foo, should not call the originTagsFunc()",
@@ -925,10 +930,11 @@ func TestEnrichTags(t *testing.T) {
 				originTags:                 "originID",
 				entityIDPrecendenceEnabled: true,
 			},
-			wantedTags:      []string{"env:prod"},
-			wantedHost:      "foo",
-			wantedOrigin:    "",
-			wantedK8sOrigin: "",
+			wantedTags:        []string{"env:prod"},
+			wantedHost:        "foo",
+			wantedOrigin:      "",
+			wantedK8sOrigin:   "",
+			wantedCardinality: "",
 		},
 		{
 			name: "entityId=42 present entityIDPrecendenceEnabled=false, host=foo, should call the originTagsFunc()",
@@ -938,19 +944,91 @@ func TestEnrichTags(t *testing.T) {
 				originTags:                 "originID",
 				entityIDPrecendenceEnabled: false,
 			},
-			wantedTags:      []string{"env:prod"},
-			wantedHost:      "foo",
-			wantedOrigin:    "originID",
-			wantedK8sOrigin: "kubernetes_pod_uid://42",
+			wantedTags:        []string{"env:prod"},
+			wantedHost:        "foo",
+			wantedOrigin:      "originID",
+			wantedK8sOrigin:   "kubernetes_pod_uid://42",
+			wantedCardinality: "",
+		},
+		{
+			name: "entityId=42 cardinality=high present entityIDPrecendenceEnabled=false, host=foo, should call the originTagsFunc()",
+			args: args{
+				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), cardinalityTagPrefix + "high"},
+				defaultHostname:            "foo",
+				originTags:                 "originID",
+				entityIDPrecendenceEnabled: false,
+			},
+			wantedTags:        []string{"env:prod"},
+			wantedHost:        "foo",
+			wantedOrigin:      "originID",
+			wantedK8sOrigin:   "kubernetes_pod_uid://42",
+			wantedCardinality: "high",
+		},
+		{
+			name: "entityId=42 cardinality=orchestrator present entityIDPrecendenceEnabled=false, host=foo, should call the originTagsFunc()",
+			args: args{
+				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), cardinalityTagPrefix + "orchestrator"},
+				defaultHostname:            "foo",
+				originTags:                 "originID",
+				entityIDPrecendenceEnabled: false,
+			},
+			wantedTags:        []string{"env:prod"},
+			wantedHost:        "foo",
+			wantedOrigin:      "originID",
+			wantedK8sOrigin:   "kubernetes_pod_uid://42",
+			wantedCardinality: "orchestrator",
+		},
+		{
+			name: "entityId=42 cardinality=low present entityIDPrecendenceEnabled=false, host=foo, should call the originTagsFunc()",
+			args: args{
+				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), cardinalityTagPrefix + "low"},
+				defaultHostname:            "foo",
+				originTags:                 "originID",
+				entityIDPrecendenceEnabled: false,
+			},
+			wantedTags:        []string{"env:prod"},
+			wantedHost:        "foo",
+			wantedOrigin:      "originID",
+			wantedK8sOrigin:   "kubernetes_pod_uid://42",
+			wantedCardinality: "low",
+		},
+		{
+			name: "entityId=42 cardinality=unknown present entityIDPrecendenceEnabled=false, host=foo, should call the originTagsFunc()",
+			args: args{
+				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), cardinalityTagPrefix + "unknown"},
+				defaultHostname:            "foo",
+				originTags:                 "originID",
+				entityIDPrecendenceEnabled: false,
+			},
+			wantedTags:        []string{"env:prod"},
+			wantedHost:        "foo",
+			wantedOrigin:      "originID",
+			wantedK8sOrigin:   "kubernetes_pod_uid://42",
+			wantedCardinality: "unknown",
+		},
+		{
+			name: "entityId=42 cardinality='' present entityIDPrecendenceEnabled=false, host=foo, should call the originTagsFunc()",
+			args: args{
+				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), cardinalityTagPrefix},
+				defaultHostname:            "foo",
+				originTags:                 "originID",
+				entityIDPrecendenceEnabled: false,
+			},
+			wantedTags:        []string{"env:prod"},
+			wantedHost:        "foo",
+			wantedOrigin:      "originID",
+			wantedK8sOrigin:   "kubernetes_pod_uid://42",
+			wantedCardinality: "",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tags, host, origin, k8sOrigin := extractTagsMetadata(tt.args.tags, tt.args.defaultHostname, tt.args.originTags, tt.args.entityIDPrecendenceEnabled)
+			tags, host, origin, k8sOrigin, cardinality := extractTagsMetadata(tt.args.tags, tt.args.defaultHostname, tt.args.originTags, tt.args.entityIDPrecendenceEnabled)
 			assert.Equal(t, tt.wantedTags, tags)
 			assert.Equal(t, tt.wantedHost, host)
 			assert.Equal(t, tt.wantedOrigin, origin)
 			assert.Equal(t, tt.wantedK8sOrigin, k8sOrigin)
+			assert.Equal(t, tt.wantedCardinality, cardinality)
 		})
 	}
 }

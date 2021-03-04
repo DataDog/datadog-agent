@@ -8,6 +8,7 @@
 package tests
 
 import (
+	"fmt"
 	"os"
 	"syscall"
 	"testing"
@@ -122,4 +123,45 @@ func TestRmdir(t *testing.T) {
 			testContainerPath(t, event, "rmdir.file.container_path")
 		}
 	})
+}
+
+func TestRmdirInvalidate(t *testing.T) {
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `rmdir.file.path =~ "{{.Root}}/test-rmdir-*"`,
+	}
+
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	for i := 0; i != 5; i++ {
+		testFile, _, err := test.Path(fmt.Sprintf("test-rmdir-%d", i))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := syscall.Mkdir(testFile, 0777); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := syscall.Rmdir(testFile); err != nil {
+			t.Fatal(err)
+		}
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if event.GetType() != "rmdir" {
+				t.Errorf("expected rmdir event, got %s", event.GetType())
+			}
+
+			if value, _ := event.GetFieldValue("rmdir.file.path"); value.(string) != testFile {
+				t.Errorf("expected filename not found")
+			}
+		}
+	}
 }

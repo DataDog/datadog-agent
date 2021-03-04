@@ -23,6 +23,7 @@ from .ssm import get_pfx_pass, get_signing_cert
 from .utils import (
     REPO_PATH,
     bin_name,
+    generate_config,
     get_build_flags,
     get_version,
     get_version_numeric_only,
@@ -183,27 +184,17 @@ def build(
     )
 
     # Render the Agent configuration file template
-    cmd = "go run {go_file} {build_type} {template_file} {output_file}"
-
     build_type = "agent-py3"
     if iot:
         build_type = "iot-agent"
     elif has_both_python(python_runtimes):
         build_type = "agent-py2py3"
 
-    args = {
-        "go_file": "./pkg/config/render_config.go",
-        "build_type": build_type,
-        "template_file": "./pkg/config/config_template.yaml",
-        "output_file": "./cmd/agent/dist/datadog.yaml",
-    }
-
-    ctx.run(cmd.format(**args), env=env)
+    generate_config(ctx, build_type=build_type, output_file="./cmd/agent/dist/datadog.yaml", env=env)
 
     # On Linux and MacOS, render the system-probe configuration file template
     if sys.platform != 'win32' or windows_sysprobe:
-        cmd = "go run ./pkg/config/render_config.go system-probe ./pkg/config/config_template.yaml ./cmd/agent/dist/system-probe.yaml"
-        ctx.run(cmd, env=env)
+        generate_config(ctx, build_type="system-probe", output_file="./cmd/agent/dist/system-probe.yaml", env=env)
 
     if not skip_assets:
         refresh_assets(ctx, build_tags, development=development, iot=iot, windows_sysprobe=windows_sysprobe)

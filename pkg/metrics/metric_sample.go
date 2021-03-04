@@ -90,6 +90,7 @@ type MetricSample struct {
 	FlushFirstValue bool
 	OriginID        string
 	K8sOriginID     string
+	Cardinality     string
 }
 
 // Implement the MetricSampleContext interface
@@ -104,15 +105,15 @@ func (m *MetricSample) GetHost() string {
 	return m.Host
 }
 
-func findOriginTags(origin string, tb *util.TagsBuilder) {
+func findOriginTags(origin string, cardinality collectors.TagCardinality, tb *util.TagsBuilder) {
 	if origin != listeners.NoOrigin {
-		if err := tagger.TagBuilder(origin, tagger.DogstatsdCardinality, tb); err != nil {
+		if err := tagger.TagBuilder(origin, cardinality, tb); err != nil {
 			log.Errorf(err.Error())
 		}
 	}
 
 	// Include orchestrator scope tags if the cardinality is set to orchestrator
-	if tagger.DogstatsdCardinality == collectors.OrchestratorCardinality {
+	if cardinality == collectors.OrchestratorCardinality {
 		if err := tagger.OrchestratorScopeTagBuilder(tb); err != nil {
 			log.Error(err.Error())
 		}
@@ -120,13 +121,13 @@ func findOriginTags(origin string, tb *util.TagsBuilder) {
 }
 
 // EnrichTags expend a tag list with origin detection tags
-func EnrichTags(tb *util.TagsBuilder, originID string, k8sOriginID string) {
+func EnrichTags(tb *util.TagsBuilder, originID string, k8sOriginID string, cardinality string) {
 	if originID != "" {
-		findOriginTags(originID, tb)
+		findOriginTags(originID, taggerCardinality(cardinality), tb)
 	}
 
 	if k8sOriginID != "" {
-		if err := tagger.TagBuilder(k8sOriginID, tagger.DogstatsdCardinality, tb); err != nil {
+		if err := tagger.TagBuilder(k8sOriginID, taggerCardinality(cardinality), tb); err != nil {
 			tlmUDPOriginDetectionError.Inc()
 			log.Tracef("Cannot get tags for entity %s: %s", k8sOriginID, err)
 		}
@@ -138,7 +139,7 @@ func EnrichTags(tb *util.TagsBuilder, originID string, k8sOriginID string) {
 // GetTags returns the metric sample tags
 func (m *MetricSample) GetTags(tb *util.TagsBuilder) {
 	tb.Append(m.Tags...)
-	EnrichTags(tb, m.OriginID, m.K8sOriginID)
+	EnrichTags(tb, m.OriginID, m.K8sOriginID, m.Cardinality)
 }
 
 // Copy returns a deep copy of the m MetricSample
@@ -148,4 +149,20 @@ func (m *MetricSample) Copy() *MetricSample {
 	dst.Tags = make([]string, len(m.Tags))
 	copy(dst.Tags, m.Tags)
 	return dst
+}
+
+// taggerCardinality converts tagger cardinality string to collectors.TagCardinality
+// It defaults to DogstatsdCardinality if the string is empty or unknown
+func taggerCardinality(cardinality string) collectors.TagCardinality {
+	if cardinality == "" {
+		return tagger.DogstatsdCardinality
+	}
+
+	taggerCardinality, err := collectors.StringToTagCardinality(cardinality)
+	if err != nil {
+		log.Tracef("Couldn't convert cardinality tag: %w", err)
+		return tagger.DogstatsdCardinality
+	}
+
+	return taggerCardinality
 }

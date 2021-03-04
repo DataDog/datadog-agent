@@ -322,7 +322,7 @@ func BenchmarkCreateSingleMarshalerOneEventBySource(b *testing.B) {
 
 func benchmarkCreateSingleMarshaler(b *testing.B, createEvents func(numberOfItem int) Events) {
 	runBenchmark(b, func(b *testing.B, numberOfItem int) {
-		payloadBuilder := jsonstream.NewPayloadBuilder()
+		payloadBuilder := jsonstream.NewPayloadBuilder(true)
 		events := createEvents(numberOfItem)
 
 		b.ResetTimer()
@@ -335,7 +335,7 @@ func benchmarkCreateSingleMarshaler(b *testing.B, createEvents func(numberOfItem
 
 func BenchmarkCreateMarshalersBySourceType(b *testing.B) {
 	runBenchmark(b, func(b *testing.B, numberOfItem int) {
-		payloadBuilder := jsonstream.NewPayloadBuilder()
+		payloadBuilder := jsonstream.NewPayloadBuilder(true)
 		events := createBenchmarkEvents(numberOfItem)
 
 		b.ResetTimer()
@@ -350,7 +350,7 @@ func BenchmarkCreateMarshalersBySourceType(b *testing.B) {
 
 func BenchmarkCreateMarshalersSeveralSourceTypes(b *testing.B) {
 	runBenchmark(b, func(b *testing.B, numberOfItem int) {
-		payloadBuilder := jsonstream.NewPayloadBuilder()
+		payloadBuilder := jsonstream.NewPayloadBuilder(true)
 
 		var events Events
 		// Half of events have the same source type
