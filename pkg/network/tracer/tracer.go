@@ -152,8 +152,12 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		enabledProbes[probes.SocketDnsFilter] = struct{}{}
 	}
 
+	// TODO: This is a hotfix to prevent the following error when HTTP monitoring is disabled
+	// couldn’t load eBPF programs: map http_in_flight: map create: cannot allocate memory
+	maxHTTPInFlightEntries := uint(1)
 	if config.EnableHTTPMonitoring && !pre410Kernel {
 		enabledProbes[probes.SocketHTTPFilter] = struct{}{}
+		maxHTTPInFlightEntries = config.MaxTrackedConnections
 	}
 
 	mgrOptions := manager.Options{
@@ -172,7 +176,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 			string(probes.TcpStatsMap):        {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.PortBindingsMap):    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.UdpPortBindingsMap): {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.HttpInFlightMap):    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.HttpInFlightMap):    {Type: ebpf.Hash, MaxEntries: uint32(maxHTTPInFlightEntries), EditorFlag: manager.EditMaxEntries},
 		},
 	}
 
