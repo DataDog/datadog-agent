@@ -108,18 +108,17 @@ func TestPerfBatchStateCleanup(t *testing.T) {
 	manager.batchMap.Put(unsafe.Pointer(&cpu), unsafe.Pointer(batch))
 
 	manager.GetIdleConns()
-	_, ok := manager.stateByCPU[cpu].processed[0]
+	_, ok := manager.stateByCPU[cpu].processed[uint64(batch.id)]
 	require.True(t, ok)
-	assert.Equal(t, uint16(2), manager.stateByCPU[cpu].processed[0].offset)
+	assert.Equal(t, uint16(2), manager.stateByCPU[cpu].processed[uint64(batch.id)].offset)
 
-	// wait for expiration and read partial batches again
-	time.Sleep(manager.expiredStateInterval)
+	manager.cleanupExpiredState(time.Now().Add(manager.expiredStateInterval))
 	manager.GetIdleConns()
 
 	// state should not have been cleaned up, since no more connections have happened
-	_, ok = manager.stateByCPU[cpu].processed[0]
+	_, ok = manager.stateByCPU[cpu].processed[uint64(batch.id)]
 	require.True(t, ok)
-	assert.Equal(t, uint16(2), manager.stateByCPU[cpu].processed[0].offset)
+	assert.Equal(t, uint16(2), manager.stateByCPU[cpu].processed[uint64(batch.id)].offset)
 }
 
 func newEmptyBatchManager() *PerfBatchManager {

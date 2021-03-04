@@ -79,19 +79,11 @@ func (pc *ProcessCacheEntry) UnmarshalBinary(data []byte, unmarshalContext bool)
 	var read int
 
 	if unmarshalContext {
-		if len(data) < 200 {
-			return 0, ErrNotEnoughData
-		}
-
 		offset, err := UnmarshalBinary(data, &pc.ContainerContext)
 		if err != nil {
 			return 0, err
 		}
 		read += offset
-	} else {
-		if len(data) < 136 {
-			return 0, ErrNotEnoughData
-		}
 	}
 
 	offset, err := pc.ExecEvent.UnmarshalBinary(data[read:])

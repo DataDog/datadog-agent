@@ -100,7 +100,18 @@ executed on each platform.
 
 ### Platforms Tested:
 
-See [kitchen-azure.yml](kitchen-azure.yml)
+To generate a test suite, the platforms to be tested are passed in via the 
+TEST_PLATFORMS environment variable.  The exact format of the list that's
+supplied in this variable will vary depending upon which driver (provider)
+is being used.
+
+In Azure (which is what is used in the ci pipeline), the list of platforms
+is created in the top level .gitlab-ci.yaml, and the syntax is of the form:
+`short_name1,azure_full_qualified_name1|short_name2,azure_full_qualified_name2`
+
+Each driver (provider) will have a slightly different format, which is described
+in the driver-specific yaml (drivers/azure-driver.yml, drivers/ec2-driver, etc.)
+
 
 ### Packaging Test Suites
 
@@ -175,12 +186,13 @@ For basic test-kitchen usage, see its [Getting Started
 guide](https://github.com/opscode/test-kitchen/wiki/Getting-Started).
 
 ### Adding a Platform
-Tests are executed on Azure. Platforms are defined in `kitchen-azure.yml`.
+Tests are executed on Azure in ci. Platforms are defined in the OS dependent
+files kitchen testing definitions in /.gitlab/kitchen_testing/<os>.yaml
 
 ### Adding a Suite
 Suites define the commands that should be run on a platform as Chef recipes,
 and tests that verify the outcome of these commands written in RSpec. Suites
-are defined in `kitchen-azure.yml`.
+are defined in specific yaml files in the `test-definitions` directory.
 
 Add new cookbooks by describing them in `Berksfile`. If you want to write your
 own cookbook that is specific to this repository, place it in the
@@ -195,3 +207,67 @@ between suites is in `test/integration/common/rspec/`.
 Tests do not need to be written in RSpec; [Busser](https://github.com/fnichol/busser),
 the framework that executes the tests, supports several different testing
 frameworks (including Bats and minitest).
+
+### Creating a complete test file (kitchen.yaml)
+
+To support running multiple kitchen suites using multiple back-end providers, the 
+kitchen configuration file (kitchen.yaml) is created dynamically by combining three
+provided yaml files. 
+
+A complete kitchen configuration (kitchen.yaml) is created by taking one of the 
+driver files, adding the common configuration options [platforms-common](test-definitions/platforms-common.yml),
+and then adding the desired test suite(s) from the test-definitions directory.
+
+There is an invoke task for creating the completed `kitchen.yml`.  The usage for 
+the invoke task is:
+
+  invoke kitchen.genconfig --platform=platform --osversions=osversions --provider=provider --testfiles=testfiles
+
+where:
+  platform is an index into the platforms.json.  It is (currently) one of:
+  - centos
+  - debian
+  - suse
+  - ubuntu
+  - windows
+
+  osversions is an index into the per-provider dictionary for the given 
+  platform.  Examples include
+  - win2012r2 (which is in both windows/azure and windows/ec2)
+  - ubuntu-20-04 (which is in ubuntu/azure)
+
+  Provider is the kitchen driver to be used.  Currently supported are
+  - azure
+  - ec2
+  - vagrant
+  - hyperv (with a user-supplied platforms file)
+
+  Testfiles is the name of the test-specific file(s) (found in [test-definitions](test-definitions) ) to be
+  added.  The testfiles define the tests that are run, on what OS, on the given provider.
+
+An example command would be
+  invoke kitchen.genconfig --platform ubuntu --osversions all --provider azure --testfiles install-script-test
+
+  This will generate a kitchen.yml which executes the `install-script-test` on all of the defined `ubuntu` 
+  OS images in azure.
+
+#### Running in CI
+
+When run in CI, the gitlab job will set up the `TEST_PLATFORMS` environment variable,
+and then concatenate the [azure driver](drivers/azure-driver.yml), [platforms-common](test-definitions/platforms-common.yml),
+and the desired test suite file (for example [upgrade7-test](test-definitions/upgrade-7-test.yml)).
+
+Test kitchen then expands out each of the `TEST_PLATFORMS` into a kitchen platform, and runs
+each suite on each provided platform
+
+#### Running locally
+
+To run kitchen locally, either to do broad tests on a given build or to develop the
+kitchen tests themselves, additional driver files are provided for using AWS EC2, Hyper-V,
+or vagrant as the back end.
+
+To create a kitchen file, take the same steps as above.  Combine the desired driver file,
+the common file, and the desired test suite(s). Using `erb` as a manual step will generate
+a kitchen file that can be reused.
+
+At present, the EC2 and Hyper-V driver files have only been tested for Windows targets.

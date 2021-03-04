@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package serverless
 
 import (
@@ -110,6 +115,37 @@ func TestGenerateEnhancedMetricsFromReportLog(t *testing.T) {
 		SampleRate: 1,
 		Timestamp:  float64(reportLog.Time.UnixNano()),
 	}})
+}
+
+func TestSendTimeoutEnhancedMetric(t *testing.T) {
+	metricsChan := make(chan []metrics.MetricSample)
+	tags := []string{"functionname:test-function"}
+
+	go sendTimeoutEnhancedMetric(tags, metricsChan)
+
+	generatedMetrics := <-metricsChan
+
+	assert.Equal(t, generatedMetrics, []metrics.MetricSample{{
+		Name:       "aws.lambda.enhanced.timeouts",
+		Value:      1.0,
+		Mtype:      metrics.DistributionType,
+		Tags:       tags,
+		SampleRate: 1,
+		// compare the generated timestamp to itself because we can't know its value
+		Timestamp: generatedMetrics[0].Timestamp,
+	}})
+}
+
+func TestGetTagsForEnhancedMetrics(t *testing.T) {
+	aws.SetARN("arn:aws:lambda:us-east-1:123456789012:function:my-function:7")
+	defer aws.SetARN("")
+
+	generatedTags := getTagsForEnhancedMetrics()
+
+	assert.Equal(t, generatedTags, []string{
+		"functionname:my-function",
+		"function_arn:arn:aws:lambda:us-east-1:123456789012:function:my-function",
+	})
 }
 
 func TestCalculateEstimatedCost(t *testing.T) {

@@ -491,6 +491,7 @@ DWORD DoStartSvc(std::wstring &svcname)
             if (GetTickCount() - dwStartTickCount > ssStatus.dwWaitHint)
             {
                 // No progress made within the wait hint.
+                WcaLog(LOGMSG_STANDARD, "Exiting start loop; no progress made after %d ms", (int)(GetTickCount() - dwStartTickCount) );
                 break;
             }
         }
@@ -500,11 +501,15 @@ DWORD DoStartSvc(std::wstring &svcname)
 
     if (ssStatus.dwCurrentState == SERVICE_RUNNING)
     {
-        WcaLog(LOGMSG_STANDARD, "Service started successfully.\n");
+        WcaLog(LOGMSG_STANDARD, "Service started successfully (Elapsed %d)\n", (int)(GetTickCount() - dwStartTickCount) );
+    }
+    else if(ssStatus.dwCurrentState == SERVICE_START_PENDING) 
+    {
+        WcaLog(LOGMSG_STANDARD, "Service start in progress, continuing install (Elapsed %d)\n", (int)(GetTickCount() - dwStartTickCount) );
     }
     else
     {
-        WcaLog(LOGMSG_STANDARD, "Service not started. \n");
+        WcaLog(LOGMSG_STANDARD, "Service not started. (Elapsed %d)\n", (int)(GetTickCount() - dwStartTickCount) );
         WcaLog(LOGMSG_STANDARD, "  Current State: %d\n", ssStatus.dwCurrentState);
         WcaLog(LOGMSG_STANDARD, "  Exit Code: %d\n", ssStatus.dwWin32ExitCode);
         WcaLog(LOGMSG_STANDARD, "  Check Point: %d\n", ssStatus.dwCheckPoint);

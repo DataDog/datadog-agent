@@ -176,6 +176,7 @@ func (a *Agent) Process(p *api.Payload) {
 	ts := p.Source
 	ss := new(writer.SampledSpans)
 	var sinputs []stats.Input
+	a.PrioritySampler.CountClientDroppedP0s(p.ClientDroppedP0s)
 	for _, t := range p.Traces {
 		if len(t) == 0 {
 			log.Debugf("Skipping received empty trace")
@@ -246,10 +247,11 @@ func (a *Agent) Process(p *api.Payload) {
 			env = v
 		}
 		pt := ProcessedTrace{
-			Trace:         t,
-			WeightedTrace: stats.NewWeightedTrace(t, root),
-			Root:          root,
-			Env:           env,
+			Trace:            t,
+			WeightedTrace:    stats.NewWeightedTrace(t, root),
+			Root:             root,
+			Env:              env,
+			ClientDroppedP0s: p.ClientDroppedP0s > 0,
 		}
 
 		events, keep := a.sample(ts, pt)
@@ -413,7 +415,7 @@ func (a *Agent) runSamplers(pt ProcessedTrace, hasPriority bool) bool {
 // ErrorSampler are run in parallel. The ExceptionSampler catches traces with rare top-level
 // or measured spans that are not caught by PrioritySampler and ErrorSampler.
 func (a *Agent) samplePriorityTrace(pt ProcessedTrace) bool {
-	if a.PrioritySampler.Sample(pt.Trace, pt.Root, pt.Env) {
+	if a.PrioritySampler.Sample(pt.Trace, pt.Root, pt.Env, pt.ClientDroppedP0s) {
 		return true
 	}
 	if traceContainsError(pt.Trace) {

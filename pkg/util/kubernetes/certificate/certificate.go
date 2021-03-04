@@ -9,6 +9,7 @@ package certificate
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
@@ -143,7 +144,7 @@ func GetCertificateFromSecret(secretNs, secretName string, client kubernetes.Int
 		return &cert, nil
 	}
 
-	secret, err := client.CoreV1().Secrets(secretNs).Get(secretName, metav1.GetOptions{})
+	secret, err := client.CoreV1().Secrets(secretNs).Get(context.TODO(), secretName, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
