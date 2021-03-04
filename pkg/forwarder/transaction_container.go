@@ -50,7 +50,6 @@ func buildTransactionContainer(
 
 	if optionalDomainFolderPath != "" && storageMaxSize > 0 {
 		serializer := NewTransactionsSerializer(domain, apiKeys)
-		storageMaxSize := config.Datadog.GetInt64("forwarder_storage_max_size_in_bytes")
 		diskRatio := config.Datadog.GetFloat64("forwarder_storage_max_disk_ratio")
 
 		maxStorage := newForwarderMaxStorage(optionalDomainFolderPath, filesystem.NewDisk(), storageMaxSize, diskRatio)
