@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -26,4 +28,48 @@ func TestMetricSampleCopy(t *testing.T) {
 
 	assert.False(t, src == dst)
 	assert.True(t, reflect.DeepEqual(&src, &dst))
+}
+
+func Test_taggerCardinality(t *testing.T) {
+	tests := []struct {
+		name        string
+		cardinality string
+		want        collectors.TagCardinality
+	}{
+		{
+			name:        "high",
+			cardinality: "high",
+			want:        collectors.HighCardinality,
+		},
+		{
+			name:        "orchestrator",
+			cardinality: "orchestrator",
+			want:        collectors.OrchestratorCardinality,
+		},
+		{
+			name:        "orch",
+			cardinality: "orch",
+			want:        collectors.OrchestratorCardinality,
+		},
+		{
+			name:        "low",
+			cardinality: "low",
+			want:        collectors.LowCardinality,
+		},
+		{
+			name:        "empty",
+			cardinality: "",
+			want:        tagger.DogstatsdCardinality,
+		},
+		{
+			name:        "unknown",
+			cardinality: "foo",
+			want:        tagger.DogstatsdCardinality,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, taggerCardinality(tt.cardinality))
+		})
+	}
 }
