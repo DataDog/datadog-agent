@@ -176,37 +176,37 @@ func encodePayload(w io.Writer, payload pb.StatsPayload) error {
 	return msgp.Encode(gz, &payload)
 }
 
-type clientStatsPayload struct {
-	pb.ClientStatsPayload
-	nbEntries int
-}
-
 // buildPayloads splits pb.ClientStatsPayload that have more than maxEntriesPerPayload
-// and groups them into pb.StatsPayload with less than maxEntriesPerPayload
+// and then groups them into pb.StatsPayload with less than maxEntriesPerPayload
 func (w *StatsWriter) buildPayloads(sp pb.StatsPayload, maxEntriesPerPayload int) []pb.StatsPayload {
+	split := splitPayloads(sp.Stats, maxEntriesPerPayload)
 	grouped := make([]pb.StatsPayload, 0, len(sp.Stats))
-	i := -1
+	current := pb.StatsPayload{
+		AgentHostname: sp.AgentHostname,
+		AgentEnv:      sp.AgentEnv,
+	}
 	nbEntries := 0
 	nbBuckets := 0
-	for _, p := range sp.Stats {
-		for _, s := range w.splitPayload(p, maxEntriesPerPayload) {
-			shouldFlush := nbEntries+s.nbEntries > maxEntriesPerPayload
-			if i == -1 || shouldFlush {
-				if shouldFlush {
-					log.Debugf("Flushing %d entries (buckets=%d client_payloads=%d)", nbEntries, nbBuckets, len(grouped[i].Stats))
-					atomic.AddInt64(&w.stats.StatsBuckets, int64(nbBuckets))
-					atomic.AddInt64(&w.stats.ClientPayloads, int64(len(grouped[i].Stats)))
-					atomic.AddInt64(&w.stats.StatsEntries, int64(nbEntries))
-				}
-				grouped = append(grouped, pb.StatsPayload{AgentEnv: sp.AgentEnv, AgentHostname: sp.AgentHostname})
-				i++
-				nbEntries = 0
-				nbBuckets = 0
-			}
-			nbEntries += s.nbEntries
-			nbBuckets += len(s.Stats)
-			grouped[i].Stats = append(grouped[i].Stats, s.ClientStatsPayload)
+	addPayload := func() {
+		log.Debugf("Flushing %d entries (buckets=%d client_payloads=%d)", nbEntries, nbBuckets, len(current.Stats))
+		atomic.AddInt64(&w.stats.StatsBuckets, int64(nbBuckets))
+		atomic.AddInt64(&w.stats.ClientPayloads, int64(len(current.Stats)))
+		atomic.AddInt64(&w.stats.StatsEntries, int64(nbEntries))
+		grouped = append(grouped, current)
+		current.Stats = nil
+		nbEntries = 0
+		nbBuckets = 0
+	}
+	for _, p := range split {
+		if nbEntries+p.nbEntries > maxEntriesPerPayload {
+			addPayload()
 		}
+		nbEntries += p.nbEntries
+		nbBuckets += len(p.Stats)
+		current.Stats = append(current.Stats, p.ClientStatsPayload)
+	}
+	if nbEntries > 0 {
+		addPayload()
 	}
 	if len(grouped) > 1 {
 		atomic.AddInt64(&w.stats.Splits, 1)
@@ -214,8 +214,26 @@ func (w *StatsWriter) buildPayloads(sp pb.StatsPayload, maxEntriesPerPayload int
 	return grouped
 }
 
+func splitPayloads(payloads []pb.ClientStatsPayload, maxEntriesPerPayload int) []clientStatsPayload {
+	split := make([]clientStatsPayload, 0, len(payloads))
+	for _, p := range payloads {
+		split = append(split, splitPayload(p, maxEntriesPerPayload)...)
+	}
+	return split
+}
+
+type timeWindow struct{ start, duration uint64 }
+
+type clientStatsPayload struct {
+	pb.ClientStatsPayload
+	nbEntries int
+	// bucketIndexes maps from a timeWindow to a bucket in the ClientStatsPayload.
+	// it allows quick checking of what bucket to add a payload to.
+	bucketIndexes map[timeWindow]int
+}
+
 // splitPayload splits a stats payload to ensure that each stats payload has less than maxEntriesPerPayload entries.
-func (w *StatsWriter) splitPayload(p pb.ClientStatsPayload, maxEntriesPerPayload int) []clientStatsPayload {
+func splitPayload(p pb.ClientStatsPayload, maxEntriesPerPayload int) []clientStatsPayload {
 	if len(p.Stats) == 0 {
 		return nil
 	}
@@ -235,12 +253,10 @@ func (w *StatsWriter) splitPayload(p pb.ClientStatsPayload, maxEntriesPerPayload
 
 	// 2. Initialize a slice of nbPayloads indexes maps, mapping a time window (stat +
 	//    duration) to a stats payload.
-	type timeWindow struct{ start, duration uint64 }
-	indexes := make([]map[timeWindow]int, nbPayloads)
 	payloads := make([]clientStatsPayload, nbPayloads)
 	for i := 0; i < nbPayloads; i++ {
-		indexes[i] = make(map[timeWindow]int, nbPayloads)
 		payloads[i] = clientStatsPayload{
+			bucketIndexes: make(map[timeWindow]int, 1),
 			ClientStatsPayload: pb.ClientStatsPayload{
 				Hostname: p.Hostname,
 				Env:      p.Env,
@@ -257,14 +273,13 @@ func (w *StatsWriter) splitPayload(p pb.ClientStatsPayload, maxEntriesPerPayload
 		tw := timeWindow{b.Start, b.Duration}
 		for _, g := range b.Stats {
 			j := i % nbPayloads
-			indexMap := indexes[j]
-			bi, ok := indexMap[tw]
+			bi, ok := payloads[j].bucketIndexes[tw]
 			if !ok {
 				bi = len(payloads[j].Stats)
-				indexMap[tw] = bi
+				payloads[j].bucketIndexes[tw] = bi
 				payloads[j].Stats = append(payloads[j].Stats, pb.ClientStatsBucket{Start: tw.start, Duration: tw.duration})
 			}
-			// here, we can just append the group, because there is no duplicate groups in the original stats payloads sent to the writer.
+			// here, we can just append the group, because there are no duplicate groups in the original stats payloads sent to the writer.
 			payloads[j].Stats[bi].Stats = append(payloads[j].Stats[bi].Stats, g)
 			payloads[j].nbEntries++
 			i++
