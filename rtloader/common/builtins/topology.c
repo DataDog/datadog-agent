@@ -81,16 +81,16 @@ static PyObject *submit_component(PyObject *self, PyObject *args) {
         Py_RETURN_NONE;
     }
 
-    PyObject *check = NULL;
+    PyObject *check = NULL; // borrowed
     char *check_id;
-    PyObject *instance_key_dict = NULL;
+    PyObject *instance_key_dict = NULL; // borrowed
     char *component_id;
     char *component_type;
-    PyObject *data_dict = NULL;
+    PyObject *data_dict = NULL; // borrowed
     instance_key_t *instance_key = NULL;
+    char *yaml_data;
 
-    PyGILState_STATE gstate;
-    gstate = PyGILState_Ensure();
+    PyGILState_STATE gstate = PyGILState_Ensure();
 
     if (!PyArg_ParseTuple(args, "OsOssO", &check, &check_id, &instance_key_dict, &component_id, &component_type, &data_dict)) {
       goto error;
@@ -115,7 +115,13 @@ static PyObject *submit_component(PyObject *self, PyObject *args) {
     instance_key->type_ = as_string(PyDict_GetItemString(instance_key_dict, "type"));
     instance_key->url = as_string(PyDict_GetItemString(instance_key_dict, "url"));
 
-    cb_submit_component(check_id, instance_key, component_id, component_type, as_yaml(data_dict));
+    yaml_data = as_yaml(data_dict);
+    cb_submit_component(check_id, instance_key, component_id, component_type, yaml_data);
+
+    _free(instance_key->type_);
+    _free(instance_key->url);
+    _free(instance_key);
+    _free(yaml_data);
 
     PyGILState_Release(gstate);
     Py_RETURN_NONE;
@@ -140,17 +146,17 @@ static PyObject *submit_relation(PyObject *self, PyObject *args) {
         Py_RETURN_NONE;
     }
 
-    PyObject *check = NULL;
+    PyObject *check = NULL; // borrowed
     char *check_id;
-    PyObject *instance_key_dict = NULL;
+    PyObject *instance_key_dict = NULL; // borrowed
     char *source_id;
     char *target_id;
     char *relation_type;
-    PyObject *data_dict = NULL;
+    PyObject *data_dict = NULL; // borrowed
     instance_key_t *instance_key = NULL;
+    char *yaml_data;
 
-    PyGILState_STATE gstate;
-    gstate = PyGILState_Ensure();
+    PyGILState_STATE gstate = PyGILState_Ensure();
 
     if (!PyArg_ParseTuple(args, "OsOsssO", &check, &check_id, &instance_key_dict, &source_id, &target_id, &relation_type, &data_dict)) {
       goto error;
@@ -175,7 +181,13 @@ static PyObject *submit_relation(PyObject *self, PyObject *args) {
     instance_key->type_ = as_string(PyDict_GetItemString(instance_key_dict, "type"));
     instance_key->url = as_string(PyDict_GetItemString(instance_key_dict, "url"));
 
-    cb_submit_relation(check_id, instance_key, source_id, target_id, relation_type, as_yaml(data_dict));
+    yaml_data = as_yaml(data_dict);
+    cb_submit_relation(check_id, instance_key, source_id, target_id, relation_type, yaml_data);
+
+    _free(instance_key->type_);
+    _free(instance_key->url);
+    _free(instance_key);
+    _free(yaml_data);
 
     PyGILState_Release(gstate);
     Py_RETURN_NONE;
@@ -200,13 +212,12 @@ static PyObject *submit_start_snapshot(PyObject *self, PyObject *args) {
         Py_RETURN_NONE;
     }
 
-    PyObject *check = NULL;
+    PyObject *check = NULL; // borrowed
     char *check_id;
-    PyObject *instance_key_dict = NULL;
+    PyObject *instance_key_dict = NULL; // borrowed
     instance_key_t *instance_key = NULL;
 
-    PyGILState_STATE gstate;
-    gstate = PyGILState_Ensure();
+    PyGILState_STATE gstate = PyGILState_Ensure();
 
     if (!PyArg_ParseTuple(args, "OsO", &check, &check_id, &instance_key_dict)) {
       goto error;
@@ -227,6 +238,10 @@ static PyObject *submit_start_snapshot(PyObject *self, PyObject *args) {
     instance_key->url = as_string(PyDict_GetItemString(instance_key_dict, "url"));
 
     cb_submit_start_snapshot(check_id, instance_key);
+
+    _free(instance_key->type_);
+    _free(instance_key->url);
+    _free(instance_key);
 
     PyGILState_Release(gstate);
     Py_RETURN_NONE;
@@ -251,13 +266,12 @@ static PyObject *submit_stop_snapshot(PyObject *self, PyObject *args) {
         Py_RETURN_NONE;
     }
 
-    PyObject *check = NULL;
+    PyObject *check = NULL; // borrowed
     char *check_id;
-    PyObject *instance_key_dict = NULL;
+    PyObject *instance_key_dict = NULL; // borrowed
     instance_key_t *instance_key = NULL;
 
-    PyGILState_STATE gstate;
-    gstate = PyGILState_Ensure();
+    PyGILState_STATE gstate = PyGILState_Ensure();
 
     if (!PyArg_ParseTuple(args, "OsO", &check, &check_id, &instance_key_dict)) {
       goto error;
@@ -278,6 +292,10 @@ static PyObject *submit_stop_snapshot(PyObject *self, PyObject *args) {
     instance_key->url = as_string(PyDict_GetItemString(instance_key_dict, "url"));
 
     cb_submit_stop_snapshot(check_id, instance_key);
+
+    _free(instance_key->type_);
+    _free(instance_key->url);
+    _free(instance_key);
 
     PyGILState_Release(gstate);
     Py_RETURN_NONE;

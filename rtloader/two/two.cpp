@@ -115,6 +115,7 @@ bool Two::init()
     Py2_init_tagger();
     Py2_init_kubeutil();
     Py2_init_containers();
+    Py2_init_topology();
 
     // import the base class
     _baseClass = _importFrom("datadog_checks.checks", "AgentCheck");

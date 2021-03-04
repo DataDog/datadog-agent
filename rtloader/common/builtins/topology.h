@@ -12,6 +12,9 @@
     The prototypes here defined provide functions to initialize the python topology
     builtin module, and set its relevant callbacks for the rtloader caller.
 */
+/*! \def AGGREGATOR_MODULE_NAME
+    \brief Topology module name definition.
+*/
 /*! \fn PyMODINIT_FUNC PyInit_topology(void)
     \brief Initializes the topology builtin python module.
 

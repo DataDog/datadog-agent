@@ -82,6 +82,7 @@ bool Three::init()
     PyImport_AppendInittab(TAGGER_MODULE_NAME, PyInit_tagger);
     PyImport_AppendInittab(KUBEUTIL_MODULE_NAME, PyInit_kubeutil);
     PyImport_AppendInittab(CONTAINERS_MODULE_NAME, PyInit_containers);
+    PyImport_AppendInittab(TOPOLOGY_MODULE_NAME, PyInit_topology);
 
     Py_Initialize();
 

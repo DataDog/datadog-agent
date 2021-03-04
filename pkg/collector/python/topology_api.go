@@ -25,6 +25,10 @@ import (
 */
 import "C"
 
+// NOTE
+// Beware that any changes made here MUST be reflected also in the test implementation
+// rtloader/test/topology/topology.go
+
 // SubmitComponent is the method exposed to Python scripts to submit topology component
 //export SubmitComponent
 func SubmitComponent(id *C.char, instanceKey *C.instance_key_t, externalID *C.char, componentType *C.char, data *C.char) {
