@@ -141,10 +141,14 @@ dev_t __attribute__((always_inline)) get_mount_dev(void *mnt) {
     return get_vfsmount_dev(get_mount_vfsmount(mnt));
 }
 
-unsigned long __attribute__((always_inline)) get_dentry_ino(struct dentry *dentry) {
+struct inode* __attribute__((always_inline)) get_dentry_inode(struct dentry *dentry) {
     struct inode *d_inode;
     bpf_probe_read(&d_inode, sizeof(d_inode), &dentry->d_inode);
-    return get_inode_ino(d_inode);
+    return d_inode;
+}
+
+unsigned long __attribute__((always_inline)) get_dentry_ino(struct dentry *dentry) {
+    return get_inode_ino(get_dentry_inode(dentry));
 }
 
 void __attribute__((always_inline)) fill_file_metadata(struct dentry* dentry, struct file_metadata_t* file) {

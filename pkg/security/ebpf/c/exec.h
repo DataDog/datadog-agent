@@ -152,18 +152,14 @@ SYSCALL_KPROBE4(execveat, int, fd, const char *, filename, const char **, argv, 
     return trace__sys_execveat(ctx, argv, env);
 }
 
-int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct syscall_cache_t *syscall) {
+int __attribute__((always_inline)) handle_exec_event(struct syscall_cache_t *syscall, struct file *file, struct path *path, struct inode *inode) {
     if (syscall->exec.is_parsed) {
         return 0;
     }
     syscall->exec.is_parsed = 1;
 
-    struct file *file = (struct file *)PT_REGS_PARM1(ctx);
-    struct inode *inode = (struct inode *)PT_REGS_PARM2(ctx);
-    struct path *path = &file->f_path;
-
     syscall->exec.dentry = get_file_dentry(file);
-    syscall->exec.file.path_key = get_inode_key_path(inode, &file->f_path);
+    syscall->exec.file.path_key = get_inode_key_path(inode, path);
     syscall->exec.file.path_key.path_id = get_path_id(0);
 
     u64 pid_tgid = bpf_get_current_pid_tgid();

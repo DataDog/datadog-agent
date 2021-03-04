@@ -61,6 +61,9 @@ int kprobe__vfs_rename(struct pt_regs *ctx) {
 
     fill_file_metadata(src_dentry, &syscall->rename.src_file.metadata);
     syscall->rename.target_file.metadata = syscall->rename.src_file.metadata;
+    if (is_overlayfs(src_dentry)) {
+        syscall->rename.target_file.flags |= UPPER_LAYER;
+    }
 
     if (filter_syscall(syscall, rename_approvers)) {
         return mark_as_discarded(syscall);

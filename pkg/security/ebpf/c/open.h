@@ -107,18 +107,15 @@ int __attribute__((always_inline)) open_approvers(struct syscall_cache_t *syscal
     return pass_to_userspace;
 }
 
-int __attribute__((always_inline)) handle_open_event(struct pt_regs *ctx, struct syscall_cache_t *syscall) {
-    if (syscall->open.file.path_key.ino) {
+int __attribute__((always_inline)) handle_open_event(struct syscall_cache_t *syscall, struct file *file, struct path *path, struct inode *inode) {
+    if (syscall->open.dentry) {
         return 0;
     }
 
-    struct file *file = (struct file *)PT_REGS_PARM1(ctx);
-    struct inode *inode = (struct inode *)PT_REGS_PARM2(ctx);
-
-    struct dentry *dentry = get_file_dentry(file);
+    struct dentry *dentry = get_path_dentry(path);
 
     syscall->open.dentry = dentry;
-    syscall->open.file.path_key = get_inode_key_path(inode, &file->f_path);
+    syscall->open.file.path_key = get_inode_key_path(inode, path);
 
     set_file_inode(dentry, &syscall->open.file, 0);
 
@@ -140,7 +137,6 @@ int kprobe__vfs_truncate(struct pt_regs *ctx) {
     }
 
     struct path *path = (struct path *)PT_REGS_PARM1(ctx);
-
     struct dentry *dentry = get_path_dentry(path);
 
     syscall->open.dentry = dentry;
@@ -155,20 +151,30 @@ int kprobe__vfs_truncate(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kprobe/do_dentry_open")
-int kprobe__do_dentry_open(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN | SYSCALL_EXEC);
+SEC("kprobe/vfs_open")
+int kprobe__vfs_open(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN);
     if (!syscall)
         return 0;
 
-    switch(syscall->type) {
-        case SYSCALL_OPEN:
-            return handle_open_event(ctx, syscall);
-        case SYSCALL_EXEC:
-            return handle_exec_event(ctx, syscall);
-    }
+    struct path *path = (struct path *)PT_REGS_PARM1(ctx);
+    struct file *file = (struct file *)PT_REGS_PARM2(ctx);
+    struct dentry *dentry = get_path_dentry(path);
+    struct inode *inode = get_dentry_inode(dentry);
 
-    return 0;
+    return handle_open_event(syscall, file, path, inode);
+}
+
+SEC("kprobe/do_dentry_open")
+int kprobe__do_dentry_open(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_EXEC);
+    if (!syscall)
+        return 0;
+
+    struct file *file = (struct file *)PT_REGS_PARM1(ctx);
+    struct inode *inode = (struct inode *)PT_REGS_PARM2(ctx);
+
+    return handle_exec_event(syscall, file, &file->f_path, inode);
 }
 
 int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {

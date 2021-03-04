@@ -70,6 +70,8 @@ int kprobe__vfs_link(struct pt_regs *ctx) {
     // we generate a fake target key as the inode is the same
     syscall->link.target_file.path_key.ino = FAKE_INODE_MSW<<32 | bpf_get_prandom_u32();
     syscall->link.target_file.path_key.mount_id = syscall->link.src_file.path_key.mount_id;
+    if (is_overlayfs(src_dentry))
+        syscall->link.target_file.flags |= UPPER_LAYER;
 
     int ret = resolve_dentry(src_dentry, syscall->link.src_file.path_key, syscall->policy.mode != NO_FILTER ? EVENT_LINK : 0);
     if (ret == DENTRY_DISCARDED) {
