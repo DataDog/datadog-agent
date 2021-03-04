@@ -8,7 +8,7 @@ import (
 )
 
 // Copyright (C) 2016-2021 Matt Layher
-// Source https://github.com/mdlayher/netlink/message.go
+// Source https://github.com/mdlayher/netlink/blob/ec511443387bb32b3adcd448828476c83754c8e8/message.go
 // checkMessage checks a single Message for netlink errors.
 func checkMessage(m netlink.Message) error {
 	const success = 0
