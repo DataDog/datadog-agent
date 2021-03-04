@@ -354,7 +354,7 @@ func resizeDriverBuffer(compareSize int, buffer []uint8) []uint8 {
 // ReadDNSPacket visits a raw DNS packet if one is available.
 func (di *DriverInterface) ReadDNSPacket(visit func([]byte, time.Time) error) (didRead bool, err error) {
 	var bytesRead uint32
-	var key uint32 // returned by GetQueuedCompletionStatus, then ignored
+	var key uintptr // returned by GetQueuedCompletionStatus, then ignored
 	var ol *windows.Overlapped
 
 	// NOTE: ideally we would pass a timeout of INFINITY to the GetQueuedCompletionStatus, but are using a
