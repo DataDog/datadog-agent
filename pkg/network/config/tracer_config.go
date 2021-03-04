@@ -85,9 +85,6 @@ func TracerConfigFromConfig(cfg *config.AgentConfig) *Config {
 	tracerConfig.EnableMonotonicCount = cfg.Windows.EnableMonotonicCount
 	tracerConfig.DriverBufferSize = cfg.Windows.DriverBufferSize
 
-	tracerConfig.UDPConnTimeout = sysUDPTimeout()
-	tracerConfig.UDPStreamTimeout = sysUDPStreamTimeout()
-
 	tracerConfig.EnableGatewayLookup = cfg.EnableGatewayLookup
 
 	return tracerConfig

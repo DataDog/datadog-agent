@@ -108,7 +108,7 @@ func newRouteKey(source, dest util.Address, netns uint32) routeKey {
 }
 
 type netlinkRouter struct {
-	rootNs uint64
+	rootNs uint32
 }
 
 // NewNetlinkRouter create a Router that queries routes via netlink
@@ -124,7 +124,7 @@ func NewNetlinkRouter(procRoot string) Router {
 
 func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, bool) {
 	// only get routes for the root net namespace
-	if uint64(netns) != n.rootNs {
+	if netns != n.rootNs {
 		return Route{}, false
 	}
 
