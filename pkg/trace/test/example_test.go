@@ -46,7 +46,7 @@ func Example() {
 	switch v := (<-runner.Out()).(type) {
 	case pb.TracePayload:
 		fmt.Println("OK traces: ", len(v.Traces))
-	case pb.ClientStatsPayload:
+	case pb.StatsPayload:
 		fmt.Println("OK stats: ", len(v.Stats))
 	}
 }

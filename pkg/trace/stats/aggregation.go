@@ -1,11 +1,11 @@
 package stats
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -14,6 +14,7 @@ const (
 	tagStatusCode = "http.status_code"
 	tagVersion    = "version"
 	tagOrigin     = "_dd.origin"
+	tagSynthetics = "synthetics"
 )
 
 // Aggregation contains all the dimension on which we aggregate statistics
@@ -44,11 +45,11 @@ func getStatusCode(s *pb.Span) uint32 {
 }
 
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
-func NewAggregationFromSpan(s *pb.Span, env string, defaultHostname string) Aggregation {
-	synthetics := strings.HasPrefix(traceutil.GetMetaDefault(s, tagOrigin, ""), "synthetics")
+func NewAggregationFromSpan(s *pb.Span, env string, agentHostname string) Aggregation {
+	synthetics := strings.HasPrefix(traceutil.GetMetaDefault(s, tagOrigin, ""), tagSynthetics)
 	hostname := traceutil.GetMetaDefault(s, tagHostname, "")
 	if hostname == "" {
-		hostname = defaultHostname
+		hostname = agentHostname
 	}
 	return Aggregation{
 		Env:        env,

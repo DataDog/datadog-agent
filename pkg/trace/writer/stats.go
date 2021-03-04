@@ -208,6 +208,9 @@ func (w *StatsWriter) buildPayloads(sp pb.StatsPayload, maxEntriesPerPayload int
 			grouped[i].Stats = append(grouped[i].Stats, s.ClientStatsPayload)
 		}
 	}
+	if len(grouped) > 1 {
+		atomic.AddInt64(&w.stats.Splits, 1)
+	}
 	return grouped
 }
 
@@ -225,7 +228,6 @@ func (w *StatsWriter) splitPayload(p pb.ClientStatsPayload, maxEntriesPerPayload
 		// nothing to do, break early
 		return []clientStatsPayload{{ClientStatsPayload: p, nbEntries: nbEntries}}
 	}
-	atomic.AddInt64(&w.stats.Splits, 1)
 	nbPayloads := nbEntries / maxEntriesPerPayload
 	if nbEntries%maxEntriesPerPayload != 0 {
 		nbPayloads++
