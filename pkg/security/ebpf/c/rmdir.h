@@ -51,6 +51,7 @@ int kprobe__security_inode_rmdir(struct pt_regs *ctx) {
             // we resolve all the information before the file is actually removed
             dentry = (struct dentry *)PT_REGS_PARM2(ctx);
             set_path_key_inode(dentry, &syscall->rmdir.path_key, 1);
+            fill_file_metadata(dentry, &syscall->rmdir.metadata);
 
             syscall->rmdir.overlay_numlower = get_overlay_numlower(dentry);
 
@@ -73,6 +74,7 @@ int kprobe__security_inode_rmdir(struct pt_regs *ctx) {
             // we resolve all the information before the file is actually removed
             dentry = (struct dentry *) PT_REGS_PARM2(ctx);
             set_path_key_inode(dentry, &syscall->unlink.path_key, 1);
+            fill_file_metadata(dentry, &syscall->unlink.metadata);
 
             syscall->unlink.overlay_numlower = get_overlay_numlower(dentry);
 
@@ -121,6 +123,7 @@ SYSCALL_KRETPROBE(rmdir) {
                 .mount_id = syscall->rmdir.path_key.mount_id,
                 .overlay_numlower = syscall->rmdir.overlay_numlower,
                 .path_id = syscall->rmdir.path_key.path_id,
+                .metadata = syscall->rmdir.metadata,
             },
             .discarder_revision = bump_discarder_revision(syscall->rmdir.path_key.mount_id),
         };

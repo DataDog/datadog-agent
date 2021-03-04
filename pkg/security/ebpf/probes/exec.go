@@ -57,6 +57,10 @@ var execProbes = []*manager.Probe{
 		UID:     SecurityAgentUID,
 		Section: "kprobe/security_bprm_committed_creds",
 	},
+	{
+		UID:     SecurityAgentUID,
+		Section: "kprobe/commit_creds",
+	},
 }
 
 func getExecProbes() []*manager.Probe {
@@ -68,6 +72,35 @@ func getExecProbes() []*manager.Probe {
 		UID:             SecurityAgentUID,
 		SyscallFuncName: "execveat",
 	}, Entry)...)
+
+	for _, name := range []string{
+		"setuid",
+		"setuid16",
+		"setgid",
+		"setgid16",
+		"seteuid",
+		"seteuid16",
+		"setegid",
+		"setegid16",
+		"setfsuid",
+		"setfsuid16",
+		"setfsgid",
+		"setfsgid16",
+		"setreuid",
+		"setreuid16",
+		"setregid",
+		"setregid16",
+		"setresuid",
+		"setresuid16",
+		"setresgid",
+		"setresgid16",
+		"capset",
+	} {
+		execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
+			UID:             SecurityAgentUID,
+			SyscallFuncName: name,
+		}, EntryAndExit)...)
+	}
 
 	return execProbes
 }

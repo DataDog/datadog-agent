@@ -28,13 +28,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
+	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf"
-	"github.com/cihub/seelog"
 	"github.com/golang/mock/gomock"
 	"github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
@@ -52,7 +52,6 @@ var (
 const runtimeCompilationEnvVar = "DD_TESTS_RUNTIME_COMPILED"
 
 func TestMain(m *testing.M) {
-	log.SetupLogger(seelog.Default, "trace")
 	cfg := testConfig()
 	if cfg.EnableRuntimeCompiler {
 		fmt.Println("RUNTIME COMPILER ENABLED")
@@ -425,7 +424,7 @@ func TestTCPRemoveEntries(t *testing.T) {
 	tcpMp, err := tr.getMap(probes.TcpStatsMap)
 	require.NoError(t, err)
 
-	key, err := connTupleFromConn(c, 0)
+	key, err := connTupleFromConn(c, 0, 0)
 	require.NoError(t, err)
 	stats := new(TCPStats)
 	err = tcpMp.Lookup(unsafe.Pointer(key), unsafe.Pointer(stats))
@@ -2039,7 +2038,7 @@ func setupDNAT(t *testing.T) {
 		"ip link set dummy1 up",
 		"iptables -t nat -A OUTPUT --dest 2.2.2.2 -j DNAT --to-destination 1.1.1.1",
 	}
-	runCommands(t, cmds)
+	testutil.RunCommands(t, cmds, false)
 }
 
 func teardownDNAT(t *testing.T) {
@@ -2050,20 +2049,7 @@ func teardownDNAT(t *testing.T) {
 		// clear out the conntrack table
 		"conntrack -F",
 	}
-	runCommands(t, cmds)
-}
-
-func runCommands(t *testing.T, cmds []string) {
-	t.Helper()
-	for _, c := range cmds {
-		args := strings.Split(c, " ")
-		c := exec.Command(args[0], args[1:]...)
-		out, err := c.CombinedOutput()
-		if err != nil {
-			t.Errorf("%s returned %s: %s", c, err, out)
-			return
-		}
-	}
+	testutil.RunCommands(t, cmds, true)
 }
 
 func testConfig() *config.Config {
@@ -2109,19 +2095,23 @@ func TestConnectionAssured(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+	var conn *network.ConnectionStats
 	require.Eventually(t, func() bool {
 		conns := getConnections(t, tr)
-		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		var ok bool
+		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
 		return ok && conn.MonotonicSentBytes > 0 && conn.MonotonicRecvBytes > 0
-	}, 3*time.Second, time.Second, "could not find udp connection")
+	}, 3*time.Second, 500*time.Millisecond, "could not find udp connection")
 
-	tr.config.UDPStreamTimeout = 0
-
-	require.Eventually(t, func() bool {
-		_, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
-		return !ok
-	}, 3*time.Second, time.Second, "assured udp connection did not expire")
-
+	// verify the connection is marked as assured
+	connMp, err := tr.getMap(probes.ConnMap)
+	require.NoError(t, err)
+	defer connMp.Close()
+	key, err := connTupleFromConn(c, conn.Pid, conn.NetNS)
+	stats := &ConnStatsWithTimestamp{}
+	err = connMp.Lookup(unsafe.Pointer(key), unsafe.Pointer(stats))
+	require.NoError(t, err)
+	require.True(t, stats.isAssured())
 }
 
 func TestConnectionNotAssured(t *testing.T) {
@@ -2151,18 +2141,23 @@ func TestConnectionNotAssured(t *testing.T) {
 	_, err = c.Write(genPayload(clientMessageSize))
 	require.NoError(t, err)
 
+	var conn *network.ConnectionStats
 	require.Eventually(t, func() bool {
 		conns := getConnections(t, tr)
-		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		var ok bool
+		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
 		return ok && conn.MonotonicSentBytes > 0 && conn.MonotonicRecvBytes == 0
-	}, 3*time.Second, time.Second, "could not find udp connection")
+	}, 3*time.Second, 500*time.Millisecond, "could not find udp connection")
 
-	tr.config.UDPConnTimeout = 0
-
-	require.Eventually(t, func() bool {
-		_, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
-		return !ok
-	}, 3*time.Second, time.Second, "non-assured udp connection did not expire")
+	// verify the connection is marked as not assured
+	connMp, err := tr.getMap(probes.ConnMap)
+	require.NoError(t, err)
+	defer connMp.Close()
+	key, err := connTupleFromConn(c, conn.Pid, conn.NetNS)
+	stats := &ConnStatsWithTimestamp{}
+	err = connMp.Lookup(unsafe.Pointer(key), unsafe.Pointer(stats))
+	require.NoError(t, err)
+	require.False(t, stats.isAssured())
 }
 
 func TestSelfConnect(t *testing.T) {
@@ -2272,4 +2267,18 @@ func TestNewConntracker(t *testing.T) {
 			require.NoError(t, err)
 		}
 	}
+}
+
+func TestUDPConnExpiryTimeout(t *testing.T) {
+	streamTimeout, err := sysctl.NewInt("/proc", "net/netfilter/nf_conntrack_udp_timeout_stream", 0).Get()
+	require.NoError(t, err)
+	timeout, err := sysctl.NewInt("/proc", "net/netfilter/nf_conntrack_udp_timeout", 0).Get()
+	require.NoError(t, err)
+
+	tr, err := NewTracer(testConfig())
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	require.Equal(t, uint64(time.Duration(timeout)*time.Second), tr.udpConnTimeout(false))
+	require.Equal(t, uint64(time.Duration(streamTimeout)*time.Second), tr.udpConnTimeout(true))
 }

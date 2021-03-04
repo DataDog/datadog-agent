@@ -192,6 +192,7 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
         .mode = syscall->open.mode,
     };
 
+    fill_file_metadata(syscall->open.dentry, &event.file.metadata);
     int ret = resolve_dentry(syscall->open.dentry, syscall->open.path_key, syscall->policy.mode != NO_FILTER ? EVENT_OPEN : 0);
     if (ret == DENTRY_DISCARDED || (ret == DENTRY_INVALID && !(IS_UNHANDLED_ERROR(retval)))) {
        return 0;

@@ -86,4 +86,12 @@ static __always_inline void flip_tuple(conn_tuple_t* t) {
     t->daddr_h = tmp_ip_part;
 }
 
+static __always_inline void print_ip(u64 ip_h, u64 ip_l, u16 port, u32 metadata) {
+    if (metadata&CONN_V6) {
+        log_debug("v6 %llx%llx:%u\n", bpf_ntohll(ip_h), bpf_ntohll(ip_l), port);
+    } else {
+        log_debug("v4 %x:%u\n", bpf_ntohl((u32)ip_l), port);
+    }
+}
+
 #endif

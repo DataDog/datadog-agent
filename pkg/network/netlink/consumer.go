@@ -11,15 +11,14 @@ import (
 	"sync/atomic"
 	"syscall"
 
-	"github.com/pkg/errors"
-	"github.com/vishvananda/netns"
-
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"golang.org/x/sys/unix"
-
 	"github.com/mdlayher/netlink"
 	"github.com/mdlayher/netlink/nlenc"
+	"github.com/pkg/errors"
+	"github.com/vishvananda/netns"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -44,6 +43,13 @@ const (
 )
 
 var errShortErrorMessage = errors.New("not enough data for netlink error code")
+var pre315Kernel bool
+
+func init() {
+	if vers, err := kernel.HostVersion(); err == nil {
+		pre315Kernel = vers < kernel.VersionCode(3, 15, 0)
+	}
+}
 
 // Consumer is responsible for encapsulating all the logic of hooking into Conntrack via a Netlink socket
 // and streaming new connection events.
@@ -80,6 +86,9 @@ type Consumer struct {
 
 	netlinkSeqNumber    uint32
 	listenAllNamespaces bool
+
+	// for testing purposes
+	recvLoopRunning int32
 }
 
 // Event encapsulates the result of a single netlink.Con.Receive() call
@@ -104,7 +113,7 @@ func (e *Event) Done() {
 
 // NewConsumer creates a new Conntrack event consumer.
 // targetRateLimit represents the maximum number of netlink messages per second that can be read off the socket
-func NewConsumer(procRoot string, targetRateLimit int, listenAllNamespaces bool) (*Consumer, error) {
+func NewConsumer(procRoot string, targetRateLimit int, listenAllNamespaces bool) *Consumer {
 	c := &Consumer{
 		procRoot:            procRoot,
 		pool:                newBufferPool(),
@@ -114,33 +123,33 @@ func NewConsumer(procRoot string, targetRateLimit int, listenAllNamespaces bool)
 		netlinkSeqNumber:    1,
 		listenAllNamespaces: listenAllNamespaces,
 	}
+
 	c.initWorker(procRoot)
 
-	var err error
-	c.do(true, func() {
-		samplingRate := 1.0 // Start sampling everything
-		err = c.initNetlinkSocket(samplingRate)
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	return c, nil
+	return c
 }
 
 // Events returns a channel of Event objects (wrapping netlink messages) which receives
 // all new connections added to the Conntrack table.
-func (c *Consumer) Events() <-chan Event {
+func (c *Consumer) Events() (<-chan Event, error) {
+	if err := c.initNetlinkSocket(1.0); err != nil {
+		return nil, fmt.Errorf("could not initialize conntrack netlink socket: %w", err)
+	}
+
 	output := make(chan Event, outputBuffer)
+
 	c.do(false, func() {
-		defer close(output)
+		defer func() {
+			log.Info("exited conntrack netlink receive loop")
+			close(output)
+		}()
+
 		c.streaming = true
 		_ = c.conn.JoinGroup(netlinkCtNew)
-		c.receive(output, c.socket)
+		c.receive(output)
 	})
 
-	return output
+	return output, nil
 }
 
 // isPeerNS determines whether the given network namespace is a peer
@@ -204,41 +213,38 @@ func (c *Consumer) isPeerNS(conn *netlink.Conn, ns netns.NsHandle) bool {
 // DumpTable returns a channel of Event objects containing all entries
 // present in the Conntrack table. The channel is closed once all entries are read.
 // This method is meant to be used once during the process initialization of system-probe.
-func (c *Consumer) DumpTable(family uint8) <-chan Event {
+func (c *Consumer) DumpTable(family uint8) (<-chan Event, error) {
+	var nss []netns.NsHandle
+	var err error
+	if c.listenAllNamespaces {
+		nss, err = util.GetNetNamespaces(c.procRoot)
+		if err != nil {
+			return nil, fmt.Errorf("error dumping conntrack table, could not get network namespaces: %w", err)
+		}
+	}
+
+	rootNS, err := util.GetRootNetNamespace(c.procRoot)
+	if err != nil {
+		return nil, fmt.Errorf("error dumping conntrack table, could not get root namespace: %w", err)
+	}
+
+	conn, err := netlink.Dial(unix.AF_UNSPEC, &netlink.Config{NetNS: int(rootNS)})
+	if err != nil {
+		rootNS.Close()
+		return nil, fmt.Errorf("error dumping conntrack table, could not open netlink socket: %w", err)
+	}
+
 	output := make(chan Event, outputBuffer)
 
 	go func() {
-		defer close(output)
-
-		var nss []netns.NsHandle
-		var err error
-		if c.listenAllNamespaces {
-			nss, err = util.GetNetNamespaces(c.procRoot)
-			if err != nil {
-				log.Errorf("error dumping conntrack table, could not get network namespaces: %s", err)
-				return
-			}
-		}
-
-		rootNS, err := netns.GetFromPath(fmt.Sprintf("%s/1/ns/net", c.procRoot))
-		if err != nil {
-			log.Errorf("error dumping conntrack table, could not get root namespace: %s", err)
-			return
-		}
-
 		defer func() {
-			if rootNS.IsOpen() {
-				rootNS.Close()
+			for _, ns := range nss {
+				_ = ns.Close()
 			}
-		}()
 
-		conn, err := netlink.Dial(unix.AF_UNSPEC, &netlink.Config{NetNS: int(rootNS)})
-		if err != nil {
-			log.Errorf("error dumping conntrack table, could not open netlink socket: %s", err)
-			return
-		}
+			close(output)
 
-		defer func() {
+			_ = rootNS.Close()
 			_ = conn.Close()
 		}()
 
@@ -255,7 +261,6 @@ func (c *Consumer) DumpTable(family uint8) <-chan Event {
 
 			if !c.isPeerNS(conn, ns) {
 				log.Tracef("not dumping ns %s since it is not a peer of the root ns", ns)
-				_ = ns.Close()
 				continue
 			}
 
@@ -265,21 +270,17 @@ func (c *Consumer) DumpTable(family uint8) <-chan Event {
 		}
 	}()
 
-	return output
+	return output, nil
 }
 
 func (c *Consumer) dumpTable(family uint8, output chan Event, ns netns.NsHandle) error {
-	defer func() {
-		_ = ns.Close()
-	}()
-
 	return util.WithNS(c.procRoot, ns, func() error {
 
-		log.Tracef("dumping table for ns %s", ns)
+		log.Tracef("dumping table for ns %s family %d", ns, family)
 
 		sock, err := NewSocket()
 		if err != nil {
-			return fmt.Errorf("could not open netlink socket for net ns %d", int(ns))
+			return fmt.Errorf("could not open netlink socket for net ns %d: %w", int(ns), err)
 		}
 
 		conn := netlink.NewConn(sock, sock.pid)
@@ -305,7 +306,8 @@ func (c *Consumer) dumpTable(family uint8, output chan Event, ns netns.NsHandle)
 			return fmt.Errorf("netlink dump message validation error: %w", err)
 		}
 
-		c.receive(output, sock)
+		c.socket = sock
+		c.receive(output)
 		return nil
 	})
 }
@@ -323,7 +325,9 @@ func (c *Consumer) GetStats() map[string]int64 {
 
 // Stop the consumer
 func (c *Consumer) Stop() {
-	c.conn.Close()
+	if c.conn != nil {
+		c.conn.Close()
+	}
 }
 
 // initWorker creates a go-routine *within the root network namespace*.
@@ -415,13 +419,19 @@ func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
 // attribute is true, and only when we detect an EOF we close the output channel.
 // It's also worth noting that in the event of an ENOBUF error, we'll re-create a new netlink socket,
 // and attach a BPF sampler to it, to lower the the read throughput and save CPU.
-func (c *Consumer) receive(output chan Event, socket *Socket) {
+func (c *Consumer) receive(output chan Event) {
+	atomic.StoreInt32(&c.recvLoopRunning, 1)
+	defer func() {
+		atomic.StoreInt32(&c.recvLoopRunning, 0)
+	}()
+
 ReadLoop:
 	for {
 		buffer := c.pool.Get().(*[]byte)
-		msgs, netns, err := socket.ReceiveInto(*buffer)
+		msgs, netns, err := c.socket.ReceiveInto(*buffer)
 
 		if err != nil {
+			log.Tracef("consumer netlink socket error: %s", err)
 			switch socketError(err) {
 			case errEOF:
 				// EOFs are usually indicative of normal program termination, so we simply exit
@@ -433,8 +443,8 @@ ReadLoop:
 			}
 		}
 
-		throttlingErr := c.throttle(len(msgs))
-		if throttlingErr != nil {
+		if err := c.throttle(len(msgs)); err != nil {
+			log.Errorf("exiting conntrack netlink consumer loop due to throttling error: %s", err)
 			return
 		}
 
@@ -486,7 +496,15 @@ func (c *Consumer) throttle(numMessages int) error {
 	atomic.AddInt64(&c.throttles, 1)
 
 	// Close current socket
-	c.socket.Close()
+	c.conn.Close()
+	c.conn = nil
+
+	if pre315Kernel {
+		// we cannot recreate the socket and set a bpf filter on
+		// kernels before 3.15, so we bail here
+		log.Errorf("conntrack sampling not supported on kernel versions < 3.15. Please adjust system_probe_config.conntrack_rate_limit (currently set to %d) to accommodate higher conntrack update rate detected", c.targetRateLimit)
+		return fmt.Errorf("conntrack sampling rate not supported")
+	}
 
 	// Create new socket with the desired sampling rate
 	// We calculate the required sampling rate to reach the target maxMessagesPersecond

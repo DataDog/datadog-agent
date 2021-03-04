@@ -9,6 +9,7 @@ package utils
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -50,6 +51,41 @@ func CgroupTaskPath(tgid, pid uint32) string {
 // ProcExePath returns the path to the exe file of a pid in /proc
 func ProcExePath(pid int32) string {
 	return filepath.Join(util.HostProc(), fmt.Sprintf("%d/exe", pid))
+}
+
+// StatusPath returns the path to the status file of a pid in /proc
+func StatusPath(pid int32) string {
+	return filepath.Join(util.HostProc(), fmt.Sprintf("%d/status", pid))
+}
+
+// CapEffCapEprm returns the effective and permitted kernel capabilities of a process
+func CapEffCapEprm(pid int32) (uint64, uint64, error) {
+	var capEff, capPrm uint64
+	contents, err := ioutil.ReadFile(StatusPath(pid))
+	if err != nil {
+		return 0, 0, err
+	}
+	lines := strings.Split(string(contents), "\n")
+	for _, line := range lines {
+		tabParts := strings.SplitN(line, "\t", 2)
+		if len(tabParts) < 2 {
+			continue
+		}
+		value := tabParts[1]
+		switch strings.TrimRight(tabParts[0], ":") {
+		case "CapEff":
+			capEff, err = strconv.ParseUint(value, 16, 64)
+			if err != nil {
+				return 0, 0, err
+			}
+		case "CapPrm":
+			capPrm, err = strconv.ParseUint(value, 16, 64)
+			if err != nil {
+				return 0, 0, err
+			}
+		}
+	}
+	return capEff, capPrm, nil
 }
 
 // PidTTY returns the TTY of the given pid
