@@ -80,7 +80,8 @@ fi
 
 # Generate a password to use for the windows servers
 if [ -z ${SERVER_PASSWORD+x} ]; then
-  export SERVER_PASSWORD="$(< /dev/urandom tr -dc A-Za-z0-9 | head -c32)0aZ"
+  SERVER_PASSWORD="$(< /dev/urandom tr -dc A-Za-z0-9 | head -c32)0aZ"
+  export SERVER_PASSWORD
 fi
 
 if [[ $# == 0 ]]; then
@@ -100,12 +101,14 @@ export MAJOR_VERSION=$2
 # on linux it can just download the latest version from the package manager
 if [ -z ${AGENT_VERSION+x} ]; then
   pushd ../..
-    export AGENT_VERSION=`inv agent.version --url-safe --git-sha-length=7 --major-version $MAJOR_VERSION`
-    export DD_AGENT_EXPECTED_VERSION=`inv agent.version --url-safe --git-sha-length=7 --major-version $MAJOR_VERSION`
+    AGENT_VERSION=$(inv agent.version --url-safe --git-sha-length=7 --major-version "$MAJOR_VERSION")
+    export AGENT_VERSION
+    DD_AGENT_EXPECTED_VERSION=$(inv agent.version --url-safe --git-sha-length=7 --major-version "$MAJOR_VERSION")
+    export DD_AGENT_EXPECTED_VERSION
   popd
 fi
 
-invoke -e kitchen.genconfig --platform=$KITCHEN_PLATFORM --osversions=$KITCHEN_OSVERS --provider=$KITCHEN_PROVIDER --arch=$KITCHEN_ARCH --testfiles=$1 ${KITCHEN_FIPS:+--fips}
+invoke -e kitchen.genconfig --platform="$KITCHEN_PLATFORM" --osversions="$KITCHEN_OSVERS" --provider="$KITCHEN_PROVIDER" --arch="$KITCHEN_ARCH" --testfiles="$1" ${KITCHEN_FIPS:+--fips}
 
 bundle exec kitchen diagnose --no-instances --loader
 
