@@ -14,6 +14,7 @@ int kprobe__security_inode_setattr(struct pt_regs *ctx) {
         return 0;
 
     struct dentry *dentry = (struct dentry *)PT_REGS_PARM1(ctx);
+    fill_file_metadata(dentry, &syscall->setattr.metadata);
 
     struct iattr *iattr = (struct iattr *)PT_REGS_PARM2(ctx);
     if (iattr != NULL) {

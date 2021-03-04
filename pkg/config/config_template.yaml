@@ -187,6 +187,35 @@ api_key:
 #
 # forwarder_stop_timeout: 2
 
+## @param forwarder_storage_max_size_in_bytes - int - optional - default: 0
+## When the retry queue of the forwarder is full, `forwarder_storage_max_size_in_bytes`
+## defines the amount of disk space the Agent can use to store transactions on the disk.
+## When `forwarder_storage_max_size_in_bytes` is `0`, the transactions are never stored on the disk.
+#
+# forwarder_storage_max_size_in_bytes: 50000000
+
+## @param forwarder_storage_max_disk_ratio - float - optional - default: 0.95
+## `forwarder_storage_max_disk_ratio` defines the disk capacity limit for storing transactions.
+## `0.95` means the Agent can store transactions on disk until `forwarder_storage_max_size_in_bytes`
+## is reached or when the disk mount for `forwarder_storage_path` exceeds 95% of the disk capacity,
+## whichever is lower.
+#
+# forwarder_storage_max_disk_ratio: 0.95
+
+## @param forwarder_storage_path - string - optional - default: /opt/datadog-agent/run/transactions_to_retry (c:\ProgramData\Datadog\run\transactions_to_retry on Windows)
+## `forwarder_storage_path` defines the root folder where the transactions of the forwarder are stored when
+## the retry queue is full.
+#
+# forwarder_storage_path: /opt/datadog-agent/run/transactions_to_retry
+
+## @param forwarder_outdated_file_in_days - int - optional - default: 10
+## This value specifies how many days the overflow transactions will remain valid before
+## being discarded. During the Agent restart, if a retry file contains transactions that were
+## created more than `forwarder_outdated_file_in_days` days ago, they are removed.
+#
+# forwarder_outdated_file_in_days: 10
+
+
 ## @param cloud_provider_metadata - list of strings -  optional - default: ["aws", "gcp", "azure", "alibaba"]
 ## This option restricts which cloud provider endpoint will be used by the
 ## agent to retrieve metadata. By default the agent will try # AWS, GCP, Azure
@@ -582,6 +611,13 @@ api_key:
     #
     # ad_identifier: snmp
 
+    ## @param loader - string - optional - default: python
+    ## Check loader to use. Available loaders:
+    ## - core: will use corecheck SNMP integration
+    ## - python: will use python SNMP integration
+    #
+    # loader: core
+
 {{- if .Profiling -}}
 ## @param profiling - custom object - optional
 ## Enter specific configurations for profiling.
@@ -913,6 +949,7 @@ api_key:
 #############################################
 ## Security Agent Compliance Configuration ##
 #############################################
+
 ## @param compliance_config - custom object - optional
 ## Enter specific configuration for continuous compliance checks.
 # compliance_config:
@@ -942,11 +979,17 @@ api_key:
 ## Uncomment this parameter and the one below to enable them.
 #
 # system_probe_config:
+{{- if (eq .OS "windows")}}
+  ## @param sysprobe_socket - string - optional - default: localhost:3333
+  ## The TCP address where system probes are accessed.
+  #
+  # sysprobe_socket: localhost:3333
+{{else}}
   ## @param sysprobe_socket - string - optional - default: /opt/datadog-agent/run/sysprobe.sock
   ## The full path to the location of the unix socket where system probes are accessed.
   #
   # sysprobe_socket: /opt/datadog-agent/run/sysprobe.sock
-
+{{ end }}
   ## @param log_file - string - optional - default: /var/log/datadog/system-probe.log
   ## The full path to the file where system-probe logs are written.
   #
@@ -1000,6 +1043,10 @@ api_key:
   #
   # enabled: false
 
+  ## @param fim_enabled - boolean - optional - default: false
+  ## Set to true to enable the File Integrity Monitoring feature.
+  # fim_enabled: false
+
   ## @param socket - string - optional - default: /opt/datadog-agent/run/runtime-security.sock
   ## The full path to the location of the unix socket where security runtime module is accessed.
   #
@@ -1014,11 +1061,6 @@ api_key:
     #
     # dir: /etc/datadog-agent/runtime-security.d
 
-  ## @param enable_kernel_filters - boolean - optional - default: true
-  ## Enable filtering events from the kernel
-  #
-  # enable_kernel_filters: true
-
   ## @param syscall_monitor - custom object - optional
   ## Syscall monitoring
   #
@@ -1028,7 +1070,39 @@ api_key:
     ## Set to true to enable the Syscall monitoring.
     #
     #  enabled: false
+
+  ## @param custom_sensitive_words - list of strings - optional
+  ## Define your own list of sensitive data to be merged with the default one.
+  ## Read more on Datadog documentation:
+  ## https://docs.datadoghq.com/graphing/infrastructure/process/#process-arguments-scrubbing
+  #
+  # custom_sensitive_words:
+  #   - 'personal_key'
+  #   - '*token'
+  #   - 'sql*'
+  #   - '*pass*d*'
+
 {{ end -}}
+{{ end -}}
+
+{{- if .SecurityAgent -}}
+##########################################
+## Security Agent Runtime Configuration ##
+##                                      ##
+## Settings to sent logs to Datadog are ##
+## fetched from section `logs_config`   ##
+##########################################
+
+# runtime_security_config:
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable the Security Runtime Module.
+  #
+  # enabled: false
+
+  ## @param socket - string - optional - default: /opt/datadog-agent/run/runtime-security.sock
+  ## The full path to the location of the unix socket where security runtime module is accessed.
+  #
+  # socket: /opt/datadog-agent/run/runtime-security.sock
 {{ end -}}
 {{- if .Dogstatsd }}
 
@@ -1049,7 +1123,7 @@ api_key:
 
 ## @param bind_host - string - optional - default: localhost
 ## The host to listen on for Dogstatsd and traces. This is ignored by APM when
-## `apm_config.non_local_traffic` is enabled and ignored by DogStatsD when `dogstatsd_non_local_traffic`
+## `apm_config.apm_non_local_traffic` is enabled and ignored by DogStatsD when `dogstatsd_non_local_traffic`
 ## is enabled. The trace-agent uses this host to send metrics to.
 ## The `localhost` default value is invalid in IPv6 environments where dogstatsd listens on "::1".
 ## To solve this problem, ensure Dogstatsd is listening on IPv4 by setting this value to "127.0.0.1".
@@ -1917,6 +1991,44 @@ api_key:
   ## PEM-encoded client key used when connecting to the BBS API.
   #
   # key_file: ""
+
+{{ end -}}
+{{- if .CloudFoundryCC }}
+####################################################################
+## Cloud Foundry Cloud Controller Configuration for Autodiscovery ##
+####################################################################
+
+## @param cloud_foundry_cc - custom object - optional
+## This section configures how the Cluster Agent accesses CC API to gather information
+## necessary for autodiscovery on Cloud Foundry deployments.
+#
+# cloud_foundry_cc:
+
+  ## @param url - string - optional - default: https://cloud-controller-ng.service.cf.internal:9024
+  ## URL of the CC API.
+  #
+  # url: https://cloud-controller-ng.service.cf.internal:9024
+
+  ## @param client_id - string - optional
+  ## Client ID for oauth with UAA to get a token to access the CC API.
+  #
+  # client_id: <UAA_CLIENT_ID>
+
+  ## @param client_secret - string - optional
+  ## Client ID for oauth with UAA to get a token to access the CC API.
+  #
+  # client_secret: <UAA_CLIENT_SECRET>
+
+  ## @param skip_ssl_validation - bool - optional - default: false
+  ## Whether or not to skip SSL validation when interacting with CC API.
+  #
+  # skip_ssl_validation: false
+
+  ## @param poll_interval - integer - optional - default: 60
+  ## Refresh rate of CC API, in seconds. Values lower than 10 might influence
+  ## performance of other operations in the cluster.
+  #
+  # poll_interval: 60
 
 {{ end -}}
 {{- if .SNMP }}

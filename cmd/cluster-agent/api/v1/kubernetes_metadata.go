@@ -46,10 +46,23 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request) {
 			Example: "no cached metadata found for the node localhost"
 	*/
 
+	// As HTTP query handler, we do not retry getting the APIServer
+	// Client will have to retry query in case of failure
+	cl, err := as.GetAPIClient()
+	if err != nil {
+		log.Errorf("Can't create client to query the API Server: %v", err) //nolint:errcheck
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		apiRequests.Inc(
+			"getNodeMetadata",
+			strconv.Itoa(http.StatusInternalServerError),
+		)
+		return
+	}
+
 	vars := mux.Vars(r)
 	var labelBytes []byte
 	nodeName := vars["nodeName"]
-	nodeLabels, err := as.GetNodeLabels(nodeName)
+	nodeLabels, err := as.GetNodeLabels(cl, nodeName)
 	if err != nil {
 		log.Errorf("Could not retrieve the node labels of %s: %v", nodeName, err.Error()) //nolint:errcheck
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -263,6 +276,8 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 			Example: "["Error":"could not collect the service map for all nodes: List services is not permitted at the cluster scope."]
 	*/
 	log.Trace("Computing metadata map on all nodes")
+	// As HTTP query handler, we do not retry getting the APIServer
+	// Client will have to retry query in case of failure
 	cl, err := as.GetAPIClient()
 	if err != nil {
 		log.Errorf("Can't create client to query the API Server: %v", err) //nolint:errcheck
@@ -308,7 +323,8 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 
 // getClusterID is used by recent agents to get the cluster UUID, needed for enabling the orchestrator explorer
 func getClusterID(w http.ResponseWriter, r *http.Request) {
-	// bootstrap client
+	// As HTTP query handler, we do not retry getting the APIServer
+	// Client will have to retry query in case of failure
 	cl, err := as.GetAPIClient()
 	if err != nil {
 		log.Errorf("Can't create client to query the API Server: %v", err) //nolint:errcheck

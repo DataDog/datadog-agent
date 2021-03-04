@@ -333,8 +333,7 @@ func (s *Server) forwarder(fcon net.Conn, packetsChannel chan listeners.Packets)
 }
 
 // Flush flushes all the data to the aggregator to them send it to the Datadog intake.
-// Set waitForSerializer to true to serialize and send the data synchronously.
-func (s *Server) Flush(waitForSerializer bool) {
+func (s *Server) Flush() {
 	log.Debug("Received a Flush trigger")
 	// make all workers flush their aggregated data (in the batcher) to the aggregator.
 	for _, w := range s.workers {

@@ -15,6 +15,10 @@ import (
 	"github.com/pkg/errors"
 )
 
+var legacyAttributes = map[Field]Field{
+	"process.legacy_name": "process.name",
+}
+
 type testItem struct {
 	key   int
 	value int

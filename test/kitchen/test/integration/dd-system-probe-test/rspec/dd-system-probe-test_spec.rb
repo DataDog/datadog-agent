@@ -26,7 +26,7 @@ Dir.glob('/tmp/system-probe-tests/**/testsuite').each do |f|
   describe "prebuilt system-probe tests for #{pkg}" do
     it 'successfully runs' do
       Dir.chdir(File.dirname(f)) do
-        Open3.popen2e("sudo", f, "-test.v") do |_, output, wait_thr|
+        Open3.popen2e("sudo", f, "-test.v", "-test.count=1") do |_, output, wait_thr|
           test_failures = check_output(output, wait_thr)
           expect(test_failures).to be_empty, test_failures.join("\n")
         end
@@ -37,7 +37,7 @@ Dir.glob('/tmp/system-probe-tests/**/testsuite').each do |f|
   describe "runtime compiled system-probe tests for #{pkg}" do
     it 'successfully runs' do
       Dir.chdir(File.dirname(f)) do
-        Open3.popen2e({"DD_TESTS_RUNTIME_COMPILED"=>"1"}, "sudo", "-E", f, "-test.v") do |_, output, wait_thr|
+        Open3.popen2e({"DD_TESTS_RUNTIME_COMPILED"=>"1"}, "sudo", "-E", f, "-test.v", "-test.count=1") do |_, output, wait_thr|
           test_failures = check_output(output, wait_thr)
           expect(test_failures).to be_empty, test_failures.join("\n")
         end

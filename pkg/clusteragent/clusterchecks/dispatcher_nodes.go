@@ -20,8 +20,8 @@ import (
 
 const defaultBusynessValue int = -1
 
-// getNodeConfigs returns configurations dispatched to a given node
-func (d *dispatcher) getNodeConfigs(nodeName string) ([]integration.Config, int64, error) {
+// getClusterCheckConfigs returns configurations dispatched to a given node
+func (d *dispatcher) getClusterCheckConfigs(nodeName string) ([]integration.Config, int64, error) {
 	d.store.RLock()
 	defer d.store.RUnlock()
 

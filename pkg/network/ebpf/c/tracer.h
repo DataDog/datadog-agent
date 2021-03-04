@@ -7,11 +7,28 @@
 #define true 1
 #define false 0
 
+typedef enum {
+    CONN_DIRECTION_UNKNOWN = 0b00,
+    CONN_DIRECTION_INCOMING = 0b01,
+    CONN_DIRECTION_OUTGOING = 0b10,
+} conn_direction_t;
+
+#define CONN_DIRECTION_MASK 0b11
+
 typedef struct {
     __u64 sent_bytes;
     __u64 recv_bytes;
     __u64 timestamp;
+    __u32 flags;
+    __u8  direction;
 } conn_stats_ts_t;
+
+// Connection flags
+typedef enum {
+    CONN_L_INIT  = 1 << 0, // initial/first message sent
+    CONN_R_INIT  = 1 << 1, // reply received for initial message from remote
+    CONN_ASSURED = 1 << 2  // "3-way handshake" complete, i.e. response to initial reply sent
+} conn_flags_t;
 
 // Metadata bit masks
 // 0 << x is only for readability
@@ -159,8 +176,8 @@ typedef struct {
     conn_t c2;
     conn_t c3;
     conn_t c4;
-    __u16 pos;
-    __u16 cpu;
+    __u16 len;
+    __u64 id;
 } batch_t;
 
 // Telemetry names

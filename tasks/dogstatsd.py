@@ -1,7 +1,7 @@
 """
 Dogstatsd tasks
 """
-from __future__ import absolute_import, print_function
+
 
 import os
 import shutil
@@ -40,7 +40,7 @@ def build(
     build_exclude=None,
     major_version='7',
     arch="x64",
-    go_mod="vendor",
+    go_mod="mod",
 ):
     """
     Build Dogstatsd
@@ -62,7 +62,7 @@ def build(
             env["GOARCH"] = "386"
             windres_target = "pe-i386"
 
-        ver = get_version_numeric_only(ctx, env, major_version=major_version)
+        ver = get_version_numeric_only(ctx, major_version=major_version)
         maj_ver, min_ver, patch_ver = ver.split(".")
 
         ctx.run(
@@ -119,7 +119,7 @@ def build(
 
 
 @task
-def refresh_assets(ctx):
+def refresh_assets(_):
     """
     Clean up and refresh Collector's assets and config files
     """
@@ -148,7 +148,7 @@ def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None, 
 
 
 @task
-def system_tests(ctx, skip_build=False, go_mod="vendor", arch="x64"):
+def system_tests(ctx, skip_build=False, go_mod="mod", arch="x64"):
     """
     Run the system testsuite.
     """
@@ -237,7 +237,7 @@ def omnibus_build(
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="vendor", arch="x64"):
+def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="mod", arch="x64"):
     """
     Run integration tests for dogstatsd
     """

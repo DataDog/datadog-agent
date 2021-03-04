@@ -24,7 +24,7 @@ func BenchmarkExtractTagsMetadata(b *testing.B) {
 			sb.ResetTimer()
 
 			for n := 0; n < sb.N; n++ {
-				tags, _, _, _ = extractTagsMetadata(baseTags, "hostname", "", false)
+				tags, _, _, _, _ = extractTagsMetadata(baseTags, "hostname", "", false)
 			}
 		})
 	}

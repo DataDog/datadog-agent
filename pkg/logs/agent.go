@@ -6,6 +6,7 @@
 package logs
 
 import (
+	"context"
 	"time"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -92,6 +93,8 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 func NewServerless(sources *config.LogSources, services *service.Services, processingRules []*config.ProcessingRule, endpoints *config.Endpoints) *Agent {
 	health := health.RegisterLiveness("logs-agent")
 
+	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver()
+
 	// setup the a null auditor, not tracking data in any registry
 	auditor := auditor.NewNullAuditor()
 	destinationsCtx := client.NewDestinationsContext()
@@ -105,11 +108,12 @@ func NewServerless(sources *config.LogSources, services *service.Services, proce
 	}
 
 	return &Agent{
-		auditor:          auditor,
-		destinationsCtx:  destinationsCtx,
-		pipelineProvider: pipelineProvider,
-		inputs:           inputs,
-		health:           health,
+		auditor:                   auditor,
+		destinationsCtx:           destinationsCtx,
+		pipelineProvider:          pipelineProvider,
+		inputs:                    inputs,
+		health:                    health,
+		diagnosticMessageReceiver: diagnosticMessageReceiver,
 	}
 }
 
@@ -124,8 +128,8 @@ func (a *Agent) Start() {
 }
 
 // Flush flushes synchronously the pipelines managed by the Logs Agent.
-func (a *Agent) Flush() {
-	a.pipelineProvider.Flush()
+func (a *Agent) Flush(ctx context.Context) {
+	a.pipelineProvider.Flush(ctx)
 }
 
 // Stop stops all the elements of the data pipeline

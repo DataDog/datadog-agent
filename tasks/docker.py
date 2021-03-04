@@ -1,7 +1,7 @@
 """
 Docker related tasks
 """
-from __future__ import absolute_import, print_function
+
 
 import os
 import re
@@ -77,13 +77,9 @@ def dockerize_test(ctx, binary, skip_cleanup=False):
 
     with open("%s/Dockerfile" % temp_folder, 'w') as stream:
         stream.write(
-            """FROM debian:stretch-slim
+            """FROM docker/compose:debian-1.28.3
 ENV DOCKER_DD_AGENT=yes
 WORKDIR /
-ADD https://github.com/docker/compose/releases/download/1.16.1/docker-compose-Linux-x86_64 /bin/docker-compose
-RUN echo "1804b0ce6596efe707b9cab05d74b161833ed503f0535a937dd5d17bea8fc50a  /bin/docker-compose" > sum && \
-    sha256sum -c sum && \
-    chmod +x /bin/docker-compose
 CMD /test.bin
 COPY test.bin /test.bin
 """
@@ -127,7 +123,7 @@ COPY test.bin /test.bin
 
 
 @task
-def mirror_image(ctx, src_image, dst_image="datadog/docker-library", dst_tag="auto"):
+def mirror_image(_, src_image, dst_image="datadog/docker-library", dst_tag="auto"):
     """
     Pull an upstream image and mirror it to our docker-library repository
     for integration tests. Tag format should be A-Z_n_n_n

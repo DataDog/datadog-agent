@@ -5,7 +5,6 @@ package tracer
 import (
 	"fmt"
 	"sync"
-	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -14,16 +13,6 @@ import (
 	"github.com/golang/groupcache/lru"
 	"golang.org/x/sys/unix"
 )
-
-type refCounted interface {
-	Incr()
-	Decr()
-}
-
-type refCountedConntrack struct {
-	ctrk  netlink.Conntrack
-	count *uint32
-}
 
 type cachedConntrack struct {
 	sync.Mutex
@@ -61,7 +50,6 @@ func (cache *cachedConntrack) Exists(c *ConnTuple) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer ctrk.Close()
 
 	var protoNumber uint8 = unix.IPPROTO_UDP
 	if c.isTCP() {
@@ -125,7 +113,6 @@ func (cache *cachedConntrack) ensureConntrack(ino uint64, pid int) (netlink.Conn
 
 	v, ok := cache.cache.Get(ino)
 	if ok {
-		v.(refCounted).Incr()
 		return v.(netlink.Conntrack), nil
 	}
 
@@ -142,56 +129,6 @@ func (cache *cachedConntrack) ensureConntrack(ino uint64, pid int) (netlink.Conn
 		return nil, err
 	}
 
-	r := wrapConntrack(ctrk)
-	r.(refCounted).Incr() // for the caller
-	cache.cache.Add(ino, r)
-	return r, nil
-}
-
-func wrapConntrack(ctrk netlink.Conntrack) netlink.Conntrack {
-	r := refCountedConntrack{
-		ctrk:  ctrk,
-		count: new(uint32),
-	}
-	*r.count = 1
-	return r
-}
-
-func (r refCountedConntrack) Incr() {
-	atomic.AddUint32(r.count, 1)
-}
-
-func (r refCountedConntrack) Decr() {
-	r.decr()
-}
-
-// Exists checks if a connection exists in the conntrack
-// table based on matches to `conn.Origin` or `conn.Reply`.
-func (r refCountedConntrack) Exists(conn *netlink.Con) (bool, error) {
-	return r.ctrk.Exists(conn)
-}
-
-// Dump dumps the conntrack table.
-func (r refCountedConntrack) Dump() ([]netlink.Con, error) {
-	return r.ctrk.Dump()
-}
-
-// Get gets the conntrack record for a connection. Similar to
-// Exists, but returns the full connection information.
-func (r refCountedConntrack) Get(conn *netlink.Con) (netlink.Con, error) {
-	return r.ctrk.Get(conn)
-}
-
-// Close closes the conntrack object
-func (r refCountedConntrack) Close() error {
-	return r.decr()
-}
-
-func (r refCountedConntrack) decr() error {
-	var err error
-	if atomic.AddUint32(r.count, ^uint32(0)) == 0 {
-		err = r.ctrk.Close()
-	}
-
-	return err
+	cache.cache.Add(ino, ctrk)
+	return ctrk, nil
 }

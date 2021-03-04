@@ -16,10 +16,12 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
+	dcav1 "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/commands"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
@@ -163,7 +165,7 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 	f := forwarder.NewDefaultForwarder(forwarder.NewOptions(keysPerDomain))
 	f.Start() //nolint:errcheck
-	s := serializer.NewSerializer(f)
+	s := serializer.NewSerializer(f, nil)
 
 	aggregatorInstance := aggregator.InitAggregator(s, hostname)
 	aggregatorInstance.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
@@ -175,9 +177,13 @@ func run(cmd *cobra.Command, args []string) error {
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
 
 	// initialize BBS Cache before starting provider/listener
-	err = initializeBBSCache(mainCtx)
-	if err != nil {
+	if err = initializeBBSCache(mainCtx); err != nil {
 		return err
+	}
+
+	// initialize CC Cache
+	if err = initializeCCCache(mainCtx); err != nil {
+		_ = log.Errorf("Error initializing Cloud Foundry CCAPI cache, some advanced tagging features may be missing: %v", err)
 	}
 
 	// create and setup the Autoconfig instance
@@ -185,20 +191,18 @@ func run(cmd *cobra.Command, args []string) error {
 	// start the autoconfig, this will immediately run any configured check
 	common.StartAutoConfig()
 
-	var clusterCheckHandler *clusterchecks.Handler
-	clusterCheckHandler, err = setupClusterCheck(mainCtx)
-	if err != nil {
-		log.Errorf("Error while setting up cluster check Autodiscovery %v", err)
+	if err = api.StartServer(); err != nil {
+		return log.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 
-	// Start the cmd HTTPS server
-	// We always need to start it, even with nil clusterCheckHandler
-	// as it's also used to perform the agent commands (e.g. agent status)
-	sc := clusteragent.ServerContext{
-		ClusterCheckHandler: clusterCheckHandler,
-	}
-	if err = api.StartServer(sc); err != nil {
-		return log.Errorf("Error while starting agent API, exiting: %v", err)
+	var clusterCheckHandler *clusterchecks.Handler
+	clusterCheckHandler, err = setupClusterCheck(mainCtx)
+	if err == nil {
+		api.ModifyRouter(func(r *mux.Router) {
+			dcav1.Install(r.PathPrefix("/api/v1").Subrouter(), clusteragent.ServerContext{ClusterCheckHandler: clusterCheckHandler})
+		})
+	} else {
+		log.Errorf("Error while setting up cluster check Autodiscovery %v", err)
 	}
 
 	// Block here until we receive the interrupt signal
@@ -218,6 +222,23 @@ func run(cmd *cobra.Command, args []string) error {
 
 	log.Info("See ya!")
 	log.Flush()
+	return nil
+}
+
+func initializeCCCache(ctx context.Context) error {
+	pollInterval := time.Second * time.Duration(config.Datadog.GetInt("cloud_foundry_bbs.poll_interval"))
+	_, err := cloudfoundry.ConfigureGlobalCCCache(
+		ctx,
+		config.Datadog.GetString("cloud_foundry_cc.url"),
+		config.Datadog.GetString("cloud_foundry_cc.client_id"),
+		config.Datadog.GetString("cloud_foundry_cc.client_secret"),
+		config.Datadog.GetBool("cloud_foundry_cc.skip_ssl_validation"),
+		pollInterval,
+		nil,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to initialize CC Cache: %v", err)
+	}
 	return nil
 }
 

@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/hashicorp/golang-lru/simplelru"
 
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -75,13 +76,13 @@ func (lc *LoadController) GenericCount(event *Event) {
 	lc.Lock()
 	defer lc.Unlock()
 
-	entry, ok := lc.eventsCounters.Get(eventCounterLRUKey{Pid: event.Process.Pid, Cookie: event.Process.Cookie, Event: event.GetEventType()})
+	entry, ok := lc.eventsCounters.Get(eventCounterLRUKey{Pid: event.ProcessContext.Pid, Cookie: event.ProcessContext.Cookie, Event: event.GetEventType()})
 	if ok {
 		counter := entry.(*uint64)
 		atomic.AddUint64(counter, 1)
 	} else {
 		counter := uint64(1)
-		lc.eventsCounters.Add(eventCounterLRUKey{Pid: event.Process.Pid, Cookie: event.Process.Cookie, Event: event.GetEventType()}, &counter)
+		lc.eventsCounters.Add(eventCounterLRUKey{Pid: event.ProcessContext.Pid, Cookie: event.ProcessContext.Cookie, Event: event.GetEventType()}, &counter)
 	}
 	newTotal := atomic.AddInt64(&lc.eventsTotal, 1)
 
@@ -131,13 +132,13 @@ func (lc *LoadController) discardNoisiestProcess() {
 		tags := []string{
 			fmt.Sprintf("event_type:%s", maxKey.Event),
 		}
-		if err := lc.statsdClient.Count(MetricLoadControllerPidDiscarder, 1, tags, 1.0); err != nil {
+		if err := lc.statsdClient.Count(metrics.MetricLoadControllerPidDiscarder, 1, tags, 1.0); err != nil {
 			log.Warnf("couldn't send load_controller.pids_discarder metric: %v", err)
 			return
 		}
 
 		// fetch noisy process metadata
-		process := lc.probe.resolvers.ProcessResolver.Resolve(maxKey.Pid)
+		process := lc.probe.resolvers.ProcessResolver.Resolve(maxKey.Pid, maxKey.Pid)
 		if process == nil {
 			log.Warnf("Unable to resolver process with pid: %d", maxKey.Pid)
 			return

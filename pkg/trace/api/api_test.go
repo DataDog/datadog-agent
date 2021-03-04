@@ -117,6 +117,40 @@ func TestReceiverRequestBodyLength(t *testing.T) {
 	testBody(http.StatusRequestEntityTooLarge, " []")
 }
 
+func TestStateHeaders(t *testing.T) {
+	assert := assert.New(t)
+	r := newTestReceiverFromConfig(config.New())
+	r.Start()
+	defer r.Stop()
+	data := msgpTraces(t, pb.Traces{
+		testutil.RandomTrace(10, 20),
+		testutil.RandomTrace(10, 20),
+		testutil.RandomTrace(10, 20),
+	})
+
+	for _, e := range []string{
+		"/v0.3/traces",
+		"/v0.4/traces",
+		// this one will return 500, but that's fine, we want to test that all
+		// reponses have the header regardless of status code
+		"/v0.5/traces",
+	} {
+		resp, err := http.Post("http://localhost:8126"+e, "application/msgpack", bytes.NewReader(data))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, ok := resp.Header["Datadog-Agent-Version"]
+		assert.True(ok)
+		v := resp.Header.Get("Datadog-Agent-Version")
+		assert.Equal(v, info.Version)
+
+		_, ok = resp.Header["Datadog-Agent-State"]
+		assert.True(ok)
+		v = resp.Header.Get("Datadog-Agent-State")
+		assert.NotEmpty(v)
+	}
+}
+
 func TestLegacyReceiver(t *testing.T) {
 	// testing traces without content-type in agent endpoints, it should use JSON decoding
 	assert := assert.New(t)
@@ -742,6 +776,31 @@ func TestClientComputedTopLevel(t *testing.T) {
 
 	t.Run("on", run(true))
 	t.Run("off", run(false))
+}
+
+func TestClientDropP0s(t *testing.T) {
+	conf := newTestReceiverConfig()
+	rcv := newTestReceiverFromConfig(conf)
+	mux := rcv.buildMux()
+	server := httptest.NewServer(mux)
+
+	bts, err := testutil.GetTestTraces(10, 10, true).MarshalMsg(nil)
+	assert.Nil(t, err)
+
+	req, _ := http.NewRequest("POST", server.URL+"/v0.4/traces", bytes.NewReader(bts))
+	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(headerLang, "lang1")
+	req.Header.Set(headerDroppedP0Traces, "153")
+	req.Header.Set(headerDroppedP0Spans, "2331")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatal(resp.StatusCode)
+	}
+	p := <-rcv.out
+	assert.Equal(t, p.ClientDroppedP0s, int64(153))
 }
 
 func TestReceiverRateLimiterCancel(t *testing.T) {

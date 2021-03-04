@@ -52,10 +52,10 @@ properties:
     x-google-marketplace:
       type: NAMESPACE
   createAgent:
-    title: Automatically create Datadog Agent object (on top of installing Datadog Operator)
-    description: Required to be true if you want one-click deployment of default configuration. Otherwise you will need to create you own DatadogAgent object
+    title: Automatically create Datadog Agent object (on top of installing Datadog Operator). It only works on updates due to limitations in Marketplace deployer.
+    description: Creates the default DatadogAgent object to actually trigger deployment of Datadog Agent DaemonSet. Requires CRD to be already present.
     type: boolean
-    default: true
+    default: false
   datadog.credentials.apiKey:
     title: Datadog API key
     description: Get your Datadog API key at https://app.datadoghq.com/account/settings#api

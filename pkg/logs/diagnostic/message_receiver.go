@@ -8,19 +8,26 @@ package diagnostic
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
 // MessageReceiver interface to handle messages for diagnostics
 type MessageReceiver interface {
-	HandleMessage(message.Message)
+	HandleMessage(message.Message, []byte)
+}
+
+type messagePair struct {
+	msg         *message.Message
+	redactedMsg []byte
 }
 
 // BufferedMessageReceiver handles in coming log messages and makes them available for diagnostics
 type BufferedMessageReceiver struct {
-	inputChan chan message.Message
+	inputChan chan messagePair
 	enabled   bool
 	m         sync.RWMutex
 }
@@ -35,13 +42,13 @@ type Filters struct {
 // NewBufferedMessageReceiver creates a new MessageReceiver
 func NewBufferedMessageReceiver() *BufferedMessageReceiver {
 	return &BufferedMessageReceiver{
-		inputChan: make(chan message.Message, config.ChanSize),
+		inputChan: make(chan messagePair, config.ChanSize),
 	}
 }
 
 // Start opens new input channel
 func (b *BufferedMessageReceiver) Start() {
-	b.inputChan = make(chan message.Message, config.ChanSize)
+	b.inputChan = make(chan messagePair, config.ChanSize)
 }
 
 // Stop closes the input channel
@@ -81,11 +88,11 @@ func (b *BufferedMessageReceiver) IsEnabled() bool {
 }
 
 // HandleMessage buffers a message for diagnostic processing
-func (b *BufferedMessageReceiver) HandleMessage(m message.Message) {
+func (b *BufferedMessageReceiver) HandleMessage(m message.Message, redactedMsg []byte) {
 	if !b.IsEnabled() {
 		return
 	}
-	b.inputChan <- m
+	b.inputChan <- messagePair{&m, redactedMsg}
 }
 
 // Next pops the next buffered event off the input channel formatted as a string
@@ -93,9 +100,9 @@ func (b *BufferedMessageReceiver) Next(filters *Filters) (line string, ok bool) 
 	// Read messages until one is handled or none are left
 	for {
 		select {
-		case msg := <-b.inputChan:
-			if shouldHandleMessage(&msg, filters) {
-				return formatMessage(&msg), true
+		case msgPair := <-b.inputChan:
+			if shouldHandleMessage(msgPair.msg, filters) {
+				return formatMessage(msgPair.msg, msgPair.redactedMsg), true
 			}
 			continue
 		default:
@@ -126,14 +133,25 @@ func shouldHandleMessage(m *message.Message, filters *Filters) bool {
 	return shouldHandle
 }
 
-func formatMessage(m *message.Message) string {
-	return fmt.Sprintf("Name: %s | Type: %s | Status: %s | Timestamp: %s | Service: %s | Source: %s | Tags: %s | Message: %s\n",
+func formatMessage(m *message.Message, redactedMsg []byte) string {
+	hostname, err := util.GetHostname()
+	if err != nil {
+		hostname = "unknown"
+	}
+
+	ts := time.Now().UTC()
+	if !m.Timestamp.IsZero() {
+		ts = m.Timestamp
+	}
+
+	return fmt.Sprintf("Integration Name: %s | Type: %s | Status: %s | Timestamp: %s | Hostname: %s | Service: %s | Source: %s | Tags: %s | Message: %s\n",
 		m.Origin.LogSource.Name,
 		m.Origin.LogSource.Config.Type,
 		m.GetStatus(),
-		m.Timestamp,
+		ts,
+		hostname,
 		m.Origin.Service(),
 		m.Origin.Source(),
 		m.Origin.TagsToString(),
-		string(m.Content))
+		string(redactedMsg))
 }
