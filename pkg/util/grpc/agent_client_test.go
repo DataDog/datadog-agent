@@ -2,12 +2,13 @@ package grpc
 
 import (
 	"context"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/cihub/seelog"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/cihub/seelog"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestMain(m *testing.M) {
