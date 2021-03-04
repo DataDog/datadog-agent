@@ -156,16 +156,6 @@ var BBSModelD1 = models.DesiredLRP{
 			},
 		},
 	},
-	EnvironmentVariables: []*models.EnvironmentVariable{
-		{
-			Name:  "we ignore this",
-			Value: "some value",
-		},
-		{
-			Name:  "AD_DATADOGHQ_COM",
-			Value: "{\"xxx\": {}}", // make this a valid JSON
-		},
-	},
 }
 
 var ExpectedD1 = DesiredLRP{
@@ -288,4 +278,40 @@ func TestGetVcapServicesMap(t *testing.T) {
 	result, err := getVcapServicesMap(input, "xxx")
 	assert.Nil(t, err)
 	assert.EqualValues(t, expected, result)
+}
+
+func TestIsAllowedTag(t *testing.T) {
+	// when both empty, exclude everything
+	includeList := []*regexp.Regexp{}
+	excludeList := []*regexp.Regexp{}
+
+	result := isAllowedTag("aRandomValue", includeList, excludeList)
+	assert.EqualValues(t, false, result)
+
+	// include strings in the includeList and not in the excludeList
+	includeList = []*regexp.Regexp{regexp.MustCompile("include.*")}
+	excludeList = []*regexp.Regexp{}
+
+	result = isAllowedTag("includeTag", includeList, excludeList)
+	assert.EqualValues(t, true, result)
+
+	result = isAllowedTag("excludeTag", includeList, excludeList)
+	assert.EqualValues(t, false, result)
+
+	// reject strings in the excludeList
+	includeList = []*regexp.Regexp{}
+	excludeList = []*regexp.Regexp{regexp.MustCompile("exclude.*")}
+
+	result = isAllowedTag("aRandomValue", includeList, excludeList)
+	assert.EqualValues(t, true, result)
+
+	result = isAllowedTag("excludeTag", includeList, excludeList)
+	assert.EqualValues(t, false, result)
+
+	// reject strings in the excludeList even if they exist in the includeList
+	includeList = []*regexp.Regexp{regexp.MustCompile("include.*")}
+	excludeList = []*regexp.Regexp{regexp.MustCompile("exclude.*"), regexp.MustCompile("include.*")}
+
+	result = isAllowedTag("includeTag", includeList, excludeList)
+	assert.EqualValues(t, false, result)
 }

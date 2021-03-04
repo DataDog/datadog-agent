@@ -296,6 +296,7 @@ func isAllowedTag(value string, includeList, excludeList []*regexp.Regexp) bool 
 
 	// If there is no includeList, assume at first the value is allowed, then refine decision based on excludeList.
 	allowed := len(includeList) == 0
+
 	for _, re := range includeList {
 		if re.Match([]byte(value)) {
 			allowed = true
