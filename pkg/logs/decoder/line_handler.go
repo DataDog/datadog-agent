@@ -103,8 +103,6 @@ func (h *SingleLineHandler) process(message *Message) {
 // MultiLineHandler makes sure that multiple lines from a same content
 // are properly put together.
 type MultiLineHandler struct {
-	// Put expvar Int first because it's modified with sync/atomic, so it needs to
-	// be 64-bit aligned on 32-bit systems. See https://golang.org/pkg/sync/atomic/#pkg-note-BUG
 	inputChan      chan *Message
 	outputChan     chan *Message
 	newContentRe   *regexp.Regexp
@@ -192,7 +190,7 @@ func (h *MultiLineHandler) run() {
 func (h *MultiLineHandler) process(message *Message) {
 
 	if h.newContentRe.Match(message.Content) {
-		h.countInfo.Count.Add(1)
+		h.countInfo.Add(1)
 		// the current line is part of a new message,
 		// send the buffer
 		h.sendBuffer()

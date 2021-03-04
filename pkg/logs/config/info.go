@@ -1,9 +1,9 @@
 package config
 
 import (
-	"expvar"
 	"fmt"
 	"sync"
+	"sync/atomic"
 )
 
 // InfoProvider is a general interface to provide info about a log source.
@@ -30,16 +30,21 @@ type InfoProvider interface {
 
 // CountInfo records a simple count
 type CountInfo struct {
-	Count expvar.Int
+	count int32
 	key   string
 }
 
 // NewCountInfo creates a new CountInfo instance
 func NewCountInfo(key string) *CountInfo {
 	return &CountInfo{
-		Count: expvar.Int{},
+		count: 0,
 		key:   key,
 	}
+}
+
+// Add a new value to the count
+func (c *CountInfo) Add(v int32) {
+	atomic.AddInt32(&c.count, v)
 }
 
 // InfoKey returns the key
@@ -49,14 +54,14 @@ func (c *CountInfo) InfoKey() string {
 
 // Info returns the info
 func (c *CountInfo) Info() []string {
-	return []string{fmt.Sprintf("%d", c.Count.Value())}
+	return []string{fmt.Sprintf("%d", atomic.LoadInt32(&c.count))}
 }
 
 // MappedInfo collects multiple info messages with a unique key
 type MappedInfo struct {
 	key      string
 	messages map[string]string
-	lock     *sync.Mutex
+	lock     sync.Mutex
 }
 
 // NewMappedInfo creates a new MappedInfo instance
@@ -64,7 +69,6 @@ func NewMappedInfo(key string) *MappedInfo {
 	return &MappedInfo{
 		key:      key,
 		messages: make(map[string]string),
-		lock:     &sync.Mutex{},
 	}
 }
 
@@ -89,6 +93,8 @@ func (m *MappedInfo) InfoKey() string {
 
 // Info returns the info
 func (m *MappedInfo) Info() []string {
+	defer m.lock.Unlock()
+	m.lock.Lock()
 	info := []string{}
 	for _, v := range m.messages {
 		info = append(info, v)
