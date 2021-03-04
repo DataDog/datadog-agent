@@ -43,8 +43,8 @@ func (k *httpBatchKey) Prepare(n httpNotification) {
 // GET variables excluded.
 // Example:
 // For a request fragment "GET /foo?var=bar HTTP/1.1", this method will return "/foo"
-func (tx *httpTX) Path() string {
-	b := C.GoBytes(unsafe.Pointer(&tx.request_fragment), C.int(C.HTTP_BUFFER_SIZE))
+func (tx *httpTX) Path(buffer []byte) []byte {
+	b := *(*[HTTPBufferSize]byte)(unsafe.Pointer(&tx.request_fragment))
 
 	var i, j int
 	for i = 0; i < len(b) && b[i] != ' '; i++ {
@@ -56,10 +56,11 @@ func (tx *httpTX) Path() string {
 	}
 
 	if i < j && j <= len(b) {
-		return string(b[i:j])
+		n := copy(buffer, b[i:j])
+		return buffer[:n]
 	}
 
-	return ""
+	return nil
 }
 
 // StatusClass returns an integer representing the status code class

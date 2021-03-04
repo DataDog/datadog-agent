@@ -9,12 +9,14 @@ import (
 
 type httpStatKeeper struct {
 	mux   sync.Mutex
-	stats map[Key]map[string]RequestStats
+	stats  map[Key]map[string]RequestStats
+	buffer []byte
 }
 
 func newHTTPStatkeeper() *httpStatKeeper {
 	return &httpStatKeeper{
-		stats: make(map[Key]map[string]RequestStats),
+		stats:  make(map[Key]map[string]RequestStats),
+		buffer: make([]byte, HTTPBufferSize),
 	}
 }
 
@@ -29,16 +31,16 @@ func (h *httpStatKeeper) Process(transactions []httpTX) {
 			SourcePort: tx.SourcePort(),
 			DestPort:   tx.DestPort(),
 		}
-		path := tx.Path()
+		path := tx.Path(h.buffer)
 		statusClass := tx.StatusClass()
 		latency := tx.RequestLatency()
 
 		if _, ok := h.stats[key]; !ok {
 			h.stats[key] = make(map[string]RequestStats)
 		}
-		stats := h.stats[key][path]
+		stats := h.stats[key][string(path)]
 		stats.AddRequest(statusClass, latency)
-		h.stats[key][path] = stats
+		h.stats[key][string(path)] = stats
 	}
 }
 

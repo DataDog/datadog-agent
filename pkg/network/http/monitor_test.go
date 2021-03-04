@@ -63,8 +63,9 @@ func TestHTTPMonitorIntegration(t *testing.T) {
 
 func hasMatchingTX(t *testing.T, req *nethttp.Request, transactions []httpTX) {
 	expectedStatus := statusFromPath(req.URL.Path)
+	buffer := make([]byte, HTTPBufferSize)
 	for _, tx := range transactions {
-		if tx.Path() == req.URL.Path && int(tx.response_status_code) == expectedStatus && tx.Method() == req.Method {
+		if string(tx.Path(buffer)) == req.URL.Path && int(tx.response_status_code) == expectedStatus && tx.Method() == req.Method {
 			return
 		}
 	}
