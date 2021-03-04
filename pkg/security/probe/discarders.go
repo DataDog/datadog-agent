@@ -218,7 +218,7 @@ func isParentPathDiscarder(rs *rules.RuleSet, regexCache *simplelru.LRU, eventTy
 
 	basenameField := strings.Replace(filenameField, ".path", ".name", 1)
 
-	event := NewEvent(nil)
+	event := NewEvent(nil, nil)
 	if _, err := event.GetFieldType(filenameField); err != nil {
 		return false, nil
 	}
@@ -397,14 +397,14 @@ func createInvalidDiscardersCache() map[eval.Field]map[interface{}]bool {
 func processDiscarderWrapper(eventType model.EventType, fnc onDiscarderHandler) onDiscarderHandler {
 	return func(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) error {
 		if discarder.Field == "process.file.path" {
-			log.Tracef("Apply process.file.path discarder for event `%s`, inode: %d, pid: %d", eventType, event.Process.FileFields.Inode, event.Process.Pid)
+			log.Tracef("Apply process.file.path discarder for event `%s`, inode: %d, pid: %d", eventType, event.ProcessContext.FileFields.Inode, event.ProcessContext.Pid)
 
 			// discard by PID for long running process
-			if err := probe.pidDiscarders.discard(eventType, event.Process.Pid); err != nil {
+			if err := probe.pidDiscarders.discard(eventType, event.ProcessContext.Pid); err != nil {
 				return err
 			}
 
-			return probe.inodeDiscarders.discardInode(eventType, event.Process.FileFields.MountID, event.Process.FileFields.Inode, true)
+			return probe.inodeDiscarders.discardInode(eventType, event.ProcessContext.FileFields.MountID, event.ProcessContext.FileFields.Inode, true)
 		}
 
 		if fnc != nil {

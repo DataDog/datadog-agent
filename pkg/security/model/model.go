@@ -108,8 +108,8 @@ type Event struct {
 	TimestampRaw uint64    `field:"-"`
 	Timestamp    time.Time `field:"timestamp"`
 
-	Process   ProcessContext   `field:"process" event:"*"`
-	Container ContainerContext `field:"container"`
+	ProcessContext   ProcessContext   `field:"process" event:"*"`
+	ContainerContext ContainerContext `field:"container"`
 
 	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`
 	Chown       ChownEvent    `field:"chown" event:"chown"`
@@ -131,6 +131,7 @@ type Event struct {
 	Mount            MountEvent            `field:"-"`
 	Umount           UmountEvent           `field:"-"`
 	InvalidateDentry InvalidateDentryEvent `field:"-"`
+	ArgsEnvs         ArgsEnvsEvent         `field:"-"`
 }
 
 // GetType returns the event type
@@ -201,22 +202,84 @@ type Credentials struct {
 	CapPermitted uint64 `field:"cap_permitted" handler:"ResolveCredentialsCapPermitted,int"`
 }
 
-// ExecEvent represents a exec event
-type ExecEvent struct {
+// ExecArgsIterator represents an exec args iterator
+type ExecArgsIterator struct {
+	args  []string
+	index int
+}
+
+// Front returns the first arg
+func (e *ExecArgsIterator) Front(ctx *eval.Context) unsafe.Pointer {
+	e.args = (*Event)(ctx.Object).ProcessContext.Args
+	if len(e.args) > 0 {
+		e.index = 1
+		return unsafe.Pointer(&e.args[0])
+	}
+	return nil
+}
+
+// Next returns the next arg
+func (e *ExecArgsIterator) Next() unsafe.Pointer {
+	if e.index < len(e.args) {
+		value := e.args[e.index]
+		e.index++
+		return unsafe.Pointer(&value)
+	}
+
+	return nil
+}
+
+// ExecEnvsIterator represents an exec envs iterator
+type ExecEnvsIterator struct {
+	envs  []string
+	index int
+}
+
+// Front returns the first env variable
+func (e *ExecEnvsIterator) Front(ctx *eval.Context) unsafe.Pointer {
+	e.envs = (*Event)(ctx.Object).ProcessContext.Envs
+	if len(e.envs) > 0 {
+		e.index = 1
+		return unsafe.Pointer(&e.envs[0])
+	}
+	return nil
+}
+
+// Next returns the next env variable
+func (e *ExecEnvsIterator) Next() unsafe.Pointer {
+	if e.index < len(e.envs) {
+		value := e.envs[e.index]
+		e.index++
+		return unsafe.Pointer(&value)
+	}
+
+	return nil
+}
+
+// GetPathResolutionError returns the path resolution error as a string if there is one
+func (e *Process) GetPathResolutionError() string {
+	if e.PathResolutionError != nil {
+		return e.PathResolutionError.Error()
+	}
+	return ""
+}
+
+// Process represents a process
+type Process struct {
 	// proc_cache_t
 	// (container context is parsed in Event.Container)
 	FileFields FileFields `field:"file"`
 
-	PathnameStr         string `field:"file.path" handler:"ResolveExecInode,string"`
-	ContainerPath       string `field:"file.container_path" handler:"ResolveExecContainerPath,string"`
-	BasenameStr         string `field:"file.name" handler:"ResolveExecBasename,string"`
+	PathnameStr         string `field:"file.path" handler:"ResolveProcessInode,string"`
+	ContainerPath       string `field:"file.container_path" handler:"ResolveProcessContainerPath,string"`
+	BasenameStr         string `field:"file.name" handler:"ResolveProcessBasename,string"`
 	PathResolutionError error  `field:"-"`
 
 	ExecTimestamp uint64    `field:"-"`
 	ExecTime      time.Time `field:"-"`
 
-	TTYName string `field:"tty_name" handler:"ResolveExecTTY,string"`
-	Comm    string `field:"comm" handler:"ResolveExecComm,string"`
+	TTYName string `field:"tty_name" handler:"ResolveProcessTTY,string"`
+	Comm    string `field:"comm" handler:"ResolveProcessComm,string"`
 
 	// pid_cache_t
 	ForkTimestamp uint64    `field:"-"`
@@ -225,19 +288,30 @@ type ExecEvent struct {
 	ExitTimestamp uint64    `field:"-"`
 	ExitTime      time.Time `field:"-"`
 
-	Cookie uint32 `field:"cookie" handler:"ResolveExecCookie,int"`
-	PPid   uint32 `field:"ppid" handler:"ResolveExecPPID,int"`
+	Cookie uint32 `field:"cookie" handler:"ResolveProcessCookie,int"`
+	PPid   uint32 `field:"ppid" handler:"ResolveProcessPPID,int"`
 
 	// credentials_t section of pid_cache_t
 	Credentials
+
+	Args          []string `field:"-"`
+	ArgsTruncated bool     `field:"-"`
+	Envs          []string `field:"-"`
+	EnvsTruncated bool     `field:"-"`
+
+	ArgsID uint32 `field:"-"`
+	EnvsID uint32 `field:"-"`
 }
 
-// GetPathResolutionError returns the path resolution error as a string if there is one
-func (e *ExecEvent) GetPathResolutionError() string {
-	if e.PathResolutionError != nil {
-		return e.PathResolutionError.Error()
-	}
-	return ""
+// ExecEvent represents a exec event
+type ExecEvent struct {
+	Process
+
+	// override Process fields so that SECL can expose them
+	Args          []string `field:"args" iterator:"ExecArgsIterator"`
+	ArgsTruncated bool     `field:"args_truncated"`
+	Envs          []string `field:"envs" iterator:"ExecEnvsIterator"`
+	EnvsTruncated bool     `field:"envs_truncated"`
 }
 
 // FileFields holds the information required to identify a file
@@ -293,6 +367,15 @@ type MkdirEvent struct {
 	SyscallEvent
 	File FileEvent `field:"file"`
 	Mode uint32    `field:"file.destination.mode"`
+}
+
+// ArgsEnvsEvent defines a args/envs event
+type ArgsEnvsEvent struct {
+	ID          uint32
+	Size        uint32
+	Values      []string
+	ValuesRaw   [128]byte
+	IsTruncated bool
 }
 
 // MountEvent represents a mount event
@@ -364,7 +447,7 @@ type ProcessAncestorsIterator struct {
 
 // Front returns the first element
 func (it *ProcessAncestorsIterator) Front(ctx *eval.Context) unsafe.Pointer {
-	if front := (*Event)(ctx.Object).Process.Ancestor; front != nil {
+	if front := (*Event)(ctx.Object).ProcessContext.Ancestor; front != nil {
 		it.prev = front
 		return unsafe.Pointer(front)
 	}
@@ -384,7 +467,7 @@ func (it *ProcessAncestorsIterator) Next() unsafe.Pointer {
 
 // ProcessContext holds the process context of an event
 type ProcessContext struct {
-	ExecEvent
+	Process
 
 	Pid uint32 `field:"pid"`
 	Tid uint32 `field:"tid"`

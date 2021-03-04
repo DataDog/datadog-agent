@@ -53,6 +53,8 @@ const (
 	SetgidEventType
 	// CapsetEventType capset event
 	CapsetEventType
+	// ArgsEnvsEventType args and envs event
+	ArgsEnvsEventType
 	// MaxEventType is used internally to get the maximum number of kernel events.
 	MaxEventType
 
@@ -120,6 +122,8 @@ func (t EventType) String() string {
 		return "setgid"
 	case CapsetEventType:
 		return "capset"
+	case ArgsEnvsEventType:
+		return "args_envs_dentry"
 
 	case CustomLostReadEventType:
 		return "lost_events_read"

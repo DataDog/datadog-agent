@@ -116,8 +116,8 @@ github.com/DataDog/datadog-go v4.4.0+incompatible h1:R7WqXWP4fIOAqWJtUKmSfuc7eDs
 github.com/DataDog/datadog-go v4.4.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
 github.com/DataDog/datadog-operator v0.3.1 h1:yazEEHlKV1pEpDG1JsyI9WOQDWnnIpJOvE1PoILtLl0=
 github.com/DataDog/datadog-operator v0.3.1/go.mod h1:y1Oh/0ftUKzPdVe6IHodPD7zzmXMWnUcLK9Pv+vaeBg=
-github.com/DataDog/ebpf v0.0.0-20210121152636-7fc17cac5ed7 h1:Gl1fG+QK2tVnxTwtuqraUymTfjMGPMOPjfogRs7vpdA=
-github.com/DataDog/ebpf v0.0.0-20210121152636-7fc17cac5ed7/go.mod h1:VSpIdBT/hwSbP3xKa5eYtiiBN2E37YePfTuyQVzSSig=
+github.com/DataDog/ebpf v0.0.0-20210301225224-1e8911b1b835 h1:3ipH47pNqxTKCrl3axOMynjvq8vPKUz88ecgodVHh7k=
+github.com/DataDog/ebpf v0.0.0-20210301225224-1e8911b1b835/go.mod h1:tSPYMUcskM0OLVEJSoydgYUVuhX8hOSmtaSLNtOQThg=
 github.com/DataDog/gobpf v0.0.0-20210226135525-f2a1beabb116 h1:ewT+TDQR13hq3A8aakFjvDkAs5vj6CSR3WtWbPGz46A=
 github.com/DataDog/gobpf v0.0.0-20210226135525-f2a1beabb116/go.mod h1:rNvi5cSHdpxN6495MOYAWN3yukac8lORoluL+9Osrsw=
 github.com/DataDog/gohai v0.0.0-20200605003749-e17d616e422a h1:BkU6uq4Ib7Kp1zP7MT33IdHZQazC+kxbuTyEmgePyyA=

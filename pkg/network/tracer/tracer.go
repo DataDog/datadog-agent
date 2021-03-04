@@ -247,7 +247,11 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		return nil, fmt.Errorf("error initializing port binding maps: %s", err)
 	}
 
-	conntracker, err := newConntracker(config, netlink.NewConntracker)
+	creator := netlink.NewConntracker
+	if runtimeTracer {
+		creator = NewEBPFConntracker
+	}
+	conntracker, err := newConntracker(config, creator)
 	if err != nil {
 		return nil, err
 	}

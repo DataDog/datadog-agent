@@ -59,12 +59,12 @@
  * for SYSCALL_DEFINE<n>/COMPAT_SYSCALL_DEFINE<n>
  */
 #define __JOIN0(m,...)
-#define __JOIN1(m,t,a,...) m(t,a)
-#define __JOIN2(m,t,a,...) m(t,a), __JOIN1(m,__VA_ARGS__)
-#define __JOIN3(m,t,a,...) m(t,a), __JOIN2(m,__VA_ARGS__)
-#define __JOIN4(m,t,a,...) m(t,a), __JOIN3(m,__VA_ARGS__)
-#define __JOIN5(m,t,a,...) m(t,a), __JOIN4(m,__VA_ARGS__)
-#define __JOIN6(m,t,a,...) m(t,a), __JOIN5(m,__VA_ARGS__)
+#define __JOIN1(m,t,a,...) ,m(t,a)
+#define __JOIN2(m,t,a,...) ,m(t,a) __JOIN1(m,__VA_ARGS__)
+#define __JOIN3(m,t,a,...) ,m(t,a) __JOIN2(m,__VA_ARGS__)
+#define __JOIN4(m,t,a,...) ,m(t,a) __JOIN3(m,__VA_ARGS__)
+#define __JOIN5(m,t,a,...) ,m(t,a) __JOIN4(m,__VA_ARGS__)
+#define __JOIN6(m,t,a,...) ,m(t,a) __JOIN5(m,__VA_ARGS__)
 #define __JOIN(n,...) __JOIN##n(__VA_ARGS__)
 
 #define __MAP0(n,m,...)
@@ -80,21 +80,22 @@
 #define __SC_PASS(t, a) a
 
 #define SYSCALL_ABI_HOOKx(x,word_size,type,TYPE,prefix,syscall,suffix,...) \
-    int __attribute__((always_inline)) type##__##sys##syscall(__JOIN(x,__SC_DECL,__VA_ARGS__)); \
+    int __attribute__((always_inline)) type##__##sys##syscall(struct pt_regs *ctx __JOIN(x,__SC_DECL,__VA_ARGS__)); \
     SEC(#type "/" SYSCALL##word_size##_PREFIX #prefix SYSCALL_PREFIX #syscall #suffix) \
     int type##__ ##word_size##_##prefix ##sys##syscall##suffix(struct pt_regs *ctx) { \
         SYSCALL_##TYPE##_PROLOG(x,__SC_##word_size##_PARAM,syscall,__VA_ARGS__) \
-        return type##__sys##syscall(__JOIN(x,__SC_PASS,__VA_ARGS__)); \
+        return type##__sys##syscall(ctx __JOIN(x,__SC_PASS,__VA_ARGS__)); \
     }
 
-#define SYSCALL_HOOK_COMMON(x,type,syscall,...) int __attribute__((always_inline)) type##__sys##syscall(__JOIN(x,__SC_DECL,__VA_ARGS__))
+#define SYSCALL_HOOK_COMMON(x,type,syscall,...) int __attribute__((always_inline)) type##__sys##syscall(struct pt_regs *ctx __JOIN(x,__SC_DECL,__VA_ARGS__))
 
 #if USE_SYSCALL_WRAPPER == 1
   #define SYSCALL_PREFIX "sys"
-  #define __SC_64_PARAM(n, t, a) t a; bpf_probe_read(&a, sizeof(t), (void*) &SYSCALL64_PT_REGS_PARM##n(ctx));
-  #define __SC_32_PARAM(n, t, a) t a; bpf_probe_read(&a, sizeof(t), (void*) &SYSCALL32_PT_REGS_PARM##n(ctx));
+  #define __SC_64_PARAM(n, t, a) t a; bpf_probe_read(&a, sizeof(t), (void*) &SYSCALL64_PT_REGS_PARM##n(rctx));
+  #define __SC_32_PARAM(n, t, a) t a; bpf_probe_read(&a, sizeof(t), (void*) &SYSCALL32_PT_REGS_PARM##n(rctx));
   #define SYSCALL_KPROBE_PROLOG(x,m,syscall,...) \
-    ctx = (struct pt_regs *) PT_REGS_PARM1(ctx); \
+    struct pt_regs *rctx = (struct pt_regs *) PT_REGS_PARM1(ctx); \
+    if (!rctx) return 0; \
     __MAP(x,m,__VA_ARGS__)
   #define SYSCALL_KRETPROBE_PROLOG(...)
   #define SYSCALL_HOOKx(x,type,TYPE,prefix,name,...) \
@@ -120,6 +121,8 @@
   #define __SC_64_PARAM(n, t, a) t a = (t) SYSCALL64_PT_REGS_PARM##n(ctx);
   #define __SC_32_PARAM(n, t, a) t a = (t) SYSCALL32_PT_REGS_PARM##n(ctx);
   #define SYSCALL_KPROBE_PROLOG(x,m,syscall,...) \
+    struct pt_regs *rctx = ctx; \
+    if (!rctx) return 0; \
     __MAP(x,m,__VA_ARGS__)
   #define SYSCALL_KRETPROBE_PROLOG(...)
   #define SYSCALL_HOOKx(x,type,TYPE,prefix,name,...) \
@@ -144,7 +147,7 @@
 #define SYSCALL_KPROBE5(name, ...) SYSCALL_HOOKx(5,kprobe,KPROBE,,_##name,__VA_ARGS__)
 #define SYSCALL_KPROBE6(name, ...) SYSCALL_HOOKx(6,kprobe,KPROBE,,_##name,__VA_ARGS__)
 
-#define SYSCALL_KRETPROBE(name, ...) SYSCALL_HOOKx(1,kretprobe,KRETPROBE,,_##name,struct pt_regs*,ctx)
+#define SYSCALL_KRETPROBE(name, ...) SYSCALL_HOOKx(0,kretprobe,KRETPROBE,,_##name)
 
 #define SYSCALL_COMPAT_KPROBE0(name, ...) SYSCALL_COMPAT_HOOKx(0,kprobe,KPROBE,_##name,__VA_ARGS__)
 #define SYSCALL_COMPAT_KPROBE1(name, ...) SYSCALL_COMPAT_HOOKx(1,kprobe,KPROBE,_##name,__VA_ARGS__)
@@ -154,7 +157,7 @@
 #define SYSCALL_COMPAT_KPROBE5(name, ...) SYSCALL_COMPAT_HOOKx(5,kprobe,KPROBE,_##name,__VA_ARGS__)
 #define SYSCALL_COMPAT_KPROBE6(name, ...) SYSCALL_COMPAT_HOOKx(6,kprobe,KPROBE,_##name,__VA_ARGS__)
 
-#define SYSCALL_COMPAT_KRETPROBE(name, ...) SYSCALL_COMPAT_HOOKx(1,kretprobe,KRETPROBE,_##name,struct pt_regs*,ctx)
+#define SYSCALL_COMPAT_KRETPROBE(name, ...) SYSCALL_COMPAT_HOOKx(0,kretprobe,KRETPROBE,_##name)
 
 #define SYSCALL_COMPAT_TIME_KPROBE0(name, ...) SYSCALL_COMPAT_TIME_HOOKx(0,kprobe,KPROBE,_##name,__VA_ARGS__)
 #define SYSCALL_COMPAT_TIME_KPROBE1(name, ...) SYSCALL_COMPAT_TIME_HOOKx(1,kprobe,KPROBE,_##name,__VA_ARGS__)
@@ -164,7 +167,7 @@
 #define SYSCALL_COMPAT_TIME_KPROBE5(name, ...) SYSCALL_COMPAT_TIME_HOOKx(5,kprobe,KPROBE,_##name,__VA_ARGS__)
 #define SYSCALL_COMPAT_TIME_KPROBE6(name, ...) SYSCALL_COMPAT_TIME_HOOKx(6,kprobe,KPROBE,_##name,__VA_ARGS__)
 
-#define SYSCALL_COMPAT_TIME_KRETPROBE(name, ...) SYSCALL_COMPAT_TIME_HOOKx(1,kretprobe,KRETPROBE,_##name,struct pt_regs*,ctx)
+#define SYSCALL_COMPAT_TIME_KRETPROBE(name, ...) SYSCALL_COMPAT_TIME_HOOKx(0,kretprobe,KRETPROBE,_##name)
 
 #define TTY_NAME_LEN 64
 #define CONTAINER_ID_LEN 64
@@ -204,6 +207,7 @@ enum event_type
     EVENT_SETUID,
     EVENT_SETGID,
     EVENT_CAPSET,
+    EVENT_ARGS_ENVS,
     EVENT_MAX, // has to be the last one
 };
 

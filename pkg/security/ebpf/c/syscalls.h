@@ -6,6 +6,11 @@
 
 #define FSTYPE_LEN 16
 
+struct str_array_ref_t {
+    u32 id;
+    u8 truncated;
+};
+
 struct syscall_cache_t {
     struct policy_t policy;
     u64 type;
@@ -100,6 +105,14 @@ struct syscall_cache_t {
         struct {
             u8 is_thread;
         } clone;
+
+        struct {
+            struct dentry *dentry;
+            struct path_key_t path_key;
+            struct str_array_ref_t args;
+            struct str_array_ref_t envs;
+            u8 is_parsed;
+        } exec;
     };
 };
 
@@ -118,9 +131,6 @@ struct policy_t __attribute__((always_inline)) fetch_policy(u64 event_type) {
         return *policy;
     }
     struct policy_t empty_policy = { };
-#ifdef DEBUG
-        bpf_printk("cache/syscall policy for %d is %d\n", event_type, policy.mode);
-#endif
     return empty_policy;
 }
 

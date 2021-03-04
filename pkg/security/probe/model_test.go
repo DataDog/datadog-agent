@@ -57,6 +57,10 @@ func TestSetFieldValue(t *testing.T) {
 			if err = event.SetFieldValue(field, 123); err != nil {
 				t.Fatal(err)
 			}
+		case reflect.Bool:
+			if err = event.SetFieldValue(field, true); err != nil {
+				t.Fatal(err)
+			}
 		default:
 			t.Fatalf("type unknown: %v", kind)
 		}
