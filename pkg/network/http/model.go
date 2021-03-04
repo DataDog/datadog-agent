@@ -39,9 +39,10 @@ func (k *httpBatchKey) Prepare(n httpNotification) {
 	k.page_num = C.uint(int(n.batch_idx) % HTTPBatchPages)
 }
 
-// Path returns the URL from the request fragment captured in eBPF
-// Usually the request fragment will look like
-// GET /foo HTTP/1.1
+// Path returns the URL from the request fragment captured in eBPF with
+// GET variables excluded.
+// Example:
+// For a request fragment "GET /foo?var=bar HTTP/1.1", this method will return "/foo"
 func (tx *httpTX) Path() string {
 	b := C.GoBytes(unsafe.Pointer(&tx.request_fragment), C.int(C.HTTP_BUFFER_SIZE))
 
