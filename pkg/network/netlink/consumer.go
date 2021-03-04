@@ -223,7 +223,7 @@ func (c *Consumer) DumpTable(family uint8) (<-chan Event, error) {
 		}
 	}
 
-	rootNS, err := netns.GetFromPath(fmt.Sprintf("%s/1/ns/net", c.procRoot))
+	rootNS, err := util.GetRootNetNamespace(c.procRoot)
 	if err != nil {
 		return nil, fmt.Errorf("error dumping conntrack table, could not get root namespace: %w", err)
 	}
@@ -276,7 +276,7 @@ func (c *Consumer) DumpTable(family uint8) (<-chan Event, error) {
 func (c *Consumer) dumpTable(family uint8, output chan Event, ns netns.NsHandle) error {
 	return util.WithNS(c.procRoot, ns, func() error {
 
-		log.Tracef("dumping table for ns %s", ns)
+		log.Tracef("dumping table for ns %s family %d", ns, family)
 
 		sock, err := NewSocket()
 		if err != nil {
@@ -325,7 +325,9 @@ func (c *Consumer) GetStats() map[string]int64 {
 
 // Stop the consumer
 func (c *Consumer) Stop() {
-	c.conn.Close()
+	if c.conn != nil {
+		c.conn.Close()
+	}
 }
 
 // initWorker creates a go-routine *within the root network namespace*.
@@ -494,7 +496,8 @@ func (c *Consumer) throttle(numMessages int) error {
 	atomic.AddInt64(&c.throttles, 1)
 
 	// Close current socket
-	c.socket.Close()
+	c.conn.Close()
+	c.conn = nil
 
 	if pre315Kernel {
 		// we cannot recreate the socket and set a bpf filter on

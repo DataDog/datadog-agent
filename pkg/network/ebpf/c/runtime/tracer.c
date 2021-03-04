@@ -9,6 +9,7 @@
 #include "syscalls.h"
 #include "http.h"
 #include "ip.h"
+#include "netns.h"
 
 #ifdef FEATURE_IPV6_ENABLED
 #include "ipv6.h"
@@ -28,32 +29,6 @@
 #ifndef LINUX_VERSION_CODE
 # error "kernel version not included?"
 #endif
-
-static __always_inline __u32 get_netns_from_sock(struct sock* skp) {
-    __u32 net_ns_inum = 0;
-#ifdef CONFIG_NET_NS
-    #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
-        struct net *skc_net = NULL;
-        bpf_probe_read(&skc_net, sizeof(skc_net), &skp->sk_net);
-        if (!skc_net) {
-            return 0;
-        }
-        #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
-            bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), &skc_net->proc_inum);
-        #else
-            bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), &skc_net->ns.inum);
-        #endif
-    #else
-        struct net *skc_net = NULL;
-        bpf_probe_read(&skc_net, sizeof(skc_net), &skp->sk_net.net);
-        if (!skc_net) {
-            return 0;
-        }
-        bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), &skc_net->ns.inum);
-    #endif
-#endif
-    return net_ns_inum;
-}
 
 static __always_inline __u16 read_sport(struct sock* skp) {
     __u16 sport = 0;
@@ -75,7 +50,7 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock*
 
     // Retrieve network namespace id first since addresses and ports may not be available for unconnected UDP
     // sends
-    t->netns = get_netns_from_sock(skp);
+    t->netns = get_netns(&skp->sk_net);
     u16 family = 0;
     bpf_probe_read(&family, sizeof(family), &skp->sk_family);
 
@@ -469,7 +444,7 @@ int kprobe__tcp_v4_destroy_sock(struct pt_regs* ctx) {
     }
 
     port_binding_t t = { .net_ns = 0, .port = 0 };
-    t.net_ns = get_netns_from_sock(skp);
+    t.net_ns = get_netns(&skp->sk_net);
     t.port = lport;
     __u8* val = bpf_map_lookup_elem(&port_bindings, &t);
     if (val != NULL) {

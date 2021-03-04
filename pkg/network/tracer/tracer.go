@@ -189,7 +189,14 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		}
 		defer offsetBuf.Close()
 
-		mgrOptions.ConstantEditors, err = runOffsetGuessing(config, offsetBuf)
+		// Offset guessing has been flaky for some customers, so if it fails we'll retry it up to 5 times
+		for i := 0; i < 5; i++ {
+			mgrOptions.ConstantEditors, err = runOffsetGuessing(config, offsetBuf)
+			if err == nil {
+				break
+			}
+			time.Sleep(1 * time.Second)
+		}
 		if err != nil {
 			return nil, fmt.Errorf("error guessing offsets: %s", err)
 		}
@@ -240,7 +247,11 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		return nil, fmt.Errorf("error initializing port binding maps: %s", err)
 	}
 
-	conntracker, err := newConntracker(config, netlink.NewConntracker)
+	creator := netlink.NewConntracker
+	if runtimeTracer {
+		creator = NewEBPFConntracker
+	}
+	conntracker, err := newConntracker(config, creator)
 	if err != nil {
 		return nil, err
 	}
