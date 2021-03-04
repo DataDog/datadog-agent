@@ -13,10 +13,8 @@
 #include "http.h"
 
 #include <linux/kconfig.h>
-#include <net/dst.h>
 #include <net/inet_sock.h>
 #include <net/net_namespace.h>
-#include <net/route.h>
 #include <net/tcp_states.h>
 #include <uapi/linux/ip.h>
 #include <uapi/linux/ipv6.h>
