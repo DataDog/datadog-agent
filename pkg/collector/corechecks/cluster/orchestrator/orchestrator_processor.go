@@ -266,10 +266,10 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Orche
 		node := nodesList[s]
 		nodeCount += 1
 		kubeletVersions[node.Status.NodeInfo.KubeletVersion] += 1
-		podCap += uint32(node.Status.Capacity.Pods().MilliValue())
-		podAllocatable += uint32(node.Status.Allocatable.Pods().MilliValue())
-		memoryAllocatable += uint64(node.Status.Allocatable.Memory().MilliValue())
-		memoryCap += uint64(node.Status.Capacity.Memory().MilliValue())
+		podCap += uint32(node.Status.Capacity.Pods().Value())
+		podAllocatable += uint32(node.Status.Allocatable.Pods().Value())
+		memoryAllocatable += uint64(node.Status.Allocatable.Memory().Value())
+		memoryCap += uint64(node.Status.Capacity.Memory().Value())
 		cpuAllocatable += uint64(node.Status.Allocatable.Cpu().MilliValue())
 		cpuCap += uint64(node.Status.Capacity.Cpu().MilliValue())
 
