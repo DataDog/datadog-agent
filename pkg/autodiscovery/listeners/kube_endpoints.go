@@ -62,6 +62,7 @@ func init() {
 }
 
 func NewKubeEndpointsListener() (ServiceListener, error) {
+	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
