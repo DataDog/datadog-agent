@@ -7,11 +7,11 @@ package stats
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"math/rand"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 
