@@ -46,19 +46,6 @@ static __always_inline __be32 rt_nexthop_bpf(struct rtable *rt) {
     return hop;
 }
 
-static __always_inline __u32 get_netns_inum(struct net* ns) {
-    if (!ns) return 0;
-    __u32 net_ns_inum = 0;
-#ifdef CONFIG_NET_NS
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
-    bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), &ns->proc_inum);
-#else
-    bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), &ns->ns.inum);
-#endif
-#endif // CONFIG_NET_NS
-    return net_ns_inum;
-}
-
 static __always_inline __u32 get_netns_from_sock(struct sock* skp) {
 #ifdef CONFIG_NET_NS
     struct net *skc_net = NULL;
@@ -71,7 +58,7 @@ static __always_inline __u32 get_netns_from_sock(struct sock* skp) {
         return 0;
     }
 #endif
-    return get_netns_inum(skc_net);
+    return get_netns(skc_net);
 }
 
 static __always_inline __u16 read_sport(struct sock* skp) {
@@ -500,7 +487,7 @@ int kretprobe__inet_csk_accept(struct pt_regs* ctx) {
     handle_message(&t, 0, 0, CONN_DIRECTION_INCOMING);
 
     port_binding_t pb = {};
-    pb.net_ns = t.netns;
+    pb.netns = t.netns;
     pb.port = t.sport;
     __u8 state = PORT_LISTENING;
     bpf_map_update_elem(&port_bindings, &pb, &state, BPF_NOEXIST);
@@ -523,15 +510,15 @@ int kprobe__tcp_v4_destroy_sock(struct pt_regs* ctx) {
         return 0;
     }
 
-    port_binding_t t = { .net_ns = 0, .port = 0 };
-    t.net_ns = get_netns(&skp->sk_net);
+    port_binding_t t = { .netns = 0, .port = 0 };
+    t.netns = get_netns(&skp->sk_net);
     t.port = lport;
     __u8* val = bpf_map_lookup_elem(&port_bindings, &t);
     if (val != NULL) {
         bpf_map_delete_elem(&port_bindings, &t);
     }
 
-    log_debug("kprobe/tcp_v4_destroy_sock: net ns: %u, lport: %u\n", t.net_ns, t.port);
+    log_debug("kprobe/tcp_v4_destroy_sock: net ns: %u, lport: %u\n", t.netns, t.port);
     return 0;
 }
 
@@ -564,7 +551,7 @@ int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
     // since we don't have it everywhere for udp port bindings
     // (see sys_enter_bind/sys_exit_bind below)
     port_binding_t t = {};
-    t.net_ns = 0;
+    t.netns = 0;
     t.port = lport;
     bpf_map_delete_elem(&udp_port_bindings, &t);
 
@@ -663,7 +650,7 @@ static __always_inline int sys_exit_bind(__s64 ret) {
     __u16 sin_port = args->port;
     __u8 port_state = PORT_LISTENING;
     port_binding_t t = {};
-    t.net_ns = 0; // don't have net ns info in this context
+    t.netns = 0; // don't have net ns info in this context
     t.port = sin_port;
     bpf_map_update_elem(&udp_port_bindings, &t, &port_state, BPF_ANY);
     log_debug("sys_exit_bind: bound UDP port %u\n", sin_port);
@@ -741,9 +728,9 @@ int kprobe__ip_route_output_flow(struct pt_regs* ctx) {
 
     ip_route_flow_t flow = {};
     flow.fl = fl4;
-    flow.net_ns = get_netns_inum(net);
+    flow.netns = get_netns(net);
     bpf_map_update_elem(&ip_route_output_flows, &pid_tgid, &flow, BPF_ANY);
-    log_debug("kprobe/ip_route_output_flow: pid_tgid: %d\n", pid_tgid);
+    log_debug("kprobe/ip_route_output_flow: pid_tgid: %u\n", pid_tgid);
 
     return 0;
 }
@@ -776,7 +763,7 @@ int kretprobe__ip_route_output_flow(struct pt_regs* ctx) {
         log_debug("ERR(kretprobe/ip_route_output_flow): dst address not set pid_tgid=%d", pid_tgid);
         return 0;
     }
-    dest.netns = flow->net_ns;
+    dest.netns = flow->netns;
     dest.family = CONN_V4;
 
     ip_route_gateway_t gw = {};

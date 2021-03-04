@@ -345,7 +345,7 @@ func initializePortBindingMaps(config *config.Config, m *manager.Manager) error 
 		}
 		for p := range tcpPorts {
 			log.Debugf("adding initial TCP port binding: netns: %d port: %d", p.Ino, p.Port)
-			pb := portBindingTuple{net_ns: C.__u32(p.Ino), port: C.__u16(p.Port)}
+			pb := portBindingTuple{netns: C.__u32(p.Ino), port: C.__u16(p.Port)}
 			state := uint8(C.PORT_LISTENING)
 			err = tcpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&state), ebpf.UpdateNoExist)
 			if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
@@ -364,7 +364,7 @@ func initializePortBindingMaps(config *config.Config, m *manager.Manager) error 
 		for p := range udpPorts {
 			log.Debugf("adding initial UDP port binding: netns: %d port: %d", p.Ino, p.Port)
 			// UDP port bindings currently do not have network namespace numbers
-			pb := portBindingTuple{net_ns: 0, port: C.__u16(p.Port)}
+			pb := portBindingTuple{netns: 0, port: C.__u16(p.Port)}
 			state := uint8(C.PORT_LISTENING)
 			err = udpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&state), ebpf.UpdateNoExist)
 			if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {

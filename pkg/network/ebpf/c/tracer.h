@@ -197,12 +197,12 @@ typedef struct {
 } bind_syscall_args_t;
 
 typedef struct {
-    __u32 net_ns;
+    __u32 netns;
     __u16 port;
 } port_binding_t;
 
 typedef struct {
-    __u32 net_ns;
+    __u32 netns;
     struct flowi4 * fl;
 } ip_route_flow_t;
 
