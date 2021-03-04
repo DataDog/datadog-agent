@@ -51,14 +51,15 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 	}
 
 	// get orchestrator endpoints
-	endpoints := map[string]string{}
+	endpoints := map[string][]string{}
 	orchestratorCfg := orchcfg.NewDefaultOrchestratorConfig()
 	err = orchestratorCfg.LoadYamlConfig(config.Datadog.ConfigFileUsed())
 	if err == nil {
 		// obfuscate the api keys
 		for _, endpoint := range orchestratorCfg.OrchestratorEndpoints {
+			endpointStr := endpoint.Endpoint.String()
 			if len(endpoint.APIKey) > 5 {
-				endpoints[endpoint.Endpoint.String()] = endpoint.APIKey[len(endpoint.APIKey)-5:]
+				endpoints[endpointStr] = append(endpoints[endpointStr], endpoint.APIKey[len(endpoint.APIKey)-5:])
 			}
 		}
 	}
