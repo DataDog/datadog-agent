@@ -54,7 +54,7 @@ int __attribute__((always_inline)) get_ovl_upper_ino(struct dentry *dentry) {
     return get_dentry_ino(upper);
 }
 
-int __always_inline get_overlayfs_ino(struct dentry *dentry, struct path_key_t *path_key) {
+void __always_inline set_overlayfs_ino(struct dentry *dentry, u64 *ino, u32 *flags) {
     u64 lower_inode = get_ovl_lower_ino(dentry);
     u64 upper_inode = get_ovl_upper_ino(dentry);
 
@@ -62,12 +62,16 @@ int __always_inline get_overlayfs_ino(struct dentry *dentry, struct path_key_t *
     bpf_printk("get_overlayfs_ino lower: %d upper: %d\n", lower_inode, upper_inode);
 #endif
 
+    if (upper_inode)
+        *flags |= UPPER_LAYER;
+    else if (lower_inode)
+        *flags |= LOWER_LAYER;
+
     if (lower_inode) {
-        return lower_inode;
+        *ino = lower_inode;
     } else if (upper_inode) {
-        return upper_inode;
+        *ino = upper_inode;
     }
-    return path_key->ino;
 }
 
 #endif
