@@ -36,88 +36,96 @@ spec:
     spec:
       serviceAccountName: datadog-cluster-agent
       containers:
-        - name: cluster-agent
-          image: "gcr.io/datadoghq/cluster-agent:1.9.1"
-          imagePullPolicy: IfNotPresent
-          resources: {}
-          ports:
-            - containerPort: 5005
-              name: agentport
-              protocol: TCP
-            - containerPort: 8443
-              name: metricsapi
-              protocol: TCP
-          env:
-            - name: DD_HEALTH_PORT
-              value: "5555"
-            - name: DD_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: "datadog"
-                  key: api-key
-                  optional: true
-            - name: DD_APP_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: "datadog-appkey"
-                  key: app-key
-            - name: DD_EXTERNAL_METRICS_PROVIDER_ENABLED
-              value: "true"
-            - name: DD_EXTERNAL_METRICS_PROVIDER_PORT
-              value: "8443"
-            - name: DD_EXTERNAL_METRICS_PROVIDER_WPA_CONTROLLER
-              value: "false"
-            - name: DD_EXTERNAL_METRICS_PROVIDER_USE_DATADOGMETRIC_CRD
-              value: "false"
-            - name: DD_EXTERNAL_METRICS_AGGREGATOR
-              value: "avg"
-            - name: DD_LOG_LEVEL
-              value: "INFO"
-            - name: DD_LEADER_ELECTION
-              value: "true"
-            - name: DD_COLLECT_KUBERNETES_EVENTS
-              value: "true"
-            - name: DD_CLUSTER_AGENT_KUBERNETES_SERVICE_NAME
-              value: datadog-cluster-agent
-            - name: DD_CLUSTER_AGENT_AUTH_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: datadog-cluster-agent
-                  key: token
-            - name: DD_KUBE_RESOURCES_NAMESPACE
-              value: default
-            - name: DD_ORCHESTRATOR_EXPLORER_ENABLED
-              value: "false"
-            - name: DD_COMPLIANCE_CONFIG_ENABLED
-              value: "false"
-          livenessProbe:
-            failureThreshold: 6
-            httpGet:
-              path: /live
-              port: 5555
-              scheme: HTTP
-            initialDelaySeconds: 15
-            periodSeconds: 15
-            successThreshold: 1
-            timeoutSeconds: 5
-          readinessProbe:
-            failureThreshold: 6
-            httpGet:
-              path: /ready
-              port: 5555
-              scheme: HTTP
-            initialDelaySeconds: 15
-            periodSeconds: 15
-            successThreshold: 1
-            timeoutSeconds: 5
-          volumeMounts:
-            - name: installinfo
-              subPath: install_info
-              mountPath: /etc/datadog-agent/install_info
-              readOnly: true
-      volumes:
+      - name: cluster-agent
+        image: "gcr.io/datadoghq/cluster-agent:1.11.0"
+        imagePullPolicy: IfNotPresent
+        resources: {}
+        ports:
+        - containerPort: 5005
+          name: agentport
+          protocol: TCP
+        - containerPort: 8443
+          name: metricsapi
+          protocol: TCP
+        env:
+        - name: DD_HEALTH_PORT
+          value: "5555"
+        - name: DD_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: "datadog"
+              key: api-key
+              optional: true
+        - name: DD_APP_KEY
+          valueFrom:
+            secretKeyRef:
+              name: "datadog-appkey"
+              key: app-key
+        - name: DD_EXTERNAL_METRICS_PROVIDER_ENABLED
+          value: "true"
+        - name: DD_EXTERNAL_METRICS_PROVIDER_PORT
+          value: "8443"
+        - name: DD_EXTERNAL_METRICS_PROVIDER_WPA_CONTROLLER
+          value: "false"
+        - name: DD_EXTERNAL_METRICS_PROVIDER_USE_DATADOGMETRIC_CRD
+          value: "false"
+        - name: DD_EXTERNAL_METRICS_AGGREGATOR
+          value: "avg"
+        - name: DD_CLUSTER_CHECKS_ENABLED
+          value: "true"
+        - name: DD_EXTRA_CONFIG_PROVIDERS
+          value: "kube_endpoints kube_services"
+        - name: DD_EXTRA_LISTENERS
+          value: "kube_endpoints kube_services"
+        - name: DD_LOG_LEVEL
+          value: "INFO"
+        - name: DD_LEADER_ELECTION
+          value: "true"
+        - name: DD_LEADER_LEASE_DURATION
+          value: "15"
+        - name: DD_COLLECT_KUBERNETES_EVENTS
+          value: "true"
+        - name: DD_CLUSTER_AGENT_KUBERNETES_SERVICE_NAME
+          value: datadog-cluster-agent
+        - name: DD_CLUSTER_AGENT_AUTH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: datadog-cluster-agent
+              key: token
+        - name: DD_KUBE_RESOURCES_NAMESPACE
+          value: default
+        - name: DD_ORCHESTRATOR_EXPLORER_ENABLED
+          value: "true"
+        - name: DD_ORCHESTRATOR_EXPLORER_CONTAINER_SCRUBBING_ENABLED
+          value: "true"
+        livenessProbe:
+          failureThreshold: 6
+          httpGet:
+            path: /live
+            port: 5555
+            scheme: HTTP
+          initialDelaySeconds: 15
+          periodSeconds: 15
+          successThreshold: 1
+          timeoutSeconds: 5
+        readinessProbe:
+          failureThreshold: 6
+          httpGet:
+            path: /ready
+            port: 5555
+            scheme: HTTP
+          initialDelaySeconds: 15
+          periodSeconds: 15
+          successThreshold: 1
+          timeoutSeconds: 5
+        volumeMounts:
         - name: installinfo
-          configMap:
-            name: datadog-installinfo
+          subPath: install_info
+          mountPath: /etc/datadog-agent/install_info
+          readOnly: true
+      volumes:
+      - name: installinfo
+        configMap:
+          name: datadog-installinfo
       nodeSelector:
         kubernetes.io/os: linux

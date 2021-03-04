@@ -6,9 +6,10 @@ package netlink
 import (
 	"fmt"
 	"net"
-	"os/exec"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
+	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	ct "github.com/florianl/go-conntrack"
 	"github.com/stretchr/testify/require"
@@ -17,28 +18,19 @@ import (
 )
 
 func TestConntrackExists(t *testing.T) {
-	cmd := exec.Command("testdata/setup_cross_ns_dnat.sh")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		require.NoError(t, err, "setup command failed: %s", out)
-	}
+	defer testutil.TeardownCrossNsDNAT(t)
+	testutil.SetupCrossNsDNAT(t)
 
-	defer func() {
-		cmd := exec.Command("testdata/teardown_cross_ns_dnat.sh")
-		if out, err := cmd.CombinedOutput(); err != nil {
-			require.NoError(t, err, "teardown command failed: %s", out)
-		}
-	}()
-
-	tcpCloser := startServerTCPNs(t, net.ParseIP("2.2.2.4"), 8080, "test")
+	tcpCloser := nettestutil.StartServerTCPNs(t, net.ParseIP("2.2.2.4"), 8080, "test")
 	defer tcpCloser.Close()
 
-	udpCloser := startServerUDPNs(t, net.ParseIP("2.2.2.4"), 8080, "test")
+	udpCloser := nettestutil.StartServerUDPNs(t, net.ParseIP("2.2.2.4"), 8080, "test")
 	defer udpCloser.Close()
 
-	tcpConn := pingTCP(t, net.ParseIP("2.2.2.4"), 80)
+	tcpConn := nettestutil.PingTCP(t, net.ParseIP("2.2.2.4"), 80)
 	defer tcpConn.Close()
 
-	udpConn := pingUDP(t, net.ParseIP("2.2.2.4"), 80)
+	udpConn := nettestutil.PingUDP(t, net.ParseIP("2.2.2.4"), 80)
 	defer udpConn.Close()
 
 	testNs, err := netns.GetFromName("test")
