@@ -38,7 +38,7 @@ func getStatusCode(s *pb.Span) uint32 {
 	}
 	c, err := strconv.Atoi(strC)
 	if err != nil {
-		log.Errorf("Invalid status code %s. Using 0.", strC)
+		log.Debugf("Invalid status code %s. Using 0.", strC)
 		return 0
 	}
 	return uint32(c)

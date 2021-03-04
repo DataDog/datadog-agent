@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    APM: Change in the Stats payload format leading to reduced CPU and memory usage.
+    APM: Change in the stats payload format leading to reduced CPU and memory usage.
     Use of DDSketch instead of GKSketch to aggregate distributions leading to more accurate high percentiles.

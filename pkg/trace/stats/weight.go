@@ -12,9 +12,9 @@ import (
 
 // WeightedSpan extends Span to contain weights required by the Concentrator.
 type WeightedSpan struct {
-	Weight   float64 // Span weight. Similar to the trace root.Weight().
-	TopLevel bool    // Is this span a service top-level or not. Similar to span.TopLevel().
-	Measured bool    // Is this span marked for metrics computation.
+	Weight   uint64 // Span weight. Similar to the trace root.Weight().
+	TopLevel bool   // Is this span a service top-level or not. Similar to span.TopLevel().
+	Measured bool   // Is this span marked for metrics computation.
 
 	*pb.Span
 }
@@ -44,14 +44,13 @@ const keySamplingRateGlobal = "_sample_rate"
 
 // Weight returns the weight of the span as defined for sampling, i.e. the
 // inverse of the sampling rate.
-func Weight(s *pb.Span) float64 {
+func Weight(s *pb.Span) uint64 {
 	if s == nil {
-		return 1.0
+		return 1
 	}
 	sampleRate, ok := s.Metrics[keySamplingRateGlobal]
 	if !ok || sampleRate <= 0.0 || sampleRate > 1.0 {
-		return 1.0
+		return 1
 	}
-
-	return 1.0 / sampleRate
+	return uint64(1.0 / sampleRate)
 }

@@ -29,10 +29,10 @@ const (
 // is that the final data, the one with send after a call to Export(), is correct.
 
 type groupedStats struct {
-	hits            float64
-	topLevelHits    float64
-	errors          float64
-	duration        float64
+	hits            uint64
+	topLevelHits    uint64
+	errors          uint64
+	duration        uint64
 	okDistribution  *ddsketch.DDSketch
 	errDistribution *ddsketch.DDSketch
 }
@@ -54,13 +54,13 @@ func (s *groupedStats) export(k statsKey) (pb.ClientGroupedStats, error) {
 		Resource:       k.aggr.Resource,
 		HTTPStatusCode: k.aggr.StatusCode,
 		Type:           k.aggr.Type,
-		Hits:           uint64(s.hits),
-		Errors:         uint64(s.errors),
-		Duration:       uint64(s.duration),
+		Hits:           s.hits,
+		Errors:         s.errors,
+		Duration:       s.duration,
+		TopLevelHits:   s.topLevelHits,
 		OkSummary:      okSummary,
 		ErrorSummary:   errSummary,
 		Synthetics:     k.aggr.Synthetics,
-		TopLevelHits:   uint64(s.topLevelHits),
 	}, nil
 }
 
@@ -165,7 +165,7 @@ func (sb *RawBucket) add(s *WeightedSpan, aggr Aggregation) {
 	if s.Error != 0 {
 		gs.errors += s.Weight
 	}
-	gs.duration += float64(s.Duration) * s.Weight
+	gs.duration += uint64(s.Duration) * s.Weight
 	// alter resolution of duration distro
 	trundur := nsTimestampToFloat(s.Duration)
 	if s.Error != 0 {
