@@ -363,6 +363,8 @@ def ctidy(ctx, fix=False, fail_on_issue=False):
     network_files.extend(glob.glob(network_c_dir + "/**/*.c"))
     network_flags = list(build_flags)
     network_flags.append("-I{}".format(network_c_dir))
+    network_flags.append("-I{}".format(os.path.join(network_c_dir, "prebuilt")))
+    network_flags.append("-I{}".format(os.path.join(network_c_dir, "runtime")))
     run_tidy(ctx, files=network_files, build_flags=network_flags, fix=fix, fail_on_issue=fail_on_issue)
 
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
