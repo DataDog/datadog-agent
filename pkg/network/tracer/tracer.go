@@ -643,18 +643,31 @@ func (t *Tracer) getConnTelemetry(mapSize int) *network.ConnectionsTelemetry {
 func (t *Tracer) getRuntimeCompilationTelemetry() map[string]network.RuntimeCompilationTelemetry {
 	compilationTelemetryByAsset := make(map[string]network.RuntimeCompilationTelemetry)
 
-	tm := network.RuntimeCompilationTelemetry{}
+	ttm := network.RuntimeCompilationTelemetry{}
 	tracerTelemetry := runtime.Tracer.GetTelemetry()
 	if enabled, ok := tracerTelemetry["runtime_compilation_enabled"]; ok {
-		tm.RuntimeCompilationEnabled = enabled == 1
+		ttm.RuntimeCompilationEnabled = enabled == 1
 	}
 	if result, ok := tracerTelemetry["runtime_compilation_result"]; ok {
-		tm.RuntimeCompilationResult = int32(result)
+		ttm.RuntimeCompilationResult = int32(result)
 	}
 	if duration, ok := tracerTelemetry["runtime_compilation_duration"]; ok {
-		tm.RuntimeCompilationDuration = duration
+		ttm.RuntimeCompilationDuration = duration
 	}
-	compilationTelemetryByAsset["tracer"] = tm
+	compilationTelemetryByAsset["tracer"] = ttm
+
+	ctm := network.RuntimeCompilationTelemetry{}
+	conntrackTelemetry := runtime.Conntrack.GetTelemetry()
+	if enabled, ok := conntrackTelemetry["runtime_compilation_enabled"]; ok {
+		ctm.RuntimeCompilationEnabled = enabled == 1
+	}
+	if result, ok := conntrackTelemetry["runtime_compilation_result"]; ok {
+		ctm.RuntimeCompilationResult = int32(result)
+	}
+	if duration, ok := conntrackTelemetry["runtime_compilation_duration"]; ok {
+		ctm.RuntimeCompilationDuration = duration
+	}
+	compilationTelemetryByAsset["conntracker"] = ctm
 
 	return compilationTelemetryByAsset
 }
