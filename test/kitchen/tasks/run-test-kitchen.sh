@@ -30,44 +30,53 @@ ssh-add "$KITCHEN_SSH_KEY_PATH"
 mkdir -p ~/.ssh
 [[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
 
-# Setup the azure credentials, grabbing them from AWS if they do not exist in the environment already
-# If running locally, they should be imported into the environment
-if [ ! -f /root/.azure/credentials ]; then
-  mkdir -p /root/.azure
-  touch /root/.azure/credentials
-fi
+if [ "$KITCHEN_PROVIDER" == "azure" ]; then
+  # Setup the azure credentials, grabbing them from AWS if they do not exist in the environment already
+  # If running locally, they should be imported into the environment
+  if [ ! -f /root/.azure/credentials ]; then
+    mkdir -p /root/.azure
+    touch /root/.azure/credentials
+  fi
 
-# These should not be printed out
-set +x
-if [ -z ${AZURE_CLIENT_ID+x} ]; then
-  AZURE_CLIENT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_client_id --with-decryption --query "Parameter.Value" --out text)
-  # make sure whitespace is removed
-  export AZURE_CLIENT_ID="$(echo -e "${AZURE_CLIENT_ID}" | tr -d '[:space:]')"
-fi
-if [ -z ${AZURE_CLIENT_SECRET+x} ]; then
-  AZURE_CLIENT_SECRET=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_client_secret --with-decryption --query "Parameter.Value" --out text)
-  # make sure whitespace is removed
-  export AZURE_CLIENT_SECRET="$(echo -e "${AZURE_CLIENT_SECRET}" | tr -d '[:space:]')"
-fi
-if [ -z ${AZURE_TENANT_ID+x} ]; then
-  AZURE_TENANT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_tenant_id --with-decryption --query "Parameter.Value" --out text)
-  # make sure whitespace is removed
-  export AZURE_TENANT_ID="$(echo -e "${AZURE_TENANT_ID}" | tr -d '[:space:]')"
-fi
-if [ -z ${AZURE_SUBSCRIPTION_ID+x} ]; then
-  AZURE_SUBSCRIPTION_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_subscription_id --with-decryption --query "Parameter.Value" --out text)
-  # make sure whitespace is removed
-  export AZURE_SUBSCRIPTION_ID="$(echo -e "${AZURE_SUBSCRIPTION_ID}" | tr -d '[:space:]')"
-fi
+  # These should not be printed out
+  set +x
+  if [ -z ${AZURE_CLIENT_ID+x} ]; then
+    AZURE_CLIENT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_client_id --with-decryption --query "Parameter.Value" --out text)
+    # make sure whitespace is removed
+    AZURE_CLIENT_ID="$(echo -e "${AZURE_CLIENT_ID}" | tr -d '[:space:]')"
+    export AZURE_CLIENT_ID
+  fi
+  if [ -z ${AZURE_CLIENT_SECRET+x} ]; then
+    AZURE_CLIENT_SECRET=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_client_secret --with-decryption --query "Parameter.Value" --out text)
+    # make sure whitespace is removed
+    AZURE_CLIENT_SECRET="$(echo -e "${AZURE_CLIENT_SECRET}" | tr -d '[:space:]')"
+    export AZURE_CLIENT_SECRET
+  fi
+  if [ -z ${AZURE_TENANT_ID+x} ]; then
+    AZURE_TENANT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_tenant_id --with-decryption --query "Parameter.Value" --out text)
+    # make sure whitespace is removed
+    AZURE_TENANT_ID="$(echo -e "${AZURE_TENANT_ID}" | tr -d '[:space:]')"
+    export AZURE_TENANT_ID
+  fi
+  if [ -z ${AZURE_SUBSCRIPTION_ID+x} ]; then
+    AZURE_SUBSCRIPTION_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_subscription_id --with-decryption --query "Parameter.Value" --out text)
+    # make sure whitespace is removed
+    AZURE_SUBSCRIPTION_ID="$(echo -e "${AZURE_SUBSCRIPTION_ID}" | tr -d '[:space:]')"
+    export AZURE_SUBSCRIPTION_ID
+  fi
 
-if [ -z ${AZURE_SUBSCRIPTION_ID+x} -o -z ${AZURE_TENANT_ID+x} -o -z ${AZURE_CLIENT_SECRET+x} -o -z ${AZURE_CLIENT_ID+x} ]; then
-  printf "You are missing some of the necessary credentials. Exiting."
-  exit 1
-fi
+  if [ -z ${AZURE_SUBSCRIPTION_ID+x} ] || [ -z ${AZURE_TENANT_ID+x} ] || [ -z ${AZURE_CLIENT_SECRET+x} ] || [ -z ${AZURE_CLIENT_ID+x} ]; then
+    printf "You are missing some of the necessary credentials. Exiting."
+    exit 1
+  fi
 
-# Create the Azure credentials file
-(echo "<% subscription_id=\"$AZURE_SUBSCRIPTION_ID\"; client_id=\"$AZURE_CLIENT_ID\"; client_secret=\"$AZURE_CLIENT_SECRET\"; tenant_id=\"$AZURE_TENANT_ID\"; %>" && cat azure-creds.erb) | erb > /root/.azure/credentials
-set -x
+  # Create the Azure credentials file
+  (echo "<% subscription_id=\"$AZURE_SUBSCRIPTION_ID\"; client_id=\"$AZURE_CLIENT_ID\"; client_secret=\"$AZURE_CLIENT_SECRET\"; tenant_id=\"$AZURE_TENANT_ID\"; %>" && cat azure-creds.erb) | erb > /root/.azure/credentials
+  set -x
+
+elif [ "$KITCHEN_PROVIDER" == "ec2" ]; then
+  echo "ec2"
+fi
 
 # Generate a password to use for the windows servers
 if [ -z ${SERVER_PASSWORD+x} ]; then
@@ -107,5 +116,4 @@ cp kitchen.yml ./.kitchen/generated_kitchen.yml
 rm -rf cookbooks
 rm -f Berksfile.lock
 berks vendor ./cookbooks
-bundle exec kitchen test '^dd*.*-azure$' -c -d always
-
+bundle exec kitchen test "'^dd*.*-${KITCHEN_PROVIDER}\$'" -c -d always
