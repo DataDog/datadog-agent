@@ -167,12 +167,11 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 		}
 
 		// Compress the protobuf metadata and the marshaled sketch
-		e = compressor.AddItem(bufferContext.PrecompressionBuf[:totalItemSize])
-		if e == stream.ErrPayloadFull {
+		switch compressor.AddItem(bufferContext.PrecompressionBuf[:totalItemSize]) {
+		case stream.ErrPayloadFull:
 			expvarsPayloadFull.Add(1)
 			tlmPayloadFull.Inc()
-		}
-		if e == stream.ErrPayloadFull {
+
 			// Since the compression buffer is full - flush it and rotate
 			payload, e := compressor.Close()
 			if e != nil {
@@ -200,11 +199,13 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 				tlmUnexpectedItemDrops.Inc()
 				return nil, e
 			}
-		} else if e == stream.ErrItemTooBig {
+		case stream.ErrItemTooBig:
 			// Item was too big, drop it
 			expvarsItemTooBig.Add(1)
 			tlmItemTooBig.Add(1)
-		} else if e != nil {
+		case nil:
+			continue
+		default:
 			// Unexpected error bail out
 			expvarsUnexpectedItemDrops.Add(1)
 			tlmUnexpectedItemDrops.Inc()
