@@ -68,15 +68,8 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock*
 #ifdef FEATURE_IPV6_ENABLED
     else if (family == AF_INET6) {
         // TODO cleanup? having it split on 64 bits is not nice for kernel reads
-        __be32 v6src[4] = {};
-        __be32 v6dst[4] = {};
-        bpf_probe_read(&v6src, sizeof(v6src), skp->sk_v6_rcv_saddr.in6_u.u6_addr32);
-        bpf_probe_read(&v6dst, sizeof(v6dst), skp->sk_v6_daddr.in6_u.u6_addr32);
-
-        if (t->saddr_h == 0) bpf_probe_read(&t->saddr_h, sizeof(t->saddr_h), v6src);
-        if (t->saddr_l == 0) bpf_probe_read(&t->saddr_l, sizeof(t->saddr_l), v6src + 2);
-        if (t->daddr_h == 0) bpf_probe_read(&t->daddr_h, sizeof(t->daddr_h), v6dst);
-        if (t->daddr_l == 0) bpf_probe_read(&t->daddr_l, sizeof(t->daddr_l), v6dst + 2);
+        read_in6_addr(&t->saddr_h, &t->saddr_l, &skp->sk_v6_rcv_saddr);
+        read_in6_addr(&t->daddr_h, &t->daddr_l, &skp->sk_v6_daddr);
 
         // We can only pass 4 args to bpf_trace_printk
         // so split those 2 statements to be able to log everything
@@ -228,6 +221,7 @@ int kretprobe__tcp_close(struct pt_regs* ctx) {
     return 0;
 }
 
+#ifdef FEATURE_IPV6_ENABLED
 SEC("kprobe/ip6_make_skb")
 int kprobe__ip6_make_skb(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
@@ -237,8 +231,49 @@ int kprobe__ip6_make_skb(struct pt_regs* ctx) {
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
-        increment_telemetry_count(udp_send_missed);
-        return 0;
+// commit: https://github.com/torvalds/linux/commit/26879da58711aa604a1b866cbeedd7e0f78f90ad
+// changed the arguments to ip6_make_skb and introduced the struct ipcm6_cookie
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
+        struct flowi6* fl6 = (struct flowi6*)PT_REGS_PARM7(ctx);
+#else
+        struct flowi6* fl6 = (struct flowi6*)PT_REGS_PARM9(ctx);
+#endif
+        read_in6_addr(&t.saddr_h, &t.saddr_l, &fl6->saddr);
+        read_in6_addr(&t.daddr_h, &t.daddr_l, &fl6->daddr);
+
+        if (!(t.saddr_h || t.saddr_l)) {
+            log_debug("ERR(fl6): src addr not set src_l:%d,src_h:%d\n", t.saddr_l, t.saddr_h);
+            increment_telemetry_count(udp_send_missed);
+            return 0;
+        }
+        if (!(t.daddr_h || t.daddr_l)) {
+            log_debug("ERR(fl6): dst addr not set dst_l:%d,dst_h:%d\n", t.daddr_l, t.daddr_h);
+            increment_telemetry_count(udp_send_missed);
+            return 0;
+        }
+
+        // Check if we can map IPv6 to IPv4
+        if (is_ipv4_mapped_ipv6(t.saddr_h, t.saddr_l, t.daddr_h, t.daddr_l)) {
+            t.metadata |= CONN_V4;
+            t.saddr_h = 0;
+            t.daddr_h = 0;
+            t.saddr_l = (u32)(t.saddr_l >> 32);
+            t.daddr_l = (u32)(t.daddr_l >> 32);
+        } else {
+            t.metadata |= CONN_V6;
+        }
+
+        bpf_probe_read(&t.sport, sizeof(t.sport), &fl6->fl6_sport);
+        bpf_probe_read(&t.dport, sizeof(t.dport), &fl6->fl6_dport);
+
+        if (t.sport == 0 || t.dport == 0) {
+            log_debug("ERR(fl6): src/dst port not set: src:%d, dst:%d\n", t.sport, t.dport);
+            increment_telemetry_count(udp_send_missed);
+            return 0;
+        }
+
+        t.sport = bpf_ntohs(t.sport);
+        t.dport = bpf_ntohs(t.dport);
     }
 
     log_debug("kprobe/ip6_make_skb: pid_tgid: %d, size: %d\n", pid_tgid, size);
@@ -247,6 +282,7 @@ int kprobe__ip6_make_skb(struct pt_regs* ctx) {
 
     return 0;
 }
+#endif
 
 // Note: This is used only in the UDP send path.
 SEC("kprobe/ip_make_skb")
