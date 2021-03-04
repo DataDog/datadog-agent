@@ -642,7 +642,7 @@ func (t *Tracer) getConnTelemetry(mapSize int) *network.ConnectionsTelemetry {
 
 func (t *Tracer) getRuntimeCompilationTelemetry() map[string]network.RuntimeCompilationTelemetry {
 	telemetryByAsset := map[string]map[string]int64{
-		"tracer": runtime.Tracer.GetTelemetry(),
+		"tracer":    runtime.Tracer.GetTelemetry(),
 		"conntrack": runtime.Conntrack.GetTelemetry(),
 	}
 
