@@ -80,7 +80,7 @@ func ipPortFromAddr(addr net.Addr) (net.IP, int) {
 	return nil, 0
 }
 
-func connTupleFromConn(conn net.Conn, pid uint32) (*ConnTuple, error) {
+func connTupleFromConn(conn net.Conn, pid uint32, netns uint32) (*ConnTuple, error) {
 	saddr := conn.LocalAddr()
 	shost, sport := ipPortFromAddr(saddr)
 
@@ -88,6 +88,7 @@ func connTupleFromConn(conn net.Conn, pid uint32) (*ConnTuple, error) {
 	dhost, dport := ipPortFromAddr(daddr)
 
 	ct := &ConnTuple{
+		netns: C.__u32(netns),
 		pid:   C.__u32(pid),
 		sport: C.__u16(sport),
 		dport: C.__u16(dport),
@@ -120,13 +121,28 @@ func connTupleFromConn(conn net.Conn, pid uint32) (*ConnTuple, error) {
 	return ct, nil
 }
 
-func newConnTuple(pid int, netns uint64, saddr, daddr util.Address, sport, dport uint16, proto network.ConnectionType) *ConnTuple {
-	ct := &ConnTuple{
-		pid:   C.__u32(pid),
-		netns: C.__u32(netns),
-		sport: C.__u16(sport),
-		dport: C.__u16(dport),
+func toConnTupleFromConnectionStats(ct *ConnTuple, stats *network.ConnectionStats) error {
+	return toConnTuple(ct, int(stats.Pid), stats.NetNS, stats.Source, stats.Dest, stats.SPort, stats.DPort, stats.Type)
+}
+
+func connTupleFromConnectionStats(stats *network.ConnectionStats) *ConnTuple {
+	return newConnTuple(int(stats.Pid), stats.NetNS, stats.Source, stats.Dest, stats.SPort, stats.DPort, stats.Type)
+}
+
+func newConnTuple(pid int, netns uint32, saddr, daddr util.Address, sport, dport uint16, proto network.ConnectionType) *ConnTuple {
+	ct := &ConnTuple{}
+	if err := toConnTuple(ct, pid, netns, saddr, daddr, sport, dport, proto); err != nil {
+		return nil
 	}
+	return ct
+}
+
+func toConnTuple(ct *ConnTuple, pid int, netns uint32, saddr, daddr util.Address, sport, dport uint16, proto network.ConnectionType) error {
+	ct.pid = C.__u32(pid)
+	ct.netns = C.__u32(netns)
+	ct.sport = C.__u16(sport)
+	ct.dport = C.__u16(dport)
+	ct.metadata = 0
 	sbytes := saddr.Bytes()
 	dbytes := daddr.Bytes()
 	if len(sbytes) == 4 {
@@ -142,7 +158,7 @@ func newConnTuple(pid int, netns uint64, saddr, daddr util.Address, sport, dport
 		ct.daddr_h = C.__u64(nativeEndian.Uint64(dbytes[:8]))
 		ct.daddr_l = C.__u64(nativeEndian.Uint64(dbytes[8:]))
 	} else {
-		return nil
+		return fmt.Errorf("unknown address type")
 	}
 
 	switch proto {
@@ -151,8 +167,7 @@ func newConnTuple(pid int, netns uint64, saddr, daddr util.Address, sport, dport
 	case network.UDP:
 		ct.metadata |= C.CONN_TYPE_UDP
 	}
-
-	return ct
+	return nil
 }
 
 func (t *ConnTuple) isTCP() bool {

@@ -111,7 +111,7 @@ func (p *PerfBatchManager) GetIdleConns() []network.ConnectionStats {
 		cpuState.processed[batchId] = batchState{offset: batchLen, updated: time.Now()}
 	}
 
-	p.cleanupExpiredState()
+	p.cleanupExpiredState(time.Now())
 	return idle
 }
 
@@ -147,12 +147,11 @@ func (p *PerfBatchManager) extractBatchInto(buffer []network.ConnectionStats, b 
 	return buffer
 }
 
-func (p *PerfBatchManager) cleanupExpiredState() {
-	now := time.Now()
+func (p *PerfBatchManager) cleanupExpiredState(now time.Time) {
 	for cpu := 0; cpu < len(p.stateByCPU); cpu++ {
 		cpuState := &p.stateByCPU[cpu]
 		for id, s := range cpuState.processed {
-			if now.Sub(s.updated) > p.expiredStateInterval {
+			if now.Sub(s.updated) >= p.expiredStateInterval {
 				delete(cpuState.processed, id)
 			}
 		}

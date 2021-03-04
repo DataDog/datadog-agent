@@ -16,11 +16,11 @@ import (
 )
 
 var openCapabilities = Capabilities{
-	"open.filename": {
+	"open.file.path": {
 		PolicyFlags:     PolicyFlagBasename,
 		FieldValueTypes: eval.ScalarValueType,
 	},
-	"open.basename": {
+	"open.file.name": {
 		PolicyFlags:     PolicyFlagBasename,
 		FieldValueTypes: eval.ScalarValueType,
 	},
@@ -39,14 +39,14 @@ func openOnNewApprovers(probe *Probe, approvers rules.Approvers) (activeApprover
 		return values
 	}
 
-	openApprovers, err := onNewBasenameApprovers(probe, model.FileOpenEventType, "", approvers)
+	openApprovers, err := onNewBasenameApprovers(probe, model.FileOpenEventType, "file", approvers)
 	if err != nil {
 		return nil, err
 	}
 
 	for field, values := range approvers {
 		switch field {
-		case "open.basename", "open.filename": // already handled by onNewBasenameApprovers
+		case "open.file.name", "open.file.path": // already handled by onNewBasenameApprovers
 		case "open.flags":
 			activeApprover, err := approveFlags("open_flags_approvers", intValues(values)...)
 			if err != nil {

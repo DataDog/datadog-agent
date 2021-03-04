@@ -14,6 +14,7 @@
 #include "exec.h"
 #include "process.h"
 #include "container.h"
+#include "commit_creds.h"
 #include "overlayfs.h"
 #include "exec.h"
 #include "setattr.h"
@@ -34,6 +35,8 @@
 #include "raw_syscalls.h"
 #include "procfs.h"
 #include "setxattr.h"
+#include "erpc.h"
+#include "ioctl.h"
 
 struct invalidate_dentry_event_t {
     struct kevent_t event;
@@ -47,7 +50,9 @@ void __attribute__((always_inline)) invalidate_inode(struct pt_regs *ctx, u32 mo
         return;
 
     if (!is_flushing_discarders()) {
-        remove_inode_discarder(mount_id, inode);
+        // remove both regular and parent discarders
+        remove_inode_discarder(mount_id, inode, 1);
+        remove_inode_discarder(mount_id, inode, 0);
     }
 
     if (send_invalidate_event) {
