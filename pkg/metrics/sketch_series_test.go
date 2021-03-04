@@ -115,6 +115,8 @@ func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {
 
 func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
 
+	oldSetting := config.Datadog.Get("serializer_max_uncompressed_payload_size")
+	defer config.Datadog.Set("serializer_max_uncompressed_payload_size", oldSetting)
 	config.Datadog.Set("serializer_max_uncompressed_payload_size", 100)
 
 	sl := make(SketchSeriesList, 2)
