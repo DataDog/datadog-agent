@@ -39,6 +39,7 @@ type CompilationResult int
 
 const (
 	notAttempted CompilationResult = iota
+	compilationSuccess
 	kernelVersionErr
 	verificationError
 	outputDirErr
@@ -46,7 +47,6 @@ const (
 	newCompilerErr
 	compilationErr
 	resultReadErr
-	compilationSuccess
 )
 
 type CompiledOutput interface {
