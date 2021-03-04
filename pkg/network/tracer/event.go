@@ -3,7 +3,6 @@
 package tracer
 
 import (
-	"encoding/binary"
 	"fmt"
 	"net"
 	"strconv"
@@ -352,21 +351,21 @@ func connDirection(m uint8) network.ConnectionDirection {
 	}
 }
 
-func newIPRuoteDest(source, dest util.Address, netns uint32) *ipRouteDest {
+func newIPRouteDest(source, dest util.Address, netns uint32) *ipRouteDest {
 	d := &ipRouteDest{netns: C.__u32(netns), daddr_l: 0, daddr_h: 0}
 	sbytes := source.Bytes()
 	dbytes := dest.Bytes()
 	switch len(dbytes) {
 	case 4:
 		d.family = C.CONN_V4
-		d.saddr_l = C.__u64(binary.LittleEndian.Uint32(sbytes))
-		d.daddr_l = C.__u64(binary.LittleEndian.Uint32(dbytes))
+		d.saddr_l = C.__u64(nativeEndian.Uint32(sbytes))
+		d.daddr_l = C.__u64(nativeEndian.Uint32(dbytes))
 	case 16:
 		d.family = C.CONN_V6
-		d.saddr_h = C.__u64(binary.LittleEndian.Uint32(sbytes[:8]))
-		d.saddr_l = C.__u64(binary.LittleEndian.Uint32(sbytes[8:]))
-		d.daddr_h = C.__u64(binary.LittleEndian.Uint64(dbytes[:8]))
-		d.daddr_l = C.__u64(binary.LittleEndian.Uint64(dbytes[8:]))
+		d.saddr_h = C.__u64(nativeEndian.Uint32(sbytes[:8]))
+		d.saddr_l = C.__u64(nativeEndian.Uint32(sbytes[8:]))
+		d.daddr_h = C.__u64(nativeEndian.Uint64(dbytes[:8]))
+		d.daddr_l = C.__u64(nativeEndian.Uint64(dbytes[8:]))
 	}
 
 	return d

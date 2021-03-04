@@ -20,7 +20,7 @@ type routeKey struct {
 
 // Route stores info for a route table entry
 type Route struct {
-	Gw      util.Address
+	Gateway util.Address
 	IfIndex int
 }
 
@@ -55,6 +55,10 @@ func NewRouteCache(size int, router Router) RouteCache {
 
 // newRouteCache is a private method used primarily for testing
 func newRouteCache(size int, router Router, ttl time.Duration) *routeCache {
+	if router == nil {
+		return nil
+	}
+
 	return &routeCache{
 		cache:  lru.New(size),
 		router: router,
@@ -67,36 +71,29 @@ func (c *routeCache) Get(source, dest util.Address, netns uint32) (Route, bool) 
 	defer c.Unlock()
 
 	k := newRouteKey(source, dest, netns)
-	entry, ok := c.cache.Get(k)
-	if ok && time.Now().Unix() >= entry.(*routeTTL).eta {
-		c.cache.Remove(k)
-		ok = false
-	}
-
-	if !ok && c.router != nil {
-		var r Route
-		if r, ok = c.router.Route(source, dest, netns); ok {
-			entry = &routeTTL{
-				eta:   time.Now().Add(c.ttl).Unix(),
-				entry: r,
-			}
-
-			c.cache.Add(k, entry)
+	if entry, ok := c.cache.Get(k); ok {
+		if time.Now().Unix() < entry.(*routeTTL).eta {
+			return entry.(*routeTTL).entry, ok
 		}
+
+		c.cache.Remove(k)
 	}
 
-	if !ok {
-		return Route{}, false
+	if r, ok := c.router.Route(source, dest, netns); ok {
+		entry := &routeTTL{
+			eta:   time.Now().Add(c.ttl).Unix(),
+			entry: r,
+		}
+
+		c.cache.Add(k, entry)
+		return r, true
 	}
 
-	return entry.(*routeTTL).entry, ok
+	return Route{}, false
 }
 
 func newRouteKey(source, dest util.Address, netns uint32) routeKey {
-	k := routeKey{netns: netns}
-
-	k.source = source
-	k.dest = dest
+	k := routeKey{netns: netns, source: source, dest: dest}
 
 	switch len(dest.Bytes()) {
 	case 4:
@@ -135,7 +132,7 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 	if err == nil && len(routes) == 1 {
 		r := routes[0]
 		return Route{
-			Gw:      util.AddressFromNetIP(r.Gw),
+			Gateway: util.AddressFromNetIP(r.Gw),
 			IfIndex: r.LinkIndex,
 		}, true
 	}

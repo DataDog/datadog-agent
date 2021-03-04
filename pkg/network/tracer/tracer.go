@@ -981,7 +981,7 @@ func (t *Tracer) connVia(cs *network.ConnectionStats) {
 		return // gateway lookup is not enabled
 	}
 
-	t.gwLookup.Lookup(cs)
+	cs.Via = t.gwLookup.Lookup(cs)
 }
 
 func newHTTPMonitor(supported bool, c *config.Config, m *manager.Manager, h *ddebpf.PerfHandler) *http.Monitor {

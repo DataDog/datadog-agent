@@ -60,16 +60,16 @@ func newGatewayLookup(config *config.Config, runtimeCompilerEnabled bool, m *man
 	}
 }
 
-func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) {
+func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 	r, ok := g.routeCache.Get(cs.Source, cs.Dest, cs.NetNS)
 	if !ok {
-		return
+		return nil
 	}
 
 	// if there is no gateway, we don't need to add subnet info
 	// for gateway resolution in the backend
-	if util.NetIPFromAddress(r.Gw).IsUnspecified() {
-		return
+	if util.NetIPFromAddress(r.Gateway).IsUnspecified() {
+		return nil
 	}
 
 	s, ok := g.subnetCache[r.IfIndex]
@@ -77,27 +77,25 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) {
 		ifi, err := net.InterfaceByIndex(r.IfIndex)
 		if err != nil {
 			log.Errorf("error getting index for interface index %d: %s", r.IfIndex, err)
-			return
+			return nil
 		}
 
 		if len(ifi.HardwareAddr) == 0 {
 			// can happen for loopback
-			return
+			return nil
 		}
 
 		if s, err = g.subnetForHwAddrFunc(ifi.HardwareAddr); err != nil {
 			if g.logLimiter.ShouldLog() {
 				log.Errorf("error getting subnet info for interface index %d: %s", r.IfIndex, err)
 			}
-			return
+			return nil
 		}
 
 		g.subnetCache[r.IfIndex] = s
 	}
 
-	cs.Via = &network.Via{
-		Subnet: s,
-	}
+	return &network.Via{Subnet: s}
 }
 
 func ec2SubnetForHardwareAddr(hwAddr net.HardwareAddr) (network.Subnet, error) {
@@ -124,11 +122,11 @@ func newEbpfRouter(m *manager.Manager) network.Router {
 }
 
 func (b *ebpfRouter) Route(source, dest util.Address, netns uint32) (network.Route, bool) {
-	d := newIPRuoteDest(source, dest, netns)
+	d := newIPRouteDest(source, dest, netns)
 	gw := &ipRouteGateway{}
 	if err := b.gwMp.Lookup(unsafe.Pointer(d), unsafe.Pointer(gw)); err != nil || gw.ifIndex() == 0 {
 		return network.Route{}, false
 	}
 
-	return network.Route{Gw: gw.gateway(), IfIndex: gw.ifIndex()}, true
+	return network.Route{Gateway: gw.gateway(), IfIndex: gw.ifIndex()}, true
 }
