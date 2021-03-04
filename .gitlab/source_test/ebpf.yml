@@ -10,31 +10,20 @@
   tar -xvf /tmp/libbcc.tar.xz -C $DATADOG_AGENT_EMBEDDED_PATH
   tar -xvf /tmp/clang.tar.xz -C $DATADOG_AGENT_EMBEDDED_PATH
 
+.build_sysprobe_artifacts: &build_sysprobe_artifacts |
+  inv -e system-probe.object-files
+  inv -e system-probe.kitchen-prepare
+  cp $SRC_PATH/pkg/ebpf/bytecode/build/tracer.o $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer.o
+  cp $SRC_PATH/pkg/ebpf/bytecode/build/tracer-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer-debug.o
+  cp $SRC_PATH/pkg/ebpf/bytecode/build/offset-guess.o $CI_PROJECT_DIR/.tmp/binary-ebpf/offset-guess.o
+  cp $SRC_PATH/pkg/ebpf/bytecode/build/offset-guess-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/offset-guess-debug.o
+  cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/tracer.c $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer.c
+  cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/runtime-security.c $CI_PROJECT_DIR/.tmp/binary-ebpf/runtime-security.c
+  cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/conntrack.c $CI_PROJECT_DIR/.tmp/binary-ebpf/conntrack.c
+
 # Run tests for eBPF code
 .tests_ebpf:
   stage: source_test
-  script:
-    - inv -e system-probe.object-files
-    - inv -e system-probe.kitchen-prepare
-    - cp $SRC_PATH/pkg/ebpf/bytecode/build/tracer.o $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer.o
-    - cp $SRC_PATH/pkg/ebpf/bytecode/build/tracer-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer-debug.o
-    - cp $SRC_PATH/pkg/ebpf/bytecode/build/offset-guess.o $CI_PROJECT_DIR/.tmp/binary-ebpf/offset-guess.o
-    - cp $SRC_PATH/pkg/ebpf/bytecode/build/offset-guess-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/offset-guess-debug.o
-    - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/tracer.c $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer.c
-    - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/runtime-security.c $CI_PROJECT_DIR/.tmp/binary-ebpf/runtime-security.c
-    - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/conntrack.c $CI_PROJECT_DIR/.tmp/binary-ebpf/conntrack.c
-    # Compile runtime security functional tests to be executed in kitchen tests
-    - inv -e security-agent.build-functional-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/testsuite
-    # Compile runtime security stress tests to be executed in kitchen tests
-    - inv -e security-agent.build-stress-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/stresssuite
-    # Compile master version for comparison, uncomment following lines when merged
-    - git checkout master
-    - git pull
-    - inv -e deps
-    - inv -e system-probe.build --bundle-ebpf --incremental-build
-    - inv -e security-agent.build-stress-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/stresssuite-master
-    - git reset --hard
-    - git checkout -
   artifacts:
     when: always
     paths:
@@ -54,6 +43,21 @@ tests_ebpf_x64:
     - mkdir -p $CI_PROJECT_DIR/.tmp/binary-ebpf
     - cd $SRC_PATH
     - *retrieve_sysprobe_deps
+  script:
+    - *build_sysprobe_artifacts
+    # Compile runtime security functional tests to be executed in kitchen tests
+    - inv -e security-agent.build-functional-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/testsuite
+    # Compile runtime security stress tests to be executed in kitchen tests
+    - inv -e security-agent.build-stress-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/stresssuite
+    # Compile master version for comparison, uncomment following lines when merged
+    - git checkout master
+    - git pull
+    - inv -e deps
+    - inv -e system-probe.build --bundle-ebpf --incremental-build
+    - inv -e security-agent.build-stress-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/stresssuite-master
+    - git reset --hard
+    - git checkout -
+
 
 tests_ebpf_arm64:
   extends: .tests_ebpf
@@ -70,3 +74,5 @@ tests_ebpf_arm64:
     - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog
     - cd $SRC_PATH
     - *retrieve_sysprobe_deps
+  script:
+    - *build_sysprobe_artifacts
