@@ -143,6 +143,8 @@ func TestTracerExpvar(t *testing.T) {
 			"PInetBindMisses",
 			"PInet6BindHits",
 			"PInet6BindMisses",
+			"PIp6MakeSkbHits",
+			"PIp6MakeSkbMisses",
 			"RInetCskAcceptHits",
 			"RInetCskAcceptMisses",
 			"RTcpCloseHits",
@@ -675,6 +677,10 @@ func TestTCPShortlived(t *testing.T) {
 
 func TestTCPOverIPv6(t *testing.T) {
 	t.SkipNow()
+	if !kernel.IsIPv6Enabled() {
+		t.Skip("IPv6 not enabled on host")
+	}
+
 	config := testConfig()
 	config.CollectIPv6Conns = true
 
@@ -1747,7 +1753,7 @@ func TestUnconnectedUDPSendIPv4(t *testing.T) {
 	defer tr.Stop()
 
 	remotePort := rand.Int()%5000 + 15000
-	remoteAddr := &net.UDPAddr{IP: net.ParseIP("8.8.8.8"), Port: remotePort}
+	remoteAddr := &net.UDPAddr{IP: net.ParseIP(googlePublicDNSIPv4), Port: remotePort}
 	// Use ListenUDP instead of DialUDP to create a "connectionless" UDP connection
 	conn, err := net.ListenUDP("udp", nil)
 	require.NoError(t, err)
@@ -1766,6 +1772,10 @@ func TestUnconnectedUDPSendIPv4(t *testing.T) {
 }
 
 func TestConnectedUDPSendIPv6(t *testing.T) {
+	if !kernel.IsIPv6Enabled() {
+		t.Skip("IPv6 not enabled on host")
+	}
+
 	cfg := testConfig()
 	cfg.CollectIPv6Conns = true
 	tr, err := NewTracer(cfg)
@@ -1779,6 +1789,39 @@ func TestConnectedUDPSendIPv6(t *testing.T) {
 	defer conn.Close()
 	message := []byte("payload")
 	bytesSent, err := conn.Write(message)
+	require.NoError(t, err)
+
+	connections := getConnections(t, tr)
+	outgoing := searchConnections(connections, func(cs network.ConnectionStats) bool {
+		return cs.DPort == uint16(remotePort)
+	})
+
+	require.Len(t, outgoing, 1)
+	assert.Equal(t, remoteAddr.IP.String(), outgoing[0].Dest.String())
+	assert.Equal(t, bytesSent, int(outgoing[0].MonotonicSentBytes))
+}
+
+func TestUnconnectedUDPSendIPv6(t *testing.T) {
+	if !kernel.IsIPv6Enabled() {
+		t.Skip("IPv6 not enabled on host")
+	}
+
+	cfg := testConfig()
+	cfg.CollectIPv6Conns = true
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	linkLocal, err := getIPv6LinkLocalAddress()
+	require.NoError(t, err)
+
+	remotePort := rand.Int()%5000 + 15000
+	remoteAddr := &net.UDPAddr{IP: net.ParseIP(interfaceLocalMulticastIPv6), Port: remotePort}
+	conn, err := net.ListenUDP("udp6", linkLocal)
+	require.NoError(t, err)
+	defer conn.Close()
+	message := []byte("payload")
+	bytesSent, err := conn.WriteTo(message, remoteAddr)
 	require.NoError(t, err)
 
 	connections := getConnections(t, tr)

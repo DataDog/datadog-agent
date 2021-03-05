@@ -138,6 +138,10 @@ func (f AssetFile) Readdirnames(n int) ([]string, error) {
 	return nil, errors.New("Invalid Operation: Can't readat asset")
 }
 
+func (AssetFile) Chown(name string, uid, gid int) error {
+	return errors.New("Invalid Operation: Can't chown asset")
+}
+
 func (f AssetFile) Stat() (os.FileInfo, error) {
 
 	return nil, errors.New("Invalid Operation: Can't readat asset")

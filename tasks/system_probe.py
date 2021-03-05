@@ -87,7 +87,14 @@ def build(
         )
 
         ctx.run(
-            "windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/system-probe/windows_resources/system-probe.rc --target {target_arch} -O coff -o cmd/process-agent/rsrc.syso".format(
+            "windres "
+            "--define MAJ_VER={maj_ver} "
+            "--define MIN_VER={min_ver} "
+            "--define PATCH_VER={patch_ver} "
+            "-i cmd/system-probe/windows_resources/system-probe.rc "
+            "--target {target_arch} "
+            "-O coff "
+            "-o cmd/process-agent/rsrc.syso".format(
                 maj_ver=maj_ver, min_ver=min_ver, patch_ver=patch_ver, target_arch=windres_target
             )
         )
@@ -178,7 +185,13 @@ def build_in_docker(
 
 @task
 def test(
-    ctx, packages=TEST_PACKAGES, skip_object_files=False, bundle_ebpf=True, output_path=None, runtime_compiled=False
+    ctx,
+    packages=TEST_PACKAGES,
+    skip_object_files=False,
+    bundle_ebpf=True,
+    output_path=None,
+    runtime_compiled=False,
+    skip_linters=False,
 ):
     """
     Run tests on eBPF parts
@@ -186,6 +199,10 @@ def test(
     If output_path is set, we run `go test` with the flags `-c -o output_path`, which *compiles* the test suite
     into a single binary. This artifact is meant to be used in conjunction with kitchen tests.
     """
+
+    if not skip_linters:
+        cfmt(ctx)
+        ctidy(ctx)
 
     if not skip_object_files:
         build_object_files(ctx, bundle_ebpf=bundle_ebpf)
@@ -199,7 +216,8 @@ def test(
     bpf_tag += ",ebpf_bindata"
     if os.getenv("GOPATH") is None:
         print(
-            "GOPATH is not set, if you are running tests with sudo, you may need to use the -E option to preserve your environment"
+            "GOPATH is not set, if you are running tests with sudo, you may need to use the -E option to preserve "
+            "your environment "
         )
         raise Exit(code=1)
 
@@ -232,7 +250,7 @@ def kitchen_prepare(ctx):
     target_packages = []
     for pkg in TEST_PACKAGES_LIST:
         target_packages += (
-            check_output("go list -f '{{ .Dir }}' -tags linux_bpf %s" % (pkg), shell=True)
+            check_output("go list -f '{{ .Dir }}' -tags linux_bpf %s" % pkg, shell=True)
             .decode('utf-8')
             .strip()
             .split("\n")
@@ -301,17 +319,75 @@ def nettop(ctx, incremental_build=False, go_mod="mod"):
 
 
 @task
-def cfmt(ctx):
+def cfmt(ctx, fix=False, fail_on_issue=False):
     """
     Format C code using clang-format
     """
+    print("checking for clang-format executable...")
+    ctx.run("which clang-format")
+    print("found clang-format")
 
-    fmtCmd = "clang-format -i -style=file {file}"
+    fmt_cmd = "clang-format -i --style=file --fallback-style=none"
+    if not fix:
+        fmt_cmd = fmt_cmd + " --dry-run"
+    if fail_on_issue:
+        fmt_cmd = fmt_cmd + " --Werror"
 
-    files = glob.glob("pkg/ebpf/c/*.[c,h]")
+    files = get_ebpf_targets()
+    # remove externally maintained files
+    files.remove("pkg/ebpf/c/bpf_helpers.h")
+    files.remove("pkg/ebpf/c/bpf_endian.h")
 
-    for file in files:
-        ctx.run(fmtCmd.format(file=file))
+    ctx.run("{cmd} {files}".format(cmd=fmt_cmd, files=" ".join(files)))
+
+
+@task
+def ctidy(ctx, fix=False, fail_on_issue=False):
+    """
+    Lint C code using clang-tidy
+    """
+
+    print("checking for clang-tidy executable...")
+    ctx.run("which clang-tidy")
+    print("found clang-tidy")
+
+    build_flags = get_ebpf_build_flags()
+    build_flags.append("-DDEBUG=1")
+
+    bpf_dir = os.path.join(".", "pkg", "ebpf")
+    base_files = glob.glob(bpf_dir + "/c/**/*.c")
+
+    network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
+    network_c_dir = os.path.join(network_bpf_dir, "c")
+    network_files = list(base_files)
+    network_files.extend(glob.glob(network_c_dir + "/**/*.c"))
+    network_flags = list(build_flags)
+    network_flags.append("-I{}".format(network_c_dir))
+    network_flags.append("-I{}".format(os.path.join(network_c_dir, "prebuilt")))
+    network_flags.append("-I{}".format(os.path.join(network_c_dir, "runtime")))
+    run_tidy(ctx, files=network_files, build_flags=network_flags, fix=fix, fail_on_issue=fail_on_issue)
+
+    security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
+    security_files = list(base_files)
+    security_files.extend(glob.glob(security_agent_c_dir + "/**/*.c"))
+    security_flags = list(build_flags)
+    security_flags.append("-I{}".format(security_agent_c_dir))
+    security_flags.append("-DUSE_SYSCALL_WRAPPER=0")
+    run_tidy(ctx, files=security_files, build_flags=security_flags, fix=fix, fail_on_issue=fail_on_issue)
+
+
+def run_tidy(ctx, files, build_flags, fix=False, fail_on_issue=False):
+    flags = ["--quiet"]
+    if fix:
+        flags.append("--fix")
+    if fail_on_issue:
+        flags.append("--warnings-as-errors='*'")
+
+    ctx.run(
+        "clang-tidy {flags} {files} -- {build_flags}".format(
+            flags=" ".join(flags), build_flags=" ".join(build_flags), files=" ".join(files)
+        )
+    )
 
 
 @task
@@ -339,18 +415,22 @@ def object_files(ctx, bundle_ebpf=True):
     build_object_files(ctx, bundle_ebpf=bundle_ebpf)
 
 
-def build_object_files(ctx, bundle_ebpf=False):
-    """build_object_files builds only the eBPF object
-    set bundle_ebpf to False to disable replacing the assets
-    """
+def get_ebpf_c_files():
+    files = glob.glob("pkg/ebpf/c/**/*.c")
+    files.extend(glob.glob("pkg/network/ebpf/c/**/*.c"))
+    files.extend(glob.glob("pkg/security/ebpf/c/**/*.c"))
+    files.extend(glob.glob("pkg/collector/corechecks/ebpf/c/**/*.c"))
+    return files
 
-    # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently, and result in us not building a
-    # new .o file
-    print("checking for clang executable...")
-    ctx.run("which clang")
-    print("found clang")
-    ctx.run("clang -v")
 
+def get_ebpf_targets():
+    files = glob.glob("pkg/ebpf/c/*.[c,h]")
+    files.extend(glob.glob("pkg/network/ebpf/c/*.[c,h]"))
+    files.extend(glob.glob("pkg/security/ebpf/c/*.[c,h]"))
+    return files
+
+
+def get_linux_header_dirs():
     os_info = os.uname()
     centos_headers_dir = "/usr/src/kernels"
     debian_headers_dir = "/usr/src"
@@ -372,38 +452,6 @@ def build_object_files(ctx, bundle_ebpf=False):
             linux_headers = [
                 os.path.join(debian_headers_dir, d) for d in os.listdir(debian_headers_dir) if d.startswith("linux-")
             ]
-
-    bpf_dir = os.path.join(".", "pkg", "ebpf")
-    build_dir = os.path.join(bpf_dir, "bytecode", "build")
-    build_runtime_dir = os.path.join(build_dir, "runtime")
-    c_dir = os.path.join(bpf_dir, "c")
-
-    network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
-    network_c_dir = os.path.join(network_bpf_dir, "c")
-    network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
-
-    flags = [
-        '-D__KERNEL__',
-        '-DCONFIG_64BIT',
-        '-D__BPF_TRACING__',
-        '-DKBUILD_MODNAME=\'"ddsysprobe"\'',
-        '-Wno-unused-value',
-        '-Wno-pointer-sign',
-        '-Wno-compare-distinct-pointer-types',
-        '-Wunused',
-        '-Wall',
-        '-Werror',
-        "-include {}".format(os.path.join(c_dir, "asm_goto_workaround.h")),
-        '-O2',
-        '-emit-llvm',
-        # Some linux distributions enable stack protector by default which is not available on eBPF
-        '-fno-stack-protector',
-        '-fno-color-diagnostics',
-        '-fno-unwind-tables',
-        '-fno-asynchronous-unwind-tables',
-        '-fno-jump-tables',
-        "-I{}".format(c_dir),
-    ]
 
     # Mapping used by the kernel, from https://elixir.bootlin.com/linux/latest/source/scripts/subarch.include
     arch = (
@@ -430,10 +478,68 @@ def build_object_files(ctx, bundle_ebpf=False):
         "arch/{}/include/generated".format(arch),
     ]
 
+    dirs = []
     for d in linux_headers:
         for s in subdirs:
-            flags.extend(["-isystem", os.path.join(d, s)])
+            dirs.extend([os.path.join(d, s)])
 
+    return dirs
+
+
+def get_ebpf_build_flags():
+    bpf_dir = os.path.join(".", "pkg", "ebpf")
+    c_dir = os.path.join(bpf_dir, "c")
+
+    flags = [
+        '-D__KERNEL__',
+        '-DCONFIG_64BIT',
+        '-D__BPF_TRACING__',
+        '-DKBUILD_MODNAME=\'"ddsysprobe"\'',
+        '-Wno-unused-value',
+        '-Wno-pointer-sign',
+        '-Wno-compare-distinct-pointer-types',
+        '-Wunused',
+        '-Wall',
+        '-Werror',
+        "-include {}".format(os.path.join(c_dir, "asm_goto_workaround.h")),
+        '-O2',
+        '-emit-llvm',
+        # Some linux distributions enable stack protector by default which is not available on eBPF
+        '-fno-stack-protector',
+        '-fno-color-diagnostics',
+        '-fno-unwind-tables',
+        '-fno-asynchronous-unwind-tables',
+        '-fno-jump-tables',
+        "-I{}".format(c_dir),
+    ]
+
+    header_dirs = get_linux_header_dirs()
+    for d in header_dirs:
+        flags.extend(["-isystem", d])
+
+    return flags
+
+
+def build_object_files(ctx, bundle_ebpf=False):
+    """build_object_files builds only the eBPF object
+    set bundle_ebpf to False to disable replacing the assets
+    """
+
+    # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently, and result in us not building a
+    # new .o file
+    print("checking for clang executable...")
+    ctx.run("which clang")
+    print("found clang")
+
+    bpf_dir = os.path.join(".", "pkg", "ebpf")
+    build_dir = os.path.join(bpf_dir, "bytecode", "build")
+    build_runtime_dir = os.path.join(build_dir, "runtime")
+
+    network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
+    network_c_dir = os.path.join(network_bpf_dir, "c")
+    network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
+
+    flags = get_ebpf_build_flags()
     cmd = "clang {flags} -c '{c_file}' -o '{bc_file}'"
     llc_cmd = "llc -march=bpf -filetype=obj -o '{obj_file}' '{bc_file}'"
 

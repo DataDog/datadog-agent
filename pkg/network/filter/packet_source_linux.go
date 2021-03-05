@@ -11,7 +11,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf/manager"
+	"github.com/google/gopacket"
 	"github.com/google/gopacket/afpacket"
+	"github.com/google/gopacket/layers"
 )
 
 // AFPacketSource provides a RAW_SOCKET attached to an eBPF SOCKET_FILTER
@@ -99,6 +101,10 @@ func (p *AFPacketSource) VisitPackets(exit <-chan struct{}, visit func([]byte, t
 			return err
 		}
 	}
+}
+
+func (p *AFPacketSource) PacketType() gopacket.LayerType {
+	return layers.LayerTypeEthernet
 }
 
 func (p *AFPacketSource) Close() {
