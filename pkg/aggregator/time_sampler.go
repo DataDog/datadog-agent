@@ -12,8 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const defaultExpiry = 300.0 // number of seconds after which contexts are expired
-
 // SerieSignature holds the elements that allow to know whether two similar `Serie`s
 // from the same bucket can be merged into one
 type SerieSignature struct {
@@ -185,7 +183,7 @@ func (s *TimeSampler) flush(timestamp float64) (metrics.Series, metrics.SketchSe
 	sketches := s.flushSketches(cutoffTime)
 
 	// expiring contexts
-	s.contextResolver.expireContexts(timestamp - defaultExpiry)
+	s.contextResolver.expireContexts(timestamp - config.Datadog.GetFloat64("dogstatsd_context_expiry_seconds"))
 	s.lastCutOffTime = cutoffTime
 
 	aggregatorDogstatsdContexts.Set(int64(s.contextResolver.length()))
