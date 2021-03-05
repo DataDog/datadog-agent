@@ -129,7 +129,7 @@ func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder forwarde
 	s := &Serializer{
 		Forwarder:                     forwarder,
 		orchestratorForwarder:         orchestratorForwarder,
-		seriesPayloadBuilder:          jsonstream.NewPayloadBuilder(),
+		seriesPayloadBuilder:          jsonstream.NewPayloadBuilder(config.Datadog.GetBool("enable_json_stream_shared_compressor_buffers")),
 		enableEvents:                  config.Datadog.GetBool("enable_payloads.events"),
 		enableSeries:                  config.Datadog.GetBool("enable_payloads.series"),
 		enableServiceChecks:           config.Datadog.GetBool("enable_payloads.service_checks"),

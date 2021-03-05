@@ -59,19 +59,21 @@ int kprobe__vfs_link(struct pt_regs *ctx) {
         return discard_syscall(syscall);
     }
 
-    syscall->link.src_overlay_numlower = get_overlay_numlower(src_dentry);
-    fill_file_metadata(src_dentry, &syscall->link.src_metadata);
+    fill_file_metadata(src_dentry, &syscall->link.src_file.metadata);
+    syscall->link.target_file.metadata = syscall->link.src_file.metadata;
 
     // this is a hard link, source and target dentries are on the same filesystem & mount point
     // target_path was set by kprobe/filename_create before we reach this point.
-    syscall->link.src_key.mount_id = get_path_mount_id(syscall->link.target_path);
-    set_path_key_inode(src_dentry, &syscall->link.src_key, 1);
+    syscall->link.src_file.path_key.mount_id = get_path_mount_id(syscall->link.target_path);
+    set_file_inode(src_dentry, &syscall->link.src_file, 1);
 
     // we generate a fake target key as the inode is the same
-    syscall->link.target_key.ino = FAKE_INODE_MSW<<32 | bpf_get_prandom_u32();
-    syscall->link.target_key.mount_id = syscall->link.src_key.mount_id;
+    syscall->link.target_file.path_key.ino = FAKE_INODE_MSW<<32 | bpf_get_prandom_u32();
+    syscall->link.target_file.path_key.mount_id = syscall->link.src_file.path_key.mount_id;
+    if (is_overlayfs(src_dentry))
+        syscall->link.target_file.flags |= UPPER_LAYER;
 
-    int ret = resolve_dentry(src_dentry, syscall->link.src_key, syscall->policy.mode != NO_FILTER ? EVENT_LINK : 0);
+    int ret = resolve_dentry(src_dentry, syscall->link.src_file.path_key, syscall->policy.mode != NO_FILTER ? EVENT_LINK : 0);
     if (ret == DENTRY_DISCARDED) {
         return discard_syscall(syscall);
     }
@@ -92,26 +94,14 @@ int __attribute__((always_inline)) trace__sys_link_ret(struct pt_regs *ctx) {
         .event.type = EVENT_LINK,
         .event.timestamp = bpf_ktime_get_ns(),
         .syscall.retval = retval,
-        .source = {
-            .inode = syscall->link.src_key.ino,
-            .mount_id = syscall->link.src_key.mount_id,
-            .overlay_numlower = syscall->link.src_overlay_numlower,
-            .path_id = syscall->link.src_key.path_id,
-            .metadata = syscall->link.src_metadata,
-        },
-        .target = {
-            .inode = syscall->link.target_key.ino,
-            .mount_id = syscall->link.target_key.mount_id,
-            .overlay_numlower = get_overlay_numlower(syscall->link.target_dentry),
-            // this is a hard link, source and destination have necessarily the same inode metadata
-            .metadata = syscall->link.src_metadata,
-        }
+        .source = syscall->link.src_file,
+        .target = syscall->link.target_file,
     };
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
 
-    resolve_dentry(syscall->link.target_dentry, syscall->link.target_key, 0);
+    resolve_dentry(syscall->link.target_dentry, syscall->link.target_file.path_key, 0);
 
     send_event(ctx, EVENT_LINK, event);
 

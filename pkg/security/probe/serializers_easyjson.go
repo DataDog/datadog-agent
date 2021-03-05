@@ -631,6 +631,8 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe4(in *jle
 			out.Inode = uint64(in.Uint64())
 		case "executable_mount_id":
 			out.MountID = uint32(in.Uint32())
+		case "executable_filesystem":
+			out.Filesystem = string(in.String())
 		case "tty":
 			out.TTY = string(in.String())
 		case "fork_time":
@@ -877,6 +879,11 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe4(out *jw
 		out.RawString(prefix)
 		out.Uint32(uint32(in.MountID))
 	}
+	if in.Filesystem != "" {
+		const prefix string = ",\"executable_filesystem\":"
+		out.RawString(prefix)
+		out.String(string(in.Filesystem))
+	}
 	if in.TTY != "" {
 		const prefix string = ",\"tty\":"
 		out.RawString(prefix)
@@ -1021,6 +1028,8 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe5(in *jle
 			out.Inode = uint64(in.Uint64())
 		case "executable_mount_id":
 			out.MountID = uint32(in.Uint32())
+		case "executable_filesystem":
+			out.Filesystem = string(in.String())
 		case "tty":
 			out.TTY = string(in.String())
 		case "fork_time":
@@ -1234,6 +1243,11 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe5(out *jw
 		out.RawString(prefix)
 		out.Uint32(uint32(in.MountID))
 	}
+	if in.Filesystem != "" {
+		const prefix string = ",\"executable_filesystem\":"
+		out.RawString(prefix)
+		out.String(string(in.Filesystem))
+	}
 	if in.TTY != "" {
 		const prefix string = ",\"tty\":"
 		out.RawString(prefix)
@@ -1380,15 +1394,15 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe6(in *jle
 				}
 				*out.Mode = uint32(in.Uint32())
 			}
-		case "overlay_numlower":
+		case "in_upper_layer":
 			if in.IsNull() {
 				in.Skip()
-				out.OverlayNumLower = nil
+				out.InUpperLayer = nil
 			} else {
-				if out.OverlayNumLower == nil {
-					out.OverlayNumLower = new(int32)
+				if out.InUpperLayer == nil {
+					out.InUpperLayer = new(bool)
 				}
-				*out.OverlayNumLower = int32(in.Int32())
+				*out.InUpperLayer = bool(in.Bool())
 			}
 		case "mount_id":
 			if in.IsNull() {
@@ -1400,6 +1414,8 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe6(in *jle
 				}
 				*out.MountID = uint32(in.Uint32())
 			}
+		case "filesystem":
+			out.Filesystem = string(in.String())
 		case "uid":
 			out.UID = uint32(in.Uint32())
 		case "gid":
@@ -1541,15 +1557,15 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe6(out *jw
 		}
 		out.Uint32(uint32(*in.Mode))
 	}
-	if in.OverlayNumLower != nil {
-		const prefix string = ",\"overlay_numlower\":"
+	if in.InUpperLayer != nil {
+		const prefix string = ",\"in_upper_layer\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
 		} else {
 			out.RawString(prefix)
 		}
-		out.Int32(int32(*in.OverlayNumLower))
+		out.Bool(bool(*in.InUpperLayer))
 	}
 	if in.MountID != nil {
 		const prefix string = ",\"mount_id\":"
@@ -1560,6 +1576,16 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe6(out *jw
 			out.RawString(prefix)
 		}
 		out.Uint32(uint32(*in.MountID))
+	}
+	if in.Filesystem != "" {
+		const prefix string = ",\"filesystem\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.Filesystem))
 	}
 	if in.UID != 0 {
 		const prefix string = ",\"uid\":"
@@ -1761,15 +1787,15 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe7(in *jle
 				}
 				*out.Mode = uint32(in.Uint32())
 			}
-		case "overlay_numlower":
+		case "in_upper_layer":
 			if in.IsNull() {
 				in.Skip()
-				out.OverlayNumLower = nil
+				out.InUpperLayer = nil
 			} else {
-				if out.OverlayNumLower == nil {
-					out.OverlayNumLower = new(int32)
+				if out.InUpperLayer == nil {
+					out.InUpperLayer = new(bool)
 				}
-				*out.OverlayNumLower = int32(in.Int32())
+				*out.InUpperLayer = bool(in.Bool())
 			}
 		case "mount_id":
 			if in.IsNull() {
@@ -1781,6 +1807,8 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe7(in *jle
 				}
 				*out.MountID = uint32(in.Uint32())
 			}
+		case "filesystem":
+			out.Filesystem = string(in.String())
 		case "uid":
 			out.UID = uint32(in.Uint32())
 		case "gid":
@@ -1972,15 +2000,15 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe7(out *jw
 		}
 		out.Uint32(uint32(*in.Mode))
 	}
-	if in.OverlayNumLower != nil {
-		const prefix string = ",\"overlay_numlower\":"
+	if in.InUpperLayer != nil {
+		const prefix string = ",\"in_upper_layer\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
 		} else {
 			out.RawString(prefix)
 		}
-		out.Int32(int32(*in.OverlayNumLower))
+		out.Bool(bool(*in.InUpperLayer))
 	}
 	if in.MountID != nil {
 		const prefix string = ",\"mount_id\":"
@@ -1991,6 +2019,16 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe7(out *jw
 			out.RawString(prefix)
 		}
 		out.Uint32(uint32(*in.MountID))
+	}
+	if in.Filesystem != "" {
+		const prefix string = ",\"filesystem\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.Filesystem))
 	}
 	if in.UID != 0 {
 		const prefix string = ",\"uid\":"
