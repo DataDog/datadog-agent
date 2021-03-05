@@ -46,21 +46,6 @@ static __always_inline __be32 rt_nexthop_bpf(struct rtable *rt) {
     return hop;
 }
 
-static __always_inline __u32 get_netns_from_sock(struct sock* skp) {
-#ifdef CONFIG_NET_NS
-    struct net *skc_net = NULL;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
-    bpf_probe_read(&skc_net, sizeof(skc_net), &skp->__sk_common.skc_net);
-#else
-    bpf_probe_read(&skc_net, sizeof(skc_net), &skp->__sk_common.skc_net.net);
-#endif
-    if (!skc_net) {
-        return 0;
-    }
-#endif
-    return get_netns(skc_net);
-}
-
 static __always_inline __u16 read_sport(struct sock* skp) {
     __u16 sport = 0;
     bpf_probe_read(&sport, sizeof(sport), &skp->sk_num);
@@ -728,7 +713,7 @@ int kprobe__ip_route_output_flow(struct pt_regs* ctx) {
 
     ip_route_flow_t flow = {};
     flow.fl = fl4;
-    flow.netns = get_netns(net);
+    flow.netns = get_netns(&net);
     bpf_map_update_elem(&ip_route_output_flows, &pid_tgid, &flow, BPF_ANY);
     log_debug("kprobe/ip_route_output_flow: pid_tgid: %u\n", pid_tgid);
 
