@@ -430,8 +430,13 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			log.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		p.resolvers.ProcessResolver.ResolveArgs(event.processCacheEntry)
-		p.resolvers.ProcessResolver.ResolveEnvs(event.processCacheEntry)
+		p.resolvers.ProcessResolver.SetProcessArgs(event.processCacheEntry)
+		p.resolvers.ProcessResolver.SetProcessEnvs(event.processCacheEntry)
+
+		if _, err := p.resolvers.ProcessResolver.SetProcessPath(event.processCacheEntry); err != nil {
+			log.Debugf("failed to resolve exec path: %s", err)
+		}
+		p.resolvers.ProcessResolver.SetProcessContainerPath(event.processCacheEntry)
 
 		event.updateProcessCachePointer(p.resolvers.ProcessResolver.AddExecEntry(event.ProcessContext.Pid, event.processCacheEntry))
 	case model.ExitEventType:
