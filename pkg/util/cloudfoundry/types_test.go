@@ -310,8 +310,11 @@ func TestIsAllowedTag(t *testing.T) {
 
 	// reject strings in the excludeList even if they exist in the includeList
 	includeList = []*regexp.Regexp{regexp.MustCompile("include.*")}
-	excludeList = []*regexp.Regexp{regexp.MustCompile("exclude.*"), regexp.MustCompile("include.*")}
+	excludeList = []*regexp.Regexp{regexp.MustCompile("includeExclude.*")}
 
 	result = isAllowedTag("includeTag", includeList, excludeList)
+	assert.EqualValues(t, true, result)
+
+	result = isAllowedTag("includeExcludeTag", includeList, excludeList)
 	assert.EqualValues(t, false, result)
 }

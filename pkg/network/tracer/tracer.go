@@ -152,8 +152,12 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		enabledProbes[probes.SocketDnsFilter] = struct{}{}
 	}
 
+	// TODO: This is a hotfix to prevent the following error when HTTP monitoring is disabled
+	// couldn’t load eBPF programs: map http_in_flight: map create: cannot allocate memory
+	maxHTTPInFlightEntries := uint(1)
 	if config.EnableHTTPMonitoring && !pre410Kernel {
 		enabledProbes[probes.SocketHTTPFilter] = struct{}{}
+		maxHTTPInFlightEntries = config.MaxTrackedConnections
 	}
 
 	mgrOptions := manager.Options{
@@ -172,7 +176,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 			string(probes.TcpStatsMap):        {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.PortBindingsMap):    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.UdpPortBindingsMap): {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.HttpInFlightMap):    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.HttpInFlightMap):    {Type: ebpf.Hash, MaxEntries: uint32(maxHTTPInFlightEntries), EditorFlag: manager.EditMaxEntries},
 		},
 	}
 
@@ -189,7 +193,14 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		}
 		defer offsetBuf.Close()
 
-		mgrOptions.ConstantEditors, err = runOffsetGuessing(config, offsetBuf)
+		// Offset guessing has been flaky for some customers, so if it fails we'll retry it up to 5 times
+		for i := 0; i < 5; i++ {
+			mgrOptions.ConstantEditors, err = runOffsetGuessing(config, offsetBuf)
+			if err == nil {
+				break
+			}
+			time.Sleep(1 * time.Second)
+		}
 		if err != nil {
 			return nil, fmt.Errorf("error guessing offsets: %s", err)
 		}
@@ -240,7 +251,11 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		return nil, fmt.Errorf("error initializing port binding maps: %s", err)
 	}
 
-	conntracker, err := newConntracker(config, netlink.NewConntracker)
+	creator := netlink.NewConntracker
+	if runtimeTracer {
+		creator = NewEBPFConntracker
+	}
+	conntracker, err := newConntracker(config, creator)
 	if err != nil {
 		return nil, err
 	}
@@ -391,7 +406,11 @@ func runOffsetGuessing(config *config.Config, buf bytecode.AssetReader) ([]manag
 			Max: math.MaxUint64,
 		},
 	}
-	enabledProbes := offsetGuessProbes(config)
+	enabledProbes, err := offsetGuessProbes(config)
+	if err != nil {
+		return nil, fmt.Errorf("unable to configure offset guessing probes: %w", err)
+	}
+
 	for _, p := range offsetMgr.Probes {
 		if _, enabled := enabledProbes[probes.ProbeName(p.Section)]; !enabled {
 			offsetOptions.ExcludedSections = append(offsetOptions.ExcludedSections, p.Section)

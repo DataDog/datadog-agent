@@ -81,6 +81,8 @@ func (c *KubeMetadataCollector) Detect(out chan<- []*TagInfo) (CollectionMode, e
 	}
 	// Fallback to local metamapper if DCA not enabled, or in permafail state with fallback enabled.
 	if !config.Datadog.GetBool("cluster_agent.enabled") || errDCA != nil {
+		// Using GetAPIClient as error returned follows the IsErrWillRetry/IsErrPermaFail
+		// Tagger will retry calling this method until permafail
 		c.apiClient, err = apiserver.GetAPIClient()
 		if err != nil {
 			return NoCollection, err

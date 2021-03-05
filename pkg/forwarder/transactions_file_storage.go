@@ -36,7 +36,7 @@ func newTransactionsFileStorage(
 	maxStorage *forwarderMaxStorage,
 	telemetry transactionsFileStorageTelemetry) (*transactionsFileStorage, error) {
 
-	if err := os.MkdirAll(storagePath, 0755); err != nil {
+	if err := os.MkdirAll(storagePath, 0700); err != nil {
 		return nil, err
 	}
 
@@ -50,7 +50,12 @@ func newTransactionsFileStorage(
 	if err := storage.reloadExistingRetryFiles(); err != nil {
 		return nil, err
 	}
-	return storage, nil
+
+	// Check if there is an error when computing the available space
+	// in this function to warn the user sooner (and not when there is an outage)
+	_, err := maxStorage.computeMaxStorage(0)
+
+	return storage, err
 }
 
 // Serialize serializes transactions to the file system.

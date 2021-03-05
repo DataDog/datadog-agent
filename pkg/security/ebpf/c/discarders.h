@@ -262,7 +262,7 @@ int __attribute__((always_inline)) is_discarded_by_process(const char mode, u64 
             return 1;
 
         struct proc_cache_t *entry = get_proc_cache(tgid);
-        if (entry && is_discarded_by_inode(event_type, entry->executable.mount_id, entry->executable.inode, 0)) {
+        if (entry && is_discarded_by_inode(event_type, entry->executable.path_key.mount_id, entry->executable.path_key.ino, 0)) {
             return 1;
         }
     }

@@ -157,6 +157,19 @@ func (mr *MountResolver) Delete(mountID uint32) error {
 	return nil
 }
 
+// GetFilesystem returns the name of the filesystem
+func (mr *MountResolver) GetFilesystem(mountID uint32) string {
+	mr.lock.RLock()
+	defer mr.lock.RUnlock()
+
+	mount, exists := mr.mounts[mountID]
+	if !exists {
+		return ""
+	}
+
+	return mount.GetFSType()
+}
+
 // IsOverlayFS returns the type of a mountID
 func (mr *MountResolver) IsOverlayFS(mountID uint32) bool {
 	mr.lock.RLock()
@@ -296,27 +309,30 @@ func getMountIDOffset(probe *Probe) uint64 {
 }
 
 func getSizeOfStructInode(probe *Probe) uint64 {
-	var rh7Kernel bool
-	var rh8Kernel bool
-	var suse12Kernel bool
+	var rh7Kernel, rh8Kernel, suse12Kernel, suse15Kernel bool
 
 	osrelease, err := osrelease.Read()
 	if err == nil {
 		rh7Kernel = (osrelease["ID"] == "centos" || osrelease["ID"] == "rhel") && osrelease["VERSION_ID"] == "7"
 		rh8Kernel = osrelease["PLATFORM_ID"] == "platform:el8"
-		suse12Kernel = ((osrelease["ID"] == "sles") || (osrelease["ID"] == "opensuse-leap")) && strings.HasPrefix(osrelease["VERSION_ID"], "12")
+		suseKernel := ((osrelease["ID"] == "sles") || (osrelease["ID"] == "opensuse-leap"))
+		suse12Kernel = suseKernel && strings.HasPrefix(osrelease["VERSION_ID"], "12")
+		suse15Kernel = suseKernel && strings.HasPrefix(osrelease["VERSION_ID"], "15")
 	}
 
 	var sizeOf uint64
-	if rh7Kernel {
+	switch {
+	case rh7Kernel:
 		sizeOf = 584
-	} else if rh8Kernel {
+	case rh8Kernel:
 		sizeOf = 648
-	} else if suse12Kernel {
+	case suse12Kernel:
 		sizeOf = 560
-	} else if probe.kernelVersion != 0 && probe.kernelVersion < kernel4_16 {
+	case suse15Kernel:
+		sizeOf = 592
+	case probe.kernelVersion != 0 && probe.kernelVersion < kernel4_16:
 		sizeOf = 608
-	} else {
+	default:
 		sizeOf = 600
 	}
 

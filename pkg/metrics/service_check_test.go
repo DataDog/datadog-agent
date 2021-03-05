@@ -103,7 +103,7 @@ func createServiceCheck(checkName string) *ServiceCheck {
 }
 
 func buildPayload(t *testing.T, m marshaler.StreamJSONMarshaler) [][]byte {
-	builder := jsonstream.NewPayloadBuilder()
+	builder := jsonstream.NewPayloadBuilder(true)
 	payloads, err := builder.Build(m)
 	assert.NoError(t, err)
 	var uncompressedPayloads [][]byte
@@ -179,7 +179,7 @@ func createServiceChecks(numberOfItem int) ServiceChecks {
 }
 
 func benchmarkPayloadBuilderServiceCheck(b *testing.B, numberOfItem int) {
-	payloadBuilder := jsonstream.NewPayloadBuilder()
+	payloadBuilder := jsonstream.NewPayloadBuilder(true)
 	serviceChecks := createServiceChecks(numberOfItem)
 
 	b.ResetTimer()

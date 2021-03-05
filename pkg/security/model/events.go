@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package model
 
@@ -53,6 +53,8 @@ const (
 	SetgidEventType
 	// CapsetEventType capset event
 	CapsetEventType
+	// ArgsEnvsEventType args and envs event
+	ArgsEnvsEventType
 	// MaxEventType is used internally to get the maximum number of kernel events.
 	MaxEventType
 
@@ -120,6 +122,8 @@ func (t EventType) String() string {
 		return "setgid"
 	case CapsetEventType:
 		return "capset"
+	case ArgsEnvsEventType:
+		return "args_envs_dentry"
 
 	case CustomLostReadEventType:
 		return "lost_events_read"

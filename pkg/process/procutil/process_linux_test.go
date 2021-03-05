@@ -3,10 +3,12 @@
 package procutil
 
 import (
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -858,7 +860,29 @@ func TestGetFDCountLocalFS(t *testing.T) {
 		fdCount := probe.getFDCount(pathForPID)
 		expProc, err := process.NewProcess(pid)
 		assert.NoError(t, err)
-		// skip the ones that have permission issues
+		// test both with and without permission issues
+		if expFdCount, err := expProc.NumFDs(); err == nil {
+			assert.Equal(t, expFdCount, fdCount)
+		} else {
+			assert.Equal(t, int32(-1), fdCount)
+		}
+	}
+}
+
+func TestGetFDCountLocalFSImproved(t *testing.T) {
+	maySkipLocalTest(t)
+	probe := NewProcessProbe()
+	defer probe.Close()
+
+	pids, err := probe.getActivePIDs()
+	assert.NoError(t, err)
+
+	for _, pid := range pids {
+		pathForPID := filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid)))
+		fdCount := probe.getFDCountImproved(pathForPID)
+		expProc, err := process.NewProcess(pid)
+		assert.NoError(t, err)
+		// test both with and without permission issues
 		if expFdCount, err := expProc.NumFDs(); err == nil {
 			assert.Equal(t, expFdCount, fdCount)
 		} else {
@@ -1092,6 +1116,67 @@ func benchmarkGetProcsProcutil(b *testing.B) {
 func maySkipLocalTest(t *testing.T) {
 	if skipLocalTest {
 		t.Skip("flaky test in CI")
+	}
+}
+
+func BenchmarkNativeReaddirnames(b *testing.B) {
+	dirPath := "/tmp/benchmark_dir/"
+	fileCount := 20000
+	makeBenchmarkDir(b, dirPath, fileCount)
+	defer os.RemoveAll(dirPath)
+
+	for i := 0; i < b.N; i++ {
+		d, err := os.Open(dirPath)
+		assert.NoError(b, err)
+		defer d.Close()
+
+		names, err := d.Readdirnames(-1)
+		assert.NoError(b, err)
+
+		assert.Equal(b, fileCount, len(names))
+	}
+}
+
+func BenchmarkImprovedReaddirnames(b *testing.B) {
+	dirPath := "/tmp/benchmark_dir/"
+	fileCount := 20000
+	makeBenchmarkDir(b, dirPath, fileCount)
+	defer os.RemoveAll(dirPath)
+
+	for i := 0; i < b.N; i++ {
+		d, err := os.Open(dirPath)
+		assert.NoError(b, err)
+		defer d.Close()
+
+		buf := make([]byte, 8192)
+		count := 0
+
+		for i := 0; ; i++ {
+			n, _ := syscall.ReadDirent(int(d.Fd()), buf)
+			if n <= 0 {
+				break
+			}
+
+			_, numDirs := countDirent(buf[:n])
+			count += numDirs
+		}
+
+		assert.Equal(b, fileCount, count)
+	}
+}
+
+func makeBenchmarkDir(b *testing.B, dirPath string, fileCount int) {
+	err := os.Mkdir(dirPath, 0755)
+	require.NoError(b, err)
+
+	createEmptyFile := func(name string) {
+		d := []byte("")
+		err = ioutil.WriteFile(name, d, 0755)
+		require.NoError(b, err)
+	}
+
+	for i := 0; i < fileCount; i++ {
+		createEmptyFile(dirPath + strconv.Itoa(i))
 	}
 }
 

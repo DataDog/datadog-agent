@@ -84,6 +84,7 @@ type ServiceCheck struct {
 	Tags        []string           `json:"tags"`
 	OriginID    string             `json:"-"`
 	K8sOriginID string             `json:"-"`
+	Cardinality string             `json:"-"`
 }
 
 // ServiceChecks represents a list of service checks ready to be serialize
