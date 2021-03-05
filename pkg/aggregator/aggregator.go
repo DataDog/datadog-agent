@@ -107,6 +107,7 @@ var (
 	aggregatorHostnameUpdate                   = expvar.Int{}
 	aggregatorOrchestratorMetadata             = expvar.Int{}
 	aggregatorOrchestratorMetadataErrors       = expvar.Int{}
+	aggregatorDogstatsdContexts                = expvar.Int{}
 
 	tlmFlush = telemetry.NewCounter("aggregator", "flush",
 		[]string{"data_type", "state"}, "Number of metrics/service checks/events flushed")
@@ -114,6 +115,8 @@ var (
 		[]string{"data_type"}, "Amount of metrics/services_checks/events processed by the aggregator")
 	tlmHostnameUpdate = telemetry.NewCounter("aggregator", "hostname_update",
 		nil, "Count of hostname update")
+	tlmDogstatsdContexts = telemetry.NewGauge("aggregator", "dogstatsd_contexts",
+		nil, "Count the number of dogstatsd contexts in the aggregator")
 
 	// Hold series to be added to aggregated series on each flush
 	recurrentSeries     metrics.Series
@@ -151,6 +154,7 @@ func init() {
 	aggregatorExpvars.Set("HostnameUpdate", &aggregatorHostnameUpdate)
 	aggregatorExpvars.Set("OrchestratorMetadata", &aggregatorOrchestratorMetadata)
 	aggregatorExpvars.Set("OrchestratorMetadataErrors", &aggregatorOrchestratorMetadataErrors)
+	aggregatorExpvars.Set("DogstatsdContexts", &aggregatorDogstatsdContexts)
 }
 
 // InitAggregator returns the Singleton instance

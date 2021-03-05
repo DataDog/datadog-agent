@@ -412,7 +412,7 @@ func TestPayloadsSeries(t *testing.T) {
 	}
 
 	originalLength := len(testSeries)
-	builder := jsonstream.NewPayloadBuilder()
+	builder := jsonstream.NewPayloadBuilder(true)
 	payloads, err := builder.Build(testSeries)
 	require.Nil(t, err)
 	var splitSeries = []Series{}
@@ -456,7 +456,7 @@ func BenchmarkPayloadsSeries(b *testing.B) {
 	}
 
 	var r forwarder.Payloads
-	builder := jsonstream.NewPayloadBuilder()
+	builder := jsonstream.NewPayloadBuilder(true)
 	for n := 0; n < b.N; n++ {
 		// always record the result of Payloads to prevent
 		// the compiler eliminating the function call.

@@ -188,6 +188,16 @@ func (r *Resolvers) ResolveProcessContextGroup(p *model.ProcessContext) string {
 	return p.Group
 }
 
+// ResolveFilesystem resolves the filesystem a file resides in
+func (r *Resolvers) ResolveFilesystem(f *model.FileFields) string {
+	return r.MountResolver.GetFilesystem(f.MountID)
+}
+
+// ResolveInUpperLayer resolves whether the file is in an upper layer
+func (r *Resolvers) ResolveInUpperLayer(f *model.FileFields) bool {
+	return f.Flags&model.UpperLayer != 0
+}
+
 // Start the resolvers
 func (r *Resolvers) Start(ctx context.Context) error {
 	if err := r.ProcessResolver.Start(ctx); err != nil {

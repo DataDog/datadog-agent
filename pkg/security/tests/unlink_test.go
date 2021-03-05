@@ -8,6 +8,7 @@
 package tests
 
 import (
+	"fmt"
 	"os"
 	"syscall"
 	"testing"
@@ -113,4 +114,46 @@ func TestUnlink(t *testing.T) {
 			testContainerPath(t, event, "unlink.file.container_path")
 		}
 	})
+}
+
+func TestUnlinkInvalidate(t *testing.T) {
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `unlink.file.path =~ "{{.Root}}/test-unlink-*"`,
+	}
+
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	for i := 0; i != 5; i++ {
+		filename := fmt.Sprintf("test-unlink-%d", i)
+
+		testFile, _, err := test.Path(filename)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		f, err := os.Create(testFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.Close()
+		os.Remove(testFile)
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if event.GetType() != "unlink" {
+				t.Errorf("expected unlink event, got %s", event.GetType())
+			}
+
+			if value, _ := event.GetFieldValue("unlink.file.path"); value.(string) != testFile {
+				t.Errorf("expected filename not found")
+			}
+		}
+	}
 }

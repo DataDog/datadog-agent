@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    APM: Add support for AIX.
+    APM: Add support for AIX/ppc64. Only POWER8 and above is supported.

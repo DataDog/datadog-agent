@@ -307,6 +307,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("enable_stream_payload_serialization", true)
 	config.BindEnvAndSetDefault("enable_service_checks_stream_payload_serialization", true)
 	config.BindEnvAndSetDefault("enable_events_stream_payload_serialization", true)
+	config.BindEnvAndSetDefault("enable_json_stream_shared_compressor_buffers", true)
 
 	// Warning: do not change the two following values. Your payloads will get dropped by Datadog's intake.
 	config.BindEnvAndSetDefault("serializer_max_payload_size", 2*megaByte+megaByte/2)
@@ -532,6 +533,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.ca_file", "")
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.cert_file", "")
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.key_file", "")
+	config.BindEnvAndSetDefault("cloud_foundry_bbs.env_include", []string{})
+	config.BindEnvAndSetDefault("cloud_foundry_bbs.env_exclude", []string{})
 
 	// Cloud Foundry CC
 	config.BindEnvAndSetDefault("cloud_foundry_cc.url", "https://cloud-controller-ng.service.cf.internal:9024")

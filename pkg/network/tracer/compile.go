@@ -3,8 +3,6 @@
 package tracer
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -17,26 +15,15 @@ import (
 //go:generate go run ../../ebpf/bytecode/runtime/integrity.go ../../ebpf/bytecode/build/runtime/conntrack.c ../../ebpf/bytecode/runtime/conntrack.go runtime
 
 func getRuntimeCompiledTracer(config *config.Config) (runtime.CompiledOutput, error) {
-	cflags, err := getCFlags(config)
-	if err != nil {
-		return nil, err
-	}
-	return runtime.Tracer.Compile(&config.Config, cflags)
+	return runtime.Tracer.Compile(&config.Config, getCFlags(config))
 }
 
 func getRuntimeCompiledConntracker(config *config.Config) (runtime.CompiledOutput, error) {
-	cflags, err := getCFlags(config)
-	if err != nil {
-		return nil, err
-	}
-	return runtime.Conntrack.Compile(&config.Config, cflags)
+	return runtime.Conntrack.Compile(&config.Config, getCFlags(config))
 }
 
-func getCFlags(config *config.Config) ([]string, error) {
-	kv, err := kernel.HostVersion()
-	if err != nil {
-		return nil, fmt.Errorf("unable to get kernel version: %w", err)
-	}
+func getCFlags(config *config.Config) []string {
+	kv, _ := kernel.HostVersion() // ignore any error here since we check again for this error in runtimeAsset.Compile
 	pre410Kernel := kv < kernel.VersionCode(4, 1, 0)
 
 	var cflags []string
@@ -49,5 +36,5 @@ func getCFlags(config *config.Config) ([]string, error) {
 	if config.BPFDebug {
 		cflags = append(cflags, "-DDEBUG=1")
 	}
-	return cflags, nil
+	return cflags
 }

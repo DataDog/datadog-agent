@@ -340,7 +340,7 @@ func StartAgent() error {
 	log.Debugf("Forwarder started")
 
 	// setup the orchestrator forwarder (only on cluster check runners)
-	orchestratorForwarder = orchcfg.NewOrchestratorForwarder(confFilePath)
+	orchestratorForwarder = orchcfg.NewOrchestratorForwarder()
 	if orchestratorForwarder != nil {
 		orchestratorForwarder.Start() //nolint:errcheck
 	}
