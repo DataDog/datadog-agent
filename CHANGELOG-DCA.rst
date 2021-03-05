@@ -57,7 +57,7 @@ Bug Fixes
 Prelude
 -------
 
-Released on: 2020-12-10
+Released on: 2021-03-02
     Pinned to datadog-agent v7.24.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#7240--6240>`_..
 
 .. _Release Notes_dca-1.10.0_dca-1.10.X_New Features:
