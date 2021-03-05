@@ -366,7 +366,13 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_stats_port", 5000)
 	config.BindEnvAndSetDefault("dogstatsd_stats_enable", false)
 	config.BindEnvAndSetDefault("dogstatsd_stats_buffer", 10)
+	// Control for how long counter would be sampled to 0 if not received
 	config.BindEnvAndSetDefault("dogstatsd_expiry_seconds", 300)
+	// Control how long we keep dogstatsd contexts in memory. This should
+	// not be set bellow 2 dogstatsd bucket size (ie 20s, since each bucket
+	// is 10s), otherwise we won't be able to sample unseen counter as
+	// contexts will be deleted (see 'dogstatsd_expiry_seconds').
+	config.BindEnvAndSetDefault("dogstatsd_context_expiry_seconds", 300)
 	config.BindEnvAndSetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic
 	config.BindEnvAndSetDefault("dogstatsd_so_rcvbuf", 0)
 	config.BindEnvAndSetDefault("dogstatsd_metrics_stats_enable", false)
