@@ -200,7 +200,7 @@ api_key:
 ## is reached or when the disk mount for `forwarder_storage_path` exceeds 95% of the disk capacity,
 ## whichever is lower.
 #
-# forwarder_storage_max_size_in_bytes: 0.95
+# forwarder_storage_max_disk_ratio: 0.95
 
 ## @param forwarder_storage_path - string - optional - default: /opt/datadog-agent/run/transactions_to_retry (c:\ProgramData\Datadog\run\transactions_to_retry on Windows)
 ## `forwarder_storage_path` defines the root folder where the transactions of the forwarder are stored when
@@ -949,6 +949,7 @@ api_key:
 #############################################
 ## Security Agent Compliance Configuration ##
 #############################################
+
 ## @param compliance_config - custom object - optional
 ## Enter specific configuration for continuous compliance checks.
 # compliance_config:
@@ -1042,6 +1043,10 @@ api_key:
   #
   # enabled: false
 
+  ## @param fim_enabled - boolean - optional - default: false
+  ## Set to true to enable the File Integrity Monitoring feature.
+  # fim_enabled: false
+
   ## @param socket - string - optional - default: /opt/datadog-agent/run/runtime-security.sock
   ## The full path to the location of the unix socket where security runtime module is accessed.
   #
@@ -1056,11 +1061,6 @@ api_key:
     #
     # dir: /etc/datadog-agent/runtime-security.d
 
-  ## @param enable_kernel_filters - boolean - optional - default: true
-  ## Enable filtering events from the kernel
-  #
-  # enable_kernel_filters: true
-
   ## @param syscall_monitor - custom object - optional
   ## Syscall monitoring
   #
@@ -1070,7 +1070,39 @@ api_key:
     ## Set to true to enable the Syscall monitoring.
     #
     #  enabled: false
+
+  ## @param custom_sensitive_words - list of strings - optional
+  ## Define your own list of sensitive data to be merged with the default one.
+  ## Read more on Datadog documentation:
+  ## https://docs.datadoghq.com/graphing/infrastructure/process/#process-arguments-scrubbing
+  #
+  # custom_sensitive_words:
+  #   - 'personal_key'
+  #   - '*token'
+  #   - 'sql*'
+  #   - '*pass*d*'
+
 {{ end -}}
+{{ end -}}
+
+{{- if .SecurityAgent -}}
+##########################################
+## Security Agent Runtime Configuration ##
+##                                      ##
+## Settings to sent logs to Datadog are ##
+## fetched from section `logs_config`   ##
+##########################################
+
+# runtime_security_config:
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable the Security Runtime Module.
+  #
+  # enabled: false
+
+  ## @param socket - string - optional - default: /opt/datadog-agent/run/runtime-security.sock
+  ## The full path to the location of the unix socket where security runtime module is accessed.
+  #
+  # socket: /opt/datadog-agent/run/runtime-security.sock
 {{ end -}}
 {{- if .Dogstatsd }}
 
@@ -1959,6 +1991,15 @@ api_key:
   ## PEM-encoded client key used when connecting to the BBS API.
   #
   # key_file: ""
+
+  ## @param env_include - List of strings - optional - default: []
+  ## List of regular expressions to allow a set of environment variables to be included as container tags
+  #
+  # env_include: []
+  ## @param env_exclude - List of strings - optional - default: []
+  ## List of regular expressions to forbid a set of environment variables to be included as container tags
+  #
+  # env_exclude: []
 
 {{ end -}}
 {{- if .CloudFoundryCC }}

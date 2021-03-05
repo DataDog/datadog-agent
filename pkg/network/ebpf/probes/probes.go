@@ -43,8 +43,9 @@ const (
 	TCPCloseReturn ProbeName = "kretprobe/tcp_close"
 
 	// We use the following two probes for UDP sends
-	IPMakeSkb  ProbeName = "kprobe/ip_make_skb"
-	IP6MakeSkb ProbeName = "kprobe/ip6_make_skb"
+	IPMakeSkb        ProbeName = "kprobe/ip_make_skb"
+	IP6MakeSkb       ProbeName = "kprobe/ip6_make_skb"
+	IP6MakeSkbPre470 ProbeName = "kprobe/ip6_make_skb/pre_4_7_0"
 
 	// UDPRecvMsg traces the udp_recvmsg() system call
 	UDPRecvMsg ProbeName = "kprobe/udp_recvmsg"

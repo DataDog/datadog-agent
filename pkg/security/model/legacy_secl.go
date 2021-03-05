@@ -101,10 +101,15 @@ var SECLLegacyAttributes = map[eval.Field]eval.Field{
 	"exec.container_path":   "exec.file.container_path",
 	"exec.overlay_numlower": "exec.file.overlay_numlower",
 	"exec.basename":         "exec.file.name",
+	"exec.name":             "exec.comm",
 
 	// process
-	"process.filename":         "process.file.path",
-	"process.container_path":   "process.file.container_path",
-	"process.overlay_numlower": "process.file.overlay_numlower",
-	"process.basename":         "process.file.name",
+	"process.filename":                 "process.file.path",
+	"process.container_path":           "process.file.container_path",
+	"process.basename":                 "process.file.name",
+	"process.name":                     "process.comm",
+	"process.ancestors.filename":       "process.ancestors.file.path",
+	"process.ancestors.container_path": "process.ancestors.file.container_path",
+	"process.ancestors.basename":       "process.ancestors.file.name",
+	"process.ancestors.name":           "process.ancestors.comm",
 }

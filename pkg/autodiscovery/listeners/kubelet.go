@@ -93,7 +93,7 @@ func NewKubeletListener() (ServiceListener, error) {
 		services: make(map[string]Service),
 		ticker:   time.NewTicker(config.Datadog.GetDuration("kubelet_listener_polling_interval") * time.Second),
 		stop:     make(chan bool),
-		health:   health.RegisterLiveness("ad-kubeletlistener"),
+		health:   health.RegisterReadiness("ad-kubeletlistener"),
 	}, nil
 }
 

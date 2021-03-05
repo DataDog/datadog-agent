@@ -314,16 +314,10 @@ func GetPodMetadataNames(nodeName, ns, podName string) ([]string, error) {
 }
 
 // GetNodeLabels retrieves the labels of the queried node from the cache of the shared informer.
-func GetNodeLabels(nodeName string) (map[string]string, error) {
+func GetNodeLabels(as *APIClient, nodeName string) (map[string]string, error) {
 	if !config.Datadog.GetBool("kubernetes_collect_metadata_tags") {
 		return nil, log.Errorf("Metadata collection is disabled on the Cluster Agent")
 	}
-
-	as, err := GetAPIClient()
-	if err != nil {
-		return nil, err
-	}
-
 	node, err := as.InformerFactory.Core().V1().Nodes().Lister().Get(nodeName)
 	if err != nil {
 		return nil, err

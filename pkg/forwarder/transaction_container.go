@@ -50,14 +50,12 @@ func buildTransactionContainer(
 
 	if optionalDomainFolderPath != "" && storageMaxSize > 0 {
 		serializer := NewTransactionsSerializer(domain, apiKeys)
-		var maxStorage *forwarderMaxStorage
 		storageMaxSize := config.Datadog.GetInt64("forwarder_storage_max_size_in_bytes")
 		diskRatio := config.Datadog.GetFloat64("forwarder_storage_max_disk_ratio")
 
-		maxStorage, err = newForwarderMaxStorage(optionalDomainFolderPath, filesystem.NewDisk(), storageMaxSize, diskRatio)
-		if err == nil {
-			storage, err = newTransactionsFileStorage(serializer, optionalDomainFolderPath, maxStorage, transactionsFileStorageTelemetry{})
-		}
+		maxStorage := newForwarderMaxStorage(optionalDomainFolderPath, filesystem.NewDisk(), storageMaxSize, diskRatio)
+		storage, err = newTransactionsFileStorage(serializer, optionalDomainFolderPath, maxStorage, transactionsFileStorageTelemetry{})
+
 		// If the storage on disk cannot be used, log the error and continue.
 		// Returning `nil, err` would mean not using `TransactionContainer` and so not using `forwarder_retry_queue_payloads_max_size` config.
 		if err != nil {
