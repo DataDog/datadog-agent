@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/stats"
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/test"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testsuite/testdata"
 )
@@ -36,14 +36,15 @@ func TestClientStats(t *testing.T) {
 			for {
 				select {
 				case p := <-out:
-					got, ok := p.(stats.Payload)
+					got, ok := p.(pb.StatsPayload)
 					if !ok {
 						continue
 					}
 					if reflect.DeepEqual(got, tt.Out) {
 						return
 					}
-					t.Logf("%#v", got)
+					t.Logf("got: %#v", got)
+					t.Logf("expected: %#v", tt.Out)
 					t.Fatal("did not match")
 				case <-timeout:
 					t.Fatalf("timed out, log was:\n%s", r.AgentLog())

@@ -8,7 +8,6 @@ package config
 import (
 	"fmt"
 	"net/url"
-	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -62,13 +61,9 @@ func key(pieces ...string) string {
 	return strings.Join(pieces, ".")
 }
 
-// LoadYamlConfig load orchestrator-specific configuration
-func (oc *OrchestratorConfig) LoadYamlConfig(path string) error {
-	// Resolve any secrets
-	if err := config.ResolveSecrets(config.Datadog, filepath.Base(path)); err != nil {
-		return err
-	}
-
+// Load load orchestrator-specific configuration
+// at this point secrets should already be resolved by the core/process/cluster agent
+func (oc *OrchestratorConfig) Load() error {
 	URL, err := extractOrchestratorDDUrl()
 	if err != nil {
 		return err
@@ -162,7 +157,7 @@ func extractOrchestratorDDUrl() (*url.URL, error) {
 
 // NewOrchestratorForwarder returns an orchestratorForwarder
 // if the feature is activated on the cluster-agent/cluster-check runner, nil otherwise
-func NewOrchestratorForwarder(confPath string) *forwarder.DefaultForwarder {
+func NewOrchestratorForwarder() *forwarder.DefaultForwarder {
 	if !config.Datadog.GetBool("orchestrator_explorer.enabled") {
 		return nil
 	}
@@ -170,7 +165,7 @@ func NewOrchestratorForwarder(confPath string) *forwarder.DefaultForwarder {
 		return nil
 	}
 	orchestratorCfg := NewDefaultOrchestratorConfig()
-	if err := orchestratorCfg.LoadYamlConfig(confPath); err != nil {
+	if err := orchestratorCfg.Load(); err != nil {
 		log.Errorf("Error loading the orchestrator config: %s", err)
 	}
 	keysPerDomain := apicfg.KeysPerDomains(orchestratorCfg.OrchestratorEndpoints)
