@@ -200,82 +200,7 @@
                        Value="[APPLICATIONDATADIRECTORY]"/>
         <util:RemoveFolderEx On="uninstall" Property="PROJECTLOCATION"/>
       </Component>
-      <!-- Register variables that will be used by the agent at startup -->
-      <Component Id="RegisterConfVariables" Guid="e2423815-704d-4f29-af3b-9baf23ef03d6">
-        <RegistryKey Root="HKLM"
-                     Key="SOFTWARE\Datadog\Datadog Agent"
-                     >
-
-
-          <RegistryValue Name="api_key"
-                         Type="string"
-                         Value="[APIKEY]">
-          </RegistryValue>
-          <RegistryValue Name="tags"
-                         Type="string"
-                         Value="[TAGS]" >
-          </RegistryValue>
-          <RegistryValue Name="hostname"
-                         Type="string"
-                         Value="[HOSTNAME]" >
-                       </RegistryValue>
-           <RegistryValue Name="proxy_host"
-                         Type="string"
-                         Value="[PROXY_HOST]">
-                       </RegistryValue>
-          <RegistryValue Name="proxy_port"
-                         Type="string"
-                         Value="[PROXY_PORT]" >
-                       </RegistryValue>
-          <RegistryValue Name="proxy_user"
-                         Type="string"
-                         Value="[PROXY_USER]">
-                       </RegistryValue>
-          <RegistryValue Name="proxy_password"
-                         Type="string"
-                         Value="[PROXY_PASSWORD]" >
-                       </RegistryValue>
-          <RegistryValue Name="logs_enabled"
-                         Type="string"
-                         Value="[LOGS_ENABLED]">
-                       </RegistryValue>
-          <RegistryValue Name="apm_enabled"
-                         Type="string"
-                         Value="[APM_ENABLED]" >
-                       </RegistryValue>
-          <RegistryValue Name="process_enabled"
-                         Type="string"
-                         Value="[PROCESS_ENABLED]">
-                         </RegistryValue>
-          <RegistryValue Name="cmd_port"
-                         Type="string"
-                         Value="[CMD_PORT]" />
-          <RegistryValue Name="site"
-                         Type="string"
-                         Value="[SITE]" />
-          <RegistryValue Name="dd_url"
-                         Type="string"
-                         Value="[DD_URL]" />
-          <RegistryValue Name="logs_dd_url"
-                         Type="string"
-                         Value="[LOGS_DD_URL]" />
-          <RegistryValue Name="process_dd_url"
-                         Type="string"
-                         Value="[PROCESS_DD_URL]" />
-          <RegistryValue Name="trace_dd_url"
-                         Type="string"
-                         Value="[TRACE_DD_URL]" />
-          <RegistryValue Name="py_version"
-                         Type="string"
-                         Value="[PYVER]" />
-          <RegistryValue Name="hostname_fqdn"
-                         Type="string"
-                         Value="[HOSTNAME_FQDN_ENABLED]" />
-        </RegistryKey>
-
-      </Component>
     </DirectoryRef>
-
     <!-- Let's ship our dist folder with the service and gui executables -->
     <DirectoryRef Id="PROJECTLOCATION">
       <!-- put the agent in the embedded folder so that it can find the python DLLS -->
@@ -528,37 +453,42 @@
     </InstallExecuteSequence>
 
     <!-- Set the components defined in our fragment files that will be used for our feature  -->
-    <Feature Id="MainApplication" Title="Datadog Agent" Level="1" ConfigurableDirectory="APPLICATIONROOTDIRECTORY">
-      <ComponentRef Id="conffolder" />
-      <ComponentGroupRef Id="ProjectDir" />
-      <ComponentRef Id="datadog.yaml.example" />
-      <ComponentRef Id="install_info" />
-      <ComponentRef Id="logs" />
-      <ComponentRef Id="conf.d" />
-      <ComponentRef Id="checks.d" />
-      <ComponentRef Id="REGISTRYDIRECTORY" />
-      <ComponentRef Id="ApplicationShortcut" />
-      <ComponentRef Id="DATADOGAGENTSERVICE" />
-      <ComponentRef Id="RTLOADERDLLS" />
-      <?if $(var.Platform) = x64 ?>
-        <ComponentRef Id="DATADOGAPMSERVICE" />
-        <ComponentRef Id="DATADOGPROCESSSERVICE" />
+    <Feature 
+      Id="MainApplication" 
+      Title="Datadog Agent" 
+      Level="1"
+      Absent="disallow" 
+      ConfigurableDirectory="APPLICATIONROOTDIRECTORY">
+        <ComponentRef Id="conffolder" />
+        <ComponentGroupRef Id="ProjectDir" />
+        <ComponentRef Id="datadog.yaml.example" />
+        <ComponentRef Id="install_info" />
+        <ComponentRef Id="logs" />
+        <ComponentRef Id="conf.d" />
+        <ComponentRef Id="checks.d" />
+        <ComponentRef Id="REGISTRYDIRECTORY" />
+        <ComponentRef Id="ApplicationShortcut" />
+        <ComponentRef Id="DATADOGAGENTSERVICE" />
+        <ComponentRef Id="RTLOADERDLLS" />
+        <?if $(var.Platform) = x64 ?>
+          <ComponentRef Id="DATADOGAPMSERVICE" />
+          <ComponentRef Id="DATADOGPROCESSSERVICE" />
+        <?endif ?>
+        <ComponentGroupRef Id="ExtraEXAMPLECONFSLOCATION" />
+        <ComponentRef Id="CleanupMainApplicationFolder" />
+        <?if $(var.IncludePython2) = true ?>
+          <ComponentRef Id="MSVCRUNTIME" />
+        <?endif ?>
+      <?if $(var.IncludeSysprobe) = true ?>
+          <ComponentRef Id="DATADOGSYSPROBESERVICE" />
+          <ComponentRef Id="system_probe.yaml.example" />
       <?endif ?>
-      <ComponentGroupRef Id="ExtraEXAMPLECONFSLOCATION" />
-      <ComponentRef Id="CleanupMainApplicationFolder" />
-      <ComponentRef Id="RegisterConfVariables" />
-      <?if $(var.IncludePython2) = true ?>
-        <ComponentRef Id="MSVCRUNTIME" />
-      <?endif ?>
-    <?if $(var.IncludeSysprobe) = true ?>
-        <ComponentRef Id="DATADOGSYSPROBESERVICE" />
-        <ComponentRef Id="system_probe.yaml.example" />
-    <?endif ?>
+      <Condition Level="1"><![CDATA[1]]></Condition>
     </Feature>
      <?if $(var.IncludeSysprobe) = true ?>
       <!-- don't install by default (indicated by level 100)  Only things with level
            <= INSTALLLEVEL (1 by default) will be installed.  Can be changed via gui or command line params to optionally install -->
-      <Feature Id="WindowsNP" 
+      <Feature Id="NPM" 
                Level="100"  
                Title="Network Performance Monitoring" 
                ConfigurableDirectory="APPLICATIONROOTDIRECTORY"
@@ -720,8 +650,40 @@
     <WixVariable Id="WixUIDialogBmp" Value="Resources\assets\dialog_background.bmp" />
     <WixVariable Id="WixUIBannerBmp" Value="Resources\assets\banner_background.bmp" />
 
-    <CustomAction Id='SetFinalizeProperty' Return='check' Property='FinalizeInstall' 
-        Value='PROJECTLOCATION=[PROJECTLOCATION];APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY];DDAGENTUSER_NAME=[DDAGENTUSER_NAME];DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD];SYSPROBE_PRESENT=[SYSPROBE_PRESENT];ADDLOCAL=[ADDLOCAL]' />
+    <!-- Properties must each be on their own line and end with a semicolon ;
+      NOTE: This property will cause the build time warning
+      "warning LGHT1076 : ICE03: String overflow (greater than length permitted in column);"
+      This does not affect the final artefact, as it seems to affects only the base string, not the expanded one.
+      At runtime this limitation doesn\'t seem to apply.
+    -->
+    <CustomAction Id='SetFinalizeProperty' Return='check' Property='FinalizeInstall'
+        Value='
+            PROJECTLOCATION=[PROJECTLOCATION];
+            APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY];
+            DDAGENTUSER_NAME=[DDAGENTUSER_NAME];
+            DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD];
+            SYSPROBE_PRESENT=[SYSPROBE_PRESENT];
+            ADDLOCAL=[ADDLOCAL];
+            APIKEY=[APIKEY];
+            TAGS=[TAGS];
+            HOSTNAME=[HOSTNAME];
+            PROXY_HOST=[PROXY_HOST];
+            PROXY_PORT=[PROXY_PORT];
+            PROXY_USER=[PROXY_USER];
+            PROXY_PASSWORD=[PROXY_PASSWORD];
+            LOGS_ENABLED=[LOGS_ENABLED];
+            APM_ENABLED=[APM_ENABLED];
+            PROCESS_ENABLED=[PROCESS_ENABLED];
+            CMD_PORT=[CMD_PORT];
+            SITE=[SITE];
+            DD_URL=[DD_URL];
+            LOGS_DD_URL=[LOGS_DD_URL];
+            PROCESS_DD_URL=[PROCESS_DD_URL];
+            TRACE_DD_URL=[TRACE_DD_URL];
+            PYVER=[PYVER];
+            HOSTNAME_FQDN_ENABLED=[HOSTNAME_FQDN_ENABLED];
+            NPM=[NPM];
+            ' />
     <CustomAction Id='FinalizeInstall' BinaryKey='wixcadll' DllEntry='FinalizeInstall' Execute='deferred' Return='check' Impersonate='no'/>
     <CustomAction Id='StopDDServices' BinaryKey='wixcadll' DllEntry='PreStopServices' Execute='deferred' Return='check' Impersonate='no'/>
     <CustomAction Id='StartDDServices' BinaryKey='wixcadll' DllEntry='PostStartServices' Execute='deferred' Return='ignore' Impersonate='no'/>

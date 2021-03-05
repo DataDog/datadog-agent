@@ -18,8 +18,9 @@ import (
 const remoteSource = "remote"
 
 type tagStore struct {
-	mutex sync.RWMutex
-	store map[string]*types.Entity
+	mutex     sync.RWMutex
+	store     map[string]*types.Entity
+	telemetry map[string]float64
 
 	subscriber *subscriber.Subscriber
 }
@@ -27,6 +28,7 @@ type tagStore struct {
 func newTagStore() *tagStore {
 	return &tagStore{
 		store:      make(map[string]*types.Entity),
+		telemetry:  make(map[string]float64),
 		subscriber: subscriber.NewSubscriber(),
 	}
 }
@@ -41,11 +43,9 @@ func (s *tagStore) processEvents(events []types.EntityEvent, replace bool) error
 
 	for _, event := range events {
 		entity := event.Entity
-		prefix, _ := containers.SplitEntityName(entity.ID)
 
 		switch event.EventType {
 		case types.EventTypeAdded:
-			telemetry.StoredEntities.Inc(remoteSource, prefix)
 			telemetry.UpdatedEntities.Inc()
 			s.store[event.Entity.ID] = &entity
 
@@ -54,7 +54,6 @@ func (s *tagStore) processEvents(events []types.EntityEvent, replace bool) error
 			s.store[event.Entity.ID] = &entity
 
 		case types.EventTypeDeleted:
-			telemetry.StoredEntities.Dec(remoteSource, prefix)
 			delete(s.store, event.Entity.ID)
 		}
 	}
@@ -81,6 +80,26 @@ func (s *tagStore) listEntities() []*types.Entity {
 	}
 
 	return entities
+}
+
+func (s *tagStore) collectTelemetry() {
+	// our telemetry package does not seem to have a way to reset a Gauge,
+	// so we need to keep track of all the labels we use, and re-set them
+	// to zero after we're done to ensure a new run of collectTelemetry
+	// will not forget to clear them if they disappear.
+
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	for _, entity := range s.store {
+		prefix, _ := containers.SplitEntityName(entity.ID)
+		s.telemetry[prefix]++
+	}
+
+	for prefix, storedEntities := range s.telemetry {
+		telemetry.StoredEntities.Set(storedEntities, remoteSource, prefix)
+		s.telemetry[prefix] = 0
+	}
 }
 
 func (s *tagStore) subscribe(cardinality collectors.TagCardinality) chan []types.EntityEvent {
@@ -121,9 +140,6 @@ func (s *tagStore) reset() {
 	events := make([]types.EntityEvent, 0, len(s.store))
 
 	for _, e := range s.store {
-		prefix, _ := containers.SplitEntityName(e.ID)
-		telemetry.StoredEntities.Dec(remoteSource, prefix)
-
 		events = append(events, types.EntityEvent{
 			EventType: types.EventTypeDeleted,
 			Entity:    types.Entity{ID: e.ID},

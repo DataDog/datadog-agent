@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
@@ -58,6 +59,7 @@ type Probe struct {
 	event     *Event
 	perfMap   *manager.PerfMap
 	reOrderer *ReOrderer
+	scrubber  *pconfig.DataScrubber
 
 	// Approvers / discarders section
 	erpc               *ERPC
@@ -261,7 +263,7 @@ func (p *Probe) zeroEvent() *Event {
 }
 
 func (p *Probe) unmarshalProcessContainer(data []byte, event *Event) (int, error) {
-	read, err := model.UnmarshalBinary(data, &event.Process, &event.Container)
+	read, err := model.UnmarshalBinary(data, &event.ProcessContext, &event.ContainerContext)
 	if err != nil {
 		return 0, err
 	}
@@ -296,7 +298,9 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	eventType := event.GetEventType()
 	p.monitor.perfBufferMonitor.CountEvent(eventType, event.TimestampRaw, 1, dataLen, p.perfMap, int(CPU))
 
-	if eventType == model.InvalidateDentryEventType {
+	// no need to dispatch events
+	switch eventType {
+	case model.InvalidateDentryEventType:
 		if _, err := event.InvalidateDentry.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode invalidate dentry event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
@@ -304,7 +308,15 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 
 		p.invalidateDentry(event.InvalidateDentry.MountID, event.InvalidateDentry.Inode, event.InvalidateDentry.DiscarderRevision)
 
-		// no need to dispatch
+		return
+	case model.ArgsEnvsEventType:
+		if _, err := event.ArgsEnvs.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode args envs event: %s (offset %d, len %d)", err, offset, dataLen)
+			return
+		}
+
+		p.resolvers.ProcessResolver.UpdateArgsEnvs(&event.ArgsEnvs)
+
 		return
 	}
 
@@ -408,37 +420,40 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			return
 		}
 	case model.ForkEventType:
-		if _, err := event.UnmarshalExecEvent(data[offset:]); err != nil {
+		if _, err := event.UnmarshalProcess(data[offset:]); err != nil {
 			log.Errorf("failed to decode fork event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-		event.updateProcessCachePointer(p.resolvers.ProcessResolver.AddForkEntry(event.Process.Pid, event.processCacheEntry))
+		event.updateProcessCachePointer(p.resolvers.ProcessResolver.AddForkEntry(event.ProcessContext.Pid, event.processCacheEntry))
 	case model.ExecEventType:
-		if _, err := event.UnmarshalExecEvent(data[offset:]); err != nil {
+		if _, err := event.UnmarshalProcess(data[offset:]); err != nil {
 			log.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		event.updateProcessCachePointer(p.resolvers.ProcessResolver.AddExecEntry(event.Process.Pid, event.processCacheEntry))
+		p.resolvers.ProcessResolver.ResolveArgs(event.processCacheEntry)
+		p.resolvers.ProcessResolver.ResolveEnvs(event.processCacheEntry)
+
+		event.updateProcessCachePointer(p.resolvers.ProcessResolver.AddExecEntry(event.ProcessContext.Pid, event.processCacheEntry))
 	case model.ExitEventType:
-		defer p.resolvers.ProcessResolver.DeleteEntry(event.Process.Pid, event.ResolveEventTimestamp())
+		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessContext.Pid, event.ResolveEventTimestamp())
 	case model.SetuidEventType:
 		if _, err := event.SetUID.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode setuid event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		defer p.resolvers.ProcessResolver.UpdateUID(event.Process.Pid, event)
+		defer p.resolvers.ProcessResolver.UpdateUID(event.ProcessContext.Pid, event)
 	case model.SetgidEventType:
 		if _, err := event.SetGID.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode setgid event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		defer p.resolvers.ProcessResolver.UpdateGID(event.Process.Pid, event)
+		defer p.resolvers.ProcessResolver.UpdateGID(event.ProcessContext.Pid, event)
 	case model.CapsetEventType:
 		if _, err := event.Capset.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode capset event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		defer p.resolvers.ProcessResolver.UpdateCapset(event.Process.Pid, event)
+		defer p.resolvers.ProcessResolver.UpdateCapset(event.ProcessContext.Pid, event)
 	default:
 		log.Errorf("unsupported event type %d", eventType)
 		return
@@ -704,7 +719,7 @@ func (p *Probe) GetDebugStats() map[string]interface{} {
 // NewRuleSet returns a new rule set
 func (p *Probe) NewRuleSet(opts *rules.Opts) *rules.RuleSet {
 	eventCtor := func() eval.Event {
-		return NewEvent(p.resolvers)
+		return NewEvent(p.resolvers, p.scrubber)
 	}
 	opts.Logger = seclog.DatadogAgentLogger{}
 
@@ -766,9 +781,7 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	p.resolvers = resolvers
-	p.event = NewEvent(p.resolvers)
 
 	p.reOrderer = NewReOrderer(p.handleEvent,
 		ExtractEventInfo,
@@ -779,6 +792,13 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 			MetricRate: 5 * time.Second,
 		})
 
+	p.scrubber = pconfig.NewDefaultDataScrubber()
+	p.scrubber.AddCustomSensitiveWords(config.CustomSensitiveWords)
+
+	p.event = NewEvent(p.resolvers, p.scrubber)
+
 	eventZero.resolvers = p.resolvers
+	eventZero.scrubber = p.scrubber
+
 	return p, nil
 }

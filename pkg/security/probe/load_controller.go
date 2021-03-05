@@ -76,13 +76,13 @@ func (lc *LoadController) GenericCount(event *Event) {
 	lc.Lock()
 	defer lc.Unlock()
 
-	entry, ok := lc.eventsCounters.Get(eventCounterLRUKey{Pid: event.Process.Pid, Cookie: event.Process.Cookie, Event: event.GetEventType()})
+	entry, ok := lc.eventsCounters.Get(eventCounterLRUKey{Pid: event.ProcessContext.Pid, Cookie: event.ProcessContext.Cookie, Event: event.GetEventType()})
 	if ok {
 		counter := entry.(*uint64)
 		atomic.AddUint64(counter, 1)
 	} else {
 		counter := uint64(1)
-		lc.eventsCounters.Add(eventCounterLRUKey{Pid: event.Process.Pid, Cookie: event.Process.Cookie, Event: event.GetEventType()}, &counter)
+		lc.eventsCounters.Add(eventCounterLRUKey{Pid: event.ProcessContext.Pid, Cookie: event.ProcessContext.Cookie, Event: event.GetEventType()}, &counter)
 	}
 	newTotal := atomic.AddInt64(&lc.eventsTotal, 1)
 

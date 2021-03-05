@@ -146,15 +146,11 @@ func extractField(field string) (Field, Field, RegisterID, error) {
 	case 2:
 		regID = ids[1]
 	default:
-		return "", "", "", errors.New("wrong register format")
+		return "", "", "", fmt.Errorf("wrong register format for fields: %s", field)
 	}
 
-	re = regexp.MustCompile(`(.+)\[[^\]]+\](.+)`)
-
+	re = regexp.MustCompile(`(.+)\[[^\]]+\](.*)`)
 	field, itField := re.ReplaceAllString(field, `$1$2`), re.ReplaceAllString(field, `$1`)
-	if field == itField {
-		return "", "", "", errors.New("wrong register format")
-	}
 
 	return field, itField, regID, nil
 }

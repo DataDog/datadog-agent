@@ -38,6 +38,7 @@ type KubeServiceConfigProvider struct {
 // NewKubeServiceConfigProvider returns a new ConfigProvider connected to apiserver.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
 func NewKubeServiceConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
+	// Using GetAPIClient() (no retry)
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)

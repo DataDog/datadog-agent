@@ -190,9 +190,9 @@ func GetClusterName() (string, error) {
 	if !config.IsCloudProviderEnabled(CloudProviderName) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
-	tags, err := GetTags()
+	tags, err := fetchTagsFromCache()
 	if err != nil {
-		return "", fmt.Errorf("unable to retrieve clustername from EC2: %s", err)
+		return "", err
 	}
 
 	return extractClusterName(tags)

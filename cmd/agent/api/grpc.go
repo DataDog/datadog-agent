@@ -14,6 +14,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
@@ -22,10 +23,15 @@ import (
 	pb "github.com/DataDog/datadog-agent/cmd/agent/api/pb"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
 	hostutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	taggerStreamSendTimeout = 1 * time.Minute
 )
 
 type server struct {
@@ -82,10 +88,14 @@ func (s *serverSecure) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.Age
 			responseEvents = append(responseEvents, e)
 		}
 
-		err = out.Send(&pb.StreamTagsResponse{
-			Events: responseEvents,
-		})
+		err = grpc.DoWithTimeout(func() error {
+			return out.Send(&pb.StreamTagsResponse{
+				Events: responseEvents,
+			})
+		}, taggerStreamSendTimeout)
 		if err != nil {
+			log.Warnf("error sending tagger event: %s", err)
+			telemetry.ServerStreamErrors.Inc()
 			return err
 		}
 	}

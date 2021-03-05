@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
+	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/ebpf"
@@ -142,6 +143,8 @@ func TestTracerExpvar(t *testing.T) {
 			"PInetBindMisses",
 			"PInet6BindHits",
 			"PInet6BindMisses",
+			"PIp6MakeSkbHits",
+			"PIp6MakeSkbMisses",
 			"RInetCskAcceptHits",
 			"RInetCskAcceptMisses",
 			"RTcpCloseHits",
@@ -674,6 +677,10 @@ func TestTCPShortlived(t *testing.T) {
 
 func TestTCPOverIPv6(t *testing.T) {
 	t.SkipNow()
+	if !kernel.IsIPv6Enabled() {
+		t.Skip("IPv6 not enabled on host")
+	}
+
 	config := testConfig()
 	config.CollectIPv6Conns = true
 
@@ -1746,7 +1753,7 @@ func TestUnconnectedUDPSendIPv4(t *testing.T) {
 	defer tr.Stop()
 
 	remotePort := rand.Int()%5000 + 15000
-	remoteAddr := &net.UDPAddr{IP: net.ParseIP("8.8.8.8"), Port: remotePort}
+	remoteAddr := &net.UDPAddr{IP: net.ParseIP(googlePublicDNSIPv4), Port: remotePort}
 	// Use ListenUDP instead of DialUDP to create a "connectionless" UDP connection
 	conn, err := net.ListenUDP("udp", nil)
 	require.NoError(t, err)
@@ -1765,6 +1772,10 @@ func TestUnconnectedUDPSendIPv4(t *testing.T) {
 }
 
 func TestConnectedUDPSendIPv6(t *testing.T) {
+	if !kernel.IsIPv6Enabled() {
+		t.Skip("IPv6 not enabled on host")
+	}
+
 	cfg := testConfig()
 	cfg.CollectIPv6Conns = true
 	tr, err := NewTracer(cfg)
@@ -1778,6 +1789,39 @@ func TestConnectedUDPSendIPv6(t *testing.T) {
 	defer conn.Close()
 	message := []byte("payload")
 	bytesSent, err := conn.Write(message)
+	require.NoError(t, err)
+
+	connections := getConnections(t, tr)
+	outgoing := searchConnections(connections, func(cs network.ConnectionStats) bool {
+		return cs.DPort == uint16(remotePort)
+	})
+
+	require.Len(t, outgoing, 1)
+	assert.Equal(t, remoteAddr.IP.String(), outgoing[0].Dest.String())
+	assert.Equal(t, bytesSent, int(outgoing[0].MonotonicSentBytes))
+}
+
+func TestUnconnectedUDPSendIPv6(t *testing.T) {
+	if !kernel.IsIPv6Enabled() {
+		t.Skip("IPv6 not enabled on host")
+	}
+
+	cfg := testConfig()
+	cfg.CollectIPv6Conns = true
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	linkLocal, err := getIPv6LinkLocalAddress()
+	require.NoError(t, err)
+
+	remotePort := rand.Int()%5000 + 15000
+	remoteAddr := &net.UDPAddr{IP: net.ParseIP(interfaceLocalMulticastIPv6), Port: remotePort}
+	conn, err := net.ListenUDP("udp6", linkLocal)
+	require.NoError(t, err)
+	defer conn.Close()
+	message := []byte("payload")
+	bytesSent, err := conn.WriteTo(message, remoteAddr)
 	require.NoError(t, err)
 
 	connections := getConnections(t, tr)
@@ -2037,7 +2081,7 @@ func setupDNAT(t *testing.T) {
 		"ip link set dummy1 up",
 		"iptables -t nat -A OUTPUT --dest 2.2.2.2 -j DNAT --to-destination 1.1.1.1",
 	}
-	runCommands(t, cmds)
+	testutil.RunCommands(t, cmds, false)
 }
 
 func teardownDNAT(t *testing.T) {
@@ -2048,20 +2092,7 @@ func teardownDNAT(t *testing.T) {
 		// clear out the conntrack table
 		"conntrack -F",
 	}
-	runCommands(t, cmds)
-}
-
-func runCommands(t *testing.T, cmds []string) {
-	t.Helper()
-	for _, c := range cmds {
-		args := strings.Split(c, " ")
-		c := exec.Command(args[0], args[1:]...)
-		out, err := c.CombinedOutput()
-		if err != nil {
-			t.Errorf("%s returned %s: %s", c, err, out)
-			return
-		}
-	}
+	testutil.RunCommands(t, cmds, true)
 }
 
 func testConfig() *config.Config {
