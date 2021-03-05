@@ -121,7 +121,7 @@ func (suite *YamlConfigTestSuite) TestExtractOrchestratorEndpointsPrecedence() {
 func (suite *YamlConfigTestSuite) TestNoEnvConfigArgsScrubbing() {
 
 	orchestratorCfg := NewDefaultOrchestratorConfig()
-	err := orchestratorCfg.LoadYamlConfig("")
+	err := orchestratorCfg.Load()
 	suite.NoError(err)
 
 	cases := []struct {
@@ -145,7 +145,7 @@ func (suite *YamlConfigTestSuite) TestOnlyEnvConfigArgsScrubbing() {
 	suite.config.Set("orchestrator_explorer.custom_sensitive_words", `["token","consul"]`)
 
 	orchestratorCfg := NewDefaultOrchestratorConfig()
-	err := orchestratorCfg.LoadYamlConfig("")
+	err := orchestratorCfg.Load()
 	suite.NoError(err)
 
 	cases := []struct {
@@ -169,7 +169,7 @@ func (suite *YamlConfigTestSuite) TestOnlyEnvContainsConfigArgsScrubbing() {
 	suite.config.Set("orchestrator_explorer.custom_sensitive_words", `["token","consul"]`)
 
 	orchestratorCfg := NewDefaultOrchestratorConfig()
-	err := orchestratorCfg.LoadYamlConfig("")
+	err := orchestratorCfg.Load()
 	suite.NoError(err)
 
 	cases := []struct {
