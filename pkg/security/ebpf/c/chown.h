@@ -76,13 +76,7 @@ int __attribute__((always_inline)) trace__sys_chown_ret(struct pt_regs *ctx) {
 
     struct chown_event_t event = {
         .syscall.retval = retval,
-        .file = {
-            .inode = syscall->setattr.path_key.ino,
-            .mount_id = syscall->setattr.path_key.mount_id,
-            .overlay_numlower = get_overlay_numlower(syscall->setattr.dentry),
-            .path_id = syscall->setattr.path_key.path_id,
-            .metadata = syscall->setattr.metadata,
-        },
+        .file = syscall->setattr.file,
         .user = syscall->setattr.user,
         .group = syscall->setattr.group,
     };

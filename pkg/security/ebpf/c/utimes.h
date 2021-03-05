@@ -82,13 +82,7 @@ int __attribute__((always_inline)) trace__sys_utimes_ret(struct pt_regs *ctx) {
             .tv_sec = syscall->setattr.mtime.tv_sec,
             .tv_usec = syscall->setattr.mtime.tv_nsec,
         },
-        .file = {
-            .inode = syscall->setattr.path_key.ino,
-            .mount_id = syscall->setattr.path_key.mount_id,
-            .overlay_numlower = get_overlay_numlower(syscall->setattr.dentry),
-            .path_id = syscall->setattr.path_key.path_id,
-            .metadata = syscall->setattr.metadata,
-        },
+        .file = syscall->setattr.file,
     };
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
