@@ -191,19 +191,21 @@ if osx?
   dependency 'datadog-agent-mac-app'
 end
 
-if with_python_runtime? "2"
-  dependency 'pylint2'
-  dependency 'datadog-agent-integrations-py2'
-end
-
-if with_python_runtime? "3"
-  dependency 'datadog-agent-integrations-py3'
-end
+# [STS] drop datadog agent integrations
+# if with_python_runtime? "2"
+#   dependency 'pylint2'
+#   dependency 'datadog-agent-integrations-py2'
+# end
+#
+# if with_python_runtime? "3"
+#   dependency 'datadog-agent-integrations-py3'
+# end
 
 # External agents
 dependency 'jmxfetch'
 # //TODO: [STS] Embed code changes into main source code
 dependency 'stackstate-process-agent'
+dependency 'stackstate-agent-integrations'
 
 # version manifest file
 dependency 'version-manifest'
