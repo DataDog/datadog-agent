@@ -217,6 +217,39 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 	})
 }
 
+func TestEnableGatewayLookup(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+		defer restoreGlobalConfig()
+
+		// default config
+		cfg, err := NewAgentConfig("test", "", "")
+		assert.NoError(t, err)
+		assert.False(t, cfg.EnableGatewayLookup)
+
+		cfg, err = NewAgentConfig(
+			"test",
+			"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableGwLookup.yaml",
+			"",
+		)
+
+		assert.NoError(t, err)
+		assert.True(t, cfg.EnableGatewayLookup)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+		defer restoreGlobalConfig()
+
+		os.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP", "true")
+		defer os.Unsetenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP")
+		cfg, err := NewAgentConfig("test", "", "")
+
+		assert.NoError(t, err)
+		assert.True(t, cfg.EnableGatewayLookup)
+	})
+}
+
 func TestIgnoreConntrackInitFailure(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))

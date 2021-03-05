@@ -307,6 +307,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("enable_stream_payload_serialization", true)
 	config.BindEnvAndSetDefault("enable_service_checks_stream_payload_serialization", true)
 	config.BindEnvAndSetDefault("enable_events_stream_payload_serialization", true)
+	config.BindEnvAndSetDefault("enable_sketch_stream_payload_serialization", true)
 	config.BindEnvAndSetDefault("enable_json_stream_shared_compressor_buffers", true)
 
 	// Warning: do not change the two following values. Your payloads will get dropped by Datadog's intake.
@@ -811,6 +812,7 @@ func InitConfig(config Config) {
 	config.SetKnown("network_config.enabled")
 	config.SetKnown("network_config.enable_http_monitoring")
 	config.SetKnown("network_config.ignore_conntrack_init_failure")
+	config.SetKnown("network_config.enable_gateway_lookup")
 
 	// Network
 	config.BindEnv("network.id") //nolint:errcheck

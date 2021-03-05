@@ -155,7 +155,20 @@ type ConnectionStats struct {
 	DNSFailureLatencySum   uint64
 	DNSCountByRcode        map[uint32]uint32
 	DNSStatsByDomain       map[string]DNSStats
-	HTTPStatsByPath        map[string]http.RequestStats
+
+	Via *Via
+
+	HTTPStatsByPath map[string]http.RequestStats
+}
+
+// Via has info about the routing decision for a flow
+type Via struct {
+	Subnet Subnet
+}
+
+// Subnet stores info about a subnet
+type Subnet struct {
+	Alias string
 }
 
 // IPTranslation can be associated with a connection to show the connection is NAT'd
