@@ -28,7 +28,8 @@ func (protoSerializer) Marshal(conns *network.Connections) ([]byte, error) {
 	payload.Conns = agentConns
 	payload.Domains = domains
 	payload.Dns = FormatDNS(conns.DNS)
-	payload.Telemetry = FormatTelemetry(conns.Telemetry)
+	payload.ConnTelemetry = FormatConnTelemetry(conns.ConnTelemetry)
+	payload.CompilationTelemetryByAsset = FormatCompilationTelemetry(conns.CompilationTelemetryByAsset)
 
 	buf, err := proto.Marshal(payload)
 	returnToPool(payload)

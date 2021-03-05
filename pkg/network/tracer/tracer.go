@@ -18,6 +18,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
@@ -37,7 +38,7 @@ import (
 
 var (
 	expvarEndpoints map[string]*expvar.Map
-	expvarTypes     = []string{"conntrack", "state", "tracer", "ebpf", "kprobes", "dns", "http"}
+	expvarTypes     = []string{"conntrack", "state", "tracer", "ebpf", "kprobes", "dns", "http", "compiler"}
 )
 
 const defaultUDPConnTimeoutNanoSeconds uint64 = uint64(time.Duration(120) * time.Second)
@@ -129,6 +130,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	runtimeTracer := false
 	var buf bytecode.AssetReader
 	if config.EnableRuntimeCompiler {
+		runtime.RuntimeCompilationEnabled = true
 		buf, err = getRuntimeCompiledTracer(config)
 		if err != nil {
 			if !config.AllowPrecompiledFallback {
@@ -604,9 +606,10 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 
 	conns := t.state.Connections(clientID, latestTime, latestConns, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
 	names := t.reverseDNS.Resolve(conns)
-	tm := t.getConnTelemetry(len(latestConns))
+	ctm := t.getConnTelemetry(len(latestConns))
+	rctm := t.getRuntimeCompilationTelemetry()
 
-	return &network.Connections{Conns: conns, DNS: names, Telemetry: tm}, nil
+	return &network.Connections{Conns: conns, DNS: names, ConnTelemetry: ctm, CompilationTelemetryByAsset: rctm}, nil
 }
 
 func (t *Tracer) getConnTelemetry(mapSize int) *network.ConnectionsTelemetry {
@@ -643,6 +646,30 @@ func (t *Tracer) getConnTelemetry(mapSize int) *network.ConnectionsTelemetry {
 	}
 
 	return tm
+}
+
+func (t *Tracer) getRuntimeCompilationTelemetry() map[string]network.RuntimeCompilationTelemetry {
+	telemetryByAsset := map[string]map[string]int64{
+		"tracer":    runtime.Tracer.GetTelemetry(),
+		"conntrack": runtime.Conntrack.GetTelemetry(),
+	}
+
+	result := make(map[string]network.RuntimeCompilationTelemetry)
+	for assetName, telemetry := range telemetryByAsset {
+		tm := network.RuntimeCompilationTelemetry{}
+		if enabled, ok := telemetry["runtime_compilation_enabled"]; ok {
+			tm.RuntimeCompilationEnabled = enabled == 1
+		}
+		if result, ok := telemetry["runtime_compilation_result"]; ok {
+			tm.RuntimeCompilationResult = int32(result)
+		}
+		if duration, ok := telemetry["runtime_compilation_duration"]; ok {
+			tm.RuntimeCompilationDuration = duration
+		}
+		result[assetName] = tm
+	}
+
+	return result
 }
 
 // getConnections returns all of the active connections in the ebpf maps along with the latest timestamp.  It takes
@@ -876,22 +903,27 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 	expiredTCP := atomic.LoadInt64(&t.expiredTCPConns)
 	pidCollisions := atomic.LoadInt64(&t.pidCollisions)
 
+	tracerStats := map[string]int64{
+		"closed_conn_polling_lost":     lost,
+		"closed_conn_polling_received": received,
+		"conn_valid_skipped":           skipped, // Skipped connections (e.g. Local DNS requests)
+		"expired_tcp_conns":            expiredTCP,
+		"pid_collisions":               pidCollisions,
+	}
+	for k, v := range runtime.Tracer.GetTelemetry() {
+		tracerStats[k] = v
+	}
+
 	stateStats := t.state.GetStats()
 	conntrackStats := t.conntracker.GetStats()
 
 	ret := map[string]interface{}{
 		"conntrack": conntrackStats,
 		"state":     stateStats,
-		"tracer": map[string]int64{
-			"closed_conn_polling_lost":     lost,
-			"closed_conn_polling_received": received,
-			"conn_valid_skipped":           skipped, // Skipped connections (e.g. Local DNS requests)
-			"expired_tcp_conns":            expiredTCP,
-			"pid_collisions":               pidCollisions,
-		},
-		"ebpf":    t.getEbpfTelemetry(),
-		"kprobes": ddebpf.GetProbeStats(),
-		"dns":     t.reverseDNS.GetStats(),
+		"tracer":    tracerStats,
+		"ebpf":      t.getEbpfTelemetry(),
+		"kprobes":   ddebpf.GetProbeStats(),
+		"dns":       t.reverseDNS.GetStats(),
 	}
 
 	if t.httpMonitor != nil {
