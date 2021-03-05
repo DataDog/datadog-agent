@@ -100,6 +100,8 @@ type Tracer struct {
 	sourceExcludes []*network.ConnectionFilter
 	destExcludes   []*network.ConnectionFilter
 
+	gwLookup *gatewayLookup
+
 	sysctlUDPConnTimeout       *sysctl.Int
 	sysctlUDPConnStreamTimeout *sysctl.Int
 }
@@ -223,6 +225,13 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	perfHandlerHTTP := ddebpf.NewPerfHandler(closedChannelSize)
 	m := netebpf.NewManager(perfHandlerTCP, perfHandlerHTTP, runtimeTracer)
 
+	if gwLookupEnabled(config) && runtimeTracer {
+		enabledProbes[probes.IPRouteOutputFlow] = struct{}{}
+		enabledProbes[probes.IPRouteOutputFlowReturn] = struct{}{}
+
+		mgrOptions.MapSpecEditors[string(probes.GatewayMap)] = manager.MapSpecEditor{Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries}
+	}
+
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
 	for _, p := range m.Probes {
 		if _, enabled := enabledProbes[probes.ProbeName(p.Section)]; !enabled {
@@ -288,6 +297,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		runtimeTracer:              runtimeTracer,
 		sysctlUDPConnTimeout:       sysctl.NewInt(config.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout", time.Minute),
 		sysctlUDPConnStreamTimeout: sysctl.NewInt(config.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout_stream", time.Minute),
+		gwLookup:                   newGatewayLookup(config, runtimeTracer, m),
 	}
 
 	tr.perfMap, tr.batchManager, err = tr.initPerfPolling(perfHandlerTCP)
@@ -337,7 +347,7 @@ func initializePortBindingMaps(config *config.Config, m *manager.Manager) error 
 		}
 		for p := range tcpPorts {
 			log.Debugf("adding initial TCP port binding: netns: %d port: %d", p.Ino, p.Port)
-			pb := portBindingTuple{net_ns: C.__u32(p.Ino), port: C.__u16(p.Port)}
+			pb := portBindingTuple{netns: C.__u32(p.Ino), port: C.__u16(p.Port)}
 			state := uint8(C.PORT_LISTENING)
 			err = tcpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&state), ebpf.UpdateNoExist)
 			if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
@@ -356,7 +366,7 @@ func initializePortBindingMaps(config *config.Config, m *manager.Manager) error 
 		for p := range udpPorts {
 			log.Debugf("adding initial UDP port binding: netns: %d port: %d", p.Ino, p.Port)
 			// UDP port bindings currently do not have network namespace numbers
-			pb := portBindingTuple{net_ns: 0, port: C.__u16(p.Port)}
+			pb := portBindingTuple{netns: 0, port: C.__u16(p.Port)}
 			state := uint8(C.PORT_LISTENING)
 			err = udpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&state), ebpf.UpdateNoExist)
 			if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
@@ -558,6 +568,8 @@ func (t *Tracer) shouldSkipConnection(conn *network.ConnectionStats) bool {
 }
 
 func (t *Tracer) storeClosedConn(cs *network.ConnectionStats) {
+	t.connVia(cs)
+
 	if t.shouldSkipConnection(cs) {
 		atomic.AddInt64(&t.skippedConns, 1)
 		return
@@ -711,6 +723,7 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 			atomic.AddInt64(&t.closedConns, 1)
 		} else {
 			conn := connStats(key, stats, t.getTCPStats(tcpMp, key, seen))
+			t.connVia(&conn)
 			if t.shouldSkipConnection(&conn) {
 				atomic.AddInt64(&t.skippedConns, 1)
 			} else {
@@ -993,6 +1006,14 @@ func (t *Tracer) connectionExpired(conn *ConnTuple, latestTime uint64, stats *Co
 	}
 
 	return !ok
+}
+
+func (t *Tracer) connVia(cs *network.ConnectionStats) {
+	if t.gwLookup == nil {
+		return // gateway lookup is not enabled
+	}
+
+	cs.Via = t.gwLookup.Lookup(cs)
 }
 
 func newHTTPMonitor(supported bool, c *config.Config, m *manager.Manager, h *ddebpf.PerfHandler) *http.Monitor {
