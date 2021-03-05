@@ -75,7 +75,7 @@ if [ "$KITCHEN_PROVIDER" == "azure" ]; then
   set -x
 
 elif [ "$KITCHEN_PROVIDER" == "ec2" ]; then
-  echo "ec2"
+  echo "using ec2 kitchen provider"
 fi
 
 # Generate a password to use for the windows servers
@@ -118,4 +118,4 @@ cp kitchen.yml ./.kitchen/generated_kitchen.yml
 rm -rf cookbooks
 rm -f Berksfile.lock
 berks vendor ./cookbooks
-bundle exec kitchen test "'^dd*.*-${KITCHEN_PROVIDER}\$'" -c -d always
+bundle exec kitchen test "^dd*.*-${KITCHEN_PROVIDER}\$" -c -d always
