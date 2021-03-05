@@ -6,22 +6,35 @@
 package testutil
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 )
 
-const defaultEnv = "none"
+const (
+	defaultEnv      = "none"
+	defaultHostname = "hostname"
+)
 
 // BucketWithSpans returns a stats bucket populated with spans stats
-func BucketWithSpans(spans []*stats.WeightedSpan) stats.Bucket {
+func BucketWithSpans(spans []*stats.WeightedSpan) pb.ClientStatsBucket {
 	srb := stats.NewRawBucket(0, 1e9)
 	for _, s := range spans {
-		srb.HandleSpan(s, defaultEnv)
+		// override version to ensure all buckets will have the same payload key.
+		s.Meta["version"] = ""
+		srb.HandleSpan(s, defaultEnv, defaultHostname)
 	}
-	return srb.Export()
+	buckets := srb.Export()
+	if len(buckets) != 1 {
+		panic("All entries must have the same payload key.")
+	}
+	for _, b := range srb.Export() {
+		return b
+	}
+	return pb.ClientStatsBucket{}
 }
 
 // RandomBucket returns a bucket made from n random spans, useful to run benchmarks and tests
-func RandomBucket(n int) stats.Bucket {
+func RandomBucket(n int) pb.ClientStatsBucket {
 	spans := make([]*stats.WeightedSpan, 0, n)
 	for i := 0; i < n; i++ {
 		spans = append(spans, RandomWeightedSpan())
