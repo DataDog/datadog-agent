@@ -39,10 +39,16 @@ func newGatewayLookup(config *config.Config, runtimeCompilerEnabled bool, m *man
 	}
 
 	var router network.Router
+	var err error
 	if runtimeCompilerEnabled {
-		router = newEbpfRouter(m)
+		router, err = newEbpfRouter(m)
 	} else {
-		router = network.NewNetlinkRouter(config.ProcRoot)
+		router, err = network.NewNetlinkRouter(config.ProcRoot)
+	}
+
+	if err != nil {
+		log.Errorf("could not create gateway lookup: %s", err)
+		return nil
 	}
 
 	routeCacheSize := maxRouteCacheSize
@@ -111,14 +117,14 @@ type ebpfRouter struct {
 	gwMp *ebpf.Map
 }
 
-func newEbpfRouter(m *manager.Manager) network.Router {
+func newEbpfRouter(m *manager.Manager) (network.Router, error) {
 	mp, ok, err := m.GetMap(string(probes.GatewayMap))
 	if err != nil || !ok {
-		return nil
+		return nil, err
 	}
 	return &ebpfRouter{
 		gwMp: mp,
-	}
+	}, nil
 }
 
 func (b *ebpfRouter) Route(source, dest util.Address, netns uint32) (network.Route, bool) {

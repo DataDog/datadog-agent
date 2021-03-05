@@ -3,11 +3,11 @@
 package network
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/golang/groupcache/lru"
 	"github.com/vishvananda/netlink"
 )
@@ -109,14 +109,13 @@ type netlinkRouter struct {
 }
 
 // NewNetlinkRouter create a Router that queries routes via netlink
-func NewNetlinkRouter(procRoot string) Router {
+func NewNetlinkRouter(procRoot string) (Router, error) {
 	rootNs, err := util.GetNetNsInoFromPid(procRoot, 1)
 	if err != nil {
-		_ = log.Errorf("netlink gw cache backing: could not get root net ns: %s", err)
-		return nil
+		return nil, fmt.Errorf("netlink gw cache backing: could not get root net ns: %w", err)
 	}
 
-	return &netlinkRouter{rootNs: rootNs}
+	return &netlinkRouter{rootNs: rootNs}, nil
 }
 
 func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, bool) {
