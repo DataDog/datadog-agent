@@ -77,11 +77,17 @@ func (s *groupedStats) export(k statsKey) (pb.ClientGroupedStats, error) {
 }
 
 func newGroupedStats() *groupedStats {
-	ok, _ := ddsketch.LogCollapsingLowestDenseDDSketch(relativeAccuracy, maxNumBins)
-	err, _ := ddsketch.LogCollapsingLowestDenseDDSketch(relativeAccuracy, maxNumBins)
+	okSketch, err := ddsketch.LogCollapsingLowestDenseDDSketch(relativeAccuracy, maxNumBins)
+	if err != nil {
+		log.Errorf("Error when creating ddsketch: %v", err)
+	}
+	errSketch, err := ddsketch.LogCollapsingLowestDenseDDSketch(relativeAccuracy, maxNumBins)
+	if err != nil {
+		log.Errorf("Error when creating ddsketch: %v", err)
+	}
 	return &groupedStats{
-		okDistribution:  ok,
-		errDistribution: err,
+		okDistribution:  okSketch,
+		errDistribution: errSketch,
 	}
 }
 
