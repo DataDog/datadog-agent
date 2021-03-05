@@ -152,19 +152,15 @@ SYSCALL_KPROBE4(execveat, int, fd, const char *, filename, const char **, argv, 
     return trace__sys_execveat(ctx, argv, env);
 }
 
-int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct syscall_cache_t *syscall) {
+int __attribute__((always_inline)) handle_exec_event(struct syscall_cache_t *syscall, struct file *file, struct path *path, struct inode *inode) {
     if (syscall->exec.is_parsed) {
         return 0;
     }
     syscall->exec.is_parsed = 1;
 
-    struct file *file = (struct file *)PT_REGS_PARM1(ctx);
-    struct inode *inode = (struct inode *)PT_REGS_PARM2(ctx);
-    struct path *path = &file->f_path;
-
     syscall->exec.dentry = get_file_dentry(file);
-    syscall->exec.path_key = get_inode_key_path(inode, &file->f_path);
-    syscall->exec.path_key.path_id = get_path_id(0);
+    syscall->exec.file.path_key = get_inode_key_path(inode, path);
+    syscall->exec.file.path_key.path_id = get_path_id(0);
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
@@ -172,10 +168,12 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
     struct dentry *exec_dentry = get_path_dentry(path);
     struct proc_cache_t entry = {
         .executable = {
-            .inode = syscall->exec.path_key.ino,
-            .overlay_numlower = get_overlay_numlower(exec_dentry),
-            .mount_id = get_path_mount_id(path),
-            .path_id = syscall->exec.path_key.path_id,
+            .path_key = {
+                .ino = syscall->exec.file.path_key.ino,
+                .mount_id = get_path_mount_id(path),
+                .path_id = syscall->exec.file.path_key.path_id,
+            },
+            .flags = syscall->exec.file.flags,
         },
         .container = {},
         .exec_timestamp = bpf_ktime_get_ns(),
@@ -184,7 +182,7 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
     bpf_get_current_comm(&entry.comm, sizeof(entry.comm));
 
     // cache dentry
-    resolve_dentry(syscall->exec.dentry, syscall->exec.path_key, 0);
+    resolve_dentry(syscall->exec.dentry, syscall->exec.file.path_key, 0);
 
     // select the previous cookie entry in cache of the current process
     // (this entry was created by the fork of the current process)

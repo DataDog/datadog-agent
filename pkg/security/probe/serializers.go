@@ -33,8 +33,9 @@ type FileSerializer struct {
 	PathResolutionError string     `json:"path_resolution_error,omitempty"`
 	Inode               *uint64    `json:"inode,omitempty"`
 	Mode                *uint32    `json:"mode,omitempty"`
-	OverlayNumLower     *int32     `json:"overlay_numlower,omitempty"`
+	InUpperLayer        *bool      `json:"in_upper_layer,omitempty"`
 	MountID             *uint32    `json:"mount_id,omitempty"`
+	Filesystem          string     `json:"filesystem,omitempty"`
 	UID                 uint32     `json:"uid,omitempty"`
 	GID                 uint32     `json:"gid,omitempty"`
 	User                string     `json:"user,omitempty"`
@@ -125,6 +126,7 @@ type ProcessCacheEntrySerializer struct {
 	Comm                string                        `json:"comm,omitempty"`
 	Inode               uint64                        `json:"executable_inode,omitempty"`
 	MountID             uint32                        `json:"executable_mount_id,omitempty"`
+	Filesystem          string                        `json:"executable_filesystem,omitempty"`
 	TTY                 string                        `json:"tty,omitempty"`
 	ForkTime            *time.Time                    `json:"fork_time,omitempty"`
 	ExecTime            *time.Time                    `json:"exec_time,omitempty"`
@@ -184,6 +186,14 @@ type EventSerializer struct {
 	Date                       time.Time                   `json:"date,omitempty"`
 }
 
+func getInUpperLayer(r *Resolvers, f *model.FileFields) *bool {
+	if r.ResolveFilesystem(f) != "overlay" {
+		return nil
+	}
+	b := r.ResolveInUpperLayer(f)
+	return &b
+}
+
 func newFileSerializer(fe *model.FileEvent, e *Event) *FileSerializer {
 	mode := uint32(fe.FileFields.Mode)
 	return &FileSerializer{
@@ -193,7 +203,7 @@ func newFileSerializer(fe *model.FileEvent, e *Event) *FileSerializer {
 		ContainerPath:       e.ResolveFileContainerPath(fe),
 		Inode:               getUint64Pointer(&fe.Inode),
 		MountID:             getUint32Pointer(&fe.MountID),
-		OverlayNumLower:     getInt32Pointer(&fe.OverlayNumLower),
+		Filesystem:          e.ResolveFileFilesystem(fe),
 		Mode:                getUint32Pointer(&mode),
 		UID:                 fe.UID,
 		GID:                 fe.GID,
@@ -201,6 +211,7 @@ func newFileSerializer(fe *model.FileEvent, e *Event) *FileSerializer {
 		Group:               e.ResolveGroup(&fe.FileFields),
 		Mtime:               &fe.MTime,
 		Ctime:               &fe.CTime,
+		InUpperLayer:        getInUpperLayer(e.resolvers, &fe.FileFields),
 	}
 }
 
@@ -213,7 +224,8 @@ func newProcessFileSerializer(process *model.Process, e *Event) *FileSerializer 
 		ContainerPath:       e.ResolveProcessContainerPath(process),
 		Inode:               getUint64Pointer(&process.FileFields.Inode),
 		MountID:             getUint32Pointer(&process.FileFields.MountID),
-		OverlayNumLower:     getInt32Pointer(&process.FileFields.OverlayNumLower),
+		Filesystem:          e.ResolveProcessFilesystem(process),
+		InUpperLayer:        getInUpperLayer(e.resolvers, &process.FileFields),
 		Mode:                getUint32Pointer(&mode),
 		UID:                 process.FileFields.UID,
 		GID:                 process.FileFields.GID,
@@ -233,7 +245,8 @@ func newProcessFileSerializerWithResolvers(process *model.Process, r *Resolvers)
 		ContainerPath:       process.ContainerPath,
 		Inode:               getUint64Pointer(&process.FileFields.Inode),
 		MountID:             getUint32Pointer(&process.FileFields.MountID),
-		OverlayNumLower:     getInt32Pointer(&process.FileFields.OverlayNumLower),
+		Filesystem:          r.ResolveFilesystem(&process.FileFields),
+		InUpperLayer:        getInUpperLayer(r, &process.FileFields),
 		Mode:                getUint32Pointer(&mode),
 		UID:                 process.FileFields.UID,
 		GID:                 process.FileFields.GID,
@@ -252,13 +265,6 @@ func getUint64Pointer(i *uint64) *uint64 {
 }
 
 func getUint32Pointer(i *uint32) *uint32 {
-	if *i == 0 {
-		return nil
-	}
-	return i
-}
-
-func getInt32Pointer(i *int32) *int32 {
 	if *i == 0 {
 		return nil
 	}

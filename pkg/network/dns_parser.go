@@ -28,7 +28,7 @@ type dnsParser struct {
 	collectDNSDomains bool
 }
 
-func newDNSParser(collectDNSStats bool, collectDNSDomains bool) *dnsParser {
+func newDNSParser(layerType gopacket.LayerType, collectDNSStats bool, collectDNSDomains bool) *dnsParser {
 	ipv4Payload := &layers.IPv4{}
 	ipv6Payload := &layers.IPv6{}
 	udpPayload := &layers.UDP{}
@@ -45,7 +45,7 @@ func newDNSParser(collectDNSStats bool, collectDNSDomains bool) *dnsParser {
 	}
 
 	return &dnsParser{
-		decoder:           gopacket.NewDecodingLayerParser(layers.LayerTypeEthernet, stack...),
+		decoder:           gopacket.NewDecodingLayerParser(layerType, stack...),
 		ipv4Payload:       ipv4Payload,
 		ipv6Payload:       ipv6Payload,
 		udpPayload:        udpPayload,

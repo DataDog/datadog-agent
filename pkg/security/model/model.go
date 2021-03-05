@@ -273,6 +273,7 @@ type Process struct {
 	PathnameStr         string `field:"file.path" handler:"ResolveProcessInode,string"`
 	ContainerPath       string `field:"file.container_path" handler:"ResolveProcessContainerPath,string"`
 	BasenameStr         string `field:"file.name" handler:"ResolveProcessBasename,string"`
+	Filesystem          string `field:"file.filesystem" handler:"ResolveProcessFilesystem,string"`
 	PathResolutionError error  `field:"-"`
 
 	ExecTimestamp uint64    `field:"-"`
@@ -324,10 +325,10 @@ type FileFields struct {
 	CTime time.Time `field:"-"`
 	MTime time.Time `field:"-"`
 
-	MountID         uint32 `field:"mount_id"`
-	Inode           uint64 `field:"inode"`
-	PathID          uint32 `field:"-"`
-	OverlayNumLower int32  `field:"overlay_numlower"`
+	MountID uint32 `field:"mount_id"`
+	Inode   uint64 `field:"inode"`
+	PathID  uint32 `field:"-"`
+	Flags   int32  `field:"-"`
 }
 
 // FileEvent is the common file event type
@@ -336,6 +337,8 @@ type FileEvent struct {
 	PathnameStr   string `field:"path" handler:"ResolveFileInode,string"`
 	ContainerPath string `field:"container_path" handler:"ResolveFileContainerPath,string"`
 	BasenameStr   string `field:"name" handler:"ResolveFileBasename,string"`
+	Filesytem     string `field:"filesystem" handler:"ResolveFileFilesystem,string"`
+	InUpperLayer  bool   `field:"in_upper_layer" handler:"ResolveFileInUpperLayer,bool"`
 
 	PathResolutionError error `field:"-"`
 }

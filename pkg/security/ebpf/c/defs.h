@@ -239,6 +239,30 @@ struct kevent_t {
     u64 type;
 };
 
+struct syscall_t {
+    s64 retval;
+};
+
+struct process_context_t {
+    u32 pid;
+    u32 tid;
+};
+
+struct container_context_t {
+    char container_id[CONTAINER_ID_LEN];
+};
+
+enum file_flags {
+    LOWER_LAYER = 1 << 0,
+    UPPER_LAYER = 1 << 1,
+};
+
+struct path_key_t {
+    u64 ino;
+    u32 mount_id;
+    u32 path_id;
+};
+
 struct ktimeval {
     long tv_sec;
     long tv_nsec;
@@ -255,32 +279,10 @@ struct file_metadata_t {
 };
 
 struct file_t {
-    u64 inode;
-    u32 mount_id;
-    u32 overlay_numlower;
-    u32 path_id;
+    struct path_key_t path_key;
+    u32 flags;
     u32 padding;
-
     struct file_metadata_t metadata;
-};
-
-struct syscall_t {
-    s64 retval;
-};
-
-struct process_context_t {
-    u32 pid;
-    u32 tid;
-};
-
-struct container_context_t {
-    char container_id[CONTAINER_ID_LEN];
-};
-
-struct path_key_t {
-    u64 ino;
-    u32 mount_id;
-    u32 path_id;
 };
 
 struct bpf_map_def SEC("maps/path_id") path_id = {
@@ -412,7 +414,6 @@ static __attribute__((always_inline)) u32 atoi(char *buff) {
 
 // implemented in the probe.c file
 void __attribute__((always_inline)) invalidate_inode(struct pt_regs *ctx, u32 mount_id, u64 inode, int send_invalidate_event);
-void __attribute__((always_inline)) invalidate_path_key(struct pt_regs *ctx, struct path_key_t *key, int send_invalidate_event);
 
 struct bpf_map_def SEC("maps/enabled_events") enabled_events = {
     .type = BPF_MAP_TYPE_ARRAY,

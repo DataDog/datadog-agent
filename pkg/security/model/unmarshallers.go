@@ -230,8 +230,8 @@ func (e *FileFields) UnmarshalBinary(data []byte) (int, error) {
 	}
 	e.Inode = ByteOrder.Uint64(data[0:8])
 	e.MountID = ByteOrder.Uint32(data[8:12])
-	e.OverlayNumLower = int32(ByteOrder.Uint32(data[12:16]))
-	e.PathID = ByteOrder.Uint32(data[16:20])
+	e.PathID = ByteOrder.Uint32(data[12:16])
+	e.Flags = int32(ByteOrder.Uint32(data[16:20]))
 
 	// +4 for padding
 
