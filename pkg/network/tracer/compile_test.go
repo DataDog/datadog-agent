@@ -13,8 +13,7 @@ import (
 func TestTracerCompile(t *testing.T) {
 	cfg := config.NewDefaultConfig()
 	cfg.BPFDebug = true
-	cflags, err := getCFlags(cfg)
-	require.NoError(t, err)
+	cflags := getCFlags(cfg)
 	_, err = runtime.Tracer.Compile(&cfg.Config, cflags)
 	require.NoError(t, err)
 }
@@ -22,8 +21,7 @@ func TestTracerCompile(t *testing.T) {
 func TestConntrackCompile(t *testing.T) {
 	cfg := config.NewDefaultConfig()
 	cfg.BPFDebug = true
-	cflags, err := getCFlags(cfg)
-	require.NoError(t, err)
+	getCFlags := getCFlags(cfg)
 	_, err = runtime.Conntrack.Compile(&cfg.Config, cflags)
 	require.NoError(t, err)
 }
