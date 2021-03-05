@@ -26,7 +26,7 @@ if exist \omnibus-ruby\pkg\*.zip copy \omnibus-ruby\pkg\*.zip %PKG_OUTDIR% || ex
 if exist \omnibus-ruby\pkg\*.wixpdb copy \omnibus-ruby\pkg\*.wixpdb %PKG_OUTDIR% || exit /b 8
 
 dir C:\opt\datadog-agent\bin\agent\
-if exist C:\opt\datadog-agent\bin\agent\*.pdb copy C:\opt\opt\datadog-agent\bin\agent\*.pdb %PKG_OUTDIR% || exit /b 9
+if exist C:\opt\datadog-agent\bin\agent\*.pdb copy C:\opt\datadog-agent\bin\agent\*.pdb %PKG_OUTDIR% || exit /b 9
 
 goto :EOF
 
