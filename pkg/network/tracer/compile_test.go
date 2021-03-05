@@ -14,14 +14,14 @@ func TestTracerCompile(t *testing.T) {
 	cfg := config.NewDefaultConfig()
 	cfg.BPFDebug = true
 	cflags := getCFlags(cfg)
-	_, err = runtime.Tracer.Compile(&cfg.Config, cflags)
+	_, err := runtime.Tracer.Compile(&cfg.Config, cflags)
 	require.NoError(t, err)
 }
 
 func TestConntrackCompile(t *testing.T) {
 	cfg := config.NewDefaultConfig()
 	cfg.BPFDebug = true
-	getCFlags := getCFlags(cfg)
-	_, err = runtime.Conntrack.Compile(&cfg.Config, cflags)
+	cflags := getCFlags(cfg)
+	_, err := runtime.Conntrack.Compile(&cfg.Config, cflags)
 	require.NoError(t, err)
 }
