@@ -215,7 +215,6 @@ func TestSerialization(t *testing.T) {
 	})
 
 	// protobufs evaluate empty maps as nil
-	out.Routes = nil
 	out.CompilationTelemetryByAsset = nil
 
 	t.Run("requesting application/protobuf serialization", func(t *testing.T) {
