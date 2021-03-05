@@ -346,7 +346,7 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 		return nil, err
 	}
 
-	if err := cfg.Orchestrator.LoadYamlConfig(); err != nil {
+	if err := cfg.Orchestrator.Load(); err != nil {
 		return nil, err
 	}
 

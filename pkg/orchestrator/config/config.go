@@ -61,9 +61,9 @@ func key(pieces ...string) string {
 	return strings.Join(pieces, ".")
 }
 
-// LoadYamlConfig load orchestrator-specific configuration
+// Load load orchestrator-specific configuration
 // at this point secrets should already be resolved by the core/process/cluster agent
-func (oc *OrchestratorConfig) LoadYamlConfig() error {
+func (oc *OrchestratorConfig) Load() error {
 	URL, err := extractOrchestratorDDUrl()
 	if err != nil {
 		return err
@@ -165,7 +165,7 @@ func NewOrchestratorForwarder() *forwarder.DefaultForwarder {
 		return nil
 	}
 	orchestratorCfg := NewDefaultOrchestratorConfig()
-	if err := orchestratorCfg.LoadYamlConfig(); err != nil {
+	if err := orchestratorCfg.Load(); err != nil {
 		log.Errorf("Error loading the orchestrator config: %s", err)
 	}
 	keysPerDomain := apicfg.KeysPerDomains(orchestratorCfg.OrchestratorEndpoints)
