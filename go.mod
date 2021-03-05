@@ -222,3 +222,5 @@ replace (
 	k8s.io/metrics => k8s.io/metrics v0.18.2
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.0.0-20191016112829-06bb3c9d77c9
 )
+
+replace github.com/DataDog/agent-payload => github.com/DataDog/agent-payload 19a2adda019045f063df6ec59b019085217f5489
