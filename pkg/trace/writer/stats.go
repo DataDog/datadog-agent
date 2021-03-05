@@ -266,8 +266,8 @@ func splitPayload(p pb.ClientStatsPayload, maxEntriesPerPayload int) []clientSta
 		}
 	}
 	// 3. Iterate over all entries of each stats. Add the entry to one of
-	//    the payloads, in a round robin fashion. Use the indexes maps to
-	//    ensure that we have one ClientStatsBucket per timeWindow for each ClientStatsPayoad.
+	//    the payloads, in a round robin fashion. Use the bucketIndexes map to
+	//    ensure that we have one ClientStatsBucket per timeWindow for each ClientStatsPayload.
 	i := 0
 	for _, b := range p.Stats {
 		tw := timeWindow{b.Start, b.Duration}

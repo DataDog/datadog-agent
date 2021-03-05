@@ -6,6 +6,7 @@
 package stats
 
 import (
+	"math/rand"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -29,12 +30,23 @@ const (
 // is that the final data, the one with send after a call to Export(), is correct.
 
 type groupedStats struct {
-	hits            uint64
-	topLevelHits    uint64
-	errors          uint64
-	duration        uint64
+	// using float64 here to avoid the accumulation of rounding issues.
+	hits            float64
+	topLevelHits    float64
+	errors          float64
+	duration        float64
 	okDistribution  *ddsketch.DDSketch
 	errDistribution *ddsketch.DDSketch
+}
+
+// round a float to an int, uniformly choosing
+// between the lower and upper approximations.
+func round(f float64) uint64 {
+	i := uint64(f)
+	if rand.Float64() < f-float64(i) {
+		i++
+	}
+	return i
 }
 
 func (s *groupedStats) export(k statsKey) (pb.ClientGroupedStats, error) {
@@ -54,10 +66,10 @@ func (s *groupedStats) export(k statsKey) (pb.ClientGroupedStats, error) {
 		Resource:       k.aggr.Resource,
 		HTTPStatusCode: k.aggr.StatusCode,
 		Type:           k.aggr.Type,
-		Hits:           s.hits,
-		Errors:         s.errors,
-		Duration:       s.duration,
-		TopLevelHits:   s.topLevelHits,
+		Hits:           round(s.hits),
+		Errors:         round(s.errors),
+		Duration:       round(s.duration),
+		TopLevelHits:   round(s.topLevelHits),
 		OkSummary:      okSummary,
 		ErrorSummary:   errSummary,
 		Synthetics:     k.aggr.Synthetics,
@@ -165,7 +177,7 @@ func (sb *RawBucket) add(s *WeightedSpan, aggr Aggregation) {
 	if s.Error != 0 {
 		gs.errors += s.Weight
 	}
-	gs.duration += uint64(s.Duration) * s.Weight
+	gs.duration += float64(s.Duration) * s.Weight
 	// alter resolution of duration distro
 	trundur := nsTimestampToFloat(s.Duration)
 	if s.Error != 0 {
