@@ -223,4 +223,4 @@ replace (
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.0.0-20191016112829-06bb3c9d77c9
 )
 
-replace github.com/DataDog/agent-payload => github.com/DataDog/agent-payload 19a2adda019045f063df6ec59b019085217f5489
+replace github.com/DataDog/agent-payload => github.com/DataDog/agent-payload v4.59.1-0.20210305133427-19a2adda0190+incompatible
