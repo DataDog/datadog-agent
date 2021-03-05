@@ -1,10 +1,12 @@
 #include "stdafx.h"
+#include "PropertyReplacer.h"
+#include <utility>
 
 CustomActionData::CustomActionData()
     : domainUser(false)
-    , doInstallSysprobe(true)
-    , ddnpmPresent(false)
-    , userParamMismatch(false)
+      , doInstallSysprobe(true)
+      , ddnpmPresent(false)
+      , userParamMismatch(false)
 {
 }
 
@@ -32,25 +34,22 @@ bool CustomActionData::init(const std::wstring &data)
         return false;
     }
 
-    // first, the string is KEY=VAL;KEY=VAL....
-    // first split into key/value pairs
-    std::wstringstream ss(data);
-    std::wstring token;
-    while (std::getline(ss, token, L';'))
+    auto start = data.begin();
+    auto end = data.end();
+    std::wregex re(L"((\\w+)=(.+)?;\\s*\r?\n)");
+    std::match_results<decltype(start)> results;
+    while (std::regex_search(start, end, results, re))
     {
-        // now 'token'  has the key=val; do the same thing for the key=value
-        bool boolval = false;
-        std::wstringstream instream(token);
-        std::wstring key, val;
-        if (std::getline(instream, key, L'='))
+        auto propertyValue = results[3].str();
+        propertyValue.erase(propertyValue.begin(), std::find_if(propertyValue.begin(), propertyValue.end(), [](int ch)
         {
-            std::getline(instream, val);
-        }
-
-        if (val.length() > 0)
+            return !std::isspace(ch);
+        }));
+        if (propertyValue.length() > 0)
         {
-            this->values[key] = val;
+            values[results[2]] = propertyValue;
         }
+        start += results.position() + results.length();
     }
 
     return parseUsernameData() && parseSysprobeData();
@@ -117,7 +116,12 @@ bool CustomActionData::installSysprobe() const
     return doInstallSysprobe;
 }
 
-bool CustomActionData::npmPresent() const 
+bool CustomActionData::UserParamMismatch() const
+{
+    return userParamMismatch;
+}
+
+bool CustomActionData::npmPresent() const
 {
     return this->ddnpmPresent;
 }
@@ -164,7 +168,7 @@ bool CustomActionData::parseSysprobeData()
     }
 
     // now check to see if we're installing the driver
-    if(!this->value(L"ADDLOCAL", addlocal))
+    if (!this->value(L"ADDLOCAL", addlocal))
     {
         // should never happen.  But if the addlocalkey isn't there,
         // don't bother trying
@@ -173,7 +177,8 @@ bool CustomActionData::parseSysprobeData()
         return true;
     }
     WcaLog(LOGMSG_STANDARD, "ADDLOCAL is (%S)", addlocal.c_str());
-    if(_wcsicmp(addlocal.c_str(), L"ALL")== 0){
+    if (_wcsicmp(addlocal.c_str(), L"ALL") == 0)
+    {
         // installing all components, do it
         this->ddnpmPresent = true;
         WcaLog(LOGMSG_STANDARD, "ADDLOCAL is ALL");
@@ -181,7 +186,7 @@ bool CustomActionData::parseSysprobeData()
         WcaLog(LOGMSG_STANDARD, "ADDLOCAL contains NPM %S", addlocal.c_str());
         this->ddnpmPresent = true;
     }
-    
+
     return true;
 }
 

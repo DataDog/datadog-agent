@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"regexp"
 	"syscall"
 	"time"
 
@@ -245,6 +246,29 @@ func initializeCCCache(ctx context.Context) error {
 func initializeBBSCache(ctx context.Context) error {
 	pollInterval := time.Second * time.Duration(config.Datadog.GetInt("cloud_foundry_bbs.poll_interval"))
 	// NOTE: we can't use GetPollInterval in ConfigureGlobalBBSCache, as that causes import cycle
+
+	includeListString := config.Datadog.GetStringSlice("cloud_foundry_bbs.env_include")
+	excludeListString := config.Datadog.GetStringSlice("cloud_foundry_bbs.env_exclude")
+
+	includeList := make([]*regexp.Regexp, len(includeListString))
+	excludeList := make([]*regexp.Regexp, len(excludeListString))
+
+	for i, pattern := range includeListString {
+		re, err := regexp.Compile(pattern)
+		if err != nil {
+			return fmt.Errorf("failed to compile cloud_foundry_bbs.env_include regex pattern %s: %s", pattern, err.Error())
+		}
+		includeList[i] = re
+	}
+
+	for i, pattern := range excludeListString {
+		re, err := regexp.Compile(pattern)
+		if err != nil {
+			return fmt.Errorf("failed to compile cloud_foundry_bbs.env_exclude regex pattern %s: %s", pattern, err.Error())
+		}
+		excludeList[i] = re
+	}
+
 	bc, err := cloudfoundry.ConfigureGlobalBBSCache(
 		ctx,
 		config.Datadog.GetString("cloud_foundry_bbs.url"),
@@ -252,6 +276,8 @@ func initializeBBSCache(ctx context.Context) error {
 		config.Datadog.GetString("cloud_foundry_bbs.cert_file"),
 		config.Datadog.GetString("cloud_foundry_bbs.key_file"),
 		pollInterval,
+		includeList,
+		excludeList,
 		nil,
 	)
 	if err != nil {

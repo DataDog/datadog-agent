@@ -1992,6 +1992,15 @@ api_key:
   #
   # key_file: ""
 
+  ## @param env_include - List of strings - optional - default: []
+  ## List of regular expressions to allow a set of environment variables to be included as container tags
+  #
+  # env_include: []
+  ## @param env_exclude - List of strings - optional - default: []
+  ## List of regular expressions to forbid a set of environment variables to be included as container tags
+  #
+  # env_exclude: []
+
 {{ end -}}
 {{- if .CloudFoundryCC }}
 ####################################################################

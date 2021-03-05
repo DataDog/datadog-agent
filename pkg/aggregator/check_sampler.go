@@ -51,7 +51,7 @@ func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample) {
 }
 
 func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) metrics.SketchSeries {
-	ctx := cs.contextResolver.contextsByKey[ck]
+	ctx, _ := cs.contextResolver.get(ck)
 	ss := metrics.SketchSeries{
 		Name: ctx.Name,
 		Tags: ctx.Tags,
@@ -122,7 +122,7 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 func (cs *CheckSampler) commitSeries(timestamp float64) {
 	series, errors := cs.metrics.Flush(timestamp)
 	for ckey, err := range errors {
-		context, ok := cs.contextResolver.contextsByKey[ckey]
+		context, ok := cs.contextResolver.get(ckey)
 		if !ok {
 			log.Errorf("Can't resolve context of error '%s': inconsistent context resolver state: context with key '%v' is not tracked", err, ckey)
 			continue
@@ -131,7 +131,7 @@ func (cs *CheckSampler) commitSeries(timestamp float64) {
 	}
 	for _, serie := range series {
 		// Resolve context and populate new []Serie
-		context, ok := cs.contextResolver.contextsByKey[serie.ContextKey]
+		context, ok := cs.contextResolver.get(serie.ContextKey)
 		if !ok {
 			log.Errorf("Ignoring all metrics on context key '%v': inconsistent context resolver state: the context is not tracked", serie.ContextKey)
 			continue
@@ -182,6 +182,5 @@ func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {
 			delete(cs.lastBucketValue, ctxKey)
 		}
 	}
-
 	return series, sketches
 }
