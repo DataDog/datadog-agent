@@ -811,6 +811,7 @@ func InitConfig(config Config) {
 	config.SetKnown("network_config.enabled")
 	config.SetKnown("network_config.enable_http_monitoring")
 	config.SetKnown("network_config.ignore_conntrack_init_failure")
+	config.SetKnown("network_config.enable_gateway_lookup")
 
 	// Network
 	config.BindEnv("network.id") //nolint:errcheck

@@ -629,7 +629,7 @@ int kretprobe__inet_csk_accept(struct pt_regs* ctx) {
     handle_message(&t, 0, 0, CONN_DIRECTION_INCOMING);
 
     port_binding_t pb = {};
-    pb.net_ns = t.netns;
+    pb.netns = t.netns;
     pb.port = t.sport;
     __u8 state = PORT_LISTENING;
     bpf_map_update_elem(&port_bindings, &pb, &state, BPF_NOEXIST);
@@ -654,14 +654,14 @@ int kprobe__tcp_v4_destroy_sock(struct pt_regs* ctx) {
     }
 
     port_binding_t t = {};
-    t.net_ns = get_netns_from_sock(sk);
+    t.netns = get_netns_from_sock(sk);
     t.port = lport;
     __u8* val = bpf_map_lookup_elem(&port_bindings, &t);
     if (val != NULL) {
         bpf_map_delete_elem(&port_bindings, &t);
     }
 
-    log_debug("kprobe/tcp_v4_destroy_sock: net ns: %u, lport: %u\n", t.net_ns, t.port);
+    log_debug("kprobe/tcp_v4_destroy_sock: net ns: %u, lport: %u\n", t.netns, t.port);
     return 0;
 }
 
@@ -695,7 +695,7 @@ int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
     // since we don't have it everywhere for udp port bindings
     // (see sys_enter_bind/sys_exit_bind below)
     port_binding_t t = {};
-    t.net_ns = 0;
+    t.netns = 0;
     t.port = lport;
     bpf_map_delete_elem(&udp_port_bindings, &t);
 
@@ -794,7 +794,7 @@ static __always_inline int sys_exit_bind(__s64 ret) {
     __u16 sin_port = args->port;
     __u8 port_state = PORT_LISTENING;
     port_binding_t t = {};
-    t.net_ns = 0; // don't have net ns info in this context
+    t.netns = 0; // don't have net ns info in this context
     t.port = sin_port;
     bpf_map_update_elem(&udp_port_bindings, &t, &port_state, BPF_ANY);
     log_debug("sys_exit_bind: bound UDP port %u\n", sin_port);
