@@ -70,6 +70,7 @@ func healthHandler(getStatusNonBlocking func() (health.Status, error), w http.Re
 	if len(health.Unhealthy) > 0 {
 		w.WriteHeader(http.StatusInternalServerError)
 		log.Infof("Healthcheck failed on: %v", health.Unhealthy)
+		log.Debugf("goroutines stack: \n%s\n", allStack())
 	}
 
 	jsonHealth, err := json.Marshal(health)
