@@ -7,7 +7,6 @@ package writer
 
 import (
 	"compress/gzip"
-	"io"
 	"math"
 	"math/rand"
 	"strings"
@@ -39,10 +38,6 @@ func assertPayload(assert *assert.Assertions, testSets []pb.StatsPayload, payloa
 		var statsPayload pb.StatsPayload
 		r, err := gzip.NewReader(p.body)
 		assert.NoError(err)
-		v := make([]byte, 1)
-		_, err = io.ReadFull(r, v)
-		assert.NoError(err)
-		assert.Equal(v1, v[0])
 		err = msgp.Decode(r, &statsPayload)
 		assert.NoError(err)
 		for k, v := range expectedHeaders {

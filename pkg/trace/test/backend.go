@@ -102,7 +102,7 @@ func (s *fakeBackend) handleHealth(w http.ResponseWriter, req *http.Request) {
 
 func (s *fakeBackend) handleStats(w http.ResponseWriter, req *http.Request) {
 	var payload pb.StatsPayload
-	if err := readStatsPayloadPRequest(req, &payload); err != nil {
+	if err := readMsgPRequest(req, &payload); err != nil {
 		log.Println("server: error reading stats: ", err)
 	}
 	s.out <- payload
@@ -116,20 +116,12 @@ func (s *fakeBackend) handleTraces(w http.ResponseWriter, req *http.Request) {
 	s.out <- payload
 }
 
-func readStatsPayloadPRequest(req *http.Request, msg *pb.StatsPayload) error {
+func readMsgPRequest(req *http.Request, msg msgp.Decodable) error {
 	rc, err := readCloserFromRequest(req)
 	if err != nil {
 		return err
 	}
 	defer rc.Close()
-	v := make([]byte, 1)
-	_, err = io.ReadFull(rc, v)
-	if err != nil {
-		return err
-	}
-	if v[0] != 1 {
-		return fmt.Errorf("unknown version %d", v[0])
-	}
 	return msgp.Decode(rc, msg)
 }
 

@@ -24,6 +24,9 @@ const defaultBufferLen = 2
 // Gets an imperial shitton of traces, and outputs pre-computed data structures
 // allowing to find the gold (stats) amongst the traces.
 type Concentrator struct {
+	In  chan []Input
+	Out chan pb.StatsPayload
+
 	// bucket duration in nanoseconds
 	bsize int64
 	// Timestamp of the oldest time bucket for which we allow data.
@@ -34,8 +37,6 @@ type Concentrator struct {
 	// wait such time before flushing the stats.
 	// This only applies to past buckets. Stats buckets in the future are allowed with no restriction.
 	bufferLen     int
-	In            chan []Input
-	Out           chan pb.StatsPayload
 	exit          chan struct{}
 	exitWG        sync.WaitGroup
 	buckets       map[int64]*RawBucket // buckets used to aggregate stats per timestamp

@@ -37,8 +37,6 @@ const (
 	// let's have the default ensure we don't have paylods > 1.5 MB (4,000
 	// entries).
 	maxEntriesPerPayload = 4000
-	// v1 is the version of the payload we send to the backend.
-	v1 byte = 1
 )
 
 // StatsWriter ingests stats buckets and flushes them to the API.
@@ -164,10 +162,6 @@ func encodePayload(w io.Writer, payload pb.StatsPayload) error {
 	if err != nil {
 		return err
 	}
-	_, err = gz.Write([]byte{v1})
-	if err != nil {
-		return err
-	}
 	defer func() {
 		if err := gz.Close(); err != nil {
 			log.Errorf("Error closing gzip stream when writing stats payload: %v", err)
@@ -185,8 +179,7 @@ func (w *StatsWriter) buildPayloads(sp pb.StatsPayload, maxEntriesPerPayload int
 		AgentHostname: sp.AgentHostname,
 		AgentEnv:      sp.AgentEnv,
 	}
-	nbEntries := 0
-	nbBuckets := 0
+	var nbEntries, nbBuckets int
 	addPayload := func() {
 		log.Debugf("Flushing %d entries (buckets=%d client_payloads=%d)", nbEntries, nbBuckets, len(current.Stats))
 		atomic.AddInt64(&w.stats.StatsBuckets, int64(nbBuckets))
