@@ -39,36 +39,45 @@ func (s StringSet) GetAll() []string {
 // StructToMap converts a struct to a map[string]interface{} based on `json` annotations defaulting to field names
 func StructToMap(obj interface{}) map[string]interface{} {
 	rt, rv := reflect.TypeOf(obj), reflect.ValueOf(obj)
-	if rt != nil && rt.Kind() != reflect.Struct {
-		return make(map[string]interface{}, 0)
+
+	out := make(map[string]interface{}, 0)
+
+	if rt == nil || rv.IsZero() {
+		return out
 	}
 
-	out := make(map[string]interface{}, rt.NumField())
-	for i := 0; i < rt.NumField(); i++ {
-		field := rt.Field(i)
+	if rt.Kind() == reflect.Ptr {
+		obj = rv.Elem().Interface()
+		rt, rv = reflect.TypeOf(obj), reflect.ValueOf(obj)
+	}
 
-		// Unexported fields, access not allowed
-		if field.PkgPath != "" {
-			continue
-		}
+	if rt.Kind() == reflect.Struct {
+		out = make(map[string]interface{}, rt.NumField())
+		for i := 0; i < rt.NumField(); i++ {
+			field := rt.Field(i)
 
-		var fieldName string
-		if tagVal, ok := field.Tag.Lookup("json"); ok {
-			// Honor the special "-" in json attribute
-			if strings.HasPrefix(tagVal, "-") {
+			// Unexported fields, access not allowed
+			if field.PkgPath != "" {
 				continue
 			}
-			fieldName = tagVal
-		} else {
-			fieldName = field.Name
-		}
 
-		val := valueToInterface(rv.Field(i))
-		if val != nil {
-			out[fieldName] = val
+			var fieldName string
+			if tagVal, ok := field.Tag.Lookup("json"); ok {
+				// Honor the special "-" in json attribute
+				if strings.HasPrefix(tagVal, "-") {
+					continue
+				}
+				fieldName = tagVal
+			} else {
+				fieldName = field.Name
+			}
+
+			val := valueToInterface(rv.Field(i))
+			if val != nil {
+				out[fieldName] = val
+			}
 		}
 	}
-
 	return out
 }
 

@@ -83,50 +83,188 @@ func TestStructToMap(t *testing.T) {
 		},
 	}
 
-	top := Top{
-		Name:      "top",
-		Value:     0,
-		NestedPtr: &nested,
-		ID:        "top1",
-		MyMap: map[string]Nested{
-			"n1": nested,
+	cases := []struct {
+		testName string
+		input    interface{}
+		output   map[string]interface{}
+	}{
+		{
+			testName: "nil interface",
+			input:    nil,
+			output:   map[string]interface{}{},
+		},
+		{
+			testName: "integer",
+			input:    1,
+			output:   map[string]interface{}{},
+		},
+		{
+			testName: "string",
+			input:    "a",
+			output:   map[string]interface{}{},
+		},
+		{
+			testName: "default struct",
+			input:    Top{},
+			output:   map[string]interface{}{},
+		},
+		{
+			testName: "valid struct",
+			input: Top{
+				Name:      "top",
+				Value:     0,
+				NestedPtr: &nested,
+				ID:        "top1",
+				MyMap: map[string]Nested{
+					"n1": {
+						Foo: []MoreNested{
+							{
+								Name:         "ms1",
+								Value:        1,
+								ID:           &str,
+								JSONLessStr:  "42",
+								privateValue: 1000,
+							},
+							{
+								Name:  "ms2",
+								Value: 2,
+								ID:    nil,
+							},
+						},
+					},
+				},
+			},
+			output: map[string]interface{}{
+				"name":  "top",
+				"value": 0,
+				"nested": map[string]interface{}{
+					"moreNested": []interface{}{
+						map[string]interface{}{
+							"id":          "toto",
+							"name":        "ms1",
+							"value":       float64(1),
+							"JSONLessStr": "42",
+						},
+						map[string]interface{}{
+							"name":        "ms2",
+							"value":       float64(2),
+							"JSONLessStr": "",
+						},
+					},
+				},
+				"mymap": map[string]interface{}{
+					"n1": map[string]interface{}{
+						"moreNested": []interface{}{
+							map[string]interface{}{
+								"id":          "toto",
+								"name":        "ms1",
+								"value":       float64(1),
+								"JSONLessStr": "42",
+							},
+							map[string]interface{}{
+								"name":        "ms2",
+								"value":       float64(2),
+								"JSONLessStr": "",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			testName: "slice of structs",
+			input: []Top{
+				{
+					Name:      "first",
+					Value:     0,
+					NestedPtr: nil,
+					ID:        "first1",
+					MyMap:     map[string]Nested{},
+				},
+				{
+					Name:      "second",
+					Value:     0,
+					NestedPtr: nil,
+					ID:        "second2",
+					MyMap:     map[string]Nested{},
+				},
+			},
+			output: map[string]interface{}{},
+		},
+		{
+			testName: "nil pointer",
+			input:    (*Top)(nil),
+			output:   map[string]interface{}{},
+		},
+		{
+			testName: "pointer to valid struct",
+			input: &Top{
+				Name:      "top",
+				Value:     0,
+				NestedPtr: &nested,
+				ID:        "top1",
+				MyMap: map[string]Nested{
+					"n1": {
+						Foo: []MoreNested{
+							{
+								Name:         "ms1",
+								Value:        1,
+								ID:           &str,
+								JSONLessStr:  "42",
+								privateValue: 1000,
+							},
+							{
+								Name:  "ms2",
+								Value: 2,
+								ID:    nil,
+							},
+						},
+					},
+				},
+			},
+			output: map[string]interface{}{
+				"name":  "top",
+				"value": 0,
+				"nested": map[string]interface{}{
+					"moreNested": []interface{}{
+						map[string]interface{}{
+							"id":          "toto",
+							"name":        "ms1",
+							"value":       float64(1),
+							"JSONLessStr": "42",
+						},
+						map[string]interface{}{
+							"name":        "ms2",
+							"value":       float64(2),
+							"JSONLessStr": "",
+						},
+					},
+				},
+				"mymap": map[string]interface{}{
+					"n1": map[string]interface{}{
+						"moreNested": []interface{}{
+							map[string]interface{}{
+								"id":          "toto",
+								"name":        "ms1",
+								"value":       float64(1),
+								"JSONLessStr": "42",
+							},
+							map[string]interface{}{
+								"name":        "ms2",
+								"value":       float64(2),
+								"JSONLessStr": "",
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 
-	assert.Equal(t, map[string]interface{}{
-		"name":  "top",
-		"value": 0,
-		"nested": map[string]interface{}{
-			"moreNested": []interface{}{
-				map[string]interface{}{
-					"id":          "toto",
-					"name":        "ms1",
-					"value":       float64(1),
-					"JSONLessStr": "42",
-				},
-				map[string]interface{}{
-					"name":        "ms2",
-					"value":       float64(2),
-					"JSONLessStr": "",
-				},
-			},
-		},
-		"mymap": map[string]interface{}{
-			"n1": map[string]interface{}{
-				"moreNested": []interface{}{
-					map[string]interface{}{
-						"id":          "toto",
-						"name":        "ms1",
-						"value":       float64(1),
-						"JSONLessStr": "42",
-					},
-					map[string]interface{}{
-						"name":        "ms2",
-						"value":       float64(2),
-						"JSONLessStr": "",
-					},
-				},
-			},
-		},
-	}, StructToMap(top))
+	for _, tc := range cases {
+		t.Run(tc.testName, func(t *testing.T) {
+			assert.Equal(t, tc.output, StructToMap(tc.input))
+		})
+	}
+
 }
