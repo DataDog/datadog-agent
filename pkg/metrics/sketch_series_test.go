@@ -194,7 +194,11 @@ func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 }
 
 func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
-	sl := make(SketchSeriesList, 200)
+	oldSetting := config.Datadog.Get("serializer_max_uncompressed_payload_size")
+	defer config.Datadog.Set("serializer_max_uncompressed_payload_size", oldSetting)
+	config.Datadog.Set("serializer_max_uncompressed_payload_size", 2000)
+
+	sl := make(SketchSeriesList, 20)
 
 	for i := range sl {
 		sl[i] = Makeseries(i)
