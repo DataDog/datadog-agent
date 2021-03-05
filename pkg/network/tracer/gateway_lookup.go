@@ -3,6 +3,7 @@
 package tracer
 
 import (
+	"fmt"
 	"net"
 	"time"
 	"unsafe"
@@ -119,8 +120,11 @@ type ebpfRouter struct {
 
 func newEbpfRouter(m *manager.Manager) (network.Router, error) {
 	mp, ok, err := m.GetMap(string(probes.GatewayMap))
-	if err != nil || !ok {
+	if err != nil {
 		return nil, err
+	}
+	if !ok {
+		return nil, fmt.Errorf("ebpf router: could not find ebpf gateway map")
 	}
 	return &ebpfRouter{
 		gwMp: mp,
