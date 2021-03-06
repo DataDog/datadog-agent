@@ -35,3 +35,27 @@ LR"(
 #
 api_key: 1234567890)");
 }
+
+TEST_F(ReplaceYamlPropertiesTests, When_EC2_USE_WINDOWS_PREFIX_DETECTION_Add_It)
+{
+    value_map values = {{L"EC2_USE_WINDOWS_PREFIX_DETECTION", L"true"}};
+    std::wstring result = replace_yaml_properties(LR"()",
+                                                  propertyRetriever(values));
+    
+    EXPECT_EQ(result, LR"(
+ec2_use_windows_prefix_detection: true
+)");
+}
+
+TEST_F(ReplaceYamlPropertiesTests, When_EC2_USE_WINDOWS_PREFIX_DETECTION_Already_Exists_Dont_Duplicate_it)
+{
+    value_map values = {{L"EC2_USE_WINDOWS_PREFIX_DETECTION", L"true"}};
+    std::wstring result = replace_yaml_properties(LR"(
+ec2_use_windows_prefix_detection: false
+)",
+                                                  propertyRetriever(values));
+
+    EXPECT_EQ(result, LR"(
+ec2_use_windows_prefix_detection: true
+)");
+}
