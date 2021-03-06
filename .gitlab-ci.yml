@@ -30,7 +30,7 @@ variables: &globalvariables
   # Directory in which we put the artifacts after the build
   # Must be in $CI_PROJECT_DIR
   OMNIBUS_PACKAGE_DIR: $CI_PROJECT_DIR/.omnibus/pkg/
-  OMNIBUS_BASE_DIR_WIN: c:\omnibus-ruby #\$CI_RUNNER_ID
+  OMNIBUS_BASE_DIR_WIN: c:/omnibus-ruby #\$CI_RUNNER_ID
   OMNIBUS_BASE_DIR_WIN_OMNIBUS: c:/omnibus-ruby #/$CI_RUNNER_ID
   # Directory in which we execute the omnibus build for SUSE
   # as we want to separate the RPM built for this distro.
@@ -427,7 +427,7 @@ build_win:
   stage: build_and_test
   variables:
     <<: *globalvariables
-    OMNIBUS_BASE_DIR: c:\omnibus-ruby
+    OMNIBUS_BASE_DIR: c:/omnibus-ruby
   needs:
     - deps_win
   before_script:
@@ -490,7 +490,7 @@ pre_release_win:
     - build_win
   variables:
     <<: *globalvariables
-    OMNIBUS_BASE_DIR: c:\omnibus-ruby
+    OMNIBUS_BASE_DIR: c:/omnibus-ruby
   before_script:
     - *configure_windows_ps1_environment
     - Import-VisualStudioVars 2017 -Architecture amd64
