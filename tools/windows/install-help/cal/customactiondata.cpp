@@ -34,24 +34,26 @@ bool CustomActionData::init(const std::wstring &data)
         return false;
     }
 
-    auto start = data.begin();
-    auto end = data.end();
-    std::wregex re(L"((\\w+)=(.+)?;\\s*\r?\n)");
-    std::match_results<decltype(start)> results;
-    while (std::regex_search(start, end, results, re))
-    {
-        auto propertyValue = results[3].str();
-        propertyValue.erase(propertyValue.begin(), std::find_if(propertyValue.begin(), propertyValue.end(), [](int ch)
-        {
-            return !std::isspace(ch);
-        }));
-        if (propertyValue.length() > 0)
-        {
-            values[results[2]] = propertyValue;
-        }
-        start += results.position() + results.length();
-    }
+    std::wstringstream ss(data);
+    std::wstring token;
 
+    while (std::getline(ss, token))
+    {
+        // now 'token'  has the key=val; do the same thing for the key=value
+        bool boolval = false;
+        std::wstringstream instream(token);
+        std::wstring key, val;
+        if (std::getline(instream, key, L'='))
+        {
+            trim_string(key);
+            std::getline(instream, val);
+            trim_string(val);
+            if (key.length() > 0 && val.length() > 0)
+            {
+                this->values[key] = val;
+            }
+        }
+    }
     return parseUsernameData() && parseSysprobeData();
 }
 
