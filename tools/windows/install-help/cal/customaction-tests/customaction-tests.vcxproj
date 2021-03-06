@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -33,6 +33,19 @@
   <ImportGroup Label="PropertySheets" />
   <PropertyGroup Label="UserMacros" />
   <ItemGroup>
+    <ClCompile Include="..\caninstall.cpp" />
+    <ClCompile Include="..\customactiondata.cpp" />
+    <ClCompile Include="..\ddreg.cpp" />
+    <ClCompile Include="..\Error.cpp" />
+    <ClCompile Include="..\FinalizeInstall.cpp" />
+    <ClCompile Include="..\stopservices.cpp" />
+    <ClCompile Include="..\strings.cpp" />
+    <ClCompile Include="..\TargetMachine.cpp" />
+    <ClCompile Include="..\usercreate.cpp" />
+    <ClCompile Include="..\userrights.cpp" />
+    <ClCompile Include="..\winacl.cpp" />
+    <ClCompile Include="..\PropertyReplacer.cpp" />
+
     <ClCompile Include="CustomActionData_Init.cpp" />
     <ClCompile Include="CustomActionData_CanInstall.cpp" />
     <ClCompile Include="ReplaceYamlProperties_APMTests.cpp">
@@ -48,7 +61,7 @@
       <DependentUpon>ReplaceYamlProperties_Tests.cpp</DependentUpon>
     </ClCompile>
     <ClCompile Include="wcalogs.cpp" />
-    <ClCompile Include="stdafx.cpp">
+    <ClCompile Include="..\stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
@@ -59,16 +72,6 @@
       <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Release|x64'">stdafx.h</PrecompiledHeaderFile>
     </ClCompile>
     <ClCompile Include="ReplaceYamlProperties_Tests.cpp" />
-    <ClCompile Include="stdafx.cpp">
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
-      <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">stdafx.h</PrecompiledHeaderFile>
-      <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">stdafx.h</PrecompiledHeaderFile>
-      <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">stdafx.h</PrecompiledHeaderFile>
-      <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Release|x64'">stdafx.h</PrecompiledHeaderFile>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\customaction.vcxproj">
