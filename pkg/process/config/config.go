@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -15,11 +16,13 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/datadog-agent/cmd/agent/api/pb"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
+	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -33,6 +36,8 @@ const (
 
 	// defaultRuntimeCompilerOutputDir is the default path for output from the system-probe runtime compiler
 	defaultRuntimeCompilerOutputDir = "/var/tmp/datadog-agent/system-probe/build"
+
+	grpcAgentTimeout = 2 * time.Second
 )
 
 // Name for check performed by process-agent or system-probe
@@ -55,6 +60,8 @@ var (
 )
 
 type proxyFunc func(*http.Request) (*url.URL, error)
+
+type cmdFunc = func(name string, arg ...string) *exec.Cmd
 
 // WindowsConfig stores all windows-specific configuration for the process-agent and system-probe.
 type WindowsConfig struct {
@@ -376,13 +383,8 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	}
 
 	if cfg.HostName == "" {
-		if fargate.IsFargateInstance() {
-			if hostname, err := fargate.GetFargateHost(); err == nil {
-				cfg.HostName = hostname
-			} else {
-				log.Errorf("Cannot get Fargate host: %v", err)
-			}
-		} else if hostname, err := getHostname(cfg.DDAgentBin); err == nil {
+		// lookup hostname if there is no config override
+		if hostname, err := getHostname(cfg.DDAgentBin); err == nil {
 			cfg.HostName = hostname
 		} else {
 			log.Errorf("Cannot get hostname: %v", err)
@@ -576,15 +578,43 @@ func isAffirmative(value string) (bool, error) {
 	return v == "true" || v == "yes" || v == "1", nil
 }
 
-// getHostname shells out to obtain the hostname used by the infra agent
-// falling back to os.Hostname() if it is unavailable
+// getHostname attempts to resolve the hostname in the following order: the main datadog agent via grpc, the main agent
+// via cli and lastly falling back to os.Hostname() if it is unavailable
 func getHostname(ddAgentBin string) (string, error) {
-	cmd := exec.Command(ddAgentBin, "hostname")
+	// Fargate is handled as an exceptional case (there is no concept of a host, so we use the ARN in-place).
+	if fargate.IsFargateInstance() {
+		hostname, err := fargate.GetFargateHost()
+		if err == nil {
+			return hostname, nil
+		}
+		log.Errorf("failed to get Fargate host: %v", err)
+	}
+
+	// Get the hostname via gRPC from the main agent if a hostname has not been set either from config/fargate
+	hostname, err := getHostnameFromGRPC(grpc.GetDDAgentClient)
+	if err == nil {
+		return hostname, nil
+	}
+	log.Errorf("failed to get hostname from grpc: %v", err)
+
+	// If the hostname is not set then we fallback to use the agent binary
+	hostname, err = getHostnameFromCmd(ddAgentBin, exec.Command)
+	if err == nil {
+		return hostname, nil
+	}
+	log.Errorf("failed to get hostname from cmd: %v", err)
+
+	return os.Hostname()
+}
+
+// getHostnameCmd shells out to obtain the hostname used by the infra agent
+func getHostnameFromCmd(ddAgentBin string, cmdFn cmdFunc) (string, error) {
+	cmd := cmdFn(ddAgentBin, "hostname")
 
 	// Copying all environment variables to child process
 	// Windows: Required, so the child process can load DLLs, etc.
 	// Linux:   Optional, but will make use of DD_HOSTNAME and DOCKER_DD_AGENT if they exist
-	cmd.Env = os.Environ()
+	cmd.Env = append(cmd.Env, os.Environ()...)
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -592,18 +622,34 @@ func getHostname(ddAgentBin string) (string, error) {
 
 	err := cmd.Run()
 	if err != nil {
-		log.Infof("error retrieving dd-agent hostname, falling back to os.Hostname(): %v", err)
-		return os.Hostname()
+		return "", err
 	}
 
 	hostname := strings.TrimSpace(stdout.String())
-
 	if hostname == "" {
-		log.Infof("error retrieving dd-agent hostname, falling back to os.Hostname(): %s", stderr.String())
-		return os.Hostname()
+		return "", fmt.Errorf("error retrieving dd-agent hostname %s", stderr.String())
 	}
 
-	return hostname, err
+	return hostname, nil
+}
+
+// getHostnameFromGRPC retrieves the hostname from the main datadog agent via GRPC
+func getHostnameFromGRPC(grpcClientFn func(ctx context.Context) (pb.AgentClient, error)) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), grpcAgentTimeout)
+	defer cancel()
+
+	ddAgentClient, err := grpcClientFn(ctx)
+	if err != nil {
+		return "", fmt.Errorf("cannot connect to datadog agent via grpc: %w", err)
+	}
+	reply, err := ddAgentClient.GetHostname(ctx, &pb.HostnameRequest{})
+
+	if err != nil {
+		return "", fmt.Errorf("cannot get hostname from datadog agent via grpc: %w", err)
+	}
+
+	log.Debugf("retrieved hostname:%s from datadog agent via grpc", reply.Hostname)
+	return reply.Hostname, nil
 }
 
 // proxyFromEnv parses out the proxy configuration from the ENV variables in a
