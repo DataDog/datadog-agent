@@ -587,6 +587,9 @@ func prepareCompletionBuffers(h windows.Handle, count int) (iocp windows.Handle,
 	buffers = make([]*readbuffer, count)
 	for i := 0; i < count; i++ {
 		buf := (*readbuffer)(C.malloc(C.size_t(unsafe.Sizeof(readbuffer{}))))
+		if buf == nil {
+			return windows.Handle(0), nil, errors.New("error preparing completion buffers: malloc returned nil")
+		}
 		buffers[i] = buf
 
 		err = windows.ReadFile(h, buf.data[:], nil, &(buf.ol))
