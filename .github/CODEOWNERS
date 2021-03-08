@@ -210,4 +210,5 @@
 /tools/                                 @DataDog/agent-platform
 /tools/ebpf/                            @DataDog/networks
 /tools/gdb/                             @DataDog/agent-core
+/tools/retry_file_dump/                 @DataDog/agent-core
 /tools/windows/                         @DataDog/agent-platform
