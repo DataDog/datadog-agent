@@ -10,6 +10,8 @@ package orchestrator
 import (
 	"context"
 	"errors"
+	model "github.com/DataDog/agent-payload/process"
+	v1 "k8s.io/api/core/v1"
 	"math/rand"
 	"sync/atomic"
 	"time"
@@ -349,6 +351,11 @@ func (o *OrchestratorCheck) processNodes(sender aggregator.Sender) {
 		return
 	}
 
+	sendNodesMetadata(sender, nodesList, nodesMessages, o.clusterID)
+	sendClusterMetadata(sender, clusterMessage, o.clusterID)
+}
+
+func sendNodesMetadata(sender aggregator.Sender, nodesList []*v1.Node, nodesMessages []model.MessageBody, clusterID string) {
 	stats := orchestrator.CheckStats{
 		CacheHits: len(nodesList) - len(nodesMessages),
 		CacheMiss: len(nodesMessages),
@@ -357,8 +364,26 @@ func (o *OrchestratorCheck) processNodes(sender aggregator.Sender) {
 
 	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sNode), stats, orchestrator.NoExpiration)
 
-	sender.OrchestratorMetadata(nodesMessages, o.clusterID, forwarder.PayloadTypeNode)
-	sender.OrchestratorMetadata([]serializer.ProcessMessageBody{clusterMessage}, o.clusterID, forwarder.PayloadTypeCluster)
+	sender.OrchestratorMetadata(nodesMessages, clusterID, forwarder.PayloadTypeNode)
+}
+
+func sendClusterMetadata(sender aggregator.Sender, clusterMessage model.MessageBody, clusterID string) {
+	var stats orchestrator.CheckStats
+	if clusterMessage != nil {
+		stats = orchestrator.CheckStats{
+			CacheHits: 0,
+			CacheMiss: 1,
+			NodeType:  orchestrator.K8sCluster,
+		}
+		sender.OrchestratorMetadata([]serializer.ProcessMessageBody{clusterMessage}, clusterID, forwarder.PayloadTypeCluster)
+	} else {
+		stats = orchestrator.CheckStats{
+			CacheHits: 1,
+			CacheMiss: 0,
+			NodeType:  orchestrator.K8sCluster,
+		}
+	}
+	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sCluster), stats, orchestrator.NoExpiration)
 }
 
 func (o *OrchestratorCheck) processPods(sender aggregator.Sender) {

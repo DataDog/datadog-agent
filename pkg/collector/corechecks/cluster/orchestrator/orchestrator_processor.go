@@ -9,6 +9,8 @@ package orchestrator
 
 import (
 	"fmt"
+	"github.com/twmb/murmur3"
+	"k8s.io/apimachinery/pkg/types"
 	"strings"
 	"time"
 
@@ -241,6 +243,24 @@ func chunkServices(services []*model.Service, chunkCount, chunkSize int) [][]*mo
 	return chunks
 }
 
+func fillClusterResourceVersion(c *model.Cluster) error {
+
+	// Marshal the pod message to JSON.
+	// We need to enforce order consistency on underlying maps as
+	// the standard library does.
+	marshaller := jsoniter.ConfigCompatibleWithStandardLibrary
+	jsonClusterModel, err := marshaller.Marshal(c)
+	if err != nil {
+		return fmt.Errorf("could not marshal pod model to JSON: %s", err)
+	}
+
+	// Replace the payload metadata field with the custom version.
+	version := murmur3.Sum64(jsonClusterModel)
+	c.ResourceVersion = fmt.Sprint(version)
+
+	return nil
+}
+
 // processNodesList process a nodes list into nodes process messages and cluster process message.
 func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.OrchestratorConfig, clusterID string, client *apiserver.APIClient) ([]model.MessageBody, model.MessageBody, error) {
 	start := time.Now()
@@ -318,6 +338,16 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Orche
 		})
 	}
 
+	clusterMessage := extractClusterMessage(nodeCount, kubeletVersions, apiServerVersions, podCap, podAllocatable, memoryAllocatable, memoryCap, cpuAllocatable, cpuCap, cfg, clusterID, groupID)
+	if orchestrator.SkipKubernetesResource(types.UID(clusterID), clusterMessage.Cluster.ResourceVersion, orchestrator.K8sCluster) {
+		return messages, nil, nil
+	}
+
+	log.Debugf("Collected & enriched %d out of %d nodes in %s", len(nodeMsgs), len(nodesList), time.Now().Sub(start))
+	return messages, clusterMessage, nil
+}
+
+func extractClusterMessage(nodeCount int32, kubeletVersions map[string]int32, apiServerVersions map[string]int32, podCap uint32, podAllocatable uint32, memoryAllocatable uint64, memoryCap uint64, cpuAllocatable uint64, cpuCap uint64, cfg *config.OrchestratorConfig, clusterID string, groupID int32) *model.CollectorCluster {
 	cluster := &model.Cluster{
 		NodeCount:         nodeCount,
 		KubeletVersions:   kubeletVersions,
@@ -330,6 +360,10 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Orche
 		CpuCapacity:       cpuCap,
 	}
 
+	if err := fillClusterResourceVersion(cluster); err != nil {
+		log.Warnf("Failed to compute cluster resource version: %s", err)
+	}
+
 	clusterMessage := &model.CollectorCluster{
 		ClusterName: cfg.KubeClusterName,
 		ClusterId:   clusterID,
@@ -337,9 +371,7 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Orche
 		Cluster:     cluster,
 		Tags:        cfg.ExtraTags,
 	}
-
-	log.Debugf("Collected & enriched %d out of %d nodes in %s", len(nodeMsgs), len(nodesList), time.Now().Sub(start))
-	return messages, clusterMessage, nil
+	return clusterMessage
 }
 
 // chunkNodes chunks the given list of nodes, honoring the given chunk count and size.
