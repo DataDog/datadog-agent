@@ -134,7 +134,7 @@ func (b *Builder) getIntegrations() []Integration {
 				Status:             b.toString(source.Status),
 				Inputs:             source.GetInputs(),
 				Messages:           source.Messages.GetMessages(),
-				Info:               source.GetInfo(),
+				Info:               source.GetInfoStatus(),
 			})
 		}
 		integrations = append(integrations, Integration{

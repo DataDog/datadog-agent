@@ -122,6 +122,9 @@ type Config struct {
 
 	// DriverBufferSize (Windows only) determines the size (in bytes) of the buffer we pass to the driver when reading flows
 	DriverBufferSize int
+
+	// EnableGatewayLookup enables looking up gateway information for connection destinations
+	EnableGatewayLookup bool
 }
 
 // NewDefaultConfig enables traffic collection for all connection types
@@ -143,6 +146,7 @@ func NewDefaultConfig() *Config {
 		ConntrackRateLimit:           500,
 		EnableConntrackAllNamespaces: true,
 		EnableConntrack:              true,
+		EnableGatewayLookup:          false,
 		IgnoreConntrackInitFailure:   false,
 		// With clients checking connection stats roughly every 30s, this gives us roughly ~1.6k + ~2.5k objects a second respectively.
 		MaxClosedConnectionsBuffered: 50000,

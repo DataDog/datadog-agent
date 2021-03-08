@@ -17,6 +17,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -26,6 +27,7 @@ import (
 	"time"
 	"unsafe"
 
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
@@ -2102,6 +2104,103 @@ func testConfig() *config.Config {
 		cfg.AllowPrecompiledFallback = false
 	}
 	return cfg
+}
+
+func doDNSQuery(t *testing.T, domain string, serverIP string) (*net.UDPAddr, *net.UDPAddr) {
+	dnsServerAddr := &net.UDPAddr{IP: net.ParseIP(serverIP), Port: 53}
+	queryMsg := new(dns.Msg)
+	queryMsg.SetQuestion(dns.Fqdn(domain), dns.TypeA)
+	queryMsg.RecursionDesired = true
+	dnsClient := new(dns.Client)
+	dnsConn, err := dnsClient.Dial(dnsServerAddr.String())
+	require.NoError(t, err)
+	defer dnsConn.Close()
+	dnsClientAddr := dnsConn.LocalAddr().(*net.UDPAddr)
+	_, _, err = dnsClient.ExchangeWithConn(queryMsg, dnsConn)
+	require.NoError(t, err)
+
+	return dnsClientAddr, dnsServerAddr
+}
+
+func TestGatewayLookupNotEnabled(t *testing.T) {
+	t.Run("gateway lookup not enabled", func(t *testing.T) {
+		cfg := testConfig()
+		tr, err := NewTracer(cfg)
+		require.NoError(t, err)
+		require.NotNil(t, tr)
+		defer tr.Stop()
+		require.Nil(t, tr.gwLookup)
+	})
+
+	t.Run("gateway lookup enabled, not on aws", func(t *testing.T) {
+		clouds := ddconfig.Datadog.Get("cloud_provider_metadata")
+		ddconfig.Datadog.Set("cloud_provider_metadata", []string{"gcp"})
+		defer ddconfig.Datadog.Set("cloud_provider_metadata", clouds)
+
+		cfg := testConfig()
+		cfg.EnableGatewayLookup = true
+		tr, err := NewTracer(cfg)
+		require.NoError(t, err)
+		require.NotNil(t, tr)
+		defer tr.Stop()
+		require.Nil(t, tr.gwLookup)
+	})
+}
+
+func TestGatewayLookupEnabled(t *testing.T) {
+	cfg := testConfig()
+	cfg.BPFDebug = true
+	cfg.EnableGatewayLookup = true
+	tr, err := NewTracer(cfg)
+	require.NotNil(t, tr)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	require.NotNil(t, tr.gwLookup)
+
+	ipRouteGetOut := regexp.MustCompile(`dev\s+([^\s/]+)\s+src`)
+
+	cmd := exec.Command("ip", "route", "get", "8.8.8.8")
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err)
+
+	matches := ipRouteGetOut.FindSubmatch(out)
+	require.Len(t, matches, 2)
+	dev := string(matches[1])
+
+	ipRouteLinkOut := regexp.MustCompile(`(\d+):.+`)
+
+	out, err = exec.Command("ip", "link", "show", dev).CombinedOutput()
+	require.NoError(t, err, "ip link command output: %s", out)
+	matches = ipRouteLinkOut.FindSubmatch(out)
+	require.Len(t, matches, 2)
+	ifindex := string(matches[1])
+
+	ifs, err := net.Interfaces()
+	require.NoError(t, err)
+	tr.gwLookup.subnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
+		for _, i := range ifs {
+			if hwAddr.String() == i.HardwareAddr.String() {
+				return network.Subnet{Alias: fmt.Sprintf("subnet-%d", i.Index)}, nil
+			}
+		}
+
+		return network.Subnet{Alias: "subnet"}, nil
+	}
+
+	getConnections(t, tr)
+
+	dnsClientAddr, dnsServerAddr := doDNSQuery(t, "google.com", "8.8.8.8")
+
+	var conn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		var ok bool
+		conn, ok = findConnection(dnsClientAddr, dnsServerAddr, getConnections(t, tr))
+		return ok
+	}, 2*time.Second, time.Second)
+
+	require.NotNil(t, conn.Via)
+	require.Equal(t, conn.Via.Subnet.Alias, fmt.Sprintf("subnet-%s", ifindex))
 }
 
 func TestConnectionAssured(t *testing.T) {

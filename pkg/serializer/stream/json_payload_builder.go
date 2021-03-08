@@ -5,7 +5,7 @@
 
 //+build zlib
 
-package jsonstream
+package stream
 
 import (
 	"bytes"
@@ -22,12 +22,24 @@ import (
 )
 
 var (
+	jsonStreamExpvars        = expvar.NewMap("jsonstream")
+	expvarsTotalCalls        = expvar.Int{}
+	expvarsTotalItems        = expvar.Int{}
+	expvarsWriteItemErrors   = expvar.Int{}
+	expvarsPayloadFulls      = expvar.Int{}
+	expvarsItemDrops         = expvar.Int{}
+	expvarsCompressorLocks   = expvar.Int{}
+	expvarsTotalLockTime     = expvar.Int{}
+	expvarsSerializationTime = expvar.Int{}
+
+	tlmTotalCalls             = telemetry.NewCounter("jsonstream", "total_calls", nil, "Total calls to the jsontream serializer")
+	tlmTotalItems             = telemetry.NewCounter("jsonstream", "total_items", nil, "Total items in the jsonstream serializer")
+	tlmItemDrops              = telemetry.NewCounter("jsonstream", "item_drops", nil, "Items dropped in the jsonstream serializer")
+	tlmWriteItemErrors        = telemetry.NewCounter("jsonstream", "write_item_errors", nil, "Count of 'write item errors' in the jsonstream serializer")
+	tlmPayloadFull            = telemetry.NewCounter("jsonstream", "payload_full", nil, "How many times we've hit a 'payload is full' in the jsonstream serializer")
 	tlmCompressorLocks        = telemetry.NewGauge("jsonstream", "blocking_goroutines", nil, "Number of blocked goroutines waiting for a compressor to be available")
 	tlmTotalLockTime          = telemetry.NewCounter("jsonstream", "blocked_time", nil, "Total time spent waiting for the compressor to be available")
 	tlmTotalSerializationTime = telemetry.NewCounter("jsonstream", "serialization_time", nil, "Total time spent serializing and compressing payloads")
-	expvarsCompressorLocks    = expvar.Int{}
-	expvarsTotalLockTime      = expvar.Int{}
-	expvarsSerializationTime  = expvar.Int{}
 )
 
 var jsonConfig = jsoniter.Config{
@@ -35,27 +47,30 @@ var jsonConfig = jsoniter.Config{
 	ObjectFieldMustBeSimpleString: true,
 }.Froze()
 
-// PayloadBuilder is used to build payloads. PayloadBuilder allocates memory based
-// on what was previously need to serialize payloads. If shareAndLockBuffers is enabled
-// new input/output buffers will be reused and locked to be thread safe. Keep that
-// in mind and use multiple PayloadBuilders for different sources.
-type PayloadBuilder struct {
+func init() {
+	jsonStreamExpvars.Set("TotalCalls", &expvarsTotalCalls)
+	jsonStreamExpvars.Set("TotalItems", &expvarsTotalItems)
+	jsonStreamExpvars.Set("WriteItemErrors", &expvarsWriteItemErrors)
+	jsonStreamExpvars.Set("PayloadFulls", &expvarsPayloadFulls)
+	jsonStreamExpvars.Set("ItemDrops", &expvarsItemDrops)
+	jsonStreamExpvars.Set("CompressorLocks", &expvarsCompressorLocks)
+	jsonStreamExpvars.Set("TotalLockTime", &expvarsTotalLockTime)
+	jsonStreamExpvars.Set("TotalSerializationTime", &expvarsSerializationTime)
+}
+
+// JSONPayloadBuilder is used to build payloads. JSONPayloadBuilder allocates memory based
+// on what was previously need to serialize payloads. Keep that in mind and
+// use multiple JSONPayloadBuilders for different sources.
+type JSONPayloadBuilder struct {
 	inputSizeHint, outputSizeHint int
 	shareAndLockBuffers           bool
 	input, output                 *bytes.Buffer
 	mu                            sync.Mutex
 }
 
-func init() {
-	expvars.Set("CompressorLocks", &expvarsCompressorLocks)
-	expvars.Set("TotalLockTime", &expvarsTotalLockTime)
-	expvars.Set("TotalSerializationTime", &expvarsSerializationTime)
-}
-
-// NewPayloadBuilder creates a new PayloadBuilder with default values.
-func NewPayloadBuilder(shareAndLockBuffers bool) *PayloadBuilder {
+func NewJSONPayloadBuilder(shareAndLockBuffers bool) *JSONPayloadBuilder {
 	if shareAndLockBuffers {
-		return &PayloadBuilder{
+		return &JSONPayloadBuilder{
 			inputSizeHint:       4096,
 			outputSizeHint:      4096,
 			shareAndLockBuffers: true,
@@ -63,7 +78,7 @@ func NewPayloadBuilder(shareAndLockBuffers bool) *PayloadBuilder {
 			output:              bytes.NewBuffer(make([]byte, 0, 4096)),
 		}
 	}
-	return &PayloadBuilder{
+	return &JSONPayloadBuilder{
 		inputSizeHint:       4096,
 		outputSizeHint:      4096,
 		shareAndLockBuffers: false,
@@ -82,12 +97,12 @@ const (
 )
 
 // Build serializes a metadata payload and sends it to the forwarder
-func (b *PayloadBuilder) Build(m marshaler.StreamJSONMarshaler) (forwarder.Payloads, error) {
+func (b *JSONPayloadBuilder) Build(m marshaler.StreamJSONMarshaler) (forwarder.Payloads, error) {
 	return b.BuildWithOnErrItemTooBigPolicy(m, DropItemOnErrItemTooBig)
 }
 
 // BuildWithOnErrItemTooBigPolicy serializes a metadata payload and sends it to the forwarder
-func (b *PayloadBuilder) BuildWithOnErrItemTooBigPolicy(
+func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	m marshaler.StreamJSONMarshaler,
 	policy OnErrItemTooBigPolicy) (forwarder.Payloads, error) {
 
@@ -136,7 +151,7 @@ func (b *PayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 		return nil, err
 	}
 
-	compressor, err := newCompressor(input, output, header.Bytes(), footer.Bytes())
+	compressor, err := NewCompressor(input, output, header.Bytes(), footer.Bytes(), []byte(","))
 	if err != nil {
 		return nil, err
 	}
@@ -154,19 +169,19 @@ func (b *PayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 			continue
 		}
 
-		switch compressor.addItem(jsonStream.Buffer()) {
-		case errPayloadFull:
+		switch compressor.AddItem(jsonStream.Buffer()) {
+		case ErrPayloadFull:
 			expvarsPayloadFulls.Add(1)
 			tlmPayloadFull.Inc()
 			// payload is full, we need to create a new one
-			payload, err := compressor.close()
+			payload, err := compressor.Close()
 			if err != nil {
 				return payloads, err
 			}
 			payloads = append(payloads, &payload)
 			input.Reset()
 			output.Reset()
-			compressor, err = newCompressor(input, output, header.Bytes(), footer.Bytes())
+			compressor, err = NewCompressor(input, output, header.Bytes(), footer.Bytes(), []byte(","))
 			if err != nil {
 				return nil, err
 			}
@@ -192,7 +207,7 @@ func (b *PayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	}
 
 	// Close last payload
-	payload, err := compressor.close()
+	payload, err := compressor.Close()
 	if err != nil {
 		return payloads, err
 	}

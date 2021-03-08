@@ -55,7 +55,11 @@ func TestSerialization(t *testing.T) {
 						DNSCountByRcode:      map[uint32]uint32{0: 1},
 					},
 				},
-
+				Via: &network.Via{
+					Subnet: network.Subnet{
+						Alias: "subnet-foo",
+					},
+				},
 				HTTPStatsByPath: map[string]http.RequestStats{
 					"/testpath": httpReqStats,
 				},
@@ -98,7 +102,7 @@ func TestSerialization(t *testing.T) {
 						DnsCountByRcode:      map[uint32]uint32{0: 1},
 					},
 				},
-
+				RouteIdx: 0,
 				HttpStatsByPath: map[string]*model.HTTPStats{
 					"/testpath": {
 						StatsByResponseStatus: []*model.HTTPStats_Data{
@@ -130,8 +134,14 @@ func TestSerialization(t *testing.T) {
 		Dns: map[string]*model.DNSEntry{
 			"172.217.12.145": {Names: []string{"golang.org"}},
 		},
-		Domains:                     []string{"foo.com"},
-		Routes:                      []*model.Route{},
+		Domains: []string{"foo.com"},
+		Routes: []*model.Route{
+			{
+				Subnet: &model.Subnet{
+					Alias: "subnet-foo",
+				},
+			},
+		},
 		CompilationTelemetryByAsset: map[string]*model.RuntimeCompilationTelemetry{},
 	}
 
@@ -205,7 +215,6 @@ func TestSerialization(t *testing.T) {
 	})
 
 	// protobufs evaluate empty maps as nil
-	out.Routes = nil
 	out.CompilationTelemetryByAsset = nil
 
 	t.Run("requesting application/protobuf serialization", func(t *testing.T) {
