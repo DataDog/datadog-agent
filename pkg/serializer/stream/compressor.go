@@ -5,7 +5,7 @@
 
 //+build zlib
 
-package jsonstream
+package stream
 
 import (
 	"bytes"
@@ -24,65 +24,43 @@ const (
 )
 
 var (
-	// TODO(remy): could probably removed as not appearing in the status page
-	expvars                = expvar.NewMap("jsonstream")
-	expvarsTotalCalls      = expvar.Int{}
-	expvarsTotalItems      = expvar.Int{}
-	expvarsTotalPayloads   = expvar.Int{}
-	expvarsTotalCycles     = expvar.Int{}
-	expvarsItemDrops       = expvar.Int{}
-	expvarsBytesIn         = expvar.Int{}
-	expvarsBytesOut        = expvar.Int{}
-	expvarsWriteItemErrors = expvar.Int{}
-	expvarsPayloadFulls    = expvar.Int{}
+	compressorExpvars    = expvar.NewMap("compressor")
+	expvarsTotalPayloads = expvar.Int{}
+	expvarsTotalCycles   = expvar.Int{}
+	expvarsBytesIn       = expvar.Int{}
+	expvarsBytesOut      = expvar.Int{}
 
-	tlmTotalCalls = telemetry.NewCounter("jsonstream", "total_calls",
-		nil, "Total calls to the jsontream serializer")
-	tlmTotalItems = telemetry.NewCounter("jsonstream", "total_items",
-		nil, "Total items in the jsonstream serializer")
-	tlmTotalPayloads = telemetry.NewCounter("jsonstream", "total_payloads",
-		nil, "Total payloads in the jsonstream serializer")
-	tlmTotalCycles = telemetry.NewCounter("jsonstream", "total_cycles",
-		nil, "Total cycles in the jsonstream serializer")
-	tlmItemDrops = telemetry.NewCounter("jsonstream", "item_drops",
-		nil, "Items dropped in the jsonstream serializer")
-	tlmBytesIn = telemetry.NewCounter("jsonstream", "bytes_in",
-		nil, "Count of bytes entering the jsonstream serializer")
-	tlmBytesOut = telemetry.NewCounter("jsonstream", "bytes_out",
-		nil, "Count of bytes out the jsonstream serializer")
-	tlmWriteItemErrors = telemetry.NewCounter("jsonstream", "write_item_errors",
-		nil, "Count of 'write item errors' in the jsonstream serializer")
-	tlmPayloadFull = telemetry.NewCounter("jsonstream", "payload_full",
-		nil, "How many times we've hit a 'paylodad is full' in the jsonstream serializer")
+	tlmTotalPayloads = telemetry.NewCounter("compressor", "total_payloads",
+		nil, "Total payloads in the compressor serializer")
+	tlmTotalCycles = telemetry.NewCounter("compressor", "total_cycles",
+		nil, "Total cycles in the compressor serializer")
+	tlmBytesIn = telemetry.NewCounter("compressor", "bytes_in",
+		nil, "Count of bytes entering the compressor serializer")
+	tlmBytesOut = telemetry.NewCounter("compressor", "bytes_out",
+		nil, "Count of bytes out the compressor serializer")
 )
-
-func init() {
-	expvars.Set("TotalCalls", &expvarsTotalCalls)
-	expvars.Set("TotalItems", &expvarsTotalItems)
-	expvars.Set("TotalPayloads", &expvarsTotalPayloads)
-	expvars.Set("TotalCompressCycles", &expvarsTotalCycles)
-	expvars.Set("ItemDrops", &expvarsItemDrops)
-	expvars.Set("BytesIn", &expvarsBytesIn)
-	expvars.Set("BytesOut", &expvarsBytesOut)
-	expvars.Set("WriteItemErrors", &expvarsWriteItemErrors)
-	expvars.Set("PayloadFulls", &expvarsPayloadFulls)
-}
 
 var (
 	maxRepacks = 40 // CPU time vs tighter payload tradeoff
 )
 
 var (
-	errPayloadFull = errors.New("reached maximum payload size")
+	// ErrPayloadFull is returned when the payload buffer is full
+	ErrPayloadFull = errors.New("reached maximum payload size")
 
 	// ErrItemTooBig is returned when a item alone exceeds maximum payload size
 	ErrItemTooBig = errors.New("item alone exceeds maximum payload size")
 )
 
-var jsonSeparator = []byte(",")
+func init() {
+	compressorExpvars.Set("TotalPayloads", &expvarsTotalPayloads)
+	compressorExpvars.Set("TotalCompressCycles", &expvarsTotalCycles)
+	compressorExpvars.Set("BytesIn", &expvarsBytesIn)
+	compressorExpvars.Set("BytesOut", &expvarsBytesOut)
+}
 
 // compressor is in charge of compressing items for a single payload
-type compressor struct {
+type Compressor struct {
 	input               *bytes.Buffer // temporary buffer for data that has not been compressed yet
 	compressed          *bytes.Buffer // output buffer containing the compressed payload
 	zipper              *zlib.Writer
@@ -95,14 +73,15 @@ type compressor struct {
 	maxZippedItemSize   int
 	maxPayloadSize      int
 	maxUncompressedSize int
+	separator           []byte
 }
 
-func newCompressor(input, output *bytes.Buffer, header, footer []byte) (*compressor, error) {
+func NewCompressor(input, output *bytes.Buffer, header, footer []byte, separator []byte) (*Compressor, error) {
 	// the backend accepts payloads up to 3MB compressed / 50MB uncompressed but
 	// prefers small uncompressed payloads of ~4MB
 	maxPayloadSize := config.Datadog.GetInt("serializer_max_payload_size")
 	maxUncompressedSize := config.Datadog.GetInt("serializer_max_uncompressed_payload_size")
-	c := &compressor{
+	c := &Compressor{
 		header:              header,
 		footer:              footer,
 		input:               input,
@@ -112,6 +91,7 @@ func newCompressor(input, output *bytes.Buffer, header, footer []byte) (*compres
 		maxUncompressedSize: maxUncompressedSize,
 		maxUnzippedItemSize: maxPayloadSize - len(footer) - len(header),
 		maxZippedItemSize:   maxUncompressedSize - compression.CompressBound(len(footer)+len(header)),
+		separator:           separator,
 	}
 
 	c.zipper = zlib.NewWriter(c.compressed)
@@ -125,21 +105,21 @@ func newCompressor(input, output *bytes.Buffer, header, footer []byte) (*compres
 // determine the size of the item after compression meaning we could drop an item
 // that could actually fit after compression. That said it is probably impossible
 // to have a 2MB+ item that is valid for the backend.
-func (c *compressor) checkItemSize(data []byte) bool {
+func (c *Compressor) checkItemSize(data []byte) bool {
 	return len(data) < c.maxUnzippedItemSize && compression.CompressBound(len(data)) < c.maxZippedItemSize
 }
 
 // hasRoomForItem checks if the current payload has enough room to store the given item
-func (c *compressor) hasRoomForItem(item []byte) bool {
+func (c *Compressor) hasRoomForItem(item []byte) bool {
 	uncompressedDataSize := c.input.Len() + len(item)
 	if !c.firstItem {
-		uncompressedDataSize += len(jsonSeparator)
+		uncompressedDataSize += len(c.separator)
 	}
 	return compression.CompressBound(uncompressedDataSize) <= c.remainingSpace() && c.uncompressedWritten+uncompressedDataSize <= c.maxUncompressedSize
 }
 
 // pack flushes the temporary uncompressed buffer input to the compression writer
-func (c *compressor) pack() error {
+func (c *Compressor) pack() error {
 	expvarsTotalCycles.Add(1)
 	tlmTotalCycles.Inc()
 	n, err := c.input.WriteTo(c.zipper)
@@ -153,26 +133,26 @@ func (c *compressor) pack() error {
 }
 
 // addItem will try to add the given item
-func (c *compressor) addItem(data []byte) error {
+func (c *Compressor) AddItem(data []byte) error {
 	// check item size sanity
 	if !c.checkItemSize(data) {
 		return ErrItemTooBig
 	}
 	// check max repack cycles
 	if c.repacks >= maxRepacks {
-		return errPayloadFull
+		return ErrPayloadFull
 	}
 
 	if !c.hasRoomForItem(data) {
 		if c.input.Len() == 0 {
-			return errPayloadFull
+			return ErrPayloadFull
 		}
 		err := c.pack()
 		if err != nil {
 			return err
 		}
 		if !c.hasRoomForItem(data) {
-			return errPayloadFull
+			return ErrPayloadFull
 		}
 		c.repacks++
 	}
@@ -181,14 +161,14 @@ func (c *compressor) addItem(data []byte) error {
 	if c.firstItem {
 		c.firstItem = false
 	} else {
-		c.input.Write(jsonSeparator)
+		c.input.Write(c.separator)
 	}
 
 	c.input.Write(data)
 	return nil
 }
 
-func (c *compressor) close() ([]byte, error) {
+func (c *Compressor) Close() ([]byte, error) {
 	// Flush remaining uncompressed data
 	if c.input.Len() > 0 {
 		n, err := c.input.WriteTo(c.zipper)
@@ -222,6 +202,6 @@ func (c *compressor) close() ([]byte, error) {
 	return payload, nil
 }
 
-func (c *compressor) remainingSpace() int {
+func (c *Compressor) remainingSpace() int {
 	return c.maxPayloadSize - c.compressed.Len() - len(c.footer)
 }

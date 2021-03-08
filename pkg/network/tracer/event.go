@@ -51,10 +51,26 @@ type batch C.batch_t
 
 /* port_binding_t
 __u32 pid;
-__u32 net_ns;
+__u32 netns;
 __u16 port;
 */
 type portBindingTuple C.port_binding_t
+
+/* ip_route_gateway_t
+__u64 gw_h;
+__u64 gw_l;
+__u16 family;
+__u32 ifindex;
+*/
+type ipRouteGateway C.ip_route_gateway_t
+
+/* ip_route_dest_t
+__u64 daddr_h;
+__u64 daddr_l;
+__u32 netns;
+__u16 family;
+*/
+type ipRouteDest C.ip_route_dest_t
 
 func (t *ConnTuple) copy() *ConnTuple {
 	return &ConnTuple{
@@ -333,4 +349,39 @@ func connDirection(m uint8) network.ConnectionDirection {
 	default:
 		return network.OUTGOING
 	}
+}
+
+func newIPRouteDest(source, dest util.Address, netns uint32) *ipRouteDest {
+	d := &ipRouteDest{netns: C.__u32(netns), daddr_l: 0, daddr_h: 0}
+	sbytes := source.Bytes()
+	dbytes := dest.Bytes()
+	switch len(dbytes) {
+	case 4:
+		d.family = C.CONN_V4
+		d.saddr_l = C.__u64(nativeEndian.Uint32(sbytes))
+		d.daddr_l = C.__u64(nativeEndian.Uint32(dbytes))
+	case 16:
+		d.family = C.CONN_V6
+		d.saddr_h = C.__u64(nativeEndian.Uint64(sbytes[:8]))
+		d.saddr_l = C.__u64(nativeEndian.Uint64(sbytes[8:]))
+		d.daddr_h = C.__u64(nativeEndian.Uint64(dbytes[:8]))
+		d.daddr_l = C.__u64(nativeEndian.Uint64(dbytes[8:]))
+	}
+
+	return d
+}
+
+func (g *ipRouteGateway) gateway() util.Address {
+	switch g.family {
+	case C.CONN_V4:
+		return util.V4Address(uint32(g.gw_l))
+	case C.CONN_V6:
+		return util.V6Address(uint64(g.gw_l), uint64(g.gw_h))
+	}
+
+	return nil
+}
+
+func (g *ipRouteGateway) ifIndex() int {
+	return int(g.ifindex)
 }

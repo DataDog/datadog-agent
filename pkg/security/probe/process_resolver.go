@@ -322,6 +322,25 @@ func (p *ProcessResolver) Resolve(pid, tid uint32) *model.ProcessCacheEntry {
 	return nil
 }
 
+// SetProcessPath resolves process file path
+func (p *ProcessResolver) SetProcessPath(entry *model.ProcessCacheEntry) (string, error) {
+	var err error
+
+	if entry.FileFields.Inode != 0 && entry.FileFields.MountID != 0 {
+		entry.PathnameStr, err = p.resolvers.resolveInode(&entry.FileFields)
+	}
+
+	return entry.PathnameStr, err
+}
+
+// SetProcessContainerPath resolves container path
+func (p *ProcessResolver) SetProcessContainerPath(entry *model.ProcessCacheEntry) string {
+	if entry.FileFields.Inode != 0 && entry.FileFields.MountID != 0 {
+		entry.ContainerPath = p.resolvers.resolveContainerPath(&entry.FileFields)
+	}
+	return entry.ContainerPath
+}
+
 func (p *ProcessResolver) unmarshalProcessCacheEntry(entry *model.ProcessCacheEntry, data []byte, unmarshalContext bool) (int, error) {
 	read, err := entry.UnmarshalBinary(data, unmarshalContext)
 	if err != nil {
@@ -331,16 +350,6 @@ func (p *ProcessResolver) unmarshalProcessCacheEntry(entry *model.ProcessCacheEn
 	entry.ExecTime = p.resolvers.TimeResolver.ResolveMonotonicTimestamp(entry.ExecTimestamp)
 	entry.ForkTime = p.resolvers.TimeResolver.ResolveMonotonicTimestamp(entry.ForkTimestamp)
 	entry.ExitTime = p.resolvers.TimeResolver.ResolveMonotonicTimestamp(entry.ExitTimestamp)
-
-	// Resolve FileEvent now while the dentry cache is up to date. Fork events might send a null inode if the parent
-	// wasn't in the kernel cache, so resolve only if necessary.
-
-	if entry.FileFields.Inode != 0 && entry.FileFields.MountID != 0 {
-		// We still need to retrieve the error from the resolution: should we fail to resolve the pathname, we need
-		// to fall back to /proc
-		entry.PathnameStr, err = p.resolvers.resolveInode(&entry.FileFields)
-		entry.ContainerPath = p.resolvers.resolveContainerPath(&entry.FileFields)
-	}
 
 	return read, err
 }
@@ -399,8 +408,8 @@ func (p *ProcessResolver) resolveWithProcfs(pid uint32) *model.ProcessCacheEntry
 	return entry
 }
 
-// ResolveArgs resolves arguments
-func (p *ProcessResolver) ResolveArgs(pce *model.ProcessCacheEntry) {
+// SetProcessArgs set arguments to cache entry
+func (p *ProcessResolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
 	if e, found := p.argsEnvsCache.Get(pce.ArgsID); found {
 		entry := e.(*argsEnvsCacheEntry)
 
@@ -412,8 +421,8 @@ func (p *ProcessResolver) ResolveArgs(pce *model.ProcessCacheEntry) {
 	}
 }
 
-// ResolveEnvs resolves environment variables
-func (p *ProcessResolver) ResolveEnvs(pce *model.ProcessCacheEntry) {
+// SetProcessEnvs set environment variables to cache entry
+func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 	if e, found := p.argsEnvsCache.Get(pce.EnvsID); found {
 		entry := e.(*argsEnvsCacheEntry)
 

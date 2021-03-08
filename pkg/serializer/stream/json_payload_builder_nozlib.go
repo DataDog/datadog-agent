@@ -5,7 +5,7 @@
 
 //+build !zlib
 
-package jsonstream
+package stream
 
 import (
 	"fmt"
@@ -25,16 +25,16 @@ const (
 	FailOnErrItemTooBig
 )
 
-// PayloadBuilder is not implemented when zlib is not available.
-type PayloadBuilder struct {
+// JSONPayloadBuilder is not implemented when zlib is not available.
+type JSONPayloadBuilder struct {
 }
 
-// NewPayloadBuilder is not implemented when zlib is not available.
-func NewPayloadBuilder(shareAndLockBuffers bool) *PayloadBuilder {
+// NewJSONPayloadBuilder is not implemented when zlib is not available.
+func NewJSONPayloadBuilder(shareAndLockBuffers bool) *JSONPayloadBuilder {
 	return nil
 }
 
 // BuildWithOnErrItemTooBigPolicy is not implemented when zlib is not available.
-func (b *PayloadBuilder) BuildWithOnErrItemTooBigPolicy(marshaler.StreamJSONMarshaler, OnErrItemTooBigPolicy) (forwarder.Payloads, error) {
+func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(marshaler.StreamJSONMarshaler, OnErrItemTooBigPolicy) (forwarder.Payloads, error) {
 	return nil, fmt.Errorf("not implemented")
 }

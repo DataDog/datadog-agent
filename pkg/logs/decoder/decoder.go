@@ -91,7 +91,19 @@ func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parser.Parser
 
 	for _, rule := range source.Config.ProcessingRules {
 		if rule.Type == config.MultiLine {
-			lineHandler = NewMultiLineHandler(outputChan, rule.Regex, config.AggregationTimeout(), lineLimit)
+			lh := NewMultiLineHandler(outputChan, rule.Regex, config.AggregationTimeout(), lineLimit)
+
+			// Since a single source can have multiple file tailers - each with their own decoder instance,
+			// Make sure we keep track of the multiline match count info from all of the decoders so the
+			// status page displays it correctly.
+			if existingInfo, ok := source.GetInfo(lh.countInfo.InfoKey()).(*config.CountInfo); ok {
+				// override the new decoders info to the instance we are already using
+				lh.countInfo = existingInfo
+			} else {
+				// this is the first decoder we have seen for this source - use it's count info
+				source.RegisterInfo(lh.countInfo)
+			}
+			lineHandler = lh
 		}
 	}
 	if lineHandler == nil {

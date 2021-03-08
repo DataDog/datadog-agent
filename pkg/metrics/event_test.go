@@ -22,7 +22,7 @@ import (
 
 	agentpayload "github.com/DataDog/agent-payload/gogen"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/serializer/jsonstream"
+	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
 )
 
 func TestMarshal(t *testing.T) {
@@ -218,7 +218,7 @@ func createEvents(sourceTypeNames ...string) Events {
 	return events
 }
 
-// Check PayloadBuilder for CreateSingleMarshaler and CreateMarshalersBySourceType
+// Check JSONPayloadBuilder for CreateSingleMarshaler and CreateMarshalersBySourceType
 // return the same results as for MarshalJSON.
 func assertEqualEventsToMarshalJSON(t *testing.T, events Events) {
 	json, err := events.MarshalJSON()
@@ -322,7 +322,7 @@ func BenchmarkCreateSingleMarshalerOneEventBySource(b *testing.B) {
 
 func benchmarkCreateSingleMarshaler(b *testing.B, createEvents func(numberOfItem int) Events) {
 	runBenchmark(b, func(b *testing.B, numberOfItem int) {
-		payloadBuilder := jsonstream.NewPayloadBuilder(true)
+		payloadBuilder := stream.NewJSONPayloadBuilder(true)
 		events := createEvents(numberOfItem)
 
 		b.ResetTimer()
@@ -335,7 +335,7 @@ func benchmarkCreateSingleMarshaler(b *testing.B, createEvents func(numberOfItem
 
 func BenchmarkCreateMarshalersBySourceType(b *testing.B) {
 	runBenchmark(b, func(b *testing.B, numberOfItem int) {
-		payloadBuilder := jsonstream.NewPayloadBuilder(true)
+		payloadBuilder := stream.NewJSONPayloadBuilder(true)
 		events := createBenchmarkEvents(numberOfItem)
 
 		b.ResetTimer()
@@ -350,7 +350,7 @@ func BenchmarkCreateMarshalersBySourceType(b *testing.B) {
 
 func BenchmarkCreateMarshalersSeveralSourceTypes(b *testing.B) {
 	runBenchmark(b, func(b *testing.B, numberOfItem int) {
-		payloadBuilder := jsonstream.NewPayloadBuilder(true)
+		payloadBuilder := stream.NewJSONPayloadBuilder(true)
 
 		var events Events
 		// Half of events have the same source type

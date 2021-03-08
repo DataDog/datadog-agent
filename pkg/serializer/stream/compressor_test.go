@@ -5,7 +5,7 @@
 
 //+build zlib
 
-package jsonstream
+package stream
 
 import (
 	"bytes"
@@ -77,6 +77,10 @@ func (d *dummyMarshaller) SplitPayload(int) ([]marshaler.Marshaler, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
+func (d *dummyMarshaller) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
 func decompressPayload(payload []byte) ([]byte, error) {
 	r, err := zlib.NewReader(bytes.NewReader(payload))
 	if err != nil {
@@ -100,14 +104,14 @@ func payloadToString(payload []byte) string {
 }
 
 func TestCompressorSimple(t *testing.T) {
-	c, err := newCompressor(bytes.NewBuffer(make([]byte, 0)), bytes.NewBuffer(make([]byte, 0)), []byte("{["), []byte("]}"))
+	c, err := NewCompressor(&bytes.Buffer{}, &bytes.Buffer{}, []byte("{["), []byte("]}"), []byte(","))
 	require.NoError(t, err)
 
 	for i := 0; i < 5; i++ {
-		c.addItem([]byte("A"))
+		c.AddItem([]byte("A"))
 	}
 
-	p, err := c.close()
+	p, err := c.Close()
 	require.NoError(t, err)
 	require.Equal(t, "{[A,A,A,A,A]}", payloadToString(p))
 }
@@ -119,7 +123,7 @@ func TestOnePayloadSimple(t *testing.T) {
 		footer: "]}",
 	}
 
-	builder := NewPayloadBuilder(true)
+	builder := NewJSONPayloadBuilder(true)
 	payloads, err := builder.Build(m)
 	require.NoError(t, err)
 	require.Len(t, payloads, 1)
@@ -136,7 +140,7 @@ func TestMaxCompressedSizePayload(t *testing.T) {
 	config.Datadog.SetDefault("serializer_max_payload_size", 22)
 	defer resetDefaults()
 
-	builder := NewPayloadBuilder(true)
+	builder := NewJSONPayloadBuilder(true)
 	payloads, err := builder.Build(m)
 	require.NoError(t, err)
 	require.Len(t, payloads, 1)
@@ -153,7 +157,7 @@ func TestTwoPayload(t *testing.T) {
 	config.Datadog.SetDefault("serializer_max_payload_size", 22)
 	defer resetDefaults()
 
-	builder := NewPayloadBuilder(true)
+	builder := NewJSONPayloadBuilder(true)
 	payloads, err := builder.Build(m)
 	require.NoError(t, err)
 	require.Len(t, payloads, 2)
@@ -170,8 +174,8 @@ func TestLockedCompressorProducesSamePayloads(t *testing.T) {
 	}
 	defer resetDefaults()
 
-	builderLocked := NewPayloadBuilder(true)
-	builderUnLocked := NewPayloadBuilder(false)
+	builderLocked := NewJSONPayloadBuilder(true)
+	builderUnLocked := NewJSONPayloadBuilder(false)
 	payloads1, err := builderLocked.Build(m)
 	require.NoError(t, err)
 	payloads2, err := builderUnLocked.Build(m)

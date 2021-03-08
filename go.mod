@@ -153,7 +153,8 @@ require (
 	github.com/tklauser/go-sysconf v0.3.4 // indirect
 	github.com/twmb/murmur3 v1.1.3
 	github.com/urfave/negroni v1.0.0
-	github.com/vishvananda/netns v0.0.0-20191106174202-0a2b9b5464df
+	github.com/vishvananda/netlink v1.1.1-0.20201206203632-88079d98e65d
+	github.com/vishvananda/netns v0.0.0-20200728191858-db3c7e526aae
 	github.com/vito/go-sse v1.0.0 // indirect
 	github.com/vmihailenco/msgpack/v4 v4.3.11
 	github.com/zorkian/go-datadog-api v2.28.0+incompatible // indirect

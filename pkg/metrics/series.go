@@ -236,6 +236,11 @@ func (series Series) SplitPayload(times int) ([]marshaler.Marshaler, error) {
 	return payloads, nil
 }
 
+// MarshalSplitCompress not implemented
+func (series Series) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
+	return nil, fmt.Errorf("Series MarshalSplitCompress is not implemented")
+}
+
 // UnmarshalJSON is a custom unmarshaller for Point (used for testing)
 func (p *Point) UnmarshalJSON(buf []byte) error {
 	tmp := []interface{}{&p.Ts, &p.Value}

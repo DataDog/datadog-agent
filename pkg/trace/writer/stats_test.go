@@ -9,6 +9,7 @@ import (
 	"compress/gzip"
 	"math"
 	"math/rand"
+	"sort"
 	"strings"
 	"testing"
 
@@ -34,7 +35,8 @@ func assertPayload(assert *assert.Assertions, testSets []pb.StatsPayload, payloa
 		"Content-Encoding":             "gzip",
 		"Dd-Api-Key":                   "123",
 	}
-	for i, p := range payloads {
+	var decoded []pb.StatsPayload
+	for _, p := range payloads {
 		var statsPayload pb.StatsPayload
 		r, err := gzip.NewReader(p.body)
 		assert.NoError(err)
@@ -43,7 +45,14 @@ func assertPayload(assert *assert.Assertions, testSets []pb.StatsPayload, payloa
 		for k, v := range expectedHeaders {
 			assert.Equal(v, p.headers[k])
 		}
-		assert.Equal(testSets[i], statsPayload)
+		decoded = append(decoded, statsPayload)
+	}
+	// Sorting payloads as the sender can alter their order.
+	sort.Slice(decoded, func(i, j int) bool {
+		return decoded[i].AgentEnv < decoded[j].AgentEnv
+	})
+	for i, p := range decoded {
+		assert.Equal(testSets[i], p)
 	}
 }
 
@@ -55,6 +64,8 @@ func TestStatsWriter(t *testing.T) {
 
 		testSets := []pb.StatsPayload{
 			{
+				AgentHostname: "1",
+				AgentEnv:      "1",
 				Stats: []pb.ClientStatsPayload{{
 					Hostname: testHostname,
 					Env:      testEnv,
@@ -63,8 +74,11 @@ func TestStatsWriter(t *testing.T) {
 						testutil.RandomBucket(3),
 						testutil.RandomBucket(3),
 					},
-				}}},
+				}},
+			},
 			{
+				AgentHostname: "2",
+				AgentEnv:      "2",
 				Stats: []pb.ClientStatsPayload{{
 					Hostname: testHostname,
 					Env:      testEnv,
@@ -73,7 +87,8 @@ func TestStatsWriter(t *testing.T) {
 						testutil.RandomBucket(3),
 						testutil.RandomBucket(3),
 					},
-				}}},
+				}},
+			},
 		}
 		statsChannel <- testSets[0]
 		statsChannel <- testSets[1]
@@ -82,74 +97,72 @@ func TestStatsWriter(t *testing.T) {
 	})
 
 	t.Run("buildPayloads", func(t *testing.T) {
-		t.Run("ok", func(t *testing.T) {
-			assert := assert.New(t)
-			sw, _, _ := testStatsWriter()
-			// This gives us a total of 45 entries. 3 per span, 5
-			// spans per stat bucket. Each buckets have the same
-			// time window (start: 0, duration 1e9).
-			stats := pb.StatsPayload{
-				AgentHostname: "agenthost",
-				AgentEnv:      "agentenv",
-				Stats: []pb.ClientStatsPayload{{
-					Hostname: testHostname,
-					Env:      testEnv,
-					Stats: []pb.ClientStatsBucket{
-						testutil.RandomBucket(5),
-						testutil.RandomBucket(5),
-						testutil.RandomBucket(5),
-					}},
-				},
-			}
-			expectedNbEntries := 15
-			expectedNbPayloads := int(math.Ceil(float64(expectedNbEntries) / 12))
-			// Compute our expected number of entries by payload
-			expectedNbEntriesByPayload := make([]int, expectedNbPayloads)
-			for i := 0; i < expectedNbEntries; i++ {
-				expectedNbEntriesByPayload[i%expectedNbPayloads]++
-			}
-
-			payloads := sw.buildPayloads(stats, 12)
-
-			assert.Equal(expectedNbPayloads, len(payloads))
-			for i := 0; i < expectedNbPayloads; i++ {
-				assert.Equal(1, len(payloads[i].Stats))
-				assert.Equal(1, len(payloads[i].Stats[0].Stats))
-				assert.Equal(expectedNbEntriesByPayload[i], len(payloads[i].Stats[0].Stats[0].Stats))
-			}
-			assert.Equal(extractCounts([]pb.StatsPayload{stats}), extractCounts(payloads))
-			for _, p := range payloads {
-				assert.Equal("agentenv", p.AgentEnv)
-				assert.Equal("agenthost", p.AgentHostname)
-			}
-		})
-
-		t.Run("no-split", func(t *testing.T) {
-			rand.Seed(1)
-			assert := assert.New(t)
-
-			sw, _, _ := testStatsWriter()
-			// This gives us a tota of 45 entries. 3 per span, 5 spans per
-			// stat bucket. Each buckets have the same time window (start:
-			// 0, duration 1e9).
-			stats := pb.ClientStatsPayload{
+		assert := assert.New(t)
+		sw, _, _ := testStatsWriter()
+		// This gives us a total of 45 entries. 3 per span, 5
+		// spans per stat bucket. Each buckets have the same
+		// time window (start: 0, duration 1e9).
+		stats := pb.StatsPayload{
+			AgentHostname: "agenthost",
+			AgentEnv:      "agentenv",
+			Stats: []pb.ClientStatsPayload{{
 				Hostname: testHostname,
 				Env:      testEnv,
 				Stats: []pb.ClientStatsBucket{
 					testutil.RandomBucket(5),
 					testutil.RandomBucket(5),
 					testutil.RandomBucket(5),
-				},
-			}
+				}},
+			},
+		}
+		expectedNbEntries := 15
+		expectedNbPayloads := int(math.Ceil(float64(expectedNbEntries) / 12))
+		// Compute our expected number of entries by payload
+		expectedNbEntriesByPayload := make([]int, expectedNbPayloads)
+		for i := 0; i < expectedNbEntries; i++ {
+			expectedNbEntriesByPayload[i%expectedNbPayloads]++
+		}
 
-			payloads := sw.buildPayloads(pb.StatsPayload{Stats: []pb.ClientStatsPayload{stats}}, 1337)
-			assert.Equal(1, len(payloads))
-			s := payloads[0].Stats
-			assert.Equal(3, len(s[0].Stats))
-			assert.Equal(5, len(s[0].Stats[0].Stats))
-			assert.Equal(5, len(s[0].Stats[1].Stats))
-			assert.Equal(5, len(s[0].Stats[2].Stats))
-		})
+		payloads := sw.buildPayloads(stats, 12)
+
+		assert.Equal(expectedNbPayloads, len(payloads))
+		for i := 0; i < expectedNbPayloads; i++ {
+			assert.Equal(1, len(payloads[i].Stats))
+			assert.Equal(1, len(payloads[i].Stats[0].Stats))
+			assert.Equal(expectedNbEntriesByPayload[i], len(payloads[i].Stats[0].Stats[0].Stats))
+		}
+		assert.Equal(extractCounts([]pb.StatsPayload{stats}), extractCounts(payloads))
+		for _, p := range payloads {
+			assert.Equal("agentenv", p.AgentEnv)
+			assert.Equal("agenthost", p.AgentHostname)
+		}
+	})
+
+	t.Run("no-split", func(t *testing.T) {
+		rand.Seed(1)
+		assert := assert.New(t)
+
+		sw, _, _ := testStatsWriter()
+		// This gives us a tota of 45 entries. 3 per span, 5 spans per
+		// stat bucket. Each buckets have the same time window (start:
+		// 0, duration 1e9).
+		stats := pb.ClientStatsPayload{
+			Hostname: testHostname,
+			Env:      testEnv,
+			Stats: []pb.ClientStatsBucket{
+				testutil.RandomBucket(5),
+				testutil.RandomBucket(5),
+				testutil.RandomBucket(5),
+			},
+		}
+
+		payloads := sw.buildPayloads(pb.StatsPayload{Stats: []pb.ClientStatsPayload{stats}}, 1337)
+		assert.Equal(1, len(payloads))
+		s := payloads[0].Stats
+		assert.Equal(3, len(s[0].Stats))
+		assert.Equal(5, len(s[0].Stats[0].Stats))
+		assert.Equal(5, len(s[0].Stats[1].Stats))
+		assert.Equal(5, len(s[0].Stats[2].Stats))
 	})
 }
 

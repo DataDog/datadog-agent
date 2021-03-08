@@ -166,11 +166,11 @@ func TestGetFileSource(t *testing.T) {
 				serviceNameFunc: tt.sFunc,
 			}
 			fileSource := l.getFileSource(tt.container, tt.source)
-			assert.Equal(t, config.FileType, fileSource.Config.Type)
-			assert.Equal(t, tt.container.service.Identifier, fileSource.Config.Identifier)
-			assert.Equal(t, tt.wantServiceName, fileSource.Config.Service)
-			assert.Equal(t, tt.wantTags, fileSource.Config.Tags)
-			assert.Equal(t, tt.wantRules, fileSource.Config.ProcessingRules)
+			assert.Equal(t, config.FileType, fileSource.source.Config.Type)
+			assert.Equal(t, tt.container.service.Identifier, fileSource.source.Config.Identifier)
+			assert.Equal(t, tt.wantServiceName, fileSource.source.Config.Service)
+			assert.Equal(t, tt.wantTags, fileSource.source.Config.Tags)
+			assert.Equal(t, tt.wantRules, fileSource.source.Config.ProcessingRules)
 		})
 	}
 }

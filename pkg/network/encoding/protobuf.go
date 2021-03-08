@@ -12,25 +12,7 @@ const ContentTypeProtobuf = "application/protobuf"
 type protoSerializer struct{}
 
 func (protoSerializer) Marshal(conns *network.Connections) ([]byte, error) {
-	agentConns := make([]*model.Connection, len(conns.Conns))
-
-	domainSet := make(map[string]int)
-	for i, conn := range conns.Conns {
-		agentConns[i] = FormatConnection(conn, domainSet)
-	}
-
-	domains := make([]string, len(domainSet))
-	for k, v := range domainSet {
-		domains[v] = k
-	}
-
-	payload := connsPool.Get().(*model.Connections)
-	payload.Conns = agentConns
-	payload.Domains = domains
-	payload.Dns = FormatDNS(conns.DNS)
-	payload.ConnTelemetry = FormatConnTelemetry(conns.ConnTelemetry)
-	payload.CompilationTelemetryByAsset = FormatCompilationTelemetry(conns.CompilationTelemetryByAsset)
-
+	payload := modelConnections(conns)
 	buf, err := proto.Marshal(payload)
 	returnToPool(payload)
 	return buf, err

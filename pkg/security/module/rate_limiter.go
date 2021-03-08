@@ -26,6 +26,17 @@ const (
 	defaultBurst int = 40
 )
 
+// Limit defines rate limiter limit
+type Limit struct {
+	Limit int
+	Burst int
+}
+
+// LimiterOpts rate limiter options
+type LimiterOpts struct {
+	Limits map[rules.RuleID]Limit
+}
+
 // Limiter describes an object that applies limits on
 // the rate of triggering of a rule to ensure we don't overflow
 // with too permissive rules
@@ -48,15 +59,17 @@ func NewLimiter(limit rate.Limit, burst int) *Limiter {
 // RateLimiter describes a set of rule rate limiters
 type RateLimiter struct {
 	sync.RWMutex
+	opts         LimiterOpts
 	limiters     map[rules.RuleID]*Limiter
 	statsdClient *statsd.Client
 }
 
 // NewRateLimiter initializes an empty rate limiter
-func NewRateLimiter(client *statsd.Client) *RateLimiter {
+func NewRateLimiter(client *statsd.Client, opts LimiterOpts) *RateLimiter {
 	return &RateLimiter{
 		limiters:     make(map[string]*Limiter),
 		statsdClient: client,
+		opts:         opts,
 	}
 }
 
@@ -70,7 +83,14 @@ func (rl *RateLimiter) Apply(rules []rules.RuleID) {
 		if limiter, found := rl.limiters[id]; found {
 			newLimiters[id] = limiter
 		} else {
-			newLimiters[id] = NewLimiter(defaultLimit, defaultBurst)
+			limit := defaultLimit
+			burst := defaultBurst
+
+			if l, exists := rl.opts.Limits[id]; exists {
+				limit = rate.Limit(l.Limit)
+				burst = l.Burst
+			}
+			newLimiters[id] = NewLimiter(limit, burst)
 		}
 	}
 	rl.limiters = newLimiters
