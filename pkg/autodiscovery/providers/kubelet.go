@@ -8,6 +8,7 @@
 package providers
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -53,7 +54,7 @@ func (k *KubeletConfigProvider) Collect() ([]integration.Config, error) {
 		}
 	}
 
-	pods, err := k.kubelet.GetLocalPodList()
+	pods, err := k.kubelet.GetLocalPodList(context.TODO())
 	if err != nil {
 		return []integration.Config{}, err
 	}

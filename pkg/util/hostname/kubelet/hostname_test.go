@@ -8,6 +8,7 @@
 package kubelet
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -23,7 +24,7 @@ type kubeUtilMock struct {
 	mock.Mock
 }
 
-func (m *kubeUtilMock) GetNodename() (string, error) {
+func (m *kubeUtilMock) GetNodename(ctx context.Context) (string, error) {
 	args := m.Called()
 	return args.String(0), args.Error(1)
 }

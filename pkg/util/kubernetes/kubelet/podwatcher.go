@@ -8,6 +8,7 @@
 package kubelet
 
 import (
+	"context"
 	"hash/fnv"
 	"sort"
 	"strconv"
@@ -63,7 +64,7 @@ func (w *PodWatcher) isWatchingTags() bool {
 // previous info for these pods.
 func (w *PodWatcher) PullChanges() ([]*Pod, error) {
 	var podList []*Pod
-	podList, err := w.kubeUtil.GetLocalPodList()
+	podList, err := w.kubeUtil.GetLocalPodList(context.TODO())
 	if err != nil {
 		return podList, err
 	}
@@ -188,7 +189,7 @@ func (w *PodWatcher) Expire() ([]string, error) {
 // EntityIDs can be Docker container IDs or pod UIDs (prefixed).
 // Returns a nil pointer if not found.
 func (w *PodWatcher) GetPodForEntityID(entityID string) (*Pod, error) {
-	return w.kubeUtil.GetPodForEntityID(entityID)
+	return w.kubeUtil.GetPodForEntityID(context.TODO(), entityID)
 }
 
 // digestPodMeta returns a unique hash of pod labels

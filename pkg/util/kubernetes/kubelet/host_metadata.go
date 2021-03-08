@@ -8,6 +8,7 @@
 package kubelet
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 
@@ -24,7 +25,7 @@ func getMetadata() (map[string]string, error) {
 	if err != nil {
 		return metadata, err
 	}
-	data, err := ku.GetRawMetrics()
+	data, err := ku.GetRawMetrics(context.TODO())
 	if err != nil {
 		return metadata, err
 	}

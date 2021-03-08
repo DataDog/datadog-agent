@@ -12,6 +12,7 @@ package listeners
 // sources instead of adding yet another special case.
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"sync"
@@ -43,7 +44,7 @@ func (s *DockerKubeletService) getPod() (*kubelet.Pod, error) {
 		}
 	}
 	searchedID := s.GetEntity()
-	return s.kubeUtil.GetPodForContainerID(searchedID)
+	return s.kubeUtil.GetPodForContainerID(context.TODO(), searchedID)
 }
 
 // GetHosts returns the container's hosts

@@ -8,6 +8,7 @@
 package kubelet
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
@@ -25,7 +26,7 @@ func HostnameProvider() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	nodeName, err := ku.GetNodename()
+	nodeName, err := ku.GetNodename(context.TODO())
 	if err != nil {
 		return "", fmt.Errorf("couldn't fetch the host nodename from the kubelet: %s", err)
 	}

@@ -220,6 +220,7 @@ func (suite *KubeletTestSuite) TestLocateKubeletHTTP() {
 }
 
 func (suite *KubeletTestSuite) TestGetLocalPodList() {
+	ctx := context.Background()
 	mockConfig := config.Mock()
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
@@ -237,7 +238,7 @@ func (suite *KubeletTestSuite) TestGetLocalPodList() {
 	kubeutil := suite.getCustomKubeUtil()
 	kubelet.dropRequests() // Throwing away first GETs
 
-	pods, err := kubeutil.GetLocalPodList()
+	pods, err := kubeutil.GetLocalPodList(ctx)
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pods)
 	require.Len(suite.T(), pods, 7)
@@ -252,6 +253,7 @@ func (suite *KubeletTestSuite) TestGetLocalPodList() {
 }
 
 func (suite *KubeletTestSuite) TestGetLocalPodListWithBrokenKubelet() {
+	ctx := context.Background()
 	mockConfig := config.Mock()
 
 	kubelet, err := newDummyKubelet("./testdata/invalid.json")
@@ -269,13 +271,14 @@ func (suite *KubeletTestSuite) TestGetLocalPodListWithBrokenKubelet() {
 	kubeutil := suite.getCustomKubeUtil()
 	kubelet.dropRequests() // Throwing away first GETs
 
-	pods, err := kubeutil.GetLocalPodList()
+	pods, err := kubeutil.GetLocalPodList(ctx)
 	require.NotNil(suite.T(), err)
 	require.Len(suite.T(), pods, 0)
 	require.True(suite.T(), errors.IsRetriable(err))
 }
 
 func (suite *KubeletTestSuite) TestGetNodeInfo() {
+	ctx := context.Background()
 	mockConfig := config.Mock()
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
@@ -293,7 +296,7 @@ func (suite *KubeletTestSuite) TestGetNodeInfo() {
 	kubeutil := suite.getCustomKubeUtil()
 	kubelet.dropRequests() // Throwing away first GETs
 
-	ip, name, err := kubeutil.GetNodeInfo()
+	ip, name, err := kubeutil.GetNodeInfo(ctx)
 	require.Nil(suite.T(), err)
 	require.Equal(suite.T(), "192.168.128.141", ip)
 	require.Equal(suite.T(), "my-node-name", name)
@@ -308,6 +311,7 @@ func (suite *KubeletTestSuite) TestGetNodeInfo() {
 }
 
 func (suite *KubeletTestSuite) TestGetNodename() {
+	ctx := context.Background()
 	mockConfig := config.Mock()
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
@@ -325,7 +329,7 @@ func (suite *KubeletTestSuite) TestGetNodename() {
 	kubeutil := suite.getCustomKubeUtil()
 	kubelet.dropRequests() // Throwing away first GETs
 
-	hostname, err := kubeutil.GetNodename()
+	hostname, err := kubeutil.GetNodename(ctx)
 	require.Nil(suite.T(), err)
 	require.Equal(suite.T(), "my-node-name", hostname)
 
@@ -339,6 +343,7 @@ func (suite *KubeletTestSuite) TestGetNodename() {
 }
 
 func (suite *KubeletTestSuite) TestPodlistCache() {
+	ctx := context.Background()
 	mockConfig := config.Mock()
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
@@ -354,12 +359,12 @@ func (suite *KubeletTestSuite) TestPodlistCache() {
 	kubeutil := suite.getCustomKubeUtil()
 	kubelet.dropRequests() // Throwing away first GETs
 
-	kubeutil.GetLocalPodList()
+	kubeutil.GetLocalPodList(ctx)
 	r := <-kubelet.Requests
 	require.Equal(suite.T(), "/pods", r.URL.Path)
 
 	// The request should be cached now
-	_, err = kubeutil.GetLocalPodList()
+	_, err = kubeutil.GetLocalPodList(ctx)
 	require.Nil(suite.T(), err)
 
 	select {
@@ -371,13 +376,14 @@ func (suite *KubeletTestSuite) TestPodlistCache() {
 
 	// test successful cache wipe
 	ResetCache()
-	_, err = kubeutil.GetLocalPodList()
+	_, err = kubeutil.GetLocalPodList(ctx)
 	require.Nil(suite.T(), err)
 	r = <-kubelet.Requests
 	require.Equal(suite.T(), "/pods", r.URL.Path)
 }
 
 func (suite *KubeletTestSuite) TestGetPodForContainerID() {
+	ctx := context.Background()
 	mockConfig := config.Mock()
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
@@ -394,21 +400,21 @@ func (suite *KubeletTestSuite) TestGetPodForContainerID() {
 	kubelet.dropRequests() // Throwing away first GETs
 
 	// Empty container ID
-	pod, err := kubeutil.GetPodForContainerID("")
+	pod, err := kubeutil.GetPodForContainerID(ctx, "")
 	<-kubelet.Requests // cache the first /pods request
 	require.Nil(suite.T(), pod)
 	require.NotNil(suite.T(), err)
 	require.Contains(suite.T(), err.Error(), "containerID is empty")
 
 	// Invalid container ID
-	pod, err = kubeutil.GetPodForContainerID("invalid")
+	pod, err = kubeutil.GetPodForContainerID(ctx, "invalid")
 	// The /pods request is still cached
 	require.Nil(suite.T(), pod)
 	require.NotNil(suite.T(), err)
 	require.True(suite.T(), errors.IsNotFound(err))
 
 	// Valid container ID
-	pod, err = kubeutil.GetPodForContainerID("container_id://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6")
+	pod, err = kubeutil.GetPodForContainerID(ctx, "container_id://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6")
 	// The /pods request is still cached
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pod)
@@ -416,6 +422,7 @@ func (suite *KubeletTestSuite) TestGetPodForContainerID() {
 }
 
 func (suite *KubeletTestSuite) TestGetPodFromUID() {
+	ctx := context.Background()
 	mockConfig := config.Mock()
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
@@ -432,25 +439,26 @@ func (suite *KubeletTestSuite) TestGetPodFromUID() {
 	kubelet.dropRequests() // Throwing away first GETs
 
 	// Empty Pod UID
-	pod, err := kubeutil.GetPodFromUID("")
+	pod, err := kubeutil.GetPodFromUID(ctx, "")
 	require.Nil(suite.T(), pod)
 	require.NotNil(suite.T(), err)
 	require.Contains(suite.T(), err.Error(), "pod UID is empty")
 
 	// Not found Pod UID
-	pod, err = kubeutil.GetPodFromUID("invalid")
+	pod, err = kubeutil.GetPodFromUID(ctx, "invalid")
 	require.Nil(suite.T(), pod)
 	require.NotNil(suite.T(), err)
 	require.True(suite.T(), errors.IsNotFound(err))
 
 	// Valid Pod UID
-	pod, err = kubeutil.GetPodFromUID("e42b42ec-0749-11e8-a2b8-000c29dea4f6")
+	pod, err = kubeutil.GetPodFromUID(ctx, "e42b42ec-0749-11e8-a2b8-000c29dea4f6")
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pod)
 	require.Equal(suite.T(), "kube-proxy-rnd5q", pod.Metadata.Name)
 }
 
 func (suite *KubeletTestSuite) TestGetPodWaitForContainer() {
+	ctx := context.Background()
 	mockConfig := config.Mock()
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_empty.json")
@@ -485,7 +493,7 @@ func (suite *KubeletTestSuite) TestGetPodWaitForContainer() {
 	}()
 
 	// Valid container ID
-	pod, err := kubeutil.GetPodForContainerID("docker://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6")
+	pod, err := kubeutil.GetPodForContainerID(ctx, "docker://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6")
 	require.NoError(suite.T(), err)
 	require.NotNil(suite.T(), pod)
 	assert.Equal(suite.T(), "kube-proxy-rnd5q", pod.Metadata.Name)
@@ -495,6 +503,7 @@ func (suite *KubeletTestSuite) TestGetPodWaitForContainer() {
 }
 
 func (suite *KubeletTestSuite) TestGetPodDontWaitForContainer() {
+	ctx := context.Background()
 	mockConfig := config.Mock()
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_empty.json")
@@ -524,7 +533,7 @@ func (suite *KubeletTestSuite) TestGetPodDontWaitForContainer() {
 	}()
 
 	// We should fail after two requests only (initial + nocache)
-	_, err = kubeutil.GetPodForContainerID("docker://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6")
+	_, err = kubeutil.GetPodForContainerID(ctx, "docker://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6")
 	require.Error(suite.T(), err)
 	requestsMutex.Lock()
 	assert.Equal(suite.T(), 2, requests)
@@ -562,6 +571,7 @@ func (suite *KubeletTestSuite) TestKubeletInitFailOnToken() {
 }
 
 func (suite *KubeletTestSuite) TestKubeletInitTokenHttps() {
+	ctx := context.Background()
 	mockConfig := config.Mock()
 
 	// with a token, without certs on HTTPS insecure
@@ -588,7 +598,7 @@ func (suite *KubeletTestSuite) TestKubeletInitTokenHttps() {
 	assert.Equal(suite.T(), fmt.Sprintf("https://127.0.0.1:%d", kubeletPort), ku.kubeletClient.kubeletURL)
 	assert.Equal(suite.T(), "bearer fakeBearerToken", ku.kubeletClient.headers.Get("Authorization"))
 	assert.True(suite.T(), ku.kubeletClient.client.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)
-	b, code, err := ku.QueryKubelet("/healthz")
+	b, code, err := ku.QueryKubelet(ctx, "/healthz")
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), "ok", string(b))
 	assert.Equal(suite.T(), 200, code)
@@ -605,6 +615,7 @@ func (suite *KubeletTestSuite) TestKubeletInitTokenHttps() {
 }
 
 func (suite *KubeletTestSuite) TestKubeletInitHttpsCerts() {
+	ctx := context.Background()
 	mockConfig := config.Mock()
 
 	// with a token, without certs on HTTPS insecure
@@ -633,7 +644,7 @@ func (suite *KubeletTestSuite) TestKubeletInitHttpsCerts() {
 
 	assert.Equal(suite.T(), fmt.Sprintf("https://127.0.0.1:%d", kubeletPort), ku.kubeletClient.kubeletURL)
 	assert.False(suite.T(), ku.kubeletClient.client.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)
-	b, code, err := ku.QueryKubelet("/healthz")
+	b, code, err := ku.QueryKubelet(ctx, "/healthz")
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), "ok", string(b))
 	assert.Equal(suite.T(), 200, code)
@@ -654,6 +665,7 @@ func (suite *KubeletTestSuite) TestKubeletInitHttpsCerts() {
 }
 
 func (suite *KubeletTestSuite) TestKubeletInitTokenHttp() {
+	ctx := context.Background()
 	mockConfig := config.Mock()
 
 	// with an unused token, without certs on HTTP
@@ -676,7 +688,7 @@ func (suite *KubeletTestSuite) TestKubeletInitTokenHttp() {
 	assert.Equal(suite.T(), fmt.Sprintf("http://127.0.0.1:%d", kubeletPort), ku.kubeletClient.kubeletURL)
 	assert.Equal(suite.T(), "", ku.kubeletClient.headers.Get(authorizationHeaderKey))
 	assert.True(suite.T(), ku.kubeletClient.client.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)
-	b, code, err := ku.QueryKubelet("/healthz")
+	b, code, err := ku.QueryKubelet(ctx, "/healthz")
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), "ok", string(b))
 	assert.Equal(suite.T(), 200, code)
@@ -690,6 +702,7 @@ func (suite *KubeletTestSuite) TestKubeletInitTokenHttp() {
 }
 
 func (suite *KubeletTestSuite) TestKubeletInitHttp() {
+	ctx := context.Background()
 	mockConfig := config.Mock()
 
 	// without token, without certs on HTTP
@@ -712,7 +725,7 @@ func (suite *KubeletTestSuite) TestKubeletInitHttp() {
 	assert.Equal(suite.T(), fmt.Sprintf("http://127.0.0.1:%d", kubeletPort), ku.kubeletClient.kubeletURL)
 	assert.Equal(suite.T(), "", ku.kubeletClient.headers.Get("Authorization"))
 	assert.True(suite.T(), ku.kubeletClient.client.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)
-	b, code, err := ku.QueryKubelet("/healthz")
+	b, code, err := ku.QueryKubelet(ctx, "/healthz")
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), "ok", string(b))
 	assert.Equal(suite.T(), 200, code)
@@ -765,6 +778,7 @@ func (suite *KubeletTestSuite) TestGetKubeletHostFromConfig() {
 }
 
 func (suite *KubeletTestSuite) TestPodListNoExpire() {
+	ctx := context.Background()
 	mockConfig := config.Mock()
 	mockConfig.Set("kubernetes_pod_expiration_duration", 0)
 
@@ -785,7 +799,7 @@ func (suite *KubeletTestSuite) TestPodListNoExpire() {
 	require.NotNil(suite.T(), kubeutil)
 	kubelet.dropRequests() // Throwing away first GETs
 
-	pods, err := kubeutil.ForceGetLocalPodList()
+	pods, err := kubeutil.ForceGetLocalPodList(ctx)
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pods)
 	require.Len(suite.T(), pods, 4)
@@ -798,6 +812,7 @@ func (suite *KubeletTestSuite) TestPodListExpire() {
 	//   - hello5-1550509440-rlgvf succeeded but not old enough
 	//   - hello8-1550505780-kdnjx has one old container and a recent container, don't expire
 
+	ctx := context.Background()
 	mockConfig := config.Mock()
 	mockConfig.Set("kubernetes_pod_expiration_duration", 15*60)
 
@@ -822,7 +837,7 @@ func (suite *KubeletTestSuite) TestPodListExpire() {
 		return t
 	}
 
-	pods, err := kubeutil.ForceGetLocalPodList()
+	pods, err := kubeutil.ForceGetLocalPodList(ctx)
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pods)
 	require.Len(suite.T(), pods, 3)
@@ -942,6 +957,7 @@ func TestGetSpecForContainerName(t *testing.T) {
 }
 
 func (suite *KubeletTestSuite) TestPodListWithNullPod() {
+	ctx := context.Background()
 	mockConfig := config.Mock()
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_null_pod.json")
@@ -959,7 +975,7 @@ func (suite *KubeletTestSuite) TestPodListWithNullPod() {
 	kubeutil := suite.getCustomKubeUtil()
 	kubelet.dropRequests() // Throwing away first GETs
 
-	pods, err := kubeutil.ForceGetLocalPodList()
+	pods, err := kubeutil.ForceGetLocalPodList(ctx)
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pods)
 	require.Len(suite.T(), pods, 1)
@@ -970,6 +986,7 @@ func (suite *KubeletTestSuite) TestPodListWithNullPod() {
 }
 
 func (suite *KubeletTestSuite) TestPodListOnKubeletInit() {
+	ctx := context.Background()
 	mockConfig := config.Mock()
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_startup.json")
@@ -987,12 +1004,13 @@ func (suite *KubeletTestSuite) TestPodListOnKubeletInit() {
 	kubeutil := suite.getCustomKubeUtil()
 	kubelet.dropRequests() // Throwing away first GETs
 
-	pods, err := kubeutil.ForceGetLocalPodList()
+	pods, err := kubeutil.ForceGetLocalPodList(ctx)
 	require.NotNil(suite.T(), err)
 	require.Nil(suite.T(), pods)
 }
 
 func (suite *KubeletTestSuite) TestPodListWithPersistentVolumeClaim() {
+	ctx := context.Background()
 	mockConfig := config.Mock()
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_persistent_volume_claim.json")
@@ -1010,7 +1028,7 @@ func (suite *KubeletTestSuite) TestPodListWithPersistentVolumeClaim() {
 	kubeutil := suite.getCustomKubeUtil()
 	kubelet.dropRequests() // Throwing away first GETs
 
-	pods, err := kubeutil.ForceGetLocalPodList()
+	pods, err := kubeutil.ForceGetLocalPodList(ctx)
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pods)
 	require.Len(suite.T(), pods, 9)

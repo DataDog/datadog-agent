@@ -8,6 +8,7 @@
 package kubernetes
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -159,7 +160,7 @@ func (l *Launcher) addSource(svc *service.Service) {
 		return
 	}
 
-	pod, err := l.kubeutil.GetPodForEntityID(svc.GetEntityID())
+	pod, err := l.kubeutil.GetPodForEntityID(context.TODO(), svc.GetEntityID())
 	if err != nil {
 		if errors.IsRetriable(err) {
 			// Attempt to reschedule the source later

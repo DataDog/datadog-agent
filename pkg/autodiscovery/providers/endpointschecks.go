@@ -8,6 +8,7 @@
 package providers
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -32,7 +33,7 @@ type EndpointsChecksConfigProvider struct {
 func NewEndpointsChecksConfigProvider(cfg config.ConfigurationProviders) (ConfigProvider, error) {
 	c := &EndpointsChecksConfigProvider{}
 	var err error
-	c.nodeName, err = getNodename()
+	c.nodeName, err = getNodename(context.TODO())
 	if err != nil {
 		log.Errorf("Cannot get node name: %s", err)
 		return nil, err
@@ -78,7 +79,7 @@ func (c *EndpointsChecksConfigProvider) Collect() ([]integration.Config, error) 
 
 // getNodename retrieves current node name from kubelet (if running on Kubernetes)
 // or bosh ID of current node (if running on Cloud Foundry).
-func getNodename() (string, error) {
+func getNodename(ctx context.Context) (string, error) {
 	if config.Datadog.GetBool("cloud_foundry") {
 		boshID := config.Datadog.GetString("bosh_id")
 		if boshID == "" {
@@ -91,7 +92,7 @@ func getNodename() (string, error) {
 		log.Errorf("Cannot get kubeUtil object: %s", err)
 		return "", err
 	}
-	return ku.GetNodename()
+	return ku.GetNodename(ctx)
 }
 
 // initClient initializes a cluster agent client.

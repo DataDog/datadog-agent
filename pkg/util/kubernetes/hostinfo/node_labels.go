@@ -8,6 +8,8 @@
 package hostinfo
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -20,7 +22,7 @@ func GetNodeLabels() (map[string]string, error) {
 		return nil, err
 	}
 
-	nodeName, err := ku.GetNodename()
+	nodeName, err := ku.GetNodename(context.TODO())
 	if err != nil {
 		return nil, err
 	}

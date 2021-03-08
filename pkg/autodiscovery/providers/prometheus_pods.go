@@ -8,6 +8,8 @@
 package providers
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -52,7 +54,7 @@ func (p *PrometheusPodsConfigProvider) Collect() ([]integration.Config, error) {
 		}
 	}
 
-	pods, err := p.kubelet.GetLocalPodList()
+	pods, err := p.kubelet.GetLocalPodList(context.TODO())
 	if err != nil {
 		return []integration.Config{}, err
 	}

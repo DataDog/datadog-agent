@@ -8,6 +8,7 @@
 package kubernetes
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -549,7 +550,7 @@ func (d dummyKubeUtil) GetSpecForContainerName(pod *kubelet.Pod, containerName s
 	return spec, nil
 }
 
-func (d dummyKubeUtil) GetPodForEntityID(entityID string) (*kubelet.Pod, error) {
+func (d dummyKubeUtil) GetPodForEntityID(ctx context.Context, entityID string) (*kubelet.Pod, error) {
 	if d.shouldRetry {
 		return nil, errors.NewRetriable("dummy error", fmt.Errorf("retriable error"))
 	}

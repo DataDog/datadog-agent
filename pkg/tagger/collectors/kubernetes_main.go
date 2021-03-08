@@ -8,6 +8,7 @@
 package collectors
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -109,7 +110,7 @@ func (c *KubeMetadataCollector) Pull() error {
 		return nil
 	}
 
-	pods, err := c.kubeUtil.GetLocalPodList()
+	pods, err := c.kubeUtil.GetLocalPodList(context.TODO())
 	if err != nil {
 		return err
 	}
@@ -170,7 +171,7 @@ func (c *KubeMetadataCollector) collectUpdates(pods []*kubelet.Pod) []*TagInfo {
 func (c *KubeMetadataCollector) Fetch(entity string) ([]string, []string, []string, error) {
 	var lowCards, orchestratorCards, highCards []string
 
-	pod, err := c.kubeUtil.GetPodForEntityID(entity)
+	pod, err := c.kubeUtil.GetPodForEntityID(context.TODO(), entity)
 	if err != nil {
 		return lowCards, orchestratorCards, highCards, err
 	}
