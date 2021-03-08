@@ -41,7 +41,7 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	return nil
 }
 
-func (t *Tailer) readAvailable() (err error) {
+func (t *Tailer) readAvailable() (int, error) {
 	f, err := openFile(t.fullpath)
 	if err != nil {
 		return err
@@ -67,30 +67,33 @@ func (t *Tailer) readAvailable() (err error) {
 		t.SetDecodedOffset(0)
 	}
 	f.Seek(t.GetReadOffset(), io.SeekStart)
+	bytes := 0
 
 	for {
 		inBuf := make([]byte, 4096)
 		n, err := f.Read(inBuf)
+		bytes += n
 		if n == 0 || err != nil {
 			log.Debugf("Done reading")
-			return err
+			return bytes, err
 		}
 		log.Debugf("Sending %d bytes to input channel", n)
 		t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
 		t.incrementReadOffset(n)
 	}
+	return bytes, nil
 }
 
 // read lets the tailer tail the content of a file until it is closed. The
 // windows version open and close the file between each call to 'read'. This is
 // needed in order not to block the file and prevent the user from renaming it.
 func (t *Tailer) read() (int, error) {
-	err := t.readAvailable()
+	n, err := t.readAvailable()
 	if err == io.EOF || os.IsNotExist(err) {
 		return 0, nil
 	} else if err != nil {
 		t.file.Source.Status.Error(err)
 		return 0, log.Error("Err: ", err)
 	}
-	return 0, nil
+	return n, nil
 }
