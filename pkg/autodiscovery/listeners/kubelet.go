@@ -8,6 +8,7 @@
 package listeners
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -103,7 +104,8 @@ func (l *KubeletListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 	l.delService = delSvc
 
 	go func() {
-		pods, err := l.watcher.PullChanges()
+		ctx, cancel := context.WithCancel(context.Background())
+		pods, err := l.watcher.PullChanges(ctx)
 		if err != nil {
 			log.Error(err)
 		}
@@ -113,11 +115,14 @@ func (l *KubeletListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 			select {
 			case <-l.stop:
 				l.health.Deregister() //nolint:errcheck
+				cancel()
 				return
-			case <-l.health.C:
+			case nextPing := <-l.health.C:
+				cancel()
+				ctx, cancel = context.WithDeadline(context.Background(), nextPing)
 			case <-l.ticker.C:
 				// Compute new/updated pods
-				updatedPods, err := l.watcher.PullChanges()
+				updatedPods, err := l.watcher.PullChanges(ctx)
 				if err != nil {
 					log.Error(err)
 					continue

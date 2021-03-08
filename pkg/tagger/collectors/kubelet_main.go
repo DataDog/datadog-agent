@@ -8,6 +8,7 @@
 package collectors
 
 import (
+	"context"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -68,7 +69,7 @@ func (c *KubeletCollector) init(watcher *kubelet.PodWatcher, out chan<- []*TagIn
 // container deletion computation every 'expireFreq'
 func (c *KubeletCollector) Pull() error {
 	// Compute new/updated pods
-	updatedPods, err := c.watcher.PullChanges()
+	updatedPods, err := c.watcher.PullChanges(context.TODO())
 	if err != nil {
 		return err
 	}
@@ -101,7 +102,7 @@ func (c *KubeletCollector) Pull() error {
 // Fetch fetches tags for a given entity by iterating on the whole podlist
 // TODO: optimize if called too often on production
 func (c *KubeletCollector) Fetch(entity string) ([]string, []string, []string, error) {
-	pod, err := c.watcher.GetPodForEntityID(entity)
+	pod, err := c.watcher.GetPodForEntityID(context.TODO(), entity)
 	if err != nil {
 		return []string{}, []string{}, []string{}, err
 	}
