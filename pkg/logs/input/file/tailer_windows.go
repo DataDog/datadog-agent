@@ -81,7 +81,6 @@ func (t *Tailer) readAvailable() (int, error) {
 		t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
 		t.incrementReadOffset(n)
 	}
-	return bytes, nil
 }
 
 // read lets the tailer tail the content of a file until it is closed. The
