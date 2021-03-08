@@ -1,6 +1,7 @@
 package topology
 
 import (
+	"errors"
 	"fmt"
 	"github.com/StackVista/stackstate-agent/pkg/batcher"
 	"github.com/StackVista/stackstate-agent/pkg/collector/corechecks"
@@ -41,6 +42,9 @@ func MakeDockerTopologyCollector() *DockerTopologyCollector {
 // BuildContainerTopology collects all docker container topology
 func (dt *DockerTopologyCollector) BuildContainerTopology(du *docker.DockerUtil) error {
 	sender := batcher.GetBatcher()
+	if sender == nil {
+		return errors.New("no batcher instance available, skipping BuildContainerTopology")
+	}
 
 	// collect all containers as topology components
 	containerComponents, err := dt.collectContainers(du)
@@ -61,6 +65,9 @@ func (dt *DockerTopologyCollector) BuildContainerTopology(du *docker.DockerUtil)
 // BuildSwarmTopology collects and produces all docker swarm topology
 func (dt *DockerTopologyCollector) BuildSwarmTopology(du *docker.DockerUtil) error {
 	sender := batcher.GetBatcher()
+	if sender == nil {
+		return errors.New("no batcher instance available, skipping BuildSwarmTopology")
+	}
 
 	// collect all swarm services as topology components
 	swarmServices, err := dt.collectSwarmServices(du)
