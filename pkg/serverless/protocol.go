@@ -230,6 +230,7 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				generateEnhancedMetricsFromFunctionLog(message, metricTags, metricsChan)
 			case aws.LogTypePlatformReport:
 				generateEnhancedMetricsFromReportLog(message, metricTags, metricsChan)
+				aws.SetColdStart(false)
 			case aws.LogTypePlatformLogsDropped:
 				log.Debug("Logs were dropped by the AWS Lambda Logs API")
 			}

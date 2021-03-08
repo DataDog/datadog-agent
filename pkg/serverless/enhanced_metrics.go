@@ -19,6 +19,7 @@ import (
 const (
 	baseLambdaInvocationPrice = 0.0000002
 	lambdaPricePerGbSecond    = 0.0000166667
+	msToSec                   = 0.001
 )
 
 func getOutOfMemorySubstrings() []string {
@@ -71,21 +72,21 @@ func generateEnhancedMetricsFromReportLog(message aws.LogMessage, tags []string,
 		Timestamp:  float64(message.Time.UnixNano()),
 	}, {
 		Name:       "aws.lambda.enhanced.billed_duration",
-		Value:      billedDurationMs,
+		Value:      billedDurationMs * msToSec,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(message.Time.UnixNano()),
 	}, {
 		Name:       "aws.lambda.enhanced.duration",
-		Value:      message.ObjectRecord.Metrics.DurationMs,
+		Value:      message.ObjectRecord.Metrics.DurationMs * msToSec,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(message.Time.UnixNano()),
 	}, {
 		Name:       "aws.lambda.enhanced.init_duration",
-		Value:      message.ObjectRecord.Metrics.InitDurationMs,
+		Value:      message.ObjectRecord.Metrics.InitDurationMs * msToSec,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
@@ -114,12 +115,10 @@ func sendTimeoutEnhancedMetric(tags []string, metricsChan chan []metrics.MetricS
 
 // getTagsForEnhancedMetrics returns the tags that should be included with enhanced metrics
 func getTagsForEnhancedMetrics() []string {
-	functionARN := aws.GetARN()
-	functionName := aws.FunctionNameFromARN()
-	return []string{
-		fmt.Sprintf("functionname:%s", functionName),
-		fmt.Sprintf("function_arn:%s", functionARN),
-	}
+	tags := aws.GetARNTags()
+	coldStart := aws.GetColdStart()
+	tags = append(tags, fmt.Sprintf("cold_start:%v", coldStart))
+	return tags
 }
 
 // calculateEstimatedCost returns the estimated cost in USD of a Lambda invocation

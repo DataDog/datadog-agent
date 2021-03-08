@@ -231,6 +231,12 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	// read configuration from the environment vars
 	// --------------------------------------------
 
+	functionARN := aws.BuildFunctionARNFromEnv()
+	aws.SetARN(functionARN)
+	aws.SetColdStart(true)
+
+	log.Debugf("Extension found function ARN: %s", functionARN)
+
 	// note that this call is counter-intuitive: it must return an error because
 	// no files should exist, and then, the configuration is read from env vars.
 	if _, confErr := config.Load(); confErr == nil {
@@ -239,6 +245,8 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 
 	// extra tags to append to all logs / metrics
 	extraTags := config.Datadog.GetStringSlice("tags")
+	extraTags = append(extraTags, aws.GetARNTags()...)
+
 	if dsdTags := config.Datadog.GetStringSlice("dogstatsd_tags"); len(dsdTags) > 0 {
 		extraTags = append(extraTags, dsdTags...)
 	}
