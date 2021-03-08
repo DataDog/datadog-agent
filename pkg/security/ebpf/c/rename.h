@@ -49,7 +49,7 @@ int kprobe__vfs_rename(struct pt_regs *ctx) {
         return 0;
 
     // if second pass, ex: overlayfs, just cache the inode that will be used in ret
-    if (syscall->rename.target_key.ino) {
+    if (syscall->rename.target_file.path_key.ino) {
         return 0;
     }
 
@@ -57,8 +57,13 @@ int kprobe__vfs_rename(struct pt_regs *ctx) {
     struct dentry *target_dentry = (struct dentry *)PT_REGS_PARM4(ctx);
 
     syscall->rename.src_dentry = src_dentry;
-    fill_file_metadata(src_dentry, &syscall->rename.src_metadata);
     syscall->rename.target_dentry = target_dentry;
+
+    fill_file_metadata(src_dentry, &syscall->rename.src_file.metadata);
+    syscall->rename.target_file.metadata = syscall->rename.src_file.metadata;
+    if (is_overlayfs(src_dentry)) {
+        syscall->rename.target_file.flags |= UPPER_LAYER;
+    }
 
     if (filter_syscall(syscall, rename_approvers)) {
         return mark_as_discarded(syscall);
@@ -66,20 +71,18 @@ int kprobe__vfs_rename(struct pt_regs *ctx) {
 
     // use src_dentry as target inode is currently empty and the target file will
     // have the src inode anyway
-    set_path_key_inode(src_dentry, &syscall->rename.target_key, 1);
-
-    syscall->rename.src_overlay_numlower = get_overlay_numlower(syscall->rename.src_dentry);
+    set_file_inode(src_dentry, &syscall->rename.target_file, 1);
 
     // we generate a fake source key as the inode is (can be ?) reused
-    syscall->rename.src_key.ino = FAKE_INODE_MSW<<32 | bpf_get_prandom_u32();
+    syscall->rename.src_file.path_key.ino = FAKE_INODE_MSW<<32 | bpf_get_prandom_u32();
 
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
-    resolve_dentry(syscall->rename.src_dentry, syscall->rename.src_key, 0);
+    resolve_dentry(syscall->rename.src_dentry, syscall->rename.src_file.path_key, 0);
 
     // if destination already exists invalidate
     u64 inode = get_dentry_ino(target_dentry);
     if (inode) {
-        invalidate_inode(ctx, syscall->rename.target_key.mount_id, inode, 1);
+        invalidate_inode(ctx, syscall->rename.target_file.path_key.mount_id, inode, 1);
     }
 
     // If we are discarded, we still want to invalidate the inode
@@ -103,37 +106,26 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
     u64 inode = get_dentry_ino(syscall->rename.src_dentry);
 
     // invalidate inode from src dentry to handle ovl folder
-    if (syscall->rename.target_key.ino != inode) {
-        invalidate_inode(ctx, syscall->rename.target_key.mount_id, inode, 1);
+    if (syscall->rename.target_file.path_key.ino != inode) {
+        invalidate_inode(ctx, syscall->rename.target_file.path_key.mount_id, inode, 1);
     }
 
     // invalidate user face inode, so no need to bump the discarder revision in the event
-    invalidate_path_key(ctx, &syscall->rename.target_key, 1);
+    invalidate_inode(ctx, syscall->rename.target_file.path_key.mount_id, syscall->rename.target_file.path_key.ino, 1);
 
     if (!syscall->discarded && is_event_enabled(EVENT_RENAME)) {
         struct rename_event_t event = {
             .syscall.retval = retval,
-            .old = {
-                .inode = syscall->rename.src_key.ino,
-                .mount_id = syscall->rename.src_key.mount_id,
-                .overlay_numlower = syscall->rename.src_overlay_numlower,
-                .metadata = syscall->rename.src_metadata,
-            },
-            .new = {
-                .inode = syscall->rename.target_key.ino,
-                .mount_id = syscall->rename.target_key.mount_id,
-                .overlay_numlower = get_overlay_numlower(syscall->rename.src_dentry),
-                .path_id = syscall->rename.target_key.path_id,
-                .metadata = syscall->rename.src_metadata,
-            },
-            .discarder_revision = bump_discarder_revision(syscall->rename.target_key.mount_id),
+            .old = syscall->rename.src_file,
+            .new = syscall->rename.target_file,
+            .discarder_revision = bump_discarder_revision(syscall->rename.target_file.path_key.mount_id),
         };
 
         struct proc_cache_t *entry = fill_process_context(&event.process);
         fill_container_context(entry, &event.container);
 
         // for centos7, use src dentry for target resolution as the pointers have been swapped
-        resolve_dentry(syscall->rename.src_dentry, syscall->rename.target_key, 0);
+        resolve_dentry(syscall->rename.src_dentry, syscall->rename.target_file.path_key, 0);
 
         send_event(ctx, EVENT_RENAME, event);
     }

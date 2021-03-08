@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 	lib "github.com/DataDog/ebpf"
 	"github.com/DataDog/gopsutil/process"
+	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -36,6 +37,12 @@ const (
 	doForkStructInput
 )
 
+// argsEnvsCacheEntry holds temporary args/envs info
+type argsEnvsCacheEntry struct {
+	Values      []string
+	IsTruncated bool
+}
+
 // getDoForkInput returns the expected input type of _do_fork, do_fork and kernel_clone
 func getDoForkInput(probe *Probe) uint64 {
 	if probe.kernelVersion != 0 && probe.kernelVersion >= kernel5_3 {
@@ -46,8 +53,8 @@ func getDoForkInput(probe *Probe) uint64 {
 
 // InodeInfo holds information related to inode from kernel
 type InodeInfo struct {
-	MountID         uint32
-	OverlayNumLower int32
+	MountID uint32
+	Flags   int32
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -56,7 +63,7 @@ func (i *InodeInfo) UnmarshalBinary(data []byte) (int, error) {
 		return 0, model.ErrNotEnoughData
 	}
 	i.MountID = model.ByteOrder.Uint32(data)
-	i.OverlayNumLower = int32(model.ByteOrder.Uint32(data[4:]))
+	i.Flags = int32(model.ByteOrder.Uint32(data[4:]))
 	return 8, nil
 }
 
@@ -77,7 +84,8 @@ type ProcessResolver struct {
 	cacheSize    int64
 	opts         ProcessResolverOpts
 
-	entryCache map[uint32]*model.ProcessCacheEntry
+	entryCache    map[uint32]*model.ProcessCacheEntry
+	argsEnvsCache *simplelru.LRU
 }
 
 // SendStats sends process resolver metrics
@@ -93,6 +101,22 @@ func (p *ProcessResolver) SendStats() error {
 	return nil
 }
 
+// UpdateArgsEnvs updates arguments or environment variables of the given id
+func (p *ProcessResolver) UpdateArgsEnvs(event *model.ArgsEnvsEvent) {
+	if e, found := p.argsEnvsCache.Get(event.ID); found {
+		entry := e.(*argsEnvsCacheEntry)
+
+		entry.Values = append(entry.Values, event.Values...)
+		entry.IsTruncated = entry.IsTruncated || event.IsTruncated
+	} else {
+		entry := &argsEnvsCacheEntry{
+			Values:      event.Values,
+			IsTruncated: event.IsTruncated,
+		}
+		p.argsEnvsCache.Add(event.ID, entry)
+	}
+}
+
 // AddForkEntry adds an entry to the local cache and returns the newly created entry
 func (p *ProcessResolver) AddForkEntry(pid uint32, entry *model.ProcessCacheEntry) *model.ProcessCacheEntry {
 	p.Lock()
@@ -104,6 +128,7 @@ func (p *ProcessResolver) AddForkEntry(pid uint32, entry *model.ProcessCacheEntr
 func (p *ProcessResolver) AddExecEntry(pid uint32, entry *model.ProcessCacheEntry) *model.ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
+
 	return p.insertExecEntry(pid, entry)
 }
 
@@ -152,11 +177,11 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 		}
 
 		entry.FileFields = *info
-		entry.ExecEvent.PathnameStr = pathnameStr
-		entry.ExecEvent.BasenameStr = path.Base(pathnameStr)
+		entry.Process.PathnameStr = pathnameStr
+		entry.Process.BasenameStr = path.Base(pathnameStr)
 		entry.ContainerContext.ID = string(containerID)
 		// resolve container path with the MountResolver
-		entry.ContainerPath = p.resolvers.resolveContainerPath(&entry.ExecEvent.FileFields)
+		entry.ContainerPath = p.resolvers.resolveContainerPath(&entry.Process.FileFields)
 	}
 
 	entry.ExecTime = time.Unix(0, filledProc.CreateTime*int64(time.Millisecond))
@@ -181,8 +206,8 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 	if err != nil {
 		return errors.Wrapf(err, "snapshot failed for %d: couldn't parse kernel capabilities", proc.Pid)
 	}
-	_ = p.resolvers.ResolveProcessUser(&entry.ProcessContext)
-	_ = p.resolvers.ResolveProcessGroup(&entry.ProcessContext)
+	_ = p.resolvers.ResolveProcessContextUser(&entry.ProcessContext)
+	_ = p.resolvers.ResolveProcessContextGroup(&entry.ProcessContext)
 	return nil
 }
 
@@ -297,6 +322,25 @@ func (p *ProcessResolver) Resolve(pid, tid uint32) *model.ProcessCacheEntry {
 	return nil
 }
 
+// SetProcessPath resolves process file path
+func (p *ProcessResolver) SetProcessPath(entry *model.ProcessCacheEntry) (string, error) {
+	var err error
+
+	if entry.FileFields.Inode != 0 && entry.FileFields.MountID != 0 {
+		entry.PathnameStr, err = p.resolvers.resolveInode(&entry.FileFields)
+	}
+
+	return entry.PathnameStr, err
+}
+
+// SetProcessContainerPath resolves container path
+func (p *ProcessResolver) SetProcessContainerPath(entry *model.ProcessCacheEntry) string {
+	if entry.FileFields.Inode != 0 && entry.FileFields.MountID != 0 {
+		entry.ContainerPath = p.resolvers.resolveContainerPath(&entry.FileFields)
+	}
+	return entry.ContainerPath
+}
+
 func (p *ProcessResolver) unmarshalProcessCacheEntry(entry *model.ProcessCacheEntry, data []byte, unmarshalContext bool) (int, error) {
 	read, err := entry.UnmarshalBinary(data, unmarshalContext)
 	if err != nil {
@@ -306,16 +350,6 @@ func (p *ProcessResolver) unmarshalProcessCacheEntry(entry *model.ProcessCacheEn
 	entry.ExecTime = p.resolvers.TimeResolver.ResolveMonotonicTimestamp(entry.ExecTimestamp)
 	entry.ForkTime = p.resolvers.TimeResolver.ResolveMonotonicTimestamp(entry.ForkTimestamp)
 	entry.ExitTime = p.resolvers.TimeResolver.ResolveMonotonicTimestamp(entry.ExitTimestamp)
-
-	// Resolve FileEvent now while the dentry cache is up to date. Fork events might send a null inode if the parent
-	// wasn't in the kernel cache, so resolve only if necessary.
-
-	if entry.FileFields.Inode != 0 && entry.FileFields.MountID != 0 {
-		// We still need to retrieve the error from the resolution: should we fail to resolve the pathname, we need
-		// to fall back to /proc
-		entry.PathnameStr, err = p.resolvers.resolveInode(&entry.FileFields)
-		entry.ContainerPath = p.resolvers.resolveContainerPath(&entry.FileFields)
-	}
 
 	return read, err
 }
@@ -374,6 +408,32 @@ func (p *ProcessResolver) resolveWithProcfs(pid uint32) *model.ProcessCacheEntry
 	return entry
 }
 
+// SetProcessArgs set arguments to cache entry
+func (p *ProcessResolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
+	if e, found := p.argsEnvsCache.Get(pce.ArgsID); found {
+		entry := e.(*argsEnvsCacheEntry)
+
+		pce.Args = entry.Values
+		if pce.ArgsTruncated {
+			pce.Args = append(pce.Args, "...")
+		}
+		pce.ArgsTruncated = pce.ArgsTruncated || entry.IsTruncated
+	}
+}
+
+// SetProcessEnvs set environment variables to cache entry
+func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
+	if e, found := p.argsEnvsCache.Get(pce.EnvsID); found {
+		entry := e.(*argsEnvsCacheEntry)
+
+		pce.Envs = entry.Values
+		if pce.EnvsTruncated {
+			pce.Envs = append(pce.Envs, "...")
+		}
+		pce.EnvsTruncated = pce.EnvsTruncated || entry.IsTruncated
+	}
+}
+
 // Get returns the cache entry for a specified pid
 func (p *ProcessResolver) Get(pid uint32) *model.ProcessCacheEntry {
 	p.RLock()
@@ -383,7 +443,7 @@ func (p *ProcessResolver) Get(pid uint32) *model.ProcessCacheEntry {
 
 // UpdateUID updates the credentials of the provided pid
 func (p *ProcessResolver) UpdateUID(pid uint32, e *Event) {
-	if e.Process.Pid != e.Process.Tid {
+	if e.ProcessContext.Pid != e.ProcessContext.Tid {
 		return
 	}
 
@@ -402,7 +462,7 @@ func (p *ProcessResolver) UpdateUID(pid uint32, e *Event) {
 
 // UpdateGID updates the credentials of the provided pid
 func (p *ProcessResolver) UpdateGID(pid uint32, e *Event) {
-	if e.Process.Pid != e.Process.Tid {
+	if e.ProcessContext.Pid != e.ProcessContext.Tid {
 		return
 	}
 
@@ -421,7 +481,7 @@ func (p *ProcessResolver) UpdateGID(pid uint32, e *Event) {
 
 // UpdateCapset updates the credentials of the provided pid
 func (p *ProcessResolver) UpdateCapset(pid uint32, e *Event) {
-	if e.Process.Pid != e.Process.Tid {
+	if e.ProcessContext.Pid != e.ProcessContext.Tid {
 		return
 	}
 
@@ -603,12 +663,18 @@ func (p *ProcessResolver) GetEntryCacheSize() float64 {
 
 // NewProcessResolver returns a new process resolver
 func NewProcessResolver(probe *Probe, resolvers *Resolvers, client *statsd.Client, opts ProcessResolverOpts) (*ProcessResolver, error) {
+	argsEnvsCache, err := simplelru.NewLRU(512, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	return &ProcessResolver{
-		probe:      probe,
-		resolvers:  resolvers,
-		client:     client,
-		entryCache: make(map[uint32]*model.ProcessCacheEntry),
-		opts:       opts,
+		probe:         probe,
+		resolvers:     resolvers,
+		client:        client,
+		entryCache:    make(map[uint32]*model.ProcessCacheEntry),
+		opts:          opts,
+		argsEnvsCache: argsEnvsCache,
 	}, nil
 }
 

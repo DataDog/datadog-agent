@@ -21,12 +21,14 @@ type TraceWriterInfo struct {
 
 // StatsWriterInfo represents statistics from the stats writer.
 type StatsWriterInfo struct {
-	Payloads     int64
-	StatsBuckets int64
-	Errors       int64
-	Retries      int64
-	Splits       int64
-	Bytes        int64
+	Payloads       int64
+	ClientPayloads int64
+	StatsBuckets   int64
+	StatsEntries   int64
+	Errors         int64
+	Retries        int64
+	Splits         int64
+	Bytes          int64
 }
 
 // UpdateTraceWriterInfo updates internal trace writer stats

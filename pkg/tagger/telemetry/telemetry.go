@@ -18,10 +18,16 @@ var (
 		[]string{"cardinality"}, "Queries made against the tagger.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 
-	// StreamErrors tracks how many errors were received when streaming
+	// ClientStreamErrors tracks how many errors were received when streaming
 	// tagger events.
-	StreamErrors = telemetry.NewCounterWithOpts("tagger", "stream_errors",
+	ClientStreamErrors = telemetry.NewCounterWithOpts("tagger", "client_stream_errors",
 		[]string{}, "Errors received when streaming tagger events",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+
+	// ServerStreamErrors tracks how many errors happened when streaming
+	// out tagger events.
+	ServerStreamErrors = telemetry.NewCounterWithOpts("tagger", "server_stream_errors",
+		[]string{}, "Errors when streaming out tagger events",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 
 	// Subscribers tracks how many subscribers the tagger has.
@@ -34,9 +40,15 @@ var (
 		[]string{"cardinality"}, "Number of tagger events being sent out",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 
-	// Notifications tracks the number of times the tagger has sent a
+	// Sends tracks the number of times the tagger has sent a
 	// notification with a group of events.
-	Notifications = telemetry.NewCounterWithOpts("tagger", "sends",
+	Sends = telemetry.NewCounterWithOpts("tagger", "sends",
 		[]string{}, "Number of of times the tagger has sent a notification with a group of events",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+
+	// Receives tracks the number of times the tagger has received a
+	// notification with a group of events.
+	Receives = telemetry.NewCounterWithOpts("tagger", "receives",
+		[]string{}, "Number of of times the tagger has received a notification with a group of events",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 )

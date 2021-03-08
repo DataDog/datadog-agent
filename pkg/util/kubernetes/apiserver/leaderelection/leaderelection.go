@@ -129,6 +129,7 @@ func (le *LeaderEngine) init() error {
 	}
 	log.Debugf("LeaderLeaseDuration: %s", le.LeaseDuration.String())
 
+	// Using GetAPIClient (no retry) as LeaderElection is already wrapped in a retrier
 	apiClient, err := apiserver.GetAPIClient()
 	if err != nil {
 		log.Errorf("Not Able to set up a client for the Leader Election: %s", err)

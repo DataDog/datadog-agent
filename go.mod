@@ -40,10 +40,10 @@ require (
 	code.cloudfoundry.org/rep v0.0.0-20200325195957-1404b978e31e // indirect
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
-	github.com/DataDog/agent-payload v4.55.0+incompatible
+	github.com/DataDog/agent-payload v4.59.0+incompatible
 	github.com/DataDog/datadog-go v4.4.0+incompatible
 	github.com/DataDog/datadog-operator v0.3.1
-	github.com/DataDog/ebpf v0.0.0-20210121152636-7fc17cac5ed7
+	github.com/DataDog/ebpf v0.0.0-20210301225224-1e8911b1b835
 	github.com/DataDog/gohai v0.0.0-20210303102637-6b668acb50dd
 	github.com/DataDog/gopsutil v0.0.0-20200624212600-1b53412ef321
 	github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981 // indirect
@@ -153,7 +153,8 @@ require (
 	github.com/tklauser/go-sysconf v0.3.4 // indirect
 	github.com/twmb/murmur3 v1.1.3
 	github.com/urfave/negroni v1.0.0
-	github.com/vishvananda/netns v0.0.0-20191106174202-0a2b9b5464df
+	github.com/vishvananda/netlink v1.1.1-0.20201206203632-88079d98e65d
+	github.com/vishvananda/netns v0.0.0-20200728191858-db3c7e526aae
 	github.com/vito/go-sse v1.0.0 // indirect
 	github.com/vmihailenco/msgpack/v4 v4.3.11
 	github.com/zorkian/go-datadog-api v2.28.0+incompatible // indirect

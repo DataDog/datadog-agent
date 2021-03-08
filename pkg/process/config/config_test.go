@@ -3,9 +3,12 @@
 package config
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"regexp"
 	"runtime"
 	"strconv"
@@ -13,8 +16,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/api/pb"
+	"github.com/DataDog/datadog-agent/cmd/agent/api/pb/mocks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -217,6 +223,39 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 	})
 }
 
+func TestEnableGatewayLookup(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+		defer restoreGlobalConfig()
+
+		// default config
+		cfg, err := NewAgentConfig("test", "", "")
+		assert.NoError(t, err)
+		assert.False(t, cfg.EnableGatewayLookup)
+
+		cfg, err = NewAgentConfig(
+			"test",
+			"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableGwLookup.yaml",
+			"",
+		)
+
+		assert.NoError(t, err)
+		assert.True(t, cfg.EnableGatewayLookup)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+		defer restoreGlobalConfig()
+
+		os.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP", "true")
+		defer os.Unsetenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP")
+		cfg, err := NewAgentConfig("test", "", "")
+
+		assert.NoError(t, err)
+		assert.True(t, cfg.EnableGatewayLookup)
+	})
+}
+
 func TestIgnoreConntrackInitFailure(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
@@ -249,7 +288,9 @@ func TestGetHostname(t *testing.T) {
 	cfg := NewDefaultAgentConfig(false)
 	h, err := getHostname(cfg.DDAgentBin)
 	assert.Nil(t, err)
-	assert.NotEqual(t, "", h)
+	// verify we fall back to getting os hostname
+	expectedHostname, _ := os.Hostname()
+	assert.Equal(t, expectedHostname, h)
 }
 
 func TestDefaultConfig(t *testing.T) {
@@ -652,4 +693,94 @@ func TestEnablingDNSDomainCollection(t *testing.T) {
 		assert.Nil(t, err)
 		assert.True(t, cfg.CollectDNSDomains)
 	})
+}
+
+func TestGetHostnameFromGRPC(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient := mocks.NewMockAgentClient(ctrl)
+
+	mockClient.EXPECT().GetHostname(
+		gomock.Any(),
+		&pb.HostnameRequest{},
+	).Return(&pb.HostnameReply{Hostname: "unit-test-hostname"}, nil)
+
+	t.Run("hostname returns from grpc", func(t *testing.T) {
+		hostname, err := getHostnameFromGRPC(func(ctx context.Context) (pb.AgentClient, error) {
+			return mockClient, nil
+		})
+
+		assert.Nil(t, err)
+		assert.Equal(t, "unit-test-hostname", hostname)
+	})
+
+	t.Run("grpc client is unavailable", func(t *testing.T) {
+		grpcErr := errors.New("no grpc client")
+		hostname, err := getHostnameFromGRPC(func(ctx context.Context) (pb.AgentClient, error) {
+			return nil, grpcErr
+		})
+
+		assert.NotNil(t, err)
+		assert.Equal(t, grpcErr, errors.Unwrap(err))
+		assert.Empty(t, hostname)
+	})
+}
+
+func TestGetHostnameFromCmd(t *testing.T) {
+	t.Run("valid hostname", func(t *testing.T) {
+		h, err := getHostnameFromCmd("agent-success", fakeExecCommand)
+		assert.Nil(t, err)
+		assert.Equal(t, "unit_test_hostname", h)
+	})
+
+	t.Run("no hostname returned", func(t *testing.T) {
+		h, err := getHostnameFromCmd("agent-empty_hostname", fakeExecCommand)
+		assert.NotNil(t, err)
+		assert.Equal(t, "", h)
+	})
+}
+
+// TestGetHostnameShellCmd is a method that is called as a substitute for a dd-agent shell command,
+// the GO_TEST_PROCESS flag ensures that if it is called as part of the test suite, it is skipped.
+func TestGetHostnameShellCmd(t *testing.T) {
+	if os.Getenv("GO_TEST_PROCESS") != "1" {
+		return
+	}
+	defer os.Exit(0)
+
+	args := os.Args
+	for len(args) > 0 {
+		if args[0] == "--" {
+			args = args[1:]
+			break
+		}
+		args = args[1:]
+	}
+
+	if len(args) == 0 {
+		fmt.Fprintf(os.Stderr, "No command\n")
+		os.Exit(2)
+	}
+
+	cmd, args := args[0], args[1:]
+	switch cmd {
+	case "agent-success":
+		assert.EqualValues(t, []string{"hostname"}, args)
+		fmt.Fprintf(os.Stdout, "unit_test_hostname")
+	case "agent-empty_hostname":
+		assert.EqualValues(t, []string{"hostname"}, args)
+		fmt.Fprintf(os.Stdout, "")
+	}
+}
+
+// fakeExecCommand is a function that initialises a new exec.Cmd, one which will
+// simply call TestShellProcessSuccess rather than the command it is provided. It will
+// also pass through the command and its arguments as an argument to TestShellProcessSuccess
+func fakeExecCommand(command string, args ...string) *exec.Cmd {
+	cs := []string{"-test.run=TestGetHostnameShellCmd", "--", command}
+	cs = append(cs, args...)
+	cmd := exec.Command(os.Args[0], cs...)
+	cmd.Env = []string{"GO_TEST_PROCESS=1"}
+	return cmd
 }

@@ -12,14 +12,17 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"regexp"
 	"syscall"
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
+	dcav1 "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/commands"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
@@ -189,20 +192,18 @@ func run(cmd *cobra.Command, args []string) error {
 	// start the autoconfig, this will immediately run any configured check
 	common.StartAutoConfig()
 
-	var clusterCheckHandler *clusterchecks.Handler
-	clusterCheckHandler, err = setupClusterCheck(mainCtx)
-	if err != nil {
-		log.Errorf("Error while setting up cluster check Autodiscovery %v", err)
+	if err = api.StartServer(); err != nil {
+		return log.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 
-	// Start the cmd HTTPS server
-	// We always need to start it, even with nil clusterCheckHandler
-	// as it's also used to perform the agent commands (e.g. agent status)
-	sc := clusteragent.ServerContext{
-		ClusterCheckHandler: clusterCheckHandler,
-	}
-	if err = api.StartServer(sc); err != nil {
-		return log.Errorf("Error while starting agent API, exiting: %v", err)
+	var clusterCheckHandler *clusterchecks.Handler
+	clusterCheckHandler, err = setupClusterCheck(mainCtx)
+	if err == nil {
+		api.ModifyRouter(func(r *mux.Router) {
+			dcav1.Install(r.PathPrefix("/api/v1").Subrouter(), clusteragent.ServerContext{ClusterCheckHandler: clusterCheckHandler})
+		})
+	} else {
+		log.Errorf("Error while setting up cluster check Autodiscovery %v", err)
 	}
 
 	// Block here until we receive the interrupt signal
@@ -245,6 +246,29 @@ func initializeCCCache(ctx context.Context) error {
 func initializeBBSCache(ctx context.Context) error {
 	pollInterval := time.Second * time.Duration(config.Datadog.GetInt("cloud_foundry_bbs.poll_interval"))
 	// NOTE: we can't use GetPollInterval in ConfigureGlobalBBSCache, as that causes import cycle
+
+	includeListString := config.Datadog.GetStringSlice("cloud_foundry_bbs.env_include")
+	excludeListString := config.Datadog.GetStringSlice("cloud_foundry_bbs.env_exclude")
+
+	includeList := make([]*regexp.Regexp, len(includeListString))
+	excludeList := make([]*regexp.Regexp, len(excludeListString))
+
+	for i, pattern := range includeListString {
+		re, err := regexp.Compile(pattern)
+		if err != nil {
+			return fmt.Errorf("failed to compile cloud_foundry_bbs.env_include regex pattern %s: %s", pattern, err.Error())
+		}
+		includeList[i] = re
+	}
+
+	for i, pattern := range excludeListString {
+		re, err := regexp.Compile(pattern)
+		if err != nil {
+			return fmt.Errorf("failed to compile cloud_foundry_bbs.env_exclude regex pattern %s: %s", pattern, err.Error())
+		}
+		excludeList[i] = re
+	}
+
 	bc, err := cloudfoundry.ConfigureGlobalBBSCache(
 		ctx,
 		config.Datadog.GetString("cloud_foundry_bbs.url"),
@@ -252,6 +276,8 @@ func initializeBBSCache(ctx context.Context) error {
 		config.Datadog.GetString("cloud_foundry_bbs.cert_file"),
 		config.Datadog.GetString("cloud_foundry_bbs.key_file"),
 		pollInterval,
+		includeList,
+		excludeList,
 		nil,
 	)
 	if err != nil {

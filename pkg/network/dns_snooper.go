@@ -8,6 +8,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/google/gopacket"
 )
 
 const (
@@ -54,6 +55,9 @@ type PacketSource interface {
 	// Stats returns a map of counters, meant to be reported as telemetry
 	Stats() map[string]int64
 
+	// PacketType returns the type of packet this source reads
+	PacketType() gopacket.LayerType
+
 	// Close closes the packet source
 	Close()
 }
@@ -73,7 +77,7 @@ func NewSocketFilterSnooper(cfg *config.Config, source PacketSource) (*SocketFil
 	}
 	snooper := &SocketFilterSnooper{
 		source:          source,
-		parser:          newDNSParser(cfg.CollectDNSStats, cfg.CollectDNSDomains),
+		parser:          newDNSParser(source.PacketType(), cfg.CollectDNSStats, cfg.CollectDNSDomains),
 		cache:           cache,
 		statKeeper:      statKeeper,
 		translation:     new(translation),
