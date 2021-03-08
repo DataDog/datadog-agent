@@ -44,14 +44,14 @@ func (t *Tailer) setup(offset int64, whence int) error {
 func (t *Tailer) readAvailable() (int, error) {
 	f, err := openFile(t.fullpath)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer f.Close()
 
 	st, err := f.Stat()
 	if err != nil {
 		log.Debugf("Error stat()ing file %v", err)
-		return err
+		return 0, err
 	}
 
 	sz := st.Size()
