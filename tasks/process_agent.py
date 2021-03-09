@@ -133,11 +133,11 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
         ctx.run("cp bin/system-probe/system-probe {to}".format(to=docker_context + "/system-probe"))
         if include_agent_binary:
             ctx.run("cp bin/agent/agent {to}".format(to=docker_context + "/agent"))
-            core_agent_dest="/opt/datadog-agent/bin/agent/agent"
+            core_agent_dest = "/opt/datadog-agent/bin/agent/agent"
         else:
             # this is necessary so that the docker build doesn't fail while attempting to copy the agent binary
             ctx.run("touch {tmp_dir}/agent".format(tmp_dir=docker_context))
-            core_agent_dest="/dev/null"
+            core_agent_dest = "/dev/null"
 
         ctx.run("cp pkg/ebpf/bytecode/build/*.o {to}".format(to=docker_context))
         ctx.run("cp pkg/ebpf/bytecode/build/runtime/*.c {to}".format(to=docker_context))
