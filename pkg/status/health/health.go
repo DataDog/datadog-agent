@@ -78,7 +78,7 @@ func (c *catalog) run() {
 
 	for {
 		t := <-pingTicker.C
-		empty := c.pingComponents(t.Add(pingFrequency))
+		empty := c.pingComponents(t.Add(mulDuration(pingFrequency, bufferSize)))
 		if empty {
 			break
 		}
@@ -86,14 +86,18 @@ func (c *catalog) run() {
 	pingTicker.Stop()
 }
 
+func mulDuration(d time.Duration, x int) time.Duration {
+	return time.Duration(int64(d) * int64(x))
+}
+
 // pingComponents is the actual pinging logic, separated for unit tests.
 // Returns true if the component list is empty, to make the pooling logic stop.
-func (c *catalog) pingComponents(nextPing time.Time) bool {
+func (c *catalog) pingComponents(healthDeadline time.Time) bool {
 	c.Lock()
 	defer c.Unlock()
 	for _, component := range c.components {
 		select {
-		case component.healthChan <- nextPing:
+		case component.healthChan <- healthDeadline:
 			component.healthy = true
 		default:
 			component.healthy = false

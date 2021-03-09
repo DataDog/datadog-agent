@@ -96,9 +96,9 @@ func (l *ECSListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 				l.health.Deregister() //nolint:errcheck
 				cancel()
 				return
-			case nextPing := <-l.health.C:
+			case healthDeadline := <-l.health.C:
 				cancel()
-				ctx, cancel = context.WithDeadline(context.Background(), nextPing)
+				ctx, cancel = context.WithDeadline(context.Background(), healthDeadline)
 			case <-l.t.C:
 				l.refreshServices(ctx, false)
 			}

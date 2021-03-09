@@ -73,9 +73,9 @@ func (pd *configPoller) poll(ac *AutoConfig) {
 	ticker := time.NewTicker(pd.pollInterval)
 	for {
 		select {
-		case nextPing := <-pd.healthHandle.C:
+		case healthDeadline := <-pd.healthHandle.C:
 			cancel()
-			ctx, cancel = context.WithDeadline(context.Background(), nextPing)
+			ctx, cancel = context.WithDeadline(context.Background(), healthDeadline)
 		case <-pd.stopChan:
 			pd.healthHandle.Deregister() //nolint:errcheck
 			cancel()

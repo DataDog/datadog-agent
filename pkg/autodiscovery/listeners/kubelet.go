@@ -117,9 +117,9 @@ func (l *KubeletListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 				l.health.Deregister() //nolint:errcheck
 				cancel()
 				return
-			case nextPing := <-l.health.C:
+			case healthDeadline := <-l.health.C:
 				cancel()
-				ctx, cancel = context.WithDeadline(context.Background(), nextPing)
+				ctx, cancel = context.WithDeadline(context.Background(), healthDeadline)
 			case <-l.ticker.C:
 				// Compute new/updated pods
 				updatedPods, err := l.watcher.PullChanges(ctx)
