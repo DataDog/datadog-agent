@@ -134,6 +134,8 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
         if include_agent_binary:
             ctx.run("cp bin/agent/agent {to}".format(to=docker_context + "/agent"))
         else:
+            # this is necessary so that the docker build doesn't fail while attempting to copy bin/agent/agent
+            # see Dockerfile-process-agent-dev for more details
             ctx.run("touch {tmp_dir}/tmp_file".format(tmp_dir=docker_context))
 
         ctx.run("cp pkg/ebpf/bytecode/build/*.o {to}".format(to=docker_context))
