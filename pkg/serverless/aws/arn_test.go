@@ -3,8 +3,12 @@
 package aws
 
 import (
+	"os"
 	"testing"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -24,6 +28,14 @@ func TestGetAndSetARN(t *testing.T) {
 
 	functionName := FunctionNameFromARN()
 	assert.Equal(t, exampleFunctionName, functionName)
+}
+
+func TestGetAndSetColdstart(t *testing.T) {
+	t.Cleanup(resetState)
+	SetColdStart(true)
+
+	output := GetColdStart()
+	assert.Equal(t, true, output)
 }
 
 func TestGetAndSetRequestID(t *testing.T) {
@@ -72,7 +84,75 @@ func TestGetTagsForEnhancedMetrics(t *testing.T) {
 	})
 }
 
+type mockedSTSAPI struct {
+	stsiface.STSAPI
+	Resp sts.GetCallerIdentityOutput
+}
+
+func (m mockedSTSAPI) GetCallerIdentity(in *sts.GetCallerIdentityInput) (*sts.GetCallerIdentityOutput, error) {
+	// Only need to return mocked response output
+	return &m.Resp, nil
+}
+
+func TestFetchFunctionARNFromEnv(t *testing.T) {
+	t.Cleanup(resetState)
+
+	svc := mockedSTSAPI{
+		Resp: sts.GetCallerIdentityOutput{
+			Account: aws.String("123456789012"),
+			Arn:     aws.String(""),
+			UserId:  aws.String(""),
+		},
+	}
+	os.Setenv(regionEnvVar, "us-east-1")
+	os.Setenv(functionNameEnvVar, "my-Function")
+	os.Setenv(qualifierEnvVar, "7")
+	arn, err := FetchFunctionARNFromEnv(svc)
+	assert.Equal(t, "arn:aws:lambda:us-east-1:123456789012:function:my-Function:7", arn)
+	assert.Nil(t, err)
+}
+
+func TestFetchFunctionARNFromEnvGovcloud(t *testing.T) {
+	t.Cleanup(resetState)
+
+	svc := mockedSTSAPI{
+		Resp: sts.GetCallerIdentityOutput{
+			Account: aws.String("123456789012"),
+			Arn:     aws.String(""),
+			UserId:  aws.String(""),
+		},
+	}
+	os.Setenv(regionEnvVar, "us-gov-west-1")
+	os.Setenv(functionNameEnvVar, "my-Function")
+	os.Setenv(qualifierEnvVar, "7")
+	arn, err := FetchFunctionARNFromEnv(svc)
+	assert.Equal(t, "arn:aws-us-gov:lambda:us-gov-west-1:123456789012:function:my-Function:7", arn)
+	assert.Nil(t, err)
+}
+
+func TestFetchFunctionARNFromEnvChina(t *testing.T) {
+	t.Cleanup(resetState)
+
+	svc := mockedSTSAPI{
+		Resp: sts.GetCallerIdentityOutput{
+			Account: aws.String("123456789012"),
+			Arn:     aws.String(""),
+			UserId:  aws.String(""),
+		},
+	}
+	os.Setenv(regionEnvVar, "cn-east-1")
+	os.Setenv(functionNameEnvVar, "my-Function")
+	os.Setenv(qualifierEnvVar, "7")
+	arn, err := FetchFunctionARNFromEnv(svc)
+	assert.Equal(t, "arn:aws-cn:lambda:cn-east-1:123456789012:function:my-Function:7", arn)
+	assert.Nil(t, err)
+}
+
 func resetState() {
 	SetARN("")
 	SetRequestID("")
+	SetColdStart(false)
+	os.Setenv(regionEnvVar, "")
+	os.Setenv(functionNameEnvVar, "")
+	os.Setenv(qualifierEnvVar, "")
 }

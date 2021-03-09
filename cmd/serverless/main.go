@@ -22,6 +22,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/kms"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
+	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -230,9 +231,11 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 
 	// read configuration from the environment vars
 	// --------------------------------------------
-
-	functionARN := aws.BuildFunctionARNFromEnv()
-	aws.SetARN(functionARN)
+	svc := sts.New(session.New())
+	functionARN, err := aws.FetchFunctionARNFromEnv(svc)
+	if err != nil {
+		aws.SetARN(functionARN)
+	}
 	aws.SetColdStart(true)
 
 	log.Debugf("Extension found function ARN: %s", functionARN)

@@ -17,15 +17,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 )
 
 const (
 	persistedStateFilePath = "/tmp/dd-lambda-extension-cache.json"
 	regionEnvVar           = "AWS_REGION"
 	functionNameEnvVar     = "AWS_LAMBDA_FUNCTION_NAME"
-	aliasEnvVar            = "AWS_LAMBDA_FUNCTION_VERSION"
+	qualifierEnvVar        = "AWS_LAMBDA_FUNCTION_VERSION"
 )
 
 type persistedState struct {
@@ -34,8 +34,8 @@ type persistedState struct {
 }
 
 var currentARN struct {
-	value string
-	alias string
+	value     string
+	qualifier string
 	sync.Mutex
 }
 
@@ -58,15 +58,16 @@ func GetARN() string {
 	return currentARN.value
 }
 
-// GetAlias returns the alias for the current running function.
+// GetQualifier returns the qualifier for the current running function.
 // Thread-safe
-func GetAlias() string {
+func GetQualifier() string {
 	currentARN.Lock()
 	defer currentARN.Unlock()
-	return currentARN.alias
+	return currentARN.qualifier
 }
 
-// GetColdStart returns whether
+// GetColdStart returns whether the current execution is a cold start
+// Thread-safe
 func GetColdStart() bool {
 	currentColdStart.Lock()
 	defer currentColdStart.Unlock()
@@ -81,15 +82,15 @@ func SetARN(arn string) {
 
 	arn = strings.ToLower(arn)
 
-	alias := ""
+	qualifier := ""
 	// remove the version if any
 	if parts := strings.Split(arn, ":"); len(parts) > 7 {
 		arn = strings.Join(parts[:7], ":")
-		alias = strings.TrimPrefix(parts[7], "$")
+		qualifier = strings.TrimPrefix(parts[7], "$")
 	}
 
 	currentARN.value = arn
-	currentARN.alias = alias
+	currentARN.qualifier = qualifier
 }
 
 // FunctionNameFromARN returns the function name from the currently set ARN.
@@ -161,37 +162,37 @@ func RestoreCurrentStateFromFile() error {
 	return nil
 }
 
-// BuildFunctionARNFromEnv reconstructs the function arn from what's available
+// FetchFunctionARNFromEnv reconstructs the function arn from what's available
 // in the environment.
-func BuildFunctionARNFromEnv() string {
+func FetchFunctionARNFromEnv(svc stsiface.STSAPI) (string, error) {
 	region := os.Getenv(regionEnvVar)
 	functionName := os.Getenv(functionNameEnvVar)
-	alias := os.Getenv(aliasEnvVar)
-	accountID := fetchAccountID()
-	arnPrefix := "arn:aws"
+	qualifier := os.Getenv(qualifierEnvVar)
+	accountID := fetchAccountID(svc)
+	partition := "aws"
 
 	if len(accountID) == 0 || len(region) == 0 || len(functionName) == 0 {
-		return ""
+		return "", log.Errorf("Couldn't construct function arn with accountID:%s, region:%s, functionName:%s")
 	}
 
 	if strings.HasPrefix(region, "us-gov") {
-		arnPrefix = "arn:aws-us-gov"
+		partition = "aws-us-gov"
 	}
 	if strings.HasPrefix(region, "cn-") {
-		arnPrefix = "arn:aws-cn"
+		partition = "aws-cn"
 	}
 
-	baseARN := fmt.Sprintf("%s:lambda:%s:%s:function:%s", arnPrefix, region, accountID, functionName)
-	if len(alias) > 0 && alias != "$LATEST" {
-		return fmt.Sprintf("%s:%s", baseARN, alias)
+	baseARN := fmt.Sprintf("arn:%s:lambda:%s:%s:function:%s", partition, region, accountID, functionName)
+	if len(qualifier) > 0 && qualifier != "$LATEST" {
+		return fmt.Sprintf("%s:%s", baseARN, qualifier), nil
 	}
-	return baseARN
+	return baseARN, nil
 }
 
 // GetARNTags returns tags associated with the current ARN
 func GetARNTags() []string {
 	functionARN := GetARN()
-	alias := GetAlias()
+	qualifier := GetQualifier()
 
 	parts := strings.Split(functionARN, ":")
 	if len(parts) < 6 {
@@ -211,12 +212,12 @@ func GetARNTags() []string {
 		fmt.Sprintf("function_arn:%s", strings.ToLower(functionARN)),
 	}
 	resource := functionName
-	if len(alias) > 0 {
-		_, err := strconv.ParseUint(alias, 10, 64)
+	if len(qualifier) > 0 {
+		_, err := strconv.ParseUint(qualifier, 10, 64)
 		if err == nil {
-			tags = append(tags, fmt.Sprintf("executedversion:%s", alias))
+			tags = append(tags, fmt.Sprintf("executedversion:%s", qualifier))
 		}
-		resource = fmt.Sprintf("%s:%s", resource, alias)
+		resource = fmt.Sprintf("%s:%s", resource, qualifier)
 	}
 	tags = append(tags, fmt.Sprintf("resource:%s", resource))
 
@@ -224,12 +225,11 @@ func GetARNTags() []string {
 }
 
 // FetchAccountID retrieves the AWS Lambda's account id by calling STS
-func fetchAccountID() string {
+func fetchAccountID(svc stsiface.STSAPI) string {
 	// sts.GetCallerIdentity returns information about the current AWS credentials,
 	// (including account ID), and is one of the only AWS API methods that can't be
 	// denied via IAM.
 
-	svc := sts.New(session.New())
 	input := &sts.GetCallerIdentityInput{}
 
 	result, err := svc.GetCallerIdentity(input)
