@@ -129,7 +129,10 @@ func doRun(m *testing.M) int {
 	// Setup mock batcher
 	_ = batcher.NewMockBatcher()
 
-	dockerCheck.Run()
+	err := dockerCheck.Run()
+	if err != nil {
+		log.Errorf("Docker check run error: %s", err)
+	}
 	return m.Run()
 }
 

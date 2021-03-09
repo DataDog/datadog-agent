@@ -361,7 +361,7 @@ func (d *DockerCheck) Run() error {
 		err := d.topologyCollector.BuildContainerTopology(du)
 		if err != nil {
 			sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", nil, err.Error())
-			d.Warnf("Error initialising check: %s", err)
+			log.Errorf("Could not collect container topology: %s", err)
 			return err
 		}
 	}
@@ -372,7 +372,7 @@ func (d *DockerCheck) Run() error {
 		err := d.topologyCollector.BuildSwarmTopology(du)
 		if err != nil {
 			sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", nil, err.Error())
-			d.Warnf("Error initialising check: %s", err)
+			log.Errorf("Could not collect swarm topology: %s", err)
 			return err
 		}
 	}
