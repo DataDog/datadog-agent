@@ -9,8 +9,6 @@ package orchestrator
 
 import (
 	"fmt"
-	"github.com/twmb/murmur3"
-	"k8s.io/apimachinery/pkg/types"
 	"strings"
 	"time"
 
@@ -23,8 +21,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	jsoniter "github.com/json-iterator/go"
+	"github.com/twmb/murmur3"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *config.OrchestratorConfig, clusterID string) ([]model.MessageBody, error) {
@@ -245,16 +245,13 @@ func chunkServices(services []*model.Service, chunkCount, chunkSize int) [][]*mo
 
 func fillClusterResourceVersion(c *model.Cluster) error {
 
-	// Marshal the pod message to JSON.
-	// We need to enforce order consistency on underlying maps as
-	// the standard library does.
+	// Marshal the cluster message to JSON.
 	marshaller := jsoniter.ConfigCompatibleWithStandardLibrary
 	jsonClusterModel, err := marshaller.Marshal(c)
 	if err != nil {
-		return fmt.Errorf("could not marshal pod model to JSON: %s", err)
+		return fmt.Errorf("could not marshal cluster model to JSON: %s", err)
 	}
 
-	// Replace the payload metadata field with the custom version.
 	version := murmur3.Sum64(jsonClusterModel)
 	c.ResourceVersion = fmt.Sprint(version)
 
@@ -265,7 +262,7 @@ func fillClusterResourceVersion(c *model.Cluster) error {
 func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.OrchestratorConfig, clusterID string, client *apiserver.APIClient) ([]model.MessageBody, model.MessageBody, error) {
 	start := time.Now()
 	nodeMsgs := make([]*model.Node, 0, len(nodesList))
-	nodeCount := int32(0)
+	nodeCount := int32(len(nodesList))
 	kubeletVersions := map[string]int32{}
 	podCap := uint32(0)
 	podAllocatable := uint32(0)
@@ -284,7 +281,6 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Orche
 
 	for s := 0; s < len(nodesList); s++ {
 		node := nodesList[s]
-		nodeCount++
 		kubeletVersions[node.Status.NodeInfo.KubeletVersion]++
 		podCap += uint32(node.Status.Capacity.Pods().Value())
 		podAllocatable += uint32(node.Status.Allocatable.Pods().Value())
@@ -361,7 +357,8 @@ func extractClusterMessage(nodeCount int32, kubeletVersions map[string]int32, ap
 	}
 
 	if err := fillClusterResourceVersion(cluster); err != nil {
-		log.Warnf("Failed to compute cluster resource version: %s", err)
+		log.Warnf("Failed to compute cluster resource version: %s. Will not send this cluster message.", err)
+		return nil
 	}
 
 	clusterMessage := &model.CollectorCluster{

@@ -10,12 +10,11 @@ package orchestrator
 import (
 	"context"
 	"errors"
-	model "github.com/DataDog/agent-payload/process"
-	v1 "k8s.io/api/core/v1"
 	"math/rand"
 	"sync/atomic"
 	"time"
 
+	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -33,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"gopkg.in/yaml.v2"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	appslisters "k8s.io/client-go/listers/apps/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
